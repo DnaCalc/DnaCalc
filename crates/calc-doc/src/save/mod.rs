@@ -37,6 +37,8 @@ pub(crate) use author::available_part_name;
 mod sheet;
 pub(crate) mod sheets;
 mod strings;
+pub(crate) use sheet::text_sources;
+pub(crate) use strings::decorated_indices;
 mod structural;
 mod styles;
 mod template_merge;

@@ -1030,12 +1030,18 @@ impl Session {
                 }
                 flush(&mut buffer)?;
                 let key = ch.to_string();
-                self.post("/goog/cdp/execute", json!({"cmd":"Input.dispatchKeyEvent","params":{
-                    "type":"keyDown","key":key,"text":key,"unmodifiedText":key
-                }}))?;
-                self.post("/goog/cdp/execute", json!({"cmd":"Input.dispatchKeyEvent","params":{
-                    "type":"keyUp","key":key
-                }}))?;
+                self.post(
+                    "/goog/cdp/execute",
+                    json!({"cmd":"Input.dispatchKeyEvent","params":{
+                        "type":"keyDown","key":key,"text":key,"unmodifiedText":key
+                    }}),
+                )?;
+                self.post(
+                    "/goog/cdp/execute",
+                    json!({"cmd":"Input.dispatchKeyEvent","params":{
+                        "type":"keyUp","key":key
+                    }}),
+                )?;
             }
             return flush(&mut buffer);
         }
@@ -1330,6 +1336,8 @@ pub enum Check {
     /// of the session it holds (`/formula`, `/array`, `/sheet`, `/cell/A1`, `/locale`,
     /// `/number-format`, `/cached`).
     DownloadedSession(&'static str, &'static str, &'static str),
+    /// Retained XML in an actual browser XLSX download, using the shared package reader.
+    DownloadedPartContains(&'static str, &'static str, &'static str),
     /// Exact semantic field from the renderer's live RenderPlan.
     PlanCell(&'static str, &'static str, &'static str),
     PlanAbsent(&'static str),
@@ -1471,13 +1479,20 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
         let bytes = fs::read(session.downloads.join(name)).map_err(|e| e.to_string())?;
         return session_field(&bytes, field).map(Value::String);
     }
+    if let Check::DownloadedPartContains(name, part, _) = check {
+        let bytes = fs::read(session.downloads.join(name)).map_err(|e| e.to_string())?;
+        let parts = crate::oracle_cases::package_parts(&bytes)?;
+        let text = std::str::from_utf8(parts.get(*part).ok_or("download has no requested part")?)
+            .map_err(|e| e.to_string())?;
+        return Ok(Value::String(text.into()));
+    }
     let script = match check {
         Check::PrintRefreshed=>"const h=window.__dcPrintHold,p=document.querySelector('[data-dnacalc=print-workspace]'),c=p?.querySelector('canvas');return !!h&&!!p?.dataset.printEpoch&&p.dataset.printEpoch!==h.epoch&&!!c&&c.getAttribute('aria-label')!==h.values;".into(),
         Check::PrintDocument(pages)=>format!("const d=document.querySelector('#dc-print-frame')?.contentDocument;return !!d&&d.body.dataset.dnacalcPrintReady==='true'&&d.querySelectorAll('[data-dnacalc=print-page]').length==={pages}&&Array.from(d.images).length>0&&Array.from(d.images).every(i=>i.complete&&i.naturalWidth>0)&&Array.from(d.styleSheets).some(s=>Array.from(s.cssRules).some(r=>r.type===6&&r.cssText.includes('size:')));"),
 
         Check::MinHeight(name, pixels) => format!("var e={};return !!e&&e.getBoundingClientRect().height>={};",q(name),pixels),
         Check::Rendered(name, _) => format!("var e={};return e?e.checkVisibility():false;",q(name)),
-        Check::DownloadedSession(..) => unreachable!(),
+        Check::DownloadedSession(..) | Check::DownloadedPartContains(..) => unreachable!(),
         Check::HeaderHeightRetained => "var h=document.querySelector('.dc-mast')?.getBoundingClientRect().height,b=window.__dcHeaderHeight;return typeof h==='number'&&typeof b==='number'&&Math.abs(h-b)<1;".to_owned(),
         Check::PainterStable => format!("{READ_PLANS}return JSON.stringify(window.__dcPresentation)===JSON.stringify(plans[0]);"),
         Check::HashMask(address) => {
@@ -1664,7 +1679,9 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
         | Check::Role(_, expected)
         | Check::Name(_, expected) => seen.as_str() == Some(expected),
         Check::Starts(_, prefix) => seen.as_str().is_some_and(|text| text.starts_with(prefix)),
-        Check::TextContains(_, part) => seen.as_str().is_some_and(|text| text.contains(part)),
+        Check::TextContains(_, part) | Check::DownloadedPartContains(_, _, part) => {
+            seen.as_str().is_some_and(|text| text.contains(part))
+        }
         Check::Fits => seen.as_array().is_some_and(|sizes| {
             match (
                 sizes.first().and_then(Value::as_f64),
@@ -1768,6 +1785,9 @@ fn describe(check: &Check) -> String {
         }
         Check::DownloadedSession(name, field, expected) => {
             format!("download {name} {field} is {expected:?}")
+        }
+        Check::DownloadedPartContains(name, part, expected) => {
+            format!("download {name} part {part} contains {expected:?}")
         }
         Check::PlanCell(address, field, expected) => {
             format!("RenderPlan {address}.{field} is {expected:?}")
@@ -2156,7 +2176,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 if let Action::ValidationFixture(kind) = action {
                     if matches!(
                         *kind,
-                        "sort" | "sort-pointwise" | "sort-links" | "sort-periods"
+                        "sort" | "sort-pointwise" | "sort-links" | "sort-periods" | "sort-rich"
                     ) {
                         return fs::write(
                             session.downloads.join(format!("validation-{kind}.xlsx")),
@@ -3262,7 +3282,12 @@ fn run_workbook(app: &App, session: &Session, browser: &str, run: &WorkbookRun) 
             act_click(app, session, "name-box")?;
             session.keys(&select(app, "name-box"), "\u{E009}a\u{E000}")?;
             session.keys(&select(app, "name-box"), &format!("\u{E003}{cell}{ENTER}"))?;
-            if let Some(reason) = wait_for(app, session, &Check::Focused("grid"), Duration::from_secs(30)) {
+            if let Some(reason) = wait_for(
+                app,
+                session,
+                &Check::Focused("grid"),
+                Duration::from_secs(30),
+            ) {
                 return Err(reason);
             }
             let selected = session.script("return document.querySelector('[data-dnacalc=name-box]').value;")?;
@@ -4132,16 +4157,16 @@ mod tests {
             .map(|group| group.core)
             .sum();
         assert_eq!(
-            inherited_total, 395,
-            "the two applications retain 395 core cases, including the image case and five Circular Reference cases"
+            inherited_total, 400,
+            "the two applications retain 400 core cases, including image, Circular Reference and five rich/measured sorting cases"
         );
         assert_eq!(
-            total, 407,
-            "the twelve page-layout cases extend all 395 inherited core cases"
+            total, 412,
+            "the twelve page-layout cases extend all 400 inherited core cases"
         );
         assert_eq!(
-            current_total, 445,
-            "the other chart and pivot cases extend all 407 inherited core cases"
+            current_total, 450,
+            "the other chart and pivot cases extend all 412 inherited core cases"
         );
     }
 

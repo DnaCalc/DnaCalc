@@ -15468,36 +15468,54 @@ pub(crate) const CALC_CASES: &[Case] = &[
             ),
         ],
     },
-
     Case {
         name: "Circular Reference opens as a formula game",
         actions: &[
-            Action::Upload("open-file", "crates/calc-host/tests/fixtures/circular-reference.xlsx"),
+            Action::Upload(
+                "open-file",
+                "crates/calc-host/tests/fixtures/circular-reference.xlsx",
+            ),
             Action::DiscardReplacement,
             Action::Wait(Check::Text("document", "circular-reference.xlsx")),
         ],
-        checks: &[Check::Text("[data-dnacalc=\"sheet-tab\"][data-sheet=\"Circular Reference\"]", "Circular Reference")],
+        checks: &[Check::Text(
+            "[data-dnacalc=\"sheet-tab\"][data-sheet=\"Circular Reference\"]",
+            "Circular Reference",
+        )],
     },
     Case {
         name: "Circular Reference eats 0.1",
         actions: &[
             Action::Into("name-box", "B2\u{E007}"), Action::Keys("grid", "R"), Action::Keys("cell-editor", ENTER),
         ],
-        checks: &[Check::PlanCell("J12", "text", "o"), Check::PlanCell("K12", "text", "0.2"), Check::PlanCell("B5", "text", "0.1"), Check::PlanCell("B6", "text", "4")],
+        checks: &[
+            Check::PlanCell("J12", "text", "o"),
+            Check::PlanCell("K12", "text", "0.2"),
+            Check::PlanCell("B5", "text", "0.1"),
+            Check::PlanCell("B6", "text", "4"),
+        ],
     },
     Case {
         name: "Circular Reference eats 0.2",
         actions: &[
             Action::Into("name-box", "B2\u{E007}"), Action::Keys("grid", "R"), Action::Keys("cell-editor", ENTER),
         ],
-        checks: &[Check::PlanCell("K12", "text", "o"), Check::PlanCell("B5", "text", "0.3"), Check::PlanCell("B6", "text", "5")],
+        checks: &[
+            Check::PlanCell("K12", "text", "o"),
+            Check::PlanCell("B5", "text", "0.3"),
+            Check::PlanCell("B6", "text", "5"),
+        ],
     },
     Case {
         name: "Circular Reference eats PI",
         actions: &[
             Action::Into("name-box", "B2\u{E007}"), Action::Keys("grid", "R"), Action::Keys("cell-editor", ENTER),
         ],
-        checks: &[Check::PlanCell("L12", "text", "o"), Check::PlanCell("B6", "text", "6"), Check::PlanCell("B4", "text", "Playing")],
+        checks: &[
+            Check::PlanCell("L12", "text", "o"),
+            Check::PlanCell("B6", "text", "6"),
+            Check::PlanCell("B4", "text", "Playing"),
+        ],
     },
     Case {
         name: "Circular Reference accepts the same direction in the formula bar",
@@ -15505,9 +15523,117 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Into("name-box", "B2\u{E007}"),
             Action::Into(BAR, "R\u{E007}"),
         ],
-        checks: &[Check::PlanCell("M12", "text", "o"), Check::PlanCell("B6", "text", "6")],
+        checks: &[
+            Check::PlanCell("M12", "text", "o"),
+            Check::PlanCell("B6", "text", "6"),
+        ],
     },
-
+    Case {
+        name: "rich text sorting: runs phonetics validation and formulas follow the same rows",
+        actions: &[
+            Action::Window(1440, 1000),
+            Action::ValidationFixture("sort-rich"),
+            Action::UploadDownload("validation-sort-rich.xlsx"),
+            Action::DiscardReplacement,
+            Action::Click("[data-dnacalc=sheet-tab][data-sheet=DV]"),
+            Action::Wait(Check::PlanCell("C2", "text", "6")),
+            Action::Into("name-box", "A1:C5\u{E007}"),
+            Action::OpenDetails("sort-tools"),
+            Action::Click("sort-ascending"),
+            Action::Wait(Check::PlanCell("B5", "text", "three")),
+        ],
+        checks: &[
+            Check::PlanCell("B2", "text", "one"),
+            Check::PlanCell("B3", "text", "one second"),
+            Check::PlanCell("C2", "text", "2"),
+            Check::PlanCell("C5", "text", "6"),
+            Check::PlanCell("C5", "provenance", "calculated"),
+        ],
+    },
+    Case {
+        name: "rich text sorting: Undo Redo restores runs and row formula results",
+        actions: &[
+            Action::Click("undo"),
+            Action::Wait(Check::PlanCell("B2", "text", "three")),
+            Action::Wait(Check::PlanCell("C2", "text", "6")),
+            Action::Click("redo"),
+            Action::Wait(Check::PlanCell("B5", "text", "three")),
+        ],
+        checks: &[
+            Check::PlanCell("C5", "text", "6"),
+            Check::PlanCell("C2", "text", "2"),
+        ],
+    },
+    Case {
+        name: "rich text sorting: actual XLSX download retains runs and phonetics and reopens",
+        actions: &[
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::UploadDownload("validation-sort-rich.xlsx"),
+            Action::DiscardReplacement,
+            Action::Click("[data-dnacalc=sheet-tab][data-sheet=DV]"),
+            Action::Wait(Check::PlanCell("B5", "text", "three")),
+        ],
+        checks: &[
+            Check::DownloadedPartContains(
+                "validation-sort-rich.xlsx",
+                "xl/worksheets/sheet1.xml",
+                "<r><rPr><b/></rPr><t>three</t></r>",
+            ),
+            Check::DownloadedPartContains(
+                "validation-sort-rich.xlsx",
+                "xl/worksheets/sheet1.xml",
+                "<rPh sb=\"0\" eb=\"5\"><t>reading</t></rPh>",
+            ),
+            Check::DownloadedPartContains(
+                "validation-sort-rich.xlsx",
+                "xl/worksheets/sheet1.xml",
+                "<phoneticPr fontId=\"0\" type=\"Hiragana\"/>",
+            ),
+            Check::PlanCell("C5", "text", "6"),
+        ],
+    },
+    Case {
+        name: "rich text sorting: reopened rows sort descending on a phone",
+        actions: &[
+            Action::Window(390, 844),
+            Action::Into("name-box", "A1:C5\u{E007}"),
+            Action::OpenDetails("sort-tools"),
+            Action::Click("sort-descending"),
+            Action::Wait(Check::PlanCell("B2", "text", "three")),
+            Action::Click("[data-dnacalc=sort-tools]>summary"),
+        ],
+        checks: &[
+            Check::Fits,
+            Check::PlanCell("C2", "text", "6"),
+            Check::PlanCell("B5", "text", "one second"),
+        ],
+    },
+    Case {
+        name: "measured text sorting: accents case punctuation and text digits use Excel service order",
+        actions: &[
+            Action::Window(1440, 1000),
+            Action::ExternalClipboard(
+                "Key\tID\né\t1\ne\t2\na2\t3\na10\t4\na-b\t5\nab\t6\na'b\t7\nE\t8",
+                false,
+            ),
+            Action::Keys("grid", "\u{E009}v\u{E000}"),
+            Action::Wait(Check::PlanCell("B9", "text", "8")),
+            Action::Into("name-box", "A1:B9\u{E007}"),
+            Action::OpenDetails("sort-tools"),
+            Action::Click("sort-ascending"),
+            Action::Wait(Check::PlanCell("B2", "text", "4")),
+        ],
+        checks: &[
+            Check::PlanCell("B3", "text", "3"),
+            Check::PlanCell("B4", "text", "6"),
+            Check::PlanCell("B5", "text", "7"),
+            Check::PlanCell("B6", "text", "5"),
+            Check::PlanCell("B7", "text", "2"),
+            Check::PlanCell("B8", "text", "8"),
+            Check::PlanCell("B9", "text", "1"),
+        ],
+    },
 ];
 
 /// The script that reads what one check looks at.
@@ -16980,6 +17106,20 @@ pub(crate) const CALC_GROUPS: &[CaseGroup] = &[
         start: 849,
         end: 854,
         core: 5,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "rich-text-sorting",
+        start: 854,
+        end: 858,
+        core: 4,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "measured-text-sorting",
+        start: 858,
+        end: 859,
+        core: 1,
         setup: &[],
     },
 ];

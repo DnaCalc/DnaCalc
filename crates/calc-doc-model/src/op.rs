@@ -31,6 +31,8 @@ pub struct NameRestoration {
 /// One authored change to a workbook.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum WorkbookOp {
+    /// Retained rich/phonetic text records, replaced atomically with moved inputs.
+    SetTextSources(std::collections::BTreeMap<CellKey, std::sync::Arc<[u8]>>),
     /// The immutable style table, committed atomically with cell style assignments.
     SetStyles(std::sync::Arc<crate::StyleTable>),
     /// Criteria and filtered visibility committed together; manual hiding remains independent.

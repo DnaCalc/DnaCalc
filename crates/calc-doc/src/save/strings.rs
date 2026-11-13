@@ -38,6 +38,28 @@ pub(super) fn read_part(package: &Package, part: &str) -> Result<XmlPart, SaveRe
     })
 }
 
+pub(crate) fn decorated_indices(
+    xml: &XmlPart,
+) -> Result<std::collections::BTreeSet<u32>, SaveRefusal> {
+    let mut reader = Reader::new(xml);
+    reader.root("sst")?;
+    let mut decorated = std::collections::BTreeSet::new();
+    let mut index = 0;
+    while let Some((event, _)) = reader.next()? {
+        if let XmlEvent::Start(e) = event {
+            if e.name.is(MAIN_NAMESPACE, "si") {
+                if plain_item(&mut reader)?.is_none() {
+                    decorated.insert(index);
+                }
+                index += 1;
+            } else {
+                reader.element_end()?;
+            }
+        }
+    }
+    Ok(decorated)
+}
+
 impl SharedStrings {
     /// The table of the workbook's shared strings part `part`, or an empty one without a part.
     pub(super) fn read(package: &Package, part: Option<&str>) -> Result<Self, SaveRefusal> {

@@ -470,6 +470,7 @@ fn describe(op: &WorkbookOp) -> String {
         WorkbookOp::SetCharts { sheet, charts } => format!("charts {sheet:?} {charts:?}"),
         WorkbookOp::SetTables(tables) => format!("tables {tables:?}"),
         WorkbookOp::SetValidations { sheet, rules } => format!("validation {sheet:?} {rules:?}"),
+        WorkbookOp::SetTextSources(sources) => format!("text_sources {sources:?}"),
         WorkbookOp::SetReviewLinks { sheet, links } => format!("links {sheet:?} {links:?}"),
         WorkbookOp::SetReviewNotes { sheet, notes } => format!(
             "review {sheet:?} {:?}",
@@ -654,6 +655,7 @@ fn features(op: &WorkbookOp, out: &mut BTreeSet<String>) {
         WorkbookOp::SetCharts { .. } => "op:charts".to_owned(),
         WorkbookOp::SetTables(..) => "op:tables".to_owned(),
         // Wire version 1 refuses review state as EncodeError::ReviewNotes.
+        WorkbookOp::SetTextSources(_) => "op:text_sources".to_owned(),
         WorkbookOp::SetReviewLinks { .. } => "op:review_links".to_owned(),
         WorkbookOp::SetReviewNotes { .. } => "op:review_notes".to_owned(),
         WorkbookOp::SetValidations { .. } => "op:validations".to_owned(),

@@ -393,6 +393,9 @@ pub enum RowHidden {
 /// hidden rows.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Definitions {
+    /// Original rich/phonetic text cell records. Input replacement removes the record;
+    /// row movement carries it with the same permutation as the cell input.
+    text_sources: BTreeMap<CellKey, std::sync::Arc<[u8]>>,
     styles: std::sync::Arc<crate::StyleTable>,
     conditional: BTreeMap<SheetId, Vec<crate::ConditionalRuleSource>>,
     validations: BTreeMap<SheetId, Vec<crate::Validation>>,
@@ -425,6 +428,13 @@ pub struct Definitions {
 }
 
 impl Definitions {
+    pub fn text_sources(&self) -> &BTreeMap<CellKey, std::sync::Arc<[u8]>> {
+        &self.text_sources
+    }
+    pub fn with_text_sources(mut self, sources: BTreeMap<CellKey, std::sync::Arc<[u8]>>) -> Self {
+        self.text_sources = sources;
+        self
+    }
     pub fn pivots(&self) -> &std::sync::Arc<crate::pivot::PivotState> {
         &self.pivots
     }
@@ -724,6 +734,7 @@ impl Definitions {
         unloaded: impl IntoIterator<Item = (CellKey, UnloadedCell)>,
     ) -> Self {
         Definitions {
+            text_sources: BTreeMap::new(),
             styles: Default::default(),
             conditional: BTreeMap::new(),
             review: BTreeMap::new(),
@@ -935,6 +946,7 @@ impl Definitions {
     /// These definitions without anything of `sheet`: its array formulas, tables, unloaded
     /// cells, hidden rows and the names scoped to it (a removed sheet).
     pub fn without_sheet(mut self, sheet: SheetId) -> Self {
+        self.text_sources.retain(|at, _| at.sheet() != sheet);
         self.validations.remove(&sheet);
         self.conditional.remove(&sheet);
         self.review.remove(&sheet);
@@ -977,7 +989,8 @@ impl Definitions {
 
     /// Whether nothing is defined.
     pub fn is_empty(&self) -> bool {
-        self.review.is_empty()
+        self.text_sources.is_empty()
+            && self.review.is_empty()
             && self.links.is_empty()
             && self.charts.is_empty()
             && self.pivots.tables().next().is_none()
@@ -1108,6 +1121,7 @@ impl Definitions {
             .chain(self.panes.keys().copied())
             .chain(self.filters.keys().copied())
             .chain(self.links.keys().copied())
+            .chain(self.text_sources.keys().map(|at| at.sheet()))
             .chain(self.charts.keys().copied())
             .chain(self.pivots.sheets.keys().copied())
             .chain(self.page_setups.keys().copied())
@@ -1136,12 +1150,14 @@ impl Definitions {
     ) -> Option<Definitions> {
         let arrays_gone = self.arrays.keys().any(|at| touched(*at));
         let unloaded_gone = self.unloaded.keys().any(|at| touched(*at));
-        if !arrays_gone && !unloaded_gone && added.is_empty() {
+        let text_gone = self.text_sources.keys().any(|at| touched(*at));
+        if !arrays_gone && !unloaded_gone && !text_gone && added.is_empty() {
             return None;
         }
         let mut next = self.clone();
         next.arrays.retain(|at, _| !touched(*at));
         next.unloaded.retain(|at, _| !touched(*at));
+        next.text_sources.retain(|at, _| !touched(*at));
         for array in added {
             next.arrays.insert(array.anchor(), *array);
         }

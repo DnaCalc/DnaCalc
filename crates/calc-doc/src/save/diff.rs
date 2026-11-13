@@ -51,5 +51,20 @@ pub(super) fn sheet_changes(base: &ModelRoot, model: &ModelRoot, sheet: SheetId)
             }
         }
     }
+    // Equal plain text can carry different rich runs or phonetics. Source changes must
+    // rewrite the cell even when its calculated input is unchanged.
+    for at in base
+        .definitions()
+        .text_sources()
+        .keys()
+        .chain(model.definitions().text_sources().keys())
+    {
+        if at.sheet() == sheet
+            && base.definitions().text_sources().get(at)
+                != model.definitions().text_sources().get(at)
+        {
+            changes.insert((at.row(), at.column()), model.cell(*at).cloned());
+        }
+    }
     changes
 }

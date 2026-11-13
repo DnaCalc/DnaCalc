@@ -90,9 +90,20 @@ pub(crate) fn element_sources(
     xml: &XmlPart,
     mut matches: impl FnMut(&XmlElement) -> bool,
 ) -> Result<Vec<Vec<u8>>, SaveRefusal> {
+    element_sources_in(xml, None, |e| matches(e))
+}
+
+/// Restrict source records to a standard worksheet path when the same element name can
+/// appear in retained extension content.
+pub(crate) fn element_sources_in(
+    xml: &XmlPart,
+    path: Option<&[&str]>,
+    mut matches: impl FnMut(&XmlElement) -> bool,
+) -> Result<Vec<Vec<u8>>, SaveRefusal> {
     use super::text::RawTag;
     let mut reader = Reader::new(xml);
     let mut parents: Vec<Vec<u8>> = Vec::new();
+    let mut names: Vec<crate::xml::XmlName> = Vec::new();
     let mut out = Vec::new();
     while let Some((event, span)) = reader.next()? {
         match event {
@@ -102,17 +113,26 @@ pub(crate) fn element_sources(
                     || tag.rebuilt(&[], tag.is_empty()),
                     |p| tag.with_inherited_namespaces(&RawTag::parse(p)),
                 );
-                if matches(&e) {
+                let in_path = path.is_none_or(|p| {
+                    names.len() == p.len()
+                        && names
+                            .iter()
+                            .zip(p)
+                            .all(|(name, local)| name.is(MAIN_NAMESPACE, local))
+                });
+                if in_path && matches(&e) {
                     let end = reader.element_end()?;
                     let mut bytes = opening;
                     bytes.extend_from_slice(&xml.bytes()[span.1..end]);
                     out.push(bytes);
                 } else {
                     parents.push(opening);
+                    names.push(e.name);
                 }
             }
             XmlEvent::End(_) => {
                 parents.pop();
+                names.pop();
             }
             _ => {}
         }

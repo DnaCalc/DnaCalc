@@ -95,6 +95,56 @@ pub(super) struct Job<'a> {
     pub(super) style_plan: Option<&'a super::styles::SheetStyles>,
 }
 
+/// Keep the complete text cell record, including inline runs, shared-string identity and
+/// phonetics. Namespace declarations are retained by the existing source-fragment reader.
+pub(crate) fn text_sources(
+    xml: &XmlPart,
+    sheet: calc_doc_model::value::SheetId,
+    decorated: &BTreeSet<u32>,
+) -> Result<BTreeMap<CellKey, std::sync::Arc<[u8]>>, SaveRefusal> {
+    let cells =
+        super::reader::element_sources_in(xml, Some(&["worksheet", "sheetData", "row"]), |e| {
+            e.name.is(MAIN_NAMESPACE, "c") && matches!(e.attribute("t"), Some("s" | "inlineStr"))
+        })?;
+    let mut sources = BTreeMap::new();
+    for bytes in cells {
+        let cell = XmlPart::new(
+            "text-cell.xml".into(),
+            bytes.clone(),
+            crate::xml::XmlLimits::default(),
+        );
+        let mut reader = Reader::new(&cell);
+        let (root, _) = reader.root("c")?;
+        let Some((row, column)) = root.attribute("r").and_then(crate::load::address::cell) else {
+            return Err(reader.invalid("text cell has no valid address"));
+        };
+        let mut keep = root.attribute("ph").is_some();
+        let mut in_value = false;
+        while let Some((event, _)) = reader.next()? {
+            match event {
+                XmlEvent::Start(e) => {
+                    in_value = e.name.is(MAIN_NAMESPACE, "v");
+                    keep |= e.name.is(MAIN_NAMESPACE, "r")
+                        || e.name.is(MAIN_NAMESPACE, "rPh")
+                        || e.name.is(MAIN_NAMESPACE, "phoneticPr");
+                }
+                XmlEvent::Text(t) if in_value => {
+                    keep |= t
+                        .trim()
+                        .parse::<u32>()
+                        .is_ok_and(|i| decorated.contains(&i));
+                }
+                XmlEvent::End(_) => in_value = false,
+                _ => {}
+            }
+        }
+        if keep {
+            sources.insert(CellKey::new(sheet, row, column).unwrap(), bytes.into());
+        }
+    }
+    Ok(sources)
+}
+
 impl Job<'_> {
     /// The loaded position of the part's cell (row, column): itself, or for a moved sheet the
     /// cell it moved from (`None` for one the edits inserted).
@@ -851,6 +901,36 @@ impl<'j> Rewrite<'_, 'j> {
                 return self.spilled_cell(source, prefix, row, column, out);
             }
         };
+        if matches!(input, CellInput::Text(_))
+            && let Some(bytes) = self
+                .job
+                .model
+                .definitions()
+                .text_sources()
+                .get(&CellKey::new(self.job.loaded.id(), row, column).unwrap())
+        {
+            let xml = XmlPart::new(
+                "text-cell.xml".into(),
+                bytes.to_vec(),
+                crate::xml::XmlLimits::default(),
+            );
+            let (root, (_, end)) = Reader::new(&xml)
+                .root("c")
+                .expect("validated retained text cell");
+            let tag = RawTag::parse(&bytes[..end]);
+            let address = a1(row, column);
+            let style = self.job.style(row, column, tag.has("s"));
+            out.extend(tag.rebuilt(
+                &with_style(&[("r", Some(&address))], &style),
+                tag.is_empty(),
+            ));
+            out.extend_from_slice(&bytes[end..]);
+            if root.attribute("t") == Some("s") {
+                self.strings.added += 1;
+            }
+            self.bounds.add(row, column);
+            return;
+        }
         let at = a1(row, column);
         let style = self
             .job

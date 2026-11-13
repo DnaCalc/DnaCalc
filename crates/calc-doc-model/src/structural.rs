@@ -495,6 +495,13 @@ impl ModelRoot {
                     .filter_map(|(at, format)| Some((moved_cell(edit, at)?, format)))
                     .collect::<Vec<_>>(),
             );
+        next = next.with_text_sources(
+            definitions
+                .text_sources()
+                .iter()
+                .filter_map(|(at, source)| Some((moved_cell(edit, *at)?, source.clone())))
+                .collect(),
+        );
         // Chart anchors and references keep their source coordinate basis; the host and save
         // apply the existing structural transforms when they project or write them.
         for (sheet, setup) in definitions.page_setups() {
@@ -847,7 +854,11 @@ impl ModelRoot {
                     .rewritten_objects(
                         rewriter,
                         &change,
-                        self.rewritten_rules(rewriter, &change, parts.definitions.with_names(names)),
+                        self.rewritten_rules(
+                            rewriter,
+                            &change,
+                            parts.definitions.with_names(names),
+                        ),
                     )
                     .without_sheet(*sheet);
                 parts.sheets.remove(at);

@@ -760,6 +760,19 @@ pub(crate) fn permute_rows(
         return Ok(());
     }
     let sheet = data.sheet();
+    let sources = host.model().definitions().text_sources();
+    let mut moved = BTreeMap::new();
+    for (at, source) in sources {
+        let target = if data.contains(*at) {
+            CellKey::new(sheet, rows[&at.row()], at.column()).unwrap()
+        } else {
+            *at
+        };
+        moved.insert(target, source.clone());
+    }
+    if &moved != sources {
+        edits.push(CellEdit::TextSources(moved));
+    }
     let mut notes = host.model().definitions().review_notes(sheet).to_vec();
     for note in &mut notes {
         if data.contains(note.at) {

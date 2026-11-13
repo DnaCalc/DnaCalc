@@ -406,7 +406,11 @@ pub enum LoadRepair {
     SheetRelationshipMissing { sheet: SheetId, id: String },
     /// A plain formula inside the area of an array formula: Excel drops it and shows the array's
     /// result in that cell, and so does the load (the cell is a member of the array).
-    FormulaInsideArray { sheet: SheetId, row: u32, column: u32 },
+    FormulaInsideArray {
+        sheet: SheetId,
+        row: u32,
+        column: u32,
+    },
     /// A later sheet repeats an earlier sheet's `sheetId` (`id`): Excel keeps both sheets and gives
     /// the later one a new id (`now`), the next above the highest the workbook part declares.
     DuplicateSheetId { sheet: SheetId, id: u32, now: u32 },
@@ -652,8 +656,17 @@ impl LoadedWorkbook {
         if let Some(rels) = self.package.relationships_of(Some(sheet.part().name())) {
             for r in rels.items() {
                 let kind = r.kind.rsplit('/').next().unwrap_or("");
-                if !["printerSettings", "image", "customProperty", "drawing", "table", "comments", "threadedComment", "vmlDrawing"]
-                    .contains(&kind)
+                if ![
+                    "printerSettings",
+                    "image",
+                    "customProperty",
+                    "drawing",
+                    "table",
+                    "comments",
+                    "threadedComment",
+                    "vmlDrawing",
+                ]
+                .contains(&kind)
                 {
                     return false;
                 }
@@ -794,10 +807,8 @@ impl LoadedWorkbook {
         }
     }
 
-    /// Conservative admission for cell-input sorting: unlike structural shifts, input edits
-    /// cannot move original cell tags or rich/phonetic string records. A sheet with other
-    /// positional objects, decorated strings anywhere in its workbook, or source-only cell
-    /// attributes remains unchanged until those records can follow the cells.
+    /// Source text records follow the canonical row permutation. Unknown cell attributes,
+    /// formula storage and positional objects still refuse before mutation.
     pub fn cell_sort_metadata_supported(&self, sheet: SheetId) -> bool {
         if !self.cell_position_metadata_supported(sheet, true) {
             return false;
@@ -858,12 +869,17 @@ impl LoadedWorkbook {
                                 && match local {
                                     "c" if !strings => e.attributes.iter().all(|a| {
                                         a.name.namespace.is_none()
-                                            && matches!(a.name.local.as_str(), "r" | "s" | "t")
+                                            && (matches!(a.name.local.as_str(), "r" | "s" | "t")
+                                                || (a.name.local.as_str() == "ph"
+                                                    && matches!(
+                                                        e.attribute("t"),
+                                                        Some("s" | "inlineStr")
+                                                    )))
                                     }),
                                     "si" if strings => e.attributes.is_empty(),
                                     "v" | "is" => parent == Some("c") && e.attributes.is_empty(),
                                     "t" => {
-                                        matches!(parent, Some("si" | "is"))
+                                        matches!(parent, Some("si" | "is" | "r" | "rPh"))
                                             && e.attributes.iter().all(|a| {
                                                 a.name.is(
                                                     "http://www.w3.org/XML/1998/namespace",
@@ -871,6 +887,39 @@ impl LoadedWorkbook {
                                                 )
                                             })
                                     }
+                                    "r" => {
+                                        matches!(parent, Some("si" | "is"))
+                                            && e.attributes.is_empty()
+                                    }
+                                    "rPr" => parent == Some("r") && e.attributes.is_empty(),
+                                    "rPh" => {
+                                        matches!(parent, Some("si" | "is"))
+                                            && e.attributes.iter().all(|a| {
+                                                a.name.namespace.is_none()
+                                                    && matches!(a.name.local.as_str(), "sb" | "eb")
+                                            })
+                                    }
+                                    "phoneticPr" => {
+                                        matches!(parent, Some("si" | "is"))
+                                            && e.attributes.iter().all(|a| {
+                                                a.name.namespace.is_none()
+                                                    && matches!(
+                                                        a.name.local.as_str(),
+                                                        "fontId" | "type" | "alignment"
+                                                    )
+                                            })
+                                    }
+                                    "rFont" | "charset" | "family" | "b" | "i" | "strike"
+                                    | "outline" | "shadow" | "condense" | "extend" | "color"
+                                    | "sz" | "u" | "vertAlign" | "scheme" => {
+                                        parent == Some("rPr") && e.attributes.iter().all(|a| {
+                                            a.name.namespace.is_none() && if local == "color" {
+                                                matches!(a.name.local.as_str(), "auto" | "indexed" | "rgb" | "theme" | "tint")
+                                            } else {
+                                                a.name.local.as_str() == "val"
+                                            }
+                                        })
+                                    },
                                     // Shared groups are modelled formula storage; the copy route
                                     // materialises each member before relocation. Other source
                                     // formula attributes must remain at their source.
@@ -1777,7 +1826,12 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
                 Some(NoPart::EmptyId)
             } else if package
                 .relationships_of(Some(workbook))
-                .is_none_or(|relationships| relationships.items().iter().all(|item| item.id != relationship))
+                .is_none_or(|relationships| {
+                    relationships
+                        .items()
+                        .iter()
+                        .all(|item| item.id != relationship)
+                })
             {
                 Some(NoPart::Missing(relationship.clone()))
             } else {
@@ -2244,7 +2298,32 @@ pub fn load_preserving_sheet_ids(
             .collect(),
     });
     let styles = Arc::new(styles);
+    let decorated = match workbook_part_of(package, &workbook, SHARED_STRINGS)? {
+        Some(part) => crate::save::decorated_indices(&read_xml(package, &part)?).map_err(|_| {
+            LoadError::InvalidPart {
+                part,
+                detail: "text source could not be retained",
+            }
+        })?,
+        None => Default::default(),
+    };
+    let mut text_sources = BTreeMap::new();
+    for (sheet, declaration) in sheets.iter().zip(&declared) {
+        if declaration.no_part.is_some() || sheet.is_macro_sheet() || sheet.preserved_kind().is_some() {
+            continue;
+        }
+        let xml = read_xml(package, sheet.part().name())?;
+        text_sources.extend(
+            crate::save::text_sources(&xml, sheet.id(), &decorated).map_err(|_| {
+                LoadError::InvalidPart {
+                    part: sheet.part().name().into(),
+                    detail: "text source could not be retained",
+                }
+            })?,
+        );
+    }
     let mut definitions = Definitions::new(arrays, names, tables, unloaded)
+        .with_text_sources(text_sources)
         .with_pivots(pivot_state)
         .with_data_model(data_model)
         .with_styles(Arc::clone(&styles))

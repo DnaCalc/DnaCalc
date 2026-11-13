@@ -645,6 +645,9 @@ pub(crate) fn sort_metadata(bytes: &[u8], variant: &str) -> Result<Vec<u8>, Stri
             sheet.replace_range(start..end,r#"<conditionalFormatting sqref="B2:B6"><cfRule type="containsText" operator="containsText" text="three" dxfId="0" priority="1" stopIfTrue="1"><formula>NOT(ISERROR(SEARCH("three",B2)))</formula></cfRule></conditionalFormatting><conditionalFormatting sqref="C2:C6"><cfRule type="containsErrors" dxfId="0" priority="2"><formula>ISERROR(C2)</formula></cfRule><cfRule type="containsBlanks" dxfId="0" priority="3"><formula>LEN(TRIM(C2))=0</formula></cfRule></conditionalFormatting>"#);
             sheet.replace("<f>A3*2</f>", "<f>1/0</f>")
         }
+    } else if variant == "sort-rich" {
+        sheet.replace("<t>three</t>", "<r><rPr><b/></rPr><t>three</t></r><rPh sb=\"0\" eb=\"5\"><t>reading</t></rPh><phoneticPr fontId=\"0\" type=\"Hiragana\"/>")
+            .replace("<t>one</t>", "<r><rPr><i/></rPr><t>one</t></r>")
     } else if variant == "sort-links" {
         sheet.replace("</worksheet>",r#"<hyperlinks><hyperlink ref="B2" location="DV!$A$1" display="Three link" tooltip="Three row"/><hyperlink ref="B3:C4" location="DV!$D$1" display="Range link" tooltip="Range rows"/><hyperlink ref="B6" location="DV!$A$1" display="Outside" tooltip="Outside row"/></hyperlinks></worksheet>"#)
     } else {

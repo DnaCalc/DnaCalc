@@ -16,6 +16,7 @@ use std::sync::Arc;
 /// One edit of a cell-editing command.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CellEdit {
+    TextSources(std::collections::BTreeMap<CellKey, Arc<[u8]>>),
     /// Authored style table, in the same transaction as its cell assignments.
     Tables(Vec<calc_doc_model::Table>),
     Pivots(Arc<calc_doc_model::pivot::PivotState>),
@@ -114,6 +115,7 @@ pub enum CellEdit {
 impl CellEdit {
     fn to_operation(&self) -> WorkbookOp {
         match self {
+            CellEdit::TextSources(sources) => WorkbookOp::SetTextSources(sources.clone()),
             CellEdit::DataModel(state) => WorkbookOp::SetDataModel(state.clone()),
             CellEdit::Pivots(state) => WorkbookOp::SetPivots(state.clone()),
             CellEdit::Tables(tables) => WorkbookOp::SetTables(tables.clone()),
@@ -1245,8 +1247,14 @@ fn restore_inner(
                 calc_doc_model::AxisChange::Delete => calc_doc_model::AxisChange::Insert,
             };
             moves.push(
-                AxisEdit::new(edit.sheet(), edit.axis(), change, edit.first(), edit.count())
-                    .expect("checked inverse axis edit"),
+                AxisEdit::new(
+                    edit.sheet(),
+                    edit.axis(),
+                    change,
+                    edit.first(),
+                    edit.count(),
+                )
+                .expect("checked inverse axis edit"),
             );
         }
         moves.extend(axis_edits[common..].iter().copied());

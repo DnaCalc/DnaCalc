@@ -433,6 +433,30 @@ pub(super) fn plan(
             None => sheet_changes(base, model, sheet.id()),
         })
         .collect();
+    for ((sheet, moves), changes) in sheets.iter().zip(&moves).zip(&mut changes) {
+        if let Some(moves) = moves {
+            let old: BTreeMap<_, _> = base
+                .definitions()
+                .text_sources()
+                .iter()
+                .filter(|(at, _)| at.sheet() == sheet.id())
+                .filter_map(|(at, source)| Some((moves.forward((at.row(), at.column()))?, source)))
+                .collect();
+            let new: BTreeMap<_, _> = model
+                .definitions()
+                .text_sources()
+                .iter()
+                .filter(|(at, _)| at.sheet() == sheet.id())
+                .map(|(at, source)| ((at.row(), at.column()), source))
+                .collect();
+            for position in old.keys().chain(new.keys()) {
+                if old.get(position) != new.get(position) {
+                    let at = CellKey::new(sheet.id(), position.0, position.1).unwrap();
+                    changes.insert(*position, model.cell(at).cloned());
+                }
+            }
+        }
+    }
     // Fresh pivot outputs come from the engine's pinned result view, never model cell inputs.
     let mut pivot_output_cells: Vec<BTreeSet<(u32, u32)>> = vec![BTreeSet::new(); sheets.len()];
     for (at, value) in edit.pivot_outputs.iter() {
@@ -1589,7 +1613,15 @@ pub(super) fn plan(
         )?;
     }
     if sheets_written {
-        super::sheets::finish(package, workbook_part, base, model, sheets, &dangling, &mut out)?;
+        super::sheets::finish(
+            package,
+            workbook_part,
+            base,
+            model,
+            sheets,
+            &dangling,
+            &mut out,
+        )?;
     }
     Ok(out)
 }

@@ -109,6 +109,7 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
             CellEdit::Clear { area } => *area,
             CellEdit::SetArray { array, .. } => array.area(),
             CellEdit::AutoFilter { .. }
+            | CellEdit::TextSources(_)
             | CellEdit::Pivots(_)
             | CellEdit::DataModel(_)
             | CellEdit::Tables(_)
@@ -153,19 +154,22 @@ pub(crate) fn inverse(
 ) -> Result<Inverse, Irreversible> {
     // A structural edit drops what it deletes and the references to it: the revision before it
     // is brought back whole.
-    if edits.iter().any(|edit| {
-        matches!(
-            edit,
-            CellEdit::Axis(_)
-                | CellEdit::Layout(_)
-                | CellEdit::Sheet(
-                    calc_doc_model::SheetEdit::Insert { .. }
-                        | calc_doc_model::SheetEdit::Rename { .. }
-                        | calc_doc_model::SheetEdit::Move { .. }
-                        | calc_doc_model::SheetEdit::Remove { .. }
-                )
-        )
-    }) {
+    if (!model.definitions().text_sources().is_empty() && !touched(edits).is_empty())
+        || edits.iter().any(|edit| {
+            matches!(
+                edit,
+                CellEdit::TextSources(_)
+                    | CellEdit::Axis(_)
+                    | CellEdit::Layout(_)
+                    | CellEdit::Sheet(
+                        calc_doc_model::SheetEdit::Insert { .. }
+                            | calc_doc_model::SheetEdit::Rename { .. }
+                            | calc_doc_model::SheetEdit::Move { .. }
+                            | calc_doc_model::SheetEdit::Remove { .. }
+                    )
+            )
+        })
+    {
         return Ok(Inverse::Restore {
             model: Arc::clone(model),
             axis_edits: axis_edits.to_vec(),

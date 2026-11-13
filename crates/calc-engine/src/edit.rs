@@ -362,7 +362,8 @@ pub fn prepare_edit<'s, 'r>(
             // A cell format (dc-09v) changes no input and no calculation. A defined name's formula
             // (dc-gf0) changes no cell: a caller that changes one sets the formulas that use the
             // name again in the same batch, which binds them anew.
-            WorkbookOp::EditSkinLayout(_)
+            WorkbookOp::SetTextSources(_)
+            | WorkbookOp::EditSkinLayout(_)
             | WorkbookOp::SetFormat { .. }
             | WorkbookOp::SetStyles(_)
             | WorkbookOp::SetPivots(_)
@@ -734,6 +735,7 @@ fn structural_moves(
                 | WorkbookOp::Clear { .. }
                 | WorkbookOp::SetArray { .. }
                 | WorkbookOp::SetFormat { .. }
+                | WorkbookOp::SetTextSources(_)
                 | WorkbookOp::SetStyles(_)
                 | WorkbookOp::SetPivots(_)
                 | WorkbookOp::SetDataModel(_)
@@ -771,6 +773,7 @@ fn structural_moves(
             | WorkbookOp::Clear { .. }
             | WorkbookOp::SetArray { .. }
             | WorkbookOp::SetFormat { .. }
+            | WorkbookOp::SetTextSources(_)
             | WorkbookOp::SetStyles(_)
             | WorkbookOp::SetPivots(_)
             | WorkbookOp::SetDataModel(_)

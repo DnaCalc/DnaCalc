@@ -795,6 +795,7 @@ impl ModelRoot {
         // The cell formats the batch sets, in order.
         let mut formats: Vec<(CellKey, Option<u32>)> = Vec::new();
         let mut styles = None;
+        let mut text_sources = None;
         let mut tables = None;
         let mut filters = Vec::new();
         let mut conditional = Vec::new();
@@ -812,6 +813,12 @@ impl ModelRoot {
         let mut iteration: Option<crate::definitions::IterationSettings> = None;
         for (operation, op) in batch.operations.iter().enumerate() {
             match op {
+                WorkbookOp::SetTextSources(sources) => {
+                    for at in sources.keys() {
+                        self.position_of(operation, at.sheet())?;
+                    }
+                    text_sources = Some(sources.clone());
+                }
                 WorkbookOp::SetPageSetup { sheet, setup } => {
                     self.position_of(operation, *sheet)?;
                     if setup.validate().is_err() {
@@ -869,12 +876,18 @@ impl ModelRoot {
                 }
                 WorkbookOp::SetCell { at, input } => {
                     edited.push(GridArea::cell(*at));
+                    if let Some(sources) = &mut text_sources {
+                        sources.remove(at);
+                    }
                     added.retain(|(_, array)| array.anchor() != *at);
                     let sheet = self.position_of(operation, at.sheet())?;
                     self.set_into(&mut touched, sheet, *at, input);
                 }
                 WorkbookOp::Clear { area } => {
                     edited.push(*area);
+                    if let Some(sources) = &mut text_sources {
+                        sources.retain(|at, _| !area.contains(*at));
+                    }
                     added.retain(|(_, array)| !area.contains(array.anchor()));
                     let sheet = self.position_of(operation, area.sheet())?;
                     self.clear_into(&mut touched, sheet, *area);
@@ -885,6 +898,9 @@ impl ModelRoot {
                     }
                     let area = array.area();
                     edited.push(area);
+                    if let Some(sources) = &mut text_sources {
+                        sources.retain(|at, _| !area.contains(*at));
+                    }
                     added.retain(|(_, earlier)| !meets(earlier.area(), area));
                     let sheet = self.position_of(operation, area.sheet())?;
                     self.clear_into(&mut touched, sheet, area);
@@ -1016,7 +1032,8 @@ impl ModelRoot {
             Some(definitions) => Arc::new(definitions),
             None => Arc::clone(&self.definitions),
         };
-        if tables.is_some()
+        if text_sources.is_some()
+            || tables.is_some()
             || pivots.is_some()
             || data_model.is_some()
             || styles.is_some()
@@ -1034,6 +1051,9 @@ impl ModelRoot {
             || iteration.is_some_and(|settings| settings != definitions.iteration())
         {
             let mut next = Definitions::clone(&definitions);
+            if let Some(sources) = text_sources {
+                next = next.with_text_sources(sources);
+            }
             if let Some(model) = data_model {
                 next = next.with_shared_data_model(model);
             }
