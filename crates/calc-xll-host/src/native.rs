@@ -940,6 +940,15 @@ impl XllHost {
     ) -> Result<T, String> {
         crate::callbacks::with_workbook_context(&self.state, call)
     }
+    /// `Ok(None)` outside a worksheet invocation (including add-in commands and lifecycle
+    /// callbacks); `Err` for an inadmissible frame. The Automation profile may borrow its
+    /// command session only for the former. No context address survives the callback.
+    pub fn try_with_workbook_context<T>(
+        &self,
+        call: impl FnOnce(&mut dyn calc_func::UserFunctionContext) -> Result<T, String>,
+    ) -> Result<Option<T>, String> {
+        crate::callbacks::try_with_workbook_context(&self.state, call)
+    }
     fn remove_module(&self, module: &Rc<Module>) {
         let mut state = self.state.borrow_mut();
         let ids = state
