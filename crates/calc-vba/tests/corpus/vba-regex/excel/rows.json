@@ -1,0 +1,669 @@
+{
+  "action": "project",
+  "excel_version": "16.0",
+  "excel_build": "20527",
+  "automation_security": 1,
+  "rows": [
+    {
+      "formula": "=RgxTest(\"a+b\",\"xaaab\")",
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE"
+    },
+    {
+      "formula": "=RgxTest(\"^abc$\",\"abc\")",
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE"
+    },
+    {
+      "formula": "=RgxTest(\"^abc$\",\"xabc\")",
+      "excel": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "text": "FALSE"
+    },
+    {
+      "formula": "=RgxTest(\"\\d{3}-\\d{4}\",\"call 555-1234 now\")",
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE"
+    },
+    {
+      "formula": "=RgxTest(\"(a|b)*c\",\"ababc\")",
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE"
+    },
+    {
+      "formula": "=RgxTest(\"colou?r\",\"the color\")",
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE"
+    },
+    {
+      "formula": "=RgxTest(\"[a-c]+\",\"xyz\")",
+      "excel": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "text": "FALSE"
+    },
+    {
+      "formula": "=RgxTest(\"[^a-c]+\",\"abcxyz\")",
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE"
+    },
+    {
+      "formula": "=RgxTest(\"a.*?b\",\"aXbXb\")",
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE"
+    },
+    {
+      "formula": "=RgxTest(\"(a)\\1\",\"xaay\")",
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE"
+    },
+    {
+      "formula": "=RgxTest(\"a(?=b)\",\"ab\")",
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE"
+    },
+    {
+      "formula": "=RgxTest(\"a(?!b)\",\"abac\")",
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE"
+    },
+    {
+      "formula": "=RgxTest(\"\\bcat\\b\",\"a cat sat\")",
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE"
+    },
+    {
+      "formula": "=RgxTest(\"\\bcat\\b\",\"concatenate\")",
+      "excel": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "text": "FALSE"
+    },
+    {
+      "formula": "=RgxTest(\"x{2,3}\",\"xxxx\")",
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE"
+    },
+    {
+      "formula": "=RgxTest(\"é+\",\"caféé\")",
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE"
+    },
+    {
+      "formula": "=RgxTest(\"\\w+@\\w+\\.com\",\"mail joe@site.com now\")",
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE"
+    },
+    {
+      "formula": "=RgxTest(\"\",\"\")",
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE"
+    },
+    {
+      "formula": "=RgxTest(\"a|b|\",\"zzz\")",
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE"
+    },
+    {
+      "formula": "=RgxTest(\"ABC\",\"xabcx\",TRUE)",
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE"
+    },
+    {
+      "formula": "=RgxTest(\"ABC\",\"xabcx\",FALSE)",
+      "excel": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "text": "FALSE"
+    },
+    {
+      "formula": "=RgxTestMultiline(\"^b$\",\"a\"&CHAR(10)&\"b\"&CHAR(10)&\"c\")",
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE"
+    },
+    {
+      "formula": "=RgxTest(\"^b$\",\"b\")",
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE"
+    },
+    {
+      "formula": "=RgxFind(\"\\w+\",\"hello world\")",
+      "excel": {
+        "value": "[hello]",
+        "type": "String"
+      },
+      "text": "[hello]"
+    },
+    {
+      "formula": "=RgxFind(\"(\\d+)-(\\d+)\",\"tel 12-345\")",
+      "excel": {
+        "value": "[12-345]",
+        "type": "String"
+      },
+      "text": "[12-345]"
+    },
+    {
+      "formula": "=RgxFind(\"z\",\"abc\")",
+      "excel": {
+        "value": "no match",
+        "type": "String"
+      },
+      "text": "no match"
+    },
+    {
+      "formula": "=RgxFind(\"[a-z]+\\d*\",\"  abc123 def\")",
+      "excel": {
+        "value": "[abc123]",
+        "type": "String"
+      },
+      "text": "[abc123]"
+    },
+    {
+      "formula": "=RgxFind(\"(?:ab)+\",\"xababab\")",
+      "excel": {
+        "value": "[ababab]",
+        "type": "String"
+      },
+      "text": "[ababab]"
+    },
+    {
+      "formula": "=RgxFind(\"^\\s*$\",\"   \")",
+      "excel": {
+        "value": "[   ]",
+        "type": "String"
+      },
+      "text": "[   ]"
+    },
+    {
+      "formula": "=RgxGroup(\"(\\d+)-(\\d+)\",\"tel 12-345\",1)",
+      "excel": {
+        "value": "[12]",
+        "type": "String"
+      },
+      "text": "[12]"
+    },
+    {
+      "formula": "=RgxGroup(\"(\\d+)-(\\d+)\",\"tel 12-345\",2)",
+      "excel": {
+        "value": "[345]",
+        "type": "String"
+      },
+      "text": "[345]"
+    },
+    {
+      "formula": "=RgxGroup(\"(\\d+)-(\\d+)\",\"tel 12-345\",3)",
+      "excel": {
+        "value": "[]",
+        "type": "String"
+      },
+      "text": "[]"
+    },
+    {
+      "formula": "=RgxGroup(\"(a)|(b)\",\"b\",1)",
+      "excel": {
+        "value": "[]",
+        "type": "String"
+      },
+      "text": "[]"
+    },
+    {
+      "formula": "=RgxGroup(\"(a)|(b)\",\"b\",2)",
+      "excel": {
+        "value": "[b]",
+        "type": "String"
+      },
+      "text": "[b]"
+    },
+    {
+      "formula": "=RgxGroup(\"(a)|(b)\",\"b\",0)",
+      "excel": {
+        "value": "[b]",
+        "type": "String"
+      },
+      "text": "[b]"
+    },
+    {
+      "formula": "=RgxNamed(\"(?<month>[A-Za-z]{3})-(?<day>[0-9]{1,2})-(?<year>[0-9]{4})\",\"On Jul-4-1776 x\",\"month\")",
+      "excel": {
+        "value": "[Jul]",
+        "type": "String"
+      },
+      "text": "[Jul]"
+    },
+    {
+      "formula": "=RgxNamed(\"(?<month>[A-Za-z]{3})-(?<day>[0-9]{1,2})-(?<year>[0-9]{4})\",\"On Jul-4-1776 x\",\"year\")",
+      "excel": {
+        "value": "[1776]",
+        "type": "String"
+      },
+      "text": "[1776]"
+    },
+    {
+      "formula": "=RgxNamed(\"(?<a>x)\",\"x\",\"nope\")",
+      "excel": {
+        "value": "[]",
+        "type": "String"
+      },
+      "text": "[]"
+    },
+    {
+      "formula": "=RgxReplace(\"\\s+\",\" \",\"a   b  c\")",
+      "excel": {
+        "value": "a b c",
+        "type": "String"
+      },
+      "text": "a b c"
+    },
+    {
+      "formula": "=RgxReplace(\"(\\w+)@(\\w+)\",\"$2 at $1\",\"joe@site\")",
+      "excel": {
+        "value": "site at joe",
+        "type": "String"
+      },
+      "text": "site at joe"
+    },
+    {
+      "formula": "=RgxReplace(\"a\",\"$&$&\",\"banana\")",
+      "excel": {
+        "value": "baanaanaa",
+        "type": "String"
+      },
+      "text": "baanaanaa"
+    },
+    {
+      "formula": "=RgxReplace(\"x\",\"\",\"axbxc\")",
+      "excel": {
+        "value": "abc",
+        "type": "String"
+      },
+      "text": "abc"
+    },
+    {
+      "formula": "=RgxReplace(\"^\",\"> \",\"line\")",
+      "excel": {
+        "value": "> line",
+        "type": "String"
+      },
+      "text": "> line"
+    },
+    {
+      "formula": "=RgxReplace(\"\\d\",\"#\",\"a1b22\")",
+      "excel": {
+        "value": "a#b##",
+        "type": "String"
+      },
+      "text": "a#b##"
+    },
+    {
+      "formula": "=RgxReplace(\"(a)(b)?\",\"[$1|$2]\",\"ab a\")",
+      "excel": {
+        "value": "[a|b] [a|]",
+        "type": "String"
+      },
+      "text": "[a|b] [a|]"
+    },
+    {
+      "formula": "=RgxSplit(\"[,;]\\s*\",\"a, b;c\")",
+      "excel": {
+        "value": "3:<a><b><c>",
+        "type": "String"
+      },
+      "text": "3:<a><b><c>"
+    },
+    {
+      "formula": "=RgxSplit(\"(-)\",\"1-2-3\")",
+      "excel": {
+        "value": "5:<1><-><2><-><3>",
+        "type": "String"
+      },
+      "text": "5:<1><-><2><-><3>"
+    },
+    {
+      "formula": "=RgxSplit(\"x\",\"abc\")",
+      "excel": {
+        "value": "1:<abc>",
+        "type": "String"
+      },
+      "text": "1:<abc>"
+    },
+    {
+      "formula": "=RgxSplit(\"\",\"abc\")",
+      "excel": {
+        "value": "5:<><a><b><c><>",
+        "type": "String"
+      },
+      "text": "5:<><a><b><c><>"
+    },
+    {
+      "formula": "=RgxSplit(\",\",\",a,,b,\")",
+      "excel": {
+        "value": "5:<><a><><b><>",
+        "type": "String"
+      },
+      "text": "5:<><a><><b><>"
+    },
+    {
+      "formula": "=RgxJoin(\"\\d+\",\"a1b22c333\",\"$&\",\"|\")",
+      "excel": {
+        "value": "1|22|333",
+        "type": "String"
+      },
+      "text": "1|22|333"
+    },
+    {
+      "formula": "=RgxJoin(\"(\\w)(\\d)\",\"a1 b2 c3\",\"$2$1\",\",\")",
+      "excel": {
+        "value": "1a,2b,3c",
+        "type": "String"
+      },
+      "text": "1a,2b,3c"
+    },
+    {
+      "formula": "=RgxJoin(\"z\",\"abc\",\"$&\",\"|\")",
+      "excel": {
+        "value": "",
+        "type": "String"
+      },
+      "text": ""
+    },
+    {
+      "formula": "=RgxCount(\"a\",\"banana\")",
+      "excel": {
+        "value": 3.0,
+        "type": "Double"
+      },
+      "text": "3"
+    },
+    {
+      "formula": "=RgxCount(\"\\d+\",\"a1b22c333\")",
+      "excel": {
+        "value": 3.0,
+        "type": "Double"
+      },
+      "text": "3"
+    },
+    {
+      "formula": "=RgxCount(\"\",\"abc\")",
+      "excel": {
+        "value": 4.0,
+        "type": "Double"
+      },
+      "text": "4"
+    },
+    {
+      "formula": "=RgxCount(\"x*\",\"abc\")",
+      "excel": {
+        "value": 4.0,
+        "type": "Double"
+      },
+      "text": "4"
+    },
+    {
+      "formula": "=RgxValid(\"(\")",
+      "excel": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "text": "FALSE"
+    },
+    {
+      "formula": "=RgxValid(\"a**\")",
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE"
+    },
+    {
+      "formula": "=RgxValid(\"[a\")",
+      "excel": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "text": "FALSE"
+    },
+    {
+      "formula": "=RgxValid(\"(?<n>x)\")",
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE"
+    },
+    {
+      "formula": "=RgxValid(\"\\p{L}\")",
+      "excel": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "text": "FALSE"
+    },
+    {
+      "formula": "=RgxValid(\"a{2\")",
+      "excel": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "text": "FALSE"
+    },
+    {
+      "formula": "=RgxValid(\"{\")",
+      "excel": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "text": "FALSE"
+    },
+    {
+      "formula": "=RgxValid(\"\\\")",
+      "excel": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "text": "FALSE"
+    },
+    {
+      "formula": "=RgxValid(\"a(?:b\")",
+      "excel": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "text": "FALSE"
+    },
+    {
+      "formula": "=RgxValid(\"(?i:a)b\")",
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE"
+    },
+    {
+      "formula": "=RgxValid(\"[z-a]\")",
+      "excel": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "text": "FALSE"
+    },
+    {
+      "formula": "=RgxValid(\"a{3,2}\")",
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE"
+    }
+  ],
+  "errors": [],
+  "components": [
+    {
+      "name": "ThisWorkbook",
+      "type": 100,
+      "lines": 0
+    },
+    {
+      "name": "Sheet1",
+      "type": 100,
+      "lines": 0
+    },
+    {
+      "name": "ArrayBuffer",
+      "type": 1,
+      "lines": 152
+    },
+    {
+      "name": "RegexAst",
+      "type": 1,
+      "lines": 1021
+    },
+    {
+      "name": "RegexBytecode",
+      "type": 1,
+      "lines": 146
+    },
+    {
+      "name": "RegexCompiler",
+      "type": 1,
+      "lines": 650
+    },
+    {
+      "name": "RegexDfaMatcher",
+      "type": 1,
+      "lines": 912
+    },
+    {
+      "name": "RegexDfsMatcher",
+      "type": 1,
+      "lines": 853
+    },
+    {
+      "name": "RegexErrors",
+      "type": 1,
+      "lines": 28
+    },
+    {
+      "name": "RegexIdentifierSupport",
+      "type": 1,
+      "lines": 209
+    },
+    {
+      "name": "RegexLexer",
+      "type": 1,
+      "lines": 1049
+    },
+    {
+      "name": "RegexMatcherCommon",
+      "type": 1,
+      "lines": 355
+    },
+    {
+      "name": "RegexNfaMatcher",
+      "type": 1,
+      "lines": 581
+    },
+    {
+      "name": "RegexNfaThreadPool",
+      "type": 1,
+      "lines": 181
+    },
+    {
+      "name": "RegexNumericConstants",
+      "type": 1,
+      "lines": 13
+    },
+    {
+      "name": "RegexRanges",
+      "type": 1,
+      "lines": 66
+    },
+    {
+      "name": "RegexReplace",
+      "type": 1,
+      "lines": 161
+    },
+    {
+      "name": "RegexUnicodeSupport",
+      "type": 1,
+      "lines": 695
+    },
+    {
+      "name": "StaticRegex",
+      "type": 1,
+      "lines": 449
+    },
+    {
+      "name": "StaticStringBuilder",
+      "type": 1,
+      "lines": 111
+    },
+    {
+      "name": "RgxProbe",
+      "type": 1,
+      "lines": 86
+    }
+  ],
+  "sheet": "Sheet1"
+}

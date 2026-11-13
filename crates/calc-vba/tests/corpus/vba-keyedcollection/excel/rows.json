@@ -1,0 +1,224 @@
+{
+  "action": "project",
+  "excel_version": "16.0",
+  "excel_build": "20527",
+  "automation_security": 1,
+  "rows": [
+    {
+      "formula": "=KcBasic()",
+      "excel": {
+        "value": "3|two|1|3.5|True|False",
+        "type": "String"
+      },
+      "text": "3|two|1|3.5|True|False"
+    },
+    {
+      "formula": "=KcKeys()",
+      "excel": {
+        "value": "a;b;c;",
+        "type": "String"
+      },
+      "text": "a;b;c;"
+    },
+    {
+      "formula": "=KcItems()",
+      "excel": {
+        "value": "1;two;3.5;",
+        "type": "String"
+      },
+      "text": "1;two;3.5;"
+    },
+    {
+      "formula": "=KcEmpty()",
+      "excel": {
+        "value": "(empty)|(empty)|0",
+        "type": "String"
+      },
+      "text": "(empty)|(empty)|0"
+    },
+    {
+      "formula": "=KcRemoveAll()",
+      "excel": {
+        "value": "n;|1",
+        "type": "String"
+      },
+      "text": "n;|1"
+    },
+    {
+      "formula": "=KcUpdate()",
+      "excel": {
+        "value": "a;b;c;|1;20;three;",
+        "type": "String"
+      },
+      "text": "a;b;c;|1;20;three;"
+    },
+    {
+      "formula": "=KcRename()",
+      "excel": {
+        "value": "a;z;c;|1;two;3.5;|False|True",
+        "type": "String"
+      },
+      "text": "a;z;c;|1;two;3.5;|False|True"
+    },
+    {
+      "formula": "=KcInsertBefore()",
+      "excel": {
+        "value": "a;b;x;c;|1;two;9;3.5;",
+        "type": "String"
+      },
+      "text": "a;b;x;c;|1;two;9;3.5;"
+    },
+    {
+      "formula": "=KcInsertAfter()",
+      "excel": {
+        "value": "a;x;b;c;|1;9;two;3.5;",
+        "type": "String"
+      },
+      "text": "a;x;b;c;|1;9;two;3.5;"
+    },
+    {
+      "formula": "=KcCaseInsensitive()",
+      "excel": {
+        "value": "True|7|1",
+        "type": "String"
+      },
+      "text": "True|7|1"
+    },
+    {
+      "formula": "=KcDuplicateKey()",
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!"
+    },
+    {
+      "formula": "=KcMissingKey()",
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!"
+    },
+    {
+      "formula": "=KcPairs()",
+      "excel": {
+        "value": "3x2|a=1|c=3.5",
+        "type": "String"
+      },
+      "text": "3x2|a=1|c=3.5"
+    },
+    {
+      "formula": "=KcObjectItem()",
+      "excel": {
+        "value": "1",
+        "type": "String"
+      },
+      "text": "1"
+    },
+    {
+      "formula": "=KcLetObjectError()",
+      "excel": {
+        "value": "450|Invalid property assignment",
+        "type": "String"
+      },
+      "text": "450|Invalid property assignment"
+    },
+    {
+      "formula": "=KcSelf()",
+      "excel": {
+        "value": "3|KeyedCollection",
+        "type": "String"
+      },
+      "text": "3|KeyedCollection"
+    },
+    {
+      "formula": "=KcRemoveKey(\"b\")",
+      "excel": {
+        "value": "a;c;|2",
+        "type": "String"
+      },
+      "text": "a;c;|2"
+    },
+    {
+      "formula": "=KcRemoveKey(\"B\")",
+      "excel": {
+        "value": "a;c;|2",
+        "type": "String"
+      },
+      "text": "a;c;|2"
+    },
+    {
+      "formula": "=KcRemoveKey(\"zz\")",
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!"
+    },
+    {
+      "formula": "=KcRemoveIndex(1)",
+      "excel": {
+        "value": "b;c;|two;3.5;",
+        "type": "String"
+      },
+      "text": "b;c;|two;3.5;"
+    },
+    {
+      "formula": "=KcRemoveIndex(3)",
+      "excel": {
+        "value": "a;b;|1;two;",
+        "type": "String"
+      },
+      "text": "a;b;|1;two;"
+    },
+    {
+      "formula": "=KcRemoveIndex(4)",
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!"
+    },
+    {
+      "formula": "=KcKeyAtIndex(2)",
+      "excel": {
+        "value": "b",
+        "type": "String"
+      },
+      "text": "b"
+    },
+    {
+      "formula": "=KcKeyAtIndex(0)",
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!"
+    }
+  ],
+  "errors": [],
+  "components": [
+    {
+      "name": "ThisWorkbook",
+      "type": 100,
+      "lines": 0
+    },
+    {
+      "name": "Sheet1",
+      "type": 100,
+      "lines": 0
+    },
+    {
+      "name": "EnumHelper",
+      "type": 2,
+      "lines": 44
+    },
+    {
+      "name": "KeyedCollection",
+      "type": 2,
+      "lines": 404
+    },
+    {
+      "name": "KcProbe",
+      "type": 1,
+      "lines": 145
+    }
+  ],
+  "sheet": "Sheet1"
+}

@@ -40,7 +40,17 @@
     "class modules"
   ],
   "excel": {
-    "status": "awaiting",
-    "note": "cases carry excel_error: awaiting; Excel answers are captured on the Windows machine (vba-job.ps1 -Action project, see windows/RUN-ON-WINDOWS.txt of lane p10f); none guessed"
+    "build": "16.0.20527",
+    "captured": "2026-11-13",
+    "route": "each formula entered in H1 of a fresh workbook with the modules imported from source (vba-job.ps1 -Action project, owned hidden session on the private desktop); Value2 recorded; nothing predicted",
+    "rows": "excel/rows.json",
+    "guard": "excel/guard.json",
+    "environment": {
+      "automation_security": 1,
+      "events": "not set by the job",
+      "safe_mode": "not recorded",
+      "calling_cell": "H1 of Sheet1",
+      "bitness_locale": "64-bit en-US"
+    }
   }
 }

@@ -1,0 +1,308 @@
+{
+  "action": "project",
+  "excel_version": "16.0",
+  "excel_build": "20527",
+  "automation_security": 1,
+  "rows": [
+    {
+      "formula": "=SbAppend(\"ab\",\"cd\")",
+      "excel": {
+        "value": "abcd|4",
+        "type": "String"
+      },
+      "text": "abcd|4"
+    },
+    {
+      "formula": "=SbAppend(1,2.5)",
+      "excel": {
+        "value": "12.5|4",
+        "type": "String"
+      },
+      "text": "12.5|4"
+    },
+    {
+      "formula": "=SbAppend(TRUE,\"x\")",
+      "excel": {
+        "value": "Truex|5",
+        "type": "String"
+      },
+      "text": "Truex|5"
+    },
+    {
+      "formula": "=SbAppend(\"\",\"z\")",
+      "excel": {
+        "value": "z|1",
+        "type": "String"
+      },
+      "text": "z|1"
+    },
+    {
+      "formula": "=SbAppend(-3,0)",
+      "excel": {
+        "value": "-30|3",
+        "type": "String"
+      },
+      "text": "-30|3"
+    },
+    {
+      "formula": "=SbAppend(\"héllo\",\"wörld\")",
+      "excel": {
+        "value": "héllowörld|10",
+        "type": "String"
+      },
+      "text": "héllowörld|10"
+    },
+    {
+      "formula": "=SbAll(\"a\",1,TRUE)",
+      "excel": {
+        "value": "a1True|0",
+        "type": "String"
+      },
+      "text": "a1True|0"
+    },
+    {
+      "formula": "=SbAll(\"\",\"\",\"\")",
+      "excel": {
+        "value": "|0",
+        "type": "String"
+      },
+      "text": "|0"
+    },
+    {
+      "formula": "=SbAll(1/3,\"x\",\"y\")",
+      "excel": {
+        "value": "0.333333333333333xy|0",
+        "type": "String"
+      },
+      "text": "0.333333333333333xy|0"
+    },
+    {
+      "formula": "=SbRepeat(10,\"ab\")",
+      "excel": {
+        "value": "20|ababa|babab",
+        "type": "String"
+      },
+      "text": "20|ababa|babab"
+    },
+    {
+      "formula": "=SbRepeat(600,\"abc\")",
+      "excel": {
+        "value": "1800|abcab|bcabc",
+        "type": "String"
+      },
+      "text": "1800|abcab|bcabc"
+    },
+    {
+      "formula": "=SbRepeat(5000,\"xyz\")",
+      "excel": {
+        "value": "15000|xyzxy|yzxyz",
+        "type": "String"
+      },
+      "text": "15000|xyzxy|yzxyz"
+    },
+    {
+      "formula": "=SbRepeat(0,\"a\")",
+      "excel": {
+        "value": "0||",
+        "type": "String"
+      },
+      "text": "0||"
+    },
+    {
+      "formula": "=SbShorten(\"hello\",2)",
+      "excel": {
+        "value": "hel|3",
+        "type": "String"
+      },
+      "text": "hel|3"
+    },
+    {
+      "formula": "=SbShorten(\"hello\",5)",
+      "excel": {
+        "value": "|0",
+        "type": "String"
+      },
+      "text": "|0"
+    },
+    {
+      "formula": "=SbShorten(\"hello\",99)",
+      "excel": {
+        "value": "|0",
+        "type": "String"
+      },
+      "text": "|0"
+    },
+    {
+      "formula": "=SbShorten(\"hello\",0)",
+      "excel": {
+        "value": "hello|5",
+        "type": "String"
+      },
+      "text": "hello|5"
+    },
+    {
+      "formula": "=SbShorten(\"hello\",-1)",
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!"
+    },
+    {
+      "formula": "=SbShortenDefault(\"hello\")",
+      "excel": {
+        "value": "hell|4",
+        "type": "String"
+      },
+      "text": "hell|4"
+    },
+    {
+      "formula": "=SbShortenDefault(\"\")",
+      "excel": {
+        "value": "|0",
+        "type": "String"
+      },
+      "text": "|0"
+    },
+    {
+      "formula": "=SbMid(\"hello world\",1,5)",
+      "excel": {
+        "value": "[hello]",
+        "type": "String"
+      },
+      "text": "[hello]"
+    },
+    {
+      "formula": "=SbMid(\"hello world\",7,99)",
+      "excel": {
+        "value": "[world]",
+        "type": "String"
+      },
+      "text": "[world]"
+    },
+    {
+      "formula": "=SbMid(\"hello world\",20,2)",
+      "excel": {
+        "value": "[]",
+        "type": "String"
+      },
+      "text": "[]"
+    },
+    {
+      "formula": "=SbMid(\"hello world\",3,-1)",
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!"
+    },
+    {
+      "formula": "=SbMid(\"abc\",0,1)",
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!"
+    },
+    {
+      "formula": "=SbMid(\"abc\",2,0)",
+      "excel": {
+        "value": "[]",
+        "type": "String"
+      },
+      "text": "[]"
+    },
+    {
+      "formula": "=SbMidToEnd(\"hello world\",7)",
+      "excel": {
+        "value": "[world]",
+        "type": "String"
+      },
+      "text": "[world]"
+    },
+    {
+      "formula": "=SbMidToEnd(\"abc\",4)",
+      "excel": {
+        "value": "[]",
+        "type": "String"
+      },
+      "text": "[]"
+    },
+    {
+      "formula": "=SbMidToEnd(\"abc\",1)",
+      "excel": {
+        "value": "[abc]",
+        "type": "String"
+      },
+      "text": "[abc]"
+    },
+    {
+      "formula": "=SbMidLet(\"hello world\",1,\"J\")",
+      "excel": {
+        "value": "Jello world",
+        "type": "String"
+      },
+      "text": "Jello world"
+    },
+    {
+      "formula": "=SbMidLet(\"hello\",9,\"x\")",
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!"
+    },
+    {
+      "formula": "=SbMidLet(\"hello\",3,\"ZZZZ\")",
+      "excel": {
+        "value": "heZZZ",
+        "type": "String"
+      },
+      "text": "heZZZ"
+    },
+    {
+      "formula": "=SbFlushTwice(\"abc\")",
+      "excel": {
+        "value": "abc||0",
+        "type": "String"
+      },
+      "text": "abc||0"
+    },
+    {
+      "formula": "=SbClear(\"abc\")",
+      "excel": {
+        "value": "x|1",
+        "type": "String"
+      },
+      "text": "x|1"
+    },
+    {
+      "formula": "=SbEmptyAndMixed()",
+      "excel": {
+        "value": "a12.5True-7|11",
+        "type": "String"
+      },
+      "text": "a12.5True-7|11"
+    }
+  ],
+  "errors": [],
+  "components": [
+    {
+      "name": "ThisWorkbook",
+      "type": 100,
+      "lines": 0
+    },
+    {
+      "name": "Sheet1",
+      "type": 100,
+      "lines": 0
+    },
+    {
+      "name": "StringBuilder",
+      "type": 2,
+      "lines": 290
+    },
+    {
+      "name": "SbProbe",
+      "type": 1,
+      "lines": 78
+    }
+  ],
+  "sheet": "Sheet1"
+}
