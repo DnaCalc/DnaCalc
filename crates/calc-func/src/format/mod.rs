@@ -74,6 +74,13 @@ pub(crate) fn designator(profile: &FormatProfile, am: bool) -> &'static str {
 
 // --- digits -------------------------------------------------------------------------------------
 
+/// An integer format code uses only zero placeholders, literal digits and an
+/// optional literal minus sign; none of these reads the locale.
+pub(crate) fn integer_code(code: &str) -> bool {
+    let digits = code.strip_prefix('-').unwrap_or(code);
+    !digits.is_empty() && digits.bytes().all(|c| c.is_ascii_digit())
+}
+
 /// The magnitude of `x` rounded to 15 significant digits and then to `places` decimal places
 /// (negative places round to tens, hundreds and so on), a half away from zero, as its integer
 /// digits (no leading zero; empty for zero) and exactly `max(places, 0)` decimal digits.
@@ -1788,12 +1795,10 @@ fn render_text(profile: &FormatProfile, system: DateSystem, value: f64, code: &s
             .collect::<Result<String, Failure>>()?;
         // Keep the ordinary automatic sign when section selection has not
         // suppressed it, even for quoted text (fn4 qt008). Empty stays empty.
-        // A digit-only code without a zero placeholder rounds before deciding
+        // An integer code without a zero placeholder rounds before deciding
         // whether to show its automatic sign. Quoted literals do not (Excel
         // 16.0.20527: TEXT(-0.1,"365") is "365", but TEXT(-0.1,"\"abc\"") is "-abc").
-        let rounded_digit_zero = !stripped.is_empty()
-            && stripped.bytes().all(|c| c.is_ascii_digit())
-            && digits(value, 0).0.is_empty();
+        let rounded_digit_zero = integer_code(&stripped) && digits(value, 0).0.is_empty();
         return Ok(
             if value < 0.0 && !signed_section && !literal.is_empty() && !rounded_digit_zero {
                 format!("-{literal}")

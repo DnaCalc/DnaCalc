@@ -10,6 +10,26 @@ use calc_func::SubtotalExclusions;
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Value};
 use f1_support::*;
 
+/// Excel 16.0.20527: a single blank cell differs from an array element or
+/// a blank within a multi-cell range, and argument errors keep their order.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn sumproduct_single_blank_reference_and_error_order() {
+    use calc_func::value::{CalcArray, CalcValue};
+    let mut sheet = Sheet::new();
+    sheet.column(2, 1, vec![n(2.0)]);
+    let blank = sheet.area(1, 1, 1, 1);
+    let range = sheet.area(1, 1, 2, 1);
+    error(call_on(&mut sheet, "SUMPRODUCT", vec![blank.clone()]), Value);
+    exact(call_on(&mut sheet, "SUMPRODUCT", vec![range]), 2.0);
+    error(call_on(&mut sheet, "SUMPRODUCT", vec![blank.clone(), e(NA)]), Value);
+    error(call_on(&mut sheet, "SUMPRODUCT", vec![e(NA), blank.clone()]), NA);
+    sheet.column(1, 1, vec![CalcValue::empty()]);
+    error(call_on(&mut sheet, "SUMPRODUCT", vec![blank]), Value);
+    let array = CalcValue::array(CalcArray::from_rows(vec![vec![CalcValue::empty()]]).unwrap());
+    exact(call("SUMPRODUCT", vec![array]), 0.0);
+}
+
 /// Excel20527: density reuses GAMMA.DIST's stored Poisson mass, avoiding overflow.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

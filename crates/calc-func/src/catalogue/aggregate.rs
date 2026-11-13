@@ -541,7 +541,11 @@ fn factor(
             let (first, columns) = (area.first(), u64::from(area.column_count()));
             let cells = reader(site, services, index)?;
             let mut numbers: Vec<(u64, f64)> = Vec::new();
+            let mut single_blank = area.row_count() == 1 && area.column_count() == 1;
             read_reference(site, cells, reference, index, &mut |_, key, value| {
+                if !matches!(value.core_ref(), CoreRef::Empty | CoreRef::Missing) {
+                    single_blank = false;
+                }
                 let Some(n) = entry(value)? else {
                     return Ok(());
                 };
@@ -557,6 +561,11 @@ fn factor(
                 numbers.push((offset, n));
                 Ok(())
             })?;
+            // Excel 16.0.20527: a single empty referenced cell is #VALUE!,
+            // while empty entries in a multi-cell reference contribute zero.
+            if single_blank {
+                return Err(Exit::Error(WorksheetErrorCode::Value));
+            }
             Ok(Factor {
                 rows: u64::from(area.row_count()),
                 columns,
