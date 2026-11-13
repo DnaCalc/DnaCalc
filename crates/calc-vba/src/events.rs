@@ -114,8 +114,42 @@ impl ProjectReferences {
     }
 }
 
+impl ProjectReferences {
+    /// The references a source project names (name and GUID of each type library). The Scripting
+    /// library is served by the engine on every platform (its Dictionary, dc-tey4.4); any other
+    /// library cannot be resolved without a registered type library and is named if needed.
+    pub fn of_source_libraries(libraries: &[(String, Option<String>)]) -> Self {
+        let mut out = Self::none();
+        for (name, guid) in libraries {
+            if name.eq_ignore_ascii_case("Scripting") {
+                out.compiler.push(oxvba_symbol::manifest::ProjectReference::TypeLibrary {
+                    name: name.clone(),
+                    guid: guid.clone(),
+                    version_major: None,
+                    version_minor: None,
+                    lcid: None,
+                    import_lib: None,
+                });
+            } else {
+                out.unavailable.push(name.clone());
+            }
+        }
+        out
+    }
+}
+
 pub fn load_project(
     modules: &[ProjectModule],
+    max_steps: u64,
+    backend: Option<Backend>,
+) -> Result<LoadedProject, String> {
+    load_project_with_references(modules, &ProjectReferences::none(), max_steps, backend)
+}
+
+/// [`load_project`] for a source project that names type-library references.
+pub fn load_project_with_references(
+    modules: &[ProjectModule],
+    references: &ProjectReferences,
     max_steps: u64,
     backend: Option<Backend>,
 ) -> Result<LoadedProject, String> {
@@ -136,7 +170,7 @@ pub fn load_project(
     };
     load_project_impl(
         modules,
-        &ProjectReferences::none(),
+        references,
         max_steps,
         backend,
         false,

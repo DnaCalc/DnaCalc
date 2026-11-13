@@ -209,19 +209,19 @@
       "route": "module/jit"
     },
     "vba-web/project/interpreter": {
-      "loaded": false,
-      "matched": 0,
+      "loaded": true,
+      "matched": 45,
       "mismatched": 0,
       "missing": 0,
-      "refused": 45,
+      "refused": 0,
       "route": "project/interpreter"
     },
     "vba-web/project/jit": {
-      "loaded": false,
-      "matched": 0,
+      "loaded": true,
+      "matched": 45,
       "mismatched": 0,
       "missing": 0,
-      "refused": 45,
+      "refused": 0,
       "route": "project/jit"
     },
     "wasabi/module/interpreter": {

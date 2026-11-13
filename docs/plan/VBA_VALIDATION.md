@@ -250,3 +250,7 @@ to be confirmed by the staged Windows test binary (lane lr2, RUN-ON-WINDOWS.txt)
 The separate
 OneCalc file test enables macros through the person's Full-policy route and asserts its four
 workbook-only refusals on every platform.
+
+## 11. VBA-Web loads and passes (dc-tey4.4, 2026-11-13, Linux)
+
+CalcVBA pin `72b6d67d`. The full VBA-Web project (5 modules, Scripting reference from `project.json`) loads on the project route and passes 45/45 on the interpreter and the JIT (was 0/45); the project route as a whole is 105/107 on each backend (was 60/107; the 2 left are dna-examples DnaOpenCount and DnaBook). The module route still refuses vba-web (one module, no class modules). `Application.OnTime`/`Run`, `CreateObject` of WinHttp/MSXML/htmlfile and the HMAC/MD5 COM classes stay typed refusals at run time (Safe policy: `com.activate`); the 45 cases call the pure string helpers, which do not reach them.
