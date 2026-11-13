@@ -107,6 +107,28 @@ fn text_without_locale_uses_only_known_format_facts() {
     }
     assert!(call_in(&env, None, None, "TEXT", vec![t("1,234"), n(0.0)]).is_err());
     assert!(call_in(&env, None, None, "TEXT", vec![t("2026-01-02"), n(0.0)]).is_err());
+    // Excel 20527: an unrecognised comma in numeric-only text is not a number
+    // when the recorded decimal and group separators are dot and NBSP.
+    for value in ["1,234", "12,345", "123,456"] {
+        let mut services = EvalServices::new(&NumericMode::Fast)
+            .with_environment(&env)
+            .with_number_separators(".", "\u{00a0}");
+        let target = catalogue().resolve_surface(Notation::Call, "TEXT").unwrap();
+        text(
+            invoke(target, &mut Given(vec![t(value), n(0.0)]), &mut services, &mut FunctionCallScratch::new()),
+            value,
+        );
+    }
+    let mut comma_group = EvalServices::new(&NumericMode::Fast)
+        .with_environment(&env)
+        .with_number_separators(".", ",");
+    let text_target = catalogue().resolve_surface(Notation::Call, "TEXT").unwrap();
+    refused(invoke(
+        text_target,
+        &mut Given(vec![t("1,234"), n(0.0)]),
+        &mut comma_group,
+        &mut FunctionCallScratch::new(),
+    ));
     let target = catalogue().resolve_surface(Notation::Call, "TEXT").unwrap();
     let mode = NumericMode::Fast;
     for (value, code, expected) in [
@@ -331,6 +353,21 @@ fn text_partial_locale_literal_and_negative_date() {
             Value,
         );
     }
+    // Excel 20527: uppercase E without scientific syntax and lowercase
+    // scientific-looking codes are invalid, including under several locale tags.
+    for code in ["E", "TRUE", "1E2", "1e2", "1e+100", "-1e+100"] {
+        let mut services = EvalServices::new(&mode)
+            .with_environment(&env)
+            .with_number_separators(".", "\u{00A0}");
+        error(invoke(target, &mut Given(vec![n(0.5), t(code)]), &mut services, &mut FunctionCallScratch::new()), Value);
+    }
+    let mut services = EvalServices::new(&mode)
+        .with_environment(&env)
+        .with_number_separators(".", "\u{00A0}");
+    text(
+        invoke(target, &mut Given(vec![n(0.5), t("1E+0")]), &mut services, &mut FunctionCallScratch::new()),
+        "1E+1",
+    );
     let mut services = EvalServices::new(&mode)
         .with_environment(&env)
         .with_number_separators(".", "\u{00A0}");

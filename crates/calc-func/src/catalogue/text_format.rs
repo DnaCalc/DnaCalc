@@ -112,15 +112,18 @@ fn text(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
             }));
         }
     }
-    if let (CoreRef::Text(_), CoreRef::Number(code)) = (a[0].core_ref(), a[1].core_ref()) {
+    if let (CoreRef::Text(text), CoreRef::Number(code)) = (a[0].core_ref(), a[1].core_ref()) {
         // Numeric format arguments contain no text section. When the shared
         // coercion already decides that this text cannot be a number, Excel
         // returns the original text without needing a format profile.
         if code.is_finite()
-            && matches!(
+            && (matches!(
                 coerce::number(&a[0]),
                 Err(Stop::Error(WorksheetErrorCode::Value))
-            )
+            ) || (site.environment().is_some_and(|env| env.profile.is_none())
+                && site.number_separators().is_some_and(|(decimal, group)| {
+                    value_text::rejected_comma_number(text.utf16_code_units(), decimal, group)
+                })))
         {
             return Ok(a[0].clone());
         }
@@ -156,6 +159,12 @@ fn text(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
         )
     {
         let code = text_arg(site, a, 1)?.to_string_lossy();
+        if site.number_separators().is_some_and(|(decimal, group)| decimal == "." && group == "\u{00a0}")
+            && format::invalid_plain_exponent_code(&code)
+        {
+            site.number_argument(0, &a[0])?;
+            return fail(WorksheetErrorCode::Value);
+        }
         let known_decimal = site.number_separators().is_some_and(|(decimal, group)| {
             decimal == "." && group != "." && format::plain_decimal_code(&code)
         });

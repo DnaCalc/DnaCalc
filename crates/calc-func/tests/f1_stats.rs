@@ -1503,6 +1503,21 @@ fn subtotal_needs_the_readers_exclusions() {
         call_on(&mut sheet, "SUBTOTAL", vec![n(12.0), range.clone()]),
         Value,
     );
+    // Excel 20527, adjacent inputs around the inclusive selector boundaries.
+    for (boundary, below, at) in [
+        (0x3fef_ffff_7ff0_0000_u64, None, Some(2.0)),
+        (0x3fff_ffff_bff8_0000, Some(2.0), Some(3.0)),
+        (0x4059_3fff_feff_e000, None, Some(2.0)),
+        (0x405b_ffff_feff_e000, Some(1.0), None),
+    ] {
+        for (bits, expected) in [(boundary - 1, below), (boundary, at)] {
+            let actual = call_on(&mut sheet, "SUBTOTAL", vec![n(f64::from_bits(bits)), range.clone()]);
+            match expected {
+                Some(value) => exact(actual, value),
+                None => error(actual, Value),
+            }
+        }
+    }
     // AGGREGATE's option 4 leaves nothing out, so it needs no exclusions.
     sheet.exclusions = None;
     exact(

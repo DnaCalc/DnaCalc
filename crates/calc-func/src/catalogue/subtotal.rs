@@ -210,7 +210,9 @@ ported_shared_family! {
     // `=SUBTOTAL(9,1+1)` and `=SUBTOTAL(9,B1,2)` are refused, `=SUBTOTAL(9,B1:B3)` and
     // `=SUBTOTAL(9,INDEX(B1:B3,0))` enter.
     1 subtotal |s, a, sv| {
-        let number = num(s, a, 0)?.trunc() as i64;
+        // Excel 20527's function selector has the same inclusive integer boundary as
+        // date/count arguments (measured at 1, 2, 4, 11, 12, 101, 102, 111 and 112).
+        let number = crate::ported::text_kernels::date_integer_floor(num(s, a, 0)?) as i64;
         let (function, hidden) = match number {
             1..=11 => (number, false),
             101..=111 => (number - 100, true),

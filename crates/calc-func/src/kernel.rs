@@ -123,6 +123,13 @@ impl<'m> Site<'m> {
         let CoreRef::Text(text) = value.core_ref() else {
             return Ok(None);
         };
+        if self.environment.as_ref().and_then(|env| env.profile.as_ref()).is_none()
+            && self.number_separators().is_some_and(|(decimal, group)| {
+                value_text::rejected_comma_number(text.utf16_code_units(), decimal, group)
+            })
+        {
+            return Err(Exit::Error(WorksheetErrorCode::Value));
+        }
         let Some(environment) = self.environment.as_ref() else {
             return Ok(None);
         };
