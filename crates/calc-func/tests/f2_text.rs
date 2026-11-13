@@ -228,7 +228,7 @@ fn text_scientific_literal_mantissa() {
 
     // Excel 20527 bank2-more-TEXT-0305 and bank2-scalar-TEXT-1029:
     // numeric codes become scientific format text before rendering.
-    use calc_func::value::NumericMode;
+    use calc_func::value::{CalcValue, NumericMode};
     use calc_func::{EvalServices, FunctionCallScratch, Notation, catalogue, invoke};
     let target = catalogue().resolve_surface(Notation::Call, "TEXT").unwrap();
     let mode = NumericMode::Fast;
@@ -247,6 +247,29 @@ fn text_scientific_literal_mantissa() {
             invoke(
                 target,
                 &mut Given(vec![n(value), n(code)]),
+                &mut services,
+                &mut FunctionCallScratch::new(),
+            ),
+            expected,
+        );
+    }
+    // Recorded placeholder cases cover signs, a negative exponent and a blank value.
+    for (value, code, expected) in [
+        (t("-1"), 0x3225c9a77f0d2600, "-4.14075577552457E67"),
+        (
+            n(f64::from_bits(0x36ed27a8c689e724)),
+            0x2f56d2cd1df017a8,
+            "1.24304623427929E-843",
+        ),
+        (CalcValue::empty(), 0xd049f2a9f32eef1c, "-6.00912443166741E+78"),
+    ] {
+        let mut services = EvalServices::new(&mode)
+            .with_environment(&env)
+            .with_number_separators(".", "\u{00A0}");
+        text(
+            invoke(
+                target,
+                &mut Given(vec![value, n(f64::from_bits(code))]),
                 &mut services,
                 &mut FunctionCallScratch::new(),
             ),

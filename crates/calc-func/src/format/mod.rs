@@ -112,12 +112,11 @@ pub(crate) fn plain_decimal_code(code: &str) -> bool {
 fn literal_scientific_parts(code: &str) -> Option<(&str, bool, &str)> {
     let (mantissa, exponent) = code.split_once('E')?;
     let digits = mantissa.strip_prefix('-').unwrap_or(mantissa);
-    let mantissa_digits = digits.replace('.', "");
-    if mantissa_digits.is_empty()
-        || !mantissa_digits.bytes().all(|c| (b'1'..=b'9').contains(&c))
-        || digits.matches('.').count() > 1
-        || digits.starts_with('.')
-        || digits.ends_with('.')
+    let (whole, fraction) = digits.split_once('.').unwrap_or((digits, ""));
+    if whole.is_empty()
+        || !whole.bytes().all(|c| (b'1'..=b'9').contains(&c))
+        || !fraction.bytes().all(|c| c.is_ascii_digit())
+        || (digits.contains('.') && fraction.is_empty())
     {
         return None;
     }
@@ -142,24 +141,36 @@ pub(crate) fn literal_scientific_decimal_code(code: &str) -> bool {
     literal_scientific_parts(code).is_some_and(|(mantissa, _, _)| mantissa.contains('.'))
 }
 
-/// Excel 16.0.20527 controls for literal mantissas: rounding the 15-digit
-/// number to zero significant places carries when its leading digit is at
-/// least five. Without a carry the exponent is one; with a carry it is one
-/// beyond the decimal point. Zero has exponent zero. Literal digits in the
-/// exponent stay in place while its zero placeholders hold the exponent.
+/// Excel 16.0.20527: zero placeholders in a decimal mantissa hold the
+/// significant digits; the exponent moves past them. With no placeholders,
+/// rounding to zero significant places carries if the leading digit is at
+/// least five. Literal digits in the exponent stay in place while its zero
+/// placeholders hold the exponent.
 fn literal_scientific(profile: &FormatProfile, value: f64, code: &str) -> Rendered {
     let (mantissa, plus, pattern) = literal_scientific_parts(code).ok_or(Failure::NotModelled)?;
-    let exponent = if value == 0.0 {
-        0
+    let places = mantissa
+        .split_once('.')
+        .map_or(0, |(_, fraction)| fraction.bytes().filter(|&c| c == b'0').count());
+    let (exponent, digits) = if value == 0.0 {
+        (0, "0".repeat(places))
     } else {
         let decimal = fifteen(value.abs());
         let digits = decimal.coefficient.digits();
-        if digits.as_bytes()[0] >= b'5' {
-            digits.len() as i64 + decimal.exponent as i64 + 1
+        let point = digits.len() as i64 + decimal.exponent as i64;
+        if places > 0 {
+            let (shown, carry) = significant(&decimal, places);
+            (point + carry, shown)
+        } else if digits.as_bytes()[0] >= b'5' {
+            (point + 1, String::new())
         } else {
-            1
+            (1, String::new())
         }
     };
+    let mut digits = digits.chars();
+    let mantissa: String = mantissa
+        .chars()
+        .map(|c| if c == '0' { digits.next().expect("one digit per placeholder") } else { c })
+        .collect();
     let items: Vec<Item> = pattern
         .chars()
         .map(|c| {
