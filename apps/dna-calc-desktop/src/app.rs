@@ -26,174 +26,119 @@ use std::{
     time::{Duration, Instant},
 };
 
-/// Session metadata projected on the STA. The session refreshes this before callbacks and
-/// calculations; cell values remain in the session and the invocation's read view.
-struct NativeWorkbook {
-    projection: std::rc::Weak<calc_com_host::Projection>,
+/// Session access for the workbook profile. All member semantics live in calc-host.
+struct DesktopAutomationHost {
+    application: Rc<dyn calc_object_model::profile::ApplicationHost>,
     native: std::rc::Weak<calc_xll_host::XllHost>,
-    full_name: RefCell<String>,
-    active_sheet: RefCell<Option<String>>,
-    enabled: RefCell<Rc<Cell<bool>>>,
-    bound: Cell<bool>,
-    references: RefCell<Option<Rc<dyn calc_func::ReferenceHandles>>>,
-    model: RefCell<Option<std::sync::Arc<calc_host::ModelRoot>>>,
-    facts: RefCell<Option<std::sync::Arc<dyn calc_func::WorkbookFacts>>>,
-    active: Cell<Option<calc_value::CellKey>>,
+    server: std::rc::Weak<RefCell<Server>>,
 }
-impl NativeWorkbook {
-    fn attach(addins: &AddinHost, server: &mut Server) -> Result<Rc<Self>, String> {
-        let projection = addins.projection_handle();
-        let bridge = Rc::new(Self {
-            projection: Rc::downgrade(&projection),
-            native: Rc::downgrade(&addins.native_handle()),
-            full_name: RefCell::default(),
-            active_sheet: RefCell::default(),
-            enabled: RefCell::new(Rc::new(Cell::new(true))),
-            bound: Cell::new(false),
-            references: RefCell::default(),
-            model: RefCell::default(),
-            facts: RefCell::default(),
-            active: Cell::new(None),
-        });
-        projection.bind_workbook(bridge.clone())?;
-        server.set_workbook_event_observer(Some(bridge.clone()));
-        Ok(bridge)
+impl calc_object_model::profile::ApplicationHost for DesktopAutomationHost {
+    fn hwnd(&self) -> isize {
+        self.application.hwnd()
     }
-}
-impl calc_com_host::WorkbookBridge for NativeWorkbook {
-    fn full_name(&self) -> String {
-        self.full_name.borrow().clone()
-    }
-    fn active_sheet(&self) -> Option<String> {
-        self.active_sheet.borrow().clone()
+    fn run(
+        &self,
+        name: &str,
+        args: &[calc_object_model::AutoValue],
+    ) -> Result<calc_object_model::AutoValue, calc_object_model::AutoError> {
+        self.application.run(name, args)
     }
     fn events_enabled(&self) -> bool {
-        self.enabled.borrow().get()
+        self.application.events_enabled()
     }
     fn set_events_enabled(&self, enabled: bool) {
-        self.enabled.borrow().set(enabled);
+        self.application.set_events_enabled(enabled);
     }
-    fn range(&self, address: &str) -> Result<calc_func::StoredReference, String> {
-        let model = self.model.borrow();
-        let model = model.as_ref().ok_or("dc-0f1k.24: workbook closed")?;
-        let at = self.active.get().ok_or("dc-0f1k.24: no active worksheet")?;
-        // Use the workbook's existing binder, including its names, grid limits and qualifiers.
-        match calc_host::resolve_reference_text(model, at, address) {
-            calc_host::ReferenceTarget::Area(area) => {
-                self.retain(&calc_value::ReferenceLike::area(area))
-            }
-            calc_host::ReferenceTarget::Invalid => {
-                Err("dc-0f1k.24: Range address names no workbook range".into())
-            }
-            calc_host::ReferenceTarget::NotModelled => {
-                Err("dc-0f1k.24: Range address form is not modelled".into())
-            }
-        }
-    }
-    fn retain(
-        &self,
-        reference: &calc_value::ReferenceLike,
-    ) -> Result<calc_func::StoredReference, String> {
-        self.references
-            .borrow()
-            .as_ref()
-            .ok_or("dc-0f1k.24: workbook closed")?
-            .retain(reference)
-            .map_err(|e| e.to_string())
-    }
-    fn resolve(
-        &self,
-        reference: &calc_func::StoredReference,
-    ) -> Result<calc_value::ReferenceLike, String> {
-        self.references
-            .borrow()
-            .as_ref()
-            .ok_or("dc-0f1k.24: workbook closed")?
-            .resolve(reference)
-            .map_err(|e| e.to_string())
-    }
-    fn sheet_name(&self, sheet: calc_value::SheetId) -> Result<String, String> {
-        self.model
-            .borrow()
-            .as_ref()
-            .and_then(|model| model.sheet_by_id(sheet))
-            .map(|sheet| sheet.name().text().to_string_lossy())
-            .ok_or("dc-0f1k.24: range worksheet was deleted".into())
-    }
-    fn value_format_supported(&self, cell: calc_value::CellKey) -> Result<(), String> {
-        let facts = self.facts.borrow();
-        let format = facts
-            .as_ref()
-            .and_then(|facts| facts.cell_format(cell))
-            .ok_or("dc-0f1k.24: Range.Value format conversion is not modelled; use Value2")?;
-        if matches!(format.builtin, Some(0..=4 | 9..=13 | 48..=49))
-            || format.number_format.eq_ignore_ascii_case("General")
-        {
-            Ok(())
-        } else {
-            Err("dc-0f1k.24: Range.Value date/currency/custom format conversion is not modelled; use Value2".into())
-        }
+    fn path(&self) -> Result<String, calc_object_model::AutoError> {
+        self.application.path()
     }
 }
-impl calc_host::WorkbookEventObserver for NativeWorkbook {
-    fn context_changed(&self, session: &calc_host::HostSession) {
-        *self.model.borrow_mut() = Some(session.host().model().clone());
-        *self.facts.borrow_mut() = Some(session.host().workbook_facts());
-        *self.references.borrow_mut() = Some(session.host().reference_view());
-        *self.full_name.borrow_mut() = session.file_full_name().to_owned();
-        let enabled = session.workbook_events_switch();
-        // EnableEvents belongs to this application, including when its worker replaces a book.
-        if self.bound.replace(true) && !Rc::ptr_eq(&self.enabled.borrow(), &enabled) {
-            enabled.set(self.enabled.borrow().get());
+impl calc_host::automation::AutomationHost for DesktopAutomationHost {
+    fn with_invocation(
+        &self,
+        call: &mut dyn FnMut(
+            &mut dyn calc_func::UserFunctionContext,
+        )
+            -> Result<calc_object_model::AutoValue, calc_object_model::AutoError>,
+    ) -> Option<Result<calc_object_model::AutoValue, calc_object_model::AutoError>> {
+        let native = self.native.upgrade()?;
+        let mut answer = None;
+        let status = native.try_with_workbook_context(|context| {
+            answer = Some(call(context));
+            Ok(())
+        });
+        if answer.is_some() {
+            return answer;
         }
-        *self.enabled.borrow_mut() = enabled;
-        let sheet = session
-            .selection()
-            .active
-            .map(|at| at.sheet())
-            .or_else(|| session.host().sheets().first().map(|sheet| sheet.id()));
-        self.active.set(
-            session
+        match status {
+            Ok(None) => None,
+            Err(why) => Some(Err(calc_object_model::AutoError::not_modelled(
+                why,
+                "dc-0f1k.24",
+            ))),
+            Ok(Some(())) => Some(Err(calc_host::automation::busy())),
+        }
+    }
+    fn with_session(
+        &self,
+        call: &mut dyn FnMut(
+            &calc_host::HostSession,
+        )
+            -> Result<calc_object_model::AutoValue, calc_object_model::AutoError>,
+    ) -> Result<calc_object_model::AutoValue, calc_object_model::AutoError> {
+        let server = self
+            .server
+            .upgrade()
+            .ok_or(calc_object_model::AutoError::Disconnected)?;
+        let server = server
+            .try_borrow()
+            .map_err(|_| calc_host::automation::busy())?;
+        call(server.book().session())
+    }
+    fn context_changed(&self, session: &calc_host::HostSession) {
+        if let Some(native) = self.native.upgrade() {
+            let active = session
                 .selection()
                 .active
-                .or_else(|| sheet.and_then(|sheet| calc_value::CellKey::new(sheet, 1, 1).ok())),
-        );
-        if let Some(native) = self.native.upgrade() {
+                .map(|at| at.sheet())
+                .or_else(|| session.host().loaded().active_sheet())
+                .or_else(|| session.host().sheets().first().map(|sheet| sheet.id()));
             let full = session.file_full_name();
             let name = full.rsplit(['/', '\\']).next().unwrap_or(full);
-            for item in session.host().sheets() {
+            for sheet in session.host().sheets() {
                 native.set_sheet(
-                    item.id(),
-                    format!("[{name}]{}", item.name().text().to_string_lossy()),
-                    Some(item.id()) == sheet,
+                    sheet.id(),
+                    format!("[{name}]{}", sheet.name().text().to_string_lossy()),
+                    Some(sheet.id()) == active,
                 );
             }
         }
-        *self.active_sheet.borrow_mut() = sheet
-            .and_then(|id| session.host().model().sheet_by_id(id))
-            .map(|sheet| sheet.name().text().to_string_lossy());
     }
-    fn worksheet_change(
-        &self,
-        session: &mut calc_host::HostSession,
-        sheet: calc_value::SheetId,
-        target: &[calc_value::GridArea],
-    ) -> Result<(), String> {
-        let Some(projection) = self.projection.upgrade() else {
-            return Ok(());
-        };
-        let sheet = session
-            .host()
-            .model()
-            .sheet_by_id(sheet)
-            .ok_or("native SheetChange sheet was deleted")?;
-        projection.sheet_change_areas(sheet.id(), &sheet.name().text().to_string_lossy(), target)
-    }
-    fn after_calculate(&self, _session: &mut calc_host::HostSession) -> Result<(), String> {
-        self.projection
-            .upgrade()
-            .map_or(Ok(()), |projection| projection.after_calculate())
-    }
+}
+
+fn bind_automation(
+    addins: &AddinHost,
+    server: &Rc<RefCell<Server>>,
+) -> Result<
+    (
+        Rc<calc_host::automation::WorkbookAutomation>,
+        Rc<dyn calc_host::WorkbookEventObserver>,
+    ),
+    String,
+> {
+    let projection = addins.projection_handle();
+    let host = Rc::new(DesktopAutomationHost {
+        application: projection.application_host(),
+        native: Rc::downgrade(&addins.native_handle()),
+        server: Rc::downgrade(server),
+    });
+    let model = Rc::new(calc_host::automation::WorkbookAutomation::new(host));
+    projection.bind_model(model.clone())?;
+    let observer = model.observer(projection);
+    server
+        .borrow_mut()
+        .set_workbook_event_observer(Some(observer.clone()));
+    Ok((model, observer))
 }
 
 /// What the command line asks of app mode.
@@ -304,8 +249,9 @@ const TICK_ID: usize = 0x444e41;
 const WORKBOOK: &str = "Book1";
 
 struct App {
-    server: RefCell<Server>,
-    native_workbook: Rc<NativeWorkbook>,
+    server: Rc<RefCell<Server>>,
+    automation: Rc<calc_host::automation::WorkbookAutomation>,
+    automation_observer: Rc<dyn calc_host::WorkbookEventObserver>,
     web: WebView,
     /// The add-in set: what `--xll` loaded at start and what the person loads and unloads in the
     /// page's add-in panel (dc-0f1k.23). It always exists, as OneCalc's does.
@@ -489,7 +435,7 @@ impl App {
             // previous page started are gone with it.
             self.extras.borrow_mut().clear();
             let mut server = Server::new();
-            server.set_workbook_event_observer(Some(self.native_workbook.clone()));
+            server.set_workbook_event_observer(Some(self.automation_observer.clone()));
             server.set_macro_policy(self.macro_policy.get());
             server.set_calculation_budget(calc_host::WorkBudget::evaluations(64));
             server.set_fetch_route(self.fetch.clone());
@@ -791,8 +737,7 @@ impl App {
     }
 
     fn bind_sheets(&self) {
-        use calc_host::WorkbookEventObserver;
-        self.native_workbook
+        self.automation
             .context_changed(self.server.borrow().book().session());
     }
 
@@ -927,9 +872,12 @@ Open the download page now?"
     server.set_import_route(Rc::new(LocalFiles));
     // The add-in set always exists: the page loads add-ins into it whenever the person asks.
     let mut functions = None;
-    let native_workbook;
+    let automation;
+    let automation_observer;
+    let server = Rc::new(RefCell::new(server));
     let addins = {
         let sheets: Vec<(calc_value::SheetId, String)> = server
+            .borrow()
             .book()
             .host()
             .sheets()
@@ -953,7 +901,7 @@ Open the download page now?"
                 sheets: &sheet_refs,
             },
         )?;
-        native_workbook = NativeWorkbook::attach(&set, &mut server)?;
+        (automation, automation_observer) = bind_automation(&set, &server)?;
         for xll in &o.xlls {
             for note in crate::load_addin(&mut set, xll)? {
                 eprintln!("dna-calc-desktop: {}: {note}", xll.display());
@@ -961,19 +909,20 @@ Open the download page now?"
         }
         set.enable_async_continuations()?;
         let rtd = set.enable_rtd()?;
-        server.set_rtd_connector(rtd);
+        server.borrow_mut().set_rtd_connector(rtd);
         if !o.xlls.is_empty() {
             let table = set.callables()?;
-            server.set_user_functions(table.clone());
+            server.borrow_mut().set_user_functions(table.clone());
             functions = Some(table);
         }
         set
     };
     // Declared after the shell so that it drops first: the add-ins close while their windows exist.
     let app = Rc::new(App {
-        book: Cell::new(server.workbook_id()),
-        server: RefCell::new(server),
-        native_workbook,
+        book: Cell::new(server.borrow().workbook_id()),
+        server: server.clone(),
+        automation,
+        automation_observer,
         web,
         addins: RefCell::new(addins),
         addin_notes: RefCell::new(Vec::new()),
@@ -1065,11 +1014,11 @@ Open the download page now?"
 
 #[cfg(test)]
 mod tests {
-    /// Native-only: creates the native workbook projection and server used by the page.
+    /// Native-only: creates the native projection and server used by the page.
     #[test]
-    fn workbook_bridge_follows_the_page_session_selection_identity_and_references() {
-        use calc_com_host::WorkbookBridge;
-        let shell = calc_platform_desktop::Shell::new("DNA Calc workbook bridge test").unwrap();
+    fn object_model_follows_the_page_session_selection_identity_and_references() {
+        use calc_object_model::{AutoValue, Call, Descriptor, InvokeKind, ObjectModel};
+        let shell = calc_platform_desktop::Shell::new("DNA Calc object model test").unwrap();
         let addins = calc_addin_host::AddinHost::new(
             &shell,
             &calc_addin_host::Document {
@@ -1079,21 +1028,48 @@ mod tests {
             },
         )
         .unwrap();
-        let mut server = dna_calc_worker::server::Server::new();
-        let bridge = super::NativeWorkbook::attach(&addins, &mut server).unwrap();
-        let sheet = server.book().host().sheets()[0].id();
-        let name = server.book().host().sheets()[0]
-            .name()
-            .text()
-            .to_string_lossy();
+        let server = Rc::new(RefCell::new(dna_calc_worker::server::Server::new()));
+        let (model, _observer) = super::bind_automation(&addins, &server).unwrap();
+        let get = |object: &calc_object_model::ObjectRef, name: &str, args| {
+            model
+                .invoke(
+                    object,
+                    &Call {
+                        interface: object.interface,
+                        member: Descriptor::get()
+                            .member(object.interface, name, InvokeKind::Get)
+                            .unwrap(),
+                        args,
+                        lcid: 0,
+                    },
+                )
+                .unwrap()
+        };
+        let object = |value| {
+            if let AutoValue::Object(object) = value {
+                object
+            } else {
+                panic!("object");
+            }
+        };
+        let app = model.application();
+        let sheet = server.borrow().book().host().sheets()[0].id();
         server
+            .borrow_mut()
             .book_mut()
             .saved_as("Named.xlsx".into(), calc_host::SpreadsheetFormat::Xlsx);
-        server.set_file_location(r"C:\Models\Named.xlsx".into());
-        assert_eq!(bridge.full_name(), r"C:\Models\Named.xlsx");
+        server
+            .borrow_mut()
+            .set_file_location(r"C:\Models\Named.xlsx".into());
+        let book = object(get(&app, "ActiveWorkbook", vec![]));
+        assert_eq!(
+            get(&book, "FullName", vec![]).as_text().as_deref(),
+            Some(r"C:\Models\Named.xlsx")
+        );
         let at = calc_value::CellKey::new(sheet, 1, 1).unwrap();
         assert!(
             server
+                .borrow_mut()
                 .book_mut()
                 .dispatch(calc_host::SkinIntent::EnterCell {
                     at,
@@ -1101,11 +1077,11 @@ mod tests {
                 })
                 .accepted()
         );
-        let reference = bridge.range(&format!("'[Named.xlsx]{name}'!$A$1")).unwrap();
-        assert_eq!(bridge.resolve(&reference).unwrap().areas()[0].first(), at);
-        assert!(bridge.value_format_supported(at).is_ok());
+        let range = object(get(&app, "Range", vec![AutoValue::text("A1")]));
+        assert!(matches!(get(&range, "Value2", vec![]), AutoValue::R8(7.)));
         assert!(
             server
+                .borrow_mut()
                 .book_mut()
                 .dispatch(calc_host::SkinIntent::EditAxis(
                     calc_host::AxisEdit::new(
@@ -1120,13 +1096,12 @@ mod tests {
                 .accepted()
         );
         assert_eq!(
-            bridge.resolve(&reference).unwrap().areas()[0].first().row(),
-            2
+            get(&range, "Address", vec![]).as_text().as_deref(),
+            Some("$A$2")
         );
-        bridge.set_events_enabled(false);
-        assert!(!server.book().session().workbook_events_enabled());
         assert!(
             server
+                .borrow_mut()
                 .book_mut()
                 .dispatch(calc_host::SkinIntent::Command(
                     calc_host::WorkbookCommand::Sheet {
@@ -1139,6 +1114,7 @@ mod tests {
                 .accepted()
         );
         let other = server
+            .borrow()
             .book()
             .host()
             .sheets()
@@ -1149,6 +1125,7 @@ mod tests {
         let active = calc_value::CellKey::new(other, 3, 2).unwrap();
         assert!(
             server
+                .borrow_mut()
                 .book_mut()
                 .dispatch(calc_host::SkinIntent::Select(calc_host::Selection {
                     active: Some(active),
@@ -1156,15 +1133,35 @@ mod tests {
                 }))
                 .accepted()
         );
-        assert_eq!(bridge.active_sheet().as_deref(), Some("Other"));
+        let active_sheet = object(get(&app, "ActiveSheet", vec![]));
+        assert_eq!(
+            get(&active_sheet, "Name", vec![]).as_text().as_deref(),
+            Some("Other")
+        );
         assert!(
             server
+                .borrow_mut()
                 .execute_current(dna_calc_worker::wire::Request::New, None)
                 .reply
                 .is_ok()
         );
-        assert!(bridge.resolve(&reference).is_err());
-        assert!(!server.book().session().workbook_events_enabled());
+        let member = Descriptor::get()
+            .member(range.interface, "Address", InvokeKind::Get)
+            .unwrap();
+        assert!(
+            model
+                .invoke(
+                    &range,
+                    &Call {
+                        interface: range.interface,
+                        member,
+                        args: vec![],
+                        lcid: 0
+                    }
+                )
+                .is_err()
+        );
+        model.released(&range);
     }
     use super::*;
 

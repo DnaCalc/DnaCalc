@@ -20,6 +20,7 @@ calc-platform-desktop = { path = "../../platform/calc-platform-desktop" }
 dna-calc-worker = { path = "../dna-calc-worker" }
 
 [target.'cfg(windows)'.dependencies]
+calc-object-model = { path = "../../crates/calc-object-model" }
 calc-com-host = { path = "../../crates/calc-com-host" }
 calc-addin-host = { path = "../../crates/calc-addin-host" }
 calc-xll-host = { path = "../../crates/calc-xll-host" }

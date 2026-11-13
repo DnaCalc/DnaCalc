@@ -78,7 +78,9 @@ impl AutoError {
 pub trait ObjectModel {
     /// The Application object.
     fn application(&self) -> ObjectRef;
-    /// Perform `call` on `target`.
+    /// Perform `call` on `target`. An object result represents one acquisition. The projection
+    /// releases it when its wrapper dies, or immediately if the result is discarded or cannot
+    /// be wrapped; a borrowed object argument is not a new acquisition.
     fn invoke(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError>;
     /// The projection released its last wrapper of `target` (a Range releases its tracker slot).
     fn released(&self, _target: &ObjectRef) {}

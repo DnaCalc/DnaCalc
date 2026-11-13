@@ -298,7 +298,10 @@ fn value2_returns_first_area_one_based_arrays_and_scalar_types() {
         &model.application(),
         "Union",
         InvokeKind::Method,
-        vec![AutoValue::Object(single), AutoValue::Object(a)],
+        vec![
+            AutoValue::Object(single),
+            AutoValue::Object(range(&model, "D10:E11")),
+        ],
     )
     .unwrap());
     assert!(matches!(
@@ -441,6 +444,7 @@ fn events_read_target_in_borrowed_session_preserve_all_areas_and_share_switch() 
     .unwrap();
     enter(&host, at(&host, 10, 1), "8");
     assert_eq!(events.changes.borrow().len(), 1);
+    host.session.borrow_mut().set_workbook_event_observer(None);
 }
 
 struct Probe {
@@ -483,8 +487,19 @@ impl UserFunction for Probe {
                 text(&model, &caller, "Address"),
                 text(&model, &this, "Address")
             );
-            let AutoValue::R8(n) = invoke(&model, &range(&model, "A10"), "Value2", vec![]).unwrap()
-            else {
+            assert_eq!(text(&model, &caller, "Address"), "$E$20");
+            let read = range(&model, "A10");
+            assert!(matches!(
+                invoke_kind(
+                    &model,
+                    &read,
+                    "Value2",
+                    InvokeKind::Put,
+                    vec![AutoValue::R8(99.)]
+                ),
+                Err(AutoError::Excel { number: 1004, .. })
+            ));
+            let AutoValue::R8(n) = invoke(&model, &read, "Value2", vec![]).unwrap() else {
                 panic!("number");
             };
             model.released(&caller);

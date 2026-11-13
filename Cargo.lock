@@ -1136,6 +1136,7 @@ dependencies = [
  "calc-host",
  "calc-host-vba",
  "calc-macro-security",
+ "calc-object-model",
  "calc-platform-desktop",
  "calc-value",
  "calc-vba",
