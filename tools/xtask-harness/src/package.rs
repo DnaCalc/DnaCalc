@@ -27,7 +27,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
-pub const USAGE: &str = "usage: cargo xtask package onecalc [--out <dir>] [--no-zip] [--without-calc]\n       cargo xtask package onecalc-clean-run --package <DNA-OneCalc folder> --work <empty dir> --out <dir> [--fixtures <dir>] [--x5 <X5Native64.xll>]";
+mod installer;
+const WINDOWS_TARGET: &str = "x86_64-pc-windows-msvc";
+
+pub const USAGE: &str = "usage: cargo xtask package onecalc [--out <dir>] [--no-zip] [--without-calc] [--target x86_64-pc-windows-msvc]\n       cargo xtask package installer [--package <existing package dir>] [--out <dir>] [--wixl <path>]\n       cargo xtask package onecalc-clean-run --package <DNA-OneCalc folder> --work <empty dir> --out <dir> [--fixtures <dir>] [--x5 <X5Native64.xll>]";
 
 /// The folder the zip holds, and the executable's name in it.
 pub const FOLDER: &str = "DNA-OneCalc";
@@ -44,6 +47,7 @@ const README: &str = "DNA OneCalc\r\n\r\nOne Excel formula at a time, with the i
 pub fn run(raw: &[String]) -> ExitCode {
     match raw.split_first() {
         Some((command, rest)) if command == "onecalc" => build(rest),
+        Some((command, rest)) if command == "installer" => installer::run(rest),
         #[cfg(windows)]
         Some((command, rest)) if command == "onecalc-clean-run" => crate::app::clean::run(rest),
         #[cfg(not(windows))]
@@ -65,7 +69,11 @@ fn build(raw: &[String]) -> ExitCode {
     let mut args = raw.iter();
     while let Some(arg) = args.next() {
         match arg.as_str() {
-            "--out" => out = args.next().map(PathBuf::from),
+            "--out" => match args.next() {
+                Some(path) => out = Some(PathBuf::from(path)),
+                None => return ExitCode::from(2),
+            },
+            "--target" if args.next().map(String::as_str) == Some(WINDOWS_TARGET) => (),
             "--no-zip" => zip = false,
             "--without-calc" => calc = false,
             _ => {
@@ -140,12 +148,17 @@ fn package(ws: &Workspace, out: &Path, zip: bool, calc: bool) -> Result<Value, S
     // 2. The executable and the companion, release, the C runtime static, the page embedded.
     println!("ONECALC PACKAGE building release (crt-static, pages embedded)");
     let mut build = Command::new(cargo::cargo_program());
+    if !cfg!(windows) {
+        build.arg("xwin");
+    }
     build
         .current_dir(&ws.root)
         .args([
             "build",
             "--release",
             "--locked",
+            "--target",
+            WINDOWS_TARGET,
             "-p",
             "dna-onecalc-desktop",
             "-p",
@@ -165,7 +178,7 @@ fn package(ws: &Workspace, out: &Path, zip: bool, calc: bool) -> Result<Value, S
             cargo::tail(&built.stderr, 40)
         ));
     }
-    let release = ws.target_dir().join("release");
+    let release = ws.target_dir().join(WINDOWS_TARGET).join("release");
     let exe = fs::read(release.join(EXE)).map_err(|e| io("cannot read", &release.join(EXE), e))?;
     let shim = fs::read(release.join("xlcall32.dll"))
         .map_err(|e| io("cannot read", &release.join("xlcall32.dll"), e))?;
@@ -209,6 +222,7 @@ fn package(ws: &Workspace, out: &Path, zip: bool, calc: bool) -> Result<Value, S
         ("LICENSE".to_owned(), licence),
     ]);
     // DNA Calc on its own: the same executable and shim, its own README.
+    let mut calc_listed = Vec::new();
     if calc {
         let own = out.join(CALC_FOLDER);
         let _ = fs::remove_dir_all(&own);
@@ -227,6 +241,7 @@ fn package(ws: &Workspace, out: &Path, zip: bool, calc: bool) -> Result<Value, S
         for (name, bytes) in &entries {
             fs::write(own.join(name), bytes).map_err(|e| io("cannot write", &own.join(name), e))?;
             bytes_total += bytes.len();
+            calc_listed.push(json!({"name": name, "bytes": bytes.len(), "sha256": calc_verdict::sha256_hex(bytes)}));
         }
         println!("ONECALC PACKAGE calc folder {} bytes", bytes_total);
         if zip {
@@ -254,9 +269,11 @@ fn package(ws: &Workspace, out: &Path, zip: bool, calc: bool) -> Result<Value, S
         "folder": folder.display().to_string(),
         "version": version,
         "profile": "release",
+        "target": WINDOWS_TARGET,
         "rustflags": "-C target-feature=+crt-static",
         "commit": git_head(&ws.root),
         "files": listed,
+        "calc_files": calc_listed,
         "page": page_files.iter().map(|(name, size)| json!({"name": name, "bytes": size})).collect::<Vec<_>>(),
         "page_block_bytes": fs::metadata(&block).map(|m| m.len()).unwrap_or(0),
         "calc_page": calc_files.iter().map(|(name, size)| json!({"name": name, "bytes": size})).collect::<Vec<_>>(),
