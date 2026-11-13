@@ -17,7 +17,10 @@ target=x86_64-unknown-linux-musl
 version=$(cargo metadata --locked --no-deps --format-version 1 | jq -r '.packages[] | select(.name=="dnacalc") | .version')
 commit=$(git rev-parse --short=12 HEAD)
 
-cargo build --locked --release -p dnacalc --target "$target" --target-dir target/pkg
+mkdir -p "$out"
+cargo xtask app bundle calc --out "$out/page" --pack "$out/calc-page.block"
+DNACALC_CALC_PAGE="$(cd "$out" && pwd)/calc-page.block" \
+  cargo build --locked --release -p dnacalc --target "$target" --target-dir target/pkg
 bin=target/pkg/$target/release/dnacalc
 
 stage=$out/stage

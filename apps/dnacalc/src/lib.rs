@@ -1,6 +1,7 @@
-//! The `dnacalc` command (dc-icq4.1): the headless runner of DNA Calc, on Linux and Windows.
+//! The `dnacalc` command: DNA Calc's workbook runner and local browser app, on Linux and Windows.
 //!
 //! ```text
+//! dnacalc serve [--port N] [--assets DIR]      the page in your browser, with the native worker
 //! dnacalc recalc book.xlsx [--out file]         recalculate; report the counts; save with --out
 //! dnacalc diff   book.xlsx                      recalculate and compare every formula cell with
 //!                                               the file's cached values
@@ -9,7 +10,7 @@
 //! dnacalc run    book.xlsm --macro Mod.Proc     call a public VBA Function of the file's project
 //! ```
 //!
-//! Options on every command: `--json` (one JSON document on stdout), `--macro-level
+//! Options on workbook commands: `--json` (one JSON document on stdout), `--macro-level
 //! off|safe|unguarded` (default `off`: the file's VBA project does not run; `safe` runs it with
 //! the operating-system services refused, `unguarded` with full access). `diff` takes `--cells`
 //! to list the per-cell rows in text mode (JSON always has them).
@@ -24,17 +25,19 @@
 mod cells;
 mod diff;
 mod session;
+pub mod serve;
 
 use serde_json::{Value, json};
 use std::io::Write;
 
-pub const USAGE: &str = "usage: dnacalc <command> <book> [options]
+pub const USAGE: &str = "usage: dnacalc <command> [arguments] [options]
+  serve [--port <n>] [--assets <dir>]     open the printed loopback URL in your browser (Ctrl+C stops it)
   recalc <book> [--out <file>]            recalculate; save the result with --out
   diff   <book> [--cells]                 recalculate; compare every formula cell with the file's cached values
   get    <book> <cell>...                 a cell's formula, cached value and calculated value
   set    <book> <cell> <text> [<cell> <text>]... [--out <file>]   enter cells as typed, recalculate, save with --out
   run    <book> --macro <Module.Proc> [--arg <value>]... [--out <file>]   call a public VBA Function of the file's project
-options: --json  one JSON document on stdout;  --macro-level off|safe|unguarded  (default off)
+workbook options: --json  one JSON document on stdout;  --macro-level off|safe|unguarded  (default off)
          --locale <culture>  the regional settings TEXT, VALUE and ASC read (default en-US, DNA Calc's own; Excel's are not read)
          NOW and TODAY read this machine's clock (UTC)
 A cell is A1 or Sheet1!A1 (the first sheet when unqualified).
@@ -122,6 +125,15 @@ pub fn run(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> u8 {
     if args.iter().any(|a| a == "--version" || a == "-V") {
         let _ = writeln!(out, "dnacalc {}", env!("CARGO_PKG_VERSION"));
         return 0;
+    }
+    if args.first().is_some_and(|arg| arg == "serve") {
+        return match serve::run(&args[1..], out) {
+            Ok(()) => 0,
+            Err(message) => {
+                let _ = writeln!(err, "dnacalc serve: {message}");
+                2
+            }
+        };
     }
     let result = parse(args).and_then(|cli| {
         let (report, code) = match cli.command.as_str() {
