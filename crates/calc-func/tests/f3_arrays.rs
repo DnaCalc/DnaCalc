@@ -5,8 +5,47 @@
 
 mod f1_support;
 
-use calc_func::value::WorksheetErrorCode::{Calc, Value};
+use calc_func::value::WorksheetErrorCode::{Calc, NA, Value};
 use f1_support::*;
+
+/// Excel 16.0.20527 distinguishes blank optional cells from omitted SORT
+/// arguments and propagates a scalar source error before an invalid index.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn sort_blank_arguments_and_scalar_source_errors() {
+    use calc_func::value::{CalcArray, CalcValue};
+    let input = arr(vec![vec![3.0, 1.0], vec![2.0, 4.0]]);
+    let blank = CalcValue::empty();
+    error(
+        call("SORT", vec![input.clone(), blank.clone(), n(1.0)]),
+        Value,
+    );
+    error(
+        call("SORT", vec![input.clone(), n(1.0), blank.clone()]),
+        Value,
+    );
+    let blank_array = CalcValue::array(CalcArray::from_rows(vec![vec![blank]]).unwrap());
+    error(
+        call("SORT", vec![input.clone(), blank_array, n(1.0)]),
+        Value,
+    );
+    assert_eq!(
+        array(call("SORT", vec![input, missing(), n(1.0)])),
+        (2, 2, vec![2.0, 4.0, 3.0, 1.0])
+    );
+    error(call("SORT", vec![e(NA), n(2.0), n(1.0)]), NA);
+    let held_error = CalcValue::array(CalcArray::from_rows(vec![vec![e(NA)]]).unwrap());
+    error(call("SORT", vec![held_error, n(2.0), n(1.0)]), Value);
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![e(NA), n(3.0)]);
+    let one = sheet.area(1, 1, 1, 1);
+    let many = sheet.area(1, 1, 2, 1);
+    error(call_on(&mut sheet, "SORT", vec![one, n(2.0), n(1.0)]), NA);
+    error(
+        call_on(&mut sheet, "SORT", vec![many, n(2.0), n(1.0)]),
+        Value,
+    );
+}
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

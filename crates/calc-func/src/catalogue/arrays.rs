@@ -383,25 +383,41 @@ fn line(array: &CalcArray, index: usize, by_col: bool) -> Vec<CalcValue> {
 /// SORT: by the sort_index columns (rows, `by_col`), each with its order; an array of indices
 /// with an array of orders, or one order for all.
 fn sort(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
+    source_error(a)?;
     let args = prepared(site, a, sv)?;
     let array = as_array(&args[0]);
+    // A one-cell source reference holding an error behaves like a scalar
+    // source error; an error in an array or a larger reference stays held.
+    if a[0].as_reference().is_some()
+        && array.shape() == (ArrayShape { rows: 1, cols: 1 })
+        && let Some(value) = array.get(0, 0)
+    {
+        scalar_error(value)?;
+    }
     let by_col = flag(site, args.get(3))?;
     let ArrayShape { rows, cols } = array.shape();
     let (len, width) = if by_col { (cols, rows) } else { (rows, cols) };
-    let indices: Vec<CalcValue> = match args.get(1) {
+    let mut indices: Vec<CalcValue> = match args.get(1) {
         Some(value) => match value.as_array() {
             Some(list) => list.iter_row_major().cloned().collect(),
             None => vec![value.clone()],
         },
         None => vec![CalcValue::missing()],
     };
-    let orders: Vec<CalcValue> = match args.get(2) {
+    let mut orders: Vec<CalcValue> = match args.get(2) {
         Some(value) => match value.as_array() {
             Some(list) => list.iter_row_major().cloned().collect(),
             None => vec![value.clone()],
         },
         None => vec![CalcValue::missing()],
     };
+    // Excel 16.0.20527: an empty cell in sort_index or sort_order is zero,
+    // which is invalid; an omitted argument still selects its default.
+    for value in indices.iter_mut().chain(orders.iter_mut()) {
+        if matches!(value.core_ref(), CoreRef::Empty) {
+            *value = CalcValue::number(0.0);
+        }
+    }
     if orders.len() > 1 && orders.len() != indices.len() {
         return fail(WorksheetErrorCode::Value);
     }
