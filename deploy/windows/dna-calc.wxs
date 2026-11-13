@@ -3,7 +3,7 @@
      Built on Linux by deploy/windows/build-msi.sh with wixl (msitools, WiX 3 syntax).
      Never change UpgradeCode or a component Guid: upgrades and uninstall depend on them. -->
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-  <Product Id="*" Name="DNA Calc" Language="1033" Version="$(var.Version)"
+  <Product Id="$(var.ProductCode)" Name="DNA Calc" Language="1033" Version="$(var.Version)"
            Manufacturer="DNA Calc" UpgradeCode="0E59C7BE-CF40-470C-8881-087095B36573">
     <Package InstallerVersion="500" Compressed="yes" InstallScope="perUser"
              Description="DNA Calc $(var.Version)" Comments="$(var.Version)+$(var.Commit)" />
@@ -13,6 +13,17 @@
     <Property Id="ARPPRODUCTICON" Value="AppIcon" />
     <Property Id="ARPNOMODIFY" Value="1" />
     <Property Id="ARPURLINFOABOUT" Value="https://dnacalc.com" />
+    <Property Id="WEBVIEW2_USER">
+      <RegistrySearch Id="WebViewUser" Root="HKCU" Key="Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
+                      Name="pv" Type="raw" />
+    </Property>
+    <Property Id="WEBVIEW2_MACHINE">
+      <RegistrySearch Id="WebViewMachine" Root="HKLM" Key="Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
+                      Name="pv" Type="raw" Win64="no" />
+    </Property>
+    <Condition Message="Install the Microsoft WebView2 Runtime first: run Install.ps1 beside this MSI (or https://go.microsoft.com/fwlink/p/?LinkId=2124703).">
+      Installed OR (WEBVIEW2_USER AND WEBVIEW2_USER &lt;&gt; "0.0.0.0") OR (WEBVIEW2_MACHINE AND WEBVIEW2_MACHINE &lt;&gt; "0.0.0.0")
+    </Condition>
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="LocalAppDataFolder">
         <Directory Id="ProgramsDir" Name="Programs">

@@ -4,6 +4,17 @@ Draft for the owner, 2026-11-13. Decision proposed: **per-user MSI, built on Lin
 (msitools), signed by the owner with signtool on Windows.** An unsigned MSI was built on dna-firehorse
 as proof (section 8). dc-fk66.2 builds the real ones, dc-fk66.3 tests them on a clean machine.
 
+Implementation update (dc-fk66.2): `cargo xtask package installer` now extends the folder packaging
+route; Linux release builds use xwin. `--package DIR` verifies both folders against their package
+manifest before building, and uses that manifest's version/commit rather than the current checkout.
+It outputs two unsigned MSIs, `Install.ps1`, `installer-manifest.json` and `SHA256SUMS`. See
+[apps/PACKAGING.md](../../apps/PACKAGING.md) for commands and the signing handoff. ProductCodes
+are stable per product/version; timestamps and PackageCodes still vary. The runtime proposal in
+section 4 is superseded: an MSI launch condition checks the documented runtime registry keys;
+the separate PowerShell setup downloads and verifies Microsoft's bootstrapper if necessary before
+starting msiexec. This avoids nested installations from an MSI custom action. Windows installation,
+upgrade, uninstall and missing-runtime execution remain unmeasured until the Windows run.
+
 ## 1. What is installed
 
 Today `cargo xtask package onecalc` makes two folders (apps/PACKAGING.md):

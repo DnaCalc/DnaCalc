@@ -120,6 +120,29 @@ pub(crate) fn plain_letter_literal_code(code: &str, decimal: &str, group: &str) 
         })
 }
 
+/// Plain codes with an invalid exponent marker. Excel 20527 controls cover
+/// unquoted uppercase E and lowercase scientific-looking codes under several
+/// explicit date-display locales; quoted and escaped markers are not included.
+pub(crate) fn invalid_plain_exponent_code(code: &str) -> bool {
+    if code.bytes().all(|c| c.is_ascii_alphabetic()) && code.contains('E') {
+        return !code.eq_ignore_ascii_case("general");
+    }
+    let code = code.strip_prefix('-').or_else(|| code.strip_prefix('+')).unwrap_or(code);
+    let Some((position, marker)) = code.char_indices().find(|(_, c)| matches!(c, 'e' | 'E')) else {
+        return false;
+    };
+    let mantissa = &code[..position];
+    let exponent = &code[position + 1..];
+    if marker == 'E' && (exponent.starts_with('+') || exponent.starts_with('-')) {
+        return false;
+    }
+    let exponent = exponent.strip_prefix('+').or_else(|| exponent.strip_prefix('-')).unwrap_or(exponent);
+    !mantissa.is_empty()
+        && !exponent.is_empty()
+        && mantissa.bytes().all(|c| c.is_ascii_digit())
+        && exponent.bytes().all(|c| c.is_ascii_digit())
+}
+
 /// Letter-only date/time codes with a standard date or time token and no
 /// punctuation whose interpretation might require the rest of the locale.
 pub(crate) fn plain_datetime_code(code: &str, decimal: &str, group: &str) -> bool {

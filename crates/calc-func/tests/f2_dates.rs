@@ -100,6 +100,19 @@ fn countif_numeric_criterion_rejects_non_numeric_labels() {
         1.0,
     );
 
+    // Excel 20527: under dot/NBSP separators these are text, including as criteria.
+    let mut comma_sheet = Sheet::new();
+    comma_sheet.column(1, 1, vec![t("1,234"), n(1234.0), t("12,345")]);
+    let comma_area = comma_sheet.area(1, 1, 3, 1);
+    for criterion in [t("1,234"), n(1234.0), t("12,345")] {
+        let mut services = EvalServices::with_cells(&mode, &mut comma_sheet)
+            .with_number_separators(".", "\u{a0}");
+        exact(
+            invoke(target, &mut Given(vec![comma_area.clone(), criterion]), &mut services, &mut FunctionCallScratch::new()),
+            1.0,
+        );
+    }
+
     // Without the captured separators, the numeric coercion is still unknown.
     let mut unprofiled = Sheet::new();
     unprofiled.column(1, 1, vec![t(">1")]);

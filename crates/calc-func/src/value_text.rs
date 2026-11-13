@@ -101,6 +101,22 @@ pub(crate) fn measured_space(ch: char, profile: &FormatProfile) -> bool {
         || (ch == '\u{2009}' && measured_host_reader(profile))
 }
 
+/// A numeric-only comma followed by a three-digit number of at least 100 is neither a
+/// valid number under the recorded dot/NBSP separators nor a month, day, or Excel year.
+/// Excel 20527 controls cover several such forms; other punctuation stays undecided.
+pub(crate) fn rejected_comma_number(units: &[u16], decimal: &str, group: &str) -> bool {
+    if decimal != "." || group != "\u{00a0}" {
+        return false;
+    }
+    let Some(comma) = units.iter().position(|&u| u == u16::from(b',')) else {
+        return false;
+    };
+    comma > 0
+        && units.len() == comma + 4
+        && (u16::from(b'1')..=u16::from(b'9')).contains(&units[comma + 1])
+        && units[..comma].iter().chain(&units[comma + 1..]).all(|&u| (u16::from(b'0')..=u16::from(b'9')).contains(&u))
+}
+
 /// Reads `text` (UTF-16 code units).
 pub(crate) fn read(units: &[u16], context: &ReadContext<'_>) -> Result<Reading, Unread> {
     let mut text = String::with_capacity(units.len());
