@@ -294,6 +294,35 @@ fn value_datevalue_timevalue() {
     }
 
     exact(c(&e, "NUMBERVALUE", vec![t("1,5"), t(","), t(".")]), 1.5);
+
+    // Excel 20527 controls: decisive argument errors precede missing formatting locale.
+    use calc_func::value::NumericMode;
+    use calc_func::{EvalServices, FunctionCallScratch, Notation, catalogue, invoke};
+    let partial = CalcEnvironment::dates(DateSystem::System1900);
+    let mode = NumericMode::Fast;
+    for name in ["VALUE", "DATEVALUE", "TIMEVALUE"] {
+        let target = catalogue().resolve_surface(Notation::Call, name).unwrap();
+        let mut services = EvalServices::new(&mode).with_environment(&partial)
+            .with_number_separators(".", "\u{a0}");
+        error(invoke(target, &mut Given(vec![t("1,234")]), &mut services, &mut FunctionCallScratch::new()), Value);
+        let mut unknown = EvalServices::new(&mode).with_environment(&partial)
+            .with_number_separators(".", ",");
+        refused(invoke(target, &mut Given(vec![t("1,234")]), &mut unknown, &mut FunctionCallScratch::new()));
+    }
+    let dollar = catalogue().resolve_surface(Notation::Call, "DOLLAR").unwrap();
+    for (args, expected) in [
+        (vec![n(1.0), t("1,234")], Value),
+        (vec![f1_support::e(Div0), t("1,234")], Div0),
+        (vec![t("1,234"), f1_support::e(Num)], Value),
+        (vec![n(1.0), f1_support::e(NA)], NA),
+    ] {
+        let mut services = EvalServices::new(&mode).with_environment(&partial)
+            .with_number_separators(".", "\u{a0}");
+        error(invoke(dollar, &mut Given(args), &mut services, &mut FunctionCallScratch::new()), expected);
+    }
+    let mut services = EvalServices::new(&mode).with_environment(&partial)
+        .with_number_separators(".", "\u{a0}");
+    refused(invoke(dollar, &mut Given(vec![n(1.0), n(2.0)]), &mut services, &mut FunctionCallScratch::new()));
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

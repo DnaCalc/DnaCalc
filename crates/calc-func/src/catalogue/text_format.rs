@@ -25,6 +25,13 @@ use calc_catalogue::ported::text_format::{CODE, ENTRIES as DECLARATIONS};
 pub(super) fn read_value(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<Reading> {
     match a[index].core_ref() {
         CoreRef::Text(text) => {
+            if site.environment().is_none_or(|env| env.profile.is_none())
+                && site.number_separators().is_some_and(|(decimal, group)| {
+                    value_text::rejected_comma_number(text.utf16_code_units(), decimal, group)
+                })
+            {
+                return fail(WorksheetErrorCode::Value);
+            }
             let environment = site.environment().ok_or_else(|| site.not_modelled(None))?;
             let profile = environment
                 .profile
@@ -277,7 +284,6 @@ fn fixed(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
 }
 
 fn dollar(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
-    let (_, profile) = profile(site)?;
     let number = num(site, a, 0)?;
     // W111 locale-profile 00193: unlike FIXED, an explicit placeholder means zero places.
     let places = if a.get(1).is_some_and(CalcValue::is_missing) {
@@ -285,6 +291,7 @@ fn dollar(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     } else {
         places(site, a)?
     };
+    let (_, profile) = profile(site)?;
     rendered(site, format::dollar(profile, number, places))
 }
 
