@@ -81,6 +81,20 @@ pub(crate) fn integer_code(code: &str) -> bool {
     !digits.is_empty() && digits.bytes().all(|c| c.is_ascii_digit())
 }
 
+/// Integer placeholders and literal punctuation whose meaning is established
+/// by the supplied decimal and grouping separators.
+pub(crate) fn literal_integer_code(code: &str, decimal: &str, group: &str) -> bool {
+    let mut digit = false;
+    for c in code.chars() {
+        if c.is_ascii_digit() {
+            digit = true;
+        } else if !matches!(c, '-' | ',') || decimal.contains(c) || group.contains(c) {
+            return false;
+        }
+    }
+    digit
+}
+
 /// A decimal code whose only tokens are digits, a literal sign and the known
 /// decimal point, with an integer placeholder. It reads no other locale facts.
 pub(crate) fn plain_decimal_code(code: &str) -> bool {
@@ -1890,7 +1904,13 @@ fn render_text(profile: &FormatProfile, system: DateSystem, value: f64, code: &s
         // An integer code without a zero placeholder rounds before deciding
         // whether to show its automatic sign. Quoted literals do not (Excel
         // 16.0.20527: TEXT(-0.1,"365") is "365", but TEXT(-0.1,"\"abc\"") is "-abc").
-        let rounded_digit_zero = integer_code(&stripped) && digits(value, 0).0.is_empty();
+        let rounded_digit_zero = (integer_code(&stripped)
+            || literal_integer_code(
+                &stripped,
+                profile.decimal_separator,
+                profile.thousands_separator,
+            ))
+            && digits(value, 0).0.is_empty();
         return Ok(
             if value < 0.0 && !signed_section && !literal.is_empty() && !rounded_digit_zero {
                 format!("-{literal}")

@@ -94,6 +94,18 @@ fn text_without_locale_uses_only_known_format_facts() {
         "--1",
     );
     text(call_in(&env, None, None, "TEXT", vec![t(""), n(0.5)]), "");
+    for (value, code) in [
+        ("hello", 1e100),
+        ("TRUE", 0.0),
+        ("March", -1.0),
+        ("abc def", 0.5),
+    ] {
+        text(
+            call_in(&env, None, None, "TEXT", vec![t(value), n(code)]),
+            value,
+        );
+    }
+    assert!(call_in(&env, None, None, "TEXT", vec![t("1,234"), n(0.0)]).is_err());
     assert!(call_in(&env, None, None, "TEXT", vec![t("2026-01-02"), n(0.0)]).is_err());
     let target = catalogue().resolve_surface(Notation::Call, "TEXT").unwrap();
     let mode = NumericMode::Fast;
@@ -126,6 +138,36 @@ fn text_without_locale_uses_only_known_format_facts() {
             &mut FunctionCallScratch::new(),
         ),
         "0.1",
+    );
+    for (value, code, expected) in [
+        (-12.34, "1,234", "-1,234"),
+        (-0.1, "1,234", "1,234"),
+        (12.34, "10,2", "112,2"),
+    ] {
+        let mut services = EvalServices::new(&mode)
+            .with_environment(&env)
+            .with_number_separators(".", "\u{00A0}");
+        text(
+            invoke(
+                target,
+                &mut Given(vec![n(value), t(code)]),
+                &mut services,
+                &mut FunctionCallScratch::new(),
+            ),
+            expected,
+        );
+    }
+    let mut services = EvalServices::new(&mode)
+        .with_environment(&env)
+        .with_number_separators(",", ".");
+    assert!(
+        invoke(
+            target,
+            &mut Given(vec![n(12.34), t("1,234")]),
+            &mut services,
+            &mut FunctionCallScratch::new()
+        )
+        .is_err()
     );
 }
 

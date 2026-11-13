@@ -6,7 +6,7 @@
 
 use super::kit::{fail, flag, grid, num, text_arg};
 use crate::call::EvalServices;
-use crate::coerce::{self, Numeric};
+use crate::coerce::{self, Numeric, Stop};
 use crate::format::{self, Failure};
 use crate::kernel::{Exit, Site, Step};
 use crate::locale::LocaleId;
@@ -112,9 +112,17 @@ fn text(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
             }));
         }
     }
-    if let (CoreRef::Text(value), CoreRef::Number(code)) = (a[0].core_ref(), a[1].core_ref()) {
-        if value.utf16_code_units().is_empty() && code.is_finite() {
-            return Ok(crate::catalogue::kit::text_value(""));
+    if let (CoreRef::Text(_), CoreRef::Number(code)) = (a[0].core_ref(), a[1].core_ref()) {
+        // Numeric format arguments contain no text section. When the shared
+        // coercion already decides that this text cannot be a number, Excel
+        // returns the original text without needing a format profile.
+        if code.is_finite()
+            && matches!(
+                coerce::number(&a[0]),
+                Err(Stop::Error(WorksheetErrorCode::Value))
+            )
+        {
+            return Ok(a[0].clone());
         }
     }
     if a[0].is_excel_overflow() {
@@ -151,9 +159,14 @@ fn text(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
         let known_decimal = site.number_separators().is_some_and(|(decimal, group)| {
             decimal == "." && group != "." && format::plain_decimal_code(&code)
         });
+        let known_literal = !format::integer_code(&code)
+            && site.number_separators().is_some_and(|(decimal, group)| {
+                format::literal_integer_code(&code, decimal, group)
+            });
         if code.is_empty()
             || format::integer_code(&code)
             || known_decimal
+            || known_literal
             || format::literal_scientific_code(&code)
         {
             let number = site.number_argument(0, &a[0])?;
@@ -161,7 +174,7 @@ fn text(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
                 .environment()
                 .map_or(crate::locale::DateSystem::System1900, |e| e.date_system);
             let mut format_profile = crate::locale::format_profile(LocaleId::EnZa);
-            if known_decimal {
+            if known_decimal || known_literal {
                 let (decimal, group) = site.number_separators().expect("known decimal separators");
                 format_profile = format_profile
                     .with_separators(decimal, group)
