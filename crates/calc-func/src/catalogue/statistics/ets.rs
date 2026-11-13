@@ -808,9 +808,27 @@ pub(super) fn evaluate(
         {
             return fail(WorksheetErrorCode::Num);
         }
+        if output == Output::Confidence && rounded_distance.is_finite()
+            && rounded_distance < (i32::MAX as f64) * series.step
+        {
+            // Excel forms the normal probability from a stored x87 complement.
+            // When it rounds to one half, the confidence interval is zero.
+            let tail = crate::ported::excel_numeric::excel_x87_sub(1.0, confidence);
+            let probability = crate::ported::excel_numeric::excel_x87_sub(1.0, tail / 2.0);
+            if probability == 0.5 {
+                return site.number(0.0);
+            }
+        }
         let distance = exact_sum(target, -series.last).ok_or_else(|| unfinished(site))?;
         let h = distance / series.step;
-        if h.fract() != 0.0 || h * series.step != distance {
+        if h * series.step != distance {
+            return Err(unfinished(site));
+        }
+        // Fractional forecasts use adjacent integer forecasts only when the
+        // timeline division is exact; other fractional outputs remain open.
+        if h.fract() != 0.0 && (output != Output::Forecast || h < 0.0
+            || h >= i32::MAX as f64 || h.mul_add(series.step, -distance) != 0.0)
+        {
             return Err(unfinished(site));
         }
         // Both target functions share this signed-32-bit future-index limit,
@@ -828,6 +846,40 @@ pub(super) fn evaluate(
     if output == Output::Confidence && confidence == 0.0 {
         return site.number(0.0);
     }
+    if output == Output::Forecast && horizon.fract() != 0.0 {
+        let lower_horizon = horizon.floor();
+        let fraction = horizon - lower_horizon;
+        // Excel snaps targets within 0.001 of a timeline point; otherwise it
+        // interpolates the two fitted forecasts with stored x87 operations.
+        if fraction <= 0.001 {
+            return evaluate_fitted(site, &series, output, statistic, confidence, season, lower_horizon);
+        }
+        if 1.0 - fraction <= 0.001 {
+            return evaluate_fitted(site, &series, output, statistic, confidence, season, lower_horizon + 1.0);
+        }
+        let lower = evaluate_fitted(site, &series, output, statistic, confidence, season, lower_horizon)?;
+        let upper = evaluate_fitted(site, &series, output, statistic, confidence, season, lower_horizon + 1.0)?;
+        let (lower, upper) = match (lower.core_ref(), upper.core_ref()) {
+            (CoreRef::Number(lower), CoreRef::Number(upper)) => (lower, upper),
+            _ => return Err(unfinished(site)),
+        };
+        use crate::ported::excel_numeric::{excel_x87_add, excel_x87_mul, excel_x87_sub};
+        let difference = excel_x87_sub(upper, lower);
+        let increment = excel_x87_mul(difference, fraction);
+        return site.number(excel_x87_add(lower, increment));
+    }
+    evaluate_fitted(site, &series, output, statistic, confidence, season, horizon)
+}
+
+fn evaluate_fitted(
+    site: &Site<'_>,
+    series: &Series,
+    output: Output,
+    statistic: f64,
+    confidence: f64,
+    season: f64,
+    horizon: f64,
+) -> Step<CalcValue> {
     if !series.preparation_exact {
         return Err(unfinished(site));
     }

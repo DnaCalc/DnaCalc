@@ -110,6 +110,42 @@ fn forecast_ets_checks_large_horizon_before_exact_subtraction() {
     }
 }
 
+/// Excel 20527 forms the tiny-confidence normal probability through an x87 complement.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn forecast_ets_confint_zero_probability_precedes_fractional_horizon() {
+    let values = arr(vec![vec![1.2, 2.7, 3.1, 4.4, 5.3]]);
+    let times = arr(vec![vec![1.0, 2.0, 3.0, 4.0, 5.0]]);
+    for confidence in [0.0, 1e-100, f64::from_bits(0x3ca7_feff_ffff_ffff)] {
+        exact(call("FORECAST.ETS.CONFINT", vec![n(5.25), values.clone(), times.clone(), n(confidence)]), 0.0);
+        error(call("FORECAST.ETS.CONFINT", vec![n(5.0), values.clone(), times.clone(), n(confidence)]), Num);
+        error(call("FORECAST.ETS.CONFINT", vec![n(2.0_f64.powi(31) + 5.0), values.clone(), times.clone(), n(confidence)]), Num);
+    }
+    assert!(matches!(
+        call("FORECAST.ETS.CONFINT", vec![n(5.25), values.clone(), times, n(f64::from_bits(0x3ca7_ff00_0000_0000))]),
+        Err(calc_func::FunctionFault::NotHeld { owner: "dc-j9k", .. })
+    ));
+    let incomplete = arr(vec![vec![1.0, 1.0, 2.0, 4.0, 7.0]]);
+    error(call("FORECAST.ETS.CONFINT", vec![n(7.25), values, incomplete, n(1e-100)]), Num);
+}
+
+/// Excel 20527 snaps close targets and uses stored x87 interpolation elsewhere.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn forecast_ets_interpolates_fractional_future_targets() {
+    let values = arr(vec![vec![1.0, 2.0, 3.0, 4.0, 5.0]]);
+    let times = arr(vec![vec![1.0, 2.0, 3.0, 4.0, 5.0]]);
+    for (target, expected) in [(5.0005, 5.0), (5.001, 5.001), (5.25, 5.25), (5.5, 5.5), (5.999, 5.999), (5.9995, 6.0)] {
+        exact(call("FORECAST.ETS", vec![n(target), values.clone(), times.clone(), n(0.0)]), expected);
+    }
+    let d = 732_757_574_657.0;
+    let halfway = arr(vec![vec![-2.0 * d, -d, 0.0, d, 2.0 * d]]);
+    exact(
+        call("FORECAST.ETS", vec![n(f64::from_bits(0x4017_6381_7c9d_7802)), halfway, times, n(0.0)]),
+        f64::from_bits(0x427e_5c07_54c8_7711),
+    );
+}
+
 /// Excel 20527: range and singleton results precede significance validation.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
