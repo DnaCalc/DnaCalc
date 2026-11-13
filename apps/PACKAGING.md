@@ -11,6 +11,8 @@
 On Linux the Windows executables use `cargo xwin build --release`; on Windows they use `cargo build`
 with the same explicit Windows target. See [WINDOWS_CROSS_BUILD.md](../docs/plan/WINDOWS_CROSS_BUILD.md)
 for xwin prerequisites and the already accepted SDK licence. Page builds still use the web profile.
+Both page and Windows builds explicitly use this workspace's `target` directory, matching the
+artifact paths the packager reads even when `CARGO_TARGET_DIR` is inherited from the caller.
 
 `cargo xtask package installer [--out DIR] [--wixl PATH]` builds those folders, then two unsigned
 per-user MSIs with wixl (msitools 0.106). To package existing folders without rebuilding, pass

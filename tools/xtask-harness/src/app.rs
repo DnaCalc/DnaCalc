@@ -504,7 +504,9 @@ pub(crate) fn bundle(ws: &Workspace, app: &App, out: &Path) -> Result<Vec<(Strin
                 "--bin",
                 entry,
             ])
-            .args(["--target", WASM_TARGET]);
+            .args(["--target", WASM_TARGET])
+            .arg("--target-dir")
+            .arg(&target_dir);
         if let Some(bytes) = stack {
             build.args(["--", "-C", &format!("link-arg=-zstack-size={bytes}")]);
         }

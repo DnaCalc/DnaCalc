@@ -52,7 +52,8 @@ foreach ($entry in $manifest.products) {
         throw "MSI hash differs from installer-manifest.json: $msi"
     }
     $log = Join-Path ([IO.Path]::GetTempPath()) ($entry.folder + '-' + [Guid]::NewGuid() + '.log')
-    $process = Start-Process msiexec.exe -ArgumentList @('/i', "`"$msi`"", 'ALLUSERS=', 'MSIINSTALLPERUSER=1', '/passive', '/norestart', '/L*v', "`"$log`"") -Wait -PassThru
+    # MSI requires quotes when clearing a public property: ALLUSERS="".
+    $process = Start-Process msiexec.exe -ArgumentList @('/i', "`"$msi`"", 'ALLUSERS=""', 'MSIINSTALLPERUSER=1', '/passive', '/norestart', '/L*v', "`"$log`"") -Wait -PassThru
     if ($process.ExitCode -notin @(0, 3010)) { throw "MSI exit code $($process.ExitCode); log: $log" }
     Write-Host "Installed $($entry.folder); log: $log"
 }

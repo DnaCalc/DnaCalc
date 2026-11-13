@@ -164,6 +164,8 @@ fn package(ws: &Workspace, out: &Path, zip: bool, calc: bool) -> Result<Value, S
             "-p",
             "calc-xll-shim",
         ])
+        .arg("--target-dir")
+        .arg(ws.target_dir())
         .env("RUSTFLAGS", "-C target-feature=+crt-static")
         .env("DNACALC_ONECALC_PAGE", &block);
     if calc {
