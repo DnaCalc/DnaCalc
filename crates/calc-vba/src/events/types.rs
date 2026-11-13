@@ -1,11 +1,11 @@
 //! DNA nominal event interfaces, independent of installed Excel type libraries.
 //! Slot metadata follows OxVba7eb4fdd9 crates/oxvba-embed/src/provider.rs.
-use oxvba_com::{
+use calcvba_com::{
     ComInterfaceIid, TypeLibEventDispatchPath, TypeLibEventMetadata, TypeLibMemberInvokeKind as K,
     TypeLibMemberMetadata, TypeLibMetadataBlob, TypeLibParamType as T, TypeLibResolveRequest,
     TypeLibResolvedIdentity,
 };
-use oxvba_symbol::TypeLibResolver;
+use calcvba_symbol::TypeLibResolver;
 
 pub(super) const RANGE: [u8; 16] = *b"DnaCalcEvtRange1";
 pub(super) const SHEET: [u8; 16] = *b"DnaCalcSheet0001";
@@ -134,14 +134,14 @@ impl TypeLibResolver for WithReferences<'_> {
         blob: &TypeLibMetadataBlob,
     ) -> Option<ComInterfaceIid> {
         if self.library(request) {
-            oxvba_symbol::CatalogTypeLibResolver.interface_iid(request, blob)
+            calcvba_symbol::CatalogTypeLibResolver.interface_iid(request, blob)
         } else {
             self.own.interface_iid(request, blob)
         }
     }
     fn resolve(&self, request: &TypeLibResolveRequest) -> Option<TypeLibMetadataBlob> {
         if self.library(request) {
-            oxvba_symbol::CatalogTypeLibResolver.resolve(request)
+            calcvba_symbol::CatalogTypeLibResolver.resolve(request)
         } else {
             self.own.resolve(request)
         }
@@ -196,7 +196,7 @@ fn application_members(mut members: Vec<TypeLibMemberMetadata>) -> Vec<TypeLibMe
         if slot == 0 {
             m.parameter_types = vec![T::String];
             m.return_type = Some(T::Object);
-            m.return_wire_type = Some(oxvba_com::TypeLibWireType::InterfacePointer {
+            m.return_wire_type = Some(calcvba_com::TypeLibWireType::InterfacePointer {
                 name: "Excel.Range".into(),
             });
         } else if slot == 4 {
@@ -540,10 +540,10 @@ impl TypeLibResolver for EventTypes {
             ]
             .into_iter()
             .chain(crate::runtime::spreadsheet::XL_CV_ERROR)
-            .map(|(name, value)| oxvba_com::TypeLibConstantMetadata {
+            .map(|(name, value)| calcvba_com::TypeLibConstantMetadata {
                 owner: "Excel".into(),
                 name: name.into(),
-                value: oxvba_com::ComDefaultValue::Int(value),
+                value: calcvba_com::ComDefaultValue::Int(value),
             })
             .collect(),
             identity: TypeLibResolvedIdentity {

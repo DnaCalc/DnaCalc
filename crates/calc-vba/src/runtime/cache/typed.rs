@@ -6,8 +6,8 @@ pub(super) struct TypedEntry {
     bound: api::BoundProcedure,
 }
 pub(super) fn entries(
-    inner: &oxvba_embed::OwnedSession,
-    functions: &[(Function, oxvba_embed::Procedure)],
+    inner: &calcvba_host::OwnedSession,
+    functions: &[(Function, calcvba_host::Procedure)],
     bound: &[api::BoundProcedure],
 ) -> Vec<Option<TypedEntry>> {
     functions
@@ -17,8 +17,8 @@ pub(super) fn entries(
             let ty = |ty: &OxTy| match ty {
                 OxTy::Long => Some(api::ScalarType::Long),
                 OxTy::Double => Some(api::ScalarType::Double),
-                OxTy::Object(oxvba_oxir::ObjClass::ComIface(id)|oxvba_oxir::ObjClass::Iface(id))
-                    if inner.com_interfaces().get(id.0).is_some_and(|interface|matches!(interface,oxvba_oxir::ComInterface::Com(meta) if meta.iid==Some(spreadsheet::typed_iid()))) => Some(api::ScalarType::HostObject),
+                OxTy::Object(calcvba_oxir::ObjClass::ComIface(id)|calcvba_oxir::ObjClass::Iface(id))
+                    if inner.com_interfaces().get(id.0).is_some_and(|interface|matches!(interface,calcvba_oxir::ComInterface::Com(meta) if meta.iid==Some(spreadsheet::typed_iid()))) => Some(api::ScalarType::HostObject),
                 _ => None,
             };
             if procedure

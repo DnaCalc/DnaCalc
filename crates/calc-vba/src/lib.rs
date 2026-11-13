@@ -5,7 +5,7 @@ use calc_fml::CallableTable as UserFunctions;
 use calc_func::value::{ArrayShape, CalcArray, CalcValue, CoreRef, ExcelText, WorksheetErrorCode};
 use calc_func::value::{CellKey, ReferenceLike};
 use calc_func::{UserFunction, UserFunctionContext};
-pub use oxvba_embed::Backend;
+pub use calcvba_host::Backend;
 pub mod events;
 pub mod office;
 pub mod policy;
@@ -22,7 +22,7 @@ thread_local! {
 }
 
 /// Process-local diagnostics for the current thread's bounded immutable-code cache.
-pub fn code_cache_stats() -> oxvba_embed::CacheStats {
+pub fn code_cache_stats() -> calcvba_host::CacheStats {
     CODE_CACHE.with(|cache| cache.borrow().stats())
 }
 /// Release cached code owners. Live registrations retain code and project state safely.
@@ -57,7 +57,7 @@ pub const NEEDS_A_WORKBOOK: &str = "needs a workbook: open in DNA Calc";
 /// compiled, never run). Compare with the audit log of a run under `policy`.
 pub fn predict_module(name: &str, source: &str) -> Result<policy::Prediction, String> {
     let _scope =
-        oxvba_com::ComPolicyScope::enter(|_, _| Err("native COM disabled for triage".into()));
+        calcvba_com::ComPolicyScope::enter(|_, _| Err("native COM disabled for triage".into()));
     let module = Module::load_spreadsheet(name, source).map_err(|e| e.to_string())?;
     Ok(module.predicted_capabilities())
 }

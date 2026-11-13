@@ -41,7 +41,7 @@ models' drafts until you are asked to review them.
   functional model; skins (Grid, Atlas, Ledger, Canvas, Tree, Notebook, OneCalc's front end) only
   present and route. Purpose: trivially agent-customisable UIs that still present full
   functionality. Shared UI lives once in a library at OneCalc's dependency ceiling.
-- **CalcVBA** (now repo OxVba): an independent VBA engine with interpreter and JIT, see 4.5.
+- **CalcVBA** (repo DnaCalc/CalcVBA): an independent VBA engine with interpreter and JIT, see 4.5.
 
 ## 3. The system as built (2026-10-31)
 
@@ -49,7 +49,7 @@ Crates: `calc-value` -> `calc-func` (about 500 Excel functions) -> `calc-fml` (p
 compile, evaluate formulas) -> `calc-doc-model` / `calc-doc` (document model, xlsx/xlsb codecs) ->
 `calc-engine` (dependency graph, recalculation) -> `calc-host` (session facade, projections, edits)
 . Apps: `dna-onecalc`, `dna-calc` (Leptos UI + web-worker `server.rs`), `dna-formula-ui` (shared,
-ceiling calc-fml), `dna-strand` (design tokens). `crates/calc-vba` adapts OxVba. Tools: `xtask`
+ceiling calc-fml), `dna-strand` (design tokens). `crates/calc-vba` adapts CalcVBA. Tools: `xtask`
 (check, sweep, capture, witness, site publishing), `calc-verdict`. Platform: `calc-oracle-excel`.
 Tracker `br`; master-only; Codex workers on two Linux hosts and Windows.
 
@@ -176,7 +176,7 @@ All in `C:\Work\DnaCalc\parked\arch-review\`. Headlines:
   rebuilt per scroll; 600-900 B per formula cell over six maps; per-cell styles replaying edits;
   single-message worker; what is worth keeping (paged shared store, generational IDs, resumable
   recalc state, per-result calc stamp, prefix-sum geometry, worker boundary).
-- **risk-vba.md**: the Excel object model lives inside OxVba (`oxvba-embed`), breaking its own
+- **risk-vba.md**: the Excel object model lives inside CalcVBA (`calcvba-host`), breaking its own
   charter; `ComCallEarly` exists but both runtimes lower it to name-keyed dynamic dispatch; the
   only vtable path is Windows x64 libffi per call; formula-to-VBA is name-keyed with three
   conversions each way and 8-10 allocations; a 4,096 host-object cap; DNA Calc's side is small.

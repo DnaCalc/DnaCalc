@@ -38,7 +38,7 @@ pub(crate) fn callback_active() -> bool {
     READ.is_set()
 }
 
-pub(crate) fn object_type(object: &oxvba_runtime::ObjectRef) -> Option<&'static str> {
+pub(crate) fn object_type(object: &calcvba_runtime::ObjectRef) -> Option<&'static str> {
     let object = api::HostObject::from_object_ref(object)?;
     match object.header().iid {
         types::APP => Some("Application"),

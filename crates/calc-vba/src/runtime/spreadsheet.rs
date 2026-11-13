@@ -1,19 +1,19 @@
 //! Read-only spreadsheet objects. Values are always read through the current host call.
 use super::{Error, Value, from_variant, to_variant};
-use oxvba_com::{
+use calcvba_com::{
     ComCallbackPayload, ComCallbackToken, ComMemberToken, ComObjectDescriptor,
     ComObjectTransportKind, ComSubscriptionToken, DynamicCallKind, DynamicCallRequest,
     DynamicMemberSelector, TypeLibCacheScope, TypeLibMetadataBlob, TypeLibResolveRequest,
     TypeLibResolvedIdentity,
 };
-use oxvba_hal::{
+use calcvba_hal::{
     HostServices,
     adapters::builder::HostBuilder,
     error::{HalError, HalResult},
     model::{CapabilityId, HalDescriptor, HalProfileId, HostPolicy},
     traits::*,
 };
-use oxvba_runtime::{ObjectRef, Variant};
+use calcvba_runtime::{ObjectRef, Variant};
 use std::{
     cell::RefCell,
     rc::Rc,
@@ -261,18 +261,18 @@ fn fault(code: i32, message: impl Into<String>) -> HalError {
 }
 
 pub(crate) const TYPED_RANGE_IID: calcvba_host_api::InterfaceId = *b"DnaCalcRange0001";
-pub(crate) fn typed_iid() -> oxvba_com::ComInterfaceIid {
+pub(crate) fn typed_iid() -> calcvba_com::ComInterfaceIid {
     dna_iid(TYPED_RANGE_IID)
 }
 
 // Nominal identity for the Variant-valued projection, distinct from the numeric slot ABI.
 // This is DNA's own descriptor identity, not Excel's COM interface identity.
-fn projected_range_iid() -> oxvba_com::ComInterfaceIid {
+fn projected_range_iid() -> calcvba_com::ComInterfaceIid {
     dna_iid(*b"DnaCalcRange0002")
 }
 
-fn dna_iid(bytes: [u8; 16]) -> oxvba_com::ComInterfaceIid {
-    oxvba_com::ComInterfaceIid {
+fn dna_iid(bytes: [u8; 16]) -> calcvba_com::ComInterfaceIid {
+    calcvba_com::ComInterfaceIid {
         data1: u32::from_le_bytes(bytes[..4].try_into().unwrap()),
         data2: u16::from_le_bytes(bytes[4..6].try_into().unwrap()),
         data3: u16::from_le_bytes(bytes[6..8].try_into().unwrap()),
@@ -290,7 +290,7 @@ impl SpreadsheetHost {
                     .map_err(|error| error.host_error_code.unwrap_or(5))?;
                 let variant = to_variant(&value).map_err(|_| 13)?;
                 let value =
-                    super::coerce_argument(variant, &oxvba_oxir::OxTy::Double).map_err(|_| 13)?;
+                    super::coerce_argument(variant, &calcvba_oxir::OxTy::Double).map_err(|_| 13)?;
                 value.as_f64().ok_or(13)
             })],
         )
@@ -624,9 +624,9 @@ impl SpreadsheetHost {
                 };
                 let boolean = |index: usize, default: bool| -> HalResult<bool> {
                     supplied(index).map_or(Ok(default), |value| {
-                        oxvba_eval::arith::coerce_numeric(
+                        calcvba_eval::arith::coerce_numeric(
                             value,
-                            oxvba_bundle::NumericCoerceTarget::Boolean,
+                            calcvba_bundle::NumericCoerceTarget::Boolean,
                         )
                         .map_err(|e| fault(e.code, e.message))
                         .map(|v| v.as_bool().expect("Boolean coercion"))
@@ -636,9 +636,9 @@ impl SpreadsheetHost {
                     return self.unsupported("relative Range.Address coordinates");
                 }
                 if let Some(style) = supplied(2) {
-                    let style = oxvba_eval::arith::coerce_numeric(
+                    let style = calcvba_eval::arith::coerce_numeric(
                         style,
-                        oxvba_bundle::NumericCoerceTarget::Long,
+                        calcvba_bundle::NumericCoerceTarget::Long,
                     )
                     .map_err(|e| fault(e.code, e.message))?;
                     if style.as_i32() != Some(1) {
@@ -669,9 +669,9 @@ impl SpreadsheetHost {
                 let [index] = args else {
                     return Err(fault(450, "wrong Areas index count"));
                 };
-                let index = oxvba_eval::arith::coerce_numeric(
+                let index = calcvba_eval::arith::coerce_numeric(
                     index,
-                    oxvba_bundle::NumericCoerceTarget::Long,
+                    calcvba_bundle::NumericCoerceTarget::Long,
                 )
                 .map_err(|e| fault(e.code, e.message))?
                 .as_i32()
@@ -688,9 +688,9 @@ impl SpreadsheetHost {
             }
             "CELLS" | "ITEM" => {
                 fn index(value: &Variant) -> HalResult<u32> {
-                    let n = oxvba_eval::arith::coerce_numeric(
+                    let n = calcvba_eval::arith::coerce_numeric(
                         value,
-                        oxvba_bundle::NumericCoerceTarget::Long,
+                        calcvba_bundle::NumericCoerceTarget::Long,
                     )
                     .map_err(|e| fault(e.code, e.message))?
                     .as_i32()
@@ -719,7 +719,7 @@ impl SpreadsheetHost {
         &self,
         object: Object,
         name: &str,
-        args: &[oxvba_com::DynamicCallArg],
+        args: &[calcvba_com::DynamicCallArg],
     ) -> HalResult<Vec<Variant>> {
         let missing = || Variant::from_error_code(-2147352572);
         if name == "ADDRESS" && matches!(object, Object::Range(..)) {
@@ -786,9 +786,9 @@ impl SpreadsheetHost {
                     let enabled = match args {
                         [] => true,
                         [one] if one.as_error_code() == Some(-2147352572) => true,
-                        [one] => oxvba_eval::arith::coerce_numeric(
+                        [one] => calcvba_eval::arith::coerce_numeric(
                             one,
-                            oxvba_bundle::NumericCoerceTarget::Boolean,
+                            calcvba_bundle::NumericCoerceTarget::Boolean,
                         )
                         .map_err(|e| fault(e.code, e.message))?
                         .as_bool()
@@ -901,7 +901,7 @@ fn platform_com() -> Option<Arc<dyn HostServices>> {
             allow_dynamic_link: false,
             allow_com_activation: true,
             deterministic_mode: false,
-            com_invocation_strategy: oxvba_hal::model::ComInvocationStrategy::PreferVtable,
+            com_invocation_strategy: calcvba_hal::model::ComInvocationStrategy::PreferVtable,
             ..HostPolicy::default()
         };
         Some(
@@ -985,7 +985,7 @@ impl ComHal for SpreadsheetHost {
         &self,
         object: ObjectRef,
         members: &[TypeLibMemberMetadata],
-        interfaces: &[oxvba_com::TypeLibInterfaceMetadata],
+        interfaces: &[calcvba_com::TypeLibInterfaceMetadata],
     ) -> HalResult<calcvba_host_api::HostObject> {
         match self.foreign(&object) {
             // SAFETY: the compiler-retained metadata contract is forwarded unchanged.
@@ -999,7 +999,7 @@ impl ComHal for SpreadsheetHost {
         &self,
         object: ObjectRef,
         members: &[TypeLibMemberMetadata],
-        interfaces: &[oxvba_com::TypeLibInterfaceMetadata],
+        interfaces: &[calcvba_com::TypeLibInterfaceMetadata],
         locale_id: u32,
     ) -> HalResult<calcvba_host_api::HostObject> {
         match self.foreign(&object) {
@@ -1016,7 +1016,7 @@ impl ComHal for SpreadsheetHost {
             None => self.unsupported("For Each over a DNA object"),
         }
     }
-    fn dispatch_invoke_variant(&self, request: &oxvba_com::ComInvokeRequest) -> HalResult<Variant> {
+    fn dispatch_invoke_variant(&self, request: &calcvba_com::ComInvokeRequest) -> HalResult<Variant> {
         let _ = request;
         self.unsupported(LATE_BOUND_REFUSAL)
     }
@@ -1079,15 +1079,15 @@ impl ComHal for SpreadsheetHost {
         &self,
         object: ObjectRef,
         member: &TypeLibMemberMetadata,
-        args: &[oxvba_com::DynamicCallArg],
-    ) -> HalResult<oxvba_runtime::RuntimeCallResult> {
+        args: &[calcvba_com::DynamicCallArg],
+    ) -> HalResult<calcvba_runtime::RuntimeCallResult> {
         if let Some(com) = self.foreign(&object) {
             return com.invoke_early_bound(object, member, args);
         }
         if member.invoke_kind == TypeLibMemberInvokeKind::PropertyGet
             && let Some(result) = self.document_member(&object, &member.name, args.len())
         {
-            return result.map(oxvba_runtime::RuntimeCallResult::value);
+            return result.map(calcvba_runtime::RuntimeCallResult::value);
         }
         // A document project's worksheet function (it runs outside any event) reaches the
         // automatic-event Application for what a worksheet function asks of it: its
@@ -1101,7 +1101,7 @@ impl ComHal for SpreadsheetHost {
             if matches!(name.as_str(), "WORKSHEETFUNCTION" | "CALLER") {
                 return self
                     .invoke_projected_member(Object::Application, &name, &[])
-                    .map(oxvba_runtime::RuntimeCallResult::value);
+                    .map(calcvba_runtime::RuntimeCallResult::value);
             }
         }
         if crate::events::object_type(&object).is_some() {
@@ -1117,7 +1117,7 @@ impl ComHal for SpreadsheetHost {
             {
                 return self
                     .native_value(&native)
-                    .map(oxvba_runtime::RuntimeCallResult::value);
+                    .map(calcvba_runtime::RuntimeCallResult::value);
             }
             return Err(fault(438, "unknown numeric Range member"));
         }
@@ -1143,7 +1143,7 @@ impl ComHal for SpreadsheetHost {
                     let args = self.projected_arguments(object, &name, args)?;
                     return self
                         .invoke_projected_member(object, &name, &args)
-                        .map(oxvba_runtime::RuntimeCallResult::value);
+                        .map(calcvba_runtime::RuntimeCallResult::value);
                 }
                 TypeLibMemberInvokeKind::PropertyPut | TypeLibMemberInvokeKind::PropertyPutRef
                     if (event_range || member.token >= 100)
@@ -1201,7 +1201,7 @@ impl ComHal for SpreadsheetHost {
         };
         let args = self.projected_arguments(object, name, args)?;
         self.invoke_projected_member(object, name, &args)
-            .map(oxvba_runtime::RuntimeCallResult::value)
+            .map(calcvba_runtime::RuntimeCallResult::value)
     }
 
     fn create_object_variant(&self, name: Variant) -> HalResult<Variant> {
@@ -1433,24 +1433,24 @@ pub(crate) const XL_CV_ERROR: [(&str, i64); 7] = [
     ("xlErrNA", 2042),
 ];
 
-fn xl_cv_error_constants() -> Vec<oxvba_com::TypeLibConstantMetadata> {
+fn xl_cv_error_constants() -> Vec<calcvba_com::TypeLibConstantMetadata> {
     XL_CV_ERROR
         .into_iter()
-        .map(|(name, value)| oxvba_com::TypeLibConstantMetadata {
+        .map(|(name, value)| calcvba_com::TypeLibConstantMetadata {
             owner: "Excel".into(),
             name: name.into(),
-            value: oxvba_com::ComDefaultValue::Int(value),
+            value: calcvba_com::ComDefaultValue::Int(value),
         })
         .collect()
 }
 
 pub(crate) struct SpreadsheetTypes;
-impl oxvba_symbol::TypeLibResolver for SpreadsheetTypes {
+impl calcvba_symbol::TypeLibResolver for SpreadsheetTypes {
     fn interface_iid(
         &self,
         request: &TypeLibResolveRequest,
         _: &TypeLibMetadataBlob,
-    ) -> Option<oxvba_com::ComInterfaceIid> {
+    ) -> Option<calcvba_com::ComInterfaceIid> {
         if request
             .reference_name
             .eq_ignore_ascii_case("DnaCalcObjects")
@@ -1465,7 +1465,7 @@ impl oxvba_symbol::TypeLibResolver for SpreadsheetTypes {
         }
     }
     fn resolve(&self, request: &TypeLibResolveRequest) -> Option<TypeLibMetadataBlob> {
-        use oxvba_com::{
+        use calcvba_com::{
             TypeLibMemberInvokeKind as Kind, TypeLibMemberMetadata, TypeLibParamType as Ty,
         };
         fn member(
@@ -1730,7 +1730,7 @@ impl oxvba_symbol::TypeLibResolver for SpreadsheetTypes {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use oxvba_symbol::TypeLibResolver;
+    use calcvba_symbol::TypeLibResolver;
 
     /// dc-1nbp.2: the object limit counts live objects. Released Range objects are reclaimed, a
     /// Range still held (a module global) stays valid, and live objects still hit the limit.

@@ -12,8 +12,8 @@ use std::cell::RefCell;
 use std::sync::Arc;
 
 pub use calcvba_lib::{Prediction, PredictionSource};
-use oxvba_hal::{AuditHandle, HostServices, PolicyHost};
-pub use oxvba_hal::{
+use calcvba_hal::{AuditHandle, HostServices, PolicyHost};
+pub use calcvba_hal::{
     AuditSnapshot, Capability, CapabilitySet, Decision, POLICY_DENIED_CODE, PolicyMode,
 };
 
@@ -87,8 +87,8 @@ pub fn is_standard_library_guid(guid: &str) -> bool {
     STANDARD_LIBRARIES.contains(&guid.as_str())
 }
 
-fn is_standard_library(reference: &oxvba_symbol::manifest::ProjectReference) -> bool {
-    use oxvba_symbol::manifest::ProjectReference as R;
+fn is_standard_library(reference: &calcvba_symbol::manifest::ProjectReference) -> bool {
+    use calcvba_symbol::manifest::ProjectReference as R;
     matches!(reference, R::TypeLibrary { guid: Some(guid), .. } if is_standard_library_guid(guid))
 }
 
@@ -97,12 +97,12 @@ fn is_standard_library(reference: &oxvba_symbol::manifest::ProjectReference) -> 
 /// the time, and denying their metadata made `Safe` refuse every case of every such workbook.
 /// A reference to any other library, by name or by identity, is still denied and audited.
 pub(crate) fn compilation_scope(
-    references: &[oxvba_symbol::manifest::ProjectReference],
-) -> oxvba_com::ComPolicyScope {
+    references: &[calcvba_symbol::manifest::ProjectReference],
+) -> calcvba_com::ComPolicyScope {
     if references.iter().all(is_standard_library) {
-        return oxvba_com::ComPolicyScope::unrestricted();
+        return calcvba_com::ComPolicyScope::unrestricted();
     }
-    wrap(oxvba_hal::adapters::builder::HostBuilder::new().build()).enter_com_policy()
+    wrap(calcvba_hal::adapters::builder::HostBuilder::new().build()).enter_com_policy()
 }
 
 /// The policy in force on this thread.

@@ -24,8 +24,8 @@ fn module(name: &str, kind: ModuleKind, source: &str) -> ProjectModule {
     }
 }
 
-fn type_library(name: &str, guid: &str, import: &str) -> oxvba_symbol::manifest::ProjectReference {
-    oxvba_symbol::manifest::ProjectReference::TypeLibrary {
+fn type_library(name: &str, guid: &str, import: &str) -> calcvba_symbol::manifest::ProjectReference {
+    calcvba_symbol::manifest::ProjectReference::TypeLibrary {
         name: name.into(),
         guid: Some(guid.into()),
         version_major: Some(2),
@@ -38,7 +38,7 @@ fn type_library(name: &str, guid: &str, import: &str) -> oxvba_symbol::manifest:
 /// Compile a one-function file project against `compiler` under Safe and return what the policy
 /// audited, with whether the project loaded.
 fn safe_compile_audit(
-    compiler: Vec<oxvba_symbol::manifest::ProjectReference>,
+    compiler: Vec<calcvba_symbol::manifest::ProjectReference>,
     backend: Backend,
 ) -> (bool, crate::policy::AuditSnapshot) {
     let _scope = crate::policy::PolicyScope::enter(crate::policy::PolicyMode::Safe);

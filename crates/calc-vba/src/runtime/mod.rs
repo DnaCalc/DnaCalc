@@ -1,12 +1,12 @@
 //! DNA-owned value adapter and runtime composition. Ported from OxVba 325257ea
 //! adapters/spreadsheet-compat/src/lib.rs; compiler, code and state stay in OxVba.
-use oxvba_bundle::coreir::CoreConst;
-use oxvba_oxir::OxTy;
-use oxvba_runtime::{
+use calcvba_bundle::coreir::CoreConst;
+use calcvba_oxir::OxTy;
+use calcvba_runtime::{
     VarType, Variant,
     safe_array::{SafeArray, SafeArrayBound},
 };
-use oxvba_symbol::manifest as sym;
+use calcvba_symbol::manifest as sym;
 use std::sync::Arc;
 mod cache;
 pub(crate) use cache::neutral::adapter_error;
@@ -14,7 +14,7 @@ mod late_binding;
 pub(crate) mod spreadsheet;
 mod worksheet;
 pub use cache::{CodeCache, OwnedSession};
-pub use oxvba_embed::{Backend, CacheStats};
+pub use calcvba_host::{Backend, CacheStats};
 pub(crate) use spreadsheet::{ContextError, Range, RangeInfo, SpreadsheetContext};
 
 /// Spreadsheet values; array cells are row-major and contain scalar values.
@@ -86,8 +86,8 @@ pub enum Error {
 
 #[derive(Clone)]
 pub struct Module {
-    engine: oxvba_embed::Module,
-    functions: Vec<(Function, oxvba_embed::Procedure)>,
+    engine: calcvba_host::Module,
+    functions: Vec<(Function, calcvba_host::Procedure)>,
     worksheet_refusals: Vec<worksheet::Refusal>,
     spreadsheet: Option<Arc<spreadsheet::SpreadsheetHost>>,
     event_project: bool,
@@ -236,28 +236,28 @@ impl Module {
             automatic_events,
             workbook_events,
         };
-        let own: &dyn oxvba_symbol::TypeLibResolver = if events {
+        let own: &dyn calcvba_symbol::TypeLibResolver = if events {
             &event_types
         } else if spreadsheet_objects {
             &spreadsheet::SpreadsheetTypes
         } else {
-            &oxvba_symbol::CatalogTypeLibResolver
+            &calcvba_symbol::CatalogTypeLibResolver
         };
         let chained = crate::events::types::WithReferences {
             own,
             libraries: &references.libraries,
         };
-        let resolver: &dyn oxvba_symbol::TypeLibResolver = &chained;
+        let resolver: &dyn calcvba_symbol::TypeLibResolver = &chained;
         if events {
             validate_project_modules(&manifest, resolver, automatic_events)?;
         }
         let mut engine =
-            oxvba_embed::Module::load_project(&manifest, resolver).map_err(engine_error)?;
+            calcvba_host::Module::load_project(&manifest, resolver).map_err(engine_error)?;
         let entries = if private_worksheet_lookup {
             let entries = worksheet::private_entries(&mut manifest, &engine)?;
             if !entries.bridges.is_empty() {
                 engine =
-                    oxvba_embed::Module::load_project(&manifest, resolver).map_err(engine_error)?;
+                    calcvba_host::Module::load_project(&manifest, resolver).map_err(engine_error)?;
             }
             entries
         } else {
@@ -273,9 +273,9 @@ impl Module {
                     native.parameter_types.iter().any(|ty| {
                         !matches!(
                             ty,
-                            oxvba_com::TypeLibParamType::Boolean
-                                | oxvba_com::TypeLibParamType::Object
-                                | oxvba_com::TypeLibParamType::ByRefBoolean
+                            calcvba_com::TypeLibParamType::Boolean
+                                | calcvba_com::TypeLibParamType::Object
+                                | calcvba_com::TypeLibParamType::ByRefBoolean
                         )
                     })
                 })
@@ -288,8 +288,8 @@ impl Module {
         let functions: Vec<_> = engine
             .procedures()
             .filter(|p| {
-                p.visibility == oxvba_embed::Visibility::Public
-                    && p.kind == oxvba_embed::ProcedureKind::Function
+                p.visibility == calcvba_host::Visibility::Public
+                    && p.kind == calcvba_host::ProcedureKind::Function
                     && procedural.contains(&p.module.to_ascii_lowercase())
             })
             .map(|p| {
@@ -374,11 +374,11 @@ impl Module {
 
 fn validate_project_modules(
     manifest: &sym::SymbolProjectManifest,
-    resolver: &dyn oxvba_symbol::TypeLibResolver,
+    resolver: &dyn calcvba_symbol::TypeLibResolver,
     automatic_events: bool,
 ) -> Result<(), Error> {
-    use oxvba_symbol::model::SymbolKind;
-    let env = oxvba_symbol::build_resolution_environment(manifest, resolver)
+    use calcvba_symbol::model::SymbolKind;
+    let env = calcvba_symbol::build_resolution_environment(manifest, resolver)
         .map_err(|error| Error::Compile(error.to_string()))?;
     let compiled = env.modules().collect::<Vec<_>>();
     if compiled.len() != manifest.modules.len() {
@@ -391,8 +391,8 @@ fn validate_project_modules(
     for (module, unit) in compiled.into_iter().zip(&manifest.modules) {
         // ubs:ignore[rust.security.constant-time-compare] These are public source module kinds and names, not secrets.
         if module.module_kind != unit.module_kind
-            || oxvba_symbol::model::fold_identifier(&unit.module_name)
-                != oxvba_symbol::model::fold_identifier(module.module_name)
+            || calcvba_symbol::model::fold_identifier(&unit.module_name)
+                != calcvba_symbol::model::fold_identifier(module.module_name)
         {
             return Err(Error::UnsupportedSignature(format!(
                 "project module {} changed its directory identity (dc-snz.15)",
@@ -444,7 +444,7 @@ fn validate_project_modules(
 /// pinned frontend accepts them at module level. Relocate only complete, parsed
 /// metadata statements; preserve all executable text and every other attribute.
 fn exported_source(source: &str) -> String {
-    use oxvba_syntax::{SyntaxKind as K, lexer::tokenize};
+    use calcvba_syntax::{SyntaxKind as K, lexer::tokenize};
     let tokens = tokenize(source);
     let mut body = String::with_capacity(source.len());
     let mut attributes = String::new();
@@ -484,7 +484,7 @@ fn exported_source(source: &str) -> String {
                 body.bytes().rev().take_while(|byte| *byte == b'"').count() % 2 == 1
             });
         let text: String = statement.iter().map(|(_, text)| *text).collect();
-        if metadata && oxvba_syntax::parse(&text).errors().is_empty() {
+        if metadata && calcvba_syntax::parse(&text).errors().is_empty() {
             attributes.push_str(&text);
             attributes.push('\n');
             for ch in text.chars() {
@@ -526,18 +526,18 @@ mod exported_tests {
 }
 
 fn bind_functions(
-    functions: &[(Function, oxvba_embed::Procedure)],
+    functions: &[(Function, calcvba_host::Procedure)],
     mut bind: impl FnMut(
-        &oxvba_embed::Procedure,
-    ) -> Result<oxvba_embed::BoundProcedure, oxvba_embed::Error>,
-) -> Result<Vec<oxvba_embed::BoundProcedure>, Error> {
+        &calcvba_host::Procedure,
+    ) -> Result<calcvba_host::BoundProcedure, calcvba_host::Error>,
+) -> Result<Vec<calcvba_host::BoundProcedure>, Error> {
     functions
         .iter()
         .map(|(_, p)| bind(p).map_err(engine_error))
         .collect()
 }
 fn call_function(
-    functions: &[(Function, oxvba_embed::Procedure)],
+    functions: &[(Function, calcvba_host::Procedure)],
     spreadsheet: Option<&spreadsheet::SpreadsheetHost>,
     index: usize,
     args: &[Value],
@@ -615,14 +615,14 @@ fn call_function(
         None => from_variant(&result, false),
     }
 }
-fn engine_error(error: oxvba_embed::Error) -> Error {
+fn engine_error(error: calcvba_host::Error) -> Error {
     match error {
-        oxvba_embed::Error::Compile(s) => Error::Compile(s),
-        oxvba_embed::Error::UnsupportedSignature(s) => Error::UnsupportedSignature(s),
-        oxvba_embed::Error::BudgetExceeded => Error::BudgetExceeded,
-        oxvba_embed::Error::BackendUnavailable => Error::BackendUnavailable,
-        oxvba_embed::Error::UnsupportedBackend(reason) => Error::UnsupportedBackend(reason),
-        oxvba_embed::Error::Runtime {
+        calcvba_host::Error::Compile(s) => Error::Compile(s),
+        calcvba_host::Error::UnsupportedSignature(s) => Error::UnsupportedSignature(s),
+        calcvba_host::Error::BudgetExceeded => Error::BudgetExceeded,
+        calcvba_host::Error::BackendUnavailable => Error::BackendUnavailable,
+        calcvba_host::Error::UnsupportedBackend(reason) => Error::UnsupportedBackend(reason),
+        calcvba_host::Error::Runtime {
             number,
             description,
             vba_source,
@@ -636,7 +636,7 @@ fn engine_error(error: oxvba_embed::Error) -> Error {
 }
 
 fn coerce_argument(value: Variant, ty: &OxTy) -> Result<Variant, Error> {
-    use oxvba_bundle::NumericCoerceTarget as Target;
+    use calcvba_bundle::NumericCoerceTarget as Target;
     let target = match ty {
         OxTy::Variant => return Ok(value),
         OxTy::Object(_) if value.vtype() == VarType::Object => return Ok(value),
@@ -645,7 +645,7 @@ fn coerce_argument(value: Variant, ty: &OxTy) -> Result<Variant, Error> {
         {
             return Ok(value);
         }
-        OxTy::Str => return oxvba_eval::arith::coerce_string(&value).map_err(argument_error),
+        OxTy::Str => return calcvba_eval::arith::coerce_string(&value).map_err(argument_error),
         OxTy::Bool => Target::Boolean,
         OxTy::Byte => Target::Byte,
         OxTy::Integer => Target::Integer,
@@ -661,7 +661,7 @@ fn coerce_argument(value: Variant, ty: &OxTy) -> Result<Variant, Error> {
             )));
         }
     };
-    oxvba_eval::arith::coerce_numeric(&value, target).map_err(argument_error)
+    calcvba_eval::arith::coerce_numeric(&value, target).map_err(argument_error)
 }
 
 /// VBA's Overflow (error 6), raised by an argument's conversion to its parameter's type.
@@ -699,7 +699,7 @@ pub(crate) fn argument_variant(value: &Value) -> Result<Variant, Error> {
     to_variant(value)
 }
 
-fn argument_error(error: oxvba_eval::arith::ArithError) -> Error {
+fn argument_error(error: calcvba_eval::arith::ArithError) -> Error {
     Error::Runtime {
         number: error.code,
         description: error.message,
@@ -847,7 +847,7 @@ pub(crate) fn from_variant(value: &Variant, inside_array: bool) -> Result<Value,
         | VarType::Date
         | VarType::Currency
         | VarType::Decimal => {
-            let number = oxvba_runtime::coerce::coerce_to(value, VarType::Double)
+            let number = calcvba_runtime::coerce::coerce_to(value, VarType::Double)
                 .map_err(Error::ValueConversion)?;
             Value::Number(number.as_f64().expect("Double coercion"))
         }

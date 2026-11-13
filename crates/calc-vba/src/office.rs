@@ -6,8 +6,8 @@
 //! compound storage, MS-OVBA decompression, the `dir` stream with the modules, the code page and
 //! the references. This module is the glue's view of that project; [`crate::events`] compiles it
 //! and registers its public procedures as worksheet functions.
-use oxvba_office as office;
-use oxvba_symbol::manifest as sym;
+use calcvba_office as office;
+use calcvba_symbol::manifest as sym;
 
 /// What a module of the project is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

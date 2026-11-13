@@ -67,7 +67,7 @@ pub enum DocumentEvents {
 /// The type-library references a project compiles against beside DNA's own objects.
 #[derive(Clone, Debug, Default)]
 pub struct ProjectReferences {
-    pub(crate) compiler: Vec<oxvba_symbol::manifest::ProjectReference>,
+    pub(crate) compiler: Vec<calcvba_symbol::manifest::ProjectReference>,
     /// The reference names the platform's registered type libraries resolve.
     pub(crate) libraries: Vec<String>,
     /// Whether calls reach platform COM objects (a native Windows build only).
@@ -122,7 +122,7 @@ impl ProjectReferences {
         let mut out = Self::none();
         for (name, guid) in libraries {
             if name.eq_ignore_ascii_case("Scripting") {
-                out.compiler.push(oxvba_symbol::manifest::ProjectReference::TypeLibrary {
+                out.compiler.push(calcvba_symbol::manifest::ProjectReference::TypeLibrary {
                     name: name.clone(),
                     guid: guid.clone(),
                     version_major: None,

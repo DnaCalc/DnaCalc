@@ -1,8 +1,8 @@
 //! Runtime composition over neutral code/session ownership; no spreadsheet adapter dependency.
 use super::*;
 pub struct OwnedSession {
-    inner: oxvba_embed::OwnedSession,
-    functions: Vec<(Function, oxvba_embed::Procedure)>,
+    inner: calcvba_host::OwnedSession,
+    functions: Vec<(Function, calcvba_host::Procedure)>,
     spreadsheet: Option<Arc<spreadsheet::SpreadsheetHost>>,
     bound: Vec<calcvba_host_api::BoundProcedure>,
     catalogue: Vec<calcvba_host_api::Procedure>,
@@ -17,8 +17,8 @@ pub struct OwnedSession {
 }
 impl OwnedSession {
     fn wrap(
-        inner: oxvba_embed::OwnedSession,
-        functions: Vec<(Function, oxvba_embed::Procedure)>,
+        inner: calcvba_host::OwnedSession,
+        functions: Vec<(Function, calcvba_host::Procedure)>,
         spreadsheet: Option<Arc<spreadsheet::SpreadsheetHost>>,
         event_project: bool,
     ) -> Result<Self, Error> {
@@ -58,7 +58,7 @@ impl OwnedSession {
                 );
                 match linked {
                     Ok(()) => {}
-                    Err(oxvba_embed::Error::UnsupportedSignature(why)) => {
+                    Err(calcvba_host::Error::UnsupportedSignature(why)) => {
                         dynamic[index] = Some(why)
                     }
                     Err(error) => return Err(engine_error(error)),
@@ -125,8 +125,8 @@ impl OwnedSession {
     }
 }
 type SplitModule = (
-    oxvba_embed::Module,
-    Vec<(Function, oxvba_embed::Procedure)>,
+    calcvba_host::Module,
+    Vec<(Function, calcvba_host::Procedure)>,
     Option<Arc<spreadsheet::SpreadsheetHost>>,
     bool,
 );
@@ -145,10 +145,10 @@ fn split_module(module: Module) -> SplitModule {
     };
     (engine, module.functions, spreadsheet, module.event_project)
 }
-pub struct CodeCache(oxvba_embed::CodeCache);
+pub struct CodeCache(calcvba_host::CodeCache);
 impl CodeCache {
     pub fn new(max_entries: usize, max_description_bytes: usize) -> Self {
-        Self(oxvba_embed::CodeCache::new(
+        Self(calcvba_host::CodeCache::new(
             max_entries,
             max_description_bytes,
         ))

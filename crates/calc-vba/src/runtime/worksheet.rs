@@ -8,7 +8,7 @@
 use super::{Error, OxTy, sym, type_name};
 use std::collections::BTreeMap;
 
-pub(super) type Bridges = BTreeMap<(String, String), oxvba_embed::Procedure>;
+pub(super) type Bridges = BTreeMap<(String, String), calcvba_host::Procedure>;
 
 #[derive(Clone)]
 pub(super) struct Refusal {
@@ -24,7 +24,7 @@ pub(super) struct PrivateEntries {
 
 pub(super) fn private_entries(
     manifest: &mut sym::SymbolProjectManifest,
-    engine: &oxvba_embed::Module,
+    engine: &calcvba_host::Module,
 ) -> Result<PrivateEntries, Error> {
     let mut entries = PrivateEntries::default();
     let source = manifest
@@ -36,8 +36,8 @@ pub(super) fn private_entries(
     let procedures: Vec<_> = engine
         .procedures()
         .filter(|p| {
-            p.visibility == oxvba_embed::Visibility::Private
-                && p.kind == oxvba_embed::ProcedureKind::Function
+            p.visibility == calcvba_host::Visibility::Private
+                && p.kind == calcvba_host::ProcedureKind::Function
                 && manifest.modules.iter().any(|m| {
                     m.module_name == p.module && m.module_kind == sym::ModuleKind::Procedural
                 })

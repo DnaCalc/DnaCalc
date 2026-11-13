@@ -2,29 +2,29 @@
 //! crates/oxvba-embed/src/provider.rs; runtime code and session checks stay there.
 use super::*;
 use calcvba_host_api as api;
-use oxvba_com::ComInterfaceIid;
+use calcvba_com::ComInterfaceIid;
 pub(super) fn handle(
     handle: &api::BoundProcedure,
-) -> Result<&oxvba_embed::BoundProcedure, api::Error> {
+) -> Result<&calcvba_host::BoundProcedure, api::Error> {
     let bound = handle
-        .provider_payload::<oxvba_embed::BoundProcedure>()
+        .provider_payload::<calcvba_host::BoundProcedure>()
         .ok_or(api::Error::StaleHandle)?;
     if bound.generation() != handle.generation() {
         return Err(api::Error::StaleHandle);
     }
     Ok(bound)
 }
-fn error(value: oxvba_embed::Error) -> api::Error {
+fn error(value: calcvba_host::Error) -> api::Error {
     match value {
-        oxvba_embed::Error::Compile(s) => api::Error::Compile(s),
-        oxvba_embed::Error::StaleHandle => api::Error::StaleHandle,
-        oxvba_embed::Error::ArgumentMismatch => api::Error::ArgumentMismatch,
-        oxvba_embed::Error::BudgetExceeded => api::Error::BudgetExceeded,
-        oxvba_embed::Error::Reentry => api::Error::Reentry,
-        oxvba_embed::Error::UnsupportedSignature(s) => api::Error::UnsupportedSignature(s),
-        oxvba_embed::Error::UnsupportedBackend(s) => api::Error::UnsupportedBackend(s),
-        oxvba_embed::Error::BackendUnavailable => api::Error::BackendUnavailable,
-        oxvba_embed::Error::Runtime {
+        calcvba_host::Error::Compile(s) => api::Error::Compile(s),
+        calcvba_host::Error::StaleHandle => api::Error::StaleHandle,
+        calcvba_host::Error::ArgumentMismatch => api::Error::ArgumentMismatch,
+        calcvba_host::Error::BudgetExceeded => api::Error::BudgetExceeded,
+        calcvba_host::Error::Reentry => api::Error::Reentry,
+        calcvba_host::Error::UnsupportedSignature(s) => api::Error::UnsupportedSignature(s),
+        calcvba_host::Error::UnsupportedBackend(s) => api::Error::UnsupportedBackend(s),
+        calcvba_host::Error::BackendUnavailable => api::Error::BackendUnavailable,
+        calcvba_host::Error::Runtime {
             number,
             description,
             vba_source,
@@ -68,11 +68,11 @@ impl api::Session for OwnedSession {
         kind: api::ProcedureKind,
     ) -> Result<api::BoundProcedure, api::Error> {
         let kind = match kind {
-            api::ProcedureKind::Sub => oxvba_embed::ProcedureKind::Sub,
-            api::ProcedureKind::Function => oxvba_embed::ProcedureKind::Function,
-            api::ProcedureKind::PropertyGet => oxvba_embed::ProcedureKind::PropertyGet,
-            api::ProcedureKind::PropertyLet => oxvba_embed::ProcedureKind::PropertyLet,
-            api::ProcedureKind::PropertySet => oxvba_embed::ProcedureKind::PropertySet,
+            api::ProcedureKind::Sub => calcvba_host::ProcedureKind::Sub,
+            api::ProcedureKind::Function => calcvba_host::ProcedureKind::Function,
+            api::ProcedureKind::PropertyGet => calcvba_host::ProcedureKind::PropertyGet,
+            api::ProcedureKind::PropertyLet => calcvba_host::ProcedureKind::PropertyLet,
+            api::ProcedureKind::PropertySet => calcvba_host::ProcedureKind::PropertySet,
         };
         let bound = self.inner.bind(module, name, kind).map_err(error)?;
         Ok(api::BoundProcedure::from_provider(
@@ -163,7 +163,7 @@ impl api::Session for OwnedSession {
         Ok(())
     }
 }
-pub(super) fn catalogue(session: &oxvba_embed::OwnedSession) -> Vec<api::Procedure> {
+pub(super) fn catalogue(session: &calcvba_host::OwnedSession) -> Vec<api::Procedure> {
     session
         .procedures()
         .map(|p| api::Procedure {
@@ -171,16 +171,16 @@ pub(super) fn catalogue(session: &oxvba_embed::OwnedSession) -> Vec<api::Procedu
             module: p.module.clone(),
             name: p.name.clone(),
             kind: match p.kind {
-                oxvba_embed::ProcedureKind::Sub => api::ProcedureKind::Sub,
-                oxvba_embed::ProcedureKind::Function => api::ProcedureKind::Function,
-                oxvba_embed::ProcedureKind::PropertyGet => api::ProcedureKind::PropertyGet,
-                oxvba_embed::ProcedureKind::PropertyLet => api::ProcedureKind::PropertyLet,
-                oxvba_embed::ProcedureKind::PropertySet => api::ProcedureKind::PropertySet,
+                calcvba_host::ProcedureKind::Sub => api::ProcedureKind::Sub,
+                calcvba_host::ProcedureKind::Function => api::ProcedureKind::Function,
+                calcvba_host::ProcedureKind::PropertyGet => api::ProcedureKind::PropertyGet,
+                calcvba_host::ProcedureKind::PropertyLet => api::ProcedureKind::PropertyLet,
+                calcvba_host::ProcedureKind::PropertySet => api::ProcedureKind::PropertySet,
             },
             visibility: match p.visibility {
-                oxvba_embed::Visibility::Public => api::Visibility::Public,
-                oxvba_embed::Visibility::Private => api::Visibility::Private,
-                oxvba_embed::Visibility::Friend => api::Visibility::Friend,
+                calcvba_host::Visibility::Public => api::Visibility::Public,
+                calcvba_host::Visibility::Private => api::Visibility::Private,
+                calcvba_host::Visibility::Friend => api::Visibility::Friend,
             },
             option_private_module: p.option_private_module,
             parameters: p
@@ -200,8 +200,8 @@ pub(super) fn catalogue(session: &oxvba_embed::OwnedSession) -> Vec<api::Procedu
         })
         .collect()
 }
-fn ty(value: &oxvba_oxir::OxTy, session: &oxvba_embed::OwnedSession) -> api::Type {
-    use {api::Type as T, oxvba_oxir::OxTy as O};
+fn ty(value: &calcvba_oxir::OxTy, session: &calcvba_host::OwnedSession) -> api::Type {
+    use {api::Type as T, calcvba_oxir::OxTy as O};
     match value {
         O::Variant => T::Variant,
         O::Bool => T::Boolean,
@@ -217,12 +217,12 @@ fn ty(value: &oxvba_oxir::OxTy, session: &oxvba_embed::OwnedSession) -> api::Typ
         O::Str => T::String,
         O::FixedStr(n) => T::FixedString(*n),
         O::ProcRef => T::Procedure,
-        O::Object(oxvba_oxir::ObjClass::ComIface(i) | oxvba_oxir::ObjClass::Iface(i)) => {
+        O::Object(calcvba_oxir::ObjClass::ComIface(i) | calcvba_oxir::ObjClass::Iface(i)) => {
             let interface = session.com_interfaces().get(i.0);
             T::Object {
                 name: interface.map(|i| i.name().to_owned()),
                 iid: interface.and_then(|i| match i {
-                    oxvba_oxir::ComInterface::Com(meta) => meta.iid.map(interface_id),
+                    calcvba_oxir::ComInterface::Com(meta) => meta.iid.map(interface_id),
                     _ => None,
                 }),
             }
@@ -235,16 +235,16 @@ fn ty(value: &oxvba_oxir::OxTy, session: &oxvba_embed::OwnedSession) -> api::Typ
         O::Array(element, shape) => T::Array {
             element: Box::new(ty(element, session)),
             rank: match shape {
-                oxvba_oxir::ArrayShape::Dynamic => None,
-                oxvba_oxir::ArrayShape::Fixed { rank } => Some(*rank as usize),
+                calcvba_oxir::ArrayShape::Dynamic => None,
+                calcvba_oxir::ArrayShape::Fixed { rank } => Some(*rank as usize),
             },
         },
     }
 }
-fn array_element(value: &oxvba_bundle::ArrayElementType) -> api::ArrayElement {
+fn array_element(value: &calcvba_bundle::ArrayElementType) -> api::ArrayElement {
     use {
         api::{ArrayElement as A, Type as T},
-        oxvba_bundle::ArrayElementType as E,
+        calcvba_bundle::ArrayElementType as E,
     };
     let scalar = match value {
         E::Variant => T::Variant,
@@ -269,8 +269,8 @@ fn array_element(value: &oxvba_bundle::ArrayElementType) -> api::ArrayElement {
     };
     A::Scalar(scalar)
 }
-fn default_value(value: &oxvba_bundle::coreir::CoreConst) -> api::Variant {
-    use {api::Variant as V, oxvba_bundle::coreir::CoreConst as C};
+fn default_value(value: &calcvba_bundle::coreir::CoreConst) -> api::Variant {
+    use {api::Variant as V, calcvba_bundle::coreir::CoreConst as C};
     match value {
         C::Empty => V::empty(),
         C::Null => V::null(),
