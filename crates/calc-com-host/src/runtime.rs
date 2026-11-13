@@ -356,6 +356,8 @@ static CONTAINER: RawVtable<5> = RawVtable([
 /// Rule 5: vtable errors carry IErrorInfo; Invoke additionally carries EXCEPINFO when supplied.
 pub(crate) fn error(error: &AutoError, exception: *mut EXCEPINFO) -> HRESULT {
     let number = error.number();
+    // Do not let an earlier local COM failure supply the description of this failure.
+    let _ = unsafe { SetErrorInfo(0, None::<&IErrorInfo>) };
     let code = match error {
         AutoError::Status(code) => return HRESULT(*code),
         AutoError::Disconnected => return CO_E_OBJNOTCONNECTED,
@@ -364,11 +366,13 @@ pub(crate) fn error(error: &AutoError, exception: *mut EXCEPINFO) -> HRESULT {
     let description = error.description();
     let description_wide: Vec<u16> = description.encode_utf16().chain(Some(0)).collect();
     unsafe {
-        if let Ok(create) = CreateErrorInfo() {
-            let _ = create.SetSource(windows::core::w!("DNA Calc"));
-            let _ = create.SetDescription(windows::core::PCWSTR(description_wide.as_ptr()));
-            if let Ok(info) = create.cast::<IErrorInfo>() {
-                let _ = SetErrorInfo(0, &info);
+        if !description.is_empty() {
+            if let Ok(create) = CreateErrorInfo() {
+                let _ = create.SetSource(windows::core::w!("DNA Calc"));
+                let _ = create.SetDescription(windows::core::PCWSTR(description_wide.as_ptr()));
+                if let Ok(info) = create.cast::<IErrorInfo>() {
+                    let _ = SetErrorInfo(0, &info);
+                }
             }
         }
         if !exception.is_null() {

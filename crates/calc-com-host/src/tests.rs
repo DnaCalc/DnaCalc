@@ -750,6 +750,50 @@ fn event_source_owns_cookies_and_disconnects_retained_ranges() {
     );
 }
 
+/// Native-only: event acquisitions release once with no subscribers, disabled events or a failed raise.
+#[test]
+fn event_arguments_release_with_no_delivery_and_on_errors() {
+    let _apartment = Apartment::new();
+    let projection = projection();
+    let model = workbook(&projection);
+    let args = [
+        AutoValue::Object(ObjectRef::new(
+            id("Worksheet"),
+            ObjectKey::Worksheet {
+                workbook: 1,
+                sheet: SheetId::from_parts(7, 1),
+            },
+        )),
+        AutoValue::Object(WorkbookFixture::range()),
+    ];
+    projection
+        .raise(&model.application(), "AppEvents", "SheetChange", &args)
+        .unwrap();
+    assert_eq!(model.released.get(), 1);
+    projection.enable_events(false).unwrap();
+    projection
+        .raise(&model.application(), "AppEvents", "SheetChange", &args)
+        .unwrap();
+    assert_eq!(model.released.get(), 2);
+    projection.enable_events(true).unwrap();
+    assert!(
+        projection
+            .raise(&model.application(), "AppEvents", "unknown event", &args)
+            .is_err()
+    );
+    assert_eq!(model.released.get(), 3);
+    let malformed = [
+        AutoValue::Foreign(u64::MAX),
+        AutoValue::Object(WorkbookFixture::range()),
+    ];
+    assert!(
+        projection
+            .raise(&model.application(), "AppEvents", "SheetChange", &malformed)
+            .is_err()
+    );
+    assert_eq!(model.released.get(), 4);
+}
+
 /// Native-only: calls the actual generated COM ABI from another thread, then after disconnection.
 #[test]
 fn sta_and_disconnection_checks_apply_to_dispatch_and_vtables() {
@@ -833,6 +877,22 @@ fn unsupported_members_record_uniform_refusals_and_error_info() {
     assert_eq!(exception.bstrDescription.to_string(), early);
     unsafe { crate::events::clear_exception(&mut exception) };
     assert_eq!(model.refusals.get(), 2);
+}
+
+/// Native-only: a measured Excel error without description must not reuse an earlier refusal's IErrorInfo.
+#[test]
+fn empty_excel_descriptions_clear_previous_error_information() {
+    let _apartment = Apartment::new();
+    let refusal = AutoError::not_modelled("_Application.Iteration", "dc-1nbp.5");
+    assert_eq!(
+        runtime::error(&refusal, ptr::null_mut()).0 as u32,
+        0x800A03EC
+    );
+    assert_eq!(
+        runtime::error(&AutoError::excel(1004, ""), ptr::null_mut()).0 as u32,
+        0x800A03EC
+    );
+    assert!(unsafe { GetErrorInfo(0) }.is_err());
 }
 
 /// Native-only: lossless UTF-16, Currency/Date/Null and CVErr use the one Automation converter.
