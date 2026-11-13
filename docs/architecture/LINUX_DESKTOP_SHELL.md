@@ -20,7 +20,8 @@ WebKitGTK and WebGPU on WebKitGTK have not been measured on this host (see below
 - **Linux today:** `apps/dna-calc-desktop/src/main.rs` compiles `app`, `embedded`, `engine` and
   `fetch` only under `cfg(windows)`; on Linux only `file_import` and `origin` build.
   `dna-calc-worker` is `portable` and ships a headless `InProcessTransport` (`transport.rs`), so the
-  server itself runs natively on Linux (the runner `apps/dnacalc` uses `calc-host` directly).
+  server itself runs natively on Linux (the runner's headless commands use `calc-host` directly;
+  `serve` hosts the native worker Server).
 - **WebGPU.** The only WebGPU code in the repository is the measurement page
   `apps/dna-calc-desktop/probe/webgpu.html`, run by `dna-calc-desktop --probe`. The page's grid is
   DOM or Canvas2D (`docs/architecture/RENDERER_COMPARISON.md`). "WebGPU-friendly grid from the
@@ -86,7 +87,7 @@ would all be redone: the cost the "skin deep" shell was designed to avoid.
 
 1. **First (done, dc-icq4.1/.2):** the static runner as tarball and `.deb`. It does diff, get, set,
    VBA `run` and save with no GUI.
-2. **Next:** option B as `dnacalc serve`, because it ships in the static tarball, needs no new
+2. **Implemented (dc-icq4.4):** option B as `dnacalc serve`, because it ships in the static tarball, needs no new
    system libraries and gives a Linux user the full page with the native worker. Size: the server
    and bridge carrier (`desktop-bridge.js` gets a WebSocket carrier beside `chrome.webview`), a
    token and origin policy, and a smoke run of the existing page suite against it.
@@ -121,6 +122,21 @@ An everyday build without an embedded page uses `dnacalc serve --assets target/d
 NOW and TODAY sample the runner's UTC clock on open and Calculate Now, through the worker's native
 clock hook. Macro security starts Off, as in the browser worker; this change adds no native file, fetch, XLL
 or COM services to the Server.
+
+Measured on dna-firehorse, 2026-11-13, against the embedded page with plain `dnacalc serve`:
+the existing core smoke suite passed **430/430 cases in Chromium 143.0.7499.4 and 430/430 in
+Firefox 157.0**, with zero failures (948.443 s and 670.701 s). The four native serve tests cover
+real HTTP/WebSocket refusals for wrong tokens and cross-origin requests, Host validation and
+channel/binary framing; all pass. The runner's 16 tests, Linux desktop's four tests and three
+JavaScript carrier tests pass. The implementation check passed 328 tests with no failures and
+the portable wasm check; Windows all-target xwin checks of desktop and runner and the embedded
+musl compile check passed. Windows runtime execution was not measured on this Linux host.
+
+Before and after the browser runs, the two existing captured corpus samples (`dc_10y`, `l3`)
+matched **1,548/1,548 formula cells**, with zero mismatches, refusals or missing values, through
+the existing verdict path. These are Fast comparisons, not exact-target certification. The smoke
+inputs use the Excel differential-fill convention established by dc-qgth; all existing colour,
+sorting and saved-file assertions remain in place.
 
 ## Open questions (to measure before building)
 
