@@ -81,7 +81,6 @@ pub fn run(
             }
             retired.push(serde_json::json!({"topic":format!("{topic:?}"),"lease":lease.0,"disposition":format!("{disposition:?}")}));
         }
-        addins.sheet_changed(at.row(), at.column())?;
         let mut value = calculate(session, &formula)?;
         admissions(session, &mut updates);
         let settle = |session: &Session| -> Result<(), String> {

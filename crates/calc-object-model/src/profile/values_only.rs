@@ -180,4 +180,7 @@ impl<H: ApplicationHost> ObjectModel for ValuesOnly<H> {
     fn invoke(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
         self.handlers.dispatch(self, target, call, "dc-1nbp.5")
     }
+    fn record_refusal(&self, error: &AutoError) {
+        self.host.record_refusal(error);
+    }
 }

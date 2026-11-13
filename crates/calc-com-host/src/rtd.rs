@@ -1,6 +1,8 @@
 //! Owning-STA RTD client. Notifications carry no evaluator or Rust pointers.
-use crate::projection::Value;
-use calc_value::{CalcValue, CellKey, ExcelText, WorksheetErrorCode};
+use crate::rtd_native::*;
+#[cfg(test)]
+use calc_value::ExcelText;
+use calc_value::{CalcValue, CellKey};
 use calc_xll_host::{RtdConnection, RtdConnector, RtdLease, RtdProvider, RtdService, TopicKey};
 use std::{
     cell::RefCell,
@@ -8,26 +10,6 @@ use std::{
     ffi::c_void,
 };
 
-unsafe extern "C" {
-    fn dna_rtd_create() -> *mut c_void;
-    fn dna_rtd_connect(
-        client: *mut c_void,
-        progid: *const u16,
-        topic: i32,
-        strings: *const *const u16,
-        count: usize,
-        out: *mut Value,
-    ) -> i32;
-    fn dna_rtd_poll(
-        client: *mut c_void,
-        publish: unsafe extern "system" fn(*mut c_void, i32, *const Value) -> i32,
-        context: *mut c_void,
-    ) -> i32;
-    fn dna_rtd_disconnect(client: *mut c_void, topic: i32) -> i32;
-    fn dna_rtd_close(client: *mut c_void) -> i32;
-    fn dna_rtd_destroy(client: *mut c_void);
-    fn dna_rtd_value_clear(value: *mut Value);
-}
 fn checked(code: i32, operation: &str) -> Result<(), String> {
     if code < 0 {
         Err(format!("dc-snz.23: RTD {operation}: {code:#x}"))
@@ -67,31 +49,8 @@ fn has_reference(value: &CalcValue) -> bool {
             .is_some_and(|array| array.iter_row_major().any(has_reference))
 }
 unsafe fn decode(value: &Value) -> Result<CalcValue, String> {
-    Ok(match value.kind {
-        // An empty value is also an RTD input. Its advancing sequence makes
-        // a signaling provider's separate result cache observable to the owner.
-        // The cached UDF result still has to declare this admitted input read.
-        0 => CalcValue::empty(),
-        1 if value.number.is_finite() => CalcValue::number(value.number),
-        2 => CalcValue::text(ExcelText::from_utf16_code_units(if value.length == 0 {
-            Vec::new()
-        } else {
-            unsafe { std::slice::from_raw_parts(value.text, value.length) }.to_vec()
-        })),
-        3 => CalcValue::logical(value.number != 0.),
-        5 => CalcValue::error(match value.number as u32 & 0xffff {
-            2000 => WorksheetErrorCode::Null,
-            2007 => WorksheetErrorCode::Div0,
-            2015 => WorksheetErrorCode::Value,
-            2023 => WorksheetErrorCode::Ref,
-            2029 => WorksheetErrorCode::Name,
-            2036 => WorksheetErrorCode::Num,
-            2042 => WorksheetErrorCode::NA,
-            2043 => WorksheetErrorCode::GettingData,
-            _ => return Err("dc-snz.23: RTD error variant is not modelled".into()),
-        }),
-        _ => return Err("dc-snz.23: RTD value variant is not modelled".into()),
-    })
+    // The native transport already converted VARIANT through the shared Automation converter.
+    Ok(value.clone())
 }
 #[derive(Clone, Debug)]
 pub struct RtdInput {
@@ -603,12 +562,7 @@ impl RtdService for RtdClient {
             .map(|s| wide(s))
             .collect::<Result<Vec<_>, _>>()?;
         let pointers = strings_w.iter().map(|s| s.as_ptr()).collect::<Vec<_>>();
-        let mut initial = Value {
-            kind: 0,
-            number: 0.,
-            text: std::ptr::null(),
-            length: 0,
-        };
+        let mut initial = CalcValue::empty();
         state.activated = true;
         let result = unsafe {
             dna_rtd_connect(
@@ -737,26 +691,6 @@ impl Drop for RtdClient {
     }
 }
 
-/// Native-only: runs the COM client's disconnect/reconnect and queued SAFEARRAY refresh route.
-#[test]
-fn obsolete_transport_updates_cannot_reach_a_reconnected_topic() {
-    unsafe extern "C" {
-        fn dna_rtd_test_obsolete_transport() -> i32;
-    }
-    let status = unsafe { dna_rtd_test_obsolete_transport() };
-    assert_eq!(status, 0, "queued obsolete RTD transport: {status:#x}");
-}
-
-#[cfg(test)]
-unsafe extern "C" {
-    fn dna_rtd_test_attach_queued(client: *mut c_void) -> i32;
-    fn dna_rtd_test_event(
-        client: *mut c_void,
-        index: i32,
-        method: *mut i32,
-        topic: *mut i32,
-    ) -> i32;
-}
 #[cfg(test)]
 fn queued_events(client: &RtdClient) -> Vec<(i32, i32)> {
     let pointer = client.state.borrow().pointer;
@@ -978,12 +912,7 @@ fn cached_replacement_renews_one_signal_for_main_and_dependent_reads() {
     );
     assert_eq!(client.subscriptions(), 0);
     // A signal arriving during the handoff must not enter the old logical queue.
-    let native_value = Value {
-        kind: 1,
-        number: 42.,
-        text: std::ptr::null(),
-        length: 0,
-    };
+    let native_value = CalcValue::number(42.);
     {
         let mut state = client.state.borrow_mut();
         assert_eq!(

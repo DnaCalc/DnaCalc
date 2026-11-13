@@ -6,6 +6,33 @@ use calc_object_model::{
 use calc_value::{CellKey, GridArea, IdAllocator, ReferenceLike, SheetId};
 use std::cell::{Cell, RefCell};
 
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn values_only_forwards_each_projected_refusal_once_to_its_host() {
+    struct Host(Cell<u32>);
+    impl ApplicationHost for Host {
+        fn hwnd(&self) -> isize {
+            1
+        }
+        fn run(&self, _: &str, _: &[AutoValue]) -> Result<AutoValue, AutoError> {
+            Ok(AutoValue::Empty)
+        }
+        fn events_enabled(&self) -> bool {
+            true
+        }
+        fn set_events_enabled(&self, _: bool) {}
+        fn record_refusal(&self, error: &AutoError) {
+            assert_eq!(error.number(), 1004);
+            self.0.set(self.0.get() + 1);
+        }
+    }
+    let host = std::rc::Rc::new(Host(Cell::new(0)));
+    let model = ValuesOnly::new(host.clone());
+    let error = AutoError::not_modelled("_Application.Iteration", "dc-1nbp.5");
+    model.record_refusal(&error);
+    assert_eq!(host.0.get(), 1);
+}
+
 fn references() -> (ReferenceLike, ReferenceLike) {
     let sheet = IdAllocator::<SheetId>::new().issue().unwrap();
     let cell = |r, c| CellKey::new(sheet, r, c).unwrap();

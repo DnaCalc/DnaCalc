@@ -19,6 +19,7 @@ calc-fml = { path = "../calc-fml" }
 calc-vba = { path = "../calc-vba" }
 calc-xll-host = { path = "../calc-xll-host" }
 calc-com-host = { path = "../calc-com-host" }
+calc-object-model = { path = "../calc-object-model" }
 calc-platform-desktop = { path = "../../platform/calc-platform-desktop" }
 serde_json = "=1.0.154"
 

@@ -302,7 +302,7 @@ impl Files for Dialogs {
                 copy
             }
         };
-        std::process::Command::new(exe)
+        std::process::Command::new(exe) // ubs:ignore - Executable is the sibling DNA Calc application discovered by the native shell.
             .arg("--open")
             .arg(&file)
             .spawn()
@@ -391,7 +391,6 @@ impl Addins {
                 .wrapping_add(u64::from(r.use_count) << 40)
         })
     }
-
 }
 
 impl Libraries for Addins {
@@ -455,13 +454,11 @@ impl Libraries for Addins {
     }
 
     fn changed(&mut self) -> bool {
-        self.signature() != self.published.get()
+        self.signature() != self.published.get() // ubs:ignore - Public registration-count signatures detect changes; no authentication data.
     }
 
-    fn cell_changed(&mut self, row: u32, column: u32) {
-        if let Err(why) = self.set.borrow().sheet_changed(row, column) {
-            eprintln!("dna-onecalc-desktop: add-in events: {why}");
-        }
+    fn cell_changed(&mut self, _row: u32, _column: u32) {
+        // OneCalc has scratch inputs, not workbook Worksheet/Range objects (dc-svqh).
     }
 
     fn calculated(&mut self) {

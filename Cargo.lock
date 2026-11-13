@@ -196,6 +196,7 @@ dependencies = [
  "calc-com-host",
  "calc-fml",
  "calc-func",
+ "calc-object-model",
  "calc-platform-desktop",
  "calc-value",
  "calc-vba",
@@ -222,9 +223,10 @@ dependencies = [
  "calc-object-model",
  "calc-value",
  "calc-xll-host",
- "cc",
  "serde",
  "serde_json",
+ "windows",
+ "windows-core",
 ]
 
 [[package]]

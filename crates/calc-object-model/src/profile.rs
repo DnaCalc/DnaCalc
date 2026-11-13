@@ -17,6 +17,10 @@ pub trait ApplicationHost {
     /// The application's one EnableEvents switch (the session's in DNA Calc).
     fn events_enabled(&self) -> bool;
     fn set_events_enabled(&self, enabled: bool);
+    /// Record a projected refusal on an admitted worksheet invocation, when this host has one.
+    /// The COM projection calls ObjectModel::record_refusal once; the values-only profile
+    /// forwards it here so the native host can preserve a swallowed COM exception.
+    fn record_refusal(&self, _error: &AutoError) {}
     /// Directory containing the application executable. Supplied by the native shell.
     fn path(&self) -> Result<String, AutoError> {
         Err(AutoError::not_modelled("_Application.Path", "dc-1nbp.5"))
@@ -35,6 +39,9 @@ impl<T: ApplicationHost + ?Sized> ApplicationHost for std::rc::Rc<T> {
     }
     fn set_events_enabled(&self, enabled: bool) {
         (**self).set_events_enabled(enabled);
+    }
+    fn record_refusal(&self, error: &AutoError) {
+        (**self).record_refusal(error);
     }
     fn path(&self) -> Result<String, AutoError> {
         (**self).path()

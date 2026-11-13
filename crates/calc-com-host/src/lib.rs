@@ -1,4 +1,5 @@
-//! Excel's interface identities and vtable layout for the measured add-in surface.
+//! Excel/Office COM projection of the one Rust object model and descriptor.
+//! Vtables and IDispatch lower to the same Call; only COM-owned Office members live here.
 //! No class registration, activation hook, type-library registration or registry write.
 #[cfg(target_arch = "wasm32")]
 compile_error!("calc-com-host is native-only");
@@ -19,18 +20,57 @@ mod layout_tests {
             let id = InterfaceId(index);
             assert_eq!(descriptor.ty(id).vtable_slots, Some(slots));
             for slot in 7..slots {
-                assert!(descriptor.member_by_slot(id, slot).is_some(), "{} slot {slot}", descriptor.ty(id).name);
+                assert!(
+                    descriptor.member_by_slot(id, slot).is_some(),
+                    "{} slot {slot}",
+                    descriptor.ty(id).name
+                );
             }
         }
-        for name in ["_Application", "_Workbook", "Workbooks", "_Worksheet", "Range", "Window", "COMAddIns", "COMAddIn", "CommandBarPopup", "_CommandBarButton", "IAccessible"] {
+        for name in [
+            "_Application",
+            "_Workbook",
+            "Workbooks",
+            "_Worksheet",
+            "Range",
+            "Window",
+            "COMAddIns",
+            "COMAddIn",
+            "CommandBarPopup",
+            "_CommandBarButton",
+            "IAccessible",
+        ] {
             let id = descriptor.id(name).unwrap();
-            assert!(GENERATED_LAYOUTS.iter().any(|(index, _)| *index == id.0), "{name}");
+            assert!(
+                GENERATED_LAYOUTS.iter().any(|(index, _)| *index == id.0),
+                "{name}"
+            );
         }
     }
 }
 
 #[cfg(windows)]
+mod application;
+#[cfg(windows)]
+mod dispatch;
+#[cfg(windows)]
+mod events;
+#[cfg(windows)]
+mod interfaces;
+#[cfg(windows)]
+mod office;
+#[cfg(windows)]
 mod projection;
+#[cfg(windows)]
+mod rtd_native;
+#[cfg(windows)]
+mod runtime;
+#[cfg(all(windows, test))]
+mod tests;
+#[cfg(windows)]
+mod typeinfo;
+#[cfg(windows)]
+mod values;
 #[cfg(windows)]
 pub use projection::Projection;
 #[cfg(windows)]

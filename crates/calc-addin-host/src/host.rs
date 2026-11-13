@@ -64,13 +64,12 @@ fn attach(
         native.set_sheet(*id, format!("[{}]{name}", document.workbook), true);
     }
     let projection = Rc::new(Projection::new(shell.hwnd(), native.clone())?);
+    projection.bind_model(Rc::new(
+        calc_object_model::profile::values_only::ValuesOnly::new(projection.application_host()),
+    ))?;
     projection.verify_layout()?;
     let answering = projection.clone();
     shell.set_object_handler(Some(Rc::new(move |w, l| answering.get_object(w, l))));
-    projection.set_workbook(document.workbook)?;
-    if let Some(sheet) = document.active_sheet {
-        projection.set_sheet(sheet)?;
-    }
     Ok(projection)
 }
 
@@ -213,6 +212,7 @@ impl AddinHost {
             std::thread::sleep(std::time::Duration::from_millis(10));
             let now = signature();
             if now != last {
+                // ubs:ignore - Registration-count signatures are public change counters, not secrets.
                 last = now;
                 quiet_since = std::time::Instant::now();
             }
@@ -242,8 +242,7 @@ impl AddinHost {
         source: &str,
         max_steps: u64,
     ) -> Result<(), String> {
-        let functions =
-            calc_vba::load_module_with_profile(name, source, max_steps, self.profile)?;
+        let functions = calc_vba::load_module_with_profile(name, source, max_steps, self.profile)?;
         match self.vba.iter_mut().find(|(held, _)| held == name) {
             Some(held) => held.1 = functions,
             None => self.vba.push((name.to_owned(), functions)),

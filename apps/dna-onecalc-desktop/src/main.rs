@@ -165,13 +165,12 @@ fn run() -> Result<(), String> {
     session
         .set_formula_cell("B3")
         .map_err(|e| format!("{e:?}"))?;
-    let input_cell = session
+    session
         .set_input(
             "A1",
             dna_onecalc::InputValue::number(7.).map_err(|e| format!("{e:?}"))?,
         )
         .map_err(|e| format!("{e:?}"))?;
-    addins.sheet_changed(input_cell.row(), input_cell.column())?;
     session.set_user_functions(addins.callables()?);
     let tests: Vec<serde_json::Value> = if self_test || cases_file.is_some() {
         let text = if let Some(path) = cases_file {
@@ -213,17 +212,14 @@ fn run() -> Result<(), String> {
             let value = edit["value"]
                 .as_f64()
                 .ok_or("desktop case edit needs a number")?;
-            let cell = session
+            session
                 .set_input(
                     address,
                     dna_onecalc::InputValue::number(value).map_err(|e| format!("{e:?}"))?,
                 )
                 .map_err(|e| format!("{e:?}"))?;
-            addins.sheet_changed(cell.row(), cell.column())?;
         }
         session.set_formula(formula);
-        let cell = session.formula_cell();
-        addins.sheet_changed(cell.row(), cell.column())?;
         let calculation = session.calculate();
         if !calculation.diagnostics.is_empty() {
             return Err(format!("{formula}: {:?}", calculation.diagnostics));
