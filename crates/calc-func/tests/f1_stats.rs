@@ -10,6 +10,23 @@ use calc_func::SubtotalExclusions;
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Value};
 use f1_support::*;
 
+/// Excel 20527 rejects lost-addend beta shapes for normal probabilities through one half.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beta_inverse_rejects_lost_shape_addend() {
+    for name in ["BETA.INV", "BETAINV"] {
+        let alpha = 2.0_f64.powi(80);
+        let beta = f64::from_bits(1.0_f64.to_bits() + 1);
+        for p in [f64::MIN_POSITIVE, 0.25, 0.5] {
+            error(call(name, vec![n(p), n(alpha), n(beta)]), Num);
+            error(call(name, vec![n(p), n(alpha), n(beta), n(-10.0), n(20.0)]), Num);
+        }
+        error(call(name, vec![n(0.25), n(alpha), n(beta), t("bad"), n(20.0)]), Value);
+        error(call(name, vec![n(0.0), n(alpha), n(beta)]), Num);
+        exact(call(name, vec![n(f64::from_bits(0.5_f64.to_bits() + 1)), n(alpha), n(beta)]), 1.0);
+    }
+}
+
 /// Excel 20527 rejects far future horizons even when subtraction is inexact.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

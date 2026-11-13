@@ -35,6 +35,19 @@ fn nums<const N: usize>(site: &Site<'_>, a: &[CalcValue]) -> Step<[f64; N]> {
     Ok(found)
 }
 
+/// Excel 20527 rejects this lost-addend region for both inverse-beta spellings.
+fn beta_inverse(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
+    let [p, alpha, beta] = nums::<3>(site, a)?;
+    let lower = if given(a, 3) { num(site, a, 3)? } else { 0.0 };
+    let upper = if given(a, 4) { num(site, a, 4)? } else { 1.0 };
+    if p >= f64::MIN_POSITIVE && p <= 0.5 && alpha.is_finite() && alpha > 0.0 && beta.is_finite()
+        && beta > 1.0 && alpha + beta == alpha
+    {
+        return fail(WorksheetErrorCode::Num);
+    }
+    out(site, bg::beta_inv_kernel(p, alpha, beta, lower, upper))
+}
+
 /// Argument `index`'s numbers by the aggregate rule.
 fn sample(
     site: &Site<'_>,
@@ -212,16 +225,10 @@ ported_shared_family! {
         out(s, bg::beta_dist_kernel(x, alpha, beta, true, lower, upper))
     }
     52 beta_inv |s, a, sv| {
-        let [p, alpha, beta] = nums::<3>(s, a)?;
-        let lower = if given(a, 3) { num(s, a, 3)? } else { 0.0 };
-        let upper = if given(a, 4) { num(s, a, 4)? } else { 1.0 };
-        out(s, bg::beta_inv_kernel(p, alpha, beta, lower, upper))
+        beta_inverse(s, a)
     }
     53 betainv |s, a, sv| {
-        let [p, alpha, beta] = nums::<3>(s, a)?;
-        let lower = if given(a, 3) { num(s, a, 3)? } else { 0.0 };
-        let upper = if given(a, 4) { num(s, a, 4)? } else { 1.0 };
-        out(s, bg::beta_inv_kernel(p, alpha, beta, lower, upper))
+        beta_inverse(s, a)
     }
     54 gamma_dist |s, a, sv| {
         let [x, alpha, beta] = nums::<3>(s, a)?;
