@@ -27,6 +27,25 @@ fn beta_inverse_rejects_lost_shape_addend() {
     }
 }
 
+/// Excel 20527 rejects separated tiny shapes while preserving bound errors.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beta_inverse_tiny_shape_checks_starting_density() {
+    for name in ["BETA.INV", "BETAINV"] {
+        for (alpha, beta) in [
+            (2.0_f64.powi(-100), 100.0),
+            (2.0_f64.powi(-100), 2.0_f64.powi(-99)),
+            (2.0_f64.powi(-53), 2.0_f64.powi(-52)),
+        ] {
+            for p in [f64::MIN_POSITIVE, 0.25, 0.5] {
+                error(call(name, vec![n(p), n(alpha), n(beta)]), Num);
+                error(call(name, vec![n(p), n(alpha), n(beta), n(-10.0), n(20.0)]), Num);
+            }
+        }
+        error(call(name, vec![n(0.25), n(2.0_f64.powi(-100)), n(100.0), t("bad")]), Value);
+    }
+}
+
 /// Excel 20527 rejects far future horizons even when subtraction is inexact.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
