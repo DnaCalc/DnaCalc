@@ -743,6 +743,48 @@ impl ModelRoot {
         definitions
     }
 
+    /// Chart series formulas and table column formulas rewritten for a sheet rename or removal:
+    /// the formulas Excel keeps beside the cells (`c:f`, `calculatedColumnFormula`) name sheets
+    /// as a defined name's formula does.
+    fn rewritten_objects(
+        &self,
+        rewriter: &dyn FormulaRewriter,
+        change: &StructuralChange,
+        mut definitions: Definitions,
+    ) -> Definitions {
+        let text = |text: &mut String| {
+            if let Some(next) = rewriter.name(self, text, NameScope::Workbook, change) {
+                *text = next;
+            }
+        };
+        for (sheet, charts) in self.definitions().all_charts() {
+            let mut charts = charts.to_vec();
+            for chart in &mut charts {
+                if let Some(formula) = &mut chart.title_formula {
+                    text(formula);
+                }
+                for series in chart.plots.iter_mut().flat_map(|plot| &mut plot.series) {
+                    for data in [&mut series.name, &mut series.categories, &mut series.values]
+                        .into_iter()
+                        .flatten()
+                    {
+                        if let Some(formula) = &mut data.formula {
+                            text(formula);
+                        }
+                    }
+                }
+            }
+            definitions = definitions.with_charts(sheet, charts);
+        }
+        let mut tables = self.definitions().tables().to_vec();
+        for table in &mut tables {
+            for formula in table.column_formulas.iter_mut().flatten() {
+                text(formula);
+            }
+        }
+        definitions.with_tables(tables)
+    }
+
     fn sheet_edit(
         &self,
         operation: usize,
@@ -780,8 +822,11 @@ impl ModelRoot {
                 };
                 parts.cells = self.rewritten_cells(rewriter, &change, parts.cells);
                 let names = self.rewritten_names(rewriter, &change, parts.definitions.names());
-                parts.definitions =
-                    self.rewritten_rules(rewriter, &change, parts.definitions.with_names(names));
+                parts.definitions = self.rewritten_objects(
+                    rewriter,
+                    &change,
+                    self.rewritten_rules(rewriter, &change, parts.definitions.with_names(names)),
+                );
                 let entry = &parts.sheets[at];
                 parts.sheets[at] =
                     SheetEntry::new(entry.id(), entry.key(), name.clone(), entry.visibility());
@@ -799,7 +844,11 @@ impl ModelRoot {
                 parts.cells.remove(sheet);
                 let names = self.rewritten_names(rewriter, &change, parts.definitions.names());
                 parts.definitions = self
-                    .rewritten_rules(rewriter, &change, parts.definitions.with_names(names))
+                    .rewritten_objects(
+                        rewriter,
+                        &change,
+                        self.rewritten_rules(rewriter, &change, parts.definitions.with_names(names)),
+                    )
                     .without_sheet(*sheet);
                 parts.sheets.remove(at);
                 parts.layout = parts

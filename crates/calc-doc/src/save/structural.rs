@@ -1664,6 +1664,80 @@ pub(super) fn chart_pass(
     Ok(applied(xml.bytes(), pass.edits))
 }
 
+/// The chart parts whose series formulas (`c:f`) a sheet rename or removal since the load
+/// rewrites, with their new bytes. Removals go first, against the loaded sheet names, then
+/// renames; a rename whose new name is a loaded sheet's name (a swap) is refused, as its
+/// references could no longer tell the two sheets apart. `current` holds the parts other passes
+/// already rewrote.
+pub(super) fn sheet_charts(
+    package: &Package,
+    base: &ModelRoot,
+    model: &ModelRoot,
+    rewriter: &dyn FormulaRewriter,
+    current: &BTreeMap<String, Vec<u8>>,
+) -> Result<BTreeMap<String, Vec<u8>>, SaveRefusal> {
+    let mut changes = Vec::new();
+    for before in base.sheets() {
+        if model.sheet_by_id(before.id()).is_none() {
+            changes.push(StructuralChange::RemoveSheet { sheet: before.id() });
+        }
+    }
+    for before in base.sheets() {
+        if let Some(after) = model.sheet_by_id(before.id())
+            && after.name() != before.name()
+        {
+            if base.sheets().iter().any(|other| other.name() == after.name()) {
+                return Err(not_moved(
+                    "xl/workbook.xml",
+                    "a sheet renamed to the name a loaded sheet had".to_owned(),
+                ));
+            }
+            changes.push(StructuralChange::RenameSheet {
+                sheet: before.id(),
+                name: after.name().clone(),
+            });
+        }
+    }
+    let mut out = BTreeMap::new();
+    for chart in package
+        .parts()
+        .iter()
+        .filter(|part| part.content_type() == Some(CHART_CONTENT_TYPE))
+    {
+        let mut part = match current.get(chart.name()) {
+            Some(bytes) => read_part(package, chart.name())?.with_bytes(bytes.clone()),
+            None => read_part(package, chart.name())?,
+        };
+        let mut changed = false;
+        for change in &changes {
+            let rewrite = Rewrite {
+                root: base,
+                rewriter,
+                change: change.clone(),
+            };
+            if let Some(next) = chart_rewrite(&part, &rewrite)? {
+                part = part.with_bytes(next);
+                changed = true;
+            }
+        }
+        if changed {
+            out.insert(chart.name().to_owned(), part.bytes().to_vec());
+        }
+    }
+    Ok(out)
+}
+
+/// A chart part's series formulas rewritten by `rewrite` alone (a sheet rename or removal moves
+/// no position); `None` when none changes.
+fn chart_rewrite(xml: &XmlPart, rewrite: &Rewrite<'_>) -> Result<Option<Vec<u8>>, SaveRefusal> {
+    // `Pass` reads only the rewrite for series formulas; its axis edit is never consulted.
+    let unused = AxisEdit::new(SheetId::from_parts(0, 0), Axis::Rows, AxisChange::Insert, 1, 1)
+        .expect("a row insertion");
+    let mut pass = Pass::new(xml, unused.sheet(), unused, rewrite);
+    pass.texts(CHART, "f")?;
+    Ok(applied(xml.bytes(), pass.edits))
+}
+
 fn find(bytes: &[u8], at: usize, needle: &[u8]) -> Option<usize> {
     bytes
         .get(at..)?

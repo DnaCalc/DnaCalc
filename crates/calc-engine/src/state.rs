@@ -1228,6 +1228,40 @@ impl EngineState {
         state
     }
 
+    /// [`EngineState::rebuilt`], keeping what the cells showed: each formula's published result
+    /// stays on the node now at `moved(anchor)` (`None`: the cell is gone) as a stale display, with
+    /// no stamp, so it proves nothing and the node stays pending (dc-1nbp.15). A host commits it
+    /// for an undo of a structural edit and for a table rebuild, where Manual mode would otherwise
+    /// show every formula cell empty until the next recalculation. A spill is kept only where its
+    /// anchor did not move.
+    pub fn rebuilt_holding_results(
+        &self,
+        inputs: &ModelRoot,
+        moved: &dyn Fn(CellKey) -> Option<CellKey>,
+    ) -> EngineState {
+        let mut state = self.rebuilt(inputs);
+        for old in self.nodes() {
+            let at = old.anchor();
+            let Some(to) = moved(at) else {
+                continue;
+            };
+            let Some(node) = state.node_at(to) else {
+                continue;
+            };
+            if let Some(result) = self.results.of(old.id()) {
+                state
+                    .results
+                    .publish(node, to, result.clone().without_stamp(), None);
+            }
+            if to == at
+                && let Some(spill) = self.spills.get(at)
+            {
+                state.spills.insert(spill.clone());
+            }
+        }
+        state
+    }
+
     /// Rebase a package extension while retaining unchanged live holdings as stale displays.
     /// Every node remains pending; old read certificates are discarded. New worksheet caches
     /// enter through the ordinary imported-cache validator and never become calculated values.

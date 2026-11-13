@@ -936,9 +936,11 @@ pub enum Request {
     },
     /// Saves the workbook: its bytes travel back beside the reply.
     Save,
-    /// Ordinary live save with Excel's CalculateBeforeSave setting.
+    /// Ordinary live save with Excel's CalculateBeforeSave setting; `None` uses the open
+    /// workbook's own (`calcPr/@calcOnSave`, dc-1nbp.14), which matters in Manual mode only.
     SaveWithContext {
-        calculate_before_save: bool,
+        #[serde(default)]
+        calculate_before_save: Option<bool>,
         #[serde(default)]
         views: Option<SaveWindow>,
     },

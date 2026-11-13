@@ -99,6 +99,9 @@ pub(crate) struct Edited {
     /// The rows and columns inserted and deleted since the load, which the save moves the
     /// package's rows, columns and what lies on them by ([`DocumentSnapshot::with_structural_edits`]).
     structural: Option<StructuralEdits>,
+    /// The rewriter of the formulas outside cells (chart series) for sheets renamed or removed
+    /// since the load; set by [`DocumentSnapshot::with_structural_edits`] even with no axis edit.
+    sheet_rewriter: Option<Arc<dyn calc_doc_model::FormulaRewriter + Send + Sync>>,
     cache_state: Option<CalculationCacheState>,
     pivot_outputs: Arc<BTreeMap<CellKey, calc_doc_model::value::CalcValue>>,
     /// Custom XML items the save writes (added, or replacing the item of the same namespace).
@@ -147,6 +150,7 @@ impl DocumentSnapshot {
                 values,
                 spills,
                 structural: None,
+                sheet_rewriter: None,
                 cache_state: None,
                 pivot_outputs: Default::default(),
                 custom_xml: Vec::new(),
@@ -165,10 +169,11 @@ impl DocumentSnapshot {
     /// their rewriter. A snapshot of a package as opened, or edits that are empty, are left as
     /// they are.
     pub fn with_structural_edits(mut self, edits: StructuralEdits) -> Self {
-        if let Some(edit) = self.edit.as_mut()
-            && !edits.edits().is_empty()
-        {
-            edit.structural = Some(edits);
+        if let Some(edit) = self.edit.as_mut() {
+            edit.sheet_rewriter = Some(edits.rewriter.clone());
+            if !edits.edits().is_empty() {
+                edit.structural = Some(edits);
+            }
         }
         self
     }

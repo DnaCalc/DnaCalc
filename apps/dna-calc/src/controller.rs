@@ -4266,7 +4266,7 @@ impl Controller {
                 views,
             },
             None => Request::SaveWithContext {
-                calculate_before_save: false,
+                calculate_before_save: None,
                 views,
             },
         };
