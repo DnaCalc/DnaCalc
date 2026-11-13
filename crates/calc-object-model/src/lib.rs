@@ -21,6 +21,7 @@
 
 pub mod descriptor;
 pub mod events;
+pub mod geometry;
 pub mod model;
 pub mod object;
 pub mod profile;
