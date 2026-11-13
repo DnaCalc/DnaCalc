@@ -96,14 +96,13 @@ pub(crate) fn literal_integer_code(code: &str, decimal: &str, group: &str) -> bo
 }
 
 /// A decimal code whose only tokens are digits, a literal sign and the known
-/// decimal point, with an integer placeholder. It reads no other locale facts.
+/// decimal point. It reads no other locale facts.
 pub(crate) fn plain_decimal_code(code: &str) -> bool {
     let code = code.strip_prefix('-').unwrap_or(code);
     let Some((whole, fraction)) = code.split_once('.') else {
         return false;
     };
     !whole.is_empty()
-        && whole.contains('0')
         && whole.bytes().all(|c| c.is_ascii_digit())
         && !fraction.is_empty()
         && fraction.bytes().all(|c| c.is_ascii_digit())
@@ -1869,6 +1868,23 @@ fn render_text(profile: &FormatProfile, system: DateSystem, value: f64, code: &s
         return layout.render(profile, value, !magnitude_only);
     }
     let mut items = items(&stripped, profile)?;
+    // Excel 16.0.20527 treats a digit-literal integer part as having an
+    // implicit optional placeholder before the decimal: TEXT(4186,"1.0")
+    // is "14186.0" and TEXT(0.5977337408497776,"12.34") is "121.34"
+    // in the recorded bank. The decimal separator must be the code's token.
+    if profile.format_code_decimal_token == "." && plain_decimal_code(&stripped) {
+        let whole = stripped
+            .strip_prefix('-')
+            .unwrap_or(&stripped)
+            .split_once('.')
+            .unwrap()
+            .0;
+        if !whole.contains('0')
+            && let Some(point) = items.iter().position(|item| *item == Item::Point)
+        {
+            items.insert(point, Item::Digit('#'));
+        }
+    }
     if !items.iter().any(|i| matches!(i, Item::Digit(_))) {
         // Fn8 literal-only controls: a run of ordinary-space grouping tokens
         // writes one space. Numeric grouping and trailing scaling stay below.

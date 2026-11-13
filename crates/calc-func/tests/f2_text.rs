@@ -140,6 +140,26 @@ fn text_without_locale_uses_only_known_format_facts() {
         "0.1",
     );
     for (value, code, expected) in [
+        (0.48343425755440994, "1.0", "1.5"),
+        (4186.0, "1.0", "14186.0"),
+        (0.08839343501527819, "12.34", "12.34"),
+        (0.5977337408497776, "12.34", "121.34"),
+        (-0.7591400564284259, "-2.0", "--2.8"),
+    ] {
+        let mut services = EvalServices::new(&mode)
+            .with_environment(&env)
+            .with_number_separators(".", "\u{00A0}");
+        text(
+            invoke(
+                target,
+                &mut Given(vec![n(value), t(code)]),
+                &mut services,
+                &mut FunctionCallScratch::new(),
+            ),
+            expected,
+        );
+    }
+    for (value, code, expected) in [
         (-12.34, "1,234", "-1,234"),
         (-0.1, "1,234", "1,234"),
         (12.34, "10,2", "112,2"),
