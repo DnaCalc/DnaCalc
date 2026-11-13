@@ -270,7 +270,8 @@ pub fn norm_s_inv_kernel(p: f64) -> Result<f64, WorksheetErrorCode> {
 
 pub fn norm_inv_kernel(p: f64, mean: f64, sigma: f64) -> Result<f64, WorksheetErrorCode> {
     validate_positive_sigma(sigma)?;
-    Ok(mean + sigma * inverse_standard_normal(p)?)
+    use crate::ported::excel_numeric::{excel_x87_add, excel_x87_mul};
+    Ok(excel_x87_add(mean, excel_x87_mul(sigma, inverse_standard_normal(p)?)))
 }
 
 pub fn lognorm_dist_kernel(
@@ -313,11 +314,9 @@ pub fn lognorm_dist_kernel(
 }
 
 pub fn lognorm_inv_kernel(p: f64, mean: f64, sigma: f64) -> Result<f64, WorksheetErrorCode> {
-    validate_positive_sigma(sigma)?;
-    // Same capture: LOGNORM.INV(0.5,μ,σ) == EXP(NORM.INV(0.5,μ,σ)) on 45/45.
-    Ok(crate::ported::excel_numeric::excel_exp(
-        mean + sigma * inverse_standard_normal(p)?,
-    ))
+    // Excel 20527: both lognormal inverse names match EXP of the stored
+    // scaled normal inverse on independent midpoint and general controls.
+    Ok(crate::ported::excel_numeric::excel_exp(norm_inv_kernel(p, mean, sigma)?))
 }
 
 pub fn confidence_norm_kernel(

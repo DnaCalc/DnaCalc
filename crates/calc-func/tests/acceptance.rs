@@ -16842,7 +16842,7 @@ struct LabelText {
     text: String,
     /// The form's index in [`LABEL_FORMS`].
     form: usize,
-    /// Whether the word is one no number text holds, so the rule decides the text.
+/// Whether this text is known not to be a number.
     no_number: bool,
     /// Whether the word is one of [`VALUE_SAMPLE_WORDS`], so the oracle workbook reads the text
     /// with VALUE too.
@@ -16858,7 +16858,9 @@ fn label_texts() -> Vec<LabelText> {
             texts.push(LabelText {
                 text: pattern.replace('_', word),
                 form,
-                no_number,
+                // Excel 20527 rejects a leading A followed only by digits;
+                // the A time marker is read after a time instead.
+                no_number: no_number || (word.eq_ignore_ascii_case("a") && *pattern == "_1"),
                 sampled: VALUE_SAMPLE_WORDS.contains(&word),
             });
         }
@@ -17223,8 +17225,8 @@ fn digit_label_rows(s: &mut TestSheet, quiet: bool) -> LabelRows {
     );
 
     // Each word in each form, read by +: a word no number text holds makes the text #VALUE!; text
-    // holding only words Excel reads is refused, apart from 1e5, which is in the plain decimal
-    // form and reads as 100000.
+    // holding only words Excel reads is refused, apart from the measured a1 rejection and 1e5,
+    // which is in the plain decimal form and reads as 100000.
     for LabelText {
         text, no_number, ..
     } in label_texts()
@@ -17316,10 +17318,12 @@ fn dc_e00t__digit_labels_as_text() {
     let (hand_rows, generated_rows) = rows.oracle.split_at(hand);
     let refused = |rows: &[OracleRow]| rows.iter().filter(|row| row.outcome.is_err()).count();
     let decided_words = LABEL_WORDS.iter().filter(|(_, no)| *no).count();
+    let decided_texts = texts.iter().filter(|text| text.no_number).count();
+    assert_eq!(decided_texts, decided_words * LABEL_FORMS.len() + 1, "a1 is also decided");
     assert_eq!(
         generated_rows.len() - refused(generated_rows),
-        decided_words * LABEL_FORMS.len() + 1,
-        "every form of a word no number text holds computes #VALUE!, 1e5 computes 100000, and every other is refused"
+        decided_texts + 1,
+        "every decided text computes #VALUE!, 1e5 computes 100000, and every other is refused"
     );
     assert_eq!(excel.len(), rows.oracle.len());
     // Each generated row, counted by form: computed #VALUE!, computed as a number, refused.
@@ -17398,7 +17402,7 @@ fn dc_e00t__digit_labels_as_text() {
         refused(hand_rows),
         LABEL_WORDS.len(),
         LABEL_FORMS.len(),
-        decided_words * LABEL_FORMS.len(),
+        decided_texts,
         refused(generated_rows),
         UNDECIDED_TEXT.feature()
     );

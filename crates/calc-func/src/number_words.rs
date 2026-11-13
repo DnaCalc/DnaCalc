@@ -62,6 +62,14 @@ pub(crate) fn cannot_be_number(units: &[u16]) -> bool {
     if !units.iter().all(|&unit| (0x20..=0x7E).contains(&unit)) {
         return false;
     }
+    // Excel 20527 rejects a leading A followed only by digits. The A time
+    // marker belongs after a time, so these labels are not time text.
+    if matches!(units.first(), Some(0x41 | 0x61))
+        && units.len() > 1
+        && units[1..].iter().all(|&u| (0x30..=0x39).contains(&u))
+    {
+        return true;
+    }
     let mut at = 0;
     while at < units.len() {
         if !is_letter(units[at]) {
@@ -111,6 +119,8 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn a_word_no_number_text_holds_decides_the_text() {
         for text in [
+            "a1",
+            "A123",
             "2016-17 Winter",
             "Q1 2016",
             "2016-17 winter",
