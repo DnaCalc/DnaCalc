@@ -1008,6 +1008,37 @@ impl Session {
 
     fn keys(&self, css: &str, text: &str) -> Result<(), String> {
         let element = self.element(css)?;
+        if self.bidi.is_none() && text.chars().any(|ch| ch as u32 > 0xffff) {
+            // ChromeDriver's Element Send Keys rejects supplementary Unicode characters.
+            // Focus through WebDriver, then send those characters as real browser key input
+            // through CDP. Keep the ordinary text and WebDriver control keys on their existing
+            // route, following focus when a key opens an editor. No DOM values are assigned.
+            self.post(&format!("/element/{element}/value"), json!({"text":""}))?;
+            let flush = |buffer: &mut String| -> Result<(), String> {
+                if !buffer.is_empty() {
+                    let active = self.element(":focus")?;
+                    self.post(&format!("/element/{active}/value"), json!({"text":buffer}))?;
+                    buffer.clear();
+                }
+                Ok(())
+            };
+            let mut buffer = String::new();
+            for ch in text.chars() {
+                if ch as u32 <= 0xffff {
+                    buffer.push(ch);
+                    continue;
+                }
+                flush(&mut buffer)?;
+                let key = ch.to_string();
+                self.post("/goog/cdp/execute", json!({"cmd":"Input.dispatchKeyEvent","params":{
+                    "type":"keyDown","key":key,"text":key,"unmodifiedText":key
+                }}))?;
+                self.post("/goog/cdp/execute", json!({"cmd":"Input.dispatchKeyEvent","params":{
+                    "type":"keyUp","key":key
+                }}))?;
+            }
+            return flush(&mut buffer);
+        }
         self.post(
             &format!("/element/{element}/value"),
             json!({ "text": text }),

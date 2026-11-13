@@ -85,7 +85,10 @@
     host.addEventListener("message", this._receive);
     if (socketCarrier) {
       this._disconnected = function () {
-        var event = { message: "The native workbook connection closed; reload the page to reconnect" };
+        var event = new ErrorEvent("error", {
+          message: "The native workbook connection closed; reload the page to reconnect",
+          cancelable: true
+        });
         if (self._onerror) { self._onerror.call(self, event); }
       };
       host.addEventListener("close", this._disconnected);
@@ -116,7 +119,9 @@
   };
   DesktopWorker.prototype.terminate = function () {
     if (socketCarrier) {
-      host.postMessage(this._prefix + "bye");
+      if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+        host.postMessage(this._prefix + "bye");
+      }
       host.removeEventListener("message", this._receive);
       host.removeEventListener("close", this._disconnected);
       host.removeEventListener("error", this._disconnected);

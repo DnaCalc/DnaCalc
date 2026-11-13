@@ -22,6 +22,10 @@ function page(carrier) {
     addEventListener(...args) { host.addEventListener(...args); }
     removeEventListener(...args) { host.removeEventListener(...args); }
   }
+  class ErrorEvent {
+    constructor(type, options) { this.type = type; Object.assign(this, options); }
+    preventDefault() { this.defaultPrevented = true; }
+  }
   const window = {
     Worker: function OriginalWorker() {},
     chrome: carrier === 'webview' ? {webview: host} : undefined,
@@ -29,7 +33,7 @@ function page(carrier) {
     btoa: s => Buffer.from(s, 'binary').toString('base64'),
     atob: s => Buffer.from(s, 'base64').toString('binary')
   };
-  const context = { window, WebSocket: Socket, URL, Uint8Array,
+  const context = { window, WebSocket: Socket, ErrorEvent, URL, Uint8Array,
     document: {currentScript: {getAttribute: () => carrier === 'socket' ? 'socket' : null}} };
   vm.runInNewContext(script, context);
   return { window, sent, emit, Socket };
@@ -66,9 +70,11 @@ for (const carrier of ['webview', 'socket']) {
       emit('message', '@1\u0002later');
       assert.equal(secondMessage[0], 'tiles');
       let error;
-      first.onerror = e => { error = e.message; };
+      first.onerror = e => { e.preventDefault(); error = e.message; };
       emit('close');
       assert.match(error, /connection closed/);
+      Socket.last.readyState = 3;
+      assert.doesNotThrow(() => first.terminate());
     }
   });
 }

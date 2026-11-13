@@ -127,7 +127,7 @@ or COM services to the Server.
   dna-firehorse, 2026-11-13:** pkg-config, the dynamic linker cache and Python's library lookup
   found no WebKitGTK 4.1, 4.0 or 6.0 library; WebKitWebDriver is absent too. Neither the page nor
   `apps/dna-calc-desktop/probe/webgpu.html` could be run there without installing the system
-  runtime. No system packages were installed. A host with WebKitGTK is still needed.
+  runtime. No system packages were installed. A host with WebKitGTK is still needed (dc-icq4.5).
 - What should `Shell`, `Environ`, `CurDir` and path separators mean in `unguarded` on Linux?
 - Does File System Access matter, or is download-and-open enough for the browser route?
 - aarch64 Linux: the runner build is x86-64 only so far (dc-icq4.2).
