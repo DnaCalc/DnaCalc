@@ -29,8 +29,15 @@ pub fn z_test_kernel(
     x: f64,
     sigma: Option<f64>,
 ) -> Result<f64, WorksheetErrorCode> {
-    if values.is_empty() || !x.is_finite() {
+    if !x.is_finite() {
         return Err(WorksheetErrorCode::Value);
+    }
+    // Excel checks the sample count even when a population sigma is supplied.
+    if values.is_empty() {
+        return Err(WorksheetErrorCode::NA);
+    }
+    if values.len() == 1 {
+        return Err(WorksheetErrorCode::Div0);
     }
     let mean = values.iter().sum::<f64>() / values.len() as f64;
     let sigma = match sigma {

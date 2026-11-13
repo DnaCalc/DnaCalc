@@ -415,12 +415,22 @@ fn t_test_of(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Ste
 }
 
 fn z_test_of(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
-    let values = sample(site, a, 0, sv)?;
+    // Literal text is coerced while binding the first argument; references and
+    // arrays are read only after the scalar arguments have been validated.
+    let literal_sample = if matches!(a[0].core_ref(), CoreRef::Text(_)) {
+        Some(sample(site, a, 0, sv)?)
+    } else {
+        None
+    };
     let x = num(site, a, 1)?;
     let sigma = if given(a, 2) {
         Some(num(site, a, 2)?)
     } else {
         None
+    };
+    let values = match literal_sample {
+        Some(values) => values,
+        None => sample(site, a, 0, sv)?,
     };
     out(site, ct::z_test_kernel(&values, x, sigma))
 }

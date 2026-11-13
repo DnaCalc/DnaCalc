@@ -10,6 +10,30 @@ use calc_func::SubtotalExclusions;
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Value};
 use f1_support::*;
 
+/// Excel 20527: scalar sigma does not bypass the sample-size check.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn z_test_checks_sample_count_after_scalar_argument_errors() {
+    let mut sheet = Sheet::new();
+    sheet.column(2, 1, vec![n(2.0), n(4.0)]);
+    let empty = sheet.area(1, 1, 1, 1);
+    let single = sheet.area(2, 1, 2, 1);
+    let pair = sheet.area(2, 1, 3, 1);
+    for name in ["Z.TEST", "ZTEST"] {
+        for sigma in [1.0, 0.0, -1.0] {
+            error(call_on(&mut sheet, name, vec![empty.clone(), n(3.0), n(sigma)]), NA);
+            error(call_on(&mut sheet, name, vec![single.clone(), n(3.0), n(sigma)]), Div0);
+        }
+        error(call_on(&mut sheet, name, vec![single.clone(), n(3.0)]), Div0);
+        error(call_on(&mut sheet, name, vec![empty.clone(), n(3.0), e(Div0)]), Div0);
+        error(call_on(&mut sheet, name, vec![empty.clone(), e(Div0), e(NA)]), Div0);
+        error(call(name, vec![t("hello"), e(Num), e(NA)]), Value);
+        error(call(name, vec![t("12"), e(Num), e(NA)]), Num);
+        error(call_on(&mut sheet, name, vec![pair.clone(), n(3.0), n(-1.0)]), Num);
+        exact(call_on(&mut sheet, name, vec![pair.clone(), n(3.0), n(1.0)]), 0.5);
+    }
+}
+
 /// Excel 16.0.20527: a single blank cell differs from an array element or
 /// a blank within a multi-cell range, and argument errors keep their order.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
