@@ -119,6 +119,10 @@ pub fn run(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> u8 {
         let _ = writeln!(out, "{USAGE}");
         return 0;
     }
+    if args.iter().any(|a| a == "--version" || a == "-V") {
+        let _ = writeln!(out, "dnacalc {}", env!("CARGO_PKG_VERSION"));
+        return 0;
+    }
     let result = parse(args).and_then(|cli| {
         let (report, code) = match cli.command.as_str() {
             "recalc" => cells::recalc(&cli)?,
