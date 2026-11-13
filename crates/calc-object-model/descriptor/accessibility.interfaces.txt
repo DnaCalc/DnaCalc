@@ -1,0 +1,2 @@
+# Windows Accessibility 1.1 (oleacc.dll): IAccessible is the base of Office's _IMsoOleAccDispObj.
+IAccessible

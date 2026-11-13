@@ -52,4 +52,10 @@ fn office_types_resolve_by_qualified_name_and_through_their_bases() {
     // Base members (CommandBarControl, then _IMsoOleAccDispObj) come first.
     assert!(d.members(popup).iter().any(|m| m.name == "Caption"));
     assert!(d.id("_IDTExtensibility2").is_some());
+    // _IMsoOleAccDispObj (30 slots) extends IAccessible (28): its layout is complete.
+    let acc = d.id("IAccessible").expect("IAccessible");
+    assert_eq!(d.ty(acc).vtable_slots, Some(28));
+    let ole = d.id("_IMsoOleAccDispObj").expect("_IMsoOleAccDispObj");
+    assert_eq!(d.ty(ole).base.as_deref(), Some("IAccessible"));
+    assert_eq!(d.ty(ole).vtable_slots, Some(30));
 }

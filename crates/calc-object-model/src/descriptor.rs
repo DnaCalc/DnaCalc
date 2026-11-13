@@ -270,13 +270,14 @@ pub struct Descriptor {
 const EXCEL: &str = include_str!("../descriptor/excel.json");
 const OFFICE: &str = include_str!("../descriptor/office.json");
 const ADDIN_DESIGNER: &str = include_str!("../descriptor/addin-designer.json");
+const ACCESSIBILITY: &str = include_str!("../descriptor/accessibility.json");
 
 impl Descriptor {
-    /// The committed descriptor (Excel, Office, Add-in Designer), parsed once.
+    /// The committed descriptor (Excel, Office, Add-in Designer, Accessibility), parsed once.
     pub fn get() -> &'static Descriptor {
         static DESCRIPTOR: OnceLock<Descriptor> = OnceLock::new();
         DESCRIPTOR.get_or_init(|| {
-            Descriptor::from_files(&[EXCEL, OFFICE, ADDIN_DESIGNER])
+            Descriptor::from_files(&[EXCEL, OFFICE, ADDIN_DESIGNER, ACCESSIBILITY])
                 .expect("committed object-model descriptor is valid JSON")
         })
     }
