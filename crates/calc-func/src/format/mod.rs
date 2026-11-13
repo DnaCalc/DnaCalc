@@ -112,7 +112,13 @@ pub(crate) fn plain_decimal_code(code: &str) -> bool {
 fn literal_scientific_parts(code: &str) -> Option<(&str, bool, &str)> {
     let (mantissa, exponent) = code.split_once('E')?;
     let digits = mantissa.strip_prefix('-').unwrap_or(mantissa);
-    if digits.is_empty() || !digits.bytes().all(|c| (b'1'..=b'9').contains(&c)) {
+    let mantissa_digits = digits.replace('.', "");
+    if mantissa_digits.is_empty()
+        || !mantissa_digits.bytes().all(|c| (b'1'..=b'9').contains(&c))
+        || digits.matches('.').count() > 1
+        || digits.starts_with('.')
+        || digits.ends_with('.')
+    {
         return None;
     }
     let (plus, exponent) = match exponent.as_bytes().first()? {
@@ -120,14 +126,20 @@ fn literal_scientific_parts(code: &str) -> Option<(&str, bool, &str)> {
         b'-' => (false, &exponent[1..]),
         _ => return None,
     };
-    if !exponent.contains('0') || !exponent.bytes().all(|c| c.is_ascii_digit()) {
+    if exponent.is_empty() || !exponent.bytes().all(|c| c.is_ascii_digit()) {
         return None;
     }
     Some((mantissa, plus, exponent))
 }
 
 pub(crate) fn literal_scientific_code(code: &str) -> bool {
-    literal_scientific_parts(code).is_some()
+    literal_scientific_parts(code)
+        .is_some_and(|(mantissa, _, exponent)| !mantissa.contains('.') && exponent.contains('0'))
+}
+
+/// Decimal mantissas are literal when their point is the recorded decimal token.
+pub(crate) fn literal_scientific_decimal_code(code: &str) -> bool {
+    literal_scientific_parts(code).is_some_and(|(mantissa, _, _)| mantissa.contains('.'))
 }
 
 /// Excel 16.0.20527 controls for literal mantissas: rounding the 15-digit
@@ -1796,7 +1808,12 @@ pub(crate) fn text(
     if code.is_empty() && value.is_finite() {
         return Ok(if value < 0.0 { "-" } else { "" }.to_owned());
     }
-    if value.is_finite() && literal_scientific_code(code) {
+    if value.is_finite()
+        && (literal_scientific_code(code)
+            || (profile.decimal_separator == "."
+                && profile.thousands_separator != "."
+                && literal_scientific_decimal_code(code)))
+    {
         return literal_scientific(profile, value, code);
     }
     render_text(&localized_code_profile(profile), system, value, code)

@@ -225,6 +225,42 @@ fn text_scientific_literal_mantissa() {
         call_in(&env, None, None, "TEXT", vec![n(12.34), n(1e100)]),
         "1E+101",
     );
+
+    // Excel 20527 bank2-more-TEXT-0305 and bank2-scalar-TEXT-1029:
+    // numeric codes become scientific format text before rendering.
+    use calc_func::value::NumericMode;
+    use calc_func::{EvalServices, FunctionCallScratch, Notation, catalogue, invoke};
+    let target = catalogue().resolve_surface(Notation::Call, "TEXT").unwrap();
+    let mode = NumericMode::Fast;
+    for (value, code, expected) in [
+        (0.5, f64::from_bits(0x398daa22f02e1330), "1.82822185543783E31"),
+        (
+            f64::from_bits(0x3fd5712f01a17496),
+            f64::from_bits(0x4ea5c4cf23f3d7f0),
+            "7.51213186318725E+71",
+        ),
+    ] {
+        let mut services = EvalServices::new(&mode)
+            .with_environment(&env)
+            .with_number_separators(".", "\u{00A0}");
+        text(
+            invoke(
+                target,
+                &mut Given(vec![n(value), n(code)]),
+                &mut services,
+                &mut FunctionCallScratch::new(),
+            ),
+            expected,
+        );
+    }
+    assert!(call_in(
+        &env,
+        None,
+        None,
+        "TEXT",
+        vec![n(0.5), n(f64::from_bits(0x398daa22f02e1330))],
+    )
+    .is_err());
 }
 
 /// Excel 16.0.20430, recorded typed Value2 observations, not legacy expected values:

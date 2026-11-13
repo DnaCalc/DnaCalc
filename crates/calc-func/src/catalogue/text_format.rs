@@ -159,6 +159,9 @@ fn text(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
         let known_decimal = site.number_separators().is_some_and(|(decimal, group)| {
             decimal == "." && group != "." && format::plain_decimal_code(&code)
         });
+        let known_scientific_decimal = site.number_separators().is_some_and(|(decimal, group)| {
+            decimal == "." && group != "." && format::literal_scientific_decimal_code(&code)
+        });
         let known_literal = !format::integer_code(&code)
             && site.number_separators().is_some_and(|(decimal, group)| {
                 format::literal_integer_code(&code, decimal, group)
@@ -167,6 +170,7 @@ fn text(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
             || format::integer_code(&code)
             || known_decimal
             || known_literal
+            || known_scientific_decimal
             || format::literal_scientific_code(&code)
         {
             let number = site.number_argument(0, &a[0])?;
@@ -174,7 +178,7 @@ fn text(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
                 .environment()
                 .map_or(crate::locale::DateSystem::System1900, |e| e.date_system);
             let mut format_profile = crate::locale::format_profile(LocaleId::EnZa);
-            if known_decimal || known_literal {
+            if known_decimal || known_literal || known_scientific_decimal {
                 let (decimal, group) = site.number_separators().expect("known decimal separators");
                 format_profile = format_profile
                     .with_separators(decimal, group)
