@@ -46,7 +46,7 @@ fn beta_inverse_tiny_shape_checks_starting_density() {
     }
 }
 
-/// Excel 20527 stores the large right-tail chi-square correction before adding it.
+/// Excel 20527's large right-tail inverse uses an x87 factor multiplication.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn chi_right_inverse_admits_large_degrees() {
@@ -58,6 +58,10 @@ fn chi_right_inverse_admits_large_degrees() {
         (0x2b2b_ff2e_e48e_0530, 0x63bd_362c_8e75_19d3, 0x63bd_3829_73d1_9f88),
         (0x3fe0_0000_0000_0000, 0x4720_0000_0000_0000, 0x4720_0116_bc77_4cb6),
         (0x3fb9_9999_9999_999a, 0x4720_fa33_55c9_40b4, 0x4720_fb5b_18ff_a4b0),
+        (0x3fe0_0000_0000_0000, 0x472a_56d3_12c0_0480, 0x472a_589d_ed93_fe6f),
+        (0x3fe0_0000_0000_0000, 0x4951_cd01_7362_be52, 0x4951_ce37_8f09_7e45),
+        (0x3fe6_a9e9_3a60_2ca9, 0x46b7_b533_bae0_0b4a, 0x46b7_b6d0_be84_bf6e),
+        (0x3fd3_66d1_dfde_b4e0, 0x46aa_d9d1_9f32_4eca, 0x46aa_dba5_6414_10a6),
     ];
     for name in ["CHIINV", "CHISQ.INV.RT"] {
         for (p, degrees, result) in cases {
@@ -83,6 +87,7 @@ fn gamma_inverse_matches_large_shape_scaling() {
         (0x0010_0000_0000_0000, 0x4950_0000_0000_0000, 0x26f0_0000_0000_0000, 0x3050_0116_bc77_4cb6),
         (0x3fef_ffff_ffff_ffff, 0x656f_ffff_ffff_ffff, 0x58ef_ffff_ffff_ffff, 0x7e70_0116_bc77_4cb6),
         (0x0010_0000_0000_0000, 0x4720_0000_0000_0000, 0x26f0_0000_0000_0000, 0x2e20_0116_bc77_4cb6),
+        (0x3fb9_9999_9999_999a, 0x472a_56d3_12c0_0480, 0x400a_0000_0000_0000, 0x4745_6800_5108_3eba),
     ];
     for name in ["GAMMA.INV", "GAMMAINV"] {
         for (p, alpha, beta, result) in cases {
@@ -95,6 +100,25 @@ fn gamma_inverse_matches_large_shape_scaling() {
         exact(call(name, vec![n(0.0), n(alpha), n(1.0)]), 0.0);
         error(call(name, vec![n(1.0), n(alpha), n(1.0)]), Num);
     }
+}
+
+/// Excel 20527 finds no seasonality in directly observed five-point curved histories.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn forecast_ets_seasonality_detects_strict_curvature() {
+    let times = col(&[1.0, 2.0, 3.0, 4.0, 5.0]);
+    for values in [
+        [1.0, 2.0, 4.0, 7.0, 11.0],
+        [-1.0, -2.0, -4.0, -7.0, -11.0],
+    ] {
+        exact(call("FORECAST.ETS.SEASONALITY", vec![col(&values), times.clone()]), 0.0);
+    }
+    // This non-curved history selects period two in Excel and must not use
+    // the strict-curvature route.
+    assert!(matches!(
+        call("FORECAST.ETS.SEASONALITY", vec![col(&[1.0, 2.0, 3.2, 3.1, 5.0]), times]),
+        Err(calc_func::FunctionFault::NotHeld { .. })
+    ));
 }
 
 /// Excel 20527 rejects far future horizons even when subtraction is inexact.
