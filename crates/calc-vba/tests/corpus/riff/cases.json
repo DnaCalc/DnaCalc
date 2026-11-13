@@ -2,121 +2,104 @@
   {
     "formula": "=RiffIsInitialized()",
     "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "excel_error": "Cannot run Visual Basic macro because of a syntax error."
   },
   {
     "formula": "=RiffMasterVolume()",
     "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "excel_error": "Cannot run Visual Basic macro because of a syntax error."
   },
   {
     "formula": "=RiffBusVolume(3)",
     "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "excel_error": "Cannot run Visual Basic macro because of a syntax error."
   },
   {
     "formula": "=RiffBufferDurationSec(0)",
     "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "excel_error": "Cannot run Visual Basic macro because of a syntax error."
   },
   {
     "formula": "=RiffLoad(\"nothing.wav\")",
     "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "excel_error": "Cannot run Visual Basic macro because of a syntax error."
   },
   {
     "formula": "=RiffPlay(0)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": -1.0
   },
   {
     "formula": "=RiffPlayOscillator(0,440)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": -1.0
   },
   {
     "formula": "=RiffExportBufferWav(0,\"x.wav\")",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": false
   },
   {
     "formula": "=RiffRenderOscillatorWav(0,440,0.5,\"x.wav\")",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": false
   },
   {
     "formula": "=RiffVoiceIsPlaying(0)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": {
+      "error": "#NAME?"
+    }
   },
   {
     "formula": "=RiffProbePeaks()",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": "0|0"
   },
   {
     "formula": "=RiffProbeLoadMemory()",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": -1.0
   },
   {
     "formula": "=RiffProbeUnload(-1)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": "unloaded -1 False"
   },
   {
     "formula": "=RiffProbeUnload(7)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": "unloaded 7 False"
   },
   {
     "formula": "=RiffProbeBusVolume(0)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": 0.0
   },
   {
     "formula": "=RiffProbeBusVolume(-4)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": 0.0
   },
   {
     "formula": "=RiffProbeBusVolume(99)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": 0.0
   },
   {
     "formula": "=RiffProbeMasterVolume()",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": 0.0
   },
   {
     "formula": "=RiffProbeSetMaster(0.5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": "set 0"
   },
   {
     "formula": "=RiffProbeVoice(0)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": "False|False|0|0|0|0"
   },
   {
     "formula": "=RiffProbeVoice(31)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": "False|False|0|0|0|0"
   },
   {
     "formula": "=RiffProbeVoice(32)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": "False|False|0|0|0|0"
   },
   {
     "formula": "=RiffProbeVoice(-1)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": "False|False|0|0|0|0"
   },
   {
     "formula": "=RiffProbeClose()",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": "closed False"
   }
 ]

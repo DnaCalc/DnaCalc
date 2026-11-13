@@ -433,5 +433,70 @@
       "route": "project/jit"
     }
   },
-  "windows": {}
+  "windows": {
+    "riff/module/interpreter": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 5,
+      "refused": 19,
+      "route": "module/interpreter"
+    },
+    "riff/module/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 5,
+      "refused": 19,
+      "route": "module/jit"
+    },
+    "riff/project/interpreter": {
+      "loaded": true,
+      "matched": 19,
+      "mismatched": 0,
+      "missing": 5,
+      "refused": 0,
+      "route": "project/interpreter"
+    },
+    "riff/project/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 5,
+      "refused": 19,
+      "route": "project/jit"
+    },
+    "wasabi/module/interpreter": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 53,
+      "route": "module/interpreter"
+    },
+    "wasabi/module/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 53,
+      "route": "module/jit"
+    },
+    "wasabi/project/interpreter": {
+      "loaded": true,
+      "matched": 41,
+      "mismatched": 12,
+      "missing": 0,
+      "refused": 0,
+      "route": "project/interpreter"
+    },
+    "wasabi/project/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 53,
+      "route": "project/jit"
+    }
+  }
 }

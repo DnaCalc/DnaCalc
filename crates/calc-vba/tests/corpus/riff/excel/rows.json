@@ -1,0 +1,203 @@
+{
+  "action": "project",
+  "excel_version": "16.0",
+  "excel_build": "20527",
+  "automation_security": 1,
+  "rows": [
+    {
+      "formula": "=RiffIsInitialized()",
+      "error": "Cannot run Visual Basic macro because of a syntax error."
+    },
+    {
+      "formula": "=RiffMasterVolume()",
+      "error": "Cannot run Visual Basic macro because of a syntax error."
+    },
+    {
+      "formula": "=RiffBusVolume(3)",
+      "error": "Cannot run Visual Basic macro because of a syntax error."
+    },
+    {
+      "formula": "=RiffBufferDurationSec(0)",
+      "error": "Cannot run Visual Basic macro because of a syntax error."
+    },
+    {
+      "formula": "=RiffLoad(\"nothing.wav\")",
+      "error": "Cannot run Visual Basic macro because of a syntax error."
+    },
+    {
+      "formula": "=RiffPlay(0)",
+      "excel": {
+        "value": -1.0,
+        "type": "Double"
+      },
+      "text": "-1"
+    },
+    {
+      "formula": "=RiffPlayOscillator(0,440)",
+      "excel": {
+        "value": -1.0,
+        "type": "Double"
+      },
+      "text": "-1"
+    },
+    {
+      "formula": "=RiffExportBufferWav(0,\"x.wav\")",
+      "excel": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "text": "FALSE"
+    },
+    {
+      "formula": "=RiffRenderOscillatorWav(0,440,0.5,\"x.wav\")",
+      "excel": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "text": "FALSE"
+    },
+    {
+      "formula": "=RiffVoiceIsPlaying(0)",
+      "excel": {
+        "error_code": -2146826259
+      },
+      "text": "#NAME?"
+    },
+    {
+      "formula": "=RiffProbePeaks()",
+      "excel": {
+        "value": "0|0",
+        "type": "String"
+      },
+      "text": "0|0"
+    },
+    {
+      "formula": "=RiffProbeLoadMemory()",
+      "excel": {
+        "value": -1.0,
+        "type": "Double"
+      },
+      "text": "-1"
+    },
+    {
+      "formula": "=RiffProbeUnload(-1)",
+      "excel": {
+        "value": "unloaded -1 False",
+        "type": "String"
+      },
+      "text": "unloaded -1 False"
+    },
+    {
+      "formula": "=RiffProbeUnload(7)",
+      "excel": {
+        "value": "unloaded 7 False",
+        "type": "String"
+      },
+      "text": "unloaded 7 False"
+    },
+    {
+      "formula": "=RiffProbeBusVolume(0)",
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=RiffProbeBusVolume(-4)",
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=RiffProbeBusVolume(99)",
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=RiffProbeMasterVolume()",
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=RiffProbeSetMaster(0.5)",
+      "excel": {
+        "value": "set 0",
+        "type": "String"
+      },
+      "text": "set 0"
+    },
+    {
+      "formula": "=RiffProbeVoice(0)",
+      "excel": {
+        "value": "False|False|0|0|0|0",
+        "type": "String"
+      },
+      "text": "False|False|0|0|0|0"
+    },
+    {
+      "formula": "=RiffProbeVoice(31)",
+      "excel": {
+        "value": "False|False|0|0|0|0",
+        "type": "String"
+      },
+      "text": "False|False|0|0|0|0"
+    },
+    {
+      "formula": "=RiffProbeVoice(32)",
+      "excel": {
+        "value": "False|False|0|0|0|0",
+        "type": "String"
+      },
+      "text": "False|False|0|0|0|0"
+    },
+    {
+      "formula": "=RiffProbeVoice(-1)",
+      "excel": {
+        "value": "False|False|0|0|0|0",
+        "type": "String"
+      },
+      "text": "False|False|0|0|0|0"
+    },
+    {
+      "formula": "=RiffProbeClose()",
+      "excel": {
+        "value": "closed False",
+        "type": "String"
+      },
+      "text": "closed False"
+    }
+  ],
+  "errors": [],
+  "components": [
+    {
+      "name": "ThisWorkbook",
+      "type": 100,
+      "lines": 0
+    },
+    {
+      "name": "Sheet1",
+      "type": 100,
+      "lines": 0
+    },
+    {
+      "name": "Riff",
+      "type": 1,
+      "lines": 4385
+    },
+    {
+      "name": "RiffProbe",
+      "type": 1,
+      "lines": 43
+    }
+  ],
+  "sheet": "Sheet1"
+}

@@ -1,267 +1,216 @@
 [
   {
     "formula": "=TcpIsConnected(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": false
   },
   {
     "formula": "=WebSocketIsConnected(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": false
   },
   {
     "formula": "=TcpGetPendingBytes(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": 0.0
   },
   {
     "formula": "=WebSocketGetPendingCount(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": 0.0
   },
   {
     "formula": "=WebSocketGetBinaryPendingCount(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": 0.0
   },
   {
     "formula": "=WebSocketGetQueueCapacity(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": 0.0
   },
   {
     "formula": "=WebSocketGetStats(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": ""
   },
   {
     "formula": "=TcpGetStats(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": ""
   },
   {
     "formula": "=TcpGetHost(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": ""
   },
   {
     "formula": "=TcpGetPort(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": 0.0
   },
   {
     "formula": "=TcpGetMode(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": 0.0
   },
   {
     "formula": "=TcpGetUptime(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": 0.0
   },
   {
     "formula": "=TcpGetProxyInfo(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": ""
   },
   {
     "formula": "=TcpGetMTUInfo(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": ""
   },
   {
     "formula": "=WebSocketGetCloseCode(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": 0.0
   },
   {
     "formula": "=WebSocketGetCloseReason(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": ""
   },
   {
     "formula": "=WebSocketGetCloseInfo(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": ""
   },
   {
     "formula": "=WebSocketGetReconnectInfo(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": ""
   },
   {
     "formula": "=WebSocketGetSubProtocol(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": ""
   },
   {
     "formula": "=WebSocketGetHost(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": ""
   },
   {
     "formula": "=WebSocketGetPort(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": 0.0
   },
   {
     "formula": "=WebSocketGetPath(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": ""
   },
   {
     "formula": "=WebSocketGetMTU(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": 0.0
   },
   {
     "formula": "=TcpIsConnected(99999)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": false
   },
   {
     "formula": "=WebSocketIsConnected(99999)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": false
   },
   {
     "formula": "=TcpGetPendingBytes(99999)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": 0.0
   },
   {
     "formula": "=WebSocketGetPendingCount(99999)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": 0.0
   },
   {
     "formula": "=WebSocketGetBinaryPendingCount(99999)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": 0.0
   },
   {
     "formula": "=WasabiGetErrorDescription(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": "No error"
   },
   {
     "formula": "=WebSocketGetLastErrorCode(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": 0.0
   },
   {
     "formula": "=WebSocketGetTechnicalDetails(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": ""
   },
   {
     "formula": "=WebSocketGetLastError(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": 0.0
   },
   {
     "formula": "=TcpGetLastErrorCode(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": 0.0
   },
   {
     "formula": "=WsProbeQueries(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": "False|False|0|0|0|0|0|0"
   },
   {
     "formula": "=WsProbeQueries(100000)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": "False|False|0|0|0|0|0|0"
   },
   {
     "formula": "=WsProbeQueries(-9)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": "False|False|0|0|0|0|0|0"
   },
   {
     "formula": "=WsProbeConnect(\"\")",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": "False|-1|Invalid URL - Invalid URL: "
   },
   {
     "formula": "=WsProbeConnect(\"http://example.com\")",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": "False|-1|Invalid URL - Invalid URL: http://example.com"
   },
   {
     "formula": "=WsProbeConnect(\"ws://\")",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": "False|-1|Invalid URL - Invalid URL: ws://"
   },
   {
     "formula": "=WsProbeConnect(\"ws://host:abc/\")",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": "False|-1|Invalid URL - Invalid URL: ws://host:abc/"
   },
   {
     "formula": "=WsProbeConnect(\"ws://host:65536\")",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": "False|-1|Invalid URL - Invalid URL: ws://host:65536"
   },
   {
     "formula": "=WsProbeConnect(\"ws://:80/x\")",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": "False|-1|Invalid URL - Invalid URL: ws://:80/x"
   },
   {
     "formula": "=WasabiGetErrorDescription(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": "Invalid URL - Invalid URL: ws://:80/x"
   },
   {
     "formula": "=WebSocketGetTechnicalDetails(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": "Invalid URL: ws://:80/x"
   },
   {
     "formula": "=WebSocketGetLastErrorCode(-5)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": 0.0
   },
   {
     "formula": "=WsProbeCounts()",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": "0|0"
   },
   {
     "formula": "=WebSocketGetConnectionCount()",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": 0.0
   },
   {
     "formula": "=WsProbeHandleCount()",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": {
+      "error": "#VALUE!"
+    }
   },
   {
     "formula": "=TcpIsConnected()",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": false
   },
   {
     "formula": "=WebSocketGetDefaultHandle()",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": 0.0
   },
   {
     "formula": "=WebSocketSetDefaultHandle(3)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": false
   },
   {
     "formula": "=WebSocketSetDefaultHandle(-1)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": false
   },
   {
     "formula": "=WebSocketSetDefaultHandle(9999)",
-    "value": null,
-    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+    "value": false
   }
 ]

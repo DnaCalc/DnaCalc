@@ -1,6 +1,95 @@
 {
  "format": "dnacalc-vba-policy-approvals",
  "version": 1,
- "note": "Every corpus project runs under CalcVBA's Safe policy unless listed here. An approval names the project id, route, SHA-256 of project.json, SHA-256 of each actual module input, and (for xlsm) SHA-256 of the actual workbook input and records the review of its triage that allows unguarded (Full) execution. No project is approved.",
- "approvals": []
+ "note": "Every corpus project runs under CalcVBA's Safe policy unless listed here. An approval names the project id, route, SHA-256 of project.json, SHA-256 of each actual module input, and (for xlsm) SHA-256 of the actual workbook input and records the review of its triage that allows unguarded (Full) execution.",
+ "approvals": [
+  {
+   "project": "riff",
+   "policy": "full",
+   "route": "module/interpreter",
+   "project_sha256": "6e9ee64c31c1469d7774862b4fa6c8ecd58e1a2906537070a29561c6ecd715b4",
+   "module_sha256": [
+    "d3fde0b020f4717f6095e4ec488579fa91fcf47938485c46dbb6e999c49b46c8",
+    "50bf5b458b12965196f9fa1fdb6e711da9eac7d4b812a45769b3a3eae9b3d6cf"
+   ],
+   "review": "Owner decision 2026-11-13: riff and Wasabi may run unguarded (Full) in testing on the Windows machine until there is reason for concern; low-level libraries (Declare, COM vtables, machine-code thunks) whose public source and nature give confidence they are what they seem. The probes call public functions in the not-connected/not-open state. Hashes are of this Windows checkout's bytes (core.autocrlf=true), so the approval applies on the Windows machine only."
+  },
+  {
+   "project": "riff",
+   "policy": "full",
+   "route": "module/jit",
+   "project_sha256": "6e9ee64c31c1469d7774862b4fa6c8ecd58e1a2906537070a29561c6ecd715b4",
+   "module_sha256": [
+    "d3fde0b020f4717f6095e4ec488579fa91fcf47938485c46dbb6e999c49b46c8",
+    "50bf5b458b12965196f9fa1fdb6e711da9eac7d4b812a45769b3a3eae9b3d6cf"
+   ],
+   "review": "Owner decision 2026-11-13: riff and Wasabi may run unguarded (Full) in testing on the Windows machine until there is reason for concern; low-level libraries (Declare, COM vtables, machine-code thunks) whose public source and nature give confidence they are what they seem. The probes call public functions in the not-connected/not-open state. Hashes are of this Windows checkout's bytes (core.autocrlf=true), so the approval applies on the Windows machine only."
+  },
+  {
+   "project": "riff",
+   "policy": "full",
+   "route": "project/interpreter",
+   "project_sha256": "6e9ee64c31c1469d7774862b4fa6c8ecd58e1a2906537070a29561c6ecd715b4",
+   "module_sha256": [
+    "d3fde0b020f4717f6095e4ec488579fa91fcf47938485c46dbb6e999c49b46c8",
+    "50bf5b458b12965196f9fa1fdb6e711da9eac7d4b812a45769b3a3eae9b3d6cf"
+   ],
+   "review": "Owner decision 2026-11-13: riff and Wasabi may run unguarded (Full) in testing on the Windows machine until there is reason for concern; low-level libraries (Declare, COM vtables, machine-code thunks) whose public source and nature give confidence they are what they seem. The probes call public functions in the not-connected/not-open state. Hashes are of this Windows checkout's bytes (core.autocrlf=true), so the approval applies on the Windows machine only."
+  },
+  {
+   "project": "riff",
+   "policy": "full",
+   "route": "project/jit",
+   "project_sha256": "6e9ee64c31c1469d7774862b4fa6c8ecd58e1a2906537070a29561c6ecd715b4",
+   "module_sha256": [
+    "d3fde0b020f4717f6095e4ec488579fa91fcf47938485c46dbb6e999c49b46c8",
+    "50bf5b458b12965196f9fa1fdb6e711da9eac7d4b812a45769b3a3eae9b3d6cf"
+   ],
+   "review": "Owner decision 2026-11-13: riff and Wasabi may run unguarded (Full) in testing on the Windows machine until there is reason for concern; low-level libraries (Declare, COM vtables, machine-code thunks) whose public source and nature give confidence they are what they seem. The probes call public functions in the not-connected/not-open state. Hashes are of this Windows checkout's bytes (core.autocrlf=true), so the approval applies on the Windows machine only."
+  },
+  {
+   "project": "wasabi",
+   "policy": "full",
+   "route": "module/interpreter",
+   "project_sha256": "c8085cc15390fd82cb832e402e52a98c01851908f90b0ccca110896be3799cad",
+   "module_sha256": [
+    "31a6be3e93dc9f288a195584d146e7cde71f7779412aeb30ba6410d727aff297",
+    "d483b3b95e786eb46a3a77559aadeb66ce7450ac2a61559a640fb01a12c33035"
+   ],
+   "review": "Owner decision 2026-11-13: riff and Wasabi may run unguarded (Full) in testing on the Windows machine until there is reason for concern; low-level libraries (Declare, COM vtables, machine-code thunks) whose public source and nature give confidence they are what they seem. The probes call public functions in the not-connected/not-open state. Hashes are of this Windows checkout's bytes (core.autocrlf=true), so the approval applies on the Windows machine only."
+  },
+  {
+   "project": "wasabi",
+   "policy": "full",
+   "route": "module/jit",
+   "project_sha256": "c8085cc15390fd82cb832e402e52a98c01851908f90b0ccca110896be3799cad",
+   "module_sha256": [
+    "31a6be3e93dc9f288a195584d146e7cde71f7779412aeb30ba6410d727aff297",
+    "d483b3b95e786eb46a3a77559aadeb66ce7450ac2a61559a640fb01a12c33035"
+   ],
+   "review": "Owner decision 2026-11-13: riff and Wasabi may run unguarded (Full) in testing on the Windows machine until there is reason for concern; low-level libraries (Declare, COM vtables, machine-code thunks) whose public source and nature give confidence they are what they seem. The probes call public functions in the not-connected/not-open state. Hashes are of this Windows checkout's bytes (core.autocrlf=true), so the approval applies on the Windows machine only."
+  },
+  {
+   "project": "wasabi",
+   "policy": "full",
+   "route": "project/interpreter",
+   "project_sha256": "c8085cc15390fd82cb832e402e52a98c01851908f90b0ccca110896be3799cad",
+   "module_sha256": [
+    "31a6be3e93dc9f288a195584d146e7cde71f7779412aeb30ba6410d727aff297",
+    "d483b3b95e786eb46a3a77559aadeb66ce7450ac2a61559a640fb01a12c33035"
+   ],
+   "review": "Owner decision 2026-11-13: riff and Wasabi may run unguarded (Full) in testing on the Windows machine until there is reason for concern; low-level libraries (Declare, COM vtables, machine-code thunks) whose public source and nature give confidence they are what they seem. The probes call public functions in the not-connected/not-open state. Hashes are of this Windows checkout's bytes (core.autocrlf=true), so the approval applies on the Windows machine only."
+  },
+  {
+   "project": "wasabi",
+   "policy": "full",
+   "route": "project/jit",
+   "project_sha256": "c8085cc15390fd82cb832e402e52a98c01851908f90b0ccca110896be3799cad",
+   "module_sha256": [
+    "31a6be3e93dc9f288a195584d146e7cde71f7779412aeb30ba6410d727aff297",
+    "d483b3b95e786eb46a3a77559aadeb66ce7450ac2a61559a640fb01a12c33035"
+   ],
+   "review": "Owner decision 2026-11-13: riff and Wasabi may run unguarded (Full) in testing on the Windows machine until there is reason for concern; low-level libraries (Declare, COM vtables, machine-code thunks) whose public source and nature give confidence they are what they seem. The probes call public functions in the not-connected/not-open state. Hashes are of this Windows checkout's bytes (core.autocrlf=true), so the approval applies on the Windows machine only."
+  }
+ ]
 }

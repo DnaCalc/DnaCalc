@@ -1,0 +1,455 @@
+{
+  "action": "project",
+  "excel_version": "16.0",
+  "excel_build": "20527",
+  "automation_security": 1,
+  "rows": [
+    {
+      "formula": "=TcpIsConnected(-5)",
+      "excel": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "text": "FALSE"
+    },
+    {
+      "formula": "=WebSocketIsConnected(-5)",
+      "excel": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "text": "FALSE"
+    },
+    {
+      "formula": "=TcpGetPendingBytes(-5)",
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=WebSocketGetPendingCount(-5)",
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=WebSocketGetBinaryPendingCount(-5)",
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=WebSocketGetQueueCapacity(-5)",
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=WebSocketGetStats(-5)",
+      "excel": {
+        "value": "",
+        "type": "String"
+      },
+      "text": ""
+    },
+    {
+      "formula": "=TcpGetStats(-5)",
+      "excel": {
+        "value": "",
+        "type": "String"
+      },
+      "text": ""
+    },
+    {
+      "formula": "=TcpGetHost(-5)",
+      "excel": {
+        "value": "",
+        "type": "String"
+      },
+      "text": ""
+    },
+    {
+      "formula": "=TcpGetPort(-5)",
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=TcpGetMode(-5)",
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=TcpGetUptime(-5)",
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=TcpGetProxyInfo(-5)",
+      "excel": {
+        "value": "",
+        "type": "String"
+      },
+      "text": ""
+    },
+    {
+      "formula": "=TcpGetMTUInfo(-5)",
+      "excel": {
+        "value": "",
+        "type": "String"
+      },
+      "text": ""
+    },
+    {
+      "formula": "=WebSocketGetCloseCode(-5)",
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=WebSocketGetCloseReason(-5)",
+      "excel": {
+        "value": "",
+        "type": "String"
+      },
+      "text": ""
+    },
+    {
+      "formula": "=WebSocketGetCloseInfo(-5)",
+      "excel": {
+        "value": "",
+        "type": "String"
+      },
+      "text": ""
+    },
+    {
+      "formula": "=WebSocketGetReconnectInfo(-5)",
+      "excel": {
+        "value": "",
+        "type": "String"
+      },
+      "text": ""
+    },
+    {
+      "formula": "=WebSocketGetSubProtocol(-5)",
+      "excel": {
+        "value": "",
+        "type": "String"
+      },
+      "text": ""
+    },
+    {
+      "formula": "=WebSocketGetHost(-5)",
+      "excel": {
+        "value": "",
+        "type": "String"
+      },
+      "text": ""
+    },
+    {
+      "formula": "=WebSocketGetPort(-5)",
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=WebSocketGetPath(-5)",
+      "excel": {
+        "value": "",
+        "type": "String"
+      },
+      "text": ""
+    },
+    {
+      "formula": "=WebSocketGetMTU(-5)",
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=TcpIsConnected(99999)",
+      "excel": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "text": "FALSE"
+    },
+    {
+      "formula": "=WebSocketIsConnected(99999)",
+      "excel": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "text": "FALSE"
+    },
+    {
+      "formula": "=TcpGetPendingBytes(99999)",
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=WebSocketGetPendingCount(99999)",
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=WebSocketGetBinaryPendingCount(99999)",
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=WasabiGetErrorDescription(-5)",
+      "excel": {
+        "value": "No error",
+        "type": "String"
+      },
+      "text": "No error"
+    },
+    {
+      "formula": "=WebSocketGetLastErrorCode(-5)",
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=WebSocketGetTechnicalDetails(-5)",
+      "excel": {
+        "value": "",
+        "type": "String"
+      },
+      "text": ""
+    },
+    {
+      "formula": "=WebSocketGetLastError(-5)",
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=TcpGetLastErrorCode(-5)",
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=WsProbeQueries(-5)",
+      "excel": {
+        "value": "False|False|0|0|0|0|0|0",
+        "type": "String"
+      },
+      "text": "False|False|0|0|0|0|0|0"
+    },
+    {
+      "formula": "=WsProbeQueries(100000)",
+      "excel": {
+        "value": "False|False|0|0|0|0|0|0",
+        "type": "String"
+      },
+      "text": "False|False|0|0|0|0|0|0"
+    },
+    {
+      "formula": "=WsProbeQueries(-9)",
+      "excel": {
+        "value": "False|False|0|0|0|0|0|0",
+        "type": "String"
+      },
+      "text": "False|False|0|0|0|0|0|0"
+    },
+    {
+      "formula": "=WsProbeConnect(\"\")",
+      "excel": {
+        "value": "False|-1|Invalid URL - Invalid URL: ",
+        "type": "String"
+      },
+      "text": "False|-1|Invalid URL - Invalid URL: "
+    },
+    {
+      "formula": "=WsProbeConnect(\"http://example.com\")",
+      "excel": {
+        "value": "False|-1|Invalid URL - Invalid URL: http://example.com",
+        "type": "String"
+      },
+      "text": "False|-1|Invalid URL - Invalid URL: http://example.com"
+    },
+    {
+      "formula": "=WsProbeConnect(\"ws://\")",
+      "excel": {
+        "value": "False|-1|Invalid URL - Invalid URL: ws://",
+        "type": "String"
+      },
+      "text": "False|-1|Invalid URL - Invalid URL: ws://"
+    },
+    {
+      "formula": "=WsProbeConnect(\"ws://host:abc/\")",
+      "excel": {
+        "value": "False|-1|Invalid URL - Invalid URL: ws://host:abc/",
+        "type": "String"
+      },
+      "text": "False|-1|Invalid URL - Invalid URL: ws://host:abc/"
+    },
+    {
+      "formula": "=WsProbeConnect(\"ws://host:65536\")",
+      "excel": {
+        "value": "False|-1|Invalid URL - Invalid URL: ws://host:65536",
+        "type": "String"
+      },
+      "text": "False|-1|Invalid URL - Invalid URL: ws://host:65536"
+    },
+    {
+      "formula": "=WsProbeConnect(\"ws://:80/x\")",
+      "excel": {
+        "value": "False|-1|Invalid URL - Invalid URL: ws://:80/x",
+        "type": "String"
+      },
+      "text": "False|-1|Invalid URL - Invalid URL: ws://:80/x"
+    },
+    {
+      "formula": "=WasabiGetErrorDescription(-5)",
+      "excel": {
+        "value": "Invalid URL - Invalid URL: ws://:80/x",
+        "type": "String"
+      },
+      "text": "Invalid URL - Invalid URL: ws://:80/x"
+    },
+    {
+      "formula": "=WebSocketGetTechnicalDetails(-5)",
+      "excel": {
+        "value": "Invalid URL: ws://:80/x",
+        "type": "String"
+      },
+      "text": "Invalid URL: ws://:80/x"
+    },
+    {
+      "formula": "=WebSocketGetLastErrorCode(-5)",
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=WsProbeCounts()",
+      "excel": {
+        "value": "0|0",
+        "type": "String"
+      },
+      "text": "0|0"
+    },
+    {
+      "formula": "=WebSocketGetConnectionCount()",
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=WsProbeHandleCount()",
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!"
+    },
+    {
+      "formula": "=TcpIsConnected()",
+      "excel": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "text": "FALSE"
+    },
+    {
+      "formula": "=WebSocketGetDefaultHandle()",
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=WebSocketSetDefaultHandle(3)",
+      "excel": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "text": "FALSE"
+    },
+    {
+      "formula": "=WebSocketSetDefaultHandle(-1)",
+      "excel": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "text": "FALSE"
+    },
+    {
+      "formula": "=WebSocketSetDefaultHandle(9999)",
+      "excel": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "text": "FALSE"
+    }
+  ],
+  "errors": [],
+  "components": [
+    {
+      "name": "ThisWorkbook",
+      "type": 100,
+      "lines": 0
+    },
+    {
+      "name": "Sheet1",
+      "type": 100,
+      "lines": 0
+    },
+    {
+      "name": "Wasabi",
+      "type": 1,
+      "lines": 8092
+    },
+    {
+      "name": "WasabiProbe",
+      "type": 1,
+      "lines": 23
+    }
+  ],
+  "sheet": "Sheet1"
+}
