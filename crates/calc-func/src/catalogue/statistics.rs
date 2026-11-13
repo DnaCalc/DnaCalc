@@ -159,9 +159,19 @@ fn percent_rank(
     sv: &mut EvalServices<'_>,
     mode: PercentRankMode,
 ) -> Step<CalcValue> {
-    let mut values = list(site, a, 0, sv)?;
+    // Literal text is coerced during argument binding; reference contents are
+    // read after the scalar argument errors have been resolved.
+    let literal_values = if matches!(a[0].core_ref(), CoreRef::Text(_)) {
+        Some(list(site, a, 0, sv)?)
+    } else {
+        None
+    };
     let x = num(site, a, 1)?;
     let significance = opt(site, a, 2, 3.0)?.trunc() as i64;
+    let mut values = match literal_values {
+        Some(values) => values,
+        None => list(site, a, 0, sv)?,
+    };
     out(site, percentrank(&mut values, x, significance, mode))
 }
 

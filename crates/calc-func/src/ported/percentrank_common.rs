@@ -15,14 +15,19 @@ pub fn percentrank(
     if values.is_empty() {
         return Err(WorksheetErrorCode::NA);
     }
-    if significance <= 0 {
-        return Err(WorksheetErrorCode::Num);
-    }
     values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let first = values[0];
     let last = values[values.len() - 1];
     if x < first || x > last {
         return Err(WorksheetErrorCode::NA);
+    }
+    // Excel 20527 returns 1 for the only numeric member before checking
+    // significance, in both inclusive and exclusive modes.
+    if values.len() == 1 {
+        return Ok(1.0);
+    }
+    if significance <= 0 {
+        return Err(WorksheetErrorCode::Num);
     }
 
     let base =

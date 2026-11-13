@@ -10,6 +10,30 @@ use calc_func::SubtotalExclusions;
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Value};
 use f1_support::*;
 
+/// Excel 20527: range and singleton results precede significance validation.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn percentrank_orders_range_singleton_and_argument_errors() {
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![n(5.0), CalcValue::empty(), n(2.0), n(4.0), e(Div0)]);
+    let one = sheet.area(1, 1, 2, 1);
+    let empty = sheet.area(2, 1, 2, 1);
+    let pair = sheet.area(3, 1, 4, 1);
+    let sample_error = sheet.area(5, 1, 5, 1);
+    for name in ["PERCENTRANK", "PERCENTRANK.INC", "PERCENTRANK.EXC"] {
+        for sig in [-1.0, 0.0, 0.5, 3.0] {
+            exact(call_on(&mut sheet, name, vec![one.clone(), n(5.0), n(sig)]), 1.0);
+            error(call_on(&mut sheet, name, vec![one.clone(), n(4.0), n(sig)]), NA);
+        }
+        error(call_on(&mut sheet, name, vec![empty.clone(), n(5.0), n(0.0)]), NA);
+        error(call_on(&mut sheet, name, vec![pair.clone(), n(4.0), n(0.0)]), Num);
+        error(call_on(&mut sheet, name, vec![pair.clone(), n(5.0), n(0.0)]), NA);
+        error(call_on(&mut sheet, name, vec![sample_error.clone(), e(NA), e(Num)]), NA);
+        error(call_on(&mut sheet, name, vec![sample_error.clone(), n(5.0), e(Num)]), Num);
+        error(call(name, vec![t("bad"), e(NA), e(Num)]), Value);
+    }
+}
+
 /// Excel 20527 returns these subnormal inverse-lognormal results as numbers.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
