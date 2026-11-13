@@ -28859,8 +28859,6 @@ fn dc_971p_37__service_measured_custom_criteria_keep_types_visibility_and_histor
     );
     for (criterion, operator, value, allowed) in cases {
         let before = book.host().model().definitions().auto_filter(s).cloned();
-        let before_model = book.host().model().clone();
-        let revision = book.host().revision().get();
         let done = command(
             &mut book,
             F::Column {
@@ -28874,15 +28872,6 @@ fn dc_971p_37__service_measured_custom_criteria_keep_types_visibility_and_histor
                 }),
             },
         );
-        if criterion == "=2" {
-            // Excel returned a full numeric/text equality mask. Number coercion of
-            // a2/a10 is still unmodelled; the product must refuse atomically.
-            assert!(!done.accepted(), "{done:?}");
-            assert!(format!("{done:?}").contains("dc-971p.37"));
-            assert_eq!(book.host().revision().get(), revision);
-            assert_eq!(book.host().model(), &before_model);
-            continue;
-        }
         assert!(done.accepted(), "{criterion}: {done:?}");
         let expected: std::collections::BTreeSet<u32> = (1..=26)
             .filter(|i| !allowed.contains(i))
