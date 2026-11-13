@@ -1518,6 +1518,16 @@ fn subtotal_needs_the_readers_exclusions() {
             }
         }
     }
+    // Excel 20527, AGGREGATE's function number has the same inclusive boundary.
+    let function_edge = 4.0_f64 - (2.0_f64.powi(-22) + 2.0_f64.powi(-33));
+    exact(
+        call_on(&mut sheet, "AGGREGATE", vec![n(f64::from_bits(function_edge.to_bits() - 1)), n(4.0), range.clone()]),
+        4.0,
+    );
+    exact(
+        call_on(&mut sheet, "AGGREGATE", vec![n(function_edge), n(4.0), range.clone()]),
+        10.0,
+    );
     // AGGREGATE's option 4 leaves nothing out, so it needs no exclusions.
     sheet.exclusions = None;
     exact(
@@ -1539,7 +1549,34 @@ fn subtotal_needs_the_readers_exclusions() {
         3.0,
     );
     error(
-        call("AGGREGATE", vec![n(14.0), n(4.0), with_error, n(1.0)]),
+        call("AGGREGATE", vec![n(14.0), n(4.0), with_error.clone(), n(1.0)]),
+        Div0,
+    );
+    let option_edge = 6.0_f64 - (2.0_f64.powi(-22) + 2.0_f64.powi(-33));
+    error(
+        call("AGGREGATE", vec![n(14.0), n(f64::from_bits(option_edge.to_bits() - 1)), with_error.clone(), n(1.0)]),
+        Div0,
+    );
+    exact(
+        call("AGGREGATE", vec![n(14.0), n(option_edge), with_error.clone(), n(1.0)]),
+        3.0,
+    );
+    let upper_edge = 8.0_f64 - (2.0_f64.powi(-22) + 2.0_f64.powi(-33));
+    exact(
+        call("AGGREGATE", vec![n(14.0), n(f64::from_bits(upper_edge.to_bits() - 1)), with_error.clone(), n(1.0)]),
+        3.0,
+    );
+    error(
+        call("AGGREGATE", vec![n(14.0), n(upper_edge), with_error.clone(), n(1.0)]),
+        Value,
+    );
+    let negative_edge = -(2.0_f64.powi(-23) + 2.0_f64.powi(-34));
+    error(
+        call("AGGREGATE", vec![n(14.0), n(f64::from_bits(negative_edge.to_bits() + 1)), with_error.clone(), n(1.0)]),
+        Value,
+    );
+    error(
+        call("AGGREGATE", vec![n(14.0), n(negative_edge), with_error, n(1.0)]),
         Div0,
     );
 }

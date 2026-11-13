@@ -228,8 +228,11 @@ ported_shared_family! {
     // `=AGGREGATE(9,0,{1,2},2)` and `=AGGREGATE(9,0,B1,2)` enter; `=AGGREGATE(9,0,B1,B1,2)`,
     // `=AGGREGATE(9,0,B1,B1,{1,2})` and `=AGGREGATE(9,0,B1,B1,B1,2)` are refused.
     2 aggregate_fn |s, a, sv| {
-        let function = num(s, a, 0)?.trunc() as i64;
-        let options = if a[1].is_missing() { 0 } else { num(s, a, 1)?.trunc() as i64 };
+        // Excel 20527 uses the same tolerant integer boundary for both selectors.
+        let function = crate::ported::text_kernels::date_integer_floor(num(s, a, 0)?) as i64;
+        let options = if a[1].is_missing() { 0 } else {
+            crate::ported::text_kernels::date_integer_floor(num(s, a, 1)?) as i64
+        };
         if !(0..=7).contains(&options) || !(1..=19).contains(&function) {
             return fail(WorksheetErrorCode::Value);
         }
