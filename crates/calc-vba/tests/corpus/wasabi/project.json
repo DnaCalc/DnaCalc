@@ -1,6 +1,6 @@
 {
   "id": "wasabi",
-  "summary": "Wasabi networking library (Win32 sockets, WebSocket, MQTT): admission only, no worksheet cases",
+  "summary": "Wasabi networking library (Win32 sockets, WebSocket, MQTT): worksheet cases call the library's public functions in the not-connected / not-open state (own wrapper WasabiProbe.bas, MIT); no network, audio device or file is touched",
   "origin": {
     "class": "third-party",
     "licence": "MIT",
@@ -8,22 +8,34 @@
     "licence_file": "LICENSE",
     "url": "https://github.com/uesleibros/wasabi",
     "commit": "36afb522a418a0b0e4495a8c03d8223cf5fe4023",
-    "obtained": "local copy under C:/Work/DnaCalc/OxVba/.external/vba-corpus/wasabi (fetched 2026-05-29 by the OxVba lane); no new download"
+    "obtained": "local copy under C:/Work/DnaCalc/OxVba/.external/vba-corpus/wasabi (fetched 2026-05-29 by the OxVba lane); no new download",
+    "also": "WasabiProbe.bas is own code, MIT (this repository)"
   },
-  "route": "admission",
+  "route": "module",
   "modules": [
     {
       "name": "Wasabi",
       "path": "modules/Wasabi.bas",
-      "sha256": "31a6be3e93dc9f288a195584d146e7cde71f7779412aeb30ba6410d727aff297",
+      "sha256": "e60bf528eb3a8a5d6eaac40f6e5a96e951bee5d8d5c21c19c156acb94c78c302",
+      "kind": "standard"
+    },
+    {
+      "name": "WasabiProbe",
+      "path": "modules/WasabiProbe.bas",
+      "sha256": "d483b3b95e786eb46a3a77559aadeb66ce7450ac2a61559a640fb01a12c33035",
       "kind": "standard"
     }
   ],
   "references": [],
-  "cases": null,
-  "excel": null,
-  "tier": "admission",
+  "cases": "cases.json",
+  "excel": {
+    "status": "awaiting",
+    "note": "cases carry excel_error: awaiting; Excel answers are captured on the Windows machine (vba-job.ps1 -Action project, see windows/RUN-ON-WINDOWS.txt of lane p10f); none guessed"
+  },
+  "tier": "W",
   "needs": [
-    "Declare"
-  ]
+    "Declare",
+    "multi-module"
+  ],
+  "primary": "WasabiProbe"
 }

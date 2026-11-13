@@ -1,0 +1,41 @@
+{
+  "id": "vba-arraytools",
+  "summary": "VBA-ArrayTools (LibArrayTools.bas, Option Private Module) verbatim, plus an own worksheet wrapper AtProbe.bas",
+  "origin": {
+    "class": "third-party",
+    "licence": "MIT",
+    "copyright": "Copyright (c) 2020 Ion Cristian Buse",
+    "licence_file": "LICENSE",
+    "url": "https://github.com/cristianbuse/VBA-ArrayTools",
+    "commit": "1ce89dd657b673090776de97fc8c6792c07a092b",
+    "obtained": "downloaded 2026-11-13 (shallow clone of the public repository by lane p10f, dc-tey4.6); LICENSE read; source verbatim apart from the own wrapper; statically triaged (no process start, download, obfuscation or dangerous Declare on the paths used)",
+    "also": "AtProbe.bas is own code, MIT (this repository)"
+  },
+  "route": "module",
+  "modules": [
+    {
+      "name": "LibArrayTools",
+      "path": "modules/LibArrayTools.bas",
+      "sha256": "742767691eda4ce2ce7f0fe16b41acc499d69a98167a9131ec21b388abcce13c",
+      "kind": "standard"
+    },
+    {
+      "name": "AtProbe",
+      "path": "modules/AtProbe.bas",
+      "sha256": "9e412c4ea1901ea5a0f0a2380d9f44545982ef5b04392b3b2873ceeaad577afc",
+      "kind": "standard"
+    }
+  ],
+  "primary": "AtProbe",
+  "references": [],
+  "cases": "cases.json",
+  "tier": "W",
+  "needs": [
+    "Declare",
+    "Option Private Module"
+  ],
+  "excel": {
+    "status": "awaiting",
+    "note": "cases carry excel_error: awaiting; Excel answers are captured on the Windows machine (vba-job.ps1 -Action project, see windows/RUN-ON-WINDOWS.txt of lane p10f); none guessed"
+  }
+}

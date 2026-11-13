@@ -8825,8 +8825,24 @@ mod async_contract {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn contract_p07_edits_moves_undo_reload_cancel_and_reopen_reject_late_results() {
-        for change in 0..7 {
+        for change in 0..10 {
             let (mut book, s, counts) = setup("=AsyncEcho(A1)+1");
+            if change == 9 {
+                // The table's cells are in before the token is taken, so only the table can reject it.
+                for (address, text) in [("D1", "h"), ("E1", "k"), ("D2", "1"), ("E2", "2")] {
+                    assert!(enter(&mut book, at(s, address), text).accepted());
+                }
+                if book.host().pending_async().is_empty() {
+                    book.dispatch(SkinIntent::Recalculate);
+                    for _ in 0..200 {
+                        if !book.host().pending_async().is_empty() {
+                            break;
+                        }
+                        assert!(book.has_pending_calculation());
+                        book.advance_calculation();
+                    }
+                }
+            }
             let old = token(&book);
             match change {
                 0 => {
@@ -8859,6 +8875,34 @@ mod async_contract {
                 6 => {
                     book = session(&calc_host::blank_package());
                 }
+                7 => {
+                    // A row inserted above the async cell moves it: the old address is another cell.
+                    assert!(
+                        book.dispatch(SkinIntent::EditAxis(
+                            AxisEdit::new(s, Axis::Rows, AxisChange::Insert, 1, 1).unwrap()
+                        ))
+                        .accepted()
+                    );
+                }
+                8 => {
+                    assert!(
+                        book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::Sheet {
+                            sheet: None,
+                            change: calc_host::SheetChange::Add { name: "Later".into() },
+                        }))
+                        .accepted()
+                    );
+                }
+                9 => {
+                    let done = table_action(
+                        &mut book,
+                        calc_host::TableChange::Create {
+                            area: GridArea::new(at(s, "D1"), at(s, "E2")).unwrap(),
+                            name: "Late".into(),
+                        },
+                    );
+                    assert!(done.accepted(), "{done:?}");
+                }
                 _ => unreachable!(),
             }
             let before = book.host().revision();
@@ -8882,6 +8926,40 @@ mod async_contract {
                 );
             }
         }
+    }
+
+    /// The pro-10 answer 16 trace: insert a row above the async cell, put `=777` at the old
+    /// address, return the old token, then undo. The old return is rejected, the revision does not
+    /// move, `=777` keeps its value and no suffix code runs, before and after the undo.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p07_insert_row_then_formula_at_old_address_rejects_the_old_token() {
+        let (mut book, s, counts) = setup("=AsyncEcho(A1)+1");
+        let old = token(&book);
+        assert!(
+            book.dispatch(SkinIntent::EditAxis(
+                AxisEdit::new(s, Axis::Rows, AxisChange::Insert, 1, 1).unwrap()
+            ))
+            .accepted()
+        );
+        assert!(enter(&mut book, at(s, "B1"), "=777").accepted());
+        drain(&mut book);
+        let before = book.host().revision();
+        assert!(matches!(
+            book.complete_async(&old, CalcValue::number(500.0)),
+            D::Rejected(_)
+        ));
+        assert_eq!(book.host().revision(), before);
+        assert_eq!(calculated(book.host(), at(s, "B1")), Some(CalcValue::number(777.0)));
+        assert_eq!(counts.borrow().suffix, 0);
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
+        let undone = book.host().revision();
+        assert!(matches!(
+            book.complete_async(&old, CalcValue::number(500.0)),
+            D::Rejected(_)
+        ));
+        assert_eq!(book.host().revision(), undone);
+        assert_eq!(counts.borrow().suffix, 0);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -28085,4 +28163,230 @@ fn dc_1nbp_20__a_one_cell_edit_with_a_rule_outside_the_interest_publishes_one_ce
     eprintln!("DBG20 deltas {} cells {published} debug-bytes {bytes}", log.len() - before);
     assert!(log[before..].iter().all(|d| !d.reset));
     assert_eq!(published, 1);
+}
+
+/// Opens the six-chart book (sheet `Data`, every series reading `Data!`), adds the sheet `Extra`,
+/// saves, and repoints chart 1's series at `Extra`: a chart on `Data` that names another sheet.
+fn dc_1nbp_17_book_with_chart_naming_extra() -> Vec<u8> {
+    let mut book = session(include_bytes!("fixtures/dc_6yw/charts.xlsx"));
+    assert!(
+        book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::Sheet {
+            sheet: None,
+            change: calc_host::SheetChange::Add {
+                name: "Extra".into()
+            }
+        }))
+        .accepted()
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    package_with_part_from(&saved, "xl/charts/chart1.xml", |xml| xml.replace("<c:f>Data!", "<c:f>Extra!"))
+}
+
+/// Renaming the sheet a chart series, a conditional rule and a table name follows Excel: the
+/// series text and the rule's formula carry the new (quoted) name, the table stays, and the chart
+/// still reads its values after reopening. The host used to refuse the rename.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_1nbp_17__rename_follows_chart_series_rules_and_tables() {
+    use calc_host::{SheetChange, WorkbookCommand};
+    let bytes = package_with_part_from(include_bytes!("fixtures/dc_6yw/charts.xlsx"), "xl/worksheets/sheet1.xml", |xml| {
+        xml.replace("</sheetData>", r#"</sheetData><conditionalFormatting sqref="D1"><cfRule type="expression" priority="1"><formula>Data!$B$2&gt;1</formula></cfRule></conditionalFormatting>"#)
+    });
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    let rules = book.host().model().definitions().conditional_rules(s).len();
+    assert_eq!(rules, 1);
+    let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::Sheet {
+        sheet: Some(s),
+        change: SheetChange::Rename { name: "Input data".into() },
+    }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    for part in ["xl/charts/chart1.xml", "xl/charts/chart3.xml"] {
+        let xml = part_text(&saved, part);
+        assert!(xml.contains("<c:f>'Input data'!$"), "{part}: {xml}");
+        assert!(!xml.contains("<c:f>Data!"), "{part}");
+    }
+    let sheet = part_text(&saved, "xl/worksheets/sheet1.xml");
+    assert!(sheet.contains("'Input data'!$B$2"), "{sheet}");
+    let mut reopened = session(&saved);
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    let rs = reopened.host().sheets()[0].id();
+    let (charts, unread) = reopened.host().charts(rs);
+    assert_eq!((charts.len(), unread), (6, 0));
+    assert!(charts[0].plots[0].series[0].values[0].is_some());
+    // Undo restores the old names in the model and in the next save.
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    let mut again = Vec::new();
+    book.save(&SavePolicy::default(), &mut again).unwrap();
+    assert!(part_text(&again, "xl/charts/chart1.xml").contains("<c:f>Data!"));
+}
+
+/// Removing a sheet a chart series names writes `#REF!` for the series (Excel's exact spelling
+/// is probe E6 in `~/codex-runs/p10g/windows`), keeps the other series, and
+/// refuses (typed, nothing changed) to remove the sheet that owns the chart.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_1nbp_17__remove_writes_ref_error_for_series_and_refuses_owned_objects() {
+    use calc_host::{SheetChange, WorkbookCommand};
+    let bytes = dc_1nbp_17_book_with_chart_naming_extra();
+    let mut book = session(&bytes);
+    let data = book.host().sheets()[0].id();
+    let extra = book.host().sheets()[1].id();
+    let revision = book.host().revision();
+    let owned = book.dispatch(SkinIntent::Command(WorkbookCommand::Sheet {
+        sheet: Some(data),
+        change: SheetChange::Remove,
+    }));
+    assert!(!owned.accepted());
+    assert_eq!(book.host().revision(), revision);
+    let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::Sheet {
+        sheet: Some(extra),
+        change: SheetChange::Remove,
+    }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let xml = part_text(&saved, "xl/charts/chart1.xml");
+    assert!(!xml.contains("Extra"), "{xml}");
+    // The rewriter's text for a removed sheet, as for a cell formula (`#REF!A1`): the chart's own
+    // spelling is the open question of probe E6 (~/codex-runs/p10g/windows).
+    assert!(xml.contains("<c:f>#REF!$B$1</c:f>") && xml.contains("<c:f>#REF!$A$2:$A$7</c:f>"), "{xml}");
+    assert!(part_text(&saved, "xl/charts/chart2.xml").contains("<c:f>Data!"));
+    let reopened = session(&saved);
+    assert_eq!(reopened.host().sheets().len(), 1);
+    assert_eq!(reopened.host().charts(reopened.host().sheets()[0].id()).0.len(), 6);
+}
+
+/// A table keeps its place through a rename of its sheet and its calculated-column formula
+/// follows the new name.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_1nbp_17__rename_keeps_tables_and_rewrites_column_formulas() {
+    use calc_host::{SheetChange, WorkbookCommand};
+    let mut book = session(&calc_host::blank_package());
+    let (s, _part) = create_test_table(&mut book);
+    let revision = book.host().revision();
+    let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::Sheet {
+        sheet: Some(s),
+        change: SheetChange::Rename { name: "Ledger".into() },
+    }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    assert!(book.host().revision() != revision);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = session(&saved);
+    assert_eq!(reopened.host().sheets()[0].name().text().to_string_lossy(), "Ledger");
+    let tables = reopened.host().model().definitions().tables();
+    assert_eq!(tables.len(), 1);
+    assert_eq!(tables[0].name, "Sales");
+    assert_eq!(tables[0].sheet, reopened.host().sheets()[0].id());
+}
+
+/// CalculateBeforeSave comes from the workbook (`calcPr/@calcOnSave`, true when the file is
+/// silent) and the ordinary save in Manual mode honours it: with it the file's stale cache is
+/// recalculated and `calcOnSave="1"` written back; without it the stale cache is kept and
+/// `calcOnSave="0"` written. Which setting Excel applies across several open workbooks is
+/// probe E13 (`~/codex-runs/p10g/windows`).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_1nbp_14__calc_on_save_is_read_from_the_workbook_and_honoured_on_manual_save() {
+    use calc_host::{ExcelSaveContext, SaveOperation};
+    for (attribute, expected) in [("", true), (" calcOnSave=\"1\"", true), (" calcOnSave=\"0\"", false)] {
+        let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+            xml.replace("<sheetData/>", r#"<sheetData><row r="1"><c r="A1"><v>5</v></c><c r="B1"><f>A1*2</f><v>2</v></c></row></sheetData>"#)
+        });
+        let bytes = package_with_part_from(&bytes, "xl/workbook.xml", |xml| {
+            xml.replace("<calcPr ", &format!("<calcPr calcMode=\"manual\"{attribute} "))
+        });
+        let mut book = session(&bytes);
+        let s = book.host().sheets()[0].id();
+        assert_eq!(book.host().calc_mode(), CalcMode::Manual);
+        assert_eq!(book.host().calculate_before_save(), expected, "{attribute}");
+        // The route the skin's Save takes: the session's own setting, no more than the file says.
+        let context = ExcelSaveContext {
+            operation: SaveOperation::Save,
+            calculate_before_save: book.host().calculate_before_save(),
+            active_sheet: s,
+            disabled_sheets: &[],
+            before_save: None,
+        };
+        let image = book.prepare_save_with_context(&SavePolicy::default(), context).unwrap();
+        let mut saved = Vec::new();
+        image.write(&mut saved).unwrap();
+        let xml = part_text(&saved, "xl/workbook.xml");
+        assert!(xml.contains(&format!("calcOnSave=\"{}\"", u8::from(expected))), "{attribute}: {xml}");
+        let reopened = session(&saved);
+        assert_eq!(reopened.host().calculate_before_save(), expected);
+        let r = reopened.host().sheets()[0].id();
+        let ProjectedValue::FileCached(cache) = value(reopened.host(), at(r, "B1")) else {
+            panic!("file cache");
+        };
+        let want = if expected { 10.0 } else { 2.0 };
+        assert_eq!(cache.value(), &cached_of(&CalcValue::number(want)), "{attribute}");
+    }
+}
+
+/// Undo of a row insert and a table change keep what the formula cells showed: in Manual mode
+/// every formula cell projects its previous value as `Stale` (not empty), the values moved with
+/// their cells, and a Manual `Save(false)` still writes those values as caches. Whether Excel
+/// re-evaluates every UDF after such an undo is probe E12 (`~/codex-runs/p10g/windows`).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_1nbp_15__undo_and_table_rebuild_keep_published_results_as_stale() {
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    assert!(book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual)).accepted());
+    for (address, text) in [("A1", "5"), ("B1", "=A1*2"), ("C1", "=B1+1"), ("A3", "Item"), ("B3", "Amt"), ("A4", "x"), ("B4", "1")] {
+        assert!(enter(&mut book, at(s, address), text).accepted());
+    }
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    while book.has_pending_calculation() {
+        book.advance_calculation();
+    }
+    for (address, expected) in [("B1", 10.0), ("C1", 11.0)] {
+        assert_eq!(calculated(book.host(), at(s, address)), Some(CalcValue::number(expected)));
+    }
+    let stale = |book: &HostSession, address: &str, expected: f64| {
+        let ProjectedValue::Stale(held) = value(book.host(), at(s, address)) else {
+            panic!("{address} shows no previous value: {:?}", value(book.host(), at(s, address)));
+        };
+        assert_eq!(held.last_value(), Some(&CalcValue::number(expected)), "{address}");
+    };
+    // A row inserted above and then undone.
+    let insert = book.dispatch(SkinIntent::EditAxis(
+        AxisEdit::new(s, Axis::Rows, AxisChange::Insert, 1, 1).unwrap(),
+    ));
+    assert!(insert.accepted(), "{insert:?}");
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    stale(&book, "B1", 10.0);
+    stale(&book, "C1", 11.0);
+    // A table created over the cells below: the rebuild keeps the others' results.
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    while book.has_pending_calculation() {
+        book.advance_calculation();
+    }
+    let done = table_action(
+        &mut book,
+        calc_host::TableChange::Create {
+            area: GridArea::new(at(s, "A3"), at(s, "B4")).unwrap(),
+            name: "Rebuilt".into(),
+        },
+    );
+    assert!(done.accepted(), "{done:?}");
+    stale(&book, "B1", 10.0);
+    stale(&book, "C1", 11.0);
+    // Manual Save(false) keeps those values as the file's caches.
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = session(&saved);
+    let r = reopened.host().sheets()[0].id();
+    for (address, expected) in [("B1", 10.0), ("C1", 11.0)] {
+        let ProjectedValue::FileCached(cache) = value(reopened.host(), at(r, address)) else {
+            panic!("{address} has no cache in the saved file");
+        };
+        assert_eq!(cache.value(), &cached_of(&CalcValue::number(expected)));
+    }
 }

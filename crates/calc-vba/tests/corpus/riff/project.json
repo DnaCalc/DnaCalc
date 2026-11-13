@@ -1,6 +1,6 @@
 {
   "id": "riff",
-  "summary": "Riff audio engine (WASAPI, Media Foundation, vtable calls, machine-code thunks): admission only, no worksheet cases",
+  "summary": "Riff audio engine (WASAPI, Media Foundation, vtable calls, machine-code thunks): worksheet cases call the library's public functions in the not-connected / not-open state (own wrapper RiffProbe.bas, MIT); no network, audio device or file is touched",
   "origin": {
     "class": "third-party",
     "licence": "MIT",
@@ -8,22 +8,34 @@
     "licence_file": "LICENSE",
     "url": "https://github.com/uesleibros/riff",
     "commit": "cafe9bc01cba35f4e226e445d855ea0d701138e1",
-    "obtained": "local copy under C:/Work/DnaCalc/OxVba/.external/vba-corpus/riff (fetched 2026-05-29 by the OxVba lane); no new download"
+    "obtained": "local copy under C:/Work/DnaCalc/OxVba/.external/vba-corpus/riff (fetched 2026-05-29 by the OxVba lane); no new download",
+    "also": "RiffProbe.bas is own code, MIT (this repository)"
   },
-  "route": "admission",
+  "route": "module",
   "modules": [
     {
       "name": "Riff",
       "path": "modules/Riff.bas",
-      "sha256": "d3fde0b020f4717f6095e4ec488579fa91fcf47938485c46dbb6e999c49b46c8",
+      "sha256": "45f7e72374158bb6871055f9acaf428b93affde9244922a3bea27bac956fedc6",
+      "kind": "standard"
+    },
+    {
+      "name": "RiffProbe",
+      "path": "modules/RiffProbe.bas",
+      "sha256": "50bf5b458b12965196f9fa1fdb6e711da9eac7d4b812a45769b3a3eae9b3d6cf",
       "kind": "standard"
     }
   ],
   "references": [],
-  "cases": null,
-  "excel": null,
-  "tier": "admission",
+  "cases": "cases.json",
+  "excel": {
+    "status": "awaiting",
+    "note": "cases carry excel_error: awaiting; Excel answers are captured on the Windows machine (vba-job.ps1 -Action project, see windows/RUN-ON-WINDOWS.txt of lane p10f); none guessed"
+  },
+  "tier": "W",
   "needs": [
-    "Declare"
-  ]
+    "Declare",
+    "multi-module"
+  ],
+  "primary": "RiffProbe"
 }

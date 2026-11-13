@@ -1,0 +1,46 @@
+{
+  "id": "vba-keyedcollection",
+  "summary": "VBA-KeyedCollection (KeyedCollection.cls, EnumHelper.cls) verbatim, plus an own worksheet wrapper KcProbe.bas",
+  "origin": {
+    "class": "third-party",
+    "licence": "MIT",
+    "copyright": "Copyright (c) 2021 Cristian Buse",
+    "licence_file": "LICENSE",
+    "url": "https://github.com/cristianbuse/VBA-KeyedCollection",
+    "commit": "2de770732a9a44c99c07887fbb1e3b96551b0c84",
+    "obtained": "downloaded 2026-11-13 (shallow clone of the public repository by lane p10f, dc-tey4.6); LICENSE read; source verbatim apart from the own wrapper; statically triaged (no process start, download, obfuscation or dangerous Declare on the paths used)",
+    "also": "KcProbe.bas is own code, MIT (this repository)"
+  },
+  "route": "module",
+  "modules": [
+    {
+      "name": "EnumHelper",
+      "path": "modules/EnumHelper.cls",
+      "sha256": "90ae3249adb87ac853002c2dd566da9bbaa1264867c114bb9b9fd7a0e34827ee",
+      "kind": "class"
+    },
+    {
+      "name": "KeyedCollection",
+      "path": "modules/KeyedCollection.cls",
+      "sha256": "b1809cb0a2e03551cf04c911b298326c85671191391213dc66d8cfd94a849682",
+      "kind": "class"
+    },
+    {
+      "name": "KcProbe",
+      "path": "modules/KcProbe.bas",
+      "sha256": "6b3eeee59621e995bec0254183110301f6fc699d73ec81f7bfb161ca2a95ac34",
+      "kind": "standard"
+    }
+  ],
+  "primary": "KcProbe",
+  "references": [],
+  "cases": "cases.json",
+  "tier": "W",
+  "needs": [
+    "class modules"
+  ],
+  "excel": {
+    "status": "awaiting",
+    "note": "cases carry excel_error: awaiting; Excel answers are captured on the Windows machine (vba-job.ps1 -Action project, see windows/RUN-ON-WINDOWS.txt of lane p10f); none guessed"
+  }
+}

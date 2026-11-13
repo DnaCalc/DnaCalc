@@ -890,6 +890,12 @@ impl Workbook {
             .prepare_calculated_save(&self.save_policy())
             .map_err(|error| error.to_string())
     }
+    /// Whether an ordinary save with no explicit setting recalculates first: the workbook's
+    /// CalculateBeforeSave (`calcOnSave`, true when the file is silent), in Manual mode only.
+    pub fn calculates_before_save(&self) -> bool {
+        self.session.calc_mode() == calc_host::CalcMode::Manual
+            && self.session.host().calculate_before_save()
+    }
     pub fn begin_ordinary_save(
         &mut self,
         calculate_before_save: bool,

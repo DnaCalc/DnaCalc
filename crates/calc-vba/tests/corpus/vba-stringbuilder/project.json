@@ -1,0 +1,40 @@
+{
+  "id": "vba-stringbuilder",
+  "summary": "vba-stringbuilder (StringBuilder.cls) verbatim, plus an own worksheet wrapper SbProbe.bas",
+  "origin": {
+    "class": "third-party",
+    "licence": "MIT",
+    "copyright": "Copyright (c) 2025 Vincent van Geerestein",
+    "licence_file": "LICENSE",
+    "url": "https://github.com/vgrstn/vba-stringbuilder",
+    "commit": "35e62dc91ca6a309d8bed01e12dd401d8247dd4b",
+    "obtained": "downloaded 2026-11-13 (shallow clone of the public repository by lane p10f, dc-tey4.6); LICENSE read; source verbatim apart from the own wrapper; statically triaged (no process start, download, obfuscation or dangerous Declare on the paths used)",
+    "also": "SbProbe.bas is own code, MIT (this repository)"
+  },
+  "route": "module",
+  "modules": [
+    {
+      "name": "StringBuilder",
+      "path": "modules/StringBuilder.cls",
+      "sha256": "134a42b06ba39902a4370b75d301550129895461a0f5c9d288e7d1c3b099b7ad",
+      "kind": "class"
+    },
+    {
+      "name": "SbProbe",
+      "path": "modules/SbProbe.bas",
+      "sha256": "93e8aec1e6ff476ceaf9c39f84cb3cf534a29c7f1ffa2dd77247a73f22472117",
+      "kind": "standard"
+    }
+  ],
+  "primary": "SbProbe",
+  "references": [],
+  "cases": "cases.json",
+  "tier": "W",
+  "needs": [
+    "class modules"
+  ],
+  "excel": {
+    "status": "awaiting",
+    "note": "cases carry excel_error: awaiting; Excel answers are captured on the Windows machine (vba-job.ps1 -Action project, see windows/RUN-ON-WINDOWS.txt of lane p10f); none guessed"
+  }
+}

@@ -906,17 +906,33 @@ pub fn dispatch_slice(
             return Err(CommandError::Document(EditError::SheetOperation("Workbook structure is protected".to_owned())));
         }
         if let calc_doc_model::SheetEdit::Rename { sheet, .. } | calc_doc_model::SheetEdit::Remove { sheet } = edit {
-            if host.model.definitions().all_conditional_rules().any(|(_,r)|!r.is_empty())
-                || host.loaded.defined_names_not_loaded()!=0
+            // Rules, tables, charts and layout blocks that other sheets own follow a rename or removal
+            // (dc-1nbp.17): their formulas and series are rewritten with the cells'. What stays
+            // refused is what the save cannot rewrite: extension-backed rules, unread charts, charts
+            // authored since the load, and (for a removal) objects that live on the removed sheet.
+            let is_remove = matches!(edit, calc_doc_model::SheetEdit::Remove { .. });
+            let authored_charts = host
+                .model
+                .definitions()
+                .all_charts()
+                .map(|(_, charts)| charts.len())
+                .sum::<usize>()
+                != host.loaded.sheets().iter().map(|s| s.charts().charts.len()).sum::<usize>();
+            if host.loaded.defined_names_not_loaded()!=0
                 || host.model.definitions().unloaded_cells().next().is_some()
                 || !host.loaded.sheet_reference_metadata_supported()
-                || host.model.layout().blocks().iter().any(|b| b.anchor().is_some_and(|a| a.sheet() == *sheet))
-                || !host.model.definitions().tables().is_empty()
-                || host.model.definitions().all_charts().any(|(_,charts)|!charts.is_empty())
-                || host.loaded.sheets().iter().any(|s| !host.loaded.cell_shift_metadata_supported(s.id())
-                    || !s.conditional_formats().is_empty()
-                    || !s.charts().charts.is_empty() || s.charts().unread != 0 || s.is_macro_sheet())
-                || (matches!(edit, calc_doc_model::SheetEdit::Remove { .. }) && host.model.definitions().macro_enabled())
+                || authored_charts
+                || host.loaded.sheets().iter().any(|s| !host.loaded.sheet_rename_metadata_supported(s.id())
+                    || s.conditional_formats().iter().any(|b| b.unread_container)
+                    || s.charts().unread != 0 || s.is_macro_sheet())
+                || host.model.definitions().all_conditional_rules().flat_map(|(_, r)| r).any(|source| {
+                    calc_doc::conditional_rule(source).is_ok_and(|r| r.extension_id.is_some())
+                })
+                || (is_remove && (
+                    host.model.definitions().macro_enabled()
+                    || host.model.layout().blocks().iter().any(|b| b.anchor().is_some_and(|a| a.sheet() == *sheet))
+                    || host.model.definitions().tables().iter().any(|t| t.sheet == *sheet)
+                    || !host.model.definitions().charts(*sheet).is_empty()))
             {
                 return Err(CommandError::Document(EditError::SheetOperation(
                     "Renaming or deleting sheets with layout, table, rule, chart or other package references is not modelled (dc-971p); nothing changed"
@@ -1021,7 +1037,7 @@ pub fn dispatch_slice(
     let committed = calc_engine::commit_edit(engine);
     host.model = document.into_model();
     if tables_changed {
-        host.engine = host.engine.rebuilt(&host.model);
+        host.engine = host.engine.rebuilt_holding_results(&host.model, &|at| Some(at));
     }
     for edit in &axis_edits {
         host.references.apply(&axis_transform(*edit));
@@ -1220,7 +1236,25 @@ fn restore_inner(
             .rebuilt_with_held_caches(&host.model, &model, caches)
             .map_err(|e| CommandError::Document(EditError::SheetOperation(e.to_string())))?
     } else {
-        host.engine.rebuilt(&model)
+        // The results the cells showed move with the cells: back through the edits being undone,
+        // then forward through those of the branch restored.
+        let mut moves: Vec<AxisEdit> = Vec::new();
+        for edit in host.axis_edits[common..].iter().rev() {
+            let change = match edit.change() {
+                calc_doc_model::AxisChange::Insert => calc_doc_model::AxisChange::Delete,
+                calc_doc_model::AxisChange::Delete => calc_doc_model::AxisChange::Insert,
+            };
+            moves.push(
+                AxisEdit::new(edit.sheet(), edit.axis(), change, edit.first(), edit.count())
+                    .expect("checked inverse axis edit"),
+            );
+        }
+        moves.extend(axis_edits[common..].iter().copied());
+        host.engine.rebuilt_holding_results(&model, &|at| {
+            moves
+                .iter()
+                .try_fold(at, |at, edit| calc_doc_model::moved_cell(*edit, at))
+        })
     };
     host.model = model;
     for edit in reference_edits {

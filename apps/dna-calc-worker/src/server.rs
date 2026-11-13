@@ -953,13 +953,16 @@ impl Server {
                     if self.pending_save.is_some() {
                         return Err("Finish or cancel the pending save first".into());
                     }
-                    let calculate_before_save = matches!(
-                        request,
+                    // An explicit setting is honoured; otherwise the workbook's own (calcOnSave), which
+                    // only a Manual workbook acts on (Excel recalculates before saving in Manual mode).
+                    let calculate_before_save = match &request {
                         Request::SaveWithContext {
-                            calculate_before_save: true,
+                            calculate_before_save: Some(explicit),
                             ..
-                        }
-                    );
+                        } => *explicit,
+                        Request::SaveWithContext { .. } => self.book.calculates_before_save(),
+                        _ => false,
+                    };
                     let views = match &request {
                         Request::SaveWithContext { views: Some(v), .. }
                         | Request::SaveAs { views: Some(v), .. } => {
@@ -6576,7 +6579,7 @@ mod async_contract_tests {
             }
             let request = server.envelope(Request::SaveWithContext {
                 views: None,
-                calculate_before_save: true,
+                calculate_before_save: Some(true),
             });
             let first = server.handle(request.clone(), None);
             let retry = server.handle(request, None);
@@ -7326,6 +7329,73 @@ mod friendly_formula_tests {
 #[cfg(test)]
 mod window_tests {
     use super::*;
+    /// The skin's Save sends no setting: the worker uses the workbook's CalculateBeforeSave
+    /// (true for a file silent about `calcOnSave`) in Manual mode, and an explicit setting wins.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_1nbp_14__skin_save_uses_the_workbooks_calculate_before_save_in_manual_mode() {
+        for (setting, calculates) in [(None, true), (Some(true), true), (Some(false), false)] {
+            let mut server = Server::new();
+            let s = server.book.host().sheets()[0].id();
+            server.book_mut().dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+            for (address, text) in [(1, "5"), (2, "=A1*2")] {
+                assert!(
+                    server
+                        .book_mut()
+                        .dispatch(SkinIntent::EnterCell {
+                            at: CellKey::new(s, address, 1).unwrap(),
+                            text: text.into()
+                        })
+                        .accepted()
+                );
+            }
+            let answer = server.execute_current(
+                Request::SaveWithContext {
+                    calculate_before_save: setting,
+                    views: None,
+                },
+                None,
+            );
+            let mut reply = answer.reply;
+            let mut bytes = answer.bytes;
+            for _ in 0..1000 {
+                if bytes.is_some() {
+                    break;
+                }
+                let Ok(Reply::SavePending { token, .. }) = reply else {
+                    panic!("{reply:?}");
+                };
+                server.advance_calculation();
+                let next = server.execute_current(Request::PollSave { token }, None);
+                reply = next.reply;
+                bytes = next.bytes;
+            }
+            let bytes = bytes.expect("the save finishes");
+            let mut reopened = Server::new();
+            assert!(
+                reopened
+                    .execute_current(Request::Open { name: "b.xlsx".into() }, Some(bytes.clone()))
+                    .reply
+                    .is_ok()
+            );
+            assert_eq!(reopened.book().host().calculate_before_save(), calculates, "{setting:?}");
+            let r = reopened.book().host().sheets()[0].id();
+            let shown = calc_host::project(
+                reopened.book().host(),
+                &calc_host::ProjectionRequest {
+                    cells: vec![CellKey::new(r, 2, 1).unwrap()],
+                },
+            )
+            .unwrap();
+            // The file's cache of A2 is 10 only if the save calculated before writing.
+            let cached = matches!(
+                shown.cells()[0].value(),
+                calc_host::ProjectedValue::FileCached(cache)
+                    if format!("{:?}", cache.value()).contains("10.0")
+            );
+            assert_eq!(cached, calculates, "{setting:?}");
+        }
+    }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn window_save_converts_zoomed_offsets_and_pins_the_ordinary_save_route() {
@@ -7336,7 +7406,7 @@ mod window_tests {
             let geometry = server.geometry(sheet);
             let m = dna_calc_model::geometry::sheet_metrics(Some(&geometry));
             let request = Request::SaveWithContext {
-                calculate_before_save: false,
+                calculate_before_save: Some(false),
                 views: Some(wire::SaveWindow {
                     revision: server.book.host().revision().get(),
                     active_sheet: sheet,
@@ -7426,7 +7496,7 @@ mod window_tests {
         };
         let refused = server.execute_current(
             Request::SaveWithContext {
-                calculate_before_save: false,
+                calculate_before_save: Some(false),
                 views: Some(input.clone()),
             },
             None,
@@ -7446,7 +7516,7 @@ mod window_tests {
         valid.sheets[0].panes[0].y = (m.row_start(100) - m.row_start(3)) * 2.;
         let answer = server.execute_current(
             Request::SaveWithContext {
-                calculate_before_save: false,
+                calculate_before_save: Some(false),
                 views: Some(valid),
             },
             None,

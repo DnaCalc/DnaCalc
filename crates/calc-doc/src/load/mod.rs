@@ -428,6 +428,7 @@ pub struct LoadedWorkbook {
     date_system: DateSystem,
     compatibility_version: u32,
     calc_mode: CalcMode,
+    calc_on_save: bool,
     /// The sheet `<workbookView activeTab>` names (dc-uar).
     active_sheet: Option<SheetId>,
     defined_names_not_loaded: usize,
@@ -637,6 +638,74 @@ impl LoadedWorkbook {
             .find(|r| r.kind.ends_with(suffix) && r.mode == crate::opc::TargetMode::Internal)?
             .resolved
             .clone()
+    }
+
+    /// Whether a sheet rename or removal can leave this sheet's package parts as they are
+    /// (dc-1nbp.17). Nothing moves, so drawings, charts, tables and notes stay; what stays refused
+    /// is what can hold a sheet name this writer does not rewrite: hyperlinks, extension lists,
+    /// OLE objects, controls, scenarios and the like, a drawing that links a shape's text or a
+    /// click to a cell or location, and relationships of other kinds (pivot tables).
+    pub fn sheet_rename_metadata_supported(&self, sheet: SheetId) -> bool {
+        let Some(sheet) = self.sheet(sheet) else {
+            return true;
+        };
+        if let Some(rels) = self.package.relationships_of(Some(sheet.part().name())) {
+            for r in rels.items() {
+                let kind = r.kind.rsplit('/').next().unwrap_or("");
+                if !["printerSettings", "image", "customProperty", "drawing", "table", "comments", "threadedComment", "vmlDrawing"]
+                    .contains(&kind)
+                {
+                    return false;
+                }
+                if kind == "drawing" {
+                    let Some(part) = r.resolved.as_deref() else {
+                        return false;
+                    };
+                    let Ok(bytes) = self.package.read_part(part) else {
+                        return false;
+                    };
+                    let text = String::from_utf8_lossy(&bytes);
+                    // Excel writes `macro=""` on every frame; a value names a macro or a cell.
+                    let valued = |attribute: &str| {
+                        text.match_indices(&format!("{attribute}=\""))
+                            .any(|(at, found)| !text[at + found.len()..].starts_with('"'))
+                    };
+                    if ["textlink", "fLink", "macro"].iter().any(|n| valued(n))
+                        || ["hlinkClick", "hlinkHover"].iter().any(|n| text.contains(n))
+                    {
+                        return false;
+                    }
+                }
+            }
+        }
+        let Ok(xml) = self.package.read_xml(sheet.part().name()) else {
+            return false;
+        };
+        let mut reader = xml.reader();
+        loop {
+            match reader.next_event() {
+                Ok(Some(crate::xml::XmlEvent::Start(e)))
+                    if matches!(
+                        e.name.local.as_str(),
+                        "oleObjects"
+                            | "extLst"
+                            | "scenarios"
+                            | "dataConsolidate"
+                            | "customSheetViews"
+                            | "cellWatches"
+                            | "controls"
+                            | "smartTags"
+                            | "webPublishItems"
+                            | "hyperlinks"
+                    ) =>
+                {
+                    return false;
+                }
+                Ok(None) => return true,
+                Err(_) => return false,
+                _ => {}
+            }
+        }
     }
 
     /// Whether a rectangular shift can preserve this sheet's position metadata today.
@@ -1042,6 +1111,13 @@ impl LoadedWorkbook {
         self.calc_mode
     }
 
+    /// The workbook's CalculateBeforeSave: its `calcPr`'s `calcOnSave`, true where the file does
+    /// not say (dc-1nbp.14). Which setting Excel applies across several open workbooks is
+    /// experiment E13 of the pro-10 programme; this is the one the file carries.
+    pub fn calc_on_save(&self) -> bool {
+        self.calc_on_save
+    }
+
     /// The active sheet: the one the first `<workbookView>`'s `activeTab` names (the first sheet
     /// when it names none), `None` when it names no sheet of the workbook (dc-uar).
     pub fn active_sheet(&self) -> Option<SheetId> {
@@ -1424,6 +1500,7 @@ struct WorkbookPart {
     date_system: DateSystem,
     compatibility_version: u32,
     calc_mode: CalcMode,
+    calc_on_save: bool,
     /// The first `workbookView`'s `activeTab`, 0 when it states none.
     active_tab: usize,
     /// `calcPr`'s `iterate`, `iterateCount` and `iterateDelta`.
@@ -1464,6 +1541,7 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
     let mut date_system = None;
     let mut compatibility_version = None;
     let mut calc_mode = CalcMode::Automatic;
+    let mut calc_on_save = true;
     let mut active_tab: Option<usize> = None;
     let mut iteration = IterationSettings::EXCEL_DEFAULT;
     let mut defined_names = Vec::new();
@@ -1554,6 +1632,12 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
                 Some("autoNoTable") => CalcMode::AutomaticExceptTables,
                 Some("manual") => CalcMode::Manual,
                 Some(_) => return Err(events.invalid("a calcPr whose calcMode is not a mode")),
+            };
+            // `calcOnSave` is Excel's CalculateBeforeSave; true where the file does not say (CT_CalcPr).
+            calc_on_save = match element.attribute("calcOnSave").map(str::trim) {
+                None | Some("1" | "true") => true,
+                Some("0" | "false") => false,
+                Some(_) => return Err(events.invalid("a calcPr whose calcOnSave is not a boolean")),
             };
             // L3 (dc-m3u): the iterative-calculation settings, Excel's defaults where absent.
             let defaults = IterationSettings::EXCEL_DEFAULT;
@@ -1755,6 +1839,7 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
         date_system: date_system.unwrap_or(DateSystem::Date1900),
         compatibility_version: compatibility_version.unwrap_or(1),
         calc_mode,
+        calc_on_save,
         active_tab: active_tab.unwrap_or(0),
         iteration,
         defined_names,
@@ -1867,6 +1952,7 @@ pub fn load_preserving_sheet_ids(
         date_system,
         compatibility_version,
         calc_mode,
+        calc_on_save,
         active_tab,
         iteration,
         defined_names,
@@ -2230,6 +2316,7 @@ pub fn load_preserving_sheet_ids(
         date_system,
         compatibility_version,
         calc_mode,
+        calc_on_save,
         active_sheet: issued.get(active_tab).copied(),
         defined_names_not_loaded: defined_names.len() - layout.locators_resolved,
         manifest: layout.state,

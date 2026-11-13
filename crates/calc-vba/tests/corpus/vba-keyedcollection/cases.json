@@ -1,0 +1,122 @@
+[
+  {
+    "formula": "=KcBasic()",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=KcKeys()",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=KcItems()",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=KcEmpty()",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=KcRemoveAll()",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=KcUpdate()",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=KcRename()",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=KcInsertBefore()",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=KcInsertAfter()",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=KcCaseInsensitive()",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=KcDuplicateKey()",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=KcMissingKey()",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=KcPairs()",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=KcObjectItem()",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=KcLetObjectError()",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=KcSelf()",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=KcRemoveKey(\"b\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=KcRemoveKey(\"B\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=KcRemoveKey(\"zz\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=KcRemoveIndex(1)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=KcRemoveIndex(3)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=KcRemoveIndex(4)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=KcKeyAtIndex(2)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=KcKeyAtIndex(0)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  }
+]

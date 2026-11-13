@@ -533,6 +533,12 @@ impl HostState {
             .unwrap_or_else(|| self.loaded.calc_mode())
     }
 
+    /// The workbook's CalculateBeforeSave: the `calcOnSave` its file carries, true when it says
+    /// nothing (dc-1nbp.14).
+    pub fn calculate_before_save(&self) -> bool {
+        self.loaded.calc_on_save()
+    }
+
     /// The calculation context every recalculation of this host applies: the date system the
     /// package declares, full precision whatever the package declares, the iteration settings the
     /// current revision holds, under the numeric mode the host was opened with

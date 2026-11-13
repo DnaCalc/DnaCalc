@@ -369,6 +369,7 @@ pub(super) fn plan(
         values,
         spills,
         structural,
+        sheet_rewriter,
         cache_state,
         repairs,
         ..
@@ -1032,6 +1033,13 @@ pub(super) fn plan(
     }
     if let Some(moved) = moved.as_mut() {
         for (part, content) in std::mem::take(&mut moved.parts) {
+            out.rewritten.insert(part, content);
+        }
+    }
+    if sheet_names_changed
+        && let Some(rewriter) = sheet_rewriter
+    {
+        for (part, content) in structural::sheet_charts(package, base, model, rewriter.as_ref(), &out.rewritten)? {
             out.rewritten.insert(part, content);
         }
     }
