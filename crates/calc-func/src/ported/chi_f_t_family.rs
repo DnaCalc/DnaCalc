@@ -147,7 +147,7 @@ pub fn chisq_inv_rt_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Wo
     // result stores the x87 correction before adding it to the degree;
     // collapsing stages or omitting double rounding changes halfway results.
     if p >= f64::MIN_POSITIVE
-        && deg_freedom >= f64::from_bits(0x4950_0000_0000_0000) // 2^150
+        && deg_freedom >= f64::from_bits(0x4720_0000_0000_0000) // 2^115
         && deg_freedom < f64::from_bits(0x7e70_0000_0000_0000) // 2^1000
     {
         return Ok(crate::ported::beta_gamma_stats_family::large_shape_inverse_unit(deg_freedom));

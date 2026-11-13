@@ -56,6 +56,8 @@ fn chi_right_inverse_admits_large_degrees() {
         (0x3ddb_7cdf_d9d7_bdbb, 0x62e1_d1ba_3413_9d79, 0x62e1_d2f0_a1fc_0f7a),
         (0x3fe0_0000_0000_0000, 0x4950_0000_0000_0000, 0x4950_0116_bc77_4cb6),
         (0x2b2b_ff2e_e48e_0530, 0x63bd_362c_8e75_19d3, 0x63bd_3829_73d1_9f88),
+        (0x3fe0_0000_0000_0000, 0x4720_0000_0000_0000, 0x4720_0116_bc77_4cb6),
+        (0x3fb9_9999_9999_999a, 0x4720_fa33_55c9_40b4, 0x4720_fb5b_18ff_a4b0),
     ];
     for name in ["CHIINV", "CHISQ.INV.RT"] {
         for (p, degrees, result) in cases {
@@ -80,6 +82,7 @@ fn gamma_inverse_matches_large_shape_scaling() {
         (0x3fb9_9999_9999_999a, 0x61a4_1dde_9fa2_3430, 0x4611_575d_b9da_b301, 0x67c5_cf10_a036_23aa),
         (0x0010_0000_0000_0000, 0x4950_0000_0000_0000, 0x26f0_0000_0000_0000, 0x3050_0116_bc77_4cb6),
         (0x3fef_ffff_ffff_ffff, 0x656f_ffff_ffff_ffff, 0x58ef_ffff_ffff_ffff, 0x7e70_0116_bc77_4cb6),
+        (0x0010_0000_0000_0000, 0x4720_0000_0000_0000, 0x26f0_0000_0000_0000, 0x2e20_0116_bc77_4cb6),
     ];
     for name in ["GAMMA.INV", "GAMMAINV"] {
         for (p, alpha, beta, result) in cases {

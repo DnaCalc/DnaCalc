@@ -252,7 +252,7 @@ pub fn gamma_inv_kernel(
     // applied in its own stored multiplication. Keep unmeasured overflow and
     // underflow ranges on the existing solver.
     if probability >= f64::MIN_POSITIVE
-        && alpha >= f64::from_bits(0x4950_0000_0000_0000) // 2^150
+        && alpha >= f64::from_bits(0x4720_0000_0000_0000) // 2^115
         && alpha < f64::from_bits(0x6570_0000_0000_0000) // 2^600
         && beta >= f64::from_bits(0x26f0_0000_0000_0000) // 2^-400
         && beta < f64::from_bits(0x58f0_0000_0000_0000) // 2^400
