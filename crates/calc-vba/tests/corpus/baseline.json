@@ -100,23 +100,23 @@
       "loaded": false,
       "matched": 0,
       "mismatched": 0,
-      "missing": 24,
-      "refused": 0,
+      "missing": 5,
+      "refused": 19,
       "route": "module/interpreter"
     },
     "riff/module/jit": {
       "loaded": false,
       "matched": 0,
       "mismatched": 0,
-      "missing": 24,
-      "refused": 0,
+      "missing": 5,
+      "refused": 19,
       "route": "module/jit"
     },
     "riff/project/interpreter": {
       "loaded": true,
-      "matched": 0,
+      "matched": 19,
       "mismatched": 0,
-      "missing": 24,
+      "missing": 5,
       "refused": 0,
       "route": "project/interpreter"
     },
@@ -124,8 +124,8 @@
       "loaded": false,
       "matched": 0,
       "mismatched": 0,
-      "missing": 24,
-      "refused": 0,
+      "missing": 5,
+      "refused": 19,
       "route": "project/jit"
     },
     "vba-arraytools/module/interpreter": {
@@ -404,84 +404,36 @@
       "loaded": false,
       "matched": 0,
       "mismatched": 0,
-      "missing": 53,
-      "refused": 0,
+      "missing": 0,
+      "refused": 53,
       "route": "module/interpreter"
     },
     "wasabi/module/jit": {
       "loaded": false,
       "matched": 0,
       "mismatched": 0,
-      "missing": 53,
-      "refused": 0,
+      "missing": 0,
+      "refused": 53,
       "route": "module/jit"
     },
     "wasabi/project/interpreter": {
       "loaded": true,
-      "matched": 0,
-      "mismatched": 0,
-      "missing": 53,
-      "refused": 0,
+      "matched": 40,
+      "mismatched": 2,
+      "missing": 0,
+      "refused": 11,
       "route": "project/interpreter"
     },
     "wasabi/project/jit": {
       "loaded": false,
       "matched": 0,
       "mismatched": 0,
-      "missing": 53,
-      "refused": 0,
+      "missing": 0,
+      "refused": 53,
       "route": "project/jit"
     }
   },
   "windows": {
-    "riff/module/interpreter": {
-      "loaded": false,
-      "matched": 0,
-      "mismatched": 0,
-      "missing": 5,
-      "refused": 19,
-      "route": "module/interpreter"
-    },
-    "riff/module/jit": {
-      "loaded": false,
-      "matched": 0,
-      "mismatched": 0,
-      "missing": 5,
-      "refused": 19,
-      "route": "module/jit"
-    },
-    "riff/project/interpreter": {
-      "loaded": true,
-      "matched": 19,
-      "mismatched": 0,
-      "missing": 5,
-      "refused": 0,
-      "route": "project/interpreter"
-    },
-    "riff/project/jit": {
-      "loaded": false,
-      "matched": 0,
-      "mismatched": 0,
-      "missing": 5,
-      "refused": 19,
-      "route": "project/jit"
-    },
-    "wasabi/module/interpreter": {
-      "loaded": false,
-      "matched": 0,
-      "mismatched": 0,
-      "missing": 0,
-      "refused": 53,
-      "route": "module/interpreter"
-    },
-    "wasabi/module/jit": {
-      "loaded": false,
-      "matched": 0,
-      "mismatched": 0,
-      "missing": 0,
-      "refused": 53,
-      "route": "module/jit"
-    },
     "wasabi/project/interpreter": {
       "loaded": true,
       "matched": 41,
@@ -489,14 +441,6 @@
       "missing": 0,
       "refused": 0,
       "route": "project/interpreter"
-    },
-    "wasabi/project/jit": {
-      "loaded": false,
-      "matched": 0,
-      "mismatched": 0,
-      "missing": 0,
-      "refused": 53,
-      "route": "project/jit"
     }
   }
 }
