@@ -25,6 +25,24 @@ use calc_catalogue::ported::text_format::{CODE, ENTRIES as DECLARATIONS};
 pub(super) fn read_value(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<Reading> {
     match a[index].core_ref() {
         CoreRef::Text(text) => {
+            // Empty text and ASCII words without digits are not number, date, or time
+            // strings, even without a locale profile. A blank cell is distinct.
+            if text.utf16_code_units().iter().all(|&unit| {
+                unit == u16::from(b' ')
+                    || (u16::from(b'A')..=u16::from(b'Z')).contains(&unit)
+                    || (u16::from(b'a')..=u16::from(b'z')).contains(&unit)
+            }) {
+                return fail(WorksheetErrorCode::Value);
+            }
+            // With the captured dot/NBSP separators, the shared decimal grammar already
+            // identifies numeric-only text. DATEVALUE and TIMEVALUE reject that reading,
+            // without needing the unrecorded date ordering or currency symbol.
+            if site.environment().is_none_or(|env| env.profile.is_none())
+                && site.number_separators() == Some((".", "\u{a0}"))
+                && let Ok(Numeric::Decimal(decimal)) = coerce::number(&a[index])
+            {
+                return Ok(Reading::Number(site.argument(index, decimal.nearest())?));
+            }
             if site.environment().is_none_or(|env| env.profile.is_none())
                 && site.number_separators().is_some_and(|(decimal, group)| {
                     value_text::rejected_comma_number(text.utf16_code_units(), decimal, group)

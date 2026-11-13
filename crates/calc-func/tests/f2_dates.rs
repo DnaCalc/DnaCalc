@@ -44,6 +44,38 @@ fn dates_without_an_environment_are_refused() {
     refused(call("TEXT", vec![n(1.0), t("0.00")]));
 }
 
+/// Excel 20527 distinguishes numeric text, empty text, blank cells, and date strings.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn numeric_and_empty_date_text_needs_no_locale_profile() {
+    use calc_func::value::NumericMode;
+    use calc_func::{EvalServices, FunctionCallScratch, Notation, catalogue, invoke};
+
+    for name in ["DATEVALUE", "TIMEVALUE"] {
+        let target = catalogue().resolve_surface(Notation::Call, name).unwrap();
+        for value in ["", "  ", "TRUE", "May", "abc def", "-0.97918323", "1e2", "+123.45"] {
+            let mode = NumericMode::Fast;
+            let mut services = EvalServices::new(&mode).with_number_separators(".", "\u{a0}");
+            error(
+                invoke(target, &mut Given(vec![t(value)]), &mut services, &mut FunctionCallScratch::new()),
+                Value,
+            );
+        }
+        let mode = NumericMode::Fast;
+        let mut services = EvalServices::new(&mode).with_number_separators(".", "\u{a0}");
+        refused(invoke(
+            target,
+            &mut Given(vec![t("2024/01/05")]),
+            &mut services,
+            &mut FunctionCallScratch::new(),
+        ));
+    }
+    error(call("VALUE", vec![t("")]), Value);
+    error(call("VALUE", vec![t("hello")]), Value);
+    exact(call("VALUE", vec![CalcValue::empty()]), 0.0);
+    refused(call("DATEVALUE", vec![t("1.5")]));
+}
+
 /// Excel 16.0.20527, typed Value2 calls: argument errors win in order and a logical
 /// format gives #VALUE! even for a text, logical or blank value.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
