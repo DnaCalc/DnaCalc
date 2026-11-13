@@ -464,7 +464,16 @@ fn run_project(dir: &Path, route: Route) -> Option<Outcome> {
                     },
                 })
                 .collect();
-            calc_vba::events::load_project(&modules, calc_vba::DEFAULT_STEP_BUDGET, Some(backend))
+            let libraries: Vec<(String, Option<String>)> = manifest["references"]
+                .as_array()
+                .map(|refs| {
+                    refs.iter()
+                        .map(|r| (r["name"].as_str().unwrap().to_owned(), r["guid"].as_str().map(str::to_owned)))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let references = calc_vba::events::ProjectReferences::of_source_libraries(&libraries);
+            calc_vba::events::load_project_with_references(&modules, &references, calc_vba::DEFAULT_STEP_BUDGET, Some(backend))
                 .map(|project| session.set_user_functions(project.functions()))
                 .map_err(|e| first_line(&e))
         }

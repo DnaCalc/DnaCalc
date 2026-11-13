@@ -1663,6 +1663,9 @@ impl oxvba_symbol::TypeLibResolver for SpreadsheetTypes {
                 ("CalculateFullRebuild", 0),
                 ("ExecuteExcel4Macro", 1),
                 ("Run", 31),
+                // Declared so a project that schedules a macro (VBA-Web's async timeout) compiles;
+                // calling it refuses at run time as an unsupported Application member (dc-tey4.4).
+                ("OnTime", 4),
                 ("MacroOptions", 11),
                 ("RegisterXLL", 1),
                 ("Union", 30),
