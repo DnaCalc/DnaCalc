@@ -22,7 +22,7 @@ mod layout_tests {
                 assert!(descriptor.member_by_slot(id, slot).is_some(), "{} slot {slot}", descriptor.ty(id).name);
             }
         }
-        for name in ["_Application", "_Workbook", "Workbooks", "_Worksheet", "Range", "Window", "COMAddIns", "COMAddIn"] {
+        for name in ["_Application", "_Workbook", "Workbooks", "_Worksheet", "Range", "Window", "COMAddIns", "COMAddIn", "CommandBarPopup", "_CommandBarButton", "IAccessible"] {
             let id = descriptor.id(name).unwrap();
             assert!(GENERATED_LAYOUTS.iter().any(|(index, _)| *index == id.0), "{name}");
         }

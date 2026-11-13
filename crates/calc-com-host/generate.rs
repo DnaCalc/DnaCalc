@@ -11,7 +11,7 @@ fn class(ty: &TypeRef) -> &'static str {
 }
 
 pub fn write() {
-    for file in ["excel.json", "office.json", "addin-designer.json"] {
+    for file in ["excel.json", "office.json", "addin-designer.json", "accessibility.json"] {
         println!("cargo:rerun-if-changed=../calc-object-model/descriptor/{file}");
     }
     println!("cargo:rerun-if-changed=../calc-object-model/src/descriptor.rs");
