@@ -185,10 +185,59 @@ fn native_file_identity_follows_save_as_without_becoming_cell_history() {
     session.set_file_location(r"D:\Other\Saved.xlsx".into());
     assert!(session.dispatch(SkinIntent::Undo).accepted());
     assert_eq!(session.file_full_name(), r"D:\Other\Saved.xlsx");
-    assert_eq!(session.host().model().definitions().workbook_name(), Some("Saved.xlsx"));
+    assert_eq!(
+        session.host().model().definitions().workbook_name(),
+        Some("Saved.xlsx")
+    );
     // A save of the same file keeps the native location, including when macros change.
     session.set_file_identity("Saved.xlsx", true);
     assert_eq!(session.file_full_name(), r"D:\Other\Saved.xlsx");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn native_reference_view_uses_the_workbook_tracker_and_rejects_a_replacement_book() {
+    let mut session = book();
+    enter(&mut session, 1, "7");
+    let at = cell(&session, 1);
+    let model = session.host().model().clone();
+    assert_eq!(
+        calc_host::resolve_reference_text(&model, at, "$A$1"),
+        calc_host::ReferenceTarget::Area(GridArea::cell(at))
+    );
+    let handles = session.host().reference_view();
+    let retained = handles
+        .retain(&calc_host::value::ReferenceLike::cell(at))
+        .unwrap();
+    assert!(
+        session
+            .dispatch(SkinIntent::EditAxis(
+                calc_host::AxisEdit::new(
+                    at.sheet(),
+                    calc_host::Axis::Rows,
+                    calc_host::AxisChange::Insert,
+                    1,
+                    1
+                )
+                .unwrap()
+            ))
+            .accepted()
+    );
+    let current = session.host().reference_view();
+    assert_eq!(
+        current.resolve(&retained).unwrap().areas()[0].first().row(),
+        2
+    );
+    let other = book();
+    assert_eq!(
+        other.host().reference_view().resolve(&retained),
+        Err(calc_func::ReferenceHandleError::ForeignWorkbook)
+    );
+    drop(session);
+    assert_eq!(
+        current.resolve(&retained),
+        Err(calc_func::ReferenceHandleError::ClosedWorkbook)
+    );
 }
 struct Probe {
     a: CellKey,

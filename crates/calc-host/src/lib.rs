@@ -161,7 +161,7 @@ pub use calc_doc_model::{
 pub use calc_engine::{
     CacheWithoutFormula, CalcTick, Calculation, LinkedWorkbookSnapshot, NotModeled, PrepareError,
     ReadObserver, RecalcFailure, ResultStorageStats, StartError, Unobserved, ValueChange,
-    ValueDelta, WorkBudget,
+    ValueDelta, WorkBudget, resolve_reference_text,
 };
 pub use calc_fml::reference::CellRun;
 pub use calc_fml::{

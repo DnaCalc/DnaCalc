@@ -1,4 +1,4 @@
-use calc_value::{CalcValue, CoreRef, ExcelText};
+use calc_value::{CalcValue, CellKey, CoreRef, ExcelText, GridArea, ReferenceLike, SheetId};
 use calc_xll_host::XllHost;
 use std::{cell::RefCell, ffi::c_void, rc::Rc};
 
@@ -10,6 +10,7 @@ pub(crate) struct Value {
     pub length: usize,
 }
 #[repr(C)]
+#[derive(Clone, Copy)]
 struct Area {
     row: u32,
     column: u32,
@@ -17,7 +18,30 @@ struct Area {
     end_column: u32,
 }
 type Bridge = unsafe extern "system" fn(*const c_void, u32, *mut Value) -> i32;
-struct WorkbookBinding(RefCell<Option<Rc<dyn crate::WorkbookBridge>>>);
+struct WorkbookBinding {
+    bridge: RefCell<Option<Rc<dyn crate::WorkbookBridge>>>,
+    host: Rc<XllHost>,
+    areas: RefCell<Vec<Area>>,
+}
+#[repr(C)]
+struct RangeSpec {
+    handle: *mut c_void,
+    sheet: u64,
+    name: *mut u16,
+    areas: *const Area,
+    count: usize,
+}
+type RangeApi = unsafe extern "system" fn(
+    *const c_void,
+    u32,
+    *mut c_void,
+    *const u16,
+    usize,
+    *mut RangeSpec,
+) -> i32;
+type RangeRead = unsafe extern "system" fn(*const c_void, *mut c_void, bool, *mut c_void) -> i32;
+type RangeFree = unsafe extern "system" fn(*mut c_void);
+
 unsafe extern "system" fn workbook_bridge(
     context: *const c_void,
     operation: u32,
@@ -25,7 +49,7 @@ unsafe extern "system" fn workbook_bridge(
 ) -> i32 {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let binding = unsafe { &*context.cast::<WorkbookBinding>() };
-        let bridge = binding.0.borrow().clone();
+        let bridge = binding.bridge.borrow().clone();
         let Some(bridge) = bridge else {
             return 0x80004001u32 as i32;
         };
@@ -53,6 +77,220 @@ unsafe extern "system" fn workbook_bridge(
     }))
     .unwrap_or(0x80004005u32 as i32)
 }
+unsafe extern "system" fn range_free(handle: *mut c_void) {
+    if !handle.is_null() {
+        drop(unsafe { Box::from_raw(handle.cast::<calc_func::StoredReference>()) });
+    }
+}
+fn range_failure(context: *const c_void, why: &str) -> i32 {
+    if why.contains("not modelled") || why.contains("NotModelledEdit") {
+        // A swallowed COM exception must still leave a typed refusal on its formula.
+        let binding = unsafe { &*context.cast::<WorkbookBinding>() };
+        let _ = binding.host.with_workbook_context(|context| {
+            Ok(context.refuse_by("COM workbook range operation is not modelled", "dc-0f1k.24"))
+        });
+    }
+    eprintln!("COM Range: {why}");
+    0x800a03ecu32 as i32
+}
+unsafe extern "system" fn range_api(
+    context: *const c_void,
+    operation: u32,
+    handle: *mut c_void,
+    address: *const u16,
+    length: usize,
+    output: *mut RangeSpec,
+) -> i32 {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let binding = unsafe { &*context.cast::<WorkbookBinding>() };
+        let bridge = binding
+            .bridge
+            .borrow()
+            .clone()
+            .ok_or("dc-0f1k.24: workbook closed")?;
+        let output = unsafe { &mut *output };
+        let reference = match operation {
+            0 => {
+                let address =
+                    String::from_utf16(unsafe { std::slice::from_raw_parts(address, length) })
+                        .map_err(|_| "dc-0f1k.24: invalid range text")?;
+                bridge.range(&address)?
+            }
+            1 => {
+                let caller = match binding
+                    .host
+                    .with_workbook_context(|context| Ok(context.caller()))
+                {
+                    Ok(Some(caller)) => caller,
+                    Ok(None) => return Ok(false),
+                    Err(why) if why.ends_with("no admitted worksheet invocation") => {
+                        return Ok(false);
+                    }
+                    Err(why) => return Err(why),
+                };
+                bridge.retain(&ReferenceLike::cell(caller))?
+            }
+            2 if !handle.is_null() => {
+                unsafe { &*handle.cast::<calc_func::StoredReference>() }.clone()
+            }
+            3 => {
+                let sheet = SheetId::from_parts(output.sheet as u32, (output.sheet >> 32) as u32);
+                let areas = unsafe { std::slice::from_raw_parts(output.areas, output.count) }
+                    .iter()
+                    .map(|area| {
+                        let first = CellKey::new(
+                            sheet,
+                            area.row.checked_add(1).ok_or("invalid row")?,
+                            area.column.checked_add(1).ok_or("invalid column")?,
+                        )
+                        .map_err(|_| "invalid range start")?;
+                        let last = CellKey::new(
+                            sheet,
+                            area.end_row.checked_add(1).ok_or("invalid row")?,
+                            area.end_column.checked_add(1).ok_or("invalid column")?,
+                        )
+                        .map_err(|_| "invalid range end")?;
+                        GridArea::new(first, last).map_err(|_| "invalid range")
+                    })
+                    .collect::<Result<Vec<_>, &str>>()?;
+                bridge.retain(
+                    &ReferenceLike::from_areas(areas)
+                        .map_err(|_| "dc-0f1k.24: Union crosses worksheets")?,
+                )?
+            }
+            _ => return Err("dc-0f1k.24: invalid range operation".into()),
+        };
+        let resolved = bridge.resolve(&reference)?;
+        let sheet = resolved.areas()[0].sheet();
+        let units: Vec<_> = bridge.sheet_name(sheet)?.encode_utf16().collect();
+        let name = unsafe { SysAllocStringLen(units.as_ptr(), units.len() as u32) };
+        if name.is_null() {
+            return Err("COM range sheet allocation failed".into());
+        }
+        let mut areas = binding.areas.borrow_mut();
+        *areas = resolved
+            .areas()
+            .iter()
+            .map(|a| Area {
+                row: a.first().row() - 1,
+                column: a.first().column() - 1,
+                end_row: a.last().row() - 1,
+                end_column: a.last().column() - 1,
+            })
+            .collect();
+        output.handle = if operation == 2 {
+            handle
+        } else {
+            Box::into_raw(Box::new(reference)).cast()
+        };
+        output.sheet = u64::from(sheet.slot()) | (u64::from(sheet.generation()) << 32);
+        output.name = name;
+        output.areas = areas.as_ptr();
+        output.count = areas.len();
+        Ok::<_, String>(true)
+    }))
+    .map_or(0x80004005u32 as i32, |result| match result {
+        Ok(true) => 0,
+        Ok(false) => 1,
+        Err(why) => range_failure(context, &why),
+    })
+}
+unsafe extern "system" fn range_read(
+    context: *const c_void,
+    handle: *mut c_void,
+    value2: bool,
+    output: *mut c_void,
+) -> i32 {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        if handle.is_null() {
+            return Err("dc-0f1k.24: no workbook range".into());
+        }
+        let binding = unsafe { &*context.cast::<WorkbookBinding>() };
+        let bridge = binding
+            .bridge
+            .borrow()
+            .clone()
+            .ok_or("dc-0f1k.24: workbook closed")?;
+        let reference = bridge.resolve(unsafe { &*handle.cast::<calc_func::StoredReference>() })?;
+        // Excel Value reads the first area. Other areas remain part of Address/Count/Union.
+        let area = reference.areas()[0];
+        let reference = ReferenceLike::area(area);
+        let value = binding
+            .host
+            .with_workbook_context(|context| context.values_of(&reference))?;
+        let (rows, columns, cells) = match value.as_array() {
+            Some(array) => (
+                array.shape().rows as u32,
+                array.shape().cols as u32,
+                array.iter_row_major().collect::<Vec<_>>(),
+            ),
+            None => (0, 0, vec![&value]),
+        };
+        let mut texts: Vec<Vec<u16>> = Vec::new();
+        let mut values = Vec::with_capacity(cells.len());
+        for (index, cell) in cells.into_iter().enumerate() {
+            if !value2 && matches!(cell.core_ref(), CoreRef::Number(_)) {
+                let at = CellKey::new(
+                    area.sheet(),
+                    area.first().row() + (index / area.column_count() as usize) as u32,
+                    area.first().column() + (index % area.column_count() as usize) as u32,
+                )
+                .map_err(|_| "invalid Value coordinate")?;
+                if let Err(why) = bridge.value_format_supported(at) {
+                    let _ = binding.host.with_workbook_context(|context| {
+                        Ok(context.refuse_by(
+                            "Range.Value format conversion is not modelled",
+                            "dc-0f1k.24",
+                        ))
+                    });
+                    return Err(why);
+                }
+            }
+            let mut v = Value {
+                kind: 0,
+                number: 0.,
+                text: std::ptr::null(),
+                length: 0,
+            };
+            match cell.core_ref() {
+                CoreRef::Empty | CoreRef::Missing => {}
+                CoreRef::Number(number) => {
+                    v.kind = 1;
+                    v.number = number;
+                }
+                CoreRef::Logical(flag) => {
+                    v.kind = 3;
+                    v.number = f64::from(u8::from(flag));
+                }
+                CoreRef::Text(text) => {
+                    let units = text.utf16_code_units().to_vec();
+                    v.kind = 2;
+                    v.text = units.as_ptr();
+                    v.length = units.len();
+                    texts.push(units);
+                }
+                CoreRef::Error(error) => {
+                    v.kind = 5;
+                    v.number = f64::from(
+                        2000 + calc_xll_host::error_number(error)
+                            .ok_or("dc-0f1k.24: COM error code not modelled")?,
+                    );
+                }
+                _ => return Err("dc-0f1k.24: COM range cell kind not modelled".into()),
+            }
+            values.push(v);
+        }
+        let status = unsafe { dna_com_values(output, values.as_ptr(), rows, columns) };
+        if status < 0 {
+            return Err(format!("COM Value conversion: {status:#x}"));
+        }
+        Ok::<_, String>(())
+    }))
+    .map_or(0x80004005u32 as i32, |result| match result {
+        Ok(()) => 0,
+        Err(why) => range_failure(context, &why),
+    })
+}
 type Run = unsafe extern "system" fn(
     *const c_void,
     *const u16,
@@ -72,6 +310,8 @@ unsafe extern "C" {
     #[cfg(test)]
     fn dna_com_test_events() -> i32;
     #[cfg(test)]
+    fn dna_com_test_ranges() -> i32;
+    #[cfg(test)]
     fn dna_com_test_workbook_bridge() -> i32;
     #[cfg(test)]
     fn dna_com_test_office() -> i32;
@@ -86,6 +326,13 @@ unsafe extern "C" {
         qualifier: Qualifier,
         owns_module: OwnsModule,
     ) -> *mut c_void;
+    fn dna_com_ranges(
+        projection: *mut c_void,
+        api: RangeApi,
+        read: RangeRead,
+        free: RangeFree,
+    ) -> i32;
+    fn dna_com_values(output: *mut c_void, values: *const Value, rows: u32, columns: u32) -> i32;
     fn dna_com_bridge(projection: *mut c_void, context: *const c_void, bridge: Bridge) -> i32;
     fn dna_com_getobject(projection: *mut c_void, wparam: usize, object_id: isize) -> isize;
     fn dna_com_destroy(projection: *mut c_void);
@@ -102,6 +349,7 @@ unsafe extern "C" {
     fn dna_com_sheet_change(projection: *mut c_void, row: u32, column: u32) -> i32;
     fn dna_com_sheet_change_areas(
         projection: *mut c_void,
+        sheet: u64,
         name: *const u16,
         length: usize,
         areas: *const Area,
@@ -116,6 +364,12 @@ unsafe extern "C" {
     ) -> i32;
 }
 
+/// Native-only: tests the full workbook projection, Range TypeName and SAFEARRAY bounds.
+#[test]
+fn workbook_ranges_project_caller_union_metadata_and_values() {
+    let status = unsafe { dna_com_test_ranges() };
+    assert_eq!(status, 0, "COM workbook ranges: {status:#x}");
+}
 /// Native-only: exercises Excel COM interfaces, retained Range objects and reentrant event sinks.
 #[test]
 fn event_source_owns_cookies_and_disconnects_retained_ranges() {
@@ -169,12 +423,20 @@ impl Projection {
         }
         Ok(Self {
             pointer,
-            _host: host,
-            workbook: Box::new(WorkbookBinding(RefCell::new(None))),
+            _host: host.clone(),
+            workbook: Box::new(WorkbookBinding {
+                bridge: RefCell::new(None),
+                host,
+                areas: RefCell::default(),
+            }),
         })
     }
     pub fn bind_workbook(&self, bridge: Rc<dyn crate::WorkbookBridge>) -> Result<(), String> {
-        *self.workbook.0.borrow_mut() = Some(bridge);
+        *self.workbook.bridge.borrow_mut() = Some(bridge);
+        Self::checked(
+            unsafe { dna_com_ranges(self.pointer, range_api, range_read, range_free) },
+            "COM workbook ranges",
+        )?;
         Self::checked(
             unsafe {
                 dna_com_bridge(
@@ -189,6 +451,7 @@ impl Projection {
     /// All committed input areas, in their owning worksheet, after its VBA handler.
     pub fn sheet_change_areas(
         &self,
+        sheet: SheetId,
         name: &str,
         areas: &[calc_value::GridArea],
     ) -> Result<(), String> {
@@ -206,6 +469,7 @@ impl Projection {
             unsafe {
                 dna_com_sheet_change_areas(
                     self.pointer,
+                    u64::from(sheet.slot()) | (u64::from(sheet.generation()) << 32),
                     name.as_ptr(),
                     name.len(),
                     areas.as_ptr(),

@@ -173,6 +173,31 @@ pub(crate) unsafe fn enter(frame: &mut Frame<'_>) -> FrameGuard {
     FrameGuard(FRAME.with(|f| f.replace(ptr)))
 }
 
+/// Borrow the same invocation used by the Excel C API. Temporarily withdraw the frame
+/// while Rust reads through it, so reentry cannot alias its mutable context.
+pub(crate) fn with_workbook_context<T>(
+    state: &Shared,
+    call: impl FnOnce(&mut dyn UserFunctionContext) -> Result<T, String>,
+) -> Result<T, String> {
+    FRAME.with(|active| {
+        let pointer = active.get();
+        if pointer.is_null() {
+            return Err("dc-0f1k.24: no admitted worksheet invocation".into());
+        }
+        // The native entry and guard keep this owning-thread frame alive.
+        let frame = unsafe { &mut *pointer };
+        if !Rc::ptr_eq(&frame.state, state) || frame.kind != FrameKind::Entry || frame.uncalced {
+            return Err("dc-0f1k.24: workbook read outside the owning XLL invocation".into());
+        }
+        let Some(context) = frame.context.as_deref_mut() else {
+            return Err("dc-0f1k.24: no admitted worksheet invocation".into());
+        };
+        active.set(std::ptr::null_mut());
+        let _restore = FrameGuard(pointer);
+        call(context)
+    })
+}
+
 pub(crate) struct Completion {
     pub result: Mutex<Option<Result<CalcValue, String>>>,
     pub ready: Condvar,

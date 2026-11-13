@@ -888,6 +888,11 @@ impl HostState {
         calc_engine::resolve_reference_text(&self.model, at, text)
     }
 
+    /// The session's existing tracked reference view, shared by native projections and UDFs.
+    pub fn reference_view(&self) -> std::rc::Rc<dyn calc_func::ReferenceHandles> {
+        self.references.pin()
+    }
+
     /// Current physical row heights, column widths and hidden flags from the authored model,
     /// with the worksheet's imported defaults. Structural edits move these same dimensions;
     /// `None` for a sheet the file did not hold.

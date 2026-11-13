@@ -34,6 +34,11 @@ struct NativeWorkbook {
     full_name: RefCell<String>,
     active_sheet: RefCell<Option<String>>,
     enabled: RefCell<Rc<Cell<bool>>>,
+    bound: Cell<bool>,
+    references: RefCell<Option<Rc<dyn calc_func::ReferenceHandles>>>,
+    model: RefCell<Option<std::sync::Arc<calc_host::ModelRoot>>>,
+    facts: RefCell<Option<std::sync::Arc<dyn calc_func::WorkbookFacts>>>,
+    active: Cell<Option<calc_value::CellKey>>,
 }
 impl NativeWorkbook {
     fn attach(addins: &AddinHost, server: &mut Server) -> Result<Rc<Self>, String> {
@@ -44,6 +49,11 @@ impl NativeWorkbook {
             full_name: RefCell::default(),
             active_sheet: RefCell::default(),
             enabled: RefCell::new(Rc::new(Cell::new(true))),
+            bound: Cell::new(false),
+            references: RefCell::default(),
+            model: RefCell::default(),
+            facts: RefCell::default(),
+            active: Cell::new(None),
         });
         projection.bind_workbook(bridge.clone())?;
         server.set_workbook_event_observer(Some(bridge.clone()));
@@ -63,16 +73,91 @@ impl calc_com_host::WorkbookBridge for NativeWorkbook {
     fn set_events_enabled(&self, enabled: bool) {
         self.enabled.borrow().set(enabled);
     }
+    fn range(&self, address: &str) -> Result<calc_func::StoredReference, String> {
+        let model = self.model.borrow();
+        let model = model.as_ref().ok_or("dc-0f1k.24: workbook closed")?;
+        let at = self.active.get().ok_or("dc-0f1k.24: no active worksheet")?;
+        // Use the workbook's existing binder, including its names, grid limits and qualifiers.
+        match calc_host::resolve_reference_text(model, at, address) {
+            calc_host::ReferenceTarget::Area(area) => {
+                self.retain(&calc_value::ReferenceLike::area(area))
+            }
+            calc_host::ReferenceTarget::Invalid => {
+                Err("dc-0f1k.24: Range address names no workbook range".into())
+            }
+            calc_host::ReferenceTarget::NotModelled => {
+                Err("dc-0f1k.24: Range address form is not modelled".into())
+            }
+        }
+    }
+    fn retain(
+        &self,
+        reference: &calc_value::ReferenceLike,
+    ) -> Result<calc_func::StoredReference, String> {
+        self.references
+            .borrow()
+            .as_ref()
+            .ok_or("dc-0f1k.24: workbook closed")?
+            .retain(reference)
+            .map_err(|e| e.to_string())
+    }
+    fn resolve(
+        &self,
+        reference: &calc_func::StoredReference,
+    ) -> Result<calc_value::ReferenceLike, String> {
+        self.references
+            .borrow()
+            .as_ref()
+            .ok_or("dc-0f1k.24: workbook closed")?
+            .resolve(reference)
+            .map_err(|e| e.to_string())
+    }
+    fn sheet_name(&self, sheet: calc_value::SheetId) -> Result<String, String> {
+        self.model
+            .borrow()
+            .as_ref()
+            .and_then(|model| model.sheet_by_id(sheet))
+            .map(|sheet| sheet.name().text().to_string_lossy())
+            .ok_or("dc-0f1k.24: range worksheet was deleted".into())
+    }
+    fn value_format_supported(&self, cell: calc_value::CellKey) -> Result<(), String> {
+        let facts = self.facts.borrow();
+        let format = facts
+            .as_ref()
+            .and_then(|facts| facts.cell_format(cell))
+            .ok_or("dc-0f1k.24: Range.Value format conversion is not modelled; use Value2")?;
+        if matches!(format.builtin, Some(0..=4 | 9..=13 | 48..=49))
+            || format.number_format.eq_ignore_ascii_case("General")
+        {
+            Ok(())
+        } else {
+            Err("dc-0f1k.24: Range.Value date/currency/custom format conversion is not modelled; use Value2".into())
+        }
+    }
 }
 impl calc_host::WorkbookEventObserver for NativeWorkbook {
     fn context_changed(&self, session: &calc_host::HostSession) {
+        *self.model.borrow_mut() = Some(session.host().model().clone());
+        *self.facts.borrow_mut() = Some(session.host().workbook_facts());
+        *self.references.borrow_mut() = Some(session.host().reference_view());
         *self.full_name.borrow_mut() = session.file_full_name().to_owned();
-        *self.enabled.borrow_mut() = session.workbook_events_switch();
+        let enabled = session.workbook_events_switch();
+        // EnableEvents belongs to this application, including when its worker replaces a book.
+        if self.bound.replace(true) && !Rc::ptr_eq(&self.enabled.borrow(), &enabled) {
+            enabled.set(self.enabled.borrow().get());
+        }
+        *self.enabled.borrow_mut() = enabled;
         let sheet = session
             .selection()
             .active
             .map(|at| at.sheet())
             .or_else(|| session.host().sheets().first().map(|sheet| sheet.id()));
+        self.active.set(
+            session
+                .selection()
+                .active
+                .or_else(|| sheet.and_then(|sheet| calc_value::CellKey::new(sheet, 1, 1).ok())),
+        );
         if let Some(native) = self.native.upgrade() {
             let full = session.file_full_name();
             let name = full.rsplit(['/', '\\']).next().unwrap_or(full);
@@ -102,7 +187,7 @@ impl calc_host::WorkbookEventObserver for NativeWorkbook {
             .model()
             .sheet_by_id(sheet)
             .ok_or("native SheetChange sheet was deleted")?;
-        projection.sheet_change_areas(&sheet.name().text().to_string_lossy(), target)
+        projection.sheet_change_areas(sheet.id(), &sheet.name().text().to_string_lossy(), target)
     }
     fn after_calculate(&self, _session: &mut calc_host::HostSession) -> Result<(), String> {
         self.projection
@@ -980,6 +1065,107 @@ Open the download page now?"
 
 #[cfg(test)]
 mod tests {
+    /// Native-only: creates the native workbook projection and server used by the page.
+    #[test]
+    fn workbook_bridge_follows_the_page_session_selection_identity_and_references() {
+        use calc_com_host::WorkbookBridge;
+        let shell = calc_platform_desktop::Shell::new("DNA Calc workbook bridge test").unwrap();
+        let addins = calc_addin_host::AddinHost::new(
+            &shell,
+            &calc_addin_host::Document {
+                workbook: "Book1",
+                active_sheet: None,
+                sheets: &[],
+            },
+        )
+        .unwrap();
+        let mut server = dna_calc_worker::server::Server::new();
+        let bridge = super::NativeWorkbook::attach(&addins, &mut server).unwrap();
+        let sheet = server.book().host().sheets()[0].id();
+        let name = server.book().host().sheets()[0]
+            .name()
+            .text()
+            .to_string_lossy();
+        server
+            .book_mut()
+            .saved_as("Named.xlsx".into(), calc_host::SpreadsheetFormat::Xlsx);
+        server.set_file_location(r"C:\Models\Named.xlsx".into());
+        assert_eq!(bridge.full_name(), r"C:\Models\Named.xlsx");
+        let at = calc_value::CellKey::new(sheet, 1, 1).unwrap();
+        assert!(
+            server
+                .book_mut()
+                .dispatch(calc_host::SkinIntent::EnterCell {
+                    at,
+                    text: "7".into()
+                })
+                .accepted()
+        );
+        let reference = bridge.range(&format!("'[Named.xlsx]{name}'!$A$1")).unwrap();
+        assert_eq!(bridge.resolve(&reference).unwrap().areas()[0].first(), at);
+        assert!(bridge.value_format_supported(at).is_ok());
+        assert!(
+            server
+                .book_mut()
+                .dispatch(calc_host::SkinIntent::EditAxis(
+                    calc_host::AxisEdit::new(
+                        sheet,
+                        calc_host::Axis::Rows,
+                        calc_host::AxisChange::Insert,
+                        1,
+                        1
+                    )
+                    .unwrap()
+                ))
+                .accepted()
+        );
+        assert_eq!(
+            bridge.resolve(&reference).unwrap().areas()[0].first().row(),
+            2
+        );
+        bridge.set_events_enabled(false);
+        assert!(!server.book().session().workbook_events_enabled());
+        assert!(
+            server
+                .book_mut()
+                .dispatch(calc_host::SkinIntent::Command(
+                    calc_host::WorkbookCommand::Sheet {
+                        sheet: None,
+                        change: calc_host::SheetChange::Add {
+                            name: "Other".into()
+                        }
+                    }
+                ))
+                .accepted()
+        );
+        let other = server
+            .book()
+            .host()
+            .sheets()
+            .iter()
+            .find(|s| s.name().text().to_string_lossy() == "Other")
+            .unwrap()
+            .id();
+        let active = calc_value::CellKey::new(other, 3, 2).unwrap();
+        assert!(
+            server
+                .book_mut()
+                .dispatch(calc_host::SkinIntent::Select(calc_host::Selection {
+                    active: Some(active),
+                    areas: vec![calc_value::GridArea::cell(active)]
+                }))
+                .accepted()
+        );
+        assert_eq!(bridge.active_sheet().as_deref(), Some("Other"));
+        assert!(
+            server
+                .execute_current(dna_calc_worker::wire::Request::New, None)
+                .reply
+                .is_ok()
+        );
+        assert!(bridge.resolve(&reference).is_err());
+        assert!(!server.book().session().workbook_events_enabled());
+    }
     use super::*;
 
     /// Native-only: argument parsing for app mode.
