@@ -56,6 +56,7 @@ struct Series {
     step: f64,
     ordered: bool,
     preparation_exact: bool,
+    directly_observed: bool,
 }
 
 fn exact_ratio(a: f64, b: f64) -> Option<f64> {
@@ -208,6 +209,7 @@ fn prepare(
         step,
         ordered,
         preparation_exact,
+        directly_observed: pairs.len() == times.len() && count == times.len(),
     })
 }
 
@@ -275,6 +277,25 @@ fn exact_sum(a: f64, b: f64) -> Option<f64> {
     let part = sum - a;
     let residue = (a - (sum - part)) + (b - part);
     (sum.is_finite() && residue == 0.0).then_some(sum)
+}
+
+/// Excel 20527's five-point detector returns zero for strictly curved data.
+/// Exact differences keep rounding from inventing or removing a turn.
+fn strictly_curved_five(y: &[f64]) -> bool {
+    if y.len() != 5 || y.iter().any(|&v| {
+        v != 0.0 && !(2.0_f64.powi(-300)..=2.0_f64.powi(300)).contains(&v.abs())
+    }) {
+        return false;
+    }
+    let mut differences = [0.0; 4];
+    for (i, pair) in y.windows(2).enumerate() {
+        let Some(difference) = exact_sum(pair[1], -pair[0]) else {
+            return false;
+        };
+        differences[i] = difference;
+    }
+    differences.windows(2).all(|pair| pair[0] < pair[1])
+        || differences.windows(2).all(|pair| pair[0] > pair[1])
 }
 
 // R39's fixed parameter family, measured before the independent random fits.
@@ -887,6 +908,15 @@ fn evaluate_fitted(
     // history: lag two first becomes available at five prepared observations.
     // This does not identify the detector or fitted model for longer histories.
     if output == Output::Seasonality && series.values.len() <= 4 {
+        return site.number(0.0);
+    }
+    // Fresh controls cover strict curvature with direct observations, shuffled
+    // timelines, translations and scale changes. Other detector shapes and
+    // the seasonal fitted model remain on their existing paths.
+    if output == Output::Seasonality
+        && series.directly_observed
+        && strictly_curved_five(&series.values)
+    {
         return site.number(0.0);
     }
     // R47 paired questions identify the nonseasonal fit before five prepared

@@ -144,10 +144,13 @@ pub fn chisq_inv_rt_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Wo
     }
     // Excel 20527's right-tail inverse admits these large degrees even though
     // the other chi-square routes enforce the 1e10 limit. Its asymptotic
-    // result stores the x87 correction before adding it to the degree;
-    // collapsing stages or omitting double rounding changes halfway results.
+    // result matches a single x87 multiplication; splitting the correction and
+    // addition changes constructed halfway results. A narrower probability
+    // interval admits lower degrees, with controls on both sides of it.
     if p >= f64::MIN_POSITIVE
-        && deg_freedom >= f64::from_bits(0x4720_0000_0000_0000) // 2^115
+        && (deg_freedom >= f64::from_bits(0x4720_0000_0000_0000) // 2^115
+            || (deg_freedom >= f64::from_bits(0x46a0_0000_0000_0000) // 2^107
+                && (0.01..=0.99).contains(&p)))
         && deg_freedom < f64::from_bits(0x7e70_0000_0000_0000) // 2^1000
     {
         return Ok(crate::ported::beta_gamma_stats_family::large_shape_inverse_unit(deg_freedom));

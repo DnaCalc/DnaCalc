@@ -26,12 +26,23 @@ pub enum ObjectKey {
     Workbook(u64),
     /// The Sheets/Worksheets collection of a workbook.
     Sheets(u64),
-    Worksheet { workbook: u64, sheet: SheetId },
+    Worksheet {
+        workbook: u64,
+        sheet: SheetId,
+    },
     /// A range: a handle of the session's reference tracker (calc-fml `ReferenceTracker`), so it
     /// follows structural edits and fails typed when its cells are deleted.
     Range(StoredReference),
+    /// Rows/Columns preserve the range's areas; Count uses the first area's axis length.
+    RangeView {
+        reference: StoredReference,
+        axis: crate::geometry::RangeAxis,
+    },
     Names(u64),
-    Name { workbook: u64, index: u32 },
+    Name {
+        workbook: u64,
+        index: u32,
+    },
     WorksheetFunction,
     /// An object a projection owns by nature (COMAddIns, CommandBars, ribbon objects): the
     /// projection's own handle.
