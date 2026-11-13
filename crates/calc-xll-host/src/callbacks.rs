@@ -179,22 +179,32 @@ pub(crate) fn with_workbook_context<T>(
     state: &Shared,
     call: impl FnOnce(&mut dyn UserFunctionContext) -> Result<T, String>,
 ) -> Result<T, String> {
+    try_with_workbook_context(state, call)?
+        .ok_or_else(|| "dc-0f1k.24: no admitted worksheet invocation".into())
+}
+
+/// Absence of a worksheet invocation permits the Automation command/event route. A foreign,
+/// free-only or uncalced frame is an actual refusal and must never use that fallback.
+pub(crate) fn try_with_workbook_context<T>(
+    state: &Shared,
+    call: impl FnOnce(&mut dyn UserFunctionContext) -> Result<T, String>,
+) -> Result<Option<T>, String> {
     FRAME.with(|active| {
         let pointer = active.get();
         if pointer.is_null() {
-            return Err("dc-0f1k.24: no admitted worksheet invocation".into());
+            return Ok(None);
         }
         // The native entry and guard keep this owning-thread frame alive.
         let frame = unsafe { &mut *pointer };
-        if !Rc::ptr_eq(&frame.state, state) || frame.kind != FrameKind::Entry || frame.uncalced {
+        if !Rc::ptr_eq(&frame.state, state) || frame.kind == FrameKind::FreeOnly || frame.uncalced {
             return Err("dc-0f1k.24: workbook read outside the owning XLL invocation".into());
         }
         let Some(context) = frame.context.as_deref_mut() else {
-            return Err("dc-0f1k.24: no admitted worksheet invocation".into());
+            return Ok(None);
         };
         active.set(std::ptr::null_mut());
         let _restore = FrameGuard(pointer);
-        call(context)
+        call(context).map(Some)
     })
 }
 
@@ -1433,6 +1443,41 @@ fn register(frame: &mut Frame<'_>, values: &[CalcValue]) -> Result<CalcValue, (i
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// Native-only: constructs the owning XLL frame on Windows; command/lifecycle absence
+    /// permits a session borrow, while foreign, uncalced and free-only frames refuse.
+    #[test]
+    fn automation_context_distinguishes_absence_from_an_inadmissible_frame() {
+        let host = crate::XllHost::new(0);
+        let absent = || -> Result<(), String> { panic!("no worksheet callback expected") };
+        assert_eq!(
+            try_with_workbook_context(&host.state, |_| absent()).unwrap(),
+            None
+        );
+        let module = Module::loaded(std::env::current_exe().unwrap().to_str().unwrap()).unwrap();
+        let mut frame = Frame::lifecycle(host.state.clone(), module.clone());
+        let guard = unsafe { enter(&mut frame) };
+        assert_eq!(
+            try_with_workbook_context(&host.state, |_| absent()).unwrap(),
+            None
+        );
+        let foreign = crate::XllHost::new(0);
+        assert!(try_with_workbook_context(&foreign.state, |_| absent()).is_err());
+        drop(guard);
+        frame.kind = FrameKind::Entry;
+        let guard = unsafe { enter(&mut frame) };
+        assert_eq!(
+            try_with_workbook_context(&host.state, |_| absent()).unwrap(),
+            None
+        );
+        drop(guard);
+        frame.uncalced = true;
+        let guard = unsafe { enter(&mut frame) };
+        assert!(try_with_workbook_context(&host.state, |_| absent()).is_err());
+        drop(guard);
+        let mut frame = Frame::free_only(host.state.clone(), module.clone(), module, None);
+        let _guard = unsafe { enter(&mut frame) };
+        assert!(try_with_workbook_context(&host.state, |_| absent()).is_err());
+    }
     fn text_value(text: &str) -> CalcValue {
         CalcValue::text(ExcelText::from_utf16_code_units(
             text.encode_utf16().collect::<Vec<_>>(),

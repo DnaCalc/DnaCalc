@@ -822,3 +822,46 @@ fn database_a_digit_criteria() {
     }
     error(call_on(&mut sheet, "DGET", vec![db, t("Value"), criteria]), Num);
 }
+
+/// Excel 20527 validates database and criteria reference heights before inspecting the field.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn database_one_row_is_not_a_database() {
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![t("Key"), n(1.0)]);
+    sheet.column(1, 2, vec![t("Value"), n(2.0)]);
+    sheet.column(5, 1, vec![t("Key"), n(1.0)]);
+    let one_cell = sheet.area(1, 1, 1, 1);
+    let one_row = sheet.area(1, 1, 1, 2);
+    let valid = sheet.area(1, 1, 2, 2);
+    let criteria_header = sheet.area(5, 1, 5, 1);
+    let criteria = sheet.area(5, 1, 6, 1);
+    for name in [
+        "DAVERAGE", "DCOUNT", "DCOUNTA", "DGET", "DMAX", "DMIN", "DPRODUCT", "DSTDEV",
+        "DSTDEVP", "DSUM", "DVAR", "DVARP",
+    ] {
+        for db in [one_cell.clone(), one_row.clone()] {
+            for field in [n(1.0), t("Key"), e(NA)] {
+                error(
+                    call_on(&mut sheet, name, vec![db.clone(), field, criteria.clone()]),
+                    Value,
+                );
+            }
+        }
+        for field in [n(1.0), t("Key"), e(NA)] {
+            error(
+                call_on(&mut sheet, name, vec![valid.clone(), field, criteria_header.clone()]),
+                Value,
+            );
+        }
+    }
+    exact(
+        call_on(&mut sheet, "DSUM", vec![valid, t("Value"), criteria.clone()]),
+        2.0,
+    );
+    // This area exceeds the dense-grid limit and has only its header held. Its original height,
+    // rather than the number of held rows, determines whether it is a valid database.
+    sheet.column(1, 3, vec![t("Key")]);
+    let large = sheet.area(1, 3, 1_048_576, 7);
+    exact(call_on(&mut sheet, "DSUM", vec![large, n(1.0), criteria]), 0.0);
+}

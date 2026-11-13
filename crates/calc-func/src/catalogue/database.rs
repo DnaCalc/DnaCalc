@@ -6,8 +6,8 @@
 //! by label (any case) and each later row is one set of conditions, a record matching when it
 //! meets every condition of any row. A criteria cell is read as a criterion of the *IFS functions
 //! ([`super::conditional`]), except that text with no operator matches the text that begins with
-//! it; a blank criteria cell sets no condition, and a criteria range of labels alone matches every
-//! record. The field is a label or a 1-based column number; DCOUNT and DCOUNTA may leave it out to
+//! it; a blank criteria cell sets no condition, and a criteria reference needs a row below its
+//! labels. The field is a label or a 1-based column number; DCOUNT and DCOUNTA may leave it out to
 //! count matching records. A label the database lacks, in the field or in the criteria, is
 //! #VALUE!.
 //!
@@ -222,6 +222,17 @@ fn database(
             CoreRef::Error(code) => fail(code),
             _ => fail(W::Value),
         };
+    }
+    // Excel requires database and criteria references to include a row below their labels.
+    // Inspect the references before their contents or the field: whole-column databases can
+    // be compressed to held cells by `database_grid`, but still have many blank record rows.
+    for &index in &[0, 2] {
+        if let CoreRef::Reference(reference) = a[index].core_ref()
+            && let [area] = reference.areas()
+            && area.row_count() == 1
+        {
+            return fail(W::Value);
+        }
     }
     let database = database_grid(site, a, sv, kind)?;
     if database.rows == 0 || database.cols == 0 {
