@@ -16,8 +16,8 @@
 
 use super::aggregate::Held;
 use super::kit::{fail, flag, given, grid, num, num_with_subnormal, numbers, opt, out, out_with_subnormal, reject_logical};
-use crate::call::EvalServices;
-use crate::kernel::{Site, Step};
+use crate::call::{EvalServices, FunctionFault};
+use crate::kernel::{Exit, Site, Step};
 use crate::locale::DateSystem;
 use crate::ported::amor_depreciation_family as amor;
 use crate::ported::cashflow_rate_family as cash;
@@ -135,6 +135,27 @@ pub(super) fn date_1900(
         DateSystem::System1904 if serial >= 0.0 => serial + OFFSET_1904,
         _ => serial,
     })
+}
+
+/// AMORLINC and AMORDEGRC share the measured scalar and date admission order.
+fn amor_arguments(site: &Site<'_>, a: &[CalcValue], sv: &EvalServices<'_>) -> Step<[f64; 7]> {
+    let cost = required_num(site, a, 0)?;
+    required_number(&a[1])?;
+    let purchased = super::kit::checked_date_serial(date_1900(site, a, 1, sv)?)?;
+    required_number(&a[2])?;
+    let first = super::kit::checked_date_serial(date_1900(site, a, 2, sv)?)?;
+    let (salvage, period, rate) = (
+        required_num(site, a, 3)?,
+        required_num(site, a, 4)?,
+        required_num(site, a, 5)?,
+    );
+    if cost <= 0.0 || salvage < 0.0 || salvage > cost || period < 0.0 || rate <= 0.0
+        || purchased.trunc() > first.trunc()
+    {
+        return fail(W::Num);
+    }
+    let basis = if given(a, 6) { super::kit::num_without_logical(site, a, 6)? } else { 0.0 };
+    Ok([cost, purchased, first, salvage, period, rate, basis])
 }
 
 fn amor_out(
@@ -361,23 +382,20 @@ ported_shared_family! {
         out_with_subnormal(s, dep::vdb_kernel(cost, salvage, life, start, end, factor, no_switch))
     }
     26 amorlinc_fn |s, a, sv| {
-        let cost = required_num(s, a, 0)?;
-        required_number(&a[1])?;
-        let purchased = super::kit::checked_date_serial(date_1900(s, a, 1, sv)?)?;
-        required_number(&a[2])?;
-        let first = super::kit::checked_date_serial(date_1900(s, a, 2, sv)?)?;
-        let (salvage, period, rate) = (required_num(s, a, 3)?, required_num(s, a, 4)?, required_num(s, a, 5)?);
-        if cost <= 0.0 || salvage < 0.0 || salvage > cost || period < 0.0 || rate <= 0.0 || purchased.trunc() > first.trunc() {
-            return fail(W::Num);
-        }
-        let basis = if given(a, 6) { super::kit::num_without_logical(s, a, 6)? } else { 0.0 };
+        let [cost, purchased, first, salvage, period, rate, basis] = amor_arguments(s, a, sv)?;
         amor_out(s, amor::amorlinc_kernel(cost, purchased, first, salvage, period, rate, Some(basis)))
     }
     27 amordegrc_fn |s, a, sv| {
-        let purchased = date_1900(s, a, 1, sv)?;
-        let first = date_1900(s, a, 2, sv)?;
-        let basis = if given(a, 6) { num(s, a, 6)? } else { 0.0 };
-        amor_out(s, amor::amordegrc_kernel(num(s, a, 0)?, purchased, first, num(s, a, 3)?, num(s, a, 4)?, num(s, a, 5)?, Some(basis)))
+        let [cost, purchased, first, salvage, period, rate, basis] = amor_arguments(s, a, sv)?;
+        if rate >= 0.5 || basis < 0.0 || !matches!(basis.trunc() as i64, 0 | 1 | 3 | 4) {
+            return fail(W::Num);
+        }
+        if period > 0.0 && period < 1.0 {
+            // Excel returned different words for identical valid calls; the
+            // invocation state responsible was not captured (dc-ymjf.2.42).
+            return Err(Exit::Fault(FunctionFault::NotHeld { id: s.id(), owner: "dc-ymjf.2.42" }));
+        }
+        amor_out(s, amor::amordegrc_kernel(cost, purchased, first, salvage, period, rate, Some(basis)))
     }
     28 dollarde_fn |s, a, sv| {
         if a.iter().any(CalcValue::is_missing) {

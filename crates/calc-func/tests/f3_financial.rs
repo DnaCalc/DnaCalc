@@ -26,6 +26,86 @@ fn dated(
     )
 }
 
+/// Excel 20527 shares AMOR's argument admission, but fractional periods have
+/// yielded different words for repeated identical AMORDEGRC calls.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn amordegrc_orders_errors_and_refuses_unrecorded_fractional_state() {
+    let args = || vec![n(1000.0), n(43831.0), n(44013.0), n(100.0), n(1.0), n(0.1), n(0.0)];
+    let mut bad_date = args();
+    bad_date[1] = n(-1.0);
+    bad_date[6] = e(Div0);
+    error(dated("AMORDEGRC", bad_date), Num);
+    let mut logical_date = args();
+    logical_date[1] = b(true);
+    error(dated("AMORDEGRC", logical_date), Value);
+    let mut fractional = args();
+    fractional[4] = n(0.1);
+    match dated("AMORDEGRC", fractional.clone()) {
+        Err(calc_func::FunctionFault::NotHeld { owner, .. }) => assert_eq!(owner, "dc-ymjf.2.42"),
+        other => panic!("expected the fractional-period refusal, got {other:?}"),
+    }
+    fractional[5] = n(0.5);
+    error(dated("AMORDEGRC", fractional), Num);
+    let mut zero = args();
+    zero[4] = n(0.0);
+    exact(dated("AMORDEGRC", zero), 125.0);
+    for (period, expected) in [(0.0, 900.0), (1.0, 25.0), (2.0, 0.0)] {
+        exact(
+            dated(
+                "AMORDEGRC",
+                vec![n(1000.0), n(0.0), n(3650.0), n(100.0), n(period), n(0.1), n(1.0)],
+            ),
+            expected,
+        );
+    }
+    exact(
+        dated(
+            "AMORDEGRC",
+            vec![n(1234.5), n(0.0), n(3650.0), n(0.25), n(0.0), n(0.1), n(1.0)],
+        ),
+        1234.0,
+    );
+    // Independent Excel controls cover fractional costs and salvage, both
+    // serial-zero and ordinary dates, and all four supported bases.
+    for (cost, purchase, first, salvage, basis, expected) in [
+        (0x40bc_9afd_b6f0_da72, 0.0, 3650.0, 0x40ab_29dc_473a_d3c6, 0.0, 3846.0),
+        (0x40ba_a097_42d5_eacb, 40000.0, 43650.0, 0x40ab_54af_10fe_51da, 1.0, 3318.0),
+        (0x40a4_d534_1074_af26, 0.0, 3650.0, 0x4082_f43e_54ca_5868, 3.0, 2060.0),
+        (0x40b5_4aec_dbc3_cc3c, 40000.0, 43650.0, 0x40a0_9307_917f_d4b7, 4.0, 3329.0),
+    ] {
+        exact(
+            dated(
+                "AMORDEGRC",
+                vec![n(f64::from_bits(cost)), n(purchase), n(first), n(f64::from_bits(salvage)), n(0.0), n(0.1), n(basis)],
+            ),
+            expected,
+        );
+    }
+}
+
+/// Excel 20527 validates YIELD's basis before the date and scalar slots.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn yield_validates_basis_before_other_arguments() {
+    let args = || vec![n(45000.0), n(46000.0), n(0.05), n(100.0), n(100.0), n(2.0), n(0.0)];
+    let mut basis_error = args();
+    basis_error[0] = n(-1.0);
+    basis_error[6] = e(NA);
+    error(dated("YIELD", basis_error), NA);
+    let mut invalid_basis = args();
+    invalid_basis[0] = t("bad");
+    invalid_basis[6] = n(5.0);
+    error(dated("YIELD", invalid_basis), Num);
+    let mut logical_basis = args();
+    logical_basis[0] = n(-1.0);
+    logical_basis[6] = b(true);
+    error(dated("YIELD", logical_basis), Value);
+    let mut invalid_date = args();
+    invalid_date[0] = n(-1.0);
+    error(dated("YIELD", invalid_date), Num);
+}
+
 /// Excel20527: AMORLINC distinguishes zero from every positive fractional period.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

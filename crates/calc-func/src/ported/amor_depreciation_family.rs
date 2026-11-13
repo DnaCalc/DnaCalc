@@ -260,8 +260,8 @@ pub fn amordegrc_kernel(
         return Err(AmorDepreciationEvalError::Domain(WorksheetErrorCode::Num));
     }
 
-    let purchase = parse_date_serial(date_purchased, 1)?;
-    let first = parse_date_serial(first_period, 1)?;
+    let purchase = parse_date_serial(date_purchased, 0)?;
+    let first = parse_date_serial(first_period, 0)?;
     let basis = parse_basis(basis.unwrap_or(0.0))?;
     let normalized_period = normalize_amordegrc_period(period)?;
     if period > 0.0 && period < 1.0 {
@@ -270,7 +270,14 @@ pub fn amordegrc_kernel(
     let coefficient = amordegrc_coefficient(rate)?;
     let depreciation_rate = rate * coefficient;
     let initial_fraction = first_period_fraction(purchase, first, basis)?;
+    // Excel 20527 caps the finite initial charge at the rounded depreciable
+    // amount. Its overflow path is different and is not yet identified.
     let first_depreciation = round_half_away_from_zero(cost * depreciation_rate * initial_fraction);
+    let first_depreciation = if first_depreciation.is_finite() {
+        first_depreciation.min(round_half_away_from_zero(cost - salvage))
+    } else {
+        first_depreciation
+    };
 
     if normalized_period == 0 {
         return Ok(first_depreciation);

@@ -60,6 +60,15 @@ fn yield_date(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &EvalServices<
     super::kit::checked_date_serial(date_1900(site, a, index, sv)?)
 }
 
+/// YIELD and YIELDDISC validate their optional basis before required arguments.
+fn yield_basis(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<f64> {
+    let basis = if given(a, index) { num_without_logical(site, a, index)? } else { 0.0 };
+    if basis < 0.0 || !(0.0..=4.0).contains(&basis.trunc()) {
+        return fail(WorksheetErrorCode::Num);
+    }
+    Ok(basis)
+}
+
 fn bond_out(site: &Site<'_>, result: Result<f64, bond::BondCoreEvalError>) -> Step<CalcValue> {
     match result {
         Ok(n) => site.number(n),
@@ -139,11 +148,10 @@ ported_shared_family! {
         bond_out(s, bond::price_kernel(settlement, maturity, num(s, a, 2)?, num(s, a, 3)?, num(s, a, 4)?, num(s, a, 5)?, Some(or(s, a, 6, 0.0)?)))
     }
     2 yield_fn |s, a, sv| {
+        let basis = yield_basis(s, a, 6)?;
         let settlement = yield_date(s, a, 0, sv)?;
         let maturity = yield_date(s, a, 1, sv)?;
         let (rate, price, redemption) = (required_num(s, a, 2)?, required_num(s, a, 3)?, required_num(s, a, 4)?);
-        // Fn8 adjacent-error controls read basis before frequency in YIELD.
-        let basis = if given(a, 6) { num_without_logical(s, a, 6)? } else { 0.0 };
         let frequency = required_num(s, a, 5)?;
         bond_out(s, bond::yield_kernel(settlement, maturity, rate, price, redemption, frequency, Some(basis)))
     }
@@ -165,10 +173,7 @@ ported_shared_family! {
     }
     7 yielddisc_fn |s, a, sv| {
         // Excel reads and validates the optional basis before its required slots.
-        let basis = if given(a, 4) { num_without_logical(s, a, 4)? } else { 0.0 };
-        if basis < 0.0 || !(0.0..=4.0).contains(&basis.trunc()) {
-            return fail(WorksheetErrorCode::Num);
-        }
+        let basis = yield_basis(s, a, 4)?;
         let (settlement, maturity) = (yield_date(s, a, 0, sv)?, yield_date(s, a, 1, sv)?);
         let (price, redemption) = (required_num(s, a, 2)?, required_num(s, a, 3)?);
         bond_out(s, bond::yielddisc_kernel(settlement, maturity, price, redemption, Some(basis)))

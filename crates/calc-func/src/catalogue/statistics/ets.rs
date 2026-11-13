@@ -796,6 +796,18 @@ pub(super) fn evaluate(
         return fail(WorksheetErrorCode::Num);
     }
     let horizon = if offset == 1 {
+        // 2^31 times a finite positive binary64 step is exact when finite.
+        // A rounded subtraction strictly above that representable bound is
+        // also above it exactly, even when the subtraction cannot be stored
+        // without loss. Excel rejects this horizon before fitting the model.
+        let distance_bound = (i32::MAX as f64 + 1.0) * series.step;
+        let rounded_distance = target - series.last;
+        if distance_bound.is_finite()
+            && rounded_distance.is_finite()
+            && rounded_distance > distance_bound
+        {
+            return fail(WorksheetErrorCode::Num);
+        }
         let distance = exact_sum(target, -series.last).ok_or_else(|| unfinished(site))?;
         let h = distance / series.step;
         if h.fract() != 0.0 || h * series.step != distance {

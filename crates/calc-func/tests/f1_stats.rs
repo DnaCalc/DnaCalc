@@ -10,6 +10,22 @@ use calc_func::SubtotalExclusions;
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Value};
 use f1_support::*;
 
+/// Excel 20527 rejects far future horizons even when subtraction is inexact.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn forecast_ets_checks_large_horizon_before_exact_subtraction() {
+    let values = arr(vec![vec![1.2, 2.7, 3.1, 4.4, 5.3]]);
+    for (target, times) in [
+        (2.0_f64.powi(54), vec![1.0, 2.0, 3.0, 4.0, 5.0]),
+        (1e6 + (4.0 + 2.0_f64.powi(54)) * 0.125,
+         vec![1e6, 1e6 + 0.125, 1e6 + 0.25, 1e6 + 0.375, 1e6 + 0.5]),
+    ] {
+        for name in ["FORECAST.ETS", "FORECAST.ETS.CONFINT"] {
+            error(call(name, vec![n(target), values.clone(), arr(vec![times.clone()])]), Num);
+        }
+    }
+}
+
 /// Excel 20527: range and singleton results precede significance validation.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
