@@ -366,6 +366,62 @@ Cache-Control: no-store
         }
     }
 
+    /// Observe a download's actual saved path only when WebView2 reports completion.
+    /// `started` can capture the application's current document identity; returning None
+    /// ignores a download. No notification is sent for an interrupted or cancelled save.
+    pub fn on_download_completed(
+        &self,
+        started: impl Fn(&Path) -> Option<Rc<dyn Fn(&Path)>> + 'static,
+    ) -> Result<(), String> {
+        let view = self
+            .view
+            .cast::<ICoreWebView2_4>()
+            .map_err(|e| e.to_string())?;
+        let mut token = 0;
+        unsafe {
+            view.add_DownloadStarting(
+                &DownloadStartingEventHandler::create(Box::new(move |_, args| {
+                    let Some(args) = args else {
+                        return Ok(());
+                    };
+                    let mut proposed = PWSTR::null();
+                    args.ResultFilePath(&mut proposed)?;
+                    let proposed = take_pwstr(proposed);
+                    let Some(completed) = started(Path::new(&proposed)) else {
+                        return Ok(());
+                    };
+                    let operation = args.DownloadOperation()?;
+                    let subscription = Rc::new(std::cell::Cell::new(0));
+                    let remove = subscription.clone();
+                    let handler =
+                        StateChangedEventHandler::create(Box::new(move |operation, _| {
+                            let Some(operation) = operation else {
+                                return Ok(());
+                            };
+                            let mut state = COREWEBVIEW2_DOWNLOAD_STATE_IN_PROGRESS;
+                            operation.State(&mut state)?;
+                            if state == COREWEBVIEW2_DOWNLOAD_STATE_COMPLETED {
+                                let mut path = PWSTR::null();
+                                operation.ResultFilePath(&mut path)?;
+                                let path = take_pwstr(path);
+                                completed(Path::new(&path));
+                            }
+                            if state != COREWEBVIEW2_DOWNLOAD_STATE_IN_PROGRESS {
+                                operation.remove_StateChanged(remove.get())?;
+                            }
+                            Ok(())
+                        }));
+                    let mut token = 0;
+                    operation.add_StateChanged(&handler, &mut token)?;
+                    subscription.set(token);
+                    Ok(())
+                })),
+                &mut token,
+            )
+            .map_err(|e| e.to_string())
+        }
+    }
+
     /// Loads `url` (a web address or a mapped folder's).
     pub fn navigate(&self, url: &str) -> Result<(), String> {
         let wide = CoTaskMemPWSTR::from(url);
@@ -390,7 +446,7 @@ pub const RUNTIME_DOWNLOAD: &str =
 /// The name the page gave a download. WebView2 proposes a path that does not clash with a file in
 /// the user's Downloads folder, so "Book1.xlsx" arrives as "Book1 (1).xlsx" when that exists: the
 /// number is taken off again when the unnumbered name is a file beside it.
-fn proposed_name(proposed: &Path) -> Option<std::ffi::OsString> {
+pub fn proposed_name(proposed: &Path) -> Option<std::ffi::OsString> {
     let name = proposed.file_name()?.to_string_lossy().into_owned();
     let (stem, extension) = match name.rfind('.') {
         Some(dot) => (&name[..dot], &name[dot..]),

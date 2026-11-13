@@ -1362,3 +1362,26 @@ DISP_E_MEMBERNOTFOUND where Excel returns an array. QueueAsMacro's transport
 (`Application.Run` of `SyncMacro_<guid>`, returning R8 0) is the existing one and was not changed:
 OneCalc offers no commands (line 51), so an edit-aware command entry and `PermissionWrites`
 belong to DNA Calc (dc-6332.13).
+
+## 33. DNA Calc workbook COM bridge (dc-1nbp.3, dc-0f1k.24)
+
+DNA Calc's page attaches a `calc-com-host::WorkbookBridge` backed by its existing session.
+Workbook Name, FullName and Path follow native open and completed Save As downloads; ActiveSheet
+follows selection. The session delivers native SheetChange after the owning VBA handler, with
+every committed input area, and AfterCalculate after successful command completion. COM and VBA
+share the session's EnableEvents switch. The bridge has no CalcHost dependency; OneCalc supplies
+no bridge and keeps its values-only refusals.
+
+Under this bridge Application.Range and Union return workbook ranges backed by the session's
+reference tracker. Caller and late-bound ThisCell use the owning XLL invocation's calling cell.
+Range metadata, Row, Column, Count, Address, Rows/Columns and TypeName use those references.
+Value and Value2 read through that invocation's existing reader; arrays cross COM as one-based
+two-dimensional VARIANT SAFEARRAYs. Reads outside an admitted worksheet invocation, writes,
+unmodelled address forms and unsupported value kinds remain refusals. Value accepts numeric
+cells in the supported built-in non-date/currency formats; other format conversions refuse
+explicitly, while Value2 keeps raw numbers. This is a partial Excel-IID facade.
+
+Validation here is Linux session tests and Windows cross-compilation, including linking the
+native COM test executable. It is not a new Excel comparison. Windows must run the COM tests,
+the named-workbook Excel-DNA/xlOil AppEvents page cases, and the existing `calcvba-udf` page set
+before either bead closes. The earlier OneCalc measurements in section 32 are historical evidence.

@@ -931,6 +931,15 @@ impl XllHost {
             state.active_sheet = Some(sheet);
         }
     }
+
+    /// A full workbook COM projection uses the current XLL invocation's caller/read view.
+    /// OneCalc never attaches that projection. No context or evaluator address is retained.
+    pub fn with_workbook_context<T>(
+        &self,
+        call: impl FnOnce(&mut dyn calc_func::UserFunctionContext) -> Result<T, String>,
+    ) -> Result<T, String> {
+        crate::callbacks::with_workbook_context(&self.state, call)
+    }
     fn remove_module(&self, module: &Rc<Module>) {
         let mut state = self.state.borrow_mut();
         let ids = state

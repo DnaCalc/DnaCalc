@@ -29,6 +29,8 @@ public class Probe : IExcelAddIn
         dynamic app = ExcelDnaUtil.Application;
         Log("COM Application.Version get", app.Version);
         Log("COM Application.Hwnd get", app.Hwnd);
+        Log("COM Workbook identity", "name=" + app.ActiveWorkbook.Name + ";full=" + app.ActiveWorkbook.FullName +
+            ";path=" + app.ActiveWorkbook.Path + ";active=" + app.ActiveSheet.Name);
         var container = (IConnectionPointContainer)(object)app;
         Guid events = new Guid("00024413-0000-0000-C000-000000000046");
         container.FindConnectionPoint(ref events, out EventPoint);
@@ -135,9 +137,12 @@ public class EventSink : IProbeEvents
     private int _sheetChanges;
     public void SheetChange(object sheet, object target)
     {
+        dynamic sh = sheet; dynamic range = target;
+        Probe.Log("AppEvents SheetChange Target", "book=" + sh.Parent.Name + ";full=" + sh.Parent.FullName +
+            ";path=" + sh.Parent.Path + ";sheet=" + sh.Name +
+            ";target=" + range.Address + ";count=" + range.Count);
         if (Interlocked.Increment(ref _sheetChanges) == 1)
         {
-            dynamic sh = sheet; dynamic range = target;
             Probe.Log("AppEvents SheetChange", "sheet=" + sh.Name + ";target=" + range.Address);
         }
         else Probe.Log("AppEvents SheetChange", "received");

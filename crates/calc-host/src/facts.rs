@@ -450,7 +450,7 @@ impl WorkbookFacts for HostFacts {
 
 impl HostState {
     /// The snapshot of the workbook facts at the current revision (see the module documentation).
-    pub(crate) fn workbook_facts(&self) -> Arc<dyn WorkbookFacts> {
+    pub fn workbook_facts(&self) -> Arc<dyn WorkbookFacts> {
         if let Some(facts) = &self.current_facts
             && facts.matches(self)
         {

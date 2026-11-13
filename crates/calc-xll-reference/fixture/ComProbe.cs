@@ -93,4 +93,23 @@ public static class ComProbe
         catch (Exception e) { log.Add("acquire=HRESULT:" + ((uint)e.HResult).ToString("X8")); }
         return string.Join(";", log);
     }
+
+    // Full-workbook probe: capture Excel first, then compare through DNA Calc's page.
+    [ExcelFunction(Name = "COM_WORKBOOK_VALUES")]
+    public static string WorkbookValues()
+    {
+        var log = new List<string>();
+        dynamic app = ExcelDnaUtil.Application;
+        Observe(log, "ThisCellMatchesCaller", () => (int)app.ThisCell.Row == (int)app.Caller.Row &&
+            (int)app.ThisCell.Column == (int)app.Caller.Column);
+        Observe(log, "ValueA1", () => app.Range["A1"].Value);
+        Observe(log, "Value2A1", () => app.Range["A1"].Value2);
+        Observe(log, "Value2Bits", () => BitConverter.DoubleToInt64Bits((double)app.Range["A1"].Value2).ToString("X16"));
+        Observe(log, "ArrayBounds", () => {
+            Array values = (Array)app.Range["A1:B2"].Value2;
+            return values.GetLowerBound(0) + ":" + values.GetUpperBound(0) + ":" +
+                values.GetLowerBound(1) + ":" + values.GetUpperBound(1);
+        });
+        return string.Join(";", log);
+    }
 }

@@ -22,6 +22,8 @@ def array(n: int):
 # X4 deliberately keeps Python callbacks in the original plugin. These are
 # observations of COM objects and delivered events, not stored worksheet answers.
 _changes = []
+_all_changes = []
+_calculations = 0
 _last_range = None
 _queued = None
 
@@ -29,6 +31,7 @@ _queued = None
 def _sheet_change(name, target):
     global _last_range, _queued
     address = target.address(local=True)
+    _all_changes.append(name + "|" + address)
     if address == "A1":
         _changes.append(name + "|" + address)
         _last_range = target
@@ -42,6 +45,8 @@ xloil.event.SheetChange += _sheet_change
 
 
 def _startup_calculate():
+    global _calculations
+    _calculations += 1
     # The importer pauses Python events through scan_module. A delivered
     # calculation event after that module appears acknowledges event resumption.
     ready = Path(__file__).with_name("x4-startup-ready")
@@ -72,6 +77,16 @@ def com_properties() -> str:
 @xloil.func(name="X4.PyEvents")
 def events() -> str:
     return ";".join(_changes)
+
+
+@xloil.func(name="X4.PyTargets")
+def all_event_targets() -> str:
+    return ";".join(_all_changes)
+
+
+@xloil.func(name="X4.PyCalculateCount")
+def calculation_count() -> int:
+    return _calculations
 
 
 @xloil.func(name="X4.PyBounds")

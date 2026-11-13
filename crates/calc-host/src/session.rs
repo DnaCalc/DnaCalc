@@ -380,6 +380,7 @@ struct Subscription {
 /// subscriptions and the intent log.
 pub struct HostSession {
     pub(crate) workbook_events: crate::events::WorkbookEventState,
+    file_location: Option<String>,
     recalc_budget: WorkBudget,
     pub(crate) host: HostState,
     sheet_keys: BTreeSet<crate::SheetKey>,
@@ -459,6 +460,9 @@ impl HostSession {
             return;
         }
         self.cancel_calculation();
+        if self.host.model.definitions().workbook_name() != Some(name) {
+            self.file_location = None;
+        }
         self.host.model = self.host.model.with_file_identity(name, macro_enabled);
         self.notify_file_identity(name);
         self.host.engine.rebuild_bindings();
@@ -472,11 +476,28 @@ impl HostSession {
         );
     }
 
+    /// Native file identity, supplied only after a successful open or save. Browser files
+    /// have a name but no local directory. This metadata is independent of cell undo.
+    pub fn set_file_location(&mut self, full_name: String) {
+        self.file_location = Some(full_name);
+        self.notify_workbook_context();
+    }
+    pub fn file_full_name(&self) -> &str {
+        self.file_location.as_deref().unwrap_or_else(|| {
+            self.host
+                .model
+                .definitions()
+                .workbook_name()
+                .unwrap_or("Book1")
+        })
+    }
+
     /// A session over an open host, in the host's calculation mode, with nothing selected.
     pub fn new(host: HostState) -> HostSession {
         let rule_areas = conditional_rule_areas(&host);
         HostSession {
             workbook_events: crate::events::WorkbookEventState::default(),
+            file_location: None,
             recalc_budget: WorkBudget::UNLIMITED,
             sheet_keys: host.sheets().iter().map(|s| s.key()).collect(),
             host,
@@ -1633,6 +1654,7 @@ impl HostSession {
             return;
         }
         self.selection = selection;
+        self.notify_workbook_context();
         self.host.user_view = self.selection.active.map(|at| calc_func::UserView {
             active_sheet: at.sheet(),
             selection: at,
@@ -1834,6 +1856,7 @@ impl HostSession {
 
     /// Delivers each subscription's changed cells; the number of deltas delivered.
     fn deliver_changes(&mut self, cause: DeltaCause, refresh_all: bool) -> usize {
+        self.notify_workbook_context();
         // Rule appearance may depend on unchanged cells and statistics over an entire range, and
         // only inside the rule's areas. Reuse each bounded subscription's reset when its interest
         // meets an area a rule covers now or covered at the last delivery (so removing the last

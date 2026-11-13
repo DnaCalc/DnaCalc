@@ -48,6 +48,197 @@ fn number(host: &HostState, at: CellKey) -> Option<f64> {
         _ => None,
     }
 }
+
+struct NativeProbe {
+    log: Rc<RefCell<Vec<String>>>,
+    targets: RefCell<Vec<Vec<GridArea>>>,
+    switch: RefCell<Option<Rc<Cell<bool>>>>,
+}
+impl calc_host::WorkbookEventObserver for NativeProbe {
+    fn context_changed(&self, session: &HostSession) {
+        *self.switch.borrow_mut() = Some(session.workbook_events_switch());
+    }
+    fn worksheet_change(
+        &self,
+        _: &mut HostSession,
+        _: SheetId,
+        target: &[GridArea],
+    ) -> Result<(), String> {
+        self.log
+            .borrow_mut()
+            .push(format!("native {}", target[0].first().column()));
+        self.targets.borrow_mut().push(target.to_vec());
+        Ok(())
+    }
+    fn after_calculate(&self, _: &mut HostSession) -> Result<(), String> {
+        self.log.borrow_mut().push("after".into());
+        Ok(())
+    }
+}
+struct NestedChange(Rc<RefCell<Vec<String>>>);
+impl WorkbookEventHandler for NestedChange {
+    fn worksheet_change(
+        &self,
+        session: &mut HostSession,
+        _: SheetId,
+        target: &[GridArea],
+    ) -> Result<(), String> {
+        let column = target[0].first().column();
+        self.0.borrow_mut().push(format!("vba {column}"));
+        if column == 1 {
+            enter(session, 3, "7");
+        }
+        Ok(())
+    }
+    fn worksheet_calculate(&self, _: &mut HostSession, _: SheetId) -> Result<(), String> {
+        Ok(())
+    }
+    fn before_save(
+        &self,
+        _: &mut HostSession,
+        _: SaveOperation,
+    ) -> Result<BeforeSaveOutcome, String> {
+        Ok(BeforeSaveOutcome::default())
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn native_observer_follows_nested_vba_and_preserves_all_committed_areas() {
+    let mut session = book();
+    let log = Rc::new(RefCell::new(Vec::new()));
+    let native = Rc::new(NativeProbe {
+        log: log.clone(),
+        targets: RefCell::default(),
+        switch: RefCell::default(),
+    });
+    session.set_workbook_event_observer(Some(native.clone()));
+    session.set_workbook_event_handler(Some(Rc::new(NestedChange(log.clone()))));
+    enter(&mut session, 1, "4");
+    assert_eq!(&*log.borrow(), &["vba 1", "vba 3", "native 3", "native 1"]);
+    session.set_workbook_event_handler(None);
+    native.targets.borrow_mut().clear();
+    let sheet = cell(&session, 1).sheet();
+    let edits = [(2, 2), (2, 3), (3, 2), (3, 3), (8, 6)]
+        .into_iter()
+        .map(|(row, column)| CellEdit::Set {
+            at: CellKey::new(sheet, row, column).unwrap(),
+            input: CellInput::Number(FiniteNumber::new(2.).unwrap()),
+        })
+        .collect();
+    assert!(session.dispatch(SkinIntent::Edit { edits }).accepted());
+    let targets = native.targets.borrow();
+    assert_eq!(targets.len(), 1);
+    assert_eq!(targets[0].len(), 2);
+    assert_eq!(targets[0].iter().map(|a| a.cell_count()).sum::<u64>(), 5);
+    drop(targets);
+    native.switch.borrow().as_ref().unwrap().set(false);
+    assert!(!session.workbook_events_enabled());
+    enter(&mut session, 7, "9");
+    assert_eq!(native.targets.borrow().len(), 1);
+    session.set_workbook_events_enabled(true);
+    assert!(native.switch.borrow().as_ref().unwrap().get());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn native_after_calculate_waits_for_completion_and_includes_clean_commands() {
+    let mut session = book();
+    enter(&mut session, 1, "=1");
+    enter(&mut session, 2, "=A1+1");
+    let log = Rc::new(RefCell::new(Vec::new()));
+    session.set_workbook_event_observer(Some(Rc::new(NativeProbe {
+        log: log.clone(),
+        targets: RefCell::default(),
+        switch: RefCell::default(),
+    })));
+    session.set_calculation_budget(WorkBudget::evaluations(1));
+    session.dispatch(SkinIntent::Recalculate);
+    while session.has_pending_calculation() {
+        assert!(log.borrow().is_empty());
+        session.advance_calculation();
+    }
+    assert_eq!(&*log.borrow(), &["after"]);
+    session.dispatch(SkinIntent::Recalculate);
+    while session.has_pending_calculation() {
+        session.advance_calculation();
+    }
+    assert_eq!(&*log.borrow(), &["after", "after"]);
+    session.set_workbook_events_enabled(false);
+    session.dispatch(SkinIntent::Recalculate);
+    while session.has_pending_calculation() {
+        session.advance_calculation();
+    }
+    assert_eq!(log.borrow().len(), 2);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn native_file_identity_follows_save_as_without_becoming_cell_history() {
+    let mut session = book();
+    session.set_file_identity("Named.xlsx", false);
+    session.set_file_location(r"C:\Models\Named.xlsx".into());
+    enter(&mut session, 1, "7");
+    session.set_workbook_events_enabled(false);
+    session.set_file_identity("Saved.xlsx", false);
+    assert_eq!(session.file_full_name(), "Saved.xlsx");
+    session.set_file_location(r"D:\Other\Saved.xlsx".into());
+    assert!(session.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(session.file_full_name(), r"D:\Other\Saved.xlsx");
+    assert_eq!(
+        session.host().model().definitions().workbook_name(),
+        Some("Saved.xlsx")
+    );
+    // A save of the same file keeps the native location, including when macros change.
+    session.set_file_identity("Saved.xlsx", true);
+    assert_eq!(session.file_full_name(), r"D:\Other\Saved.xlsx");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn native_reference_view_uses_the_workbook_tracker_and_rejects_a_replacement_book() {
+    let mut session = book();
+    enter(&mut session, 1, "7");
+    let at = cell(&session, 1);
+    let model = session.host().model().clone();
+    assert_eq!(
+        calc_host::resolve_reference_text(&model, at, "$A$1"),
+        calc_host::ReferenceTarget::Area(GridArea::cell(at))
+    );
+    let handles = session.host().reference_view();
+    let retained = handles
+        .retain(&calc_host::value::ReferenceLike::cell(at))
+        .unwrap();
+    assert!(
+        session
+            .dispatch(SkinIntent::EditAxis(
+                calc_host::AxisEdit::new(
+                    at.sheet(),
+                    calc_host::Axis::Rows,
+                    calc_host::AxisChange::Insert,
+                    1,
+                    1
+                )
+                .unwrap()
+            ))
+            .accepted()
+    );
+    let current = session.host().reference_view();
+    assert_eq!(
+        current.resolve(&retained).unwrap().areas()[0].first().row(),
+        2
+    );
+    let other = book();
+    assert_eq!(
+        other.host().reference_view().resolve(&retained),
+        Err(calc_func::ReferenceHandleError::ForeignWorkbook)
+    );
+    drop(session);
+    assert_eq!(
+        current.resolve(&retained),
+        Err(calc_func::ReferenceHandleError::ClosedWorkbook)
+    );
+}
 struct Probe {
     a: CellKey,
     b: CellKey,
