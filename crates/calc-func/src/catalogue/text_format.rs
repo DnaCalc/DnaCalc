@@ -112,6 +112,11 @@ fn text(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
             }));
         }
     }
+    if let (CoreRef::Text(value), CoreRef::Number(code)) = (a[0].core_ref(), a[1].core_ref()) {
+        if value.utf16_code_units().is_empty() && code.is_finite() {
+            return Ok(crate::catalogue::kit::text_value(""));
+        }
+    }
     if a[0].is_excel_overflow() {
         let code = text_arg(site, a, 1)?.to_string_lossy();
         if code.eq_ignore_ascii_case("general") || code == "@" {
@@ -127,34 +132,38 @@ fn text(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
         }
         return fail(WorksheetErrorCode::Value);
     }
-    // Integer codes contain neither locale separators nor date tokens. Use
-    // the ordinary renderer: 0 is a placeholder and 1..9 are literals. Excel
-    // 16.0.20527 controls include numeric format arguments 0, 1, 10 and 45000.
+    // These codes read only their supplied decimal separator, when present;
+    // the same renderer handles numbers and plain decimal text read by coercion.
     if site
         .environment()
         .and_then(|e| e.profile.as_ref())
         .is_none()
-        && matches!(
+        && (matches!(
             a[0].core_ref(),
             CoreRef::Number(_) | CoreRef::Empty | CoreRef::Missing
+        ) || matches!(coerce::number(&a[0]), Ok(Numeric::Decimal(_))))
+        && matches!(
+            a[1].core_ref(),
+            CoreRef::Number(_) | CoreRef::Text(_) | CoreRef::Empty
         )
-        && matches!(a[1].core_ref(), CoreRef::Number(_) | CoreRef::Text(_))
     {
         let code = text_arg(site, a, 1)?.to_string_lossy();
-        if format::integer_code(&code) {
+        let known_decimal = site.number_separators().is_some_and(|(decimal, group)| {
+            decimal == "." && group != "." && format::plain_decimal_code(&code)
+        });
+        if code.is_empty() || format::integer_code(&code) || known_decimal {
             let number = site.number_argument(0, &a[0])?;
             let system = site
                 .environment()
                 .map_or(crate::locale::DateSystem::System1900, |e| e.date_system);
-            return rendered(
-                site,
-                format::text(
-                    &crate::locale::format_profile(LocaleId::EnZa),
-                    system,
-                    number,
-                    &code,
-                ),
-            );
+            let mut format_profile = crate::locale::format_profile(LocaleId::EnZa);
+            if known_decimal {
+                let (decimal, group) = site.number_separators().expect("known decimal separators");
+                format_profile = format_profile
+                    .with_separators(decimal, group)
+                    .ok_or_else(|| site.not_modelled(None))?;
+            }
+            return rendered(site, format::text(&format_profile, system, number, &code));
         }
     }
     if let (Some(environment), CoreRef::Number(_), CoreRef::Text(code)) =

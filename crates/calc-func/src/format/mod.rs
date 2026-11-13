@@ -81,6 +81,20 @@ pub(crate) fn integer_code(code: &str) -> bool {
     !digits.is_empty() && digits.bytes().all(|c| c.is_ascii_digit())
 }
 
+/// A decimal code whose only tokens are digits, a literal sign and the known
+/// decimal point, with an integer placeholder. It reads no other locale facts.
+pub(crate) fn plain_decimal_code(code: &str) -> bool {
+    let code = code.strip_prefix('-').unwrap_or(code);
+    let Some((whole, fraction)) = code.split_once('.') else {
+        return false;
+    };
+    !whole.is_empty()
+        && whole.contains('0')
+        && whole.bytes().all(|c| c.is_ascii_digit())
+        && !fraction.is_empty()
+        && fraction.bytes().all(|c| c.is_ascii_digit())
+}
+
 /// The magnitude of `x` rounded to 15 significant digits and then to `places` decimal places
 /// (negative places round to tens, hundreds and so on), a half away from zero, as its integer
 /// digits (no leading zero; empty for zero) and exactly `max(places, 0)` decimal digits.
@@ -1694,6 +1708,11 @@ pub(crate) fn text(
     value: f64,
     code: &str,
 ) -> Rendered {
+    // Excel 16.0.20527: TEXT(-0.1, "") is "-"; positive values
+    // produce empty text. This is specific to TEXT's empty code.
+    if code.is_empty() && value.is_finite() {
+        return Ok(if value < 0.0 { "-" } else { "" }.to_owned());
+    }
     render_text(&localized_code_profile(profile), system, value, code)
 }
 

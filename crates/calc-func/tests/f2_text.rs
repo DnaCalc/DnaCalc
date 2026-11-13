@@ -60,6 +60,75 @@ fn text_digit_only_format_needs_no_locale() {
     );
 }
 
+/// Excel 16.0.20527 readings with a blank format, plain numeric text and
+/// decimal separators supplied without a full locale profile.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn text_without_locale_uses_only_known_format_facts() {
+    use calc_func::locale::{CalcEnvironment, DateSystem};
+    use calc_func::value::{CalcValue, NumericMode};
+    use calc_func::{EvalServices, FunctionCallScratch, Notation, catalogue, invoke};
+    let env = CalcEnvironment::dates(DateSystem::System1900);
+    for (value, format, expected) in [(-0.1, "", "-"), (0.5, "", "")] {
+        text(
+            call_in(&env, None, None, "TEXT", vec![n(value), t(format)]),
+            expected,
+        );
+    }
+    text(
+        call_in(&env, None, None, "TEXT", vec![n(-12.0), CalcValue::empty()]),
+        "-",
+    );
+    let with_locale = CalcEnvironment {
+        profile: Some(calc_func::locale::format_profile(
+            calc_func::locale::LocaleId::EnZa,
+        )),
+        ..env
+    };
+    text(
+        call_in(&with_locale, None, None, "TEXT", vec![n(-0.1), t("")]),
+        "-",
+    );
+    text(
+        call_in(&env, None, None, "TEXT", vec![t("-0.76574825"), n(-1.0)]),
+        "--1",
+    );
+    text(call_in(&env, None, None, "TEXT", vec![t(""), n(0.5)]), "");
+    assert!(call_in(&env, None, None, "TEXT", vec![t("2026-01-02"), n(0.0)]).is_err());
+    let target = catalogue().resolve_surface(Notation::Call, "TEXT").unwrap();
+    let mode = NumericMode::Fast;
+    for (value, code, expected) in [
+        (-12.34, 0.5, "-12.5"),
+        (0.5, -0.5, "-1.5"),
+        (12.34, 10.25, "112.25"),
+    ] {
+        let mut services = EvalServices::new(&mode)
+            .with_environment(&env)
+            .with_number_separators(".", ",");
+        text(
+            invoke(
+                target,
+                &mut Given(vec![n(value), n(code)]),
+                &mut services,
+                &mut FunctionCallScratch::new(),
+            ),
+            expected,
+        );
+    }
+    let mut services = EvalServices::new(&mode)
+        .with_environment(&env)
+        .with_number_separators(".", ",");
+    text(
+        invoke(
+            target,
+            &mut Given(vec![n(0.1), t("0.0")]),
+            &mut services,
+            &mut FunctionCallScratch::new(),
+        ),
+        "0.1",
+    );
+}
+
 /// Excel 16.0.20430, recorded typed Value2 observations, not legacy expected values:
 /// OxFunc-Evidence/runs/w111-broad-typed-20260929-002/outcomes/excel.jsonl.gz, cases
 /// w111typed-00266-textafter-arg1-empty-text, -00274-textbefore-arg1-empty-text and
