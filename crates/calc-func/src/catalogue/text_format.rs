@@ -127,6 +127,36 @@ fn text(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
         }
         return fail(WorksheetErrorCode::Value);
     }
+    // Integer codes contain neither locale separators nor date tokens. Use
+    // the ordinary renderer: 0 is a placeholder and 1..9 are literals. Excel
+    // 16.0.20527 controls include numeric format arguments 0, 1, 10 and 45000.
+    if site
+        .environment()
+        .and_then(|e| e.profile.as_ref())
+        .is_none()
+        && matches!(
+            a[0].core_ref(),
+            CoreRef::Number(_) | CoreRef::Empty | CoreRef::Missing
+        )
+        && matches!(a[1].core_ref(), CoreRef::Number(_) | CoreRef::Text(_))
+    {
+        let code = text_arg(site, a, 1)?.to_string_lossy();
+        if format::integer_code(&code) {
+            let number = site.number_argument(0, &a[0])?;
+            let system = site
+                .environment()
+                .map_or(crate::locale::DateSystem::System1900, |e| e.date_system);
+            return rendered(
+                site,
+                format::text(
+                    &crate::locale::format_profile(LocaleId::EnZa),
+                    system,
+                    number,
+                    &code,
+                ),
+            );
+        }
+    }
     if let (Some(environment), CoreRef::Number(_), CoreRef::Text(code)) =
         (site.environment(), a[0].core_ref(), a[1].core_ref())
     {

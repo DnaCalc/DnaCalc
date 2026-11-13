@@ -895,7 +895,8 @@ pub(crate) fn conditional_edits(
             let dxf = calc_doc_model::DifferentialFormat {
                 fill: Some(calc_doc_model::Fill {
                     pattern_type: Some("solid".into()),
-                    fg_color: Some(color),
+                    // Excel takes a differential format's solid fill from bgColor.
+                    bg_color: Some(color),
                     ..Default::default()
                 }),
                 ..Default::default()

@@ -440,7 +440,7 @@ impl HostState {
             .map(|d| DxfLook {
                 fill: d.fill.as_ref().and_then(|fill| {
                     let color = match fill.pattern_type.as_deref() {
-                        Some("solid") => fill.fg_color.as_ref().or(fill.bg_color.as_ref()),
+                        Some("solid") => fill.bg_color.as_ref(), // Excel: a dxf solid fill is its bgColor
                         _ => fill.bg_color.as_ref().or(fill.fg_color.as_ref()),
                     }?;
                     resolve(self, color)

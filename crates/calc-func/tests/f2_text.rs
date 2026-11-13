@@ -9,6 +9,57 @@ mod f1_support;
 use calc_func::value::WorksheetErrorCode::{Blocked, Calc, Connect, Div0, NA, Value};
 use f1_support::*;
 
+/// Excel 16.0.20527 numeric-format controls, without a supplied locale.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn text_digit_only_format_needs_no_locale() {
+    use calc_func::locale::{CalcEnvironment, DateSystem};
+    let env = CalcEnvironment::dates(DateSystem::System1900);
+    for (value, code, expected) in [
+        (-12.34, 0.0, "-12"),
+        (0.5, 0.0, "1"),
+        (-12.34, 1.0, "-1"),
+        (12.34, 10.0, "112"),
+        (-1.0, 45000.0, "-45001"),
+        (0.0, 365.0, "365"),
+        (-0.1, 365.0, "365"),
+        (-0.5, 365.0, "-365"),
+        (-12.34, -10.0, "--112"),
+        (-0.1, -365.0, "-365"),
+        (-0.5, -365.0, "--365"),
+    ] {
+        text(
+            call_in(&env, None, None, "TEXT", vec![n(value), n(code)]),
+            expected,
+        );
+    }
+    text(
+        call_in(&env, None, None, "TEXT", vec![n(12.34), t("0000")]),
+        "0012",
+    );
+    assert!(call_in(&env, None, None, "TEXT", vec![n(12.34), t("0.00")]).is_err());
+    let with_locale = CalcEnvironment {
+        profile: Some(calc_func::locale::format_profile(
+            calc_func::locale::LocaleId::EnZa,
+        )),
+        ..env
+    };
+    text(
+        call_in(&with_locale, None, None, "TEXT", vec![n(-0.1), t("365")]),
+        "365",
+    );
+    text(
+        call_in(
+            &with_locale,
+            None,
+            None,
+            "TEXT",
+            vec![n(-0.1), t("\"abc\"")],
+        ),
+        "-abc",
+    );
+}
+
 /// Excel 16.0.20430, recorded typed Value2 observations, not legacy expected values:
 /// OxFunc-Evidence/runs/w111-broad-typed-20260929-002/outcomes/excel.jsonl.gz, cases
 /// w111typed-00266-textafter-arg1-empty-text, -00274-textbefore-arg1-empty-text and

@@ -904,7 +904,18 @@ impl Controller {
                 wire::CalculationEvent::Completed {
                     outcome: wire::CalculationOutcome::Incomplete,
                     ..
-                } => self.say("Calculation finished with unresolved results", true),
+                } => {
+                    // Excel with iteration on shows no circular-reference state: the cycle's
+                    // formulas are iterated, and only the diagnostics keep the cycle facts.
+                    let iterating = self
+                        .summary
+                        .with_untracked(|s| s.iteration && s.circular_count > 0);
+                    if iterating {
+                        self.say("Recalculated", false)
+                    } else {
+                        self.say("Calculation finished with unresolved results", true)
+                    }
+                }
                 _ => {}
             }
             return;
@@ -4024,9 +4035,14 @@ impl Controller {
     }
 
     pub fn circular_warning(&self) -> Option<String> {
-        let (first, count) = self
-            .summary
-            .with(|summary| (summary.circular, summary.circular_count));
+        // Excel names a circular reference only while iteration is off.
+        let (first, count) = self.summary.with(|summary| {
+            if summary.iteration {
+                (None, 0)
+            } else {
+                (summary.circular, summary.circular_count)
+            }
+        });
         let at = first.and_then(|key| key.cell())?;
         let label = self.cell_label(at);
         Some(if count > 1 {
