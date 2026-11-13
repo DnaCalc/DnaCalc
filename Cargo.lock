@@ -219,9 +219,12 @@ name = "calc-com-host"
 version = "0.1.0"
 dependencies = [
  "calc-func",
+ "calc-object-model",
  "calc-value",
  "calc-xll-host",
  "cc",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
