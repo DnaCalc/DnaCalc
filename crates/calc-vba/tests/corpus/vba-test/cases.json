@@ -1,0 +1,157 @@
+[
+  {
+    "formula": "=VtSuiteCounts(3,0)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtSuiteCounts(0,2)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtSuiteCounts(2,1)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtSuiteCounts(0,0)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtFailureText(1)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtFailureText(2)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtFailureText(3)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtFailureText(4)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtFailureText(5)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtFailureText(6)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtFailureText(7)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtFailureText(8)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtPasses(1)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtPasses(2)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtPasses(3)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtPasses(4)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtPasses(5)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtPasses(6)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtPasses(7)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtPasses(8)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtPasses(9)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtPasses(10)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtPasses(11)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtPasses(12)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtPasses(13)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtPasses(14)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtPasses(15)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtPendingSkipped()",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtGroups()",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtReporter()",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=VtContext()",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  }
+]

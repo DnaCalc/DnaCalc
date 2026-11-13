@@ -1,0 +1,347 @@
+[
+  {
+    "formula": "=RgxTest(\"a+b\",\"xaaab\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxTest(\"^abc$\",\"abc\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxTest(\"^abc$\",\"xabc\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxTest(\"\\d{3}-\\d{4}\",\"call 555-1234 now\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxTest(\"(a|b)*c\",\"ababc\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxTest(\"colou?r\",\"the color\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxTest(\"[a-c]+\",\"xyz\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxTest(\"[^a-c]+\",\"abcxyz\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxTest(\"a.*?b\",\"aXbXb\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxTest(\"(a)\\1\",\"xaay\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxTest(\"a(?=b)\",\"ab\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxTest(\"a(?!b)\",\"abac\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxTest(\"\\bcat\\b\",\"a cat sat\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxTest(\"\\bcat\\b\",\"concatenate\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxTest(\"x{2,3}\",\"xxxx\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxTest(\"\u00e9+\",\"caf\u00e9\u00e9\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxTest(\"\\w+@\\w+\\.com\",\"mail joe@site.com now\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxTest(\"\",\"\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxTest(\"a|b|\",\"zzz\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxTest(\"ABC\",\"xabcx\",TRUE)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxTest(\"ABC\",\"xabcx\",FALSE)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxTestMultiline(\"^b$\",\"a\"&CHAR(10)&\"b\"&CHAR(10)&\"c\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxTest(\"^b$\",\"b\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxFind(\"\\w+\",\"hello world\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxFind(\"(\\d+)-(\\d+)\",\"tel 12-345\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxFind(\"z\",\"abc\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxFind(\"[a-z]+\\d*\",\"  abc123 def\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxFind(\"(?:ab)+\",\"xababab\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxFind(\"^\\s*$\",\"   \")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxGroup(\"(\\d+)-(\\d+)\",\"tel 12-345\",1)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxGroup(\"(\\d+)-(\\d+)\",\"tel 12-345\",2)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxGroup(\"(\\d+)-(\\d+)\",\"tel 12-345\",3)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxGroup(\"(a)|(b)\",\"b\",1)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxGroup(\"(a)|(b)\",\"b\",2)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxGroup(\"(a)|(b)\",\"b\",0)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxNamed(\"(?<month>[A-Za-z]{3})-(?<day>[0-9]{1,2})-(?<year>[0-9]{4})\",\"On Jul-4-1776 x\",\"month\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxNamed(\"(?<month>[A-Za-z]{3})-(?<day>[0-9]{1,2})-(?<year>[0-9]{4})\",\"On Jul-4-1776 x\",\"year\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxNamed(\"(?<a>x)\",\"x\",\"nope\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxReplace(\"\\s+\",\" \",\"a   b  c\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxReplace(\"(\\w+)@(\\w+)\",\"$2 at $1\",\"joe@site\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxReplace(\"a\",\"$&$&\",\"banana\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxReplace(\"x\",\"\",\"axbxc\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxReplace(\"^\",\"> \",\"line\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxReplace(\"\\d\",\"#\",\"a1b22\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxReplace(\"(a)(b)?\",\"[$1|$2]\",\"ab a\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxSplit(\"[,;]\\s*\",\"a, b;c\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxSplit(\"(-)\",\"1-2-3\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxSplit(\"x\",\"abc\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxSplit(\"\",\"abc\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxSplit(\",\",\",a,,b,\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxJoin(\"\\d+\",\"a1b22c333\",\"$&\",\"|\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxJoin(\"(\\w)(\\d)\",\"a1 b2 c3\",\"$2$1\",\",\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxJoin(\"z\",\"abc\",\"$&\",\"|\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxCount(\"a\",\"banana\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxCount(\"\\d+\",\"a1b22c333\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxCount(\"\",\"abc\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxCount(\"x*\",\"abc\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxValid(\"(\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxValid(\"a**\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxValid(\"[a\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxValid(\"(?<n>x)\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxValid(\"\\p{L}\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxValid(\"a{2\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxValid(\"{\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxValid(\"\\\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxValid(\"a(?:b\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxValid(\"(?i:a)b\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxValid(\"[z-a]\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=RgxValid(\"a{3,2}\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  }
+]
