@@ -126,6 +126,7 @@ impl<'m> Site<'m> {
         if self.environment.as_ref().and_then(|env| env.profile.as_ref()).is_none()
             && self.number_separators().is_some_and(|(decimal, group)| {
                 value_text::rejected_comma_number(text.utf16_code_units(), decimal, group)
+                    || value_text::rejected_comparison_number(text.utf16_code_units(), decimal, group)
             })
         {
             return Err(Exit::Error(WorksheetErrorCode::Value));

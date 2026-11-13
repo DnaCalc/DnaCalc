@@ -117,6 +117,34 @@ pub(crate) fn rejected_comma_number(units: &[u16], decimal: &str, group: &str) -
         && units[..comma].iter().chain(&units[comma + 1..]).all(|&u| (u16::from(b'0')..=u16::from(b'9')).contains(&u))
 }
 
+/// Comparison syntax followed by a plain ASCII number is not numeric text.
+/// Excel 20527 controls cover these operators with the recorded dot/NBSP separators.
+pub(crate) fn rejected_comparison_number(units: &[u16], decimal: &str, group: &str) -> bool {
+    if decimal != "." || group != "\u{00a0}" {
+        return false;
+    }
+    let mut chars = units
+        .iter()
+        .copied()
+        .skip_while(|&u| u == u16::from(b' '))
+        .peekable();
+    if !matches!(chars.next(), Some(0x3c | 0x3d | 0x3e)) {
+        return false;
+    }
+    if matches!(chars.peek(), Some(0x3c | 0x3d | 0x3e)) {
+        chars.next();
+    }
+    let mut digit = false;
+    for u in chars {
+        if (u16::from(b'0')..=u16::from(b'9')).contains(&u) {
+            digit = true;
+        } else if !matches!(u, 0x20 | 0x2b | 0x2d | 0x2e | 0x45 | 0x65) {
+            return false;
+        }
+    }
+    digit
+}
+
 /// Reads `text` (UTF-16 code units).
 pub(crate) fn read(units: &[u16], context: &ReadContext<'_>) -> Result<Reading, Unread> {
     let mut text = String::with_capacity(units.len());

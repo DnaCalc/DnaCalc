@@ -325,8 +325,24 @@ pub(crate) fn fixed(
     places: i32,
     no_commas: bool,
 ) -> Rendered {
+    fixed_with_separators(profile, None, value, places, no_commas)
+}
+
+/// A recorded decimal separator also suffices when no grouping is needed.
+pub(crate) fn fixed_with_separators<'a>(
+    profile: Option<&'a FormatProfile>,
+    separators: Option<(&'a str, &'a str)>,
+    value: f64,
+    places: i32,
+    no_commas: bool,
+) -> Rendered {
     let decimal_separator = if places > 0 {
-        Some(profile.ok_or(Failure::NotModelled)?.decimal_separator)
+        Some(
+            profile
+                .map(|p| p.decimal_separator)
+                .or_else(|| separators.map(|s| s.0))
+                .ok_or(Failure::NotModelled)?,
+        )
     } else {
         None
     };

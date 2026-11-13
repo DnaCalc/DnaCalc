@@ -28,6 +28,7 @@ pub(super) fn read_value(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step
             if site.environment().is_none_or(|env| env.profile.is_none())
                 && site.number_separators().is_some_and(|(decimal, group)| {
                     value_text::rejected_comma_number(text.utf16_code_units(), decimal, group)
+                        || value_text::rejected_comparison_number(text.utf16_code_units(), decimal, group)
                 })
             {
                 return fail(WorksheetErrorCode::Value);
@@ -261,12 +262,17 @@ fn text(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     )
 }
 
-/// The places of FIXED and DOLLAR: 2 when the call leaves them out; beyond 127 is #VALUE!.
-fn places(site: &Site<'_>, a: &[CalcValue]) -> Step<i32> {
+/// The places of FIXED and DOLLAR: 2 when the call leaves them out.
+fn places(site: &Site<'_>, a: &[CalcValue]) -> Step<f64> {
     if a.len() < 2 || a[1].is_missing() {
-        return Ok(2);
+        return Ok(2.0);
     }
-    let places = num(site, a, 1)?.trunc();
+    let number = num(site, a, 1)?;
+    // Excel 20527 uses the shared tolerant integer boundary on the magnitude.
+    Ok(crate::ported::text_kernels::date_integer_floor(number.abs()).copysign(number))
+}
+
+fn checked_places(places: f64) -> Step<i32> {
     if places > 127.0 {
         return fail(WorksheetErrorCode::Value);
     }
@@ -277,20 +283,25 @@ fn fixed(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     let number = num(site, a, 0)?;
     let places = places(site, a)?;
     let no_commas = a.len() > 2 && flag(site, a, 2)?;
+    let places = checked_places(places)?;
     let profile = site
         .environment()
         .and_then(|environment| environment.profile.as_ref());
-    rendered(site, format::fixed(profile, number, places, no_commas))
+    rendered(
+        site,
+        format::fixed_with_separators(profile, site.number_separators(), number, places, no_commas),
+    )
 }
 
 fn dollar(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     let number = num(site, a, 0)?;
     // W111 locale-profile 00193: unlike FIXED, an explicit placeholder means zero places.
     let places = if a.get(1).is_some_and(CalcValue::is_missing) {
-        0
+        0.0
     } else {
         places(site, a)?
     };
+    let places = checked_places(places)?;
     let (_, profile) = profile(site)?;
     rendered(site, format::dollar(profile, number, places))
 }

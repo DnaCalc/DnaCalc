@@ -98,11 +98,11 @@ ported_shared_family! {
     }
     11 lognorm_inv |s, a, sv| {
         let [p, m, sd_] = nums::<3>(s, a)?;
-        out(s, nl::lognorm_inv_kernel(p, m, sd_))
+        out_with_subnormal(s, nl::lognorm_inv_kernel(p, m, sd_))
     }
     12 loginv |s, a, sv| {
         let [p, m, sd_] = nums::<3>(s, a)?;
-        out(s, nl::lognorm_inv_kernel(p, m, sd_))
+        out_with_subnormal(s, nl::lognorm_inv_kernel(p, m, sd_))
     }
     13 confidence |s, a, sv| {
         let [alpha, sd_, n] = nums::<3>(s, a)?;

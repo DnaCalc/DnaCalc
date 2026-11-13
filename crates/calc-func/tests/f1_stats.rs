@@ -10,6 +10,23 @@ use calc_func::SubtotalExclusions;
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Value};
 use f1_support::*;
 
+/// Excel 20527 returns these subnormal inverse-lognormal results as numbers.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn lognormal_inverse_publishes_subnormal_results() {
+    for name in ["LOGINV", "LOGNORM.INV"] {
+        for (mean, bits) in [
+            (-709.0, 0x0008_bfe5_5de0_2338),
+            (-720.0, 0x0000_0009_93b4_dc95),
+            (-735.0, 0x0000_0000_0000_3127),
+            (-745.0, 0x0000_0000_0000_0001),
+            (-746.0, 0),
+        ] {
+            exact(call(name, vec![n(0.5), n(mean), n(1.0)]), f64::from_bits(bits));
+        }
+    }
+}
+
 /// Excel 20527: scalar sigma does not bypass the sample-size check.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

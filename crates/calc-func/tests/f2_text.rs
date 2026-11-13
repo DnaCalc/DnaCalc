@@ -9,6 +9,106 @@ mod f1_support;
 use calc_func::value::WorksheetErrorCode::{Blocked, Calc, Connect, Div0, NA, Value};
 use f1_support::*;
 
+/// Excel 20527: a decimal separator is sufficient when FIXED needs no grouping.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn fixed_uses_recorded_decimal_without_guessing_grouping() {
+    use calc_func::value::NumericMode;
+    use calc_func::{EvalServices, FunctionCallScratch, Notation, catalogue, invoke};
+    let target = catalogue().resolve_surface(Notation::Call, "FIXED").unwrap();
+    for (value, places, no_commas, expected) in [
+        (-0.08094972, 2.0, false, "-0.08"),
+        (1234.567, 2.0, true, "1234.57"),
+        (0.75, 1.0, false, "0.8"),
+        (0.0, 2.0, false, "0.00"),
+        (-913.2312911517463, 2.0, true, "-913.23"),
+        (-775.0742253257873, 1.0, true, "-775.1"),
+        (-497.9144014035945, 2.0, true, "-497.91"),
+        (126.60956256671375, 5.0, true, "126.60956"),
+        (532.5360989077642, 5.0, true, "532.53610"),
+        (112.94462000278281, -1.0, true, "110"),
+    ] {
+        let mut services =
+            EvalServices::new(&NumericMode::Fast).with_number_separators(".", "\u{a0}");
+        text(
+            invoke(
+                target,
+                &mut Given(vec![n(value), n(places), b(no_commas)]),
+                &mut services,
+                &mut FunctionCallScratch::new(),
+            ),
+            expected,
+        );
+    }
+    let mut partial = EvalServices::new(&NumericMode::Fast).with_number_separators(".", "\u{a0}");
+    refused(invoke(
+        target,
+        &mut Given(vec![n(1234.567), n(2.0), b(false)]),
+        &mut partial,
+        &mut FunctionCallScratch::new(),
+    ));
+    let mut unknown = EvalServices::new(&NumericMode::Fast);
+    refused(invoke(
+        target,
+        &mut Given(vec![n(12.0), n(2.0), b(true)]),
+        &mut unknown,
+        &mut FunctionCallScratch::new(),
+    ));
+}
+
+/// Excel 20527 uses the tolerant integer boundary on the magnitude of places.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn fixed_and_dollar_use_tolerant_places_and_argument_order() {
+    use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
+    let env = CalcEnvironment {
+        profile: Some(format_profile(LocaleId::CurrentExcelHost)),
+        ..CalcEnvironment::dates(DateSystem::System1900)
+    };
+    let edge = 1.0_f64 - (2.0_f64.powi(-22) + 2.0_f64.powi(-33));
+    let below = f64::from_bits(edge.to_bits() - 1);
+    for (places, fixed, dollar) in [
+        (edge, "12345.7", "R12 345.7"),
+        (below, "12346", "R12 346"),
+        (-edge, "12350", "R12 350"),
+        (-below, "12346", "R12 346"),
+    ] {
+        text(call_in(&env, None, None, "FIXED", vec![n(12345.6789), n(places), b(true)]), fixed);
+        text(call_in(&env, None, None, "DOLLAR", vec![n(12345.6789), n(places)]), dollar);
+    }
+    error(call_in(&env, None, None, "FIXED", vec![n(12.0), n(128.0), e(Div0)]), Div0);
+    error(call_in(&env, None, None, "FIXED", vec![n(12.0), n(127.9999999), b(true)]), Value);
+    error(call_in(&env, None, None, "DOLLAR", vec![n(12.0), n(127.9999999)]), Value);
+}
+
+/// Excel 20527 rejects comparison-prefixed numbers as numeric arguments.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn comparison_text_is_not_numeric_under_recorded_separators() {
+    use calc_func::value::NumericMode;
+    use calc_func::{EvalServices, FunctionCallScratch, Notation, catalogue, invoke};
+    for name in ["T.INV", "GAMMA.INV", "F.INV", "BETA.INV", "VALUE"] {
+        let target = catalogue().resolve_surface(Notation::Call, name).unwrap();
+        for input in [
+            ">1", "<=0", "<1", ">=1", "<>1", "=1", "  >1  ",
+            ">1e3", "<=-0.5", ">+1", " < 3.5 ", "==1", "<> 123",
+        ] {
+            let args = match name {
+                "VALUE" => vec![t(input)],
+                "T.INV" => vec![n(0.5), t(input)],
+                _ => vec![n(0.5), n(2.0), t(input)],
+            };
+            let mut services =
+                EvalServices::new(&NumericMode::Fast).with_number_separators(".", "\u{a0}");
+            error(
+                invoke(target, &mut Given(args), &mut services, &mut FunctionCallScratch::new()),
+                Value,
+            );
+        }
+    }
+    refused(call("VALUE", vec![t(">1")]));
+}
+
 /// Excel 16.0.20527 numeric-format controls, without a supplied locale.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
