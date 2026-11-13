@@ -25,7 +25,8 @@ use windows::{
 #[derive(Default)]
 pub(crate) struct Subscriptions {
     next: u32,
-    sinks: BTreeMap<u32, IDispatch>,
+    // Snapshot clones must not call a foreign AddRef while `connections` is borrowed.
+    sinks: BTreeMap<u32, Rc<IDispatch>>,
 }
 pub(crate) type Connections = RefCell<HashMap<(ObjectRef, InterfaceId), Subscriptions>>;
 
@@ -125,7 +126,7 @@ impl IConnectionPoint_Impl for Point_Impl {
             .checked_add(1)
             .ok_or_else(|| windows::core::Error::from_hresult(CONNECT_E_ADVISELIMIT))?;
         connections.next = cookie;
-        connections.sinks.insert(cookie, sink);
+        connections.sinks.insert(cookie, Rc::new(sink));
         Ok(cookie)
     }
     fn Unadvise(&self, cookie: u32) -> windows::core::Result<()> {
@@ -226,7 +227,7 @@ impl State {
         if args.len() != member.arguments().count() {
             return Err(AutoError::Status(DISP_E_BADPARAMCOUNT.0));
         }
-        let snapshot: Vec<_> = self
+        let snapshot: Vec<Rc<IDispatch>> = self
             .connections
             .borrow()
             .get(&(source.clone(), interface))

@@ -750,6 +750,86 @@ fn event_source_owns_cookies_and_disconnects_retained_ranges() {
     );
 }
 
+type SinkAddRef = unsafe extern "system" fn(*mut c_void) -> u32;
+struct SinkAddHook {
+    original: SinkAddRef,
+    remove: Rc<RefCell<Option<(IConnectionPoint, u32)>>>,
+    result: Rc<Cell<HRESULT>>,
+}
+thread_local! { static SINK_ADD_HOOK: RefCell<Option<SinkAddHook>> = const { RefCell::new(None) }; }
+unsafe extern "system" fn sink_add_ref_unadvises(this: *mut c_void) -> u32 {
+    let (original, remove, result) = SINK_ADD_HOOK.with(|hook| {
+        let hook = hook.borrow();
+        let hook = hook.as_ref().unwrap();
+        (hook.original, hook.remove.clone(), hook.result.clone())
+    });
+    let count = unsafe { original(this) };
+    let removed = remove.take();
+    if let Some((point, cookie)) = removed {
+        result.set(unsafe { point.Unadvise(cookie) }.map_or_else(|e| e.code(), |()| S_OK));
+    }
+    count
+}
+struct SinkVtableHook {
+    pointer: *mut *const *const c_void,
+    original: *const *const c_void,
+    table: Vec<*const c_void>,
+}
+impl Drop for SinkVtableHook {
+    fn drop(&mut self) {
+        unsafe { *self.pointer = self.original };
+        SINK_ADD_HOOK.with(|hook| {
+            hook.borrow_mut().take();
+        });
+    }
+}
+
+/// Native-only: a provider's AddRef can synchronously Unadvise; snapshotting must allow this reentry.
+#[test]
+fn event_snapshots_do_not_borrow_subscriptions_across_provider_add_ref() {
+    let _apartment = Apartment::new();
+    let projection = projection();
+    let app = projection.application().unwrap();
+    let container = app.cast::<IConnectionPointContainer>().unwrap();
+    let point = unsafe { container.FindConnectionPoint(&guid(id("AppEvents"))) }.unwrap();
+    let state = Rc::new(EventState::default());
+    let sink: AppEvents = EventProbe {
+        state: state.clone(),
+    }
+    .into();
+    let pointer = sink.as_raw() as *mut *const *const c_void;
+    let original = unsafe { *pointer };
+    let mut patch = SinkVtableHook {
+        pointer,
+        original,
+        table: unsafe { std::slice::from_raw_parts(original, 7) }.to_vec(),
+    };
+    let remove = Rc::new(RefCell::new(None));
+    let result = Rc::new(Cell::new(S_OK));
+    SINK_ADD_HOOK.with(|hook| {
+        *hook.borrow_mut() = Some(SinkAddHook {
+            original: unsafe { std::mem::transmute(patch.table[1]) }, // ubs:ignore - IUnknown slot 1 is AddRef with this exact ABI; the copied vtable stays owned by the guard.
+            remove: remove.clone(),
+            result: result.clone(),
+        });
+    });
+    patch.table[1] = sink_add_ref_unadvises as *const c_void;
+    unsafe { *pointer = patch.table.as_ptr() };
+    let cookie = unsafe { point.Advise(&sink.cast::<IUnknown>().unwrap()) }.unwrap();
+    *remove.borrow_mut() = Some((point.clone(), cookie));
+    projection.after_calculate().unwrap();
+    assert_eq!(state.calculations.get(), 1);
+    assert_eq!(result.get(), S_OK);
+    // Exercise the armed hook explicitly if snapshotting retained a Rust lease instead.
+    let held = sink.clone();
+    assert!(remove.borrow().is_none());
+    assert_eq!(result.get(), S_OK);
+    drop(held);
+    projection.after_calculate().unwrap();
+    assert_eq!(state.calculations.get(), 1);
+    drop(patch);
+}
+
 /// Native-only: event acquisitions release once with no subscribers, disabled events or a failed raise.
 #[test]
 fn event_arguments_release_with_no_delivery_and_on_errors() {
