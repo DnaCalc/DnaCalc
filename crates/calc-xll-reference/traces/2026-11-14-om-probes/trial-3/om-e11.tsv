@@ -1,0 +1,139 @@
+case	route	what	value
+Union(B2:C3, F5, C3:D4)	pia	make	String:"$B$2:$C$3,$F$5,$C$3:$D$4" len=24
+Union(B2:C3, F5, C3:D4)	pia	Areas.Count	Int32:3 hex=00000003
+Union(B2:C3, F5, C3:D4)	pia	Count	Int32:9 hex=00000009
+Union(B2:C3, F5, C3:D4)	pia	CountLarge	Int64:9
+Union(B2:C3, F5, C3:D4)	pia	Cells.Count	Int32:9 hex=00000009
+Union(B2:C3, F5, C3:D4)	pia	Address	String:"$B$2:$C$3,$F$5,$C$3:$D$4" len=24
+Union(B2:C3, F5, C3:D4)	pia	Rows.Count	Int32:2 hex=00000002
+Union(B2:C3, F5, C3:D4)	pia	Columns.Count	Int32:2 hex=00000002
+Union(B2:C3, F5, C3:D4)	pia	Row	Int32:2 hex=00000002
+Union(B2:C3, F5, C3:D4)	pia	Column	Int32:2 hex=00000002
+Union(B2:C3, F5, C3:D4)	pia	Areas	String:"1:$B$2:$C$3/4 2:$F$5/1 3:$C$3:$D$4/4" len=36
+Union(B2:C3, F5, C3:D4)	pia	For Each order	String:"9: B2 C2 B3 C3 F5 C3 D3 C4 D4" len=29
+Union(B2:C3, F5, C3:D4)	pia	Value2 shape	Array:Object rank2 [1..2] [1..2] (1,1)=null (1,2)=null (2,1)=null (2,2)=null
+Union(B2:C3, F5, C3:D4)	pia	Address(External)	String:"[Book5]S!$B$2:$C$3,$F$5,$C$3:$D$4" len=33
+Union(B2:C3, F5, C3:D4)	dynamic	Count	Int32:9 hex=00000009
+Union(B2:C3, F5, C3:D4)	dynamic	Address	String:"$B$2:$C$3,$F$5,$C$3:$D$4" len=24
+Union(B2:C3, F5, C3:D4)	dynamic	Rows.Count	Int32:2 hex=00000002
+Union(B2:C3, F5, C3:D4)	disp	Count	dispid=0x76 cArgs=0 HRESULT=00000000 result=VT_I4:9
+Union(B2:C3, F5, C3:D4)	vtable	Count	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+Union(B2:C3, F5, C3:D4)	disp	Value2	dispid=0x56C cArgs=0 HRESULT=00000000 result=VT_ARRAY|VT_VARIANT dims=2 elem=VT_VARIANT [1..2] [1..2] (1,1)=VT_EMPTY (2,1)=VT_EMPTY (1,2)=VT_EMPTY (2,2)=VT_EMPTY
+Union(C3:D4, F5, B2:C3) reversed	pia	make	String:"$C$3:$D$4,$F$5,$B$2:$C$3" len=24
+Union(C3:D4, F5, B2:C3) reversed	pia	Areas.Count	Int32:3 hex=00000003
+Union(C3:D4, F5, B2:C3) reversed	pia	Count	Int32:9 hex=00000009
+Union(C3:D4, F5, B2:C3) reversed	pia	CountLarge	Int64:9
+Union(C3:D4, F5, B2:C3) reversed	pia	Cells.Count	Int32:9 hex=00000009
+Union(C3:D4, F5, B2:C3) reversed	pia	Address	String:"$C$3:$D$4,$F$5,$B$2:$C$3" len=24
+Union(C3:D4, F5, B2:C3) reversed	pia	Rows.Count	Int32:2 hex=00000002
+Union(C3:D4, F5, B2:C3) reversed	pia	Columns.Count	Int32:2 hex=00000002
+Union(C3:D4, F5, B2:C3) reversed	pia	Row	Int32:3 hex=00000003
+Union(C3:D4, F5, B2:C3) reversed	pia	Column	Int32:3 hex=00000003
+Union(C3:D4, F5, B2:C3) reversed	pia	Areas	String:"1:$C$3:$D$4/4 2:$F$5/1 3:$B$2:$C$3/4" len=36
+Union(C3:D4, F5, B2:C3) reversed	pia	For Each order	String:"9: C3 D3 C4 D4 F5 B2 C2 B3 C3" len=29
+Union(C3:D4, F5, B2:C3) reversed	pia	Value2 shape	Array:Object rank2 [1..2] [1..2] (1,1)=null (1,2)=null (2,1)=null (2,2)=null
+Union(C3:D4, F5, B2:C3) reversed	pia	Address(External)	String:"[Book5]S!$C$3:$D$4,$F$5,$B$2:$C$3" len=33
+Union(F5, B2:C3, C3:D4) F5 first	pia	make	String:"$F$5,$B$2:$C$3,$C$3:$D$4" len=24
+Union(F5, B2:C3, C3:D4) F5 first	pia	Areas.Count	Int32:3 hex=00000003
+Union(F5, B2:C3, C3:D4) F5 first	pia	Count	Int32:9 hex=00000009
+Union(F5, B2:C3, C3:D4) F5 first	pia	CountLarge	Int64:9
+Union(F5, B2:C3, C3:D4) F5 first	pia	Cells.Count	Int32:9 hex=00000009
+Union(F5, B2:C3, C3:D4) F5 first	pia	Address	String:"$F$5,$B$2:$C$3,$C$3:$D$4" len=24
+Union(F5, B2:C3, C3:D4) F5 first	pia	Rows.Count	Int32:1 hex=00000001
+Union(F5, B2:C3, C3:D4) F5 first	pia	Columns.Count	Int32:1 hex=00000001
+Union(F5, B2:C3, C3:D4) F5 first	pia	Row	Int32:5 hex=00000005
+Union(F5, B2:C3, C3:D4) F5 first	pia	Column	Int32:6 hex=00000006
+Union(F5, B2:C3, C3:D4) F5 first	pia	Areas	String:"1:$F$5/1 2:$B$2:$C$3/4 3:$C$3:$D$4/4" len=36
+Union(F5, B2:C3, C3:D4) F5 first	pia	For Each order	String:"9: F5 B2 C2 B3 C3 C3 D3 C4 D4" len=29
+Union(F5, B2:C3, C3:D4) F5 first	pia	Value2 shape	null
+Union(F5, B2:C3, C3:D4) F5 first	pia	Address(External)	String:"[Book5]S!$F$5,$B$2:$C$3,$C$3:$D$4" len=33
+Union(B2:C3, B2:C3) same area twice	pia	make	String:"$B$2:$C$3" len=9
+Union(B2:C3, B2:C3) same area twice	pia	Areas.Count	Int32:1 hex=00000001
+Union(B2:C3, B2:C3) same area twice	pia	Count	Int32:4 hex=00000004
+Union(B2:C3, B2:C3) same area twice	pia	CountLarge	Int64:4
+Union(B2:C3, B2:C3) same area twice	pia	Cells.Count	Int32:4 hex=00000004
+Union(B2:C3, B2:C3) same area twice	pia	Address	String:"$B$2:$C$3" len=9
+Union(B2:C3, B2:C3) same area twice	pia	Rows.Count	Int32:2 hex=00000002
+Union(B2:C3, B2:C3) same area twice	pia	Columns.Count	Int32:2 hex=00000002
+Union(B2:C3, B2:C3) same area twice	pia	Row	Int32:2 hex=00000002
+Union(B2:C3, B2:C3) same area twice	pia	Column	Int32:2 hex=00000002
+Union(B2:C3, B2:C3) same area twice	pia	Areas	String:"1:$B$2:$C$3/4" len=13
+Union(B2:C3, B2:C3) same area twice	pia	For Each order	String:"4: B2 C2 B3 C3" len=14
+Union(B2:C3, B2:C3) same area twice	pia	Value2 shape	Array:Object rank2 [1..2] [1..2] (1,1)=null (1,2)=null (2,1)=null (2,2)=null
+Union(B2:C3, B2:C3) same area twice	pia	Address(External)	String:"[Book5]S!$B$2:$C$3" len=18
+Union(B2:C3, B4:C5) adjacent	pia	make	String:"$B$2:$C$5" len=9
+Union(B2:C3, B4:C5) adjacent	pia	Areas.Count	Int32:1 hex=00000001
+Union(B2:C3, B4:C5) adjacent	pia	Count	Int32:8 hex=00000008
+Union(B2:C3, B4:C5) adjacent	pia	CountLarge	Int64:8
+Union(B2:C3, B4:C5) adjacent	pia	Cells.Count	Int32:8 hex=00000008
+Union(B2:C3, B4:C5) adjacent	pia	Address	String:"$B$2:$C$5" len=9
+Union(B2:C3, B4:C5) adjacent	pia	Rows.Count	Int32:4 hex=00000004
+Union(B2:C3, B4:C5) adjacent	pia	Columns.Count	Int32:2 hex=00000002
+Union(B2:C3, B4:C5) adjacent	pia	Row	Int32:2 hex=00000002
+Union(B2:C3, B4:C5) adjacent	pia	Column	Int32:2 hex=00000002
+Union(B2:C3, B4:C5) adjacent	pia	Areas	String:"1:$B$2:$C$5/8" len=13
+Union(B2:C3, B4:C5) adjacent	pia	For Each order	String:"8: B2 C2 B3 C3 B4 C4 B5 C5" len=26
+Union(B2:C3, B4:C5) adjacent	pia	Value2 shape	Array:Object rank2 [1..4] [1..2] (1,1)=null (1,2)=null (2,1)=null (2,2)=null (3,1)=null (3,2)=null (4,1)=null (4,2)=null
+Union(B2:C3, B4:C5) adjacent	pia	Address(External)	String:"[Book5]S!$B$2:$C$5" len=18
+Range("B2:C3,F5,C3:D4")	pia	make	String:"$B$2:$C$3,$F$5,$C$3:$D$4" len=24
+Range("B2:C3,F5,C3:D4")	pia	Areas.Count	Int32:3 hex=00000003
+Range("B2:C3,F5,C3:D4")	pia	Count	Int32:9 hex=00000009
+Range("B2:C3,F5,C3:D4")	pia	CountLarge	Int64:9
+Range("B2:C3,F5,C3:D4")	pia	Cells.Count	Int32:9 hex=00000009
+Range("B2:C3,F5,C3:D4")	pia	Address	String:"$B$2:$C$3,$F$5,$C$3:$D$4" len=24
+Range("B2:C3,F5,C3:D4")	pia	Rows.Count	Int32:2 hex=00000002
+Range("B2:C3,F5,C3:D4")	pia	Columns.Count	Int32:2 hex=00000002
+Range("B2:C3,F5,C3:D4")	pia	Row	Int32:2 hex=00000002
+Range("B2:C3,F5,C3:D4")	pia	Column	Int32:2 hex=00000002
+Range("B2:C3,F5,C3:D4")	pia	Areas	String:"1:$B$2:$C$3/4 2:$F$5/1 3:$C$3:$D$4/4" len=36
+Range("B2:C3,F5,C3:D4")	pia	For Each order	String:"9: B2 C2 B3 C3 F5 C3 D3 C4 D4" len=29
+Range("B2:C3,F5,C3:D4")	pia	Value2 shape	Array:Object rank2 [1..2] [1..2] (1,1)=null (1,2)=null (2,1)=null (2,2)=null
+Range("B2:C3,F5,C3:D4")	pia	Address(External)	String:"[Book5]S!$B$2:$C$3,$F$5,$C$3:$D$4" len=33
+Union across sheets S!A1, T!A1	pia	Union	raised COMException HRESULT=800A03EC message="Exception from HRESULT: 0x800A03EC"
+Union across sheets S!A1, T!A1	dynamic	Union	raised COMException HRESULT=800A03EC message="Unable to get the Union property of the Application class"
+Union across sheets S!A1, T!A1	disp	Union with EXCEPINFO	dispid=0x30B cArgs=2 HRESULT=80020009 EXCEPINFO wCode=0 scode=800A03EC source="Microsoft Excel" description="Union method of Application class failed" helpfile="xlmain11.chm" helpcontext=0 argErr=-1 IErrorInfo=none
+Union across sheets S!A1, T!A1	disp	Union EXCEPINFO null	dispid=0x30B cArgs=2 HRESULT=800A03EC (no EXCEPINFO passed) argErr=-1 IErrorInfo=none
+Range("S!A1,T!A1")	pia	Application.Range	raised COMException HRESULT=800A03EC message="Exception from HRESULT: 0x800A03EC"
+Union with ranges of a second workbook	pia	Union(other!A1, other!B2), other book active	String:"$A$1,$B$2" len=9
+Union with ranges of a second workbook	pia	Union(S!A1, other!A1)	raised COMException HRESULT=800A03EC message="Exception from HRESULT: 0x800A03EC"
+Address default	pia	Union(B2:C3,F5,C3:D4)	String:"$B$2:$C$3,$F$5,$C$3:$D$4" len=24
+Address default	pia	single B2:C3	String:"$B$2:$C$3" len=9
+Address RowAbsolute=False	pia	Union(B2:C3,F5,C3:D4)	String:"$B2:$C3,$F5,$C3:$D4" len=19
+Address RowAbsolute=False	pia	single B2:C3	String:"$B2:$C3" len=7
+Address ColumnAbsolute=False	pia	Union(B2:C3,F5,C3:D4)	String:"B$2:C$3,F$5,C$3:D$4" len=19
+Address ColumnAbsolute=False	pia	single B2:C3	String:"B$2:C$3" len=7
+Address RowAbsolute=False ColumnAbsolute=False	pia	Union(B2:C3,F5,C3:D4)	String:"B2:C3,F5,C3:D4" len=14
+Address RowAbsolute=False ColumnAbsolute=False	pia	single B2:C3	String:"B2:C3" len=5
+Address xlR1C1	pia	Union(B2:C3,F5,C3:D4)	String:"R2C2:R3C3,R5C6,R3C3:R4C4" len=24
+Address xlR1C1	pia	single B2:C3	String:"R2C2:R3C3" len=9
+Address xlR1C1 RowAbsolute=False ColumnAbsolute=False (no RelativeTo)	pia	Union(B2:C3,F5,C3:D4)	String:"R[1]C[1]:R[2]C[2],R[4]C[5],R[2]C[2]:R[3]C[3]" len=44
+Address xlR1C1 RowAbsolute=False ColumnAbsolute=False (no RelativeTo)	pia	single B2:C3	String:"R[1]C[1]:R[2]C[2]" len=17
+Address xlR1C1 RowAbsolute=False ColumnAbsolute=False RelativeTo=A1	pia	Union(B2:C3,F5,C3:D4)	String:"R[1]C[1]:R[2]C[2],R[4]C[5],R[2]C[2]:R[3]C[3]" len=44
+Address xlR1C1 RowAbsolute=False ColumnAbsolute=False RelativeTo=A1	pia	single B2:C3	String:"R[1]C[1]:R[2]C[2]" len=17
+Address xlR1C1 RowAbsolute=False ColumnAbsolute=False RelativeTo=C3	pia	Union(B2:C3,F5,C3:D4)	String:"R[-1]C[-1]:RC,R[2]C[3],RC:R[1]C[1]" len=34
+Address xlR1C1 RowAbsolute=False ColumnAbsolute=False RelativeTo=C3	pia	single B2:C3	String:"R[-1]C[-1]:RC" len=13
+Address xlR1C1 RowAbsolute=False RelativeTo=C3	pia	Union(B2:C3,F5,C3:D4)	String:"R[-1]C2:RC3,R[2]C6,RC3:R[1]C4" len=29
+Address xlR1C1 RowAbsolute=False RelativeTo=C3	pia	single B2:C3	String:"R[-1]C2:RC3" len=11
+Address xlR1C1 absolute RelativeTo=C3	pia	Union(B2:C3,F5,C3:D4)	String:"R2C2:R3C3,R5C6,R3C3:R4C4" len=24
+Address xlR1C1 absolute RelativeTo=C3	pia	single B2:C3	String:"R2C2:R3C3" len=9
+Address xlA1 RowAbsolute=False ColumnAbsolute=False RelativeTo=C3	pia	Union(B2:C3,F5,C3:D4)	String:"B2:C3,F5,C3:D4" len=14
+Address xlA1 RowAbsolute=False ColumnAbsolute=False RelativeTo=C3	pia	single B2:C3	String:"B2:C3" len=5
+Address External=True	pia	Union(B2:C3,F5,C3:D4)	String:"[Book5]S!$B$2:$C$3,$F$5,$C$3:$D$4" len=33
+Address External=True	pia	single B2:C3	String:"[Book5]S!$B$2:$C$3" len=18
+Address External=True xlR1C1	pia	Union(B2:C3,F5,C3:D4)	String:"[Book5]S!R2C2:R3C3,R5C6,R3C3:R4C4" len=33
+Address External=True xlR1C1	pia	single B2:C3	String:"[Book5]S!R2C2:R3C3" len=18
+Address External=True xlR1C1 relative RelativeTo=C3	pia	Union(B2:C3,F5,C3:D4)	String:"[Book5]S!R[-1]C[-1]:RC,R[2]C[3],RC:R[1]C[1]" len=43
+Address External=True xlR1C1 relative RelativeTo=C3	pia	single B2:C3	String:"[Book5]S!R[-1]C[-1]:RC" len=22
+Address External=False	pia	Union(B2:C3,F5,C3:D4)	String:"$B$2:$C$3,$F$5,$C$3:$D$4" len=24
+Address External=False	pia	single B2:C3	String:"$B$2:$C$3" len=9
+Address RelativeTo on another sheet	pia	xlR1C1 relative RelativeTo=T!C3	String:"R[-1]C[-1]:RC,R[2]C[3],RC:R[1]C[1]" len=34
+Address RelativeTo a multi-cell range	pia	xlR1C1 relative RelativeTo=C3:D4	String:"R[-1]C[-1]:RC,R[2]C[3],RC:R[1]C[1]" len=34
+AddressLocal R1C1	pia	AddressLocal xlR1C1	String:"R2C2:R3C3,R5C6,R3C3:R4C4" len=24
+assign scalar 7 to Range("B2:C3,F5:G6").Value2	pia	assign	String:"ok" len=2
+assign scalar 7 to Range("B2:C3,F5:G6").Value2	pia	after	String:"B2=Double:7 bits=401C000000000000 C2=Double:7 bits=401C000000000000 B3=Double:7 bits=401C000000000000 C3=Double:7 bits=401C000000000000 F5=Double:7 bits=401C000000000000 G5=Double:7 bits=401C000000000000 F6=Double:7 bits=401C000000000000 G6=Double:7 bits=401C000000000000 D4=null H7=null" len=287
+assign 2x2 {1,2;3,4} to Range("B2:C3,F5:G6").Value2	pia	assign	String:"ok" len=2
+assign 2x2 {1,2;3,4} to Range("B2:C3,F5:G6").Value2	pia	after	String:"B2=Double:1 bits=3FF0000000000000 C2=Double:2 bits=4000000000000000 B3=Double:3 bits=4008000000000000 C3=Double:4 bits=4010000000000000 F5=Double:1 bits=3FF0000000000000 G5=Double:2 bits=4000000000000000 F6=Double:3 bits=4008000000000000 G6=Double:4 bits=4010000000000000 D4=null H7=null" len=287
+assign 1x1 {9} to Range("B2:C3,F5:G6").Value2	pia	assign	String:"ok" len=2
+assign 1x1 {9} to Range("B2:C3,F5:G6").Value2	pia	after	String:"B2=Double:9 bits=4022000000000000 C2=Double:9 bits=4022000000000000 B3=Double:9 bits=4022000000000000 C3=Double:9 bits=4022000000000000 F5=Double:9 bits=4022000000000000 G5=Double:9 bits=4022000000000000 F6=Double:9 bits=4022000000000000 G6=Double:9 bits=4022000000000000 D4=null H7=null" len=287
+assign 1x3 {1,2,3} to Range("B2:C3,F5:G6").Value2	pia	assign	String:"ok" len=2
+assign 1x3 {1,2,3} to Range("B2:C3,F5:G6").Value2	pia	after	String:"B2=Double:1 bits=3FF0000000000000 C2=Double:2 bits=4000000000000000 B3=Double:1 bits=3FF0000000000000 C3=Double:2 bits=4000000000000000 F5=Double:1 bits=3FF0000000000000 G5=Double:1 bits=3FF0000000000000 F6=Double:2 bits=4000000000000000 G6=Double:2 bits=4000000000000000 D4=null H7=null" len=287
