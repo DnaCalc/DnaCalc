@@ -1,0 +1,22 @@
+# Excel object library {00020813-0000-0000-C000-000000000046} 1.9: types written to excel.json
+# by tools/com-descriptor. One type name per line; '#' starts a comment.
+_Application
+Application        # coclass
+AppEvents
+_Workbook
+Workbook           # coclass
+WorkbookEvents
+Workbooks
+Sheets
+_Worksheet
+Worksheet          # coclass
+DocEvents
+Range
+Areas
+Names
+Name
+Window
+Windows
+WorksheetFunction
+IRtdServer
+IRTDUpdateEvent

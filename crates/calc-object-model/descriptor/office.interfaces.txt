@@ -1,0 +1,19 @@
+# Office library {2DF8D04C-5BFA-101B-BDE5-00AA0044DE52} 2.8: types written to office.json
+# by tools/com-descriptor. One type name per line; '#' starts a comment.
+COMAddIns
+COMAddIn
+CommandBars        # coclass; its default interface is _CommandBars
+_CommandBars
+CommandBar
+CommandBarControls
+CommandBarControl
+CommandBarPopup
+CommandBarButton   # coclass; its default interface is _CommandBarButton
+_CommandBarButton
+IRibbonExtensibility
+IRibbonUI
+IRibbonControl
+# Base interfaces of the types above (their vtables start with these members); listed so every
+# "base" in office.json is described in the same file.
+_IMsoDispObj
+_IMsoOleAccDispObj

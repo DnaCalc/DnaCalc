@@ -1,0 +1,146 @@
+{
+ "library": {
+  "name": "AddInDesignerObjects",
+  "guid": "{AC0714F2-3D04-11D1-AE7D-00A0C90F26F4}",
+  "version": "1.0",
+  "lcid": 0,
+  "source_file": "c:\\Program Files\\Common Files\\DESIGNER\\MSADDNDR.OLB",
+  "file_version": "16.0.20527.20112"
+ },
+ "types": [
+  {
+   "name": "_IDTExtensibility2",
+   "kind": "dispatch",
+   "guid": "{B65AD801-ABAF-11D0-BB8B-00A0C90F2744}",
+   "dual": true,
+   "flags": [
+    "hidden",
+    "dual",
+    "dispatchable"
+   ],
+   "base": "IDispatch",
+   "vtable_slots": 12,
+   "dispatch_only": false,
+   "members": [
+    {
+     "name": "OnConnection",
+     "dispid": 1,
+     "invoke": "method",
+     "slot": 7,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Application",
+       "type": "IDispatch*",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "ConnectMode",
+       "type": "alias:ext_ConnectMode[enum:__MIDL___MIDL_itf_msaddndr_0000_0000_0001[I4]]",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "AddInInst",
+       "type": "IDispatch*",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "custom",
+       "type": "SAFEARRAY(VARIANT)*",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "OnDisconnection",
+     "dispid": 2,
+     "invoke": "method",
+     "slot": 8,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "RemoveMode",
+       "type": "alias:ext_DisconnectMode[enum:__MIDL___MIDL_itf_msaddndr_0000_0000_0002[I4]]",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "custom",
+       "type": "SAFEARRAY(VARIANT)*",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "OnAddInsUpdate",
+     "dispid": 3,
+     "invoke": "method",
+     "slot": 9,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "custom",
+       "type": "SAFEARRAY(VARIANT)*",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "OnStartupComplete",
+     "dispid": 4,
+     "invoke": "method",
+     "slot": 10,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "custom",
+       "type": "SAFEARRAY(VARIANT)*",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "OnBeginShutdown",
+     "dispid": 5,
+     "invoke": "method",
+     "slot": 11,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "custom",
+       "type": "SAFEARRAY(VARIANT)*",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    }
+   ]
+  }
+ ]
+}
