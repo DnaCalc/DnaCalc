@@ -66,36 +66,72 @@ fn address_flags_multi_area_external_and_absolute_r1c1() {
 }
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn unmeasured_address_forms_refuse_with_probe_owner() {
+fn measured_relative_r1c1_uses_a1_origin_or_relative_to_and_omits_zero_offsets() {
     let (range, _) = references();
-    for options in [
-        AddressOptions {
-            style: ReferenceStyle::R1C1,
-            row_absolute: false,
-            ..Default::default()
-        },
-        AddressOptions {
-            relative_to: Some(range.areas()[0].first()),
-            ..Default::default()
-        },
-    ] {
-        assert!(matches!(
-            geometry::address(&range, options, None),
-            Err(AutoError::NotModelled {
-                owner: "dc-1nbp.6",
-                ..
-            })
-        ));
-    }
+    let relative = AddressOptions {
+        style: ReferenceStyle::R1C1,
+        row_absolute: false,
+        column_absolute: false,
+        ..Default::default()
+    };
+    assert_eq!(
+        geometry::address(&range, relative, None).unwrap(),
+        "R[1]C[1]:R[2]C[2]"
+    );
+    let base = CellKey::new(range.sheet(), 3, 3).unwrap();
+    assert_eq!(
+        geometry::address(
+            &range,
+            AddressOptions {
+                relative_to: Some(base),
+                ..relative
+            },
+            None
+        )
+        .unwrap(),
+        "R[-1]C[-1]:RC"
+    );
+    assert_eq!(
+        geometry::address(
+            &range,
+            AddressOptions {
+                relative_to: Some(base),
+                column_absolute: true,
+                ..relative
+            },
+            None
+        )
+        .unwrap(),
+        "R[-1]C2:RC3"
+    );
+    assert_eq!(
+        geometry::address(
+            &range,
+            AddressOptions {
+                relative_to: Some(base),
+                ..Default::default()
+            },
+            None
+        )
+        .unwrap(),
+        "$B$2:$C$3"
+    );
 }
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn union_preserves_order_multiplicity_and_first_area_views() {
     let (first, second) = references();
-    let range = geometry::union(&[second.clone(), first.clone(), first.clone()]).unwrap();
+    let overlap = ReferenceLike::area(
+        GridArea::new(
+            CellKey::new(first.sheet(), 3, 3).unwrap(),
+            CellKey::new(first.sheet(), 4, 4).unwrap(),
+        )
+        .unwrap(),
+    );
+    let range = geometry::union(&[second.clone(), first.clone(), overlap.clone()]).unwrap();
     assert_eq!(
         range.areas(),
-        &[second.areas()[0], first.areas()[0], first.areas()[0]]
+        &[second.areas()[0], first.areas()[0], overlap.areas()[0]]
     );
     assert_eq!(geometry::count(&range, RangeAxis::Cells), 9);
     assert_eq!(geometry::count(&range, RangeAxis::Rows), 1);
@@ -104,6 +140,99 @@ fn union_preserves_order_multiplicity_and_first_area_views() {
     let reversed = geometry::union(&[first, second]).unwrap();
     assert_eq!(geometry::count(&reversed, RangeAxis::Rows), 2);
     assert_eq!(geometry::count(&reversed, RangeAxis::Columns), 2);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn measured_union_drops_an_identical_area_and_merges_adjacent_same_width() {
+    let (range, _) = references();
+    let twice = geometry::union(&[range.clone(), range.clone()]).unwrap();
+    assert_eq!(twice, range);
+    assert_eq!(geometry::count(&twice, RangeAxis::Cells), 4);
+    let adjacent = ReferenceLike::area(
+        GridArea::new(
+            CellKey::new(range.sheet(), 4, 2).unwrap(),
+            CellKey::new(range.sheet(), 5, 3).unwrap(),
+        )
+        .unwrap(),
+    );
+    let joined = geometry::union(&[range, adjacent]).unwrap();
+    assert_eq!(
+        geometry::address(&joined, Default::default(), None).unwrap(),
+        "$B$2:$C$5"
+    );
+    assert_eq!(geometry::count(&joined, RangeAxis::Rows), 4);
+    assert_eq!(geometry::count(&joined, RangeAxis::Cells), 8);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn relative_addresses_match_the_retained_excel_e11_trace() {
+    let bytes =
+        include_bytes!("../../calc-xll-reference/traces/2026-11-14-om-probes/trial-1/om-e11.tsv");
+    let trace = std::str::from_utf8(bytes).unwrap();
+    let (first, _) = references();
+    let origin = CellKey::new(first.sheet(), 3, 3).unwrap();
+    let relative = AddressOptions {
+        style: ReferenceStyle::R1C1,
+        row_absolute: false,
+        column_absolute: false,
+        ..Default::default()
+    };
+    for (case, options) in [
+        (
+            "Address xlR1C1 RowAbsolute=False ColumnAbsolute=False (no RelativeTo)",
+            relative,
+        ),
+        (
+            "Address xlR1C1 RowAbsolute=False ColumnAbsolute=False RelativeTo=C3",
+            AddressOptions {
+                relative_to: Some(origin),
+                ..relative
+            },
+        ),
+        (
+            "Address xlR1C1 RowAbsolute=False RelativeTo=C3",
+            AddressOptions {
+                column_absolute: true,
+                relative_to: Some(origin),
+                ..relative
+            },
+        ),
+        (
+            "Address xlR1C1 absolute RelativeTo=C3",
+            AddressOptions {
+                relative_to: Some(origin),
+                style: ReferenceStyle::R1C1,
+                ..Default::default()
+            },
+        ),
+        (
+            "Address xlA1 RowAbsolute=False ColumnAbsolute=False RelativeTo=C3",
+            AddressOptions {
+                relative_to: Some(origin),
+                style: ReferenceStyle::A1,
+                ..relative
+            },
+        ),
+    ] {
+        let row = trace
+            .lines()
+            .find(|line| line.starts_with(&format!("{case}\tpia\tsingle B2:C3\t")))
+            .unwrap();
+        let expected = row
+            .split_once("String:\"")
+            .unwrap()
+            .1
+            .split_once('"')
+            .unwrap()
+            .0;
+        assert_eq!(
+            geometry::address(&first, options, None).unwrap(),
+            expected,
+            "{case}"
+        );
+    }
 }
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

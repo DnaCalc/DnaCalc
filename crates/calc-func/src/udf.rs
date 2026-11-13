@@ -274,6 +274,8 @@ impl fmt::Display for ReferenceHandleError {
 pub trait ReferenceHandles {
     fn retain(&self, reference: &ReferenceLike) -> Result<StoredReference, ReferenceHandleError>;
     fn resolve(&self, reference: &StoredReference) -> Result<ReferenceLike, ReferenceHandleError>;
+    /// Release one retain. Inline/adapters without owned tracker slots need no action.
+    fn release(&self, _reference: &StoredReference) {}
 }
 
 /// A registration's permission to end one semantic evaluation and request a new one.
