@@ -1,0 +1,57 @@
+case	route	what	value
+Is: two acquisitions of Application.Range("A2")	pia	ReferenceEquals(a, b) (one RCW per IUnknown)	Boolean:False
+Is: two acquisitions of Application.Range("A2")	pia	IUnknown(a) == IUnknown(b)	Boolean:False
+Is: two acquisitions of Application.Range("A2")	pia	IUnknown(a) == IUnknown(S.Range(A2))	Boolean:False
+Is: two acquisitions of Application.Range("A2")	pia	IUnknown(a) == IUnknown(S.Cells(2,1))	Boolean:False
+Is: two acquisitions of Application.Range("A2")	pia	IUnknown(a) == IUnknown(a.Offset(0,0))	Boolean:False
+Is: two acquisitions of Application.Range("A2")	dynamic	IUnknown(a) == IUnknown(b)	Boolean:False
+Is: two acquisitions of Application.Range("A2")	pia	IDispatch(a) == IDispatch(b)	Boolean:False
+Is: two acquisitions of Application.Range("A2")	pia	a.Address == b.Address	Boolean:True
+held Range("A2") across Rows(1).Insert	pia	before Address	String:"$A$2" len=4
+held Range("A2") across Rows(1).Insert	pia	Rows(1).Insert	Boolean:True
+held Range("A2") across Rows(1).Insert	pia	held.Address	String:"$A$3" len=4
+held Range("A2") across Rows(1).Insert	pia	held.Address(External)	String:"[Book7]S!$A$3" len=13
+held Range("A2") across Rows(1).Insert	pia	held.Value2	Double:20 bits=4034000000000000
+held Range("A2") across Rows(1).Insert	pia	held.Row	Int32:3 hex=00000003
+held Range("A2") across Rows(1).Insert	pia	held.Worksheet.Name	String:"S" len=1
+held Range("A2") across Rows(1).Insert	disp	held.Address	dispid=0xEC cArgs=0 HRESULT=00000000 result=VT_BSTR:"$A$3" len=4
+held Range("A2") across Rows(1).Insert	disp	held.Value2	dispid=0x56C cArgs=0 HRESULT=00000000 result=VT_R8:20 bits=4034000000000000
+held Range("A2") across Rows(1).Insert	pia	fresh S.Range(A2).Value2	Double:10 bits=4024000000000000
+held Range("A2") across Rows(1).Insert	pia	fresh S.Range(A3).Value2	Double:20 bits=4034000000000000
+held Range("A2") across Rows(2).Delete	pia	Rows(2).Delete	Boolean:True
+held Range("A2") across Rows(2).Delete	pia	held.Address	raised COMException HRESULT=800A01A8 message="Exception from HRESULT: 0x800A01A8"
+held Range("A2") across Rows(2).Delete	pia	held.Address(External)	raised COMException HRESULT=800A01A8 message="Exception from HRESULT: 0x800A01A8"
+held Range("A2") across Rows(2).Delete	pia	held.Value2	raised COMException HRESULT=800A01A8 message="Exception from HRESULT: 0x800A01A8"
+held Range("A2") across Rows(2).Delete	pia	held.Row	raised COMException HRESULT=800A01A8 message="Exception from HRESULT: 0x800A01A8"
+held Range("A2") across Rows(2).Delete	pia	held.Worksheet.Name	raised COMException HRESULT=800A01A8 message="Exception from HRESULT: 0x800A01A8"
+held Range("A2") across Rows(2).Delete	disp	held.Address	dispid=0xEC cArgs=0 HRESULT=800A01A8 EXCEPINFO wCode=0 scode=00000000 source=null description=null helpfile=null helpcontext=0 argErr=-1 IErrorInfo=none
+held Range("A2") across Rows(2).Delete	disp	held.Value2	dispid=0x56C cArgs=0 HRESULT=800A01A8 EXCEPINFO wCode=0 scode=00000000 source=null description=null helpfile=null helpcontext=0 argErr=-1 IErrorInfo=none
+held Range("A2") across Rows(2).Delete	vtable	held.Address vtable	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+held Range("A2") across Rows(2).Delete	dynamic	held.Address	raised COMException HRESULT=800A01A8 message="Exception from HRESULT: 0x800A01A8"
+held Range("A2") across Rows(2).Delete	pia	held A3 (below the deleted row) Address	String:"$A$2" len=4
+held Range("A2") across Rows(2).Delete	pia	held A3 (below the deleted row) Value2	Double:30 bits=403E000000000000
+held Range("A2:A3") across Rows(2).Delete (partial)	pia	Rows(2).Delete	Boolean:True
+held Range("A2:A3") across Rows(2).Delete (partial)	pia	held.Address	String:"$A$2" len=4
+held Range("A2:A3") across Rows(2).Delete (partial)	pia	held.Value2	Double:30 bits=403E000000000000
+held Range("A2") across Columns(1).Insert	pia	Columns(1).Insert	Boolean:True
+held Range("A2") across Columns(1).Insert	pia	held.Address	String:"$B$2" len=4
+held Range("A2") across Columns(1).Insert	pia	held.Value2	Double:20 bits=4034000000000000
+held Range("A2") across sheet rename S -> S2	pia	rename	String:"S2" len=2
+held Range("A2") across sheet rename S -> S2	pia	held.Address	String:"$A$2" len=4
+held Range("A2") across sheet rename S -> S2	pia	held.Address(External)	String:"[Book7]S2!$A$2" len=14
+held Range("A2") across sheet rename S -> S2	pia	held.Value2	Double:20 bits=4034000000000000
+held Range("A2") across sheet rename S -> S2	pia	held.Row	Int32:2 hex=00000002
+held Range("A2") across sheet rename S -> S2	pia	held.Worksheet.Name	String:"S2" len=2
+held Range("A2") across sheet rename S -> S2	disp	held.Address	dispid=0xEC cArgs=0 HRESULT=00000000 result=VT_BSTR:"$A$2" len=4
+held Range("A2") across sheet rename S -> S2	disp	held.Value2	dispid=0x56C cArgs=0 HRESULT=00000000 result=VT_R8:20 bits=4034000000000000
+held Range("A2") across sheet delete	pia	DisplayAlerts before	Boolean:False
+held Range("A2") across sheet delete	pia	V.Delete	String:"deleted" len=7
+held Range("A2") across sheet delete	pia	held.Address	raised COMException HRESULT=800A01A8 message="Exception from HRESULT: 0x800A01A8"
+held Range("A2") across sheet delete	pia	held.Address(External)	raised COMException HRESULT=800A01A8 message="Exception from HRESULT: 0x800A01A8"
+held Range("A2") across sheet delete	pia	held.Value2	raised COMException HRESULT=800A01A8 message="Exception from HRESULT: 0x800A01A8"
+held Range("A2") across sheet delete	pia	held.Row	raised COMException HRESULT=800A01A8 message="Exception from HRESULT: 0x800A01A8"
+held Range("A2") across sheet delete	pia	held.Worksheet.Name	raised COMException HRESULT=800A01A8 message="Exception from HRESULT: 0x800A01A8"
+held Range("A2") across sheet delete	disp	held.Address	dispid=0xEC cArgs=0 HRESULT=800A01A8 EXCEPINFO wCode=0 scode=00000000 source=null description=null helpfile=null helpcontext=0 argErr=-1 IErrorInfo=none
+held Range("A2") across sheet delete	disp	held.Value2	dispid=0x56C cArgs=0 HRESULT=800A01A8 EXCEPINFO wCode=0 scode=00000000 source=null description=null helpfile=null helpcontext=0 argErr=-1 IErrorInfo=none
+held Range("A2") across sheet delete	vtable	held.Address vtable	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+held Range("A2") across sheet delete	pia	DisplayAlerts after	Boolean:False

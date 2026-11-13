@@ -1,0 +1,6 @@
+dnacalc-excel-session/1 receipt C:\Work\DnaCalc\codex-runs\om-probes\session\completed\20261113T2203560098208-89ebbe8aa75d4b139ae4826f5c0274ce\receipt.json
+trial 1 host verdict: System.Management.Automation.RuntimeException: Baseline drift after reset; outputs retained, job refused.
+dnacalc-excel-session/1 receipt C:\Work\DnaCalc\codex-runs\om-probes\session\completed\20261113T2204143613086-3c806161bb154130b15f2a841d06c602\receipt.json
+trial 2 host verdict: System.Management.Automation.RuntimeException: Baseline drift after reset; outputs retained, job refused.
+dnacalc-excel-session/1 receipt C:\Work\DnaCalc\codex-runs\om-probes\session\completed\20261113T2204336385959-86e0b1f8be5c4406bf1ee171e994bb01\receipt.json
+trial 3 host verdict: System.Management.Automation.RuntimeException: Baseline drift after reset; outputs retained, job refused.

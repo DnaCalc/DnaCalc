@@ -1,0 +1,276 @@
+case	route	what	value
+env	pia	Version	String:"16.0" len=4
+env	pia	Build	Int32:20527 hex=0000502F
+env	pia	International(xlCountrySetting)	Double:27 bits=403B000000000000
+env	pia	DecimalSeparator	String:"." len=1
+env	pia	UseSystemSeparators	Boolean:True
+env	pia	Calculation	raised COMException HRESULT=80020005 message="Type mismatch. (Exception from HRESULT: 0x80020005 (DISP_E_TYPEMISMATCH))"
+env	pia	lcid used by raw routes	Int32:1033 hex=00000409
+A1 scalar 42	pia	NumberFormat	String:"General" len=7
+A1 scalar 42	pia	Text	String:"42" len=2
+A1 scalar 42	pia	Value	Double:42 bits=4045000000000000
+A1 scalar 42	pia	Value2	Double:42 bits=4045000000000000
+A1 scalar 42	dynamic	Value	Double:42 bits=4045000000000000
+A1 scalar 42	dynamic	Value2	Double:42 bits=4045000000000000
+A1 scalar 42	vtable	Value	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A1 scalar 42	vtable	Value2	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A1 scalar 42	disp	Value	dispid=0x6 cArgs=0 HRESULT=00000000 result=VT_R8:42 bits=4045000000000000
+A1 scalar 42	disp	Value2	dispid=0x56C cArgs=0 HRESULT=00000000 result=VT_R8:42 bits=4045000000000000
+A2:B3 2x2 block {1,"x";TRUE,2.5}	pia	NumberFormat	String:"General" len=7
+A2:B3 2x2 block {1,"x";TRUE,2.5}	pia	Text	DBNull
+A2:B3 2x2 block {1,"x";TRUE,2.5}	pia	Value	Array:Object rank2 [1..2] [1..2] (1,1)=Double:1 bits=3FF0000000000000 (1,2)=String:"x" len=1 (2,1)=Boolean:True (2,2)=Double:2.5 bits=4004000000000000
+A2:B3 2x2 block {1,"x";TRUE,2.5}	pia	Value2	Array:Object rank2 [1..2] [1..2] (1,1)=Double:1 bits=3FF0000000000000 (1,2)=String:"x" len=1 (2,1)=Boolean:True (2,2)=Double:2.5 bits=4004000000000000
+A2:B3 2x2 block {1,"x";TRUE,2.5}	dynamic	Value	Array:Object rank2 [1..2] [1..2] (1,1)=Double:1 bits=3FF0000000000000 (1,2)=String:"x" len=1 (2,1)=Boolean:True (2,2)=Double:2.5 bits=4004000000000000
+A2:B3 2x2 block {1,"x";TRUE,2.5}	dynamic	Value2	Array:Object rank2 [1..2] [1..2] (1,1)=Double:1 bits=3FF0000000000000 (1,2)=String:"x" len=1 (2,1)=Boolean:True (2,2)=Double:2.5 bits=4004000000000000
+A2:B3 2x2 block {1,"x";TRUE,2.5}	vtable	Value	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A2:B3 2x2 block {1,"x";TRUE,2.5}	vtable	Value2	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A2:B3 2x2 block {1,"x";TRUE,2.5}	disp	Value	dispid=0x6 cArgs=0 HRESULT=00000000 result=VT_ARRAY|VT_VARIANT dims=2 elem=VT_VARIANT [1..2] [1..2] (1,1)=VT_R8:1 bits=3FF0000000000000 (2,1)=VT_BOOL:-1 (1,2)=VT_BSTR:"x" len=1 (2,2)=VT_R8:2.5 bits=4004000000000000
+A2:B3 2x2 block {1,"x";TRUE,2.5}	disp	Value2	dispid=0x56C cArgs=0 HRESULT=00000000 result=VT_ARRAY|VT_VARIANT dims=2 elem=VT_VARIANT [1..2] [1..2] (1,1)=VT_R8:1 bits=3FF0000000000000 (2,1)=VT_BOOL:-1 (1,2)=VT_BSTR:"x" len=1 (2,2)=VT_R8:2.5 bits=4004000000000000
+A5 empty cell	pia	NumberFormat	String:"General" len=7
+A5 empty cell	pia	Text	String:"" len=0
+A5 empty cell	pia	Value	null
+A5 empty cell	pia	Value2	null
+A5 empty cell	dynamic	Value	null
+A5 empty cell	dynamic	Value2	null
+A5 empty cell	vtable	Value	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A5 empty cell	vtable	Value2	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A5 empty cell	disp	Value	dispid=0x6 cArgs=0 HRESULT=00000000 result=VT_EMPTY
+A5 empty cell	disp	Value2	dispid=0x56C cArgs=0 HRESULT=00000000 result=VT_EMPTY
+A6 formula =""	pia	NumberFormat	String:"General" len=7
+A6 formula =""	pia	Text	String:"" len=0
+A6 formula =""	pia	Value	String:"" len=0
+A6 formula =""	pia	Value2	String:"" len=0
+A6 formula =""	dynamic	Value	String:"" len=0
+A6 formula =""	dynamic	Value2	String:"" len=0
+A6 formula =""	vtable	Value	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A6 formula =""	vtable	Value2	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A6 formula =""	disp	Value	dispid=0x6 cArgs=0 HRESULT=00000000 result=VT_BSTR:"" len=0
+A6 formula =""	disp	Value2	dispid=0x56C cArgs=0 HRESULT=00000000 result=VT_BSTR:"" len=0
+A7 constant ' (empty text)	pia	NumberFormat	String:"General" len=7
+A7 constant ' (empty text)	pia	Text	String:"" len=0
+A7 constant ' (empty text)	pia	Value	String:"" len=0
+A7 constant ' (empty text)	pia	Value2	String:"" len=0
+A7 constant ' (empty text)	dynamic	Value	String:"" len=0
+A7 constant ' (empty text)	dynamic	Value2	String:"" len=0
+A7 constant ' (empty text)	vtable	Value	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A7 constant ' (empty text)	vtable	Value2	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A7 constant ' (empty text)	disp	Value	dispid=0x6 cArgs=0 HRESULT=00000000 result=VT_BSTR:"" len=0
+A7 constant ' (empty text)	disp	Value2	dispid=0x56C cArgs=0 HRESULT=00000000 result=VT_BSTR:"" len=0
+A8 =NA()	pia	NumberFormat	String:"General" len=7
+A8 =NA()	pia	Text	String:"#N/A" len=4
+A8 =NA()	pia	Value	Int32:-2146826246 hex=800A07FA
+A8 =NA()	pia	Value2	Int32:-2146826246 hex=800A07FA
+A8 =NA()	dynamic	Value	Int32:-2146826246 hex=800A07FA
+A8 =NA()	dynamic	Value2	Int32:-2146826246 hex=800A07FA
+A8 =NA()	vtable	Value	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A8 =NA()	vtable	Value2	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A8 =NA()	disp	Value	dispid=0x6 cArgs=0 HRESULT=00000000 result=VT_ERROR:800A07FA
+A8 =NA()	disp	Value2	dispid=0x56C cArgs=0 HRESULT=00000000 result=VT_ERROR:800A07FA
+A9 45292.25 yyyy-mm-dd hh:mm	pia	NumberFormat	String:"yyyy-mm-dd hh:mm" len=16
+A9 45292.25 yyyy-mm-dd hh:mm	pia	Text	String:"2024-01-01 06:00" len=16
+A9 45292.25 yyyy-mm-dd hh:mm	pia	Value	DateTime:2024-01-01T06:00:00.0000000 oa=45292.25 bits=40E61D8800000000
+A9 45292.25 yyyy-mm-dd hh:mm	pia	Value2	Double:45292.25 bits=40E61D8800000000
+A9 45292.25 yyyy-mm-dd hh:mm	dynamic	Value	DateTime:2024-01-01T06:00:00.0000000 oa=45292.25 bits=40E61D8800000000
+A9 45292.25 yyyy-mm-dd hh:mm	dynamic	Value2	Double:45292.25 bits=40E61D8800000000
+A9 45292.25 yyyy-mm-dd hh:mm	vtable	Value	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A9 45292.25 yyyy-mm-dd hh:mm	vtable	Value2	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A9 45292.25 yyyy-mm-dd hh:mm	disp	Value	dispid=0x6 cArgs=0 HRESULT=00000000 result=VT_DATE:45292.25 bits=40E61D8800000000 (2024-01-01T06:00:00.000)
+A9 45292.25 yyyy-mm-dd hh:mm	disp	Value2	dispid=0x56C cArgs=0 HRESULT=00000000 result=VT_R8:45292.25 bits=40E61D8800000000
+A10 123.45678901234567 $#,##0.00	pia	NumberFormat	String:"\$#\,##0.00" len=11
+A10 123.45678901234567 $#,##0.00	pia	Text	String:"$,123.46" len=8
+A10 123.45678901234567 $#,##0.00	pia	Value	Double:123.45678901234567 bits=405EDD3C07FB4C98
+A10 123.45678901234567 $#,##0.00	pia	Value2	Double:123.45678901234567 bits=405EDD3C07FB4C98
+A10 123.45678901234567 $#,##0.00	dynamic	Value	Double:123.45678901234567 bits=405EDD3C07FB4C98
+A10 123.45678901234567 $#,##0.00	dynamic	Value2	Double:123.45678901234567 bits=405EDD3C07FB4C98
+A10 123.45678901234567 $#,##0.00	vtable	Value	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A10 123.45678901234567 $#,##0.00	vtable	Value2	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A10 123.45678901234567 $#,##0.00	disp	Value	dispid=0x6 cArgs=0 HRESULT=00000000 result=VT_R8:123.45678901234567 bits=405EDD3C07FB4C98
+A10 123.45678901234567 $#,##0.00	disp	Value2	dispid=0x56C cArgs=0 HRESULT=00000000 result=VT_R8:123.45678901234567 bits=405EDD3C07FB4C98
+A11 123.45678901234567 accounting	pia	NumberFormat	String:"_(\$* #\,##0.00_);_(\$* (#\,##0.00);_(\$* ""-""??_);_(@_)" len=55
+A11 123.45678901234567 accounting	pia	Text	String:" $                                  ,123.46 " len=44
+A11 123.45678901234567 accounting	pia	Value	Double:123.45678901234567 bits=405EDD3C07FB4C98
+A11 123.45678901234567 accounting	pia	Value2	Double:123.45678901234567 bits=405EDD3C07FB4C98
+A11 123.45678901234567 accounting	dynamic	Value	Double:123.45678901234567 bits=405EDD3C07FB4C98
+A11 123.45678901234567 accounting	dynamic	Value2	Double:123.45678901234567 bits=405EDD3C07FB4C98
+A11 123.45678901234567 accounting	vtable	Value	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A11 123.45678901234567 accounting	vtable	Value2	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A11 123.45678901234567 accounting	disp	Value	dispid=0x6 cArgs=0 HRESULT=00000000 result=VT_R8:123.45678901234567 bits=405EDD3C07FB4C98
+A11 123.45678901234567 accounting	disp	Value2	dispid=0x56C cArgs=0 HRESULT=00000000 result=VT_R8:123.45678901234567 bits=405EDD3C07FB4C98
+A12 45292.25 hh:mm:ss	pia	NumberFormat	String:"h:mm:ss" len=7
+A12 45292.25 hh:mm:ss	pia	Text	String:"06:00:00" len=8
+A12 45292.25 hh:mm:ss	pia	Value	Double:45292.25 bits=40E61D8800000000
+A12 45292.25 hh:mm:ss	pia	Value2	Double:45292.25 bits=40E61D8800000000
+A12 45292.25 hh:mm:ss	dynamic	Value	Double:45292.25 bits=40E61D8800000000
+A12 45292.25 hh:mm:ss	dynamic	Value2	Double:45292.25 bits=40E61D8800000000
+A12 45292.25 hh:mm:ss	vtable	Value	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A12 45292.25 hh:mm:ss	vtable	Value2	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A12 45292.25 hh:mm:ss	disp	Value	dispid=0x6 cArgs=0 HRESULT=00000000 result=VT_R8:45292.25 bits=40E61D8800000000
+A12 45292.25 hh:mm:ss	disp	Value2	dispid=0x56C cArgs=0 HRESULT=00000000 result=VT_R8:45292.25 bits=40E61D8800000000
+A13 123.45678901234567 Style Currency	pia	NumberFormat	String:"_($* #,##0.00_);_($* (#,##0.00);_($* ""-""??_);_(@_)" len=50
+A13 123.45678901234567 Style Currency	pia	Text	String:" R                                   123.46 " len=44
+A13 123.45678901234567 Style Currency	pia	Value	Decimal:123.4568
+A13 123.45678901234567 Style Currency	pia	Value2	Double:123.45678901234567 bits=405EDD3C07FB4C98
+A13 123.45678901234567 Style Currency	dynamic	Value	Decimal:123.4568
+A13 123.45678901234567 Style Currency	dynamic	Value2	Double:123.45678901234567 bits=405EDD3C07FB4C98
+A13 123.45678901234567 Style Currency	vtable	Value	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A13 123.45678901234567 Style Currency	vtable	Value2	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A13 123.45678901234567 Style Currency	disp	Value	dispid=0x6 cArgs=0 HRESULT=00000000 result=VT_CY:int64=1234568 (123.4568)
+A13 123.45678901234567 Style Currency	disp	Value2	dispid=0x56C cArgs=0 HRESULT=00000000 result=VT_R8:123.45678901234567 bits=405EDD3C07FB4C98
+A14 123.45678901234567 [$$-409]#,##0.00	pia	NumberFormat	String:"[$$-409]#\,##0.00" len=17
+A14 123.45678901234567 [$$-409]#,##0.00	pia	Text	String:"$,123.46" len=8
+A14 123.45678901234567 [$$-409]#,##0.00	pia	Value	Double:123.45678901234567 bits=405EDD3C07FB4C98
+A14 123.45678901234567 [$$-409]#,##0.00	pia	Value2	Double:123.45678901234567 bits=405EDD3C07FB4C98
+A14 123.45678901234567 [$$-409]#,##0.00	dynamic	Value	Double:123.45678901234567 bits=405EDD3C07FB4C98
+A14 123.45678901234567 [$$-409]#,##0.00	dynamic	Value2	Double:123.45678901234567 bits=405EDD3C07FB4C98
+A14 123.45678901234567 [$$-409]#,##0.00	vtable	Value	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A14 123.45678901234567 [$$-409]#,##0.00	vtable	Value2	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A14 123.45678901234567 [$$-409]#,##0.00	disp	Value	dispid=0x6 cArgs=0 HRESULT=00000000 result=VT_R8:123.45678901234567 bits=405EDD3C07FB4C98
+A14 123.45678901234567 [$$-409]#,##0.00	disp	Value2	dispid=0x56C cArgs=0 HRESULT=00000000 result=VT_R8:123.45678901234567 bits=405EDD3C07FB4C98
+A15 123.45678901234567 [$R-1C09] #,##0.00	pia	NumberFormat	String:"[$R-1C09] #\,##0.00" len=19
+A15 123.45678901234567 [$R-1C09] #,##0.00	pia	Text	String:"R ,123.46" len=9
+A15 123.45678901234567 [$R-1C09] #,##0.00	pia	Value	Double:123.45678901234567 bits=405EDD3C07FB4C98
+A15 123.45678901234567 [$R-1C09] #,##0.00	pia	Value2	Double:123.45678901234567 bits=405EDD3C07FB4C98
+A15 123.45678901234567 [$R-1C09] #,##0.00	dynamic	Value	Double:123.45678901234567 bits=405EDD3C07FB4C98
+A15 123.45678901234567 [$R-1C09] #,##0.00	dynamic	Value2	Double:123.45678901234567 bits=405EDD3C07FB4C98
+A15 123.45678901234567 [$R-1C09] #,##0.00	vtable	Value	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A15 123.45678901234567 [$R-1C09] #,##0.00	vtable	Value2	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A15 123.45678901234567 [$R-1C09] #,##0.00	disp	Value	dispid=0x6 cArgs=0 HRESULT=00000000 result=VT_R8:123.45678901234567 bits=405EDD3C07FB4C98
+A15 123.45678901234567 [$R-1C09] #,##0.00	disp	Value2	dispid=0x56C cArgs=0 HRESULT=00000000 result=VT_R8:123.45678901234567 bits=405EDD3C07FB4C98
+A16 -0.00005 Style Currency	pia	NumberFormat	String:"_($* #,##0.00_);_($* (#,##0.00);_($* ""-""??_);_(@_)" len=50
+A16 -0.00005 Style Currency	pia	Text	String:"-R                                       0.00 " len=46
+A16 -0.00005 Style Currency	pia	Value	Decimal:-0.0001
+A16 -0.00005 Style Currency	pia	Value2	Double:-5E-05 bits=BF0A36E2EB1C432D
+A16 -0.00005 Style Currency	dynamic	Value	Decimal:-0.0001
+A16 -0.00005 Style Currency	dynamic	Value2	Double:-5E-05 bits=BF0A36E2EB1C432D
+A16 -0.00005 Style Currency	vtable	Value	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A16 -0.00005 Style Currency	vtable	Value2	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A16 -0.00005 Style Currency	disp	Value	dispid=0x6 cArgs=0 HRESULT=00000000 result=VT_CY:int64=-1 (-0.0001)
+A16 -0.00005 Style Currency	disp	Value2	dispid=0x56C cArgs=0 HRESULT=00000000 result=VT_R8:-5E-05 bits=BF0A36E2EB1C432D
+A17 922337203685477.5807 Style Currency	pia	NumberFormat	String:"_($* #,##0.00_);_($* (#,##0.00);_($* ""-""??_);_(@_)" len=50
+A17 922337203685477.5807 Style Currency	pia	Text	String:" R   922 337 203 685 478.00 " len=28
+A17 922337203685477.5807 Style Currency	pia	Value	raised COMException HRESULT=8002000A message="Out of present range. (Exception from HRESULT: 0x8002000A (DISP_E_OVERFLOW))"
+A17 922337203685477.5807 Style Currency	pia	Value2	Double:922337203685477.63 bits=430A36E2EB1C432D
+A17 922337203685477.5807 Style Currency	dynamic	Value	raised COMException HRESULT=8002000A message="Out of present range. (Exception from HRESULT: 0x8002000A (DISP_E_OVERFLOW))"
+A17 922337203685477.5807 Style Currency	dynamic	Value2	Double:922337203685477.63 bits=430A36E2EB1C432D
+A17 922337203685477.5807 Style Currency	vtable	Value	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A17 922337203685477.5807 Style Currency	vtable	Value2	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A17 922337203685477.5807 Style Currency	disp	Value	dispid=0x6 cArgs=0 HRESULT=80020009 EXCEPINFO wCode=0 scode=8002000A source=null description=null helpfile=null helpcontext=0 argErr=-1 IErrorInfo=none
+A17 922337203685477.5807 Style Currency	disp	Value2	dispid=0x56C cArgs=0 HRESULT=00000000 result=VT_R8:922337203685477.63 bits=430A36E2EB1C432D
+A18 1e300 Style Currency	pia	NumberFormat	String:"_($* #,##0.00_);_($* (#,##0.00);_($* ""-""??_);_(@_)" len=50
+A18 1e300 Style Currency	pia	Text	String:"######################" len=22
+A18 1e300 Style Currency	pia	Value	raised COMException HRESULT=8002000A message="Out of present range. (Exception from HRESULT: 0x8002000A (DISP_E_OVERFLOW))"
+A18 1e300 Style Currency	pia	Value2	Double:1E+300 bits=7E37E43C8800759C
+A18 1e300 Style Currency	dynamic	Value	raised COMException HRESULT=8002000A message="Out of present range. (Exception from HRESULT: 0x8002000A (DISP_E_OVERFLOW))"
+A18 1e300 Style Currency	dynamic	Value2	Double:1E+300 bits=7E37E43C8800759C
+A18 1e300 Style Currency	vtable	Value	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A18 1e300 Style Currency	vtable	Value2	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A18 1e300 Style Currency	disp	Value	dispid=0x6 cArgs=0 HRESULT=80020009 EXCEPINFO wCode=0 scode=8002000A source=null description=null helpfile=null helpcontext=0 argErr=-1 IErrorInfo=none
+A18 1e300 Style Currency	disp	Value2	dispid=0x56C cArgs=0 HRESULT=00000000 result=VT_R8:1E+300 bits=7E37E43C8800759C
+A19 45292.25 date then Style Currency	pia	NumberFormat	String:"_($* #,##0.00_);_($* (#,##0.00);_($* ""-""??_);_(@_)" len=50
+A19 45292.25 date then Style Currency	pia	Text	String:" R                             45 292.25 " len=41
+A19 45292.25 date then Style Currency	pia	Value	Decimal:45292.25
+A19 45292.25 date then Style Currency	pia	Value2	Double:45292.25 bits=40E61D8800000000
+A19 45292.25 date then Style Currency	dynamic	Value	Decimal:45292.25
+A19 45292.25 date then Style Currency	dynamic	Value2	Double:45292.25 bits=40E61D8800000000
+A19 45292.25 date then Style Currency	vtable	Value	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A19 45292.25 date then Style Currency	vtable	Value2	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A19 45292.25 date then Style Currency	disp	Value	dispid=0x6 cArgs=0 HRESULT=00000000 result=VT_CY:int64=452922500 (45292.25)
+A19 45292.25 date then Style Currency	disp	Value2	dispid=0x56C cArgs=0 HRESULT=00000000 result=VT_R8:45292.25 bits=40E61D8800000000
+A20 -1 yyyy-mm-dd	pia	NumberFormat	String:"yyyy-mm-dd" len=10
+A20 -1 yyyy-mm-dd	pia	Text	String:"######################" len=22
+A20 -1 yyyy-mm-dd	pia	Value	DateTime:1899-12-29T00:00:00.0000000 oa=-1 bits=BFF0000000000000
+A20 -1 yyyy-mm-dd	pia	Value2	Double:-1 bits=BFF0000000000000
+A20 -1 yyyy-mm-dd	dynamic	Value	DateTime:1899-12-29T00:00:00.0000000 oa=-1 bits=BFF0000000000000
+A20 -1 yyyy-mm-dd	dynamic	Value2	Double:-1 bits=BFF0000000000000
+A20 -1 yyyy-mm-dd	vtable	Value	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A20 -1 yyyy-mm-dd	vtable	Value2	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A20 -1 yyyy-mm-dd	disp	Value	dispid=0x6 cArgs=0 HRESULT=00000000 result=VT_DATE:-1 bits=BFF0000000000000 (1899-12-29T00:00:00.000)
+A20 -1 yyyy-mm-dd	disp	Value2	dispid=0x56C cArgs=0 HRESULT=00000000 result=VT_R8:-1 bits=BFF0000000000000
+A21 3000000 yyyy-mm-dd	pia	NumberFormat	String:"yyyy-mm-dd" len=10
+A21 3000000 yyyy-mm-dd	pia	Text	String:"######################" len=22
+A21 3000000 yyyy-mm-dd	pia	Value	raised COMException HRESULT=8002000A message="Out of present range. (Exception from HRESULT: 0x8002000A (DISP_E_OVERFLOW))"
+A21 3000000 yyyy-mm-dd	pia	Value2	Double:3000000 bits=4146E36000000000
+A21 3000000 yyyy-mm-dd	dynamic	Value	raised COMException HRESULT=8002000A message="Out of present range. (Exception from HRESULT: 0x8002000A (DISP_E_OVERFLOW))"
+A21 3000000 yyyy-mm-dd	dynamic	Value2	Double:3000000 bits=4146E36000000000
+A21 3000000 yyyy-mm-dd	vtable	Value	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A21 3000000 yyyy-mm-dd	vtable	Value2	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A21 3000000 yyyy-mm-dd	disp	Value	dispid=0x6 cArgs=0 HRESULT=80020009 EXCEPINFO wCode=0 scode=8002000A source=null description=null helpfile=null helpcontext=0 argErr=-1 IErrorInfo=none
+A21 3000000 yyyy-mm-dd	disp	Value2	dispid=0x56C cArgs=0 HRESULT=00000000 result=VT_R8:3000000 bits=4146E36000000000
+A9:A10 date over currency block	pia	NumberFormat	DBNull
+A9:A10 date over currency block	pia	Text	DBNull
+A9:A10 date over currency block	pia	Value	Array:Object rank2 [1..2] [1..1] (1,1)=DateTime:2024-01-01T06:00:00.0000000 oa=45292.25 bits=40E61D8800000000 (2,1)=Double:123.45678901234567 bits=405EDD3C07FB4C98
+A9:A10 date over currency block	pia	Value2	Array:Object rank2 [1..2] [1..1] (1,1)=Double:45292.25 bits=40E61D8800000000 (2,1)=Double:123.45678901234567 bits=405EDD3C07FB4C98
+A9:A10 date over currency block	dynamic	Value	Array:Object rank2 [1..2] [1..1] (1,1)=DateTime:2024-01-01T06:00:00.0000000 oa=45292.25 bits=40E61D8800000000 (2,1)=Double:123.45678901234567 bits=405EDD3C07FB4C98
+A9:A10 date over currency block	dynamic	Value2	Array:Object rank2 [1..2] [1..1] (1,1)=Double:45292.25 bits=40E61D8800000000 (2,1)=Double:123.45678901234567 bits=405EDD3C07FB4C98
+A9:A10 date over currency block	vtable	Value	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A9:A10 date over currency block	vtable	Value2	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+A9:A10 date over currency block	disp	Value	dispid=0x6 cArgs=0 HRESULT=00000000 result=VT_ARRAY|VT_VARIANT dims=2 elem=VT_VARIANT [1..2] [1..1] (1,1)=VT_DATE:45292.25 bits=40E61D8800000000 (2024-01-01T06:00:00.000) (2,1)=VT_R8:123.45678901234567 bits=405EDD3C07FB4C98
+A9:A10 date over currency block	disp	Value2	dispid=0x56C cArgs=0 HRESULT=00000000 result=VT_ARRAY|VT_VARIANT dims=2 elem=VT_VARIANT [1..2] [1..1] (1,1)=VT_R8:45292.25 bits=40E61D8800000000 (2,1)=VT_R8:123.45678901234567 bits=405EDD3C07FB4C98
+optional omitted	disp	Range(B2:C3).Address(RowAbsolute=arg)	dispid=0xEC cArgs=0 HRESULT=00000000 result=VT_BSTR:"$B$2:$C$3" len=9
+optional omitted	vtable	Range(B2:C3).Address(RowAbsolute=arg)	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+optional omitted	disp	Application.Range("A1", Cell2=arg)	dispid=0xC5 cArgs=1 HRESULT=00000000 result=VT_DISPATCH:Range
+optional omitted	vtable	Application.Range("A1", Cell2=arg)	via=dual slot=40 params=VARIANT,VARIANT,retval(VT_26) HRESULT=00000000 result=interface Range
+optional omitted	disp	Range(A9).Value(RangeValueDataType=arg)	dispid=0x6 cArgs=0 HRESULT=00000000 result=VT_DATE:45292.25 bits=40E61D8800000000 (2024-01-01T06:00:00.000)
+optional omitted	vtable	Range(A9).Value(RangeValueDataType=arg)	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+optional omitted	pia	Range(B2:C3).Address(RowAbsolute=arg)	String:"$B$2:$C$3" len=9
+optional omitted	pia	Application.Range("A1", Cell2=arg)	String:"$A$1" len=4
+optional omitted	pia	Range(A9).Value(RangeValueDataType=arg)	DateTime:2024-01-01T06:00:00.0000000 oa=45292.25 bits=40E61D8800000000
+optional VT_ERROR(DISP_E_PARAMNOTFOUND)	disp	Range(B2:C3).Address(RowAbsolute=arg)	dispid=0xEC cArgs=1 HRESULT=00000000 result=VT_BSTR:"$B$2:$C$3" len=9
+optional VT_ERROR(DISP_E_PARAMNOTFOUND)	vtable	Range(B2:C3).Address(RowAbsolute=arg)	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+optional VT_ERROR(DISP_E_PARAMNOTFOUND)	disp	Application.Range("A1", Cell2=arg)	dispid=0xC5 cArgs=2 HRESULT=00000000 result=VT_DISPATCH:Range
+optional VT_ERROR(DISP_E_PARAMNOTFOUND)	vtable	Application.Range("A1", Cell2=arg)	via=dual slot=40 params=VARIANT,VARIANT,retval(VT_26) HRESULT=00000000 result=interface Range
+optional VT_ERROR(DISP_E_PARAMNOTFOUND)	disp	Range(A9).Value(RangeValueDataType=arg)	dispid=0x6 cArgs=1 HRESULT=00000000 result=VT_DATE:45292.25 bits=40E61D8800000000 (2024-01-01T06:00:00.000)
+optional VT_ERROR(DISP_E_PARAMNOTFOUND)	vtable	Range(A9).Value(RangeValueDataType=arg)	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+optional VT_ERROR(DISP_E_PARAMNOTFOUND)	pia	Range(B2:C3).Address(RowAbsolute=arg)	String:"$B$2:$C$3" len=9
+optional VT_ERROR(DISP_E_PARAMNOTFOUND)	pia	Application.Range("A1", Cell2=arg)	String:"$A$1" len=4
+optional VT_ERROR(DISP_E_PARAMNOTFOUND)	pia	Range(A9).Value(RangeValueDataType=arg)	DateTime:2024-01-01T06:00:00.0000000 oa=45292.25 bits=40E61D8800000000
+optional VT_EMPTY	disp	Range(B2:C3).Address(RowAbsolute=arg)	dispid=0xEC cArgs=1 HRESULT=00000000 result=VT_BSTR:"$B2:$C3" len=7
+optional VT_EMPTY	vtable	Range(B2:C3).Address(RowAbsolute=arg)	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+optional VT_EMPTY	disp	Application.Range("A1", Cell2=arg)	dispid=0xC5 cArgs=2 HRESULT=80020009 EXCEPINFO wCode=0 scode=800A03EC source=null description=null helpfile=null helpcontext=0 argErr=-1 IErrorInfo=none
+optional VT_EMPTY	vtable	Application.Range("A1", Cell2=arg)	via=dual slot=40 params=VARIANT,VARIANT,retval(VT_26) HRESULT=800A03EC IErrorInfo=none
+optional VT_EMPTY	disp	Range(A9).Value(RangeValueDataType=arg)	dispid=0x6 cArgs=1 HRESULT=00000000 result=VT_DATE:45292.25 bits=40E61D8800000000 (2024-01-01T06:00:00.000)
+optional VT_EMPTY	vtable	Range(A9).Value(RangeValueDataType=arg)	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+optional VT_EMPTY	pia	Range(B2:C3).Address(RowAbsolute=arg)	String:"$B2:$C3" len=7
+optional VT_EMPTY	pia	Application.Range("A1", Cell2=arg)	raised COMException HRESULT=800A03EC message="Exception from HRESULT: 0x800A03EC"
+optional VT_EMPTY	pia	Range(A9).Value(RangeValueDataType=arg)	DateTime:2024-01-01T06:00:00.0000000 oa=45292.25 bits=40E61D8800000000
+optional VT_NULL	disp	Range(B2:C3).Address(RowAbsolute=arg)	dispid=0xEC cArgs=1 HRESULT=00000000 result=VT_BSTR:"$B$2:$C$3" len=9
+optional VT_NULL	vtable	Range(B2:C3).Address(RowAbsolute=arg)	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+optional VT_NULL	disp	Application.Range("A1", Cell2=arg)	dispid=0xC5 cArgs=2 HRESULT=80020009 EXCEPINFO wCode=0 scode=800A03EC source=null description=null helpfile=null helpcontext=0 argErr=-1 IErrorInfo=none
+optional VT_NULL	vtable	Application.Range("A1", Cell2=arg)	via=dual slot=40 params=VARIANT,VARIANT,retval(VT_26) HRESULT=800A03EC IErrorInfo=none
+optional VT_NULL	disp	Range(A9).Value(RangeValueDataType=arg)	dispid=0x6 cArgs=1 HRESULT=80020009 EXCEPINFO wCode=0 scode=80020005 source=null description=null helpfile=null helpcontext=0 argErr=-1 IErrorInfo=none
+optional VT_NULL	vtable	Range(A9).Value(RangeValueDataType=arg)	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+optional VT_NULL	pia	Range(B2:C3).Address(RowAbsolute=arg)	String:"$B$2:$C$3" len=9
+optional VT_NULL	pia	Application.Range("A1", Cell2=arg)	raised COMException HRESULT=800A03EC message="Exception from HRESULT: 0x800A03EC"
+optional VT_NULL	pia	Range(A9).Value(RangeValueDataType=arg)	raised COMException HRESULT=80020005 message="Type mismatch. (Exception from HRESULT: 0x80020005 (DISP_E_TYPEMISMATCH))"
+optional VT_ERROR(xlErrNA 800A07FA)	disp	Range(B2:C3).Address(RowAbsolute=arg)	dispid=0xEC cArgs=1 HRESULT=00000000 result=VT_BSTR:"$B$2:$C$3" len=9
+optional VT_ERROR(xlErrNA 800A07FA)	vtable	Range(B2:C3).Address(RowAbsolute=arg)	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+optional VT_ERROR(xlErrNA 800A07FA)	disp	Application.Range("A1", Cell2=arg)	dispid=0xC5 cArgs=2 HRESULT=80020009 EXCEPINFO wCode=0 scode=800A03EC source=null description=null helpfile=null helpcontext=0 argErr=-1 IErrorInfo=none
+optional VT_ERROR(xlErrNA 800A07FA)	vtable	Application.Range("A1", Cell2=arg)	via=dual slot=40 params=VARIANT,VARIANT,retval(VT_26) HRESULT=800A03EC IErrorInfo=none
+optional VT_ERROR(xlErrNA 800A07FA)	disp	Range(A9).Value(RangeValueDataType=arg)	dispid=0x6 cArgs=1 HRESULT=80020009 EXCEPINFO wCode=0 scode=80020005 source=null description=null helpfile=null helpcontext=0 argErr=-1 IErrorInfo=none
+optional VT_ERROR(xlErrNA 800A07FA)	vtable	Range(A9).Value(RangeValueDataType=arg)	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+optional VT_ERROR(xlErrNA 800A07FA)	pia	Range(B2:C3).Address(RowAbsolute=arg)	String:"$B$2:$C$3" len=9
+optional VT_ERROR(xlErrNA 800A07FA)	pia	Application.Range("A1", Cell2=arg)	raised COMException HRESULT=800A03EC message="Exception from HRESULT: 0x800A03EC"
+optional VT_ERROR(xlErrNA 800A07FA)	pia	Range(A9).Value(RangeValueDataType=arg)	raised COMException HRESULT=80020005 message="Type mismatch. (Exception from HRESULT: 0x80020005 (DISP_E_TYPEMISMATCH))"
+optional Boolean:False	disp	Range(B2:C3).Address(RowAbsolute=arg)	dispid=0xEC cArgs=1 HRESULT=00000000 result=VT_BSTR:"$B2:$C3" len=7
+optional Boolean:False	vtable	Range(B2:C3).Address(RowAbsolute=arg)	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+optional Boolean:False	disp	Application.Range("A1", Cell2=arg)	dispid=0xC5 cArgs=2 HRESULT=80020009 EXCEPINFO wCode=0 scode=800A03EC source=null description=null helpfile=null helpcontext=0 argErr=-1 IErrorInfo=none
+optional Boolean:False	vtable	Application.Range("A1", Cell2=arg)	via=dual slot=40 params=VARIANT,VARIANT,retval(VT_26) HRESULT=800A03EC IErrorInfo=none
+optional Boolean:False	disp	Range(A9).Value(RangeValueDataType=arg)	dispid=0x6 cArgs=1 HRESULT=80020009 EXCEPINFO wCode=0 scode=800A03EC source=null description=null helpfile=null helpcontext=0 argErr=-1 IErrorInfo=none
+optional Boolean:False	vtable	Range(A9).Value(RangeValueDataType=arg)	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+optional Boolean:False	pia	Range(B2:C3).Address(RowAbsolute=arg)	String:"$B2:$C3" len=7
+optional Boolean:False	pia	Application.Range("A1", Cell2=arg)	raised COMException HRESULT=800A03EC message="Exception from HRESULT: 0x800A03EC"
+optional Boolean:False	pia	Range(A9).Value(RangeValueDataType=arg)	raised COMException HRESULT=800A03EC message="Exception from HRESULT: 0x800A03EC"
+failure Application.Range("not a range")	disp	with EXCEPINFO	dispid=0xC5 cArgs=1 HRESULT=80020009 EXCEPINFO wCode=0 scode=800A03EC source=null description=null helpfile=null helpcontext=0 argErr=-1 IErrorInfo=none
+failure Application.Range("not a range")	disp	EXCEPINFO null	dispid=0xC5 cArgs=1 HRESULT=80020009 (no EXCEPINFO passed) argErr=-1 IErrorInfo=none
+failure Application.Range("not a range")	vtable	vtable	via=dual slot=40 params=VARIANT,VARIANT,retval(VT_26) HRESULT=800A03EC IErrorInfo=none
+failure Application.Range("not a range")	pia	Application.Range	raised COMException HRESULT=800A03EC message="Exception from HRESULT: 0x800A03EC"
+failure Application.Range("not a range")	dynamic	Application.Range	raised COMException HRESULT=800A03EC message="Exception from HRESULT: 0x800A03EC"
+failure Application.Range("Elsewhere!A1")	disp	with EXCEPINFO	dispid=0xC5 cArgs=1 HRESULT=80020009 EXCEPINFO wCode=0 scode=800A03EC source=null description=null helpfile=null helpcontext=0 argErr=-1 IErrorInfo=none
+failure Application.Range("Elsewhere!A1")	disp	EXCEPINFO null	dispid=0xC5 cArgs=1 HRESULT=80020009 (no EXCEPINFO passed) argErr=-1 IErrorInfo=none
+failure Application.Range("Elsewhere!A1")	vtable	vtable	via=dual slot=40 params=VARIANT,VARIANT,retval(VT_26) HRESULT=800A03EC IErrorInfo=none
+failure Application.Range("Elsewhere!A1")	pia	Application.Range	raised COMException HRESULT=800A03EC message="Exception from HRESULT: 0x800A03EC"
+failure Application.Range("Elsewhere!A1")	dynamic	Application.Range	raised COMException HRESULT=800A03EC message="Exception from HRESULT: 0x800A03EC"
+failure Range(A1).Offset(-1, 0)	disp	with EXCEPINFO	dispid=0xFE cArgs=2 HRESULT=80020009 EXCEPINFO wCode=0 scode=800A03EC source=null description=null helpfile=null helpcontext=0 argErr=-1 IErrorInfo=none
+failure Range(A1).Offset(-1, 0)	disp	EXCEPINFO null	dispid=0xFE cArgs=2 HRESULT=80020009 (no EXCEPINFO passed) argErr=-1 IErrorInfo=none
+failure Range(A1).Offset(-1, 0)	vtable	vtable	QueryInterface(IRange 00020846-0001-0000-c000-000000000046) HRESULT=80004002
+failure Range(A1).Offset(-1, 0)	pia	Offset	raised COMException HRESULT=800A03EC message="Exception from HRESULT: 0x800A03EC"

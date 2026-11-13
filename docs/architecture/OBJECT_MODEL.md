@@ -150,7 +150,32 @@ Rust test driving the real vtables and IDispatch (Windows), plus the page accept
 - **JavaScript**: Office.js-shaped batches over the same `ObjectModel`, once J1-J5 measure Office.js
   (deferred; harvest 14 section 6).
 
-## 9. Open items
+## 9. Measured Excel behaviour these members follow (dc-1nbp.6, 2026-11-14)
+
+From `crates/calc-xll-reference/traces/2026-11-14-om-probes/` (Excel 16.0.20527.20150, three fresh runs,
+identical):
+- **Range has no vtable**: a live Range refuses QueryInterface for IRange; every Range call is
+  `IDispatch::Invoke`, including from early-bound PIA clients. Same for Areas. Only interfaces such as
+  `_Application` are called through their vtables.
+- **Identity**: two acquisitions of `Range("A2")` are not `Is` (different IUnknowns). One wrapper per
+  acquisition is right.
+- **Held Range**: follows an inserted row (`$A$3`, value 20); after its row or sheet is deleted every
+  access raises 424 (`0x800A01A8`).
+- **Value vs Value2**: Value of a date-formatted number is VT_DATE (same bits), Value2 VT_R8; a time-only
+  format gives R8 for both. Value is VT_CY (4 decimals) only for the locale's Currency style; `$#,##0.00`,
+  `[$$-409]` and accounting formats give R8. Out-of-range CY/date: DISP_E_EXCEPTION scode `0x8002000A`.
+  Empty VT_EMPTY, `""` zero-length BSTR, `#N/A` VT_ERROR `0x800A07FA`, a block a 1-based 2-D array.
+- **Errors**: `Application.Range("not a range")`: DISP_E_EXCEPTION with scode `0x800A03EC` and no
+  description (vtable: `0x800A03EC`, no IErrorInfo). Union across sheets: 1004 "Union method of
+  Application class failed" (`0x800A03EC` with a null EXCEPINFO).
+- **Union**: areas keep argument order; Count counts overlaps (Union(B2:C3,F5,C3:D4).Count = 9);
+  Rows.Count, Row and Column come from the first area; For Each visits overlapping cells twice.
+- **Address**: each area formatted alike; External gives `[Book]Sheet!` once; R1C1 relative without
+  RelativeTo is relative to A1.
+- **Optional arguments**: Empty for RowAbsolute is False; Null and Error mean "use the default";
+  `Range("A1", Empty/Null/Error)` is 1004; `Value(Null)` is a type mismatch (`0x80020005`).
+
+## 10. Open items
 
 - Range identity and `Is`, Value date/currency conversion, multi-area writes: dc-1nbp.6 (14.e) measures.
 - x86 builds: not supported (DNA Calc ships x64).

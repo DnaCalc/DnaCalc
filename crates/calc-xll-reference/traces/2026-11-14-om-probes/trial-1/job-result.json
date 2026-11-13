@@ -1,0 +1,46 @@
+{
+  "fatal": null,
+  "environment": {
+    "captured_utc": "2026-11-13T22:04:05.0785501Z",
+    "pid": 65468,
+    "trial": 1,
+    "excel_version": "16.0",
+    "excel_build": 20527.0,
+    "excel_file_version": "16.0.20527.20150",
+    "excel_path": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE",
+    "operating_system": "Windows (64-bit) NT 10.00",
+    "calculation": -2146826246,
+    "display_alerts": false,
+    "decimal_separator": ".",
+    "use_system_separators": true,
+    "country": 1.0,
+    "automation_security": 1,
+    "addin_sha256": "143AB292856A6452CDF3602B19DC7E6E8AADD3128DF88EFB7FC71E27A249E649",
+    "x19com_dll_sha256": "9DC76A381D3C78A873DEA3703A06B692FC8C3B570F3B162AF9412BB377E803B5",
+    "display_alerts_after": false
+  },
+  "registered": true,
+  "out_of_process_late_bound": {
+    "ReferenceEquals(a, b)": false,
+    "IUnknown(a) == IUnknown(b)": false,
+    "IUnknown(a) == IUnknown(Cells(2,1))": false
+  },
+  "probes": {
+    "E6": {
+      "run_error": null,
+      "seconds": 0.2999149,
+      "output": true
+    },
+    "E11": {
+      "run_error": null,
+      "seconds": 0.4910228,
+      "output": true
+    },
+    "E1": {
+      "run_error": null,
+      "seconds": 0.1267769,
+      "output": true
+    }
+  },
+  "seconds": 1.6361947
+}

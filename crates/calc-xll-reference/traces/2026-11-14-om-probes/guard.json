@@ -1,0 +1,16 @@
+{
+  "desktop": "DnaCalcOmProbes",
+  "session_root": "C:\\Work\\DnaCalc\\codex-runs\\om-probes",
+  "exit": 0,
+  "guard_samples": 4157,
+  "owned_pids": [
+    31380,
+    38860,
+    65468
+  ],
+  "windows_on_user_desktop": 0,
+  "visible_on_user_desktop": 0,
+  "foreground_hits": 0,
+  "findings": [],
+  "finished_utc": "2026-11-13T22:04:47.8742416Z"
+}

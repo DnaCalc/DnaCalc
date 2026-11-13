@@ -1,0 +1,604 @@
+{
+ "library": {
+  "name": "Accessibility",
+  "guid": "{1EA4DBF0-3C3B-11CF-810C-00AA00389B71}",
+  "version": "1.1",
+  "lcid": 0,
+  "source_file": "C:\\Windows\\System32\\oleacc.dll",
+  "file_version": "7.2.26100.9549"
+ },
+ "types": [
+  {
+   "name": "IAccessible",
+   "kind": "dispatch",
+   "guid": "{618736E0-3C3D-11CF-810C-00AA00389B71}",
+   "dual": true,
+   "flags": [
+    "hidden",
+    "dual",
+    "dispatchable"
+   ],
+   "base": "IDispatch",
+   "vtable_slots": 28,
+   "dispatch_only": false,
+   "members": [
+    {
+     "name": "accParent",
+     "dispid": -5000,
+     "invoke": "get",
+     "slot": 7,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ppdispParent",
+       "type": "IDispatch**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "accChildCount",
+     "dispid": -5001,
+     "invoke": "get",
+     "slot": 8,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pcountChildren",
+       "type": "I4*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "accChild",
+     "dispid": -5002,
+     "invoke": "get",
+     "slot": 9,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "varChild",
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "ppdispChild",
+       "type": "IDispatch**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "accName",
+     "dispid": -5003,
+     "invoke": "get",
+     "slot": 10,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "varChild",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "pszName",
+       "type": "BSTR*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT",
+     "optional_count": 1
+    },
+    {
+     "name": "accValue",
+     "dispid": -5004,
+     "invoke": "get",
+     "slot": 11,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "varChild",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "pszValue",
+       "type": "BSTR*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT",
+     "optional_count": 1
+    },
+    {
+     "name": "accDescription",
+     "dispid": -5005,
+     "invoke": "get",
+     "slot": 12,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "varChild",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "pszDescription",
+       "type": "BSTR*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT",
+     "optional_count": 1
+    },
+    {
+     "name": "accRole",
+     "dispid": -5006,
+     "invoke": "get",
+     "slot": 13,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "varChild",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "pvarRole",
+       "type": "VARIANT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT",
+     "optional_count": 1
+    },
+    {
+     "name": "accState",
+     "dispid": -5007,
+     "invoke": "get",
+     "slot": 14,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "varChild",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "pvarState",
+       "type": "VARIANT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT",
+     "optional_count": 1
+    },
+    {
+     "name": "accHelp",
+     "dispid": -5008,
+     "invoke": "get",
+     "slot": 15,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "varChild",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "pszHelp",
+       "type": "BSTR*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT",
+     "optional_count": 1
+    },
+    {
+     "name": "accHelpTopic",
+     "dispid": -5009,
+     "invoke": "get",
+     "slot": 16,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pszHelpFile",
+       "type": "BSTR*",
+       "flags": [
+        "out"
+       ]
+      },
+      {
+       "name": "varChild",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "pidTopic",
+       "type": "I4*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT",
+     "optional_count": 1
+    },
+    {
+     "name": "accKeyboardShortcut",
+     "dispid": -5010,
+     "invoke": "get",
+     "slot": 17,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "varChild",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "pszKeyboardShortcut",
+       "type": "BSTR*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT",
+     "optional_count": 1
+    },
+    {
+     "name": "accFocus",
+     "dispid": -5011,
+     "invoke": "get",
+     "slot": 18,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarChild",
+       "type": "VARIANT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "accSelection",
+     "dispid": -5012,
+     "invoke": "get",
+     "slot": 19,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarChildren",
+       "type": "VARIANT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "accDefaultAction",
+     "dispid": -5013,
+     "invoke": "get",
+     "slot": 20,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "varChild",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "pszDefaultAction",
+       "type": "BSTR*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT",
+     "optional_count": 1
+    },
+    {
+     "name": "accSelect",
+     "dispid": -5014,
+     "invoke": "method",
+     "slot": 21,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "flagsSelect",
+       "type": "I4",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "varChild",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "HRESULT",
+     "optional_count": 1
+    },
+    {
+     "name": "accLocation",
+     "dispid": -5015,
+     "invoke": "method",
+     "slot": 22,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pxLeft",
+       "type": "I4*",
+       "flags": [
+        "out"
+       ]
+      },
+      {
+       "name": "pyTop",
+       "type": "I4*",
+       "flags": [
+        "out"
+       ]
+      },
+      {
+       "name": "pcxWidth",
+       "type": "I4*",
+       "flags": [
+        "out"
+       ]
+      },
+      {
+       "name": "pcyHeight",
+       "type": "I4*",
+       "flags": [
+        "out"
+       ]
+      },
+      {
+       "name": "varChild",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "HRESULT",
+     "optional_count": 1
+    },
+    {
+     "name": "accNavigate",
+     "dispid": -5016,
+     "invoke": "method",
+     "slot": 23,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "navDir",
+       "type": "I4",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "varStart",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "pvarEndUpAt",
+       "type": "VARIANT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT",
+     "optional_count": 1
+    },
+    {
+     "name": "accHitTest",
+     "dispid": -5017,
+     "invoke": "method",
+     "slot": 24,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "xLeft",
+       "type": "I4",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "yTop",
+       "type": "I4",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "pvarChild",
+       "type": "VARIANT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "accDoDefaultAction",
+     "dispid": -5018,
+     "invoke": "method",
+     "slot": 25,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "varChild",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "HRESULT",
+     "optional_count": 1
+    },
+    {
+     "name": "accName",
+     "dispid": -5003,
+     "invoke": "put",
+     "slot": 26,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "varChild",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "pszName",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "accValue",
+     "dispid": -5004,
+     "invoke": "put",
+     "slot": 27,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "varChild",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "pszValue",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    }
+   ]
+  }
+ ]
+}
