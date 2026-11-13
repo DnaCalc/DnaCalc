@@ -2,11 +2,7 @@
 
 Status 2026-11-11. This list extends the candidate list in bead dc-ebb (comment of 2026-10-27, items
 1 to 8); it does not restart it. Sizes and licences are as each source's own record states them, read
-from the Zenodo, figshare and GitHub APIs on 2026-11-11. "Downloaded" means: fetched on a Linux
-worker, hashed, copied to R2 `dnacalc-corpus/sources/<corpus>/20261111/` with a `SOURCE.json`
-licence record, and profiled with `cargo xtask classify` (counts in `corpus-classification.md`;
-per-file path, size and SHA-256 in `docs/plan/corpus-manifests/`). No file is redistributed, none was
-opened in Excel, and none is committed.
+from the Zenodo, figshare and GitHub APIs on 2026-11-11. For the 2026-11-11 list, "Downloaded" means fetched, hashed, copied to R2 `dnacalc-corpus/sources/<corpus>/20261111/` with a `SOURCE.json` licence record, and profiled with `cargo xtask classify`. The 2026-11-13 local sets below are retained on kode-fi for later copy to the Windows capture host; their manifests and profile counts are linked from `corpus-sources.md`. No workbook is committed.
 
 ## Downloaded (owner's yes, 2026-11-11)
 
@@ -28,12 +24,21 @@ files, 992,636,485 bytes: the archive, its SHA-256 and `SOURCE.json`); each chec
 `rclone check --one-way` (0 differences). The unpacked copies on the workers are working copies and
 can be deleted.
 
+## Downloaded locally for Excel capture (owner direction, 2026-11-13)
+
+These extracted files and per-file source lists stay on the kode-fi host because `rclone` is unavailable there; classification is complete. The coordinator copies them to the Windows capture machine. Counts and licence evidence are in [`corpus-sources.md`](corpus-sources.md), with per-file path, size and SHA-256 in the manifests.
+
+| Corpus | Source | Downloaded files | Extracted bytes | Licence | What it adds |
+|---|---|---:|---:|---|---|
+| Sheetpedia XLSX | [Hugging Face dataset](https://huggingface.co/datasets/tianzl66/Sheetpedia_xlsx), pinned at `8d0e9c1d5f68e2389094bf739b1b7345a6822dee` | 211,323 | 5,501,687,718 | CC BY-SA 4.0 | Formula-rich Excel forum workbooks; streamed from one tar.gz archive |
+| BigSpill onboarding workbooks | [GitHub repository](https://github.com/Patrick2788/BigSpill-Excel-Lambda-Library/tree/ad38a3b256219279371d2cdbb9ef39f0b585777e) | 11 | 2,214,673 | MIT | LET, LAMBDA and dynamic arrays |
+| Replicator Dynamics workbook | [Zenodo record](https://zenodo.org/records/19467833) | 1 | 52,900 | CC BY 4.0 | Formula-heavy simulation sheet |
+
 ## Not downloaded
 
 | Corpus | Source (exact) | Size | Files | Licence as stated | What it would add | Note |
 |---|---|---:|---:|---|---|---|
 | FUSE | https://zenodo.org/records/581678 `fuse.zip` | 9,392,830,118 bytes | 249,376 | CC BY 4.0 (Zenodo) | breadth of web spreadsheets, with JSON metadata that lets a formula-dense subset be chosen first | does not fit koderbot (about 21 GB free) next to the 15 GB reserve; needs the dc-kapl.6 archive decision or firehorse |
-| Sheetpedia xlsx | https://huggingface.co/datasets/tianzl66/Sheetpedia_xlsx | 3.69 GB | 211,326 | CC BY-SA 4.0 (dataset card) | already .xlsx; forum workbooks; draws on Enron, FUSE and forum crawls (overlap to measure by hash) | share-alike: keep as research input |
 | VEnron2 | https://doi.org/10.6084/m9.figshare.4798042 `VEnron2.7z` | 315,143,533 bytes | not counted | CC0 (figshare metadata) | versions of Enron workbooks, for edit and recalculation scenarios | mostly overlaps Enron by content |
 | Enron emails (not needed) | same figshare item, `eml.7z.001` to `.013` | about 9.4 GB | - | CC BY 4.0 | context only | skip |
 | TmplEnron | https://figshare.com/articles/dataset/TmplEnron/5838600 | not read | - | not read | template-based Enron subset | check only if Enron proves useful |

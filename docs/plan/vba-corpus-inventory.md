@@ -49,11 +49,18 @@ differs). "Readable" excludes OLE2 files truncated by the crawler (below).
 | ExcelJS, Excelize | 46 | 0 | 0 | 0 | - | - | - | - | - |
 | Zenodo VBA search (new) | 137 | 114 | 114 | 0 | 114 | 82 | 10 | 22 | 0 |
 | GitHub permissive repos (new, harvested rule) | 2,858 | 755 | 741 | 1 | 756 | 270 | 322 | 164 | 0 |
+| Sheetpedia XLSX (2026-11-13; no VBA/XLM found) | 211,323 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| BigSpill Excel Lambda Library (2026-11-13; no VBA/XLM found) | 11 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Replicator Dynamics (2026-11-13; no VBA/XLM found) | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 
 By kind: FUSE and EUSES VBA files are all binary .xls (OLE2); Zenodo 110 .xlsm plus 4 .xlsb; GitHub
 683 OOXML, 37 .xlsb, 35 .xls. Enron holds no VBA at all (the archive is the .xlsx conversion).
 Totals: 2,194 + 360 + 61 + 68 + 7 + 2 + 5 = 2,697 readable VBA files in the existing public sets (about
 3,156 more in FUSE that cannot be read), and 869 in the two new sources.
+
+For the three spreadsheet-only sources added on 2026-11-13, the zero VBA/XLM and triage counts mean
+the static inventory found no macro projects or macro sheets to triage. Formula and feature counts
+are recorded in [`corpus-sources.md`](corpus-sources.md).
 
 Observations:
 
