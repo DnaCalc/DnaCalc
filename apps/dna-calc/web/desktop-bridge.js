@@ -1,8 +1,8 @@
 // The desktop shell's one page-side piece: under WebView2 the page's "Worker" is the native
 // workbook worker. The shell injects this before the page runs; it is transport only, a carrier
 // for the same JSON texts and tile bytes the browser worker exchanges. It holds no behaviour: the
-// page, the protocol and the server are unchanged, and a browser (which has no `chrome.webview`)
-// never runs it.
+// page, the protocol and the server are unchanged. `dnacalc serve` loads this same script with a
+// data-dnacalc-socket attribute to select its loopback WebSocket carrier.
 //
 // Framing, both ways: a message with no bytes is its JSON text; a message with bytes is
 // `text U+0001 base64(bytes)`. JSON text escapes every control character, so the first U+0001 is the
@@ -10,6 +10,27 @@
 (function () {
   "use strict";
   var host = window.chrome && window.chrome.webview;
+  var socketPath = document.currentScript && document.currentScript.getAttribute("data-dnacalc-socket");
+  var socketCarrier = !host && socketPath;
+  if (socketCarrier) {
+    var address = new URL(socketPath, window.location.href);
+    address.protocol = "ws:";
+    var socket = new WebSocket(address.href);
+    var waiting = [];
+    socket.addEventListener("open", function () {
+      waiting.forEach(function (message) { socket.send(message); });
+      waiting = [];
+    });
+    host = {
+      postMessage: function (message) {
+        if (socket.readyState === WebSocket.CONNECTING) { waiting.push(message); }
+        else if (socket.readyState === WebSocket.OPEN) { socket.send(message); }
+        else { throw new Error("The native workbook connection is closed"); }
+      },
+      addEventListener: function (type, listener) { socket.addEventListener(type, listener); },
+      removeEventListener: function (type, listener) { socket.removeEventListener(type, listener); }
+    };
+  }
   if (!host) { return; }
   // The host may ask for print requests to be answered without the native print dialog (it blocks
   // the page until a person closes it). This script also runs in the print frame.
@@ -47,7 +68,7 @@
     this._onmessage = null;
     this._onerror = null;
     this._listeners = [];
-    host.addEventListener("message", function (event) {
+    this._receive = function (event) {
       var data = event.data;
       var mark = data.charAt(0) === "@" ? data.indexOf(CHANNEL_MARK) : -1;
       var from = mark < 0 ? 0 : parseInt(data.slice(1, mark), 10);
@@ -60,7 +81,16 @@
       // `onmessage` accessor (the smoke suite's latency page does) still sees every message.
       if (self._onmessage) { self._onmessage.call(self, delivered); }
       self._listeners.forEach(function (listener) { listener(delivered); });
-    });
+    };
+    host.addEventListener("message", this._receive);
+    if (socketCarrier) {
+      this._disconnected = function () {
+        var event = { message: "The native workbook connection closed; reload the page to reconnect" };
+        if (self._onerror) { self._onerror.call(self, event); }
+      };
+      host.addEventListener("close", this._disconnected);
+      host.addEventListener("error", this._disconnected);
+    }
     // The shell answers with Started once it listens, as the browser worker does.
     host.postMessage(prefix + "hello");
   }
@@ -84,7 +114,16 @@
   DesktopWorker.prototype.addEventListener = function (type, listener) {
     if (type === "message") { this._listeners.push(listener); }
   };
-  DesktopWorker.prototype.terminate = function () {};
+  DesktopWorker.prototype.terminate = function () {
+    if (socketCarrier) {
+      host.postMessage(this._prefix + "bye");
+      host.removeEventListener("message", this._receive);
+      host.removeEventListener("close", this._disconnected);
+      host.removeEventListener("error", this._disconnected);
+    }
+  };
   window.Worker = DesktopWorker;
-  window.__dnacalcDesktop = { native: NativeWorker !== undefined };
+  // The desktop marker selects native file dialogs in the page. The socket route uses the
+  // browser's file input and downloads, even though its workbook worker is native.
+  if (!socketCarrier) { window.__dnacalcDesktop = { native: NativeWorker !== undefined }; }
 })();

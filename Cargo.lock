@@ -1233,11 +1233,18 @@ dependencies = [
 name = "dnacalc"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "calc-host",
  "calc-host-vba",
  "calc-macro-security",
+ "calc-platform-desktop",
  "calc-verdict",
+ "dna-calc-protocol",
+ "dna-calc-worker",
+ "getrandom",
+ "httparse",
  "serde_json",
+ "tungstenite",
 ]
 
 [[package]]

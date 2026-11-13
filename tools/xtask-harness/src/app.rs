@@ -73,7 +73,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-pub const USAGE: &str = "usage: cargo xtask app bundle onecalc|calc [--out <dir>]\n       cargo xtask app smoke onecalc|calc [--bundle <dir> | --url <page>] [--browser chromium|firefox] [--suite core|full] [--renderer dom|canvas] [--renderer-report <dir>] [--group <name>] [--case <substring>] [--list] [--workbook <file> [--edit <sheet>!<cell>=<text>] [--skins] [--profile <cpuprofile.json>]]\n       cargo xtask app paint-compare calc --out <dir> [--bundle <dir>] [--reference <dir>] [--workbook <file>] [--zooms 75,100,150]\n       cargo xtask app xll-accept onecalc --exe <dna-onecalc-desktop.exe> --bundle <dir> --plan <plan.json> --out <dir> [--var NAME=VALUE]... [--set <name>]...
+pub const USAGE: &str = "usage: cargo xtask app bundle onecalc|calc [--out <dir>] [--pack <file>]\n       cargo xtask app smoke onecalc|calc [--bundle <dir> | --url <page>] [--browser chromium|firefox] [--suite core|full] [--renderer dom|canvas] [--renderer-report <dir>] [--group <name>] [--case <substring>] [--list] [--workbook <file> [--edit <sheet>!<cell>=<text>] [--skins] [--profile <cpuprofile.json>]]\n       cargo xtask app paint-compare calc --out <dir> [--bundle <dir>] [--reference <dir>] [--workbook <file>] [--zooms 75,100,150]\n       cargo xtask app xll-accept onecalc --exe <dna-onecalc-desktop.exe> --bundle <dir> --plan <plan.json> --out <dir> [--var NAME=VALUE]... [--set <name>]...
        cargo xtask app xll-accept calc --exe <dna-calc-desktop.exe> --bundle <dir> --plan <plan.json> --out <dir> [--var NAME=VALUE]... [--set <name>]...
        cargo xtask onecalc bundle|smoke ... (the same, for onecalc)";
 
@@ -325,12 +325,27 @@ pub fn run(raw: &[String]) -> ExitCode {
         "xll-accept" if app.key == "onecalc" => xll::run(&ws, rest),
         "xll-accept" if app.key == "calc" => xll_calc::run(&ws, rest),
         "bundle" => {
-            let out = match rest {
-                [] => ws.root.join(app.default_out),
-                [flag, dir] if flag == "--out" => PathBuf::from(dir),
-                _ => return usage(raw),
-            };
-            match bundle(&ws, app, &out) {
+            let mut out = ws.root.join(app.default_out);
+            let mut pack = None;
+            let mut options = rest.iter();
+            while let Some(flag) = options.next() {
+                match (flag.as_str(), options.next()) {
+                    ("--out", Some(dir)) => out = PathBuf::from(dir),
+                    ("--pack", Some(file)) => pack = Some(PathBuf::from(file)),
+                    _ => return usage(raw),
+                }
+            }
+            let built = bundle(&ws, app, &out).and_then(|files| {
+                if let Some(path) = pack {
+                    let files = files.into_iter().map(|(name, _)| {
+                        fs::read(out.join(&name)).map(|bytes| (name, bytes)).map_err(|e| e.to_string())
+                    }).collect::<Result<Vec<_>, _>>()?;
+                    fs::write(&path, calc_platform_desktop::assets::pack(&files)).map_err(|e| e.to_string())?;
+                    println!("{} packed page {}", app.label, path.display());
+                }
+                Ok(())
+            });
+            match built {
                 Ok(_) => ExitCode::SUCCESS,
                 Err(e) => {
                     println!("{} RESULT failed: {e}", app.label);

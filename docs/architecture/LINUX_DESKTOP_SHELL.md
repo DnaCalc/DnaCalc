@@ -1,7 +1,7 @@
 # DNA Calc desktop on Linux: shell options (dc-icq4.3)
 
-Design note, 2026-11-13. Status: for review. Nothing here is built; the code facts below were read
-in this checkout, the claims about WebKitGTK and WebGPU were not measured and are marked.
+Design note, 2026-11-13. Option B is implemented by dc-icq4.4; options A and C remain proposals.
+WebKitGTK and WebGPU on WebKitGTK have not been measured on this host (see below).
 
 ## What the Windows shell is today
 
@@ -60,9 +60,10 @@ the Windows modules), a Linux `app` in `dna-calc-desktop`, and a second carrier 
 
 ### B. Browser-served local app (`dnacalc serve`)
 
-The runner binary serves the same embedded page on `127.0.0.1:<port>` and bridges a WebSocket (or
-POST) to a native `Server`; the user's own Chrome or Firefox shows it. A site server exists only in
-`tools/xtask-harness/src/site.rs` (`serve_forever`), so a small HTTP/WebSocket server is new code.
+The runner binary serves the same embedded page on `127.0.0.1:<port>` and bridges a WebSocket to a
+native `Server`; the user's own Chrome or Firefox shows it. `apps/dnacalc/src/serve.rs` owns the
+listener and native Server channels; `desktop-bridge.js` selects the WebSocket carrier only when
+the served page requests it. WebView2 continues to select `chrome.webview`.
 - For: stays static (musl) and ships in the tarball; the user's browser brings its own WebGPU,
   fonts and accessibility; no GTK or WebKit dependency; works on any distribution.
 - Against: a local server is an attack surface: bind to loopback only, a random token in the URL,
@@ -100,10 +101,33 @@ The Linux answer for add-ins stays the typed refusal above, on every option.
 compare with Excel's cached values, read and write cells, run VBA at `safe` or `unguarded`, save.
 Beside it, the web app in the browser with the wasm worker. No XLL, COM or RTD add-ins.
 
+`dnacalc serve` opens the workbook page over the native worker: visit the URL printed on the
+terminal, open files with the browser's file picker, and save to its downloads. Ctrl+C stops the
+server. The URL has a fresh 256-bit operating-system random capability in its path on each start;
+keep it private. The listener binds only to IPv4 loopback; the port defaults to an available port
+(`--port N` overrides it). HTTP checks Host, Origin when present, and cross-site fetch metadata;
+WebSocket upgrades require the exact Origin too. No response enables CORS. CSP allows the page's
+scripts and its local socket, and the referrer policy withholds the private URL.
+
+The Linux packager builds and embeds the same page block the Windows shell uses. For development:
+
+```sh
+cargo xtask app bundle calc --pack target/calc-page.block
+DNACALC_CALC_PAGE="$PWD/target/calc-page.block" cargo build -p dnacalc
+target/debug/dnacalc serve
+```
+
+An everyday build without an embedded page uses `dnacalc serve --assets target/dnacalc-bundle`.
+Macro security starts Off, as in the browser worker; this change adds no native file, fetch, XLL
+or COM services to the Server.
+
 ## Open questions (to measure before building)
 
-- Does the page run, and does `navigator.gpu` exist, in WebKitGTK 2.52 (install
-  `libwebkit2gtk-4.1-0`, load the built page and `probe/webgpu.html`)? Not run here.
+- Does the page run, and does `navigator.gpu` exist, in WebKitGTK 2.52? **Not measured on
+  dna-firehorse, 2026-11-13:** pkg-config, the dynamic linker cache and Python's library lookup
+  found no WebKitGTK 4.1, 4.0 or 6.0 library; WebKitWebDriver is absent too. Neither the page nor
+  `apps/dna-calc-desktop/probe/webgpu.html` could be run there without installing the system
+  runtime. No system packages were installed. A host with WebKitGTK is still needed.
 - What should `Shell`, `Environ`, `CurDir` and path separators mean in `unguarded` on Linux?
 - Does File System Access matter, or is download-and-open enough for the browser route?
 - aarch64 Linux: the runner build is x86-64 only so far (dc-icq4.2).

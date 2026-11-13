@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 license.workspace = true
-description = "The dnacalc command: open a workbook, recalculate it, compare it with its cached values, read and write cells and run its VBA macros, headless on Linux and Windows (dc-icq4.1)."
+description = "The dnacalc command: headless workbook commands and a local browser page over the native worker, on Linux and Windows."
 
 [package.metadata.dnacalc]
 portability = "native-only"
@@ -18,6 +18,13 @@ calc-host-vba = { path = "../../crates/calc-host-vba" }
 calc-macro-security = { path = "../../crates/calc-macro-security" }
 calc-verdict = { path = "../../tools/calc-verdict" }
 serde_json = "=1.0.154"
+calc-platform-desktop = { path = "../../platform/calc-platform-desktop" }
+dna-calc-worker = { path = "../dna-calc-worker" }
+dna-calc-protocol = { path = "../dna-calc-protocol" }
+base64 = "=0.22.1"
+getrandom = "=0.4.3"
+httparse = "=1.10.1"
+tungstenite = { version = "=0.30.0", default-features = false, features = ["handshake"] }
 
 [[bin]]
 name = "dnacalc"
