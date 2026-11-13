@@ -26,6 +26,91 @@ use std::{
     time::{Duration, Instant},
 };
 
+/// Session metadata projected on the STA. The session refreshes this before callbacks and
+/// calculations; cell values remain in the session and the invocation's read view.
+struct NativeWorkbook {
+    projection: std::rc::Weak<calc_com_host::Projection>,
+    native: std::rc::Weak<calc_xll_host::XllHost>,
+    full_name: RefCell<String>,
+    active_sheet: RefCell<Option<String>>,
+    enabled: RefCell<Rc<Cell<bool>>>,
+}
+impl NativeWorkbook {
+    fn attach(addins: &AddinHost, server: &mut Server) -> Result<Rc<Self>, String> {
+        let projection = addins.projection_handle();
+        let bridge = Rc::new(Self {
+            projection: Rc::downgrade(&projection),
+            native: Rc::downgrade(&addins.native_handle()),
+            full_name: RefCell::default(),
+            active_sheet: RefCell::default(),
+            enabled: RefCell::new(Rc::new(Cell::new(true))),
+        });
+        projection.bind_workbook(bridge.clone())?;
+        server.set_workbook_event_observer(Some(bridge.clone()));
+        Ok(bridge)
+    }
+}
+impl calc_com_host::WorkbookBridge for NativeWorkbook {
+    fn full_name(&self) -> String {
+        self.full_name.borrow().clone()
+    }
+    fn active_sheet(&self) -> Option<String> {
+        self.active_sheet.borrow().clone()
+    }
+    fn events_enabled(&self) -> bool {
+        self.enabled.borrow().get()
+    }
+    fn set_events_enabled(&self, enabled: bool) {
+        self.enabled.borrow().set(enabled);
+    }
+}
+impl calc_host::WorkbookEventObserver for NativeWorkbook {
+    fn context_changed(&self, session: &calc_host::HostSession) {
+        *self.full_name.borrow_mut() = session.file_full_name().to_owned();
+        *self.enabled.borrow_mut() = session.workbook_events_switch();
+        let sheet = session
+            .selection()
+            .active
+            .map(|at| at.sheet())
+            .or_else(|| session.host().sheets().first().map(|sheet| sheet.id()));
+        if let Some(native) = self.native.upgrade() {
+            let full = session.file_full_name();
+            let name = full.rsplit(['/', '\\']).next().unwrap_or(full);
+            for item in session.host().sheets() {
+                native.set_sheet(
+                    item.id(),
+                    format!("[{name}]{}", item.name().text().to_string_lossy()),
+                    Some(item.id()) == sheet,
+                );
+            }
+        }
+        *self.active_sheet.borrow_mut() = sheet
+            .and_then(|id| session.host().model().sheet_by_id(id))
+            .map(|sheet| sheet.name().text().to_string_lossy());
+    }
+    fn worksheet_change(
+        &self,
+        session: &mut calc_host::HostSession,
+        sheet: calc_value::SheetId,
+        target: &[calc_value::GridArea],
+    ) -> Result<(), String> {
+        let Some(projection) = self.projection.upgrade() else {
+            return Ok(());
+        };
+        let sheet = session
+            .host()
+            .model()
+            .sheet_by_id(sheet)
+            .ok_or("native SheetChange sheet was deleted")?;
+        projection.sheet_change_areas(&sheet.name().text().to_string_lossy(), target)
+    }
+    fn after_calculate(&self, _session: &mut calc_host::HostSession) -> Result<(), String> {
+        self.projection
+            .upgrade()
+            .map_or(Ok(()), |projection| projection.after_calculate())
+    }
+}
+
 /// What the command line asks of app mode.
 struct Options {
     /// Navigate here (the harness's bundle server), instead of mapping `assets`.
@@ -135,6 +220,7 @@ const WORKBOOK: &str = "Book1";
 
 struct App {
     server: RefCell<Server>,
+    native_workbook: Rc<NativeWorkbook>,
     web: WebView,
     /// The add-in set: what `--xll` loaded at start and what the person loads and unloads in the
     /// page's add-in panel (dc-0f1k.23). It always exists, as OneCalc's does.
@@ -318,6 +404,7 @@ impl App {
             // previous page started are gone with it.
             self.extras.borrow_mut().clear();
             let mut server = Server::new();
+            server.set_workbook_event_observer(Some(self.native_workbook.clone()));
             server.set_macro_policy(self.macro_policy.get());
             server.set_calculation_budget(calc_host::WorkBudget::evaluations(64));
             server.set_fetch_route(self.fetch.clone());
@@ -351,12 +438,21 @@ impl App {
         let mut text = text.to_owned();
         let mut bytes = bytes;
         let mut open_origin = None;
+        let mut open_location = None;
         let substitute = self.opening.borrow().as_ref().and_then(|opening| {
-            startup_open(&text, opening).map(|open| (open, opening.bytes.clone(), opening.origin))
+            startup_open(&text, opening).map(|open| {
+                (
+                    open,
+                    opening.bytes.clone(),
+                    opening.origin,
+                    opening.path.to_string_lossy().into_owned(),
+                )
+            })
         });
-        if let Some((open, package, origin)) = substitute {
+        if let Some((open, package, origin, location)) = substitute {
             self.opening.borrow_mut().take();
             open_origin = Some(origin);
+            open_location = Some(location);
             text = open;
             bytes = Some(package);
         }
@@ -378,6 +474,7 @@ impl App {
                         text = crate::origin::open_request(&text, &opened, false)
                             .expect("checked native open");
                         open_origin = Some(opened.origin);
+                        open_location = Some(opened.path.to_string_lossy().into_owned());
                         bytes = Some(opened.bytes);
                     }
                     Ok(None) => {
@@ -406,6 +503,7 @@ impl App {
         let text = text.as_str();
         let (reply, out, events) = {
             let mut server = self.server.borrow_mut();
+            server.set_open_file_location(open_location);
             let (reply, out) = match open_origin {
                 Some(origin) => server
                     .with_open_origin(origin, |server| server::answer_text(server, text, bytes)),
@@ -593,7 +691,12 @@ impl App {
             .host()
             .sheets()
             .iter()
-            .map(|sheet| (sheet.id(), sheet.name().text().to_string_lossy().to_string()))
+            .map(|sheet| {
+                (
+                    sheet.id(),
+                    sheet.name().text().to_string_lossy().to_string(),
+                )
+            })
             .collect();
         let renamed = *self.sheets_bound.borrow() != names;
         if self.book.replace(id) != id || renamed {
@@ -603,13 +706,9 @@ impl App {
     }
 
     fn bind_sheets(&self) {
-        let Ok(addins) = self.addins.try_borrow() else {
-            return;
-        };
-        let server = self.server.borrow();
-        for sheet in server.book().host().sheets() {
-            addins.bind_sheet(sheet.id(), &sheet.name().text().to_string_lossy());
-        }
+        use calc_host::WorkbookEventObserver;
+        self.native_workbook
+            .context_changed(self.server.borrow().book().session());
     }
 
     /// The fetches that finished: each resumes its waiting cell.
@@ -743,6 +842,7 @@ Open the download page now?"
     server.set_import_route(Rc::new(LocalFiles));
     // The add-in set always exists: the page loads add-ins into it whenever the person asks.
     let mut functions = None;
+    let native_workbook;
     let addins = {
         let sheets: Vec<(calc_value::SheetId, String)> = server
             .book()
@@ -768,6 +868,7 @@ Open the download page now?"
                 sheets: &sheet_refs,
             },
         )?;
+        native_workbook = NativeWorkbook::attach(&set, &mut server)?;
         for xll in &o.xlls {
             for note in crate::load_addin(&mut set, xll)? {
                 eprintln!("dna-calc-desktop: {}: {note}", xll.display());
@@ -787,6 +888,7 @@ Open the download page now?"
     let app = Rc::new(App {
         book: Cell::new(server.workbook_id()),
         server: RefCell::new(server),
+        native_workbook,
         web,
         addins: RefCell::new(addins),
         addin_notes: RefCell::new(Vec::new()),
@@ -803,6 +905,29 @@ Open the download page now?"
         macro_policy: Cell::new(macro_policy),
         settings,
     });
+    {
+        let weak = Rc::downgrade(&app);
+        app.web.on_download_completed(move |proposed| {
+            let app = weak.upgrade()?;
+            let server = app.server.try_borrow().ok()?;
+            let expected = server.book().save_name();
+            if calc_platform_desktop::proposed_name(proposed)?.to_string_lossy() != expected {
+                return None;
+            }
+            let workbook = server.workbook_id();
+            let weak = Rc::downgrade(&app);
+            Some(Rc::new(move |path: &std::path::Path| {
+                if let Some(app) = weak.upgrade() {
+                    if let Ok(mut server) = app.server.try_borrow_mut() {
+                        if server.workbook_id() == workbook && server.book().save_name() == expected
+                        {
+                            server.set_file_location(path.to_string_lossy().into_owned());
+                        }
+                    }
+                }
+            }) as Rc<dyn Fn(&std::path::Path)>)
+        })?;
+    }
     {
         // The page's messages must not keep the app alive: a weak handle lets it drop at exit.
         let weak = Rc::downgrade(&app);

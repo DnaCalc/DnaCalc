@@ -241,8 +241,11 @@ struct PublicationUnit; struct CompletionReceipt;          // receipt per comman
 - **Object library** in `calc-object-model`, generated from one descriptor model into IDL/`.tlb` (MIDL or
   `CreateTypeLib2`), native vtables, portable adapters, interpreter adapters and JIT lowering, round-tripped through
   the importer. **GUIDs** (VBA-A, RT): DNA's own LIBID, CLSIDs, ProgIDs and IIDs with an explicit Excel
-  source-compatibility mapping; an Excel IID is reused only by a facade implementing that interface's complete
-  contract; type-library identity, activation identity and coexistence with Excel stay separate (decision 9).
+  source-compatibility mapping. The current native `calc-com-host` facade reuses measured Excel IIDs and selected
+  vtable slots for add-in compatibility; it implements a subset, not the complete Excel interfaces. DNA Calc supplies
+  session workbook identity, selection and native events through its workbook bridge; OneCalc stays values-only.
+  Unsupported members refuse. Type-library identity, activation identity and coexistence with Excel stay separate
+  (decision 9).
 - **Composition**: calc-* libraries depend only on `calcvba-host-api`; each app binary composes the runtime provider.
 - **Security** (RT 7): trusted native vs sandboxed profiles with granted capabilities, memory/work limits and effect
   policy fixed at registration; a "pure" annotation proves nothing; a hard stop needs an isolation boundary.

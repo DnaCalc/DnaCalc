@@ -309,6 +309,28 @@ impl Workbook {
         edit_template: bool,
         template_counter: u64,
     ) -> Result<Workbook, OpenRefused> {
+        Self::open_with_observer(
+            name,
+            bytes,
+            budget,
+            origin,
+            edit_template,
+            template_counter,
+            None,
+            None,
+        )
+    }
+
+    pub(crate) fn open_with_observer(
+        name: &str,
+        bytes: Vec<u8>,
+        budget: calc_host::WorkBudget,
+        origin: FileOrigin,
+        edit_template: bool,
+        template_counter: u64,
+        observer: Option<Rc<dyn calc_host::WorkbookEventObserver>>,
+        location: Option<String>,
+    ) -> Result<Workbook, OpenRefused> {
         let memory = MemorySource::new(bytes);
         let source: Arc<dyn PackageRead> = Arc::new(memory.clone().named(name));
         let mut session = HostSession::open(source, &OpenPolicy::default(), host_options())
@@ -341,6 +363,12 @@ impl Workbook {
             )
             .map_err(OpenRefused::Package)?;
         }
+        if !unsaved {
+            if let Some(location) = location {
+                session.set_file_location(location);
+            }
+        }
+        session.set_workbook_event_observer(observer);
         sample_browser_clock(&mut session);
         session.set_calculation_budget(budget);
         // Opening never compiles or runs the file's project (dc-0f1k.22): it is held and saved
@@ -440,6 +468,24 @@ impl Workbook {
         self.session.host()
     }
 
+    pub fn set_workbook_event_observer(
+        &mut self,
+        observer: Option<Rc<dyn calc_host::WorkbookEventObserver>>,
+    ) {
+        self.session.set_workbook_event_observer(observer);
+    }
+    pub fn set_file_location(&mut self, full_name: String) {
+        let name = full_name.rsplit(['/', '\\']).next().unwrap_or(&full_name);
+        let renamed = self.name != name;
+        if renamed {
+            self.session.set_file_identity(name, self.output_format.macro_enabled());
+            self.name = name.to_owned();
+        }
+        self.session.set_file_location(full_name);
+        if renamed && self.session.calc_mode() != CalcMode::Manual {
+            self.session.dispatch(SkinIntent::Recalculate);
+        }
+    }
     pub fn session(&self) -> &HostSession {
         &self.session
     }

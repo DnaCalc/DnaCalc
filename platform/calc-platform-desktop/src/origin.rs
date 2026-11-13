@@ -18,7 +18,7 @@ pub struct OpenedFile {
 }
 
 pub fn open_file(path: &Path) -> io::Result<OpenedFile> {
-    let path = default_data_path(path);
+    let path = std::path::absolute(default_data_path(path))?;
     let mut options = std::fs::OpenOptions::new();
     options.read(true);
     #[cfg(windows)]

@@ -86,6 +86,8 @@ impl PendingSave {
 }
 
 pub struct Server {
+    workbook_observer: Option<std::rc::Rc<dyn calc_host::WorkbookEventObserver>>,
+    open_file_location: Option<String>,
     calculation_budget: calc_host::WorkBudget,
     workbook: u64,
     commands: calc_host::CommandJournal<(Result<Reply, String>, Option<Vec<u8>>)>,
@@ -298,6 +300,8 @@ impl Server {
     pub fn new() -> Server {
         let book = Workbook::new_blank();
         Server {
+            workbook_observer: None,
+            open_file_location: None,
             calculation_budget: calc_host::WorkBudget::UNLIMITED,
             workbook: 0,
             commands: calc_host::CommandJournal::new(128, 16 * 1024 * 1024),
@@ -879,7 +883,7 @@ impl Server {
                         .unwrap_or(0)
                         .checked_add(1)
                         .ok_or("The template workbook name counter is exhausted (dc-bctq)")?;
-                    match Workbook::open_with_template_counter(
+                    match Workbook::open_with_observer(
                         &name,
                         bytes,
                         self.calculation_budget,
@@ -888,6 +892,8 @@ impl Server {
                             .unwrap_or(crate::workbook::FileOrigin::Unknown),
                         edit_template,
                         counter,
+                        self.workbook_observer.clone(),
+                        self.open_file_location.take(),
                     ) {
                         Ok(book) => {
                             if book.unsaved() {
@@ -1560,6 +1566,21 @@ impl Server {
         }
     }
 
+    /// Attach a native observer before the next open/calculation, retaining the VBA owner.
+    pub fn set_workbook_event_observer(
+        &mut self,
+        observer: Option<std::rc::Rc<dyn calc_host::WorkbookEventObserver>>,
+    ) {
+        self.book.set_workbook_event_observer(observer.clone());
+        self.workbook_observer = observer;
+    }
+    pub fn set_open_file_location(&mut self, full_name: Option<String>) {
+        self.open_file_location = full_name;
+    }
+    pub fn set_file_location(&mut self, full_name: String) {
+        self.book.set_file_location(full_name);
+    }
+
     /// Bind WEBSERVICE and IMAGE of this and every later workbook to `route`.
     pub fn set_fetch_route(&mut self, route: std::rc::Rc<dyn calc_func::FetchRoute>) {
         self.book.set_fetch_route(route.clone());
@@ -1663,6 +1684,7 @@ impl Server {
     }
 
     fn install(&mut self, mut book: Workbook) {
+        book.set_workbook_event_observer(self.workbook_observer.clone());
         if let Some(route) = &self.fetch_route {
             book.set_fetch_route(route.clone());
         }
@@ -3692,6 +3714,7 @@ impl Server {
         for (index, failure) in failures.failures.into_iter().enumerate() {
             let event = match failure.event {
                 calc_host::WorkbookEvent::Open => "Workbook_Open",
+                calc_host::WorkbookEvent::AfterCalculate => "AfterCalculate",
                 calc_host::WorkbookEvent::WorksheetChange { .. } => "Worksheet_Change",
                 calc_host::WorkbookEvent::WorksheetCalculate { .. } => "Worksheet_Calculate",
                 calc_host::WorkbookEvent::BeforeSave { .. } => "Workbook_BeforeSave",

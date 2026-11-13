@@ -3,6 +3,7 @@
 use crate::{BeforeSaveOutcome, CommandReceipt, HostProgress, HostSession, SaveOperation};
 use calc_value::{GridArea, SheetId};
 use std::{
+    cell::Cell,
     collections::{BTreeMap, BTreeSet, VecDeque},
     rc::Rc,
 };
@@ -14,6 +15,7 @@ pub enum WorkbookEvent {
         sheet: SheetId,
         target: Vec<GridArea>,
     },
+    AfterCalculate,
     WorksheetCalculate {
         sheet: SheetId,
     },
@@ -45,6 +47,23 @@ pub trait WorkbookEventHandler {
     ) -> Result<BeforeSaveOutcome, String>;
 }
 
+/// A native projection observes the same committed events after the owning VBA handler.
+/// Callbacks borrow the session only for their duration; they must not retain its address.
+pub trait WorkbookEventObserver {
+    fn context_changed(&self, _session: &HostSession) {}
+    fn worksheet_change(
+        &self,
+        _session: &mut HostSession,
+        _sheet: SheetId,
+        _target: &[GridArea],
+    ) -> Result<(), String> {
+        Ok(())
+    }
+    fn after_calculate(&self, _session: &mut HostSession) -> Result<(), String> {
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WorkbookEventFailure {
     pub sequence: u64,
@@ -62,7 +81,8 @@ pub struct WorkbookEventFailures {
 
 pub(crate) struct WorkbookEventState {
     owner: Option<Rc<dyn WorkbookEventHandler>>,
-    enabled: bool,
+    observer: Option<Rc<dyn WorkbookEventObserver>>,
+    enabled: Rc<Cell<bool>>,
     next: u64,
     failures: VecDeque<WorkbookEventFailure>,
     omitted: u64,
@@ -73,7 +93,8 @@ impl Default for WorkbookEventState {
     fn default() -> Self {
         Self {
             owner: None,
-            enabled: true,
+            observer: None,
+            enabled: Rc::new(Cell::new(true)),
             next: 1,
             failures: VecDeque::new(),
             omitted: 0,
@@ -105,10 +126,23 @@ impl HostSession {
         self.workbook_events.owner = owner;
     }
     pub fn set_workbook_events_enabled(&mut self, enabled: bool) {
-        self.workbook_events.enabled = enabled;
+        self.workbook_events.enabled.set(enabled);
     }
     pub fn workbook_events_enabled(&self) -> bool {
-        self.workbook_events.enabled
+        self.workbook_events.enabled.get()
+    }
+    /// The projection and VBA use this same switch, including during synchronous callbacks.
+    pub fn workbook_events_switch(&self) -> Rc<Cell<bool>> {
+        self.workbook_events.enabled.clone()
+    }
+    pub fn set_workbook_event_observer(&mut self, observer: Option<Rc<dyn WorkbookEventObserver>>) {
+        self.workbook_events.observer = observer;
+        self.notify_workbook_context();
+    }
+    pub(crate) fn notify_workbook_context(&self) {
+        if let Some(observer) = &self.workbook_events.observer {
+            observer.context_changed(self);
+        }
     }
     /// Inspect the bounded event report without editing or invalidating the workbook.
     pub fn workbook_event_failures(&self) -> WorkbookEventFailures {
@@ -126,11 +160,12 @@ impl HostSession {
     fn event_owner(&self) -> Option<Rc<dyn WorkbookEventHandler>> {
         self.workbook_events
             .enabled
+            .get()
             .then(|| self.workbook_events.owner.clone())
             .flatten()
     }
     fn event_owner_still_active(&self, owner: &Rc<dyn WorkbookEventHandler>) -> bool {
-        self.workbook_events.enabled
+        self.workbook_events.enabled.get()
             && self
                 .workbook_events
                 .owner
@@ -153,28 +188,54 @@ impl HostSession {
         });
     }
     pub(crate) fn notify_workbook_change(&mut self, receipt: &CommandReceipt) {
-        let Some(owner) = self.event_owner() else {
+        if !self.workbook_events_enabled() {
             return;
-        };
+        }
+        let owner = self.event_owner();
         let mut targets: BTreeMap<SheetId, Vec<GridArea>> = BTreeMap::new();
         for area in receipt.input_writes().iter().copied() {
             targets.entry(area.sheet()).or_default().push(area);
         }
         for (sheet, target) in targets {
-            if !self.event_owner_still_active(&owner) {
+            if !self.workbook_events_enabled()
+                || owner
+                    .as_ref()
+                    .is_some_and(|owner| !self.event_owner_still_active(owner))
+            {
                 break;
             }
             if self.host.model().sheet_by_id(sheet).is_none() {
                 continue;
             }
             let target = crate::copy_metadata::merge(target);
-            if let Err(reason) = owner.worksheet_change(self, sheet, &target) {
-                self.record_event_failure(WorkbookEvent::WorksheetChange { sheet, target }, reason);
+            if let Some(owner) = &owner {
+                if let Err(reason) = owner.worksheet_change(self, sheet, &target) {
+                    self.record_event_failure(
+                        WorkbookEvent::WorksheetChange {
+                            sheet,
+                            target: target.clone(),
+                        },
+                        reason,
+                    );
+                }
+            }
+            // Nested handler writes finish their own VBA and native events before this target.
+            if self.workbook_events_enabled() && self.host.model().sheet_by_id(sheet).is_some() {
+                if let Some(observer) = self.workbook_events.observer.clone() {
+                    if let Err(reason) = observer.worksheet_change(self, sheet, &target) {
+                        self.record_event_failure(
+                            WorkbookEvent::WorksheetChange { sheet, target },
+                            reason,
+                        );
+                    }
+                }
             }
         }
     }
     pub(crate) fn refuse_automation_change(&mut self, receipt: &CommandReceipt) {
-        if self.event_owner().is_none() {
+        if !self.workbook_events_enabled()
+            || (self.workbook_events.owner.is_none() && self.workbook_events.observer.is_none())
+        {
             return;
         }
         let mut targets: BTreeMap<SheetId, Vec<GridArea>> = BTreeMap::new();
@@ -214,11 +275,12 @@ impl HostSession {
             return;
         }
         let (_, sheets) = state.calculation.take().expect("completed command");
-        let Some(owner) = self.event_owner() else {
-            return;
-        };
+        let owner = self.event_owner();
         for sheet in sheets {
-            if !self.event_owner_still_active(&owner) {
+            let Some(owner) = &owner else {
+                break;
+            };
+            if !self.event_owner_still_active(owner) {
                 break;
             }
             if self.host.model().sheet_by_id(sheet).is_none() {
@@ -226,6 +288,17 @@ impl HostSession {
             }
             if let Err(reason) = owner.worksheet_calculate(self, sheet) {
                 self.record_event_failure(WorkbookEvent::WorksheetCalculate { sheet }, reason);
+            }
+        }
+        if delta
+            .completion()
+            .is_some_and(|receipt| receipt.outcome == crate::CompletionOutcome::Complete)
+            && self.workbook_events_enabled()
+        {
+            if let Some(observer) = self.workbook_events.observer.clone() {
+                if let Err(reason) = observer.after_calculate(self) {
+                    self.record_event_failure(WorkbookEvent::AfterCalculate, reason);
+                }
             }
         }
     }

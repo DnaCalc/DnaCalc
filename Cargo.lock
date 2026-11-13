@@ -1102,6 +1102,7 @@ name = "dna-calc-desktop"
 version = "0.1.0"
 dependencies = [
  "calc-addin-host",
+ "calc-com-host",
  "calc-func",
  "calc-host",
  "calc-host-vba",

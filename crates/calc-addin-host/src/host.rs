@@ -458,6 +458,14 @@ impl AddinHost {
         &self.native
     }
 
+    /// A weak observer can deliver session events without keeping the native host alive.
+    pub fn projection_handle(&self) -> Rc<Projection> {
+        self.projection.clone()
+    }
+    pub fn native_handle(&self) -> Rc<XllHost> {
+        self.native.clone()
+    }
+
     /// The Excel object model add-ins see.
     pub fn projection(&self) -> &Projection {
         &self.projection

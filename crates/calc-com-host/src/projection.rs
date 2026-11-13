@@ -1,6 +1,6 @@
 use calc_value::{CalcValue, CoreRef, ExcelText};
 use calc_xll_host::XllHost;
-use std::{ffi::c_void, rc::Rc};
+use std::{cell::RefCell, ffi::c_void, rc::Rc};
 
 #[repr(C)]
 pub(crate) struct Value {
@@ -8,6 +8,50 @@ pub(crate) struct Value {
     pub number: f64,
     pub text: *const u16,
     pub length: usize,
+}
+#[repr(C)]
+struct Area {
+    row: u32,
+    column: u32,
+    end_row: u32,
+    end_column: u32,
+}
+type Bridge = unsafe extern "system" fn(*const c_void, u32, *mut Value) -> i32;
+struct WorkbookBinding(RefCell<Option<Rc<dyn crate::WorkbookBridge>>>);
+unsafe extern "system" fn workbook_bridge(
+    context: *const c_void,
+    operation: u32,
+    output: *mut Value,
+) -> i32 {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let binding = unsafe { &*context.cast::<WorkbookBinding>() };
+        let bridge = binding.0.borrow().clone();
+        let Some(bridge) = bridge else {
+            return 0x80004001u32 as i32;
+        };
+        let output = unsafe { &mut *output };
+        if operation == 2 {
+            output.number = f64::from(u8::from(bridge.events_enabled()));
+            return 0;
+        }
+        if operation == 3 {
+            bridge.set_events_enabled(output.number != 0.);
+            return 0;
+        }
+        let text = match operation {
+            0 => bridge.full_name(),
+            1 => bridge.active_sheet().unwrap_or_default(),
+            _ => return 0x80004001u32 as i32,
+        };
+        let units: Vec<_> = text.encode_utf16().collect();
+        output.text = unsafe { SysAllocStringLen(units.as_ptr(), units.len() as u32) };
+        if output.text.is_null() {
+            return 0x8007000eu32 as i32;
+        }
+        output.length = units.len();
+        0
+    }))
+    .unwrap_or(0x80004005u32 as i32)
 }
 type Run = unsafe extern "system" fn(
     *const c_void,
@@ -28,6 +72,8 @@ unsafe extern "C" {
     #[cfg(test)]
     fn dna_com_test_events() -> i32;
     #[cfg(test)]
+    fn dna_com_test_workbook_bridge() -> i32;
+    #[cfg(test)]
     fn dna_com_test_office() -> i32;
     #[cfg(test)]
     fn dna_com_test_refusals() -> i32;
@@ -40,6 +86,7 @@ unsafe extern "C" {
         qualifier: Qualifier,
         owns_module: OwnsModule,
     ) -> *mut c_void;
+    fn dna_com_bridge(projection: *mut c_void, context: *const c_void, bridge: Bridge) -> i32;
     fn dna_com_getobject(projection: *mut c_void, wparam: usize, object_id: isize) -> isize;
     fn dna_com_destroy(projection: *mut c_void);
     fn dna_com_close_office(projection: *mut c_void) -> i32;
@@ -53,6 +100,13 @@ unsafe extern "C" {
     fn dna_com_sheet(projection: *mut c_void, name: *const u16, length: usize) -> i32;
     fn dna_com_enable_events(projection: *mut c_void, enabled: bool) -> i32;
     fn dna_com_sheet_change(projection: *mut c_void, row: u32, column: u32) -> i32;
+    fn dna_com_sheet_change_areas(
+        projection: *mut c_void,
+        name: *const u16,
+        length: usize,
+        areas: *const Area,
+        count: usize,
+    ) -> i32;
     fn dna_com_after_calculate(projection: *mut c_void) -> i32;
     fn dna_com_run_early(
         projection: *mut c_void,
@@ -67,6 +121,12 @@ unsafe extern "C" {
 fn event_source_owns_cookies_and_disconnects_retained_ranges() {
     let status = unsafe { dna_com_test_events() };
     assert_eq!(status, 0, "COM event lifecycle: {status:#x}");
+}
+/// Native-only: exercises workbook metadata and the shared event switch across the C++ ABI.
+#[test]
+fn workbook_bridge_reads_current_identity_selection_and_event_switch() {
+    let status = unsafe { dna_com_test_workbook_bridge() };
+    assert_eq!(status, 0, "COM workbook bridge: {status:#x}");
 }
 /// Native-only: exercises the real COM dispatch tree and retained objects after teardown.
 #[test]
@@ -91,6 +151,7 @@ fn ribbon_callbacks_retain_objects_and_reject_stale_connections() {
 pub struct Projection {
     pointer: *mut c_void,
     _host: Rc<XllHost>,
+    workbook: Box<WorkbookBinding>,
 }
 impl Projection {
     fn checked(status: i32, operation: &str) -> Result<(), String> {
@@ -109,7 +170,50 @@ impl Projection {
         Ok(Self {
             pointer,
             _host: host,
+            workbook: Box::new(WorkbookBinding(RefCell::new(None))),
         })
+    }
+    pub fn bind_workbook(&self, bridge: Rc<dyn crate::WorkbookBridge>) -> Result<(), String> {
+        *self.workbook.0.borrow_mut() = Some(bridge);
+        Self::checked(
+            unsafe {
+                dna_com_bridge(
+                    self.pointer,
+                    (&*self.workbook as *const WorkbookBinding).cast(),
+                    workbook_bridge,
+                )
+            },
+            "COM workbook bridge",
+        )
+    }
+    /// All committed input areas, in their owning worksheet, after its VBA handler.
+    pub fn sheet_change_areas(
+        &self,
+        name: &str,
+        areas: &[calc_value::GridArea],
+    ) -> Result<(), String> {
+        let name: Vec<_> = name.encode_utf16().collect();
+        let areas: Vec<_> = areas
+            .iter()
+            .map(|a| Area {
+                row: a.first().row() - 1,
+                column: a.first().column() - 1,
+                end_row: a.last().row() - 1,
+                end_column: a.last().column() - 1,
+            })
+            .collect();
+        Self::checked(
+            unsafe {
+                dna_com_sheet_change_areas(
+                    self.pointer,
+                    name.as_ptr(),
+                    name.len(),
+                    areas.as_ptr(),
+                    areas.len(),
+                )
+            },
+            "COM SheetChange",
+        )
     }
     /// Called only by the workbook window's WM_GETOBJECT handler.
     pub fn get_object(&self, wparam: usize, object_id: isize) -> isize {

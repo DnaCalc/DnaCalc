@@ -81,6 +81,7 @@ mod events;
 pub use envelope::{CommandJournal, CommandRefusal, CommandStamp};
 pub use events::{
     WorkbookEvent, WorkbookEventFailure, WorkbookEventFailures, WorkbookEventHandler,
+    WorkbookEventObserver,
 };
 mod flash_fill;
 mod paste;

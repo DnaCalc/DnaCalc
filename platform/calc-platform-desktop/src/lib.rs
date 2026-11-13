@@ -43,7 +43,7 @@ pub use shell::{
 #[cfg(windows)]
 pub use webview::{
     RUNTIME_DOWNLOAD, SEPARATOR, ThreadMessage, ThreadTimer, WebView, WebViewOptions, base64,
-    per_monitor_dpi_aware, run_message_loop, runtime_version, split_message, unbase64,
+    per_monitor_dpi_aware, proposed_name, run_message_loop, runtime_version, split_message, unbase64,
 };
 
 /// The most threads a native host's recalculation uses by default (dc-dxm): past eight the
