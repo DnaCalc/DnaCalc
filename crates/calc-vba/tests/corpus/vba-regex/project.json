@@ -1,0 +1,143 @@
+{
+  "id": "vba-regex",
+  "summary": "VbaRegex engine (src/, 18 standard modules) verbatim, plus an own worksheet wrapper RgxProbe.bas over its StaticRegex API",
+  "origin": {
+    "class": "third-party",
+    "licence": "MIT",
+    "copyright": "Copyright (c) 2023 sihlfall",
+    "licence_file": "LICENSE",
+    "url": "https://github.com/sihlfall/vba-regex",
+    "commit": "49b698a00d9a9a9f62cffa031344f191f1ed9885",
+    "obtained": "downloaded 2026-11-13 (shallow clone of the public repository by lane p10f, dc-tey4.6); LICENSE read; source verbatim apart from the own wrapper; statically triaged (no process start, download, obfuscation or dangerous Declare on the paths used)",
+    "also": "RgxProbe.bas is own code, MIT (this repository)"
+  },
+  "route": "module",
+  "modules": [
+    {
+      "name": "ArrayBuffer",
+      "path": "modules/ArrayBuffer.bas",
+      "sha256": "7f6c6d5ba0860c9b03d8c07c8639b43c3e649155c1e724d8dea7037a754a4f8e",
+      "kind": "standard"
+    },
+    {
+      "name": "RegexAst",
+      "path": "modules/RegexAst.bas",
+      "sha256": "07661fdb898f66ccd969c93b483c238027fd953b58c269c8ada76cc3e5d70062",
+      "kind": "standard"
+    },
+    {
+      "name": "RegexBytecode",
+      "path": "modules/RegexBytecode.bas",
+      "sha256": "26875641cb4727fc3510dd54d6e40dc69912c4276c49ae843a13193c0ed1722e",
+      "kind": "standard"
+    },
+    {
+      "name": "RegexCompiler",
+      "path": "modules/RegexCompiler.bas",
+      "sha256": "26de97f6ce0263a9d5f85f7c930f2b3a6e73de0c36df65703665cbc39d9395ad",
+      "kind": "standard"
+    },
+    {
+      "name": "RegexDfaMatcher",
+      "path": "modules/RegexDfaMatcher.bas",
+      "sha256": "22431669286a00fe1c0a0001295c296ab2f634cb4411e13c7b8e9ca8f042d035",
+      "kind": "standard"
+    },
+    {
+      "name": "RegexDfsMatcher",
+      "path": "modules/RegexDfsMatcher.bas",
+      "sha256": "f1bf876717b1e86a3a7ab84f6575fbde2114d2385438c1dcd5db9dccf768de2f",
+      "kind": "standard"
+    },
+    {
+      "name": "RegexErrors",
+      "path": "modules/RegexErrors.bas",
+      "sha256": "a6b0cb2655a622361c5ffd85fc01fdbc98a11124b2f5a0a18c6a6d1a549e2131",
+      "kind": "standard"
+    },
+    {
+      "name": "RegexIdentifierSupport",
+      "path": "modules/RegexIdentifierSupport.bas",
+      "sha256": "d23443f3247397fe10670ee9452fbd37ecdd2f44aa8864beafcdd073952f0774",
+      "kind": "standard"
+    },
+    {
+      "name": "RegexLexer",
+      "path": "modules/RegexLexer.bas",
+      "sha256": "b1a8e5261d2b73e9017ae337179aee84451fc71b61d58efde051ed3c7f07a401",
+      "kind": "standard"
+    },
+    {
+      "name": "RegexMatcherCommon",
+      "path": "modules/RegexMatcherCommon.bas",
+      "sha256": "587a9929c3c2f49baa24656d5259d989c306798419029dcbd8194a32bd523cb7",
+      "kind": "standard"
+    },
+    {
+      "name": "RegexNfaMatcher",
+      "path": "modules/RegexNfaMatcher.bas",
+      "sha256": "79873563bf2655ebf018ea4e7bc623abccdd6134522e1ded0b240a0e0e2db187",
+      "kind": "standard"
+    },
+    {
+      "name": "RegexNfaThreadPool",
+      "path": "modules/RegexNfaThreadPool.bas",
+      "sha256": "564eb6c357cd8f1432fe5c0bfe55996941a5aaa15fd15cf43a204d68e47d1761",
+      "kind": "standard"
+    },
+    {
+      "name": "RegexNumericConstants",
+      "path": "modules/RegexNumericConstants.bas",
+      "sha256": "51635bd61ffb1de9d1d377b434ae978c28acbc81ec33ae55f8d19222e209a954",
+      "kind": "standard"
+    },
+    {
+      "name": "RegexRanges",
+      "path": "modules/RegexRanges.bas",
+      "sha256": "717d9fb6c84bc5851610184e8d77c60275025d50d502c7314899ca1df0298ed5",
+      "kind": "standard"
+    },
+    {
+      "name": "RegexReplace",
+      "path": "modules/RegexReplace.bas",
+      "sha256": "817c6b0f46f50632e9da5f21d4365f4bd50563b7aa7e37752d6ab12a187ffec8",
+      "kind": "standard"
+    },
+    {
+      "name": "RegexUnicodeSupport",
+      "path": "modules/RegexUnicodeSupport.bas",
+      "sha256": "42c6d7e12c15e105c1567113f3f33ab68f677c144d279a653a895def15d11872",
+      "kind": "standard"
+    },
+    {
+      "name": "StaticRegex",
+      "path": "modules/StaticRegex.bas",
+      "sha256": "7cb976b7ada999a52cb961c39d91e0daf735fa0f046e0c18dd06e7e8e00a91c0",
+      "kind": "standard"
+    },
+    {
+      "name": "StaticStringBuilder",
+      "path": "modules/StaticStringBuilder.bas",
+      "sha256": "bbabd3ac6288f87bf76badef71cf39108ee7b47a594ff59903a83887bf282dff",
+      "kind": "standard"
+    },
+    {
+      "name": "RgxProbe",
+      "path": "modules/RgxProbe.bas",
+      "sha256": "c069446e812b2d61805fedb0c715f7055c98769308f898fd7aa7b379d7e993e2",
+      "kind": "standard"
+    }
+  ],
+  "primary": "RgxProbe",
+  "references": [],
+  "cases": "cases.json",
+  "tier": "W",
+  "needs": [
+    "multi-module",
+    "module-qualified types"
+  ],
+  "excel": {
+    "status": "awaiting",
+    "note": "cases carry excel_error: awaiting; Excel answers are captured on the Windows machine (vba-job.ps1 -Action project, see windows/RUN-ON-WINDOWS.txt of lane p10f); none guessed"
+  }
+}

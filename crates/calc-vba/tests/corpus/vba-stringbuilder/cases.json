@@ -1,0 +1,177 @@
+[
+  {
+    "formula": "=SbAppend(\"ab\",\"cd\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbAppend(1,2.5)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbAppend(TRUE,\"x\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbAppend(\"\",\"z\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbAppend(-3,0)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbAppend(\"h\u00e9llo\",\"w\u00f6rld\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbAll(\"a\",1,TRUE)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbAll(\"\",\"\",\"\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbAll(1/3,\"x\",\"y\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbRepeat(10,\"ab\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbRepeat(600,\"abc\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbRepeat(5000,\"xyz\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbRepeat(0,\"a\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbShorten(\"hello\",2)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbShorten(\"hello\",5)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbShorten(\"hello\",99)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbShorten(\"hello\",0)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbShorten(\"hello\",-1)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbShortenDefault(\"hello\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbShortenDefault(\"\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbMid(\"hello world\",1,5)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbMid(\"hello world\",7,99)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbMid(\"hello world\",20,2)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbMid(\"hello world\",3,-1)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbMid(\"abc\",0,1)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbMid(\"abc\",2,0)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbMidToEnd(\"hello world\",7)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbMidToEnd(\"abc\",4)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbMidToEnd(\"abc\",1)",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbMidLet(\"hello world\",1,\"J\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbMidLet(\"hello\",9,\"x\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbMidLet(\"hello\",3,\"ZZZZ\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbFlushTwice(\"abc\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbClear(\"abc\")",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  },
+  {
+    "formula": "=SbEmptyAndMixed()",
+    "value": null,
+    "excel_error": "awaiting Excel answer (windows/RUN-ON-WINDOWS.txt); none guessed"
+  }
+]

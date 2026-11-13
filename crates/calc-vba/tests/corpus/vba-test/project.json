@@ -1,0 +1,59 @@
+{
+  "id": "vba-test",
+  "summary": "vba-test (TestSuite.cls, TestCase.cls, ImmediateReporter.cls) verbatim with VBA-Dictionary's Dictionary.cls, plus an own worksheet wrapper VtProbe.bas; FileReporter.cls left out (it writes files)",
+  "origin": {
+    "class": "third-party",
+    "licence": "MIT",
+    "copyright": "Copyright (c) 2018 Tim Hall",
+    "licence_file": "LICENSE",
+    "url": "https://github.com/vba-tools/vba-test",
+    "commit": "8be75c3a6643c7c378e8a9ebe3c625f292cf9cc8",
+    "obtained": "downloaded 2026-11-13 (shallow clone of the public repository by lane p10f, dc-tey4.6); LICENSE read; source verbatim apart from the own wrapper; statically triaged (no process start, download, obfuscation or dangerous Declare on the paths used)",
+    "also": "Dictionary.cls from https://github.com/VBA-tools/VBA-Dictionary commit 757aea9207648821dfc0c382c4a5431836749c3e, (c) 2020 Tim Hall, MIT (same file as corpus/vba-dictionary); VtProbe.bas is own code, MIT (this repository)"
+  },
+  "route": "module",
+  "modules": [
+    {
+      "name": "Dictionary",
+      "path": "modules/Dictionary.cls",
+      "sha256": "0affc4fd9a81283f8fcecafbd8ce11a940a18592be9cc341346b8d080c859025",
+      "kind": "class"
+    },
+    {
+      "name": "ImmediateReporter",
+      "path": "modules/ImmediateReporter.cls",
+      "sha256": "07dca928c21f7b875b36c70dbe3e5b67b4007ae49df003a55e6781cf888619c2",
+      "kind": "class"
+    },
+    {
+      "name": "TestCase",
+      "path": "modules/TestCase.cls",
+      "sha256": "7edeb3d14074ab7b0668e84addd1005747c9bf2929f2d9fbf37cbcc181fa2557",
+      "kind": "class"
+    },
+    {
+      "name": "TestSuite",
+      "path": "modules/TestSuite.cls",
+      "sha256": "5b6542c9bf299b163d60c71fb88d85a183114e899ad179b059b848692258e933",
+      "kind": "class"
+    },
+    {
+      "name": "VtProbe",
+      "path": "modules/VtProbe.bas",
+      "sha256": "eceb1ed0bbd470145c556234362facb2bb71cc3bc3d5e9feb2f27fc9c6b8792a",
+      "kind": "standard"
+    }
+  ],
+  "primary": "VtProbe",
+  "references": [],
+  "cases": "cases.json",
+  "tier": "W",
+  "needs": [
+    "class modules",
+    "WithEvents/RaiseEvent"
+  ],
+  "excel": {
+    "status": "awaiting",
+    "note": "cases carry excel_error: awaiting; Excel answers are captured on the Windows machine (vba-job.ps1 -Action project, see windows/RUN-ON-WINDOWS.txt of lane p10f); none guessed"
+  }
+}

@@ -97,10 +97,10 @@
       "route": "module/jit"
     },
     "riff/module/interpreter": {
-      "loaded": true,
+      "loaded": false,
       "matched": 0,
       "mismatched": 0,
-      "missing": 0,
+      "missing": 24,
       "refused": 0,
       "route": "module/interpreter"
     },
@@ -108,9 +108,57 @@
       "loaded": false,
       "matched": 0,
       "mismatched": 0,
-      "missing": 0,
+      "missing": 24,
       "refused": 0,
       "route": "module/jit"
+    },
+    "riff/project/interpreter": {
+      "loaded": true,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 24,
+      "refused": 0,
+      "route": "project/interpreter"
+    },
+    "riff/project/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 24,
+      "refused": 0,
+      "route": "project/jit"
+    },
+    "vba-arraytools/module/interpreter": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 51,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "vba-arraytools/module/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 51,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "vba-arraytools/project/interpreter": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 51,
+      "refused": 0,
+      "route": "project/interpreter"
+    },
+    "vba-arraytools/project/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 51,
+      "refused": 0,
+      "route": "project/jit"
     },
     "vba-dictionary/module/interpreter": {
       "loaded": false,
@@ -176,6 +224,134 @@
       "refused": 0,
       "route": "project/jit"
     },
+    "vba-keyedcollection/module/interpreter": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 24,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "vba-keyedcollection/module/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 24,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "vba-keyedcollection/project/interpreter": {
+      "loaded": true,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 24,
+      "refused": 0,
+      "route": "project/interpreter"
+    },
+    "vba-keyedcollection/project/jit": {
+      "loaded": true,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 24,
+      "refused": 0,
+      "route": "project/jit"
+    },
+    "vba-regex/module/interpreter": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 69,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "vba-regex/module/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 69,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "vba-regex/project/interpreter": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 69,
+      "refused": 0,
+      "route": "project/interpreter"
+    },
+    "vba-regex/project/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 69,
+      "refused": 0,
+      "route": "project/jit"
+    },
+    "vba-stringbuilder/module/interpreter": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 35,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "vba-stringbuilder/module/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 35,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "vba-stringbuilder/project/interpreter": {
+      "loaded": true,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 35,
+      "refused": 0,
+      "route": "project/interpreter"
+    },
+    "vba-stringbuilder/project/jit": {
+      "loaded": true,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 35,
+      "refused": 0,
+      "route": "project/jit"
+    },
+    "vba-test/module/interpreter": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 31,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "vba-test/module/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 31,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "vba-test/project/interpreter": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 31,
+      "refused": 0,
+      "route": "project/interpreter"
+    },
+    "vba-test/project/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 31,
+      "refused": 0,
+      "route": "project/jit"
+    },
     "vba-web-excerpt/module/interpreter": {
       "loaded": true,
       "matched": 45,
@@ -228,7 +404,7 @@
       "loaded": false,
       "matched": 0,
       "mismatched": 0,
-      "missing": 0,
+      "missing": 53,
       "refused": 0,
       "route": "module/interpreter"
     },
@@ -236,9 +412,25 @@
       "loaded": false,
       "matched": 0,
       "mismatched": 0,
-      "missing": 0,
+      "missing": 53,
       "refused": 0,
       "route": "module/jit"
+    },
+    "wasabi/project/interpreter": {
+      "loaded": true,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 53,
+      "refused": 0,
+      "route": "project/interpreter"
+    },
+    "wasabi/project/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 53,
+      "refused": 0,
+      "route": "project/jit"
     }
   },
   "windows": {}

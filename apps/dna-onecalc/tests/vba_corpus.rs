@@ -241,7 +241,9 @@ fn names(set: CapabilitySet) -> Vec<&'static str> {
 
 fn first_line(text: &str) -> String {
     let line = text.lines().next().unwrap_or("");
-    line.chars().take(240).collect()
+    // `DNACALC_VBA_CORPUS_ERROR_CHARS` widens the recorded load error (default 240) for a survey.
+    let limit = std::env::var("DNACALC_VBA_CORPUS_ERROR_CHARS").ok().and_then(|v| v.parse().ok()).unwrap_or(240);
+    line.chars().take(limit).collect()
 }
 
 /// How a project reaches the engine: OneCalc's "VBA functions" route (one standard module,

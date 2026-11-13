@@ -254,3 +254,35 @@ workbook-only refusals on every platform.
 ## 11. VBA-Web loads and passes (dc-tey4.4, 2026-11-13, Linux)
 
 CalcVBA pin `72b6d67d`. The full VBA-Web project (5 modules, Scripting reference from `project.json`) loads on the project route and passes 45/45 on the interpreter and the JIT (was 0/45); the project route as a whole is 105/107 on each backend (was 60/107; the 2 left are dna-examples DnaOpenCount and DnaBook). The module route still refuses vba-web (one module, no class modules). `Application.OnTime`/`Run`, `CreateObject` of WinHttp/MSXML/htmlfile and the HMAC/MD5 COM classes stay typed refusals at run time (Safe policy: `com.activate`); the 45 cases call the pure string helpers, which do not reach them.
+
+## 12. riff, Wasabi and five more projects staged (dc-tey4.5, dc-tey4.6, 2026-11-13, Linux)
+
+CalcVBA pin `21940362`. **Cases exist, Excel answers do not yet**: every new case carries `excel_error: awaiting Excel answer` and
+counts as `missing` (a failure in every statistic, never a pass). The Windows capture package (commands, answer locations,
+SHA256SUMS) is `~/codex-runs/p10f/windows/` on the lane host. Pass counts of the existing projects did not move
+(module 209/604 on each backend, project 105/394, xlsm 131/135; the rest of each total is the new `missing` cases).
+
+| Project | Origin and licence (read from its LICENSE) | Cases | Loads on the project route |
+|---|---|---|---|
+| `riff` (+ own RiffProbe.bas) | uesleibros/riff cafe9bc0, MIT | 24 | interpreter yes; JIT declines (`LenB` of a LongPtr in the vtable helper) |
+| `wasabi` (+ WasabiProbe.bas) | uesleibros/wasabi 36afb522, MIT | 53 | interpreter yes (was: did not parse); JIT declines (`Not Not array` idiom) |
+| `vba-stringbuilder` | vgrstn/vba-stringbuilder 35e62dc9, MIT, (c) 2025 Vincent van Geerestein | 35 | both backends |
+| `vba-keyedcollection` | cristianbuse/VBA-KeyedCollection 2de77073, MIT, (c) 2021 Cristian Buse | 24 | both backends |
+| `vba-arraytools` | cristianbuse/VBA-ArrayTools 1ce89dd6, MIT, (c) 2020 Ion Cristian Buse | 51 | no: "Expected array" |
+| `vba-regex` | sihlfall/vba-regex 49b698a0, MIT, (c) 2023 sihlfall (src/, 18 modules) | 69 | no: same-named `Public Type Ty` in several modules ("ambiguous name") |
+| `vba-test` (+ Dictionary.cls of VBA-Dictionary) | vba-tools/vba-test 8be75c3a, MIT, (c) 2018 Tim Hall | 31 | no: `obj.Prop(i)` indexing the result of a parameterless property (`t.Failures(1)`) |
+
+Static triage (own pattern pass, nothing executed; ariawase and the stdVBA clone were read only: ariawase's Core.bas has process
+start and command-line use, so it is suspect and not imported; stdVBA is class- and COM-heavy, not seeded; VBANN needs
+libopenblas.dll, not seeded). FileReporter.cls of vba-test (file writes) is left out.
+
+CalcVBA fixes (tests in `calcvba-engine/tests/riff_wasabi_load_shapes.rs`, `calcvba-host/tests/module_level_enum.rs`; workspace
+3639 passed, 0 failed): `Proc .member` and `Open .path For ...` inside `With`; array-element UDT as a `With` subject (`.arr(i)`);
+Variant subscripts of record-array accesses (JIT); module-level `As <Enum>` variables; single-line `With ...: ...: End With`;
+`Compare` as a variable name; `Check a = b, c` is a call; `obj.Mid(i) = x` is a Property Let; class-module Public Enum/Type are
+project-wide; `VBA.VbCompareMethod.vbX`, `VbVarType.vbX` and `Math.Abs`-style names; hidden `[_enumMember]`; enum initialisers
+naming members of later modules; Event and Property of one name; the enumerator attribute names the Get only; a bare indexed
+class Property Let goes through Me (VBA-KeyedCollection's `LetSet(Item) = ...` wrote nothing). Runner: `DNACALC_VBA_CORPUS_ERROR_CHARS`.
+
+Open (root causes, not one per refusal): same-named UDTs across modules; property-result indexing; JIT `Not Not arr` and `LenB(LongPtr)`;
+VBA-ArrayTools "Expected array"; the pool cases of Wasabi need native Declare calls (typed refusal under Safe on Linux).
