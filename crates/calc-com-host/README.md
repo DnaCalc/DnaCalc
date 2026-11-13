@@ -1,41 +1,44 @@
-# Local COM objects for the native host
+# Rust COM projection for the native host
 
-This Windows x64 package answers the Application lookup measured in X0:
-`WM_GETOBJECT` / `AccessibleObjectFromWindow(OBJID_NATIVEOM, IID_IDispatch)` on
-EXCEL7, then Window.Application. Application implements Version, Hwnd and Run.
-Run calls the registered XLL command on its owning STA with a command callback
-frame; it does not activate another application.
+`calc-com-host` exposes the shared [object model](../../docs/architecture/OBJECT_MODEL.md)
+to Windows x64 COM clients. `WM_GETOBJECT` / `OBJID_NATIVEOM` returns the Window object;
+`Window.Application` reaches the application's supplied model. The projection implements
+COM identity, Automation conversion and the COM-owned Office services in Rust.
 
-The interface facts come from Excel 16.0.20527.20088's type library, read with
-`LoadTypeLibEx(REGKIND_NONE)`. Application uses Excel's `_Application` IID
-`000208D5-0000-0000-C000-000000000046`, its 474-slot dual vtable, and the observed
-DISPIDs. The supported early-bound slots are Application 7, Parent 9, Run 42,
-Version 281 (including LCID) and Hwnd 351. Window's IID is
-`00020893-0000-0000-C000-000000000046`; it is a dispatch-only interface with
-seven vtable slots. Its property descriptors must not be mistaken for a dual
-interface's callable slots. Unimplemented members fail with HRESULTs.
+`build.rs` generates complete vtables from `calc-object-model/descriptor/*.json`.
+Every advertised interface has all its described slots. Early-bound slots and
+`IDispatch::Invoke` decode to the same `Call`, including named arguments, optional
+arguments and `VT_BYREF`. `GetTypeInfo` uses private in-memory type information built
+from the descriptor with `CreateTypeLib2`; a Range's type name is `Range`.
 
-The objects expose no type information yet. Managed callers tested here use
-IDispatch name lookup; early-bound tests call the measured slots directly.
-The AppEvents connection point retains subscriptions and supports Unadvise, and
-delivers two application events to its sinks: SheetChange (DISPID 0x61c, worksheet
-and range arguments in Excel's measured order, X4) and AfterCalculate (0xa34).
-Other workbook and application events are not delivered.
+The application creates `Projection::new(hwnd, host)` and supplies its semantics with
+`bind_model(Rc<dyn ObjectModel>)` before activating add-ins. OneCalc uses
+`profile::values_only::ValuesOnly` over the XLL application services. Its workbook
+operations, including Caller and ThisCell, return Excel error 1004 with
+"needs a workbook: open in DNA Calc" on both COM routes. The full workbook profile
+is `WorkbookAutomation`; the projection holds no workbook state. The projection's
+`EventSource` delivers descriptor events through per-source connection points,
+snapshotting subscriptions before invoking handlers.
 
-The projection uses Windows' object-return mechanism and local objects only.
-It has no class factory, ROT entry, activation hook, registry-writing code or
-type-library registration. Excel's ProgIDs, CLSIDs and registered interfaces are
-untouched. COM activation for a general desktop object model remains undecided.
+The Rust Office composition owns COMAddIns/COMAddIn connections, module leases,
+bounded CommandBars and controls, AutomationSecurity and ribbon callbacks. The Rust
+RTD client keeps the existing topic/declaration ledger and calls `IRtdServer` through
+typed interfaces; its update sink uses the free-threaded marshaler. Ordinary object
+calls stay on the owning STA (`RPC_E_WRONG_THREAD` elsewhere); retained objects
+disconnect when the projection is dropped (`CO_E_OBJNOTCONNECTED`).
 
-X3 adds the observed Window.Parent workbook, Workbook.Application/Name/FullName/Path,
-Application.Workbooks/Path/EnableEvents and Workbooks.Count/Item. The measured
-Workbook dual vtable has 289 slots and Workbooks has 26. These objects describe
-one local Book1 shell; they do not enumerate or project arbitrary application
-documents. xlOil's original native and Python plugins use this route in the
-[X3 captures](../calc-xll-reference/traces/2026-11-01-x3/).
+The native controls exercise real vtables and IDispatch:
 
-Values-only profile (dc-svqh, owner policy 2026-11-11): OneCalc hosts functions, DNA Calc hosts
-workbooks. `Application.Caller` (DISPID 0x13d) and `Application.ThisCell` (0x7aa) answer a typed
-refusal, Excel's error 1004 with the text "needs a workbook: open in DNA Calc"; there is no
-`Application.Range`, `Union` or Range object with type information. The earlier pseudo object model
-(dc-6332.12, commits ecd1d610 and b28341ab) stays in git history for DNA Calc's own object model.
+```powershell
+cargo test --locked -p calc-com-host -- --test-threads=1
+```
+
+Windows cross-compilation and linking on Linux do not execute those controls. Native
+tests and the calcvba-udf, X19, Excel-DNA and xlOil page comparisons still require a
+Windows run. Unsupported members return the descriptor-named 1004 refusal and record
+it through the supplied model; they do not read cached workbook answers.
+
+The projection uses local objects and Windows' object-return mechanism. It neither
+saves nor registers its type library, and it changes no Excel registrations or
+security settings. The former C++ projection and RTD sources and their `cc` build
+dependency have been removed.
