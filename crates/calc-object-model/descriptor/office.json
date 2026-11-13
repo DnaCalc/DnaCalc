@@ -1,0 +1,4001 @@
+{
+ "library": {
+  "name": "Office",
+  "guid": "{2DF8D04C-5BFA-101B-BDE5-00AA0044DE52}",
+  "version": "2.8",
+  "lcid": 0,
+  "source_file": "C:\\Program Files\\Microsoft Office\\Root\\VFS\\ProgramFilesCommonX64\\Microsoft Shared\\OFFICE16\\MSO.DLL",
+  "file_version": "16.0.20527.20112"
+ },
+ "types": [
+  {
+   "name": "COMAddIns",
+   "kind": "dispatch",
+   "guid": "{000C0339-0000-0000-C000-000000000046}",
+   "dual": true,
+   "flags": [
+    "dual",
+    "nonextensible",
+    "dispatchable"
+   ],
+   "base": "_IMsoDispObj",
+   "vtable_slots": 15,
+   "dispatch_only": false,
+   "members": [
+    {
+     "name": "Item",
+     "dispid": 0,
+     "invoke": "method",
+     "slot": 9,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "VARIANT*",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "RetValue",
+       "type": "COMAddIn**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Count",
+     "dispid": 1,
+     "invoke": "get",
+     "slot": 10,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "RetValue",
+       "type": "I4*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "_NewEnum",
+     "dispid": -4,
+     "invoke": "get",
+     "slot": 11,
+     "hidden": false,
+     "restricted": true,
+     "params": [
+      {
+       "name": "RetValue",
+       "type": "IUnknown**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Update",
+     "dispid": 2,
+     "invoke": "method",
+     "slot": 12,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Parent",
+     "dispid": 3,
+     "invoke": "get",
+     "slot": 13,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ppidisp",
+       "type": "IDispatch**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "SetAppModal",
+     "dispid": 4,
+     "invoke": "method",
+     "slot": 14,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "varfModal",
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    }
+   ]
+  },
+  {
+   "name": "COMAddIn",
+   "kind": "dispatch",
+   "guid": "{000C033A-0000-0000-C000-000000000046}",
+   "dual": true,
+   "flags": [
+    "dual",
+    "nonextensible",
+    "dispatchable"
+   ],
+   "base": "_IMsoDispObj",
+   "vtable_slots": 18,
+   "dispatch_only": false,
+   "members": [
+    {
+     "name": "Description",
+     "dispid": 0,
+     "invoke": "get",
+     "slot": 9,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "RetValue",
+       "type": "BSTR*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Description",
+     "dispid": 0,
+     "invoke": "put",
+     "slot": 10,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "RetValue",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "ProgId",
+     "dispid": 3,
+     "invoke": "get",
+     "slot": 11,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "RetValue",
+       "type": "BSTR*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Guid",
+     "dispid": 4,
+     "invoke": "get",
+     "slot": 12,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "RetValue",
+       "type": "BSTR*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Connect",
+     "dispid": 6,
+     "invoke": "get",
+     "slot": 13,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "RetValue",
+       "type": "BOOL*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Connect",
+     "dispid": 6,
+     "invoke": "put",
+     "slot": 14,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "RetValue",
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Object",
+     "dispid": 7,
+     "invoke": "get",
+     "slot": 15,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "RetValue",
+       "type": "IDispatch**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Object",
+     "dispid": 7,
+     "invoke": "put",
+     "slot": 16,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "RetValue",
+       "type": "IDispatch*",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Parent",
+     "dispid": 8,
+     "invoke": "get",
+     "slot": 17,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "retval",
+       "type": "IDispatch**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    }
+   ]
+  },
+  {
+   "name": "CommandBars",
+   "kind": "coclass",
+   "guid": "{55F88893-7708-11D1-ACEB-006008961DA5}",
+   "dual": false,
+   "flags": [],
+   "base": null,
+   "vtable_slots": null,
+   "dispatch_only": false,
+   "coclass_interfaces": [
+    {
+     "name": "_CommandBars",
+     "default": true,
+     "source": false
+    },
+    {
+     "name": "_CommandBarsEvents",
+     "default": true,
+     "source": true
+    }
+   ],
+   "members": []
+  },
+  {
+   "name": "_CommandBars",
+   "kind": "dispatch",
+   "guid": "{000C0302-0000-0000-C000-000000000046}",
+   "dual": true,
+   "flags": [
+    "dual",
+    "nonextensible",
+    "dispatchable"
+   ],
+   "base": "_IMsoDispObj",
+   "vtable_slots": 47,
+   "dispatch_only": false,
+   "members": [
+    {
+     "name": "ActionControl",
+     "dispid": 1610809344,
+     "invoke": "get",
+     "slot": 9,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ppcbc",
+       "type": "CommandBarControl**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "ActiveMenuBar",
+     "dispid": 1610809345,
+     "invoke": "get",
+     "slot": 10,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ppcb",
+       "type": "CommandBar**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Add",
+     "dispid": 1610809346,
+     "invoke": "method",
+     "slot": 11,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Name",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Position",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "MenuBar",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Temporary",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "ppcb",
+       "type": "CommandBar**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT",
+     "optional_count": 4
+    },
+    {
+     "name": "Count",
+     "dispid": 1610809347,
+     "invoke": "get",
+     "slot": 12,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pcToolbars",
+       "type": "INT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "DisplayTooltips",
+     "dispid": 1610809348,
+     "invoke": "get",
+     "slot": 13,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfDisplayTooltips",
+       "type": "BOOL*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "DisplayTooltips",
+     "dispid": 1610809348,
+     "invoke": "put",
+     "slot": 14,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfDisplayTooltips",
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "DisplayKeysInTooltips",
+     "dispid": 1610809350,
+     "invoke": "get",
+     "slot": 15,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfDisplayKeys",
+       "type": "BOOL*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "DisplayKeysInTooltips",
+     "dispid": 1610809350,
+     "invoke": "put",
+     "slot": 16,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfDisplayKeys",
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "FindControl",
+     "dispid": 1610809352,
+     "invoke": "method",
+     "slot": 17,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Type",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Id",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Tag",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Visible",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "ppcbc",
+       "type": "CommandBarControl**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT",
+     "optional_count": 4
+    },
+    {
+     "name": "Item",
+     "dispid": 0,
+     "invoke": "get",
+     "slot": 18,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "ppcb",
+       "type": "CommandBar**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "LargeButtons",
+     "dispid": 1610809354,
+     "invoke": "get",
+     "slot": 19,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfLargeButtons",
+       "type": "BOOL*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "LargeButtons",
+     "dispid": 1610809354,
+     "invoke": "put",
+     "slot": 20,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfLargeButtons",
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "MenuAnimationStyle",
+     "dispid": 1610809356,
+     "invoke": "get",
+     "slot": 21,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pma",
+       "type": "enum:MsoMenuAnimation[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "MenuAnimationStyle",
+     "dispid": 1610809356,
+     "invoke": "put",
+     "slot": 22,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pma",
+       "type": "enum:MsoMenuAnimation[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "_NewEnum",
+     "dispid": -4,
+     "invoke": "get",
+     "slot": 23,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ppienum",
+       "type": "IUnknown**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Parent",
+     "dispid": 1610809359,
+     "invoke": "get",
+     "slot": 24,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ppidisp",
+       "type": "IDispatch**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "ReleaseFocus",
+     "dispid": 1610809360,
+     "invoke": "method",
+     "slot": 25,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "IdsString",
+     "dispid": 1610809361,
+     "invoke": "get",
+     "slot": 26,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ids",
+       "type": "INT",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "pbstrName",
+       "type": "BSTR*",
+       "flags": [
+        "out"
+       ]
+      },
+      {
+       "name": "pcch",
+       "type": "INT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "TmcGetName",
+     "dispid": 1610809362,
+     "invoke": "get",
+     "slot": 27,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "tmc",
+       "type": "INT",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "pbstrName",
+       "type": "BSTR*",
+       "flags": [
+        "out"
+       ]
+      },
+      {
+       "name": "pcch",
+       "type": "INT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "AdaptiveMenus",
+     "dispid": 1610809363,
+     "invoke": "get",
+     "slot": 28,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfAdaptiveMenus",
+       "type": "BOOL*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "AdaptiveMenus",
+     "dispid": 1610809363,
+     "invoke": "put",
+     "slot": 29,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfAdaptiveMenus",
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "FindControls",
+     "dispid": 1610809365,
+     "invoke": "method",
+     "slot": 30,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Type",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Id",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Tag",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Visible",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "ppcbcs",
+       "type": "CommandBarControls**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT",
+     "optional_count": 4
+    },
+    {
+     "name": "AddEx",
+     "dispid": 1610809366,
+     "invoke": "method",
+     "slot": 31,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "TbidOrName",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Position",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "MenuBar",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Temporary",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "TbtrProtection",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "ppcb",
+       "type": "CommandBar**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT",
+     "optional_count": 5
+    },
+    {
+     "name": "DisplayFonts",
+     "dispid": 1610809367,
+     "invoke": "get",
+     "slot": 32,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfDisplayFonts",
+       "type": "BOOL*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "DisplayFonts",
+     "dispid": 1610809367,
+     "invoke": "put",
+     "slot": 33,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfDisplayFonts",
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "DisableCustomize",
+     "dispid": 1610809369,
+     "invoke": "get",
+     "slot": 34,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfDisableCustomize",
+       "type": "BOOL*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "DisableCustomize",
+     "dispid": 1610809369,
+     "invoke": "put",
+     "slot": 35,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfDisableCustomize",
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "DisableAskAQuestionDropdown",
+     "dispid": 1610809371,
+     "invoke": "get",
+     "slot": 36,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfDisableAskAQuestionDropdown",
+       "type": "BOOL*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "DisableAskAQuestionDropdown",
+     "dispid": 1610809371,
+     "invoke": "put",
+     "slot": 37,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfDisableAskAQuestionDropdown",
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "ExecuteMso",
+     "dispid": 1610809373,
+     "invoke": "method",
+     "slot": 38,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "idMso",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "GetEnabledMso",
+     "dispid": 1610809374,
+     "invoke": "method",
+     "slot": 39,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "idMso",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "Enabled",
+       "type": "BOOL*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "GetVisibleMso",
+     "dispid": 1610809375,
+     "invoke": "method",
+     "slot": 40,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "idMso",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "Visible",
+       "type": "BOOL*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "GetPressedMso",
+     "dispid": 1610809376,
+     "invoke": "method",
+     "slot": 41,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "idMso",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "Pressed",
+       "type": "BOOL*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "GetLabelMso",
+     "dispid": 1610809377,
+     "invoke": "method",
+     "slot": 42,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "idMso",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "Label",
+       "type": "BSTR*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "GetScreentipMso",
+     "dispid": 1610809378,
+     "invoke": "method",
+     "slot": 43,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "idMso",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "Screentip",
+       "type": "BSTR*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "GetSupertipMso",
+     "dispid": 1610809379,
+     "invoke": "method",
+     "slot": 44,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "idMso",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "Supertip",
+       "type": "BSTR*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "GetImageMso",
+     "dispid": 1610809380,
+     "invoke": "method",
+     "slot": 45,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "idMso",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "Width",
+       "type": "INT",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "Height",
+       "type": "INT",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "Image",
+       "type": "alias:stdole.IPictureDisp[stdole.Picture]**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "CommitRenderingTransaction",
+     "dispid": 1610809381,
+     "invoke": "method",
+     "slot": 46,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "hwnd",
+       "type": "I4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    }
+   ]
+  },
+  {
+   "name": "CommandBar",
+   "kind": "dispatch",
+   "guid": "{000C0304-0000-0000-C000-000000000046}",
+   "dual": true,
+   "flags": [
+    "dual",
+    "nonextensible",
+    "dispatchable"
+   ],
+   "base": "_IMsoOleAccDispObj",
+   "vtable_slots": 68,
+   "dispatch_only": false,
+   "members": [
+    {
+     "name": "BuiltIn",
+     "dispid": 1610874880,
+     "invoke": "get",
+     "slot": 30,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfBuiltIn",
+       "type": "BOOL*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Context",
+     "dispid": 1610874881,
+     "invoke": "get",
+     "slot": 31,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pbstrContext",
+       "type": "BSTR*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Context",
+     "dispid": 1610874881,
+     "invoke": "put",
+     "slot": 32,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pbstrContext",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Controls",
+     "dispid": 1610874883,
+     "invoke": "get",
+     "slot": 33,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ppcbcs",
+       "type": "CommandBarControls**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Delete",
+     "dispid": 1610874884,
+     "invoke": "method",
+     "slot": 34,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Enabled",
+     "dispid": 1610874885,
+     "invoke": "get",
+     "slot": 35,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfEnabled",
+       "type": "BOOL*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Enabled",
+     "dispid": 1610874885,
+     "invoke": "put",
+     "slot": 36,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfEnabled",
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "FindControl",
+     "dispid": 1610874887,
+     "invoke": "method",
+     "slot": 37,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Type",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Id",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Tag",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Visible",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Recursive",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "ppcbc",
+       "type": "CommandBarControl**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT",
+     "optional_count": 5
+    },
+    {
+     "name": "Height",
+     "dispid": 1610874888,
+     "invoke": "get",
+     "slot": 38,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pdy",
+       "type": "INT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Height",
+     "dispid": 1610874888,
+     "invoke": "put",
+     "slot": 39,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pdy",
+       "type": "INT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Index",
+     "dispid": 1610874890,
+     "invoke": "get",
+     "slot": 40,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pi",
+       "type": "INT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "InstanceId",
+     "dispid": 1610874891,
+     "invoke": "get",
+     "slot": 41,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pid",
+       "type": "I4*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Left",
+     "dispid": 1610874892,
+     "invoke": "get",
+     "slot": 42,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pxpLeft",
+       "type": "INT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Left",
+     "dispid": 1610874892,
+     "invoke": "put",
+     "slot": 43,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pxpLeft",
+       "type": "INT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Name",
+     "dispid": 1610874894,
+     "invoke": "get",
+     "slot": 44,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pbstrName",
+       "type": "BSTR*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Name",
+     "dispid": 1610874894,
+     "invoke": "put",
+     "slot": 45,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pbstrName",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "NameLocal",
+     "dispid": 1610874896,
+     "invoke": "get",
+     "slot": 46,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pbstrNameLocal",
+       "type": "BSTR*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "NameLocal",
+     "dispid": 1610874896,
+     "invoke": "put",
+     "slot": 47,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pbstrNameLocal",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Parent",
+     "dispid": 1610874898,
+     "invoke": "get",
+     "slot": 48,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ppidisp",
+       "type": "IDispatch**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Position",
+     "dispid": 1610874899,
+     "invoke": "get",
+     "slot": 49,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ppos",
+       "type": "enum:MsoBarPosition[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Position",
+     "dispid": 1610874899,
+     "invoke": "put",
+     "slot": 50,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ppos",
+       "type": "enum:MsoBarPosition[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "RowIndex",
+     "dispid": 1610874901,
+     "invoke": "get",
+     "slot": 51,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "piRow",
+       "type": "INT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "RowIndex",
+     "dispid": 1610874901,
+     "invoke": "put",
+     "slot": 52,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "piRow",
+       "type": "INT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Protection",
+     "dispid": 1610874903,
+     "invoke": "get",
+     "slot": 53,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pprot",
+       "type": "enum:MsoBarProtection[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Protection",
+     "dispid": 1610874903,
+     "invoke": "put",
+     "slot": 54,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pprot",
+       "type": "enum:MsoBarProtection[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Reset",
+     "dispid": 1610874905,
+     "invoke": "method",
+     "slot": 55,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "ShowPopup",
+     "dispid": 1610874906,
+     "invoke": "method",
+     "slot": 56,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "x",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "y",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "HRESULT",
+     "optional_count": 2
+    },
+    {
+     "name": "Top",
+     "dispid": 1610874907,
+     "invoke": "get",
+     "slot": 57,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pypTop",
+       "type": "INT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Top",
+     "dispid": 1610874907,
+     "invoke": "put",
+     "slot": 58,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pypTop",
+       "type": "INT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Type",
+     "dispid": 1610874909,
+     "invoke": "get",
+     "slot": 59,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ptype",
+       "type": "enum:MsoBarType[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Visible",
+     "dispid": 1610874910,
+     "invoke": "get",
+     "slot": 60,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfVisible",
+       "type": "BOOL*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Visible",
+     "dispid": 1610874910,
+     "invoke": "put",
+     "slot": 61,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfVisible",
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Width",
+     "dispid": 1610874912,
+     "invoke": "get",
+     "slot": 62,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pdx",
+       "type": "INT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Width",
+     "dispid": 1610874912,
+     "invoke": "put",
+     "slot": 63,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pdx",
+       "type": "INT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "AdaptiveMenu",
+     "dispid": 1610874914,
+     "invoke": "get",
+     "slot": 64,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfAdaptiveMenu",
+       "type": "BOOL*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "AdaptiveMenu",
+     "dispid": 1610874914,
+     "invoke": "put",
+     "slot": 65,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfAdaptiveMenu",
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Id",
+     "dispid": 1610874916,
+     "invoke": "get",
+     "slot": 66,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pid",
+       "type": "INT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "InstanceIdPtr",
+     "dispid": 1610874917,
+     "invoke": "get",
+     "slot": 67,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarPitb",
+       "type": "VARIANT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    }
+   ]
+  },
+  {
+   "name": "CommandBarControls",
+   "kind": "dispatch",
+   "guid": "{000C0306-0000-0000-C000-000000000046}",
+   "dual": true,
+   "flags": [
+    "dual",
+    "nonextensible",
+    "dispatchable"
+   ],
+   "base": "_IMsoDispObj",
+   "vtable_slots": 14,
+   "dispatch_only": false,
+   "members": [
+    {
+     "name": "Add",
+     "dispid": 1610809344,
+     "invoke": "method",
+     "slot": 9,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Type",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Id",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Parameter",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Before",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Temporary",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "ppcbc",
+       "type": "CommandBarControl**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT",
+     "optional_count": 5
+    },
+    {
+     "name": "Count",
+     "dispid": 1610809345,
+     "invoke": "get",
+     "slot": 10,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pcToolbarControls",
+       "type": "INT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Item",
+     "dispid": 0,
+     "invoke": "get",
+     "slot": 11,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "ppcbc",
+       "type": "CommandBarControl**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "_NewEnum",
+     "dispid": -4,
+     "invoke": "get",
+     "slot": 12,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ppienum",
+       "type": "IUnknown**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Parent",
+     "dispid": 1610809348,
+     "invoke": "get",
+     "slot": 13,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ppcb",
+       "type": "CommandBar**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    }
+   ]
+  },
+  {
+   "name": "CommandBarControl",
+   "kind": "dispatch",
+   "guid": "{000C0308-0000-0000-C000-000000000046}",
+   "dual": true,
+   "flags": [
+    "dual",
+    "dispatchable"
+   ],
+   "base": "_IMsoOleAccDispObj",
+   "vtable_slots": 83,
+   "dispatch_only": false,
+   "members": [
+    {
+     "name": "BeginGroup",
+     "dispid": 1610874880,
+     "invoke": "get",
+     "slot": 30,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfBeginGroup",
+       "type": "BOOL*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "BeginGroup",
+     "dispid": 1610874880,
+     "invoke": "put",
+     "slot": 31,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfBeginGroup",
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "BuiltIn",
+     "dispid": 1610874882,
+     "invoke": "get",
+     "slot": 32,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfBuiltIn",
+       "type": "BOOL*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Caption",
+     "dispid": 1610874883,
+     "invoke": "get",
+     "slot": 33,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pbstrCaption",
+       "type": "BSTR*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Caption",
+     "dispid": 1610874883,
+     "invoke": "put",
+     "slot": 34,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pbstrCaption",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Control",
+     "dispid": 1610874885,
+     "invoke": "get",
+     "slot": 35,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ppidisp",
+       "type": "IDispatch**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Copy",
+     "dispid": 1610874886,
+     "invoke": "method",
+     "slot": 36,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Bar",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Before",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "ppcbc",
+       "type": "CommandBarControl**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT",
+     "optional_count": 2
+    },
+    {
+     "name": "Delete",
+     "dispid": 1610874887,
+     "invoke": "method",
+     "slot": 37,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Temporary",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "HRESULT",
+     "optional_count": 1
+    },
+    {
+     "name": "DescriptionText",
+     "dispid": 1610874888,
+     "invoke": "get",
+     "slot": 38,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pbstrText",
+       "type": "BSTR*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "DescriptionText",
+     "dispid": 1610874888,
+     "invoke": "put",
+     "slot": 39,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pbstrText",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Enabled",
+     "dispid": 1610874890,
+     "invoke": "get",
+     "slot": 40,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfEnabled",
+       "type": "BOOL*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Enabled",
+     "dispid": 1610874890,
+     "invoke": "put",
+     "slot": 41,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfEnabled",
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Execute",
+     "dispid": 1610874892,
+     "invoke": "method",
+     "slot": 42,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Height",
+     "dispid": 1610874893,
+     "invoke": "get",
+     "slot": 43,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pdy",
+       "type": "INT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Height",
+     "dispid": 1610874893,
+     "invoke": "put",
+     "slot": 44,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pdy",
+       "type": "INT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "HelpContextId",
+     "dispid": 1610874895,
+     "invoke": "get",
+     "slot": 45,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pid",
+       "type": "INT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "HelpContextId",
+     "dispid": 1610874895,
+     "invoke": "put",
+     "slot": 46,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pid",
+       "type": "INT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "HelpFile",
+     "dispid": 1610874897,
+     "invoke": "get",
+     "slot": 47,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pbstrFilename",
+       "type": "BSTR*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "HelpFile",
+     "dispid": 1610874897,
+     "invoke": "put",
+     "slot": 48,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pbstrFilename",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Id",
+     "dispid": 1610874899,
+     "invoke": "get",
+     "slot": 49,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pid",
+       "type": "INT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Index",
+     "dispid": 1610874900,
+     "invoke": "get",
+     "slot": 50,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pi",
+       "type": "INT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "InstanceId",
+     "dispid": 1610874901,
+     "invoke": "get",
+     "slot": 51,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pid",
+       "type": "I4*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Move",
+     "dispid": 1610874902,
+     "invoke": "method",
+     "slot": 52,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Bar",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Before",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "ppcbc",
+       "type": "CommandBarControl**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT",
+     "optional_count": 2
+    },
+    {
+     "name": "Left",
+     "dispid": 1610874903,
+     "invoke": "get",
+     "slot": 53,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "px",
+       "type": "INT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "OLEUsage",
+     "dispid": 1610874904,
+     "invoke": "get",
+     "slot": 54,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pcou",
+       "type": "enum:MsoControlOLEUsage[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "OLEUsage",
+     "dispid": 1610874904,
+     "invoke": "put",
+     "slot": 55,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pcou",
+       "type": "enum:MsoControlOLEUsage[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "OnAction",
+     "dispid": 1610874906,
+     "invoke": "get",
+     "slot": 56,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pbstrOnAction",
+       "type": "BSTR*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "OnAction",
+     "dispid": 1610874906,
+     "invoke": "put",
+     "slot": 57,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pbstrOnAction",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Parent",
+     "dispid": 1610874908,
+     "invoke": "get",
+     "slot": 58,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ppcb",
+       "type": "CommandBar**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Parameter",
+     "dispid": 1610874909,
+     "invoke": "get",
+     "slot": 59,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pbstrParam",
+       "type": "BSTR*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Parameter",
+     "dispid": 1610874909,
+     "invoke": "put",
+     "slot": 60,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pbstrParam",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Priority",
+     "dispid": 1610874911,
+     "invoke": "get",
+     "slot": 61,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pnPri",
+       "type": "INT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Priority",
+     "dispid": 1610874911,
+     "invoke": "put",
+     "slot": 62,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pnPri",
+       "type": "INT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Reset",
+     "dispid": 1610874913,
+     "invoke": "method",
+     "slot": 63,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "SetFocus",
+     "dispid": 1610874914,
+     "invoke": "method",
+     "slot": 64,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Tag",
+     "dispid": 1610874915,
+     "invoke": "get",
+     "slot": 65,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pbstrTag",
+       "type": "BSTR*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Tag",
+     "dispid": 1610874915,
+     "invoke": "put",
+     "slot": 66,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pbstrTag",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "TooltipText",
+     "dispid": 1610874917,
+     "invoke": "get",
+     "slot": 67,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pbstrTooltip",
+       "type": "BSTR*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "TooltipText",
+     "dispid": 1610874917,
+     "invoke": "put",
+     "slot": 68,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pbstrTooltip",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Top",
+     "dispid": 1610874919,
+     "invoke": "get",
+     "slot": 69,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "py",
+       "type": "INT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Type",
+     "dispid": 1610874920,
+     "invoke": "get",
+     "slot": 70,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ptype",
+       "type": "enum:MsoControlType[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Visible",
+     "dispid": 1610874921,
+     "invoke": "get",
+     "slot": 71,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfVisible",
+       "type": "BOOL*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Visible",
+     "dispid": 1610874921,
+     "invoke": "put",
+     "slot": 72,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfVisible",
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Width",
+     "dispid": 1610874923,
+     "invoke": "get",
+     "slot": 73,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pdx",
+       "type": "INT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Width",
+     "dispid": 1610874923,
+     "invoke": "put",
+     "slot": 74,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pdx",
+       "type": "INT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "IsPriorityDropped",
+     "dispid": 1610874925,
+     "invoke": "get",
+     "slot": 75,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfDropped",
+       "type": "BOOL*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Reserved1",
+     "dispid": 1610874926,
+     "invoke": "method",
+     "slot": 76,
+     "hidden": true,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Reserved2",
+     "dispid": 1610874927,
+     "invoke": "method",
+     "slot": 77,
+     "hidden": true,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Reserved3",
+     "dispid": 1610874928,
+     "invoke": "method",
+     "slot": 78,
+     "hidden": true,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Reserved4",
+     "dispid": 1610874929,
+     "invoke": "method",
+     "slot": 79,
+     "hidden": true,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Reserved5",
+     "dispid": 1610874930,
+     "invoke": "method",
+     "slot": 80,
+     "hidden": true,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Reserved6",
+     "dispid": 1610874931,
+     "invoke": "method",
+     "slot": 81,
+     "hidden": true,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Reserved7",
+     "dispid": 1610874932,
+     "invoke": "method",
+     "slot": 82,
+     "hidden": true,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    }
+   ]
+  },
+  {
+   "name": "CommandBarPopup",
+   "kind": "dispatch",
+   "guid": "{000C030A-0000-0000-C000-000000000046}",
+   "dual": true,
+   "flags": [
+    "dual",
+    "nonextensible",
+    "dispatchable"
+   ],
+   "base": "CommandBarControl",
+   "vtable_slots": 88,
+   "dispatch_only": false,
+   "members": [
+    {
+     "name": "CommandBar",
+     "dispid": 1610940416,
+     "invoke": "get",
+     "slot": 83,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ppcb",
+       "type": "CommandBar**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Controls",
+     "dispid": 1610940417,
+     "invoke": "get",
+     "slot": 84,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ppcbcs",
+       "type": "CommandBarControls**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "OLEMenuGroup",
+     "dispid": 1610940418,
+     "invoke": "get",
+     "slot": 85,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pomg",
+       "type": "enum:MsoOLEMenuGroup[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "OLEMenuGroup",
+     "dispid": 1610940418,
+     "invoke": "put",
+     "slot": 86,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pomg",
+       "type": "enum:MsoOLEMenuGroup[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "InstanceIdPtr",
+     "dispid": 1610940420,
+     "invoke": "get",
+     "slot": 87,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarPic",
+       "type": "VARIANT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    }
+   ]
+  },
+  {
+   "name": "CommandBarButton",
+   "kind": "coclass",
+   "guid": "{55F88891-7708-11D1-ACEB-006008961DA5}",
+   "dual": false,
+   "flags": [],
+   "base": null,
+   "vtable_slots": null,
+   "dispatch_only": false,
+   "coclass_interfaces": [
+    {
+     "name": "_CommandBarButton",
+     "default": true,
+     "source": false
+    },
+    {
+     "name": "_CommandBarButtonEvents",
+     "default": true,
+     "source": true
+    }
+   ],
+   "members": []
+  },
+  {
+   "name": "_CommandBarButton",
+   "kind": "dispatch",
+   "guid": "{000C030E-0000-0000-C000-000000000046}",
+   "dual": true,
+   "flags": [
+    "hidden",
+    "dual",
+    "nonextensible",
+    "dispatchable"
+   ],
+   "base": "CommandBarControl",
+   "vtable_slots": 102,
+   "dispatch_only": false,
+   "members": [
+    {
+     "name": "BuiltInFace",
+     "dispid": 1610940416,
+     "invoke": "get",
+     "slot": 83,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfBuiltIn",
+       "type": "BOOL*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "BuiltInFace",
+     "dispid": 1610940416,
+     "invoke": "put",
+     "slot": 84,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarfBuiltIn",
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "CopyFace",
+     "dispid": 1610940418,
+     "invoke": "method",
+     "slot": 85,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "FaceId",
+     "dispid": 1610940419,
+     "invoke": "get",
+     "slot": 86,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pid",
+       "type": "INT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "FaceId",
+     "dispid": 1610940419,
+     "invoke": "put",
+     "slot": 87,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pid",
+       "type": "INT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "PasteFace",
+     "dispid": 1610940421,
+     "invoke": "method",
+     "slot": 88,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "ShortcutText",
+     "dispid": 1610940422,
+     "invoke": "get",
+     "slot": 89,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pbstrText",
+       "type": "BSTR*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "ShortcutText",
+     "dispid": 1610940422,
+     "invoke": "put",
+     "slot": 90,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pbstrText",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "State",
+     "dispid": 1610940424,
+     "invoke": "get",
+     "slot": 91,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pstate",
+       "type": "enum:MsoButtonState[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "State",
+     "dispid": 1610940424,
+     "invoke": "put",
+     "slot": 92,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pstate",
+       "type": "enum:MsoButtonState[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Style",
+     "dispid": 1610940426,
+     "invoke": "get",
+     "slot": 93,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pstyle",
+       "type": "enum:MsoButtonStyle[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Style",
+     "dispid": 1610940426,
+     "invoke": "put",
+     "slot": 94,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pstyle",
+       "type": "enum:MsoButtonStyle[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "HyperlinkType",
+     "dispid": 1610940428,
+     "invoke": "get",
+     "slot": 95,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "phlType",
+       "type": "enum:MsoCommandBarButtonHyperlinkType[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "HyperlinkType",
+     "dispid": 1610940428,
+     "invoke": "put",
+     "slot": 96,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "phlType",
+       "type": "enum:MsoCommandBarButtonHyperlinkType[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Picture",
+     "dispid": 1610940430,
+     "invoke": "get",
+     "slot": 97,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ppdispPicture",
+       "type": "alias:stdole.IPictureDisp[stdole.Picture]**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Picture",
+     "dispid": 1610940430,
+     "invoke": "put",
+     "slot": 98,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ppdispPicture",
+       "type": "alias:stdole.IPictureDisp[stdole.Picture]*",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Mask",
+     "dispid": 1610940432,
+     "invoke": "get",
+     "slot": 99,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ppipictdispMask",
+       "type": "alias:stdole.IPictureDisp[stdole.Picture]**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Mask",
+     "dispid": 1610940432,
+     "invoke": "put",
+     "slot": 100,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ppipictdispMask",
+       "type": "alias:stdole.IPictureDisp[stdole.Picture]*",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "InstanceIdPtr",
+     "dispid": 1610940434,
+     "invoke": "get",
+     "slot": 101,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pvarPic",
+       "type": "VARIANT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    }
+   ]
+  },
+  {
+   "name": "IRibbonExtensibility",
+   "kind": "dispatch",
+   "guid": "{000C0396-0000-0000-C000-000000000046}",
+   "dual": true,
+   "flags": [
+    "dual",
+    "dispatchable"
+   ],
+   "base": "IDispatch",
+   "vtable_slots": 8,
+   "dispatch_only": false,
+   "members": [
+    {
+     "name": "GetCustomUI",
+     "dispid": 1,
+     "invoke": "method",
+     "slot": 7,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "RibbonID",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "RibbonXml",
+       "type": "BSTR*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    }
+   ]
+  },
+  {
+   "name": "IRibbonUI",
+   "kind": "dispatch",
+   "guid": "{000C03A7-0000-0000-C000-000000000046}",
+   "dual": true,
+   "flags": [
+    "dual",
+    "dispatchable"
+   ],
+   "base": "IDispatch",
+   "vtable_slots": 13,
+   "dispatch_only": false,
+   "members": [
+    {
+     "name": "Invalidate",
+     "dispid": 1,
+     "invoke": "method",
+     "slot": 7,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "InvalidateControl",
+     "dispid": 2,
+     "invoke": "method",
+     "slot": 8,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ControlID",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "InvalidateControlMso",
+     "dispid": 3,
+     "invoke": "method",
+     "slot": 9,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ControlID",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "ActivateTab",
+     "dispid": 4,
+     "invoke": "method",
+     "slot": 10,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ControlID",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "ActivateTabMso",
+     "dispid": 5,
+     "invoke": "method",
+     "slot": 11,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ControlID",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "ActivateTabQ",
+     "dispid": 6,
+     "invoke": "method",
+     "slot": 12,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ControlID",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "Namespace",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    }
+   ]
+  },
+  {
+   "name": "IRibbonControl",
+   "kind": "dispatch",
+   "guid": "{000C0395-0000-0000-C000-000000000046}",
+   "dual": true,
+   "flags": [
+    "dual",
+    "dispatchable"
+   ],
+   "base": "IDispatch",
+   "vtable_slots": 10,
+   "dispatch_only": false,
+   "members": [
+    {
+     "name": "Id",
+     "dispid": 1,
+     "invoke": "get",
+     "slot": 7,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Id",
+       "type": "BSTR*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Context",
+     "dispid": 2,
+     "invoke": "get",
+     "slot": 8,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Context",
+       "type": "IDispatch**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Tag",
+     "dispid": 3,
+     "invoke": "get",
+     "slot": 9,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Tag",
+       "type": "BSTR*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    }
+   ]
+  },
+  {
+   "name": "_IMsoDispObj",
+   "kind": "dispatch",
+   "guid": "{000C0300-0000-0000-C000-000000000046}",
+   "dual": true,
+   "flags": [
+    "hidden",
+    "dual",
+    "nonextensible",
+    "dispatchable"
+   ],
+   "base": "IDispatch",
+   "vtable_slots": 9,
+   "dispatch_only": false,
+   "members": [
+    {
+     "name": "Application",
+     "dispid": 1610743808,
+     "invoke": "get",
+     "slot": 7,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ppidisp",
+       "type": "IDispatch**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Creator",
+     "dispid": 1610743809,
+     "invoke": "get",
+     "slot": 8,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "plCreator",
+       "type": "I4*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    }
+   ]
+  },
+  {
+   "name": "_IMsoOleAccDispObj",
+   "kind": "dispatch",
+   "guid": "{000C0301-0000-0000-C000-000000000046}",
+   "dual": true,
+   "flags": [
+    "hidden",
+    "dual",
+    "nonextensible",
+    "dispatchable"
+   ],
+   "base": "IAccessible",
+   "vtable_slots": 30,
+   "dispatch_only": false,
+   "members": [
+    {
+     "name": "Application",
+     "dispid": 1610809344,
+     "invoke": "get",
+     "slot": 28,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ppidisp",
+       "type": "IDispatch**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Creator",
+     "dispid": 1610809345,
+     "invoke": "get",
+     "slot": 29,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "plCreator",
+       "type": "I4*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    }
+   ]
+  }
+ ]
+}

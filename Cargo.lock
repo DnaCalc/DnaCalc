@@ -337,6 +337,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "calc-object-model"
+version = "0.1.0"
+dependencies = [
+ "calc-func",
+ "calc-value",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-test",
+]
+
+[[package]]
 name = "calc-oracle-excel"
 version = "0.1.0"
 dependencies = [
@@ -736,6 +748,15 @@ name = "collection_literals"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2550f75b8cfac212855f6b1885455df8eaee8fe8e246b647d69146142e016084"
+
+[[package]]
+name = "com-descriptor"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "windows",
+]
 
 [[package]]
 name = "config"

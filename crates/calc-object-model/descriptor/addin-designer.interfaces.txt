@@ -1,0 +1,6 @@
+# Add-in Designer library {AC0714F2-3D04-11D1-AE7D-00A0C90F26F4} 1.0 (MSADDNDR.OLB): types
+# written to addin-designer.json by tools/com-descriptor. One type name per line; '#' starts a
+# comment.
+_IDTExtensibility2
+# IDTExtensibility2 is not a separate interface in this library: it is an alias of
+# _IDTExtensibility2 (typedef), so it is not listed.
