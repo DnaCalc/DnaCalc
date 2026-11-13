@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- DNA OneCalc, per-user MSI (dc-fk66; route in docs/plan/WINDOWS_INSTALLERS.md).
+     Built on Linux by deploy/windows/build-msi.sh with wixl (msitools, WiX 3 syntax).
+     Never change UpgradeCode or a component Guid: upgrades and uninstall depend on them.
+     The companion dna-calc-desktop.exe is installed but registers nothing: 'Open with' for
+     workbooks belongs to the DNA Calc MSI (Applications\<exe name> is one key per name). -->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" Name="DNA OneCalc" Language="1033" Version="$(var.Version)"
+           Manufacturer="DNA Calc" UpgradeCode="C521FADC-8410-4B83-9D8C-BC8E72BBF868">
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perUser"
+             Description="DNA OneCalc $(var.Version)" Comments="$(var.Version)+$(var.Commit)" />
+    <MajorUpgrade DowngradeErrorMessage="A newer DNA OneCalc is installed. Uninstall it first." />
+    <Media Id="1" Cabinet="onecalc.cab" EmbedCab="yes" />
+    <Icon Id="AppIcon" SourceFile="$(var.Icon)" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+    <Property Id="ARPURLINFOABOUT" Value="https://onecalc.dnacalc.com" />
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="LocalAppDataFolder">
+        <Directory Id="ProgramsDir" Name="Programs">
+          <Directory Id="INSTALLDIR" Name="DNA OneCalc">
+            <Component Id="App" Guid="57DD21DA-4F62-45BC-9AEF-98451E5ED4E0">
+              <File Id="Exe" Name="dna-onecalc-desktop.exe" Source="$(var.Src)/dna-onecalc-desktop.exe" />
+              <File Id="Companion" Name="dna-calc-desktop.exe" Source="$(var.Src)/dna-calc-desktop.exe" />
+              <File Id="Shim" Name="XLCALL32.DLL" Source="$(var.Src)/XLCALL32.DLL" />
+              <File Id="Readme" Name="README.txt" Source="$(var.Src)/README.txt" />
+              <File Id="Licence" Name="LICENSE" Source="$(var.Src)/LICENSE" />
+              <RegistryValue Root="HKCU" Key="Software\DNA Calc\DNA OneCalc" Name="InstallDir"
+                             Type="string" Value="[INSTALLDIR]" KeyPath="yes" />
+              <RemoveFolder Id="RemoveInstallDir" On="uninstall" />
+            </Component>
+            <!-- 'Open with' for add-ins, never the default. The command line is the app mode with
+                 the add-in loaded (apps/dna-onecalc-desktop/src/app.rs, its options app and xll). -->
+            <Component Id="OpenWith" Guid="C7D44EAF-767E-49AA-97BE-F434C67FEC14">
+              <RegistryValue Root="HKCU" Key="Software\Classes\DnaOneCalc.AddIn" Type="string"
+                             Value="Excel add-in (DNA OneCalc)" KeyPath="yes" />
+              <RegistryValue Root="HKCU" Key="Software\Classes\DnaOneCalc.AddIn\DefaultIcon" Type="string"
+                             Value="&quot;[INSTALLDIR]dna-onecalc-desktop.exe&quot;,0" />
+              <RegistryValue Root="HKCU" Key="Software\Classes\DnaOneCalc.AddIn\shell\open\command" Type="string"
+                             Value="&quot;[INSTALLDIR]dna-onecalc-desktop.exe&quot; --app --xll &quot;%1&quot;" />
+              <RegistryValue Root="HKCU" Key="Software\Classes\Applications\dna-onecalc-desktop.exe"
+                             Name="FriendlyAppName" Type="string" Value="DNA OneCalc" />
+              <RegistryValue Root="HKCU" Key="Software\Classes\Applications\dna-onecalc-desktop.exe\shell\open\command"
+                             Type="string" Value="&quot;[INSTALLDIR]dna-onecalc-desktop.exe&quot; --app --xll &quot;%1&quot;" />
+              <RegistryValue Root="HKCU" Key="Software\Classes\Applications\dna-onecalc-desktop.exe\SupportedTypes"
+                             Name=".xll" Type="string" Value="" />
+              <RegistryValue Root="HKCU" Key="Software\Classes\Applications\dna-onecalc-desktop.exe\SupportedTypes"
+                             Name=".xlam" Type="string" Value="" />
+              <RegistryValue Root="HKCU" Key="Software\Classes\.xll\OpenWithProgids"
+                             Name="DnaOneCalc.AddIn" Type="string" Value="" />
+              <RegistryValue Root="HKCU" Key="Software\Classes\.xlam\OpenWithProgids"
+                             Name="DnaOneCalc.AddIn" Type="string" Value="" />
+            </Component>
+          </Directory>
+        </Directory>
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Component Id="Shortcut" Guid="9CBCFD5B-9423-42FD-AA03-1B9EB9515CA3">
+          <Shortcut Id="StartMenuShortcut" Name="DNA OneCalc" Target="[INSTALLDIR]dna-onecalc-desktop.exe"
+                    WorkingDirectory="INSTALLDIR" />
+          <RegistryValue Root="HKCU" Key="Software\DNA Calc\DNA OneCalc" Name="StartMenuShortcut"
+                         Type="integer" Value="1" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </Directory>
+    <Feature Id="Main" Level="1">
+      <ComponentRef Id="App" />
+      <ComponentRef Id="OpenWith" />
+      <ComponentRef Id="Shortcut" />
+    </Feature>
+  </Product>
+</Wix>

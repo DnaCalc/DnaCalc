@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- DNA Calc, per-user MSI (dc-fk66; route in docs/plan/WINDOWS_INSTALLERS.md).
+     Built on Linux by deploy/windows/build-msi.sh with wixl (msitools, WiX 3 syntax).
+     Never change UpgradeCode or a component Guid: upgrades and uninstall depend on them. -->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" Name="DNA Calc" Language="1033" Version="$(var.Version)"
+           Manufacturer="DNA Calc" UpgradeCode="0E59C7BE-CF40-470C-8881-087095B36573">
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perUser"
+             Description="DNA Calc $(var.Version)" Comments="$(var.Version)+$(var.Commit)" />
+    <MajorUpgrade DowngradeErrorMessage="A newer DNA Calc is installed. Uninstall it first." />
+    <Media Id="1" Cabinet="dnacalc.cab" EmbedCab="yes" />
+    <Icon Id="AppIcon" SourceFile="$(var.Icon)" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+    <Property Id="ARPURLINFOABOUT" Value="https://dnacalc.com" />
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="LocalAppDataFolder">
+        <Directory Id="ProgramsDir" Name="Programs">
+          <Directory Id="INSTALLDIR" Name="DNA Calc">
+            <Component Id="App" Guid="E1F06607-F334-430E-A78B-B8089C5F3509">
+              <File Id="Exe" Name="dna-calc-desktop.exe" Source="$(var.Src)/dna-calc-desktop.exe" />
+              <File Id="Shim" Name="XLCALL32.DLL" Source="$(var.Src)/XLCALL32.DLL" />
+              <File Id="Readme" Name="README.txt" Source="$(var.Src)/README.txt" />
+              <File Id="Licence" Name="LICENSE" Source="$(var.Src)/LICENSE" />
+              <RegistryValue Root="HKCU" Key="Software\DNA Calc\DNA Calc" Name="InstallDir"
+                             Type="string" Value="[INSTALLDIR]" KeyPath="yes" />
+              <RemoveFolder Id="RemoveInstallDir" On="uninstall" />
+            </Component>
+            <!-- 'Open with' for workbooks, never the default: a ProgID listed under each
+                 extension's OpenWithProgids, and the application's SupportedTypes. -->
+            <Component Id="OpenWith" Guid="CD671B53-68B8-4AE3-A72B-016DDCC49731">
+              <RegistryValue Root="HKCU" Key="Software\Classes\DnaCalc.Workbook" Type="string"
+                             Value="Excel workbook (DNA Calc)" KeyPath="yes" />
+              <RegistryValue Root="HKCU" Key="Software\Classes\DnaCalc.Workbook\DefaultIcon" Type="string"
+                             Value="&quot;[INSTALLDIR]dna-calc-desktop.exe&quot;,0" />
+              <RegistryValue Root="HKCU" Key="Software\Classes\DnaCalc.Workbook\shell\open\command" Type="string"
+                             Value="&quot;[INSTALLDIR]dna-calc-desktop.exe&quot; --open &quot;%1&quot;" />
+              <RegistryValue Root="HKCU" Key="Software\Classes\Applications\dna-calc-desktop.exe"
+                             Name="FriendlyAppName" Type="string" Value="DNA Calc" />
+              <RegistryValue Root="HKCU" Key="Software\Classes\Applications\dna-calc-desktop.exe\shell\open\command"
+                             Type="string" Value="&quot;[INSTALLDIR]dna-calc-desktop.exe&quot; --open &quot;%1&quot;" />
+              <RegistryValue Root="HKCU" Key="Software\Classes\Applications\dna-calc-desktop.exe\SupportedTypes"
+                             Name=".xlsx" Type="string" Value="" />
+              <RegistryValue Root="HKCU" Key="Software\Classes\Applications\dna-calc-desktop.exe\SupportedTypes"
+                             Name=".xlsm" Type="string" Value="" />
+              <RegistryValue Root="HKCU" Key="Software\Classes\Applications\dna-calc-desktop.exe\SupportedTypes"
+                             Name=".xlsb" Type="string" Value="" />
+              <RegistryValue Root="HKCU" Key="Software\Classes\.xlsx\OpenWithProgids"
+                             Name="DnaCalc.Workbook" Type="string" Value="" />
+              <RegistryValue Root="HKCU" Key="Software\Classes\.xlsm\OpenWithProgids"
+                             Name="DnaCalc.Workbook" Type="string" Value="" />
+              <RegistryValue Root="HKCU" Key="Software\Classes\.xlsb\OpenWithProgids"
+                             Name="DnaCalc.Workbook" Type="string" Value="" />
+            </Component>
+          </Directory>
+        </Directory>
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Component Id="Shortcut" Guid="5E410A3C-9505-42AE-A458-F1AC23474E80">
+          <Shortcut Id="StartMenuShortcut" Name="DNA Calc" Target="[INSTALLDIR]dna-calc-desktop.exe"
+                    WorkingDirectory="INSTALLDIR" />
+          <RegistryValue Root="HKCU" Key="Software\DNA Calc\DNA Calc" Name="StartMenuShortcut"
+                         Type="integer" Value="1" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </Directory>
+    <Feature Id="Main" Level="1">
+      <ComponentRef Id="App" />
+      <ComponentRef Id="OpenWith" />
+      <ComponentRef Id="Shortcut" />
+    </Feature>
+  </Product>
+</Wix>

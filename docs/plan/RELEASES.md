@@ -165,3 +165,5 @@ Agents again:
 4. `version.rc` is written from the workspace version by `build.rs` (ProductVersion), with the
    16.0.0.1 file version kept as section 3 says.
 5. `deploy/linux/package.sh`: the `~dev` mapping for the deb.
+6. `deploy/windows/build-msi.sh` (dc-fk66.1) drops the `-dev` part for the MSI version, which
+   must be numeric; preview MSIs are made only from release commits.
