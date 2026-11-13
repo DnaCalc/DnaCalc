@@ -118,7 +118,8 @@ target/debug/dnacalc serve
 ```
 
 An everyday build without an embedded page uses `dnacalc serve --assets target/dnacalc-bundle`.
-Macro security starts Off, as in the browser worker; this change adds no native file, fetch, XLL
+NOW and TODAY sample the runner's UTC clock on open and Calculate Now, through the worker's native
+clock hook. Macro security starts Off, as in the browser worker; this change adds no native file, fetch, XLL
 or COM services to the Server.
 
 ## Open questions (to measure before building)

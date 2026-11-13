@@ -624,7 +624,9 @@ pub(crate) fn sort_metadata(bytes: &[u8], variant: &str) -> Result<Vec<u8>, Stri
         if !styles.contains("<dxfs count=\"0\"/>") {
             return Err("The retained sort fixture differential formats changed".into());
         }
-        replacements.insert("xl/styles.xml".into(),styles.replace("<dxfs count=\"0\"/>","<dxfs count=\"1\"><dxf><fill><patternFill patternType=\"solid\"><fgColor rgb=\"FF123456\"/><bgColor indexed=\"64\"/></patternFill></fill></dxf></dxfs>").into_bytes());
+        // dc-qgth: Excel reads a solid differential fill from bgColor, unlike a cell fill.
+        // These are synthetic inputs; keep the existing colour and sorting assertions.
+        replacements.insert("xl/styles.xml".into(),styles.replace("<dxfs count=\"0\"/>","<dxfs count=\"1\"><dxf><fill><patternFill patternType=\"solid\"><bgColor rgb=\"FF123456\"/></patternFill></fill></dxf></dxfs>").into_bytes());
         let start = sheet
             .find("<dataValidations")
             .ok_or("no validation block")?;

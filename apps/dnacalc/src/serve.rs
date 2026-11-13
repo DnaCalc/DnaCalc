@@ -354,6 +354,9 @@ fn events(
 }
 
 fn worker(mut socket: WebSocket<TcpStream>) -> Result<(), String> {
+    // The page worker samples its owner's clock on open and Calculate Now. Install the
+    // runner's existing UTC clock on this thread, before constructing any channel's Server.
+    dna_calc_worker::workbook::set_native_clock(|| Some(crate::session::clock_now()));
     let mut channels = BTreeMap::<u32, Server>::new();
     loop {
         match socket.read() {

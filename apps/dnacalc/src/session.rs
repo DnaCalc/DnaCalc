@@ -278,7 +278,7 @@ pub(crate) fn cell_json(session: &HostSession, cell: &ProjectedCell) -> Value {
 }
 
 /// This machine's clock (UTC) as a 1900-system serial date and time: what NOW and TODAY read.
-fn clock_now() -> f64 {
+pub(crate) fn clock_now() -> f64 {
     let seconds = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs_f64())

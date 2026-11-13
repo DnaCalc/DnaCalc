@@ -11626,6 +11626,8 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Wait(Check::PlanCell("A2", "text", "3")),
             Action::Wait(Check::PlanCell("C4", "text", "#DIV/0!")),
             Action::Click("[data-dnacalc=sort-tools]>summary"),
+            // The phone viewport virtualizes rows; reveal the outside-rule cell before reading its paint.
+            Action::Into("name-box", "C6\u{E007}"),
             Action::Wait(Check::Style(
                 "[data-dnacalc=cell-decoration][data-cell=C6]",
                 "background-color:#123456",
@@ -12136,6 +12138,8 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Click("sort-descending"),
             Action::Wait(Check::PlanCell("A2", "text", "3")),
             Action::Click("[data-dnacalc=sort-tools]>summary"),
+            // The phone viewport virtualizes rows; reveal the outside-rule cell before reading its paint.
+            Action::Into("name-box", "C6\u{E007}"),
             Action::Wait(Check::Style(
                 "[data-dnacalc=cell-decoration][data-cell=C6]",
                 "background-color:#123456",
