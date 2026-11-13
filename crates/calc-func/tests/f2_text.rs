@@ -286,6 +286,62 @@ fn text_scientific_literal_mantissa() {
     .is_err());
 }
 
+/// Excel 20527 bank2 TEXT rows: literal letters and negative date codes can
+/// be decided with recorded separators, while positive date rendering needs locale.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn text_partial_locale_literal_and_negative_date() {
+    use calc_func::locale::{CalcEnvironment, DateSystem};
+    use calc_func::value::NumericMode;
+    use calc_func::{EvalServices, FunctionCallScratch, Notation, catalogue, invoke};
+    let env = CalcEnvironment::dates(DateSystem::System1900);
+    let target = catalogue().resolve_surface(Notation::Call, "TEXT").unwrap();
+    let mode = NumericMode::Fast;
+    for (bits, expected) in [
+        (0x3f8b33dcdb340840, "i"),
+        (0xaff28fbe97f89608, "-i"),
+    ] {
+        let mut services = EvalServices::new(&mode)
+            .with_environment(&env)
+            .with_number_separators(".", "\u{00A0}");
+        text(
+            invoke(
+                target,
+                &mut Given(vec![n(f64::from_bits(bits)), t("i")]),
+                &mut services,
+                &mut FunctionCallScratch::new(),
+            ),
+            expected,
+        );
+    }
+    for (bits, code) in [
+        (0xc033000000000001, "abc def"),
+        (0xc054c00000000001, "hello"),
+    ] {
+        let mut services = EvalServices::new(&mode)
+            .with_environment(&env)
+            .with_number_separators(".", "\u{00A0}");
+        error(
+            invoke(
+                target,
+                &mut Given(vec![n(f64::from_bits(bits)), t(code)]),
+                &mut services,
+                &mut FunctionCallScratch::new(),
+            ),
+            Value,
+        );
+    }
+    let mut services = EvalServices::new(&mode)
+        .with_environment(&env)
+        .with_number_separators(".", "\u{00A0}");
+    refused(invoke(
+        target,
+        &mut Given(vec![n(1.0), t("hello")]),
+        &mut services,
+        &mut FunctionCallScratch::new(),
+    ));
+}
+
 /// Excel 16.0.20430, recorded typed Value2 observations, not legacy expected values:
 /// OxFunc-Evidence/runs/w111-broad-typed-20260929-002/outcomes/excel.jsonl.gz, cases
 /// w111typed-00266-textafter-arg1-empty-text, -00274-textbefore-arg1-empty-text and

@@ -108,6 +108,29 @@ pub(crate) fn plain_decimal_code(code: &str) -> bool {
         && fraction.bytes().all(|c| c.is_ascii_digit())
 }
 
+/// ASCII letter literals whose meaning does not read the recorded separators or
+/// any date, era or AM/PM token.
+pub(crate) fn plain_letter_literal_code(code: &str, decimal: &str, group: &str) -> bool {
+    !code.is_empty()
+        && code.chars().all(|c| {
+            c.is_ascii_alphabetic()
+                && !"ymdhsbegap".contains(c.to_ascii_lowercase())
+                && !decimal.contains(c)
+                && !group.contains(c)
+        })
+}
+
+/// Letter-only date/time codes with a standard date or time token and no
+/// punctuation whose interpretation might require the rest of the locale.
+pub(crate) fn plain_datetime_code(code: &str, decimal: &str, group: &str) -> bool {
+    code.chars().all(|c| {
+        (c.is_ascii_alphabetic() || c == ' ')
+            && !decimal.contains(c)
+            && !group.contains(c)
+    }) && code.chars().any(|c| "ymdhs".contains(c.to_ascii_lowercase()))
+        && datetime::looks_like_datetime_format(code, '.')
+}
+
 /// A scientific code with literal digits instead of mantissa placeholders.
 fn literal_scientific_parts(code: &str) -> Option<(&str, bool, &str)> {
     let (mantissa, exponent) = code.split_once('E')?;

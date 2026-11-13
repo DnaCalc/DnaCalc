@@ -162,6 +162,17 @@ fn text(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
         let known_scientific_decimal = site.number_separators().is_some_and(|(decimal, group)| {
             decimal == "." && group != "." && format::literal_scientific_decimal_code(&code)
         });
+        let known_alpha_literal = site.number_separators().is_some_and(|(decimal, group)| {
+            format::plain_letter_literal_code(&code, decimal, group)
+        });
+        if matches!(a[0].core_ref(), CoreRef::Number(number) if number < 0.0)
+            && site.number_separators().is_some_and(|(decimal, group)| {
+                format::plain_datetime_code(&code, decimal, group)
+            })
+        {
+            site.number_argument(0, &a[0])?;
+            return fail(WorksheetErrorCode::Value);
+        }
         let known_literal = !format::integer_code(&code)
             && site.number_separators().is_some_and(|(decimal, group)| {
                 format::literal_integer_code(&code, decimal, group)
@@ -171,6 +182,7 @@ fn text(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
             || known_decimal
             || known_literal
             || known_scientific_decimal
+            || known_alpha_literal
             || format::literal_scientific_code(&code)
         {
             let number = site.number_argument(0, &a[0])?;
@@ -178,7 +190,7 @@ fn text(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
                 .environment()
                 .map_or(crate::locale::DateSystem::System1900, |e| e.date_system);
             let mut format_profile = crate::locale::format_profile(LocaleId::EnZa);
-            if known_decimal || known_literal || known_scientific_decimal {
+            if known_decimal || known_literal || known_scientific_decimal || known_alpha_literal {
                 let (decimal, group) = site.number_separators().expect("known decimal separators");
                 format_profile = format_profile
                     .with_separators(decimal, group)
