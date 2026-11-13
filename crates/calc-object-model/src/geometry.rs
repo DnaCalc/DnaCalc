@@ -1,9 +1,10 @@
 //! Portable Range geometry, shared by all projections. Evidence: the X19 Excel traces in
 //! `calc-xll-reference/traces/2026-11-11-x19-com` and the measured `projection.cpp` they replaced.
-//! Relative R1C1 and RelativeTo await dc-1nbp.6; the old projection did not model them either.
+//! Relative R1C1, RelativeTo, defaults and Union normalization follow the three identical
+//! E6/E11 runs in `calc-xll-reference/traces/2026-11-14-om-probes/`.
 
 use crate::{AutoError, AutoValue, Call};
-use calc_value::{CellKey, ReferenceLike};
+use calc_value::{CellKey, GridArea, ReferenceLike};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum RangeAxis {
@@ -63,18 +64,20 @@ pub fn bad_count() -> AutoError {
 }
 
 impl AddressOptions {
+    /// Parse scalar arguments. The host binds RelativeTo's Range to its top-left CellKey
+    /// when relative R1C1 needs it; A1 and absolute R1C1 ignore RelativeTo (E11).
     pub fn from_call(call: &Call<'_>) -> Result<Self, AutoError> {
         if call.args.len() > 5 {
             return Err(bad_count());
         }
         let mut options = Self::default();
-        if !call.arg(0).is_missing() {
+        if !address_default(call.arg(0)) {
             options.row_absolute = boolean(call.arg(0))?;
         }
-        if !call.arg(1).is_missing() {
+        if !address_default(call.arg(1)) {
             options.column_absolute = boolean(call.arg(1))?;
         }
-        if !call.arg(2).is_missing() {
+        if !address_default(call.arg(2)) {
             let number = match call.arg(2) {
                 AutoValue::I2(v) => f64::from(*v),
                 AutoValue::I4(v) => f64::from(*v),
@@ -93,14 +96,8 @@ impl AddressOptions {
                 }
             };
         }
-        if !call.arg(3).is_missing() {
+        if !address_default(call.arg(3)) {
             options.external = boolean(call.arg(3))?;
-        }
-        if !call.arg(4).is_missing() {
-            return Err(AutoError::not_modelled(
-                "Range.Address RelativeTo",
-                "dc-1nbp.6",
-            ));
         }
         Ok(options)
     }
@@ -112,22 +109,34 @@ pub fn address(
     options: AddressOptions,
     qualifier: Option<&str>,
 ) -> Result<String, AutoError> {
-    if options.relative_to.is_some() {
-        return Err(AutoError::not_modelled(
-            "Range.Address RelativeTo",
-            "dc-1nbp.6",
-        ));
-    }
-    if options.style == ReferenceStyle::R1C1 && (!options.row_absolute || !options.column_absolute)
-    {
-        return Err(AutoError::not_modelled(
-            "Range.Address relative R1C1",
-            "dc-1nbp.6",
-        ));
-    }
     let cell = |at: CellKey| {
         if options.style == ReferenceStyle::R1C1 {
-            return format!("R{}C{}", at.row(), at.column());
+            fn axis(tag: char, coordinate: u32, origin: u32, absolute: bool) -> String {
+                if absolute {
+                    return format!("{tag}{coordinate}");
+                }
+                let offset = i64::from(coordinate) - i64::from(origin);
+                if offset == 0 {
+                    tag.to_string()
+                } else {
+                    format!("{tag}[{offset}]")
+                }
+            }
+            return format!(
+                "{}{}",
+                axis(
+                    'R',
+                    at.row(),
+                    options.relative_to.map_or(1, |base| base.row()),
+                    options.row_absolute
+                ),
+                axis(
+                    'C',
+                    at.column(),
+                    options.relative_to.map_or(1, |base| base.column()),
+                    options.column_absolute
+                )
+            );
         }
         let mut column = at.column();
         let mut name = Vec::new();
@@ -166,18 +175,55 @@ pub fn address(
     Ok(text)
 }
 
-/// Keep argument order and area multiplicity, including overlapping and identical areas.
+/// Address's omitted/Null/Error arguments use their defaults (E6).
+pub fn address_default(value: &AutoValue) -> bool {
+    matches!(
+        value,
+        AutoValue::Missing | AutoValue::Null | AutoValue::Error(_)
+    )
+}
+
+/// E11: keep argument order and distinct overlap multiplicity; drop identical areas and
+/// merge vertically adjacent areas of the same width. No bounding-box union of overlaps.
 pub fn union(references: &[ReferenceLike]) -> Result<ReferenceLike, AutoError> {
     if references.len() < 2 || references.len() > 30 {
         return Err(bad_count());
     }
-    ReferenceLike::from_areas(
+    let reference = ReferenceLike::from_areas(
         references
             .iter()
             .flat_map(|r| r.areas().iter().copied())
             .collect(),
     )
-    .map_err(|_| AutoError::excel(1004, "Union ranges must belong to one worksheet"))
+    .map_err(|_| AutoError::excel(1004, "Union method of Application class failed"))?;
+    let mut areas: Vec<GridArea> = Vec::new();
+    for area in reference.areas().iter().copied() {
+        if areas.contains(&area) {
+            continue;
+        }
+        let adjacent = areas.iter_mut().find(|previous| {
+            previous.first().column() == area.first().column()
+                && previous.last().column() == area.last().column()
+                && (previous.last().row().checked_add(1) == Some(area.first().row())
+                    || area.last().row().checked_add(1) == Some(previous.first().row()))
+        });
+        if let Some(previous) = adjacent {
+            let first = if previous.first().row() < area.first().row() {
+                previous.first()
+            } else {
+                area.first()
+            };
+            let last = if previous.last().row() > area.last().row() {
+                previous.last()
+            } else {
+                area.last()
+            };
+            *previous = GridArea::new(first, last).expect("valid adjacent areas on one sheet");
+        } else {
+            areas.push(area);
+        }
+    }
+    Ok(ReferenceLike::from_areas(areas).expect("nonempty areas from one sheet"))
 }
 pub fn row(reference: &ReferenceLike) -> u32 {
     reference.areas()[0].first().row()

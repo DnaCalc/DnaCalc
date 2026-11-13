@@ -801,3 +801,24 @@ fn database_functions() {
         Value,
     );
 }
+
+/// Excel 20527: A-plus-digit database criteria are text, not time or currency.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn database_a_digit_criteria() {
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![t("Key"), t("a1"), t("a10"), t("a2"), t("b1"), t("A123"), n(1.0)]);
+    sheet.column(1, 2, vec![t("Value"), n(1.0), n(2.0), n(3.0), n(4.0), n(5.0), n(6.0)]);
+    sheet.column(9, 1, vec![t("Key"), t("a1")]);
+    let db = sheet.area(1, 1, 7, 2);
+    let criteria = sheet.area(9, 1, 10, 1);
+    for (name, expected) in [("DCOUNT", 3.0), ("DSUM", 8.0)] {
+        exact(call_on(&mut sheet, name, vec![db.clone(), t("Value"), criteria.clone()]), expected);
+    }
+    error(call_on(&mut sheet, "DGET", vec![db.clone(), t("Value"), criteria.clone()]), Num);
+    sheet.cells.insert((10, 1), t("<>a2"));
+    for (name, expected) in [("DCOUNT", 5.0), ("DSUM", 18.0)] {
+        exact(call_on(&mut sheet, name, vec![db.clone(), t("Value"), criteria.clone()]), expected);
+    }
+    error(call_on(&mut sheet, "DGET", vec![db, t("Value"), criteria]), Num);
+}

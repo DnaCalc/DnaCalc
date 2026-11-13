@@ -10,6 +10,9 @@ use crate::value::AutoValue;
 pub trait EventSource {
     /// Raise `event` of `interface` (for example `AppEvents`, `SheetChange`) on `source`'s
     /// subscribers, with arguments in the event's declared order.
+    /// Object arguments each represent one acquisition. Materialize one wrapper per argument
+    /// for the delivery (even with no subscribers), and retain that wrapper across subscribers.
+    /// Its final release calls ObjectModel::released exactly once, including on failed delivery.
     fn raise(
         &self,
         source: &ObjectRef,

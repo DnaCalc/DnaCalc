@@ -21,6 +21,8 @@ calc-doc = { path = "../calc-doc" }
 calc-doc-model = { path = "../calc-doc-model" }
 calc-engine = { path = "../calc-engine" }
 calc-fml = { path = "../calc-fml" }
+calc-object-model = { path = "../calc-object-model" }
+scoped-tls-hkt = "0.1.5"
 
 # The dc-hqcv acceptance case builds the one verdict library's calculation-context fingerprint
 # from the context the host reports. Test-only: calc-verdict depends on no CalcHost package

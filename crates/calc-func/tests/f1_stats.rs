@@ -102,6 +102,29 @@ fn gamma_inverse_matches_large_shape_scaling() {
     }
 }
 
+/// Excel 20527 stores both stages of scaled normal inverse arithmetic through x87.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn normal_inverse_stores_scaled_midpoints() {
+    let p = f64::from_bits(0x3fa4_7739_38ac_f552);
+    for name in ["NORM.INV", "NORMINV"] {
+        for (mean, sigma, expected) in [
+            (0x0000_0000_0000_0000, 0x3ff0_90dc_109a_3d78, 0xbffd_01c9_8292_a390),
+            (0xba90_0080_0000_0000, 0x3de0_3ef4_43e0_15ec, 0xbdec_725e_af75_b6d4),
+        ] {
+            exact(call(name, vec![n(p), n(f64::from_bits(mean)), n(f64::from_bits(sigma))]), f64::from_bits(expected));
+        }
+    }
+    for name in ["LOGNORM.INV", "LOGINV"] {
+        for (mean, sigma, expected) in [
+            (0x0000_0000_0000_0000, 0x3ff0_90dc_109a_3d78, 0x3fc4_e2e5_4017_cf9d),
+            (0xba90_0080_0000_0000, 0x3de0_3ef4_43e0_15ec, 0x3fef_ffff_ffe3_8da1),
+        ] {
+            exact(call(name, vec![n(p), n(f64::from_bits(mean)), n(f64::from_bits(sigma))]), f64::from_bits(expected));
+        }
+    }
+}
+
 /// Excel 20527 finds no seasonality in directly observed five-point curved histories.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

@@ -15,6 +15,7 @@ pub struct ReferenceTracker {
     epoch: Cell<u64>,
     closed: Cell<bool>,
     entries: RefCell<BTreeMap<u64, ReferenceLike>>,
+    leases: RefCell<BTreeMap<u64, usize>>,
     index: RefCell<HashMap<ReferenceLike, u64>>,
     refused: RefCell<BTreeSet<u64>>,
 }
@@ -34,6 +35,7 @@ impl ReferenceTracker {
             epoch: Cell::new(0),
             closed: Cell::new(false),
             entries: RefCell::default(),
+            leases: RefCell::default(),
             index: RefCell::default(),
             refused: RefCell::default(),
         })
@@ -49,6 +51,7 @@ impl ReferenceTracker {
     pub fn close(&self) {
         self.closed.set(true);
         self.entries.borrow_mut().clear();
+        self.leases.borrow_mut().clear();
         self.index.borrow_mut().clear();
         self.refused.borrow_mut().clear();
     }
@@ -85,6 +88,7 @@ impl ReferenceTracker {
             return Err(Error::ClosedWorkbook);
         }
         if let Some(slot) = self.index.borrow().get(reference).copied() {
+            *self.leases.borrow_mut().entry(slot).or_default() += 1;
             return Ok(StoredReference::Tracked {
                 owner: self.owner,
                 slot,
@@ -96,6 +100,7 @@ impl ReferenceTracker {
                 .expect("range handle identity exhausted"),
         );
         self.entries.borrow_mut().insert(slot, reference.clone());
+        self.leases.borrow_mut().insert(slot, 1);
         self.index.borrow_mut().insert(reference.clone(), slot);
         Ok(StoredReference::Tracked {
             owner: self.owner,
@@ -111,6 +116,31 @@ pub struct ReferenceView {
     refused: BTreeSet<u64>,
 }
 impl ReferenceHandles for ReferenceView {
+    fn release(&self, reference: &StoredReference) {
+        let StoredReference::Tracked { owner, slot } = reference else {
+            return;
+        };
+        if *owner != self.owner.owner {
+            return;
+        }
+        let mut leases = self.owner.leases.borrow_mut();
+        let Some(count) = leases.get_mut(slot) else {
+            return;
+        };
+        *count -= 1;
+        if *count != 0 {
+            return;
+        }
+        leases.remove(slot);
+        if let Some(reference) = self.owner.entries.borrow_mut().remove(slot) {
+            let mut index = self.owner.index.borrow_mut();
+            if index.get(&reference) == Some(slot) {
+                index.remove(&reference);
+            }
+        }
+        self.owner.refused.borrow_mut().remove(slot);
+        self.entries.borrow_mut().remove(slot);
+    }
     fn retain(&self, reference: &ReferenceLike) -> Result<StoredReference, Error> {
         if self.epoch != self.owner.epoch.get() {
             return Err(Error::ExpiredView);
@@ -135,6 +165,7 @@ impl ReferenceHandles for ReferenceView {
                 .entries
                 .borrow()
                 .get(slot)
+                .filter(|_| self.owner.leases.borrow().contains_key(slot))
                 .cloned()
                 .ok_or(Error::Deleted),
             _ => Err(Error::ForeignWorkbook),
@@ -164,6 +195,33 @@ fn transformed(
 mod tests {
     use super::*;
     use calc_func::value::{CellKey, IdAllocator, SheetId};
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn release_preserves_other_holders_and_removes_the_last_live_tracker_slot() {
+        let sheet = IdAllocator::<SheetId>::new().issue().unwrap();
+        let range = ReferenceLike::cell(CellKey::new(sheet, 2, 1).unwrap());
+        let tracker = ReferenceTracker::new();
+        let first = tracker.pin();
+        let handle = first.retain(&range).unwrap();
+        let second = tracker.pin();
+        assert_eq!(second.retain(&range).unwrap(), handle);
+        first.release(&handle);
+        assert_eq!(second.resolve(&handle).unwrap(), range);
+        tracker.apply(&StructuralEdit::Insert {
+            sheet,
+            axis: super::super::EditAxis::Rows,
+            first: 1,
+            count: 1,
+        });
+        // Releasing through the admitted old view also removes the transformed entry/index.
+        second.release(&handle);
+        assert!(tracker.entries.borrow().is_empty());
+        assert!(tracker.index.borrow().is_empty());
+        assert!(tracker.leases.borrow().is_empty());
+        assert_eq!(first.resolve(&handle), Err(Error::Deleted));
+        let next = tracker.pin().retain(&range).unwrap();
+        assert_ne!(next, handle, "released identities never revive");
+    }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn partial_cell_shift_splits_a_live_range_and_keeps_its_admitted_view() {
