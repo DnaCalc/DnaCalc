@@ -150,6 +150,13 @@ pub(crate) fn beta_inv_kernel(
     Ok(lower + z * (upper - lower))
 }
 
+/// Excel 20527's stored unit result in the measured very-large-shape region.
+pub(crate) fn large_shape_inverse_unit(shape: f64) -> f64 {
+    use crate::ported::excel_numeric::{excel_x87_add, excel_x87_mul};
+    let correction = excel_x87_mul(shape, f64::from_bits(0x3f31_6bc7_74cb_6000));
+    excel_x87_add(shape, correction)
+}
+
 fn validate_gamma_shape(alpha: f64, beta: f64) -> Result<(), WorksheetErrorCode> {
     if !alpha.is_finite() || !beta.is_finite() {
         return Err(WorksheetErrorCode::Value);
@@ -239,6 +246,21 @@ pub fn gamma_inv_kernel(
     }
     if probability == 0.0 {
         return Ok(0.0);
+    }
+    // At these large shapes Excel's unit search saturates to the same stored
+    // x87 correction as the right-tail chi-square inverse. The scale is
+    // applied in its own stored multiplication. Keep unmeasured overflow and
+    // underflow ranges on the existing solver.
+    if probability >= f64::MIN_POSITIVE
+        && alpha >= f64::from_bits(0x4950_0000_0000_0000) // 2^150
+        && alpha < f64::from_bits(0x6570_0000_0000_0000) // 2^600
+        && beta >= f64::from_bits(0x26f0_0000_0000_0000) // 2^-400
+        && beta < f64::from_bits(0x58f0_0000_0000_0000) // 2^400
+    {
+        return Ok(crate::ported::excel_numeric::excel_x87_mul(
+            beta,
+            large_shape_inverse_unit(alpha),
+        ));
     }
     if alpha == 1.0 {
         use crate::ported::excel_numeric::{excel_log, excel_log1p_times, excel_x87_mul};

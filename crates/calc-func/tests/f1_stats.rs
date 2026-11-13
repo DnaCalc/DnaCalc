@@ -46,6 +46,54 @@ fn beta_inverse_tiny_shape_checks_starting_density() {
     }
 }
 
+/// Excel 20527 stores the large right-tail chi-square correction before adding it.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chi_right_inverse_admits_large_degrees() {
+    let cases = [
+        (0x0010_0000_0000_0000, 0x4956_c16c_8e75_19d3, 0x4956_c2f8_fb3d_ac40),
+        (0x3f50_624d_d2f1_a9fc, 0x6d7b_899e_ef77_4458, 0x6d7b_8b7e_aaff_2423),
+        (0x3ddb_7cdf_d9d7_bdbb, 0x62e1_d1ba_3413_9d79, 0x62e1_d2f0_a1fc_0f7a),
+        (0x3fe0_0000_0000_0000, 0x4950_0000_0000_0000, 0x4950_0116_bc77_4cb6),
+        (0x2b2b_ff2e_e48e_0530, 0x63bd_362c_8e75_19d3, 0x63bd_3829_73d1_9f88),
+    ];
+    for name in ["CHIINV", "CHISQ.INV.RT"] {
+        for (p, degrees, result) in cases {
+            exact(call(name, vec![n(f64::from_bits(p)), n(f64::from_bits(degrees))]), f64::from_bits(result));
+        }
+        let degrees = 2.0_f64.powi(200);
+        error(call(name, vec![n(0.0), n(degrees)]), Num);
+        exact(call(name, vec![n(1.0), n(degrees)]), 0.0);
+        error(call("CHISQ.INV", vec![n(0.5), n(degrees)]), Num);
+    }
+}
+
+/// Excel 20527 scales the large-shape unit inverse with a separate x87 store.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gamma_inverse_matches_large_shape_scaling() {
+    let cases = [
+        (0x3fec_cccc_cccc_cccd, 0x5df6_7e78_87dc_b90c, 0x4cba_fe6a_9e9b_35d4, 0x6ac2_fae3_4dc6_a8fd),
+        (0x0010_0000_0000_0000, 0x587c_1092_a7c1_c484, 0x2d59_6052_5a69_d7fc, 0x45e6_42f0_3bae_1492),
+        (0x3fb9_9999_9999_999a, 0x4af4_4536_0eb4_9a78, 0x3a75_3052_f0fb_5722, 0x457a_d9e3_4fbd_cb4f),
+        (0x3fb9_9999_9999_999a, 0x4fc4_f326_1b3d_8490, 0x2e5e_ef3a_7734_d192, 0x3e34_41f2_d55b_c53f),
+        (0x3fb9_9999_9999_999a, 0x61a4_1dde_9fa2_3430, 0x4611_575d_b9da_b301, 0x67c5_cf10_a036_23aa),
+        (0x0010_0000_0000_0000, 0x4950_0000_0000_0000, 0x26f0_0000_0000_0000, 0x3050_0116_bc77_4cb6),
+        (0x3fef_ffff_ffff_ffff, 0x656f_ffff_ffff_ffff, 0x58ef_ffff_ffff_ffff, 0x7e70_0116_bc77_4cb6),
+    ];
+    for name in ["GAMMA.INV", "GAMMAINV"] {
+        for (p, alpha, beta, result) in cases {
+            exact(
+                call(name, vec![n(f64::from_bits(p)), n(f64::from_bits(alpha)), n(f64::from_bits(beta))]),
+                f64::from_bits(result),
+            );
+        }
+        let alpha = 2.0_f64.powi(200);
+        exact(call(name, vec![n(0.0), n(alpha), n(1.0)]), 0.0);
+        error(call(name, vec![n(1.0), n(alpha), n(1.0)]), Num);
+    }
+}
+
 /// Excel 20527 rejects far future horizons even when subtraction is inexact.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
