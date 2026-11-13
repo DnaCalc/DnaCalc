@@ -947,15 +947,20 @@ impl Criterion {
                         Ok(n) => Some(n),
                         // Text that reads as no number (see the criterion's operand above).
                         Err(Exit::Error(_)) => None,
-                        // Wildcard characters in a range cell are literal, and are not part
-                        // of number text when neither recorded separator uses them. Do not
-                        // require a complete locale just to reject these ASCII labels.
+                        // Wildcards and a leading comparison operator in a range cell are
+                        // literal, not numeric text, when neither separator uses them. The
+                        // recorded separators suffice to reject these ASCII labels.
                         Err(Exit::Fault(FunctionFault::NotImplemented { .. }))
                             if site.number_separators().is_some_and(|(decimal, group)| {
                                 let units = text.utf16_code_units();
                                 units.iter().all(|u| (0x20..=0x7e).contains(u))
-                                    && [b'*', b'?', b'~'].iter().any(|&c| {
-                                        units.contains(&u16::from(c))
+                                    && [b'*', b'?', b'~', b'<', b'>'].iter().any(|&c| {
+                                        let present = if matches!(c, b'<' | b'>') {
+                                            units.first() == Some(&u16::from(c))
+                                        } else {
+                                            units.contains(&u16::from(c))
+                                        };
+                                        present
                                             && !decimal.contains(char::from(c))
                                             && !group.contains(char::from(c))
                                     })

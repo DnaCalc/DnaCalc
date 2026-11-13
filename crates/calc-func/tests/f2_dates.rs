@@ -69,16 +69,21 @@ fn text_logical_with_numeric_format_needs_no_locale() {
 }
 
 /// Excel 16.0.20527, typed range cells: wildcard characters in range text are
-/// literal, not numeric matches. Recorded separators suffice without a locale.
+/// literal, not numeric matches. Comparison operators at the start of range
+/// text likewise do not form numeric text. Recorded separators suffice.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn countif_numeric_criterion_rejects_wildcard_labels() {
+fn countif_numeric_criterion_rejects_non_numeric_labels() {
     use calc_func::value::NumericMode;
     use calc_func::{EvalServices, FunctionCallScratch, Notation, catalogue, invoke};
 
     let mut sheet = Sheet::new();
-    sheet.column(1, 1, vec![t("a*0"), t("1?0"), t("1~0"), t("0")]);
-    let area = sheet.area(1, 1, 4, 1);
+    sheet.column(
+        1,
+        1,
+        vec![t("a*0"), t("1?0"), t("1~0"), t("<=0"), t(">1"), t("0")],
+    );
+    let area = sheet.area(1, 1, 6, 1);
     let target = catalogue()
         .resolve_surface(Notation::Call, "COUNTIF")
         .unwrap();
@@ -94,6 +99,18 @@ fn countif_numeric_criterion_rejects_wildcard_labels() {
         ),
         1.0,
     );
+
+    // Without the captured separators, the numeric coercion is still unknown.
+    let mut unprofiled = Sheet::new();
+    unprofiled.column(1, 1, vec![t(">1")]);
+    let area = unprofiled.area(1, 1, 1, 1);
+    let mut services = EvalServices::with_cells(&mode, &mut unprofiled);
+    refused(invoke(
+        target,
+        &mut Given(vec![area, n(0.0)]),
+        &mut services,
+        &mut FunctionCallScratch::new(),
+    ));
 }
 
 /// Q3, Excel 16.0.20527: these return-type classes always give #NUM!, and the
