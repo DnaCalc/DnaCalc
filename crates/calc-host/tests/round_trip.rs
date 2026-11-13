@@ -28711,3 +28711,582 @@ fn dc_971p_38__equal_rich_text_keeps_distinct_runs_phonetics_and_axis_history() 
     assert_eq!(part_text(&original, "xl/worksheets/sheet1.xml"), xml);
     assert!(book.dispatch(SkinIntent::Redo).accepted());
 }
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_37__service_measured_custom_criteria_keep_types_visibility_and_history() {
+    use calc_host::{
+        FilterChange as F, FilterCriteria as C, FilterOperator as O, FilterPredicate as P,
+        WorkbookCommand as W,
+    };
+    // Excel 16.0.20527 env 29bedb2b6722, 2026-11-13: COUNTIF over real single-cell
+    // ranges, with literal criteria and exact input read-backs. Raw requests/answers:
+    // ~/codex-runs/sol2/excel-criteria-scalar.json. 26 classes x 26 criteria = 676.
+    let values = [
+        Some("'a"),
+        Some("'A"),
+        Some("'á"),
+        Some("'ä"),
+        Some("'a-b"),
+        Some("'ab"),
+        Some("'a'b"),
+        Some("'a b"),
+        Some("'a_b"),
+        Some("'a2"),
+        Some("'a10"),
+        Some("'2"),
+        Some("'02"),
+        Some("'"),
+        Some("'a*"),
+        Some("'a?"),
+        Some("'a~"),
+        Some("' a"),
+        Some("'a "),
+        Some("2"),
+        Some("-1"),
+        Some("FALSE"),
+        Some("TRUE"),
+        None,
+        Some("=#N/A"),
+        Some("=#DIV/0!"),
+    ];
+    let cases = [
+        ("=a", O::Equal, "a", &[1, 2][..]),
+        (
+            "<>a",
+            O::NotEqual,
+            "a",
+            &[
+                3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+                25, 26,
+            ][..],
+        ),
+        ("<a", O::Less, "a", &[12, 13, 14, 18][..]),
+        ("<=a", O::LessEqual, "a", &[1, 2, 12, 13, 14, 18][..]),
+        (
+            ">a",
+            O::Greater,
+            "a",
+            &[3, 4, 5, 6, 7, 8, 9, 10, 11, 15, 16, 17, 19][..],
+        ),
+        (
+            ">=a",
+            O::GreaterEqual,
+            "a",
+            &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15, 16, 17, 19][..],
+        ),
+        ("=á", O::Equal, "á", &[3][..]),
+        ("<á", O::Less, "á", &[1, 2, 12, 13, 14, 18][..]),
+        (
+            ">á",
+            O::Greater,
+            "á",
+            &[4, 5, 6, 7, 8, 9, 10, 11, 15, 16, 17, 19][..],
+        ),
+        ("=ab", O::Equal, "ab", &[6][..]),
+        ("=a-b", O::Equal, "a-b", &[5][..]),
+        ("=2", O::Equal, "2", &[12, 13, 20][..]),
+        (">1", O::Greater, "1", &[20][..]),
+        ("<3", O::Less, "3", &[20, 21][..]),
+        ("=", O::Equal, "", &[24][..]),
+        (
+            "<>",
+            O::NotEqual,
+            "",
+            &[
+                1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+                25, 26,
+            ][..],
+        ),
+        (
+            "=*",
+            O::Equal,
+            "*",
+            &[
+                1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+            ][..],
+        ),
+        (
+            "=a*",
+            O::Equal,
+            "a*",
+            &[1, 2, 5, 6, 7, 8, 9, 10, 11, 15, 16, 17, 19][..],
+        ),
+        ("=a?", O::Equal, "a?", &[6, 10, 15, 16, 17, 19][..]),
+        ("=a~*", O::Equal, "a~*", &[15][..]),
+        ("=a~?", O::Equal, "a~?", &[16][..]),
+        ("=a~~", O::Equal, "a~~", &[][..]),
+        ("= a", O::Equal, " a", &[18][..]),
+        ("=a ", O::Equal, "a ", &[19][..]),
+        ("=#N/A", O::Equal, "#N/A", &[25][..]),
+        (
+            "<>#N/A",
+            O::NotEqual,
+            "#N/A",
+            &[
+                1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+                24, 26,
+            ][..],
+        ),
+    ];
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    assert!(enter(&mut book, at(s, "A1"), "Value").accepted());
+    assert!(enter(&mut book, at(s, "B1"), "ID").accepted());
+    for (i, value) in values.iter().enumerate() {
+        let row = i + 2;
+        if let Some(value) = value {
+            assert!(enter(&mut book, at(s, &format!("A{row}")), value).accepted());
+        }
+        assert!(enter(&mut book, at(s, &format!("B{row}")), &(i + 1).to_string()).accepted());
+    }
+    assert!(enter(&mut book, at(s, "D1"), "=SUBTOTAL(3,B2:B27)").accepted());
+    let command = |book: &mut HostSession, change| {
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change,
+        }))
+    };
+    assert!(
+        command(
+            &mut book,
+            F::Enable {
+                area: GridArea::new(at(s, "A1"), at(s, "B27")).unwrap()
+            }
+        )
+        .accepted()
+    );
+    for (criterion, operator, value, allowed) in cases {
+        let before = book.host().model().definitions().auto_filter(s).cloned();
+        let before_model = book.host().model().clone();
+        let revision = book.host().revision().get();
+        let done = command(
+            &mut book,
+            F::Column {
+                column: 1,
+                criteria: Some(C::Custom {
+                    and: false,
+                    predicates: vec![P {
+                        operator,
+                        value: value.into(),
+                    }],
+                }),
+            },
+        );
+        if criterion == "=2" {
+            // Excel returned a full numeric/text equality mask. Number coercion of
+            // a2/a10 is still unmodelled; the product must refuse atomically.
+            assert!(!done.accepted(), "{done:?}");
+            assert!(format!("{done:?}").contains("dc-971p.37"));
+            assert_eq!(book.host().revision().get(), revision);
+            assert_eq!(book.host().model(), &before_model);
+            continue;
+        }
+        assert!(done.accepted(), "{criterion}: {done:?}");
+        let expected: std::collections::BTreeSet<u32> = (1..=26)
+            .filter(|i| !allowed.contains(i))
+            .map(|i| i + 1)
+            .collect();
+        assert_eq!(
+            book.host()
+                .model()
+                .definitions()
+                .auto_filter(s)
+                .unwrap()
+                .filtered_rows,
+            expected,
+            "{criterion}"
+        );
+        assert_eq!(
+            session_calculated(&book, at(s, "D1")).unwrap().as_number(),
+            Some(allowed.len() as f64),
+            "{criterion}"
+        );
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
+        assert_eq!(
+            book.host().model().definitions().auto_filter(s),
+            before.as_ref()
+        );
+        assert!(book.dispatch(SkinIntent::Redo).accepted());
+        assert_eq!(
+            book.host()
+                .model()
+                .definitions()
+                .auto_filter(s)
+                .unwrap()
+                .filtered_rows,
+            expected
+        );
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        let mut reopened = session(&saved);
+        let t = reopened.host().sheets()[0].id();
+        assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+        let revision = reopened.host().revision().get();
+        assert!(
+            reopened
+                .dispatch(SkinIntent::Command(W::AutoFilter {
+                    sheet: t,
+                    revision,
+                    change: F::Reapply
+                }))
+                .accepted()
+        );
+        assert_eq!(
+            reopened
+                .host()
+                .model()
+                .definitions()
+                .auto_filter(t)
+                .unwrap()
+                .filtered_rows,
+            expected,
+            "reopened {criterion}"
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_37__default_button_columns_and_unread_metadata_keep_one_filter_route() {
+    use calc_host::{FilterChange as F, WorkbookCommand as W};
+    let mut base = session(&calc_host::blank_package());
+    let s = base.host().sheets()[0].id();
+    for (a, v) in [
+        ("A1", "Item"),
+        ("B1", "Amount"),
+        ("A2", "First"),
+        ("B2", "5"),
+        ("A3", "Second"),
+        ("B3", "9"),
+        ("A4", "Third"),
+        ("B4", "2"),
+        ("D1", "=SUBTOTAL(109,B2:B4)"),
+    ] {
+        assert!(enter(&mut base, at(s, a), v).accepted());
+    }
+    let revision = base.host().revision().get();
+    assert!(
+        base.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change: F::Enable {
+                area: GridArea::new(at(s, "A1"), at(s, "B4")).unwrap()
+            }
+        }))
+        .accepted()
+    );
+    let mut bytes = Vec::new();
+    base.save(&SavePolicy::default(), &mut bytes).unwrap();
+    let supported = r#"<filterColumn colId="0" hiddenButton="false" showButton="1"/><filterColumn colId="1" hiddenButton="0" showButton="true"><customFilters and="false"><customFilter operator="greaterThan" val="5"/></customFilters></filterColumn>"#;
+    let malformed = [
+        r#"<filterColumn colId="0"><filters blank="invalid"><filter val="First"/></filters></filterColumn>"#,
+        r#"<filterColumn colId="1"><customFilters and="invalid"><customFilter val="9"/></customFilters></filterColumn>"#,
+        r#"<filterColumn colId="0" hiddenButton="1"/>"#,
+        r#"<filterColumn colId="0" showButton="0"/>"#,
+        r#"<filterColumn colId="0"/><filterColumn colId="0"/>"#,
+        r#"<filterColumn colId="0" vendor="keep"/>"#,
+    ];
+    for (supported, body) in
+        std::iter::once((true, supported)).chain(malformed.into_iter().map(|s| (false, s)))
+    {
+        let source = format!(
+            r#"<autoFilter xmlns:xr="http://schemas.microsoft.com/office/spreadsheetml/2014/revision" xr:uid="{{01234567-89AB-CDEF-0123-456789ABCDEF}}" ref="A1:B4">{body}</autoFilter>"#
+        );
+        let package = package_with_part_from(&bytes, "xl/worksheets/sheet1.xml", |xml| {
+            let start = xml.find("<autoFilter").unwrap();
+            let end = xml[start..]
+                .find("</autoFilter>")
+                .map(|i| start + i + "</autoFilter>".len())
+                .unwrap_or_else(|| start + xml[start..].find("/>").unwrap() + 2);
+            let mut xml = xml.to_owned();
+            xml.replace_range(start..end, &source);
+            xml
+        });
+        let mut book = session(&package);
+        let s = book.host().sheets()[0].id();
+        assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        assert_eq!(
+            book.host()
+                .model()
+                .definitions()
+                .auto_filter(s)
+                .unwrap()
+                .unsupported,
+            !supported,
+            "{body}"
+        );
+        let revision = book.host().revision().get();
+        let before = book.host().model().clone();
+        let apply = book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change: F::Reapply,
+        }));
+        assert_eq!(apply.accepted(), supported, "{body}: {apply:?}");
+        if !supported {
+            assert_eq!(book.host().revision().get(), revision);
+            assert_eq!(book.host().model(), &before);
+            let clear = book.dispatch(SkinIntent::Command(W::AutoFilter {
+                sheet: s,
+                revision,
+                change: F::Clear,
+            }));
+            assert!(!clear.accepted());
+            assert_eq!(book.host().model(), &before);
+            assert!(enter(&mut book, at(s, "F1"), "unrelated").accepted());
+            let mut saved = Vec::new();
+            book.save(&SavePolicy::default(), &mut saved).unwrap();
+            assert!(part_text(&saved, "xl/worksheets/sheet1.xml").contains(&source));
+            continue;
+        }
+        assert_eq!(
+            book.host()
+                .model()
+                .definitions()
+                .auto_filter(s)
+                .unwrap()
+                .filtered_rows,
+            [2, 4].into_iter().collect()
+        );
+        assert_eq!(
+            session_calculated(&book, at(s, "D1")).unwrap().as_number(),
+            Some(9.)
+        );
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
+        assert_eq!(book.host().model().definitions(), before.definitions());
+        assert_eq!(
+            session_calculated(&book, at(s, "D1")).unwrap().as_number(),
+            Some(16.)
+        );
+        assert!(book.dispatch(SkinIntent::Redo).accepted());
+        assert!(
+            book.dispatch(SkinIntent::Command(W::AxisFormat {
+                sheet: s,
+                rows: true,
+                first: 3,
+                count: 1,
+                size_bits: None,
+                hidden: Some(true)
+            }))
+            .accepted()
+        );
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        assert!(
+            part_text(&saved, "xl/worksheets/sheet1.xml")
+                .contains("01234567-89AB-CDEF-0123-456789ABCDEF")
+        );
+        let mut reopened = session(&saved);
+        let t = reopened.host().sheets()[0].id();
+        assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+        assert_eq!(
+            session_calculated(&reopened, at(t, "D1"))
+                .unwrap()
+                .as_number(),
+            Some(0.)
+        );
+        let revision = reopened.host().revision().get();
+        assert!(
+            reopened
+                .dispatch(SkinIntent::Command(W::AutoFilter {
+                    sheet: t,
+                    revision,
+                    change: F::Clear
+                }))
+                .accepted()
+        );
+        assert!(reopened.host().sheet_geometry(t).unwrap().rows[&3].hidden);
+        assert_eq!(
+            session_calculated(&reopened, at(t, "D1"))
+                .unwrap()
+                .as_number(),
+            Some(7.)
+        );
+        assert!(reopened.dispatch(SkinIntent::Undo).accepted());
+        assert_eq!(
+            session_calculated(&reopened, at(t, "D1"))
+                .unwrap()
+                .as_number(),
+            Some(0.)
+        );
+        assert!(reopened.dispatch(SkinIntent::Redo).accepted());
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_37__table_default_button_columns_reapply_clear_and_reopen() {
+    use calc_host::{FilterChange as F, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let (s, part) = create_test_table(&mut book);
+    assert!(enter(&mut book, at(s, "D1"), "=SUBTOTAL(109,B2:B3)").accepted());
+    let mut bytes = Vec::new();
+    book.save(&SavePolicy::default(), &mut bytes).unwrap();
+    let bytes = package_with_part_from(&bytes, &part, |xml| {
+        let start = xml.find("<autoFilter").unwrap();
+        let end = xml[start..]
+            .find("</autoFilter>")
+            .map(|i| start + i + "</autoFilter>".len())
+            .unwrap_or_else(|| start + xml[start..].find("/>").unwrap() + 2);
+        let mut xml = xml.to_owned();
+        xml.replace_range(start..end,r#"<autoFilter ref="A1:B3"><filterColumn colId="0" hiddenButton="0" showButton="true"/><filterColumn colId="1"><customFilters><customFilter operator="greaterThan" val="5"/></customFilters></filterColumn></autoFilter>"#);
+        xml
+    });
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    let revision = book.host().revision().get();
+    let done = book.dispatch(SkinIntent::Command(W::TableFilter {
+        sheet: s,
+        revision,
+        part: part.clone(),
+        change: F::Reapply,
+    }));
+    assert!(done.accepted(), "{done:?}");
+    assert_eq!(
+        session_calculated(&book, at(s, "D1")).unwrap().as_number(),
+        Some(9.)
+    );
+    assert!(
+        book.dispatch(SkinIntent::Command(W::AxisFormat {
+            sheet: s,
+            rows: true,
+            first: 3,
+            count: 1,
+            size_bits: None,
+            hidden: Some(true)
+        }))
+        .accepted()
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut reopened = session(&saved);
+    let t = reopened.host().sheets()[0].id();
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    let revision = reopened.host().revision().get();
+    assert!(
+        reopened
+            .dispatch(SkinIntent::Command(W::TableFilter {
+                sheet: t,
+                revision,
+                part,
+                change: F::Clear
+            }))
+            .accepted()
+    );
+    assert!(reopened.host().sheet_geometry(t).unwrap().rows[&3].hidden);
+    assert_eq!(
+        session_calculated(&reopened, at(t, "D1"))
+            .unwrap()
+            .as_number(),
+        Some(5.)
+    );
+    assert!(reopened.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(
+        session_calculated(&reopened, at(t, "D1"))
+            .unwrap()
+            .as_number(),
+        Some(0.)
+    );
+    assert!(reopened.dispatch(SkinIntent::Redo).accepted());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_37__measured_literal_and_wildcard_tildes_keep_numeric_labels_textual() {
+    use calc_host::{
+        FilterChange as F, FilterCriteria as C, FilterOperator as O, FilterPredicate as P,
+        WorkbookCommand as W,
+    };
+    // Excel 16.0.20527, env 29bedb2b6722: excel-tilde-patterns.json and
+    // excel-tilde-digits.json in the lane evidence; COUNTIF over actual ranges.
+    for (values, cases) in [
+        (
+            &[
+                "a~", "a~~", "a~x", "a~~x", "a*", "a~*", "a~~*", "a?", "a~?", "a~~?",
+            ][..],
+            vec![
+                ("a~", vec![1]),
+                ("a~~", vec![2]),
+                ("a~*", vec![5]),
+                ("a~~*", vec![1, 2, 3, 4, 6, 7, 9, 10]),
+                ("a~~~*", vec![6]),
+                ("a~?", vec![8]),
+                ("a~~?", vec![2, 3, 6, 9]),
+                ("a~~~?", vec![9]),
+                ("a~~x", vec![4]),
+            ],
+        ),
+        (
+            &["1~", "1~~", "1~~~", "1~2", "1~~2", "12"][..],
+            vec![
+                ("1~", vec![1]),
+                ("1~~", vec![2]),
+                ("1~~~", vec![3]),
+                ("1~2", vec![4]),
+                ("1~~2", vec![5]),
+                ("1~~*", vec![1, 2, 3, 4, 5]),
+            ],
+        ),
+    ] {
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        assert!(enter(&mut book, at(s, "A1"), "Label").accepted());
+        for (i, value) in values.iter().enumerate() {
+            assert!(
+                enter(
+                    &mut book,
+                    at(s, &format!("A{}", i + 2)),
+                    &format!("'{value}")
+                )
+                .accepted()
+            );
+        }
+        let revision = book.host().revision().get();
+        assert!(
+            book.dispatch(SkinIntent::Command(W::AutoFilter {
+                sheet: s,
+                revision,
+                change: F::Enable {
+                    area: GridArea::new(at(s, "A1"), at(s, &format!("A{}", values.len() + 1)))
+                        .unwrap()
+                }
+            }))
+            .accepted()
+        );
+        for (value, allowed) in cases {
+            let revision = book.host().revision().get();
+            let done = book.dispatch(SkinIntent::Command(W::AutoFilter {
+                sheet: s,
+                revision,
+                change: F::Column {
+                    column: 1,
+                    criteria: Some(C::Custom {
+                        and: false,
+                        predicates: vec![P {
+                            operator: O::Equal,
+                            value: value.into(),
+                        }],
+                    }),
+                },
+            }));
+            assert!(done.accepted(), "{value}: {done:?}");
+            let expected = (1..=values.len() as u32)
+                .filter(|i| !allowed.contains(i))
+                .map(|i| i + 1)
+                .collect();
+            assert_eq!(
+                book.host()
+                    .model()
+                    .definitions()
+                    .auto_filter(s)
+                    .unwrap()
+                    .filtered_rows,
+                expected,
+                "{value}"
+            );
+        }
+    }
+}

@@ -22,7 +22,7 @@
 //! included, is #VALUE!. Otherwise text may start with an operator (=, <>, <, >, <=, >=; none is
 //! =) followed by its operand: nothing (`""` matches blank cells and empty text, `=` blank cells
 //! only, `<>` every cell but a blank one, and <, <=, > or >= no cell), an error literal, a
-//! pattern when = or <> is followed by text holding *, ? or ~ (* any run, ? one character, ~
+//! pattern when = or <> is followed by text holding * or ? (* any run, ? one character, ~
 //! makes a following *, ? or ~ literal and is itself literal before any other character or at
 //! the end), else a number when the operand reads as one by worksheet number coercion, a logical
 //! when it spells TRUE or FALSE, and text otherwise (a label such as 2016-17 Winter, which
@@ -852,7 +852,16 @@ fn criterion_text(site: &Site<'_>, index: usize, units: &[u16]) -> Step<Criterio
         return Err(site.not_modelled(Some(index)));
     }
     let special = |unit: &u16| [b'*', b'?', b'~'].iter().any(|&b| *unit == u16::from(b));
+    // Excel 16.0.20527, dc-971p.37 service measurements (2026-11-13): tilde
+    // escapes activate only when * or ? occurs. Thus =a~~ matches a~~, while
+    // =a~~* matches text beginning a~ and =a~~~* matches the literal a~*.
     if op.is_equality() && rest.iter().any(special) {
+        if !rest
+            .iter()
+            .any(|&unit| unit == u16::from(b'*') || unit == u16::from(b'?'))
+        {
+            return Ok(Criterion::Text(op, rest.to_vec()));
+        }
         let mut tokens = Vec::with_capacity(rest.len());
         let mut at = 0;
         while at < rest.len() {

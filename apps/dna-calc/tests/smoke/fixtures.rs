@@ -645,6 +645,18 @@ pub(crate) fn sort_metadata(bytes: &[u8], variant: &str) -> Result<Vec<u8>, Stri
             sheet.replace_range(start..end,r#"<conditionalFormatting sqref="B2:B6"><cfRule type="containsText" operator="containsText" text="three" dxfId="0" priority="1" stopIfTrue="1"><formula>NOT(ISERROR(SEARCH("three",B2)))</formula></cfRule></conditionalFormatting><conditionalFormatting sqref="C2:C6"><cfRule type="containsErrors" dxfId="0" priority="2"><formula>ISERROR(C2)</formula></cfRule><cfRule type="containsBlanks" dxfId="0" priority="3"><formula>LEN(TRIM(C2))=0</formula></cfRule></conditionalFormatting>"#);
             sheet.replace("<f>A3*2</f>", "<f>1/0</f>")
         }
+    } else if matches!(variant, "filter-default-buttons" | "filter-invalid-boolean") {
+        let filter = if variant == "filter-default-buttons" {
+            r#"<autoFilter ref="A1:C5"><filterColumn colId="0" hiddenButton="false" showButton="1"><customFilters and="false"><customFilter operator="greaterThan" val="1"/></customFilters></filterColumn><filterColumn colId="1" hiddenButton="0" showButton="true"/><filterColumn colId="2"/></autoFilter>"#
+        } else {
+            r#"<autoFilter ref="A1:C5"><filterColumn colId="0"><customFilters and="invalid"><customFilter operator="greaterThan" val="1"/></customFilters></filterColumn></autoFilter>"#
+        };
+        sheet
+            .replace(
+                "</row><row r=\"2\">",
+                "<c r=\"D1\"><f>SUBTOTAL(109,C2:C5)</f></c></row><row r=\"2\">",
+            )
+            .replace("<dataValidations", &format!("{filter}<dataValidations"))
     } else if variant == "sort-rich" {
         sheet.replace("<t>three</t>", "<r><rPr><b/></rPr><t>three</t></r><rPh sb=\"0\" eb=\"5\"><t>reading</t></rPh><phoneticPr fontId=\"0\" type=\"Hiragana\"/>")
             .replace("<t>one</t>", "<r><rPr><i/></rPr><t>one</t></r>")
