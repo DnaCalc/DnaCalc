@@ -96,6 +96,8 @@ const DIFFERENCES: &str = "crates/calc-func/witness-differences.tsv";
 const WEEKNUM_EXCLUSION: &str = "migration/evidence/dc-1943-weeknum.json";
 const TEXTSPLIT_REPLAY: &str = "migration/evidence/dc-1943-textsplit-replay.json.gz";
 const MINVERSE_REPLAY: &str = "migration/evidence/dc-1943-minverse-replay.json.gz";
+const UNIQUE_RECAPTURE: &str = "migration/evidence/dc-ymjf-2-10-unique-recapture.json.gz";
+const UNIQUE_SCALAR_CAPTURE: &str = "readings/excel-20527/bank2-answers-unique-spill.json";
 const BINOM_REPLAY: &str = "migration/evidence/dc-1943-binom-replay.json.gz";
 const LEDGER: &str = "function-lane/ledgers/EXCEL_PARITY_LEDGER.csv";
 const EDGE_ROWS: usize = 4;
@@ -1049,6 +1051,111 @@ fn add_binomial_replay(banks: &mut Banks, function: &str, doc: &Value) -> Result
     Ok(())
 }
 
+/// Replace only the obstructed scalar-layout observations with independently captured
+/// free-layout observations of the same calls. The original evidence stays in the bank.
+fn unique_recaptures(doc: &Value) -> Result<BTreeMap<String, (Vec<Value>, String, Value)>, String> {
+    let fail = || "invalid UNIQUE array recapture".to_owned();
+    let ids = doc["original_ids"].as_array().ok_or_else(fail)?;
+    let requests = doc["requests"].as_array().ok_or_else(fail)?;
+    let replies = doc["replies"].as_array().ok_or_else(fail)?;
+    if ids.len() != 1024 || requests.len() != ids.len() {
+        return Err(fail());
+    }
+    let mut out = BTreeMap::new();
+    let mut i = 0;
+    for reply in replies {
+        let rows = reply["rows"].as_array().ok_or_else(fail)?;
+        let inputs = reply["inputs"].as_array().ok_or_else(fail)?;
+        if reply["ok"] != true || rows.len() != inputs.len() || reply["excel_build"] != "20527" {
+            return Err(fail());
+        }
+        for (answer, input) in rows.iter().zip(inputs) {
+            let request = requests.get(i).ok_or_else(fail)?;
+            if request != input
+                || answer["type"] != "array"
+                || answer["rows"] != 2
+                || answer["cols"] != 2
+            {
+                return Err(fail());
+            }
+            let matrix = request
+                .as_array()
+                .and_then(|a| (a.len() == 1).then(|| &a[0]))
+                .ok_or_else(fail)?;
+            if matrix["type"] != "array" {
+                return Err(fail());
+            }
+            let cells = matrix["values"].as_array().ok_or_else(fail)?;
+            if cells.len() != 2
+                || cells
+                    .iter()
+                    .any(|r| r.as_array().is_none_or(|r| r.len() != 2))
+            {
+                return Err(fail());
+            }
+            let mut args = Vec::new();
+            for row in cells {
+                let cells = row.as_array().ok_or_else(fail)?;
+                let mut converted = Vec::new();
+                for cell in cells {
+                    if cell["type"] != "number" {
+                        return Err(fail());
+                    }
+                    let bits = cell["bits"]
+                        .as_str()
+                        .filter(|b| b.len() == 16 && b.bytes().all(|c| c.is_ascii_hexdigit()))
+                        .ok_or_else(fail)?;
+                    converted.push(Value::String(format!("0x{bits}")));
+                }
+                args.push(Value::Array(converted));
+            }
+            let values = answer["values"].as_array().ok_or_else(fail)?;
+            if values.len() != 2
+                || values
+                    .iter()
+                    .any(|r| r.as_array().is_none_or(|r| r.len() != 2))
+            {
+                return Err(fail());
+            }
+            for cell in values.iter().flat_map(|row| row.as_array().unwrap()) {
+                if cell["type"] != "number"
+                    || cell["bits"].as_str().is_none_or(|bits| {
+                        bits.len() != 16 || !bits.bytes().all(|c| c.is_ascii_hexdigit())
+                    })
+                {
+                    return Err(fail());
+                }
+            }
+            let cell = &values[0][0];
+            let bits = cell["bits"]
+                .as_str()
+                .filter(|b| b.len() == 16 && b.bytes().all(|c| c.is_ascii_hexdigit()))
+                .ok_or_else(fail)?;
+            let id = ids.get(i).and_then(Value::as_str).ok_or_else(fail)?;
+            let provenance = serde_json::json!({
+                "excel_build": reply["excel_build"],
+                "calculation_settings": reply["calculation_settings"],
+                "env_id": reply["env_id"],
+                "timestamp": reply["timestamp"],
+            });
+            if out
+                .insert(
+                    id.to_owned(),
+                    (vec![Value::Array(args)], format!("0x{bits}"), provenance),
+                )
+                .is_some()
+            {
+                return Err(fail());
+            }
+            i += 1;
+        }
+    }
+    if i != ids.len() {
+        return Err(fail());
+    }
+    Ok(out)
+}
+
 fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>), String> {
     let mut banks = Banks {
         sources: Vec::new(),
@@ -1291,6 +1398,15 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
             }
         }
     }
+    let mut unique = if only.is_none_or(|f| f == "UNIQUE") {
+        let bytes = gunzip(
+            include_bytes!("../../../migration/evidence/dc-ymjf-2-10-unique-recapture.json.gz"),
+            None,
+        )?;
+        unique_recaptures(&bank_json(&bytes)?)?
+    } else {
+        BTreeMap::new()
+    };
     // New readings (`cargo xtask witness read`), kept as plain WitnessSet files.
     for path in plain_readings(&checkout.join(READINGS)) {
         let rel = path
@@ -1325,6 +1441,7 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
                 .and_then(|p| p.get("calculation_settings")),
         );
         let mut source_of = BTreeMap::new();
+        let mut recapture_source_of = BTreeMap::new();
         record_unread_rows(&doc, &rel, &function, &mut banks, &mut unread)?;
         record_transport_audits(&doc, &rel, &mut banks)?;
         for (i, row) in rows.iter().enumerate() {
@@ -1335,23 +1452,63 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
                 *banks.unread_rows.entry(function.clone()).or_default() += 1;
                 continue;
             };
-            let source = retain_source(
-                &mut banks,
-                &mut source_of,
-                &rel,
-                row_environment(captured.clone(), &doc, row),
-            );
+            let id = row["id"]
+                .as_str()
+                .map_or_else(|| format!("row{i}"), str::to_owned);
+            let index = row.as_object().and_then(calc_verdict::result_index);
+            let mut selected = expected.to_owned();
+            let mut recaptured = false;
+            let mut selected_env = row_environment(captured.clone(), &doc, row);
+            if function == "UNIQUE" && rel == UNIQUE_SCALAR_CAPTURE {
+                if let Some((observed_args, observed, reply)) = unique.remove(&id) {
+                    if observed_args != *args || expected != "error:Spill" || index != Some((1, 1))
+                    {
+                        return Err(format!("{rel}: recapture identity differs for {id}"));
+                    }
+                    selected = observed;
+                    recaptured = true;
+                    let env = serde_json::json!({"excel_build": reply["excel_build"], "platform": "Windows", "excel_input_plumbing": "cell_value2_bulk"});
+                    selected_env = environment(
+                        String::new(),
+                        format!(
+                            "DnaCalc {UNIQUE_RECAPTURE} env {}; supersedes obstructed scalar capture {CHECKOUT} {rel}",
+                            reply["env_id"].as_str().unwrap_or("unknown")
+                        ),
+                        Some(&env),
+                        None,
+                        reply.get("calculation_settings"),
+                    );
+                }
+            }
+            let source = if recaptured {
+                // Different service environment IDs can share the build and settings.
+                *recapture_source_of
+                    .entry(selected_env.source.clone())
+                    .or_insert_with(|| {
+                        banks.sources.push(Source {
+                            path: UNIQUE_RECAPTURE.to_owned(),
+                            env: selected_env,
+                        });
+                        banks.sources.len() - 1
+                    })
+            } else {
+                retain_source(&mut banks, &mut source_of, &rel, selected_env)
+            };
             banks.readings.push(Reading {
                 function: function.clone(),
-                id: row["id"]
-                    .as_str()
-                    .map_or_else(|| format!("row{i}"), str::to_owned),
+                id,
                 args: args.clone(),
-                index: row.as_object().and_then(calc_verdict::result_index),
-                expected: expected.to_owned(),
+                index,
+                expected: selected,
                 source,
             });
         }
+    }
+    if !unique.is_empty() {
+        return Err(format!(
+            "{UNIQUE_RECAPTURE}: {} original rows not found",
+            unique.len()
+        ));
     }
     if only.is_none_or(|f| f == "TEXTSPLIT") {
         let doc = bank_json(&gunzip(
@@ -3614,6 +3771,20 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn unique_recapture_requires_matching_input_readback() {
+        let bytes = super::gunzip(
+            include_bytes!("../../../migration/evidence/dc-ymjf-2-10-unique-recapture.json.gz"),
+            None,
+        )
+        .unwrap();
+        let mut doc = super::bank_json(&bytes).unwrap();
+        let rows = super::unique_recaptures(&doc).unwrap();
+        assert_eq!(rows.len(), 1024);
+        doc["replies"][0]["inputs"][0][0]["values"][0][0]["bits"] = "0000000000000000".into();
+        assert!(super::unique_recaptures(&doc).is_err());
+    }
+
     #[test]
     fn repeated_replay_observations_keep_each_source_on_one_input() {
         let pair = |source: &str| super::Difference {
