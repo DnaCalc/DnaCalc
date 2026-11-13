@@ -11,6 +11,27 @@ use f1_support::*;
 
 const PI: f64 = std::f64::consts::PI;
 
+/// Excel 20430 integer-threshold bank: neighbors and signs around two binade boundaries.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn int_negative_fraction_adjustment_rounds_before_truncation() {
+    for (input, expected) in [
+        (0xc30f_ffff_ffff_fffe, 0xc310_0000_0000_0000),
+        (0xc30f_ffff_ffff_ffff, 0xc310_0000_0000_0004),
+        (0xc310_0000_0000_0000, 0xc310_0000_0000_0000),
+        (0xc310_0000_0000_0001, 0xc310_0000_0000_0004),
+        (0xc31f_ffff_ffff_fffe, 0xc320_0000_0000_0000),
+        (0xc31f_ffff_ffff_ffff, 0xc320_0000_0000_0002),
+        (0xc320_0000_0000_0000, 0xc320_0000_0000_0000),
+        (0x430f_ffff_ffff_ffff, 0x430f_ffff_ffff_fff8),
+    ] {
+        exact(
+            call("INT", vec![n(f64::from_bits(input))]),
+            f64::from_bits(expected),
+        );
+    }
+}
+
 /// Excel 20430's W111 binomial inverse boundaries, also exercised through the compatibility alias.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

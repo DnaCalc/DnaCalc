@@ -6,8 +6,8 @@
 //! is read. The arguments are read left to right through worksheet number coercion, so the first
 //! argument's error, or its coercion error, is the result before any domain rule applies.
 //!
-//! ABS, SIGN, INT, EVEN and ODD act on the binary64 itself: its absolute value, sign and integer
-//! parts are exact. TRUNC, ROUND, ROUNDUP and ROUNDDOWN round to a decimal position; they read
+//! ABS, SIGN, EVEN and ODD act on the binary64 itself. INT also reads large values directly,
+//! with a binary64 adjustment for negative fractions. TRUNC, ROUND, ROUNDUP and ROUNDDOWN round to a decimal position; they read
 //! each number to 15 significant digits ([`ExactDecimal::fifteen_x87`] where the scaling is exact
 //! on the x87 unit, [`ExactDecimal::fifteen`] elsewhere), compute on that decimal exactly, and
 //! convert the exact result once to the nearest binary64 at an arithmetic site. So
@@ -180,7 +180,8 @@ fn sign(
 
 /// INT: the largest integer not above the number read to 15 significant digits
 /// ([`ExactDecimal::fifteen`]) when it is below 1E15 in magnitude, and not above its binary64
-/// otherwise (dc-bd5, Excel 16.0.20527 through COM on 2026-10-30, 109 readings:
+/// otherwise, with negative fractions adjusted before truncation (dc-bd5, Excel
+/// 16.0.20527 through COM on 2026-10-30, 109 readings:
 /// INT(2.9999999999999996) and INT(2.9999999999999982) are 3, INT(123456789012345.67) is
 /// 123456789012346, INT(-3.0000000000000004) is -3, INT(999999999999999.5) is 1E15, while
 /// INT(4503599627370495.5) is 4503599627370495).
@@ -197,7 +198,15 @@ fn int(
     numeric(INT, arguments, services, |site, n| {
         let x = n[0];
         if x.abs() >= 1e15 {
-            return Ok(decimal::floor(x));
+            let whole = decimal::truncate(x);
+            // Excel 20430's integer-threshold witnesses immediately below -2^50 and
+            // -2^51 are one integer below floor(x). The subtraction rounds in binary64
+            // before truncation; exact integers must bypass the adjustment.
+            return Ok(if x < whole {
+                decimal::truncate(x - 1.0)
+            } else {
+                whole
+            });
         }
         match ExactDecimal::fifteen(x) {
             (reading, true) => match reading.round_at(0, Direction::TowardZero) {
