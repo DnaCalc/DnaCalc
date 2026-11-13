@@ -41,7 +41,19 @@ fn beta_inverse(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     let lower = if given(a, 3) { num(site, a, 3)? } else { 0.0 };
     let upper = if given(a, 4) { num(site, a, 4)? } else { 1.0 };
     if p >= f64::MIN_POSITIVE && p <= 0.5 && alpha.is_finite() && alpha > 0.0 && beta.is_finite()
+        && lower.is_finite() && upper.is_finite()
         && beta > 1.0 && alpha + beta == alpha
+    {
+        return fail(WorksheetErrorCode::Num);
+    }
+    // For separated, tiny first shapes, Excel rejects the inverse when the
+    // unit-density at its measured 1e-6 starting point remains normal. The
+    // zero-density arm has different behavior and stays with the solver.
+    if p >= f64::MIN_POSITIVE && p <= 0.5 && alpha >= f64::MIN_POSITIVE
+        && 1.0 + alpha == 1.0 && beta.is_finite() && beta >= 2.0 * alpha
+        && lower.is_finite() && upper.is_finite()
+        && bg::beta_dist_kernel(1e-6, alpha, beta, false, 0.0, 1.0)
+            .is_ok_and(|density| density >= f64::MIN_POSITIVE)
     {
         return fail(WorksheetErrorCode::Num);
     }
