@@ -330,7 +330,7 @@ fn given(a: &[CalcValue], index: usize) -> bool {
 }
 
 /// A 0-or-1 flag argument (match modes, formats): another number is #VALUE!.
-fn binary_flag(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<bool> {
+fn binary_flag(site: &Site<'_>, a: &[CalcValue], index: usize, tolerant: bool) -> Step<bool> {
     if !given(a, index) {
         return Ok(false);
     }
@@ -338,7 +338,7 @@ fn binary_flag(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<bool> {
     if !n.is_finite() {
         return fail(WorksheetErrorCode::Value);
     }
-    match n.trunc() {
+    match if tolerant { tk::date_integer_floor(n) } else { n.trunc() } {
         0.0 => Ok(false),
         1.0 => Ok(true),
         _ => fail(WorksheetErrorCode::Value),
@@ -413,8 +413,8 @@ fn text_delim(
     } else {
         1
     };
-    let case_insensitive = binary_flag(site, a, 3)?;
-    let match_end = binary_flag(site, a, 4)?;
+    let case_insensitive = binary_flag(site, a, 3, false)?;
+    let match_end = binary_flag(site, a, 4, false)?;
     // An explicitly supplied instance counts possible start positions, rather
     // than just text units. An omitted instance and an empty delimiter have
     // different measured rules.
@@ -486,8 +486,8 @@ fn textsplit(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Ste
     if columns.is_none() && rows_by.is_none() {
         return fail(WorksheetErrorCode::Value);
     }
-    let ignore_empty = binary_flag(site, a, 3)?;
-    let case_insensitive = binary_flag(site, a, 4)?;
+    let ignore_empty = binary_flag(site, a, 3, false)?;
+    let case_insensitive = binary_flag(site, a, 4, false)?;
     let pad = match a.get(5) {
         None => CalcValue::error(WorksheetErrorCode::NA),
         Some(value) if value.is_missing() => CalcValue::error(WorksheetErrorCode::NA),
@@ -540,7 +540,7 @@ fn value_text(site: &Site<'_>, index: usize, value: &CalcValue, strict: bool) ->
 }
 
 fn valuetotext(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
-    let strict = binary_flag(site, a, 1)?;
+    let strict = binary_flag(site, a, 1, true)?;
     let shown = value_text(site, 0, &a[0], strict)?;
     Ok(crate::catalogue::kit::text_value(&shown))
 }
@@ -552,7 +552,7 @@ fn arraytotext(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> S
     if let CoreRef::Error(code) = a[0].core_ref() {
         return fail(code);
     }
-    let strict = binary_flag(site, a, 1)?;
+    let strict = binary_flag(site, a, 1, true)?;
     let g = grid(site, a, 0, sv)?;
     let mut parts = Vec::with_capacity(g.cells.len());
     for value in &g.cells {
@@ -650,7 +650,7 @@ fn out_number(site: &Site<'_>, result: Result<f64, WorksheetErrorCode>) -> Step<
 
 /// The case sensitivity of the REGEX functions: 0 (the default) case-sensitive, 1 not.
 fn case_sensitive(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<bool> {
-    Ok(!binary_flag(site, a, index)?)
+    Ok(!binary_flag(site, a, index, false)?)
 }
 
 fn regex(

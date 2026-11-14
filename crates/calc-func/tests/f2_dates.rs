@@ -12,6 +12,21 @@ use calc_func::locale::{CalcEnvironment, DateSystem, FormatProfile};
 use calc_func::value::{CalcValue, CellKey, SheetId, WorksheetErrorCode::*};
 use f1_support::*;
 
+/// Excel 20527 format-flag boundary and independent controls for both text renderers.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn value_and_array_to_text_use_tolerant_format_flag() {
+    for name in ["VALUETOTEXT", "ARRAYTOTEXT"] {
+        error(call(name, vec![t("abc"), n(-0.5)]), Value);
+        text(call(name, vec![t("abc"), n(-1e-12)]), "abc");
+        error(call(name, vec![t("abc"), n(2.0 - 1e-8)]), Value);
+    }
+    text(call("VALUETOTEXT", vec![t("abc"), n(1.0 - 1e-8)]), "\"abc\"");
+    text(call("ARRAYTOTEXT", vec![t("abc"), n(1.0 - 1e-8)]), "{\"abc\"}");
+    text(call("VALUETOTEXT", vec![e(Ref), n(0.0)]), "#REF!");
+    error(call("ARRAYTOTEXT", vec![e(Ref), n(-0.5)]), Ref);
+}
+
 /// This machine's settings: en-ZA with `.` and a space, the 1900 date system, and a clock in
 /// 2026 (VALUE("1/2") read 2 January 2026).
 fn host() -> CalcEnvironment {
