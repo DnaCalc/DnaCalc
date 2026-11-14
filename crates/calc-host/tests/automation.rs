@@ -482,11 +482,11 @@ impl UserFunction for Probe {
             }
             let app = model.application();
             let caller = obj(invoke(&model, &app, "Caller", vec![]).unwrap());
-            let this = obj(invoke(&model, &app, "ThisCell", vec![]).unwrap());
-            assert_eq!(
-                text(&model, &caller, "Address"),
-                text(&model, &this, "Address")
-            );
+            // Excel: ThisCell inside an add-in function's invocation is error 1004 (X19).
+            assert!(matches!(
+                invoke(&model, &app, "ThisCell", vec![]),
+                Err(AutoError::Excel { number: 1004, .. })
+            ));
             assert_eq!(text(&model, &caller, "Address"), "$E$20");
             let read = range(&model, "A10");
             assert!(matches!(
@@ -503,7 +503,6 @@ impl UserFunction for Probe {
                 panic!("number");
             };
             model.released(&caller);
-            model.released(&this);
             Ok(CalcValue::number(n))
         })
     }
