@@ -63,7 +63,7 @@ pub(crate) fn skew_kernel(values: &[f64]) -> Result<f64, WorksheetErrorCode> {
 }
 
 pub(crate) fn skew_p_kernel(values: &[f64]) -> Result<f64, WorksheetErrorCode> {
-    if values.is_empty() {
+    if values.len() < 3 {
         return Err(WorksheetErrorCode::Div0);
     }
     let n = values.len();

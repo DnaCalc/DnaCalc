@@ -10,6 +10,19 @@ use calc_func::SubtotalExclusions;
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Value};
 use f1_support::*;
 
+/// Excel 20527 direct and cell-range sample-count and error-precedence controls.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn skew_p_requires_three_observations() {
+    error(call("SKEW.P", vec![n(1.0), n(2.0)]), Div0);
+    error(call("SKEW.P", vec![n(1.0), n(2.0), e(NA)]), NA);
+    exact(call("SKEW.P", vec![n(1.0), n(2.0), n(3.0)]), 0.0);
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![n(1.0), n(2.0), t("ignored")]);
+    let range = sheet.area(1, 1, 3, 1);
+    error(call_on(&mut sheet, "SKEW.P", vec![range]), Div0);
+}
+
 /// Excel 20527 ignores nonnumeric scalar pairs and admits the two adjacent values around 1.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

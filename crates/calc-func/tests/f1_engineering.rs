@@ -61,6 +61,22 @@ fn complex_numbers() {
     error(call("IMSUM", vec![t("1+i"), t("1+j")]), Value);
 }
 
+/// Excel 20527 Value2 controls and independent literal and complex-zero controls.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn impower_empty_text_and_zero_power() {
+    for exponent in [n(0.0), n(1.0), e(Div0)] {
+        error(call("IMPOWER", vec![t(""), exponent]), Num);
+    }
+    for base in [n(0.0), t("0i"), calc_func::value::CalcValue::empty()] {
+        error(call("IMPOWER", vec![base, n(0.0)]), Num);
+    }
+    error(call("IMPOWER", vec![n(0.0), calc_func::value::CalcValue::empty()]), Num);
+    error(call("IMPOWER", vec![n(0.0), e(Div0)]), Div0);
+    text(call("IMPOWER", vec![n(0.0), n(0.5)]), "0");
+    text(call("IMPOWER", vec![n(1.0), n(0.0)]), "1");
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn bessel_functions() {

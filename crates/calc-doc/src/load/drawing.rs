@@ -113,8 +113,35 @@ fn read_drawing(package: &Package, part: &str) -> Result<SheetShapes, LoadError>
             start.name.local.as_str(),
             "twoCellAnchor" | "oneCellAnchor" | "absoluteAnchor"
         ) {
-            let label = start.name.local.as_str().to_owned();
-            events.skip()?;
+            // A block with a fallback around whole anchors: say what its first branch holds.
+            let label = if start.name.local == "AlternateContent" {
+                let block = tree(&mut events, start)?;
+                let held = block
+                    .child("Choice")
+                    .and_then(|c| c.children.first())
+                    .and_then(|anchor| {
+                        anchor.children.iter().find(|c| {
+                            !matches!(
+                                c.local.as_str(),
+                                "from" | "to" | "pos" | "ext" | "clientData"
+                            )
+                        })
+                    })
+                    .map_or("nothing".to_owned(), |held| match held.local.as_str() {
+                        "graphicFrame" => held
+                            .child("graphic")
+                            .and_then(|g| g.child("graphicData"))
+                            .and_then(|d| d.attribute("uri"))
+                            .map_or("graphicFrame", |uri| uri.rsplit('/').next().unwrap_or(uri))
+                            .to_owned(),
+                        other => other.to_owned(),
+                    });
+                format!("AlternateContent ({held})")
+            } else {
+                let label = start.name.local.as_str().to_owned();
+                events.skip()?;
+                label
+            };
             read.unread += 1;
             *read.unread_by.entry(label).or_default() += 1;
             continue;
@@ -204,6 +231,22 @@ fn anchor_shape(anchor: &Node) -> Anchored {
                     .map_or("no data", |uri| uri.rsplit('/').next().unwrap_or(uri))
             ),
             "sp" | "pic" | "cxnSp" | "grpSp" => format!("{} (not read)", object.local),
+            // A block with a fallback: what its first branch holds (a shape with an effect the
+            // fallback leaves out, a slicer or timeline frame, a content part).
+            "AlternateContent" => {
+                let held = object
+                    .child("Choice")
+                    .and_then(|c| c.children.first())
+                    .map_or("nothing", |held| match held.local.as_str() {
+                        "graphicFrame" => held
+                            .child("graphic")
+                            .and_then(|g| g.child("graphicData"))
+                            .and_then(|d| d.attribute("uri"))
+                            .map_or("graphicFrame", |uri| uri.rsplit('/').next().unwrap_or(uri)),
+                        other => other,
+                    });
+                format!("AlternateContent ({held})")
+            }
             other => other.to_owned(),
         };
         return Anchored::Unread(label);
