@@ -468,6 +468,7 @@ fn describe(op: &WorkbookOp) -> String {
         WorkbookOp::SetDataModel(state) => format!("data model {state:?}"),
         WorkbookOp::SetPivots(state) => format!("pivots {state:?}"),
         WorkbookOp::SetCharts { sheet, charts } => format!("charts {sheet:?} {charts:?}"),
+        WorkbookOp::SetShapes { sheet, shapes } => format!("shapes {sheet:?} {shapes:?}"),
         WorkbookOp::SetTables(tables) => format!("tables {tables:?}"),
         WorkbookOp::SetValidations { sheet, rules } => format!("validation {sheet:?} {rules:?}"),
         WorkbookOp::SetTextSources(sources) => format!("text_sources {sources:?}"),
@@ -653,6 +654,7 @@ fn features(op: &WorkbookOp, out: &mut BTreeSet<String>) {
         WorkbookOp::SetDataModel(_) => "op:data-model".to_owned(),
         WorkbookOp::SetPivots(_) => "op:pivots".to_owned(),
         WorkbookOp::SetCharts { .. } => "op:charts".to_owned(),
+        WorkbookOp::SetShapes { .. } => "op:shapes".to_owned(),
         WorkbookOp::SetTables(..) => "op:tables".to_owned(),
         // Wire version 1 refuses review state as EncodeError::ReviewNotes.
         WorkbookOp::SetTextSources(_) => "op:text_sources".to_owned(),

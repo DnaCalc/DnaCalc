@@ -16,6 +16,7 @@ mod author;
 pub(crate) mod chart;
 pub(crate) mod conditional;
 pub(crate) mod pivot;
+pub(crate) mod shapes;
 pub use conditional::{
     conditional_rule, conditional_with_dxf, copied_conditional_source, new_condition_rule,
     new_conditional_rule,

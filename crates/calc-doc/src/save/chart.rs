@@ -21,7 +21,16 @@ pub(crate) fn check_new_frames(
     source: &crate::load::LoadedSheet,
     charts: &[Chart],
 ) -> Result<(), SaveRefusal> {
-    create::add(package, source, charts, &mut Changes::default(), None)
+    create::add(package, source, charts, &[], &mut Changes::default(), None)
+}
+
+/// Preflight the shapes `shapes` adds, through the saver's own frame writer.
+pub(crate) fn check_new_shapes(
+    package: &Package,
+    source: &crate::load::LoadedSheet,
+    shapes: &[calc_doc_model::Shape],
+) -> Result<(), SaveRefusal> {
+    create::add(package, source, &[], shapes, &mut Changes::default(), None)
 }
 pub(crate) use create::render as render_new;
 type Patch = ((usize, usize), Vec<u8>);

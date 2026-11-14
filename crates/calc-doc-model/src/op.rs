@@ -49,6 +49,11 @@ pub enum WorkbookOp {
         sheet: SheetId,
         charts: Vec<crate::Chart>,
     },
+    /// The sheet's drawing objects other than charts (dc-zjsg.1).
+    SetShapes {
+        sheet: SheetId,
+        shapes: Vec<crate::Shape>,
+    },
     SetPivots(std::sync::Arc<crate::pivot::PivotState>),
     /// Replace the data model snapshot after an explicit refresh.
     SetDataModel(std::sync::Arc<crate::DataModel>),

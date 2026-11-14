@@ -387,7 +387,14 @@ pub(super) fn finish(
     out: &mut Changes,
     structural: Option<&super::super::structural::StructuralEdits>,
 ) -> Result<(), SaveRefusal> {
-    for (sheet, charts) in after.definitions().all_charts() {
+    let touched: BTreeSet<_> = after
+        .definitions()
+        .all_charts()
+        .map(|(sheet, _)| sheet)
+        .chain(after.definitions().all_shapes().map(|(sheet, _)| sheet))
+        .collect();
+    for sheet in touched {
+        let charts = after.definitions().charts(sheet);
         let original = before.definitions().charts(sheet);
         // Source frames keep their identities and order. Newly authored frames can disappear on Undo.
         if charts.len() < original.len()
@@ -399,19 +406,21 @@ pub(super) fn finish(
             ));
         }
         let new = &charts[original.len()..];
-        if new.is_empty() {
+        let new_shapes = new_shapes(before, after, sheet)?;
+        if new.is_empty() && new_shapes.is_empty() {
             continue;
         }
         let source = sheets.iter().find(|s| s.id() == sheet).ok_or_else(|| {
             invalid(
                 "charts",
-                "Creating a chart on a new unsaved sheet needs Save and reopen",
+                "Creating a chart or shape on a new unsaved sheet needs Save and reopen",
             )
         })?;
         add(
             package,
             source,
             new,
+            new_shapes,
             out,
             structural.map(|edits| (edits, before)),
         )?;
@@ -419,10 +428,31 @@ pub(super) fn finish(
     Ok(())
 }
 
+/// The shapes `after` adds to `sheet`. A source object stays as the file stores it: editing,
+/// removing or reordering one is dc-zjsg.4's.
+pub(crate) fn new_shapes<'a>(
+    before: &ModelRoot,
+    after: &'a ModelRoot,
+    sheet: calc_doc_model::value::SheetId,
+) -> Result<&'a [calc_doc_model::Shape], SaveRefusal> {
+    let shapes = after.definitions().shapes(sheet);
+    let original = before.definitions().shapes(sheet);
+    if shapes.len() < original.len() || shapes[..original.len()] != *original {
+        return Err(SaveRefusal::ChartNotModelled {
+            part: "drawing".into(),
+            detail: "Editing, removing or reordering imported drawing objects is not modelled"
+                .into(),
+            owner: "dc-zjsg.4",
+        });
+    }
+    Ok(&shapes[original.len()..])
+}
+
 pub(crate) fn add(
     package: &Package,
     source: &LoadedSheet,
     new: &[Chart],
+    new_shapes: &[calc_doc_model::Shape],
     out: &mut Changes,
     structural: Option<(&super::super::structural::StructuralEdits, &ModelRoot)>,
 ) -> Result<(), SaveRefusal> {
@@ -447,10 +477,9 @@ pub(crate) fn add(
         r.resolved.clone().unwrap()
     } else {
         let reserved = out.added.iter().map(|(n, _)| n.clone()).collect::<Vec<_>>();
-        let folder = new[0]
-            .part
-            .rsplit_once("/charts/")
-            .map(|(f, _)| f)
+        let folder = new
+            .first()
+            .and_then(|chart| chart.part.rsplit_once("/charts/").map(|(f, _)| f))
             .unwrap_or("xl");
         super::super::available_part_name(
             package,
@@ -496,6 +525,24 @@ pub(crate) fn add(
         }
     }
     let mut frames = Vec::new();
+    // Authored shapes keep their ids when the drawing leaves them free; one that collides with
+    // an id of the drawing is given the next free one, and the connectors glued to it follow.
+    let mut remap: std::collections::BTreeMap<u32, u32> = Default::default();
+    for shape in new_shapes {
+        let id = if ids.contains(&shape.id) {
+            (2..=u32::MAX)
+                .find(|i| !ids.contains(i) && !new_shapes.iter().any(|s| s.id == *i))
+                .ok_or_else(|| invalid(&drawing, "No shape identity is available"))?
+        } else {
+            shape.id
+        };
+        ids.insert(id);
+        remap.insert(shape.id, id);
+    }
+    for shape in new_shapes {
+        let body = super::super::shapes::frame(shape, &remap)?;
+        frames.extend(finish_body(body, &drawing, source, structural)?);
+    }
     for chart in new {
         let suffix = chart
             .part
@@ -540,37 +587,8 @@ pub(crate) fn add(
             .find(|i| !ids.contains(i))
             .ok_or_else(|| invalid(&drawing, "No frame identity is available"))?;
         ids.insert(id);
-        let mut body = frame(chart, id, &rel)?;
-        if let Some((edits, before)) = structural {
-            for &edit in edits.edits().iter().filter(|e| e.sheet() == source.id()) {
-                let xml = crate::xml::XmlPart::new(
-                    drawing.clone(),
-                    [
-                        format!("<xdr:wsDr xmlns:xdr=\"{XDR}\">").as_bytes(),
-                        &body,
-                        b"</xdr:wsDr>",
-                    ]
-                    .concat(),
-                    crate::xml::XmlLimits::default(),
-                );
-                let rewrite = super::super::structural::Rewrite {
-                    root: before,
-                    rewriter: edits.rewriter.as_ref(),
-                    change: calc_doc_model::StructuralChange::Axis(edit),
-                };
-                if let Some(bytes) = super::super::structural::drawing_pass(&xml, edit, &rewrite)? {
-                    let xml = xml.with_bytes(bytes);
-                    let mut r = Reader::new(&xml);
-                    match r.expect()? {
-                        (XmlEvent::Start(e), _) if e.name.is(XDR, "wsDr") => {}
-                        _ => return Err(r.invalid("Expected a spreadsheet drawing")),
-                    }
-                    let (_, span) = r.expect()?;
-                    let end = r.element_end()?;
-                    body = xml.bytes()[span.0..end].to_vec();
-                }
-            }
-        }
+        let body = frame(chart, id, &rel)?;
+        let body = finish_body(body, &drawing, source, structural)?;
         frames.extend(body);
     }
     xml = xml.with_bytes(parts::append_root(&xml, &frames)?);
@@ -602,4 +620,44 @@ pub(crate) fn add(
     )?;
     parts::put_part(package, out, sheet_part, bytes);
     Ok(())
+}
+
+/// One authored anchor's bytes, moved by the structural edits of its sheet that the save also applies.
+fn finish_body(
+    mut body: Vec<u8>,
+    drawing: &str,
+    source: &LoadedSheet,
+    structural: Option<(&super::super::structural::StructuralEdits, &ModelRoot)>,
+) -> Result<Vec<u8>, SaveRefusal> {
+    if let Some((edits, before)) = structural {
+        for &edit in edits.edits().iter().filter(|e| e.sheet() == source.id()) {
+            let xml = crate::xml::XmlPart::new(
+                drawing.to_owned(),
+                [
+                    format!("<xdr:wsDr xmlns:xdr=\"{XDR}\">").as_bytes(),
+                    &body,
+                    b"</xdr:wsDr>",
+                ]
+                .concat(),
+                crate::xml::XmlLimits::default(),
+            );
+            let rewrite = super::super::structural::Rewrite {
+                root: before,
+                rewriter: edits.rewriter.as_ref(),
+                change: calc_doc_model::StructuralChange::Axis(edit),
+            };
+            if let Some(bytes) = super::super::structural::drawing_pass(&xml, edit, &rewrite)? {
+                let xml = xml.with_bytes(bytes);
+                let mut r = Reader::new(&xml);
+                match r.expect()? {
+                    (XmlEvent::Start(e), _) if e.name.is(XDR, "wsDr") => {}
+                    _ => return Err(r.invalid("Expected a spreadsheet drawing")),
+                }
+                let (_, span) = r.expect()?;
+                let end = r.element_end()?;
+                body = xml.bytes()[span.0..end].to_vec();
+            }
+        }
+    }
+    Ok(body)
 }

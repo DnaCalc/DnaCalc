@@ -403,6 +403,7 @@ pub struct Definitions {
     links: BTreeMap<SheetId, Vec<crate::ReviewLink>>,
     page_setups: BTreeMap<SheetId, crate::PageSetup>,
     charts: BTreeMap<SheetId, std::sync::Arc<[crate::Chart]>>,
+    shapes: BTreeMap<SheetId, std::sync::Arc<[crate::Shape]>>,
     pivots: std::sync::Arc<crate::pivot::PivotState>,
     data_model: Option<std::sync::Arc<DataModel>>,
     axis_layouts: crate::AxisLayouts,
@@ -483,8 +484,30 @@ impl Definitions {
     pub fn with_charts(mut self, sheet: SheetId, charts: Vec<crate::Chart>) -> Self {
         if charts.is_empty() {
             self.charts.remove(&sheet);
+            self.shapes.remove(&sheet);
         } else {
             self.charts.insert(sheet, charts.into());
+        }
+        self
+    }
+
+    /// The drawing objects of `sheet` other than charts, in drawing order.
+    pub fn shapes(&self, sheet: SheetId) -> &[crate::Shape] {
+        self.shapes
+            .get(&sheet)
+            .map(|shapes| shapes.as_ref())
+            .unwrap_or(&[])
+    }
+    pub fn all_shapes(&self) -> impl Iterator<Item = (SheetId, &[crate::Shape])> {
+        self.shapes
+            .iter()
+            .map(|(sheet, shapes)| (*sheet, shapes.as_ref()))
+    }
+    pub fn with_shapes(mut self, sheet: SheetId, shapes: Vec<crate::Shape>) -> Self {
+        if shapes.is_empty() {
+            self.shapes.remove(&sheet);
+        } else {
+            self.shapes.insert(sheet, shapes.into());
         }
         self
     }
@@ -740,6 +763,7 @@ impl Definitions {
             review: BTreeMap::new(),
             links: BTreeMap::new(),
             charts: BTreeMap::new(),
+            shapes: BTreeMap::new(),
             pivots: Default::default(),
             data_model: None,
             page_setups: BTreeMap::new(),
@@ -993,6 +1017,7 @@ impl Definitions {
             && self.review.is_empty()
             && self.links.is_empty()
             && self.charts.is_empty()
+            && self.shapes.is_empty()
             && self.pivots.tables().next().is_none()
             && self.pivots.caches.caches.is_empty()
             && self.page_setups.is_empty()
@@ -1123,6 +1148,7 @@ impl Definitions {
             .chain(self.links.keys().copied())
             .chain(self.text_sources.keys().map(|at| at.sheet()))
             .chain(self.charts.keys().copied())
+            .chain(self.shapes.keys().copied())
             .chain(self.pivots.sheets.keys().copied())
             .chain(self.page_setups.keys().copied())
             .chain(self.axis_layouts.sheets())

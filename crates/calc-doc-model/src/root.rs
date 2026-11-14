@@ -802,6 +802,7 @@ impl ModelRoot {
         let mut review = Vec::new();
         let mut links = Vec::new();
         let mut charts = Vec::new();
+        let mut shapes = Vec::new();
         let mut pivots = None;
         let mut data_model = None;
         let mut page_setups = Vec::new();
@@ -841,6 +842,13 @@ impl ModelRoot {
                 } => {
                     self.position_of(operation, *sheet)?;
                     charts.push((*sheet, values.clone()));
+                }
+                WorkbookOp::SetShapes {
+                    sheet,
+                    shapes: values,
+                } => {
+                    self.position_of(operation, *sheet)?;
+                    shapes.push((*sheet, values.clone()));
                 }
                 WorkbookOp::SetStyles(value) => styles = Some(Arc::clone(value)),
                 WorkbookOp::SetTables(value) => {
@@ -1041,6 +1049,7 @@ impl ModelRoot {
             || !review.is_empty()
             || !links.is_empty()
             || !charts.is_empty()
+            || !shapes.is_empty()
             || !page_setups.is_empty()
             || !validations.is_empty()
             || !filters.is_empty()
@@ -1077,6 +1086,9 @@ impl ModelRoot {
             }
             for (sheet, values) in charts {
                 next = next.with_charts(sheet, values);
+            }
+            for (sheet, values) in shapes {
+                next = next.with_shapes(sheet, values);
             }
             for (sheet, values) in links {
                 next = next.with_review_links(sheet, values);
