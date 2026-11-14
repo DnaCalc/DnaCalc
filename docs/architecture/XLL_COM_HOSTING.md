@@ -1373,7 +1373,8 @@ share the session's EnableEvents switch. The bridge has no CalcHost dependency; 
 no bridge and keeps its values-only refusals.
 
 Under this bridge Application.Range and Union return workbook ranges backed by the session's
-reference tracker. Caller and late-bound ThisCell use the owning XLL invocation's calling cell.
+reference tracker. Caller uses the owning XLL invocation's calling cell; ThisCell inside that
+invocation is error 1004, as in Excel (X19 `COM_WORKBOOK_VALUES`, owned capture 2026-11-14).
 Range metadata, Row, Column, Count, Address, Rows/Columns and TypeName use those references.
 Value and Value2 read through that invocation's existing reader; arrays cross COM as one-based
 two-dimensional VARIANT SAFEARRAYs. Reads outside an admitted worksheet invocation, writes,

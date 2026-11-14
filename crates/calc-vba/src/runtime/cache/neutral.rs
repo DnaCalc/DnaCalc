@@ -259,6 +259,17 @@ fn array_element(value: &calcvba_bundle::ArrayElementType) -> api::ArrayElement 
         E::String => T::String,
         E::FixedString(n) => T::FixedString(*n as u32),
         E::Boolean => T::Boolean,
+        E::Object => T::Object {
+            name: None,
+            iid: None,
+        },
+        E::DynamicArray(element) => T::Array {
+            element: Box::new(match array_element(element) {
+                A::Scalar(ty) => ty,
+                _ => T::Variant,
+            }),
+            rank: None,
+        },
         E::Record(fields) => return A::Record(fields.iter().map(array_element).collect()),
         E::FixedArray { element, bounds } => {
             return A::FixedArray {
