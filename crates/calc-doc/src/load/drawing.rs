@@ -113,15 +113,20 @@ fn read_drawing(package: &Package, part: &str) -> Result<SheetShapes, LoadError>
             start.name.local.as_str(),
             "twoCellAnchor" | "oneCellAnchor" | "absoluteAnchor"
         ) {
+            let label = start.name.local.as_str().to_owned();
             events.skip()?;
             read.unread += 1;
+            *read.unread_by.entry(label).or_default() += 1;
             continue;
         }
         let anchor = tree(&mut events, start)?;
         match anchor_shape(&anchor) {
             Anchored::Shape(shape) => read.shapes.push(shape),
             Anchored::Chart => {}
-            Anchored::Unread => read.unread += 1,
+            Anchored::Unread(label) => {
+                read.unread += 1;
+                *read.unread_by.entry(label).or_default() += 1;
+            }
         }
     }
     Ok(read)
@@ -130,7 +135,7 @@ fn read_drawing(package: &Package, part: &str) -> Result<SheetShapes, LoadError>
 enum Anchored {
     Shape(Shape),
     Chart,
-    Unread,
+    Unread(String),
 }
 
 fn point(node: &Node) -> DrawingPoint {
@@ -183,13 +188,25 @@ fn anchor_shape(anchor: &Node) -> Anchored {
             "from" | "to" | "pos" | "ext" | "clientData"
         )
     }) else {
-        return Anchored::Unread;
+        return Anchored::Unread("empty anchor".into());
     };
     if object.local == "graphicFrame" && is_chart_frame(object) {
         return Anchored::Chart;
     }
     let Some(mut shape) = object_shape(object, position) else {
-        return Anchored::Unread;
+        let label = match object.local.as_str() {
+            "graphicFrame" => format!(
+                "graphicFrame ({})",
+                object
+                    .child("graphic")
+                    .and_then(|g| g.child("graphicData"))
+                    .and_then(|d| d.attribute("uri"))
+                    .map_or("no data", |uri| uri.rsplit('/').next().unwrap_or(uri))
+            ),
+            "sp" | "pic" | "cxnSp" | "grpSp" => format!("{} (not read)", object.local),
+            other => other.to_owned(),
+        };
+        return Anchored::Unread(label);
     };
     shape.edit_as = anchor.attribute("editAs").map(str::to_owned);
     Anchored::Shape(shape)

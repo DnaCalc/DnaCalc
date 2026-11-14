@@ -131,4 +131,7 @@ pub struct SheetShapes {
     pub shapes: Vec<Shape>,
     /// Anchors holding objects this model does not hold (kept in the package as stored).
     pub unread: usize,
+    /// The same anchors by what they hold: the object's element (`graphicFrame` with the kind of
+    /// its data, `AlternateContent`, `contentPart`, a `sp` or `pic` too malformed to read, ...).
+    pub unread_by: std::collections::BTreeMap<String, usize>,
 }
