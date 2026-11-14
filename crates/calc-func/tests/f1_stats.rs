@@ -21,6 +21,15 @@ fn trend_matrix_histories_reject_nonnumeric_scalar_new_x() {
     }
 }
 
+/// Excel 20527 returns the scalar prediction for numeric 2x2 paired histories.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn trend_matrix_histories_accept_numeric_scalar_new_x() {
+    let y = arr(vec![vec![2.0, 4.0], vec![6.0, 8.0]]);
+    let x = arr(vec![vec![1.0, 2.0], vec![3.0, 4.0]]);
+    close(call("TREND", vec![y, x, n(5.0)]), 10.0, 1e-12);
+}
+
 /// Excel 20527 cell-backed argument and independent error-priority controls.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

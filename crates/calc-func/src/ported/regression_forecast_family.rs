@@ -1181,7 +1181,7 @@ pub(crate) fn eval_trend_surface(args: &[CalcValue]) -> Result<CalcValue, Worksh
 }
 
 /// Excel 20527 treats numeric 2x2 histories as four row-major paired observations when
-/// forecasting a 2x2 matrix. Independent controls agree with the equivalent column histories.
+/// forecasting a 2x2 matrix or numeric scalar. Controls agree with equivalent column histories.
 fn paired_trend_matrices(args: &[CalcValue]) -> Option<(NumericVector, PreparedPredictorInput)> {
     let matrix_values = |index: usize| {
         let array = args.get(index)?.as_array()?;
@@ -1193,7 +1193,9 @@ fn paired_trend_matrices(args: &[CalcValue]) -> Option<(NumericVector, PreparedP
     };
     let y = matrix_values(0)?;
     let x = matrix_values(1)?;
-    matrix_values(2)?;
+    if !args.get(2).is_some_and(|arg| matches!(arg.core_ref(), CoreRef::Number(_))) {
+        matrix_values(2)?;
+    }
     Some((
         NumericVector { values: y, shape: VectorShape::Column(4) },
         PreparedPredictorInput {
