@@ -386,63 +386,104 @@ pub fn item(
     .map(ReferenceLike::area)
 }
 
-pub fn transform(
+fn transform_areas(
     reference: &ReferenceLike,
-    name: &str,
-    row: &AutoValue,
-    column: &AutoValue,
+    mut transform: impl FnMut(GridArea) -> Result<GridArea, AutoError>,
 ) -> Result<ReferenceLike, AutoError> {
-    // Multi-area Offset/Resize are intentionally refused until E11 measures their shapes.
-    if reference.area_count() != 1 && matches!(name, "Offset" | "Resize") {
-        return Err(AutoError::not_modelled(
-            format!("Range.{name} multi-area"),
-            "dc-1nbp.6",
-        ));
-    }
     let areas = reference
         .areas()
         .iter()
-        .map(|a| {
-            let (mut r, mut c, mut h, mut w) = (
-                i64::from(a.first().row()),
-                i64::from(a.first().column()),
-                i64::from(a.row_count()),
-                i64::from(a.column_count()),
-            );
-            match name {
-                "Offset" => {
-                    if !row.is_missing() {
-                        r += integer(row)?;
-                    }
-                    if !column.is_missing() {
-                        c += integer(column)?;
-                    }
-                }
-                "Resize" => {
-                    if !row.is_missing() {
-                        h = integer(row)?;
-                    }
-                    if !column.is_missing() {
-                        w = integer(column)?;
-                    }
-                }
-                "EntireRow" => {
-                    c = 1;
-                    w = 16_384;
-                }
-                "EntireColumn" => {
-                    r = 1;
-                    h = 1_048_576;
-                }
-                _ => {
-                    return Err(AutoError::not_modelled(
-                        format!("Range.{name}"),
-                        "dc-1nbp.5",
-                    ));
-                }
-            }
-            rectangle(a.sheet(), r, c, h, w)
-        })
+        .copied()
+        .map(&mut transform)
         .collect::<Result<Vec<_>, _>>()?;
     ReferenceLike::from_areas(areas).map_err(|_| AutoError::excel(1004, ""))
+}
+
+pub fn offset(
+    reference: &ReferenceLike,
+    row: &AutoValue,
+    column: &AutoValue,
+) -> Result<ReferenceLike, AutoError> {
+    if reference.area_count() != 1 {
+        return Err(AutoError::not_modelled(
+            "Range.Offset multi-area",
+            "dc-1nbp.6",
+        ));
+    }
+    transform_areas(reference, |a| {
+        rectangle(
+            a.sheet(),
+            i64::from(a.first().row()) + if row.is_missing() { 0 } else { integer(row)? },
+            i64::from(a.first().column())
+                + if column.is_missing() {
+                    0
+                } else {
+                    integer(column)?
+                },
+            i64::from(a.row_count()),
+            i64::from(a.column_count()),
+        )
+    })
+}
+
+pub fn resize(
+    reference: &ReferenceLike,
+    row: &AutoValue,
+    column: &AutoValue,
+) -> Result<ReferenceLike, AutoError> {
+    if reference.area_count() != 1 {
+        return Err(AutoError::not_modelled(
+            "Range.Resize multi-area",
+            "dc-1nbp.6",
+        ));
+    }
+    transform_areas(reference, |a| {
+        rectangle(
+            a.sheet(),
+            i64::from(a.first().row()),
+            i64::from(a.first().column()),
+            if row.is_missing() {
+                i64::from(a.row_count())
+            } else {
+                integer(row)?
+            },
+            if column.is_missing() {
+                i64::from(a.column_count())
+            } else {
+                integer(column)?
+            },
+        )
+    })
+}
+
+pub fn entire_row(
+    reference: &ReferenceLike,
+    _: &AutoValue,
+    _: &AutoValue,
+) -> Result<ReferenceLike, AutoError> {
+    transform_areas(reference, |a| {
+        rectangle(
+            a.sheet(),
+            i64::from(a.first().row()),
+            1,
+            i64::from(a.row_count()),
+            16_384,
+        )
+    })
+}
+
+pub fn entire_column(
+    reference: &ReferenceLike,
+    _: &AutoValue,
+    _: &AutoValue,
+) -> Result<ReferenceLike, AutoError> {
+    transform_areas(reference, |a| {
+        rectangle(
+            a.sheet(),
+            1,
+            i64::from(a.first().column()),
+            1_048_576,
+            i64::from(a.column_count()),
+        )
+    })
 }

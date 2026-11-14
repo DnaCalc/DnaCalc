@@ -185,9 +185,18 @@ impl Office {
     }
     pub fn new(state: Weak<State>) -> Self {
         let mut handlers = Handlers::new();
-        for member in ["COMAddIns", "CommandBars"] {
-            handlers.on("_Application", member, InvokeKind::Get, Self::application);
-        }
+        handlers.on(
+            "_Application",
+            "COMAddIns",
+            InvokeKind::Get,
+            Self::application_addins,
+        );
+        handlers.on(
+            "_Application",
+            "CommandBars",
+            InvokeKind::Get,
+            Self::application_bars,
+        );
         for role in [
             Role::Addins,
             Role::Addin,
@@ -198,53 +207,142 @@ impl Office {
             Role::Button,
         ] {
             let interface = role.interface();
-            for member in ["Application", "Creator"] {
-                handlers.on(interface, member, InvokeKind::Get, Self::common);
-            }
+            handlers.on(
+                interface,
+                "Application",
+                InvokeKind::Get,
+                Self::common_application,
+            );
+            handlers.on(interface, "Creator", InvokeKind::Get, Self::common_creator);
             if matches!(
                 role,
                 Role::Addins | Role::Addin | Role::Bars | Role::Controls
             ) {
-                handlers.on(interface, "Parent", InvokeKind::Get, Self::common);
+                handlers.on(interface, "Parent", InvokeKind::Get, Self::common_parent);
             }
             if matches!(role, Role::Addins | Role::Bars | Role::Controls) {
-                // Office describes Item as a method even when clients request PROPERTYGET.
                 let descriptor = calc_object_model::Descriptor::get();
                 for kind in [InvokeKind::Get, InvokeKind::Method] {
                     if descriptor.member(id(interface), "Item", kind).is_some() {
-                        handlers.on(interface, "Item", kind, Self::collection);
+                        handlers.on(interface, "Item", kind, Self::collection_item);
                     }
                 }
-                handlers.on(interface, "Count", InvokeKind::Get, Self::collection);
+                handlers.on(interface, "Count", InvokeKind::Get, Self::collection_count);
             }
         }
-        handlers.on("COMAddIns", "Update", InvokeKind::Method, Self::collection);
-        for member in ["Description", "ProgId", "Guid", "Connect", "Object"] {
-            handlers.on("COMAddIn", member, InvokeKind::Get, Self::addin_member);
-        }
-        for member in ["Connect", "Object"] {
-            handlers.on("COMAddIn", member, InvokeKind::Put, Self::addin_member);
-        }
-        for interface in ["CommandBar", "CommandBarPopup"] {
-            handlers.on(interface, "Controls", InvokeKind::Get, Self::control);
-        }
-        handlers
-            .on("CommandBar", "Name", InvokeKind::Get, Self::control)
-            .on("CommandBar", "Name", InvokeKind::Put, Self::control);
+        handlers.on(
+            "COMAddIns",
+            "Update",
+            InvokeKind::Method,
+            Self::collection_update,
+        );
+        handlers.on(
+            "COMAddIn",
+            "Description",
+            InvokeKind::Get,
+            Self::addin_description,
+        );
+        handlers.on("COMAddIn", "ProgId", InvokeKind::Get, Self::addin_progid);
+        handlers.on("COMAddIn", "Guid", InvokeKind::Get, Self::addin_guid);
+        handlers.on(
+            "COMAddIn",
+            "Connect",
+            InvokeKind::Get,
+            Self::addin_connected,
+        );
+        handlers.on("COMAddIn", "Object", InvokeKind::Get, Self::addin_object);
+        handlers.on("COMAddIn", "Connect", InvokeKind::Put, Self::addin_connect);
+        handlers.on(
+            "COMAddIn",
+            "Object",
+            InvokeKind::Put,
+            Self::addin_put_object,
+        );
+        handlers.on(
+            "CommandBar",
+            "Controls",
+            InvokeKind::Get,
+            Self::control_controls,
+        );
+        handlers.on(
+            "CommandBarPopup",
+            "Controls",
+            InvokeKind::Get,
+            Self::control_controls,
+        );
+        handlers.on("CommandBar", "Name", InvokeKind::Get, Self::control_caption);
+        handlers.on(
+            "CommandBar",
+            "Name",
+            InvokeKind::Put,
+            Self::control_put_caption,
+        );
         handlers.on(
             "CommandBarControls",
             "Add",
             InvokeKind::Method,
-            Self::control,
+            Self::control_add,
         );
-        for interface in ["CommandBarPopup", "_CommandBarButton"] {
-            for member in ["Caption", "OnAction"] {
-                handlers
-                    .on(interface, member, InvokeKind::Get, Self::control)
-                    .on(interface, member, InvokeKind::Put, Self::control);
-            }
-            handlers.on(interface, "Delete", InvokeKind::Method, Self::control);
-        }
+        handlers.on(
+            "CommandBarPopup",
+            "Caption",
+            InvokeKind::Get,
+            Self::control_caption,
+        );
+        handlers.on(
+            "CommandBarPopup",
+            "Caption",
+            InvokeKind::Put,
+            Self::control_put_caption,
+        );
+        handlers.on(
+            "CommandBarPopup",
+            "OnAction",
+            InvokeKind::Get,
+            Self::control_action,
+        );
+        handlers.on(
+            "CommandBarPopup",
+            "OnAction",
+            InvokeKind::Put,
+            Self::control_put_action,
+        );
+        handlers.on(
+            "CommandBarPopup",
+            "Delete",
+            InvokeKind::Method,
+            Self::control_delete,
+        );
+        handlers.on(
+            "_CommandBarButton",
+            "Caption",
+            InvokeKind::Get,
+            Self::control_caption,
+        );
+        handlers.on(
+            "_CommandBarButton",
+            "Caption",
+            InvokeKind::Put,
+            Self::control_put_caption,
+        );
+        handlers.on(
+            "_CommandBarButton",
+            "OnAction",
+            InvokeKind::Get,
+            Self::control_action,
+        );
+        handlers.on(
+            "_CommandBarButton",
+            "OnAction",
+            InvokeKind::Put,
+            Self::control_put_action,
+        );
+        handlers.on(
+            "_CommandBarButton",
+            "Delete",
+            InvokeKind::Method,
+            Self::control_delete,
+        );
         Self {
             state,
             handlers,
@@ -335,69 +433,75 @@ impl Office {
             .cloned()
             .ok_or(AutoError::Disconnected)
     }
-    fn application(&self, _: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
-        match call.member.name.as_str() {
-            "COMAddIns" => {
-                let addins = self.addins()?;
-                self.refresh(&addins)?;
-                Ok(AutoValue::Object(addins.target.clone()))
-            }
-            "CommandBars" => {
-                if let Some(key) = self.bars.get() {
-                    return Ok(AutoValue::Object(self.nodes.borrow()[&key].target.clone()));
-                }
-                let bars = self.make(self.state()?.application(), Role::Bars)?;
-                let bar = self.make(bars.target.clone(), Role::Bar)?;
-                *bar.caption.borrow_mut() = text("Worksheet Menu Bar");
-                bars.children.borrow_mut().push(Self::key(&bar));
-                self.bars.set(Some(Self::key(&bars)));
-                Ok(AutoValue::Object(bars.target.clone()))
-            }
-            _ => Err(AutoError::not_modelled(call.label(), "dc-snz.2")),
-        }
+    fn application_addins(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
+        let _ = (target, call);
+
+        let addins = self.addins()?;
+        self.refresh(&addins)?;
+        Ok(AutoValue::Object(addins.target.clone()))
     }
-    fn common(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
-        match call.member.name.as_str() {
-            "Creator" => Ok(AutoValue::I4(0x5843454c)),
-            "Application" => Ok(AutoValue::Object(self.state()?.application())),
-            "Parent" => Ok(AutoValue::Object(self.node(target)?.parent.clone())),
-            _ => Err(AutoError::not_modelled(call.label(), "dc-snz.2")),
+    fn application_bars(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
+        let _ = (target, call);
+
+        if let Some(key) = self.bars.get() {
+            return Ok(AutoValue::Object(self.nodes.borrow()[&key].target.clone()));
         }
+        let bars = self.make(self.state()?.application(), Role::Bars)?;
+        let bar = self.make(bars.target.clone(), Role::Bar)?;
+        *bar.caption.borrow_mut() = text("Worksheet Menu Bar");
+        bars.children.borrow_mut().push(Self::key(&bar));
+        self.bars.set(Some(Self::key(&bars)));
+        Ok(AutoValue::Object(bars.target.clone()))
     }
-    fn collection(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
+    fn common_creator(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
+        let _ = (target, call);
+        Ok(AutoValue::I4(0x5843454c))
+    }
+    fn common_application(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
+        let _ = (target, call);
+        Ok(AutoValue::Object(self.state()?.application()))
+    }
+    fn common_parent(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
+        let _ = (target, call);
+        Ok(AutoValue::Object(self.node(target)?.parent.clone()))
+    }
+    fn collection_count(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
+        let _ = (target, call);
+        Ok(AutoValue::I4(
+            self.children(self.node(target)?.as_ref()).len() as i32,
+        ))
+    }
+    fn collection_update(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
+        let _ = (target, call);
+        self.refresh(&self.node(target)?)?;
+        Ok(AutoValue::Empty)
+    }
+    fn collection_item(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
+        let _ = (target, call);
         let node = self.node(target)?;
-        match call.member.name.as_str() {
-            "Count" => Ok(AutoValue::I4(self.children(&node).len() as i32)),
-            "Update" => {
-                self.refresh(&node)?;
-                Ok(AutoValue::Empty)
+
+        let children = self.children(&node);
+        let found = if let Some(key) = call.arg(0).as_text() {
+            children.into_iter().find(|child| {
+                child
+                    .addin
+                    .borrow()
+                    .as_ref()
+                    .map(|a| a.progid.clone())
+                    .unwrap_or_else(|| child.caption.borrow().to_string_lossy())
+                    .eq_ignore_ascii_case(&key)
+            })
+        } else {
+            let n = values::number(call.arg(0))?;
+            if n < 1.0 || n.fract() != 0.0 {
+                None
+            } else {
+                children.get(n as usize - 1).cloned()
             }
-            "Item" => {
-                let children = self.children(&node);
-                let found = if let Some(key) = call.arg(0).as_text() {
-                    children.into_iter().find(|child| {
-                        child
-                            .addin
-                            .borrow()
-                            .as_ref()
-                            .map(|a| a.progid.clone())
-                            .unwrap_or_else(|| child.caption.borrow().to_string_lossy())
-                            .eq_ignore_ascii_case(&key)
-                    })
-                } else {
-                    let n = values::number(call.arg(0))?;
-                    if n < 1.0 || n.fract() != 0.0 {
-                        None
-                    } else {
-                        children.get(n as usize - 1).cloned()
-                    }
-                };
-                found
-                    .map(|child| AutoValue::Object(child.target.clone()))
-                    .ok_or(AutoError::Status(DISP_E_BADINDEX.0))
-            }
-            _ => Err(AutoError::not_modelled(call.label(), "dc-snz.2")),
-        }
+        };
+        found
+            .map(|child| AutoValue::Object(child.target.clone()))
+            .ok_or(AutoError::Status(DISP_E_BADINDEX.0))
     }
     fn controls(&self, node: &Node) -> Result<Rc<Node>> {
         if let Some(key) = node.controls.get() {
@@ -407,140 +511,174 @@ impl Office {
         node.controls.set(Some(Self::key(&controls)));
         Ok(controls)
     }
-    fn control(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
-        let node = self.node(target)?;
-        let get = call.member.invoke == InvokeKind::Get;
-        match call.member.name.as_str() {
-            "Controls" => Ok(AutoValue::Object(self.controls(&node)?.target.clone())),
-            "Name" | "Caption" | "OnAction" => {
-                let field = if call.member.name == "OnAction" {
-                    &node.action
-                } else {
-                    &node.caption
-                };
-                if get {
-                    Ok(AutoValue::Text(field.borrow().clone()))
-                } else {
-                    let AutoValue::Text(value) = call.arg(0) else {
-                        return values::mismatch();
-                    };
-                    *field.borrow_mut() = value.clone();
-                    Ok(AutoValue::Empty)
-                }
-            }
-            "Delete" => {
-                node.deleted.set(true);
-                Ok(AutoValue::Empty)
-            }
-            "Add" => {
-                let role = match values::number(call.arg(0))? as i32 {
-                    1 => Role::Button,
-                    10 => Role::Popup,
-                    _ => return Err(AutoError::not_modelled(call.label(), "dc-snz.2")),
-                };
-                let missing = |v: &AutoValue| matches!(v, AutoValue::Missing | AutoValue::Empty);
-                if (!missing(call.arg(1)) && values::number(call.arg(1))? != 1.0)
-                    || !missing(call.arg(2))
-                    || (!missing(call.arg(4)) && values::number(call.arg(4))? == 0.0)
-                {
-                    return Err(AutoError::not_modelled(call.label(), "dc-snz.2"));
-                }
-                let mut before = node.children.borrow().len();
-                if !missing(call.arg(3)) {
-                    let n = values::number(call.arg(3))?;
-                    let children = self.children(&node);
-                    if n < 1.0 || n.fract() != 0.0 || n > (children.len() + 1) as f64 {
-                        return failure(E_INVALIDARG);
-                    }
-                    if let Some(child) = children.get(n as usize - 1) {
-                        before = node
-                            .children
-                            .borrow()
-                            .iter()
-                            .position(|key| *key == Self::key(child))
-                            .unwrap();
-                    }
-                }
-                let child = self.make(node.target.clone(), role)?;
-                node.children.borrow_mut().insert(before, Self::key(&child));
-                Ok(AutoValue::Object(child.target.clone()))
-            }
-            _ => Err(AutoError::not_modelled(call.label(), "dc-snz.2")),
-        }
+    fn control_controls(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
+        let _ = (target, call);
+        Ok(AutoValue::Object(
+            self.controls(self.node(target)?.as_ref())?.target.clone(),
+        ))
     }
-    fn addin_member(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
+    fn control_caption(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
+        let _ = (target, call);
+        Ok(AutoValue::Text(self.node(target)?.caption.borrow().clone()))
+    }
+    fn control_put_caption(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
+        let _ = (target, call);
+        let node = self.node(target)?;
+        let AutoValue::Text(value) = call.arg(0) else {
+            return values::mismatch();
+        };
+        *node.caption.borrow_mut() = value.clone();
+        Ok(AutoValue::Empty)
+    }
+    fn control_action(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
+        let _ = (target, call);
+        Ok(AutoValue::Text(self.node(target)?.action.borrow().clone()))
+    }
+    fn control_put_action(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
+        let _ = (target, call);
+        let node = self.node(target)?;
+        let AutoValue::Text(value) = call.arg(0) else {
+            return values::mismatch();
+        };
+        *node.action.borrow_mut() = value.clone();
+        Ok(AutoValue::Empty)
+    }
+    fn control_delete(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
+        let _ = (target, call);
+        self.node(target)?.deleted.set(true);
+        Ok(AutoValue::Empty)
+    }
+    fn control_add(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
+        let _ = (target, call);
+        let node = self.node(target)?;
+
+        let role = match values::number(call.arg(0))? as i32 {
+            1 => Role::Button,
+            10 => Role::Popup,
+            _ => return Err(AutoError::not_modelled(call.label(), "dc-snz.2")),
+        };
+        let missing = |v: &AutoValue| matches!(v, AutoValue::Missing | AutoValue::Empty);
+        if (!missing(call.arg(1)) && values::number(call.arg(1))? != 1.0)
+            || !missing(call.arg(2))
+            || (!missing(call.arg(4)) && values::number(call.arg(4))? == 0.0)
+        {
+            return Err(AutoError::not_modelled(call.label(), "dc-snz.2"));
+        }
+        let mut before = node.children.borrow().len();
+        if !missing(call.arg(3)) {
+            let n = values::number(call.arg(3))?;
+            let children = self.children(&node);
+            if n < 1.0 || n.fract() != 0.0 || n > (children.len() + 1) as f64 {
+                return failure(E_INVALIDARG);
+            }
+            if let Some(child) = children.get(n as usize - 1) {
+                before = node
+                    .children
+                    .borrow()
+                    .iter()
+                    .position(|key| *key == Self::key(child))
+                    .unwrap();
+            }
+        }
+        let child = self.make(node.target.clone(), role)?;
+        node.children.borrow_mut().insert(before, Self::key(&child));
+        Ok(AutoValue::Object(child.target.clone()))
+    }
+    fn addin_description(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
+        let _ = (target, call);
         let node = self.node(target)?;
         let data = node.addin.borrow().clone().ok_or(AutoError::Disconnected)?;
-        let get = call.member.invoke == InvokeKind::Get;
-        match call.member.name.as_str() {
-            "Description" => Ok(AutoValue::Text(data.description.clone())),
-            "ProgId" => Ok(AutoValue::text(&data.progid)),
-            "Guid" => {
-                let mut buffer = [0u16; 40];
-                let n = unsafe { StringFromGUID2(&data.clsid, &mut buffer) };
-                if n == 0 {
-                    return failure(E_UNEXPECTED);
-                }
-                Ok(AutoValue::Text(ExcelText::from_utf16_code_units(
-                    buffer[..n as usize - 1].to_vec(),
-                )))
-            }
-            "Connect" if get => Ok(AutoValue::Bool(data.connected.get())),
-            "Connect" => {
-                self.connect(&node, values::number(call.arg(0))? != 0.0, false)?;
-                Ok(AutoValue::Empty)
-            }
-            "Object" if get => {
-                let raw = data.public.borrow().as_ref().map(Interface::as_raw);
-                match raw {
-                    Some(raw) => self.state()?.foreign_result(
-                        unsafe { IDispatch::from_raw_borrowed(&raw) }
-                            .unwrap()
-                            .clone(),
-                    ),
-                    None => Ok(AutoValue::Empty),
-                }
-            }
-            "Object" => {
-                let _setting = if data.prepared_generation.get().is_none() {
-                    if data.object_setting.replace(true) {
-                        return failure(E_UNEXPECTED);
-                    }
-                    Some(Setting(data.clone()))
-                } else {
-                    None
-                };
-                let generation = data
-                    .prepared_generation
-                    .get()
-                    .unwrap_or_else(|| data.generation.get());
-                let next = match call.arg(0) {
-                    AutoValue::Empty => None,
-                    AutoValue::Foreign(key) => Some(self.state()?.take_foreign(*key)?),
-                    _ => return values::mismatch(),
-                };
-                if generation != data.generation.get() {
-                    return failure(E_ABORT);
-                }
-                if next.is_some()
-                    && (!data.connected.get() || data.disconnecting.get() || self.closing.get())
-                {
-                    return failure(E_UNEXPECTED);
-                }
-                if next.is_some()
-                    && (generation != data.generation.get()
-                        || !data.connected.get()
-                        || data.disconnecting.get()
-                        || self.closing.get())
-                {
-                    return failure(E_ABORT);
-                }
-                let old = data.public.replace(next);
-                drop(old);
-                Ok(AutoValue::Empty)
-            }
-            _ => Err(AutoError::not_modelled(call.label(), "dc-snz.2")),
+        Ok(AutoValue::Text(data.description.clone()))
+    }
+    fn addin_progid(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
+        let _ = (target, call);
+        let node = self.node(target)?;
+        let data = node.addin.borrow().clone().ok_or(AutoError::Disconnected)?;
+        Ok(AutoValue::text(&data.progid))
+    }
+    fn addin_guid(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
+        let _ = (target, call);
+        let node = self.node(target)?;
+        let data = node.addin.borrow().clone().ok_or(AutoError::Disconnected)?;
+
+        let mut buffer = [0u16; 40];
+        let n = unsafe { StringFromGUID2(&data.clsid, &mut buffer) };
+        if n == 0 {
+            return failure(E_UNEXPECTED);
         }
+        Ok(AutoValue::Text(ExcelText::from_utf16_code_units(
+            buffer[..n as usize - 1].to_vec(),
+        )))
+    }
+    fn addin_connected(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
+        let _ = (target, call);
+        let node = self.node(target)?;
+        let data = node.addin.borrow().clone().ok_or(AutoError::Disconnected)?;
+        Ok(AutoValue::Bool(data.connected.get()))
+    }
+    fn addin_connect(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
+        let _ = (target, call);
+        let node = self.node(target)?;
+
+        self.connect(&node, values::number(call.arg(0))? != 0.0, false)?;
+        Ok(AutoValue::Empty)
+    }
+    fn addin_object(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
+        let _ = (target, call);
+        let node = self.node(target)?;
+        let data = node.addin.borrow().clone().ok_or(AutoError::Disconnected)?;
+
+        let raw = data.public.borrow().as_ref().map(Interface::as_raw);
+        match raw {
+            Some(raw) => self.state()?.foreign_result(
+                unsafe { IDispatch::from_raw_borrowed(&raw) }
+                    .unwrap()
+                    .clone(),
+            ),
+            None => Ok(AutoValue::Empty),
+        }
+    }
+    fn addin_put_object(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
+        let _ = (target, call);
+        let node = self.node(target)?;
+        let data = node.addin.borrow().clone().ok_or(AutoError::Disconnected)?;
+
+        let _setting = if data.prepared_generation.get().is_none() {
+            if data.object_setting.replace(true) {
+                return failure(E_UNEXPECTED);
+            }
+            Some(Setting(data.clone()))
+        } else {
+            None
+        };
+        let generation = data
+            .prepared_generation
+            .get()
+            .unwrap_or_else(|| data.generation.get());
+        let next = match call.arg(0) {
+            AutoValue::Empty => None,
+            AutoValue::Foreign(key) => Some(self.state()?.take_foreign(*key)?),
+            _ => return values::mismatch(),
+        };
+        if generation != data.generation.get() {
+            return failure(E_ABORT);
+        }
+        if next.is_some()
+            && (!data.connected.get() || data.disconnecting.get() || self.closing.get())
+        {
+            return failure(E_UNEXPECTED);
+        }
+        if next.is_some()
+            && (generation != data.generation.get()
+                || !data.connected.get()
+                || data.disconnecting.get()
+                || self.closing.get())
+        {
+            return failure(E_ABORT);
+        }
+        let old = data.public.replace(next);
+        drop(old);
+        Ok(AutoValue::Empty)
     }
 
     fn extension(data: &Addin) -> Result<IDTExtensibility2> {
