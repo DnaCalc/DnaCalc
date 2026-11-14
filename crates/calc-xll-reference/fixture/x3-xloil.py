@@ -23,13 +23,28 @@ def array(n: int):
 # observations of COM objects and delivered events, not stored worksheet answers.
 _changes = []
 _all_changes = []
+_details = []
 _calculations = 0
 _last_range = None
 _queued = None
 
 
+def _describe(value):
+    if hasattr(value, "tolist"):
+        value = value.tolist()
+    return repr(value)
+
+
 def _sheet_change(name, target):
     global _last_range, _queued
+    # What the handler reads of its Target (address, shape, value) before anything else; a
+    # failing read is recorded by its exception type, so both hosts' answers stay comparable.
+    try:
+        detail = "|".join((name, target.address(local=True), str(target.shape),
+                           _describe(target.value)))
+    except Exception as error:
+        detail = name + "|" + type(error).__name__
+    _details.append(detail)
     address = target.address(local=True)
     _all_changes.append(name + "|" + address)
     if address == "A1":
@@ -82,6 +97,13 @@ def events() -> str:
 @xloil.func(name="X4.PyTargets")
 def all_event_targets() -> str:
     return ";".join(_all_changes)
+
+
+@xloil.func(name="X4.PyDetails")
+def event_details() -> str:
+    # The case formula's own cell (B3) is left out: when its SheetChange arrives relative to
+    # its own calculation is a separate observation (X4.PyTargets keeps every target).
+    return ";".join(d for d in _details if "|B3|" not in d and not d.endswith("|B3"))
 
 
 @xloil.func(name="X4.PyCalculateCount")

@@ -1,0 +1,21 @@
+{"utc":"2026-11-14T02:06:12.5406254Z","operation":"RegisterXLL managed","value":true}
+{"utc":"2026-11-14T02:06:12.5779272Z","operation":"RegisterXLL native","value":true}
+{"utc":"2026-11-14T02:06:12.6731880Z","operation":"calculation mode =X0.Hello(\"start\")","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-14T02:06:12.6924226Z","operation":"=X0.Hello(\"start\")","value":"Hello, start"}
+{"utc":"2026-11-14T02:06:12.6945573Z","operation":"calculation mode =X0.Hello(\"rectangle\")","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-14T02:06:12.7161531Z","operation":"=X0.Hello(\"rectangle\")","value":"Hello, rectangle"}
+{"utc":"2026-11-14T02:06:12.7192431Z","operation":"calculation mode =X0.Hello(\"areas\")","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-14T02:06:12.7426833Z","operation":"=X0.Hello(\"areas\")","value":"Hello, areas"}
+{"utc":"2026-11-14T02:06:12.7447489Z","operation":"calculation mode =X0.Hello(\"off\")","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-14T02:06:12.7610794Z","operation":"=X0.Hello(\"off\")","value":"Hello, off"}
+{"utc":"2026-11-14T02:06:12.7632516Z","operation":"calculation mode =X0.Hello(\"on\")","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-14T02:06:12.7835246Z","operation":"=X0.Hello(\"on\")","value":"Hello, on"}
+{"utc":"2026-11-14T02:06:12.7859596Z","operation":"calculation mode =X0.Hello(\"single\")","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-14T02:06:12.8122481Z","operation":"=X0.Hello(\"single\")","value":"Hello, single"}
+{"utc":"2026-11-14T02:06:12.8213940Z","operation":"Application.Run X0.Queue","value":true}
+{"utc":"2026-11-14T02:06:12.8293812Z","operation":"Application.Run X0.Context","value":true}
+{"utc":"2026-11-14T02:06:13.9854571Z","operation":"AutomationSecurity unchanged before teardown","value":true}
+{"utc":"2026-11-14T02:06:14.0773244Z","operation":"ExecuteExcel4Macro UNREGISTER(managed)","value":true}
+{"utc":"2026-11-14T02:06:14.0809725Z","operation":"ExecuteExcel4Macro UNREGISTER(native)","value":true}
+{"utc":"2026-11-14T02:06:14.0897850Z","operation":"AutomationSecurity unchanged","value":true}
+{"utc":"2026-11-14T02:06:14.9670547Z","operation":"cleanup","value":"Workbook closed; Excel returned to lane session host"}

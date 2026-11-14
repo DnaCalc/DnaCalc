@@ -1,0 +1,59 @@
+2026-11-14T02:04:44.5392965Z	35856	AutoOpen	C:\Work\DnaCalc\codex-runs\om-appevents-20261114\dna-x0-events4\X0-AddIn64.xll
+2026-11-14T02:04:44.5392965Z	35856	Runtime	v4.0.30319
+2026-11-14T02:04:44.5392965Z	35856	Integration assembly	ExcelDna.Integration, Version=1.1.0.0, Culture=neutral, PublicKeyToken=f225e9659857edbe
+2026-11-14T02:04:44.6327762Z	35856	COM Application.Version get	16.0
+2026-11-14T02:04:44.6368055Z	35856	COM Application.Hwnd get	141170742
+2026-11-14T02:04:44.6747219Z	35856	COM Workbook identity	name=Book2;full=Book2;path=;active=X0
+2026-11-14T02:04:44.6747219Z	35856	COM AppEvents Advise	1
+2026-11-14T02:04:44.6908606Z	35856	AppEvents AfterCalculate	called
+2026-11-14T02:04:44.7391903Z	35856	AppEvents SheetChange Target	book=Book2;full=Book2;path=;sheet=X0;target=$A$1;count=1;value2=Double:7
+2026-11-14T02:04:44.7625259Z	35856	AppEvents SheetChange	sheet=X0;target=$A$1
+2026-11-14T02:04:44.7724818Z	35856	Hello	start
+2026-11-14T02:04:44.7875612Z	35856	AppEvents SheetCalculate	sheet
+2026-11-14T02:04:44.7884244Z	35856	AppEvents AfterCalculate	called
+2026-11-14T02:04:44.7921766Z	35856	AppEvents SheetChange Target	book=Book2;full=Book2;path=;sheet=X0;target=$B$3;count=1;value2=String:Hello, start
+2026-11-14T02:04:44.7921766Z	35856	AppEvents SheetChange	received
+2026-11-14T02:04:44.7941801Z	35856	AppEvents AfterCalculate	called
+2026-11-14T02:04:44.7961783Z	35856	AppEvents SheetChange Target	book=Book2;full=Book2;path=;sheet=X0;target=$A$1:$B$2;count=4;value2=2x2@1,1:Double:9,Double:9,Double:9,Double:9
+2026-11-14T02:04:44.7977062Z	35856	AppEvents SheetChange	received
+2026-11-14T02:04:44.7987231Z	35856	Hello	rectangle
+2026-11-14T02:04:44.8007244Z	35856	AppEvents SheetCalculate	sheet
+2026-11-14T02:04:44.8007244Z	35856	AppEvents AfterCalculate	called
+2026-11-14T02:04:44.8037177Z	35856	AppEvents SheetChange Target	book=Book2;full=Book2;path=;sheet=X0;target=$B$3;count=1;value2=String:Hello, rectangle
+2026-11-14T02:04:44.8037177Z	35856	AppEvents SheetChange	received
+2026-11-14T02:04:44.8050817Z	35856	AppEvents AfterCalculate	called
+2026-11-14T02:04:44.8093386Z	35856	AppEvents SheetChange Target	book=Book2;full=Book2;path=;sheet=X0;target=$A$1,$C$1:$C$2;count=3;value2=Double:5
+2026-11-14T02:04:44.8093386Z	35856	AppEvents SheetChange	received
+2026-11-14T02:04:44.8093386Z	35856	Hello	areas
+2026-11-14T02:04:44.8093386Z	35856	AppEvents SheetCalculate	sheet
+2026-11-14T02:04:44.8093386Z	35856	AppEvents AfterCalculate	called
+2026-11-14T02:04:44.8093386Z	35856	AppEvents SheetChange Target	book=Book2;full=Book2;path=;sheet=X0;target=$B$3;count=1;value2=String:Hello, areas
+2026-11-14T02:04:44.8093386Z	35856	AppEvents SheetChange	received
+2026-11-14T02:04:44.8093386Z	35856	Hello	off
+2026-11-14T02:04:44.8215036Z	35856	Hello	on
+2026-11-14T02:04:44.8215036Z	35856	AppEvents SheetCalculate	sheet
+2026-11-14T02:04:44.8235120Z	35856	AppEvents AfterCalculate	called
+2026-11-14T02:04:44.8255221Z	35856	AppEvents SheetChange Target	book=Book2;full=Book2;path=;sheet=X0;target=$B$3;count=1;value2=String:Hello, on
+2026-11-14T02:04:44.8255221Z	35856	AppEvents SheetChange	received
+2026-11-14T02:04:44.8275316Z	35856	AppEvents AfterCalculate	called
+2026-11-14T02:04:44.8302005Z	35856	AppEvents SheetChange Target	book=Book2;full=Book2;path=;sheet=X0;target=$A$1;count=1;value2=Double:11
+2026-11-14T02:04:44.8302005Z	35856	AppEvents SheetChange	received
+2026-11-14T02:04:44.8322180Z	35856	Hello	single
+2026-11-14T02:04:44.8332352Z	35856	AppEvents SheetCalculate	sheet
+2026-11-14T02:04:44.8348335Z	35856	AppEvents AfterCalculate	called
+2026-11-14T02:04:44.8348335Z	35856	AppEvents SheetChange Target	book=Book2;full=Book2;path=;sheet=X0;target=$B$3;count=1;value2=String:Hello, single
+2026-11-14T02:04:44.8348335Z	35856	AppEvents SheetChange	received
+2026-11-14T02:04:44.8348335Z	35856	Queue request	command
+2026-11-14T02:04:44.8348335Z	35856	QueueAsMacro enter	startup
+2026-11-14T02:04:44.8348335Z	35856	QueueAsMacro xlfCaller rc	XlReturnSuccess
+2026-11-14T02:04:44.8451697Z	35856	QueueAsMacro xlfCaller value	ExcelError:ExcelErrorRef
+2026-11-14T02:04:44.8451697Z	35856	QueueAsMacro exit	startup
+2026-11-14T02:04:44.8451697Z	35856	Queue executed	C:\Work\DnaCalc\codex-runs\om-appevents-20261114\dna-x0-events4\X0-AddIn64.xll
+2026-11-14T02:04:45.0430560Z	35856	Context 16393	XlReturnSuccess String:C:\Work\DnaCalc\codex-runs\om-appevents-20261114\dna-x0-events4\X0-AddIn64.xll
+2026-11-14T02:04:45.0430560Z	35856	Context 16385	XlReturnSuccess Double:796240
+2026-11-14T02:04:45.0430560Z	35856	Context 89	XlReturnSuccess ExcelError:ExcelErrorRef
+2026-11-14T02:04:45.0458148Z	47168	Outside 16393	XlReturnFailed ExcelEmpty:ExcelDna.Integration.ExcelEmpty
+2026-11-14T02:04:45.0458148Z	47168	Outside 16385	XlReturnFailed ExcelEmpty:ExcelDna.Integration.ExcelEmpty
+2026-11-14T02:04:45.0458148Z	47168	Outside 89	XlReturnFailed ExcelEmpty:ExcelDna.Integration.ExcelEmpty
+2026-11-14T02:04:45.2482907Z	35856	Queue request	command
+2026-11-14T02:04:45.2482907Z	35856	Queue executed	C:\Work\DnaCalc\codex-runs\om-appevents-20261114\dna-x0-events4\X0-AddIn64.xll

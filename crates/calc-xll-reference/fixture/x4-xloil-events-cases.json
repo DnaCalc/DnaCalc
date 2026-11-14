@@ -1,0 +1,18 @@
+[
+  {"automatic":true,"formula":"=X4.PyCom()","value":null},
+  {"automatic":true,"formula":"=X4.PyCalculateCount()","value":null},
+  {"automatic":true,"edit":{"cell":"A1:B2","value":9},"formula":"=X4.PyDetails()","value":null},
+  {"automatic":true,"formula":"=X4.PyCalculateCount()","value":null},
+  {"automatic":true,"edit":{"cell":"A1,C1:C2","value":5},"formula":"=X4.PyDetails()","value":null},
+  {"automatic":true,"formula":"=X4.PyCalculateCount()","value":null},
+  {"automatic":true,"enable_events":false,"edit":{"cell":"A1:B2","value":10},"formula":"=X4.PyDetails()","value":null},
+  {"automatic":true,"formula":"=X4.PyCalculateCount()","value":null},
+  {"automatic":true,"formula":"=X4.PyCom()","value":null},
+  {"automatic":true,"enable_events":true,"formula":"=X4.PyDetails()","value":null},
+  {"automatic":true,"formula":"=X4.PyCalculateCount()","value":null},
+  {"automatic":true,"edit":{"cell":"A1","value":11},"formula":"=X4.PyDetails()","value":null},
+  {"automatic":true,"formula":"=X4.PyCalculateCount()","value":null},
+  {"automatic":true,"formula":"=X4.PyTargets()","value":null},
+  {"automatic":true,"formula":"=X4.PyQueued()","value":42},
+  {"automatic":true,"formula":"=X4.PyRelease()","value":null}
+]

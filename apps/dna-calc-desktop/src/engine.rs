@@ -1,14 +1,16 @@
 //! Desktop composition of native return messages and CalcHost's checked P07 route.
 use calc_addin_host::{AddinHost, value_json};
 use calc_host::{
-    CalcMode, HostOptions, HostProgress, HostSession, MemorySource, OpenPolicy, ProjectedValue,
-    ProjectionRequest, SheetChange, SkinIntent, WorkBudget, WorkbookCommand,
+    CalcMode, CommandIngress, HostOptions, HostProgress, HostSession, MemorySource, OpenPolicy,
+    ProjectedValue, ProjectionRequest, SheetChange, SkinIntent, WorkBudget, WorkbookCommand,
 };
 use calc_platform_desktop::Shell;
 use calc_value::{CalcValue, CellKey};
 use std::{
+    cell::RefCell,
     collections::BTreeSet,
     path::PathBuf,
+    rc::Rc,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -17,6 +19,18 @@ fn enter(book: &mut HostSession, at: CellKey, text: &str) -> Result<(), String> 
     enter_as(book, at, text, false)
 }
 fn enter_as(book: &mut HostSession, at: CellKey, text: &str, legacy: bool) -> Result<(), String> {
+    enter_from(book, CommandIngress::UserInterface, at, text, legacy)
+}
+/// A cell entry from the person (`UserInterface`) or from an automation client (`Automation`,
+/// as the Excel run's COM writes: in automatic calculation the session calculates before it
+/// raises Change, P22).
+fn enter_from(
+    book: &mut HostSession,
+    ingress: CommandIngress,
+    at: CellKey,
+    text: &str,
+    legacy: bool,
+) -> Result<(), String> {
     let intent = if legacy {
         SkinIntent::Edit {
             edits: vec![calc_host::CellEdit::Set {
@@ -41,7 +55,7 @@ fn enter_as(book: &mut HostSession, at: CellKey, text: &str, legacy: bool) -> Re
             text: text.to_owned(),
         }
     };
-    let receipt = book.dispatch(intent);
+    let receipt = book.dispatch_from(ingress, intent);
     if !receipt.accepted() {
         return Err(format!("cell entry refused: {:?}", receipt.error));
     }
@@ -188,19 +202,27 @@ fn value(book: &HostSession, at: CellKey) -> Result<(CalcValue, serde_json::Valu
         other => Err(format!("cell has no current engine calculation: {other:?}")),
     }
 }
-pub fn run(
-    shell: &Shell,
-    addins: &mut AddinHost,
+/// What `open` prepared besides the session: the file's VBA project (held until the add-ins'
+/// functions are known), a macro refusal to report, and the first sheet with its name.
+pub struct Opened {
+    project: Option<std::rc::Rc<calc_host_vba::WorkbookEvents>>,
+    macros_refused: Option<String>,
+    pub sheet: calc_value::SheetId,
+    pub sheet_name: String,
+}
+
+/// Opens the engine's workbook. It exists before any add-in loads, as Excel's workbook does when
+/// an XLL is registered, so the add-ins' open routines already see it through the object model
+/// (Workbook Name, FullName, Path and ActiveSheet from this session).
+pub fn open(
     sheet_name: &str,
     workbook_name: &str,
-    cases: Option<PathBuf>,
-    formula: String,
-    early_execution: &[u64],
     workbook: Option<&std::path::Path>,
     enable_macros: bool,
     trust_macros: bool,
     macros_level: Option<calc_macro_security::MacroSecurity>,
-) -> Result<serde_json::Value, String> {
+    automatic: bool,
+) -> Result<(HostSession, Opened), String> {
     // A named workbook (`--workbook`) opens as the page's worker opens one: its VBA project is
     // held, not run, unless the person enables macros (`--enable-macros`); then it is prepared
     // with calc-host-vba's open-time route and its functions join the add-ins' table. A file with
@@ -224,10 +246,12 @@ pub fn run(
         macros_level,
     );
     let grant: Result<Option<calc_host_vba::ProjectGrant>, String> = match workbook {
-        Some(_) if policy.runs_on_open().is_some() => Ok(Some(calc_host_vba::ProjectGrant::trust_all(
-            policy.trust_source(),
-            policy.runs_on_open().expect("checked"),
-        ))),
+        Some(_) if policy.runs_on_open().is_some() => {
+            Ok(Some(calc_host_vba::ProjectGrant::trust_all(
+                policy.trust_source(),
+                policy.runs_on_open().expect("checked"),
+            )))
+        }
         Some(path) if enable_macros => {
             calc_host_vba::ProjectGrant::person_enabled(crate::origin::file_origin(path))
                 .map(Some)
@@ -256,13 +280,25 @@ pub fn run(
         _ => None,
     };
     book.set_file_identity(workbook_name, false);
-    book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+    // Set before any add-in loads, so that a changed mode's own calculation raises no event.
+    book.dispatch(SkinIntent::SetCalcMode(if automatic {
+        CalcMode::Automatic
+    } else {
+        CalcMode::Manual
+    }));
+    while automatic && book.has_pending_calculation() {
+        if let HostProgress::Failed(why) = book.advance_calculation() {
+            return Err(why.to_string());
+        }
+    }
     let sheet = book.host().sheets()[0].id();
     // A named workbook keeps its own first sheet and its name; a blank one takes --sheet's.
-    let own_name;
     let sheet_name = if workbook.is_some() {
-        own_name = book.host().sheets()[0].name().text().to_string_lossy().to_string();
-        own_name.as_str()
+        book.host().sheets()[0]
+            .name()
+            .text()
+            .to_string_lossy()
+            .to_string()
     } else {
         let rename = book.dispatch(SkinIntent::Command(WorkbookCommand::Sheet {
             sheet: Some(sheet),
@@ -273,12 +309,84 @@ pub fn run(
         if !rename.accepted() {
             return Err(format!("sheet rename: {:?}", rename.error));
         }
-        sheet_name
+        sheet_name.to_owned()
     };
-    addins.bind_sheet(sheet, sheet_name);
-    addins.set_active_sheet(sheet_name)?;
+    Ok((
+        book,
+        Opened {
+            project,
+            macros_refused,
+            sheet,
+            sheet_name,
+        },
+    ))
+}
+
+/// Whether a case file runs as the Excel run does, in automatic calculation (`"automatic": true`
+/// on its cases; see `run`).
+pub fn automatic_cases(cases: Option<&std::path::Path>) -> Result<bool, String> {
+    let Some(path) = cases else {
+        return Ok(false);
+    };
+    let cases: Vec<serde_json::Value> =
+        serde_json::from_slice(&std::fs::read(path).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
+    Ok(cases
+        .iter()
+        .any(|case| case["automatic"].as_bool() == Some(true)))
+}
+
+/// Excel's Calculate Now through the session, run to completion. An add-in's AfterCalculate
+/// comes from the session's event source when the command completes.
+pub fn calculate_now(shell: &Shell, session: &RefCell<HostSession>) -> Result<(), String> {
+    let admission = session.borrow_mut().dispatch(SkinIntent::Recalculate);
+    if !admission.accepted() {
+        return Err(format!("calculation refused: {:?}", admission.error));
+    }
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        {
+            let mut book = session.borrow_mut();
+            if !book.has_pending_calculation() {
+                return Ok(());
+            }
+            if let HostProgress::Failed(why) = book.advance_calculation() {
+                return Err(why.to_string());
+            }
+        }
+        if Instant::now() > deadline {
+            return Err("calculation deadline expired".into());
+        }
+        shell.pump_for(Duration::from_millis(2));
+    }
+}
+
+/// Runs the cases against the session `open` made, with the add-ins loaded and the object model
+/// bound to that session (`crate::automation`): SheetChange and AfterCalculate reach the add-ins
+/// from the session's own event source. The session is borrowed only while the harness drives
+/// it, so an add-in's command-context call into the object model can read it in between.
+#[allow(clippy::too_many_arguments)]
+pub fn run(
+    shell: &Shell,
+    addins: &mut AddinHost,
+    session: &Rc<RefCell<HostSession>>,
+    opened: Opened,
+    workbook_name: &str,
+    cases: Option<PathBuf>,
+    formula: String,
+    early_execution: &[u64],
+    after_commands: &[String],
+    early_commands: &[String],
+) -> Result<serde_json::Value, String> {
+    let Opened {
+        project,
+        macros_refused,
+        sheet,
+        sheet_name: _,
+    } = opened;
     addins.enable_async_continuations()?;
     let rtd = addins.enable_rtd()?;
+    let mut book = session.borrow_mut();
     book.set_rtd_connector(rtd.clone());
     let mut functions = addins.callables_with_early_execution(early_execution)?;
     match &project {
@@ -298,12 +406,35 @@ pub fn run(
     book.set_calculation_budget(WorkBudget::evaluations(1));
     let a = CellKey::new(sheet, 1, 1).unwrap();
     let b = CellKey::new(sheet, 3, 2).unwrap();
-    enter(&mut book, a, "7")?;
     let cases: Vec<serde_json::Value> = match cases {
         Some(path) => serde_json::from_slice(&std::fs::read(path).map_err(|e| e.to_string())?)
             .map_err(|e| e.to_string())?,
         None => vec![serde_json::json!({"formula":formula,"value":null})],
     };
+    // `"automatic": true` on every case: the run is the Excel run as it is, an automation client
+    // writing cells (A1, the edits, the B3 formula) in automatic calculation. Each write is an
+    // Automation command: the session calculates it synchronously and raises Change after that
+    // calculation (P22), with no separate calculation command. Otherwise the session stays in
+    // Manual and each case asks for its calculation, as before.
+    let automatic = cases
+        .iter()
+        .any(|case| case["automatic"].as_bool() == Some(true));
+    if automatic
+        && !cases
+            .iter()
+            .all(|case| case["automatic"].as_bool() == Some(true))
+    {
+        return Err("automatic calculation is a property of the whole case file".into());
+    }
+    let ingress = if automatic {
+        CommandIngress::Automation
+    } else {
+        CommandIngress::UserInterface
+    };
+    if automatic != (book.host().calc_mode() != CalcMode::Manual) {
+        return Err("the case file's calculation mode differs from the one `open` set".into());
+    }
+    enter_from(&mut book, ingress, a, "7", false)?;
     if workbook_name != "Book1"
         && cases
             .iter()
@@ -354,25 +485,75 @@ pub fn run(
                 formula_entries.push(serde_json::json!({"formula":dependent,"cell":dependent_address,"value":value_json(&calculated),"provenance":proof}));
             }
         }
+        // The Excel run sets Application.EnableEvents from its client; here it is set through the
+        // same object model the add-ins see, whose switch is the session's one switch.
+        if let Some(enabled) = case["enable_events"].as_bool() {
+            drop(book);
+            let set = addins.enable_events(enabled);
+            book = session.borrow_mut();
+            set?;
+            if book.workbook_events_enabled() != enabled {
+                return Err("EnableEvents did not reach the session's switch".into());
+            }
+        }
+        // An edit is committed input: one cell typed, or a rectangle or several areas ("A1,C1:C2")
+        // selected and filled at once (Ctrl+Enter), one change, as Excel's Range.Value2 assignment
+        // is one. The session raises its SheetChange with every area, after any VBA handler.
         if let Some(edit) = case.get("edit") {
             let address = edit["cell"].as_str().ok_or("edit needs cell")?;
-            let calc_host::ReferenceTarget::Area(area) =
-                book.host().resolve_reference_text(b, address)
-            else {
-                return Err("edit needs a local cell reference".into());
-            };
-            if area.cell_count() != 1 || area.sheet() != sheet {
-                return Err("edit needs one local cell".into());
+            let mut areas = Vec::new();
+            for part in address.split(',') {
+                let calc_host::ReferenceTarget::Area(area) =
+                    book.host().resolve_reference_text(b, part.trim())
+                else {
+                    return Err("edit needs local cell references".into());
+                };
+                if area.sheet() != sheet {
+                    return Err("edit needs areas of the case sheet".into());
+                }
+                areas.push(area);
             }
             let number = edit["value"].as_f64().ok_or("edit needs a number")?;
-            let receipt = book.dispatch(SkinIntent::EnterCell {
-                at: area.first(),
-                text: number.to_string(),
-            });
+            let receipt = if automatic {
+                // An automation client's Range.Value2 assignment: every cell of every area, one
+                // transaction; the selection does not move.
+                let input = calc_host::CellInput::Number(
+                    calc_host::FiniteNumber::new(number).ok_or("edit needs a finite number")?,
+                );
+                let mut edits = Vec::new();
+                for area in &areas {
+                    let (first, last) = (area.first(), area.last());
+                    for row in first.row()..=last.row() {
+                        for column in first.column()..=last.column() {
+                            edits.push(calc_host::CellEdit::Set {
+                                at: CellKey::new(sheet, row, column)
+                                    .map_err(|e| format!("{e:?}"))?,
+                                input: input.clone(),
+                            });
+                        }
+                    }
+                }
+                book.dispatch_from(ingress, SkinIntent::Edit { edits })
+            } else if areas.len() == 1 && areas[0].cell_count() == 1 {
+                book.dispatch(SkinIntent::EnterCell {
+                    at: areas[0].first(),
+                    text: number.to_string(),
+                })
+            } else {
+                let select = book.dispatch(SkinIntent::Select(calc_value::Selection {
+                    active: Some(areas[0].first()),
+                    areas: areas.clone(),
+                }));
+                if !select.accepted() {
+                    return Err(format!("edit selection refused: {:?}", select.error));
+                }
+                book.dispatch(SkinIntent::EnterSelection {
+                    text: number.to_string(),
+                })
+            };
             if !receipt.accepted() {
                 return Err(format!("input edit refused: {:?}", receipt.error));
             }
-            addins.sheet_changed(area.first().row(), area.first().column())?;
         }
         let keep_formula = case["keep_formula"].as_bool().unwrap_or(false);
         if keep_formula && current_formula.as_deref() != Some(formula) {
@@ -381,8 +562,9 @@ pub fn run(
         if !keep_formula {
             current_formula = Some(formula.to_owned());
             // A case formula's {pid} is this process's id, as the owned Excel's is its own.
-            enter_as(
+            enter_from(
                 &mut book,
+                ingress,
                 b,
                 &formula.replace("{pid}", &std::process::id().to_string()),
                 legacy,
@@ -415,11 +597,11 @@ pub fn run(
         } else {
             None
         };
-        if !keep_formula {
-            addins.sheet_changed(b.row(), b.column())?;
-        }
         if let Some(command) = case["before_calculate"].as_str() {
-            let result = addins.run(command, &[])?;
+            drop(book);
+            let result = addins.run(command, &[]);
+            book = session.borrow_mut();
+            let result = result?;
             let actual = value_json(&result);
             if actual.as_f64() != case["before_calculate_value"].as_f64() {
                 return Err("precalculation command differs".into());
@@ -444,19 +626,27 @@ pub fn run(
             }
             None => None,
         };
-        let admission = book.dispatch(match calculation {
-            _ if range.is_some() => SkinIntent::CalculateRange {
-                areas: range.clone().unwrap(),
-            },
-            "dirty" => SkinIntent::Recalculate,
-            "full" => SkinIntent::Calculate {
-                scope: calc_host::CalcScope::Workbook,
-                selection: calc_host::EvalSelection::ForceAll,
-            },
-            "rebuild" => SkinIntent::Rebuild,
-            _ => return Err("unknown engine calculation command".into()),
-        });
-        if !admission.accepted() {
+        let admission = if automatic {
+            // The writes above calculated synchronously; the loop below only waits for what
+            // they left pending.
+            None
+        } else {
+            Some(book.dispatch(match calculation {
+                _ if range.is_some() => SkinIntent::CalculateRange {
+                    areas: range.clone().unwrap(),
+                },
+                "dirty" => SkinIntent::Recalculate,
+                "full" => SkinIntent::Calculate {
+                    scope: calc_host::CalcScope::Workbook,
+                    selection: calc_host::EvalSelection::ForceAll,
+                },
+                "rebuild" => SkinIntent::Rebuild,
+                _ => return Err("unknown engine calculation command".into()),
+            }))
+        };
+        if let Some(admission) = admission
+            && !admission.accepted()
+        {
             return Err(format!(
                 "{calculation} calculation refused: {:?}",
                 admission.error
@@ -585,7 +775,9 @@ pub fn run(
                         .unwrap_or_else(|why| why)
                 ));
             }
+            drop(book);
             shell.pump_for(Duration::from_millis(2));
+            book = session.borrow_mut();
         }
         let idle_observed_ms =
             idle_until.map(|until| (Instant::now() - (until - idle)).as_millis());
@@ -594,13 +786,19 @@ pub fn run(
             return Err("native call completed before overwrite was exercised".into());
         }
         let actual = value_json(&calculated);
-        if !case["value"].is_null()
-            && actual != case["value"]
-            && !(actual.as_f64().is_some() && actual.as_f64() == case["value"].as_f64())
+        // `<workbook>|` in an expected text is the run's workbook name, as in OneCalc's harness.
+        let expected = match case["value"].as_str() {
+            Some(text) if text.starts_with("<workbook>|") => {
+                serde_json::json!(text.replacen("<workbook>", workbook_name, 1))
+            }
+            _ => case["value"].clone(),
+        };
+        if !expected.is_null()
+            && actual != expected
+            && !(actual.as_f64().is_some() && actual.as_f64() == expected.as_f64())
         {
             return Err(format!(
-                "{formula}: calculated {actual}, expected {}",
-                case["value"]
+                "{formula}: calculated {actual}, expected {expected}"
             ));
         }
         let (dependent, dependent_provenance) = if case.get("dependent").is_some() {
@@ -660,7 +858,23 @@ pub fn run(
             }
         }
         results.push(serde_json::json!({"formula":formula,"calculation":calculation,"value":actual,"dependent":dependent,"dependent_provenance":dependent_provenance,"concurrent":concurrent,"provenance":proof,"idle_observed_ms":idle_observed_ms,"rtd_updates_through":rtd_updates.len(),"spill_cells":spill_cells}));
-        addins.after_calculate()?;
+    }
+    // A failed event delivery is recorded by the session, never dropped silently.
+    let event_failures = format!("{:?}", book.take_workbook_event_failures());
+    // Commands after the cases (`--command`, `--early-command`), as the Excel run's
+    // Application.Run calls; the session is free for their object-model calls.
+    drop(book);
+    for command in after_commands {
+        let value = addins.run(command, &[])?;
+        commands.push(serde_json::json!({"command":command,"value":value_json(&value)}));
+        shell.pump_for(Duration::from_millis(200));
+    }
+    for command in early_commands {
+        let value = addins.run_early(command)?;
+        commands.push(
+            serde_json::json!({"command":command,"value":value_json(&value),"early_bound":true}),
+        );
+        shell.pump_for(Duration::from_millis(200));
     }
     let native = addins.native();
     if !native.diagnostics().is_empty() {
@@ -682,13 +896,12 @@ pub fn run(
         ));
     }
     if let Some(stale_name) = &stale_name
-        && retained.call(stale_name, &[])?
-            != CalcValue::error(calc_value::WorksheetErrorCode::Name)
+        && retained.call(stale_name, &[])? != CalcValue::error(calc_value::WorksheetErrorCode::Name)
     {
         return Err("removed native entry still executes".into());
     }
     Ok(
         serde_json::json!({"host":"DNA Calc / CalcHost P07","workbook_project":project.is_some(),"macros_refused":macros_refused,"registrations":addins.registrations().len(),"early_execution_registrations":early_execution,"results":results,"formula_entries":formula_entries,"async_returns":returns,"revoked_tokens":revoked,"rtd_updates":rtd_updates,"rtd_retired":rtd_retired,"rtd_subscriptions_after_close":rtd.subscriptions(),"status_message":native.status_message(),
-        "reload_results":[],"commands":commands,"live_callback_allocations":native.live_callback_allocations(),"closed_registration":"#NAME?","closed_name":stale_name}),
+        "reload_results":[],"commands":commands,"live_callback_allocations":native.live_callback_allocations(),"closed_registration":"#NAME?","closed_name":stale_name,"workbook_event_failures":event_failures}),
     )
 }

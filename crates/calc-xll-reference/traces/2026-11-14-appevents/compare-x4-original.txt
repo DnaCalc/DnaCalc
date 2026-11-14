@@ -1,0 +1,14 @@
+cases excel=12 dna=12
+MATCH    =X3.PyAdd(3,4)               excel=7 dna=7
+MATCH    =X4.PyCom()                  excel=Book4|X0|1|True dna=Book4|X0|1|True
+MATCH    =X4.PyEvents()               excel=X0|A1 dna=X0|A1
+MATCH    =X4.PyEvents()               excel=X0|A1;X0|A1 dna=X0|A1;X0|A1
+MATCH    =X4.PyEvents()               excel=X0|A1;X0|A1 dna=X0|A1;X0|A1
+MATCH    =X4.PyCom()                  excel=Book4|X0|1|False dna=Book4|X0|1|False
+MATCH    =X4.PyEvents()               excel=X0|A1;X0|A1;X0|A1 dna=X0|A1;X0|A1;X0|A1
+MATCH    =X4.PyQueued()               excel=42 dna=42
+MATCH    =X4.PyBounds()               excel=0|0|(1, 1)|X0|$A$1 dna=0|0|(1, 1)|X0|$A$1
+MATCH    =X4.PyCall()                 excel=42 dna=42
+MATCH    =SUM(X3.PyArray(4))          excel=20 dna=20
+MATCH    =X4.PyRelease()              excel=3 dna=3
+TOTAL matched=12 mismatched=0

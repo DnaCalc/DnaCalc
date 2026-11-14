@@ -1,0 +1,38 @@
+{"utc":"2026-11-14T02:05:55.8116863Z","operation":"RegisterXLL managed","value":true}
+{"utc":"2026-11-14T02:05:56.1080545Z","operation":"xlOil built-in Python startup complete","value":true}
+{"utc":"2026-11-14T02:05:56.3103107Z","operation":"calculation mode =X4.PyCom()","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-14T02:05:56.3351156Z","operation":"=X4.PyCom()","value":"Book2|X0|1|True"}
+{"utc":"2026-11-14T02:05:56.3410920Z","operation":"calculation mode =X4.PyCalculateCount()","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-14T02:05:56.3605488Z","operation":"=X4.PyCalculateCount()","value":5.0}
+{"utc":"2026-11-14T02:05:56.3671326Z","operation":"calculation mode =X4.PyDetails()","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-14T02:05:56.3996433Z","operation":"=X4.PyDetails()","value":"X0|A1|(1, 1)|7.0;X0|A1:B2|(2, 2)|[[9.0, 9.0], [9.0, 9.0]]"}
+{"utc":"2026-11-14T02:05:56.4030063Z","operation":"calculation mode =X4.PyCalculateCount()","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-14T02:05:56.4259042Z","operation":"=X4.PyCalculateCount()","value":8.0}
+{"utc":"2026-11-14T02:05:56.4297015Z","operation":"calculation mode =X4.PyDetails()","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-14T02:05:56.4548011Z","operation":"=X4.PyDetails()","value":"X0|A1|(1, 1)|7.0;X0|A1:B2|(2, 2)|[[9.0, 9.0], [9.0, 9.0]];X0|A1,C1:C2|(1, 1)|5.0"}
+{"utc":"2026-11-14T02:05:56.4587861Z","operation":"calculation mode =X4.PyCalculateCount()","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-14T02:05:56.4750462Z","operation":"=X4.PyCalculateCount()","value":11.0}
+{"utc":"2026-11-14T02:05:56.4812454Z","operation":"calculation mode =X4.PyDetails()","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-14T02:05:56.5032417Z","operation":"=X4.PyDetails()","value":"X0|A1|(1, 1)|7.0;X0|A1:B2|(2, 2)|[[9.0, 9.0], [9.0, 9.0]];X0|A1,C1:C2|(1, 1)|5.0"}
+{"utc":"2026-11-14T02:05:56.5074050Z","operation":"calculation mode =X4.PyCalculateCount()","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-14T02:05:56.5249314Z","operation":"=X4.PyCalculateCount()","value":12.0}
+{"utc":"2026-11-14T02:05:56.5323179Z","operation":"calculation mode =X4.PyCom()","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-14T02:05:56.5519880Z","operation":"=X4.PyCom()","value":"Book2|X0|1|False"}
+{"utc":"2026-11-14T02:05:56.5599412Z","operation":"calculation mode =X4.PyDetails()","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-14T02:05:56.5784639Z","operation":"=X4.PyDetails()","value":"X0|A1|(1, 1)|7.0;X0|A1:B2|(2, 2)|[[9.0, 9.0], [9.0, 9.0]];X0|A1,C1:C2|(1, 1)|5.0"}
+{"utc":"2026-11-14T02:05:56.5821240Z","operation":"calculation mode =X4.PyCalculateCount()","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-14T02:05:56.5996518Z","operation":"=X4.PyCalculateCount()","value":13.0}
+{"utc":"2026-11-14T02:05:56.6059792Z","operation":"calculation mode =X4.PyDetails()","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-14T02:05:56.6295537Z","operation":"=X4.PyDetails()","value":"X0|A1|(1, 1)|7.0;X0|A1:B2|(2, 2)|[[9.0, 9.0], [9.0, 9.0]];X0|A1,C1:C2|(1, 1)|5.0;X0|A1|(1, 1)|11.0"}
+{"utc":"2026-11-14T02:05:56.6331725Z","operation":"calculation mode =X4.PyCalculateCount()","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-14T02:05:56.6502165Z","operation":"=X4.PyCalculateCount()","value":16.0}
+{"utc":"2026-11-14T02:05:56.6580390Z","operation":"calculation mode =X4.PyTargets()","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-14T02:05:56.6781644Z","operation":"=X4.PyTargets()","value":"X0|A1;X0|B3;X0|B3;X0|A1:B2;X0|B3;X0|B3;X0|A1,C1:C2;X0|B3;X0|B3;X0|B3;X0|B3;X0|A1;X0|B3;X0|B3"}
+{"utc":"2026-11-14T02:05:56.6815888Z","operation":"calculation mode =X4.PyQueued()","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-14T02:05:56.6986028Z","operation":"=X4.PyQueued()","value":42.0}
+{"utc":"2026-11-14T02:05:56.7037532Z","operation":"calculation mode =X4.PyRelease()","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-14T02:05:56.7260196Z","operation":"=X4.PyRelease()","value":2.0}
+{"utc":"2026-11-14T02:05:56.7346055Z","operation":"AutomationSecurity unchanged before teardown","value":true}
+{"utc":"2026-11-14T02:05:57.6907222Z","operation":"ExecuteExcel4Macro UNREGISTER(managed)","value":true}
+{"utc":"2026-11-14T02:05:57.6941605Z","operation":"AutomationSecurity unchanged","value":true}
+{"utc":"2026-11-14T02:05:58.5252821Z","operation":"cleanup","value":"Workbook closed; Excel returned to lane session host"}

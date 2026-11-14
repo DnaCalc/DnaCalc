@@ -140,12 +140,32 @@ public class EventSink : IProbeEvents
         dynamic sh = sheet; dynamic range = target;
         Probe.Log("AppEvents SheetChange Target", "book=" + sh.Parent.Name + ";full=" + sh.Parent.FullName +
             ";path=" + sh.Parent.Path + ";sheet=" + sh.Name +
-            ";target=" + range.Address + ";count=" + range.Count);
+            ";target=" + range.Address + ";count=" + range.Count + ";value2=" + Value2(range));
         if (Interlocked.Increment(ref _sheetChanges) == 1)
         {
             Probe.Log("AppEvents SheetChange", "sheet=" + sh.Name + ";target=" + range.Address);
         }
         else Probe.Log("AppEvents SheetChange", "received");
+    }
+    // Target.Value2 read inside the handler: a scalar, or rows x columns of a two-dimensional
+    // array, each element with its type; a failing read is its HRESULT.
+    private static string Value2(dynamic range)
+    {
+        object value;
+        try { value = range.Value2; }
+        catch (Exception e) { return "error 0x" + e.HResult.ToString("X8"); }
+        var array = value as Array;
+        if (array == null) return value == null ? "null" : value.GetType().Name + ":" + value;
+        if (array.Rank != 2) return "rank " + array.Rank;
+        var cells = new System.Collections.Generic.List<string>();
+        for (int r = array.GetLowerBound(0); r <= array.GetUpperBound(0); ++r)
+            for (int c = array.GetLowerBound(1); c <= array.GetUpperBound(1); ++c)
+            {
+                var cell = array.GetValue(r, c);
+                cells.Add(cell == null ? "null" : cell.GetType().Name + ":" + cell);
+            }
+        return array.GetLength(0) + "x" + array.GetLength(1) + "@" + array.GetLowerBound(0) + "," +
+            array.GetLowerBound(1) + ":" + string.Join(",", cells);
     }
     public void SheetCalculate(object sheet) { Probe.Log("AppEvents SheetCalculate", "sheet"); }
     public void AfterCalculate() { Probe.Log("AppEvents AfterCalculate", "called"); }

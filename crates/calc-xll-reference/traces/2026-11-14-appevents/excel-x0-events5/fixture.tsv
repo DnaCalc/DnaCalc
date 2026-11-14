@@ -1,0 +1,113 @@
+2026-11-14T02:06:12.4313625Z	6164	AutoOpen	C:\Work\DnaCalc\codex-runs\om-appevents-20261114\excel-x0-events5\X0-AddIn64.xll
+2026-11-14T02:06:12.4324834Z	6164	Runtime	v4.0.30319
+2026-11-14T02:06:12.4324834Z	6164	Integration assembly	ExcelDna.Integration, Version=1.1.0.0, Culture=neutral, PublicKeyToken=f225e9659857edbe
+2026-11-14T02:06:12.4751774Z	6164	COM Application.Version get	16.0
+2026-11-14T02:06:12.4751774Z	6164	COM Application.Hwnd get	322965752
+2026-11-14T02:06:12.5291076Z	6164	COM Workbook identity	name=Book2;full=Book2;path=;active=X0
+2026-11-14T02:06:12.5291076Z	6164	COM AppEvents Advise	1
+2026-11-14T02:06:12.5387722Z	6164	QueueAsMacro enter	startup
+2026-11-14T02:06:12.5387722Z	6164	QueueAsMacro xlfCaller rc	XlReturnSuccess
+2026-11-14T02:06:12.5548375Z	6164	QueueAsMacro xlfCaller value	ExcelError:ExcelErrorRef
+2026-11-14T02:06:12.5548375Z	6164	QueueAsMacro exit	startup
+2026-11-14T02:06:12.5879489Z	6164	AppEvents AfterCalculate	called
+2026-11-14T02:06:12.6541123Z	6164	AppEvents SheetChange Target	book=Book2;full=Book2;path=;sheet=X0;target=$A$1;count=1;value2=Double:7
+2026-11-14T02:06:12.6566980Z	6164	AppEvents SheetChange	sheet=X0;target=$A$1
+2026-11-14T02:06:12.6783803Z	6164	Hello	start
+2026-11-14T02:06:12.6783803Z	6164	AppEvents SheetCalculate	sheet
+2026-11-14T02:06:12.6783803Z	6164	AppEvents AfterCalculate	called
+2026-11-14T02:06:12.6880100Z	6164	AppEvents SheetChange Target	book=Book2;full=Book2;path=;sheet=X0;target=$B$3;count=1;value2=String:Hello, start
+2026-11-14T02:06:12.6880100Z	6164	AppEvents SheetChange	received
+2026-11-14T02:06:12.6880100Z	6164	AppEvents AfterCalculate	called
+2026-11-14T02:06:12.7049708Z	6164	AppEvents SheetChange Target	book=Book2;full=Book2;path=;sheet=X0;target=$A$1:$B$2;count=4;value2=2x2@1,1:Double:9,Double:9,Double:9,Double:9
+2026-11-14T02:06:12.7049708Z	6164	AppEvents SheetChange	received
+2026-11-14T02:06:12.7049708Z	6164	Hello	rectangle
+2026-11-14T02:06:12.7049708Z	6164	AppEvents SheetCalculate	sheet
+2026-11-14T02:06:12.7049708Z	6164	AppEvents AfterCalculate	called
+2026-11-14T02:06:12.7049708Z	6164	AppEvents SheetChange Target	book=Book2;full=Book2;path=;sheet=X0;target=$B$3;count=1;value2=String:Hello, rectangle
+2026-11-14T02:06:12.7049708Z	6164	AppEvents SheetChange	received
+2026-11-14T02:06:12.7286699Z	6164	AppEvents AfterCalculate	called
+2026-11-14T02:06:12.7292047Z	6164	AppEvents SheetChange Target	book=Book2;full=Book2;path=;sheet=X0;target=$A$1,$C$1:$C$2;count=3;value2=Double:5
+2026-11-14T02:06:12.7292047Z	6164	AppEvents SheetChange	received
+2026-11-14T02:06:12.7292047Z	6164	Hello	areas
+2026-11-14T02:06:12.7363589Z	6164	AppEvents SheetCalculate	sheet
+2026-11-14T02:06:12.7373706Z	6164	AppEvents AfterCalculate	called
+2026-11-14T02:06:12.7392548Z	6164	AppEvents SheetChange Target	book=Book2;full=Book2;path=;sheet=X0;target=$B$3;count=1;value2=String:Hello, areas
+2026-11-14T02:06:12.7392548Z	6164	AppEvents SheetChange	received
+2026-11-14T02:06:12.7550663Z	6164	Hello	off
+2026-11-14T02:06:12.7713584Z	6164	Hello	on
+2026-11-14T02:06:12.7713584Z	6164	AppEvents SheetCalculate	sheet
+2026-11-14T02:06:12.7713584Z	6164	AppEvents AfterCalculate	called
+2026-11-14T02:06:12.7713584Z	6164	AppEvents SheetChange Target	book=Book2;full=Book2;path=;sheet=X0;target=$B$3;count=1;value2=String:Hello, on
+2026-11-14T02:06:12.7713584Z	6164	AppEvents SheetChange	received
+2026-11-14T02:06:12.7881722Z	6164	AppEvents AfterCalculate	called
+2026-11-14T02:06:12.7881722Z	6164	AppEvents SheetChange Target	book=Book2;full=Book2;path=;sheet=X0;target=$A$1;count=1;value2=Double:11
+2026-11-14T02:06:12.7881722Z	6164	AppEvents SheetChange	received
+2026-11-14T02:06:12.8034452Z	6164	Hello	single
+2026-11-14T02:06:12.8050676Z	6164	AppEvents SheetCalculate	sheet
+2026-11-14T02:06:12.8050676Z	6164	AppEvents AfterCalculate	called
+2026-11-14T02:06:12.8083112Z	6164	AppEvents SheetChange Target	book=Book2;full=Book2;path=;sheet=X0;target=$B$3;count=1;value2=String:Hello, single
+2026-11-14T02:06:12.8083112Z	6164	AppEvents SheetChange	received
+2026-11-14T02:06:12.8083112Z	6164	Queue request	command
+2026-11-14T02:06:12.8213700Z	6164	Queue executed	C:\Work\DnaCalc\codex-runs\om-appevents-20261114\excel-x0-events5\X0-AddIn64.xll
+2026-11-14T02:06:12.8213700Z	6164	Context 16393	XlReturnSuccess String:C:\Work\DnaCalc\codex-runs\om-appevents-20261114\excel-x0-events5\X0-AddIn64.xll
+2026-11-14T02:06:12.8273566Z	6164	Context 16385	XlReturnSuccess Double:906577
+2026-11-14T02:06:12.8273566Z	6164	Context 89	XlReturnSuccess ExcelError:ExcelErrorRef
+2026-11-14T02:06:12.8288786Z	55204	Outside 16393	XlReturnFailed ExcelEmpty:ExcelDna.Integration.ExcelEmpty
+2026-11-14T02:06:12.8288786Z	55204	Outside 16385	XlReturnFailed ExcelEmpty:ExcelDna.Integration.ExcelEmpty
+2026-11-14T02:06:12.8288786Z	55204	Outside 89	XlReturnFailed ExcelEmpty:ExcelDna.Integration.ExcelEmpty
+2026-11-14T02:06:19.9093303Z	6164	AppEvents AfterCalculate	called
+2026-11-14T02:06:19.9360129Z	6164	AppEvents AfterCalculate	called
+2026-11-14T02:06:21.8915136Z	6164	AppEvents AfterCalculate	called
+2026-11-14T02:06:22.0239764Z	6164	AppEvents AfterCalculate	called
+2026-11-14T02:06:22.1547743Z	6164	AppEvents AfterCalculate	called
+2026-11-14T02:06:22.2926977Z	6164	AppEvents AfterCalculate	called
+2026-11-14T02:06:22.2967366Z	6164	AppEvents AfterCalculate	called
+2026-11-14T02:06:22.3053491Z	6164	AppEvents SheetChange Target	book=Book4;full=Book4;path=;sheet=X0;target=$A$1;count=1;value2=Double:7
+2026-11-14T02:06:22.3073675Z	6164	AppEvents SheetChange	received
+2026-11-14T02:06:22.3215541Z	6164	AppEvents SheetCalculate	sheet
+2026-11-14T02:06:22.3249387Z	6164	AppEvents AfterCalculate	called
+2026-11-14T02:06:22.3269553Z	6164	AppEvents SheetChange Target	book=Book4;full=Book4;path=;sheet=X0;target=$B$3;count=1;value2=Double:7
+2026-11-14T02:06:22.3269553Z	6164	AppEvents SheetChange	received
+2026-11-14T02:06:22.3561028Z	6164	AppEvents SheetCalculate	sheet
+2026-11-14T02:06:22.3561028Z	6164	AppEvents AfterCalculate	called
+2026-11-14T02:06:22.3612114Z	6164	AppEvents SheetChange Target	book=Book4;full=Book4;path=;sheet=X0;target=$B$3;count=1;value2=String:Book4|X0|1|True
+2026-11-14T02:06:22.3612114Z	6164	AppEvents SheetChange	received
+2026-11-14T02:06:22.3935061Z	6164	AppEvents SheetCalculate	sheet
+2026-11-14T02:06:22.3935061Z	6164	AppEvents AfterCalculate	called
+2026-11-14T02:06:22.3996756Z	6164	AppEvents SheetChange Target	book=Book4;full=Book4;path=;sheet=X0;target=$B$3;count=1;value2=String:X0|A1
+2026-11-14T02:06:22.4012843Z	6164	AppEvents SheetChange	received
+2026-11-14T02:06:22.4292419Z	6164	AppEvents AfterCalculate	called
+2026-11-14T02:06:22.4292419Z	6164	AppEvents SheetChange Target	book=Book4;full=Book4;path=;sheet=X0;target=$A$1;count=1;value2=Double:9
+2026-11-14T02:06:22.4292419Z	6164	AppEvents SheetChange	received
+2026-11-14T02:06:22.4390565Z	6164	AppEvents SheetCalculate	sheet
+2026-11-14T02:06:22.4390565Z	6164	AppEvents AfterCalculate	called
+2026-11-14T02:06:22.4439331Z	6164	AppEvents SheetChange Target	book=Book4;full=Book4;path=;sheet=X0;target=$B$3;count=1;value2=String:X0|A1;X0|A1
+2026-11-14T02:06:22.4439331Z	6164	AppEvents SheetChange	received
+2026-11-14T02:06:22.5080706Z	6164	AppEvents SheetCalculate	sheet
+2026-11-14T02:06:22.5080706Z	6164	AppEvents AfterCalculate	called
+2026-11-14T02:06:22.5214117Z	6164	AppEvents SheetChange Target	book=Book4;full=Book4;path=;sheet=X0;target=$A$1;count=1;value2=Double:11
+2026-11-14T02:06:22.5214117Z	6164	AppEvents SheetChange	received
+2026-11-14T02:06:22.5225453Z	6164	AppEvents SheetCalculate	sheet
+2026-11-14T02:06:22.5225453Z	6164	AppEvents AfterCalculate	called
+2026-11-14T02:06:22.5294000Z	6164	AppEvents SheetChange Target	book=Book4;full=Book4;path=;sheet=X0;target=$B$3;count=1;value2=String:X0|A1;X0|A1;X0|A1
+2026-11-14T02:06:22.5294000Z	6164	AppEvents SheetChange	received
+2026-11-14T02:06:22.5517387Z	6164	AppEvents SheetCalculate	sheet
+2026-11-14T02:06:22.5532474Z	6164	AppEvents AfterCalculate	called
+2026-11-14T02:06:22.5546732Z	6164	AppEvents SheetChange Target	book=Book4;full=Book4;path=;sheet=X0;target=$B$3;count=1;value2=Double:42
+2026-11-14T02:06:22.5546732Z	6164	AppEvents SheetChange	received
+2026-11-14T02:06:22.5756239Z	6164	AppEvents SheetCalculate	sheet
+2026-11-14T02:06:22.5807781Z	6164	AppEvents AfterCalculate	called
+2026-11-14T02:06:22.5832927Z	6164	AppEvents SheetChange Target	book=Book4;full=Book4;path=;sheet=X0;target=$B$3;count=1;value2=String:0|0|(1, 1)|X0|$A$1
+2026-11-14T02:06:22.5832927Z	6164	AppEvents SheetChange	received
+2026-11-14T02:06:22.6095693Z	6164	AppEvents SheetCalculate	sheet
+2026-11-14T02:06:22.6095693Z	6164	AppEvents AfterCalculate	called
+2026-11-14T02:06:22.6095693Z	6164	AppEvents SheetChange Target	book=Book4;full=Book4;path=;sheet=X0;target=$B$3;count=1;value2=Double:42
+2026-11-14T02:06:22.6167057Z	6164	AppEvents SheetChange	received
+2026-11-14T02:06:22.6413680Z	6164	AppEvents SheetCalculate	sheet
+2026-11-14T02:06:22.6413680Z	6164	AppEvents AfterCalculate	called
+2026-11-14T02:06:22.6451844Z	6164	AppEvents SheetChange Target	book=Book4;full=Book4;path=;sheet=X0;target=$B$3;count=1;value2=Double:20
+2026-11-14T02:06:22.6489256Z	6164	AppEvents SheetChange	received
+2026-11-14T02:06:22.6758489Z	6164	AppEvents SheetCalculate	sheet
+2026-11-14T02:06:22.6778658Z	6164	AppEvents AfterCalculate	called
+2026-11-14T02:06:22.6806556Z	6164	AppEvents SheetChange Target	book=Book4;full=Book4;path=;sheet=X0;target=$B$3;count=1;value2=Double:3
+2026-11-14T02:06:22.6806556Z	6164	AppEvents SheetChange	received

@@ -12,6 +12,8 @@ compile_error!("dna-calc-desktop is native-only");
 #[cfg(windows)]
 mod app;
 #[cfg(windows)]
+mod automation;
+#[cfg(windows)]
 mod embedded;
 #[cfg(windows)]
 mod engine;
@@ -77,6 +79,8 @@ fn run() -> Result<(), String> {
     let mut formula = "=MyAdd(1,2)".to_owned();
     let mut cases_file = None;
     let mut early_execution = Vec::new();
+    let mut commands = Vec::new();
+    let mut early_commands = Vec::new();
     let mut engine = false;
     let mut ribbon_ui = false;
     let mut sheet_name = "X1".to_owned();
@@ -107,6 +111,11 @@ fn run() -> Result<(), String> {
                 early_execution.push(args.next().ok_or("--early-execution needs a name")?)
             }
             "--engine" => engine = true,
+            // Commands run after the cases, as the Excel run's Application.Run calls.
+            "--command" => commands.push(args.next().ok_or("--command needs a name")?),
+            "--early-command" => {
+                early_commands.push(args.next().ok_or("--early-command needs a name")?)
+            }
             "--workbook" => {
                 workbook = Some(PathBuf::from(args.next().ok_or("--workbook needs a path")?))
             }
@@ -139,7 +148,7 @@ fn run() -> Result<(), String> {
             }
             "--help" => {
                 println!(
-                    "dna-calc-desktop [FILE | --open FILE] --app (--assets DIR | --url URL | a `page` folder beside the executable) [--xll PATH ...] [--trust-macros | --macros off|safe|unguarded] | --engine --xll PATH [--xll PATH ...] (PATH an .xll or a VBA .xlam) [--workbook FILE [--enable-macros | --trust-macros]] [--formula TEXT | --cases PATH] [--sheet NAME] [--workbook-name NAME] [--early-execution NAME]"
+                    "dna-calc-desktop [FILE | --open FILE] --app (--assets DIR | --url URL | a `page` folder beside the executable) [--xll PATH ...] [--trust-macros | --macros off|safe|unguarded] | --engine --xll PATH [--xll PATH ...] (PATH an .xll or a VBA .xlam) [--workbook FILE [--enable-macros | --trust-macros]] [--formula TEXT | --cases PATH] [--sheet NAME] [--workbook-name NAME] [--early-execution NAME] [--command NAME ...] [--early-command NAME ...]"
                 );
                 return Ok(());
             }
@@ -179,6 +188,26 @@ fn run() -> Result<(), String> {
             sheets: &[],
         },
     )?;
+    // The workbook and its object model exist before the add-ins load, as in Excel.
+    let (book, opened) = engine::open(
+        &sheet_name,
+        &workbook_name,
+        workbook.as_deref(),
+        enable_macros,
+        trust_macros,
+        macros_level,
+        engine::automatic_cases(cases_file.as_deref())?,
+    )?;
+    let session = std::rc::Rc::new(std::cell::RefCell::new(book));
+    let (_automation, observer) = automation::bind_automation(
+        &addins,
+        automation::SessionAccess::Session(std::rc::Rc::downgrade(&session)),
+    )?;
+    session
+        .borrow_mut()
+        .set_workbook_event_observer(Some(observer));
+    addins.bind_sheet(opened.sheet, &opened.sheet_name);
+    addins.set_active_sheet(&opened.sheet_name)?;
     for xll in &xlls {
         for note in load_addin(&mut addins, xll)? {
             eprintln!("dna-calc-desktop: {}: {note}", xll.display());
@@ -188,10 +217,17 @@ fn run() -> Result<(), String> {
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
         while !path.is_file() {
             if std::time::Instant::now() > deadline {
-                return Err("add-in startup event acknowledgment expired".into());
+                // Said before the add-ins are torn down, which a failed start can crash.
+                let why = format!(
+                    "add-in startup event acknowledgment expired (session event failures {:?})",
+                    session.borrow().workbook_event_failures()
+                );
+                eprintln!("dna-calc-desktop: {why}");
+                return Err(why);
             }
             shell.pump_for(std::time::Duration::from_millis(10));
-            addins.after_calculate()?;
+            // As the Excel run calls Calculate: AfterCalculate comes from the session.
+            engine::calculate_now(&shell, &session)?;
         }
     }
     let early_execution = early_execution
@@ -210,15 +246,14 @@ fn run() -> Result<(), String> {
     let mut output = engine::run(
         &shell,
         &mut addins,
-        &sheet_name,
+        &session,
+        opened,
         &workbook_name,
         cases_file,
         formula,
         &early_execution,
-        workbook.as_deref(),
-        enable_macros,
-        trust_macros,
-        macros_level,
+        &commands,
+        &early_commands,
     )?;
     output["ribbons"] = serde_json::json!(ribbons);
     addins.close_addins()?;
