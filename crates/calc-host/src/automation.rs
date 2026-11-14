@@ -101,8 +101,6 @@ pub struct WorkbookAutomation {
     /// Tracker identities are interned. Every acquired wrapper owns one reference; views own
     /// their own acquisition too. The model drops its lease when the projection releases it.
     ranges: RefCell<HashMap<StoredReference, RangeLeases>>,
-    /// Chart frames made by `ChartObjects.Add` that wait for their source data (dc-piw0.2).
-    pending_charts: RefCell<Vec<report::PendingChart>>,
 }
 
 struct RangeLeases {
@@ -200,7 +198,6 @@ impl WorkbookAutomation {
             snapshot: RefCell::new(None),
             next_workbook: Cell::new(1),
             ranges: RefCell::default(),
-            pending_charts: RefCell::default(),
         }
     }
     pub fn handlers(&self) -> &Handlers<Self> {

@@ -75,10 +75,16 @@ pub enum ReportItem {
     ListColumn(String, u32),
     ListRows(String),
     ChartObjects,
-    /// A chart frame, by chart part or pending token.
+    /// A chart frame, by chart part.
     ChartObject(String),
     Chart(String),
     ChartTitle(String),
+    /// The series of a chart, by chart part.
+    SeriesCollection(String),
+    /// One series of a chart (chart part, zero-based place across the plots).
+    Series(String, u32),
+    /// A chart as a member of `Shapes` (`Shapes.AddChart2`, `Shapes(n)`), by chart part.
+    ChartShape(String),
     Shapes,
     Shape(u32),
     TextFrame2(u32),

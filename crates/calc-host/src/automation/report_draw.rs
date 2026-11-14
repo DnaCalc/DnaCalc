@@ -2,7 +2,7 @@
 //! `Shapes`, `Shape` and the Office members reached from a shape. See `report.rs` for the rules
 //! (descriptor-registered handlers, command context writes, uniform refusals).
 
-use super::report::{PendingChart, report, text_arg};
+use super::report::{report, text_arg};
 use super::*;
 use crate::{Points, ShapeChange, WorkbookCommand};
 use calc_doc_model::{ChartAnchor, Shape, ShapeColour, ShapeFill, ShapeKind, ShapeLine};
@@ -57,35 +57,20 @@ fn colour_to_rgb(hex: u32) -> i64 {
 impl WorkbookAutomation {
     // --- charts ---------------------------------------------------------------------------------
 
+    /// The chart part a chart-valued report object denotes.
     fn chart_token(target: &ObjectRef) -> Result<String, AutoError> {
         match &target.key {
             ObjectKey::Report {
                 item:
-                    ReportItem::ChartObject(token)
-                    | ReportItem::Chart(token)
-                    | ReportItem::ChartTitle(token),
+                    ReportItem::ChartObject(part)
+                    | ReportItem::Chart(part)
+                    | ReportItem::ChartTitle(part)
+                    | ReportItem::ChartShape(part)
+                    | ReportItem::SeriesCollection(part)
+                    | ReportItem::Series(part, _),
                 ..
-            } => Ok(token.clone()),
+            } => Ok(part.clone()),
             _ => Err(geometry::type_mismatch()),
-        }
-    }
-
-    /// The chart a token denotes: its part when real, else the index of its pending frame. A pending
-    /// frame whose source data was set resolves to the chart it made.
-    fn resolve_chart(&self, token: &str) -> Result<ChartRef, AutoError> {
-        match token.strip_prefix("pending:") {
-            Some(n) => {
-                let index: usize = n.parse().map_err(|_| geometry::type_mismatch())?;
-                let pending = self.pending_charts.borrow();
-                let frame = pending
-                    .get(index)
-                    .ok_or_else(|| AutoError::excel(424, "Object required"))?;
-                Ok(match &frame.part {
-                    Some(part) => ChartRef::Real(part.clone()),
-                    None => ChartRef::Pending(index),
-                })
-            }
-            None => Ok(ChartRef::Real(token.to_owned())),
         }
     }
 
@@ -93,77 +78,73 @@ impl WorkbookAutomation {
         session.host().model().definitions().charts(sheet).to_vec()
     }
 
-    pub(super) fn chart_objects_count(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        no_args(call)?;
-        let waiting = self
-            .pending_charts
-            .borrow()
-            .iter()
-            .filter(|p| p.part.is_none())
-            .count();
-        let (_, sheet, _) = Self::report_key(target)?;
-        self.read_host(target, |s, _, _| {
-            Ok(AutoValue::I4(
-                (Self::charts_of(s, sheet).len() + waiting) as i32,
-            ))
+    /// A read of the chart the object denotes; a chart that is gone is Excel's "Object required".
+    fn real_chart<T>(
+        &self,
+        target: &ObjectRef,
+        read: impl Fn(&calc_doc_model::Chart) -> T,
+    ) -> Result<T, AutoError> {
+        let part = Self::chart_token(target)?;
+        self.read_host(target, |s, sheet, _| {
+            Self::charts_of(s, sheet)
+                .iter()
+                .find(|c| c.part == part)
+                .map(&read)
+                .ok_or_else(|| AutoError::excel(424, "Object required"))
         })
     }
+
+    pub(super) fn chart_objects_count(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        self.read_host(target, |s, sheet, _| {
+            Ok(AutoValue::I4(Self::charts_of(s, sheet).len() as i32))
+        })
+    }
+    /// `ChartObjects(Index)` by place or name. Excel's errors (dc-piw0 Q3): an index out of range
+    /// is 1004, a name that is not there -2147024809.
     pub(super) fn chart_objects_item(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         if call.args.len() != 1 {
             return Err(geometry::bad_count());
         }
         let (workbook, _, _) = Self::report_key(target)?;
-        let waiting: Vec<usize> = self
-            .pending_charts
-            .borrow()
-            .iter()
-            .enumerate()
-            .filter(|(_, p)| p.part.is_none())
-            .map(|(i, _)| i)
-            .collect();
         self.read_host(target, |s, sheet, _| {
             let charts = Self::charts_of(s, sheet);
-            let by_name = |name: &str| -> Option<String> {
-                charts
+            let found = match call.arg(0) {
+                AutoValue::Text(name) => charts
                     .iter()
-                    .find(|c| c.name.eq_ignore_ascii_case(name))
-                    .map(|c| c.part.clone())
-                    .or_else(|| {
-                        let pending = self.pending_charts.borrow();
-                        waiting
-                            .iter()
-                            .find(|&&i| {
-                                pending[i]
-                                    .name
-                                    .as_deref()
-                                    .is_some_and(|n| n.eq_ignore_ascii_case(name))
-                            })
-                            .map(|i| format!("pending:{i}"))
-                    })
+                    .find(|c| c.name.eq_ignore_ascii_case(&name.to_string_lossy()))
+                    .ok_or_else(|| {
+                        AutoError::excel(
+                            -2147024809,
+                            "The item with the specified name wasn't found.",
+                        )
+                    })?,
+                other => usize::try_from(geometry::integer(other)? - 1)
+                    .ok()
+                    .and_then(|n| charts.get(n))
+                    .ok_or_else(|| {
+                        AutoError::excel(1004, "Application-defined or object-defined error")
+                    })?,
             };
-            let token = match call.arg(0) {
-                AutoValue::Text(name) => by_name(&name.to_string_lossy()),
-                other => {
-                    let n = usize::try_from(geometry::integer(other)? - 1).ok();
-                    n.and_then(|n| {
-                        charts.get(n).map(|c| c.part.clone()).or_else(|| {
-                            waiting
-                                .get(n - charts.len().min(n))
-                                .map(|i| format!("pending:{i}"))
-                        })
-                    })
-                }
-            }
-            .ok_or_else(|| AutoError::excel(9, "Subscript out of range"))?;
             Ok(report(
                 workbook,
                 sheet,
                 "ChartObject",
-                ReportItem::ChartObject(token),
+                ReportItem::ChartObject(found.part.clone()),
             ))
         })
     }
-    /// `ChartObjects.Add(Left, Top, Width, Height)`: a frame that waits for `SetSourceData`.
+    /// The chart made last on the sheet: the one a creating command just added.
+    fn newest_chart(&self, target: &ObjectRef) -> Result<String, AutoError> {
+        self.read_host(target, |s, sheet, _| {
+            Self::charts_of(s, sheet)
+                .last()
+                .map(|c| c.part.clone())
+                .ok_or_else(|| AutoError::excel(1004, ""))
+        })
+    }
+    /// `ChartObjects.Add(Left, Top, Width, Height)`: a chart without data, saved as Excel saves an
+    /// empty chart (a column chart with its legend, no title).
     pub(super) fn chart_objects_add(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         if call.args.len() != 4 {
             return Err(geometry::bad_count());
@@ -173,39 +154,22 @@ impl WorkbookAutomation {
         for (i, slot) in place.iter_mut().enumerate() {
             *slot = number(call.arg(i))?;
         }
-        self.with_target(target, |_, _| Ok(AutoValue::Empty))?;
-        let mut pending = self.pending_charts.borrow_mut();
-        pending.push(PendingChart {
-            place,
-            ..Default::default()
-        });
-        Ok(report(
-            workbook,
-            sheet,
-            "ChartObject",
-            ReportItem::ChartObject(format!("pending:{}", pending.len() - 1)),
-        ))
+        self.command(call, |s| {
+            Ok(WorkbookCommand::ChartCreateEmpty {
+                sheet,
+                revision: s.host().revision().get(),
+                kind: "column".into(),
+                place: place.map(Points::new),
+                title: None,
+                legend: true,
+            })
+        })?;
+        let part = self.newest_chart(target)?;
+        Ok(report(workbook, sheet, "ChartObject", ReportItem::ChartObject(part)))
     }
     pub(super) fn chart_object_name(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         no_args(call)?;
-        let token = Self::chart_token(target)?;
-        match self.resolve_chart(&token)? {
-            ChartRef::Pending(i) => {
-                // Excel's default name is unmeasured (excel-questions.md Q1): "Chart " + the
-                // number of the object on the sheet.
-                let name = self.pending_charts.borrow()[i].name.clone();
-                Ok(AutoValue::text(
-                    &name.unwrap_or_else(|| format!("Chart {}", i + 1)),
-                ))
-            }
-            ChartRef::Real(part) => self.read_host(target, |s, sheet, _| {
-                Self::charts_of(s, sheet)
-                    .into_iter()
-                    .find(|c| c.part == part)
-                    .map(|c| AutoValue::text(&c.name))
-                    .ok_or_else(|| AutoError::excel(424, "Object required"))
-            }),
-        }
+        Ok(AutoValue::text(&self.real_chart(target, |c| c.name.clone())?))
     }
     pub(super) fn chart_object_put_name(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         let name = text_arg(call.args.last().ok_or_else(geometry::bad_count)?)?;
@@ -218,37 +182,21 @@ impl WorkbookAutomation {
         name: Option<String>,
         side: Option<(Side, f64)>,
     ) -> Reply {
-        let token = Self::chart_token(target)?;
+        let part = Self::chart_token(target)?;
         let (_, sheet, _) = Self::report_key(target)?;
-        match self.resolve_chart(&token)? {
-            ChartRef::Pending(i) => {
-                let mut pending = self.pending_charts.borrow_mut();
-                if let Some(name) = name {
-                    pending[i].name = Some(name);
-                }
-                if let Some((side, value)) = side {
-                    pending[i].place[side as usize] = value;
-                }
-                Ok(AutoValue::Empty)
+        self.command(call, |s| {
+            let mut rect = Self::chart_rectangle(s, sheet, &part)?;
+            if let Some((side, value)) = side {
+                rect[side as usize] = value;
             }
-            ChartRef::Real(part) => {
-                let place = side.map(|(side, value)| (side, value));
-                self.command(call, |s| {
-                    let current = Self::chart_rectangle(s, sheet, &part)?;
-                    let mut rect = current;
-                    if let Some((side, value)) = place {
-                        rect[side as usize] = value;
-                    }
-                    Ok(WorkbookCommand::ChartFrame {
-                        sheet,
-                        revision: s.host().revision().get(),
-                        part: part.clone(),
-                        name: name.clone(),
-                        place: place.map(|_| rect.map(Points::new)),
-                    })
-                })
-            }
-        }
+            Ok(WorkbookCommand::ChartFrame {
+                sheet,
+                revision: s.host().revision().get(),
+                part: part.clone(),
+                name: name.clone(),
+                place: side.map(|_| rect.map(Points::new)),
+            })
+        })
     }
     /// A chart's rectangle in points (left, top, width, height) from its anchor.
     fn chart_rectangle(
@@ -302,19 +250,16 @@ impl WorkbookAutomation {
             ],
         })
     }
+    /// `ChartObject.Left` and the others are Doubles holding a Single (dc-piw0 Q2: 50.7 reads
+    /// back 50.7000007629395).
     fn chart_side(&self, target: &ObjectRef, call: &Call<'_>, side: Side) -> Reply {
         no_args(call)?;
-        let token = Self::chart_token(target)?;
-        match self.resolve_chart(&token)? {
-            ChartRef::Pending(i) => {
-                Ok(single(self.pending_charts.borrow()[i].place[side as usize]))
-            }
-            ChartRef::Real(part) => self.read_host(target, |s, sheet, _| {
-                Ok(single(
-                    Self::chart_rectangle(s, sheet, &part)?[side as usize],
-                ))
-            }),
-        }
+        let part = Self::chart_token(target)?;
+        self.read_host(target, |s, sheet, _| {
+            Ok(AutoValue::R8(f64::from(
+                Self::chart_rectangle(s, sheet, &part)?[side as usize] as f32,
+            )))
+        })
     }
     fn chart_put_side(&self, target: &ObjectRef, call: &Call<'_>, side: Side) -> Reply {
         let value = number(call.args.last().ok_or_else(geometry::bad_count)?)?;
@@ -346,45 +291,13 @@ impl WorkbookAutomation {
     }
     pub(super) fn chart_object_chart(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         no_args(call)?;
-        let token = Self::chart_token(target)?;
+        let part = Self::chart_token(target)?;
         let (workbook, sheet, _) = Self::report_key(target)?;
-        Ok(report(workbook, sheet, "Chart", ReportItem::Chart(token)))
+        Ok(report(workbook, sheet, "Chart", ReportItem::Chart(part)))
     }
 
-    fn real_chart<T>(
-        &self,
-        target: &ObjectRef,
-        read: impl Fn(&calc_doc_model::Chart) -> T,
-    ) -> Result<Option<T>, AutoError> {
-        let token = Self::chart_token(target)?;
-        match self.resolve_chart(&token)? {
-            ChartRef::Pending(_) => Ok(None),
-            ChartRef::Real(part) => self
-                .read_host(target, |s, sheet, _| {
-                    Self::charts_of(s, sheet)
-                        .iter()
-                        .find(|c| c.part == part)
-                        .map(&read)
-                        .ok_or_else(|| AutoError::excel(424, "Object required"))
-                })
-                .map(Some),
-        }
-    }
-    fn pending_of(&self, target: &ObjectRef) -> Result<Option<usize>, AutoError> {
-        match self.resolve_chart(&Self::chart_token(target)?)? {
-            ChartRef::Pending(i) => Ok(Some(i)),
-            ChartRef::Real(_) => Ok(None),
-        }
-    }
     pub(super) fn chart_type(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         no_args(call)?;
-        if let Some(i) = self.pending_of(target)? {
-            // An empty chart's type is unmeasured (Q6); a macro that never set one has the
-            // column default.
-            return Ok(AutoValue::I4(
-                self.pending_charts.borrow()[i].kind.unwrap_or(51) as i32,
-            ));
-        }
         let kind = self
             .real_chart(target, |c| {
                 let plot = c.plots.first()?;
@@ -406,22 +319,22 @@ impl WorkbookAutomation {
                     },
                 )
             })?
-            .flatten()
             .filter(|k| *k != 0)
             .ok_or_else(|| AutoError::not_modelled("Chart.ChartType of this chart", CHARTS))?;
         Ok(AutoValue::I4(kind))
     }
     pub(super) fn chart_put_type(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         let xl = geometry::integer(call.args.last().ok_or_else(geometry::bad_count)?)?;
-        let (kind, stacked) = chart_kind(xl)?;
-        if let Some(i) = self.pending_of(target)? {
-            self.pending_charts.borrow_mut()[i].kind = Some(xl);
-            return Ok(AutoValue::Empty);
+        // Excel: a value that is no XlChartType fails the member and leaves the type (Q3).
+        if !is_xl_chart_type(xl) {
+            return Err(AutoError::excel(
+                -2147467259,
+                "Method 'ChartType' of object '_Chart' failed",
+            ));
         }
+        let (kind, stacked) = chart_kind(xl)?;
         let (_, sheet, _) = Self::report_key(target)?;
-        let ChartRef::Real(part) = self.resolve_chart(&Self::chart_token(target)?)? else {
-            return Err(geometry::type_mismatch());
-        };
+        let part = Self::chart_token(target)?;
         self.command(call, |s| {
             Ok(WorkbookCommand::ChartType {
                 sheet,
@@ -433,33 +346,24 @@ impl WorkbookAutomation {
             })
         })
     }
+    /// Whether the chart shows a title: one it holds, or the automatic title of a chart with a
+    /// single series that has not had its title removed.
+    fn shows_title(c: &calc_doc_model::Chart) -> bool {
+        c.title.is_some()
+            || c.title_formula.is_some()
+            || !c.auto_title_deleted && c.plots.iter().map(|p| p.series.len()).sum::<usize>() == 1
+    }
     pub(super) fn chart_has_title(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         no_args(call)?;
-        if let Some(i) = self.pending_of(target)? {
-            return Ok(AutoValue::Bool(
-                self.pending_charts.borrow()[i].has_title.unwrap_or(false),
-            ));
-        }
-        let title = self.real_chart(target, |c| c.title.is_some())?;
-        Ok(AutoValue::Bool(title.unwrap_or(false)))
+        Ok(AutoValue::Bool(self.real_chart(target, Self::shows_title)?))
     }
     pub(super) fn chart_put_has_title(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         let on = geometry::boolean(call.args.last().ok_or_else(geometry::bad_count)?)?;
-        if let Some(i) = self.pending_of(target)? {
-            let mut pending = self.pending_charts.borrow_mut();
-            pending[i].has_title = Some(on);
-            if !on {
-                pending[i].title = None;
-            }
+        if on == self.real_chart(target, Self::shows_title)? {
             return Ok(AutoValue::Empty);
         }
-        // Switching a title on needs its text: Excel shows "Chart Title"; the title text is set
-        // by ChartTitle.Text, which this member leaves to that (a macro sets both).
-        let title = if on {
-            Some("Chart Title".to_owned())
-        } else {
-            None
-        };
+        // Switching a title on shows "Chart Title" until ChartTitle.Text sets another.
+        let title = on.then(|| "Chart Title".to_owned());
         self.chart_properties(target, call, Some(title), None)
     }
     fn chart_properties(
@@ -470,9 +374,7 @@ impl WorkbookAutomation {
         legend: Option<bool>,
     ) -> Reply {
         let (_, sheet, _) = Self::report_key(target)?;
-        let ChartRef::Real(part) = self.resolve_chart(&Self::chart_token(target)?)? else {
-            return Err(geometry::type_mismatch());
-        };
+        let part = Self::chart_token(target)?;
         self.command(call, |s| {
             Ok(WorkbookCommand::ChartProperties {
                 sheet,
@@ -486,152 +388,282 @@ impl WorkbookAutomation {
     }
     pub(super) fn chart_title(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         no_args(call)?;
-        let token = Self::chart_token(target)?;
+        let part = Self::chart_token(target)?;
         let (workbook, sheet, _) = Self::report_key(target)?;
         Ok(report(
             workbook,
             sheet,
             "ChartTitle",
-            ReportItem::ChartTitle(token),
+            ReportItem::ChartTitle(part),
         ))
     }
     pub(super) fn chart_has_legend(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         no_args(call)?;
-        if let Some(i) = self.pending_of(target)? {
-            return Ok(AutoValue::Bool(
-                self.pending_charts.borrow()[i].has_legend.unwrap_or(false),
-            ));
-        }
-        Ok(AutoValue::Bool(
-            self.real_chart(target, |c| c.legend.is_some())?
-                .unwrap_or(false),
-        ))
+        Ok(AutoValue::Bool(self.real_chart(target, |c| c.legend.is_some())?))
     }
     pub(super) fn chart_put_has_legend(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         let on = geometry::boolean(call.args.last().ok_or_else(geometry::bad_count)?)?;
-        if let Some(i) = self.pending_of(target)? {
-            self.pending_charts.borrow_mut()[i].has_legend = Some(on);
-            return Ok(AutoValue::Empty);
-        }
         self.chart_properties(target, call, None, Some(on))
+    }
+    /// Excel: a chart without a title has no `ChartTitle` to read or write (dc-piw0 Q3).
+    fn no_title() -> AutoError {
+        AutoError::excel(-2147024809, "This object has no title.")
     }
     pub(super) fn chart_title_text(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         no_args(call)?;
-        if let Some(i) = self.pending_of(target)? {
-            let title = self.pending_charts.borrow()[i].title.clone();
-            return title
-                .map(|t| AutoValue::text(&t))
-                .ok_or_else(|| AutoError::excel(1004, ""));
-        }
-        self.real_chart(target, |c| c.title.clone())?
-            .flatten()
-            .map(|t| AutoValue::text(&t))
-            .ok_or_else(|| AutoError::excel(1004, ""))
+        let (_, sheet, _) = Self::report_key(target)?;
+        let chart = self.real_chart(target, |c| c.clone())?;
+        // The automatic title of a one-series chart is the series' name.
+        let text = match chart.title.clone() {
+            Some(title) => Some(title),
+            None if Self::shows_title(&chart) => {
+                let series = chart.plots.iter().flat_map(|p| p.series.first()).next();
+                Some(match series {
+                    Some(series) => self.read_host(target, |s, _, _| {
+                        Ok(s.host().series_display_name(sheet, series, 0))
+                    })?,
+                    None => "Chart Title".to_owned(),
+                })
+            }
+            None => None,
+        };
+        text.map(|t| AutoValue::text(&t)).ok_or_else(Self::no_title)
     }
     pub(super) fn chart_title_put_text(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         let text = text_arg(call.args.last().ok_or_else(geometry::bad_count)?)?;
-        if let Some(i) = self.pending_of(target)? {
-            let mut pending = self.pending_charts.borrow_mut();
-            pending[i].title = Some(text);
-            pending[i].has_title = Some(true);
-            return Ok(AutoValue::Empty);
+        if !self.real_chart(target, Self::shows_title)? {
+            return Err(Self::no_title());
+        }
+        if text.chars().count() > 255 {
+            return Err(AutoError::excel(
+                -2147467259,
+                "Method 'Text' of object 'ChartTitle' failed",
+            ));
         }
         self.chart_properties(target, call, Some(Some(text)), None)
     }
-    /// `Chart.SetSourceData(Source, PlotBy)` on a frame made by `ChartObjects.Add`: creates the
-    /// chart over the range (series in rows when PlotBy is xlRows, else the shorter side of the
-    /// range), then applies the name, place, title and legend held so far. A chart that already
-    /// has data refuses (dc-piw0.2: the series commands exist, the member does not use them yet).
+    /// `Chart.SetSourceData(Source, PlotBy)`: the chart's series become those of the range, in
+    /// rows when PlotBy is xlRows (1) and in columns when xlColumns (2). Without PlotBy Excel
+    /// plots along the shorter side of the data (rows when equal), a table's range by columns
+    /// (dc-piw0 Q6). The source's text first row and first column are series names and
+    /// categories (`source_layout`). A source with no data leaves the chart without series.
     pub(super) fn chart_set_source(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        let Some(i) = self.pending_of(target)? else {
-            return Err(AutoError::not_modelled(
-                "Chart.SetSourceData on a chart that has data",
-                CHARTS,
-            ));
-        };
+        let part = Self::chart_token(target)?;
         let (_, sheet, _) = Self::report_key(target)?;
+        let failed = || {
+            AutoError::excel(
+                -2147417848,
+                "Method 'SetSourceData' of object '_Chart' failed",
+            )
+        };
+        if !matches!(call.arg(0), AutoValue::Object(_)) {
+            return Err(failed());
+        }
         let range = self.source_range(target, call.arg(0), sheet)?;
         if range.area_count() != 1 {
             return Err(AutoError::excel(1004, ""));
         }
         let area = range.areas()[0];
-        let frame = self.pending_charts.borrow()[i].clone();
-        let (kind, _) = chart_kind(frame.kind.unwrap_or(51))?;
-        let rows = match call.arg(1) {
-            AutoValue::Missing => area.row_count() < area.column_count(),
-            other => geometry::integer(other)? == 1,
+        let explicit = match call.arg(1) {
+            AutoValue::Missing => None,
+            other => Some(geometry::integer(other)? == 1),
         };
-        let mut made = None;
         self.command(call, |s| {
-            let (headers, categories) = Self::source_layout(s, area, rows);
-            let revision = s.host().revision().get();
-            made = Some((headers, categories));
-            Ok(WorkbookCommand::ChartCreate {
-                revision,
-                area,
-                kind: kind.into(),
-                rows,
-                headers,
-                categories,
-            })
-        })?;
-        let _ = made;
-        let part = self.read_host(target, |s, sheet, _| {
-            Self::charts_of(s, sheet)
-                .last()
-                .map(|c| AutoValue::text(&c.part))
-                .ok_or_else(|| AutoError::excel(1004, ""))
-        })?;
-        let part = part.as_text().ok_or_else(busy)?;
-        let place = frame.place.map(Points::new);
-        self.command(call, |s| {
-            Ok(WorkbookCommand::ChartFrame {
+            let layout = Self::source_layout(s, area, explicit);
+            Ok(WorkbookCommand::ChartSource {
                 sheet,
                 revision: s.host().revision().get(),
                 part: part.clone(),
-                name: frame.name.clone(),
-                place: Some(place),
+                area,
+                rows: layout.rows,
+                headers: layout.headers,
+                categories: layout.categories,
             })
-        })?;
-        if frame.has_title.is_some() || frame.title.is_some() || frame.has_legend.is_some() {
-            self.command(call, |s| {
-                Ok(WorkbookCommand::ChartProperties {
-                    sheet,
-                    revision: s.host().revision().get(),
-                    part: part.clone(),
-                    set_title: frame.has_title.is_some() || frame.title.is_some(),
-                    title: frame.title.clone(),
-                    legend: frame.has_legend,
-                })
-            })?;
-        }
-        self.pending_charts.borrow_mut()[i].part = Some(part);
-        Ok(AutoValue::Empty)
+        })
     }
-    /// Whether the first series-name row (or column) and the category column (or row) of `area`
-    /// are text, as Excel reads a source: a text corner row/column is headers/categories.
-    fn source_layout(session: &HostSession, area: GridArea, rows: bool) -> (bool, bool) {
+    /// How Excel reads a source range (dc-piw0 Q6). The first row is a label row when its cells
+    /// (less a first cell the label column covers) are all text, the first column a label column
+    /// when its cells (less the corner) are all text; the data is what is left. Series run along
+    /// rows when the data has no more rows than columns; the label row then holds the categories
+    /// and the label column the series names, the other way round for series in columns. A range
+    /// that is exactly a table is plotted in columns.
+    fn source_layout(session: &HostSession, area: GridArea, explicit: Option<bool>) -> SourceLayout {
         let model = session.host().model();
-        let is_text = |major: u32, minor: u32| {
-            let at = CellKey::new(
-                area.sheet(),
-                area.first().row() + if rows { minor } else { major },
-                area.first().column() + if rows { major } else { minor },
-            );
-            matches!(
-                at.ok().and_then(|at| model.cell(at)),
-                Some(crate::CellInput::Text(_))
-            )
+        let text_at = |row: u32, column: u32| {
+            CellKey::new(area.sheet(), area.first().row() + row, area.first().column() + column)
+                .ok()
+                .and_then(|at| model.cell(at))
+                .is_some_and(|c| matches!(c, crate::CellInput::Text(_)))
         };
-        let (length, width) = if rows {
-            (area.column_count(), area.row_count())
+        let (rows, columns) = (area.row_count(), area.column_count());
+        let first_row_text = |skip: u32| columns > skip && (skip..columns).all(|c| text_at(0, c));
+        let first_column_text = |skip: u32| rows > skip && (skip..rows).all(|r| text_at(r, 0));
+        // The corner counts with the row or column that is not a label of the other kind.
+        let label_row = rows > 1 && first_row_text(1);
+        let label_column = columns > 1 && first_column_text(1);
+        let (label_row, label_column) = match (label_row, label_column) {
+            // Both candidates need the other to leave the corner out; a label row whose corner is
+            // text but whose column is numeric is still a label row when the corner is text.
+            (true, true) => (true, true),
+            (true, false) => (rows > 1 && first_row_text(0), false),
+            (false, true) => (false, columns > 1 && first_column_text(0)),
+            (false, false) => (false, false),
+        };
+        let data_rows = rows - u32::from(label_row);
+        let data_columns = columns - u32::from(label_column);
+        let is_table = session
+            .host()
+            .model()
+            .definitions()
+            .tables()
+            .iter()
+            .any(|t| t.sheet == area.sheet() && t.area == area);
+        let by_rows = explicit.unwrap_or(!is_table && data_rows <= data_columns);
+        // Series in rows: names in the label column, categories in the label row.
+        let (headers, categories) = if by_rows {
+            (label_column, label_row)
         } else {
-            (area.row_count(), area.column_count())
+            (label_row, label_column)
         };
-        let categories = width > 1 && (1..length).all(|m| is_text(m, 0));
-        let first = u32::from(categories);
-        let headers = length > 1 && (first..width).all(|n| is_text(0, n));
-        (headers, categories)
+        SourceLayout {
+            rows: by_rows,
+            headers,
+            categories,
+        }
+    }
+
+    // --- series ---------------------------------------------------------------------------------
+
+    pub(super) fn chart_series_collection(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        let part = Self::chart_token(target)?;
+        let (workbook, sheet, _) = Self::report_key(target)?;
+        self.real_chart(target, |_| ())?;
+        let collection = report(
+            workbook,
+            sheet,
+            "SeriesCollection",
+            ReportItem::SeriesCollection(part),
+        );
+        if call.arg(0).is_missing() {
+            return Ok(collection);
+        }
+        let AutoValue::Object(collection) = collection else {
+            return Err(geometry::type_mismatch());
+        };
+        self.series_item(&collection, call)
+    }
+    fn series_of(
+        &self,
+        target: &ObjectRef,
+    ) -> Result<Vec<calc_doc_model::ChartSeries>, AutoError> {
+        self.real_chart(target, |c| {
+            c.plots.iter().flat_map(|p| p.series.clone()).collect()
+        })
+    }
+    pub(super) fn series_count(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        Ok(AutoValue::I4(self.series_of(target)?.len() as i32))
+    }
+    /// `SeriesCollection(Index or Name)`: out of range is 1004 "Parameter not valid" (Q3).
+    pub(super) fn series_item(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        if call.args.len() != 1 {
+            return Err(geometry::bad_count());
+        }
+        let part = Self::chart_token(target)?;
+        let (workbook, sheet, _) = Self::report_key(target)?;
+        let series = self.series_of(target)?;
+        let place = match call.arg(0) {
+            AutoValue::Text(name) => {
+                let name = name.to_string_lossy();
+                self.read_host(target, |s, _, _| {
+                    Ok(series
+                        .iter()
+                        .enumerate()
+                        .position(|(i, x)| s.host().series_display_name(sheet, x, i) == name))
+                })?
+            }
+            other => usize::try_from(geometry::integer(other)? - 1).ok().filter(|n| *n < series.len()),
+        }
+        .ok_or_else(|| AutoError::excel(1004, "Parameter not valid"))?;
+        Ok(report(
+            workbook,
+            sheet,
+            "Series",
+            ReportItem::Series(part, place as u32),
+        ))
+    }
+    /// A sheet name as Excel writes it in a formula: quoted only when it has to be.
+    fn excel_reference(canonical: &str) -> String {
+        let Some(rest) = canonical.strip_prefix('\'') else {
+            return canonical.to_owned();
+        };
+        let Some(end) = rest.find("'!") else {
+            return canonical.to_owned();
+        };
+        let (name, tail) = rest.split_at(end);
+        let word = name
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '_' || c == '.')
+            && name.chars().next().is_some_and(|c| c.is_alphabetic() || c == '_');
+        let letters = name.chars().take_while(char::is_ascii_alphabetic).count();
+        let cell_like = (1..=3).contains(&letters)
+            && letters < name.len()
+            && name[letters..].chars().all(|c| c.is_ascii_digit());
+        let r1c1 = name
+            .strip_prefix(['R', 'r'])
+            .is_some_and(|r| r.chars().all(|c| c.is_ascii_digit() || matches!(c, 'C' | 'c')));
+        if word && !cell_like && !r1c1 && !name.contains("''") {
+            format!("{name}{}", &tail[1..])
+        } else {
+            canonical.to_owned()
+        }
+    }
+    fn series_at(&self, target: &ObjectRef) -> Result<(usize, calc_doc_model::ChartSeries), AutoError> {
+        let ObjectKey::Report {
+            item: ReportItem::Series(_, place),
+            ..
+        } = &target.key
+        else {
+            return Err(geometry::type_mismatch());
+        };
+        let place = *place as usize;
+        self.series_of(target)?
+            .into_iter()
+            .nth(place)
+            .map(|s| (place, s))
+            .ok_or_else(|| AutoError::excel(424, "Object required"))
+    }
+    pub(super) fn series_name_get(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        let (place, series) = self.series_at(target)?;
+        let (_, sheet, _) = Self::report_key(target)?;
+        let name = self.read_host(target, |s, _, _| {
+            Ok(s.host().series_display_name(sheet, &series, place))
+        })?;
+        Ok(AutoValue::text(&name))
+    }
+    /// `=SERIES(name, categories, values, order)` over the references the series holds.
+    pub(super) fn series_formula(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        let (place, series) = self.series_at(target)?;
+        let part = |d: &Option<calc_doc_model::ChartData>| {
+            d.as_ref()
+                .and_then(|d| d.formula.as_deref())
+                .map(Self::excel_reference)
+                .unwrap_or_default()
+        };
+        Ok(AutoValue::text(&format!(
+            "=SERIES({},{},{},{})",
+            part(&series.name),
+            part(&series.categories),
+            part(&series.values),
+            place + 1
+        )))
+    }
+    pub(super) fn series_plot_order(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        let (place, _) = self.series_at(target)?;
+        Ok(AutoValue::I4(place as i32 + 1))
     }
 
     // --- shapes ---------------------------------------------------------------------------------
@@ -671,8 +703,7 @@ impl WorkbookAutomation {
             })
         })
     }
-    /// Excel's Shapes collection holds charts too, so Count counts them; items that are chart
-    /// frames refuse (dc-piw0.2).
+    /// Excel's Shapes collection holds charts too, so Count counts them.
     pub(super) fn shapes_count(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         no_args(call)?;
         self.read_host(target, |s, sheet, _| {
@@ -682,34 +713,160 @@ impl WorkbookAutomation {
             ))
         })
     }
+    /// `Shapes(Index or Name)`: the sheet's charts, then its other objects. Excel's errors
+    /// (dc-piw0 Q3): both a name and an index that are not there are -2147024809, with different
+    /// descriptions.
     pub(super) fn shapes_item(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         if call.args.len() != 1 {
             return Err(geometry::bad_count());
         }
         let (workbook, _, _) = Self::report_key(target)?;
         self.read_host(target, |s, sheet, _| {
+            let charts = s.host().model().definitions().charts(sheet);
             let shapes = s.host().shapes(sheet);
-            let shape = match call.arg(0) {
-                AutoValue::Text(name) => shapes
-                    .iter()
-                    .find(|x| x.name.eq_ignore_ascii_case(&name.to_string_lossy())),
-                other => usize::try_from(geometry::integer(other)? - 1)
-                    .ok()
-                    .and_then(|n| shapes.get(n)),
-            }
-            .ok_or_else(|| {
-                AutoError::excel(
-                    -2147024809,
-                    "The item with the specified name wasn't found.",
-                )
-            })?;
-            Ok(report(
-                workbook,
-                sheet,
-                "Shape",
-                ReportItem::Shape(shape.id),
-            ))
+            let item = match call.arg(0) {
+                AutoValue::Text(name) => {
+                    let name = name.to_string_lossy();
+                    charts
+                        .iter()
+                        .find(|c| c.name.eq_ignore_ascii_case(&name))
+                        .map(|c| ReportItem::ChartShape(c.part.clone()))
+                        .or_else(|| {
+                            shapes
+                                .iter()
+                                .find(|x| x.name.eq_ignore_ascii_case(&name))
+                                .map(|x| ReportItem::Shape(x.id))
+                        })
+                        .ok_or_else(|| {
+                            AutoError::excel(
+                                -2147024809,
+                                "The item with the specified name wasn't found.",
+                            )
+                        })?
+                }
+                other => {
+                    let n = usize::try_from(geometry::integer(other)? - 1).ok();
+                    n.and_then(|n| match charts.get(n) {
+                        Some(c) => Some(ReportItem::ChartShape(c.part.clone())),
+                        None => shapes.get(n - charts.len()).map(|x| ReportItem::Shape(x.id)),
+                    })
+                    .ok_or_else(|| {
+                        AutoError::excel(
+                            -2147024809,
+                            "The index into the specified collection is out of bounds.",
+                        )
+                    })?
+                }
+            };
+            Ok(report(workbook, sheet, "Shape", item))
         })
+    }
+    /// `Shapes.AddChart2(Style, Type, Left, Top, Width, Height, NewLayout)`: a chart with a title
+    /// and no legend, over the data region of the selection when it holds data (Q6). Without a
+    /// place Excel uses the visible window's: 520.8749, 169.125, 360 by 216 on the measured
+    /// machine (Q2; window-dependent, so only a default here).
+    pub(super) fn shapes_add_chart2(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        let (workbook, sheet, _) = Self::report_key(target)?;
+        let xl = match call.arg(1) {
+            AutoValue::Missing => -1,
+            other => geometry::integer(other)?,
+        };
+        let (kind, _) = chart_kind(if xl == -1 { 51 } else { xl })?;
+        let defaults = [520.8749, 169.125, 360.0, 216.0];
+        let mut place = defaults;
+        for (i, slot) in place.iter_mut().enumerate() {
+            if !call.arg(2 + i).is_missing() {
+                *slot = number(call.arg(2 + i))?;
+            }
+        }
+        let mut data = None;
+        self.command(call, |s| {
+            data = Self::selection_data(s, sheet);
+            Ok(WorkbookCommand::ChartCreateEmpty {
+                sheet,
+                revision: s.host().revision().get(),
+                kind: kind.into(),
+                place: place.map(Points::new),
+                title: Some("Chart Title".into()),
+                legend: data.is_some(),
+            })
+        })?;
+        let part = self.newest_chart(target)?;
+        if let Some(area) = data {
+            self.command(call, |s| {
+                let layout = Self::source_layout(s, area, None);
+                Ok(WorkbookCommand::ChartSource {
+                    sheet,
+                    revision: s.host().revision().get(),
+                    part: part.clone(),
+                    area,
+                    rows: layout.rows,
+                    headers: layout.headers,
+                    categories: layout.categories,
+                })
+            })?;
+        }
+        Ok(report(workbook, sheet, "Shape", ReportItem::ChartShape(part)))
+    }
+    /// The data a chart made from the selection plots: a single selected cell with a value stands
+    /// for its current region; a selected range stands for itself when it holds a value.
+    fn selection_data(session: &HostSession, sheet: SheetId) -> Option<GridArea> {
+        let selection = session.selection();
+        // A workbook nobody selected in has its first cell selected, as Excel opens one.
+        let area = match selection.areas.first() {
+            Some(area) => *area,
+            None => GridArea::cell(
+                selection
+                    .active
+                    .unwrap_or(CellKey::new(sheet, 1, 1).ok()?),
+            ),
+        };
+        if area.sheet() != sheet {
+            return None;
+        }
+        let model = session.host().model();
+        let filled = |row: u32, column: u32| {
+            CellKey::new(sheet, row, column)
+                .ok()
+                .and_then(|at| model.cell(at))
+                .is_some()
+        };
+        let any = |top: u32, left: u32, bottom: u32, right: u32| {
+            (top..=bottom).any(|r| (left..=right).any(|c| filled(r, c)))
+        };
+        let (mut top, mut left) = (area.first().row(), area.first().column());
+        let (mut bottom, mut right) = (area.last().row(), area.last().column());
+        if area.cell_count() > 1 {
+            return any(top, left, bottom, right).then_some(area);
+        }
+        if !filled(top, left) {
+            return None;
+        }
+        // The current region: grow the rectangle while a ring of cells around it holds a value.
+        loop {
+            let (t, l) = (top.saturating_sub(1).max(1), left.saturating_sub(1).max(1));
+            let (b, r) = ((bottom + 1).min(1_048_576), (right + 1).min(16_384));
+            let grown = (t, l, b, r) != (top, left, bottom, right) && {
+                // Only the new ring needs a look.
+                any(t, l, t, r) && t != top
+                    || any(b, l, b, r) && b != bottom
+                    || any(t, l, b, l) && l != left
+                    || any(t, r, b, r) && r != right
+            };
+            if !grown {
+                break;
+            }
+            let (nt, nl, nb, nr) = (
+                if t != top && any(t, l, t, r) { t } else { top },
+                if l != left && any(t, l, b, l) { l } else { left },
+                if b != bottom && any(b, l, b, r) { b } else { bottom },
+                if r != right && any(t, r, b, r) { r } else { right },
+            );
+            (top, left, bottom, right) = (nt, nl, nb, nr);
+        }
+        let first = CellKey::new(sheet, top, left).ok()?;
+        let last = CellKey::new(sheet, bottom, right).ok()?;
+        GridArea::new(first, last).ok()
     }
     fn add_shape(
         &self,
@@ -721,19 +878,14 @@ impl WorkbookAutomation {
         flips: (bool, bool),
     ) -> Reply {
         let (workbook, sheet, _) = Self::report_key(target)?;
-        let mut id = None;
         let [left, top, width, height] = rect;
+        // Excel: a negative size is 1004 and makes no shape; zero is accepted (dc-piw0 Q2).
+        if width < 0.0 || height < 0.0 {
+            return Err(AutoError::excel(1004, "The specified value is out of range."));
+        }
+        let mut id = None;
         self.command(call, |s| {
-            id = Some(
-                s.host()
-                    .shapes(sheet)
-                    .iter()
-                    .map(|x| x.id)
-                    .max()
-                    .unwrap_or(1)
-                    .max(1 + s.host().model().definitions().charts(sheet).len() as u32)
-                    + 1,
-            );
+            id = Some(s.host().next_drawing_id(sheet));
             Ok(WorkbookCommand::Shape {
                 sheet,
                 revision: s.host().revision().get(),
@@ -827,22 +979,64 @@ impl WorkbookAutomation {
                 "dc-zjsg.5",
             ));
         }
-        self.add_shape(target, call, ShapeKind::Connector, "line", rect, flips)
+        // Excel names it "Straight Arrow Connector N" and saves `straightConnector1` (Q0, Q1).
+        self.add_shape(
+            target,
+            call,
+            ShapeKind::Connector,
+            "straightConnector1",
+            rect,
+            flips,
+        )
+    }
+    /// The chart part when the shape object is a chart in `Shapes`.
+    fn chart_shape_part(target: &ObjectRef) -> Option<String> {
+        match &target.key {
+            ObjectKey::Report {
+                item: ReportItem::ChartShape(part),
+                ..
+            } => Some(part.clone()),
+            _ => None,
+        }
     }
     pub(super) fn shape_name(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         no_args(call)?;
+        if Self::chart_shape_part(target).is_some() {
+            return self.chart_object_name(target, call);
+        }
         let id = Self::shape_id_of(target)?;
         self.read_host(target, |s, sheet, _| {
             Ok(AutoValue::text(&Self::shape_of(s, sheet, id)?.name))
         })
     }
     pub(super) fn shape_put_name(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        if Self::chart_shape_part(target).is_some() {
+            return self.chart_object_put_name(target, call);
+        }
         let id = Self::shape_id_of(target)?;
         let name = text_arg(call.args.last().ok_or_else(geometry::bad_count)?)?;
+        // Excel: an empty name is out of range; a name another shape has is accepted (Q3).
+        if name.is_empty() {
+            return Err(AutoError::excel(
+                -2147024809,
+                "The specified value is out of range.",
+            ));
+        }
         self.shape_command(target, call, ShapeChange::Name { id, name })
     }
     pub(super) fn shape_id(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         no_args(call)?;
+        if let Some(part) = Self::chart_shape_part(target) {
+            return self
+                .real_chart(target, |c| c.drawing_id)?
+                .map(|id| AutoValue::I4(id as i32))
+                .ok_or_else(|| {
+                    AutoError::not_modelled(
+                        format!("Shape.ID of the chart {part} the file holds"),
+                        CHARTS,
+                    )
+                });
+        }
         let id = Self::shape_id_of(target)?;
         self.read_host(target, |s, sheet, _| {
             Ok(AutoValue::I4(Self::shape_of(s, sheet, id)?.id as i32))
@@ -850,11 +1044,23 @@ impl WorkbookAutomation {
     }
     pub(super) fn shape_delete(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         no_args(call)?;
+        if Self::chart_shape_part(target).is_some() {
+            return Err(AutoError::not_modelled("Shape.Delete of a chart", CHARTS));
+        }
         let id = Self::shape_id_of(target)?;
+        // A shape that is gone is Excel's "Object required" (424), also when deleted twice (Q3).
+        self.read_host(target, |s, sheet, _| {
+            Self::shape_of(s, sheet, id).map(|_| ())
+        })?;
         self.shape_command(target, call, ShapeChange::Delete { id })
     }
     fn shape_side(&self, target: &ObjectRef, call: &Call<'_>, side: Side) -> Reply {
         no_args(call)?;
+        if let Some(part) = Self::chart_shape_part(target) {
+            return self.read_host(target, |s, sheet, _| {
+                Ok(single(Self::chart_rectangle(s, sheet, &part)?[side as usize]))
+            });
+        }
         let id = Self::shape_id_of(target)?;
         self.read_host(target, |s, sheet, _| {
             let shape = Self::shape_of(s, sheet, id)?;
@@ -863,6 +1069,9 @@ impl WorkbookAutomation {
         })
     }
     fn shape_put_side(&self, target: &ObjectRef, call: &Call<'_>, side: Side) -> Reply {
+        if Self::chart_shape_part(target).is_some() {
+            return self.chart_put_side(target, call, side);
+        }
         let id = Self::shape_id_of(target)?;
         let value = number(call.args.last().ok_or_else(geometry::bad_count)?)?;
         let [left, top, width, height] = rectangle_with(side, value);
@@ -932,13 +1141,14 @@ impl WorkbookAutomation {
     pub(super) fn frame_text_range(&self, t: &ObjectRef, c: &Call<'_>) -> Reply {
         self.shape_child(t, c, "TextRange2", ReportItem::TextRange2)
     }
-    /// The shape's text as Excel gives it: paragraphs joined by a carriage return.
+    /// The shape's text as Excel gives it: paragraphs joined by a line feed (dc-piw0 Q8: "a" and
+    /// "b" typed with vbCr read back as "a" LF "b").
     pub(super) fn range_text(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         no_args(call)?;
         let id = Self::shape_id_of(target)?;
         self.read_host(target, |s, sheet, _| {
             let shape = Self::shape_of(s, sheet, id)?;
-            Ok(AutoValue::text(&shape.text.unwrap_or_default().join("\r")))
+            Ok(AutoValue::text(&shape.text.unwrap_or_default().join("\n")))
         })
     }
     pub(super) fn range_put_text(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
@@ -985,7 +1195,7 @@ impl WorkbookAutomation {
             };
             match colour {
                 Some(ShapeColour::Rgb(v)) => Ok(AutoValue::I4(colour_to_rgb(v) as i32)),
-                // A colour the style or a theme decides is not measured (Q8).
+                // A colour the style or a theme decides: Excel's RGB for it is not recorded.
                 _ => Err(AutoError::not_modelled(
                     "ColorFormat.RGB of a style or theme colour",
                     SHAPES,
@@ -1056,6 +1266,150 @@ impl WorkbookAutomation {
             })
         })
     }
+    /// `Shape.Type`: msoChart 3, msoAutoShape 1, msoTextBox 17, msoLine 9 (a line; a connector
+    /// is an auto shape, Q0).
+    pub(super) fn shape_type(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        if Self::chart_shape_part(target).is_some() {
+            return Ok(AutoValue::I4(3));
+        }
+        let id = Self::shape_id_of(target)?;
+        self.read_host(target, |s, sheet, _| {
+            let shape = Self::shape_of(s, sheet, id)?;
+            Ok(AutoValue::I4(match (shape.kind, shape.geometry.as_deref()) {
+                (ShapeKind::TextBox, _) => 17,
+                (ShapeKind::Connector, Some("line")) => 9,
+                _ => 1,
+            }))
+        })
+    }
+    /// `Shape.AutoShapeType`: msoShapeRectangle 1, rounded rectangle 5, oval 9; -2 (mixed) for
+    /// connectors, lines and charts.
+    pub(super) fn shape_auto_shape_type(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        if Self::chart_shape_part(target).is_some() {
+            return Ok(AutoValue::I4(-2));
+        }
+        let id = Self::shape_id_of(target)?;
+        self.read_host(target, |s, sheet, _| {
+            let shape = Self::shape_of(s, sheet, id)?;
+            Ok(AutoValue::I4(match (shape.kind, shape.geometry.as_deref()) {
+                (ShapeKind::Connector, _) => -2,
+                (_, Some("roundRect")) => 5,
+                (_, Some("ellipse")) => 9,
+                (_, Some("rect") | None) => 1,
+                (_, Some(other)) => {
+                    return Err(AutoError::not_modelled(
+                        format!("Shape.AutoShapeType of the preset {other}"),
+                        SHAPES,
+                    ));
+                }
+            }))
+        })
+    }
+    /// `Shape.Connector`: msoTrue for a line or connector.
+    pub(super) fn shape_connector(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        if Self::chart_shape_part(target).is_some() {
+            return Ok(AutoValue::I4(0));
+        }
+        let id = Self::shape_id_of(target)?;
+        self.read_host(target, |s, sheet, _| {
+            let shape = Self::shape_of(s, sheet, id)?;
+            Ok(AutoValue::I4(if shape.kind == ShapeKind::Connector { -1 } else { 0 }))
+        })
+    }
+    pub(super) fn shape_horizontal_flip(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        let id = Self::shape_id_of(target)?;
+        self.read_host(target, |s, sheet, _| {
+            let flipped = Self::shape_of(s, sheet, id)?.flip_horizontal;
+            Ok(AutoValue::I4(if flipped { -1 } else { 0 }))
+        })
+    }
+    pub(super) fn shape_vertical_flip(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        let id = Self::shape_id_of(target)?;
+        self.read_host(target, |s, sheet, _| {
+            let flipped = Self::shape_of(s, sheet, id)?.flip_vertical;
+            Ok(AutoValue::I4(if flipped { -1 } else { 0 }))
+        })
+    }
+    /// `Shape.ConnectionSiteCount`: a rectangle 4, an oval 8, a line 2 (Q7).
+    pub(super) fn shape_site_count(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        let id = Self::shape_id_of(target)?;
+        self.read_host(target, |s, sheet, _| {
+            let shape = Self::shape_of(s, sheet, id)?;
+            let geometry = shape.geometry.as_deref().unwrap_or("rect");
+            crate::shapes::connection_site_count(geometry)
+                .map(|n| AutoValue::I4(n as i32))
+                .ok_or_else(|| {
+                    AutoError::not_modelled(
+                        format!("Shape.ConnectionSiteCount of the preset {geometry}"),
+                        SHAPES,
+                    )
+                })
+        })
+    }
+    /// `Shape.Chart` of a chart in `Shapes`.
+    pub(super) fn shape_chart(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        let Some(part) = Self::chart_shape_part(target) else {
+            return Err(AutoError::excel(1004, "This shape does not hold a chart."));
+        };
+        let (workbook, sheet, _) = Self::report_key(target)?;
+        Ok(report(workbook, sheet, "Chart", ReportItem::Chart(part)))
+    }
+    fn connector_end_state(
+        &self,
+        target: &ObjectRef,
+        call: &Call<'_>,
+        begin: bool,
+        read: fn(Option<calc_doc_model::ShapeConnection>) -> Result<AutoValue, AutoError>,
+    ) -> Reply {
+        no_args(call)?;
+        let id = Self::shape_id_of(target)?;
+        self.read_host(target, |s, sheet, _| {
+            let shape = Self::shape_of(s, sheet, id)?;
+            read(if begin { shape.begin } else { shape.end })
+        })
+    }
+    pub(super) fn connector_begin_connected(&self, t: &ObjectRef, c: &Call<'_>) -> Reply {
+        self.connector_end_state(t, c, true, |e| Ok(AutoValue::I4(if e.is_some() { -1 } else { 0 })))
+    }
+    pub(super) fn connector_end_connected(&self, t: &ObjectRef, c: &Call<'_>) -> Reply {
+        self.connector_end_state(t, c, false, |e| Ok(AutoValue::I4(if e.is_some() { -1 } else { 0 })))
+    }
+    pub(super) fn connector_begin_site(&self, t: &ObjectRef, c: &Call<'_>) -> Reply {
+        self.connector_end_state(t, c, true, Self::site_of)
+    }
+    pub(super) fn connector_end_site(&self, t: &ObjectRef, c: &Call<'_>) -> Reply {
+        self.connector_end_state(t, c, false, Self::site_of)
+    }
+    /// The 1-based connection site an end is glued to; an unglued end has none.
+    fn site_of(end: Option<calc_doc_model::ShapeConnection>) -> Result<AutoValue, AutoError> {
+        end.map(|e| AutoValue::I4(e.site as i32 + 1))
+            .ok_or_else(|| AutoError::excel(1004, "Application-defined or object-defined error"))
+    }
+    fn connector_end_shape(&self, target: &ObjectRef, call: &Call<'_>, begin: bool) -> Reply {
+        no_args(call)?;
+        let (workbook, sheet, _) = Self::report_key(target)?;
+        let id = Self::shape_id_of(target)?;
+        let glued = self.read_host(target, |s, sheet, _| {
+            let shape = Self::shape_of(s, sheet, id)?;
+            Ok(if begin { shape.begin } else { shape.end })
+        })?;
+        let glued = glued
+            .ok_or_else(|| AutoError::excel(1004, "Application-defined or object-defined error"))?;
+        Ok(report(workbook, sheet, "Shape", ReportItem::Shape(glued.shape)))
+    }
+    pub(super) fn connector_begin_shape(&self, t: &ObjectRef, c: &Call<'_>) -> Reply {
+        self.connector_end_shape(t, c, true)
+    }
+    pub(super) fn connector_end_shape_get(&self, t: &ObjectRef, c: &Call<'_>) -> Reply {
+        self.connector_end_shape(t, c, false)
+    }
     fn connect(&self, target: &ObjectRef, call: &Call<'_>, begin: bool) -> Reply {
         if call.args.len() != 2 {
             return Err(geometry::bad_count());
@@ -1072,8 +1426,28 @@ impl WorkbookAutomation {
         else {
             return Err(geometry::type_mismatch());
         };
-        let site = u32::try_from(geometry::integer(call.arg(1))?)
-            .map_err(|_| geometry::type_mismatch())?;
+        let invalid = || {
+            AutoError::excel(
+                -2147024809,
+                "The specified parameter has an invalid value.",
+            )
+        };
+        let site = u32::try_from(geometry::integer(call.arg(1))?).map_err(|_| invalid())?;
+        // Excel (dc-piw0 Q3): a site the shape does not have, and the connector's own shape, are
+        // an invalid parameter; a chart is a type mismatch (it is not a `ReportItem::Shape`).
+        let sites = self.read_host(target, |s, sheet, _| {
+            let glued = Self::shape_of(s, sheet, *shape)?;
+            let geometry = glued.geometry.as_deref().unwrap_or("rect");
+            crate::shapes::connection_site_count(geometry).ok_or_else(|| {
+                AutoError::not_modelled(
+                    format!("Connection sites of the preset {geometry}"),
+                    SHAPES,
+                )
+            })
+        })?;
+        if *shape == id || site == 0 || site as usize > sites {
+            return Err(invalid());
+        }
         self.shape_command(
             target,
             call,
@@ -1093,11 +1467,23 @@ impl WorkbookAutomation {
     }
 }
 
-/// A chart a member names: made, by its part, or waiting for source data (an index into the
-/// pending frames).
-enum ChartRef {
-    Real(String),
-    Pending(usize),
+/// How `Chart.SetSourceData` reads a range: along rows or columns, with series names and
+/// categories.
+struct SourceLayout {
+    rows: bool,
+    headers: bool,
+    categories: bool,
+}
+
+/// Whether `value` is a member of `XlChartType`.
+fn is_xl_chart_type(value: i64) -> bool {
+    matches!(
+        value,
+        1 | 4 | 5 | 15 | 51..=123 | 140
+    ) || matches!(
+        value,
+        -4098 | -4100 | -4101 | -4102 | -4111 | -4120 | -4151 | -4152 | -4169
+    )
 }
 
 /// `XlChartType` to the chart commands' kind (and whether stacked). Kinds the chart writer does not

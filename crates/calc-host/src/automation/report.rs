@@ -3,13 +3,11 @@
 //! `ConnectorFormat`), as members of the one object model. Reads use the snapshot of the session;
 //! writes go through the session's commands in the command and event contexts only (the one
 //! `with_write` ingress), so a worksheet invocation gets Excel's 1004. Each member is one handler
-//! registered from the descriptor; a member whose interface the committed descriptor does not
-//! hold yet is not registered, and answers the uniform refusal until the descriptor is
-//! regenerated on Windows (`~/codex-runs/eng1/RUN-ON-WINDOWS.txt`, item 1): see
-//! [`WorkbookAutomation::report_members_pending`].
+//! registered from the descriptor; a member whose interface the descriptor does not hold is not
+//! registered and answers the uniform refusal: see [`WorkbookAutomation::report_members_pending`].
 //!
-//! Behaviour Excel has not been measured on (default names, sizes, error numbers) is listed in
-//! `~/codex-runs/eng1/excel-questions.md`; where this module guesses, the comment says so.
+//! Defaults and errors are Excel's recorded ones (`~/codex-runs/eng1/excel-answers.md`); the tests
+//! `dc_piw0__excel_answers_*` pin them and name the question of each.
 
 use super::*;
 use crate::{CommandIngress, SkinIntent, TableChange, WorkbookCommand};
@@ -19,20 +17,8 @@ const TABLES: &str = "dc-piw0.1";
 
 const XL_SRC_RANGE: i64 = 1;
 const XL_YES: i64 = 1;
-
-/// A chart made by `ChartObjects.Add` that has no source data yet. The chart writer has no empty
-/// chart (dc-zjsg.6), so the frame is held here until `SetSourceData` creates the real chart.
-#[derive(Clone, Debug, Default)]
-pub(super) struct PendingChart {
-    pub name: Option<String>,
-    pub place: [f64; 4],
-    pub kind: Option<i64>,
-    pub title: Option<String>,
-    pub has_title: Option<bool>,
-    pub has_legend: Option<bool>,
-    /// The part of the chart `SetSourceData` made.
-    pub part: Option<String>,
-}
+const XL_NO: i64 = 2;
+const XL_GUESS: i64 = 0;
 
 pub(super) fn report(
     workbook: u64,
@@ -128,6 +114,13 @@ impl WorkbookAutomation {
         on("Chart", "HasLegend", Get, Self::chart_has_legend);
         on("Chart", "HasLegend", Put, Self::chart_put_has_legend);
         on("Chart", "SetSourceData", Method, Self::chart_set_source);
+        on("Chart", "SeriesCollection", Method, Self::chart_series_collection);
+        on("SeriesCollection", "Count", Get, Self::series_count);
+        on("SeriesCollection", "Item", Method, Self::series_item);
+        on("SeriesCollection", "_Default", Method, Self::series_item);
+        on("Series", "Name", Get, Self::series_name_get);
+        on("Series", "Formula", Get, Self::series_formula);
+        on("Series", "PlotOrder", Get, Self::series_plot_order);
         on("ChartTitle", "Text", Get, Self::chart_title_text);
         on("ChartTitle", "Text", Put, Self::chart_title_put_text);
         // Drawings.
@@ -135,6 +128,14 @@ impl WorkbookAutomation {
         on("Shapes", "Item", Method, Self::shapes_item);
         on("Shapes", "_Default", Method, Self::shapes_item);
         on("Shapes", "AddShape", Method, Self::shapes_add_shape);
+        on("Shapes", "AddChart2", Method, Self::shapes_add_chart2);
+        on("Shape", "Type", Get, Self::shape_type);
+        on("Shape", "AutoShapeType", Get, Self::shape_auto_shape_type);
+        on("Shape", "Connector", Get, Self::shape_connector);
+        on("Shape", "HorizontalFlip", Get, Self::shape_horizontal_flip);
+        on("Shape", "VerticalFlip", Get, Self::shape_vertical_flip);
+        on("Shape", "ConnectionSiteCount", Get, Self::shape_site_count);
+        on("Shape", "Chart", Get, Self::shape_chart);
         on("Shapes", "AddTextbox", Method, Self::shapes_add_textbox);
         on("Shapes", "AddLine", Method, Self::shapes_add_line);
         on("Shapes", "AddConnector", Method, Self::shapes_add_connector);
@@ -177,6 +178,12 @@ impl WorkbookAutomation {
             Self::connector_begin,
         );
         on("ConnectorFormat", "EndConnect", Method, Self::connector_end);
+        on("ConnectorFormat", "BeginConnected", Get, Self::connector_begin_connected);
+        on("ConnectorFormat", "EndConnected", Get, Self::connector_end_connected);
+        on("ConnectorFormat", "BeginConnectionSite", Get, Self::connector_begin_site);
+        on("ConnectorFormat", "EndConnectionSite", Get, Self::connector_end_site);
+        on("ConnectorFormat", "BeginConnectedShape", Get, Self::connector_begin_shape);
+        on("ConnectorFormat", "EndConnectedShape", Get, Self::connector_end_shape_get);
         pending
     }
 
@@ -351,7 +358,7 @@ impl WorkbookAutomation {
     }
     /// `ListObjects.Add(SourceType, Source, LinkSource, XlListObjectHasHeaders, Destination,
     /// TableStyleName)`: a range source with headers (xlYes). The first table gets Excel's default
-    /// name `Table1`, the next free one after it (unmeasured: excel-questions.md Q1).
+    /// name `Table1`, the next free one after it (excel-answers.md Q1: table names are workbook-wide).
     fn tables_add(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         let (workbook, sheet, _) = Self::report_key(target)?;
         if !matches!(call.arg(0), AutoValue::Missing)
@@ -368,9 +375,13 @@ impl WorkbookAutomation {
                 TABLES,
             ));
         }
-        if !call.arg(3).is_missing() && geometry::integer(call.arg(3))? != XL_YES {
+        let headers = match call.arg(3) {
+            AutoValue::Missing => XL_GUESS,
+            other => geometry::integer(other)?,
+        };
+        if headers == XL_NO {
             return Err(AutoError::not_modelled(
-                "ListObjects.Add without xlYes headers (header row insertion or guessing)",
+                "ListObjects.Add with xlNo headers (Excel inserts a header row above the data)",
                 TABLES,
             ));
         }
@@ -379,6 +390,37 @@ impl WorkbookAutomation {
             return Err(AutoError::excel(1004, ""));
         }
         let area = range.areas()[0];
+        // Excel (dc-piw0 Q3, Q4): a source that overlaps a table is 1004; without xlYes a first
+        // row of text is taken as the headers, any other first row makes Excel insert a header
+        // row, which is not modelled.
+        self.read_host(target, |s, sheet, _| {
+            if Self::tables_of(s, sheet)
+                .iter()
+                .any(|t| t.area.intersection(area).is_some())
+            {
+                return Err(AutoError::excel(
+                    1004,
+                    "A table can't overlap another table. ",
+                ));
+            }
+            if headers != XL_YES {
+                let model = s.host().model();
+                let text_first_row = (0..area.column_count()).all(|c| {
+                    CellKey::new(sheet, area.first().row(), area.first().column() + c)
+                        .ok()
+                        .and_then(|at| model.cell(at))
+                        .is_some_and(|cell| matches!(cell, crate::CellInput::Text(_)))
+                });
+                if !text_first_row {
+                    return Err(AutoError::not_modelled(
+                        "ListObjects.Add without xlYes over a first row that is not text \
+                         (Excel inserts a header row above the data)",
+                        TABLES,
+                    ));
+                }
+            }
+            Ok(())
+        })?;
         let style = match call.arg(5) {
             AutoValue::Missing => None,
             other => Some(text_arg(other)?),
@@ -435,6 +477,26 @@ impl WorkbookAutomation {
     fn table_put_name(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         let part = Self::table_part(target)?;
         let name = text_arg(call.args.last().ok_or_else(geometry::bad_count)?)?;
+        // Excel (dc-piw0 Q3): an empty name is 1004, over 255 characters is error 5, another
+        // table's name (any case) is 1004; a case-only change is accepted.
+        if name.is_empty() {
+            return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
+        }
+        if name.chars().count() > 255 {
+            return Err(AutoError::excel(5, "Invalid procedure call or argument"));
+        }
+        self.read_host(target, |s, _, _| {
+            let clash = s.host().model().definitions().tables().iter().any(|t| {
+                t.part != part && calc_value::workbook_names_equal(&t.display_name, &name)
+            });
+            if clash {
+                return Err(AutoError::excel(
+                    1004,
+                    "Application-defined or object-defined error",
+                ));
+            }
+            Ok(())
+        })?;
         self.command(call, |s| {
             Ok(WorkbookCommand::Table {
                 revision: s.host().revision().get(),
@@ -638,7 +700,29 @@ impl WorkbookAutomation {
         let ReportItem::ListColumn(part, index) = Self::report_key(target)?.2 else {
             return Err(geometry::type_mismatch());
         };
-        let name = text_arg(call.args.last().ok_or_else(geometry::bad_count)?)?;
+        // A number is stored as its text; an empty name becomes `Column<n>`; a name another column
+        // has is silently ignored, the name unchanged (dc-piw0 Q3).
+        let name = match call.args.last().ok_or_else(geometry::bad_count)? {
+            AutoValue::I2(v) => v.to_string(),
+            AutoValue::I4(v) => v.to_string(),
+            other => text_arg(other)?,
+        };
+        let mut ignored = false;
+        let table = self.read_host(target, |s, sheet, _| Self::table_of(s, sheet, &part))?;
+        let name = if name.is_empty() {
+            let taken: Vec<String> = table.columns.clone();
+            calc_doc_model::free_column_name(&taken)
+        } else {
+            name
+        };
+        if table.columns.iter().enumerate().any(|(j, c)| {
+            j != index as usize && calc_value::workbook_names_equal(c, &name)
+        }) {
+            ignored = true;
+        }
+        if ignored {
+            return Ok(AutoValue::Empty);
+        }
         self.command(call, |s| {
             let table = s
                 .host()

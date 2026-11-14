@@ -1,8 +1,7 @@
 //! dc-piw0 / dc-zjsg.1: what a macro builds, at the session's command level: a data table, a chart
 //! over it, a title, two shapes joined by a connector, then save, reopen, list. The object-model
-//! members that reach these commands are in `automation/report.rs`; their tests are `#[ignore]`d
-//! until the Windows descriptor regeneration (RUN-ON-WINDOWS item 1) puts ListObject, Chart and
-//! Shape into the descriptor.
+//! members that reach these commands are in `automation/report.rs`; their tests are in
+//! `automation.rs` (`dc_piw0__*`).
 
 #![allow(non_snake_case)]
 
@@ -346,15 +345,21 @@ fn dc_piw0__table_chart_and_shapes_in_one_report() {
     let chart = &reloaded.host().model().definitions().charts(sheet)[0];
     assert_eq!(
         chart.anchor,
-        calc_doc_model::ChartAnchor::OneCell {
+        // Excel writes a macro's chart as a two-cell anchor (excel-answers.md Q0); the position
+        // 200, 20 and the size 300 x 200 points fall in these cells (48 pt columns, 15 pt rows).
+        calc_doc_model::ChartAnchor::TwoCell {
             from: calc_doc_model::DrawingPoint {
                 column: 4,
                 column_offset: 101_600,
                 row: 1,
                 row_offset: 63_500,
             },
-            width: 300 * 12_700,
-            height: 200 * 12_700,
+            to: calc_doc_model::DrawingPoint {
+                column: 10,
+                column_offset: 254_000,
+                row: 14,
+                row_offset: 127_000,
+            },
         }
     );
     assert_eq!(charts[0].plots[0].series.len(), 2);
@@ -448,4 +453,37 @@ fn dc_piw0_1__rename_add_row_and_rename_column() {
         book.host().model().definitions().tables()[0].display_name,
         "Sales"
     );
+}
+
+/// dc-piw0.2: `ChartObjects.Add` without `SetSourceData` saves an empty chart, as Excel does
+/// (excel-answers.md Q6: type 51, legend, no series), and the saved file reads back as that chart.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_2__an_empty_chart_saves_and_reads_back() {
+    let mut book = open(calc_host::blank_package());
+    let sheet = book.host().sheets()[0].id();
+    command(&mut book, |b| WorkbookCommand::ChartCreateEmpty {
+        sheet,
+        revision: b.host().revision().get(),
+        kind: "column".into(),
+        place: [pts(200.0), pts(20.0), pts(300.0), pts(200.0)],
+        title: None,
+        legend: true,
+    });
+    shape(
+        &mut book,
+        sheet,
+        add(ShapeKind::Shape, "rect", 20.0, 200.0, 100.0, 50.0),
+    );
+    let chart = &book.host().model().definitions().charts(sheet)[0];
+    assert_eq!((chart.name.as_str(), chart.drawing_id), ("Chart 1", Some(2)));
+    assert_eq!(book.host().shapes(sheet)[0].id, 3);
+    let reloaded = reopened(&mut book);
+    let (charts, unread) = reloaded.host().charts(sheet);
+    assert_eq!((charts.len(), unread), (1, 0));
+    assert_eq!(charts[0].name, "Chart 1");
+    assert!(charts[0].plots[0].series.is_empty());
+    let chart = &reloaded.host().model().definitions().charts(sheet)[0];
+    assert!(chart.legend.is_some() && chart.title.is_none());
+    assert_eq!(reloaded.host().shapes(sheet).len(), 1);
 }

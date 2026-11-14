@@ -1880,12 +1880,12 @@ fn report_members_register_where_the_descriptor_describes_them() {
     let (_, model) = setup();
     let pending = model.report_members_pending();
     let implemented = model.handlers().implemented();
-    // 81 report members are written; the pending ones are those the descriptor lacks.
-    assert!(pending.len() <= 81);
+    // 102 report members are written; the pending ones are those the descriptor lacks.
+    assert!(pending.len() <= 102);
     for name in &pending {
         assert!(!implemented.contains(name), "{name} is pending and also registered");
     }
-    let registered = 81 - pending.len();
+    let registered = 102 - pending.len();
     eprintln!(
         "report members: {registered} registered, {} pending the descriptor regeneration",
         pending.len()
@@ -1898,7 +1898,6 @@ fn report_members_register_where_the_descriptor_describes_them() {
 
 /// dc-piw0: the macro's steps through the object-model members: fill a range, add the table,
 /// rename it, add a chart over it with titles, two shapes and a connector, save, reload, list.
-/// Needs the regenerated descriptor (ListObject, Chart, Shape, ... types): ignored until then.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_piw0__a_macro_builds_a_report_through_object_model_members() {
@@ -1969,8 +1968,9 @@ fn dc_piw0__a_macro_builds_a_report_through_object_model_members() {
     assert!(
         matches!(invoke(&model, &first, "Width", vec![]).unwrap(), AutoValue::R4(v) if v == 150.0)
     );
+    // ChartObject.Left is a Double (Excel Q2).
     assert!(
-        matches!(invoke(&model, &frame, "Left", vec![]).unwrap(), AutoValue::R4(v) if v == 200.0)
+        matches!(invoke(&model, &frame, "Left", vec![]).unwrap(), AutoValue::R8(v) if v == 200.0)
     );
     assert_eq!(text(&model, &frame, "Name"), "Chart 1");
     let columns = obj(invoke(&model, &table, "ListColumns", vec![]).unwrap());
@@ -2034,4 +2034,489 @@ fn dc_piw0__a_macro_builds_a_report_through_object_model_members() {
     assert_eq!(reloaded.host().model().definitions().tables().len(), 1);
     assert_eq!(reloaded.host().charts(sheet_id).0.len(), 1);
     assert_eq!(reloaded.host().shapes(sheet_id).len(), 3);
+}
+
+// --- dc-piw0: Excel's recorded answers (~/codex-runs/eng1/excel-answers.md, 2026-11-14) -------
+
+fn excel_error(reply: Reply) -> (i32, String) {
+    match reply {
+        Err(AutoError::Excel {
+            number,
+            description,
+        }) => (number, description),
+        other => panic!("an Excel error: {other:?}"),
+    }
+}
+
+/// The first saved part whose name holds `folder` (`xl/drawings/`, `xl/tables/`, `xl/charts/`).
+fn saved_part(session: &mut HostSession, folder: &str) -> String {
+    let mut bytes = Vec::new();
+    session.save(&SavePolicy::default(), &mut bytes).unwrap();
+    let document = calc_doc::open(
+        Arc::new(MemorySource::new(bytes)),
+        &OpenPolicy::default(),
+    )
+    .expect("the saved package opens");
+    let name = document
+        .package()
+        .parts()
+        .iter()
+        .map(|p| p.name().to_owned())
+        .find(|n| n.starts_with(folder) && n.ends_with(".xml"))
+        .unwrap_or_else(|| panic!("no part in {folder}"));
+    String::from_utf8(document.package().read_part(&name).expect("the part")).unwrap()
+}
+
+fn blank_report() -> (Rc<Host>, Rc<WorkbookAutomation>, ObjectRef) {
+    let session = HostSession::open(
+        Arc::new(MemorySource::new(blank_package())),
+        &OpenPolicy::default(),
+        HostOptions::default(),
+    )
+    .unwrap();
+    let (host, model) = setup_session(session);
+    let app = model.application();
+    let sheet = obj(invoke(&model, &app, "ActiveSheet", vec![]).unwrap());
+    (host, model, sheet)
+}
+
+fn fill(host: &Host, top_left: (u32, u32), rows: &[&[&str]]) {
+    for (r, row) in rows.iter().enumerate() {
+        for (c, value) in row.iter().enumerate() {
+            enter(host, at(host, top_left.0 + r as u32, top_left.1 + c as u32), value);
+        }
+    }
+}
+
+fn int(value: AutoValue) -> i64 {
+    match value {
+        AutoValue::I2(v) => i64::from(v),
+        AutoValue::I4(v) => i64::from(v),
+        other => panic!("an integer: {other:?}"),
+    }
+}
+
+fn tables_add(
+    model: &WorkbookAutomation,
+    sheet: &ObjectRef,
+    source: &ObjectRef,
+    headers: Option<i32>,
+) -> Reply {
+    let tables = obj(invoke(model, sheet, "ListObjects", vec![]).unwrap());
+    invoke_kind(
+        model,
+        &tables,
+        "Add",
+        InvokeKind::Method,
+        vec![
+            AutoValue::I4(1),
+            AutoValue::Object(source.clone()),
+            AutoValue::Missing,
+            headers.map_or(AutoValue::Missing, AutoValue::I4),
+        ],
+    )
+}
+
+/// Q0, Q1, Q2, Q7, Q8: the report macro of excel-questions.md through the members, read back as
+/// Excel printed it, then the saved drawing against the XML Excel saved.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0__excel_answers_q0_the_report_macro_reads_and_saves_as_excel_did() {
+    let (host, model, sheet) = blank_report();
+    fill(&host, (1, 1), &[&["Region", "Q1", "Q2"], &["North", "10", "20"], &["South", "30", "40"]]);
+    let source = range(&model, "A1:C3");
+    let table = obj(tables_add(&model, &sheet, &source, Some(1)).unwrap());
+    // Q0: `table Table1 $A$1:$C$3 TableStyleMedium2 False`.
+    assert_eq!(text(&model, &table, "Name"), "Table1");
+    assert_eq!(text(&model, &table, "TableStyle"), "TableStyleMedium2");
+    assert!(matches!(invoke(&model, &table, "ShowTotals", vec![]).unwrap(), AutoValue::Bool(false)));
+    let table_range = obj(invoke(&model, &table, "Range", vec![]).unwrap());
+    assert_eq!(text(&model, &table_range, "Address"), "$A$1:$C$3");
+
+    // Q0: `chartobject Chart 1 200 20 300 200 51 False True`, `after SetSourceData 51 2 False True`.
+    let charts = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let frame = obj(invoke_kind(&model, &charts, "Add", InvokeKind::Method,
+        vec![AutoValue::R8(200.0), AutoValue::R8(20.0), AutoValue::R8(300.0), AutoValue::R8(200.0)]).unwrap());
+    assert_eq!(text(&model, &frame, "Name"), "Chart 1");
+    for (side, value) in [("Left", 200.0), ("Top", 20.0), ("Width", 300.0), ("Height", 200.0)] {
+        assert!(matches!(invoke(&model, &frame, side, vec![]).unwrap(), AutoValue::R8(v) if v == value), "{side}");
+    }
+    let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
+    assert_eq!(int(invoke(&model, &chart, "ChartType", vec![]).unwrap()), 51);
+    assert!(matches!(invoke(&model, &chart, "HasTitle", vec![]).unwrap(), AutoValue::Bool(false)));
+    assert!(matches!(invoke(&model, &chart, "HasLegend", vec![]).unwrap(), AutoValue::Bool(true)));
+    let series = obj(invoke_kind(&model, &chart, "SeriesCollection", InvokeKind::Method, vec![]).unwrap());
+    assert_eq!(int(invoke(&model, &series, "Count", vec![]).unwrap()), 0);
+    invoke_kind(&model, &chart, "SetSourceData", InvokeKind::Method, vec![AutoValue::Object(table_range)]).unwrap();
+    assert_eq!(int(invoke(&model, &series, "Count", vec![]).unwrap()), 2);
+    assert!(matches!(invoke(&model, &chart, "HasTitle", vec![]).unwrap(), AutoValue::Bool(false)));
+    // Q0/Q6: a table source is plotted by columns: series Q1, Q2 over the categories North, South.
+    let first = obj(invoke_kind(&model, &series, "Item", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+    assert_eq!(text(&model, &first, "Name"), "Q1");
+    assert_eq!(text(&model, &first, "Formula"), "=SERIES(Sheet1!$B$1,Sheet1!$A$2:$A$3,Sheet1!$B$2:$B$3,1)");
+    invoke_kind(&model, &chart, "HasTitle", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    let title = obj(invoke(&model, &chart, "ChartTitle", vec![]).unwrap());
+    assert_eq!(text(&model, &title, "Text"), "Chart Title");
+    invoke_kind(&model, &title, "Text", InvokeKind::Put, vec![AutoValue::text("Sales")]).unwrap();
+
+    // Q0/Q1: names, ids, types, positions of the drawing objects.
+    let shapes = obj(invoke(&model, &sheet, "Shapes", vec![]).unwrap());
+    let rect = |l: f64, t: f64, w: f64, h: f64| vec![AutoValue::R8(l), AutoValue::R8(t), AutoValue::R8(w), AutoValue::R8(h)];
+    let with = |first: AutoValue, rest: Vec<AutoValue>| std::iter::once(first).chain(rest).collect::<Vec<_>>();
+    let add = |name: &str, args: Vec<AutoValue>| obj(invoke_kind(&model, &shapes, name, InvokeKind::Method, args).unwrap());
+    let sh1 = add("AddShape", with(AutoValue::I4(1), rect(20.0, 120.0, 100.0, 50.0)));
+    let sh2 = add("AddShape", with(AutoValue::I4(9), rect(20.0, 220.0, 100.0, 50.0)));
+    let tb = add("AddTextbox", with(AutoValue::I4(1), rect(160.0, 240.0, 120.0, 30.0)));
+    let line = add("AddLine", vec![AutoValue::R8(150.0), AutoValue::R8(300.0), AutoValue::R8(250.0), AutoValue::R8(300.0)]);
+    let cn = add("AddConnector", with(AutoValue::I4(1), rect(0.0, 0.0, 10.0, 10.0)));
+    let cf = obj(invoke(&model, &cn, "ConnectorFormat", vec![]).unwrap());
+    invoke_kind(&model, &cf, "BeginConnect", InvokeKind::Method, vec![AutoValue::Object(sh1.clone()), AutoValue::I4(3)]).unwrap();
+    invoke_kind(&model, &cf, "EndConnect", InvokeKind::Method, vec![AutoValue::Object(sh2.clone()), AutoValue::I4(1)]).unwrap();
+    let one = |o: &ObjectRef| (text(&model, o, "Name"), int(invoke(&model, o, "ID", vec![]).unwrap()),
+        int(invoke(&model, o, "Type", vec![]).unwrap()), int(invoke(&model, o, "AutoShapeType", vec![]).unwrap()),
+        int(invoke(&model, o, "Connector", vec![]).unwrap()));
+    let chart_shape = obj(invoke_kind(&model, &shapes, "Item", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+    // `shape <name> <id> <Type> <AutoShapeType> ... <Connector>` lines of Q0.
+    assert_eq!(one(&chart_shape), ("Chart 1".into(), 2, 3, -2, 0));
+    assert_eq!(one(&sh1), ("Rectangle 2".into(), 3, 1, 1, 0));
+    assert_eq!(one(&sh2), ("Oval 3".into(), 4, 1, 9, 0));
+    assert_eq!(one(&tb), ("TextBox 4".into(), 5, 17, 1, 0));
+    assert_eq!(one(&line), ("Straight Connector 5".into(), 6, 9, -2, -1));
+    assert_eq!(one(&cn), ("Straight Arrow Connector 6".into(), 7, 1, -2, -1));
+    assert_eq!(int(invoke(&model, &shapes, "Count", vec![]).unwrap()), 6);
+    // Q0 `conn 70 170 0 50 -1 Rectangle 2 3`: the connector between the rectangle's bottom and the oval's top.
+    let side = |o: &ObjectRef, n: &str| match invoke(&model, o, n, vec![]).unwrap() {
+        AutoValue::R4(v) => f64::from(v),
+        other => panic!("{other:?}"),
+    };
+    assert_eq!([side(&cn, "Left"), side(&cn, "Top"), side(&cn, "Width"), side(&cn, "Height")], [70.0, 170.0, 0.0, 50.0]);
+    assert_eq!(int(invoke(&model, &cf, "BeginConnected", vec![]).unwrap()), -1);
+    assert_eq!(int(invoke(&model, &cf, "BeginConnectionSite", vec![]).unwrap()), 3);
+    let glued = obj(invoke(&model, &cf, "BeginConnectedShape", vec![]).unwrap());
+    assert_eq!(text(&model, &glued, "Name"), "Rectangle 2");
+    // Q7: site counts and flips.
+    assert_eq!(int(invoke(&model, &sh1, "ConnectionSiteCount", vec![]).unwrap()), 4);
+    assert_eq!(int(invoke(&model, &sh2, "ConnectionSiteCount", vec![]).unwrap()), 8);
+    assert_eq!(int(invoke(&model, &line, "ConnectionSiteCount", vec![]).unwrap()), 2);
+    assert_eq!(int(invoke(&model, &cn, "HorizontalFlip", vec![]).unwrap()), 0);
+    // Q8: a vbCr starts a second paragraph, read back with a line feed; a vbLf stays in one.
+    let range_of = |o: &ObjectRef| {
+        let frame = obj(invoke(&model, o, "TextFrame2", vec![]).unwrap());
+        obj(invoke(&model, &frame, "TextRange", vec![]).unwrap())
+    };
+    invoke_kind(&model, &range_of(&sh1), "Text", InvokeKind::Put, vec![AutoValue::text("a\rb")]).unwrap();
+    assert_eq!(text(&model, &range_of(&sh1), "Text"), "a\nb");
+    invoke_kind(&model, &range_of(&sh2), "Text", InvokeKind::Put, vec![AutoValue::text("a\nb")]).unwrap();
+    assert_eq!(text(&model, &range_of(&sh2), "Text"), "a\nb");
+    {
+        let session = host.session.borrow();
+        let sheet_id = session.host().sheets()[0].id();
+        let held = session.host().shapes(sheet_id);
+        assert_eq!(held[0].text.as_ref().map(Vec::len), Some(2));
+        assert_eq!(held[1].text.as_ref().map(Vec::len), Some(1));
+    }
+    invoke_kind(&model, &range_of(&sh1), "Text", InvokeKind::Put, vec![AutoValue::text("Start")]).unwrap();
+    invoke_kind(&model, &range_of(&sh2), "Text", InvokeKind::Put, vec![AutoValue::text("")]).unwrap();
+    invoke_kind(&model, &range_of(&tb), "Text", InvokeKind::Put, vec![AutoValue::text("Note")]).unwrap();
+    let fill_colour = obj(invoke(&model, &obj(invoke(&model, &sh1, "Fill", vec![]).unwrap()), "ForeColor", vec![]).unwrap());
+    invoke_kind(&model, &fill_colour, "RGB", InvokeKind::Put, vec![AutoValue::I4(255 + 128 * 256)]).unwrap();
+    let line_format = obj(invoke(&model, &sh1, "Line", vec![]).unwrap());
+    let line_colour = obj(invoke(&model, &line_format, "ForeColor", vec![]).unwrap());
+    invoke_kind(&model, &line_colour, "RGB", InvokeKind::Put, vec![AutoValue::I4(0)]).unwrap();
+    invoke_kind(&model, &line_format, "Weight", InvokeKind::Put, vec![AutoValue::R8(2.0)]).unwrap();
+
+    // The saved drawing against Excel's saved drawing1.xml (excel-report/xl/drawings/drawing1.xml).
+    let drawing = saved_part(&mut host.session.borrow_mut(), "xl/drawings/");
+    for expected in [
+        // Every anchor is a twoCellAnchor with no editAs; the chart frame's xfrm is zero.
+        r#"<xdr:cNvPr id="2" name="Chart 1"/>"#,
+        r#"<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm>"#,
+        r#"<xdr:cNvPr id="3" name="Rectangle 2"/>"#,
+        r#"<a:xfrm><a:off x="254000" y="1524000"/><a:ext cx="1270000" cy="635000"/></a:xfrm><a:prstGeom prst="rect">"#,
+        r#"<a:solidFill><a:srgbClr val="FF8000"/></a:solidFill><a:ln w="25400"><a:solidFill><a:srgbClr val="000000"/></a:solidFill></a:ln>"#,
+        r#"<xdr:style><a:lnRef idx="2"><a:schemeClr val="accent1"><a:shade val="15000"/></a:schemeClr></a:lnRef><a:fillRef idx="1">"#,
+        r#"<a:bodyPr vertOverflow="clip" horzOverflow="clip" rtlCol="0" anchor="t"/>"#,
+        r#"<a:prstGeom prst="ellipse">"#,
+        r#"<xdr:cNvSpPr txBox="1"/>"#,
+        r#"<a:solidFill><a:schemeClr val="lt1"/></a:solidFill><a:ln w="9525" cmpd="sng"><a:solidFill><a:schemeClr val="lt1"><a:shade val="50000"/></a:schemeClr></a:solidFill></a:ln>"#,
+        r#"<a:bodyPr vertOverflow="clip" horzOverflow="clip" vert="horz" rtlCol="0" anchor="t"/>"#,
+        r#"<a:fontRef idx="minor"><a:schemeClr val="dk1"/></a:fontRef>"#,
+        r#"<xdr:cNvPr id="6" name="Straight Connector 5"/>"#,
+        r#"<a:prstGeom prst="line">"#,
+        r#"<xdr:cNvPr id="7" name="Straight Arrow Connector 6"/>"#,
+        r#"<a:stCxn id="3" idx="2"/><a:endCxn id="4" idx="0"/>"#,
+        r#"<a:prstGeom prst="straightConnector1">"#,
+        r#"<xdr:style><a:lnRef idx="2"><a:schemeClr val="accent1"/></a:lnRef><a:fillRef idx="0"><a:schemeClr val="accent1"/></a:fillRef><a:effectRef idx="1">"#,
+    ] {
+        assert!(drawing.contains(expected), "{expected}\n{drawing}");
+    }
+    assert!(!drawing.contains("editAs"), "{drawing}");
+    assert!(!drawing.contains("oneCellAnchor"));
+    assert_eq!(drawing.matches("<xdr:twoCellAnchor").count(), 6);
+    // The table part: Excel's table1.xml has name and displayName Table1, TableStyleMedium2.
+    let table_xml = saved_part(&mut host.session.borrow_mut(), "xl/tables/");
+    for expected in [r#"name="Table1""#, r#"displayName="Table1""#, r#"ref="A1:C3""#, r#"name="TableStyleMedium2""#, r#"showRowStripes="1""#] {
+        assert!(table_xml.contains(expected), "{expected}\n{table_xml}");
+    }
+}
+
+/// Q6: how `SetSourceData` reads a range, series by series, as Excel printed them.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0__excel_answers_q6_set_source_data_reads_ranges_as_excel_did() {
+    let (host, model, sheet) = blank_report();
+    fill(&host, (1, 1), &[&["Region", "Q1", "Q2"], &["North", "10", "20"], &["South", "30", "40"]]);
+    fill(&host, (1, 6), &[&["1", "2", "3"], &["4", "5", "6"], &["7", "8", "9"]]);
+    fill(&host, (2, 10), &[&["a", "1"], &["b", "2"]]);
+    let charts = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    // (source, PlotBy, expected series as (name, formula)).
+    let cases: Vec<(&str, Option<i32>, Vec<(&str, &str)>)> = vec![
+        ("A1:C3", None, vec![
+            ("North", "=SERIES(Sheet1!$A$2,Sheet1!$B$1:$C$1,Sheet1!$B$2:$C$2,1)"),
+            ("South", "=SERIES(Sheet1!$A$3,Sheet1!$B$1:$C$1,Sheet1!$B$3:$C$3,2)")]),
+        ("A1:C3", Some(1), vec![
+            ("North", "=SERIES(Sheet1!$A$2,Sheet1!$B$1:$C$1,Sheet1!$B$2:$C$2,1)"),
+            ("South", "=SERIES(Sheet1!$A$3,Sheet1!$B$1:$C$1,Sheet1!$B$3:$C$3,2)")]),
+        ("A1:C3", Some(2), vec![
+            ("Q1", "=SERIES(Sheet1!$B$1,Sheet1!$A$2:$A$3,Sheet1!$B$2:$B$3,1)"),
+            ("Q2", "=SERIES(Sheet1!$C$1,Sheet1!$A$2:$A$3,Sheet1!$C$2:$C$3,2)")]),
+        ("F1:H3", None, vec![
+            ("Series1", "=SERIES(,,Sheet1!$F$1:$H$1,1)"),
+            ("Series2", "=SERIES(,,Sheet1!$F$2:$H$2,2)"),
+            ("Series3", "=SERIES(,,Sheet1!$F$3:$H$3,3)")]),
+        ("J2:K3", None, vec![("Series1", "=SERIES(,Sheet1!$J$2:$J$3,Sheet1!$K$2:$K$3,1)")]),
+        ("B1:C3", None, vec![
+            ("Series1", "=SERIES(,Sheet1!$B$1:$C$1,Sheet1!$B$2:$C$2,1)"),
+            ("Series2", "=SERIES(,Sheet1!$B$1:$C$1,Sheet1!$B$3:$C$3,2)")]),
+        ("A2:C3", None, vec![
+            ("North", "=SERIES(Sheet1!$A$2,,Sheet1!$B$2:$C$2,1)"),
+            ("South", "=SERIES(Sheet1!$A$3,,Sheet1!$B$3:$C$3,2)")]),
+    ];
+    for (source, plot_by, expected) in cases {
+        let frame = obj(invoke_kind(&model, &charts, "Add", InvokeKind::Method,
+            vec![AutoValue::R8(0.0), AutoValue::R8(0.0), AutoValue::R8(100.0), AutoValue::R8(100.0)]).unwrap());
+        let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
+        invoke_kind(&model, &chart, "SetSourceData", InvokeKind::Method,
+            vec![AutoValue::Object(range(&model, source)), plot_by.map_or(AutoValue::Missing, AutoValue::I4)]).unwrap();
+        let series = obj(invoke_kind(&model, &chart, "SeriesCollection", InvokeKind::Method, vec![]).unwrap());
+        assert_eq!(int(invoke(&model, &series, "Count", vec![]).unwrap()) as usize, expected.len(), "{source} {plot_by:?}");
+        for (i, (name, formula)) in expected.iter().enumerate() {
+            let item = obj(invoke_kind(&model, &series, "Item", InvokeKind::Method, vec![AutoValue::I4(i as i32 + 1)]).unwrap());
+            assert_eq!(text(&model, &item, "Name"), *name, "{source} {plot_by:?}");
+            assert_eq!(text(&model, &item, "Formula"), *formula, "{source} {plot_by:?}");
+            assert_eq!(int(invoke(&model, &item, "PlotOrder", vec![]).unwrap()), i as i64 + 1);
+        }
+        // Q6: a chart made by ChartObjects.Add has no title; a one-series chart shows its series' name.
+        let titled = matches!(invoke(&model, &chart, "HasTitle", vec![]).unwrap(), AutoValue::Bool(true));
+        assert_eq!(titled, expected.len() == 1, "{source}");
+    }
+    // Q6: a source with no data leaves the chart without series.
+    let frame = obj(invoke_kind(&model, &charts, "Add", InvokeKind::Method,
+        vec![AutoValue::R8(0.0), AutoValue::R8(0.0), AutoValue::R8(100.0), AutoValue::R8(100.0)]).unwrap());
+    let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
+    invoke_kind(&model, &chart, "SetSourceData", InvokeKind::Method, vec![AutoValue::Object(range(&model, "Z1"))]).unwrap();
+    let series = obj(invoke_kind(&model, &chart, "SeriesCollection", InvokeKind::Method, vec![]).unwrap());
+    assert_eq!(int(invoke(&model, &series, "Count", vec![]).unwrap()), 0);
+    // Q6: AddChart2 with the active cell in a data region builds from the region, with a title
+    // and a legend, at the default place.
+    let shapes = obj(invoke(&model, &sheet, "Shapes", vec![]).unwrap());
+    let made = obj(invoke_kind(&model, &shapes, "AddChart2", InvokeKind::Method,
+        vec![AutoValue::I4(201), AutoValue::I4(51)]).unwrap());
+    let chart = obj(invoke(&model, &made, "Chart", vec![]).unwrap());
+    assert!(matches!(invoke(&model, &chart, "HasTitle", vec![]).unwrap(), AutoValue::Bool(true)));
+    assert!(matches!(invoke(&model, &chart, "HasLegend", vec![]).unwrap(), AutoValue::Bool(true)));
+    let series = obj(invoke_kind(&model, &chart, "SeriesCollection", InvokeKind::Method, vec![]).unwrap());
+    assert_eq!(int(invoke(&model, &series, "Count", vec![]).unwrap()), 2);
+    let side = |n: &str| match invoke(&model, &made, n, vec![]).unwrap() {
+        AutoValue::R4(v) => f64::from(v),
+        other => panic!("{other:?}"),
+    };
+    // Q2: 520.8749, 169.125, 360 x 216 (single precision).
+    // (Stored in whole EMU, a point is read back within a millionth of a point of the printed value.)
+    for (got, printed) in [side("Left"), side("Top"), side("Width"), side("Height")]
+        .into_iter()
+        .zip([520.8749, 169.125, 360.0, 216.0])
+    {
+        assert!((got - printed).abs() < 1e-4, "{got} vs {printed}");
+    }
+    assert_eq!(int(invoke(&model, &made, "Type", vec![]).unwrap()), 3);
+    // Saved, the empty chart and the others are charts of the drawing (one empty, one titled).
+    let drawing = saved_part(&mut host.session.borrow_mut(), "xl/drawings/");
+    assert!(drawing.contains(r#"name="Chart 1""#), "{drawing}");
+    assert!(!drawing.contains("editAs"), "{drawing}");
+}
+
+/// Q3: the errors of the report members, as Excel numbered and worded them.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0__excel_answers_q3_errors_follow_excel_numbers_and_descriptions() {
+    let (host, model, sheet) = blank_report();
+    fill(&host, (1, 1), &[&["Region", "Q1", "Q2"], &["North", "10", "20"], &["South", "30", "40"]]);
+    let table = obj(tables_add(&model, &sheet, &range(&model, "A1:C3"), Some(1)).unwrap());
+    let tables = obj(invoke(&model, &sheet, "ListObjects", vec![]).unwrap());
+    let item = |collection: &ObjectRef, argument: AutoValue| {
+        invoke_kind(&model, collection, "Item", InvokeKind::Method, vec![argument])
+    };
+    let get_item = |collection: &ObjectRef, argument: AutoValue| {
+        invoke_kind(&model, collection, "Item", InvokeKind::Get, vec![argument])
+    };
+    for argument in [AutoValue::I4(5), AutoValue::I4(0), AutoValue::text("nope")] {
+        assert_eq!(excel_error(get_item(&tables, argument)), (9, "Subscript out of range".to_owned()));
+    }
+    let columns = obj(invoke(&model, &table, "ListColumns", vec![]).unwrap());
+    assert_eq!(excel_error(get_item(&columns, AutoValue::I4(9))), (9, "Subscript out of range".to_owned()));
+    // An overlapping table.
+    assert_eq!(
+        excel_error(tables_add(&model, &sheet, &range(&model, "B2:C3"), Some(1))),
+        (1004, "A table can't overlap another table. ".to_owned())
+    );
+    // Table names: same twice and a case-only change are accepted; empty and over 255 characters are not.
+    let set_name = |name: &str| invoke_kind(&model, &table, "Name", InvokeKind::Put, vec![AutoValue::text(name)]);
+    set_name("Sales").unwrap();
+    set_name("Sales").unwrap();
+    set_name("sales").unwrap();
+    assert_eq!(text(&model, &table, "Name"), "sales");
+    assert_eq!(excel_error(set_name("")).0, 1004);
+    assert_eq!(excel_error(set_name(&"x".repeat(300))), (5, "Invalid procedure call or argument".to_owned()));
+    // A second table's name against the first, in another case: 1004.
+    fill(&host, (6, 1), &[&["a", "b"], &["1", "2"]]);
+    let other = obj(tables_add(&model, &sheet, &range(&model, "A6:B7"), Some(1)).unwrap());
+    assert_eq!(text(&model, &other, "Name"), "Table1");
+    assert_eq!(
+        excel_error(invoke_kind(&model, &other, "Name", InvokeKind::Put, vec![AutoValue::text("SALES")])).0,
+        1004
+    );
+    // Column names: the same name is fine, a name another column has is ignored, empty becomes
+    // ColumnN, a number is stored as text.
+    let column = obj(get_item(&columns, AutoValue::I4(1)).unwrap());
+    let rename = |name: AutoValue| invoke_kind(&model, &column, "Name", InvokeKind::Put, vec![name]);
+    rename(AutoValue::text("Region")).unwrap();
+    rename(AutoValue::text("Q1")).unwrap();
+    assert_eq!(text(&model, &column, "Name"), "Region");
+    rename(AutoValue::text("")).unwrap();
+    assert_eq!(text(&model, &column, "Name"), "Column1");
+    rename(AutoValue::I4(5)).unwrap();
+    assert_eq!(text(&model, &column, "Name"), "5");
+
+    // Shapes and charts collections.
+    let shapes = obj(invoke(&model, &sheet, "Shapes", vec![]).unwrap());
+    let by_name = "The item with the specified name wasn't found.".to_owned();
+    let by_index = "The index into the specified collection is out of bounds.".to_owned();
+    assert_eq!(excel_error(item(&shapes, AutoValue::text("nope"))), (-2147024809, by_name.clone()));
+    for argument in [AutoValue::I4(99), AutoValue::I4(0)] {
+        assert_eq!(excel_error(item(&shapes, argument)), (-2147024809, by_index.clone()));
+    }
+    let charts = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    assert_eq!(excel_error(item(&charts, AutoValue::I4(9))).0, 1004);
+    assert_eq!(excel_error(item(&charts, AutoValue::text("nope"))), (-2147024809, by_name));
+    let rect = |l: f64, t: f64, w: f64, h: f64| vec![AutoValue::R8(l), AutoValue::R8(t), AutoValue::R8(w), AutoValue::R8(h)];
+    let with = |first: AutoValue, rest: Vec<AutoValue>| std::iter::once(first).chain(rest).collect::<Vec<_>>();
+    let add = |name: &str, args: Vec<AutoValue>| invoke_kind(&model, &shapes, name, InvokeKind::Method, args);
+    // A negative size is out of range and makes no shape; zero is accepted.
+    assert_eq!(
+        excel_error(add("AddShape", with(AutoValue::I4(1), rect(10.0, 10.0, -5.0, 5.0)))),
+        (1004, "The specified value is out of range.".to_owned())
+    );
+    assert_eq!(int(invoke(&model, &shapes, "Count", vec![]).unwrap()), 0);
+    let zero = obj(add("AddShape", with(AutoValue::I4(1), rect(10.0, 10.0, 0.0, 0.0))).unwrap());
+    assert_eq!(text(&model, &zero, "Name"), "Rectangle 1");
+    let sh1 = obj(add("AddShape", with(AutoValue::I4(1), rect(20.0, 120.0, 100.0, 50.0))).unwrap());
+    let sh2 = obj(add("AddShape", with(AutoValue::I4(9), rect(20.0, 220.0, 100.0, 50.0))).unwrap());
+    assert_eq!((text(&model, &sh1, "Name"), text(&model, &sh2, "Name")), ("Rectangle 2".to_owned(), "Oval 3".to_owned()));
+    // Names: another shape's name is accepted; empty is out of range.
+    invoke_kind(&model, &sh1, "Name", InvokeKind::Put, vec![AutoValue::text("Oval 3")]).unwrap();
+    assert_eq!(
+        excel_error(invoke_kind(&model, &sh1, "Name", InvokeKind::Put, vec![AutoValue::text("")])),
+        (-2147024809, "The specified value is out of range.".to_owned())
+    );
+    // Connector sites: 99, 0, -1 and 9 (an oval has 8) are invalid, 8 is fine, itself is invalid,
+    // a chart is a type mismatch.
+    let cn = obj(add("AddConnector", with(AutoValue::I4(1), rect(0.0, 0.0, 10.0, 10.0))).unwrap());
+    let cf = obj(invoke(&model, &cn, "ConnectorFormat", vec![]).unwrap());
+    let invalid = (-2147024809, "The specified parameter has an invalid value.".to_owned());
+    for site in [99, 0, -1, 9] {
+        let connect = invoke_kind(&model, &cf, "BeginConnect", InvokeKind::Method,
+            vec![AutoValue::Object(sh2.clone()), AutoValue::I4(site)]);
+        assert_eq!(excel_error(connect), invalid, "site {site}");
+    }
+    invoke_kind(&model, &cf, "BeginConnect", InvokeKind::Method, vec![AutoValue::Object(sh2.clone()), AutoValue::I4(8)]).unwrap();
+    assert_eq!(int(invoke(&model, &cf, "BeginConnectionSite", vec![]).unwrap()), 8);
+    let itself = invoke_kind(&model, &cf, "BeginConnect", InvokeKind::Method, vec![AutoValue::Object(cn.clone()), AutoValue::I4(1)]);
+    assert_eq!(excel_error(itself), invalid);
+    let frame = obj(invoke_kind(&model, &charts, "Add", InvokeKind::Method, rect(300.0, 20.0, 100.0, 100.0)).unwrap());
+    let chart_shape = obj(item(&shapes, AutoValue::text("Chart 5")).unwrap_or_else(|e| panic!("{e:?}")));
+    assert_eq!(text(&model, &frame, "Name"), "Chart 5");
+    let to_chart = invoke_kind(&model, &cf, "EndConnect", InvokeKind::Method, vec![AutoValue::Object(chart_shape), AutoValue::I4(1)]);
+    // A type mismatch is VBA's error 13 (DISP_E_TYPEMISMATCH).
+    assert!(matches!(to_chart, Err(AutoError::Status(-2_147_352_571))), "{to_chart:?}");
+    // Deleting the oval leaves the connector glued at the other end only; a second delete is 424.
+    invoke_kind(&model, &sh2, "Delete", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(excel_error(invoke_kind(&model, &sh2, "Delete", InvokeKind::Method, vec![])), (424, "Object required".to_owned()));
+    assert_eq!(excel_error(invoke(&model, &sh2, "Name", vec![])).0, 424);
+    assert_eq!(int(invoke(&model, &cf, "BeginConnected", vec![]).unwrap()), 0);
+    // Chart errors.
+    let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
+    assert_eq!(
+        excel_error(invoke_kind(&model, &chart, "ChartType", InvokeKind::Put, vec![AutoValue::I4(9999)])),
+        (-2147467259, "Method 'ChartType' of object '_Chart' failed".to_owned())
+    );
+    assert_eq!(int(invoke(&model, &chart, "ChartType", vec![]).unwrap()), 51);
+    invoke_kind(&model, &chart, "ChartType", InvokeKind::Put, vec![AutoValue::I4(4)]).unwrap();
+    assert_eq!(int(invoke(&model, &chart, "ChartType", vec![]).unwrap()), 4);
+    let series = obj(invoke_kind(&model, &chart, "SeriesCollection", InvokeKind::Method, vec![]).unwrap());
+    assert_eq!(
+        excel_error(invoke_kind(&model, &series, "Item", InvokeKind::Method, vec![AutoValue::I4(9)])),
+        (1004, "Parameter not valid".to_owned())
+    );
+    assert_eq!(
+        excel_error(invoke_kind(&model, &chart, "SetSourceData", InvokeKind::Method, vec![AutoValue::Empty])).0,
+        -2147417848
+    );
+    let title = obj(invoke(&model, &chart, "ChartTitle", vec![]).unwrap());
+    let no_title = (-2147024809, "This object has no title.".to_owned());
+    assert_eq!(excel_error(invoke(&model, &title, "Text", vec![])), no_title);
+    assert_eq!(excel_error(invoke_kind(&model, &title, "Text", InvokeKind::Put, vec![AutoValue::text("x")])), no_title);
+    invoke_kind(&model, &chart, "HasTitle", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    assert_eq!(text(&model, &title, "Text"), "Chart Title");
+    assert_eq!(
+        excel_error(invoke_kind(&model, &title, "Text", InvokeKind::Put, vec![AutoValue::text(&"t".repeat(300))])),
+        (-2147467259, "Method 'Text' of object 'ChartTitle' failed".to_owned())
+    );
+}
+
+/// Q4, Q5: a table's defaults and the header text of the first row, as Excel printed them.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0__excel_answers_q4_q5_table_headers_and_defaults() {
+    let (host, model, sheet) = blank_report();
+    // Q5: numeric header cells become text "1", "2", "3" and the columns are named so.
+    fill(&host, (1, 1), &[&["1", "2", "3"], &["4", "5", "6"]]);
+    let numeric = obj(tables_add(&model, &sheet, &range(&model, "A1:C2"), Some(1)).unwrap());
+    let columns = obj(invoke(&model, &numeric, "ListColumns", vec![]).unwrap());
+    for (i, name) in ["1", "2", "3"].iter().enumerate() {
+        let column = obj(invoke_kind(&model, &columns, "Item", InvokeKind::Get, vec![AutoValue::I4(i as i32 + 1)]).unwrap());
+        assert_eq!(text(&model, &column, "Name"), *name);
+    }
+    assert_eq!(
+        invoke(&model, &range(&model, "A1"), "Value", vec![]).unwrap().as_text().as_deref(),
+        Some("1")
+    );
+    // Q5: repeated headers x, x, x become x, x2, x3; blank headers Column1..Column3.
+    fill(&host, (5, 1), &[&["x", "x", "x"], &["1", "2", "3"]]);
+    let repeated = obj(tables_add(&model, &sheet, &range(&model, "A5:C6"), Some(1)).unwrap());
+    let columns = obj(invoke(&model, &repeated, "ListColumns", vec![]).unwrap());
+    let names: Vec<String> = (1..=3)
+        .map(|i| {
+            let column = obj(invoke_kind(&model, &columns, "Item", InvokeKind::Get, vec![AutoValue::I4(i)]).unwrap());
+            text(&model, &column, "Name")
+        })
+        .collect();
+    assert_eq!(names, ["x", "x2", "x3"]);
+    // Q4: without xlYes a first row of text is taken as the headers; any other first row makes
+    // Excel insert a header row, which stays a typed refusal.
+    fill(&host, (9, 1), &[&["a", "b"], &["1", "2"]]);
+    let guessed = obj(tables_add(&model, &sheet, &range(&model, "A9:B10"), None).unwrap());
+    assert_eq!(text(&model, &guessed, "Name"), "Table3");
+    let refused = tables_add(&model, &sheet, &range(&model, "A13:B15"), None);
+    assert!(matches!(refused, Err(AutoError::NotModelled { owner: "dc-piw0.1", .. })), "{refused:?}");
 }

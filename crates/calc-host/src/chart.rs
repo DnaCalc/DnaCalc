@@ -289,6 +289,23 @@ impl HostState {
         (views, unread)
     }
 
+    /// The name a series shows: the text of the cell it names, else `Series<n>` (dc-piw0 Q6).
+    pub(crate) fn series_display_name(
+        &self,
+        sheet: SheetId,
+        series: &calc_doc_model::ChartSeries,
+        place: usize,
+    ) -> String {
+        let origin = CellKey::new(sheet, 1, 1).expect("A1 is a cell");
+        series
+            .name
+            .as_ref()
+            .map(|data| self.data_values(data, origin).0)
+            .and_then(|names| names.into_iter().flatten().next())
+            .map(|value| text_of(&value))
+            .unwrap_or_else(|| format!("Series{}", place + 1))
+    }
+
     /// A drawing point's cell where the session's insertions and deletions moved it, with its
     /// offset in pixels; `None` when its cell was deleted.
     fn chart_corner(&self, sheet: SheetId, point: &DrawingPoint) -> Option<ChartCorner> {
@@ -1379,27 +1396,19 @@ fn range_data(
     })
 }
 /// Build column- or row-oriented series from one selection, with explicit header/category choices.
-pub(crate) fn prepare_create(
-    host: &HostState,
-    revision: u64,
-    area: calc_value::GridArea,
-    kind: &str,
-    rows: bool,
-    headers: bool,
-    categories: bool,
-) -> Result<Vec<crate::CellEdit>, String> {
-    use calc_doc_model::{Chart, ChartAxis, ChartPlot, ChartSeries};
-    let fail = |s: &str| format!("{s} (dc-971p.49)");
-    // UI30 P10: `column-percent`, `bar-percent`, `line-percent` and `area-percent` are the
-    // 100% stacked plots (grouping percentStacked) of the same kinds.
-    let (kind, percent) = match kind.strip_suffix("-percent") {
-        Some(base @ ("column" | "bar" | "line" | "area")) => (base, true),
-        _ => (kind, false),
-    };
-    if revision != host.revision().get() {
-        return Err(fail("The workbook changed; select the chart data again"));
-    }
-    let sheet = area.sheet();
+/// What frames a chart a command makes: its anchor, its identity and its title and legend.
+pub(crate) struct NewChart {
+    pub anchor: calc_doc_model::ChartAnchor,
+    /// The shape identity a macro's chart takes (its name is `Chart <id - 1>`); `None` for the
+    /// interface's, which takes the first free `Chart N`.
+    pub drawing_id: Option<u32>,
+    pub title: Option<String>,
+    /// `c:autoTitleDeleted`: false lets Excel title a one-series chart with its series name.
+    pub auto_title_deleted: bool,
+    pub legend: bool,
+}
+
+fn editable(host: &HostState, sheet: SheetId, fail: &dyn Fn(&str) -> String) -> Result<(), String> {
     let source = host
         .loaded()
         .sheet(sheet)
@@ -1415,6 +1424,22 @@ pub(crate) fn prepare_create(
             "Save and reopen before creating charts after row or column insertion or deletion",
         ));
     }
+    Ok(())
+}
+
+/// The series a source range holds: along rows or columns, with the first row or column as the
+/// series names and/or the categories. Returns them with the number of series.
+fn make_series(
+    host: &HostState,
+    area: calc_value::GridArea,
+    scatter: bool,
+    rows: bool,
+    headers: bool,
+    categories: bool,
+    fail: &dyn Fn(&str) -> String,
+) -> Result<Vec<calc_doc_model::ChartSeries>, String> {
+    use calc_doc_model::ChartSeries;
+    let sheet = area.sheet();
     let (length, width) = if rows {
         (area.column_count(), area.row_count())
     } else {
@@ -1431,47 +1456,6 @@ pub(crate) fn prepare_create(
     if count > 255 || points > 32767 || u64::from(points) * u64::from(count) > 262144 {
         return Err(fail(
             "Use at most 255 series, 32,767 points per series and 262,144 points in total",
-        ));
-    }
-    let (plot_kind, dir) = match kind {
-        "column" | "combo" | "combo-three" | "combo-column-area" => ("barChart", Some("col")),
-        "combo-line-column" | "combo-line-area" => ("lineChart", None),
-        "combo-area-line" | "combo-area-column" => ("areaChart", None),
-        "bar" => ("barChart", Some("bar")),
-        "line" => ("lineChart", None),
-        "area" => ("areaChart", None),
-        "pie" => ("pieChart", None),
-        "doughnut" => ("doughnutChart", None),
-        "scatter" => ("scatterChart", None),
-        _ => return Err(fail("Choose a supported two-dimensional chart type")),
-    };
-    let combo = matches!(
-        kind,
-        "combo"
-            | "combo-three"
-            | "combo-column-area"
-            | "combo-line-column"
-            | "combo-line-area"
-            | "combo-area-line"
-            | "combo-area-column"
-    );
-    if combo && count < 2 {
-        return Err(fail(
-            "Select at least two values series for a category combination (dc-971p.51)",
-        ));
-    }
-    if kind == "combo-three" && count < 3 {
-        return Err(fail(
-            "Select at least three values series for column, line and area plots",
-        ));
-    }
-    let pie = matches!(kind, "pie" | "doughnut");
-    if pie && count != 1 {
-        return Err(fail("Select one values series for a pie or doughnut"));
-    }
-    if kind == "scatter" && !categories {
-        return Err(fail(
-            "Use the first column or row as X values for a scatter chart",
         ));
     }
     let cell = |major: u32, minor: u32| {
@@ -1495,7 +1479,7 @@ pub(crate) fn prepare_create(
         Some(data(
             cell(u32::from(headers), 0),
             cell(length - 1, 0),
-            kind == "scatter",
+            scatter,
         )?)
     } else {
         None
@@ -1519,6 +1503,186 @@ pub(crate) fn prepare_create(
             )?),
             fill: None,
         });
+    }
+    Ok(series)
+}
+
+pub(crate) fn prepare_create(
+    host: &HostState,
+    revision: u64,
+    area: calc_value::GridArea,
+    kind: &str,
+    rows: bool,
+    headers: bool,
+    categories: bool,
+) -> Result<Vec<crate::CellEdit>, String> {
+    let fail = |s: &str| format!("{s} (dc-971p.49)");
+    if revision != host.revision().get() {
+        return Err(fail("The workbook changed; select the chart data again"));
+    }
+    let sheet = area.sheet();
+    editable(host, sheet, &fail)?;
+    let scatter = kind == "scatter";
+    let series = make_series(host, area, scatter, rows, headers, categories, &fail)?;
+    let count = series.len() as u32;
+    assemble(
+        host,
+        sheet,
+        kind,
+        series,
+        count,
+        categories,
+        NewChart {
+            anchor: ChartAnchor::OneCell {
+                from: DrawingPoint {
+                    column: area.last().column().saturating_add(1).min(16383),
+                    row: area.first().row() - 1,
+                    ..Default::default()
+                },
+                width: 640 * 9525,
+                height: 360 * 9525,
+            },
+            drawing_id: None,
+            title: None,
+            auto_title_deleted: true,
+            legend: true,
+        },
+        &fail,
+    )
+}
+
+/// A chart without data, as `ChartObjects.Add` and `Shapes.AddChart2` make one (dc-piw0.2): the
+/// chart type's plot and axes with no series, framed by `new`.
+pub(crate) fn prepare_create_empty(
+    host: &HostState,
+    sheet: SheetId,
+    revision: u64,
+    kind: &str,
+    new: NewChart,
+) -> Result<Vec<crate::CellEdit>, String> {
+    let fail = |s: &str| format!("{s} (dc-piw0.2)");
+    if revision != host.revision().get() {
+        return Err(fail("The workbook changed; read the sheet again"));
+    }
+    editable(host, sheet, &fail)?;
+    assemble(host, sheet, kind, Vec::new(), 0, false, new, &fail)
+}
+
+/// `Chart.SetSourceData`: the series of a chart this session made become those of `area`, the
+/// chart keeping its type, frame, name, title and legend.
+pub(crate) fn prepare_set_source(
+    host: &HostState,
+    sheet: SheetId,
+    revision: u64,
+    part: &str,
+    area: calc_value::GridArea,
+    rows: bool,
+    headers: bool,
+    categories: bool,
+) -> Result<Vec<crate::CellEdit>, String> {
+    let fail = |s: &str| format!("{s} (dc-piw0.2)");
+    if revision != host.revision().get() {
+        return Err(fail("The workbook changed; read the chart again"));
+    }
+    let mut charts = host.model().definitions().charts(sheet).to_vec();
+    let imported = host.loaded().model().definitions().charts(sheet).len();
+    let index = charts
+        .iter()
+        .position(|c| c.part == part)
+        .ok_or_else(|| fail("The chart no longer exists"))?;
+    if index < imported {
+        return Err(fail("The series of a chart the file holds are not replaced yet"));
+    }
+    if charts[index].plots.len() != 1 {
+        return Err(fail("Only a chart with one plot takes new source data"));
+    }
+    let scatter = charts[index].plots[0].kind == "scatterChart";
+    let pie = matches!(charts[index].plots[0].kind.as_str(), "pieChart" | "doughnutChart");
+    // A source with no value in it leaves the chart without series (Excel, Q6).
+    let model = host.model();
+    let empty = area.cell_count() <= 65_536
+        && (area.first().row()..=area.last().row()).all(|r| {
+            (area.first().column()..=area.last().column()).all(|c| {
+                CellKey::new(sheet, r, c)
+                    .ok()
+                    .is_none_or(|at| model.cell(at).is_none())
+            })
+        });
+    let series = if empty {
+        Vec::new()
+    } else {
+        make_series(host, area, scatter, rows, headers, categories, &fail)?
+    };
+    if pie && !series.is_empty() && series.len() != 1 {
+        return Err(fail("Select one values series for a pie or doughnut"));
+    }
+    if scatter && !categories && !series.is_empty() {
+        return Err(fail("Use the first column or row as X values for a scatter chart"));
+    }
+    charts[index].plots[0].series = series;
+    host.loaded()
+        .check_chart_set(sheet, &charts)
+        .map_err(|e| e.to_string())?;
+    Ok(vec![crate::CellEdit::Charts { sheet, charts }])
+}
+
+fn assemble(
+    host: &HostState,
+    sheet: SheetId,
+    kind: &str,
+    series: Vec<calc_doc_model::ChartSeries>,
+    count: u32,
+    categories: bool,
+    new: NewChart,
+    fail: &dyn Fn(&str) -> String,
+) -> Result<Vec<crate::CellEdit>, String> {
+    use calc_doc_model::{Chart, ChartAxis, ChartPlot};
+    // UI30 P10: `column-percent`, `bar-percent`, `line-percent` and `area-percent` are the
+    // 100% stacked plots (grouping percentStacked) of the same kinds.
+    let (kind, percent) = match kind.strip_suffix("-percent") {
+        Some(base @ ("column" | "bar" | "line" | "area")) => (base, true),
+        _ => (kind, false),
+    };
+    let (plot_kind, dir) = match kind {
+        "column" | "combo" | "combo-three" | "combo-column-area" => ("barChart", Some("col")),
+        "combo-line-column" | "combo-line-area" => ("lineChart", None),
+        "combo-area-line" | "combo-area-column" => ("areaChart", None),
+        "bar" => ("barChart", Some("bar")),
+        "line" => ("lineChart", None),
+        "area" => ("areaChart", None),
+        "pie" => ("pieChart", None),
+        "doughnut" => ("doughnutChart", None),
+        "scatter" => ("scatterChart", None),
+        _ => return Err(fail("Choose a supported two-dimensional chart type")),
+    };
+    let combo = matches!(
+        kind,
+        "combo"
+            | "combo-three"
+            | "combo-column-area"
+            | "combo-line-column"
+            | "combo-line-area"
+            | "combo-area-line"
+            | "combo-area-column"
+    );
+    if combo && count < 2 && count > 0 {
+        return Err(fail(
+            "Select at least two values series for a category combination (dc-971p.51)",
+        ));
+    }
+    if kind == "combo-three" && count < 3 && count > 0 {
+        return Err(fail(
+            "Select at least three values series for column, line and area plots",
+        ));
+    }
+    let pie = matches!(kind, "pie" | "doughnut");
+    if pie && count != 1 && count > 0 {
+        return Err(fail("Select one values series for a pie or doughnut"));
+    }
+    if kind == "scatter" && !categories && count > 0 {
+        return Err(fail(
+            "Use the first column or row as X values for a scatter chart",
+        ));
     }
     let mut axes = if pie {
         Vec::new()
@@ -1643,26 +1807,22 @@ pub(crate) fn prepare_create(
         .iter()
         .map(|c| c.name.as_str())
         .collect::<std::collections::BTreeSet<_>>();
-    let name = (1u32..)
-        .map(|i| format!("Chart {i}"))
-        .find(|n| !names.contains(n.as_str()))
-        .unwrap();
+    let name = match new.drawing_id {
+        Some(id) => format!("Chart {}", id - 1),
+        None => (1u32..)
+            .map(|i| format!("Chart {i}"))
+            .find(|n| !names.contains(n.as_str()))
+            .unwrap(),
+    };
     charts.push(Chart {
         part,
         name,
-        anchor: ChartAnchor::OneCell {
-            from: DrawingPoint {
-                column: area.last().column().saturating_add(1).min(16383),
-                row: area.first().row() - 1,
-                ..Default::default()
-            },
-            width: 640 * 9525,
-            height: 360 * 9525,
-        },
-        title: None,
+        anchor: new.anchor,
+        drawing_id: new.drawing_id,
+        title: new.title,
         title_formula: None,
-        auto_title_deleted: true,
-        legend: Some("r".into()),
+        auto_title_deleted: new.auto_title_deleted,
+        legend: new.legend.then(|| "r".into()),
         plots,
         axes,
         text_style: Default::default(),
@@ -1685,7 +1845,7 @@ pub(crate) fn prepare_frame(
     name: Option<String>,
     place: Option<[crate::Points; 4]>,
 ) -> Result<Vec<crate::CellEdit>, String> {
-    use calc_doc_model::{ChartAnchor, DrawingPoint};
+    use calc_doc_model::ChartAnchor;
     let fail = |s: &str| format!("{s} (dc-piw0.2)");
     if revision != host.revision().get() {
         return Err(fail("The workbook changed; read the chart again"));
@@ -1717,16 +1877,15 @@ pub(crate) fn prepare_frame(
         if ![left, top, width, height]
             .into_iter()
             .all(|v| v.is_finite() && (0.0..=1.0e7).contains(&v))
-            || width <= 0.0
-            || height <= 0.0
+            || width < 0.0
+            || height < 0.0
         {
-            return Err(fail("Use a position and a positive size on the worksheet"));
+            return Err(fail("Use a position and a size on the worksheet"));
         }
-        let from: DrawingPoint = host.point_at(sheet, left, top);
-        charts[index].anchor = ChartAnchor::OneCell {
-            from,
-            width: (width * 12_700.0).round() as i64,
-            height: (height * 12_700.0).round() as i64,
+        // Excel writes a macro's chart as a two-cell anchor (dc-piw0 Q0).
+        charts[index].anchor = ChartAnchor::TwoCell {
+            from: host.point_at(sheet, left, top),
+            to: host.point_at(sheet, left + width, top + height),
         };
     }
     host.loaded()

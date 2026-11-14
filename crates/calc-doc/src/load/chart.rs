@@ -236,6 +236,7 @@ fn read_chart_xml(
         part: part.to_owned(),
         name,
         anchor,
+        drawing_id: None,
         title: None,
         title_formula: None,
         auto_title_deleted: false,

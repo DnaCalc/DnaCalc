@@ -125,6 +125,27 @@ pub enum WorkbookCommand {
         name: Option<String>,
         place: Option<[crate::Points; 4]>,
     },
+    /// A chart without data at a place in points (`ChartObjects.Add`, `Shapes.AddChart2`); the
+    /// drawing identity is the next free one of the sheet (dc-piw0.2).
+    ChartCreateEmpty {
+        sheet: SheetId,
+        revision: u64,
+        kind: String,
+        place: [crate::Points; 4],
+        /// `Some`: the chart has this title (`AddChart2`); `None`: no title.
+        title: Option<String>,
+        legend: bool,
+    },
+    /// `Chart.SetSourceData`: the series of a chart this session made.
+    ChartSource {
+        sheet: SheetId,
+        revision: u64,
+        part: String,
+        area: GridArea,
+        rows: bool,
+        headers: bool,
+        categories: bool,
+    },
     ChartCreate {
         revision: u64,
         area: GridArea,
@@ -413,6 +434,52 @@ pub(crate) fn prepare(
             name,
             place,
         } => crate::chart::prepare_frame(host, sheet, revision, &part, name, place),
+        WorkbookCommand::ChartCreateEmpty {
+            sheet,
+            revision,
+            kind,
+            place,
+            title,
+            legend,
+        } => {
+            let [left, top, width, height] = place.map(crate::Points::get);
+            if ![left, top, width, height]
+                .into_iter()
+                .all(|v| v.is_finite() && (0.0..=1.0e7).contains(&v))
+                || width < 0.0
+                || height < 0.0
+            {
+                return Err("Use a position and a size on the worksheet (dc-piw0.2)".into());
+            }
+            let id = host.next_drawing_id(sheet);
+            crate::chart::prepare_create_empty(
+                host,
+                sheet,
+                revision,
+                &kind,
+                crate::chart::NewChart {
+                    anchor: calc_doc_model::ChartAnchor::TwoCell {
+                        from: host.point_at(sheet, left, top),
+                        to: host.point_at(sheet, left + width, top + height),
+                    },
+                    drawing_id: Some(id),
+                    auto_title_deleted: false,
+                    title,
+                    legend,
+                },
+            )
+        }
+        WorkbookCommand::ChartSource {
+            sheet,
+            revision,
+            part,
+            area,
+            rows,
+            headers,
+            categories,
+        } => crate::chart::prepare_set_source(
+            host, sheet, revision, &part, area, rows, headers, categories,
+        ),
         WorkbookCommand::ChartCreate {
             revision,
             area,

@@ -1,8 +1,8 @@
 //! New drawing objects as anchors of a spreadsheet drawing (dc-zjsg.1). The anchor of an authored
 //! shape, text box or connector is written in the form Excel's own files use (xdr:sp with its
 //! `xdr:style` for an auto shape, `txBox="1"` for a text box, xdr:cxnSp for a connector); which
-//! defaults Excel writes (names, ids, `editAs`, text body properties) is measured by
-//! `~/codex-runs/eng1/excel-questions.md` and not guessed beyond what is written here. Objects
+//! defaults Excel writes (names, ids, no `editAs`, the text box's fill and line, text body
+//! properties) are those of the XML Excel saved for the report macro (excel-answers.md Q0). Objects
 //! read from a file are never written by this module: their XML stays as stored.
 
 use super::{SaveRefusal, text::attribute_value};
@@ -36,6 +36,8 @@ fn element_text(value: &str, out: &mut Vec<u8>) {
             '&' => out.extend_from_slice(b"&amp;"),
             '<' => out.extend_from_slice(b"&lt;"),
             '>' => out.extend_from_slice(b"&gt;"),
+            // Excel stores a line feed inside a paragraph as CR LF (dc-piw0 Q8).
+            '\n' => out.extend_from_slice(b"\r\n"),
             c => {
                 let mut buffer = [0u8; 4];
                 out.extend_from_slice(c.encode_utf8(&mut buffer).as_bytes());
@@ -203,8 +205,18 @@ pub(crate) fn frame(shape: &Shape, remap: &BTreeMap<u32, u32>) -> Result<Vec<u8>
     let mut properties =
         format!("<xdr:spPr>{xfrm}<a:prstGeom prst=\"{geometry}\"><a:avLst/></a:prstGeom>")
             .into_bytes();
-    fill(&shape.fill, &mut properties).map_err(fail)?;
-    line(&shape.line, &mut properties).map_err(fail)?;
+    let text_box = shape.kind == ShapeKind::TextBox;
+    if text_box && shape.fill == ShapeFill::Style {
+        // A text box Excel adds has a white fill and a thin line of the theme's own (Q0).
+        properties.extend(b"<a:solidFill><a:schemeClr val=\"lt1\"/></a:solidFill>");
+    } else {
+        fill(&shape.fill, &mut properties).map_err(fail)?;
+    }
+    if text_box && shape.line == ShapeLine::default() {
+        properties.extend(b"<a:ln w=\"9525\" cmpd=\"sng\"><a:solidFill><a:schemeClr val=\"lt1\"><a:shade val=\"50000\"/></a:schemeClr></a:solidFill></a:ln>");
+    } else {
+        line(&shape.line, &mut properties).map_err(fail)?;
+    }
     properties.extend(b"</xdr:spPr>");
     let hidden = if shape.hidden { " hidden=\"1\"" } else { "" };
     let mut name = Vec::new();
@@ -225,10 +237,9 @@ pub(crate) fn frame(shape: &Shape, remap: &BTreeMap<u32, u32>) -> Result<Vec<u8>
         }
         out.extend(b"</xdr:cNvCxnSpPr></xdr:nvCxnSpPr>");
         out.extend(&properties);
-        out.extend(b"<xdr:style><a:lnRef idx=\"1\"><a:schemeClr val=\"accent1\"/></a:lnRef><a:fillRef idx=\"0\"><a:schemeClr val=\"accent1\"/></a:fillRef><a:effectRef idx=\"0\"><a:schemeClr val=\"accent1\"/></a:effectRef><a:fontRef idx=\"minor\"><a:schemeClr val=\"tx1\"/></a:fontRef></xdr:style>");
+        out.extend(b"<xdr:style><a:lnRef idx=\"2\"><a:schemeClr val=\"accent1\"/></a:lnRef><a:fillRef idx=\"0\"><a:schemeClr val=\"accent1\"/></a:fillRef><a:effectRef idx=\"1\"><a:schemeClr val=\"accent1\"/></a:effectRef><a:fontRef idx=\"minor\"><a:schemeClr val=\"tx1\"/></a:fontRef></xdr:style>");
         out.extend(b"</xdr:cxnSp>");
     } else {
-        let text_box = shape.kind == ShapeKind::TextBox;
         out.extend(
             format!(
                 "<xdr:sp macro=\"\" textlink=\"\"><xdr:nvSpPr><xdr:cNvPr id=\"{id}\" name={name}{hidden}/><xdr:cNvSpPr{}/></xdr:nvSpPr>",
@@ -237,21 +248,22 @@ pub(crate) fn frame(shape: &Shape, remap: &BTreeMap<u32, u32>) -> Result<Vec<u8>
             .as_bytes(),
         );
         out.extend(&properties);
-        if !text_box {
+        if text_box {
+            out.extend(b"<xdr:style><a:lnRef idx=\"0\"><a:scrgbClr r=\"0\" g=\"0\" b=\"0\"/></a:lnRef><a:fillRef idx=\"0\"><a:scrgbClr r=\"0\" g=\"0\" b=\"0\"/></a:fillRef><a:effectRef idx=\"0\"><a:scrgbClr r=\"0\" g=\"0\" b=\"0\"/></a:effectRef><a:fontRef idx=\"minor\"><a:schemeClr val=\"dk1\"/></a:fontRef></xdr:style>");
+        } else {
             out.extend(b"<xdr:style><a:lnRef idx=\"2\"><a:schemeClr val=\"accent1\"><a:shade val=\"15000\"/></a:schemeClr></a:lnRef><a:fillRef idx=\"1\"><a:schemeClr val=\"accent1\"/></a:fillRef><a:effectRef idx=\"0\"><a:schemeClr val=\"accent1\"/></a:effectRef><a:fontRef idx=\"minor\"><a:schemeClr val=\"lt1\"/></a:fontRef></xdr:style>");
         }
         out.extend(
             format!(
-                "<xdr:txBody><a:bodyPr vertOverflow=\"clip\" horzOverflow=\"clip\" wrap=\"{}\" rtlCol=\"0\" anchor=\"{}\"/><a:lstStyle/>",
-                "square",
-                if text_box { "t" } else { "ctr" }
+                "<xdr:txBody><a:bodyPr vertOverflow=\"clip\" horzOverflow=\"clip\"{} rtlCol=\"0\" anchor=\"t\"/><a:lstStyle/>",
+                if text_box { " vert=\"horz\"" } else { "" }
             )
             .as_bytes(),
         );
         let align = if text_box {
             ""
         } else {
-            "<a:pPr algn=\"ctr\"/>"
+            "<a:pPr algn=\"l\"/>"
         };
         let paragraphs = shape.text.as_deref().unwrap_or(&[]);
         if paragraphs.is_empty() {

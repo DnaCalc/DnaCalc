@@ -209,10 +209,11 @@ Catalogue availability does not establish that a particular function or argument
 | Window | 107 | 3 | 3 |
 | WorksheetFunction | 420 | 420 | 420 |
 | ListObjects / ListObject / ListColumns / ListColumn / ListRows | 9 / 59 / 8 / 16 / 9 | 0 | 4 / 11 / 3 / 2 / 2 |
-| ChartObjects / ChartObject / _Chart / ChartTitle | 54 / 49 / 208 / 48 | 0 | 4 / 11 / 8 / 2 |
-| Shapes / Shape / TextFrame2 / TextRange2 | 29 / 109 / 35 / 44 | 0 | 7 / 16 / 1 / 2 |
-| FillFormat / LineFormat / ColorFormat / ConnectorFormat | 48 / 33 / 14 / 15 | 0 | 1 / 3 / 2 / 2 |
-| All complete advertised layouts | 3,545 | 464 | 592 |
+| ChartObjects / ChartObject / _Chart / ChartTitle | 54 / 49 / 208 / 48 | 0 | 4 / 11 / 9 / 2 |
+| SeriesCollection / Series | 11 / 113 | 0 | 3 / 3 |
+| Shapes / Shape / TextFrame2 / TextRange2 | 29 / 109 / 35 / 44 | 0 | 8 / 23 / 1 / 2 |
+| FillFormat / LineFormat / ColorFormat / ConnectorFormat | 48 / 33 / 14 / 15 | 0 | 1 / 3 / 2 / 8 |
+| All complete advertised layouts | 3,545 | 464 | 613 |
 
 The total also includes descriptor interfaces with zero handlers in these two profiles: Windows,
 AppEvents, WorkbookEvents, DocEvents, IRtdServer, IRTDUpdateEvent, IAccessible and the Office/Add-in
@@ -224,20 +225,37 @@ event observer. They check nested event writes, one Change per transaction, scal
 shape refusal, held collection/range/name identities, and worksheet-invocation 1004s. WorksheetFunction
 Match's 1004 description is explicitly **unmeasured E7 text**, as directed by the owner.
 
-## 10a. Report objects (dc-piw0, lane eng1, 2026-11-14)
+## 10a. Report objects (dc-piw0, lanes eng1 and eng2, 2026-11-14)
 
 Tables, charts and drawings a macro builds are workbook-profile members in
-`calc_host::automation::report` and `report_draw`: 81 members (ListObjects, ListObject, ListColumns,
-ListColumn, ListRows, ChartObjects, ChartObject, Chart, ChartTitle, Shapes, Shape, TextFrame2,
-TextRange2, FillFormat, LineFormat, ColorFormat, ConnectorFormat), each one handler over the session's
-commands (`WorkbookCommand::Table`, `ChartCreate`, `ChartFrame`, `ChartProperties`, `Shape`), in the
-command and event contexts only. Objects are `ObjectKey::Report { workbook, sheet, item }`. They register
-only where the descriptor holds the type; the Windows regeneration of 2026-11-14 holds all of them:
-`report members: 81 registered, 0 pending` (test `report_members_register_where_the_descriptor_describes_them`),
-and `dc_piw0__a_macro_builds_a_report_through_object_model_members` runs on the real DISPIDs.
-A chart made by `ChartObjects.Add` is a pending frame until `SetSourceData` creates the chart (the chart
-writer has no empty chart, dc-zjsg.6). Drawing objects the file holds are never rewritten; changing one
+`calc_host::automation::report` and `report_draw`: 102 members (ListObjects, ListObject, ListColumns,
+ListColumn, ListRows, ChartObjects, ChartObject, Chart, ChartTitle, SeriesCollection, Series, Shapes,
+Shape, TextFrame2, TextRange2, FillFormat, LineFormat, ColorFormat, ConnectorFormat), each one handler
+over the session's commands (`WorkbookCommand::Table`, `ChartCreateEmpty`, `ChartSource`,
+`ChartFrame`, `ChartProperties`, `Shape`), in the command and event contexts only. Objects are
+`ObjectKey::Report { workbook, sheet, item }`. They register only where the descriptor holds the type;
+the Windows regeneration of 2026-11-14 holds all of them (`report members: 102 registered, 0 pending`,
+test `report_members_register_where_the_descriptor_describes_them`).
+
+Defaults and errors are Excel's recorded ones (`~/codex-runs/eng1/excel-answers.md`, Q0 to Q8, an
+owned Excel session on the Windows machine), pinned by the tests `dc_piw0__excel_answers_*` in
+`crates/calc-host/tests/automation.rs`: names (`Rectangle 2`, `Straight Connector 5` for a line,
+`Straight Arrow Connector 6` for a connector, `Chart 1`), shape identities from 2 in one counter
+shared by charts and shapes, `Shape.Type` and `AutoShapeType`, connection sites, two-cell anchors with
+no `editAs`, the text box's and the connector's default style, error numbers and descriptions.
+`ChartObjects.Add` makes an empty chart at once (saved as a column chart with a legend and no
+series); `SetSourceData` replaces the series and reads the range as Excel does (series along the
+shorter side of the data, rows when equal, a table's range by columns, text first row and first
+column as names and categories). Drawing objects the file holds are never rewritten; changing one
 refuses naming dc-zjsg.4.
+
+What is not Excel's yet: a table name that is not a defined-name shape (`1bad name`, `R1C1`) is
+refused where Excel accepts it; `ListObjects.Add` with xlNo, or without xlYes over a first row that
+is not text, refuses where Excel inserts a header row; `ListObject.Range = ...` is refused (Excel
+deletes the table); shape identities are not kept when the newest object is deleted (Excel never
+reuses them); the default column width and row height follow the workbook's own font, so a Calibri
+workbook anchors differently from the Aptos Narrow one Excel recorded (72 pixel columns, 14.25 pt
+rows); `a:rPr lang` is `en-US` where the recorded machine wrote `en-ZA`.
 
 ## 11. Open items
 

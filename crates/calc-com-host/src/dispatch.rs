@@ -129,6 +129,13 @@ pub(crate) unsafe extern "system" fn invoke(
             Err(e) => return error(&e, exception),
         };
         let Some(member) = pick(wrapper.target.interface, dispid, flags) else {
+            // Assigning to a property that has only a getter: Excel answers DISP_E_BADPARAMCOUNT,
+            // which VBA shows as error 450 (dc-piw0 Q3: Shape.Type, .ID, .Connector).
+            let assigns = flags & (DISPATCH_PROPERTYPUT.0 | DISPATCH_PROPERTYPUTREF.0) != 0;
+            if assigns && pick(wrapper.target.interface, dispid, DISPATCH_PROPERTYGET.0).is_some()
+            {
+                return DISP_E_BADPARAMCOUNT;
+            }
             return DISP_E_MEMBERNOTFOUND;
         };
         let result = (|| {

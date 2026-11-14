@@ -891,7 +891,8 @@ pub(crate) fn prepare(
                     if !calc_engine::valid_defined_name(&name)
                         || name.chars().count() > 255
                         || tables.iter().any(|t| {
-                            fold_workbook_name(&t.display_name) == fold_workbook_name(&name)
+                            t.part != old.part
+                                && fold_workbook_name(&t.display_name) == fold_workbook_name(&name)
                         })
                         || host
                             .model()

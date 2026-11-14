@@ -33,7 +33,9 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
     if !valid_text(&chart.name)
         || chart.title.as_deref().is_some_and(|s| !valid_text(s))
         || chart.title_formula.is_some()
-        || chart.auto_title_deleted != chart.title.is_none()
+        // A chart with a title has not had its automatic title deleted; one without may leave
+        // Excel to title a one-series chart with the series' name.
+        || chart.auto_title_deleted && chart.title.is_some()
     {
         return Err(fail("Use a literal chart title and a valid frame name"));
     }
@@ -80,9 +82,10 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
         if (pie || scatter) && p.grouping.is_some() {
             return Err(fail("This plot has no grouping"));
         }
-        if p.series.is_empty() || p.series.len() > 255 || (pie && p.series.len() != 1) {
+        // A chart a macro adds has no series until `SetSourceData` (dc-piw0.2).
+        if p.series.len() > 255 || (pie && p.series.len() > 1) {
             return Err(fail(
-                "Use 1 to 255 series, or one series for a pie or doughnut",
+                "Use up to 255 series, or one series for a pie or doughnut",
             ));
         }
         for s in &p.series {
@@ -342,40 +345,60 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
 }
 
 fn frame(chart: &Chart, id: u32, rel: &str) -> Result<Vec<u8>, SaveRefusal> {
-    let ChartAnchor::OneCell {
-        from,
-        width,
-        height,
-    } = chart.anchor
-    else {
-        return Err(invalid(
-            &chart.part,
-            "New chart frames use a cell anchor and fixed size",
-        ));
+    let point = |p: &DrawingPoint| {
+        format!(
+            "<xdr:col>{}</xdr:col><xdr:colOff>{}</xdr:colOff><xdr:row>{}</xdr:row><xdr:rowOff>{}</xdr:rowOff>",
+            p.column, p.column_offset, p.row, p.row_offset
+        )
     };
-    if from.column >= 16384
-        || from.row >= 1048576
-        || from.column_offset < 0
-        || from.row_offset < 0
-        || width <= 0
-        || height <= 0
-        || width > 100_000_000
-        || height > 100_000_000
-    {
-        return Err(invalid(
-            &chart.part,
-            "The chart frame must fit the worksheet and a bounded positive size",
-        ));
-    }
-    let DrawingPoint {
-        column,
-        column_offset,
-        row,
-        row_offset,
-    } = from;
-    let mut bytes=format!("<xdr:oneCellAnchor xmlns:xdr=\"{XDR}\" xmlns:a=\"{A}\" xmlns:r=\"{REL}\"><xdr:from><xdr:col>{column}</xdr:col><xdr:colOff>{column_offset}</xdr:colOff><xdr:row>{row}</xdr:row><xdr:rowOff>{row_offset}</xdr:rowOff></xdr:from><xdr:ext cx=\"{width}\" cy=\"{height}\"/><xdr:graphicFrame macro=\"\"><xdr:nvGraphicFramePr><xdr:cNvPr id=\"{id}\" name=").into_bytes();
+    let valid = |p: &DrawingPoint| {
+        p.column < 16384 && p.row < 1048576 && p.column_offset >= 0 && p.row_offset >= 0
+    };
+    // A chart a macro makes is a two-cell anchor with no `editAs` and a zero `xfrm`, as Excel
+    // writes it (dc-piw0 Q0); a chart the interface makes is a one-cell anchor of fixed size.
+    let (tag, anchor, ext) = match chart.anchor {
+        ChartAnchor::OneCell {
+            from,
+            width,
+            height,
+        } if valid(&from)
+            && (1..=100_000_000).contains(&width)
+            && (1..=100_000_000).contains(&height) =>
+        {
+            (
+                "oneCellAnchor",
+                format!(
+                    "<xdr:from>{}</xdr:from><xdr:ext cx=\"{width}\" cy=\"{height}\"/>",
+                    point(&from)
+                ),
+                (width, height),
+            )
+        }
+        ChartAnchor::TwoCell { from, to } if valid(&from) && valid(&to) => (
+            "twoCellAnchor",
+            format!(
+                "<xdr:from>{}</xdr:from><xdr:to>{}</xdr:to>",
+                point(&from),
+                point(&to)
+            ),
+            (0, 0),
+        ),
+        _ => {
+            return Err(invalid(
+                &chart.part,
+                "The chart frame must be a cell anchor that fits the worksheet and has a bounded size",
+            ));
+        }
+    };
+    let (width, height) = ext;
+    let mut bytes=format!("<xdr:{tag} xmlns:xdr=\"{XDR}\" xmlns:a=\"{A}\" xmlns:r=\"{REL}\">{anchor}<xdr:graphicFrame macro=\"\"><xdr:nvGraphicFramePr><xdr:cNvPr id=\"{id}\" name=").into_bytes();
     super::super::text::attribute_value(&chart.name, &mut bytes);
-    bytes.extend(format!("/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr><xdr:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"{width}\" cy=\"{height}\"/></xdr:xfrm><a:graphic><a:graphicData uri=\"{C}\"><c:chart xmlns:c=\"{C}\" r:id=\"{rel}\"/></a:graphicData></a:graphic></xdr:graphicFrame><xdr:clientData/></xdr:oneCellAnchor>").as_bytes());
+    let xfrm = if tag == "twoCellAnchor" {
+        "<a:off x=\"0\" y=\"0\"/><a:ext cx=\"0\" cy=\"0\"/>".to_owned()
+    } else {
+        format!("<a:off x=\"0\" y=\"0\"/><a:ext cx=\"{width}\" cy=\"{height}\"/>")
+    };
+    bytes.extend(format!("/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr><xdr:xfrm>{xfrm}</xdr:xfrm><a:graphic><a:graphicData uri=\"{C}\"><c:chart xmlns:c=\"{C}\" r:id=\"{rel}\"/></a:graphicData></a:graphic></xdr:graphicFrame><xdr:clientData/></xdr:{tag}>").as_bytes());
     Ok(bytes)
 }
 
@@ -528,6 +551,15 @@ pub(crate) fn add(
     // Authored shapes keep their ids when the drawing leaves them free; one that collides with
     // an id of the drawing is given the next free one, and the connectors glued to it follow.
     let mut remap: std::collections::BTreeMap<u32, u32> = Default::default();
+    // A chart a macro made keeps its identity when the drawing leaves it free (its name `Chart N`
+    // is that identity less one); the shapes take theirs around it.
+    let mut chart_ids: std::collections::BTreeMap<&str, u32> = Default::default();
+    for chart in new {
+        if let Some(id) = chart.drawing_id.filter(|id| !ids.contains(id)) {
+            ids.insert(id);
+            chart_ids.insert(chart.part.as_str(), id);
+        }
+    }
     for shape in new_shapes {
         let id = if ids.contains(&shape.id) {
             (2..=u32::MAX)
@@ -579,10 +611,16 @@ pub(crate) fn add(
             "application/vnd.openxmlformats-officedocument.drawingml.chart+xml",
         )?;
         let rel = parts::ensure_relationship(package, out, &drawing, CHART, &chart.part)?;
-        let id = (2..=u32::MAX)
-            .find(|i| !ids.contains(i))
-            .ok_or_else(|| invalid(&drawing, "No frame identity is available"))?;
-        ids.insert(id);
+        let id = match chart_ids.get(chart.part.as_str()) {
+            Some(id) => *id,
+            None => {
+                let id = (2..=u32::MAX)
+                    .find(|i| !ids.contains(i))
+                    .ok_or_else(|| invalid(&drawing, "No frame identity is available"))?;
+                ids.insert(id);
+                id
+            }
+        };
         let body = frame(chart, id, &rel)?;
         let body = finish_body(body, &drawing, source, structural)?;
         frames.extend(body);

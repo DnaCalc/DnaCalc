@@ -87,7 +87,8 @@ fn refusal(s: &str) -> String {
 }
 
 /// A shape's default name: Excel numbers it from its id (the first object of a drawing has id 2
-/// and is `Rectangle 1`). Unmeasured; see excel-questions.md Q1.
+/// and is `Rectangle 1`); a line is `Straight Connector N`, a connector `Straight Arrow Connector N`
+/// (excel-answers.md Q0, Q1).
 fn base_name(kind: ShapeKind, geometry: &str) -> &'static str {
     match (kind, geometry) {
         (ShapeKind::TextBox, _) => "TextBox",
@@ -103,6 +104,21 @@ impl HostState {
     /// The drawing objects of `sheet` other than charts, in drawing order.
     pub fn shapes(&self, sheet: SheetId) -> &[Shape] {
         self.model().definitions().shapes(sheet)
+    }
+
+    /// The next shape identity of `sheet`: charts and shapes share one counter that starts at 2
+    /// (Excel, dc-piw0 Q1).
+    pub(crate) fn next_drawing_id(&self, sheet: SheetId) -> u32 {
+        let charts = self.model().definitions().charts(sheet);
+        let anonymous = charts.iter().filter(|c| c.drawing_id.is_none()).count() as u32;
+        self.shapes(sheet)
+            .iter()
+            .map(|s| s.id)
+            .chain(charts.iter().filter_map(|c| c.drawing_id))
+            .max()
+            .unwrap_or(1)
+            .max(1 + anonymous)
+            + 1
     }
 
     fn column_points(&self, sheet: SheetId, column: u32) -> f64 {
@@ -245,6 +261,17 @@ fn sites(geometry: &str) -> Option<&'static [(f64, f64)]> {
     }
 }
 
+/// How many connection sites a preset has (Excel, dc-piw0 Q7): a rectangle, rounded rectangle,
+/// text box and diamond 4, an oval 8, an isosceles triangle 6, a line or connector 2.
+pub(crate) fn connection_site_count(geometry: &str) -> Option<usize> {
+    match geometry {
+        "diamond" => Some(4),
+        "triangle" => Some(6),
+        "line" | "straightConnector1" => Some(2),
+        other => sites(other).map(<[_]>::len),
+    }
+}
+
 pub(crate) fn prepare(
     host: &HostState,
     sheet: SheetId,
@@ -283,16 +310,7 @@ pub(crate) fn prepare(
         }
         Ok(index)
     };
-    let next_id = || -> u32 {
-        let charts = host.model().definitions().charts(sheet).len() as u32;
-        shapes
-            .iter()
-            .map(|s| s.id)
-            .max()
-            .unwrap_or(1)
-            .max(1 + charts)
-            + 1
-    };
+    let next_id = || -> u32 { host.next_drawing_id(sheet) };
     let finite = |v: f64| v.is_finite() && (-1.0e7..=1.0e7).contains(&v);
     match change {
         ShapeChange::Add {
@@ -394,8 +412,10 @@ pub(crate) fn prepare(
             if shapes[index].kind == ShapeKind::Connector {
                 return Err(refusal("A connector has no text"));
             }
-            let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
-            shapes[index].text = Some(normalized.split('\n').map(str::to_owned).collect());
+            // Excel (Q8): a carriage return or CR LF starts a paragraph; a bare line feed stays in
+            // its paragraph.
+            let normalized = text.replace("\r\n", "\r");
+            shapes[index].text = Some(normalized.split('\r').map(str::to_owned).collect());
             if text.is_empty() {
                 shapes[index].text = None;
             }
@@ -451,15 +471,15 @@ pub(crate) fn prepare(
             };
             let c = shapes[index].clone();
             let (l, t, w, h) = host.shape_rectangle(sheet, &c);
-            let start = c
-                .begin
-                .and_then(|e| point(&c, e))
-                .unwrap_or(if c.flip_horizontal {
-                    (l + w, t)
-                } else {
-                    (l, t)
-                });
-            let end = c.end.and_then(|e| point(&c, e)).unwrap_or((l + w, t + h));
+            // An unglued end keeps its corner of the rectangle, which the flips decide.
+            let start = c.begin.and_then(|e| point(&c, e)).unwrap_or((
+                if c.flip_horizontal { l + w } else { l },
+                if c.flip_vertical { t + h } else { t },
+            ));
+            let end = c.end.and_then(|e| point(&c, e)).unwrap_or((
+                if c.flip_horizontal { l } else { l + w },
+                if c.flip_vertical { t } else { t + h },
+            ));
             let (x0, x1) = (start.0.min(end.0), start.0.max(end.0));
             let (y0, y1) = (start.1.min(end.1), start.1.max(end.1));
             let s = &mut shapes[index];
