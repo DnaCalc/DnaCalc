@@ -93,6 +93,15 @@ fn odd_out(site: &Site<'_>, result: Result<f64, odd::OddBondEvalError>) -> Step<
     }
 }
 
+/// Odd-bond functions validate frequency before reading the optional basis.
+fn odd_frequency(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<f64> {
+    let frequency = required_num(site, a, index)?;
+    if let Err(error) = odd::parse_frequency(frequency) {
+        return fail(odd::map_odd_bond_error_to_ws(&error));
+    }
+    Ok(frequency)
+}
+
 fn coupon_out(site: &Site<'_>, result: Result<f64, WorksheetErrorCode>) -> Step<CalcValue> {
     match result {
         Ok(n) => site.number(n),
@@ -244,21 +253,21 @@ ported_shared_family! {
     }
     23 oddfprice_fn |s, a, sv| {
         let dates = [yield_date(s, a, 0, sv)?, yield_date(s, a, 1, sv)?, yield_date(s, a, 2, sv)?, yield_date(s, a, 3, sv)?];
-        odd_out(s, odd::oddfprice_kernel(dates[0], dates[1], dates[2], dates[3], required_num(s, a, 4)?, required_num(s, a, 5)?, required_num(s, a, 6)?, required_num(s, a, 7)?, if a.len() > 8 { Some(num_without_logical(s, a, 8)?) } else { None }))
+        odd_out(s, odd::oddfprice_kernel(dates[0], dates[1], dates[2], dates[3], required_num(s, a, 4)?, required_num(s, a, 5)?, required_num(s, a, 6)?, odd_frequency(s, a, 7)?, if a.len() > 8 { Some(num_without_logical(s, a, 8)?) } else { None }))
     }
     24 oddfyield_fn |s, a, sv| {
         let dates = [yield_date(s, a, 0, sv)?, yield_date(s, a, 1, sv)?, yield_date(s, a, 2, sv)?, yield_date(s, a, 3, sv)?];
-        let (rate, price, redemption, frequency) = (required_num(s, a, 4)?, required_num(s, a, 5)?, required_num(s, a, 6)?, required_num(s, a, 7)?);
+        let (rate, price, redemption, frequency) = (required_num(s, a, 4)?, required_num(s, a, 5)?, required_num(s, a, 6)?, odd_frequency(s, a, 7)?);
         // ODDFYIELD keeps frequency before basis, unlike YIELD.
         let basis = if a.len() > 8 { Some(num_without_logical(s, a, 8)?) } else { None };
         odd_out(s, odd::oddfyield_kernel(dates[0], dates[1], dates[2], dates[3], rate, price, redemption, frequency, basis))
     }
     25 oddlprice_fn |s, a, sv| {
         let dates = [yield_date(s, a, 0, sv)?, yield_date(s, a, 1, sv)?, yield_date(s, a, 2, sv)?];
-        odd_out(s, odd::oddlprice_kernel(dates[0], dates[1], dates[2], required_num(s, a, 3)?, required_num(s, a, 4)?, required_num(s, a, 5)?, required_num(s, a, 6)?, if a.len() > 7 { Some(num_without_logical(s, a, 7)?) } else { None }))
+        odd_out(s, odd::oddlprice_kernel(dates[0], dates[1], dates[2], required_num(s, a, 3)?, required_num(s, a, 4)?, required_num(s, a, 5)?, odd_frequency(s, a, 6)?, if a.len() > 7 { Some(num_without_logical(s, a, 7)?) } else { None }))
     }
     26 oddlyield_fn |s, a, sv| {
         let dates = [yield_date(s, a, 0, sv)?, yield_date(s, a, 1, sv)?, yield_date(s, a, 2, sv)?];
-        odd_out(s, odd::oddlyield_kernel(dates[0], dates[1], dates[2], required_num(s, a, 3)?, required_num(s, a, 4)?, required_num(s, a, 5)?, required_num(s, a, 6)?, if a.len() > 7 { Some(num_without_logical(s, a, 7)?) } else { None }))
+        odd_out(s, odd::oddlyield_kernel(dates[0], dates[1], dates[2], required_num(s, a, 3)?, required_num(s, a, 4)?, required_num(s, a, 5)?, odd_frequency(s, a, 6)?, if a.len() > 7 { Some(num_without_logical(s, a, 7)?) } else { None }))
     }
 }

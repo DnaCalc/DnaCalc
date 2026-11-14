@@ -12,6 +12,30 @@ use calc_func::locale::DateSystem::{System1900, System1904};
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Value};
 use f1_support::*;
 
+/// Excel 20527 validates the odd-bond coupon frequency before the optional basis.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn odd_bond_frequency_precedes_basis() {
+    for (name, mut args, frequency) in [
+        ("ODDFPRICE", vec![n(40000.0), n(40500.0), n(39900.0), n(40050.0), n(0.05), n(0.04), n(100.0), n(2.0), e(NA)], 7),
+        ("ODDFYIELD", vec![n(40000.0), n(40500.0), n(39900.0), n(40050.0), n(0.05), n(99.0), n(100.0), n(2.0), e(NA)], 7),
+        ("ODDLPRICE", vec![n(40000.0), n(40500.0), n(39900.0), n(0.05), n(0.04), n(100.0), n(2.0), e(NA)], 6),
+        ("ODDLYIELD", vec![n(40000.0), n(40500.0), n(39900.0), n(0.05), n(99.0), n(100.0), n(2.0), e(NA)], 6),
+    ] {
+        for value in [0.0, 0.999999, 3.0, 3.99, 5.0, 42.0] {
+            args[frequency] = n(value);
+            error(dated(name, args.clone()), Num);
+        }
+        for value in [1.0, 1.99, 2.0, 2.99, 4.0, 4.99] {
+            args[frequency] = n(value);
+            error(dated(name, args.clone()), NA);
+        }
+        args[frequency] = n(3.0);
+        args[frequency - 1] = e(NA);
+        error(dated(name, args), NA);
+    }
+}
+
 /// Excel 20527 rejects a logical principal before evaluating the schedule.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
