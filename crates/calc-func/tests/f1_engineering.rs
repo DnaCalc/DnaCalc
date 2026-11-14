@@ -128,6 +128,20 @@ fn besselj_keeps_recorded_argument_kind_errors() {
     error(call("BESSELJ", vec![b(true), n(-1.0)]), Value);
 }
 
+/// Excel 20527 cell and literal controls, with independent argument-error holdouts.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn bessel_family_rejects_logical_arguments_in_order() {
+    for name in ["BESSELJ", "BESSELY", "BESSELI", "BESSELK"] {
+        for logical in [false, true] {
+            error(call(name, vec![b(logical), n(2.0)]), Value);
+            error(call(name, vec![n(2.0), b(logical)]), Value);
+            error(call(name, vec![b(logical), e(Div0)]), Value);
+            error(call(name, vec![e(NA), b(logical)]), NA);
+        }
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn bessel_recorded_adjacent_phase_domain_boundaries() {
