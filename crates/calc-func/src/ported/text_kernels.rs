@@ -467,11 +467,17 @@ pub(crate) fn trim_ascii_spaces(text: &ExcelText) -> ExcelText {
 }
 
 pub(crate) fn rept(text: &ExcelText, count: f64) -> Result<ExcelText, WorksheetErrorCode> {
-    let count = count.trunc();
-    if count < 0.0 {
+    // Excel checks the sign before truncating and admits a signed 32-bit count.
+    if !count.is_finite() || !(0.0..2_147_483_648.0).contains(&count) {
         return Err(WorksheetErrorCode::Value);
     }
+    let count = count.trunc();
     let units = text.utf16_code_units();
+    // An empty result does not reach the worksheet text-length limit, regardless
+    // of the admitted count. Avoid iterating even for very large counts.
+    if units.is_empty() {
+        return Ok(text.clone());
+    }
     if count > EXCEL_TEXT_MAX_UTF16_CODE_UNITS as f64
         || units.len().saturating_mul(count as usize) > EXCEL_TEXT_MAX_UTF16_CODE_UNITS
     {

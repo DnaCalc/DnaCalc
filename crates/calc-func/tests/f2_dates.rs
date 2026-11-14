@@ -103,6 +103,26 @@ fn empty_and_invalid_regex_patterns() {
     refused(call("REGEXTEST", vec![t("aaa"), t("a??")]));
 }
 
+/// Excel 20527 checks REPT's sign before truncation and bounds empty-text counts separately.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn rept_count_sign_and_empty_text_limit() {
+    for value in ["", "x", "😀"] {
+        for count in [-1.0, -0.5, -1e-100, -f64::MIN_POSITIVE] {
+            error(call("REPT", vec![t(value), n(count)]), Value);
+        }
+    }
+    text(call("REPT", vec![t("x"), n(0.999)]), "");
+    text(call("REPT", vec![t("x"), n(1.999)]), "x");
+    for count in [32768.0, 45000.0, 2_147_483_647.5] {
+        text(call("REPT", vec![t(""), n(count)]), "");
+        text(call("REPT", vec![missing(), n(count)]), "");
+    }
+    error(call("REPT", vec![t(""), n(2_147_483_648.0)]), Value);
+    error(call("REPT", vec![t("x"), n(32768.0)]), Value);
+    error(call("REPT", vec![t("😀"), n(16384.0)]), Value);
+}
+
 /// Excel 16.0.20527, typed Value2 calls: argument errors win in order and a logical
 /// format gives #VALUE! even for a text, logical or blank value.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
