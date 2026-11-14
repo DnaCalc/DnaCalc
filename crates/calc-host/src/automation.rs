@@ -961,9 +961,9 @@ impl WorkbookEventObserver for AutomationObserver {
                 sheet,
             },
         ))];
-        let loan = &*session;
+        let loan = EventLoan(RefCell::new(session));
         EVENT_SESSION
-            .set((&*self.model, loan), || {
+            .set((&*self.model, &loan), || {
                 self.events.raise(
                     &self.model.application(),
                     "AppEvents",

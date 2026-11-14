@@ -1284,7 +1284,8 @@ impl EventSource for WritingEvents {
         event: &str,
         args: &[AutoValue],
     ) -> Result<(), AutoError> {
-        if event == "AfterCalculate" {
+        // The calculation events are counted by other tests; this one watches the writes.
+        if event == "AfterCalculate" || event == "SheetCalculate" {
             return Ok(());
         }
         assert_eq!(event, "SheetChange");
