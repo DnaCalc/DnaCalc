@@ -216,7 +216,29 @@ pub fn f_pdf_kernel(x: f64, deg1: f64, deg2: f64) -> Result<f64, WorksheetErrorC
     let num = crt_pow(d1 / d2, half_d1) * crt_pow(x, half_d1 - 1.0);
     let den = gamma(half_d1) * gamma(half_d2) / gamma(half_d1 + half_d2)
         * crt_pow(1.0 + d1 * x / d2, (d1 + d2) / 2.0);
-    Ok(num / den)
+    let density = num / den;
+    if !density.is_finite() && d1 <= 1_048_576.0 && d2 <= 1_048_576.0 {
+        // The direct gamma products can overflow even when the density is far below
+        // Excel's normal-number range. Bound that case in the log domain; the square
+        // of MIN_POSITIVE leaves a wide margin for rounding in the logarithms.
+        use crate::ported::excel_numeric::{crt_exp, crt_log};
+        use crate::ported::special_math_common::ln_gamma;
+        let log_ratio = crt_log(d1 / d2);
+        let log_x = crt_log(x);
+        let t = log_ratio + log_x;
+        let log_one_plus = if t > 0.0 {
+            t + crt_log(1.0 + crt_exp(-t))
+        } else {
+            crt_log(1.0 + crt_exp(t))
+        };
+        let log_beta = ln_gamma(half_d1) + ln_gamma(half_d2) - ln_gamma(half_d1 + half_d2);
+        let log_density = half_d1 * log_ratio + (half_d1 - 1.0) * log_x
+            - log_beta - (half_d1 + half_d2) * log_one_plus;
+        if log_density < 2.0 * crt_log(f64::MIN_POSITIVE) {
+            return Ok(0.0);
+        }
+    }
+    Ok(density)
 }
 
 /// Both tails of the F distribution, `(right, left)`, from one incomplete beta call.
