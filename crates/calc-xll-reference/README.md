@@ -296,6 +296,20 @@ pwsh -NoProfile -Sta -File ./run.ps1 -AddInDirectory C:/Work/DnaCalc/codex-runs/
 ```
 
 Repeat without `-HostExecutable` for Excel and with `-NoTrace` for each control.
+`-X3 -XloilOnly` restages only the two xlOil runtimes (`fixture/x3-xloil.py`, `xlOil.ini`) from the
+fetched, digest-checked wheels, leaving the xlw sample untouched.
+
+The AppEvents cases of DNA Calc's workbook (dc-1nbp.3) are `fixture/x4-xloil-events-cases.json`
+(xlOil) and `fixture/x3-exceldna-events-cases.json` (Excel-DNA `X0`, whose `fixture.tsv` records
+each SheetChange's workbook, target, Count and Value2): a rectangle and a multi-area edit,
+EnableEvents off and on, then a single edit. Their cases carry `"automatic": true`: DNA Calc's
+`-Engine` run then does what the Excel run does, an automation client writing cells in automatic
+calculation (Automation ingress, Change after the synchronous calculation), and reaches the add-ins
+only through the session's event source. Excel's run names its workbook (`Book2` in the session
+host's process); pass the same name to the DNA Calc run with `-WorkbookName`. The Excel run starts
+with events on and Automatic calculation, as a new Excel process has them (the session host's
+baseline holds both off).
+
 Use `verify.py` with the four directories and `--x3-cases`. The Python profile
 requires an existing x64 Python 3.12 and NumPy; the builder installs neither.
 Keep the same tracer binary for both traced runs. Following the history rewrite,

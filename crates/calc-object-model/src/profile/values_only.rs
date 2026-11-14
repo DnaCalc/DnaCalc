@@ -171,6 +171,9 @@ impl<H: ApplicationHost> ValuesOnly<H> {
                 ObjectKey::Worksheet { workbook, .. } => {
                     object("Workbook", ObjectKey::Workbook(workbook))
                 }
+                // A workbook window's Parent is its workbook, as Excel's is; xlOil's COM connect
+                // reads Window.Parent as a _Workbook for its Application (Connect.cpp).
+                ObjectKey::Window => object("Workbook", ObjectKey::Workbook(0)),
                 _ => self.application(),
             }),
             "Name" => AutoValue::text(match target.key {

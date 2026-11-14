@@ -488,6 +488,54 @@ fn values_only_preserves_book1_shell_and_uniform_workbook_refusals() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn values_only_window_parent_is_the_book1_workbook() {
+    // xlOil's COM connect reads EXCEL7's Window.Parent as a _Workbook (Connect.cpp); Excel's
+    // Window.Parent is the workbook, never the Application.
+    struct Host;
+    impl ApplicationHost for Host {
+        fn hwnd(&self) -> isize {
+            1
+        }
+        fn run(&self, _: &str, _: &[AutoValue]) -> Result<AutoValue, AutoError> {
+            Ok(AutoValue::Empty)
+        }
+        fn events_enabled(&self) -> bool {
+            true
+        }
+        fn set_events_enabled(&self, _: bool) {}
+    }
+    let model = ValuesOnly::new(std::rc::Rc::new(Host));
+    let window = calc_object_model::profile::values_only::object(
+        "Window",
+        calc_object_model::ObjectKey::Window,
+    );
+    let get = |target: &ObjectRef, name: &str| {
+        model
+            .invoke(
+                target,
+                &Call {
+                    interface: target.interface,
+                    member: Descriptor::get()
+                        .member(target.interface, name, InvokeKind::Get)
+                        .unwrap(),
+                    args: vec![],
+                    lcid: 0,
+                },
+            )
+            .unwrap()
+    };
+    let AutoValue::Object(parent) = get(&window, "Parent") else {
+        panic!("Window.Parent is an object");
+    };
+    let AutoValue::Object(active) = get(&model.application(), "ActiveWorkbook") else {
+        panic!("ActiveWorkbook is an object");
+    };
+    assert_eq!(parent, active);
+    assert_eq!(get(&parent, "Name").as_text().as_deref(), Some("Book1"));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn worksheet_functions_share_the_catalogue_for_scalars_arrays_and_dotted_names() {
     let model = ValuesOnly::new(Host::default());
     let AutoValue::Object(functions) = invoke(

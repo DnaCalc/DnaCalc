@@ -1,0 +1,18 @@
+cases excel=16 dna=16
+MATCH    =X4.PyCom()                  excel=Book2|X0|1|True dna=Book2|X0|1|True
+MATCH    =X4.PyCalculateCount()       excel=delta base dna=delta base
+MATCH    =X4.PyDetails()              excel=X0|A1|(1, 1)|7.0;X0|A1:B2|(2, 2)|[[9.0, 9.0], [9.0, 9.0]] dna=X0|A1|(1, 1)|7.0;X0|A1:B2|(2, 2)|[[9.0, 9.0], [9.0, 9.0]]
+MATCH    =X4.PyCalculateCount()       excel=delta 3 dna=delta 3
+MATCH    =X4.PyDetails()              excel=X0|A1|(1, 1)|7.0;X0|A1:B2|(2, 2)|[[9.0, 9.0], [9.0, 9.0]];X0|A1,C1:C2|(1, 1)|5.0 dna=X0|A1|(1, 1)|7.0;X0|A1:B2|(2, 2)|[[9.0, 9.0], [9.0, 9.0]];X0|A1,C1:C2|(1, 1)|5.0
+MATCH    =X4.PyCalculateCount()       excel=delta 3 dna=delta 3
+MATCH    =X4.PyDetails()              excel=X0|A1|(1, 1)|7.0;X0|A1:B2|(2, 2)|[[9.0, 9.0], [9.0, 9.0]];X0|A1,C1:C2|(1, 1)|5.0 dna=X0|A1|(1, 1)|7.0;X0|A1:B2|(2, 2)|[[9.0, 9.0], [9.0, 9.0]];X0|A1,C1:C2|(1, 1)|5.0
+MATCH    =X4.PyCalculateCount()       excel=delta 1 dna=delta 1
+MATCH    =X4.PyCom()                  excel=Book2|X0|1|False dna=Book2|X0|1|False
+MATCH    =X4.PyDetails()              excel=X0|A1|(1, 1)|7.0;X0|A1:B2|(2, 2)|[[9.0, 9.0], [9.0, 9.0]];X0|A1,C1:C2|(1, 1)|5.0 dna=X0|A1|(1, 1)|7.0;X0|A1:B2|(2, 2)|[[9.0, 9.0], [9.0, 9.0]];X0|A1,C1:C2|(1, 1)|5.0
+MATCH    =X4.PyCalculateCount()       excel=delta 1 dna=delta 1
+MATCH    =X4.PyDetails()              excel=X0|A1|(1, 1)|7.0;X0|A1:B2|(2, 2)|[[9.0, 9.0], [9.0, 9.0]];X0|A1,C1:C2|(1, 1)|5.0;X0|A1|(1, 1)|11.0 dna=X0|A1|(1, 1)|7.0;X0|A1:B2|(2, 2)|[[9.0, 9.0], [9.0, 9.0]];X0|A1,C1:C2|(1, 1)|5.0;X0|A1|(1, 1)|11.0
+MATCH    =X4.PyCalculateCount()       excel=delta 3 dna=delta 3
+MATCH    =X4.PyTargets()              excel=X0|A1;X0|B3;X0|B3;X0|A1:B2;X0|B3;X0|B3;X0|A1,C1:C2;X0|B3;X0|B3;X0|B3;X0|B3;X0|A1;X0|B3;X0|B3 dna=X0|A1;X0|B3;X0|B3;X0|A1:B2;X0|B3;X0|B3;X0|A1,C1:C2;X0|B3;X0|B3;X0|B3;X0|B3;X0|A1;X0|B3;X0|B3
+MATCH    =X4.PyQueued()               excel=42 dna=42
+MATCH    =X4.PyRelease()              excel=2 dna=2
+TOTAL matched=16 mismatched=0

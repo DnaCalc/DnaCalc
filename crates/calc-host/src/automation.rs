@@ -144,6 +144,8 @@ impl WorkbookAutomation {
                 ][..],
             ),
             ("Worksheet", &["Name", "Application", "Parent"][..]),
+            // The workbook window (EXCEL7's native object): its Parent is this workbook.
+            ("Window", &["Parent"][..]),
             (
                 "Range",
                 &[
@@ -622,6 +624,13 @@ impl WorkbookAutomation {
                         _ => AutoValue::Object(self.application()),
                     })
                 }
+                ObjectKey::Window => {
+                    no_args(call)?;
+                    Ok(AutoValue::Object(object(
+                        "Workbook",
+                        ObjectKey::Workbook(meta.workbook),
+                    )))
+                }
                 ObjectKey::Range(reference) => {
                     self.range_member(&mut access, &meta, reference, RangeAxis::Cells, call)
                 }
@@ -938,6 +947,28 @@ impl WorkbookEventObserver for AutomationObserver {
                 .raise(&self.model.application(), "AppEvents", "SheetChange", &args)
         });
         result.map_err(|e| e.description())
+    }
+    fn worksheet_calculate(&self, session: &mut HostSession, sheet: SheetId) -> Result<(), String> {
+        self.model.context_changed(session);
+        let meta = self.model.metadata().map_err(|e| e.description())?;
+        let args = [AutoValue::Object(object(
+            "Worksheet",
+            ObjectKey::Worksheet {
+                workbook: meta.workbook,
+                sheet,
+            },
+        ))];
+        let loan = EventLoan(RefCell::new(session));
+        EVENT_SESSION
+            .set((&*self.model, &loan), || {
+                self.events.raise(
+                    &self.model.application(),
+                    "AppEvents",
+                    "SheetCalculate",
+                    &args,
+                )
+            })
+            .map_err(|e| e.description())
     }
     fn after_calculate(&self, session: &mut HostSession) -> Result<(), String> {
         self.model.context_changed(session);

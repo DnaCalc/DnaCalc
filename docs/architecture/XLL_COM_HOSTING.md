@@ -1386,3 +1386,21 @@ Validation here is Linux session tests and Windows cross-compilation, including 
 native COM test executable. It is not a new Excel comparison. Windows must run the COM tests,
 the named-workbook Excel-DNA/xlOil AppEvents page cases, and the existing `calcvba-udf` page set
 before either bead closes. The earlier OneCalc measurements in section 32 are historical evidence.
+
+**AppEvents against Excel (Windows, 2026-11-14).** The `--engine` harness now opens its session
+before the add-ins load and binds the same object model to it as the page (`apps/dna-calc-desktop/
+src/automation.rs`); SheetChange, SheetCalculate and AfterCalculate reach the add-ins only from
+the session's event source, EnableEvents goes through `Application.EnableEvents`, and the cases'
+edits are committed input (UI ingress, or with `"automatic": true` an automation client's writes in
+automatic calculation, as the Excel run makes them). Fresh captures in owned Excel 16.0 sessions
+(workbook `Book2`), the same cases through DNA Calc with `--workbook-name Book2`
+(`crates/calc-xll-reference/traces/2026-11-14-appevents`):
+`x4-xloil-events-cases.json` 16/16, `x3-exceldna-events-cases.json` 6/6 values and 39/39 ordered
+event records, the original `x4-xloil-python-cases.json` 12/12 (`Book4`). They agree on Workbook
+Name/FullName/Path, SheetChange Target `$A$1:$B$2` (Count 4, Value2 a one-based 2x2 array) and
+`$A$1,$C$1:$C$2` (Count 3, Value2 the first area's 5), one AfterCalculate per write (9 in the
+Excel-DNA run) and SheetCalculate before it, nothing delivered while EnableEvents is False and no
+replay after it is set True. Two causes were fixed on the way: the Rust projection's
+`Window.Parent` answered the Application, so xlOil's COM connect (Window.Parent as `_Workbook`)
+failed with E_POINTER; and SheetCalculate never reached the native observer. A saved workbook's
+FullName and Path were not compared with Excel (the calc-host test covers the session side).
