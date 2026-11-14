@@ -10,6 +10,28 @@ use calc_func::SubtotalExclusions;
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Ref, Value};
 use f1_support::*;
 
+/// Excel 20527 flushes the beta recurrence's subnormal density product.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beta_recurrence_flushes_its_subnormal_intermediate() {
+    for (bits, a, shape_b) in [
+        (0x3fe0_189b_0deb_949c, 1040.0, 13.0),
+        (0x3fc3_a3ce_1e64_c95d, 381.0, 19.0),
+        (0x3fd9_1699_47a6_4be1, 763.0, 8.0),
+        (0x3fcc_5cb1_8794_fbc2, 474.0, 18.0),
+    ] {
+        let args = |x| vec![n(x), n(a), n(shape_b), b(true)];
+        exact(call("BETA.DIST", args(f64::from_bits(bits))), 0.0);
+        assert!(number(call("BETA.DIST", args(f64::from_bits(bits + 1)))) > 0.0);
+    }
+    for (x, d1, d2) in [
+        (158.65828799388686, 20.0, 1000.0),
+        (528.8609599796229, 6.0, 1000.0),
+    ] {
+        exact(call("F.DIST.RT", vec![n(x), n(d1), n(d2)]), 0.0);
+    }
+}
+
 /// Excel 20527 flushes the general F right tail but retains the unit-shape subnormal.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
