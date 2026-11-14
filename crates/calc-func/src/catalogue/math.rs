@@ -8,7 +8,7 @@
 
 use super::kit::{
     Grid, fail, given, grid, num, num_with_subnormal, out, out_matrix, out_text,
-    out_with_subnormal, reject_logical, text, values,
+    out_with_subnormal, reject_logical, text, validate_paired_singletons, values,
 };
 use crate::kernel::{Exit, Site, Step};
 use crate::ported::real_policy::ExcelRealPolicy;
@@ -329,6 +329,7 @@ fn sum_pairwise(
     services: &mut crate::call::EvalServices<'_>,
     term: fn(f64, f64) -> f64,
 ) -> Step<CalcValue> {
+    validate_paired_singletons(site, a, [0, 1], services)?;
     let left = numeric_cells(site, a, 0, services)?;
     let right = numeric_cells(site, a, 1, services)?;
     if left.0 != right.0 {
