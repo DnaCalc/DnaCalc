@@ -116,6 +116,15 @@ pub enum WorkbookCommand {
         revision: u64,
         change: crate::ShapeChange,
     },
+    /// Name and place a chart this session made (`ChartObject.Name`, `.Left/.Top/.Width/.Height`);
+    /// positions in points, `None` keeps the value (dc-piw0.2).
+    ChartFrame {
+        sheet: SheetId,
+        revision: u64,
+        part: String,
+        name: Option<String>,
+        place: Option<[crate::Points; 4]>,
+    },
     ChartCreate {
         revision: u64,
         area: GridArea,
@@ -397,6 +406,13 @@ pub(crate) fn prepare(
             revision,
             change,
         } => crate::shapes::prepare(host, sheet, revision, change),
+        WorkbookCommand::ChartFrame {
+            sheet,
+            revision,
+            part,
+            name,
+            place,
+        } => crate::chart::prepare_frame(host, sheet, revision, &part, name, place),
         WorkbookCommand::ChartCreate {
             revision,
             area,

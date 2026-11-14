@@ -158,7 +158,7 @@ impl HostState {
     }
 
     /// The cell anchor point of the sheet position (`x`, `y`) in points.
-    fn point_at(&self, sheet: SheetId, x: f64, y: f64) -> DrawingPoint {
+    pub(crate) fn point_at(&self, sheet: SheetId, x: f64, y: f64) -> DrawingPoint {
         let (mut column, mut left) = (0u32, 0.0f64);
         while column < 16383 {
             let width = self.column_points(sheet, column + 1);

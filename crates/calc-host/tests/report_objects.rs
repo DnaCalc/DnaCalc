@@ -278,6 +278,14 @@ fn dc_piw0__table_chart_and_shapes_in_one_report() {
         headers: true,
         categories: true,
     });
+    // ChartObject.Name and .Left/.Top/.Width/.Height in points.
+    command(&mut book, |b| WorkbookCommand::ChartFrame {
+        sheet,
+        revision: b.host().revision().get(),
+        part: b.host().charts(sheet).0[0].part.clone(),
+        name: Some("SalesChart".into()),
+        place: Some([pts(200.0), pts(20.0), pts(300.0), pts(200.0)]),
+    });
     command(&mut book, |b| WorkbookCommand::ChartProperties {
         sheet,
         revision: b.host().revision().get(),
@@ -333,6 +341,21 @@ fn dc_piw0__table_chart_and_shapes_in_one_report() {
     let (charts, unread) = reloaded.host().charts(sheet);
     assert_eq!((charts.len(), unread), (1, 0));
     assert_eq!(charts[0].title.as_deref(), Some("Sales"));
+    assert_eq!(charts[0].name, "SalesChart");
+    let chart = &reloaded.host().model().definitions().charts(sheet)[0];
+    assert_eq!(
+        chart.anchor,
+        calc_doc_model::ChartAnchor::OneCell {
+            from: calc_doc_model::DrawingPoint {
+                column: 4,
+                column_offset: 101_600,
+                row: 1,
+                row_offset: 63_500,
+            },
+            width: 300 * 12_700,
+            height: 200 * 12_700,
+        }
+    );
     assert_eq!(charts[0].plots[0].series.len(), 2);
     let shapes = reloaded.host().shapes(sheet);
     assert_eq!(shapes.len(), 3);
@@ -343,4 +366,85 @@ fn dc_piw0__table_chart_and_shapes_in_one_report() {
     assert_eq!(ids.len(), 3);
     assert_eq!(shapes[2].begin.map(|c| c.shape), Some(shapes[0].id));
     assert_eq!(shapes[2].end.map(|c| c.shape), Some(shapes[1].id));
+}
+
+/// ListObject.Name put, ListRows.Add and ListColumns(i).Name put at the command level: the same
+/// table commands the user interface runs.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_1__rename_add_row_and_rename_column() {
+    let mut book = open(calc_host::blank_package());
+    let sheet = book.host().sheets()[0].id();
+    for (cell, text) in [
+        ("A1", "Region"),
+        ("B1", "Q1"),
+        ("A2", "North"),
+        ("B2", "10"),
+        ("A3", "South"),
+        ("B3", "30"),
+    ] {
+        enter(&mut book, sheet, cell, text);
+    }
+    let area = GridArea::new(at(sheet, "A1"), at(sheet, "B3")).unwrap();
+    command(&mut book, |b| WorkbookCommand::Table {
+        revision: b.host().revision().get(),
+        change: TableChange::Create {
+            area,
+            name: "Table1".into(),
+        },
+    });
+    let part = book.host().model().definitions().tables()[0].part.clone();
+    // ListObject.Name = "Sales"
+    command(&mut book, |b| WorkbookCommand::Table {
+        revision: b.host().revision().get(),
+        change: TableChange::Rename {
+            part: part.clone(),
+            name: "Sales".into(),
+        },
+    });
+    assert_eq!(
+        book.host().model().definitions().tables()[0].display_name,
+        "Sales"
+    );
+    // ListRows.Add: the table grows by one data row.
+    let grown = GridArea::new(at(sheet, "A1"), at(sheet, "B4")).unwrap();
+    command(&mut book, |b| WorkbookCommand::Table {
+        revision: b.host().revision().get(),
+        change: TableChange::Resize {
+            part: part.clone(),
+            area: grown,
+        },
+    });
+    assert_eq!(book.host().model().definitions().tables()[0].area, grown);
+    // ListColumns(2).Name = "Sales Q1"
+    command(&mut book, |b| WorkbookCommand::Table {
+        revision: b.host().revision().get(),
+        change: TableChange::RenameColumn {
+            part: part.clone(),
+            column: 2,
+            name: "Q1 total".into(),
+        },
+    });
+    let reloaded = reopened(&mut book);
+    let table = &reloaded.host().model().definitions().tables()[0];
+    assert_eq!((table.display_name.as_str(), table.area), ("Sales", grown));
+    assert_eq!(table.columns, ["Region", "Q1 total"]);
+
+    // A formula that uses the table's name: Excel rewrites it on rename; here it is refused and
+    // nothing changes.
+    enter(&mut book, sheet, "D1", "=COUNT(Sales[Q1 total])");
+    let before = book.host().revision().get();
+    let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::Table {
+        revision: before,
+        change: TableChange::Rename {
+            part,
+            name: "Other".into(),
+        },
+    }));
+    assert!(!receipt.accepted());
+    assert_eq!(book.host().revision().get(), before);
+    assert_eq!(
+        book.host().model().definitions().tables()[0].display_name,
+        "Sales"
+    );
 }
