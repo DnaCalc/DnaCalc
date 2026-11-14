@@ -107,7 +107,7 @@ fn start(site: &Site<'_>, a: &[CalcValue]) -> Step<usize> {
         Some(value) if value.is_missing() => Ok(1),
         Some(_) => {
             let n = num(site, a, 2)?;
-            k::positive(n).map_err(Exit::Error)
+            k::positive(k::date_integer_floor(n)).map_err(Exit::Error)
         }
     }
 }
