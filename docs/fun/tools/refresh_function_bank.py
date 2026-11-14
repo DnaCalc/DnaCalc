@@ -7,7 +7,7 @@ lines (BANK, HIST, BANK_AT) in the page. Run from the repository root:
 
     py -3 docs/fun/tools/refresh_function_bank.py --handbook ../handbook-preview/site/build/api/functions
 """
-import argparse, collections, csv, io, json, os, re, subprocess, sys
+import argparse, collections, csv, datetime, io, json, os, re, subprocess, sys
 
 STATUS = 'crates/calc-func/witness-status.tsv'
 PAGE = 'docs/fun/function-bank.html'
@@ -36,17 +36,21 @@ def first_sentence(md):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--handbook', required=True, help='folder with FUNC.<NAME>.json files from the handbook build')
+    ap.add_argument('--working-status', action='store_true', help='use the current witness-status.tsv for the latest snapshot')
     ap.add_argument('--land', help='landscape.json from function_bank_landscape.py (optional; keeps the embedded one otherwise)')
     ap.add_argument('--land-note', default='', help='where the landscape rows came from, shown in the footer')
     a = ap.parse_args()
     head = git('rev-parse', '--short', 'HEAD').strip()
-    cur = status_at('HEAD')
+    cur = ([r for r in csv.DictReader(open(STATUS, encoding='utf-8'), delimiter='\t') if r.get('bank') == 'full']
+           if a.working_status else status_at('HEAD'))
     byday = collections.OrderedDict()
     for line in reversed([l for l in git('log', '--format=%h %ad', '--date=short', '--', STATUS).splitlines() if l.strip()]):
         h, d = line.split()
         byday[d] = h
+    if a.working_status:
+        byday[datetime.date.today().isoformat()] = None
     dates = list(byday)
-    snaps = [{r['function']: (int(r['rows']), int(r['matched'])) for r in status_at(byday[d]) if r['rows'].isdigit()} for d in dates]
+    snaps = [{r['function']: (int(r['rows']), int(r['matched'])) for r in (cur if byday[d] is None else status_at(byday[d])) if r['rows'].isdigit()} for d in dates]
     names = [r['function'] for r in cur]
     hist = {'dates': dates,
             'totals': [[sum(v[0] for v in s.values()), sum(v[1] for v in s.values()), len(s)] for s in snaps],
