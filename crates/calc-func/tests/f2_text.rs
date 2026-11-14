@@ -9,6 +9,17 @@ mod f1_support;
 use calc_func::value::WorksheetErrorCode::{Blocked, Calc, Connect, Div0, NA, Name, Null, Num, Ref, Value};
 use f1_support::*;
 
+/// Excel 20527 instance-number controls and independent small-boundary holdouts.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn substitute_instance_number_boundaries() {
+    let args = |instance| vec![t("aaaa"), t("a"), t("X"), instance];
+    text(call("SUBSTITUTE", args(n(1.0 - 1e-8))), "Xaaa");
+    text(call("SUBSTITUTE", args(n(2.0 - 1e-8))), "aXaa");
+    error(call("SUBSTITUTE", args(n(1.0 - 1e-6))), Value);
+    error(call("SUBSTITUTE", args(n(2_147_483_647.0))), Value);
+}
+
 /// Excel 20527 start-position controls around two integer boundaries.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

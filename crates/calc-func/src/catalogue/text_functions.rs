@@ -371,7 +371,12 @@ ported_shared_family! {
             Some(value) if value.is_missing() => None,
             Some(_) => {
                 let n = num(s, a, 3)?;
-                Some(k::positive(n).map_err(Exit::Error)?)
+                if n >= 2_147_483_647.0 {
+                    return fail(WorksheetErrorCode::Value);
+                }
+                // The transition immediately below the upper bound remains under investigation.
+                let rounded = if n < 2_147_483_646.0 { k::date_integer_floor(n) } else { n };
+                Some(k::positive(rounded).map_err(Exit::Error)?)
             }
         };
         capped(k::substitute(&text, &old, &new, instance), WorksheetErrorCode::Value)
