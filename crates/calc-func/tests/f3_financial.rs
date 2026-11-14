@@ -12,6 +12,16 @@ use calc_func::locale::DateSystem::{System1900, System1904};
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Value};
 use f1_support::*;
 
+/// Excel 20527 rejects a logical principal before evaluating the schedule.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn fvschedule_rejects_logical_principal() {
+    for principal in [false, true] {
+        error(call("FVSCHEDULE", vec![b(principal), n(0.1)]), Value);
+        error(call("FVSCHEDULE", vec![b(principal), e(NA)]), Value);
+    }
+}
+
 /// Excel 20527 coerces a one-cell text reference but rejects text in array schedules.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

@@ -264,6 +264,7 @@ ported_shared_family! {
         tv_out(s, tv::mirr(&values, num(s, a, 1)?, num(s, a, 2)?))
     }
     11 fvschedule_fn |s, a, sv| {
+        reject_logical(&a[0])?;
         let principal = num(s, a, 0)?;
         let rates = schedule(s, a, 1, sv)?;
         tv_out(s, tv::fvschedule(principal, &rates))
