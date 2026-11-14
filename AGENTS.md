@@ -30,8 +30,8 @@ DnaTreeCalc, DnaOneCalc and the others) are read-only inputs: port from them, ne
 - **Layering:** the layering rules in `tools/xtask/architecture.json` are checked mechanically.
 - **Language (owner, 2026-11-13):** product code is Rust. C or C++ appears only in test fixtures that stand
   in for third-party add-ins, and in calc-xll-shim's variadic `Excel12` export (stable Rust cannot define a
-  C-variadic function). The C++ in `crates/calc-com-host` (`projection.cpp`, `projection-office.h`,
-  `rtd.cpp`) is to be replaced by the Rust object model; add nothing to it.
+  C-variadic function). The COM projection is Rust (`crates/calc-com-host`, on the one object model,
+  docs/architecture/OBJECT_MODEL.md); the C++ it replaced was removed on 2026-11-14.
 
 ## Doing a work package
 

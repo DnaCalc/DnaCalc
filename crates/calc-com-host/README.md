@@ -33,9 +33,10 @@ The native controls exercise real vtables and IDispatch:
 cargo test --locked -p calc-com-host -- --test-threads=1
 ```
 
-Windows cross-compilation and linking on Linux do not execute those controls. Native
-tests and the calcvba-udf, X19, Excel-DNA and xlOil page comparisons still require a
-Windows run. Unsupported members return the descriptor-named 1004 refusal and record
+Windows cross-compilation and linking on Linux do not execute those controls. First Windows
+run 2026-11-14: these 29 tests pass, calcvba-udf 20/20 and X19 4/4 match Excel through DNA
+Calc's page (codex-runs/om-acceptance-20261114/REPORT.md); the Excel-DNA and xlOil AppEvents
+page comparison has not run yet. Unsupported members return the descriptor-named 1004 refusal and record
 it through the supplied model; they do not read cached workbook answers.
 
 The projection uses local objects and Windows' object-return mechanism. It neither
