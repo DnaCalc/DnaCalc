@@ -80,8 +80,8 @@ text panics on a name the descriptor lacks.
 
 | Profile | Crate | Members (first set) |
 |---|---|---|
-| **values-only**: application members that need no workbook. DNA OneCalc uses it alone; DNA Calc's workbook profile falls back to it | `calc-object-model` (`profile::values_only`), portable, host services through a small `ApplicationHost` trait (Hwnd, Run, version) | Application: Application, Parent, Name, Version, Hwnd, Run, EnableEvents (host switch), Path, Workbooks/ActiveWorkbook/ActiveSheet as OneCalc answers them today; Caller, ThisCell, Range, Union refuse with Excel 1004 "needs a workbook: open in DNA Calc" (dc-svqh). WorksheetFunction later (its catalogue route is `UserFunctionContext::worksheet_function`) |
-| **workbook**: DNA Calc's workbook members | `calc_host::automation` (calc-host), over the session | Application: Range, Union, Caller, ThisCell, ActiveWorkbook, ActiveSheet, Workbooks, EnableEvents (session switch), Calculate later; Workbooks: Count, Item; Workbook: Name, FullName, Path, Worksheets later; Worksheet: Name, Range later; Range: Value (refuses formatted dates/currency until E6), Value2, Address (A1 and R1C1, absolute flags, multi-area, external), Row, Column, Count, Rows, Columns, Worksheet, Application, Parent |
+| **values-only**: application members that need no workbook. DNA OneCalc uses it alone; DNA Calc's workbook profile falls back to it | `calc-object-model` (`profile::values_only`), portable, host services through a small `ApplicationHost` trait (Hwnd, Run, version) | Application and Book1 shell; WorksheetFunction scalar/array calls through the function catalogue. Caller, ThisCell, Range, Union refuse with Excel 1004 "needs a workbook: open in DNA Calc" (dc-svqh). Inline harness event targets answer geometry only. |
+| **workbook**: DNA Calc's workbook members | `calc_host::automation` (calc-host), over the session | Application/Workbooks/Workbook/Worksheet/Range metadata and reads; Worksheet.Range/Cells/Index, Workbook.Sheets/Worksheets/Names, Range.Cells/Item/Offset/Resize/Areas/EntireRow/EntireColumn, Areas and workbook Names/Name queries. WorksheetFunction uses the invocation's callback or the session's catalogue services. Range.Value/Value2 writes and ClearContents, Application/Worksheet/Range calculation use Automation ingress outside worksheet invocations. |
 | **COM by nature** | `calc-com-host` | COMAddIns, COMAddIn (connect through IDTExtensibility2), CommandBars and controls (the bounded model), AutomationSecurity get, ribbon GetCustomUI |
 
 Session access for the workbook profile (calc-host): one trait the desktop implements, with three contexts:
@@ -94,9 +94,10 @@ Session access for the workbook profile (calc-host): one trait the desktop imple
   borrowed for the call; busy is a typed refusal, never a deadlock.
 Writes (Range.Value2 put, Calculate) go through the session's Automation ingress in the event and command
 contexts only, as the VBA event route already does; inside a worksheet invocation they are Excel's 1004.
-This needs a mutable session in those two contexts: the first access hooks (2026-11-14) lend
-`&HostSession` only, so writes wait for a write route in `AutomationHost` (lane om-d's work), and the
-hooks must also say which kind of invocation is running (XLL or VBA), because ThisCell differs.
+The command host must implement `AutomationHost::with_session_mut`; its default is a typed refusal.
+The current desktop host supplies only the read callback, so its command writes remain refused until
+that application callback is wired. Event writes use the observer's mutable session loan already.
+The hooks must also say which kind of invocation is running (XLL or VBA), because ThisCell differs.
 
 Address formatting, Union geometry, Rows/Columns/Count are one portable module (`calc-object-model`), so the
 CalcVBA session can drop its own copies later.
@@ -179,10 +180,60 @@ identical):
 - **Optional arguments**: Empty for RowAbsolute is False; Null and Error mean "use the default";
   `Range("A1", Empty/Null/Error)` is 1004; `Value(Null)` is a type mismatch (`0x80020005`).
 
-## 10. Open items
+## 10. Coverage
 
-- Value date/currency conversion (measured, section 9; implementation pending); multi-area and
-  mismatched-shape writes (E11 assignment branches not yet run).
+Measured on Linux by `cargo test -p calc-object-model -p calc-host --test profiles --test automation -- --nocapture`
+(2026-11-14): `values_only_descriptor_coverage_lists_every_registered_member` and
+`workbook_descriptor_coverage_lists_own_and_inherited_members` print every registered member and the
+counts below. A member is a descriptor `(interface, DISPID, invocation kind)`, so get and put count
+separately. Workbook counts include the values-only fallback, with overrides counted once.
+
+These are **registered handler counts**, including conditional refusals and the values-only workbook
+refusals. They do not claim every argument form works. All 420 WorksheetFunction members share a handler;
+402 of its 417 method names resolve in the catalogue. The other methods refuse naming the member.
+Catalogue availability does not establish that a particular function or argument set is implemented.
+
+| Interface | Descriptor members | values-only handlers | Workbook handlers |
+|---|---:|---:|---:|
+| _Application | 467 | 17 | 20 |
+| Workbooks | 19 | 5 | 5 |
+| _Workbook | 282 | 6 | 9 |
+| _Worksheet | 151 | 3 | 7 |
+| Sheets | 22 | 0 | 5 |
+| Range | 253 | 9 | 23 |
+| Areas | 7 | 0 | 5 |
+| Names | 8 | 0 | 5 |
+| Name | 36 | 0 | 5 |
+| Window | 107 | 3 | 3 |
+| WorksheetFunction | 420 | 420 | 420 |
+| All complete advertised layouts | 2,358 | 463 | 507 |
+
+The total also includes descriptor interfaces with zero handlers in these two profiles: Windows,
+AppEvents, WorkbookEvents, DocEvents, IRtdServer, IRTDUpdateEvent, IAccessible and the Office/Add-in
+Designer interfaces. Office/RTD semantics belong to the COM composition and are outside these profile
+counts. Complete-layout selection follows the descriptor's slots, as the Rust projection generator does.
+
+Tests use a real opened workbook, the evaluator's actual UDF context, session dispatch and the existing
+event observer. They check nested event writes, one Change per transaction, scalar/array types, atomic
+shape refusal, held collection/range/name identities, and worksheet-invocation 1004s. WorksheetFunction
+Match's 1004 description is explicitly **unmeasured E7 text**, as directed by the owner.
+
+## 11. Open items
+
+- Value date/currency conversion is measured in section 9 but not implemented in this profile yet.
+- Multi-area writes, nonmatching array shapes, fractional Range indices, multi-area Offset/Resize and
+  Names.Item IndexLocal/RefersTo forms remain typed refusals pending dc-1nbp.6 measurements.
+- Value/Value2 text assignment accepts ordinary text. Formula-like strings, numeric/date/boolean/error
+  spellings, apostrophe conversions, empty strings and undecodable UTF-16 refuse pending E11; the
+  entry parser detects these ambiguous forms but does not supply invented Automation coercions.
+- The COM translator records typed E11 refusals for unsupported SAFEARRAY ranks and element types
+  before member dispatch. The supported form remains a 2-D SAFEARRAY(VARIANT); a Windows control
+  checks that Value2 puts of other legal forms cannot bypass refusal recording.
+- Command writes need the desktop's mutable session callback; event writes are implemented.
+- Session WorksheetFunction calls supply numeric mode, environment and reference reads; unavailable
+  catalogue services (for example SUBTOTAL exclusion facts) remain typed refusals.
+- Workbook.Names currently supports global names only. A collection containing sheet-local names,
+  or a held global RefersToRange shadowed by a local name, refuses explicitly (dc-hsa5.6).
 - Review findings of 2026-11-14 (independent read of the night's code), being fixed by lane om-e:
   discarded object results and client-object arguments must release their handles; Invoke positional
   arguments must fill slots 0..k-1; EXCEPINFO sets only one of wCode/scode; interface-typed results are

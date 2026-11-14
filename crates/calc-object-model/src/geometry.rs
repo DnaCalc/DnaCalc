@@ -109,19 +109,19 @@ pub fn address(
     options: AddressOptions,
     qualifier: Option<&str>,
 ) -> Result<String, AutoError> {
+    fn axis(tag: char, coordinate: u32, origin: u32, absolute: bool) -> String {
+        if absolute {
+            return format!("{tag}{coordinate}");
+        }
+        let offset = i64::from(coordinate) - i64::from(origin);
+        if offset == 0 {
+            tag.to_string()
+        } else {
+            format!("{tag}[{offset}]")
+        }
+    }
     let cell = |at: CellKey| {
         if options.style == ReferenceStyle::R1C1 {
-            fn axis(tag: char, coordinate: u32, origin: u32, absolute: bool) -> String {
-                if absolute {
-                    return format!("{tag}{coordinate}");
-                }
-                let offset = i64::from(coordinate) - i64::from(origin);
-                if offset == 0 {
-                    tag.to_string()
-                } else {
-                    format!("{tag}[{offset}]")
-                }
-            }
             return format!(
                 "{}{}",
                 axis(
@@ -165,6 +165,45 @@ pub fn address(
     for (index, area) in reference.areas().iter().enumerate() {
         if index != 0 {
             text.push(',');
+        }
+        if area.column_count() == 16_384 || area.row_count() == 1_048_576 {
+            let rows = area.column_count() == 16_384;
+            let coordinate = |at: CellKey| {
+                if options.style == ReferenceStyle::R1C1 {
+                    if rows {
+                        axis(
+                            'R',
+                            at.row(),
+                            options.relative_to.map_or(1, |b| b.row()),
+                            options.row_absolute,
+                        )
+                    } else {
+                        axis(
+                            'C',
+                            at.column(),
+                            options.relative_to.map_or(1, |b| b.column()),
+                            options.column_absolute,
+                        )
+                    }
+                } else if rows {
+                    format!(
+                        "{}{}",
+                        if options.row_absolute { "$" } else { "" },
+                        at.row()
+                    )
+                } else {
+                    // Reuse the cell formatter's column spelling; its numeric row is suffix-only.
+                    let label = cell(at);
+                    label
+                        .trim_end_matches(|c: char| c.is_ascii_digit())
+                        .trim_end_matches('$')
+                        .to_owned()
+                }
+            };
+            text.push_str(&coordinate(area.first()));
+            text.push(':');
+            text.push_str(&coordinate(area.last()));
+            continue;
         }
         text.push_str(&cell(area.first()));
         if area.cell_count() != 1 {
@@ -243,4 +282,167 @@ pub fn count_value(count: u64) -> AutoValue {
         Ok(n) => AutoValue::I4(n),
         Err(_) => AutoValue::R8(count as f64),
     }
+}
+
+/// A bounded grid integer. Fractional coercion awaits the optional-argument measurements.
+pub fn integer(value: &AutoValue) -> Result<i64, AutoError> {
+    let n = match value {
+        AutoValue::I2(v) => f64::from(*v),
+        AutoValue::I4(v) => f64::from(*v),
+        AutoValue::R4(v) => f64::from(*v),
+        AutoValue::R8(v) => *v,
+        AutoValue::Empty => 0.,
+        AutoValue::Text(v) => v.to_string_lossy().parse().map_err(|_| type_mismatch())?,
+        _ => return Err(type_mismatch()),
+    };
+    if !n.is_finite() || n.abs() > i32::MAX as f64 {
+        return Err(AutoError::excel(1004, ""));
+    }
+    if n.fract() != 0. {
+        return Err(AutoError::not_modelled(
+            "Range fractional index coercion",
+            "dc-1nbp.6",
+        ));
+    }
+    Ok(n as i64)
+}
+
+fn rectangle(
+    sheet: calc_value::SheetId,
+    row: i64,
+    column: i64,
+    rows: i64,
+    columns: i64,
+) -> Result<GridArea, AutoError> {
+    let cell = |r, c| {
+        CellKey::new(
+            sheet,
+            u32::try_from(r).unwrap_or(0),
+            u32::try_from(c).unwrap_or(0),
+        )
+        .map_err(|_| AutoError::excel(1004, ""))
+    };
+    if rows <= 0 || columns <= 0 {
+        return Err(AutoError::excel(1004, ""));
+    }
+    GridArea::new(
+        cell(row, column)?,
+        cell(row + rows - 1, column + columns - 1)?,
+    )
+    .map_err(|_| AutoError::excel(1004, ""))
+}
+
+/// Range.Item indexes relative to the first area's top-left; Cells resets Rows/Columns views.
+pub fn item(
+    reference: &ReferenceLike,
+    axis: RangeAxis,
+    row: &AutoValue,
+    column: &AutoValue,
+) -> Result<ReferenceLike, AutoError> {
+    let a = reference.areas()[0];
+    let index = integer(row)?;
+    let (r, c, rows, columns) = if !column.is_missing() {
+        if axis != RangeAxis::Cells {
+            return Err(AutoError::excel(1004, ""));
+        }
+        let col = if let AutoValue::Text(text) = column {
+            let s = text.to_string_lossy();
+            if s.bytes().all(|b| b.is_ascii_alphabetic()) && !s.is_empty() {
+                s.bytes()
+                    .try_fold(0i64, |n, b| {
+                        n.checked_mul(26)?
+                            .checked_add(i64::from(b.to_ascii_uppercase() - b'A' + 1))
+                    })
+                    .ok_or_else(|| AutoError::excel(1004, ""))?
+            } else {
+                integer(column)?
+            }
+        } else {
+            integer(column)?
+        };
+        (index - 1, col - 1, 1, 1)
+    } else {
+        match axis {
+            RangeAxis::Cells => {
+                let width = i64::from(a.column_count());
+                (
+                    (index - 1).div_euclid(width),
+                    (index - 1).rem_euclid(width),
+                    1,
+                    1,
+                )
+            }
+            RangeAxis::Rows => (index - 1, 0, 1, i64::from(a.column_count())),
+            RangeAxis::Columns => (0, index - 1, i64::from(a.row_count()), 1),
+        }
+    };
+    rectangle(
+        a.sheet(),
+        i64::from(a.first().row()) + r,
+        i64::from(a.first().column()) + c,
+        rows,
+        columns,
+    )
+    .map(ReferenceLike::area)
+}
+
+pub fn transform(
+    reference: &ReferenceLike,
+    name: &str,
+    row: &AutoValue,
+    column: &AutoValue,
+) -> Result<ReferenceLike, AutoError> {
+    // Multi-area Offset/Resize are intentionally refused until E11 measures their shapes.
+    if reference.area_count() != 1 && matches!(name, "Offset" | "Resize") {
+        return Err(AutoError::not_modelled(
+            format!("Range.{name} multi-area"),
+            "dc-1nbp.6",
+        ));
+    }
+    let areas = reference
+        .areas()
+        .iter()
+        .map(|a| {
+            let (mut r, mut c, mut h, mut w) = (
+                i64::from(a.first().row()),
+                i64::from(a.first().column()),
+                i64::from(a.row_count()),
+                i64::from(a.column_count()),
+            );
+            match name {
+                "Offset" => {
+                    if !row.is_missing() {
+                        r += integer(row)?;
+                    }
+                    if !column.is_missing() {
+                        c += integer(column)?;
+                    }
+                }
+                "Resize" => {
+                    if !row.is_missing() {
+                        h = integer(row)?;
+                    }
+                    if !column.is_missing() {
+                        w = integer(column)?;
+                    }
+                }
+                "EntireRow" => {
+                    c = 1;
+                    w = 16_384;
+                }
+                "EntireColumn" => {
+                    r = 1;
+                    h = 1_048_576;
+                }
+                _ => {
+                    return Err(AutoError::not_modelled(
+                        format!("Range.{name}"),
+                        "dc-1nbp.5",
+                    ));
+                }
+            }
+            rectangle(a.sheet(), r, c, h, w)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    ReferenceLike::from_areas(areas).map_err(|_| AutoError::excel(1004, ""))
 }
