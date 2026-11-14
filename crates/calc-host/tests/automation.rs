@@ -2229,7 +2229,7 @@ fn dc_piw0__excel_answers_q0_the_report_macro_reads_and_saves_as_excel_did() {
     let drawing = saved_part(&mut host.session.borrow_mut(), "xl/drawings/");
     for expected in [
         // Every anchor is a twoCellAnchor with no editAs; the chart frame's xfrm is zero.
-        r#"<xdr:cNvPr id="2" name="Chart 1"/>"#,
+        r#"<xdr:cNvPr id="2" name="Chart 1"><a:extLst>"#,
         r#"<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm>"#,
         r#"<xdr:cNvPr id="3" name="Rectangle 2"/>"#,
         r#"<a:xfrm><a:off x="254000" y="1524000"/><a:ext cx="1270000" cy="635000"/></a:xfrm><a:prstGeom prst="rect">"#,
@@ -2519,4 +2519,253 @@ fn dc_piw0__excel_answers_q4_q5_table_headers_and_defaults() {
     assert_eq!(text(&model, &guessed, "Name"), "Table3");
     let refused = tables_add(&model, &sheet, &range(&model, "A13:B15"), None);
     assert!(matches!(refused, Err(AutoError::NotModelled { owner: "dc-piw0.1", .. })), "{refused:?}");
+}
+
+// --- dc-piw0.4: the macro-built report fixture (tests/fixtures/macro-report) -------------------
+
+fn listing_text(value: &AutoValue) -> String {
+    match value {
+        AutoValue::Empty | AutoValue::Missing | AutoValue::Null => String::new(),
+        AutoValue::Bool(true) => "True".into(),
+        AutoValue::Bool(false) => "False".into(),
+        AutoValue::I2(v) => v.to_string(),
+        AutoValue::I4(v) => v.to_string(),
+        AutoValue::R4(v) => v.to_string(),
+        AutoValue::R8(v) | AutoValue::Date(v) => v.to_string(),
+        other => other
+            .as_text()
+            .unwrap_or_else(|| format!("<{other:?}>")),
+    }
+}
+
+fn item(model: &WorkbookAutomation, collection: &ObjectRef, index: i32) -> ObjectRef {
+    // `Item` is a method on some collections and a property on others (the descriptor says which).
+    let kind = if Descriptor::get().member(collection.interface, "Item", InvokeKind::Method).is_some() {
+        InvokeKind::Method
+    } else {
+        InvokeKind::Get
+    };
+    obj(invoke_kind(model, collection, "Item", kind, vec![AutoValue::I4(index)]).unwrap())
+}
+
+fn count(model: &WorkbookAutomation, collection: &ObjectRef) -> i32 {
+    int(invoke(model, collection, "Count", vec![]).unwrap()) as i32
+}
+
+/// The same records as `DumpReport.bas` writes (see its header), read through the object-model
+/// handlers of the sheet the report was built on.
+fn report_listing(model: &WorkbookAutomation) -> String {
+    let mut out = String::new();
+    let mut line = |fields: Vec<String>| {
+        out.push_str(&fields.join("\t"));
+        out.push('\n');
+    };
+    let app = model.application();
+    let sheet = obj(invoke(model, &app, "ActiveSheet", vec![]).unwrap());
+    for row in 1..=6u32 {
+        for column in 1..=4u32 {
+            let address = format!("{}{row}", char::from(b'A' + column as u8 - 1));
+            let cell = range(model, &address);
+            line(vec!["CELL".into(), address.clone(), listing_text(&invoke(model, &cell, "Value2", vec![]).unwrap())]);
+            // Range.Formula has no handler yet (listed in the lane report): the record is
+            // written when the member answers.
+            if let Ok(formula) = invoke(model, &cell, "Formula", vec![]) {
+                let formula = listing_text(&formula);
+                if formula.starts_with('=') {
+                    line(vec!["FORMULA".into(), address, formula]);
+                }
+            }
+        }
+    }
+    let tables = obj(invoke(model, &sheet, "ListObjects", vec![]).unwrap());
+    for i in 1..=count(model, &tables) {
+        let table = item(model, &tables, i);
+        let columns = obj(invoke(model, &table, "ListColumns", vec![]).unwrap());
+        let names: Vec<String> = (1..=count(model, &columns))
+            .map(|c| text(model, &item(model, &columns, c), "Name"))
+            .collect();
+        let rows = obj(invoke(model, &table, "ListRows", vec![]).unwrap());
+        let table_range = obj(invoke(model, &table, "Range", vec![]).unwrap());
+        line(vec![
+            "TABLE".into(),
+            text(model, &table, "Name"),
+            text(model, &table_range, "Address"),
+            text(model, &table, "TableStyle"),
+            names.join("|"),
+            count(model, &rows).to_string(),
+        ]);
+    }
+    let charts = obj(invoke_kind(model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    for i in 1..=count(model, &charts) {
+        let frame = item(model, &charts, i);
+        let chart = obj(invoke(model, &frame, "Chart", vec![]).unwrap());
+        let has_title = matches!(invoke(model, &chart, "HasTitle", vec![]).unwrap(), AutoValue::Bool(true));
+        let title = if has_title {
+            let title = obj(invoke(model, &chart, "ChartTitle", vec![]).unwrap());
+            text(model, &title, "Text")
+        } else {
+            String::new()
+        };
+        let series = obj(invoke_kind(model, &chart, "SeriesCollection", InvokeKind::Method, vec![]).unwrap());
+        let series_count = count(model, &series);
+        let get = |name: &str| listing_text(&invoke(model, &frame, name, vec![]).unwrap());
+        line(vec![
+            "CHART".into(),
+            text(model, &frame, "Name"),
+            listing_text(&invoke(model, &chart, "ChartType", vec![]).unwrap()),
+            get("Left"), get("Top"), get("Width"), get("Height"),
+            listing_text(&AutoValue::Bool(has_title)),
+            title,
+            listing_text(&invoke(model, &chart, "HasLegend", vec![]).unwrap()),
+            series_count.to_string(),
+        ]);
+        for s in 1..=series_count {
+            let one = item(model, &series, s);
+            line(vec![
+                "SERIES".into(),
+                text(model, &frame, "Name"),
+                s.to_string(),
+                text(model, &one, "Name"),
+                text(model, &one, "Formula"),
+                listing_text(&invoke(model, &one, "PlotOrder", vec![]).unwrap()),
+            ]);
+        }
+    }
+    let shapes = obj(invoke(model, &sheet, "Shapes", vec![]).unwrap());
+    for i in 1..=count(model, &shapes) {
+        let shape = item(model, &shapes, i);
+        let kind = int(invoke(model, &shape, "Type", vec![]).unwrap());
+        // MsoTriState members answer -1/0 (the handlers' I4), Booleans answer True/False.
+        let truthy = |v: AutoValue| matches!(v, AutoValue::Bool(true)) || matches!(v, AutoValue::I4(n) if n != 0);
+        let connector = truthy(invoke(model, &shape, "Connector", vec![]).unwrap());
+        let mut text_of = String::new();
+        // msoAutoShape = 1, msoTextBox = 17.
+        if (kind == 1 || kind == 17) && !connector {
+            let frame = obj(invoke(model, &shape, "TextFrame2", vec![]).unwrap());
+            let range = obj(invoke(model, &frame, "TextRange", vec![]).unwrap());
+            text_of = text(model, &range, "Text");
+        }
+        let (mut begin, mut begin_site, mut end, mut end_site) = (String::new(), String::new(), String::new(), String::new());
+        if connector {
+            let format = obj(invoke(model, &shape, "ConnectorFormat", vec![]).unwrap());
+            let is = |name: &str| truthy(invoke(model, &format, name, vec![]).unwrap());
+            if is("BeginConnected") {
+                begin = text(model, &obj(invoke(model, &format, "BeginConnectedShape", vec![]).unwrap()), "Name");
+                begin_site = listing_text(&invoke(model, &format, "BeginConnectionSite", vec![]).unwrap());
+            }
+            if is("EndConnected") {
+                end = text(model, &obj(invoke(model, &format, "EndConnectedShape", vec![]).unwrap()), "Name");
+                end_site = listing_text(&invoke(model, &format, "EndConnectionSite", vec![]).unwrap());
+            }
+        }
+        let get = |name: &str| listing_text(&invoke(model, &shape, name, vec![]).unwrap());
+        line(vec![
+            "SHAPE".into(),
+            text(model, &shape, "Name"),
+            get("ID"),
+            kind.to_string(),
+            get("Left"), get("Top"), get("Width"), get("Height"),
+            text_of, begin, begin_site, end, end_site,
+        ]);
+    }
+    out
+}
+
+/// dc-piw0.4: the report of `BuildReport.bas`, step for step through the object-model members,
+/// listed in the format of `DumpReport.bas`. The coordinator diffs this listing (printed, and
+/// written to `$DNACALC_REPORT_LISTING` when set) with the Excel run's `report-listing.txt`.
+/// The member sequence is the macro's; `report-data.tsv` is the macro's data grid.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_4__report_listing() {
+    let (host, model, _) = blank_report();
+    let app = model.application();
+    let sheet = obj(invoke(&model, &app, "ActiveSheet", vec![]).unwrap());
+    for (r, row) in include_str!("fixtures/macro-report/report-data.tsv").lines().enumerate() {
+        for (c, cell) in row.split('\t').enumerate() {
+            let address = format!("{}{}", char::from(b'A' + c as u8), r + 1);
+            if cell.starts_with('=') {
+                // `Range.Formula` (put) has no handler yet: the formula cells are entered through
+                // the session, as the interface does (pending member, lane eng3 report).
+                enter(&host, at(&host, r as u32 + 1, c as u32 + 1), cell);
+                continue;
+            }
+            let value = match cell.parse::<f64>() {
+                Ok(number) => AutoValue::R8(number),
+                Err(_) => AutoValue::text(cell),
+            };
+            invoke_kind(&model, &range(&model, &address), "Value2", InvokeKind::Put, vec![value]).unwrap();
+        }
+    }
+    let tables = obj(invoke(&model, &sheet, "ListObjects", vec![]).unwrap());
+    let table = obj(invoke_kind(
+        &model, &tables, "Add", InvokeKind::Method,
+        vec![AutoValue::I4(1), AutoValue::Object(range(&model, "A1:D6")), AutoValue::Missing, AutoValue::I4(1)],
+    ).unwrap());
+    invoke_kind(&model, &table, "Name", InvokeKind::Put, vec![AutoValue::text("Sales")]).unwrap();
+    invoke_kind(&model, &table, "TableStyle", InvokeKind::Put, vec![AutoValue::text("TableStyleMedium4")]).unwrap();
+
+    let charts = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let frame = obj(invoke_kind(
+        &model, &charts, "Add", InvokeKind::Method,
+        vec![AutoValue::R8(300.0), AutoValue::R8(20.0), AutoValue::R8(360.0), AutoValue::R8(220.0)],
+    ).unwrap());
+    invoke_kind(&model, &frame, "Name", InvokeKind::Put, vec![AutoValue::text("SalesChart")]).unwrap();
+    let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
+    invoke_kind(&model, &chart, "SetSourceData", InvokeKind::Method, vec![AutoValue::Object(range(&model, "A1:C6"))]).unwrap();
+    invoke_kind(&model, &chart, "HasTitle", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    let title = obj(invoke(&model, &chart, "ChartTitle", vec![]).unwrap());
+    invoke_kind(&model, &title, "Text", InvokeKind::Put, vec![AutoValue::text("Sales by region")]).unwrap();
+    invoke_kind(&model, &chart, "HasLegend", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+
+    let shapes = obj(invoke(&model, &sheet, "Shapes", vec![]).unwrap());
+    let add = |name: &str, args: [f64; 4], kind: Option<i32>| {
+        let mut values = Vec::new();
+        if let Some(kind) = kind {
+            values.push(AutoValue::I4(kind));
+        }
+        values.extend(args.map(AutoValue::R8));
+        obj(invoke_kind(&model, &shapes, name, InvokeKind::Method, values).unwrap())
+    };
+    let name_it = |shape: &ObjectRef, name: &str| {
+        invoke_kind(&model, shape, "Name", InvokeKind::Put, vec![AutoValue::text(name)]).unwrap();
+    };
+    let set_text = |shape: &ObjectRef, value: &str| {
+        let frame = obj(invoke(&model, shape, "TextFrame2", vec![]).unwrap());
+        let range = obj(invoke(&model, &frame, "TextRange", vec![]).unwrap());
+        invoke_kind(&model, &range, "Text", InvokeKind::Put, vec![AutoValue::text(value)]).unwrap();
+    };
+    let start = add("AddShape", [20.0, 200.0, 100.0, 50.0], Some(1));
+    name_it(&start, "Start");
+    set_text(&start, "Start");
+    let fill = obj(invoke(&model, &start, "Fill", vec![]).unwrap());
+    let colour = obj(invoke(&model, &fill, "ForeColor", vec![]).unwrap());
+    invoke_kind(&model, &colour, "RGB", InvokeKind::Put, vec![AutoValue::I4(255 + 128 * 256)]).unwrap();
+    let line = obj(invoke(&model, &start, "Line", vec![]).unwrap());
+    invoke_kind(&model, &line, "Weight", InvokeKind::Put, vec![AutoValue::R8(2.0)]).unwrap();
+    let finish = add("AddShape", [200.0, 300.0, 100.0, 50.0], Some(9));
+    name_it(&finish, "Finish");
+    set_text(&finish, "Finish");
+    let link = add("AddConnector", [0.0, 0.0, 10.0, 10.0], Some(1));
+    name_it(&link, "Link");
+    let format = obj(invoke(&model, &link, "ConnectorFormat", vec![]).unwrap());
+    invoke_kind(&model, &format, "BeginConnect", InvokeKind::Method, vec![AutoValue::Object(start), AutoValue::I4(3)]).unwrap();
+    invoke_kind(&model, &format, "EndConnect", InvokeKind::Method, vec![AutoValue::Object(finish), AutoValue::I4(1)]).unwrap();
+    let note = add("AddTextbox", [160.0, 240.0, 120.0, 30.0], Some(1));
+    name_it(&note, "Note");
+    set_text(&note, "Quarterly sales");
+    let rule = add("AddLine", [20.0, 380.0, 300.0, 380.0], None);
+    name_it(&rule, "Rule");
+
+    let listing = report_listing(&model);
+    eprintln!("{listing}");
+    if let Ok(path) = std::env::var("DNACALC_REPORT_LISTING") {
+        std::fs::write(path, &listing).unwrap();
+    }
+    // The records the Excel run lists, by kind.
+    let count_of = |kind: &str| listing.lines().filter(|l| l.starts_with(&format!("{kind}\t"))).count();
+    assert_eq!((count_of("CELL"), count_of("TABLE"), count_of("CHART"), count_of("SERIES"), count_of("SHAPE")), (24, 1, 1, 2, 6));
+    assert!(listing.contains("CELL\tD2\t30\n"), "the formula column calculates");
+    assert!(listing.contains("TABLE\tSales\t$A$1:$D$6\tTableStyleMedium4\tRegion|Q1|Q2|Total\t5\n"));
+    let _ = host;
 }

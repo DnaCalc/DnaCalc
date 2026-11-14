@@ -773,7 +773,7 @@ pub(super) fn ensure_relationship(
         }
     }
     let id = (1u32..)
-        .map(|n| format!("dnaRelationship{n}"))
+        .map(|n| format!("rId{n}"))
         .find(|id| !ids.contains(id))
         .expect("relationship identity");
     let bytes = relationships(

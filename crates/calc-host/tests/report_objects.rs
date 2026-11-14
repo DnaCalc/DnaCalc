@@ -487,3 +487,143 @@ fn dc_piw0_2__an_empty_chart_saves_and_reads_back() {
     assert!(chart.legend.is_some() && chart.title.is_none());
     assert_eq!(reloaded.host().shapes(sheet).len(), 1);
 }
+
+/// The elements of `xml` as Excel's `SaveCopyAs` writes them, compared without the namespace
+/// declarations' placement: the declaration, namespace attributes and the random numbers Excel
+/// picks per chart (axis identities) are normalised; every element and attribute stays.
+fn elements(xml: &str) -> Vec<String> {
+    let mut ids: Vec<String> = Vec::new();
+    let mut out = Vec::new();
+    let mut rest = xml.trim_start_matches('\u{feff}');
+    if let Some(end) = rest.strip_prefix("<?xml").and_then(|r| r.find("?>")) {
+        rest = rest[5 + end + 2..].trim_start();
+    }
+    while let Some(start) = rest.find('<') {
+        if start > 0 && !rest[..start].trim().is_empty() {
+            out.push(rest[..start].trim().to_owned());
+        }
+        let end = rest[start..].find('>').unwrap() + start;
+        let mut tag = rest[start..=end].to_owned();
+        rest = &rest[end + 1..];
+        // Drop namespace declarations.
+        while let Some(i) = tag.find(" xmlns") {
+            let value = tag[i..].find("=\"").unwrap() + i + 2;
+            let close = tag[value..].find('"').unwrap() + value;
+            tag.replace_range(i..=close, "");
+        }
+        // Per-chart random identities: axes, the frame's creation GUID.
+        for name in ["axId", "crossAx", "creationId"] {
+            let needle = if name == "creationId" { " id=\"" } else { " val=\"" };
+            if tag.contains(&format!("<c:{name} ")) || tag.contains(&format!(":{name} ")) {
+                let i = tag.find(needle).unwrap() + needle.len();
+                let close = tag[i..].find('"').unwrap() + i;
+                let value = tag[i..close].to_owned();
+                let n = ids.iter().position(|v| *v == value).unwrap_or_else(|| {
+                    ids.push(value);
+                    ids.len() - 1
+                });
+                tag.replace_range(i..close, &format!("#{n}"));
+            }
+        }
+        out.push(tag);
+    }
+    out
+}
+
+/// dc-piw0 Q10 (excel-answers.md, Excel build 20527): `ChartObjects.Add(200, 20, 300, 200)` and
+/// nothing else, saved with `SaveCopyAs`, is `xl/charts/chart1.xml` and `xl/drawings/drawing1.xml`
+/// of tests/fixtures/excel-q10, byte for byte as recorded. The engine's saved chart and drawing
+/// parts equal them element by element; the axis identities and the frame's creation GUID are
+/// the random values Excel picks for each chart. The anchor also needs Q9's column width: the
+/// blank workbook's default font is Aptos Narrow 11, 54 pt columns (72 px) and 14.25 pt rows.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0__q10_an_empty_macro_chart_saves_as_excel_wrote_it() {
+    let mut book = open(aptos_narrow_package());
+    let sheet = book.host().sheets()[0].id();
+    command(&mut book, |b| WorkbookCommand::ChartCreateEmpty {
+        sheet,
+        revision: b.host().revision().get(),
+        kind: "column".into(),
+        place: [pts(200.0), pts(20.0), pts(300.0), pts(200.0)],
+        title: None,
+        legend: true,
+    });
+    let mut bytes = Vec::new();
+    book.save(&SavePolicy::default(), &mut bytes).unwrap();
+    let source: Arc<dyn calc_host::PackageRead> = Arc::new(MemorySource::new(bytes));
+    let document = calc_doc::open(source, &calc_host::OpenPolicy::default()).unwrap();
+    let find = |folder: &str| {
+        let names: Vec<_> = document
+            .package()
+            .parts()
+            .iter()
+            .map(|p| p.name().to_owned())
+            .filter(|n| n.starts_with(folder) && n.ends_with(".xml"))
+            .collect();
+        assert_eq!(names.len(), 1, "{names:?}");
+        String::from_utf8(document.package().read_part(&names[0]).unwrap()).unwrap()
+    };
+    let recorded_chart = include_str!("fixtures/excel-q10/chart1.xml");
+    let recorded_drawing = include_str!("fixtures/excel-q10/drawing1.xml");
+    assert_eq!(elements(&find("xl/charts/")), elements(recorded_chart));
+    assert_eq!(elements(&find("xl/drawings/")), elements(recorded_drawing));
+}
+
+#[allow(dead_code)]
+#[path = "../../calc-doc/tests/cdoc_m1_1_support/mod.rs"]
+mod existing_wire_support;
+
+/// The blank workbook with Excel's current default font (Aptos Narrow 11, as Excel 16 writes a
+/// new workbook's styles part, Q9), which sets the default column and row sizes.
+fn aptos_narrow_package() -> Vec<u8> {
+    let blank = calc_host::blank_package();
+    let archive = existing_wire_support::parse_zip(&blank);
+    let entries = archive
+        .entries
+        .iter()
+        .map(|entry| {
+            let payload = entry.payload(&blank);
+            if entry.name == "xl/styles.xml" {
+                let bytes = if entry.method == 0 {
+                    payload.to_vec()
+                } else {
+                    miniz_oxide::inflate::decompress_to_vec(payload).unwrap()
+                };
+                let xml = String::from_utf8(bytes)
+                    .unwrap()
+                    .replace("<name val=\"Calibri\"/>", "<name val=\"Aptos Narrow\"/>");
+                assert!(xml.contains("Aptos Narrow"));
+                existing_wire_support::RawEntry::stored(&entry.name, xml.as_bytes())
+            } else if entry.method == 0 {
+                existing_wire_support::RawEntry::stored(&entry.name, payload)
+            } else {
+                existing_wire_support::RawEntry::deflated(
+                    &entry.name,
+                    payload,
+                    entry.size,
+                    entry.crc32,
+                )
+            }
+        })
+        .collect::<Vec<_>>();
+    existing_wire_support::build_zip(&entries)
+}
+
+/// dc-zaj7 / Q9 (excel-answers.md, Excel build 20527, 96 DPI): the default column of an Aptos
+/// Narrow 11 workbook is 72 px = 54 pt and its rows 14.25 pt; a Calibri 11 workbook keeps
+/// 64 px = 48 pt and 15 pt. Column positions are the sum of whole-pixel widths of the font's
+/// maximum digit width (8 px, 7 px).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zaj7__q9_default_column_and_row_follow_the_default_font() {
+    let aptos = open(aptos_narrow_package());
+    let sheet = aptos.host().sheets()[0].id();
+    assert_eq!(aptos.host().column_left(sheet, 1), 54.0);
+    assert_eq!(aptos.host().column_left(sheet, 4), 216.0);
+    assert_eq!(aptos.host().row_top(sheet, 1), 14.25);
+    let calibri = open(calc_host::blank_package());
+    let sheet = calibri.host().sheets()[0].id();
+    assert_eq!(calibri.host().column_left(sheet, 1), 48.0);
+    assert_eq!(calibri.host().row_top(sheet, 1), 15.0);
+}

@@ -80,33 +80,78 @@ pub(crate) fn imported_style(sheet: Option<&LoadedSheet>, edits: &[AxisEdit], at
     runs.get(at).unwrap_or(0)
 }
 
-/// The maximum digit width, in pixels, of a font Excel uses as a workbook's default font, which
-/// a column width in characters counts in: measured for the fonts of Excel's default styles
-/// (Calibri 11 and Aptos Narrow 11 give a default column of 8.43 characters, 64 pixels).
-fn maximum_digit_width(styles: &StyleTable) -> Option<f64> {
+/// The pixel density the measured widths below were recorded at (GDI LOGPIXELSX).
+pub(crate) const REFERENCE_DPI: f64 = 96.0;
+
+/// The default font of a workbook: the first cell style's font, else the first font, else
+/// Excel's default (Calibri 11 when the styles part has no font).
+fn default_font(styles: &StyleTable) -> Option<(&str, f64)> {
     let font = styles
         .cell_style_formats
         .first()
         .and_then(|format| format.font_id)
         .and_then(|id| styles.fonts.get(usize::try_from(id).ok()?))
         .or_else(|| styles.fonts.first());
-    let (name, size) = match font {
-        Some(font) => (font.name.as_deref()?, font.size.as_deref()?),
-        // A styles part with no font: Excel's default, Calibri 11.
-        None => ("Calibri", "11"),
-    };
-    let size: f64 = size.trim().parse().ok()?;
+    match font {
+        Some(font) => Some((
+            font.name.as_deref()?,
+            font.size.as_deref()?.trim().parse().ok()?,
+        )),
+        None => Some(("Calibri", 11.0)),
+    }
+}
+
+/// The maximum digit width, in pixels at 96 DPI, of a font Excel uses as a workbook's default
+/// font, which a column width in characters counts in. Measured in Excel (dc-piw0 Q9, build
+/// 20527): Calibri 11 is 7 pixels (a default column of 64 pixels, 48 pt, 8.43 characters) and
+/// Aptos Narrow 11 is 8 pixels (px = 8 * characters + 5; a default column of 72 pixels, 54 pt,
+/// file width 9, shown as 8.38).
+fn digit_width_96(name: &str, size: f64) -> Option<f64> {
     match (name, size) {
-        ("Calibri" | "Aptos Narrow", 11.0) => Some(7.0),
+        ("Calibri", 11.0) => Some(7.0),
+        ("Aptos Narrow", 11.0) => Some(8.0),
         _ => None,
     }
+}
+
+/// The default row height in points of the default font (Q9: Aptos Narrow 11 is 14.25 pt, 19 px;
+/// Calibri 11 is 15 pt, 20 px). Row heights in points do not depend on the DPI.
+pub(crate) fn default_row_points(styles: &StyleTable) -> f64 {
+    match default_font(styles) {
+        Some(("Aptos Narrow", 11.0)) => 14.25,
+        _ => 15.0,
+    }
+}
+
+/// The maximum digit width, in pixels at `dpi`, of the workbook's default font. The 96 DPI
+/// measure scales with the density; points and file widths do not depend on it.
+pub(crate) fn maximum_digit_width_at(styles: &StyleTable, dpi: f64) -> Option<f64> {
+    let (name, size) = default_font(styles)?;
+    Some((digit_width_96(name, size)? * dpi / REFERENCE_DPI).round())
+}
+
+fn maximum_digit_width(styles: &StyleTable) -> Option<f64> {
+    maximum_digit_width_at(styles, REFERENCE_DPI)
+}
+
+/// The width in whole pixels of a column of file width `width` (characters of `mdw` pixels with
+/// the cell padding; ECMA-376 Part 1, 18.3.1.13).
+pub(crate) fn column_pixels(width: f64, mdw: f64) -> f64 {
+    (((256.0 * width + (128.0 / mdw).trunc()) / 256.0) * mdw).trunc()
+}
+
+/// The pixels of the default column when the sheet gives no width: the base width's digits and
+/// the padding, rounded up to a multiple of 8 pixels (8 characters of 7 pixels give 64 pixels,
+/// of 8 pixels give 72).
+pub(crate) fn default_column_pixels(base: f64, mdw: f64) -> f64 {
+    ((base * mdw + 5.0) / 8.0).ceil() * 8.0
 }
 
 /// The width in characters Excel shows for a file's column width `width` (characters of the
 /// maximum digit width `mdw` with the cell padding): the width in whole pixels, less the 5 pixels
 /// of padding, in hundredths of a character (ECMA-376 Part 1, 18.3.1.13).
 fn shown_characters(width: f64, mdw: f64) -> f64 {
-    let pixels = (((256.0 * width + (128.0 / mdw).trunc()) / 256.0) * mdw).trunc();
+    let pixels = column_pixels(width, mdw);
     (((pixels - 5.0) / mdw * 100.0 + 0.5).trunc() / 100.0).max(0.0)
 }
 
@@ -394,10 +439,8 @@ impl WorkbookFacts for HostFacts {
         let default_characters = || match geometry.default_column_width {
             Some(width) => shown_characters(width, mdw),
             None => {
-                // The default column: the base width's digits and the padding, rounded up to a
-                // multiple of 8 pixels (8 characters of 7 pixels give 64 pixels, 8.43 characters).
                 let base = geometry.base_column_width.unwrap_or(8.0);
-                let pixels = ((base * mdw + 5.0) / 8.0).ceil() * 8.0;
+                let pixels = default_column_pixels(base, mdw);
                 (((pixels - 5.0) / mdw * 100.0 + 0.5).trunc() / 100.0).max(0.0)
             }
         };
@@ -532,7 +575,46 @@ impl HostState {
 
 #[cfg(test)]
 mod tests {
-    use super::shown_characters;
+    use super::{column_pixels, default_column_pixels, maximum_digit_width_at, shown_characters};
+
+    /// dc-zaj7 / Q9 (Excel build 20527, 96 DPI): Aptos Narrow 11 has a maximum digit width of
+    /// 8 px, and the recorded sweep of `ColumnWidth` gives px = 8 * characters + 5: 1 -> 13 px,
+    /// 2 -> 21, 5 -> 45, 10 -> 85, 20 -> 165, 50 -> 405, 100 -> 805, in points x 3/4. The default
+    /// column is 72 px (54 pt, file width 9, shown 8.38); Calibri 11 stays 7 px, 64 px, 8.43.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn q9_the_default_font_sets_the_digit_width() {
+        let mut styles = calc_doc_model::StyleTable::default();
+        let font = |name: &str| calc_doc_model::Font {
+            name: Some(name.into()),
+            size: Some("11".into()),
+            ..Default::default()
+        };
+        styles.fonts.push(font("Aptos Narrow"));
+        assert_eq!(maximum_digit_width_at(&styles, 96.0), Some(8.0));
+        // The pixel measure scales with the density; points do not.
+        assert_eq!(maximum_digit_width_at(&styles, 192.0), Some(16.0));
+        for (chars, pixels, points) in [
+            (1.0, 13.0, 9.75),
+            (2.0, 21.0, 15.75),
+            (5.0, 45.0, 33.75),
+            (10.0, 85.0, 63.75),
+            (20.0, 165.0, 123.75),
+            (50.0, 405.0, 303.75),
+            (100.0, 805.0, 603.75),
+        ] {
+            // The file stores the width in characters of 8 px with the padding: (px)/8.
+            let file_width = pixels / 8.0;
+            assert_eq!(column_pixels(file_width, 8.0), pixels, "{chars}");
+            assert_eq!(pixels * 0.75, points, "{chars}");
+        }
+        assert_eq!(default_column_pixels(8.0, 8.0), 72.0);
+        assert_eq!(shown_characters(9.0, 8.0), 8.38);
+        assert_eq!(default_column_pixels(8.0, 7.0), 64.0);
+        assert_eq!(shown_characters(9.140625, 7.0), 8.43);
+        styles.fonts[0] = font("Calibri");
+        assert_eq!(maximum_digit_width_at(&styles, 96.0), Some(7.0));
+    }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

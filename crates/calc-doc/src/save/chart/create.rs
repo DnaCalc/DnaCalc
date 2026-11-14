@@ -7,6 +7,7 @@ use calc_doc_model::{ChartAnchor, ChartAxis, DrawingPoint};
 use std::borrow::Cow;
 use std::collections::BTreeSet;
 const XDR: &str = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing";
+const MC: &str = "http://schemas.openxmlformats.org/markup-compatibility/2006";
 const REL: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 const DRAWING: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing";
 const CHART: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart";
@@ -192,7 +193,18 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
     {
         return Err(fail("Use distinct axis identities"));
     }
-    let mut bytes = format!("<c:chartSpace xmlns:c=\"{C}\" xmlns:a=\"{A}\"><c:chart>").into_bytes();
+    // A chart a macro makes (a two-cell anchor, dc-piw0 Q0/Q10) is the chart Excel's object model
+    // builds, with the elements Excel writes for it: the language, corner and style header, the
+    // data label defaults, outward tick marks, the data display extension and the print settings.
+    let excel = matches!(chart.anchor, ChartAnchor::TwoCell { .. });
+    let mut bytes = if excel {
+        format!(
+            "<c:chartSpace xmlns:c=\"{C}\" xmlns:a=\"{A}\" xmlns:r=\"{REL}\" xmlns:c16r2=\"http://schemas.microsoft.com/office/drawing/2015/06/chart\"><c:date1904 val=\"0\"/><c:lang val=\"en-US\"/><c:roundedCorners val=\"0\"/><mc:AlternateContent xmlns:mc=\"{MC}\"><mc:Choice Requires=\"c14\" xmlns:c14=\"http://schemas.microsoft.com/office/drawing/2007/8/2/chart\"><c14:style val=\"102\"/></mc:Choice><mc:Fallback><c:style val=\"2\"/></mc:Fallback></mc:AlternateContent><c:chart>"
+        )
+        .into_bytes()
+    } else {
+        format!("<c:chartSpace xmlns:c=\"{C}\" xmlns:a=\"{A}\"><c:chart>").into_bytes()
+    };
     if let Some(title) = &chart.title {
         bytes.extend(b"<c:title>");
         bytes.extend(tx(title));
@@ -232,6 +244,9 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
                 bytes.extend(data_xml(slot, data));
             }
             bytes.extend(b"</c:ser>");
+        }
+        if excel && p.kind == "barChart" {
+            bytes.extend(b"<c:dLbls><c:showLegendKey val=\"0\"/><c:showVal val=\"0\"/><c:showCatName val=\"0\"/><c:showSerName val=\"0\"/><c:showPercent val=\"0\"/><c:showBubbleSize val=\"0\"/></c:dLbls>");
         }
         if p.kind == "barChart" {
             bytes.extend(fresh_number("gapWidth", "150"));
@@ -279,6 +294,8 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
         let secondary = is_secondary(a);
         if secondary && a.kind == "catAx" {
             bytes.extend(fresh_number("delete", "1"));
+        } else if excel {
+            bytes.extend(fresh_number("delete", "0"));
         }
         bytes.extend(fresh_number(
             "axPos",
@@ -297,14 +314,24 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
             && chart.plots.iter().any(|p| {
                 p.grouping.as_deref() == Some("percentStacked") && p.axis_ids.contains(&a.id)
             });
+        // Excel links the axis number format to the source only when there is a source (Q10: an
+        // empty chart's axes have no `numFmt`; Q0: with series they have `General`).
+        if !excel || chart.plots.iter().any(|p| !p.series.is_empty()) {
+            bytes.extend(
+                format!(
+                    "<c:numFmt formatCode=\"{}\" sourceLinked=\"1\"/>",
+                    if percent_axis { "0%" } else { "General" }
+                )
+                .as_bytes(),
+            );
+        }
         bytes.extend(
             format!(
-                "<c:numFmt formatCode=\"{}\" sourceLinked=\"1\"/>",
-                if percent_axis { "0%" } else { "General" }
+                "<c:majorTickMark val=\"{}\"/><c:minorTickMark val=\"none\"/><c:tickLblPos val=\"nextTo\"/>",
+                if excel { "out" } else { "none" }
             )
             .as_bytes(),
         );
-        bytes.extend(b"<c:majorTickMark val=\"none\"/><c:minorTickMark val=\"none\"/><c:tickLblPos val=\"nextTo\"/>");
         bytes.extend(fresh_number("crossAx", &a.cross_axis.unwrap().to_string()));
         if !(secondary && a.kind == "catAx") {
             bytes.extend(fresh_number(
@@ -314,6 +341,9 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
         }
         if a.kind == "catAx" {
             bytes.extend(b"<c:auto val=\"1\"/><c:lblAlgn val=\"ctr\"/><c:lblOffset val=\"100\"/>");
+            if excel {
+                bytes.extend(b"<c:noMultiLvlLbl val=\"0\"/>");
+            }
         } else {
             bytes.extend(fresh_number(
                 "crossBetween",
@@ -332,9 +362,16 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
                 .as_bytes(),
         );
     }
-    bytes.extend(b"<c:plotVisOnly val=\"1\"/><c:dispBlanksAs val=\"gap\"/></c:chart>");
+    bytes.extend(b"<c:plotVisOnly val=\"1\"/><c:dispBlanksAs val=\"gap\"/>");
+    if excel {
+        bytes.extend(b"<c:showDLblsOverMax val=\"0\"/><c:extLst><c:ext uri=\"{56B9EC1D-385E-4148-901F-78D8002777C0}\" xmlns:c16r3=\"http://schemas.microsoft.com/office/drawing/2017/03/chart\"><c16r3:dataDisplayOptions16><c16r3:dispNaAsBlank val=\"1\"/></c16r3:dataDisplayOptions16></c:ext></c:extLst>");
+    }
+    bytes.extend(b"</c:chart>");
     if chart.text_style != Default::default() {
         bytes.extend(font::fresh(&chart.text_style));
+    }
+    if excel {
+        bytes.extend(b"<c:printSettings><c:headerFooter/><c:pageMargins b=\"0.75\" l=\"0.7\" r=\"0.7\" t=\"0.75\" header=\"0.3\" footer=\"0.3\"/><c:pageSetup/></c:printSettings>");
     }
     bytes.extend(b"</c:chartSpace>");
     font::apply_elements(
@@ -393,12 +430,35 @@ fn frame(chart: &Chart, id: u32, rel: &str) -> Result<Vec<u8>, SaveRefusal> {
     let (width, height) = ext;
     let mut bytes=format!("<xdr:{tag} xmlns:xdr=\"{XDR}\" xmlns:a=\"{A}\" xmlns:r=\"{REL}\">{anchor}<xdr:graphicFrame macro=\"\"><xdr:nvGraphicFramePr><xdr:cNvPr id=\"{id}\" name=").into_bytes();
     super::super::text::attribute_value(&chart.name, &mut bytes);
+    // Excel gives a frame it creates a `creationId` (a GUID of its own choosing); the engine's is
+    // fixed by the part name and identity, so a save is reproducible.
+    let creation = if tag == "twoCellAnchor" {
+        let mut h: u128 = 0x6c62272e07bb014262b821756295c58d;
+        for b in chart.part.bytes().chain(id.to_le_bytes()) {
+            h = (h ^ u128::from(b)).wrapping_mul(0x0000000001000000000000000000013b);
+        }
+        format!(
+            "<a:extLst><a:ext uri=\"{{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}}\"><a16:creationId xmlns:a16=\"http://schemas.microsoft.com/office/drawing/2014/main\" id=\"{{{:08X}-{:04X}-{:04X}-{:04X}-{:012X}}}\"/></a:ext></a:extLst>",
+            (h >> 96) as u32,
+            (h >> 80) as u16,
+            (h >> 64) as u16,
+            (h >> 48) as u16,
+            (h & 0xffff_ffff_ffff) as u64
+        )
+    } else {
+        String::new()
+    };
+    let close = if creation.is_empty() {
+        "/>".to_owned()
+    } else {
+        format!(">{creation}</xdr:cNvPr>")
+    };
     let xfrm = if tag == "twoCellAnchor" {
         "<a:off x=\"0\" y=\"0\"/><a:ext cx=\"0\" cy=\"0\"/>".to_owned()
     } else {
         format!("<a:off x=\"0\" y=\"0\"/><a:ext cx=\"{width}\" cy=\"{height}\"/>")
     };
-    bytes.extend(format!("/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr><xdr:xfrm>{xfrm}</xdr:xfrm><a:graphic><a:graphicData uri=\"{C}\"><c:chart xmlns:c=\"{C}\" r:id=\"{rel}\"/></a:graphicData></a:graphic></xdr:graphicFrame><xdr:clientData/></xdr:{tag}>").as_bytes());
+    bytes.extend(format!("{close}<xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr><xdr:xfrm>{xfrm}</xdr:xfrm><a:graphic><a:graphicData uri=\"{C}\"><c:chart xmlns:c=\"{C}\" r:id=\"{rel}\"/></a:graphicData></a:graphic></xdr:graphicFrame><xdr:clientData/></xdr:{tag}>").as_bytes());
     Ok(bytes)
 }
 
