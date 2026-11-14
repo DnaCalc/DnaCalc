@@ -354,6 +354,58 @@ fn paired_statistics_single_blank_reference_and_error_order() {
     exact(call_on(&mut sheet, "CORREL", vec![mixed, numbers]), 1.0);
 }
 
+/// Excel 20527 checks blank and error cells before singleton sample shape.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chisq_test_validates_singleton_sample_cells_before_shape() {
+    let mut sheet = Sheet::new();
+    sheet.column(1, 2, vec![n(3.0), e(NA)]);
+    let blank = sheet.area(1, 1, 1, 1);
+    let single_error = sheet.area(2, 2, 2, 2);
+    let range = sheet.area(1, 2, 2, 2);
+    for name in ["CHISQ.TEST", "CHITEST"] {
+        error(call_on(&mut sheet, name, vec![blank.clone(), n(3.0)]), Value);
+        error(call_on(&mut sheet, name, vec![n(3.0), blank.clone()]), Value);
+        error(call_on(&mut sheet, name, vec![single_error.clone(), blank.clone()]), NA);
+        error(call_on(&mut sheet, name, vec![blank.clone(), single_error.clone()]), Value);
+        error(call_on(&mut sheet, name, vec![range.clone(), blank.clone()]), Value);
+        error(call(name, vec![n(2.0), n(3.0)]), NA);
+    }
+}
+
+/// Excel 20527 validates sample singletons, scalar options, then sample ranges.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn t_test_validates_tails_after_singleton_sample_errors() {
+    let mut sheet = Sheet::new();
+    sheet.column(1, 2, vec![n(3.0), e(NA)]);
+    let blank = sheet.area(1, 1, 1, 1);
+    let sample_error = sheet.area(2, 2, 2, 2);
+    let range_with_error = sheet.area(1, 2, 2, 2);
+    for name in ["T.TEST", "TTEST"] {
+        for kind in [1.0, 2.0, 3.0] {
+            error(call(name, vec![n(1.0), n(2.0), n(0.0), n(kind)]), Num);
+            error(call(name, vec![n(1.0), n(2.0), n(3.0), n(kind)]), Num);
+            error(call(name, vec![n(1.0), n(2.0), n(1.0), n(kind)]), Div0);
+            error(call_on(&mut sheet, name, vec![blank.clone(), n(2.0), n(0.0), n(kind)]), Value);
+            error(call_on(&mut sheet, name, vec![sample_error.clone(), n(2.0), n(0.0), n(kind)]), NA);
+            error(call_on(&mut sheet, name, vec![range_with_error.clone(), n(2.0), n(0.0), n(kind)]), Num);
+        }
+        error(call(name, vec![n(1.0), n(2.0), n(0.0), e(NA)]), NA);
+        error(call(name, vec![n(1.0), n(2.0), e(NA), n(0.0)]), NA);
+        let tolerance = 2.0_f64.powi(-22) + 2.0_f64.powi(-33);
+        for (slot, upper) in [(2, 1.0), (2, 3.0), (3, 1.0), (3, 4.0)] {
+            let edge = upper - tolerance;
+            for bits in [edge.to_bits() - 1, edge.to_bits()] {
+                let mut args = vec![n(1.0), n(2.0), n(1.0), n(1.0)];
+                args[slot] = n(f64::from_bits(bits));
+                let admitted = if upper == 1.0 { bits == edge.to_bits() } else { bits < edge.to_bits() };
+                error(call(name, args), if admitted { Div0 } else { Num });
+            }
+        }
+    }
+}
+
 /// Excel20527: density reuses GAMMA.DIST's stored Poisson mass, avoiding overflow.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

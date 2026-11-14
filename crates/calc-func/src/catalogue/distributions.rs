@@ -70,15 +70,6 @@ fn sample(
     numbers(site, a, index, index + 1, sv, Held::Numbers)
 }
 
-/// The tests' tails or type argument: a number, truncated.
-fn whole(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<i32> {
-    let n = num(site, a, index)?;
-    if !n.is_finite() {
-        return fail(WorksheetErrorCode::Num);
-    }
-    Ok(n.trunc() as i32)
-}
-
 // 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
 ported_shared_family! {
     code: CODE;
@@ -374,14 +365,9 @@ ported_shared_family! {
 }
 
 fn chisq_test_of(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
-    // An argument that is an error value is the result before the shapes are compared (Excel
-    // 16.0.20430, 2026-10-25, dc-6au: `=CHISQ.TEST(#REF!,1)`, `=CHISQ.TEST(1,#REF!)` and
-    // `=CHISQ.TEST(A1:A2,#REF!)` are #REF!, `=CHISQ.TEST(#DIV/0!,A1:A2)` #DIV/0!).
-    for argument in &a[..2] {
-        if let CoreRef::Error(code) = argument.core_ref() {
-            return fail(code);
-        }
-    }
+    // Single-cell blanks and errors are checked in argument order before
+    // comparing sample shapes or examining errors in multi-cell ranges.
+    validate_paired_singletons(site, a, [0, 1], sv)?;
     let actual = grid(site, a, 0, sv)?;
     let expected = grid(site, a, 1, sv)?;
     if (actual.rows, actual.cols) != (expected.rows, expected.cols) {
@@ -414,8 +400,21 @@ fn chisq_test_of(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) ->
 }
 
 fn t_test_of(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
-    let tails = whole(site, a, 2)?;
-    let kind = whole(site, a, 3)?;
+    // Excel checks single-cell samples before scalar options; errors inside a
+    // larger range are read only after both options have been validated.
+    validate_paired_singletons(site, a, [0, 1], sv)?;
+    let option = |index| -> Step<i32> {
+        let value = num(site, a, index)?;
+        if !value.is_finite() {
+            return fail(WorksheetErrorCode::Num);
+        }
+        Ok(crate::ported::text_kernels::date_integer_floor(value) as i32)
+    };
+    let tails = option(2)?;
+    let kind = option(3)?;
+    if !matches!(tails, 1 | 2) {
+        return fail(WorksheetErrorCode::Num);
+    }
     let result = match kind {
         1 => {
             let pairs = super::kit::pairs(site, a, 0, 1, super::kit::PairScalars::Coerce, sv)?;
