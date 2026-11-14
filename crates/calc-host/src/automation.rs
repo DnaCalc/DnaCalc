@@ -397,6 +397,16 @@ impl WorkbookAutomation {
                             ));
                         }
                         let caller = match &access {
+                            // Excel answers 1004 for ThisCell inside an add-in function's
+                            // invocation, where Caller gives the calling cell (X19
+                            // COM_WORKBOOK_VALUES, owned Excel 16.0 capture 2026-11-14). Every
+                            // invocation this host admits is an add-in's (XLL) one.
+                            Access::Invocation(_) if name == "ThisCell" => {
+                                return Err(AutoError::excel(
+                                    1004,
+                                    "Application.ThisCell has no cell in an add-in function",
+                                ));
+                            }
                             Access::Invocation(context) => context.caller(),
                             _ => None,
                         };
