@@ -58,6 +58,10 @@ pub use chart::{
     Chart, ChartAnchor, ChartAxis, ChartData, ChartPlot, ChartSeries, ChartTextStyle, DrawingPoint,
     SheetCharts,
 };
+mod drawing;
+pub use drawing::{
+    Shape, ShapeColour, ShapeConnection, ShapeFill, ShapeKind, ShapeLine, SheetShapes,
+};
 mod cells;
 mod validation;
 pub use validation::Validation;

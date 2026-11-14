@@ -13,7 +13,7 @@
 
 use super::aggregate::Held;
 use super::kit::{
-    PairScalars, fail, given, grid, num, numbers, opt, out, out_matrix, out_with_subnormal, pairs, values,
+    PairScalars, fail, given, grid, num, numbers, opt, out, out_matrix, out_with_subnormal, pairs, validate_paired_singletons, values,
 };
 use crate::call::EvalServices;
 use crate::kernel::{Exit, Site, Step};
@@ -213,6 +213,15 @@ fn modes(values: &[f64]) -> Vec<f64> {
     found.into_iter().map(|(_, v)| v).collect()
 }
 
+/// The paired statistics validate singleton arguments in their original formula order.
+fn statistical_pairs(
+    site: &Site<'_>, a: &[CalcValue], x: usize, y: usize,
+    scalars: PairScalars, sv: &mut EvalServices<'_>,
+) -> Step<Vec<(f64, f64)>> {
+    validate_paired_singletons(site, a, [x.min(y), x.max(y)], sv)?;
+    pairs(site, a, x, y, scalars, sv)
+}
+
 /// FORECAST's line through the pairs (x, y), evaluated at `x`.
 fn forecast(site: &Site<'_>, x: f64, pairs: &[(f64, f64)]) -> Step<CalcValue> {
     let n = pairs.len();
@@ -410,39 +419,39 @@ ported_shared_family! {
         variance(s, a, sv, Held::Values, VarianceDivisor::Population, false)
     }
     35 covar |s, a, sv| {
-        out(s, paired::covariance_from_pairs(&pairs(s, a, 0, 1, PairScalars::SkipNonnumeric, sv)?, CovarianceDivisor::Population))
+        out(s, paired::covariance_from_pairs(&statistical_pairs(s, a, 0, 1, PairScalars::SkipNonnumeric, sv)?, CovarianceDivisor::Population))
     }
     36 covariance_p |s, a, sv| {
-        out(s, paired::covariance_from_pairs(&pairs(s, a, 0, 1, PairScalars::SkipNonnumeric, sv)?, CovarianceDivisor::Population))
+        out(s, paired::covariance_from_pairs(&statistical_pairs(s, a, 0, 1, PairScalars::SkipNonnumeric, sv)?, CovarianceDivisor::Population))
     }
     37 covariance_s |s, a, sv| {
-        out(s, paired::covariance_from_pairs(&pairs(s, a, 0, 1, PairScalars::SkipNonnumeric, sv)?, CovarianceDivisor::Sample))
+        out(s, paired::covariance_from_pairs(&statistical_pairs(s, a, 0, 1, PairScalars::SkipNonnumeric, sv)?, CovarianceDivisor::Sample))
     }
     38 correl |s, a, sv| {
-        out(s, paired::correlation_from_pairs(&pairs(s, a, 0, 1, PairScalars::SkipNonnumeric, sv)?))
+        out(s, paired::correlation_from_pairs(&statistical_pairs(s, a, 0, 1, PairScalars::SkipNonnumeric, sv)?))
     }
     39 pearson |s, a, sv| {
-        out(s, paired::correlation_from_pairs(&pairs(s, a, 0, 1, PairScalars::SkipNonnumeric, sv)?))
+        out(s, paired::correlation_from_pairs(&statistical_pairs(s, a, 0, 1, PairScalars::SkipNonnumeric, sv)?))
     }
     40 rsq |s, a, sv| {
-        out(s, paired::rsq_from_pairs(&pairs(s, a, 0, 1, PairScalars::SkipNonnumeric, sv)?))
+        out(s, paired::rsq_from_pairs(&statistical_pairs(s, a, 0, 1, PairScalars::SkipNonnumeric, sv)?))
     }
     41 slope |s, a, sv| {
-        out(s, paired::slope_from_pairs(&pairs(s, a, 1, 0, PairScalars::SkipNonnumeric, sv)?))
+        out(s, paired::slope_from_pairs(&statistical_pairs(s, a, 1, 0, PairScalars::SkipNonnumeric, sv)?))
     }
     42 intercept |s, a, sv| {
-        out(s, paired::intercept_from_pairs(&pairs(s, a, 1, 0, PairScalars::SkipNonnumeric, sv)?))
+        out(s, paired::intercept_from_pairs(&statistical_pairs(s, a, 1, 0, PairScalars::SkipNonnumeric, sv)?))
     }
     43 steyx |s, a, sv| {
-        out(s, k::moment_stats_family::steyx_kernel(&pairs(s, a, 1, 0, PairScalars::SkipNonnumeric, sv)?))
+        out(s, k::moment_stats_family::steyx_kernel(&statistical_pairs(s, a, 1, 0, PairScalars::SkipNonnumeric, sv)?))
     }
     44 forecast_legacy |s, a, sv| {
         let x = num(s, a, 0)?;
-        forecast(s, x, &pairs(s, a, 2, 1, PairScalars::Coerce, sv)?)
+        forecast(s, x, &statistical_pairs(s, a, 2, 1, PairScalars::Coerce, sv)?)
     }
     45 forecast_linear |s, a, sv| {
         let x = num(s, a, 0)?;
-        forecast(s, x, &pairs(s, a, 2, 1, PairScalars::Coerce, sv)?)
+        forecast(s, x, &statistical_pairs(s, a, 2, 1, PairScalars::Coerce, sv)?)
     }
     46 kurt |s, a, sv| {
         out(s, k::moment_stats_family::kurt_kernel(&all(s, a, sv, Held::Numbers)?))

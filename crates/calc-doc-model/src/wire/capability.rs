@@ -577,7 +577,7 @@ impl WireOp {
             WorkbookOp::SetPivots(_) | WorkbookOp::SetDataModel(_) => {
                 unreachable!("pivot changes are refused before encoding")
             }
-            WorkbookOp::SetCharts { .. } => {
+            WorkbookOp::SetCharts { .. } | WorkbookOp::SetShapes { .. } => {
                 unreachable!("chart changes are refused before encoding")
             }
             WorkbookOp::SetTables(_) => unreachable!("Tables are refused before encoding"),

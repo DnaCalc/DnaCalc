@@ -38,6 +38,12 @@ pub enum TableChange {
         column: u32,
         formula: Option<String>,
     },
+    /// `ListObject.Name`: the table's new name. Refused while any formula, name, rule or chart
+    /// source mentions the old name, since Excel rewrites those and this does not yet (dc-piw0.1).
+    Rename {
+        part: String,
+        name: String,
+    },
 }
 fn refusal(s: &str) -> String {
     format!("{s} (dc-971p.41); nothing changed")
@@ -248,6 +254,70 @@ fn renamed(
             .any(|s| calc_value::workbook_names_equal(&s.name().text().to_string_lossy(), name))
     })
     .map_err(refusal)
+}
+/// Whether any formula text of the workbook mentions `needle` (case-insensitive): a conservative
+/// scan, so a rename that Excel would follow with rewrites is refused here instead.
+fn mentions(host: &HostState, tables: &[Table], needle: &str) -> bool {
+    let needle = needle.to_lowercase();
+    let has = |source: &str| source.to_lowercase().contains(&needle);
+    for sheet in host.sheets() {
+        let id = sheet.id();
+        for (_, input) in host.model().sheet_cells(id).into_iter().flatten() {
+            if let CellInput::Formula(formula) = input {
+                let source = formula.text().to_string_lossy();
+                if has(&source) {
+                    return true;
+                }
+            }
+        }
+        if host
+            .model()
+            .definitions()
+            .conditional_rules(id)
+            .iter()
+            .flat_map(|r| r.formulas.iter().chain(&r.threshold_formulas))
+            .any(|f| has(f))
+            || host
+                .model()
+                .definitions()
+                .validations(id)
+                .iter()
+                .flat_map(|r| [r.formula1.as_deref(), r.formula2.as_deref()])
+                .flatten()
+                .any(has)
+        {
+            return true;
+        }
+        let charts = host.model().definitions().charts(id);
+        if charts.iter().any(|c| {
+            c.title_formula.as_deref().is_some_and(has)
+                || c.plots
+                    .iter()
+                    .flat_map(|p| &p.series)
+                    .flat_map(|s| [s.name.as_ref(), s.categories.as_ref(), s.values.as_ref()])
+                    .flatten()
+                    .filter_map(|d| d.formula.as_deref())
+                    .any(has)
+        }) {
+            return true;
+        }
+        if host
+            .loaded()
+            .sheet(id)
+            .is_some_and(|s| s.charts().unread > 0)
+        {
+            return true;
+        }
+    }
+    host.model()
+        .definitions()
+        .names()
+        .iter()
+        .any(|n| has(&n.formula))
+        || tables
+            .iter()
+            .flat_map(|t| t.column_formulas.iter().flatten())
+            .any(|f| has(f))
 }
 fn rename_references(
     host: &HostState,
@@ -595,6 +665,7 @@ pub(crate) fn prepare(
                 | TableChange::Options { part, .. }
                 | TableChange::Total { part, .. }
                 | TableChange::RenameColumn { part, .. }
+                | TableChange::Rename { part, .. }
                 | TableChange::CalculatedColumn { part, .. } => part,
                 _ => unreachable!(),
             };
@@ -806,6 +877,40 @@ pub(crate) fn prepare(
                     total_column = Some(i);
                     table.totals_functions[i] = (!function.is_empty()).then_some(function);
                     table.totals_labels[i] = None;
+                }
+                TableChange::Rename { name, .. } => {
+                    let name = name.trim().to_owned();
+                    if name == old.display_name {
+                        return Ok(Vec::new());
+                    }
+                    if old.axis_opaque || old.opaque {
+                        return Err(refusal(
+                            "This imported table's metadata is preserved; renaming it is unavailable",
+                        ));
+                    }
+                    if !calc_engine::valid_defined_name(&name)
+                        || name.chars().count() > 255
+                        || tables.iter().any(|t| {
+                            fold_workbook_name(&t.display_name) == fold_workbook_name(&name)
+                        })
+                        || host
+                            .model()
+                            .definitions()
+                            .names()
+                            .iter()
+                            .any(|n| fold_workbook_name(&n.name) == fold_workbook_name(&name))
+                    {
+                        return Err(refusal("Choose a unique Excel table name"));
+                    }
+                    if mentions(host, &tables, &old.display_name) {
+                        return Err(refusal(
+                            "A formula, name, rule or chart source uses this table's name; rewriting it on rename is unavailable",
+                        ));
+                    }
+                    table.name = name.clone();
+                    table.display_name = name;
+                    rewrite_totals =
+                        old.totals_rows > 0 && old.totals_functions.iter().any(Option::is_some);
                 }
                 TableChange::RenameColumn { column, name, .. } => {
                     if old.axis_opaque {
@@ -1056,9 +1161,18 @@ pub(crate) fn validate(host: &HostState, tables: &[Table]) -> Result<(), String>
                     "Unsupported total functions retain their original metadata",
                 ));
             }
+            // An imported table keeps the name the file gives it; a table made in this session
+            // may be renamed (`TableChange::Rename` checks that no formula uses the old name).
+            let imported = host
+                .loaded()
+                .model()
+                .definitions()
+                .tables()
+                .iter()
+                .find(|t| t.part == table.part);
             if old.id != table.id
-                || old.name != table.name
-                || old.display_name != table.display_name
+                || imported
+                    .is_some_and(|i| i.name != table.name || i.display_name != table.display_name)
                 || old.sheet != table.sheet
                 || old.axis_opaque != table.axis_opaque
                 || (old.axis_opaque && old.column_formulas != table.column_formulas)

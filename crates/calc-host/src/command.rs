@@ -30,6 +30,11 @@ pub enum CellEdit {
         sheet: calc_value::SheetId,
         charts: Vec<calc_doc_model::Chart>,
     },
+    /// The sheet's drawing objects other than charts (dc-zjsg.1).
+    Shapes {
+        sheet: calc_value::SheetId,
+        shapes: Vec<calc_doc_model::Shape>,
+    },
     AutoFilter {
         sheet: calc_doc_model::value::SheetId,
         filter: Option<calc_doc_model::AutoFilter>,
@@ -126,6 +131,10 @@ impl CellEdit {
             CellEdit::Charts { sheet, charts } => WorkbookOp::SetCharts {
                 sheet: *sheet,
                 charts: charts.clone(),
+            },
+            CellEdit::Shapes { sheet, shapes } => WorkbookOp::SetShapes {
+                sheet: *sheet,
+                shapes: shapes.clone(),
             },
             CellEdit::Styles(styles) => WorkbookOp::SetStyles(styles.clone()),
             CellEdit::AutoFilter { sheet, filter } => WorkbookOp::SetAutoFilter {

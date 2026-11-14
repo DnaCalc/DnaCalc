@@ -188,6 +188,8 @@ pub use calc_engine::contract::{AsyncDisposition, AsyncRejection, AsyncToken, Re
 
 mod tables;
 pub use tables::TableChange;
+mod shapes;
+pub use shapes::{Points, ShapeChange};
 mod review;
 pub use calc_doc_model::NoteStylePatch;
 pub use review::ReviewAction;

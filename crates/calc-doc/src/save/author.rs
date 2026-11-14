@@ -548,6 +548,11 @@ pub(super) fn plan(
         .definitions()
         .all_charts()
         .ne(model.definitions().all_charts());
+    let shapes_changed = base
+        .definitions()
+        .all_shapes()
+        .ne(model.definitions().all_shapes());
+    let charts_changed = charts_changed || shapes_changed;
     let pivots_changed = base.definitions().pivots() != model.definitions().pivots();
     let links_changed = base
         .definitions()

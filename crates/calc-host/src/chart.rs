@@ -1675,6 +1675,66 @@ pub(crate) fn prepare_create(
     Ok(vec![crate::CellEdit::Charts { sheet, charts }])
 }
 
+/// A chart this session made takes a name and a place on the sheet. A chart the file holds keeps
+/// its frame (the save writes only new frames).
+pub(crate) fn prepare_frame(
+    host: &HostState,
+    sheet: SheetId,
+    revision: u64,
+    part: &str,
+    name: Option<String>,
+    place: Option<[crate::Points; 4]>,
+) -> Result<Vec<crate::CellEdit>, String> {
+    use calc_doc_model::{ChartAnchor, DrawingPoint};
+    let fail = |s: &str| format!("{s} (dc-piw0.2)");
+    if revision != host.revision().get() {
+        return Err(fail("The workbook changed; read the chart again"));
+    }
+    let mut charts = host.model().definitions().charts(sheet).to_vec();
+    let imported = host.loaded().model().definitions().charts(sheet).len();
+    let index = charts
+        .iter()
+        .position(|c| c.part == part)
+        .ok_or_else(|| fail("The chart no longer exists"))?;
+    if index < imported {
+        return Err(fail("A chart the file holds keeps its name and place"));
+    }
+    if let Some(name) = name {
+        if name.is_empty()
+            || name.chars().count() > 255
+            || charts
+                .iter()
+                .enumerate()
+                .any(|(i, c)| i != index && c.name == name)
+            || host.shapes(sheet).iter().any(|s| s.name == name)
+        {
+            return Err(fail("Use a unique chart name of 1 to 255 characters"));
+        }
+        charts[index].name = name;
+    }
+    if let Some([left, top, width, height]) = place {
+        let [left, top, width, height] = [left, top, width, height].map(|p| p.get());
+        if ![left, top, width, height]
+            .into_iter()
+            .all(|v| v.is_finite() && (0.0..=1.0e7).contains(&v))
+            || width <= 0.0
+            || height <= 0.0
+        {
+            return Err(fail("Use a position and a positive size on the worksheet"));
+        }
+        let from: DrawingPoint = host.point_at(sheet, left, top);
+        charts[index].anchor = ChartAnchor::OneCell {
+            from,
+            width: (width * 12_700.0).round() as i64,
+            height: (height * 12_700.0).round() as i64,
+        };
+    }
+    host.loaded()
+        .check_chart_set(sheet, &charts)
+        .map_err(|e| e.to_string())?;
+    Ok(vec![crate::CellEdit::Charts { sheet, charts }])
+}
+
 /// Legend placement is an authored property, validated and saved through the retained chart route.
 pub(crate) fn prepare_legend(
     host: &HostState,

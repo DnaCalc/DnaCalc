@@ -29,6 +29,7 @@
 
 pub(crate) mod address;
 mod chart;
+mod drawing;
 pub(crate) mod conditional;
 mod data_model;
 mod error;
@@ -51,6 +52,7 @@ mod theme;
 pub(crate) mod validation;
 
 pub use chart::{Chart, ChartAnchor, ChartData, ChartPlot, ChartSeries, DrawingPoint, SheetCharts};
+pub use calc_doc_model::SheetShapes;
 pub use conditional::{
     ColorScale, ConditionalFormat, ConditionalRule, DataBar, IconSet, Threshold,
 };
@@ -135,6 +137,7 @@ pub struct LoadedSheet {
     validations: Arc<[Validation]>,
     charts: Arc<SheetCharts>,
     pivots: Arc<pivot::SheetPivots>,
+    shapes: Arc<SheetShapes>,
     page_setup: calc_doc_model::PageSetup,
     review: Arc<SheetReview>,
 }
@@ -161,6 +164,7 @@ impl LoadedSheet {
             validations: Arc::from([]),
             charts: Arc::new(SheetCharts::default()),
             pivots: Arc::new(pivot::SheetPivots::default()),
+            shapes: Arc::new(SheetShapes::default()),
             page_setup: Default::default(),
             review: Arc::new(SheetReview::default()),
         }
@@ -206,6 +210,11 @@ impl LoadedSheet {
 
     pub fn charts(&self) -> &SheetCharts {
         &self.charts
+    }
+
+    /// The sheet's drawing objects other than charts, as the file states them (dc-zjsg.1).
+    pub fn shapes(&self) -> &SheetShapes {
+        &self.shapes
     }
 
     /// The sheet's conditional formats as the file states them, in document order (dc-6yw).
@@ -547,6 +556,34 @@ impl LoadedWorkbook {
                 .sheet(sheet)
                 .ok_or_else(|| fail("Save and reopen the new worksheet before creating a chart"))?;
             crate::save::chart::check_new_frames(&self.package, source, new)?;
+        }
+        Ok(())
+    }
+
+    /// Validate the complete drawing-object set through the same frame writer as Save (dc-zjsg.1):
+    /// the file's own objects unchanged, then the new ones.
+    pub fn check_shape_set(
+        &self,
+        sheet: SheetId,
+        shapes: &[calc_doc_model::Shape],
+    ) -> Result<(), crate::SaveRefusal> {
+        let fail = |detail: &str| crate::SaveRefusal::ChartNotModelled {
+            part: "drawing".into(),
+            detail: detail.into(),
+            owner: "dc-zjsg.4",
+        };
+        let original = self.model.definitions().shapes(sheet);
+        if shapes.len() < original.len() || shapes[..original.len()] != *original {
+            return Err(fail(
+                "Editing, removing or reordering imported drawing objects is not modelled",
+            ));
+        }
+        let new = &shapes[original.len()..];
+        if !new.is_empty() {
+            let source = self
+                .sheet(sheet)
+                .ok_or_else(|| fail("Save and reopen the new worksheet before adding a shape"))?;
+            crate::save::chart::check_new_shapes(&self.package, source, new)?;
         }
         Ok(())
     }
@@ -2152,6 +2189,11 @@ pub fn load_preserving_sheet_ids(
                     } else {
                         chart::read_charts(package, &declared.part)
                     }),
+                    shapes: Arc::new(if declared.preserved.is_some() {
+                        SheetShapes::default()
+                    } else {
+                        drawing::read_shapes(package, &declared.part)
+                    }),
                     pivots: Arc::new(loaded.pivots),
                     page_setup: loaded.page_setup,
                     review: Arc::new(loaded.review),
@@ -2361,7 +2403,8 @@ pub fn load_preserving_sheet_ids(
             .with_review_notes(sheet.id, sheet.review.notes.clone())
             .with_page_setup(sheet.id, sheet.page_setup.clone())
             .with_validations(sheet.id, sheet.validations.to_vec())
-            .with_charts(sheet.id, sheet.charts.charts.clone());
+            .with_charts(sheet.id, sheet.charts.charts.clone())
+            .with_shapes(sheet.id, sheet.shapes.shapes.clone());
     }
     for (sheet, rules) in conditional_sources {
         definitions = definitions.with_conditional_rules(sheet, rules);

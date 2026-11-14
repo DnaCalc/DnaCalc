@@ -12,7 +12,7 @@
 use super::aggregate::Held;
 use super::kit::{
     fail, flag, given, grid, num, num_with_subnormal, numbers, out, out_with_subnormal,
-    reject_logical,
+    reject_logical, validate_paired_singletons,
 };
 use crate::call::EvalServices;
 use crate::kernel::{Site, Step};
@@ -352,11 +352,13 @@ ported_shared_family! {
         chisq_test_of(s, a, sv)
     }
     102 f_test |s, a, sv| {
+        validate_paired_singletons(s, a, [0, 1], sv)?;
         let x = sample(s, a, 0, sv)?;
         let y = sample(s, a, 1, sv)?;
         out(s, st::f_test_kernel(&x, &y))
     }
     103 ftest |s, a, sv| {
+        validate_paired_singletons(s, a, [0, 1], sv)?;
         let x = sample(s, a, 0, sv)?;
         let y = sample(s, a, 1, sv)?;
         out(s, st::f_test_kernel(&x, &y))
