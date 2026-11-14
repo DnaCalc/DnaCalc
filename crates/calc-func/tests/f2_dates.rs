@@ -123,6 +123,41 @@ fn rept_count_sign_and_empty_text_limit() {
     error(call("REPT", vec![t("😀"), n(16384.0)]), Value);
 }
 
+/// Excel 20527: instance floor, delimiter bounds, empty delimiters and fallback coercion.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn text_delimiters_instance_and_fallback() {
+    text(call("TEXTBEFORE", vec![t("a-b-c"), t("-"), n(-0.5)]), "a-b");
+    text(call("TEXTAFTER", vec![t("a-b-c"), t("-"), n(-0.5)]), "c");
+    let just_below_one = f64::from_bits(1.0_f64.to_bits() - 1);
+    text(call("TEXTBEFORE", vec![t("a-b-c"), t("-"), n(just_below_one)]), "a");
+    for name in ["TEXTBEFORE", "TEXTAFTER"] {
+        error(call(name, vec![t("abc"), t("zz"), n(3.0)]), Value);
+        error(call(name, vec![t("a"), t("zz"), n(1.0)]), Value);
+        error(call(name, vec![t("a"), t("zz")]), NA);
+        error(call(name, vec![t("abc"), t(""), n(0.0)]), Value);
+        text(call(name, vec![t("abc"), t("Z"), n(1.0), n(0.0), n(0.0), n(0.5)]), "0.5");
+        text(call(name, vec![t("abc"), t("Z"), n(1.0), n(0.0), n(0.0), b(true)]), "TRUE");
+        error(call(name, vec![t("abc"), t("Z"), n(1.0), n(0.0), n(0.0), e(Div0)]), Div0);
+    }
+    text(call("TEXTBEFORE", vec![t("a"), t(""), n(100.0)]), "a");
+    text(call("TEXTAFTER", vec![t("a"), t(""), n(100.0)]), "");
+    text(call("TEXTBEFORE", vec![t("abc"), t(""), n(-100.0)]), "abc");
+    text(call("TEXTAFTER", vec![t("abc"), t(""), n(100.0)]), "abc");
+    text(call("TEXTAFTER", vec![t("abc"), t(""), n(1e100)]), "abc");
+    text(call("TEXTBEFORE", vec![t("abc"), t(""), n(-1e100)]), "abc");
+    text(call("TEXTBEFORE", vec![t("a-b"), t("-"), n(1.0), n(0.0), n(0.0), e(Div0)]), "a");
+    error(call("TEXTAFTER", vec![t("abc"), t("Z"), n(1.0), n(2.0), e(Null)]), Null);
+    error(call("TEXTBEFORE", vec![t("abc"), t("Z"), e(NA), n(2.0), e(Null)]), NA);
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![e(Div0)]);
+    let delimiter = sheet.area(1, 1, 1, 1);
+    error(
+        call_on(&mut sheet, "TEXTAFTER", vec![t("abc"), delimiter, n(1.0), n(2.0), e(Null)]),
+        Div0,
+    );
+}
+
 /// Excel 16.0.20527, typed Value2 calls: argument errors win in order and a logical
 /// format gives #VALUE! even for a text, logical or blank value.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -748,12 +748,28 @@ pub(crate) fn delimited(
     instance: isize,
     case_insensitive: bool,
     match_end: bool,
+    single_delimiter: bool,
 ) -> Delimited {
     let requested = instance.unsigned_abs();
+    if instance == 0 {
+        return Delimited::BadInstance;
+    }
+    // Excel's empty single delimiter ignores the ordinary length bound. When
+    // the input is exactly one UTF-16 unit, BEFORE returns it and AFTER is empty.
+    if single_delimiter && delimiters[0].utf16_code_units().is_empty() {
+        let one_unit = text.len_utf16_code_units() == 1;
+        let whole = match (side, instance < 0, one_unit) {
+            (Side::Before, _, true) | (Side::Before, true, false) | (Side::After, false, false) => {
+                text.clone()
+            }
+            _ => ExcelText::from_utf16_code_units(Vec::new()),
+        };
+        return Delimited::Text(whole);
+    }
     // The first search of empty text is still a valid search, with no delimiter to find.
     // Excel 16.0.20430: TEXTBEFORE("","-") and TEXTAFTER("","-") are #N/A (the
     // recorded typed Value2 cases w111typed-00274 and w111typed-00266, dc-zsn.7).
-    if instance == 0 || requested > text.len_utf16_code_units().max(1) {
+    if requested > text.len_utf16_code_units().max(1) {
         return Delimited::BadInstance;
     }
     let units = text.utf16_code_units();
@@ -915,23 +931,23 @@ mod tests {
         let text = t("a-b-c");
         let dash = [t("-")];
         assert_eq!(
-            delimited(Side::Before, &text, &dash, 1, false, false),
+            delimited(Side::Before, &text, &dash, 1, false, false, true),
             Delimited::Text(t("a"))
         );
         assert_eq!(
-            delimited(Side::After, &text, &dash, -1, false, false),
+            delimited(Side::After, &text, &dash, -1, false, false, true),
             Delimited::Text(t("c"))
         );
         assert_eq!(
-            delimited(Side::Before, &text, &dash, 3, false, false),
+            delimited(Side::Before, &text, &dash, 3, false, false, true),
             Delimited::NotFound
         );
         assert_eq!(
-            delimited(Side::Before, &text, &dash, 3, false, true),
+            delimited(Side::Before, &text, &dash, 3, false, true, true),
             Delimited::Text(t("a-b-c"))
         );
         assert_eq!(
-            delimited(Side::Before, &text, &dash, 0, false, false),
+            delimited(Side::Before, &text, &dash, 0, false, false, true),
             Delimited::BadInstance
         );
         assert_eq!(

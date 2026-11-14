@@ -370,19 +370,64 @@ fn text_delim(
     sv: &mut EvalServices<'_>,
     side: Side,
 ) -> Step<CalcValue> {
+    let scalar_delimiter = match a[1].core_ref() {
+        CoreRef::Array(_) => false,
+        CoreRef::Reference(reference) => {
+            matches!(reference.areas(), [area] if area.cell_count() == 1)
+        }
+        _ => true,
+    };
+    // Excel propagates errors in the searched text, delimiter and options before
+    // validating their non-error values. The if-not-found argument remains lazy.
+    if scalar_delimiter {
+        if let Some(code) = a[0].as_error() {
+            return fail(code);
+        }
+        // Delimiters can be one-cell references. Read that cell before looking
+        // at later options so its error keeps its original argument position.
+        let delimiter_error = if matches!(a[1].core_ref(), CoreRef::Reference(_)) {
+            grid(site, a, 1, sv)?.cells.first().and_then(CalcValue::as_error)
+        } else {
+            a[1].as_error()
+        };
+        if let Some(code) = delimiter_error.or_else(|| a.iter().skip(2).take(3).find_map(CalcValue::as_error)) {
+            return fail(code);
+        }
+    }
     let text = text_arg(site, a, 0)?;
     let delimiters = delimiters(site, a, 1, sv)?;
+    let single_delimiter = scalar_delimiter && delimiters.len() == 1;
     let instance = if given(a, 2) {
         let n = num(site, a, 2)?;
-        if !n.is_finite() || n.trunc().abs() > 1e9 {
+        let empty_single = single_delimiter && delimiters[0].len_utf16_code_units() == 0;
+        if !n.is_finite() || (!empty_single && n.trunc().abs() > 1e9) {
             return fail(WorksheetErrorCode::Value);
         }
-        n.trunc() as isize
+        // For a single delimiter Excel applies the same tolerant floor used by
+        // date and count arguments, including for negative fractions.
+        if single_delimiter {
+            tk::date_integer_floor(n) as isize
+        } else {
+            n.trunc() as isize
+        }
     } else {
         1
     };
     let case_insensitive = binary_flag(site, a, 3)?;
     let match_end = binary_flag(site, a, 4)?;
+    // An explicitly supplied instance counts possible start positions, rather
+    // than just text units. An omitted instance and an empty delimiter have
+    // different measured rules.
+    if given(a, 2) && single_delimiter {
+        let text_len = text.len_utf16_code_units();
+        let delimiter_len = delimiters[0].len_utf16_code_units();
+        if delimiter_len != 0
+            && (delimiter_len > text_len
+                || instance.unsigned_abs() > text_len - delimiter_len + 1)
+        {
+            return fail(WorksheetErrorCode::Value);
+        }
+    }
     // fn1 Excel 16.0.20527: an explicitly supplied instance is validated against the empty
     // input before fallback/match_end. An empty delimiter still returns empty text.
     if given(a, 2)
@@ -398,14 +443,20 @@ fn text_delim(
         instance,
         case_insensitive,
         match_end,
+        single_delimiter,
     ) {
         Delimited::Text(found) => Ok(CalcValue::text(found)),
         Delimited::BadInstance => fail(WorksheetErrorCode::Value),
-        Delimited::NotFound if a.len() > 5 => Ok(if a[5].is_missing() {
-            CalcValue::error(WorksheetErrorCode::NA)
-        } else {
-            a[5].clone()
-        }),
+        Delimited::NotFound if a.len() > 5 => {
+            if a[5].is_missing() {
+                fail(WorksheetErrorCode::NA)
+            } else if single_delimiter {
+                let units = site.argument(5, coerce::text(&a[5]))?;
+                Ok(CalcValue::text(ExcelText::from_utf16_code_units(units.into_owned())))
+            } else {
+                Ok(a[5].clone())
+            }
+        }
         Delimited::NotFound => fail(WorksheetErrorCode::NA),
     }
 }
