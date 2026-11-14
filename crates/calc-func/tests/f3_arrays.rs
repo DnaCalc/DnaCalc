@@ -8,6 +8,54 @@ mod f1_support;
 use calc_func::value::WorksheetErrorCode::{Calc, NA, Value};
 use f1_support::*;
 
+/// Excel 20527 floors positive fractional dimensions and advances each result by one addition.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn sequence_fractional_dimensions_and_accumulation() {
+    let values = [
+        0x4019_528e_c053_3b42, 0x4019_1f0a_fdaf_66dc,
+        0x417c_c35e_d987_30f8, 0xc183_ecbe_a9df_3a4b,
+    ].map(f64::from_bits);
+    let (rows, cols, cells) = array(call("SEQUENCE", values.into_iter().map(n).collect()));
+    assert_eq!((rows, cols), (6, 6));
+    assert_eq!(cells[6].to_bits(), 0xc1aa_4ab2_239d_f152);
+    assert_eq!(cells[13].to_bits(), 0xc1be_947f_e672_4ba9);
+    assert_eq!(cells[20].to_bits(), 0xc1c8_01d3_5d8a_cf57);
+    error(call("SEQUENCE", vec![n(0.0), n(-0.1)]), Value);
+    error(call("SEQUENCE", vec![b(false), n(-0.1)]), Value);
+    error(call("SEQUENCE", vec![n(0.5), n(1.0)]), Calc);
+    error(call("SEQUENCE", vec![n(0.5), t("bad")]), Value);
+    error(call("SEQUENCE", vec![n(0.5), n(1.0), t("bad")]), Value);
+    error(call("SEQUENCE", vec![n(0.5), n(1.0), n(1.0), t("bad")]), Value);
+    assert_eq!(array(call("SEQUENCE", vec![n(f64::from_bits(1.0_f64.to_bits() - 1))])), (1, 1, vec![1.0]));
+    error(call("SEQUENCE", vec![n(0.0), e(NA)]), NA);
+    let blank = calc_func::value::CalcValue::empty();
+    error(call("SEQUENCE", vec![blank.clone(), n(2.1)]), Calc);
+    assert_eq!(array(call("SEQUENCE", vec![n(2.1), n(1.0), blank.clone(), n(2.0)])), (2, 1, vec![0.0, 2.0]));
+    assert_eq!(array(call("SEQUENCE", vec![n(2.1), n(1.0), n(4.0), blank])), (2, 1, vec![4.0, 4.0]));
+    assert_eq!(array(call("SEQUENCE", vec![n(2.1), n(1.0), missing(), missing()])), (2, 1, vec![1.0, 2.0]));
+    refused(call("SEQUENCE", vec![n(2.1), n(2.1), n(1e308), n(1e308)]));
+
+    // A yielded application call must resume the same accumulation, and overflow must retain
+    // its typed refusal in the resumable route.
+    use calc_func::{catalogue, invoke_slice, EvalServices, FunctionCallScratch, Notation};
+    use calc_func::value::NumericMode;
+    let target = catalogue().resolve_surface(Notation::Call, "SEQUENCE").unwrap();
+    let mode = NumericMode::Fast;
+    let mut services = EvalServices::new(&mode);
+    let mut scratch = FunctionCallScratch::new();
+    let mut arguments = Given(values.into_iter().map(n).collect());
+    assert_eq!(invoke_slice(target, &mut arguments, &mut services, &mut scratch, 5), Ok(None));
+    let resumed = invoke_slice(target, &mut arguments, &mut services, &mut scratch, 100)
+        .unwrap().unwrap();
+    assert_eq!(resumed.as_array().unwrap().get(1, 0).unwrap().as_number().unwrap().to_bits(), 0xc1aa_4ab2_239d_f152);
+    let mut overflow = Given(vec![n(2.1), n(2.1), n(1e308), n(1e308)]);
+    let mut scratch = FunctionCallScratch::new();
+    assert_eq!(invoke_slice(target, &mut overflow, &mut services, &mut scratch, 1), Ok(None));
+    refused(invoke_slice(target, &mut overflow, &mut services, &mut scratch, 1)
+        .map(|v| v.unwrap_or_else(|| panic!("expected a refusal"))));
+}
+
 /// Excel 16.0.20527 distinguishes blank optional cells from omitted SORT
 /// arguments and propagates a scalar source error before an invalid index.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -42,8 +42,9 @@ identity, the session's reference binder (`HostState::resolve_reference_text`), 
    `Invoke` `DISP_E_EXCEPTION` with that EXCEPINFO, or the same HRESULT when EXCEPINFO is null; and a typed
    refusal on the calling formula when the call happens inside a worksheet invocation (honesty rule 2).
    This closes 14.c (dc-1nbp.4) by construction.
-6. **Excel's behaviour, measured.** Semantics follow Excel; where unmeasured (Range identity `Is`,
-   Value date/currency, multi-area writes) the member refuses until dc-1nbp.6 (14.e) measures it.
+6. **Excel's behaviour, measured.** Semantics follow Excel; where unmeasured (Value date/currency
+   conversion is measured but not yet implemented; multi-area and mismatched-shape writes) the member
+   refuses until dc-1nbp.6 (14.e) measures it. Range identity is measured (section 9).
 7. **The engine does no more than Excel**, and OneCalc stays values-only (dc-svqh).
 
 ## 3. The descriptor
@@ -96,6 +97,7 @@ contexts only, as the VBA event route already does; inside a worksheet invocatio
 The command host must implement `AutomationHost::with_session_mut`; its default is a typed refusal.
 The current desktop host supplies only the read callback, so its command writes remain refused until
 that application callback is wired. Event writes use the observer's mutable session loan already.
+The hooks must also say which kind of invocation is running (XLL or VBA), because ThisCell differs.
 
 Address formatting, Union geometry, Rows/Columns/Count are one portable module (`calc-object-model`), so the
 CalcVBA session can drop its own copies later.
@@ -113,9 +115,9 @@ CalcVBA session can drop its own copies later.
   object (a coclass's interfaces, a base chain such as CommandBarPopup → CommandBarControl);
   ISupportErrorInfo; IConnectionPointContainer for objects with a source interface (Application: AppEvents).
 - **Vtables, generated**: `build.rs` reads the descriptor JSON and, for each advertised interface, emits a
-  static vtable whose entry `n` is a thunk monomorphized for (interface, slot `n`). On x64 the thunk shape
-  depends only on the argument count and on which of the first three arguments are floating point (R4, R8,
-  DATE); every other argument is one 64-bit integer slot (pointers, BSTR, I4, BOOL, VARIANT by address).
+  static vtable whose entry `n` is a thunk monomorphized for (interface, slot `n`). On x64 the thunk's
+  signature gives each parameter its register class from the descriptor (R4 as f32, R8 and DATE as f64,
+  everything else one 64-bit integer slot: pointers, BSTR, I4, BOOL, VARIANT by address).
   The thunk collects the raw arguments and calls one decoder, which reads the slot's member from the
   descriptor, converts each argument by its declared type to `AutoValue`, calls `ObjectModel::invoke`,
   writes the `[out, retval]`, and maps errors by rule 5. Only x64 is built (`compile_error!` elsewhere).
@@ -232,4 +234,11 @@ Match's 1004 description is explicitly **unmeasured E7 text**, as directed by th
   catalogue services (for example SUBTOTAL exclusion facts) remain typed refusals.
 - Workbook.Names currently supports global names only. A collection containing sheet-local names,
   or a held global RefersToRange shadowed by a local name, refuses explicitly (dc-hsa5.6).
+- Review findings of 2026-11-14 (independent read of the night's code), being fixed by lane om-e:
+  discarded object results and client-object arguments must release their handles; Invoke positional
+  arguments must fill slots 0..k-1; EXCEPINFO sets only one of wCode/scode; interface-typed results are
+  checked against the declared interface; a refusal is recorded once; one handler per descriptor
+  member (no second name switch inside a handler); one EnableEvents switch (the session's);
+  AutomationSecurity in the values-only profile; foreign interface parameter types checked against
+  the descriptor.
 - x86 builds: not supported (DNA Calc ships x64).
