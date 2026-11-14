@@ -990,8 +990,6 @@ mod tests {
     }
 }
 
-const DIGIT_PX: f64 = 7.0;
-
 #[cfg(test)]
 mod paint_metric_tests {
     use super::*;
@@ -1064,16 +1062,26 @@ mod paint_metric_tests {
 }
 
 pub fn sheet_metrics(geometry: Option<&crate::projection::Geometry>) -> GridMetrics {
-    // Stored OOXML widths already include the cell margins. Keep the existing Calibri-11
-    // digit-width assumption; use the standard's truncation, including half-pixel cases.
+    // Stored OOXML widths already include the cell margins. The workbook's default font sets the
+    // digit width (Aptos Narrow 11: 8 px, Calibri 11: 7 px; the worker carries it, absent is 7);
+    // use the standard's truncation, including half-pixel cases.
     // https://learn.microsoft.com/dotnet/api/documentformat.openxml.spreadsheet.column
-    let column_px =
-        |chars: f64| (((256. * chars + (128. / DIGIT_PX).floor()) / 256.) * DIGIT_PX).floor();
+    let digit = geometry
+        .and_then(|g| g.default_digit_px)
+        .filter(|d| *d >= 1.)
+        .unwrap_or(7.0);
+    let column_px = |chars: f64| (((256. * chars + (128. / digit).floor()) / 256.) * digit).floor();
     // Excel's captured 23/32/20-point rows occupy 30/42/26 pixels at 96 DPI.
     let row_px = |points: f64| (points * 96.0 / 72.0).floor();
-    let col_width = geometry
-        .and_then(|g| g.default_column_width)
-        .map_or(64.0, column_px);
+    // With no default width the sheet's base width counts in digits plus the 5 px padding, rounded
+    // up to a multiple of 8 px (8 characters: 64 px at 7 px digits, 72 px at 8).
+    let col_width = match geometry {
+        Some(g) => g.default_column_width.map_or_else(
+            || ((g.base_column_width.unwrap_or(8.) * digit + 5.) / 8.).ceil() * 8.,
+            column_px,
+        ),
+        None => 64.0,
+    };
     let row_height = geometry
         .and_then(|g| g.default_row_height)
         .map_or(20.0, row_px);
