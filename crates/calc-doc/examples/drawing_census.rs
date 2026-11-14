@@ -63,7 +63,10 @@ fn main() {
     let mut unread_by: BTreeMap<String, usize> = BTreeMap::new();
     let (mut round_trips, mut round_trip_failures, mut parts_checked) = (0usize, 0usize, 0usize);
     let mut failures = Vec::new();
-    for path in &files {
+    for (n, path) in files.iter().enumerate() {
+        if n % 250 == 0 {
+            eprintln!("{n} of {} files: {}", files.len(), path.display());
+        }
         let Ok(bytes) = std::fs::read(path) else {
             unopened += 1;
             continue;
