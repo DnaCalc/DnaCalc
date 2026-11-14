@@ -150,9 +150,13 @@ pub fn write() {
             "invoke".into(),
         ];
         for member in members {
-            assert_eq!(
-                member.ret, "HRESULT",
-                "unsupported ABI return in {}",
+            // A hidden `void _DummyNN()` slot (Excel's _Chart has one at slot 35) takes no
+            // arguments, so a thunk that returns an HRESULT is ABI-compatible: the caller never
+            // reads the return register of a void function.
+            assert!(
+                member.ret == "HRESULT" || (member.ret == "VOID" && member.params.is_empty()),
+                "unsupported ABI return {} in {}",
+                member.ret,
                 ty.name
             );
             let shape: Vec<_> = member

@@ -185,7 +185,7 @@ identical):
 ## 10. Coverage
 
 Measured on Linux by `cargo xtask check --base ab9b9397`
-(2026-11-14): `values_only_descriptor_coverage_lists_every_registered_member` and
+(2026-11-14; the report-object rows and totals re-measured after the descriptor regeneration, dc-piw0): `values_only_descriptor_coverage_lists_every_registered_member` and
 `workbook_descriptor_coverage_lists_own_and_inherited_members` print every registered member and the
 counts below. A member is a descriptor `(interface, DISPID, invocation kind)`, so get and put count
 separately. Workbook counts include the values-only fallback, with overrides counted once.
@@ -200,7 +200,7 @@ Catalogue availability does not establish that a particular function or argument
 | _Application | 467 | 18 | 21 |
 | Workbooks | 19 | 5 | 5 |
 | _Workbook | 282 | 6 | 9 |
-| _Worksheet | 151 | 3 | 7 |
+| _Worksheet | 151 | 3 | 10 |
 | Sheets | 22 | 0 | 5 |
 | Range | 253 | 9 | 23 |
 | Areas | 7 | 0 | 5 |
@@ -208,7 +208,11 @@ Catalogue availability does not establish that a particular function or argument
 | Name | 36 | 0 | 5 |
 | Window | 107 | 3 | 3 |
 | WorksheetFunction | 420 | 420 | 420 |
-| All complete advertised layouts | 2,358 | 464 | 508 |
+| ListObjects / ListObject / ListColumns / ListColumn / ListRows | 9 / 59 / 8 / 16 / 9 | 0 | 4 / 11 / 3 / 2 / 2 |
+| ChartObjects / ChartObject / _Chart / ChartTitle | 54 / 49 / 208 / 48 | 0 | 4 / 11 / 8 / 2 |
+| Shapes / Shape / TextFrame2 / TextRange2 | 29 / 109 / 35 / 44 | 0 | 7 / 16 / 1 / 2 |
+| FillFormat / LineFormat / ColorFormat / ConnectorFormat | 48 / 33 / 14 / 15 | 0 | 1 / 3 / 2 / 2 |
+| All complete advertised layouts | 3,545 | 464 | 592 |
 
 The total also includes descriptor interfaces with zero handlers in these two profiles: Windows,
 AppEvents, WorkbookEvents, DocEvents, IRtdServer, IRTDUpdateEvent, IAccessible and the Office/Add-in
@@ -228,9 +232,9 @@ ListColumn, ListRows, ChartObjects, ChartObject, Chart, ChartTitle, Shapes, Shap
 TextRange2, FillFormat, LineFormat, ColorFormat, ConnectorFormat), each one handler over the session's
 commands (`WorkbookCommand::Table`, `ChartCreate`, `ChartFrame`, `ChartProperties`, `Shape`), in the
 command and event contexts only. Objects are `ObjectKey::Report { workbook, sheet, item }`. They register
-only where the committed descriptor holds the type: the descriptor lists them in
-`descriptor/*.interfaces.txt` but the JSON is regenerated on Windows, so until then
-`WorkbookAutomation::report_members_pending()` lists all 81 and they answer the uniform 1004 refusal.
+only where the descriptor holds the type; the Windows regeneration of 2026-11-14 holds all of them:
+`report members: 81 registered, 0 pending` (test `report_members_register_where_the_descriptor_describes_them`),
+and `dc_piw0__a_macro_builds_a_report_through_object_model_members` runs on the real DISPIDs.
 A chart made by `ChartObjects.Add` is a pending frame until `SetSourceData` creates the chart (the chart
 writer has no empty chart, dc-zjsg.6). Drawing objects the file holds are never rewritten; changing one
 refuses naming dc-zjsg.4.

@@ -3996,6 +3996,3697 @@
      "return": "HRESULT"
     }
    ]
+  },
+  {
+   "name": "TextFrame2",
+   "kind": "dispatch",
+   "guid": "{000C0398-0000-0000-C000-000000000046}",
+   "dual": true,
+   "flags": [
+    "dual",
+    "nonextensible",
+    "dispatchable"
+   ],
+   "base": "_IMsoDispObj",
+   "vtable_slots": 42,
+   "dispatch_only": false,
+   "members": [
+    {
+     "name": "Parent",
+     "dispid": 1,
+     "invoke": "get",
+     "slot": 9,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Parent",
+       "type": "IDispatch**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "MarginBottom",
+     "dispid": 100,
+     "invoke": "get",
+     "slot": 10,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "MarginBottom",
+       "type": "R4*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "MarginBottom",
+     "dispid": 100,
+     "invoke": "put",
+     "slot": 11,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "MarginBottom",
+       "type": "R4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "MarginLeft",
+     "dispid": 101,
+     "invoke": "get",
+     "slot": 12,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "MarginLeft",
+       "type": "R4*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "MarginLeft",
+     "dispid": 101,
+     "invoke": "put",
+     "slot": 13,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "MarginLeft",
+       "type": "R4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "MarginRight",
+     "dispid": 102,
+     "invoke": "get",
+     "slot": 14,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "MarginRight",
+       "type": "R4*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "MarginRight",
+     "dispid": 102,
+     "invoke": "put",
+     "slot": 15,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "MarginRight",
+       "type": "R4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "MarginTop",
+     "dispid": 103,
+     "invoke": "get",
+     "slot": 16,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "MarginTop",
+       "type": "R4*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "MarginTop",
+     "dispid": 103,
+     "invoke": "put",
+     "slot": 17,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "MarginTop",
+       "type": "R4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Orientation",
+     "dispid": 104,
+     "invoke": "get",
+     "slot": 18,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Orientation",
+       "type": "enum:MsoTextOrientation[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Orientation",
+     "dispid": 104,
+     "invoke": "put",
+     "slot": 19,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Orientation",
+       "type": "enum:MsoTextOrientation[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "HorizontalAnchor",
+     "dispid": 105,
+     "invoke": "get",
+     "slot": 20,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "HorizontalAnchor",
+       "type": "enum:MsoHorizontalAnchor[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "HorizontalAnchor",
+     "dispid": 105,
+     "invoke": "put",
+     "slot": 21,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "HorizontalAnchor",
+       "type": "enum:MsoHorizontalAnchor[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "VerticalAnchor",
+     "dispid": 106,
+     "invoke": "get",
+     "slot": 22,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "VerticalAnchor",
+       "type": "enum:MsoVerticalAnchor[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "VerticalAnchor",
+     "dispid": 106,
+     "invoke": "put",
+     "slot": 23,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "VerticalAnchor",
+       "type": "enum:MsoVerticalAnchor[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "PathFormat",
+     "dispid": 107,
+     "invoke": "get",
+     "slot": 24,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "PathFormat",
+       "type": "enum:MsoPathFormat[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "PathFormat",
+     "dispid": 107,
+     "invoke": "put",
+     "slot": 25,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "PathFormat",
+       "type": "enum:MsoPathFormat[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "WarpFormat",
+     "dispid": 108,
+     "invoke": "get",
+     "slot": 26,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "WarpFormat",
+       "type": "enum:MsoWarpFormat[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "WarpFormat",
+     "dispid": 108,
+     "invoke": "put",
+     "slot": 27,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "WarpFormat",
+       "type": "enum:MsoWarpFormat[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "WordArtformat",
+     "dispid": 109,
+     "invoke": "get",
+     "slot": 28,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "WordArtformat",
+       "type": "enum:MsoPresetTextEffect[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "WordArtformat",
+     "dispid": 109,
+     "invoke": "put",
+     "slot": 29,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "WordArtformat",
+       "type": "enum:MsoPresetTextEffect[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "WordWrap",
+     "dispid": 110,
+     "invoke": "get",
+     "slot": 30,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "WordWrap",
+       "type": "enum:MsoTriState[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "WordWrap",
+     "dispid": 110,
+     "invoke": "put",
+     "slot": 31,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "WordWrap",
+       "type": "enum:MsoTriState[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "AutoSize",
+     "dispid": 111,
+     "invoke": "get",
+     "slot": 32,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "AutoSize",
+       "type": "enum:MsoAutoSize[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "AutoSize",
+     "dispid": 111,
+     "invoke": "put",
+     "slot": 33,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "AutoSize",
+       "type": "enum:MsoAutoSize[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "ThreeD",
+     "dispid": 112,
+     "invoke": "get",
+     "slot": 34,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ThreeD",
+       "type": "ThreeDFormat**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "HasText",
+     "dispid": 113,
+     "invoke": "get",
+     "slot": 35,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pHasText",
+       "type": "enum:MsoTriState[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "TextRange",
+     "dispid": 114,
+     "invoke": "get",
+     "slot": 36,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Range",
+       "type": "TextRange2**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Column",
+     "dispid": 115,
+     "invoke": "get",
+     "slot": 37,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Column",
+       "type": "TextColumn2**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Ruler",
+     "dispid": 116,
+     "invoke": "get",
+     "slot": 38,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Ruler",
+       "type": "Ruler2**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "DeleteText",
+     "dispid": 117,
+     "invoke": "method",
+     "slot": 39,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "NoTextRotation",
+     "dispid": 118,
+     "invoke": "get",
+     "slot": 40,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "NoTextRotation",
+       "type": "enum:MsoTriState[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "NoTextRotation",
+     "dispid": 118,
+     "invoke": "put",
+     "slot": 41,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "NoTextRotation",
+       "type": "enum:MsoTriState[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    }
+   ]
+  },
+  {
+   "name": "TextRange2",
+   "kind": "dispatch",
+   "guid": "{000C0397-0000-0000-C000-000000000046}",
+   "dual": true,
+   "flags": [
+    "dual",
+    "nonextensible",
+    "dispatchable"
+   ],
+   "base": "_IMsoDispObj",
+   "vtable_slots": 51,
+   "dispatch_only": false,
+   "members": [
+    {
+     "name": "Text",
+     "dispid": 0,
+     "invoke": "get",
+     "slot": 9,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pbstrText",
+       "type": "BSTR*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Text",
+     "dispid": 0,
+     "invoke": "put",
+     "slot": 10,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pbstrText",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Count",
+     "dispid": 1,
+     "invoke": "get",
+     "slot": 11,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Count",
+       "type": "INT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Item",
+     "dispid": 2,
+     "invoke": "method",
+     "slot": 12,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "Item",
+       "type": "TextRange2**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "_NewEnum",
+     "dispid": -4,
+     "invoke": "get",
+     "slot": 13,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "_NewEnum",
+       "type": "IUnknown**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Parent",
+     "dispid": 3,
+     "invoke": "get",
+     "slot": 14,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Parent",
+       "type": "IDispatch**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Paragraphs",
+     "dispid": 4,
+     "invoke": "get",
+     "slot": 15,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Start",
+       "type": "INT",
+       "flags": [
+        "in",
+        "optional",
+        "hasdefault"
+       ],
+       "default": -1
+      },
+      {
+       "name": "Length",
+       "type": "INT",
+       "flags": [
+        "in",
+        "optional",
+        "hasdefault"
+       ],
+       "default": -1
+      },
+      {
+       "name": "Range",
+       "type": "TextRange2**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Sentences",
+     "dispid": 5,
+     "invoke": "get",
+     "slot": 16,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Start",
+       "type": "INT",
+       "flags": [
+        "in",
+        "optional",
+        "hasdefault"
+       ],
+       "default": -1
+      },
+      {
+       "name": "Length",
+       "type": "INT",
+       "flags": [
+        "in",
+        "optional",
+        "hasdefault"
+       ],
+       "default": -1
+      },
+      {
+       "name": "Range",
+       "type": "TextRange2**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Words",
+     "dispid": 6,
+     "invoke": "get",
+     "slot": 17,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Start",
+       "type": "INT",
+       "flags": [
+        "in",
+        "optional",
+        "hasdefault"
+       ],
+       "default": -1
+      },
+      {
+       "name": "Length",
+       "type": "INT",
+       "flags": [
+        "in",
+        "optional",
+        "hasdefault"
+       ],
+       "default": -1
+      },
+      {
+       "name": "Range",
+       "type": "TextRange2**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Characters",
+     "dispid": 7,
+     "invoke": "get",
+     "slot": 18,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Start",
+       "type": "INT",
+       "flags": [
+        "in",
+        "optional",
+        "hasdefault"
+       ],
+       "default": -1
+      },
+      {
+       "name": "Length",
+       "type": "INT",
+       "flags": [
+        "in",
+        "optional",
+        "hasdefault"
+       ],
+       "default": -1
+      },
+      {
+       "name": "Range",
+       "type": "TextRange2**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Lines",
+     "dispid": 8,
+     "invoke": "get",
+     "slot": 19,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Start",
+       "type": "INT",
+       "flags": [
+        "in",
+        "optional",
+        "hasdefault"
+       ],
+       "default": -1
+      },
+      {
+       "name": "Length",
+       "type": "INT",
+       "flags": [
+        "in",
+        "optional",
+        "hasdefault"
+       ],
+       "default": -1
+      },
+      {
+       "name": "Range",
+       "type": "TextRange2**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Runs",
+     "dispid": 9,
+     "invoke": "get",
+     "slot": 20,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Start",
+       "type": "INT",
+       "flags": [
+        "in",
+        "optional",
+        "hasdefault"
+       ],
+       "default": -1
+      },
+      {
+       "name": "Length",
+       "type": "INT",
+       "flags": [
+        "in",
+        "optional",
+        "hasdefault"
+       ],
+       "default": -1
+      },
+      {
+       "name": "Range",
+       "type": "TextRange2**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "ParagraphFormat",
+     "dispid": 10,
+     "invoke": "get",
+     "slot": 21,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Format",
+       "type": "ParagraphFormat2**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Font",
+     "dispid": 11,
+     "invoke": "get",
+     "slot": 22,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Font",
+       "type": "Font2**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Length",
+     "dispid": 12,
+     "invoke": "get",
+     "slot": 23,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Length",
+       "type": "INT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Start",
+     "dispid": 13,
+     "invoke": "get",
+     "slot": 24,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Start",
+       "type": "INT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "BoundLeft",
+     "dispid": 14,
+     "invoke": "get",
+     "slot": 25,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "BoundLeft",
+       "type": "R4*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "BoundTop",
+     "dispid": 15,
+     "invoke": "get",
+     "slot": 26,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "BoundTop",
+       "type": "R4*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "BoundWidth",
+     "dispid": 16,
+     "invoke": "get",
+     "slot": 27,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "BoundWidth",
+       "type": "R4*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "BoundHeight",
+     "dispid": 17,
+     "invoke": "get",
+     "slot": 28,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "BoundHeight",
+       "type": "R4*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "TrimText",
+     "dispid": 18,
+     "invoke": "method",
+     "slot": 29,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "TrimText",
+       "type": "TextRange2**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "InsertAfter",
+     "dispid": 19,
+     "invoke": "method",
+     "slot": 30,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "NewText",
+       "type": "BSTR",
+       "flags": [
+        "in",
+        "optional",
+        "hasdefault"
+       ],
+       "default": ""
+      },
+      {
+       "name": "TextRange",
+       "type": "TextRange2**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "InsertBefore",
+     "dispid": 20,
+     "invoke": "method",
+     "slot": 31,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "NewText",
+       "type": "BSTR",
+       "flags": [
+        "in",
+        "optional",
+        "hasdefault"
+       ],
+       "default": ""
+      },
+      {
+       "name": "TextRange",
+       "type": "TextRange2**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "InsertSymbol",
+     "dispid": 21,
+     "invoke": "method",
+     "slot": 32,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "FontName",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "CharNumber",
+       "type": "INT",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "Unicode",
+       "type": "enum:MsoTriState[I4]",
+       "flags": [
+        "in",
+        "optional",
+        "hasdefault"
+       ],
+       "default": 0
+      },
+      {
+       "name": "TextRange",
+       "type": "TextRange2**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Select",
+     "dispid": 22,
+     "invoke": "method",
+     "slot": 33,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Cut",
+     "dispid": 23,
+     "invoke": "method",
+     "slot": 34,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Copy",
+     "dispid": 24,
+     "invoke": "method",
+     "slot": 35,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Delete",
+     "dispid": 25,
+     "invoke": "method",
+     "slot": 36,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Paste",
+     "dispid": 26,
+     "invoke": "method",
+     "slot": 37,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "TextRange",
+       "type": "TextRange2**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "PasteSpecial",
+     "dispid": 27,
+     "invoke": "method",
+     "slot": 38,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Format",
+       "type": "enum:MsoClipboardFormat[I4]",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "TextRange",
+       "type": "TextRange2**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "ChangeCase",
+     "dispid": 28,
+     "invoke": "method",
+     "slot": 39,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Type",
+       "type": "enum:MsoTextChangeCase[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "AddPeriods",
+     "dispid": 29,
+     "invoke": "method",
+     "slot": 40,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "RemovePeriods",
+     "dispid": 30,
+     "invoke": "method",
+     "slot": 41,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Find",
+     "dispid": 31,
+     "invoke": "method",
+     "slot": 42,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "FindWhat",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "After",
+       "type": "INT",
+       "flags": [
+        "in",
+        "optional",
+        "hasdefault"
+       ],
+       "default": 0
+      },
+      {
+       "name": "MatchCase",
+       "type": "enum:MsoTriState[I4]",
+       "flags": [
+        "in",
+        "optional",
+        "hasdefault"
+       ],
+       "default": 0
+      },
+      {
+       "name": "WholeWords",
+       "type": "enum:MsoTriState[I4]",
+       "flags": [
+        "in",
+        "optional",
+        "hasdefault"
+       ],
+       "default": 0
+      },
+      {
+       "name": "TextRange",
+       "type": "TextRange2**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Replace",
+     "dispid": 32,
+     "invoke": "method",
+     "slot": 43,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "FindWhat",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "ReplaceWhat",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "After",
+       "type": "INT",
+       "flags": [
+        "in",
+        "optional",
+        "hasdefault"
+       ],
+       "default": 0
+      },
+      {
+       "name": "MatchCase",
+       "type": "enum:MsoTriState[I4]",
+       "flags": [
+        "in",
+        "optional",
+        "hasdefault"
+       ],
+       "default": 0
+      },
+      {
+       "name": "WholeWords",
+       "type": "enum:MsoTriState[I4]",
+       "flags": [
+        "in",
+        "optional",
+        "hasdefault"
+       ],
+       "default": 0
+      },
+      {
+       "name": "TextRange",
+       "type": "TextRange2**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "RotatedBounds",
+     "dispid": 33,
+     "invoke": "method",
+     "slot": 44,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "X1",
+       "type": "R4*",
+       "flags": [
+        "out"
+       ]
+      },
+      {
+       "name": "Y1",
+       "type": "R4*",
+       "flags": [
+        "out"
+       ]
+      },
+      {
+       "name": "X2",
+       "type": "R4*",
+       "flags": [
+        "out"
+       ]
+      },
+      {
+       "name": "Y2",
+       "type": "R4*",
+       "flags": [
+        "out"
+       ]
+      },
+      {
+       "name": "X3",
+       "type": "R4*",
+       "flags": [
+        "out"
+       ]
+      },
+      {
+       "name": "Y3",
+       "type": "R4*",
+       "flags": [
+        "out"
+       ]
+      },
+      {
+       "name": "x4",
+       "type": "R4*",
+       "flags": [
+        "out"
+       ]
+      },
+      {
+       "name": "y4",
+       "type": "R4*",
+       "flags": [
+        "out"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "LanguageID",
+     "dispid": 34,
+     "invoke": "get",
+     "slot": 45,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "LanguageID",
+       "type": "enum:MsoLanguageID[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "LanguageID",
+     "dispid": 34,
+     "invoke": "put",
+     "slot": 46,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "LanguageID",
+       "type": "enum:MsoLanguageID[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "RtlRun",
+     "dispid": 35,
+     "invoke": "method",
+     "slot": 47,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "LtrRun",
+     "dispid": 36,
+     "invoke": "method",
+     "slot": 48,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "MathZones",
+     "dispid": 37,
+     "invoke": "get",
+     "slot": 49,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Start",
+       "type": "INT",
+       "flags": [
+        "in",
+        "optional",
+        "hasdefault"
+       ],
+       "default": -1
+      },
+      {
+       "name": "Length",
+       "type": "INT",
+       "flags": [
+        "in",
+        "optional",
+        "hasdefault"
+       ],
+       "default": -1
+      },
+      {
+       "name": "Range",
+       "type": "TextRange2**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "InsertChartField",
+     "dispid": 38,
+     "invoke": "method",
+     "slot": 50,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ChartFieldType",
+       "type": "enum:MsoChartFieldType[I4]",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "Formula",
+       "type": "BSTR",
+       "flags": [
+        "in",
+        "optional",
+        "hasdefault"
+       ],
+       "default": ""
+      },
+      {
+       "name": "Position",
+       "type": "INT",
+       "flags": [
+        "in",
+        "optional",
+        "hasdefault"
+       ],
+       "default": -1
+      },
+      {
+       "name": "Range",
+       "type": "TextRange2**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    }
+   ]
+  },
+  {
+   "name": "FillFormat",
+   "kind": "dispatch",
+   "guid": "{000C0314-0000-0000-C000-000000000046}",
+   "dual": true,
+   "flags": [
+    "hidden",
+    "dual",
+    "nonextensible",
+    "dispatchable"
+   ],
+   "base": "_IMsoDispObj",
+   "vtable_slots": 55,
+   "dispatch_only": false,
+   "members": [
+    {
+     "name": "Parent",
+     "dispid": 1,
+     "invoke": "get",
+     "slot": 9,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Parent",
+       "type": "IDispatch**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Background",
+     "dispid": 10,
+     "invoke": "method",
+     "slot": 10,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "OneColorGradient",
+     "dispid": 11,
+     "invoke": "method",
+     "slot": 11,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Style",
+       "type": "enum:MsoGradientStyle[I4]",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "Variant",
+       "type": "INT",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "Degree",
+       "type": "R4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Patterned",
+     "dispid": 12,
+     "invoke": "method",
+     "slot": 12,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Pattern",
+       "type": "enum:MsoPatternType[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "PresetGradient",
+     "dispid": 13,
+     "invoke": "method",
+     "slot": 13,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Style",
+       "type": "enum:MsoGradientStyle[I4]",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "Variant",
+       "type": "INT",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "PresetGradientType",
+       "type": "enum:MsoPresetGradientType[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "PresetTextured",
+     "dispid": 14,
+     "invoke": "method",
+     "slot": 14,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "PresetTexture",
+       "type": "enum:MsoPresetTexture[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Solid",
+     "dispid": 15,
+     "invoke": "method",
+     "slot": 15,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "TwoColorGradient",
+     "dispid": 16,
+     "invoke": "method",
+     "slot": 16,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Style",
+       "type": "enum:MsoGradientStyle[I4]",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "Variant",
+       "type": "INT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "UserPicture",
+     "dispid": 17,
+     "invoke": "method",
+     "slot": 17,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "PictureFile",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "UserTextured",
+     "dispid": 18,
+     "invoke": "method",
+     "slot": 18,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "TextureFile",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "BackColor",
+     "dispid": 100,
+     "invoke": "get",
+     "slot": 19,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "BackColor",
+       "type": "ColorFormat**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "BackColor",
+     "dispid": 100,
+     "invoke": "put",
+     "slot": 20,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "BackColor",
+       "type": "ColorFormat*",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "ForeColor",
+     "dispid": 101,
+     "invoke": "get",
+     "slot": 21,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ForeColor",
+       "type": "ColorFormat**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "ForeColor",
+     "dispid": 101,
+     "invoke": "put",
+     "slot": 22,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ForeColor",
+       "type": "ColorFormat*",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "GradientColorType",
+     "dispid": 102,
+     "invoke": "get",
+     "slot": 23,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "GradientColorType",
+       "type": "enum:MsoGradientColorType[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "GradientDegree",
+     "dispid": 103,
+     "invoke": "get",
+     "slot": 24,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "GradientDegree",
+       "type": "R4*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "GradientStyle",
+     "dispid": 104,
+     "invoke": "get",
+     "slot": 25,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "GradientStyle",
+       "type": "enum:MsoGradientStyle[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "GradientVariant",
+     "dispid": 105,
+     "invoke": "get",
+     "slot": 26,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "GradientVariant",
+       "type": "INT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Pattern",
+     "dispid": 106,
+     "invoke": "get",
+     "slot": 27,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Pattern",
+       "type": "enum:MsoPatternType[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "PresetGradientType",
+     "dispid": 107,
+     "invoke": "get",
+     "slot": 28,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "PresetGradientType",
+       "type": "enum:MsoPresetGradientType[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "PresetTexture",
+     "dispid": 108,
+     "invoke": "get",
+     "slot": 29,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "PresetTexture",
+       "type": "enum:MsoPresetTexture[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "TextureName",
+     "dispid": 109,
+     "invoke": "get",
+     "slot": 30,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "TextureName",
+       "type": "BSTR*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "TextureType",
+     "dispid": 110,
+     "invoke": "get",
+     "slot": 31,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "TextureType",
+       "type": "enum:MsoTextureType[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Transparency",
+     "dispid": 111,
+     "invoke": "get",
+     "slot": 32,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Transparency",
+       "type": "R4*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Transparency",
+     "dispid": 111,
+     "invoke": "put",
+     "slot": 33,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Transparency",
+       "type": "R4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Type",
+     "dispid": 112,
+     "invoke": "get",
+     "slot": 34,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Type",
+       "type": "enum:MsoFillType[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Visible",
+     "dispid": 113,
+     "invoke": "get",
+     "slot": 35,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Visible",
+       "type": "enum:MsoTriState[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Visible",
+     "dispid": 113,
+     "invoke": "put",
+     "slot": 36,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Visible",
+       "type": "enum:MsoTriState[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "GradientStops",
+     "dispid": 114,
+     "invoke": "get",
+     "slot": 37,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "GradientStops",
+       "type": "GradientStops**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "TextureOffsetX",
+     "dispid": 115,
+     "invoke": "get",
+     "slot": 38,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "TextureOffsetX",
+       "type": "R4*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "TextureOffsetX",
+     "dispid": 115,
+     "invoke": "put",
+     "slot": 39,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "TextureOffsetX",
+       "type": "R4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "TextureOffsetY",
+     "dispid": 116,
+     "invoke": "get",
+     "slot": 40,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "TextureOffsetY",
+       "type": "R4*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "TextureOffsetY",
+     "dispid": 116,
+     "invoke": "put",
+     "slot": 41,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "TextureOffsetY",
+       "type": "R4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "TextureAlignment",
+     "dispid": 117,
+     "invoke": "get",
+     "slot": 42,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "TextureAlignment",
+       "type": "enum:MsoTextureAlignment[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "TextureAlignment",
+     "dispid": 117,
+     "invoke": "put",
+     "slot": 43,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "TextureAlignment",
+       "type": "enum:MsoTextureAlignment[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "TextureHorizontalScale",
+     "dispid": 118,
+     "invoke": "get",
+     "slot": 44,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "HorizontalScale",
+       "type": "R4*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "TextureHorizontalScale",
+     "dispid": 118,
+     "invoke": "put",
+     "slot": 45,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "HorizontalScale",
+       "type": "R4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "TextureVerticalScale",
+     "dispid": 119,
+     "invoke": "get",
+     "slot": 46,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "VerticalScale",
+       "type": "R4*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "TextureVerticalScale",
+     "dispid": 119,
+     "invoke": "put",
+     "slot": 47,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "VerticalScale",
+       "type": "R4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "TextureTile",
+     "dispid": 120,
+     "invoke": "get",
+     "slot": 48,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "TextureTile",
+       "type": "enum:MsoTriState[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "TextureTile",
+     "dispid": 120,
+     "invoke": "put",
+     "slot": 49,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "TextureTile",
+       "type": "enum:MsoTriState[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "RotateWithObject",
+     "dispid": 121,
+     "invoke": "get",
+     "slot": 50,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "RotateWithObject",
+       "type": "enum:MsoTriState[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "RotateWithObject",
+     "dispid": 121,
+     "invoke": "put",
+     "slot": 51,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "RotateWithObject",
+       "type": "enum:MsoTriState[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "PictureEffects",
+     "dispid": 122,
+     "invoke": "get",
+     "slot": 52,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "PictureEffects",
+       "type": "PictureEffects**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "GradientAngle",
+     "dispid": 123,
+     "invoke": "get",
+     "slot": 53,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "GradientAngle",
+       "type": "R4*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "GradientAngle",
+     "dispid": 123,
+     "invoke": "put",
+     "slot": 54,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "GradientAngle",
+       "type": "R4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    }
+   ]
+  },
+  {
+   "name": "LineFormat",
+   "kind": "dispatch",
+   "guid": "{000C0317-0000-0000-C000-000000000046}",
+   "dual": true,
+   "flags": [
+    "hidden",
+    "dual",
+    "nonextensible",
+    "dispatchable"
+   ],
+   "base": "_IMsoDispObj",
+   "vtable_slots": 40,
+   "dispatch_only": false,
+   "members": [
+    {
+     "name": "Parent",
+     "dispid": 1,
+     "invoke": "get",
+     "slot": 9,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Parent",
+       "type": "IDispatch**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "BackColor",
+     "dispid": 100,
+     "invoke": "get",
+     "slot": 10,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "BackColor",
+       "type": "ColorFormat**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "BackColor",
+     "dispid": 100,
+     "invoke": "put",
+     "slot": 11,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "BackColor",
+       "type": "ColorFormat*",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "BeginArrowheadLength",
+     "dispid": 101,
+     "invoke": "get",
+     "slot": 12,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "BeginArrowheadLength",
+       "type": "enum:MsoArrowheadLength[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "BeginArrowheadLength",
+     "dispid": 101,
+     "invoke": "put",
+     "slot": 13,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "BeginArrowheadLength",
+       "type": "enum:MsoArrowheadLength[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "BeginArrowheadStyle",
+     "dispid": 102,
+     "invoke": "get",
+     "slot": 14,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "BeginArrowheadStyle",
+       "type": "enum:MsoArrowheadStyle[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "BeginArrowheadStyle",
+     "dispid": 102,
+     "invoke": "put",
+     "slot": 15,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "BeginArrowheadStyle",
+       "type": "enum:MsoArrowheadStyle[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "BeginArrowheadWidth",
+     "dispid": 103,
+     "invoke": "get",
+     "slot": 16,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "BeginArrowheadWidth",
+       "type": "enum:MsoArrowheadWidth[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "BeginArrowheadWidth",
+     "dispid": 103,
+     "invoke": "put",
+     "slot": 17,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "BeginArrowheadWidth",
+       "type": "enum:MsoArrowheadWidth[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "DashStyle",
+     "dispid": 104,
+     "invoke": "get",
+     "slot": 18,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "DashStyle",
+       "type": "enum:MsoLineDashStyle[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "DashStyle",
+     "dispid": 104,
+     "invoke": "put",
+     "slot": 19,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "DashStyle",
+       "type": "enum:MsoLineDashStyle[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "EndArrowheadLength",
+     "dispid": 105,
+     "invoke": "get",
+     "slot": 20,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "EndArrowheadLength",
+       "type": "enum:MsoArrowheadLength[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "EndArrowheadLength",
+     "dispid": 105,
+     "invoke": "put",
+     "slot": 21,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "EndArrowheadLength",
+       "type": "enum:MsoArrowheadLength[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "EndArrowheadStyle",
+     "dispid": 106,
+     "invoke": "get",
+     "slot": 22,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "EndArrowheadStyle",
+       "type": "enum:MsoArrowheadStyle[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "EndArrowheadStyle",
+     "dispid": 106,
+     "invoke": "put",
+     "slot": 23,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "EndArrowheadStyle",
+       "type": "enum:MsoArrowheadStyle[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "EndArrowheadWidth",
+     "dispid": 107,
+     "invoke": "get",
+     "slot": 24,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "EndArrowheadWidth",
+       "type": "enum:MsoArrowheadWidth[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "EndArrowheadWidth",
+     "dispid": 107,
+     "invoke": "put",
+     "slot": 25,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "EndArrowheadWidth",
+       "type": "enum:MsoArrowheadWidth[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "ForeColor",
+     "dispid": 108,
+     "invoke": "get",
+     "slot": 26,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ForeColor",
+       "type": "ColorFormat**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "ForeColor",
+     "dispid": 108,
+     "invoke": "put",
+     "slot": 27,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ForeColor",
+       "type": "ColorFormat*",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Pattern",
+     "dispid": 109,
+     "invoke": "get",
+     "slot": 28,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Pattern",
+       "type": "enum:MsoPatternType[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Pattern",
+     "dispid": 109,
+     "invoke": "put",
+     "slot": 29,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Pattern",
+       "type": "enum:MsoPatternType[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Style",
+     "dispid": 110,
+     "invoke": "get",
+     "slot": 30,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Style",
+       "type": "enum:MsoLineStyle[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Style",
+     "dispid": 110,
+     "invoke": "put",
+     "slot": 31,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Style",
+       "type": "enum:MsoLineStyle[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Transparency",
+     "dispid": 111,
+     "invoke": "get",
+     "slot": 32,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Transparency",
+       "type": "R4*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Transparency",
+     "dispid": 111,
+     "invoke": "put",
+     "slot": 33,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Transparency",
+       "type": "R4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Visible",
+     "dispid": 112,
+     "invoke": "get",
+     "slot": 34,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Visible",
+       "type": "enum:MsoTriState[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Visible",
+     "dispid": 112,
+     "invoke": "put",
+     "slot": 35,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Visible",
+       "type": "enum:MsoTriState[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Weight",
+     "dispid": 113,
+     "invoke": "get",
+     "slot": 36,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Weight",
+       "type": "R4*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Weight",
+     "dispid": 113,
+     "invoke": "put",
+     "slot": 37,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Weight",
+       "type": "R4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "InsetPen",
+     "dispid": 114,
+     "invoke": "get",
+     "slot": 38,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "InsetPen",
+       "type": "enum:MsoTriState[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "InsetPen",
+     "dispid": 114,
+     "invoke": "put",
+     "slot": 39,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "InsetPen",
+       "type": "enum:MsoTriState[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    }
+   ]
+  },
+  {
+   "name": "ColorFormat",
+   "kind": "dispatch",
+   "guid": "{000C0312-0000-0000-C000-000000000046}",
+   "dual": true,
+   "flags": [
+    "hidden",
+    "dual",
+    "nonextensible",
+    "dispatchable"
+   ],
+   "base": "_IMsoDispObj",
+   "vtable_slots": 21,
+   "dispatch_only": false,
+   "members": [
+    {
+     "name": "Parent",
+     "dispid": 1,
+     "invoke": "get",
+     "slot": 9,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Parent",
+       "type": "IDispatch**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "RGB",
+     "dispid": 0,
+     "invoke": "get",
+     "slot": 10,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "RGB",
+       "type": "alias:MsoRGBType[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "RGB",
+     "dispid": 0,
+     "invoke": "put",
+     "slot": 11,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "RGB",
+       "type": "alias:MsoRGBType[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "SchemeColor",
+     "dispid": 100,
+     "invoke": "get",
+     "slot": 12,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "SchemeColor",
+       "type": "INT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "SchemeColor",
+     "dispid": 100,
+     "invoke": "put",
+     "slot": 13,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "SchemeColor",
+       "type": "INT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Type",
+     "dispid": 101,
+     "invoke": "get",
+     "slot": 14,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Type",
+       "type": "enum:MsoColorType[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "TintAndShade",
+     "dispid": 103,
+     "invoke": "get",
+     "slot": 15,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pValue",
+       "type": "R4*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "TintAndShade",
+     "dispid": 103,
+     "invoke": "put",
+     "slot": 16,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "pValue",
+       "type": "R4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "ObjectThemeColor",
+     "dispid": 104,
+     "invoke": "get",
+     "slot": 17,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ObjectThemeColor",
+       "type": "enum:MsoThemeColorIndex[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "ObjectThemeColor",
+     "dispid": 104,
+     "invoke": "put",
+     "slot": 18,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ObjectThemeColor",
+       "type": "enum:MsoThemeColorIndex[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Brightness",
+     "dispid": 105,
+     "invoke": "get",
+     "slot": 19,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Brightness",
+       "type": "R4*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Brightness",
+     "dispid": 105,
+     "invoke": "put",
+     "slot": 20,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Brightness",
+       "type": "R4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    }
+   ]
+  },
+  {
+   "name": "ConnectorFormat",
+   "kind": "dispatch",
+   "guid": "{000C0313-0000-0000-C000-000000000046}",
+   "dual": true,
+   "flags": [
+    "hidden",
+    "dual",
+    "nonextensible",
+    "dispatchable"
+   ],
+   "base": "_IMsoDispObj",
+   "vtable_slots": 22,
+   "dispatch_only": false,
+   "members": [
+    {
+     "name": "Parent",
+     "dispid": 1,
+     "invoke": "get",
+     "slot": 9,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Parent",
+       "type": "IDispatch**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "BeginConnect",
+     "dispid": 10,
+     "invoke": "method",
+     "slot": 10,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ConnectedShape",
+       "type": "Shape*",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "ConnectionSite",
+       "type": "INT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "BeginDisconnect",
+     "dispid": 11,
+     "invoke": "method",
+     "slot": 11,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "EndConnect",
+     "dispid": 12,
+     "invoke": "method",
+     "slot": 12,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "ConnectedShape",
+       "type": "Shape*",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "ConnectionSite",
+       "type": "INT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "EndDisconnect",
+     "dispid": 13,
+     "invoke": "method",
+     "slot": 13,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HRESULT"
+    },
+    {
+     "name": "BeginConnected",
+     "dispid": 100,
+     "invoke": "get",
+     "slot": 14,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "BeginConnected",
+       "type": "enum:MsoTriState[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "BeginConnectedShape",
+     "dispid": 101,
+     "invoke": "get",
+     "slot": 15,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "BeginConnectedShape",
+       "type": "Shape**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "BeginConnectionSite",
+     "dispid": 102,
+     "invoke": "get",
+     "slot": 16,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "BeginConnectionSite",
+       "type": "INT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "EndConnected",
+     "dispid": 103,
+     "invoke": "get",
+     "slot": 17,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "EndConnected",
+       "type": "enum:MsoTriState[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "EndConnectedShape",
+     "dispid": 104,
+     "invoke": "get",
+     "slot": 18,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "EndConnectedShape",
+       "type": "Shape**",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "EndConnectionSite",
+     "dispid": 105,
+     "invoke": "get",
+     "slot": 19,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "EndConnectionSite",
+       "type": "INT*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Type",
+     "dispid": 106,
+     "invoke": "get",
+     "slot": 20,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Type",
+       "type": "enum:MsoConnectorType[I4]*",
+       "flags": [
+        "out",
+        "retval"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    },
+    {
+     "name": "Type",
+     "dispid": 106,
+     "invoke": "put",
+     "slot": 21,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Type",
+       "type": "enum:MsoConnectorType[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "HRESULT"
+    }
+   ]
   }
  ]
 }

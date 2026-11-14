@@ -1901,7 +1901,6 @@ fn report_members_register_where_the_descriptor_describes_them() {
 /// Needs the regenerated descriptor (ListObject, Chart, Shape, ... types): ignored until then.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-#[ignore = "descriptor: ListObject, Chart and Shape types are not in the committed descriptor (RUN-ON-WINDOWS item 1 of lane eng1)"]
 fn dc_piw0__a_macro_builds_a_report_through_object_model_members() {
     let session = HostSession::open(
         Arc::new(MemorySource::new(blank_package())),
