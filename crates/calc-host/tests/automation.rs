@@ -1955,6 +1955,71 @@ fn dc_piw0__a_macro_builds_a_report_through_object_model_members() {
     let text_range = obj(invoke(&model, &frame_text, "TextRange", vec![]).unwrap());
     invoke_kind(&model, &text_range, "Text", InvokeKind::Put, vec![AutoValue::text("Start")]).unwrap();
     assert_eq!(text(&model, &text_range, "Text"), "Start");
+    // Geometry round trips in points; columns and rows of the table; a row added to it.
+    assert!(
+        matches!(invoke(&model, &first, "Left", vec![]).unwrap(), AutoValue::R4(v) if v == 20.0)
+    );
+    invoke_kind(
+        &model,
+        &first,
+        "Width",
+        InvokeKind::Put,
+        vec![AutoValue::R8(150.0)],
+    )
+    .unwrap();
+    assert!(
+        matches!(invoke(&model, &first, "Width", vec![]).unwrap(), AutoValue::R4(v) if v == 150.0)
+    );
+    assert!(
+        matches!(invoke(&model, &frame, "Left", vec![]).unwrap(), AutoValue::R4(v) if v == 200.0)
+    );
+    assert_eq!(text(&model, &frame, "Name"), "Chart 1");
+    let columns = obj(invoke(&model, &table, "ListColumns", vec![]).unwrap());
+    let second_column = obj(invoke(&model, &columns, "Item", vec![AutoValue::I4(2)]).unwrap());
+    assert_eq!(text(&model, &second_column, "Name"), "Q1");
+    let rows = obj(invoke(&model, &table, "ListRows", vec![]).unwrap());
+    invoke_kind(&model, &rows, "Add", InvokeKind::Method, vec![]).unwrap();
+    assert!(matches!(
+        invoke(&model, &rows, "Count", vec![]).unwrap(),
+        AutoValue::I4(3)
+    ));
+    let body = obj(invoke(&model, &table, "DataBodyRange", vec![]).unwrap());
+    assert_eq!(text(&model, &body, "Address"), "$A$2:$C$4");
+    // A shape's colours: RGB as VBA's RGB().
+    let fill = obj(invoke(&model, &first, "Fill", vec![]).unwrap());
+    let colour = obj(invoke(&model, &fill, "ForeColor", vec![]).unwrap());
+    invoke_kind(
+        &model,
+        &colour,
+        "RGB",
+        InvokeKind::Put,
+        vec![AutoValue::I4(255 + 128 * 256)],
+    )
+    .unwrap();
+    assert!(
+        matches!(invoke(&model, &colour, "RGB", vec![]).unwrap(), AutoValue::I4(v) if v == 255 + 128 * 256)
+    );
+    // An unsupported shape type refuses by the one rule.
+    let refused = invoke_kind(
+        &model,
+        &shapes,
+        "AddShape",
+        InvokeKind::Method,
+        vec![
+            AutoValue::I4(52),
+            AutoValue::R8(0.0),
+            AutoValue::R8(0.0),
+            AutoValue::R8(10.0),
+            AutoValue::R8(10.0),
+        ],
+    );
+    assert!(matches!(
+        refused,
+        Err(AutoError::NotModelled {
+            owner: "dc-piw0.3",
+            ..
+        })
+    ));
     // The chart counts as a shape of the sheet, as in Excel.
     assert!(matches!(invoke(&model, &shapes, "Count", vec![]).unwrap(), AutoValue::I4(4)));
 
