@@ -92,14 +92,7 @@ fn rank(
     let ascending = if !given(a, 2) {
         false
     } else if let CoreRef::Text(text) = a[2].core_ref() {
-        let text = String::from_utf16(text.utf16_code_units()).map_err(|_| Exit::Error(WorksheetErrorCode::Value))?;
-        if text.eq_ignore_ascii_case("TRUE") {
-            true
-        } else if text.eq_ignore_ascii_case("FALSE") {
-            false
-        } else {
-            return fail(WorksheetErrorCode::Value);
-        }
+        crate::coerce::spelled_logical(text).ok_or(Exit::Error(WorksheetErrorCode::Value))?
     } else {
         num(site, a, 2)?.trunc() != 0.0
     };

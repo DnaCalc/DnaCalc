@@ -258,7 +258,7 @@ fn textjoin(
     sv: &mut crate::call::EvalServices<'_>,
 ) -> Step<CalcValue> {
     let delimiters = delimiters(site, a, sv)?;
-    let ignore_empty = num(site, a, 1)? != 0.0;
+    let ignore_empty = super::kit::flag(site, a, 1)?;
     let mut joined: Vec<u16> = Vec::new();
     let mut parts = 0usize;
     for index in 2..a.len() {

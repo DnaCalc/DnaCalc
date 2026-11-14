@@ -9,6 +9,18 @@ mod f1_support;
 use calc_func::value::WorksheetErrorCode::{Blocked, Calc, Connect, Div0, NA, Name, Null, Num, Ref, Value};
 use f1_support::*;
 
+/// Excel 20527 TEXTJOIN option controls and independent typed holdouts.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn textjoin_boolean_text_option() {
+    let args = |option| vec![t("|"), option, t("a"), t(""), t("b")];
+    text(call("TEXTJOIN", args(t("TrUe"))), "a|b");
+    text(call("TEXTJOIN", args(t("FALSE"))), "a||b");
+    error(call("TEXTJOIN", args(t("1"))), Value);
+    error(call("TEXTJOIN", args(t(" TRUE "))), Value);
+    error(call("TEXTJOIN", args(e(NA))), NA);
+}
+
 /// Excel 20527 instance-number controls and independent small-boundary holdouts.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
