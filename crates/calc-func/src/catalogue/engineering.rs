@@ -146,15 +146,10 @@ fn bessel(
     site: &Site<'_>,
     a: &[CalcValue],
     kernel: fn(f64, f64) -> Result<f64, WorksheetErrorCode>,
-    checked_kinds: bool,
 ) -> Step<CalcValue> {
-    if checked_kinds {
-        radix_kind(a, 0)?;
-    }
+    radix_kind(a, 0)?;
     let x = num(site, a, 0)?;
-    if checked_kinds {
-        radix_kind(a, 1)?;
-    }
+    radix_kind(a, 1)?;
     let n = num(site, a, 1)?;
     out(site, kernel(x, n))
 }
@@ -290,10 +285,10 @@ ported_shared_family! {
         let product = zs.iter().fold(ParsedComplex::new(1.0, 0.0, None), |acc, z| acc.mul(*z));
         complex_text(Ok(product), &zs)
     }
-    60 besseli |s, a, sv| { bessel(s, a, k::bessel::besseli_kernel, false) }
-    61 besselj |s, a, sv| { bessel(s, a, k::bessel::besselj_kernel, true) }
-    62 besselk |s, a, sv| { bessel(s, a, k::bessel::besselk_kernel, false) }
-    63 bessely |s, a, sv| { bessel(s, a, k::bessel::bessely_kernel, false) }
+    60 besseli |s, a, sv| { bessel(s, a, k::bessel::besseli_kernel) }
+    61 besselj |s, a, sv| { bessel(s, a, k::bessel::besselj_kernel) }
+    62 besselk |s, a, sv| { bessel(s, a, k::bessel::besselk_kernel) }
+    63 bessely |s, a, sv| { bessel(s, a, k::bessel::bessely_kernel) }
     70 delta |s, a, sv| {
         // Excel reads the second scalar before the first, including conversion errors.
         let y = if given(a, 1) { super::kit::reject_logical(&a[1])?; super::kit::num_with_subnormal(s, a, 1)? } else { 0.0 };

@@ -10,6 +10,17 @@ use calc_func::SubtotalExclusions;
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Ref, Value};
 use f1_support::*;
 
+/// Excel 20527 matrix-history and independent scalar-kind controls.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn trend_matrix_histories_reject_nonnumeric_scalar_new_x() {
+    let y = arr(vec![vec![1.0, 2.0], vec![3.0, 5.0]]);
+    let x = arr(vec![vec![1.0, 3.0], vec![2.0, 4.0]]);
+    for new_x in [t("2"), t("bad"), b(true), e(NA), calc_func::value::CalcValue::empty()] {
+        error(call("TREND", vec![y.clone(), x.clone(), new_x, e(Ref)]), Value);
+    }
+}
+
 /// Excel 20527 cell-backed argument and independent error-priority controls.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

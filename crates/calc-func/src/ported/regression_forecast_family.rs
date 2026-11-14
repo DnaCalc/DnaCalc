@@ -1153,6 +1153,19 @@ fn forecast_pair_kernel(
 }
 
 pub(crate) fn eval_trend_surface(args: &[CalcValue]) -> Result<CalcValue, WorksheetErrorCode> {
+    // Excel 20527 reports VALUE for a nonnumeric scalar new_x with two numeric 2x2 histories,
+    // even when new_x or the optional constant argument contains a worksheet error.
+    let numeric_matrix = |index: usize| {
+        args.get(index).and_then(CalcValue::as_array).is_some_and(|a| {
+            let shape = a.shape();
+            shape.rows == 2 && shape.cols == 2 && a.iter_row_major().all(|v| v.as_number().is_some())
+        })
+    };
+    if numeric_matrix(0) && numeric_matrix(1) && args.get(2).is_some_and(|v| {
+        matches!(v.core_ref(), CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Empty | CoreRef::Error(_))
+    }) {
+        return Err(WorksheetErrorCode::Value);
+    }
     let (known_y, known_x) = match paired_trend_matrices(args) {
         Some(pair) => pair,
         None => shape_first_inputs(args)?,
