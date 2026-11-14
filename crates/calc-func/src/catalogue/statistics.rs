@@ -82,28 +82,33 @@ fn nth(
     site.number(sorted(values)[rank as usize - 1])
 }
 
-/// RANK's number: a number as it is, an error as itself, anything else #N/A.
-fn rank_number(a: &[CalcValue]) -> Step<f64> {
-    match a[0].core_ref() {
-        CoreRef::Number(n) => Ok(n),
-        CoreRef::Error(code) => fail(code),
-        _ => fail(WorksheetErrorCode::NA),
-    }
-}
-
 fn rank(
     site: &Site<'_>,
     a: &[CalcValue],
     sv: &mut EvalServices<'_>,
     average: bool,
 ) -> Step<CalcValue> {
-    let number = rank_number(a)?;
-    let values = list(site, a, 1, sv)?;
-    let order = if given(a, 2) && num(site, a, 2)?.trunc() != 0.0 {
+    let number = num(site, a, 0)?;
+    let ascending = if !given(a, 2) {
+        false
+    } else if let CoreRef::Text(text) = a[2].core_ref() {
+        let text = String::from_utf16(text.utf16_code_units()).map_err(|_| Exit::Error(WorksheetErrorCode::Value))?;
+        if text.eq_ignore_ascii_case("TRUE") {
+            true
+        } else if text.eq_ignore_ascii_case("FALSE") {
+            false
+        } else {
+            return fail(WorksheetErrorCode::Value);
+        }
+    } else {
+        num(site, a, 2)?.trunc() != 0.0
+    };
+    let order = if ascending {
         RankOrder::Ascending
     } else {
         RankOrder::Descending
     };
+    let values = list(site, a, 1, sv)?;
     let r = if average {
         rank_avg(number, &values, order)
     } else {

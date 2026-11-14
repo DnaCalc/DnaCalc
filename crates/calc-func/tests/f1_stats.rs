@@ -7,8 +7,29 @@
 mod f1_support;
 
 use calc_func::SubtotalExclusions;
-use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Value};
+use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Ref, Value};
 use f1_support::*;
+
+/// Excel 20527 cell-backed argument and independent error-priority controls.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn rank_coerces_number_before_validating_order() {
+    for name in ["RANK", "RANK.EQ", "RANK.AVG"] {
+        let mut sheet = Sheet::new();
+        sheet.column(1, 1, vec![n(1.0), e(Div0)]);
+        let numeric = sheet.area(1, 1, 1, 1);
+        let source_error = sheet.area(2, 1, 2, 1);
+        exact(call_on(&mut sheet, name, vec![t("1"), numeric.clone(), n(0.0)]), 1.0);
+        error(call_on(&mut sheet, name, vec![t("bad"), numeric.clone(), e(Ref)]), Value);
+        error(call_on(&mut sheet, name, vec![n(1.0), numeric, t("1")]), Value);
+        error(call_on(&mut sheet, name, vec![n(1.0), source_error, e(Ref)]), Ref);
+        sheet.column(1, 2, vec![n(1.0), n(2.0), n(3.0)]);
+        let numbers = sheet.area(1, 2, 3, 2);
+        exact(call_on(&mut sheet, name, vec![n(1.0), numbers.clone(), t("tRuE")]), 1.0);
+        exact(call_on(&mut sheet, name, vec![n(1.0), numbers.clone(), t("FALSE")]), 3.0);
+        error(call_on(&mut sheet, name, vec![n(1.0), numbers, t(" TRUE")]), Value);
+    }
+}
 
 /// Excel 20527 direct and cell-range sample-count and error-precedence controls.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
