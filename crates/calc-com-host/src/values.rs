@@ -193,6 +193,12 @@ pub(crate) fn from_variant(
                 None => AutoValue::Empty,
             },
             kind if kind == VT_ARRAY | VT_VARIANT => from_array(objects, data.parray)?,
+            kind if kind.0 & VT_ARRAY.0 != 0 => {
+                return Err(AutoError::not_modelled(
+                    "Automation SAFEARRAY element type (E11)",
+                    "dc-1nbp.6",
+                ));
+            }
             _ => return mismatch(),
         })
     }
@@ -232,12 +238,21 @@ pub(crate) unsafe fn from_array(
 pub(crate) unsafe fn array_bounds(
     array: *const SAFEARRAY,
 ) -> Result<(i32, i32, i32, i32), AutoError> {
-    if array.is_null() || unsafe { SafeArrayGetDim(array) } != 2 {
+    if array.is_null() {
         return mismatch();
+    }
+    if unsafe { SafeArrayGetDim(array) } != 2 {
+        return Err(AutoError::not_modelled(
+            "Automation SAFEARRAY rank (E11)",
+            "dc-1nbp.6",
+        ));
     }
     let kind = unsafe { SafeArrayGetVartype(array) }.map_err(status)?;
     if kind != VT_VARIANT {
-        return mismatch();
+        return Err(AutoError::not_modelled(
+            "Automation SAFEARRAY element type (E11)",
+            "dc-1nbp.6",
+        ));
     }
     let (r, c, end_r, end_c) = unsafe {
         (

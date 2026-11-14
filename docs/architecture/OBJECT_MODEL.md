@@ -224,6 +224,9 @@ Match's 1004 description is explicitly **unmeasured E7 text**, as directed by th
 - Value/Value2 text assignment accepts ordinary text. Formula-like strings, numeric/date/boolean/error
   spellings, apostrophe conversions, empty strings and undecodable UTF-16 refuse pending E11; the
   entry parser detects these ambiguous forms but does not supply invented Automation coercions.
+- The COM translator records typed E11 refusals for unsupported SAFEARRAY ranks and element types
+  before member dispatch. The supported form remains a 2-D SAFEARRAY(VARIANT); a Windows control
+  checks that Value2 puts of other legal forms cannot bypass refusal recording.
 - Command writes need the desktop's mutable session callback; event writes are implemented.
 - Session WorksheetFunction calls supply numeric mode, environment and reference reads; unavailable
   catalogue services (for example SUBTOTAL exclusion facts) remain typed refusals.
