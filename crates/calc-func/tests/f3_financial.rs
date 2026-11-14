@@ -12,6 +12,25 @@ use calc_func::locale::DateSystem::{System1900, System1904};
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Value};
 use f1_support::*;
 
+/// Excel 20527 coerces a one-cell text reference but rejects text in array schedules.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn fvschedule_single_cell_text_schedule() {
+    let expected = f64::from_bits(0x4001_9999_9999_999a);
+    exact(call("FVSCHEDULE", vec![n(2.0), t("0.1")]), expected);
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![t("0.1"), t("bad"), b(true)]);
+    let one = sheet.area(1, 1, 1, 1);
+    let bad = sheet.area(2, 1, 2, 1);
+    let logical = sheet.area(3, 1, 3, 1);
+    let many = sheet.area(1, 1, 2, 1);
+    exact(call_on(&mut sheet, "FVSCHEDULE", vec![n(2.0), one]), expected);
+    error(call_on(&mut sheet, "FVSCHEDULE", vec![n(2.0), bad]), Value);
+    error(call_on(&mut sheet, "FVSCHEDULE", vec![n(2.0), logical]), Value);
+    error(call_on(&mut sheet, "FVSCHEDULE", vec![n(2.0), many]), Value);
+    error(call("FVSCHEDULE", vec![n(2.0), arr_values(vec![vec![t("0.1")]])]), Value);
+}
+
 /// `spelling` in a 1900-system workbook.
 fn dated(
     spelling: &str,
