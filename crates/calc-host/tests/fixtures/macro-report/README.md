@@ -13,5 +13,5 @@ One macro builds a report; Excel's run is the answer, DNA Calc's run is compared
   Diff that file with Excel's `report-listing.txt`.
 
 Excel run: open a new workbook, import `BuildReport.bas` and `DumpReport.bas`, run `Build`, then `Dump`; also
-`ActiveWorkbook.SaveCopyAs` the report for the part-by-part comparison. `FORMULA` records appear in the DNA Calc
-listing once `Range.Formula` has a handler (it has none yet; the formula cells are entered through the session).
+`ActiveWorkbook.SaveCopyAs` the report for the part-by-part comparison. `FORMULA` records appear in both listings;
+in DNA Calc `Range.Formula` (get and put) is a handler (dc-piw0.6), so the macro's formula column goes through it.

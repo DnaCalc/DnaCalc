@@ -660,6 +660,120 @@ impl WorkbookAutomation {
             place + 1
         )))
     }
+    /// `Series.Values` / `Series.XValues`: the points the series reads now (cells' values), as a
+    /// one-row array; a series without the data answers Empty.
+    fn series_points(&self, target: &ObjectRef, call: &Call<'_>, values: bool) -> Reply {
+        no_args(call)?;
+        let (place, series) = self.series_at(target)?;
+        let (_, sheet, _) = Self::report_key(target)?;
+        let data = if values { series.values } else { series.categories };
+        let Some(data) = data else {
+            return Ok(AutoValue::Empty);
+        };
+        let points = self.read_host(target, |s, _, _| {
+            let origin = CellKey::new(sheet, 1, 1).expect("A1 is a cell");
+            let _ = place;
+            Ok(s.host().data_values(&data, origin).0)
+        })?;
+        let values = points
+            .iter()
+            .map(|p| match p {
+                None => Ok(AutoValue::Empty),
+                Some(v) => auto_value(v),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(AutoValue::Array(Box::new(AutoArray {
+            rows: 1,
+            columns: values.len() as u32,
+            lower: (1, 1),
+            values,
+        })))
+    }
+    pub(super) fn series_values_get(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.series_points(target, call, true)
+    }
+    pub(super) fn series_xvalues_get(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.series_points(target, call, false)
+    }
+    /// A put of a Range (or of the reference text a SERIES formula holds) re-points the series
+    /// through the chart editor's series command; literal arrays are not modelled.
+    fn series_points_put(&self, target: &ObjectRef, call: &Call<'_>, values: bool) -> Reply {
+        let (place, _) = self.series_at(target)?;
+        let part = Self::chart_token(target)?;
+        let (_, sheet, _) = Self::report_key(target)?;
+        let arg = call.args.last().ok_or_else(geometry::bad_count)?;
+        let reference = match arg {
+            AutoValue::Object(_) => {
+                let range = self.source_range(target, arg, sheet)?;
+                if range.area_count() != 1 {
+                    return Err(AutoError::excel(1004, ""));
+                }
+                Some(range.areas()[0])
+            }
+            AutoValue::Text(_) => None,
+            _ => {
+                return Err(AutoError::not_modelled(
+                    "Series.Values/XValues put of an array of literals",
+                    "dc-piw0.6",
+                ));
+            }
+        };
+        let text = match arg {
+            AutoValue::Text(t) => Some(t.to_string_lossy()),
+            _ => None,
+        };
+        self.command(call, |s| {
+            let reference = match (&reference, &text) {
+                (Some(area), _) => {
+                    let name = s
+                        .host()
+                        .model()
+                        .sheet_by_id(area.sheet())
+                        .map(|x| x.name().text().to_string_lossy())
+                        .ok_or_else(geometry::type_mismatch)?;
+                    let qualifier = format!("'{}'!", name.replace('\'', "''"));
+                    geometry::address(
+                        &ReferenceLike::area(*area),
+                        AddressOptions::default(),
+                        Some(&qualifier),
+                    )?
+                }
+                (None, Some(text)) => text.clone(),
+                _ => return Err(geometry::type_mismatch()),
+            };
+            let chart = Self::charts_of(s, sheet)
+                .into_iter()
+                .find(|c| c.part == part)
+                .ok_or_else(|| AutoError::excel(424, "Object required"))?;
+            let mut at = place;
+            let mut found = None;
+            for (plot_index, plot) in chart.plots.iter().enumerate() {
+                if at < plot.series.len() {
+                    found = Some((plot_index as u32, plot.series[at].index));
+                    break;
+                }
+                at -= plot.series.len();
+            }
+            let (plot, index) = found.ok_or_else(|| AutoError::excel(424, "Object required"))?;
+            Ok(WorkbookCommand::ChartSeries {
+                sheet,
+                revision: s.host().revision().get(),
+                part: part.clone(),
+                plot,
+                series: Some(index),
+                name: None,
+                categories: if values { None } else { Some(reference.clone()) },
+                values: if values { Some(reference) } else { None },
+                remove: false,
+            })
+        })
+    }
+    pub(super) fn series_values_put(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.series_points_put(target, call, true)
+    }
+    pub(super) fn series_xvalues_put(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.series_points_put(target, call, false)
+    }
     pub(super) fn series_plot_order(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         no_args(call)?;
         let (place, _) = self.series_at(target)?;

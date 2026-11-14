@@ -110,7 +110,7 @@ impl WorkbookAutomation {
             self.write_range(session, range, None)
         })
     }
-    fn mutate_range(
+    pub(super) fn mutate_range(
         &self,
         target: &ObjectRef,
         call: &Call<'_>,

@@ -121,6 +121,10 @@ impl WorkbookAutomation {
         on("Series", "Name", Get, Self::series_name_get);
         on("Series", "Formula", Get, Self::series_formula);
         on("Series", "PlotOrder", Get, Self::series_plot_order);
+        on("Series", "Values", Get, Self::series_values_get);
+        on("Series", "Values", Put, Self::series_values_put);
+        on("Series", "XValues", Get, Self::series_xvalues_get);
+        on("Series", "XValues", Put, Self::series_xvalues_put);
         on("ChartTitle", "Text", Get, Self::chart_title_text);
         on("ChartTitle", "Text", Put, Self::chart_title_put_text);
         // Drawings.
