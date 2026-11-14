@@ -6,8 +6,20 @@
 
 mod f1_support;
 
-use calc_func::value::WorksheetErrorCode::{Blocked, Calc, Connect, Div0, NA, Value};
+use calc_func::value::WorksheetErrorCode::{Blocked, Calc, Connect, Div0, NA, Name, Null, Num, Ref, Value};
 use f1_support::*;
+
+/// Excel propagates a formed worksheet error before converting character widths.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn width_conversion_propagates_errors_without_a_profile() {
+    for name in ["ASC", "DBCS"] {
+        for code in [Null, Div0, Value, Ref, Name, Num, NA] {
+            error(call(name, vec![e(code)]), code);
+        }
+        refused(call(name, vec![t("abc")]));
+    }
+}
 
 /// Excel 20527: a decimal separator is sufficient when FIXED needs no grouping.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

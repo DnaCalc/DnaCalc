@@ -4,7 +4,7 @@
 //! text_delim_family.rs, text_compat_locale_family.rs (ASC and DBCS; JIS is held as absent from Excel on
 //! Windows), web_text_xml_family.rs and hyperlink_fn.rs. A call whose result is not modelled is refused as not modelled.
 
-use super::kit::{fail, flag, grid, num, text_arg};
+use super::kit::{fail, flag, grid, num, scalar_error, text_arg};
 use crate::call::EvalServices;
 use crate::coerce::{self, Numeric, Stop};
 use crate::format::{self, Failure};
@@ -791,6 +791,8 @@ fn regexreplace(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
 /// dczsn3_bytes: full-width and half-width forms, kana, CJK and Hangul are kept). Under the
 /// ja-JP, ko-KR and zh-CN profiles they are refused (bead dc-zsn.3).
 fn width_conversion(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
+    // A formed error is independent of the language needed for width conversion.
+    scalar_error(&a[0])?;
     let (_, profile) = profile(site)?;
     if matches!(profile.id, LocaleId::JaJp | LocaleId::KoKr | LocaleId::ZhCn) {
         return Err(site.not_modelled(None));
