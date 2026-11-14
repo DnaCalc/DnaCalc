@@ -361,6 +361,7 @@ pub(crate) fn error(error: &AutoError, exception: *mut EXCEPINFO) -> HRESULT {
     let code = match error {
         AutoError::Status(code) => return HRESULT(*code),
         AutoError::Disconnected => return CO_E_OBJNOTCONNECTED,
+        AutoError::Excel { number, .. } if *number < 0 => HRESULT(*number),
         _ => HRESULT((0x800A0000u32 | (number as u32 & 0xffff)) as i32),
     };
     let description = error.description();
@@ -377,7 +378,7 @@ pub(crate) fn error(error: &AutoError, exception: *mut EXCEPINFO) -> HRESULT {
         }
         if !exception.is_null() {
             exception.write(EXCEPINFO {
-                wCode: number as u16,
+                wCode: 0,
                 scode: code.0,
                 bstrSource: ManuallyDrop::new(windows::core::BSTR::from("DNA Calc")),
                 bstrDescription: ManuallyDrop::new(windows::core::BSTR::from(description)),

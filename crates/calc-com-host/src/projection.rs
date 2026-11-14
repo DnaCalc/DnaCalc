@@ -16,7 +16,6 @@ use calc_xll_host::XllHost;
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
-    ffi::c_void,
     ptr,
     rc::Rc,
     sync::{Arc, atomic::Ordering},
@@ -41,7 +40,67 @@ struct Foreign {
     dispatch: IDispatch,
     transfer: bool,
 }
+
+/// One lease per object occurrence, including duplicate identities in arrays. A successfully
+/// created wrapper owns its occurrence even if a later conversion or QueryInterface fails.
+pub(crate) struct ResultValues<'a> {
+    state: &'a Rc<State>,
+    model: Rc<dyn ObjectModel>,
+    values: &'a [AutoValue],
+    wrapped: RefCell<Vec<ObjectRef>>,
+}
+impl Objects for ResultValues<'_> {
+    fn wrap(&self, target: &ObjectRef) -> Result<IDispatch, AutoError> {
+        let wrapper = self.state.wrap(target)?;
+        self.wrapped.borrow_mut().push(target.clone());
+        Ok(wrapper)
+    }
+    fn identify(&self, dispatch: &IDispatch) -> Result<AutoValue, AutoError> {
+        self.state.identify(dispatch)
+    }
+    fn foreign(&self, key: u64) -> Result<IDispatch, AutoError> {
+        self.state.foreign(key)
+    }
+}
+impl Drop for ResultValues<'_> {
+    fn drop(&mut self) {
+        for value in self.values {
+            self.state
+                .discard_result(value, self.wrapped.get_mut(), &*self.model);
+        }
+        debug_assert!(self.wrapped.get_mut().is_empty());
+    }
+}
+
+/// Only keys created by this call (and not explicitly taken by a member) are borrowed.
+/// Nested calls have later keys, so their cleanup cannot release an outer call's arguments.
+pub(crate) struct ArgumentScope<'a> {
+    state: &'a State,
+    first: u64,
+}
+impl Drop for ArgumentScope<'_> {
+    fn drop(&mut self) {
+        let keys: Vec<_> = self
+            .state
+            .foreign
+            .borrow()
+            .iter()
+            .filter_map(|(&key, held)| (key >= self.first && !held.transfer).then_some(key))
+            .collect();
+        for key in keys {
+            let held = self.state.foreign.borrow_mut().remove(&key);
+            // A client's Release may reenter the projection. Never hold the table borrow.
+            drop(held);
+        }
+    }
+}
 impl State {
+    pub fn argument_scope(&self) -> ArgumentScope<'_> {
+        ArgumentScope {
+            state: self,
+            first: self.next_foreign.get(),
+        }
+    }
     fn hold_foreign(&self, dispatch: IDispatch, transfer: bool) -> Result<AutoValue, AutoError> {
         let key = self.next_foreign.get();
         self.next_foreign.set(
@@ -67,8 +126,28 @@ impl State {
     pub fn foreign_result(&self, dispatch: IDispatch) -> Result<AutoValue, AutoError> {
         self.hold_foreign(dispatch, true)
     }
-    pub fn discard_result(&self, value: &AutoValue) {
+    pub fn result_values<'a>(self: &'a Rc<Self>, values: &'a [AutoValue]) -> ResultValues<'a> {
+        ResultValues {
+            state: self,
+            model: self.model.borrow().clone(),
+            values,
+            wrapped: RefCell::default(),
+        }
+    }
+    fn discard_result(
+        &self,
+        value: &AutoValue,
+        wrapped: &mut Vec<ObjectRef>,
+        model: &dyn ObjectModel,
+    ) {
         match value {
+            AutoValue::Object(object) => {
+                if let Some(at) = wrapped.iter().position(|target| target == object) {
+                    wrapped.swap_remove(at);
+                } else {
+                    model.released(object);
+                }
+            }
             AutoValue::Foreign(key) => {
                 let transfer = self
                     .foreign
@@ -82,7 +161,7 @@ impl State {
             }
             AutoValue::Array(array) => {
                 for value in &array.values {
-                    self.discard_result(value);
+                    self.discard_result(value, wrapped, model);
                 }
             }
             _ => {}
@@ -114,7 +193,7 @@ impl State {
         let member = Descriptor::get()
             .member(interface, "EnableEvents", InvokeKind::Get)
             .unwrap();
-        match self.call(
+        let value = self.call(
             &self.application(),
             &Call {
                 interface,
@@ -122,8 +201,10 @@ impl State {
                 args: vec![],
                 lcid: 0,
             },
-        )? {
-            AutoValue::Bool(enabled) => Ok(enabled),
+        )?;
+        let _result = self.result_values(std::slice::from_ref(&value));
+        match &value {
+            AutoValue::Bool(enabled) => Ok(*enabled),
             _ => values::mismatch(),
         }
     }
@@ -224,34 +305,16 @@ impl Projection {
     pub fn verify_layout(&self) -> Result<(), String> {
         self.state.apartment.check().map_err(message)?;
         let application = self.application()?;
-        let version = Descriptor::get()
-            .member(runtime::id("Application"), "Version", InvokeKind::Get)
-            .unwrap();
-        let hwnd = Descriptor::get()
-            .member(runtime::id("Application"), "Hwnd", InvokeKind::Get)
-            .unwrap();
         unsafe {
-            let table = *(application.as_raw() as *const *const *const c_void);
-            let get_version: unsafe extern "system" fn(
-                *mut c_void,
-                u32,
-                *mut windows::core::BSTR,
-            ) -> windows::core::HRESULT =
-                std::mem::transmute(*table.add(version.slot.unwrap() as usize)); // ubs:ignore - Function-pointer ABI and slot are checked against the descriptor and native layout tests.
-            let mut text = windows::core::BSTR::new();
-            get_version(application.as_raw(), 0, &mut text)
-                .ok()
-                .map_err(|e| e.to_string())?;
+            let mut text = ptr::null();
+            let status = runtime::call_version(application.as_raw(), 0, &mut text);
+            let text = windows::core::BSTR::from_raw(text);
+            status.ok().map_err(|e| e.to_string())?;
             if text.to_string() != "16.0" {
                 return Err("COM Version differs from the supplied application model".into());
             }
-            let get_hwnd: unsafe extern "system" fn(
-                *mut c_void,
-                *mut i32,
-            ) -> windows::core::HRESULT =
-                std::mem::transmute(*table.add(hwnd.slot.unwrap() as usize)); // ubs:ignore - Function-pointer ABI and slot are checked against the descriptor and native layout tests.
             let mut value = 0;
-            get_hwnd(application.as_raw(), &mut value)
+            runtime::call_hwnd(application.as_raw(), &mut value)
                 .ok()
                 .map_err(|e| e.to_string())?;
             if value != self.state.hwnd as i32 {
@@ -274,7 +337,8 @@ impl Projection {
         let member = Descriptor::get()
             .member(interface, "EnableEvents", InvokeKind::Put)
             .unwrap();
-        self.state
+        let value = self
+            .state
             .call(
                 &self.state.application(),
                 &Call {
@@ -284,8 +348,9 @@ impl Projection {
                     lcid: 0,
                 },
             )
-            .map(|_| ())
-            .map_err(message)
+            .map_err(message)?;
+        let _result = self.state.result_values(std::slice::from_ref(&value));
+        Ok(())
     }
     pub fn after_calculate(&self) -> Result<(), String> {
         self.raise(
@@ -304,10 +369,12 @@ impl Projection {
         let value = self
             .member(&self.state.application(), "ActiveSheet", vec![])
             .map_err(message)?;
-        let AutoValue::Object(sheet) = value else {
+        let _result = self.state.result_values(std::slice::from_ref(&value));
+        let AutoValue::Object(sheet) = &value else {
             return Err("ActiveSheet returned no worksheet".into());
         };
-        let current = self.member(&sheet, "Name", vec![]).map_err(message)?;
+        let current = self.member(sheet, "Name", vec![]).map_err(message)?;
+        let _current = self.state.result_values(std::slice::from_ref(&current));
         if current.as_text().as_deref() == Some(name) {
             Ok(())
         } else {
@@ -357,6 +424,7 @@ impl Projection {
         )
     }
     pub fn run_early(&self, name: &str) -> Result<CalcValue, String> {
+        let _arguments = self.state.argument_scope();
         let application = self.application()?;
         let name = VARIANT::from(name);
         let missing = values::to_variant(&self.state, &AutoValue::Missing).map_err(message)?;

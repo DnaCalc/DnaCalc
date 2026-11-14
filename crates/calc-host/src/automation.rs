@@ -750,9 +750,6 @@ impl ObjectModel for WorkbookAutomation {
         } else {
             self.fallback.invoke(target, call)
         };
-        if let Err(error) = &result {
-            self.record_refusal(error);
-        }
         result
     }
     fn released(&self, target: &ObjectRef) {

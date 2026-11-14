@@ -65,7 +65,7 @@ identity, the session's reference binder (`HostState::resolve_reference_text`), 
 
 - `AutoValue` (calc-object-model): Empty, Null, Missing, Bool, I2, I4, R4, R8, Currency, Date, Text
   (UTF-16, `ExcelText`), Error (CVErr number), Object (`ObjectRef`), Foreign (a client's own IDispatch,
-  held by the projection), Array (2-D, 1-based).
+  borrowed for a call unless a member explicitly takes ownership), Array (2-D, 1-based).
 - `ObjectRef { interface, key }`: the default interface and what it denotes. Workbook objects name session
   identities and are resolved on every call. A Range is a `StoredReference` handle of the session tracker
   (harvest finding 1), released when the last wrapper is released (`ObjectModel::released`).
@@ -80,9 +80,9 @@ text panics on a name the descriptor lacks.
 
 | Profile | Crate | Members (first set) |
 |---|---|---|
-| **values-only**: application members that need no workbook. DNA OneCalc uses it alone; DNA Calc's workbook profile falls back to it | `calc-object-model` (`profile::values_only`), portable, host services through a small `ApplicationHost` trait (Hwnd, Run, version) | Application: Application, Parent, Name, Version, Hwnd, Run, EnableEvents (host switch), Path, Workbooks/ActiveWorkbook/ActiveSheet as OneCalc answers them today; Caller, ThisCell, Range, Union refuse with Excel 1004 "needs a workbook: open in DNA Calc" (dc-svqh). WorksheetFunction later (its catalogue route is `UserFunctionContext::worksheet_function`) |
+| **values-only**: application members that need no workbook. DNA OneCalc uses it alone; DNA Calc's workbook profile falls back to it | `calc-object-model` (`profile::values_only`), portable, host services through a small `ApplicationHost` trait (Hwnd, Run, version) | Application: Application, Parent, Name, Version, Hwnd, Run, EnableEvents (host switch), AutomationSecurity get, Path, Workbooks/ActiveWorkbook/ActiveSheet as OneCalc answers them today; Caller, ThisCell, Range, Union refuse with Excel 1004 "needs a workbook: open in DNA Calc" (dc-svqh). WorksheetFunction later (its catalogue route is `UserFunctionContext::worksheet_function`) |
 | **workbook**: DNA Calc's workbook members | `calc_host::automation` (calc-host), over the session | Application: Range, Union, Caller, ThisCell, ActiveWorkbook, ActiveSheet, Workbooks, EnableEvents (session switch), Calculate later; Workbooks: Count, Item; Workbook: Name, FullName, Path, Worksheets later; Worksheet: Name, Range later; Range: Value (refuses formatted dates/currency until E6), Value2, Address (A1 and R1C1, absolute flags, multi-area, external), Row, Column, Count, Rows, Columns, Worksheet, Application, Parent |
-| **COM by nature** | `calc-com-host` | COMAddIns, COMAddIn (connect through IDTExtensibility2), CommandBars and controls (the bounded model), AutomationSecurity get, ribbon GetCustomUI |
+| **COM by nature** | `calc-com-host` | COMAddIns, COMAddIn (connect through IDTExtensibility2), CommandBars and controls (the bounded model), ribbon GetCustomUI |
 
 Session access for the workbook profile (calc-host): one trait the desktop implements, with three contexts:
 - **worksheet invocation** (an XLL or VBA UDF is running): reads go through that invocation's
@@ -132,7 +132,9 @@ CalcVBA session can drop its own copies later.
 - **Threading**: the projection lives on the workbook window's STA; a call from another thread is
   `RPC_E_WRONG_THREAD`.
 - **Foreign interfaces we call** (IDTExtensibility2, IRibbonExtensibility, IRtdServer) are declared with
-  the `windows` crate's `#[interface]` and checked against the descriptor by a test (IID, slot order).
+  the `windows` crate's `#[interface]` and checked against the descriptor by a test (IID, slot order,
+  and generated exact native function-pointer types for every parameter). Version/Hwnd layout
+  verification callers are generated from the descriptor too.
   The RTD update sink (IRTDUpdateEvent) is free-threaded and implemented with `#[implement]`.
 - **Rust API** kept for callers (`calc-addin-host`, the two desktop apps): `Projection::new(hwnd, host)`
   with the profile (`ObjectModel`) supplied by the application, `get_object`, `verify_layout`,
@@ -183,11 +185,14 @@ identical):
 
 - Value date/currency conversion (measured, section 9; implementation pending); multi-area and
   mismatched-shape writes (E11 assignment branches not yet run).
-- Review findings of 2026-11-14 (independent read of the night's code), being fixed by lane om-e:
-  discarded object results and client-object arguments must release their handles; Invoke positional
-  arguments must fill slots 0..k-1; EXCEPINFO sets only one of wCode/scode; interface-typed results are
-  checked against the declared interface; a refusal is recorded once; one handler per descriptor
-  member (no second name switch inside a handler); one EnableEvents switch (the session's);
-  AutomationSecurity in the values-only profile; foreign interface parameter types checked against
-  the descriptor.
+- Review findings of 2026-11-14, repaired by lane om-e with regression controls: one recursive
+  result/event cleanup releases every acquisition not owned by a wrapper; borrowed client objects
+  release at call end; Invoke positional arguments occupy slots 0..k-1; EXCEPINFO sets wCode=0 and
+  scode; typed results QueryInterface for the declared IID; only the projection records refusals;
+  the desktop ApplicationHost shares the session's EnableEvents switch; AutomationSecurity get is
+  values-only; foreign parameter types and layout verification callers come from the descriptor.
+  Native Windows regression execution remains for the coordinator; Linux tests cover argument
+  binding, refusal recording and values-only AutomationSecurity.
+- One handler per descriptor member (no second name switch inside a handler) remains open, as
+  directed by the owner for lane om-d's work.
 - x86 builds: not supported (DNA Calc ships x64).

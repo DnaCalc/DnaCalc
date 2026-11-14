@@ -2,11 +2,9 @@
 use crate::{
     projection::State,
     runtime::{Wrapper, guid},
-    values::{self, Objects, status},
+    values::{self, status},
 };
-use calc_object_model::{
-    AutoError, AutoValue, Descriptor, InterfaceId, InvokeKind, ObjectModel, ObjectRef,
-};
+use calc_object_model::{AutoError, AutoValue, Descriptor, InterfaceId, InvokeKind, ObjectRef};
 use std::{
     cell::RefCell,
     collections::{BTreeMap, HashMap},
@@ -29,50 +27,6 @@ pub(crate) struct Subscriptions {
     sinks: BTreeMap<u32, Rc<IDispatch>>,
 }
 pub(crate) type Connections = RefCell<HashMap<(ObjectRef, InterfaceId), Subscriptions>>;
-
-struct EventValues<'a> {
-    state: &'a Rc<State>,
-    model: Rc<dyn ObjectModel>,
-    pending: RefCell<Vec<ObjectRef>>,
-}
-impl EventValues<'_> {
-    fn acquire(value: &AutoValue, pending: &mut Vec<ObjectRef>) {
-        match value {
-            AutoValue::Object(object) => pending.push(object.clone()),
-            AutoValue::Array(array) => {
-                for value in &array.values {
-                    Self::acquire(value, pending);
-                }
-            }
-            _ => {}
-        }
-    }
-}
-impl Objects for EventValues<'_> {
-    fn wrap(&self, target: &ObjectRef) -> Result<IDispatch, AutoError> {
-        let wrapper = self.state.wrap(target)?;
-        let mut pending = self.pending.borrow_mut();
-        if let Some(at) = pending.iter().position(|object| object == target) {
-            pending.remove(at);
-        }
-        Ok(wrapper)
-    }
-    fn identify(&self, dispatch: &IDispatch) -> Result<AutoValue, AutoError> {
-        self.state.identify(dispatch)
-    }
-    fn foreign(&self, key: u64) -> Result<IDispatch, AutoError> {
-        self.state.foreign(key)
-    }
-}
-impl Drop for EventValues<'_> {
-    fn drop(&mut self) {
-        // Materialized arguments release through their COM wrapper. A failed conversion
-        // also releases acquisitions in the as-yet-unmarshalled arguments.
-        for object in self.pending.get_mut().drain(..) {
-            self.model.released(&object);
-        }
-    }
-}
 
 #[implement(IConnectionPoint, Agile = false)]
 struct Point {
@@ -198,15 +152,7 @@ impl State {
         args: &[AutoValue],
     ) -> Result<(), AutoError> {
         self.apartment.check()?;
-        let mut pending = Vec::new();
-        for value in args {
-            EventValues::acquire(value, &mut pending);
-        }
-        let objects = EventValues {
-            state: self,
-            model: self.model.borrow().clone(),
-            pending: RefCell::new(pending),
-        };
+        let objects = self.result_values(args);
         let mut arguments = args
             .iter()
             .map(|arg| values::to_variant(&objects, arg))

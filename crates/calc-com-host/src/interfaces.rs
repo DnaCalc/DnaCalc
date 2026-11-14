@@ -25,7 +25,7 @@ pub(crate) unsafe trait IDTExtensibility2: IDispatch {
 }
 #[interface("000C0396-0000-0000-C000-000000000046")]
 pub(crate) unsafe trait IRibbonExtensibility: IDispatch {
-    pub(crate) fn GetCustomUI(&self, ribbon: *mut c_void, result: *mut *mut c_void) -> HRESULT;
+    pub(crate) fn GetCustomUI(&self, ribbon: *const u16, result: *mut *const u16) -> HRESULT;
 }
 #[interface("EC0E6191-DB51-11D3-8F3E-00C04F3651B8")]
 pub(crate) unsafe trait IRtdServer: IDispatch {
@@ -56,10 +56,12 @@ mod tests {
     use crate::runtime::{guid, id};
     use calc_object_model::Descriptor;
     use windows::core::Interface;
+    include!(concat!(env!("OUT_DIR"), "/foreign_checks.rs"));
 
-    /// Native-only: checks the exact native foreign-interface vtables and IIDs against the descriptor.
+    /// Native-only: checks IIDs, slots and descriptor-generated exact types of every foreign parameter.
     #[test]
     pub(crate) fn foreign_iids_and_every_slot_match_the_descriptor() {
+        check_foreign_parameter_types();
         macro_rules! check {
             ($interface:ty, $name:literal, $(($field:ident, $member:literal, $slot:literal)),+ $(,)?) => {{
                 let interface = id($name);

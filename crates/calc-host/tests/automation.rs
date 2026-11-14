@@ -471,6 +471,8 @@ impl UserFunction for Probe {
             if self.refuse {
                 let r = range(&model, "A3");
                 let error = invoke(&model, &r, "Value", vec![]).unwrap_err();
+                // The projection records the refused call even if its client swallows it.
+                model.record_refusal(&error);
                 assert!(matches!(
                     error,
                     AutoError::NotModelled {
@@ -559,6 +561,48 @@ fn invocation_uses_real_evaluator_context_and_swallowed_refusal_keeps_owning_bea
             );
         }
     }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn profiles_leave_refusal_recording_to_the_projection_once_per_call() {
+    struct Refusals(Cell<u32>);
+    impl Invocation for Refusals {
+        fn call(&self, _: &mut dyn FnMut(&mut dyn UserFunctionContext) -> Reply) -> Reply {
+            self.0.set(self.0.get() + 1);
+            Ok(AutoValue::Empty)
+        }
+    }
+    let (_host, model) = setup();
+    let refusals = Refusals(Cell::new(0));
+    INVOCATION.set(&refusals, || {
+        let app = model.application();
+        let member = Descriptor::get()
+            .member(app.interface, "Iteration", InvokeKind::Get)
+            .unwrap();
+        let error = model
+            .invoke(
+                &app,
+                &Call {
+                    interface: app.interface,
+                    member,
+                    args: vec![],
+                    lcid: 0,
+                },
+            )
+            .unwrap_err();
+        assert_eq!(
+            refusals.0.get(),
+            0,
+            "profiles return the error without recording it"
+        );
+        model.record_refusal(&error);
+        assert_eq!(
+            refusals.0.get(),
+            1,
+            "the projection records the refused call exactly once"
+        );
+    });
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

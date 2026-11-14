@@ -133,17 +133,19 @@ pub(crate) unsafe extern "system" fn invoke(
         };
         let result = (|| {
             let _lease = state.office.prepare(&wrapper.target, member)?;
+            let _arguments = state.argument_scope();
             let params = unsafe { &*params };
             if params.cNamedArgs > params.cArgs
-                || (params.cArgs > 0 && params.rgvarg.is_null())
+                || params.cArgs as usize > member.arguments().count()
+            {
+                return Err(AutoError::Status(DISP_E_BADPARAMCOUNT.0));
+            }
+            if (params.cArgs > 0 && params.rgvarg.is_null())
                 || (params.cNamedArgs > 0 && params.rgdispidNamedArgs.is_null())
             {
                 return Err(AutoError::Status(E_POINTER.0));
             }
             let declared: Vec<_> = member.arguments().collect();
-            if params.cArgs as usize > declared.len() {
-                return Err(AutoError::Status(DISP_E_BADPARAMCOUNT.0));
-            }
             let raw = if params.cArgs == 0 {
                 &[]
             } else {
@@ -156,49 +158,18 @@ pub(crate) unsafe extern "system" fn invoke(
                     std::slice::from_raw_parts(params.rgdispidNamedArgs, params.cNamedArgs as usize)
                 }
             };
-            let mut args = vec![AutoValue::Missing; declared.len()];
-            let mut supplied = vec![false; declared.len()];
-            for (index, &name) in named.iter().enumerate() {
-                let at = if name == -3
-                    && matches!(member.invoke, InvokeKind::Put | InvokeKind::Putref)
-                {
-                    declared.len().checked_sub(1)
-                } else {
-                    usize::try_from(name).ok().filter(|n| *n < declared.len())
-                }
-                .ok_or(AutoError::Status(DISP_E_PARAMNOTFOUND.0))?;
-                if supplied[at] {
-                    return Err(AutoError::Status(DISP_E_PARAMNOTFOUND.0));
-                }
+            let slots = crate::arguments::bind(member, raw.len(), named).map_err(|error| {
                 if !arg_error.is_null() {
-                    unsafe { *arg_error = index as u32 };
+                    unsafe { *arg_error = error.argument as u32 };
                 }
-                args[at] = values::from_variant(&state, &raw[index])?;
-                supplied[at] = true;
-            }
-            let remaining: Vec<_> = supplied
-                .iter()
-                .enumerate()
-                .filter_map(|(i, b)| (!b).then_some(i))
-                .collect();
-            for ((raw_index, raw_value), at) in raw
-                .iter()
-                .enumerate()
-                .skip(named.len())
-                .rev()
-                .zip(remaining)
-            {
+                AutoError::Status(error.code)
+            })?;
+            let mut args = vec![AutoValue::Missing; declared.len()];
+            for (raw_index, (&slot, raw_value)) in slots.iter().zip(raw).enumerate() {
                 if !arg_error.is_null() {
                     unsafe { *arg_error = raw_index as u32 };
                 }
-                args[at] = values::from_variant(&state, raw_value)?;
-                supplied[at] = true;
-            }
-            for (param, present) in declared.iter().zip(supplied) {
-                if !present && !param.has(ParamFlag::Optional) && !param.has(ParamFlag::Hasdefault)
-                {
-                    return Err(AutoError::Status(DISP_E_BADPARAMCOUNT.0));
-                }
+                args[slot] = values::from_variant(&state, raw_value)?;
             }
             let value = state.call(
                 &wrapper.target,
@@ -209,12 +180,9 @@ pub(crate) unsafe extern "system" fn invoke(
                     lcid,
                 },
             )?;
+            let objects = state.result_values(std::slice::from_ref(&value));
             if !output.is_null() {
-                let encoded = values::result_variant(&state, &value, member);
-                state.discard_result(&value);
-                unsafe { output.write(encoded?) };
-            } else {
-                state.discard_result(&value);
+                unsafe { output.write(values::result_variant(&objects, &value, member)?) };
             }
             Ok(())
         })();
@@ -244,6 +212,7 @@ pub(crate) unsafe fn decode_slot(
     };
     let result = (|| {
         let _lease = state.office.prepare(&wrapper.target, member)?;
+        let _arguments = state.argument_scope();
         let mut args = Vec::new();
         let mut lcid = 0;
         let mut retval = None;
@@ -279,12 +248,9 @@ pub(crate) unsafe fn decode_slot(
                 lcid,
             },
         )?;
+        let objects = state.result_values(std::slice::from_ref(&value));
         if let Some((pointer, ty)) = retval {
-            let written = unsafe { write_abi(&state, pointer, &ty, &value) };
-            state.discard_result(&value);
-            written?;
-        } else {
-            state.discard_result(&value);
+            unsafe { write_abi(&objects, pointer, &ty, &value) }?;
         }
         Ok(())
     })();
@@ -385,7 +351,7 @@ unsafe fn zero_out(raw: usize, ty: &TypeRef) -> Result<(), AutoError> {
     Ok(())
 }
 unsafe fn write_abi(
-    state: &Rc<State>,
+    objects: &dyn Objects,
     raw: usize,
     ty: &TypeRef,
     value: &AutoValue,
@@ -393,7 +359,7 @@ unsafe fn write_abi(
     unsafe {
         match out_type(ty) {
             TypeRef::Base(base) if base == "VARIANT" => {
-                (raw as *mut VARIANT).write(values::to_variant(state, value)?)
+                (raw as *mut VARIANT).write(values::to_variant(objects, value)?)
             }
             TypeRef::Base(base) if base == "BSTR" => {
                 let AutoValue::Text(text) = value else {
@@ -418,13 +384,12 @@ unsafe fn write_abi(
                 }
                 _ => return values::mismatch(),
             },
-            TypeRef::Pointer(inner) if matches!(&*inner, TypeRef::Named(_)) => {
-                let object = match value {
-                    AutoValue::Object(target) => state.wrap(target)?.into_raw(),
-                    AutoValue::Foreign(key) => state.foreign(*key)?.into_raw(),
-                    AutoValue::Empty | AutoValue::Null => ptr::null_mut(),
-                    _ => return values::mismatch(),
+            TypeRef::Pointer(inner) => {
+                let TypeRef::Named(name) = &*inner else {
+                    return values::mismatch();
                 };
+                let object = values::interface_result(objects, value, name)?
+                    .map_or(ptr::null_mut(), Interface::into_raw);
                 (raw as *mut *mut c_void).write(object);
             }
             _ => return values::mismatch(),

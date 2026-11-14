@@ -7,7 +7,7 @@ use windows::{
         Foundation::*,
         System::{Com::*, Ole::*, Variant::*},
     },
-    core::{BSTR, Interface},
+    core::{BSTR, IUnknown, Interface},
 };
 
 pub(crate) fn status(error: windows::core::Error) -> AutoError {
@@ -142,19 +142,60 @@ pub(crate) fn result_variant(
     } else {
         TypeRef::parse(&member.ret).underlying()
     };
-    if matches!(value, AutoValue::Empty)
-        && matches!(result, TypeRef::Pointer(ref inner) if matches!(&**inner, TypeRef::Named(_)))
-    {
-        // A null interface retval is VT_DISPATCH with a null pointer through Invoke;
-        // a VARIANT retval containing Empty remains VT_EMPTY.
-        return Ok(tagged(
-            VT_DISPATCH,
-            VARIANT_0_0_0 {
-                pdispVal: ManuallyDrop::new(None),
-            },
-        ));
+    if let TypeRef::Pointer(inner) = result {
+        if let TypeRef::Named(name) = &*inner {
+            let object = interface_result(objects, value, name)?;
+            return Ok(if name == "IUnknown" {
+                tagged(
+                    VT_UNKNOWN,
+                    VARIANT_0_0_0 {
+                        punkVal: ManuallyDrop::new(object),
+                    },
+                )
+            } else {
+                // The declared interface derives from IDispatch; QI, not the original
+                // wrapper's default pointer, supplies the interface being returned.
+                let dispatch =
+                    object.map(|object| unsafe { IDispatch::from_raw(object.into_raw()) });
+                tagged(
+                    VT_DISPATCH,
+                    VARIANT_0_0_0 {
+                        pdispVal: ManuallyDrop::new(dispatch),
+                    },
+                )
+            });
+        }
     }
     to_variant(objects, value)
+}
+
+pub(crate) fn interface_result(
+    objects: &dyn Objects,
+    value: &AutoValue,
+    name: &str,
+) -> Result<Option<IUnknown>, AutoError> {
+    let object = match value {
+        AutoValue::Object(target) => objects.wrap(target)?,
+        AutoValue::Foreign(key) => objects.foreign(*key)?,
+        AutoValue::Empty | AutoValue::Null => return Ok(None),
+        _ => return mismatch(),
+    };
+    let iid = match name {
+        "IUnknown" => IUnknown::IID,
+        "IDispatch" => IDispatch::IID,
+        _ => {
+            let descriptor = calc_object_model::Descriptor::get();
+            let id = descriptor
+                .id(name)
+                .ok_or(AutoError::Status(E_NOINTERFACE.0))?;
+            crate::runtime::guid(descriptor.default_interface(id))
+        }
+    };
+    let mut raw = std::ptr::null_mut();
+    unsafe { object.query(&iid, &mut raw) }
+        .ok()
+        .map_err(status)?;
+    Ok(Some(unsafe { IUnknown::from_raw(raw) }))
 }
 
 /// VariantCopyInd handles every legal VT_BYREF scalar, object and array representation.

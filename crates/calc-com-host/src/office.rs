@@ -185,7 +185,7 @@ impl Office {
     }
     pub fn new(state: Weak<State>) -> Self {
         let mut handlers = Handlers::new();
-        for member in ["COMAddIns", "CommandBars", "AutomationSecurity"] {
+        for member in ["COMAddIns", "CommandBars"] {
             handlers.on("_Application", member, InvokeKind::Get, Self::application);
         }
         for role in [
@@ -337,7 +337,6 @@ impl Office {
     }
     fn application(&self, _: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
         match call.member.name.as_str() {
-            "AutomationSecurity" => Ok(AutoValue::I4(1)),
             "COMAddIns" => {
                 let addins = self.addins()?;
                 self.refresh(&addins)?;
@@ -813,11 +812,11 @@ impl Office {
                 Err(error) => return Err(status(error)),
             };
             let ribbon_id = BSTR::from("Microsoft.Excel.Workbook");
-            let mut xml: *mut std::ffi::c_void = ptr::null_mut();
-            let result = unsafe { ribbon.GetCustomUI(ribbon_id.as_ptr() as *mut _, &mut xml) }
+            let mut xml = ptr::null();
+            let result = unsafe { ribbon.GetCustomUI(ribbon_id.as_ptr(), &mut xml) }
                 .ok()
                 .map_err(status);
-            let xml = unsafe { BSTR::from_raw(xml.cast()) };
+            let xml = unsafe { BSTR::from_raw(xml) };
             drop(ribbon);
             if result.is_ok() && (generation != data.generation.get() || !data.connected.get()) {
                 return failure(E_ABORT);
@@ -966,16 +965,12 @@ mod tests {
         }
     }
     impl IRibbonExtensibility_Impl for Provider_Impl {
-        unsafe fn GetCustomUI(
-            &self,
-            _: *mut std::ffi::c_void,
-            result: *mut *mut std::ffi::c_void,
-        ) -> HRESULT {
+        unsafe fn GetCustomUI(&self, _: *const u16, result: *mut *const u16) -> HRESULT {
             if result.is_null() {
                 return E_POINTER;
             }
             unsafe {
-                *result = ptr::null_mut();
+                *result = ptr::null();
             }
             let state = self.state.upgrade().unwrap();
             if self.mode == 1 {
@@ -995,7 +990,7 @@ mod tests {
                 }
             }
             unsafe {
-                *result = BSTR::from("<customUI/>").into_raw().cast_mut().cast();
+                *result = BSTR::from("<customUI/>").into_raw();
             }
             S_OK
         }

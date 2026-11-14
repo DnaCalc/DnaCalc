@@ -10,6 +10,111 @@ fn class(ty: &TypeRef) -> &'static str {
     }
 }
 
+/// Exact native types for foreign interfaces and generated verification callers. Unlike the
+/// thunk register classes, these retain integer widths and every pointer level.
+fn native_type(ty: &TypeRef) -> String {
+    match ty.underlying() {
+        TypeRef::Base(base) => match base.as_str() {
+            "HRESULT" => "HRESULT",
+            "I4" | "INT" | "ERROR" => "i32",
+            "UI4" | "UINT" => "u32",
+            "I2" | "BOOL" => "i16",
+            "R4" => "f32",
+            "R8" | "DATE" => "f64",
+            "CY" => "i64",
+            "BSTR" => "*const u16",
+            "VARIANT" => "VARIANT",
+            other => panic!("unsupported native ABI type {other}"), // ubs:ignore - This build-script error must stop generation rather than emit an incorrect COM signature.
+        }
+        .into(),
+        TypeRef::Named(_) => "c_void".into(),
+        TypeRef::Pointer(inner) => format!("*mut {}", native_type(&inner)),
+        TypeRef::SafeArray(_) => "*mut SAFEARRAY".into(),
+        other => panic!("unsupported native ABI type {other:?}"), // ubs:ignore - Build-script-only rejection of a descriptor type without a proven native ABI mapping.
+    }
+}
+
+fn verification_callers(descriptor: &Descriptor, code: &mut String) {
+    let application = descriptor.id("_Application").unwrap();
+    for (name, caller) in [
+        ("Version", "call_version"),
+        ("Hwnd", "call_hwnd"),
+        ("ThisCell", "call_this_cell"),
+    ] {
+        let member = descriptor
+            .member(application, name, crate::descriptor::InvokeKind::Get)
+            .unwrap();
+        let types: Vec<_> = member
+            .params
+            .iter()
+            .map(|p| native_type(&p.type_ref()))
+            .collect();
+        let parameters = types
+            .iter()
+            .enumerate()
+            .map(|(i, ty)| format!("a{i}: {ty}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let arguments = (0..types.len())
+            .map(|i| format!("a{i}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        if name == "ThisCell" {
+            code.push_str("#[cfg(test)]\n");
+        }
+        writeln!(code, "pub(crate) unsafe fn {caller}(this: *mut c_void, {parameters}) -> HRESULT {{\n\
+            let table = unsafe {{ *(this as *const *const *const c_void) }};\n\
+            let function: unsafe extern \"system\" fn(*mut c_void, {signature}) -> HRESULT = unsafe {{ std::mem::transmute(*table.add({slot})) }};\n\
+            unsafe {{ function(this, {arguments}) }}\n}}", signature=types.join(","), slot=member.slot.unwrap()).unwrap();
+    }
+}
+
+fn foreign_checks(descriptor: &Descriptor, out_dir: &std::path::Path) {
+    let mut checks = String::from("fn check_foreign_parameter_types() {\n");
+    let mut coverage = Vec::new();
+    for (name, rust) in [
+        ("_IDTExtensibility2", "IDTExtensibility2"),
+        ("IRibbonExtensibility", "IRibbonExtensibility"),
+        ("IRtdServer", "IRtdServer"),
+        ("IRTDUpdateEvent", "IRTDUpdateEvent"),
+    ] {
+        let id = descriptor.id(name).unwrap();
+        writeln!(checks, "let _ = |table: &{rust}_Vtbl| {{").unwrap();
+        for member in descriptor.members(id) {
+            let field = match member.invoke {
+                crate::descriptor::InvokeKind::Put | crate::descriptor::InvokeKind::Putref => {
+                    format!("Set{}", member.name)
+                }
+                _ => member.name.clone(),
+            };
+            let parameters = member
+                .params
+                .iter()
+                .map(|p| native_type(&p.type_ref()))
+                .collect::<Vec<_>>()
+                .join(",");
+            writeln!(checks, "let _: unsafe extern \"system\" fn(*mut c_void{comma}{parameters}) -> {ret} = table.{field};",
+                comma=if parameters.is_empty() { "" } else { "," }, ret=native_type(&TypeRef::parse(&member.ret))).unwrap();
+            coverage.push(format!(
+                "({name:?}, {}, {}),",
+                member.slot.unwrap(),
+                member.params.len()
+            ));
+        }
+        checks.push_str("};\n");
+    }
+    checks.push_str("}\n");
+    std::fs::write(out_dir.join("foreign_checks.rs"), checks).unwrap();
+    std::fs::write(
+        out_dir.join("foreign_coverage.rs"),
+        format!(
+            "const FOREIGN_PARAMETERS: &[(&str, u16, usize)] = &[{}];",
+            coverage.join("")
+        ),
+    )
+    .unwrap();
+}
+
 pub fn write() {
     for file in [
         "excel.json",
@@ -22,6 +127,7 @@ pub fn write() {
     println!("cargo:rerun-if-changed=../calc-object-model/src/descriptor.rs");
     println!("cargo:rerun-if-changed=generate.rs");
     let descriptor = Descriptor::get();
+    let out_dir = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
     let mut code = String::from("// Generated from calc-object-model/descriptor. Do not edit.\n");
     let mut shapes = BTreeSet::new();
     let mut layouts = Vec::new();
@@ -101,6 +207,8 @@ pub fn write() {
         writeln!(code, "{id} => Some(&VTABLE_{id}.0),").unwrap();
     }
     code.push_str("_ => None } }\n");
+    verification_callers(descriptor, &mut code);
+    foreign_checks(descriptor, &out_dir);
     // The public run_early control must drive the generated slot with the caller's real
     // by-value VARIANT ABI. Derive its argument count and slot from that same descriptor.
     let application = descriptor.id("_Application").unwrap();

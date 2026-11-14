@@ -392,6 +392,34 @@ fn values_only_application_uses_host_and_descriptor_handlers() {
             .any(|s| s == "_Application.Run (Method)")
     );
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn automation_security_is_a_values_only_descriptor_member() {
+    let model = ValuesOnly::new(Host::default());
+    let app = model.application();
+    assert!(matches!(
+        invoke(&model, &app, "AutomationSecurity", InvokeKind::Get, vec![]).unwrap(),
+        AutoValue::I4(1)
+    ));
+    assert!(
+        model
+            .handlers()
+            .implemented()
+            .iter()
+            .any(|member| member == "_Application.AutomationSecurity (Get)")
+    );
+    assert!(matches!(
+        invoke(
+            &model,
+            &app,
+            "AutomationSecurity",
+            InvokeKind::Put,
+            vec![AutoValue::I4(3)]
+        ),
+        Err(AutoError::NotModelled { .. })
+    ));
+}
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn values_only_preserves_book1_shell_and_uniform_workbook_refusals() {

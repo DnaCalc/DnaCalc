@@ -119,6 +119,114 @@ fn recorded(inner: Rc<dyn ObjectModel>) -> Rc<Recorded> {
     })
 }
 
+struct ResultFixture {
+    reply: RefCell<AutoValue>,
+    released: RefCell<Vec<ObjectRef>>,
+}
+impl ObjectModel for ResultFixture {
+    fn application(&self) -> ObjectRef {
+        ObjectRef::new(id("Application"), ObjectKey::Application)
+    }
+    fn invoke(&self, _: &ObjectRef, _: &Call<'_>) -> Result<AutoValue, AutoError> {
+        Ok(self.reply.borrow().clone())
+    }
+    fn released(&self, object: &ObjectRef) {
+        self.released.borrow_mut().push(object.clone());
+    }
+}
+fn result_fixture(projection: &Projection, value: AutoValue) -> Rc<ResultFixture> {
+    let model = Rc::new(ResultFixture {
+        reply: RefCell::new(value),
+        released: RefCell::default(),
+    });
+    projection.bind_model(model.clone()).unwrap();
+    model
+}
+fn array(values: Vec<AutoValue>) -> AutoValue {
+    AutoValue::Array(Box::new(AutoArray {
+        rows: 1,
+        columns: values.len() as u32,
+        lower: (1, 1),
+        values,
+    }))
+}
+
+/// Native-only: discarded, partly converted and successfully delivered acquisitions use the real COM routes.
+#[test]
+fn object_results_release_once_when_discarded_failed_or_delivered() {
+    let _apartment = Apartment::new();
+    let projection = projection();
+    let range = WorkbookFixture::range();
+    let model = result_fixture(&projection, AutoValue::Object(range.clone()));
+    let app = projection.application().unwrap();
+    let member = Descriptor::get()
+        .member(id("Application"), "Caller", InvokeKind::Get)
+        .unwrap();
+    let params = DISPPARAMS::default();
+    unsafe {
+        app.Invoke(
+            member.dispid,
+            &GUID::zeroed(),
+            0,
+            DISPATCH_PROPERTYGET,
+            &params,
+            None,
+            None,
+            None,
+        )
+    }
+    .unwrap();
+    assert_eq!(&*model.released.borrow(), &[range.clone()]);
+
+    // Version has a BSTR retval. A model returning an object must fail the early-bound write
+    // and release the acquisition, even though no wrapper could be handed to the client.
+    let mut output = ptr::null();
+    assert_eq!(
+        unsafe { runtime::call_version(app.as_raw(), 0, &mut output) },
+        DISP_E_TYPEMISMATCH
+    );
+    assert!(output.is_null());
+    assert_eq!(model.released.borrow().len(), 2);
+
+    // The first occurrence becomes a wrapper before conversion fails; the two identical
+    // acquisitions still pending (one nested) must each release exactly once as well.
+    *model.reply.borrow_mut() = array(vec![
+        AutoValue::Object(range.clone()),
+        AutoValue::Foreign(u64::MAX),
+        array(vec![
+            AutoValue::Object(range.clone()),
+            AutoValue::Object(range.clone()),
+        ]),
+    ]);
+    assert_eq!(
+        call(&app, "Caller", DISPATCH_PROPERTYGET, vec![])
+            .unwrap_err()
+            .code(),
+        CO_E_OBJNOTCONNECTED
+    );
+    assert_eq!(model.released.borrow().len(), 5);
+
+    *model.reply.borrow_mut() = array(vec![
+        AutoValue::Object(range.clone()),
+        AutoValue::Object(range.clone()),
+    ]);
+    let delivered = call(&app, "Caller", DISPATCH_PROPERTYGET, vec![]).unwrap();
+    assert_eq!(
+        model.released.borrow().len(),
+        5,
+        "client owns both acquisitions"
+    );
+    drop(delivered);
+    assert_eq!(model.released.borrow().len(), 7);
+    assert!(
+        model
+            .released
+            .borrow()
+            .iter()
+            .all(|object| object == &range)
+    );
+}
+
 /// Native-only: Caller slot 74 and both Invoke exception forms must report the same Excel 1004.
 #[test]
 fn caller_and_this_cell_need_a_workbook_on_every_route() {
@@ -148,7 +256,7 @@ fn caller_and_this_cell_need_a_workbook_on_every_route() {
         }
         .unwrap_err();
         assert_eq!(failure.code(), DISP_E_EXCEPTION);
-        assert_eq!(exception.wCode, 1004);
+        assert_eq!(exception.wCode, 0);
         assert_eq!(exception.scode as u32, 0x800A03EC);
         assert_eq!(
             exception.bstrDescription.to_string(),
@@ -303,13 +411,13 @@ fn dispatch_decodes_names_reverse_order_and_byref_through_the_shared_model() {
             plVal: &mut numeric,
         },
     );
-    let mut args = [VARIANT::from(22i32), VARIANT::from("named"), byref];
+    let mut args = [VARIANT::from(22i32), byref, VARIANT::from("named")];
     let mut named = [2i32, 0];
-    let params = DISPPARAMS {
+    let mut params = DISPPARAMS {
         rgvarg: args.as_mut_ptr(),
         rgdispidNamedArgs: named.as_mut_ptr(),
         cArgs: 3,
-        cNamedArgs: 2,
+        cNamedArgs: 1,
     };
     unsafe {
         app.Invoke(
@@ -332,6 +440,30 @@ fn dispatch_decodes_names_reverse_order_and_byref_through_the_shared_model() {
     assert!(matches!(decoded[2], AutoValue::I4(22)));
     assert!(decoded[3..].iter().all(AutoValue::is_missing));
     drop(calls);
+    args[1] = VARIANT::from("named");
+    args[2] = VARIANT::from(11i32);
+    params.cNamedArgs = 2;
+    let mut argument_error = u32::MAX;
+    let count = model.calls.borrow().len();
+    assert_eq!(
+        unsafe {
+            app.Invoke(
+                ids[0],
+                &GUID::zeroed(),
+                1033,
+                DISPATCH_METHOD,
+                &params,
+                None,
+                None,
+                Some(&mut argument_error),
+            )
+        }
+        .unwrap_err()
+        .code(),
+        DISP_E_PARAMNOTFOUND
+    );
+    assert_eq!(argument_error, 2);
+    assert_eq!(model.calls.borrow().len(), count);
     call(
         &app,
         "EnableEvents",
@@ -611,10 +743,16 @@ struct EventState {
     calculations: Cell<u32>,
     retained: RefCell<Option<IDispatch>>,
     remove: RefCell<Option<(IConnectionPoint, u32)>>,
+    drops: Cell<u32>,
 }
 #[implement(AppEvents, Agile = false)]
 struct EventProbe {
     state: Rc<EventState>,
+}
+impl Drop for EventProbe {
+    fn drop(&mut self) {
+        self.state.drops.set(self.state.drops.get() + 1);
+    }
 }
 impl AppEvents_Impl for EventProbe_Impl {}
 impl IDispatch_Impl for EventProbe_Impl {
@@ -679,6 +817,84 @@ impl IDispatch_Impl for EventProbe_Impl {
             }
         }
         Ok(())
+    }
+}
+
+/// Native-only: clients' objects borrowed by an Invoke call die at call end, including partial argument conversion.
+#[test]
+fn borrowed_client_objects_release_after_success_and_conversion_failure() {
+    let _apartment = Apartment::new();
+    for fail in [false, true] {
+        let projection = projection();
+        result_fixture(&projection, AutoValue::Empty);
+        let app = projection.application().unwrap();
+        let lifetime = Rc::new(EventState::default());
+        let provider: AppEvents = EventProbe {
+            state: lifetime.clone(),
+        }
+        .into();
+        let foreign = VARIANT::from(provider.cast::<IDispatch>().unwrap());
+        let invalid = values::tagged(VT_I8, VARIANT_0_0_0 { llVal: 7 });
+        let args = if fail {
+            // Invoke converts raw arguments in DISPPARAMS order: foreign first, then bad I8.
+            vec![invalid, foreign]
+        } else {
+            let nested =
+                values::to_variant(&projection.state, &array(vec![AutoValue::I4(1)])).unwrap();
+            unsafe {
+                SafeArrayPutElement(
+                    nested.Anonymous.Anonymous.Anonymous.parray,
+                    [1, 1].as_ptr(),
+                    (&foreign as *const VARIANT).cast(),
+                )
+            }
+            .unwrap();
+            drop(foreign);
+            vec![VARIANT::from("macro"), nested]
+        };
+        let result = call(&app, "Run", DISPATCH_METHOD, args);
+        if fail {
+            assert_eq!(result.unwrap_err().code(), DISP_E_TYPEMISMATCH);
+        } else {
+            result.unwrap();
+        }
+        assert_eq!(lifetime.drops.get(), 0);
+        drop(provider);
+        assert_eq!(
+            lifetime.drops.get(),
+            1,
+            "no lease may remain until projection shutdown"
+        );
+    }
+}
+
+/// Native-only: the generated Run vtable call releases borrowed client objects on success and decode failure.
+#[test]
+fn borrowed_client_objects_release_on_the_early_bound_route() {
+    let _apartment = Apartment::new();
+    for fail in [false, true] {
+        let projection = projection();
+        result_fixture(&projection, AutoValue::Empty);
+        let app = projection.application().unwrap();
+        let lifetime = Rc::new(EventState::default());
+        let provider: AppEvents = EventProbe {
+            state: lifetime.clone(),
+        }
+        .into();
+        let foreign = VARIANT::from(provider.cast::<IDispatch>().unwrap());
+        let optional = if fail {
+            values::tagged(VT_I8, VARIANT_0_0_0 { llVal: 7 })
+        } else {
+            values::to_variant(&projection.state, &AutoValue::Missing).unwrap()
+        };
+        let mut output = VARIANT::default();
+        assert_eq!(
+            unsafe { runtime::call_run(app.as_raw(), &foreign, &optional, &mut output) },
+            if fail { DISP_E_TYPEMISMATCH } else { S_OK }
+        );
+        drop(foreign);
+        drop(provider);
+        assert_eq!(lifetime.drops.get(), 1);
     }
 }
 
@@ -973,6 +1189,104 @@ fn empty_excel_descriptions_clear_previous_error_information() {
         0x800A03EC
     );
     assert!(unsafe { GetErrorInfo(0) }.is_err());
+}
+
+/// Native-only: EXCEPINFO must select scode, including non-1004 Excel errors and explicit HRESULTs.
+#[test]
+fn exception_information_uses_only_scode_and_preserves_the_error_description() {
+    let _apartment = Apartment::new();
+    for (error, expected) in [
+        (
+            AutoError::not_modelled("_Application.Iteration", "dc-1nbp.5"),
+            0x800A03EC,
+        ),
+        (AutoError::excel(424, "Object required"), 0x800A01A8),
+        (
+            AutoError::excel(0x8002000Au32 as i32, "Overflow"),
+            0x8002000A,
+        ),
+    ] {
+        let mut exception = EXCEPINFO::default();
+        assert_eq!(runtime::error(&error, &mut exception), DISP_E_EXCEPTION);
+        assert_eq!(exception.wCode, 0);
+        assert_eq!(exception.scode as u32, expected);
+        assert_eq!(exception.bstrDescription.to_string(), error.description());
+        unsafe { crate::events::clear_exception(&mut exception) };
+        assert_eq!(runtime::error(&error, ptr::null_mut()).0 as u32, expected);
+    }
+}
+
+/// Native-only: a typed object retval must answer its declared IID on Invoke and on the vtable route.
+#[test]
+fn typed_object_results_query_the_declared_interface_before_returning() {
+    let _apartment = Apartment::new();
+    let projection = projection();
+    let wrong = ObjectRef::new(id("Application"), ObjectKey::Application);
+    let model = result_fixture(&projection, AutoValue::Object(wrong.clone()));
+    let app = projection.application().unwrap();
+    assert_eq!(
+        call(&app, "ThisCell", DISPATCH_PROPERTYGET, vec![])
+            .unwrap_err()
+            .code(),
+        E_NOINTERFACE
+    );
+    let mut output = ptr::dangling_mut::<c_void>();
+    assert_eq!(
+        unsafe { runtime::call_this_cell(app.as_raw(), &mut output) },
+        E_NOINTERFACE
+    );
+    assert!(output.is_null());
+    assert_eq!(&*model.released.borrow(), &[wrong.clone(), wrong]);
+
+    let range = WorkbookFixture::range();
+    *model.reply.borrow_mut() = AutoValue::Object(range.clone());
+    let delivered = dispatch(get(&app, "ThisCell"));
+    let mut typed = ptr::null_mut();
+    unsafe { delivered.query(&guid(id("Range")), &mut typed) }
+        .ok()
+        .unwrap();
+    drop(unsafe { IUnknown::from_raw(typed) });
+    drop(delivered);
+    assert_eq!(model.released.borrow().last(), Some(&range));
+
+    // Office's Add declares CommandBarControl*, but returns a derived popup interface.
+    let bars = dispatch(get(&app, "CommandBars"));
+    let bar = dispatch(
+        call(
+            &bars,
+            "Item",
+            DISPATCH_PROPERTYGET,
+            vec![VARIANT::from(1i32)],
+        )
+        .unwrap(),
+    );
+    let controls = dispatch(get(&bar, "Controls"));
+    let popup = dispatch(
+        call(
+            &controls,
+            "Add",
+            DISPATCH_METHOD,
+            vec![VARIANT::from(10i32)],
+        )
+        .unwrap(),
+    );
+    let mut base = ptr::null_mut();
+    unsafe { popup.query(&guid(id("CommandBarControl")), &mut base) }
+        .ok()
+        .unwrap();
+    drop(unsafe { IUnknown::from_raw(base) });
+}
+
+/// Native-only: Office composition must let the supplied semantic profile answer AutomationSecurity.
+#[test]
+fn automation_security_get_is_dispatched_to_the_supplied_profile() {
+    let _apartment = Apartment::new();
+    let projection = projection();
+    let model = result_fixture(&projection, AutoValue::I4(3));
+    let app = projection.application().unwrap();
+    assert_eq!(i32::try_from(&get(&app, "AutomationSecurity")).unwrap(), 3);
+    *model.reply.borrow_mut() = AutoValue::I4(1);
+    assert_eq!(i32::try_from(&get(&app, "AutomationSecurity")).unwrap(), 1);
 }
 
 /// Native-only: lossless UTF-16, Currency/Date/Null and CVErr use the one Automation converter.

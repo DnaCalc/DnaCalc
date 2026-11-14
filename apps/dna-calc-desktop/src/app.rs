@@ -31,6 +31,7 @@ struct DesktopAutomationHost {
     application: Rc<dyn calc_object_model::profile::ApplicationHost>,
     native: std::rc::Weak<calc_xll_host::XllHost>,
     server: std::rc::Weak<RefCell<Server>>,
+    events: RefCell<Rc<Cell<bool>>>,
 }
 impl calc_object_model::profile::ApplicationHost for DesktopAutomationHost {
     fn hwnd(&self) -> isize {
@@ -44,10 +45,10 @@ impl calc_object_model::profile::ApplicationHost for DesktopAutomationHost {
         self.application.run(name, args)
     }
     fn events_enabled(&self) -> bool {
-        self.application.events_enabled()
+        self.events.borrow().get()
     }
     fn set_events_enabled(&self, enabled: bool) {
-        self.application.set_events_enabled(enabled);
+        self.events.borrow().set(enabled);
     }
     fn path(&self) -> Result<String, calc_object_model::AutoError> {
         self.application.path()
@@ -96,6 +97,7 @@ impl calc_host::automation::AutomationHost for DesktopAutomationHost {
         call(server.book().session())
     }
     fn context_changed(&self, session: &calc_host::HostSession) {
+        self.events.replace(session.workbook_events_switch());
         if let Some(native) = self.native.upgrade() {
             let active = session
                 .selection()
@@ -131,6 +133,7 @@ fn bind_automation(
         application: projection.application_host(),
         native: Rc::downgrade(&addins.native_handle()),
         server: Rc::downgrade(server),
+        events: RefCell::new(server.borrow().book().session().workbook_events_switch()),
     });
     let model = Rc::new(calc_host::automation::WorkbookAutomation::new(host));
     projection.bind_model(model.clone())?;
@@ -1014,6 +1017,48 @@ Open the download page now?"
 
 #[cfg(test)]
 mod tests {
+    /// Native-only: the desktop host shares the session switch even while the server is borrowed.
+    #[test]
+    fn automation_host_enable_events_uses_the_session_switch_during_callbacks() {
+        use calc_host::automation::AutomationHost;
+        use calc_object_model::profile::ApplicationHost;
+        let application =
+            calc_com_host::Projection::new(1, Rc::new(calc_xll_host::XllHost::new(1))).unwrap();
+        let application = application.application_host();
+        application.set_events_enabled(true);
+        let server = Rc::new(RefCell::new(Server::new()));
+        let events = server.borrow().book().session().workbook_events_switch();
+        let host = DesktopAutomationHost {
+            application: application.clone(),
+            native: std::rc::Weak::new(),
+            server: Rc::downgrade(&server),
+            events: RefCell::new(events.clone()),
+        };
+        let callback = server.borrow_mut();
+        callback
+            .book()
+            .session()
+            .workbook_events_switch()
+            .set(false);
+        assert!(!host.events_enabled());
+        host.set_events_enabled(true);
+        assert!(callback.book().session().workbook_events_enabled());
+        assert!(application.events_enabled());
+        host.set_events_enabled(false);
+        assert!(!callback.book().session().workbook_events_enabled());
+        assert!(
+            application.events_enabled(),
+            "DNA Calc never writes the values-only host switch"
+        );
+        drop(callback);
+        let replacement = Server::new();
+        host.context_changed(replacement.book().session());
+        assert!(host.events_enabled());
+        host.set_events_enabled(false);
+        assert!(!replacement.book().session().workbook_events_enabled());
+        assert!(!events.get());
+    }
+
     /// Native-only: creates the native projection and server used by the page.
     #[test]
     fn object_model_follows_the_page_session_selection_identity_and_references() {
