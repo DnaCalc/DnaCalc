@@ -14,6 +14,7 @@ use calc_object_model::geometry::{self, AddressOptions, RangeAxis};
 use calc_object_model::profile::{
     ApplicationHost,
     values_only::{ValuesOnly, object},
+    worksheet_function,
 };
 use calc_object_model::{
     AutoArray, AutoError, AutoValue, Call, EventSource, Handlers, InvokeKind, ObjectKey,
@@ -31,6 +32,8 @@ use std::{
 
 const OWNER: &str = "dc-0f1k.24";
 type Reply = Result<AutoValue, AutoError>;
+mod mutation;
+mod navigation;
 
 /// The application supplies access, never a copied value reader. `None` means no admitted
 /// worksheet invocation; `Some(Err(..))` must never fall back to the command route.
@@ -40,6 +43,14 @@ pub trait AutomationHost: ApplicationHost {
         call: &mut dyn FnMut(&mut dyn UserFunctionContext) -> Reply,
     ) -> Option<Reply>;
     fn with_session(&self, call: &mut dyn FnMut(&HostSession) -> Reply) -> Reply;
+    /// A command lends the same session mutably for Automation ingress. Hosts that only
+    /// expose reads explicitly refuse writes until they supply this callback.
+    fn with_session_mut(&self, _call: &mut dyn FnMut(&mut HostSession) -> Reply) -> Reply {
+        Err(AutoError::not_modelled(
+            "Automation mutable command session",
+            "dc-1nbp.5",
+        ))
+    }
     /// The desktop uses this metadata notification to name sheets for the native C API too.
     fn context_changed(&self, _session: &HostSession) {}
 }
@@ -49,8 +60,24 @@ pub fn busy() -> AutoError {
 }
 
 scoped_tls_hkt::scoped_thread_local!(static EVENT_SESSION: for<'a> (
-    &'a WorkbookAutomation, &'a HostSession
+    &'a WorkbookAutomation, &'a (dyn EventSession + 'a)
 ));
+
+trait EventSession {
+    fn read(&self, call: &mut dyn FnMut(&HostSession) -> Reply) -> Reply;
+    fn write(&self, call: &mut dyn FnMut(&mut HostSession) -> Reply) -> Reply;
+}
+struct EventLoan<'a>(RefCell<&'a mut HostSession>);
+impl EventSession for EventLoan<'_> {
+    fn read(&self, call: &mut dyn FnMut(&HostSession) -> Reply) -> Reply {
+        let session = self.0.try_borrow().map_err(|_| busy())?;
+        call(&session)
+    }
+    fn write(&self, call: &mut dyn FnMut(&mut HostSession) -> Reply) -> Reply {
+        let mut session = self.0.try_borrow_mut().map_err(|_| busy())?;
+        call(&mut session)
+    }
+}
 
 struct Snapshot {
     model: Arc<ModelRoot>,
@@ -141,6 +168,15 @@ impl WorkbookAutomation {
         handlers.on("Application", "Union", InvokeKind::Method, Self::union);
         handlers.on(
             "Application",
+            "WorksheetFunction",
+            InvokeKind::Get,
+            Self::worksheet_functions,
+        );
+        worksheet_function::register(&mut handlers, Self::worksheet_functions);
+        Self::register_navigation(&mut handlers);
+        Self::register_mutation(&mut handlers);
+        handlers.on(
+            "Application",
             "EnableEvents",
             InvokeKind::Put,
             Self::put_events,
@@ -156,6 +192,85 @@ impl WorkbookAutomation {
     }
     pub fn handlers(&self) -> &Handlers<Self> {
         &self.handlers
+    }
+    /// The workbook profile includes values-only fallback members.
+    pub fn coverage(&self) -> String {
+        self.handlers
+            .coverage("workbook", &self.fallback.handlers().implemented())
+    }
+    fn worksheet_functions(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
+        if call.member.invoke == InvokeKind::Get {
+            no_args(call)?;
+            return Ok(match call.member.name.as_str() {
+                "WorksheetFunction" => {
+                    AutoValue::Object(object("WorksheetFunction", ObjectKey::WorksheetFunction))
+                }
+                "Application" | "Parent" => AutoValue::Object(self.application()),
+                "Creator" => AutoValue::I4(0x5843_454C),
+                _ => return Err(AutoError::not_modelled(call.label(), OWNER)),
+            });
+        }
+        self.with_access(|access| {
+            let access = RefCell::new(access);
+            worksheet_function::dispatch(
+                call,
+                |value| match value {
+                    AutoValue::Object(ObjectRef {
+                        key:
+                            ObjectKey::Range(held)
+                            | ObjectKey::RangeView {
+                                reference: held, ..
+                            },
+                        ..
+                    }) => self
+                        .resolve(&mut access.borrow_mut(), held)
+                        .map(CalcValue::reference),
+                    _ => worksheet_function::to_calc(value),
+                },
+                |name, args| match &mut *access.borrow_mut() {
+                    Access::Invocation(context) => {
+                        context.worksheet_function(name, args).map_err(|why| {
+                            AutoError::not_modelled(
+                                format!("WorksheetFunction.{}: {why}", call.member.name),
+                                "dc-1nbp.5",
+                            )
+                        })
+                    }
+                    Access::Session(session) => {
+                        let target = calc_func::catalogue()
+                            .resolve_surface(calc_func::Notation::Call, name)
+                            .map_err(|_| AutoError::not_modelled(call.label(), "dc-1nbp.5"))?;
+                        let args = args
+                            .iter()
+                            .enumerate()
+                            .map(|(i, v)| {
+                                if target.parameter_class(i)
+                                    == Some(calc_func::ParameterClass::Value)
+                                {
+                                    if let Some(r) = v.as_reference() {
+                                        if r.area_count() != 1 || r.areas()[0].cell_count() != 1 {
+                                            return Err(AutoError::not_modelled(
+                                                "WorksheetFunction scalar Range argument",
+                                                "dc-1nbp.6",
+                                            ));
+                                        }
+                                        return read_session(session, r.areas()[0]);
+                                    }
+                                }
+                                Ok(v.clone())
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
+                        let environment = session.host().entry_environment();
+                        let numeric = session.host().recalc_context().numeric;
+                        let mut reader = SessionCells(session);
+                        let mut services =
+                            calc_func::EvalServices::with_cells(&numeric, &mut reader)
+                                .with_environment(&environment);
+                        worksheet_function::catalogue_call(name, &args, &mut services)
+                    }
+                },
+            )
+        })
     }
     pub fn observer(self: &Rc<Self>, events: Rc<dyn EventSource>) -> Rc<dyn WorkbookEventObserver> {
         Rc::new(AutomationObserver {
@@ -223,8 +338,12 @@ impl WorkbookAutomation {
                 if !std::ptr::eq(model, self) {
                     return None;
                 }
-                self.context_changed(loan);
-                Some(call(Access::Session(loan)))
+                let status = loan.read(&mut |session| {
+                    self.context_changed(session);
+                    value = Some(call(Access::Session(session)));
+                    Ok(AutoValue::Empty)
+                });
+                Some(status.and_then(|_| value.take().expect("event callback called once")))
             });
             if let Some(result) = result {
                 return result;
@@ -240,7 +359,10 @@ impl WorkbookAutomation {
     }
     fn validate(&self, target: &ObjectRef, meta: &Snapshot) -> Result<(), AutoError> {
         let workbook = match target.key {
-            ObjectKey::Workbook(id) | ObjectKey::Sheets(id) => Some(id),
+            ObjectKey::Workbook(id)
+            | ObjectKey::Sheets(id)
+            | ObjectKey::Names(id)
+            | ObjectKey::Name { workbook: id, .. } => Some(id),
             ObjectKey::Worksheet { workbook, sheet } => {
                 if meta.model.sheet_by_id(sheet).is_none() {
                     return Err(AutoError::not_modelled("Worksheet was deleted", OWNER));
@@ -297,6 +419,7 @@ impl WorkbookAutomation {
         access: &mut Access<'_>,
         meta: &Snapshot,
         value: &AutoValue,
+        sheet: Option<SheetId>,
     ) -> Result<ReferenceLike, AutoError> {
         match value {
             AutoValue::Object(ObjectRef {
@@ -305,26 +428,28 @@ impl WorkbookAutomation {
             }) => self.resolve(access, reference),
             AutoValue::Text(_) => {
                 let text = value.as_text().unwrap();
-                let at = match access {
-                    Access::Invocation(context) => context
-                        .user_view()
-                        .map(|view| view.selection)
-                        .or(meta.active),
-                    _ => meta.active,
-                }
-                .ok_or_else(|| {
-                    AutoError::not_modelled("Application.Range without an active worksheet", OWNER)
-                })?;
+                let at = sheet
+                    .and_then(|sheet| CellKey::new(sheet, 1, 1).ok())
+                    .or_else(|| match access {
+                        Access::Invocation(context) => context
+                            .user_view()
+                            .map(|view| view.selection)
+                            .or(meta.active),
+                        _ => meta.active,
+                    })
+                    .ok_or_else(|| {
+                        AutoError::not_modelled(
+                            "Application.Range without an active worksheet",
+                            OWNER,
+                        )
+                    })?;
                 let target = match access {
                     Access::Session(session) => session.host().resolve_reference_text(at, &text),
                     _ => crate::resolve_reference_text(&meta.model, at, &text),
                 };
                 match target {
                     ReferenceTarget::Area(area) => Ok(ReferenceLike::area(area)),
-                    ReferenceTarget::Invalid => Err(AutoError::excel(
-                        1004,
-                        "Range address names no workbook range",
-                    )),
+                    ReferenceTarget::Invalid => Err(AutoError::excel(1004, "")),
                     _ => Err(AutoError::not_modelled(
                         "Application.Range address form",
                         OWNER,
@@ -334,6 +459,52 @@ impl WorkbookAutomation {
             _ => Err(geometry::type_mismatch()),
         }
     }
+    fn get_range(
+        &self,
+        access: &mut Access<'_>,
+        meta: &Snapshot,
+        sheet: Option<SheetId>,
+        call: &Call<'_>,
+    ) -> Reply {
+        if call.args.is_empty() || call.args.len() > 2 {
+            return Err(geometry::bad_count());
+        }
+        let mut range = self.range_argument(access, meta, call.arg(0), sheet)?;
+        if sheet.is_some_and(|sheet| range.sheet() != sheet) {
+            return Err(AutoError::excel(1004, ""));
+        }
+        if !call.arg(1).is_missing() {
+            if matches!(
+                call.arg(1),
+                AutoValue::Empty | AutoValue::Null | AutoValue::Error(_) | AutoValue::Bool(_)
+            ) {
+                return Err(AutoError::excel(1004, ""));
+            }
+            let second = self.range_argument(access, meta, call.arg(1), sheet)?;
+            if range.sheet() != second.sheet()
+                || range.area_count() != 1
+                || second.area_count() != 1
+            {
+                return Err(AutoError::excel(1004, ""));
+            }
+            let a = range.areas()[0];
+            let b = second.areas()[0];
+            let first = CellKey::new(
+                a.sheet(),
+                a.first().row().min(b.first().row()),
+                a.first().column().min(b.first().column()),
+            )
+            .expect("valid endpoints");
+            let last = CellKey::new(
+                a.sheet(),
+                a.last().row().max(b.last().row()),
+                a.last().column().max(b.last().column()),
+            )
+            .expect("valid endpoints");
+            range = ReferenceLike::area(GridArea::new(first, last).expect("same worksheet"));
+        }
+        self.acquire(access, &range, RangeAxis::Cells)
+    }
     fn get(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.with_access(|mut access| {
             let meta = self.metadata()?;
@@ -341,51 +512,7 @@ impl WorkbookAutomation {
             let name = call.member.name.as_str();
             match &target.key {
                 ObjectKey::Application => match name {
-                    "Range" => {
-                        if call.args.is_empty() || call.args.len() > 2 {
-                            return Err(geometry::bad_count());
-                        }
-                        let mut range = self.range_argument(&mut access, &meta, call.arg(0))?;
-                        if !call.arg(1).is_missing() {
-                            if matches!(
-                                call.arg(1),
-                                AutoValue::Empty
-                                    | AutoValue::Null
-                                    | AutoValue::Error(_)
-                                    | AutoValue::Bool(_)
-                            ) {
-                                return Err(AutoError::excel(1004, ""));
-                            }
-                            let second = self.range_argument(&mut access, &meta, call.arg(1))?;
-                            if range.sheet() != second.sheet()
-                                || range.area_count() != 1
-                                || second.area_count() != 1
-                            {
-                                return Err(AutoError::excel(
-                                    1004,
-                                    "Range endpoints must be single areas on one worksheet",
-                                ));
-                            }
-                            let a = range.areas()[0];
-                            let b = second.areas()[0];
-                            let first = CellKey::new(
-                                a.sheet(),
-                                a.first().row().min(b.first().row()),
-                                a.first().column().min(b.first().column()),
-                            )
-                            .expect("valid endpoints");
-                            let last = CellKey::new(
-                                a.sheet(),
-                                a.last().row().max(b.last().row()),
-                                a.last().column().max(b.last().column()),
-                            )
-                            .expect("valid endpoints");
-                            range = ReferenceLike::area(
-                                GridArea::new(first, last).expect("same worksheet"),
-                            );
-                        }
-                        self.acquire(&mut access, &range, RangeAxis::Cells)
-                    }
+                    "Range" => self.get_range(&mut access, &meta, None, call),
                     "Caller" | "ThisCell" => {
                         if (name == "ThisCell" && !call.args.is_empty()) || call.args.len() > 1 {
                             return Err(geometry::bad_count());
@@ -722,20 +849,7 @@ impl ObjectModel for WorkbookAutomation {
         self.fallback.application()
     }
     fn invoke(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        let result = if matches!(
-            target.key,
-            ObjectKey::Range(_) | ObjectKey::RangeView { .. }
-        ) && matches!(call.member.name.as_str(), "Value" | "Value2")
-            && matches!(call.member.invoke, InvokeKind::Put | InvokeKind::Putref)
-        {
-            self.with_access(|access| match access {
-                Access::Invocation(_) => Err(AutoError::excel(
-                    1004,
-                    "Application-defined or object-defined error",
-                )),
-                Access::Session(_) => Err(AutoError::not_modelled(call.label(), "dc-1nbp.6")),
-            })
-        } else if let Some(handler) = self.handlers.get(call.interface, call.member) {
+        let result = if let Some(handler) = self.handlers.get(call.interface, call.member) {
             handler(self, target, call)
         } else {
             self.fallback.invoke(target, call)
@@ -746,7 +860,10 @@ impl ObjectModel for WorkbookAutomation {
         result
     }
     fn released(&self, target: &ObjectRef) {
-        if let ObjectKey::Range(reference) | ObjectKey::RangeView { reference, .. } = &target.key {
+        if let ObjectKey::Range(reference)
+        | ObjectKey::RangeView { reference, .. }
+        | ObjectKey::Areas(reference) = &target.key
+        {
             let mut ranges = self.ranges.borrow_mut();
             if let Some(entry) = ranges.get_mut(reference) {
                 entry.references.release(reference);
@@ -808,8 +925,8 @@ impl WorkbookEventObserver for AutomationObserver {
             )),
             value,
         ];
-        let loan = &*session;
-        let result = EVENT_SESSION.set((&*self.model, loan), || {
+        let loan = EventLoan(RefCell::new(session));
+        let result = EVENT_SESSION.set((&*self.model, &loan), || {
             self.events
                 .raise(&self.model.application(), "AppEvents", "SheetChange", &args)
         });
@@ -817,9 +934,9 @@ impl WorkbookEventObserver for AutomationObserver {
     }
     fn after_calculate(&self, session: &mut HostSession) -> Result<(), String> {
         self.model.context_changed(session);
-        let loan = &*session;
+        let loan = EventLoan(RefCell::new(session));
         EVENT_SESSION
-            .set((&*self.model, loan), || {
+            .set((&*self.model, &loan), || {
                 self.events.raise(
                     &self.model.application(),
                     "AppEvents",
@@ -876,6 +993,12 @@ fn auto_value(value: &CalcValue) -> Reply {
     })
 }
 fn read_session(session: &HostSession, area: GridArea) -> Result<CalcValue, AutoError> {
+    if area.cell_count() > 1_048_576 {
+        return Err(AutoError::not_modelled(
+            "Automation range materialization limit",
+            OWNER,
+        ));
+    }
     let mut cells = Vec::with_capacity(area.cell_count() as usize);
     for row in area.first().row()..=area.last().row() {
         for col in area.first().column()..=area.last().column() {
@@ -918,4 +1041,34 @@ fn read_session(session: &HostSession, area: GridArea) -> Result<CalcValue, Auto
     )
     .map(CalcValue::array)
     .ok_or_else(|| AutoError::not_modelled("Range.Value array shape", OWNER))
+}
+
+struct SessionCells<'a>(&'a HostSession);
+impl calc_func::CellReader for SessionCells<'_> {
+    fn read_area(
+        &mut self,
+        area: GridArea,
+        visit: &mut dyn FnMut(CellKey, &CalcValue) -> std::ops::ControlFlow<()>,
+    ) -> Result<(), calc_func::Unreadable> {
+        let value = read_session(self.0, area).map_err(|_| calc_func::Unreadable)?;
+        if let Some(array) = value.as_array() {
+            for (index, value) in array.iter_row_major().enumerate() {
+                let at = CellKey::new(
+                    area.sheet(),
+                    area.first().row() + index as u32 / area.column_count(),
+                    area.first().column() + index as u32 % area.column_count(),
+                )
+                .expect("area cell");
+                if visit(at, value).is_break() {
+                    break;
+                }
+            }
+        } else {
+            let _ = visit(area.first(), &value);
+        }
+        Ok(())
+    }
+    fn subtotal_exclusions(&mut self, _: GridArea) -> Option<calc_func::SubtotalExclusions> {
+        None
+    }
 }

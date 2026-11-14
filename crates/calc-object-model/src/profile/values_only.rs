@@ -2,11 +2,11 @@
 
 use super::ApplicationHost;
 use crate::geometry::{self, AddressOptions, RangeAxis, bad_count, boolean, type_mismatch};
-use calc_func::StoredReference;
-use calc_value::ReferenceLike;
 use crate::{
     AutoError, AutoValue, Call, Descriptor, Handlers, InvokeKind, ObjectKey, ObjectModel, ObjectRef,
 };
+use calc_func::StoredReference;
+use calc_value::ReferenceLike;
 
 pub struct ValuesOnly<H: ApplicationHost> {
     host: H,
@@ -42,6 +42,7 @@ impl<H: ApplicationHost> ValuesOnly<H> {
                     "Caller",
                     "ThisCell",
                     "Range",
+                    "WorksheetFunction",
                 ][..],
             ),
             (
@@ -69,7 +70,14 @@ impl<H: ApplicationHost> ValuesOnly<H> {
         // Event targets of a host without a workbook model (the command-line harness) are
         // inline references: their geometry answers here, their values need a workbook.
         for name in [
-            "Address", "Row", "Column", "Count", "Worksheet", "Application", "Parent", "Value",
+            "Address",
+            "Row",
+            "Column",
+            "Count",
+            "Worksheet",
+            "Application",
+            "Parent",
+            "Value",
             "Value2",
         ] {
             handlers.on("Range", name, InvokeKind::Get, Self::range);
@@ -87,6 +95,7 @@ impl<H: ApplicationHost> ValuesOnly<H> {
             InvokeKind::Put,
             Self::put_events,
         );
+        super::worksheet_function::register(&mut handlers, Self::worksheet_function);
         Self { host, handlers }
     }
     pub fn host(&self) -> &H {
@@ -94,6 +103,29 @@ impl<H: ApplicationHost> ValuesOnly<H> {
     }
     pub fn handlers(&self) -> &Handlers<Self> {
         &self.handlers
+    }
+    fn worksheet_function(&self, _: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
+        if call.member.invoke == InvokeKind::Get {
+            if !call.args.is_empty() {
+                return Err(bad_count());
+            }
+            return Ok(match call.member.name.as_str() {
+                "Application" | "Parent" => AutoValue::Object(self.application()),
+                "Creator" => AutoValue::I4(0x5843_454C),
+                _ => return Err(AutoError::not_modelled(call.label(), "dc-1nbp.5")),
+            });
+        }
+        super::worksheet_function::dispatch(
+            call,
+            super::worksheet_function::to_calc,
+            |name, args| {
+                super::worksheet_function::catalogue_call(
+                    name,
+                    args,
+                    &mut calc_func::EvalServices::new(&calc_value::NumericMode::default()),
+                )
+            },
+        )
     }
     fn needs_workbook(_: &Self, _: &ObjectRef, _: &Call<'_>) -> Result<AutoValue, AutoError> {
         Err(AutoError::excel(1004, "needs a workbook: open in DNA Calc"))
@@ -130,6 +162,9 @@ impl<H: ApplicationHost> ValuesOnly<H> {
             return Err(bad_count());
         }
         Ok(match name {
+            "WorksheetFunction" => {
+                AutoValue::Object(object("WorksheetFunction", ObjectKey::WorksheetFunction))
+            }
             "Application" => AutoValue::Object(self.application()),
             "Parent" => AutoValue::Object(match target.key {
                 ObjectKey::Worksheet { workbook, .. } => {
@@ -140,7 +175,11 @@ impl<H: ApplicationHost> ValuesOnly<H> {
             "Name" => AutoValue::text(match target.key {
                 ObjectKey::Application => "Microsoft Excel",
                 ObjectKey::Workbook(_) => "Book1",
-                ObjectKey::Worksheet { .. } => return Ok(AutoValue::text(&self.host.shell_sheet().unwrap_or_default())),
+                ObjectKey::Worksheet { .. } => {
+                    return Ok(AutoValue::text(
+                        &self.host.shell_sheet().unwrap_or_default(),
+                    ));
+                }
                 _ => return Err(AutoError::not_modelled(call.label(), "dc-1nbp.5")),
             }),
             "Version" => AutoValue::text("16.0"),
@@ -176,7 +215,10 @@ impl<H: ApplicationHost> ValuesOnly<H> {
         let shell = || {
             object(
                 "Worksheet",
-                ObjectKey::Worksheet { workbook: 0, sheet: reference.areas()[0].sheet() },
+                ObjectKey::Worksheet {
+                    workbook: 0,
+                    sheet: reference.areas()[0].sheet(),
+                },
             )
         };
         match call.member.name.as_str() {
@@ -185,11 +227,16 @@ impl<H: ApplicationHost> ValuesOnly<H> {
                 if options.external || options.relative_to.is_some() {
                     return Err(AutoError::not_modelled(call.label(), "dc-1nbp.5"));
                 }
-                Ok(AutoValue::text(&geometry::address(reference, options, None)?))
+                Ok(AutoValue::text(&geometry::address(
+                    reference, options, None,
+                )?))
             }
             "Row" => Ok(AutoValue::I4(geometry::row(reference) as i32)),
             "Column" => Ok(AutoValue::I4(geometry::column(reference) as i32)),
-            "Count" => Ok(geometry::count_value(geometry::count(reference, RangeAxis::Cells))),
+            "Count" => Ok(geometry::count_value(geometry::count(
+                reference,
+                RangeAxis::Cells,
+            ))),
             "Worksheet" | "Parent" => Ok(AutoValue::Object(shell())),
             "Application" => Ok(AutoValue::Object(self.application())),
             _ => Self::needs_workbook(self, target, call),

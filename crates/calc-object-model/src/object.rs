@@ -4,7 +4,7 @@
 
 use crate::descriptor::InterfaceId;
 use calc_func::StoredReference;
-use calc_value::SheetId;
+use calc_value::{NameId, SheetId};
 
 /// An object of the model: the interface it answers as, and what it denotes.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -33,6 +33,8 @@ pub enum ObjectKey {
     /// A range: a handle of the session's reference tracker (calc-fml `ReferenceTracker`), so it
     /// follows structural edits and fails typed when its cells are deleted.
     Range(StoredReference),
+    /// Areas owns one acquisition of the original tracked range, preserving area order.
+    Areas(StoredReference),
     /// Rows/Columns preserve the range's areas; Count uses the first area's axis length.
     RangeView {
         reference: StoredReference,
@@ -41,7 +43,7 @@ pub enum ObjectKey {
     Names(u64),
     Name {
         workbook: u64,
-        index: u32,
+        id: NameId,
     },
     WorksheetFunction,
     /// An object a projection owns by nature (COMAddIns, CommandBars, ribbon objects): the

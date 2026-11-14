@@ -6,6 +6,7 @@ use crate::model::AutoError;
 use crate::value::AutoValue;
 
 pub mod values_only;
+pub mod worksheet_function;
 
 /// What the application (the desktop shell and its add-in host) supplies to the values-only
 /// members. Implemented by `calc-com-host`/`calc-addin-host` over the window and `XllHost`.
