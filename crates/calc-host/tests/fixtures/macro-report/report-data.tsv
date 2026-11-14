@@ -1,0 +1,6 @@
+Region	Q1	Q2	Total
+North	10	20	=B2+C2
+South	30	40	=B3+C3
+East	50	60	=B4+C4
+West	70	80	=B5+C5
+Central	90	100	=B6+C6
