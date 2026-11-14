@@ -6,11 +6,36 @@ use calc_value::{ArrayShape, CalcArray, CalcValue, CoreRef, WorksheetErrorCode};
 
 const OWNER: &str = "dc-1nbp.5";
 
-pub fn register<C>(handlers: &mut Handlers<C>, handler: Handler<C>) {
+pub fn register<C>(
+    handlers: &mut Handlers<C>,
+    method: Handler<C>,
+    application: Handler<C>,
+    creator: Handler<C>,
+) {
     let d = Descriptor::get();
     for member in d.members(d.id("WorksheetFunction").unwrap()) {
-        handlers.on("WorksheetFunction", &member.name, member.invoke, handler);
+        if member.invoke == crate::InvokeKind::Method {
+            handlers.on("WorksheetFunction", &member.name, member.invoke, method);
+        }
     }
+    handlers.on(
+        "WorksheetFunction",
+        "Application",
+        crate::InvokeKind::Get,
+        application,
+    );
+    handlers.on(
+        "WorksheetFunction",
+        "Parent",
+        crate::InvokeKind::Get,
+        application,
+    );
+    handlers.on(
+        "WorksheetFunction",
+        "Creator",
+        crate::InvokeKind::Get,
+        creator,
+    );
 }
 
 /// COM spells dotted catalogue names with underscores (Norm_S_Dist, T_Dist_2T).

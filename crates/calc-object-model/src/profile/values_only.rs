@@ -25,64 +25,129 @@ pub fn object(interface: &str, key: ObjectKey) -> ObjectRef {
 impl<H: ApplicationHost> ValuesOnly<H> {
     pub fn new(host: H) -> Self {
         let mut handlers = Handlers::new();
-        for (interface, names) in [
-            (
-                "Application",
-                &[
-                    "Application",
-                    "Parent",
-                    "Name",
-                    "Version",
-                    "Hwnd",
-                    "EnableEvents",
-                    "AutomationSecurity",
-                    "Path",
-                    "Workbooks",
-                    "ActiveWorkbook",
-                    "ActiveSheet",
-                    "Caller",
-                    "ThisCell",
-                    "Range",
-                    "WorksheetFunction",
-                ][..],
-            ),
-            (
-                "Workbooks",
-                &["Application", "Parent", "Count", "Item", "_Default"][..],
-            ),
-            (
-                "Workbook",
-                &[
-                    "Application",
-                    "Parent",
-                    "Name",
-                    "FullName",
-                    "Path",
-                    "ActiveSheet",
-                ][..],
-            ),
-            ("Worksheet", &["Application", "Parent", "Name"][..]),
-            ("Window", &["Application", "Parent", "Hwnd"][..]),
-        ] {
-            for name in names {
-                handlers.on(interface, name, InvokeKind::Get, Self::get);
-            }
-        }
-        // Event targets of a host without a workbook model (the command-line harness) are
-        // inline references: their geometry answers here, their values need a workbook.
-        for name in [
-            "Address",
-            "Row",
-            "Column",
-            "Count",
+        handlers.on(
+            "Application",
+            "Application",
+            InvokeKind::Get,
+            Self::application_member,
+        );
+        handlers.on("Application", "Parent", InvokeKind::Get, Self::parent);
+        handlers.on(
+            "Workbooks",
+            "Application",
+            InvokeKind::Get,
+            Self::application_member,
+        );
+        handlers.on("Workbooks", "Parent", InvokeKind::Get, Self::parent);
+        handlers.on(
+            "Workbook",
+            "Application",
+            InvokeKind::Get,
+            Self::application_member,
+        );
+        handlers.on("Workbook", "Parent", InvokeKind::Get, Self::parent);
+        handlers.on(
             "Worksheet",
             "Application",
-            "Parent",
-            "Value",
-            "Value2",
-        ] {
-            handlers.on("Range", name, InvokeKind::Get, Self::range);
-        }
+            InvokeKind::Get,
+            Self::application_member,
+        );
+        handlers.on("Worksheet", "Parent", InvokeKind::Get, Self::parent);
+        handlers.on(
+            "Window",
+            "Application",
+            InvokeKind::Get,
+            Self::application_member,
+        );
+        handlers.on("Window", "Parent", InvokeKind::Get, Self::parent);
+        handlers.on(
+            "Application",
+            "Name",
+            InvokeKind::Get,
+            Self::application_name,
+        );
+        handlers.on("Application", "Version", InvokeKind::Get, Self::version);
+        handlers.on("Application", "Hwnd", InvokeKind::Get, Self::hwnd);
+        handlers.on("Application", "EnableEvents", InvokeKind::Get, Self::events);
+        handlers.on(
+            "Application",
+            "AutomationSecurity",
+            InvokeKind::Get,
+            Self::security,
+        );
+        handlers.on(
+            "Application",
+            "Path",
+            InvokeKind::Get,
+            Self::application_path,
+        );
+        handlers.on("Application", "Workbooks", InvokeKind::Get, Self::workbooks);
+        handlers.on(
+            "Application",
+            "ActiveWorkbook",
+            InvokeKind::Get,
+            Self::active_workbook,
+        );
+        handlers.on(
+            "Application",
+            "ActiveSheet",
+            InvokeKind::Get,
+            Self::active_sheet,
+        );
+        handlers.on(
+            "Application",
+            "Caller",
+            InvokeKind::Get,
+            Self::needs_workbook,
+        );
+        handlers.on(
+            "Application",
+            "ThisCell",
+            InvokeKind::Get,
+            Self::needs_workbook,
+        );
+        handlers.on(
+            "Application",
+            "Range",
+            InvokeKind::Get,
+            Self::needs_workbook,
+        );
+        handlers.on(
+            "Application",
+            "WorksheetFunction",
+            InvokeKind::Get,
+            Self::functions,
+        );
+        handlers.on("Workbooks", "Count", InvokeKind::Get, Self::count);
+        handlers.on("Workbooks", "Item", InvokeKind::Get, Self::item);
+        handlers.on("Workbooks", "_Default", InvokeKind::Get, Self::item);
+        handlers.on("Workbook", "Name", InvokeKind::Get, Self::book_name);
+        handlers.on("Workbook", "FullName", InvokeKind::Get, Self::book_name);
+        handlers.on("Workbook", "Path", InvokeKind::Get, Self::book_path);
+        handlers.on(
+            "Workbook",
+            "ActiveSheet",
+            InvokeKind::Get,
+            Self::active_sheet,
+        );
+        handlers.on("Worksheet", "Name", InvokeKind::Get, Self::sheet_name);
+        handlers.on("Window", "Hwnd", InvokeKind::Get, Self::hwnd);
+        // Event targets of a host without a workbook model (the command-line harness) are
+        // inline references: their geometry answers here, their values need a workbook.
+        handlers.on("Range", "Address", InvokeKind::Get, Self::range_address);
+        handlers.on("Range", "Row", InvokeKind::Get, Self::range_row);
+        handlers.on("Range", "Column", InvokeKind::Get, Self::range_column);
+        handlers.on("Range", "Count", InvokeKind::Get, Self::range_count);
+        handlers.on("Range", "Worksheet", InvokeKind::Get, Self::range_sheet);
+        handlers.on(
+            "Range",
+            "Application",
+            InvokeKind::Get,
+            Self::range_application,
+        );
+        handlers.on("Range", "Parent", InvokeKind::Get, Self::range_sheet);
+        handlers.on("Range", "Value", InvokeKind::Get, Self::needs_workbook);
+        handlers.on("Range", "Value2", InvokeKind::Get, Self::needs_workbook);
         handlers.on("Application", "Run", InvokeKind::Method, Self::run);
         handlers.on(
             "Application",
@@ -96,7 +161,12 @@ impl<H: ApplicationHost> ValuesOnly<H> {
             InvokeKind::Put,
             Self::put_events,
         );
-        super::worksheet_function::register(&mut handlers, Self::worksheet_function);
+        super::worksheet_function::register(
+            &mut handlers,
+            Self::worksheet_function,
+            Self::application_member,
+            Self::creator,
+        );
         Self { host, handlers }
     }
     pub fn host(&self) -> &H {
@@ -106,16 +176,6 @@ impl<H: ApplicationHost> ValuesOnly<H> {
         &self.handlers
     }
     fn worksheet_function(&self, _: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
-        if call.member.invoke == InvokeKind::Get {
-            if !call.args.is_empty() {
-                return Err(bad_count());
-            }
-            return Ok(match call.member.name.as_str() {
-                "Application" | "Parent" => AutoValue::Object(self.application()),
-                "Creator" => AutoValue::I4(0x5843_454C),
-                _ => return Err(AutoError::not_modelled(call.label(), "dc-1nbp.5")),
-            });
-        }
         super::worksheet_function::dispatch(
             call,
             super::worksheet_function::to_calc,
@@ -131,121 +191,194 @@ impl<H: ApplicationHost> ValuesOnly<H> {
     fn needs_workbook(_: &Self, _: &ObjectRef, _: &Call<'_>) -> Result<AutoValue, AutoError> {
         Err(AutoError::excel(1004, "needs a workbook: open in DNA Calc"))
     }
-    fn get(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
-        let name = call.member.name.as_str();
-        if matches!(target.key, ObjectKey::Application)
-            && matches!(name, "Caller" | "ThisCell" | "Range")
-        {
-            return Self::needs_workbook(self, target, call);
+    fn no_args(call: &Call<'_>) -> Result<(), AutoError> {
+        if call.args.is_empty() {
+            Ok(())
+        } else {
+            Err(bad_count())
         }
-        if matches!(target.key, ObjectKey::Workbooks) && matches!(name, "Item" | "_Default") {
-            if call.args.len() != 1 {
-                return Err(bad_count());
+    }
+    pub fn application_member(
+        &self,
+        _: &ObjectRef,
+        call: &Call<'_>,
+    ) -> Result<AutoValue, AutoError> {
+        Self::no_args(call)?;
+        Ok(AutoValue::Object(self.application()))
+    }
+    fn parent(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
+        Self::no_args(call)?;
+        Ok(AutoValue::Object(match target.key {
+            ObjectKey::Worksheet { workbook, .. } => {
+                object("Workbook", ObjectKey::Workbook(workbook))
             }
-            let found = match call.arg(0) {
-                AutoValue::Text(_) => call.arg(0).as_text().unwrap().eq_ignore_ascii_case("Book1"),
-                AutoValue::I2(n) => *n == 1,
-                AutoValue::I4(n) => *n == 1,
-                AutoValue::R8(n) => *n == 1.,
-                AutoValue::R4(n) => *n == 1.,
-                _ => false,
-            };
-            return if found {
-                Ok(AutoValue::Object(object(
-                    "Workbook",
-                    ObjectKey::Workbook(0),
-                )))
-            } else {
-                Err(AutoError::Status(0x8002_000Bu32 as i32))
-            };
-        }
-        if !call.args.is_empty() {
+            ObjectKey::Window => object("Workbook", ObjectKey::Workbook(0)),
+            _ => self.application(),
+        }))
+    }
+    /// Shared Workbooks.Item parsing; the workbook profile supplies its current name and identity.
+    pub fn workbook_item(
+        call: &Call<'_>,
+        name: &str,
+        workbook: u64,
+    ) -> Result<AutoValue, AutoError> {
+        if call.args.len() != 1 {
             return Err(bad_count());
         }
-        Ok(match name {
-            "WorksheetFunction" => {
-                AutoValue::Object(object("WorksheetFunction", ObjectKey::WorksheetFunction))
-            }
-            "Application" => AutoValue::Object(self.application()),
-            "Parent" => AutoValue::Object(match target.key {
-                ObjectKey::Worksheet { workbook, .. } => {
-                    object("Workbook", ObjectKey::Workbook(workbook))
-                }
-                // A workbook window's Parent is its workbook, as Excel's is; xlOil's COM connect
-                // reads Window.Parent as a _Workbook for its Application (Connect.cpp).
-                ObjectKey::Window => object("Workbook", ObjectKey::Workbook(0)),
-                _ => self.application(),
-            }),
-            "Name" => AutoValue::text(match target.key {
-                ObjectKey::Application => "Microsoft Excel",
-                ObjectKey::Workbook(_) => "Book1",
-                ObjectKey::Worksheet { .. } => {
-                    return Ok(AutoValue::text(
-                        &self.host.shell_sheet().unwrap_or_default(),
-                    ));
-                }
-                _ => return Err(AutoError::not_modelled(call.label(), "dc-1nbp.5")),
-            }),
-            "Version" => AutoValue::text("16.0"),
-            "Hwnd" => AutoValue::I4(self.host.hwnd() as i32),
-            "Path" if matches!(target.key, ObjectKey::Application) => {
-                AutoValue::text(&self.host.path()?)
-            }
-            "Path" => AutoValue::text(""),
-            "FullName" => AutoValue::text("Book1"),
-            "EnableEvents" => AutoValue::Bool(self.host.events_enabled()),
-            "AutomationSecurity" => AutoValue::I4(1),
-            "Workbooks" => AutoValue::Object(object("Workbooks", ObjectKey::Workbooks)),
-            "Count" => AutoValue::I4(1),
-            "ActiveWorkbook" => AutoValue::Object(object("Workbook", ObjectKey::Workbook(0))),
-            // The Book1 shell has a worksheet only when the host names one (the workbook harness).
-            "ActiveSheet" => match self.host.shell_sheet() {
-                Some(_) => AutoValue::Object(object(
-                    "Worksheet",
-                    ObjectKey::Worksheet {
-                        workbook: 0,
-                        sheet: calc_value::SheetId::from_parts(0, 0),
-                    },
-                )),
-                None => return Err(AutoError::not_modelled(call.label(), "dc-svqh")),
-            },
-            _ => return Err(AutoError::not_modelled(call.label(), "dc-1nbp.5")),
-        })
-    }
-    fn range(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
-        let ObjectKey::Range(StoredReference::Inline(reference)) = &target.key else {
-            return Self::needs_workbook(self, target, call);
+        let found = match call.arg(0) {
+            AutoValue::Text(text) => text.to_string_lossy().eq_ignore_ascii_case(name),
+            AutoValue::I2(n) => *n == 1,
+            AutoValue::I4(n) => *n == 1,
+            AutoValue::R8(n) => *n == 1.,
+            AutoValue::R4(n) => *n == 1.,
+            _ => false,
         };
-        let reference: &ReferenceLike = reference;
-        let shell = || {
-            object(
+        if found {
+            Ok(AutoValue::Object(object(
+                "Workbook",
+                ObjectKey::Workbook(workbook),
+            )))
+        } else {
+            Err(AutoError::Status(0x8002_000Bu32 as i32))
+        }
+    }
+    fn item(&self, _: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
+        Self::workbook_item(call, "Book1", 0)
+    }
+    fn application_name(&self, _: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
+        Self::no_args(call)?;
+        Ok(AutoValue::text("Microsoft Excel"))
+    }
+    fn version(&self, _: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
+        Self::no_args(call)?;
+        Ok(AutoValue::text("16.0"))
+    }
+    fn hwnd(&self, _: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
+        Self::no_args(call)?;
+        Ok(AutoValue::I4(self.host.hwnd() as i32))
+    }
+    fn events(&self, _: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
+        Self::no_args(call)?;
+        Ok(AutoValue::Bool(self.host.events_enabled()))
+    }
+    fn security(&self, _: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
+        Self::no_args(call)?;
+        Ok(AutoValue::I4(1))
+    }
+    fn application_path(&self, _: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
+        Self::no_args(call)?;
+        Ok(AutoValue::text(&self.host.path()?))
+    }
+    fn workbooks(&self, _: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
+        Self::no_args(call)?;
+        Ok(AutoValue::Object(object("Workbooks", ObjectKey::Workbooks)))
+    }
+    fn active_workbook(&self, _: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
+        Self::no_args(call)?;
+        Ok(AutoValue::Object(object(
+            "Workbook",
+            ObjectKey::Workbook(0),
+        )))
+    }
+    fn book_name(&self, _: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
+        Self::no_args(call)?;
+        Ok(AutoValue::text("Book1"))
+    }
+    fn book_path(&self, _: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
+        Self::no_args(call)?;
+        Ok(AutoValue::text(""))
+    }
+    fn sheet_name(&self, _: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
+        Self::no_args(call)?;
+        Ok(AutoValue::text(
+            &self.host.shell_sheet().unwrap_or_default(),
+        ))
+    }
+    fn functions(&self, _: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
+        Self::no_args(call)?;
+        Ok(AutoValue::Object(object(
+            "WorksheetFunction",
+            ObjectKey::WorksheetFunction,
+        )))
+    }
+    fn creator(&self, _: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
+        Self::no_args(call)?;
+        Ok(AutoValue::I4(0x5843_454C))
+    }
+    fn count(&self, _: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
+        Self::no_args(call)?;
+        Ok(AutoValue::I4(1))
+    }
+    fn active_sheet(&self, _: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
+        Self::no_args(call)?;
+        match self.host.shell_sheet() {
+            Some(_) => Ok(AutoValue::Object(object(
                 "Worksheet",
                 ObjectKey::Worksheet {
                     workbook: 0,
-                    sheet: reference.areas()[0].sheet(),
+                    sheet: calc_value::SheetId::from_parts(0, 0),
                 },
-            )
-        };
-        match call.member.name.as_str() {
-            "Address" => {
-                let options = AddressOptions::from_call(call)?;
-                if options.external || options.relative_to.is_some() {
-                    return Err(AutoError::not_modelled(call.label(), "dc-1nbp.5"));
-                }
-                Ok(AutoValue::text(&geometry::address(
-                    reference, options, None,
-                )?))
-            }
-            "Row" => Ok(AutoValue::I4(geometry::row(reference) as i32)),
-            "Column" => Ok(AutoValue::I4(geometry::column(reference) as i32)),
-            "Count" => Ok(geometry::count_value(geometry::count(
-                reference,
-                RangeAxis::Cells,
             ))),
-            "Worksheet" | "Parent" => Ok(AutoValue::Object(shell())),
-            "Application" => Ok(AutoValue::Object(self.application())),
-            _ => Self::needs_workbook(self, target, call),
+            None => Err(AutoError::not_modelled(call.label(), "dc-svqh")),
         }
+    }
+    fn inline_range<'a>(
+        &self,
+        target: &'a ObjectRef,
+        call: &Call<'_>,
+    ) -> Result<&'a ReferenceLike, AutoError> {
+        match &target.key {
+            ObjectKey::Range(StoredReference::Inline(reference)) => Ok(reference),
+            _ => Err(Self::needs_workbook(self, target, call).unwrap_err()),
+        }
+    }
+    fn range_address(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
+        let reference = self.inline_range(target, call)?;
+        let options = AddressOptions::from_call(call)?;
+        if options.external || options.relative_to.is_some() {
+            return Err(AutoError::not_modelled(call.label(), "dc-1nbp.5"));
+        }
+        Ok(AutoValue::text(&geometry::address(
+            reference, options, None,
+        )?))
+    }
+    fn range_row(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
+        let reference = self.inline_range(target, call)?;
+        let _ = reference;
+        Ok(AutoValue::I4(geometry::row(reference) as i32))
+    }
+    fn range_column(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
+        let reference = self.inline_range(target, call)?;
+        let _ = reference;
+        Ok(AutoValue::I4(geometry::column(reference) as i32))
+    }
+    fn range_count(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
+        let reference = self.inline_range(target, call)?;
+        let _ = reference;
+        Ok(geometry::count_value(geometry::count(
+            reference,
+            RangeAxis::Cells,
+        )))
+    }
+    fn range_sheet(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
+        let reference = self.inline_range(target, call)?;
+        let _ = reference;
+        Ok(AutoValue::Object(object(
+            "Worksheet",
+            ObjectKey::Worksheet {
+                workbook: 0,
+                sheet: reference.sheet(),
+            },
+        )))
+    }
+    fn range_application(
+        &self,
+        target: &ObjectRef,
+        call: &Call<'_>,
+    ) -> Result<AutoValue, AutoError> {
+        let reference = self.inline_range(target, call)?;
+        let _ = reference;
+        Ok(AutoValue::Object(self.application()))
     }
     fn put_events(&self, _: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
         if call.args.len() != 1 {
