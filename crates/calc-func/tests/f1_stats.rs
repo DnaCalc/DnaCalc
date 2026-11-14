@@ -1370,6 +1370,15 @@ fn order_statistics() {
     exact(call("LARGE", vec![data(), n(2.0)]), 7.0);
     exact(call("SMALL", vec![data(), n(2.0)]), 4.0);
     error(call("LARGE", vec![data(), n(9.0)]), Num);
+    let just_above_one = f64::from_bits(1.0_f64.to_bits() + 1);
+    for function in ["LARGE", "SMALL"] {
+        error(call(function, vec![n(8.0), n(just_above_one)]), Num);
+        error(call(function, vec![arr(vec![vec![8.0]]), n(just_above_one)]), Num);
+    }
+    let three = arr(vec![vec![1.0, 2.0, 3.0]]);
+    exact(call("LARGE", vec![three.clone(), n(just_above_one)]), 3.0);
+    exact(call("LARGE", vec![three.clone(), n(1.3)]), 2.0);
+    exact(call("SMALL", vec![three, n(1.3)]), 1.0);
     let five = arr(vec![vec![1.0, 2.0, 3.0, 4.0, 5.0]]);
     close(
         call("PERCENTILE.INC", vec![five.clone(), n(0.3)]),
