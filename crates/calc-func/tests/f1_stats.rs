@@ -1514,6 +1514,24 @@ fn regressions() {
     );
 }
 
+/// Excel 20527: a numeric 2x2 TREND history is read as four paired observations.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn trend_paired_matrix_history() {
+    let bits = [
+        0x404a_af0c_9431_a3c1, 0x4031_f571_8006_0f5d,
+        0x403f_c8e2_4131_fbf4, 0x4058_4b0e_fa94_f509,
+        0xc058_dfb0_5640_c362, 0xc040_8496_6ac6_03ec,
+        0x4054_f604_5798_131c, 0xc03b_9664_a2b7_2888,
+        0xc04e_f916_434c_408b, 0xc057_2ec8_7fad_e8ea,
+        0x4026_1adb_6780_82b8, 0xc040_5dc0_a2ba_76e0,
+    ].map(f64::from_bits);
+    let matrix = |i| arr(vec![vec![bits[i], bits[i + 1]], vec![bits[i + 2], bits[i + 3]]]);
+    let (rows, cols, cells) = array(call("TREND", vec![matrix(0), matrix(4), matrix(8), b(false)]));
+    assert_eq!((rows, cols), (2, 2));
+    assert_eq!(cells[0].to_bits(), 0x4033_859c_5529_f914);
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn regression_discards_a_predictor_below_the_dot_product_roundoff_bound() {
