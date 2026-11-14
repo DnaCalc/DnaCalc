@@ -1,0 +1,87 @@
+cases excel=6 dna=6
+MATCH    =X0.Hello("start")           excel=Hello, start dna=Hello, start
+MATCH    =X0.Hello("rectangle")       excel=Hello, rectangle dna=Hello, rectangle
+MATCH    =X0.Hello("areas")           excel=Hello, areas dna=Hello, areas
+MATCH    =X0.Hello("off")             excel=Hello, off dna=Hello, off
+MATCH    =X0.Hello("on")              excel=Hello, on dna=Hello, on
+MATCH    =X0.Hello("single")          excel=Hello, single dna=Hello, single
+fixture event lines excel=39 dna=39
+MATCH    excel: COM Workbook identity | name=Book2;full=Book2;path=;active=X0
+         dna:   COM Workbook identity | name=Book2;full=Book2;path=;active=X0
+MATCH    excel: AppEvents AfterCalculate | called
+         dna:   AppEvents AfterCalculate | called
+MATCH    excel: AppEvents SheetChange Target | book=Book2;full=Book2;path=;sheet=X0;target=$A$1;count=1;value2=Double:7
+         dna:   AppEvents SheetChange Target | book=Book2;full=Book2;path=;sheet=X0;target=$A$1;count=1;value2=Double:7
+MATCH    excel: AppEvents SheetChange | sheet=X0;target=$A$1
+         dna:   AppEvents SheetChange | sheet=X0;target=$A$1
+MATCH    excel: Hello | start
+         dna:   Hello | start
+MATCH    excel: AppEvents SheetCalculate | sheet
+         dna:   AppEvents SheetCalculate | sheet
+MATCH    excel: AppEvents AfterCalculate | called
+         dna:   AppEvents AfterCalculate | called
+MATCH    excel: AppEvents SheetChange Target | book=Book2;full=Book2;path=;sheet=X0;target=$B$3;count=1;value2=String:Hello, start
+         dna:   AppEvents SheetChange Target | book=Book2;full=Book2;path=;sheet=X0;target=$B$3;count=1;value2=String:Hello, start
+MATCH    excel: AppEvents SheetChange | received
+         dna:   AppEvents SheetChange | received
+MATCH    excel: AppEvents AfterCalculate | called
+         dna:   AppEvents AfterCalculate | called
+MATCH    excel: AppEvents SheetChange Target | book=Book2;full=Book2;path=;sheet=X0;target=$A$1:$B$2;count=4;value2=2x2@1,1:Double:9,Double:9,Double:9,Double:9
+         dna:   AppEvents SheetChange Target | book=Book2;full=Book2;path=;sheet=X0;target=$A$1:$B$2;count=4;value2=2x2@1,1:Double:9,Double:9,Double:9,Double:9
+MATCH    excel: AppEvents SheetChange | received
+         dna:   AppEvents SheetChange | received
+MATCH    excel: Hello | rectangle
+         dna:   Hello | rectangle
+MATCH    excel: AppEvents SheetCalculate | sheet
+         dna:   AppEvents SheetCalculate | sheet
+MATCH    excel: AppEvents AfterCalculate | called
+         dna:   AppEvents AfterCalculate | called
+MATCH    excel: AppEvents SheetChange Target | book=Book2;full=Book2;path=;sheet=X0;target=$B$3;count=1;value2=String:Hello, rectangle
+         dna:   AppEvents SheetChange Target | book=Book2;full=Book2;path=;sheet=X0;target=$B$3;count=1;value2=String:Hello, rectangle
+MATCH    excel: AppEvents SheetChange | received
+         dna:   AppEvents SheetChange | received
+MATCH    excel: AppEvents AfterCalculate | called
+         dna:   AppEvents AfterCalculate | called
+MATCH    excel: AppEvents SheetChange Target | book=Book2;full=Book2;path=;sheet=X0;target=$A$1,$C$1:$C$2;count=3;value2=Double:5
+         dna:   AppEvents SheetChange Target | book=Book2;full=Book2;path=;sheet=X0;target=$A$1,$C$1:$C$2;count=3;value2=Double:5
+MATCH    excel: AppEvents SheetChange | received
+         dna:   AppEvents SheetChange | received
+MATCH    excel: Hello | areas
+         dna:   Hello | areas
+MATCH    excel: AppEvents SheetCalculate | sheet
+         dna:   AppEvents SheetCalculate | sheet
+MATCH    excel: AppEvents AfterCalculate | called
+         dna:   AppEvents AfterCalculate | called
+MATCH    excel: AppEvents SheetChange Target | book=Book2;full=Book2;path=;sheet=X0;target=$B$3;count=1;value2=String:Hello, areas
+         dna:   AppEvents SheetChange Target | book=Book2;full=Book2;path=;sheet=X0;target=$B$3;count=1;value2=String:Hello, areas
+MATCH    excel: AppEvents SheetChange | received
+         dna:   AppEvents SheetChange | received
+MATCH    excel: Hello | off
+         dna:   Hello | off
+MATCH    excel: Hello | on
+         dna:   Hello | on
+MATCH    excel: AppEvents SheetCalculate | sheet
+         dna:   AppEvents SheetCalculate | sheet
+MATCH    excel: AppEvents AfterCalculate | called
+         dna:   AppEvents AfterCalculate | called
+MATCH    excel: AppEvents SheetChange Target | book=Book2;full=Book2;path=;sheet=X0;target=$B$3;count=1;value2=String:Hello, on
+         dna:   AppEvents SheetChange Target | book=Book2;full=Book2;path=;sheet=X0;target=$B$3;count=1;value2=String:Hello, on
+MATCH    excel: AppEvents SheetChange | received
+         dna:   AppEvents SheetChange | received
+MATCH    excel: AppEvents AfterCalculate | called
+         dna:   AppEvents AfterCalculate | called
+MATCH    excel: AppEvents SheetChange Target | book=Book2;full=Book2;path=;sheet=X0;target=$A$1;count=1;value2=Double:11
+         dna:   AppEvents SheetChange Target | book=Book2;full=Book2;path=;sheet=X0;target=$A$1;count=1;value2=Double:11
+MATCH    excel: AppEvents SheetChange | received
+         dna:   AppEvents SheetChange | received
+MATCH    excel: Hello | single
+         dna:   Hello | single
+MATCH    excel: AppEvents SheetCalculate | sheet
+         dna:   AppEvents SheetCalculate | sheet
+MATCH    excel: AppEvents AfterCalculate | called
+         dna:   AppEvents AfterCalculate | called
+MATCH    excel: AppEvents SheetChange Target | book=Book2;full=Book2;path=;sheet=X0;target=$B$3;count=1;value2=String:Hello, single
+         dna:   AppEvents SheetChange Target | book=Book2;full=Book2;path=;sheet=X0;target=$B$3;count=1;value2=String:Hello, single
+MATCH    excel: AppEvents SheetChange | received
+         dna:   AppEvents SheetChange | received
+TOTAL matched=45 mismatched=0

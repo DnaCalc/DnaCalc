@@ -378,6 +378,9 @@ impl EventSource for Events {
             self.calculated.set(self.calculated.get() + 1);
             return Ok(());
         }
+        if event == "SheetCalculate" {
+            return Ok(());
+        }
         assert_eq!(event, "SheetChange");
         assert_eq!(args.len(), 2);
         let target = obj(args[1].clone());
@@ -439,6 +442,13 @@ fn events_read_target_in_borrowed_session_preserve_all_areas_and_share_switch() 
         host.session.borrow_mut().advance_calculation();
     }
     assert_eq!(events.calculated.get(), 1);
+    // Calculate Now with nothing left to calculate is still a completed calculation: Excel raises
+    // AfterCalculate for it (an empty workbook's Calculate acknowledges xlOil's start, X4).
+    host.session.borrow_mut().dispatch(SkinIntent::Recalculate);
+    while host.session.borrow().has_pending_calculation() {
+        host.session.borrow_mut().advance_calculation();
+    }
+    assert_eq!(events.calculated.get(), 2);
     invoke_kind(
         &model,
         &model.application(),
@@ -450,6 +460,104 @@ fn events_read_target_in_borrowed_session_preserve_all_areas_and_share_switch() 
     enter(&host, at(&host, 10, 1), "8");
     assert_eq!(events.changes.borrow().len(), 1);
     host.session.borrow_mut().set_workbook_event_observer(None);
+}
+
+/// Records the AppEvents raised, with the worksheet name a SheetCalculate carries.
+struct Names {
+    model: Weak<WorkbookAutomation>,
+    raised: RefCell<Vec<String>>,
+}
+impl EventSource for Names {
+    fn raise(
+        &self,
+        _: &ObjectRef,
+        _: &str,
+        event: &str,
+        args: &[AutoValue],
+    ) -> Result<(), AutoError> {
+        let model = self.model.upgrade().unwrap();
+        let name = match event {
+            "SheetCalculate" => {
+                assert_eq!(args.len(), 1);
+                format!(
+                    "SheetCalculate {}",
+                    text(&model, &obj(args[0].clone()), "Name")
+                )
+            }
+            _ => event.to_owned(),
+        };
+        self.raised.borrow_mut().push(name);
+        Ok(())
+    }
+}
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn sheet_calculate_reaches_the_projection_before_after_calculate_and_obeys_the_switch() {
+    // Excel-DNA's AppEvents sink records SheetCalculate before AfterCalculate for a calculation
+    // that calculated a formula of the sheet (X3 events capture, 2026-11-14).
+    let (host, model) = setup();
+    let events = Rc::new(Names {
+        model: Rc::downgrade(&model),
+        raised: RefCell::default(),
+    });
+    host.session
+        .borrow_mut()
+        .set_workbook_event_observer(Some(model.observer(events.clone())));
+    let calculate = || {
+        host.session.borrow_mut().dispatch(SkinIntent::Recalculate);
+        while host.session.borrow().has_pending_calculation() {
+            host.session.borrow_mut().advance_calculation();
+        }
+    };
+    calculate();
+    enter(&host, at(&host, 30, 1), "2");
+    enter(&host, at(&host, 30, 2), "=A30*2");
+    events.raised.borrow_mut().clear();
+    calculate();
+    let sheet = host.session.borrow().host().sheets()[0]
+        .name()
+        .text()
+        .to_string_lossy()
+        .to_string();
+    assert_eq!(
+        &*events.raised.borrow(),
+        &[
+            format!("SheetCalculate {sheet}"),
+            "AfterCalculate".to_owned()
+        ]
+    );
+    invoke_kind(
+        &model,
+        &model.application(),
+        "EnableEvents",
+        InvokeKind::Put,
+        vec![AutoValue::Bool(false)],
+    )
+    .unwrap();
+    events.raised.borrow_mut().clear();
+    enter(&host, at(&host, 30, 1), "3");
+    calculate();
+    assert!(events.raised.borrow().is_empty());
+    host.session.borrow_mut().set_workbook_event_observer(None);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn window_parent_is_the_session_workbook() {
+    // xlOil connects through EXCEL7's Window: Window.Parent as a _Workbook, then its Application
+    // (xlOil 0.22.1 Connect.cpp). Excel's Window.Parent is the workbook.
+    let (host, model) = setup();
+    host.session.borrow_mut().set_file_identity("Book2", false);
+    let window = calc_object_model::profile::values_only::object(
+        "Window",
+        calc_object_model::ObjectKey::Window,
+    );
+    let book = obj(invoke(&model, &window, "Parent", vec![]).unwrap());
+    let active = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    assert_eq!(book, active);
+    assert_eq!(text(&model, &book, "Name"), "Book2");
+    let app = obj(invoke(&model, &book, "Application", vec![]).unwrap());
+    assert_eq!(app, model.application());
 }
 
 struct Probe {
@@ -1176,7 +1284,8 @@ impl EventSource for WritingEvents {
         event: &str,
         args: &[AutoValue],
     ) -> Result<(), AutoError> {
-        if event == "AfterCalculate" {
+        // The calculation events are counted by other tests; this one watches the writes.
+        if event == "AfterCalculate" || event == "SheetCalculate" {
             return Ok(());
         }
         assert_eq!(event, "SheetChange");

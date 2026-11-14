@@ -59,6 +59,15 @@ pub trait WorkbookEventObserver {
     ) -> Result<(), String> {
         Ok(())
     }
+    /// A sheet that calculated in a completed calculation command, after the owning VBA
+    /// handler and before `after_calculate` (Excel's AppEvents SheetCalculate).
+    fn worksheet_calculate(
+        &self,
+        _session: &mut HostSession,
+        _sheet: SheetId,
+    ) -> Result<(), String> {
+        Ok(())
+    }
     fn after_calculate(&self, _session: &mut HostSession) -> Result<(), String> {
         Ok(())
     }
@@ -277,16 +286,28 @@ impl HostSession {
         let (_, sheets) = state.calculation.take().expect("completed command");
         let owner = self.event_owner();
         for sheet in sheets {
-            let Some(owner) = &owner else {
-                break;
-            };
-            if !self.event_owner_still_active(owner) {
+            if !self.workbook_events_enabled()
+                || owner
+                    .as_ref()
+                    .is_some_and(|owner| !self.event_owner_still_active(owner))
+            {
                 break;
             }
             if self.host.model().sheet_by_id(sheet).is_none() {
                 continue;
             }
-            if let Err(reason) = owner.worksheet_calculate(self, sheet) {
+            if let Some(owner) = &owner
+                && let Err(reason) = owner.worksheet_calculate(self, sheet)
+            {
+                self.record_event_failure(WorkbookEvent::WorksheetCalculate { sheet }, reason);
+            }
+            // The native projection's SheetCalculate follows the owning VBA handler's, as its
+            // SheetChange does.
+            if self.workbook_events_enabled()
+                && self.host.model().sheet_by_id(sheet).is_some()
+                && let Some(observer) = self.workbook_events.observer.clone()
+                && let Err(reason) = observer.worksheet_calculate(self, sheet)
+            {
                 self.record_event_failure(WorkbookEvent::WorksheetCalculate { sheet }, reason);
             }
         }

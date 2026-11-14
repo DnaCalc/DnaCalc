@@ -1,0 +1,8 @@
+[
+  {"automatic":true,"formula":"=X0.Hello(\"start\")","value":"Hello, start"},
+  {"automatic":true,"edit":{"cell":"A1:B2","value":9},"formula":"=X0.Hello(\"rectangle\")","value":"Hello, rectangle"},
+  {"automatic":true,"edit":{"cell":"A1,C1:C2","value":5},"formula":"=X0.Hello(\"areas\")","value":"Hello, areas"},
+  {"automatic":true,"enable_events":false,"edit":{"cell":"A1:B2","value":10},"formula":"=X0.Hello(\"off\")","value":"Hello, off"},
+  {"automatic":true,"enable_events":true,"formula":"=X0.Hello(\"on\")","value":"Hello, on"},
+  {"automatic":true,"edit":{"cell":"A1","value":11},"formula":"=X0.Hello(\"single\")","value":"Hello, single"}
+]

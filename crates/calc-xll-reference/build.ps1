@@ -1,4 +1,7 @@
-param([switch]$NativeOnly, [switch]$X2, [switch]$X3, [switch]$X5, [string]$UpstreamDirectory, [string]$OutputDirectory)
+param([switch]$NativeOnly, [switch]$X2, [switch]$X3, [switch]$X5, [string]$UpstreamDirectory, [string]$OutputDirectory,
+    # With -X3: restage only the two xlOil runtimes (fixture/x3-xloil.py and xlOil.ini) from the
+    # already fetched, digest-checked wheels, leaving the xlw sample and its sources untouched.
+    [switch]$XloilOnly)
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $out = if($OutputDirectory){[IO.Path]::GetFullPath($OutputDirectory)}else{Join-Path $root 'build'}
@@ -41,6 +44,7 @@ if ($X3) {
         if ((Get-FileHash -LiteralPath $Path).Hash -ne $Sha) { throw "Upstream digest differs: $Path" }
     }
     Add-Type -AssemblyName System.IO.Compression.FileSystem
+    if (-not $XloilOnly) {
     $package=Join-Path $upstream 'xlw.23.10.12-rc.nupkg'
     Fetch $manifest.xlw.package_url $package $manifest.xlw.package_sha256
     $xlwPackage=Join-Path $upstream 'xlw-package'
@@ -81,6 +85,7 @@ cl /nologo /std:c++17 /EHsc /O2 /MD /DNDEBUG /LD /I"$xlwPackage/native/include" 
     $typesRuntime=Join-Path $upstream 'xlw-types-runtime'
     $null=New-Item -ItemType Directory -Force -Path $typesRuntime
     Copy-Item -LiteralPath (Join-Path $types 'xlwTypes.xll') -Destination $typesRuntime
+    }
     foreach ($wheel in $manifest.xloil.wheels) {
         $file=Join-Path $upstream $wheel.file
         Fetch $wheel.url $file $wheel.sha256

@@ -26,96 +26,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-/// Session access for the workbook profile. All member semantics live in calc-host.
-struct DesktopAutomationHost {
-    application: Rc<dyn calc_object_model::profile::ApplicationHost>,
-    native: std::rc::Weak<calc_xll_host::XllHost>,
-    server: std::rc::Weak<RefCell<Server>>,
-}
-impl calc_object_model::profile::ApplicationHost for DesktopAutomationHost {
-    fn hwnd(&self) -> isize {
-        self.application.hwnd()
-    }
-    fn run(
-        &self,
-        name: &str,
-        args: &[calc_object_model::AutoValue],
-    ) -> Result<calc_object_model::AutoValue, calc_object_model::AutoError> {
-        self.application.run(name, args)
-    }
-    fn events_enabled(&self) -> bool {
-        self.application.events_enabled()
-    }
-    fn set_events_enabled(&self, enabled: bool) {
-        self.application.set_events_enabled(enabled);
-    }
-    fn path(&self) -> Result<String, calc_object_model::AutoError> {
-        self.application.path()
-    }
-}
-impl calc_host::automation::AutomationHost for DesktopAutomationHost {
-    fn with_invocation(
-        &self,
-        call: &mut dyn FnMut(
-            &mut dyn calc_func::UserFunctionContext,
-        )
-            -> Result<calc_object_model::AutoValue, calc_object_model::AutoError>,
-    ) -> Option<Result<calc_object_model::AutoValue, calc_object_model::AutoError>> {
-        let native = self.native.upgrade()?;
-        let mut answer = None;
-        let status = native.try_with_workbook_context(|context| {
-            answer = Some(call(context));
-            Ok(())
-        });
-        if answer.is_some() {
-            return answer;
-        }
-        match status {
-            Ok(None) => None,
-            Err(why) => Some(Err(calc_object_model::AutoError::not_modelled(
-                why,
-                "dc-0f1k.24",
-            ))),
-            Ok(Some(())) => Some(Err(calc_host::automation::busy())),
-        }
-    }
-    fn with_session(
-        &self,
-        call: &mut dyn FnMut(
-            &calc_host::HostSession,
-        )
-            -> Result<calc_object_model::AutoValue, calc_object_model::AutoError>,
-    ) -> Result<calc_object_model::AutoValue, calc_object_model::AutoError> {
-        let server = self
-            .server
-            .upgrade()
-            .ok_or(calc_object_model::AutoError::Disconnected)?;
-        let server = server
-            .try_borrow()
-            .map_err(|_| calc_host::automation::busy())?;
-        call(server.book().session())
-    }
-    fn context_changed(&self, session: &calc_host::HostSession) {
-        if let Some(native) = self.native.upgrade() {
-            let active = session
-                .selection()
-                .active
-                .map(|at| at.sheet())
-                .or_else(|| session.host().loaded().active_sheet())
-                .or_else(|| session.host().sheets().first().map(|sheet| sheet.id()));
-            let full = session.file_full_name();
-            let name = full.rsplit(['/', '\\']).next().unwrap_or(full);
-            for sheet in session.host().sheets() {
-                native.set_sheet(
-                    sheet.id(),
-                    format!("[{name}]{}", sheet.name().text().to_string_lossy()),
-                    Some(sheet.id()) == active,
-                );
-            }
-        }
-    }
-}
-
 fn bind_automation(
     addins: &AddinHost,
     server: &Rc<RefCell<Server>>,
@@ -126,15 +36,10 @@ fn bind_automation(
     ),
     String,
 > {
-    let projection = addins.projection_handle();
-    let host = Rc::new(DesktopAutomationHost {
-        application: projection.application_host(),
-        native: Rc::downgrade(&addins.native_handle()),
-        server: Rc::downgrade(server),
-    });
-    let model = Rc::new(calc_host::automation::WorkbookAutomation::new(host));
-    projection.bind_model(model.clone())?;
-    let observer = model.observer(projection);
+    let (model, observer) = crate::automation::bind_automation(
+        addins,
+        crate::automation::SessionAccess::Server(Rc::downgrade(server)),
+    )?;
     server
         .borrow_mut()
         .set_workbook_event_observer(Some(observer.clone()));

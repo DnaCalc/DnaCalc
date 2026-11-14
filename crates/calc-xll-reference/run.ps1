@@ -247,7 +247,16 @@ try {
     $ownedStartTicks = (Get-Process -Id $ownedExcelPid).StartTime.ToUniversalTime().Ticks
     Set-Content -LiteralPath (Join-Path $run 'owned-excel.pid') -Value $ownedExcelPid
     $excel.DisplayAlerts = $false
+    # The session host's process holds application events off (its baseline). These captures were
+    # first made in an Excel of their own, with events on as a person's Excel has them, and the
+    # add-ins observe events; so the run starts with them on. The host restores its baseline after.
+    $eventsBefore = [bool]$excel.EnableEvents
+    $excel.EnableEvents = $true
     $book = $excel.Workbooks.Add()
+    # Likewise its baseline calculation is Manual; a new Excel's is Automatic, which the first
+    # write (A1 below) had in those captures. Each case still sets the mode it asks for.
+    $calculationBefore = [int]$excel.Calculation
+    $excel.Calculation = -4105
     if($WorkbookName -and [string]$book.Name -cne $WorkbookName){throw 'Observed Excel workbook name differs from the explicitly requested reference context'}
     if ($RibbonUI) { $excel.Visible=$true }
     $sheet = $book.Worksheets.Item(1)
@@ -257,6 +266,8 @@ try {
         captured_utc=[DateTime]::UtcNow.ToString('O'); pid=$ownedExcelPid; preexisting_excel_pids=$baseline
         excel_version=[string]$excel.Version; excel_build=[string]$excel.Build
         workbook_name=[string]$book.Name
+        enable_events_before_run=$eventsBefore
+        calculation_before_run=$calculationBefore
         excel_file_version=(Get-Item -LiteralPath (Get-Process -Id $ownedExcelPid).Path).VersionInfo.FileVersion
         process_bits=64; fixture_framework='ExcelDna.AddIn 1.9.0 NuGet; net48'
         xll_sha256=(Get-FileHash -LiteralPath $xll).Hash
