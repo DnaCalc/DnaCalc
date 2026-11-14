@@ -5,7 +5,7 @@ use calc_func::value::{
     CalcArray, CalcValue, CellKey, CoreRef, GridArea, NumericMode, ReferenceLike, SheetId,
 };
 use calc_func::{
-    CellReader, EvalServices, FunctionCallScratch, Notation, ParameterClass, PreparedArguments,
+    CellReader, EvalServices, FunctionCallScratch, FunctionFault, Notation, ParameterClass, PreparedArguments,
     SubtotalExclusions, Unreadable, catalogue, invoke,
 };
 use calc_verdict::{WitnessInvocation, decode_argument, encode_result, select_result};
@@ -27,6 +27,10 @@ impl PreparedArguments for Given {
 // did not record their absolute addresses. Calls needing those addresses are declined.
 struct InputCells(BTreeMap<(u32, u32), CalcValue>, bool);
 impl CellReader for InputCells {
+    fn reference_positions_known(&self) -> bool {
+        false
+    }
+
     fn read_area(
         &mut self,
         area: GridArea,
@@ -233,7 +237,7 @@ pub fn calculate(
             }
         }
     }
-    if has_reference && matches!(target.spelling(), "ROW" | "COLUMN" | "CELL" | "OFFSET") {
+    if has_reference && matches!(target.spelling(), "ROW" | "COLUMN" | "OFFSET") {
         return "fault:WitnessReferencePosition".to_owned();
     }
     let mode = NumericMode::Fast;
@@ -264,6 +268,11 @@ pub fn calculate(
     );
     drop(services);
     match result {
+        Err(FunctionFault::NotImplemented { argument: Some(1), .. })
+            if has_reference && target.spelling() == "CELL" =>
+        {
+            "fault:WitnessReferencePosition".to_owned()
+        }
         Err(fault) => {
             let text = format!("{fault:?}");
             let end = text.find([' ', '{', '(']).unwrap_or(text.len());
@@ -467,6 +476,30 @@ mod tests {
             calculate("ISREF", &matrix, None, Some(&context), true),
             calculate("ISREF", &matrix, None, None, true)
         );
+    }
+
+    /// Excel's retained dcuar_cell capture validates these info types before reading B2/A1.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn cell_validates_info_without_a_reference_position() {
+        let context = cells();
+        for info in [json!("x"), json!(" format "), json!("format "), json!("0x3ff0000000000000")] {
+            assert_eq!(
+                calculate("CELL", &[info, json!("0x4000000000000000")], None, Some(&context), true),
+                "error:Value"
+            );
+        }
+        assert_eq!(
+            calculate("CELL", &[json!({"error": "NA"}), json!("0x4000000000000000")], None, Some(&context), true),
+            "error:NA"
+        );
+        for info in ["address", "row", "col", "contents", "type", "filename", "format", "color", "parentheses", "prefix", "protect", "width"] {
+            assert_eq!(
+                calculate("CELL", &[json!(info), json!("0x4000000000000000")], None, Some(&context), true),
+                "fault:WitnessReferencePosition",
+                "{info}"
+            );
+        }
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

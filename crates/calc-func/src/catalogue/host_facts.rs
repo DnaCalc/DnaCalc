@@ -33,7 +33,15 @@ use std::sync::Arc;
 use calc_catalogue::ported::host_facts::{CODE, ENTRIES as DECLARATIONS};
 
 /// The first cell of a reference argument.
-fn first_cell(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<CellKey> {
+fn first_cell(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    index: usize,
+    sv: &mut EvalServices<'_>,
+) -> Step<CellKey> {
+    if sv.cells().is_some_and(|reader| !reader.reference_positions_known()) {
+        return Err(site.not_modelled(Some(index)));
+    }
     match a[index].core_ref() {
         CoreRef::Reference(reference) => Ok(reference.areas()[0].first()),
         _ => Err(site.not_modelled(Some(index))),
@@ -140,7 +148,7 @@ fn cell(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<Cal
             .active_cell()
             .ok_or_else(|| site.not_modelled(None))?
     } else {
-        let at = first_cell(site, a, 1)?;
+        let at = first_cell(site, a, 1, sv)?;
         // dc-ylr: Excel gives CELL of a reference to a closed workbook #N/A.
         if sv
             .host()
@@ -384,7 +392,7 @@ fn sheets(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<C
 }
 
 fn formulatext(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
-    let at = first_cell(site, a, 0)?;
+    let at = first_cell(site, a, 0, sv)?;
     // dc-ylr: Excel gives FORMULATEXT of a reference to a closed workbook #N/A.
     if sv
         .host()

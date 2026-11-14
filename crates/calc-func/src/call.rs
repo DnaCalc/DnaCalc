@@ -31,6 +31,15 @@ pub trait PreparedArguments {
 /// Typed read access to the cells that a reference argument names, supplied by the caller with
 /// the services. A kernel reads a reference only through it and never reaches workbook state.
 pub trait CellReader {
+    /// Whether reference positions are the original worksheet positions. A reader can supply
+    /// captured values at relocated positions while being unable to supply their addresses; such
+    /// a reader must return false. CELL and FORMULATEXT consult this before using an address;
+    /// callers must independently refuse other position-dependent operations when it is false.
+    /// Ordinary workbook readers retain the default of true.
+    fn reference_positions_known(&self) -> bool {
+        true
+    }
+
     /// Calls `visit` for the cells of `area` that hold a value, in row-major order (each row left
     /// to right, rows top to bottom), until `visit` returns [`ControlFlow::Break`]; it then
     /// returns `Ok`. A cell it does not visit is blank, and it may also visit a blank cell as
