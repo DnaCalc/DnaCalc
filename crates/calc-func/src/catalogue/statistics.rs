@@ -136,8 +136,14 @@ fn quartile(
     sv: &mut EvalServices<'_>,
     exclusive: bool,
 ) -> Step<CalcValue> {
+    // Selector coercion precedes sample errors, but domain validation follows
+    // them. Excel rejects negative fractions before truncating the selector.
+    let raw_q = num(site, a, 1)?;
     let mut values = list(site, a, 0, sv)?;
-    let q = num(site, a, 1)?.trunc();
+    if raw_q < 0.0 {
+        return fail(WorksheetErrorCode::Num);
+    }
+    let q = raw_q.trunc();
     let admitted = if exclusive { 1.0..=3.0 } else { 0.0..=4.0 };
     if !admitted.contains(&q) {
         return fail(WorksheetErrorCode::Num);

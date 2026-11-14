@@ -325,6 +325,29 @@ fn sumproduct_single_blank_reference_and_error_order() {
     exact(call("SUMPRODUCT", vec![array]), 0.0);
 }
 
+/// Excel 20527 coerces the selector before sample errors and rejects negative fractions.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn quartile_selector_admission_and_error_order() {
+    let data = arr(vec![vec![1.0], vec![3.0], vec![5.0], vec![7.0]]);
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![n(1.0), e(NA)]);
+    let sample_error = sheet.area(1, 1, 2, 1);
+    for name in ["QUARTILE", "QUARTILE.INC", "QUARTILE.EXC"] {
+        for q in [-0.5, -f64::MIN_POSITIVE] {
+            error(call(name, vec![data.clone(), n(q)]), Num);
+        }
+        error(call(name, vec![data.clone(), t("-0.5")]), Num);
+        error(call_on(&mut sheet, name, vec![sample_error.clone(), n(-0.5)]), NA);
+        error(call_on(&mut sheet, name, vec![sample_error.clone(), t("bad")]), Value);
+        error(call_on(&mut sheet, name, vec![sample_error.clone(), e(Div0)]), Div0);
+    }
+    for name in ["QUARTILE", "QUARTILE.INC"] {
+        exact(call(name, vec![data.clone(), n(4.5)]), 7.0);
+        error(call(name, vec![data.clone(), n(5.0)]), Num);
+    }
+}
+
 /// Excel 20527: the paired families reject a single blank reference before
 /// inspecting multi-cell samples, while preserving singleton error order.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
