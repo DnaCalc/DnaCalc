@@ -1,0 +1,4 @@
+path	bytes	sha256
+workbook/Financial_Dashboard_Model.xlsx	125489	87549c905bab62f15dcd926e6459708eb537a67dcbcbb6d75f1daa4e94373390
+src/vba/modDashboardAutomation.bas	4956	8738b9c9862239ceed6a1700c22b8c49ea1d91d8d37995f7968f576fe85a6965
+src/vba/modDataImport.bas	3567	7b4e992b652dd90477e8b6996cb8d92d898d231bfd1102eb53044c5fbd92cdbb
