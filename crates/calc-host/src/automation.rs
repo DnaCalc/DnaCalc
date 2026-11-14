@@ -30,6 +30,7 @@ use std::{
 
 const OWNER: &str = "dc-0f1k.24";
 type Reply = Result<AutoValue, AutoError>;
+mod formula;
 mod mutation;
 mod navigation;
 mod report;
@@ -183,6 +184,7 @@ impl WorkbookAutomation {
         );
         Self::register_navigation(&mut handlers);
         Self::register_mutation(&mut handlers);
+        Self::register_formula(&mut handlers);
         // Report objects register where the committed descriptor describes them (dc-piw0).
         let _ = Self::register_report(&mut handlers);
         handlers.on(

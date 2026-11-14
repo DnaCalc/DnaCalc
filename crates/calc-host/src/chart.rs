@@ -352,7 +352,7 @@ impl HostState {
 
     /// A series' data as the workbook holds it now (its formula evaluated), else as the file
     /// cached it; and whether it is the cache.
-    fn data_values(&self, data: &ChartData, origin: CellKey) -> (Vec<Option<CalcValue>>, bool) {
+    pub(crate) fn data_values(&self, data: &ChartData, origin: CellKey) -> (Vec<Option<CalcValue>>, bool) {
         if let Some(values) = data.formula.as_deref().and_then(|formula| {
             use calc_doc_model::{FormulaRewriter, NameScope, StructuralChange};
             let mut current = formula.to_owned();

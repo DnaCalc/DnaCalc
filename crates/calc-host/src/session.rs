@@ -145,6 +145,10 @@ pub enum SkinIntent {
     /// Enter one source across the current selection, relocating formulas from its active cell.
     /// All entries are validated before one transaction and one undo step.
     EnterSelection { text: String },
+    /// Entries typed over areas without touching the selection (an Automation `Range.Formula`
+    /// put): each text is read and relocated as `EnterSelection` does over its own area, and all
+    /// of them are one transaction and one undo step.
+    EnterEntries { entries: Vec<(GridArea, String)> },
     /// Cell edits (values, formulas and clears, over any cells) applied in order as one
     /// transaction and one undo step.
     Edit { edits: Vec<CellEdit> },
@@ -989,6 +993,23 @@ impl HostSession {
                     edits.extend(layout.into_iter().map(CellEdit::Layout));
                     self.edit(edits, &mut receipt)
                 }),
+            SkinIntent::EnterEntries { entries } => {
+                let mut edits = Ok(Vec::new());
+                for (area, text) in &entries {
+                    match self.prepare_entries(area.first(), text, &[*area]) {
+                        Ok(more) => {
+                            if let Ok(all) = &mut edits {
+                                all.extend(more);
+                            }
+                        }
+                        Err(error) => {
+                            edits = Err(error);
+                            break;
+                        }
+                    }
+                }
+                edits.and_then(|edits| self.edit(edits, &mut receipt))
+            }
             SkinIntent::EnterSelection { text } => match self.selection.active {
                 Some(at) => self
                     .prepare_entries(at, &text, &self.selection.areas)

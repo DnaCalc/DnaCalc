@@ -2567,13 +2567,9 @@ fn report_listing(model: &WorkbookAutomation) -> String {
             let address = format!("{}{row}", char::from(b'A' + column as u8 - 1));
             let cell = range(model, &address);
             line(vec!["CELL".into(), address.clone(), listing_text(&invoke(model, &cell, "Value2", vec![]).unwrap())]);
-            // Range.Formula has no handler yet (listed in the lane report): the record is
-            // written when the member answers.
-            if let Ok(formula) = invoke(model, &cell, "Formula", vec![]) {
-                let formula = listing_text(&formula);
-                if formula.starts_with('=') {
-                    line(vec!["FORMULA".into(), address, formula]);
-                }
+            let formula = listing_text(&invoke(model, &cell, "Formula", vec![]).unwrap());
+            if formula.starts_with('=') {
+                line(vec!["FORMULA".into(), address, formula]);
             }
         }
     }
@@ -2685,9 +2681,8 @@ fn dc_piw0_4__report_listing() {
         for (c, cell) in row.split('\t').enumerate() {
             let address = format!("{}{}", char::from(b'A' + c as u8), r + 1);
             if cell.starts_with('=') {
-                // `Range.Formula` (put) has no handler yet: the formula cells are entered through
-                // the session, as the interface does (pending member, lane eng3 report).
-                enter(&host, at(&host, r as u32 + 1, c as u32 + 1), cell);
+                // The macro's own member: Range.Formula put, through the typed-entry path.
+                invoke_kind(&model, &range(&model, &address), "Formula", InvokeKind::Put, vec![AutoValue::text(cell)]).unwrap();
                 continue;
             }
             let value = match cell.parse::<f64>() {
@@ -2766,6 +2761,25 @@ fn dc_piw0_4__report_listing() {
     let count_of = |kind: &str| listing.lines().filter(|l| l.starts_with(&format!("{kind}\t"))).count();
     assert_eq!((count_of("CELL"), count_of("TABLE"), count_of("CHART"), count_of("SERIES"), count_of("SHAPE")), (24, 1, 1, 2, 6));
     assert!(listing.contains("CELL\tD2\t30\n"), "the formula column calculates");
+    assert_eq!(count_of("FORMULA"), 5);
+    assert!(listing.contains("FORMULA\tD2\t=B2+C2\n"));
+    // Text, and the series' points, through the same handlers.
+    assert_eq!(text(&model, &range(&model, "D2"), "Text"), "30");
+    assert_eq!(text(&model, &range(&model, "A1"), "Formula"), "Region");
+    let sheet = obj(invoke(&model, &model.application(), "ActiveSheet", vec![]).unwrap());
+    let charts = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let chart = obj(invoke(&model, &item(&model, &charts, 1), "Chart", vec![]).unwrap());
+    let series = obj(invoke_kind(&model, &chart, "SeriesCollection", InvokeKind::Method, vec![]).unwrap());
+    let first = item(&model, &series, 1);
+    let points = |name: &str| match invoke(&model, &first, name, vec![]).unwrap() {
+        AutoValue::Array(a) => a.values.iter().map(listing_text).collect::<Vec<_>>().join("|"),
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(points("XValues"), "North|South|East|West|Central");
+    assert_eq!(points("Values"), "10|30|50|70|90");
+    invoke_kind(&model, &first, "Values", InvokeKind::Put, vec![AutoValue::Object(range(&model, "C2:C6"))]).unwrap();
+    assert_eq!(points("Values"), "20|40|60|80|100");
+    assert!(text(&model, &first, "Formula").contains("$C$2:$C$6"));
     assert!(listing.contains("TABLE\tSales\t$A$1:$D$6\tTableStyleMedium4\tRegion|Q1|Q2|Total\t5\n"));
     let _ = host;
 }

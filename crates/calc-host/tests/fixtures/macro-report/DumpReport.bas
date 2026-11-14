@@ -7,7 +7,7 @@ Option Explicit
 '
 ' Records (tab-separated; numbers as CStr writes them; lists joined with |):
 '   CELL    address  Value2                                 each cell of the used range, row-major
-'   FORMULA address  Formula                                formula cells only (DNA Calc lists it once Range.Formula answers)
+'   FORMULA address  Formula                                formula cells only 
 '   TABLE   name  range  style  header names | ...  rows   each ListObject
 '   CHART   name  ChartType  left top width height  HasTitle  title  HasLegend  series count
 '   SERIES  chart name  index  name  formula  plot order    each series
