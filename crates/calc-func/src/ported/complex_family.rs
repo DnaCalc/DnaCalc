@@ -347,7 +347,8 @@ impl ParsedComplex {
             }
             return Ok(Self::new(0.0, 0.0, None));
         }
-        let scale = if self.im == 0.0 && self.re < 0.0 {
+        let on_axis = self.im == 0.0 || self.re == 0.0;
+        let scale = if on_axis {
             crate::ported::power_fn::power_kernel(self.abs(), exponent)
                 .map_err(|_| WorksheetErrorCode::Num)?
         } else {
@@ -362,8 +363,8 @@ impl ParsedComplex {
         if angle.abs() > 134_217_727.0 {
             return Err(WorksheetErrorCode::Num);
         }
-        let (sine, cosine) = if self.im == 0.0 && self.re < 0.0 {
-            // On the negative real axis Excel uses its circular argument reduction.
+        let (sine, cosine) = if on_axis {
+            // Excel uses its circular argument reduction on both axes.
             complex_circular_parts(angle)
         } else {
             (crt_sin(angle), crt_cos(angle))

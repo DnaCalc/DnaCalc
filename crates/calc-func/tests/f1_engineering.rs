@@ -33,6 +33,10 @@ fn impower_negative_axis_and_angle_limit() {
     text(call("IMPOWER", vec![n(1.0), n(1e100)]), "1");
     text(call("IMPOWER", vec![n(-2.0), n(-1e9)]), "0");
     text(call("IMPOWER", vec![t("3+4i"), n(-1e9)]), "0");
+    text(call("IMPOWER", vec![t("i"), n(2.0)]), "-1+1.22514845490862E-16i");
+    text(call("IMPOWER", vec![t("-i"), n(3.0)]), "-1.83772268236293E-16+i");
+    text(call("IMPOWER", vec![n(1.5), n(25.0)]), "25251.1682940423");
+    text(call("IMPOWER", vec![n(0.75), n(-15.0)]), "74.8309138807576");
 }
 
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Value};
