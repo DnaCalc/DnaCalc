@@ -191,8 +191,14 @@ pub fn weibull_dist_kernel(
     }
 
     if x == 0.0 {
-        if cumulative {
-            return Ok(0.0);
+        if !cumulative {
+            let denominator = crate::ported::excel_numeric::excel_pow_chain(beta, alpha);
+            if !denominator.is_finite() {
+                return Err(WorksheetErrorCode::Num);
+            }
+            if denominator == 0.0 {
+                return Err(WorksheetErrorCode::Div0);
+            }
         }
         return Ok(0.0);
     }
@@ -211,10 +217,19 @@ pub fn weibull_dist_kernel(
     };
     let ratio = excel_x87_div(x, beta);
     let power = excel_pow_chain(ratio, alpha);
+    if !power.is_finite() {
+        return Err(WorksheetErrorCode::Num);
+    }
     let value = if cumulative {
         -excel_expm1_internal(-power)
     } else {
         let pba = excel_pow_chain(beta, alpha);
+        if !pba.is_finite() {
+            return Err(WorksheetErrorCode::Num);
+        }
+        if pba == 0.0 {
+            return Err(WorksheetErrorCode::Div0);
+        }
         let px = excel_pow_chain(x, alpha - 1.0);
         let e = excel_exp(-power);
         excel_x87_mul(excel_x87_mul(excel_x87_div(alpha, pba), px), e)

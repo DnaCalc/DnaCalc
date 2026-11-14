@@ -10,6 +10,18 @@ use calc_func::SubtotalExclusions;
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Ref, Value};
 use f1_support::*;
 
+/// Excel 20527 reports errors at the intermediate power and density denominator.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn weibull_reports_intermediate_arithmetic_errors() {
+    for name in ["WEIBULL", "WEIBULL.DIST"] {
+        error(call(name, vec![n(2.0), n(2048.0), n(1.0), b(true)]), Num);
+        error(call(name, vec![n(1e-100), n(10.0), n(1e-100), b(false)]), Div0);
+        error(call(name, vec![n(0.0), n(360.0), n(1000.0), b(false)]), Num);
+        error(call(name, vec![n(0.0), n(10.0), n(1e-100), b(false)]), Div0);
+    }
+}
+
 /// Excel 20527 treats blank regression flags as false, not omitted defaults.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
