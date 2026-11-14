@@ -24,6 +24,9 @@ fn replace_start_uses_tolerant_floor() {
         error(call(name, vec![t("abcdef"), n(0.0), e(NA), t("X")]), NA);
         error(call(name, vec![t("abcdef"), n(1.0), n(-0.5), e(Ref)]), Ref);
         error(call(name, vec![t("abcdef"), t("bad"), e(NA), t("X")]), Value);
+        text(call(name, vec![t("abcdef"), n(32767.0), n(1.0), t("X")]), "abcdefX");
+        error(call(name, vec![t("abcdef"), n(32768.0), n(1.0), t("X")]), Value);
+        error(call(name, vec![t("abcdef"), n(32768.0), e(NA), t("X")]), NA);
     }
 }
 

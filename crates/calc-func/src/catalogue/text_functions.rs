@@ -138,6 +138,9 @@ fn replace(site: &Site<'_>, a: &[CalcValue], bytes: bool) -> Step<CalcValue> {
     let count = num(site, a, 2)?;
     let new = text_arg(site, a, 3)?;
     let start = k::positive(k::date_integer_floor(start)).map_err(Exit::Error)?;
+    if start >= 32768 {
+        return fail(WorksheetErrorCode::Value);
+    }
     let count = k::date_integer_floor(count);
     if !count.is_finite() || !(0.0..32768.0).contains(&count) {
         return fail(WorksheetErrorCode::Value);
