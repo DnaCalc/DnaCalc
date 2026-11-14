@@ -419,6 +419,35 @@ pub(super) fn grid_number(
     }
 }
 
+/// Paired statistical functions validate single-cell arguments in formula order before
+/// inspecting multi-cell samples. A referenced empty cell is VALUE, unlike an empty
+/// element inside a larger range or an array.
+pub(super) fn validate_paired_singletons(
+    site: &Site<'_>,
+    arguments: &[CalcValue],
+    indices: [usize; 2],
+    services: &mut EvalServices<'_>,
+) -> Step<()> {
+    for index in indices {
+        let argument = &arguments[index];
+        match argument.core_ref() {
+            CoreRef::Reference(reference) => {
+                let [area] = reference.areas() else { continue };
+                if area.cell_count() != 1 { continue; }
+                let cell = grid(site, arguments, index, services)?;
+                match cell.cells[0].core_ref() {
+                    CoreRef::Empty | CoreRef::Missing => return fail(WorksheetErrorCode::Value),
+                    CoreRef::Error(code) => return fail(code),
+                    _ => {}
+                }
+            }
+            CoreRef::Error(code) => return fail(code),
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
 /// How a paired collector admits a direct scalar rather than an array/reference cell.
 #[derive(Clone, Copy)]
 pub(super) enum PairScalars {

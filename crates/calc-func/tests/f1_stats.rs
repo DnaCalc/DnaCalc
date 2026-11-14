@@ -325,6 +325,35 @@ fn sumproduct_single_blank_reference_and_error_order() {
     exact(call("SUMPRODUCT", vec![array]), 0.0);
 }
 
+/// Excel 20527: the paired families reject a single blank reference before
+/// inspecting multi-cell samples, while preserving singleton error order.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn paired_statistics_single_blank_reference_and_error_order() {
+    let mut sheet = Sheet::new();
+    sheet.column(1, 2, vec![n(2.0), n(4.0), n(8.0)]);
+    sheet.column(1, 3, vec![e(NA), n(4.0)]);
+    let blank = sheet.area(1, 1, 1, 1);
+    let numbers = sheet.area(1, 2, 3, 2);
+    let error_range = sheet.area(1, 3, 2, 3);
+    for name in ["CORREL", "COVAR", "COVARIANCE.P", "COVARIANCE.S", "F.TEST",
+        "FTEST", "INTERCEPT", "PEARSON", "RSQ", "SLOPE", "STEYX", "SUMX2PY2",
+        "SUMX2MY2", "SUMXMY2", "FORECAST", "FORECAST.LINEAR"] {
+        let make_args = |left, right| {
+            if name.starts_with("FORECAST") { vec![n(1.0), left, right] }
+            else { vec![left, right] }
+        };
+        error(call_on(&mut sheet, name, make_args(blank.clone(), n(2.0))), Value);
+        error(call_on(&mut sheet, name, make_args(numbers.clone(), blank.clone())), Value);
+        error(call_on(&mut sheet, name, make_args(blank.clone(), e(NA))), Value);
+        error(call_on(&mut sheet, name, make_args(e(NA), blank.clone())), NA);
+        error(call_on(&mut sheet, name, make_args(error_range.clone(), blank.clone())), Value);
+    }
+    sheet.column(1, 1, vec![n(1.0), calc_func::value::CalcValue::empty(), n(3.0)]);
+    let mixed = sheet.area(1, 1, 3, 1);
+    exact(call_on(&mut sheet, "CORREL", vec![mixed, numbers]), 1.0);
+}
+
 /// Excel20527: density reuses GAMMA.DIST's stored Poisson mass, avoiding overflow.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
