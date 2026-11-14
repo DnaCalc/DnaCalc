@@ -149,3 +149,6 @@ use their code snippets only as hand-typed test cases.
 Working copies stay on kode-fi under `~/corpora/` (sets, `fuse-vba/` holds the 5,350 or so FUSE VBA/XLM files by
 hash, `new/` the two new sources); can be deleted. Scripts: `~/vbawork/scan.py`, `triage.py` on kode-fi
 (not committed; they are about 400 lines and can be added to the repo on request).
+
+
+The Mendeley CC BY 4.0 set `mendeley-vba-20261114` adds four unique `.xlsm` projects. Static extraction found 12 modules across the four readable projects; harvested-set triage marked all four clean. None has formula cells or XLM macro sheets. The four project rows are in the local census output.
