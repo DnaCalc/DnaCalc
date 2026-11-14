@@ -570,6 +570,87 @@ fn dc_piw0__q10_an_empty_macro_chart_saves_as_excel_wrote_it() {
     assert_eq!(elements(&find("xl/drawings/")), elements(recorded_drawing));
 }
 
+/// The `c:ser` elements of a chart part with Excel's per-chart GUID and the data caches left out:
+/// what the series are, not the numbers Excel cached with them (dc-piw0.8).
+fn series_elements(xml: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut rest = xml;
+    while let Some(start) = rest.find("<c:ser>") {
+        let end = rest[start..].find("</c:ser>").unwrap() + start + "</c:ser>".len();
+        let mut ser = rest[start..end].to_owned();
+        rest = &rest[end..];
+        for cache in ["strCache", "numCache"] {
+            while let Some(a) = ser.find(&format!("<c:{cache}>")) {
+                let close = format!("</c:{cache}>");
+                let b = ser[a..].find(&close).unwrap() + a + close.len();
+                ser.replace_range(a..b, "");
+            }
+        }
+        // The counter stays, the GUID (random in Excel) does not.
+        while let Some(a) = ser.find("<c16:uniqueId val=\"{") {
+            let from = a + "<c16:uniqueId val=\"{".len();
+            let dash = ser[from..].find('-').unwrap() + from;
+            let close = ser[dash..].find('}').unwrap() + dash;
+            ser.replace_range(dash..close, "-GUID");
+            ser.replace_range(a..a + 1, "\u{1}");
+        }
+        out.extend(elements(&ser.replace('\u{1}', "<")));
+    }
+    out
+}
+
+/// dc-piw0.8 (Q0, excel-answers.md, ~/codex-runs/eng1 excel-report chart1.xml): the series of a
+/// macro-made column chart over A1:C3 in columns are written as Excel writes them: `invertIfNegative`
+/// after the name, the `c16:uniqueId` extension last. Excel's data caches (`strCache`, `numCache`)
+/// are not written yet and are left out of the comparison.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_8__series_xml_is_what_excel_wrote() {
+    let mut book = open(aptos_narrow_package());
+    let sheet = book.host().sheets()[0].id();
+    for (address, text) in [
+        ("A1", "Region"), ("B1", "Q1"), ("C1", "Q2"),
+        ("A2", "North"), ("B2", "10"), ("C2", "20"),
+        ("A3", "South"), ("B3", "30"), ("C3", "40"),
+    ] {
+        enter(&mut book, sheet, address, text);
+    }
+    command(&mut book, |b| WorkbookCommand::ChartCreateEmpty {
+        sheet,
+        revision: b.host().revision().get(),
+        kind: "column".into(),
+        place: [pts(200.0), pts(20.0), pts(300.0), pts(200.0)],
+        title: None,
+        legend: true,
+    });
+    let part = book.host().model().definitions().charts(sheet)[0].part.clone();
+    command(&mut book, |b| WorkbookCommand::ChartSource {
+        sheet,
+        revision: b.host().revision().get(),
+        part: part.clone(),
+        area: GridArea::new(at(sheet, "A1"), at(sheet, "C3")).unwrap(),
+        rows: false,
+        headers: true,
+        categories: true,
+    });
+    let mut bytes = Vec::new();
+    book.save(&SavePolicy::default(), &mut bytes).unwrap();
+    let source: Arc<dyn calc_host::PackageRead> = Arc::new(MemorySource::new(bytes));
+    let document = calc_doc::open(source, &calc_host::OpenPolicy::default()).unwrap();
+    let name = document
+        .package()
+        .parts()
+        .iter()
+        .map(|p| p.name().to_owned())
+        .find(|n| n.starts_with("xl/charts/") && n.ends_with(".xml"))
+        .unwrap();
+    let written = String::from_utf8(document.package().read_part(&name).unwrap()).unwrap();
+    let recorded = include_str!("fixtures/excel-q0/chart1.xml");
+    let (written, recorded) = (series_elements(&written), series_elements(recorded));
+    assert_eq!(written.len(), recorded.len(), "{written:#?}");
+    assert_eq!(written, recorded);
+}
+
 #[allow(dead_code)]
 #[path = "../../calc-doc/tests/cdoc_m1_1_support/mod.rs"]
 mod existing_wire_support;

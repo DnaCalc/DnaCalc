@@ -594,29 +594,7 @@ impl WorkbookAutomation {
     }
     /// A sheet name as Excel writes it in a formula: quoted only when it has to be.
     fn excel_reference(canonical: &str) -> String {
-        let Some(rest) = canonical.strip_prefix('\'') else {
-            return canonical.to_owned();
-        };
-        let Some(end) = rest.find("'!") else {
-            return canonical.to_owned();
-        };
-        let (name, tail) = rest.split_at(end);
-        let word = name
-            .chars()
-            .all(|c| c.is_alphanumeric() || c == '_' || c == '.')
-            && name.chars().next().is_some_and(|c| c.is_alphabetic() || c == '_');
-        let letters = name.chars().take_while(char::is_ascii_alphabetic).count();
-        let cell_like = (1..=3).contains(&letters)
-            && letters < name.len()
-            && name[letters..].chars().all(|c| c.is_ascii_digit());
-        let r1c1 = name
-            .strip_prefix(['R', 'r'])
-            .is_some_and(|r| r.chars().all(|c| c.is_ascii_digit() || matches!(c, 'C' | 'c')));
-        if word && !cell_like && !r1c1 && !name.contains("''") {
-            format!("{name}{}", &tail[1..])
-        } else {
-            canonical.to_owned()
-        }
+        crate::chart::excel_reference(canonical)
     }
     fn series_at(&self, target: &ObjectRef) -> Result<(usize, calc_doc_model::ChartSeries), AutoError> {
         let ObjectKey::Report {
