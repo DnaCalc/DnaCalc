@@ -10,6 +10,20 @@ use calc_func::SubtotalExclusions;
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Value};
 use f1_support::*;
 
+/// Excel 20527 checks a scalar history against the longer timeline before reading the history.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_scalar_history_shape_precedes_its_value() {
+    let timeline = arr(vec![vec![3.0], vec![1.0], vec![1.0], vec![4.0]]);
+    for history in [n(7.0), t("bad"), b(false), calc_func::value::CalcValue::empty(), e(Div0)] {
+        for name in ["FORECAST.ETS", "FORECAST.ETS.CONFINT"] {
+            error(call(name, vec![n(10.0), history.clone(), timeline.clone()]), NA);
+        }
+        error(call("FORECAST.ETS.SEASONALITY", vec![history.clone(), timeline.clone()]), NA);
+        error(call("FORECAST.ETS.STAT", vec![history, timeline.clone(), n(1.0)]), NA);
+    }
+}
+
 /// Excel 20527 rejects lost-addend beta shapes for normal probabilities through one half.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

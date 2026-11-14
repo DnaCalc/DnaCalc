@@ -759,6 +759,32 @@ pub(super) fn evaluate(
     output: Output,
 ) -> Step<CalcValue> {
     let offset = usize::from(matches!(output, Output::Forecast | Output::Confidence));
+    // Excel 20527 checks this unequal-length shape before reading the scalar history,
+    // even when that scalar holds an error. Optional scalar coercion can take priority,
+    // so admit only the default-argument forms covered by independent controls.
+    let default_options = match output {
+        Output::Seasonality => args.len() == 2,
+        Output::Statistic => args.len() == 3 && args[2].as_number().is_some_and(|n| {
+            n.is_finite() && n.fract() == 0.0 && (1.0..=8.0).contains(&n)
+        }),
+        Output::Forecast | Output::Confidence => args.len() == 3
+            && args[0].as_number().is_some_and(|n| n.is_finite() && !n.is_subnormal()),
+    };
+    let scalar_history = match args.get(offset).map(CalcValue::core_ref) {
+        Some(CoreRef::Number(n)) => n.is_finite() && !n.is_subnormal(),
+        Some(CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Empty | CoreRef::Error(_)) => true,
+        _ => false,
+    };
+    if default_options && scalar_history
+        && let Some(timeline) = args.get(offset + 1).and_then(CalcValue::as_array)
+    {
+        let shape = timeline.shape();
+        if shape.cols == 1 && (2..=16).contains(&shape.rows)
+            && timeline.iter_row_major().all(|v| v.as_number().is_some_and(|n| n.is_finite() && !n.is_subnormal()))
+        {
+            return fail(WorksheetErrorCode::NA);
+        }
+    }
     let y = vector(site, args, offset, sv)?;
     let t = vector(site, args, offset + 1, sv)?;
     // Excel checks paired vector lengths before the scalar option domains.
