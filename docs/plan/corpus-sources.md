@@ -60,3 +60,24 @@ The [FUSE project documentation](https://static.barik.net/fuse/index.html) descr
 Counts describe files in the new sets; overlap between feature counts is expected. Sheetpedia also contains XLOOKUP (1,587 files), FILTER (4,587), SORT (1,348), TEXTSPLIT (593), REGEXEXTRACT (2), GROUPBY (42), and PIVOTBY (19). No REGEXTEST or REGEXREPLACE formulas were found. The classifier opened 211,305 Sheetpedia packages; 18 did not open. All 211,323 files were XLSX, and the VBA-project and XLM scans found none.
 
 Windows capture lists are in the lane output directory `~/codex-runs/harv1/capture-batches/`; they contain formula-bearing, macro-free files at or below 20 MiB, grouped by the thin features and modern functions. The lists are not committed because they contain public file paths; repository manifests retain only path, bytes and SHA-256.
+
+## Harv5 additions (2026-11-14)
+
+New local sets are SHA-256 deduplicated against `all-files.kode-fi.v5.jsonl`; manifests record path, bytes and SHA-256. `sources.tsv` in each set records original file URL, source page, licence evidence and file hash. Counts below are static OOXML/XML scans because Rust/cargo is not installed on this host; these are inventory counts, not the repository classifier or Excel-calculated results.
+
+| Set | Source / licence | Files / extracted bytes | Formula files / cells | Other profile |
+|---|---|---:|---:|---|
+| `contextures-20261114` | Contextures samples; creator-download | 2 / 139,052 | 2 / 262 | 1 one-variable and 1 two-variable data table; 1 structured-ref workbook; 2 pivots, 2 charts |
+| `github-financial-dashboard-20261114` | raniqn96/advanced-excel-financial-dashboard, pinned commit; MIT | 3 / 134,012 | 1 / 8,772 | 3 tables, 5 charts; two plain `.bas` modules, no embedded VBA project |
+| `ironcalc-20261114` | IronCalc `xlsx/tests`, pinned commit; MIT OR Apache-2.0 | 267 / 4,082,772 | 267 / 76,563 | 10 tables, 1 pivot, 4 charts; dynamic arrays, LET/LAMBDA, structured refs, REGEX*, TRIMRANGE |
+| `xlcalc-20261114` | drakosha/xlcalc, pinned commit; MIT | 7,171 / 108,942,424 | 5,244 / 171,773 | 619 tables, 3,616 pivot parts, 219 charts; includes 1,287 dynamic-array formula cells, 369 LET/LAMBDA, 117 GROUPBY/PIVOTBY, 26 TRIMRANGE and 1 IMAGE use |
+| `spreadsheetbench-v2-20261114` | KAKA22/SpreadsheetBench-v2, pinned dataset revision; MIT declared | 472 / 262,301,152 | 362 / 4,664,326 | 3 tables, 5 pivots, 803 charts, 108 data-table XML elements |
+| `sestoft-finance2-20261114` | Funcalc / Peter Sestoft official page; author-stated MIT-style | 1 / 54,846,990 | XMLSS; not counted by OOXML scan | Financial spreadsheet examples; formula count not established |
+
+The spreadsheet files above total 7,916 files and 430,446,402 bytes; `.bas` source modules are included in the GitHub set's file count and bytes. The count for academic source kind 4 includes SpreadsheetBench v2 again as a cross-listed source, not as additional files. The new workbook sets contain no embedded macro-enabled projects; two standalone VBA source modules were triaged `clean` by `~/vbawork/triage.py`'s code analysis. The `oletools` parser dependency was unavailable, so no embedded project triage was run on this batch.
+
+The engine/research review also found that `formulas` documents `test/test_files/test.xlsx` (COVERAGE sheet) as its coverage workbook and `test/test_files/excel.xlsx` as a model fixture. Those fixtures were not copied separately. HyperFormula documents XLSX import through ExcelJS, not a separate Excel conformance workbook corpus. Apache POI, LibreOffice, ClosedXML, XlsxWriter, calamine, ExcelJS and Excelize fixture sets were already indexed. SheetCopilot's README cites 221 tasks over 28 workbooks without a data licence; pointer only. EUSES, VEnron, Enron and Sheetpedia are held already. FUSE cut files were not searched for or re-fetched.
+
+### Interesting-example index
+
+The local `~/corpus-meta/interesting-examples.tsv` currently has 11 entries: 1 data-table case, 1 structured-reference/PivotTable/chart combination, 1 tables/charts example, 2 VBA modules, 1 dynamic-array spill example, 2 recursive LAMBDA examples, 1 TRIMRANGE case, 1 REGEX* case and 1 GROUPBY case. It records hashes and workbook/module locations, without copying workbook contents into the repository.
