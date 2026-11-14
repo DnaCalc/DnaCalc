@@ -187,8 +187,8 @@ fn dollar_num(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<f64> {
     }
 }
 
-/// FVSCHEDULE's schedule: numbers, a blank cell as 0, any other held value #VALUE!; a direct
-/// value through number coercion.
+/// FVSCHEDULE coerces direct numeric text or a single referenced text cell; a multi-cell range
+/// or array accepts numbers and blanks only.
 fn schedule(
     site: &Site<'_>,
     a: &[CalcValue],
@@ -198,6 +198,13 @@ fn schedule(
     let g = grid(site, a, index, sv)?;
     if !g.held {
         return Ok(vec![num(site, a, index)?]);
+    }
+    if matches!(a[index].core_ref(), CoreRef::Reference(reference)
+        if matches!(reference.areas(), [area] if area.cell_count() == 1))
+        && let [cell] = g.cells.as_slice()
+        && matches!(cell.core_ref(), CoreRef::Text(_))
+    {
+        return Ok(vec![site.number_argument(index, cell)?]);
     }
     let mut rates = Vec::with_capacity(g.cells.len());
     for cell in &g.cells {

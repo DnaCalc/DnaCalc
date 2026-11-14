@@ -72,15 +72,14 @@ fn nth(
     largest: bool,
 ) -> Step<CalcValue> {
     let values = list(site, a, 0, sv)?;
-    let k = num(site, a, 1)?.trunc();
+    let k = num(site, a, 1)?;
     if k < 1.0 || k > values.len() as f64 {
         return fail(WorksheetErrorCode::Num);
     }
-    let mut values = sorted(values);
-    if largest {
-        values.reverse();
-    }
-    site.number(values[k as usize - 1])
+    // Excel validates the unrounded rank. LARGE selects from ascending order after the stored
+    // subtraction, whose rounding matters for ranks adjacent to an integer.
+    let rank = if largest { (values.len() as f64 + 1.0 - k).trunc() } else { k.trunc() };
+    site.number(sorted(values)[rank as usize - 1])
 }
 
 /// RANK's number: a number as it is, an error as itself, anything else #N/A.
