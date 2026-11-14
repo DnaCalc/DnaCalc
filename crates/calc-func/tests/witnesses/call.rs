@@ -6,7 +6,7 @@ use calc_func::value::{
 };
 use calc_func::{
     CellReader, EvalServices, FunctionCallScratch, FunctionFault, Notation, ParameterClass, PreparedArguments,
-    SubtotalExclusions, Unreadable, catalogue, invoke,
+    ReferenceText, SubtotalExclusions, Unreadable, catalogue, invoke,
 };
 use calc_verdict::{WitnessInvocation, decode_argument, encode_result, select_result};
 use serde_json::Value;
@@ -141,6 +141,19 @@ pub fn calculate(
     context: Option<&WitnessInvocation>,
     apply_context: bool,
 ) -> String {
+    calculate_with_reference_text(function, args, index, context, apply_context, None)
+}
+
+/// A caller that owns the reference-text binder may supply it without making CalcFunc depend on
+/// that higher layer. The portable witness test continues to call the same evaluator without one.
+pub fn calculate_with_reference_text(
+    function: &str,
+    args: &[Value],
+    index: Option<(usize, usize)>,
+    context: Option<&WitnessInvocation>,
+    apply_context: bool,
+    reference_text: Option<&mut dyn ReferenceText>,
+) -> String {
     let Ok(target) = catalogue().resolve_surface(Notation::Call, function) else {
         // A bare call of an add-in's export (EUROCONVERT) is #NAME? while the add-in is not loaded.
         if catalogue().is_unloaded_addin_export(function) {
@@ -259,6 +272,9 @@ pub fn calculate(
     };
     if let Some((decimal, group)) = separators {
         services = services.with_number_separators(decimal, group);
+    }
+    if let Some(reference_text) = reference_text {
+        services = services.with_reference_text(reference_text);
     }
     let result = invoke(
         target,

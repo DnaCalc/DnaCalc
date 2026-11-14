@@ -96,6 +96,27 @@ pub fn bind_text(
     bind_str(text, notation, anchor, anchor, catalog, 0, None)
 }
 
+/// Reject unqualified reference text whose spelling cannot name a reference or defined name,
+/// without assuming a workbook, sheet, or formula position. Anything that could need those
+/// facts remains not modelled. This uses the same token and target parser as [`bind_text`]; it
+/// never returns the temporary axes used during the syntax check as a reference.
+pub fn bind_text_without_context(text: &[u16], notation: ReferenceNotation) -> TextReference {
+    let Ok(text) = String::from_utf16(text) else {
+        return TextReference::NotModelled;
+    };
+    let text = text.trim_end_matches([' ', '\n']);
+    if text.starts_with(['[', '\''])
+        || text.contains('!')
+        || text.chars().any(|c| c.is_control() && c != '\t' && c != '\r')
+    {
+        return TextReference::NotModelled;
+    }
+    match target(text, notation, None) {
+        Err(TextReference::Invalid) => TextReference::Invalid,
+        _ => TextReference::NotModelled,
+    }
+}
+
 /// How deep defined names may refer to other names in INDIRECT's text before the text is refused
 /// as not modelled.
 const MAX_NAME_DEPTH: usize = 16;
@@ -125,7 +146,7 @@ fn bind_str(
         Ok(split) => split,
         Err(outcome) => return outcome,
     };
-    let target = match target(rest, notation, base) {
+    let target = match target(rest, notation, Some(base)) {
         Ok(target) => target,
         Err(outcome) => return outcome,
     };
@@ -437,15 +458,20 @@ fn quoted_name(text: &str) -> Option<(String, &str)> {
 fn target(
     text: &str,
     notation: ReferenceNotation,
-    anchor: FormulaAnchor,
+    anchor: Option<FormulaAnchor>,
 ) -> Result<Target, TextReference> {
     if text.starts_with(' ') {
         return Err(TextReference::Invalid);
     }
     let spell = |token: &str| match notation {
         ReferenceNotation::A1 => {
-            let at = anchor.cell();
-            notation::a1(token, at.row(), at.column())
+            match anchor {
+                Some(anchor) => {
+                    let at = anchor.cell();
+                    notation::a1(token, at.row(), at.column())
+                }
+                None => notation::a1_syntax(token),
+            }
         }
         ReferenceNotation::R1C1 => notation::r1c1(token),
     };
@@ -678,6 +704,41 @@ mod tests {
             )
             .unwrap(),
         )
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn unlocated_text_only_rejects_context_independent_invalid_syntax() {
+        // Excel's retained dc_51ka capture, rows 67-75, 78-81 and 95, supplies these
+        // independent invalid-reference controls. The evaluator handles argument errors first.
+        use ReferenceNotation::{A1, R1C1};
+        for (text, notation) in [
+            ("A1", R1C1), ("R1C1", A1), ("R0C1", R1C1), ("R1C1:R2", R1C1),
+            ("", A1), (" A1", A1), ("=A1", A1), ("(A1)", A1), ("A1+1", A1),
+            ("$A", A1), ("1", A1), ("TRUE", A1),
+        ] {
+            assert_eq!(bind_text_without_context(&text.encode_utf16().collect::<Vec<_>>(), notation), TextReference::Invalid, "{text:?}");
+        }
+        // An unresolved name, address, qualifier, external workbook or unsupported text must
+        // never become a fabricated reference or a missing-sheet error.
+        for text in ["A1", "Rate", "XFE1", "data!A1", "'data'!A1", "[book]sheet!A1", "[book", "A1\t\nX"] {
+            assert_eq!(bind_text_without_context(&text.encode_utf16().collect::<Vec<_>>(), A1), TextReference::NotModelled, "{text:?}");
+        }
+        let (catalog, sheets, _) = fixture();
+        let anchors = [(1, 1), (10, 4), (1_048_576, 16_384)];
+        for i in -1024..=1024 {
+            for text in [format!("{i}"), format!("{i}.5"), format!("{i}e+12")] {
+                let units: Vec<_> = text.encode_utf16().collect();
+                for notation in [A1, R1C1] {
+                    if bind_text_without_context(&units, notation) == TextReference::Invalid {
+                        for (row, column) in anchors {
+                            let cell = CellKey::new(sheets[0], row, column).unwrap();
+                            assert_eq!(bind_text(&units, notation, FormulaAnchor::new(cell), &catalog), TextReference::Invalid, "{text:?}");
+                        }
+                    }
+                }
+            }
+        }
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

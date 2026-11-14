@@ -48,7 +48,7 @@ pub use structured::{
     TableColumnContext, TableInfo, TableLookup, quote_table_column, rename_table_column,
 };
 pub use template::{template_key, template_key_of_chars};
-pub use text::bind_text;
+pub use text::{bind_text, bind_text_without_context};
 pub use transform::{
     EditAxis, StructuralEdit, convert_notation, format_workbook_sheet_qualifier,
     shift_formula_supported, transform_formula, transform_name,

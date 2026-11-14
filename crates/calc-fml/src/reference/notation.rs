@@ -43,6 +43,16 @@ impl Spelled {
 /// `XFE1`) rather than a reference; a row (digits only) or any form with a `$` outside the grid
 /// is [`Spelled::OutsideGrid`].
 pub(super) fn a1(text: &str, anchor_row: u32, anchor_column: u32) -> Option<Spelled> {
+    a1_with_anchor(text, Some((anchor_row, anchor_column)))
+}
+
+/// Spell the same token for a syntax check without placing any reference. The axes in the
+/// returned value are temporary spelling data and must not be used as a worksheet position.
+pub(super) fn a1_syntax(text: &str) -> Option<Spelled> {
+    a1_with_anchor(text, None)
+}
+
+fn a1_with_anchor(text: &str, anchor: Option<(u32, u32)>) -> Option<Spelled> {
     let bytes = text.as_bytes();
     let mut at = 0;
     let first_dollar = take(bytes, &mut at, b'$');
@@ -58,8 +68,8 @@ pub(super) fn a1(text: &str, anchor_row: u32, anchor_column: u32) -> Option<Spel
         (false, false) => {
             if in_grid(column, MAX_COLUMNS) && in_grid(row, MAX_ROWS) {
                 Some(Spelled::Cell(CellRef {
-                    row: a1_axis(second_dollar, row, anchor_row),
-                    column: a1_axis(first_dollar, column, anchor_column),
+                    row: a1_axis(second_dollar, row, anchor.map(|a| a.0)),
+                    column: a1_axis(first_dollar, column, anchor.map(|a| a.1)),
                 }))
             } else {
                 (first_dollar || second_dollar).then_some(Spelled::OutsideGrid(Form::Cell))
@@ -70,14 +80,14 @@ pub(super) fn a1(text: &str, anchor_row: u32, anchor_column: u32) -> Option<Spel
                 Some(Spelled::Column(a1_axis(
                     first_dollar,
                     column,
-                    anchor_column,
+                    anchor.map(|a| a.1),
                 )))
             } else {
                 first_dollar.then_some(Spelled::OutsideGrid(Form::Column))
             }
         }
         (true, false) => Some(if in_grid(row, MAX_ROWS) {
-            Spelled::Row(a1_axis(first_dollar, row, anchor_row))
+            Spelled::Row(a1_axis(first_dollar, row, anchor.map(|a| a.0)))
         } else {
             Spelled::OutsideGrid(Form::Row)
         }),
@@ -145,12 +155,11 @@ fn r1c1_axis(bytes: &[u8], at: &mut usize, max: u32) -> Option<Option<AxisRef>> 
     Some(in_grid(index, max).then_some(AxisRef::Absolute(index as u32)))
 }
 
-fn a1_axis(absolute: bool, index: u64, anchor: u32) -> AxisRef {
+fn a1_axis(absolute: bool, index: u64, anchor: Option<u32>) -> AxisRef {
     // `index` is on the grid (at most MAX_ROWS), so the offset fits an i32.
-    if absolute {
-        AxisRef::Absolute(index as u32)
-    } else {
-        AxisRef::Relative((index as i64 - i64::from(anchor)) as i32)
+    match (absolute, anchor) {
+        (false, Some(anchor)) => AxisRef::Relative((index as i64 - i64::from(anchor)) as i32),
+        _ => AxisRef::Absolute(index as u32),
     }
 }
 

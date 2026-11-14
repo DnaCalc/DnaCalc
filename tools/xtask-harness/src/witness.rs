@@ -1559,6 +1559,21 @@ fn plain_readings(dir: &Path) -> Vec<PathBuf> {
 #[path = "../../../crates/calc-func/tests/witnesses/call.rs"]
 mod witness_call;
 
+/// Resolve only syntax that is invalid regardless of the workbook and formula position. The
+/// bank does not retain either, so the CalcFml binder must refuse all references needing them.
+struct UnlocatedReferenceText;
+
+impl calc_func::ReferenceText for UnlocatedReferenceText {
+    fn resolve(&mut self, text: &[u16], a1: bool) -> calc_func::TextReference {
+        let notation = if a1 {
+            calc_fml::reference::ReferenceNotation::A1
+        } else {
+            calc_fml::reference::ReferenceNotation::R1C1
+        };
+        calc_fml::reference::bind_text_without_context(text, notation)
+    }
+}
+
 fn calculate_with_context(
     function: &str,
     args: &[Value],
@@ -1567,7 +1582,14 @@ fn calculate_with_context(
     apply: bool,
 ) -> String {
     catch_unwind(AssertUnwindSafe(|| {
-        witness_call::calculate(function, args, index, context, apply)
+        if function.eq_ignore_ascii_case("INDIRECT") {
+            let mut reference_text = UnlocatedReferenceText;
+            witness_call::calculate_with_reference_text(
+                function, args, index, context, apply, Some(&mut reference_text),
+            )
+        } else {
+            witness_call::calculate(function, args, index, context, apply)
+        }
     }))
     .unwrap_or_else(|_| "fault:Panic".to_owned())
 }
@@ -3771,6 +3793,27 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn indirect_unlocated_uses_real_binder_without_inventing_workbook_context() {
+        use serde_json::json;
+        for args in [
+            vec![json!("" )], vec![json!(" A1")], vec![json!("=A1")],
+            vec![json!("(A1)")], vec![json!("A1+1")], vec![json!("1")],
+            // dc_51ka row 80 and the separate jnt_lookup row 76 captured 1 and 123.
+            vec![json!("0x3ff0000000000000")], vec![json!("0x405ec00000000000")], vec![json!(true)],
+            vec![json!("R0C1"), json!(false)],
+        ] {
+            assert_eq!(super::calculate_with_context("INDIRECT", &args, None, None, true), "error:Ref", "{args:?}");
+        }
+        for text in ["A1", "Rate", "data!A1", "[book]sheet!A1"] {
+            assert_eq!(super::calculate_with_context("INDIRECT", &[json!(text)], None, None, true), "fault:NotImplemented", "{text}");
+        }
+        assert_eq!(
+            super::calculate_with_context("INDIRECT", &[json!("0x3ff0000000000000"), json!({"error": "NA"})], None, None, true),
+            "error:NA"
+        );
+    }
+
     #[test]
     fn unique_recapture_requires_matching_input_readback() {
         let bytes = super::gunzip(
