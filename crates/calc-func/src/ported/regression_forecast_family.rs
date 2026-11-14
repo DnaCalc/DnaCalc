@@ -1153,7 +1153,10 @@ fn forecast_pair_kernel(
 }
 
 pub(crate) fn eval_trend_surface(args: &[CalcValue]) -> Result<CalcValue, WorksheetErrorCode> {
-    let (known_y, known_x) = shape_first_inputs(args)?;
+    let (known_y, known_x) = match paired_trend_matrices(args) {
+        Some(pair) => pair,
+        None => shape_first_inputs(args)?,
+    };
     let new_x_raw = args
         .get(2)
         .filter(|arg| !matches!(arg.core_ref(), CoreRef::Missing))
@@ -1162,6 +1165,29 @@ pub(crate) fn eval_trend_surface(args: &[CalcValue]) -> Result<CalcValue, Worksh
     let new_x = prediction_input_from_optional(new_x_raw, &known_y, &known_x)?;
     let use_const = bool_flag_from_eval_or_default(optional_arg_value(args.get(3))?, true)?;
     trend_kernel(&known_y, &known_x, &new_x, use_const)
+}
+
+/// Excel 20527 treats numeric 2x2 histories as four row-major paired observations when
+/// forecasting a 2x2 matrix. Independent controls agree with the equivalent column histories.
+fn paired_trend_matrices(args: &[CalcValue]) -> Option<(NumericVector, PreparedPredictorInput)> {
+    let matrix_values = |index: usize| {
+        let array = args.get(index)?.as_array()?;
+        let shape = array.shape();
+        if shape.rows != 2 || shape.cols != 2 {
+            return None;
+        }
+        array.iter_row_major().map(CalcValue::as_number).collect::<Option<Vec<_>>>()
+    };
+    let y = matrix_values(0)?;
+    let x = matrix_values(1)?;
+    matrix_values(2)?;
+    Some((
+        NumericVector { values: y, shape: VectorShape::Column(4) },
+        PreparedPredictorInput {
+            predictors: NumericMatrix { rows: 4, cols: 1, values: x },
+            output_shape: OutputShape::Column(4),
+        },
+    ))
 }
 
 pub(crate) fn eval_growth_surface(args: &[CalcValue]) -> Result<CalcValue, WorksheetErrorCode> {
