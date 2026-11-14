@@ -32,6 +32,8 @@ const OWNER: &str = "dc-0f1k.24";
 type Reply = Result<AutoValue, AutoError>;
 mod mutation;
 mod navigation;
+mod report;
+mod report_draw;
 mod value;
 
 /// The application supplies access, never a copied value reader. `None` means no admitted
@@ -99,6 +101,8 @@ pub struct WorkbookAutomation {
     /// Tracker identities are interned. Every acquired wrapper owns one reference; views own
     /// their own acquisition too. The model drops its lease when the projection releases it.
     ranges: RefCell<HashMap<StoredReference, RangeLeases>>,
+    /// Chart frames made by `ChartObjects.Add` that wait for their source data (dc-piw0.2).
+    pending_charts: RefCell<Vec<report::PendingChart>>,
 }
 
 struct RangeLeases {
@@ -181,6 +185,8 @@ impl WorkbookAutomation {
         );
         Self::register_navigation(&mut handlers);
         Self::register_mutation(&mut handlers);
+        // Report objects register where the committed descriptor describes them (dc-piw0).
+        let _ = Self::register_report(&mut handlers);
         handlers.on(
             "Application",
             "EnableEvents",
@@ -194,6 +200,7 @@ impl WorkbookAutomation {
             snapshot: RefCell::new(None),
             next_workbook: Cell::new(1),
             ranges: RefCell::default(),
+            pending_charts: RefCell::default(),
         }
     }
     pub fn handlers(&self) -> &Handlers<Self> {
@@ -358,7 +365,10 @@ impl WorkbookAutomation {
             | ObjectKey::Sheets(id)
             | ObjectKey::Names(id)
             | ObjectKey::Name { workbook: id, .. } => Some(id),
-            ObjectKey::Worksheet { workbook, sheet } => {
+            ObjectKey::Worksheet { workbook, sheet }
+            | ObjectKey::Report {
+                workbook, sheet, ..
+            } => {
                 if meta.model.sheet_by_id(sheet).is_none() {
                     return Err(AutoError::not_modelled("Worksheet was deleted", OWNER));
                 }

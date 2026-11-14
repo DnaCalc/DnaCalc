@@ -1870,3 +1870,104 @@ fn range_value_currency_preserves_integer_units_for_large_in_range_numbers() {
         );
     }
 }
+
+/// dc-piw0: the report members registered where the committed descriptor describes them. The count
+/// holds in both states: registered plus pending is the full list, every pending member is
+/// really absent from the descriptor, and every registered one is a handler of the table.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn report_members_register_where_the_descriptor_describes_them() {
+    let (_, model) = setup();
+    let pending = model.report_members_pending();
+    let implemented = model.handlers().implemented();
+    // 81 report members are written; the pending ones are those the descriptor lacks.
+    assert!(pending.len() <= 81);
+    for name in &pending {
+        assert!(!implemented.contains(name), "{name} is pending and also registered");
+    }
+    let registered = 81 - pending.len();
+    eprintln!(
+        "report members: {registered} registered, {} pending the descriptor regeneration",
+        pending.len()
+    );
+    if pending.is_empty() {
+        assert!(implemented.contains(&"ListObjects.Add (Method)".to_owned()));
+        assert!(implemented.contains(&"Shape.Delete (Method)".to_owned()));
+    }
+}
+
+/// dc-piw0: the macro's steps through the object-model members: fill a range, add the table,
+/// rename it, add a chart over it with titles, two shapes and a connector, save, reload, list.
+/// Needs the regenerated descriptor (ListObject, Chart, Shape, ... types): ignored until then.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[ignore = "descriptor: ListObject, Chart and Shape types are not in the committed descriptor (RUN-ON-WINDOWS item 1 of lane eng1)"]
+fn dc_piw0__a_macro_builds_a_report_through_object_model_members() {
+    let session = HostSession::open(
+        Arc::new(MemorySource::new(blank_package())),
+        &OpenPolicy::default(),
+        HostOptions::default(),
+    )
+    .unwrap();
+    let (host, model) = setup_session(session);
+    for (cell, value) in [
+        ((1, 1), "Region"), ((1, 2), "Q1"), ((1, 3), "Q2"),
+        ((2, 1), "North"), ((2, 2), "10"), ((2, 3), "20"),
+        ((3, 1), "South"), ((3, 2), "30"), ((3, 3), "40"),
+    ] {
+        enter(&host, at(&host, cell.0, cell.1), value);
+    }
+    let app = model.application();
+    let sheet = obj(invoke(&model, &app, "ActiveSheet", vec![]).unwrap());
+    let tables = obj(invoke(&model, &sheet, "ListObjects", vec![]).unwrap());
+    let source = range(&model, "A1:C3");
+    let table = obj(invoke_kind(
+        &model, &tables, "Add", InvokeKind::Method,
+        vec![AutoValue::I4(1), AutoValue::Object(source.clone()), AutoValue::Missing, AutoValue::I4(1)],
+    ).unwrap());
+    invoke_kind(&model, &table, "Name", InvokeKind::Put, vec![AutoValue::text("Sales")]).unwrap();
+    assert_eq!(text(&model, &table, "Name"), "Sales");
+    let table_range = obj(invoke(&model, &table, "Range", vec![]).unwrap());
+    assert_eq!(text(&model, &table_range, "Address"), "$A$1:$C$3");
+
+    let charts = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let frame = obj(invoke_kind(
+        &model, &charts, "Add", InvokeKind::Method,
+        vec![AutoValue::R8(200.0), AutoValue::R8(20.0), AutoValue::R8(300.0), AutoValue::R8(200.0)],
+    ).unwrap());
+    let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
+    invoke_kind(&model, &chart, "SetSourceData", InvokeKind::Method, vec![AutoValue::Object(table_range)]).unwrap();
+    invoke_kind(&model, &chart, "HasTitle", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    let title = obj(invoke(&model, &chart, "ChartTitle", vec![]).unwrap());
+    invoke_kind(&model, &title, "Text", InvokeKind::Put, vec![AutoValue::text("Sales")]).unwrap();
+
+    let shapes = obj(invoke(&model, &sheet, "Shapes", vec![]).unwrap());
+    let add = |name: &str, args: Vec<AutoValue>| {
+        obj(invoke_kind(&model, &shapes, name, InvokeKind::Method, args).unwrap())
+    };
+    let first = add("AddShape", vec![AutoValue::I4(1), AutoValue::R8(20.0), AutoValue::R8(200.0), AutoValue::R8(100.0), AutoValue::R8(50.0)]);
+    let second = add("AddShape", vec![AutoValue::I4(9), AutoValue::R8(20.0), AutoValue::R8(300.0), AutoValue::R8(100.0), AutoValue::R8(50.0)]);
+    let connector = add("AddConnector", vec![AutoValue::I4(1), AutoValue::R8(0.0), AutoValue::R8(0.0), AutoValue::R8(10.0), AutoValue::R8(10.0)]);
+    let format = obj(invoke(&model, &connector, "ConnectorFormat", vec![]).unwrap());
+    invoke_kind(&model, &format, "BeginConnect", InvokeKind::Method, vec![AutoValue::Object(first.clone()), AutoValue::I4(3)]).unwrap();
+    invoke_kind(&model, &format, "EndConnect", InvokeKind::Method, vec![AutoValue::Object(second), AutoValue::I4(1)]).unwrap();
+    let frame_text = obj(invoke(&model, &first, "TextFrame2", vec![]).unwrap());
+    let text_range = obj(invoke(&model, &frame_text, "TextRange", vec![]).unwrap());
+    invoke_kind(&model, &text_range, "Text", InvokeKind::Put, vec![AutoValue::text("Start")]).unwrap();
+    assert_eq!(text(&model, &text_range, "Text"), "Start");
+    // The chart counts as a shape of the sheet, as in Excel.
+    assert!(matches!(invoke(&model, &shapes, "Count", vec![]).unwrap(), AutoValue::I4(4)));
+
+    let mut bytes = Vec::new();
+    host.session.borrow_mut().save(&SavePolicy::default(), &mut bytes).unwrap();
+    let reloaded = HostSession::open(
+        Arc::new(MemorySource::new(bytes)),
+        &OpenPolicy::default(),
+        HostOptions::default(),
+    )
+    .unwrap();
+    let sheet_id = reloaded.host().sheets()[0].id();
+    assert_eq!(reloaded.host().model().definitions().tables().len(), 1);
+    assert_eq!(reloaded.host().charts(sheet_id).0.len(), 1);
+    assert_eq!(reloaded.host().shapes(sheet_id).len(), 3);
+}

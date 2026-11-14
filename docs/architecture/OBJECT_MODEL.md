@@ -220,6 +220,21 @@ event observer. They check nested event writes, one Change per transaction, scal
 shape refusal, held collection/range/name identities, and worksheet-invocation 1004s. WorksheetFunction
 Match's 1004 description is explicitly **unmeasured E7 text**, as directed by the owner.
 
+## 10a. Report objects (dc-piw0, lane eng1, 2026-11-14)
+
+Tables, charts and drawings a macro builds are workbook-profile members in
+`calc_host::automation::report` and `report_draw`: 81 members (ListObjects, ListObject, ListColumns,
+ListColumn, ListRows, ChartObjects, ChartObject, Chart, ChartTitle, Shapes, Shape, TextFrame2,
+TextRange2, FillFormat, LineFormat, ColorFormat, ConnectorFormat), each one handler over the session's
+commands (`WorkbookCommand::Table`, `ChartCreate`, `ChartFrame`, `ChartProperties`, `Shape`), in the
+command and event contexts only. Objects are `ObjectKey::Report { workbook, sheet, item }`. They register
+only where the committed descriptor holds the type: the descriptor lists them in
+`descriptor/*.interfaces.txt` but the JSON is regenerated on Windows, so until then
+`WorkbookAutomation::report_members_pending()` lists all 81 and they answer the uniform 1004 refusal.
+A chart made by `ChartObjects.Add` is a pending frame until `SetSourceData` creates the chart (the chart
+writer has no empty chart, dc-zjsg.6). Drawing objects the file holds are never rewritten; changing one
+refuses naming dc-zjsg.4.
+
 ## 11. Open items
 
 - Value date/currency conversion is measured in section 9 but not implemented in this profile yet.

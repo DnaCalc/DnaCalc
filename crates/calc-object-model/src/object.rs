@@ -46,6 +46,14 @@ pub enum ObjectKey {
         id: NameId,
     },
     WorksheetFunction,
+    /// An object of the report layer of one worksheet (tables, charts, drawings: dc-piw0). It
+    /// names a table by its part, a chart by its part (or the token of a chart still waiting for
+    /// its source data), a shape by its drawing id; resolved again on every call.
+    Report {
+        workbook: u64,
+        sheet: SheetId,
+        item: ReportItem,
+    },
     /// An object a projection owns by nature (COMAddIns, CommandBars, ribbon objects): the
     /// projection's own handle.
     Host(u64),
@@ -55,4 +63,29 @@ impl ObjectRef {
     pub fn new(interface: InterfaceId, key: ObjectKey) -> ObjectRef {
         ObjectRef { interface, key }
     }
+}
+
+/// Which report object of a worksheet an [`ObjectKey::Report`] denotes.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum ReportItem {
+    ListObjects,
+    /// A table, by its table part.
+    ListObject(String),
+    ListColumns(String),
+    ListColumn(String, u32),
+    ListRows(String),
+    ChartObjects,
+    /// A chart frame, by chart part or pending token.
+    ChartObject(String),
+    Chart(String),
+    ChartTitle(String),
+    Shapes,
+    Shape(u32),
+    TextFrame2(u32),
+    TextRange2(u32),
+    FillFormat(u32),
+    LineFormat(u32),
+    ConnectorFormat(u32),
+    /// A `ColorFormat` of a shape's fill (`false`) or line (`true`).
+    ColorFormat(u32, bool),
 }

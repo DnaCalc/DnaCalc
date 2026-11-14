@@ -77,6 +77,7 @@ fn add(kind: ShapeKind, geometry: &str, l: f64, t: f64, w: f64, h: f64) -> Shape
         top: pts(t),
         width: pts(w),
         height: pts(h),
+        flips: (false, false),
         name: None,
     }
 }

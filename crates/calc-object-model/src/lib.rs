@@ -30,5 +30,5 @@ pub mod value;
 pub use descriptor::{Descriptor, Guid, InterfaceId, InvokeKind, Member, Param, ParamFlag, TypeInfo};
 pub use events::EventSource;
 pub use model::{AutoError, Call, Handler, Handlers, ObjectModel};
-pub use object::{ObjectKey, ObjectRef};
+pub use object::{ObjectKey, ObjectRef, ReportItem};
 pub use value::{AutoArray, AutoValue};

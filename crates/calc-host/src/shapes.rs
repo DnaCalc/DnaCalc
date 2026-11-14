@@ -40,6 +40,8 @@ pub enum ShapeChange {
         top: Points,
         width: Points,
         height: Points,
+        /// Horizontal and vertical flip (a line drawn right to left or bottom to top).
+        flips: (bool, bool),
         /// `None`: Excel's default name for the kind.
         name: Option<String>,
     },
@@ -300,6 +302,7 @@ pub(crate) fn prepare(
             top,
             width,
             height,
+            flips,
             name,
         } => {
             let (left, top, width, height) = (left.get(), top.get(), width.get(), height.get());
@@ -332,6 +335,7 @@ pub(crate) fn prepare(
                 (width * EMU_PER_POINT).round() as i64,
                 (height * EMU_PER_POINT).round() as i64,
             );
+            (shape.flip_horizontal, shape.flip_vertical) = flips;
             shapes.push(shape);
         }
         ShapeChange::Delete { id } => {

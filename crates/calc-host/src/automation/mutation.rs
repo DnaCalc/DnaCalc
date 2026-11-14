@@ -45,7 +45,7 @@ impl WorkbookAutomation {
         );
     }
 
-    fn with_write(&self, mut call: impl FnMut(&mut HostSession) -> Reply) -> Reply {
+    pub(super) fn with_write(&self, mut call: impl FnMut(&mut HostSession) -> Reply) -> Reply {
         if let Some(reply) = self.host.with_invocation(&mut |_| {
             Err(AutoError::excel(
                 1004,
