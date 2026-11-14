@@ -264,8 +264,15 @@ ported_shared_family! {
         complex_text(x.div(y), &[x, y])
     }
     52 impower |s, a, sv| {
+        // Excel 20527 rejects empty complex text before inspecting the exponent.
+        if matches!(a[0].core_ref(), CoreRef::Text(t) if t.utf16_code_units().is_empty()) {
+            return fail(WorksheetErrorCode::Num);
+        }
         let z = complex_of(s, 0, &a[0])?;
         let n = coefficient(s, a, 1)?;
+        if z.re == 0.0 && z.im == 0.0 && n == 0.0 {
+            return fail(WorksheetErrorCode::Num);
+        }
         complex_text(z.power(n), &[z])
     }
     53 imsub |s, a, sv| {

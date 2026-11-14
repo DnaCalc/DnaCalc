@@ -52,6 +52,9 @@ differs). "Readable" excludes OLE2 files truncated by the crawler (below).
 | Sheetpedia XLSX (2026-11-13; no VBA/XLM found) | 211,323 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | BigSpill Excel Lambda Library (2026-11-13; no VBA/XLM found) | 11 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | Replicator Dynamics (2026-11-13; no VBA/XLM found) | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| GitHub VBA workbooks (2026-11-14) | 2 | 2 | 2 | 0 | 2 | 1 | 1 (danger and effect) | 0 | 0 |
+| GitHub macro-tool workbook (2026-11-14) | 1 | 1 | 1 | 0 | 1 | 1 | 0 | 0 | 0 |
+| GitHub feature examples (2026-11-14; no VBA/XLM found) | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 
 By kind: FUSE and EUSES VBA files are all binary .xls (OLE2); Zenodo 110 .xlsm plus 4 .xlsb; GitHub
 683 OOXML, 37 .xlsb, 35 .xls. Enron holds no VBA at all (the archive is the .xlsx conversion).
@@ -61,6 +64,20 @@ Totals: 2,194 + 360 + 61 + 68 + 7 + 2 + 5 = 2,697 readable VBA files in the exis
 For the three spreadsheet-only sources added on 2026-11-13, the zero VBA/XLM and triage counts mean
 the static inventory found no macro projects or macro sheets to triage. Formula and feature counts
 are recorded in [`corpus-sources.md`](corpus-sources.md).
+
+### Additional licensed GitHub sets (2026-11-14)
+
+The two macro-enabled sets add three unique VBA workbooks. `github-vba-20261114` has two `.xlsm`
+workbooks: one triage-clean and one suspect (danger and effect signals). `github-vba-tools-20261114`
+has one `.xlsm`, triage-clean. The clean macro-tool workbook has no formulas. A separate feature set
+has three `.xlsx` files, 794 formula cells, no VBA or XLM, two files with slicers and three with
+PivotTables. Its capture candidates are in `~/codex-runs/harv2/capture-batches/`; they are formula
+bearing, macro-free files no larger than 20 MiB. All three R2 set copies passed one-way checks.
+
+These are harvested GitHub sets, so either a danger or effect sign marks a workbook suspect. The
+two vbaXray workbooks were omitted because their SHA-256 hashes were already present in the earlier
+GitHub corpus. Workbook paths stay in the local manifests and R2 inventory; no workbook code is
+committed.
 
 Observations:
 
