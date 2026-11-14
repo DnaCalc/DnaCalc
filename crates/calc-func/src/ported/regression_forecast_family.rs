@@ -1161,6 +1161,11 @@ pub(crate) fn eval_trend_surface(args: &[CalcValue]) -> Result<CalcValue, Worksh
             shape.rows == 2 && shape.cols == 2 && a.iter_row_major().all(|v| v.as_number().is_some())
         })
     };
+    if numeric_matrix(1) && args.first().is_some_and(|v| {
+        matches!(v.core_ref(), CoreRef::Number(_) | CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Empty | CoreRef::Error(_))
+    }) {
+        return Err(WorksheetErrorCode::Ref);
+    }
     if numeric_matrix(0) && numeric_matrix(1) && args.get(2).is_some_and(|v| {
         matches!(v.core_ref(), CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Empty | CoreRef::Error(_))
     }) {

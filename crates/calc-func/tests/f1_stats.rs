@@ -30,6 +30,16 @@ fn trend_matrix_histories_accept_numeric_scalar_new_x() {
     close(call("TREND", vec![y, x, n(5.0)]), 10.0, 1e-12);
 }
 
+/// Excel 20527 validates 2x2 predictor shape before a scalar history error.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn trend_scalar_history_with_matrix_predictors_returns_ref() {
+    let x = arr(vec![vec![1.0, 3.0], vec![2.0, 4.0]]);
+    for y in [n(1.0), t("bad"), b(true), e(NA), calc_func::value::CalcValue::empty()] {
+        error(call("TREND", vec![y, x.clone(), n(2.0), e(Div0)]), Ref);
+    }
+}
+
 /// Excel 20527 cell-backed argument and independent error-priority controls.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
