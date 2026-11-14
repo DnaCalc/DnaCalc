@@ -1028,8 +1028,8 @@ pub fn map_dynamic_array_reshape_error_to_ws(
 }
 
 /// SEQUENCE (sequence.rs): `rows` by `columns` numbers from `start` by `step`, row by row. A
-/// dimension of 0 is #CALC!; a negative or fractional one #VALUE!; an omitted or blank argument
-/// takes its default.
+/// dimension which floors to 0 is #CALC!; a negative one is #VALUE!; an omitted argument takes
+/// its default and a blank cell reads as zero.
 #[derive(Debug)]
 pub(crate) struct SequenceWork {
     rows: usize,
@@ -1038,6 +1038,8 @@ pub(crate) struct SequenceWork {
     step: f64,
     count: usize,
     cells: Vec<CalcValue>,
+    fractional_dimensions: bool,
+    next: f64,
 }
 
 impl SequenceWork {
@@ -1053,37 +1055,54 @@ impl SequenceWork {
                 ));
             }
         }
-        fn dimension(arg: Option<&CalcValue>) -> Result<usize, DynamicArrayReshapeEvalError> {
+        // For direct numeric and logical dimensions a negative value takes precedence over an
+        // empty dimension (Excel 20527, dc-ymjf.2.69). Other coercion and error ordering stays on
+        // its existing route.
+        let direct_dimension = |arg: Option<&CalcValue>| match arg.map(CalcValue::core_ref) {
+            Some(CoreRef::Number(n)) => Some(n),
+            Some(CoreRef::Logical(b)) => Some(if b { 1.0 } else { 0.0 }),
+            None | Some(CoreRef::Missing) => Some(1.0),
+            Some(CoreRef::Empty) => Some(0.0),
+            _ => None,
+        };
+        if let (Some(rows), Some(cols)) = (direct_dimension(args.first()), direct_dimension(args.get(1)))
+            && (rows < 0.0 || cols < 0.0)
+        {
+            return Err(DynamicArrayReshapeEvalError::InvalidCount);
+        }
+        fn dimension(arg: Option<&CalcValue>) -> Result<(usize, bool), DynamicArrayReshapeEvalError> {
             let raw = match arg {
-                None => return Ok(1),
-                Some(value) if matches!(value.core_ref(), CoreRef::Missing | CoreRef::Empty) => {
-                    return Ok(1);
+                None => return Ok((1, false)),
+                Some(value) if matches!(value.core_ref(), CoreRef::Missing) => {
+                    return Ok((1, false));
                 }
                 Some(value) => coerce_prepared_to_number(value)
                     .map_err(DynamicArrayReshapeEvalError::Preparation)?,
             };
-            if raw == 0.0 {
-                return Err(DynamicArrayReshapeEvalError::EmptyArrayResult);
-            }
-            if !raw.is_finite() || raw < 0.0 || raw.fract() != 0.0 {
+            if !raw.is_finite() || raw < 0.0 {
                 return Err(DynamicArrayReshapeEvalError::InvalidCount);
             }
-            Ok(raw as usize)
+            let count = super::text_kernels::date_integer_floor(raw);
+            Ok((count as usize, raw.fract() != 0.0))
         }
         fn scalar(arg: Option<&CalcValue>) -> Result<f64, DynamicArrayReshapeEvalError> {
             match arg {
                 None => Ok(1.0),
-                Some(value) if matches!(value.core_ref(), CoreRef::Missing | CoreRef::Empty) => {
+                Some(value) if matches!(value.core_ref(), CoreRef::Missing) => {
                     Ok(1.0)
                 }
                 Some(value) => coerce_prepared_to_number(value)
                     .map_err(DynamicArrayReshapeEvalError::Preparation),
             }
         }
-        let rows = dimension(args.first())?;
-        let cols = dimension(args.get(1))?;
+        let (rows, fractional_rows) = dimension(args.first())?;
+        let (cols, fractional_cols) = dimension(args.get(1))?;
         let start = scalar(args.get(2))?;
         let step = scalar(args.get(3))?;
+        // Excel validates the other numeric arguments before returning an empty-array error.
+        if rows == 0 || cols == 0 {
+            return Err(DynamicArrayReshapeEvalError::EmptyArrayResult);
+        }
         let count = ArrayShape { rows, cols }
             .cell_count()
             .ok_or(DynamicArrayReshapeEvalError::InvalidCount)?;
@@ -1094,6 +1113,8 @@ impl SequenceWork {
             step,
             count,
             cells: Vec::new(),
+            fractional_dimensions: fractional_rows || fractional_cols,
+            next: start,
         })
     }
 
@@ -1107,8 +1128,20 @@ impl SequenceWork {
     ) -> Option<Result<CalcValue, DynamicArrayReshapeEvalError>> {
         let end = self.cells.len().saturating_add(elements).min(self.count);
         for idx in self.cells.len()..end {
-            self.cells
-                .push(CalcValue::number(self.start + (idx as f64) * self.step));
+            if self.fractional_dimensions {
+                // Excel advances each cell by one stored binary64 addition. Defer overflow and
+                // subnormal output until their complete array behavior has been measured.
+                if !self.next.is_finite() || self.next.is_subnormal() {
+                    return Some(Err(DynamicArrayReshapeEvalError::Preparation(
+                        CoercionError::NotModelled,
+                    )));
+                }
+                self.cells.push(CalcValue::number(self.next));
+                self.next += self.step;
+            } else {
+                self.cells
+                    .push(CalcValue::number(self.start + (idx as f64) * self.step));
+            }
         }
         (end == self.count)
             .then(|| build_array(self.rows, self.cols, std::mem::take(&mut self.cells)))
