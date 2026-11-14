@@ -11,10 +11,9 @@ use calc_doc_model::{
 use calc_value::SheetId;
 
 const EMU_PER_POINT: f64 = 12_700.0;
-/// Excel's maximum digit width of the default font, in pixels (Calibri 11, Aptos Narrow 11).
-const DIGIT_PIXELS: f64 = 7.0;
-const DEFAULT_ROW_POINTS: f64 = 15.0;
-const DEFAULT_COLUMN_PIXELS: f64 = 64.0;
+/// The pixel density shape positions are measured at (dc-piw0 Q9): points are DPI free, a
+/// column's pixels scale with it.
+const DPI: f64 = crate::facts::REFERENCE_DPI;
 
 /// A length in points as its binary64 bits, so commands compare exactly.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -121,10 +120,11 @@ impl HostState {
             + 1
     }
 
+    /// The width in points of a column: whole pixels of the workbook's default font's digit
+    /// width (Aptos Narrow 11: 8 px, Calibri 11: 7 px), converted at the pixel density.
     fn column_points(&self, sheet: SheetId, column: u32) -> f64 {
-        let Some(loaded) = self.loaded().sheet(sheet) else {
-            return DEFAULT_COLUMN_PIXELS * 0.75;
-        };
+        // A font the measure does not know falls back to Calibri 11's 7 pixels.
+        let mdw = crate::facts::maximum_digit_width_at(self.styles(), DPI).unwrap_or(7.0);
         let format = self.model().definitions().axis_layouts().get(
             sheet,
             calc_doc_model::Axis::Columns,
@@ -133,18 +133,18 @@ impl HostState {
         if format.hidden() {
             return 0.0;
         }
-        let geometry = loaded.geometry();
-        let characters = format
+        let geometry = self.loaded().sheet(sheet).map(|s| s.geometry());
+        let pixels = match format
             .size()
-            .or(geometry.default_column_width)
-            .or_else(|| geometry.base_column_width.map(|_| 0.0).filter(|_| false));
-        let pixels = match characters {
-            Some(width) => {
-                (((256.0 * width + (128.0 / DIGIT_PIXELS).trunc()) / 256.0) * DIGIT_PIXELS).trunc()
-            }
-            None => DEFAULT_COLUMN_PIXELS,
+            .or_else(|| geometry.and_then(|g| g.default_column_width))
+        {
+            Some(width) => crate::facts::column_pixels(width, mdw),
+            None => crate::facts::default_column_pixels(
+                geometry.and_then(|g| g.base_column_width).unwrap_or(8.0),
+                mdw,
+            ),
         };
-        pixels * 0.75
+        pixels * 72.0 / DPI
     }
 
     fn row_points(&self, sheet: SheetId, row: u32) -> f64 {
@@ -163,7 +163,7 @@ impl HostState {
                     .sheet(sheet)
                     .and_then(|s| s.geometry().default_row_height)
             })
-            .unwrap_or(DEFAULT_ROW_POINTS)
+            .unwrap_or_else(|| crate::facts::default_row_points(self.styles()))
     }
 
     /// The sheet's x offset, in points, of the left edge of zero-based `column`.
