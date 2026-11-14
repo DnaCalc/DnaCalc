@@ -67,12 +67,7 @@ are recorded in [`corpus-sources.md`](corpus-sources.md).
 
 ### Additional licensed GitHub sets (2026-11-14)
 
-The two macro-enabled sets add three unique VBA workbooks. `github-vba-20261114` has two `.xlsm`
-workbooks: one triage-clean and one suspect (danger and effect signals). `github-vba-tools-20261114`
-has one `.xlsm`, triage-clean. The clean macro-tool workbook has no formulas. A separate feature set
-has three `.xlsx` files, 794 formula cells, no VBA or XLM, two files with slicers and three with
-PivotTables. Its capture candidates are in `~/codex-runs/harv2/capture-batches/`; they are formula
-bearing, macro-free files no larger than 20 MiB. All three R2 set copies passed one-way checks.
+The three licensed GitHub macro-enabled sets add four unique VBA workbooks. `github-vba-20261114` has two `.xlsm` workbooks: one triage-clean and one suspect (danger and effect signals). `github-vba-tools-20261114` has one `.xlsm`, triage-clean and with no formulas. `github-vba-licensed-extra-20261114` has one `.xlsm`, suspect for a VBA-stomping signal; it has 2,115 formula cells, two tables, seven PivotTables and one slicer. A separate feature set has three `.xlsx` files, 794 formula cells, no VBA or XLM, two files with slicers and three with PivotTables. Its capture candidates are in `~/codex-runs/harv2/capture-batches/`; they are formula bearing, macro-free files no larger than 20 MiB. All these R2 set copies passed one-way checks.
 
 These are harvested GitHub sets, so either a danger or effect sign marks a workbook suspect. The
 two vbaXray workbooks were omitted because their SHA-256 hashes were already present in the earlier
@@ -152,3 +147,5 @@ hash, `new/` the two new sources); can be deleted. Scripts: `~/vbawork/scan.py`,
 
 
 The Mendeley CC BY 4.0 set `mendeley-vba-20261114` adds four unique `.xlsm` projects. Static extraction found 12 modules across the four readable projects; harvested-set triage marked all four clean. None has formula cells or XLM macro sheets. The four project rows are in the local census output.
+
+The pinned MIT source `github-vba-licensed-extra-20261114` adds one unique `.xlsm` project (28 modules). It is readable and has no XLM sheet; harvested-set triage marked it suspect for VBA stomping. The four Mendeley projects plus this project extend the local census to 7,027 unique VBA workbooks (3,909 readable projects); the exact library-coverage results remain from the prior 7,022-project snapshot because recomputing them exceeded the host memory budget. The new workbook references stdole, Office and MSForms.
