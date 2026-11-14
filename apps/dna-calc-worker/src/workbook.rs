@@ -490,6 +490,20 @@ impl Workbook {
         &self.session
     }
 
+    /// A native Automation command uses the same session and invalidates the view caches
+    /// even if its calculation or event delivery fails after an authored edit commits.
+    pub fn with_automation_session<R>(&mut self, call: impl FnOnce(&mut HostSession) -> R) -> R {
+        sample_browser_clock(&mut self.session);
+        let before = self.session.host().revision();
+        let result = call(&mut self.session);
+        if self.session.host().revision() != before {
+            self.changed = true;
+        }
+        self.conditional.borrow_mut().clear();
+        self.display_metrics.borrow_mut().clear();
+        result
+    }
+
     pub(crate) fn begin_name_calculation(
         &mut self,
         id: calc_host::value::NameId,
