@@ -347,11 +347,30 @@ impl ParsedComplex {
             }
             return Ok(Self::new(0.0, 0.0, None));
         }
-        let scale = crt_pow(self.abs(), exponent);
+        let scale = if self.im == 0.0 && self.re < 0.0 {
+            crate::ported::power_fn::power_kernel(self.abs(), exponent)
+                .map_err(|_| WorksheetErrorCode::Num)?
+        } else {
+            crt_pow(self.abs(), exponent)
+        };
+        // A fully underflowed magnitude is published before validating the angle.
+        if scale == 0.0 {
+            return Ok(Self::new(0.0, 0.0, None));
+        }
         let angle = crt_atan2(self.im, self.re) * exponent;
+        // Excel 20527 rejects complex-power angles above 2^27 - 1 in magnitude.
+        if angle.abs() > 134_217_727.0 {
+            return Err(WorksheetErrorCode::Num);
+        }
+        let (sine, cosine) = if self.im == 0.0 && self.re < 0.0 {
+            // On the negative real axis Excel uses its circular argument reduction.
+            complex_circular_parts(angle)
+        } else {
+            (crt_sin(angle), crt_cos(angle))
+        };
         Ok(Self::new(
-            scale * crt_cos(angle),
-            scale * crt_sin(angle),
+            scale * cosine,
+            scale * sine,
             None,
         ))
     }

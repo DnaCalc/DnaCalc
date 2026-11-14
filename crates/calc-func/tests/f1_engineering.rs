@@ -5,6 +5,36 @@
 
 mod f1_support;
 
+/// Excel 20527 uses circular argument reduction and rejects angles above 2^27 - 1.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn impower_negative_axis_and_angle_limit() {
+    for (exponent, expected) in [
+        (1.0, "-1+1.22514845490862E-16i"),
+        (2.0, "1-2.45029690981724E-16i"),
+        (50.0, "1+9.79685083057902E-16i"),
+        (365.0, "-1-4.40999233658479E-14i"),
+    ] {
+        text(call("IMPOWER", vec![n(-1.0), n(exponent)]), expected);
+    }
+    for (base, exponent, expected) in [
+        (-2.0, 0.5, "8.66310780426106E-17+1.4142135623731i"),
+        (-2.0, -10.0, "0.0009765625+1.1964340379967E-18i"),
+        (-1.5, 25.0, "-25251.1682940423-1.2369096453729E-11i"),
+        (-0.75, -15.0, "-74.8309138807576-4.03371279121925E-13i"),
+    ] {
+        text(call("IMPOWER", vec![n(base), n(exponent)]), expected);
+    }
+    text(
+        call("IMPOWER", vec![n(-1.0), n(f64::from_bits(0x4184_5f30_6b3d_e275))]),
+        "-0.293388403557722-0.955993328772671i",
+    );
+    error(call("IMPOWER", vec![n(-1.0), n(f64::from_bits(0x4184_5f30_6b3d_e276))]), Num);
+    text(call("IMPOWER", vec![n(1.0), n(1e100)]), "1");
+    text(call("IMPOWER", vec![n(-2.0), n(-1e9)]), "0");
+    text(call("IMPOWER", vec![t("3+4i"), n(-1e9)]), "0");
+}
+
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Value};
 use f1_support::*;
 
