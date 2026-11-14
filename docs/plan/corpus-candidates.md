@@ -55,3 +55,44 @@ These extracted files and per-file source lists stay on the kode-fi host because
   dc-ztvv (open, SaveAs .xlsx, record `derived_from`) before our reader can open it.
 * Selection for the first capture batch follows the profile: blockers out, then files that add
   function and feature combinations not yet captured.
+
+## Harv5 source review and additions (2026-11-14)
+
+These new research copies are under `~/corpora/`; each was SHA-256 deduplicated against `all-files.kode-fi.v5.jsonl`. Per-file inventories are in `corpus-manifests/*-20261114.tsv`; source URL, page, licence evidence, bytes and hashes are in each local `sources.tsv`. Counts below are static package/XML scans, not `cargo xtask classify`: this host has no Rust toolchain. They are inventory evidence, not Excel-calculated values.
+
+### 1. Excel education creators and communities
+
+| Set | Files / bytes | Licence class | Formula files / cells | VBA | Findings |
+|---|---:|---|---:|---:|---|
+| `contextures-20261114` | 2 / 139,052 | creator-download | 2 / 262 | 0 | One- and two-variable data tables; food-sales workbook has structured references, two PivotTables and two charts. |
+
+Xelplus beginner practice material is email-delivered after a form, so it was skipped as gated; no personal information was entered. Contextures sample pages offer direct free downloads and state that files may not be resold; no open licence is claimed. A linked Contextures Web Radio `.xlsb` URL returned 404. Chandoo was unavailable to automated access under the fetcher's robots policy. The review also covered MrExcel, ExcelJet, Jon Peltier, Excelguru, Excel Campus, MyOnlineTrainingHub, Excel Off The Grid, Microsoft's template/sample pages, and VBA-oriented creator pages; no additional direct, ungated workbook with usable licence/source evidence was added. No mirrors of gated or paid material were used.
+
+### 2. Code hosts
+
+| Set | Files / bytes | Licence class | Formula files / cells | VBA | Findings |
+|---|---:|---|---:|---:|---|
+| `github-financial-dashboard-20261114` | 3 / 134,012 | open (MIT) | 1 / 8,772 | 2 `.bas` modules; no embedded project | Financial dashboard workbook with 3 tables and 5 charts; plain VBA source modules. |
+
+The repository is pinned at `03bdcf0d2b7d48bb4b5cd643b8361dbe04d2c495`; the root MIT licence is recorded in `sources.tsv`. Both VBA modules returned `clean` from `~/vbawork/triage.py`'s code-analysis routine. It was run on plain `.bas` text with the parser dependency stubbed; this is not an embedded VBA-project scan. No other candidate with a clearly open workbook licence was added from the code-host search; this is not a claim that every host was exhaustively enumerated.
+
+### 3. Other Excel-compatible engines and stated test corpora
+
+| Set | Files / bytes | Licence class | Formula files / cells | Findings |
+|---|---:|---|---:|---|
+| `ironcalc-20261114` | 267 / 4,082,772 | open (MIT OR Apache-2.0) | 267 / 76,563 | `xlsx/tests` fixtures; dynamic arrays, LET/LAMBDA, structured refs, REGEX* and TRIMRANGE. |
+| `xlcalc-20261114` | 7,171 / 108,942,424 | open (MIT) | 5,244 / 171,773 | README says tests compare 51,925 cases against stored Excel 16 results; fixtures include tables, pivots, charts, modern functions and file-structure edges. |
+| `spreadsheetbench-v2-20261114` | 472 / 262,301,152 | open (MIT declared on dataset card) | 362 / 4,664,326 | Business-workbook benchmark; 803 charts, 108 data-table elements, 5 pivots. |
+
+Already-held comparison sources: Apache POI, LibreOffice, ClosedXML, XlsxWriter, calamine, ExcelJS and Excelize test files are in the existing corpus/index. Apache POI's Excel-saved number-format cases are present there. HyperFormula documents ExcelJS for XLSX import and formula tests, not a separate compatibility workbook corpus. The `formulas` Python project documents `test/test_files/test.xlsx` as its function-coverage workbook and `test/test_files/excel.xlsx` as a model example; these repo fixtures were identified but not copied separately. Gnumeric, EPPlus, NPOI, pycel, xlcalculator, Koala and Spreadsheet::* were reviewed as candidate engine families; their tests were already represented by held sources, lacked clear separate file-level licensing, or did not state an external Excel conformance corpus. No new files were added from those projects.
+
+### 4. Academic spreadsheet research
+
+| Set | Files / bytes | Licence class | Formula profile | Findings |
+|---|---:|---|---|---|
+| `sestoft-finance2-20261114` | 1 / 54,846,990 | open (author states MIT-style) | XMLSS workbook; formula count not established by this inventory | Funcalc financial examples, custom functions and financial formulas. |
+| `spreadsheetbench-v2-20261114` | 472 / 262,301,152 | open (MIT declared) | 362 formula files / 4,664,326 cells | New business task workbooks, also reported under source kind 3; not counted as a second set. |
+
+Peter Sestoft's official Funcalc page offers `finance2.zip` and states an MIT-style open licence. EUSES, VEnron, Enron and Sheetpedia are already held and were not fetched again. SheetCopilot describes 221 evaluation tasks over 28 workbooks, but its README did not provide a data licence; pointer only. SpreadsheetBench v1 is recorded as a pointer, not duplicated. FUSE cut files remain out of scope and were not sought again. No TableBench corpus with separately downloadable Excel files and clear file-level terms was established in this pass.
+
+R2 copies for the new sets are under `dnacalc-corpus/sources/<set>/20261114/`; copy and one-way check results are recorded in `~/codex-runs/harv5/report.md`.
