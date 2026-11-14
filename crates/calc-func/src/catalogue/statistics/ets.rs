@@ -759,6 +759,8 @@ pub(super) fn evaluate(
     output: Output,
 ) -> Step<CalcValue> {
     let offset = usize::from(matches!(output, Output::Forecast | Output::Confidence));
+    // Excel 20527 coerces the target before inspecting history shape or option domains.
+    let target = if offset == 1 { Some(num(site, args, 0)?) } else { None };
     // Excel 20527 checks this unequal-length shape before reading the scalar history,
     // even when that scalar holds an error. Optional scalar coercion can take priority,
     // so admit only the default-argument forms covered by independent controls.
@@ -825,11 +827,7 @@ pub(super) fn evaluate(
         return fail(WorksheetErrorCode::Num);
     }
     let series = prepare(site, y, t, completion, aggregation)?;
-    let target = if offset == 1 {
-        num(site, args, 0)?
-    } else {
-        series.last
-    };
+    let target = target.unwrap_or(series.last);
     if target < series.first {
         // A reversed input timeline can admit extrapolation before its minimum
         // where an ascending one returns NUM. Its admission rule is still open.

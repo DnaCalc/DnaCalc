@@ -10,6 +10,18 @@ use calc_func::SubtotalExclusions;
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Ref, Value};
 use f1_support::*;
 
+/// Excel 20527 validates ETS target coercion before history shape and options.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_target_errors_precede_shape_and_options() {
+    let y = arr(vec![vec![2.0], vec![4.0], vec![6.0]]);
+    let timeline = arr(vec![vec![1.0], vec![2.0]]);
+    for name in ["FORECAST.ETS", "FORECAST.ETS.CONFINT"] {
+        error(call(name, vec![t(""), y.clone(), timeline.clone(), e(Ref)]), Value);
+        error(call(name, vec![e(NA), y.clone(), timeline.clone(), e(Ref)]), NA);
+    }
+}
+
 /// Excel 20527 matrix-history and independent scalar-kind controls.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
