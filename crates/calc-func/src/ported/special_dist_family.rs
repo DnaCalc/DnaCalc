@@ -196,8 +196,11 @@ pub fn weibull_dist_kernel(
             if !denominator.is_finite() {
                 return Err(WorksheetErrorCode::Num);
             }
-            if denominator == 0.0 {
+            if denominator == 0.0 || denominator.is_subnormal() {
                 return Err(WorksheetErrorCode::Div0);
+            }
+            if !crate::ported::excel_numeric::excel_x87_div(alpha, denominator).is_finite() {
+                return Err(WorksheetErrorCode::Num);
             }
         }
         return Ok(0.0);
@@ -227,7 +230,7 @@ pub fn weibull_dist_kernel(
         if !pba.is_finite() {
             return Err(WorksheetErrorCode::Num);
         }
-        if pba == 0.0 {
+        if pba == 0.0 || pba.is_subnormal() {
             return Err(WorksheetErrorCode::Div0);
         }
         let px = excel_pow_chain(x, alpha - 1.0);

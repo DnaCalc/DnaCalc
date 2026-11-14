@@ -19,6 +19,36 @@ fn weibull_reports_intermediate_arithmetic_errors() {
         error(call(name, vec![n(1e-100), n(10.0), n(1e-100), b(false)]), Div0);
         error(call(name, vec![n(0.0), n(360.0), n(1000.0), b(false)]), Num);
         error(call(name, vec![n(0.0), n(10.0), n(1e-100), b(false)]), Div0);
+        error(call(name, vec![n(0.0), n(1023.0), n(0.5), b(false)]), Div0);
+        error(call(name, vec![n(0.25), n(1023.0), n(0.5), b(false)]), Div0);
+        error(call(name, vec![n(0.0), n(1020.0), n(0.5), b(false)]), Num);
+    }
+}
+
+/// Excel 20527 validates the original count sign before truncating positive fractions.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn binomial_counts_validate_sign_before_truncation() {
+    for name in ["BINOM.DIST", "BINOMDIST"] {
+        error(call(name, vec![n(-0.25), n(5.0), n(0.5), b(false)]), Num);
+        error(call(name, vec![n(0.0), n(-0.25), n(0.5), b(false)]), Num);
+        exact(call(name, vec![n(0.25), n(5.0), n(0.5), b(false)]), 0.03125);
+    }
+    for args in [
+        vec![n(-0.25), n(0.5), n(0.0)],
+        vec![n(5.0), n(0.5), n(-0.25)],
+        vec![n(5.0), n(0.5), n(0.0), n(-0.25)],
+    ] {
+        error(call("BINOM.DIST.RANGE", args), Num);
+    }
+    for name in ["BINOM.INV", "CRITBINOM"] {
+        error(call(name, vec![n(-0.25), n(0.5), n(0.5)]), Num);
+        exact(call(name, vec![n(0.25), n(0.5), n(0.5)]), 0.0);
+    }
+    for name in ["NEGBINOM.DIST", "NEGBINOMDIST"] {
+        let mut args = vec![n(-0.25), n(3.0), n(0.5)];
+        if name == "NEGBINOM.DIST" { args.push(b(false)); }
+        error(call(name, args), Num);
     }
 }
 

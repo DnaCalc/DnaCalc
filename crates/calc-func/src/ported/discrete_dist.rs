@@ -251,6 +251,9 @@ pub fn expon_dist_kernel(x: f64, lambda: f64, cumulative: bool) -> R {
 
 /// `BINOM.DIST(number_s, trials, probability_s, cumulative)`.
 pub fn binom_dist_kernel(number_s: f64, trials: f64, p: f64, cumulative: bool) -> R {
+    if number_s < 0.0 || trials < 0.0 {
+        return Err(NUM);
+    }
     let (k, n) = (number_s.trunc(), trials.trunc());
     // R28: the adjacent count operands below/at signed32's positive sentinel
     // distinguish admission before PMF/CDF and p=0/1 shortcuts. Fractional
@@ -307,6 +310,9 @@ fn binom_cumulative(k: f64, n: f64, p: f64, q: f64) -> f64 {
 
 /// `BINOM.DIST.RANGE(trials, probability_s, number_s, [number_s2])`.
 pub fn binom_dist_range_kernel(trials: f64, p: f64, number_s: f64, number_s2: Option<f64>) -> R {
+    if trials < 0.0 || number_s < 0.0 || number_s2.is_some_and(|value| value < 0.0) {
+        return Err(NUM);
+    }
     let n = trials.trunc();
     let s = number_s.trunc();
     let s2 = number_s2.map_or(s, f64::trunc);
@@ -352,6 +358,9 @@ pub fn binom_dist_range_kernel(trials: f64, p: f64, number_s: f64, number_s2: Op
 /// all 52 at zero only when BINOM.DIST(0, n, p, TRUE) > alpha. A forward mass recurrence locates
 /// the count; the public tails then settle it.
 pub fn binom_inv_kernel(trials: f64, p: f64, alpha: f64) -> R {
+    if trials < 0.0 {
+        return Err(NUM);
+    }
     let n = trials.trunc();
     if n < 0.0 || !(p > 0.0 && p < 1.0) || !(alpha > 0.0 && alpha < 1.0) {
         return Err(NUM);
@@ -572,6 +581,9 @@ fn negbinom_mass(f: f64, s: f64, p: f64) -> f64 {
 
 /// `NEGBINOM.DIST(number_f, number_s, probability_s, cumulative)`.
 pub fn negbinom_dist_kernel(number_f: f64, number_s: f64, p: f64, cumulative: bool) -> R {
+    if number_f < 0.0 {
+        return Err(NUM);
+    }
     let (f, s) = (number_f.trunc(), number_s.trunc());
     if f < 0.0 || s < 1.0 || !(p > 0.0 && p < 1.0) {
         return Err(NUM);
