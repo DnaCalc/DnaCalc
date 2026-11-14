@@ -1313,3 +1313,59 @@ fn automation_values_preserve_types_bits_and_unpaired_utf16() {
         assert_eq!(format!("{decoded:?}"), format!("{value:?}"));
     }
 }
+
+/// Native-only: legal SAFEARRAY forms the profile cannot represent must record a refusal,
+/// including before member dispatch, so swallowing 1004 cannot hide an unmodelled UDF input.
+#[test]
+fn unsupported_safearray_forms_record_e11_refusals_before_value2_put() {
+    let _apartment = Apartment::new();
+    let projection = projection();
+    let inner = workbook(&projection);
+    let model = recorded(inner);
+    projection.bind_model(model.clone()).unwrap();
+    let range = dispatch(
+        call(
+            &projection.application().unwrap(),
+            "Range",
+            DISPATCH_PROPERTYGET,
+            vec![VARIANT::from("A1:B2")],
+        )
+        .unwrap(),
+    );
+    for (rank, kind) in [(1, VT_VARIANT), (3, VT_VARIANT), (2, VT_R8)] {
+        let bounds = vec![
+            SAFEARRAYBOUND {
+                cElements: 2,
+                lLbound: 1
+            };
+            rank as usize
+        ];
+        let array =
+            values::ArrayOwner::new(unsafe { SafeArrayCreate(kind, rank, bounds.as_ptr()) })
+                .unwrap();
+        let value = values::tagged(
+            VT_ARRAY | kind,
+            VARIANT_0_0_0 {
+                parray: array.take(),
+            },
+        );
+        let count = model.calls.borrow().len();
+        assert_eq!(
+            call(&range, "Value2", DISPATCH_PROPERTYPUT, vec![value])
+                .unwrap_err()
+                .code()
+                .0 as u32,
+            0x800A03EC
+        );
+        assert_eq!(
+            model.calls.borrow().len(),
+            count,
+            "unsupported representation must not enter the member"
+        );
+        let info = unsafe { GetErrorInfo(0) }.unwrap();
+        let description = unsafe { info.GetDescription() }.unwrap().to_string();
+        assert!(description.contains("SAFEARRAY"), "{description}");
+        assert!(description.contains("dc-1nbp.6"), "{description}");
+    }
+    assert_eq!(model.refusals.get(), 3);
+}

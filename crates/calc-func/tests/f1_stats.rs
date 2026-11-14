@@ -10,6 +10,36 @@ use calc_func::SubtotalExclusions;
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Value};
 use f1_support::*;
 
+/// Excel 20527 ignores nonnumeric scalar pairs and admits the two adjacent values around 1.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn prob_nonnumeric_and_adjacent_singletons() {
+    for x in [t("bad"), b(true)] {
+        error(call("PROB", vec![x.clone(), n(1.0), n(0.0), n(1.0)]), Div0);
+        error(call("PROB", vec![x.clone(), n(1.0), t("bad"), n(1.0)]), Value);
+        error(call("PROB", vec![x, n(1.0), n(0.0), e(NA)]), NA);
+    }
+    error(call("PROB", vec![n(1.0), t("bad"), n(0.0), n(1.0)]), Div0);
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![t("bad"), n(1.0)]);
+    let x = sheet.area(1, 1, 1, 1);
+    let p = sheet.area(2, 1, 2, 1);
+    error(call_on(&mut sheet, "PROB", vec![x, p, n(0.0), n(1.0)]), Div0);
+    for bits in [1.0_f64.to_bits() - 1, 1.0_f64.to_bits(), 1.0_f64.to_bits() + 1] {
+        let p = f64::from_bits(bits);
+        exact(call("PROB", vec![n(0.5), n(p), n(0.0), n(1.0)]), p);
+        exact(call("PROB", vec![n(0.5), n(p), n(1.0), n(0.0)]), 0.0);
+        exact(call("PROB", vec![arr(vec![vec![0.5]]), arr(vec![vec![p]]), n(0.5)]), p);
+    }
+    for bits in [1.0_f64.to_bits() - 4, 1.0_f64.to_bits() + 22] {
+        let p = f64::from_bits(bits);
+        exact(call("PROB", vec![n(0.5), n(p), n(0.0), n(1.0)]), p);
+    }
+    for bits in [1.0_f64.to_bits() - 5, 1.0_f64.to_bits() + 23] {
+        error(call("PROB", vec![n(0.5), n(f64::from_bits(bits)), n(0.0), n(1.0)]), Num);
+    }
+}
+
 /// Excel 20527 checks a scalar history against the longer timeline before reading the history.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

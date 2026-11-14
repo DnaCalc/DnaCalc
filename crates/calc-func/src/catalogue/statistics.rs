@@ -470,6 +470,9 @@ ported_shared_family! {
         out(s, k::fisherinv_fn::fisherinv_kernel(num(s, a, 0)?))
     }
     53 prob |s, a, sv| {
+        if prob_nonnumeric_singletons(s, a, sv)? {
+            return fail(WorksheetErrorCode::Div0);
+        }
         let xs = strict_numbers(s, a, 0, sv)?;
         let ps = strict_numbers(s, a, 1, sv)?;
         let lower = num(s, a, 2)?;
@@ -594,6 +597,42 @@ fn regression(
         }
         _ => Ok(result),
     }
+}
+
+/// A single text or logical item supplies no numeric pair to PROB. Excel 20527 validates the
+/// bounds first, then returns #DIV/0!; blank cells and errors follow their existing routes.
+fn prob_nonnumeric_singletons(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    sv: &mut EvalServices<'_>,
+) -> Step<bool> {
+    let scalar = |value: &CalcValue| match value.core_ref() {
+        CoreRef::Reference(reference) => matches!(reference.areas(), [area] if area.cell_count() == 1),
+        CoreRef::Number(_) | CoreRef::Text(_) | CoreRef::Logical(_) => true,
+        _ => false,
+    };
+    if !scalar(&a[0]) || !scalar(&a[1]) {
+        return Ok(false);
+    }
+    let x = grid(site, a, 0, sv)?;
+    let p = grid(site, a, 1, sv)?;
+    let [x] = x.cells.as_slice() else { return Ok(false) };
+    let [p] = p.cells.as_slice() else { return Ok(false) };
+    let supported = |v: &CalcValue| match v.core_ref() {
+        CoreRef::Number(n) => n.is_finite(),
+        CoreRef::Text(_) | CoreRef::Logical(_) => true,
+        _ => false,
+    };
+    if !supported(x) || !supported(p)
+        || (matches!(x.core_ref(), CoreRef::Number(_)) && matches!(p.core_ref(), CoreRef::Number(_)))
+    {
+        return Ok(false);
+    }
+    let _ = num(site, a, 2)?;
+    if given(a, 3) {
+        let _ = num(site, a, 3)?;
+    }
+    Ok(true)
 }
 
 /// PROB's lists: every cell must hold a number (an error cell is the result, anything else

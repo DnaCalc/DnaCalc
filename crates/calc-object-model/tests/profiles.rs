@@ -485,3 +485,178 @@ fn values_only_preserves_book1_shell_and_uniform_workbook_refusals() {
         })
     ));
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn worksheet_functions_share_the_catalogue_for_scalars_arrays_and_dotted_names() {
+    let model = ValuesOnly::new(Host::default());
+    let AutoValue::Object(functions) = invoke(
+        &model,
+        &model.application(),
+        "WorksheetFunction",
+        InvokeKind::Get,
+        vec![],
+    )
+    .unwrap() else {
+        panic!("WorksheetFunction");
+    };
+    let array = || {
+        AutoValue::Array(Box::new(calc_object_model::AutoArray {
+            rows: 2,
+            columns: 2,
+            lower: (1, 1),
+            values: vec![
+                AutoValue::R8(1.),
+                AutoValue::R8(2.),
+                AutoValue::Bool(true),
+                AutoValue::text("ignored"),
+            ],
+        }))
+    };
+    assert!(matches!(
+        invoke(
+            &model,
+            &functions,
+            "Sum",
+            InvokeKind::Method,
+            vec![array(), AutoValue::I4(4), AutoValue::Missing]
+        )
+        .unwrap(),
+        AutoValue::R8(7.)
+    ));
+    assert!(matches!(
+        invoke(
+            &model,
+            &functions,
+            "Ceiling_Math",
+            InvokeKind::Method,
+            vec![AutoValue::R8(2.2)]
+        )
+        .unwrap(),
+        AutoValue::R8(3.)
+    ));
+    let AutoValue::Array(transposed) = invoke(
+        &model,
+        &functions,
+        "Transpose",
+        InvokeKind::Method,
+        vec![array()],
+    )
+    .unwrap() else {
+        panic!("array");
+    };
+    assert_eq!(
+        (transposed.rows, transposed.columns, transposed.lower),
+        (2, 2, (1, 1))
+    );
+    assert!(matches!(transposed.values[1], AutoValue::Bool(true)));
+    assert!(matches!(transposed.values[2], AutoValue::R8(2.)));
+    let error = invoke(
+        &model,
+        &functions,
+        "_WSFunction",
+        InvokeKind::Method,
+        vec![],
+    )
+    .unwrap_err();
+    assert!(matches!(error, AutoError::NotModelled { .. }));
+    assert!(
+        error
+            .description()
+            .contains("WorksheetFunction._WSFunction")
+    );
+    for member in Descriptor::get().members(functions.interface) {
+        assert!(
+            model.handlers().implements(functions.interface, member),
+            "{}",
+            member.name
+        );
+    }
+    assert_eq!(Descriptor::get().members(functions.interface).len(), 420);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn worksheet_function_errors_are_1004_with_explicitly_unmeasured_e7_description() {
+    let model = ValuesOnly::new(Host::default());
+    let AutoValue::Object(functions) = invoke(
+        &model,
+        &model.application(),
+        "WorksheetFunction",
+        InvokeKind::Get,
+        vec![],
+    )
+    .unwrap() else {
+        panic!("WorksheetFunction");
+    };
+    let error = invoke(
+        &model,
+        &functions,
+        "Match",
+        InvokeKind::Method,
+        vec![
+            AutoValue::I4(9),
+            AutoValue::Array(Box::new(calc_object_model::AutoArray {
+                rows: 1,
+                columns: 2,
+                lower: (1, 1),
+                values: vec![AutoValue::I4(1), AutoValue::I4(2)],
+            })),
+            AutoValue::I4(0),
+        ],
+    )
+    .unwrap_err();
+    assert_eq!(error.number(), 1004);
+    // Owner-provided provisional description; E7 (dc-1nbp.6) has not measured its exact text.
+    assert_eq!(
+        error.description(),
+        "Unable to get the Match property of the WorksheetFunction class"
+    );
+    assert!(matches!(
+        invoke(
+            &model,
+            &functions,
+            "Sum",
+            InvokeKind::Method,
+            vec![AutoValue::R4(f32::NAN)]
+        ),
+        Err(AutoError::Status(_))
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn values_only_descriptor_coverage_lists_every_registered_member() {
+    let model = ValuesOnly::new(Host::default());
+    let report = model.handlers().coverage("values-only", &[]);
+    assert_eq!(
+        report
+            .lines()
+            .filter(|line| line.contains(": MEMBER "))
+            .count(),
+        model.handlers().implemented().len()
+    );
+    println!("{report}");
+    let d = Descriptor::get();
+    let functions = d.members(d.id("WorksheetFunction").unwrap());
+    let methods = functions
+        .iter()
+        .filter(|m| m.invoke == InvokeKind::Method)
+        .collect::<Vec<_>>();
+    let resolved = methods
+        .iter()
+        .filter(|m| {
+            calc_func::catalogue()
+                .resolve_surface(
+                    calc_func::Notation::Call,
+                    &calc_object_model::profile::worksheet_function::catalogue_name(&m.name),
+                )
+                .is_ok()
+        })
+        .count();
+    println!(
+        "WorksheetFunction: catalogue names {resolved}/{}; descriptor members {}",
+        methods.len(),
+        functions.len()
+    );
+}

@@ -23,7 +23,11 @@ impl Call<'_> {
     }
     /// `Interface.Member` as refusals and coverage reports name it.
     pub fn label(&self) -> String {
-        format!("{}.{}", Descriptor::get().ty(self.interface).name, self.member.name)
+        format!(
+            "{}.{}",
+            Descriptor::get().ty(self.interface).name,
+            self.member.name
+        )
     }
 }
 
@@ -46,10 +50,16 @@ pub enum AutoError {
 
 impl AutoError {
     pub fn not_modelled(what: impl Into<String>, owner: &'static str) -> AutoError {
-        AutoError::NotModelled { what: what.into(), owner }
+        AutoError::NotModelled {
+            what: what.into(),
+            owner,
+        }
     }
     pub fn excel(number: i32, description: impl Into<String>) -> AutoError {
-        AutoError::Excel { number, description: description.into() }
+        AutoError::Excel {
+            number,
+            description: description.into(),
+        }
     }
     /// The Automation error number a client sees (VBA's `Err.Number`).
     pub fn number(&self) -> i32 {
@@ -101,7 +111,9 @@ pub struct Handlers<C> {
 
 impl<C> Default for Handlers<C> {
     fn default() -> Self {
-        Handlers { table: HashMap::new() }
+        Handlers {
+            table: HashMap::new(),
+        }
     }
 }
 
@@ -110,20 +122,28 @@ impl<C> Handlers<C> {
         Self::default()
     }
     /// Register `interface.member` for `kind`. Panics when the descriptor has no such member.
-    pub fn on(&mut self, interface: &str, member: &str, kind: InvokeKind, handler: Handler<C>) -> &mut Self {
+    pub fn on(
+        &mut self,
+        interface: &str,
+        member: &str,
+        kind: InvokeKind,
+        handler: Handler<C>,
+    ) -> &mut Self {
         let descriptor = Descriptor::get();
         let id = descriptor
             .id(interface)
-            .unwrap_or_else(|| panic!("object model: no interface {interface} in the descriptor"));
+            .unwrap_or_else(|| panic!("object model: no interface {interface} in the descriptor")); // ubs:ignore - Static profile registration must fail at startup on a descriptor typo.
         let id = descriptor.default_interface(id);
-        let found = descriptor
-            .member(id, member, kind)
-            .unwrap_or_else(|| panic!("object model: no {kind:?} {interface}.{member} in the descriptor"));
+        let found = descriptor.member(id, member, kind).unwrap_or_else(|| {
+            panic!("object model: no {kind:?} {interface}.{member} in the descriptor") // ubs:ignore - Static profile registration must fail at startup on a missing described member.
+        });
         self.table.insert((id, found.dispid, kind), handler);
         self
     }
     pub fn get(&self, interface: InterfaceId, member: &Member) -> Option<Handler<C>> {
-        self.table.get(&(interface, member.dispid, member.invoke)).copied()
+        self.table
+            .get(&(interface, member.dispid, member.invoke))
+            .copied()
     }
     /// Run the registered handler, or answer the uniform refusal.
     pub fn dispatch(
@@ -156,5 +176,44 @@ impl<C> Handlers<C> {
             .collect();
         names.sort();
         names
+    }
+
+    /// Coverage against the complete layouts a COM projection can advertise. `inherited`
+    /// holds a composed profile's fallback handlers. Counts are handlers, not a promise that
+    /// every argument form or catalogue entry is modelled; conditional refusals remain typed.
+    pub fn coverage(&self, profile: &str, inherited: &[String]) -> String {
+        use std::collections::BTreeSet;
+        let d = Descriptor::get();
+        let names: BTreeSet<_> = self
+            .implemented()
+            .into_iter()
+            .chain(inherited.iter().cloned())
+            .collect();
+        let mut rows = Vec::new();
+        let (mut implemented, mut total) = (0, 0);
+        for (id, ty) in d.types() {
+            let Some(slots) = ty.vtable_slots else {
+                continue;
+            };
+            if (7..slots).any(|slot| d.member_by_slot(id, slot).is_none()) {
+                continue;
+            }
+            let members = d.members(id);
+            let count = members
+                .iter()
+                .filter(|m| names.contains(&format!("{}.{} ({:?})", ty.name, m.name, m.invoke)))
+                .count();
+            implemented += count;
+            total += members.len();
+            rows.push(format!("{profile}: {} {count}/{}", ty.name, members.len()));
+        }
+        rows.sort();
+        rows.push(format!("{profile}: TOTAL {implemented}/{total}"));
+        rows.extend(
+            names
+                .into_iter()
+                .map(|name| format!("{profile}: MEMBER {name}")),
+        );
+        rows.join("\n")
     }
 }

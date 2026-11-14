@@ -63,6 +63,11 @@ impl AutomationHost for Host {
         let session = self.session.try_borrow().map_err(|_| busy())?;
         f(&session)
     }
+    fn with_session_mut(&self, f: &mut dyn FnMut(&mut HostSession) -> Reply) -> Reply {
+        self.commands.set(self.commands.get() + 1);
+        let mut session = self.session.try_borrow_mut().map_err(|_| busy())?;
+        f(&mut session)
+    }
 }
 fn setup() -> (Rc<Host>, Rc<WorkbookAutomation>) {
     let session = HostSession::open(
@@ -504,6 +509,30 @@ impl UserFunction for Probe {
             let AutoValue::R8(n) = invoke(&model, &read, "Value2", vec![]).unwrap() else {
                 panic!("number");
             };
+            let functions = obj(invoke(&model, &app, "WorksheetFunction", vec![]).unwrap());
+            let AutoValue::R8(sum) = invoke_kind(
+                &model,
+                &functions,
+                "Sum",
+                InvokeKind::Method,
+                vec![AutoValue::Object(read.clone()), AutoValue::I4(2)],
+            )
+            .unwrap() else {
+                panic!("sum");
+            };
+            assert_eq!(sum, n + 2.);
+            for (target, method) in [
+                (&app, "Calculate"),
+                (&app, "CalculateFull"),
+                (&app, "CalculateFullRebuild"),
+                (&read, "Calculate"),
+                (&read, "ClearContents"),
+            ] {
+                assert!(matches!(
+                    invoke_kind(&model, target, method, InvokeKind::Method, vec![]),
+                    Err(AutoError::Excel { number: 1004, .. })
+                ));
+            }
             model.released(&caller);
             Ok(CalcValue::number(n))
         })
@@ -811,5 +840,550 @@ fn measured_relative_to_and_optional_defaults_go_through_the_same_member_handler
     assert!(matches!(
         invoke(&model, &range, "Value", vec![AutoValue::Null]),
         Err(AutoError::Status(status)) if status == 0x80020005u32 as i32
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn worksheet_and_range_navigation_use_the_selected_object_and_tracked_geometry() {
+    let (host, model) = setup();
+    let app = model.application();
+    let book = obj(invoke(&model, &app, "ActiveWorkbook", vec![]).unwrap());
+    let original = obj(invoke(&model, &app, "ActiveSheet", vec![]).unwrap());
+    assert!(
+        host.session
+            .borrow_mut()
+            .dispatch(SkinIntent::Command(WorkbookCommand::Sheet {
+                sheet: None,
+                change: SheetChange::Add {
+                    name: "Other".into()
+                },
+            }))
+            .accepted()
+    );
+    let mut held = None;
+    for name in ["Sheets", "Worksheets"] {
+        let sheets = obj(invoke(&model, &book, name, vec![]).unwrap());
+        assert!(matches!(
+            invoke(&model, &sheets, "Count", vec![]).unwrap(),
+            AutoValue::I4(2)
+        ));
+        let by_index = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(2)]).unwrap());
+        let by_name =
+            obj(invoke(&model, &sheets, "_Default", vec![AutoValue::text("oThEr")]).unwrap());
+        assert_eq!(by_index, by_name);
+        assert!(matches!(
+            invoke(&model, &by_name, "Index", vec![]).unwrap(),
+            AutoValue::I4(2)
+        ));
+        held = Some(by_name);
+    }
+    let other = held.unwrap();
+    let other_range = obj(invoke(&model, &other, "Range", vec![AutoValue::text("B2:C3")]).unwrap());
+    assert_eq!(
+        obj(invoke(&model, &other_range, "Worksheet", vec![]).unwrap()),
+        other
+    );
+    let original_range =
+        obj(invoke(&model, &original, "Range", vec![AutoValue::text("B2:C3")]).unwrap());
+    assert_eq!(
+        obj(invoke(&model, &original_range, "Worksheet", vec![]).unwrap()),
+        original
+    );
+    let cells = obj(invoke(&model, &other, "Cells", vec![]).unwrap());
+    let last = obj(invoke(
+        &model,
+        &cells,
+        "Item",
+        vec![AutoValue::I4(1_048_576), AutoValue::I4(16_384)],
+    )
+    .unwrap());
+    assert_eq!(text(&model, &last, "Address"), "$XFD$1048576");
+    for (member, args, expected) in [
+        ("Item", vec![AutoValue::I4(3)], "$B$3"),
+        (
+            "_Default",
+            vec![AutoValue::I4(2), AutoValue::text("B")],
+            "$C$3",
+        ),
+        (
+            "Offset",
+            vec![AutoValue::I4(-1), AutoValue::I4(2)],
+            "$D$1:$E$2",
+        ),
+        (
+            "Resize",
+            vec![AutoValue::I4(3), AutoValue::I4(1)],
+            "$B$2:$B$4",
+        ),
+        ("EntireRow", vec![], "$2:$3"),
+        ("EntireColumn", vec![], "$B:$C"),
+    ] {
+        let derived = obj(invoke(&model, &other_range, member, args).unwrap());
+        assert_eq!(text(&model, &derived, "Address"), expected, "{member}");
+        model.released(&derived);
+    }
+    let rows = obj(invoke(&model, &other_range, "Rows", vec![]).unwrap());
+    let row = obj(invoke(&model, &rows, "Item", vec![AutoValue::I4(2)]).unwrap());
+    assert_eq!(text(&model, &row, "Address"), "$B$3:$C$3");
+    let cells = obj(invoke(&model, &rows, "Cells", vec![]).unwrap());
+    let cell = obj(invoke(&model, &cells, "Item", vec![AutoValue::I4(2)]).unwrap());
+    assert_eq!(text(&model, &cell, "Address"), "$C$2");
+    let second = obj(invoke(&model, &other, "Range", vec![AutoValue::text("F5")]).unwrap());
+    let union = obj(invoke_kind(
+        &model,
+        &app,
+        "Union",
+        InvokeKind::Method,
+        vec![
+            AutoValue::Object(other_range.clone()),
+            AutoValue::Object(second),
+        ],
+    )
+    .unwrap());
+    let areas = obj(invoke(&model, &union, "Areas", vec![]).unwrap());
+    model.released(&union);
+    assert!(matches!(
+        invoke(&model, &areas, "Count", vec![]).unwrap(),
+        AutoValue::I4(2)
+    ));
+    let second = obj(invoke(&model, &areas, "Item", vec![AutoValue::I4(2)]).unwrap());
+    assert_eq!(text(&model, &second, "Address"), "$F$5");
+    assert!(invoke(&model, &areas, "Item", vec![AutoValue::I4(0)]).is_err());
+    assert!(invoke(&model, &last, "Offset", vec![AutoValue::I4(1)]).is_err());
+    model.released(&areas);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn workbook_names_keep_their_identity_and_resolve_through_the_workbook_binder() {
+    let (host, model) = setup();
+    let sheet = host.session.borrow().host().sheets()[0]
+        .name()
+        .text()
+        .to_string_lossy();
+    assert!(
+        host.session
+            .borrow_mut()
+            .dispatch(SkinIntent::Command(WorkbookCommand::Name(NameEdit {
+                id: None,
+                version: None,
+                scope: calc_doc_model::NameScope::Workbook,
+                name: "InputBlock".into(),
+                formula: Some(format!("='{sheet}'!$A$10:$B$11")),
+            })))
+            .accepted()
+    );
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let names = obj(invoke(&model, &book, "Names", vec![]).unwrap());
+    assert!(matches!(
+        invoke(&model, &names, "Count", vec![]).unwrap(),
+        AutoValue::I4(1)
+    ));
+    let name = obj(invoke_kind(
+        &model,
+        &names,
+        "Item",
+        InvokeKind::Method,
+        vec![AutoValue::text("inputblock")],
+    )
+    .unwrap());
+    assert_eq!(
+        name,
+        obj(invoke_kind(
+            &model,
+            &names,
+            "_Default",
+            InvokeKind::Method,
+            vec![AutoValue::I4(1)]
+        )
+        .unwrap())
+    );
+    assert_eq!(text(&model, &name, "Name"), "InputBlock");
+    assert_eq!(
+        text(&model, &name, "RefersTo"),
+        format!("='{sheet}'!$A$10:$B$11")
+    );
+    let referred = obj(invoke(&model, &name, "RefersToRange", vec![]).unwrap());
+    assert_eq!(text(&model, &referred, "Address"), "$A$10:$B$11");
+    let node = host
+        .session
+        .borrow()
+        .host()
+        .model()
+        .definitions()
+        .name_table()
+        .nodes()
+        .next()
+        .unwrap()
+        .clone();
+    let receipt = host
+        .session
+        .borrow_mut()
+        .dispatch(SkinIntent::Command(WorkbookCommand::Name(NameEdit {
+            id: Some(node.id()),
+            version: Some(node.binding_version()),
+            scope: calc_doc_model::NameScope::Workbook,
+            name: "RenamedBlock".into(),
+            formula: Some(format!("={}", node.definition().formula)),
+        })));
+    assert!(receipt.accepted(), "{receipt:?}");
+    assert_eq!(text(&model, &name, "Name"), "RenamedBlock");
+    let node = host
+        .session
+        .borrow()
+        .host()
+        .model()
+        .definitions()
+        .name_table()
+        .get(node.id())
+        .unwrap()
+        .clone();
+    assert!(
+        host.session
+            .borrow_mut()
+            .dispatch(SkinIntent::Command(WorkbookCommand::Name(NameEdit {
+                id: Some(node.id()),
+                version: Some(node.binding_version()),
+                scope: calc_doc_model::NameScope::Workbook,
+                name: "RenamedBlock".into(),
+                formula: Some(format!("='{sheet}'!$D$20")),
+            })))
+            .accepted()
+    );
+    assert_eq!(
+        text(
+            &model,
+            &obj(invoke(&model, &name, "RefersToRange", vec![]).unwrap()),
+            "Address"
+        ),
+        "$D$20"
+    );
+    let version = host
+        .session
+        .borrow()
+        .host()
+        .model()
+        .definitions()
+        .name_table()
+        .get(node.id())
+        .unwrap()
+        .binding_version();
+    assert!(
+        host.session
+            .borrow_mut()
+            .dispatch(SkinIntent::Command(WorkbookCommand::Name(NameEdit {
+                id: Some(node.id()),
+                version: Some(version),
+                scope: calc_doc_model::NameScope::Workbook,
+                name: "RenamedBlock".into(),
+                formula: None,
+            })))
+            .accepted()
+    );
+    assert!(invoke(&model, &name, "Name", vec![]).is_err());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn command_writes_use_one_automation_transaction_and_calculate_real_formulas() {
+    let (host, model) = setup();
+    let app = model.application();
+    let block = range(&model, "A20:B21");
+    let array = || {
+        AutoValue::Array(Box::new(calc_object_model::AutoArray {
+            rows: 2,
+            columns: 2,
+            lower: (1, 1),
+            values: vec![
+                AutoValue::R8(7.),
+                AutoValue::text("ordinary text"),
+                AutoValue::Bool(true),
+                AutoValue::Error(2042),
+            ],
+        }))
+    };
+    let log = host.session.borrow().intent_log().len();
+    invoke_kind(&model, &block, "Value2", InvokeKind::Put, vec![array()]).unwrap();
+    {
+        let session = host.session.borrow();
+        assert_eq!(session.intent_log().len(), log + 1);
+        assert_eq!(
+            session.intent_log().last().unwrap().ingress,
+            CommandIngress::Automation
+        );
+    }
+    let AutoValue::Array(read) = invoke(&model, &block, "Value2", vec![]).unwrap() else {
+        panic!("array");
+    };
+    assert!(matches!(read.values[0], AutoValue::R8(7.)));
+    assert_eq!(read.values[1].as_text().as_deref(), Some("ordinary text"));
+    assert!(matches!(read.values[2], AutoValue::Bool(true)));
+    assert!(matches!(read.values[3], AutoValue::Error(2042)));
+    let log = host.session.borrow().intent_log().len();
+    let AutoValue::Array(mut wrong) = array() else {
+        unreachable!()
+    };
+    wrong.columns = 1;
+    assert!(matches!(
+        invoke_kind(
+            &model,
+            &block,
+            "Value2",
+            InvokeKind::Put,
+            vec![AutoValue::Array(wrong)]
+        ),
+        Err(AutoError::NotModelled {
+            owner: "dc-1nbp.6",
+            ..
+        })
+    ));
+    assert_eq!(
+        host.session.borrow().intent_log().len(),
+        log,
+        "shape refusals are atomic"
+    );
+    for text in ["=1+1", "123", "TRUE", "'literal"] {
+        let AutoValue::Array(mut ambiguous) = array() else {
+            unreachable!()
+        };
+        ambiguous.values[3] = AutoValue::text(text);
+        assert!(matches!(
+            invoke_kind(
+                &model,
+                &block,
+                "Value2",
+                InvokeKind::Put,
+                vec![AutoValue::Array(ambiguous)]
+            ),
+            Err(AutoError::NotModelled {
+                owner: "dc-1nbp.6",
+                ..
+            })
+        ));
+        assert_eq!(
+            host.session.borrow().intent_log().len(),
+            log,
+            "ambiguous text refuses before any cell is written"
+        );
+    }
+    invoke_kind(
+        &model,
+        &block,
+        "Value",
+        InvokeKind::Put,
+        vec![AutoValue::Missing, AutoValue::I4(3)],
+    )
+    .unwrap();
+    let formula = at(&host, 20, 5);
+    enter(&host, formula, "=SUM(A20:B21)");
+    let sheet = obj(invoke(&model, &block, "Worksheet", vec![]).unwrap());
+    let output = range(&model, "E20");
+    for target in [&app, &sheet, &output] {
+        invoke_kind(&model, target, "Calculate", InvokeKind::Method, vec![]).unwrap();
+        assert!(matches!(
+            invoke(&model, &output, "Value2", vec![]).unwrap(),
+            AutoValue::R8(12.)
+        ));
+    }
+    for method in ["CalculateFull", "CalculateFullRebuild"] {
+        invoke_kind(&model, &app, method, InvokeKind::Method, vec![]).unwrap();
+    }
+    let functions = obj(invoke(&model, &app, "WorksheetFunction", vec![]).unwrap());
+    assert!(matches!(
+        invoke_kind(
+            &model,
+            &functions,
+            "Sum",
+            InvokeKind::Method,
+            vec![AutoValue::Object(block.clone())]
+        )
+        .unwrap(),
+        AutoValue::R8(12.)
+    ));
+    invoke_kind(&model, &block, "ClearContents", InvokeKind::Method, vec![]).unwrap();
+    let AutoValue::Array(read) = invoke(&model, &block, "Value2", vec![]).unwrap() else {
+        panic!("array");
+    };
+    assert!(read.values.iter().all(|v| matches!(v, AutoValue::Empty)));
+}
+
+struct WritingEvents {
+    model: Weak<WorkbookAutomation>,
+    changes: RefCell<Vec<String>>,
+}
+impl EventSource for WritingEvents {
+    fn raise(
+        &self,
+        _: &ObjectRef,
+        _: &str,
+        event: &str,
+        args: &[AutoValue],
+    ) -> Result<(), AutoError> {
+        if event == "AfterCalculate" {
+            return Ok(());
+        }
+        assert_eq!(event, "SheetChange");
+        let model = self.model.upgrade().unwrap();
+        let target = obj(args[1].clone());
+        let address = text(&model, &target, "Address");
+        self.changes.borrow_mut().push(address.clone());
+        let functions = obj(invoke(
+            &model,
+            &model.application(),
+            "WorksheetFunction",
+            vec![],
+        )?);
+        let AutoValue::R8(value) = invoke_kind(
+            &model,
+            &functions,
+            "Sum",
+            InvokeKind::Method,
+            vec![AutoValue::Object(target.clone())],
+        )?
+        else {
+            panic!("sum");
+        };
+        if address == "$A$30" {
+            let destination = range(&model, "B30");
+            invoke_kind(
+                &model,
+                &destination,
+                "Value2",
+                InvokeKind::Put,
+                vec![AutoValue::R8(value + 1.)],
+            )?;
+            model.released(&destination);
+        }
+        model.released(&target);
+        Ok(())
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn event_writes_reborrow_the_same_session_and_deliver_each_change_once() {
+    let (host, model) = setup();
+    host.session
+        .borrow_mut()
+        .dispatch(SkinIntent::SetCalcMode(CalcMode::Automatic));
+    enter(&host, at(&host, 30, 5), "=B30*2");
+    while host.session.borrow().has_pending_calculation() {
+        host.session.borrow_mut().advance_calculation();
+    }
+    let events = Rc::new(WritingEvents {
+        model: Rc::downgrade(&model),
+        changes: RefCell::default(),
+    });
+    host.session
+        .borrow_mut()
+        .set_workbook_event_observer(Some(model.observer(events.clone())));
+    let source = range(&model, "A30");
+    let log = host.session.borrow().intent_log().len();
+    invoke_kind(
+        &model,
+        &source,
+        "Value2",
+        InvokeKind::Put,
+        vec![AutoValue::R8(7.)],
+    )
+    .unwrap();
+    assert_eq!(&*events.changes.borrow(), &["$A$30", "$B$30"]);
+    assert!(matches!(
+        invoke(&model, &range(&model, "E30"), "Value2", vec![]).unwrap(),
+        AutoValue::R8(16.)
+    ));
+    let session = host.session.borrow();
+    assert!(
+        session.workbook_event_failures().failures.is_empty(),
+        "{:?}",
+        session.workbook_event_failures()
+    );
+    let records = &session.intent_log()[log..];
+    assert_eq!(records.len(), 2);
+    assert!(
+        records
+            .iter()
+            .all(|record| record.ingress == CommandIngress::Automation)
+    );
+    let root = records
+        .iter()
+        .find(|record| record.parent.is_none())
+        .unwrap();
+    assert_eq!(
+        records
+            .iter()
+            .filter(|record| record.parent == Some(root.seq))
+            .count(),
+        1
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn workbook_descriptor_coverage_lists_own_and_inherited_members() {
+    let (_, model) = setup();
+    let report = model.coverage();
+    for name in model.handlers().implemented() {
+        assert!(report.contains(&format!("workbook: MEMBER {name}")));
+    }
+    println!("{report}");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn names_index_order_is_alphabetical_and_local_names_cannot_silently_shadow_a_held_global() {
+    let (host, model) = setup();
+    let sheet = at(&host, 1, 1).sheet();
+    for name in ["Zed", "Alpha"] {
+        assert!(
+            host.session
+                .borrow_mut()
+                .dispatch(SkinIntent::Command(WorkbookCommand::Name(NameEdit {
+                    id: None,
+                    version: None,
+                    scope: calc_doc_model::NameScope::Workbook,
+                    name: name.into(),
+                    formula: Some("=$A$1".into()),
+                })))
+                .accepted()
+        );
+    }
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let names = obj(invoke(&model, &book, "Names", vec![]).unwrap());
+    let global = obj(invoke_kind(
+        &model,
+        &names,
+        "Item",
+        InvokeKind::Method,
+        vec![AutoValue::I4(1)],
+    )
+    .unwrap());
+    assert_eq!(text(&model, &global, "Name"), "Alpha");
+    assert!(
+        host.session
+            .borrow_mut()
+            .dispatch(SkinIntent::Command(WorkbookCommand::Name(NameEdit {
+                id: None,
+                version: None,
+                scope: calc_doc_model::NameScope::Sheet(sheet),
+                name: "Alpha".into(),
+                formula: Some("=$B$2".into()),
+            })))
+            .accepted()
+    );
+    assert!(matches!(
+        invoke(&model, &global, "RefersToRange", vec![]),
+        Err(AutoError::NotModelled {
+            owner: "dc-hsa5.6",
+            ..
+        })
+    ));
+    assert!(matches!(
+        invoke(&model, &names, "Count", vec![]),
+        Err(AutoError::NotModelled {
+            owner: "dc-hsa5.6",
+            ..
+        })
     ));
 }
