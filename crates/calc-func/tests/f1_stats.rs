@@ -10,6 +10,15 @@ use calc_func::SubtotalExclusions;
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Ref, Value};
 use f1_support::*;
 
+/// Excel 20527 publishes zero for these deeply underflowed F densities.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn f_density_returns_zero_after_deep_underflow() {
+    for (x, d1, d2) in [(8192.0, 365.0, 4496.0), (1024.0, 500.0, 1000.0), (1e200, 500.0, 900.0)] {
+        exact(call("F.DIST", vec![n(x), n(d1), n(d2), b(false)]), 0.0);
+    }
+}
+
 /// Excel 20527 reports errors at the intermediate power and density denominator.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
