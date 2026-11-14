@@ -22,6 +22,7 @@ pub fn geometry_of(geometry: &calc_host::SheetGeometry) -> Geometry {
         default_row_height: geometry.default_row_height,
         default_column_width: geometry.default_column_width,
         base_column_width: geometry.base_column_width,
+        default_digit_px: None,
         columns: geometry
             .columns
             .iter()

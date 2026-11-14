@@ -3515,13 +3515,17 @@ impl Server {
             sheets,
         })
     }
-    fn geometry(&self, sheet: Sheet) -> wire::Geometry {
+    /// The sheet's geometry as it goes on the wire (the display's column and row sizes).
+    pub fn geometry(&self, sheet: Sheet) -> wire::Geometry {
         let mut geometry = self
             .book
             .host()
             .sheet_geometry(sheet.id())
             .map(|g| wire::geometry_of(&g))
             .unwrap_or_default();
+        // The default font sets the digit width columns are counted in and the default row height.
+        geometry.default_digit_px = Some(self.book.host().default_digit_px());
+        geometry.default_row_height.get_or_insert(self.book.host().default_font_row_points());
         let layouts = self.book.host().model().definitions().axis_layouts();
         geometry.outline = [calc_host::Axis::Rows, calc_host::Axis::Columns]
             .into_iter()

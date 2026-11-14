@@ -120,6 +120,19 @@ impl HostState {
             + 1
     }
 
+    /// The maximum digit width in pixels at 96 DPI of the workbook's default font (Aptos Narrow 11:
+    /// 8, Calibri 11: 7; a font the measure does not know falls back to Calibri 11's 7), which a
+    /// column width in characters counts in. The display reads it to draw columns as wide as Excel.
+    pub fn default_digit_px(&self) -> f64 {
+        crate::facts::maximum_digit_width_at(self.styles(), DPI).unwrap_or(7.0)
+    }
+
+    /// The default row height in points of the workbook's default font (Aptos Narrow 11: 14.25,
+    /// otherwise 15) when the sheet gives none.
+    pub fn default_font_row_points(&self) -> f64 {
+        crate::facts::default_row_points(self.styles())
+    }
+
     /// The width in points of a column: whole pixels of the workbook's default font's digit
     /// width (Aptos Narrow 11: 8 px, Calibri 11: 7 px), converted at the pixel density.
     fn column_points(&self, sheet: SheetId, column: u32) -> f64 {
