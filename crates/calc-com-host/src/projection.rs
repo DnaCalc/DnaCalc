@@ -381,27 +381,41 @@ impl Projection {
             Err("the supplied object model owns the active worksheet".into())
         }
     }
-    /// Legacy single-cell event entry. Resolve the event objects through the supplied model.
+    /// Legacy public entry, still forwarded by AddinHost. The bound workbook profile owns
+    /// both the worksheet and Range target, just as it does for session observer delivery.
     pub fn sheet_change(&self, row: u32, column: u32) -> Result<(), String> {
-        let cell = calc_value::CellKey::new(calc_value::SheetId::from_parts(0, 0), row, column)
-            .map_err(|e| format!("{e:?}"))?;
-        // No workbook model answers here (the command-line harness): the target is an inline
-        // reference, whose geometry the values-only profile answers.
-        let descriptor = Descriptor::get();
-        let range = ObjectRef::new(
-            descriptor.default_interface(descriptor.id("Range").ok_or("no Range interface")?),
-            calc_object_model::ObjectKey::Range(calc_func::StoredReference::Inline(
-                calc_value::ReferenceLike::cell(cell),
-            )),
-        );
-        let sheet = self.member(&range, "Worksheet", vec![]).map_err(message)?;
-        self.raise(
-            &self.state.application(),
-            "AppEvents",
-            "SheetChange",
-            &[sheet, AutoValue::Object(range)],
-        )
-        .map_err(message)
+        if !(1..=1_048_576).contains(&row) || !(1..=16_384).contains(&column) {
+            return Err("SheetChange target is outside the worksheet".into());
+        }
+        let application = self.state.application();
+        let sheet = self
+            .member(&application, "ActiveSheet", vec![])
+            .map_err(message)?;
+        let target = (|| {
+            let AutoValue::Object(sheet) = &sheet else {
+                return Err(AutoError::excel(1004, "ActiveSheet returned no worksheet"));
+            };
+            let cells = self.member(sheet, "Cells", vec![])?;
+            let _cells = self.state.result_values(std::slice::from_ref(&cells));
+            let AutoValue::Object(cells) = &cells else {
+                return Err(AutoError::excel(1004, "Worksheet.Cells returned no Range"));
+            };
+            self.member(
+                cells,
+                "Item",
+                vec![AutoValue::I4(row as i32), AutoValue::I4(column as i32)],
+            )
+        })();
+        match target {
+            Ok(target) => self
+                .raise(&application, "AppEvents", "SheetChange", &[sheet, target])
+                .map_err(message),
+            Err(error) => {
+                // Before handoff to EventSource, this entry still owns the sheet acquisition.
+                let _sheet = self.state.result_values(std::slice::from_ref(&sheet));
+                Err(message(error))
+            }
+        }
     }
     fn member(
         &self,
@@ -476,3 +490,101 @@ fn message(error: AutoError) -> String {
     error.description()
 }
 use windows::Win32::System::Variant::VARIANT;
+
+#[cfg(test)]
+mod legacy_events {
+    use super::*;
+    use calc_object_model::{ObjectKey, profile::values_only::object};
+
+    struct Model {
+        calls: RefCell<Vec<String>>,
+        released: RefCell<Vec<ObjectRef>>,
+        fail_item: Cell<bool>,
+    }
+    impl ObjectModel for Model {
+        fn application(&self) -> ObjectRef {
+            object("Application", ObjectKey::Application)
+        }
+        fn invoke(&self, _: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
+            self.calls.borrow_mut().push(call.label());
+            Ok(match call.label().as_str() {
+                "_Application.ActiveSheet" => AutoValue::Object(object(
+                    "Worksheet",
+                    ObjectKey::Worksheet {
+                        workbook: 7,
+                        sheet: calc_value::SheetId::from_parts(7, 1),
+                    },
+                )),
+                "_Worksheet.Cells" => AutoValue::Object(object(
+                    "Range",
+                    ObjectKey::Range(calc_func::StoredReference::Tracked { owner: 7, slot: 1 }),
+                )),
+                "Range.Item" => {
+                    assert!(matches!(
+                        call.args.as_slice(),
+                        [AutoValue::I4(3), AutoValue::I4(4)]
+                    ));
+                    if self.fail_item.get() {
+                        return Err(AutoError::excel(1004, "test Item failure"));
+                    }
+                    AutoValue::Object(object(
+                        "Range",
+                        ObjectKey::Range(calc_func::StoredReference::Tracked { owner: 7, slot: 2 }),
+                    ))
+                }
+                "_Application.EnableEvents" => AutoValue::Bool(true),
+                _ => return Err(AutoError::not_modelled(call.label(), "dc-1nbp.5")),
+            })
+        }
+        fn released(&self, target: &ObjectRef) {
+            self.released.borrow_mut().push(target.clone());
+        }
+    }
+    /// Native-only: verifies public SheetChange forwarding and COM acquisition cleanup.
+    #[test]
+    fn legacy_sheet_change_uses_the_bound_model_and_releases_each_acquisition() {
+        let _apartment = crate::tests::Apartment::new();
+        let projection = Projection::new(1, Rc::new(XllHost::new(1))).unwrap();
+        let model = Rc::new(Model {
+            calls: RefCell::default(),
+            released: RefCell::default(),
+            fail_item: Cell::new(false),
+        });
+        projection.bind_model(model.clone()).unwrap();
+        projection.sheet_change(3, 4).unwrap();
+        assert_eq!(
+            &model.calls.borrow()[..3],
+            &["_Application.ActiveSheet", "_Worksheet.Cells", "Range.Item"]
+        );
+        let released = model.released.borrow();
+        assert_eq!(
+            released.len(),
+            3,
+            "sheet, Cells, target each released once, even without subscribers"
+        );
+        for slot in [1, 2] {
+            assert_eq!(
+                released
+                    .iter()
+                    .filter(|r| r.key
+                        == ObjectKey::Range(calc_func::StoredReference::Tracked { owner: 7, slot }))
+                    .count(),
+                1
+            );
+        }
+        drop(released);
+        model.released.borrow_mut().clear();
+        model.fail_item.set(true);
+        assert!(
+            projection
+                .sheet_change(3, 4)
+                .unwrap_err()
+                .contains("test Item failure")
+        );
+        assert_eq!(
+            model.released.borrow().len(),
+            2,
+            "failed Item releases the sheet and Cells"
+        );
+    }
+}

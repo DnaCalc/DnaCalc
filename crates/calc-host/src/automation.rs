@@ -7,9 +7,7 @@ use crate::{
     HostSession, ModelRoot, ProjectedValue, ProjectionRequest, ReferenceTarget,
     WorkbookEventObserver,
 };
-use calc_func::{
-    ReferenceHandleError, ReferenceHandles, StoredReference, UserFunctionContext, WorkbookFacts,
-};
+use calc_func::{ReferenceHandleError, ReferenceHandles, StoredReference, UserFunctionContext};
 use calc_object_model::geometry::{self, AddressOptions, RangeAxis};
 use calc_object_model::profile::{
     ApplicationHost,
@@ -34,6 +32,7 @@ const OWNER: &str = "dc-0f1k.24";
 type Reply = Result<AutoValue, AutoError>;
 mod mutation;
 mod navigation;
+mod value;
 
 /// The application supplies access, never a copied value reader. `None` means no admitted
 /// worksheet invocation; `Some(Err(..))` must never fall back to the command route.
@@ -81,7 +80,7 @@ impl EventSession for EventLoan<'_> {
 
 struct Snapshot {
     model: Arc<ModelRoot>,
-    facts: Arc<dyn WorkbookFacts>,
+    formats: value::Formats,
     references: Rc<dyn ReferenceHandles>,
     full_name: String,
     active: Option<CellKey>,
@@ -299,7 +298,7 @@ impl WorkbookAutomation {
         });
         *self.snapshot.borrow_mut() = Some(Rc::new(Snapshot {
             model: session.host().model().clone(),
-            facts: session.host().workbook_facts(),
+            formats: value::Formats::new(session.host()),
             references: session.host().reference_view(),
             full_name: session.file_full_name().to_owned(),
             active,
@@ -793,22 +792,16 @@ impl WorkbookAutomation {
         }
         let mut values = Vec::with_capacity(cells.len());
         for (index, value) in cells.into_iter().enumerate() {
-            if !value2 && matches!(value.core_ref(), CoreRef::Number(_)) {
-                let at = CellKey::new(
-                    area.sheet(),
-                    area.first().row() + index as u32 / area.column_count(),
-                    area.first().column() + index as u32 % area.column_count(),
-                )
-                .expect("cell in valid area");
-                let supported = meta.facts.cell_format(at).is_some_and(|f| {
-                    matches!(f.builtin, Some(0..=4 | 9..=13 | 48..=49))
-                        || f.number_format.eq_ignore_ascii_case("General")
-                });
-                if !supported {
-                    return Err(AutoError::not_modelled(
-                        "Range.Value date/currency/custom format conversion; use Value2",
-                        "dc-1nbp.6",
-                    ));
+            if let CoreRef::Number(number) = value.core_ref() {
+                if !value2 {
+                    let at = CellKey::new(
+                        area.sheet(),
+                        area.first().row() + index as u32 / area.column_count(),
+                        area.first().column() + index as u32 % area.column_count(),
+                    )
+                    .expect("cell in valid area");
+                    values.push(meta.formats.number(&meta.model, at, number)?);
+                    continue;
                 }
             }
             values.push(auto_value(value)?);

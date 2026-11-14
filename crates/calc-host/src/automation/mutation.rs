@@ -85,7 +85,7 @@ impl WorkbookAutomation {
                     "dc-1nbp.6",
                 ));
             }
-            self.write_range(session, range, call.args.last(), call)
+            self.write_range(session, range, call.args.last())
         })
     }
     fn put_value2(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
@@ -93,7 +93,7 @@ impl WorkbookAutomation {
             if call.args.len() != 1 {
                 return Err(geometry::bad_count());
             }
-            self.write_range(session, range, call.args.last(), call)
+            self.write_range(session, range, call.args.last())
         })
     }
     fn clear_contents(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
@@ -107,7 +107,7 @@ impl WorkbookAutomation {
                     "dc-1nbp.6",
                 ));
             }
-            self.write_range(session, range, None, call)
+            self.write_range(session, range, None)
         })
     }
     fn mutate_range(
@@ -132,7 +132,6 @@ impl WorkbookAutomation {
         session: &HostSession,
         reference: ReferenceLike,
         value: Option<&AutoValue>,
-        call: &Call<'_>,
     ) -> Result<SkinIntent, AutoError> {
         let range = &reference;
         let area = range.areas()[0];

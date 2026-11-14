@@ -81,6 +81,9 @@ fn setup() -> (Rc<Host>, Rc<WorkbookAutomation>) {
         },
     )
     .unwrap();
+    setup_session(session)
+}
+fn setup_session(session: HostSession) -> (Rc<Host>, Rc<WorkbookAutomation>) {
     let host = Rc::new(Host {
         session: RefCell::new(session),
         enabled: Cell::new(true),
@@ -595,6 +598,10 @@ impl UserFunction for Probe {
                 ));
                 return Ok(CalcValue::number(99.)); // Error swallowed: the formula must still refuse.
             }
+            // E6 conversion also uses the evaluator's admitted read route.
+            let date = range(&model, "A3");
+            assert!(matches!(invoke(&model, &date, "Value", vec![]).unwrap(), AutoValue::Date(n) if n.to_bits() == 45322f64.to_bits()));
+            model.released(&date);
             let app = model.application();
             let caller = obj(invoke(&model, &app, "Caller", vec![]).unwrap());
             // Excel: ThisCell inside an add-in function's invocation is error 1004 (X19).
@@ -651,6 +658,23 @@ impl UserFunction for Probe {
 fn invocation_uses_real_evaluator_context_and_swallowed_refusal_keeps_owning_bead() {
     for refuse in [false, true] {
         let (host, model) = setup();
+        if refuse {
+            let date_cell = at(&host, 3, 1);
+            // Date conversion is now measured; keep the swallowed-refusal control on a
+            // genuinely undecidable conditional format rather than the old date refusal.
+            assert!(
+                host.session
+                    .borrow_mut()
+                    .dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {
+                        areas: vec![calc_value::GridArea::cell(date_cell)],
+                        patch: FormatPatch {
+                            number_format: Some("[>=1]yyyy-mm-dd;0".into()),
+                            ..Default::default()
+                        },
+                    }))
+                    .accepted()
+            );
+        }
         let data = at(&host, 10, 1);
         enter(&host, data, "7");
         let caller = at(&host, 20, 5);
@@ -767,26 +791,20 @@ fn busy_command_is_typed_and_outside_invocation_caller_is_ref_error() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn value_refuses_unmeasured_date_and_custom_numeric_conversion() {
+fn value_formats_measured_dates_time_and_numeric_literals() {
     let (_host, model) = setup();
-    for address in ["A3", "A8", "A11"] {
+    for (address, date) in [("A3", true), ("A8", false), ("A11", false), ("A12", false)] {
         let range = range(&model, address);
-        assert!(matches!(
-            invoke(&model, &range, "Value2", vec![]).unwrap(),
-            AutoValue::R8(_)
-        ));
-        assert!(matches!(
-            invoke(&model, &range, "Value", vec![]),
-            Err(AutoError::NotModelled {
-                owner: "dc-1nbp.6",
-                ..
-            })
-        ));
+        let AutoValue::R8(raw) = invoke(&model, &range, "Value2", vec![]).unwrap() else {
+            panic!("Value2 numeric cell");
+        };
+        let value = invoke(&model, &range, "Value", vec![]).unwrap();
+        match value {
+            AutoValue::Date(n) if date => assert_eq!(n.to_bits(), raw.to_bits()),
+            AutoValue::R8(n) if !date => assert_eq!(n.to_bits(), raw.to_bits()),
+            other => panic!("unexpected Value type for {address}: {other:?}"),
+        }
     }
-    assert!(matches!(
-        invoke(&model, &range(&model, "A12"), "Value", vec![]).unwrap(),
-        AutoValue::R8(_)
-    ));
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -1495,4 +1513,360 @@ fn names_index_order_is_alphabetical_and_local_names_cannot_silently_shadow_a_he
             ..
         })
     ));
+}
+
+// The E6 inputs/answers are retained in calc-xll-reference's three independent Excel runs.
+// Author their formats through the session's existing style transaction, then save/reopen:
+// these are workbook-format tests, with no alternate value reader or fixture generator.
+#[path = "../../calc-doc/tests/cdoc_m1_1_support/mod.rs"]
+mod existing_wire_support;
+fn e6_workbook() -> (
+    Rc<Host>,
+    Rc<WorkbookAutomation>,
+    Vec<(f64, Result<AutoValue, AutoError>)>,
+) {
+    use calc_doc_model::{CellFormat, NumberFormat};
+    let options = HostOptions {
+        calc_mode: Some(CalcMode::Manual),
+        locale: Some(calc_func::locale::format_profile(
+            calc_func::locale::LocaleId::EnZa,
+        )),
+        ..Default::default()
+    };
+    let currency_code = "_($* #,##0.00_);_($* (#,##0.00);_($* \"-\"??_);_(@_)";
+    let accounting = r#"_(\$* #\,##0.00_);_(\$* (#\,##0.00);_(\$* "-"??_);_(@_)"#;
+    // Named style creation is not authored by Format Cells. Seed the imported Currency
+    // lineage using the same independent package builder as the host's round-trip tests.
+    let blank = blank_package();
+    let archive = existing_wire_support::parse_zip(&blank);
+    let entries = archive.entries.iter().map(|entry| {
+        let payload = entry.payload(&blank);
+        if entry.name == "xl/styles.xml" {
+            let bytes = if entry.method == 0 { payload.to_vec() } else { miniz_oxide::inflate::decompress_to_vec(payload).unwrap() };
+            let xml = String::from_utf8(bytes).unwrap()
+                .replace("<fonts", &format!("<numFmts count=\"1\"><numFmt numFmtId=\"220\" formatCode=\"{}\"/></numFmts><fonts", currency_code.replace('"', "&quot;")))
+                .replace("<cellStyleXfs count=\"1\">", "<cellStyleXfs count=\"2\">")
+                .replace("</cellStyleXfs>", "<xf numFmtId=\"220\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>")
+                .replace("<cellStyles count=\"1\">", "<cellStyles count=\"2\">")
+                .replace("</cellStyles>", "<cellStyle name=\"Currency\" xfId=\"1\" builtinId=\"4\"/></cellStyles>");
+            existing_wire_support::RawEntry::stored(&entry.name, xml.as_bytes())
+        } else if entry.method == 0 { existing_wire_support::RawEntry::stored(&entry.name, payload) }
+        else { existing_wire_support::RawEntry::deflated(&entry.name, payload, entry.size, entry.crc32) }
+    }).collect::<Vec<_>>();
+    let package = existing_wire_support::build_zip(&entries);
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(package)),
+            &OpenPolicy::default(),
+            options.clone(),
+        )
+        .unwrap(),
+    );
+    let overflow = || Err(AutoError::excel(0x8002_000Au32 as i32, ""));
+    let cases = vec![
+        (
+            45292.25,
+            "yyyy-mm-dd hh:mm",
+            false,
+            Ok(AutoValue::Date(45292.25)),
+        ),
+        (
+            123.45678901234567,
+            r"\$#\,##0.00",
+            false,
+            Ok(AutoValue::R8(123.45678901234567)),
+        ),
+        (
+            123.45678901234567,
+            accounting,
+            false,
+            Ok(AutoValue::R8(123.45678901234567)),
+        ),
+        (45292.25, "hh:mm:ss", false, Ok(AutoValue::R8(45292.25))),
+        (
+            123.45678901234567,
+            currency_code,
+            true,
+            Ok(AutoValue::Currency(1234568)),
+        ),
+        (
+            123.45678901234567,
+            r"[$$-409]#\,##0.00",
+            false,
+            Ok(AutoValue::R8(123.45678901234567)),
+        ),
+        (
+            123.45678901234567,
+            r"[$R-1C09] #\,##0.00",
+            false,
+            Ok(AutoValue::R8(123.45678901234567)),
+        ),
+        (-0.00005, currency_code, true, Ok(AutoValue::Currency(-1))),
+        (922337203685477.5807, currency_code, true, overflow()),
+        (1e300, currency_code, true, overflow()),
+        (-1., "yyyy-mm-dd", false, Ok(AutoValue::Date(-1.))),
+        (3_000_000., "yyyy-mm-dd", false, overflow()),
+    ];
+    let sheet = at(&host, 1, 1).sheet();
+    let mut styles = (**host.session.borrow().host().styles()).clone();
+    let currency_xf = styles
+        .cell_styles
+        .iter()
+        .find(|s| s.builtin_id == Some(4))
+        .unwrap()
+        .xf_id;
+    let currency_format = 220;
+    let mut edits = Vec::new();
+    for (index, (number, code, use_currency, _)) in cases.iter().enumerate() {
+        let id = if *use_currency {
+            currency_format
+        } else {
+            let id = 221 + index as u32;
+            styles.number_formats.push(NumberFormat {
+                id,
+                code: (*code).into(),
+            });
+            id
+        };
+        let style = styles.cell_formats.len() as u32;
+        styles.cell_formats.push(CellFormat {
+            number_format_id: Some(id),
+            xf_id: Some(if *use_currency { currency_xf } else { 0 }),
+            ..Default::default()
+        });
+        let at = CellKey::new(sheet, index as u32 + 1, 1).unwrap();
+        edits.push(CellEdit::Set {
+            at,
+            input: CellInput::Number(calc_doc_model::FiniteNumber::new(*number).unwrap()),
+        });
+        edits.push(CellEdit::SetFormat {
+            at,
+            format: Some(style),
+        });
+    }
+    edits.insert(0, CellEdit::Styles(Arc::new(styles)));
+    assert!(
+        host.session
+            .borrow_mut()
+            .dispatch(SkinIntent::Edit { edits })
+            .accepted()
+    );
+    let mut saved = Vec::new();
+    host.session
+        .borrow_mut()
+        .save(&SavePolicy::default(), &mut saved)
+        .unwrap();
+    host.session.replace(
+        HostSession::open(
+            Arc::new(MemorySource::new(saved)),
+            &OpenPolicy::default(),
+            options,
+        )
+        .unwrap(),
+    );
+    model.context_changed(&host.session.borrow());
+    (
+        host,
+        model,
+        cases
+            .into_iter()
+            .map(|(number, _, _, expected)| (number, expected))
+            .collect(),
+    )
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn range_value_e6_workbook_formats_preserve_excel_types_rounding_and_overflow() {
+    let (_, model, cases) = e6_workbook();
+    let trace = std::str::from_utf8(include_bytes!(
+        "../../calc-xll-reference/traces/2026-11-14-om-probes/trial-1/om-e6.tsv"
+    ))
+    .unwrap();
+    assert!(trace.contains("VT_CY:int64=-1 (-0.0001)"));
+    assert!(trace.contains("EXCEPINFO wCode=0 scode=8002000A"));
+    for (index, (number, expected)) in cases.iter().enumerate() {
+        let cell = range(&model, &format!("A{}", index + 1));
+        assert_e6(invoke(&model, &cell, "Value", vec![]), expected);
+        let AutoValue::R8(raw) = invoke(&model, &cell, "Value2", vec![]).unwrap() else {
+            panic!("Value2 must remain R8");
+        };
+        assert_eq!(raw.to_bits(), number.to_bits());
+    }
+    let AutoValue::Array(array) = invoke(&model, &range(&model, "A1:A8"), "Value", vec![]).unwrap()
+    else {
+        panic!("block");
+    };
+    assert_eq!((array.rows, array.columns, array.lower), (8, 1, (1, 1)));
+    assert_eq!(array.values.len(), 8);
+    for (actual, (_, expected)) in array.values.into_iter().zip(&cases[..8]) {
+        assert_e6(Ok(actual), expected);
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn range_value_uses_current_session_formats_for_held_ranges_and_keeps_unknown_classes_typed() {
+    let (host, model, _) = e6_workbook();
+    let held = range(&model, "A1");
+    let sheet = at(&host, 1, 1).sheet();
+    assert!(
+        host.session
+            .borrow_mut()
+            .dispatch(SkinIntent::EditAxis(
+                AxisEdit::new(sheet, Axis::Rows, AxisChange::Insert, 1, 1).unwrap(),
+            ))
+            .accepted()
+    );
+    assert_eq!(text(&model, &held, "Address"), "$A$2");
+    assert_e6(
+        invoke(&model, &held, "Value", vec![]),
+        &Ok(AutoValue::Date(45292.25)),
+    );
+    let target = CellKey::new(sheet, 2, 1).unwrap();
+    for (code, expected) in [
+        ("0.00", Some(AutoValue::R8(45292.25))),
+        ("hh:mm:ss", Some(AutoValue::R8(45292.25))),
+        ("yyyy\\-mm\\-dd", Some(AutoValue::Date(45292.25))),
+        ("[>=1]yyyy-mm-dd;0", None),
+    ] {
+        assert!(
+            host.session
+                .borrow_mut()
+                .dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {
+                    areas: vec![calc_value::GridArea::cell(target)],
+                    patch: FormatPatch {
+                        number_format: Some(code.into()),
+                        ..Default::default()
+                    },
+                }))
+                .accepted()
+        );
+        let actual = invoke(&model, &held, "Value", vec![]);
+        match expected {
+            Some(value) => assert_e6(actual, &Ok(value)),
+            None => assert!(matches!(
+                actual,
+                Err(AutoError::NotModelled {
+                    owner: "dc-1nbp.6",
+                    ..
+                })
+            )),
+        }
+        assert_e6(
+            invoke(&model, &held, "Value2", vec![]),
+            &Ok(AutoValue::R8(45292.25)),
+        );
+    }
+    // A number format override on a Currency-derived XF must use the current format.
+    let currency = range(&model, "A6");
+    assert!(
+        host.session
+            .borrow_mut()
+            .dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {
+                areas: vec![calc_value::GridArea::cell(
+                    CellKey::new(sheet, 6, 1).unwrap()
+                )],
+                patch: FormatPatch {
+                    number_format: Some("yyyy-mm-dd".into()),
+                    ..Default::default()
+                },
+            }))
+            .accepted()
+    );
+    assert_e6(
+        invoke(&model, &currency, "Value", vec![]),
+        &Ok(AutoValue::Date(123.45678901234567)),
+    );
+    let mut saved = Vec::new();
+    host.session
+        .borrow_mut()
+        .save(&SavePolicy::default(), &mut saved)
+        .unwrap();
+    host.session.replace(
+        HostSession::open(
+            Arc::new(MemorySource::new(saved)),
+            &OpenPolicy::default(),
+            HostOptions {
+                calc_mode: Some(CalcMode::Manual),
+                ..Default::default()
+            },
+        )
+        .unwrap(),
+    );
+    model.context_changed(&host.session.borrow());
+    let unknown_currency = range(&model, "A9");
+    assert!(matches!(
+        invoke(&model, &unknown_currency, "Value", vec![]),
+        Err(AutoError::NotModelled {
+            owner: "dc-1nbp.6",
+            ..
+        })
+    ));
+    assert_e6(
+        invoke(&model, &unknown_currency, "Value2", vec![]),
+        &Ok(AutoValue::R8(-0.00005)),
+    );
+    // Incomplete imported style lineage is not evidence for an accounting/R8 answer.
+    let mut styles = (**host.session.borrow().host().styles()).clone();
+    styles
+        .cell_styles
+        .retain(|style| style.builtin_id != Some(4));
+    assert!(
+        host.session
+            .borrow_mut()
+            .dispatch(SkinIntent::Edit {
+                edits: vec![CellEdit::Styles(Arc::new(styles))]
+            })
+            .accepted()
+    );
+    assert!(matches!(
+        invoke(&model, &unknown_currency, "Value", vec![]),
+        Err(AutoError::NotModelled {
+            owner: "dc-1nbp.6",
+            ..
+        })
+    ));
+}
+
+fn assert_e6(actual: Reply, expected: &Reply) {
+    match (&actual, expected) {
+        (Ok(AutoValue::R8(a)), Ok(AutoValue::R8(b)))
+        | (Ok(AutoValue::Date(a)), Ok(AutoValue::Date(b))) => assert_eq!(a.to_bits(), b.to_bits()),
+        (Ok(AutoValue::Currency(a)), Ok(AutoValue::Currency(b))) => assert_eq!(a, b),
+        (Err(a), Err(b)) => assert_eq!(a, b),
+        _ => panic!("Automation type/value mismatch: {actual:?}, expected {expected:?}"),
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn range_value_currency_preserves_integer_units_for_large_in_range_numbers() {
+    let (_, model, _) = e6_workbook();
+    let cell = range(&model, "A5");
+    // CY's exact integer-unit contract: binary64 multiplication would lose 112/216
+    // units on these representable inputs. These are precision controls, not E6 captures.
+    for (number, units) in [
+        (123456789012345., 1_234_567_890_123_450_000i64),
+        (-123456789012345., -1_234_567_890_123_450_000),
+        (922337203685477.5, 9_223_372_036_854_775_000),
+        (-922337203685477.5, -9_223_372_036_854_775_000),
+    ] {
+        invoke_kind(
+            &model,
+            &cell,
+            "Value2",
+            InvokeKind::Put,
+            vec![AutoValue::R8(number)],
+        )
+        .unwrap();
+        assert_e6(
+            invoke(&model, &cell, "Value", vec![]),
+            &Ok(AutoValue::Currency(units)),
+        );
+        assert_e6(
+            invoke(&model, &cell, "Value2", vec![]),
+            &Ok(AutoValue::R8(number)),
+        );
+    }
 }

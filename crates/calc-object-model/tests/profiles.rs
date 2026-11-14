@@ -708,3 +708,30 @@ fn values_only_descriptor_coverage_lists_every_registered_member() {
         functions.len()
     );
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn values_only_inline_ranges_have_no_geometry_path_without_a_workbook() {
+    let model = ValuesOnly::new(Host::default());
+    let (reference, _) = references();
+    let range = calc_object_model::profile::values_only::object(
+        "Range",
+        calc_object_model::ObjectKey::Range(calc_func::StoredReference::Inline(reference)),
+    );
+    for member in [
+        "Address",
+        "Row",
+        "Column",
+        "Count",
+        "Worksheet",
+        "Application",
+        "Parent",
+        "Value",
+        "Value2",
+    ] {
+        assert_eq!(
+            invoke(&model, &range, member, InvokeKind::Get, vec![]).unwrap_err(),
+            AutoError::excel(1004, "needs a workbook: open in DNA Calc")
+        );
+    }
+}

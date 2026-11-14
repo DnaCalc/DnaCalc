@@ -1,12 +1,10 @@
 //! OneCalc's application and Book1 shell. Workbook operations require DNA Calc (dc-svqh).
 
 use super::ApplicationHost;
-use crate::geometry::{self, AddressOptions, RangeAxis, bad_count, boolean, type_mismatch};
+use crate::geometry::{bad_count, boolean, type_mismatch};
 use crate::{
     AutoError, AutoValue, Call, Descriptor, Handlers, InvokeKind, ObjectKey, ObjectModel, ObjectRef,
 };
-use calc_func::StoredReference;
-use calc_value::ReferenceLike;
 
 pub struct ValuesOnly<H: ApplicationHost> {
     host: H,
@@ -132,22 +130,21 @@ impl<H: ApplicationHost> ValuesOnly<H> {
         );
         handlers.on("Worksheet", "Name", InvokeKind::Get, Self::sheet_name);
         handlers.on("Window", "Hwnd", InvokeKind::Get, Self::hwnd);
-        // Event targets of a host without a workbook model (the command-line harness) are
-        // inline references: their geometry answers here, their values need a workbook.
-        handlers.on("Range", "Address", InvokeKind::Get, Self::range_address);
-        handlers.on("Range", "Row", InvokeKind::Get, Self::range_row);
-        handlers.on("Range", "Column", InvokeKind::Get, Self::range_column);
-        handlers.on("Range", "Count", InvokeKind::Get, Self::range_count);
-        handlers.on("Range", "Worksheet", InvokeKind::Get, Self::range_sheet);
-        handlers.on(
-            "Range",
+        // No geometry-only Range objects exist without a workbook. Keep the described
+        // refusal surface so every values-only Range request has the same workbook error.
+        for member in [
+            "Address",
+            "Row",
+            "Column",
+            "Count",
+            "Worksheet",
             "Application",
-            InvokeKind::Get,
-            Self::range_application,
-        );
-        handlers.on("Range", "Parent", InvokeKind::Get, Self::range_sheet);
-        handlers.on("Range", "Value", InvokeKind::Get, Self::needs_workbook);
-        handlers.on("Range", "Value2", InvokeKind::Get, Self::needs_workbook);
+            "Parent",
+            "Value",
+            "Value2",
+        ] {
+            handlers.on("Range", member, InvokeKind::Get, Self::needs_workbook);
+        }
         handlers.on("Application", "Run", InvokeKind::Method, Self::run);
         handlers.on(
             "Application",
@@ -321,64 +318,6 @@ impl<H: ApplicationHost> ValuesOnly<H> {
             ))),
             None => Err(AutoError::not_modelled(call.label(), "dc-svqh")),
         }
-    }
-    fn inline_range<'a>(
-        &self,
-        target: &'a ObjectRef,
-        call: &Call<'_>,
-    ) -> Result<&'a ReferenceLike, AutoError> {
-        match &target.key {
-            ObjectKey::Range(StoredReference::Inline(reference)) => Ok(reference),
-            _ => Err(Self::needs_workbook(self, target, call).unwrap_err()),
-        }
-    }
-    fn range_address(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
-        let reference = self.inline_range(target, call)?;
-        let options = AddressOptions::from_call(call)?;
-        if options.external || options.relative_to.is_some() {
-            return Err(AutoError::not_modelled(call.label(), "dc-1nbp.5"));
-        }
-        Ok(AutoValue::text(&geometry::address(
-            reference, options, None,
-        )?))
-    }
-    fn range_row(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
-        let reference = self.inline_range(target, call)?;
-        let _ = reference;
-        Ok(AutoValue::I4(geometry::row(reference) as i32))
-    }
-    fn range_column(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
-        let reference = self.inline_range(target, call)?;
-        let _ = reference;
-        Ok(AutoValue::I4(geometry::column(reference) as i32))
-    }
-    fn range_count(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
-        let reference = self.inline_range(target, call)?;
-        let _ = reference;
-        Ok(geometry::count_value(geometry::count(
-            reference,
-            RangeAxis::Cells,
-        )))
-    }
-    fn range_sheet(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
-        let reference = self.inline_range(target, call)?;
-        let _ = reference;
-        Ok(AutoValue::Object(object(
-            "Worksheet",
-            ObjectKey::Worksheet {
-                workbook: 0,
-                sheet: reference.sheet(),
-            },
-        )))
-    }
-    fn range_application(
-        &self,
-        target: &ObjectRef,
-        call: &Call<'_>,
-    ) -> Result<AutoValue, AutoError> {
-        let reference = self.inline_range(target, call)?;
-        let _ = reference;
-        Ok(AutoValue::Object(self.application()))
     }
     fn put_events(&self, _: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
         if call.args.len() != 1 {
