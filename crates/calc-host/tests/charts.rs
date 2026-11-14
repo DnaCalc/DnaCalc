@@ -1236,7 +1236,8 @@ fn dc_971p_49__created_chart_edits_and_row_insertion_save() {
             .unwrap()
             .formula
             .as_deref(),
-        Some("'Data'!$B$4:$B$9")
+        // Excel quotes a sheet name only when it has to (dc-piw0.8, Q0 chart1.xml).
+        Some("Data!$B$4:$B$9")
     );
 }
 

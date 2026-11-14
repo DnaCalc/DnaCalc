@@ -21,6 +21,24 @@ fn invalid(part: &str, detail: &str) -> SaveRefusal {
 }
 
 /// New parts have no opaque source records. Validate everything the fresh serializer owns.
+/// `<c:extLst>` with the series' `c16:uniqueId` (`{counter-GUID}`, the GUID fixed by the part).
+fn series_unique_id(part: &str, drawing_id: Option<u32>, counter: u32) -> Vec<u8> {
+    let mut h: u128 = 0x6c62272e07bb014262b821756295c58d;
+    for b in part.bytes().chain(drawing_id.unwrap_or(0).to_le_bytes()).chain(*b"uniqueId") {
+        h = (h ^ u128::from(b)).wrapping_mul(0x0000000001000000000000000000013b);
+    }
+    format!(
+        "<c:extLst><c:ext uri=\"{{C3380CC4-5D6E-409C-BE32-E72D297353CC}}\" xmlns:c16=\"http://schemas.microsoft.com/office/drawing/2014/chart\"><c16:uniqueId val=\"{{{:08X}-{:04X}-{:04X}-{:04X}-{:012X}}}\"/></c:ext></c:extLst>",
+        counter,
+        (h >> 80) as u16,
+        // Version 4, variant 10 bits, as Excel's GUIDs carry.
+        ((h >> 64) as u16 & 0x0fff) | 0x4000,
+        ((h >> 48) as u16 & 0x3fff) | 0x8000,
+        (h & 0xffff_ffff_ffff) as u64
+    )
+    .into_bytes()
+}
+
 pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
     let fail = |s| invalid(&chart.part, s);
     font::validate(&chart.text_style).map_err(fail)?;
@@ -237,11 +255,22 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
             bytes.extend(fresh_number("order", &s.index.to_string()));
             bytes.extend(data_xml("tx", s.name.as_ref()));
             bytes.extend(colour::fresh(s.fill.as_deref()));
+            // Excel writes `invertIfNegative` (off) on every bar series, after the fill and before
+            // the data (Q0, ~/codex-runs/eng1 excel-report chart1.xml).
+            if excel && p.kind == "barChart" {
+                bytes.extend(fresh_number("invertIfNegative", "0"));
+            }
             for (slot, data) in [
                 (if scatter { "xVal" } else { "cat" }, s.categories.as_ref()),
                 (if scatter { "yVal" } else { "val" }, s.values.as_ref()),
             ] {
                 bytes.extend(data_xml(slot, data));
+            }
+            // Excel gives every series a `c16:uniqueId`: a counter and the chart's GUID. The GUID
+            // is fixed by the part name (a save is reproducible); Excel's is random. The counter
+            // is the series' idx + 2 in the one recording (Q0: 2, 3), the rule is asked as Q17.
+            if excel {
+                bytes.extend(series_unique_id(&chart.part, chart.drawing_id, s.index + 2));
             }
             bytes.extend(b"</c:ser>");
         }
