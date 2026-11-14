@@ -249,3 +249,100 @@ fn dc_zjsg_1__editing_a_stored_object_refuses_at_save() {
     let own = loaded.model().definitions().shapes(sheet).to_vec();
     assert!(loaded.check_shape_set(sheet, &own).is_ok());
 }
+
+/// `bytes` with part `name` replaced by `content`, the other parts as they were.
+fn with_part(bytes: &[u8], name: &str, content: &[u8]) -> Vec<u8> {
+    use cdoc_m1_1_support::{build_zip, parse_zip, RawEntry};
+    let archive = parse_zip(bytes);
+    let entries: Vec<_> = archive
+        .entries
+        .iter()
+        .map(|entry| {
+            let payload = entry.payload(bytes);
+            if entry.name == name {
+                RawEntry::stored(&entry.name, content)
+            } else if entry.method == 0 {
+                RawEntry::stored(&entry.name, payload)
+            } else {
+                RawEntry::deflated(&entry.name, payload, entry.size, entry.crc32)
+            }
+        })
+        .collect();
+    build_zip(&entries)
+}
+
+/// dc-piw0 / dc-zjsg.1 corpus measure: Excel writes a shape that has an effect it added later as
+/// `mc:AlternateContent` inside the anchor (a `Choice Requires="a14"` shape and a `Fallback`
+/// without the effect). Excel reads the Choice, so the object is the Choice's shape; a Choice
+/// requiring a namespace Excel does not know (here `zz9`) reads the Fallback; a Choice holding a
+/// frame the model does not hold (a slicer) stays unread. The block is never rewritten: an
+/// untouched save keeps the drawing part byte for byte.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_1__alternate_content_shapes_read_the_branch_excel_reads() {
+    let original = String::from_utf8(part(WORKBOOK, "xl/drawings/drawing1.xml").unwrap()).unwrap();
+    let start = original.find("<xdr:sp macro=\"\" textlink=\"\">").unwrap();
+    let end = original[start..].find("</xdr:sp>").unwrap() + start + "</xdr:sp>".len();
+    let sp = &original[start..end];
+    let fallback = sp.replace("Rectangle 1", "Fallback 1");
+    let wrap = |choice: &str, requires: &str| {
+        format!(
+            "<mc:AlternateContent xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\"><mc:Choice Requires=\"{requires}\" xmlns:{requires}=\"urn:x\">{choice}</mc:Choice><mc:Fallback>{fallback}</mc:Fallback></mc:AlternateContent>"
+        )
+    };
+    let name_of = |xml: String| {
+        let bytes = with_part(WORKBOOK, "xl/drawings/drawing1.xml", xml.as_bytes());
+        let loaded = load(&bytes);
+        let read = loaded.sheets()[0].shapes();
+        (
+            read.shapes.first().map(|s| (s.id, s.name.clone())),
+            read.unread,
+            save_untouched(&bytes),
+            bytes,
+        )
+    };
+    let (first, unread, saved, bytes) = name_of(format!(
+        "{}{}{}",
+        &original[..start],
+        wrap(sp, "a14"),
+        &original[end..]
+    ));
+    assert_eq!(first, Some((2, "Rectangle 1".to_owned())));
+    assert_eq!(unread, 1, "only the diagram frame stays unread");
+    assert_eq!(
+        part(&saved, "xl/drawings/drawing1.xml"),
+        part(&bytes, "xl/drawings/drawing1.xml")
+    );
+    let (first, ..) = name_of(format!(
+        "{}{}{}",
+        &original[..start],
+        wrap(sp, "zz9"),
+        &original[end..]
+    ));
+    assert_eq!(first, Some((2, "Fallback 1".to_owned())));
+    let frame = "<xdr:graphicFrame macro=\"\"><xdr:nvGraphicFramePr><xdr:cNvPr id=\"9\" name=\"Slicer 1\"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr><xdr:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"0\" cy=\"0\"/></xdr:xfrm><a:graphic><a:graphicData uri=\"http://schemas.microsoft.com/office/drawing/2010/slicer\"/></a:graphic></xdr:graphicFrame>";
+    let (first, unread, ..) = name_of(format!(
+        "{}{}{}",
+        &original[..start],
+        wrap(frame, "sle15"),
+        &original[end..]
+    ));
+    assert_eq!(first.map(|f| f.0), Some(3), "the next object, not the fallback");
+    assert_eq!(unread, 2);
+    // The block around the whole anchor (a form control or an a14 shape): the branch's anchor is read.
+    let a_start = original.find("<xdr:twoCellAnchor>").unwrap();
+    let a_end = original[a_start..].find("</xdr:twoCellAnchor>").unwrap() + a_start + "</xdr:twoCellAnchor>".len();
+    let anchor = &original[a_start..a_end];
+    let around = format!(
+        "{}<mc:AlternateContent xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\"><mc:Choice Requires=\"a14\" xmlns:a14=\"urn:x\">{anchor}</mc:Choice></mc:AlternateContent>{}",
+        &original[..a_start],
+        &original[a_end..]
+    );
+    let (first, unread, saved, bytes) = name_of(around);
+    assert_eq!(first, Some((2, "Rectangle 1".to_owned())));
+    assert_eq!(unread, 1);
+    assert_eq!(
+        part(&saved, "xl/drawings/drawing1.xml"),
+        part(&bytes, "xl/drawings/drawing1.xml")
+    );
+}

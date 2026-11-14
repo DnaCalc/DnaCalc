@@ -116,6 +116,24 @@ fn read_drawing(package: &Package, part: &str) -> Result<SheetShapes, LoadError>
             // A block with a fallback around whole anchors: say what its first branch holds.
             let label = if start.name.local == "AlternateContent" {
                 let block = tree(&mut events, start)?;
+                // Whole anchors in a block with a fallback (Excel writes a shape with an effect
+                // it added later, a form control, a slicer or a chartex frame this way): the
+                // branch Excel reads gives the anchors, read as any other.
+                if let Some(branch) = alternate_content_branch(&block) {
+                    if branch.children.iter().any(is_anchor) {
+                        for anchor in branch.children.iter().filter(|c| is_anchor(c)) {
+                            match anchor_shape(anchor) {
+                                Anchored::Shape(shape) => read.shapes.push(shape),
+                                Anchored::Chart => {}
+                                Anchored::Unread(label) => {
+                                    read.unread += 1;
+                                    *read.unread_by.entry(label).or_default() += 1;
+                                }
+                            }
+                        }
+                        continue;
+                    }
+                }
                 let held = block
                     .child("Choice")
                     .and_then(|c| c.children.first())
@@ -217,6 +235,10 @@ fn anchor_shape(anchor: &Node) -> Anchored {
     }) else {
         return Anchored::Unread("empty anchor".into());
     };
+    // A block with a fallback around the object (Excel writes a shape with an effect it adds
+    // later, a slicer, a timeline, a chartex frame this way): read the branch Excel reads. The
+    // saved part is never rewritten from what is read here, so an untouched save keeps the block.
+    let object = alternate_branch(object).unwrap_or(object);
     if object.local == "graphicFrame" && is_chart_frame(object) {
         return Anchored::Chart;
     }
@@ -253,6 +275,45 @@ fn anchor_shape(anchor: &Node) -> Anchored {
     };
     shape.edit_as = anchor.attribute("editAs").map(str::to_owned);
     Anchored::Shape(shape)
+}
+
+/// The namespace prefixes a `mc:Choice` may require and Excel understands (the producers' usual
+/// prefixes: shape effects, drawing extensions, slicers, timelines, chartex, word-processing shapes).
+fn understood_prefix(prefix: &str) -> bool {
+    matches!(
+        prefix,
+        "a14" | "a15" | "a16" | "a1" | "wps" | "wpg" | "wp14" | "sle15" | "sle" | "tsle" | "xdr14"
+            | "x14" | "x15" | "x12ac" | "v" | "w14" | "w15" | "cx" | "cx1" | "cx2" | "cx3" | "cx4"
+            | "cx5" | "cx6" | "cx7" | "cx8" | "c14" | "c16" | "c16r2" | "c16r3" | "dgm14"
+    )
+}
+
+/// The first object of the branch of an `mc:AlternateContent` block Excel takes: the `Choice`
+/// whose required namespaces it understands, else the `Fallback`. `None` when `object` is not
+/// such a block or the branch holds nothing.
+fn alternate_branch(object: &Node) -> Option<&Node> {
+    if object.local != "AlternateContent" {
+        return None;
+    }
+    alternate_content_branch(object)?.children.first()
+}
+
+/// The branch of the `mc:AlternateContent` block `block` that Excel takes.
+fn alternate_content_branch(block: &Node) -> Option<&Node> {
+    let choice = block.children.iter().find(|choice| {
+        choice.local == "Choice"
+            && choice
+                .attribute("Requires")
+                .is_none_or(|requires| requires.split_whitespace().all(understood_prefix))
+    });
+    choice.or_else(|| block.child("Fallback"))
+}
+
+fn is_anchor(node: &Node) -> bool {
+    matches!(
+        node.local.as_str(),
+        "twoCellAnchor" | "oneCellAnchor" | "absoluteAnchor"
+    )
 }
 
 fn is_chart_frame(frame: &Node) -> bool {
