@@ -5,6 +5,21 @@
 
 mod f1_support;
 
+/// Excel 20527 rejects empty complex text while a blank cell remains zero.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn complex_functions_distinguish_empty_text_from_blank() {
+    for name in ["IMEXP", "IMSEC", "IMABS", "IMCONJUGATE"] {
+        for value in [t(""), t(" "), t("\t")] {
+            error(call(name, vec![value]), Num);
+        }
+    }
+    text(call("IMEXP", vec![calc_func::value::CalcValue::empty()]), "1");
+    text(call("IMSEC", vec![calc_func::value::CalcValue::empty()]), "1");
+    error(call("IMSUM", vec![t(""), n(1.0)]), Num);
+    error(call("IMPRODUCT", vec![n(1.0), t("")]), Num);
+}
+
 /// Excel 20527 uses circular argument reduction and rejects angles above 2^27 - 1.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

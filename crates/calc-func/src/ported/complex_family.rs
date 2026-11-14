@@ -532,7 +532,7 @@ pub(crate) fn parse_imag_coeff(text: &str) -> Option<f64> {
 pub(crate) fn parse_complex_text(raw: &str) -> Option<ParsedComplex> {
     let text = raw.trim_matches(' ');
     if text.is_empty() {
-        return Some(ParsedComplex::new(0.0, 0.0, None));
+        return None;
     }
     if let Some(last) = text.chars().last() {
         if last == 'i' || last == 'j' {

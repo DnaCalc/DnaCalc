@@ -306,7 +306,10 @@ pub fn f_dist_rt_kernel(x: f64, deg1: f64, deg2: f64) -> Result<f64, WorksheetEr
     if !crate::ported::excel_numeric::excel_x87_mul(d1, x).is_finite() {
         return Err(WorksheetErrorCode::Div0);
     }
-    Ok(f_tails(x, d1, d2).0)
+    let tail = f_tails(x, d1, d2).0;
+    // The general right-tail arm flushes positive subnormals; the d1=2
+    // unit-shape arm can publish them and is handled separately by its caller.
+    Ok(if d1 != 2.0 && tail > 0.0 && tail.is_subnormal() { 0.0 } else { tail })
 }
 
 pub fn f_inv_kernel(probability: f64, deg1: f64, deg2: f64) -> Result<f64, WorksheetErrorCode> {

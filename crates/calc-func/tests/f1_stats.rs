@@ -10,6 +10,26 @@ use calc_func::SubtotalExclusions;
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Ref, Value};
 use f1_support::*;
 
+/// Excel 20527 flushes the general F right tail but retains the unit-shape subnormal.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn f_right_tail_publishes_branch_specific_subnormals() {
+    for name in ["F.DIST.RT", "FDIST"] {
+        for (x, d1, d2) in [
+            (15139220103275.635, 10.0, 50.0),
+            (5334692.97853431, 100.0, 100.0),
+            (68.48512660726075, 25569.0, 436.0),
+            (3844.447428079949, 1.0, 803.0),
+        ] {
+            exact(call(name, vec![n(x), n(d1), n(d2)]), 0.0);
+        }
+        exact(
+            call(name, vec![n(f64::from_bits(0x46dc_48c6_001f_0a92)), n(2.0), n(20.0)]),
+            f64::from_bits(1),
+        );
+    }
+}
+
 /// Excel 20527 validates the signed-32-bit limit after truncating count arguments.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

@@ -166,11 +166,13 @@ ported_shared_family! {
     }
     31 f_dist_rt |s, a, sv| {
         let [x, d1, d2] = nums::<3>(s, a)?;
-        out(s, cft::f_dist_rt_kernel(x, d1, d2))
+        let result = cft::f_dist_rt_kernel(x, d1, d2);
+        if d1.trunc() == 2.0 { out_with_subnormal(s, result) } else { out(s, result) }
     }
     32 fdist |s, a, sv| {
         let [x, d1, d2] = nums::<3>(s, a)?;
-        out(s, cft::f_dist_rt_kernel(x, d1, d2))
+        let result = cft::f_dist_rt_kernel(x, d1, d2);
+        if d1.trunc() == 2.0 { out_with_subnormal(s, result) } else { out(s, result) }
     }
     33 f_inv |s, a, sv| {
         let [p, d1, d2] = nums::<3>(s, a)?;
