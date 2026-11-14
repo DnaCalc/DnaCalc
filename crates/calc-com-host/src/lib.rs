@@ -77,24 +77,3 @@ pub use projection::Projection;
 mod rtd;
 #[cfg(windows)]
 pub use rtd::{RtdClient, RtdInput};
-
-/// Read-only workbook metadata supplied by the full desktop application. OneCalc supplies no
-/// bridge. The projection owns no workbook state and never borrows a live session by address.
-pub trait WorkbookBridge {
-    fn full_name(&self) -> String;
-    fn active_sheet(&self) -> Option<String>;
-    fn events_enabled(&self) -> bool;
-    fn set_events_enabled(&self, enabled: bool);
-    fn range(&self, address: &str) -> Result<calc_func::StoredReference, String>;
-    fn retain(
-        &self,
-        reference: &calc_value::ReferenceLike,
-    ) -> Result<calc_func::StoredReference, String>;
-    fn resolve(
-        &self,
-        reference: &calc_func::StoredReference,
-    ) -> Result<calc_value::ReferenceLike, String>;
-    fn sheet_name(&self, sheet: calc_value::SheetId) -> Result<String, String>;
-    /// Refuse Value's unimplemented Date/Currency conversions; Value2 always keeps raw values.
-    fn value_format_supported(&self, cell: calc_value::CellKey) -> Result<(), String>;
-}

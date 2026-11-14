@@ -2,12 +2,17 @@
 use crate::values;
 use calc_object_model::{AutoError, AutoValue, profile::ApplicationHost};
 use calc_xll_host::XllHost;
-use std::{cell::Cell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 
 pub(crate) struct ApplicationServices {
     pub hwnd: usize,
     pub host: Rc<XllHost>,
     pub events: Cell<bool>,
+    /// The Book1 shell's worksheet name, set by the workbook harness (`Projection::set_sheet`).
+    pub sheet: RefCell<Option<String>>,
 }
 impl ApplicationHost for ApplicationServices {
     fn hwnd(&self) -> isize {
@@ -47,6 +52,9 @@ impl ApplicationHost for ApplicationServices {
         let _ = self.host.with_workbook_context(|context| {
             Ok(context.refuse_by("COM object-model call refused", owner))
         });
+    }
+    fn shell_sheet(&self) -> Option<String> {
+        self.sheet.borrow().clone()
     }
     fn path(&self) -> Result<String, AutoError> {
         std::env::current_exe()

@@ -1,7 +1,9 @@
 //! OneCalc's application and Book1 shell. Workbook operations require DNA Calc (dc-svqh).
 
 use super::ApplicationHost;
-use crate::geometry::{bad_count, boolean, type_mismatch};
+use crate::geometry::{self, AddressOptions, RangeAxis, bad_count, boolean, type_mismatch};
+use calc_func::StoredReference;
+use calc_value::ReferenceLike;
 use crate::{
     AutoError, AutoValue, Call, Descriptor, Handlers, InvokeKind, ObjectKey, ObjectModel, ObjectRef,
 };
@@ -63,6 +65,14 @@ impl<H: ApplicationHost> ValuesOnly<H> {
             for name in names {
                 handlers.on(interface, name, InvokeKind::Get, Self::get);
             }
+        }
+        // Event targets of a host without a workbook model (the command-line harness) are
+        // inline references: their geometry answers here, their values need a workbook.
+        for name in [
+            "Address", "Row", "Column", "Count", "Worksheet", "Application", "Parent", "Value",
+            "Value2",
+        ] {
+            handlers.on("Range", name, InvokeKind::Get, Self::range);
         }
         handlers.on("Application", "Run", InvokeKind::Method, Self::run);
         handlers.on(
@@ -130,7 +140,7 @@ impl<H: ApplicationHost> ValuesOnly<H> {
             "Name" => AutoValue::text(match target.key {
                 ObjectKey::Application => "Microsoft Excel",
                 ObjectKey::Workbook(_) => "Book1",
-                ObjectKey::Worksheet { .. } => "",
+                ObjectKey::Worksheet { .. } => return Ok(AutoValue::text(&self.host.shell_sheet().unwrap_or_default())),
                 _ => return Err(AutoError::not_modelled(call.label(), "dc-1nbp.5")),
             }),
             "Version" => AutoValue::text("16.0"),
@@ -144,10 +154,46 @@ impl<H: ApplicationHost> ValuesOnly<H> {
             "Workbooks" => AutoValue::Object(object("Workbooks", ObjectKey::Workbooks)),
             "Count" => AutoValue::I4(1),
             "ActiveWorkbook" => AutoValue::Object(object("Workbook", ObjectKey::Workbook(0))),
-            // The values-only projection has no worksheet until a real workbook is bound.
-            "ActiveSheet" => return Err(AutoError::not_modelled(call.label(), "dc-svqh")),
+            // The Book1 shell has a worksheet only when the host names one (the workbook harness).
+            "ActiveSheet" => match self.host.shell_sheet() {
+                Some(_) => AutoValue::Object(object(
+                    "Worksheet",
+                    ObjectKey::Worksheet {
+                        workbook: 0,
+                        sheet: calc_value::SheetId::from_parts(0, 0),
+                    },
+                )),
+                None => return Err(AutoError::not_modelled(call.label(), "dc-svqh")),
+            },
             _ => return Err(AutoError::not_modelled(call.label(), "dc-1nbp.5")),
         })
+    }
+    fn range(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
+        let ObjectKey::Range(StoredReference::Inline(reference)) = &target.key else {
+            return Self::needs_workbook(self, target, call);
+        };
+        let reference: &ReferenceLike = reference;
+        let shell = || {
+            object(
+                "Worksheet",
+                ObjectKey::Worksheet { workbook: 0, sheet: reference.areas()[0].sheet() },
+            )
+        };
+        match call.member.name.as_str() {
+            "Address" => {
+                let options = AddressOptions::from_call(call)?;
+                if options.external || options.relative_to.is_some() {
+                    return Err(AutoError::not_modelled(call.label(), "dc-1nbp.5"));
+                }
+                Ok(AutoValue::text(&geometry::address(reference, options, None)?))
+            }
+            "Row" => Ok(AutoValue::I4(geometry::row(reference) as i32)),
+            "Column" => Ok(AutoValue::I4(geometry::column(reference) as i32)),
+            "Count" => Ok(geometry::count_value(geometry::count(reference, RangeAxis::Cells))),
+            "Worksheet" | "Parent" => Ok(AutoValue::Object(shell())),
+            "Application" => Ok(AutoValue::Object(self.application())),
+            _ => Self::needs_workbook(self, target, call),
+        }
     }
     fn put_events(&self, _: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
         if call.args.len() != 1 {

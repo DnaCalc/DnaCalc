@@ -178,6 +178,7 @@ impl Projection {
             hwnd,
             host: host.clone(),
             events: Cell::new(true),
+            sheet: RefCell::new(None),
         });
         let model: Rc<dyn ObjectModel> = Rc::new(ValuesOnly::new(services.clone()));
         let state = Rc::new_cyclic(|weak| State {
@@ -297,6 +298,9 @@ impl Projection {
     }
     /// Compatibility for the command-line workbook harness. The supplied model owns selection.
     pub fn set_sheet(&self, name: &str) -> Result<(), String> {
+        // A values-only model answers ActiveSheet from this shell name; a bound workbook model
+        // owns its selection and must already answer the same name.
+        *self.services.sheet.borrow_mut() = Some(name.to_string());
         let value = self
             .member(&self.state.application(), "ActiveSheet", vec![])
             .map_err(message)?;
@@ -314,22 +318,15 @@ impl Projection {
     pub fn sheet_change(&self, row: u32, column: u32) -> Result<(), String> {
         let cell = calc_value::CellKey::new(calc_value::SheetId::from_parts(0, 0), row, column)
             .map_err(|e| format!("{e:?}"))?;
-        let address = calc_object_model::geometry::address(
-            &calc_value::ReferenceLike::cell(cell),
-            Default::default(),
-            None,
-        )
-        .map_err(message)?;
-        let value = self
-            .member(
-                &self.state.application(),
-                "Range",
-                vec![AutoValue::text(&address), AutoValue::Missing],
-            )
-            .map_err(message)?;
-        let AutoValue::Object(range) = value else {
-            return Err("Range returned no object".into());
-        };
+        // No workbook model answers here (the command-line harness): the target is an inline
+        // reference, whose geometry the values-only profile answers.
+        let descriptor = Descriptor::get();
+        let range = ObjectRef::new(
+            descriptor.default_interface(descriptor.id("Range").ok_or("no Range interface")?),
+            calc_object_model::ObjectKey::Range(calc_func::StoredReference::Inline(
+                calc_value::ReferenceLike::cell(cell),
+            )),
+        );
         let sheet = self.member(&range, "Worksheet", vec![]).map_err(message)?;
         self.raise(
             &self.state.application(),

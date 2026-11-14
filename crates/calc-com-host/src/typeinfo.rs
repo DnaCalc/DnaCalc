@@ -61,116 +61,159 @@ fn build() -> Result<Types, AutoError> {
         }
         for (id, create) in &creates {
             for (index, member) in descriptor.members(*id).into_iter().enumerate() {
-                let mut arena = Vec::new();
-                let mut defaults = Vec::new();
-                let mut params = Vec::new();
-                // IDispatch exposes the dispatch view: lcid and retval are removed from the
-                // parameter list and retval becomes the return type (the dual ABI remains
-                // in the descriptor and generated vtable). This is MIDL's dual conversion.
-                for param in member.arguments() {
-                    let mut flags = 0;
-                    for (flag, value) in [
-                        (ParamFlag::In, PARAMFLAG_FIN),
-                        (ParamFlag::Out, PARAMFLAG_FOUT),
-                        (ParamFlag::Lcid, PARAMFLAG_FLCID),
-                        (ParamFlag::Retval, PARAMFLAG_FRETVAL),
-                        (ParamFlag::Optional, PARAMFLAG_FOPT),
-                        (ParamFlag::Hasdefault, PARAMFLAG_FHASDEFAULT),
-                    ] {
-                        if param.has(flag) {
-                            flags |= value.0;
-                        }
-                    }
-                    let mut default = ptr::null_mut();
-                    if let Some(value) = &param.default {
-                        let value = if let Some(n) = value.as_i64() {
-                            VARIANT::from(n as i32)
-                        } else if let Some(v) = value.as_bool() {
-                            VARIANT::from(v)
-                        } else if let Some(v) = value.as_f64() {
-                            VARIANT::from(v)
-                        } else if let Some(v) = value.as_str() {
-                            VARIANT::from(v)
-                        } else {
-                            VARIANT::default()
-                        };
-                        let mut held = Box::new(PARAMDESCEX {
-                            cBytes: size_of::<PARAMDESCEX>() as u32,
-                            varDefaultValue: value,
-                        });
-                        default = &mut *held;
-                        defaults.push(held);
-                    }
-                    params.push(ELEMDESC {
-                        tdesc: describe(&param.type_ref(), create, &interfaces, &mut arena)?,
-                        Anonymous: ELEMDESC_0 {
-                            paramdesc: PARAMDESC {
-                                pparamdescex: default,
-                                wParamFlags: PARAMFLAGS(flags),
-                            },
-                        },
-                    });
-                }
-                let function = FUNCDESC {
-                    memid: member.dispid,
-                    lprgelemdescParam: params.as_mut_ptr(),
-                    funckind: FUNC_DISPATCH,
-                    invkind: match member.invoke {
-                        InvokeKind::Get => INVOKE_PROPERTYGET,
-                        InvokeKind::Put => INVOKE_PROPERTYPUT,
-                        InvokeKind::Putref => INVOKE_PROPERTYPUTREF,
-                        InvokeKind::Method => INVOKE_FUNC,
-                    },
-                    callconv: CC_STDCALL,
-                    cParams: params.len() as i16,
-                    cParamsOpt: if member.vararg {
-                        -1
-                    } else {
-                        member.optional_count as i16
-                    },
-                    oVft: 0,
-                    elemdescFunc: ELEMDESC {
-                        tdesc: describe(&dispatch_return(member), create, &interfaces, &mut arena)?,
-                        ..Default::default()
-                    },
-                    wFuncFlags: FUNCFLAGS(
-                        if member.hidden { FUNCFLAG_FHIDDEN.0 } else { 0 }
-                            | if member.restricted {
-                                FUNCFLAG_FRESTRICTED.0
-                            } else {
-                                0
-                            },
-                    ),
-                    ..Default::default()
-                };
-                create
-                    .AddFuncDesc(index as u32, &function)
-                    .map_err(status)?;
-                let strings: Vec<_> = std::iter::once(member.name.as_str())
-                    .chain(
-                        member
-                            .arguments()
-                            .map(|p| p.name.as_deref().unwrap_or("value")),
-                    )
-                    .map(wide)
-                    .collect();
-                let names: Vec<_> = strings.iter().map(|s| PCWSTR(s.as_ptr())).collect();
-                // Property-put's last parameter is the assigned value and has no published name.
-                let named = if matches!(member.invoke, InvokeKind::Put | InvokeKind::Putref) {
-                    names.len().saturating_sub(1)
-                } else {
-                    names.len()
-                };
-                create
-                    .SetFuncAndParamNames(index as u32, &names[..named])
-                    .map_err(status)?;
+                add_member(create, *id, index as u32, member, &interfaces)?;
             }
-            create.LayOut().map_err(status)?;
+            if let Err(why) = create.LayOut() {
+                let name = &descriptor.ty(*id).name;
+                eprintln!("type information for {name} did not lay out: {why}");
+                // Diagnose: lay out each DISPID's functions alone in a scratch library.
+                let mut groups: std::collections::BTreeMap<i32, Vec<&calc_object_model::Member>> =
+                    Default::default();
+                for member in descriptor.members(*id) {
+                    groups.entry(member.dispid).or_default().push(member);
+                }
+                for (dispid, members) in groups {
+                    let scratch = CreateTypeLib2(SYS_WIN64, windows::core::w!("Scratch.tlb")).map_err(status)?;
+                    let probe = scratch
+                        .CreateTypeInfo(windows::core::w!("Probe"), TKIND_DISPATCH)
+                        .map_err(status)?;
+                    for (index, member) in members.iter().enumerate() {
+                        add_member(&probe, *id, index as u32, member, &interfaces)?;
+                    }
+                    if let Err(why) = probe.LayOut() {
+                        let kinds: Vec<_> = members.iter().map(|m| format!("{}:{:?}/{}", m.name, m.invoke, m.params.len())).collect();
+                        eprintln!("  dispid {dispid:#x} {kinds:?}: {why}");
+                    }
+                }
+                return Err(status(why));
+            }
         }
         Ok(Types {
             _library: library,
             interfaces,
         })
+    }
+}
+
+/// Add one member's FUNCDESC and names (the dispatch view of the descriptor member).
+unsafe fn add_member(
+    create: &ICreateTypeInfo,
+    owner: InterfaceId,
+    index: u32,
+    member: &calc_object_model::Member,
+    interfaces: &HashMap<InterfaceId, ITypeInfo>,
+) -> Result<(), AutoError> {
+    unsafe {
+        let mut arena = Vec::new();
+        let mut defaults = Vec::new();
+        let mut params = Vec::new();
+        // IDispatch exposes the dispatch view: lcid and retval are removed from the
+        // parameter list and retval becomes the return type (the dual ABI remains
+        // in the descriptor and generated vtable). This is MIDL's dual conversion.
+        for param in member.arguments() {
+            let mut flags = 0;
+            for (flag, value) in [
+                (ParamFlag::In, PARAMFLAG_FIN),
+                (ParamFlag::Out, PARAMFLAG_FOUT),
+                (ParamFlag::Lcid, PARAMFLAG_FLCID),
+                (ParamFlag::Retval, PARAMFLAG_FRETVAL),
+                (ParamFlag::Optional, PARAMFLAG_FOPT),
+                (ParamFlag::Hasdefault, PARAMFLAG_FHASDEFAULT),
+            ] {
+                if param.has(flag) {
+                    flags |= value.0;
+                }
+            }
+            let mut default = ptr::null_mut();
+            if let Some(value) = &param.default {
+                let value = if let Some(n) = value.as_i64() {
+                    VARIANT::from(n as i32)
+                } else if let Some(v) = value.as_bool() {
+                    VARIANT::from(v)
+                } else if let Some(v) = value.as_f64() {
+                    VARIANT::from(v)
+                } else if let Some(v) = value.as_str() {
+                    VARIANT::from(v)
+                } else {
+                    VARIANT::default()
+                };
+                let mut held = Box::new(PARAMDESCEX {
+                    cBytes: size_of::<PARAMDESCEX>() as u32,
+                    varDefaultValue: value,
+                });
+                default = &mut *held;
+                defaults.push(held);
+            }
+            params.push(ELEMDESC {
+                tdesc: describe(&param.type_ref(), create, interfaces, &mut arena)?,
+                Anonymous: ELEMDESC_0 {
+                    paramdesc: PARAMDESC {
+                        pparamdescex: default,
+                        wParamFlags: PARAMFLAGS(flags),
+                    },
+                },
+            });
+        }
+        let function = FUNCDESC {
+            memid: member.dispid,
+            lprgelemdescParam: params.as_mut_ptr(),
+            funckind: FUNC_DISPATCH,
+            invkind: match member.invoke {
+                InvokeKind::Get => INVOKE_PROPERTYGET,
+                InvokeKind::Put => INVOKE_PROPERTYPUT,
+                InvokeKind::Putref => INVOKE_PROPERTYPUTREF,
+                InvokeKind::Method => INVOKE_FUNC,
+            },
+            callconv: CC_STDCALL,
+            cParams: params.len() as i16,
+            cParamsOpt: if member.vararg {
+                -1
+            } else {
+                member.optional_count as i16
+            },
+            oVft: 0,
+            elemdescFunc: ELEMDESC {
+                tdesc: describe(&dispatch_return(member), create, interfaces, &mut arena)?,
+                ..Default::default()
+            },
+            wFuncFlags: FUNCFLAGS(
+                if member.hidden { FUNCFLAG_FHIDDEN.0 } else { 0 }
+                    | if member.restricted {
+                        FUNCFLAG_FRESTRICTED.0
+                    } else {
+                        0
+                    },
+            ),
+            ..Default::default()
+        };
+        create
+            .AddFuncDesc(index, &function)
+            .map_err(status)?;
+        // Excel's library leaves some property-put arguments unnamed; LayOut requires a put's
+        // arguments to carry its get's names, so a missing name is taken from that get.
+        let getter = Descriptor::get()
+            .member_by_dispid(owner, member.dispid, InvokeKind::Get)
+            .filter(|_| matches!(member.invoke, InvokeKind::Put | InvokeKind::Putref));
+        let strings: Vec<_> = std::iter::once(member.name.clone())
+            .chain(member.arguments().enumerate().map(|(i, p)| {
+                p.name
+                    .clone()
+                    .or_else(|| getter.and_then(|g| g.arguments().nth(i)).and_then(|g| g.name.clone()))
+                    .unwrap_or_else(|| "value".into())
+            }))
+            .map(|name| wide(&name))
+            .collect();
+        let names: Vec<_> = strings.iter().map(|s| PCWSTR(s.as_ptr())).collect();
+        // Property-put's last parameter is the assigned value and has no published name.
+        let named = if matches!(member.invoke, InvokeKind::Put | InvokeKind::Putref) {
+            names.len().saturating_sub(1)
+        } else {
+            names.len()
+        };
+        create
+            .SetFuncAndParamNames(index, &names[..named])
+            .map_err(status)?;
+            Ok(())
     }
 }
 

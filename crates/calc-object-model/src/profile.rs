@@ -25,6 +25,11 @@ pub trait ApplicationHost {
     fn path(&self) -> Result<String, AutoError> {
         Err(AutoError::not_modelled("_Application.Path", "dc-1nbp.5"))
     }
+    /// The one worksheet of the values-only Book1 shell, when the host names it (the command-line
+    /// workbook harness does; OneCalc names none). `None`: ActiveSheet is a typed refusal.
+    fn shell_sheet(&self) -> Option<String> {
+        None
+    }
 }
 
 impl<T: ApplicationHost + ?Sized> ApplicationHost for std::rc::Rc<T> {
@@ -45,5 +50,8 @@ impl<T: ApplicationHost + ?Sized> ApplicationHost for std::rc::Rc<T> {
     }
     fn path(&self) -> Result<String, AutoError> {
         (**self).path()
+    }
+    fn shell_sheet(&self) -> Option<String> {
+        (**self).shell_sheet()
     }
 }
