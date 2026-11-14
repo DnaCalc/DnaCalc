@@ -10,6 +10,24 @@ use calc_func::SubtotalExclusions;
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Ref, Value};
 use f1_support::*;
 
+/// Excel 20527 treats blank regression flags as false, not omitted defaults.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn regression_blank_flags_are_false() {
+    let y = arr(vec![vec![2.0], vec![5.0], vec![7.0], vec![10.0], vec![13.0]]);
+    let x = arr(vec![vec![1.0], vec![2.0], vec![3.0], vec![4.0], vec![5.0]]);
+    for name in ["LINEST", "LOGEST"] {
+        let blank = array(call(name, vec![y.clone(), x.clone(), calc_func::value::CalcValue::empty()]));
+        let false_flag = array(call(name, vec![y.clone(), x.clone(), b(false)]));
+        assert_eq!(blank, false_flag);
+    }
+    for name in ["TREND", "GROWTH"] {
+        let blank = call(name, vec![y.clone(), x.clone(), n(6.0), calc_func::value::CalcValue::empty()]);
+        let false_flag = call(name, vec![y.clone(), x.clone(), n(6.0), b(false)]);
+        assert_eq!(blank.unwrap().as_number().map(f64::to_bits), false_flag.unwrap().as_number().map(f64::to_bits));
+    }
+}
+
 /// Excel 20527 validates ETS target coercion before history shape and options.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

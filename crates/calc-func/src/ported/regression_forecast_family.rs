@@ -75,6 +75,8 @@ fn optional_arg_value(arg: Option<&CalcValue>) -> Result<Option<CalcValue>, Work
     match arg {
         None => Ok(None),
         Some(value) if matches!(value.core_ref(), CoreRef::Missing) => Ok(None),
+        // Excel 20527 reads a blank cell in regression flag positions as FALSE.
+        Some(value) if matches!(value.core_ref(), CoreRef::Empty) => Ok(Some(CalcValue::logical(false))),
         Some(other) => Ok(Some(resolve_arg_eval(other)?)),
     }
 }
