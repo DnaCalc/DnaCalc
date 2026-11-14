@@ -10,6 +10,44 @@ use calc_func::SubtotalExclusions;
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Ref, Value};
 use f1_support::*;
 
+/// Excel 20527 validates the signed-32-bit limit after truncating count arguments.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn hypergeometric_counts_reject_the_signed_sentinel() {
+    let limit = i32::MAX as f64;
+    for values in [
+        [limit, 1.0, 1.0, 10.0],
+        [1.0, limit, 0.0, limit - 1.0],
+        [1.0, 0.0, limit, limit - 1.0],
+        [1.0, 0.0, 0.0, limit],
+    ] {
+        let args = values.into_iter().map(n).collect::<Vec<_>>();
+        error(call("HYPGEOMDIST", args.clone()), Num);
+        for cumulative in [false, true] {
+            let mut modern = args.clone();
+            modern.push(b(cumulative));
+            error(call("HYPGEOM.DIST", modern), Num);
+        }
+    }
+    let below = vec![n(limit - 0.5), n(1.0), n(1.0), n(10.0)];
+    exact(call("HYPGEOMDIST", below.clone()), 0.0);
+    let mut cumulative = below;
+    cumulative.push(b(true));
+    exact(call("HYPGEOM.DIST", cumulative), 1.0);
+}
+
+/// Excel 20527 distinguishes density from cumulative F argument overflow.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn f_distribution_reports_scaled_argument_overflow() {
+    for name in ["F.DIST.RT", "FDIST"] {
+        error(call(name, vec![n(1e308), n(3.0), n(2.0)]), Div0);
+        exact(call(name, vec![n(1.0), n(2.0), n(2.0)]), 0.5);
+    }
+    error(call("F.DIST", vec![n(1e308), n(3.0), n(2.0), b(true)]), Div0);
+    error(call("F.DIST", vec![n(1e308), n(3.0), n(2.0), b(false)]), Num);
+}
+
 /// Excel 20527 publishes zero for these deeply underflowed F densities.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

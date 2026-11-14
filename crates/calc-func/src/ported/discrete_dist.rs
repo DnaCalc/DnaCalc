@@ -523,6 +523,9 @@ pub fn hypergeom_dist_kernel(
         population_s.trunc(),
         number_pop.trunc(),
     );
+    if [s, n, k, big_n].into_iter().any(|v| v >= i32::MAX as f64) {
+        return Err(NUM);
+    }
     if n > big_n || k > big_n {
         return Err(NUM);
     }
@@ -705,12 +708,16 @@ mod tests {
     }
 
     /// A large-population cumulative takes bounded work: HYPGEOM.DIST(N/2, N-1, N, 2N, TRUE) at
-    /// N = 2^30 summed about 5*10^8 masses (minutes) before dc-6332.17. The ratio route agrees with
+    /// N near 2^30 summed about 5*10^8 masses (minutes) before dc-6332.17. The ratio route agrees with
     /// the one-by-one sum to 1e-12 where both can run.
     /// Native-only: wall-clock bound.
     #[test]
     fn large_population_cumulative_is_bounded() {
-        let n = 1073741824.0;
+        assert_eq!(
+            hypergeom_dist_kernel(536870912.0, 1073741823.0, 1073741824.0, 2147483648.0, true),
+            Err(NUM),
+        );
+        let n = 1073741822.0;
         let t = std::time::Instant::now();
         let v = hypergeom_dist_kernel(n / 2.0, n - 1.0, n, 2.0 * n, true).unwrap();
         let v2 = hypergeom_dist_kernel(n - 2.0, n - 1.0, n, n, true).unwrap_or(1.0);

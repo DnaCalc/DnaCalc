@@ -201,6 +201,9 @@ pub fn f_pdf_kernel(x: f64, deg1: f64, deg2: f64) -> Result<f64, WorksheetErrorC
     let x = validate_nonnegative_x(x)?;
     let d1 = truncate_positive_integer(deg1)?;
     let d2 = truncate_positive_integer(deg2)?;
+    if !crate::ported::excel_numeric::excel_x87_mul(d1, x).is_finite() {
+        return Err(WorksheetErrorCode::Num);
+    }
     if x == 0.0 {
         return if d1 < 2.0 {
             // Density diverges to +inf; Excel returns #NUM!
@@ -287,6 +290,9 @@ pub fn f_dist_kernel(
     let d1 = truncate_positive_integer(deg1)?;
     let d2 = truncate_positive_integer(deg2)?;
     if cumulative {
+        if !crate::ported::excel_numeric::excel_x87_mul(d1, x).is_finite() {
+            return Err(WorksheetErrorCode::Div0);
+        }
         Ok(f_tails(x, d1, d2).1)
     } else {
         f_pdf_kernel(x, d1, d2)
@@ -297,6 +303,9 @@ pub fn f_dist_rt_kernel(x: f64, deg1: f64, deg2: f64) -> Result<f64, WorksheetEr
     let x = validate_nonnegative_x(x)?;
     let d1 = truncate_positive_integer(deg1)?;
     let d2 = truncate_positive_integer(deg2)?;
+    if !crate::ported::excel_numeric::excel_x87_mul(d1, x).is_finite() {
+        return Err(WorksheetErrorCode::Div0);
+    }
     Ok(f_tails(x, d1, d2).0)
 }
 
