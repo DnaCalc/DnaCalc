@@ -76,6 +76,33 @@ fn numeric_and_empty_date_text_needs_no_locale_profile() {
     refused(call("DATEVALUE", vec![t("1.5")]));
 }
 
+/// Excel 20527: empty patterns match boundaries; a leading quantifier is invalid.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn empty_and_invalid_regex_patterns() {
+    assert_eq!(call("REGEXTEST", vec![t("a😀b"), t("")]).unwrap().as_logical(), Some(true));
+    text(call("REGEXEXTRACT", vec![t("ab"), t("")]), "");
+    let result = call("REGEXEXTRACT", vec![t("ab"), t(""), n(1.0)]).unwrap();
+    let array = result.as_array().unwrap();
+    assert_eq!((array.shape().rows, array.shape().cols), (1, 3));
+    for col in 0..3 {
+        assert_eq!(array.get(0, col).unwrap().as_text().unwrap().to_string_lossy(), "");
+    }
+    for (occurrence, expected) in [(0.0, "XaXbX"), (2.0, "aXb"), (-1.0, "abX")] {
+        text(call("REGEXREPLACE", vec![t("ab"), t(""), t("X"), n(occurrence)]), expected);
+    }
+    for input in ["a😀b", "a\r\nb", "\naaaaaaaaaaaa"] {
+        refused(call("REGEXREPLACE", vec![t(input), t(""), t("X")]));
+    }
+    for pattern in ["*", "+abc", "?a"] {
+        error(call("REGEXTEST", vec![t("abc"), t(pattern)]), Value);
+        error(call("REGEXEXTRACT", vec![t("abc"), t(pattern)]), Value);
+        error(call("REGEXREPLACE", vec![t("abc"), t(pattern), t("X")]), Value);
+    }
+    assert_eq!(call("REGEXTEST", vec![t("aaa"), t("a*")]).unwrap().as_logical(), Some(true));
+    refused(call("REGEXTEST", vec![t("aaa"), t("a??")]));
+}
+
 /// Excel 16.0.20527, typed Value2 calls: argument errors win in order and a logical
 /// format gives #VALUE! even for a text, logical or blank value.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

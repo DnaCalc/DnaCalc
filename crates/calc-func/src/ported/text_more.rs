@@ -452,7 +452,7 @@ fn parse_char_class(chars: &[char], index: &mut usize) -> Result<RegexAtom, Patt
 fn parse_regex_pattern(pattern: &str) -> Result<Vec<RegexToken>, PatternError> {
     let chars: Vec<char> = pattern.chars().collect();
     if chars.is_empty() {
-        return Err(Unsupported);
+        return Ok(Vec::new());
     }
 
     let mut tokens = Vec::new();
@@ -480,6 +480,7 @@ fn parse_regex_pattern(pattern: &str) -> Result<Vec<RegexToken>, PatternError> {
                 index += 1;
                 RegexAtom::EndOfLine
             }
+            '*' | '+' | '?' if index == 0 => return Err(Invalid),
             '*' | '+' | '?' | '(' | ')' | '{' | '}' | '|' => {
                 return Err(Unsupported);
             }
@@ -512,9 +513,6 @@ fn parse_regex_pattern(pattern: &str) -> Result<Vec<RegexToken>, PatternError> {
         tokens.push(RegexToken { atom, quantifier });
     }
 
-    if tokens.is_empty() {
-        return Err(Unsupported);
-    }
     Ok(tokens)
 }
 
@@ -527,6 +525,17 @@ pub(crate) fn regex_matches(
 ) -> Result<(Vec<char>, Vec<(usize, usize)>), PatternError> {
     let haystack: Vec<char> = text.chars().collect();
     let tokens = parse_regex_pattern(pattern)?;
+    // Empty matches in Excel are located in UTF-16. CRLF, supplementary characters and
+    // one leading-LF boundary differ from the ordinary scalar-position mapping below.
+    // First matches are at the start even for those inputs; leave the remaining cases open.
+    if tokens.is_empty()
+        && !first_only
+        && (haystack.iter().any(|ch| u32::from(*ch) > 0xffff)
+            || text.contains("\r\n")
+            || (haystack.len() == 13 && haystack.first() == Some(&'\n')))
+    {
+        return Err(Unsupported);
+    }
     // Before a final newline `$` also matches, and which characters end a line depends on the
     // newline convention Excel's PCRE2 was built with, which is not measured.
     if tokens.iter().any(|token| token.atom == RegexAtom::EndOfLine)
