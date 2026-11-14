@@ -9,6 +9,24 @@ mod f1_support;
 use calc_func::value::WorksheetErrorCode::{Blocked, Calc, Connect, Div0, NA, Name, Null, Num, Ref, Value};
 use f1_support::*;
 
+/// Excel 20527 start-position controls around two integer boundaries.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn replace_start_uses_tolerant_floor() {
+    for name in ["REPLACE", "REPLACEB"] {
+        text(call(name, vec![t("abcdef"), n(f64::from_bits(1.0_f64.to_bits() - 1)), n(1.0), t("X")]), "Xbcdef");
+        text(call(name, vec![t("abcdef"), n(2.0 - 1e-8), n(1.0), t("X")]), "aXcdef");
+        error(call(name, vec![t("abcdef"), n(1.0 - 1e-6), n(1.0), t("X")]), Value);
+        error(call(name, vec![t("abcdef"), n(1.0), n(-0.5), t("X")]), Value);
+        text(call(name, vec![t("abcdef"), n(1.0), n(-1e-12), t("X")]), "Xabcdef");
+        text(call(name, vec![t("abcdef"), n(1.0), n(32767.0), t("X")]), "X");
+        error(call(name, vec![t("abcdef"), n(1.0), n(32768.0), t("X")]), Value);
+        error(call(name, vec![t("abcdef"), n(0.0), e(NA), t("X")]), NA);
+        error(call(name, vec![t("abcdef"), n(1.0), n(-0.5), e(Ref)]), Ref);
+        error(call(name, vec![t("abcdef"), t("bad"), e(NA), t("X")]), Value);
+    }
+}
+
 /// Excel propagates a formed worksheet error before converting character widths.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

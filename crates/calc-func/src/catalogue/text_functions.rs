@@ -135,10 +135,14 @@ fn search(site: &Site<'_>, a: &[CalcValue], bytes: bool) -> Step<CalcValue> {
 fn replace(site: &Site<'_>, a: &[CalcValue], bytes: bool) -> Step<CalcValue> {
     let old = text_arg(site, a, 0)?;
     let start = num(site, a, 1)?;
-    let start = k::positive(start).map_err(Exit::Error)?;
     let count = num(site, a, 2)?;
-    let count = k::nonnegative(count).map_err(Exit::Error)?;
     let new = text_arg(site, a, 3)?;
+    let start = k::positive(k::date_integer_floor(start)).map_err(Exit::Error)?;
+    let count = k::date_integer_floor(count);
+    if !count.is_finite() || !(0.0..32768.0).contains(&count) {
+        return fail(WorksheetErrorCode::Value);
+    }
+    let count = count as usize;
     capped(
         k::replace(
             &old,
