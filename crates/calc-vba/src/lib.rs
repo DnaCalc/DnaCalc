@@ -628,6 +628,55 @@ mod tests {
         assert!(from_vba(Value::Text("x".repeat(32768))).is_err());
     }
 
+    /// dc-p982: a 2x3 worksheet array reaches VBA with a(r, c) the worksheet cell (r, c) (VBA stores
+    /// the first dimension fastest), and an array VBA returns comes back with the same cells.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_two_dimensional_array_keeps_its_cells_across_the_vba_route() {
+        let source = "Public Function Pick(ByVal v As Variant, ByVal r As Long, ByVal c As Long) As Variant\n Pick = v(r, c)\nEnd Function\nPublic Function Echo(ByVal v As Variant) As Variant\n Echo = v\nEnd Function\nPublic Function Build() As Variant\n Dim a(1 To 2, 1 To 3) As Variant\n a(1, 1) = 11: a(1, 2) = 12: a(1, 3) = 13\n a(2, 1) = 21: a(2, 2) = 22: a(2, 3) = 23\n Build = a\nEnd Function\n";
+        let grid = CalcValue::array(
+            CalcArray::from_rows(vec![
+                vec![11.0, 12.0, 13.0]
+                    .into_iter()
+                    .map(CalcValue::number)
+                    .collect(),
+                vec![21.0, 22.0, 23.0]
+                    .into_iter()
+                    .map(CalcValue::number)
+                    .collect(),
+            ])
+            .unwrap(),
+        );
+        let mut backends = vec![Backend::Interpreter];
+        #[cfg(not(target_arch = "wasm32"))]
+        backends.push(Backend::Jit);
+        for backend in backends {
+            let functions = load_module_with_backend("Grid", source, 10_000, backend).unwrap();
+            for (r, c, expected) in [(2.0, 1.0, 21.0), (1.0, 3.0, 13.0), (2.0, 3.0, 23.0)] {
+                assert_eq!(
+                    functions
+                        .call(
+                            "Pick",
+                            &[grid.clone(), CalcValue::number(r), CalcValue::number(c)]
+                        )
+                        .unwrap(),
+                    CalcValue::number(expected),
+                    "{backend:?} Pick({r}, {c})"
+                );
+            }
+            assert_eq!(
+                functions.call("Echo", &[grid.clone()]).unwrap(),
+                grid,
+                "{backend:?} Echo"
+            );
+            assert_eq!(
+                functions.call("Build", &[]).unwrap(),
+                grid,
+                "{backend:?} Build"
+            );
+        }
+    }
+
     /// Excel's answers: crates/calc-xll-reference/fixture/vba/simple-udf-cases.json (`SimpleDims`,
     /// `SimpleAsLong`, `SimpleOverflow`, `SimpleNeg("x")`).
     #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -762,9 +762,11 @@ pub(crate) fn to_variant(value: &Value) -> Result<Variant, Error> {
                     "array must be a nonempty rectangle of scalar cells".into(),
                 ));
             }
-            let values = cells
-                .iter()
-                .map(to_variant)
+            // VBA stores the first dimension fastest: column by column.
+            let (row_count, column_count) = (*rows as usize, *columns as usize);
+            let values = (0..column_count)
+                .flat_map(|c| (0..row_count).map(move |r| r * column_count + c))
+                .map(|index| to_variant(&cells[index]))
                 .collect::<Result<Vec<_>, _>>()?;
             let array = SafeArray::from_shape_and_variants(
                 vec![
@@ -824,10 +826,12 @@ pub(crate) fn from_variant(value: &Variant, inside_array: bool) -> Result<Value,
                     "result array must be a nonempty rectangle".into(),
                 ));
             }
+            // Element r + c * rows holds cell (r, c): the first dimension is fastest.
             let cells = (0..array.len())
                 .map(|index| {
+                    let (r, c) = (index / columns as usize, index % columns as usize);
                     array
-                        .variant_element(index)
+                        .variant_element(r + c * rows as usize)
                         .map_err(Error::ValueConversion)
                         .and_then(|value| from_variant(&value, true))
                 })

@@ -12,24 +12,24 @@ portability = "portable"
 [dependencies]
 scoped-tls-hkt = "0.1.5"
 thiserror = "2"
-calcvba-oxir = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "7511ef5648309931ce8aa6ff9a1b2515f386736f" }
-calcvba-eval = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "7511ef5648309931ce8aa6ff9a1b2515f386736f" }
-calcvba-bundle = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "7511ef5648309931ce8aa6ff9a1b2515f386736f" }
-calcvba-symbol = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "7511ef5648309931ce8aa6ff9a1b2515f386736f" }
-calcvba-syntax = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "7511ef5648309931ce8aa6ff9a1b2515f386736f" }
-calcvba-hal = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "7511ef5648309931ce8aa6ff9a1b2515f386736f" }
-calcvba-com = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "7511ef5648309931ce8aa6ff9a1b2515f386736f" }
-calcvba-runtime = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "7511ef5648309931ce8aa6ff9a1b2515f386736f" }
-calcvba-office = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "7511ef5648309931ce8aa6ff9a1b2515f386736f", default-features = false }
-calcvba-host-api = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "7511ef5648309931ce8aa6ff9a1b2515f386736f" }
-calcvba-lib = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "7511ef5648309931ce8aa6ff9a1b2515f386736f" }
+calcvba-oxir = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "b33e078493cf8c158687ddb00d71e6a0ad4049c1" }
+calcvba-eval = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "b33e078493cf8c158687ddb00d71e6a0ad4049c1" }
+calcvba-bundle = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "b33e078493cf8c158687ddb00d71e6a0ad4049c1" }
+calcvba-symbol = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "b33e078493cf8c158687ddb00d71e6a0ad4049c1" }
+calcvba-syntax = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "b33e078493cf8c158687ddb00d71e6a0ad4049c1" }
+calcvba-hal = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "b33e078493cf8c158687ddb00d71e6a0ad4049c1" }
+calcvba-com = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "b33e078493cf8c158687ddb00d71e6a0ad4049c1" }
+calcvba-runtime = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "b33e078493cf8c158687ddb00d71e6a0ad4049c1" }
+calcvba-office = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "b33e078493cf8c158687ddb00d71e6a0ad4049c1", default-features = false }
+calcvba-host-api = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "b33e078493cf8c158687ddb00d71e6a0ad4049c1" }
+calcvba-lib = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "b33e078493cf8c158687ddb00d71e6a0ad4049c1" }
 calc-fml = { path = "../calc-fml" }
 calc-func = { path = "../calc-func" }
 # Reviewed embedding contract UDF_EMBEDDING_V1. Native selects JIT at admission.
-calcvba-host = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "7511ef5648309931ce8aa6ff9a1b2515f386736f", default-features = false }
+calcvba-host = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "b33e078493cf8c158687ddb00d71e6a0ad4049c1", default-features = false }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-calcvba-host = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "7511ef5648309931ce8aa6ff9a1b2515f386736f", default-features = false, features = ["jit"] }
+calcvba-host = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "b33e078493cf8c158687ddb00d71e6a0ad4049c1", default-features = false, features = ["jit"] }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "=0.3.67"
