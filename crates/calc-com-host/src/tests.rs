@@ -1350,20 +1350,40 @@ fn unsupported_safearray_forms_record_e11_refusals_before_value2_put() {
             },
         );
         let count = model.calls.borrow().len();
-        assert_eq!(
-            call(&range, "Value2", DISPATCH_PROPERTYPUT, vec![value])
-                .unwrap_err()
-                .code()
-                .0 as u32,
-            0x800A03EC
-        );
+        // The refusal text travels in the EXCEPINFO the client passes (rule 5).
+        let name: Vec<u16> = "Value2".encode_utf16().chain(Some(0)).collect();
+        let mut dispid = 0;
+        unsafe { range.GetIDsOfNames(&GUID::zeroed(), &PCWSTR(name.as_ptr()), 1, 0, &mut dispid) }
+            .unwrap();
+        let mut args = [value];
+        let mut named = -3;
+        let params = DISPPARAMS {
+            rgvarg: args.as_mut_ptr(),
+            rgdispidNamedArgs: &mut named,
+            cArgs: 1,
+            cNamedArgs: 1,
+        };
+        let mut exception = EXCEPINFO::default();
+        let status = unsafe {
+            range.Invoke(
+                dispid,
+                &GUID::zeroed(),
+                0,
+                DISPATCH_PROPERTYPUT,
+                &params,
+                None,
+                Some(&mut exception),
+                None,
+            )
+        };
+        assert_eq!(status.unwrap_err().code(), DISP_E_EXCEPTION);
+        assert_eq!(exception.scode as u32, 0x800A03EC);
         assert_eq!(
             model.calls.borrow().len(),
             count,
             "unsupported representation must not enter the member"
         );
-        let info = unsafe { GetErrorInfo(0) }.unwrap();
-        let description = unsafe { info.GetDescription() }.unwrap().to_string();
+        let description = exception.bstrDescription.to_string();
         assert!(description.contains("SAFEARRAY"), "{description}");
         assert!(description.contains("dc-1nbp.6"), "{description}");
     }
