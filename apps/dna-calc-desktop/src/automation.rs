@@ -106,6 +106,34 @@ impl calc_host::automation::AutomationHost for DesktopAutomationHost {
     ) -> Result<calc_object_model::AutoValue, calc_object_model::AutoError> {
         self.session.with(call)?
     }
+    fn with_session_mut(
+        &self,
+        call: &mut dyn FnMut(
+            &mut calc_host::HostSession,
+        )
+            -> Result<calc_object_model::AutoValue, calc_object_model::AutoError>,
+    ) -> Result<calc_object_model::AutoValue, calc_object_model::AutoError> {
+        match &self.session {
+            SessionAccess::Server(server) => {
+                let server = server
+                    .upgrade()
+                    .ok_or(calc_object_model::AutoError::Disconnected)?;
+                let mut server = server
+                    .try_borrow_mut()
+                    .map_err(|_| calc_host::automation::busy())?;
+                server.book_mut().with_automation_session(|session| call(session))
+            }
+            SessionAccess::Session(session) => {
+                let session = session
+                    .upgrade()
+                    .ok_or(calc_object_model::AutoError::Disconnected)?;
+                let mut session = session
+                    .try_borrow_mut()
+                    .map_err(|_| calc_host::automation::busy())?;
+                call(&mut session)
+            }
+        }
+    }
     fn context_changed(&self, session: &calc_host::HostSession) {
         self.events.replace(session.workbook_events_switch());
         if let Some(native) = self.native.upgrade() {
