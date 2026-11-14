@@ -110,6 +110,12 @@ pub enum WorkbookCommand {
         revision: u64,
         change: crate::PageSetupChange,
     },
+    /// Add, change or delete one drawing object of a sheet (dc-piw0.3).
+    Shape {
+        sheet: SheetId,
+        revision: u64,
+        change: crate::ShapeChange,
+    },
     ChartCreate {
         revision: u64,
         area: GridArea,
@@ -386,6 +392,11 @@ pub(crate) fn prepare(
             revision,
             change,
         } => crate::page_setup::prepare(host, sheet, revision, change),
+        WorkbookCommand::Shape {
+            sheet,
+            revision,
+            change,
+        } => crate::shapes::prepare(host, sheet, revision, change),
         WorkbookCommand::ChartCreate {
             revision,
             area,

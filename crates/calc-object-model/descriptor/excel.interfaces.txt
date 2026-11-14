@@ -20,3 +20,25 @@ Windows
 WorksheetFunction
 IRtdServer
 IRTDUpdateEvent
+# Report objects (dc-piw0): tables, charts, drawings. Added by lane eng1, 2026-11-14; the JSON is
+# regenerated on Windows (RUN-ON-WINDOWS item 1 of lane eng1).
+ListObjects
+ListObject
+ListColumns
+ListColumn
+ListRows
+ListRow
+ChartObjects
+ChartObject
+_Chart
+Chart              # coclass
+SeriesCollection
+Series
+Axes
+Axis
+ChartTitle
+AxisTitle
+Legend
+Shapes
+Shape
+ShapeRange

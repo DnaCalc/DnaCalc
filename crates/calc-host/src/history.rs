@@ -115,6 +115,7 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
             | CellEdit::Tables(_)
             | CellEdit::Styles(_)
             | CellEdit::Charts { .. }
+            | CellEdit::Shapes { .. }
             | CellEdit::PageSetup { .. }
             | CellEdit::Layout(_)
             | CellEdit::ReviewLinks { .. }
@@ -285,6 +286,17 @@ pub(crate) fn inverse(
             inverse.push(CellEdit::Charts {
                 sheet: *sheet,
                 charts: definitions.charts(*sheet).to_vec(),
+            });
+        }
+    }
+    let mut shape_sheets = BTreeSet::new();
+    for edit in edits {
+        if let CellEdit::Shapes { sheet, .. } = edit
+            && shape_sheets.insert(*sheet)
+        {
+            inverse.push(CellEdit::Shapes {
+                sheet: *sheet,
+                shapes: definitions.shapes(*sheet).to_vec(),
             });
         }
     }

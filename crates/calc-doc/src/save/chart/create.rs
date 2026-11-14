@@ -539,10 +539,6 @@ pub(crate) fn add(
         ids.insert(id);
         remap.insert(shape.id, id);
     }
-    for shape in new_shapes {
-        let body = super::super::shapes::frame(shape, &remap)?;
-        frames.extend(finish_body(body, &drawing, source, structural)?);
-    }
     for chart in new {
         let suffix = chart
             .part
@@ -583,13 +579,18 @@ pub(crate) fn add(
             "application/vnd.openxmlformats-officedocument.drawingml.chart+xml",
         )?;
         let rel = parts::ensure_relationship(package, out, &drawing, CHART, &chart.part)?;
-        let id = (1..=u32::MAX)
+        let id = (2..=u32::MAX)
             .find(|i| !ids.contains(i))
             .ok_or_else(|| invalid(&drawing, "No frame identity is available"))?;
         ids.insert(id);
         let body = frame(chart, id, &rel)?;
         let body = finish_body(body, &drawing, source, structural)?;
         frames.extend(body);
+    }
+    // Authored charts come first, then shapes: the drawing's z-order is its document order.
+    for shape in new_shapes {
+        let body = super::super::shapes::frame(shape, &remap)?;
+        frames.extend(finish_body(body, &drawing, source, structural)?);
     }
     xml = xml.with_bytes(parts::append_root(&xml, &frames)?);
     parts::put_part(package, out, &drawing, xml.bytes().to_vec());

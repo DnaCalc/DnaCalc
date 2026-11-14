@@ -17,3 +17,10 @@ IRibbonControl
 # "base" in office.json is described in the same file.
 _IMsoDispObj
 _IMsoOleAccDispObj
+# Report objects (dc-piw0.3): drawing members of Office's library, reached from Excel's Shape.
+TextFrame2
+TextRange2
+FillFormat
+LineFormat
+ColorFormat
+ConnectorFormat
