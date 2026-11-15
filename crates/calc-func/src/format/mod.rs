@@ -781,6 +781,12 @@ fn items(section: &str, profile: &FormatProfile) -> Result<Vec<Item>, Failure> {
                 out.push(Item::TextPlaceholder);
                 at += 1;
             }
+            // Excel 20527 en-ZA: a lowercase e exponent (`0.000e+00`, `0e-0`, `0.0e0`) is #VALUE!.
+            'e' if measured_host(profile)
+                && chars.get(at + 1).is_some_and(|c| matches!(c, '+' | '-') || c.is_ascii_digit()) =>
+            {
+                return Err(Failure::Value);
+            }
             'E' | 'e' if matches!(chars.get(at + 1), Some('+' | '-')) => {
                 out.push(Item::Exponent(chars[at + 1] == '+'));
                 at += 2;
@@ -1144,7 +1150,9 @@ fn scientific(
             } else {
                 profile.decimal_separator
             },
-            "0".repeat(fraction.len())
+            // Excel 20527 en-ZA: # places after the point write nothing and ? a space
+            // (`#.##E+00` gives `0.E+00`, `?.??E+00` gives `0.  E+00`).
+            fraction_part(&"0".repeat(fraction.len()), fraction)
         );
         let exponent = format!(
             "E{}{}",
@@ -1156,10 +1164,10 @@ fn scientific(
     let first = fifteen(value);
     let length = first.coefficient.digits().len() as i64;
     let point = length + first.exponent as i64; // value = 0.d * 10^point
-    let leading = if engineering {
+    let engineering_leading = |point: i64| point - (point - 1).div_euclid(width) * width;
+    let mut leading = if engineering {
         // The exponent is a multiple of the width.
-        let e = (point - 1).div_euclid(width) * width;
-        point - e
+        engineering_leading(point)
     } else {
         width.min(point.max(1)).max(1)
     };
@@ -1169,8 +1177,15 @@ fn scientific(
     if carry == 1 {
         exponent += 1;
         if engineering && exponent.rem_euclid(width) != 0 {
-            // A carry past the width moves to the next multiple.
-            mantissa_digits.push('0');
+            // A carry rounds the mantissa up to a power of ten (Excel 20527 en-ZA:
+            // 0.9999999 under `##0.0E+0` is `1.0E+0`); the exponent is a multiple of the
+            // width again.
+            leading = engineering_leading(point + 1);
+            exponent = point + 1 - leading;
+            mantissa_digits = format!(
+                "1{}",
+                "0".repeat((leading - 1) as usize + fraction.len())
+            );
         }
     }
     let lead = leading as usize;
@@ -1318,6 +1333,12 @@ fn fraction_layout(
             '@' => {
                 refusal.get_or_insert(Failure::NotModelled);
                 at += 1;
+            }
+            // Excel 20527 en-ZA: a lowercase e exponent (`0.000e+00`, `0e-0`, `0.0e0`) is #VALUE!.
+            'e' if measured_host(profile)
+                && chars.get(at + 1).is_some_and(|c| matches!(c, '+' | '-') || c.is_ascii_digit()) =>
+            {
+                return Err(Failure::Value);
             }
             'E' | 'e' if matches!(chars.get(at + 1), Some('+' | '-')) => {
                 refusal.get_or_insert(Failure::Value);
@@ -1932,10 +1953,33 @@ fn render_text(profile: &FormatProfile, system: DateSystem, value: f64, code: &s
         .next()
         .unwrap_or('.');
     if datetime::looks_like_datetime_format(&stripped, code_decimal) {
-        if value < 0.0 {
+        // Excel 20527 en-ZA: a code that is one elapsed token alone (`[h]`, `[mm]`, `[ss]`)
+        // writes negative and large values (`TEXT(-0.25,"[ss]")` is `-21600`); with any other
+        // token (`[h]:mm:ss`, `[s].00`) they are #VALUE!.
+        let lone_elapsed = stripped
+            .strip_prefix('[')
+            .and_then(|rest| rest.strip_suffix(']'))
+            .is_some_and(|run| {
+                let mut chars = run.chars();
+                chars.next().is_some_and(|first| {
+                    matches!(first.to_ascii_lowercase(), 'h' | 'm' | 's')
+                        && run.chars().all(|c| c.eq_ignore_ascii_case(&first))
+                })
+            });
+        if !lone_elapsed && value < 0.0 {
             return Err(Failure::Value);
         }
-        if value >= 2_958_466.0 {
+        if !lone_elapsed && value >= 2_958_466.0 {
+            return Err(Failure::Value);
+        }
+        // Excel 20527 en-ZA: a code that begins with A/P (`A/P h`, `a/p h`) is #VALUE!; after
+        // another token, A/P is a literal and hours are 24-hour (`h A/P` gives `18 A/P`).
+        if stripped
+            .get(..3)
+            .is_some_and(|head| head.eq_ignore_ascii_case("a/p"))
+            && measured_host(profile)
+            && !locale_declared
+        {
             return Err(Failure::Value);
         }
         let plain = datetime::without_subseconds(&stripped, code_decimal);
@@ -2347,6 +2391,22 @@ mod tests {
         assert_eq!(t(0x40c1458000000000, "bbbb").unwrap(), "2467");
         assert!(matches!(t(0x40c1458000000000, "B2yyyy"), Err(Failure::NotModelled)));
         assert!(matches!(t(0x40c1458000000000, "bbb"), Err(Failure::NotModelled)));
+        let v = |value: f64, code: &str| text(&za, DateSystem::System1900, value, code);
+        assert_eq!(v(2958465.99999, "b").unwrap(), "54");
+        assert_eq!(v(2958465.99999, "bbbb").unwrap(), "10542");
+        // Excel 20527 en-ZA answers (dc-7ofm locale cases).
+        assert_eq!(v(-0.25, "[ss]").unwrap(), "-21600");
+        assert_eq!(v(-1234.5678, "[h]").unwrap(), "-29629");
+        assert_eq!(v(1e10, "[mm]").unwrap(), "14400000000000");
+        assert!(matches!(v(-1.0, "[h]:mm:ss"), Err(Failure::Value)));
+        assert!(matches!(v(0.25, "A/P h"), Err(Failure::Value)));
+        assert_eq!(v(0.75, "h:mm A/P").unwrap(), "18:00 A/P");
+        assert!(matches!(v(1.0, "0.000e+00"), Err(Failure::Value)));
+        assert!(matches!(v(1.0, "0.0e0"), Err(Failure::Value)));
+        assert_eq!(v(0.0, "#.##E+00").unwrap(), "0.E+00");
+        assert_eq!(v(0.0, "?.??E+00").unwrap(), "0.  E+00");
+        assert_eq!(v(0.0, "##.##E+00").unwrap(), "00.E+00");
+        assert_eq!(v(0.9999999, "##0.0E+0").unwrap(), "1.0E+0");
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -530,7 +530,7 @@ NPER	pinned	20131,20430	120	120	-	exact	7a3e51cd1b+changes	0
 NPV	full	20131,20527,?	3259	3259	-	exact	3076f74e	0
 NPV	pinned	20131,?	120	120	-	exact	7a3e51cd1b+changes	0
 NUMBERVALUE	full	20527	2715	2714	1	last_bit	3076f74e	0
-NUMBERVALUE	pinned	20527	366	311	1	structural	7a3e51cd1b+changes	0
+NUMBERVALUE	pinned	20527	366	315	1	structural	4306a6c76a+changes	0
 OCT2BIN	full	20430	1201	1201	-	exact	3076f74e	0
 OCT2BIN	pinned	20430	120	120	-	exact	7a3e51cd1b+changes	0
 OCT2DEC	full	20430,20527	2060	2060	-	exact	3076f74e	0

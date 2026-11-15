@@ -332,7 +332,14 @@ fn dollar(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     } else {
         places(site, a)?
     };
-    let negative_places = places.is_sign_negative();
+    let mut negative_places = places.is_sign_negative();
+    // Excel 20527 en-ZA (dc-7ofm locale answers): from -2147483647 places down, a negative
+    // value whose 15-digit magnitude is below 0.01 keeps its minus ("-R0"); a larger one, as
+    // for any other negative places, shows "R0".
+    if places <= -2_147_483_647.0 && number < 0.0 {
+        let fifteen: f64 = format!("{:.14e}", number.abs()).parse().unwrap_or(0.0);
+        negative_places = fifteen >= 0.01;
+    }
     let places = checked_places(places)?;
     let (_, profile) = profile(site)?;
     rendered(site, format::dollar(profile, number, places, negative_places))
@@ -623,16 +630,24 @@ fn numbervalue(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     };
     let decimal = separator(1, decimal_default)?;
     let group = separator(2, group_default)?;
+    // Excel 20527 en-ZA (dc-7ofm locale answers): whatever separators the call names, a
+    // measured non-ASCII space other than the named group separator is #VALUE!, and text the
+    // separators cannot read falls back to the host's VALUE grammar (R12 is 12, (12) is -12).
+    // Only the measured separators "." "," " " and U+00A0 have it: a digit or a letter has
+    // none (NUMBERVALUE("12.34", 25569) and NUMBERVALUE("1e-3", "e", ",") are #VALUE!).
     let host_profile = site
         .environment()
         .and_then(|environment| environment.profile.as_ref())
         .filter(|profile| {
-            value_text::measured_host_reader(profile) && decimal == Some('.') && group == Some(' ')
+            value_text::measured_host_reader(profile)
+                && [decimal, group]
+                    .iter()
+                    .all(|c| matches!(c, Some('.' | ',' | ' ' | '\u{a0}')))
         });
     if host_profile.is_some_and(|profile| {
         text.to_string_lossy()
             .chars()
-            .any(|ch| value_text::measured_space(ch, profile))
+            .any(|ch| Some(ch) != group && value_text::measured_space(ch, profile))
     }) {
         return fail(WorksheetErrorCode::Value);
     }

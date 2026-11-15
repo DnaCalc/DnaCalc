@@ -283,7 +283,9 @@ pub(crate) fn render_with_datetime_tokens(
                         let (year, _, _) = date?;
                         let year = year + 543;
                         match width {
-                            1 | 2 => format!("{:02}", year % 100),
+                            // Two digits are the third and fourth of the year's digits
+                            // (Excel 20527 en-ZA: year 9999 is 10542 under bbbb, 54 under b).
+                            1 | 2 => year.to_string()[2..4].to_owned(),
                             4 => year.to_string(),
                             _ => return None,
                         }
