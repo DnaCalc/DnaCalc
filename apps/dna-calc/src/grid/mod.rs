@@ -1876,6 +1876,8 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                     style.push(';');style.push_str(&autofit::font_css(&display_style,Some(&conditional),italic,plan.scale));
                     let mut layout = alignment::layout(cell, &conditional, italic, plan.scale);
                     if double { layout.span.push_str(&autofit::double_underline_css(cell.paint_pixels,plan.scale)); }
+                    let lift = autofit::script_shift(&display_style, plan.scale);
+                    if lift != 0. { layout.span.push_str(&format!(";position:relative;top:{lift}px")); }
                     style.push_str(&layout.container);
                     let shown = cell.shown.clone();
                     let icon = conditional

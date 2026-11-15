@@ -376,7 +376,7 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
         (line_height - ascent - descent) / 2. + ascent
     } else {
         line_height * 0.8
-    };
+    } + autofit::script_shift(s, scale);
     let shift = if s.rotation == 0
         && !wrap
         && !shown.contains('\n')

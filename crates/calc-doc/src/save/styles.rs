@@ -257,6 +257,7 @@ fn font(mut node: Node, before: &Font, after: &Font) -> Node {
         ("family", &before.family, &after.family),
         ("scheme", &before.scheme, &after.scheme),
         ("u", &before.underline, &after.underline),
+        ("vertAlign", &before.vert_align, &after.vert_align),
     ] {
         value_child(&mut node, k, a, b);
     }
@@ -734,6 +735,40 @@ mod tests {
         let mut invalid = after;
         invalid.fonts[0].name = Some("Replaced".into());
         assert!(rewrite(&xml, &before, &invalid).is_err());
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_971p_6__a_derived_font_changes_its_vert_align_and_keeps_the_source_attributes() {
+        let source = format!(
+            r#"<s:styleSheet xmlns:s="{MAIN_NAMESPACE}" xmlns:v="urn:vendor"><s:fonts count="1"><s:font><s:sz val="11"/><s:vertAlign val="superscript" v:keep="va"/></s:font></s:fonts><s:cellXfs count="1"><s:xf fontId="0"/></s:cellXfs></s:styleSheet>"#
+        );
+        let before = StyleTable {
+            fonts: vec![Font { size: Some("11".into()), vert_align: Some("superscript".into()), ..Default::default() }],
+            cell_formats: vec![CellFormat { font_id: Some(0), ..Default::default() }],
+            ..Default::default()
+        };
+        let mut after = before.clone();
+        let mut sub = before.fonts[0].clone();
+        sub.vert_align = Some("subscript".into());
+        after.fonts.push(sub);
+        after.sources.fonts.insert(1, 0);
+        let mut plain = before.fonts[0].clone();
+        plain.vert_align = None;
+        after.fonts.push(plain);
+        after.sources.fonts.insert(2, 0);
+        for font_id in [1, 2] {
+            let mut x = before.cell_formats[0].clone();
+            x.font_id = Some(font_id);
+            x.apply_font = true;
+            after.cell_formats.push(x);
+            after.sources.cell_formats.insert(font_id, 0);
+        }
+        let xml = XmlPart::new("xl/styles.xml".into(), source.as_bytes().to_vec(), Default::default());
+        let written = String::from_utf8(rewrite(&xml, &before, &after).unwrap()).unwrap();
+        // The source font is as stored; the derived ones state the new value (keeping the vendor attribute) or drop the child.
+        assert!(written.contains(r#"<s:font><s:sz val="11"/><s:vertAlign val="superscript" v:keep="va"/></s:font>"#), "{written}");
+        assert!(written.contains(r#"<s:vertAlign val="subscript" v:keep="va"/>"#), "{written}");
+        assert_eq!(written.matches("vertAlign").count(), 2, "{written}");
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

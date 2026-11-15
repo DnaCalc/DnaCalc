@@ -77,6 +77,28 @@ pub(crate) fn double_underline_css(pixels: f64, zoom: f64) -> String {
         underline_width(pixels, zoom)
     )
 }
+/// A superscript or subscript font draws at this share of its size (assumed until Excel decides: dc-971p.6).
+pub(crate) const SCRIPT_SCALE: f64 = 2. / 3.;
+
+/// The size in pixels the font draws at: its stored size, less for a superscript or subscript.
+pub(crate) fn drawn_pixels(style: &TextStyle) -> f64 {
+    if style.script.is_some() {
+        style.pixels * SCRIPT_SCALE
+    } else {
+        style.pixels
+    }
+}
+
+/// How far, in pixels at `zoom`, a superscript or subscript baseline sits from the line's own (negative is up): a
+/// superscript rises by a third of the stored size and a subscript falls by an eighth (assumed until Excel decides).
+pub(crate) fn script_shift(style: &TextStyle, zoom: f64) -> f64 {
+    match style.script.as_deref() {
+        Some("superscript") => -style.pixels * zoom / 3.,
+        Some("subscript") => style.pixels * zoom / 8.,
+        _ => 0.,
+    }
+}
+
 /// One font declaration for rendering, measurement, and the font-presence probes.
 pub fn font_css(
     style: &TextStyle,
@@ -87,7 +109,7 @@ pub fn font_css(
     format!(
         "font-family:{};font-size:{}px;font-weight:{};font-style:{};line-height:1",
         family_css(style.family.as_deref()),
-        style.pixels * zoom,
+        drawn_pixels(style) * zoom,
         if style.bold || conditional.is_some_and(|c| c.bold) {
             700
         } else {
@@ -119,7 +141,7 @@ pub(super) fn canvas_font(
         } else {
             400
         },
-        style.pixels * zoom,
+        drawn_pixels(style) * zoom,
         family_css(style.family.as_deref())
     )
 }
@@ -641,5 +663,20 @@ mod style_tests {
         assert_eq!(a, b);
         assert!((a.0 - 100. / 2f64.sqrt()).abs() < 1e-10);
         assert!((a.0 - a.1).abs() < 1e-10);
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_971p_6__super_and_subscript_draw_smaller_and_off_the_baseline_in_both_painters() {
+        let plain = TextStyle { pixels: 12., family: Some("Arial".into()), ..Default::default() };
+        let up = TextStyle { script: Some("superscript".into()), ..plain.clone() };
+        let down = TextStyle { script: Some("subscript".into()), ..plain.clone() };
+        assert_eq!((drawn_pixels(&plain), drawn_pixels(&up), drawn_pixels(&down)), (12., 8., 8.));
+        // The DOM declaration and the canvas font, which also measures widths, take the same smaller size, scaled by zoom.
+        assert!(font_css(&up, None, false, 2.).contains("font-size:16px"), "{}", font_css(&up, None, false, 2.));
+        assert!(canvas_font(&up, None, false, 2.).contains(" 16px "), "{}", canvas_font(&up, None, false, 2.));
+        assert!(font_css(&plain, None, false, 2.).contains("font-size:24px"));
+        // A superscript rises by a third of the stored size, a subscript falls by an eighth; plain text stays on the baseline.
+        assert_eq!((script_shift(&plain, 1.), script_shift(&up, 1.), script_shift(&down, 1.)), (0., -4., 1.5));
+        assert_eq!(script_shift(&up, 2.), -8.);
     }
 }

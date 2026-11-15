@@ -36,6 +36,8 @@ pub struct Font {
     pub italic: bool,
     pub underline: Option<String>,
     pub strike: bool,
+    /// `vertAlign val`: `superscript` or `subscript` (`baseline` is stored as none).
+    pub vert_align: Option<String>,
     /// Child elements without a field here, by local name.
     pub other_children: Vec<String>,
 }
