@@ -611,6 +611,35 @@ mod tests {
         }
     }
 
+    /// dc-ymjf.2.65: an add-in call resolves as the session's recorded open add-ins allow.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn addin_calls_follow_the_recorded_open_addins() {
+        let args = [
+            Value::String(format!("0x{:016x}", 1000f64.to_bits())),
+            Value::String("DEM".into()),
+            Value::String("EUR".into()),
+        ];
+        let with = |open: Option<&str>| WitnessInvocation {
+            addins_open: open.map(str::to_owned),
+            ..Default::default()
+        };
+        let none = with(Some(""));
+        let euro = with(Some("EUROTOOL.XLAM"));
+        let unknown = with(None);
+        // 1000 DEM is 511.29 EUR (crates/calc-host/tests/fixtures/euroconvert/literals.tsv).
+        let converted = format!("0x{:016x}", 511.29f64.to_bits());
+        assert_eq!(calculate("_EUROTOOL.EUROCONVERT", &args, None, Some(&none), true), "error:Name");
+        assert_eq!(calculate("EUROCONVERT", &args, None, Some(&none), true), "error:Name");
+        assert_eq!(calculate("EUROCONVERT", &args, None, Some(&euro), true), converted);
+        assert_eq!(calculate("_EUROTOOL.EUROCONVERT", &args, None, Some(&euro), true), converted);
+        assert_eq!(
+            calculate("_EUROTOOL.EUROCONVERT", &args, None, Some(&unknown), true),
+            "fault:NotCatalogued"
+        );
+        assert_eq!(calculate("EUROCONVERT", &args, None, Some(&unknown), true), "error:Name");
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn separators_do_not_establish_a_locale_and_explicit_profiles_are_applied() {
