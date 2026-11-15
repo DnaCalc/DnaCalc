@@ -12,6 +12,45 @@ use calc_func::locale::DateSystem::{System1900, System1904};
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Value};
 use f1_support::*;
 
+/// Excel 20527 retains the last finite secant iterate for these zero-asymptote flows.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn rate_retains_last_finite_iterate_at_zero_asymptote() {
+    for (periods, payment, present, timing, guess, expected) in [
+        (-0.0022043890175674884, 0.0015043104591751252, 5727.329610917412, 0.0, -0.8, 0x7fa0_68d9_2cd3_b055),
+        (-2.4724402809083876e-7, 0.0, 270.5910202921852, 0.0, -0.8, 0x7eda_12a6_1332_6307),
+        (-2.5459113504099206e-10, -0.00083190911266143, 1102.2588901554846, 0.0, 0.1, 0x7e53_1217_95a2_eb93),
+        (-4.378825333158844e-6, 0.0, -1886.372687193211, 1.0, -0.5, 0x7f63_2ac8_de98_8729),
+    ] {
+        exact(call("RATE", vec![n(periods), n(payment), n(present), n(0.0), n(timing), n(guess)]), f64::from_bits(expected));
+    }
+    error(call("RATE", vec![n(-9.269189098231718e-6), n(0.0), n(-46.717097843305744), n(-0.00013582248485746642), n(0.0), n(10.0)]), Num);
+}
+
+/// Excel 20527 validates the odd-bond coupon frequency before the optional basis.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn odd_bond_frequency_precedes_basis() {
+    for (name, mut args, frequency) in [
+        ("ODDFPRICE", vec![n(40000.0), n(40500.0), n(39900.0), n(40050.0), n(0.05), n(0.04), n(100.0), n(2.0), e(NA)], 7),
+        ("ODDFYIELD", vec![n(40000.0), n(40500.0), n(39900.0), n(40050.0), n(0.05), n(99.0), n(100.0), n(2.0), e(NA)], 7),
+        ("ODDLPRICE", vec![n(40000.0), n(40500.0), n(39900.0), n(0.05), n(0.04), n(100.0), n(2.0), e(NA)], 6),
+        ("ODDLYIELD", vec![n(40000.0), n(40500.0), n(39900.0), n(0.05), n(99.0), n(100.0), n(2.0), e(NA)], 6),
+    ] {
+        for value in [0.0, 0.999999, 3.0, 3.99, 5.0, 42.0] {
+            args[frequency] = n(value);
+            error(dated(name, args.clone()), Num);
+        }
+        for value in [1.0, 1.99, 2.0, 2.99, 4.0, 4.99] {
+            args[frequency] = n(value);
+            error(dated(name, args.clone()), NA);
+        }
+        args[frequency] = n(3.0);
+        args[frequency - 1] = e(NA);
+        error(dated(name, args), NA);
+    }
+}
+
 /// Excel 20527 rejects a logical principal before evaluating the schedule.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

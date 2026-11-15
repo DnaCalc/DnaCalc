@@ -10,6 +10,139 @@ use calc_func::SubtotalExclusions;
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Ref, Value};
 use f1_support::*;
 
+/// Excel 20527 uses the nonseasonal fit for these strictly curved histories.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn forecast_ets_curved_histories_use_nonseasonal_fit() {
+    for (target, values, forecast, confidence) in [
+        (769.0, [1.9325480007973965, 2.2725678054848686, 2.9783053738356102, 3.920485973940231, 4.917882370529696], 0x4082_aec9_d460_e92a, 0x4029_40e1_168b_99a8),
+        (493.0, [1.545879424927989, 2.349138331657741, 2.867499557498377, 3.2227264882822055, 3.4169376922072843], 0x406b_cec6_3f2b_ef15, 0x401d_14aa_03e9_3c56),
+        (79.0, [1.8277392002282685e36, 2.011638540453978e36, 2.5774062151430394e36, 3.588039388524395e36, 4.8187645944185764e36], 0x47c7_79d1_5bd3_1d33, 0x4786_5bcf_0647_22ba),
+        (61.0, [7.165646517075158e-55, 1.2233782173640273e-54, 1.6650548598056385e-54, 2.0847829273622334e-54, 2.1869467914804076e-54], 0x3501_b823_45d5_8ca6, 0x34ae_cfc4_d433_5b33),
+    ] {
+        let args = vec![n(target), col(&values), col(&[1.0, 2.0, 3.0, 4.0, 5.0])];
+        exact(call("FORECAST.ETS", args.clone()), f64::from_bits(forecast));
+        let mut explicit = args;
+        explicit.extend([n(0.95), n(0.0)]);
+        exact(call("FORECAST.ETS.CONFINT", explicit), f64::from_bits(confidence));
+    }
+    // A nondefault confidence still has an observed one-ULP discrepancy.
+    assert!(matches!(
+        call("FORECAST.ETS.CONFINT", vec![n(67.0), col(&[53.0, -5.0, -55.0, -99.0, -54.0]), col(&[39.0, 41.0, 43.0, 45.0, 47.0]), n(0.8)]),
+        Err(calc_func::FunctionFault::NotHeld { .. })
+    ));
+    // Excel's result for this finer history differs from the fitted path.
+    let finer = [-1.5744309740288685e-9, -1.1667468574325294e-9, -7.374139777075955e-10, -2.8600218723946056e-10, 7.201681417674604e-10];
+    assert!(matches!(call("FORECAST.ETS", vec![n(6.0), col(&finer), col(&[1.0, 2.0, 3.0, 4.0, 5.0])]), Err(calc_func::FunctionFault::NotHeld { .. })));
+    let confidence_counterexample = [-1.004336277661869e60, -2.840388535262473e59, 4.362585714044312e59, 1.1565559999830178e60, 1.8956847337677644e60];
+    assert!(matches!(call("FORECAST.ETS.CONFINT", vec![n(6.0), col(&confidence_counterexample), col(&[1.0, 2.0, 3.0, 4.0, 5.0])]), Err(calc_func::FunctionFault::NotHeld { .. })));
+}
+
+/// Excel propagates a worksheet error supplied as a cube connection or set.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn cube_functions_propagate_first_argument_errors() {
+    for (name, count) in [("CUBEVALUE", 2), ("CUBEMEMBER", 2), ("CUBESET", 2), ("CUBERANKEDMEMBER", 3), ("CUBEMEMBERPROPERTY", 3), ("CUBEKPIMEMBER", 3), ("CUBESETCOUNT", 1)] {
+        for code in [Div0, NA, Num, Ref, Value] {
+            let mut args = vec![e(code)];
+            args.extend((1..count).map(|_| e(NA)));
+            error(call(name, args), code);
+        }
+    }
+}
+
+/// Excel reads selected scalar arguments before a missing cube connection.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn cube_functions_read_early_arguments_in_function_order() {
+    for (name, args, expected) in [
+        ("CUBEMEMBER", vec![t("missing"), e(Div0), e(Ref)], Ref),
+        ("CUBESET", vec![t("missing"), e(Div0), e(Ref), e(Num)], Ref),
+        ("CUBERANKEDMEMBER", vec![t("missing"), e(Div0), e(Ref)], Div0),
+        ("CUBEMEMBERPROPERTY", vec![t("missing"), e(Div0), e(Ref)], Div0),
+        ("CUBEKPIMEMBER", vec![t("missing"), e(Div0), e(Ref)], Div0),
+        ("CUBEMEMBER", vec![e(Div0), t("x"), e(Ref)], Div0),
+    ] {
+        let mut sheet = Sheet::new();
+        sheet.column(1, 1, args.clone());
+        let refs = (1..=args.len() as u32).map(|row| sheet.area(row, 1, row, 1)).collect();
+        error(call_on(&mut sheet, name, refs), expected);
+        error(call(name, args), expected);
+    }
+    error(call("CUBEMEMBER", vec![t("missing"), e(Div0)]), NA);
+}
+
+/// Excel validates rank and KPI numeric text before an unknown connection.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn cube_rank_and_kpi_reject_invalid_numeric_text_early() {
+    for name in ["CUBERANKEDMEMBER", "CUBEKPIMEMBER"] {
+        for text in ["", "hello", "TRUE", "123abc"] {
+            let mut sheet = Sheet::new();
+            sheet.column(1, 1, vec![t("missing"), t("member"), t(text)]);
+            let refs = (1..=3).map(|row| sheet.area(row, 1, row, 1)).collect();
+            error(call_on(&mut sheet, name, refs), Value);
+        }
+        error(call(name, vec![t("missing"), t("member"), t("1.5")]), NA);
+        error(call(name, vec![e(Ref), t("member"), t("bad")]), Ref);
+        error(call(name, vec![t("missing"), e(Div0), t("bad")]), Div0);
+    }
+}
+
+/// Excel reads a final cube argument error after validating its numeric input.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn cube_final_errors_follow_numeric_argument_validation() {
+    for name in ["CUBERANKEDMEMBER", "CUBEKPIMEMBER"] {
+        for number in [n(-1.0), n(0.0), n(1.0), b(true), calc_func::value::CalcValue::empty()] {
+            let mut sheet = Sheet::new();
+            sheet.column(1, 1, vec![t("missing"), t("member"), number, e(Ref)]);
+            let refs = (1..=4).map(|row| sheet.area(row, 1, row, 1)).collect();
+            error(call_on(&mut sheet, name, refs), Ref);
+        }
+        error(call(name, vec![t("missing"), t("member"), t("1.5"), e(Ref)]), Ref);
+        error(call(name, vec![t("missing"), t("member"), t("bad"), e(Ref)]), Value);
+        error(call(name, vec![t("missing"), e(Div0), n(1.0), e(Ref)]), Div0);
+    }
+    error(call("CUBESET", vec![t("missing"), t("set"), t("caption"), n(-1.0), e(Ref)]), Ref);
+    error(call("CUBESET", vec![t("missing"), t("set"), t("caption"), t("1e2"), e(Ref)]), Ref);
+    error(call("CUBESET", vec![t("missing"), t("set"), e(Div0), n(1.0), e(Ref)]), Div0);
+}
+
+/// Excel 20527 wraps 2h-1 at the signed-32-bit boundary in interval variance.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn forecast_ets_confidence_wraps_large_horizon_term() {
+    let values = col(&[1.295212745666504, 1.617269515991211, 2.296365737915039, 3.238837242126465, 4.209005355834961]);
+    let times = col(&[1.0, 2.0, 3.0, 4.0, 5.0]);
+    exact(call("FORECAST.ETS.CONFINT", vec![n(1_073_741_829.0), values.clone(), times.clone(), n(0.95), n(0.0)]), f64::from_bits(0x4203_2db7_1374_d403));
+    exact(call("FORECAST.ETS.CONFINT", vec![n(1_073_741_830.0), values, times.clone(), n(0.95), n(0.0)]), 0.0);
+    let maximum = col(&[1.8903273354517296, 2.019882615073584, 2.22050576863694, 2.6246356982155703, 3.3064261186809745]);
+    exact(call("FORECAST.ETS.CONFINT", vec![n(2_147_483_652.0), maximum, times, n(0.95), n(0.0)]), f64::from_bits(0x4172_796c_467e_b0f4));
+}
+
+/// Excel 20527 flushes the beta recurrence's subnormal density product.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beta_recurrence_flushes_its_subnormal_intermediate() {
+    for (bits, a, shape_b) in [
+        (0x3fe0_189b_0deb_949c, 1040.0, 13.0),
+        (0x3fc3_a3ce_1e64_c95d, 381.0, 19.0),
+        (0x3fd9_1699_47a6_4be1, 763.0, 8.0),
+        (0x3fcc_5cb1_8794_fbc2, 474.0, 18.0),
+    ] {
+        let args = |x| vec![n(x), n(a), n(shape_b), b(true)];
+        exact(call("BETA.DIST", args(f64::from_bits(bits))), 0.0);
+        assert!(number(call("BETA.DIST", args(f64::from_bits(bits + 1)))) > 0.0);
+    }
+    for (x, d1, d2) in [
+        (158.65828799388686, 20.0, 1000.0),
+        (528.8609599796229, 6.0, 1000.0),
+    ] {
+        exact(call("F.DIST.RT", vec![n(x), n(d1), n(d2)]), 0.0);
+    }
+}
+
 /// Excel 20527 flushes the general F right tail but retains the unit-shape subnormal.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

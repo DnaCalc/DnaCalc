@@ -81,17 +81,17 @@ fn type_into(session: &Session, role: &str, value: &str) -> Result<(), String> {
 
 /// Excel's answer for each formula: a controller record (one JSON object per line, `operation`
 /// and `value`) or a reopen record (`rows`, each `formula` and Excel's `excel` value).
-fn answers(path: &Path) -> Result<BTreeMap<String, Shown>, String> {
+fn answers(path: &Path) -> Result<BTreeMap<String, Vec<Shown>>, String> {
     let bytes = fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
     let text = String::from_utf8_lossy(&bytes);
     let text = text.trim_start_matches('\u{feff}');
-    let mut out = BTreeMap::new();
+    let mut out: BTreeMap<String, Vec<Shown>> = BTreeMap::new();
     if let Ok(record) = serde_json::from_str::<Value>(text)
         && let Some(rows) = record["rows"].as_array()
     {
         for row in rows {
             if let (Some(formula), Some(value)) = (row["formula"].as_str(), excel_value(&row["excel"])) {
-                out.insert(formula.to_owned(), value);
+                out.entry(formula.to_owned()).or_insert_with(Vec::new).push(value);
             }
         }
         return Ok(out);
@@ -103,7 +103,7 @@ fn answers(path: &Path) -> Result<BTreeMap<String, Shown>, String> {
             record["operation"].as_str(),
             record.get("value").and_then(Shown::of_json),
         ) {
-            out.insert(operation.to_owned(), value);
+            out.entry(operation.to_owned()).or_insert_with(Vec::new).push(value);
         }
     }
     Ok(out)
@@ -297,6 +297,65 @@ fn load_through_panel(session: &Session, path: &Path) -> Result<(bool, String), 
     Ok((came && items(session, "addin-loaded").len() > before, status))
 }
 
+/// What the Excel controller did between formulas, as an automation client of DNA Calc's own object
+/// model: the case's `enable_events` switch (`Application.EnableEvents`) and its `edit`
+/// (`Range(cell).Value2 = number`, a rectangle or "A1,C1:C2" in one write). The page hosts the session;
+/// `tools/excel-session/dna-calc-com-client.ps1 -AttachProcessId` binds the desktop's EXCEL7 object model
+/// by `AccessibleObjectFromWindow` and writes through it (the desktop command route, `with_session_mut`).
+fn com_client(script: &Path, process: u32, action: &str, cell: &str, value: &str) -> Result<(), String> {
+    let output = Command::new("pwsh")
+        .args(["-NoProfile", "-Sta", "-File"])
+        .arg(script)
+        .args(["-AttachProcessId", &process.to_string(), "-Action", action, "-Cell", cell, "-Value", value])
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|e| format!("cannot start pwsh: {e}"))?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "COM client {action} {cell} {value}: {}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        ))
+    }
+}
+
+/// The event lines an Excel-DNA add-in logged (`fixture.tsv`: time, pid, event, detail): the AppEvents,
+/// workbook identity and Hello records up to the first queued request, as `event | detail`.
+fn event_lines(path: &Path) -> Result<Vec<String>, String> {
+    let text = fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let all: Vec<String> = text
+        .lines()
+        .map(|line| {
+            let field: Vec<&str> = line.split('\t').collect();
+            format!("{} | {}", field.get(2).unwrap_or(&""), field.get(3).unwrap_or(&""))
+        })
+        .collect();
+    let end = all.iter().position(|l| l.starts_with("Queue request")).unwrap_or(all.len());
+    Ok(all[..end]
+        .iter()
+        .filter(|l| ["AppEvents", "COM Workbook identity", "Hello"].iter().any(|p| l.starts_with(p)))
+        .cloned()
+        .collect())
+}
+
+/// The set's declared substitutions (`normalize`: pairs of DNA Calc text and Excel text).
+fn normalize(text: &str, set: &Value) -> String {
+    let mut out = text.to_owned();
+    for pair in set["normalize"].as_array().into_iter().flatten() {
+        if let (Some(ours), Some(theirs)) = (pair[0].as_str(), pair[1].as_str()) {
+            out = out.replace(ours, theirs);
+        }
+    }
+    out
+}
+
+fn path_of_in(set: &Value, key: &str, vars: &BTreeMap<String, String>, fixture_dir: &Path) -> Option<PathBuf> {
+    let path = PathBuf::from(expand(set[key].as_str()?, vars));
+    Some(if path.is_absolute() { path } else { fixture_dir.join(path) })
+}
+
 fn run_set(
     exe: &Path,
     bundle: &Path,
@@ -327,7 +386,8 @@ fn run_set(
             if macros == "unguarded" { "unguarded" } else { "off" }.to_owned(),
         ]);
     }
-    let (_app, _driver, session) = start(exe, bundle, name, out, &extra)?;
+    let (app, _driver, session) = start(exe, bundle, name, out, &extra)?;
+    let app_process = app.child.id();
     let outcome = (|| -> Result<Value, String> {
         if !wait_until(PAGE_WAIT, || text(&session, "addin-count").contains("loaded")) {
             return Err("the page did not mount its add-in panel".to_owned());
@@ -398,9 +458,33 @@ fn run_set(
         let mut results = Vec::new();
         let (mut matched, mut mismatched, mut refused, mut missing) = (0, 0, 0, 0);
         let mut previous = current_input(&session);
+        let mut seen: BTreeMap<String, usize> = BTreeMap::new();
+        let mut counters: BTreeMap<String, (f64, f64)> = BTreeMap::new();
+        let client = fixture_dir.ancestors().nth(3).map(|root| root.join("tools/excel-session/dna-calc-com-client.ps1"));
+        // Writes the Excel controller made once the add-in was loaded (its events see them), by COM.
+        for input in set["after_load_edits"].as_array().into_iter().flatten() {
+            let (Some(at), Some(number)) = (input[0].as_str(), input[1].as_f64()) else {
+                return Err("an after_load_edit is [cell, number]".to_owned());
+            };
+            let script = client.clone().ok_or("no COM client script")?;
+            com_client(&script, app_process, "Edit", at, &number.to_string())?;
+        }
         for case in cases {
             let formula = case["formula"].as_str().ok_or("a case needs a formula")?;
-            let theirs = excel.get(formula);
+            // A formula typed more than once takes Excel's answers in order (the last one repeats).
+            let occurrence = seen.entry(formula.to_owned()).or_insert(0usize);
+            let theirs = excel.get(formula).and_then(|all| all.get(*occurrence).or(all.last()));
+            *occurrence += 1;
+            // The controller's steps between formulas, in the Excel run's order: events switch, then edit.
+            let client_path = || client.clone().ok_or_else(|| "no COM client script".to_owned());
+            if let Some(enabled) = case["enable_events"].as_bool() {
+                com_client(&client_path()?, app_process, "EnableEvents", "", &enabled.to_string())?;
+            }
+            if let Some(edit) = case.get("edit") {
+                let address = edit["cell"].as_str().ok_or("edit needs cell")?;
+                let number = edit["value"].as_f64().ok_or("edit needs a number")?;
+                com_client(&client_path()?, app_process, "Edit", address, &number.to_string())?;
+            }
             let case_started = Instant::now();
             let page = evaluate(&session, cell, formula, &previous);
             let seconds = case_started.elapsed().as_secs_f64();
@@ -409,13 +493,36 @@ fn run_set(
                 (Err(why), _) => ("refused", why.clone()),
                 (Ok(read), _) if read.shown.is_none() => ("refused", read.detail.clone()),
                 (Ok(_), None) => ("missing", "Excel gave no answer for this formula".to_owned()),
-                (Ok(read), Some(excel_value)) => match &read.shown {
-                    Some(shown) if shown.same(excel_value) => ("matched", read.detail.clone()),
-                    _ => (
-                        "mismatched",
-                        format!("{}; Excel {}", read.detail, excel_value.describe()),
-                    ),
-                },
+                (Ok(read), Some(excel_value)) => {
+                    // The workbook's own name differs by design (Excel's new workbook is Book2, DNA Calc's
+                    // is Book1.xlsx): a set may name the substitution, which the report records.
+                    let shown = match &read.shown {
+                        Some(Shown::Text(t)) => Some(Shown::Text(normalize(t, set))),
+                        other => other.clone(),
+                    };
+                    // A running count includes each host's own startup work: compare its change since the last read.
+                    let counted = set["delta_formulas"].as_array().is_some_and(|l| l.iter().any(|f| f.as_str() == Some(formula)));
+                    match (&shown, excel_value) {
+                        (Some(Shown::Number(ours)), Shown::Number(theirs)) if counted => {
+                            let verdict = match counters.insert(formula.to_owned(), (*ours, *theirs)) {
+                                None => ("matched", format!("{}; first read (base)", read.detail)),
+                                Some((ours_before, theirs_before)) if (ours - ours_before) == (theirs - theirs_before) => {
+                                    ("matched", format!("{}; change {} as in Excel", read.detail, ours - ours_before))
+                                }
+                                Some((ours_before, theirs_before)) => (
+                                    "mismatched",
+                                    format!("{}; change {} (Excel {})", read.detail, ours - ours_before, theirs - theirs_before),
+                                ),
+                            };
+                            verdict
+                        }
+                        (Some(shown), _) if shown.same(excel_value) => ("matched", read.detail.clone()),
+                        _ => (
+                            "mismatched",
+                            format!("{}; Excel {}", read.detail, excel_value.describe()),
+                        ),
+                    }
+                }
             };
             match verdict {
                 "matched" => matched += 1,
@@ -428,6 +535,24 @@ fn run_set(
                 "formula": formula, "verdict": verdict, "detail": detail,
                 "excel": theirs.map(Shown::describe), "seconds": seconds,
             }));
+        }
+        // An Excel-DNA add-in's own log of the events it received: the same ordered lines as Excel's run.
+        if let Some(log) = set.get("event_log") {
+            let (theirs, ours) = (
+                path_of_in(log, "excel", vars, fixture_dir).ok_or("event_log needs excel")?,
+                path_of_in(log, "dna", vars, fixture_dir).ok_or("event_log needs dna")?,
+            );
+            let excel_lines = event_lines(&theirs)?;
+            let dna_lines: Vec<String> = event_lines(&ours)?.iter().map(|l| normalize(l, set)).collect();
+            println!("  event lines: Excel {} DNA Calc {}", excel_lines.len(), dna_lines.len());
+            for i in 0..excel_lines.len().max(dna_lines.len()) {
+                let (e, d) = (excel_lines.get(i), dna_lines.get(i));
+                let verdict = if e == d { "matched" } else { "mismatched" };
+                if e == d { matched += 1 } else { mismatched += 1 }
+                println!("  {verdict:<10} {}", d.map_or("(none)", String::as_str));
+                results.push(json!({"formula": format!("event line {}", i + 1), "verdict": verdict,
+                    "detail": d, "excel": e}));
+            }
         }
         let unload = if addin.is_some() {
             let mut statuses = Vec::new();
@@ -451,7 +576,7 @@ fn run_set(
         };
         Ok(json!({
             "loaded": true, "status": status, "listed": listed, "opened": opened,
-            "count": cases.len(), "matched": matched, "mismatched": mismatched, "refused": refused,
+            "count": results.len(), "matched": matched, "mismatched": mismatched, "refused": refused,
             "missing": missing, "unload": unload, "results": results,
         }))
     })();

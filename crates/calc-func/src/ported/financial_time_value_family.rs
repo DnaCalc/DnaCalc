@@ -534,6 +534,17 @@ fn rate_secant(
         }
         let numerator = excel_underflow_to_zero(excel_x87_mul(value, excel_x87_sub(current, before)));
         let next = excel_x87_sub(current, excel_x87_div(numerator, divisor));
+        // With negative periods and a cash-flow balance that tends to zero,
+        // Excel publishes the last finite secant iterate if the next one
+        // overflows positively. Other cash-flow shapes can return NUM instead.
+        if next == f64::INFINITY
+            && current > 0.0
+            && periods < 0.0
+            && future_value == 0.0
+            && (timing == PaymentTiming::EndOfPeriod || payment_value == 0.0)
+        {
+            return Ok(current);
+        }
         step = excel_x87_sub(next, current).abs();
         (before, value_before) = (current, value);
         current = next;

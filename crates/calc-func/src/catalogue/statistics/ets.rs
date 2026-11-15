@@ -229,7 +229,7 @@ fn quantum_exponent(y: &[f64]) -> i32 {
         .unwrap_or(0)
 }
 
-fn exact_trend(y: &[f64]) -> Option<f64> {
+fn exact_scaled_history(y: &[f64]) -> Option<(f64, Vec<f64>)> {
     let n = y.len();
     let minimum = quantum_exponent(y);
     if !(-900..=900).contains(&minimum) {
@@ -244,6 +244,11 @@ fn exact_trend(y: &[f64]) -> Option<f64> {
     {
         return None;
     }
+    Some((quantum, scaled))
+}
+
+fn exact_trend(y: &[f64]) -> Option<f64> {
+    let (quantum, scaled) = exact_scaled_history(y)?;
     let difference = scaled[1] - scaled[0];
     if scaled
         .iter()
@@ -727,11 +732,14 @@ fn nonseasonal(
             let h = horizon;
             let k = ((h - 1.0) / 2.0).floor();
             let g = f64::EPSILON;
+            // Excel forms 2h-1 in signed 32-bit arithmetic. At and above
+            // 2^30+1 it wraps; a negative resulting variance publishes zero.
+            let twice_h_minus_one = (h as i32).wrapping_mul(2).wrapping_sub(1) as f64;
             let variance = 1.0
                 + (h - 1.0)
-                    * ((h * alpha * beta + h * (2.0 * h - 1.0) * beta * beta / 6.0)
+                    * ((h * alpha * beta + h * twice_h_minus_one * beta * beta / 6.0)
                         + alpha * alpha);
-            let variance = variance + g * k * ((2.0 * alpha + g) + 2.0 * beta * (k + 1.0));
+            let variance = (variance + g * k * ((2.0 * alpha + g) + 2.0 * beta * (k + 1.0))).max(0.0);
             let probability = (1.0 + confidence) / 2.0;
             // Valid confidence immediately below one rounds this probability
             // to one. Sixteen fresh selections identify the internal fallback.
@@ -952,6 +960,18 @@ fn evaluate_fitted(
     let short_history = series.values.len() <= 4;
     let nonseasonal_mode =
         season == 0.0 || short_history || season > (series.values.len() / 2) as f64;
+    // The five-point curvature detector above identifies no seasonality for
+    // these directly observed histories. The existing nonseasonal forecast
+    // agrees with independent Excel controls in the existing exact-scaled
+    // history region. Finer histories and confidence intervals have shown
+    // independent rounding discrepancies and remain unmodelled.
+    if season == 1.0 && series.directly_observed && horizon >= 1.0
+        && strictly_curved_five(&series.values)
+        && exact_scaled_history(&series.values).is_some()
+        && output == Output::Forecast
+    {
+        return nonseasonal(site, &series.values, output, statistic, horizon, confidence);
+    }
     if season == 1.0 && !nonseasonal_mode {
         match exact_seasonal(site, &series.values, 2, output, statistic, horizon, true) {
             Ok(value) => return Ok(value),

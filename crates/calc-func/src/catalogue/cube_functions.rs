@@ -3,6 +3,7 @@
 
 use super::kit::{fail, grid};
 use crate::call::EvalServices;
+use crate::coerce::{self, Numeric, Stop};
 use crate::cube::{CubeFailure, CubeLookup, CubeMember, CubeModel};
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{CalcValue, CoreRef, CubeValue, ExcelText, WorksheetErrorCode};
@@ -48,6 +49,9 @@ fn model(
     services: &mut EvalServices<'_>,
 ) -> Step<Arc<CubeModel>> {
     let connection = single(site, arguments, 0, services)?;
+    if let CoreRef::Error(code) = connection.core_ref() {
+        return fail(code);
+    }
     let CoreRef::Text(name) = connection.core_ref() else {
         return fail(WorksheetErrorCode::NA);
     };
@@ -95,7 +99,97 @@ fn given(arguments: &[CalcValue], index: usize) -> bool {
         .is_some_and(|value| !value.is_missing())
 }
 
+fn is_single(value: &CalcValue) -> bool {
+    match value.core_ref() {
+        CoreRef::Reference(reference) => matches!(reference.areas(), [area] if area.cell_count() == 1),
+        CoreRef::Array(array) => array.shape().rows == 1 && array.shape().cols == 1,
+        _ => true,
+    }
+}
+
+/// The scalar arguments Excel reads before looking up the connection differ
+/// between cube functions. The member/set expression itself can be deferred.
+fn early_errors(
+    site: &Site<'_>,
+    arguments: &[CalcValue],
+    services: &mut EvalServices<'_>,
+    indices: &[usize],
+) -> Step<()> {
+    let connection = single(site, arguments, 0, services)?;
+    if let CoreRef::Error(code) = connection.core_ref() {
+        return fail(code);
+    }
+    // Controls cover scalars and one-cell references. Keep the existing path
+    // for larger ranges and arrays until their argument order is measured.
+    for &index in indices {
+        let Some(value) = arguments.get(index) else { continue };
+        if !is_single(value) {
+            return Ok(());
+        }
+    }
+    for &index in indices {
+        if given(arguments, index) {
+            let value = single(site, arguments, index, services)?;
+            if let CoreRef::Error(code) = value.core_ref() {
+                return fail(code);
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Rank and KPI type are numeric arguments, validated before connection lookup.
+/// Reject only text the shared numeric readers have already proved invalid.
+fn early_numeric_text(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<()> {
+    if a.iter().take(3).any(|value| !is_single(value)) {
+        return Ok(());
+    }
+    let value = single(site, a, 2, sv)?;
+    if let CoreRef::Text(text) = value.core_ref() {
+        let invalid = matches!(coerce::number(&value), Err(Stop::Error(WorksheetErrorCode::Value)))
+            || site.number_separators().is_some_and(|(decimal, group)| {
+                crate::value_text::rejected_comma_number(text.utf16_code_units(), decimal, group)
+                    || crate::value_text::rejected_comparison_number(text.utf16_code_units(), decimal, group)
+            });
+        if invalid {
+            return fail(WorksheetErrorCode::Value);
+        }
+    }
+    Ok(())
+}
+
+/// Excel reads the last scalar error after accepting the numeric argument,
+/// before it looks up the connection. Unreadable text and multi-cell cases
+/// remain on the existing path until their validation order has been measured.
+fn early_final_error(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    sv: &mut EvalServices<'_>,
+    numeric_index: usize,
+    final_index: usize,
+) -> Step<()> {
+    if !given(a, final_index) || a.iter().any(|value| !is_single(value)) {
+        return Ok(());
+    }
+    let number = single(site, a, numeric_index, sv)?;
+    let accepted = match number.core_ref() {
+        CoreRef::Number(n) => n.is_finite() && !number.is_excel_overflow(),
+        CoreRef::Logical(_) | CoreRef::Empty => true,
+        CoreRef::Text(_) => matches!(coerce::number(&number), Ok(Numeric::Decimal(decimal)) if decimal.nearest().is_ok()),
+        _ => false,
+    };
+    if !accepted {
+        return Ok(());
+    }
+    let value = single(site, a, final_index, sv)?;
+    if let CoreRef::Error(code) = value.core_ref() {
+        return fail(code);
+    }
+    Ok(())
+}
+
 fn cubemember(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
+    early_errors(site, a, sv, &[2])?;
     let model = model(site, a, sv)?;
     let mut tuple: Vec<CubeMember> = Vec::new();
     for cell in cells(site, a, 1, sv)? {
@@ -178,6 +272,8 @@ fn cubevalue(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Ste
 }
 
 fn cubeset(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
+    early_errors(site, a, sv, &[2, 3])?;
+    early_final_error(site, a, sv, 3, 4)?;
     let model = model(site, a, sv)?;
     let mut tuples = Vec::new();
     for cell in cells(site, a, 1, sv)? {
@@ -225,7 +321,11 @@ fn cubeset(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<
 }
 
 fn cubesetcount(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
-    match single(site, a, 0, sv)?.cube_value() {
+    let value = single(site, a, 0, sv)?;
+    if let CoreRef::Error(code) = value.core_ref() {
+        return fail(code);
+    }
+    match value.cube_value() {
         Some(held) if held.set => Ok(CalcValue::number(held.tuples.len() as f64)),
         Some(_) => fail(WorksheetErrorCode::Value),
         None => fail(WorksheetErrorCode::NA),
@@ -237,6 +337,9 @@ fn cuberankedmember(
     a: &[CalcValue],
     sv: &mut EvalServices<'_>,
 ) -> Step<CalcValue> {
+    early_errors(site, a, sv, &[1, 2])?;
+    early_numeric_text(site, a, sv)?;
+    early_final_error(site, a, sv, 2, 3)?;
     let model = model(site, a, sv)?;
     let set = single(site, a, 1, sv)?;
     let tuples = match (set.cube_value(), set.core_ref()) {
@@ -276,11 +379,15 @@ fn cubememberproperty(
     a: &[CalcValue],
     sv: &mut EvalServices<'_>,
 ) -> Step<CalcValue> {
+    early_errors(site, a, sv, &[1, 2])?;
     model(site, a, sv)?;
     fail(WorksheetErrorCode::NA)
 }
 
 fn cubekpimember(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
+    early_errors(site, a, sv, &[1, 2])?;
+    early_numeric_text(site, a, sv)?;
+    early_final_error(site, a, sv, 2, 3)?;
     model(site, a, sv)?;
     match single(site, a, 2, sv)?.core_ref() {
         CoreRef::Text(_) => fail(WorksheetErrorCode::Value),

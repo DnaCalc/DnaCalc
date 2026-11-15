@@ -351,12 +351,21 @@ fn delimiters(
     a: &[CalcValue],
     index: usize,
     sv: &mut EvalServices<'_>,
+    split_array_blanks: bool,
 ) -> Step<Vec<ExcelText>> {
     let g = grid(site, a, index, sv)?;
     let mut out = Vec::with_capacity(g.cells.len());
     for value in &g.cells {
         if matches!(value.core_ref(), CoreRef::Array(_) | CoreRef::Reference(_)) {
             return Err(site.not_modelled(Some(index)));
+        }
+        // An empty element of an array expression arrives at TEXTSPLIT as zero;
+        // an empty cell of a referenced range remains an empty delimiter.
+        if split_array_blanks && matches!(a[index].core_ref(), CoreRef::Array(_))
+            && matches!(value.core_ref(), CoreRef::Empty)
+        {
+            out.push(ExcelText::from_interop_assignment("0"));
+            continue;
         }
         let units = site.argument(index, coerce::text(value))?;
         out.push(ExcelText::from_utf16_code_units(units.into_owned()));
@@ -395,7 +404,7 @@ fn text_delim(
         }
     }
     let text = text_arg(site, a, 0)?;
-    let delimiters = delimiters(site, a, 1, sv)?;
+    let delimiters = delimiters(site, a, 1, sv, false)?;
     let single_delimiter = scalar_delimiter && delimiters.len() == 1;
     let instance = if given(a, 2) {
         let n = num(site, a, 2)?;
@@ -476,10 +485,10 @@ fn textsplit(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Ste
     let columns = if a[1].is_missing() {
         None
     } else {
-        Some(delimiters(site, a, 1, sv)?)
+        Some(delimiters(site, a, 1, sv, true)?)
     };
     let rows_by = if given(a, 2) {
-        Some(delimiters(site, a, 2, sv)?)
+        Some(delimiters(site, a, 2, sv, true)?)
     } else {
         None
     };
@@ -488,6 +497,9 @@ fn textsplit(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Ste
     }
     let ignore_empty = binary_flag(site, a, 3, false)?;
     let case_insensitive = binary_flag(site, a, 4, false)?;
+    if columns.iter().chain(rows_by.iter()).flatten().any(|d| d.len_utf16_code_units() == 0) {
+        return fail(WorksheetErrorCode::Value);
+    }
     let pad = match a.get(5) {
         None => CalcValue::error(WorksheetErrorCode::NA),
         Some(value) if value.is_missing() => CalcValue::error(WorksheetErrorCode::NA),

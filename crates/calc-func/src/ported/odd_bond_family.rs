@@ -48,7 +48,7 @@ fn parse_basis(value: f64) -> Result<DayCountBasis, OddBondEvalError> {
     }
 }
 
-fn parse_frequency(value: f64) -> Result<i64, OddBondEvalError> {
+pub(crate) fn parse_frequency(value: f64) -> Result<i64, OddBondEvalError> {
     if !value.is_finite() {
         return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
     }

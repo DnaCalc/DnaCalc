@@ -1,0 +1,15 @@
+{
+  "comment": "dc-km7i: the AppEvents cases (xlOil events 16, Excel-DNA X0 6 values + ordered event lines, original xlOil 12) through DNA Calc's page (cargo xtask app xll-accept calc), against the Excel captures of traces/2026-11-14-appevents. Formulas are typed through the page; the controller's EnableEvents switches and edits are written by COM (tools/excel-session/dna-calc-com-client.ps1 -AttachProcessId). Pass --var stage=<dir> with x4/ (a staged xlOil runtime) and x0/ (the Excel-DNA X0 files plus NativeOwner64.xll).",
+  "sets": [
+    {"name": "x4-events", "xll": "{stage}/x4/xlOil.xll", "sheet": "X0", "cell": "B3", "after_load_edits": [["A1", 7]],
+     "normalize": [["Book1.xlsx", "Book2"]], "delta_formulas": ["=X4.PyCalculateCount()"],
+     "cases": "{fixture}/x4-xloil-events-cases.json", "excel": "../traces/2026-11-14-appevents/excel-x4-events5/controller.jsonl"},
+    {"name": "x0-events", "xll": "{stage}/x0/X0-AddIn64.xll", "also": ["{stage}/x0/NativeOwner64.xll"], "sheet": "X0", "cell": "B3", "after_load_edits": [["A1", 7]],
+     "normalize": [["Book1.xlsx", "Book2"]],
+     "cases": "{fixture}/x3-exceldna-events-cases.json", "excel": "../traces/2026-11-14-appevents/excel-x0-events5/controller.jsonl",
+     "event_log": {"excel": "../traces/2026-11-14-appevents/excel-x0-events5/fixture.tsv", "dna": "{stage}/x0/fixture.tsv"}},
+    {"name": "x4-original", "xll": "{stage}/x4/xlOil.xll", "sheet": "X0", "cell": "B3", "after_load_edits": [["A1", 7]],
+     "normalize": [["Book1.xlsx", "Book4"]],
+     "cases": "{fixture}/x4-xloil-python-cases.json", "excel": "../traces/2026-11-14-appevents/excel-x4-original5/controller.jsonl"}
+  ]
+}
