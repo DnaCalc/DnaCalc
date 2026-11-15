@@ -101,11 +101,18 @@ pub(crate) fn measured_space(ch: char, profile: &FormatProfile) -> bool {
         || (ch == '\u{2009}' && measured_host_reader(profile))
 }
 
+/// The separators of Excel 20527 under en-ZA on the measuring machine: "." decimal, with
+/// U+00A0 as Application.ThousandsSeparator reports it or U+0020 as International and the
+/// attested en-ZA profile (migration/evidence/dc-7ofm-touchstone-en-za.json) give it.
+pub(crate) fn measured_dot_space_separators(decimal: &str, group: &str) -> bool {
+    decimal == "." && matches!(group, "\u{00a0}" | " ")
+}
+
 /// A numeric-only comma followed by a three-digit number of at least 100 is neither a
 /// valid number under the recorded dot/NBSP separators nor a month, day, or Excel year.
 /// Excel 20527 controls cover several such forms; other punctuation stays undecided.
 pub(crate) fn rejected_comma_number(units: &[u16], decimal: &str, group: &str) -> bool {
-    if decimal != "." || group != "\u{00a0}" {
+    if !measured_dot_space_separators(decimal, group) {
         return false;
     }
     let Some(comma) = units.iter().position(|&u| u == u16::from(b',')) else {
@@ -120,7 +127,7 @@ pub(crate) fn rejected_comma_number(units: &[u16], decimal: &str, group: &str) -
 /// Comparison syntax followed by a plain ASCII number is not numeric text.
 /// Excel 20527 controls cover these operators with the recorded dot/NBSP separators.
 pub(crate) fn rejected_comparison_number(units: &[u16], decimal: &str, group: &str) -> bool {
-    if decimal != "." || group != "\u{00a0}" {
+    if !measured_dot_space_separators(decimal, group) {
         return false;
     }
     let mut chars = units

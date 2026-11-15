@@ -505,6 +505,55 @@ fn environment(
     }
 }
 
+/// The Touchstone environments whose user culture is shown by recorded evidence, with that
+/// evidence (dc-7ofm). Touchstone/1 captures record their environment id and
+/// Application.DecimalSeparator/ThousandsSeparator but not the user culture.
+const TOUCHSTONE_PROFILES: &[(&str, &str)] = &[(
+    "29bedb2b6722",
+    "migration/evidence/dc-7ofm-touchstone-en-za.json",
+)];
+
+/// The attested locale of a Touchstone/1 capture's environment, from its evidence file: the
+/// culture and Excel's International separators (Excel renders DOLLAR and FIXED groups with
+/// International's U+0020, where Application.ThousandsSeparator reports U+00A0).
+fn touchstone_profile(env_id: &str) -> Option<(String, String, String)> {
+    static EVIDENCE: &str = include_str!("../../../migration/evidence/dc-7ofm-touchstone-en-za.json");
+    let (_, path) = TOUCHSTONE_PROFILES.iter().find(|(id, _)| *id == env_id)?;
+    debug_assert_eq!(*path, "migration/evidence/dc-7ofm-touchstone-en-za.json");
+    let evidence: Value = serde_json::from_str(EVIDENCE).ok()?;
+    if evidence["env_id"] != env_id || evidence["service"] != "touchstone/1" {
+        return None;
+    }
+    let profile = &evidence["profile"];
+    Some((
+        profile["locale"].as_str()?.to_owned(),
+        profile["decimal_separator"].as_str()?.to_owned(),
+        profile["thousands_separator"].as_str()?.to_owned(),
+    ))
+}
+
+fn attest_touchstone_profile(source: &mut ReadingSource, provenance: Option<&Value>) {
+    let Some(provenance) = provenance else {
+        return;
+    };
+    if provenance["service"] != "touchstone/1" {
+        return;
+    }
+    let Some((locale, decimal, thousands)) =
+        provenance["env_id"].as_str().and_then(touchstone_profile)
+    else {
+        return;
+    };
+    let context = source.invocation.get_or_insert_with(Default::default);
+    // The recorded separators stay the evidence: only a capture that reported this
+    // environment's decimal separator is given the profile.
+    if context.decimal_separator.as_deref() != Some(decimal.as_str()) {
+        return;
+    }
+    context.locale = Some(locale);
+    context.thousands_separator = Some(thousands);
+}
+
 // A row's audit is authoritative over a file's default transport. Verify its exact
 // requested, submitted and read-back scalar values, rather than trusting a repeated id.
 fn audited_transport(doc: &Value, row: &Value) -> Option<String> {
@@ -1333,7 +1382,7 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
         let env = doc
             .get("capture_provenance")
             .and_then(|p| p.get("environment"));
-        let captured = environment(
+        let mut captured = environment(
             String::new(),
             format!("{CHECKOUT} {rel}"),
             env,
@@ -1341,6 +1390,7 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
             doc.get("capture_provenance")
                 .and_then(|p| p.get("calculation_settings")),
         );
+        attest_touchstone_profile(&mut captured, doc.get("capture_provenance"));
         let mut source_of = BTreeMap::new();
         record_unread_rows(&doc, &rel, &function, &mut banks, &mut unread)?;
         for (i, row) in rows.iter().enumerate() {
@@ -1432,7 +1482,7 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
         let env = doc
             .get("capture_provenance")
             .and_then(|p| p.get("environment"));
-        let captured = environment(
+        let mut captured = environment(
             String::new(),
             format!("{CHECKOUT} {rel}"),
             env,
@@ -1440,6 +1490,7 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
             doc.get("capture_provenance")
                 .and_then(|p| p.get("calculation_settings")),
         );
+        attest_touchstone_profile(&mut captured, doc.get("capture_provenance"));
         let mut source_of = BTreeMap::new();
         let mut recapture_source_of = BTreeMap::new();
         record_unread_rows(&doc, &rel, &function, &mut banks, &mut unread)?;
@@ -4100,6 +4151,56 @@ mod tests {
                 .invocation
                 .is_none()
         );
+    }
+
+    /// dc-7ofm: the en-ZA attestation of Touchstone environment 29bedb2b6722 rests on the
+    /// catalogue capture of the same Excel and on that environment's own DOLLAR answers.
+    #[test]
+    fn touchstone_environment_profile_is_attested_by_recorded_evidence() {
+        let evidence: Value = serde_json::from_str(include_str!(
+            "../../../migration/evidence/dc-7ofm-touchstone-en-za.json"
+        ))
+        .unwrap();
+        let catalogue: Value = serde_json::from_str(include_str!(
+            "../../../crates/calc-func/tests/captures/cfunc_m3_2/oracle.capture.json"
+        ))
+        .unwrap();
+        let settings = &catalogue["environment"]["settings"];
+        for (key, value) in evidence["catalogue_capture"].as_object().unwrap() {
+            assert_eq!(&settings[key], value, "{key}");
+        }
+        assert_eq!(settings["user_culture"], "en-ZA");
+        assert_eq!(evidence["profile"]["locale"], settings["user_culture"]);
+        assert_eq!(evidence["profile"]["decimal_separator"], settings["decimal_separator"]);
+        assert_eq!(evidence["profile"]["thousands_separator"], settings["thousands_separator"]);
+        let digits = evidence["dollar_answers_with_digits"].as_u64().unwrap();
+        assert!(digits > 2000);
+        assert_eq!(evidence["dollar_answers_rand_prefixed"].as_u64(), Some(digits));
+        assert!(evidence["dollar_answer_sample"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|t| t.as_str().unwrap().trim_start_matches('-').starts_with('R')));
+
+        let settings = serde_json::json!({"DecimalSeparator": ".", "ThousandsSeparator": "\u{a0}"});
+        let attested = |provenance: Value| {
+            let mut source = environment("r0".into(), "bank".into(), None, None, Some(&settings));
+            attest_touchstone_profile(&mut source, Some(&provenance));
+            source.invocation.unwrap()
+        };
+        let context = attested(serde_json::json!({"service": "touchstone/1", "env_id": "29bedb2b6722"}));
+        assert_eq!(context.locale.as_deref(), Some("en-ZA"));
+        assert_eq!(context.decimal_separator.as_deref(), Some("."));
+        assert_eq!(context.thousands_separator.as_deref(), Some(" "));
+        for other in [
+            serde_json::json!({"service": "touchstone/1", "env_id": "02cb49a79d1f"}),
+            serde_json::json!({"service": "touchstone/2", "env_id": "29bedb2b6722"}),
+            serde_json::json!({"env_id": "29bedb2b6722"}),
+        ] {
+            let context = attested(other);
+            assert!(context.locale.is_none());
+            assert_eq!(context.thousands_separator.as_deref(), Some("\u{a0}"));
+        }
     }
 
     /// W111 broad ISREF writes each scalar into a cell and calls through that reference.

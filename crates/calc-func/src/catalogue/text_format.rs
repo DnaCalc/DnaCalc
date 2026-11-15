@@ -169,6 +169,25 @@ fn text(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
         }
         return fail(WorksheetErrorCode::Value);
     }
+    // Excel 20527 under en-ZA ("." decimal; Application.ThousandsSeparator U+00A0,
+    // International U+0020) refuses a code that reads as plain exponent number text,
+    // such as 1e2 or 1e+100, with or without the full locale profile.
+    if matches!(
+        a[0].core_ref(),
+        CoreRef::Number(_) | CoreRef::Empty | CoreRef::Missing
+    ) || matches!(coerce::number(&a[0]), Ok(Numeric::Decimal(_)))
+    {
+        if let CoreRef::Text(code) = a[1].core_ref() {
+            if site
+                .number_separators()
+                .is_some_and(|(decimal, group)| value_text::measured_dot_space_separators(decimal, group))
+                && format::invalid_plain_exponent_code(&code.to_string_lossy())
+            {
+                site.number_argument(0, &a[0])?;
+                return fail(WorksheetErrorCode::Value);
+            }
+        }
+    }
     // These codes read only their supplied decimal separator, when present;
     // the same renderer handles numbers and plain decimal text read by coercion.
     if site
@@ -185,12 +204,6 @@ fn text(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
         )
     {
         let code = text_arg(site, a, 1)?.to_string_lossy();
-        if site.number_separators().is_some_and(|(decimal, group)| decimal == "." && group == "\u{00a0}")
-            && format::invalid_plain_exponent_code(&code)
-        {
-            site.number_argument(0, &a[0])?;
-            return fail(WorksheetErrorCode::Value);
-        }
         let known_decimal = site.number_separators().is_some_and(|(decimal, group)| {
             decimal == "." && group != "." && format::plain_decimal_code(&code)
         });
@@ -319,9 +332,10 @@ fn dollar(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     } else {
         places(site, a)?
     };
+    let negative_places = places.is_sign_negative();
     let places = checked_places(places)?;
     let (_, profile) = profile(site)?;
-    rendered(site, format::dollar(profile, number, places))
+    rendered(site, format::dollar(profile, number, places, negative_places))
 }
 
 /// An optional argument: `None` when the call does not reach it or leaves it empty.

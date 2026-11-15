@@ -1,0 +1,4941 @@
+{
+ "bead": "dc-7ofm",
+ "claim": "Touchstone environment 29bedb2b6722 is Excel 16.0.20527 on GOVERT-OMEN under the Windows user culture en-ZA, whose Excel International separators are \".\" and \" \".",
+ "evidence": [
+  "docs/research/text-date-coercion-2026-11-12.md records env_id 29bedb2b6722 as Excel build 20527 on GOVERT-OMEN, reading DATEVALUE year-first (04/02/01 = 38018, 4/2/2001 = #VALUE!), the en-ZA short-date order.",
+  "The capture worker on the same Excel (16.0.20527.20088, same CPU and OS build) recorded the user culture and Application.International readings in catalogue_capture (crates/calc-func/tests/captures/cfunc_m3_2/oracle.capture.json).",
+  "Every DOLLAR answer of this environment that holds a digit starts with the Rand sign R (the en-ZA currency), after a minus for negatives; grouped answers use U+0020, the International thousands separator, although Application.ThousandsSeparator (calculation_settings) reported U+00A0."
+ ],
+ "catalogue_capture": {
+  "excel_build_number": "20527",
+  "os_version": "Microsoft Windows NT 10.0.26200.0",
+  "cpu": "AMD Ryzen 7 4800H with Radeon Graphics         ",
+  "user_culture": "en-ZA",
+  "install_language_id": "7177",
+  "country_setting": "27",
+  "decimal_separator": ".",
+  "thousands_separator": " ",
+  "date_order": "2",
+  "use_system_separators": "true"
+ },
+ "evidence_repository": "CalcFunc-Evidence",
+ "evidence_commit": "58fc9ad2ae20c0fb897d73d594f76c0c9facd034",
+ "env_id": "29bedb2b6722",
+ "service": "touchstone/1",
+ "profile": {
+  "locale": "en-ZA",
+  "decimal_separator": ".",
+  "thousands_separator": " "
+ },
+ "dollar_answers_with_digits": 2498,
+ "dollar_answers_rand_prefixed": 2498,
+ "dollar_answers_space_grouped": 142,
+ "dollar_answer_sample": [
+  "-R1 443.00",
+  "-R1 609.00",
+  "-R1 615.0",
+  "-R1 966",
+  "-R10 729 163 916 709 200 000 000.00",
+  "-R13 063 072 040 908.40",
+  "-R14 993 279 303.66",
+  "-R15 989 178 582 221 100 000 000 000",
+  "-R176 660 307 908 110 000 000 000 000 000 000 000 000 000 000 000 000 000 000 000.00",
+  "-R2 070.00",
+  "-R2 450.00",
+  "-R2 768",
+  "-R0",
+  "-R0.0",
+  "-R0.00",
+  "-R0.000000000000",
+  "-R0.0000000000000000000000000000000000000000000000000000072530659429506500000000000000000000000000000000",
+  "-R0.0000000000000000000000000000000000000000000277937745985842000000000000000000000000000000000000000000",
+  "-R0.00000000000240061164269508000000000000000000000",
+  "-R0.004053445345",
+  "-R0.05",
+  "-R0.09",
+  "-R0.1",
+  "-R0.13"
+ ],
+ "files": [
+  {
+   "path": "readings/excel-20527/admit2-answers-_eurotool.euroconvert-enrich.json",
+   "function": "_EUROTOOL.EUROCONVERT",
+   "sha256": "1dd37cf24617ccd7f7ee8c76cbb3ddf2313dee934b591d3a5728bdfc191a2dbf"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-_eurotool.euroconvert-more.json",
+   "function": "_EUROTOOL.EUROCONVERT",
+   "sha256": "c494b3f3c2a3b06b08ceaf9fcc5f33af2b7a36523d0244c134f6c9e714bcea78"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-_eurotool.euroconvert-scalar.json",
+   "function": "_EUROTOOL.EUROCONVERT",
+   "sha256": "6f1e2c97695ddc5a894b2e94e34f540e130eadf3d212609ba3d1ba4aec692e0b"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-_eurotool.euroconvert-special.json",
+   "function": "_EUROTOOL.EUROCONVERT",
+   "sha256": "0c7da1902e4c32d06b3093fb53a0b811b750f762a0c985c6a4530eb60355806b"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-aggregate-enrich.json",
+   "function": "AGGREGATE",
+   "sha256": "a28229ba09797ad0e87cd2ccaf25fc6df68b931ece3065125daf0be1a66d4285"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-aggregate-more.json",
+   "function": "AGGREGATE",
+   "sha256": "d7fc00b41cf6b74be6703731c9ff4c2e66ad94517a8957bfa6e6f406696e0e6f"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-aggregate-scalar.json",
+   "function": "AGGREGATE",
+   "sha256": "c4f1d6bbf0b62311eacd9fc9aecb591f34dc19c446606e708d39e2da0ddc7736"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-aggregate-special.json",
+   "function": "AGGREGATE",
+   "sha256": "895cf033708f98b14f673a18520934532cf69b8c8858da6de62efce27de3f0d5"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-amorlinc-enrich.json",
+   "function": "AMORLINC",
+   "sha256": "7149be2741f60ab57611e1ae7cafb7139a83ff43727fbd7b35c1f5794542c8fc"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-amorlinc-more.json",
+   "function": "AMORLINC",
+   "sha256": "78e45ef813fa8a2c2559d961119dbb7fd100fe1c9a2a8048c518725a94ac1862"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-amorlinc-scalar.json",
+   "function": "AMORLINC",
+   "sha256": "7953c6001872c72e9edbdd23b917d54f6065ddc56182918bcf3620ff9c41e80f"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-amorlinc-special.json",
+   "function": "AMORLINC",
+   "sha256": "ba352c698b212e85478ea8d6369c26ff61d1c4ac04d36ca81020a98472389d0c"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-areas-enrich.json",
+   "function": "AREAS",
+   "sha256": "df48bb06596438e83f94b22103f4fd8640c28ae2b938b390af75991af930a61f"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-areas-more.json",
+   "function": "AREAS",
+   "sha256": "d10925433d3165c457e07107dfb5bb53f124262325d0454c51671c583951c500"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-areas-scalar.json",
+   "function": "AREAS",
+   "sha256": "1969b7565b45358ac6c535de0c426ad5a52410c4e1ab21785ee7b18b46b794a9"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-areas-special.json",
+   "function": "AREAS",
+   "sha256": "de5fa8ddb2cdb556273ec7f3a4f6995b22c098a2f7aee12e50fb3384e1744e05"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-arraytotext-enrich.json",
+   "function": "ARRAYTOTEXT",
+   "sha256": "b1e7aef1a587dcfe747b2d8ae249e5cacc2ae0124cf165eee41dec729330caa0"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-arraytotext-more.json",
+   "function": "ARRAYTOTEXT",
+   "sha256": "10694639cdaf20970215f32cc3edd8248df279d0bbe9fd8b207b510e8ed92cf0"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-arraytotext-scalar.json",
+   "function": "ARRAYTOTEXT",
+   "sha256": "b8cb3fc9d4e63c79542772ac55e6aa29d73959e2fbc56546eb10179c2e0f193b"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-arraytotext-special.json",
+   "function": "ARRAYTOTEXT",
+   "sha256": "e28c2ec15b75e625a3c6aaf5211397dcf9a4e65a2672bc42a8d74e887681f1e7"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-averageif-enrich.json",
+   "function": "AVERAGEIF",
+   "sha256": "a5195c3e8c2048fe42d488a004fae609019f9381958ee223f10f2c3707ae4e1f"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-averageif-scalar.json",
+   "function": "AVERAGEIF",
+   "sha256": "c6cdb390994ad866b5433b3f545c74431a7ed5c81eda5ec03cd5fbe9b4d7bd39"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-averageif-special.json",
+   "function": "AVERAGEIF",
+   "sha256": "218faafc7c8b0081b6d65dabf0c51c95720be2f16733a7330c9e44b0068799cd"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-beta.inv-enrich.json",
+   "function": "BETA.INV",
+   "sha256": "6be6d06f20760bbcc3f2c4cb1e968fee7814e9d19fda45ecdf79133901f0a141"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-beta.inv-more.json",
+   "function": "BETA.INV",
+   "sha256": "75d90bf93a609bfa0827edfba0dfd57a76afe5f64b29b47749d9f5f0c9a2603d"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-beta.inv-scalar.json",
+   "function": "BETA.INV",
+   "sha256": "8a5564b424c15f2653638b7db0ea7b16a46aaed96e4507916cf51d511e5db54b"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-beta.inv-special.json",
+   "function": "BETA.INV",
+   "sha256": "7a6591e47a3bbab0552f2b93caeb29f7ad7602a6706319bbc5b6a2c2dca2e88e"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-betadist-enrich.json",
+   "function": "BETADIST",
+   "sha256": "665c6423869872600f7a52b173e789875899e320589803511bd9690185dee9f2"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-betadist-more.json",
+   "function": "BETADIST",
+   "sha256": "9ff4ca75e8727c94ad7f608707a33dac847bdd6fd85bad37d43903229512d205"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-betadist-scalar.json",
+   "function": "BETADIST",
+   "sha256": "e8b9c2cdaaf7da491e98395fa0c7669fc73802622ccbccc1409a430fcc8e71e0"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-betadist-special.json",
+   "function": "BETADIST",
+   "sha256": "9eebdb6216e2c1b9aa09a0319d634ef6b759ddd89bc2cab51d360cb3988fdbf4"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-betainv-enrich.json",
+   "function": "BETAINV",
+   "sha256": "984a4ce3f0a0a9a3797aae77511fa1aa1939829ff368ae90ceafd4833fd3c329"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-betainv-more.json",
+   "function": "BETAINV",
+   "sha256": "4226a718b658abd3a2b90f78beb789c32568b2fc2f7001d11c41eaa21bd2b688"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-betainv-scalar.json",
+   "function": "BETAINV",
+   "sha256": "4b7cb4b6ee859b2b40fbb65878ab36afeb5de5c84eedc6ff842bf91f0cfc6d1e"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-betainv-special.json",
+   "function": "BETAINV",
+   "sha256": "1eaa55d0d3658d7a09f7bd6699964fb0c3bcca63a5b857324618150362545304"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cell-enrich.json",
+   "function": "CELL",
+   "sha256": "d780c6eadcb9c94a9b15f46fba71680e840e6522a07a797ec6691a634e625ce8"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cell-more.json",
+   "function": "CELL",
+   "sha256": "5d840083b7cfb173f2099ac2296ca520cc69c8642c66b7dfa75fbdc2b2051d80"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cell-scalar.json",
+   "function": "CELL",
+   "sha256": "dde90ac095a376ab9ad2912b0ab8550f115a60bfc182f472bbc068c37e616978"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cell-special.json",
+   "function": "CELL",
+   "sha256": "5d9e9dcb633dc54b382123cbfa3bdbd1a24b0f91259d75ce7634bd3b25c01132"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-chiinv-enrich.json",
+   "function": "CHIINV",
+   "sha256": "3c38623c4452932f7a67504f8f9ab692dd4c9eb2e107c39f173a3d502d105d7f"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-chiinv-more.json",
+   "function": "CHIINV",
+   "sha256": "24db546ad24eacbceabc035951a56e331e515f39d1ac9fb71cead6ca94612d85"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-chiinv-scalar.json",
+   "function": "CHIINV",
+   "sha256": "d83a98c78e33b71b865d3b65b468666e4e7e62930401ec286a878873c1dde044"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-chiinv-special.json",
+   "function": "CHIINV",
+   "sha256": "da2dfe92bc5420aca244650a3e9507f375b8f1ba6bb4a7c983a26e9462fd53ae"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-chisq.dist-enrich.json",
+   "function": "CHISQ.DIST",
+   "sha256": "c7826787e70615f3f480bd0a6af5405560d20ef119d8b3a01e898118b727f8b0"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-chisq.dist-more.json",
+   "function": "CHISQ.DIST",
+   "sha256": "e9be0343dddb68369f06291aa118750f11d5109e77aed1ba2a8fc6035e503c09"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-chisq.dist-scalar.json",
+   "function": "CHISQ.DIST",
+   "sha256": "5f805bd4af45a39d26083cf9161502aab1733bcc0e31f35a91e48a0f6d498a80"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-chisq.dist-special.json",
+   "function": "CHISQ.DIST",
+   "sha256": "04ded1623242e12b8ebbcbf4be1bdfbb8730c1094fd4168fdafe43ade60f5bea"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-chisq.inv.rt-enrich.json",
+   "function": "CHISQ.INV.RT",
+   "sha256": "24fefff789b6b3d79457b5c0e22f4926113dee7b66f1a13b2441ea1a60316932"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-chisq.inv.rt-more.json",
+   "function": "CHISQ.INV.RT",
+   "sha256": "7a6072dba0c35882b8292d091c6aa47492bc8ba885371f3850c349f1847ffbe2"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-chisq.inv.rt-scalar.json",
+   "function": "CHISQ.INV.RT",
+   "sha256": "650170a9a13e0a91c5ddb5ec5c0414c44e528520e4aaf8d1be209cd31a00c145"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-chisq.inv.rt-special.json",
+   "function": "CHISQ.INV.RT",
+   "sha256": "9523d99ea1e4daecfd0dcb520b6d232d76e0033ad8be071012657f1fb680289f"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-choose-enrich.json",
+   "function": "CHOOSE",
+   "sha256": "ae573e22702b00ef55495d68a91b6679ce2e9ed0e4bca996d32ca8640b7e9625"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-choose-more.json",
+   "function": "CHOOSE",
+   "sha256": "3a0bb4dae07b74e639851437989aebf9675f5f28dc361dcc69d91ce9b4e3c036"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-choose-scalar.json",
+   "function": "CHOOSE",
+   "sha256": "c38eaa22ccfb97fe2a09cae81ef89e3b59756ded37848b42c6b472085d1ffa0a"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-choose-special.json",
+   "function": "CHOOSE",
+   "sha256": "8ff828da0e99785d5dd065c43833e3dbdad4bf23aebf11800074e0e955d9fe98"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-choosecols-spill.json",
+   "function": "CHOOSECOLS",
+   "sha256": "3c5fef8b3637463d925cfabff988733244f53c44084b44dc8227c87dca854168"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-choosecols-spillmore.json",
+   "function": "CHOOSECOLS",
+   "sha256": "492a85169c86f1581ae69c87ffe1bf057b5940145fc0b0e3e3e98c19fddbc1ab"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-chooserows-spill.json",
+   "function": "CHOOSEROWS",
+   "sha256": "46cb1406960a5860a71846d3af1356018787accb16e6f8b4c41b52d9d8bbd6e3"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-chooserows-spillmore.json",
+   "function": "CHOOSEROWS",
+   "sha256": "fe4b0bb72265105b69d9b731360ed518762068a7addd50b41d8879c3f60246d6"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-column-enrich.json",
+   "function": "COLUMN",
+   "sha256": "6d3b572a429b5961396cd39b0e8c4147451b16f2145a367ea8377332dfde40e4"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-column-more.json",
+   "function": "COLUMN",
+   "sha256": "9f4bca1c1860f264399bc9427b1bd16671987cf6958cb04384fba094443632c6"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-column-scalar.json",
+   "function": "COLUMN",
+   "sha256": "2a6141e6715d3eedb74e1469439e99101c98fa605927785175c49ef6a8bd2802"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-column-special.json",
+   "function": "COLUMN",
+   "sha256": "91bf9d38e7efb8301d53e5f50a0e4ce1a952cfeccc0c9ba3875d811638c31f6c"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-columns-enrich.json",
+   "function": "COLUMNS",
+   "sha256": "eb87bcbf20c8de7beca6d3b6bbd74fd5209177b72841b53ef18305d627dbdf5e"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-columns-more.json",
+   "function": "COLUMNS",
+   "sha256": "ce14cebeedf21d8047df46a435c758300f41d316585306ffc2d24e672551a2d5"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-columns-scalar.json",
+   "function": "COLUMNS",
+   "sha256": "64cbce9c4437b99fb12cd48bb78553a3cfe49ad41a55be7a3474ab91a2386ede"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-columns-special.json",
+   "function": "COLUMNS",
+   "sha256": "de32a148861c86624a9ddcc4ff21ec068da8c4d61b11856d500668ff654c6566"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-confidence.t-enrich.json",
+   "function": "CONFIDENCE.T",
+   "sha256": "aeb922ec3e50af541aa625eb5b518c523dee7f071d4d23d5716b5478a2692948"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-confidence.t-more.json",
+   "function": "CONFIDENCE.T",
+   "sha256": "346930a2016ef4de9e693e9d314e2294691f67f6a8281da9bf902d5237c97b5d"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-confidence.t-scalar.json",
+   "function": "CONFIDENCE.T",
+   "sha256": "14c6e7735f38c306f9de66e2b7a4da1c08501c717b96967c76cf39f866d895c5"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-confidence.t-special.json",
+   "function": "CONFIDENCE.T",
+   "sha256": "7bfa095562d3f377c3080d4f79c77f1934b54fc5edc9e3f058f092cada540170"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-countif-more.json",
+   "function": "COUNTIF",
+   "sha256": "681c512807e234105ed4a62960f304b9e97fe48a2c18b2555ea1902a3c57139f"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-countif-scalar.json",
+   "function": "COUNTIF",
+   "sha256": "4069a169d2375b5d3e74ce58091ddf5d72ac5b00a71d17ed2778a2a85b173031"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-countif-special.json",
+   "function": "COUNTIF",
+   "sha256": "a494ed5443307428021cda7a6a989d9e75018eeb1be4903c0bd830eb96c44a82"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cubekpimember-enrich.json",
+   "function": "CUBEKPIMEMBER",
+   "sha256": "445152890a0d30c46c729797a4561e043846a992fea08c5435a0df6c5103bc39"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cubekpimember-more.json",
+   "function": "CUBEKPIMEMBER",
+   "sha256": "fd7d63099114b19de45fbf95cb6f135395d1ed573f484d2f1d7f1fc9063244ca"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cubekpimember-scalar.json",
+   "function": "CUBEKPIMEMBER",
+   "sha256": "0dd0aed05c83c05b6157eda8b02b25440d604bee5c3ddcd7cf5ffb9c11e5d674"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cubekpimember-special.json",
+   "function": "CUBEKPIMEMBER",
+   "sha256": "992fc53caba3f564a58b66797f9dfbf4f04b3c1edc77e315cfe1c42d6007cf06"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cubemember-enrich.json",
+   "function": "CUBEMEMBER",
+   "sha256": "89c9cd1c9d95312f0194063c251b97d46cd9ba3cca1eb39ddf719d6df3d7ffbc"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cubemember-more.json",
+   "function": "CUBEMEMBER",
+   "sha256": "787d4227b8063ed4252c034306734a08d65cc3f3153fc6d4eee95e0f61031476"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cubemember-scalar.json",
+   "function": "CUBEMEMBER",
+   "sha256": "236731ac2fd309c667b7ffe623b62d874192b6c9ecc27c2f93bacdd789a248d5"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cubemember-special.json",
+   "function": "CUBEMEMBER",
+   "sha256": "8ffbde1e1a83dae18c1f249261e22fb1ba383752ffc9edf0026f68e481a6361e"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cubememberproperty-enrich.json",
+   "function": "CUBEMEMBERPROPERTY",
+   "sha256": "2b414632496b1375cd48b02a1971ed60926a78c4d2082da97a6874de801222fa"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cubememberproperty-more.json",
+   "function": "CUBEMEMBERPROPERTY",
+   "sha256": "620ba385b2280fa3b7fc9191342f9a84d08276de10f0258c8c549f02594c4b49"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cubememberproperty-scalar.json",
+   "function": "CUBEMEMBERPROPERTY",
+   "sha256": "09b5d11a056270b309f8160454608ac76607cbfbbf4ea2d418e376bc274b8a51"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cubememberproperty-special.json",
+   "function": "CUBEMEMBERPROPERTY",
+   "sha256": "e8edf606a6c827b6537b3250f418d719fc4c07e37d37d5bfdbec0bc4687c7fe2"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cuberankedmember-enrich.json",
+   "function": "CUBERANKEDMEMBER",
+   "sha256": "ca4a5a173b8d3082e98f600ccf15bf4fabc54ff2b25b09a28832912a5a0b496d"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cuberankedmember-more.json",
+   "function": "CUBERANKEDMEMBER",
+   "sha256": "ab129dad9188ae0be2778856fbc3e8a05eb7bf49b8e2f63db8415761d56fa98c"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cuberankedmember-scalar.json",
+   "function": "CUBERANKEDMEMBER",
+   "sha256": "ab7d0f72f72e08799e46ad610de73a89705a06db690b73a99ec588c05f7edec7"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cuberankedmember-special.json",
+   "function": "CUBERANKEDMEMBER",
+   "sha256": "e505b625c4588c657ff174924d2dfcd299bc75656cf176f129252416e9288396"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cubeset-enrich.json",
+   "function": "CUBESET",
+   "sha256": "020764ab92e2ac00aade2f1c41a1bd18698c894891700db5dcb4d1fa2dfe7720"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cubeset-more.json",
+   "function": "CUBESET",
+   "sha256": "08c0ad6599f6828226d3610a7210f53d7da4356e32daef06a6fbe7abb7bdc407"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cubeset-scalar.json",
+   "function": "CUBESET",
+   "sha256": "687fdf7bf4e65a494218d50b5974d559a070a103db54c54feafbe579ad72aa7b"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cubeset-special.json",
+   "function": "CUBESET",
+   "sha256": "d1f9cd1a176948c4efd29a8227c964e22b2562b66dc260e4f0834b103517c6a6"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cubesetcount-enrich.json",
+   "function": "CUBESETCOUNT",
+   "sha256": "20072cfc64e0b2cf4b346414b7f6e6d11a28c1d4112ddd6f208178607d90bf35"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cubesetcount-more.json",
+   "function": "CUBESETCOUNT",
+   "sha256": "838b9e03e83f1d10c4d2e2dca3af0e35de4f410c1f8387b39f85c59855325380"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cubesetcount-scalar.json",
+   "function": "CUBESETCOUNT",
+   "sha256": "a94245c455b98bca943a79948d864aff5373c702848f55efccaa5fe2f132cc2b"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cubesetcount-special.json",
+   "function": "CUBESETCOUNT",
+   "sha256": "e8bd5bb0e26dadfe01c21e6a8ae6bdd0fe6e3c628c41d7bb1c6ca8890e06940d"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cubevalue-enrich.json",
+   "function": "CUBEVALUE",
+   "sha256": "90c77152cc4b36b3ecbe4c5d539e341aa19e4e5ffe5e06de9c2412ecfd4c7415"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cubevalue-more.json",
+   "function": "CUBEVALUE",
+   "sha256": "58a0943d82e9002370258db4b87efd5bc6ee3e085f5a8cebc1fb0cc5ada589bd"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cubevalue-scalar.json",
+   "function": "CUBEVALUE",
+   "sha256": "11a80cd7362c9f6e1d3157de0314199b9054c33c88b95cfb7bfb9ece7db5b156"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cubevalue-special.json",
+   "function": "CUBEVALUE",
+   "sha256": "4a0f8b2326df3280e879655b0f2f26f1f1e6950e8e5e0630227bbd657a92565a"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cumipmt-enrich.json",
+   "function": "CUMIPMT",
+   "sha256": "508618392b20d909db2ca98659c86e5459a966ada2c26024689c14199696683c"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cumipmt-more.json",
+   "function": "CUMIPMT",
+   "sha256": "5a3feeb909f5c3b82338570796f1a7bbe17a43744623a6e72b9d1c34f80a682d"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cumipmt-scalar.json",
+   "function": "CUMIPMT",
+   "sha256": "b9a38e7a8691996e3a4a964fa5ed5b0cf73396d1a2e34984fd923f2a51d0ca40"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-cumipmt-special.json",
+   "function": "CUMIPMT",
+   "sha256": "4268bde0a293b23cb1ea21f01222e43947aee9ba58d82cd896091e3ec7bfad50"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-daverage-enrich.json",
+   "function": "DAVERAGE",
+   "sha256": "5122141d75fce3e9587b118fb88fd599f377cec84fd467049f49366988993184"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-daverage-more.json",
+   "function": "DAVERAGE",
+   "sha256": "5bb06529cb5d2475399cba39e820953ab20cb087c911c14b1f01ef1f5cf4ecc1"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-daverage-scalar.json",
+   "function": "DAVERAGE",
+   "sha256": "4594d59a3a122608f9f7ffa017537d43ca01a4292102024c2ea8acc197cea7ce"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-daverage-special.json",
+   "function": "DAVERAGE",
+   "sha256": "74a222a8cfff4d0b8e35094577dc78bc52aba2789c187f9065dfac27949be7b9"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dcount-enrich.json",
+   "function": "DCOUNT",
+   "sha256": "20ce3577e012956893b6067719c989fdf3ad8f833f50b9978af5fdffb12492c2"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dcount-more.json",
+   "function": "DCOUNT",
+   "sha256": "ebb8e0e5dc55ffd3114abbc1a34aecf6e9824053f25c11c89f878e4182674e10"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dcount-scalar.json",
+   "function": "DCOUNT",
+   "sha256": "852a0ee060043885aec7ebf0665fdffc24802cae6f21b83c593235c2c31e7477"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dcount-special.json",
+   "function": "DCOUNT",
+   "sha256": "a4d2ceb1d1450bfd316b43ca9bdd1d0a0ec6ce9b6703edaa4ff3db50da5a2b2e"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dcounta-enrich.json",
+   "function": "DCOUNTA",
+   "sha256": "933426f484e8e9cf90554a7b32dc61a64adfc0c6878da72419838d17ddc85102"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dcounta-more.json",
+   "function": "DCOUNTA",
+   "sha256": "d209542064cf6afc18f6ec2e4aac357023429fda8eb3b7837c29bba0ddb027a1"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dcounta-scalar.json",
+   "function": "DCOUNTA",
+   "sha256": "ccd506db98626f1161ae26574d96992a7160877ad0ee0682d04722b27e817e9a"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dcounta-special.json",
+   "function": "DCOUNTA",
+   "sha256": "63483af24c28d6c165bee2ae96b1e5524bf7cbcc167d4283c41a49df81b803ed"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dget-enrich.json",
+   "function": "DGET",
+   "sha256": "9000d1fedbcb6abddb8b409d25e87118277b2152e6988648774f1039c410bda0"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dget-more.json",
+   "function": "DGET",
+   "sha256": "e224bffa5451389c6fb7942e7b323f165289bcac5fe6e1ba542c34269a1ceb1d"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dget-scalar.json",
+   "function": "DGET",
+   "sha256": "503e118a0f1343f436327da41ff22773d5beecddea3160afe351161af77fa092"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dget-special.json",
+   "function": "DGET",
+   "sha256": "fe96ca6109d63a85eb5e1970a9a8cd914a7ed205098691fcdc816d10c98d5027"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dmax-enrich.json",
+   "function": "DMAX",
+   "sha256": "14927b21f27c27f4af0e01db05f36fd02e27be003deffd33c69832ef4e2d0fef"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dmax-more.json",
+   "function": "DMAX",
+   "sha256": "1b775dbb7a2c8a457c4e88c280e30711a9505eb98f638568df65a43d903a9bbd"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dmax-scalar.json",
+   "function": "DMAX",
+   "sha256": "f1a7370dcb28f5d3977f0dea2d9d08258312c1a49d9f2fb0dc37aaeec95fa997"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dmax-special.json",
+   "function": "DMAX",
+   "sha256": "44345abefa75881844e0dcc630be4ba3243ac907c97b7b1158969dad903d2db1"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dmin-enrich.json",
+   "function": "DMIN",
+   "sha256": "468b1223713fd55cafe6957c5096ee9868f8105b083b633fa791a7b837e36036"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dmin-more.json",
+   "function": "DMIN",
+   "sha256": "edd947af47d83f28becacbc58a14c6d49b9358b627a06205bb75e447b8991293"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dmin-scalar.json",
+   "function": "DMIN",
+   "sha256": "00d617817a5d1c6c3db7eeb9fc1d54569e9c8c68eba8cc9efdda636ac60db841"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dmin-special.json",
+   "function": "DMIN",
+   "sha256": "638b424ab7012113d985065ff532def81f630f8dae5449a4b12e7aad96edde9b"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dproduct-enrich.json",
+   "function": "DPRODUCT",
+   "sha256": "3bb14892acff149f548291b4e54adda21f283879bef9ec012503afa8d83c4398"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dproduct-more.json",
+   "function": "DPRODUCT",
+   "sha256": "c545e2f1a6b1b9fec01afc70e4f25f23d7fb8951fe17e994a335123f7deb8193"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dproduct-scalar.json",
+   "function": "DPRODUCT",
+   "sha256": "71911370431fe81c78ed6da99da103603498f26fae85aa9083710f3435ff9b59"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dproduct-special.json",
+   "function": "DPRODUCT",
+   "sha256": "608331876759c7383e79e429a99270ac0803ff674ddfb895616c8e8a3077e946"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-drop-spill.json",
+   "function": "DROP",
+   "sha256": "60b460df9f988968fe7f459692937abe54ba5943fe7646b9eed246846db31124"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-drop-spillmore.json",
+   "function": "DROP",
+   "sha256": "c58d8b87fa2c95391b03cbecfb8ad95736016cbd98e83b0ba88d8fd1ba056ec5"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dstdev-enrich.json",
+   "function": "DSTDEV",
+   "sha256": "9a62c1efc227fca296038b2296c1d22830e77b1f0dda402abd48760ab4b734ff"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dstdev-more.json",
+   "function": "DSTDEV",
+   "sha256": "bc792cf8f53db10faa49678949e248d05d1f1faaff4d06a20e5e4f35c46cb433"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dstdev-scalar.json",
+   "function": "DSTDEV",
+   "sha256": "09d73b4e8473e823c875a6c0d0dca69494e5a6fb9f2923ebe3b1b566c2bed43b"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dstdev-special.json",
+   "function": "DSTDEV",
+   "sha256": "44b341e6c280d65ce3b7c99f73a7c594cfdc2ef3bdbfc8224fad58aace1dca93"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dstdevp-enrich.json",
+   "function": "DSTDEVP",
+   "sha256": "aaf928c50eec860b22e7e83924fe03ca9e3ffbb3605c69ab0e525d2580a5337f"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dstdevp-more.json",
+   "function": "DSTDEVP",
+   "sha256": "a48b09a46f709dbb2612ca2aab9af85a63157bcd67c195f7e7eeb9a65fbe4d97"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dstdevp-scalar.json",
+   "function": "DSTDEVP",
+   "sha256": "6f88fe34ce6019cc4dc31d9b3c297a06f77d8c821cf633fbda0e64a921d5a2f9"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dstdevp-special.json",
+   "function": "DSTDEVP",
+   "sha256": "b4dbe4fcdaf3895e93b9710ee8cd95cccc379cb0713688d996d6a85c5503829f"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dsum-enrich.json",
+   "function": "DSUM",
+   "sha256": "f8fc64cd782fbd3d4990ed063f2e2c491dbc6c14b311aeffe0aacdc79a54cda3"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dsum-more.json",
+   "function": "DSUM",
+   "sha256": "b567139c2673d3c4ac3f990edf5190a8c476e63e7958e20f238f96da9754a1f4"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dsum-scalar.json",
+   "function": "DSUM",
+   "sha256": "d47bdb6a90e3439a79caaa6c0ac2d58ed619ef74adcc4da0f63f2a72f9235ba6"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dsum-special.json",
+   "function": "DSUM",
+   "sha256": "6817c1c168f5b061162523c542e4718b9fed6a3f83dd22e41f98d91b57ed6789"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dvar-enrich.json",
+   "function": "DVAR",
+   "sha256": "d03044de892ba734cc0f37fb042ff28329ca5bcfa331bf2094c3e6e11de54eab"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dvar-more.json",
+   "function": "DVAR",
+   "sha256": "cb7e58d5ee3acb644994e47d5c8457807683820e06eb0fb21b117355f3f6eac0"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dvar-scalar.json",
+   "function": "DVAR",
+   "sha256": "665cb6a39be1fdc8c41b0004b9fa29d89bb0772102e8648fcfbda5455d1900b9"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dvar-special.json",
+   "function": "DVAR",
+   "sha256": "e45ac5b8dd4028d689aac0fb0852163704e6f60c88555d1802bb1f86bb2c83d8"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dvarp-enrich.json",
+   "function": "DVARP",
+   "sha256": "675df9f6bc79b453809ee133063f61fdb0f2707aee72d0b0fa7417ac0444850f"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dvarp-more.json",
+   "function": "DVARP",
+   "sha256": "14a5151734d489f14b5b252d277ae0658cd7c6ac4dc07dfbbf41a627ab384412"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dvarp-scalar.json",
+   "function": "DVARP",
+   "sha256": "e73d517858a602cf88b1697f85ee4d44e02dc35d867fb3f77f05904e049595e2"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-dvarp-special.json",
+   "function": "DVARP",
+   "sha256": "7fb14a8bdef3463e25b9f8898bde20bd73602ac68b619be6c9faef49e45c3f3c"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-encodeurl-enrich.json",
+   "function": "ENCODEURL",
+   "sha256": "1f465c2739f8ca6beafe21265274731ebc84df18c8e528e11b384a020c295777"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-encodeurl-more.json",
+   "function": "ENCODEURL",
+   "sha256": "6e810fdcd0f77b2b8007818dcb12cbda02fef96432e62fb34d4dcf79b4472fa3"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-encodeurl-scalar.json",
+   "function": "ENCODEURL",
+   "sha256": "4ddb99abdc10514a18bf50a2ac43e76e78aa1414cdc4512f473541ea35e0ee17"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-encodeurl-special.json",
+   "function": "ENCODEURL",
+   "sha256": "7ace832332fcb8e506ef3753507c10fd0ccdf91c90a53cbbc0a4322212eb88dc"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-expand-spill.json",
+   "function": "EXPAND",
+   "sha256": "63ebfbca1c4ce52e502d39ce9511f9df7a411eb31100bc839cfca6b41d043943"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-expand-spillmore.json",
+   "function": "EXPAND",
+   "sha256": "b8a03fe1ec5bc20f58158c0f42cf076da54e8cf8de25512e70b8dd9ab2fea523"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-f.inv-enrich.json",
+   "function": "F.INV",
+   "sha256": "8911816d371a2cabd89f0ea6adce4fed4cded5ac5e770fb1f74170f0da587260"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-f.inv-more.json",
+   "function": "F.INV",
+   "sha256": "3dee6e8ac4bb0d79583b748326309ff69648d4a29416c43eb72479da150566a3"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-f.inv-scalar.json",
+   "function": "F.INV",
+   "sha256": "abe626c1589e20544533ae8a66746584196cec2bff73d75d6a69c2ce77ade377"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-f.inv-special.json",
+   "function": "F.INV",
+   "sha256": "add9e015854825c61bb111f6fb630ed06171e81098f81cb294033ef62428a4e5"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-f.inv.rt-enrich.json",
+   "function": "F.INV.RT",
+   "sha256": "0f108f641b251ff52a60780bdeb9ce24f5ad654141ac5a134851c6f1d33ed2f1"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-f.inv.rt-more.json",
+   "function": "F.INV.RT",
+   "sha256": "cf8dcbc48d77b1e123bb98991c2909666a4c47c40384de47f19eea77112a09e1"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-f.inv.rt-scalar.json",
+   "function": "F.INV.RT",
+   "sha256": "325ea31821037c93c596b17cb003b5e899be67f9258cbbf82bbf5340ff628f2d"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-f.inv.rt-special.json",
+   "function": "F.INV.RT",
+   "sha256": "7bb09924b88be9613e8e9b2b4fb393cd7dfc048832e8cf8d0313e6b11a903af8"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-false-enrich.json",
+   "function": "FALSE",
+   "sha256": "013f551a3431ba44aa1a225847bb4a3b4a2c2381d0f278215f01209655b2afa3"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-false-more.json",
+   "function": "FALSE",
+   "sha256": "3c99e751cb717a714c2e5b43fa0fc62b755751dd73217a64cc91083000c44bee"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-false-scalar.json",
+   "function": "FALSE",
+   "sha256": "a7b7110277621e3e1d24949f91dc4a552cc2daa6ba23102d6c9d737e5d1e40e2"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-false-special.json",
+   "function": "FALSE",
+   "sha256": "dbf6ae30a144d97d3ce5f46843fdcb30f3419c97946bc0d58769312cfd08a5a1"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-fieldvalue-special.json",
+   "function": "FIELDVALUE",
+   "sha256": "694fdb26b896891e43f77d47141ccf7c245f617e1c62417a22b9d347f60df7aa"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-filter-spill.json",
+   "function": "FILTER",
+   "sha256": "95398bbb222409b4d485814573f36c16d916540c098ed3ad37d4fae459542266"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-filter-spillmore.json",
+   "function": "FILTER",
+   "sha256": "4cff413b547a637b395da6054a3936b23a97068108daefe3fe13306b1aff8f95"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-filterxml-enrich.json",
+   "function": "FILTERXML",
+   "sha256": "dddf4dc097aca6e5b1cf0f5526df037e44ac175f4cd97f04563a5563cd59cf81"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-filterxml-more.json",
+   "function": "FILTERXML",
+   "sha256": "b01d48561fe52e23dac82399e98b08e17000c9e27ee3b6bbfae6e2bbfb5acffa"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-filterxml-scalar.json",
+   "function": "FILTERXML",
+   "sha256": "9bb2338af2ea03aa729f1b79cad65d9d9064ec1e66bbccb13fce4b39f9b36aee"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-filterxml-special.json",
+   "function": "FILTERXML",
+   "sha256": "3f4c7582bbda9d7d8ade7a6268a3fc2c378f1df9b20acb9dce31b6d1f0b983d6"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-finv-enrich.json",
+   "function": "FINV",
+   "sha256": "d0b86dd2bf780cc0744c87960227d916a1d7d9d545b470fe65cad0c93fde6eb9"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-finv-more.json",
+   "function": "FINV",
+   "sha256": "c323fc8dbeba8dd1cd1dc973061809c08d4c4e5327ac9eb928b7b266489dc8e1"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-finv-scalar.json",
+   "function": "FINV",
+   "sha256": "08e1e65f2533eef5f62c474abaf379bcbd1fd57aacc8cd1a57522ad58811828e"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-finv-special.json",
+   "function": "FINV",
+   "sha256": "b1ccbc7aeafda729bd46abfce2cc0ac770ac5be67477762dd53a9e7217683673"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-flatten-spill.json",
+   "function": "FLATTEN",
+   "sha256": "4551981301b8f7b5ca46adb6431dd900b9b047026b1bd7d69ff845f350b7b16b"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-flatten-spillmore.json",
+   "function": "FLATTEN",
+   "sha256": "eddc8c34e9a10e0fb5332cd26f697f2df2081cbbbd6b399ae72809c334efb3cb"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-forecast.ets.confint-enrich.json",
+   "function": "FORECAST.ETS.CONFINT",
+   "sha256": "ad7b348e9ceadc5c35fa689063537debc109f7852b35a3c9ee49e1e0d63fceba"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-forecast.ets.confint-more.json",
+   "function": "FORECAST.ETS.CONFINT",
+   "sha256": "a5f38e7be652abde2f8bd9dd139c9478a77ff329684e22007da182f253931483"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-forecast.ets.confint-scalar.json",
+   "function": "FORECAST.ETS.CONFINT",
+   "sha256": "cb7128da372b7ed0ff725887d4ec6fafd96989796b766ee17d991759c62fcf09"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-forecast.ets.confint-special.json",
+   "function": "FORECAST.ETS.CONFINT",
+   "sha256": "af2dbaf04858a4d0592b0ce7d4ecdecda5a93ebcd6d9e667375f719c2e091dbf"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-formulatext-enrich.json",
+   "function": "FORMULATEXT",
+   "sha256": "79e08ffedc391c170b224079290be9b45a33ad0fef58ec1319cdf2374b8b656d"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-formulatext-more.json",
+   "function": "FORMULATEXT",
+   "sha256": "3289ce7c4b5c9d142bc838e85057b9c794fa2f2c1f54a8499c8f5cddc27498a8"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-formulatext-scalar.json",
+   "function": "FORMULATEXT",
+   "sha256": "f991470fa33dd453c8ee99cc2a13bb2615aab656fe95704561b8abae7c3fd166"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-formulatext-special.json",
+   "function": "FORMULATEXT",
+   "sha256": "612b57d6d309a16d8ffa1a21c170948731f6f07b7243dd8411b9f739fa1ed82e"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-fv-enrich.json",
+   "function": "FV",
+   "sha256": "45dc35645286e2ce7a57e827a600d137890acfdde7ea2de2057cc9448d58cea9"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-fv-more.json",
+   "function": "FV",
+   "sha256": "1fc0580f4af76c985a2c4b9c2636bd9d3d2577398477c1850e00e6aa86838630"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-fv-scalar.json",
+   "function": "FV",
+   "sha256": "b510ad79049cdad1e1bc90afa0faea5f2a0d122a7cb758c07322214d44b4c3bd"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-fv-special.json",
+   "function": "FV",
+   "sha256": "7213852f04dd7ac7ad70246365cf3899b79736df5bc64937d2b8749f0d39a371"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-gamma.inv-enrich.json",
+   "function": "GAMMA.INV",
+   "sha256": "498ec264ff89b5c9442b6763ee93af1bae16f7af40b5c84f10c25758b997e908"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-gamma.inv-more.json",
+   "function": "GAMMA.INV",
+   "sha256": "b443f58d8e1f45f9f32899131eeada0e751212595b509b183050906ea57f4e14"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-gamma.inv-scalar.json",
+   "function": "GAMMA.INV",
+   "sha256": "b94c8a5f925e66312ddc04659e8c8289d35cff91ef9a8e59a3c1da7fc56ffb74"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-gamma.inv-special.json",
+   "function": "GAMMA.INV",
+   "sha256": "36577bdb7e4b7015e14cf49b559f3afafbdad6c5221eb0a3e5f23df47a11d005"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-gammainv-enrich.json",
+   "function": "GAMMAINV",
+   "sha256": "67695e5fc6dfce6d43f019e74c9ed2e4bc8e10f971f0ad09921f9769af9a33bb"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-gammainv-more.json",
+   "function": "GAMMAINV",
+   "sha256": "242d386c721d301fd8d2c78179882b01ce88a0d25b4ec404801d89cd77016d93"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-gammainv-scalar.json",
+   "function": "GAMMAINV",
+   "sha256": "9fc3bbbcf6db303a33224ac006e2da992efcea70a013556a4e05c96abeac3363"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-gammainv-special.json",
+   "function": "GAMMAINV",
+   "sha256": "c6d723d72cbf3e3fc688a5835a2986c1eafc5860efb86acdbcdfb4067812867e"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-has-more.json",
+   "function": "HAS",
+   "sha256": "ae7ea57ea190715a642bfcf97dd49a4edd2455468e98ecc35cde2b9e6b4b1eb4"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-has-scalar.json",
+   "function": "HAS",
+   "sha256": "1c705ce9ed864aa45bfb14c81aee914068a568d93bf35eaf0d025d0712241b91"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-has-special.json",
+   "function": "HAS",
+   "sha256": "4c60659daa99a2545ceda848110814627f46fac2db6fd1172e59452ab28d3c36"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-hasall-enrich.json",
+   "function": "HASALL",
+   "sha256": "8e01b4e03f502bd2bdc33b140ae2e9955fbaf87f11e0e02dc373c0fb0923115f"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-hasall-more.json",
+   "function": "HASALL",
+   "sha256": "44c51043f0ae6a5170075d9e5547df4516424804d947f59b47ccd54beac57788"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-hasall-scalar.json",
+   "function": "HASALL",
+   "sha256": "23711e8989b2e036649322e2edbeb1f394b95f38bf67e6d91cc3e9d686820c81"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-hasall-special.json",
+   "function": "HASALL",
+   "sha256": "46d538fb193a37da265465c77b1a169c74017dfec2279dc67a6018bc61de30ac"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-hasany-more.json",
+   "function": "HASANY",
+   "sha256": "77ceda2c6537f8211cbd17bc61e0e3c0f545b07239fb48639085bfee1e350133"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-hasany-scalar.json",
+   "function": "HASANY",
+   "sha256": "1bcb996d46010a78d7bbd3ec9c2894b9484df074c9993cfe905a7f9a7d92acf3"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-hasany-special.json",
+   "function": "HASANY",
+   "sha256": "e8865f850a84d3e7fae4be5ba60410e431757152e586a4ede0854f9810fd4945"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-hlookup-enrich.json",
+   "function": "HLOOKUP",
+   "sha256": "84c2fb60969edd62dc98707d15c30c1e7de05f32791bd81cce1fe4079c7b0cc0"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-hlookup-more.json",
+   "function": "HLOOKUP",
+   "sha256": "63f36cf91fa6e5ba26432f7158db1602b7b67a36a716cd6bd13eb35bc4c8ca3c"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-hlookup-scalar.json",
+   "function": "HLOOKUP",
+   "sha256": "dc39d76dcf536bec1e03c8886f3adc0a7d00f5593bff873a4106d95e50c79e04"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-hlookup-special.json",
+   "function": "HLOOKUP",
+   "sha256": "22ff3ae803b3b2d9ba449becd5d3d0f212b3103d5d0ea5bb1d04c51ea9cb359a"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-hstack-spill.json",
+   "function": "HSTACK",
+   "sha256": "cff2a1a205dd4ab4c15385a97eca0c008d8579dec7f1452950a1c1955eb3bb18"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-hstack-spillmore.json",
+   "function": "HSTACK",
+   "sha256": "63e0f3732da70a598b925e20e19b1a1e942f23432842135f704947156fdc2877"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-hyperlink-enrich.json",
+   "function": "HYPERLINK",
+   "sha256": "180c8e8189ed90ce6cfcac05b22296d76255c00497254d4916aef9eb43e56086"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-hyperlink-more.json",
+   "function": "HYPERLINK",
+   "sha256": "c3dc94d84700ef5976c2f7789a5ed564b7d3cb9a0327a48f0a8209b78cbbbfde"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-hyperlink-scalar.json",
+   "function": "HYPERLINK",
+   "sha256": "c4cbf2515e6cd57601f129205cb4d0233b005103cc39ebf1f3b61df877dfd3d9"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-hyperlink-special.json",
+   "function": "HYPERLINK",
+   "sha256": "98754cb80c03b084c92cd58a5660698bf7a7aac65a730343b52b2d0e52fc7b10"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-if-enrich.json",
+   "function": "IF",
+   "sha256": "a78bb980c26b7425d2658d262a6e815e66af08fb1a8a1ed2cff546fa8ed3e66c"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-if-more.json",
+   "function": "IF",
+   "sha256": "b0287d07736796fe9dbe8b854db8b408aeebdc54b7af2657e7d4c1f342658907"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-if-scalar.json",
+   "function": "IF",
+   "sha256": "29e81201036d35068c7f384c17d98fc6ae2cb911aa641c8a30a2c6d1ee2c30f7"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-if-special.json",
+   "function": "IF",
+   "sha256": "dda6c5c524eab16abc78495710d728011ce130551c0e46bf90c9ce98d2f94ecf"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-iferror-enrich.json",
+   "function": "IFERROR",
+   "sha256": "79f5812f65a318ee4982db1e20f2998798e516bfe89adec6879e67cc72ff784c"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-iferror-more.json",
+   "function": "IFERROR",
+   "sha256": "1b33046276c76848702560294ba95feea9ea0f18a2618ad42a9a7f7620a046fb"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-iferror-scalar.json",
+   "function": "IFERROR",
+   "sha256": "821c271d7d465d043d24a4a9135c4c513a74824142c96be537abc738d41096aa"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-iferror-special.json",
+   "function": "IFERROR",
+   "sha256": "b53e82e8136279ff5c3c75276bb94214a9a18407e01486fdde8f5acc2b28c3f2"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-ifna-enrich.json",
+   "function": "IFNA",
+   "sha256": "caaeb7b0f6531a754325a783940593c7cd9316c4fddc58289749530166dbef80"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-ifna-more.json",
+   "function": "IFNA",
+   "sha256": "37ca82593757473e0a55ff4233a2fb58b275dd06412985bde9b273fdd9c56923"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-ifna-scalar.json",
+   "function": "IFNA",
+   "sha256": "12bf569f0e78cc73c44b6626b6e7034cfc2c54474fe0bb44d3286cce71007741"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-ifna-special.json",
+   "function": "IFNA",
+   "sha256": "4e06e48cf91f36286f4627e16c000500500a08192987bee1894fb5c1b29c333a"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-importcsv-enrich.json",
+   "function": "IMPORTCSV",
+   "sha256": "27d7dde151d01fdfa4e1dba72ac735fe719a873d172411498e9747f017b2ec00"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-importcsv-more.json",
+   "function": "IMPORTCSV",
+   "sha256": "36a12cceb30e8a1d7c6a54765aaeaae059a806d2046d2a35db6acfd2b4195da5"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-importcsv-scalar.json",
+   "function": "IMPORTCSV",
+   "sha256": "c9a5eb2a727403734a13c4ebcebd782d9ab919f2b2378937b6cbbd275ae1c62b"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-importcsv-special.json",
+   "function": "IMPORTCSV",
+   "sha256": "cdebeb217fff1a1e311fa3293bcced7bf330c1c5791a931e342664bd64e176ed"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-importtext-enrich.json",
+   "function": "IMPORTTEXT",
+   "sha256": "b8be4444c9f1aa8dd1bad0de44ef398756a48a11541b19bcba82520e18901647"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-importtext-more.json",
+   "function": "IMPORTTEXT",
+   "sha256": "9fd675eebecf57b23dd6dc24947241faa65a0450168fb9aaf4dbcc88dcf36328"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-importtext-scalar.json",
+   "function": "IMPORTTEXT",
+   "sha256": "50d27a2079815c7018e1c6e152672136fde21ea82bd95839224d3bb08784f0ed"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-importtext-special.json",
+   "function": "IMPORTTEXT",
+   "sha256": "c094d1e7bec61e8f167c9e1167b3ab2959e87cfe8fcbe3306057c3d17ef2a145"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-index-scalar.json",
+   "function": "INDEX",
+   "sha256": "b72e064ee00dc8522794d539776b039995a86ab3d1b7dd00ad06bba526be1fc2"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-index-special.json",
+   "function": "INDEX",
+   "sha256": "29aed42b09bf25965ce46a8e2679ae0d58c83e5cd866bfb071fa273a7286d742"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-indirect-enrich.json",
+   "function": "INDIRECT",
+   "sha256": "682946e01f77d9c0d6bdfc75f2b8228543a7f37b9a66275904c95c8abd10a454"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-indirect-more.json",
+   "function": "INDIRECT",
+   "sha256": "781478b084e336073dce0060d6bfe09f68b5a6569c476d5de3cb8e420857bf42"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-indirect-scalar.json",
+   "function": "INDIRECT",
+   "sha256": "f53f279a3ba1b87f28f64548c7dc85c67c315176b28ae49f17b83b1d0d538dd0"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-indirect-special.json",
+   "function": "INDIRECT",
+   "sha256": "a9212817d095b7ae94f2328fae893e9cc3c62a06b2e1dd824d58fec5caefcc3f"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-info-enrich.json",
+   "function": "INFO",
+   "sha256": "528038013fe1f6361b8dfd71bb689724512aee7092967a0a125cc1fb355a1edd"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-info-more.json",
+   "function": "INFO",
+   "sha256": "af036b26eadf4a3088be7678da2e3caaef97c19ed6c7d2e6c09fedce32c53ba2"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-info-scalar.json",
+   "function": "INFO",
+   "sha256": "f1644867dfa9335a07894e0e6310fa29bc024e1f0bcde9946fa9f53fcf530283"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-info-special.json",
+   "function": "INFO",
+   "sha256": "6cbe3de6d875d705887eadf9c8288f64ca4afb10736c94ded320b4bc42aa03f5"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-ipmt-enrich.json",
+   "function": "IPMT",
+   "sha256": "6e00b5cf54da473e2ac9dfb0ae35315b30ee7c853cf08ba93c1b9d74fbb8384b"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-ipmt-more.json",
+   "function": "IPMT",
+   "sha256": "021a235a2a30def89884f1514bb69d3f31a74b9d7d837b32036271e2bdbd72c7"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-ipmt-scalar.json",
+   "function": "IPMT",
+   "sha256": "d4d72e1fc5fd2b29ae54094ed9ab0a97f8649229a24ae8cb54e5b4584ea40c1f"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-ipmt-special.json",
+   "function": "IPMT",
+   "sha256": "a43c2817424d982a1bd45cfe20d9dd7fc21cd5ffc339c8f317f3f5ec958b86d7"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-isformula-enrich.json",
+   "function": "ISFORMULA",
+   "sha256": "b7dee98c567137aa01c2bc3fdc28b71038fd2951815232edb3c95759120e29a8"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-isformula-more.json",
+   "function": "ISFORMULA",
+   "sha256": "d6fc0027894ce281a466421c4b4757c7052f74935cf466286fbf6c4717b435ff"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-isformula-scalar.json",
+   "function": "ISFORMULA",
+   "sha256": "dd3d07628d88c8e58c2c936c52f811191867bffcff83f4de917fd1b888b72fe4"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-isformula-special.json",
+   "function": "ISFORMULA",
+   "sha256": "438dc3253b3e2f9fc9274675eba2e7bd43edbfd5581a3bea911b229a63d1b270"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-ispmt-enrich.json",
+   "function": "ISPMT",
+   "sha256": "7ca722f1099776082d9e7bbd508f22fde6af4fb1f81045f7751c7edc52f3596f"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-ispmt-more.json",
+   "function": "ISPMT",
+   "sha256": "b5a1675dd9b558c91f6dd070885bd6d418796ec3b5113ec6a2902f132ecda632"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-ispmt-scalar.json",
+   "function": "ISPMT",
+   "sha256": "2ae68371c497d5dfcf5fe10d72be7cfafba92174e5cbed8e99f23417bd6c3a6f"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-ispmt-special.json",
+   "function": "ISPMT",
+   "sha256": "bc76817dba1e7a0882b1580a1e72ebe5cf3c26291dc2f095a17653de66515657"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-jis-enrich.json",
+   "function": "JIS",
+   "sha256": "a1fe049fa5fe1a10d84a7fe7ecddf73cc214d8bf7bd43876bb7d483257ef23fe"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-jis-more.json",
+   "function": "JIS",
+   "sha256": "a9e4bde2fa0ebf9869e0b131330b7be0411a205ac96dadd4d2caed2d98e39c07"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-jis-scalar.json",
+   "function": "JIS",
+   "sha256": "e003635c1fb08d1fc74df73b24812add97da5b24b9290121b0e0a3dafa75a910"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-jis-special.json",
+   "function": "JIS",
+   "sha256": "89292424ea146c2524fc75af64d1d63c01b518ff12c1f7d798ee9cf38940459a"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-lookup-enrich.json",
+   "function": "LOOKUP",
+   "sha256": "53821c96bbdb403468e5d4a8f8673fe25977c53b20e11fac8e84ad03d14a28c2"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-lookup-more.json",
+   "function": "LOOKUP",
+   "sha256": "5d558dac0686b2764e22dbe46080dde1de764ea94fb439241d7aa6f32ee84fe4"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-lookup-scalar.json",
+   "function": "LOOKUP",
+   "sha256": "03235296841d571f150b54b0771db4d99ed9fdbf71f10149cb367039e8a72b2f"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-lookup-special.json",
+   "function": "LOOKUP",
+   "sha256": "f7e8a0559d264a0859e92fc3868f8f52648e8c76a5098c44f957bd808a747ef8"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-match-enrich.json",
+   "function": "MATCH",
+   "sha256": "d0210057acf74cea08c8976f875daecc7de28fa6ef2f96f9e2cc92c7909f15a5"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-match-scalar.json",
+   "function": "MATCH",
+   "sha256": "415ed7198d7467d4f406d732c2475209e67fc64f00e8c1d57ecd239660cfe8be"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-match-special.json",
+   "function": "MATCH",
+   "sha256": "ce70d0290a6e924577b56a2e02214204c9e982263dcfdb75bf656c510a4d8148"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-na-more.json",
+   "function": "NA",
+   "sha256": "daeaabbe161cb8e950ad17d6003bd238ebd6843446141b4828a9c9bb56abf742"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-na-scalar.json",
+   "function": "NA",
+   "sha256": "b0afb6ac9c9343c87536659f5f3e7e7f37684f491812a944ed207274c5941044"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-na-special.json",
+   "function": "NA",
+   "sha256": "d37eb2d3569a6a8615fdb5184d29ab9be0ae837d26d5f1d463fd00ae466c0be5"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-offset-enrich.json",
+   "function": "OFFSET",
+   "sha256": "5e2e1c5e6ce9519db4c9cdf220ae2168af9a3e0bb4920b865d00f3c4fead0f9a"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-offset-more.json",
+   "function": "OFFSET",
+   "sha256": "885529b7af7639ef6b04165b0ed8db4b070471f60da5e31060796b0999454905"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-offset-scalar.json",
+   "function": "OFFSET",
+   "sha256": "b3a777250af61ee644fa3f425f3f3a49efc41961d99a9c71f4de697c0010326d"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-offset-special.json",
+   "function": "OFFSET",
+   "sha256": "6376eb22a4d516c61ad04bf8894f25ef5cdc14334fd6d86e35c8ff3cdf37ceaf"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-percentof-enrich.json",
+   "function": "PERCENTOF",
+   "sha256": "d4834c4b3bdbd19e79e357bd9e3adbd48e34d874c069adacd905cae7f4107098"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-percentof-more.json",
+   "function": "PERCENTOF",
+   "sha256": "a8a77abfcee9523f52373e31dbb1b62d828eb5c9ac6bd5ba7dd3a0a242222610"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-percentof-scalar.json",
+   "function": "PERCENTOF",
+   "sha256": "ee7c5052c20ca57a5252a5d1e96dbdebeec1ad454c984b9454484b16b52c150e"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-percentof-special.json",
+   "function": "PERCENTOF",
+   "sha256": "03c9397b9b67bfa6188ef0380d2dbb0ad978c6907e0a92f528a30a016b044699"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-phonetic-enrich.json",
+   "function": "PHONETIC",
+   "sha256": "5cc97485b60b079d79eff106fcd4a6eb6a53a23e7be9a76f0e4fe81ae8610af0"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-phonetic-more.json",
+   "function": "PHONETIC",
+   "sha256": "95dfbe988222e6f9376d768887f793b4044c4a7e936d348c42be67a6fdb77ceb"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-phonetic-scalar.json",
+   "function": "PHONETIC",
+   "sha256": "213226cd92b3095fc9110c2c3d2b78082084dba47da2adb7ba26de3066f7cd7f"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-phonetic-special.json",
+   "function": "PHONETIC",
+   "sha256": "9f8cc388c64a2ae6175055744bbf121dff3a0b8b579bd2269e35d70ae6836b91"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-pi-enrich.json",
+   "function": "PI",
+   "sha256": "ea802bc22685dd2151cf94eaf0356489daa18fa333022801e2f35851463589c0"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-pi-more.json",
+   "function": "PI",
+   "sha256": "d0ec84345435a9adade1a9587e9b554cae08d85409de9e870ac3dcf1228c958b"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-pi-scalar.json",
+   "function": "PI",
+   "sha256": "9c6d648b4615be25ef6630fbe37debf7c46975bfe40b2a5ecc2a5ca0e0f816ad"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-pi-special.json",
+   "function": "PI",
+   "sha256": "64ee1a19856cd1de5b6dc7882f735ad76c4fd1a6a0114a9761cf09f77b2e2c7c"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-ppmt-enrich.json",
+   "function": "PPMT",
+   "sha256": "be8dc9d4acbffa0bcaa87f9776334cdcf1dd1c7c64f8cb9d3544a95fcb0e694a"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-ppmt-more.json",
+   "function": "PPMT",
+   "sha256": "cac8e2444836de4cc697aa2d471ce1e325e74fe74fa1a4e057819f16b8f57a21"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-ppmt-scalar.json",
+   "function": "PPMT",
+   "sha256": "b1d17edd16ddc356f3c4a7e54f3e0c1628a7b0bd139f0cb03cbe5462597c7e86"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-ppmt-special.json",
+   "function": "PPMT",
+   "sha256": "a9baa2ccd2c74e956bb28ce63142999426783c5efee408ff283dfb378935889f"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-rate-enrich.json",
+   "function": "RATE",
+   "sha256": "fda6d3de74668c2f2a3c36893cbb0d66c2517b3839aa042897d013a1f3e13c88"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-rate-more.json",
+   "function": "RATE",
+   "sha256": "294d60335f53459cd82f2ad3ab2401efee3ad9ba9bce1d73a8b2dd75a40a33f8"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-rate-scalar.json",
+   "function": "RATE",
+   "sha256": "c3f4e7be5291fdbe1b9e84a43d55d5d03eb9e2dff733125d2c0318d47fabe583"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-rate-special.json",
+   "function": "RATE",
+   "sha256": "0d2af304245f2ab8a957624a80a3feb83dc6ce99032cb4ddaf11cb05138618f0"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-regexextract-spill.json",
+   "function": "REGEXEXTRACT",
+   "sha256": "82ac42be2b04787aaa7afb0022be95679afdb480cf69a373264b8eabe9599978"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-regexextract-spillmore.json",
+   "function": "REGEXEXTRACT",
+   "sha256": "545a34db47acaaeb2f04e5de240bdaddcebf6074a0c3ed5b28526def57300590"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-regexreplace-enrich.json",
+   "function": "REGEXREPLACE",
+   "sha256": "c258b90459f68be5d2e34a6c3a306d66c61e41ec27a5cef6a804a1ca4f5f158c"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-regexreplace-more.json",
+   "function": "REGEXREPLACE",
+   "sha256": "49a7b2792980d3346d169d30737cddf6251d7c0a9d0c8562618f33a49c6c9f91"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-regexreplace-scalar.json",
+   "function": "REGEXREPLACE",
+   "sha256": "536a0bd6b0a14c7e4a69c9da23b5c9a612d80b766e0591f03bd70ad69bc710d1"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-regexreplace-special.json",
+   "function": "REGEXREPLACE",
+   "sha256": "3ceda6b44f1735ef8ccc1455a7762ff09de54f306e14442eebc7cc63f9b4247c"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-regextest-enrich.json",
+   "function": "REGEXTEST",
+   "sha256": "7d36f312fce3db8a799a034457655e2a7904402ab19101a80e122c60416347c0"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-regextest-more.json",
+   "function": "REGEXTEST",
+   "sha256": "7d911aae49667ecef6c169753f90c50d797710d3a09dc4e17889a1580c423129"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-regextest-scalar.json",
+   "function": "REGEXTEST",
+   "sha256": "434618f12b73eca96216c653a6a6068a4823f8987ad70accc0357fcbc924e391"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-regextest-special.json",
+   "function": "REGEXTEST",
+   "sha256": "730a025a7e71514893b076ee7ba9e5c3a98901e73141370a8e605e5ea5a2f478"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-row-enrich.json",
+   "function": "ROW",
+   "sha256": "e440564bcedf52a2db6c35cc340a0c519ae49eae1caed4ce32b00e31816087f6"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-row-more.json",
+   "function": "ROW",
+   "sha256": "1c2e6b5c779e17dc7d7e4fc9836bbd6fc2dc61aa731663b713880ce493de65f0"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-row-scalar.json",
+   "function": "ROW",
+   "sha256": "5c368697299c6a05cc324e5eeb93dccd4473caf13ade2d2d609fb5312473c6a5"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-row-special.json",
+   "function": "ROW",
+   "sha256": "95cb15c0667f1c859bbd8160a72734e29858f86f69c0e9c3cf2db215e05c4eba"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-rows-enrich.json",
+   "function": "ROWS",
+   "sha256": "206172da79078d1c30e27d2ad457ed98357ddee547967ace1bc46caa052dd3b1"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-rows-more.json",
+   "function": "ROWS",
+   "sha256": "b3a4ee374570a5f39c2511cc5b72ac2fcae0874372418f2514e2516c477883df"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-rows-scalar.json",
+   "function": "ROWS",
+   "sha256": "7ae58c89c3c0a8d59f3c91f3b6faa2105e320f86d0b3e978edb48529d9659f7c"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-rows-special.json",
+   "function": "ROWS",
+   "sha256": "136b456ee399b6eaf0f6ca15245535e765b7890ddacb15bd482e9d83e9db7809"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-rtd-scalar.json",
+   "function": "RTD",
+   "sha256": "ef66fdb43724a5e265bc6c7de8a698e6ae9c35f3eeca78b97898d4664cb739b9"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-rtd-special.json",
+   "function": "RTD",
+   "sha256": "df5e1739b97f9dc7f409393c65bbb28ce70088587df72847be0a9f81677bd1e4"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-sheet-enrich.json",
+   "function": "SHEET",
+   "sha256": "bb8c6b5092d3b7304b8a273ec266aeaf038c15747c3f627141ddec4dc4be2b99"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-sheet-more.json",
+   "function": "SHEET",
+   "sha256": "5f1719eda04b999f0d4b92f1bc8acf798f4440fb4151ef903a48f6af2043d51d"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-sheet-scalar.json",
+   "function": "SHEET",
+   "sha256": "c680c655f0bfb321c9c107ab312481ef64f5672766ba4d19746778865b5dd0cf"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-sheet-special.json",
+   "function": "SHEET",
+   "sha256": "7b5d84315f2207ae232e9d0712a52997b0491312564b3899d713ad1de60fa035"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-sheets-enrich.json",
+   "function": "SHEETS",
+   "sha256": "7d56dbeabd03a6580c912717d4e1dbc2a66efba6cbaaec54d4c81b42dfc9b21e"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-sheets-more.json",
+   "function": "SHEETS",
+   "sha256": "3c30ffb80d2a7fe46a07d24f6f7ff40c90c8c9fb729abf1379992c99f5123a21"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-sheets-scalar.json",
+   "function": "SHEETS",
+   "sha256": "e5ec7a7f525c5bdb3ab62de365bd8e9969f507683ab6f95bfc29e073c759d443"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-sheets-special.json",
+   "function": "SHEETS",
+   "sha256": "b345ec078437fed0bc32d298641ffaf1837a6feea69fadad15339b14a2d9eb5d"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-sortby-spill.json",
+   "function": "SORTBY",
+   "sha256": "c777e7e842fef36e7df3c1634ce1c617a59e4b8457b979762683c0adfb7a7890"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-sortby-spillmore.json",
+   "function": "SORTBY",
+   "sha256": "4c8582bc5391a4f80ceefb64785d981ade1e08dcb158e30e67106f8c81f75c3b"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-subtotal-enrich.json",
+   "function": "SUBTOTAL",
+   "sha256": "24dcdb96b4331ea54118b91e3941b76509ba8fe5c87ee4833c80073d5af4e368"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-subtotal-more.json",
+   "function": "SUBTOTAL",
+   "sha256": "1b0266e2f2339e806bac79a5173a20b1a6dcc4df4c7a491e3792aa7f230181da"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-subtotal-scalar.json",
+   "function": "SUBTOTAL",
+   "sha256": "21607de578ef1e29ea9f99e7fe5bf4454e850a8611fc48b5cf8b46a21675b251"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-subtotal-special.json",
+   "function": "SUBTOTAL",
+   "sha256": "030c235a899811cd5508ccbaab00c5c94adaf4ea995a1ecf9656765416540a9c"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-sumif-enrich.json",
+   "function": "SUMIF",
+   "sha256": "2de0d7378cb3cf41275a58aee94372a7a0f54e8a111a4538020744b491d463fd"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-sumif-more.json",
+   "function": "SUMIF",
+   "sha256": "6c89798aa13e017153bd354b15332dc335e73040b128e6ca7f4605cdfb53fa75"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-sumif-scalar.json",
+   "function": "SUMIF",
+   "sha256": "86fe8fc1b75589e515fa18735cfee51d2889c30f6515bcfdc2ce4348850bdb69"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-sumif-special.json",
+   "function": "SUMIF",
+   "sha256": "7afb59a80be1cba723a01f6a489b1f603e9e2e0a455486baec52c0cc75ee9c56"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-t.dist-enrich.json",
+   "function": "T.DIST",
+   "sha256": "5bec1bb4334a94b6f7821eaf11bdfdcb16a8f63bf26cef193a6ddd743e2af0b6"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-t.dist-more.json",
+   "function": "T.DIST",
+   "sha256": "8fbab443d138918aa09eb61e8e31b3acf7bca8205d1b63682d14f71ba4add386"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-t.dist-scalar.json",
+   "function": "T.DIST",
+   "sha256": "b3df48ddcdcda9da506f8b94810c7b7047bb6199281677ac4ed9f111816df183"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-t.dist-special.json",
+   "function": "T.DIST",
+   "sha256": "62a39dda0f16b2b86a5c20f9b93819a7eb7279e8cd3b07a919cc8768597def34"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-t.dist.2t-enrich.json",
+   "function": "T.DIST.2T",
+   "sha256": "de9c09fbd6f3ee3381e520609fd883ac0f6520415e207e00ddf4b0af205d970e"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-t.dist.2t-more.json",
+   "function": "T.DIST.2T",
+   "sha256": "e72f90433a84e1425ab8a2093a269ffb7e5f03ba8a65daa21c6cc98a6c98a70d"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-t.dist.2t-scalar.json",
+   "function": "T.DIST.2T",
+   "sha256": "30e3ddbbcef15e6a681b1fa276b37570073756e11d9a359aba543b713b605f75"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-t.dist.2t-special.json",
+   "function": "T.DIST.2T",
+   "sha256": "a36203d76e665588fb7bb307d6253b99d18f7d066bdddfdfbe0640aff3880179"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-t.dist.rt-enrich.json",
+   "function": "T.DIST.RT",
+   "sha256": "5c6bed186ab6612b84d196543b21a291fb13e362e296dd822daf54ea33b64e54"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-t.dist.rt-more.json",
+   "function": "T.DIST.RT",
+   "sha256": "8979aa1c0788c72c87b9ff0eb75485faeaa7d8a58fe720dd1068a96727dc646d"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-t.dist.rt-scalar.json",
+   "function": "T.DIST.RT",
+   "sha256": "794f63164dd7cfceccd805a1eacb312b00975a585767759f4a14c6d7d4e6963e"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-t.dist.rt-special.json",
+   "function": "T.DIST.RT",
+   "sha256": "1131038bf6d5b22e9ac0ec0e39ffbee4321d9f15e24c883adaf0babad5f2d87f"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-t.inv-enrich.json",
+   "function": "T.INV",
+   "sha256": "4794c7758f81586f823fae067d76cb98daa182286effab260385b9bb41ad7dab"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-t.inv-more.json",
+   "function": "T.INV",
+   "sha256": "d0b3f8072acb1ee2444cff1ac1e38455d2444e44ddbcd4ebdc765a38adf65476"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-t.inv-scalar.json",
+   "function": "T.INV",
+   "sha256": "cf77d36f8ae197c850aad9f995503e0a3dcb8352b9ef878eee6ab4b0d78dce5b"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-t.inv-special.json",
+   "function": "T.INV",
+   "sha256": "95db15a6365b342a2de8b915d6f40f703a0548a98239b3288e189da0e0eff6fe"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-t.inv.2t-enrich.json",
+   "function": "T.INV.2T",
+   "sha256": "c2721da0fb8782d8efb0e1288bca428024df2835b86dc43f98af148a7d41f166"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-t.inv.2t-more.json",
+   "function": "T.INV.2T",
+   "sha256": "139c0b1d4824d1c691f51c3f37af08fa865ce95fa5530c11273fb5bfe2ac1c80"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-t.inv.2t-scalar.json",
+   "function": "T.INV.2T",
+   "sha256": "fbf7b8e2985f41c7416b1fce4f4f1072bb93ee4b4e4857ce0f3a8e50806747b5"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-t.inv.2t-special.json",
+   "function": "T.INV.2T",
+   "sha256": "f106c500fa333e1f913dfee9f2d9f469b7f0e3f37b13fedf2ddae9a52e9ef699"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-take-spill.json",
+   "function": "TAKE",
+   "sha256": "a2583322ede603ed95f0e17bc8604259cdb6faf5120854dd30a19feecd34d704"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-take-spillmore.json",
+   "function": "TAKE",
+   "sha256": "50a9ce1feedaa8c2e2615ef1143f08b273aaff2e3d00de891732204212ebccd9"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-tdist-enrich.json",
+   "function": "TDIST",
+   "sha256": "499bd9fb760acf2d22aeab53067baff3767c61fda0f8f9f305d735ce46a5a43b"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-tdist-more.json",
+   "function": "TDIST",
+   "sha256": "1b206d69aa25501e2361b11ff27dacbe7c0c3f00b62e649306edd8ca572c39d9"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-tdist-scalar.json",
+   "function": "TDIST",
+   "sha256": "81c995147302bf4fdde90f19568649d1718f2c42c93a79b2a37efb22c31f5b7d"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-tdist-special.json",
+   "function": "TDIST",
+   "sha256": "2ebbeb623bb494694f50cdfecfcd91dd6add60996eb403fa8f201395c90a46e7"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-textafter-enrich.json",
+   "function": "TEXTAFTER",
+   "sha256": "db321bc975a8f5c2622983537e743f9bf47793a4c0c6382ec37847b0bdab58db"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-textafter-more.json",
+   "function": "TEXTAFTER",
+   "sha256": "8c5857a927d1c828f0153ba29fad115b69dcc1aae7fcaf1ed6f9660e4c107ad7"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-textafter-scalar.json",
+   "function": "TEXTAFTER",
+   "sha256": "128c55ea6aea01a6d20d2577688650cc6ba6785171ad70fa32d858d16186890a"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-textafter-special.json",
+   "function": "TEXTAFTER",
+   "sha256": "868e26c29c811ad42acfdd10ac1c64db4ec5e12cd72554a875765f355a626eec"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-textbefore-enrich.json",
+   "function": "TEXTBEFORE",
+   "sha256": "9eb2c734fd54985e2505272c8c33c6e80673ad4174115cb7b657f6e2ee42849a"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-textbefore-more.json",
+   "function": "TEXTBEFORE",
+   "sha256": "7eb7b36f4abce643f3641ce7f3361af3d592123736d9f02f5039268a9b20b334"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-textbefore-scalar.json",
+   "function": "TEXTBEFORE",
+   "sha256": "50391acd0e9a1db24ed0a21543fdcf5ba29c78c12e614780e605ea32c92ce16d"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-textbefore-special.json",
+   "function": "TEXTBEFORE",
+   "sha256": "9c92041b2539018caca2f894991bb584fc836f387bb3b7849e53ef852c0d855e"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-tinv-enrich.json",
+   "function": "TINV",
+   "sha256": "4c362b786612098e34259a6634932c2a435cb179ce73329c5dfc9ce8e944cbf8"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-tinv-more.json",
+   "function": "TINV",
+   "sha256": "846ba9ea28b5e90af2f9e6900e9b391fdc42606e91f1426022f97a4c2e106b59"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-tinv-scalar.json",
+   "function": "TINV",
+   "sha256": "58b2091cd494808fc2f2d2a44371c828a245abf848677165209c138bb09dddd6"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-tinv-special.json",
+   "function": "TINV",
+   "sha256": "b77dba31d7b36a992a3f9a00a61d540934b3e76eb260b865241af7e9e80a6bf8"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-tocol-spill.json",
+   "function": "TOCOL",
+   "sha256": "e6819803161af09c4aa296dca14d9bd408898d5f1f66b2badb96d400f5143687"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-tocol-spillmore.json",
+   "function": "TOCOL",
+   "sha256": "785f7223f5906c6056995f748b06251f3a21071a9e4bbff25133af9a744b98a9"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-torow-spill.json",
+   "function": "TOROW",
+   "sha256": "36d1baa3fb66f78793dfe3f036da960573fa38b12fdbdbd7b7ae402a6a81d46c"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-torow-spillmore.json",
+   "function": "TOROW",
+   "sha256": "8673f36862e08c1ec52d73aed18d2b7b9622fa646455c8b3326b7f4abc176bac"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-trimrange-spill.json",
+   "function": "TRIMRANGE",
+   "sha256": "acd9ade446dabce127a9ba5975a739007e5c705b7254deea9434ac910e56f5e7"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-trimrange-spillmore.json",
+   "function": "TRIMRANGE",
+   "sha256": "892eab6aef44d79c8426200ceca8d3816e186256ffce0d3f686f80e94dc9c964"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-true-enrich.json",
+   "function": "TRUE",
+   "sha256": "540be9d699b67df83c9c6378d6153826c39444b01f6cedafc222c384f1234211"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-true-more.json",
+   "function": "TRUE",
+   "sha256": "76f8f2ffec977034927b688e0d4b9d2ee7bcce4efe68bb170b2808a9771861a7"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-true-scalar.json",
+   "function": "TRUE",
+   "sha256": "bac2ad61ac94030e103e5694ba74389390bac9c9e678c5502ad7edc3c3f5df5b"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-true-special.json",
+   "function": "TRUE",
+   "sha256": "dcc00a65305ef114fa13c9c710d76582859de7fbb916d5d0ea088a18e6fcc8f5"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-vlookup-enrich.json",
+   "function": "VLOOKUP",
+   "sha256": "aacfb4299e2f1dd3d0bbdf94c9ea373aecb05f8fa312796f066bc4bbd3ce3fd0"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-vlookup-more.json",
+   "function": "VLOOKUP",
+   "sha256": "5f254530eb7ed23132b0be1a98b302375dda8f0457c42d0c60b1be227d5f4149"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-vlookup-scalar.json",
+   "function": "VLOOKUP",
+   "sha256": "e31508e5bff868cba51bd0f1ea08572e2c836e02d23ed299ca9abdf537ad44a3"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-vlookup-special.json",
+   "function": "VLOOKUP",
+   "sha256": "96e04c0106da58f5ef6ce564c8467d66810ee129e8677951f21dd92306a8508f"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-vstack-spill.json",
+   "function": "VSTACK",
+   "sha256": "87c5371979666df827d47db7ad622bb502e7f33114bd82e8522a36d907623af5"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-vstack-spillmore.json",
+   "function": "VSTACK",
+   "sha256": "19be916a55c22ce0c5f27b08cc13175eb0e66a7e277af1cf50ec878018873daf"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-wrapcols-spill.json",
+   "function": "WRAPCOLS",
+   "sha256": "49dfc26428007198e86fafb24685a88dbe96ac82c4cfefe567d94e3c613bae50"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-wrapcols-spillmore.json",
+   "function": "WRAPCOLS",
+   "sha256": "69922a8851a23abca2db15f4eee92c2f80c95ebef9830faec17ed2056399b1b7"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-wraprows-spill.json",
+   "function": "WRAPROWS",
+   "sha256": "d41b790771abf98120d604f672761ee3719ad6b6451299d510b0d4cfa04c1e9d"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-wraprows-spillmore.json",
+   "function": "WRAPROWS",
+   "sha256": "c6e79bafb76375a6d446e7e0a7d06333d64619190024a90c1e177970b3bfedcd"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-xlookup-enrich.json",
+   "function": "XLOOKUP",
+   "sha256": "401567f45088c8180b8a54665fc7b66a91eedf949c6ea7a5c8fa25a6e3250458"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-xlookup-more.json",
+   "function": "XLOOKUP",
+   "sha256": "12c42e60a5eda3e9621f482fa42d280d082a8ec105cd0d860ab5f2675b3dabf9"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-xlookup-scalar.json",
+   "function": "XLOOKUP",
+   "sha256": "601cb2f2d870ca0f05914f43c433df99ef11b90f6afe1d59a0439163af1d7b3a"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-xlookup-special.json",
+   "function": "XLOOKUP",
+   "sha256": "a0d2765f0a11a771f575b18f56159635dff29ac5d46f9323edcfbc1e86b90a1c"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-xmatch-enrich.json",
+   "function": "XMATCH",
+   "sha256": "e1ecf80b8821a273e6ac88a251ec581db62bb3c748175d11e0f02a84b0a5bb81"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-xmatch-more.json",
+   "function": "XMATCH",
+   "sha256": "0a1c4350c9c8f26f26ee8fb842c425ee56baf0d94a314f3bec79ac2f67aa937f"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-xmatch-scalar.json",
+   "function": "XMATCH",
+   "sha256": "3d2e13b41d788629fe8787ab3ecbc4e97291693d310a5abf71a95a8710c8ff49"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-xmatch-special.json",
+   "function": "XMATCH",
+   "sha256": "f96bb7a4282601345816cdca6031953d195f668d0a0bba978cbb696a6d4d5f30"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-yielddisc-enrich.json",
+   "function": "YIELDDISC",
+   "sha256": "89afda6d61d6e5dfc48f3d635a52590cb102bf033f3ede6946fc9667991de5aa"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-yielddisc-more.json",
+   "function": "YIELDDISC",
+   "sha256": "e161851592629fef0a15a63ffdc317c1eb3008825a53efd3989bef9a0e9e4586"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-yielddisc-scalar.json",
+   "function": "YIELDDISC",
+   "sha256": "d08405819784bb93ac9d62ae1d0c43b383be5c2b7cf154cd80464f72301b2d31"
+  },
+  {
+   "path": "readings/excel-20527/admit2-answers-yielddisc-special.json",
+   "function": "YIELDDISC",
+   "sha256": "f5e2fd580ef8644b9478feeae09a826d0eb2bb55d5c248894298661038e7d9e7"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-aggregate-range-mixed.json",
+   "function": "AGGREGATE",
+   "sha256": "1edd524aed16d0a914772564a48161faf1857e71b7880ca2835a3b0ad631daff"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-arraytotext-range-mixed.json",
+   "function": "ARRAYTOTEXT",
+   "sha256": "41025952c79fad4bffa5ddf833d06265322213baa9d2faf4b6ee44319239c4b0"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-averageif-range-mixed.json",
+   "function": "AVERAGEIF",
+   "sha256": "94a7ffcc296c8a823371de2c68c779a8d25a7c34036e073704a33c92d4deb281"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-averageifs-range-mixed.json",
+   "function": "AVERAGEIFS",
+   "sha256": "d1917822366df550f9b2e92ff6e91d8423725636dcb5e7b331177afd81e537ba"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-choosecols-range-mixed.json",
+   "function": "CHOOSECOLS",
+   "sha256": "6313b4d313d4e45b1292a17ae88711b14a3a5efce34bb73eba616b899e51eabe"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-chooserows-range-mixed.json",
+   "function": "CHOOSEROWS",
+   "sha256": "c4f9775ce0bbdb7e03c732cc945f8ec900e95585fae3cb542ad5edd349a9a7c8"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-countif-range-mixed.json",
+   "function": "COUNTIF",
+   "sha256": "4680b28ab037a5971f55a74cf2b0ed57461b7a3da96377ad8dc421625bc8328f"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-countifs-range-mixed.json",
+   "function": "COUNTIFS",
+   "sha256": "c0da303531942fd0cff6dd183a016554cf30b7bb6ae0638f1d715fc4a21c1822"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-drop-range-mixed.json",
+   "function": "DROP",
+   "sha256": "2e6136bee8a49ddaf2f66e91a57ee7d83d6ffaf701315087dc3258ca0c1e3ed0"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-dstdev-range-mixed-supplement.json",
+   "function": "DSTDEV",
+   "sha256": "74904a1132a7d0a2786cf61767a059b25d8b93b0f7811aa6e1b77e8f9148b3d3"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-dstdevp-range-mixed.json",
+   "function": "DSTDEVP",
+   "sha256": "e37e244934ab4f5b3904b5235ac2414a625aa01c03b0cc5856fd6827d80e24eb"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-dsum-range-mixed.json",
+   "function": "DSUM",
+   "sha256": "2661831209d7298993b4dd5dcf3ffc7e2643166d8364f889a1d116c2a454f2e9"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-dvar-range-mixed.json",
+   "function": "DVAR",
+   "sha256": "ce7a377ec9472f9cf9513217d57318431c55024906941d5dcc8770476d6459f6"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-dvarp-range-mixed.json",
+   "function": "DVARP",
+   "sha256": "40df7017431939cf317552c2c02729cd799f8a06a3e728d2f370f58e1a641dfe"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-expand-range-mixed.json",
+   "function": "EXPAND",
+   "sha256": "57b7295cac4fa1c0310d1b8a8cdd6659bb5c2639ecc28d2677baaf7a595e9914"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-filter-range-mixed.json",
+   "function": "FILTER",
+   "sha256": "edaf8e21cf023d66591a007395e9b724e89d83b62db87d8850f07b0e57a97af1"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-hstack-range-mixed.json",
+   "function": "HSTACK",
+   "sha256": "ef53351c8685ca85191888c5069d7f0203e8061f3177c51fb9b825f8e516389b"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-index-range-mixed.json",
+   "function": "INDEX",
+   "sha256": "7f87fd6510fd8b52890688ce69ae170118d17fed2f9e7a59f78f14f7aee424e9"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-match-range-mixed.json",
+   "function": "MATCH",
+   "sha256": "b84e5dc0a1195b03366086658538e2e86ed950ab00a5c97d7e85accacf2b008c"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-maxifs-range-mixed.json",
+   "function": "MAXIFS",
+   "sha256": "31459d4ce9241b351980fc9b57a5470b214246c2c0245d19e9c7b701e562b2c6"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-minifs-range-mixed.json",
+   "function": "MINIFS",
+   "sha256": "f95c151a9a4a30347f73d426184a833b4b845c1137267c81267aca3be8077bfd"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-sortby-range-mixed.json",
+   "function": "SORTBY",
+   "sha256": "caaeb22a9dbbd555498a4f5fb49101fee4fa1911dccfa3269f78185a2b3f5179"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-subtotal-range-mixed.json",
+   "function": "SUBTOTAL",
+   "sha256": "1d07b169324786f5b7e797ee8f1bb0154658f95bdc360108b3ed8a1b88a27bdc"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-sumif-range-mixed.json",
+   "function": "SUMIF",
+   "sha256": "34d9c6b908ea0958f8374d1f664813463410937ad556add00833eb4c2d393e3f"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-sumifs-range-mixed.json",
+   "function": "SUMIFS",
+   "sha256": "b95d90507f1612e10166d507d912f9b97de5f37223c75b80edf56105c4f9cee7"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-take-range-mixed.json",
+   "function": "TAKE",
+   "sha256": "873d58de41f448e9fefb26898d2a10885d8a2cfb2d6634ac8e4c26ba959f261f"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-tocol-range-mixed.json",
+   "function": "TOCOL",
+   "sha256": "21ba21b8066a55236ebfd02b60da53ea1a7ec8e5edc023add8365409edbb2454"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-torow-range-mixed.json",
+   "function": "TOROW",
+   "sha256": "233a7381b0f5d57f997c9c9b7b5d7d9cac361653495d39ec7b0ef5ef8a35aaa4"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-trimrange-range-mixed.json",
+   "function": "TRIMRANGE",
+   "sha256": "ef51ec9620aceacbd210ae3e04d0d5202858d6fe71ac98b1f6442fa84b2a23e7"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-vlookup-range-mixed-supplement.json",
+   "function": "VLOOKUP",
+   "sha256": "e66d46b3c43511cbe1a06e022aed5854ad7a0914a9decb0b67db98b59fb593c5"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-vstack-range-mixed.json",
+   "function": "VSTACK",
+   "sha256": "09288354c871d719f62e8116ca10e5d704a941695c9baeb55ce76a2b827a063d"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-wrapcols-range-mixed.json",
+   "function": "WRAPCOLS",
+   "sha256": "7ea376fbb7ec288e7aefacaa1a88ace620618f4d0b7d70ed085fbbc3dd78c12e"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-wraprows-range-mixed.json",
+   "function": "WRAPROWS",
+   "sha256": "b551a3a233e351798c659ce20620dce83f73bfc52c26863b111630d22dbbf906"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-xlookup-range-mixed.json",
+   "function": "XLOOKUP",
+   "sha256": "3c1fb84c577e3c460b5e2f0fe0b0dd0713a66f96c285548f8eed379bd74657e2"
+  },
+  {
+   "path": "readings/excel-20527/admit3-answers-xmatch-range-mixed.json",
+   "function": "XMATCH",
+   "sha256": "b8975cbd7fb99ccb53951f14094b0f0b1d647306b561dc0d80d102a3a3b2b5db"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-amordegrc-more.json",
+   "function": "AMORDEGRC",
+   "sha256": "0c774aaf62ce85099c11e5da9fbbf4f797a007010d9575cfc20fb3b0ae377f9c"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-amordegrc-scalar.json",
+   "function": "AMORDEGRC",
+   "sha256": "e8141cd16119da45410ee7187531505ffeac301f47564e019fa71367ba302950"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-amordegrc-special.json",
+   "function": "AMORDEGRC",
+   "sha256": "e76d3339fb6b9377bbfc835d0c04e976a28d21d02010c3cc45c3fc54da012aed"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-amorlinc-more.json",
+   "function": "AMORLINC",
+   "sha256": "55e682e116d6e9d0c28972d9edcf9f968efbbf20e37c486af5bc3a99d07a3653"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-amorlinc-scalar.json",
+   "function": "AMORLINC",
+   "sha256": "894debd10a8625a01383307465f666eec30a1277d0f8f7347020663ac89621eb"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-amorlinc-special.json",
+   "function": "AMORLINC",
+   "sha256": "7b6411b86c433ebc1a15ceaabf62164bdff50df14f0d9189e0dd41e0ae3e7778"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-arabic-more.json",
+   "function": "ARABIC",
+   "sha256": "996dd4ea7ecbdce90b8fef2bff0d2486ed33b526889a0b3370b0b89fc8912b94"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-arabic-scalar.json",
+   "function": "ARABIC",
+   "sha256": "7253f0dfe33fe424f439d096e76a24c18f211b78017ea156f90f1ea3311636f5"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-arabic-special.json",
+   "function": "ARABIC",
+   "sha256": "2393aea77f2021addaef364bd5362d2743d2cda654424d4645b3ee6edfec1a9b"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-asc-more.json",
+   "function": "ASC",
+   "sha256": "6f56b8c097d50324b1b89de55093ded2b12411d96f18b94ffd523596e1fc76f1"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-asc-scalar.json",
+   "function": "ASC",
+   "sha256": "41bf3ce0f29be11e25b528ffa80f3eb9112388f1e1db23180325f3b88c0aafb1"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-asc-special.json",
+   "function": "ASC",
+   "sha256": "d7f137521fb1eabbeb0e52dffd35322928d745ecebff5bd6b48be0fdec2a5206"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-atan2-more.json",
+   "function": "ATAN2",
+   "sha256": "363bacd25d45a7fb9811af15bd6d76927c62ff33bf0b8104e1e818eabca34bd2"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-atan2-scalar.json",
+   "function": "ATAN2",
+   "sha256": "1345fd6766e7802319ca3585f9fc8aabdc7908095028d520f98eabc26c6eea7d"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-atan2-special.json",
+   "function": "ATAN2",
+   "sha256": "a6e89b7e4d14aacfc914abb55710d10c75cb6a652eaa7e8360e901329e42e944"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-besselj-more.json",
+   "function": "BESSELJ",
+   "sha256": "4bb4d372d60a44a7feb6e5cc9246058636f051a3d3ad8c7ae541785cb76145d1"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-besselj-scalar.json",
+   "function": "BESSELJ",
+   "sha256": "bb09edd160c87d0b9cc133a8e9bfbed8b2c11ce01a7a3a8960cae95cbc202a37"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-besselj-special.json",
+   "function": "BESSELJ",
+   "sha256": "e623ff6ac769fab279922dd990684089c4a611cf5d9a2b04d8fbaefe6d4072cc"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-bessely-more.json",
+   "function": "BESSELY",
+   "sha256": "915fa75d83d717c3a31286cc26268d0ca4b8f70eaf00ec19e235955eed8ccc76"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-bessely-scalar.json",
+   "function": "BESSELY",
+   "sha256": "0e11da1a48152894e41bdc375cbc0a1b581efe47703f29fc9480ee25c49d8887"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-bessely-special.json",
+   "function": "BESSELY",
+   "sha256": "b67760462dbbedd2895de6c969fad172f0488d70b25e731daa9fd6e88d557a9c"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-beta.inv-more.json",
+   "function": "BETA.INV",
+   "sha256": "317ad4a61b32190a36dc0268d91db518e1caaff3880d73b615d970ab3445668e"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-beta.inv-scalar.json",
+   "function": "BETA.INV",
+   "sha256": "eaa2061f0d104e2e31eb2e7e815a325a1331df0a1bee5724bae71ed57423e433"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-beta.inv-special.json",
+   "function": "BETA.INV",
+   "sha256": "fecc517d4a6d102e2d725e503eb33e9aff70560a460b991c6fe3e8c0265140a5"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-betadist-more.json",
+   "function": "BETADIST",
+   "sha256": "e2e982504c8d685d571a6960ff1e419eaf3b4f80b9e6121e8e299bdbece2d7fb"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-betadist-scalar.json",
+   "function": "BETADIST",
+   "sha256": "e884ca49d959f9a1b94e2e478dc77106ee4c00b26ee224f54f44c100ffc747ac"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-betadist-special.json",
+   "function": "BETADIST",
+   "sha256": "efebcbd82190a702fa8bde49c265a1695145f635165ee219610a0e5e651b7830"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-betainv-more.json",
+   "function": "BETAINV",
+   "sha256": "d77053daad6b0d233ada95a0bf42226e0d1e7c549d5eefbb64e85315020c8081"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-betainv-scalar.json",
+   "function": "BETAINV",
+   "sha256": "037f145092749fbd0a2aec20831d0daa0601a0fd61f02743c497d2c0d5aefdba"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-betainv-special.json",
+   "function": "BETAINV",
+   "sha256": "12f30cc8b51ebcd31b228f82360e02d4bb03ee4072260e232f4ec87514f886d0"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-bin2dec-more.json",
+   "function": "BIN2DEC",
+   "sha256": "e701e075d45e079618d0cdefa661e40ae6fd9034f92d88f02b093c7c31142b58"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-bin2dec-scalar.json",
+   "function": "BIN2DEC",
+   "sha256": "adfada655126144e9be8cf9a79f54ce9259d0fe4663d3477f1a914554e259fc8"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-bin2dec-special.json",
+   "function": "BIN2DEC",
+   "sha256": "a9b1d870148788932d580c4ce7e49f82a34b38d75b7d6876a26ceb0dffa6385f"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-bin2hex-more.json",
+   "function": "BIN2HEX",
+   "sha256": "e496b2d82cc0e1f3a1b2ba535bfb41c515f883952280f87cd2e895438f416c01"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-bin2hex-scalar.json",
+   "function": "BIN2HEX",
+   "sha256": "ebebba1c84118525745a77d575ee8eb26a3bc12cdbbad5765db16b2fcac1e570"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-bin2hex-special.json",
+   "function": "BIN2HEX",
+   "sha256": "5bc58929f44a3582dead516a84ab4c748417ae6663af5d10aa90fb8a7eb8b14a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-bin2oct-more.json",
+   "function": "BIN2OCT",
+   "sha256": "1c9bdc9e46f01427e98391c5018d4b92aa9d9f986aa58a4beb4c4c824ea49d13"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-bin2oct-scalar.json",
+   "function": "BIN2OCT",
+   "sha256": "340a85ccb004cf22cbf55fa324f2a98ede48f2d909e8b9a2ab04133c46074f7f"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-bin2oct-special.json",
+   "function": "BIN2OCT",
+   "sha256": "f833238eb6721f9f1953ea0083c540ad0fdce6efe3fac9b1b6bc1f738f250324"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-binomdist-more.json",
+   "function": "BINOMDIST",
+   "sha256": "5ffa44ff7f088e93ea7627a227aa4d4e8187a14f0c575c0cc6ae8afb4d1b7cf5"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-binomdist-scalar.json",
+   "function": "BINOMDIST",
+   "sha256": "70d7f2ae60b2494b5958bc2451adb398774b19a6ba8d62d43003ed4113dbd50e"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-binomdist-special.json",
+   "function": "BINOMDIST",
+   "sha256": "2dc5865eca2eda3ab4f5ebb3b38e4522be2ce41d97429c9e700969848698682a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-char-more.json",
+   "function": "CHAR",
+   "sha256": "290fbb90087a611b01d662d5421573bfd28bb8cb3a6b61da4228314230d5069f"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-char-scalar.json",
+   "function": "CHAR",
+   "sha256": "ff91f0eddd7622421c9ee5eebce1695abf8df84e68b713da643cccefbcd3d5f0"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-char-special.json",
+   "function": "CHAR",
+   "sha256": "4281d0b6f0978650482a15f5ae0e44d8a79ae868159f25dfd8d015d723481fa0"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-chidist-more.json",
+   "function": "CHIDIST",
+   "sha256": "9f2e4c4bd8d40153d2dc4f605cf89c97cd23b5c9dc5d1c040c597caa5ca5d708"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-chidist-scalar.json",
+   "function": "CHIDIST",
+   "sha256": "a6a805e809b2f0ded4446e41c7b46fe353b156f486c1621a02a3a9929ea45dd7"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-chidist-special.json",
+   "function": "CHIDIST",
+   "sha256": "b50855dfed4a8bad1f02b0503bbb65e3fab2aad55c2f7a0191be8139554aeaf6"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-chiinv-more.json",
+   "function": "CHIINV",
+   "sha256": "09704562019bdcf32c7f0f00219c73a1525babce00015e3d3a5f48de5552316d"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-chiinv-scalar.json",
+   "function": "CHIINV",
+   "sha256": "77d87d891cc15c63af9935e2155bc9539f1887ca38300ad95e6bb10f90c44e28"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-chiinv-special.json",
+   "function": "CHIINV",
+   "sha256": "bc9961088d2b06885732abaa7d61dd6e6ffd192cc89d2dbeab9eff733bd1adcb"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-chisq.dist-more.json",
+   "function": "CHISQ.DIST",
+   "sha256": "b87ea1c5946412a89bcb7d561d516ebb01ec1f8ea149df9e13aa2b56b28d5bda"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-chisq.dist-scalar.json",
+   "function": "CHISQ.DIST",
+   "sha256": "51a7e5b702e7ace75189a77a957706f42f52555e9c58366658a53dd576abe155"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-chisq.dist-special.json",
+   "function": "CHISQ.DIST",
+   "sha256": "d67f8274b0472eaa70587866f23a8522ead317d1cad48e407d7a32d824ab7e77"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-chisq.dist.rt-more.json",
+   "function": "CHISQ.DIST.RT",
+   "sha256": "5a627a390e0d4a1187bd2aedcae0863e0d136c2031642c3a0bb943d673f27266"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-chisq.dist.rt-scalar.json",
+   "function": "CHISQ.DIST.RT",
+   "sha256": "970296f224497558b9d46669ccd9fb6bebfcf723c523f081c26bde915bd83854"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-chisq.dist.rt-special.json",
+   "function": "CHISQ.DIST.RT",
+   "sha256": "c045b9c416481faf728f5fae9f5cd378b7e511cd5165e4b67786101673738257"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-chisq.inv-more.json",
+   "function": "CHISQ.INV",
+   "sha256": "08a5d34560f881d751d25a3aec77dda378b375e1574f3992ed6775232ab3f00e"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-chisq.inv-scalar.json",
+   "function": "CHISQ.INV",
+   "sha256": "da56298eb444a0ceee59adf24829a2ceb56a0f43014724471a000bf7f67c7af4"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-chisq.inv-special.json",
+   "function": "CHISQ.INV",
+   "sha256": "9dffdf150de9a299af6b38c6694bc80b538d41969930f28d6f46c3bf71520ae4"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-chisq.inv.rt-more.json",
+   "function": "CHISQ.INV.RT",
+   "sha256": "97ea4644c4a3de22dc22645c056e23c5e7a191c2f8d4b5622aee2b708c7ea8ac"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-chisq.inv.rt-scalar.json",
+   "function": "CHISQ.INV.RT",
+   "sha256": "c104e6d61e8e4baa6c1c581be0c583b86ed47216a7e0dfd87e8e353a510c39a6"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-chisq.inv.rt-special.json",
+   "function": "CHISQ.INV.RT",
+   "sha256": "6fb6bb3d7d20b264fdf2e74d35c180f66e9aa04f6ba7ca864e202c5893d780ec"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-chisq.test-more.json",
+   "function": "CHISQ.TEST",
+   "sha256": "f57cac370470230491a4a60543adc88a2c4fe11dd023503df1895fcf9dadccae"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-chisq.test-scalar.json",
+   "function": "CHISQ.TEST",
+   "sha256": "e65ef6e5aa20d297ed71c3fa6e92d96762b3a5ab11b993314b74045e19a434ee"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-chisq.test-special.json",
+   "function": "CHISQ.TEST",
+   "sha256": "51f732230282e20e47126640f3ad8609c85133b9c8f58900c72b2046eac86e0a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-chitest-more.json",
+   "function": "CHITEST",
+   "sha256": "91e0d641e23c34446777e9687c3e7b9d327102ffb62a369174bf3ef1bbff85fe"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-chitest-scalar.json",
+   "function": "CHITEST",
+   "sha256": "d16299c531b6ce2a113ec58b1acd0ba98188ff7618aab7215a0d98c0f43421b1"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-chitest-special.json",
+   "function": "CHITEST",
+   "sha256": "ae7ead5c248efd9bd7cacdfcaa7c38cca8486c7fa92f9da70dd3f7dcbdd0808f"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-clean-more.json",
+   "function": "CLEAN",
+   "sha256": "232763f00ab7969b0f4daeaaf0a85b8d24cee3cb34d81edaea83c75dbef92d76"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-clean-scalar.json",
+   "function": "CLEAN",
+   "sha256": "6da1a2747e539b83f36f8ac5c60992c07307937ef15588756c62d80ccbbb7ac1"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-clean-special.json",
+   "function": "CLEAN",
+   "sha256": "31bb428990d3b6faaa73848779496ea66944cfa024d64ffccb59796dc4ce35cc"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-code-more.json",
+   "function": "CODE",
+   "sha256": "bdf7d8e5aef0e60a5c031d76cc880b70b5602d24f90fed537cbc2323a59890c4"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-code-scalar.json",
+   "function": "CODE",
+   "sha256": "2857445f011b4c846ea4edb5c4f8b0fdd84ea12b239790c58e11e491f87a734b"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-code-special.json",
+   "function": "CODE",
+   "sha256": "81b96c5a91c976ca196f56ba8c3d3810581f2ffb7ae55f818bd4c8aae386fd90"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-concat-more.json",
+   "function": "CONCAT",
+   "sha256": "71ac2c27ac319a81b359095f8de03d841f4ee51919ae3e661747f85cd2db7793"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-concat-scalar.json",
+   "function": "CONCAT",
+   "sha256": "9544370a525ed035ef6d4478eafa4c03705f4bf08b5078cec2630cbff38bf0e9"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-concat-special.json",
+   "function": "CONCAT",
+   "sha256": "7efb0526c98fd4a11b53bac8263e8792289609049ea34e15fd840781e3385279"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-concatenate-more.json",
+   "function": "CONCATENATE",
+   "sha256": "7f4b415e2b812b6d9569d5bf733d1c56f1bdf884c32fad3650b8150a019cabd0"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-concatenate-scalar.json",
+   "function": "CONCATENATE",
+   "sha256": "e7ea5a9413efbb82099068e3e54f09cc459e69e45426ed8e9cba6320887bb0d2"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-concatenate-special.json",
+   "function": "CONCATENATE",
+   "sha256": "c09a962cb824f6f5a854e7ef9793ae0ae2a166adc6765d5a58457044756e7558"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-confidence-more.json",
+   "function": "CONFIDENCE",
+   "sha256": "522971d7945bbe31b4aeee8b32c4e685f887b7e91c34edf23e24f1fe622af2bd"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-confidence-scalar.json",
+   "function": "CONFIDENCE",
+   "sha256": "c1fee4f5743c1051cb1947b453f261fb3a0cc60de93e63e2fa5db3fb98f973bf"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-confidence-special.json",
+   "function": "CONFIDENCE",
+   "sha256": "a7b9bee505f412a8d772be0590ed6f0e47983ff9814dd42ba5462effe498a2e1"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-confidence.norm-more.json",
+   "function": "CONFIDENCE.NORM",
+   "sha256": "02cdec65ba2d2b01c33d4921a911b01fc7b589d7e512c6781476992da73d016d"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-confidence.norm-scalar.json",
+   "function": "CONFIDENCE.NORM",
+   "sha256": "faa6c6ad49afe8ab5ff617a4d0bf358ecf1fd729b10305bf416a1d349876753a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-confidence.norm-special.json",
+   "function": "CONFIDENCE.NORM",
+   "sha256": "849cef59d113aaf500bfc4c0584399b647549cd46cf1e070a2dc6d468330d270"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-confidence.t-more.json",
+   "function": "CONFIDENCE.T",
+   "sha256": "1bcd8aa88f4b51484ca39c95798aa9efd3b0ade8c08b31efb51b8455a0994b09"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-confidence.t-scalar.json",
+   "function": "CONFIDENCE.T",
+   "sha256": "31d7aec817c44603ad52a444200f4704e3492f051ac0953711c312a066a7e464"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-confidence.t-special.json",
+   "function": "CONFIDENCE.T",
+   "sha256": "475b10793f03b884f8ae83ce47b0a9d9717975a0e98fce9202b9b9509706223f"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-correl-more.json",
+   "function": "CORREL",
+   "sha256": "1e33cad9e410d25c55992584bc2d6ddf19e47cd49a50cf14040f9f2c9ba3e26e"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-correl-scalar.json",
+   "function": "CORREL",
+   "sha256": "350d1f4733017e2417fef341b105ba4fda555111a2cbde6a71ff9c7c5a42a259"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-correl-special.json",
+   "function": "CORREL",
+   "sha256": "c95055d57d1672bc02cd5d150bea4172df26d4590007888b648e6d55f51c7645"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-countblank-more.json",
+   "function": "COUNTBLANK",
+   "sha256": "fefe31274311bf449626849e5d86dc277f11ad6fe8d012646aa206bc600f0405"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-countblank-scalar.json",
+   "function": "COUNTBLANK",
+   "sha256": "e0e18e82a4e7e529306f278bbe1abbd821d32310903a7e402128bb7fb7fdc84b"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-countblank-special.json",
+   "function": "COUNTBLANK",
+   "sha256": "fab9dabd1e879567fb901ae7f27b41185de02e7e933b413da62974b417c28a58"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-covar-more.json",
+   "function": "COVAR",
+   "sha256": "8fe218fc8067f2f14f1caa69b9286dbc4e68de2249adebd7a3ee4c81416ae5f0"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-covar-scalar.json",
+   "function": "COVAR",
+   "sha256": "9e459af75696bf672b4ca226c244dc15706e1db217bba5411d3af219f56841bd"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-covar-special.json",
+   "function": "COVAR",
+   "sha256": "4180201abfc22351dd321d756665e1c5844a0dd9c93ea942710d7b5a301afad3"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-covariance.p-more.json",
+   "function": "COVARIANCE.P",
+   "sha256": "622d4cd023e1453f4217e8716a2efde8feb4a743bbeddab8c01d539d43f66f0d"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-covariance.p-scalar.json",
+   "function": "COVARIANCE.P",
+   "sha256": "cc4b88d5e838a1414143c048b8020056d3e4229f8d3195b5241f8a3531398f8c"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-covariance.p-special.json",
+   "function": "COVARIANCE.P",
+   "sha256": "552f02fc3b53f6653b064c9bda1644ef0f1b4d97f8422b870897904f9e64f101"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-covariance.s-more.json",
+   "function": "COVARIANCE.S",
+   "sha256": "fc37cfde970327abdad17fa011ad8e9695c070d98bdf99c45c9f98e8260b3d76"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-covariance.s-scalar.json",
+   "function": "COVARIANCE.S",
+   "sha256": "5a78ccbb7af98acc72ff4d274b0db2b9e2a7e4d7a02ac223d91bf7bc45d16316"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-covariance.s-special.json",
+   "function": "COVARIANCE.S",
+   "sha256": "3e188f793d83285553f555610de87fe8eb78e60f94503f1e4044b3c09b1a876c"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-cumipmt-more.json",
+   "function": "CUMIPMT",
+   "sha256": "bbf4e0fee5cf9c60f847917b259c76c75eb48935ce062d8bb0698d38d88f0786"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-cumipmt-scalar.json",
+   "function": "CUMIPMT",
+   "sha256": "169945e4afb4f11efb9c309e4747a1e5b1b547bbf3903a6c8f65e53e485fd009"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-cumipmt-special.json",
+   "function": "CUMIPMT",
+   "sha256": "b3e0e23ef6f5e1e2cf35d3ba93eb150009fbbbb1e1d3da245b1eee18c494cfb9"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-cumprinc-more.json",
+   "function": "CUMPRINC",
+   "sha256": "16181dffa4620adb179054d83a93bbbd111791e5a148bc7afbb75277b6734f3e"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-cumprinc-scalar.json",
+   "function": "CUMPRINC",
+   "sha256": "cdf0ce9632433fe0c68cb154942fe9b2ddb5ac4e8a8b705839b268f6a78f2095"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-cumprinc-special.json",
+   "function": "CUMPRINC",
+   "sha256": "2db8d5a443d202df657ab0a26e1747965adfc6d43807442aaf3cf2e2d1bfbaaf"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-datedif-more.json",
+   "function": "DATEDIF",
+   "sha256": "213fff3920f9a2f211d22b4c9ab31f25c88ea7e16b1f606bad47d3fc8c9b0686"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-datedif-scalar.json",
+   "function": "DATEDIF",
+   "sha256": "53bcedeb30e0937c8ee2327de03a4c5df6a045d7826dc339cce9c3a2db0a152a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-datedif-special.json",
+   "function": "DATEDIF",
+   "sha256": "186b3bea5323fda76327bd3d363289f40ae1f81bfa4509f60fefac34c2963a99"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-datevalue-more.json",
+   "function": "DATEVALUE",
+   "sha256": "20b2df9ec99492e625c182a48bfb5fc620830a6ac5e2d0c507413593a82f7207"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-datevalue-scalar.json",
+   "function": "DATEVALUE",
+   "sha256": "f91c85516316452bbf54ca5330c959a437dcf1e616f1af9d7b57d54475f7c5ca"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-datevalue-special.json",
+   "function": "DATEVALUE",
+   "sha256": "c49d74691911869d3319ee305fb0f5a47c96b21551b81b53cd4c95e991fd67d0"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-dbcs-more.json",
+   "function": "DBCS",
+   "sha256": "985548d2454a178b3b9c3b3cc72aee90eff4efb909bdfc680de864fe33fc5d0a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-dbcs-scalar.json",
+   "function": "DBCS",
+   "sha256": "2fab2efa4d1a554903c2855ff0de4104c46d1628208ffca19d7631a1b944fc65"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-dbcs-special.json",
+   "function": "DBCS",
+   "sha256": "87b00bc24587c2bd3462b438607d96931785467cea20c3dcf1b7b475ecccd771"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-dollar-more.json",
+   "function": "DOLLAR",
+   "sha256": "c1ad3855eacaaeaf78cf32af7a17a8228359a859d0911e56289696a03d96dbd3"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-dollar-scalar.json",
+   "function": "DOLLAR",
+   "sha256": "9d26aad989c548cbd694c150ff880c880ec692cb033f3e4e4fe4cf74ec4e9bdd"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-dollar-special.json",
+   "function": "DOLLAR",
+   "sha256": "eadf57f88c28a764f493fee704451f5d7ac1f523ef2a404d86cc451dc0b7711b"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-ecma.ceiling-more.json",
+   "function": "ECMA.CEILING",
+   "sha256": "24955f08b8e0e78b19ca183d1b9a6f7ef8700bacf80cd1ba9bf7d697412c08e1"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-ecma.ceiling-scalar.json",
+   "function": "ECMA.CEILING",
+   "sha256": "429b7dedb96da4bfb9c22cb22b4d896f35663a1da48f6be788bc5d12cc4dffc5"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-ecma.ceiling-special.json",
+   "function": "ECMA.CEILING",
+   "sha256": "e2a46a27d7b0c6c28f90b49d57f697aa719a5762d04b99a4be611d3cc1a9bd21"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-erf-more.json",
+   "function": "ERF",
+   "sha256": "724a279321035516d09279e037c03010788b90525fccb5a291ef2b0e68748695"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-erf-scalar.json",
+   "function": "ERF",
+   "sha256": "791dbb06d82fbf03b990d8fc62ae33ede97040f94ed14d81810e85ada7633821"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-erf-special.json",
+   "function": "ERF",
+   "sha256": "c51f88b12ea52a00fbee1a974e9ccd3b237f8e71da963194d20b6cbbb43ee4a1"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-erfc-more.json",
+   "function": "ERFC",
+   "sha256": "f553c728142470f1ff23ca9abbf29f04c01059b57427139c53eb070e86278507"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-erfc-scalar.json",
+   "function": "ERFC",
+   "sha256": "a439357c42e1e12a0acbebfb89092c24898111286febaa5003cd496c090d4795"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-erfc-special.json",
+   "function": "ERFC",
+   "sha256": "e2edb7495ca65173f223b679c9d75b490e516e0304875a5c62aa187d94969e70"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-exact-more.json",
+   "function": "EXACT",
+   "sha256": "c4cb201f5d425dbb4d0519d8df7b663b35c122cc4f71702b2f52428d7c250480"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-exact-scalar.json",
+   "function": "EXACT",
+   "sha256": "5fdea05277bddbd3533cf623df6407cfda85b0dff6931500653e55800c54025a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-exact-special.json",
+   "function": "EXACT",
+   "sha256": "f768e731088a2e63419c4b4cf4cb179bed3452986bebd506a49286fe267cca60"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-f.dist-more.json",
+   "function": "F.DIST",
+   "sha256": "bf50cfa1f5c691033e015809d6103abf95bb43d345753fdb198c77ce2c3aa5b2"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-f.dist-scalar.json",
+   "function": "F.DIST",
+   "sha256": "2c5e02d947f258a4f94e25651b872a7dd65cafbc47013fd700e81d04046af2a1"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-f.dist-special.json",
+   "function": "F.DIST",
+   "sha256": "da8c74230500eb8219b393aefeaeb1e4899582c2ffd8757da105cbf4967fbde8"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-f.dist.rt-more.json",
+   "function": "F.DIST.RT",
+   "sha256": "ce95c3d6b3a5c013c3bf6d4ff2f7647f14df326e89ef56bab097e31df1476ead"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-f.dist.rt-scalar.json",
+   "function": "F.DIST.RT",
+   "sha256": "c1857627b048d07289a8879e840a66db27204a1d86308c3f302c28a0552eca02"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-f.dist.rt-special.json",
+   "function": "F.DIST.RT",
+   "sha256": "3583ad4c708e9ad95c667f49d109b757625effbb6e98879fbe5c6e71c900cadd"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-f.inv-more.json",
+   "function": "F.INV",
+   "sha256": "530be384d866b70e90d2ef6b9de3102b6834b8746a960b48a73108f911489c79"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-f.inv-scalar.json",
+   "function": "F.INV",
+   "sha256": "818314e72fe3db76bf2c88cf5bdd6afcc1a1bd8665fb2e567d64819eafdfe6ad"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-f.inv-special.json",
+   "function": "F.INV",
+   "sha256": "8e569e794fec693ada58127a6841134c905e3e8fef57733c48ff316fe31481a0"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-f.inv.rt-more.json",
+   "function": "F.INV.RT",
+   "sha256": "5bff0c2560293a194977a89fc21568f212b18c3c0fb7d94cac75bb040f81abf3"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-f.inv.rt-scalar.json",
+   "function": "F.INV.RT",
+   "sha256": "a2393a04784ea2c3f4530ab43c673ccaeef77f98f2c4b0e0601f0635a553756c"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-f.inv.rt-special.json",
+   "function": "F.INV.RT",
+   "sha256": "8a31da2fa061b93cc6663a4c6feaaa5b7e1d9479dc95df24016f9755b0358a02"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-f.test-more.json",
+   "function": "F.TEST",
+   "sha256": "a0c495b49f41e2e9c624e79251fee37097f2596e80b9c596720c962a6be66281"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-f.test-scalar.json",
+   "function": "F.TEST",
+   "sha256": "e7ec38c06b01ecee94d3293ebe72b03144eae50537dff489206c838fe29e8674"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-f.test-special.json",
+   "function": "F.TEST",
+   "sha256": "ef020851956c1c0ff94283011e3a4baccf05ddafcd1f173fedea824568b25f5f"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-find-more.json",
+   "function": "FIND",
+   "sha256": "346e52a2c71335cc110bd7c7cc247abd2d4db83f28a9e22b18a94293950ebdb5"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-find-scalar.json",
+   "function": "FIND",
+   "sha256": "3c2121b796085bf3e9efd18cbd120447e7d1d1a21094effabf5915f746f76cf1"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-find-special.json",
+   "function": "FIND",
+   "sha256": "740bf6f3fc3d0d5f26a75c133e1be5a63d1c0cee4fb48fc159a1a34d82ce9849"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-findb-more.json",
+   "function": "FINDB",
+   "sha256": "005edebc00cb4ee3fe6ad0ff10a5304e8a2d574f53dc20435f6b21e183cd11d5"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-findb-scalar.json",
+   "function": "FINDB",
+   "sha256": "c074c48bf4c1a99e550e675c0cc58555e71f42388db7aafb7536c74e73c0ef2e"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-findb-special.json",
+   "function": "FINDB",
+   "sha256": "2bcff3c498877512049f6b7bd8f769003b08b14993066f3801fd97c6a502bda7"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-finv-more.json",
+   "function": "FINV",
+   "sha256": "dbc975f18f5ce4c4ed3abaf4edc207a03db0e56921a32e3dc52093bd279734bc"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-finv-scalar.json",
+   "function": "FINV",
+   "sha256": "731272255ffd5d3605fb4f4345e677cc3cb7af4f2a0666c4ad3bead43d891f72"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-finv-special.json",
+   "function": "FINV",
+   "sha256": "8088870e964083a5756406b04537572b9b0b0f204a9ffbd2a68a5a1ea87d9d19"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-fisherinv-more.json",
+   "function": "FISHERINV",
+   "sha256": "1460cc72546db949d7a9a7b28111cb1cb8155a562da27d12c78a0790cadc6cbf"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-fisherinv-scalar.json",
+   "function": "FISHERINV",
+   "sha256": "f8151e69496d5bdfd7954075f5cf9d6b2f57c15228ef61271a9ccbbbd20452fe"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-fisherinv-special.json",
+   "function": "FISHERINV",
+   "sha256": "a5adadbc4a2d51c140228b2df4fa14625cd5f933e02a9b1c89c533f9604c5939"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-fixed-more.json",
+   "function": "FIXED",
+   "sha256": "14619efa3414164c24691cbfd69f799a10bb1e3a9801066e98eab5c832f41a4e"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-fixed-scalar.json",
+   "function": "FIXED",
+   "sha256": "9533f89ef50cc881290a94791b996222b6f24f73deb4bd03efee4f963b88896f"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-fixed-special.json",
+   "function": "FIXED",
+   "sha256": "8805f5acd5be8aa8fc8bbaf0d36cc3cef8fb5279617435d59bedf87d3e3a6202"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-forecast-more.json",
+   "function": "FORECAST",
+   "sha256": "21eba63a42aa75429d1c8e5b631260c27a78f94606cb1d36a8a32c6b36ce47e0"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-forecast-scalar.json",
+   "function": "FORECAST",
+   "sha256": "2efe6cfc32f13b36325392a5bb10759115007fb0c8d684f2d1498cb9b2a4df73"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-forecast-special.json",
+   "function": "FORECAST",
+   "sha256": "c4d34df4e01296f032497afa94df4f6055a8be03128dfd3df7911c36baa60163"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-forecast.ets-more.json",
+   "function": "FORECAST.ETS",
+   "sha256": "16a5119269ee694649dd7c65c7ff799c57dbdb45ecde085bee7bd3faee016566"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-forecast.ets-scalar.json",
+   "function": "FORECAST.ETS",
+   "sha256": "4345f0b85c13d5b18a76a6de174059bfa46b9f58491309386f22d3ace966e8a0"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-forecast.ets-special.json",
+   "function": "FORECAST.ETS",
+   "sha256": "1ccc385511fd06ce208194e8f26d2c5588d920998057bcd643df7a4e0cf9f5c2"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-forecast.ets.confint-more.json",
+   "function": "FORECAST.ETS.CONFINT",
+   "sha256": "7bcc5516554f7669807be619306d4b494aa7d828d1caa8e05d3877cac13cdd36"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-forecast.ets.confint-scalar.json",
+   "function": "FORECAST.ETS.CONFINT",
+   "sha256": "7436a72ffb7ac178f3cb9327e83d30e5b555836814a66f581dcb96d9dd2042c4"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-forecast.ets.confint-special.json",
+   "function": "FORECAST.ETS.CONFINT",
+   "sha256": "f044f66a821d011de3d72cc3f08deee1253e83342cd30967f308fc98547c1c4d"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-forecast.ets.seasonality-more.json",
+   "function": "FORECAST.ETS.SEASONALITY",
+   "sha256": "b900379988af5fae2a50fb45d41711394c15174c543b6e26c7c5af87ad89caaa"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-forecast.ets.seasonality-scalar.json",
+   "function": "FORECAST.ETS.SEASONALITY",
+   "sha256": "2e396fca978d43fb455ef882a8693ce16723e59bab9b21b5914d65de8d653ea0"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-forecast.ets.seasonality-special.json",
+   "function": "FORECAST.ETS.SEASONALITY",
+   "sha256": "afa0be9c49710de946172dec502670fb75777fc84b5f1a9b15e8af855c93b449"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-forecast.ets.stat-more.json",
+   "function": "FORECAST.ETS.STAT",
+   "sha256": "b69558fc33489cb701172b4bbe64ef3a2ce7852410d2be4b0e9261bed555d084"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-forecast.ets.stat-scalar.json",
+   "function": "FORECAST.ETS.STAT",
+   "sha256": "83ca1138de61034e2574db8c6288800e916f21972c35695178452ddd205a1a05"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-forecast.ets.stat-special.json",
+   "function": "FORECAST.ETS.STAT",
+   "sha256": "2cccc57b9e8853c55e9d589d598a7ea4b2afb001751bbb8c2ec954fc1676616a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-forecast.linear-more.json",
+   "function": "FORECAST.LINEAR",
+   "sha256": "ddad5a6ca2f62bbc946f3b05721dbe4a6e082302f752cd8849b43447c4ecd192"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-forecast.linear-scalar.json",
+   "function": "FORECAST.LINEAR",
+   "sha256": "8dc507b6c62e4d8c5903d308645fbf3f1abefc735b0e78bb99599f7ec956f601"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-forecast.linear-special.json",
+   "function": "FORECAST.LINEAR",
+   "sha256": "7852891395c1f1f83abd69897473b915fecb30e8dd6cda13bd1f2fc3cfa675af"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-frequency-spill.json",
+   "function": "FREQUENCY",
+   "sha256": "62dcb85c9ec356f7beeb3af2b474b7e88da1fb9cf81b129974171d91a4266fbe"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-frequency-variants.json",
+   "function": "FREQUENCY",
+   "sha256": "222eba0d93f73b0e036a1e0e33a12de3e0c7e70ece5b86fa5bf4542d706e7c51"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-ftest-more.json",
+   "function": "FTEST",
+   "sha256": "3ecbb3ab7be03dff595858ccdf7a52423c3ef9198207f8d002f7268cf4808092"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-ftest-scalar.json",
+   "function": "FTEST",
+   "sha256": "090cbdcf1643531dadafa3870ee39d707046367014424e79c566bb7e2ce6b956"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-ftest-special.json",
+   "function": "FTEST",
+   "sha256": "937328a310b0fe378e4d33b3403f0fa546287621cf130a34f1b00d4beab36500"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-fv-more.json",
+   "function": "FV",
+   "sha256": "68d08253e01c1e30a711e78f722086609453530070ab86a35dd4f7925a6e309c"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-fv-scalar.json",
+   "function": "FV",
+   "sha256": "4c77b8d962fb45fb4fa47dc97b52cdf68f6170a88b820c81cd92c40aa42dcd7f"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-fv-special.json",
+   "function": "FV",
+   "sha256": "ac8793a1b8bbea8916c132010527d0f19c19f082dcea4f2e99f9f29f21aa8a65"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-fvschedule-more.json",
+   "function": "FVSCHEDULE",
+   "sha256": "bec38d8e42b1aff161cb06e19fe6400af0e151205c2822b8033d932fd36819f3"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-fvschedule-scalar.json",
+   "function": "FVSCHEDULE",
+   "sha256": "ff3cf732b91a468fc8cec3767ecd70f72d06a427aa56aecb1faac19405e6c727"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-fvschedule-special.json",
+   "function": "FVSCHEDULE",
+   "sha256": "c3fca4edbe067a28bf9010569ea5218d01900e75b755b60dd99922b0c5538832"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-gamma.inv-more.json",
+   "function": "GAMMA.INV",
+   "sha256": "0b385c25ef87c79187ddc5d0ff4477ff4ba80ea84f147e288dcdca43d0e1a40e"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-gamma.inv-scalar.json",
+   "function": "GAMMA.INV",
+   "sha256": "fc6ddc3fabfec64bfee09a5a3c8c818d02cd71a368cbaeb1a6e5872f29b52842"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-gamma.inv-special.json",
+   "function": "GAMMA.INV",
+   "sha256": "d9c7d0428db9f5e3ae087728ca38a40c2d10c0468868d97502d0ed937d779a9d"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-gammadist-more.json",
+   "function": "GAMMADIST",
+   "sha256": "d2d6a970d7883817a300f2126ebe6409d785a1ab78ecb29ccf2b0b163dca93f1"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-gammadist-scalar.json",
+   "function": "GAMMADIST",
+   "sha256": "b434f37e93c0ca9a4055e68c729f17dae4a461b002d7525b9a7c991e05c29aed"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-gammadist-special.json",
+   "function": "GAMMADIST",
+   "sha256": "d54cd7b7785040647034ae2e8d3fe2a4bc5078f07ad116c3bccd28ac51ba4639"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-gammainv-more.json",
+   "function": "GAMMAINV",
+   "sha256": "db74ddcc160224dae9600aa0d1fae2906f213018080a25b8a13cc48be3c400d6"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-gammainv-scalar.json",
+   "function": "GAMMAINV",
+   "sha256": "aff349623c8b41c25564ba67114b77dd4c5c7b55149ced383807e1346514fac5"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-gammainv-special.json",
+   "function": "GAMMAINV",
+   "sha256": "1c5632a4dd1ae4f6f91fc529de44146cb9e9dadbd6c4c523d9ff194e849f3dfc"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-hypgeomdist-more.json",
+   "function": "HYPGEOMDIST",
+   "sha256": "84d66ff0a066949879ff1fcfbd0f6596ce6513e9ae5c3a90523d5f73fed59d83"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-hypgeomdist-scalar.json",
+   "function": "HYPGEOMDIST",
+   "sha256": "0557cee80d3cda935ae64eb327061fd349ba33d2510d8cb49a778ebf7124b666"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-hypgeomdist-special.json",
+   "function": "HYPGEOMDIST",
+   "sha256": "4325d04d21b82e04a0dd2d1f732cdb3eb16e3ca94fbb5c658dc65b260d5c6bf6"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-imexp-more.json",
+   "function": "IMEXP",
+   "sha256": "8208f530a047be43ee4c9e259a30956ab7aa8edd86fe4b1aca07d175481c9ff5"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-imexp-scalar.json",
+   "function": "IMEXP",
+   "sha256": "5b170ed884210ce7e6212bc1f1dee04668f2072cf320dc8f700cda4a17d5c33c"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-imexp-special.json",
+   "function": "IMEXP",
+   "sha256": "facee10d4ec462fe72ac187b1f639748352ffcb70660663dd0b9674ef3713738"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-impower-more.json",
+   "function": "IMPOWER",
+   "sha256": "3844ec1218da7dc5ff8a6d5af1808ce89985d11e691abdb827fc618099a128ca"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-impower-scalar.json",
+   "function": "IMPOWER",
+   "sha256": "925ae0ccb5274db6a87ba8b57f6ba6f5d523cbbb6243e63822296b1951f0d6bc"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-impower-special.json",
+   "function": "IMPOWER",
+   "sha256": "a74664a778dcae21c397ad44d713e3fa29db5ef02ad088d2b9735c4791b85220"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-imsec-more.json",
+   "function": "IMSEC",
+   "sha256": "1460efca665479f2cdcc4dced995e74049b70f91a5ac4bc4d545dc71ddf42916"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-imsec-scalar.json",
+   "function": "IMSEC",
+   "sha256": "29132e5d8155958173ff9fd98bb0af86d9059a3d302bf559579bc6fee5e6dd35"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-imsec-special.json",
+   "function": "IMSEC",
+   "sha256": "57fd128fcfdecac2cb3252a8dc71bf076bd90f59a8725f00c6a58a93d8273df0"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-intercept-more.json",
+   "function": "INTERCEPT",
+   "sha256": "a72239eb666c0a6ec5914af7ac13c17d0e46810fbf89ff82c42d1e0ab671d011"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-intercept-scalar.json",
+   "function": "INTERCEPT",
+   "sha256": "72513231928f9dc2bce017eb8f9c271e8b0062c702a441332726dac2a902089d"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-intercept-special.json",
+   "function": "INTERCEPT",
+   "sha256": "363e9e1aa9ba2f359f2ce1cefb6e82bc9b3becd08ee9b671b44724929b0acf30"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-ipmt-more.json",
+   "function": "IPMT",
+   "sha256": "5001bcb24334f275031b9c7b4ed533b45fce603210506439c0cc9c34b4e35ec0"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-ipmt-scalar.json",
+   "function": "IPMT",
+   "sha256": "99ea6f2b51b297d6b3d248fceb24ed065d92942731851d340d385fbb26047347"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-ipmt-special.json",
+   "function": "IPMT",
+   "sha256": "5522125addaf966409fbb91c4ab29ec15423b59dd2fb8ca061daf4637b600b8f"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-irr-more.json",
+   "function": "IRR",
+   "sha256": "4b75f66a99cb5c2c588dda3e540932955bd2e9a754442898a9504a36433f0e46"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-irr-scalar.json",
+   "function": "IRR",
+   "sha256": "6e83e31d0e8f535e5243bf176961954c7a5779afc8ba44cf7b15cbb45ad5b75a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-irr-special.json",
+   "function": "IRR",
+   "sha256": "a9eb387f9717d98ae23224f82dc196146691443436d2da7b23c557b846041142"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-ispmt-more.json",
+   "function": "ISPMT",
+   "sha256": "d61b7511a7c4d93964c06d973b8932a835307cd5d1a3d040f47b3e1c04149b62"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-ispmt-scalar.json",
+   "function": "ISPMT",
+   "sha256": "6003dc21b8518679849f86ce76db1e2ee453309d7b145dae9210381fbf4686de"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-ispmt-special.json",
+   "function": "ISPMT",
+   "sha256": "552830e7dd83474916674965df44f36503d60176fafe4b197f9d0da0224926ca"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-large-more.json",
+   "function": "LARGE",
+   "sha256": "7336e0dc905a625993465d75cdc88b315b29de6477900b0a50fcc7e7442f4429"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-large-scalar.json",
+   "function": "LARGE",
+   "sha256": "684787db904d05f7c22873ab4feb5808b3ee829ac517e7e53ff49294cf2d4d0e"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-large-special.json",
+   "function": "LARGE",
+   "sha256": "1de6d35cc5c990719ab6393301dbbd087e97d57e97cd0df13fadaf1d387a140a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-left-more.json",
+   "function": "LEFT",
+   "sha256": "d9133459a4a7581fbbb376ce6ca8883078695a3d4649ef2acd809cec143cacf6"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-left-scalar.json",
+   "function": "LEFT",
+   "sha256": "0ca4dbb45ba48a4183c59ec9e36977193f74b89634508e777ee28f0a84d44e17"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-left-special.json",
+   "function": "LEFT",
+   "sha256": "80afbb4a7844fc342a9d67d72f04d20cb85d0ecd6fb189898e37b40e8fda8ed2"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-leftb-more.json",
+   "function": "LEFTB",
+   "sha256": "1acdb4bea15f2d4097154df456d88ee97590e15df84ace3953cd4a28a1354286"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-leftb-scalar.json",
+   "function": "LEFTB",
+   "sha256": "4a4e80b52f3d92767364889c0d63b462f5f515fd4936c05a0e73eda2e4616d14"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-leftb-special.json",
+   "function": "LEFTB",
+   "sha256": "13bad5094ac48c3f8b8703da0de9a61e985c09bbc6e63933c4ea5f253dc585b3"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-len-more.json",
+   "function": "LEN",
+   "sha256": "f953117b3bdcdc46ebc56401d5bf949311d2f8dd426523e2bbe74346dc71a631"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-len-scalar.json",
+   "function": "LEN",
+   "sha256": "f10d8e6ba7f5a3b26c56ae274afda209bf5c67bbe125f88267e92a4eaea74a5d"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-len-special.json",
+   "function": "LEN",
+   "sha256": "a274d3acc28aca296e21c44c6f6d41891a721626b417f6e16b2f78d815fa0501"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-lenb-more.json",
+   "function": "LENB",
+   "sha256": "e321d38f11da930d326eb441b9cdf6b2d9933420aa8f661db7da2a0f0bcf42c6"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-lenb-scalar.json",
+   "function": "LENB",
+   "sha256": "592dd1c465bf1a7a307ee2900004b449e901c40eb9ee2fa9103be2f0b143542a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-lenb-special.json",
+   "function": "LENB",
+   "sha256": "45f942b9882d60c5552960f2dbdc8eb8d3324aeb862d4de31fc8a7da4c1187eb"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-linest-more.json",
+   "function": "LINEST",
+   "sha256": "ac93b2be7ca69b839bcae04972242dee323a1fcdcc4fb478a7f42431851e5a5c"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-linest-scalar.json",
+   "function": "LINEST",
+   "sha256": "dd671c2775ca1e9cfc24bec66dac2f55bf960f1896e9a01ef66ddc34c2b19df4"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-linest-special.json",
+   "function": "LINEST",
+   "sha256": "89802acd7da2eb3f9d1d418174dedbd8d17f4f19b877f2189399c849796a3788"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-linest-variants.json",
+   "function": "LINEST",
+   "sha256": "4e50471e8aef34f026ba1d8bacbb15167de19f20156b739f54a12c92077f2495"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-logest-more.json",
+   "function": "LOGEST",
+   "sha256": "cc849b4195b00a07cb29d080a68e189fdecf3090515a43ea35c28b08ced9cf82"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-logest-scalar.json",
+   "function": "LOGEST",
+   "sha256": "174f0085e7153cbb7bf07ba2c5eb2e65932a42d2e12addcf0dcacf37d4010c1d"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-logest-special.json",
+   "function": "LOGEST",
+   "sha256": "f71009033363d0d72dc59a7c9d217443c6dc205a4252481e1380af45aee81e49"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-logest-variants.json",
+   "function": "LOGEST",
+   "sha256": "88d2822db153e29e1e9711ada98417d07054e8ceb828c45a67c3486ae7719b26"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-loginv-more.json",
+   "function": "LOGINV",
+   "sha256": "37664c998b1803b0aa9328684bedc4615686c4258834fb49bd867a0efb24d5f4"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-loginv-scalar.json",
+   "function": "LOGINV",
+   "sha256": "70a682645526634283168c4597274402791415f8475b08f7c55ff542d0e580b6"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-loginv-special.json",
+   "function": "LOGINV",
+   "sha256": "a60930dc4a7d560e389449c7d847fc61d06e213919175014185d24f6281913f1"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-lognorm.inv-more.json",
+   "function": "LOGNORM.INV",
+   "sha256": "80b6c163b276365cac25a25f3f9d106c6e713c9bbe2572ff85a4c94c728cdab3"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-lognorm.inv-scalar.json",
+   "function": "LOGNORM.INV",
+   "sha256": "6f9a827dfd94ff0d74887d9b8639bf746d63238d3d6336fc6c62295e8bf293ab"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-lognorm.inv-special.json",
+   "function": "LOGNORM.INV",
+   "sha256": "2dfc3480b1dcd38d6e0b5e13e9a75413c926aee8eea9da4da677f12a59f9b73e"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-lower-more.json",
+   "function": "LOWER",
+   "sha256": "2a1294bae8e0d8834ebbc034ec55e6251f745c664257f1fb56bcd21a5ee92f8d"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-lower-scalar.json",
+   "function": "LOWER",
+   "sha256": "ee1b3aced65665dbda70aefc62396963db331246e505555273e5cb1292457e25"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-lower-special.json",
+   "function": "LOWER",
+   "sha256": "324dda4a72e6266e51110aaf04d443ae42de49a02cf62c9895cacf450d5ba17b"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-mdeterm-more.json",
+   "function": "MDETERM",
+   "sha256": "a8f69b3df7cf21155422dfe0f655cdbfa981eaf5de67db85e6a1599e0f56b404"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-mdeterm-scalar.json",
+   "function": "MDETERM",
+   "sha256": "c650d95f087794102832c04aeb9fe2599741b2ba03ec24ae1683d9ccd4894d44"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-mdeterm-special.json",
+   "function": "MDETERM",
+   "sha256": "a44192288d243b9b156f8c0d6b9e0dda59c4298c6e9e27df3f88e611fca1e5ea"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-mid-more.json",
+   "function": "MID",
+   "sha256": "b1061e7500ea546b4cd6e238685caf13e47199d6ac246879b6e68085ef91f5c3"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-mid-scalar.json",
+   "function": "MID",
+   "sha256": "bac06f9414356e657268e6aeb7468f963141c4fd5a60d059f6a2ae49a37a10b1"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-mid-special.json",
+   "function": "MID",
+   "sha256": "39b9f35b2f9aad15141a96832b56ee10a485bc1b0e30b23f81311de964c9f9f4"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-midb-more.json",
+   "function": "MIDB",
+   "sha256": "fa94c6b84c19347c8f2ed006a2ab9f406a45ce8cc985ff6dd8e27591c7ab0e6b"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-midb-scalar.json",
+   "function": "MIDB",
+   "sha256": "5351c989a1cf899e195226d16c95e49013d402d0767bd59a499efe83a4db6f4e"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-midb-special.json",
+   "function": "MIDB",
+   "sha256": "01828716a37ee3115f957dc2e308710b0f3c2fecb23106984f634728e0671ec6"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-mirr-more.json",
+   "function": "MIRR",
+   "sha256": "48df9d6abc024411314dc75ec486ebe4a587ef201687b56076de51064a63c914"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-mirr-scalar.json",
+   "function": "MIRR",
+   "sha256": "b535f14675ecf1f80b065d5940de466cad0cb2c5f2361a718c7d2f81f5873371"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-mirr-special.json",
+   "function": "MIRR",
+   "sha256": "df439195e5504fe36e5001244637cec7b4c5dd918a3895dfaa5d2790999aacaf"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-mmult-spill.json",
+   "function": "MMULT",
+   "sha256": "b21b4267b9dc8283edb916c4fc70a94cf5d03101de11443bcef7aba5c1752342"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-mmult-variants.json",
+   "function": "MMULT",
+   "sha256": "dfd644fcd3759b95d84a5ee5731cff7fff6d909dfa5a65742e6ccd8139faf461"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-mode-more.json",
+   "function": "MODE",
+   "sha256": "97db95a066df101589d6d722a59590ecfcab77b1254c7a74c3b404736d614e57"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-mode-scalar.json",
+   "function": "MODE",
+   "sha256": "cec632ecd14846affe6e221a1666756862604eedaa3fd1e2b6e848dbe776bc18"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-mode-special.json",
+   "function": "MODE",
+   "sha256": "fb861b8e392eead70ff849cbb8c4ef1686fd790171a4606528d93608e7b688ba"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-mode.mult-spill.json",
+   "function": "MODE.MULT",
+   "sha256": "03ee218fe1780c15aeb025977084c12c14aa111379552e8f5b8d7e8a9ef476dc"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-mode.mult-variants.json",
+   "function": "MODE.MULT",
+   "sha256": "d83f8877b6859b3f8f8a6c71c3b6ad2d2c7efc8c6fd72467181c4b32ad3a4265"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-mode.sngl-more.json",
+   "function": "MODE.SNGL",
+   "sha256": "dad10d8ba428b04e2fb28cc6491d6922b29409898e2c240968415ce3c02230eb"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-mode.sngl-scalar.json",
+   "function": "MODE.SNGL",
+   "sha256": "fc603af688e9ef28bcdad553038372866ac77921e382e175dc983df59dd51a47"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-mode.sngl-special.json",
+   "function": "MODE.SNGL",
+   "sha256": "5516947d89fab5b6118d0a39384fb0ce7bcb021d65512709f6972af5e2300894"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-multinomial-more.json",
+   "function": "MULTINOMIAL",
+   "sha256": "bf0d7b72321dad88e2695ad627a3780306b2037869448bb88f42ed97e1e837dc"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-multinomial-scalar.json",
+   "function": "MULTINOMIAL",
+   "sha256": "f76957b2a0e220a0a42f66e2de878dc3724106837c31a9895d04cbb9ae0598c4"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-multinomial-special.json",
+   "function": "MULTINOMIAL",
+   "sha256": "52d124fde3c1483e306397ec3f409d5a22638135144647df61625b9cc3c2a4f7"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-munit-spill.json",
+   "function": "MUNIT",
+   "sha256": "201676191236fa61492fb460fe1130b607269f5a6ca5871cd56e9a7fc0978113"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-munit-variants.json",
+   "function": "MUNIT",
+   "sha256": "53a9b9fcf994e9556848096cb9527fcd2872cdef590d6c97361a0516d3067b41"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-negbinom.dist-more.json",
+   "function": "NEGBINOM.DIST",
+   "sha256": "f44fc26980bae4b2f610626d3f2b1b7c484bb5b5206ac52c80fe392715ab7f20"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-negbinom.dist-scalar.json",
+   "function": "NEGBINOM.DIST",
+   "sha256": "d39f3e6956250617ff2cd21554039f66f9ab5cd5df34f6862ce77dfbe44ccfb5"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-negbinom.dist-special.json",
+   "function": "NEGBINOM.DIST",
+   "sha256": "ff0f102a5213a9e87eeb56af477233afb789f0dca73044214fe2375289276787"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-norm.inv-more.json",
+   "function": "NORM.INV",
+   "sha256": "0a005d740861a74de32a89cc15afb09fdf544177f53276b666b6cf7c912190c8"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-norm.inv-scalar.json",
+   "function": "NORM.INV",
+   "sha256": "987d896d8a8df1c3e469fc718b39f714d4fb8ea115dc69b7919080b186c53558"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-norm.inv-special.json",
+   "function": "NORM.INV",
+   "sha256": "43503cbf805346e9e8bde5b3afeeb961dbf8f33028eac5ddbe89f2c93744d051"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-norm.s.inv-more.json",
+   "function": "NORM.S.INV",
+   "sha256": "d175ff5d928137efa241b2ce28a44e96872205f7459ad0770b3118a3620b8f69"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-norm.s.inv-scalar.json",
+   "function": "NORM.S.INV",
+   "sha256": "55a0de206c9d03548c780823335db8d23ff20da6414bb3df25e04f2bd2327858"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-norm.s.inv-special.json",
+   "function": "NORM.S.INV",
+   "sha256": "025d0b06619f4b8fd50975b45a2cdb9b586f005d199c1870a36804dcb2ac9bc1"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-norminv-more.json",
+   "function": "NORMINV",
+   "sha256": "c359e91f884c88165c53b2d09e6e0e6e9b4bb1ed4b344ce603cfd9264f2505f4"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-norminv-scalar.json",
+   "function": "NORMINV",
+   "sha256": "1f3ba02f533c4b739c704773b513b429d618107de136935bc2406a18bfaaba60"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-norminv-special.json",
+   "function": "NORMINV",
+   "sha256": "f08aa519f3942b7692f054a0102c8948a1b9f1cb3429e7206c69166dd6b3ce7b"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-normsdist-more.json",
+   "function": "NORMSDIST",
+   "sha256": "ef95f2849598e34a6c969e3ed85905c8dac792d90b0d2cbdb19ca680424c97c9"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-normsdist-scalar.json",
+   "function": "NORMSDIST",
+   "sha256": "a803ecef99c319b858987d957c301943fcf39c3e5bb87de7bb6f8a25c34563e0"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-normsdist-special.json",
+   "function": "NORMSDIST",
+   "sha256": "11c8a7e76d727632be69a2b926db8df90ccf3b8f604de940689b4f0748880ca6"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-normsinv-more.json",
+   "function": "NORMSINV",
+   "sha256": "c644f13cb75a9d17915b4d219cc53159813d5852bdfdca57134c9e32ff75bf66"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-normsinv-scalar.json",
+   "function": "NORMSINV",
+   "sha256": "2f526e3e670f519d6a74b10256c89614b7885c9dde2f87b2883952622042ae13"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-normsinv-special.json",
+   "function": "NORMSINV",
+   "sha256": "d8652836df160b4384e9183d8abbff2a2d9cdddd5aff73fae2c6fbab0f68830c"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-npv-more.json",
+   "function": "NPV",
+   "sha256": "3d0bed35095dfdb9724a03b7aa81fcbf38fe651ddb705c59df8ba462d2bcab66"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-npv-scalar.json",
+   "function": "NPV",
+   "sha256": "68292e6514dfb01ca83d1060dd64fd7a780336c0e6817e096751a063a0ddf91a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-npv-special.json",
+   "function": "NPV",
+   "sha256": "802864004fd75dd376674e35e46cdb17b1def70b2818a5c25db1e8c2425e5968"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-numbervalue-more.json",
+   "function": "NUMBERVALUE",
+   "sha256": "56c411788c9f9f73648ee8f25a31a6557277b4aa4442eb8214cf537875defeea"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-numbervalue-scalar.json",
+   "function": "NUMBERVALUE",
+   "sha256": "940a5c541df978c27181c0d0866a9af98e954d1f3073b38ef7d49d770fe8fb0d"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-numbervalue-special.json",
+   "function": "NUMBERVALUE",
+   "sha256": "e6ad231b512af6683627db2d6550e7bb3aad079558cd8bee804db63439c63e41"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-oct2dec-more.json",
+   "function": "OCT2DEC",
+   "sha256": "d86448f5f797f28397f0eefc770baa22488369dc1e5b4f3b8b2a4152fa0d141e"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-oct2dec-scalar.json",
+   "function": "OCT2DEC",
+   "sha256": "07be0c9daeb2697a09b8dac624317694ca153bd9993887f45b8100dd36ba3ba1"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-oct2dec-special.json",
+   "function": "OCT2DEC",
+   "sha256": "b7610877b76fdd399fab8c26607f2c2ff6ce079767ed86cd8c8abbcd48cfe3d2"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-oddfprice-more.json",
+   "function": "ODDFPRICE",
+   "sha256": "d5a45752d2c0872d237dbe37cb7fac9ef712cb0f37c5e9d586338885951ee25f"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-oddfprice-scalar.json",
+   "function": "ODDFPRICE",
+   "sha256": "90d5bcde0a4f7aa57272e3b6059a682ffa2cdbc478959ca1cad7a9b7d661254f"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-oddfprice-special.json",
+   "function": "ODDFPRICE",
+   "sha256": "d7c8a8235a974434153d130a2e7a08311443adf2850f165aa07b541aee7baf13"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-oddfyield-more.json",
+   "function": "ODDFYIELD",
+   "sha256": "983b6eac8e7cfbc0311427d7bfab4ef878ab079c1d5005da5a28b09aa36c517b"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-oddfyield-scalar.json",
+   "function": "ODDFYIELD",
+   "sha256": "05ba4d2b4d5e0b1f1f652726d2944d16ad305f916c870142cce5ecd8d9a063da"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-oddfyield-special.json",
+   "function": "ODDFYIELD",
+   "sha256": "7516f85a5122b5ee8606d0520c62406fd29ea7b3907047f6582199ef12d9840a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-oddlprice-more.json",
+   "function": "ODDLPRICE",
+   "sha256": "6eca0cd9ca1510238d424d3554a20ea3104fe9b7edea4c676dd70c376142ad49"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-oddlprice-scalar.json",
+   "function": "ODDLPRICE",
+   "sha256": "794aec5cfd37bd4640d0471bdbe99f4c5479154a055d56a4d5f945f5d81faa01"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-oddlprice-special.json",
+   "function": "ODDLPRICE",
+   "sha256": "01b0d37b109cb16a7a788b801db0ddd77ad6d74ff93b62b8f5d165d69cf382f1"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-oddlyield-more.json",
+   "function": "ODDLYIELD",
+   "sha256": "8072a0c680ac467dfc4a7cf60ce17ef6a022e008326795ad3c02f2b8a5fa6687"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-oddlyield-scalar.json",
+   "function": "ODDLYIELD",
+   "sha256": "2529d328ed352c2c74dbbc8387d1f2efb74187033d12ffacb9b461e35d379054"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-oddlyield-special.json",
+   "function": "ODDLYIELD",
+   "sha256": "b595f2339827d013013fe977ed229ae9b00dc8c342046f1baf23d0078d7d990f"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-pearson-more.json",
+   "function": "PEARSON",
+   "sha256": "19b6f34818ac3cd434b8b90572411f55f6f21dc1e063e8bbc1562a801d7ddee7"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-pearson-scalar.json",
+   "function": "PEARSON",
+   "sha256": "9c51e3e046445fb605d5f8a19d2bb957bfa3ab0e512281854d8e3fba5c80e47a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-pearson-special.json",
+   "function": "PEARSON",
+   "sha256": "75ac352531d5ff37a73b58065ea14669308c9e7d51f2030f12294e1ecb9d4908"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-percentile-more.json",
+   "function": "PERCENTILE",
+   "sha256": "d924321b05897f6da3fa151b28817736227577df7fc4cad4199bfcea06f66c2a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-percentile-scalar.json",
+   "function": "PERCENTILE",
+   "sha256": "81a9a1cffb5aa7dcdd8292c6eb503b4f3be2b016abc5dc8a0b8e6b87b5fadc29"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-percentile-special.json",
+   "function": "PERCENTILE",
+   "sha256": "1fc4d0eea7a63e13c555b8ac646ec510cc8b6cca26c0fb4cf7cee37369a9a762"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-percentile.exc-more.json",
+   "function": "PERCENTILE.EXC",
+   "sha256": "90bddfb18fc5753ef180b641c3c50b306fb0ad168bd785763d326ba56cd3a4ac"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-percentile.exc-scalar.json",
+   "function": "PERCENTILE.EXC",
+   "sha256": "59b03c8a04b408f5bf4fac4b06c1f0f9cf4508714f8118986e0af79f4cc573e7"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-percentile.exc-special.json",
+   "function": "PERCENTILE.EXC",
+   "sha256": "d15a6007b46a8a7ab5276c84cbedf5987e9799e9d1fbf5e90fe52f5ba4e6b694"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-percentile.inc-more.json",
+   "function": "PERCENTILE.INC",
+   "sha256": "0c6f8aceb8ba03ffe9671cbd462d95b61dc1da6540f002f014919684e296b2f1"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-percentile.inc-scalar.json",
+   "function": "PERCENTILE.INC",
+   "sha256": "9b609ac8055e2f52cf44bb9b4935f117ff4cf082ff20b6ce60eaef3fd2b9f94f"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-percentile.inc-special.json",
+   "function": "PERCENTILE.INC",
+   "sha256": "05df2998d077c5f6e51a06f3e53742c9ebf69f45df847f685e99ecd5f7eb5148"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-percentrank-more.json",
+   "function": "PERCENTRANK",
+   "sha256": "404e7a37c4758cc6145f3d388ef9681127573e10eef01a14a0533afbc9572360"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-percentrank-scalar.json",
+   "function": "PERCENTRANK",
+   "sha256": "cce1831b3a13e2a7756229f71965960129e2a75e4d6cb6406e31fe2558473d9a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-percentrank-special.json",
+   "function": "PERCENTRANK",
+   "sha256": "6b2ae4923d929b29bb8e67bcea2cb4faa167fc9e3faaf1d686621817e609d94c"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-percentrank.exc-more.json",
+   "function": "PERCENTRANK.EXC",
+   "sha256": "ddb680a6123783c9070fd293cf9f26737ce5c230c065cf55c734ecaaaef84787"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-percentrank.exc-scalar.json",
+   "function": "PERCENTRANK.EXC",
+   "sha256": "3a5f8ae7b0b94b08a5394cc0eeddfbdb74f10e15d7d4f18837d504fb48b3ca72"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-percentrank.exc-special.json",
+   "function": "PERCENTRANK.EXC",
+   "sha256": "4d601689857c4168841523e2212edb165a56c2b23574bce13f0608445bac6f9a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-percentrank.inc-more.json",
+   "function": "PERCENTRANK.INC",
+   "sha256": "2b7475715eeff665bfd470a8468941030472b389a654f609c8ccea66fdf1ccc5"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-percentrank.inc-scalar.json",
+   "function": "PERCENTRANK.INC",
+   "sha256": "2072dbaa85973c68459936b4ec796ad040a820458b14d3639ffb8b8bdfc5bfaa"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-percentrank.inc-special.json",
+   "function": "PERCENTRANK.INC",
+   "sha256": "cea6b45aac69d8c318fe8c437551ceaaf6d31dca8a8e3c0e9ded61c4c2ce3450"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-poisson-more.json",
+   "function": "POISSON",
+   "sha256": "705957e9f1fed4e9d86ae300697f394e59150d7738abcc74993fbf72707e619d"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-poisson-special.json",
+   "function": "POISSON",
+   "sha256": "b50dabc35df3f9270847644acd14529a37cc8c5e973db92674cbdf18961bbcce"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-ppmt-more.json",
+   "function": "PPMT",
+   "sha256": "035290e270e8e40ced03977d1669d89830b8eee01e6ab6ad7a5ca16e5d8f69a2"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-ppmt-scalar.json",
+   "function": "PPMT",
+   "sha256": "83dbc5c0664cfa083c9476519a3b26db8378c5eff6e87939ba545bf3e065f1bd"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-ppmt-special.json",
+   "function": "PPMT",
+   "sha256": "f1ef05c6a07bcf38d7bcb30ba1f5aef173c120c4334d20426af422f2a7356cc5"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-prob-more.json",
+   "function": "PROB",
+   "sha256": "01f7eccebbfc96897f7eb79f24e725c20f81a8a879d592eda3fa00d2c9040f4a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-prob-scalar.json",
+   "function": "PROB",
+   "sha256": "d2b6e3a5716e3d13095c86bc279069c85af9acf4ab5d6d48d3768de1081f77a4"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-prob-special.json",
+   "function": "PROB",
+   "sha256": "a6590b7a7344a40fbcab1ccc935d189eea6427cca2a0360f06cc46e3861e7d42"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-proper-more.json",
+   "function": "PROPER",
+   "sha256": "c2a1814ea42d6a3542f4b8045a7a2504497bcdf55a0b97dda2ce198b4e220d0e"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-proper-scalar.json",
+   "function": "PROPER",
+   "sha256": "8f9cb31638749a950b5284b8c42edee6a2d0106a1e01c96b674fa034029a810d"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-proper-special.json",
+   "function": "PROPER",
+   "sha256": "bc79060815d92d8c9f0f4f855c2dde6280d847acdc8294e6a673b34330f8b229"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-quartile-more.json",
+   "function": "QUARTILE",
+   "sha256": "790a26bce5df2611bb953bc5e52e2e30e378ddb0ed39769147d5bd867748f798"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-quartile-scalar.json",
+   "function": "QUARTILE",
+   "sha256": "d6715ec0cfb0bb2e1949ab7665a4a3104b53dfb0c9e7fb2028fc59526e30693f"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-quartile-special.json",
+   "function": "QUARTILE",
+   "sha256": "c8adf74645bf6dd6608b1fe85dcbf54d203109d376e34079fce851a0949eb00a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-quartile.exc-more.json",
+   "function": "QUARTILE.EXC",
+   "sha256": "cb714ac79220b2544425df13e359507ed892a3691e9ae98fd1cd74acc95a8bb7"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-quartile.exc-scalar.json",
+   "function": "QUARTILE.EXC",
+   "sha256": "e9b705702f0aca8514c7c7700b7dc525af6c22ded31a9d75670404e3c3dde3a4"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-quartile.exc-special.json",
+   "function": "QUARTILE.EXC",
+   "sha256": "a291d25ca9ad03f346fd67aff6a4dd282a09dc5099da87ff0e91199426ed9c5b"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-quartile.inc-more.json",
+   "function": "QUARTILE.INC",
+   "sha256": "9dce3b218fdc55dfd987563240b897b3d753e5d7de3dc19e9117fa2c0a915334"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-quartile.inc-scalar.json",
+   "function": "QUARTILE.INC",
+   "sha256": "9e4996747c8dd95d892a13f71dc3ecb3cc02769a705816e8f415251c7fd21838"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-quartile.inc-special.json",
+   "function": "QUARTILE.INC",
+   "sha256": "4e3746b061c05f41d804072431ed678ddd9f1178458ff9308b2d4a89a35b686e"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-rank-more.json",
+   "function": "RANK",
+   "sha256": "fbba07591c08fd462463508d5f86859cb837548c518c87ac8e07c57f2add6d23"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-rank-scalar.json",
+   "function": "RANK",
+   "sha256": "93836fc4d75e2b321e81faa6327473597f1c327bc455d705d498c4870e3868bf"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-rank-special.json",
+   "function": "RANK",
+   "sha256": "da7e88256adc7b7da114ae3fb596abc9bb5560bf7664092bf9ee2d0c1e94499c"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-rank.avg-more.json",
+   "function": "RANK.AVG",
+   "sha256": "1307454223dfe37a83f06593261ef95a102cfda8515083d4a48a7849b031d339"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-rank.avg-scalar.json",
+   "function": "RANK.AVG",
+   "sha256": "be51419df25b0ebc9913c65c9bc6a72c044ea32876e059d52a68913bc0c320a4"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-rank.avg-special.json",
+   "function": "RANK.AVG",
+   "sha256": "54f352c9e2c62bd687b216efabab90de8b5a01fdd593808c346c551422ba5aed"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-rank.eq-more.json",
+   "function": "RANK.EQ",
+   "sha256": "27de63dd4c36b52ba875e840e5e5ba50045dca63d5dd6c70d801ca05f45eb6f2"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-rank.eq-scalar.json",
+   "function": "RANK.EQ",
+   "sha256": "0a15f21d1263313e8e61a171e58744cc2406efcbd000ea7f075ade32ae21639f"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-rank.eq-special.json",
+   "function": "RANK.EQ",
+   "sha256": "363288c44f437df1a6f648ede02ad00e8229c0ae5647fe908ff885ab48b7d8f1"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-rate-more.json",
+   "function": "RATE",
+   "sha256": "b1ac2f05999bfdfc383f6ed25d0b10162f0ac11265b5b22b20bd58d78199fac5"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-rate-scalar.json",
+   "function": "RATE",
+   "sha256": "1bb29f74dda2926d29fa1eef3d8858289c423975e97aad6a7b4952cd5cc5f445"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-rate-special.json",
+   "function": "RATE",
+   "sha256": "38d204fbcaca45c2bf129a904513d95424bc949ab4ec138ee1f6d8b8dfb8e7f8"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-replace-more.json",
+   "function": "REPLACE",
+   "sha256": "2d0a857e67093e32f5914094084b5104ca9d4cbd53e7f631c75c0c2606c9ac25"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-replace-scalar.json",
+   "function": "REPLACE",
+   "sha256": "dec1f9b134c90992e00b8f696e23825ed1f73ad0e2046590d416069295c09257"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-replace-special.json",
+   "function": "REPLACE",
+   "sha256": "712cf05b5df0f541fc2b5775d2671b20a46b84fc0423814a7de9b57f2bd7b871"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-replaceb-more.json",
+   "function": "REPLACEB",
+   "sha256": "14c062d50014e8df81c258790e3e8aade29f008c775d34661f3cb087297299af"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-replaceb-scalar.json",
+   "function": "REPLACEB",
+   "sha256": "cb51f546b71b2eaf1c569e69b454dd87ee25f9ae443c228ea81dbfb154d65f63"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-replaceb-special.json",
+   "function": "REPLACEB",
+   "sha256": "2d3e6bd2d60c848d91d9825a375c4f22b5d02692e5baa2a9d58334b8d99649cd"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-rept-more.json",
+   "function": "REPT",
+   "sha256": "ec0d4b82af0b762b1550ffd4d778bea18020b1775fedc81bf70a19a45db65267"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-rept-scalar.json",
+   "function": "REPT",
+   "sha256": "0193da373abc9c90312cdde5195d90cda8911f69b0bd8bfa1a22f5c69c93a786"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-rept-special.json",
+   "function": "REPT",
+   "sha256": "003c45e45c43048f011bc03598e25841ebca1b42a2339c8040c824857635b175"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-right-more.json",
+   "function": "RIGHT",
+   "sha256": "206370ca6e5bfd54a8ca717c28b677baa24111b04fb291f7721d29f22071e7da"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-right-scalar.json",
+   "function": "RIGHT",
+   "sha256": "8ec924b561cee2241b957b73c1bf3aa8c8d502b7c208d2e4d75654505f32a29a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-right-special.json",
+   "function": "RIGHT",
+   "sha256": "302731e9ab9d0279d71918034ef8e827ada972195ee81a7fae3273e276e6143a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-rightb-more.json",
+   "function": "RIGHTB",
+   "sha256": "bc1f2b6708ec555f1b6b58117e13b0a5172b994dc79cb1cbcd725b53fe9c625c"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-rightb-scalar.json",
+   "function": "RIGHTB",
+   "sha256": "78581f7ecf08831c3da3041b4d70f05e7c189111f9241880eed5624517ac4747"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-rightb-special.json",
+   "function": "RIGHTB",
+   "sha256": "faba8d266da43dc12ecee1ee778194465c6fc0189ab51680b11ba142ec69a747"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-roman-more.json",
+   "function": "ROMAN",
+   "sha256": "31be62dbeb3a8dd254a7f7e2ea8e61b151f7237ab62b628d3ca70afc35942a3f"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-roman-scalar.json",
+   "function": "ROMAN",
+   "sha256": "9b4efeedf47bc8e54f45ecffb8a02b38ea76452c11d65a83c1842ebfa365fd0a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-roman-special.json",
+   "function": "ROMAN",
+   "sha256": "0257c66a374a8c89bf4bcb11e44ff40999cb2cc0396266cead4d9e567cc8850f"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-rsq-more.json",
+   "function": "RSQ",
+   "sha256": "df4331316f07942e1e25e465fdf55eeff19d132097bf6b278e67ee920c5ff037"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-rsq-scalar.json",
+   "function": "RSQ",
+   "sha256": "f9678748e0c272bb071d8fa1adb96f477e73c526cd1b32bf7c1b85ab8871dc57"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-rsq-special.json",
+   "function": "RSQ",
+   "sha256": "d6737a087645ca71c906fa2a4519772c5dcfd75d9d5ce120dcce76cc5bbc9ca2"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-search-more.json",
+   "function": "SEARCH",
+   "sha256": "82530c689cd703e30a55132b1ddb3c948fe2d5e00ce1c441fb3f8760f769119b"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-search-scalar.json",
+   "function": "SEARCH",
+   "sha256": "d4346e0b1b3ae7c2212c1443f066cbe6cd5b3b3ccfe072f2bef67676e3f7a5e0"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-search-special.json",
+   "function": "SEARCH",
+   "sha256": "9173f259c4b7b4a51bfaad45b02c030da58b99998cc0032120d23a34334b6889"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-searchb-more.json",
+   "function": "SEARCHB",
+   "sha256": "7f845f4fa4fb4a0ddfff7502edacd3ed97b492a97289b1a7c6c7564ce15696a6"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-searchb-scalar.json",
+   "function": "SEARCHB",
+   "sha256": "ba5b4ffb7881e88baa61c06801106d0b3cb23a4b17a8fb743d00291eb3a0d8af"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-searchb-special.json",
+   "function": "SEARCHB",
+   "sha256": "0f6f0393562ad7437155ce6799e22444f6214571a775d4238f7e7bcb01bd4627"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-sequence-spill.json",
+   "function": "SEQUENCE",
+   "sha256": "7007f8174ebb51f45c483791df949aa354cb9e05b10071f7fe86598c629d2a4d"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-sequence-spillmore.json",
+   "function": "SEQUENCE",
+   "sha256": "b943ff7392316ed53da7db8c5e24a946f76830260e460afc65b1a9ea724e7945"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-sequence-variants.json",
+   "function": "SEQUENCE",
+   "sha256": "e7e2b14f219417a57ead10f6f4ef1294cabdb3f7b09810b49ab843710549615a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-seriessum-more.json",
+   "function": "SERIESSUM",
+   "sha256": "7d4f88b73ea8895880274a6d3fcc1bb3d39ca77f9ee6dca3594f8965e2a88753"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-seriessum-scalar.json",
+   "function": "SERIESSUM",
+   "sha256": "3ac6506528ef59ade122b6880ded4733cb6621a3ecf93dca9bb71cae1c1f459a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-seriessum-special.json",
+   "function": "SERIESSUM",
+   "sha256": "315a7e76fe09c4ff19be38fd1dae58039c260ef4bc6386fd37088805f77d7043"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-skew.p-more.json",
+   "function": "SKEW.P",
+   "sha256": "776af1ea34d6089b3d2ac59facf2f8026e593df52dc8acd391b0d20491df449b"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-skew.p-scalar.json",
+   "function": "SKEW.P",
+   "sha256": "7451bf76c3dbe62ef07b84e7a3d9cc3f1ee9fb12e8a11c05b1a59e1fc0d85457"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-skew.p-special.json",
+   "function": "SKEW.P",
+   "sha256": "49a0a5bdb72718caa77008a642082a30f4b304161d0ec6fc9730d18d4ac0a549"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-slope-more.json",
+   "function": "SLOPE",
+   "sha256": "5f28a4a38458d1172d75db7b6914fc3a2c23c10f1940d0f16507162003737d01"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-slope-scalar.json",
+   "function": "SLOPE",
+   "sha256": "913a0e94e57f62eaf0bc75b6571532ae22a5bfbc91fde97ec9ba0672a8a81a0d"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-slope-special.json",
+   "function": "SLOPE",
+   "sha256": "e11131ce031c9e082b3eb3721791e5724f7fcb97980a4fb831081d9136b26a30"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-small-more.json",
+   "function": "SMALL",
+   "sha256": "01ce35de8ef6d717baa1b361cc6c90ebb673c44add883ce88024156c0ae844e4"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-small-scalar.json",
+   "function": "SMALL",
+   "sha256": "43b55ed24b155e7a148634e1c34019a401ffeb596f315e7cd62287d1034e805c"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-small-special.json",
+   "function": "SMALL",
+   "sha256": "d199cd6fad277a57e8bd61ff051f4c1cda2915907629c14b07d195430e82460c"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-sort-spill.json",
+   "function": "SORT",
+   "sha256": "4a4433527372f3754531b8adea5e0c5e05c1faa32fcd4123247022667741cb19"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-sort-variants.json",
+   "function": "SORT",
+   "sha256": "aa4eafe2c0dc419b14f1f8f52628d541df67aa2ed213c4a38d0f4f5341c2d3f2"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-steyx-more.json",
+   "function": "STEYX",
+   "sha256": "a829f90242af68399f70c51c78ecff84298d2c45833d68b7b103ae0301cacff1"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-steyx-scalar.json",
+   "function": "STEYX",
+   "sha256": "dc310ec578281e0255dfcde679b90571b4671fce31a50facdc94fce99446b77f"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-steyx-special.json",
+   "function": "STEYX",
+   "sha256": "e53ab537ec070b4ff51ab629a1e20e2232a75b49edfac39fdeece793d92a98c5"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-substitute-more.json",
+   "function": "SUBSTITUTE",
+   "sha256": "628a076c625db58eff6650726b7c20e1d9983b3311628ce0cf61058316c9f092"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-substitute-scalar.json",
+   "function": "SUBSTITUTE",
+   "sha256": "14d1bdde45a9846b252b595e845ca33378d2cfb37da5bf32b653ff86dfdd8281"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-substitute-special.json",
+   "function": "SUBSTITUTE",
+   "sha256": "58e590480e0a71506aa6e0f559c7d6b7c5e4ea8208f30df7c5ef07c9f2e640c9"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-sumproduct-more.json",
+   "function": "SUMPRODUCT",
+   "sha256": "e03df4aef8127e3cfe72a8e3dbe62b72c99af500ffbff8171d481660d52e73af"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-sumproduct-scalar.json",
+   "function": "SUMPRODUCT",
+   "sha256": "200c3b6fc4159a7aa7d1bb860480e5834d171a7f21afc2f1723cb992067b850f"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-sumproduct-special.json",
+   "function": "SUMPRODUCT",
+   "sha256": "71eaac6d69fc09736204d7055bc531a4677646cf89a1171ad076b403672e42e4"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-sumx2my2-more.json",
+   "function": "SUMX2MY2",
+   "sha256": "76711c233dc8a818370aae1604324179bad80bfbdb1a7c36ceaa473fa5f56623"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-sumx2my2-scalar.json",
+   "function": "SUMX2MY2",
+   "sha256": "e57aa0e5edc0d0280e353bb480ea26e98a9b88cf5c4b12bc1888f0e5d6f1ec1c"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-sumx2my2-special.json",
+   "function": "SUMX2MY2",
+   "sha256": "726f92cedbe8f9fe0023cda18cf361b355fc6968e471414100fbc3602b4e664e"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-sumx2py2-more.json",
+   "function": "SUMX2PY2",
+   "sha256": "d8e2cb9ed0efafdeb5a1ea80fe2011d760c1049f8371c9b1551c7aba666b1b21"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-sumx2py2-scalar.json",
+   "function": "SUMX2PY2",
+   "sha256": "c922c7554e50ea13706ebaa803d41acdd964439a0c0e5119c72a5592eb8321e4"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-sumx2py2-special.json",
+   "function": "SUMX2PY2",
+   "sha256": "79cb37a834da7967037bf2225530e14bdaa3e60f8bd0137b0ecc8ff08a1f4842"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-sumxmy2-more.json",
+   "function": "SUMXMY2",
+   "sha256": "b46398b8a2283542bba32d05fad44a776e5a386c6ac793ea38a2d22b1d4481af"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-sumxmy2-scalar.json",
+   "function": "SUMXMY2",
+   "sha256": "b6ddd3105aa8d104993cedc2df8c0cbb6774f08261b5a06fd654603111853340"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-sumxmy2-special.json",
+   "function": "SUMXMY2",
+   "sha256": "d4f248388edb3bb92290412135187e6d1fcddc904ebd837cc957efbf7c1b7a19"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-t.dist-more.json",
+   "function": "T.DIST",
+   "sha256": "e4bac2f226d384451805ff82c8a4c90bdf996bfdba3df4d35dd1a59640fd3f8a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-t.dist-scalar.json",
+   "function": "T.DIST",
+   "sha256": "335646036830f0f4fb6fa53851a3b88bd615de71eeb6d1e68fbf90be59d5b226"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-t.dist-special.json",
+   "function": "T.DIST",
+   "sha256": "db55885b63a3dd1aadb311b14466f8f0eb9f554b96f30d397e9482939c836066"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-t.dist.2t-more.json",
+   "function": "T.DIST.2T",
+   "sha256": "d7811625477de11df4470f9a141ae5e60473b4a85f6ed447b8f32784a6c88a64"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-t.dist.2t-scalar.json",
+   "function": "T.DIST.2T",
+   "sha256": "4edf5fa81259712b83bc992427a463989c3b02ae336c11b81e010a6858011ead"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-t.dist.2t-special.json",
+   "function": "T.DIST.2T",
+   "sha256": "5ccfbcc3f1094599b7afe38a7703279c2a586b2e295c3642290748584bcf3074"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-t.dist.rt-more.json",
+   "function": "T.DIST.RT",
+   "sha256": "5c4e31934866d393fb8c045b1d5d657c18387eaab1a4d8b347f83be2ec621a8d"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-t.dist.rt-scalar.json",
+   "function": "T.DIST.RT",
+   "sha256": "76786d4e669fbed899097fec12b88c06d8d6fad1383db6c7138bcab72ec0b3ea"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-t.dist.rt-special.json",
+   "function": "T.DIST.RT",
+   "sha256": "e12a57faa147e4790470abf139eaf42959abbf959274f6f3307f139261f2a28a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-t.inv-more.json",
+   "function": "T.INV",
+   "sha256": "e12c994a755cec720d5d767b370cd502865099674a648ba893fbe242d509ea0a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-t.inv-scalar.json",
+   "function": "T.INV",
+   "sha256": "1f3e6370936c3518acdf0291e85659380058e2f736f91ac047bd1719e6f9e63a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-t.inv-special.json",
+   "function": "T.INV",
+   "sha256": "6b1286bf8d9a87e26baf72704f9e080e46820f95f5360e20c715ce86afceb903"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-t.inv.2t-more.json",
+   "function": "T.INV.2T",
+   "sha256": "fe74171970df2ca68cef6146be31e4f59ee96f0e8ef86e5415c731e845eb3caf"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-t.inv.2t-scalar.json",
+   "function": "T.INV.2T",
+   "sha256": "f1a9bc1912ad2cf62604e799c3466d7f721728fb7405561f3fb32550eb8f70d2"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-t.inv.2t-special.json",
+   "function": "T.INV.2T",
+   "sha256": "25a16720edc2959f8e4fceb5da3d5448de454db32574630310cbc38b10a180ae"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-t.test-more.json",
+   "function": "T.TEST",
+   "sha256": "c751f02b901866f8d219502596977e489fa440a5cc1acd981c4ecc0e18ec559e"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-t.test-scalar.json",
+   "function": "T.TEST",
+   "sha256": "bb379f6eb090db754ae6cbd1cbe1d151ea92da1e4b90eef1291f38e746bc4ac0"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-t.test-special.json",
+   "function": "T.TEST",
+   "sha256": "b87d850dafaa7a0b1852b867c2a8e8b240e673688002b8c544afa8070215ca73"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-tdist-more.json",
+   "function": "TDIST",
+   "sha256": "72d5e39067caf874a9dd36755c3ff9089cc826e93cb478294bdb4953293c60a5"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-tdist-scalar.json",
+   "function": "TDIST",
+   "sha256": "f31061b4469d72f325385d59c244195d6230115a4e42ac2cd775fe004eafa5a8"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-tdist-special.json",
+   "function": "TDIST",
+   "sha256": "a8071311d9847a51399341b3bbd5b2b65efed0eb20d494b76744de69fb952084"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-text-more.json",
+   "function": "TEXT",
+   "sha256": "a7fb4d64d8c45a415cc01daa6f6a2303986bc1bbb6d98451ea69b71fb66895f3"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-text-scalar.json",
+   "function": "TEXT",
+   "sha256": "8ab72814822cb9648746c6d0f1d378da4b30313e285684329c950d47d5b19169"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-text-special.json",
+   "function": "TEXT",
+   "sha256": "6f14e053f8ee54d04f9e50db19c709085176b0a4ee68878ee707303944ded774"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-textjoin-more.json",
+   "function": "TEXTJOIN",
+   "sha256": "05d6dc223a0cee2d68f986d5aeeefea792e66f0cbc26e9ed78c64fa395b1e160"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-textjoin-scalar.json",
+   "function": "TEXTJOIN",
+   "sha256": "3e27e96982204b5a64f1f5d6e4863503f32b0bef70437148ce91e52bf64036aa"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-textjoin-special.json",
+   "function": "TEXTJOIN",
+   "sha256": "1793f90df5b09390571996e4dac6a243e8b2c894848e9e9ee2f791a39f7e9970"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-textsplit-spill.json",
+   "function": "TEXTSPLIT",
+   "sha256": "987f5cd6248b3b9f2a20fb7a3d3075f2e87dad3b81550bf2a75faf251fc0ce16"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-textsplit-variants.json",
+   "function": "TEXTSPLIT",
+   "sha256": "7763785e82ae27f01a0b55c6644b6f1c5c215fc211086deb4f421b000b51f2ca"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-timevalue-more.json",
+   "function": "TIMEVALUE",
+   "sha256": "bfa1526e0449acbfb76f89924b388e86b8d4cba78e9f6cf1e41ce1f228269772"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-timevalue-scalar.json",
+   "function": "TIMEVALUE",
+   "sha256": "84dbcbf6a2e6079fd8d3b776f39ee88c3b5c665efc0108bace2ceff33e21fe00"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-timevalue-special.json",
+   "function": "TIMEVALUE",
+   "sha256": "5cf66b9696cbe72a8848eb38944f2bebb59a75af13bb82c9c7f2cf07519aac7e"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-tinv-more.json",
+   "function": "TINV",
+   "sha256": "bc193ba61eddfdc9e7b105ec404e0fd842a4293695680f40e3ad8606bbb17ed9"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-tinv-scalar.json",
+   "function": "TINV",
+   "sha256": "8bce6940ebab8cd19aca6bece80655c1f728a85f0e21af9be8f94989036d41d0"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-tinv-special.json",
+   "function": "TINV",
+   "sha256": "51b5b8f1db39c09af298ddb2cc4eb24d54bb62175106d9f1780a4fdb7b2dcebd"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-transpose-spill.json",
+   "function": "TRANSPOSE",
+   "sha256": "20efc0495e2242f197be421994fe1246b5cace8ed3ecbba722bc15da4e9927bf"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-transpose-variants.json",
+   "function": "TRANSPOSE",
+   "sha256": "4208aeb5e9f04f04e01ffab7aadf1270f5bd5f4e76ec2328fa91ba268ae0ef76"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-trend-spill.json",
+   "function": "TREND",
+   "sha256": "4452faa6fc107dbb628c84bf44c3a9a040e6e80cd533e4f57518a7c6013d7a71"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-trend-variants.json",
+   "function": "TREND",
+   "sha256": "a624ee2a94bc7e902989da7880fda5cb5e84bcbb760d271fa619e0bb53e40763"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-trim-more.json",
+   "function": "TRIM",
+   "sha256": "54fd9314b31f3c4ce26bb75d461f7deade17ddfddc3d8277560308ee16ceb64a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-trim-scalar.json",
+   "function": "TRIM",
+   "sha256": "0bad4b346d7390fefb2af7657aa063af3937a258cae143cedb8a3a01cc1ce6f8"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-trim-special.json",
+   "function": "TRIM",
+   "sha256": "77056d999f57d877c1aaa548268758febd8c354cf84c14a767138cae76e8fe62"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-trimmean-more.json",
+   "function": "TRIMMEAN",
+   "sha256": "7f4bbcc7304cc9474a0c63134e11fafdbb2c1c8aa58b8825cb7e64c703b7070b"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-trimmean-scalar.json",
+   "function": "TRIMMEAN",
+   "sha256": "2d0fffbdafbfdcb7f38cd67107ef854d429a1e12510f5efc641a8e36406705d5"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-trimmean-special.json",
+   "function": "TRIMMEAN",
+   "sha256": "c1c97e39fccf606ff1311fb5b9fe51d1e73d0189347a2877b833fdaf39c15468"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-ttest-more.json",
+   "function": "TTEST",
+   "sha256": "43aa604cd60e88e42d5795a7b3b12df939ac53ffdf5469363f3348f5165a1072"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-ttest-scalar.json",
+   "function": "TTEST",
+   "sha256": "3763b0ca6eb73f798485e4876b4ef41726e7ad6dea4862d65e840816fb8d4ff2"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-ttest-special.json",
+   "function": "TTEST",
+   "sha256": "9ba4c11533f324c551fe5cadb491ed694a34e7f8f15282aae968eda8f1f560af"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-unichar-more.json",
+   "function": "UNICHAR",
+   "sha256": "f70265a11c211757bca0b2b87152a98f27ce7fdc10970fffbfd88e9414537774"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-unichar-scalar.json",
+   "function": "UNICHAR",
+   "sha256": "b393731e37182e56fe5757623a077978fa7cb7cd807715a30cb7a7db56c5ebce"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-unichar-special.json",
+   "function": "UNICHAR",
+   "sha256": "5c514e7356bc2342a326f6569afe9846acdd8f9b6839f7efb482859ca7f2aeeb"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-unicode-more.json",
+   "function": "UNICODE",
+   "sha256": "6905ab93e5fa0005e89d1bcb3f0821162bc757352024f7851faf2cc79a956f1e"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-unicode-scalar.json",
+   "function": "UNICODE",
+   "sha256": "84af9df6314f189545d87217163395f6222ada871a22ea830c053804e5cf22c9"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-unicode-special.json",
+   "function": "UNICODE",
+   "sha256": "052fa431f8367c9c04cf31d643defc22caef34a6048afdf1f90dc98a1dc1de5e"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-unique-spill.json",
+   "function": "UNIQUE",
+   "sha256": "d5488e3b554c8df15ab892e7fa7bac75f09587fdfc649a863f5c4dccdd1857d9"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-unique-variants.json",
+   "function": "UNIQUE",
+   "sha256": "9a2e626d5e9990d8b972e6686c95591fcb6997b8c8863d9363cb3c1a2f303e2d"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-upper-more.json",
+   "function": "UPPER",
+   "sha256": "075879faa2e81644a5312ba87efaf9bb08fece9ce5bf7461be3e9d9567778ff9"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-upper-scalar.json",
+   "function": "UPPER",
+   "sha256": "421d19174ccd0b1f26d256180d0e1cea10e9b6d0ff36350bd4082a6c7fd8378f"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-upper-special.json",
+   "function": "UPPER",
+   "sha256": "73497c53eff2a44b417259430b35f9e26041c6ff8bcdc9044a192395ab88f53b"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-value-more.json",
+   "function": "VALUE",
+   "sha256": "370e04e32d6be84767ab6732f162192ae235196c8f0fc0b548fe0958b33f5d06"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-value-scalar.json",
+   "function": "VALUE",
+   "sha256": "b869a6e433547299f156439e9130ad42fef0dfc52e50c062ca998897dd1bf9f8"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-value-special.json",
+   "function": "VALUE",
+   "sha256": "57d8056437a9625c28ea5f707aee83a0d9b17b938d7340a2369f230d474c7def"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-valuetotext-more.json",
+   "function": "VALUETOTEXT",
+   "sha256": "ac92a61a729ffdff6cbdc2aa61dbc783504e16afb789af6a99decd9e2e1a60f8"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-valuetotext-scalar.json",
+   "function": "VALUETOTEXT",
+   "sha256": "fe2e61e5cee74c4c5d04ca3bc98963c6f9d399d9e3e6074297c7da77fae03e33"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-valuetotext-special.json",
+   "function": "VALUETOTEXT",
+   "sha256": "cf86d49bbd2ab32228e851bf2179786849dbcfbadabbad41796799b0a001b788"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-weibull-more.json",
+   "function": "WEIBULL",
+   "sha256": "5fc67c9590792c965973f67c55081e8015bd8bdb0e009a84bc67b393e01afc4c"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-weibull-scalar.json",
+   "function": "WEIBULL",
+   "sha256": "8206ea7f1fb0321b3c51b4d8247a983b2bbbb25f2ac138b14394d35819158554"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-weibull-special.json",
+   "function": "WEIBULL",
+   "sha256": "198558db2154af2fc9c0d9fc6a79c75810bddbee39da7c5575250c1d34ba80c0"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-xirr-more.json",
+   "function": "XIRR",
+   "sha256": "0c4d3b25b318badd517b3885626d83f77013ba4c25c0b5b7e53f585e6a1b0e94"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-xirr-scalar.json",
+   "function": "XIRR",
+   "sha256": "5bebec0ea58c517935a9154a298e16bc9e96b3f03d1b4e5966ca4a715b9b0fd9"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-xirr-special.json",
+   "function": "XIRR",
+   "sha256": "b84784ab9ac17cac11a03a32e8a0f876e39a531738776823929e14527cf46a57"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-yield-more.json",
+   "function": "YIELD",
+   "sha256": "d66458ccac1c64215f9edbf533a1a3883519ec488328d74a6f1ae403d773c36d"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-yield-scalar.json",
+   "function": "YIELD",
+   "sha256": "5b91939687ceea1b9ccb36831b5d2d77a17408d2b0ed428d9e993c2d8698c54c"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-yield-special.json",
+   "function": "YIELD",
+   "sha256": "2ee69b0444968252dfef4397910a0b591e1b1359492316a32a01521a07f57e6e"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-yielddisc-more.json",
+   "function": "YIELDDISC",
+   "sha256": "23fb1408fe02affdbca1c6b3c5a9ece3515d4f184110611a0d8938abb1b88d98"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-yielddisc-scalar.json",
+   "function": "YIELDDISC",
+   "sha256": "e100505d5006356df7998e51042d92b8247fcb95484bee0cfe2d89d2a455c71d"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-yielddisc-special.json",
+   "function": "YIELDDISC",
+   "sha256": "814d79e1266de70b458451d777d190497a73373eb15e8c646bed695ee5af8873"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-z.test-more.json",
+   "function": "Z.TEST",
+   "sha256": "43d29ffb68617154ae09a819651a12880119c88ca3fb3e84379b8e1b9baecd88"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-z.test-scalar.json",
+   "function": "Z.TEST",
+   "sha256": "db3a7105c4320e5636c16a99a0ce61d88d90d4cebfc4d4fb7bd791e4710fd7b3"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-z.test-special.json",
+   "function": "Z.TEST",
+   "sha256": "f7eedfaf9fb58543fa97a37fd4e25c017f9d60e451a232a80719c4d5e4f7f61a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-ztest-more.json",
+   "function": "ZTEST",
+   "sha256": "0eef3394bb3664c5d022ae61f91238d08c36bfe8b8efed5a50fb1e97afb9eb93"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-ztest-scalar.json",
+   "function": "ZTEST",
+   "sha256": "13c9ab8a6ab76e62cbf1af3a40c55b5a123e791acb16af62e9fcae8c1de2727a"
+  },
+  {
+   "path": "readings/excel-20527/bank2-answers-ztest-special.json",
+   "function": "ZTEST",
+   "sha256": "3e7f59b46aefe0f7826cb774258020d2b3a2965fa401d854e7752081542af9b1"
+  },
+  {
+   "path": "readings/excel-20527/fix1-batch6-mirr-29bedb2b6722.json",
+   "function": "MIRR",
+   "sha256": "3491e601999ca1f315e569815dfd0fb87e44eafd1fabd6913d0627c22b92fa16"
+  },
+  {
+   "path": "readings/excel-20527/fix1-batch6-npv-29bedb2b6722.json",
+   "function": "NPV",
+   "sha256": "e087ab7cc097b7a55f9f045805bd8527574180a0d98ba139450d9f355139e108"
+  },
+  {
+   "path": "readings/excel-20527/fix1-pv-tiny-20261112.json",
+   "function": "PV",
+   "sha256": "85d33196a4731d3643be0de95b71629ecbc2ee913b8107aac170069b3f9ec7ac"
+  }
+ ]
+}

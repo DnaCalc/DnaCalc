@@ -373,8 +373,15 @@ pub(crate) fn fixed_with_separators<'a>(
     Ok(out)
 }
 
-/// DOLLAR: the number in the locale's currency format, rounded to `places`.
-pub(crate) fn dollar(profile: &FormatProfile, value: f64, places: i32) -> Rendered {
+/// DOLLAR: the number in the locale's currency format, rounded to `places`. `negative_places`
+/// says the places argument was below zero before truncation (-0.8 truncates to 0 places but,
+/// as for -1, a negative value that rounds to zero shows no minus: Excel 20527, en-ZA).
+pub(crate) fn dollar(
+    profile: &FormatProfile,
+    value: f64,
+    places: i32,
+    negative_places: bool,
+) -> Rendered {
     let magnitude = fixed(Some(profile), value.abs(), places, false)?;
     let spacing = match profile.currency_spacing {
         CurrencySpacing::None => "",
@@ -387,7 +394,8 @@ pub(crate) fn dollar(profile: &FormatProfile, value: f64, places: i32) -> Render
         CurrencyPlacement::After => format!("{magnitude}{spacing}{symbol}"),
     };
     let negative =
-        value < 0.0 && (places >= 0 || magnitude.chars().any(|c| c.is_ascii_digit() && c != '0'));
+        value < 0.0
+            && (!negative_places || magnitude.chars().any(|c| c.is_ascii_digit() && c != '0'));
     if !negative {
         return Ok(body);
     }
@@ -1930,13 +1938,20 @@ fn render_text(profile: &FormatProfile, system: DateSystem, value: f64, code: &s
         if value >= 2_958_466.0 {
             return Err(Failure::Value);
         }
-        if datetime::without_subseconds(&stripped, code_decimal)
+        let plain = datetime::without_subseconds(&stripped, code_decimal);
+        let untagged_host = !locale_declared && measured_host(profile);
+        // A b run followed by a digit may be a calendar prefix (B1, B2): not measured.
+        let calendar_prefix = plain
             .chars()
-            .any(|c| {
-                matches!(c, 'b' | 'B' | '0')
+            .zip(plain.chars().skip(1))
+            .any(|(b, next)| matches!(b, 'b' | 'B') && next.is_ascii_digit());
+        if calendar_prefix
+            || plain.chars().any(|c| {
+                matches!(c, 'B' | '0')
+                    || (c == 'b' && !untagged_host)
                     || (matches!(c, 'e' | 'g' | 'G')
                         && name_locale != Some(crate::locale::LocaleId::JaJp)
-                        && !(!locale_declared && measured_host(profile)))
+                        && !untagged_host)
             })
         {
             return Err(Failure::NotModelled);
@@ -2308,10 +2323,30 @@ mod tests {
             fixed(Some(&p), 1E+20, 2, false).unwrap(),
             "100 000 000 000 000 000 000.00"
         );
-        assert_eq!(dollar(&p, 1234.567, 2).unwrap(), "R1 234.57");
-        assert_eq!(dollar(&p, -1234.567, 2).unwrap(), "-R1 234.57");
-        assert_eq!(dollar(&p, 1234.567, -2).unwrap(), "R1 200");
-        assert_eq!(dollar(&p, 0.5, 0).unwrap(), "R1");
+        assert_eq!(dollar(&p, 1234.567, 2, false).unwrap(), "R1 234.57");
+        assert_eq!(dollar(&p, -1234.567, 2, false).unwrap(), "-R1 234.57");
+        assert_eq!(dollar(&p, 1234.567, -2, true).unwrap(), "R1 200");
+        assert_eq!(dollar(&p, 0.5, 0, false).unwrap(), "R1");
+        // Excel 20527 en-ZA bank rows bank2-scalar-DOLLAR-1117 and bank2-more-DOLLAR-0485:
+        // places that truncate from below zero to 0 show a negative value rounding to 0 unsigned.
+        assert_eq!(dollar(&p, -2.2e-83, 0, false).unwrap(), "-R0");
+        assert_eq!(dollar(&p, -2.549e-11, 0, true).unwrap(), "R0");
+        assert_eq!(dollar(&p, -5.0, -2, true).unwrap(), "R0");
+    }
+
+    /// Excel 20527 en-ZA bank rows (dc-7ofm): b is the Buddhist-era year, two digits; a, c
+    /// and f are literals; a code that reads as exponent number text is #VALUE! at the TEXT
+    /// call (catalogue), not here.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_b_run_writes_the_buddhist_year() {
+        let za = format_profile(LocaleId::EnZa).with_separators(".", " ").unwrap();
+        let t = |bits: u64, code: &str| text(&za, DateSystem::System1900, f64::from_bits(bits), code);
+        assert_eq!(t(0x3f21e6629d179000, "abc def").unwrap(), "a43c 01900f");
+        assert_eq!(t(0x40c1458000000000, "abc def").unwrap(), "a67c 171924f");
+        assert_eq!(t(0x40c1458000000000, "bbbb").unwrap(), "2467");
+        assert!(matches!(t(0x40c1458000000000, "B2yyyy"), Err(Failure::NotModelled)));
+        assert!(matches!(t(0x40c1458000000000, "bbb"), Err(Failure::NotModelled)));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

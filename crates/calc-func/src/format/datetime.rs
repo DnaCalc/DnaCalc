@@ -26,6 +26,9 @@ enum DateTimeTokenKind {
     AmPmLower,
     Era,
     EraYear,
+    /// A lowercase b run: the Buddhist-era year (Gregorian + 543), two digits for b and bb,
+    /// four for bbbb (Excel 20527 en-ZA: TEXT(8843,"abc def") is "a67c 171924f").
+    BuddhistYear,
     /// An uppercase E without an exponent sign is invalid in the measured host grammar.
     UpperExponent,
 }
@@ -118,6 +121,7 @@ pub(crate) fn render_with_datetime_tokens(
                     | DateTimeTokenKind::Day
                     | DateTimeTokenKind::Era
                     | DateTimeTokenKind::EraYear
+                    | DateTimeTokenKind::BuddhistYear
                     | DateTimeTokenKind::UpperExponent,
                 ..
             }
@@ -275,6 +279,15 @@ pub(crate) fn render_with_datetime_tokens(
                     DateTimeTokenKind::AmPmLower => {
                         super::designator(profile, time.hour < 12).to_string()
                     }
+                    DateTimeTokenKind::BuddhistYear => {
+                        let (year, _, _) = date?;
+                        let year = year + 543;
+                        match width {
+                            1 | 2 => format!("{:02}", year % 100),
+                            4 => year.to_string(),
+                            _ => return None,
+                        }
+                    }
                     DateTimeTokenKind::Era
                     | DateTimeTokenKind::EraYear
                     | DateTimeTokenKind::UpperExponent => {
@@ -430,6 +443,7 @@ fn tokenize_datetime_format(section: &str, profile: Option<&FormatProfile>) -> V
                 Some(DateTimeTokenKind::UpperExponent)
             }
             'e' => Some(DateTimeTokenKind::EraYear),
+            'b' if ch == 'b' => Some(DateTimeTokenKind::BuddhistYear),
             _ => None,
         };
 
