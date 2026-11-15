@@ -89,6 +89,26 @@ fn cube_rank_and_kpi_reject_invalid_numeric_text_early() {
     }
 }
 
+/// Excel reads a final cube argument error after validating its numeric input.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn cube_final_errors_follow_numeric_argument_validation() {
+    for name in ["CUBERANKEDMEMBER", "CUBEKPIMEMBER"] {
+        for number in [n(-1.0), n(0.0), n(1.0), b(true), calc_func::value::CalcValue::empty()] {
+            let mut sheet = Sheet::new();
+            sheet.column(1, 1, vec![t("missing"), t("member"), number, e(Ref)]);
+            let refs = (1..=4).map(|row| sheet.area(row, 1, row, 1)).collect();
+            error(call_on(&mut sheet, name, refs), Ref);
+        }
+        error(call(name, vec![t("missing"), t("member"), t("1.5"), e(Ref)]), Ref);
+        error(call(name, vec![t("missing"), t("member"), t("bad"), e(Ref)]), Value);
+        error(call(name, vec![t("missing"), e(Div0), n(1.0), e(Ref)]), Div0);
+    }
+    error(call("CUBESET", vec![t("missing"), t("set"), t("caption"), n(-1.0), e(Ref)]), Ref);
+    error(call("CUBESET", vec![t("missing"), t("set"), t("caption"), t("1e2"), e(Ref)]), Ref);
+    error(call("CUBESET", vec![t("missing"), t("set"), e(Div0), n(1.0), e(Ref)]), Div0);
+}
+
 /// Excel 20527 wraps 2h-1 at the signed-32-bit boundary in interval variance.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
