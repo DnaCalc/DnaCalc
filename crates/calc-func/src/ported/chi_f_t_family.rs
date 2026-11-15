@@ -443,13 +443,18 @@ pub fn t_dist_kernel(
 pub fn t_dist_rt_kernel(x: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorCode> {
     let v = truncate_positive_integer(deg_freedom)?;
     let half = 0.5 * t_two_tail(x, v)?;
-    Ok(if x >= 0.0 { half } else { 1.0 - half })
+    let result = if x >= 0.0 { half } else { 1.0 - half };
+    // Excel 20527's measured right tails publish a subnormal as zero.
+    Ok(if (2.0..=2001.0).contains(&v) && result.is_subnormal() { 0.0 } else { result })
 }
 
 pub fn t_dist_2t_kernel(x: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorCode> {
     let x = validate_nonnegative_x(x)?;
     let v = truncate_positive_integer(deg_freedom)?;
-    t_two_tail(x, v)
+    let result = t_two_tail(x, v)?;
+    // Independent boundary and neighboring-input controls also cover TDIST's
+    // two-tail route; retain the normal results and overflow errors.
+    Ok(if (2.0..=2001.0).contains(&v) && result.is_subnormal() { 0.0 } else { result })
 }
 
 pub fn tdist_kernel(x: f64, deg_freedom: f64, tails: f64) -> Result<f64, WorksheetErrorCode> {
