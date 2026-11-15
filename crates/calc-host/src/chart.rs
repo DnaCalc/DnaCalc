@@ -1646,7 +1646,6 @@ pub(crate) fn prepare_set_source(
         return Err(fail("Only a chart with one plot takes new source data"));
     }
     let scatter = charts[index].plots[0].kind == "scatterChart";
-    let pie = matches!(charts[index].plots[0].kind.as_str(), "pieChart" | "doughnutChart");
     // A source with no value in it leaves the chart without series (Excel, Q6).
     let model = host.model();
     let empty = area.cell_count() <= 65_536
@@ -1662,9 +1661,7 @@ pub(crate) fn prepare_set_source(
     } else {
         make_series(host, area, scatter, rows, headers, categories, &fail)?
     };
-    if pie && !series.is_empty() && series.len() != 1 {
-        return Err(fail("Select one values series for a pie or doughnut"));
-    }
+    // Excel keeps every series of a source in a pie or doughnut part (Q17); the ring or circle shows the first.
     if scatter && !categories && !series.is_empty() {
         return Err(fail("Use the first column or row as X values for a scatter chart"));
     }
