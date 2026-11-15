@@ -28,6 +28,8 @@
 //! round up (2,048 independent Excel 20527 near-midpoint controls in each decade).
 //! From 1 through less than 10, they also round up when the product by 10^14, rounded to a
 //! 64-bit significand, lies strictly above the midpoint (7,847 independent controls).
+//! From 0.5 through less than 1, they round up when the product by 10^15 lies at least two
+//! 64-bit-significand units above the midpoint (7,016 independent controls).
 //! In dc-uar, of 131 measured tie cases Excel 16.0.20527 wrote (the catalogue oracle's dch9u_functions
 //! rows, built by arithmetic, and dc_q9rb's), 126 went down (`7200547821627.375` gives
 //! `7200547821627.37`, `999999999999999.5` gives `999999999999999`, `1234567890123455` gives
@@ -88,7 +90,8 @@ fn first_precision(x: f64) -> (Vec<u8>, i32) {
         && all.as_bytes()[SIGNIFICANT_DIGITS + 1..].iter().any(|&digit| digit != b'0');
     let near = near_tie(&exact.coefficient, &all);
     let measured_above_tie = above_tie && (matches!(exponent, 1 | 2)
-        || (exponent == 0 && near && scaled_x87_above_midpoint(x)));
+        || (exponent == 0 && near && scaled_x87_above_midpoint(x, false))
+        || (exponent == -1 && x >= 0.5 && near && scaled_x87_above_midpoint(x, true)));
     let up = (!near || measured_above_tie)
         && all
             .as_bytes()
@@ -97,24 +100,25 @@ fn first_precision(x: f64) -> (Vec<u8>, i32) {
     first_rounding(all.as_bytes(), exponent, up)
 }
 
-/// Whether x * 10^14, rounded to a 64-bit significand, is above the half-integer.
-/// This is only called for 1 <= x < 10. The exact binary64 significand times 10^14
-/// fits in u128, so the test is independent of native extended precision.
-fn scaled_x87_above_midpoint(x: f64) -> bool {
+/// Whether the scaled product, rounded to a 64-bit significand, clears the measured
+/// midpoint. Only called for 0.5 <= x < 10; the exact product fits in u128.
+fn scaled_x87_above_midpoint(x: f64, two_units: bool) -> bool {
     let bits = x.to_bits();
     let significand = (bits & ((1_u64 << 52) - 1)) | (1_u64 << 52);
-    let input_exponent = ((bits >> 52) & 0x7ff) as u32 - 1023;
+    let input_exponent = ((bits >> 52) & 0x7ff) as i32 - 1023;
     let denominator = 1_u128 << (52 - input_exponent);
-    let numerator = u128::from(significand) * 100_000_000_000_000_u128;
+    let scale = if two_units { 1_000_000_000_000_000_u128 } else { 100_000_000_000_000_u128 };
+    let numerator = u128::from(significand) * scale;
     let integer = numerator / denominator;
     let remainder = numerator % denominator;
     if 2 * remainder <= denominator {
         return false;
     }
     let scaled_exponent = 127 - integer.leading_zeros();
-    // A midpoint has an even final significand bit here, so an exact half-ULP
-    // rounds to the midpoint; only a strictly greater distance rounds above it.
-    ((2 * remainder - denominator) << (63 - scaled_exponent)) > denominator
+    let distance = (2 * remainder - denominator) << (63 - scaled_exponent);
+    // The midpoint and the value two units above it have even final bits.
+    // Their respective halfway cases therefore round to those even values.
+    if two_units { distance >= 3 * denominator } else { distance > denominator }
 }
 
 /// Whether the exact value `coefficient` (whose decimal digits are `digits`) lies within a
