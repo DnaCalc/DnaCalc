@@ -2920,6 +2920,8 @@ fn mirr_compounds_positive_cashflows_before_publishing_overflow() {
         call("MIRR", vec![col(&flows), n((-1.0_f64).next_down()), n((-1.0_f64).next_up())]),
         f64::from_bits(0xbfeffffffffffdb4),
     );
+    flows[14] = -2.0_f64.powi(300);
+    error(call("MIRR", vec![col(&flows), n((-1.0_f64).next_down()), n((-1.0_f64).next_up())]), Num);
 }
 
 /// Native Excel20527 distinguishes held nonnumeric cells from literal values.

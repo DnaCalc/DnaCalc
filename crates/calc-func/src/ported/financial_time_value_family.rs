@@ -1014,13 +1014,19 @@ pub fn mirr(
         defer_final_overflow,
     )?;
     let finance_base = excel_x87_add(1.0, finance_rate);
-    let (finance_pv, terminal_power) = discounted_cashflows(
+    let finance_discount = discounted_cashflows(
         finance_base,
         cashflows
             .iter()
             .map(|value| if *value < 0.0 { Some(*value) } else { None }),
         FinancialError::Div0,
-    )?;
+    );
+    let (finance_pv, terminal_power) = match finance_discount {
+        // An unusable finance discount does not hide the earlier positive
+        // normalization overflow in the scaled-compounding case.
+        Err(_) if scaled_positive && !positive_npv.is_finite() => return Err(FinancialError::Num),
+        result => result?,
+    };
     // The finance stream also reports overflow of its unused terminal power.
     // A zero base remains valid when every negative flow is at time zero.
     if !finance_pv.is_finite() || !terminal_power.is_finite() {
