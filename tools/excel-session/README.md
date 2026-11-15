@@ -142,3 +142,11 @@ process.
 oracle, `m4` CUBE over an in-file data model) is the one job script for pivot measurements; `run-pivot.py`
 submits its cases one job each and `pivot-fixtures.py` writes the fixture files from a result. Run them
 under `on-private-desktop.ps1`. The sets are described in `crates/calc-host/tests/fixtures/pivot/README.md`.
+
+`dna-calc-com-client.ps1 -Exe <dna-calc-desktop.exe> -Bundle <page dir> -Out <dir>` is a late-bound
+client of DNA Calc's own object model (dc-km7i): it starts the desktop in app mode, binds the EXCEL7
+window's object model with `AccessibleObjectFromWindow` and drives it through `IDispatch` only (the
+report members of excel-questions.md, then raw `IDispatch::Invoke` property PUTs on read-only Shape
+members, expecting 0x8002000E, VBA error 450). It changes no registry or Excel setting and stops only
+its own process; run it inside `on-private-desktop.ps1` (`-ProcessNames dna-calc-desktop.exe`,
+`-SessionRoot` a path on the exe's command line) so no window reaches the owner's desktop.

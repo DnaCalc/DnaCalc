@@ -229,4 +229,103 @@ mod tests {
         assert!(!replacement.book().session().workbook_events_enabled());
         assert!(!events.get());
     }
+
+    /// Native-only: drives the page's session route (a `Server` lent mutably by
+    /// `with_session_mut`) with command-context writes, then reads the workbook state back, as
+    /// the engine-route `dc_piw0__excel_answers_*` tests do.
+    #[test]
+    fn desktop_command_route_writes_range_table_shape_and_chart_through_the_server() {
+        use calc_object_model::{AutoValue, Call, Descriptor, InvokeKind, ObjectModel, ObjectRef};
+        let application =
+            calc_com_host::Projection::new(1, Rc::new(calc_xll_host::XllHost::new(1))).unwrap();
+        let server = Rc::new(RefCell::new(Server::new()));
+        let events = server.borrow().book().session().workbook_events_switch();
+        let host = Rc::new(DesktopAutomationHost {
+            application: application.application_host(),
+            native: std::rc::Weak::new(),
+            session: SessionAccess::Server(Rc::downgrade(&server)),
+            events: RefCell::new(events),
+        });
+        let model = calc_host::automation::WorkbookAutomation::new(host);
+        let call = |object: &ObjectRef, name: &str, kind: InvokeKind, args: Vec<AutoValue>| {
+            model.invoke(
+                object,
+                &Call {
+                    interface: object.interface,
+                    member: Descriptor::get().member(object.interface, name, kind).unwrap(),
+                    args,
+                    lcid: 0,
+                },
+            )
+        };
+        let get = |object: &ObjectRef, name: &str| call(object, name, InvokeKind::Get, vec![]).unwrap();
+        let method = |object: &ObjectRef, name: &str, args: Vec<AutoValue>| {
+            match call(object, name, InvokeKind::Method, args).unwrap() {
+                AutoValue::Object(o) => o,
+                other => panic!("{name}: {other:?}"),
+            }
+        };
+        let object = |value: AutoValue| match value {
+            AutoValue::Object(o) => o,
+            other => panic!("object: {other:?}"),
+        };
+        let text = |o: &ObjectRef, name: &str| get(o, name).as_text().unwrap();
+        let range = |address: &str| {
+            object(call(&model.application(), "Range", InvokeKind::Get, vec![AutoValue::text(address)]).unwrap())
+        };
+        assert!(!server.borrow().book().changed());
+
+        // Range.Value put, cell by cell, through with_session_mut.
+        let rows = [["Region", "Q1", "Q2"], ["North", "10", "20"], ["South", "30", "40"]];
+        for (r, row) in rows.iter().enumerate() {
+            for (c, cell) in row.iter().enumerate() {
+                let at = range(&format!("{}{}", (b'A' + c as u8) as char, r + 1));
+                let value = cell.parse::<f64>().map_or_else(|_| AutoValue::text(cell), AutoValue::R8);
+                call(&at, "Value2", InvokeKind::Put, vec![value]).unwrap();
+            }
+        }
+        assert!(server.borrow().book().changed(), "an authored write marks the workbook changed");
+        assert_eq!(text(&range("A2"), "Text"), "North");
+        assert_eq!(text(&range("C3"), "Text"), "40");
+
+        // ListObjects.Add(1, Range("A1:C3"), , 1).
+        let sheet = object(get(&model.application(), "ActiveSheet"));
+        let tables = object(get(&sheet, "ListObjects"));
+        let table = method(&tables, "Add", vec![
+            AutoValue::I4(1), AutoValue::Object(range("A1:C3")), AutoValue::Missing, AutoValue::I4(1),
+        ]);
+        assert_eq!(text(&table, "Name"), "Table1");
+        assert_eq!(text(&object(get(&table, "Range")), "Address"), "$A$1:$C$3");
+
+        // Shapes.AddShape(1, 20, 120, 100, 50).
+        let shapes = object(get(&sheet, "Shapes"));
+        let rectangle = method(&shapes, "AddShape", vec![
+            AutoValue::I4(1), AutoValue::R8(20.0), AutoValue::R8(120.0), AutoValue::R8(100.0), AutoValue::R8(50.0),
+        ]);
+        assert_eq!(text(&rectangle, "Name"), "Rectangle 1");
+
+        // ChartObjects.Add(200, 20, 300, 200) then Chart.SetSourceData(table range).
+        let charts = method(&sheet, "ChartObjects", vec![]);
+        let frame = method(&charts, "Add", vec![
+            AutoValue::R8(200.0), AutoValue::R8(20.0), AutoValue::R8(300.0), AutoValue::R8(200.0),
+        ]);
+        assert_eq!(text(&frame, "Name"), "Chart 2", "named after the shape count, as Excel does");
+        let chart = object(get(&frame, "Chart"));
+        call(&chart, "SetSourceData", InvokeKind::Method, vec![AutoValue::Object(range("A1:C3"))]).unwrap();
+        let series = method(&chart, "SeriesCollection", vec![]);
+        let count = match get(&series, "Count") {
+            AutoValue::I4(n) => n,
+            other => panic!("{other:?}"),
+        };
+        assert_eq!(count, 2);
+
+        // The state is in the page's workbook, not a copy.
+        let server = server.borrow();
+        let session = server.book().session();
+        let sheet_id = session.host().sheets()[0].id();
+        assert_eq!(session.host().shapes(sheet_id).len(), 1, "the rectangle");
+        let (charts, _) = session.host().charts(sheet_id);
+        assert_eq!(charts.len(), 1, "the chart frame");
+        assert!(server.book().changed());
+    }
 }
