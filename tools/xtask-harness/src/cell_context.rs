@@ -138,7 +138,11 @@ pub fn resolved(set: &Value, case: &Value) -> Value {
 
 /// DNA Calc's answer for one case: `{"value", "spill"}`, or an error naming the layout step that
 /// the host refused.
-pub fn evaluate(case: &Value, locale: Option<calc_host::FormatProfile>) -> Result<Value, String> {
+pub fn evaluate(
+    case: &Value,
+    locale: Option<calc_host::FormatProfile>,
+    clock: Option<f64>,
+) -> Result<Value, String> {
     let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(calc_host::blank_package()));
     let mut session = HostSession::open(
         source,
@@ -150,6 +154,7 @@ pub fn evaluate(case: &Value, locale: Option<calc_host::FormatProfile>) -> Resul
         },
     )
     .map_err(|e| format!("open: {e:?}"))?;
+    session.set_clock(clock);
     let sheets = case["sheets"].as_array().ok_or("case: sheets")?;
     let mut ids: BTreeMap<String, SheetId> = BTreeMap::new();
     for (i, sheet) in sheets.iter().enumerate() {
@@ -292,6 +297,21 @@ fn recorded_locale(set: &Value) -> Option<calc_host::FormatProfile> {
     calc_host::FormatProfile::for_culture(culture)?.with_separators(decimal, thousands)
 }
 
+/// The calculation clock a set's answers record: Excel's NOW() before and after its cases,
+/// used when both fall on one day (a serial date and time, as binary64 bits in hex).
+fn recorded_clock(set: &Value) -> Option<f64> {
+    let settings = &set["capture_provenance"]["calculation_settings"];
+    let read = |key: &str| {
+        settings[key]
+            .as_str()
+            .and_then(|hex| u64::from_str_radix(hex, 16).ok())
+            .map(f64::from_bits)
+            .filter(|v| v.is_finite())
+    };
+    let (before, after) = (read("calculation_clock")?, read("calculation_clock_after")?);
+    (before.floor() == after.floor()).then_some(before)
+}
+
 fn read_sets(dir: &Path, family: Option<&str>) -> Result<Vec<(PathBuf, Value)>, String> {
     let mut out = Vec::new();
     let Ok(entries) = std::fs::read_dir(dir) else {
@@ -348,7 +368,7 @@ fn run_inner(args: &[String]) -> Result<ExitCode, String> {
         let locale = calc_host::FormatProfile::for_culture("en-ZA").and_then(|p| p.with_separators(".", " "));
         for (path, set) in read_sets(&ws.root.join(CASES), family.as_deref())? {
             for case in set["cases"].as_array().into_iter().flatten() {
-                let answer = evaluate(&resolved(&set, case), locale).unwrap_or_else(|e| json!({"value": format!("fault:Layout:{e}"), "spill": null}));
+                let answer = evaluate(&resolved(&set, case), locale, None).unwrap_or_else(|e| json!({"value": format!("fault:Layout:{e}"), "spill": null}));
                 println!("{}\t{}\t{}\t{}", path.file_name().unwrap().to_string_lossy(), case["id"].as_str().unwrap_or("?"), case["formula"].as_str().unwrap_or("?"), answer);
             }
         }
@@ -360,12 +380,13 @@ fn run_inner(args: &[String]) -> Result<ExitCode, String> {
     // function -> (cases, matched, mismatched, refused, awaiting answer)
     let mut counts: BTreeMap<String, [usize; 5]> = BTreeMap::new();
     let mut differences = Vec::new();
-    let mut by_id: BTreeMap<String, (Value, Option<calc_host::FormatProfile>)> = BTreeMap::new();
+    let mut by_id: BTreeMap<String, (Value, Option<calc_host::FormatProfile>, Option<f64>)> = BTreeMap::new();
     for (_, set) in &answered {
         let locale = recorded_locale(set);
+        let clock = recorded_clock(set);
         for case in set["cases"].as_array().into_iter().flatten() {
             if let Some(id) = case["id"].as_str() {
-                by_id.insert(format!("{}/{id}", set["family"].as_str().unwrap_or("")), (resolved(set, case), locale));
+                by_id.insert(format!("{}/{id}", set["family"].as_str().unwrap_or("")), (resolved(set, case), locale, clock));
             }
         }
     }
@@ -375,7 +396,7 @@ fn run_inner(args: &[String]) -> Result<ExitCode, String> {
             let entry = counts.entry(function.clone()).or_default();
             entry[0] += 1;
             let key = format!("{}/{}", set["family"].as_str().unwrap_or(""), case["id"].as_str().unwrap_or(""));
-            let Some((excel, locale)) = by_id.get(&key) else {
+            let Some((excel, locale, clock)) = by_id.get(&key) else {
                 entry[4] += 1;
                 continue;
             };
@@ -390,7 +411,7 @@ fn run_inner(args: &[String]) -> Result<ExitCode, String> {
                 differences.push(json!({"id": key, "function": function, "excel": excel["answer"], "dna_calc": null}));
                 continue;
             }
-            let ours = evaluate(excel, *locale).unwrap_or_else(|e| json!({"value": format!("fault:Layout:{e}"), "spill": null}));
+            let ours = evaluate(excel, *locale, *clock).unwrap_or_else(|e| json!({"value": format!("fault:Layout:{e}"), "spill": null}));
             let theirs = &excel["answer"];
             if ours == *theirs {
                 entry[1] += 1;
@@ -441,14 +462,14 @@ mod tests {
                        {"name": "Other", "cells": {}}],
             "at": "Data!D4", "formula": "=ROW(B2:B3)"
         });
-        let answer = evaluate(&case, None).unwrap();
+        let answer = evaluate(&case, None, None).unwrap();
         assert_eq!(answer["value"], format!("0x{:016x}", 2f64.to_bits()));
         assert_eq!(answer["spill"], json!([[format!("0x{:016x}", 2f64.to_bits())], [format!("0x{:016x}", 3f64.to_bits())]]));
         let sheet = json!({"id": "s", "function": "SHEET", "sheets": [{"name": "A", "cells": {}}, {"name": "B", "cells": {}}],
             "at": "B!A1", "formula": "=SHEET()"});
-        assert_eq!(evaluate(&sheet, None).unwrap()["value"], format!("0x{:016x}", 2f64.to_bits()));
+        assert_eq!(evaluate(&sheet, None, None).unwrap()["value"], format!("0x{:016x}", 2f64.to_bits()));
         let text = json!({"id": "f", "function": "FORMULATEXT", "sheets": [{"name": "S", "cells": {"A1": "=1+2"}}],
             "at": "S!C1", "formula": "=FORMULATEXT(A1)"});
-        assert_eq!(evaluate(&text, None).unwrap()["value"], "text:=1+2");
+        assert_eq!(evaluate(&text, None, None).unwrap()["value"], "text:=1+2");
     }
 }

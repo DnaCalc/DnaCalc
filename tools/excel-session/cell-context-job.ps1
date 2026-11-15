@@ -28,6 +28,8 @@ function Place($book, [string]$at) {
     return @($book.Worksheets.Item($sheet), $at.Substring($i + 1))
 }
 $set = Get-Content -LiteralPath $Cases -Raw -Encoding utf8 | ConvertFrom-Json
+# Excel's own clock before and after the cases (two-part dates such as 15/3 take its year).
+$clockBefore = [double]$OwnedExcel.Evaluate('NOW()')
 $answered = New-Object System.Collections.Generic.List[object]
 foreach ($case in $set.cases) {
     # xlWBATWorksheet: a new workbook of exactly one worksheet.
@@ -106,11 +108,12 @@ foreach ($case in $set.cases) {
         $book.Close($false)
     }
 }
+$clockAfter = [double]$OwnedExcel.Evaluate('NOW()')
 $out = [ordered]@{
     format = 'dnacalc-cell-context/1'; family = $set.family; layouts = $set.layouts; cases = $answered.ToArray()
     capture_provenance = [ordered]@{
         environment = [ordered]@{excel_build = [string]$OwnedExcel.Build; excel_version = [string]$OwnedExcel.Version; platform = 'Windows'; os = [Environment]::OSVersion.VersionString; cpu = $env:PROCESSOR_IDENTIFIER}
-        calculation_settings = [ordered]@{user_culture = [Globalization.CultureInfo]::CurrentCulture.Name; international_decimal_separator = [string]$OwnedExcel.International(3); international_thousands_separator = [string]$OwnedExcel.International(4); UseSystemSeparators = [bool]$OwnedExcel.UseSystemSeparators}
+        calculation_settings = [ordered]@{user_culture = [Globalization.CultureInfo]::CurrentCulture.Name; international_decimal_separator = [string]$OwnedExcel.International(3); international_thousands_separator = [string]$OwnedExcel.International(4); UseSystemSeparators = [bool]$OwnedExcel.UseSystemSeparators; calculation_clock = ('{0:x16}' -f [BitConverter]::DoubleToInt64Bits($clockBefore)); calculation_clock_after = ('{0:x16}' -f [BitConverter]::DoubleToInt64Bits($clockAfter))}
         addins_open = @(foreach ($a in $OwnedExcel.AddIns2) { if ([bool]$a.IsOpen) { [IO.Path]::GetFileName([string]$a.FullName) } })
         service = 'tools/excel-session/cell-context-job.ps1'; timestamp = [DateTime]::UtcNow.ToString('o')}
 }

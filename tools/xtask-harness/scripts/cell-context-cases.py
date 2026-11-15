@@ -223,8 +223,35 @@ def lambda_helpers():
     return fam
 
 
+# The en-ZA number, currency, date and time text of locale-cases.py (dc-7ofm), read here by
+# operators instead of functions (dc-3k5n, en-ZA part).
+COERCION_TEXTS = [
+    '1 234', '1 234.5', '1\u00a0234', '1,234', '1.234,5', 'R1 234.50', '-R12', '(R12)', 'R 12', '12%', '1.5E3',
+    '(12)', '+12', '12-', '.5', '5.', '1 2', '1e', 'TRUE', ' 12 ', '2024/03/15', '2024-03-15', '15/03/2024',
+    '03/15/2024', '24/03/15', '15 March 2024', '15-Mar-2024', 'Mar 15, 2024', 'March 2024', '15/3', '3/15', '15 Mar',
+    '1/2', '10:30', '10:30 PM', '22:30:00', '2024/03/15 10:30', '25:00', '1 1/2', '0 3/4', '15.03.2024', '', 'abc',
+]
+
+
+def operator_coercion():
+    """Text read as a number by the arithmetic operators, unary minus and comparison, both as a
+    literal and through a cell holding the text."""
+    fam = Family()
+    cells = {f'A{i + 1}': t(x) for i, x in enumerate(COERCION_TEXTS) if x}
+    sheet = fam.layout('texts', [{'name': 'Sheet1', 'cells': cells}])
+    for i, x in enumerate(COERCION_TEXTS):
+        literal = '"' + x.replace('"', '""') + '"'
+        forms = [f'={literal}+0', f'={literal}*1', f'=-{literal}', f'={literal}^1', f'={literal}=1234', f'={literal}&1']
+        if x:
+            forms += [f'=A{i + 1}+0', f'=A{i + 1}-0', f'=A{i + 1}/1']
+        for j, formula in enumerate(forms):
+            fam.case(f'coerce-{i:02}-{j}', 'OPERATOR', sheet, 'Sheet1!D1', formula)
+    return fam
+
+
 FAMILIES = {'reference-info': reference_info, 'subtotal-hidden': subtotal_hidden,
-            'spill-placement': spill_placement, 'ifs': ifs_family, 'lambda-helpers': lambda_helpers}
+            'spill-placement': spill_placement, 'ifs': ifs_family, 'lambda-helpers': lambda_helpers,
+            'operator-coercion': operator_coercion}
 
 
 def main():
