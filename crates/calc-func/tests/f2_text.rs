@@ -9,6 +9,15 @@ mod f1_support;
 use calc_func::value::WorksheetErrorCode::{Blocked, Calc, Connect, Div0, NA, Name, Null, Num, Ref, Value};
 use f1_support::*;
 
+/// Excel 20527 rounds this numeric text value above its 15-digit midpoint.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn numeric_text_rounds_above_midpoint_for_three_digit_magnitude() {
+    let value = n(f64::from_bits(0xc089_0747_71ae_6a9e));
+    text(call("REPLACEB", vec![t("x"), n(1.0), n(1.0), value.clone()]), "-800.90988479865");
+    text(call("CONCAT", vec![value]), "-800.90988479865");
+}
+
 /// Excel 20527 applies the same tolerant start-position floor to all four surfaces.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

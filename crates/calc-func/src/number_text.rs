@@ -23,8 +23,10 @@
 //!
 //! Excel's own first rounding departs from the exact one near a tie at the 16th significant
 //! digit, and every departure measured lies within a relative 2^-60 of the tie. Within a relative
-//! 2^-60 of a tie (an exact tie included) the text here takes the 15 digits below the tie
-//! (dc-uar): of 131 measured tie cases Excel 16.0.20527 wrote (the catalogue oracle's dch9u_functions
+//! 2^-60 of a tie (an exact tie included) the text here takes the 15 digits below the tie,
+//! except that values strictly above the tie with magnitude from 100 through less than 1000
+//! round up (2,048 independent Excel 20527 near-midpoint controls).
+//! In dc-uar, of 131 measured tie cases Excel 16.0.20527 wrote (the catalogue oracle's dch9u_functions
 //! rows, built by arithmetic, and dc_q9rb's), 126 went down (`7200547821627.375` gives
 //! `7200547821627.37`, `999999999999999.5` gives `999999999999999`, `1234567890123455` gives
 //! `1234567890123450`), as did `4037429.935952025`, whose exact value lies 6E-21 above its tie.
@@ -80,7 +82,10 @@ fn first_precision(x: f64) -> (Vec<u8>, i32) {
     let all = exact.coefficient.digits();
     let length = i32::try_from(all.len()).expect("a digit count");
     let exponent = length - 1 + exact.exponent;
-    let up = !near_tie(&exact.coefficient, &all)
+    let above_tie = all.as_bytes().get(SIGNIFICANT_DIGITS) == Some(&b'5')
+        && all.as_bytes()[SIGNIFICANT_DIGITS + 1..].iter().any(|&digit| digit != b'0');
+    let measured_above_tie = exponent == 2 && above_tie;
+    let up = (!near_tie(&exact.coefficient, &all) || measured_above_tie)
         && all
             .as_bytes()
             .get(SIGNIFICANT_DIGITS)
