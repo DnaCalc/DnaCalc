@@ -2807,3 +2807,69 @@ fn range_value2_put_and_clear_contents_reach_every_area_of_a_multi_area_range() 
     }
     assert_eq!(text(&model, &range(&model, "B1"), "Text"), "keep");
 }
+
+// --- dc-piw0.10: the recorded Excel answers Q11-Q17 (one test each) ---------------------------------
+
+/// Q11 (excel-answers.md, run1 q11/q11b): a table's Name is kept as written, its DisplayName is derived
+/// from it and is the name formulas use; 256 characters is error 5, empty and a clash (any case) 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_10__q11_table_names_keep_their_text_and_display_names_are_derived() {
+    let (host, model, sheet) = blank_report();
+    fill(&host, (1, 1), &[&["H1", "H2"], &["1", "2"]]);
+    fill(&host, (1, 5), &[&["K1"], &["3"]]);
+    let table = obj(tables_add(&model, &sheet, &range(&model, "A1:B2"), Some(1)).unwrap());
+    let other = obj(tables_add(&model, &sheet, &range(&model, "E1:E2"), Some(1)).unwrap());
+    assert_eq!(text(&model, &other, "Name"), "Table2");
+    let set = |name: &str| invoke_kind(&model, &table, "Name", InvokeKind::Put, vec![AutoValue::text(name)]);
+    let long = "x".repeat(255);
+    for (name, display) in [
+        ("My Table", "My_Table"),
+        ("My-Table", "My_Table"),
+        ("1Table", "_1Table"),
+        ("A1", "A1_"),
+        ("R1C1", "_R1C1"),
+        ("R", "R_"),
+        ("C", "C_"),
+        ("r1", "_r1"),
+        ("Table.1", "Table.1"),
+        ("Sales2024", "Sales2024"),
+        ("\\x", "\\x"),
+        (" lead", "lead"),
+        ("trail ", "trail"),
+        ("Tab\tle", "Tab_le"),
+        ("?q", "_?q"),
+        ("a!b", "a_b"),
+        ("True", "True_"),
+        ("x[1]", "x_1"),
+        (long.as_str(), long.as_str()),
+    ] {
+        set(name).unwrap_or_else(|e| panic!("{name:?}: {e:?}"));
+        assert_eq!((text(&model, &table, "Name"), text(&model, &table, "DisplayName")), (name.to_owned(), display.to_owned()));
+    }
+    // Refused sets leave the old name.
+    let kept = text(&model, &table, "Name");
+    assert_eq!(excel_error(set("")).0, 1004);
+    assert_eq!(excel_error(set(&"x".repeat(256))), (5, "Invalid procedure call or argument".to_owned()));
+    assert_eq!(excel_error(set("Table2")).0, 1004);
+    assert_eq!(excel_error(set("table2")).0, 1004);
+    assert_eq!(text(&model, &table, "Name"), kept);
+    // DisplayName: a put needs a defined-name shape (1004), and the Name follows it.
+    let put_display = |name: &str| {
+        invoke_kind(&model, &table, "DisplayName", InvokeKind::Put, vec![AutoValue::text(name)])
+    };
+    assert_eq!(excel_error(put_display("Disp Name")).0, 1004);
+    put_display("Disp_Name").unwrap();
+    assert_eq!(
+        (text(&model, &table, "Name"), text(&model, &table, "DisplayName")),
+        ("Disp_Name".to_owned(), "Disp_Name".to_owned())
+    );
+    // Formulas use the DisplayName; a table is found by its Name (its DisplayName is error 9).
+    set("My Table2").unwrap();
+    enter(&host, at(&host, 1, 8), "=COUNT(My_Table2[H1])");
+    assert!(matches!(invoke(&model, &range(&model, "H1"), "Value2", vec![]).unwrap(), AutoValue::R8(v) if v == 1.0));
+    let tables = obj(invoke(&model, &sheet, "ListObjects", vec![]).unwrap());
+    let find = |name: &str| invoke_kind(&model, &tables, "Item", InvokeKind::Get, vec![AutoValue::text(name)]);
+    assert!(find("My Table2").is_ok());
+    assert_eq!(excel_error(find("My_Table2")).0, 9);
+}

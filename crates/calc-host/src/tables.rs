@@ -583,6 +583,26 @@ fn bounds(host: &HostState, area: GridArea, part: Option<&str>) -> Result<(), St
     }
     Ok(())
 }
+/// Whether `table` already has `name` as its Name or DisplayName (any case).
+fn table_has_name(table: &Table, name: &str) -> bool {
+    fold_workbook_name(&table.name) == fold_workbook_name(name)
+        || fold_workbook_name(&table.display_name) == fold_workbook_name(name)
+}
+/// The displayName of a table called `name`: Excel's derivation, made unique among the other tables'
+/// names and the workbook's defined names (dc-piw0.10 Q11: a table named like a defined name gets `_1`).
+fn derived_display_name(host: &HostState, tables: &[Table], own: Option<&str>, name: &str) -> String {
+    calc_doc_model::table_display_name(name, |candidate| {
+        tables
+            .iter()
+            .any(|t| Some(t.part.as_str()) != own && table_has_name(t, candidate))
+            || host
+                .model()
+                .definitions()
+                .names()
+                .iter()
+                .any(|n| fold_workbook_name(&n.name) == fold_workbook_name(candidate))
+    })
+}
 pub(crate) fn prepare(
     host: &HostState,
     revision: u64,
@@ -597,21 +617,15 @@ pub(crate) fn prepare(
     match change {
         TableChange::Create { area, name } => {
             bounds(host, area, None)?;
-            let name = name.trim().to_owned();
-            if !calc_engine::valid_defined_name(&name)
+            // Excel (dc-piw0.10 Q11): any non-empty name of at most 255 characters that no table has is
+            // the table's Name, kept as written; the displayName is derived from it.
+            if name.is_empty()
                 || name.chars().count() > 255
-                || tables
-                    .iter()
-                    .any(|t| fold_workbook_name(&t.display_name) == fold_workbook_name(&name))
-                || host
-                    .model()
-                    .definitions()
-                    .names()
-                    .iter()
-                    .any(|n| fold_workbook_name(&n.name) == fold_workbook_name(&name))
+                || tables.iter().any(|t| table_has_name(t, &name))
             {
                 return Err(refusal("Choose a unique Excel table name"));
             }
+            let display_name = derived_display_name(host, &tables, None, &name);
             let reserved = tables.iter().map(|t| t.part.clone()).collect::<Vec<_>>();
             let columns = header_names(host, area, &[])?;
             let id = tables
@@ -624,8 +638,8 @@ pub(crate) fn prepare(
                 .ok_or_else(|| refusal("The table ID space is exhausted"))?;
             let table = Table {
                 id,
-                name: name.clone(),
-                display_name: name,
+                name,
+                display_name,
                 part: host
                     .loaded()
                     .available_part_name("tables/dnaTable", "xml", &reserved),
@@ -879,8 +893,7 @@ pub(crate) fn prepare(
                     table.totals_labels[i] = None;
                 }
                 TableChange::Rename { name, .. } => {
-                    let name = name.trim().to_owned();
-                    if name == old.display_name {
+                    if name == old.name {
                         return Ok(Vec::new());
                     }
                     if old.axis_opaque || old.opaque {
@@ -888,28 +901,24 @@ pub(crate) fn prepare(
                             "This imported table's metadata is preserved; renaming it is unavailable",
                         ));
                     }
-                    if !calc_engine::valid_defined_name(&name)
+                    if name.is_empty()
                         || name.chars().count() > 255
-                        || tables.iter().any(|t| {
-                            t.part != old.part
-                                && fold_workbook_name(&t.display_name) == fold_workbook_name(&name)
-                        })
-                        || host
-                            .model()
-                            .definitions()
-                            .names()
+                        || tables
                             .iter()
-                            .any(|n| fold_workbook_name(&n.name) == fold_workbook_name(&name))
+                            .any(|t| t.part != old.part && table_has_name(t, &name))
                     {
                         return Err(refusal("Choose a unique Excel table name"));
                     }
-                    if mentions(host, &tables, &old.display_name) {
+                    let display_name = derived_display_name(host, &tables, Some(&old.part), &name);
+                    if display_name != old.display_name
+                        && mentions(host, &tables, &old.display_name)
+                    {
                         return Err(refusal(
                             "A formula, name, rule or chart source uses this table's name; rewriting it on rename is unavailable",
                         ));
                     }
-                    table.name = name.clone();
-                    table.display_name = name;
+                    table.name = name;
+                    table.display_name = display_name;
                     rewrite_totals =
                         old.totals_rows > 0 && old.totals_functions.iter().any(Option::is_some);
                 }
@@ -1202,7 +1211,7 @@ pub(crate) fn validate(host: &HostState, tables: &[Table]) -> Result<(), String>
             }) {
                 return Err(refusal("New tables need supported total functions"));
             }
-            if table.name != table.display_name
+            if table.name.is_empty()
                 || table.opaque
                 || table.axis_opaque
                 || table.column_formulas.iter().any(Option::is_some)
@@ -1212,7 +1221,7 @@ pub(crate) fn validate(host: &HostState, tables: &[Table]) -> Result<(), String>
                     .definitions()
                     .names()
                     .iter()
-                    .any(|n| fold_workbook_name(&n.name) == fold_workbook_name(&table.name))
+                    .any(|n| fold_workbook_name(&n.name) == fold_workbook_name(&table.display_name))
             {
                 return Err(refusal("New table names must be unique"));
             }
@@ -1230,7 +1239,7 @@ pub(crate) fn validate(host: &HostState, tables: &[Table]) -> Result<(), String>
                     .strip_prefix(&prefix)
                     .and_then(|s| s.strip_suffix(".xml"))
                     .is_some_and(|s| s.bytes().all(|b| b.is_ascii_digit()))
-                || !calc_engine::valid_defined_name(&table.display_name)
+                || table.display_name.is_empty()
             {
                 return Err(refusal(
                     "New tables need a unique authored package identity",

@@ -41,6 +41,74 @@ pub fn numbered_duplicate(name: &str, names: &[String]) -> String {
         .expect("a free header")
 }
 
+/// A1-style cell reference (`A1`, `xfd1048576`): one to three letters up to column XFD, then a row.
+fn is_a1_reference(name: &str) -> bool {
+    let letters = name.chars().take_while(char::is_ascii_alphabetic).count();
+    let digits = &name[letters..];
+    if letters == 0
+        || letters > 3
+        || digits.is_empty()
+        || !digits.chars().all(|c| c.is_ascii_digit())
+    {
+        return false;
+    }
+    let column = name[..letters]
+        .bytes()
+        .fold(0u32, |n, c| n * 26 + u32::from(c.to_ascii_uppercase() - b'A' + 1));
+    let row: u64 = digits.parse().unwrap_or(u64::MAX);
+    column <= crate::value::MAX_COLUMNS && (1..=u64::from(crate::value::MAX_ROWS)).contains(&row)
+}
+
+/// R1C1-style cell reference with numbers (`R1`, `C2`, `r1c1`).
+fn is_r1c1_reference(name: &str) -> bool {
+    let upper = name.to_ascii_uppercase();
+    let mut rest = upper.as_str();
+    let mut parts = 0;
+    for letter in ['R', 'C'] {
+        if let Some(after) = rest.strip_prefix(letter) {
+            let digits = after.chars().take_while(char::is_ascii_digit).count();
+            if digits > 0 {
+                rest = &after[digits..];
+                parts += 1;
+            }
+        }
+    }
+    parts > 0 && rest.is_empty()
+}
+
+/// The `displayName` Excel derives from a table's `Name` (measured, Excel 16.0.20527, dc-piw0.10 Q11):
+/// surrounding spaces are dropped; a space, hyphen, `!`, `[` or tab becomes `_` and a `]` is dropped; a name that does not
+/// start with a letter, `_` or `\`, or that is an R1C1 reference with numbers (`R1C1`, `r1`), gets a
+/// leading `_`; a name that is an A1 reference, `R`, `C` or `TRUE`/`FALSE` gets a trailing `_`. When
+/// `taken` says the result is already used (another table, a defined name) `_1`, `_2`, ... is appended.
+pub fn table_display_name(name: &str, taken: impl Fn(&str) -> bool) -> String {
+    let mut display: String = name
+        .trim_matches(' ')
+        .chars()
+        .filter(|c| *c != ']')
+        .map(|c| if matches!(c, ' ' | '-' | '!' | '[' | '\t') { '_' } else { c })
+        .collect();
+    let first = display.chars().next();
+    if first.is_none() {
+        display.push('_');
+    } else if !first.is_some_and(|c| c.is_alphabetic() || c == '_' || c == '\\')
+        || is_r1c1_reference(&display)
+    {
+        display.insert(0, '_');
+    } else if is_a1_reference(&display)
+        || matches!(display.to_ascii_uppercase().as_str(), "R" | "C" | "TRUE" | "FALSE")
+    {
+        display.push('_');
+    }
+    if !taken(&display) {
+        return display;
+    }
+    (1u64..)
+        .map(|n| format!("{display}_{n}"))
+        .find(|candidate| !taken(candidate))
+        .expect("a free display name")
+}
+
 /// The name Excel gives a column added at `at` (the index it will have) to a table whose columns
 /// are named `names` now.
 pub fn added_column_name(names: &[String], at: usize) -> String {
@@ -160,5 +228,40 @@ mod tests {
             numbered_duplicate("Region", &names(&["Region", "Product", "Region2"])),
             "Region3"
         );
+    }
+
+    /// dc-piw0.10 Q11: every row is a line of the recorded `set [Name] ... now Name DisplayName`.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_display_name_is_derived_as_excel_derives_it() {
+        let none = |_: &str| false;
+        for (name, want) in [
+            ("My Table", "My_Table"),
+            ("My-Table", "My_Table"),
+            ("1Table", "_1Table"),
+            ("A1", "A1_"),
+            ("R1C1", "_R1C1"),
+            ("R", "R_"),
+            ("C", "C_"),
+            ("r1", "_r1"),
+            ("Table.1", "Table.1"),
+            ("Sales2024", "Sales2024"),
+            ("_x", "_x"),
+            ("\\x", "\\x"),
+            ("a b c", "a_b_c"),
+            (" lead", "lead"),
+            ("trail ", "trail"),
+            ("T\u{e9}", "T\u{e9}"),
+            ("Tab\tle", "Tab_le"),
+            ("?q", "_?q"),
+            ("a!b", "a_b"),
+            ("True", "True_"),
+            ("Print_Area", "Print_Area"),
+            ("x[1]", "x_1"),
+        ] {
+            assert_eq!(table_display_name(name, none), want, "{name:?}");
+        }
+        assert_eq!(table_display_name("Taken", |n| n == "Taken"), "Taken_1");
+        assert_eq!(table_display_name("Taken", |n| n == "Taken" || n == "Taken_1"), "Taken_2");
     }
 }
