@@ -46,6 +46,15 @@ pub(crate) fn beta_dist_kernel(
     }
     let z = (x - lower) / (upper - lower);
     if cumulative {
+        // Excel's continued-fraction arm returns NUM when the larger shape
+        // absorbs a smaller shape of at least 40, within this coordinate
+        // region. The adjacent shape and coordinate boundaries are measured.
+        let large = alpha.max(beta);
+        let small = alpha.min(beta);
+        let coordinate = if alpha > beta { z } else { 1.0 - z };
+        if small >= 40.0 && large + small == large && z > 0.0 && z < 1.0 && coordinate <= 0.99 {
+            return Err(WorksheetErrorCode::Num);
+        }
         // W109 lane-3 (2026-07-18, b30): Excel has NO integer-shape beta
         // fast path — bratio scores integer shapes at the same wall rate as
         // fractional (344/768 vs the binomial-sum shortcut's 254/768, and

@@ -131,6 +131,26 @@ fn beta_inverse_rejects_absorbed_excess_over_one() {
     }
 }
 
+/// Excel's beta continued fraction rejects this absorbed-shape region.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beta_cdf_reports_absorbed_large_shape_error() {
+    for name in ["BETADIST", "BETA.DIST"] {
+        let args = |x, alpha, beta| {
+            let mut values = vec![n(x), n(alpha), n(beta)];
+            if name == "BETA.DIST" { values.push(b(true)); }
+            values
+        };
+        error(call(name, args(0.5, 1e100, 25569.0)), Num);
+        error(call(name, args(0.5, 25569.0, 1e100)), Num);
+        error(call(name, args(0.99, 1e100, 25569.0)), Num);
+        exact(call(name, args(f64::from_bits(0.99_f64.to_bits() + 1), 1e100, 25569.0)), 0.0);
+        exact(call(name, args(0.01, 2.0_f64.powi(60), f64::from_bits(40.0_f64.to_bits() - 1))), 0.0);
+        exact(call(name, args(0.0, 1e100, 25569.0)), 0.0);
+        exact(call(name, args(1.0, 1e100, 25569.0)), 1.0);
+    }
+}
+
 /// Excel reads import argument errors and numeric types before validating the path.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
