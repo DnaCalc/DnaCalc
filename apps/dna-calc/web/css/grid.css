@@ -53,6 +53,9 @@
 .dc-prompt b{display:block}
 .dc-chart{position:absolute;box-sizing:border-box;pointer-events:none;z-index:1}
 .dc-chart svg{display:block}
+.dc-shape{position:absolute;box-sizing:border-box;pointer-events:none;z-index:1}
+.dc-shape svg{display:block;position:absolute;left:0;top:0}
+.dc-shape-text{font-family:Calibri,Carlito,'Segoe UI',sans-serif}
 .dc-cell-editor{position:absolute;box-sizing:border-box;color:var(--dna-ink);margin:0;background:var(--dna-paper);z-index:4;min-width:200px}
 .dc-cell-editor .oc-editor{border:2px solid var(--dna-amber);border-radius:0;font:13px/20px ui-monospace,Consolas,monospace;min-height:20px}
 .dc-cell-editor .oc-editor pre,.dc-cell-editor .oc-editor textarea{padding:0 3px;min-height:20px;resize:none;white-space:pre}

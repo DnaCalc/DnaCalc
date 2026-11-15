@@ -54,6 +54,28 @@ pub struct ShapeLine {
     pub dash: Option<String>,
 }
 
+/// A text body's properties as the drawing part states them (`a:bodyPr`, the paragraphs' `a:pPr algn`
+/// and the first run's `a:rPr`): what a text box draws with (dc-zjsg.2). `None` is the style's value.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct ShapeBody {
+    /// `lIns`, `tIns`, `rIns`, `bIns`, in EMU.
+    pub left_inset: Option<i64>,
+    pub top_inset: Option<i64>,
+    pub right_inset: Option<i64>,
+    pub bottom_inset: Option<i64>,
+    /// `anchor`: `t`, `ctr`, `b` (also `just`, `dist`).
+    pub anchor: Option<String>,
+    /// `wrap`: `square` or `none`.
+    pub wrap: Option<String>,
+    /// Each paragraph's `algn` (`l`, `ctr`, `r`, `just`), in paragraph order.
+    pub alignment: Vec<Option<String>>,
+    /// The first run's `sz`, in hundredths of a point.
+    pub size: Option<i64>,
+    pub bold: bool,
+    pub italic: bool,
+    pub colour: Option<ShapeColour>,
+}
+
 /// One end of a connector: the shape it is glued to and the connection site on it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ShapeConnection {
@@ -89,6 +111,8 @@ pub struct Shape {
     pub line: ShapeLine,
     /// The text body's paragraphs, each the concatenation of its runs; `None` without a body.
     pub text: Option<Vec<String>>,
+    /// The text body's properties (empty without a body).
+    pub body: ShapeBody,
     /// A picture's `a:blip r:embed`.
     pub picture: Option<String>,
     /// A connector's ends (`a:stCxn`, `a:endCxn`).
@@ -120,6 +144,7 @@ impl Shape {
             fill: ShapeFill::Style,
             line: ShapeLine::default(),
             text: None,
+            body: ShapeBody::default(),
             picture: None,
             begin: None,
             end: None,

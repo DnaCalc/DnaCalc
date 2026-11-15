@@ -984,6 +984,8 @@ pub enum Request {
     },
     /// The sheet's charts, drawn.
     Charts(Sheet),
+    /// The sheet's shapes and text boxes, drawn (dc-zjsg.2).
+    Shapes(Sheet),
     PivotTables(Sheet),
     PivotSourceFields {
         area: Area,
@@ -1292,6 +1294,7 @@ pub struct OutlineGroup {
     pub summary: u32,
     pub collapsed: bool,
 }
+pub use crate::drawn_shapes::{DrawnShape, ShapeParagraph, ShapeStroke, ShapeText};
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Geometry {
     #[serde(default)]
@@ -1563,6 +1566,7 @@ pub enum Reply {
     UsedArea(Option<Area>),
     ResolvedReference(Result<Area, String>),
     Charts(Vec<Chart>),
+    Shapes(Vec<crate::drawn_shapes::DrawnShape>),
     PivotTables {
         tables: Vec<SavedPivot>,
         issues: Vec<String>,

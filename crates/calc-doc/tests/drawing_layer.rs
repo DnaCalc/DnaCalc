@@ -78,6 +78,12 @@ fn dc_zjsg_1__every_object_kind_reads_with_its_fields() {
             },
         }
     );
+    // The text body's properties (dc-zjsg.2): bodyPr anchor, the paragraphs' algn, the first run's font.
+    assert_eq!(rect.body.anchor.as_deref(), Some("ctr"));
+    assert_eq!(rect.body.alignment, [Some("ctr".to_owned()), None]);
+    assert_eq!((rect.body.size, rect.body.bold, rect.body.italic), (Some(1100), true, false));
+    assert_eq!(text_box.body.wrap.as_deref(), Some("square"));
+    assert_eq!(text_box.body.left_inset, None);
     assert_eq!(text_box.edit_as.as_deref(), Some("oneCell"));
     assert_eq!(text_box.fill, ShapeFill::None);
     assert_eq!(
@@ -345,4 +351,131 @@ fn dc_zjsg_1__alternate_content_shapes_read_the_branch_excel_reads() {
         part(&saved, "xl/drawings/drawing1.xml"),
         part(&bytes, "xl/drawings/drawing1.xml")
     );
+}
+
+// dc-zjsg.2: the workbook the paint comparison draws (cargo xtask app paint-compare calc). Its shapes are
+// added to shapes-base.xlsx by calc-doc's own save route; the committed shapes-paint.xlsx is that
+// save. Regenerate with DNACALC_WRITE_FIXTURE=1 cargo test -p calc-doc --test drawing_layer
+// dc_zjsg_2__shapes_paint_workbook.
+const SHAPES_BASE: &[u8] = include_bytes!("fixtures/drawing/shapes-base.xlsx");
+const SHAPES_PAINT: &[u8] = include_bytes!("fixtures/drawing/shapes-paint.xlsx");
+
+fn at(column: u32, row: u32) -> DrawingPoint {
+    DrawingPoint { column, column_offset: 0, row, row_offset: 0 }
+}
+
+fn cells(from: DrawingPoint, to: DrawingPoint) -> ChartAnchor {
+    ChartAnchor::TwoCell { from, to }
+}
+
+fn paint_shapes() -> Vec<Shape> {
+    use calc_doc::model::ShapeLine;
+    #[allow(non_snake_case)]
+    use ShapeKind::{Connector, TextBox};
+    const SHAPE: ShapeKind = ShapeKind::Shape;
+    let rgb = |v| Some(ShapeColour::Rgb(v));
+    let mut shapes = Vec::new();
+    let mut add = |id: u32, name: &str, kind, geometry: &str, anchor, fill: ShapeFill, line: ShapeLine| -> usize {
+        let mut shape = Shape::new(id, name.into(), kind, anchor);
+        shape.geometry = Some(geometry.into());
+        shape.extent = (952_500, 476_250);
+        shape.fill = fill;
+        shape.line = line;
+        shapes.push(shape);
+        shapes.len() - 1
+    };
+    let solid = |v| ShapeFill::Solid(ShapeColour::Rgb(v));
+    let line = |weight: i64, colour: u32, dash: Option<&str>| ShapeLine {
+        weight: Some(weight),
+        hidden: false,
+        colour: Some(ShapeColour::Rgb(colour)),
+        dash: dash.map(str::to_owned),
+    };
+    let hidden_line = ShapeLine { hidden: true, ..Default::default() };
+    let a = add(2, "Rectangle 1", SHAPE, "rect", cells(at(1, 1), at(3, 4)), solid(0xFFC000), line(25_400, 0x1F4E79, None));
+    let b = add(3, "Rounded 2", SHAPE, "roundRect", cells(at(4, 1), at(6, 4)), ShapeFill::None, line(38_100, 0xC00000, Some("dash")));
+    let c = add(4, "Oval 3", SHAPE, "ellipse", cells(at(7, 1), at(9, 4)), solid(0x70AD47), hidden_line.clone());
+    add(5, "Line 4", Connector, "line", cells(at(1, 6), at(3, 8)), ShapeFill::Style, line(19_050, 0xFF0000, Some("sysDash")));
+    add(6, "Straight Connector 5", Connector, "straightConnector1", cells(at(4, 6), at(6, 6)), ShapeFill::Style, ShapeLine::default());
+    let t = add(7, "TextBox 6", TextBox, "rect", cells(at(7, 6), at(9, 9)), solid(0xFFFF99), line(12_700, 0x7F7F7F, None));
+    let u = add(8, "TextBox 7", TextBox, "rect", cells(at(1, 9), at(3, 11)), ShapeFill::None, hidden_line.clone());
+    let v = add(9, "Rectangle 8", SHAPE, "rect", cells(at(2, 4), at(4, 7)), solid(0x5B9BD5), hidden_line.clone());
+    let w = add(10, "Oval 9", SHAPE, "ellipse", ChartAnchor::OneCell { from: at(4, 9), width: 952_500, height: 476_250 }, solid(0xED7D31), hidden_line);
+    let x = add(11, "Rectangle 10", SHAPE, "rect", ChartAnchor::Absolute { x: 5_715_000, y: 3_810_000, width: 1_143_000, height: 381_000 }, solid(0xA5A5A5), ShapeLine::default());
+    shapes[3].flip_vertical = true;
+    shapes[a].text = Some(vec!["Rectangle".into()]);
+    shapes[a].body.anchor = Some("ctr".into());
+    shapes[a].body.alignment = vec![Some("ctr".into())];
+    shapes[a].body.colour = rgb(0x000000);
+    shapes[b].text = Some(vec!["Dashed".into()]);
+    shapes[b].body.colour = rgb(0xC00000);
+    shapes[c].text = None;
+    shapes[t].text = Some(vec!["Left aligned".into(), "Centre".into(), "Right aligned".into()]);
+    shapes[t].body.left_inset = Some(182_880);
+    shapes[t].body.top_inset = Some(182_880);
+    shapes[t].body.right_inset = Some(182_880);
+    shapes[t].body.bottom_inset = Some(182_880);
+    shapes[t].body.anchor = Some("ctr".into());
+    shapes[t].body.wrap = Some("square".into());
+    shapes[t].body.alignment = vec![Some("l".into()), Some("ctr".into()), Some("r".into())];
+    shapes[t].body.size = Some(1400);
+    shapes[t].body.bold = true;
+    shapes[t].body.colour = rgb(0x1F4E79);
+    shapes[u].text = Some(vec!["Bottom, no wrap, a long line past the right edge".into()]);
+    shapes[u].body.anchor = Some("b".into());
+    shapes[u].body.wrap = Some("none".into());
+    shapes[v].text = Some(vec!["Over hidden D and row 6".into()]);
+    shapes[v].body.colour = rgb(0xFFFFFF);
+    shapes[w].text = None;
+    shapes[x].text = Some(vec!["Absolute".into()]);
+    shapes[x].body.anchor = Some("ctr".into());
+    shapes[x].body.alignment = vec![Some("ctr".into())];
+    shapes[x].body.colour = rgb(0x000000);
+    shapes
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_2__shapes_paint_workbook() {
+    let base = load(SHAPES_BASE);
+    let sheet = first_sheet(&base);
+    let model = edited(&base, vec![WorkbookOp::SetShapes { sheet, shapes: paint_shapes() }]);
+    let (saved, _) = save_model(&base, &model);
+    #[cfg(not(target_arch = "wasm32"))]
+    if std::env::var_os("DNACALC_WRITE_FIXTURE").is_some() {
+        std::fs::write(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/drawing/shapes-paint.xlsx"),
+            &saved,
+        )
+        .unwrap();
+    }
+    // The committed workbook is that save: it reads back as the shapes made, with their text bodies.
+    let committed = load(SHAPES_PAINT);
+    let read = committed.sheets()[0].shapes();
+    assert_eq!(read.unread, 0);
+    let made = paint_shapes();
+    assert_eq!(read.shapes.len(), made.len());
+    for (read, made) in read.shapes.iter().zip(&made) {
+        assert_eq!(read.name, made.name);
+        assert_eq!(read.kind, made.kind);
+        assert_eq!(read.geometry, made.geometry, "{}", made.name);
+        assert_eq!(read.anchor, made.anchor, "{}", made.name);
+        assert_eq!(read.fill, made.fill, "{}", made.name);
+        assert_eq!(read.line.weight, made.line.weight, "{}", made.name);
+        assert_eq!(read.line.dash, made.line.dash, "{}", made.name);
+        assert_eq!(read.flip_vertical, made.flip_vertical, "{}", made.name);
+        // A shape without text is saved with one empty paragraph, as Excel writes it.
+        let blank = || (made.kind != ShapeKind::Connector).then(|| vec![String::new()]);
+        assert_eq!(read.text, made.text.clone().or_else(blank), "{}", made.name);
+        assert_eq!(read.body.anchor.as_deref().unwrap_or("t"), made.body.anchor.as_deref().unwrap_or("t"), "{}", made.name);
+        assert_eq!(read.body.wrap, made.body.wrap, "{}", made.name);
+        assert_eq!(read.body.left_inset, made.body.left_inset, "{}", made.name);
+        assert_eq!(read.body.size.unwrap_or(1100), made.body.size.unwrap_or(1100), "{}", made.name);
+        assert_eq!((read.body.bold, &read.body.colour), (made.body.bold, &made.body.colour), "{}", made.name);
+        let aligned: Vec<_> = read.body.alignment.iter().map(|a| a.as_deref()).collect();
+        let stated: Vec<_> = made.body.alignment.iter().map(|a| a.as_deref()).collect();
+        if !stated.is_empty() {
+            assert_eq!(aligned, stated, "{}", made.name);
+        }
+    }
 }

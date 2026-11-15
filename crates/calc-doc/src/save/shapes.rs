@@ -30,6 +30,11 @@ fn valid_text(s: &str) -> bool {
         })
 }
 
+/// An enumeration attribute's value (`ctr`, `square`): letters and digits only.
+fn attribute_text(value: &str) -> String {
+    value.chars().filter(char::is_ascii_alphanumeric).collect()
+}
+
 fn element_text(value: &str, out: &mut Vec<u8>) {
     for c in value.chars() {
         match c {
@@ -253,37 +258,90 @@ pub(crate) fn frame(shape: &Shape, remap: &BTreeMap<u32, u32>) -> Result<Vec<u8>
         } else {
             out.extend(b"<xdr:style><a:lnRef idx=\"2\"><a:schemeClr val=\"accent1\"><a:shade val=\"15000\"/></a:schemeClr></a:lnRef><a:fillRef idx=\"1\"><a:schemeClr val=\"accent1\"/></a:fillRef><a:effectRef idx=\"0\"><a:schemeClr val=\"accent1\"/></a:effectRef><a:fontRef idx=\"minor\"><a:schemeClr val=\"lt1\"/></a:fontRef></xdr:style>");
         }
+        // What the object states of its body (insets, wrap, anchor), after the attributes Excel writes
+        // for every body; an object that states none writes what it always did.
+        let body = &shape.body;
+        let mut body_attributes = String::new();
+        if let Some(wrap) = body.wrap.as_deref() {
+            body_attributes.push_str(&format!(" wrap=\"{}\"", attribute_text(wrap)));
+        }
+        for (name, value) in [
+            ("lIns", body.left_inset),
+            ("tIns", body.top_inset),
+            ("rIns", body.right_inset),
+            ("bIns", body.bottom_inset),
+        ] {
+            if let Some(value) = value {
+                body_attributes.push_str(&format!(" {name}=\"{value}\""));
+            }
+        }
         out.extend(
             format!(
-                "<xdr:txBody><a:bodyPr vertOverflow=\"clip\" horzOverflow=\"clip\"{} rtlCol=\"0\" anchor=\"t\"/><a:lstStyle/>",
-                if text_box { " vert=\"horz\"" } else { "" }
+                "<xdr:txBody><a:bodyPr vertOverflow=\"clip\" horzOverflow=\"clip\"{}{body_attributes} rtlCol=\"0\" anchor=\"{}\"/><a:lstStyle/>",
+                if text_box { " vert=\"horz\"" } else { "" },
+                attribute_text(body.anchor.as_deref().unwrap_or("t")),
             )
             .as_bytes(),
         );
-        let align = if text_box {
-            ""
-        } else {
-            "<a:pPr algn=\"l\"/>"
+        let default_align = if text_box { None } else { Some("l") };
+        let align_of = |index: usize| -> String {
+            match body
+                .alignment
+                .get(index)
+                .and_then(|a| a.as_deref())
+                .or(default_align)
+            {
+                Some(align) => format!("<a:pPr algn=\"{}\"/>", attribute_text(align)),
+                None => String::new(),
+            }
+        };
+        let size = body.size.unwrap_or(1100);
+        let run_font = {
+            let mut attributes = String::new();
+            if body.bold {
+                attributes.push_str(" b=\"1\"");
+            }
+            if body.italic {
+                attributes.push_str(" i=\"1\"");
+            }
+            let colour = match &body.colour {
+                Some(calc_doc_model::ShapeColour::Rgb(rgb)) => {
+                    format!("<a:solidFill><a:srgbClr val=\"{rgb:06X}\"/></a:solidFill>")
+                }
+                Some(calc_doc_model::ShapeColour::Scheme(name)) => format!(
+                    "<a:solidFill><a:schemeClr val=\"{}\"/></a:solidFill>",
+                    attribute_text(name)
+                ),
+                None => String::new(),
+            };
+            (attributes, colour)
         };
         let lang = shape.lang.as_deref().unwrap_or("en-US");
         let paragraphs = shape.text.as_deref().unwrap_or(&[]);
         if paragraphs.is_empty() {
             out.extend(
                 format!(
-                    "<a:p>{align}<a:endParaRPr lang=\"{lang}\" sz=\"1100\"/></a:p>"
+                    "<a:p>{}<a:endParaRPr lang=\"{lang}\" sz=\"{size}\"/></a:p>",
+                    align_of(0)
                 )
                 .as_bytes(),
             );
         }
-        for paragraph in paragraphs {
+        for (index, paragraph) in paragraphs.iter().enumerate() {
+            let align = align_of(index);
             if !valid_text(paragraph) {
                 return Err(fail("The text holds a character a drawing cannot store"));
             }
             out.extend(format!("<a:p>{align}").as_bytes());
             if paragraph.is_empty() {
-                out.extend(format!("<a:endParaRPr lang=\"{lang}\" sz=\"1100\"/>").as_bytes());
+                out.extend(format!("<a:endParaRPr lang=\"{lang}\" sz=\"{size}\"/>").as_bytes());
             } else {
-                out.extend(format!("<a:r><a:rPr lang=\"{lang}\" sz=\"1100\"/><a:t>").as_bytes());
+                let (attributes, colour) = &run_font;
+                if colour.is_empty() {
+                    out.extend(format!("<a:r><a:rPr lang=\"{lang}\" sz=\"{size}\"{attributes}/><a:t>").as_bytes());
+                } else {
+                    out.extend(format!("<a:r><a:rPr lang=\"{lang}\" sz=\"{size}\"{attributes}>{colour}</a:rPr><a:t>").as_bytes());
+                }
                 element_text(paragraph, &mut out);
                 out.extend(b"</a:t></a:r>");
             }

@@ -10,7 +10,7 @@ use super::{Events, LoadError, read_xml};
 use crate::opc::Package;
 use crate::xml::XmlEvent;
 use calc_doc_model::{
-    ChartAnchor, DrawingPoint, Shape, ShapeColour, ShapeConnection, ShapeFill, ShapeKind,
+    ChartAnchor, DrawingPoint, Shape, ShapeBody, ShapeColour, ShapeConnection, ShapeFill, ShapeKind,
     ShapeLine, SheetShapes,
 };
 
@@ -380,6 +380,7 @@ fn object_shape(node: &Node, anchor: ChartAnchor) -> Option<Shape> {
         _ => {}
     }
     if let Some(body) = node.child("txBody") {
+        shape.body = text_body(body);
         shape.text = Some(
             body.children
                 .iter()
@@ -400,6 +401,38 @@ fn object_shape(node: &Node, anchor: ChartAnchor) -> Option<Shape> {
         );
     }
     Some(shape)
+}
+
+/// The properties of a text body: `a:bodyPr`, each paragraph's alignment and the first run's font.
+fn text_body(body: &Node) -> ShapeBody {
+    let mut read = ShapeBody::default();
+    if let Some(properties) = body.child("bodyPr") {
+        read.left_inset = properties.number("lIns");
+        read.top_inset = properties.number("tIns");
+        read.right_inset = properties.number("rIns");
+        read.bottom_inset = properties.number("bIns");
+        read.anchor = properties.attribute("anchor").map(str::to_owned);
+        read.wrap = properties.attribute("wrap").map(str::to_owned);
+    }
+    let paragraphs = || body.children.iter().filter(|p| p.local == "p");
+    read.alignment = paragraphs()
+        .map(|p| {
+            p.child("pPr")
+                .and_then(|p| p.attribute("algn"))
+                .map(str::to_owned)
+        })
+        .collect();
+    let run = paragraphs()
+        .flat_map(|p| p.children.iter())
+        .find(|r| matches!(r.local.as_str(), "r" | "fld"))
+        .and_then(|r| r.child("rPr"));
+    if let Some(run) = run {
+        read.size = run.number("sz");
+        read.bold = run.flag("b");
+        read.italic = run.flag("i");
+        read.colour = run.child("solidFill").and_then(colour);
+    }
+    read
 }
 
 fn colour(fill: &Node) -> Option<ShapeColour> {

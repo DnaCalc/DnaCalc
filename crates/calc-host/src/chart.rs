@@ -320,7 +320,8 @@ impl HostState {
         })
     }
 
-    fn chart_place(&self, sheet: SheetId, anchor: &ChartAnchor) -> Option<ChartPlace> {
+    /// Where a drawing object's anchor puts it: a chart's, a shape's.
+    pub fn chart_place(&self, sheet: SheetId, anchor: &ChartAnchor) -> Option<ChartPlace> {
         let px = |emu: i64| emu as f64 / EMU_PER_PIXEL;
         Some(match anchor {
             ChartAnchor::TwoCell { from, to } => ChartPlace::Cells {

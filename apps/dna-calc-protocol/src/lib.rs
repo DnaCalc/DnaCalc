@@ -1,5 +1,6 @@
 //! JSON controls and bounded binary tile records shared by page and worker.
 pub mod tiles;
+pub use dna_calc_model::drawn_shapes;
 pub use dna_calc_model::projection::*;
 use serde::{Serialize, de::DeserializeOwned};
 pub use tiles::*;

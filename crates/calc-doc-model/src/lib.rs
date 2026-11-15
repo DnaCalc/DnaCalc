@@ -60,7 +60,7 @@ pub use chart::{
 };
 mod drawing;
 pub use drawing::{
-    Shape, ShapeColour, ShapeConnection, ShapeFill, ShapeKind, ShapeLine, SheetShapes,
+    Shape, ShapeBody, ShapeColour, ShapeConnection, ShapeFill, ShapeKind, ShapeLine, SheetShapes,
 };
 mod cells;
 mod validation;

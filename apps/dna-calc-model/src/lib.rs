@@ -7,6 +7,7 @@ pub mod names;
 pub mod parts;
 pub use editor::{EditorState, PointEdit, PointSyntax, TextHistory, replace_text};
 pub mod command;
+pub mod drawn_shapes;
 pub mod geometry;
 mod outbox;
 pub mod presentation;

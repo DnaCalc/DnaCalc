@@ -3,6 +3,7 @@ mod autofit;
 pub mod canvas;
 pub mod cells;
 mod chart;
+mod drawn;
 mod format;
 pub mod ledger;
 mod names;

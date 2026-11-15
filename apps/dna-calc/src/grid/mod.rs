@@ -327,6 +327,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
     let split_window = RwSignal::new(initial_geometry.as_ref().is_some_and(|g| g.split_window));
     let used: RwSignal<Option<GridArea>> = RwSignal::new(None);
     let charts: RwSignal<Vec<wire::Chart>> = RwSignal::new(Vec::new());
+    let shapes: RwSignal<Vec<wire::DrawnShape>> = RwSignal::new(Vec::new());
     Effect::new(move |_| {
         controller.revision.track();
         let Some(sheet) = controller.sheet.get() else {
@@ -352,6 +353,16 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 && charts.try_get_untracked().is_some_and(|old| old != drawn)
             {
                 charts.try_set(drawn);
+            }
+        });
+        controller.ask(wire::Request::Shapes(sheet), move |reply| {
+            if controller.sheet.get_untracked() != Some(sheet.id()) {
+                return;
+            }
+            if let wire::Reply::Shapes(drawn) = reply
+                && shapes.try_get_untracked().is_some_and(|old| old != drawn)
+            {
+                shapes.try_set(drawn);
             }
         });
     });
@@ -2539,6 +2550,55 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
             })
             .collect_view()
     };
+    // The sheet's shapes and text boxes (dc-zjsg.2), over the cells like the charts: placed by their
+    // anchors in the cells' own sizes (a hidden row or column has none), the ones in view only.
+    let shapes_view = move || {
+        let m = metrics.get();
+        let v = viewport.get();
+        let z = zoom.get();
+        let p = panes.get();
+        let origin = cell_rect(&m, &v, 1, 1);
+        shapes
+            .get()
+            .into_iter()
+            .filter_map(|shape| {
+                let (x0, y0, x1, y1) = wire::drawn_shapes::frame(
+                    &shape.place,
+                    |row, column| {
+                        let r = p.rect(&m, &v, row, column);
+                        Some((r.x, r.y, r.w, r.h))
+                    },
+                    (origin.x, origin.y),
+                    z,
+                )?;
+                let line = matches!(shape.kind.as_str(), "connector");
+                if (x1 <= x0 && !line) || (y1 <= y0 && !line) || (x1 <= x0 && y1 <= y0) {
+                    return None;
+                }
+                if x1 < 0.0 || y1 < 0.0 || x0 > v.width || y0 > v.height {
+                    return None;
+                }
+                let markup = wire::drawn_shapes::shape_markup(&shape, x1 - x0, y1 - y0, z)?;
+                let style = format!(
+                    "left:{};top:{};width:{};height:{}",
+                    px(x0),
+                    px(y0),
+                    px(x1 - x0),
+                    px(y1 - y0)
+                );
+                Some(view! {
+                    <div
+                        class="dc-shape"
+                        data-dnacalc="shape"
+                        data-shape=shape.name.clone()
+                        data-kind=shape.kind.clone()
+                        use:css=style
+                        inner_html=markup
+                    ></div>
+                })
+            })
+            .collect_view()
+    };
     let review_markers = RwSignal::new(Vec::<(wire::Key, String)>::new());
     Effect::new(move |_| {
         let revision = controller.revision.get();
@@ -3170,6 +3230,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                         {move || decorations_view(true)}
                         {canvas_icons}
                         {charts_view}
+                        {shapes_view}
                         {markers_view}
                         {invalid_view}
                         {selection_view}

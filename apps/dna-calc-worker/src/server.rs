@@ -1406,6 +1406,7 @@ impl Server {
                     Ok(Reply::PivotTables { tables, issues })
                 }
                 Request::Charts(sheet) => Ok(Reply::Charts(self.charts(sheet))),
+                Request::Shapes(sheet) => Ok(Reply::Shapes(self.drawn_shapes(sheet))),
                 Request::CellImage { .. } => Err("handle answers a cell image".into()),
                 Request::AtlasRefusals { reason, page } => Ok(Reply::AtlasRefusals(
                     self.book
@@ -4364,6 +4365,31 @@ impl Server {
         (tables, issues)
     }
 
+    /// The sheet's shapes and text boxes as the page draws them, in drawing order (dc-zjsg.2).
+    fn drawn_shapes(&self, sheet: Sheet) -> Vec<wire::DrawnShape> {
+        let host = self.book.host();
+        host.shapes(sheet.id())
+            .iter()
+            .filter_map(|shape| {
+                let place = match host.chart_place(sheet.id(), &shape.anchor)? {
+                    calc_host::ChartPlace::Cells { from, to } => ChartPlace::Cells {
+                        from: (Key::of(from.cell), from.dx, from.dy),
+                        to: (Key::of(to.cell), to.dx, to.dy),
+                    },
+                    calc_host::ChartPlace::Sized { from, width, height } => ChartPlace::Sized {
+                        from: (Key::of(from.cell), from.dx, from.dy),
+                        width,
+                        height,
+                    },
+                    calc_host::ChartPlace::Absolute { x, y, width, height } => {
+                        ChartPlace::Absolute { x, y, width, height }
+                    }
+                };
+                crate::drawn::drawn(shape, place)
+            })
+            .collect()
+    }
+
     fn charts(&self, sheet: Sheet) -> Vec<Chart> {
         let host = self.book.host();
         let geometry = host.sheet_geometry(sheet.id());
@@ -4827,6 +4853,51 @@ mod outline_tests {
             assert!(reply.reply.is_ok(), "{name}");
             assert_eq!(server.summary().open_repairs.len(), repairs, "{name}");
         }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dc_zjsg_2__the_server_answers_a_sheets_shapes_drawn() {
+        let mut server = Server::new();
+        let data = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/shapes-paint.xlsx");
+        assert!(
+            server
+                .execute_current(Request::Open { name: "shapes-paint.xlsx".into() }, Some(data.to_vec()))
+                .reply
+                .is_ok()
+        );
+        let sheet = server.book.host().sheets()[0].id();
+        let Reply::Shapes(shapes) = server
+            .execute_current(Request::Shapes(Sheet::of(sheet)), None)
+            .reply
+            .unwrap()
+        else {
+            panic!("the shapes reply")
+        };
+        let names: Vec<_> = shapes.iter().map(|s| s.name.as_str()).collect();
+        assert_eq!(
+            names,
+            ["Rectangle 1", "Rounded 2", "Oval 3", "Line 4", "Straight Connector 5", "TextBox 6", "TextBox 7", "Rectangle 8", "Oval 9", "Rectangle 10"]
+        );
+        let by = |name: &str| shapes.iter().find(|s| s.name == name).unwrap();
+        let rect = by("Rectangle 1");
+        assert_eq!(rect.fill.as_deref(), Some("#FFC000"));
+        let line = rect.line.as_ref().unwrap();
+        assert_eq!((line.colour.as_str(), line.width), ("#1F4E79", 25_400.0 / 9_525.0));
+        let rounded = by("Rounded 2");
+        assert_eq!((rounded.fill.clone(), rounded.line.as_ref().unwrap().dash.as_str()), (None, "dash"));
+        assert!(by("Oval 3").line.is_none());
+        assert!(by("Line 4").flip_vertical && by("Line 4").fill.is_none());
+        let text = by("TextBox 6").text.as_ref().unwrap();
+        assert_eq!(text.inset, [19.2; 4]);
+        assert_eq!((text.anchor.as_str(), text.wrap, text.bold), ("ctr", true, true));
+        assert_eq!(text.paragraphs.iter().map(|p| p.align.as_str()).collect::<Vec<_>>(), ["l", "ctr", "r"]);
+        assert_eq!(by("TextBox 7").text.as_ref().unwrap().wrap, false);
+        // The cell anchors cross as the grid places them, from the sheet's cells.
+        assert!(matches!(by("Rectangle 1").place, ChartPlace::Cells { .. }));
+        assert!(matches!(by("Oval 9").place, ChartPlace::Sized { .. }));
+        assert!(matches!(by("Rectangle 10").place, ChartPlace::Absolute { .. }));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
