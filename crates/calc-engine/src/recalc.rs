@@ -2999,9 +2999,23 @@ pub fn finish(
         state.pending.extend(work.invalidated_outside);
     }
     let was_circular = state.circular_cells();
+    // With iteration off, a member whose evaluation never met the cycle (`=IF(C1>5,I1+1,7)` with C1 = 1)
+    // was calculated, not held: Excel does not list it (dc-y2o.1, Q20).
+    let unmet: BTreeSet<NodeId> = if work.iteration.enabled() {
+        BTreeSet::new()
+    } else {
+        work.cyclic.difference(&work.kept).copied().collect()
+    };
     if matches!(work.admission.scope, CalcScope::Workbook) {
+        state.cycle_unmet = unmet;
         state.cycle_members = work.cyclic;
     } else {
+        let mut outside_unmet = std::mem::take(&mut state.cycle_unmet);
+        outside_unmet.retain(|node| {
+            state.node(*node).is_some() && !work.admission.scope.contains(live_anchor(state, *node))
+        });
+        outside_unmet.extend(unmet);
+        state.cycle_unmet = outside_unmet;
         // A narrow command cannot discharge the known cyclic demand elsewhere.
         let outside = state
             .cycle_members
@@ -3040,9 +3054,12 @@ pub fn finish(
 /// publication that is now on a cycle it was not on closed that cycle and is the one; else the
 /// cell named before while it stays on one; else the first circular cell the rule holds in the
 /// saved chain's order (J1 of tests/fixtures/dc_y2o, whose chain lists I1 first: I1's evaluation
-/// never meets its cycle and is not held), else the first in cell order. Which cell Excel names
-/// after a rebuild (K1) and after the named cycle is broken while others stand (A9, then B3) is
-/// not matched: the first in cell order.
+/// never meets its cycle and is not held; J1 also after a rebuild, Q19 a3), else the first in cell
+/// order. NOT matched (Q19 b lines, Excel 16.0, 2026-11-15; no simple rule found, the closer rule
+/// fits 3 of 5 closing entries, first-in-cell-order 2 of 5): N1/O1 either order names N1; B3, A9, D5
+/// names B3; the name moves after entries that close no cycle (b1 Q1 N1 -> O1; b5 A2 I5 -> H5)
+/// but not always (b4 B3 keeps B9); after breaks another cell is named (b4 C3, B3; b5 H5); an
+/// INDIRECT-made cycle is never named (b7); b6's filled four-cell cycle names A2.
 fn update_circular_reported(
     state: &mut EngineState,
     was_circular: &[CellKey],

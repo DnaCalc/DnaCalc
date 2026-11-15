@@ -400,6 +400,9 @@ pub struct EngineState {
     /// iteration off those that read one (dc-10y); every recalculation calculates them again, as
     /// Excel calculates such a cell whenever it calculates (it saves each with `ca="1"`).
     pub(crate) cycle_members: BTreeSet<NodeId>,
+    /// The members of `cycle_members` whose evaluation never met the cycle (iteration off): calculated, so
+    /// not circular cells to Excel (dc-y2o.1).
+    pub(crate) cycle_unmet: BTreeSet<NodeId>,
     /// The saved calculation chain the workbook was opened with, while no formula has been entered,
     /// removed or rebuilt since (dc-y2o.1): Excel names the first circular cell in this order.
     pub(crate) calc_chain: Option<Vec<CellKey>>,
@@ -609,6 +612,7 @@ impl EngineState {
             volatile_input_version: self.volatile_input_version,
             workbook_facts: self.workbook_facts.clone(),
             cycle_members: self.cycle_members.clone(),
+            cycle_unmet: self.cycle_unmet.clone(),
             calc_chain: self.calc_chain.clone(),
             entry_log: self.entry_log.clone(),
             circular_reported: self.circular_reported,
@@ -779,6 +783,7 @@ impl EngineState {
             volatile_input_version: 0,
             workbook_facts: None,
             cycle_members: BTreeSet::new(),
+            cycle_unmet: BTreeSet::new(),
             calc_chain: None,
             entry_log: Vec::new(),
             circular_reported: None,
@@ -971,15 +976,15 @@ impl EngineState {
     }
 
     /// The formula cells the last published recalculation found on a circular reference, in
-    /// cell order (dc-y2o.1): those on a cycle of their references (`=IF(C1>5,I1+1,7)` in I1
-    /// too, whose evaluation need not meet itself), those on a cycle only their evaluations met,
-    /// and with iteration off those that read one, which keep their values by the
-    /// circular-reference rule. A host warns of a circular reference while this is not empty.
+    /// cell order (dc-y2o.1): Excel's list follows evaluation, not the reference graph, so with
+    /// iteration off a cell on a cycle of references whose evaluation never met it
+    /// (`=IF(C1>5,I1+1,7)` in I1 with C1 = 1) is not listed (Q20); those listed are held by the
+    /// circular-reference rule: on a cycle, or reading one. A host warns of a circular reference while this is not empty.
     pub fn circular_cells(&self) -> Vec<CellKey> {
         let mut cells: Vec<CellKey> = self
             .cycle_members
             .iter()
-            .filter(|node| self.node(**node).is_some())
+            .filter(|node| self.node(**node).is_some() && !self.cycle_unmet.contains(node))
             .map(|node| crate::recalc::live_anchor(self, *node))
             .collect();
         cells.sort();
@@ -1363,8 +1368,9 @@ impl EngineState {
     /// identities, held caches and spills survive; existing result proofs do not.
     /// The owner must have no active calculation using this mutable graph.
     pub fn rebuild_bindings(&mut self) {
-        // The rebuilt chain is Excel's own order, not the file's (dc-y2o.1).
-        self.calc_chain = None;
+        // Excel's rebuild reorders the chain (q19-a3: I1 H1 H2 J1 K1 F1 E1 A1 ... for the saved I1 H2 H1 J1 K1
+        // F1 B1 A1 ...) but the name stays J1 on dc_y2o (Q19 a3, a4). The rebuilt order is not derived; the
+        // saved chain stands, which gives J1 there (dc-y2o.1).
         self.circular_reported = None;
         // Every binding is discarded together. Removing its edges individually
         // would repeatedly search and mutate indexes that are about to be empty.

@@ -4348,8 +4348,8 @@ fn dc_y2o__iteration_off_holds_what_the_cells_stored() {
     assert_eq!(held_by_circular_rule(&state, c(2, 4)), excel_text(""));
     assert_eq!(evaluated_value(&state, c(1, 8)), n(100.0));
     assert_eq!(evaluated_value(&state, c(1, 9)), n(7.0));
-    // The cells on a cycle of their references, and those that read one: I1 too, though its
-    // evaluation does not meet itself.
+    // The cells on a cycle that their evaluation met, and those that read one: not I1, whose evaluation does
+    // not meet itself (Excel does not list it, Q20).
     assert_eq!(
         state.circular_cells(),
         vec![
@@ -4359,7 +4359,6 @@ fn dc_y2o__iteration_off_holds_what_the_cells_stored() {
             c(1, 5),
             c(1, 6),
             c(1, 7),
-            c(1, 9),
             c(2, 4)
         ]
     );

@@ -145,17 +145,19 @@ fn dc_y2o__circular_reference_in_a_session_is_the_cell_whose_entry_closed_the_cy
     assert!(host.circular_cells().contains(&host.circular_reported().unwrap()));
 }
 
-/// dc-y2o.1: after Application.CalculateFullRebuild Excel named K1 (measured 2026-10-30, not explained: the rebuilt
-/// chain is Excel's own order). The host does not match it: with the saved chain dropped it names the first circular
-/// cell in cell order (Excel question in ~/codex-runs/eng7/excel-questions.md).
+/// dc-y2o.1, Q19 lines a3 and a4 (Excel 16.0, 2026-11-15): Worksheet.CircularReference stays J1 after
+/// Application.CalculateFullRebuild, once and twice, though the rebuilt chain is ordered differently (I1 H1 H2 J1 K1 F1
+/// E1 A1 B1 ...). The rebuilt order itself is not derived (open on the bead): the saved chain stands.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_y2o__circular_reference_after_a_rebuild_is_the_first_in_cell_order_not_excels_k1() {
+fn dc_y2o__q19_a3_a4_circular_reference_stays_j1_after_a_rebuild() {
     let mut session = session(&oracle());
-    let receipt = session.dispatch(SkinIntent::Rebuild);
-    assert!(receipt.accepted(), "{receipt:?}");
-    let host = session.host();
-    assert_eq!(host.circular_reported(), host.circular_cells().first().copied());
+    for _ in 0..2 {
+        let receipt = session.dispatch(SkinIntent::Rebuild);
+        assert!(receipt.accepted(), "{receipt:?}");
+        let host = session.host();
+        assert_eq!(host.circular_reported(), Some(off_cell(host, "J1")));
+    }
 }
 
 /// Iteration switched on (at most 1 iteration) calculates the cycle from the values its cells
@@ -3685,4 +3687,69 @@ fn dc_y2o__a_cycle_beside_a_macro_call_completes() {
     let calc = host.sheets().iter().find(|s| s.name().text().to_string_lossy() == "Calc").unwrap().id();
     assert_eq!(host.circular_cells(), [CellKey::new(calc, 1, 3).unwrap()]);
     assert_eq!(host.circular_reported(), Some(CellKey::new(calc, 1, 3).unwrap()));
+}
+
+/// dc-y2o.1, Q20 line c1 (Excel 16.0, 2026-11-15): `=IF(U1>5,T1+1,7)` on a cycle of references is listed only while
+/// its evaluation meets itself: with U1 = 1 not listed (value 7), with U1 = 10 listed (value stays 7), with U1 = 1 again
+/// not listed.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_y2o__q20_c1_a_reference_cycle_is_listed_only_while_its_evaluation_meets_itself() {
+    let mut session = session(&oracle());
+    enter(&mut session, "U1", "1");
+    enter(&mut session, "T1", "=IF(U1>5,T1+1,7)");
+    let t1 = off_cell(session.host(), "T1");
+    assert!(!session.host().circular_cells().contains(&t1));
+    assert_ne!(session.host().circular_reported(), Some(t1));
+    enter(&mut session, "U1", "10");
+    assert!(session.host().circular_cells().contains(&t1));
+    assert_eq!(value(session.host(), 1, 20).0, CalcValue::number(7.0));
+    enter(&mut session, "U1", "1");
+    assert!(!session.host().circular_cells().contains(&t1));
+    assert_ne!(session.host().circular_reported(), Some(t1));
+}
+
+/// Q20 line c2: with a real cycle standing the name is its cell, not the reference-only cycle's; after the real cycle is
+/// broken the reference-only cell is not named.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_y2o__q20_c2_a_broken_real_cycle_leaves_the_reference_only_cell_unnamed() {
+    let mut session = session(&oracle());
+    enter(&mut session, "U1", "1");
+    enter(&mut session, "T1", "=IF(U1>5,T1+1,7)");
+    enter(&mut session, "A5", "=B5+1");
+    enter(&mut session, "B5", "=A5+1");
+    let host = session.host();
+    let t1 = off_cell(host, "T1");
+    assert!(host.circular_cells().contains(&off_cell(host, "A5")));
+    assert!(!host.circular_cells().contains(&t1));
+    enter(&mut session, "B5", "3");
+    let host = session.host();
+    assert!(!host.circular_cells().contains(&off_cell(host, "A5")));
+    assert!(!host.circular_cells().contains(&t1));
+    assert_ne!(host.circular_reported(), Some(t1));
+}
+
+/// Q20 line c3: `=IF(TRUE,"x",F5)` and `=IF(FALSE,F6,"y")` are not named.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_y2o__q20_c3_an_unmet_self_reference_is_not_named() {
+    let mut session = session(&oracle());
+    enter(&mut session, "T5", r#"=IF(TRUE,"x",T5)"#);
+    enter(&mut session, "T6", r#"=IF(FALSE,T6,"y")"#);
+    let host = session.host();
+    for address in ["T5", "T6"] {
+        assert!(!host.circular_cells().contains(&off_cell(host, address)), "{address}");
+        assert_ne!(host.circular_reported(), Some(off_cell(host, address)), "{address}");
+    }
+}
+
+/// Q20 line c4: a workbook that opens holding the reference-only I1 (`=IF(C1>5,I1+1,7)`, C1 below 6) does not list it,
+/// though it is first in the saved chain.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_y2o__q20_c4_the_oracles_reference_only_i1_is_not_listed() {
+    let session = session(&oracle());
+    let host = session.host();
+    assert!(!host.circular_cells().contains(&off_cell(host, "I1")));
 }
