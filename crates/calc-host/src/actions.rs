@@ -135,6 +135,9 @@ pub enum WorkbookCommand {
         /// `Some`: the chart has this title (`AddChart2`); `None`: no title.
         title: Option<String>,
         legend: bool,
+        /// The first `c16:uniqueId` counter of the chart's series (Excel Q17/Q18: 0 for `AddChart2`; for
+        /// `ChartObjects.Add` the series count of Excel's automatic source at Add time).
+        unique_start: u32,
     },
     /// `Chart.SetSourceData`: the series of a chart this session made.
     ChartSource {
@@ -441,6 +444,7 @@ pub(crate) fn prepare(
             place,
             title,
             legend,
+            unique_start,
         } => {
             let [left, top, width, height] = place.map(crate::Points::get);
             if ![left, top, width, height]
@@ -463,9 +467,7 @@ pub(crate) fn prepare(
                         to: host.point_at(sheet, left + width, top + height),
                     },
                     drawing_id: Some(id),
-                    // AddChart2 (a title is given) numbers its series' uniqueId from 0; for
-                    // ChartObjects.Add the start is not yet explained (dc-piw0.10 Q17): 2 as before.
-                    unique_start: if title.is_some() { 0 } else { 2 },
+                    unique_start,
                     auto_title_deleted: false,
                     title,
                     legend,

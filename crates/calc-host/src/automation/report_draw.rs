@@ -155,6 +155,8 @@ impl WorkbookAutomation {
             *slot = number(call.arg(i))?;
         }
         self.command(call, |s| {
+            // Excel numbers the new chart's series from the count of its automatic source (Q18).
+            let unique_start = Self::selection_data(s, sheet).map_or(0, |area| Self::automatic_series(s, area));
             Ok(WorkbookCommand::ChartCreateEmpty {
                 sheet,
                 revision: s.host().revision().get(),
@@ -162,6 +164,7 @@ impl WorkbookAutomation {
                 place: place.map(Points::new),
                 title: None,
                 legend: true,
+                unique_start,
             })
         })?;
         let part = self.newest_chart(target)?;
@@ -881,6 +884,7 @@ impl WorkbookAutomation {
                 place: place.map(Points::new),
                 title: Some("Chart Title".into()),
                 legend: data.is_some(),
+                unique_start: 0,
             })
         })?;
         let part = self.newest_chart(target)?;
@@ -899,6 +903,28 @@ impl WorkbookAutomation {
             })?;
         }
         Ok(report(workbook, sheet, "Shape", ReportItem::ChartShape(part)))
+    }
+    /// How many series Excel's automatic source gives a chart made over `area` (Q18): a region of text
+    /// alone is one series; otherwise the data rows or columns, a label row or column left out.
+    fn automatic_series(session: &HostSession, area: GridArea) -> u32 {
+        let model = session.host().model();
+        let all_text = (0..area.row_count()).all(|r| {
+            (0..area.column_count()).all(|c| {
+                CellKey::new(area.sheet(), area.first().row() + r, area.first().column() + c)
+                    .ok()
+                    .and_then(|at| model.cell(at))
+                    .is_none_or(|cell| matches!(cell, crate::CellInput::Text(_)))
+            })
+        });
+        if all_text {
+            return 1;
+        }
+        let layout = Self::source_layout(session, area, None);
+        if layout.rows {
+            area.row_count() - u32::from(layout.categories)
+        } else {
+            area.column_count() - u32::from(layout.categories)
+        }
     }
     /// The data a chart made from the selection plots: a single selected cell with a value stands
     /// for its current region; a selected range stands for itself when it holds a value.
