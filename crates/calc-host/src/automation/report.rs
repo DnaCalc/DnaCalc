@@ -72,6 +72,8 @@ impl WorkbookAutomation {
         on("ListObjects", "Add", Method, Self::tables_add);
         on("ListObject", "Name", Get, Self::table_name);
         on("ListObject", "Name", Put, Self::table_put_name);
+        on("ListObject", "DisplayName", Get, Self::table_display_name);
+        on("ListObject", "DisplayName", Put, Self::table_put_display_name);
         on("ListObject", "Range", Get, Self::table_range);
         on("ListObject", "DataBodyRange", Get, Self::table_body);
         on("ListObject", "HeaderRowRange", Get, Self::table_header);
@@ -344,8 +346,9 @@ impl WorkbookAutomation {
         self.read_host(target, |s, sheet, _| {
             let tables = Self::tables_of(s, sheet);
             let table = match call.arg(0) {
+                // Excel (dc-piw0.10 Q11): a table is found by its Name; its DisplayName is 9.
                 AutoValue::Text(name) => tables.iter().find(|t| {
-                    calc_value::workbook_names_equal(&t.display_name, &name.to_string_lossy())
+                    calc_value::workbook_names_equal(&t.name, &name.to_string_lossy())
                 }),
                 other => usize::try_from(geometry::integer(other)? - 1)
                     .ok()
@@ -473,10 +476,29 @@ impl WorkbookAutomation {
         no_args(call)?;
         let part = Self::table_part(target)?;
         self.read_host(target, |s, sheet, _| {
+            Ok(AutoValue::text(&Self::table_of(s, sheet, &part)?.name))
+        })
+    }
+    fn table_display_name(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        let part = Self::table_part(target)?;
+        self.read_host(target, |s, sheet, _| {
             Ok(AutoValue::text(
                 &Self::table_of(s, sheet, &part)?.display_name,
             ))
         })
+    }
+    /// `ListObject.DisplayName = x` (dc-piw0.10 Q11): only a defined-name-shaped name is accepted
+    /// (1004 otherwise), and the Name follows it.
+    fn table_put_display_name(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        let name = text_arg(call.args.last().ok_or_else(geometry::bad_count)?)?;
+        if !calc_engine::valid_defined_name(&name) {
+            return Err(AutoError::excel(
+                1004,
+                "Application-defined or object-defined error",
+            ));
+        }
+        self.table_put_name(target, call)
     }
     fn table_put_name(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         let part = Self::table_part(target)?;
@@ -491,7 +513,9 @@ impl WorkbookAutomation {
         }
         self.read_host(target, |s, _, _| {
             let clash = s.host().model().definitions().tables().iter().any(|t| {
-                t.part != part && calc_value::workbook_names_equal(&t.display_name, &name)
+                t.part != part
+                    && (calc_value::workbook_names_equal(&t.name, &name)
+                        || calc_value::workbook_names_equal(&t.display_name, &name))
             });
             if clash {
                 return Err(AutoError::excel(

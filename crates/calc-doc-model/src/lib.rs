@@ -92,7 +92,9 @@ mod root;
 mod sheet;
 mod structural;
 mod table_names;
-pub use table_names::{added_column_name, free_column_name, numbered_duplicate};
+pub use table_names::{
+    added_column_name, free_column_name, numbered_duplicate, table_display_name,
+};
 mod style;
 mod wire;
 
