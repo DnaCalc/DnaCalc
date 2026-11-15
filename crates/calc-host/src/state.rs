@@ -323,7 +323,9 @@ impl HostState {
                     .then(|| (at, cache.clone()))
                 }))
         });
-        let engine = EngineState::with_file_caches(&model, caches).map_err(OpenFailure::Caches)?;
+        let mut engine = EngineState::with_file_caches(&model, caches).map_err(OpenFailure::Caches)?;
+        // Excel names the first circular cell of the saved calculation chain (dc-y2o.1).
+        engine.set_calc_chain(loaded.calc_chain());
         let initial_snapshot = model.definitions().data_model().map(Arc::downgrade);
         let sheet_identities = model.sheets().iter().map(|s| (s.key(), s.id())).collect();
         let mut host = HostState {
@@ -456,6 +458,12 @@ impl HostState {
     /// warns of, as Excel's status bar does. Empty when there is none.
     pub fn circular_cells(&self) -> Vec<CellKey> {
         self.engine.circular_cells()
+    }
+
+    /// The cell Excel names as the circular reference (Worksheet.CircularReference, dc-y2o.1,
+    /// [`calc_engine::EngineState::circular_reported`]), one of [`HostState::circular_cells`].
+    pub fn circular_reported(&self) -> Option<CellKey> {
+        self.engine.circular_reported()
     }
 
     /// The environment a cell entry is read in ([`crate::interpret_entry_in`]) and every

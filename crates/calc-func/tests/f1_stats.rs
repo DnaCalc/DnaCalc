@@ -10,6 +10,25 @@ use calc_func::SubtotalExclusions;
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Ref, Value};
 use f1_support::*;
 
+/// Excel 20527: a tiny confidence uses the normal inverse near one half.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_confidence_uses_near_half_normal_quantile() {
+    let values = [
+        0x3ff76f26ac7f4c03, 0x40012d17320f6f4f, 0x400c589bee305e6d,
+        0x4012446629d8dedd, 0x4014422493e5c599,
+    ];
+    let history = arr(values.into_iter().map(|v| vec![f64::from_bits(v)]).collect());
+    let timeline = arr((1..=5).map(|v| vec![v as f64]).collect());
+    exact(
+        call("FORECAST.ETS.CONFINT", vec![
+            n(f64::from_bits(0x40e4736000000000)), history, timeline,
+            n(f64::from_bits(0x3cebceed4579c0e8)), n(0.0),
+        ]),
+        f64::from_bits(0x3d914cb8f0f19109),
+    );
+}
+
 /// Excel 20527's automatic confidence fit with two verified initial slopes.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -4222,6 +4241,26 @@ fn ets_confidence_rounded_probability_keeps_the_measured_fallback() {
     );
 }
 
+/// Excel returns zero strictly within the measured final historical interval.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_confidence_last_historical_interval() {
+    let values = arr(vec![vec![1.2, 2.7, 3.1, 4.4, 5.3]]);
+    let times = arr(vec![vec![1.0, 2.0, 3.0, 4.0, 5.0]]);
+    for target in [4.1, 4.5, 4.75] {
+        exact(
+            call("FORECAST.ETS.CONFINT", vec![n(target), values.clone(), times.clone()]),
+            0.0,
+        );
+    }
+    for target in [4.0, 5.0] {
+        error(
+            call("FORECAST.ETS.CONFINT", vec![n(target), values.clone(), times.clone()]),
+            Num,
+        );
+    }
+}
+
 /// Odd-history raw moments retain a different divisor from their selected tail.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -5138,6 +5177,40 @@ fn beta_inverse_zero_density_keeps_the_measured_initial_proposal() {
         exact(
             call(name, vec![n(0.9), n(1.0), n(1e100)]),
             f64::from_bits(0x3eb0_c6f7_a0b8_0000),
+        );
+    }
+}
+
+/// Excel publishes the large-second-shape initial proposal for these inputs.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beta_inverse_large_second_shape_initial_proposal() {
+    for name in ["BETA.INV", "BETAINV"] {
+        for (p, alpha, beta, expected) in [
+            (0x3f80_da7e_c6c7_08c0, 0x4076_d000_0000_0000,
+             0x4547_e651_99b2_0988, 0x3b1a_d7a6_05e9_7d76),
+            (0x3f86_c432_aed7_c226, 0x407c_3000_0000_0000,
+             0x4ed5_b087_427c_b26b, 0x3192_9eb2_6cbd_0edd),
+        ] {
+            exact(
+                call(name, vec![n(f64::from_bits(p)), n(f64::from_bits(alpha)), n(f64::from_bits(beta))]),
+                f64::from_bits(expected),
+            );
+        }
+    }
+}
+
+/// The degree-one t inverse stores its pi product at x87 precision.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn t_inverse_one_degree_stores_the_angle() {
+    for (p, expected) in [
+        (0x3ff4_3e3d_e9e3_54dc, 0xbfdc_5150_7771_460a),
+        (0x3ffd_7813_d2f7_468b, 0xc00f_87f1_8b63_f137),
+    ] {
+        exact(
+            call("T.INV.2T", vec![n(f64::from_bits(p)), n(1.0)]),
+            f64::from_bits(expected),
         );
     }
 }

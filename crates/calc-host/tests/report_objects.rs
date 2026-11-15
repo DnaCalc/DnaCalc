@@ -469,6 +469,7 @@ fn dc_piw0_2__an_empty_chart_saves_and_reads_back() {
         place: [pts(200.0), pts(20.0), pts(300.0), pts(200.0)],
         title: None,
         legend: true,
+        unique_start: 2,
     });
     shape(
         &mut book,
@@ -548,6 +549,7 @@ fn dc_piw0__q10_an_empty_macro_chart_saves_as_excel_wrote_it() {
         place: [pts(200.0), pts(20.0), pts(300.0), pts(200.0)],
         title: None,
         legend: true,
+        unique_start: 2,
     });
     let mut bytes = Vec::new();
     book.save(&SavePolicy::default(), &mut bytes).unwrap();
@@ -622,6 +624,7 @@ fn q0_chart_xml() -> String {
         place: [pts(200.0), pts(20.0), pts(300.0), pts(200.0)],
         title: None,
         legend: true,
+        unique_start: 2,
     });
     let part = book.host().model().definitions().charts(sheet)[0].part.clone();
     command(&mut book, |b| WorkbookCommand::ChartSource {
@@ -677,6 +680,7 @@ fn dc_piw0_9__series_caches_follow_the_cells_at_save() {
         place: [pts(200.0), pts(20.0), pts(300.0), pts(200.0)],
         title: None,
         legend: true,
+        unique_start: 2,
     });
     let part = book.host().model().definitions().charts(sheet)[0].part.clone();
     command(&mut book, |b| WorkbookCommand::ChartSource {
@@ -745,7 +749,7 @@ fn plot_children(xml: &str) -> (String, Vec<String>, String) {
 
 /// dc-piw0.10 Q17 (excel-answers.md, run1 q17): the children of a macro chart's series and plot per chart type as
 /// Excel wrote them: bar `invertIfNegative`; line `marker` (none) and `smooth` (0) with a plot-level `smooth`;
-/// scatter `scatterStyle lineMarker`, an `spPr` with the line off and `smooth`; area nothing more. Pie and doughnut
+/// scatter `scatterStyle lineMarker`, an `spPr` with the line off and `smooth`; area nothing more but an `spPr` on the second series. Pie and doughnut
 /// charts keep both series in the part, as Excel does (dc-piw0.11 (6)).
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -775,6 +779,7 @@ fn dc_piw0_10__q17_series_children_follow_the_chart_type() {
             place: [pts(200.0), pts(20.0), pts(300.0), pts(200.0)],
             title: None,
             legend: true,
+            unique_start: 2,
         });
         let part = book.host().model().definitions().charts(sheet)[0].part.clone();
         command(&mut book, |b| WorkbookCommand::ChartSource {
@@ -809,7 +814,8 @@ fn dc_piw0_10__q17_series_children_follow_the_chart_type() {
         let (written, recorded) = (plot_children(&written), plot_children(recorded));
         assert_eq!(written.0, recorded.0, "{kind}: plot head");
         assert_eq!(written.1, recorded.1, "{kind}: first series");
-        if pie {
+        // An area chart's second series carries `spPr` (the line off at 25400): compared with the first.
+        if pie || kind == "area" {
             assert_eq!(written_all, recorded_all, "{kind}: all series");
         }
         assert_eq!(written.2, recorded.2, "{kind}: plot tail");

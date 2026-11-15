@@ -99,6 +99,65 @@ fn dc_y2o__the_oracle_holds_its_stored_values_by_the_circular_rule() {
     assert!(!host.recalc_context().iteration);
 }
 
+fn off_cell(host: &HostState, address: &str) -> CellKey {
+    let split = address.find(|c: char| c.is_ascii_digit()).unwrap();
+    let column = address[..split].bytes().fold(0, |n, b| n * 26 + u32::from(b - b'A') + 1);
+    CellKey::new(off_sheet(host), address[split..].parse().unwrap(), column).unwrap()
+}
+
+fn enter(session: &mut HostSession, address: &str, text: &str) {
+    let at = off_cell(session.host(), address);
+    let receipt = session.dispatch(SkinIntent::EnterCell { at, text: text.into() });
+    assert!(receipt.accepted(), "{receipt:?}");
+}
+
+/// dc-y2o.1, Worksheet.CircularReference on tests/fixtures/dc_y2o (Excel 16.0.20527, 2026-10-30): after opening
+/// the file Excel named J1, the first circular cell of the saved calc chain (I1 H2 H1 J1 K1 ...; I1 and
+/// the others before J1 are listed but not circular, or not held); the first circular cell in cell order is A1.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_y2o__circular_reference_after_opening_is_the_first_circular_cell_of_the_saved_chain() {
+    let session = session(&oracle());
+    let host = session.host();
+    assert_eq!(host.circular_cells().first(), Some(&off_cell(host, "A1")));
+    assert_eq!(host.circular_reported(), Some(off_cell(host, "J1")));
+}
+
+/// dc-y2o.1, measured 2026-10-30: in a session the cell Excel names is the one whose entry closed the cycle (D5, A9,
+/// B3 in the three cases measured). N1 `=O1+1` then O1 `=N1+1` closes with O1; P1 `=P1+1` alone is its own cycle's
+/// closing entry; entering another formula that does not close a cycle names nothing new; and the named cell stays
+/// named while its cycle stands.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_y2o__circular_reference_in_a_session_is_the_cell_whose_entry_closed_the_cycle() {
+    let mut session = session(&oracle());
+    enter(&mut session, "N1", "=O1+1");
+    assert_ne!(session.host().circular_reported(), Some(off_cell(session.host(), "N1")));
+    enter(&mut session, "O1", "=N1+1");
+    assert_eq!(session.host().circular_reported(), Some(off_cell(session.host(), "O1")));
+    enter(&mut session, "Q1", "=C1+1");
+    assert_eq!(session.host().circular_reported(), Some(off_cell(session.host(), "O1")));
+    enter(&mut session, "P1", "=P1+1");
+    assert_eq!(session.host().circular_reported(), Some(off_cell(session.host(), "P1")));
+    // Entering N1 again (its cycle already stood) is not measured: only that a circular cell stays named.
+    enter(&mut session, "N1", "=O1+2");
+    let host = session.host();
+    assert!(host.circular_cells().contains(&host.circular_reported().unwrap()));
+}
+
+/// dc-y2o.1: after Application.CalculateFullRebuild Excel named K1 (measured 2026-10-30, not explained: the rebuilt
+/// chain is Excel's own order). The host does not match it: with the saved chain dropped it names the first circular
+/// cell in cell order (Excel question in ~/codex-runs/eng7/excel-questions.md).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_y2o__circular_reference_after_a_rebuild_is_the_first_in_cell_order_not_excels_k1() {
+    let mut session = session(&oracle());
+    let receipt = session.dispatch(SkinIntent::Rebuild);
+    assert!(receipt.accepted(), "{receipt:?}");
+    let host = session.host();
+    assert_eq!(host.circular_reported(), host.circular_cells().first().copied());
+}
+
 /// Iteration switched on (at most 1 iteration) calculates the cycle from the values its cells
 /// held, in cell order: A1 = 55 + 1, then B1 = 56 + 1, and G1 reads A1 (560). Undo switches it off
 /// again: the cycle keeps what the iteration left. Saved with iteration on, the workbook part's
@@ -3592,4 +3651,38 @@ fn dc_hsa5_11__a_pre_callback_wait_keeps_dynamic_scc_members_unique() {
         assert_eq!(p14_visible(&book, 1, 4).0.as_number(), Some(0.0));
         assert_eq!(p14_visible(&book, 1, 5).0.as_number(), Some(1.0));
     }
+}
+
+/// dc-y2o.1 (found running dc_kt3l__every_cell_classified): a workbook whose macro call (`NOSUCHFUNCTION`, in a
+/// macro-enabled package, which a VBA function could define) separates the evaluation into segments, with a formula
+/// on a circular reference (Calc!C1 `=C1+1`, iteration off), completed never: the step stopped to flush the fence
+/// and `publish_ready` publishes nothing while a cycle stands. The fixture is hand-written (the acceptance case's
+/// cyclic variant, tools/xtask/tests/acceptance/dc_kt3l_package.rs).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_y2o__a_cycle_beside_a_macro_call_completes() {
+    use calc_host::{CalculationDomain, DomainProgress, WorkBudget};
+    let bytes = include_bytes!("fixtures/dc_y2o_cycle_beside_macro_call.xlsm").to_vec();
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes));
+    let host = HostState::open(
+        source,
+        &OpenPolicy::default(),
+        HostOptions { calc_mode: Some(CalcMode::Automatic), ..HostOptions::default() },
+    )
+    .unwrap();
+    let mut domain = CalculationDomain::new();
+    let root = domain.insert_session(HostSession::new(host)).unwrap();
+    domain.request_calculation(&[root], true).unwrap();
+    let mut complete = false;
+    for _ in 0..100 {
+        if matches!(domain.advance(WorkBudget::UNLIMITED), DomainProgress::Complete) {
+            complete = true;
+            break;
+        }
+    }
+    assert!(complete, "the calculation never completed");
+    let host = domain.host(root).unwrap();
+    let calc = host.sheets().iter().find(|s| s.name().text().to_string_lossy() == "Calc").unwrap().id();
+    assert_eq!(host.circular_cells(), [CellKey::new(calc, 1, 3).unwrap()]);
+    assert_eq!(host.circular_reported(), Some(CellKey::new(calc, 1, 3).unwrap()));
 }

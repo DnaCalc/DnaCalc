@@ -1861,7 +1861,7 @@ impl Server {
             iteration: iteration.enabled(),
             max_iterations: iteration.max_iterations(),
             max_change: iteration.max_change(),
-            circular: circular.first().copied().map(Key::of),
+            circular: self.book.host().circular_reported().map(Key::of),
             circular_count: circular.len(),
             open_repairs: self
                 .book

@@ -15,7 +15,6 @@ calc-func = { path = "../../crates/calc-func" }
 calc-host-vba = { path = "../../crates/calc-host-vba" }
 # The macro security level (dc-15dk): the page shows it, the native host stores it per user.
 calc-macro-security = { path = "../../crates/calc-macro-security" }
-calc-platform-desktop = { path = "../../platform/calc-platform-desktop" }
 # Native-open protocol substitution is tested on Linux as well as Windows.
 dna-calc-worker = { path = "../dna-calc-worker" }
 
@@ -34,3 +33,8 @@ dna-calc-protocol = { path = "../dna-calc-protocol" }
 [target.'cfg(windows)'.dev-dependencies]
 calc-xll-fixture = { path = "../../crates/calc-xll-fixture" }
 calc-xll-shim = { path = "../../platform/calc-xll-shim" }
+
+# calc-platform-desktop refuses wasm32 with its own compile_error!, which would stop cargo before this package's own refusal
+# (the architecture check wasm-refusal wants it from this package's sources), so wasm32 does not reach it.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+calc-platform-desktop = { path = "../../platform/calc-platform-desktop" }

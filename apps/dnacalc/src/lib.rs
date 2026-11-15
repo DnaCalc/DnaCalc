@@ -20,7 +20,8 @@
 //! Exit codes: 0 done (and, for `diff`, every formula cell matched), 1 done with differing or
 //! refused cells, 2 usage or a typed refusal.
 
-#![cfg(not(target_arch = "wasm32"))]
+#[cfg(target_arch = "wasm32")]
+compile_error!("dnacalc is native-only");
 
 mod cells;
 mod diff;

@@ -47,11 +47,13 @@
 //!   package declares (calc-host's `RecalcContext`), so no package makes a run leave it unapplied;
 //!   that path is `cargo xtask compare`'s unit test `a_declared_context_the_run_does_not_apply_is_context`
 //!   and the declared-key tests beside it (`cargo test -p xtask -p xtask-harness --lib --bins`);
-//! - a variant with a circular reference (Calc!C1 = C1+1) and iteration off: since dc-m3u the
-//!   engine refuses the formula on the cycle, not the recalculation, so C1 must be a typed
-//!   not-modelled root (no Excel value is authored for it: the capture leaves it unobserved) and
-//!   every other cell must be classed as in the workbook without C1, A3 matched by the 17 its
-//!   evaluation returned and C1 never evaluated;
+//! - a variant with a circular reference (Calc!C1 = C1+1) and iteration off: since dc-y2o.1 the
+//!   formula on the cycle is calculated by Excel's circular-reference rule (with iteration off
+//!   Excel does not evaluate it; it holds what the cell held, here an empty text for a formula
+//!   the file stored without a value), so C1 is calculated, held by that rule, and, as the
+//!   capture leaves it unobserved (no Excel value is authored for it), classed not run with
+//!   `capture not observed`, no pass and no refusal; every other cell is classed as in the
+//!   workbook without C1, A3 matched by the 17 its evaluation returned and C1 never evaluated;
 //! - a variant calc-doc refuses (an ISO date cell, `t="d"`) must class every cell doc under the
 //!   load error;
 //! - a run under `--exact-target` must recalculate under that Exact mode (the evaluator refuses SUM
@@ -518,7 +520,7 @@ fn check_calculated(
     let stdout = String::from_utf8_lossy(&output.stdout);
     for line in [
         "xtask compare: dc_kt3l__",
-        "inventory 5 formula cells; calculated 3; matched 3; mismatched 0;",
+        "calculated 3 of 5 formula cells; matched 3 of 3 calculated, mismatched 0,",
         "xtask compare: classes: matched 3, function-missing 2 (1 root, 1 reading a root)",
         "xtask compare: mismatched by class: none",
         "xtask compare:   function-missing NOSUCHFUNCTION: 1 root, blocking 1 cell: Calc!B1 blocks 1",
@@ -595,6 +597,7 @@ fn check_kernel_bits(
         "expected": {"number": "4031000000000001", "decimal": "17.000000000000004"},
         "actual": {"number": "4031000000000000", "decimal": "17.0"},
         "ulp": 1,
+        "observed_read_types": ["number"],
         "agrees_to_15_significant_digits": true,
         "expected_15": "1.70000000000000e1",
         "actual_15": "1.70000000000000e1",
@@ -621,7 +624,7 @@ fn check_kernel_bits(
     }
     let stdout = String::from_utf8_lossy(&output.stdout);
     for line in [
-        "inventory 5 formula cells; calculated 3; matched 2; mismatched 1;",
+        "calculated 3 of 5 formula cells; matched 2 of 3 calculated, mismatched 1,",
         "xtask compare: mismatched by class: kernel-bits 1",
     ] {
         if !stdout.contains(line) {
@@ -769,9 +772,10 @@ pub(super) fn every_cell_classified() {
         ));
     }
 
-    // 4. The variant with a circular reference and iteration off: the engine refuses C1, the
-    // formula on the cycle, and calculates the rest, so the other five cells are classed as in
-    // the workbook without C1 and C1, unobserved in the capture, is a typed not-modelled root.
+    // 4. The variant with a circular reference and iteration off: the engine holds C1, the
+    // formula on the cycle, by the circular-reference rule and calculates the rest, so the other
+    // five cells are classed as in the workbook without C1 and C1, unobserved in the capture, is
+    // not run.
     let cyclic = package(
         &inputs_sheet(""),
         &calc_sheet(r#"<c r="C1"><f>C1+1</f></c>"#),
@@ -807,19 +811,20 @@ pub(super) fn every_cell_classified() {
         let expected: Vec<String> = CLASSES_CALCULATED
             .iter()
             .map(|class| (*class).to_owned())
-            .chain(["Calc!C1 not_modeled formula Evaluation:NotModelled root".to_owned()])
+            .chain(["Calc!C1 not_run capture not observed root".to_owned()])
             .collect();
         if classes != expected {
             failures.push(format!(
                 "the cyclic variant's cells are classed {classes:?}, expected {expected:?}"
             ));
         }
-        // Six formula cells: A1 to A3 calculated and matched, B1, B2 and C1 not modelled, no cache
-        // counted, and four evaluator calls (A1, A2, B2 and A3; C1 is never evaluated).
+        // Six formula cells: A1 to A3 calculated and matched, C1 calculated (held by the circular
+        // rule, not compared), B1 and B2 not modelled, no cache counted, and four evaluator calls
+        // (A1, A2, B2 and A3; C1 is never evaluated).
         let counted = counts(&report);
-        if counted != [6, 3, 3, 0, 0, 0, 3, 0, 0, 4] {
+        if counted != [6, 4, 3, 0, 0, 0, 2, 0, 0, 4] {
             failures.push(format!(
-                "the cyclic variant's report counts are {counted:?}, expected [6, 3, 3, 0, 0, 0, 3, 0, 0, 4]"
+                "the cyclic variant's report counts are {counted:?}, expected [6, 4, 3, 0, 0, 0, 2, 0, 0, 4]"
             ));
         }
         let a3 = report_cell(&report, "Calc", "A3");
@@ -836,7 +841,9 @@ pub(super) fn every_cell_classified() {
             ));
         }
         let stdout = String::from_utf8_lossy(&output.stdout);
-        if !stdout.contains("formula Evaluation:NotModelled: 1 root, blocking 0 cells: Calc!C1") {
+        if !stdout.contains("1 cells hold the circular-reference rule's value with iteration off")
+            || !stdout.contains("function-missing NOSUCHFUNCTION: 1 root, blocking 1 cell: Calc!B1")
+        {
             failures.push(format!("the cyclic variant's summary is\n{stdout}"));
         }
         evidence.push(format!(

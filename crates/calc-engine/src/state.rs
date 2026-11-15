@@ -400,6 +400,13 @@ pub struct EngineState {
     /// iteration off those that read one (dc-10y); every recalculation calculates them again, as
     /// Excel calculates such a cell whenever it calculates (it saves each with `ca="1"`).
     pub(crate) cycle_members: BTreeSet<NodeId>,
+    /// The saved calculation chain the workbook was opened with, while no formula has been entered,
+    /// removed or rebuilt since (dc-y2o.1): Excel names the first circular cell in this order.
+    pub(crate) calc_chain: Option<Vec<CellKey>>,
+    /// The anchors of the formulas entered since the last publication, in entry order.
+    pub(crate) entry_log: Vec<CellKey>,
+    /// The cell a host names as the circular reference ([`EngineState::circular_reported`]).
+    pub(crate) circular_reported: Option<CellKey>,
     /// The formula nodes a cell edit added or replaced since their last published result
     /// (dc-10y): with iteration off, such a formula on a circular reference shows 0, where one
     /// that was not entered again keeps its value.
@@ -602,6 +609,9 @@ impl EngineState {
             volatile_input_version: self.volatile_input_version,
             workbook_facts: self.workbook_facts.clone(),
             cycle_members: self.cycle_members.clone(),
+            calc_chain: self.calc_chain.clone(),
+            entry_log: self.entry_log.clone(),
+            circular_reported: self.circular_reported,
             entered: self.entered.clone(),
             tables_deferred: self.tables_deferred,
             spill_epoch: self.spill_epoch,
@@ -769,6 +779,9 @@ impl EngineState {
             volatile_input_version: 0,
             workbook_facts: None,
             cycle_members: BTreeSet::new(),
+            calc_chain: None,
+            entry_log: Vec::new(),
+            circular_reported: None,
             tables_deferred: false,
             spill_epoch: 0,
             readers_cache: ReadersCache::default(),
@@ -971,6 +984,24 @@ impl EngineState {
             .collect();
         cells.sort();
         cells
+    }
+
+    /// Gives the saved calculation chain the workbook opened with, cells in chain order (dc-y2o.1).
+    /// Until a formula is entered or removed, or the bindings are rebuilt, the circular cell
+    /// Excel reports is the first of the chain that the circular-reference rule holds
+    /// (Worksheet.CircularReference after opening tests/fixtures/dc_y2o: J1, the first of the
+    /// saved chain I1 H2 H1 J1 K1 ... that is circular and not merely listed). Call it before the
+    /// first recalculation.
+    pub fn set_calc_chain(&mut self, chain: Vec<CellKey>) {
+        self.calc_chain = Some(chain);
+    }
+
+    /// The cell Excel reports as the circular reference (Worksheet.CircularReference, dc-y2o.1), of
+    /// [`EngineState::circular_cells`]: after a formula entry that closed a cycle, the cell entered;
+    /// while the cycle that cell is on stands, that cell; at first, the first circular cell the rule
+    /// holds in the saved chain's order; otherwise the first in cell order. `None` without one.
+    pub fn circular_reported(&self) -> Option<CellKey> {
+        self.circular_reported
     }
 
     /// The published result of the formula cell `at`.
@@ -1332,6 +1363,9 @@ impl EngineState {
     /// identities, held caches and spills survive; existing result proofs do not.
     /// The owner must have no active calculation using this mutable graph.
     pub fn rebuild_bindings(&mut self) {
+        // The rebuilt chain is Excel's own order, not the file's (dc-y2o.1).
+        self.calc_chain = None;
+        self.circular_reported = None;
         // Every binding is discarded together. Removing its edges individually
         // would repeatedly search and mutate indexes that are about to be empty.
         self.index.clear();

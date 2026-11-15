@@ -213,6 +213,16 @@ fn inverse_standard_normal_acklam_refined(p: f64) -> f64 {
 fn inverse_standard_normal(p: f64) -> Result<f64, WorksheetErrorCode> {
     validate_probability_open_unit(p)?;
 
+    // In the independently measured windows immediately around one half,
+    // Excel stores each product of the leading inverse-erf term separately.
+    // Keep to a power-of-two interval inside both retained windows.
+    let q = p - 0.5;
+    if q.abs() <= 2.0_f64.powi(-42) {
+        use crate::ported::excel_numeric::excel_x87_mul;
+        let leading = excel_x87_mul(2.0 * q, f64::from_bits(0x3fec_5bf8_91b4_ef6b));
+        return Ok(excel_x87_mul(leading, std::f64::consts::SQRT_2));
+    }
+
     // R39 single-bit regions separate the upper AS241 route at 15/16. Below AS241's
     // central bound (`p - 0.5 < -0.425`) Excel publishes the same AS241 tail evaluated at
     // `p` itself (R42: 393,140 of 393,216 retained R41 answers there). The central route and
@@ -421,6 +431,22 @@ mod tests {
         assert!(
             (confidence_norm_kernel(0.05, 2.5, 100.0).unwrap() - 0.489990996135013).abs() < 1e-7
         );
+    }
+
+    /// Excel 20527, retained R41 near-half windows, including both measured bounds.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn inverse_normal_near_half_uses_stored_leading_term() {
+        for (p, expected) in [
+            (0x3fdffffffffff000, 0xbd640d931ff62706),
+            (0x3fdffffffffff001, 0xbd640c5246c427a4),
+            (0x3fdfffffffffffff, 0xbca40d931ff62706),
+            (0x3fe0000000000000, 0x0000000000000000),
+            (0x3fe0000000000001, 0x3cb40d931ff62706),
+            (0x3fe0000000000800, 0x3d640d931ff62706),
+        ] {
+            assert_eq!(norm_s_inv_kernel(f64::from_bits(p)).unwrap().to_bits(), expected);
+        }
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

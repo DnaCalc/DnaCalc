@@ -106,6 +106,13 @@ fn shifted(site: &Site<'_>, arguments: &[CalcValue], positions_known: bool) -> S
     let height = extent(site, 3, arguments.get(3), base.row_count()).map_err(without_position)?;
     let width = extent(site, 4, arguments.get(4), base.column_count()).map_err(without_position)?;
     if !positions_known {
+        // A zero shift of a one-cell reference still names that same cell, even
+        // when the caller did not supply its worksheet position.
+        if rows == 0 && cols == 0 && height.abs() == 1 && width.abs() == 1
+            && base.row_count() == 1 && base.column_count() == 1
+        {
+            return Ok(arguments[0].clone());
+        }
         // A single-cell result cannot spill, and a shift at least as large as the
         // grid leaves it regardless of the original cell's unknown position.
         if height.abs() == 1
@@ -391,6 +398,45 @@ mod tests {
             ),
             Ok(CalcValue::error(WorksheetErrorCode::NA))
         );
+    }
+
+    /// Excel 20527's independent catalogue controls select the original numeric
+    /// and text cells with a zero shift. A relocated one-cell reference is still
+    /// usable without knowing its original worksheet address.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn offset_zero_shift_preserves_single_reference_without_position() {
+        use crate::call::{CellReader, SubtotalExclusions, Unreadable};
+
+        struct Relocated;
+        impl CellReader for Relocated {
+            fn reference_positions_known(&self) -> bool { false }
+            fn read_area(
+                &mut self,
+                _: GridArea,
+                _: &mut dyn FnMut(CellKey, &CalcValue) -> ControlFlow<()>,
+            ) -> Result<(), Unreadable> { Err(Unreadable) }
+            fn subtotal_exclusions(&mut self, _: GridArea) -> Option<SubtotalExclusions> { None }
+        }
+
+        let sheet = IdAllocator::<SheetId>::new().issue().unwrap();
+        let cell = area(sheet, (4, 7), (4, 7));
+        let wide = area(sheet, (4, 7), (4, 8));
+        let mode = NumericMode::Fast;
+        let n = CalcValue::number;
+        let run = |args| {
+            crate::call::invoke(
+                catalogue().resolve(OFFSET).unwrap(),
+                &mut Given(args),
+                &mut EvalServices::with_cells(&mode, &mut Relocated),
+                &mut FunctionCallScratch::new(),
+            )
+        };
+        assert_eq!(run(vec![cell.clone(), n(0.0), n(0.0)]), Ok(cell.clone()));
+        assert_eq!(run(vec![cell.clone(), n(0.5), n(-0.5), n(-1.0), n(1.0)]), Ok(cell.clone()));
+        let refusal = Err(FunctionFault::NotImplemented { id: OFFSET, argument: Some(0) });
+        assert_eq!(run(vec![cell.clone(), n(1.0), n(0.0)]), refusal);
+        assert_eq!(run(vec![wide, n(0.0), n(0.0)]), refusal);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
