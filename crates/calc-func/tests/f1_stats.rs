@@ -178,6 +178,20 @@ fn cube_final_errors_follow_numeric_argument_validation() {
     error(call("CUBESET", vec![t("missing"), t("set"), e(Div0), n(1.0), e(Ref)]), Div0);
 }
 
+/// Excel's reflected inverse rejects a tiny second shape at finite bounds.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beta_inverse_reflected_tiny_second_shape_returns_num() {
+    let half_up = f64::from_bits(0.5_f64.to_bits() + 1);
+    for name in ["BETA.INV", "BETAINV"] {
+        for alpha in [0.001, 1.0, 1000.0] {
+            error(call(name, vec![n(half_up), n(alpha), n(2.0_f64.powi(-55))]), Num);
+        }
+        error(call(name, vec![n(0.75), n(1.0), n(1e-50), n(-2.0), n(3.0)]), Num);
+        exact(call(name, vec![n(0.5), n(1.0), n(2.0_f64.powi(-56))]), f64::from_bits(0x3fef_ffff_ffff_ffff));
+    }
+}
+
 /// Saved Excel 20527 controls cover both aliases and reflected searches at
 /// several probabilities, tiny shapes, and second shapes of one and 100.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

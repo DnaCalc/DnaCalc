@@ -40,6 +40,15 @@ fn beta_inverse(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     let [p, alpha, beta] = nums::<3>(site, a)?;
     let lower = if given(a, 3) { num(site, a, 3)? } else { 0.0 };
     let upper = if given(a, 4) { num(site, a, 4)? } else { 1.0 };
+    // With a reflected probability, a tiny second shape loses the lower
+    // coordinate of the inverse. Excel 20527 returns NUM throughout this
+    // measured region, including finite non-unit bounds and both aliases.
+    if p > 0.5 && p < 1.0 && (0.001..=1000.0).contains(&alpha)
+        && (f64::MIN_POSITIVE..=2.0_f64.powi(-55)).contains(&beta)
+        && lower.is_finite() && upper.is_finite() && upper > lower && (upper - lower).is_finite()
+    {
+        return fail(WorksheetErrorCode::Num);
+    }
     // In the reflected search, a tiny second shape can make both the unit
     // and the normal correction disappear from the initial chi proposal.
     if p > 0.5 && p < 1.0 && alpha >= f64::MIN_POSITIVE && beta >= 1.0
