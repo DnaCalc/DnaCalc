@@ -6,7 +6,7 @@ use calc_host::{
 };
 use calc_object_model::profile::ApplicationHost;
 use calc_object_model::{
-    AutoError, AutoValue, Call, Descriptor, EventSource, InvokeKind, ObjectModel, ObjectRef,
+    AutoArray, AutoError, AutoValue, Call, Descriptor, EventSource, InvokeKind, ObjectModel, ObjectRef,
 };
 use calc_value::{CalcValue, CellKey};
 use std::{
@@ -2782,4 +2782,28 @@ fn dc_piw0_4__report_listing() {
     assert!(text(&model, &first, "Formula").contains("$C$2:$C$6"));
     assert!(listing.contains("TABLE\tSales\t$A$1:$D$6\tTableStyleMedium4\tRegion|Q1|Q2|Total\t5\n"));
     let _ = host;
+}
+
+/// dc-km7i: `Range("A1,C1:C2").Value2 = 5` writes every area (Excel's one Change over the union, as the
+/// AppEvents cases write it); a clear reaches each area; an array into several areas stays a typed refusal.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn range_value2_put_and_clear_contents_reach_every_area_of_a_multi_area_range() {
+    let (host, model, _) = blank_report();
+    fill(&host, (1, 2), &[&["keep"]]);
+    let union = range(&model, "A1,C1:C2");
+    invoke_kind(&model, &union, "Value2", InvokeKind::Put, vec![AutoValue::R8(5.0)]).unwrap();
+    for (address, expected) in [("A1", 5.0), ("C1", 5.0), ("C2", 5.0)] {
+        assert!(matches!(invoke(&model, &range(&model, address), "Value2", vec![]).unwrap(),
+            AutoValue::R8(v) if v == expected), "{address}");
+    }
+    assert_eq!(text(&model, &range(&model, "B1"), "Text"), "keep");
+    let refused = invoke_kind(&model, &union, "Value2", InvokeKind::Put, vec![AutoValue::Array(Box::new(AutoArray {
+        rows: 1, columns: 1, lower: (1, 1), values: vec![AutoValue::R8(1.0)] }))]);
+    assert!(refused.is_err(), "an array into a multi-area range is not modelled");
+    invoke_kind(&model, &union, "ClearContents", InvokeKind::Method, vec![]).unwrap();
+    for address in ["A1", "C1", "C2"] {
+        assert!(matches!(invoke(&model, &range(&model, address), "Value2", vec![]).unwrap(), AutoValue::Empty), "{address}");
+    }
+    assert_eq!(text(&model, &range(&model, "B1"), "Text"), "keep");
 }

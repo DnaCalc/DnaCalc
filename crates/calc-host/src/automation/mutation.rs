@@ -74,7 +74,7 @@ impl WorkbookAutomation {
     }
 
     fn put_value(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        self.mutate_range(target, call, |session, range| {
+        self.mutate_areas(target, call, |session, range| {
             if call.args.is_empty() || call.args.len() > 2 {
                 return Err(geometry::bad_count());
             }
@@ -89,7 +89,7 @@ impl WorkbookAutomation {
         })
     }
     fn put_value2(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        self.mutate_range(target, call, |session, range| {
+        self.mutate_areas(target, call, |session, range| {
             if call.args.len() != 1 {
                 return Err(geometry::bad_count());
             }
@@ -97,7 +97,7 @@ impl WorkbookAutomation {
         })
     }
     fn clear_contents(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        self.mutate_range(target, call, |session, range| {
+        self.mutate_areas(target, call, |session, range| {
             if call.args.len() > 1 {
                 return Err(geometry::bad_count());
             }
@@ -108,6 +108,18 @@ impl WorkbookAutomation {
                 ));
             }
             self.write_range(session, range, None)
+        })
+    }
+    /// A write that takes every area of the range (a scalar or a clear reaches each area, one committed
+    /// edit, as Excel's `Range("A1,C1:C2").Value2 = 5` is one Change); an array into several areas stays refused.
+    fn mutate_areas(
+        &self,
+        target: &ObjectRef,
+        call: &Call<'_>,
+        mut intent: impl FnMut(&HostSession, ReferenceLike) -> Result<SkinIntent, AutoError>,
+    ) -> Reply {
+        self.mutate(target, call, |session, reference| {
+            intent(session, reference.ok_or_else(geometry::type_mismatch)?)
         })
     }
     pub(super) fn mutate_range(
@@ -134,43 +146,52 @@ impl WorkbookAutomation {
         value: Option<&AutoValue>,
     ) -> Result<SkinIntent, AutoError> {
         let range = &reference;
-        let area = range.areas()[0];
-        let edits = if value.is_none() || matches!(value, Some(AutoValue::Empty)) {
-            vec![CellEdit::Clear { area }]
+        let areas = range.areas();
+        if value.is_none() || matches!(value, Some(AutoValue::Empty)) {
+            return Ok(SkinIntent::Edit {
+                edits: areas.iter().map(|&area| CellEdit::Clear { area }).collect(),
+            });
+        }
+        let value = value.unwrap();
+        let array = match value {
+            AutoValue::Array(a) => Some(a),
+            _ => None,
+        };
+        if array.is_some() && areas.len() != 1 {
+            return Err(AutoError::not_modelled(
+                "Range.Value array into a multi-area range",
+                "dc-1nbp.6",
+            ));
+        }
+        if areas.iter().map(|area| u64::from(area.cell_count())).sum::<u64>() > 1_048_576 {
+            return Err(AutoError::not_modelled(
+                "Range.Value write materialization limit",
+                OWNER,
+            ));
+        }
+        if array.is_some_and(|a| {
+            a.rows != areas[0].row_count()
+                || a.columns != areas[0].column_count()
+                || u64::from(a.rows) * u64::from(a.columns) != a.values.len() as u64
+        }) {
+            return Err(AutoError::not_modelled(
+                "Range.Value array/target shape difference (E11)",
+                "dc-1nbp.6",
+            ));
+        }
+        // Convert every element before the first mutation: a refused element
+        // cannot leave a partially written rectangle or emit an event.
+        let environment = session.host().entry_environment();
+        let values = if let Some(a) = array {
+            a.values
+                .iter()
+                .map(|value| input(value, &environment))
+                .collect::<Result<Vec<_>, _>>()?
         } else {
-            if area.cell_count() > 1_048_576 {
-                return Err(AutoError::not_modelled(
-                    "Range.Value write materialization limit",
-                    OWNER,
-                ));
-            }
-            let value = value.unwrap();
-            let array = match value {
-                AutoValue::Array(a) => Some(a),
-                _ => None,
-            };
-            if array.is_some_and(|a| {
-                a.rows != area.row_count()
-                    || a.columns != area.column_count()
-                    || u64::from(a.rows) * u64::from(a.columns) != a.values.len() as u64
-            }) {
-                return Err(AutoError::not_modelled(
-                    "Range.Value array/target shape difference (E11)",
-                    "dc-1nbp.6",
-                ));
-            }
-            // Convert every element before the first mutation: a refused element
-            // cannot leave a partially written rectangle or emit an event.
-            let environment = session.host().entry_environment();
-            let values = if let Some(a) = array {
-                a.values
-                    .iter()
-                    .map(|value| input(value, &environment))
-                    .collect::<Result<Vec<_>, _>>()?
-            } else {
-                vec![input(value, &environment)?]
-            };
-            let mut edits = Vec::with_capacity(area.cell_count() as usize);
+            vec![input(value, &environment)?]
+        };
+        let mut edits = Vec::new();
+        for area in areas {
             for row in 0..area.row_count() {
                 for column in 0..area.column_count() {
                     let at = CellKey::new(
@@ -195,8 +216,7 @@ impl WorkbookAutomation {
                     });
                 }
             }
-            edits
-        };
+        }
         Ok(SkinIntent::Edit { edits })
     }
     fn calculate(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
