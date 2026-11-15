@@ -259,6 +259,33 @@ impl HostState {
         pixels * 72.0 / DPI
     }
 
+    /// The width in characters Excel shows for a column (8.43 for the default column of a Calibri
+    /// workbook; 0 when hidden): what `Range.Text` fits a General number into. The same measure as
+    /// the workbook facts' `column_width` (`CELL("width")`).
+    pub(crate) fn column_characters(&self, sheet: SheetId, column: u32) -> f64 {
+        let mdw = crate::facts::maximum_digit_width_at(self.styles(), 96.0).unwrap_or(7.0);
+        let format = self.model().definitions().axis_layouts().get(
+            sheet,
+            calc_doc_model::Axis::Columns,
+            column,
+        );
+        if format.hidden() {
+            return 0.0;
+        }
+        let geometry = self.loaded().sheet(sheet).map(|s| s.geometry());
+        match format
+            .size()
+            .or_else(|| geometry.and_then(|g| g.default_column_width))
+        {
+            Some(width) => crate::facts::shown_characters(width, mdw),
+            None => {
+                let base = geometry.and_then(|g| g.base_column_width).unwrap_or(8.0);
+                let pixels = crate::facts::default_column_pixels(base, mdw);
+                (((pixels - 5.0) / mdw * 100.0 + 0.5).trunc() / 100.0).max(0.0)
+            }
+        }
+    }
+
     fn row_points(&self, sheet: SheetId, row: u32) -> f64 {
         let format =
             self.model()

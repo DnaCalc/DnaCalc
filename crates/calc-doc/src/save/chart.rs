@@ -13,6 +13,7 @@ use crate::{
 use calc_doc_model::{Chart, ChartData, ChartPlot, ChartSeries, ModelRoot};
 const C: &str = "http://schemas.openxmlformats.org/drawingml/2006/chart";
 const A: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
+pub(crate) mod cache;
 mod colour;
 mod create;
 mod font;
@@ -21,7 +22,7 @@ pub(crate) fn check_new_frames(
     source: &crate::load::LoadedSheet,
     charts: &[Chart],
 ) -> Result<(), SaveRefusal> {
-    create::add(package, source, charts, &[], &mut Changes::default(), None)
+    create::add(package, source, charts, &[], &mut Changes::default(), None, None)
 }
 
 /// Preflight the shapes `shapes` adds, through the saver's own frame writer.
@@ -30,7 +31,7 @@ pub(crate) fn check_new_shapes(
     source: &crate::load::LoadedSheet,
     shapes: &[calc_doc_model::Shape],
 ) -> Result<(), SaveRefusal> {
-    create::add(package, source, &[], shapes, &mut Changes::default(), None)
+    create::add(package, source, &[], shapes, &mut Changes::default(), None, None)
 }
 pub(crate) use create::render as render_new;
 type Patch = ((usize, usize), Vec<u8>);
@@ -589,6 +590,7 @@ pub(super) fn finish(
     out: &mut Changes,
     sheets: &[std::borrow::Cow<'_, crate::load::LoadedSheet>],
     structural: Option<&super::structural::StructuralEdits>,
+    caches: Option<&cache::CacheSource<'_>>,
 ) -> Result<(), SaveRefusal> {
     for (sheet, charts) in before.definitions().all_charts() {
         if after.sheet_by_id(sheet).is_none() {
@@ -627,7 +629,7 @@ pub(super) fn finish(
             }
         }
     }
-    create::finish(package, sheets, before, after, out, structural)?;
+    create::finish(package, sheets, before, after, out, structural, caches)?;
     Ok(())
 }
 
@@ -959,6 +961,11 @@ fn plot_series(
     Ok(())
 }
 fn data_xml(slot: &str, data: Option<&ChartData>) -> Vec<u8> {
+    data_xml_with(slot, data, false)
+}
+/// `data_xml`; with `cached` a reference carries the cache Excel writes after its formula: `c:strCache`,
+/// or `c:numCache` with `General` (dc-piw0.9), a point per non-empty cell by its index.
+fn data_xml_with(slot: &str, data: Option<&ChartData>, cached: bool) -> Vec<u8> {
     let Some(data) = data else {
         return Vec::new();
     };
@@ -968,7 +975,26 @@ fn data_xml(slot: &str, data: Option<&ChartData>) -> Vec<u8> {
         } else {
             "numRef"
         };
-        format!("<c:{kind}><c:f>{}</c:f></c:{kind}>", plain_text(formula))
+        let cache = if cached && !data.cache.is_empty() {
+            let points = data
+                .cache
+                .iter()
+                .enumerate()
+                .filter_map(|(i, p)| {
+                    p.as_ref()
+                        .map(|p| format!("<c:pt idx=\"{i}\"><c:v>{}</c:v></c:pt>", plain_text(p)))
+                })
+                .collect::<String>();
+            let count = data.cache.len();
+            if kind == "strRef" {
+                format!("<c:strCache><c:ptCount val=\"{count}\"/>{points}</c:strCache>")
+            } else {
+                format!("<c:numCache><c:formatCode>General</c:formatCode><c:ptCount val=\"{count}\"/>{points}</c:numCache>")
+            }
+        } else {
+            String::new()
+        };
+        format!("<c:{kind}><c:f>{}</c:f>{cache}</c:{kind}>", plain_text(formula))
     } else if slot == "tx" {
         format!(
             "<c:v xml:space=\"preserve\">{}</c:v>",

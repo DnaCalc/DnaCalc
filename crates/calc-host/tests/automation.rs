@@ -3120,3 +3120,153 @@ fn dc_piw0_10__q15_text_runs_carry_the_host_language() {
         assert!(!drawing_xml.contains("lang=\"en-US\"") || tag == "en-US");
     }
 }
+
+/// The `c16:uniqueId` counters of the series of the saved chart, in file order.
+fn unique_ids(session: &mut HostSession) -> Vec<u32> {
+    let xml = saved_part(session, "xl/charts/");
+    xml.split("<c16:uniqueId val=\"{")
+        .skip(1)
+        .map(|rest| u32::from_str_radix(&rest[..8], 16).unwrap())
+        .collect()
+}
+
+fn set_source(model: &WorkbookAutomation, chart: &ObjectRef, address: &str) {
+    invoke_kind(model, chart, "SetSourceData", InvokeKind::Method, vec![AutoValue::Object(range(model, address))]).unwrap();
+}
+
+/// Q17 (excel-answers.md, run1 q17, run2 q17b): a macro chart's series carry a `c16:uniqueId` counter that only goes up:
+/// `Shapes.AddChart2` starts at 0 (its series 0, 1), a re-plot keeps the numbers of the series it reuses and a series
+/// it adds takes the next counter (never a freed one). For `ChartObjects.Add` the start (2 in the recording, 3 and 1 in
+/// others) is not explained, so the engine keeps 2.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_10__q17_series_unique_ids_start_at_zero_for_add_chart2_and_only_go_up() {
+    let data: &[&[&str]] = &[&["Region", "Q1", "Q2", "Q3"], &["North", "10", "20", "70"], &["South", "30", "40", "80"], &["East", "50", "60", "90"]];
+    // AddChart2 over the active cell's region A1:D4 (three series), then re-plots.
+    let (host, model, sheet) = blank_report();
+    fill(&host, (1, 1), data);
+    let shapes = obj(invoke(&model, &sheet, "Shapes", vec![]).unwrap());
+    let made = obj(invoke_kind(&model, &shapes, "AddChart2", InvokeKind::Method, vec![AutoValue::I4(201), AutoValue::I4(51)]).unwrap());
+    let chart = obj(invoke(&model, &made, "Chart", vec![]).unwrap());
+    assert_eq!(unique_ids(&mut host.session.borrow_mut()), [0, 1, 2]);
+    set_source(&model, &chart, "A1:B4");
+    assert_eq!(unique_ids(&mut host.session.borrow_mut()), [0]);
+    set_source(&model, &chart, "A1:D4");
+    // the first series is reused (0); the two it adds take 3 and 4, not the numbers 1 and 2 it once had
+    assert_eq!(unique_ids(&mut host.session.borrow_mut()), [0, 3, 4]);
+    // ChartObjects.Add keeps the earlier start (2): SetSourceData A1:C4 gives 2 and 3, a re-plot to one series keeps 2.
+    let (host, model, sheet) = blank_report();
+    fill(&host, (1, 1), data);
+    let charts = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let frame = obj(
+        invoke_kind(
+            &model,
+            &charts,
+            "Add",
+            InvokeKind::Method,
+            vec![AutoValue::R8(200.0), AutoValue::R8(20.0), AutoValue::R8(300.0), AutoValue::R8(200.0)],
+        )
+        .unwrap(),
+    );
+    let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
+    set_source(&model, &chart, "A1:C4");
+    assert_eq!(unique_ids(&mut host.session.borrow_mut()), [2, 3]);
+    set_source(&model, &chart, "A1:B4");
+    assert_eq!(unique_ids(&mut host.session.borrow_mut()), [2]);
+}
+
+fn put_formula(model: &WorkbookAutomation, address: &str, value: AutoValue) {
+    invoke_kind(model, &range(model, address), "Formula", InvokeKind::Put, vec![value]).unwrap();
+}
+
+fn formulas(model: &WorkbookAutomation, address: &str) -> Vec<String> {
+    match invoke(model, &range(model, address), "Formula", vec![]).unwrap() {
+        AutoValue::Array(a) => a
+            .values
+            .iter()
+            .map(|v| v.as_text().unwrap_or_else(|| panic!("Formula is a String: {v:?}")))
+            .collect(),
+        one => vec![one.as_text().unwrap_or_else(|| panic!("Formula is a String: {one:?}"))],
+    }
+}
+
+fn row_array(values: Vec<AutoValue>) -> AutoValue {
+    AutoValue::Array(Box::new(calc_object_model::AutoArray { rows: 1, columns: values.len() as u32, lower: (1, 1), values }))
+}
+
+/// Q16 (excel-answers.md, run1 q16 and run2 q16b): Range.Formula answers a String for every kind of cell (a formula in
+/// canonical case, numbers to 15 digits, the quote prefix dropped); arrays put into a range fill what they do not reach
+/// with #N/A, an array of arrays writes nothing, a 1-D array goes along rows and repeats its first element down a
+/// column; Range.Text fits General to the column width and answers the shared text of several cells, else Null.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_10__q16_formula_is_a_string_arrays_fill_na_and_text_fits_the_column() {
+    let (host, model, sheet) = blank_report();
+    let _ = &sheet;
+    // 1. Range.Formula get on constants and formulas.
+    put_formula(&model, "A1", AutoValue::text("10"));
+    put_formula(&model, "A2", AutoValue::text("0.1"));
+    invoke_kind(&model, &range(&model, "A3"), "Value2", InvokeKind::Put, vec![AutoValue::R8(1.0 / 3.0)]).unwrap();
+    put_formula(&model, "A4", AutoValue::text("abc"));
+    put_formula(&model, "A5", AutoValue::text("TRUE"));
+    put_formula(&model, "A6", AutoValue::text("=sum(a1:a2)"));
+    put_formula(&model, "A7", AutoValue::text("=sum( a1:a2 )")); // the parser still refuses spaces around ":" (Excel accepts them)
+    put_formula(&model, "A8", AutoValue::text("#N/A"));
+    put_formula(&model, "A9", AutoValue::text("'=text"));
+    put_formula(&model, "A10", AutoValue::text("'5"));
+    put_formula(&model, "A12", AutoValue::text("1234567.891"));
+    assert_eq!(
+        formulas(&model, "A1:A12"),
+        ["10", "0.1", "0.333333333333333", "abc", "TRUE", "=SUM(A1:A2)", "=SUM( A1:A2 )", "#N/A", "=text", "5", "", "1234567.891"]
+    );
+    // 2. A scalar put relocates; arrays: matching, smaller (the rest #N/A), 1-D, arrays of arrays.
+    put_formula(&model, "B1:B3", AutoValue::text("=A1*2"));
+    assert_eq!(formulas(&model, "B1:B3"), ["=A1*2", "=A2*2", "=A3*2"]);
+    let two_by_two = || {
+        AutoValue::Array(Box::new(calc_object_model::AutoArray {
+            rows: 2,
+            columns: 2,
+            lower: (1, 1),
+            values: ["=1+1", "2", "x", "=C1"].map(AutoValue::text).to_vec(),
+        }))
+    };
+    put_formula(&model, "E1:F2", two_by_two());
+    assert_eq!(formulas(&model, "E1:F2"), ["=1+1", "2", "x", "=C1"]);
+    put_formula(&model, "G1:H3", two_by_two());
+    assert_eq!(formulas(&model, "G1:H3"), ["=1+1", "2", "x", "=C1", "#N/A", "#N/A"]);
+    put_formula(&model, "J1:L1", row_array(["=1+1", "2", "x"].map(AutoValue::text).to_vec()));
+    assert_eq!(formulas(&model, "J1:L1"), ["=1+1", "2", "x"]);
+    put_formula(&model, "N1:N3", row_array(["=1+1", "2", "x"].map(AutoValue::text).to_vec()));
+    assert_eq!(formulas(&model, "N1:N3"), ["=1+1", "=1+1", "=1+1"]);
+    let nested = row_array(vec![row_array(vec![AutoValue::text("a")]), row_array(vec![AutoValue::text("b")])]);
+    put_formula(&model, "P1:Q2", nested);
+    assert_eq!(formulas(&model, "P1:Q2"), ["", "", "", ""]);
+    // 3. Range.Text: General fitted to the column (file width 10.75 shows 10 characters, 3.625 shows 3), and the
+    // text of several cells (shared when equal, Null when not).
+    let widen = |width: f64| {
+        let sheet_id = host.session.borrow().host().sheets()[0].id();
+        assert!(host
+            .session
+            .borrow_mut()
+            .dispatch(SkinIntent::Command(WorkbookCommand::AxisFormat {
+                sheet: sheet_id,
+                rows: false,
+                first: 1,
+                count: 1,
+                size_bits: Some(width.to_bits()),
+                hidden: None,
+            }))
+            .accepted());
+    };
+    let shown = |address: &str| invoke(&model, &range(&model, address), "Text", vec![]).unwrap();
+    widen(10.75);
+    assert_eq!(shown("A3").as_text().unwrap(), "0.33333333");
+    assert_eq!(shown("A1").as_text().unwrap(), "10");
+    widen(3.625);
+    assert_eq!(shown("A3").as_text().unwrap(), "0.3");
+    assert_eq!(shown("A4").as_text().unwrap(), "abc");
+    assert_eq!(shown("A12").as_text().unwrap(), "###");
+    put_formula(&model, "R1:R3", AutoValue::text("7"));
+    assert_eq!(shown("R1:R3").as_text().unwrap(), "7");
+    assert!(matches!(shown("A1:A2"), AutoValue::Null));
+}
