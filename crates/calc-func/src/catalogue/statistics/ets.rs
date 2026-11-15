@@ -284,6 +284,23 @@ fn exact_sum(a: f64, b: f64) -> Option<f64> {
     (sum.is_finite() && residue == 0.0).then_some(sum)
 }
 
+/// Verify the five-point regression against an exact centered numerator.
+/// The division is correctly rounded; agreement proves the initial slope
+/// did not depend on the ordinary moment sums' rounding.
+fn exact_centered_five_slope(y: &[f64]) -> bool {
+    if y.len() != 5 {
+        return false;
+    }
+    let Some(outer) = exact_sum(y[4], -y[0]) else { return false };
+    let Some(inner) = exact_sum(y[3], -y[1]) else { return false };
+    let twice = 2.0 * outer;
+    if !twice.is_finite() || 2.0_f64.mul_add(outer, -twice) != 0.0 {
+        return false;
+    }
+    let Some(numerator) = exact_sum(twice, inner) else { return false };
+    regression_slope(y) == numerator / 10.0
+}
+
 /// Excel 20527's five-point detector returns zero for strictly curved data.
 /// Exact differences keep rounding from inventing or removing a turn.
 fn strictly_curved_five(y: &[f64]) -> bool {
@@ -962,12 +979,13 @@ fn evaluate_fitted(
         season == 0.0 || short_history || season > (series.values.len() / 2) as f64;
     // The five-point curvature detector above identifies no seasonality for
     // these directly observed histories. The existing nonseasonal forecast
-    // agrees with independent Excel controls in the existing exact-scaled
-    // history region. Finer histories and confidence intervals have shown
-    // independent rounding discrepancies and remain unmodelled.
+    // agrees with independent Excel controls for exact-scaled histories and
+    // when an exact centered numerator verifies the initial slope. Other
+    // histories and confidence intervals retain their existing refusals.
     if season == 1.0 && series.directly_observed && horizon >= 1.0
         && strictly_curved_five(&series.values)
-        && exact_scaled_history(&series.values).is_some()
+        && (exact_scaled_history(&series.values).is_some()
+            || exact_centered_five_slope(&series.values))
         && output == Output::Forecast
     {
         return nonseasonal(site, &series.values, output, statistic, horizon, confidence);

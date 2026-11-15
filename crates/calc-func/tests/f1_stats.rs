@@ -10,6 +10,18 @@ use calc_func::SubtotalExclusions;
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Ref, Value};
 use f1_support::*;
 
+/// Excel's automatic detector admits curved histories with a verified slope.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn forecast_ets_curved_history_with_exact_centered_slope() {
+    for (target, y, expected) in [
+        (146.0, [1.22725029274946, 2.6380735335166126, 3.6929248360327787, 4.507806819893242, 5.310124540126463], 0x4062_2074_0620_3f5b),
+        (7.0, [1.2734908814012917, 1.6673154843956093, 2.0707974299474676, 2.7497614621202695, 3.640857337491541], 0x4012_cdc6_9601_ed29),
+    ] {
+        exact(call("FORECAST.ETS", vec![n(target), col(&y), col(&[1.0, 2.0, 3.0, 4.0, 5.0])]), f64::from_bits(expected));
+    }
+}
+
 /// Excel 20527 uses the nonseasonal fit for these strictly curved histories.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
