@@ -96,3 +96,68 @@ Already-held comparison sources: Apache POI, LibreOffice, ClosedXML, XlsxWriter,
 Peter Sestoft's official Funcalc page offers `finance2.zip` and states an MIT-style open licence. EUSES, VEnron, Enron and Sheetpedia are already held and were not fetched again. SheetCopilot describes 221 evaluation tasks over 28 workbooks, but its README did not provide a data licence; pointer only. SpreadsheetBench v1 is recorded as a pointer, not duplicated. FUSE cut files remain out of scope and were not sought again. No TableBench corpus with separately downloadable Excel files and clear file-level terms was established in this pass.
 
 R2 copies for the new sets are under `dnacalc-corpus/sources/<set>/20261114/`; copy and one-way check results are recorded in `~/codex-runs/harv5/report.md`.
+
+## Harv6 second corpus pass (2026-11-14–15)
+
+The deeper review followed creator sample indexes, all nine requested GitHub search terms, official Microsoft sample links, and academic citation trails. New data stays under `~/corpora/`; manifests list only path, bytes and SHA-256. `sources.tsv` carries per-file provenance and licence classification. Counts are static inventories, never Excel calculation results. The existing `cargo xtask classify` and VBA triage could not run on this host (`cargo` and `oletools` are absent); workbooks received a streamed ZIP/XML feature scan, while VBA triage is marked unavailable where projects are present.
+
+### Creator samples and companion files
+
+The direct public downloads found in this pass are inventoried in `~/corpora/creators-20261114/sources.tsv` and `~/corpora/exceloffthegrid-local-20261115/sources.tsv`; the corresponding repository manifests contain only path, bytes and SHA-256. The creator-download class means freely downloadable for local test use without an open licence. Excel Off The Grid is a local-only exception: its [EULA](https://exceloffthegrid.com/eula/) limits use to individual/personal use and bars hosting or transfer, so this set was not copied to R2.
+
+| Site | Files / bytes in this pass | Licence class | Formula files / cells | Embedded VBA projects | Static findings |
+|---|---:|---|---:|---:|---|
+| Contextures | 0 new (2 from Harv5) | creator-download | — | — | Root and `www` returned 502 after normal browser-UA retry. |
+| Peltier | 0 | — | — | — | Accessible homepage/sitemap had no downloadable files; site search is disallowed by robots. |
+| Excelguru | 0 retained; 2 moved outside the corpus after terms review | — | — | — | Its [terms](https://www.excelguru.ca/about/terms-of-use/) prohibit reproducing/copying without written consent. |
+| MrExcel | 0 | — | — | — | Accessible homepage has no companion-file index or sitemap; robots disallows search and attachment paths. |
+| ExcelJet | 188 / 22,246,743 | creator-download | 187 / 18,237 | 0 | Dynamic arrays 726 formula hits; LAMBDA 146; LET 171; GROUPBY 34; PIVOTBY 15; REGEX 73; TRIMRANGE 9; IMAGE 14; structured references 357. |
+| Excel Off The Grid | 438 / 33,146,453 | creator-download, local-only | 200 / 10,635 | 52 | Dynamic arrays 375; LAMBDA 53; LET 57; GROUPBY 23; PIVOTBY 2; REGEX 2; TRIMRANGE 11; IMAGE 11; structured references 7,797; 483 tables, 20 pivots, 74 charts and 51 slicer parts. |
+| MyOnlineTrainingHub | 0 | — | — | — | Robots returned 403 twice, including browser-UA retry; one resource also required an email form. |
+| Excel Campus | 0 | — | — | — | Its [legal terms](https://www.excelcampus.com/legal/) prohibit copying or duplication without written consent. |
+| Ron de Bruin | 0 | — | — | — | Robots URL redirected to `/history/` after browser-UA retry; no downloads collected. |
+| Chip Pearson | 0 | — | — | — | Site TLS hostname mismatch on both attempts; Wayback archive request returned 429 twice. |
+| wellsr | 3 / 49,736 | creator-download | not scanned | unknown | Three directly linked XLS workbooks; static OOXML formula/VBA profiling does not parse legacy XLS. |
+| Excel Macro Mastery | 0 | — | — | — | Robots request disconnected twice, including browser-UA retry. |
+
+Excel Off The Grid's allowed `/insiders-downloads/` index exposed 236 file URLs. All returned successfully; ZIP members were inspected statically and only workbook/VBA source files were retained. The 438-file set includes 382 XLSX and 56 XLSM files. The classifier does not yet inspect legacy XLS internals; no office application was used. The external VBA triage script could not run because `oletools` is absent, so the 52 embedded projects are inventoried but not triaged. Excelguru's two pre-review files remain outside the corpus and R2; they are excluded from counts and manifests.
+
+### Microsoft templates, support/learn samples and code repositories
+
+| Set | Files / bytes | Licence | Findings |
+|---|---:|---|---|
+| `microsoft-20261114` | 1 / 10,233 | creator-download | Official PivotTables/Office Scripts article's fruit-sales source workbook. Static package contains only workbook data sheets; it does not include saved PivotTable or slicer objects. |
+| `microsoft-officedev-20261114` | 3 / 181,398 | open (MIT; pinned `OfficeDev/Office-Add-in-samples` commit `b6c210d649509dff3dfe6b7d6c2f2ceb81540a32`) | Two real XLSX files contain four structured tables; a third tracked as `.xlsx` has a BIFF `.xls` signature and was preserved without conversion. |
+| `microsoft-afm-20261114` | 5 / 13,958 | open (MIT; pinned `microsoft/advanced-formula-environment` commit `0b35bab12c08251b7825cc98ef341a822de00215`) | Five Markdown formula-library code examples, all with LAMBDA; two also use LET and four use dynamic-array helpers. No `.lambda` or `.txt` module files exist at this revision. |
+
+Reviewed Microsoft Support/Learn pages for dynamic/legacy arrays, LAMBDA, LET, XLOOKUP, PivotTables, Power Query and data types. The array-formula example workbook link uses `aka.ms`, disallowed by its robots policy. Three Import Data/Data Model workbook links, two Student Data Model workbook links and one Power BI Financial Sample workbook link target `download.microsoft.com`; its robots endpoint redirected to a Microsoft download landing page, so none was fetched. The `create.microsoft.com` route led to an M365 portal and yielded no direct workbook download. The reviewed function pages did not offer additional standalone workbook downloads. Static profiling found no formula cells or embedded VBA in these four Microsoft workbooks; AFM's five Markdown files contain five LAMBDA, two LET and four dynamic-array helper code examples. The fruit-sales workbook above is linked from the [Microsoft PivotTables article](https://learn.microsoft.com/en-us/office/dev/scripts/develop/pivottables); the [array formula article](https://support.microsoft.com/en-gb/excel/guidelines-and-examples-of-array-formulas) remains a pointer for its blocked download.
+
+### Academic citation trails and spreadsheet benchmarks
+
+| Source trail | Files added | Licence / outcome |
+|---|---:|---|
+| Held Hermans, Sestoft/Funcalc, EUSES, VEnron, Sheetpedia, SpreadsheetBench v2 | 0 new | Existing sets were cross-checked; Sestoft's `finance2` workbook is already in the Harv5 set, and the others were not downloaded again. |
+| SpreadsheetBench v1 | 0 | Official Hugging Face card lists CC BY-SA 4.0 and a 111 MB archive. Its download redirected to `us.aws.cdn.hf.co`; the CDN robots policy disallows the target path, so the archive was not fetched. The project's [GitHub README](https://github.com/Reality2byte/spreadsheetbench#license-and-citation) states CC BY-SA 4.0; citation only because the permitted download route blocked. |
+| TACO formula-graph corpus | 0 | The paper describes Enron and GitHub-scraped spreadsheets. Enron files are already held; no file-level licence was found for the scraped files. |
+| TUTA / ForTaP | 0 | The paper reports that the underlying source spreadsheets are not public. |
+| SpreadsheetCoder | 0 | The paper describes 46,000 internal Google Sheets; no public workbook set or data licence is offered. |
+| SEMS spreadsheet benchmarks | 0 | Info1, Integer, modified EUSES and Payroll/Gradebook download pages expose files but do not state a file licence; links retained as pointers only. |
+| TAT-QA and other table-QA trails | 0 | TAT-QA states CC BY 4.0, but its cited source material is financial-report PDF tables rather than workbooks. HiTab's MIT repo license covers code; its Excel originals are under CUD v1.0, not an open licence, so no workbook copy was made. |
+
+Additional pointers: [TUTA/ForTaP paper](https://pmc.ncbi.nlm.nih.gov/articles/PMC11322654/), [SpreadsheetCoder paper](https://storage.googleapis.com/gweb-research2023-media/pubtools/6222.pdf), [SEMS corpus index](https://spreadsheets.sai.tugraz.at/index.php/corpora-for-benchmarking/), [TACO paper](https://arxiv.org/abs/2302.05482), [TAT-QA repository](https://github.com/NExTplusplus/tat-qa), and [HiTab](https://github.com/microsoft/HiTab). The existing SpreadsheetBench v2 files were SHA-256 duplicates and were skipped.
+
+### Code-host searches
+
+GitHub REST repository search covered `topic:vba`, `topic:excel-vba`, `topic:excel-macros`, `topic:vba-excel`, `topic:excel-template`, `topic:excel-dashboard`, `topic:excel-lambda`, `topic:dynamic-arrays`, and `language:VBA`, paced across the unauthenticated search quota. Of 239 repositories with an allowed licence response, 162 repositories contained target files and were collected at pinned commit SHAs. `sources.tsv` records repository page, raw file URL, commit, licence and licence-file URL per file.
+
+| Set | Files / bytes | Licence-class detail | File extensions |
+|---|---:|---|---|
+| `github-licensed-20261114` | 3,426 / 686,911,716 | open: MIT 2,757; GPL-3.0 298; Apache-2.0 272; CC0-1.0 66; AGPL-3.0 17; BSD-3-Clause 10; CC BY 4.0 6 | `.bas` 1,743; `.xlsx` 803; `.cls` 563; `.xlsm` 164; `.frm` 131; `.xlsb` 10; `.xls` 9; `.xltm` 2; `.xltx` 1 |
+
+The clone was shallow and blob-filtered; only matching workbook/VBA files were checked out, then each temporary clone was removed. GitLab REST search was disallowed by its robots policy and its project-search UI returned no server-rendered matches. Codeberg's search route was disallowed by robots. SourceForge directory search returned 403 on the initial request and browser-UA retry. No alternate host or mirror was used.
+
+Static ZIP/XML profiling of the 989 workbook files found 296 formula-bearing workbooks / 753,952 formula cells, including 36,358 dynamic-array formula hits, 7 LAMBDA hits and 348,590 structured-reference hits. Packages included 136 VBA projects, 385 tables, 127 PivotTables, 226 charts, 46 slicer parts and one data-table XML node. These are package/formula counts, not calculated outcomes; the 2,437 standalone VBA modules were not triaged because `oletools` is unavailable.
+
+### R2 and interesting examples
+
+Copy plus `rclone check --one-way` found 0 differences for the Microsoft sets (2, 4 and 6 matching files), GitHub (3,427 matching files) and the eligible creator set (192 matching files, including `sources.tsv`). Excel Off The Grid's 438-file set stays local-only under its EULA; it was not copied. The 38 rows in `~/corpus-meta/interesting-examples.tsv` cover the requested formula families, plus structured references/tables, charts, PivotTables, slicers, What-If data tables, embedded VBA and standalone modules. Category totals overlap when a single example shows multiple features: dynamic arrays/spills 6; LAMBDA/LET 9; GROUPBY 3; PIVOTBY 2; IMAGE 2; REGEX 3; TRIMRANGE 3; structured references/tables 5; PivotTables/charts/slicers 3; What-If data tables 2; VBA modules/projects 3.
