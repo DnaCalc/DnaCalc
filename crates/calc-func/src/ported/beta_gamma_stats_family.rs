@@ -75,6 +75,22 @@ pub(crate) fn beta_dist_kernel(
     }
     let z = (x - lower) / (upper - lower);
     if cumulative {
+        // In the measured tiny-second-shape continued-fraction region, the
+        // gamma tail's 1e-30 floor survives the twenty-step recurrence. Only
+        // use its stored exponential when z * (1 / z) is exactly one; the
+        // rounded-down cases need further work. The shape and beta limits
+        // bound this arm to the independent controls.
+        if lower == 0.0 && upper == 1.0 && z > 0.7 && z < 1.0
+            && (0.1..=15.0).contains(&alpha) && alpha != 1.0
+            && (f64::MIN_POSITIVE..=2.0_f64.powi(-180)).contains(&beta)
+        {
+            use crate::ported::excel_numeric::{excel_exp, excel_log, excel_x87_div, excel_x87_mul};
+            let nu = (alpha + 20.0) - 0.5;
+            let t = -excel_x87_mul(nu, excel_log(z));
+            if t >= 1.1 && excel_x87_mul(t, excel_x87_div(1.0, t)) == 1.0 {
+                return Ok(excel_x87_mul(1e-30, excel_exp(-t)));
+            }
+        }
         // Excel's continued-fraction arm returns NUM when the larger shape
         // absorbs a smaller shape of at least 40, within this coordinate
         // region. The adjacent shape and coordinate boundaries are measured.

@@ -161,6 +161,26 @@ fn beta_inverse_rejects_absorbed_excess_over_one() {
     }
 }
 
+/// Excel 20527 controls for the tiny-second-shape continued-fraction floor.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beta_cdf_tiny_second_shape_continued_fraction_floor() {
+    let x = f64::from_bits(0x3fe9_9999_9999_999a);
+    let beta = f64::from_bits(0x2b2b_ff2e_e48e_0530);
+    for (alpha, expected) in [
+        (0x3fb9_9999_9999_999a, 0x3950_5cee_66de_c64e),
+        (0x3fe0_0000_0000_0000, 0x394d_ee7a_4ad4_b828),
+        (0x3fea_76c8_b439_5810, 0x394b_d346_246e_3a9b),
+        (0x4000_0000_0000_0000, 0x3945_6ad2_9e42_65e1),
+        (0x4024_0000_0000_0000, 0x391c_beeb_8b57_1391),
+    ] {
+        let alpha = f64::from_bits(alpha);
+        let expected = f64::from_bits(expected);
+        exact(call("BETADIST", vec![n(x), n(alpha), n(beta)]), expected);
+        exact(call("BETA.DIST", vec![n(x), n(alpha), n(beta), b(true)]), expected);
+    }
+}
+
 /// Excel's beta continued fraction rejects this absorbed-shape region.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
