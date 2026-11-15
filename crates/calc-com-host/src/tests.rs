@@ -627,6 +627,34 @@ fn workbook_ranges_project_metadata_values_and_type_information() {
     assert_eq!(model.released.get(), 1);
 }
 
+/// Native-only: a property PUT on a member that has only a getter is DISP_E_BADPARAMCOUNT (VBA error
+/// 450, Excel's answer for `sh.Type = 1`, `sh.ID = 5`, `sh.Connector = True`), raw from IDispatch::Invoke;
+/// a writable member is not refused that way, and an unknown name stays DISP_E_UNKNOWNNAME.
+#[test]
+fn a_property_put_on_a_getter_only_member_is_disp_e_badparamcount() {
+    let _apartment = Apartment::new();
+    let projection = projection();
+    let _model = workbook(&projection);
+    let app = projection.application().unwrap();
+    let range = dispatch(
+        call(&app, "Range", DISPATCH_PROPERTYGET, vec![VARIANT::from("A1:B2")]).unwrap(),
+    );
+    for (interface, name) in [("Shape", "Type"), ("Shape", "ID"), ("Shape", "Connector"), ("Range", "Row")] {
+        assert!(Descriptor::get().member(id(interface), name, InvokeKind::Get).is_some(), "{interface}.{name}");
+        assert!(Descriptor::get().member(id(interface), name, InvokeKind::Put).is_none(), "{interface}.{name} is read-only");
+    }
+    let refused = call(&range, "Row", DISPATCH_PROPERTYPUT, vec![VARIANT::from(5i32)]).unwrap_err();
+    assert_eq!(refused.code(), DISP_E_BADPARAMCOUNT);
+    let refused = call(&range, "Count", DISPATCH_PROPERTYPUT, vec![VARIANT::from(5i32)]).unwrap_err();
+    assert_eq!(refused.code(), DISP_E_BADPARAMCOUNT);
+    // Reading still works; only the assignment is refused.
+    assert!(call(&range, "Row", DISPATCH_PROPERTYGET, vec![]).is_ok());
+    let name: Vec<u16> = "NoSuchMember".encode_utf16().chain(Some(0)).collect();
+    let mut dispid = 0;
+    let unknown = unsafe { range.GetIDsOfNames(&GUID::zeroed(), &PCWSTR(name.as_ptr()), 1, 0, &mut dispid) };
+    assert_eq!(unknown.unwrap_err().code(), DISP_E_UNKNOWNNAME);
+}
+
 /// Native-only: replacement for the C++ workbook bridge test through the supplied ObjectModel.
 #[test]
 fn workbook_metadata_and_enable_events_follow_the_supplied_model() {
