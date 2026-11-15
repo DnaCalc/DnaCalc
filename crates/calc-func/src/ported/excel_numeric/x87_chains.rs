@@ -89,17 +89,28 @@ pub(crate) fn excel_exp_compensated(start: f64, terms: &[f64]) -> f64 {
     exp_compensated::<Native>(start, terms)
 }
 
+fn compensated_subtract<F: Fpu>(stored: f64, term: f64) -> (f64, f64) {
+    let next = F::store(&F::sub(&load(stored), &load(term), CW), CW);
+    let dropped = F::store(
+        &F::sub(&F::sub(&load(stored), &load(next), CW), &load(term), CW),
+        CW,
+    );
+    (next, dropped)
+}
+
+/// The part dropped by the second stored subtraction in the compensated chain.
+pub(crate) fn excel_exp_second_dropped(start: f64, first: f64, second: f64) -> f64 {
+    let (next, _) = compensated_subtract::<Native>(start, first);
+    compensated_subtract::<Native>(next, second).1
+}
+
 fn exp_compensated<F: Fpu>(start: f64, terms: &[f64]) -> f64 {
     let mut stored = start;
     let mut factors = [1.0_f64; 2];
     for (term, factor) in terms.iter().zip(factors.iter_mut()) {
-        let next = F::store(&F::sub(&load(stored), &load(*term), CW), CW);
         // `(a - s) - b`, not `(a - b) - s`: a row whose register difference lost `b`'s low bits sits
         // on a tie of `1 + dropped`, and Excel's answer there is not that tie's.
-        let dropped = F::store(
-            &F::sub(&F::sub(&load(stored), &load(next), CW), &load(*term), CW),
-            CW,
-        );
+        let (next, dropped) = compensated_subtract::<F>(stored, *term);
         *factor = F::store(&F::add(&ext_one(), &load(dropped), CW), CW);
         stored = next;
     }

@@ -197,6 +197,9 @@ pub fn gamma_dist_kernel(
     if x < 0.0 {
         return Err(WorksheetErrorCode::Num);
     }
+    if crate::ported::discrete_dist::poisson_compensation_error(alpha, x / beta) {
+        return Err(WorksheetErrorCode::Num);
+    }
     if cumulative {
         // Inverse-problem identity, live Excel 16.0 b20228:
         // GAMMA.DIST(x,0.5,beta,TRUE) == ERF.PRECISE(SQRT(x/beta))

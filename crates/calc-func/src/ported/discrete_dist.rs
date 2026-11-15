@@ -217,6 +217,21 @@ pub(crate) fn poisson_mass(x: f64, lambda: f64) -> f64 {
     )
 }
 
+/// The low-mean Poisson prefactor can fail in Excel when its stored
+/// GAMMALN subtraction drops more than one. Gamma distributions share it.
+pub(crate) fn poisson_compensation_error(x: f64, lambda: f64) -> bool {
+    // Below 2^40, even the logarithm of the smallest positive binary64
+    // keeps both subtractions below 2^50, where their lost part is under one.
+    if !(x >= 1_099_511_627_776.0 && x.is_finite() && lambda > 0.0 && lambda < 1.1) {
+        return false;
+    }
+    let start = excel_x87_mul(x, excel_log(lambda));
+    let gamma = gammaln_excel(x + 1.0);
+    start.is_finite()
+        && gamma.is_finite()
+        && crate::ported::excel_numeric::excel_exp_second_dropped(start, lambda, gamma) > 1.0
+}
+
 /// A finite result, with a subnormal one flushed to zero as Excel computes (EXPON.DIST(745,1,FALSE)
 /// is 0); otherwise #NUM!.
 fn finite(v: f64) -> R {
@@ -430,6 +445,9 @@ pub fn poisson_dist_kernel(x: f64, mean: f64, cumulative: bool) -> R {
         return Ok(if cumulative { 1.0 } else { 0.0 });
     }
     if !cumulative {
+        if poisson_compensation_error(x, mean) {
+            return Err(NUM);
+        }
         return finite(poisson_mass(x, mean));
     }
     // P(X <= x) = Q(x + 1, mean), the regularized upper incomplete gamma function (A&S 6.5.13,
