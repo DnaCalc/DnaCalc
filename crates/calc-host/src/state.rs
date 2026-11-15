@@ -167,6 +167,11 @@ pub struct HostState {
     pub(crate) issued: crate::shapes::IssuedIds,
     /// Whether [`crate::calculate`] asked for a recalculation that has not begun yet.
     pub(crate) calculate_requested: bool,
+    /// Whether the calculation in progress (or last begun) was asked for: Calculate Now, a full
+    /// recalculation, an authored change since the last publication or a reload of the callables.
+    /// A calculation that was not asked for and calculated no formula did not run for the
+    /// workbook's events (`AfterCalculate`).
+    pub(crate) calculation_demanded: bool,
     /// The serial date and time NOW and TODAY read ([`HostState::set_clock`]); `None` refuses
     /// them.
     pub(crate) clock: Option<f64>,
@@ -361,6 +366,7 @@ impl HostState {
             inputs_changed_since_open: false,
             issued: Default::default(),
             calculate_requested: false,
+            calculation_demanded: false,
             clock: None,
             axis_edits: Vec::new(),
             file: None,

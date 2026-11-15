@@ -172,6 +172,53 @@ fn native_after_calculate_waits_for_completion_and_includes_clean_commands() {
     assert_eq!(log.borrow().len(), 2);
 }
 
+/// dc-1nbp.3.1: AfterCalculate follows a calculation that ran. A pass nobody asked for that calculated no
+/// formula (what the desktop app's tick can start after an add-in loads) raises none; an edit and Calculate Now do.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn native_after_calculate_follows_only_a_calculation_that_ran() {
+    let mut session = HostSession::open(
+        Arc::new(MemorySource::new(calc_host::blank_package())),
+        &OpenPolicy::default(),
+        HostOptions::default(),
+    )
+    .unwrap();
+    let log = Rc::new(RefCell::new(Vec::new()));
+    session.set_workbook_event_observer(Some(Rc::new(NativeProbe {
+        log: log.clone(),
+        targets: RefCell::default(),
+        switch: RefCell::default(),
+    })));
+    let settle = |session: &mut HostSession| {
+        while session.has_pending_calculation() {
+            session.advance_calculation();
+        }
+    };
+    enter(&mut session, 1, "=1");
+    settle(&mut session);
+    let after = |log: &Rc<RefCell<Vec<String>>>| log.borrow().iter().filter(|e| *e == "after").count();
+    let at_rest = after(&log);
+    assert!(at_rest >= 1, "an edit that calculated a formula raises it: {:?}", log.borrow());
+    // Ticks with nothing to do raise nothing.
+    for _ in 0..50 {
+        session.advance_calculation();
+        settle(&mut session);
+    }
+    assert_eq!(after(&log), at_rest);
+    // A reload of the callables with no formula calling any: nothing calculated and no change since.
+    session.set_user_functions(calc_host::CallableTable::new());
+    for _ in 0..50 {
+        session.advance_calculation();
+        settle(&mut session);
+    }
+    assert!(after(&log) <= at_rest + 1, "{:?}", log.borrow());
+    let before = after(&log);
+    // Calculate Now with nothing to calculate was asked for: it raises one.
+    session.dispatch(SkinIntent::Recalculate);
+    settle(&mut session);
+    assert_eq!(after(&log), before + 1);
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn native_file_identity_follows_save_as_without_becoming_cell_history() {

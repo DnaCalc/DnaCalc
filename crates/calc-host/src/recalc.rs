@@ -89,6 +89,7 @@ pub fn step(
                 || !work.callables_current(&host.engine) =>
         {
             let reloaded = !work.callables_current(&host.engine);
+            host.calculation_demanded = true;
             host.renew_workbook_facts();
             let transformed = host.transformed_calculation_scope.take();
             let selection = work.admission().selection;
@@ -145,6 +146,7 @@ pub fn step(
         None => {
             let current = host.model.revision();
             let requested = std::mem::take(&mut host.calculate_requested);
+            let current_demanded = requested || host.published != Some(current);
             // L3 (dc-m3u): automatic except tables leaves data tables until a recalculation is
             // asked for.
             let deferred = host.calc_mode() == CalcMode::AutomaticExceptTables && !requested;
@@ -159,6 +161,7 @@ pub fn step(
             }
             // dc-uar: the facts CELL and INFO read, as of this revision.
             host.renew_workbook_facts();
+            host.calculation_demanded = current_demanded || host.requested_calculation.is_some();
             let started = if let Some((scope, selection)) = host.requested_calculation.take() {
                 let scope = host.transformed_calculation_scope.take().unwrap_or(scope);
                 let poststate = if host.calc_mode() == CalcMode::Manual

@@ -311,10 +311,14 @@ impl HostSession {
                 self.record_event_failure(WorkbookEvent::WorksheetCalculate { sheet }, reason);
             }
         }
-        if delta
-            .completion()
-            .is_some_and(|receipt| receipt.outcome == crate::CompletionOutcome::Complete)
-            && self.workbook_events_enabled()
+        // AfterCalculate follows a calculation that ran: one that calculated a formula or that was
+        // asked for. A completed pass nobody asked for that calculated nothing (a tick with
+        // nothing dirty) is not one (dc-1nbp.3.1).
+        let demanded = std::mem::take(&mut self.host.calculation_demanded);
+        if delta.completion().is_some_and(|receipt| {
+            receipt.outcome == crate::CompletionOutcome::Complete
+                && (receipt.coverage.calculated > 0 || demanded)
+        }) && self.workbook_events_enabled()
         {
             if let Some(observer) = self.workbook_events.observer.clone() {
                 if let Err(reason) = observer.after_calculate(self) {
