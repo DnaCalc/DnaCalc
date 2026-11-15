@@ -257,7 +257,7 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
             bytes.extend(b"<c:ser>");
             bytes.extend(fresh_number("idx", &s.index.to_string()));
             bytes.extend(fresh_number("order", &s.index.to_string()));
-            bytes.extend(data_xml("tx", s.name.as_ref()));
+            bytes.extend(data_xml_with("tx", s.name.as_ref(), excel));
             bytes.extend(colour::fresh(s.fill.as_deref()));
             // Excel writes `invertIfNegative` (off) on every bar series, after the fill and before
             // the data (Q0, ~/codex-runs/eng1 excel-report chart1.xml). Its other chart types write
@@ -277,7 +277,7 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
                 (if scatter { "xVal" } else { "cat" }, s.categories.as_ref()),
                 (if scatter { "yVal" } else { "val" }, s.values.as_ref()),
             ] {
-                bytes.extend(data_xml(slot, data));
+                bytes.extend(data_xml_with(slot, data, excel));
             }
             if excel && (scatter || p.kind == "lineChart") {
                 bytes.extend(fresh_number("smooth", "0"));
@@ -525,6 +525,7 @@ pub(super) fn finish(
     after: &ModelRoot,
     out: &mut Changes,
     structural: Option<&super::super::structural::StructuralEdits>,
+    caches: Option<&cache::CacheSource<'_>>,
 ) -> Result<(), SaveRefusal> {
     let touched: BTreeSet<_> = after
         .definitions()
@@ -562,6 +563,7 @@ pub(super) fn finish(
             new_shapes,
             out,
             structural.map(|edits| (edits, before)),
+            caches,
         )?;
     }
     Ok(())
@@ -594,6 +596,7 @@ pub(crate) fn add(
     new_shapes: &[calc_doc_model::Shape],
     out: &mut Changes,
     structural: Option<(&super::super::structural::StructuralEdits, &ModelRoot)>,
+    caches: Option<&cache::CacheSource<'_>>,
 ) -> Result<(), SaveRefusal> {
     let sheet_part = source.part().name();
     let drawings = package
@@ -702,6 +705,15 @@ pub(crate) fn add(
                 "A new chart needs a unique DNA chart part",
             ));
         }
+        // A macro chart's series carry the caches Excel writes, read from the cells now (dc-piw0.9).
+        let filled;
+        let chart = match caches {
+            Some(source) if matches!(chart.anchor, ChartAnchor::TwoCell { .. }) => {
+                filled = cache::filled(chart, source);
+                &filled
+            }
+            _ => chart,
+        };
         let mut bytes = render(chart)?;
         if let Some((edits, before)) = structural {
             for &edit in edits.edits() {

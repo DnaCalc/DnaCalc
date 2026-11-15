@@ -573,13 +573,18 @@ fn dc_piw0__q10_an_empty_macro_chart_saves_as_excel_wrote_it() {
 /// The `c:ser` elements of a chart part with Excel's per-chart GUID and the data caches left out:
 /// what the series are, not the numbers Excel cached with them (dc-piw0.8).
 fn series_elements(xml: &str) -> Vec<String> {
+    series_elements_with(xml, false)
+}
+
+/// [`series_elements`], keeping the data caches when `caches`.
+fn series_elements_with(xml: &str, caches: bool) -> Vec<String> {
     let mut out = Vec::new();
     let mut rest = xml;
     while let Some(start) = rest.find("<c:ser>") {
         let end = rest[start..].find("</c:ser>").unwrap() + start + "</c:ser>".len();
         let mut ser = rest[start..end].to_owned();
         rest = &rest[end..];
-        for cache in ["strCache", "numCache"] {
+        for cache in ["strCache", "numCache"].into_iter().filter(|_| !caches) {
             while let Some(a) = ser.find(&format!("<c:{cache}>")) {
                 let close = format!("</c:{cache}>");
                 let b = ser[a..].find(&close).unwrap() + a + close.len();
@@ -599,13 +604,8 @@ fn series_elements(xml: &str) -> Vec<String> {
     out
 }
 
-/// dc-piw0.8 (Q0, excel-answers.md, ~/codex-runs/eng1 excel-report chart1.xml): the series of a
-/// macro-made column chart over A1:C3 in columns are written as Excel writes them: `invertIfNegative`
-/// after the name, the `c16:uniqueId` extension last. Excel's data caches (`strCache`, `numCache`)
-/// are not written yet and are left out of the comparison.
-#[cfg_attr(not(target_arch = "wasm32"), test)]
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_piw0_8__series_xml_is_what_excel_wrote() {
+/// The chart part a macro-made column chart over A1:C3 (the Q0 report data) is saved as.
+fn q0_chart_xml() -> String {
     let mut book = open(aptos_narrow_package());
     let sheet = book.host().sheets()[0].id();
     for (address, text) in [
@@ -644,7 +644,81 @@ fn dc_piw0_8__series_xml_is_what_excel_wrote() {
         .map(|p| p.name().to_owned())
         .find(|n| n.starts_with("xl/charts/") && n.ends_with(".xml"))
         .unwrap();
-    let written = String::from_utf8(document.package().read_part(&name).unwrap()).unwrap();
+    String::from_utf8(document.package().read_part(&name).unwrap()).unwrap()
+}
+
+/// dc-piw0.9 (Q0, Q17 answer): every series reference carries the cache Excel writes: `strCache` (no `formatCode`)
+/// for the name and the text categories, `numCache` with `General` for the values, filled from the cells.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_9__series_caches_are_what_excel_wrote() {
+    let written = q0_chart_xml();
+    let recorded = include_str!("fixtures/excel-q0/chart1.xml");
+    let (written, recorded) = (series_elements_with(&written, true), series_elements_with(recorded, true));
+    assert_eq!(written, recorded);
+}
+
+/// dc-piw0.9: the caches are read from the cells when the part is written, not when the chart was made: a cell
+/// edited after the chart, and a formula cell (its calculated value), show in the numCache.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_9__series_caches_follow_the_cells_at_save() {
+    let mut book = open(aptos_narrow_package());
+    let sheet = book.host().sheets()[0].id();
+    for (address, text) in [
+        ("A1", "Region"), ("B1", "Q1"), ("A2", "North"), ("B2", "=5+5"), ("A3", "South"), ("B3", "30"),
+    ] {
+        enter(&mut book, sheet, address, text);
+    }
+    command(&mut book, |b| WorkbookCommand::ChartCreateEmpty {
+        sheet,
+        revision: b.host().revision().get(),
+        kind: "column".into(),
+        place: [pts(200.0), pts(20.0), pts(300.0), pts(200.0)],
+        title: None,
+        legend: true,
+    });
+    let part = book.host().model().definitions().charts(sheet)[0].part.clone();
+    command(&mut book, |b| WorkbookCommand::ChartSource {
+        sheet,
+        revision: b.host().revision().get(),
+        part: part.clone(),
+        area: GridArea::new(at(sheet, "A1"), at(sheet, "B3")).unwrap(),
+        rows: false,
+        headers: true,
+        categories: true,
+    });
+    enter(&mut book, sheet, "B3", "31");
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    let mut bytes = Vec::new();
+    book.save(&SavePolicy::default(), &mut bytes).unwrap();
+    let document = calc_doc::open(
+        Arc::new(MemorySource::new(bytes)) as Arc<dyn calc_host::PackageRead>,
+        &calc_host::OpenPolicy::default(),
+    )
+    .unwrap();
+    let name = document
+        .package()
+        .parts()
+        .iter()
+        .map(|p| p.name().to_owned())
+        .find(|n| n.starts_with("xl/charts/") && n.ends_with(".xml"))
+        .unwrap();
+    let xml = String::from_utf8(document.package().read_part(&name).unwrap()).unwrap();
+    assert!(
+        xml.contains("<c:numCache><c:formatCode>General</c:formatCode><c:ptCount val=\"2\"/><c:pt idx=\"0\"><c:v>10</c:v></c:pt><c:pt idx=\"1\"><c:v>31</c:v></c:pt></c:numCache>"),
+        "{xml}"
+    );
+}
+
+/// dc-piw0.8 (Q0, excel-answers.md, ~/codex-runs/eng1 excel-report chart1.xml): the series of a
+/// macro-made column chart over A1:C3 in columns are written as Excel writes them: `invertIfNegative`
+/// after the name, the `c16:uniqueId` extension last. Excel's data caches (`strCache`, `numCache`)
+/// are not written yet and are left out of the comparison.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_8__series_xml_is_what_excel_wrote() {
+    let written = q0_chart_xml();
     let recorded = include_str!("fixtures/excel-q0/chart1.xml");
     let (written, recorded) = (series_elements(&written), series_elements(recorded));
     assert_eq!(written.len(), recorded.len(), "{written:#?}");

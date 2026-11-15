@@ -1604,7 +1604,11 @@ pub(super) fn plan(
         )?;
     }
     if charts_changed {
-        super::chart::finish(package, base, model, &mut out, &sheets, structural.as_ref())?;
+        let caches = super::chart::cache::CacheSource {
+            model,
+            values: values.as_deref(),
+        };
+        super::chart::finish(package, base, model, &mut out, &sheets, structural.as_ref(), Some(&caches))?;
     }
     if review_changed {
         super::review::finish(
