@@ -85,6 +85,63 @@ pub struct PrintPlan {
     pub scale: f64,
     pub pages: Vec<PrintPage>,
 }
+/// A plan's page breaks as Excel lists them (`Worksheet.HPageBreaks` and `VPageBreaks`): the first row, or the
+/// first column, of every page after the first in that direction, with whether the break is a stored manual one.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PlanBreaks {
+    /// `(first row of the next page, manual)`, in row order.
+    pub rows: Vec<(u32, bool)>,
+    /// `(first column of the next page, manual)`, in column order.
+    pub columns: Vec<(u32, bool)>,
+}
+impl PrintPlan {
+    /// The breaks between this plan's pages. A print area of several ranges gives the breaks of each range, merged.
+    /// The positions of the automatic ones follow the UI27 and UI30 device sizes, NOT an Excel break list (assumed
+    /// until the PB1 macro of ~/codex-runs/eng13 is answered); the manual ones are the stored breaks.
+    pub fn breaks(&self) -> PlanBreaks {
+        let mut rows: BTreeMap<u32, bool> = BTreeMap::new();
+        let mut columns: BTreeMap<u32, bool> = BTreeMap::new();
+        let first_row = self.pages.iter().map(|p| p.body.0.2).min().unwrap_or(0);
+        let first_column = self.pages.iter().map(|p| p.body.0.3).min().unwrap_or(0);
+        for page in &self.pages {
+            let (top, left) = (page.body.0.2, page.body.0.3);
+            if top > first_row {
+                // The page above this one ends in a manual break when it says so: the same cut, either way.
+                let manual = self
+                    .pages
+                    .iter()
+                    .any(|above| above.body.1.2 + 1 == top && above.body.0.3 == left && above.manual_bottom);
+                let entry = rows.entry(top).or_insert(false);
+                *entry |= manual;
+            }
+            if left > first_column {
+                let manual = self
+                    .pages
+                    .iter()
+                    .any(|before| before.body.1.3 + 1 == left && before.body.0.2 == top && before.manual_right);
+                let entry = columns.entry(left).or_insert(false);
+                *entry |= manual;
+            }
+        }
+        PlanBreaks { rows: rows.into_iter().collect(), columns: columns.into_iter().collect() }
+    }
+
+    /// The lines the PB1 macro records for a case, from this plan: `tag  pages  n` and `tag  H|V  i  address  type`
+    /// (type -4105 automatic, -4135 manual), the address being the first cell of the next page.
+    pub fn breaks_text(&self, tag: &str) -> String {
+        let breaks = self.breaks();
+        let first_row = self.pages.iter().map(|p| p.body.0.2).min().unwrap_or(1);
+        let first_column = self.pages.iter().map(|p| p.body.0.3).min().unwrap_or(1);
+        let mut out = format!("{tag}\tpages\t{}\n", self.pages.len());
+        for (i, (row, manual)) in breaks.rows.iter().enumerate() {
+            out += &format!("{tag}\tH\t{}\t{}\t{}\n", i + 1, crate::address::address(*row, first_column), if *manual { -4135 } else { -4105 });
+        }
+        for (i, (column, manual)) in breaks.columns.iter().enumerate() {
+            out += &format!("{tag}\tV\t{}\t{}\t{}\n", i + 1, crate::address::address(first_row, *column), if *manual { -4135 } else { -4105 });
+        }
+        out
+    }
+}
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PrintDocument {
     pub revision: u64,
@@ -276,6 +333,47 @@ fn slices(
     }
     Ok(out)
 }
+/// The page of an Excel paper code (`pageSetup paperSize`, the DEVMODE `dmPaperSize` / `xlPaperSize` list) in
+/// CSS pixels, portrait as the list gives it. The sizes are the list's own (inches or millimetres); that
+/// Excel prints a code on exactly this paper has not been measured except for 1, 5, 7, 8, 9 and 11
+/// (UI27), and a printer may substitute its own paper (assumed).
+fn paper_size(code: u32) -> Option<(f64, f64)> {
+    const IN: f64 = 96.;
+    const MM: f64 = 96. / 25.4;
+    Some(match code {
+        1 | 2 | 18 => (8.5 * IN, 11. * IN),
+        3 | 17 => (11. * IN, 17. * IN),
+        5 => (8.5 * IN, 14. * IN),
+        6 => (5.5 * IN, 8.5 * IN),
+        7 => (7.25 * IN, 10.5 * IN),
+        8 => (297. * MM, 420. * MM),
+        9 | 10 => (210. * MM, 297. * MM),
+        11 => (148. * MM, 210. * MM),
+        12 => (250. * MM, 354. * MM),
+        13 => (182. * MM, 257. * MM),
+        14 => (8.5 * IN, 13. * IN),
+        15 => (215. * MM, 275. * MM),
+        16 => (10. * IN, 14. * IN),
+        19 => (3.875 * IN, 8.875 * IN),
+        20 => (4.125 * IN, 9.5 * IN),
+        27 => (110. * MM, 220. * MM),
+        28 => (162. * MM, 229. * MM),
+        29 => (324. * MM, 458. * MM),
+        30 => (229. * MM, 324. * MM),
+        31 => (114. * MM, 162. * MM),
+        32 => (114. * MM, 229. * MM),
+        33 => (250. * MM, 353. * MM),
+        34 => (176. * MM, 250. * MM),
+        35 => (125. * MM, 176. * MM),
+        37 => (3.875 * IN, 7.5 * IN),
+        38 => (3.625 * IN, 6.5 * IN),
+        43 => (100. * MM, 148. * MM),
+        66 => (420. * MM, 594. * MM),
+        70 => (105. * MM, 148. * MM),
+        _ => return None,
+    })
+}
+
 fn paper(settings: &PageSettings) -> Result<(f64, f64), String> {
     fn measure(value: &str) -> Option<f64> {
         for (unit, pixels) in [
@@ -305,20 +403,17 @@ fn paper(settings: &PageSettings) -> Result<(f64, f64), String> {
             measure(h).ok_or_else(|| fail("Invalid custom paper height"))?,
         )
     } else {
-        match settings.get("pageSetup", "paperSize").unwrap_or("1") {
-            "1" => (8.5 * 96., 11. * 96.),
-            "3" => (11. * 96., 17. * 96.),
-            "5" => (8.5 * 96., 14. * 96.),
-            "7" => (7.25 * 96., 10.5 * 96.),
-            "8" => (297. * 96. / 25.4, 420. * 96. / 25.4),
-            "9" => (210. * 96. / 25.4, 297. * 96. / 25.4),
-            "11" => (148. * 96. / 25.4, 210. * 96. / 25.4),
-            _ => {
-                return Err(fail(
-                    "This paper size has no browser preview dimensions; choose Letter, Legal, Tabloid, Executive, A3, A4 or A5",
-                ));
-            }
-        }
+        settings
+            .get("pageSetup", "paperSize")
+            .unwrap_or("1")
+            .parse::<u32>()
+            .ok()
+            .and_then(paper_size)
+            .ok_or_else(|| {
+                fail(
+                    "This paper size has no browser preview dimensions; choose a size from Excel's paper list or enter custom dimensions",
+                )
+            })?
     };
     if [size.0, size.1]
         .iter()
@@ -1039,6 +1134,69 @@ mod tests {
         assert_eq!(runs[2][0].color, "#112233");
         assert!(header_runs("&G", &c).is_err());
         assert!(header_runs("&Z", &c).is_err());
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_plans_breaks_list_as_excels_hpagebreaks_do_with_manual_ones_marked() {
+        // The UI27 q4-manual sheet: a stored row break after row 20 (max 15 of 16 columns) and a column break after column 4.
+        let mut s = setup();
+        s.row_breaks.push(PageBreak { id: 20, min: 0, max: 15, manual: true, pivot: false });
+        s.column_breaks.push(PageBreak { id: 4, min: 0, max: 119, manual: true, pivot: false });
+        let plan = paginate(&s, &Geometry::default(), &[area(1, 1, 120, 16)], None, None).unwrap();
+        let breaks = plan.breaks();
+        // Excel lists the FIRST row of the next page: row 21 and column E (5), both manual; the automatic ones follow.
+        assert_eq!(breaks.rows[0], (21, true));
+        assert_eq!(breaks.columns[0], (5, true));
+        assert!(breaks.rows[1..].iter().all(|(_, manual)| !manual));
+        let rows: Vec<u32> = breaks.rows.iter().map(|(r, _)| *r).collect();
+        assert!(rows.windows(2).all(|w| w[0] < w[1]));
+        // No print area bigger than one page: no break.
+        let single = paginate(&setup(), &Geometry::default(), &[area(1, 1, 5, 3)], None, None).unwrap();
+        assert_eq!(single.breaks(), PlanBreaks::default());
+        assert_eq!(single.breaks_text("t"), "t\tpages\t1\n");
+        // The text is what PB1.bas writes: tag, H/V, index, the next page's first cell, the break type.
+        let text = plan.breaks_text("c11");
+        let mut lines = text.lines();
+        assert_eq!(lines.next(), Some(format!("c11\tpages\t{}", plan.pages.len()).as_str()));
+        assert_eq!(lines.next(), Some("c11\tH\t1\tA21\t-4135"));
+        assert!(text.contains("\nc11\tV\t1\tE1\t-4135\n"), "{text}");
+        assert!(text.contains("\t-4105"), "{text}");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn excels_paper_list_gives_a_page_to_each_code_and_refuses_unknown_ones() {
+        let size = |code: &str| {
+            let mut s = setup();
+            set(&mut s, "pageSetup", "paperSize", code);
+            paper(&s)
+        };
+        let close = |got: (f64, f64), want: (f64, f64)| (got.0 - want.0).abs() < 1e-6 && (got.1 - want.1).abs() < 1e-6;
+        // The six measured in UI27.
+        assert_eq!(size("1").unwrap(), (8.5 * 96., 11. * 96.));
+        assert!(close(size("9").unwrap(), (210. * 96. / 25.4, 297. * 96. / 25.4)));
+        // Others of the list: Folio, B4 (JIS), the envelopes, A2 and A6 (inches or millimetres as the list gives).
+        assert_eq!(size("14").unwrap(), (8.5 * 96., 13. * 96.));
+        assert!(close(size("12").unwrap(), (250. * 96. / 25.4, 354. * 96. / 25.4)));
+        assert_eq!(size("20").unwrap(), (4.125 * 96., 9.5 * 96.));
+        assert!(close(size("66").unwrap(), (420. * 96. / 25.4, 594. * 96. / 25.4)));
+        assert!(close(size("70").unwrap(), (105. * 96. / 25.4, 148. * 96. / 25.4)));
+        // A code no list entry has (or a printer's own paper, 256 and up) is refused, naming what to do.
+        assert!(size("256").unwrap_err().contains("custom dimensions"));
+        assert!(size("not a number").is_err());
+        // Landscape swaps them, whatever the code.
+        let mut s = setup();
+        set(&mut s, "pageSetup", "paperSize", "14");
+        set(&mut s, "pageSetup", "orientation", "landscape");
+        assert_eq!(paper(&s).unwrap(), (13. * 96., 8.5 * 96.));
+        // A sheet paginates on a code the old table did not have: Folio is shorter than Legal, longer than Letter.
+        let pages = |code: &str| {
+            let mut s = setup();
+            set(&mut s, "pageSetup", "paperSize", code);
+            paginate(&s, &Geometry::default(), &[area(1, 1, 200, 3)], None, None).unwrap().pages.len()
+        };
+        assert!(pages("5") <= pages("14") && pages("14") <= pages("1"));
     }
 }
 
