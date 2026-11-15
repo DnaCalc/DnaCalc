@@ -151,6 +151,17 @@ fn beta_cdf_reports_absorbed_large_shape_error() {
     }
 }
 
+/// The cumulative negative binomial shares Excel's absorbed beta-shape failure.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn negative_binomial_cdf_reports_absorbed_shape_error() {
+    let args = |f, s, p| vec![n(f), n(s), n(p), b(true)];
+    error(call("NEGBINOM.DIST", args(99.0, 1e100, 0.5)), Num);
+    error(call("NEGBINOM.DIST", args(1e100, 100.0, 0.5)), Num);
+    error(call("NEGBINOM.DIST", args(99.0, 1e100, 0.99)), Num);
+    exact(call("NEGBINOM.DIST", args(99.0, 1e100, f64::from_bits(0.99_f64.to_bits() + 1))), 0.0);
+}
+
 /// Excel reads import argument errors and numeric types before validating the path.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

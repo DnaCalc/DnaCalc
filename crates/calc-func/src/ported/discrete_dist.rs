@@ -597,6 +597,9 @@ pub fn negbinom_dist_kernel(number_f: f64, number_s: f64, p: f64, cumulative: bo
     if f == 0.0 {
         return finite(negbinom_mass(0.0, s, p));
     }
+    if crate::ported::beta_gamma_stats_family::beta_absorbed_shape_error(s, f + 1.0, p) {
+        return Err(NUM);
+    }
     // Excel's cumulative is not the sum of its masses: at dyadic `p` it can sit on the exact dyadic
     // sum (`fresh-negbinom.dist-00113`) where masses through EXP cannot, and at `p = 1/8` it stands
     // 13 units off it. `I_p(s, f + 1)` holds the exact row and more of the 141 rows than the sum
