@@ -24,11 +24,13 @@ impl PreparedArguments for Given {
 }
 
 // A relocated row preserves the scalar cells' values and reference identity. The capture
-// did not record their absolute addresses. Calls needing those addresses are declined.
-struct InputCells(BTreeMap<(u32, u32), CalcValue>, bool);
+// did not record their absolute addresses. Calls needing those addresses are declined, except
+// that an attested bulk layout fixes the sheet and column (not the row) for the functions
+// that read only those (the third field).
+struct InputCells(BTreeMap<(u32, u32), CalcValue>, bool, bool);
 impl CellReader for InputCells {
     fn reference_positions_known(&self) -> bool {
-        false
+        self.2
     }
 
     fn read_area(
@@ -61,6 +63,72 @@ impl CellReader for InputCells {
                 (area.first().column()..=area.last().column()).all(|c| self.0.contains_key(&(r, c)))
             }))
         .then(SubtotalExclusions::default)
+    }
+}
+
+/// The sheet a Touchstone/1 bulk batch writes (dc-ymjf.2.84/.85, attested layout
+/// `touchstone/1-bulk`): the scratch book's sheets are S, A and Q, in that order; call i's
+/// arguments are cells of row i of S from column B (`RC[k+1]` from the formula in column A), an
+/// error argument entered as its error formula (`=#N/A`) and every other argument as a constant.
+/// The row depends on the batch, so a fact needing it is refused.
+struct BulkSheet {
+    /// The error each argument column's cell holds as a formula.
+    errors: BTreeMap<u32, calc_func::value::WorksheetErrorCode>,
+}
+
+const BULK_SHEETS: [&str; 3] = ["S", "A", "Q"];
+
+impl BulkSheet {
+    fn sheet(index: u32) -> SheetId {
+        SheetId::from_parts(index, 0)
+    }
+    fn argument_cell(&self, cell: CellKey) -> bool {
+        cell.sheet() == Self::sheet(1) && cell.row() == 1 && cell.column() >= 2
+    }
+}
+
+impl calc_func::HostFacts for BulkSheet {
+    fn pivot_data_cell(
+        &mut self,
+        _data_field: &str,
+        _pivot_table: &[GridArea],
+        _fields: &[(String, CalcValue)],
+    ) -> calc_func::PivotLookup {
+        calc_func::PivotLookup::NotModelled
+    }
+    fn is_external_sheet(&mut self, _sheet: SheetId) -> bool {
+        false
+    }
+    fn caller(&mut self) -> Option<CellKey> {
+        None
+    }
+    fn is_formula(&mut self, cell: CellKey) -> Option<bool> {
+        self.argument_cell(cell).then(|| self.errors.contains_key(&cell.column()))
+    }
+    fn formula_text(&mut self, cell: CellKey) -> Option<Option<String>> {
+        self.argument_cell(cell).then(|| {
+            self.errors
+                .get(&cell.column())
+                .map(|code| format!("={}", code.excel_spelling()))
+        })
+    }
+    fn sheet_index(&mut self, sheet: SheetId) -> Option<u32> {
+        (1..=3).find(|&i| Self::sheet(i) == sheet)
+    }
+    fn sheet_named(&mut self, name: &str) -> Option<SheetId> {
+        BULK_SHEETS
+            .iter()
+            .position(|s| s.eq_ignore_ascii_case(name))
+            .map(|i| Self::sheet(i as u32 + 1))
+    }
+    fn sheet_name(&mut self, sheet: SheetId) -> Option<String> {
+        self.sheet_index(sheet).map(|i| BULK_SHEETS[i as usize - 1].to_owned())
+    }
+    fn sheet_count(&mut self) -> Option<u32> {
+        Some(3)
+    }
+    fn workbook_facts(&mut self) -> Option<std::sync::Arc<dyn calc_func::WorkbookFacts>> {
+        None
     }
 }
 
@@ -270,9 +338,19 @@ pub fn calculate_with_reference_text(
         next_column += shape.cols as u32 + 1;
         has_reference = true;
     }
+    // An attested Touchstone/1 bulk layout places the argument cells on sheet S from column B
+    // (their row stays unknown); without it the cells' place is not known at all.
+    let bulk_layout = cell_transport
+        && args.iter().all(|arg| arg.get("range").is_none())
+        && context.is_some_and(|c| c.cell_layout.as_deref() == Some("touchstone/1-bulk"));
+    let first_column = if bulk_layout { 2 } else { 1 };
+    let mut bulk_sheet = BulkSheet { errors: BTreeMap::new() };
     if cell_transport {
         for (position, value) in values.iter().enumerate() {
-            grid.insert((1, position as u32 + 1), value.clone());
+            grid.insert((1, position as u32 + first_column), value.clone());
+            if let CoreRef::Error(code) = value.core_ref() {
+                bulk_sheet.errors.insert(position as u32 + first_column, code);
+            }
         }
         for (position, argument) in prepared.iter_mut().enumerate() {
             if matches!(
@@ -281,20 +359,23 @@ pub fn calculate_with_reference_text(
             ) {
                 has_reference = true;
                 *argument = CalcValue::reference(ReferenceLike::area(GridArea::cell(
-                    CellKey::new(SheetId::from_parts(1, 0), 1, position as u32 + 1)
+                    CellKey::new(SheetId::from_parts(1, 0), 1, position as u32 + first_column)
                         .expect("argument fits the grid"),
                 )));
             }
         }
     }
-    if has_reference && matches!(target.spelling(), "ROW" | "COLUMN") {
+    if has_reference
+        && (target.spelling() == "ROW" || (target.spelling() == "COLUMN" && !bulk_layout))
+    {
         return "fault:WitnessReferencePosition".to_owned();
     }
     let mode = NumericMode::Fast;
     let visible_constants = context
         .is_some_and(|c| c.input_sheet_state.as_deref() == Some("visible-constant-inputs"))
         || args.iter().any(|arg| arg.get("range").is_some());
-    let mut cells = InputCells(grid, visible_constants);
+    let row_free = bulk_layout && matches!(target.spelling(), "SHEET" | "ISFORMULA" | "FORMULATEXT" | "COLUMN");
+    let mut cells = InputCells(grid, visible_constants, row_free);
     // A capture can know its separators without knowing its complete locale.
     // Preserve only those facts; VALUE and date parsing still require a profile.
     let separators = context.and_then(|c| {
@@ -312,6 +393,9 @@ pub fn calculate_with_reference_text(
     }
     if let Some(reference_text) = reference_text {
         services = services.with_reference_text(reference_text);
+    }
+    if row_free {
+        services = services.with_host(&mut bulk_sheet);
     }
     let result = invoke(
         target,
@@ -609,6 +693,35 @@ mod tests {
                 "{info}"
             );
         }
+    }
+
+    /// dc-ymjf.2.84/.85: an attested Touchstone/1 bulk layout fixes an argument cell's sheet
+    /// and column, not its row.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_bulk_layout_fixes_sheet_and_column_but_not_row() {
+        let bulk = WitnessInvocation {
+            input_transport: Some("cell_value2_bulk".into()),
+            cell_layout: Some("touchstone/1-bulk".into()),
+            ..Default::default()
+        };
+        let cells = WitnessInvocation {
+            input_transport: Some("cell_value2_bulk".into()),
+            ..Default::default()
+        };
+        let text = [Value::String("abc".into())];
+        let error = [serde_json::json!({"error": "NA"})];
+        let one = format!("0x{:016x}", 1f64.to_bits());
+        let two = format!("0x{:016x}", 2f64.to_bits());
+        assert_eq!(calculate("COLUMN", &text, None, Some(&bulk), true), two);
+        assert_eq!(calculate("SHEET", &text, None, Some(&bulk), true), one);
+        assert_eq!(calculate("ISFORMULA", &text, None, Some(&bulk), true), "logical:False");
+        assert_eq!(calculate("ISFORMULA", &error, None, Some(&bulk), true), "logical:True");
+        assert_eq!(calculate("FORMULATEXT", &text, None, Some(&bulk), true), "error:NA");
+        assert_eq!(calculate("FORMULATEXT", &error, None, Some(&bulk), true), "text:=#N/A");
+        assert_eq!(calculate("ROW", &text, None, Some(&bulk), true), "fault:WitnessReferencePosition");
+        assert_eq!(calculate("COLUMN", &text, None, Some(&cells), true), "fault:WitnessReferencePosition");
+        assert!(calculate("FORMULATEXT", &text, None, Some(&cells), true).starts_with("fault:"));
     }
 
     /// The Lists-in-Cells beta functions are #NAME? below compatibility version 3 (Excel

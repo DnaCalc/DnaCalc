@@ -215,6 +215,8 @@ pub struct WitnessInvocation {
     pub addins_open: Option<String>,
     /// The workbook's visible defined names, comma-separated ("" for none), when attested.
     pub defined_names: Option<String>,
+    /// Where the capture's worker placed argument cells, when attested (`touchstone/1-bulk`).
+    pub cell_layout: Option<String>,
 }
 
 impl WitnessInvocation {
@@ -239,6 +241,7 @@ impl WitnessInvocation {
                 "calculation_clock" => &mut result.calculation_clock,
                 "addins_open" => &mut result.addins_open,
                 "defined_names" => &mut result.defined_names,
+                "cell_layout" => &mut result.cell_layout,
                 _ => return Err(format!("{path}.{key}: unknown invocation field")),
             };
             *field = if value.is_null() {
@@ -268,6 +271,7 @@ impl WitnessInvocation {
             ("calculation_clock", &self.calculation_clock),
             ("addins_open", &self.addins_open),
             ("defined_names", &self.defined_names),
+            ("cell_layout", &self.cell_layout),
         ] {
             if let Some(value) = value {
                 node.insert(key.to_owned(), json!(value));

@@ -485,6 +485,7 @@ fn environment(
         calculation_clock: setting("calculation_clock"),
         addins_open: None,
         defined_names: None,
+        cell_layout: None,
     };
     // dc-1943: all 989 FIXED calls in this particular bank were replayed on the same
     // en-ZA host, with identical results. The captured replay is retained under
@@ -550,6 +551,9 @@ fn attest_touchstone_profile(source: &mut ReadingSource, provenance: Option<&Val
     if let Some(open) = evidence["addins_open"].as_array() {
         let files: Option<Vec<&str>> = open.iter().map(Value::as_str).collect();
         context.addins_open = files.map(|files| files.join(","));
+    }
+    if let Some(layout) = evidence["cell_layout"].as_str() {
+        context.cell_layout = Some(layout.to_owned());
     }
     if let Some(names) = evidence["defined_names"].as_array() {
         let names: Option<Vec<&str>> = names.iter().map(Value::as_str).collect();
@@ -4307,6 +4311,7 @@ mod tests {
         assert_eq!(context.thousands_separator.as_deref(), Some(" "));
         assert_eq!(context.addins_open.as_deref(), Some(""));
         assert_eq!(context.defined_names.as_deref(), Some(""));
+        assert_eq!(context.cell_layout.as_deref(), Some("touchstone/1-bulk"));
         let record = &evidence["touchstone_environment"];
         assert_eq!(record["addins_installed"], serde_json::json!([]));
         assert_eq!(record["build"], "20527");
