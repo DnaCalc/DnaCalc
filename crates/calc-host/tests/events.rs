@@ -219,6 +219,40 @@ fn native_after_calculate_follows_only_a_calculation_that_ran() {
     assert_eq!(after(&log), before + 1);
 }
 
+/// dc-1nbp.3.1 (b): the Excel-DNA X0 trace's first write (A1 = 7, nothing dependent) raises SheetChange and no
+/// AfterCalculate; a write that recalculates a formula raises AfterCalculate. A new revision alone is not a calculation.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn native_automation_write_with_nothing_to_calculate_raises_no_after_calculate() {
+    let mut session = book();
+    let log = Rc::new(RefCell::new(Vec::new()));
+    session.set_workbook_event_observer(Some(Rc::new(NativeProbe {
+        log: log.clone(),
+        targets: RefCell::default(),
+        switch: RefCell::default(),
+    })));
+    assert!(session.dispatch(SkinIntent::SetCalcMode(CalcMode::Automatic)).accepted());
+    let write = |session: &mut HostSession, column: u32, text: &str| {
+        let at = cell(session, column);
+        let receipt = session.dispatch_from(
+            calc_host::CommandIngress::Automation,
+            SkinIntent::EnterCell { at, text: text.into() },
+        );
+        assert!(receipt.accepted());
+        while session.has_pending_calculation() {
+            session.advance_calculation();
+        }
+    };
+    write(&mut session, 2, "7");
+    assert_eq!(*log.borrow(), vec!["native 2".to_string()]);
+    log.borrow_mut().clear();
+    write(&mut session, 3, "=B1+1");
+    assert_eq!(log.borrow().iter().filter(|e| *e == "after").count(), 1, "{:?}", log.borrow());
+    log.borrow_mut().clear();
+    write(&mut session, 5, "9");
+    assert_eq!(*log.borrow(), vec!["native 5".to_string()]);
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn native_file_identity_follows_save_as_without_becoming_cell_history() {

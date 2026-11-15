@@ -146,7 +146,7 @@ pub fn step(
         None => {
             let current = host.model.revision();
             let requested = std::mem::take(&mut host.calculate_requested);
-            let current_demanded = requested || host.published != Some(current);
+            let current_demanded = requested;
             // L3 (dc-m3u): automatic except tables leaves data tables until a recalculation is
             // asked for.
             let deferred = host.calc_mode() == CalcMode::AutomaticExceptTables && !requested;
