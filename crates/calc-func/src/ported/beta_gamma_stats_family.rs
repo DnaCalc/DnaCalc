@@ -236,6 +236,30 @@ pub(crate) fn large_shape_inverse_unit(shape: f64) -> f64 {
     crate::ported::excel_numeric::excel_x87_mul(shape, f64::from_bits(0x3ff0_0116_bc77_4cb6))
 }
 
+/// Excel's measured large-shape inverse steps around the saturation factor.
+/// The step count follows the normal quantile divided by the square root of
+/// twice the shape; neighboring factors are three binary64 words apart. The
+/// measured scale is kept away from step transitions, whose rounding is open.
+pub(crate) fn large_shape_inverse_factor(probability: f64, shape: f64) -> Option<f64> {
+    if !(0.05..=0.95).contains(&probability)
+        || !(2.0_f64.powi(95)..2.0_f64.powi(109)).contains(&shape)
+    {
+        return None;
+    }
+    let z = crate::ported::normal_log_family::norm_s_inv_kernel(probability).ok()?;
+    let coordinate = (2_124_007_406_095_908.0 * z) / (2.0 * shape).sqrt();
+    let fraction = coordinate.abs().fract();
+    if (fraction - 0.5).abs() < 0.01 {
+        return None;
+    }
+    let step = coordinate.round();
+    if step.abs() > 8.0 {
+        return None;
+    }
+    let bits = 0x3ff0_0116_bc77_4cb6_i64 + 3 * step as i64;
+    Some(f64::from_bits(bits as u64))
+}
+
 fn validate_gamma_shape(alpha: f64, beta: f64) -> Result<(), WorksheetErrorCode> {
     if !alpha.is_finite() || !beta.is_finite() {
         return Err(WorksheetErrorCode::Value);
@@ -334,6 +358,14 @@ pub fn gamma_inv_kernel(
     }
     if probability == 0.0 {
         return Ok(0.0);
+    }
+    // Shared with the right-tail chi-square inverse. Scale only after the
+    // independently measured unit result has been stored.
+    if (2.0_f64.powi(-40)..2.0_f64.powi(40)).contains(&beta)
+        && let Some(factor) = large_shape_inverse_factor(probability, alpha)
+    {
+        let unit = crate::ported::excel_numeric::excel_x87_mul(alpha, factor);
+        return Ok(crate::ported::excel_numeric::excel_x87_mul(beta, unit));
     }
     // At these large shapes Excel's unit search saturates to the same stored
     // x87 factor as the right-tail chi-square inverse. The scale is
