@@ -121,6 +121,24 @@ fn cube_final_errors_follow_numeric_argument_validation() {
     error(call("CUBESET", vec![t("missing"), t("set"), e(Div0), n(1.0), e(Ref)]), Div0);
 }
 
+/// Saved Excel 20527 controls cover both aliases and reflected searches at
+/// several probabilities, tiny shapes, and second shapes of one and 100.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beta_inverse_rejects_lost_reflected_seed() {
+    for name in ["BETA.INV", "BETAINV"] {
+        for alpha in [1e-200, 1e-100, 1e-50] {
+            for p in [0.9, 0.999, 1.0 - 1e-12] {
+                error(call(name, vec![n(p), n(alpha), n(100.0)]), Num);
+            }
+        }
+        for p in [0.51, 0.75, 0.9, f64::from_bits(1.0_f64.to_bits() - 1)] {
+            error(call(name, vec![n(p), n(1e-100), n(1.0)]), Num);
+        }
+        assert!(call(name, vec![n(0.9), n(1e-20), n(100.0)]).unwrap().as_number().is_some());
+    }
+}
+
 /// Excel rejects an absorbed excess over one in the reflected beta inverse.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
