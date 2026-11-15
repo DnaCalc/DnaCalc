@@ -162,18 +162,16 @@ fn negative_binomial_cdf_reports_absorbed_shape_error() {
     exact(call("NEGBINOM.DIST", args(99.0, 1e100, f64::from_bits(0.99_f64.to_bits() + 1))), 0.0);
 }
 
-/// Gamma and Poisson share Excel's large-count compensation failure.
+/// Excel's gamma distribution can fail on a large-count compensation.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn gamma_and_poisson_report_compensation_error() {
+fn gamma_reports_compensation_error() {
     for name in ["GAMMADIST", "GAMMA.DIST"] {
         for cumulative in [false, true] {
             error(call(name, vec![n(0.5), n(1e100), n(1.0), b(cumulative)]), Num);
             exact(call(name, vec![n(0.75), n(1e100), n(1.0), b(cumulative)]), 0.0);
         }
     }
-    error(call("POISSON.DIST", vec![n(1e100), n(0.5), b(false)]), Num);
-    exact(call("POISSON.DIST", vec![n(1e100), n(0.75), b(false)]), 0.0);
 }
 
 /// Excel reads import argument errors and numeric types before validating the path.

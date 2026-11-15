@@ -217,8 +217,8 @@ pub(crate) fn poisson_mass(x: f64, lambda: f64) -> f64 {
     )
 }
 
-/// The low-mean Poisson prefactor can fail in Excel when its stored
-/// GAMMALN subtraction drops more than one. Gamma distributions share it.
+/// Excel's gamma route can fail in the shared low-mean Poisson prefactor
+/// when its stored GAMMALN subtraction drops more than one.
 pub(crate) fn poisson_compensation_error(x: f64, lambda: f64) -> bool {
     // Below 2^40, even the logarithm of the smallest positive binary64
     // keeps both subtractions below 2^50, where their lost part is under one.
@@ -445,9 +445,6 @@ pub fn poisson_dist_kernel(x: f64, mean: f64, cumulative: bool) -> R {
         return Ok(if cumulative { 1.0 } else { 0.0 });
     }
     if !cumulative {
-        if poisson_compensation_error(x, mean) {
-            return Err(NUM);
-        }
         return finite(poisson_mass(x, mean));
     }
     // P(X <= x) = Q(x + 1, mean), the regularized upper incomplete gamma function (A&S 6.5.13,
