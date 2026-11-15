@@ -5,6 +5,11 @@
     pending.result(timeout=30)               # -> v1-shaped reply dict
 
 Requests are resent after a reconnect with the same ids; the service never evaluates a piece twice.
+
+A call that crashed Excel when it ran alone is answered, not failed: letter "x" in raw(), and in a v1-shaped row
+{"type": "crashed", "reason": "excel-crashed", "function", "arguments": [typed arguments], "worker", "detail"}.
+Test for it with is_crashed(row); the service never retries such a call. A function with too many crashed calls in an
+hour has its remaining suspect calls refused: ServiceError "excel-crash-budget: ... not run" (resubmit later).
 """
 import json
 import os
@@ -22,6 +27,11 @@ except ImportError:
 
 DEFAULT_SOCKET = Path.home() / ".excel-service" / "excel.sock"
 DEFAULT_ENDPOINT = Path(r"C:\Work\DnaCalc\codex-runs\excel-service-v2") / "endpoint.json"
+
+
+def is_crashed(value):
+    """True for a typed row (or raw answer letter "x") that says Excel crashed on that call."""
+    return value == "x" or (isinstance(value, dict) and value.get("type") == "crashed")
 
 
 class ServiceError(RuntimeError):
@@ -97,6 +107,8 @@ class Pending:
         reply = v1.Reply(self.rid, self.function, self.rows, self.index, None, self.envs, self.machine)
         for p, (l, x) in enumerate(zip(letters, values)):
             reply.values[p] = protocol.answer_to_typed(l, x)
+            if l == "x":
+                reply.values[p]["arguments"] = self.rows[p]      # the typed arguments of the call that crashed Excel
             if p in self.inputs:
                 reply.inputs[p] = [protocol.answer_to_typed(il, ix) for il, ix in self.inputs[p]]
         reply.env_id = sorted(self.env_ids)[0] if self.env_ids else None

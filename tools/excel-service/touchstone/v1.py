@@ -93,7 +93,7 @@ class Reply:
     def build(self, strict=True):
         """The v1 reply dict (ok or failed).  strict: a call Excel could not answer faithfully (an input it changed,
         a spill past the bound) fails the whole reply, as the v1 file queue always did; otherwise that call's row is
-        {"type": "unread", "reason": ...} and the rest stands."""
+        {"type": "unread", "reason": ...} (or "crashed", Excel crashed on it alone) and the rest stands."""
         import socket
         from datetime import datetime, timezone
         stamp = datetime.now(timezone.utc).isoformat()
@@ -102,7 +102,7 @@ class Reply:
                     "rows": [], "excel_build": None, "machine": self.machine or socket.gethostname(), "timestamp": stamp,
                     "request_sha256": self.sha}
         for v in self.values:
-            if strict and v["type"] == "unread":
+            if strict and v["type"] in ("unread", "crashed"):
                 return {"version": 1, "id": self.rid, "ok": False,
                         "error": "no answer is qualified for a call: " + json.dumps(v),
                         "rows": [], "excel_build": None, "machine": self.machine or socket.gethostname(),

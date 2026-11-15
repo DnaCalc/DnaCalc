@@ -90,6 +90,22 @@ C# worker when `engines/excel/bin` is missing or older than its sources, and ref
 when that fails. On start the broker also stops worker Excels left behind by an earlier broker: only processes whose
 command line names this state folder, each by PID and start ticks.
 
+Crashes (dc-o2mw). A call that crashed Excel is an answer, never a retry. A crashed multi-call batch is not failed: each
+of its items is marked suspect and goes back to the queue to run alone, and a lone item that crashes again is halved,
+until the crashing call stands by itself. A call that crashed Excel as a one-call batch comes back to its caller as the
+typed result **excel-crashed**: answer letter `x` (`{"reason": "excel-crashed", "function", "k", "args": [raw group
+values], "detail", "worker"}`) in `raw()`, and in the v1-shaped reply a row `{"type": "crashed", "reason":
+"excel-crashed", "function", "arguments": [typed arguments], "worker", "detail"}`; `client.is_crashed(row)` tests for it
+and the other calls of the request are answered as usual. (Through the v1 file queue and strict replies a crashed row
+fails the reply, as `unread` does.) Every such call is appended to `<state>/crash-list.jsonl` (utc, function, token
+shape `k`, raw `args`, worker, batch) for the handbook: Excel crashing on an input is a recorded behaviour. Suspect calls
+and isolated functions' calls run only on the isolation worker (the last non-serial worker, `w2` by default; the one
+worker of a one-worker pool takes everything), so their crashes never count against the restart cap of the shared workers,
+and the shared workers never see them. A function with `CRASH_BUDGET` (6, `--crash-budget`) crashed calls in an hour has
+its remaining suspect calls refused, not run: `ServiceError` `excel-crash-budget: ... not run` (the call was not
+evaluated; resubmit when the crash is understood). The restart cap never takes the last worker that is up: that worker
+restarts again after each cool-down.
+
 Health: `broker.py status` prints one line, `OK|DEGRADED|DOWN workers_up=n/m down=k starting=s queue_calls=q
 oldest_queued_s=t last_answer=...`, exit 0 for OK, 1 for DEGRADED, 2 for DOWN (including a status file older than
 15 s); `status --json` gives the whole record. The broker rewrites `<state>/health.txt` with the same line every 30 s.

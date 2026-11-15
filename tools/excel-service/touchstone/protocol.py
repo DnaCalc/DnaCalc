@@ -225,6 +225,9 @@ def answer_to_typed(letter, value):
         return {"type": "blank"}
     if letter == "u":
         return {"type": "unread", **value}
+    if letter == "x":
+        # Excel crashed on this call, run alone: a recorded answer, never retried (arguments: raw group values)
+        return {"type": "crashed", **value}
     if letter == "m":
         r, c = value["r"], value["c"]
         cells = [answer_to_typed(l, x) for l, x in zip(value["ty"], value["v"])]

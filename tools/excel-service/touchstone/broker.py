@@ -59,6 +59,11 @@ ASYNC_FUNCTIONS = {"IMPORTCSV", "IMPORTTEXT", "IMAGE"}   # answered through an E
 ASYNC_DEADLINE_MS_PER_CALL = 35000
 PROBE_DEADLINE_MS = 20000        # a batch with a function never measured may be slow: wait this long before a kill
 COSTS_SAVE_SECONDS = 60.0
+# A call that crashed Excel when it ran alone is a recorded answer ("excel-crashed" with its arguments), never retried.
+# A function with this many such calls in CRASH_WINDOW has its remaining suspect calls refused (typed, not run):
+# every one would cost an Excel restart.
+CRASH_BUDGET = 6
+CRASH_WINDOW = 3600.0
 
 
 class OpenAdmission:
@@ -180,6 +185,7 @@ class Slot:
         self.down_since = None
         self.capped_noted = False
         self.running = None                      # "bulk", "interactive", "serial" while busy
+        self.isolation = False                   # the one worker that runs suspect and isolated calls
 
 
 class Broker:
@@ -197,6 +203,7 @@ class Broker:
         self.cache_bytes = 0
         self.counters = {"calls": 0, "batches": 0, "requests": 0, "refused": 0, "errors": 0}
         self.crash_counts = {}
+        self.crash_times = {}                    # function -> times of calls that crashed Excel alone (the budget)
         registry = getattr(options, "registry", None)
         self.registry = set(STATE_SENSITIVE if registry is None else [] if registry == ["none"] else registry)
         self.leak_every = getattr(options, "leak_every", 100)
@@ -292,6 +299,11 @@ class Broker:
             slot = Slot(f"w{i + 1}", mt, self.state_dir, self.state_dir / "excel", self.state_dir / "excel" / "worker-logs", self.worker_exe)
             slot.proc.sweep_leftovers = self.opt("sweep_orphans", True)
             self.slots.append(slot)
+        # Suspect and isolated calls run on the last non-serial worker only, so their crashes never take the
+        # shared workers down. A pool with a single such worker has no other choice.
+        plain = [s for s in self.slots if not s.serial]
+        if len(plain) > 1:
+            plain[-1].isolation = True
         await asyncio.gather(*(self.start_slot(s, initial=True) for s in self.slots))
 
     def new_process(self, slot):
@@ -350,7 +362,7 @@ class Broker:
         for slot in self.slots:
             if slot.state != "down" or now < slot.retry_at:
                 continue
-            if self.cap_reached(slot):
+            if self.cap_reached(slot) and any(s.state in ("idle", "busy", "new") for s in self.slots):
                 slot.retry_at = slot.attempts[0] + window
                 when = time.strftime("%H:%M:%SZ", time.gmtime(slot.retry_at))
                 slot.down_reason = (f"restart cap reached ({self.opt('restart_cap', RESTART_CAP)} per {int(window // 60)} min); "
@@ -514,12 +526,16 @@ class Broker:
                     return
             # the serial worker (calculation off the thread pool) is the last choice for ordinary work
             idle.sort(key=lambda s: s.serial)
-            slot = idle[0] if idle else None
-            if slot is None:
+            if not idle:
                 if self.slots and all(s.state == "down" for s in self.slots):
                     self.fail_all("no worker is up")
                 return
-            batch = self.batcher.next_batch()
+            slot, batch = None, None
+            for candidate in idle:
+                batch = self.batcher.next_batch(allow_isolated=candidate.isolation or self.single_plain())
+                if batch is not None:
+                    slot = candidate
+                    break
             if batch is None:
                 return
             slot.state = "busy"
@@ -527,6 +543,10 @@ class Broker:
             asyncio.create_task(self.run_batch(slot, batch))
         self.run_pending_checks()
         self.maybe_recycle()
+
+    def single_plain(self):
+        """True when the pool has no separate isolation worker (one non-serial worker): it runs everything."""
+        return not any(s.isolation for s in self.slots)
 
     def maybe_recycle(self):
         """Staggered: at most one worker is being replaced, and never the last one that is up."""
@@ -579,6 +599,15 @@ class Broker:
             # Their answer arrives through an async query (#GETTING_DATA until done); the worker waits for it
             # one call at a time (dc-4rsw), so allow each call its own wait.
             deadline_ms = max(deadline_ms, ASYNC_DEADLINE_MS_PER_CALL * max(1, calls))
+        confined = all(sl.item.suspect for sl in batch.slices)       # a suspect or isolated call: crashes are not the pool's
+        if confined and self.over_crash_budget(batch):
+            names = ", ".join(sorted({g["f"] for g in batch.groups}))
+            self.fail_batch(batch, "excel-crash-budget",
+                            f"{names}: {self.opt('crash_budget', CRASH_BUDGET)} calls crashed Excel within "
+                            f"{int(self.opt('crash_window', CRASH_WINDOW) // 60)} min; these {batch.calls} calls were not run")
+            slot.state = "idle"
+            self.kick()
+            return
         message = {"id": number, "groups": [*batch.primer, *batch.groups], "deadline_ms": deadline_ms, "echo": batch.echo,
                    "serial": batch.serial}
         t_dispatch = time.monotonic()
@@ -605,6 +634,14 @@ class Broker:
             restart = error in ("excel-crashed", "fingerprint-drift-after")
             if error == "excel-crashed":
                 slot.crashes += 1
+                if not batch.serial:
+                    # the batch is answered or split here, not failed: no caller retries a call that crashed Excel
+                    self.log_batch(slot, number, batch, None, t_dispatch, t_back, error=error)
+                    self.waits.add("excel-calc", worker=slot.name, seconds=round(t_back - t_dispatch, 3), detail="excel-crashed")
+                    self.on_crash(slot, batch, number, detail, confined)
+                    await self.finish_restart(slot, counted=not confined)
+                    self.kick()
+                    return
                 for item_f in {g["f"] for g in batch.groups}:
                     self.crash_counts[item_f] = self.crash_counts.get(item_f, 0) + 1
                     if self.crash_counts[item_f] >= 2:
@@ -650,13 +687,83 @@ class Broker:
             await self.loop.run_in_executor(self.executor, slot.proc.kill)
             self.mark_down(slot, str(error))
 
-    async def finish_restart(self, slot):
-        """The worker restarts its own Excel after a crash; that is a restart, so it counts against the hourly cap."""
-        if self.cap_reached(slot):
-            await self.loop.run_in_executor(self.executor, slot.proc.kill)
-            self.mark_down(slot, f"restart cap reached ({self.opt('restart_cap', RESTART_CAP)} per hour) after a crash")
+    # ---- crashes: answer or bisect, never retry on the shared workers ------------------------------
+    def over_crash_budget(self, batch):
+        window = self.opt("crash_window", CRASH_WINDOW)
+        budget = self.opt("crash_budget", CRASH_BUDGET)
+        now = time.time()
+        for f in {g["f"] for g in batch.groups}:
+            times = self.crash_times.get(f, [])
+            if sum(1 for t in times if now - t < window) < budget:
+                return False
+        return True
+
+    def on_crash(self, slot, batch, number, detail, confined):
+        """Excel crashed on this batch. One call: that call is the answer (typed excel-crashed, with its arguments).
+        Several: every item is marked suspect and goes back to run alone on the isolation worker, a lone item
+        that crashes again is halved, so the crashing calls are found without the shared workers seeing them."""
+        slices = batch.slices
+        if batch.calls == 1 and len(slices) == 1:
+            self.answer_crashed(slot, batch, number, detail)
             return
-        slot.attempts.append(time.time())
+        if not confined:
+            for f in {g["f"] for g in batch.groups}:
+                self.crash_counts[f] = self.crash_counts.get(f, 0) + 1
+                if self.crash_counts[f] >= 2:
+                    self.batcher.isolate.add(f)
+            self.save_isolated()
+        items = []
+        for sl in slices:
+            item = sl.item
+            if item.n > 1 and (len(slices) == 1 or item.suspect):
+                head, tail = batcher.split_item(item, item.n // 2)
+                head.suspect = tail.suspect = True
+                items += [head, tail]
+            else:
+                item.suspect = True
+                items.append(item)
+        self.batcher.requeue_items(items)
+        self.log_event("crash-bisect", worker=slot.name, batch=number, calls=batch.calls, items=len(items))
+
+    def answer_crashed(self, slot, batch, number, detail):
+        group = batch.groups[0]
+        value = {"reason": "excel-crashed", "function": group["f"], "k": group["k"], "args": list(group["v"]),
+                 "detail": str(detail or "")[:200], "worker": slot.name}
+        for key in ("x", "spill"):
+            if key in group:
+                value[key] = group[key]
+        f = group["f"]
+        now = time.time()
+        self.crash_times.setdefault(f, []).append(now)
+        self.crash_counts[f] = self.crash_counts.get(f, 0) + 1
+        if self.crash_counts[f] >= 2:
+            self.batcher.isolate.add(f)
+        self.save_isolated()
+        record = {"utc": logs.utc().isoformat(timespec="seconds"), "function": f, "k": group["k"], "args": value["args"],
+                  "worker": slot.name, "batch": number, "detail": value["detail"]}
+        for key in ("x", "spill"):
+            if key in group:
+                record[key] = group[key]
+        try:
+            with open(self.state_dir / "crash-list.jsonl", "a", encoding="ascii") as out:
+                out.write(json.dumps(record) + "\n")
+        except OSError:
+            pass
+        self.log_event("excel-crashed-call", worker=slot.name, function=f, batch=number)
+        result = {"env_id": (slot.hello or {}).get("env_id"), "batch": number, "groups": [{"ty": "x", "v": [value]}]}
+        self.respond(batch, result, slot)
+        self.counters["crashed_calls"] = self.counters.get("crashed_calls", 0) + 1
+
+    async def finish_restart(self, slot, counted=True):
+        """The worker restarts its own Excel after a crash; that is a restart, so it counts against the hourly cap,
+        except after a crash of a suspect or isolated call (the isolation worker exists to take those). The cap
+        never takes the last worker that is up."""
+        if counted:
+            if self.cap_reached(slot) and any(s is not slot and s.state in ("idle", "busy", "new") for s in self.slots):
+                await self.loop.run_in_executor(self.executor, slot.proc.kill)
+                self.mark_down(slot, f"restart cap reached ({self.opt('restart_cap', RESTART_CAP)} per hour) after a crash")
+                return
+            slot.attempts.append(time.time())
         slot.restarts += 1
         await self.recycle_after_worker_event(slot)
 
@@ -664,7 +771,7 @@ class Broker:
         """After a missed deadline or a lost worker process: start it once more, within the cap; a failed start
         leaves it down until its cool-down passes."""
         await self.loop.run_in_executor(self.executor, slot.proc.kill)
-        if self.cap_reached(slot):
+        if self.cap_reached(slot) and any(s is not slot and s.state in ("idle", "busy", "new") for s in self.slots):
             self.mark_down(slot, f"restart cap reached ({self.opt('restart_cap', RESTART_CAP)} per hour)")
             return
         slot.restarts += 1
@@ -1173,6 +1280,8 @@ def command_start(options):
         run += f" --cooldown {options.cooldown}"
     if options.restart_cap is not None:
         run += f" --restart-cap {options.restart_cap}"
+    if getattr(options, "crash_budget", None) is not None:
+        run += f" --crash-budget {options.crash_budget}"
     subprocess.Popen(["pwsh", "-NoProfile", "-File", str(guard), "-Command", run, "-Log", str(state / "console.log"),
                       "-GuardOut", str(state / "guard.json"), "-SessionRoot", str(state / "excel"),
                       "-DesktopName", options.desktop],
@@ -1264,6 +1373,8 @@ def main():
     parser.add_argument("--json", action="store_true", help="status: the full status.json instead of the one-line health")
     parser.add_argument("--cooldown", type=float, default=None, help=f"seconds a down worker waits before a restart (default {HEAL_COOLDOWN:.0f})")
     parser.add_argument("--restart-cap", type=int, default=None, help=f"restarts per worker per hour (default {RESTART_CAP})")
+    parser.add_argument("--crash-budget", type=int, default=None,
+                        help=f"calls of one function that may crash Excel per hour before its suspect calls are refused (default {CRASH_BUDGET})")
     parser.add_argument("--since", default=None, help="e.g. 24h, 7d or an ISO time")
     options = parser.parse_args()
     options.local_queue = options.local_queue or options.state / "queue"

@@ -11,7 +11,7 @@ compressed; the ssh stream between the broker and a relay is.
 | answer | `A` | service to client | `{"id", "seq", "env", "w", "b", "g": [...], "order"?, "c"?}` |
 | done | `D` | service to client | `{"id", "calls", "envs", "seconds", "c"?}` |
 | env | `E` | service to client | `{"env_id", "env"}` (before the first answer that names it) |
-| error | `X` | service to client | `{"id", "seq", "code", "detail", "c"?}` (`refused`, `excel-crashed`, `excel-timeout`, `worker-down`, `auth`) |
+| error | `X` | service to client | `{"id", "seq", "code", "detail", "c"?}` (`refused`, `excel-crashed` for serial batches, `excel-crash-budget`, `excel-timeout`, `worker-down`, `auth`) |
 | ping/pong | `P`/`Q` | both | echo |
 | wait | `W` | client to service | `{"kind", "reason", "seconds", "lane"}` for the waits log |
 
@@ -42,7 +42,8 @@ socket service and are currently unavailable in serial mode and the legacy file 
 
 ## Answers
 An answer frame holds groups `{"ty": "nnte...", "o" | "i", "v": [...]}`: one type letter and value per call: `n` bits,
-`t` text, `b` boolean, `e` error name (`"#N/A"`, `"#SPILL!"`), `z` blank, `u` unread (`{"reason", "read_back"}`: Excel
+`t` text, `b` boolean, `e` error name (`"#N/A"`, `"#SPILL!"`), `z` blank, `x` Excel crashed on this call run alone (`{"reason": "excel-crashed", "function", "k", "args", "detail", "worker"}`; never retried),
+`u` unread (`{"reason", "read_back"}`: Excel
 changed this input, or a spill passed the bound; the rest of the request stands), `m` a matrix
 (`{"r", "c", "ty", "v"}`). With `echo`, `ity` and `iv` list the inputs Excel read back, `width` values per call. `env` names the
 environment entry (`envs.jsonl`); `w` the worker, `b` the batch. Answers arrive in any order and in pieces: place them

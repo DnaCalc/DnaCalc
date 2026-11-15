@@ -3,7 +3,8 @@
 Function behaviour: ID returns each first argument unchanged (as the number it came in); CRASH answers
 excel-crashed once per process and then restarts (sends a new hello); SLEEP sleeps 0.3 s per batch; anything
 else returns the number 1.0.  CRASHALWAYS answers excel-crashed every time it is asked (and restarts); DIE ends the
-worker process without an answer; HEAVY costs 20 ms per call; a start also fails while the file named by
+worker process without an answer; CRASHON answers excel-crashed (and restarts) whenever a batch holds a call whose
+first argument is 13.0 (402a000000000000), the marked call; HEAVY costs 20 ms per call; a start also fails while the file named by
 TOUCHSTONE_TEST_FAIL_FLAG exists and holds this worker's name (or nothing).
 """
 import json
@@ -61,7 +62,9 @@ while True:
     groups = [g for g in payload["groups"] if not g.get("p")]          # primer calls are evaluated, not answered
     if any(g["f"] == "DIE" for g in groups):
         os._exit(1)
-    if any(g["f"] == "CRASH" for g in groups) and not crashed or any(g["f"] == "CRASHALWAYS" for g in groups):
+    marked = any(g["f"] == "CRASHON" and any(g["v"][i * max(1, len(g["v"]) // g["n"])] == "402a000000000000" for i in range(g["n"]))
+                 for g in groups)
+    if any(g["f"] == "CRASH" for g in groups) and not crashed or any(g["f"] == "CRASHALWAYS" for g in groups) or marked:
         crashed = True
         send("R", {"id": payload["id"], "env_id": "fake00000001", "worker": NAME, "batch": 1, "error": "excel-crashed",
                    "detail": "fake crash", "deadline": False})

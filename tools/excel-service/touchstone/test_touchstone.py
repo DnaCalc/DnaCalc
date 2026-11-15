@@ -237,6 +237,32 @@ class BatcherTests(unittest.TestCase):
             sizes.append((batch.groups[0]["f"], batch.calls))
         self.assertEqual([s for s in sizes if s[0] == "CRASHY"], [("CRASHY", 1)] * 5)
 
+    def test_isolated_and_suspect_calls_wait_for_the_isolation_worker_and_ordinary_work_passes_them(self):
+        b = batcher.Batcher()
+        b.isolate.add("CRASHY")
+        b.add_piece(piece("a", "r1", "CRASHY", 5))
+        b.add_piece(piece("a", "r2", "ABS", 10))
+        batch = b.next_batch(allow_isolated=False)
+        self.assertEqual([(g["f"], g["n"]) for g in batch.groups], [("ABS", 10)])
+        self.assertIsNone(b.next_batch(allow_isolated=False))          # only CRASHY is left: not for a shared worker
+        self.assertTrue(b.has_work())
+        item = b.next_batch(allow_isolated=True)
+        self.assertEqual((item.groups[0]["f"], item.calls), ("CRASHY", 1))
+        self.assertTrue(item.slices[0].item.suspect)
+
+    def test_a_suspect_item_runs_whole_and_alone_and_a_halved_item_keeps_the_suspicion(self):
+        b = batcher.Batcher()
+        b.add_piece(piece("a", "r1", "ABS", 8))
+        first = b.next_batch()
+        for sl in first.slices:
+            sl.item.suspect = True
+        head, tail = batcher.split_item(first.slices[0].item, 4)
+        head.suspect = tail.suspect = True
+        b.requeue_items([head, tail])
+        b.add_piece(piece("a", "r2", "ABS", 3))
+        got = b.next_batch()
+        self.assertEqual((got.calls, len(got.slices)), (4, 1))
+
     def test_cost_learning_ignores_small_batches_and_stays_bounded(self):
         b = batcher.Batcher()
         small = batcher.Batch()
@@ -422,14 +448,15 @@ class BrokerTests(unittest.TestCase):
         finally:
             stop()
 
-    def test_a_crash_fails_only_its_batch_and_the_worker_comes_back_once(self):
+    def test_a_call_that_crashed_excel_alone_is_answered_as_excel_crashed_and_the_worker_comes_back_once(self):
         broker, state, stop = start_broker(workers=1)
         try:
             from touchstone import client
             conn = self.connect(state)
-            with self.assertRaises(client.ServiceError) as caught:
-                conn.submit_groups([{"f": "CRASH", "k": "n", "n": 1, "v": [ONE]}]).raw(30)
-            self.assertIn("excel-crashed", str(caught.exception))
+            letters, values = conn.submit_groups([{"f": "CRASH", "k": "n", "n": 1, "v": [ONE]}]).raw(30)
+            self.assertEqual(letters, ["x"])
+            self.assertTrue(client.is_crashed(letters[0]))
+            self.assertEqual((values[0]["reason"], values[0]["function"], values[0]["args"]), ("excel-crashed", "CRASH", [ONE]))
             deadline = time.monotonic() + 15
             while broker.slots[0].state != "idle" and time.monotonic() < deadline:
                 time.sleep(0.05)
@@ -567,9 +594,9 @@ class ClientApiTests(unittest.TestCase):
         try:
             with self.assertRaises(ValueError):
                 c.ask("ID", [[{"type": "bogus"}]])
-            with self.assertRaises(self.top.ServiceError) as caught:
-                c.ask("CRASH", [[self.top.number(1.0)]])
-            self.assertIn("excel-crashed", str(caught.exception))
+            row = c.ask("CRASH", [[self.top.number(1.0)]])["rows"][0]        # a crash is an answer, with its arguments
+            self.assertEqual((row["type"], row["reason"], row["function"]), ("crashed", "excel-crashed", "CRASH"))
+            self.assertEqual(row["arguments"], [self.top.number(1.0)])
         finally:
             c.close()
 
@@ -864,6 +891,59 @@ class SelfHealingTests(unittest.TestCase):
             time.sleep(0.05)
         return False
 
+    CRASH_MARK = "402a000000000000"        # 13.0: the fake worker's CRASHON crashes on a batch holding it
+
+    def test_a_marked_call_comes_back_as_excel_crashed_the_others_are_answered_and_no_worker_hits_the_cap(self):
+        broker, state, stop = start_broker(workers=3, extra={"cooldown": 0.3})
+        try:
+            from touchstone import client
+            conn = self.connect(state)
+            marked_at, n = 17, 40
+            values = [ONE] * n
+            values[marked_at] = self.CRASH_MARK
+            pending = conn.submit_groups([{"f": "CRASHON", "k": "n", "n": n, "v": values}])
+            other = conn.submit_groups([{"f": "ID", "k": "n", "n": 3, "v": [ONE, TWO, ONE]}])
+            letters, answers = pending.raw(60)
+            self.assertEqual([i for i, l in enumerate(letters) if l == "x"], [marked_at])
+            self.assertEqual([l for i, l in enumerate(letters) if i != marked_at], ["n"] * (n - 1))
+            crashed = answers[marked_at]
+            self.assertEqual((crashed["reason"], crashed["function"], crashed["args"]), ("excel-crashed", "CRASHON", [self.CRASH_MARK]))
+            self.assertEqual(other.raw(60)[1], [ONE, TWO, ONE])
+            # never retried: the crash list holds the call once, and the shared workers saw at most the first crash
+            listed = [json.loads(line) for line in (state / "crash-list.jsonl").read_text().splitlines()]
+            self.assertEqual([(r["function"], r["args"]) for r in listed], [("CRASHON", [self.CRASH_MARK])])
+            self.assertTrue(self.wait_for(lambda: all(s.state == "idle" for s in broker.slots), 20))
+            cap = broker.opt("restart_cap", 3)
+            self.assertEqual([s.name for s in broker.slots if s.isolation], ["w2"])
+            self.assertTrue(all(broker.window_attempts(s) < cap for s in broker.slots))
+            self.assertLessEqual(sum(broker.window_attempts(s) for s in broker.slots), 1)    # only the first, unattributed crash counts
+            self.assertGreaterEqual(broker.slots[1].crashes, 1)
+            self.assertTrue(broker.health_line().startswith("OK "), broker.health_line())
+            # the function is isolated from the second crash on; its later calls run on the isolation worker only
+            again = conn.submit_groups([{"f": "CRASHON", "k": "n", "n": 3, "v": [ONE, self.CRASH_MARK, TWO]}])
+            letters, _ = again.raw(60)
+            self.assertEqual(letters, ["n", "x", "n"])
+            self.assertEqual(sum(s.crashes for s in broker.slots if not s.isolation), 1)
+        finally:
+            stop()
+
+    def test_a_function_whose_every_call_crashes_stops_at_the_budget_and_the_workers_stay_up(self):
+        broker, state, stop = start_broker(workers=3, extra={"cooldown": 0.3, "crash_budget": 3})
+        try:
+            from touchstone import client
+            conn = self.connect(state)
+            pending = conn.submit_groups([{"f": "CRASHON", "k": "n", "n": 12, "v": [self.CRASH_MARK] * 12}])
+            with self.assertRaises(client.ServiceError) as caught:
+                pending.raw(90)
+            self.assertIn("excel-crash-budget", str(caught.exception))
+            listed = (state / "crash-list.jsonl").read_text().splitlines()
+            self.assertEqual(len(listed), 3)
+            self.assertTrue(self.wait_for(lambda: all(s.state == "idle" for s in broker.slots), 20))
+            self.assertTrue(all(broker.window_attempts(s) < broker.opt("restart_cap", 3) for s in broker.slots))
+            self.assertEqual(conn.submit_groups([{"f": "ID", "k": "n", "n": 1, "v": [TWO]}]).raw(30)[1], [TWO])
+        finally:
+            stop()
+
     def test_a_failed_start_is_retried_after_the_cooldown_and_never_hammered(self):
         import os
         flag = Path(tempfile.mkdtemp()) / "fail"
@@ -929,28 +1009,34 @@ class SelfHealingTests(unittest.TestCase):
         finally:
             stop()
 
-    def test_repeated_crashes_hit_the_cap_then_down_with_a_status_and_a_waits_entry_then_heal_now(self):
-        broker, state, stop = start_broker(workers=1, extra={"cooldown": 0.3, "restart_cap": 3})
+    def test_repeated_lost_workers_hit_the_cap_then_down_but_the_last_worker_stays_up_until_heal_now(self):
+        broker, state, stop = start_broker(workers=2, extra={"cooldown": 0.3, "restart_cap": 2})
         try:
             from touchstone import client
             conn = self.connect(state)
-            for _ in range(4):
-                self.assertTrue(self.wait_for(lambda: broker.slots[0].state in ("idle", "down")))
-                if broker.slots[0].state == "down":
+            for _ in range(8):
+                self.assertTrue(self.wait_for(lambda: any(s.state == "idle" for s in broker.slots)))
+                if any(s.state == "down" for s in broker.slots):
                     break
                 with self.assertRaises(client.ServiceError):
-                    conn.submit_groups([{"f": "CRASHALWAYS", "k": "n", "n": 1, "v": [ONE]}]).raw(30)
-            self.assertTrue(self.wait_for(lambda: broker.slots[0].state == "down"))
-            slot = broker.slots[0]
+                    conn.submit_groups([{"f": "DIE", "k": "n", "n": 1, "v": [ONE]}]).raw(30)
+            self.assertTrue(self.wait_for(lambda: any(s.state == "down" for s in broker.slots)))
+            slot = next(s for s in broker.slots if s.state == "down")
             self.assertIn("restart cap", slot.down_reason)
-            self.assertTrue(broker.health_line().startswith("DOWN "), broker.health_line())
+            self.assertTrue(broker.health_line().startswith("DEGRADED "), broker.health_line())
             time.sleep(1.0)
             self.assertEqual(slot.state, "down")                      # the cap holds even after the cool-down
             self.assertIn("restart cap", (state / "log" / "waits.jsonl").read_text())
-            self.assertTrue(json.loads((state / "isolated.json").read_text())["isolated"] == ["CRASHALWAYS"])
+            # the last worker up is never taken down by the cap: it keeps restarting and nothing waits forever
+            other = next(s for s in broker.slots if s is not slot)
+            for _ in range(6):
+                self.assertTrue(self.wait_for(lambda: other.state in ("idle", "down")))
+                with self.assertRaises(client.ServiceError):
+                    conn.submit_groups([{"f": "DIE", "k": "n", "n": 1, "v": [ONE]}]).raw(30)
+            self.assertTrue(self.wait_for(lambda: other.state == "idle", 20))
+            self.assertEqual(conn.submit_groups([{"f": "ID", "k": "n", "n": 1, "v": [TWO]}]).raw(30)[1], [TWO])
             (state / "heal-now").touch()
             self.assertTrue(self.wait_for(lambda: slot.state == "idle"))
-            self.assertEqual(conn.submit_groups([{"f": "ID", "k": "n", "n": 1, "v": [TWO]}]).raw(30)[1], [TWO])
         finally:
             stop()
 

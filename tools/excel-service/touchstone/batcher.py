@@ -57,10 +57,13 @@ class Piece:
 
 class Item:
     """A slice of one group of one piece, at most CHUNK calls."""
-    __slots__ = ("piece", "group", "n")
+    __slots__ = ("piece", "group", "n", "suspect")
 
-    def __init__(self, piece, group):
+    def __init__(self, piece, group, suspect=False):
         self.piece, self.group, self.n = piece, group, group["n"]
+        # suspect: this item crashed Excel (or is an isolated function's call). It runs alone, on the isolation
+        # worker only; if it crashes again it is halved until the crashing call stands alone.
+        self.suspect = suspect
 
 
 class Slice:
@@ -98,9 +101,12 @@ class _Origin:
     def empty(self):
         return not self.shapes
 
-    def first(self):
-        key = next(iter(self.shapes))
-        return key, self.shapes[key]
+    def first(self, allowed=None):
+        """The first shape whose head item `allowed` accepts (any, when None), or None."""
+        for key, dq in self.shapes.items():
+            if allowed is None or allowed(dq[0]):
+                return key, dq
+        return None
 
 
 class _Class:
@@ -149,28 +155,57 @@ class _Class:
                     best = t
         return best
 
-    def take(self, budget_calls, budget_bytes, isolate, costs=None, budget_ms=None):
+    def take(self, budget_calls, budget_bytes, isolate, costs=None, budget_ms=None, allow_isolated=True):
         """Items by cost-weighted deficit round robin over clients until a budget is spent.
 
         Returns (items, calls, bytes, estimated_ms).  With budget_ms (bulk) a batch is cut to about that much
         estimated Excel time; a function whose cost was never measured goes alone, PROBE_CALLS at a time, so its
-        cost is learnt from a batch that holds nothing else.  An isolated function goes as a one-call batch."""
+        cost is learnt from a batch that holds nothing else.  An isolated function goes as a one-call batch, and a
+        suspect item (one that crashed Excel) alone; both only when allow_isolated (the isolation worker asks)."""
         costs = costs if costs is not None else {}
         taken, calls, size, spent = [], 0, 0, 0.0
+        idle_turns = 0
+        if allow_isolated:
+            def allowed(item):
+                return True
+        else:
+            def allowed(item):
+                return not (item.suspect or item.group["f"] in isolate)
         while self.order and calls < budget_calls and size < budget_bytes:
             origin = self.order[0]
             o = self.origins[origin]
+            if o.first(allowed) is None:
+                # nothing this worker may take from this origin: pass it on, and stop when every origin passes
+                self.order.rotate(-1)
+                idle_turns += 1
+                if idle_turns >= len(self.order):
+                    break
+                continue
+            idle_turns = 0
             self.deficit[origin] += QUANTUM_US
             stop = False
             while not o.empty() and self.deficit[origin] > 0 and calls < budget_calls and size < budget_bytes:
-                key, dq = o.first()
+                pick = o.first(allowed)
+                if pick is None:
+                    break
+                key, dq = pick
                 item = dq[0]
                 f = item.group["f"]
-                if f in isolate:
-                    # A function that crashed Excel twice runs as a one-call batch of its own.
+                if item.suspect or f in isolate:
+                    # A suspect item, or a function that crashed Excel twice, runs as a batch of its own: the
+                    # suspect item whole, an isolated function's call one at a time.
                     if taken:
                         stop = True
                         break
+                    if item.suspect:
+                        head = dq.popleft()
+                        if not dq:
+                            del o.shapes[key]
+                        self.calls -= head.n
+                        if o.empty():
+                            self.order.popleft()
+                            self.deficit[origin] = 0
+                        return [head], head.n, 100 * head.n, costs.get(f, DEFAULT_COST_US) * head.n / 1000
                     if item.n > 1:
                         head, tail = split_item(item, 1)
                         dq[0] = tail
@@ -178,6 +213,7 @@ class _Class:
                         head = dq.popleft()
                         if not dq:
                             del o.shapes[key]
+                    head.suspect = True
                     self.calls -= 1
                     if o.empty():
                         self.order.popleft()
@@ -307,16 +343,20 @@ class Batcher:
     def has_work(self):
         return not (self.interactive.empty() and self.bulk.empty())
 
-    def next_batch(self):
-        """Assemble the next batch for an idle worker, or None."""
+    def next_batch(self, allow_isolated=True):
+        """Assemble the next batch for an idle worker, or None.  allow_isolated=False (every worker but the
+        isolation worker) leaves suspect items and isolated functions' calls in the queue."""
         if not self.has_work():
             return None
         batch = Batch()
+        items = []
         if not self.interactive.empty():
-            items, calls, _, est = self.interactive.take(BATCH_CALLS, BATCH_BYTES, self.isolate, self.costs)
-            batch.interactive = True
-        else:
-            items, calls, _, est = self.bulk.take(BATCH_CALLS, BATCH_BYTES, self.isolate, self.costs, BULK_BATCH_MS)
+            items, calls, _, est = self.interactive.take(BATCH_CALLS, BATCH_BYTES, self.isolate, self.costs,
+                                                         allow_isolated=allow_isolated)
+            batch.interactive = bool(items)
+        if not items and not self.bulk.empty():
+            items, calls, _, est = self.bulk.take(BATCH_CALLS, BATCH_BYTES, self.isolate, self.costs, BULK_BATCH_MS,
+                                                  allow_isolated=allow_isolated)
         if not items:
             return None
         merged = {}
@@ -380,6 +420,12 @@ class Batcher:
         times = [t for t in (self.interactive.oldest(), self.bulk.oldest()) if t is not None]
         times += [p.t_received for p in self.serial]
         return min(times) if times else None
+
+    def requeue_items(self, items):
+        """Put items back at the front, in order (after a crash: suspect items to run alone)."""
+        for item in reversed(items):
+            cls = self.interactive if item.piece.priority == "interactive" else self.bulk
+            cls.push_front(item)
 
     def requeue(self, batch):
         """Put a batch's items back at the front (a worker was lost before running it)."""
