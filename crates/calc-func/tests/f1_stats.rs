@@ -3201,6 +3201,28 @@ fn integer_gamma_cumulative_uses_the_stored_factorial_polynomial() {
     }
 }
 
+/// Excel publishes a tiny gamma CDF as zero, while a nearby normal result remains numeric.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gamma_cumulative_flushes_measured_subnormal_results() {
+    for function in ["GAMMA.DIST", "GAMMADIST"] {
+        exact(
+            call(
+                function,
+                vec![n(f64::from_bits(0x3fe7_17d6_0e9e_206b)), n(100.0), n(f64::from_bits(0x403b_ffff_ffff_ffff)), b(true)],
+            ),
+            0.0,
+        );
+        exact(
+            call(
+                function,
+                vec![n(f64::from_bits(0x3f84_4772_37e4_22f4)), n(110.0), n(f64::from_bits(0x3fc2_0000_0000_0000)), b(true)],
+            ),
+            f64::from_bits(0x009c_cdfd_302e_1efb),
+        );
+    }
+}
+
 /// Recorded lower-series rows from both argument halves: all four now agree with Excel.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
