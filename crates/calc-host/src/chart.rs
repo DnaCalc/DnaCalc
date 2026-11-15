@@ -295,6 +295,54 @@ impl HostState {
         (views, unread)
     }
 
+    /// What a chart's series were made from (dc-piw0.11 Q22): whether they run along rows, and the
+    /// area that holds every cell they name, values, categories and names. Excel keeps this
+    /// state on the chart; here it is read back from the series' references. `None` for a chart
+    /// without a series that names cells.
+    pub(crate) fn chart_source_of(&self, sheet: SheetId, chart: &calc_doc_model::Chart) -> Option<(bool, calc_value::GridArea)> {
+        let origin = CellKey::new(sheet, 1, 1).ok()?;
+        let area_of = |data: &Option<ChartData>| match self.resolve_reference_text(origin, data.as_ref()?.formula.as_deref()?.trim_start_matches('=')) {
+            crate::ReferenceTarget::Area(area) => Some(area),
+            _ => None,
+        };
+        let series: Vec<&calc_doc_model::ChartSeries> = chart.plots.iter().flat_map(|p| p.series.iter()).collect();
+        let first = series.first()?;
+        let values = area_of(&first.values)?;
+        let name = area_of(&first.name);
+        let categories = area_of(&first.categories);
+        // A row of values runs along rows, a column along columns; one cell is read from where its name sits
+        // (left of it in a row series, above it in a column series), else from its categories.
+        let rows = if values.column_count() > 1 && values.row_count() == 1 {
+            true
+        } else if values.row_count() > 1 && values.column_count() == 1 {
+            false
+        } else if let Some(name) = name {
+            name.first().column() < values.first().column()
+        } else if let Some(categories) = categories {
+            categories.row_count() == 1 && categories.column_count() > 1
+        } else {
+            return None;
+        };
+        let (mut top, mut left) = (u32::MAX, u32::MAX);
+        let (mut bottom, mut right) = (0, 0);
+        for data in series.iter().flat_map(|s| [&s.name, &s.categories, &s.values]) {
+            let Some(area) = area_of(data) else { continue };
+            if area.sheet() != values.sheet() {
+                continue;
+            }
+            top = top.min(area.first().row());
+            left = left.min(area.first().column());
+            bottom = bottom.max(area.last().row());
+            right = right.max(area.last().column());
+        }
+        let area = calc_value::GridArea::new(
+            CellKey::new(values.sheet(), top, left).ok()?,
+            CellKey::new(values.sheet(), bottom, right).ok()?,
+        )
+        .ok()?;
+        Some((rows, area))
+    }
+
     /// The name a series shows: the text of the cell it names, else `Series<n>` (dc-piw0 Q6).
     pub(crate) fn series_display_name(
         &self,
@@ -308,8 +356,42 @@ impl HostState {
             .as_ref()
             .map(|data| self.data_values(data, origin).0)
             .and_then(|names| names.into_iter().flatten().next())
-            .map(|value| text_of(&value))
+            .map(|value| self.name_cell_text(series, origin, &value))
             .unwrap_or_else(|| format!("Series{}", place + 1))
+    }
+
+    /// The text of the cell a series' name reads: a number under a number format shows as the cell shows it (Q22:
+    /// a date label is `2023-03-15`), else its value as text.
+    fn name_cell_text(&self, series: &calc_doc_model::ChartSeries, origin: CellKey, value: &CalcValue) -> String {
+        let shown = (|| {
+            let formula = series.name.as_ref()?.formula.as_deref()?;
+            let crate::ReferenceTarget::Area(area) = self.resolve_reference_text(origin, formula.trim_start_matches('=')) else {
+                return None;
+            };
+            if area.cell_count() != 1 || !matches!(value.core_ref(), CoreRef::Number(_)) {
+                return None;
+            }
+            let code = self.number_format(area.first())?;
+            if code.eq_ignore_ascii_case("general") {
+                return None;
+            }
+            let environment = self.entry_environment();
+            let fallback;
+            let profile = match environment.profile.as_ref() {
+                Some(profile) => profile,
+                None => {
+                    fallback = calc_func::locale::format_profile(calc_func::locale::LocaleId::EnUs);
+                    &fallback
+                }
+            };
+            let system = if self.declared_date1904() {
+                calc_func::locale::DateSystem::System1904
+            } else {
+                calc_func::locale::DateSystem::System1900
+            };
+            calc_func::cell_text(profile, system, value, code).ok()
+        })();
+        shown.unwrap_or_else(|| text_of(value))
     }
 
     /// A drawing point's cell where the session's insertions and deletions moved it, with its

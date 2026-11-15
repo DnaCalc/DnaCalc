@@ -299,6 +299,65 @@ impl WorkbookAutomation {
         Ok(report(workbook, sheet, "Chart", ReportItem::Chart(part)))
     }
 
+    /// How the chart's series run, when it has any that name cells: true along rows (Q22).
+    fn chart_orientation(session: &HostSession, sheet: SheetId, part: &str) -> Option<bool> {
+        let chart = Self::charts_of(session, sheet).into_iter().find(|c| c.part == part)?;
+        session.host().chart_source_of(sheet, &chart).map(|(rows, _)| rows)
+    }
+    /// `Chart.PlotBy` (Q22): xlRows (1) or xlColumns (2), as the chart's series run. A chart without series
+    /// reads 0 when it was added over an automatic source (a cell with data selected) and xlRows (1) when none.
+    pub(super) fn chart_plot_by(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        Ok(AutoValue::I4(self.plot_by_state(target)?))
+    }
+    fn plot_by_state(&self, target: &ObjectRef) -> Result<i32, AutoError> {
+        let (_, sheet, _) = Self::report_key(target)?;
+        let part = Self::chart_token(target)?;
+        self.read_host(target, |s, _, _| {
+            let chart = Self::charts_of(s, sheet).into_iter().find(|c| c.part == part).ok_or_else(|| AutoError::excel(424, "Object required"))?;
+            Ok(match s.host().chart_source_of(sheet, &chart) {
+                Some((true, _)) => 1,
+                Some((false, _)) => 2,
+                None if chart.unique_next > 0 => 0,
+                None => 1,
+            })
+        })
+    }
+    /// `Chart.PlotBy = value`: the chart's own source plotted the other way; a value that is not xlRows or xlColumns,
+    /// or a chart that has no series and no orientation yet (PlotBy 0), fails the member (Q22 c07d). A chart without series
+    /// that reads xlRows keeps it.
+    pub(super) fn chart_put_plot_by(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        let value = geometry::integer(call.args.last().ok_or_else(geometry::bad_count)?)?;
+        let failed = || AutoError::excel(-2147467259, "Method 'PlotBy' of object '_Chart' failed");
+        if !matches!(value, 1 | 2) {
+            return Err(failed());
+        }
+        let (_, sheet, _) = Self::report_key(target)?;
+        let part = Self::chart_token(target)?;
+        let current = self.plot_by_state(target)?;
+        let source = self.read_host(target, |s, _, _| {
+            let chart = Self::charts_of(s, sheet).into_iter().find(|c| c.part == part).ok_or_else(|| AutoError::excel(424, "Object required"))?;
+            Ok(s.host().chart_source_of(sheet, &chart).map(|(_, area)| area))
+        })?;
+        let Some(area) = source else {
+            return if current == 0 { Err(failed()) } else { Ok(AutoValue::Empty) };
+        };
+        if i64::from(current) == value {
+            return Ok(AutoValue::Empty);
+        }
+        self.command(call, |s| {
+            let layout = Self::source_layout(s, area, Some(value == 1), None);
+            Ok(WorkbookCommand::ChartSource {
+                sheet,
+                revision: s.host().revision().get(),
+                part: part.clone(),
+                area,
+                rows: layout.rows,
+                headers: layout.headers,
+                categories: layout.categories,
+            })
+        })
+    }
     pub(super) fn chart_type(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         no_args(call)?;
         let kind = self
@@ -448,7 +507,7 @@ impl WorkbookAutomation {
     /// `Chart.SetSourceData(Source, PlotBy)`: the chart's series become those of the range, in
     /// rows when PlotBy is xlRows (1) and in columns when xlColumns (2). Without PlotBy Excel
     /// plots along the side the data leaves fewer points for (`source_by_rows`), a table's range
-    /// by columns (dc-piw0 Q6, Q21). The label rows and columns of the source become series
+    /// by columns (dc-piw0 Q6, Q21), a square source on a chart that has series in the orientation they have (Q22). The label rows and columns of the source become series
     /// names and categories (`source_blocks`). A single empty cell leaves the chart without series.
     pub(super) fn chart_set_source(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         let part = Self::chart_token(target)?;
@@ -472,7 +531,8 @@ impl WorkbookAutomation {
             other => Some(geometry::integer(other)? == 1),
         };
         self.command(call, |s| {
-            let layout = Self::source_layout(s, area, explicit);
+            let kept = Self::chart_orientation(s, sheet, &part);
+            let layout = Self::source_layout(s, area, explicit, kept);
             Ok(WorkbookCommand::ChartSource {
                 sheet,
                 revision: s.host().revision().get(),
@@ -488,7 +548,7 @@ impl WorkbookAutomation {
     /// columns on the left, the rest the data (`source_blocks`). Series run along rows or
     /// columns (`source_by_rows`); a series' name is its label cells, the categories the label
     /// lines across the series. A range that is exactly a table is plotted in columns.
-    fn source_layout(session: &HostSession, area: GridArea, explicit: Option<bool>) -> SourceLayout {
+    fn source_layout(session: &HostSession, area: GridArea, explicit: Option<bool>, kept: Option<bool>) -> SourceLayout {
         let host = session.host();
         let model = host.model();
         let kind_at = |row: u32, column: u32| {
@@ -512,7 +572,7 @@ impl WorkbookAutomation {
             .iter()
             .any(|t| t.sheet == area.sheet() && t.area == area);
         let by_rows = explicit.unwrap_or_else(|| {
-            !is_table && source_by_rows(&kind_at, rows, columns, label_rows, label_columns)
+            !is_table && source_by_rows(&kind_at, rows, columns, label_rows, label_columns, kept)
         });
         // Series in rows: names in the label columns, categories in the label rows.
         let (headers, categories) = if by_rows {
@@ -882,7 +942,7 @@ impl WorkbookAutomation {
         let part = self.newest_chart(target)?;
         if let Some(area) = data {
             self.command(call, |s| {
-                let layout = Self::source_layout(s, area, None);
+                let layout = Self::source_layout(s, area, None, None);
                 Ok(WorkbookCommand::ChartSource {
                     sheet,
                     revision: s.host().revision().get(),
@@ -911,7 +971,7 @@ impl WorkbookAutomation {
         if all_text {
             return 1;
         }
-        let layout = Self::source_layout(session, area, None);
+        let layout = Self::source_layout(session, area, None, None);
         if layout.rows {
             area.row_count() - u32::from(layout.categories)
         } else {
@@ -1645,19 +1705,25 @@ fn source_blocks(kind: &dyn Fn(u32, u32) -> SourceCell, rows: u32, columns: u32)
 /// Whether Excel plots a source along rows when PlotBy is omitted (Q21): a single column along
 /// columns, a single row along rows, otherwise along the side with fewer data points per series
 /// (more data rows than columns: columns; fewer: rows); equal, rows, unless the label column
-/// holds dates (columns).
+/// holds dates (columns). A square source (as many rows as columns) on a chart that already has series keeps the
+/// orientation they have (Q22: after xlRows an omitted PlotBy stays in rows, after xlColumns in columns, whatever the
+/// cells hold); a source with more rows than columns, or fewer, is plotted by the rule whatever the chart had (m1).
 fn source_by_rows(
     kind: &dyn Fn(u32, u32) -> SourceCell,
     rows: u32,
     columns: u32,
     label_rows: u32,
     label_columns: u32,
+    kept: Option<bool>,
 ) -> bool {
     if columns == 1 {
         return false;
     }
     if rows == 1 {
         return true;
+    }
+    if let (true, Some(kept)) = (rows == columns, kept) {
+        return kept;
     }
     let (data_rows, data_columns) = (rows - label_rows, columns - label_columns);
     match data_rows.cmp(&data_columns) {

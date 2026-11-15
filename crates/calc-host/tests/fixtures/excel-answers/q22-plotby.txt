@@ -1,0 +1,250 @@
+c07a	sheet k1	source A1:C3	selected A1	steps S S	spec A1=t:Region;B1=t:Q1;C1=t:Q2	chart	Chart 1
+c07a	step 0 added	series	0	PlotBy	0	ChartType	51
+c07a	step 1 S	series	2	PlotBy	1	ChartType	51
+c07a	step 1	series 1	Name	Series1	Formula	=SERIES(,'k1'!$A$1:$C$1,'k1'!$A$2:$C$2,1)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07a	step 1	series 2	Name	Series2	Formula	=SERIES(,'k1'!$A$1:$C$1,'k1'!$A$3:$C$3,2)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07a	step 2 S	series	2	PlotBy	1	ChartType	51
+c07a	step 2	series 1	Name	Series1	Formula	=SERIES(,'k1'!$A$1:$C$1,'k1'!$A$2:$C$2,1)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07a	step 2	series 2	Name	Series2	Formula	=SERIES(,'k1'!$A$1:$C$1,'k1'!$A$3:$C$3,2)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07b	sheet k2	source A1:C3	selected A1	steps R S C S R S	spec A1=t:Region;B1=t:Q1;C1=t:Q2	chart	Chart 1
+c07b	step 0 added	series	0	PlotBy	0	ChartType	51
+c07b	step 1 R	series	2	PlotBy	1	ChartType	51
+c07b	step 1	series 1	Name	Series1	Formula	=SERIES(,'k2'!$A$1:$C$1,'k2'!$A$2:$C$2,1)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07b	step 1	series 2	Name	Series2	Formula	=SERIES(,'k2'!$A$1:$C$1,'k2'!$A$3:$C$3,2)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07b	step 2 S	series	2	PlotBy	1	ChartType	51
+c07b	step 2	series 1	Name	Series1	Formula	=SERIES(,'k2'!$A$1:$C$1,'k2'!$A$2:$C$2,1)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07b	step 2	series 2	Name	Series2	Formula	=SERIES(,'k2'!$A$1:$C$1,'k2'!$A$3:$C$3,2)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07b	step 3 C	series	3	PlotBy	2	ChartType	51
+c07b	step 3	series 1	Name	Region	Formula	=SERIES('k2'!$A$1,,'k2'!$A$2:$A$3,1)	Values	[;]	XValues	[1;2]
+c07b	step 3	series 2	Name	Q1	Formula	=SERIES('k2'!$B$1,,'k2'!$B$2:$B$3,2)	Values	[;]	XValues	[1;2]
+c07b	step 3	series 3	Name	Q2	Formula	=SERIES('k2'!$C$1,,'k2'!$C$2:$C$3,3)	Values	[;]	XValues	[1;2]
+c07b	step 4 S	series	3	PlotBy	2	ChartType	51
+c07b	step 4	series 1	Name	Region	Formula	=SERIES('k2'!$A$1,,'k2'!$A$2:$A$3,1)	Values	[;]	XValues	[1;2]
+c07b	step 4	series 2	Name	Q1	Formula	=SERIES('k2'!$B$1,,'k2'!$B$2:$B$3,2)	Values	[;]	XValues	[1;2]
+c07b	step 4	series 3	Name	Q2	Formula	=SERIES('k2'!$C$1,,'k2'!$C$2:$C$3,3)	Values	[;]	XValues	[1;2]
+c07b	step 5 R	series	2	PlotBy	1	ChartType	51
+c07b	step 5	series 1	Name	Series1	Formula	=SERIES(,'k2'!$A$1:$C$1,'k2'!$A$2:$C$2,1)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07b	step 5	series 2	Name	Series2	Formula	=SERIES(,'k2'!$A$1:$C$1,'k2'!$A$3:$C$3,2)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07b	step 6 S	series	2	PlotBy	1	ChartType	51
+c07b	step 6	series 1	Name	Series1	Formula	=SERIES(,'k2'!$A$1:$C$1,'k2'!$A$2:$C$2,1)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07b	step 6	series 2	Name	Series2	Formula	=SERIES(,'k2'!$A$1:$C$1,'k2'!$A$3:$C$3,2)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07c	sheet k3	source A1:C3	selected A1	steps C S R S	spec A1=t:Region;B1=t:Q1;C1=t:Q2	chart	Chart 1
+c07c	step 0 added	series	0	PlotBy	0	ChartType	51
+c07c	step 1 C	series	3	PlotBy	2	ChartType	51
+c07c	step 1	series 1	Name	Region	Formula	=SERIES('k3'!$A$1,,'k3'!$A$2:$A$3,1)	Values	[;]	XValues	[1;2]
+c07c	step 1	series 2	Name	Q1	Formula	=SERIES('k3'!$B$1,,'k3'!$B$2:$B$3,2)	Values	[;]	XValues	[1;2]
+c07c	step 1	series 3	Name	Q2	Formula	=SERIES('k3'!$C$1,,'k3'!$C$2:$C$3,3)	Values	[;]	XValues	[1;2]
+c07c	step 2 S	series	3	PlotBy	2	ChartType	51
+c07c	step 2	series 1	Name	Region	Formula	=SERIES('k3'!$A$1,,'k3'!$A$2:$A$3,1)	Values	[;]	XValues	[1;2]
+c07c	step 2	series 2	Name	Q1	Formula	=SERIES('k3'!$B$1,,'k3'!$B$2:$B$3,2)	Values	[;]	XValues	[1;2]
+c07c	step 2	series 3	Name	Q2	Formula	=SERIES('k3'!$C$1,,'k3'!$C$2:$C$3,3)	Values	[;]	XValues	[1;2]
+c07c	step 3 R	series	2	PlotBy	1	ChartType	51
+c07c	step 3	series 1	Name	Series1	Formula	=SERIES(,'k3'!$A$1:$C$1,'k3'!$A$2:$C$2,1)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07c	step 3	series 2	Name	Series2	Formula	=SERIES(,'k3'!$A$1:$C$1,'k3'!$A$3:$C$3,2)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07c	step 4 S	series	2	PlotBy	1	ChartType	51
+c07c	step 4	series 1	Name	Series1	Formula	=SERIES(,'k3'!$A$1:$C$1,'k3'!$A$2:$C$2,1)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07c	step 4	series 2	Name	Series2	Formula	=SERIES(,'k3'!$A$1:$C$1,'k3'!$A$3:$C$3,2)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07d	sheet k4	source A1:C3	selected A1	steps P1 S P2 S	spec A1=t:Region;B1=t:Q1;C1=t:Q2	chart	Chart 1
+c07d	step 0 added	series	0	PlotBy	0	ChartType	51
+ERR	c07d step 1 P1	-2147467259	Method 'PlotBy' of object '_Chart' failed
+c07d	step 1 P1	series	0	PlotBy	0	ChartType	51
+c07d	step 2 S	series	2	PlotBy	1	ChartType	51
+c07d	step 2	series 1	Name	Series1	Formula	=SERIES(,'k4'!$A$1:$C$1,'k4'!$A$2:$C$2,1)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07d	step 2	series 2	Name	Series2	Formula	=SERIES(,'k4'!$A$1:$C$1,'k4'!$A$3:$C$3,2)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07d	step 3 P2	series	3	PlotBy	2	ChartType	51
+c07d	step 3	series 1	Name	Region	Formula	=SERIES('k4'!$A$1,,'k4'!$A$2:$A$3,1)	Values	[;]	XValues	[1;2]
+c07d	step 3	series 2	Name	Q1	Formula	=SERIES('k4'!$B$1,,'k4'!$B$2:$B$3,2)	Values	[;]	XValues	[1;2]
+c07d	step 3	series 3	Name	Q2	Formula	=SERIES('k4'!$C$1,,'k4'!$C$2:$C$3,3)	Values	[;]	XValues	[1;2]
+c07d	step 4 S	series	3	PlotBy	2	ChartType	51
+c07d	step 4	series 1	Name	Region	Formula	=SERIES('k4'!$A$1,,'k4'!$A$2:$A$3,1)	Values	[;]	XValues	[1;2]
+c07d	step 4	series 2	Name	Q1	Formula	=SERIES('k4'!$B$1,,'k4'!$B$2:$B$3,2)	Values	[;]	XValues	[1;2]
+c07d	step 4	series 3	Name	Q2	Formula	=SERIES('k4'!$C$1,,'k4'!$C$2:$C$3,3)	Values	[;]	XValues	[1;2]
+c07e	sheet k5	source A1:C3	selected Z50	steps S S	spec A1=t:Region;B1=t:Q1;C1=t:Q2	chart	Chart 1
+c07e	step 0 added	series	0	PlotBy	1	ChartType	51
+c07e	step 1 S	series	2	PlotBy	1	ChartType	51
+c07e	step 1	series 1	Name	Series1	Formula	=SERIES(,'k5'!$A$1:$C$1,'k5'!$A$2:$C$2,1)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07e	step 1	series 2	Name	Series2	Formula	=SERIES(,'k5'!$A$1:$C$1,'k5'!$A$3:$C$3,2)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07e	step 2 S	series	2	PlotBy	1	ChartType	51
+c07e	step 2	series 1	Name	Series1	Formula	=SERIES(,'k5'!$A$1:$C$1,'k5'!$A$2:$C$2,1)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07e	step 2	series 2	Name	Series2	Formula	=SERIES(,'k5'!$A$1:$C$1,'k5'!$A$3:$C$3,2)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07f	sheet k6	source A1:C3	selected Z50	steps R S C S R S	spec A1=t:Region;B1=t:Q1;C1=t:Q2	chart	Chart 1
+c07f	step 0 added	series	0	PlotBy	1	ChartType	51
+c07f	step 1 R	series	2	PlotBy	1	ChartType	51
+c07f	step 1	series 1	Name	Series1	Formula	=SERIES(,'k6'!$A$1:$C$1,'k6'!$A$2:$C$2,1)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07f	step 1	series 2	Name	Series2	Formula	=SERIES(,'k6'!$A$1:$C$1,'k6'!$A$3:$C$3,2)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07f	step 2 S	series	2	PlotBy	1	ChartType	51
+c07f	step 2	series 1	Name	Series1	Formula	=SERIES(,'k6'!$A$1:$C$1,'k6'!$A$2:$C$2,1)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07f	step 2	series 2	Name	Series2	Formula	=SERIES(,'k6'!$A$1:$C$1,'k6'!$A$3:$C$3,2)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07f	step 3 C	series	3	PlotBy	2	ChartType	51
+c07f	step 3	series 1	Name	Region	Formula	=SERIES('k6'!$A$1,,'k6'!$A$2:$A$3,1)	Values	[;]	XValues	[1;2]
+c07f	step 3	series 2	Name	Q1	Formula	=SERIES('k6'!$B$1,,'k6'!$B$2:$B$3,2)	Values	[;]	XValues	[1;2]
+c07f	step 3	series 3	Name	Q2	Formula	=SERIES('k6'!$C$1,,'k6'!$C$2:$C$3,3)	Values	[;]	XValues	[1;2]
+c07f	step 4 S	series	3	PlotBy	2	ChartType	51
+c07f	step 4	series 1	Name	Region	Formula	=SERIES('k6'!$A$1,,'k6'!$A$2:$A$3,1)	Values	[;]	XValues	[1;2]
+c07f	step 4	series 2	Name	Q1	Formula	=SERIES('k6'!$B$1,,'k6'!$B$2:$B$3,2)	Values	[;]	XValues	[1;2]
+c07f	step 4	series 3	Name	Q2	Formula	=SERIES('k6'!$C$1,,'k6'!$C$2:$C$3,3)	Values	[;]	XValues	[1;2]
+c07f	step 5 R	series	2	PlotBy	1	ChartType	51
+c07f	step 5	series 1	Name	Series1	Formula	=SERIES(,'k6'!$A$1:$C$1,'k6'!$A$2:$C$2,1)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07f	step 5	series 2	Name	Series2	Formula	=SERIES(,'k6'!$A$1:$C$1,'k6'!$A$3:$C$3,2)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07f	step 6 S	series	2	PlotBy	1	ChartType	51
+c07f	step 6	series 1	Name	Series1	Formula	=SERIES(,'k6'!$A$1:$C$1,'k6'!$A$2:$C$2,1)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07f	step 6	series 2	Name	Series2	Formula	=SERIES(,'k6'!$A$1:$C$1,'k6'!$A$3:$C$3,2)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07g	sheet k7	source A1:C3	selected Z50	steps C S R S	spec A1=t:Region;B1=t:Q1;C1=t:Q2	chart	Chart 1
+c07g	step 0 added	series	0	PlotBy	1	ChartType	51
+c07g	step 1 C	series	3	PlotBy	2	ChartType	51
+c07g	step 1	series 1	Name	Region	Formula	=SERIES('k7'!$A$1,,'k7'!$A$2:$A$3,1)	Values	[;]	XValues	[1;2]
+c07g	step 1	series 2	Name	Q1	Formula	=SERIES('k7'!$B$1,,'k7'!$B$2:$B$3,2)	Values	[;]	XValues	[1;2]
+c07g	step 1	series 3	Name	Q2	Formula	=SERIES('k7'!$C$1,,'k7'!$C$2:$C$3,3)	Values	[;]	XValues	[1;2]
+c07g	step 2 S	series	3	PlotBy	2	ChartType	51
+c07g	step 2	series 1	Name	Region	Formula	=SERIES('k7'!$A$1,,'k7'!$A$2:$A$3,1)	Values	[;]	XValues	[1;2]
+c07g	step 2	series 2	Name	Q1	Formula	=SERIES('k7'!$B$1,,'k7'!$B$2:$B$3,2)	Values	[;]	XValues	[1;2]
+c07g	step 2	series 3	Name	Q2	Formula	=SERIES('k7'!$C$1,,'k7'!$C$2:$C$3,3)	Values	[;]	XValues	[1;2]
+c07g	step 3 R	series	2	PlotBy	1	ChartType	51
+c07g	step 3	series 1	Name	Series1	Formula	=SERIES(,'k7'!$A$1:$C$1,'k7'!$A$2:$C$2,1)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07g	step 3	series 2	Name	Series2	Formula	=SERIES(,'k7'!$A$1:$C$1,'k7'!$A$3:$C$3,2)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07g	step 4 S	series	2	PlotBy	1	ChartType	51
+c07g	step 4	series 1	Name	Series1	Formula	=SERIES(,'k7'!$A$1:$C$1,'k7'!$A$2:$C$2,1)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07g	step 4	series 2	Name	Series2	Formula	=SERIES(,'k7'!$A$1:$C$1,'k7'!$A$3:$C$3,2)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07h	sheet k8	source A1:C3	selected Z50	steps P1 S P2 S	spec A1=t:Region;B1=t:Q1;C1=t:Q2	chart	Chart 1
+c07h	step 0 added	series	0	PlotBy	1	ChartType	51
+c07h	step 1 P1	series	0	PlotBy	1	ChartType	51
+c07h	step 2 S	series	2	PlotBy	1	ChartType	51
+c07h	step 2	series 1	Name	Series1	Formula	=SERIES(,'k8'!$A$1:$C$1,'k8'!$A$2:$C$2,1)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07h	step 2	series 2	Name	Series2	Formula	=SERIES(,'k8'!$A$1:$C$1,'k8'!$A$3:$C$3,2)	Values	[;;]	XValues	[Region;Q1;Q2]
+c07h	step 3 P2	series	3	PlotBy	2	ChartType	51
+c07h	step 3	series 1	Name	Region	Formula	=SERIES('k8'!$A$1,,'k8'!$A$2:$A$3,1)	Values	[;]	XValues	[1;2]
+c07h	step 3	series 2	Name	Q1	Formula	=SERIES('k8'!$B$1,,'k8'!$B$2:$B$3,2)	Values	[;]	XValues	[1;2]
+c07h	step 3	series 3	Name	Q2	Formula	=SERIES('k8'!$C$1,,'k8'!$C$2:$C$3,3)	Values	[;]	XValues	[1;2]
+c07h	step 4 S	series	3	PlotBy	2	ChartType	51
+c07h	step 4	series 1	Name	Region	Formula	=SERIES('k8'!$A$1,,'k8'!$A$2:$A$3,1)	Values	[;]	XValues	[1;2]
+c07h	step 4	series 2	Name	Q1	Formula	=SERIES('k8'!$B$1,,'k8'!$B$2:$B$3,2)	Values	[;]	XValues	[1;2]
+c07h	step 4	series 3	Name	Q2	Formula	=SERIES('k8'!$C$1,,'k8'!$C$2:$C$3,3)	Values	[;]	XValues	[1;2]
+c11a	sheet k9	source A1:C3	selected A1	steps S S	spec A1=t:Day;B1=t:Q1;C1=t:Q2;A2=d:45000;A3=d:45001;B2=n:1;B3=n:2;C2=n:3;C3=n:4	chart	Chart 1
+c11a	step 0 added	series	0	PlotBy	0	ChartType	51
+c11a	step 1 S	series	2	PlotBy	2	ChartType	51
+c11a	step 1	series 1	Name	Q1	Formula	=SERIES('k9'!$B$1,'k9'!$A$2:$A$3,'k9'!$B$2:$B$3,1)	Values	[1;2]	XValues	[45000;45001]
+c11a	step 1	series 2	Name	Q2	Formula	=SERIES('k9'!$C$1,'k9'!$A$2:$A$3,'k9'!$C$2:$C$3,2)	Values	[3;4]	XValues	[45000;45001]
+c11a	step 2 S	series	2	PlotBy	2	ChartType	51
+c11a	step 2	series 1	Name	Q1	Formula	=SERIES('k9'!$B$1,'k9'!$A$2:$A$3,'k9'!$B$2:$B$3,1)	Values	[1;2]	XValues	[45000;45001]
+c11a	step 2	series 2	Name	Q2	Formula	=SERIES('k9'!$C$1,'k9'!$A$2:$A$3,'k9'!$C$2:$C$3,2)	Values	[3;4]	XValues	[45000;45001]
+c11b	sheet k10	source A1:C3	selected A1	steps R S C S R S	spec A1=t:Day;B1=t:Q1;C1=t:Q2;A2=d:45000;A3=d:45001;B2=n:1;B3=n:2;C2=n:3;C3=n:4	chart	Chart 1
+c11b	step 0 added	series	0	PlotBy	0	ChartType	51
+c11b	step 1 R	series	2	PlotBy	1	ChartType	51
+c11b	step 1	series 1	Name	2023-03-15	Formula	=SERIES('k10'!$A$2,'k10'!$B$1:$C$1,'k10'!$B$2:$C$2,1)	Values	[1;3]	XValues	[Q1;Q2]
+c11b	step 1	series 2	Name	2023-03-16	Formula	=SERIES('k10'!$A$3,'k10'!$B$1:$C$1,'k10'!$B$3:$C$3,2)	Values	[2;4]	XValues	[Q1;Q2]
+c11b	step 2 S	series	2	PlotBy	1	ChartType	51
+c11b	step 2	series 1	Name	2023-03-15	Formula	=SERIES('k10'!$A$2,'k10'!$B$1:$C$1,'k10'!$B$2:$C$2,1)	Values	[1;3]	XValues	[Q1;Q2]
+c11b	step 2	series 2	Name	2023-03-16	Formula	=SERIES('k10'!$A$3,'k10'!$B$1:$C$1,'k10'!$B$3:$C$3,2)	Values	[2;4]	XValues	[Q1;Q2]
+c11b	step 3 C	series	2	PlotBy	2	ChartType	51
+c11b	step 3	series 1	Name	Q1	Formula	=SERIES('k10'!$B$1,'k10'!$A$2:$A$3,'k10'!$B$2:$B$3,1)	Values	[1;2]	XValues	[45000;45001]
+c11b	step 3	series 2	Name	Q2	Formula	=SERIES('k10'!$C$1,'k10'!$A$2:$A$3,'k10'!$C$2:$C$3,2)	Values	[3;4]	XValues	[45000;45001]
+c11b	step 4 S	series	2	PlotBy	2	ChartType	51
+c11b	step 4	series 1	Name	Q1	Formula	=SERIES('k10'!$B$1,'k10'!$A$2:$A$3,'k10'!$B$2:$B$3,1)	Values	[1;2]	XValues	[45000;45001]
+c11b	step 4	series 2	Name	Q2	Formula	=SERIES('k10'!$C$1,'k10'!$A$2:$A$3,'k10'!$C$2:$C$3,2)	Values	[3;4]	XValues	[45000;45001]
+c11b	step 5 R	series	2	PlotBy	1	ChartType	51
+c11b	step 5	series 1	Name	2023-03-15	Formula	=SERIES('k10'!$A$2,'k10'!$B$1:$C$1,'k10'!$B$2:$C$2,1)	Values	[1;3]	XValues	[Q1;Q2]
+c11b	step 5	series 2	Name	2023-03-16	Formula	=SERIES('k10'!$A$3,'k10'!$B$1:$C$1,'k10'!$B$3:$C$3,2)	Values	[2;4]	XValues	[Q1;Q2]
+c11b	step 6 S	series	2	PlotBy	1	ChartType	51
+c11b	step 6	series 1	Name	2023-03-15	Formula	=SERIES('k10'!$A$2,'k10'!$B$1:$C$1,'k10'!$B$2:$C$2,1)	Values	[1;3]	XValues	[Q1;Q2]
+c11b	step 6	series 2	Name	2023-03-16	Formula	=SERIES('k10'!$A$3,'k10'!$B$1:$C$1,'k10'!$B$3:$C$3,2)	Values	[2;4]	XValues	[Q1;Q2]
+c11c	sheet k11	source A1:C3	selected A1	steps C S R S	spec A1=t:Day;B1=t:Q1;C1=t:Q2;A2=d:45000;A3=d:45001;B2=n:1;B3=n:2;C2=n:3;C3=n:4	chart	Chart 1
+c11c	step 0 added	series	0	PlotBy	0	ChartType	51
+c11c	step 1 C	series	2	PlotBy	2	ChartType	51
+c11c	step 1	series 1	Name	Q1	Formula	=SERIES('k11'!$B$1,'k11'!$A$2:$A$3,'k11'!$B$2:$B$3,1)	Values	[1;2]	XValues	[45000;45001]
+c11c	step 1	series 2	Name	Q2	Formula	=SERIES('k11'!$C$1,'k11'!$A$2:$A$3,'k11'!$C$2:$C$3,2)	Values	[3;4]	XValues	[45000;45001]
+c11c	step 2 S	series	2	PlotBy	2	ChartType	51
+c11c	step 2	series 1	Name	Q1	Formula	=SERIES('k11'!$B$1,'k11'!$A$2:$A$3,'k11'!$B$2:$B$3,1)	Values	[1;2]	XValues	[45000;45001]
+c11c	step 2	series 2	Name	Q2	Formula	=SERIES('k11'!$C$1,'k11'!$A$2:$A$3,'k11'!$C$2:$C$3,2)	Values	[3;4]	XValues	[45000;45001]
+c11c	step 3 R	series	2	PlotBy	1	ChartType	51
+c11c	step 3	series 1	Name	2023-03-15	Formula	=SERIES('k11'!$A$2,'k11'!$B$1:$C$1,'k11'!$B$2:$C$2,1)	Values	[1;3]	XValues	[Q1;Q2]
+c11c	step 3	series 2	Name	2023-03-16	Formula	=SERIES('k11'!$A$3,'k11'!$B$1:$C$1,'k11'!$B$3:$C$3,2)	Values	[2;4]	XValues	[Q1;Q2]
+c11c	step 4 S	series	2	PlotBy	1	ChartType	51
+c11c	step 4	series 1	Name	2023-03-15	Formula	=SERIES('k11'!$A$2,'k11'!$B$1:$C$1,'k11'!$B$2:$C$2,1)	Values	[1;3]	XValues	[Q1;Q2]
+c11c	step 4	series 2	Name	2023-03-16	Formula	=SERIES('k11'!$A$3,'k11'!$B$1:$C$1,'k11'!$B$3:$C$3,2)	Values	[2;4]	XValues	[Q1;Q2]
+c11d	sheet k12	source A1:C3	selected A1	steps P1 S P2 S	spec A1=t:Day;B1=t:Q1;C1=t:Q2;A2=d:45000;A3=d:45001;B2=n:1;B3=n:2;C2=n:3;C3=n:4	chart	Chart 1
+c11d	step 0 added	series	0	PlotBy	0	ChartType	51
+ERR	c11d step 1 P1	-2147467259	Method 'PlotBy' of object '_Chart' failed
+c11d	step 1 P1	series	0	PlotBy	0	ChartType	51
+c11d	step 2 S	series	2	PlotBy	2	ChartType	51
+c11d	step 2	series 1	Name	Q1	Formula	=SERIES('k12'!$B$1,'k12'!$A$2:$A$3,'k12'!$B$2:$B$3,1)	Values	[1;2]	XValues	[45000;45001]
+c11d	step 2	series 2	Name	Q2	Formula	=SERIES('k12'!$C$1,'k12'!$A$2:$A$3,'k12'!$C$2:$C$3,2)	Values	[3;4]	XValues	[45000;45001]
+c11d	step 3 P2	series	2	PlotBy	2	ChartType	51
+c11d	step 3	series 1	Name	Q1	Formula	=SERIES('k12'!$B$1,'k12'!$A$2:$A$3,'k12'!$B$2:$B$3,1)	Values	[1;2]	XValues	[45000;45001]
+c11d	step 3	series 2	Name	Q2	Formula	=SERIES('k12'!$C$1,'k12'!$A$2:$A$3,'k12'!$C$2:$C$3,2)	Values	[3;4]	XValues	[45000;45001]
+c11d	step 4 S	series	2	PlotBy	2	ChartType	51
+c11d	step 4	series 1	Name	Q1	Formula	=SERIES('k12'!$B$1,'k12'!$A$2:$A$3,'k12'!$B$2:$B$3,1)	Values	[1;2]	XValues	[45000;45001]
+c11d	step 4	series 2	Name	Q2	Formula	=SERIES('k12'!$C$1,'k12'!$A$2:$A$3,'k12'!$C$2:$C$3,2)	Values	[3;4]	XValues	[45000;45001]
+c11e	sheet k13	source A1:C3	selected Z50	steps S S	spec A1=t:Day;B1=t:Q1;C1=t:Q2;A2=d:45000;A3=d:45001;B2=n:1;B3=n:2;C2=n:3;C3=n:4	chart	Chart 1
+c11e	step 0 added	series	0	PlotBy	1	ChartType	51
+c11e	step 1 S	series	2	PlotBy	2	ChartType	51
+c11e	step 1	series 1	Name	Q1	Formula	=SERIES('k13'!$B$1,'k13'!$A$2:$A$3,'k13'!$B$2:$B$3,1)	Values	[1;2]	XValues	[45000;45001]
+c11e	step 1	series 2	Name	Q2	Formula	=SERIES('k13'!$C$1,'k13'!$A$2:$A$3,'k13'!$C$2:$C$3,2)	Values	[3;4]	XValues	[45000;45001]
+c11e	step 2 S	series	2	PlotBy	2	ChartType	51
+c11e	step 2	series 1	Name	Q1	Formula	=SERIES('k13'!$B$1,'k13'!$A$2:$A$3,'k13'!$B$2:$B$3,1)	Values	[1;2]	XValues	[45000;45001]
+c11e	step 2	series 2	Name	Q2	Formula	=SERIES('k13'!$C$1,'k13'!$A$2:$A$3,'k13'!$C$2:$C$3,2)	Values	[3;4]	XValues	[45000;45001]
+c11f	sheet k14	source A1:C3	selected Z50	steps R S C S R S	spec A1=t:Day;B1=t:Q1;C1=t:Q2;A2=d:45000;A3=d:45001;B2=n:1;B3=n:2;C2=n:3;C3=n:4	chart	Chart 1
+c11f	step 0 added	series	0	PlotBy	1	ChartType	51
+c11f	step 1 R	series	2	PlotBy	1	ChartType	51
+c11f	step 1	series 1	Name	2023-03-15	Formula	=SERIES('k14'!$A$2,'k14'!$B$1:$C$1,'k14'!$B$2:$C$2,1)	Values	[1;3]	XValues	[Q1;Q2]
+c11f	step 1	series 2	Name	2023-03-16	Formula	=SERIES('k14'!$A$3,'k14'!$B$1:$C$1,'k14'!$B$3:$C$3,2)	Values	[2;4]	XValues	[Q1;Q2]
+c11f	step 2 S	series	2	PlotBy	1	ChartType	51
+c11f	step 2	series 1	Name	2023-03-15	Formula	=SERIES('k14'!$A$2,'k14'!$B$1:$C$1,'k14'!$B$2:$C$2,1)	Values	[1;3]	XValues	[Q1;Q2]
+c11f	step 2	series 2	Name	2023-03-16	Formula	=SERIES('k14'!$A$3,'k14'!$B$1:$C$1,'k14'!$B$3:$C$3,2)	Values	[2;4]	XValues	[Q1;Q2]
+c11f	step 3 C	series	2	PlotBy	2	ChartType	51
+c11f	step 3	series 1	Name	Q1	Formula	=SERIES('k14'!$B$1,'k14'!$A$2:$A$3,'k14'!$B$2:$B$3,1)	Values	[1;2]	XValues	[45000;45001]
+c11f	step 3	series 2	Name	Q2	Formula	=SERIES('k14'!$C$1,'k14'!$A$2:$A$3,'k14'!$C$2:$C$3,2)	Values	[3;4]	XValues	[45000;45001]
+c11f	step 4 S	series	2	PlotBy	2	ChartType	51
+c11f	step 4	series 1	Name	Q1	Formula	=SERIES('k14'!$B$1,'k14'!$A$2:$A$3,'k14'!$B$2:$B$3,1)	Values	[1;2]	XValues	[45000;45001]
+c11f	step 4	series 2	Name	Q2	Formula	=SERIES('k14'!$C$1,'k14'!$A$2:$A$3,'k14'!$C$2:$C$3,2)	Values	[3;4]	XValues	[45000;45001]
+c11f	step 5 R	series	2	PlotBy	1	ChartType	51
+c11f	step 5	series 1	Name	2023-03-15	Formula	=SERIES('k14'!$A$2,'k14'!$B$1:$C$1,'k14'!$B$2:$C$2,1)	Values	[1;3]	XValues	[Q1;Q2]
+c11f	step 5	series 2	Name	2023-03-16	Formula	=SERIES('k14'!$A$3,'k14'!$B$1:$C$1,'k14'!$B$3:$C$3,2)	Values	[2;4]	XValues	[Q1;Q2]
+c11f	step 6 S	series	2	PlotBy	1	ChartType	51
+c11f	step 6	series 1	Name	2023-03-15	Formula	=SERIES('k14'!$A$2,'k14'!$B$1:$C$1,'k14'!$B$2:$C$2,1)	Values	[1;3]	XValues	[Q1;Q2]
+c11f	step 6	series 2	Name	2023-03-16	Formula	=SERIES('k14'!$A$3,'k14'!$B$1:$C$1,'k14'!$B$3:$C$3,2)	Values	[2;4]	XValues	[Q1;Q2]
+c11g	sheet k15	source A1:C3	selected Z50	steps C S R S	spec A1=t:Day;B1=t:Q1;C1=t:Q2;A2=d:45000;A3=d:45001;B2=n:1;B3=n:2;C2=n:3;C3=n:4	chart	Chart 1
+c11g	step 0 added	series	0	PlotBy	1	ChartType	51
+c11g	step 1 C	series	2	PlotBy	2	ChartType	51
+c11g	step 1	series 1	Name	Q1	Formula	=SERIES('k15'!$B$1,'k15'!$A$2:$A$3,'k15'!$B$2:$B$3,1)	Values	[1;2]	XValues	[45000;45001]
+c11g	step 1	series 2	Name	Q2	Formula	=SERIES('k15'!$C$1,'k15'!$A$2:$A$3,'k15'!$C$2:$C$3,2)	Values	[3;4]	XValues	[45000;45001]
+c11g	step 2 S	series	2	PlotBy	2	ChartType	51
+c11g	step 2	series 1	Name	Q1	Formula	=SERIES('k15'!$B$1,'k15'!$A$2:$A$3,'k15'!$B$2:$B$3,1)	Values	[1;2]	XValues	[45000;45001]
+c11g	step 2	series 2	Name	Q2	Formula	=SERIES('k15'!$C$1,'k15'!$A$2:$A$3,'k15'!$C$2:$C$3,2)	Values	[3;4]	XValues	[45000;45001]
+c11g	step 3 R	series	2	PlotBy	1	ChartType	51
+c11g	step 3	series 1	Name	2023-03-15	Formula	=SERIES('k15'!$A$2,'k15'!$B$1:$C$1,'k15'!$B$2:$C$2,1)	Values	[1;3]	XValues	[Q1;Q2]
+c11g	step 3	series 2	Name	2023-03-16	Formula	=SERIES('k15'!$A$3,'k15'!$B$1:$C$1,'k15'!$B$3:$C$3,2)	Values	[2;4]	XValues	[Q1;Q2]
+c11g	step 4 S	series	2	PlotBy	1	ChartType	51
+c11g	step 4	series 1	Name	2023-03-15	Formula	=SERIES('k15'!$A$2,'k15'!$B$1:$C$1,'k15'!$B$2:$C$2,1)	Values	[1;3]	XValues	[Q1;Q2]
+c11g	step 4	series 2	Name	2023-03-16	Formula	=SERIES('k15'!$A$3,'k15'!$B$1:$C$1,'k15'!$B$3:$C$3,2)	Values	[2;4]	XValues	[Q1;Q2]
+c11h	sheet k16	source A1:C3	selected Z50	steps P1 S P2 S	spec A1=t:Day;B1=t:Q1;C1=t:Q2;A2=d:45000;A3=d:45001;B2=n:1;B3=n:2;C2=n:3;C3=n:4	chart	Chart 1
+c11h	step 0 added	series	0	PlotBy	1	ChartType	51
+c11h	step 1 P1	series	0	PlotBy	1	ChartType	51
+c11h	step 2 S	series	2	PlotBy	2	ChartType	51
+c11h	step 2	series 1	Name	Q1	Formula	=SERIES('k16'!$B$1,'k16'!$A$2:$A$3,'k16'!$B$2:$B$3,1)	Values	[1;2]	XValues	[45000;45001]
+c11h	step 2	series 2	Name	Q2	Formula	=SERIES('k16'!$C$1,'k16'!$A$2:$A$3,'k16'!$C$2:$C$3,2)	Values	[3;4]	XValues	[45000;45001]
+c11h	step 3 P2	series	2	PlotBy	2	ChartType	51
+c11h	step 3	series 1	Name	Q1	Formula	=SERIES('k16'!$B$1,'k16'!$A$2:$A$3,'k16'!$B$2:$B$3,1)	Values	[1;2]	XValues	[45000;45001]
+c11h	step 3	series 2	Name	Q2	Formula	=SERIES('k16'!$C$1,'k16'!$A$2:$A$3,'k16'!$C$2:$C$3,2)	Values	[3;4]	XValues	[45000;45001]
+c11h	step 4 S	series	2	PlotBy	2	ChartType	51
+c11h	step 4	series 1	Name	Q1	Formula	=SERIES('k16'!$B$1,'k16'!$A$2:$A$3,'k16'!$B$2:$B$3,1)	Values	[1;2]	XValues	[45000;45001]
+c11h	step 4	series 2	Name	Q2	Formula	=SERIES('k16'!$C$1,'k16'!$A$2:$A$3,'k16'!$C$2:$C$3,2)	Values	[3;4]	XValues	[45000;45001]
+m1	sheet k17	source A1:B3	selected A1	steps R S A	spec A1=t:Day;B1=t:Q1;C1=t:Q2;A2=d:45000;A3=d:45001;B2=n:1;B3=n:2;C2=n:3;C3=n:4	chart	Chart 1
+m1	step 0 added	series	0	PlotBy	0	ChartType	51
+m1	step 1 R	series	2	PlotBy	1	ChartType	51
+m1	step 1	series 1	Name	2023-03-15	Formula	=SERIES('k17'!$A$2,'k17'!$B$1,'k17'!$B$2,1)	Values	[1]	XValues	[Q1]
+m1	step 1	series 2	Name	2023-03-16	Formula	=SERIES('k17'!$A$3,'k17'!$B$1,'k17'!$B$3,2)	Values	[2]	XValues	[Q1]
+m1	step 2 S	series	1	PlotBy	2	ChartType	51
+m1	step 2	series 1	Name	Q1	Formula	=SERIES('k17'!$B$1,'k17'!$A$2:$A$3,'k17'!$B$2:$B$3,1)	Values	[1;2]	XValues	[45000;45001]
+m1	step 3 A	series	1	PlotBy	2	ChartType	51
+m1	step 3	series 1	Name	Q1	Formula	=SERIES('k17'!$B$1,'k17'!$A$2:$A$3,'k17'!$B$2:$B$3,1)	Values	[1;2]	XValues	[45000;45001]
+m2	sheet k18	source A1:B3	selected Z50	steps R S A	spec A1=t:Day;B1=t:Q1;C1=t:Q2;A2=d:45000;A3=d:45001;B2=n:1;B3=n:2;C2=n:3;C3=n:4	chart	Chart 1
+m2	step 0 added	series	0	PlotBy	1	ChartType	51
+m2	step 1 R	series	2	PlotBy	1	ChartType	51
+m2	step 1	series 1	Name	2023-03-15	Formula	=SERIES('k18'!$A$2,'k18'!$B$1,'k18'!$B$2,1)	Values	[1]	XValues	[Q1]
+m2	step 1	series 2	Name	2023-03-16	Formula	=SERIES('k18'!$A$3,'k18'!$B$1,'k18'!$B$3,2)	Values	[2]	XValues	[Q1]
+m2	step 2 S	series	1	PlotBy	2	ChartType	51
+m2	step 2	series 1	Name	Q1	Formula	=SERIES('k18'!$B$1,'k18'!$A$2:$A$3,'k18'!$B$2:$B$3,1)	Values	[1;2]	XValues	[45000;45001]
+m2	step 3 A	series	1	PlotBy	2	ChartType	51
+m2	step 3	series 1	Name	Q1	Formula	=SERIES('k18'!$B$1,'k18'!$A$2:$A$3,'k18'!$B$2:$B$3,1)	Values	[1;2]	XValues	[45000;45001]
+ERR	savecopyas	0	
+

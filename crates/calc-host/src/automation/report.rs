@@ -110,6 +110,8 @@ impl WorkbookAutomation {
             on("ChartObject", member, Get, get);
             on("ChartObject", member, Put, put);
         }
+        on("Chart", "PlotBy", Get, Self::chart_plot_by);
+        on("Chart", "PlotBy", Put, Self::chart_put_plot_by);
         on("Chart", "ChartType", Get, Self::chart_type);
         on("Chart", "ChartType", Put, Self::chart_put_type);
         on("Chart", "HasTitle", Get, Self::chart_has_title);

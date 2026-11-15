@@ -3131,7 +3131,14 @@ fn unique_ids(session: &mut HostSession) -> Vec<u32> {
 }
 
 fn set_source(model: &WorkbookAutomation, chart: &ObjectRef, address: &str) {
-    invoke_kind(model, chart, "SetSourceData", InvokeKind::Method, vec![AutoValue::Object(range(model, address))]).unwrap();
+    set_source_by(model, chart, address, None);
+}
+
+/// `SetSourceData` with PlotBy (1 xlRows, 2 xlColumns) or omitted.
+fn set_source_by(model: &WorkbookAutomation, chart: &ObjectRef, address: &str, plot_by: Option<i32>) {
+    let mut args = vec![AutoValue::Object(range(model, address))];
+    args.extend(plot_by.map(AutoValue::I4));
+    invoke_kind(model, chart, "SetSourceData", InvokeKind::Method, args).unwrap();
 }
 
 /// Q17 (excel-answers.md, run1 q17, run2 q17b): a macro chart's series carry a `c16:uniqueId` counter that only goes up:
@@ -3213,10 +3220,10 @@ fn select_cells(host: &Host, first: (u32, u32), last: (u32, u32)) {
 /// from the series count of Excel's automatic source at Add time, then `SetSourceData A1:C3`; a second chart is made
 /// with A1 selected. `second` is the ids of that second chart.
 ///
-/// With `exact` false only the first id is compared: Excel gave `SetSourceData A1:C3` three series there for c07 (a
-/// header row over empty rows) and c11 (a plain-number first column), on a chart that had the automatic source's series;
-/// on a fresh chart (Q21 c07, d2) it gave two. Open: what an omitted PlotBy does on a chart that already has series.
-fn q18_case(data: &[&[&str]], select: ((u32, u32), (u32, u32)), first: &[u32], second: &[u32], exact: bool) {
+/// Excel's macro (eng5's Q18.bas) passed xlColumns to `SetSourceData`, so every case is compared exactly. (c07 and c11 were
+/// once compared by their first id only, from a test that omitted PlotBy; what an omitted PlotBy does on a chart that already
+/// has series is Q22, the tests below.)
+fn q18_case(data: &[&[&str]], select: ((u32, u32), (u32, u32)), first: &[u32], second: &[u32]) {
     let (host, model, sheet) = blank_report();
     fill(&host, (1, 1), data);
     select_cells(&host, select.0, select.1);
@@ -3234,17 +3241,13 @@ fn q18_case(data: &[&[&str]], select: ((u32, u32), (u32, u32)), first: &[u32], s
         );
         obj(invoke(&model, &frame, "Chart", vec![]).unwrap())
     };
-    set_source(&model, &add(20.0), "A1:C3");
+    set_source_by(&model, &add(20.0), "A1:C3", Some(2));
     let shown = |ids: Vec<Vec<u32>>, want: &[&[u32]]| {
-        if exact {
-            assert_eq!(ids, want.iter().map(|w| w.to_vec()).collect::<Vec<_>>());
-        } else {
-            assert_eq!(ids.iter().map(|c| c[0]).collect::<Vec<_>>(), want.iter().map(|w| w[0]).collect::<Vec<_>>());
-        }
+        assert_eq!(ids, want.iter().map(|w| w.to_vec()).collect::<Vec<_>>());
     };
     shown(charts_unique_ids(&mut host.session.borrow_mut()), &[first]);
     select_cells(&host, (1, 1), (1, 1));
-    set_source(&model, &add(250.0), "A1:C3");
+    set_source_by(&model, &add(250.0), "A1:C3", Some(2));
     shown(charts_unique_ids(&mut host.session.borrow_mut()), &[first, second]);
 }
 
@@ -3255,37 +3258,37 @@ const Q18_REGION3: &[&[&str]] =
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_piw0_11__q18_c02_an_empty_active_cell_starts_at_zero_and_the_next_chart_at_the_region() {
-    q18_case(Q18_REGION, ((10, 5), (10, 5)), &[0, 1], &[2, 3], true);
+    q18_case(Q18_REGION, ((10, 5), (10, 5)), &[0, 1], &[2, 3]);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_piw0_11__q18_c05_a_three_value_column_region_starts_at_three() {
-    q18_case(Q18_REGION3, ((1, 1), (1, 1)), &[3, 4], &[3, 4], true);
+    q18_case(Q18_REGION3, ((1, 1), (1, 1)), &[3, 4], &[3, 4]);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_piw0_11__q18_c06_a_selected_range_counts_instead_of_its_region() {
-    q18_case(Q18_REGION3, ((2, 2), (3, 3)), &[2, 3], &[3, 4], true);
+    q18_case(Q18_REGION3, ((2, 2), (3, 3)), &[2, 3], &[3, 4]);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_piw0_11__q18_c07_a_header_row_alone_is_one_series() {
-    q18_case(&[&["Region", "Q1", "Q2"]], ((1, 1), (1, 1)), &[1, 2, 3], &[1, 2, 3], false);
+    q18_case(&[&["Region", "Q1", "Q2"]], ((1, 1), (1, 1)), &[1, 2, 3], &[1, 2, 3]);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_piw0_11__q18_c09_a_region_of_text_is_one_series() {
-    q18_case(&[&["a", "b", "c"], &["d", "e", "f"], &["g", "h", "i"]], ((1, 1), (1, 1)), &[1], &[1], true);
+    q18_case(&[&["a", "b", "c"], &["d", "e", "f"], &["g", "h", "i"]], ((1, 1), (1, 1)), &[1], &[1]);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_piw0_11__q18_c10_numbers_without_a_header_are_one_series_per_column() {
-    q18_case(&[&["1", "2", "3"], &["4", "5", "6"], &["7", "8", "9"]], ((1, 1), (1, 1)), &[3, 4, 5], &[3, 4, 5], true);
+    q18_case(&[&["1", "2", "3"], &["4", "5", "6"], &["7", "8", "9"]], ((1, 1), (1, 1)), &[3, 4, 5], &[3, 4, 5]);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -3296,7 +3299,6 @@ fn dc_piw0_11__q18_c11_a_date_column_under_a_text_header_is_a_series() {
         ((1, 1), (1, 1)),
         &[3, 4, 5],
         &[3, 4, 5],
-        false,
     );
 }
 
@@ -3548,4 +3550,104 @@ q21! {
     dc_piw0_11__q21_b2_a_blank_inside_the_header_row => "b2",
     dc_piw0_11__q21_g1_a_gap_in_a_column => "g1",
     dc_piw0_11__q21_g2_blank_values_under_a_header_row => "g2",
+}
+
+/// Q22 (excel-answers/q22-plotby.txt, Excel 16.0, 2026-11-15, lane eng12's macro): what an omitted PlotBy in
+/// `SetSourceData` does on a chart that already has series, and the `PlotBy` property alone. Each case is one chart
+/// (added with A1 selected, so over an automatic source, or with Z50 selected, so none) taken through steps S (omitted),
+/// R (xlRows), C (xlColumns), P1 and P2 (`Chart.PlotBy = 1 / 2`), reading the series count, `PlotBy`, and every
+/// series' name and SERIES formula after each step; a step Excel failed (the ERR line) must fail here too.
+fn q22_case(case: &str) {
+    let log = std::str::from_utf8(include_bytes!("fixtures/excel-answers/q22-plotby.txt")).unwrap();
+    let lines: Vec<Vec<&str>> = log.lines().filter(|l| l.starts_with(case) && l[case.len()..].starts_with('\t')).map(|l| l.split('\t').collect()).collect();
+    let header = lines.iter().find(|f| f[1].starts_with("sheet ")).expect(case);
+    let field = |f: &[&str], key: &str| f.iter().find_map(|x| x.strip_prefix(key)).unwrap().to_string();
+    let (source, selected, steps, spec) = (field(header, "source "), field(header, "selected "), field(header, "steps "), field(header, "spec "));
+    let sheet_name = header[1].trim_start_matches("sheet ").to_string();
+    let (host, model, _) = blank_report();
+    for cell in spec.split(';').filter(|c| !c.is_empty()) {
+        let (address, value) = cell.split_once('=').unwrap();
+        let (kind, value) = value.split_once(':').unwrap();
+        let column = u32::from(address.as_bytes()[0] - b'A') + 1;
+        let row: u32 = address[1..].parse().unwrap();
+        if kind == "d" {
+            date_cell(&host, at(&host, row, column), value.parse().unwrap());
+        } else {
+            enter(&host, at(&host, row, column), value);
+        }
+    }
+    let cell = if selected == "A1" { (1, 1) } else { (50, 26) };
+    select_cells(&host, cell, cell);
+    let sheet = obj(invoke(&model, &model.application(), "ActiveSheet", vec![]).unwrap());
+    let charts = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let frame = obj(
+        invoke_kind(&model, &charts, "Add", InvokeKind::Method, vec![AutoValue::R8(300.0), AutoValue::R8(20.0), AutoValue::R8(300.0), AutoValue::R8(200.0)])
+            .unwrap(),
+    );
+    let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
+    let check = |step: usize, code: &str| {
+        let label = format!("{case} step {step} {code}");
+        let head = lines
+            .iter()
+            .find(|f| f[1].starts_with(&format!("step {step} ")) && f.get(2) == Some(&"series"))
+            .unwrap_or_else(|| panic!("{label}: no record"));
+        let series = obj(invoke_kind(&model, &chart, "SeriesCollection", InvokeKind::Method, vec![]).unwrap());
+        assert_eq!(int(invoke(&model, &series, "Count", vec![]).unwrap()).to_string(), head[3], "{label}: series count");
+        assert_eq!(int(invoke(&model, &chart, "PlotBy", vec![]).unwrap()).to_string(), head[5], "{label}: PlotBy");
+        let recorded: Vec<&Vec<&str>> = lines.iter().filter(|f| f[1] == format!("step {step}") && f[2].starts_with("series ")).collect();
+        assert_eq!(recorded.len().to_string(), head[3], "{label}");
+        for (n, f) in recorded.iter().enumerate() {
+            let item = obj(invoke_kind(&model, &series, "Item", InvokeKind::Method, vec![AutoValue::I4(n as i32 + 1)]).unwrap());
+            let expected = f[f.iter().position(|x| *x == "Formula").unwrap() + 1].replace(&format!("'{sheet_name}'!"), "Sheet1!");
+            assert_eq!(text(&model, &item, "Formula"), expected, "{label}: series {} formula", n + 1);
+            assert_eq!(text(&model, &item, "Name"), f[4], "{label}: series {} name", n + 1);
+        }
+    };
+    check(0, "added");
+    for (i, code) in steps.split(' ').enumerate() {
+        let step = i + 1;
+        let done = match code {
+            "S" => invoke_kind(&model, &chart, "SetSourceData", InvokeKind::Method, vec![AutoValue::Object(range(&model, &source))]),
+            "R" | "C" => invoke_kind(
+                &model,
+                &chart,
+                "SetSourceData",
+                InvokeKind::Method,
+                vec![AutoValue::Object(range(&model, &source)), AutoValue::I4(if code == "R" { 1 } else { 2 })],
+            ),
+            "P1" | "P2" => invoke_kind(&model, &chart, "PlotBy", InvokeKind::Put, vec![AutoValue::I4(if code == "P1" { 1 } else { 2 })]),
+            _ => Ok(AutoValue::Empty),
+        };
+        let failed = log.lines().any(|l| l.starts_with("ERR\t") && l.starts_with(&format!("ERR\t{case} step {step} {code}\t")));
+        assert_eq!(done.is_err(), failed, "{case} step {step} {code}: {done:?}");
+        check(step, code);
+    }
+}
+
+macro_rules! q22 {
+    ($($name:ident => $case:literal),* $(,)?) => {$(
+        #[cfg_attr(not(target_arch = "wasm32"), test)]
+        #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+        fn $name() { q22_case($case); }
+    )*};
+}
+q22! {
+    dc_piw0_11__q22_c07a_omitted_twice_on_a_header_row_over_a_chart_with_an_automatic_source => "c07a",
+    dc_piw0_11__q22_c07b_omitted_after_rows_and_after_columns_keeps_the_orientation => "c07b",
+    dc_piw0_11__q22_c07c_omitted_after_columns_then_rows => "c07c",
+    dc_piw0_11__q22_c07d_plot_by_alone_fails_without_series_and_regroups_with_them => "c07d",
+    dc_piw0_11__q22_c07e_omitted_twice_on_a_chart_without_an_automatic_source => "c07e",
+    dc_piw0_11__q22_c07f_rows_columns_rows_on_a_chart_without_an_automatic_source => "c07f",
+    dc_piw0_11__q22_c07g_columns_then_rows_on_a_chart_without_an_automatic_source => "c07g",
+    dc_piw0_11__q22_c07h_plot_by_alone_on_a_chart_without_an_automatic_source => "c07h",
+    dc_piw0_11__q22_c11a_omitted_twice_over_dates => "c11a",
+    dc_piw0_11__q22_c11b_omitted_after_rows_and_after_columns_over_dates => "c11b",
+    dc_piw0_11__q22_c11c_omitted_after_columns_then_rows_over_dates => "c11c",
+    dc_piw0_11__q22_c11d_plot_by_alone_over_dates => "c11d",
+    dc_piw0_11__q22_c11e_omitted_twice_over_dates_without_an_automatic_source => "c11e",
+    dc_piw0_11__q22_c11f_rows_columns_rows_over_dates_without_an_automatic_source => "c11f",
+    dc_piw0_11__q22_c11g_columns_then_rows_over_dates_without_an_automatic_source => "c11g",
+    dc_piw0_11__q22_c11h_plot_by_alone_over_dates_without_an_automatic_source => "c11h",
+    dc_piw0_11__q22_m1_a_non_square_source_is_plotted_by_the_rule_after_rows => "m1",
+    dc_piw0_11__q22_m2_a_non_square_source_without_an_automatic_source => "m2",
 }
