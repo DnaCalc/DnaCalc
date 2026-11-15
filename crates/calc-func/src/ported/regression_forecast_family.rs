@@ -126,6 +126,25 @@ fn bool_flag_from_eval_or_default(
     }
 }
 
+fn linest_flag_from_eval_or_default(
+    value: Option<CalcValue>,
+    default: bool,
+) -> Result<bool, WorksheetErrorCode> {
+    if let Some(value) = value.as_ref() {
+        if matches!(value.core_ref(), CoreRef::Error(_)) {
+            return Err(WorksheetErrorCode::Value);
+        }
+        if let CoreRef::Array(array) = value.core_ref() {
+            if array.shape().rows == 1 && array.shape().cols == 1
+                && matches!(array.get(0, 0).expect("single-cell array").core_ref(), CoreRef::Error(_))
+            {
+                return Err(WorksheetErrorCode::Value);
+            }
+        }
+    }
+    bool_flag_from_eval_or_default(value, default)
+}
+
 fn collect_numeric_vector_from_eval(
     value: &CalcValue,
 ) -> Result<NumericVector, WorksheetErrorCode> {
@@ -195,7 +214,7 @@ fn shape_first_cell(cell: &CalcValue, non_numeric: &mut bool) -> Result<f64, Wor
     }
 }
 
-fn shape_first_matrix(arg: &CalcValue) -> Result<ShapeFirst<NumericMatrix>, WorksheetErrorCode> {
+fn shape_first_matrix(arg: &CalcValue, held_errors_as_values: bool) -> Result<ShapeFirst<NumericMatrix>, WorksheetErrorCode> {
     if matches!(arg.core_ref(), CoreRef::Missing) {
         return Err(WorksheetErrorCode::Value);
     }
@@ -205,7 +224,12 @@ fn shape_first_matrix(arg: &CalcValue) -> Result<ShapeFirst<NumericMatrix>, Work
             let shape = array.shape();
             let mut values = Vec::with_capacity(shape.rows * shape.cols);
             for cell in array.iter_row_major() {
-                values.push(shape_first_cell(cell, &mut non_numeric)?);
+                if held_errors_as_values && matches!(cell.core_ref(), CoreRef::Error(_)) {
+                    non_numeric = true;
+                    values.push(f64::NAN);
+                } else {
+                    values.push(shape_first_cell(cell, &mut non_numeric)?);
+                }
             }
             NumericMatrix {
                 rows: shape.rows,
@@ -222,11 +246,11 @@ fn shape_first_matrix(arg: &CalcValue) -> Result<ShapeFirst<NumericMatrix>, Work
     Ok(ShapeFirst { value, non_numeric })
 }
 
-fn shape_first_vector(arg: &CalcValue) -> Result<ShapeFirst<NumericVector>, WorksheetErrorCode> {
+fn shape_first_vector(arg: &CalcValue, held_errors_as_values: bool) -> Result<ShapeFirst<NumericVector>, WorksheetErrorCode> {
     let ShapeFirst {
         value: matrix,
         non_numeric,
-    } = shape_first_matrix(arg)?;
+    } = shape_first_matrix(arg, held_errors_as_values)?;
     if matrix.rows > 1 && matrix.cols > 1 {
         return Err(WorksheetErrorCode::Ref);
     }
@@ -250,12 +274,22 @@ fn shape_first_vector(arg: &CalcValue) -> Result<ShapeFirst<NumericVector>, Work
 /// for a value that is not a number.
 fn shape_first_inputs(
     args: &[CalcValue],
+    held_errors_as_values: bool,
 ) -> Result<(NumericVector, PreparedPredictorInput), WorksheetErrorCode> {
-    let known_y = shape_first_vector(&args[0])?;
+    if held_errors_as_values {
+        if let CoreRef::Array(array) = args[0].core_ref() {
+            if array.shape().rows == 1 && array.shape().cols == 1
+                && matches!(array.get(0, 0).expect("single-cell array").core_ref(), CoreRef::Error(_))
+            {
+                return Err(WorksheetErrorCode::Value);
+            }
+        }
+    }
+    let known_y = shape_first_vector(&args[0], held_errors_as_values)?;
     let known_x_raw = args
         .get(1)
         .filter(|arg| !matches!(arg.core_ref(), CoreRef::Missing))
-        .map(shape_first_matrix)
+        .map(|arg| shape_first_matrix(arg, held_errors_as_values))
         .transpose()?;
     let x_non_numeric = known_x_raw.as_ref().is_some_and(|x| x.non_numeric);
     let known_x = predictor_input_from_optional(known_x_raw.map(|x| x.value), &known_y.value)?;
@@ -1175,7 +1209,7 @@ pub(crate) fn eval_trend_surface(args: &[CalcValue]) -> Result<CalcValue, Worksh
     }
     let (known_y, known_x) = match paired_trend_matrices(args) {
         Some(pair) => pair,
-        None => shape_first_inputs(args)?,
+        None => shape_first_inputs(args, false)?,
     };
     let new_x_raw = args
         .get(2)
@@ -1213,7 +1247,7 @@ fn paired_trend_matrices(args: &[CalcValue]) -> Option<(NumericVector, PreparedP
 }
 
 pub(crate) fn eval_growth_surface(args: &[CalcValue]) -> Result<CalcValue, WorksheetErrorCode> {
-    let (known_y, known_x) = shape_first_inputs(args)?;
+    let (known_y, known_x) = shape_first_inputs(args, false)?;
     let new_x_raw = args
         .get(2)
         .filter(|arg| !matches!(arg.core_ref(), CoreRef::Missing))
@@ -1241,16 +1275,16 @@ pub(crate) fn eval_forecast_linear_surface(
 }
 
 pub(crate) fn eval_linest_surface(args: &[CalcValue]) -> Result<CalcValue, WorksheetErrorCode> {
-    let (known_y, known_x) = shape_first_inputs(args)?;
-    let use_const = bool_flag_from_eval_or_default(optional_arg_value(args.get(2))?, true)?;
-    let stats = bool_flag_from_eval_or_default(optional_arg_value(args.get(3))?, false)?;
+    let (known_y, known_x) = shape_first_inputs(args, true)?;
+    let use_const = linest_flag_from_eval_or_default(optional_arg_value(args.get(2))?, true)?;
+    let stats = linest_flag_from_eval_or_default(optional_arg_value(args.get(3))?, false)?;
     linest_kernel(&known_y, &known_x, use_const, stats)
 }
 
 pub(crate) fn eval_logest_surface(args: &[CalcValue]) -> Result<CalcValue, WorksheetErrorCode> {
-    let (known_y, known_x) = shape_first_inputs(args)?;
-    let use_const = bool_flag_from_eval_or_default(optional_arg_value(args.get(2))?, true)?;
-    let stats = bool_flag_from_eval_or_default(optional_arg_value(args.get(3))?, false)?;
+    let (known_y, known_x) = shape_first_inputs(args, true)?;
+    let use_const = linest_flag_from_eval_or_default(optional_arg_value(args.get(2))?, true)?;
+    let stats = linest_flag_from_eval_or_default(optional_arg_value(args.get(3))?, false)?;
     logest_kernel(&known_y, &known_x, use_const, stats)
 }
 #[cfg(test)]

@@ -321,6 +321,27 @@ fn binomial_counts_validate_sign_before_truncation() {
     }
 }
 
+/// Excel gives range shape priority over held errors and treats error flags as VALUE.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn linest_and_logest_held_errors_follow_shape() {
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![n(1.0), n(2.0), n(4.0), n(8.0), n(16.0)]);
+    sheet.column(1, 2, vec![n(2.0), n(3.0), n(5.0), n(7.0), n(11.0)]);
+    sheet.column(1, 3, vec![e(Div0)]);
+    sheet.column(1, 4, vec![n(2.0), e(Div0), n(5.0), n(7.0), n(11.0)]);
+    let y = sheet.area(1, 1, 5, 1);
+    let x = sheet.area(1, 2, 5, 2);
+    let bad_cell = sheet.area(1, 3, 1, 3);
+    let bad_range = sheet.area(1, 4, 5, 4);
+    for name in ["LINEST", "LOGEST"] {
+        error(call_on(&mut sheet, name, vec![y.clone(), x.clone(), b(true), e(Div0)]), Value);
+        error(call_on(&mut sheet, name, vec![y.clone(), bad_cell.clone()]), Ref);
+        error(call_on(&mut sheet, name, vec![y.clone(), bad_range.clone()]), Value);
+        error(call(name, vec![e(Div0), col(&[2.0, 3.0, 5.0, 7.0, 11.0])]), Div0);
+    }
+}
+
 /// Excel 20527 treats blank regression flags as false, not omitted defaults.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
