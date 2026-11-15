@@ -3136,8 +3136,8 @@ fn set_source(model: &WorkbookAutomation, chart: &ObjectRef, address: &str) {
 
 /// Q17 (excel-answers.md, run1 q17, run2 q17b): a macro chart's series carry a `c16:uniqueId` counter that only goes up:
 /// `Shapes.AddChart2` starts at 0 (its series 0, 1), a re-plot keeps the numbers of the series it reuses and a series
-/// it adds takes the next counter (never a freed one). For `ChartObjects.Add` the start (2 in the recording, 3 and 1 in
-/// others) is not explained, so the engine keeps 2.
+/// it adds takes the next counter (never a freed one). For `ChartObjects.Add` the start is the series count of the
+/// automatic source (Q18, the tests below).
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_piw0_10__q17_series_unique_ids_start_at_zero_for_add_chart2_and_only_go_up() {
@@ -3154,7 +3154,8 @@ fn dc_piw0_10__q17_series_unique_ids_start_at_zero_for_add_chart2_and_only_go_up
     set_source(&model, &chart, "A1:D4");
     // the first series is reused (0); the two it adds take 3 and 4, not the numbers 1 and 2 it once had
     assert_eq!(unique_ids(&mut host.session.borrow_mut()), [0, 3, 4]);
-    // ChartObjects.Add keeps the earlier start (2): SetSourceData A1:C4 gives 2 and 3, a re-plot to one series keeps 2.
+    // ChartObjects.Add with A1 active over the region A1:D4 (three automatic series) starts at 3: SetSourceData A1:C4
+    // gives 3 and 4, a re-plot to one series keeps 3.
     let (host, model, sheet) = blank_report();
     fill(&host, (1, 1), data);
     let charts = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
@@ -3170,9 +3171,132 @@ fn dc_piw0_10__q17_series_unique_ids_start_at_zero_for_add_chart2_and_only_go_up
     );
     let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
     set_source(&model, &chart, "A1:C4");
-    assert_eq!(unique_ids(&mut host.session.borrow_mut()), [2, 3]);
+    assert_eq!(unique_ids(&mut host.session.borrow_mut()), [3, 4]);
     set_source(&model, &chart, "A1:B4");
-    assert_eq!(unique_ids(&mut host.session.borrow_mut()), [2]);
+    assert_eq!(unique_ids(&mut host.session.borrow_mut()), [3]);
+}
+
+/// The `c16:uniqueId` counters of every saved chart part, per part in name order.
+fn charts_unique_ids(session: &mut HostSession) -> Vec<Vec<u32>> {
+    let mut bytes = Vec::new();
+    session.save(&SavePolicy::default(), &mut bytes).unwrap();
+    let document = calc_doc::open(Arc::new(MemorySource::new(bytes)), &OpenPolicy::default()).expect("the saved package opens");
+    let mut names: Vec<String> = document
+        .package()
+        .parts()
+        .iter()
+        .map(|p| p.name().to_owned())
+        .filter(|n| n.starts_with("xl/charts/") && n.ends_with(".xml") && !n.contains("/style") && !n.contains("/colors"))
+        .collect();
+    names.sort();
+    names
+        .iter()
+        .map(|name| {
+            let xml = String::from_utf8(document.package().read_part(name).expect("the part")).unwrap();
+            xml.split("<c16:uniqueId val=\"{").skip(1).map(|rest| u32::from_str_radix(&rest[..8], 16).unwrap()).collect()
+        })
+        .collect()
+}
+
+fn select_cells(host: &Host, first: (u32, u32), last: (u32, u32)) {
+    let (active, end) = (at(host, first.0, first.1), at(host, last.0, last.1));
+    let area = calc_value::GridArea::new(active, end).unwrap();
+    assert!(
+        host.session
+            .borrow_mut()
+            .dispatch(SkinIntent::Select(Selection { active: Some(active), areas: vec![area] }))
+            .accepted()
+    );
+}
+
+/// dc-piw0.11 (3), Q18 (excel-answers q18-uniqueid-start.txt): a `ChartObjects.Add` chart takes its first uniqueId
+/// from the series count of Excel's automatic source at Add time, then `SetSourceData A1:C3`; a second chart is made
+/// with A1 selected. `second` is the ids of that second chart.
+///
+/// With `exact` false only the first id is compared: the series count Excel gave `SetSourceData` there (c07 three
+/// series from a header row over empty rows, c09 one from text only, c11 three with a date column)  is not what the engine reads from that source.
+fn q18_case(data: &[&[&str]], select: ((u32, u32), (u32, u32)), first: &[u32], second: &[u32], exact: bool) {
+    let (host, model, sheet) = blank_report();
+    fill(&host, (1, 1), data);
+    select_cells(&host, select.0, select.1);
+    let charts = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let add = |top: f64| {
+        let frame = obj(
+            invoke_kind(
+                &model,
+                &charts,
+                "Add",
+                InvokeKind::Method,
+                vec![AutoValue::R8(200.0), AutoValue::R8(top), AutoValue::R8(300.0), AutoValue::R8(200.0)],
+            )
+            .unwrap(),
+        );
+        obj(invoke(&model, &frame, "Chart", vec![]).unwrap())
+    };
+    set_source(&model, &add(20.0), "A1:C3");
+    let shown = |ids: Vec<Vec<u32>>, want: &[&[u32]]| {
+        if exact {
+            assert_eq!(ids, want.iter().map(|w| w.to_vec()).collect::<Vec<_>>());
+        } else {
+            assert_eq!(ids.iter().map(|c| c[0]).collect::<Vec<_>>(), want.iter().map(|w| w[0]).collect::<Vec<_>>());
+        }
+    };
+    shown(charts_unique_ids(&mut host.session.borrow_mut()), &[first]);
+    select_cells(&host, (1, 1), (1, 1));
+    set_source(&model, &add(250.0), "A1:C3");
+    shown(charts_unique_ids(&mut host.session.borrow_mut()), &[first, second]);
+}
+
+const Q18_REGION: &[&[&str]] = &[&["Region", "Q1", "Q2"], &["North", "10", "20"], &["South", "30", "40"], &["East", "50", "60"]];
+const Q18_REGION3: &[&[&str]] =
+    &[&["Region", "Q1", "Q2", "Q3"], &["North", "10", "20", "70"], &["South", "30", "40", "80"], &["East", "50", "60", "90"]];
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_11__q18_c02_an_empty_active_cell_starts_at_zero_and_the_next_chart_at_the_region() {
+    q18_case(Q18_REGION, ((10, 5), (10, 5)), &[0, 1], &[2, 3], true);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_11__q18_c05_a_three_value_column_region_starts_at_three() {
+    q18_case(Q18_REGION3, ((1, 1), (1, 1)), &[3, 4], &[3, 4], true);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_11__q18_c06_a_selected_range_counts_instead_of_its_region() {
+    q18_case(Q18_REGION3, ((2, 2), (3, 3)), &[2, 3], &[3, 4], true);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_11__q18_c07_a_header_row_alone_is_one_series() {
+    q18_case(&[&["Region", "Q1", "Q2"]], ((1, 1), (1, 1)), &[1, 2, 3], &[1, 2, 3], false);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_11__q18_c09_a_region_of_text_is_one_series() {
+    q18_case(&[&["a", "b", "c"], &["d", "e", "f"], &["g", "h", "i"]], ((1, 1), (1, 1)), &[1], &[1], false);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_11__q18_c10_numbers_without_a_header_are_one_series_per_column() {
+    q18_case(&[&["1", "2", "3"], &["4", "5", "6"], &["7", "8", "9"]], ((1, 1), (1, 1)), &[3, 4, 5], &[3, 4, 5], true);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_11__q18_c11_a_date_column_under_a_text_header_is_a_series() {
+    q18_case(
+        &[&["Day", "Q1", "Q2"], &["46023", "10", "20"], &["46024", "30", "40"], &["46025", "50", "60"]],
+        ((1, 1), (1, 1)),
+        &[3, 4, 5],
+        &[3, 4, 5],
+        false,
+    );
 }
 
 fn put_formula(model: &WorkbookAutomation, address: &str, value: AutoValue) {

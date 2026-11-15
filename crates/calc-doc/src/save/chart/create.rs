@@ -252,7 +252,7 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
             "varyColors",
             if p.vary_colors { "1" } else { "0" },
         ));
-        for s in &p.series {
+        for (position, s) in p.series.iter().enumerate() {
             bytes.extend(b"<c:ser>");
             bytes.extend(fresh_number("idx", &s.index.to_string()));
             bytes.extend(fresh_number("order", &s.index.to_string()));
@@ -262,12 +262,17 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
             // the data (Q0, ~/codex-runs/eng1 excel-report chart1.xml). Its other chart types write
             // (dc-piw0.10 Q17): a line series `marker` (none) before the data and `smooth` (0) after
             // it; a scatter series an `spPr` with the line off before the data and `smooth` (0)
-            // after it; area, pie and doughnut series nothing more.
+            // after it; area (but its second series, below), pie and doughnut series nothing more.
             if excel && p.kind == "barChart" {
                 bytes.extend(fresh_number("invertIfNegative", "0"));
             }
             if excel && scatter && s.fill.is_none() {
                 bytes.extend(b"<c:spPr><a:ln w=\"38100\"><a:noFill/></a:ln></c:spPr>");
+            }
+            // An area chart's second series carries the line off at 25400 (Q17 chart6, two series; a third
+            // series was not recorded).
+            if excel && p.kind == "areaChart" && position == 1 && s.fill.is_none() {
+                bytes.extend(b"<c:spPr><a:ln w=\"25400\"><a:noFill/></a:ln></c:spPr>");
             }
             if excel && p.kind == "lineChart" {
                 bytes.extend(b"<c:marker><c:symbol val=\"none\"/></c:marker>");
