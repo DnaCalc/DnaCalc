@@ -192,8 +192,35 @@ def ifs_family():
     return fam
 
 
+def lambda_helpers():
+    """MAP, REDUCE, SCAN, BYROW, BYCOL and MAKEARRAY over a small grid of mixed cells."""
+    fam = Family()
+    cells = {f'B{r}': n(v) for r, v in zip(range(1, 5), [1, 2, 3, 4])}
+    cells.update({f'C{r}': n(v) for r, v in zip(range(1, 5), [10, 20, 30, 40])})
+    cells.update({'D1': t('a'), 'D2': 'logical:true', 'D4': 'error:Div0'})
+    grid = fam.layout('grid', [{'name': 'Sheet1', 'cells': cells}])
+    formulas = {
+        'MAP': ['=MAP(B1:B4,LAMBDA(x,x*2))', '=MAP(B1:B4,C1:C4,LAMBDA(x,y,x+y))', '=MAP(D1:D4,LAMBDA(x,ISTEXT(x)))',
+                '=MAP(B1:C4,LAMBDA(x,x^2))', '=MAP(B1:B4,LAMBDA(x,y,x))', '=MAP(B1:B4,C1:C3,LAMBDA(x,y,x+y))',
+                '=MAP(D1:D4,LAMBDA(x,x))', '=MAP(B1:B4,LAMBDA(x,SEQUENCE(2)))'],
+        'REDUCE': ['=REDUCE(0,B1:C4,LAMBDA(a,v,a+v))', '=REDUCE(1,B1:B4,LAMBDA(a,v,a*v))', '=REDUCE(,B1:B4,LAMBDA(a,v,a+v))',
+                   '=REDUCE("",D1:D3,LAMBDA(a,v,a&v))', '=REDUCE(0,D1:D4,LAMBDA(a,v,a+1))', '=REDUCE(0,B1:B4,LAMBDA(a,a))'],
+        'SCAN': ['=SCAN(0,B1:B4,LAMBDA(a,v,a+v))', '=SCAN(1,B1:C4,LAMBDA(a,v,a*v))', '=SCAN("",D1:D3,LAMBDA(a,v,a&v))',
+                 '=SCAN(0,D1:D4,LAMBDA(a,v,a+v))'],
+        'BYROW': ['=BYROW(B1:C4,LAMBDA(r,SUM(r)))', '=BYROW(B1:D4,LAMBDA(r,COUNTA(r)))', '=BYROW(B1:C4,LAMBDA(r,r))',
+                  '=BYROW(B1:C4,LAMBDA(r,MAX(r)-MIN(r)))'],
+        'BYCOL': ['=BYCOL(B1:C4,LAMBDA(c,SUM(c)))', '=BYCOL(B1:D4,LAMBDA(c,ROWS(c)))', '=BYCOL(B1:C4,LAMBDA(c,c))'],
+        'MAKEARRAY': ['=MAKEARRAY(3,2,LAMBDA(r,c,r*10+c))', '=MAKEARRAY(2,2,LAMBDA(r,c,INDEX(B1:C4,r,c)))',
+                      '=MAKEARRAY(0,2,LAMBDA(r,c,1))', '=MAKEARRAY(2,2,LAMBDA(r,1))', '=MAKEARRAY(1.9,2.1,LAMBDA(r,c,r+c))'],
+    }
+    for function, fs in formulas.items():
+        for j, formula in enumerate(fs):
+            fam.case(f'{function.lower()}-{j}', function, grid, 'Sheet1!H10', formula)
+    return fam
+
+
 FAMILIES = {'reference-info': reference_info, 'subtotal-hidden': subtotal_hidden,
-            'spill-placement': spill_placement, 'ifs': ifs_family}
+            'spill-placement': spill_placement, 'ifs': ifs_family, 'lambda-helpers': lambda_helpers}
 
 
 def main():

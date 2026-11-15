@@ -1,0 +1,59 @@
+{
+ "format": "dnacalc-cell-context/1",
+ "family": "lambda-helpers",
+ "layouts": {
+  "grid": {
+   "sheets": [
+    {
+     "name": "Sheet1",
+     "cells": {
+      "B1": "0x3ff0000000000000",
+      "B2": "0x4000000000000000",
+      "B3": "0x4008000000000000",
+      "B4": "0x4010000000000000",
+      "C1": "0x4024000000000000",
+      "C2": "0x4034000000000000",
+      "C3": "0x403e000000000000",
+      "C4": "0x4044000000000000",
+      "D1": "text:a",
+      "D2": "logical:true",
+      "D4": "error:Div0"
+     }
+    }
+   ],
+   "names": {}
+  }
+ },
+ "cases": [
+{"id":"map-0","function":"MAP","layout":"grid","at":"Sheet1!H10","formula":"=MAP(B1:B4,LAMBDA(x,x*2))","layout_sha":"162dadd94f4a4ec1794bc08f02737d1cf9a7e14a945d2abae714c1f096d597c4"},
+{"id":"map-1","function":"MAP","layout":"grid","at":"Sheet1!H10","formula":"=MAP(B1:B4,C1:C4,LAMBDA(x,y,x+y))","layout_sha":"49cd338bd3162ed65740cb5bb7ef50e240cc2fabb838719f814ca0cbc218f857"},
+{"id":"map-2","function":"MAP","layout":"grid","at":"Sheet1!H10","formula":"=MAP(D1:D4,LAMBDA(x,ISTEXT(x)))","layout_sha":"44c33b3bb538a101d03d6abf79a4ec5bbc99794a9aa30872cf119e0a4e6add6b"},
+{"id":"map-3","function":"MAP","layout":"grid","at":"Sheet1!H10","formula":"=MAP(B1:C4,LAMBDA(x,x^2))","layout_sha":"37c218a38c1f769dc04b9a09de1adce2204f53f244e05cd5736a46586d20135d"},
+{"id":"map-4","function":"MAP","layout":"grid","at":"Sheet1!H10","formula":"=MAP(B1:B4,LAMBDA(x,y,x))","layout_sha":"447f43fde6b341ea5a031912a9ce88679ffaba6eed40016964d4924d647b5b6c"},
+{"id":"map-5","function":"MAP","layout":"grid","at":"Sheet1!H10","formula":"=MAP(B1:B4,C1:C3,LAMBDA(x,y,x+y))","layout_sha":"d8a49c7f7070cbf3b788221d02d040b0d0bf4fb7253c34131bfa15c68215428b"},
+{"id":"map-6","function":"MAP","layout":"grid","at":"Sheet1!H10","formula":"=MAP(D1:D4,LAMBDA(x,x))","layout_sha":"4c9925a52014d927760a0017483a2580e1c52f9594d9d3d84bee8f62ef60dcfb"},
+{"id":"map-7","function":"MAP","layout":"grid","at":"Sheet1!H10","formula":"=MAP(B1:B4,LAMBDA(x,SEQUENCE(2)))","layout_sha":"99c4c229bf7465e294c1c094957616132a5c4ec33a2ec068b2a83bddf83e65b9"},
+{"id":"reduce-0","function":"REDUCE","layout":"grid","at":"Sheet1!H10","formula":"=REDUCE(0,B1:C4,LAMBDA(a,v,a+v))","layout_sha":"e72bce604f81fcbb706b119127db2faf4513dd78aee0f5a647473b9703f94c23"},
+{"id":"reduce-1","function":"REDUCE","layout":"grid","at":"Sheet1!H10","formula":"=REDUCE(1,B1:B4,LAMBDA(a,v,a*v))","layout_sha":"0f671f18be689edf5867d53513cc00f7c00a43504acd45d18be52ec052bc81ce"},
+{"id":"reduce-2","function":"REDUCE","layout":"grid","at":"Sheet1!H10","formula":"=REDUCE(,B1:B4,LAMBDA(a,v,a+v))","layout_sha":"cd615c638f89774a0083c3ac8015cd08a90638c7a07433baca77cc4d4f07a97f"},
+{"id":"reduce-3","function":"REDUCE","layout":"grid","at":"Sheet1!H10","formula":"=REDUCE(\"\",D1:D3,LAMBDA(a,v,a&v))","layout_sha":"e21d005a6cd9a68d4cfe2d654881eaa79d2cde1b3164a00c5f30eaff4f8ce9e9"},
+{"id":"reduce-4","function":"REDUCE","layout":"grid","at":"Sheet1!H10","formula":"=REDUCE(0,D1:D4,LAMBDA(a,v,a+1))","layout_sha":"52d73dd58b775a3b7ed1c7c45c340c0e350d7da5b99e4aee09a466a21aad7e84"},
+{"id":"reduce-5","function":"REDUCE","layout":"grid","at":"Sheet1!H10","formula":"=REDUCE(0,B1:B4,LAMBDA(a,a))","layout_sha":"c7f6d55171e3ccfe2e15bb162af1d31829fb337d45c4b3d8a5fb809b4b5f92ba"},
+{"id":"scan-0","function":"SCAN","layout":"grid","at":"Sheet1!H10","formula":"=SCAN(0,B1:B4,LAMBDA(a,v,a+v))","layout_sha":"245ac25a900bb1953bf0cad5699086517f75f9e026fe058ac68c1097d58272ce"},
+{"id":"scan-1","function":"SCAN","layout":"grid","at":"Sheet1!H10","formula":"=SCAN(1,B1:C4,LAMBDA(a,v,a*v))","layout_sha":"24f0b7362db6fc053ddee41e767afbd7674c7584c98c7cbf0f19acdfb876666d"},
+{"id":"scan-2","function":"SCAN","layout":"grid","at":"Sheet1!H10","formula":"=SCAN(\"\",D1:D3,LAMBDA(a,v,a&v))","layout_sha":"aa8f0946450630a50a2108a14352db57fc74882e4981b1509c10433104a12898"},
+{"id":"scan-3","function":"SCAN","layout":"grid","at":"Sheet1!H10","formula":"=SCAN(0,D1:D4,LAMBDA(a,v,a+v))","layout_sha":"9275bada1c67a511c4a6963e6c1ae8cf7a09bd2cc14e374dda9ef101d2522b4c"},
+{"id":"byrow-0","function":"BYROW","layout":"grid","at":"Sheet1!H10","formula":"=BYROW(B1:C4,LAMBDA(r,SUM(r)))","layout_sha":"13d6ffdfa0bc79423482bf8fd5c1291bc1ce652623ea5442a81a6f7505985b7d"},
+{"id":"byrow-1","function":"BYROW","layout":"grid","at":"Sheet1!H10","formula":"=BYROW(B1:D4,LAMBDA(r,COUNTA(r)))","layout_sha":"9b107b4f88a1cf5fd234c73a96998f251d4c5a93470e6ed93a427dbf6ed80448"},
+{"id":"byrow-2","function":"BYROW","layout":"grid","at":"Sheet1!H10","formula":"=BYROW(B1:C4,LAMBDA(r,r))","layout_sha":"a81cb4f056ea6c0a2ba132101fc02efcc5e98410fd984d7f0d7fed0b53717622"},
+{"id":"byrow-3","function":"BYROW","layout":"grid","at":"Sheet1!H10","formula":"=BYROW(B1:C4,LAMBDA(r,MAX(r)-MIN(r)))","layout_sha":"0c528d27dbe02cd68bf77d7658351ba12845d34628638f07aca9eb74f746c4fa"},
+{"id":"bycol-0","function":"BYCOL","layout":"grid","at":"Sheet1!H10","formula":"=BYCOL(B1:C4,LAMBDA(c,SUM(c)))","layout_sha":"90ba534937c5bd7b979b6ffb56f0e163b72b1f4ce8e7e11d555c868e27145841"},
+{"id":"bycol-1","function":"BYCOL","layout":"grid","at":"Sheet1!H10","formula":"=BYCOL(B1:D4,LAMBDA(c,ROWS(c)))","layout_sha":"d738b39ba6087a8426511a6bc081c963c1365e1baeb8e4ec9f97d22074e2d864"},
+{"id":"bycol-2","function":"BYCOL","layout":"grid","at":"Sheet1!H10","formula":"=BYCOL(B1:C4,LAMBDA(c,c))","layout_sha":"61e481093191738d9560138176061e75113513bece5ee41cc46e1c341c246100"},
+{"id":"makearray-0","function":"MAKEARRAY","layout":"grid","at":"Sheet1!H10","formula":"=MAKEARRAY(3,2,LAMBDA(r,c,r*10+c))","layout_sha":"a402932e9f776214131574ca23c8861cc6c79c679a3c25dfb484767a2fda0b83"},
+{"id":"makearray-1","function":"MAKEARRAY","layout":"grid","at":"Sheet1!H10","formula":"=MAKEARRAY(2,2,LAMBDA(r,c,INDEX(B1:C4,r,c)))","layout_sha":"7598da86893b2a63d324a55955acc45acfc7dd9af6bfa8f9b7f06233d623f983"},
+{"id":"makearray-2","function":"MAKEARRAY","layout":"grid","at":"Sheet1!H10","formula":"=MAKEARRAY(0,2,LAMBDA(r,c,1))","layout_sha":"3d29257e56489af8d4306f43867baa422db294148181d2e8f269315df256d485"},
+{"id":"makearray-3","function":"MAKEARRAY","layout":"grid","at":"Sheet1!H10","formula":"=MAKEARRAY(2,2,LAMBDA(r,1))","layout_sha":"e49d14060ca7deefcc722f1bec58228bd7f05ae0158b87ba49c3ed3900b12ee3"},
+{"id":"makearray-4","function":"MAKEARRAY","layout":"grid","at":"Sheet1!H10","formula":"=MAKEARRAY(1.9,2.1,LAMBDA(r,c,r+c))","layout_sha":"3eb0517c27c3dd424e227a1bd9a0ec96410808550af45808825983b9795483e6"}
+ ]
+}
