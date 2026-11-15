@@ -34,12 +34,28 @@ pub(crate) fn beta_absorbed_shape_error(alpha: f64, beta: f64, z: f64) -> bool {
     let large = alpha.max(beta);
     let small = alpha.min(beta);
     let coordinate = if alpha > beta { z } else { 1.0 - z };
-    large.is_finite()
-        && small >= 40.0
-        && large + small == large
-        && z > 0.0
-        && z < 1.0
-        && coordinate <= 0.99
+    if !large.is_finite() || large + small != large || !(z > 0.0 && z < 1.0) || !(coordinate <= 0.99) {
+        return false;
+    }
+    if small >= 40.0 {
+        return true;
+    }
+    if small < 2.0 || small.fract() != 0.0 {
+        return false;
+    }
+    // For an integer shape below 40 the beta recurrence reduces the
+    // smaller shape to two. Excel reports NUM when this stored product
+    // vanishes; the stable reduction alone would hide that failure.
+    let mut shape = small;
+    let mut product = 1.0;
+    for _ in 0..(small as u32 - 2) {
+        shape -= 1.0;
+        product *= shape / (shape + large);
+        if product == 0.0 {
+            return true;
+        }
+    }
+    false
 }
 
 pub(crate) fn beta_dist_kernel(

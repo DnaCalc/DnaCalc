@@ -174,6 +174,24 @@ fn negative_binomial_cdf_reports_absorbed_shape_error() {
     exact(call("NEGBINOM.DIST", args(99.0, 1e100, f64::from_bits(0.99_f64.to_bits() + 1))), 0.0);
 }
 
+/// Excel's integer-shape beta recurrence can underflow before the final sum.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beta_integer_recurrence_underflow_is_an_error() {
+    for name in ["BETADIST", "BETA.DIST"] {
+        let args = |x, a, b| {
+            let mut values = vec![n(x), n(a), n(b)];
+            if name == "BETA.DIST" { values.push(f1_support::b(true)); }
+            values
+        };
+        error(call(name, args(0.5, 1e100, 10.0)), Num);
+        error(call(name, args(0.5, 10.0, 1e100)), Num);
+        exact(call(name, args(0.5, 2.0_f64.powi(60), 10.0)), 0.0);
+    }
+    error(call("BETADIST", vec![n(0.6550608785705658), n(10.0), n(7.990021433915007e59), n(-52.99999999999999)]), Num);
+    error(call("NEGBINOM.DIST", vec![n(7.837101600056055e42), n(10.0), n(0.9766937764009418), b(true)]), Num);
+}
+
 /// Excel's gamma distribution can fail on a large-count compensation.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
