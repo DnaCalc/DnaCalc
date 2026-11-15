@@ -9,6 +9,7 @@
 //! select is never evaluated.
 
 use crate::catalogue::{CatalogueEntry, FunctionCallTarget, FunctionId, Kernel, ParameterClass};
+use crate::Availability;
 use crate::locale::CalcEnvironment;
 use crate::value::{
     CalcValue, CellKey, CoreRef, GridArea, NumericMode, SheetId, WorksheetErrorCode,
@@ -584,6 +585,17 @@ pub fn invoke(
             });
         }
         Kernel::Deferred { class } => {
+            // The Lists-in-Cells functions (HAS, HASANY, HASALL, FLATTEN) exist only in the
+            // Insider Beta, for workbooks of compatibility version 3: Excel 16.0.20527 answers
+            // every call in a version-2 workbook #NAME?, the answer of a missing name (9,877
+            // recorded bank rows). Version 3 stays deferred.
+            if entry.availability == Availability::ListsInCellsBeta
+                && services
+                    .environment()
+                    .is_some_and(|environment| environment.compatibility_version < 3)
+            {
+                return Ok(CalcValue::error(WorksheetErrorCode::Name));
+            }
             return Err(FunctionFault::Deferred {
                 id: entry.id,
                 class,

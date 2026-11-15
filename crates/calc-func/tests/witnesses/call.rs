@@ -611,6 +611,23 @@ mod tests {
         }
     }
 
+    /// The Lists-in-Cells beta functions are #NAME? below compatibility version 3 (Excel
+    /// 16.0.20527 bank rows) and stay deferred at version 3.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn lists_in_cells_functions_follow_the_compatibility_version() {
+        let args = [Value::String("abc".into()), Value::String("b".into())];
+        let version = |v: &str| WitnessInvocation {
+            compatibility_version: Some(v.to_owned()),
+            ..Default::default()
+        };
+        for function in ["HAS", "HASANY", "HASALL"] {
+            assert_eq!(calculate(function, &args, None, Some(&version("2")), true), "error:Name");
+            assert_eq!(calculate(function, &args, None, Some(&version("3")), true), "fault:Deferred");
+        }
+        assert_eq!(calculate("FLATTEN", &args[..1], None, Some(&version("1")), true), "error:Name");
+    }
+
     /// dc-ymjf.2.65: an add-in call resolves as the session's recorded open add-ins allow.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
