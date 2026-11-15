@@ -10,6 +10,16 @@ use calc_func::SubtotalExclusions;
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Ref, Value};
 use f1_support::*;
 
+/// Excel 20527 rejects a reflected beta inverse when the second shape absorbs the first.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beta_inverse_absorbed_large_second_shape_reports_num() {
+    for name in ["BETA.INV", "BETAINV"] {
+        error(call(name, vec![n(0.75), n(100.0), n(2.0_f64.powi(200)), n(-1.0), n(1.0)]), Num);
+        assert!(call(name, vec![n(0.75), n(100.0), n(2.0_f64.powi(40))]).unwrap().as_number().is_some());
+    }
+}
+
 /// Excel 20527: a tiny confidence uses the normal inverse near one half.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

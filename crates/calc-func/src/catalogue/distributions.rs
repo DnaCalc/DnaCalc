@@ -48,6 +48,14 @@ fn beta_inverse(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     {
         return fail(WorksheetErrorCode::Num);
     }
+    // When the large second shape absorbs the first, Excel's reflected
+    // inverse search reports NUM throughout this measured shape range.
+    if p > 0.5 && p < 1.0 && (10.0..=2.0_f64.powi(20)).contains(&alpha)
+        && beta > 0.0 && beta <= 2.0_f64.powi(1000) && beta + alpha == beta
+        && lower.is_finite() && upper.is_finite() && upper > lower && (upper - lower).is_finite()
+    {
+        return fail(WorksheetErrorCode::Num);
+    }
     // In the reflected search, a tiny second shape can make both the unit
     // and the normal correction disappear from the initial chi proposal.
     if p > 0.5 && p < 1.0 && alpha >= f64::MIN_POSITIVE && beta >= 1.0
