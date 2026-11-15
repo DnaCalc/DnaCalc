@@ -9,6 +9,21 @@ mod f1_support;
 use calc_func::value::WorksheetErrorCode::{Blocked, Calc, Connect, Div0, NA, Name, Null, Num, Ref, Value};
 use f1_support::*;
 
+/// Excel 20527 applies the same tolerant start-position floor to all four surfaces.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn find_and_search_use_tolerant_start_positions() {
+    for name in ["FIND", "FINDB", "SEARCH", "SEARCHB"] {
+        exact(call(name, vec![t(""), t("abca"), n(1.0 - 1e-7)]), 1.0);
+        error(call(name, vec![t(""), t("abca"), n(1.0 - 3e-7)]), Value);
+        exact(call(name, vec![t(""), t("abca"), n(2.0 - 1e-7)]), 2.0);
+        exact(call(name, vec![t("b"), t("abca"), n(3.0 - 3e-7)]), 2.0);
+        error(call(name, vec![t("b"), t("abca"), n(3.0 - 1e-7)]), Value);
+    }
+    exact(call("FIND", vec![t(""), t("abca"), n(5.0)]), 5.0);
+    error(call("SEARCH", vec![t(""), t("abca"), n(5.0)]), Value);
+}
+
 /// Excel 20527 applies the tolerant integer floor to CHAR, but not UNICHAR.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
