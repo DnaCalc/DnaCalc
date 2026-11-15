@@ -186,9 +186,11 @@ fn beta_inverse_reflected_tiny_second_shape_returns_num() {
     for name in ["BETA.INV", "BETAINV"] {
         for alpha in [0.001, 1.0, 1000.0] {
             error(call(name, vec![n(half_up), n(alpha), n(2.0_f64.powi(-55))]), Num);
+            error(call(name, vec![n(0.75), n(alpha), n(2.0_f64.powi(-25))]), Num);
         }
         error(call(name, vec![n(0.75), n(1.0), n(1e-50), n(-2.0), n(3.0)]), Num);
         exact(call(name, vec![n(0.5), n(1.0), n(2.0_f64.powi(-56))]), f64::from_bits(0x3fef_ffff_ffff_ffff));
+        exact(call(name, vec![n(0.8741685908061649), n(2.0), n(1.4829492687478394e-5)]), 1.0);
     }
 }
 
