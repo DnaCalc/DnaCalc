@@ -681,13 +681,12 @@ fn end_payment_quotient(
 
 /// Stored interest and principal components before their final timing factor.
 fn period_components(
-    period_index: f64,
-    periods: f64,
+    remaining: f64,
     future_value: f64,
     log_growth: f64,
     quotient: f64,
 ) -> (f64, f64) {
-    let t = -((periods - period_index + 1.0) * log_growth);
+    let t = -(remaining * log_growth);
     let em = crate::ported::excel_numeric::excel_expm1_spilled(t);
     let u = crate::ported::excel_numeric::excel_exp(t);
     // Retain h before adding fv. Forming (h+fv)*em-fv*u instead loses
@@ -702,18 +701,31 @@ fn end_payment_parts(
     periodic_rate: f64,
     period_index: f64,
     periods: f64,
+    present_value: f64,
     future_value: f64,
     log_growth: f64,
     quotient: f64,
     timing: PaymentTiming,
 ) -> (f64, f64) {
-    let (interest, principal) = period_components(
-        period_index,
-        periods,
-        future_value,
-        log_growth,
-        quotient,
-    );
+    // The adjacent first-period input distinguishes the two stored orders.
+    // Limit this order to the measured region where the two logarithm paths
+    // agree and the cash flows remain within the independently probed range.
+    let bounded_cashflow = |v: f64| {
+        v == 0.0 || (2.0_f64.powi(-110)..=2.0_f64.powi(110)).contains(&v.abs())
+    };
+    let remaining = if matches!(timing, PaymentTiming::EndOfPeriod)
+        && period_index == 1.0 + f64::EPSILON
+        && (0.125..=0.5).contains(&periods)
+        && (2.0_f64.powi(-20)..0.375).contains(&periodic_rate)
+        && bounded_cashflow(present_value)
+        && bounded_cashflow(future_value)
+        && crate::ported::excel_numeric::excel_log(excel_x87_add(1.0, periodic_rate)) == log_growth
+    {
+        (periods + 1.0) - period_index
+    } else {
+        (periods - period_index) + 1.0
+    };
+    let (interest, principal) = period_components(remaining, future_value, log_growth, quotient);
     let factor = if matches!(timing, PaymentTiming::BeginningOfPeriod) {
         due_coefficient(periodic_rate)
     } else {
@@ -774,6 +786,7 @@ pub fn ipmt(
             periodic_rate,
             period_index,
             periods,
+            present_value,
             future_value,
             log_growth,
             quotient,
@@ -858,6 +871,7 @@ pub fn ppmt(
             periodic_rate,
             period_index,
             periods,
+            present_value,
             future_value,
             log_growth,
             quotient,

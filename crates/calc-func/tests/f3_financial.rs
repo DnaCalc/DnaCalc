@@ -12,6 +12,26 @@ use calc_func::locale::DateSystem::{System1900, System1904};
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Value};
 use f1_support::*;
 
+/// Independent Excel 20527 controls and a nearby excluded rounding case.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn first_adjacent_period_uses_measured_remaining_period_order() {
+    let period = 1.0 + f64::EPSILON;
+    for (name, rate, periods, present, future, expected) in [
+        ("IPMT", 0.07349188203734602, 0.42078076213176907, -267.07394428462635,
+         -613283.3677045319, 0x4033_a0b5_5358_5a23),
+        ("PPMT", 0.2834171622235253, 0.42823331439155654, 72.7772428621929,
+         804188.6824558727, 0xc13e_d773_52cd_4bca),
+        ("IPMT", 0.24042490731562907, f64::from_bits(0x3fef_ffff_ffff_ffff),
+         -486.83764968944774, 111969.28369137854, 0x405d_4310_bdc2_1078),
+    ] {
+        exact(
+            call(name, vec![n(rate), n(period), n(periods), n(present), n(future)]),
+            f64::from_bits(expected),
+        );
+    }
+}
+
 /// Excel 20527 retains the last finite secant iterate for these zero-asymptote flows.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
