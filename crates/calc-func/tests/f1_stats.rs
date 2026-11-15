@@ -10,6 +10,44 @@ use calc_func::SubtotalExclusions;
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Ref, Value};
 use f1_support::*;
 
+/// Excel 20527's automatic confidence fit with two verified initial slopes.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn forecast_ets_confidence_with_verified_extended_slope() {
+    for (target, values, expected) in [
+        (
+            0x409e_b000_0000_0000,
+            [0x3ff8_088e_b56c_3836, 0x4003_a3ed_302e_1bf1, 0x400c_21cd_6fb8_0371,
+             0x4012_585f_153f_e2c8, 0x4016_e856_b938_4c8c],
+            0x4021_5b09_0bcb_ba4f,
+        ),
+        (
+            0x40f0_35e0_0000_0000,
+            [0x3ffd_a568_daa0_ac91, 0x4000_78b0_575b_d558, 0x4008_00d2_313f_96b2,
+             0x4010_b286_d08c_f274, 0x4017_bc3f_00db_d5a0],
+            0x40c4_7f18_7d39_9d05,
+        ),
+    ] {
+        let values = values.map(f64::from_bits);
+        exact(
+            call("FORECAST.ETS.CONFINT", vec![
+                n(f64::from_bits(target)), col(&values), col(&[1.0, 2.0, 3.0, 4.0, 5.0]),
+            ]),
+            f64::from_bits(expected),
+        );
+    }
+    // A nearly linear independent Excel control needs different confidence
+    // arithmetic even though both regression slopes pass the rounding proof.
+    let nearly_linear = [
+        0xc8bc_fe00_0000_0000, 0xc8b6_0400_0000_0000, 0xc8ae_1402_0000_0000,
+        0xc8a0_2004_0000_0100, 0xc871_6230_0000_1000,
+    ].map(f64::from_bits);
+    assert!(matches!(
+        call("FORECAST.ETS.CONFINT", vec![n(30.0), col(&nearly_linear), col(&[1.0, 2.0, 3.0, 4.0, 5.0])]),
+        Err(calc_func::FunctionFault::NotHeld { .. })
+    ));
+}
+
 /// Excel's automatic detector admits curved histories with a verified slope.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

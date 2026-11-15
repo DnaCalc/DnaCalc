@@ -277,11 +277,16 @@ fn exact_trend(y: &[f64]) -> Option<f64> {
 /// TwoSum retains the addition's rounding residue. Final extrapolation is
 /// admitted only when its product and sum are exact; private rounded expression
 /// order outside this region has not been identified.
-fn exact_sum(a: f64, b: f64) -> Option<f64> {
+fn sum_and_error(a: f64, b: f64) -> Option<(f64, f64)> {
     let sum = a + b;
     let part = sum - a;
     let residue = (a - (sum - part)) + (b - part);
-    (sum.is_finite() && residue == 0.0).then_some(sum)
+    sum.is_finite().then_some((sum, residue))
+}
+
+fn exact_sum(a: f64, b: f64) -> Option<f64> {
+    let (sum, residue) = sum_and_error(a, b)?;
+    (residue == 0.0).then_some(sum)
 }
 
 /// Verify the five-point regression against an exact centered numerator.
@@ -363,6 +368,79 @@ fn regression_slope(y: &[f64]) -> f64 {
     }
     let n = y.len() as f64;
     (n * sxy - sx * sy) / (n * sxx - sx * sx)
+}
+
+/// Verify that the moment-based slope is the correctly rounded centered
+/// regression, without requiring every intermediate sum to be exact.
+fn verified_regression_slope(y: &[f64]) -> bool {
+    let denominator = match y.len() {
+        5 => 10.0,
+        7 => 28.0,
+        _ => return false,
+    };
+    let slope = regression_slope(y);
+    if slope == 0.0 || !slope.is_finite() {
+        return false;
+    }
+    let mut high = 0.0;
+    let mut low = 0.0;
+    for (i, &value) in y.iter().enumerate() {
+        let weight = i as f64 - (y.len() / 2) as f64;
+        let product = value * weight;
+        let product_error = value.mul_add(weight, -product);
+        let Some((sum, carry)) = sum_and_error(high, product) else { return false };
+        high = sum;
+        let Some(accumulated) = exact_sum(low, carry).and_then(|x| exact_sum(x, product_error)) else {
+            return false;
+        };
+        low = accumulated;
+    }
+    let product = slope * denominator;
+    if !product.is_finite() {
+        return false;
+    }
+    let product_error = slope.mul_add(denominator, -product);
+    let Some(delta) = exact_sum(high, -product).and_then(|x| {
+        exact_sum(low, -product_error).and_then(|y| exact_sum(x, y))
+    }) else {
+        return false;
+    };
+    // Compare the exact numerator residual with the two adjacent rounding
+    // boundaries. Ties remain refused rather than assuming a tie rule here.
+    let lower = (slope - slope.next_down()) * (denominator / 2.0);
+    let upper = (slope.next_up() - slope) * (denominator / 2.0);
+    -lower < delta && delta < upper
+}
+
+fn verified_five_point_extension(y: &[f64]) -> bool {
+    if y.len() != 5 || !verified_regression_slope(y) {
+        return false;
+    }
+    let slope = regression_slope(y);
+    let mut extended = y.to_vec();
+    for j in 5..7 {
+        extended.push(y[j % 2] + (j - j % 2) as f64 * slope);
+    }
+    verified_regression_slope(&extended)
+}
+
+/// Keep squared curvature above the binary64 rounding floor for the history's
+/// scale. Nearly linear histories need the unidentified confidence arithmetic.
+fn resolved_five_point_curvature(y: &[f64]) -> bool {
+    if y.len() != 5 {
+        return false;
+    }
+    let scale = y.iter().fold(0.0_f64, |largest, value| largest.max(value.abs()));
+    // sqrt(binary64 epsilon) is exactly 2^-26.
+    let bound = scale * 2.0_f64.powi(-26);
+    let mut steps = [0.0; 4];
+    for (i, pair) in y.windows(2).enumerate() {
+        let Some(step) = exact_sum(pair[1], -pair[0]) else { return false };
+        steps[i] = step;
+    }
+    steps.windows(2).all(|pair| {
+        exact_sum(pair[1], -pair[0]).is_some_and(|curvature| curvature.abs() > bound)
+    })
 }
 
 /// R40's short-history impulse response identifies the first two phases plus
@@ -987,6 +1065,18 @@ fn evaluate_fitted(
         && (exact_scaled_history(&series.values).is_some()
             || exact_centered_five_slope(&series.values))
         && output == Output::Forecast
+    {
+        return nonseasonal(site, &series.values, output, statistic, horizon, confidence);
+    }
+    // Default-confidence controls cover these five-point fits when both the
+    // original and extended initial slopes are verified. Keep horizons below
+    // the signed-32-bit variance wrap boundary covered by this route.
+    if season == 1.0 && series.directly_observed && horizon >= 1.0
+        && horizon < 2.0_f64.powi(30) && horizon.fract() == 0.0
+        && confidence == 0.95 && output == Output::Confidence
+        && strictly_curved_five(&series.values)
+        && resolved_five_point_curvature(&series.values)
+        && verified_five_point_extension(&series.values)
     {
         return nonseasonal(site, &series.values, output, statistic, horizon, confidence);
     }
