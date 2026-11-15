@@ -177,6 +177,9 @@ mod verdict;
 // The witness command reads Excel through calc-oracle-excel, like the capture command.
 #[cfg(not(target_arch = "wasm32"))]
 mod witness;
+// Cell-context witnesses: layouts judged in a real sheet (dc-483v).
+#[cfg(not(target_arch = "wasm32"))]
+mod cell_context;
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::process::ExitCode;
@@ -202,6 +205,8 @@ fn main() -> ExitCode {
         Some((command, rest)) if command == "package" => package::run(rest),
         #[cfg(not(target_arch = "wasm32"))]
         Some((command, rest)) if command == "witness" => witness::run(rest),
+        #[cfg(not(target_arch = "wasm32"))]
+        Some((command, rest)) if command == "cells" => cell_context::run(rest),
         #[cfg(not(target_arch = "wasm32"))]
         Some((command, rest)) if command == "capture" => capture::run(rest),
         #[cfg(not(target_arch = "wasm32"))]
