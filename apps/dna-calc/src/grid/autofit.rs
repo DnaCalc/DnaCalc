@@ -77,7 +77,21 @@ pub(crate) fn double_underline_css(pixels: f64, zoom: f64) -> String {
         underline_width(pixels, zoom)
     )
 }
-/// A superscript or subscript font draws at this share of its size (assumed until Excel decides: dc-971p.6).
+/// Rows ask for more height under a superscript or subscript (Excel Q1, row AutoFit of a whole-cell font, 96 DPI):
+/// Calibri 11, 20 and 36 pt (14.67, 26.67 and 48 px) take 3, 4 and 8 px more than plain text for a superscript and
+/// 4, 6 and 10 px for a subscript; Arial 11 takes 3 and 6. The rule is those rows' fit, 0.15 and 0.205 of the stored
+/// size rounded up; Arial's subscript (6, the rule gives 4) is the one measured row it misses.
+pub(crate) fn script_row_extra(style: &TextStyle) -> f64 {
+    match style.script.as_deref() {
+        Some("superscript") => (style.pixels * 0.15).ceil(),
+        Some("subscript") => (style.pixels * 0.205).ceil(),
+        _ => 0.,
+    }
+}
+
+/// A superscript or subscript font draws at this share of its size (assumed: Excel's picture of the cell came out
+/// empty in Q1, and its column AutoFit is not separable from the plain rows above it, so scale and baseline stay
+/// unmeasured: dc-971p.6).
 pub(crate) const SCRIPT_SCALE: f64 = 2. / 3.;
 
 /// The size in pixels the font draws at: its stored size, less for a superscript or subscript.
@@ -576,11 +590,13 @@ pub fn measure(rows: bool, cells: &[wire::Cell]) -> Result<Vec<(u32, u64)>, Stri
         } else {
             ";width:auto;white-space:pre".into()
         };
+        // A row is fitted to the stored size plus Excel's extra for the script (Q1), not to the smaller drawn size.
+        let fitted = if rows { TextStyle { script: None, ..cell.style.clone() } } else { cell.style.clone() };
         crate::style::css(
             probe.clone().unchecked_into(),
             format!(
                 "{}{}",
-                font_css(&cell.style, conditional, italic, 1.),
+                font_css(&fitted, conditional, italic, 1.),
                 width
             ),
         );
@@ -616,7 +632,7 @@ pub fn measure(rows: bool, cells: &[wire::Cell]) -> Result<Vec<(u32, u64)>, Stri
                 .map_or(w, |advances| advances.iter().sum())
         };
         let pixels = if rows {
-            h + 4.
+            h + 4. + script_row_extra(&cell.style)
         } else {
             w + padding + indent + icon
         };
@@ -678,5 +694,19 @@ mod style_tests {
         // A superscript rises by a third of the stored size, a subscript falls by an eighth; plain text stays on the baseline.
         assert_eq!((script_shift(&plain, 1.), script_shift(&up, 1.), script_shift(&down, 1.)), (0., -4., 1.5));
         assert_eq!(script_shift(&up, 2.), -8.);
+    }
+    /// Excel Q1 (excel-answers q1.txt): row heights of whole-cell superscript and subscript against plain text.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_971p_6__a_script_row_asks_for_the_height_excel_measured() {
+        let extra = |points: f64, script: &str| {
+            let style = TextStyle { pixels: points * 4. / 3., script: Some(script.into()), ..Default::default() };
+            script_row_extra(&style)
+        };
+        // Calibri 11, 20, 36: rows 15 / 17.25 / 18, 26.25 / 29.25 / 30.75, 46.5 / 52.5 / 54 pt = 20 / 23 / 24, 35 / 39 / 41, 62 / 70 / 72 px.
+        assert_eq!([extra(11., "superscript"), extra(20., "superscript"), extra(36., "superscript")], [3., 4., 8.]);
+        assert_eq!([extra(11., "subscript"), extra(20., "subscript"), extra(36., "subscript")], [4., 6., 10.]);
+        // Arial 11: 14.25 / 16.5 pt (a superscript, 3 px more); its subscript row (18.75 pt, 6 px) is not fitted.
+        assert_eq!(script_row_extra(&TextStyle { pixels: 11. * 4. / 3., ..Default::default() }), 0.);
     }
 }
