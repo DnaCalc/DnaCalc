@@ -483,6 +483,7 @@ fn environment(
             .or_else(|| field("workbook_compatibility")),
         // Recorded only by a capture that asked Excel's NOW() in its session.
         calculation_clock: setting("calculation_clock"),
+        addins_open: None,
     };
     // dc-1943: all 989 FIXED calls in this particular bank were replayed on the same
     // en-ZA host, with identical results. The captured replay is retained under
@@ -515,23 +516,16 @@ const TOUCHSTONE_PROFILES: &[(&str, &str)] = &[(
     "migration/evidence/dc-7ofm-touchstone-en-za.json",
 )];
 
-/// The attested locale of a Touchstone/1 capture's environment, from its evidence file: the
-/// culture and Excel's International separators (Excel renders DOLLAR and FIXED groups with
-/// International's U+0020, where Application.ThousandsSeparator reports U+00A0).
-fn touchstone_profile(env_id: &str) -> Option<(String, String, String)> {
+/// The evidence of a Touchstone/1 capture's environment (dc-7ofm, dc-ymjf.2.65): its locale
+/// profile with Excel's International separators (Excel renders DOLLAR and FIXED groups with
+/// International's U+0020, where Application.ThousandsSeparator reports U+00A0), and the add-in
+/// files open in its sessions.
+fn touchstone_evidence(env_id: &str) -> Option<Value> {
     static EVIDENCE: &str = include_str!("../../../migration/evidence/dc-7ofm-touchstone-en-za.json");
     let (_, path) = TOUCHSTONE_PROFILES.iter().find(|(id, _)| *id == env_id)?;
     debug_assert_eq!(*path, "migration/evidence/dc-7ofm-touchstone-en-za.json");
     let evidence: Value = serde_json::from_str(EVIDENCE).ok()?;
-    if evidence["env_id"] != env_id || evidence["service"] != "touchstone/1" {
-        return None;
-    }
-    let profile = &evidence["profile"];
-    Some((
-        profile["locale"].as_str()?.to_owned(),
-        profile["decimal_separator"].as_str()?.to_owned(),
-        profile["thousands_separator"].as_str()?.to_owned(),
-    ))
+    (evidence["env_id"] == env_id && evidence["service"] == "touchstone/1").then_some(evidence)
 }
 
 fn attest_touchstone_profile(source: &mut ReadingSource, provenance: Option<&Value>) {
@@ -541,19 +535,29 @@ fn attest_touchstone_profile(source: &mut ReadingSource, provenance: Option<&Val
     if provenance["service"] != "touchstone/1" {
         return;
     }
-    let Some((locale, decimal, thousands)) =
-        provenance["env_id"].as_str().and_then(touchstone_profile)
-    else {
+    let Some(evidence) = provenance["env_id"].as_str().and_then(touchstone_evidence) else {
         return;
     };
     let context = source.invocation.get_or_insert_with(Default::default);
+    if let Some(open) = evidence["addins_open"].as_array() {
+        let files: Option<Vec<&str>> = open.iter().map(Value::as_str).collect();
+        context.addins_open = files.map(|files| files.join(","));
+    }
+    let profile = &evidence["profile"];
+    let (Some(locale), Some(decimal), Some(thousands)) = (
+        profile["locale"].as_str(),
+        profile["decimal_separator"].as_str(),
+        profile["thousands_separator"].as_str(),
+    ) else {
+        return;
+    };
     // The recorded separators stay the evidence: only a capture that reported this
     // environment's decimal separator is given the profile.
-    if context.decimal_separator.as_deref() != Some(decimal.as_str()) {
+    if context.decimal_separator.as_deref() != Some(decimal) {
         return;
     }
-    context.locale = Some(locale);
-    context.thousands_separator = Some(thousands);
+    context.locale = Some(locale.to_owned());
+    context.thousands_separator = Some(thousands.to_owned());
 }
 
 // A row's audit is authoritative over a file's default transport. Verify its exact
@@ -4194,13 +4198,17 @@ mod tests {
         assert_eq!(context.locale.as_deref(), Some("en-ZA"));
         assert_eq!(context.decimal_separator.as_deref(), Some("."));
         assert_eq!(context.thousands_separator.as_deref(), Some(" "));
+        assert_eq!(context.addins_open.as_deref(), Some(""));
+        let record = &evidence["touchstone_environment"];
+        assert_eq!(record["addins_installed"], serde_json::json!([]));
+        assert_eq!(record["build"], "20527");
         for other in [
             serde_json::json!({"service": "touchstone/1", "env_id": "02cb49a79d1f"}),
             serde_json::json!({"service": "touchstone/2", "env_id": "29bedb2b6722"}),
             serde_json::json!({"env_id": "29bedb2b6722"}),
         ] {
             let context = attested(other);
-            assert!(context.locale.is_none());
+            assert!(context.locale.is_none() && context.addins_open.is_none());
             assert_eq!(context.thousands_separator.as_deref(), Some("\u{a0}"));
         }
     }

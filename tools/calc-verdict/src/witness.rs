@@ -210,6 +210,9 @@ pub struct WitnessInvocation {
     /// The serial date and time Excel's calculation read (NOW() asked in the capture's
     /// session), as binary64 bits in hex; a two-part date such as 15/3 takes its year.
     pub calculation_clock: Option<String>,
+    /// The add-in files open in the capture's Excel session, comma-separated ("" for none),
+    /// as the environment record attests; a library-qualified add-in call needs its file open.
+    pub addins_open: Option<String>,
 }
 
 impl WitnessInvocation {
@@ -232,6 +235,7 @@ impl WitnessInvocation {
                 "date_system" => &mut result.date_system,
                 "compatibility_version" => &mut result.compatibility_version,
                 "calculation_clock" => &mut result.calculation_clock,
+                "addins_open" => &mut result.addins_open,
                 _ => return Err(format!("{path}.{key}: unknown invocation field")),
             };
             *field = if value.is_null() {
@@ -259,6 +263,7 @@ impl WitnessInvocation {
             ("date_system", &self.date_system),
             ("compatibility_version", &self.compatibility_version),
             ("calculation_clock", &self.calculation_clock),
+            ("addins_open", &self.addins_open),
         ] {
             if let Some(value) = value {
                 node.insert(key.to_owned(), json!(value));

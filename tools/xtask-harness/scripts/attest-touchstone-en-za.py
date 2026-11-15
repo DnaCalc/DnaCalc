@@ -1,6 +1,7 @@
 """Builds migration/evidence/dc-7ofm-touchstone-en-za.json: the recorded facts that Touchstone
-environment 29bedb2b6722 is Excel 16.0.20527 under the en-ZA user culture.
-Usage: python3 -I attest-en-za.py <CalcFunc-Evidence checkout> <DnaCalc checkout>"""
+environment 29bedb2b6722 is Excel 16.0.20527 under the en-ZA user culture, with no add-in
+file open (dc-ymjf.2.65).
+Usage: python3 -I attest-touchstone-en-za.py <CalcFunc-Evidence checkout> <DnaCalc checkout> [<environment record json>]"""
 import json, glob, hashlib, re, sys, subprocess
 
 ev, repo = sys.argv[1], sys.argv[2]
@@ -33,19 +34,32 @@ out = {
     'evidence': [
         'docs/research/text-date-coercion-2026-11-12.md records env_id %s as Excel build 20527 on GOVERT-OMEN, '
         'reading DATEVALUE year-first (04/02/01 = 38018, 4/2/2001 = #VALUE!), the en-ZA short-date order.' % env_id,
-        'The capture worker on the same Excel (16.0.20527.20088, same CPU and OS build) recorded the user culture '
-        'and Application.International readings in catalogue_capture '
-        '(crates/calc-func/tests/captures/cfunc_m3_2/oracle.capture.json).',
+        'The catalogue capture worker on the same machine and Excel build (file version 16.0.20527.20088; '
+        'the Touchstone environment record gives 16.0.20527.20150, same CPU and OS build, in touchstone_environment) '
+        'recorded the Windows user culture and Application.International readings in catalogue_capture '
+        '(crates/calc-func/tests/captures/cfunc_m3_2/oracle.capture.json); the user culture is a Windows setting '
+        'that an Excel update does not change.',
         'Every DOLLAR answer of this environment that holds a digit starts with the Rand sign R (the en-ZA '
         'currency), after a minus for negatives; grouped answers use U+0020, the International thousands '
         'separator, although Application.ThousandsSeparator (calculation_settings) reported U+00A0.',
     ],
     'catalogue_capture': {k: s[k] for k in keep},
+    # The broker's record of the environment whose hash is env_id (asked 2026-11-15).
+    'touchstone_environment': json.load(open(sys.argv[3], encoding='utf-8')) if len(sys.argv) > 3 else None,
     'evidence_repository': 'CalcFunc-Evidence',
     'evidence_commit': commit,
     'env_id': env_id,
     'service': 'touchstone/1',
     'profile': {'locale': 'en-ZA', 'decimal_separator': '.', 'thousands_separator': ' '},
+    # dc-ymjf.2.65: no add-in file is open in this environment's sessions.
+    'addins_open': [],
+    'addins_evidence': [
+        'The environment record (touchstone_environment, whose JSON env_id hashes) lists addins_installed [] and '
+        'com_addins_connected [VS15ExcelAdaptor], the Visual Studio design-time adaptor, which adds no worksheet function.',
+        'The worker (tools/excel-service/engines/excel/OwnedExcel.cs Setup, unchanged since fdcc4472 of '
+        '2026-11-08, before the 2026-11-12 captures) refuses an Excel instance with any AddIns2 entry open or any '
+        'registered XLL function, and opens no workbook besides its scratch book (sheets S, A, Q).',
+    ],
     'dollar_answers_with_digits': len(dollar),
     'dollar_answers_rand_prefixed': len(rand),
     'dollar_answers_space_grouped': len(grouped),

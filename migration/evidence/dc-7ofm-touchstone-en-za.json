@@ -3,7 +3,7 @@
  "claim": "Touchstone environment 29bedb2b6722 is Excel 16.0.20527 on GOVERT-OMEN under the Windows user culture en-ZA, whose Excel International separators are \".\" and \" \".",
  "evidence": [
   "docs/research/text-date-coercion-2026-11-12.md records env_id 29bedb2b6722 as Excel build 20527 on GOVERT-OMEN, reading DATEVALUE year-first (04/02/01 = 38018, 4/2/2001 = #VALUE!), the en-ZA short-date order.",
-  "The capture worker on the same Excel (16.0.20527.20088, same CPU and OS build) recorded the user culture and Application.International readings in catalogue_capture (crates/calc-func/tests/captures/cfunc_m3_2/oracle.capture.json).",
+  "The catalogue capture worker on the same machine and Excel build (file version 16.0.20527.20088; the Touchstone environment record gives 16.0.20527.20150, same CPU and OS build, in touchstone_environment) recorded the Windows user culture and Application.International readings in catalogue_capture (crates/calc-func/tests/captures/cfunc_m3_2/oracle.capture.json); the user culture is a Windows setting that an Excel update does not change.",
   "Every DOLLAR answer of this environment that holds a digit starts with the Rand sign R (the en-ZA currency), after a minus for negatives; grouped answers use U+0020, the International thousands separator, although Application.ThousandsSeparator (calculation_settings) reported U+00A0."
  ],
  "catalogue_capture": {
@@ -18,8 +18,38 @@
   "date_order": "2",
   "use_system_separators": "true"
  },
+ "touchstone_environment": {
+  "engine": "excel",
+  "version": "16.0",
+  "build": "20527",
+  "file_version": "16.0.20527.20150",
+  "machine": "x86-64",
+  "os": "Microsoft Windows NT 10.0.26200.0",
+  "cpu_id": "AMD64 Family 23 Model 96 Stepping 1, AuthenticAMD",
+  "logical_cpus": 16,
+  "mt_calc": "manual:4",
+  "mt_enabled": true,
+  "mt_threads_reported": 4,
+  "calculation": -4135,
+  "iteration": false,
+  "max_iterations": 100,
+  "max_change": "3f50624dd2f1a9fc",
+  "precision_as_displayed": false,
+  "date1904": false,
+  "compatibility_version": 2,
+  "use_system_separators": true,
+  "decimal_separator": ".",
+  "thousands_separator": " ",
+  "automation_security": 1,
+  "scratch_sheets": "S,A,Q",
+  "com_addins_connected": [
+   "VS15ExcelAdaptor"
+  ],
+  "addins_installed": [],
+  "cpu": "AMD Ryzen 7 4800H with Radeon Graphics"
+ },
  "evidence_repository": "CalcFunc-Evidence",
- "evidence_commit": "58fc9ad2ae20c0fb897d73d594f76c0c9facd034",
+ "evidence_commit": "31e9df797e3c1ebd11cd1d9330d3ef510b358e74",
  "env_id": "29bedb2b6722",
  "service": "touchstone/1",
  "profile": {
@@ -27,8 +57,13 @@
   "decimal_separator": ".",
   "thousands_separator": " "
  },
- "dollar_answers_with_digits": 2498,
- "dollar_answers_rand_prefixed": 2498,
+ "addins_open": [],
+ "addins_evidence": [
+  "The environment record (touchstone_environment, whose JSON env_id hashes) lists addins_installed [] and com_addins_connected [VS15ExcelAdaptor], the Visual Studio design-time adaptor, which adds no worksheet function.",
+  "The worker (tools/excel-service/engines/excel/OwnedExcel.cs Setup, unchanged since fdcc4472 of 2026-11-08, before the 2026-11-12 captures) refuses an Excel instance with any AddIns2 entry open or any registered XLL function, and opens no workbook besides its scratch book (sheets S, A, Q)."
+ ],
+ "dollar_answers_with_digits": 2652,
+ "dollar_answers_rand_prefixed": 2652,
  "dollar_answers_space_grouped": 142,
  "dollar_answer_sample": [
   "-R1 443.00",
@@ -4936,6 +4971,56 @@
    "path": "readings/excel-20527/fix1-pv-tiny-20261112.json",
    "function": "PV",
    "sha256": "85d33196a4731d3643be0de95b71629ecbc2ee913b8107aac170069b3f9ec7ac"
+  },
+  {
+   "path": "readings/excel-20527/locale-answers-abs-en-za.json",
+   "function": "ABS",
+   "sha256": "5a2cb955b7ff7896ac8fff13cf5427b4216fc353606b55e4d3fe5b7462d6fe4a"
+  },
+  {
+   "path": "readings/excel-20527/locale-answers-datevalue-en-za.json",
+   "function": "DATEVALUE",
+   "sha256": "eedda7eb55a97c5276e7ed384659eef0486e08c065b7ce284e4db968b497bde0"
+  },
+  {
+   "path": "readings/excel-20527/locale-answers-dollar-en-za.json",
+   "function": "DOLLAR",
+   "sha256": "8727fe722464c321d8f741364834e8d8f518b7f3fec8f028579ac842cfdc826c"
+  },
+  {
+   "path": "readings/excel-20527/locale-answers-fixed-en-za.json",
+   "function": "FIXED",
+   "sha256": "dea92b002f0322f426090a6222655a7c1abbe3e34da92d6848862503bb2ef3ff"
+  },
+  {
+   "path": "readings/excel-20527/locale-answers-hour-en-za.json",
+   "function": "HOUR",
+   "sha256": "7903090617a14ba69d2d0abb81c0c9d1387af4ddea9ca945c8d5ffd45ad3b4a3"
+  },
+  {
+   "path": "readings/excel-20527/locale-answers-numbervalue-en-za.json",
+   "function": "NUMBERVALUE",
+   "sha256": "c4358d5db4b31f67dec1760f2bfd07b3e71b402fdbbb9d9f61949fc04efaab07"
+  },
+  {
+   "path": "readings/excel-20527/locale-answers-text-en-za.json",
+   "function": "TEXT",
+   "sha256": "35b02ad473ccd825d837075bad07bf3b3b3a7b4be203207a5b2b0d06bd3ec674"
+  },
+  {
+   "path": "readings/excel-20527/locale-answers-timevalue-en-za.json",
+   "function": "TIMEVALUE",
+   "sha256": "4644de5724fda41ae8e703a92f660674496aafabe5298e63051cbe6610162c63"
+  },
+  {
+   "path": "readings/excel-20527/locale-answers-value-en-za.json",
+   "function": "VALUE",
+   "sha256": "d8d776c966c5309dee51bf186f3b079dd6ec51e3bd6f9348c6773fa3aa2a5f04"
+  },
+  {
+   "path": "readings/excel-20527/locale-answers-year-en-za.json",
+   "function": "YEAR",
+   "sha256": "7f3448dec37d482355a0bddfdcb0e1d369cc2fa9d8d86c29c55080f609019f3d"
   }
  ]
 }

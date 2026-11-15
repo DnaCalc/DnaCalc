@@ -499,6 +499,25 @@ impl Catalogue {
         }).map(|entry| FunctionCallTarget { entry })
     }
 
+    /// The library and export of the add-in entry spelled `name` in the catalogue
+    /// (`_EUROTOOL.EUROCONVERT`: EUROTOOL.XLAM's EUROCONVERT), which no bare call reaches.
+    pub fn addin_surface(&self, name: &str) -> Option<(&'static str, &'static str)> {
+        self.by_id.iter().find_map(|entry| match entry.kind {
+            EntryKind::AddIn { library, export } if entry.spelling.eq_ignore_ascii_case(name) => {
+                Some((library, export))
+            }
+            _ => None,
+        })
+    }
+
+    /// The library of the add-in whose export is `name` (EUROCONVERT: EUROTOOL.XLAM).
+    pub fn addin_library_of_export(&self, name: &str) -> Option<&'static str> {
+        self.by_id.iter().find_map(|entry| match entry.kind {
+            EntryKind::AddIn { library, export } if export.eq_ignore_ascii_case(name) => Some(library),
+            _ => None,
+        })
+    }
+
     /// Whether `name` is the export of a declared add-in entry (EUROCONVERT of EUROTOOL.XLAM). A
     /// bare call of such a name reaches no entry: Excel answers #NAME? while the add-in is not
     /// loaded, which is the state of every bare-name reading.

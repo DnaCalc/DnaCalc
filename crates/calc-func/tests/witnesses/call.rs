@@ -161,9 +161,39 @@ pub fn calculate_with_reference_text(
     apply_context: bool,
     reference_text: Option<&mut dyn ReferenceText>,
 ) -> String {
-    let Ok(target) = catalogue().resolve_surface(Notation::Call, function) else {
+    // The add-in files the capture's session had open, when its environment attests them.
+    let addins_open = context
+        .filter(|_| apply_context)
+        .and_then(|c| c.addins_open.as_deref())
+        .map(|list| list.split(',').filter(|f| !f.is_empty()).collect::<Vec<_>>());
+    let library_open = |library: &str| {
+        addins_open
+            .as_ref()
+            .map(|open| open.iter().any(|f| f.eq_ignore_ascii_case(library)))
+    };
+    let resolved = catalogue().resolve_surface(Notation::Call, function).ok().or_else(|| {
+        // A call Excel resolved through the add-in: its export, or the catalogue's qualified
+        // spelling, with the library open in the session.
+        let (library, export) = catalogue().addin_surface(function).or_else(|| {
+            catalogue()
+                .addin_library_of_export(function)
+                .map(|library| (library, function))
+        })?;
+        (library_open(library) == Some(true))
+            .then(|| catalogue().resolve_addin(library, export))
+            .flatten()
+    });
+    let Some(target) = resolved else {
         // A bare call of an add-in's export (EUROCONVERT) is #NAME? while the add-in is not loaded.
         if catalogue().is_unloaded_addin_export(function) {
+            return "error:Name".to_owned();
+        }
+        // The qualified spelling is #NAME? as well when the session is attested to have no
+        // such library open (dc-ymjf.2.65).
+        if catalogue()
+            .addin_surface(function)
+            .is_some_and(|(library, _)| library_open(library) == Some(false))
+        {
             return "error:Name".to_owned();
         }
         return "fault:NotCatalogued".to_owned();
