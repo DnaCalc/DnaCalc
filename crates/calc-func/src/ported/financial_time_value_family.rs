@@ -707,16 +707,18 @@ fn end_payment_parts(
     quotient: f64,
     timing: PaymentTiming,
 ) -> (f64, f64) {
-    // The adjacent first-period input distinguishes the two stored orders.
+    // The first period and its next float distinguish the two stored orders.
     // Limit this order to the measured region where the two logarithm paths
     // agree and the cash flows remain within the independently probed range.
     let bounded_cashflow = |v: f64| {
         v == 0.0 || (2.0_f64.powi(-110)..=2.0_f64.powi(110)).contains(&v.abs())
     };
     let remaining = if matches!(timing, PaymentTiming::EndOfPeriod)
-        && period_index == 1.0 + f64::EPSILON
+        && ((period_index == 1.0 + f64::EPSILON && periodic_rate < 0.375)
+            || (period_index == 1.0 && periodic_rate >= 0.375
+                && future_value.abs() <= present_value.abs()))
         && (0.125..=0.5).contains(&periods)
-        && (2.0_f64.powi(-20)..0.375).contains(&periodic_rate)
+        && (2.0_f64.powi(-20)..2.0_f64.powi(20)).contains(&periodic_rate)
         && bounded_cashflow(present_value)
         && bounded_cashflow(future_value)
         && crate::ported::excel_numeric::excel_log(excel_x87_add(1.0, periodic_rate)) == log_growth
