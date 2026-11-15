@@ -47,7 +47,7 @@ def base_sheets(hidden_rows=(), hidden_columns=()):
     sheet1 = {
         'A1': n(1), 'A2': t('abc'), 'A3': 'logical:true', 'A4': 'error:NA', 'A5': '=A1+1',
         'A6': '="x"&A2', 'B1': n(10), 'B2': n(20), 'B3': n(30), 'B4': n(40), 'B5': n(50),
-        'C3': '=SUM(B1:B5)', 'D1': '=SEQUENCE(3)', 'E1': t("'quoted"), 'E2': t('^caret'),
+        'C3': '=SUM(B1:B5)', 'D1': '=SEQUENCE(3)', 'E1': t("quoted'"), 'E2': t('^caret'),
         'E3': n(0.5), 'E4': n(-1234.5), 'E5': n(45000.25),
     }
     return [
@@ -168,7 +168,7 @@ def spill_placement():
 def ifs_family():
     """COUNTIFS, SUMIFS, AVERAGEIFS, MAXIFS and MINIFS over ranges of mixed cells."""
     fam = Family()
-    a = ['0x4024000000000000', t('abc'), n(20), '', t('a*c'), 'logical:true', n(30), 'error:NA', t(''), n(45292),
+    a = ['0x4024000000000000', t('abc'), n(20), '', t('a*c'), 'logical:true', n(30), 'error:NA', '=""', n(45292),
          t('20'), n(-5), t('Abc'), n(20), t('*')]
     b = [n(v) for v in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]]
     c = [t(x) for x in ['x', 'y', 'x', 'y', 'x', 'y', 'x', 'y', 'x', 'y', 'x', 'y', 'x', 'y', 'x']]

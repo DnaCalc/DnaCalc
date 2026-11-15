@@ -384,6 +384,12 @@ fn run_inner(args: &[String]) -> Result<ExitCode, String> {
                 entry[4] += 1;
                 continue;
             }
+            // Excel could not hold the layout as written: a failure that no calculation fixes.
+            if excel["answer"]["value"].as_str().is_some_and(|v| v.starts_with("unread:")) {
+                entry[3] += 1;
+                differences.push(json!({"id": key, "function": function, "excel": excel["answer"], "dna_calc": null}));
+                continue;
+            }
             let ours = evaluate(excel, *locale).unwrap_or_else(|e| json!({"value": format!("fault:Layout:{e}"), "spill": null}));
             let theirs = &excel["answer"];
             if ours == *theirs {

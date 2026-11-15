@@ -6,8 +6,9 @@
 # worksheet), constants written as Value2 (text into cells formatted as text, errors as error formulas), formulas by
 # Formula2, workbook names added, the listed rows and columns hidden, then the case's formula entered in its cell by
 # Formula2 (a refused entry is answered "entry:refused"), a full calculation, and the cell read: its Value2 in the
-# witness form, and when the formula spills over more than one cell, every cell of the spill range. Each workbook is
-# closed unsaved. No setting of Excel is changed.
+# witness form, and when the formula spills over more than one cell, every cell of the spill range. A case whose
+# constants do not read back as written is answered "unread:input-changed" without entering the formula. Each
+# workbook is closed unsaved. No setting of Excel is changed.
 param($OwnedExcel, [string]$Cases, [string]$Result)
 $ErrorActionPreference = 'Stop'
 $codes = @{2000='Null';2007='Div0';2015='Value';2023='Ref';2029='Name';2036='Num';2042='NA';2043='GettingData';2045='Spill';2046='Connect';2047='Blocked';2048='Unknown';2049='Field';2050='Calc'}
@@ -27,7 +28,7 @@ function Place($book, [string]$at) {
     return @($book.Worksheets.Item($sheet), $at.Substring($i + 1))
 }
 $set = Get-Content -LiteralPath $Cases -Raw -Encoding utf8 | ConvertFrom-Json
-$answered = @()
+$answered = New-Object System.Collections.Generic.List[object]
 foreach ($case in $set.cases) {
     # xlWBATWorksheet: a new workbook of exactly one worksheet.
     $book = $OwnedExcel.Workbooks.Add(-4167)
@@ -43,10 +44,12 @@ foreach ($case in $set.cases) {
             $ws.Name = [string]$sheets[$s].name
             $previous = $ws
         }
+        $constants = New-Object System.Collections.Generic.List[object]
         foreach ($sheet in $sheets) {
             $ws = $book.Worksheets.Item([string]$sheet.name)
             $formulas = @()
             foreach ($p in $sheet.cells.PSObject.Properties) {
+                if (-not ([string]$p.Value).StartsWith('=')) { $constants.Add(@($ws.Range($p.Name), [string]$p.Value)) }
                 $v = [string]$p.Value
                 $cell = $ws.Range($p.Name)
                 if ($v.StartsWith('=')) { $formulas += ,@($cell, $v) }
@@ -71,7 +74,15 @@ foreach ($case in $set.cases) {
         $target = $place[0].Range($place[1])
         $answer = [ordered]@{value = $null; spill = $null}
         $refused = $false
-        try { $target.Formula2 = [string]$case.formula } catch { $refused = $true; $answer.value = 'entry:refused'; $answer.entry_error = $_.Exception.Message }
+        # Every constant must read back as written (a leading apostrophe, say, would become a prefix).
+        $changed = @($constants | Where-Object {
+            $back = Form $_[0].Value2
+            $want = $_[1] -replace '^logical:true$', 'logical:True' -replace '^logical:false$', 'logical:False'
+            $back -cne $want })
+        if ($changed.Count -gt 0) { $refused = $true; $answer.value = 'unread:input-changed' }
+        if (-not $refused) {
+            try { $target.Formula2 = [string]$case.formula } catch { $refused = $true; $answer.value = 'entry:refused'; $answer.entry_error = $_.Exception.Message }
+        }
         if (-not $refused) {
             $OwnedExcel.CalculateFull()
             $answer.value = Form $target.Value2
@@ -90,13 +101,13 @@ foreach ($case in $set.cases) {
         $copy = [ordered]@{}
         foreach ($p in $case.PSObject.Properties) { $copy[$p.Name] = $p.Value }
         $copy.answer = $answer
-        $answered += $copy
+        $answered.Add($copy)
     } finally {
         $book.Close($false)
     }
 }
 $out = [ordered]@{
-    format = 'dnacalc-cell-context/1'; family = $set.family; layouts = $set.layouts; cases = $answered
+    format = 'dnacalc-cell-context/1'; family = $set.family; layouts = $set.layouts; cases = $answered.ToArray()
     capture_provenance = [ordered]@{
         environment = [ordered]@{excel_build = [string]$OwnedExcel.Build; excel_version = [string]$OwnedExcel.Version; platform = 'Windows'; os = [Environment]::OSVersion.VersionString; cpu = $env:PROCESSOR_IDENTIFIER}
         calculation_settings = [ordered]@{user_culture = [Globalization.CultureInfo]::CurrentCulture.Name; international_decimal_separator = [string]$OwnedExcel.International(3); international_thousands_separator = [string]$OwnedExcel.International(4); UseSystemSeparators = [bool]$OwnedExcel.UseSystemSeparators}
