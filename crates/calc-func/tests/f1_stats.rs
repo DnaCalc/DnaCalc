@@ -10,6 +10,39 @@ use calc_func::SubtotalExclusions;
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Ref, Value};
 use f1_support::*;
 
+/// Excel 20527 uses the nonseasonal fit for these strictly curved histories.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn forecast_ets_curved_histories_use_nonseasonal_fit() {
+    for (target, values, forecast, confidence) in [
+        (769.0, [1.9325480007973965, 2.2725678054848686, 2.9783053738356102, 3.920485973940231, 4.917882370529696], 0x4082_aec9_d460_e92a, 0x4029_40e1_168b_99a8),
+        (493.0, [1.545879424927989, 2.349138331657741, 2.867499557498377, 3.2227264882822055, 3.4169376922072843], 0x406b_cec6_3f2b_ef15, 0x401d_14aa_03e9_3c56),
+        (79.0, [1.8277392002282685e36, 2.011638540453978e36, 2.5774062151430394e36, 3.588039388524395e36, 4.8187645944185764e36], 0x47c7_79d1_5bd3_1d33, 0x4786_5bcf_0647_22ba),
+        (61.0, [7.165646517075158e-55, 1.2233782173640273e-54, 1.6650548598056385e-54, 2.0847829273622334e-54, 2.1869467914804076e-54], 0x3501_b823_45d5_8ca6, 0x34ae_cfc4_d433_5b33),
+    ] {
+        let args = vec![n(target), col(&values), col(&[1.0, 2.0, 3.0, 4.0, 5.0])];
+        exact(call("FORECAST.ETS", args.clone()), f64::from_bits(forecast));
+        exact(call("FORECAST.ETS.CONFINT", args), f64::from_bits(confidence));
+    }
+    // A nondefault confidence still has an observed one-ULP discrepancy.
+    assert!(matches!(
+        call("FORECAST.ETS.CONFINT", vec![n(67.0), col(&[53.0, -5.0, -55.0, -99.0, -54.0]), col(&[39.0, 41.0, 43.0, 45.0, 47.0]), n(0.8)]),
+        Err(calc_func::FunctionFault::NotHeld { .. })
+    ));
+}
+
+/// Excel 20527 wraps 2h-1 at the signed-32-bit boundary in interval variance.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn forecast_ets_confidence_wraps_large_horizon_term() {
+    let values = col(&[1.295212745666504, 1.617269515991211, 2.296365737915039, 3.238837242126465, 4.209005355834961]);
+    let times = col(&[1.0, 2.0, 3.0, 4.0, 5.0]);
+    exact(call("FORECAST.ETS.CONFINT", vec![n(1_073_741_829.0), values.clone(), times.clone()]), f64::from_bits(0x4203_2db7_1374_d403));
+    exact(call("FORECAST.ETS.CONFINT", vec![n(1_073_741_830.0), values, times.clone()]), 0.0);
+    let maximum = col(&[1.8903273354517296, 2.019882615073584, 2.22050576863694, 2.6246356982155703, 3.3064261186809745]);
+    exact(call("FORECAST.ETS.CONFINT", vec![n(2_147_483_652.0), maximum, times]), f64::from_bits(0x4172_796c_467e_b0f4));
+}
+
 /// Excel 20527 flushes the beta recurrence's subnormal density product.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
