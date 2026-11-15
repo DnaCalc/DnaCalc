@@ -99,6 +99,14 @@ fn base_name(kind: ShapeKind, geometry: &str) -> &'static str {
     }
 }
 
+/// The identities a session has issued (see [`HostState::next_drawing_id`]).
+#[derive(Clone, Debug, Default)]
+pub(crate) struct IssuedIds {
+    pub(crate) drawing: std::collections::BTreeMap<SheetId, u32>,
+    pub(crate) table_id: u32,
+    pub(crate) table_number: u32,
+}
+
 impl HostState {
     /// The drawing objects of `sheet` other than charts, in drawing order.
     pub fn shapes(&self, sheet: SheetId) -> &[Shape] {
@@ -106,18 +114,109 @@ impl HostState {
     }
 
     /// The next shape identity of `sheet`: charts and shapes share one counter that starts at 2
-    /// (Excel, dc-piw0 Q1).
+    /// (Excel, dc-piw0 Q1). Within a session an identity is never reused, even after the highest is
+    /// deleted; in a reopened file the lowest free one is taken (dc-piw0.10 Q14).
     pub(crate) fn next_drawing_id(&self, sheet: SheetId) -> u32 {
         let charts = self.model().definitions().charts(sheet);
         let anonymous = charts.iter().filter(|c| c.drawing_id.is_none()).count() as u32;
-        self.shapes(sheet)
+        let used: std::collections::BTreeSet<u32> = self
+            .shapes(sheet)
             .iter()
             .map(|s| s.id)
             .chain(charts.iter().filter_map(|c| c.drawing_id))
-            .max()
-            .unwrap_or(1)
-            .max(1 + anonymous)
-            + 1
+            .chain(2..2 + anonymous)
+            .collect();
+        match self.issued.drawing.get(&sheet) {
+            Some(floor) => (*floor).max(used.last().copied().unwrap_or(1)) + 1,
+            None => (2u32..).find(|id| !used.contains(id)).unwrap_or(2),
+        }
+    }
+
+    /// The language tag Excel writes on every text run it creates (`a:rPr lang`): the machine's
+    /// install/regional language, here the host's locale, `en-US` without one (dc-piw0.10 Q15).
+    pub(crate) fn run_language(&self) -> String {
+        self.options()
+            .locale
+            .as_ref()
+            .map_or("en-US", |profile| profile.id.stable_name())
+            .to_owned()
+    }
+
+    /// Records the identities that exist now and the loaded file did not have: the counters of the
+    /// session (called after every committed change).
+    pub(crate) fn note_issued_ids(&mut self) {
+        let mut issued = std::mem::take(&mut self.issued);
+        for sheet in self.sheets().iter().map(|s| s.id()) {
+            let drawing_ids = |model: &calc_doc_model::ModelRoot| -> Vec<u32> {
+                model
+                    .definitions()
+                    .shapes(sheet)
+                    .iter()
+                    .map(|s| s.id)
+                    .chain(
+                        model
+                            .definitions()
+                            .charts(sheet)
+                            .iter()
+                            .filter_map(|c| c.drawing_id),
+                    )
+                    .collect()
+            };
+            let loaded = drawing_ids(self.loaded().model());
+            if let Some(top) = drawing_ids(self.model())
+                .into_iter()
+                .filter(|id| !loaded.contains(id))
+                .max()
+            {
+                let floor = issued.drawing.entry(sheet).or_insert(0);
+                *floor = (*floor).max(top);
+            }
+        }
+        let loaded: Vec<&calc_doc_model::Table> =
+            self.loaded().model().definitions().tables().iter().collect();
+        for table in self.model().definitions().tables() {
+            if loaded.iter().any(|t| t.part == table.part) {
+                continue;
+            }
+            issued.table_id = issued.table_id.max(table.id);
+            if let Some(number) = table
+                .display_name
+                .strip_prefix("Table")
+                .and_then(|n| n.parse::<u32>().ok())
+            {
+                issued.table_number = issued.table_number.max(number);
+            }
+        }
+        self.issued = issued;
+    }
+
+    /// The id a new table gets: never a used one, never one this session issued before.
+    pub(crate) fn next_table_id(&self, tables: &[calc_doc_model::Table]) -> u32 {
+        let used: std::collections::BTreeSet<u32> = tables
+            .iter()
+            .chain(self.loaded().model().definitions().tables().iter())
+            .map(|t| t.id)
+            .collect();
+        if self.issued.table_id == 0 {
+            (1u32..).find(|id| !used.contains(id)).unwrap_or(1)
+        } else {
+            self.issued.table_id.max(used.last().copied().unwrap_or(0)) + 1
+        }
+    }
+
+    /// The default name of a new table: `Table` and the lowest free number, or, once this session made a
+    /// table, the next number after the highest it made (a deleted table's number is not reused).
+    pub(crate) fn next_table_name(&self, tables: &[calc_doc_model::Table]) -> String {
+        let taken = |n: u32| {
+            let name = format!("Table{n}");
+            tables.iter().any(|t| {
+                calc_value::workbook_names_equal(&t.name, &name)
+                    || calc_value::workbook_names_equal(&t.display_name, &name)
+            })
+        };
+        let start = self.issued.table_number + 1;
+        let first = if self.issued.table_number == 0 { 1 } else { start };
+        format!("Table{}", (first..).find(|n| !taken(*n)).unwrap_or(first))
     }
 
     /// The maximum digit width in pixels at 96 DPI of the workbook's default font (Aptos Narrow 11:
@@ -358,6 +457,7 @@ pub(crate) fn prepare(
             let to = host.point_at(sheet, left + width, top + height);
             let mut shape = Shape::new(id, name, kind, ChartAnchor::TwoCell { from, to });
             shape.geometry = Some(geometry);
+            shape.lang = Some(host.run_language());
             shape.offset = (
                 (left * EMU_PER_POINT).round() as i64,
                 (top * EMU_PER_POINT).round() as i64,

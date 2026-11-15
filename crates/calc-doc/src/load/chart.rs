@@ -237,6 +237,7 @@ fn read_chart_xml(
         name,
         anchor,
         drawing_id: None,
+        lang: None,
         title: None,
         title_formula: None,
         auto_title_deleted: false,

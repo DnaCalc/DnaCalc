@@ -375,9 +375,13 @@ fn plain_text(title: &str) -> String {
         .replace('>', "&gt;")
         .replace('\r', "&#13;")
 }
-fn tx(title: &str) -> Vec<u8> {
+fn tx(title: &str, lang: Option<&str>) -> Vec<u8> {
     let text = plain_text(title);
-    format!("<c:tx xmlns:c=\"{C}\" xmlns:a=\"{A}\"><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t xml:space=\"preserve\">{text}</a:t></a:r></a:p></c:rich></c:tx>").into_bytes()
+    match lang {
+        // A chart this session made: the paragraph and run as Excel writes them (dc-piw0.10 Q15).
+        Some(lang) => format!("<c:tx xmlns:c=\"{C}\" xmlns:a=\"{A}\"><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr/></a:pPr><a:r><a:rPr lang=\"{lang}\"/><a:t>{text}</a:t></a:r></a:p></c:rich></c:tx>").into_bytes(),
+        None => format!("<c:tx xmlns:c=\"{C}\" xmlns:a=\"{A}\"><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t xml:space=\"preserve\">{text}</a:t></a:r></a:p></c:rich></c:tx>").into_bytes(),
+    }
 }
 
 fn field(
@@ -469,7 +473,7 @@ fn chart(
                         reader,
                         span,
                         "tx",
-                        &tx(text),
+                        &tx(text, after.lang.as_deref()),
                         None,
                         Some(text),
                         patches,
@@ -548,7 +552,7 @@ fn chart(
         if !title {
             if let Some(text) = &after.title {
                 fresh.extend_from_slice(format!("<c:title xmlns:c=\"{C}\">").as_bytes());
-                fresh.extend_from_slice(&tx(text));
+                fresh.extend_from_slice(&tx(text, after.lang.as_deref()));
                 fresh.extend_from_slice(b"</c:title>");
             }
         }

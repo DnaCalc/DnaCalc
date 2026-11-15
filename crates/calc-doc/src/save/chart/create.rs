@@ -225,7 +225,7 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
     };
     if let Some(title) = &chart.title {
         bytes.extend(b"<c:title>");
-        bytes.extend(tx(title));
+        bytes.extend(tx(title, chart.lang.as_deref()));
         bytes.extend(b"<c:overlay val=\"0\"/></c:title>");
     }
     bytes.extend(fresh_number(

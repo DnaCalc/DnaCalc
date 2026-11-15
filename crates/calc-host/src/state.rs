@@ -162,6 +162,9 @@ pub struct HostState {
     /// Whether an edit committed since the workbook was opened changed a cell's input or formula.
     /// Until one does, every file cache is the package's result for the inputs it holds.
     pub(crate) inputs_changed_since_open: bool,
+    /// The highest drawing, table and table-number identities this session has issued (dc-piw0.10 Q14):
+    /// Excel never reuses one within a session; a reopened file starts again at the lowest free.
+    pub(crate) issued: crate::shapes::IssuedIds,
     /// Whether [`crate::calculate`] asked for a recalculation that has not begun yet.
     pub(crate) calculate_requested: bool,
     /// The serial date and time NOW and TODAY read ([`HostState::set_clock`]); `None` refuses
@@ -356,6 +359,7 @@ impl HostState {
             published: None,
             last_failure: None,
             inputs_changed_since_open: false,
+            issued: Default::default(),
             calculate_requested: false,
             clock: None,
             axis_edits: Vec::new(),

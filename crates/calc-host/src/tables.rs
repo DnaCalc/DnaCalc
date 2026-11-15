@@ -44,6 +44,11 @@ pub enum TableChange {
         part: String,
         name: String,
     },
+    /// `ListObject.Unlist` and a `Value` put over a whole table range (dc-piw0.10 Q13): the table goes, the
+    /// cells stay. Refused while a formula, name, rule or chart source mentions the table's name.
+    Unlist {
+        part: String,
+    },
 }
 fn refusal(s: &str) -> String {
     format!("{s} (dc-971p.41); nothing changed")
@@ -628,14 +633,7 @@ pub(crate) fn prepare(
             let display_name = derived_display_name(host, &tables, None, &name);
             let reserved = tables.iter().map(|t| t.part.clone()).collect::<Vec<_>>();
             let columns = header_names(host, area, &[])?;
-            let id = tables
-                .iter()
-                .chain(host.loaded().model().definitions().tables().iter())
-                .map(|t| t.id)
-                .max()
-                .unwrap_or(0)
-                .checked_add(1)
-                .ok_or_else(|| refusal("The table ID space is exhausted"))?;
+            let id = host.next_table_id(&tables);
             let table = Table {
                 id,
                 name,
@@ -672,6 +670,24 @@ pub(crate) fn prepare(
                 });
             }
             tables.push(table);
+        }
+        TableChange::Unlist { part } => {
+            let index = tables
+                .iter()
+                .position(|t| t.part == part)
+                .ok_or_else(|| refusal("The table no longer exists"))?;
+            let old = &tables[index];
+            if old.axis_opaque || old.opaque {
+                return Err(refusal(
+                    "This imported table's metadata is preserved; removing it is unavailable",
+                ));
+            }
+            if mentions(host, &tables, &old.display_name) {
+                return Err(refusal(
+                    "A formula, name, rule or chart source uses this table's name; rewriting it is unavailable",
+                ));
+            }
+            tables.remove(index);
         }
         change => {
             let part = match &change {

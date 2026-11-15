@@ -1847,6 +1847,7 @@ fn assemble(
         name,
         anchor: new.anchor,
         drawing_id: new.drawing_id,
+        lang: Some(host.run_language()),
         title: new.title,
         title_formula: None,
         auto_title_deleted: new.auto_title_deleted,

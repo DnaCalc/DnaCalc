@@ -1076,6 +1076,7 @@ pub fn dispatch_slice(
         host.inputs_changed_since_open = true;
     }
     host.axis_edits.extend(axis_edits);
+    host.note_issued_ids();
 
     for node in host.engine.pending() {
         if let Some(record) = host.engine.node(node) {

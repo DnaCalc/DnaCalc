@@ -87,6 +87,9 @@ pub struct Chart {
     /// default name `Chart N` is its id less one, and the sheet's charts and shapes share one
     /// counter. `None` for a chart read from a file and for charts the user interface made.
     pub drawing_id: Option<u32>,
+    /// The language (`a:rPr lang`) of the title run a chart this session made writes (Excel: the
+    /// install/regional language, dc-piw0.10 Q15); `None` writes `en-US`.
+    pub lang: Option<String>,
     /// The title's text, as written in the chart (`c:rich`), or its formula's cached text.
     pub title: Option<String>,
     /// The title's formula, when it reads a cell.

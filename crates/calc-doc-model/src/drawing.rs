@@ -96,6 +96,9 @@ pub struct Shape {
     pub end: Option<ShapeConnection>,
     /// A group's children, in drawing order.
     pub children: Vec<Shape>,
+    /// The language (`a:rPr lang`) of the text runs a shape this session made writes: Excel writes the
+    /// machine's install/regional language on every run (dc-piw0.10 Q15); `None` writes `en-US`.
+    pub lang: Option<String>,
 }
 
 impl Shape {
@@ -121,6 +124,7 @@ impl Shape {
             begin: None,
             end: None,
             children: Vec::new(),
+            lang: None,
         }
     }
 }

@@ -265,10 +265,14 @@ pub(crate) fn frame(shape: &Shape, remap: &BTreeMap<u32, u32>) -> Result<Vec<u8>
         } else {
             "<a:pPr algn=\"l\"/>"
         };
+        let lang = shape.lang.as_deref().unwrap_or("en-US");
         let paragraphs = shape.text.as_deref().unwrap_or(&[]);
         if paragraphs.is_empty() {
             out.extend(
-                format!("<a:p>{align}<a:endParaRPr lang=\"en-US\" sz=\"1100\"/></a:p>").as_bytes(),
+                format!(
+                    "<a:p>{align}<a:endParaRPr lang=\"{lang}\" sz=\"1100\"/></a:p>"
+                )
+                .as_bytes(),
             );
         }
         for paragraph in paragraphs {
@@ -277,9 +281,9 @@ pub(crate) fn frame(shape: &Shape, remap: &BTreeMap<u32, u32>) -> Result<Vec<u8>
             }
             out.extend(format!("<a:p>{align}").as_bytes());
             if paragraph.is_empty() {
-                out.extend(b"<a:endParaRPr lang=\"en-US\" sz=\"1100\"/>");
+                out.extend(format!("<a:endParaRPr lang=\"{lang}\" sz=\"1100\"/>").as_bytes());
             } else {
-                out.extend(b"<a:r><a:rPr lang=\"en-US\" sz=\"1100\"/><a:t>");
+                out.extend(format!("<a:r><a:rPr lang=\"{lang}\" sz=\"1100\"/><a:t>").as_bytes());
                 element_text(paragraph, &mut out);
                 out.extend(b"</a:t></a:r>");
             }

@@ -72,6 +72,8 @@ impl WorkbookAutomation {
         on("ListObjects", "Add", Method, Self::tables_add);
         on("ListObject", "Name", Get, Self::table_name);
         on("ListObject", "Name", Put, Self::table_put_name);
+        on("ListObject", "Delete", Method, Self::table_delete);
+        on("ListObject", "Unlist", Method, Self::table_unlist);
         on("ListObject", "DisplayName", Get, Self::table_display_name);
         on("ListObject", "DisplayName", Put, Self::table_put_display_name);
         on("ListObject", "Range", Get, Self::table_range);
@@ -386,20 +388,15 @@ impl WorkbookAutomation {
             AutoValue::Missing => XL_GUESS,
             other => geometry::integer(other)?,
         };
-        if headers == XL_NO {
-            return Err(AutoError::not_modelled(
-                "ListObjects.Add with xlNo headers (Excel inserts a header row above the data)",
-                TABLES,
-            ));
-        }
         let range = self.source_range(target, call.arg(1), sheet)?;
         if range.area_count() != 1 {
             return Err(AutoError::excel(1004, ""));
         }
         let area = range.areas()[0];
-        // Excel (dc-piw0 Q3, Q4): a source that overlaps a table is 1004; without xlYes a first
-        // row of text is taken as the headers, any other first row makes Excel insert a header
-        // row, which is not modelled.
+        // Excel (dc-piw0 Q3, Q4, dc-piw0.10 Q12): a source that overlaps a table is 1004; xlNo, and
+        // xlGuess over a first row that is not all text, insert a header row (Column1, Column2, ...)
+        // at the top row of the source and move the data down.
+        let mut insert_header = headers == XL_NO;
         self.read_host(target, |s, sheet, _| {
             if Self::tables_of(s, sheet)
                 .iter()
@@ -418,31 +415,45 @@ impl WorkbookAutomation {
                         .and_then(|at| model.cell(at))
                         .is_some_and(|cell| matches!(cell, crate::CellInput::Text(_)))
                 });
-                if !text_first_row {
-                    return Err(AutoError::not_modelled(
-                        "ListObjects.Add without xlYes over a first row that is not text \
-                         (Excel inserts a header row above the data)",
-                        TABLES,
-                    ));
+                if headers == XL_GUESS && !text_first_row {
+                    insert_header = true;
                 }
             }
             Ok(())
         })?;
+        let mut area = area;
+        let bottom = |area: GridArea, rows: u32| {
+            CellKey::new(area.sheet(), area.last().row() + rows, area.last().column())
+                .map_err(|_| AutoError::excel(1004, ""))
+        };
+        if insert_header {
+            let top_row = GridArea::new(
+                area.first(),
+                CellKey::new(area.sheet(), area.first().row(), area.last().column())
+                    .map_err(|_| AutoError::excel(1004, ""))?,
+            )
+            .unwrap();
+            self.command(call, |_| {
+                Ok(WorkbookCommand::ShiftCells {
+                    area: top_row,
+                    down: true,
+                    insert: true,
+                })
+            })?;
+            area = GridArea::new(area.first(), bottom(area, 1)?).unwrap();
+        } else if area.row_count() == 1 {
+            // A one-row source with headers gets an empty data row below it (Q12 e).
+            area = GridArea::new(area.first(), bottom(area, 1)?).unwrap();
+        }
         let style = match call.arg(5) {
             AutoValue::Missing => None,
             other => Some(text_arg(other)?),
         };
         let mut created = None;
         let reply = self.command(call, |s| {
-            let tables = s.host().model().definitions().tables();
-            let name = (1u32..)
-                .map(|i| format!("Table{i}"))
-                .find(|n| {
-                    !tables
-                        .iter()
-                        .any(|t| calc_value::workbook_names_equal(&t.display_name, n))
-                })
-                .expect("a free table name");
+            let name = s
+                .host()
+                .next_table_name(s.host().model().definitions().tables());
             created = Some(name.clone());
             Ok(WorkbookCommand::Table {
                 revision: s.host().revision().get(),
@@ -477,6 +488,40 @@ impl WorkbookAutomation {
         let part = Self::table_part(target)?;
         self.read_host(target, |s, sheet, _| {
             Ok(AutoValue::text(&Self::table_of(s, sheet, &part)?.name))
+        })
+    }
+    /// `ListObject.Unlist`: the table goes, its cells stay (dc-piw0.10 Q14).
+    fn table_unlist(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        let part = Self::table_part(target)?;
+        self.command(call, |s| {
+            Ok(WorkbookCommand::Table {
+                revision: s.host().revision().get(),
+                change: TableChange::Unlist { part: part.clone() },
+            })
+        })
+    }
+    /// `ListObject.Delete`: the table and the cells of its range go.
+    fn table_delete(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        let part = Self::table_part(target)?;
+        let area = self
+            .read_host(target, |s, sheet, _| Ok(Self::table_of(s, sheet, &part)?.area))?;
+        self.table_unlist(target, call)?;
+        self.with_write(|session| {
+            let receipt = session.dispatch_from(
+                CommandIngress::Automation,
+                SkinIntent::Edit {
+                    edits: vec![crate::CellEdit::Clear { area }],
+                },
+            );
+            match receipt.error {
+                Some(error) => Err(AutoError::not_modelled(
+                    format!("{}: {error}", call.label()),
+                    TABLES,
+                )),
+                None => Ok(AutoValue::Empty),
+            }
         })
     }
     fn table_display_name(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {

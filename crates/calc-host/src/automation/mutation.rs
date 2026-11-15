@@ -1,7 +1,19 @@
 //! Writes enter the session once, so transaction, undo, recalculation and events are shared
 //! with every other Automation client. Invocation contexts never reach this ingress.
 use super::*;
-use crate::{CellEdit, CellInput, CommandIngress, HostProgress, SkinIntent};
+use crate::{
+    CellEdit, CellInput, CommandIngress, HostProgress, SkinIntent, TableChange, WorkbookCommand,
+};
+
+/// What a table-aware pre-step leaves of a `Range.Value` write.
+enum PreWrite {
+    /// Write the range as given.
+    Same,
+    /// Write this range instead (the part the table's own commands did not take).
+    Replace(ReferenceLike),
+    /// Nothing is left to write.
+    Done,
+}
 
 impl WorkbookAutomation {
     pub(super) fn register_mutation(handlers: &mut Handlers<Self>) {
@@ -74,7 +86,7 @@ impl WorkbookAutomation {
     }
 
     fn put_value(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        self.mutate_areas(target, call, |session, range| {
+        self.mutate_values(target, call, |session, range| {
             if call.args.is_empty() || call.args.len() > 2 {
                 return Err(geometry::bad_count());
             }
@@ -89,12 +101,149 @@ impl WorkbookAutomation {
         })
     }
     fn put_value2(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        self.mutate_areas(target, call, |session, range| {
+        self.mutate_values(target, call, |session, range| {
             if call.args.len() != 1 {
                 return Err(geometry::bad_count());
             }
             self.write_range(session, range, call.args.last())
         })
+    }
+    /// A value write: a table the target touches is first brought to what Excel does (dc-piw0.10 Q13):
+    /// a write over a whole table range deletes the table, a write over header cells renames the columns
+    /// (made unique) and leaves the cells below to the ordinary write.
+    fn mutate_values(
+        &self,
+        target: &ObjectRef,
+        call: &Call<'_>,
+        mut intent: impl FnMut(&HostSession, ReferenceLike) -> Result<SkinIntent, AutoError>,
+    ) -> Reply {
+        self.mutate_pre(
+            target,
+            call,
+            |session, reference| match reference {
+                Some(reference) => Self::table_pre_step(session, reference, call.args.last()),
+                None => Ok(PreWrite::Same),
+            },
+            |session, reference| intent(session, reference.ok_or_else(geometry::type_mismatch)?),
+        )
+    }
+    fn dispatch_table(session: &mut HostSession, change: TableChange) -> Result<(), AutoError> {
+        let revision = session.host().revision().get();
+        let receipt = session.dispatch_from(
+            CommandIngress::Automation,
+            SkinIntent::Command(WorkbookCommand::Table { revision, change }),
+        );
+        match receipt.error {
+            Some(error) => Err(AutoError::not_modelled(
+                format!("Range.Value over a table: {error:?}"),
+                OWNER,
+            )),
+            None => Ok(()),
+        }
+    }
+    fn table_pre_step(
+        session: &mut HostSession,
+        reference: &ReferenceLike,
+        value: Option<&AutoValue>,
+    ) -> Result<PreWrite, AutoError> {
+        if value.is_none_or(|v| matches!(v, AutoValue::Empty)) || reference.area_count() != 1 {
+            return Ok(PreWrite::Same);
+        }
+        let area = reference.areas()[0];
+        let Some(table) = session
+            .host()
+            .model()
+            .definitions()
+            .tables()
+            .iter()
+            .find(|t| t.sheet == area.sheet() && t.area.intersection(area).is_some())
+            .cloned()
+        else {
+            return Ok(PreWrite::Same);
+        };
+        if table.area == area {
+            Self::dispatch_table(session, TableChange::Unlist { part: table.part })?;
+            return Ok(PreWrite::Same);
+        }
+        let header = table.area.first().row();
+        if table.header_rows == 0 || area.first().row() > header || area.last().row() < header {
+            return Ok(PreWrite::Same);
+        }
+        let value = value.unwrap();
+        let array = match value {
+            AutoValue::Array(a) => Some(a),
+            _ => None,
+        };
+        let header_only = area.first().row() == area.last().row();
+        if array.is_some() && !header_only {
+            return Err(AutoError::not_modelled(
+                "Range.Value array over a table header and body",
+                OWNER,
+            ));
+        }
+        let from = area.first().column().max(table.area.first().column());
+        let to = area.last().column().min(table.area.last().column());
+        let mut columns = table.columns.clone();
+        for column in from..=to {
+            let at = (column - table.area.first().column()) as usize;
+            let element = match array {
+                Some(a) => a
+                    .values
+                    .get((column - area.first().column()) as usize)
+                    .ok_or_else(geometry::type_mismatch)?,
+                None => value,
+            };
+            let mut name = match element {
+                AutoValue::Text(_) => element.as_text().ok_or_else(geometry::type_mismatch)?,
+                AutoValue::R8(v) => v.to_string(),
+                AutoValue::I4(v) => v.to_string(),
+                AutoValue::I2(v) => v.to_string(),
+                AutoValue::Bool(v) => if *v { "TRUE" } else { "FALSE" }.into(),
+                _ => {
+                    return Err(AutoError::not_modelled(
+                        "Range.Value into a table header of this type",
+                        OWNER,
+                    ));
+                }
+            };
+            let others: Vec<String> = columns
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| *i != at)
+                .map(|(_, c)| c.clone())
+                .collect();
+            if name.is_empty() {
+                name = calc_doc_model::free_column_name(&others);
+            } else if others
+                .iter()
+                .any(|c| calc_value::workbook_names_equal(c, &name))
+            {
+                name = calc_doc_model::numbered_duplicate(&name, &others);
+            }
+            if name != columns[at] {
+                Self::dispatch_table(
+                    session,
+                    TableChange::RenameColumn {
+                        part: table.part.clone(),
+                        column,
+                        name: name.clone(),
+                    },
+                )?;
+                columns[at] = name;
+            }
+        }
+        if area.last().row() == header {
+            return Ok(PreWrite::Done);
+        }
+        let rest = GridArea::new(
+            CellKey::new(area.sheet(), header + 1, area.first().column())
+                .map_err(|_| geometry::type_mismatch())?,
+            area.last(),
+        )
+        .map_err(|_| geometry::type_mismatch())?;
+        Ok(PreWrite::Replace(
+            ReferenceLike::from_areas(vec![rest]).map_err(|_| geometry::type_mismatch())?,
+        ))
     }
     fn clear_contents(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.mutate_areas(target, call, |session, range| {
@@ -264,6 +413,15 @@ impl WorkbookAutomation {
         &self,
         target: &ObjectRef,
         call: &Call<'_>,
+        intent: impl FnMut(&HostSession, Option<ReferenceLike>) -> Result<SkinIntent, AutoError>,
+    ) -> Reply {
+        self.mutate_pre(target, call, |_, _| Ok(PreWrite::Same), intent)
+    }
+    fn mutate_pre(
+        &self,
+        target: &ObjectRef,
+        call: &Call<'_>,
+        mut pre: impl FnMut(&mut HostSession, Option<&ReferenceLike>) -> Result<PreWrite, AutoError>,
         mut intent: impl FnMut(&HostSession, Option<ReferenceLike>) -> Result<SkinIntent, AutoError>,
     ) -> Reply {
         self.with_write(|session| {
@@ -276,15 +434,23 @@ impl WorkbookAutomation {
                 } => Some(self.resolve(&mut Access::Session(session), held)?),
                 _ => None,
             };
-            let intent = intent(session, reference)?;
-            let receipt = session.dispatch_from(CommandIngress::Automation, intent);
-            if let Some(error) = receipt.error {
-                return Err(AutoError::not_modelled(
-                    format!("{}: {error}", call.label()),
-                    OWNER,
-                ));
+            let (reference, done) = match pre(session, reference.as_ref())? {
+                PreWrite::Same => (reference, false),
+                PreWrite::Replace(replacement) => (Some(replacement), false),
+                PreWrite::Done => (reference, true),
+            };
+            let mut progress = None;
+            if !done {
+                let intent = intent(session, reference)?;
+                let receipt = session.dispatch_from(CommandIngress::Automation, intent);
+                if let Some(error) = receipt.error {
+                    return Err(AutoError::not_modelled(
+                        format!("{}: {error}", call.label()),
+                        OWNER,
+                    ));
+                }
+                progress = receipt.recalc;
             }
-            let mut progress = receipt.recalc;
             loop {
                 match progress {
                     Some(HostProgress::Failed(ref e)) => {

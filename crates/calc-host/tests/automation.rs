@@ -2381,7 +2381,7 @@ fn dc_piw0__excel_answers_q3_errors_follow_excel_numbers_and_descriptions() {
     // A second table's name against the first, in another case: 1004.
     fill(&host, (6, 1), &[&["a", "b"], &["1", "2"]]);
     let other = obj(tables_add(&model, &sheet, &range(&model, "A6:B7"), Some(1)).unwrap());
-    assert_eq!(text(&model, &other, "Name"), "Table1");
+    assert_eq!(text(&model, &other, "Name"), "Table2");
     assert_eq!(
         excel_error(invoke_kind(&model, &other, "Name", InvokeKind::Put, vec![AutoValue::text("SALES")])).0,
         1004
@@ -2512,13 +2512,11 @@ fn dc_piw0__excel_answers_q4_q5_table_headers_and_defaults() {
         })
         .collect();
     assert_eq!(names, ["x", "x2", "x3"]);
-    // Q4: without xlYes a first row of text is taken as the headers; any other first row makes
-    // Excel insert a header row, which stays a typed refusal.
+    // Q4: without xlYes a first row of text is taken as the headers (any other first row makes
+    // Excel insert a header row: Q12, dc_piw0_10__q12_*).
     fill(&host, (9, 1), &[&["a", "b"], &["1", "2"]]);
     let guessed = obj(tables_add(&model, &sheet, &range(&model, "A9:B10"), None).unwrap());
     assert_eq!(text(&model, &guessed, "Name"), "Table3");
-    let refused = tables_add(&model, &sheet, &range(&model, "A13:B15"), None);
-    assert!(matches!(refused, Err(AutoError::NotModelled { owner: "dc-piw0.1", .. })), "{refused:?}");
 }
 
 // --- dc-piw0.4: the macro-built report fixture (tests/fixtures/macro-report) -------------------
@@ -2872,4 +2870,253 @@ fn dc_piw0_10__q11_table_names_keep_their_text_and_display_names_are_derived() {
     let find = |name: &str| invoke_kind(&model, &tables, "Item", InvokeKind::Get, vec![AutoValue::text(name)]);
     assert!(find("My Table2").is_ok());
     assert_eq!(excel_error(find("My_Table2")).0, 9);
+}
+
+const XL_YES: i32 = 1;
+const XL_NO: i32 = 2;
+const XL_GUESS: i32 = 0;
+
+fn table_columns(model: &WorkbookAutomation, table: &ObjectRef) -> Vec<String> {
+    let columns = obj(invoke(model, table, "ListColumns", vec![]).unwrap());
+    (1..=count(model, &columns)).map(|i| text(model, &item(model, &columns, i), "Name")).collect()
+}
+
+fn table_address(model: &WorkbookAutomation, table: &ObjectRef) -> String {
+    let range_of = obj(invoke(model, table, "Range", vec![]).unwrap());
+    text(model, &range_of, "Address")
+}
+
+fn cell_text_of(model: &WorkbookAutomation, address: &str) -> String {
+    listing_text(&invoke(model, &range(model, address), "Value2", vec![]).unwrap())
+}
+
+/// Q12 (excel-answers.md, run1 q12): xlNo, and xlGuess over numbers, insert a header row Column1, Column2 at the
+/// source's top row and move the data down (no room above is needed, the cell above is not used); xlYes turns every
+/// first-row cell into its text in place (a formula is replaced by its text, an error becomes text, an empty cell
+/// becomes ColumnN); a one-row xlYes source gets an added empty data row.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_10__q12_xl_no_and_guess_insert_a_header_row_and_xl_yes_keeps_the_first_row() {
+    // (a) xlNo over A1:B2 (1, 2 / 3, 4): table A1:B3, header Column1/Column2, data A2:B3.
+    let (host, model, sheet) = blank_report();
+    fill(&host, (1, 1), &[&["1", "2"], &["3", "4"]]);
+    let table = obj(tables_add(&model, &sheet, &range(&model, "A1:B2"), Some(XL_NO)).unwrap());
+    assert_eq!(table_address(&model, &table), "$A$1:$B$3");
+    assert_eq!(table_columns(&model, &table), ["Column1", "Column2"]);
+    assert_eq!(
+        ["A1", "B1", "A2", "B2", "A3", "B3"].map(|a| cell_text_of(&model, a)),
+        ["Column1", "Column2", "1", "2", "3", "4"]
+    );
+    // (b) xlNo over E3:F4 with E2 = "above": E2 is untouched, the header goes to row 3.
+    let (host, model, sheet) = blank_report();
+    fill(&host, (2, 5), &[&["above"], &["x", "y"], &["5", "6"]]);
+    let table = obj(tables_add(&model, &sheet, &range(&model, "E3:F4"), Some(XL_NO)).unwrap());
+    assert_eq!(table_address(&model, &table), "$E$3:$F$5");
+    assert_eq!(cell_text_of(&model, "E2"), "above");
+    assert_eq!(["E3", "F3", "E4", "F4", "E5", "F5"].map(|a| cell_text_of(&model, a)), ["Column1", "Column2", "x", "y", "5", "6"]);
+    // (c) xlYes over 1.5, TRUE, #DIV/0!, =1+1 and an empty cell: each becomes its text in place.
+    let (host, model, sheet) = blank_report();
+    fill(&host, (1, 1), &[&["1.5", "TRUE", "=1/0", "=1+1", ""], &["1", "2", "3", "4", "5"]]);
+    let table = obj(tables_add(&model, &sheet, &range(&model, "A1:E2"), Some(XL_YES)).unwrap());
+    assert_eq!(table_columns(&model, &table), ["1.5", "TRUE", "#DIV/0!", "2", "Column1"]);
+    assert_eq!(cell_text_of(&model, "C1"), "#DIV/0!");
+    assert_eq!(cell_text_of(&model, "D1"), "2");
+    assert_eq!(cell_text_of(&model, "A2"), "1");
+    // (d) xlGuess over numbers (1, 2 / 3, 4): no header, Column1/Column2 inserted, table P1:Q3.
+    let (host, model, sheet) = blank_report();
+    fill(&host, (1, 16), &[&["1", "2"], &["3", "4"]]);
+    let table = obj(tables_add(&model, &sheet, &range(&model, "P1:Q2"), Some(XL_GUESS)).unwrap());
+    assert_eq!(table_address(&model, &table), "$P$1:$Q$3");
+    assert_eq!(table_columns(&model, &table), ["Column1", "Column2"]);
+    assert_eq!(cell_text_of(&model, "P2"), "1");
+    // (e) a one-row xlYes source a, b: S1:T2, row 1 the header, an empty data row added.
+    let (host, model, sheet) = blank_report();
+    fill(&host, (1, 19), &[&["a", "b"]]);
+    let table = obj(tables_add(&model, &sheet, &range(&model, "S1:T1"), Some(XL_YES)).unwrap());
+    assert_eq!(table_address(&model, &table), "$S$1:$T$2");
+    assert_eq!(table_columns(&model, &table), ["a", "b"]);
+}
+
+fn put_value(model: &WorkbookAutomation, target: &ObjectRef, value: AutoValue) -> Reply {
+    invoke_kind(model, target, "Value", InvokeKind::Put, vec![value])
+}
+
+fn grid_text(model: &WorkbookAutomation, from: &str) -> Vec<String> {
+    // the four rows and five columns from A1 as `a|b|...` lines
+    let _ = from;
+    (1..=4u32)
+        .map(|r| {
+            (0..5u8)
+                .map(|c| cell_text_of(model, &format!("{}{r}", char::from(b'A' + c))))
+                .collect::<Vec<_>>()
+                .join("|")
+        })
+        .collect()
+}
+
+/// Q13 (excel-answers.md, run4 q13b): Range, DataBodyRange and HeaderRowRange are read-only members; what VBA's Let
+/// does through them is the default member of the returned range. `lo.Range.Value = 9` writes every cell and deletes
+/// the table; the body and header puts write their cells and keep the table (the header names made unique).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_10__q13_a_value_put_over_the_whole_table_deletes_it_body_and_header_puts_keep_it() {
+    let fresh = || {
+        let (host, model, sheet) = blank_report();
+        fill(&host, (1, 1), &[&["H1", "H2"], &["1", "2"], &["3", "4"]]);
+        let table = obj(tables_add(&model, &sheet, &range(&model, "A1:B3"), Some(XL_YES)).unwrap());
+        (model, sheet, table)
+    };
+    let tables_count = |model: &WorkbookAutomation, sheet: &ObjectRef| {
+        count(model, &obj(invoke(model, sheet, "ListObjects", vec![]).unwrap()))
+    };
+    // lo.Range.Value = 9 (the control; `lo.Range = 7` is the same Let): cells written, table gone.
+    let (model, sheet, table) = fresh();
+    let whole = obj(invoke(&model, &table, "Range", vec![]).unwrap());
+    put_value(&model, &whole, AutoValue::R8(9.0)).unwrap();
+    assert_eq!(tables_count(&model, &sheet), 0);
+    assert_eq!(grid_text(&model, "A1"), ["9|9|||", "9|9|||", "9|9|||", "||||"]);
+    // lo.DataBodyRange = 5: the body cells become 5, header and table stay.
+    let (model, sheet, table) = fresh();
+    let body = obj(invoke(&model, &table, "DataBodyRange", vec![]).unwrap());
+    put_value(&model, &body, AutoValue::R8(5.0)).unwrap();
+    assert_eq!(tables_count(&model, &sheet), 1);
+    assert_eq!(grid_text(&model, "A1"), ["H1|H2|||", "5|5|||", "5|5|||", "||||"]);
+    // lo.HeaderRowRange = "z": the header cells become z and z2 (made unique), the body is unchanged.
+    let (model, sheet, table) = fresh();
+    let header = obj(invoke(&model, &table, "HeaderRowRange", vec![]).unwrap());
+    put_value(&model, &header, AutoValue::text("z")).unwrap();
+    assert_eq!(tables_count(&model, &sheet), 1);
+    assert_eq!(table_columns(&model, &table), ["z", "z2"]);
+    assert_eq!(grid_text(&model, "A1"), ["z|z2|||", "1|2|||", "3|4|||", "||||"]);
+}
+
+fn add_rectangle(model: &WorkbookAutomation, shapes: &ObjectRef, left: f64) -> (String, i64) {
+    let shape = obj(
+        invoke_kind(
+            model,
+            shapes,
+            "AddShape",
+            InvokeKind::Method,
+            vec![AutoValue::I4(1), AutoValue::R8(left), AutoValue::R8(10.0), AutoValue::R8(50.0), AutoValue::R8(30.0)],
+        )
+        .unwrap(),
+    );
+    (text(model, &shape, "Name"), int(invoke(model, &shape, "ID", vec![]).unwrap()))
+}
+
+fn delete_shape(model: &WorkbookAutomation, shapes: &ObjectRef, name: &str) {
+    let shape = obj(invoke_kind(model, shapes, "Item", InvokeKind::Method, vec![AutoValue::text(name)]).unwrap());
+    invoke_kind(model, &shape, "Delete", InvokeKind::Method, vec![]).unwrap();
+}
+
+/// Q14 (excel-answers.md, run1 q14, run4 q14b): within a session a shape id, name and table number is never reused
+/// (one counter, name number = id - 1, whatever is deleted); after save and reopen the lowest free id is taken.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_10__q14_ids_and_names_are_not_reused_in_a_session_but_the_lowest_free_after_reopen() {
+    let (host, model, sheet) = blank_report();
+    let shapes = obj(invoke(&model, &sheet, "Shapes", vec![]).unwrap());
+    let rect = |left: f64| add_rectangle(&model, &shapes, left);
+    assert_eq!(rect(10.0), ("Rectangle 1".to_owned(), 2));
+    assert_eq!(rect(70.0), ("Rectangle 2".to_owned(), 3));
+    assert_eq!(rect(130.0), ("Rectangle 3".to_owned(), 4));
+    // Delete the middle one: the next is 5, not 3.
+    delete_shape(&model, &shapes, "Rectangle 2");
+    assert_eq!(rect(10.0), ("Rectangle 4".to_owned(), 5));
+    // Delete the highest two (ids 5 and 4): the next is 6, not 5 or 3.
+    delete_shape(&model, &shapes, "Rectangle 4");
+    delete_shape(&model, &shapes, "Rectangle 3");
+    assert_eq!(rect(10.0), ("Rectangle 5".to_owned(), 6));
+    // Tables: the number only counts up (Delete and Unlist alike).
+    fill(&host, (1, 1), &[&["a", "b"], &["1", "2"]]);
+    fill(&host, (1, 5), &[&["a", "b"], &["1", "2"]]);
+    fill(&host, (1, 9), &[&["a", "b"], &["1", "2"]]);
+    let tables = obj(invoke(&model, &sheet, "ListObjects", vec![]).unwrap());
+    let first = obj(tables_add(&model, &sheet, &range(&model, "A1:B2"), Some(XL_YES)).unwrap());
+    let second = obj(tables_add(&model, &sheet, &range(&model, "E1:F2"), Some(XL_YES)).unwrap());
+    assert_eq!((text(&model, &first, "Name"), text(&model, &second, "Name")), ("Table1".to_owned(), "Table2".to_owned()));
+    invoke_kind(&model, &first, "Delete", InvokeKind::Method, vec![]).unwrap();
+    let third = obj(tables_add(&model, &sheet, &range(&model, "I1:J2"), Some(XL_YES)).unwrap());
+    assert_eq!(text(&model, &third, "Name"), "Table3");
+    invoke_kind(&model, &second, "Unlist", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(count(&model, &tables), 1);
+    fill(&host, (1, 1), &[&["a", "b"], &["1", "2"]]);
+    let fourth = obj(tables_add(&model, &sheet, &range(&model, "A1:B2"), Some(XL_YES)).unwrap());
+    assert_eq!(text(&model, &fourth, "Name"), "Table4");
+    // After save and reopen the counters are gone: the file holds Rectangle 1 (id 2) and Rectangle 5 (id 6),
+    // so the new shape takes the lowest free id 3 and a new table the lowest free number.
+    let mut bytes = Vec::new();
+    host.session.borrow_mut().save(&SavePolicy::default(), &mut bytes).unwrap();
+    let session = HostSession::open(Arc::new(MemorySource::new(bytes)), &OpenPolicy::default(), HostOptions::default()).unwrap();
+    let (host, model) = setup_session(session);
+    let app = model.application();
+    let sheet = obj(invoke(&model, &app, "ActiveSheet", vec![]).unwrap());
+    let shapes = obj(invoke(&model, &sheet, "Shapes", vec![]).unwrap());
+    assert_eq!(add_rectangle(&model, &shapes, 200.0), ("Rectangle 2".to_owned(), 3));
+    fill(&host, (6, 1), &[&["a", "b"], &["1", "2"]]);
+    let reopened = obj(tables_add(&model, &sheet, &range(&model, "A6:B7"), Some(XL_YES)).unwrap());
+    // the file holds Table3 (I1:J2) and Table4 (A1:B2): Table1 is the lowest free number
+    assert_eq!(text(&model, &reopened, "Name"), "Table1");
+}
+
+/// Q15 (excel-answers.md, run1 q15): every run Excel writes carries the machine's install/regional language
+/// (`a:rPr lang="en-ZA"` there), while `c:lang` stays en-US; defRPr carries no lang. The host's locale stands in
+/// for the machine's, `en-US` without one.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_10__q15_text_runs_carry_the_host_language() {
+    for (locale, tag) in [
+        (Some(calc_func::locale::format_profile(calc_func::locale::LocaleId::EnZa)), "en-ZA"),
+        (None, "en-US"),
+    ] {
+        let session = HostSession::open(
+            Arc::new(MemorySource::new(blank_package())),
+            &OpenPolicy::default(),
+            HostOptions { locale, ..Default::default() },
+        )
+        .unwrap();
+        let (host, model) = setup_session(session);
+        let app = model.application();
+        let sheet = obj(invoke(&model, &app, "ActiveSheet", vec![]).unwrap());
+        fill(&host, (1, 1), &[&["Region", "Q1"], &["North", "10"], &["South", "30"]]);
+        let shapes = obj(invoke(&model, &sheet, "Shapes", vec![]).unwrap());
+        let chart_shape = obj(
+            invoke_kind(&model, &shapes, "AddChart2", InvokeKind::Method, vec![AutoValue::I4(201), AutoValue::I4(51)]).unwrap(),
+        );
+        let chart = obj(invoke(&model, &chart_shape, "Chart", vec![]).unwrap());
+        let title = obj(invoke(&model, &chart, "ChartTitle", vec![]).unwrap());
+        invoke_kind(&model, &title, "Text", InvokeKind::Put, vec![AutoValue::text("T")]).unwrap();
+        let (_, _) = (add_rectangle(&model, &shapes, 200.0), 0);
+        let rectangle = obj(invoke_kind(&model, &shapes, "Item", InvokeKind::Method, vec![AutoValue::text("Rectangle 2")]).unwrap());
+        let box_shape = obj(
+            invoke_kind(
+                &model,
+                &shapes,
+                "AddTextbox",
+                InvokeKind::Method,
+                vec![AutoValue::I4(1), AutoValue::R8(300.0), AutoValue::R8(10.0), AutoValue::R8(80.0), AutoValue::R8(20.0)],
+            )
+            .unwrap(),
+        );
+        for (shape, words) in [(&rectangle, "shape text"), (&box_shape, "box text")] {
+            let frame = obj(invoke(&model, shape, "TextFrame2", vec![]).unwrap());
+            let range_of = obj(invoke(&model, &frame, "TextRange", vec![]).unwrap());
+            invoke_kind(&model, &range_of, "Text", InvokeKind::Put, vec![AutoValue::text(words)]).unwrap();
+        }
+        let mut session = host.session.borrow_mut();
+        let chart_xml = saved_part(&mut session, "xl/charts/");
+        let drawing_xml = saved_part(&mut session, "xl/drawings/");
+        assert!(chart_xml.contains("<c:lang val=\"en-US\"/>"), "{chart_xml}");
+        assert!(
+            chart_xml.contains(&format!("<a:p><a:pPr><a:defRPr/></a:pPr><a:r><a:rPr lang=\"{tag}\"/><a:t>T</a:t></a:r></a:p>")),
+            "{tag}: {chart_xml}"
+        );
+        for words in ["shape text", "box text"] {
+            assert!(
+                drawing_xml.contains(&format!("<a:r><a:rPr lang=\"{tag}\" sz=\"1100\"/><a:t>{words}</a:t></a:r>")),
+                "{tag} {words}: {drawing_xml}"
+            );
+        }
+        assert!(!drawing_xml.contains("lang=\"en-US\"") || tag == "en-US");
+    }
 }
