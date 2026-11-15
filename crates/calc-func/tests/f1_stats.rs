@@ -109,6 +109,22 @@ fn cube_final_errors_follow_numeric_argument_validation() {
     error(call("CUBESET", vec![t("missing"), t("set"), e(Div0), n(1.0), e(Ref)]), Div0);
 }
 
+/// Excel reads import argument errors and numeric types before validating the path.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn import_errors_precede_path_validation() {
+    for (name, count) in [("IMPORTCSV", 5), ("IMPORTTEXT", 7)] {
+        for index in 0..count {
+            let mut args = vec![n(1.0); count];
+            args[index] = e(Ref);
+            error(call(name, args), Ref);
+        }
+    }
+    error(call("IMPORTCSV", vec![n(1.0), t("bad"), e(Ref)]), Value);
+    error(call("IMPORTCSV", vec![n(1.0), t("1.5"), e(Ref)]), Ref);
+    error(call("IMPORTTEXT", vec![n(1.0), t(","), t("bad"), e(Ref)]), Value);
+}
+
 /// Excel 20527 wraps 2h-1 at the signed-32-bit boundary in interval variance.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

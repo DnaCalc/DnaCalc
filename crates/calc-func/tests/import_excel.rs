@@ -161,6 +161,22 @@ impl ImportRoute for Files {
     }
 }
 
+/// The host-routed import has the same argument error order as the catalogue route.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn routed_import_errors_precede_path_validation() {
+    let route: Rc<dyn ImportRoute> = Rc::new(Files);
+    for (name, count) in [("IMPORTCSV", 5), ("IMPORTTEXT", 7)] {
+        let function = ImportFunction::new(name, route.clone()).expect("an import function");
+        for index in 0..count {
+            let mut args = vec![CalcValue::number(1.0); count];
+            args[index] = CalcValue::error(WorksheetErrorCode::Ref);
+            let result = function.call(&args).expect("a worksheet result");
+            assert!(matches!(result.core_ref(), CoreRef::Error(WorksheetErrorCode::Ref)));
+        }
+    }
+}
+
 const ANSWERS: &str = include_str!("fixtures/import/excel-answers.json");
 
 fn error(spelling: &str) -> WorksheetErrorCode {

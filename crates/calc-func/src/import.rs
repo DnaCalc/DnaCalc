@@ -134,6 +134,43 @@ fn passes(value: &CalcValue) -> Result<(), Failure> {
     }
 }
 
+/// Excel reads scalar error and numeric argument types in order before
+/// validating the path or the numeric options' permitted ranges. Unknown
+/// text and array cases stay on the existing argument-reading path.
+pub(crate) fn scalar_preflight(kind: ImportKind, arguments: &[CalcValue]) -> Option<CalcValue> {
+    use crate::coerce::{self, Numeric, Stop as CoerceStop};
+    if arguments.iter().any(|value| matches!(value.core_ref(), CoreRef::Array(_) | CoreRef::Reference(_))) {
+        return None;
+    }
+    for (index, value) in arguments.iter().enumerate() {
+        if matches!(value.core_ref(), CoreRef::Error(_)) {
+            return Some(value.clone());
+        }
+        let numeric = match kind {
+            ImportKind::Csv => matches!(index, 1..=3),
+            ImportKind::Text => matches!(index, 2..=5),
+        };
+        if !numeric {
+            continue;
+        }
+        match value.core_ref() {
+            CoreRef::Number(number) if number.is_finite() && !value.is_excel_overflow() => {}
+            CoreRef::Logical(_) | CoreRef::Empty | CoreRef::Missing => {}
+            CoreRef::Text(_) => match coerce::number(value) {
+                Ok(Numeric::Decimal(decimal)) => match decimal.nearest() {
+                    Ok(_) => {}
+                    Err(CoerceStop::Error(WorksheetErrorCode::Value)) => return Some(CalcValue::error(WorksheetErrorCode::Value)),
+                    _ => return None,
+                },
+                Err(CoerceStop::Error(WorksheetErrorCode::Value)) => return Some(CalcValue::error(WorksheetErrorCode::Value)),
+                _ => return None,
+            },
+            _ => return None,
+        }
+    }
+    None
+}
+
 /// A whole-number argument: a number truncates, a logical is 1 or 0, blank is none, and text is
 /// #VALUE!.
 fn whole(value: &CalcValue) -> Result<Option<i64>, Failure> {
@@ -162,6 +199,9 @@ fn windows_path(text: &str) -> Option<String> {
 
 impl Request {
     fn read(kind: ImportKind, arguments: &[CalcValue]) -> Result<Self, Failure> {
+        if let Some(answer) = scalar_preflight(kind, arguments) {
+            return Err(Stop::Answer(answer));
+        }
         let missing = CalcValue::missing();
         let at = |index: usize| arguments.get(index).unwrap_or(&missing);
         let (delimiter_at, skip_at, take_at, encoding_at, text_only_at, locale_at) = match kind {
