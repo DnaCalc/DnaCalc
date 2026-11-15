@@ -504,7 +504,10 @@ pub fn t_inv_2t_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Worksh
         if p == 0.5 {
             return Ok(sign);
         }
-        let arg = std::f64::consts::PI * p / 2.0;
+        // Excel stores the pi product from x87 precision before halving.
+        // Adjacent double-rounding controls distinguish this from a binary64
+        // product even though the two expressions usually give the same angle.
+        let arg = crate::ported::excel_numeric::excel_x87_mul(std::f64::consts::PI, p) / 2.0;
         return Ok(sign / crate::ported::tan::tan_kernel(arg));
     }
     if p == 0.0 {

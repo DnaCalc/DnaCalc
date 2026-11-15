@@ -5200,6 +5200,21 @@ fn beta_inverse_large_second_shape_initial_proposal() {
     }
 }
 
+/// The degree-one t inverse stores its pi product at x87 precision.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn t_inverse_one_degree_stores_the_angle() {
+    for (p, expected) in [
+        (0x3ff4_3e3d_e9e3_54dc, 0xbfdc_5150_7771_460a),
+        (0x3ffd_7813_d2f7_468b, 0xc00f_87f1_8b63_f137),
+    ] {
+        exact(
+            call("T.INV.2T", vec![n(f64::from_bits(p)), n(1.0)]),
+            f64::from_bits(expected),
+        );
+    }
+}
+
 /// Captured Excel20527 tiny-tail answers pass through the same beta initial
 /// proposal into Student-t and then the application's confidence calculation.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
