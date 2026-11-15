@@ -5178,6 +5178,24 @@ fn chi_inverse_quantile_bound_keeps_the_large_degree_plateau() {
     }
 }
 
+/// Excel 20527 shares the large-shape quantile steps across these inverse families.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gamma_and_chi_inverse_share_large_shape_quantile_steps() {
+    for name in ["CHIINV", "CHISQ.INV.RT"] {
+        exact(
+            call(name, vec![n(f64::from_bits(0x3fe6_f9b5_7f71_8def)), n(f64::from_bits(0x4620_7c58_197d_13f0))]),
+            f64::from_bits(0x4620_7d77_4c27_c5cc),
+        );
+    }
+    for name in ["GAMMA.INV", "GAMMAINV"] {
+        exact(
+            call(name, vec![n(f64::from_bits(0x3fc1_c4e4_2f17_a9d0)), n(f64::from_bits(0x4625_a8e8_19fc_fbf0)), n(1.0)]),
+            f64::from_bits(0x4625_aa61_6fdf_e6bc),
+        );
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn f_inverse_probability_endpoints_validate_degrees() {
