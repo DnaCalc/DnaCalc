@@ -432,6 +432,27 @@ impl WorkbookAutomation {
             }) => self.resolve(access, reference),
             AutoValue::Text(_) => {
                 let text = value.as_text().unwrap();
+                // `Range("A1,C1:C2")`: a comma outside quotes separates the areas of a union.
+                let mut parts = Vec::new();
+                let (mut quoted, mut start) = (false, 0);
+                for (i, c) in text.char_indices() {
+                    match c {
+                        '\'' => quoted = !quoted,
+                        ',' if !quoted => {
+                            parts.push(&text[start..i]);
+                            start = i + 1;
+                        }
+                        _ => {}
+                    }
+                }
+                if !parts.is_empty() {
+                    parts.push(&text[start..]);
+                    let mut ranges = Vec::new();
+                    for part in parts {
+                        ranges.push(self.range_argument(access, meta, &AutoValue::text(part.trim()), sheet)?);
+                    }
+                    return geometry::union(&ranges);
+                }
                 let at = sheet
                     .and_then(|sheet| CellKey::new(sheet, 1, 1).ok())
                     .or_else(|| match access {

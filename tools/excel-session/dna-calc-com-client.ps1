@@ -9,9 +9,15 @@
 # It touches no registry, Trust Center or Excel setting and registers nothing. It stops only the
 # desktop process it started. Exit code 0 when every answer is the one the Rust tests expect. Run it on a private desktop (on-private-desktop.ps1) so no window
 # appears on the owner's desktop.
-param([Parameter(Mandatory)][string]$Exe, [Parameter(Mandatory)][string]$Bundle, [Parameter(Mandatory)][string]$Out)
+# With -AttachProcessId it attaches to a desktop process that is already running (the page acceptance
+# run, `cargo xtask app xll-accept calc`) and does one thing as an automation client, as the Excel
+# controller did: -Action EnableEvents -Value True|False, or -Action Edit -Cell <address> -Value <number>
+# (Range(address).Value2 = number, so a rectangle or "A1,C1:C2" is one write).
+param([string]$Exe, [string]$Bundle, [string]$Out, [int]$AttachProcessId = 0, [ValidateSet('', 'EnableEvents', 'Edit')][string]$Action = '', [string]$Cell, [string]$Value)
+if (-not $AttachProcessId -and -not ($Exe -and $Bundle -and $Out)) { throw 'give -Exe, -Bundle and -Out, or -AttachProcessId and -Action' }
+if ($AttachProcessId -and -not $Action) { throw '-AttachProcessId needs -Action' }
 $ErrorActionPreference = 'Stop'
-New-Item -ItemType Directory -Force -Path $Out | Out-Null
+if ($Out) { New-Item -ItemType Directory -Force -Path $Out | Out-Null }
 Add-Type @'
 using System;
 using System.Collections.Generic;
@@ -76,16 +82,12 @@ function Attempt([scriptblock]$body) {
     catch { $e = $_.Exception; return [ordered]@{ ok = $false; hresult = ('0x{0:X8}' -f $e.HResult); message = $e.Message } }
 }
 $missing = [Type]::Missing
-$result = [ordered]@{ started_utc = [DateTime]::UtcNow.ToString('O') }
-$env:DNACALC_WEBVIEW2_DATA = Join-Path $Out 'webview2'
-$process = Start-Process -FilePath $Exe -ArgumentList @('--app', '--assets', $Bundle, '--size', '1280x1000') -PassThru
-try {
+function Connect-DnaCalc([uint32]$processId) {
     $hwnd = [IntPtr]::Zero
     $deadline = [DateTime]::UtcNow.AddSeconds(90)
     while ($hwnd -eq [IntPtr]::Zero -and [DateTime]::UtcNow -lt $deadline) {
-        Start-Sleep -Milliseconds 300
-        if ($process.HasExited) { throw "the desktop exe exited with $($process.ExitCode)" }
-        $hwnd = [DnaComWindows]::FindExcel7([uint32]$process.Id)
+        $hwnd = [DnaComWindows]::FindExcel7($processId)
+        if ($hwnd -eq [IntPtr]::Zero) { Start-Sleep -Milliseconds 300 }
     }
     if ($hwnd -eq [IntPtr]::Zero) { throw 'no EXCEL7 window for the desktop process' }
     $window = $null
@@ -93,6 +95,21 @@ try {
         try { $window = [DnaComWindows]::NativeOm($hwnd) } catch { Start-Sleep -Milliseconds 300 }
     }
     if (-not $window) { throw 'AccessibleObjectFromWindow did not return the object model' }
+    return $window
+}
+if ($AttachProcessId) {
+    $app = Get-Member2 (Connect-DnaCalc ([uint32]$AttachProcessId)) 'Application'
+    if ($Action -eq 'EnableEvents') { Set-Member2 $app 'EnableEvents' ([bool]::Parse($Value)) }
+    else { Set-Member2 (Get-Member2 $app 'Range' @($Cell)) 'Value2' ([double]::Parse($Value, [Globalization.CultureInfo]::InvariantCulture)) }
+    Write-Output "$Action done: EnableEvents=$(Get-Member2 $app 'EnableEvents')"
+    return
+}
+$result = [ordered]@{ started_utc = [DateTime]::UtcNow.ToString('O') }
+$env:DNACALC_WEBVIEW2_DATA = Join-Path $Out 'webview2'
+$process = Start-Process -FilePath $Exe -ArgumentList @('--app', '--assets', $Bundle, '--size', '1280x1000') -PassThru
+try {
+    if ($process.HasExited) { throw "the desktop exe exited with $($process.ExitCode)" }
+    $window = Connect-DnaCalc ([uint32]$process.Id)
     $app = Get-Member2 $window 'Application'
     $result.application_name = Get-Member2 $app 'Name'
     $sheet = Get-Member2 $app 'ActiveSheet'
