@@ -44,7 +44,6 @@ pub fn shift_cell_edits(
                 || s.charts().unread != 0
                 || s.is_macro_sheet()
         })
-        || !model.definitions().tables().is_empty()
         || model
             .layout()
             .blocks()

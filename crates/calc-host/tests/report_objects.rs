@@ -732,7 +732,8 @@ fn plot_children(xml: &str) -> (String, Vec<String>, String) {
     let first = xml.find("<c:ser>").unwrap();
     let first_end = xml.find("</c:ser>").unwrap() + "</c:ser>".len();
     let last_end = xml.rfind("</c:ser>").unwrap() + "</c:ser>".len();
-    let axes = xml[last_end..].find("<c:axId").unwrap() + last_end;
+    // A pie or doughnut plot has no axes: its tail runs to the end of the plot area.
+    let axes = xml[last_end..].find("<c:axId").or_else(|| xml[last_end..].find("</c:plotArea>")).unwrap() + last_end;
     // Each element the writer makes on its own repeats the chart namespace declaration.
     let bare = |text: &str| text.replace(" xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"", "");
     (
@@ -745,7 +746,7 @@ fn plot_children(xml: &str) -> (String, Vec<String>, String) {
 /// dc-piw0.10 Q17 (excel-answers.md, run1 q17): the children of a macro chart's series and plot per chart type as
 /// Excel wrote them: bar `invertIfNegative`; line `marker` (none) and `smooth` (0) with a plot-level `smooth`;
 /// scatter `scatterStyle lineMarker`, an `spPr` with the line off and `smooth`; area nothing more. Pie and doughnut
-/// charts of two series are refused by the engine (Excel keeps both series in the part), so they are not compared.
+/// charts keep both series in the part, as Excel does (dc-piw0.11 (6)).
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_piw0_10__q17_series_children_follow_the_chart_type() {
@@ -754,6 +755,8 @@ fn dc_piw0_10__q17_series_children_follow_the_chart_type() {
         ("line", include_str!("fixtures/excel-q17/chart4.xml")),
         ("area", include_str!("fixtures/excel-q17/chart6.xml")),
         ("scatter", include_str!("fixtures/excel-q17/chart8.xml")),
+        ("pie", include_str!("fixtures/excel-q17/chart7.xml")),
+        ("doughnut", include_str!("fixtures/excel-q17/chart9.xml")),
     ] {
         let mut book = open(aptos_narrow_package());
         let sheet = book.host().sheets()[0].id();
@@ -798,9 +801,17 @@ fn dc_piw0_10__q17_series_children_follow_the_chart_type() {
             .find(|n| n.starts_with("xl/charts/") && n.ends_with(".xml"))
             .unwrap();
         let written = String::from_utf8(document.package().read_part(&name).unwrap()).unwrap();
+        let (written_all, recorded_all) = (series_elements(&written), series_elements(recorded));
+        let pie = matches!(kind, "pie" | "doughnut");
+        if pie {
+            assert_eq!(written.matches("<c:ser>").count(), 2, "{kind}: both series stay in the part");
+        }
         let (written, recorded) = (plot_children(&written), plot_children(recorded));
         assert_eq!(written.0, recorded.0, "{kind}: plot head");
         assert_eq!(written.1, recorded.1, "{kind}: first series");
+        if pie {
+            assert_eq!(written_all, recorded_all, "{kind}: all series");
+        }
         assert_eq!(written.2, recorded.2, "{kind}: plot tail");
     }
 }

@@ -102,10 +102,9 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
             return Err(fail("This plot has no grouping"));
         }
         // A chart a macro adds has no series until `SetSourceData` (dc-piw0.2).
-        if p.series.len() > 255 || (pie && p.series.len() > 1) {
-            return Err(fail(
-                "Use up to 255 series, or one series for a pie or doughnut",
-            ));
+        // Excel keeps every series of a source in a pie or doughnut part (Q17, dc-piw0.11).
+        if p.series.len() > 255 {
+            return Err(fail("Use up to 255 series"));
         }
         for s in &p.series {
             if !indices.insert(s.index)

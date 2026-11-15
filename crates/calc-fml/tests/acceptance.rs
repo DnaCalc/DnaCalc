@@ -439,6 +439,7 @@ const TRIM_REFERENCES: &[(&str, &str)] = &[
 /// Well-formed formulas: each reprints exactly, parses without diagnostics and has the expression
 /// shape given (Excel precedence, calls, literals, A1 references and sheet qualifiers).
 const WELL_FORMED: &[(&str, &str)] = &[
+    ("=A1 : A3", "Range(Id(A1) : Id(A3))"),
     ("=1+2*3", "Binary(Num(1) + Binary(Num(2) * Num(3)))"),
     ("=-2^2", "Binary(Prefix(- Num(2)) ^ Num(2))"),
     ("=50%^2", "Binary(Postfix(Num(50) %) ^ Num(2))"),
@@ -532,7 +533,6 @@ const INCOMPLETE: &[(&str, &str)] = &[
     ("={1,2;", "Array({ Num(1) , Num(2) ; ?)"),
     ("=1+2)", "Binary(Num(1) + Num(2))"),
     ("=\u{1F600}*2", "Binary(Missing(\u{1F600}) * Num(2))"),
-    ("=A1 : A3", "Range(Id(A1) : Id(A3))"),
     ("=#", "Missing(#)"),
 ];
 
@@ -722,7 +722,7 @@ fn cfml_m1_1__lossless_roundtrip() {
     assert_eq!(tokens_seen, expected_tokens, "token kinds exercised");
     assert_eq!(
         diagnostic_kinds,
-        BTreeSet::from(["Message".to_string(), "SpacedRangeColon".to_string()]),
+        BTreeSet::from(["Message".to_string()]),
         "diagnostic kinds exercised"
     );
 
@@ -819,7 +819,6 @@ fn cfml_m1_1__tree_syntax_rejected() {
             *rejected,
             "{source:?}"
         );
-        assert_eq!(diagnostic.suggested_correction(), None);
         assert_eq!(expression_shape(&tree), *expected, "{source:?}");
 
         // Every token inside the rejected span is a direct, unstructured token of an

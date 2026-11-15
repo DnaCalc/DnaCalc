@@ -210,10 +210,6 @@ pub enum SyntaxDiagnosticKind {
     /// quoted text), or a call nested deeper than the parser's limit of nested levels of
     /// functions.
     Message,
-    /// Whitespace before a range colon, as in `A1 : A3`. The tree holds the range the author
-    /// meant, with the whitespace as trivia; `suggested` is the source of the diagnostic's span
-    /// without that whitespace.
-    SpacedRangeColon { suggested: String },
     /// Syntax outside the grammar this parser accepts: a `^` selector at the start of an
     /// operand or a `.` member selector, which are not Excel syntax, and Excel's trim references
     /// (`A1.:B10`), which Excel accepts and this parser does not parse yet. The tree keeps the
@@ -244,15 +240,6 @@ impl SyntaxDiagnostic {
             message: message.into(),
             span,
             kind: SyntaxDiagnosticKind::UnsupportedSyntax,
-        }
-    }
-
-    /// The corrected source text an editor can substitute for `self.span`, when the diagnostic
-    /// carries one.
-    pub fn suggested_correction(&self) -> Option<&str> {
-        match &self.kind {
-            SyntaxDiagnosticKind::SpacedRangeColon { suggested } => Some(suggested.as_str()),
-            SyntaxDiagnosticKind::Message | SyntaxDiagnosticKind::UnsupportedSyntax => None,
         }
     }
 }

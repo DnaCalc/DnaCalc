@@ -1878,11 +1878,13 @@ mod tests {
         assert_eq!(to_a1("R3C2+R[-2]C[-1]+RC"), "$B$3+B3+C5");
         assert_eq!(to_r1c1("SUM(C:E)+$A$1:B9"), "SUM(C:C[2])+R1C1:R[4]C[-1]");
         assert_eq!(to_a1("SUM(R2:R4)+SUM(C2)"), "SUM($2:$4)+SUM($B:$B)");
-        // The parser diagnoses whitespace around a range colon. Do not turn that
-        // unsupported spelling into a claimed successful conversion.
-        for text in ["SUM(C : C[2])", "SUM(R : R[2])"] {
-            assert_eq!(convert_notation(text, at, R1C1, A1, &catalog), None);
-        }
+        // Whitespace around a range colon is accepted and dropped, as Excel shows `=sum( a1 : a2 )` as
+        // `=SUM( A1:A2 )` (Q16); the R1C1 conversion of the spelling is not measured, so only the
+        // A1 rendering of the same range is asserted.
+        assert_eq!(
+            convert_notation("SUM(C : C[2])", at, R1C1, A1, &catalog),
+            convert_notation("SUM(C:C[2])", at, R1C1, A1, &catalog)
+        );
         // Not measured: an offset that leaves the grid.
         assert_eq!(to_a1("R[-10]C"), "#REF!");
         for text in ["$B$3*2+B3", "SUM(Sheet2!A1:B2)", "SUM(C:E)+$A$1:B9"] {

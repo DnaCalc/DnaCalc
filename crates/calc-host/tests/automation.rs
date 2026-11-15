@@ -3190,6 +3190,38 @@ fn formulas(model: &WorkbookAutomation, address: &str) -> Vec<String> {
     }
 }
 
+/// dc-piw0.11 (5): a second ListObjects.Add xlNo table, beside an existing table, inserts its header row as the first
+/// does (Excel shifts only the source's columns down); the first table keeps its place and name, the second is Table2.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_11__a_second_xl_no_table_beside_another_table_inserts_its_header_row() {
+    let (host, model, sheet) = blank_report();
+    fill(&host, (1, 1), &[&["h1", "h2"], &["1", "2"], &["3", "4"]]);
+    fill(&host, (1, 5), &[&["5", "6"], &["7", "8"]]);
+    let first = obj(tables_add(&model, &sheet, &range(&model, "A1:B3"), Some(XL_YES)).unwrap());
+    let second = obj(tables_add(&model, &sheet, &range(&model, "E1:F2"), Some(XL_NO)).unwrap());
+    assert_eq!(table_address(&model, &first), "$A$1:$B$3");
+    assert_eq!(table_address(&model, &second), "$E$1:$F$3");
+    assert_eq!(table_columns(&model, &second), ["Column1", "Column2"]);
+    assert_eq!(
+        ["E1", "F1", "E2", "F2", "E3", "F3"].map(|a| cell_text_of(&model, a)),
+        ["Column1", "Column2", "5", "6", "7", "8"]
+    );
+}
+
+/// dc-piw0.11 (4), Q16 run1 A8: a typed `=sum( a1 : a2 )` is accepted, calculates, and shows as `=SUM( A1:A2 )`
+/// (names and references upper-cased, the spaces around ":" dropped, the spaces inside the parentheses kept).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_11__q16_spaces_around_a_range_colon_are_accepted() {
+    let (_host, model, _sheet) = blank_report();
+    put_formula(&model, "A1", AutoValue::text("10"));
+    put_formula(&model, "A2", AutoValue::text("0.1"));
+    put_formula(&model, "A3", AutoValue::text("=sum( a1 : a2 )"));
+    assert_eq!(formulas(&model, "A3"), ["=SUM( A1:A2 )"]);
+    assert_eq!(invoke(&model, &range(&model, "A3"), "Text", vec![]).unwrap().as_text().unwrap(), "10.1");
+}
+
 fn row_array(values: Vec<AutoValue>) -> AutoValue {
     AutoValue::Array(Box::new(calc_object_model::AutoArray { rows: 1, columns: values.len() as u32, lower: (1, 1), values }))
 }
@@ -3210,7 +3242,7 @@ fn dc_piw0_10__q16_formula_is_a_string_arrays_fill_na_and_text_fits_the_column()
     put_formula(&model, "A4", AutoValue::text("abc"));
     put_formula(&model, "A5", AutoValue::text("TRUE"));
     put_formula(&model, "A6", AutoValue::text("=sum(a1:a2)"));
-    put_formula(&model, "A7", AutoValue::text("=sum( a1:a2 )")); // the parser still refuses spaces around ":" (Excel accepts them)
+    put_formula(&model, "A7", AutoValue::text("=sum( a1:a2 )"));
     put_formula(&model, "A8", AutoValue::text("#N/A"));
     put_formula(&model, "A9", AutoValue::text("'=text"));
     put_formula(&model, "A10", AutoValue::text("'5"));

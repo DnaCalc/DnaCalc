@@ -19,7 +19,7 @@
 //! calls (see `crate::eval`).
 
 use super::lexer::{lex, quoted_text_is_closed};
-use super::token::{SyntaxDiagnostic, SyntaxDiagnosticKind, TextSpan, Token, TokenKind, Trivia};
+use super::token::{SyntaxDiagnostic, TextSpan, Token, TokenKind, Trivia};
 use super::tree::{SyntaxChild, SyntaxKind, SyntaxNode, SyntaxTree};
 use calc_func::value::WorksheetErrorCode;
 
@@ -44,9 +44,6 @@ struct Parser {
     /// Whitespace skipped since the last token was taken; it becomes the leading trivia of the
     /// next token taken.
     pending_trivia: Vec<Trivia>,
-    /// The whitespace a spaced-range-colon recovery has dropped; every suggested correction is
-    /// the source without it, so an outer suggestion carries the inner corrections too.
-    recovered_whitespace_spans: Vec<TextSpan>,
     /// The function calls whose argument lists the parser is inside.
     call_depth: usize,
 }
@@ -178,7 +175,6 @@ impl Parser {
             index: 0,
             diagnostics: Vec::new(),
             pending_trivia: Vec::new(),
-            recovered_whitespace_spans: Vec::new(),
             call_depth: 0,
         }
     }
@@ -318,10 +314,7 @@ impl Parser {
                 stack.push(Resume::SpacedColonRange);
                 self.parse_range_tail(range, stack)
             }
-            Resume::SpacedColonRange => {
-                let range = self.recover_spaced_range_colon(node);
-                self.parse_intersection(range, stack)
-            }
+            Resume::SpacedColonRange => self.parse_intersection(node, stack),
             Resume::RangeFirst { ats } => {
                 if !ats.is_empty() {
                     stack.push(Resume::At { ats });
@@ -487,10 +480,10 @@ impl Parser {
             return Step::Done(left);
         }
         if self.at(TokenKind::Colon) {
-            self.adopt_recovered_whitespace(&spaces);
+            self.adopt_spaced_colon_whitespace(&spaces);
             let colon = self.bump();
             let spaces_after = self.take_whitespace_tokens();
-            self.adopt_recovered_whitespace(&spaces_after);
+            self.adopt_spaced_colon_whitespace(&spaces_after);
             stack.push(Resume::SpacedColonRight { left, colon });
             return Step::Start(Rule::Postfix);
         }
@@ -558,24 +551,10 @@ impl Parser {
             || (self.at(TokenKind::Colon) && next == Some(TokenKind::Dot))
     }
 
-    /// The range built after whitespace before its `:`, with the whitespace on either side of
-    /// the colon as trivia: records one [`SyntaxDiagnosticKind::SpacedRangeColon`] whose
-    /// suggestion is the range's source without that whitespace.
-    fn recover_spaced_range_colon(&mut self, range: SyntaxNode) -> SyntaxNode {
-        let suggested = self.source_text_without_recovered_whitespace(range.span());
-        self.diagnostics.push(SyntaxDiagnostic {
-            message: format!("whitespace before ':' in range; suggested correction: {suggested}"),
-            span: range.span(),
-            kind: SyntaxDiagnosticKind::SpacedRangeColon { suggested },
-        });
-        range
-    }
-
-    /// Makes taken whitespace tokens the leading trivia of the next token and records them as
-    /// dropped by a recovery.
-    fn adopt_recovered_whitespace(&mut self, spaces: &[Token]) {
+    /// Makes taken whitespace tokens the leading trivia of the next token (the whitespace around a
+    /// range colon, which Excel accepts).
+    fn adopt_spaced_colon_whitespace(&mut self, spaces: &[Token]) {
         for space in spaces {
-            self.recovered_whitespace_spans.push(space.span());
             self.pending_trivia
                 .push(Trivia::new(space.text().to_string(), space.span()));
         }
@@ -985,17 +964,6 @@ impl Parser {
         }
         tokens
     }
-
-    /// The source covered by `span` without the whitespace the recoveries dropped.
-    fn source_text_without_recovered_whitespace(&self, span: TextSpan) -> String {
-        self.tokens
-            .iter()
-            .filter(|token| token.kind() != TokenKind::Eof)
-            .filter(|token| token.span().start >= span.start && token.span().end() <= span.end())
-            .filter(|token| !self.recovered_whitespace_spans.contains(&token.span()))
-            .map(Token::text)
-            .collect()
-    }
 }
 
 /// `node` under the prefix `@` operators `ats`, the first outermost.
@@ -1048,6 +1016,7 @@ fn qualify(qualifiers: Vec<Qualifier>, mut target: SyntaxNode) -> SyntaxNode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::syntax::token::SyntaxDiagnosticKind;
 
     fn expression_kind(formula: &str) -> (SyntaxKind, usize) {
         let tree = parse_formula(formula);
@@ -1096,7 +1065,7 @@ mod tests {
             ("=e\u{0301}tat", K::IdentifierExpr, 0),
             ("=1größe", K::NumberLiteralExpr, 1),
             ("=\u{1F600}*2", K::BinaryExpr, 1),
-            ("=A1 : A3", K::RangeExpr, 1),
+            ("=A1 : A3", K::RangeExpr, 0),
             ("=A1: A3", K::RangeExpr, 0),
             ("=A1:B2 C1:C3", K::IntersectionExpr, 0),
             ("=A1 (B1)", K::IntersectionExpr, 0),
@@ -1170,46 +1139,25 @@ mod tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn spaced_range_colon_suggests_the_range_without_the_spaces() {
-        for (formula, span_text, suggested) in [
-            ("=A1 : A3", "A1 : A3", "A1:A3"),
-            ("=A1 :A3", "A1 :A3", "A1:A3"),
-            ("=A1  :  A3", "A1  :  A3", "A1:A3"),
-            ("=Sheet1!A1 : A3", "Sheet1!A1 : A3", "Sheet1!A1:A3"),
-            ("=A1:B2 : C3", "A1:B2 : C3", "A1:B2:C3"),
-            ("=SUM(A1 : A3)", "A1 : A3", "A1:A3"),
-            ("=1 : 3", "1 : 3", "1:3"),
+    fn whitespace_around_a_range_colon_is_a_range_without_a_diagnostic() {
+        // Excel accepts `=sum( a1 : a2 )` and shows `=SUM( A1:A2 )` (Q16, excel-answers.md).
+        for formula in [
+            "=A1 : A3",
+            "=A1 :A3",
+            "=A1  :  A3",
+            "=Sheet1!A1 : A3",
+            "=A1:B2 : C3",
+            "=SUM(A1 : A3)",
+            "=SUM( a1 : a2 )",
+            "=1 : 3",
+            "=A1 : B2 : C3",
         ] {
             let tree = parse_formula(formula);
             assert_eq!(tree.source_text(), formula);
-            assert_eq!(tree.diagnostics().len(), 1, "{formula}");
-            let diagnostic = &tree.diagnostics()[0];
-            let units: Vec<u16> = formula.encode_utf16().collect();
-            let covered =
-                String::from_utf16(&units[diagnostic.span.start..diagnostic.span.end()]).unwrap();
-            assert_eq!(covered, span_text, "{formula}");
-            assert_eq!(
-                diagnostic.suggested_correction(),
-                Some(suggested),
-                "{formula}"
-            );
-            let corrected = format!(
-                "{}{}{}",
-                String::from_utf16(&units[..diagnostic.span.start]).unwrap(),
-                suggested,
-                String::from_utf16(&units[diagnostic.span.end()..]).unwrap()
-            );
-            assert!(
-                parse_formula(&corrected).diagnostics().is_empty(),
-                "{corrected}"
-            );
+            assert!(tree.diagnostics().is_empty(), "{formula}: {:?}", tree.diagnostics());
+            assert!(contains_kind(tree.root(), SyntaxKind::RangeExpr), "{formula}");
+            assert!(!contains_kind(tree.root(), SyntaxKind::IntersectionExpr), "{formula}");
         }
-        let tree = parse_formula("=A1 : B2 : C3");
-        assert_eq!(tree.diagnostics().len(), 2);
-        assert_eq!(
-            tree.diagnostics()[1].suggested_correction(),
-            Some("A1:B2:C3")
-        );
     }
 
     /// Chained intersections inside an argument list parse as one left-nested intersection.
@@ -1366,7 +1314,6 @@ mod tests {
         assert!(!tree.diagnostics().is_empty());
         for diagnostic in tree.diagnostics() {
             assert_eq!(diagnostic.kind, SyntaxDiagnosticKind::Message);
-            assert_eq!(diagnostic.suggested_correction(), None);
         }
 
         for name in [
@@ -1464,12 +1411,6 @@ mod tests {
         format!("{:?}({})", node.kind(), parts.join(" "))
     }
 
-    /// The UTF-16 code units of `source` that `span` covers.
-    fn covered(source: &str, span: TextSpan) -> String {
-        let units: Vec<u16> = source.encode_utf16().collect();
-        String::from_utf16(&units[span.start..span.end()]).unwrap()
-    }
-
     /// The first argument of the call that is the formula's expression.
     fn first_argument(tree: &SyntaxTree) -> &SyntaxNode {
         let call = tree.expression().unwrap();
@@ -1546,19 +1487,12 @@ mod tests {
                 tree.diagnostics()
             );
         }
-        // The recorded limit: after whitespace, the trim operator is refused with the
-        // spaced-colon and untyped diagnostics, not named as a trim reference.
+        // The recorded limit: after whitespace, the trim operator is refused with an untyped diagnostic, not named as a trim reference.
         let formula = "=SUM(A1 :.B10)";
         let tree = parse_formula(formula);
         assert_eq!(tree.source_text(), formula);
         let kinds: Vec<&SyntaxDiagnosticKind> =
             tree.diagnostics().iter().map(|d| &d.kind).collect();
-        assert!(
-            kinds
-                .iter()
-                .any(|kind| matches!(kind, SyntaxDiagnosticKind::SpacedRangeColon { .. })),
-            "{kinds:?}"
-        );
         assert!(
             tree.diagnostics()
                 .iter()
