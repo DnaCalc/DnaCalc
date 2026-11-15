@@ -7,7 +7,8 @@
 
 use super::{SaveRefusal, text::attribute_value};
 use calc_doc_model::{
-    ChartAnchor, DrawingPoint, Shape, ShapeColour, ShapeFill, ShapeKind, ShapeLine,
+    ChartAnchor, DrawingPoint, LineEnd, Shape, ShapeColour, ShapeFill, ShapeGradient, ShapeKind,
+    ShapeLine,
 };
 use std::collections::BTreeMap;
 
@@ -86,8 +87,65 @@ fn fill(f: &ShapeFill, out: &mut Vec<u8>) -> Result<(), &'static str> {
             colour(c, out)?;
             out.extend(b"</a:solidFill>");
         }
-        ShapeFill::Other => return Err("Use no fill or a solid fill"),
+        ShapeFill::Gradient(g) => gradient(g, out)?,
+        ShapeFill::Other => return Err("Use no fill, a solid fill or a gradient"),
     }
+    Ok(())
+}
+
+fn gradient(g: &ShapeGradient, out: &mut Vec<u8>) -> Result<(), &'static str> {
+    if g.stops.len() < 2 || g.stops.iter().any(|(pos, _)| !(0..=100_000).contains(pos)) {
+        return Err("Use two or more gradient stops at 0 to 100 percent");
+    }
+    out.extend(b"<a:gradFill rotWithShape=\"1\"><a:gsLst>");
+    for (pos, c) in &g.stops {
+        out.extend(format!("<a:gs pos=\"{pos}\">").as_bytes());
+        colour(c, out)?;
+        out.extend(b"</a:gs>");
+    }
+    out.extend(b"</a:gsLst>");
+    if let Some(path) = &g.path {
+        if !matches!(path.as_str(), "circle" | "rect" | "shape") {
+            return Err("Use a circle, rect or shape gradient path");
+        }
+        out.extend(format!("<a:path path=\"{path}\">").as_bytes());
+        if let Some([l, t, r, b]) = g.focus {
+            out.extend(
+                format!("<a:fillToRect l=\"{l}\" t=\"{t}\" r=\"{r}\" b=\"{b}\"/>").as_bytes(),
+            );
+        }
+        out.extend(b"</a:path>");
+    } else {
+        out.extend(
+            format!(
+                "<a:lin ang=\"{}\" scaled=\"{}\"/>",
+                g.angle.unwrap_or(0),
+                u8::from(g.scaled)
+            )
+            .as_bytes(),
+        );
+    }
+    out.extend(b"</a:gradFill>");
+    Ok(())
+}
+
+fn line_end(tag: &str, end: &LineEnd, out: &mut Vec<u8>) -> Result<(), &'static str> {
+    let kind = matches!(
+        end.kind.as_str(),
+        "none" | "triangle" | "stealth" | "diamond" | "oval" | "arrow"
+    );
+    let size = |v: &Option<String>| v.as_deref().is_none_or(|v| matches!(v, "sm" | "med" | "lg"));
+    if !kind || !size(&end.width) || !size(&end.length) {
+        return Err("Use an arrowhead type of none, triangle, stealth, diamond, oval or arrow, sized sm, med or lg");
+    }
+    out.extend(format!("<a:{tag} type=\"{}\"", end.kind).as_bytes());
+    if let Some(w) = &end.width {
+        out.extend(format!(" w=\"{w}\"").as_bytes());
+    }
+    if let Some(l) = &end.length {
+        out.extend(format!(" len=\"{l}\"").as_bytes());
+    }
+    out.extend(b"/>");
     Ok(())
 }
 
@@ -116,32 +174,60 @@ fn line(l: &ShapeLine, out: &mut Vec<u8>) -> Result<(), &'static str> {
         }
         out.extend(format!("<a:prstDash val=\"{dash}\"/>").as_bytes());
     }
+    if let Some(end) = &l.head {
+        line_end("headEnd", end, out)?;
+    }
+    if let Some(end) = &l.tail {
+        line_end("tailEnd", end, out)?;
+    }
     out.extend(b"</a:ln>");
     Ok(())
+}
+
+/// What every object, a group's children too, must state to be written.
+fn check(shape: &Shape) -> Result<(), SaveRefusal> {
+    let fail = |detail: &str| refuse(shape, detail);
+    if !matches!(
+        shape.kind,
+        ShapeKind::Shape | ShapeKind::TextBox | ShapeKind::Connector | ShapeKind::Group
+    ) || shape.picture.is_some()
+        || (shape.kind != ShapeKind::Group && !shape.children.is_empty())
+    {
+        return Err(fail("New pictures are not written yet"));
+    }
+    if shape.id == 0 || !valid_text(&shape.name) || shape.name.is_empty() {
+        return Err(fail("Use a shape name and a positive identity"));
+    }
+    let geometry = shape.geometry.as_deref().unwrap_or("rect");
+    if geometry.is_empty() || !geometry.bytes().all(|b| b.is_ascii_alphanumeric()) {
+        return Err(fail("Use a preset geometry name"));
+    }
+    if shape.adjust.iter().any(|(name, _)| name.is_empty() || !name.bytes().all(|b| b.is_ascii_alphanumeric())) {
+        return Err(fail("Use adjust names of letters and digits"));
+    }
+    if shape.extent.0 < 0 || shape.extent.1 < 0 || shape.child_extent.0 < 0 || shape.child_extent.1 < 0 {
+        return Err(fail("Use a non-negative size"));
+    }
+    // A top-level object sits at a non-negative offset; a group's children are given in the
+    // group's child space, where Excel writes any value.
+    Ok(())
+}
+
+fn check_tree(shape: &Shape) -> Result<(), SaveRefusal> {
+    check(shape)?;
+    shape.children.iter().try_for_each(check_tree)
 }
 
 /// One authored object's anchor, as a child of `xdr:wsDr`. `remap` gives the id each authored
 /// shape is written with (the connectors' glued ids follow it).
 pub(crate) fn frame(shape: &Shape, remap: &BTreeMap<u32, u32>) -> Result<Vec<u8>, SaveRefusal> {
     let fail = |detail: &str| refuse(shape, detail);
-    if !matches!(
-        shape.kind,
-        ShapeKind::Shape | ShapeKind::TextBox | ShapeKind::Connector
-    ) || !shape.children.is_empty()
-        || shape.picture.is_some()
-    {
-        return Err(fail("New pictures and groups are not written yet"));
+    check(shape)?;
+    if shape.offset.0 < 0 || shape.offset.1 < 0 {
+        return Err(fail("Use a non-negative position"));
     }
-    if shape.id == 0 || !valid_text(&shape.name) || shape.name.is_empty() {
-        return Err(fail("Use a shape name and a positive identity"));
-    }
-    let id = remap.get(&shape.id).copied().unwrap_or(shape.id);
-    let geometry = shape.geometry.as_deref().unwrap_or("rect");
-    if geometry.is_empty() || !geometry.bytes().all(|b| b.is_ascii_alphanumeric()) {
-        return Err(fail("Use a preset geometry name"));
-    }
-    if shape.extent.0 < 0 || shape.extent.1 < 0 || shape.offset.0 < 0 || shape.offset.1 < 0 {
-        return Err(fail("Use a non-negative position and size"));
+    for child in &shape.children {
+        check_tree(child)?;
     }
     let (edit_as, from_to) = match shape.anchor {
         ChartAnchor::TwoCell { from, to } if valid_point(&from) && valid_point(&to) => (
@@ -193,6 +279,17 @@ pub(crate) fn frame(shape: &Shape, remap: &BTreeMap<u32, u32>) -> Result<Vec<u8>
     }
     out.push(b'>');
     out.extend(from_to.as_bytes());
+    object(shape, remap, &mut out)?;
+    out.extend(b"<xdr:clientData/>");
+    out.extend(format!("</xdr:{edit_as}>").as_bytes());
+    Ok(out)
+}
+
+/// One object's element (`xdr:sp`, `xdr:cxnSp` or `xdr:grpSp`), a group's children inside it.
+fn object(shape: &Shape, remap: &BTreeMap<u32, u32>, out: &mut Vec<u8>) -> Result<(), SaveRefusal> {
+    let fail = |detail: &str| refuse(shape, detail);
+    let id = remap.get(&shape.id).copied().unwrap_or(shape.id);
+    let geometry = shape.geometry.as_deref().unwrap_or("rect");
     let mut xfrm = String::from("<a:xfrm");
     if shape.rotation != 0 {
         xfrm.push_str(&format!(" rot=\"{}\"", shape.rotation));
@@ -204,12 +301,40 @@ pub(crate) fn frame(shape: &Shape, remap: &BTreeMap<u32, u32>) -> Result<Vec<u8>
         xfrm.push_str(" flipV=\"1\"");
     }
     xfrm.push_str(&format!(
-        "><a:off x=\"{}\" y=\"{}\"/><a:ext cx=\"{}\" cy=\"{}\"/></a:xfrm>",
+        "><a:off x=\"{}\" y=\"{}\"/><a:ext cx=\"{}\" cy=\"{}\"/>",
         shape.offset.0, shape.offset.1, shape.extent.0, shape.extent.1
     ));
+    if shape.kind == ShapeKind::Group {
+        xfrm.push_str(&format!(
+            "<a:chOff x=\"{}\" y=\"{}\"/><a:chExt cx=\"{}\" cy=\"{}\"/>",
+            shape.child_offset.0, shape.child_offset.1, shape.child_extent.0, shape.child_extent.1
+        ));
+    }
+    xfrm.push_str("</a:xfrm>");
+    if shape.kind == ShapeKind::Group {
+        let mut name = Vec::new();
+        attribute_value(&shape.name, &mut name);
+        let name = String::from_utf8(name).expect("names are UTF-8");
+        let hidden = if shape.hidden { " hidden=\"1\"" } else { "" };
+        out.extend(
+            format!(
+                "<xdr:grpSp><xdr:nvGrpSpPr><xdr:cNvPr id=\"{id}\" name={name}{hidden}/><xdr:cNvGrpSpPr/></xdr:nvGrpSpPr><xdr:grpSpPr>{xfrm}</xdr:grpSpPr>"
+            )
+            .as_bytes(),
+        );
+        for child in &shape.children {
+            object(child, remap, out)?;
+        }
+        out.extend(b"</xdr:grpSp>");
+        return Ok(());
+    }
+    let mut adjust = String::new();
+    for (name, value) in &shape.adjust {
+        adjust.push_str(&format!("<a:gd name=\"{name}\" fmla=\"val {value}\"/>"));
+    }
+    let avlst = if adjust.is_empty() { "<a:avLst/>".to_owned() } else { format!("<a:avLst>{adjust}</a:avLst>") };
     let mut properties =
-        format!("<xdr:spPr>{xfrm}<a:prstGeom prst=\"{geometry}\"><a:avLst/></a:prstGeom>")
-            .into_bytes();
+        format!("<xdr:spPr>{xfrm}<a:prstGeom prst=\"{geometry}\">{avlst}</a:prstGeom>").into_bytes();
     let text_box = shape.kind == ShapeKind::TextBox;
     if text_box && shape.fill == ShapeFill::Style {
         // A text box Excel adds has a white fill and a thin line of the theme's own (Q0).
@@ -342,14 +467,12 @@ pub(crate) fn frame(shape: &Shape, remap: &BTreeMap<u32, u32>) -> Result<Vec<u8>
                 } else {
                     out.extend(format!("<a:r><a:rPr lang=\"{lang}\" sz=\"{size}\"{attributes}>{colour}</a:rPr><a:t>").as_bytes());
                 }
-                element_text(paragraph, &mut out);
+                element_text(paragraph, out);
                 out.extend(b"</a:t></a:r>");
             }
             out.extend(b"</a:p>");
         }
         out.extend(b"</xdr:txBody></xdr:sp>");
     }
-    out.extend(b"<xdr:clientData/>");
-    out.extend(format!("</xdr:{edit_as}>").as_bytes());
-    Ok(out)
+    Ok(())
 }

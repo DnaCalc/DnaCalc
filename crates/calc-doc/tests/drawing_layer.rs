@@ -390,6 +390,7 @@ fn paint_shapes() -> Vec<Shape> {
         hidden: false,
         colour: Some(ShapeColour::Rgb(colour)),
         dash: dash.map(str::to_owned),
+        ..Default::default()
     };
     let hidden_line = ShapeLine { hidden: true, ..Default::default() };
     let a = add(2, "Rectangle 1", SHAPE, "rect", cells(at(1, 1), at(3, 4)), solid(0xFFC000), line(25_400, 0x1F4E79, None));
@@ -477,5 +478,241 @@ fn dc_zjsg_2__shapes_paint_workbook() {
         if !stated.is_empty() {
             assert_eq!(aligned, stated, "{}", made.name);
         }
+    }
+}
+
+// dc-zjsg.2 second slice: rotation and flips, arrowheads, gradients, groups and the presets beyond the
+// first five, on the same base workbook. The shapes sit below row 12 on the default 64 by 20 pixel cells,
+// in slots 256 px wide (`slot`); a turned shape is anchored by the box around it, as Excel
+// anchors it. Regenerate with DNACALC_WRITE_FIXTURE=1 cargo test -p calc-doc --test drawing_layer
+// dc_zjsg_2__shapes_paint2_workbook.
+const SHAPES_PAINT2: &[u8] = include_bytes!("fixtures/drawing/shapes-paint2.xlsx");
+const CELL_W: i64 = 609_600;
+const CELL_H: i64 = 190_500;
+
+/// The anchor of a box of `w` by `h` EMU centred in slot `column` (4 cells wide) at `row` cells down, in the grid below row 12.
+fn slot(column: i64, row: i64, w: i64, h: i64) -> ChartAnchor {
+    let (cx, cy) = (column * 4 * CELL_W + 2 * CELL_W, row * CELL_H);
+    let corner = |x: i64, y: i64| DrawingPoint {
+        column: 5 + (x / CELL_W) as u32,
+        column_offset: x % CELL_W,
+        row: 12 + (y / CELL_H) as u32,
+        row_offset: y % CELL_H,
+    };
+    ChartAnchor::TwoCell { from: corner(cx - w / 2, cy - h / 2), to: corner(cx + w / 2, cy + h / 2) }
+}
+
+/// The box around a `w` by `h` shape turned by `degrees`.
+fn around(w: i64, h: i64, degrees: f64) -> (i64, i64) {
+    let (sin, cos) = degrees.to_radians().sin_cos();
+    (
+        (w as f64 * cos.abs() + h as f64 * sin.abs()).round() as i64,
+        (w as f64 * sin.abs() + h as f64 * cos.abs()).round() as i64,
+    )
+}
+
+fn paint2_shapes() -> Vec<Shape> {
+    use calc_doc::model::{LineEnd, ShapeGradient, ShapeLine};
+    const W: i64 = 3 * CELL_W;
+    const H: i64 = 3 * CELL_H;
+    let mut shapes: Vec<Shape> = Vec::new();
+    let mut next = 2u32;
+    fn put(
+        shapes: &mut Vec<Shape>,
+        next: &mut u32,
+        name: &str,
+        kind: ShapeKind,
+        prst: &str,
+        (column, row): (i64, i64),
+        size: (i64, i64),
+        degrees: f64,
+    ) -> usize {
+        let (bw, bh) = around(size.0, size.1, degrees);
+        let mut shape = Shape::new(*next, name.into(), kind, slot(column, row, bw, bh));
+        *next += 1;
+        shape.geometry = Some(prst.into());
+        shape.extent = size;
+        shape.rotation = (degrees * 60_000.0) as i64;
+        shape.fill = ShapeFill::Solid(ShapeColour::Rgb(0x2E75B6));
+        shape.line = ShapeLine { weight: Some(19_050), colour: Some(ShapeColour::Rgb(0x1F3864)), ..Default::default() };
+        shape.text = Some(vec![name.into()]);
+        shape.body.anchor = Some("ctr".into());
+        shape.body.alignment = vec![Some("ctr".into())];
+        shape.body.size = Some(900);
+        shape.body.colour = Some(ShapeColour::Rgb(0xFFFFFF));
+        shapes.push(shape);
+        shapes.len() - 1
+    }
+    // Turns and flips.
+    let mut rotated = Vec::new();
+    rotated.push(put(&mut shapes, &mut next, "Rot 30 rect", ShapeKind::Shape, "rect", (0, 6), (W, H), 30.0));
+    rotated.push(put(&mut shapes, &mut next, "Rot 90 roundRect", ShapeKind::Shape, "roundRect", (1, 6), (W, H), 90.0));
+    rotated.push(put(&mut shapes, &mut next, "Rot 45 flipH parallelogram", ShapeKind::Shape, "parallelogram", (2, 6), (W, H), 45.0));
+    rotated.push(put(&mut shapes, &mut next, "Rot 180 rightArrow", ShapeKind::Shape, "rightArrow", (3, 6), (W, H), 180.0));
+    let flip_h = put(&mut shapes, &mut next, "FlipH rightArrow", ShapeKind::Shape, "rightArrow", (0, 16), (W, H), 0.0);
+    shapes[flip_h].flip_horizontal = true;
+    let flip_v = put(&mut shapes, &mut next, "FlipV triangle text", ShapeKind::Shape, "triangle", (1, 16), (W, H), 0.0);
+    shapes[flip_v].flip_vertical = true;
+    let both = put(&mut shapes, &mut next, "FlipH+V rtTriangle", ShapeKind::Shape, "rtTriangle", (2, 16), (W, H), 0.0);
+    shapes[both].flip_horizontal = true;
+    shapes[both].flip_vertical = true;
+    let tb = put(&mut shapes, &mut next, "TextBox rot 20", ShapeKind::TextBox, "rect", (3, 16), (W, H), 20.0);
+    shapes[tb].fill = ShapeFill::Solid(ShapeColour::Rgb(0xFFFF99));
+    shapes[tb].body.colour = Some(ShapeColour::Rgb(0x000000));
+    // Arrowheads, a thin and a thick line of each type, head and tail, sizes.
+    let end = |kind: &str, w: &str, len: &str| Some(LineEnd { kind: kind.into(), width: Some(w.into()), length: Some(len.into()) });
+    let arrows: [(&str, Option<LineEnd>, Option<LineEnd>, i64); 12] = [
+        ("Arrow triangle med 1pt", None, end("triangle", "med", "med"), 12_700),
+        ("Arrow stealth med 1pt", None, end("stealth", "med", "med"), 12_700),
+        ("Arrow diamond med 1pt", None, end("diamond", "med", "med"), 12_700),
+        ("Arrow oval med 1pt", None, end("oval", "med", "med"), 12_700),
+        ("Arrow open med 1pt", None, end("arrow", "med", "med"), 12_700),
+        ("Arrow both triangle lg 1pt", end("triangle", "lg", "lg"), end("triangle", "lg", "lg"), 12_700),
+        ("Arrow triangle sm 1pt", None, end("triangle", "sm", "sm"), 12_700),
+        ("Arrow triangle med 4.5pt", None, end("triangle", "med", "med"), 57_150),
+        ("Arrow stealth lg 4.5pt", None, end("stealth", "lg", "lg"), 57_150),
+        ("Arrow oval wide short 3pt", end("oval", "lg", "sm"), None, 38_100),
+        ("Arrow head diamond 3pt", end("diamond", "med", "med"), None, 38_100),
+        ("Arrow open lg 3pt", None, end("arrow", "lg", "lg"), 38_100),
+    ];
+    for (i, (name, head, tail, weight)) in arrows.into_iter().enumerate() {
+        let (column, row) = (i as i64 % 4, 24 + 4 * (i as i64 / 4));
+        let kind = if i % 2 == 0 { ShapeKind::Connector } else { ShapeKind::Connector };
+        let index = put(&mut shapes, &mut next, name, kind, if i % 2 == 0 { "straightConnector1" } else { "line" }, (column, row), (W, H), 0.0);
+        let line = &mut shapes[index];
+        line.text = None;
+        line.fill = ShapeFill::Style;
+        line.line = ShapeLine { weight: Some(weight), colour: Some(ShapeColour::Rgb(0xC00000)), head, tail, ..Default::default() };
+        // Some lines run up, some down.
+        line.flip_vertical = i % 3 == 1;
+    }
+    // Gradients.
+    let stops = vec![(0, ShapeColour::Rgb(0xFF0000)), (50_000, ShapeColour::Rgb(0xFFFF00)), (100_000, ShapeColour::Rgb(0x0070C0))];
+    let linear = |angle: i64, scaled: bool| ShapeFill::Gradient(ShapeGradient { stops: stops.clone(), angle: Some(angle), scaled, path: None, focus: None });
+    let path = |kind: &str, focus: [i64; 4]| ShapeFill::Gradient(ShapeGradient { stops: stops.clone(), angle: None, scaled: false, path: Some(kind.into()), focus: Some(focus) });
+    let gradients = [
+        ("Grad linear 0", linear(0, false)),
+        ("Grad linear 90", linear(5_400_000, false)),
+        ("Grad linear 45 scaled", linear(2_700_000, true)),
+        ("Grad linear 45 unscaled", linear(2_700_000, false)),
+        ("Grad path circle centre", path("circle", [50_000, 50_000, 50_000, 50_000])),
+        ("Grad path rect top-left", path("rect", [0, 0, 100_000, 100_000])),
+        ("Grad path shape", path("shape", [50_000, 50_000, 50_000, 50_000])),
+        ("Grad linear 315 ellipse", linear(18_900_000, false)),
+    ];
+    for (i, (name, fill)) in gradients.into_iter().enumerate() {
+        let index = put(&mut shapes, &mut next, name, ShapeKind::Shape, if i == 7 { "ellipse" } else { "rect" }, (i as i64 % 4, 38 + 4 * (i as i64 / 4)), (W, H), 0.0);
+        shapes[index].fill = fill;
+    }
+    // Groups of a rectangle and an ellipse in a child space of their own.
+    for (i, (name, flip_h, degrees)) in [("Group plain", false, 0.0), ("Group flipH", true, 0.0), ("Group rot 20", false, 20.0)].into_iter().enumerate() {
+        let index = put(&mut shapes, &mut next, name, ShapeKind::Group, "rect", (i as i64, 48), (W, H), degrees);
+        let group = &mut shapes[index];
+        group.geometry = None;
+        group.text = None;
+        group.fill = ShapeFill::Style;
+        group.line = ShapeLine::default();
+        group.flip_horizontal = flip_h;
+        group.child_offset = (100_000, 100_000);
+        group.child_extent = (2_000_000, 1_000_000);
+        let mut square = Shape::new(next + 100, format!("{name} rect"), ShapeKind::Shape, group.anchor);
+        square.geometry = Some("rect".into());
+        square.offset = (100_000, 100_000);
+        square.extent = (1_000_000, 1_000_000);
+        square.fill = ShapeFill::Solid(ShapeColour::Rgb(0x70AD47));
+        square.rotation = 0;
+        let mut oval = Shape::new(next + 101, format!("{name} oval"), ShapeKind::Shape, group.anchor);
+        oval.geometry = Some("ellipse".into());
+        oval.offset = (1_100_000, 300_000);
+        oval.extent = (900_000, 600_000);
+        oval.fill = ShapeFill::Solid(ShapeColour::Rgb(0xED7D31));
+        oval.text = Some(vec!["oval".into()]);
+        oval.body.anchor = Some("ctr".into());
+        oval.body.colour = Some(ShapeColour::Rgb(0x000000));
+        let mut arrow = Shape::new(next + 102, format!("{name} arrow"), ShapeKind::Shape, group.anchor);
+        arrow.geometry = Some("rightArrow".into());
+        arrow.offset = (100_000, 1_000_000);
+        arrow.extent = (800_000, 100_000);
+        arrow.fill = ShapeFill::Solid(ShapeColour::Rgb(0x7030A0));
+        arrow.rotation = 1_800_000;
+        group.children = vec![square, oval, arrow];
+        next += 3;
+    }
+    // The presets, default adjusts and some others.
+    let presets: [(&str, &[(&str, i64)]); 28] = [
+        ("triangle", &[]),
+        ("triangle", &[("adj", 20_000)]),
+        ("rtTriangle", &[]),
+        ("diamond", &[]),
+        ("parallelogram", &[]),
+        ("parallelogram", &[("adj", 60_000)]),
+        ("trapezoid", &[]),
+        ("trapezoid", &[("adj", 40_000)]),
+        ("pentagon", &[]),
+        ("hexagon", &[]),
+        ("hexagon", &[("adj", 40_000)]),
+        ("octagon", &[]),
+        ("rightArrow", &[]),
+        ("rightArrow", &[("adj1", 25_000), ("adj2", 80_000)]),
+        ("leftArrow", &[]),
+        ("upArrow", &[]),
+        ("downArrow", &[]),
+        ("chevron", &[]),
+        ("chevron", &[("adj", 80_000)]),
+        ("wedgeRectCallout", &[]),
+        ("wedgeRectCallout", &[("adj1", 70_000), ("adj2", -30_000)]),
+        ("wedgeRoundRectCallout", &[]),
+        ("wedgeRoundRectCallout", &[("adj1", -45_000), ("adj2", -70_000), ("adj3", 30_000)]),
+        ("roundRect", &[("adj", 50_000)]),
+        ("flowChartProcess", &[]),
+        ("flowChartDecision", &[]),
+        ("flowChartTerminator", &[]),
+        ("flowChartDocument", &[]),
+    ];
+    for (i, (prst, adjust)) in presets.into_iter().enumerate() {
+        let label = if adjust.is_empty() { prst.to_owned() } else { format!("{prst} {}", adjust.iter().map(|(n, v)| format!("{n}={v}")).collect::<Vec<_>>().join(",")) };
+        let index = put(&mut shapes, &mut next, &label, ShapeKind::Shape, prst, (i as i64 % 4, 56 + 4 * (i as i64 / 4)), (W, H), 0.0);
+        shapes[index].adjust = adjust.iter().map(|(n, v)| ((*n).to_owned(), *v)).collect();
+    }
+    shapes
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_2__shapes_paint2_workbook() {
+    let base = load(SHAPES_BASE);
+    let sheet = first_sheet(&base);
+    let model = edited(&base, vec![WorkbookOp::SetShapes { sheet, shapes: paint2_shapes() }]);
+    let (saved, _) = save_model(&base, &model);
+    #[cfg(not(target_arch = "wasm32"))]
+    if std::env::var_os("DNACALC_WRITE_FIXTURE").is_some() {
+        std::fs::write(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/drawing/shapes-paint2.xlsx"), &saved).unwrap();
+    }
+    // The committed workbook is that save and reads back as the objects made.
+    let committed = load(SHAPES_PAINT2);
+    let read = committed.sheets()[0].shapes();
+    assert_eq!(read.unread, 0);
+    let made = paint2_shapes();
+    assert_eq!(read.shapes.len(), made.len());
+    fn same(read: &Shape, made: &Shape) {
+        assert_eq!(read.name, made.name);
+        assert_eq!(read.kind, made.kind, "{}", made.name);
+        assert_eq!(read.geometry, made.geometry, "{}", made.name);
+        assert_eq!((read.offset, read.extent), (made.offset, made.extent), "{}", made.name);
+        assert_eq!(read.rotation, made.rotation, "{}", made.name);
+        assert_eq!((read.flip_horizontal, read.flip_vertical), (made.flip_horizontal, made.flip_vertical), "{}", made.name);
+        assert_eq!(read.adjust, made.adjust, "{}", made.name);
+        assert_eq!((read.child_offset, read.child_extent), (made.child_offset, made.child_extent), "{}", made.name);
+        assert_eq!(read.fill, made.fill, "{}", made.name);
+        assert_eq!((read.line.head.clone(), read.line.tail.clone()), (made.line.head.clone(), made.line.tail.clone()), "{}", made.name);
+        assert_eq!(read.line.weight, made.line.weight, "{}", made.name);
+        assert_eq!(read.children.len(), made.children.len(), "{}", made.name);
+        for (r, m) in read.children.iter().zip(&made.children) {
+            same(r, m);
+        }
+    }
+    for (read, made) in read.shapes.iter().zip(&made) {
+        same(read, made);
+        assert_eq!(read.anchor, made.anchor, "{}", made.name);
     }
 }

@@ -38,8 +38,35 @@ pub enum ShapeFill {
     Style,
     None,
     Solid(ShapeColour),
-    /// A gradient, pattern or picture fill: kept in the source, not held here.
+    /// `a:gradFill` (dc-zjsg.2).
+    Gradient(ShapeGradient),
+    /// A pattern or picture fill: kept in the source, not held here.
     Other,
+}
+
+/// A gradient fill: `a:gsLst` stops with either a linear direction (`a:lin`) or a path (`a:path`).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct ShapeGradient {
+    /// Each `a:gs`: its `pos` in thousandths of a percent (0 to 100000) and its colour.
+    pub stops: Vec<(i64, ShapeColour)>,
+    /// `a:lin ang`, in 60,000ths of a degree clockwise from left-to-right; `None` without `a:lin`.
+    pub angle: Option<i64>,
+    /// `a:lin scaled`: the angle is scaled by the shape's aspect ratio.
+    pub scaled: bool,
+    /// `a:path path`: `circle`, `rect` or `shape`.
+    pub path: Option<String>,
+    /// `a:fillToRect` `l`, `t`, `r`, `b` in thousandths of a percent (the path gradient's focus).
+    pub focus: Option<[i64; 4]>,
+}
+
+/// One end of a line (`a:headEnd`, `a:tailEnd`): the arrowhead's type and its `w` and `len` sizes.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct LineEnd {
+    /// `none`, `triangle`, `stealth`, `diamond`, `oval` or `arrow`.
+    pub kind: String,
+    /// `sm`, `med` or `lg`; `None` is `med`.
+    pub width: Option<String>,
+    pub length: Option<String>,
 }
 
 /// An outline (`a:ln`): `None` for a field means the style decides.
@@ -52,6 +79,10 @@ pub struct ShapeLine {
     pub colour: Option<ShapeColour>,
     /// `a:prstDash val`.
     pub dash: Option<String>,
+    /// `a:headEnd`: the arrowhead at the line's start.
+    pub head: Option<LineEnd>,
+    /// `a:tailEnd`: the arrowhead at the line's end.
+    pub tail: Option<LineEnd>,
 }
 
 /// A text body's properties as the drawing part states them (`a:bodyPr`, the paragraphs' `a:pPr algn`
@@ -105,6 +136,11 @@ pub struct Shape {
     pub extent: (i64, i64),
     /// `a:xfrm rot`, in 60,000ths of a degree.
     pub rotation: i64,
+    /// A group's child space (`a:chOff`, `a:chExt`): what its children's offsets are given in.
+    pub child_offset: (i64, i64),
+    pub child_extent: (i64, i64),
+    /// `a:prstGeom a:avLst a:gd`: the preset's adjust values by name (`adj`, `adj1`, ...), from `fmla="val N"`.
+    pub adjust: Vec<(String, i64)>,
     pub flip_horizontal: bool,
     pub flip_vertical: bool,
     pub fill: ShapeFill,
@@ -139,6 +175,9 @@ impl Shape {
             offset: (0, 0),
             extent: (0, 0),
             rotation: 0,
+            child_offset: (0, 0),
+            child_extent: (0, 0),
+            adjust: Vec::new(),
             flip_horizontal: false,
             flip_vertical: false,
             fill: ShapeFill::Style,

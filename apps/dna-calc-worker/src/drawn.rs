@@ -8,7 +8,8 @@
 //! black text. Scheme colours come from the Office theme; a workbook's own theme is not read here.
 
 use crate::wire::{ChartPlace, DrawnShape, ShapeParagraph, ShapeStroke, ShapeText};
-use calc_host::{Shape, ShapeColour, ShapeFill, ShapeKind};
+use calc_host::{LineEnd, Shape, ShapeColour, ShapeFill, ShapeKind};
+use dna_calc_model::drawn_shapes::{DrawnChild, ShapeArrow, ShapeGradient};
 
 const EMU_PER_PIXEL: f64 = 9_525.0;
 
@@ -46,8 +47,37 @@ const STYLE_FILL: &str = "#4472C4";
 const STYLE_LINE_WEIGHT: i64 = 12_700;
 const STYLE_CONNECTOR_WEIGHT: i64 = 9_525;
 
-/// The object as drawn; `None` for one this slice does not draw (a picture, a group, a hidden object,
-/// a geometry that is not drawn).
+/// A gradient's stops and direction as the page draws them; `None` for one with a colour not resolved.
+fn gradient(g: &calc_host::ShapeGradient) -> Option<ShapeGradient> {
+    let stops = g
+        .stops
+        .iter()
+        .map(|(pos, colour)| Some((*pos as f64 / 100_000.0, css(colour)?)))
+        .collect::<Option<Vec<_>>>()?;
+    // The focus of a path gradient is the middle of its fill-to rectangle.
+    let focus = g.focus.map_or([0.5, 0.5], |[l, t, r, b]| {
+        [(l + 100_000 - r) as f64 / 200_000.0, (t + 100_000 - b) as f64 / 200_000.0]
+    });
+    Some(ShapeGradient {
+        stops,
+        angle: g.angle.unwrap_or(0) as f64 / 60_000.0,
+        scaled: g.scaled,
+        path: g.path.clone(),
+        focus,
+    })
+}
+
+fn arrow(end: &Option<LineEnd>) -> Option<ShapeArrow> {
+    let end = end.as_ref().filter(|e| e.kind != "none")?;
+    Some(ShapeArrow {
+        kind: end.kind.clone(),
+        width: end.width.clone().unwrap_or_else(|| "med".into()),
+        length: end.length.clone().unwrap_or_else(|| "med".into()),
+    })
+}
+
+/// The object as drawn; `None` for one this slice does not draw (a picture, a hidden object, a
+/// geometry that is not drawn). A group carries its children, each as a box inside the group's.
 pub(crate) fn drawn(shape: &Shape, place: ChartPlace) -> Option<DrawnShape> {
     if shape.hidden {
         return None;
@@ -56,18 +86,58 @@ pub(crate) fn drawn(shape: &Shape, place: ChartPlace) -> Option<DrawnShape> {
         ShapeKind::Shape => ("shape", "rect", true),
         ShapeKind::TextBox => ("textbox", "rect", false),
         ShapeKind::Connector => ("connector", "line", true),
-        ShapeKind::Picture | ShapeKind::Group => return None,
+        ShapeKind::Group => ("group", "", false),
+        ShapeKind::Picture => return None,
     };
     let geometry = shape.geometry.as_deref().unwrap_or(default_geometry);
-    if !dna_calc_model::drawn_shapes::drawn_geometry(geometry) {
+    if kind != "group" && !dna_calc_model::drawn_shapes::drawn_geometry(geometry) {
         return None;
+    }
+    let degrees = shape.rotation as f64 / 60_000.0;
+    let extent = if degrees.rem_euclid(360.0) == 0.0 {
+        [1.0, 1.0]
+    } else {
+        dna_calc_model::drawn_shapes::extent_in_rotated_box(shape.extent.0 as f64, shape.extent.1 as f64, degrees)
+    };
+    let mut children = Vec::new();
+    if kind == "group" {
+        // The children's boxes as fractions of the group's frame, through the group's child space; a group
+        // flipped mirrors them and each child's own flip and turn with it.
+        let (cx, cy) = (shape.child_offset.0 as f64, shape.child_offset.1 as f64);
+        let (cw, ch) = (shape.child_extent.0 as f64, shape.child_extent.1 as f64);
+        for child in &shape.children {
+            let Some(mut part) = drawn(child, ChartPlace::Absolute { x: 0.0, y: 0.0, width: 0.0, height: 0.0 }) else {
+                continue;
+            };
+            let fraction = |value: f64, origin: f64, whole: f64| if whole > 0.0 { (value - origin) / whole } else { 0.0 };
+            let size = |value: f64, whole: f64| if whole > 0.0 { value / whole } else { 1.0 };
+            let mut rel = [
+                fraction(child.offset.0 as f64, cx, cw),
+                fraction(child.offset.1 as f64, cy, ch),
+                size(child.extent.0 as f64, cw),
+                size(child.extent.1 as f64, ch),
+            ];
+            if shape.flip_horizontal {
+                rel[0] = 1.0 - rel[0] - rel[2];
+                part.flip_horizontal = !part.flip_horizontal;
+                part.rotation = -part.rotation;
+            }
+            if shape.flip_vertical {
+                rel[1] = 1.0 - rel[1] - rel[3];
+                part.flip_vertical = !part.flip_vertical;
+                part.rotation = -part.rotation;
+            }
+            part.extent = [1.0, 1.0];
+            children.push(DrawnChild { rel, shape: part });
+        }
     }
     let connector = shape.kind == ShapeKind::Connector;
     let fill = match &shape.fill {
         ShapeFill::None => None,
         ShapeFill::Solid(colour) => css(colour),
-        // A gradient, pattern or picture is not drawn: a shape with one draws as if it had none.
-        ShapeFill::Other => None,
+        // A gradient is drawn from its own field; a pattern or picture is not drawn: a shape with one
+        // draws as if it had none.
+        ShapeFill::Gradient(_) | ShapeFill::Other => None,
         ShapeFill::Style => styled.then(|| STYLE_FILL.to_owned()).filter(|_| !connector),
     };
     let line = if shape.line.hidden {
@@ -88,6 +158,8 @@ pub(crate) fn drawn(shape: &Shape, place: ChartPlace) -> Option<DrawnShape> {
             width: weight as f64 / EMU_PER_PIXEL,
             colour,
             dash: shape.line.dash.clone().unwrap_or_else(|| "solid".into()),
+            head: arrow(&shape.line.head),
+            tail: arrow(&shape.line.tail),
         })
     };
     let body = &shape.body;
@@ -134,8 +206,16 @@ pub(crate) fn drawn(shape: &Shape, place: ChartPlace) -> Option<DrawnShape> {
         flip_horizontal: shape.flip_horizontal,
         flip_vertical: shape.flip_vertical,
         fill,
+        gradient: match &shape.fill {
+            ShapeFill::Gradient(g) => gradient(g),
+            _ => None,
+        },
         line,
         text,
+        rotation: degrees,
+        extent,
+        adjust: shape.adjust.clone(),
+        children,
     })
 }
 
@@ -165,6 +245,7 @@ mod tests {
             hidden: false,
             colour: Some(ShapeColour::Scheme("accent2".into())),
             dash: Some("dash".into()),
+            ..Default::default()
         };
         s.text = Some(vec!["Hello shape".into(), String::new()]);
         s.body.anchor = Some("ctr".into());
@@ -207,18 +288,18 @@ mod tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn dc_zjsg_2__hidden_objects_pictures_groups_and_other_geometries_are_not_drawn() {
+    fn dc_zjsg_2__hidden_objects_pictures_and_other_geometries_are_not_drawn() {
         let mut hidden = shape(ShapeKind::Shape);
         hidden.hidden = true;
         assert!(drawn(&hidden, place()).is_none());
         assert!(drawn(&shape(ShapeKind::Picture), place()).is_none());
-        assert!(drawn(&shape(ShapeKind::Group), place()).is_none());
         let mut star = shape(ShapeKind::Shape);
         star.geometry = Some("star5".into());
         assert!(drawn(&star, place()).is_none());
-        // A gradient fill is not drawn (the open rest of the bead), and the outline still is.
-        let mut gradient = shape(ShapeKind::Shape);
-        gradient.fill = ShapeFill::Other;
-        assert_eq!(drawn(&gradient, place()).unwrap().fill, None);
+        // A pattern or picture fill is not drawn, and the outline still is.
+        let mut pattern = shape(ShapeKind::Shape);
+        pattern.fill = ShapeFill::Other;
+        let d = drawn(&pattern, place()).unwrap();
+        assert_eq!((d.fill, d.gradient), (None, None));
     }
 }

@@ -1,9 +1,11 @@
 //! Shapes and text boxes of a sheet's drawing as the grid draws them (dc-zjsg.2): the wire form the
 //! workbook server sends, where an anchor lands on the grid (hidden rows and columns as Excel does),
-//! the preset geometries as paths, and the markup of one object. The first slice draws `rect`,
+//! the preset geometries as paths, and the markup of one object. The first slice drew `rect`,
 //! `roundRect`, `ellipse`, `line` and `straightConnector1` with a solid fill, a solid outline of a
-//! weight and a dash, and text with insets, a vertical anchor and paragraphs. Gradients,
-//! arrowheads, shadows, rotation, groups, pictures and the other presets are not drawn.
+//! weight and a dash, and text with insets, a vertical anchor and paragraphs. The second adds
+//! rotation and flips, arrowheads, linear and path gradients, group shapes and the common presets
+//! (from ECMA-376 Part 1's presetShapeDefinitions, with their `avLst` adjust values). Shadows,
+//! pictures and custom geometry are not drawn.
 
 use crate::projection::ChartPlace;
 use serde::{Deserialize, Serialize};
@@ -22,9 +24,56 @@ pub struct DrawnShape {
     pub flip_vertical: bool,
     /// `#RRGGBB`, `None` for no fill.
     pub fill: Option<String>,
+    /// A gradient fill; it takes the place of `fill`.
+    #[serde(default)]
+    pub gradient: Option<ShapeGradient>,
     /// `None` for no outline.
     pub line: Option<ShapeStroke>,
     pub text: Option<ShapeText>,
+    /// Degrees clockwise.
+    #[serde(default)]
+    pub rotation: f64,
+    /// The unrotated shape's size as fractions of `place`'s frame: Excel stores the anchor of a rotated
+    /// shape as the box around it, so the shape itself is smaller by the rotated box's ratio.
+    #[serde(default = "whole")]
+    pub extent: [f64; 2],
+    /// The preset's adjust values by name (`adj1`, ...), in 100000ths.
+    #[serde(default)]
+    pub adjust: Vec<(String, i64)>,
+    /// A group's children, each placed as fractions of the group's frame.
+    #[serde(default)]
+    pub children: Vec<DrawnChild>,
+}
+
+fn whole() -> [f64; 2] {
+    [1.0, 1.0]
+}
+
+/// A group's child: its own (unrotated) box inside the group's, `[x, y, width, height]` as fractions of it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DrawnChild {
+    pub rel: [f64; 4],
+    pub shape: DrawnShape,
+}
+
+/// A gradient fill: stops at fractions 0 to 1 with `#RRGGBB` colours; linear (`angle` in degrees
+/// clockwise from left-to-right) or a path (`circle`, `rect`, `shape`) from a focus `[x, y]` as
+/// fractions of the box.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ShapeGradient {
+    pub stops: Vec<(f64, String)>,
+    pub angle: f64,
+    pub scaled: bool,
+    pub path: Option<String>,
+    pub focus: [f64; 2],
+}
+
+/// An arrowhead: `triangle`, `stealth`, `diamond`, `oval` or `arrow`, its `w` and `len` as `sm`, `med`, `lg`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ShapeArrow {
+    pub kind: String,
+    pub width: String,
+    pub length: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -33,6 +82,11 @@ pub struct ShapeStroke {
     pub colour: String,
     /// `prstDash val`: `solid`, `dash`, `sysDot`, ...
     pub dash: String,
+    /// The arrowheads at the start and at the end of a line.
+    #[serde(default)]
+    pub head: Option<ShapeArrow>,
+    #[serde(default)]
+    pub tail: Option<ShapeArrow>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -120,40 +174,144 @@ pub enum Seg {
 /// A circular quarter's control distance: 4/3 * (sqrt 2 - 1).
 const KAPPA: f64 = 0.552_284_749_830_793_4;
 
-/// Whether the geometry is a preset this slice draws.
+/// The presets this module draws, with their default adjust values (`adj`, `adj1`, ...).
+const PRESETS: &[&str] = &[
+    "rect",
+    "roundRect",
+    "ellipse",
+    "line",
+    "straightConnector1",
+    "triangle",
+    "rtTriangle",
+    "diamond",
+    "parallelogram",
+    "trapezoid",
+    "pentagon",
+    "hexagon",
+    "octagon",
+    "rightArrow",
+    "leftArrow",
+    "upArrow",
+    "downArrow",
+    "chevron",
+    "wedgeRectCallout",
+    "wedgeRoundRectCallout",
+    "flowChartProcess",
+    "flowChartDecision",
+    "flowChartTerminator",
+    "flowChartDocument",
+];
+
+/// Whether the geometry is a preset this module draws.
 pub fn drawn_geometry(prst: &str) -> bool {
-    matches!(
-        prst,
-        "rect" | "roundRect" | "ellipse" | "line" | "straightConnector1"
-    )
+    PRESETS.contains(&prst)
 }
 
-/// The path of preset `prst` in a `w` by `h` box, `None` for a preset not drawn. A `roundRect`'s
-/// corner radius is its default adjustment, 16667/100000 of the shorter side.
-pub fn geometry_path(prst: &str, w: f64, h: f64) -> Option<Vec<Seg>> {
+/// Whether the preset is an open path (a line): it has no fill.
+pub fn open_geometry(prst: &str) -> bool {
+    matches!(prst, "line" | "straightConnector1")
+}
+
+/// The adjust value `name`, or its default; a preset's formulas take them in 100000ths.
+fn av(adjust: &[(String, i64)], name: &str, default: f64) -> f64 {
+    adjust
+        .iter()
+        .find(|(n, _)| n == name)
+        .map_or(default, |(_, v)| *v as f64)
+}
+
+fn pin(low: f64, value: f64, high: f64) -> f64 {
+    value.max(low).min(high.max(low))
+}
+
+fn polygon(points: &[(f64, f64)]) -> Vec<Seg> {
+    let mut out = Vec::with_capacity(points.len() + 1);
+    for (i, &(x, y)) in points.iter().enumerate() {
+        out.push(if i == 0 { Seg::Move(x, y) } else { Seg::Line(x, y) });
+    }
+    out.push(Seg::Close);
+    out
+}
+
+/// A rectangle `w` by `h` with corners of radius `r`, as the arcs of its corners.
+fn rounded(w: f64, h: f64, r: f64) -> Vec<Seg> {
+    let k = r * KAPPA;
+    vec![
+        Seg::Move(r, 0.0),
+        Seg::Line(w - r, 0.0),
+        Seg::Cubic((w - r + k, 0.0), (w, r - k), (w, r)),
+        Seg::Line(w, h - r),
+        Seg::Cubic((w, h - r + k), (w - r + k, h), (w - r, h)),
+        Seg::Line(r, h),
+        Seg::Cubic((r - k, h), (0.0, h - r + k), (0.0, h - r)),
+        Seg::Line(0.0, r),
+        Seg::Cubic((0.0, r - k), (r - k, 0.0), (r, 0.0)),
+        Seg::Close,
+    ]
+}
+
+/// `wedgeRectCallout` and `wedgeRoundRectCallout` (corner radius `r`): the rectangle with a tail to
+/// the point `adj1`, `adj2` (fractions of the width and height from the centre) on the side the point
+/// lies beyond, its base in the half of that side the point is toward.
+fn callout(w: f64, h: f64, adj1: f64, adj2: f64, r: f64) -> Vec<Seg> {
+    let dx = w * adj1 / 100_000.0;
+    let dy = h * adj2 / 100_000.0;
+    let (tip_x, tip_y) = (w / 2.0 + dx, h / 2.0 + dy);
+    // The tail leaves the top or bottom when the point is farther off vertically than the box's diagonal says.
+    let vertical = dy.abs() > (dx * h / w).abs();
+    let (x1, x2) = if dx > 0.0 { (w * 7.0 / 12.0, w * 10.0 / 12.0) } else { (w * 2.0 / 12.0, w * 5.0 / 12.0) };
+    let (y1, y2) = if dy > 0.0 { (h * 7.0 / 12.0, h * 10.0 / 12.0) } else { (h * 2.0 / 12.0, h * 5.0 / 12.0) };
+    let tip = Seg::Line(tip_x, tip_y);
+    let k = r * KAPPA;
+    // A corner is an arc of radius `r`; with none, the straight sides meet there.
+    let corner = |out: &mut Vec<Seg>, to: (f64, f64), c1: (f64, f64), c2: (f64, f64)| {
+        if r > 0.0 {
+            out.push(Seg::Cubic(c1, c2, to));
+        }
+    };
+    let mut out = vec![Seg::Move(r, 0.0)];
+    // Top, left to right.
+    if vertical && dy < 0.0 {
+        out.extend([Seg::Line(x1, 0.0), tip, Seg::Line(x2, 0.0)]);
+    }
+    out.push(Seg::Line(w - r, 0.0));
+    corner(&mut out, (w, r), (w - r + k, 0.0), (w, r - k));
+    // Right, top to bottom.
+    if !vertical && dx > 0.0 {
+        out.extend([Seg::Line(w, y1), tip, Seg::Line(w, y2)]);
+    }
+    out.push(Seg::Line(w, h - r));
+    corner(&mut out, (w - r, h), (w, h - r + k), (w - r + k, h));
+    // Bottom, right to left.
+    if vertical && dy > 0.0 {
+        out.extend([Seg::Line(x2, h), tip, Seg::Line(x1, h)]);
+    }
+    out.push(Seg::Line(r, h));
+    corner(&mut out, (0.0, h - r), (r - k, h), (0.0, h - r + k));
+    // Left, bottom to top.
+    if !vertical && dx < 0.0 {
+        out.extend([Seg::Line(0.0, y2), tip, Seg::Line(0.0, y1)]);
+    }
+    if r > 0.0 {
+        out.push(Seg::Line(0.0, r));
+        corner(&mut out, (r, 0.0), (0.0, r - k), (r - k, 0.0));
+    }
+    out.push(Seg::Close);
+    out
+}
+
+/// The path of preset `prst` in a `w` by `h` box with the adjust values `adjust` (by name, in
+/// 100000ths; the preset's default for one not given), `None` for a preset not drawn. The formulas are
+/// those of ECMA-376 Part 1's presetShapeDefinitions: `ss` is the shorter side, an adjust is pinned
+/// to its range as the definition pins it.
+pub fn geometry_path(prst: &str, w: f64, h: f64, adjust: &[(String, i64)]) -> Option<Vec<Seg>> {
+    let ss = w.min(h);
+    let (hc, vc) = (w / 2.0, h / 2.0);
     Some(match prst {
-        "rect" => vec![
-            Seg::Move(0.0, 0.0),
-            Seg::Line(w, 0.0),
-            Seg::Line(w, h),
-            Seg::Line(0.0, h),
-            Seg::Close,
-        ],
+        "rect" | "flowChartProcess" => polygon(&[(0.0, 0.0), (w, 0.0), (w, h), (0.0, h)]),
         "roundRect" => {
-            let r = w.min(h) * 16667.0 / 100000.0;
-            let k = r * KAPPA;
-            vec![
-                Seg::Move(r, 0.0),
-                Seg::Line(w - r, 0.0),
-                Seg::Cubic((w - r + k, 0.0), (w, r - k), (w, r)),
-                Seg::Line(w, h - r),
-                Seg::Cubic((w, h - r + k), (w - r + k, h), (w - r, h)),
-                Seg::Line(r, h),
-                Seg::Cubic((r - k, h), (0.0, h - r + k), (0.0, h - r)),
-                Seg::Line(0.0, r),
-                Seg::Cubic((0.0, r - k), (r - k, 0.0), (r, 0.0)),
-                Seg::Close,
-            ]
+            let a = pin(0.0, av(adjust, "adj", 16667.0), 50000.0);
+            rounded(w, h, ss * a / 100_000.0)
         }
         "ellipse" => {
             let (rx, ry) = (w / 2.0, h / 2.0);
@@ -168,13 +326,125 @@ pub fn geometry_path(prst: &str, w: f64, h: f64) -> Option<Vec<Seg>> {
             ]
         }
         "line" | "straightConnector1" => vec![Seg::Move(0.0, 0.0), Seg::Line(w, h)],
+        "triangle" => {
+            let a = pin(0.0, av(adjust, "adj", 50000.0), 100_000.0);
+            polygon(&[(0.0, h), (w * a / 100_000.0, 0.0), (w, h)])
+        }
+        "rtTriangle" => polygon(&[(0.0, h), (0.0, 0.0), (w, h)]),
+        "diamond" | "flowChartDecision" => polygon(&[(0.0, vc), (hc, 0.0), (w, vc), (hc, h)]),
+        "parallelogram" => {
+            let max = if ss > 0.0 { 100_000.0 * w / ss } else { 0.0 };
+            let x2 = ss * pin(0.0, av(adjust, "adj", 25000.0), max) / 100_000.0;
+            polygon(&[(0.0, h), (x2, 0.0), (w, 0.0), (w - x2, h)])
+        }
+        "trapezoid" => {
+            let max = if ss > 0.0 { 50000.0 * w / ss } else { 0.0 };
+            let x2 = ss * pin(0.0, av(adjust, "adj", 25000.0), max) / 100_000.0;
+            polygon(&[(0.0, h), (x2, 0.0), (w - x2, 0.0), (w, h)])
+        }
+        "pentagon" => {
+            // A regular pentagon on the ellipse through the box's top: radii stretched by 1.05146 and
+            // 1.10557 so its corners touch the box's sides and bottom.
+            let (rx, ry) = (hc * 1.05146, vc * 1.10557);
+            let centre_y = vc * 1.10557;
+            let points: Vec<(f64, f64)> = [-90.0f64, -18.0, 54.0, 126.0, 198.0]
+                .iter()
+                .map(|deg| {
+                    let t = deg.to_radians();
+                    (hc + rx * t.cos(), centre_y + ry * t.sin())
+                })
+                .collect();
+            polygon(&points)
+        }
+        "hexagon" => {
+            let max = if ss > 0.0 { 50000.0 * w / ss } else { 0.0 };
+            let x1 = ss * pin(0.0, av(adjust, "adj", 25000.0), max) / 100_000.0;
+            polygon(&[(0.0, vc), (x1, 0.0), (w - x1, 0.0), (w, vc), (w - x1, h), (x1, h)])
+        }
+        "octagon" => {
+            let x1 = ss * pin(0.0, av(adjust, "adj", 29289.0), 50000.0) / 100_000.0;
+            polygon(&[
+                (0.0, x1),
+                (x1, 0.0),
+                (w - x1, 0.0),
+                (w, x1),
+                (w, h - x1),
+                (w - x1, h),
+                (x1, h),
+                (0.0, h - x1),
+            ])
+        }
+        "rightArrow" | "leftArrow" => {
+            let max2 = if ss > 0.0 { 100_000.0 * w / ss } else { 0.0 };
+            let a1 = pin(0.0, av(adjust, "adj1", 50000.0), 100_000.0);
+            let a2 = pin(0.0, av(adjust, "adj2", 50000.0), max2);
+            let head = ss * a2 / 100_000.0;
+            let dy = h * a1 / 200_000.0;
+            let (y1, y2) = (vc - dy, vc + dy);
+            if prst == "rightArrow" {
+                let x1 = w - head;
+                polygon(&[(0.0, y1), (x1, y1), (x1, 0.0), (w, vc), (x1, h), (x1, y2), (0.0, y2)])
+            } else {
+                polygon(&[(0.0, vc), (head, 0.0), (head, y1), (w, y1), (w, y2), (head, y2), (head, h)])
+            }
+        }
+        "upArrow" | "downArrow" => {
+            let max2 = if ss > 0.0 { 100_000.0 * h / ss } else { 0.0 };
+            let a1 = pin(0.0, av(adjust, "adj1", 50000.0), 100_000.0);
+            let a2 = pin(0.0, av(adjust, "adj2", 50000.0), max2);
+            let head = ss * a2 / 100_000.0;
+            let dx = w * a1 / 200_000.0;
+            let (x1, x2) = (hc - dx, hc + dx);
+            if prst == "upArrow" {
+                polygon(&[(0.0, head), (hc, 0.0), (w, head), (x2, head), (x2, h), (x1, h), (x1, head)])
+            } else {
+                let y2 = h - head;
+                polygon(&[(x1, 0.0), (x2, 0.0), (x2, y2), (w, y2), (hc, h), (0.0, y2), (x1, y2)])
+            }
+        }
+        "chevron" => {
+            let max = if ss > 0.0 { 100_000.0 * w / ss } else { 0.0 };
+            let x1 = ss * pin(0.0, av(adjust, "adj", 50000.0), max) / 100_000.0;
+            polygon(&[(0.0, 0.0), (w - x1, 0.0), (w, vc), (w - x1, h), (0.0, h), (x1, vc)])
+        }
+        "wedgeRectCallout" => callout(w, h, av(adjust, "adj1", -20833.0), av(adjust, "adj2", 62500.0), 0.0),
+        "wedgeRoundRectCallout" => {
+            let r = ss * pin(0.0, av(adjust, "adj3", 16667.0), 50000.0) / 100_000.0;
+            callout(w, h, av(adjust, "adj1", -20833.0), av(adjust, "adj2", 62500.0), r)
+        }
+        "flowChartTerminator" => {
+            // The definition's 21600-unit path: semicircular ends 3475 units deep.
+            let rx = w * 3475.0 / 21600.0;
+            let (kx, ky) = (rx * KAPPA, vc * KAPPA);
+            vec![
+                Seg::Move(rx, 0.0),
+                Seg::Line(w - rx, 0.0),
+                Seg::Cubic((w - rx + kx, 0.0), (w, vc - ky), (w, vc)),
+                Seg::Cubic((w, vc + ky), (w - rx + kx, h), (w - rx, h)),
+                Seg::Line(rx, h),
+                Seg::Cubic((rx - kx, h), (0.0, vc + ky), (0.0, vc)),
+                Seg::Cubic((0.0, vc - ky), (rx - kx, 0.0), (rx, 0.0)),
+                Seg::Close,
+            ]
+        }
+        "flowChartDocument" => {
+            let (sx, sy) = (w / 21600.0, h / 21600.0);
+            vec![
+                Seg::Move(0.0, 0.0),
+                Seg::Line(w, 0.0),
+                Seg::Line(w, 17322.0 * sy),
+                Seg::Cubic((10800.0 * sx, 17322.0 * sy), (10800.0 * sx, 23922.0 * sy), (0.0, 20172.0 * sy)),
+                Seg::Close,
+            ]
+        }
         _ => return None,
     })
 }
 
 fn number(value: f64) -> String {
     let text = format!("{value:.3}");
-    text.trim_end_matches('0').trim_end_matches('.').to_owned()
+    let text = text.trim_end_matches('0').trim_end_matches('.');
+    if text == "-0" { "0".to_owned() } else { text.to_owned() }
 }
 
 /// SVG path data of `segments`, mirrored across the box `w` by `h` when flipped.
@@ -239,21 +509,171 @@ fn escape(text: &str) -> String {
     out
 }
 
-/// The markup of `shape` for a frame `w` by `h` pixels at zoom `zoom`: an SVG of the geometry with
-/// the text over it as HTML, padded by the insets and placed by the vertical anchor. `None` for a
-/// geometry not drawn.
-pub fn shape_markup(shape: &DrawnShape, w: f64, h: f64, zoom: f64) -> Option<String> {
-    let path = geometry_path(&shape.geometry, w, h)?;
-    let d = path_data(&path, w, h, shape.flip_horizontal, shape.flip_vertical);
-    let open = !matches!(
-        shape.geometry.as_str(),
-        "rect" | "roundRect" | "ellipse"
-    );
-    let fill = match (&shape.fill, open) {
-        (Some(colour), false) => colour.as_str(),
-        _ => "none",
+/// The size of an arrowhead's `w` or `len` in line widths.
+fn arrow_factor(size: &str) -> f64 {
+    match size {
+        "sm" => 2.0,
+        "lg" => 5.0,
+        _ => 3.0,
+    }
+}
+
+/// An arrowhead at `tip` of a line running toward it along the unit vector `dir`, for a line `width`
+/// pixels wide: the markup of its path and how far the line must stop short of the tip so it does not
+/// show through (a triangle's base, a stealth's notch). Lines thinner than two pixels size their heads as a two pixel line.
+fn arrowhead(arrow: &ShapeArrow, tip: (f64, f64), dir: (f64, f64), width: f64, colour: &str) -> Option<(String, f64)> {
+    let unit = width.max(2.0);
+    let (len, wide) = (arrow_factor(&arrow.length) * unit, arrow_factor(&arrow.width) * unit);
+    // Local frame: x along `dir`, tip at the origin, y to the right of `dir`.
+    let at = |x: f64, y: f64| (tip.0 + dir.0 * x - dir.1 * y, tip.1 + dir.1 * x + dir.0 * y);
+    let point = |(x, y): (f64, f64)| format!("{} {}", number(x), number(y));
+    let polygon = |points: &[(f64, f64)]| {
+        let list: Vec<String> = points.iter().map(|p| point(*p)).collect();
+        format!("M{}Z", list.join("L"))
     };
+    let (d, filled, trim) = match arrow.kind.as_str() {
+        "triangle" => (polygon(&[at(0.0, 0.0), at(-len, wide / 2.0), at(-len, -wide / 2.0)]), true, len),
+        "stealth" => {
+            let notch = len * 0.75;
+            (
+                polygon(&[at(0.0, 0.0), at(-len, wide / 2.0), at(-notch, 0.0), at(-len, -wide / 2.0)]),
+                true,
+                notch,
+            )
+        }
+        "diamond" => (
+            polygon(&[at(len / 2.0, 0.0), at(0.0, wide / 2.0), at(-len / 2.0, 0.0), at(0.0, -wide / 2.0)]),
+            true,
+            0.0,
+        ),
+        "oval" => {
+            let angle = dir.1.atan2(dir.0).to_degrees();
+            return Some((
+                format!(
+                    "<ellipse cx=\"{}\" cy=\"{}\" rx=\"{}\" ry=\"{}\" transform=\"rotate({} {} {})\" fill=\"{colour}\" stroke=\"none\"/>",
+                    number(tip.0),
+                    number(tip.1),
+                    number(len / 2.0),
+                    number(wide / 2.0),
+                    number(angle),
+                    number(tip.0),
+                    number(tip.1)
+                ),
+                0.0,
+            ));
+        }
+        "arrow" => (
+            format!("M{}L{}L{}", point(at(-len, wide / 2.0)), point(at(0.0, 0.0)), point(at(-len, -wide / 2.0))),
+            false,
+            0.0,
+        ),
+        _ => return None,
+    };
+    let paint = if filled {
+        format!("fill=\"{colour}\" stroke=\"none\"")
+    } else {
+        format!("fill=\"none\" stroke=\"{colour}\" stroke-width=\"{}\" stroke-linejoin=\"miter\"", number(width))
+    };
+    Some((format!("<path d=\"{d}\" {paint}/>"), trim))
+}
+
+/// A stable identifier for the gradient of the object `name` among the page's inline pictures.
+fn gradient_id(name: &str) -> String {
+    let mut hash: u32 = 0x811c_9dc5;
+    for byte in name.bytes() {
+        hash = (hash ^ u32::from(byte)).wrapping_mul(0x0100_0193);
+    }
+    format!("dcg{hash:08x}")
+}
+
+/// The `defs` of `gradient` for a `w` by `h` box drawn flipped as the shape is, and its id.
+fn gradient_defs(g: &ShapeGradient, id: &str, w: f64, h: f64, flip_h: bool, flip_v: bool) -> String {
+    let stops: String = g
+        .stops
+        .iter()
+        .map(|(pos, colour)| format!("<stop offset=\"{}\" stop-color=\"{colour}\"/>", number(pos.clamp(0.0, 1.0))))
+        .collect();
+    if let Some(path) = &g.path {
+        let _ = path;
+        // A rectangle or shape path has no SVG equivalent; all three draw as a radial gradient from the focus
+        // out to the farthest corner.
+        let fx = if flip_h { 1.0 - g.focus[0] } else { g.focus[0] };
+        let fy = if flip_v { 1.0 - g.focus[1] } else { g.focus[1] };
+        let reach = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)]
+            .iter()
+            .map(|(x, y): &(f64, f64)| ((x - fx).powi(2) + (y - fy).powi(2)).sqrt())
+            .fold(0.0, f64::max);
+        return format!(
+            "<defs><radialGradient id=\"{id}\" cx=\"{}\" cy=\"{}\" fx=\"{}\" fy=\"{}\" r=\"{}\">{stops}</radialGradient></defs>",
+            number(fx),
+            number(fy),
+            number(fx),
+            number(fy),
+            number(reach)
+        );
+    }
+    // A flipped shape flips its gradient with it.
+    let mut angle = g.angle;
+    if flip_h {
+        angle = 180.0 - angle;
+    }
+    if flip_v {
+        angle = -angle;
+    }
+    let (sin, cos) = angle.to_radians().sin_cos();
+    if g.scaled {
+        // In the box's own unit square, where the angle follows the aspect ratio.
+        let half = (cos.abs() + sin.abs()) / 2.0;
+        format!(
+            "<defs><linearGradient id=\"{id}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\">{stops}</linearGradient></defs>",
+            number(0.5 - cos * half),
+            number(0.5 - sin * half),
+            number(0.5 + cos * half),
+            number(0.5 + sin * half)
+        )
+    } else {
+        // In pixels: the angle is the real one on the screen, the line reaching the corners it projects.
+        let half = (w * cos.abs() + h * sin.abs()) / 2.0;
+        let (cx, cy) = (w / 2.0, h / 2.0);
+        format!(
+            "<defs><linearGradient id=\"{id}\" gradientUnits=\"userSpaceOnUse\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\">{stops}</linearGradient></defs>",
+            number(cx - cos * half),
+            number(cy - sin * half),
+            number(cx + cos * half),
+            number(cy + sin * half)
+        )
+    }
+}
+
+/// Where an object lands when its anchor frame `(left, top, right, bottom)` is the box around the
+/// shape rotated: the unrotated shape's box, about the same centre (`extent` are fractions of the frame).
+pub fn unrotated(frame: (f64, f64, f64, f64), extent: [f64; 2]) -> (f64, f64, f64, f64) {
+    let (cx, cy) = ((frame.0 + frame.2) / 2.0, (frame.1 + frame.3) / 2.0);
+    let (w, h) = ((frame.2 - frame.0) * extent[0], (frame.3 - frame.1) * extent[1]);
+    (cx - w / 2.0, cy - h / 2.0, cx + w / 2.0, cy + h / 2.0)
+}
+
+/// The size of a shape `cx` by `cy` rotated by `degrees`, as fractions of the box around the rotated shape.
+pub fn extent_in_rotated_box(cx: f64, cy: f64, degrees: f64) -> [f64; 2] {
+    let (sin, cos) = degrees.to_radians().sin_cos();
+    // A quarter turn's cosine or sine is zero, not 1e-16.
+    let (sin, cos) = (if sin.abs() < 1e-12 { 0.0 } else { sin }, if cos.abs() < 1e-12 { 0.0 } else { cos });
+    let (bw, bh) = (cx * cos.abs() + cy * sin.abs(), cx * sin.abs() + cy * cos.abs());
+    [if bw > 0.0 { cx / bw } else { 1.0 }, if bh > 0.0 { cy / bh } else { 1.0 }]
+}
+
+/// The inside of one object: its geometry as an SVG with the text over it as HTML, then a group's children
+/// each in a box of their own. `id` names the gradient among the page's others.
+fn inner_markup(shape: &DrawnShape, w: f64, h: f64, zoom: f64, id: &str) -> Option<String> {
+    if shape.kind == "group" {
+        return Some(finish(shape, w, h, zoom, id, String::new(), ""));
+    }
+    let mut segments = geometry_path(&shape.geometry, w, h, &shape.adjust)?;
+    let open = open_geometry(&shape.geometry);
     let mut stroke = String::from("stroke=\"none\"");
+    let mut heads = String::new();
+    // A line is flipped by its end points, so its arrowheads sit on the flipped ends.
+    let (mut flip_h, mut flip_v) = (shape.flip_horizontal, shape.flip_vertical);
     if let Some(line) = &shape.line {
         let width = line.width * zoom;
         stroke = format!("stroke=\"{}\" stroke-width=\"{}\"", line.colour, number(width));
@@ -262,12 +682,51 @@ pub fn shape_markup(shape: &DrawnShape, w: f64, h: f64, zoom: f64) -> Option<Str
             let list: Vec<String> = dashes.iter().map(|d| number(d * width)).collect();
             let _ = write!(stroke, " stroke-dasharray=\"{}\"", list.join(" "));
         }
+        if open {
+            let x = |v: f64| if flip_h { w - v } else { v };
+            let y = |v: f64| if flip_v { h - v } else { v };
+            let (mut a, mut b) = ((x(0.0), y(0.0)), (x(w), y(h)));
+            let length = ((b.0 - a.0).powi(2) + (b.1 - a.1).powi(2)).sqrt();
+            if length > 0.0 {
+                let dir = ((b.0 - a.0) / length, (b.1 - a.1) / length);
+                let (tip_a, tip_b) = (a, b);
+                if let Some((markup, trim)) = line.head.as_ref().and_then(|e| arrowhead(e, tip_a, (-dir.0, -dir.1), width, &line.colour)) {
+                    heads.push_str(&markup);
+                    a = (a.0 + dir.0 * trim, a.1 + dir.1 * trim);
+                }
+                if let Some((markup, trim)) = line.tail.as_ref().and_then(|e| arrowhead(e, tip_b, dir, width, &line.colour)) {
+                    heads.push_str(&markup);
+                    b = (b.0 - dir.0 * trim, b.1 - dir.1 * trim);
+                }
+                segments = vec![Seg::Move(a.0, a.1), Seg::Line(b.0, b.1)];
+                (flip_h, flip_v) = (false, false);
+            }
+        }
     }
-    let mut out = format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" overflow=\"visible\"><path d=\"{d}\" fill=\"{fill}\" {stroke}/></svg>",
-        number(w),
-        number(h)
-    );
+    let d = path_data(&segments, w, h, flip_h, flip_v);
+    let mut defs = String::new();
+    let fill = if open {
+        "none".to_owned()
+    } else if let Some(gradient) = &shape.gradient {
+        defs = gradient_defs(gradient, id, w, h, shape.flip_horizontal, shape.flip_vertical);
+        format!("url(#{id})")
+    } else {
+        shape.fill.clone().unwrap_or_else(|| "none".to_owned())
+    };
+    Some(finish(shape, w, h, zoom, id, defs, &format!("<path d=\"{d}\" fill=\"{fill}\" {stroke}/>{heads}")))
+}
+
+/// The svg of `paths`, the text of `shape` over it and a group's children, after `out`.
+fn finish(shape: &DrawnShape, w: f64, h: f64, zoom: f64, id: &str, defs: String, paths: &str) -> String {
+    let mut out = String::new();
+    if !paths.is_empty() {
+        let _ = write!(
+            out,
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" overflow=\"visible\">{defs}{paths}</svg>",
+            number(w),
+            number(h)
+        );
+    }
     if let Some(text) = &shape.text {
         let [l, t, r, b] = text.inset.map(|v| v * zoom);
         let justify = match text.anchor.as_str() {
@@ -275,9 +734,11 @@ pub fn shape_markup(shape: &DrawnShape, w: f64, h: f64, zoom: f64) -> Option<Str
             "b" => "flex-end",
             _ => "flex-start",
         };
+        // A shape flipped vertically carries its text upside down, as Excel's does.
+        let turn = if shape.flip_vertical { "transform:rotate(180deg);" } else { "" };
         let _ = write!(
             out,
-            "<div class=\"dc-shape-text\" style=\"position:absolute;left:0;top:0;width:{}px;height:{}px;box-sizing:border-box;padding:{}px {}px {}px {}px;display:flex;flex-direction:column;justify-content:{justify};font-size:{}px;line-height:1.2;color:{};font-weight:{};font-style:{};white-space:{};overflow:visible\">",
+            "<div class=\"dc-shape-text\" style=\"position:absolute;left:0;top:0;width:{}px;height:{}px;box-sizing:border-box;padding:{}px {}px {}px {}px;display:flex;flex-direction:column;justify-content:{justify};font-size:{}px;line-height:1.2;color:{};font-weight:{};font-style:{};white-space:{};overflow:visible;{turn}\">",
             number(w),
             number(h),
             number(t),
@@ -305,7 +766,51 @@ pub fn shape_markup(shape: &DrawnShape, w: f64, h: f64, zoom: f64) -> Option<Str
         }
         out.push_str("</div>");
     }
-    Some(out)
+    for (index, child) in shape.children.iter().enumerate() {
+        let [rx, ry, rw, rh] = child.rel;
+        let (cw, ch) = (w * rw, h * rh);
+        let (left, top) = (w * rx, h * ry);
+        let child_id = format!("{id}c{index}");
+        if let Some(body) = inner_markup(&child.shape, cw, ch, zoom, &child_id) {
+            let turn = rotation_style(child.shape.rotation);
+            let _ = write!(
+                out,
+                "<div style=\"position:absolute;left:{}px;top:{}px;width:{}px;height:{}px;{turn}\">{body}</div>",
+                number(left),
+                number(top),
+                number(cw),
+                number(ch)
+            );
+        }
+    }
+    out
+}
+
+fn rotation_style(degrees: f64) -> String {
+    if degrees.rem_euclid(360.0) == 0.0 {
+        String::new()
+    } else {
+        format!("transform:rotate({}deg);", number(degrees))
+    }
+}
+
+/// The markup of `shape` for an (unrotated) box `w` by `h` pixels at zoom `zoom`: an SVG of the geometry
+/// (with its gradient and arrowheads) with the text over it as HTML, padded by the insets and placed by the
+/// vertical anchor, a group's children in boxes inside it, the whole turned by the shape's rotation about its
+/// centre. `None` for a geometry not drawn.
+pub fn shape_markup(shape: &DrawnShape, w: f64, h: f64, zoom: f64) -> Option<String> {
+    let id = gradient_id(&shape.name);
+    let body = inner_markup(shape, w, h, zoom, &id)?;
+    let turn = rotation_style(shape.rotation);
+    if turn.is_empty() {
+        Some(body)
+    } else {
+        Some(format!(
+            "<div style=\"position:absolute;left:0;top:0;width:{}px;height:{}px;{turn}\">{body}</div>",
+            number(w),
+            number(h)
+        ))
+    }
 }
 
 #[cfg(test)]
@@ -399,21 +904,21 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dc_zjsg_2__preset_paths() {
-        let rect = geometry_path("rect", 40.0, 20.0).unwrap();
+        let rect = geometry_path("rect", 40.0, 20.0, &[]).unwrap();
         assert_eq!(path_data(&rect, 40.0, 20.0, false, false), "M0 0L40 0L40 20L0 20Z");
         // A rounded rectangle's radius is a sixth of the shorter side, 20 * 0.16667 = 3.333.
-        let round = path_data(&geometry_path("roundRect", 40.0, 20.0).unwrap(), 40.0, 20.0, false, false);
+        let round = path_data(&geometry_path("roundRect", 40.0, 20.0, &[]).unwrap(), 40.0, 20.0, false, false);
         assert!(round.starts_with("M3.333 0L36.667 0C"), "{round}");
         assert!(round.ends_with("Z"));
         // An ellipse touches the middle of each side.
-        let oval = path_data(&geometry_path("ellipse", 40.0, 20.0).unwrap(), 40.0, 20.0, false, false);
+        let oval = path_data(&geometry_path("ellipse", 40.0, 20.0, &[]).unwrap(), 40.0, 20.0, false, false);
         assert!(oval.starts_with("M0 10C0 4.477 "), "{oval}");
         assert!(oval.contains(" 20 0C") && oval.contains(" 40 10C") && oval.contains(" 20 20C"), "{oval}");
         // A line flipped vertically runs from the bottom-left corner to the top-right.
-        let line = geometry_path("straightConnector1", 40.0, 20.0).unwrap();
+        let line = geometry_path("straightConnector1", 40.0, 20.0, &[]).unwrap();
         assert_eq!(path_data(&line, 40.0, 20.0, false, true), "M0 20L40 0");
         assert_eq!(path_data(&line, 40.0, 20.0, true, false), "M40 0L0 20");
-        assert!(geometry_path("star5", 40.0, 20.0).is_none());
+        assert!(geometry_path("star5", 40.0, 20.0, &[]).is_none());
     }
 
     fn sample() -> DrawnShape {
@@ -425,7 +930,12 @@ mod tests {
             flip_horizontal: false,
             flip_vertical: false,
             fill: Some("#FF8000".into()),
-            line: Some(ShapeStroke { width: 2.0, colour: "#ED7D31".into(), dash: "dash".into() }),
+            gradient: None,
+            rotation: 0.0,
+            extent: [1.0, 1.0],
+            adjust: Vec::new(),
+            children: Vec::new(),
+            line: Some(ShapeStroke { width: 2.0, colour: "#ED7D31".into(), dash: "dash".into(), head: None, tail: None }),
             text: Some(ShapeText {
                 paragraphs: vec![
                     ShapeParagraph { text: "a < b".into(), align: "ctr".into() },
@@ -475,5 +985,306 @@ mod tests {
         bare.line = None;
         bare.text = None;
         assert!(shape_markup(&bare, 80.0, 40.0, 1.0).unwrap().contains("stroke=\"none\""));
+    }
+
+    fn d(prst: &str, w: f64, h: f64, adjust: &[(&str, i64)]) -> String {
+        let adjust: Vec<(String, i64)> = adjust.iter().map(|(n, v)| ((*n).to_owned(), *v)).collect();
+        path_data(&geometry_path(prst, w, h, &adjust).unwrap(), w, h, false, false)
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_zjsg_2__polygon_presets_follow_the_definitions_and_their_adjusts() {
+        // triangle: the apex at adj/100000 of the width.
+        assert_eq!(d("triangle", 40.0, 20.0, &[]), "M0 20L20 0L40 20Z");
+        assert_eq!(d("triangle", 40.0, 20.0, &[("adj", 25000)]), "M0 20L10 0L40 20Z");
+        assert_eq!(d("rtTriangle", 40.0, 20.0, &[]), "M0 20L0 0L40 20Z");
+        assert_eq!(d("diamond", 40.0, 20.0, &[]), "M0 10L20 0L40 10L20 20Z");
+        assert_eq!(d("flowChartDecision", 40.0, 20.0, &[]), d("diamond", 40.0, 20.0, &[]));
+        assert_eq!(d("flowChartProcess", 40.0, 20.0, &[]), d("rect", 40.0, 20.0, &[]));
+        // parallelogram: the slant is ss * adj / 100000, held to 100000 * w / ss.
+        assert_eq!(d("parallelogram", 100.0, 40.0, &[]), "M0 40L10 0L100 0L90 40Z");
+        assert_eq!(d("parallelogram", 100.0, 40.0, &[("adj", 200000)]), "M0 40L80 0L100 0L20 40Z");
+        assert_eq!(d("parallelogram", 100.0, 40.0, &[("adj", 900000)]), "M0 40L100 0L100 0L0 40Z");
+        // trapezoid: the top is narrower by ss * adj / 100000 each side; adj is held to 50000 * w / ss.
+        assert_eq!(d("trapezoid", 100.0, 40.0, &[]), "M0 40L10 0L90 0L100 40Z");
+        assert_eq!(d("trapezoid", 100.0, 40.0, &[("adj", 900000)]), "M0 40L50 0L50 0L100 40Z");
+        assert_eq!(d("hexagon", 100.0, 40.0, &[]), "M0 20L10 0L90 0L100 20L90 40L10 40Z");
+        // octagon: the corners are cut by ss * 29289 / 100000.
+        assert_eq!(
+            d("octagon", 100.0, 100.0, &[]),
+            "M0 29.289L29.289 0L70.711 0L100 29.289L100 70.711L70.711 100L29.289 100L0 70.711Z"
+        );
+        assert_eq!(d("octagon", 100.0, 100.0, &[("adj", 90000)]), d("octagon", 100.0, 100.0, &[("adj", 50000)]));
+        assert_eq!(d("chevron", 100.0, 40.0, &[]), "M0 0L80 0L100 20L80 40L0 40L20 20Z");
+        assert_eq!(d("chevron", 100.0, 40.0, &[("adj", 25000)]), "M0 0L90 0L100 20L90 40L0 40L10 20Z");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_zjsg_2__a_regular_pentagon_touches_the_top_the_sides_and_the_bottom() {
+        let path = geometry_path("pentagon", 100.0, 100.0, &[]).unwrap();
+        let points: Vec<(f64, f64)> = path
+            .iter()
+            .filter_map(|s| match s {
+                Seg::Move(x, y) | Seg::Line(x, y) => Some((*x, *y)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(points.len(), 5);
+        let near = |a: (f64, f64), b: (f64, f64)| (a.0 - b.0).abs() < 0.01 && (a.1 - b.1).abs() < 0.01;
+        assert!(near(points[0], (50.0, 0.0)), "{points:?}");
+        assert!(near(points[1], (100.0, 38.197)), "{points:?}");
+        assert!(near(points[2], (80.902, 100.0)), "{points:?}");
+        assert!(near(points[3], (19.098, 100.0)), "{points:?}");
+        assert!(near(points[4], (0.0, 38.197)), "{points:?}");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_zjsg_2__block_arrows_take_shaft_and_head_from_their_adjusts() {
+        // adj1 is the shaft's share of the thickness, adj2 the head's length in shorter sides.
+        assert_eq!(d("rightArrow", 100.0, 40.0, &[]), "M0 10L80 10L80 0L100 20L80 40L80 30L0 30Z");
+        assert_eq!(
+            d("rightArrow", 100.0, 40.0, &[("adj1", 100000), ("adj2", 100000)]),
+            "M0 0L60 0L60 0L100 20L60 40L60 40L0 40Z"
+        );
+        assert_eq!(d("leftArrow", 100.0, 40.0, &[]), "M0 20L20 0L20 10L100 10L100 30L20 30L20 40Z");
+        assert_eq!(d("upArrow", 40.0, 100.0, &[]), "M0 20L20 0L40 20L30 20L30 100L10 100L10 20Z");
+        assert_eq!(d("downArrow", 40.0, 100.0, &[]), "M10 0L30 0L30 80L40 80L20 100L0 80L10 80Z");
+        // The head is held to the length of the shape.
+        assert_eq!(
+            d("rightArrow", 100.0, 40.0, &[("adj2", 9_000_000)]),
+            "M0 10L0 10L0 0L100 20L0 40L0 30L0 30Z"
+        );
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_zjsg_2__callouts_put_the_tail_on_the_side_the_point_lies_beyond() {
+        // The default point is below and to the left: the tail leaves the bottom, in its left half.
+        assert_eq!(d("wedgeRectCallout", 120.0, 60.0, &[]), "M0 0L120 0L120 60L50 60L35 67.5L20 60L0 60Z");
+        // Far to the right of the centre: the tail leaves the right side, in its upper half.
+        assert_eq!(
+            d("wedgeRectCallout", 120.0, 60.0, &[("adj1", 100000), ("adj2", 0)]),
+            "M0 0L120 0L120 10L180 30L120 25L120 60L0 60Z"
+        );
+        // Above and to the right: the top, in its right half.
+        assert_eq!(
+            d("wedgeRectCallout", 120.0, 60.0, &[("adj1", 20000), ("adj2", -100000)]),
+            "M0 0L70 0L84 -30L100 0L120 0L120 60L0 60Z"
+        );
+        // To the left: the left side, in its lower half (the path runs up it).
+        assert_eq!(
+            d("wedgeRectCallout", 120.0, 60.0, &[("adj1", -100000), ("adj2", 10000)]),
+            "M0 0L120 0L120 60L0 60L0 50L-60 36L0 35Z"
+        );
+        // The rounded one has corners of adj3 of the shorter side and the same tail.
+        let round = d("wedgeRoundRectCallout", 120.0, 60.0, &[]);
+        assert!(round.starts_with("M10 0L110 0C"), "{round}");
+        assert!(round.contains("L50 60L35 67.5L20 60L10 60C"), "{round}");
+        assert!(d("wedgeRoundRectCallout", 120.0, 60.0, &[("adj3", 0)]).starts_with("M0 0L120 0L120 60"));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_zjsg_2__flowchart_shapes_and_round_rectangle_adjust() {
+        assert_eq!(d("roundRect", 40.0, 20.0, &[("adj", 50000)]).get(..11), Some("M10 0L30 0C"));
+        assert!(d("roundRect", 40.0, 20.0, &[("adj", 0)]).starts_with("M0 0L40 0C40 0 40 0 40 0L"));
+        let stadium = d("flowChartTerminator", 100.0, 40.0, &[]);
+        assert!(stadium.starts_with("M16.088 0L83.912 0C"), "{stadium}");
+        assert!(stadium.contains(" 100 20C") && stadium.contains(" 0 20C"), "{stadium}");
+        let document = d("flowChartDocument", 100.0, 100.0, &[]);
+        assert!(document.starts_with("M0 0L100 0L100 80.194C50 80.194 50 110.75 0 93.389Z"), "{document}");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_zjsg_2__every_listed_preset_has_a_path_and_nothing_else_does() {
+        for prst in PRESETS {
+            assert!(geometry_path(prst, 50.0, 30.0, &[]).is_some(), "{prst}");
+            assert!(drawn_geometry(prst));
+        }
+        assert!(geometry_path("star5", 50.0, 30.0, &[]).is_none());
+    }
+
+    fn line_shape(head: Option<&str>, tail: Option<&str>, width: f64) -> DrawnShape {
+        let arrow = |kind: &str| ShapeArrow { kind: kind.into(), width: "med".into(), length: "med".into() };
+        let mut shape = sample();
+        shape.geometry = "line".into();
+        shape.text = None;
+        shape.fill = None;
+        shape.line = Some(ShapeStroke {
+            width,
+            colour: "#FF0000".into(),
+            dash: "solid".into(),
+            head: head.map(arrow),
+            tail: tail.map(arrow),
+        });
+        shape
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_zjsg_2__a_triangle_arrowhead_sits_on_the_end_and_shortens_the_line() {
+        // A 2 px line: a medium head is 3 line widths long and wide.
+        let markup = shape_markup(&line_shape(None, Some("triangle"), 2.0), 100.0, 0.0, 1.0).unwrap();
+        assert!(markup.contains("<path d=\"M0 0L94 0\" fill=\"none\" stroke=\"#FF0000\" stroke-width=\"2\"/>"), "{markup}");
+        assert!(markup.contains("<path d=\"M100 0L94 3L94 -3Z\" fill=\"#FF0000\" stroke=\"none\"/>"), "{markup}");
+        // At the start the head points back along the line.
+        let markup = shape_markup(&line_shape(Some("triangle"), None, 2.0), 100.0, 0.0, 1.0).unwrap();
+        assert!(markup.contains("d=\"M0 0L6 -3L6 3Z\""), "{markup}");
+        assert!(markup.contains("d=\"M6 0L100 0\""), "{markup}");
+        // A line flipped horizontally runs right to left: its end is at the left.
+        let mut flipped = line_shape(None, Some("triangle"), 2.0);
+        flipped.flip_horizontal = true;
+        let markup = shape_markup(&flipped, 100.0, 0.0, 1.0).unwrap();
+        assert!(markup.contains("d=\"M0 0L6 -3L6 3Z\""), "{markup}");
+        assert!(markup.contains("d=\"M100 0L6 0\""), "{markup}");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_zjsg_2__arrowhead_types_and_sizes() {
+        let mut shape = line_shape(None, Some("arrow"), 2.0);
+        let markup = shape_markup(&shape, 100.0, 0.0, 1.0).unwrap();
+        // An open arrow is two strokes and leaves the line whole.
+        assert!(markup.contains("d=\"M94 3L100 0L94 -3\" fill=\"none\" stroke=\"#FF0000\" stroke-width=\"2\""), "{markup}");
+        assert!(markup.contains("d=\"M0 0L100 0\""), "{markup}");
+        shape.line.as_mut().unwrap().tail = Some(ShapeArrow { kind: "oval".into(), width: "lg".into(), length: "sm".into() });
+        let markup = shape_markup(&shape, 100.0, 0.0, 1.0).unwrap();
+        // Small is 2 widths, large 5: 4 long and 10 wide, centred on the end.
+        assert!(markup.contains("<ellipse cx=\"100\" cy=\"0\" rx=\"2\" ry=\"5\" transform=\"rotate(0 100 0)\""), "{markup}");
+        shape.line.as_mut().unwrap().tail = Some(ShapeArrow { kind: "diamond".into(), width: "med".into(), length: "med".into() });
+        let markup = shape_markup(&shape, 100.0, 0.0, 1.0).unwrap();
+        assert!(markup.contains("d=\"M103 0L100 3L97 0L100 -3Z\""), "{markup}");
+        shape.line.as_mut().unwrap().tail = Some(ShapeArrow { kind: "stealth".into(), width: "med".into(), length: "med".into() });
+        let markup = shape_markup(&shape, 100.0, 0.0, 1.0).unwrap();
+        assert!(markup.contains("d=\"M100 0L94 3L95.5 0L94 -3Z\""), "{markup}");
+        assert!(markup.contains("d=\"M0 0L95.5 0\""), "{markup}");
+        // A hairline sizes its heads as a 2 px line; zoom scales the line and so the heads.
+        let thin = shape_markup(&line_shape(None, Some("triangle"), 0.5), 100.0, 0.0, 1.0).unwrap();
+        assert!(thin.contains("d=\"M100 0L94 3L94 -3Z\""), "{thin}");
+        let zoomed = shape_markup(&line_shape(None, Some("triangle"), 2.0), 200.0, 0.0, 2.0).unwrap();
+        assert!(zoomed.contains("d=\"M200 0L188 6L188 -6Z\""), "{zoomed}");
+    }
+
+    fn gradient(angle: f64, scaled: bool) -> ShapeGradient {
+        ShapeGradient {
+            stops: vec![(0.0, "#FF0000".into()), (0.5, "#00FF00".into()), (1.0, "#0000FF".into())],
+            angle,
+            scaled,
+            path: None,
+            focus: [0.5, 0.5],
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_zjsg_2__linear_gradients_run_at_their_angle_across_the_box() {
+        let g = |angle, scaled, w, h, fh, fv| gradient_defs(&gradient(angle, scaled), "g", w, h, fh, fv);
+        // Unscaled, in pixels: 90 degrees runs top to bottom through the centre.
+        let down = g(90.0, false, 100.0, 50.0, false, false);
+        assert!(down.contains("gradientUnits=\"userSpaceOnUse\" x1=\"50\" y1=\"0\" x2=\"50\" y2=\"50\""), "{down}");
+        assert!(down.contains("<stop offset=\"0\" stop-color=\"#FF0000\"/><stop offset=\"0.5\" stop-color=\"#00FF00\"/><stop offset=\"1\" stop-color=\"#0000FF\"/>"), "{down}");
+        let across = g(0.0, false, 100.0, 50.0, false, false);
+        assert!(across.contains("x1=\"0\" y1=\"25\" x2=\"100\" y2=\"25\""), "{across}");
+        // 45 degrees unscaled on a 100 by 50 box reaches the corners it projects: half = (100+50)*0.7071/2 = 53.03, 37.5 along each axis from (50, 25).
+        let slant = g(45.0, false, 100.0, 50.0, false, false);
+        assert!(slant.contains("x1=\"12.5\" y1=\"-12.5\" x2=\"87.5\" y2=\"62.5\""), "{slant}");
+        // Scaled: the unit square's own diagonal, whatever the box.
+        let scaled = g(45.0, true, 100.0, 50.0, false, false);
+        assert!(scaled.contains("<linearGradient id=\"g\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\">"), "{scaled}");
+        // A shape flipped horizontally flips its gradient: 0 degrees runs right to left.
+        let flipped = g(0.0, true, 100.0, 50.0, true, false);
+        assert!(flipped.contains("x1=\"1\" y1=\"0.5\" x2=\"0\" y2=\"0.5\""), "{flipped}");
+        let up = g(90.0, true, 100.0, 50.0, false, true);
+        assert!(up.contains("x1=\"0.5\" y1=\"1\" x2=\"0.5\" y2=\"0\""), "{up}");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_zjsg_2__path_gradients_spread_from_their_focus_and_fill_the_shape() {
+        let mut g = gradient(0.0, false);
+        g.path = Some("circle".into());
+        let centred = gradient_defs(&g, "g", 100.0, 50.0, false, false);
+        assert!(centred.contains("<radialGradient id=\"g\" cx=\"0.5\" cy=\"0.5\" fx=\"0.5\" fy=\"0.5\" r=\"0.707\">"), "{centred}");
+        g.focus = [0.0, 0.0];
+        let corner = gradient_defs(&g, "g", 100.0, 50.0, true, false);
+        assert!(corner.contains("cx=\"1\" cy=\"0\"") && corner.contains("r=\"1.414\""), "{corner}");
+        // The shape is filled by its gradient.
+        let mut shape = sample();
+        shape.gradient = Some(gradient(90.0, false));
+        shape.text = None;
+        let markup = shape_markup(&shape, 80.0, 40.0, 1.0).unwrap();
+        assert!(markup.contains("<defs><linearGradient id=\"dcg"), "{markup}");
+        assert!(markup.contains("fill=\"url(#dcg") && !markup.contains("fill=\"#FF8000\""), "{markup}");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_zjsg_2__rotation_turns_the_whole_shape_about_its_centre_and_a_vertical_flip_turns_text() {
+        let mut shape = sample();
+        shape.rotation = 30.0;
+        let markup = shape_markup(&shape, 80.0, 40.0, 1.0).unwrap();
+        assert!(markup.starts_with("<div style=\"position:absolute;left:0;top:0;width:80px;height:40px;transform:rotate(30deg);\"><svg"), "{markup}");
+        assert!(markup.ends_with("</div></div>"), "{markup}");
+        shape.rotation = 360.0;
+        assert!(shape_markup(&shape, 80.0, 40.0, 1.0).unwrap().starts_with("<svg"));
+        let mut flipped = sample();
+        flipped.flip_vertical = true;
+        let markup = shape_markup(&flipped, 80.0, 40.0, 1.0).unwrap();
+        assert!(markup.contains("overflow:visible;transform:rotate(180deg);\""), "{markup}");
+        assert!(!shape_markup(&sample(), 80.0, 40.0, 1.0).unwrap().contains("rotate(180deg)"));
+        // A horizontal flip mirrors the path and leaves the text as it is.
+        let mut mirrored = sample();
+        mirrored.flip_horizontal = true;
+        assert!(!shape_markup(&mirrored, 80.0, 40.0, 1.0).unwrap().contains("rotate"));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_zjsg_2__the_anchor_of_a_rotated_shape_is_the_box_around_it() {
+        // A 200 by 100 shape turned 90 degrees fills a 100 by 200 box: its own box is 2 by 0.5 of that.
+        let [ex, ey] = extent_in_rotated_box(200.0, 100.0, 90.0);
+        assert!((ex - 2.0).abs() < 1e-9 && (ey - 0.5).abs() < 1e-9, "{ex} {ey}");
+        let own = unrotated((0.0, 0.0, 100.0, 200.0), [ex, ey]);
+        assert!((own.0 + 50.0).abs() < 1e-9 && (own.1 - 50.0).abs() < 1e-9, "{own:?}");
+        assert!((own.2 - 150.0).abs() < 1e-9 && (own.3 - 150.0).abs() < 1e-9, "{own:?}");
+        // 45 degrees: the box around a square of side s is s * 1.4142 wide, so the square is 0.7071 of it.
+        let [ex, ey] = extent_in_rotated_box(100.0, 100.0, 45.0);
+        assert!((ex - 0.7071).abs() < 1e-4 && (ey - 0.7071).abs() < 1e-4);
+        // Not turned: the box is the shape.
+        assert_eq!(extent_in_rotated_box(100.0, 40.0, 0.0), [1.0, 1.0]);
+        assert_eq!(extent_in_rotated_box(100.0, 40.0, 180.0), [1.0, 1.0]);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_zjsg_2__a_group_draws_its_children_in_boxes_of_its_own() {
+        let mut left = sample();
+        left.name = "Left".into();
+        left.text = None;
+        let mut right = sample();
+        right.name = "Right".into();
+        right.text = None;
+        right.rotation = 90.0;
+        let group = DrawnShape {
+            kind: "group".into(),
+            geometry: String::new(),
+            fill: None,
+            line: None,
+            text: None,
+            children: vec![
+                DrawnChild { rel: [0.0, 0.0, 0.5, 1.0], shape: left },
+                DrawnChild { rel: [0.5, 0.25, 0.5, 0.5], shape: right },
+            ],
+            ..sample()
+        };
+        let markup = shape_markup(&group, 200.0, 100.0, 1.0).unwrap();
+        assert!(!markup.starts_with("<svg"), "{markup}");
+        assert!(markup.contains("<div style=\"position:absolute;left:0px;top:0px;width:100px;height:100px;\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"100\""), "{markup}");
+        assert!(markup.contains("<div style=\"position:absolute;left:100px;top:25px;width:100px;height:50px;transform:rotate(90deg);\"><svg"), "{markup}");
+        assert_eq!(markup.matches("<path ").count(), 2);
     }
 }

@@ -683,10 +683,18 @@ pub(crate) fn add(
             chart_ids.insert(chart.part.as_str(), id);
         }
     }
-    for shape in new_shapes {
+    fn flatten<'a>(shapes: &'a [calc_doc_model::Shape], out: &mut Vec<&'a calc_doc_model::Shape>) {
+        for shape in shapes {
+            out.push(shape);
+            flatten(&shape.children, out);
+        }
+    }
+    let mut every = Vec::new();
+    flatten(new_shapes, &mut every);
+    for shape in every.iter().copied() {
         let id = if ids.contains(&shape.id) {
             (2..=u32::MAX)
-                .find(|i| !ids.contains(i) && !new_shapes.iter().any(|s| s.id == *i))
+                .find(|i| !ids.contains(i) && !every.iter().any(|s| s.id == *i))
                 .ok_or_else(|| invalid(&drawing, "No shape identity is available"))?
         } else {
             shape.id

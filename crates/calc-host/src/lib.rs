@@ -189,7 +189,9 @@ pub use calc_engine::contract::{AsyncDisposition, AsyncRejection, AsyncToken, Re
 mod tables;
 pub use tables::TableChange;
 mod shapes;
-pub use calc_doc_model::{Shape, ShapeBody, ShapeColour, ShapeFill, ShapeKind, ShapeLine};
+pub use calc_doc_model::{
+    LineEnd, Shape, ShapeBody, ShapeColour, ShapeFill, ShapeGradient, ShapeKind, ShapeLine,
+};
 pub use shapes::{Points, ShapeChange};
 mod review;
 pub use calc_doc_model::NoteStylePatch;
