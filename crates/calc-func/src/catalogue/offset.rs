@@ -106,6 +106,14 @@ fn shifted(site: &Site<'_>, arguments: &[CalcValue], positions_known: bool) -> S
     let height = extent(site, 3, arguments.get(3), base.row_count()).map_err(without_position)?;
     let width = extent(site, 4, arguments.get(4), base.column_count()).map_err(without_position)?;
     if !positions_known {
+        // A single-cell result cannot spill, and a shift at least as large as the
+        // grid leaves it regardless of the original cell's unknown position.
+        if height.abs() == 1
+            && width.abs() == 1
+            && (rows.abs() >= i64::from(MAX_ROWS) || cols.abs() >= i64::from(MAX_COLUMNS))
+        {
+            return Err(Exit::Error(WorksheetErrorCode::Ref));
+        }
         return Err(site.not_modelled(Some(0)));
     }
     let top = i64::from(base.first().row()) + rows;
