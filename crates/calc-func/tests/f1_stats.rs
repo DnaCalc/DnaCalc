@@ -22,13 +22,33 @@ fn forecast_ets_curved_histories_use_nonseasonal_fit() {
     ] {
         let args = vec![n(target), col(&values), col(&[1.0, 2.0, 3.0, 4.0, 5.0])];
         exact(call("FORECAST.ETS", args.clone()), f64::from_bits(forecast));
-        exact(call("FORECAST.ETS.CONFINT", args), f64::from_bits(confidence));
+        let mut explicit = args;
+        explicit.extend([n(0.95), n(0.0)]);
+        exact(call("FORECAST.ETS.CONFINT", explicit), f64::from_bits(confidence));
     }
     // A nondefault confidence still has an observed one-ULP discrepancy.
     assert!(matches!(
         call("FORECAST.ETS.CONFINT", vec![n(67.0), col(&[53.0, -5.0, -55.0, -99.0, -54.0]), col(&[39.0, 41.0, 43.0, 45.0, 47.0]), n(0.8)]),
         Err(calc_func::FunctionFault::NotHeld { .. })
     ));
+    // Excel's result for this finer history differs from the fitted path.
+    let finer = [-1.5744309740288685e-9, -1.1667468574325294e-9, -7.374139777075955e-10, -2.8600218723946056e-10, 7.201681417674604e-10];
+    assert!(matches!(call("FORECAST.ETS", vec![n(6.0), col(&finer), col(&[1.0, 2.0, 3.0, 4.0, 5.0])]), Err(calc_func::FunctionFault::NotHeld { .. })));
+    let confidence_counterexample = [-1.004336277661869e60, -2.840388535262473e59, 4.362585714044312e59, 1.1565559999830178e60, 1.8956847337677644e60];
+    assert!(matches!(call("FORECAST.ETS.CONFINT", vec![n(6.0), col(&confidence_counterexample), col(&[1.0, 2.0, 3.0, 4.0, 5.0])]), Err(calc_func::FunctionFault::NotHeld { .. })));
+}
+
+/// Excel propagates a worksheet error supplied as a cube connection or set.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn cube_functions_propagate_first_argument_errors() {
+    for (name, count) in [("CUBEVALUE", 2), ("CUBEMEMBER", 2), ("CUBESET", 2), ("CUBERANKEDMEMBER", 3), ("CUBEMEMBERPROPERTY", 3), ("CUBEKPIMEMBER", 3), ("CUBESETCOUNT", 1)] {
+        for code in [Div0, NA, Num, Ref, Value] {
+            let mut args = vec![e(code)];
+            args.extend((1..count).map(|_| e(NA)));
+            error(call(name, args), code);
+        }
+    }
 }
 
 /// Excel 20527 wraps 2h-1 at the signed-32-bit boundary in interval variance.
@@ -37,10 +57,10 @@ fn forecast_ets_curved_histories_use_nonseasonal_fit() {
 fn forecast_ets_confidence_wraps_large_horizon_term() {
     let values = col(&[1.295212745666504, 1.617269515991211, 2.296365737915039, 3.238837242126465, 4.209005355834961]);
     let times = col(&[1.0, 2.0, 3.0, 4.0, 5.0]);
-    exact(call("FORECAST.ETS.CONFINT", vec![n(1_073_741_829.0), values.clone(), times.clone()]), f64::from_bits(0x4203_2db7_1374_d403));
-    exact(call("FORECAST.ETS.CONFINT", vec![n(1_073_741_830.0), values, times.clone()]), 0.0);
+    exact(call("FORECAST.ETS.CONFINT", vec![n(1_073_741_829.0), values.clone(), times.clone(), n(0.95), n(0.0)]), f64::from_bits(0x4203_2db7_1374_d403));
+    exact(call("FORECAST.ETS.CONFINT", vec![n(1_073_741_830.0), values, times.clone(), n(0.95), n(0.0)]), 0.0);
     let maximum = col(&[1.8903273354517296, 2.019882615073584, 2.22050576863694, 2.6246356982155703, 3.3064261186809745]);
-    exact(call("FORECAST.ETS.CONFINT", vec![n(2_147_483_652.0), maximum, times]), f64::from_bits(0x4172_796c_467e_b0f4));
+    exact(call("FORECAST.ETS.CONFINT", vec![n(2_147_483_652.0), maximum, times, n(0.95), n(0.0)]), f64::from_bits(0x4172_796c_467e_b0f4));
 }
 
 /// Excel 20527 flushes the beta recurrence's subnormal density product.

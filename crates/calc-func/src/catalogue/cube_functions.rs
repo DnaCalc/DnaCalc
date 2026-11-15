@@ -48,6 +48,9 @@ fn model(
     services: &mut EvalServices<'_>,
 ) -> Step<Arc<CubeModel>> {
     let connection = single(site, arguments, 0, services)?;
+    if let CoreRef::Error(code) = connection.core_ref() {
+        return fail(code);
+    }
     let CoreRef::Text(name) = connection.core_ref() else {
         return fail(WorksheetErrorCode::NA);
     };
@@ -225,7 +228,11 @@ fn cubeset(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<
 }
 
 fn cubesetcount(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
-    match single(site, a, 0, sv)?.cube_value() {
+    let value = single(site, a, 0, sv)?;
+    if let CoreRef::Error(code) = value.core_ref() {
+        return fail(code);
+    }
+    match value.cube_value() {
         Some(held) if held.set => Ok(CalcValue::number(held.tuples.len() as f64)),
         Some(_) => fail(WorksheetErrorCode::Value),
         None => fail(WorksheetErrorCode::NA),

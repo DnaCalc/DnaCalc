@@ -229,7 +229,7 @@ fn quantum_exponent(y: &[f64]) -> i32 {
         .unwrap_or(0)
 }
 
-fn exact_trend(y: &[f64]) -> Option<f64> {
+fn exact_scaled_history(y: &[f64]) -> Option<(f64, Vec<f64>)> {
     let n = y.len();
     let minimum = quantum_exponent(y);
     if !(-900..=900).contains(&minimum) {
@@ -244,6 +244,11 @@ fn exact_trend(y: &[f64]) -> Option<f64> {
     {
         return None;
     }
+    Some((quantum, scaled))
+}
+
+fn exact_trend(y: &[f64]) -> Option<f64> {
+    let (quantum, scaled) = exact_scaled_history(y)?;
     let difference = scaled[1] - scaled[0];
     if scaled
         .iter()
@@ -957,10 +962,13 @@ fn evaluate_fitted(
         season == 0.0 || short_history || season > (series.values.len() / 2) as f64;
     // The five-point curvature detector above identifies no seasonality for
     // these directly observed histories. The existing nonseasonal forecast
-    // and the default-confidence interval agree with independent Excel controls.
+    // agrees with independent Excel controls in the existing exact-scaled
+    // history region. Finer histories and confidence intervals have shown
+    // independent rounding discrepancies and remain unmodelled.
     if season == 1.0 && series.directly_observed && horizon >= 1.0
         && strictly_curved_five(&series.values)
-        && (output == Output::Forecast || (output == Output::Confidence && confidence == 0.95))
+        && exact_scaled_history(&series.values).is_some()
+        && output == Output::Forecast
     {
         return nonseasonal(site, &series.values, output, statistic, horizon, confidence);
     }
