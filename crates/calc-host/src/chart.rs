@@ -120,6 +120,12 @@ pub struct ChartView {
 const OFFICE_ACCENTS: [&str; 6] = ["4472C4", "ED7D31", "A5A5A5", "FFC000", "5B9BD5", "70AD47"];
 
 impl HostState {
+    /// The workbook theme's twelve colours as `RRGGBB` in scheme order (dk1, lt1, dk2, lt2, accent1 to
+    /// accent6, hlink, folHlink); empty when the workbook has no theme part (drawing colours, dc-zjsg.2).
+    pub fn theme_colours(&self) -> &[String] {
+        self.loaded.theme_colors()
+    }
+
     /// The workbook's accent1–accent6, with the same Office fallback for charts and tables.
     pub fn theme_accent(&self, index: usize) -> Option<String> {
         let fallback = OFFICE_ACCENTS.get(index)?;

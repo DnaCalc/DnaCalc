@@ -93,6 +93,7 @@ pub(super) fn shape_picture(
     id: u32,
     crop: [f64; 4],
     description: Option<String>,
+    flip: [bool; 2],
 ) -> impl IntoView + use<> {
     let src = RwSignal::new(None::<String>);
     let alive = Rc::new(Cell::new(true));
@@ -106,8 +107,10 @@ pub(super) fn shape_picture(
     });
     on_cleanup(move || held.with_value(|alive| alive.set(false)));
     let style = wire::drawn_shapes::crop_style(crop);
+    // A flipped picture is its box mirrored with the cropped image in it (a flip turns after the crop).
+    let frame = format!("position:absolute;left:0;top:0;width:100%;height:100%;overflow:hidden;{}", wire::drawn_shapes::flip_style(flip));
     view! {
-        <div style="position:absolute;left:0;top:0;width:100%;height:100%;overflow:hidden">
+        <div style=frame>
             {move || src.get().map(|src| view! { <img src=src alt=description.clone().unwrap_or_default() draggable="false" use:css=style.clone() /> })}
         </div>
     }

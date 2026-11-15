@@ -511,38 +511,40 @@ fn around(w: i64, h: i64, degrees: f64) -> (i64, i64) {
     )
 }
 
+/// A shape of `size` in slot `(column, row)`, turned by `degrees`, filled and outlined blue, its name as its text.
+fn put(
+    shapes: &mut Vec<Shape>,
+    next: &mut u32,
+    name: &str,
+    kind: ShapeKind,
+    prst: &str,
+    (column, row): (i64, i64),
+    size: (i64, i64),
+    degrees: f64,
+) -> usize {
+    let (bw, bh) = around(size.0, size.1, degrees);
+    let mut shape = Shape::new(*next, name.into(), kind, slot(column, row, bw, bh));
+    *next += 1;
+    shape.geometry = Some(prst.into());
+    shape.extent = size;
+    shape.rotation = (degrees * 60_000.0) as i64;
+    shape.fill = ShapeFill::Solid(ShapeColour::Rgb(0x2E75B6));
+    shape.line = calc_doc::model::ShapeLine { weight: Some(19_050), colour: Some(ShapeColour::Rgb(0x1F3864)), ..Default::default() };
+    shape.text = Some(vec![name.into()]);
+    shape.body.anchor = Some("ctr".into());
+    shape.body.alignment = vec![Some("ctr".into())];
+    shape.body.size = Some(900);
+    shape.body.colour = Some(ShapeColour::Rgb(0xFFFFFF));
+    shapes.push(shape);
+    shapes.len() - 1
+}
+
 fn paint2_shapes() -> Vec<Shape> {
     use calc_doc::model::{LineEnd, ShapeGradient, ShapeLine};
     const W: i64 = 3 * CELL_W;
     const H: i64 = 3 * CELL_H;
     let mut shapes: Vec<Shape> = Vec::new();
     let mut next = 2u32;
-    fn put(
-        shapes: &mut Vec<Shape>,
-        next: &mut u32,
-        name: &str,
-        kind: ShapeKind,
-        prst: &str,
-        (column, row): (i64, i64),
-        size: (i64, i64),
-        degrees: f64,
-    ) -> usize {
-        let (bw, bh) = around(size.0, size.1, degrees);
-        let mut shape = Shape::new(*next, name.into(), kind, slot(column, row, bw, bh));
-        *next += 1;
-        shape.geometry = Some(prst.into());
-        shape.extent = size;
-        shape.rotation = (degrees * 60_000.0) as i64;
-        shape.fill = ShapeFill::Solid(ShapeColour::Rgb(0x2E75B6));
-        shape.line = ShapeLine { weight: Some(19_050), colour: Some(ShapeColour::Rgb(0x1F3864)), ..Default::default() };
-        shape.text = Some(vec![name.into()]);
-        shape.body.anchor = Some("ctr".into());
-        shape.body.alignment = vec![Some("ctr".into())];
-        shape.body.size = Some(900);
-        shape.body.colour = Some(ShapeColour::Rgb(0xFFFFFF));
-        shapes.push(shape);
-        shapes.len() - 1
-    }
     // Turns and flips.
     let mut rotated = Vec::new();
     rotated.push(put(&mut shapes, &mut next, "Rot 30 rect", ShapeKind::Shape, "rect", (0, 6), (W, H), 30.0));
@@ -812,4 +814,245 @@ fn dc_zjsg_3__pictures_paint_workbook() {
         assert_eq!(r.image.as_ref().unwrap().content_type, m.image.as_ref().unwrap().content_type, "{}", made.name);
         assert_eq!(r.svg.as_ref().map(|s| (&s.bytes, s.content_type.as_str())), m.svg.as_ref().map(|s| (&s.bytes, s.content_type.as_str())), "{}", made.name);
     }
+}
+
+// dc-zjsg.2 / dc-zjsg.3, third slice: the workbook the third paint comparison draws, on the same base: colour
+// modifiers, outer shadows, the text rectangles of presets, bent and curved connectors with adjusts, flipped
+// pictures and pictures inside groups, in slots 256 px wide below row 12 (`slot`). Regenerate with
+// DNACALC_WRITE_FIXTURE=1 cargo test -p calc-doc --test drawing_layer dc_zjsg_2__shapes_paint3_workbook.
+const SHAPES_PAINT3: &[u8] = include_bytes!("fixtures/drawing/shapes-paint3.xlsx");
+
+fn modified(base: ShapeColour, modifiers: &[(&str, i64)]) -> ShapeColour {
+    ShapeColour::Modified(Box::new(base), modifiers.iter().map(|(n, v)| ((*n).to_owned(), *v)).collect())
+}
+
+fn paint3_shapes() -> Vec<Shape> {
+    use calc_doc::model::{LineEnd, ShapeLine, ShapePicture, ShapeShadow};
+    const W: i64 = 3 * CELL_W;
+    const H: i64 = 3 * CELL_H;
+    let mut shapes: Vec<Shape> = Vec::new();
+    let mut next = 2u32;
+    let scheme = |name: &str| ShapeColour::Scheme(name.into());
+    // Colour modifiers: Excel's palette variants of accent 1 and 2, then the others.
+    let swatches: [(&str, ShapeColour); 12] = [
+        ("Mod accent1 lumMod60 lumOff40", modified(scheme("accent1"), &[("lumMod", 60_000), ("lumOff", 40_000)])),
+        ("Mod accent1 lumMod75", modified(scheme("accent1"), &[("lumMod", 75_000)])),
+        ("Mod accent2 lumMod20 lumOff80", modified(scheme("accent2"), &[("lumMod", 20_000), ("lumOff", 80_000)])),
+        ("Mod accent1 shade50", modified(scheme("accent1"), &[("shade", 50_000)])),
+        ("Mod accent1 tint40", modified(scheme("accent1"), &[("tint", 40_000)])),
+        ("Mod accent5 satMod50", modified(scheme("accent5"), &[("satMod", 50_000)])),
+        ("Mod srgb red alpha50", modified(ShapeColour::Rgb(0xFF0000), &[("alpha", 50_000)])),
+        ("Mod accent4 lumMod50", modified(scheme("accent4"), &[("lumMod", 50_000)])),
+        ("Mod srgb 70AD47 lumOff-20", modified(ShapeColour::Rgb(0x70AD47), &[("lumOff", -20_000)])),
+        ("Mod tx2 lumMod 90 lumOff 10", modified(scheme("tx2"), &[("lumMod", 90_000), ("lumOff", 10_000)])),
+        ("Mod bg1 lumMod 85", modified(scheme("bg1"), &[("lumMod", 85_000)])),
+        ("Mod accent6 hueOff 60", modified(scheme("accent6"), &[("hueOff", 3_600_000)])),
+    ];
+    for (i, (name, colour)) in swatches.into_iter().enumerate() {
+        let index = put(&mut shapes, &mut next, name, ShapeKind::Shape, "rect", (i as i64 % 4, 6 + 4 * (i as i64 / 4)), (W, H), 0.0);
+        shapes[index].fill = ShapeFill::Solid(colour);
+        shapes[index].line = ShapeLine { weight: Some(28_575), colour: Some(modified(scheme("accent3"), &[("alpha", 60_000)])), ..Default::default() };
+        shapes[index].body.colour = Some(ShapeColour::Rgb(0x000000));
+    }
+    // Outer shadows (rows 20 to 31): Excel's offset-bottom-right look, a wide blur, a scaled one aligned to the
+    // top, a shadow of an outline only, of a turned shape both ways, of a line, and of a gradient-free ellipse.
+    let shadow = |blur: i64, distance: i64, degrees: i64, alpha: i64, algn: Option<&str>, scale: (i64, i64), rotate: bool| ShapeShadow {
+        blur,
+        distance,
+        direction: degrees * 60_000,
+        scale,
+        align: algn.map(str::to_owned),
+        rotate_with_shape: rotate,
+        colour: modified(ShapeColour::Rgb(0), &[("alpha", alpha)]),
+    };
+    let cases: [(&str, &str, f64, ShapeShadow); 8] = [
+        ("Shadow offset BR blur 4pt", "rect", 0.0, shadow(50_800, 38_100, 45, 40_000, Some("tl"), (100_000, 100_000), false)),
+        ("Shadow wide blur 12pt dist 8pt", "roundRect", 0.0, shadow(152_400, 101_600, 90, 50_000, None, (100_000, 100_000), false)),
+        ("Shadow no blur dir 0", "rect", 0.0, shadow(0, 76_200, 0, 60_000, Some("l"), (100_000, 100_000), false)),
+        ("Shadow scaled 90% algn t", "ellipse", 0.0, shadow(63_500, 0, 0, 35_000, Some("t"), (90_000, 90_000), false)),
+        ("Shadow rot 30 not with shape", "rect", 30.0, shadow(50_800, 76_200, 45, 50_000, Some("tl"), (100_000, 100_000), false)),
+        ("Shadow rot 30 with shape", "rect", 30.0, shadow(50_800, 76_200, 45, 50_000, Some("tl"), (100_000, 100_000), true)),
+        ("Shadow diamond", "diamond", 0.0, shadow(38_100, 50_800, 135, 45_000, Some("b"), (100_000, 100_000), false)),
+        ("Shadow flowChartDocument", "flowChartDocument", 0.0, shadow(50_800, 63_500, 60, 45_000, Some("br"), (100_000, 100_000), false)),
+    ];
+    for (i, (name, prst, degrees, s)) in cases.into_iter().enumerate() {
+        let index = put(&mut shapes, &mut next, name, ShapeKind::Shape, prst, (i as i64 % 4, 22 + 5 * (i as i64 / 4)), (W, H), degrees);
+        shapes[index].shadow = Some(s);
+    }
+    let outline = put(&mut shapes, &mut next, "Shadow of an outline only", ShapeKind::Shape, "rect", (0, 32), (W, H), 0.0);
+    shapes[outline].fill = ShapeFill::None;
+    shapes[outline].body.colour = Some(ShapeColour::Rgb(0x000000));
+    shapes[outline].shadow = Some(shadow(50_800, 63_500, 45, 50_000, Some("tl"), (100_000, 100_000), false));
+    let line = put(&mut shapes, &mut next, "Shadow of a line", ShapeKind::Connector, "line", (1, 32), (W, H), 0.0);
+    shapes[line].shadow = Some(shadow(25_400, 63_500, 90, 50_000, Some("tl"), (100_000, 100_000), false));
+    shapes[line].line.weight = Some(38_100);
+    // The text rectangles of presets: a long text in each, wrapping inside the preset's rectangle (rows 38 on).
+    let presets: [(&str, &[(&str, i64)]); 20] = [
+        ("roundRect", &[("adj", 50_000)]),
+        ("ellipse", &[]),
+        ("triangle", &[]),
+        ("rtTriangle", &[]),
+        ("diamond", &[]),
+        ("flowChartDecision", &[]),
+        ("octagon", &[]),
+        ("trapezoid", &[]),
+        ("parallelogram", &[]),
+        ("hexagon", &[]),
+        ("pentagon", &[]),
+        ("rightArrow", &[]),
+        ("leftArrow", &[]),
+        ("upArrow", &[]),
+        ("downArrow", &[]),
+        ("chevron", &[]),
+        ("flowChartTerminator", &[]),
+        ("flowChartDocument", &[]),
+        ("wedgeRectCallout", &[]),
+        ("wedgeRoundRectCallout", &[("adj3", 40_000)]),
+    ];
+    for (i, (prst, adjust)) in presets.into_iter().enumerate() {
+        let name = format!("TextRect {prst}");
+        let index = put(&mut shapes, &mut next, &name, ShapeKind::Shape, prst, (i as i64 % 4, 38 + 5 * (i as i64 / 4)), (W, H), 0.0);
+        shapes[index].adjust = adjust.iter().map(|(n, v)| ((*n).to_owned(), *v)).collect();
+        shapes[index].fill = ShapeFill::Solid(modified(scheme("accent1"), &[("lumMod", 40_000), ("lumOff", 60_000)]));
+        shapes[index].body.colour = Some(ShapeColour::Rgb(0x000000));
+        shapes[index].text = Some(vec![format!("{name} text wraps inside the text rectangle of its preset geometry")]);
+    }
+    // Bent and curved connectors with adjusts, arrowheads at the ends, some flipped and turned (rows 66 on).
+    let connectors: [(&str, &[(&str, i64)], bool, bool, f64); 16] = [
+        ("bentConnector2", &[], false, false, 0.0),
+        ("bentConnector3", &[], false, false, 0.0),
+        ("bentConnector3", &[("adj1", 25_000)], false, false, 0.0),
+        ("bentConnector4", &[("adj1", 30_000), ("adj2", 120_000)], false, false, 0.0),
+        ("bentConnector5", &[("adj1", 20_000), ("adj2", 40_000), ("adj3", 80_000)], false, false, 0.0),
+        ("bentConnector3", &[], true, false, 0.0),
+        ("bentConnector3", &[], false, true, 0.0),
+        ("bentConnector2", &[], true, true, 0.0),
+        ("curvedConnector2", &[], false, false, 0.0),
+        ("curvedConnector3", &[], false, false, 0.0),
+        ("curvedConnector3", &[("adj1", 25_000)], false, false, 0.0),
+        ("curvedConnector4", &[("adj1", 30_000), ("adj2", 120_000)], false, false, 0.0),
+        ("curvedConnector5", &[("adj1", 20_000), ("adj2", 40_000), ("adj3", 80_000)], false, false, 0.0),
+        ("curvedConnector3", &[], true, false, 0.0),
+        ("bentConnector3", &[], false, false, 90.0),
+        ("curvedConnector3", &[], false, true, 90.0),
+    ];
+    for (i, (prst, adjust, flip_h, flip_v, degrees)) in connectors.into_iter().enumerate() {
+        let tag = format!("{}{}{}{}", if flip_h { " flipH" } else { "" }, if flip_v { " flipV" } else { "" }, if degrees != 0.0 { " rot 90" } else { "" }, if adjust.is_empty() { String::new() } else { format!(" {}", adjust.iter().map(|(n, v)| format!("{n}={v}")).collect::<Vec<_>>().join(",")) });
+        let name = format!("Conn {prst}{tag}");
+        let index = put(&mut shapes, &mut next, &name, ShapeKind::Connector, prst, (i as i64 % 4, 66 + 5 * (i as i64 / 4)), (W, H), degrees);
+        let s = &mut shapes[index];
+        s.adjust = adjust.iter().map(|(n, v)| ((*n).to_owned(), *v)).collect();
+        s.flip_horizontal = flip_h;
+        s.flip_vertical = flip_v;
+        s.fill = ShapeFill::None;
+        s.text = None;
+        s.line = ShapeLine {
+            weight: Some(25_400),
+            colour: Some(ShapeColour::Rgb(0xC00000)),
+            head: Some(LineEnd { kind: "oval".into(), width: None, length: None }),
+            tail: Some(LineEnd { kind: "triangle".into(), width: Some("med".into()), length: Some("med".into()) }),
+            ..Default::default()
+        };
+    }
+    // Flipped pictures and pictures inside groups (rows 88 on).
+    let card = |id: u32, name: &str, crop: [i64; 4]| {
+        let mut p = Shape::new(id, name.into(), ShapeKind::Picture, slot(0, 0, 0, 0));
+        p.geometry = Some("rect".into());
+        p.media = Some(ShapePicture { image: Some(media("image/png", CARD_PNG)), svg: None, crop, description: Some(format!("{name} (test card)")) });
+        p
+    };
+    const PW: i64 = 1_828_800;
+    const PH: i64 = 1_143_000;
+    let flips: [(&str, bool, bool, f64, [i64; 4]); 5] = [
+        ("Pic flipH", true, false, 0.0, [0; 4]),
+        ("Pic flipV", false, true, 0.0, [0; 4]),
+        ("Pic flipH+V", true, true, 0.0, [0; 4]),
+        ("Pic flipH rot 30 crop", true, false, 30.0, [10_000, 0, 30_000, 20_000]),
+        ("Pic flipV rot 90", false, true, 90.0, [0; 4]),
+    ];
+    for (i, (name, flip_h, flip_v, degrees, crop)) in flips.into_iter().enumerate() {
+        let (bw, bh) = around(PW, PH, degrees);
+        let mut p = card(next, name, crop);
+        next += 1;
+        p.anchor = slot(i as i64 % 4, 90 + 8 * (i as i64 / 4), bw, bh);
+        p.extent = (PW, PH);
+        p.rotation = (degrees * 60_000.0) as i64;
+        p.flip_horizontal = flip_h;
+        p.flip_vertical = flip_v;
+        shapes.push(p);
+    }
+    for (i, (name, flip_h, degrees)) in [("Group with picture", false, 0.0), ("Group flipH with picture", true, 0.0), ("Group rot 20 with picture", false, 20.0)].into_iter().enumerate() {
+        let (gw, gh) = (2 * PW, PH + 600_000);
+        let (bw, bh) = around(gw, gh, degrees);
+        let mut group = Shape::new(next, name.into(), ShapeKind::Group, slot(1 + i as i64, 98, bw, bh));
+        next += 1;
+        group.extent = (gw, gh);
+        group.child_extent = (gw, gh);
+        group.flip_horizontal = flip_h;
+        group.rotation = (degrees * 60_000.0) as i64;
+        let mut picture = card(next, &format!("{name} card"), [0; 4]);
+        next += 1;
+        picture.anchor = group.anchor;
+        picture.offset = (0, 0);
+        picture.extent = (PW, PH);
+        let mut flipped = card(next, &format!("{name} card flipV"), [0; 4]);
+        next += 1;
+        flipped.anchor = group.anchor;
+        flipped.offset = (PW, 600_000);
+        flipped.extent = (PW, PH / 2);
+        flipped.flip_vertical = true;
+        let mut label = Shape::new(next, format!("{name} label"), ShapeKind::TextBox, group.anchor);
+        next += 1;
+        label.geometry = Some("rect".into());
+        label.offset = (PW, 0);
+        label.extent = (PW, 600_000);
+        label.text = Some(vec![name.into()]);
+        label.fill = ShapeFill::None;
+        label.line = ShapeLine { hidden: true, ..Default::default() };
+        group.children = vec![picture, flipped, label];
+        shapes.push(group);
+    }
+    shapes
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_2__shapes_paint3_workbook() {
+    let base = load(SHAPES_BASE);
+    let sheet = first_sheet(&base);
+    let model = edited(&base, vec![WorkbookOp::SetShapes { sheet, shapes: paint3_shapes() }]);
+    let (saved, _) = save_model(&base, &model);
+    #[cfg(not(target_arch = "wasm32"))]
+    if std::env::var_os("DNACALC_WRITE_FIXTURE").is_some() {
+        std::fs::write(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/drawing/shapes-paint3.xlsx"), &saved).unwrap();
+    }
+    // The committed workbook is that save and reads back with each colour modifier, shadow and flip as made.
+    let committed = load(SHAPES_PAINT3);
+    let read = committed.sheets()[0].shapes();
+    assert_eq!(read.unread, 0);
+    let made = paint3_shapes();
+    assert_eq!(read.shapes.len(), made.len());
+    fn same(read: &Shape, made: &Shape) {
+        assert_eq!((read.name.as_str(), read.kind, &read.geometry), (made.name.as_str(), made.kind, &made.geometry));
+        assert_eq!((read.offset, read.extent, read.rotation), (made.offset, made.extent, made.rotation), "{}", made.name);
+        assert_eq!((read.flip_horizontal, read.flip_vertical), (made.flip_horizontal, made.flip_vertical), "{}", made.name);
+        assert_eq!(read.adjust, made.adjust, "{}", made.name);
+        assert_eq!(read.fill, made.fill, "{}", made.name);
+        assert_eq!(read.line.colour, made.line.colour, "{}", made.name);
+        assert_eq!(read.shadow, made.shadow, "{}", made.name);
+        assert_eq!(read.media.as_ref().map(|m| (m.crop, m.image.as_ref().map(|i| i.bytes.clone()))), made.media.as_ref().map(|m| (m.crop, m.image.as_ref().map(|i| i.bytes.clone()))), "{}", made.name);
+        assert_eq!(read.children.len(), made.children.len(), "{}", made.name);
+        for (r, m) in read.children.iter().zip(&made.children) {
+            same(r, m);
+        }
+    }
+    for (read, made) in read.shapes.iter().zip(&made) {
+        same(read, made);
+        assert_eq!(read.anchor, made.anchor, "{}", made.name);
+    }
+    // Spot checks that the made shapes hold what the names say.
+    let by_name = |name: &str| made.iter().find(|s| s.name == name).unwrap_or_else(|| panic!("{name}"));
+    assert!(matches!(&by_name("Mod accent1 shade50").fill, ShapeFill::Solid(ShapeColour::Modified(_, m)) if m == &[("shade".to_owned(), 50_000)]));
+    assert_eq!(by_name("Shadow rot 30 with shape").shadow.as_ref().map(|s| s.rotate_with_shape), Some(true));
+    assert_eq!(by_name("Group flipH with picture").children.len(), 3);
 }

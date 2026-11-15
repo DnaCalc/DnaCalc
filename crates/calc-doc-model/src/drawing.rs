@@ -28,6 +28,10 @@ pub enum ShapeKind {
 pub enum ShapeColour {
     Rgb(u32),
     Scheme(String),
+    /// A colour with the modifiers its element carries (`a:lumMod`, `a:lumOff`, `a:tint`, `a:shade`,
+    /// `a:alpha`, `a:satMod`, ...), each by local name with its `val` (100000ths of a percent; `hue`
+    /// ones in 60000ths of a degree), in file order. The base is an `Rgb` or a `Scheme` (dc-zjsg.2).
+    Modified(Box<ShapeColour>, Vec<(String, i64)>),
 }
 
 /// A fill: what `a:noFill` or `a:solidFill` of the shape's properties say, `None` meaning the
@@ -83,6 +87,24 @@ pub struct ShapeLine {
     pub head: Option<LineEnd>,
     /// `a:tailEnd`: the arrowhead at the line's end.
     pub tail: Option<LineEnd>,
+}
+
+/// An outer shadow (`a:effectLst` `a:outerShdw`): drawn as a second pass beneath the shape (dc-zjsg.2).
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ShapeShadow {
+    /// `blurRad`, in EMU.
+    pub blur: i64,
+    /// `dist`, in EMU.
+    pub distance: i64,
+    /// `dir`, in 60,000ths of a degree clockwise from the right.
+    pub direction: i64,
+    /// `sx`, `sy`: the shadow's scale in 100000ths of a percent (100000 when absent).
+    pub scale: (i64, i64),
+    /// `algn`: the point the scale is about (`b` when absent): `tl`, `t`, `tr`, `l`, `ctr`, `r`, `bl`, `b`, `br`.
+    pub align: Option<String>,
+    /// `rotWithShape` (true when absent): the shadow's direction turns with the shape.
+    pub rotate_with_shape: bool,
+    pub colour: ShapeColour,
 }
 
 /// A picture's media part: the bytes as stored (empty when the part is larger than the reader keeps;
@@ -171,6 +193,8 @@ pub struct Shape {
     pub flip_vertical: bool,
     pub fill: ShapeFill,
     pub line: ShapeLine,
+    /// `a:effectLst` `a:outerShdw` of the shape's properties.
+    pub shadow: Option<ShapeShadow>,
     /// The text body's paragraphs, each the concatenation of its runs; `None` without a body.
     pub text: Option<Vec<String>>,
     /// The text body's properties (empty without a body).
@@ -212,6 +236,7 @@ impl Shape {
             flip_vertical: false,
             fill: ShapeFill::Style,
             line: ShapeLine::default(),
+            shadow: None,
             text: None,
             body: ShapeBody::default(),
             picture: None,

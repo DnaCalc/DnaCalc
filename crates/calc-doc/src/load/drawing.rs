@@ -10,7 +10,7 @@ use super::{Events, LoadError, read_xml};
 use crate::opc::Package;
 use crate::xml::XmlEvent;
 use calc_doc_model::{
-    ChartAnchor, DrawingPoint, LineEnd, Shape, ShapeBody, ShapeColour, ShapeConnection, ShapeFill,
+    ChartAnchor, DrawingPoint, LineEnd, Shape, ShapeBody, ShapeColour, ShapeConnection, ShapeFill, ShapeShadow,
     PictureMedia, ShapeGradient, ShapeKind, ShapeLine, ShapePicture, SheetShapes,
 };
 
@@ -490,13 +490,32 @@ fn text_body(body: &Node) -> ShapeBody {
 
 fn colour(fill: &Node) -> Option<ShapeColour> {
     let c = fill.children.first()?;
-    match c.local.as_str() {
-        "srgbClr" => u32::from_str_radix(c.attribute("val")?, 16)
-            .ok()
-            .map(ShapeColour::Rgb),
-        "schemeClr" => Some(ShapeColour::Scheme(c.attribute("val")?.to_owned())),
-        _ => None,
-    }
+    let base = match c.local.as_str() {
+        "srgbClr" => ShapeColour::Rgb(u32::from_str_radix(c.attribute("val")?, 16).ok()?),
+        "schemeClr" => ShapeColour::Scheme(c.attribute("val")?.to_owned()),
+        _ => return None,
+    };
+    // The modifiers (`a:lumMod`, `a:tint`, `a:alpha`, ...) in file order; one without a value is kept out.
+    let modifiers: Vec<(String, i64)> = c
+        .children
+        .iter()
+        .filter_map(|m| Some((m.local.clone(), m.number("val")?)))
+        .collect();
+    Some(if modifiers.is_empty() { base } else { ShapeColour::Modified(Box::new(base), modifiers) })
+}
+
+/// `a:outerShdw` of an `a:effectLst`.
+fn shadow(effects: &Node) -> Option<ShapeShadow> {
+    let s = effects.child("outerShdw")?;
+    Some(ShapeShadow {
+        blur: s.number("blurRad").unwrap_or(0),
+        distance: s.number("dist").unwrap_or(0),
+        direction: s.number("dir").unwrap_or(0),
+        scale: (s.number("sx").unwrap_or(100_000), s.number("sy").unwrap_or(100_000)),
+        align: s.attribute("algn").map(str::to_owned),
+        rotate_with_shape: s.attribute("rotWithShape").is_none_or(|v| matches!(v, "1" | "true")),
+        colour: colour(s)?,
+    })
 }
 
 /// `a:gradFill`: its stops and its linear direction or path; `None` when no stop has a colour held here.
@@ -559,6 +578,7 @@ fn shape_properties(shape: &mut Shape, properties: &Node) {
                 shape.fill = colour(child).map_or(ShapeFill::Other, ShapeFill::Solid);
             }
             "gradFill" => shape.fill = gradient(child).map_or(ShapeFill::Other, ShapeFill::Gradient),
+            "effectLst" => shape.shadow = shadow(child),
             "pattFill" | "blipFill" | "grpFill" => shape.fill = ShapeFill::Other,
             "ln" => {
                 let mut line = ShapeLine {

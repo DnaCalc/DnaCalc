@@ -2587,7 +2587,9 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 let (x0, y0, x1, y1) = wire::drawn_shapes::unrotated((x0, y0, x1, y1), shape.extent);
                 let picture = shape.picture.clone().filter(|_| shape.kind == "picture");
                 let (w, h) = (x1 - x0, y1 - y0);
-                let (markup, turn) = if picture.is_some() {
+                // The images of pictures inside a group: each in the boxes of its ancestors, under the group's vector parts.
+                let inside = if shape.kind == "group" { wire::drawn_shapes::group_pictures(&shape, w, h) } else { Vec::new() };
+                let (markup, turn) = if picture.is_some() || !inside.is_empty() {
                     // A picture's image is its own element under the outline and the placeholder; both turn together.
                     (wire::drawn_shapes::outline_markup(&shape, w, h, z)?, wire::drawn_shapes::turn_style(&shape))
                 } else {
@@ -2600,9 +2602,25 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                     px(w),
                     px(h)
                 );
+                let flip = [shape.flip_horizontal, shape.flip_vertical];
+                let sheet_ref = wire::Sheet::of(sheet_id);
                 let image = picture.filter(|p| p.placeholder.is_none()).map(|p| {
-                    image::shape_picture(controller, wire::Sheet::of(sheet_id), shape.id, p.crop, p.description)
+                    image::shape_picture(controller, sheet_ref, shape.id, p.crop, p.description, flip)
                 });
+                let inside = inside
+                    .into_iter()
+                    .map(|member| {
+                        let mut view = image::shape_picture(controller, sheet_ref, member.id, member.crop, member.description, member.flip).into_any();
+                        for [left, top, width, height, degrees] in member.chain.iter().rev() {
+                            let turn = wire::drawn_shapes::turn_style_of(*degrees);
+                            let style = format!(
+                                "position:absolute;left:{left}px;top:{top}px;width:{width}px;height:{height}px;{turn}"
+                            );
+                            view = view! { <div style=style>{view}</div> }.into_any();
+                        }
+                        view
+                    })
+                    .collect_view();
                 Some(view! {
                     <div
                         class="dc-shape"
@@ -2612,6 +2630,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                         use:css=style
                     >
                         {image}
+                        {inside}
                         <div style="position:absolute;left:0;top:0;width:100%;height:100%" inner_html=markup></div>
                     </div>
                 })
