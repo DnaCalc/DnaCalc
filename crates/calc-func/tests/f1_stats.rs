@@ -178,6 +178,20 @@ fn cube_final_errors_follow_numeric_argument_validation() {
     error(call("CUBESET", vec![t("missing"), t("set"), e(Div0), n(1.0), e(Ref)]), Div0);
 }
 
+/// Excel's reflected inverse rejects a tiny second shape at finite bounds.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beta_inverse_reflected_tiny_second_shape_returns_num() {
+    let half_up = f64::from_bits(0.5_f64.to_bits() + 1);
+    for name in ["BETA.INV", "BETAINV"] {
+        for alpha in [0.001, 1.0, 1000.0] {
+            error(call(name, vec![n(half_up), n(alpha), n(2.0_f64.powi(-55))]), Num);
+        }
+        error(call(name, vec![n(0.75), n(1.0), n(1e-50), n(-2.0), n(3.0)]), Num);
+        exact(call(name, vec![n(0.5), n(1.0), n(2.0_f64.powi(-56))]), f64::from_bits(0x3fef_ffff_ffff_ffff));
+    }
+}
+
 /// Saved Excel 20527 controls cover both aliases and reflected searches at
 /// several probabilities, tiny shapes, and second shapes of one and 100.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -1040,6 +1054,23 @@ fn student_t_stored_tails_and_admission_match_excel() {
         call("TDIST", vec![n(0.1), n(5.0), n(edge)]),
         f64::from_bits(0x3fdd_934b_16c7_934b),
     );
+}
+
+/// Excel 20527 publishes these tiny Student-t tails as zero, including text input.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn student_t_tail_flushes_measured_subnormal_results() {
+    let x = n(f64::from_bits(0x4684_49cc_b7da_4c64));
+    exact(call("T.DIST.2T", vec![x.clone(), n(10.0)]), 0.0);
+    exact(call("TDIST", vec![x, n(10.0), n(2.0)]), 0.0);
+    let degrees = n(f64::from_bits(0x407d_79c3_9f40_2c68));
+    exact(call("T.DIST.RT", vec![t("1e2"), degrees.clone()]), 0.0);
+    exact(call("TDIST", vec![t("1e2"), degrees, n(1.0)]), 0.0);
+    exact(
+        call("T.DIST.2T", vec![n(f64::from_bits(0x46fc_f908_8f7b_18b0)), n(9.0)]),
+        f64::from_bits(0x0138_52fd_89f2_b1cd),
+    );
+    error(call("T.DIST.2T", vec![n(1e200), n(2.0)]), Num);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
