@@ -998,7 +998,6 @@ def hand_rows(batch, repo, work, first_row=1, reuse=False):
     carried, carried_build = committed_answers(repo, batch["sheet"]) if reuse else ({}, None)
     live_rows = 0
     wire_of_literal = {v: k for k, v in ERROR_LITERAL_WIRE.items()}
-    wire_of_literal.update({"#CODE2050": "calc", "#CODE2046": "calc", "#CODE2045": "spill"})
     lines, cases, contradicted, builds, envs = [], [], [], set(), set()
     for function, args, legacy, source in jnt_hand.CASES[batch["id"]]:
         row = first_row + len(lines)

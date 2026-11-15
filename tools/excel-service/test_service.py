@@ -368,5 +368,28 @@ class SessionShutdownRequestTests(unittest.TestCase):
                 self.submit(directory, "-Stop")
 
 
+class ImportErrorNamesTests(unittest.TestCase):
+    """dc-078b: the importer names an error the way the service names it (CVErr 2050 #CALC!, 2045 #SPILL!);
+    the old `#CODE2046` -> calc entry labelled CVErr 2046, which is #CONNECT!, as #CALC!."""
+
+    def test_service_names_map_and_a_connect_error_is_not_calc(self):
+        import jnt_import
+        wire = {v: k for k, v in jnt_import.ERROR_LITERAL_WIRE.items()}
+        self.assertEqual(wire["#CALC!"], "calc")
+        self.assertEqual(wire["#SPILL!"], "spill")
+        self.assertNotIn("#CONNECT!", wire)
+        self.assertNotIn("#CODE2046", wire)
+        source = (Path(__file__).parent / "jnt_import.py").read_text()
+        self.assertNotIn("#CODE2046", source)
+
+    def test_program_names_match_the_adapter(self):
+        program = (Path(__file__).parent / "engines/excel/Program.cs").read_text()
+        for code, name in ((2046, "#CONNECT!"), (2047, "#BLOCKED!"), (2049, "#FIELD!"), (2050, "#CALC!"), (2051, "#BUSY!")):
+            self.assertIn('[%d] = "%s"' % (code, name), program)
+        convert = (ROOT / "platform/calc-oracle-excel/src/convert.rs").read_text()
+        for code, name in ((2046, "Connect"), (2047, "Blocked"), (2049, "Field"), (2050, "Calc"), (2051, "Busy")):
+            self.assertIn("%d => WorksheetErrorCode::%s," % (code, name), convert)
+
+
 if __name__ == "__main__":
     unittest.main()
