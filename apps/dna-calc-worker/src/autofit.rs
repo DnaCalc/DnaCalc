@@ -114,7 +114,14 @@ pub fn text_style_for(
         out.underline = matches!(font.underline.as_deref(), Some("single" | "double"));
         out.underline_style = font.underline.clone();
         out.strike = font.strike;
-        if !font.other_children.is_empty()
+        out.script = font
+            .vert_align
+            .clone()
+            .filter(|v| matches!(v.as_str(), "superscript" | "subscript"));
+        // `charset` names the font's code page, not an effect: nothing to paint. An unrecognised
+        // `vertAlign` value is preserved but not painted.
+        if font.other_children.iter().any(|name| name != "charset")
+            || font.vert_align.as_deref().is_some_and(|v| !matches!(v, "superscript" | "subscript"))
             || font
                 .underline
                 .as_deref()
@@ -651,6 +658,40 @@ mod tests {
                 .as_deref(),
             Some("#ffff00")
         );
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_971p_6__stored_super_and_subscript_project_and_a_charset_is_not_an_unpainted_effect() {
+        let book = calc_host::HostSession::open(
+            std::sync::Arc::new(calc_host::MemorySource::new(calc_host::blank_package())),
+            &Default::default(),
+            Default::default(),
+        )
+        .unwrap();
+        let sheet = book.host().sheets()[0].id();
+        let cell = calc_host::value::CellKey::new(sheet, 1, 1).unwrap();
+        let mut styles = (**book.host().styles()).clone();
+        let index = calc_host::patched_style(&mut styles, 0, &calc_host::FormatPatch { bold: Some(true), ..Default::default() }).unwrap();
+        let font = styles.cell_formats[index as usize].font_id.unwrap() as usize;
+        let project = |styles: &calc_host::StyleTable| text_style_for(book.host(), cell, 64., styles, index);
+        assert_eq!(project(&styles).script, None);
+        assert_eq!(project(&styles).unsupported, None);
+        styles.fonts[font].vert_align = Some("superscript".into());
+        let up = project(&styles);
+        assert_eq!((up.script.as_deref(), up.unsupported), (Some("superscript"), None));
+        styles.fonts[font].vert_align = Some("subscript".into());
+        assert_eq!(project(&styles).script.as_deref(), Some("subscript"));
+        // A charset is a code page, not an effect: it paints as it is and raises no diagnostic.
+        styles.fonts[font].other_children = vec!["charset".into()];
+        assert_eq!(project(&styles).unsupported, None);
+        // Effects still not painted are still said so; so is a vertAlign value this does not know.
+        styles.fonts[font].other_children = vec!["charset".into(), "shadow".into()];
+        assert!(project(&styles).unsupported.is_some());
+        styles.fonts[font].other_children.clear();
+        styles.fonts[font].vert_align = Some("sideways".into());
+        let odd = project(&styles);
+        assert_eq!(odd.script, None);
+        assert!(odd.unsupported.is_some());
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

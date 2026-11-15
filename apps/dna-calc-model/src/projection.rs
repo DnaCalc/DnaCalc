@@ -117,6 +117,9 @@ pub struct TextStyle {
     #[serde(default)]
     pub underline_style: Option<String>,
     pub strike: bool,
+    /// `superscript` or `subscript`: the font's vertical alignment as stored (dc-971p.6).
+    #[serde(default)]
+    pub script: Option<String>,
     /// Left, right, top and bottom at the physical cell boundary.
     pub borders: [Option<BorderShown>; 4],
     pub family: Option<String>,
@@ -151,6 +154,7 @@ impl Default for TextStyle {
             underline: false,
             underline_style: None,
             strike: false,
+            script: None,
             borders: Default::default(),
             family: None,
             pixels: 13.,

@@ -55,6 +55,7 @@ fn font_child(font: &mut Font, element: &XmlElement) {
         "name" => font.name = text(element, "val"),
         "family" => font.family = text(element, "val"),
         "scheme" => font.scheme = text(element, "val"),
+        "vertAlign" => font.vert_align = text(element, "val").filter(|v| v != "baseline"),
         "color" => font.color = Some(color(element)),
         other => font.other_children.push(other.to_owned()),
     }
