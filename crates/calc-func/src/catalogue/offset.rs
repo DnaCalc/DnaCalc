@@ -77,14 +77,17 @@ fn offset(
                 .is_some_and(|host| host.is_external_sheet(area.sheet()))
         })
     });
+    let positions_known = !services
+        .cells()
+        .is_some_and(|reader| !reader.reference_positions_known());
     let site = Site::new(OFFSET, services);
     if external {
         return Site::finish(Err(Exit::Error(WorksheetErrorCode::Value)));
     }
-    Site::finish(shifted(&site, arguments))
+    Site::finish(shifted(&site, arguments, positions_known))
 }
 
-fn shifted(site: &Site<'_>, arguments: &[CalcValue]) -> Step<CalcValue> {
+fn shifted(site: &Site<'_>, arguments: &[CalcValue], positions_known: bool) -> Step<CalcValue> {
     site.scalar_operands(arguments)?;
     let Some(reference) = arguments[0].as_reference() else {
         return Err(Exit::Error(WorksheetErrorCode::Value));
@@ -94,8 +97,17 @@ fn shifted(site: &Site<'_>, arguments: &[CalcValue]) -> Step<CalcValue> {
     };
     let rows = whole(site, 1, &arguments[1])?;
     let cols = whole(site, 2, &arguments[2])?;
-    let height = extent(site, 3, arguments.get(3), base.row_count())?;
-    let width = extent(site, 4, arguments.get(4), base.column_count())?;
+    // A zero extent alone cannot determine the displayed result when the caller has not
+    // supplied the reference position and spill placement (for example, Excel can show #SPILL!).
+    let without_position = |exit| match exit {
+        Exit::Error(WorksheetErrorCode::Ref) if !positions_known => site.not_modelled(Some(0)),
+        other => other,
+    };
+    let height = extent(site, 3, arguments.get(3), base.row_count()).map_err(without_position)?;
+    let width = extent(site, 4, arguments.get(4), base.column_count()).map_err(without_position)?;
+    if !positions_known {
+        return Err(site.not_modelled(Some(0)));
+    }
     let top = i64::from(base.first().row()) + rows;
     let left = i64::from(base.first().column()) + cols;
     let (top, bottom) = span(top, height);

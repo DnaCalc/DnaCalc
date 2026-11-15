@@ -250,7 +250,7 @@ pub fn calculate_with_reference_text(
             }
         }
     }
-    if has_reference && matches!(target.spelling(), "ROW" | "COLUMN" | "OFFSET") {
+    if has_reference && matches!(target.spelling(), "ROW" | "COLUMN") {
         return "fault:WitnessReferencePosition".to_owned();
     }
     let mode = NumericMode::Fast;
@@ -284,6 +284,11 @@ pub fn calculate_with_reference_text(
     );
     drop(services);
     match result {
+        Err(FunctionFault::NotImplemented { argument: Some(0), .. })
+            if has_reference && target.spelling() == "OFFSET" =>
+        {
+            "fault:WitnessReferencePosition".to_owned()
+        }
         Err(FunctionFault::NotImplemented { argument: Some(1), .. })
             if has_reference && target.spelling() == "CELL" =>
         {
@@ -491,6 +496,40 @@ mod tests {
         assert_eq!(
             calculate("ISREF", &matrix, None, Some(&context), true),
             calculate("ISREF", &matrix, None, None, true)
+        );
+    }
+
+    /// Retained Excel controls admit2-enrich-OFFSET-1025 and
+    /// admit2-special-OFFSET-0127 validate arguments before looking up a position.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn offset_validates_arguments_without_inventing_a_position() {
+        let context = cells();
+        let zero = json!("0x0000000000000000");
+        assert_eq!(
+            calculate(
+                "OFFSET",
+                &[json!("0x3119b479952404dc"), json!("0x40e5f90000000000"),
+                  json!("0x4052bfffffffffff"), json!("<>"), json!("0x54b249ad2594c37d")],
+                None, Some(&context), true,
+            ),
+            "error:Value"
+        );
+        assert_eq!(
+            calculate(
+                "OFFSET",
+                &[json!("0x3fbb6c919f634628"), json!("0x40808d8f333535c0"),
+                  json!("0x3fe269f47182f815"), json!({"error": "NA"})],
+                None, Some(&context), true,
+            ),
+            "error:NA"
+        );
+        assert_eq!(
+            calculate(
+                "OFFSET", &[zero.clone(), zero.clone(), zero.clone(), zero],
+                None, Some(&context), true,
+            ),
+            "fault:WitnessReferencePosition"
         );
     }
 
