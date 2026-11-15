@@ -95,11 +95,15 @@ def reference_info():
                                  '=OFFSET(A1,"1",0)', '=OFFSET(A1,TRUE,0)', '=OFFSET(A1,#N/A,0)', '=OFFSET(1,0,0)',
                                  '=ROWS(OFFSET(A1,0,0,4,2))', '=OFFSET(A1:B2,0,0,,)']):
         fam.case(f'offset-extra-{j}', 'OFFSET', s, 'Sheet1!H10', formula)
-    infos = ['address', 'col', 'row', 'contents', 'type', 'width', 'filename', 'format', 'prefix', 'protect',
+    # Left out: "filename", and "address" of another sheet's cell; both name the workbook
+    # ([Book3]Data!$C$3), which depends on how many workbooks the Excel session has made.
+    infos = ['address', 'col', 'row', 'contents', 'type', 'width', 'format', 'prefix', 'protect',
              'color', 'parentheses', 'ADDRESS', 'nope', '']
     for k, info in enumerate(infos):
         for i, r in enumerate(['A1', 'A2', 'A3', 'A4', 'A5', 'A7', 'B1:B5', 'D2', 'E1', 'E2', 'E3', 'Data!C3',
                                "'Third Sheet'!E9", 'Rate']):
+            if info.lower() == 'address' and '!' in r:
+                continue
             fam.case(f'cell-{k:02}-{i:02}', 'CELL', s, 'Sheet1!H10', f'=CELL("{info}",{r})')
     return fam
 
