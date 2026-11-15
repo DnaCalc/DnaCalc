@@ -810,6 +810,10 @@ fn width_conversion(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     if matches!(a[0].core_ref(), CoreRef::Text(text) if text.utf16_code_units().is_empty()) {
         return Ok(a[0].clone());
     }
+    // A blank cell is read as empty text by both width conversions.
+    if matches!(a[0].core_ref(), CoreRef::Empty) {
+        return Ok(crate::catalogue::kit::text_value(""));
+    }
     let (_, profile) = profile(site)?;
     if matches!(profile.id, LocaleId::JaJp | LocaleId::KoKr | LocaleId::ZhCn) {
         return Err(site.not_modelled(None));

@@ -109,6 +109,7 @@ fn width_conversion_propagates_errors_without_a_profile() {
             error(call(name, vec![e(code)]), code);
         }
         text(call(name, vec![t("")]), "");
+        text(call(name, vec![calc_func::value::CalcValue::empty()]), "");
         refused(call(name, vec![t("abc")]));
     }
 }
