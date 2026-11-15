@@ -916,17 +916,22 @@ pub fn commit_edit(mut change: PreparedEngineChange<'_, '_>) -> CommitReceipt {
     for node_change in node_changes {
         match node_change {
             NodeChange::Added { node, at } => {
+                state.calc_chain = None;
+                state.entry_log.push(at);
                 state.add_node(node, at);
                 state.pending.insert(node);
                 state.entered.insert(node);
                 added.push((at, node));
             }
-            NodeChange::Replaced { node, .. } => {
+            NodeChange::Replaced { node, at } => {
+                state.calc_chain = None;
+                state.entry_log.push(at);
                 state.unbind_node(node);
                 state.entered.insert(node);
                 replaced.push(node);
             }
             NodeChange::Removed { node, .. } => {
+                state.calc_chain = None;
                 state.remove_node(node);
                 removed.push(node);
             }

@@ -453,6 +453,43 @@ pub struct LoadedWorkbook {
 }
 
 impl LoadedWorkbook {
+    /// The cells of the saved calculation chain (`xl/calcChain.xml`), in the order the file lists
+    /// them (dc-y2o.1); empty when the package has no chain or it cannot be read. An entry's `i`
+    /// is the `sheetId` of its sheet and, when left out, the previous entry's (the first entry's
+    /// being the first sheet's); an entry of a sheet this load does not have is skipped.
+    pub fn calc_chain(&self) -> Vec<CellKey> {
+        const CALC_CHAIN: &str =
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/calcChain";
+        let Ok(Some(part)) = workbook_part_of(&self.package, &self.workbook_part, CALC_CHAIN) else {
+            return Vec::new();
+        };
+        let Ok(xml) = self.package.read_xml(&part) else {
+            return Vec::new();
+        };
+        let mut reader = xml.reader();
+        let mut chain = Vec::new();
+        let mut current = self.model.sheets().first().map(|s| s.key().get());
+        while let Ok(Some(event)) = reader.next_event() {
+            let XmlEvent::Start(e) = event else { continue };
+            if !e.name.is(MAIN_NAMESPACE, "c") {
+                continue;
+            }
+            if let Some(key) = e.attribute("i").and_then(|text| text.parse::<u32>().ok()) {
+                current = Some(key);
+            }
+            let Some((row, column)) = e.attribute("r").and_then(address::cell) else {
+                continue;
+            };
+            let Some(sheet) = self.model.sheets().iter().find(|s| Some(s.key().get()) == current) else {
+                continue;
+            };
+            if let Ok(at) = CellKey::new(sheet.id(), row, column) {
+                chain.push(at);
+            }
+        }
+        chain
+    }
+
     pub fn check_pivot_state(
         &self,
         state: &calc_doc_model::pivot::PivotState,

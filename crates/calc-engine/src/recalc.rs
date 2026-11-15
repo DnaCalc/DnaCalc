@@ -1930,10 +1930,15 @@ pub fn step(
     }
     let mut evaluations = 0;
     while work.failure.is_none() && evaluations < budget.evaluations {
+        // `publish_ready` publishes nothing while a cycle stands or a rewave is queued, so a fence cannot
+        // be flushed then; stopping here would leave the step without progress for ever (a workbook
+        // with a macro call to separate segments and a circular reference never completed).
         if work.publication_fences
             && work.has_fences
             && work.segment_scheduling
             && work.waves == 0
+            && work.cyclic.is_empty()
+            && work.rewave.is_empty()
             && let Some(segment) = active_segment(work)
             && work.progress.staged_results().any(|(node, result)| {
                 work.segments.get(&node).is_some_and(|own| *own < segment)
@@ -2993,6 +2998,7 @@ pub fn finish(
             .invalidate(work.invalidated_outside.iter().copied());
         state.pending.extend(work.invalidated_outside);
     }
+    let was_circular = state.circular_cells();
     if matches!(work.admission.scope, CalcScope::Workbook) {
         state.cycle_members = work.cyclic;
     } else {
@@ -3009,6 +3015,7 @@ pub fn finish(
         state.cycle_members = outside;
         state.cycle_members.extend(work.cyclic);
     }
+    update_circular_reported(state, &was_circular, &work.kept);
     state.published_mode = Some(work.calculation.mode().clone());
     spill_changes.sort_by_key(|change| change.anchor);
     changes.sort_by_key(|(at, _)| *at);
@@ -3026,6 +3033,48 @@ pub fn finish(
     .with_spill_changes(spill_changes)
     .with_completion(completion)
     .with_events(work.events))
+}
+
+/// Chooses the cell a host names as the circular reference after a publication (dc-y2o.1;
+/// Worksheet.CircularReference, Excel 16.0, 2026-10-30): a formula entered since the last
+/// publication that is now on a cycle it was not on closed that cycle and is the one; else the
+/// cell named before while it stays on one; else the first circular cell the rule holds in the
+/// saved chain's order (J1 of tests/fixtures/dc_y2o, whose chain lists I1 first: I1's evaluation
+/// never meets its cycle and is not held), else the first in cell order. Which cell Excel names
+/// after a rebuild (K1) and after the named cycle is broken while others stand (A9, then B3) is
+/// not matched: the first in cell order.
+fn update_circular_reported(
+    state: &mut EngineState,
+    was_circular: &[CellKey],
+    kept: &BTreeSet<NodeId>,
+) {
+    let entries = std::mem::take(&mut state.entry_log);
+    let now = state.circular_cells();
+    let on_cycle = |at: &CellKey| now.binary_search(at).is_ok();
+    state.circular_reported = if now.is_empty() {
+        None
+    } else if let Some(closer) = entries
+        .iter()
+        .rev()
+        .find(|at| on_cycle(at) && was_circular.binary_search(at).is_err())
+    {
+        Some(*closer)
+    } else if let Some(named) = state.circular_reported.filter(on_cycle) {
+        Some(named)
+    } else {
+        let held: BTreeSet<CellKey> = kept
+            .iter()
+            .filter(|node| state.node(**node).is_some())
+            .map(|node| live_anchor(state, *node))
+            .collect();
+        state
+            .calc_chain
+            .iter()
+            .flatten()
+            .find(|at| held.contains(at) && on_cycle(at))
+            .copied()
+            .or_else(|| now.first().copied())
+    };
 }
 
 pub(crate) fn live_anchor(state: &EngineState, node: NodeId) -> CellKey {
