@@ -4883,6 +4883,28 @@ mod outline_tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     #[allow(non_snake_case)]
+    fn dc_971p_6__format_cells_reads_and_previews_superscript_and_subscript() {
+        let mut server = Server::new();
+        assert!(server.execute_current(Request::Open { name: "blank.xlsx".into() }, Some(calc_host::blank_package())).reply.is_ok());
+        let sheet = server.book.host().sheets()[0].id();
+        let a1 = calc_host::value::CellKey::new(sheet, 1, 1).unwrap();
+        let selection = crate::format::selection(&server.book, vec![calc_host::value::GridArea::cell(a1)]).unwrap();
+        assert_eq!((selection.common.superscript, selection.common.subscript), (Some(false), Some(false)));
+        // The preview of the dialog's choice draws the cell in the chosen script.
+        let preview = |superscript, subscript| {
+            let patch = dna_calc_model::format::FormatPatch { superscript, subscript, ..Default::default() };
+            crate::format::preview(&server.book, a1, patch).map(|cell| cell.style.script.clone())
+        };
+        assert_eq!(preview(Some(true), None).unwrap().as_deref(), Some("superscript"));
+        assert_eq!(preview(None, Some(true)).unwrap().as_deref(), Some("subscript"));
+        assert_eq!(preview(None, None).unwrap(), None);
+        // Both on is refused before anything is drawn.
+        assert!(preview(Some(true), Some(true)).is_err());
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
     fn dc_zjsg_2__the_server_answers_a_sheets_shapes_drawn() {
         let mut server = Server::new();
         let data = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/shapes-paint.xlsx");

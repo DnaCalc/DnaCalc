@@ -18,6 +18,8 @@ pub struct FormatPatch {
     pub underline: Option<bool>,
     pub underline_style: Option<String>,
     pub strike: Option<bool>,
+    pub superscript: Option<bool>,
+    pub subscript: Option<bool>,
     /// Empty means automatic font colour or no fill.
     pub font_color: Option<String>,
     pub fill: Option<String>,

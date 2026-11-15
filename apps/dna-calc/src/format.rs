@@ -627,6 +627,20 @@ pub fn controls(controller: Controller) -> impl IntoView {
                         |p| p.strike,
                         |p| &mut p.strike,
                     )}
+                    {toggle(
+                        controller,
+                        "format-superscript",
+                        "Superscript",
+                        |p| p.superscript,
+                        |p| &mut p.superscript,
+                    )}
+                    {toggle(
+                        controller,
+                        "format-subscript",
+                        "Subscript",
+                        |p| p.subscript,
+                        |p| &mut p.subscript,
+                    )}
                     {text(
                         controller,
                         "format-font-color",

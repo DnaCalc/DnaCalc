@@ -19,6 +19,8 @@ pub fn host_patch(p: FormatPatch) -> calc_host::FormatPatch {
         underline: p.underline,
         underline_style: p.underline_style,
         strike: p.strike,
+        superscript: p.superscript,
+        subscript: p.subscript,
         font_color: p.font_color,
         fill: p.fill,
         borders: p.borders.map(|b| calc_host::BorderPatch {
@@ -125,6 +127,8 @@ fn properties(host: &calc_host::HostState, at: CellKey) -> FormatPatch {
         underline: Some(font.underline.as_deref().is_some_and(|v| v != "none")),
         underline_style: Some(font.underline.clone().unwrap_or("none".into())),
         strike: Some(font.strike),
+        superscript: Some(font.vert_align.as_deref() == Some("superscript")),
+        subscript: Some(font.vert_align.as_deref() == Some("subscript")),
         font_color: Some(font.color.as_ref().and_then(rgb).unwrap_or_default()),
         fill: match fill {
             None => Some(String::new()),
@@ -172,6 +176,8 @@ pub fn selection(book: &Workbook, areas: Vec<GridArea>) -> Result<FormatSelectio
             underline,
             underline_style,
             strike,
+            superscript,
+            subscript,
             font_color,
             fill,
             borders

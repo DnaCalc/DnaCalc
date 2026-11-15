@@ -194,6 +194,10 @@ pub struct FormatPatch {
     pub underline: Option<bool>,
     pub underline_style: Option<String>,
     pub strike: Option<bool>,
+    /// Format Cells' Superscript and Subscript boxes (the font's `vertAlign`): turning one on turns the other off, as
+    /// Excel's dialog does; turning one off leaves a different setting alone.
+    pub superscript: Option<bool>,
+    pub subscript: Option<bool>,
     pub font_color: Option<String>,
     pub fill: Option<String>,
     pub borders: Option<BorderPatch>,
@@ -281,6 +285,9 @@ impl FormatPatch {
             if on != (kind != "none") {
                 return Err("The underline choices disagree".into());
             }
+        }
+        if self.superscript == Some(true) && self.subscript == Some(true) {
+            return Err("Superscript and subscript cannot both be on".into());
         }
         for c in [&self.font_color, &self.fill].into_iter().flatten() {
             color(c)?;
@@ -459,6 +466,13 @@ pub fn patched_style(
     }
     if let Some(v) = patch.strike {
         font.strike = v;
+    }
+    for (value, name) in [(patch.superscript, "superscript"), (patch.subscript, "subscript")] {
+        match value {
+            Some(true) => font.vert_align = Some(name.into()),
+            Some(false) if font.vert_align.as_deref() == Some(name) => font.vert_align = None,
+            _ => {}
+        }
     }
     if let Some(v) = &patch.font_color {
         font.color = color(v)?;

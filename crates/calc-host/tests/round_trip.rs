@@ -53,6 +53,8 @@ fn dc_971p__format_cells_is_atomic_undoable_and_round_trips_styles() {
             underline: Some(true),
             underline_style: None,
             strike: Some(true),
+            superscript: Some(true),
+            subscript: None,
             font_color: Some("#123456".into()),
             fill: Some("#ffeedd".into()),
             borders: Some(BorderPatch {
@@ -29278,4 +29280,48 @@ fn dc_971p_37__measured_literal_and_wildcard_tildes_keep_numeric_labels_textual(
             );
         }
     }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_6__superscript_and_subscript_exclude_each_other_and_survive_a_save() {
+    use calc_host::{FormatPatch, WorkbookCommand};
+    let mut book = session(&calc_host::blank_package());
+    let sheet = book.host().sheets()[0].id();
+    let a1 = at(sheet, "A1");
+    assert!(enter(&mut book, a1, "x2").accepted());
+    let script = |book: &HostSession| {
+        let table = book.host().styles().clone();
+        let format = &table.cell_formats[book.host().cell_style(a1) as usize];
+        format.font_id.and_then(|id| table.fonts[id as usize].vert_align.clone())
+    };
+    let apply = |book: &mut HostSession, superscript: Option<bool>, subscript: Option<bool>| {
+        book.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {
+            areas: vec![GridArea::cell(a1)],
+            patch: FormatPatch { superscript, subscript, ..Default::default() },
+        }))
+    };
+    assert_eq!(script(&book), None);
+    assert!(apply(&mut book, Some(true), None).accepted());
+    assert_eq!(script(&book).as_deref(), Some("superscript"));
+    // Subscript on replaces superscript; superscript off then leaves the subscript alone.
+    assert!(apply(&mut book, None, Some(true)).accepted());
+    assert_eq!(script(&book).as_deref(), Some("subscript"));
+    assert!(apply(&mut book, Some(false), None).accepted());
+    assert_eq!(script(&book).as_deref(), Some("subscript"));
+    // Both on is refused and changes nothing; subscript off returns to the baseline.
+    let revision = book.host().revision();
+    let refusal = apply(&mut book, Some(true), Some(true));
+    assert!(!refusal.accepted());
+    assert_eq!(book.host().revision(), revision);
+    // The dialog's choice survives a save and a reopen.
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = open(&saved);
+    let table = reopened.styles().clone();
+    let r = reopened.sheets()[0].id();
+    let format = &table.cell_formats[reopened.cell_style(at(r, "A1")) as usize];
+    assert_eq!(format.font_id.and_then(|id| table.fonts[id as usize].vert_align.clone()).as_deref(), Some("subscript"));
+    assert!(apply(&mut book, None, Some(false)).accepted());
+    assert_eq!(script(&book), None);
 }
