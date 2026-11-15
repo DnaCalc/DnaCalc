@@ -262,6 +262,21 @@ fn factorials_and_combinatorics() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn multinomial_distinguishes_blank_cells_from_blank_ranges() {
+    let mut sheet = Sheet::new();
+    let blank = sheet.area(1, 1, 1, 1);
+    let blank2 = sheet.area(1, 2, 1, 2);
+    let range = sheet.area(1, 1, 2, 1);
+    error(call_on(&mut sheet, "MULTINOMIAL", vec![blank.clone()]), Value);
+    error(call_on(&mut sheet, "MULTINOMIAL", vec![blank.clone(), blank2]), Value);
+    exact(call_on(&mut sheet, "MULTINOMIAL", vec![range.clone()]), 1.0);
+    exact(call_on(&mut sheet, "MULTINOMIAL", vec![blank.clone(), range]), 1.0);
+    exact(call_on(&mut sheet, "MULTINOMIAL", vec![blank.clone(), n(0.0)]), 1.0);
+    error(call_on(&mut sheet, "MULTINOMIAL", vec![blank, e(Div0)]), Div0);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn gcd_and_lcm() {
     exact(call("GCD", vec![n(24.0), n(36.0)]), 12.0);
     exact(call("GCD", vec![n(5.0), n(2.0)]), 1.0);
