@@ -4392,6 +4392,7 @@ impl Server {
     /// The sheet's shapes and text boxes as the page draws them, in drawing order (dc-zjsg.2).
     fn drawn_shapes(&self, sheet: Sheet) -> Vec<wire::DrawnShape> {
         let host = self.book.host();
+        let theme = host.theme_colours();
         host.shapes(sheet.id())
             .iter()
             .filter_map(|shape| {
@@ -4409,7 +4410,7 @@ impl Server {
                         ChartPlace::Absolute { x, y, width, height }
                     }
                 };
-                crate::drawn::drawn(shape, place)
+                crate::drawn::drawn(shape, place, theme)
             })
             .collect()
     }
@@ -4988,6 +4989,52 @@ mod outline_tests {
         assert!(first.shape.flip_horizontal);
         assert_eq!(mirrored.children[2].shape.rotation, -30.0);
         assert_eq!(by("Group rot 20").rotation, 20.0);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dc_zjsg_2__the_server_answers_colour_modifiers_shadows_connectors_and_group_pictures() {
+        let mut server = Server::new();
+        let data = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/shapes-paint3.xlsx");
+        assert!(
+            server
+                .execute_current(Request::Open { name: "shapes-paint3.xlsx".into() }, Some(data.to_vec()))
+                .reply
+                .is_ok()
+        );
+        let sheet = server.book.host().sheets()[0].id();
+        let Reply::Shapes(shapes) = server.execute_current(Request::Shapes(Sheet::of(sheet)), None).reply.unwrap() else {
+            panic!("the shapes reply")
+        };
+        let by = |name: &str| shapes.iter().find(|s| s.name == name).unwrap_or_else(|| panic!("{name}"));
+        // Excel's "Accent 1, Lighter 40%" and "Darker 25%" and the shaded outline of accent 1, from the workbook's theme.
+        assert_eq!(by("Mod accent1 lumMod60 lumOff40").fill.as_deref(), Some("#8FAADC"));
+        assert_eq!(by("Mod accent1 lumMod75").fill.as_deref(), Some("#2F5597"));
+        assert_eq!(by("Mod accent1 shade50").fill.as_deref(), Some("#2F528F"));
+        assert_eq!(by("Mod srgb red alpha50").fill.as_deref(), Some("rgba(255,0,0,0.5)"));
+        // The outline's accent 3 at 60% opacity is a translucent grey.
+        assert!(by("Mod accent1 tint40").line.as_ref().unwrap().colour.starts_with("rgba(165,165,165,0.6"));
+        // Shadows reach the page with their offset along the direction, in pixels.
+        let shadow = by("Shadow offset BR blur 4pt").shadow.as_ref().unwrap();
+        // 38100 EMU is 4 px, along 45 degrees.
+        assert!((shadow.dx - 2.0 * 2f64.sqrt()).abs() < 1e-9 && (shadow.dy - 2.0 * 2f64.sqrt()).abs() < 1e-9, "{shadow:?}");
+        assert_eq!((shadow.align.as_str(), shadow.rotate), ("tl", false));
+        assert!(by("Shadow rot 30 with shape").shadow.as_ref().unwrap().rotate);
+        // Connectors with adjusts are drawn (they were refused before) and keep their flips.
+        assert_eq!(by("Conn bentConnector3 flipH").geometry, "bentConnector3");
+        assert_eq!(by("Conn curvedConnector5 adj1=20000,adj2=40000,adj3=80000").adjust.len(), 3);
+        // A flipped picture keeps its flips; a group's pictures are in its children with their images (no placeholder).
+        let flipped = by("Pic flipH+V");
+        assert!(flipped.flip_horizontal && flipped.flip_vertical);
+        let group = by("Group flipH with picture");
+        let pictures: Vec<_> = group.children.iter().filter(|c| c.shape.kind == "picture").collect();
+        assert_eq!(pictures.len(), 2);
+        assert!(pictures.iter().all(|c| c.shape.picture.as_ref().unwrap().placeholder.is_none()));
+        // The picture's bytes are answered by its identity, inside a group too.
+        let answer = server.handle(Request::ShapePicture { sheet: Sheet::of(sheet), id: pictures[0].shape.id }, None);
+        assert!(matches!(answer.reply, Ok(Reply::ShapePicture(Some(ref t))) if t == "image/png"));
+        assert!(answer.bytes.is_some());
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

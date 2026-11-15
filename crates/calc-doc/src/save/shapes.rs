@@ -7,7 +7,7 @@
 
 use super::{SaveRefusal, text::attribute_value};
 use calc_doc_model::{
-    ChartAnchor, DrawingPoint, LineEnd, Shape, ShapeColour, ShapeFill, ShapeGradient, ShapeKind,
+    ChartAnchor, DrawingPoint, LineEnd, Shape, ShapeColour, ShapeFill, ShapeGradient, ShapeKind, ShapeShadow,
     ShapeLine,
 };
 use std::collections::BTreeMap;
@@ -63,18 +63,67 @@ fn valid_point(p: &DrawingPoint) -> bool {
     p.column < 16384 && p.row < 1_048_576 && p.column_offset >= 0 && p.row_offset >= 0
 }
 
+/// The colour element: `a:srgbClr` or `a:schemeClr`, with the modifiers a modified colour carries as its children.
 fn colour(c: &ShapeColour, out: &mut Vec<u8>) -> Result<(), &'static str> {
-    match c {
+    let (base, modifiers): (&ShapeColour, &[(String, i64)]) = match c {
+        ShapeColour::Modified(base, modifiers) => (base, modifiers),
+        other => (other, &[]),
+    };
+    let tag = match base {
         ShapeColour::Rgb(v) if *v <= 0xff_ffff => {
-            out.extend(format!("<a:srgbClr val=\"{v:06X}\"/>").as_bytes());
+            out.extend(format!("<a:srgbClr val=\"{v:06X}\"").as_bytes());
+            "a:srgbClr"
         }
         ShapeColour::Scheme(name)
             if !name.is_empty() && name.bytes().all(|b| b.is_ascii_alphanumeric()) =>
         {
-            out.extend(format!("<a:schemeClr val=\"{name}\"/>").as_bytes());
+            out.extend(format!("<a:schemeClr val=\"{name}\"").as_bytes());
+            "a:schemeClr"
         }
         _ => return Err("Use an RGB or theme colour"),
+    };
+    if modifiers.is_empty() {
+        out.extend(b"/>");
+        return Ok(());
     }
+    out.push(b'>');
+    for (name, value) in modifiers {
+        if name.is_empty() || !name.bytes().all(|b| b.is_ascii_alphanumeric()) {
+            return Err("Use a colour modifier of letters and digits");
+        }
+        out.extend(format!("<a:{name} val=\"{value}\"/>").as_bytes());
+    }
+    out.extend(format!("</{tag}>").as_bytes());
+    Ok(())
+}
+
+/// `a:effectLst` with the shape's outer shadow.
+fn effects(shadow: &ShapeShadow, out: &mut Vec<u8>) -> Result<(), &'static str> {
+    if shadow.blur < 0 || shadow.distance < 0 {
+        return Err("Use a non-negative shadow blur and distance");
+    }
+    out.extend(
+        format!(
+            "<a:effectLst><a:outerShdw blurRad=\"{}\" dist=\"{}\" dir=\"{}\"",
+            shadow.blur, shadow.distance, shadow.direction
+        )
+        .as_bytes(),
+    );
+    if shadow.scale.0 != 100_000 {
+        out.extend(format!(" sx=\"{}\"", shadow.scale.0).as_bytes());
+    }
+    if shadow.scale.1 != 100_000 {
+        out.extend(format!(" sy=\"{}\"", shadow.scale.1).as_bytes());
+    }
+    if let Some(align) = &shadow.align {
+        if align.is_empty() || !align.bytes().all(|b| b.is_ascii_alphabetic()) {
+            return Err("Use a shadow alignment such as b or tl");
+        }
+        out.extend(format!(" algn=\"{align}\"").as_bytes());
+    }
+    out.extend(format!(" rotWithShape=\"{}\">", u8::from(shadow.rotate_with_shape)).as_bytes());
+    colour(&shadow.colour, out)?;
+    out.extend(b"</a:outerShdw></a:effectLst>");
     Ok(())
 }
 
@@ -373,6 +422,9 @@ fn object(shape: &Shape, remap: &BTreeMap<u32, u32>, media: &MediaRels, out: &mu
     } else {
         line(&shape.line, &mut properties).map_err(fail)?;
     }
+    if let Some(shadow) = &shape.shadow {
+        effects(shadow, &mut properties).map_err(fail)?;
+    }
     properties.extend(b"</xdr:spPr>");
     let hidden = if shape.hidden { " hidden=\"1\"" } else { "" };
     let mut name = Vec::new();
@@ -485,13 +537,11 @@ fn object(shape: &Shape, remap: &BTreeMap<u32, u32>, media: &MediaRels, out: &mu
                 attributes.push_str(" i=\"1\"");
             }
             let colour = match &body.colour {
-                Some(calc_doc_model::ShapeColour::Rgb(rgb)) => {
-                    format!("<a:solidFill><a:srgbClr val=\"{rgb:06X}\"/></a:solidFill>")
+                Some(c) => {
+                    let mut element = Vec::new();
+                    colour(c, &mut element).map_err(fail)?;
+                    format!("<a:solidFill>{}</a:solidFill>", String::from_utf8(element).expect("colour elements are ASCII"))
                 }
-                Some(calc_doc_model::ShapeColour::Scheme(name)) => format!(
-                    "<a:solidFill><a:schemeClr val=\"{}\"/></a:solidFill>",
-                    attribute_text(name)
-                ),
                 None => String::new(),
             };
             (attributes, colour)
