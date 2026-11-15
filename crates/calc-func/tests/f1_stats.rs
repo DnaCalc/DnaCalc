@@ -5181,6 +5181,25 @@ fn beta_inverse_zero_density_keeps_the_measured_initial_proposal() {
     }
 }
 
+/// Excel publishes the large-second-shape initial proposal for these inputs.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beta_inverse_large_second_shape_initial_proposal() {
+    for name in ["BETA.INV", "BETAINV"] {
+        for (p, alpha, beta, expected) in [
+            (0x3f80_da7e_c6c7_08c0, 0x4076_d000_0000_0000,
+             0x4547_e651_99b2_0988, 0x3b1a_d7a6_05e9_7d76),
+            (0x3f86_c432_aed7_c226, 0x407c_3000_0000_0000,
+             0x4ed5_b087_427c_b26b, 0x3192_9eb2_6cbd_0edd),
+        ] {
+            exact(
+                call(name, vec![n(f64::from_bits(p)), n(f64::from_bits(alpha)), n(f64::from_bits(beta))]),
+                f64::from_bits(expected),
+            );
+        }
+    }
+}
+
 /// Captured Excel20527 tiny-tail answers pass through the same beta initial
 /// proposal into Student-t and then the application's confidence calculation.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

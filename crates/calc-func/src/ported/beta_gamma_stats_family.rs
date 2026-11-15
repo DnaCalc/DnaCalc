@@ -170,6 +170,32 @@ fn beta_inverse_zero_density_seed(p: f64, a: f64, b: f64) -> Option<f64> {
     (beta_dist_kernel(proposal, a, b, false, 0.0, 1.0).ok()? == 0.0).then_some(proposal)
 }
 
+/// The initial A&S 26.4.17 proposal when both shapes exceed one. In this
+/// measured large-second-shape region Excel publishes the proposal. Keep
+/// ambiguous exponential and final-ratio rounding on the existing path.
+fn beta_inverse_large_second_seed(p: f64, a: f64, b: f64) -> Option<f64> {
+    if p <= 1.0 / 256.0 || p >= 1.0 / 64.0
+        || a <= 256.0 || a >= 512.0 || a.fract() != 0.0
+        || !(2.0_f64.powi(80)..2.0_f64.powi(300)).contains(&b)
+    {
+        return None;
+    }
+    let x = -crate::ported::normal_log_family::norm_s_inv_kernel(p).ok()?;
+    let al = (x * x - 3.0) / 6.0;
+    let h = 2.0 / (1.0 / (2.0 * a - 1.0) + 1.0 / (2.0 * b - 1.0));
+    let w = x * (al + h).sqrt() / h
+        - (1.0 / (2.0 * b - 1.0) - 1.0 / (2.0 * a - 1.0))
+            * (al + 5.0 / 6.0 - 2.0 / (3.0 * h));
+    let argument = 2.0 * w;
+    let exponential = crate::ported::excel_numeric::excel_exp(argument);
+    if exponential != libm::exp(argument) {
+        return None;
+    }
+    let proposal = a / (a + b * exponential);
+    let alternative = (a / b) / exponential;
+    (proposal.is_finite() && proposal > 0.0 && proposal == alternative).then_some(proposal)
+}
+
 pub(crate) fn beta_inv_kernel(
     probability: f64,
     alpha: f64,
@@ -192,7 +218,11 @@ pub(crate) fn beta_inv_kernel(
     } else {
         (probability, alpha, beta, false)
     };
-    let z = if let Some(seed) = beta_inverse_zero_density_seed(probability, alpha, beta) {
+    let z = if lower == 0.0 && upper == 1.0
+        && let Some(seed) = beta_inverse_large_second_seed(probability, alpha, beta)
+    {
+        seed
+    } else if let Some(seed) = beta_inverse_zero_density_seed(probability, alpha, beta) {
         seed
     } else {
         bisect_inverse_closest(probability, 0.0, 1.0, |v| regularized_beta(v, alpha, beta))
