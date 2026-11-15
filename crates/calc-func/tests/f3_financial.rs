@@ -2866,6 +2866,27 @@ fn mirr_discount_and_root_stages_follow_native_controls() {
     error(mirr(&[-1.0, 0.0, 0.0, 2.0], 1e80, 0.0), Num);
     error(mirr(&[-1.0, 0.0, 0.0, 0.0, 2.0], 1e100, 1e100), Div0);
 }
+
+/// Excel 20527 separates an overflowing positive MIRR term from a zero divisor.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn mirr_positive_term_overflow_keeps_divisor_errors_distinct() {
+    let below = f64::from_bits((-1.0_f64).to_bits() + 1);
+    let above = f64::from_bits((-1.0_f64).to_bits() - 1);
+    for rate in [below, above] {
+        let mut flows = vec![0.0; 16];
+        flows[0] = -1.0;
+        flows[15] = 2.0_f64.powi(250);
+        error(call("MIRR", vec![col(&flows), n(0.0), n(rate)]), Num);
+        error(call("NPV", vec![n(rate), col(&flows)]), Div0);
+
+        flows.resize(21, 0.0);
+        flows[15] = 0.0;
+        flows[20] = 1.0;
+        error(call("MIRR", vec![col(&flows), n(0.0), n(rate)]), Div0);
+    }
+}
+
 /// Native Excel20527 distinguishes held nonnumeric cells from literal values.
 /// An empty collected stream still validates the discount base and cell errors.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
