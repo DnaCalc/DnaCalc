@@ -463,6 +463,9 @@ pub(crate) fn prepare(
                         to: host.point_at(sheet, left + width, top + height),
                     },
                     drawing_id: Some(id),
+                    // AddChart2 (a title is given) numbers its series' uniqueId from 0; for
+                    // ChartObjects.Add the start is not yet explained (dc-piw0.10 Q17): 2 as before.
+                    unique_start: if title.is_some() { 0 } else { 2 },
                     auto_title_deleted: false,
                     title,
                     legend,

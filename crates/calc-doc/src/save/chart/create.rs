@@ -243,7 +243,11 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
             bytes.extend(fresh_number("grouping", grouping));
         }
         if scatter {
-            bytes.extend(fresh_number("scatterStyle", "marker"));
+            // Excel's own scatter chart is `lineMarker` with the line switched off per series (Q17).
+            bytes.extend(fresh_number(
+                "scatterStyle",
+                if excel { "lineMarker" } else { "marker" },
+            ));
         }
         bytes.extend(fresh_number(
             "varyColors",
@@ -256,9 +260,18 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
             bytes.extend(data_xml("tx", s.name.as_ref()));
             bytes.extend(colour::fresh(s.fill.as_deref()));
             // Excel writes `invertIfNegative` (off) on every bar series, after the fill and before
-            // the data (Q0, ~/codex-runs/eng1 excel-report chart1.xml).
+            // the data (Q0, ~/codex-runs/eng1 excel-report chart1.xml). Its other chart types write
+            // (dc-piw0.10 Q17): a line series `marker` (none) before the data and `smooth` (0) after
+            // it; a scatter series an `spPr` with the line off before the data and `smooth` (0)
+            // after it; area, pie and doughnut series nothing more.
             if excel && p.kind == "barChart" {
                 bytes.extend(fresh_number("invertIfNegative", "0"));
+            }
+            if excel && scatter && s.fill.is_none() {
+                bytes.extend(b"<c:spPr><a:ln w=\"38100\"><a:noFill/></a:ln></c:spPr>");
+            }
+            if excel && p.kind == "lineChart" {
+                bytes.extend(b"<c:marker><c:symbol val=\"none\"/></c:marker>");
             }
             for (slot, data) in [
                 (if scatter { "xVal" } else { "cat" }, s.categories.as_ref()),
@@ -266,16 +279,30 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
             ] {
                 bytes.extend(data_xml(slot, data));
             }
+            if excel && (scatter || p.kind == "lineChart") {
+                bytes.extend(fresh_number("smooth", "0"));
+            }
             // Excel gives every series a `c16:uniqueId`: a counter and the chart's GUID. The GUID
             // is fixed by the part name (a save is reproducible); Excel's is random. The counter
             // is the series' idx + 2 in the one recording (Q0: 2, 3), the rule is asked as Q17.
             if excel {
-                bytes.extend(series_unique_id(&chart.part, chart.drawing_id, s.index + 2));
+                bytes.extend(series_unique_id(&chart.part, chart.drawing_id, s.unique_id.unwrap_or(s.index + 2)));
             }
             bytes.extend(b"</c:ser>");
         }
-        if excel && p.kind == "barChart" {
-            bytes.extend(b"<c:dLbls><c:showLegendKey val=\"0\"/><c:showVal val=\"0\"/><c:showCatName val=\"0\"/><c:showSerName val=\"0\"/><c:showPercent val=\"0\"/><c:showBubbleSize val=\"0\"/></c:dLbls>");
+        let round = matches!(p.kind.as_str(), "pieChart" | "doughnutChart");
+        if excel {
+            bytes.extend(b"<c:dLbls><c:showLegendKey val=\"0\"/><c:showVal val=\"0\"/><c:showCatName val=\"0\"/><c:showSerName val=\"0\"/><c:showPercent val=\"0\"/><c:showBubbleSize val=\"0\"/>");
+            if round {
+                bytes.extend(b"<c:showLeaderLines val=\"1\"/>");
+            }
+            bytes.extend(b"</c:dLbls>");
+            if p.kind == "lineChart" {
+                bytes.extend(fresh_number("smooth", "0"));
+            }
+            if round {
+                bytes.extend(fresh_number("firstSliceAng", "0"));
+            }
         }
         if p.kind == "barChart" {
             bytes.extend(fresh_number("gapWidth", "150"));

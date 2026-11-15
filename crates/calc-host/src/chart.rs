@@ -527,6 +527,9 @@ pub(crate) fn prepare_series(
         .checked_add(1)
         .ok_or("The series index limit was reached")?;
     let total = chart.plots.iter().map(|p| p.series.len()).sum::<usize>();
+    // A series a macro's chart gains takes the next uniqueId counter (dc-piw0.10 Q17).
+    let issue = chart.drawing_id.is_some().then_some(chart.unique_next);
+    let mut issued = false;
     let p = chart
         .plots
         .get_mut(plot as usize)
@@ -561,9 +564,13 @@ pub(crate) fn prepare_series(
         let mut changed =
             position
                 .map(|i| p.series[i].clone())
-                .unwrap_or_else(|| calc_doc_model::ChartSeries {
-                    index: next,
-                    ..Default::default()
+                .unwrap_or_else(|| {
+                    issued = issue.is_some();
+                    calc_doc_model::ChartSeries {
+                        index: next,
+                        unique_id: issue,
+                        ..Default::default()
+                    }
                 });
         let origin = CellKey::new(sheet, 1, 1).unwrap();
         let range = |text: &str, numeric: bool, single: bool| {
@@ -607,6 +614,9 @@ pub(crate) fn prepare_series(
         } else {
             p.series.push(changed);
         }
+    }
+    if issued {
+        chart.unique_next += 1;
     }
     host.loaded()
         .check_chart_properties(sheet, chart)
@@ -1430,6 +1440,9 @@ pub(crate) struct NewChart {
     /// The shape identity a macro's chart takes (its name is `Chart <id - 1>`); `None` for the
     /// interface's, which takes the first free `Chart N`.
     pub drawing_id: Option<u32>,
+    /// The first `c16:uniqueId` counter of a macro's chart (Excel, dc-piw0.10 Q17: 0 for
+    /// `Shapes.AddChart2`; for `ChartObjects.Add` the value is not yet explained, 2 stands as before).
+    pub unique_start: u32,
     pub title: Option<String>,
     /// `c:autoTitleDeleted`: false lets Excel title a one-series chart with its series name.
     pub auto_title_deleted: bool,
@@ -1503,11 +1516,17 @@ fn make_series(
             false,
         )
     };
+    // A scatter chart's X values are numbers, unless they are text, which Excel keeps as text
+    // (`c:strRef`) and plots as 1, 2, 3 (dc-piw0.10 Q17).
+    let text_x = host
+        .model()
+        .cell(cell(u32::from(headers), 0))
+        .is_some_and(|c| matches!(c, crate::CellInput::Text(_)));
     let cats = if categories {
         Some(data(
             cell(u32::from(headers), 0),
             cell(length - 1, 0),
-            scatter,
+            scatter && !text_x,
         )?)
     } else {
         None
@@ -1530,6 +1549,7 @@ fn make_series(
                 true,
             )?),
             fill: None,
+            unique_id: None,
         });
     }
     Ok(series)
@@ -1571,6 +1591,7 @@ pub(crate) fn prepare_create(
                 height: 360 * 9525,
             },
             drawing_id: None,
+            unique_start: 0,
             title: None,
             auto_title_deleted: true,
             legend: true,
@@ -1646,6 +1667,19 @@ pub(crate) fn prepare_set_source(
     }
     if scatter && !categories && !series.is_empty() {
         return Err(fail("Use the first column or row as X values for a scatter chart"));
+    }
+    // Excel (dc-piw0.10 Q17): the series a re-plot reuses keep their uniqueId; each new one takes the
+    // chart's next counter, which never goes back.
+    let mut series = series;
+    let old: Vec<Option<u32>> = charts[index].plots[0].series.iter().map(|s| s.unique_id).collect();
+    if charts[index].drawing_id.is_some() {
+        for (i, s) in series.iter_mut().enumerate() {
+            s.unique_id = old.get(i).copied().flatten().or_else(|| {
+                let id = charts[index].unique_next;
+                charts[index].unique_next += 1;
+                Some(id)
+            });
+        }
     }
     charts[index].plots[0].series = series;
     host.loaded()
@@ -1848,6 +1882,7 @@ fn assemble(
         anchor: new.anchor,
         drawing_id: new.drawing_id,
         lang: Some(host.run_language()),
+        unique_next: new.unique_start,
         title: new.title,
         title_formula: None,
         auto_title_deleted: new.auto_title_deleted,

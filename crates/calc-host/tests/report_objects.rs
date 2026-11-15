@@ -651,6 +651,86 @@ fn dc_piw0_8__series_xml_is_what_excel_wrote() {
     assert_eq!(written, recorded);
 }
 
+/// The plot's opening tags, its first series and the tags between the last series and the axis ids, with the
+/// data caches and Excel's per-chart GUID left out.
+fn plot_children(xml: &str) -> (String, Vec<String>, String) {
+    let plot = xml.find("<c:plotArea><c:layout/>").unwrap() + "<c:plotArea><c:layout/>".len();
+    let first = xml.find("<c:ser>").unwrap();
+    let first_end = xml.find("</c:ser>").unwrap() + "</c:ser>".len();
+    let last_end = xml.rfind("</c:ser>").unwrap() + "</c:ser>".len();
+    let axes = xml[last_end..].find("<c:axId").unwrap() + last_end;
+    // Each element the writer makes on its own repeats the chart namespace declaration.
+    let bare = |text: &str| text.replace(" xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"", "");
+    (
+        bare(&xml[plot..first]),
+        series_elements(&xml[first..first_end]),
+        bare(&xml[last_end..axes]),
+    )
+}
+
+/// dc-piw0.10 Q17 (excel-answers.md, run1 q17): the children of a macro chart's series and plot per chart type as
+/// Excel wrote them: bar `invertIfNegative`; line `marker` (none) and `smooth` (0) with a plot-level `smooth`;
+/// scatter `scatterStyle lineMarker`, an `spPr` with the line off and `smooth`; area nothing more. Pie and doughnut
+/// charts of two series are refused by the engine (Excel keeps both series in the part), so they are not compared.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_10__q17_series_children_follow_the_chart_type() {
+    for (kind, recorded) in [
+        ("column", include_str!("fixtures/excel-q17/chart1.xml")),
+        ("line", include_str!("fixtures/excel-q17/chart4.xml")),
+        ("area", include_str!("fixtures/excel-q17/chart6.xml")),
+        ("scatter", include_str!("fixtures/excel-q17/chart8.xml")),
+    ] {
+        let mut book = open(aptos_narrow_package());
+        let sheet = book.host().sheets()[0].id();
+        for (address, text) in [
+            ("A1", "Region"), ("B1", "Q1"), ("C1", "Q2"),
+            ("A2", "North"), ("B2", "10"), ("C2", "20"),
+            ("A3", "South"), ("B3", "30"), ("C3", "40"),
+            ("A4", "East"), ("B4", "50"), ("C4", "60"),
+        ] {
+            enter(&mut book, sheet, address, text);
+        }
+        command(&mut book, |b| WorkbookCommand::ChartCreateEmpty {
+            sheet,
+            revision: b.host().revision().get(),
+            kind: kind.into(),
+            place: [pts(200.0), pts(20.0), pts(300.0), pts(200.0)],
+            title: None,
+            legend: true,
+        });
+        let part = book.host().model().definitions().charts(sheet)[0].part.clone();
+        command(&mut book, |b| WorkbookCommand::ChartSource {
+            sheet,
+            revision: b.host().revision().get(),
+            part: part.clone(),
+            area: GridArea::new(at(sheet, "A1"), at(sheet, "C4")).unwrap(),
+            rows: false,
+            headers: true,
+            categories: true,
+        });
+        let mut bytes = Vec::new();
+        book.save(&SavePolicy::default(), &mut bytes).unwrap();
+        let document = calc_doc::open(
+            Arc::new(MemorySource::new(bytes)) as Arc<dyn calc_host::PackageRead>,
+            &calc_host::OpenPolicy::default(),
+        )
+        .unwrap();
+        let name = document
+            .package()
+            .parts()
+            .iter()
+            .map(|p| p.name().to_owned())
+            .find(|n| n.starts_with("xl/charts/") && n.ends_with(".xml"))
+            .unwrap();
+        let written = String::from_utf8(document.package().read_part(&name).unwrap()).unwrap();
+        let (written, recorded) = (plot_children(&written), plot_children(recorded));
+        assert_eq!(written.0, recorded.0, "{kind}: plot head");
+        assert_eq!(written.1, recorded.1, "{kind}: first series");
+        assert_eq!(written.2, recorded.2, "{kind}: plot tail");
+    }
+}
+
 #[allow(dead_code)]
 #[path = "../../calc-doc/tests/cdoc_m1_1_support/mod.rs"]
 mod existing_wire_support;

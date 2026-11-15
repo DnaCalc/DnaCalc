@@ -56,6 +56,10 @@ pub struct ChartSeries {
     /// The series' fill (`c:spPr/a:solidFill`): `RRGGBB` (`a:srgbClr`) or a scheme colour's name
     /// (`a:schemeClr`, e.g. `accent2`).
     pub fill: Option<String>,
+    /// The counter of the series' `c16:uniqueId` in a chart this session made (dc-piw0.10 Q17): it
+    /// only goes up, a deleted series' number is not reused, `SetSourceData` keeps the numbers of the
+    /// series it reuses. `None` writes the series' `idx + 2`.
+    pub unique_id: Option<u32>,
 }
 
 /// One plot of a chart's plot area (`c:barChart`, `c:lineChart`, ...).
@@ -90,6 +94,8 @@ pub struct Chart {
     /// The language (`a:rPr lang`) of the title run a chart this session made writes (Excel: the
     /// install/regional language, dc-piw0.10 Q15); `None` writes `en-US`.
     pub lang: Option<String>,
+    /// The next `c16:uniqueId` counter a series of a chart this session made takes.
+    pub unique_next: u32,
     /// The title's text, as written in the chart (`c:rich`), or its formula's cached text.
     pub title: Option<String>,
     /// The title's formula, when it reads a cell.

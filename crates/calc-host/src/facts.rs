@@ -150,7 +150,7 @@ pub(crate) fn default_column_pixels(base: f64, mdw: f64) -> f64 {
 /// The width in characters Excel shows for a file's column width `width` (characters of the
 /// maximum digit width `mdw` with the cell padding): the width in whole pixels, less the 5 pixels
 /// of padding, in hundredths of a character (ECMA-376 Part 1, 18.3.1.13).
-fn shown_characters(width: f64, mdw: f64) -> f64 {
+pub(crate) fn shown_characters(width: f64, mdw: f64) -> f64 {
     let pixels = column_pixels(width, mdw);
     (((pixels - 5.0) / mdw * 100.0 + 0.5).trunc() / 100.0).max(0.0)
 }
