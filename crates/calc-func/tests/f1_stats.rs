@@ -5165,6 +5165,19 @@ fn chi_inverse_scaled_tail_and_probability_fold_match_excel() {
     }
 }
 
+/// Excel 20527's large-degree plateau extends below 2^107 for these probabilities.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chi_inverse_quantile_bound_keeps_the_large_degree_plateau() {
+    for name in ["CHIINV", "CHISQ.INV.RT"] {
+        exact(
+            call(name, vec![n(f64::from_bits(0x3fef_42d8_dd06_a5be)), n(f64::from_bits(0x468f_22bf_0f7e_b500))]),
+            f64::from_bits(0x468f_24dd_79f6_cee4),
+        );
+        error(call(name, vec![n(63.0 / 64.0), n(2.0_f64.powi(106))]), Num);
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn f_inverse_probability_endpoints_validate_degrees() {

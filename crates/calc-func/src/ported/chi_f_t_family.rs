@@ -146,11 +146,18 @@ pub fn chisq_inv_rt_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Wo
     // the other chi-square routes enforce the 1e10 limit. Its asymptotic
     // result matches a single x87 multiplication; splitting the correction and
     // addition changes constructed halfway results. A narrower probability
-    // interval admits lower degrees, with controls on both sides of it.
+    // interval admits lower degrees, with controls on both sides of it. At
+    // still smaller degrees the plateau boundary depends on the normal
+    // quantile; the conservative bound below stays inside the measured region.
+    let lower_degree_plateau = deg_freedom >= 2.0_f64.powi(105)
+        && (0.5..=63.0 / 64.0).contains(&p)
+        && crate::ported::normal_log_family::norm_s_inv_kernel(1.0 - p)
+            .is_ok_and(|z| deg_freedom.sqrt() >= z.abs() * (63.0 * 2.0_f64.powi(46)));
     if p >= f64::MIN_POSITIVE
         && (deg_freedom >= f64::from_bits(0x4720_0000_0000_0000) // 2^115
             || (deg_freedom >= f64::from_bits(0x46a0_0000_0000_0000) // 2^107
-                && (0.01..=0.99).contains(&p)))
+                && (0.01..=0.99).contains(&p))
+            || lower_degree_plateau)
         && deg_freedom < f64::from_bits(0x7e70_0000_0000_0000) // 2^1000
     {
         return Ok(crate::ported::beta_gamma_stats_family::large_shape_inverse_unit(deg_freedom));
