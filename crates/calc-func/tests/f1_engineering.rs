@@ -5,6 +5,20 @@
 
 mod f1_support;
 
+/// Excel 20527 uses the worksheet exponential for these numeric IMEXP inputs.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn imexp_numeric_real_uses_excel_exponential() {
+    use f1_support::{call, n, text};
+    for (bits, expected) in [
+        (0x403b_0000_0000_0001, "532048240601.801"),
+        (0xc070_dbc7_9532_e44a, "7.16218213402738E-118"),
+        (0x406e_0b28_596a_2a00, "2.41047970972278E+104"),
+    ] {
+        text(call("IMEXP", vec![n(f64::from_bits(bits))]), expected);
+    }
+}
+
 /// Excel 20527 rejects empty complex text while a blank cell remains zero.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

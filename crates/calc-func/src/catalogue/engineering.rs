@@ -215,7 +215,19 @@ ported_shared_family! {
     38 imcot |s, a, sv| { unary_complex(s, a, |z| z.cot()) }
     39 imcsc |s, a, sv| { unary_complex(s, a, |z| z.csc()) }
     40 imcsch |s, a, sv| { unary_complex(s, a, |z| z.csch()) }
-    41 imexp |s, a, sv| { unary_complex(s, a, |z| Ok(z.exp())) }
+    41 imexp |s, a, sv| {
+        // Excel's measured numeric real-input route uses the worksheet
+        // exponential before formatting the complex result.
+        if let CoreRef::Number(x) = a[0].core_ref()
+            && (-300.0..=300.0).contains(&x)
+        {
+            let z = ParsedComplex::new(x, 0.0, None);
+            let result = ParsedComplex::new(crate::ported::excel_numeric::excel_exp(x), 0.0, None);
+            complex_text(Ok(result), &[z])
+        } else {
+            unary_complex(s, a, |z| Ok(z.exp()))
+        }
+    }
     42 imln |s, a, sv| { unary_complex(s, a, |z| z.ln()) }
     43 imlog10 |s, a, sv| {
         unary_complex(s, a, |z| {
