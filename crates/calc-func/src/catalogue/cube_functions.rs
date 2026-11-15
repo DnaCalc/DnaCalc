@@ -98,7 +98,42 @@ fn given(arguments: &[CalcValue], index: usize) -> bool {
         .is_some_and(|value| !value.is_missing())
 }
 
+/// The scalar arguments Excel reads before looking up the connection differ
+/// between cube functions. The member/set expression itself can be deferred.
+fn early_errors(
+    site: &Site<'_>,
+    arguments: &[CalcValue],
+    services: &mut EvalServices<'_>,
+    indices: &[usize],
+) -> Step<()> {
+    let connection = single(site, arguments, 0, services)?;
+    if let CoreRef::Error(code) = connection.core_ref() {
+        return fail(code);
+    }
+    // Controls cover scalars and one-cell references. Keep the existing path
+    // for larger ranges and arrays until their argument order is measured.
+    for &index in indices {
+        let Some(value) = arguments.get(index) else { continue };
+        match value.core_ref() {
+            CoreRef::Reference(reference)
+                if !matches!(reference.areas(), [area] if area.cell_count() == 1) => return Ok(()),
+            CoreRef::Array(array) if array.shape().rows != 1 || array.shape().cols != 1 => return Ok(()),
+            _ => {}
+        }
+    }
+    for &index in indices {
+        if given(arguments, index) {
+            let value = single(site, arguments, index, services)?;
+            if let CoreRef::Error(code) = value.core_ref() {
+                return fail(code);
+            }
+        }
+    }
+    Ok(())
+}
+
 fn cubemember(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
+    early_errors(site, a, sv, &[2])?;
     let model = model(site, a, sv)?;
     let mut tuple: Vec<CubeMember> = Vec::new();
     for cell in cells(site, a, 1, sv)? {
@@ -181,6 +216,7 @@ fn cubevalue(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Ste
 }
 
 fn cubeset(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
+    early_errors(site, a, sv, &[2, 3])?;
     let model = model(site, a, sv)?;
     let mut tuples = Vec::new();
     for cell in cells(site, a, 1, sv)? {
@@ -244,6 +280,7 @@ fn cuberankedmember(
     a: &[CalcValue],
     sv: &mut EvalServices<'_>,
 ) -> Step<CalcValue> {
+    early_errors(site, a, sv, &[1, 2])?;
     let model = model(site, a, sv)?;
     let set = single(site, a, 1, sv)?;
     let tuples = match (set.cube_value(), set.core_ref()) {
@@ -283,11 +320,13 @@ fn cubememberproperty(
     a: &[CalcValue],
     sv: &mut EvalServices<'_>,
 ) -> Step<CalcValue> {
+    early_errors(site, a, sv, &[1, 2])?;
     model(site, a, sv)?;
     fail(WorksheetErrorCode::NA)
 }
 
 fn cubekpimember(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
+    early_errors(site, a, sv, &[1, 2])?;
     model(site, a, sv)?;
     match single(site, a, 2, sv)?.core_ref() {
         CoreRef::Text(_) => fail(WorksheetErrorCode::Value),

@@ -51,6 +51,27 @@ fn cube_functions_propagate_first_argument_errors() {
     }
 }
 
+/// Excel reads selected scalar arguments before a missing cube connection.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn cube_functions_read_early_arguments_in_function_order() {
+    for (name, args, expected) in [
+        ("CUBEMEMBER", vec![t("missing"), e(Div0), e(Ref)], Ref),
+        ("CUBESET", vec![t("missing"), e(Div0), e(Ref), e(Num)], Ref),
+        ("CUBERANKEDMEMBER", vec![t("missing"), e(Div0), e(Ref)], Div0),
+        ("CUBEMEMBERPROPERTY", vec![t("missing"), e(Div0), e(Ref)], Div0),
+        ("CUBEKPIMEMBER", vec![t("missing"), e(Div0), e(Ref)], Div0),
+        ("CUBEMEMBER", vec![e(Div0), t("x"), e(Ref)], Div0),
+    ] {
+        let mut sheet = Sheet::new();
+        sheet.column(1, 1, args.clone());
+        let refs = (1..=args.len() as u32).map(|row| sheet.area(row, 1, row, 1)).collect();
+        error(call_on(&mut sheet, name, refs), expected);
+        error(call(name, args), expected);
+    }
+    error(call("CUBEMEMBER", vec![t("missing"), e(Div0)]), NA);
+}
+
 /// Excel 20527 wraps 2h-1 at the signed-32-bit boundary in interval variance.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
