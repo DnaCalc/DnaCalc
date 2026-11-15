@@ -146,7 +146,13 @@ pub fn step(
         None => {
             let current = host.model.revision();
             let requested = std::mem::take(&mut host.calculate_requested);
-            let current_demanded = requested;
+            // Excel raises its calculation events after a write once the workbook has a formula: the
+            // Excel-DNA trace's value write on an empty sheet (A1 = 7) raises none, and each later
+            // value write raises AfterCalculate (before its SheetChange), as the xlOil run's reads
+            // count (5, 8, 11, 12, 13, 16). A workbook with no formula has no calculation to run.
+            let current_demanded = requested
+                || (host.published != Some(current)
+                    && host.sheets().iter().any(|sheet| !host.formula_cells(sheet.id()).is_empty()));
             // L3 (dc-m3u): automatic except tables leaves data tables until a recalculation is
             // asked for.
             let deferred = host.calc_mode() == CalcMode::AutomaticExceptTables && !requested;

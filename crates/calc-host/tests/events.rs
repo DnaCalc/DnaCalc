@@ -219,11 +219,13 @@ fn native_after_calculate_follows_only_a_calculation_that_ran() {
     assert_eq!(after(&log), before + 1);
 }
 
-/// dc-1nbp.3.1 (b): the Excel-DNA X0 trace's first write (A1 = 7, nothing dependent) raises SheetChange and no
-/// AfterCalculate; a write that recalculates a formula raises AfterCalculate. A new revision alone is not a calculation.
+/// dc-1nbp.3.1 (b): the Excel-DNA X0 trace's first write (A1 = 7, a sheet with no formula) raises SheetChange and no
+/// AfterCalculate; a write that recalculates a formula raises AfterCalculate; and once the workbook holds a formula a value
+/// write with nothing dependent raises one too, before its SheetChange (the xlOil X4 reads 5, 8, 11, 12, 13, 16 and the
+/// X0 trace's later value writes). A new revision in a workbook with no formula is not a calculation.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn native_automation_write_with_nothing_to_calculate_raises_no_after_calculate() {
+fn native_automation_value_write_raises_after_calculate_once_the_workbook_has_a_formula() {
     let mut session = book();
     let log = Rc::new(RefCell::new(Vec::new()));
     session.set_workbook_event_observer(Some(Rc::new(NativeProbe {
@@ -250,7 +252,15 @@ fn native_automation_write_with_nothing_to_calculate_raises_no_after_calculate()
     assert_eq!(log.borrow().iter().filter(|e| *e == "after").count(), 1, "{:?}", log.borrow());
     log.borrow_mut().clear();
     write(&mut session, 5, "9");
-    assert_eq!(*log.borrow(), vec!["native 5".to_string()]);
+    assert_eq!(*log.borrow(), vec!["after".to_string(), "native 5".to_string()]);
+    // With events off (the controller's EnableEvents = False) the write raises nothing; switched on again the next one does.
+    log.borrow_mut().clear();
+    session.set_workbook_events_enabled(false);
+    write(&mut session, 5, "10");
+    assert!(log.borrow().is_empty(), "{:?}", log.borrow());
+    session.set_workbook_events_enabled(true);
+    write(&mut session, 5, "11");
+    assert_eq!(*log.borrow(), vec!["after".to_string(), "native 5".to_string()]);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
