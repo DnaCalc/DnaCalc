@@ -10,8 +10,8 @@ use super::{Events, LoadError, read_xml};
 use crate::opc::Package;
 use crate::xml::XmlEvent;
 use calc_doc_model::{
-    ChartAnchor, DrawingPoint, Shape, ShapeBody, ShapeColour, ShapeConnection, ShapeFill, ShapeKind,
-    ShapeLine, SheetShapes,
+    ChartAnchor, DrawingPoint, LineEnd, Shape, ShapeBody, ShapeColour, ShapeConnection, ShapeFill,
+    ShapeGradient, ShapeKind, ShapeLine, SheetShapes,
 };
 
 const DRAWING: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing";
@@ -446,6 +446,28 @@ fn colour(fill: &Node) -> Option<ShapeColour> {
     }
 }
 
+/// `a:gradFill`: its stops and its linear direction or path; `None` when no stop has a colour held here.
+fn gradient(fill: &Node) -> Option<ShapeGradient> {
+    let mut read = ShapeGradient::default();
+    for stop in fill.child("gsLst")?.children.iter().filter(|s| s.local == "gs") {
+        read.stops.push((stop.number("pos")?, colour(stop)?));
+    }
+    if read.stops.is_empty() {
+        return None;
+    }
+    if let Some(lin) = fill.child("lin") {
+        read.angle = Some(lin.number("ang").unwrap_or(0));
+        read.scaled = lin.flag("scaled");
+    }
+    if let Some(path) = fill.child("path") {
+        read.path = Some(path.attribute("path").unwrap_or("rect").to_owned());
+        read.focus = path.child("fillToRect").map(|r| {
+            ["l", "t", "r", "b"].map(|side| r.number(side).unwrap_or(0))
+        });
+    }
+    Some(read)
+}
+
 fn shape_properties(shape: &mut Shape, properties: &Node) {
     if let Some(xfrm) = properties.child("xfrm") {
         shape.rotation = xfrm.number("rot").unwrap_or(0);
@@ -457,18 +479,34 @@ fn shape_properties(shape: &mut Shape, properties: &Node) {
         if let Some(ext) = xfrm.child("ext") {
             shape.extent = (ext.number("cx").unwrap_or(0), ext.number("cy").unwrap_or(0));
         }
+        if let Some(off) = xfrm.child("chOff") {
+            shape.child_offset = (off.number("x").unwrap_or(0), off.number("y").unwrap_or(0));
+        }
+        if let Some(ext) = xfrm.child("chExt") {
+            shape.child_extent = (ext.number("cx").unwrap_or(0), ext.number("cy").unwrap_or(0));
+        }
     }
-    shape.geometry = properties
-        .child("prstGeom")
-        .and_then(|g| g.attribute("prst"))
-        .map(str::to_owned);
+    let preset = properties.child("prstGeom");
+    shape.geometry = preset.and_then(|g| g.attribute("prst")).map(str::to_owned);
+    if let Some(list) = preset.and_then(|g| g.child("avLst")) {
+        shape.adjust = list
+            .children
+            .iter()
+            .filter(|gd| gd.local == "gd")
+            .filter_map(|gd| {
+                let value = gd.attribute("fmla")?.trim().strip_prefix("val ")?;
+                Some((gd.attribute("name")?.to_owned(), value.trim().parse().ok()?))
+            })
+            .collect();
+    }
     for child in &properties.children {
         match child.local.as_str() {
             "noFill" => shape.fill = ShapeFill::None,
             "solidFill" => {
                 shape.fill = colour(child).map_or(ShapeFill::Other, ShapeFill::Solid);
             }
-            "gradFill" | "pattFill" | "blipFill" | "grpFill" => shape.fill = ShapeFill::Other,
+            "gradFill" => shape.fill = gradient(child).map_or(ShapeFill::Other, ShapeFill::Gradient),
+            "pattFill" | "blipFill" | "grpFill" => shape.fill = ShapeFill::Other,
             "ln" => {
                 let mut line = ShapeLine {
                     weight: child.number("w"),
@@ -479,6 +517,18 @@ fn shape_properties(shape: &mut Shape, properties: &Node) {
                         "noFill" => line.hidden = true,
                         "solidFill" => line.colour = colour(part),
                         "prstDash" => line.dash = part.attribute("val").map(str::to_owned),
+                        "headEnd" | "tailEnd" => {
+                            let end = LineEnd {
+                                kind: part.attribute("type").unwrap_or("none").to_owned(),
+                                width: part.attribute("w").map(str::to_owned),
+                                length: part.attribute("len").map(str::to_owned),
+                            };
+                            if part.local == "headEnd" {
+                                line.head = Some(end);
+                            } else {
+                                line.tail = Some(end);
+                            }
+                        }
                         _ => {}
                     }
                 }

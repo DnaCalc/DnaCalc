@@ -4902,6 +4902,72 @@ mod outline_tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dc_zjsg_2__the_server_answers_rotation_arrowheads_gradients_groups_and_presets() {
+        let mut server = Server::new();
+        let data = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/shapes-paint2.xlsx");
+        assert!(
+            server
+                .execute_current(Request::Open { name: "shapes-paint2.xlsx".into() }, Some(data.to_vec()))
+                .reply
+                .is_ok()
+        );
+        let sheet = server.book.host().sheets()[0].id();
+        let Reply::Shapes(shapes) = server
+            .execute_current(Request::Shapes(Sheet::of(sheet)), None)
+            .reply
+            .unwrap()
+        else {
+            panic!("the shapes reply")
+        };
+        assert_eq!(shapes.len(), 4 + 4 + 12 + 8 + 3 + 28);
+        let by = |name: &str| shapes.iter().find(|s| s.name == name).unwrap_or_else(|| panic!("{name}"));
+        // Rotation, in degrees, and the unrotated box as a share of the anchor's: 90 degrees swaps them.
+        let turned = by("Rot 90 roundRect");
+        assert_eq!(turned.rotation, 90.0);
+        let [ex, ey] = turned.extent;
+        assert!((ex - 3.2).abs() < 1e-6 && (ey - 0.3125).abs() < 1e-6, "{:?}", turned.extent);
+        assert_eq!(by("Rot 180 rightArrow").extent, [1.0, 1.0]);
+        let flip = by("FlipH rightArrow");
+        assert!(flip.flip_horizontal && !flip.flip_vertical && flip.rotation == 0.0);
+        assert_eq!(by("Rot 30 rect").rotation, 30.0);
+        // Arrowheads: kind and sizes, on the end the file names.
+        let tail = by("Arrow triangle sm 1pt").line.as_ref().unwrap();
+        assert!(tail.head.is_none());
+        let end = tail.tail.as_ref().unwrap();
+        assert_eq!((end.kind.as_str(), end.width.as_str(), end.length.as_str()), ("triangle", "sm", "sm"));
+        let both = by("Arrow both triangle lg 1pt").line.as_ref().unwrap();
+        assert!(both.head.is_some() && both.tail.is_some());
+        assert_eq!(by("Arrow oval wide short 3pt").line.as_ref().unwrap().head.as_ref().unwrap().length, "sm");
+        // Gradients: stops as fractions, the angle in degrees, the scaled flag and a path's focus.
+        let g = by("Grad linear 45 scaled").gradient.as_ref().unwrap();
+        assert_eq!((g.angle, g.scaled, g.path.clone()), (45.0, true, None));
+        assert_eq!(g.stops, [(0.0, "#FF0000".to_owned()), (0.5, "#FFFF00".to_owned()), (1.0, "#0070C0".to_owned())]);
+        assert!(!by("Grad linear 45 unscaled").gradient.as_ref().unwrap().scaled);
+        assert_eq!(by("Grad linear 45 unscaled").fill, None);
+        let corner = by("Grad path rect top-left").gradient.as_ref().unwrap();
+        assert_eq!((corner.path.as_deref(), corner.focus), (Some("rect"), [0.0, 0.0]));
+        assert_eq!(by("Grad path circle centre").gradient.as_ref().unwrap().focus, [0.5, 0.5]);
+        // Presets keep their adjust values.
+        assert_eq!(by("rightArrow adj1=25000,adj2=80000").adjust, [("adj1".to_owned(), 25_000), ("adj2".to_owned(), 80_000)]);
+        assert!(by("triangle").adjust.is_empty());
+        // A group's children are boxes inside it through its child space (100000, 100000, 2000000 by 1000000).
+        let group = by("Group plain");
+        assert_eq!(group.kind, "group");
+        let rels: Vec<[f64; 4]> = group.children.iter().map(|c| c.rel).collect();
+        assert_eq!(rels, [[0.0, 0.0, 0.5, 1.0], [0.5, 0.2, 0.45, 0.6], [0.0, 0.9, 0.4, 0.1]]);
+        assert_eq!(group.children[2].shape.rotation, 30.0);
+        // A flipped group mirrors its children's boxes and flips them.
+        let mirrored = by("Group flipH");
+        let first = &mirrored.children[0];
+        assert_eq!(first.rel, [0.5, 0.0, 0.5, 1.0]);
+        assert!(first.shape.flip_horizontal);
+        assert_eq!(mirrored.children[2].shape.rotation, -30.0);
+        assert_eq!(by("Group rot 20").rotation, 20.0);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn outline_search_reveal_and_spill_windows_use_the_application_server() {
         let mut server = Server::new();
         let data = include_bytes!("../../../crates/calc-host/tests/fixtures/dc_gf0/cut-base.xlsx");
