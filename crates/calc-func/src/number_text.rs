@@ -26,6 +26,8 @@
 //! 2^-60 of a tie (an exact tie included) the text here takes the 15 digits below the tie,
 //! except that values strictly above the tie with magnitude from 10 through less than 1000
 //! round up (2,048 independent Excel 20527 near-midpoint controls in each decade).
+//! From 1 through less than 10, they also round up when the product by 10^14, rounded to a
+//! 64-bit significand, lies strictly above the midpoint (7,847 independent controls).
 //! In dc-uar, of 131 measured tie cases Excel 16.0.20527 wrote (the catalogue oracle's dch9u_functions
 //! rows, built by arithmetic, and dc_q9rb's), 126 went down (`7200547821627.375` gives
 //! `7200547821627.37`, `999999999999999.5` gives `999999999999999`, `1234567890123455` gives
@@ -84,13 +86,35 @@ fn first_precision(x: f64) -> (Vec<u8>, i32) {
     let exponent = length - 1 + exact.exponent;
     let above_tie = all.as_bytes().get(SIGNIFICANT_DIGITS) == Some(&b'5')
         && all.as_bytes()[SIGNIFICANT_DIGITS + 1..].iter().any(|&digit| digit != b'0');
-    let measured_above_tie = matches!(exponent, 1 | 2) && above_tie;
-    let up = (!near_tie(&exact.coefficient, &all) || measured_above_tie)
+    let near = near_tie(&exact.coefficient, &all);
+    let measured_above_tie = above_tie && (matches!(exponent, 1 | 2)
+        || (exponent == 0 && near && scaled_x87_above_midpoint(x)));
+    let up = (!near || measured_above_tie)
         && all
             .as_bytes()
             .get(SIGNIFICANT_DIGITS)
             .is_some_and(|&d| d >= b'5');
     first_rounding(all.as_bytes(), exponent, up)
+}
+
+/// Whether x * 10^14, rounded to a 64-bit significand, is above the half-integer.
+/// This is only called for 1 <= x < 10. The exact binary64 significand times 10^14
+/// fits in u128, so the test is independent of native extended precision.
+fn scaled_x87_above_midpoint(x: f64) -> bool {
+    let bits = x.to_bits();
+    let significand = (bits & ((1_u64 << 52) - 1)) | (1_u64 << 52);
+    let input_exponent = ((bits >> 52) & 0x7ff) as u32 - 1023;
+    let denominator = 1_u128 << (52 - input_exponent);
+    let numerator = u128::from(significand) * 100_000_000_000_000_u128;
+    let integer = numerator / denominator;
+    let remainder = numerator % denominator;
+    if 2 * remainder <= denominator {
+        return false;
+    }
+    let scaled_exponent = 127 - integer.leading_zeros();
+    // A midpoint has an even final significand bit here, so an exact half-ULP
+    // rounds to the midpoint; only a strictly greater distance rounds above it.
+    ((2 * remainder - denominator) << (63 - scaled_exponent)) > denominator
 }
 
 /// Whether the exact value `coefficient` (whose decimal digits are `digits`) lies within a

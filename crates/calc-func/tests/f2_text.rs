@@ -27,6 +27,15 @@ fn numeric_text_rounds_above_midpoint_for_two_digit_magnitude() {
     text(call("CONCAT", vec![value]), "-55.434437993642");
 }
 
+/// Excel 20527 rounds above the midpoint after the extended-precision scaling.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn numeric_text_rounds_above_scaled_midpoint_for_one_digit_magnitude() {
+    let value = n(f64::from_bits(0xbff9_267f_c512_f642));
+    text(call("ENCODEURL", vec![value.clone()]), "-1.57189919454631");
+    text(call("CONCAT", vec![value]), "-1.57189919454631");
+}
+
 /// Excel 20527 applies the same tolerant start-position floor to all four surfaces.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
