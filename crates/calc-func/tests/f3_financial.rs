@@ -32,6 +32,26 @@ fn first_adjacent_period_uses_measured_remaining_period_order() {
     }
 }
 
+/// Independent Excel 20527 controls for the higher-rate rounding path.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn first_period_high_rate_uses_measured_remaining_period_order() {
+    for (name, rate, period, periods, present, future, expected) in [
+        ("IPMT", 20.667670306314918, 1.0, 0.2309337036328044,
+         5.4743802064554355e-14, -2.789098667876938e-14, 0xbd73_e77e_5958_4c6a),
+        ("PPMT", 20.667670306314918, 1.0, 0.2309337036328044,
+         5.4743802064554355e-14, -2.789098667876938e-14, 0xbd62_df93_534d_932e),
+        // The adjacent period remains on the existing higher-rate path.
+        ("PPMT", 9.218582952505772, 1.0 + f64::EPSILON, 0.20786811040803055,
+         3.623793570842447e-10, 2.386200570637282e-10, 0xbe43_27a6_b199_de09),
+    ] {
+        exact(
+            call(name, vec![n(rate), n(period), n(periods), n(present), n(future)]),
+            f64::from_bits(expected),
+        );
+    }
+}
+
 /// Excel 20527 retains the last finite secant iterate for these zero-asymptote flows.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
