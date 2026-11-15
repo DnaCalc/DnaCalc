@@ -72,6 +72,23 @@ fn cube_functions_read_early_arguments_in_function_order() {
     error(call("CUBEMEMBER", vec![t("missing"), e(Div0)]), NA);
 }
 
+/// Excel validates rank and KPI numeric text before an unknown connection.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn cube_rank_and_kpi_reject_invalid_numeric_text_early() {
+    for name in ["CUBERANKEDMEMBER", "CUBEKPIMEMBER"] {
+        for text in ["", "hello", "TRUE", "123abc"] {
+            let mut sheet = Sheet::new();
+            sheet.column(1, 1, vec![t("missing"), t("member"), t(text)]);
+            let refs = (1..=3).map(|row| sheet.area(row, 1, row, 1)).collect();
+            error(call_on(&mut sheet, name, refs), Value);
+        }
+        error(call(name, vec![t("missing"), t("member"), t("1.5")]), NA);
+        error(call(name, vec![e(Ref), t("member"), t("bad")]), Ref);
+        error(call(name, vec![t("missing"), e(Div0), t("bad")]), Div0);
+    }
+}
+
 /// Excel 20527 wraps 2h-1 at the signed-32-bit boundary in interval variance.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
