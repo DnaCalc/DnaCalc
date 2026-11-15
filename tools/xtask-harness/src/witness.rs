@@ -532,6 +532,13 @@ fn attest_touchstone_profile(source: &mut ReadingSource, provenance: Option<&Val
     let Some(provenance) = provenance else {
         return;
     };
+    // A capture that opened add-in files itself records them (euroconvert-addin-job.ps1).
+    if let Some(open) = provenance["addins_open"].as_array() {
+        let files: Option<Vec<&str>> = open.iter().map(Value::as_str).collect();
+        if let Some(files) = files {
+            source.invocation.get_or_insert_with(Default::default).addins_open = Some(files.join(","));
+        }
+    }
     if provenance["service"] != "touchstone/1" {
         return;
     }
