@@ -109,6 +109,28 @@ fn cube_final_errors_follow_numeric_argument_validation() {
     error(call("CUBESET", vec![t("missing"), t("set"), e(Div0), n(1.0), e(Ref)]), Div0);
 }
 
+/// Excel rejects an absorbed excess over one in the reflected beta inverse.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beta_inverse_rejects_absorbed_excess_over_one() {
+    let next = f64::from_bits(1.0_f64.to_bits() + 1);
+    for name in ["BETA.INV", "BETAINV"] {
+        error(call(name, vec![n(0.7), n(next), n(4.0)]), Num);
+        error(call(name, vec![n(0.9), n(next), n(100.0), n(-2.0), n(5.0)]), Num);
+        assert!(call(name, vec![n(0.5), n(next), n(2.0)]).unwrap().as_number().is_some());
+        assert!(call(name, vec![n(0.7), n(1.0), n(2.0)]).unwrap().as_number().is_some());
+        assert!(call(name, vec![n(0.7), n(next), n(1.0)]).unwrap().as_number().is_some());
+        // Excel returns numbers when the unit is lost or the excess is near the midpoint.
+        for (p, alpha, beta) in [
+            (0.9770489108746775, 1.0000002273995414, 1.012976352612059e16),
+            (0.5000000000000001, 1.0000001109394254, 1.3523876130708146e16),
+            (0.5012564676623561, 1.0000000074505657, 98986600.80583312),
+        ] {
+            assert!(call(name, vec![n(p), n(alpha), n(beta), n(1.0), n(100.0)]).unwrap().as_number().is_some());
+        }
+    }
+}
+
 /// Excel reads import argument errors and numeric types before validating the path.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

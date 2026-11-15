@@ -40,6 +40,16 @@ fn beta_inverse(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     let [p, alpha, beta] = nums::<3>(site, a)?;
     let lower = if given(a, 3) { num(site, a, 3)? } else { 0.0 };
     let upper = if given(a, 4) { num(site, a, 4)? } else { 1.0 };
+    // In the upper-probability search, Excel rejects this measured region:
+    // beta retains one but absorbs even twice alpha's excess over one.
+    // Near the rounding midpoint, both numerical and NUM results occur.
+    if p > 0.5 && p < 1.0 && alpha > 1.0 && alpha.is_finite() && beta > 1.0 && beta.is_finite()
+        && lower.is_finite() && upper.is_finite() && upper > lower && (upper - lower).is_finite()
+        && (beta + 1.0) - beta == 1.0 && beta + alpha == beta + 1.0
+        && beta + 2.0 * (alpha - 1.0) == beta
+    {
+        return fail(WorksheetErrorCode::Num);
+    }
     if p >= f64::MIN_POSITIVE && p <= 0.5 && alpha.is_finite() && alpha > 0.0 && beta.is_finite()
         && lower.is_finite() && upper.is_finite()
         && beta > 1.0 && alpha + beta == alpha
