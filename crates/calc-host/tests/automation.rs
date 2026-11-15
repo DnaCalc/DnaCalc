@@ -3213,8 +3213,9 @@ fn select_cells(host: &Host, first: (u32, u32), last: (u32, u32)) {
 /// from the series count of Excel's automatic source at Add time, then `SetSourceData A1:C3`; a second chart is made
 /// with A1 selected. `second` is the ids of that second chart.
 ///
-/// With `exact` false only the first id is compared: the series count Excel gave `SetSourceData` there (c07 three
-/// series from a header row over empty rows, c09 one from text only, c11 three with a date column)  is not what the engine reads from that source.
+/// With `exact` false only the first id is compared: Excel gave `SetSourceData A1:C3` three series there for c07 (a
+/// header row over empty rows) and c11 (a plain-number first column), on a chart that had the automatic source's series;
+/// on a fresh chart (Q21 c07, d2) it gave two. Open: what an omitted PlotBy does on a chart that already has series.
 fn q18_case(data: &[&[&str]], select: ((u32, u32), (u32, u32)), first: &[u32], second: &[u32], exact: bool) {
     let (host, model, sheet) = blank_report();
     fill(&host, (1, 1), data);
@@ -3278,7 +3279,7 @@ fn dc_piw0_11__q18_c07_a_header_row_alone_is_one_series() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_piw0_11__q18_c09_a_region_of_text_is_one_series() {
-    q18_case(&[&["a", "b", "c"], &["d", "e", "f"], &["g", "h", "i"]], ((1, 1), (1, 1)), &[1], &[1], false);
+    q18_case(&[&["a", "b", "c"], &["d", "e", "f"], &["g", "h", "i"]], ((1, 1), (1, 1)), &[1], &[1], true);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -3425,4 +3426,126 @@ fn dc_piw0_10__q16_formula_is_a_string_arrays_fill_na_and_text_fits_the_column()
     put_formula(&model, "R1:R3", AutoValue::text("7"));
     assert_eq!(shown("R1:R3").as_text().unwrap(), "7");
     assert!(matches!(shown("A1:A2"), AutoValue::Null));
+}
+
+/// Q21 (excel-answers/q21-setsource.txt, Excel 16.0, 2026-11-15, lane eng8's macro): `SetSourceData` on a fresh
+/// `ChartObjects.Add` chart over 28 cases of source, each with PlotBy omitted, xlColumns (2) and xlRows (1). The recorded
+/// lines give, per series, its SERIES formula (sheet k<N> here Sheet1); a case Excel could not read XValues for
+/// (the ERR lines) is compared by its series count only.
+fn q21_case(case: &str) {
+    let log = std::str::from_utf8(include_bytes!("fixtures/excel-answers/q21-setsource.txt")).unwrap();
+    struct Way {
+        source: String,
+        spec: String,
+        plot_by: Option<i32>,
+        count: usize,
+        formulas: Vec<String>,
+    }
+    let mut ways: Vec<Way> = Vec::new();
+    for line in log.lines().filter(|l| l.starts_with(case) && l[case.len()..].starts_with('\t')) {
+        let f: Vec<&str> = line.split('\t').collect();
+        if f[1] == "sheet" || f[1].starts_with("sheet ") {
+            let way: i32 = f[2].trim_start_matches("way ").parse().unwrap();
+            ways.push(Way {
+                source: f[3].trim_start_matches("source ").to_string(),
+                spec: f[4].trim_start_matches("spec ").to_string(),
+                plot_by: (way != 0).then_some(way),
+                count: 0,
+                formulas: Vec::new(),
+            });
+        } else if f[2] == "series after" {
+            ways.last_mut().unwrap().count = f[3].parse().unwrap();
+        } else if f[2].starts_with("series ") {
+            let formula = f[f.iter().position(|x| *x == "Formula").unwrap() + 1];
+            ways.last_mut().unwrap().formulas.push(formula.to_string());
+        }
+    }
+    assert!(!ways.is_empty(), "{case}");
+    for (i, way) in ways.iter().enumerate() {
+        let (host, model, _) = blank_report();
+        for cell in way.spec.split(';').filter(|c| !c.is_empty()) {
+            let (address, value) = cell.split_once('=').unwrap();
+            let (kind, value) = value.split_once(':').unwrap();
+            let column = u32::from(address.as_bytes()[0] - b'A') + 1;
+            let row: u32 = address[1..].parse().unwrap();
+            if kind == "d" {
+                date_cell(&host, at(&host, row, column), value.parse().unwrap());
+            } else {
+                enter(&host, at(&host, row, column), value);
+            }
+        }
+        let sheet = obj(invoke(&model, &model.application(), "ActiveSheet", vec![]).unwrap());
+        let charts = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+        let frame = obj(invoke_kind(&model, &charts, "Add", InvokeKind::Method,
+            vec![AutoValue::R8(300.0), AutoValue::R8(20.0), AutoValue::R8(300.0), AutoValue::R8(200.0)]).unwrap());
+        let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
+        invoke_kind(&model, &chart, "SetSourceData", InvokeKind::Method,
+            vec![AutoValue::Object(range(&model, &way.source)), way.plot_by.map_or(AutoValue::Missing, AutoValue::I4)]).unwrap();
+        let series = obj(invoke_kind(&model, &chart, "SeriesCollection", InvokeKind::Method, vec![]).unwrap());
+        let label = format!("{case} way {i} {} {:?} spec {}", way.source, way.plot_by, way.spec);
+        assert_eq!(int(invoke(&model, &series, "Count", vec![]).unwrap()) as usize, way.count, "{label}");
+        for (n, recorded) in way.formulas.iter().enumerate() {
+            let item = obj(invoke_kind(&model, &series, "Item", InvokeKind::Method, vec![AutoValue::I4(n as i32 + 1)]).unwrap());
+            let sheet_prefix = recorded.find("'k").map(|p| recorded[p..].split_once("'!").unwrap().0.to_string() + "'!");
+            let expected = match sheet_prefix {
+                Some(prefix) => recorded.replace(&prefix, "Sheet1!"),
+                None => recorded.clone(),
+            };
+            assert_eq!(text(&model, &item, "Formula"), expected, "{label} series {}", n + 1);
+        }
+    }
+}
+
+/// A cell holding the number `serial` under a date format (typing a date is refused by entry).
+fn date_cell(host: &Host, at: CellKey, serial: f64) {
+    use calc_doc_model::{CellFormat, NumberFormat};
+    let mut styles = (**host.session.borrow().host().styles()).clone();
+    let id = 300 + styles.number_formats.len() as u32;
+    styles.number_formats.push(NumberFormat { id, code: "yyyy-mm-dd".into() });
+    let style = styles.cell_formats.len() as u32;
+    styles.cell_formats.push(CellFormat { number_format_id: Some(id), ..Default::default() });
+    let edits = vec![
+        CellEdit::Styles(Arc::new(styles)),
+        CellEdit::Set { at, input: CellInput::Number(calc_doc_model::FiniteNumber::new(serial).unwrap()) },
+        CellEdit::SetFormat { at, format: Some(style) },
+    ];
+    assert!(host.session.borrow_mut().dispatch(SkinIntent::Edit { edits }).accepted());
+}
+
+macro_rules! q21 {
+    ($($name:ident => $case:literal),* $(,)?) => {$(
+        #[cfg_attr(not(target_arch = "wasm32"), test)]
+        #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+        fn $name() { q21_case($case); }
+    )*};
+}
+q21! {
+    dc_piw0_11__q21_c07_a_header_row_over_empty_rows => "c07",
+    dc_piw0_11__q21_c09_a_region_of_text => "c09",
+    dc_piw0_11__q21_c11_a_date_column_under_a_text_header => "c11",
+    dc_piw0_11__q21_c12_an_empty_range_reads_one_label_row_and_column => "c12",
+    dc_piw0_11__q21_e1_an_empty_two_by_two => "e1",
+    dc_piw0_11__q21_e2_an_empty_row => "e2",
+    dc_piw0_11__q21_e3_an_empty_column => "e3",
+    dc_piw0_11__q21_e4_an_empty_four_by_four => "e4",
+    dc_piw0_11__q21_e5_a_single_empty_cell_has_no_series => "e5",
+    dc_piw0_11__q21_h1_a_text_row => "h1",
+    dc_piw0_11__q21_h2_a_header_row_over_one_empty_row => "h2",
+    dc_piw0_11__q21_h3_a_header_row_over_two_empty_rows_of_two => "h3",
+    dc_piw0_11__q21_t1_a_text_column => "t1",
+    dc_piw0_11__q21_t2_a_text_column_beside_an_empty_one => "t2",
+    dc_piw0_11__q21_t3_a_text_column_beside_numbers => "t3",
+    dc_piw0_11__q21_n1_a_header_over_one_numeric_column => "n1",
+    dc_piw0_11__q21_n2_a_header_row_over_numbers => "n2",
+    dc_piw0_11__q21_n3_numbers_three_by_two => "n3",
+    dc_piw0_11__q21_n4_numbers_three_by_three => "n4",
+    dc_piw0_11__q21_n5_header_row_and_label_column => "n5",
+    dc_piw0_11__q21_d1_a_header_over_dates => "d1",
+    dc_piw0_11__q21_d2_dates_beside_a_header_row => "d2",
+    dc_piw0_11__q21_d3_dates_beside_numbers => "d3",
+    dc_piw0_11__q21_d4_a_row_of_dates_over_numbers => "d4",
+    dc_piw0_11__q21_b1_an_empty_corner => "b1",
+    dc_piw0_11__q21_b2_a_blank_inside_the_header_row => "b2",
+    dc_piw0_11__q21_g1_a_gap_in_a_column => "g1",
+    dc_piw0_11__q21_g2_blank_values_under_a_header_row => "g2",
 }

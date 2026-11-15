@@ -383,7 +383,7 @@ impl CopySnapshot {
     }
 }
 
-fn date_format(code: &str) -> bool {
+pub(crate) fn date_format(code: &str) -> bool {
     let mut quoted = false;
     let mut escaped = false;
     let mut bracket = false;

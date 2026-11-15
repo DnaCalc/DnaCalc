@@ -633,8 +633,8 @@ fn q0_chart_xml() -> String {
         part: part.clone(),
         area: GridArea::new(at(sheet, "A1"), at(sheet, "C3")).unwrap(),
         rows: false,
-        headers: true,
-        categories: true,
+        headers: 1,
+        categories: 1,
     });
     let mut bytes = Vec::new();
     book.save(&SavePolicy::default(), &mut bytes).unwrap();
@@ -689,8 +689,8 @@ fn dc_piw0_9__series_caches_follow_the_cells_at_save() {
         part: part.clone(),
         area: GridArea::new(at(sheet, "A1"), at(sheet, "B3")).unwrap(),
         rows: false,
-        headers: true,
-        categories: true,
+        headers: 1,
+        categories: 1,
     });
     enter(&mut book, sheet, "B3", "31");
     assert!(book.dispatch(SkinIntent::Recalculate).accepted());
@@ -788,8 +788,8 @@ fn dc_piw0_10__q17_series_children_follow_the_chart_type() {
             part: part.clone(),
             area: GridArea::new(at(sheet, "A1"), at(sheet, "C4")).unwrap(),
             rows: false,
-            headers: true,
-            categories: true,
+            headers: 1,
+            categories: 1,
         });
         let mut bytes = Vec::new();
         book.save(&SavePolicy::default(), &mut bytes).unwrap();

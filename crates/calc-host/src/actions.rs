@@ -139,15 +139,17 @@ pub enum WorkbookCommand {
         /// `ChartObjects.Add` the series count of Excel's automatic source at Add time).
         unique_start: u32,
     },
-    /// `Chart.SetSourceData`: the series of a chart this session made.
+    /// `Chart.SetSourceData`: the series of a chart this session made. `rows`: series run along rows.
+    /// `headers`: how many leading cells of each series hold its name (a range when more than one);
+    /// `categories`: how many leading series lines (rows when `rows`) hold the categories.
     ChartSource {
         sheet: SheetId,
         revision: u64,
         part: String,
         area: GridArea,
         rows: bool,
-        headers: bool,
-        categories: bool,
+        headers: u32,
+        categories: u32,
     },
     ChartCreate {
         revision: u64,

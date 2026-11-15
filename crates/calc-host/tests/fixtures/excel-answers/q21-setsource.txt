@@ -1,0 +1,301 @@
+c07	sheet k1	way 0	source A1:C3	spec A1=t:Region;B1=t:Q1;C1=t:Q2	series before	0
+c07	way 0	series after	2	PlotBy	1	ChartType	51	chart	Chart 1
+c07	way 0	series 1	Name	Series1	Formula	=SERIES(,'k1'!$A$1:$C$1,'k1'!$A$2:$C$2,1)	Values	[;;]	XValues	[Region;Q1;Q2]	Type	51
+c07	way 0	series 2	Name	Series2	Formula	=SERIES(,'k1'!$A$1:$C$1,'k1'!$A$3:$C$3,2)	Values	[;;]	XValues	[Region;Q1;Q2]	Type	51
+c07	sheet k2	way 2	source A1:C3	spec A1=t:Region;B1=t:Q1;C1=t:Q2	series before	0
+c07	way 2	series after	3	PlotBy	2	ChartType	51	chart	Chart 1
+c07	way 2	series 1	Name	Region	Formula	=SERIES('k2'!$A$1,,'k2'!$A$2:$A$3,1)	Values	[;]	XValues	[1;2]	Type	51
+c07	way 2	series 2	Name	Q1	Formula	=SERIES('k2'!$B$1,,'k2'!$B$2:$B$3,2)	Values	[;]	XValues	[1;2]	Type	51
+c07	way 2	series 3	Name	Q2	Formula	=SERIES('k2'!$C$1,,'k2'!$C$2:$C$3,3)	Values	[;]	XValues	[1;2]	Type	51
+c07	sheet k3	way 1	source A1:C3	spec A1=t:Region;B1=t:Q1;C1=t:Q2	series before	0
+c07	way 1	series after	2	PlotBy	1	ChartType	51	chart	Chart 1
+c07	way 1	series 1	Name	Series1	Formula	=SERIES(,'k3'!$A$1:$C$1,'k3'!$A$2:$C$2,1)	Values	[;;]	XValues	[Region;Q1;Q2]	Type	51
+c07	way 1	series 2	Name	Series2	Formula	=SERIES(,'k3'!$A$1:$C$1,'k3'!$A$3:$C$3,2)	Values	[;;]	XValues	[Region;Q1;Q2]	Type	51
+c09	sheet k4	way 0	source A1:C3	spec A1=t:Alpha;A2=t:Beta;A3=t:Gamma;B1=t:Delta;B2=t:Eps;B3=t:Zeta;C1=t:Eta;C2=t:Theta;C3=t:Iota	series before	0
+c09	way 0	series after	1	PlotBy	1	ChartType	51	chart	Chart 1
+c09	way 0	series 1	Name	Gamma Zeta	Formula	=SERIES('k4'!$A$3:$B$3,'k4'!$C$1:$C$2,'k4'!$C$3,1)	Values	[0]	XValues	[Eta]	Type	51
+c09	sheet k5	way 2	source A1:C3	spec A1=t:Alpha;A2=t:Beta;A3=t:Gamma;B1=t:Delta;B2=t:Eps;B3=t:Zeta;C1=t:Eta;C2=t:Theta;C3=t:Iota	series before	0
+c09	way 2	series after	1	PlotBy	2	ChartType	51	chart	Chart 1
+c09	way 2	series 1	Name	Eta Theta	Formula	=SERIES('k5'!$C$1:$C$2,'k5'!$A$3:$B$3,'k5'!$C$3,1)	Values	[0]	XValues	[Gamma]	Type	51
+c09	sheet k6	way 1	source A1:C3	spec A1=t:Alpha;A2=t:Beta;A3=t:Gamma;B1=t:Delta;B2=t:Eps;B3=t:Zeta;C1=t:Eta;C2=t:Theta;C3=t:Iota	series before	0
+c09	way 1	series after	1	PlotBy	1	ChartType	51	chart	Chart 1
+c09	way 1	series 1	Name	Gamma Zeta	Formula	=SERIES('k6'!$A$3:$B$3,'k6'!$C$1:$C$2,'k6'!$C$3,1)	Values	[0]	XValues	[Eta]	Type	51
+c11	sheet k7	way 0	source A1:C3	spec A1=t:Day;B1=t:Q1;C1=t:Q2;A2=d:45000;A3=d:45001;B2=n:1;B3=n:2;C2=n:3;C3=n:4	series before	0
+c11	way 0	series after	2	PlotBy	2	ChartType	51	chart	Chart 1
+c11	way 0	series 1	Name	Q1	Formula	=SERIES('k7'!$B$1,'k7'!$A$2:$A$3,'k7'!$B$2:$B$3,1)	Values	[1;2]	XValues	[45000;45001]	Type	51
+c11	way 0	series 2	Name	Q2	Formula	=SERIES('k7'!$C$1,'k7'!$A$2:$A$3,'k7'!$C$2:$C$3,2)	Values	[3;4]	XValues	[45000;45001]	Type	51
+c11	sheet k8	way 2	source A1:C3	spec A1=t:Day;B1=t:Q1;C1=t:Q2;A2=d:45000;A3=d:45001;B2=n:1;B3=n:2;C2=n:3;C3=n:4	series before	0
+c11	way 2	series after	2	PlotBy	2	ChartType	51	chart	Chart 1
+c11	way 2	series 1	Name	Q1	Formula	=SERIES('k8'!$B$1,'k8'!$A$2:$A$3,'k8'!$B$2:$B$3,1)	Values	[1;2]	XValues	[45000;45001]	Type	51
+c11	way 2	series 2	Name	Q2	Formula	=SERIES('k8'!$C$1,'k8'!$A$2:$A$3,'k8'!$C$2:$C$3,2)	Values	[3;4]	XValues	[45000;45001]	Type	51
+c11	sheet k9	way 1	source A1:C3	spec A1=t:Day;B1=t:Q1;C1=t:Q2;A2=d:45000;A3=d:45001;B2=n:1;B3=n:2;C2=n:3;C3=n:4	series before	0
+c11	way 1	series after	2	PlotBy	1	ChartType	51	chart	Chart 1
+c11	way 1	series 1	Name	2023-03-15	Formula	=SERIES('k9'!$A$2,'k9'!$B$1:$C$1,'k9'!$B$2:$C$2,1)	Values	[1;3]	XValues	[Q1;Q2]	Type	51
+c11	way 1	series 2	Name	2023-03-16	Formula	=SERIES('k9'!$A$3,'k9'!$B$1:$C$1,'k9'!$B$3:$C$3,2)	Values	[2;4]	XValues	[Q1;Q2]	Type	51
+c12	sheet k10	way 0	source A1:C3	spec 	series before	0
+c12	way 0	series after	2	PlotBy	1	ChartType	51	chart	Chart 1
+ERR	c12 read series	-2147467259	Method 'XValues' of object 'Series' failed
+c12	sheet k11	way 2	source A1:C3	spec 	series before	0
+c12	way 2	series after	2	PlotBy	2	ChartType	51	chart	Chart 1
+ERR	c12 read series	-2147467259	Method 'XValues' of object 'Series' failed
+c12	sheet k12	way 1	source A1:C3	spec 	series before	0
+c12	way 1	series after	2	PlotBy	1	ChartType	51	chart	Chart 1
+ERR	c12 read series	-2147467259	Method 'XValues' of object 'Series' failed
+e1	sheet k13	way 0	source A1:B2	spec 	series before	0
+e1	way 0	series after	1	PlotBy	1	ChartType	51	chart	Chart 1
+ERR	e1 read series	-2147467259	Method 'XValues' of object 'Series' failed
+e1	sheet k14	way 2	source A1:B2	spec 	series before	0
+e1	way 2	series after	1	PlotBy	2	ChartType	51	chart	Chart 1
+ERR	e1 read series	-2147467259	Method 'XValues' of object 'Series' failed
+e1	sheet k15	way 1	source A1:B2	spec 	series before	0
+e1	way 1	series after	1	PlotBy	1	ChartType	51	chart	Chart 1
+ERR	e1 read series	-2147467259	Method 'XValues' of object 'Series' failed
+e2	sheet k16	way 0	source A1:C1	spec 	series before	0
+e2	way 0	series after	1	PlotBy	1	ChartType	51	chart	Chart 1
+e2	way 0	series 1	Name		Formula	=SERIES('k16'!$A$1,,'k16'!$B$1:$C$1,1)	Values	[;]	XValues	[1;2]	Type	51
+e2	sheet k17	way 2	source A1:C1	spec 	series before	0
+e2	way 2	series after	2	PlotBy	2	ChartType	51	chart	Chart 1
+ERR	e2 read series	-2147467259	Method 'XValues' of object 'Series' failed
+e2	sheet k18	way 1	source A1:C1	spec 	series before	0
+e2	way 1	series after	1	PlotBy	1	ChartType	51	chart	Chart 1
+e2	way 1	series 1	Name		Formula	=SERIES('k18'!$A$1,,'k18'!$B$1:$C$1,1)	Values	[;]	XValues	[1;2]	Type	51
+e3	sheet k19	way 0	source A1:A3	spec 	series before	0
+e3	way 0	series after	1	PlotBy	2	ChartType	51	chart	Chart 1
+e3	way 0	series 1	Name		Formula	=SERIES('k19'!$A$1,,'k19'!$A$2:$A$3,1)	Values	[;]	XValues	[1;2]	Type	51
+e3	sheet k20	way 2	source A1:A3	spec 	series before	0
+e3	way 2	series after	1	PlotBy	2	ChartType	51	chart	Chart 1
+e3	way 2	series 1	Name		Formula	=SERIES('k20'!$A$1,,'k20'!$A$2:$A$3,1)	Values	[;]	XValues	[1;2]	Type	51
+e3	sheet k21	way 1	source A1:A3	spec 	series before	0
+e3	way 1	series after	2	PlotBy	1	ChartType	51	chart	Chart 1
+ERR	e3 read series	-2147467259	Method 'XValues' of object 'Series' failed
+e4	sheet k22	way 0	source A1:D4	spec 	series before	0
+e4	way 0	series after	3	PlotBy	1	ChartType	51	chart	Chart 1
+ERR	e4 read series	-2147467259	Method 'XValues' of object 'Series' failed
+e4	sheet k23	way 2	source A1:D4	spec 	series before	0
+e4	way 2	series after	3	PlotBy	2	ChartType	51	chart	Chart 1
+ERR	e4 read series	-2147467259	Method 'XValues' of object 'Series' failed
+e4	sheet k24	way 1	source A1:D4	spec 	series before	0
+e4	way 1	series after	3	PlotBy	1	ChartType	51	chart	Chart 1
+ERR	e4 read series	-2147467259	Method 'XValues' of object 'Series' failed
+e5	sheet k25	way 0	source A1	spec 	series before	0
+e5	way 0	series after	0	PlotBy	0	ChartType	51	chart	Chart 1
+e5	sheet k26	way 2	source A1	spec 	series before	0
+e5	way 2	series after	0	PlotBy	0	ChartType	51	chart	Chart 1
+e5	sheet k27	way 1	source A1	spec 	series before	0
+e5	way 1	series after	0	PlotBy	0	ChartType	51	chart	Chart 1
+h1	sheet k28	way 0	source A1:C1	spec A1=t:Region;B1=t:Q1;C1=t:Q2	series before	0
+h1	way 0	series after	1	PlotBy	1	ChartType	51	chart	Chart 1
+h1	way 0	series 1	Name	Region Q1	Formula	=SERIES('k28'!$A$1:$B$1,,'k28'!$C$1,1)	Values	[0]	XValues	[1]	Type	51
+h1	sheet k29	way 2	source A1:C1	spec A1=t:Region;B1=t:Q1;C1=t:Q2	series before	0
+h1	way 2	series after	1	PlotBy	2	ChartType	51	chart	Chart 1
+h1	way 2	series 1	Name	Series1	Formula	=SERIES(,'k29'!$A$1:$B$1,'k29'!$C$1,1)	Values	[0]	XValues	[Region]	Type	51
+h1	sheet k30	way 1	source A1:C1	spec A1=t:Region;B1=t:Q1;C1=t:Q2	series before	0
+h1	way 1	series after	1	PlotBy	1	ChartType	51	chart	Chart 1
+h1	way 1	series 1	Name	Region Q1	Formula	=SERIES('k30'!$A$1:$B$1,,'k30'!$C$1,1)	Values	[0]	XValues	[1]	Type	51
+h2	sheet k31	way 0	source A1:C2	spec A1=t:Region;B1=t:Q1;C1=t:Q2	series before	0
+h2	way 0	series after	1	PlotBy	1	ChartType	51	chart	Chart 1
+h2	way 0	series 1	Name	Series1	Formula	=SERIES(,'k31'!$A$1:$C$1,'k31'!$A$2:$C$2,1)	Values	[;;]	XValues	[Region;Q1;Q2]	Type	51
+h2	sheet k32	way 2	source A1:C2	spec A1=t:Region;B1=t:Q1;C1=t:Q2	series before	0
+h2	way 2	series after	3	PlotBy	2	ChartType	51	chart	Chart 1
+h2	way 2	series 1	Name	Region	Formula	=SERIES('k32'!$A$1,,'k32'!$A$2,1)	Values	[]	XValues	[1]	Type	51
+h2	way 2	series 2	Name	Q1	Formula	=SERIES('k32'!$B$1,,'k32'!$B$2,2)	Values	[]	XValues	[1]	Type	51
+h2	way 2	series 3	Name	Q2	Formula	=SERIES('k32'!$C$1,,'k32'!$C$2,3)	Values	[]	XValues	[1]	Type	51
+h2	sheet k33	way 1	source A1:C2	spec A1=t:Region;B1=t:Q1;C1=t:Q2	series before	0
+h2	way 1	series after	1	PlotBy	1	ChartType	51	chart	Chart 1
+h2	way 1	series 1	Name	Series1	Formula	=SERIES(,'k33'!$A$1:$C$1,'k33'!$A$2:$C$2,1)	Values	[;;]	XValues	[Region;Q1;Q2]	Type	51
+h3	sheet k34	way 0	source A1:B3	spec A1=t:Q1;B1=t:Q2	series before	0
+h3	way 0	series after	2	PlotBy	1	ChartType	51	chart	Chart 1
+h3	way 0	series 1	Name	Series1	Formula	=SERIES(,'k34'!$A$1:$B$1,'k34'!$A$2:$B$2,1)	Values	[;]	XValues	[Q1;Q2]	Type	51
+h3	way 0	series 2	Name	Series2	Formula	=SERIES(,'k34'!$A$1:$B$1,'k34'!$A$3:$B$3,2)	Values	[;]	XValues	[Q1;Q2]	Type	51
+h3	sheet k35	way 2	source A1:B3	spec A1=t:Q1;B1=t:Q2	series before	0
+h3	way 2	series after	2	PlotBy	2	ChartType	51	chart	Chart 1
+h3	way 2	series 1	Name	Q1	Formula	=SERIES('k35'!$A$1,,'k35'!$A$2:$A$3,1)	Values	[;]	XValues	[1;2]	Type	51
+h3	way 2	series 2	Name	Q2	Formula	=SERIES('k35'!$B$1,,'k35'!$B$2:$B$3,2)	Values	[;]	XValues	[1;2]	Type	51
+h3	sheet k36	way 1	source A1:B3	spec A1=t:Q1;B1=t:Q2	series before	0
+h3	way 1	series after	2	PlotBy	1	ChartType	51	chart	Chart 1
+h3	way 1	series 1	Name	Series1	Formula	=SERIES(,'k36'!$A$1:$B$1,'k36'!$A$2:$B$2,1)	Values	[;]	XValues	[Q1;Q2]	Type	51
+h3	way 1	series 2	Name	Series2	Formula	=SERIES(,'k36'!$A$1:$B$1,'k36'!$A$3:$B$3,2)	Values	[;]	XValues	[Q1;Q2]	Type	51
+t1	sheet k37	way 0	source A1:A3	spec A1=t:Alpha;A2=t:Beta;A3=t:Gamma	series before	0
+t1	way 0	series after	1	PlotBy	2	ChartType	51	chart	Chart 1
+t1	way 0	series 1	Name	Alpha Beta	Formula	=SERIES('k37'!$A$1:$A$2,,'k37'!$A$3,1)	Values	[0]	XValues	[1]	Type	51
+t1	sheet k38	way 2	source A1:A3	spec A1=t:Alpha;A2=t:Beta;A3=t:Gamma	series before	0
+t1	way 2	series after	1	PlotBy	2	ChartType	51	chart	Chart 1
+t1	way 2	series 1	Name	Alpha Beta	Formula	=SERIES('k38'!$A$1:$A$2,,'k38'!$A$3,1)	Values	[0]	XValues	[1]	Type	51
+t1	sheet k39	way 1	source A1:A3	spec A1=t:Alpha;A2=t:Beta;A3=t:Gamma	series before	0
+t1	way 1	series after	1	PlotBy	1	ChartType	51	chart	Chart 1
+t1	way 1	series 1	Name	Series1	Formula	=SERIES(,'k39'!$A$1:$A$2,'k39'!$A$3,1)	Values	[0]	XValues	[Alpha]	Type	51
+t2	sheet k40	way 0	source A1:B3	spec A1=t:Alpha;A2=t:Beta;A3=t:Gamma	series before	0
+t2	way 0	series after	1	PlotBy	2	ChartType	51	chart	Chart 1
+t2	way 0	series 1	Name	Series1	Formula	=SERIES(,'k40'!$A$1:$A$3,'k40'!$B$1:$B$3,1)	Values	[;;]	XValues	[Alpha;Beta;Gamma]	Type	51
+t2	sheet k41	way 2	source A1:B3	spec A1=t:Alpha;A2=t:Beta;A3=t:Gamma	series before	0
+t2	way 2	series after	1	PlotBy	2	ChartType	51	chart	Chart 1
+t2	way 2	series 1	Name	Series1	Formula	=SERIES(,'k41'!$A$1:$A$3,'k41'!$B$1:$B$3,1)	Values	[;;]	XValues	[Alpha;Beta;Gamma]	Type	51
+t2	sheet k42	way 1	source A1:B3	spec A1=t:Alpha;A2=t:Beta;A3=t:Gamma	series before	0
+t2	way 1	series after	3	PlotBy	1	ChartType	51	chart	Chart 1
+t2	way 1	series 1	Name	Alpha	Formula	=SERIES('k42'!$A$1,,'k42'!$B$1,1)	Values	[]	XValues	[1]	Type	51
+t2	way 1	series 2	Name	Beta	Formula	=SERIES('k42'!$A$2,,'k42'!$B$2,2)	Values	[]	XValues	[1]	Type	51
+t2	way 1	series 3	Name	Gamma	Formula	=SERIES('k42'!$A$3,,'k42'!$B$3,3)	Values	[]	XValues	[1]	Type	51
+t3	sheet k43	way 0	source A1:B3	spec A1=t:Alpha;A2=t:Beta;A3=t:Gamma;B1=n:1;B2=n:2;B3=n:3	series before	0
+t3	way 0	series after	1	PlotBy	2	ChartType	51	chart	Chart 1
+t3	way 0	series 1	Name	Series1	Formula	=SERIES(,'k43'!$A$1:$A$3,'k43'!$B$1:$B$3,1)	Values	[1;2;3]	XValues	[Alpha;Beta;Gamma]	Type	51
+t3	sheet k44	way 2	source A1:B3	spec A1=t:Alpha;A2=t:Beta;A3=t:Gamma;B1=n:1;B2=n:2;B3=n:3	series before	0
+t3	way 2	series after	1	PlotBy	2	ChartType	51	chart	Chart 1
+t3	way 2	series 1	Name	Series1	Formula	=SERIES(,'k44'!$A$1:$A$3,'k44'!$B$1:$B$3,1)	Values	[1;2;3]	XValues	[Alpha;Beta;Gamma]	Type	51
+t3	sheet k45	way 1	source A1:B3	spec A1=t:Alpha;A2=t:Beta;A3=t:Gamma;B1=n:1;B2=n:2;B3=n:3	series before	0
+t3	way 1	series after	3	PlotBy	1	ChartType	51	chart	Chart 1
+t3	way 1	series 1	Name	Alpha	Formula	=SERIES('k45'!$A$1,,'k45'!$B$1,1)	Values	[1]	XValues	[1]	Type	51
+t3	way 1	series 2	Name	Beta	Formula	=SERIES('k45'!$A$2,,'k45'!$B$2,2)	Values	[2]	XValues	[1]	Type	51
+t3	way 1	series 3	Name	Gamma	Formula	=SERIES('k45'!$A$3,,'k45'!$B$3,3)	Values	[3]	XValues	[1]	Type	51
+n1	sheet k46	way 0	source A1:A3	spec A1=t:Q1;A2=n:1;A3=n:2	series before	0
+n1	way 0	series after	1	PlotBy	2	ChartType	51	chart	Chart 1
+n1	way 0	series 1	Name	Q1	Formula	=SERIES('k46'!$A$1,,'k46'!$A$2:$A$3,1)	Values	[1;2]	XValues	[1;2]	Type	51
+n1	sheet k47	way 2	source A1:A3	spec A1=t:Q1;A2=n:1;A3=n:2	series before	0
+n1	way 2	series after	1	PlotBy	2	ChartType	51	chart	Chart 1
+n1	way 2	series 1	Name	Q1	Formula	=SERIES('k47'!$A$1,,'k47'!$A$2:$A$3,1)	Values	[1;2]	XValues	[1;2]	Type	51
+n1	sheet k48	way 1	source A1:A3	spec A1=t:Q1;A2=n:1;A3=n:2	series before	0
+n1	way 1	series after	2	PlotBy	1	ChartType	51	chart	Chart 1
+n1	way 1	series 1	Name	Series1	Formula	=SERIES(,'k48'!$A$1,'k48'!$A$2,1)	Values	[1]	XValues	[Q1]	Type	51
+n1	way 1	series 2	Name	Series2	Formula	=SERIES(,'k48'!$A$1,'k48'!$A$3,2)	Values	[2]	XValues	[Q1]	Type	51
+n2	sheet k49	way 0	source A1:B3	spec A1=t:Q1;B1=t:Q2;A2=n:1;A3=n:2;B2=n:3;B3=n:4	series before	0
+n2	way 0	series after	2	PlotBy	1	ChartType	51	chart	Chart 1
+n2	way 0	series 1	Name	Series1	Formula	=SERIES(,'k49'!$A$1:$B$1,'k49'!$A$2:$B$2,1)	Values	[1;3]	XValues	[Q1;Q2]	Type	51
+n2	way 0	series 2	Name	Series2	Formula	=SERIES(,'k49'!$A$1:$B$1,'k49'!$A$3:$B$3,2)	Values	[2;4]	XValues	[Q1;Q2]	Type	51
+n2	sheet k50	way 2	source A1:B3	spec A1=t:Q1;B1=t:Q2;A2=n:1;A3=n:2;B2=n:3;B3=n:4	series before	0
+n2	way 2	series after	2	PlotBy	2	ChartType	51	chart	Chart 1
+n2	way 2	series 1	Name	Q1	Formula	=SERIES('k50'!$A$1,,'k50'!$A$2:$A$3,1)	Values	[1;2]	XValues	[1;2]	Type	51
+n2	way 2	series 2	Name	Q2	Formula	=SERIES('k50'!$B$1,,'k50'!$B$2:$B$3,2)	Values	[3;4]	XValues	[1;2]	Type	51
+n2	sheet k51	way 1	source A1:B3	spec A1=t:Q1;B1=t:Q2;A2=n:1;A3=n:2;B2=n:3;B3=n:4	series before	0
+n2	way 1	series after	2	PlotBy	1	ChartType	51	chart	Chart 1
+n2	way 1	series 1	Name	Series1	Formula	=SERIES(,'k51'!$A$1:$B$1,'k51'!$A$2:$B$2,1)	Values	[1;3]	XValues	[Q1;Q2]	Type	51
+n2	way 1	series 2	Name	Series2	Formula	=SERIES(,'k51'!$A$1:$B$1,'k51'!$A$3:$B$3,2)	Values	[2;4]	XValues	[Q1;Q2]	Type	51
+n3	sheet k52	way 0	source A1:B3	spec A1=n:1;A2=n:2;A3=n:3;B1=n:4;B2=n:5;B3=n:6	series before	0
+n3	way 0	series after	2	PlotBy	2	ChartType	51	chart	Chart 1
+n3	way 0	series 1	Name	Series1	Formula	=SERIES(,,'k52'!$A$1:$A$3,1)	Values	[1;2;3]	XValues	[1;2;3]	Type	51
+n3	way 0	series 2	Name	Series2	Formula	=SERIES(,,'k52'!$B$1:$B$3,2)	Values	[4;5;6]	XValues	[1;2;3]	Type	51
+n3	sheet k53	way 2	source A1:B3	spec A1=n:1;A2=n:2;A3=n:3;B1=n:4;B2=n:5;B3=n:6	series before	0
+n3	way 2	series after	2	PlotBy	2	ChartType	51	chart	Chart 1
+n3	way 2	series 1	Name	Series1	Formula	=SERIES(,,'k53'!$A$1:$A$3,1)	Values	[1;2;3]	XValues	[1;2;3]	Type	51
+n3	way 2	series 2	Name	Series2	Formula	=SERIES(,,'k53'!$B$1:$B$3,2)	Values	[4;5;6]	XValues	[1;2;3]	Type	51
+n3	sheet k54	way 1	source A1:B3	spec A1=n:1;A2=n:2;A3=n:3;B1=n:4;B2=n:5;B3=n:6	series before	0
+n3	way 1	series after	3	PlotBy	1	ChartType	51	chart	Chart 1
+n3	way 1	series 1	Name	Series1	Formula	=SERIES(,,'k54'!$A$1:$B$1,1)	Values	[1;4]	XValues	[1;2]	Type	51
+n3	way 1	series 2	Name	Series2	Formula	=SERIES(,,'k54'!$A$2:$B$2,2)	Values	[2;5]	XValues	[1;2]	Type	51
+n3	way 1	series 3	Name	Series3	Formula	=SERIES(,,'k54'!$A$3:$B$3,3)	Values	[3;6]	XValues	[1;2]	Type	51
+n4	sheet k55	way 0	source A1:C3	spec A1=n:1;A2=n:2;A3=n:3;B1=n:4;B2=n:5;B3=n:6;C1=n:7;C2=n:8;C3=n:9	series before	0
+n4	way 0	series after	3	PlotBy	1	ChartType	51	chart	Chart 1
+n4	way 0	series 1	Name	Series1	Formula	=SERIES(,,'k55'!$A$1:$C$1,1)	Values	[1;4;7]	XValues	[1;2;3]	Type	51
+n4	way 0	series 2	Name	Series2	Formula	=SERIES(,,'k55'!$A$2:$C$2,2)	Values	[2;5;8]	XValues	[1;2;3]	Type	51
+n4	way 0	series 3	Name	Series3	Formula	=SERIES(,,'k55'!$A$3:$C$3,3)	Values	[3;6;9]	XValues	[1;2;3]	Type	51
+n4	sheet k56	way 2	source A1:C3	spec A1=n:1;A2=n:2;A3=n:3;B1=n:4;B2=n:5;B3=n:6;C1=n:7;C2=n:8;C3=n:9	series before	0
+n4	way 2	series after	3	PlotBy	2	ChartType	51	chart	Chart 1
+n4	way 2	series 1	Name	Series1	Formula	=SERIES(,,'k56'!$A$1:$A$3,1)	Values	[1;2;3]	XValues	[1;2;3]	Type	51
+n4	way 2	series 2	Name	Series2	Formula	=SERIES(,,'k56'!$B$1:$B$3,2)	Values	[4;5;6]	XValues	[1;2;3]	Type	51
+n4	way 2	series 3	Name	Series3	Formula	=SERIES(,,'k56'!$C$1:$C$3,3)	Values	[7;8;9]	XValues	[1;2;3]	Type	51
+n4	sheet k57	way 1	source A1:C3	spec A1=n:1;A2=n:2;A3=n:3;B1=n:4;B2=n:5;B3=n:6;C1=n:7;C2=n:8;C3=n:9	series before	0
+n4	way 1	series after	3	PlotBy	1	ChartType	51	chart	Chart 1
+n4	way 1	series 1	Name	Series1	Formula	=SERIES(,,'k57'!$A$1:$C$1,1)	Values	[1;4;7]	XValues	[1;2;3]	Type	51
+n4	way 1	series 2	Name	Series2	Formula	=SERIES(,,'k57'!$A$2:$C$2,2)	Values	[2;5;8]	XValues	[1;2;3]	Type	51
+n4	way 1	series 3	Name	Series3	Formula	=SERIES(,,'k57'!$A$3:$C$3,3)	Values	[3;6;9]	XValues	[1;2;3]	Type	51
+n5	sheet k58	way 0	source A1:C3	spec A1=t:Region;B1=t:Q1;C1=t:Q2;A2=t:N;A3=t:S;B2=n:1;B3=n:2;C2=n:3;C3=n:4	series before	0
+n5	way 0	series after	2	PlotBy	1	ChartType	51	chart	Chart 1
+n5	way 0	series 1	Name	N	Formula	=SERIES('k58'!$A$2,'k58'!$B$1:$C$1,'k58'!$B$2:$C$2,1)	Values	[1;3]	XValues	[Q1;Q2]	Type	51
+n5	way 0	series 2	Name	S	Formula	=SERIES('k58'!$A$3,'k58'!$B$1:$C$1,'k58'!$B$3:$C$3,2)	Values	[2;4]	XValues	[Q1;Q2]	Type	51
+n5	sheet k59	way 2	source A1:C3	spec A1=t:Region;B1=t:Q1;C1=t:Q2;A2=t:N;A3=t:S;B2=n:1;B3=n:2;C2=n:3;C3=n:4	series before	0
+n5	way 2	series after	2	PlotBy	2	ChartType	51	chart	Chart 1
+n5	way 2	series 1	Name	Q1	Formula	=SERIES('k59'!$B$1,'k59'!$A$2:$A$3,'k59'!$B$2:$B$3,1)	Values	[1;2]	XValues	[N;S]	Type	51
+n5	way 2	series 2	Name	Q2	Formula	=SERIES('k59'!$C$1,'k59'!$A$2:$A$3,'k59'!$C$2:$C$3,2)	Values	[3;4]	XValues	[N;S]	Type	51
+n5	sheet k60	way 1	source A1:C3	spec A1=t:Region;B1=t:Q1;C1=t:Q2;A2=t:N;A3=t:S;B2=n:1;B3=n:2;C2=n:3;C3=n:4	series before	0
+n5	way 1	series after	2	PlotBy	1	ChartType	51	chart	Chart 1
+n5	way 1	series 1	Name	N	Formula	=SERIES('k60'!$A$2,'k60'!$B$1:$C$1,'k60'!$B$2:$C$2,1)	Values	[1;3]	XValues	[Q1;Q2]	Type	51
+n5	way 1	series 2	Name	S	Formula	=SERIES('k60'!$A$3,'k60'!$B$1:$C$1,'k60'!$B$3:$C$3,2)	Values	[2;4]	XValues	[Q1;Q2]	Type	51
+d1	sheet k61	way 0	source A1:A3	spec A1=t:Day;A2=d:45000;A3=d:45001	series before	0
+d1	way 0	series after	1	PlotBy	2	ChartType	51	chart	Chart 1
+d1	way 0	series 1	Name	Day	Formula	=SERIES('k61'!$A$1,,'k61'!$A$2:$A$3,1)	Values	[45000;45001]	XValues	[1;2]	Type	51
+d1	sheet k62	way 2	source A1:A3	spec A1=t:Day;A2=d:45000;A3=d:45001	series before	0
+d1	way 2	series after	1	PlotBy	2	ChartType	51	chart	Chart 1
+d1	way 2	series 1	Name	Day	Formula	=SERIES('k62'!$A$1,,'k62'!$A$2:$A$3,1)	Values	[45000;45001]	XValues	[1;2]	Type	51
+d1	sheet k63	way 1	source A1:A3	spec A1=t:Day;A2=d:45000;A3=d:45001	series before	0
+d1	way 1	series after	2	PlotBy	1	ChartType	51	chart	Chart 1
+d1	way 1	series 1	Name	Series1	Formula	=SERIES(,'k63'!$A$1,'k63'!$A$2,1)	Values	[45000]	XValues	[Day]	Type	51
+d1	way 1	series 2	Name	Series2	Formula	=SERIES(,'k63'!$A$1,'k63'!$A$3,2)	Values	[45001]	XValues	[Day]	Type	51
+d2	sheet k64	way 0	source A1:B3	spec A1=t:Day;B1=t:Q1;A2=d:45000;A3=d:45001;B2=n:1;B3=n:2	series before	0
+d2	way 0	series after	1	PlotBy	2	ChartType	51	chart	Chart 1
+d2	way 0	series 1	Name	Q1	Formula	=SERIES('k64'!$B$1,'k64'!$A$2:$A$3,'k64'!$B$2:$B$3,1)	Values	[1;2]	XValues	[45000;45001]	Type	51
+d2	sheet k65	way 2	source A1:B3	spec A1=t:Day;B1=t:Q1;A2=d:45000;A3=d:45001;B2=n:1;B3=n:2	series before	0
+d2	way 2	series after	1	PlotBy	2	ChartType	51	chart	Chart 1
+d2	way 2	series 1	Name	Q1	Formula	=SERIES('k65'!$B$1,'k65'!$A$2:$A$3,'k65'!$B$2:$B$3,1)	Values	[1;2]	XValues	[45000;45001]	Type	51
+d2	sheet k66	way 1	source A1:B3	spec A1=t:Day;B1=t:Q1;A2=d:45000;A3=d:45001;B2=n:1;B3=n:2	series before	0
+d2	way 1	series after	2	PlotBy	1	ChartType	51	chart	Chart 1
+d2	way 1	series 1	Name	2023-03-15	Formula	=SERIES('k66'!$A$2,'k66'!$B$1,'k66'!$B$2,1)	Values	[1]	XValues	[Q1]	Type	51
+d2	way 1	series 2	Name	2023-03-16	Formula	=SERIES('k66'!$A$3,'k66'!$B$1,'k66'!$B$3,2)	Values	[2]	XValues	[Q1]	Type	51
+d3	sheet k67	way 0	source A1:B3	spec A1=d:45000;A2=d:45001;A3=d:45002;B1=n:1;B2=n:2;B3=n:3	series before	0
+d3	way 0	series after	1	PlotBy	2	ChartType	51	chart	Chart 1
+d3	way 0	series 1	Name	Series1	Formula	=SERIES(,'k67'!$A$1:$A$3,'k67'!$B$1:$B$3,1)	Values	[1;2;3]	XValues	[45000;45001;45002]	Type	51
+d3	sheet k68	way 2	source A1:B3	spec A1=d:45000;A2=d:45001;A3=d:45002;B1=n:1;B2=n:2;B3=n:3	series before	0
+d3	way 2	series after	1	PlotBy	2	ChartType	51	chart	Chart 1
+d3	way 2	series 1	Name	Series1	Formula	=SERIES(,'k68'!$A$1:$A$3,'k68'!$B$1:$B$3,1)	Values	[1;2;3]	XValues	[45000;45001;45002]	Type	51
+d3	sheet k69	way 1	source A1:B3	spec A1=d:45000;A2=d:45001;A3=d:45002;B1=n:1;B2=n:2;B3=n:3	series before	0
+d3	way 1	series after	3	PlotBy	1	ChartType	51	chart	Chart 1
+d3	way 1	series 1	Name	2023-03-15	Formula	=SERIES('k69'!$A$1,,'k69'!$B$1,1)	Values	[1]	XValues	[1]	Type	51
+d3	way 1	series 2	Name	2023-03-16	Formula	=SERIES('k69'!$A$2,,'k69'!$B$2,2)	Values	[2]	XValues	[1]	Type	51
+d3	way 1	series 3	Name	2023-03-17	Formula	=SERIES('k69'!$A$3,,'k69'!$B$3,3)	Values	[3]	XValues	[1]	Type	51
+d4	sheet k70	way 0	source A1:C2	spec A1=d:45000;B1=d:45001;C1=d:45002;A2=n:1;B2=n:2;C2=n:3	series before	0
+d4	way 0	series after	1	PlotBy	1	ChartType	51	chart	Chart 1
+d4	way 0	series 1	Name	Series1	Formula	=SERIES(,'k70'!$A$1:$C$1,'k70'!$A$2:$C$2,1)	Values	[1;2;3]	XValues	[45000;45001;45002]	Type	51
+d4	sheet k71	way 2	source A1:C2	spec A1=d:45000;B1=d:45001;C1=d:45002;A2=n:1;B2=n:2;C2=n:3	series before	0
+d4	way 2	series after	3	PlotBy	2	ChartType	51	chart	Chart 1
+d4	way 2	series 1	Name	2023-03-15	Formula	=SERIES('k71'!$A$1,,'k71'!$A$2,1)	Values	[1]	XValues	[1]	Type	51
+d4	way 2	series 2	Name	2023-03-16	Formula	=SERIES('k71'!$B$1,,'k71'!$B$2,2)	Values	[2]	XValues	[1]	Type	51
+d4	way 2	series 3	Name	2023-03-17	Formula	=SERIES('k71'!$C$1,,'k71'!$C$2,3)	Values	[3]	XValues	[1]	Type	51
+d4	sheet k72	way 1	source A1:C2	spec A1=d:45000;B1=d:45001;C1=d:45002;A2=n:1;B2=n:2;C2=n:3	series before	0
+d4	way 1	series after	1	PlotBy	1	ChartType	51	chart	Chart 1
+d4	way 1	series 1	Name	Series1	Formula	=SERIES(,'k72'!$A$1:$C$1,'k72'!$A$2:$C$2,1)	Values	[1;2;3]	XValues	[45000;45001;45002]	Type	51
+b1	sheet k73	way 0	source A1:C3	spec B1=t:Q1;C1=t:Q2;A2=t:N;A3=t:S;B2=n:1;B3=n:2;C2=n:3;C3=n:4	series before	0
+b1	way 0	series after	2	PlotBy	1	ChartType	51	chart	Chart 1
+b1	way 0	series 1	Name	N	Formula	=SERIES('k73'!$A$2,'k73'!$B$1:$C$1,'k73'!$B$2:$C$2,1)	Values	[1;3]	XValues	[Q1;Q2]	Type	51
+b1	way 0	series 2	Name	S	Formula	=SERIES('k73'!$A$3,'k73'!$B$1:$C$1,'k73'!$B$3:$C$3,2)	Values	[2;4]	XValues	[Q1;Q2]	Type	51
+b1	sheet k74	way 2	source A1:C3	spec B1=t:Q1;C1=t:Q2;A2=t:N;A3=t:S;B2=n:1;B3=n:2;C2=n:3;C3=n:4	series before	0
+b1	way 2	series after	2	PlotBy	2	ChartType	51	chart	Chart 1
+b1	way 2	series 1	Name	Q1	Formula	=SERIES('k74'!$B$1,'k74'!$A$2:$A$3,'k74'!$B$2:$B$3,1)	Values	[1;2]	XValues	[N;S]	Type	51
+b1	way 2	series 2	Name	Q2	Formula	=SERIES('k74'!$C$1,'k74'!$A$2:$A$3,'k74'!$C$2:$C$3,2)	Values	[3;4]	XValues	[N;S]	Type	51
+b1	sheet k75	way 1	source A1:C3	spec B1=t:Q1;C1=t:Q2;A2=t:N;A3=t:S;B2=n:1;B3=n:2;C2=n:3;C3=n:4	series before	0
+b1	way 1	series after	2	PlotBy	1	ChartType	51	chart	Chart 1
+b1	way 1	series 1	Name	N	Formula	=SERIES('k75'!$A$2,'k75'!$B$1:$C$1,'k75'!$B$2:$C$2,1)	Values	[1;3]	XValues	[Q1;Q2]	Type	51
+b1	way 1	series 2	Name	S	Formula	=SERIES('k75'!$A$3,'k75'!$B$1:$C$1,'k75'!$B$3:$C$3,2)	Values	[2;4]	XValues	[Q1;Q2]	Type	51
+b2	sheet k76	way 0	source A1:C3	spec A1=t:Region;C1=t:Q2;A2=t:N;A3=t:S;B2=n:1;B3=n:2;C2=n:3;C3=n:4	series before	0
+b2	way 0	series after	2	PlotBy	1	ChartType	51	chart	Chart 1
+b2	way 0	series 1	Name	N	Formula	=SERIES('k76'!$A$2,'k76'!$B$1:$C$1,'k76'!$B$2:$C$2,1)	Values	[1;3]	XValues	[;Q2]	Type	51
+b2	way 0	series 2	Name	S	Formula	=SERIES('k76'!$A$3,'k76'!$B$1:$C$1,'k76'!$B$3:$C$3,2)	Values	[2;4]	XValues	[;Q2]	Type	51
+b2	sheet k77	way 2	source A1:C3	spec A1=t:Region;C1=t:Q2;A2=t:N;A3=t:S;B2=n:1;B3=n:2;C2=n:3;C3=n:4	series before	0
+b2	way 2	series after	2	PlotBy	2	ChartType	51	chart	Chart 1
+b2	way 2	series 1	Name		Formula	=SERIES('k77'!$B$1,'k77'!$A$2:$A$3,'k77'!$B$2:$B$3,1)	Values	[1;2]	XValues	[N;S]	Type	51
+b2	way 2	series 2	Name	Q2	Formula	=SERIES('k77'!$C$1,'k77'!$A$2:$A$3,'k77'!$C$2:$C$3,2)	Values	[3;4]	XValues	[N;S]	Type	51
+b2	sheet k78	way 1	source A1:C3	spec A1=t:Region;C1=t:Q2;A2=t:N;A3=t:S;B2=n:1;B3=n:2;C2=n:3;C3=n:4	series before	0
+b2	way 1	series after	2	PlotBy	1	ChartType	51	chart	Chart 1
+b2	way 1	series 1	Name	N	Formula	=SERIES('k78'!$A$2,'k78'!$B$1:$C$1,'k78'!$B$2:$C$2,1)	Values	[1;3]	XValues	[;Q2]	Type	51
+b2	way 1	series 2	Name	S	Formula	=SERIES('k78'!$A$3,'k78'!$B$1:$C$1,'k78'!$B$3:$C$3,2)	Values	[2;4]	XValues	[;Q2]	Type	51
+g1	sheet k79	way 0	source A1:A4	spec A1=t:Q1;A3=n:1;A4=n:2	series before	0
+g1	way 0	series after	1	PlotBy	2	ChartType	51	chart	Chart 1
+g1	way 0	series 1	Name	Q1	Formula	=SERIES('k79'!$A$1,,'k79'!$A$2:$A$4,1)	Values	[;1;2]	XValues	[1;2;3]	Type	51
+g1	sheet k80	way 2	source A1:A4	spec A1=t:Q1;A3=n:1;A4=n:2	series before	0
+g1	way 2	series after	1	PlotBy	2	ChartType	51	chart	Chart 1
+g1	way 2	series 1	Name	Q1	Formula	=SERIES('k80'!$A$1,,'k80'!$A$2:$A$4,1)	Values	[;1;2]	XValues	[1;2;3]	Type	51
+g1	sheet k81	way 1	source A1:A4	spec A1=t:Q1;A3=n:1;A4=n:2	series before	0
+g1	way 1	series after	3	PlotBy	1	ChartType	51	chart	Chart 1
+g1	way 1	series 1	Name	Series1	Formula	=SERIES(,'k81'!$A$1,'k81'!$A$2,1)	Values	[]	XValues	[Q1]	Type	51
+g1	way 1	series 2	Name	Series2	Formula	=SERIES(,'k81'!$A$1,'k81'!$A$3,2)	Values	[1]	XValues	[Q1]	Type	51
+g1	way 1	series 3	Name	Series3	Formula	=SERIES(,'k81'!$A$1,'k81'!$A$4,3)	Values	[2]	XValues	[Q1]	Type	51
+g2	sheet k82	way 0	source A1:B3	spec A1=t:Q1;B1=t:Q2;A2=n:1;A3=n:2	series before	0
+g2	way 0	series after	2	PlotBy	1	ChartType	51	chart	Chart 1
+g2	way 0	series 1	Name	Series1	Formula	=SERIES(,'k82'!$A$1:$B$1,'k82'!$A$2:$B$2,1)	Values	[1;]	XValues	[Q1;Q2]	Type	51
+g2	way 0	series 2	Name	Series2	Formula	=SERIES(,'k82'!$A$1:$B$1,'k82'!$A$3:$B$3,2)	Values	[2;]	XValues	[Q1;Q2]	Type	51
+g2	sheet k83	way 2	source A1:B3	spec A1=t:Q1;B1=t:Q2;A2=n:1;A3=n:2	series before	0
+g2	way 2	series after	2	PlotBy	2	ChartType	51	chart	Chart 1
+g2	way 2	series 1	Name	Q1	Formula	=SERIES('k83'!$A$1,,'k83'!$A$2:$A$3,1)	Values	[1;2]	XValues	[1;2]	Type	51
+g2	way 2	series 2	Name	Q2	Formula	=SERIES('k83'!$B$1,,'k83'!$B$2:$B$3,2)	Values	[;]	XValues	[1;2]	Type	51
+g2	sheet k84	way 1	source A1:B3	spec A1=t:Q1;B1=t:Q2;A2=n:1;A3=n:2	series before	0
+g2	way 1	series after	2	PlotBy	1	ChartType	51	chart	Chart 1
+g2	way 1	series 1	Name	Series1	Formula	=SERIES(,'k84'!$A$1:$B$1,'k84'!$A$2:$B$2,1)	Values	[1;]	XValues	[Q1;Q2]	Type	51
+g2	way 1	series 2	Name	Series2	Formula	=SERIES(,'k84'!$A$1:$B$1,'k84'!$A$3:$B$3,2)	Values	[2;]	XValues	[Q1;Q2]	Type	51
+ERR	savecopyas	0	
+

@@ -1475,8 +1475,8 @@ fn make_series(
     area: calc_value::GridArea,
     scatter: bool,
     rows: bool,
-    headers: bool,
-    categories: bool,
+    headers: u32,
+    categories: u32,
     fail: &dyn Fn(&str) -> String,
 ) -> Result<Vec<calc_doc_model::ChartSeries>, String> {
     use calc_doc_model::ChartSeries;
@@ -1487,11 +1487,11 @@ fn make_series(
         (area.row_count(), area.column_count())
     };
     let points = length
-        .checked_sub(u32::from(headers))
+        .checked_sub(headers)
         .filter(|n| *n > 0)
         .ok_or_else(|| fail("Select at least one data point after the series names"))?;
     let count = width
-        .checked_sub(u32::from(categories))
+        .checked_sub(categories)
         .filter(|n| *n > 0)
         .ok_or_else(|| fail("Select at least one values series after the categories"))?;
     if count > 255 || points > 32767 || u64::from(points) * u64::from(count) > 262144 {
@@ -1520,12 +1520,16 @@ fn make_series(
     // (`c:strRef`) and plots as 1, 2, 3 (dc-piw0.10 Q17).
     let text_x = host
         .model()
-        .cell(cell(u32::from(headers), 0))
+        .cell(cell(headers, 0))
         .is_some_and(|c| matches!(c, crate::CellInput::Text(_)));
-    let cats = if categories {
+    // Several category lines over several points are multi-level categories (not modelled).
+    if categories > 1 && points > 1 {
+        return Err(fail("Multi-level categories are not modelled"));
+    }
+    let cats = if categories > 0 {
         Some(data(
-            cell(u32::from(headers), 0),
-            cell(length - 1, 0),
+            cell(headers, 0),
+            cell(length - 1, categories - 1),
             scatter && !text_x,
         )?)
     } else {
@@ -1533,9 +1537,9 @@ fn make_series(
     };
     let mut series = Vec::new();
     for i in 0..count {
-        let minor = i + u32::from(categories);
-        let name = if headers {
-            Some(data(cell(0, minor), cell(0, minor), false)?)
+        let minor = i + categories;
+        let name = if headers > 0 {
+            Some(data(cell(0, minor), cell(headers - 1, minor), false)?)
         } else {
             None
         };
@@ -1543,11 +1547,7 @@ fn make_series(
             index: i,
             name,
             categories: cats.clone(),
-            values: Some(data(
-                cell(u32::from(headers), minor),
-                cell(length - 1, minor),
-                true,
-            )?),
+            values: Some(data(cell(headers, minor), cell(length - 1, minor), true)?),
             fill: None,
             unique_id: None,
         });
@@ -1571,7 +1571,15 @@ pub(crate) fn prepare_create(
     let sheet = area.sheet();
     editable(host, sheet, &fail)?;
     let scatter = kind == "scatter";
-    let series = make_series(host, area, scatter, rows, headers, categories, &fail)?;
+    let series = make_series(
+        host,
+        area,
+        scatter,
+        rows,
+        u32::from(headers),
+        u32::from(categories),
+        &fail,
+    )?;
     let count = series.len() as u32;
     assemble(
         host,
@@ -1626,8 +1634,8 @@ pub(crate) fn prepare_set_source(
     part: &str,
     area: calc_value::GridArea,
     rows: bool,
-    headers: bool,
-    categories: bool,
+    headers: u32,
+    categories: u32,
 ) -> Result<Vec<crate::CellEdit>, String> {
     let fail = |s: &str| format!("{s} (dc-piw0.2)");
     if revision != host.revision().get() {
@@ -1646,23 +1654,17 @@ pub(crate) fn prepare_set_source(
         return Err(fail("Only a chart with one plot takes new source data"));
     }
     let scatter = charts[index].plots[0].kind == "scatterChart";
-    // A source with no value in it leaves the chart without series (Excel, Q6).
+    // A single empty cell leaves the chart without series (Excel Q6, Q21 e5); an empty range of
+    // more cells reads its first row and column as labels and plots the rest (Q21 c12, e1-e4).
     let model = host.model();
-    let empty = area.cell_count() <= 65_536
-        && (area.first().row()..=area.last().row()).all(|r| {
-            (area.first().column()..=area.last().column()).all(|c| {
-                CellKey::new(sheet, r, c)
-                    .ok()
-                    .is_none_or(|at| model.cell(at).is_none())
-            })
-        });
-    let series = if empty {
+    let single_blank = area.cell_count() == 1 && model.cell(area.first()).is_none();
+    let series = if single_blank {
         Vec::new()
     } else {
         make_series(host, area, scatter, rows, headers, categories, &fail)?
     };
     // Excel keeps every series of a source in a pie or doughnut part (Q17); the ring or circle shows the first.
-    if scatter && !categories && !series.is_empty() {
+    if scatter && categories == 0 && !series.is_empty() {
         return Err(fail("Use the first column or row as X values for a scatter chart"));
     }
     // Excel (dc-piw0.10 Q17): the series a re-plot reuses keep their uniqueId; each new one takes the

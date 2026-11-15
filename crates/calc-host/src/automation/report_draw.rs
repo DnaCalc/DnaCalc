@@ -447,9 +447,9 @@ impl WorkbookAutomation {
     }
     /// `Chart.SetSourceData(Source, PlotBy)`: the chart's series become those of the range, in
     /// rows when PlotBy is xlRows (1) and in columns when xlColumns (2). Without PlotBy Excel
-    /// plots along the shorter side of the data (rows when equal), a table's range by columns
-    /// (dc-piw0 Q6). The source's text first row and first column are series names and
-    /// categories (`source_layout`). A source with no data leaves the chart without series.
+    /// plots along the side the data leaves fewer points for (`source_by_rows`), a table's range
+    /// by columns (dc-piw0 Q6, Q21). The label rows and columns of the source become series
+    /// names and categories (`source_blocks`). A single empty cell leaves the chart without series.
     pub(super) fn chart_set_source(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         let part = Self::chart_token(target)?;
         let (_, sheet, _) = Self::report_key(target)?;
@@ -484,49 +484,41 @@ impl WorkbookAutomation {
             })
         })
     }
-    /// How Excel reads a source range (dc-piw0 Q6). The first row is a label row when its cells
-    /// (less a first cell the label column covers) are all text, the first column a label column
-    /// when its cells (less the corner) are all text; the data is what is left. Series run along
-    /// rows when the data has no more rows than columns; the label row then holds the categories
-    /// and the label column the series names, the other way round for series in columns. A range
-    /// that is exactly a table is plotted in columns.
+    /// How Excel reads a source range (dc-piw0 Q6, Q21): a block of label rows on top and label
+    /// columns on the left, the rest the data (`source_blocks`). Series run along rows or
+    /// columns (`source_by_rows`); a series' name is its label cells, the categories the label
+    /// lines across the series. A range that is exactly a table is plotted in columns.
     fn source_layout(session: &HostSession, area: GridArea, explicit: Option<bool>) -> SourceLayout {
-        let model = session.host().model();
-        let text_at = |row: u32, column: u32| {
-            CellKey::new(area.sheet(), area.first().row() + row, area.first().column() + column)
-                .ok()
-                .and_then(|at| model.cell(at))
-                .is_some_and(|c| matches!(c, crate::CellInput::Text(_)))
+        let host = session.host();
+        let model = host.model();
+        let kind_at = |row: u32, column: u32| {
+            let Ok(at) = CellKey::new(area.sheet(), area.first().row() + row, area.first().column() + column) else {
+                return SourceCell::Blank;
+            };
+            match model.cell(at) {
+                None => SourceCell::Blank,
+                Some(crate::CellInput::Text(_)) => SourceCell::Text,
+                Some(crate::CellInput::Number(_)) if host.number_format(at).is_some_and(crate::copy::date_format) => {
+                    SourceCell::Date
+                }
+                Some(_) => SourceCell::Other,
+            }
         };
         let (rows, columns) = (area.row_count(), area.column_count());
-        let first_row_text = |skip: u32| columns > skip && (skip..columns).all(|c| text_at(0, c));
-        let first_column_text = |skip: u32| rows > skip && (skip..rows).all(|r| text_at(r, 0));
-        // The corner counts with the row or column that is not a label of the other kind.
-        let label_row = rows > 1 && first_row_text(1);
-        let label_column = columns > 1 && first_column_text(1);
-        let (label_row, label_column) = match (label_row, label_column) {
-            // Both candidates need the other to leave the corner out; a label row whose corner is
-            // text but whose column is numeric is still a label row when the corner is text.
-            (true, true) => (true, true),
-            (true, false) => (rows > 1 && first_row_text(0), false),
-            (false, true) => (false, columns > 1 && first_column_text(0)),
-            (false, false) => (false, false),
-        };
-        let data_rows = rows - u32::from(label_row);
-        let data_columns = columns - u32::from(label_column);
-        let is_table = session
-            .host()
-            .model()
+        let (label_rows, label_columns) = source_blocks(&kind_at, rows, columns);
+        let is_table = model
             .definitions()
             .tables()
             .iter()
             .any(|t| t.sheet == area.sheet() && t.area == area);
-        let by_rows = explicit.unwrap_or(!is_table && data_rows <= data_columns);
-        // Series in rows: names in the label column, categories in the label row.
+        let by_rows = explicit.unwrap_or_else(|| {
+            !is_table && source_by_rows(&kind_at, rows, columns, label_rows, label_columns)
+        });
+        // Series in rows: names in the label columns, categories in the label rows.
         let (headers, categories) = if by_rows {
-            (label_column, label_row)
+            (label_columns, label_rows)
         } else {
-            (label_row, label_column)
+            (label_rows, label_columns)
         };
         SourceLayout {
             rows: by_rows,
@@ -1589,8 +1581,92 @@ impl WorkbookAutomation {
 /// categories.
 struct SourceLayout {
     rows: bool,
-    headers: bool,
-    categories: bool,
+    headers: u32,
+    categories: u32,
+}
+
+/// What a source cell holds, for reading a range as labels and data.
+#[derive(Clone, Copy, PartialEq)]
+enum SourceCell {
+    Blank,
+    Text,
+    /// A number with a date format.
+    Date,
+    /// Any other number, a logical, an error or a formula.
+    Other,
+}
+
+/// The label rows and label columns of a `rows` x `columns` source (Excel 16.0, Q21, 28 cases): the
+/// top `label_rows` rows and left `label_columns` columns, the rest the data; at least one data row
+/// and column stay. A label row holds, right of the label columns, only text or blanks with some
+/// text (a date too in the first row); a label column likewise below the label rows. The reading
+/// with the fewest text cells left among the data wins, then the most label lines, then the most
+/// label columns (text-only data reads as one data cell under multi-line labels). A range with
+/// nothing in it takes one label row and one label column. Reading the range as a block of labels
+/// and data is the rule that fits the recorded cases; it is not Excel's documented text.
+fn source_blocks(kind: &dyn Fn(u32, u32) -> SourceCell, rows: u32, columns: u32) -> (u32, u32) {
+    if (0..rows).all(|r| (0..columns).all(|c| kind(r, c) == SourceCell::Blank)) {
+        return (1.min(rows - 1), 1.min(columns - 1));
+    }
+    let label_line = |cells: &mut dyn Iterator<Item = SourceCell>, first: bool| {
+        let (mut text, mut ok) = (false, true);
+        for cell in cells {
+            match cell {
+                SourceCell::Text => text = true,
+                SourceCell::Date if first => text = true,
+                SourceCell::Blank => {}
+                _ => ok = false,
+            }
+        }
+        ok && text
+    };
+    let mut best: Option<((u32, u32, u32), (u32, u32))> = None;
+    for hr in 0..rows {
+        for hc in 0..columns {
+            let rows_ok = (0..hr).all(|r| label_line(&mut (hc..columns).map(|c| kind(r, c)), r == 0));
+            let columns_ok = (0..hc).all(|c| label_line(&mut (hr..rows).map(|r| kind(r, c)), c == 0));
+            if !rows_ok || !columns_ok {
+                continue;
+            }
+            let text_in_data = (hr..rows)
+                .flat_map(|r| (hc..columns).map(move |c| (r, c)))
+                .filter(|(r, c)| kind(*r, *c) == SourceCell::Text)
+                .count() as u32;
+            // Smaller is better in the first slot: negate the others by reading them as largest wins.
+            let score = (u32::MAX - text_in_data, hr + hc, hc);
+            if best.is_none_or(|(b, _)| score > b) {
+                best = Some((score, (hr, hc)));
+            }
+        }
+    }
+    best.map_or((0, 0), |(_, blocks)| blocks)
+}
+
+/// Whether Excel plots a source along rows when PlotBy is omitted (Q21): a single column along
+/// columns, a single row along rows, otherwise along the side with fewer data points per series
+/// (more data rows than columns: columns; fewer: rows); equal, rows, unless the label column
+/// holds dates (columns).
+fn source_by_rows(
+    kind: &dyn Fn(u32, u32) -> SourceCell,
+    rows: u32,
+    columns: u32,
+    label_rows: u32,
+    label_columns: u32,
+) -> bool {
+    if columns == 1 {
+        return false;
+    }
+    if rows == 1 {
+        return true;
+    }
+    let (data_rows, data_columns) = (rows - label_rows, columns - label_columns);
+    match data_rows.cmp(&data_columns) {
+        std::cmp::Ordering::Greater => false,
+        std::cmp::Ordering::Less => true,
+        std::cmp::Ordering::Equal => {
+            !(label_columns > 0 && (label_rows..rows).any(|r| kind(r, 0) == SourceCell::Date))
+        }
+    }
 }
 
 /// Whether `value` is a member of `XlChartType`.
