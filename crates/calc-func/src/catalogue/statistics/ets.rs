@@ -941,6 +941,17 @@ pub(super) fn evaluate(
         };
     }
     if output == Output::Confidence && target <= series.last {
+        // On directly observed, ascending timelines Excel returns zero inside
+        // the last historical interval. Points near either endpoint snap to
+        // the endpoint and return NUM, so keep to the independently measured
+        // interior until the exact snapping boundary is identified.
+        let fraction = (target - (series.last - series.step)) / series.step;
+        if series.ordered && series.directly_observed
+            && (4..=20).contains(&series.values.len()) && season <= 1.0
+            && (1.0 / 128.0..=127.0 / 128.0).contains(&fraction)
+        {
+            return site.number(0.0);
+        }
         return fail(WorksheetErrorCode::Num);
     }
     let horizon = if offset == 1 {

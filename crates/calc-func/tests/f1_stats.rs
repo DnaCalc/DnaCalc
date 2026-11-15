@@ -4241,6 +4241,26 @@ fn ets_confidence_rounded_probability_keeps_the_measured_fallback() {
     );
 }
 
+/// Excel returns zero strictly within the measured final historical interval.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_confidence_last_historical_interval() {
+    let values = arr(vec![vec![1.2, 2.7, 3.1, 4.4, 5.3]]);
+    let times = arr(vec![vec![1.0, 2.0, 3.0, 4.0, 5.0]]);
+    for target in [4.1, 4.5, 4.75] {
+        exact(
+            call("FORECAST.ETS.CONFINT", vec![n(target), values.clone(), times.clone()]),
+            0.0,
+        );
+    }
+    for target in [4.0, 5.0] {
+        error(
+            call("FORECAST.ETS.CONFINT", vec![n(target), values.clone(), times.clone()]),
+            Num,
+        );
+    }
+}
+
 /// Odd-history raw moments retain a different divisor from their selected tail.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
