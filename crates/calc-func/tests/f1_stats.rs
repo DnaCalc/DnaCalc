@@ -10,6 +10,25 @@ use calc_func::SubtotalExclusions;
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Ref, Value};
 use f1_support::*;
 
+/// Excel 20527: a tiny confidence uses the normal inverse near one half.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_confidence_uses_near_half_normal_quantile() {
+    let values = [
+        0x3ff76f26ac7f4c03, 0x40012d17320f6f4f, 0x400c589bee305e6d,
+        0x4012446629d8dedd, 0x4014422493e5c599,
+    ];
+    let history = arr(values.into_iter().map(|v| vec![f64::from_bits(v)]).collect());
+    let timeline = arr((1..=5).map(|v| vec![v as f64]).collect());
+    exact(
+        call("FORECAST.ETS.CONFINT", vec![
+            n(f64::from_bits(0x40e4736000000000)), history, timeline,
+            n(f64::from_bits(0x3cebceed4579c0e8)), n(0.0),
+        ]),
+        f64::from_bits(0x3d914cb8f0f19109),
+    );
+}
+
 /// Excel 20527's automatic confidence fit with two verified initial slopes.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
