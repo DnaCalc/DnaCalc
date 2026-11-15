@@ -2887,6 +2887,28 @@ fn mirr_positive_term_overflow_keeps_divisor_errors_distinct() {
     }
 }
 
+/// Excel 20527 distinguishes final normalization overflow from term overflow.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn mirr_zero_finance_divisor_precedes_final_positive_overflow() {
+    let below = (-1.0_f64).next_down();
+    let mut flows = vec![0.0; 16];
+    flows[1] = -1.0;
+    flows[15] = 1.5 * 2.0_f64.powi(243);
+    error(call("MIRR", vec![col(&flows), n(-1.0), n(below)]), Div0);
+    // Overflow in a positive term itself still precedes the finance divisor.
+    flows[15] = 2.0 * 2.0_f64.powi(243);
+    error(call("MIRR", vec![col(&flows), n(-1.0), n(below)]), Num);
+
+    // Two finite positive terms can overflow their running sum before the
+    // final normalization; Excel reports NUM for this ordering.
+    flows.fill(0.0);
+    flows[0] = 2.0_f64.powi(1023);
+    flows[6] = -1.0;
+    flows[14] = 2.0_f64.powi(295);
+    error(call("MIRR", vec![col(&flows), n(-1.0), n(below)]), Num);
+}
+
 /// Native Excel20527 distinguishes held nonnumeric cells from literal values.
 /// An empty collected stream still validates the discount base and cell errors.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

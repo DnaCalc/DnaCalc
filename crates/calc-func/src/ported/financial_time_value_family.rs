@@ -605,13 +605,18 @@ fn discounted_npv(
     base: f64,
     cashflows: impl Iterator<Item = f64>,
     term_overflow: FinancialError,
+    defer_final_overflow: bool,
 ) -> Result<f64, FinancialError> {
     if base == 0.0 {
         return Err(FinancialError::Div0);
     }
     let (total, _) = discounted_cashflows(base, cashflows.map(Some), term_overflow)?;
+    // A running-sum overflow is distinct from overflow in the final division.
+    if !total.is_finite() {
+        return Err(FinancialError::Num);
+    }
     let result = financial_daz(excel_x87_div(total, base));
-    if result.is_finite() {
+    if result.is_finite() || defer_final_overflow {
         Ok(result)
     } else {
         Err(FinancialError::Num)
@@ -622,7 +627,7 @@ pub fn npv(periodic_rate: f64, cashflows: &[f64]) -> Result<f64, FinancialError>
     validate_finite(&[periodic_rate])?;
     validate_finite(cashflows)?;
     // Time-zero stored discounts, followed by one division by the stored base.
-    discounted_npv(excel_x87_add(1.0, periodic_rate), cashflows.iter().copied(), FinancialError::Div0)
+    discounted_npv(excel_x87_add(1.0, periodic_rate), cashflows.iter().copied(), FinancialError::Div0, false)
 }
 
 /// Remaining balance after `periods` payments, on the exp/log1p/expm1 core (W108
@@ -988,6 +993,13 @@ pub fn mirr(
     // It is compounded for the full cashflow count before division, not for
     // nper after forming the ratio. The shared loop preserves NPV's stores.
     let reinvest_base = excel_x87_add(1.0, reinvest_rate);
+    // At the measured negative-base boundary, Excel checks the zero finance
+    // divisor before reporting overflow of the final positive normalization.
+    // Overflow of a positive term itself still takes its existing path.
+    let defer_final_overflow = finance_rate == -1.0
+        && reinvest_rate == (-1.0_f64).next_down()
+        && cashflows.len() <= 16
+        && cashflows.iter().skip(1).any(|value| *value < 0.0);
     let positive_npv = discounted_npv(
         reinvest_base,
         cashflows
@@ -996,6 +1008,7 @@ pub fn mirr(
         // Excel reports NUM for an overflowing positive term in MIRR;
         // an unusable divisor still reports DIV/0, as it does in NPV.
         FinancialError::Num,
+        defer_final_overflow,
     )?;
     let finance_base = excel_x87_add(1.0, finance_rate);
     let (finance_pv, terminal_power) = discounted_cashflows(
