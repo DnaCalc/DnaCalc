@@ -9,6 +9,38 @@ mod f1_support;
 use calc_func::value::WorksheetErrorCode::{Blocked, Calc, Connect, Div0, NA, Name, Null, Num, Ref, Value};
 use f1_support::*;
 
+/// Excel 20527 applies the tolerant integer floor to CHAR, but not UNICHAR.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn char_uses_tolerant_floor_at_integer_boundaries() {
+    text(call("CHAR", vec![n(f64::from_bits(1.0_f64.to_bits() - 1))]), "\u{1}");
+    text(call("CHAR", vec![n(6.0 - 1e-7)]), "\u{6}");
+    text(call("CHAR", vec![n(6.0 - 1e-6)]), "\u{5}");
+    text(call("CHAR", vec![n(65.0 - 1e-7)]), "A");
+    error(call("CHAR", vec![n(256.0 - 1e-7)]), Value);
+    text(call("UNICHAR", vec![n(6.0 - 1e-7)]), "\u{5}");
+    text(call("UNICHAR", vec![n(256.0 - 1e-7)]), "ÿ");
+}
+
+/// Excel 20527 distinguishes empty delimiter text, range blanks, and array blanks.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn textsplit_empty_delimiters_and_error_order() {
+    use calc_func::value::CalcValue;
+    for delimiter in [CalcValue::empty(), t("")] {
+        error(call("TEXTSPLIT", vec![t("abc"), delimiter.clone()]), Value);
+        error(call("TEXTSPLIT", vec![t("abc"), t(","), delimiter.clone()]), Value);
+        error(call("TEXTSPLIT", vec![t("abc"), delimiter.clone(), e(NA)]), NA);
+        error(call("TEXTSPLIT", vec![t("abc"), delimiter, t(";"), e(NA)]), NA);
+    }
+    error(call("TEXTSPLIT", vec![t("abc"), arr_values(vec![vec![t(""), t(",")]])]), Value);
+    text(call("TEXTSPLIT", vec![t("abc"), arr_values(vec![vec![CalcValue::empty(), t(",")]])]), "abc");
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![CalcValue::empty(), t(",")]);
+    let delimiter = sheet.area(1, 1, 2, 1);
+    error(call_on(&mut sheet, "TEXTSPLIT", vec![t("abc"), delimiter]), Value);
+}
+
 /// Excel 20527 TEXTJOIN option controls and independent typed holdouts.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

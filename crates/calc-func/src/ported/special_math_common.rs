@@ -1827,6 +1827,11 @@ fn bratio_bup(a: f64, b: f64, x: f64, y: f64, n: i32, eps: f64, excel_form: bool
         // Excel's own form has no scaling by exp(mu).
         Some(h) => {
             d = 1.0;
+            // Excel flushes this stored density product before the recurrence;
+            // the subsequent sum can otherwise magnify it to a normal value.
+            if h.is_subnormal() {
+                return 0.0;
+            }
             crate::ported::excel_numeric::excel_x87_div(h, a)
         }
         None => bratio_brcmp1(mu, a, b, x, y) / a,
@@ -2581,6 +2586,11 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
             w = bratio_bup(b0, a0, y0, x0, n, eps, true);
             if x0 <= 0.7 {
                 w += bratio_bpser(a0, b0, x0, eps);
+                // The series term can be subnormal and still contribute to a
+                // normal recurrence. Excel flushes only the final stored sum.
+                if w.is_subnormal() {
+                    w = 0.0;
+                }
                 w1 = 0.5 + (0.5 - w);
             } else {
                 if a0 <= 15.0 {

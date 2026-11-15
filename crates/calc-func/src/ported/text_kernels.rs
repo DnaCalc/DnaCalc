@@ -415,9 +415,11 @@ const CP1252_HIGH: [u16; 32] = [
     0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x009D, 0x017E, 0x0178,
 ];
 
-/// CHAR: the character with code `n` (truncated) of code page 1252, 1 to 255.
+/// CHAR: the character with code `n` of code page 1252, 1 to 255.
 pub(crate) fn char_from_number(n: f64) -> Result<ExcelText, WorksheetErrorCode> {
-    let n = n.trunc();
+    // Excel 20527 uses the same tolerant integer floor as date arguments here;
+    // UNICHAR independently truncates instead.
+    let n = date_integer_floor(n);
     if !(1.0..=255.0).contains(&n) {
         return Err(WorksheetErrorCode::Value);
     }
