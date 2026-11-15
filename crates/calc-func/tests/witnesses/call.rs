@@ -533,6 +533,23 @@ mod tests {
         );
     }
 
+    /// Retained independent Excel controls admit2-scalar-OFFSET-0108 and
+    /// admit2-more-OFFSET-0126 shift by more than a full grid dimension.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn offset_can_reject_a_single_cell_shift_outside_every_position() {
+        let context = cells();
+        for args in [
+            ["0x2e15b33c4672ef20", "0xcf3db05ed98b5f04", "0xbfe0000000000000"],
+            ["0x3359a466a356a20a", "0x40e5f90000000000", "0xc53ed78ec297d6a6"],
+        ] {
+            assert_eq!(
+                calculate("OFFSET", &args.map(|arg| json!(arg)), None, Some(&context), true),
+                "error:Ref"
+            );
+        }
+    }
+
     /// Excel's retained dcuar_cell capture validates these info types before reading B2/A1.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
