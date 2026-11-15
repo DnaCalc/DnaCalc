@@ -108,6 +108,7 @@ fn width_conversion_propagates_errors_without_a_profile() {
         for code in [Null, Div0, Value, Ref, Name, Num, NA] {
             error(call(name, vec![e(code)]), code);
         }
+        text(call(name, vec![t("")]), "");
         refused(call(name, vec![t("abc")]));
     }
 }

@@ -805,6 +805,11 @@ fn regexreplace(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
 fn width_conversion(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     // A formed error is independent of the language needed for width conversion.
     scalar_error(&a[0])?;
+    // No editing language can change the width of a string with no characters.
+    // Retained Excel captures independently confirm ASC("") and DBCS("").
+    if matches!(a[0].core_ref(), CoreRef::Text(text) if text.utf16_code_units().is_empty()) {
+        return Ok(a[0].clone());
+    }
     let (_, profile) = profile(site)?;
     if matches!(profile.id, LocaleId::JaJp | LocaleId::KoKr | LocaleId::ZhCn) {
         return Err(site.not_modelled(None));
