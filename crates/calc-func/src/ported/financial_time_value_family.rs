@@ -996,7 +996,10 @@ pub fn mirr(
     // At the measured negative-base boundary, Excel checks the zero finance
     // divisor before reporting overflow of the final positive normalization.
     // Overflow of a positive term itself still takes its existing path.
-    let defer_final_overflow = finance_rate == -1.0
+    let scaled_positive = finance_rate == (-1.0_f64).next_down()
+        && reinvest_rate == (-1.0_f64).next_up()
+        && cashflows.len() == 16;
+    let defer_final_overflow = scaled_positive || finance_rate == -1.0
         && reinvest_rate == (-1.0_f64).next_down()
         && cashflows.len() <= 16
         && cashflows.iter().skip(1).any(|value| *value < 0.0);
@@ -1028,10 +1031,23 @@ pub fn mirr(
         return Err(FinancialError::Div0);
     }
     let growth = crt_pow(reinvest_base, cashflows.len() as f64);
-    let ratio = financial_daz(excel_x87_div(
-        excel_x87_mul(-positive_npv, growth),
-        finance_pv,
-    ));
+    let grown_positive = if scaled_positive && !positive_npv.is_finite() {
+        // The normalization overflows, but Excel retains the finite result
+        // after compounding. Accumulate those positive terms at their final
+        // time scale, keeping the stored multiply and add stages.
+        let mut total = 0.0;
+        let mut power = 1.0;
+        for value in cashflows.iter().rev() {
+            if *value > 0.0 {
+                total = excel_x87_add(total, excel_x87_mul(*value, power));
+            }
+            power = excel_x87_mul(power, reinvest_base);
+        }
+        -total
+    } else {
+        excel_x87_mul(-positive_npv, growth)
+    };
+    let ratio = financial_daz(excel_x87_div(grown_positive, finance_pv));
     let periods = cashflows.len() - 1;
     let negative = ratio < 0.0;
     if negative && periods % 2 == 0 {

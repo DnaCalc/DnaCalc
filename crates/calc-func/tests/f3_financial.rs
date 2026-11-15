@@ -2909,6 +2909,19 @@ fn mirr_zero_finance_divisor_precedes_final_positive_overflow() {
     error(call("MIRR", vec![col(&flows), n(-1.0), n(below)]), Num);
 }
 
+/// Excel 20527 retains a finite compounded MIRR after normalization overflow.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn mirr_compounds_positive_cashflows_before_publishing_overflow() {
+    let mut flows = vec![0.0; 16];
+    flows[14] = -2.0_f64.powi(132);
+    flows[15] = 2.0_f64.powi(203);
+    exact(
+        call("MIRR", vec![col(&flows), n((-1.0_f64).next_down()), n((-1.0_f64).next_up())]),
+        f64::from_bits(0xbfeffffffffffdb4),
+    );
+}
+
 /// Native Excel20527 distinguishes held nonnumeric cells from literal values.
 /// An empty collected stream still validates the discount base and cell errors.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
