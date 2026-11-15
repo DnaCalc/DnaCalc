@@ -103,8 +103,12 @@ fn shifted(site: &Site<'_>, arguments: &[CalcValue], positions_known: bool) -> S
         Exit::Error(WorksheetErrorCode::Ref) if !positions_known => site.not_modelled(Some(0)),
         other => other,
     };
-    let height = extent(site, 3, arguments.get(3), base.row_count()).map_err(without_position)?;
-    let width = extent(site, 4, arguments.get(4), base.column_count()).map_err(without_position)?;
+    let height = extent(site, 3, arguments.get(3), base.row_count())?;
+    let width = extent(site, 4, arguments.get(4), base.column_count())?;
+    // Excel reads both dimensions before deciding whether a zero extent is valid.
+    if height == 0 || width == 0 {
+        return Err(without_position(Exit::Error(WorksheetErrorCode::Ref)));
+    }
     if !positions_known {
         // A zero shift of a one-cell reference still names that same cell, even
         // when the caller did not supply its worksheet position.
@@ -148,15 +152,12 @@ fn whole(site: &Site<'_>, index: usize, value: &CalcValue) -> Step<i64> {
 }
 
 /// The height or width argument `index`, truncated: the reference's own `own` when it is not
-/// given, #REF! when it is 0.
+/// given. Zero is checked after both dimensions have been read.
 fn extent(site: &Site<'_>, index: usize, value: Option<&CalcValue>, own: u32) -> Step<i64> {
     match value {
         None => Ok(i64::from(own)),
         Some(value) if value.is_missing() => Ok(i64::from(own)),
-        Some(value) => match whole(site, index, value)? {
-            0 => Err(Exit::Error(WorksheetErrorCode::Ref)),
-            n => Ok(n),
-        },
+        Some(value) => whole(site, index, value),
     }
 }
 
@@ -436,6 +437,11 @@ mod tests {
         assert_eq!(run(vec![cell.clone(), n(0.5), n(-0.5), n(-1.0), n(1.0)]), Ok(cell.clone()));
         let refusal = Err(FunctionFault::NotImplemented { id: OFFSET, argument: Some(0) });
         assert_eq!(run(vec![cell.clone(), n(1.0), n(0.0)]), refusal);
+        assert_eq!(
+            run(vec![cell.clone(), n(0.0), n(0.0), n(0.5), CalcValue::error(WorksheetErrorCode::Div0)]),
+            Ok(CalcValue::error(WorksheetErrorCode::Div0))
+        );
+        assert_eq!(run(vec![cell, n(0.0), n(0.0), n(0.0), n(1.0)]), refusal);
         assert_eq!(run(vec![wide, n(0.0), n(0.0)]), refusal);
     }
 
