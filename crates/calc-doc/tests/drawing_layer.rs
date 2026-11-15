@@ -716,3 +716,100 @@ fn dc_zjsg_2__shapes_paint2_workbook() {
         assert_eq!(read.anchor, made.anchor, "{}", made.name);
     }
 }
+
+// dc-zjsg.3: the workbook the picture paint comparison draws, on the same base. Its pictures are the test card of
+// fixtures/drawing/pictures (make-pictures.py) in each format, added by calc-doc's save route. Regenerate with
+// DNACALC_WRITE_FIXTURE=1 cargo test -p calc-doc --test drawing_layer dc_zjsg_3__pictures_paint_workbook.
+const PICTURES_PAINT: &[u8] = include_bytes!("fixtures/drawing/pictures-paint.xlsx");
+const CARD_PNG: &[u8] = include_bytes!("fixtures/drawing/pictures/card.png");
+const CARD_JPG: &[u8] = include_bytes!("fixtures/drawing/pictures/card.jpg");
+const CARD_GIF: &[u8] = include_bytes!("fixtures/drawing/pictures/card.gif");
+const CARD_BMP: &[u8] = include_bytes!("fixtures/drawing/pictures/card.bmp");
+const CARD_SVG: &[u8] = include_bytes!("fixtures/drawing/pictures/card.svg");
+const BARE_EMF: &[u8] = include_bytes!("fixtures/drawing/pictures/bare.emf");
+const PNG_EMF: &[u8] = include_bytes!("fixtures/drawing/pictures/withpng.emf");
+const BARE_WMF: &[u8] = include_bytes!("fixtures/drawing/pictures/bare.wmf");
+
+fn zip_names(package: &[u8]) -> Vec<String> {
+    cdoc_m1_1_support::parse_zip(package).entries.iter().map(|e| e.name.clone()).collect()
+}
+
+fn media(content_type: &str, bytes: &[u8]) -> calc_doc::model::PictureMedia {
+    calc_doc::model::PictureMedia {
+        part: String::new(),
+        content_type: content_type.into(),
+        size: bytes.len() as u64,
+        bytes: bytes.into(),
+    }
+}
+
+fn pictures() -> Vec<Shape> {
+    use calc_doc::model::{ShapeLine, ShapePicture};
+    // The card is 160 by 100: 1828800 by 1143000 EMU (192 by 120 px).
+    const W: i64 = 1_828_800;
+    const H: i64 = 1_143_000;
+    let list: [(&str, calc_doc::model::PictureMedia, Option<calc_doc::model::PictureMedia>, [i64; 4], f64, bool); 11] = [
+        ("Pic PNG", media("image/png", CARD_PNG), None, [0; 4], 0.0, false),
+        ("Pic JPEG", media("image/jpeg", CARD_JPG), None, [0; 4], 0.0, false),
+        ("Pic GIF", media("image/gif", CARD_GIF), None, [0; 4], 0.0, false),
+        ("Pic BMP", media("image/bmp", CARD_BMP), None, [0; 4], 0.0, false),
+        // Cropped by 25% left and right, 10% top and 40% bottom: the red/green boundary and the arrow's middle remain.
+        ("Pic PNG crop", media("image/png", CARD_PNG), None, [25_000, 10_000, 25_000, 40_000], 0.0, false),
+        ("Pic PNG rot 30 outlined", media("image/png", CARD_PNG), None, [0; 4], 30.0, true),
+        ("Pic SVG with PNG fallback", media("image/png", CARD_PNG), Some(media("image/svg+xml", CARD_SVG)), [0; 4], 0.0, false),
+        ("Pic EMF bare", media("image/x-emf", BARE_EMF), None, [0; 4], 0.0, false),
+        ("Pic EMF with PNG", media("image/x-emf", PNG_EMF), None, [0; 4], 0.0, false),
+        ("Pic WMF bare", media("image/x-wmf", BARE_WMF), None, [0; 4], 0.0, false),
+        ("Pic PNG rot 90 crop", media("image/png", CARD_PNG), None, [0, 0, 50_000, 0], 90.0, false),
+    ];
+    let mut shapes = Vec::new();
+    for (i, (name, image, svg, crop, degrees, outlined)) in list.into_iter().enumerate() {
+        let (bw, bh) = around(W, H, degrees);
+        let mut shape = Shape::new(2 + i as u32, name.into(), ShapeKind::Picture, slot(i as i64 % 4, 6 + 10 * (i as i64 / 4), bw, bh));
+        shape.geometry = Some("rect".into());
+        shape.extent = (W, H);
+        shape.rotation = (degrees * 60_000.0) as i64;
+        if outlined {
+            shape.line = ShapeLine { weight: Some(38_100), colour: Some(ShapeColour::Rgb(0xC00000)), dash: Some("dash".into()), ..Default::default() };
+        }
+        shape.media = Some(ShapePicture { image: Some(image), svg, crop, description: Some(format!("{name} (test card)")) });
+        shapes.push(shape);
+    }
+    shapes
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_3__pictures_paint_workbook() {
+    let base = load(SHAPES_BASE);
+    let sheet = first_sheet(&base);
+    let model = edited(&base, vec![WorkbookOp::SetShapes { sheet, shapes: pictures() }]);
+    let (saved, _) = save_model(&base, &model);
+    #[cfg(not(target_arch = "wasm32"))]
+    if std::env::var_os("DNACALC_WRITE_FIXTURE").is_some() {
+        std::fs::write(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/drawing/pictures-paint.xlsx"), &saved).unwrap();
+    }
+    // The save wrote an image part per picture (the SVG's too) and the drawing relates them.
+    let names = zip_names(&saved);
+    let media_parts: Vec<_> = names.iter().filter(|n| n.starts_with("xl/media/")).collect();
+    assert_eq!(media_parts.len(), 12, "{names:?}");
+    assert_eq!(media_parts.iter().filter(|n| n.ends_with(".svg")).count(), 1, "{media_parts:?}");
+    // The committed workbook is that save: it reads back with each picture's bytes, crop and description.
+    let committed = load(PICTURES_PAINT);
+    let read = committed.sheets()[0].shapes();
+    assert_eq!(read.unread, 0);
+    let made = pictures();
+    assert_eq!(read.shapes.len(), made.len());
+    for (read, made) in read.shapes.iter().zip(&made) {
+        assert_eq!((read.name.as_str(), read.kind), (made.name.as_str(), ShapeKind::Picture));
+        assert_eq!(read.anchor, made.anchor, "{}", made.name);
+        assert_eq!((read.rotation, read.extent), (made.rotation, made.extent), "{}", made.name);
+        assert_eq!(read.line.weight, made.line.weight, "{}", made.name);
+        let (r, m) = (read.media.as_ref().unwrap(), made.media.as_ref().unwrap());
+        assert_eq!(r.crop, m.crop, "{}", made.name);
+        assert_eq!(r.description, m.description, "{}", made.name);
+        assert_eq!(&r.image.as_ref().unwrap().bytes, &m.image.as_ref().unwrap().bytes, "{}", made.name);
+        assert_eq!(r.image.as_ref().unwrap().content_type, m.image.as_ref().unwrap().content_type, "{}", made.name);
+        assert_eq!(r.svg.as_ref().map(|s| (&s.bytes, s.content_type.as_str())), m.svg.as_ref().map(|s| (&s.bytes, s.content_type.as_str())), "{}", made.name);
+    }
+}

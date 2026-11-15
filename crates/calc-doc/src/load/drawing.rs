@@ -11,7 +11,7 @@ use crate::opc::Package;
 use crate::xml::XmlEvent;
 use calc_doc_model::{
     ChartAnchor, DrawingPoint, LineEnd, Shape, ShapeBody, ShapeColour, ShapeConnection, ShapeFill,
-    ShapeGradient, ShapeKind, ShapeLine, SheetShapes,
+    PictureMedia, ShapeGradient, ShapeKind, ShapeLine, ShapePicture, SheetShapes,
 };
 
 const DRAWING: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing";
@@ -85,7 +85,14 @@ pub(crate) fn read_shapes(package: &Package, sheet_part: &str) -> SheetShapes {
         return read;
     };
     match read_drawing(package, &drawing) {
-        Ok(shapes) => shapes,
+        Ok(mut shapes) => {
+            let relationships = package.relationships_of(Some(&drawing));
+            let mut kept = std::collections::BTreeMap::new();
+            for shape in &mut shapes.shapes {
+                resolve_media(package, relationships, shape, &mut kept);
+            }
+            shapes
+        }
         Err(_) => {
             read.unread += 1;
             read
@@ -175,6 +182,44 @@ fn read_drawing(package: &Package, part: &str) -> Result<SheetShapes, LoadError>
         }
     }
     Ok(read)
+}
+
+/// The largest media part whose bytes the model keeps.
+const MEDIA_LIMIT: u64 = 32 * 1024 * 1024;
+
+/// Fills in the media of a picture (and of a group's pictures) from the parts the drawing's relationships name.
+fn resolve_media(
+    package: &Package,
+    relationships: Option<&crate::opc::Relationships>,
+    shape: &mut Shape,
+    kept: &mut std::collections::BTreeMap<String, PictureMedia>,
+) {
+    for child in &mut shape.children {
+        resolve_media(package, relationships, child, kept);
+    }
+    let Some(media) = shape.media.as_mut() else {
+        return;
+    };
+    let mut find = |id: &Option<String>| -> Option<PictureMedia> {
+        let target = relationships?
+            .items()
+            .iter()
+            .find(|r| Some(r.id.as_str()) == id.as_deref() && r.mode == crate::opc::TargetMode::Internal)?
+            .resolved
+            .clone()?;
+        if let Some(found) = kept.get(&target) {
+            return Some(found.clone());
+        }
+        let part = package.part(&target)?;
+        let size = part.size();
+        let bytes = if size <= MEDIA_LIMIT { package.read_part(&target).ok()? } else { Vec::new() };
+        let content_type = package.content_types().of(&target).unwrap_or("application/octet-stream").to_owned();
+        let found = PictureMedia { part: target.clone(), content_type, size, bytes: bytes.into() };
+        kept.insert(target, found.clone());
+        Some(found)
+    };
+    media.image = find(&shape.picture);
+    media.svg = find(&shape.picture_svg);
 }
 
 enum Anchored {
@@ -364,11 +409,19 @@ fn object_shape(node: &Node, anchor: ChartAnchor) -> Option<Shape> {
             shape.end = connection("endCxn");
         }
         ShapeKind::Picture => {
-            shape.picture = node
-                .child("blipFill")
-                .and_then(|f| f.child("blip"))
+            let blip = node.child("blipFill").and_then(|f| f.child("blip"));
+            shape.picture = blip.and_then(|b| b.attribute("r:embed")).map(str::to_owned);
+            shape.picture_svg = blip
+                .and_then(|b| b.child("extLst"))
+                .and_then(|l| l.children.iter().find_map(|e| e.child("svgBlip")))
                 .and_then(|b| b.attribute("r:embed"))
                 .map(str::to_owned);
+            let crop = node.child("blipFill").and_then(|f| f.child("srcRect"));
+            shape.media = Some(ShapePicture {
+                crop: crop.map_or([0; 4], |r| ["l", "t", "r", "b"].map(|side| r.number(side).unwrap_or(0))),
+                description: identity.attribute("descr").map(str::to_owned),
+                ..Default::default()
+            });
         }
         ShapeKind::Group => {
             shape.children = node

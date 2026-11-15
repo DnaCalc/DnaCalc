@@ -803,6 +803,12 @@ pub enum Request {
     CellImage {
         at: Key,
     },
+    /// The image of the picture `id` (a drawing object's identity) on a sheet: [`Reply::ShapePicture`],
+    /// its bytes beside the reply (dc-zjsg.3).
+    ShapePicture {
+        sheet: Sheet,
+        id: u32,
+    },
     PageSetup(Sheet),
     PrintPreview {
         sheet: Sheet,
@@ -1519,6 +1525,8 @@ pub enum Reply {
     /// The native Open dialog was cancelled; the workbook is unchanged.
     OpenCancelled,
     CellImage(Option<CellImage>),
+    /// The content type of the picture's bytes, `None` when it has no image the page can decode.
+    ShapePicture(Option<String>),
     PageSetup(Result<crate::printing::PageSetupState, String>),
     PrintPreview(Result<crate::printing::PrintDocument, String>),
     TemplateFormat(FileFormat),

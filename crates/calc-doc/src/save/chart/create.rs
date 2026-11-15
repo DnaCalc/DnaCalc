@@ -10,6 +10,7 @@ const XDR: &str = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetD
 const MC: &str = "http://schemas.openxmlformats.org/markup-compatibility/2006";
 const REL: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 const DRAWING: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing";
+const IMAGE: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image";
 const CHART: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart";
 
 fn invalid(part: &str, detail: &str) -> SaveRefusal {
@@ -765,9 +766,28 @@ pub(crate) fn add(
         let body = finish_body(body, &drawing, source, structural)?;
         frames.extend(body);
     }
+    // The pictures' image parts, each with its relationship from the drawing.
+    let mut media = super::super::shapes::MediaRels::new();
+    for shape in every.iter().copied().filter(|s| s.kind == calc_doc_model::ShapeKind::Picture) {
+        let Some(picture) = shape.media.as_ref() else { continue };
+        let mut put = |item: &calc_doc_model::PictureMedia, out: &mut Changes| -> Result<String, SaveRefusal> {
+            let extension = super::super::shapes::media_extension(&item.content_type)
+                .ok_or_else(|| invalid(&drawing, "A picture's media type is not one Excel stores"))?;
+            let reserved = out.added.iter().map(|(n, _)| n.clone()).collect::<Vec<_>>();
+            let part = super::super::available_part_name(package, "", "xl/media/image", extension, &reserved);
+            parts::put_part(package, out, &part, item.bytes.to_vec());
+            parts::ensure_content_type(package, out, &part, &item.content_type)?;
+            parts::ensure_relationship(package, out, &drawing, IMAGE, &part)
+        };
+        let Some(image) = picture.image.as_ref() else { continue };
+        let first = put(image, out)?;
+        let svg = picture.svg.as_ref().map(|s| put(s, out)).transpose()?;
+        let id = remap.get(&shape.id).copied().unwrap_or(shape.id);
+        media.insert(id, (first, svg));
+    }
     // Authored charts come first, then shapes: the drawing's z-order is its document order.
     for shape in new_shapes {
-        let body = super::super::shapes::frame(shape, &remap)?;
+        let body = super::super::shapes::frame(shape, &remap, &media)?;
         frames.extend(finish_body(body, &drawing, source, structural)?);
     }
     xml = xml.with_bytes(parts::append_root(&xml, &frames)?);

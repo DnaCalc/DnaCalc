@@ -85,6 +85,32 @@ pub struct ShapeLine {
     pub tail: Option<LineEnd>,
 }
 
+/// A picture's media part: the bytes as stored (empty when the part is larger than the reader keeps;
+/// `size` is its stored size either way).
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct PictureMedia {
+    /// The part name in the package (`xl/media/image1.png`); empty for a picture made in the session.
+    pub part: String,
+    /// The part's content type (`image/png`).
+    pub content_type: String,
+    pub size: u64,
+    pub bytes: std::sync::Arc<[u8]>,
+}
+
+/// A picture's image (`a:blip r:embed`, with the SVG of an `asvg:svgBlip` beside it), its crop and its
+/// description, as the file states them (dc-zjsg.3).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct ShapePicture {
+    /// The blip's own image: PNG, JPEG, GIF, BMP, EMF, WMF, ...
+    pub image: Option<PictureMedia>,
+    /// The SVG Excel writes beside a PNG fallback.
+    pub svg: Option<PictureMedia>,
+    /// `a:srcRect` `l`, `t`, `r`, `b` in thousandths of a percent (negative extends the image).
+    pub crop: [i64; 4],
+    /// `cNvPr descr`.
+    pub description: Option<String>,
+}
+
 /// A text body's properties as the drawing part states them (`a:bodyPr`, the paragraphs' `a:pPr algn`
 /// and the first run's `a:rPr`): what a text box draws with (dc-zjsg.2). `None` is the style's value.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
@@ -151,6 +177,10 @@ pub struct Shape {
     pub body: ShapeBody,
     /// A picture's `a:blip r:embed`.
     pub picture: Option<String>,
+    /// The `r:embed` of the picture's `asvg:svgBlip`.
+    pub picture_svg: Option<String>,
+    /// The picture's media, crop and description (read from a file, or made for a new picture).
+    pub media: Option<ShapePicture>,
     /// A connector's ends (`a:stCxn`, `a:endCxn`).
     pub begin: Option<ShapeConnection>,
     pub end: Option<ShapeConnection>,
@@ -185,6 +215,8 @@ impl Shape {
             text: None,
             body: ShapeBody::default(),
             picture: None,
+            picture_svg: None,
+            media: None,
             begin: None,
             end: None,
             children: Vec::new(),

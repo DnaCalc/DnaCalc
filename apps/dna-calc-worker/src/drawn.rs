@@ -9,7 +9,7 @@
 
 use crate::wire::{ChartPlace, DrawnShape, ShapeParagraph, ShapeStroke, ShapeText};
 use calc_host::{LineEnd, Shape, ShapeColour, ShapeFill, ShapeKind};
-use dna_calc_model::drawn_shapes::{DrawnChild, ShapeArrow, ShapeGradient};
+use dna_calc_model::drawn_shapes::{DrawnChild, DrawnPicture, ShapeArrow, ShapeGradient};
 
 const EMU_PER_PIXEL: f64 = 9_525.0;
 
@@ -87,12 +87,21 @@ pub(crate) fn drawn(shape: &Shape, place: ChartPlace) -> Option<DrawnShape> {
         ShapeKind::TextBox => ("textbox", "rect", false),
         ShapeKind::Connector => ("connector", "line", true),
         ShapeKind::Group => ("group", "", false),
-        ShapeKind::Picture => return None,
+        ShapeKind::Picture => ("picture", "rect", false),
     };
-    let geometry = shape.geometry.as_deref().unwrap_or(default_geometry);
+    let mut geometry = shape.geometry.as_deref().unwrap_or(default_geometry);
+    if kind == "picture" && !dna_calc_model::drawn_shapes::drawn_geometry(geometry) {
+        // A picture cropped to a shape this module does not draw is drawn as a rectangle.
+        geometry = "rect";
+    }
     if kind != "group" && !dna_calc_model::drawn_shapes::drawn_geometry(geometry) {
         return None;
     }
+    let picture = shape.media.as_ref().filter(|_| kind == "picture").map(|media| DrawnPicture {
+        crop: media.crop.map(|v| v as f64 / 100_000.0),
+        placeholder: crate::picture::source(media).err(),
+        description: media.description.clone(),
+    });
     let degrees = shape.rotation as f64 / 60_000.0;
     let extent = if degrees.rem_euclid(360.0) == 0.0 {
         [1.0, 1.0]
@@ -128,6 +137,10 @@ pub(crate) fn drawn(shape: &Shape, place: ChartPlace) -> Option<DrawnShape> {
                 part.rotation = -part.rotation;
             }
             part.extent = [1.0, 1.0];
+            // A picture in a group has no image element of its own to the page yet: a typed label stands in.
+            if let Some(picture) = part.picture.as_mut().filter(|p| p.placeholder.is_none()) {
+                picture.placeholder = Some("Picture in a group".to_owned());
+            }
             children.push(DrawnChild { rel, shape: part });
         }
     }
@@ -216,6 +229,8 @@ pub(crate) fn drawn(shape: &Shape, place: ChartPlace) -> Option<DrawnShape> {
         extent,
         adjust: shape.adjust.clone(),
         children,
+        id: shape.id,
+        picture,
     })
 }
 
@@ -288,11 +303,10 @@ mod tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn dc_zjsg_2__hidden_objects_pictures_and_other_geometries_are_not_drawn() {
+    fn dc_zjsg_2__hidden_objects_and_other_geometries_are_not_drawn() {
         let mut hidden = shape(ShapeKind::Shape);
         hidden.hidden = true;
         assert!(drawn(&hidden, place()).is_none());
-        assert!(drawn(&shape(ShapeKind::Picture), place()).is_none());
         let mut star = shape(ShapeKind::Shape);
         star.geometry = Some("star5".into());
         assert!(drawn(&star, place()).is_none());
