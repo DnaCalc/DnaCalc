@@ -267,18 +267,27 @@ pub struct Descriptor {
     by_guid: HashMap<Guid, InterfaceId>,
 }
 
-const EXCEL: &str = include_str!("../descriptor/excel.json");
-const OFFICE: &str = include_str!("../descriptor/office.json");
-const ADDIN_DESIGNER: &str = include_str!("../descriptor/addin-designer.json");
-const ACCESSIBILITY: &str = include_str!("../descriptor/accessibility.json");
+// Raw bytes, not include_str!: the descriptor is data, and os-imports does not follow include_str! into a file it cannot scan.
+const EXCEL: &[u8] = include_bytes!("../descriptor/excel.json");
+const OFFICE: &[u8] = include_bytes!("../descriptor/office.json");
+const ADDIN_DESIGNER: &[u8] = include_bytes!("../descriptor/addin-designer.json");
+const ACCESSIBILITY: &[u8] = include_bytes!("../descriptor/accessibility.json");
 
 impl Descriptor {
     /// The committed descriptor (Excel, Office, Add-in Designer, Accessibility), parsed once.
     pub fn get() -> &'static Descriptor {
         static DESCRIPTOR: OnceLock<Descriptor> = OnceLock::new();
         DESCRIPTOR.get_or_init(|| {
-            Descriptor::from_files(&[EXCEL, OFFICE, ADDIN_DESIGNER, ACCESSIBILITY])
-                .expect("committed object-model descriptor is valid JSON")
+            let text = |bytes: &'static [u8]| {
+                std::str::from_utf8(bytes).expect("committed object-model descriptor is UTF-8")
+            };
+            Descriptor::from_files(&[
+                text(EXCEL),
+                text(OFFICE),
+                text(ADDIN_DESIGNER),
+                text(ACCESSIBILITY),
+            ])
+            .expect("committed object-model descriptor is valid JSON")
         })
     }
 
