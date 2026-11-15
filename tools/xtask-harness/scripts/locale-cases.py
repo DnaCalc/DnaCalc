@@ -6,7 +6,7 @@ capture path as bank-coverage.py and written in its WitnessSet form.
 
 Writes answers-<function>-locale.json per function: TEXT date, time, currency, fraction,
 scientific and number codes; VALUE, DATEVALUE and TIMEVALUE number, currency, date and time
-text; NUMBERVALUE separator combinations; DOLLAR and FIXED rounding-to-zero signs. Rows whose
+text, and the same text through the argument coercion of ABS, YEAR and HOUR; NUMBERVALUE separator combinations; DOLLAR and FIXED rounding-to-zero signs. Rows whose
 input Excel read back differently are rejected, as in bank-coverage.py. The environment is
 recorded as the service reports it (env_id); the culture is attested separately
 (migration/evidence/dc-7ofm-touchstone-en-za.json).
@@ -68,7 +68,7 @@ PLACES = [-1e100, -1e10, -1000, -400, -309, -308, -300, -100, -20, -10, -1, -0.5
 def rows_for(name):
     if name == 'TEXT':
         return [[number(v), text(c)] for c in CODES for v in VALUES]
-    if name in ('VALUE', 'DATEVALUE', 'TIMEVALUE'):
+    if name in ('VALUE', 'DATEVALUE', 'TIMEVALUE', 'ABS', 'YEAR', 'HOUR'):
         return [[text(t)] for t in TEXTS]
     if name == 'NUMBERVALUE':
         rows = []
@@ -83,12 +83,16 @@ def rows_for(name):
     raise ValueError(name)
 
 
-FUNCTIONS = ['TEXT', 'VALUE', 'DATEVALUE', 'TIMEVALUE', 'NUMBERVALUE', 'DOLLAR', 'FIXED']
+# ABS, YEAR and HOUR read the same texts through argument coercion (number, date, time),
+# the en-ZA side of dc-3k5n.
+FUNCTIONS = ['TEXT', 'VALUE', 'DATEVALUE', 'TIMEVALUE', 'NUMBERVALUE', 'DOLLAR', 'FIXED', 'ABS', 'YEAR', 'HOUR']
 
 
 def capture(client, name, out):
     rows = rows_for(name)
+    before = client.ask('NOW', [[]])
     reply = bank.ask_checked(client, name, rows)
+    after = client.ask('NOW', [[]])
     accepted, rejected = [], {}
     for i, (requested, observed, readback) in enumerate(zip(rows, reply['rows'], reply['inputs'])):
         result = bank.drift.answer(observed) if observed else None
@@ -102,8 +106,18 @@ def capture(client, name, out):
             continue
         rejected[why] = rejected.get(why, 0) + 1
     env = {'excel_build': reply.get('excel_build'), 'platform': 'Windows', 'excel_input_plumbing': 'cell_value2_bulk'}
+    settings = dict(reply.get('calculation_settings') or {})
+    # Excel's own NOW() just before and after the batch, in the same environment: when both
+    # fall on one day, the batch's calculation clock is recorded (two-part dates take its year).
+    clocks = [r['rows'][0] for r in (before, after)]
+    if (all(r.get('env_id') == reply.get('env_id') for r in (before, after))
+            and all(c.get('type') == 'number' for c in clocks)):
+        days = [int(struct.unpack('>d', bytes.fromhex(c['bits']))[0]) for c in clocks]
+        if days[0] == days[1]:
+            settings['calculation_clock'] = clocks[0]['bits']
+            settings['calculation_clock_after'] = clocks[1]['bits']
     doc = {'function': name, 'witnesses': accepted,
-           'capture_provenance': {'environment': env, 'calculation_settings': reply.get('calculation_settings'),
+           'capture_provenance': {'environment': env, 'calculation_settings': settings,
                                   'env_id': reply.get('env_id'), 'timestamp': reply.get('timestamp'),
                                   'service': 'touchstone/1'},
            'capture_summary': {'requested': len(rows), 'accepted': len(accepted), 'rejected': rejected, 'seed': SEED}}

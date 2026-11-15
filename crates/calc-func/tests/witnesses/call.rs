@@ -105,6 +105,13 @@ fn environment(context: Option<&WitnessInvocation>) -> Result<CalcEnvironment, &
             return Err("fault:WitnessLocale");
         }
     }
+    if let Some(clock) = &context.calculation_clock {
+        let bits = u64::from_str_radix(clock, 16).map_err(|_| "fault:WitnessClock")?;
+        environment.now = Some(f64::from_bits(bits)).filter(|now| now.is_finite());
+        if environment.now.is_none() {
+            return Err("fault:WitnessClock");
+        }
+    }
     // A separator alone does not identify a complete locale profile. In particular the
     // legacy FIXED bank records neither its profile nor its separators; no guess is made.
     Ok(environment)

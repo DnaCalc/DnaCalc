@@ -207,6 +207,9 @@ pub struct WitnessInvocation {
     pub thousands_separator: Option<String>,
     pub date_system: Option<String>,
     pub compatibility_version: Option<String>,
+    /// The serial date and time Excel's calculation read (NOW() asked in the capture's
+    /// session), as binary64 bits in hex; a two-part date such as 15/3 takes its year.
+    pub calculation_clock: Option<String>,
 }
 
 impl WitnessInvocation {
@@ -228,6 +231,7 @@ impl WitnessInvocation {
                 "thousands_separator" => &mut result.thousands_separator,
                 "date_system" => &mut result.date_system,
                 "compatibility_version" => &mut result.compatibility_version,
+                "calculation_clock" => &mut result.calculation_clock,
                 _ => return Err(format!("{path}.{key}: unknown invocation field")),
             };
             *field = if value.is_null() {
@@ -254,6 +258,7 @@ impl WitnessInvocation {
             ("thousands_separator", &self.thousands_separator),
             ("date_system", &self.date_system),
             ("compatibility_version", &self.compatibility_version),
+            ("calculation_clock", &self.calculation_clock),
         ] {
             if let Some(value) = value {
                 node.insert(key.to_owned(), json!(value));

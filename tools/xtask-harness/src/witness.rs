@@ -481,6 +481,8 @@ fn environment(
         compatibility_version: setting("CompatibilityVersion")
             .or_else(|| field("workbook_compatibility_version"))
             .or_else(|| field("workbook_compatibility")),
+        // Recorded only by a capture that asked Excel's NOW() in its session.
+        calculation_clock: setting("calculation_clock"),
     };
     // dc-1943: all 989 FIXED calls in this particular bank were replayed on the same
     // en-ZA host, with identical results. The captured replay is retained under
