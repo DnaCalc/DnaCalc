@@ -4,6 +4,7 @@ pub mod canvas;
 pub mod cells;
 mod chart;
 mod drawn;
+mod picture;
 mod format;
 pub mod ledger;
 mod names;

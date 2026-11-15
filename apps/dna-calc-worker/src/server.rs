@@ -511,6 +511,9 @@ impl Server {
         if let Request::CellImage { at } = request {
             return self.cell_image(at);
         }
+        if let Request::ShapePicture { sheet, id } = request {
+            return self.shape_picture(sheet, id);
+        }
         if request.is_command() {
             return Answer {
                 reply: Err("A workbook command needs an identity and base revision".into()),
@@ -1408,6 +1411,7 @@ impl Server {
                 Request::Charts(sheet) => Ok(Reply::Charts(self.charts(sheet))),
                 Request::Shapes(sheet) => Ok(Reply::Shapes(self.drawn_shapes(sheet))),
                 Request::CellImage { .. } => Err("handle answers a cell image".into()),
+                Request::ShapePicture { .. } => Err("handle answers a shape picture".into()),
                 Request::AtlasRefusals { reason, page } => Ok(Reply::AtlasRefusals(
                     self.book
                         .refusal_cells(&reason, usize::try_from(page).unwrap_or(usize::MAX)),
@@ -1525,6 +1529,26 @@ impl Server {
         })();
         self.collect();
         Answer { reply, bytes: out }
+    }
+
+    /// The image of the picture `id` on `sheet`, its bytes beside the reply; `None` when there is none the page can decode.
+    fn shape_picture(&self, sheet: Sheet, id: u32) -> Answer {
+        fn find(shapes: &[calc_host::Shape], id: u32) -> Option<&calc_host::Shape> {
+            shapes.iter().find_map(|s| {
+                if s.id == id && s.kind == calc_host::ShapeKind::Picture {
+                    Some(s)
+                } else {
+                    find(&s.children, id)
+                }
+            })
+        }
+        let found = find(self.book.host().shapes(sheet.id()), id)
+            .and_then(|shape| shape.media.as_ref())
+            .and_then(|media| crate::picture::source(media).ok());
+        match found {
+            Some((content_type, bytes)) => Answer { reply: Ok(Reply::ShapePicture(Some(content_type.to_owned()))), bytes: Some(bytes) },
+            None => Answer { reply: Ok(Reply::ShapePicture(None)), bytes: None },
+        }
     }
 
     /// A new workbook in place of the open one: the page's subscriptions end with it.
@@ -4964,6 +4988,64 @@ mod outline_tests {
         assert!(first.shape.flip_horizontal);
         assert_eq!(mirrored.children[2].shape.rotation, -30.0);
         assert_eq!(by("Group rot 20").rotation, 20.0);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dc_zjsg_3__the_server_draws_pictures_and_answers_their_bytes() {
+        let mut server = Server::new();
+        let data = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/pictures-paint.xlsx");
+        assert!(
+            server
+                .execute_current(Request::Open { name: "pictures-paint.xlsx".into() }, Some(data.to_vec()))
+                .reply
+                .is_ok()
+        );
+        let sheet = Sheet::of(server.book.host().sheets()[0].id());
+        let Reply::Shapes(shapes) = server.execute_current(Request::Shapes(sheet), None).reply.unwrap() else {
+            panic!("the shapes reply")
+        };
+        assert_eq!(shapes.len(), 11);
+        let by = |name: &str| shapes.iter().find(|s| s.name == name).unwrap_or_else(|| panic!("{name}"));
+        assert!(shapes.iter().all(|s| s.kind == "picture" && s.picture.is_some()));
+        // The crop as fractions, the description kept, an image the page decodes has no placeholder.
+        let crop = by("Pic PNG crop").picture.as_ref().unwrap();
+        assert_eq!(crop.crop, [0.25, 0.1, 0.25, 0.4]);
+        assert_eq!(crop.description.as_deref(), Some("Pic PNG crop (test card)"));
+        assert_eq!(crop.placeholder, None);
+        assert_eq!(by("Pic PNG rot 30 outlined").rotation, 30.0);
+        assert_eq!(by("Pic PNG rot 30 outlined").line.as_ref().unwrap().dash, "dash");
+        // The metafiles: a placeholder with the size the header gives, unless a PNG is inside.
+        assert_eq!(by("Pic EMF bare").picture.as_ref().unwrap().placeholder.as_deref(), Some("EMF picture 160 × 100"));
+        assert_eq!(by("Pic WMF bare").picture.as_ref().unwrap().placeholder.as_deref(), Some("WMF picture 96 × 48"));
+        assert_eq!(by("Pic EMF with PNG").picture.as_ref().unwrap().placeholder, None);
+        // The bytes travel beside the reply by the picture's identity: each format as itself.
+        let mut seen = Vec::new();
+        for shape in &shapes {
+            let answer = server.handle(Request::ShapePicture { sheet, id: shape.id }, None);
+            match answer.reply.unwrap() {
+                Reply::ShapePicture(Some(content_type)) => {
+                    let bytes = answer.bytes.unwrap();
+                    seen.push((shape.name.clone(), content_type, bytes.len()));
+                }
+                Reply::ShapePicture(None) => assert!(shape.picture.as_ref().unwrap().placeholder.is_some(), "{}", shape.name),
+                other => panic!("{other:?}"),
+            }
+        }
+        let kind = |name: &str| seen.iter().find(|(n, ..)| n == name).map(|(_, c, _)| c.as_str());
+        assert_eq!(kind("Pic PNG"), Some("image/png"));
+        assert_eq!(kind("Pic JPEG"), Some("image/jpeg"));
+        assert_eq!(kind("Pic GIF"), Some("image/gif"));
+        assert_eq!(kind("Pic BMP"), Some("image/bmp"));
+        assert_eq!(kind("Pic SVG with PNG fallback"), Some("image/svg+xml"));
+        // The PNG inside the EMF is sent, not the EMF.
+        assert_eq!(kind("Pic EMF with PNG"), Some("image/png"));
+        assert_eq!(kind("Pic EMF bare"), None);
+        assert_eq!(seen.len(), 9);
+        // An identity that is no picture has no bytes.
+        let none = server.handle(Request::ShapePicture { sheet, id: 9999 }, None);
+        assert!(matches!(none.reply.unwrap(), Reply::ShapePicture(None)) && none.bytes.is_none());
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

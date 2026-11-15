@@ -2558,6 +2558,9 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
         let z = zoom.get();
         let p = panes.get();
         let origin = cell_rect(&m, &v, 1, 1);
+        let Some(sheet_id) = controller.sheet.get() else {
+            return Vec::new().collect_view();
+        };
         shapes
             .get()
             .into_iter()
@@ -2580,14 +2583,24 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 }
                 // The anchor of a turned shape is the box around it: the shape itself is the smaller box at its centre.
                 let (x0, y0, x1, y1) = wire::drawn_shapes::unrotated((x0, y0, x1, y1), shape.extent);
-                let markup = wire::drawn_shapes::shape_markup(&shape, x1 - x0, y1 - y0, z)?;
+                let picture = shape.picture.clone().filter(|_| shape.kind == "picture");
+                let (w, h) = (x1 - x0, y1 - y0);
+                let (markup, turn) = if picture.is_some() {
+                    // A picture's image is its own element under the outline and the placeholder; both turn together.
+                    (wire::drawn_shapes::outline_markup(&shape, w, h, z)?, wire::drawn_shapes::turn_style(&shape))
+                } else {
+                    (wire::drawn_shapes::shape_markup(&shape, w, h, z)?, String::new())
+                };
                 let style = format!(
-                    "left:{};top:{};width:{};height:{}",
+                    "left:{};top:{};width:{};height:{};{turn}",
                     px(x0),
                     px(y0),
-                    px(x1 - x0),
-                    px(y1 - y0)
+                    px(w),
+                    px(h)
                 );
+                let image = picture.filter(|p| p.placeholder.is_none()).map(|p| {
+                    image::shape_picture(controller, wire::Sheet::of(sheet_id), shape.id, p.crop, p.description)
+                });
                 Some(view! {
                     <div
                         class="dc-shape"
@@ -2595,8 +2608,10 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                         data-shape=shape.name.clone()
                         data-kind=shape.kind.clone()
                         use:css=style
-                        inner_html=markup
-                    ></div>
+                    >
+                        {image}
+                        <div style="position:absolute;left:0;top:0;width:100%;height:100%" inner_html=markup></div>
+                    </div>
                 })
             })
             .collect_view()

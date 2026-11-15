@@ -61,7 +61,7 @@ fn dimension(value: Option<f64>, scale: f64) -> String {
 }
 
 // Site and desktop policies allow data images. Encoding locally never makes a network request.
-fn data_url(content_type: &str, bytes: &[u8]) -> String {
+pub(super) fn data_url(content_type: &str, bytes: &[u8]) -> String {
     const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = format!("data:{content_type};base64,");
     out.reserve(bytes.len().div_ceil(3) * 4);
@@ -83,4 +83,32 @@ fn data_url(content_type: &str, bytes: &[u8]) -> String {
         });
     }
     out
+}
+
+/// The image of the picture `id` of `sheet`, cropped to fill its box (dc-zjsg.3): asked of the server by the
+/// picture's identity; nothing is drawn until the bytes arrive, and nothing when they never do.
+pub(super) fn shape_picture(
+    controller: Controller,
+    sheet: wire::Sheet,
+    id: u32,
+    crop: [f64; 4],
+    description: Option<String>,
+) -> impl IntoView + use<> {
+    let src = RwSignal::new(None::<String>);
+    let alive = Rc::new(Cell::new(true));
+    let callback_alive = alive.clone();
+    let held = StoredValue::new_local(alive);
+    controller.call(wire::Request::ShapePicture { sheet, id }, None, move |reply, bytes| {
+        let (Ok(wire::Reply::ShapePicture(Some(content_type))), Some(bytes)) = (reply, bytes) else { return };
+        if callback_alive.get() {
+            src.set(Some(data_url(&content_type, &bytes)));
+        }
+    });
+    on_cleanup(move || held.with_value(|alive| alive.set(false)));
+    let style = wire::drawn_shapes::crop_style(crop);
+    view! {
+        <div style="position:absolute;left:0;top:0;width:100%;height:100%;overflow:hidden">
+            {move || src.get().map(|src| view! { <img src=src alt=description.clone().unwrap_or_default() draggable="false" use:css=style.clone() /> })}
+        </div>
+    }
 }

@@ -184,16 +184,42 @@ fn line(l: &ShapeLine, out: &mut Vec<u8>) -> Result<(), &'static str> {
     Ok(())
 }
 
+/// The file extension of a picture's media content type, `None` for one a picture may not have.
+pub(crate) fn media_extension(content_type: &str) -> Option<&'static str> {
+    Some(match content_type {
+        "image/png" => "png",
+        "image/jpeg" => "jpeg",
+        "image/gif" => "gif",
+        "image/bmp" => "bmp",
+        "image/tiff" => "tiff",
+        "image/x-emf" => "emf",
+        "image/x-wmf" => "wmf",
+        "image/svg+xml" => "svg",
+        _ => return None,
+    })
+}
+
+/// The relationship ids of an authored picture's image and SVG parts, by the shape's written id.
+pub(crate) type MediaRels = BTreeMap<u32, (String, Option<String>)>;
+
 /// What every object, a group's children too, must state to be written.
 fn check(shape: &Shape) -> Result<(), SaveRefusal> {
     let fail = |detail: &str| refuse(shape, detail);
     if !matches!(
         shape.kind,
-        ShapeKind::Shape | ShapeKind::TextBox | ShapeKind::Connector | ShapeKind::Group
-    ) || shape.picture.is_some()
-        || (shape.kind != ShapeKind::Group && !shape.children.is_empty())
+        ShapeKind::Shape | ShapeKind::TextBox | ShapeKind::Connector | ShapeKind::Group | ShapeKind::Picture
+    ) || (shape.kind != ShapeKind::Group && !shape.children.is_empty())
     {
-        return Err(fail("New pictures are not written yet"));
+        return Err(fail("This kind of object is not written"));
+    }
+    if shape.kind == ShapeKind::Picture {
+        let image = shape.media.as_ref().and_then(|m| m.image.as_ref());
+        if image.is_none_or(|i| i.bytes.is_empty() || !media_extension(&i.content_type).is_some()) {
+            return Err(fail("A new picture needs its image bytes, as PNG, JPEG, GIF, BMP, TIFF, EMF or WMF"));
+        }
+        if shape.media.as_ref().and_then(|m| m.svg.as_ref()).is_some_and(|s| s.bytes.is_empty()) {
+            return Err(fail("A new picture's SVG needs its bytes"));
+        }
     }
     if shape.id == 0 || !valid_text(&shape.name) || shape.name.is_empty() {
         return Err(fail("Use a shape name and a positive identity"));
@@ -220,7 +246,7 @@ fn check_tree(shape: &Shape) -> Result<(), SaveRefusal> {
 
 /// One authored object's anchor, as a child of `xdr:wsDr`. `remap` gives the id each authored
 /// shape is written with (the connectors' glued ids follow it).
-pub(crate) fn frame(shape: &Shape, remap: &BTreeMap<u32, u32>) -> Result<Vec<u8>, SaveRefusal> {
+pub(crate) fn frame(shape: &Shape, remap: &BTreeMap<u32, u32>, media: &MediaRels) -> Result<Vec<u8>, SaveRefusal> {
     let fail = |detail: &str| refuse(shape, detail);
     check(shape)?;
     if shape.offset.0 < 0 || shape.offset.1 < 0 {
@@ -279,14 +305,14 @@ pub(crate) fn frame(shape: &Shape, remap: &BTreeMap<u32, u32>) -> Result<Vec<u8>
     }
     out.push(b'>');
     out.extend(from_to.as_bytes());
-    object(shape, remap, &mut out)?;
+    object(shape, remap, media, &mut out)?;
     out.extend(b"<xdr:clientData/>");
     out.extend(format!("</xdr:{edit_as}>").as_bytes());
     Ok(out)
 }
 
 /// One object's element (`xdr:sp`, `xdr:cxnSp` or `xdr:grpSp`), a group's children inside it.
-fn object(shape: &Shape, remap: &BTreeMap<u32, u32>, out: &mut Vec<u8>) -> Result<(), SaveRefusal> {
+fn object(shape: &Shape, remap: &BTreeMap<u32, u32>, media: &MediaRels, out: &mut Vec<u8>) -> Result<(), SaveRefusal> {
     let fail = |detail: &str| refuse(shape, detail);
     let id = remap.get(&shape.id).copied().unwrap_or(shape.id);
     let geometry = shape.geometry.as_deref().unwrap_or("rect");
@@ -323,7 +349,7 @@ fn object(shape: &Shape, remap: &BTreeMap<u32, u32>, out: &mut Vec<u8>) -> Resul
             .as_bytes(),
         );
         for child in &shape.children {
-            object(child, remap, out)?;
+            object(child, remap, media, out)?;
         }
         out.extend(b"</xdr:grpSp>");
         return Ok(());
@@ -352,7 +378,36 @@ fn object(shape: &Shape, remap: &BTreeMap<u32, u32>, out: &mut Vec<u8>) -> Resul
     let mut name = Vec::new();
     attribute_value(&shape.name, &mut name);
     let name = String::from_utf8(name).expect("names are UTF-8");
-    if shape.kind == ShapeKind::Connector {
+    if shape.kind == ShapeKind::Picture {
+        let (image, svg) = media.get(&id).ok_or_else(|| fail("The picture's image part was not written"))?;
+        let r = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+        let mut blip = format!("<a:blip xmlns:r=\"{r}\" r:embed=\"{image}\"");
+        match svg {
+            Some(svg) => blip.push_str(&format!("><a:extLst><a:ext uri=\"{{96DAC541-7B7A-43D3-8B79-37D633B846F1}}\"><asvg:svgBlip xmlns:asvg=\"http://schemas.microsoft.com/office/drawing/2016/SVG/main\" r:embed=\"{svg}\"/></a:ext></a:extLst></a:blip>")),
+            None => blip.push_str("/>"),
+        }
+        let picture = shape.media.as_ref();
+        let crop = picture.map_or([0; 4], |m| m.crop);
+        let crop = if crop == [0; 4] {
+            String::new()
+        } else {
+            format!("<a:srcRect l=\"{}\" t=\"{}\" r=\"{}\" b=\"{}\"/>", crop[0], crop[1], crop[2], crop[3])
+        };
+        let mut descr = Vec::new();
+        if let Some(text) = picture.and_then(|m| m.description.as_deref()) {
+            descr.extend(b" descr=");
+            attribute_value(text, &mut descr);
+        }
+        let descr = String::from_utf8(descr).expect("descriptions are UTF-8");
+        out.extend(
+            format!(
+                "<xdr:pic macro=\"\"><xdr:nvPicPr><xdr:cNvPr id=\"{id}\" name={name}{descr}{hidden}/><xdr:cNvPicPr><a:picLocks noChangeAspect=\"1\"/></xdr:cNvPicPr></xdr:nvPicPr><xdr:blipFill>{blip}{crop}<a:stretch><a:fillRect/></a:stretch></xdr:blipFill>"
+            )
+            .as_bytes(),
+        );
+        out.extend(&properties);
+        out.extend(b"</xdr:pic>");
+    } else if shape.kind == ShapeKind::Connector {
         out.extend(
             format!(
                 "<xdr:cxnSp macro=\"\"><xdr:nvCxnSpPr><xdr:cNvPr id=\"{id}\" name={name}{hidden}/><xdr:cNvCxnSpPr>"

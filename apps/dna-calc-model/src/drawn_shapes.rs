@@ -43,6 +43,46 @@ pub struct DrawnShape {
     /// A group's children, each placed as fractions of the group's frame.
     #[serde(default)]
     pub children: Vec<DrawnChild>,
+    /// The drawing object's identity (`cNvPr id`): what a picture's bytes are asked by.
+    #[serde(default)]
+    pub id: u32,
+    /// A picture's crop and, when the page cannot show its image, what to show instead.
+    #[serde(default)]
+    pub picture: Option<DrawnPicture>,
+}
+
+/// A picture beside its bytes (`Request::ShapePicture` gives those).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DrawnPicture {
+    /// `a:srcRect` `[l, t, r, b]` as fractions of the image (negative extends it past its box).
+    pub crop: [f64; 4],
+    /// For an image the page cannot decode (EMF or WMF without a PNG inside, TIFF, a part too large
+    /// to keep): the typed label to draw in its box, with the picture's size when the file says it.
+    pub placeholder: Option<String>,
+    pub description: Option<String>,
+}
+
+/// The CSS of an image `w` by `h` pixels inside a box cropped by `crop`: the visible part of the
+/// image fills the box.
+pub fn crop_style(crop: [f64; 4]) -> String {
+    let (kept_w, kept_h) = ((1.0 - crop[0] - crop[2]).max(0.001), (1.0 - crop[1] - crop[3]).max(0.001));
+    format!(
+        "position:absolute;max-width:none;max-height:none;width:{}%;height:{}%;left:{}%;top:{}%",
+        number(100.0 / kept_w),
+        number(100.0 / kept_h),
+        number(-crop[0] / kept_w * 100.0),
+        number(-crop[1] / kept_h * 100.0)
+    )
+}
+
+/// The turn of a shape as the CSS the grid puts on its box (empty without one).
+pub fn turn_style(shape: &DrawnShape) -> String {
+    rotation_style(shape.rotation)
+}
+
+/// The outline of an object (and its text) with no turn: what is drawn over a picture.
+pub fn outline_markup(shape: &DrawnShape, w: f64, h: f64, zoom: f64) -> Option<String> {
+    inner_markup(shape, w, h, zoom, &gradient_id(&shape.name))
 }
 
 fn whole() -> [f64; 2] {
@@ -668,6 +708,33 @@ fn inner_markup(shape: &DrawnShape, w: f64, h: f64, zoom: f64, id: &str) -> Opti
     if shape.kind == "group" {
         return Some(finish(shape, w, h, zoom, id, String::new(), ""));
     }
+    if let Some(picture) = shape.picture.as_ref().filter(|_| shape.kind == "picture") {
+        // The picture's image is the page's own element; markup draws its placeholder, then the outline.
+        let label = picture.placeholder.clone().unwrap_or_else(|| "Picture".to_owned());
+        let mut out = String::new();
+        if picture.placeholder.is_some() {
+            let _ = write!(
+                out,
+                "<div class=\"dc-picture-placeholder\" style=\"position:absolute;left:0;top:0;width:{}px;height:{}px;box-sizing:border-box;border:1px dashed #808080;background:#F2F2F2;color:#404040;font-size:{}px;display:flex;align-items:center;justify-content:center;text-align:center;overflow:hidden\">{}</div>",
+                number(w),
+                number(h),
+                number(11.0 * 96.0 / 72.0 * zoom),
+                escape(&label)
+            );
+        }
+        let mut frame = shape.clone();
+        frame.picture = None;
+        frame.kind = "shape".into();
+        frame.fill = None;
+        frame.gradient = None;
+        frame.text = None;
+        if frame.line.is_some() {
+            if let Some(path) = inner_markup(&frame, w, h, zoom, id) {
+                out.push_str(&path);
+            }
+        }
+        return Some(out);
+    }
     let mut segments = geometry_path(&shape.geometry, w, h, &shape.adjust)?;
     let open = open_geometry(&shape.geometry);
     let mut stroke = String::from("stroke=\"none\"");
@@ -935,6 +1002,8 @@ mod tests {
             extent: [1.0, 1.0],
             adjust: Vec::new(),
             children: Vec::new(),
+            id: 0,
+            picture: None,
             line: Some(ShapeStroke { width: 2.0, colour: "#ED7D31".into(), dash: "dash".into(), head: None, tail: None }),
             text: Some(ShapeText {
                 paragraphs: vec![
@@ -1286,5 +1355,45 @@ mod tests {
         assert!(markup.contains("<div style=\"position:absolute;left:0px;top:0px;width:100px;height:100px;\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"100\""), "{markup}");
         assert!(markup.contains("<div style=\"position:absolute;left:100px;top:25px;width:100px;height:50px;transform:rotate(90deg);\"><svg"), "{markup}");
         assert_eq!(markup.matches("<path ").count(), 2);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_zjsg_3__a_crop_scales_and_shifts_the_image_so_the_kept_part_fills_the_box() {
+        // Nothing cropped: the image is the box.
+        assert_eq!(crop_style([0.0; 4]), "position:absolute;max-width:none;max-height:none;width:100%;height:100%;left:0%;top:0%");
+        // 25% off each side: twice as wide, shifted left by the cropped quarter of the doubled width (50% of the box).
+        let both = crop_style([0.25, 0.0, 0.25, 0.0]);
+        assert!(both.contains("width:200%;height:100%;left:-50%;top:0%"), "{both}");
+        // Left 25%, top 10%, right 25%, bottom 40%: kept 0.5 by 0.5.
+        let mixed = crop_style([0.25, 0.1, 0.25, 0.4]);
+        assert!(mixed.contains("width:200%;height:200%;left:-50%;top:-20%"), "{mixed}");
+        // A negative crop extends the image past its picture: it shrinks inside the box.
+        let wide = crop_style([-0.5, 0.0, 0.0, 0.0]);
+        assert!(wide.contains("width:66.667%;height:100%;left:33.333%"), "{wide}");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_zjsg_3__a_picture_draws_its_placeholder_and_its_outline_but_leaves_the_image_to_the_page() {
+        let mut picture = sample();
+        picture.kind = "picture".into();
+        picture.text = None;
+        picture.fill = None;
+        picture.picture = Some(DrawnPicture { crop: [0.0; 4], placeholder: None, description: None });
+        let with_image = outline_markup(&picture, 80.0, 40.0, 1.0).unwrap();
+        assert!(!with_image.contains("dc-picture-placeholder"), "{with_image}");
+        assert!(with_image.contains("stroke=\"#ED7D31\""), "{with_image}");
+        picture.picture.as_mut().unwrap().placeholder = Some("EMF picture 96 × 48 <x>".into());
+        let placeholder = outline_markup(&picture, 80.0, 40.0, 2.0).unwrap();
+        assert!(placeholder.contains("class=\"dc-picture-placeholder\""), "{placeholder}");
+        assert!(placeholder.contains(">EMF picture 96 × 48 &lt;x&gt;</div>"), "{placeholder}");
+        assert!(placeholder.contains("font-size:29.333px"), "{placeholder}");
+        // No outline: just the placeholder.
+        picture.line = None;
+        assert!(!outline_markup(&picture, 80.0, 40.0, 1.0).unwrap().contains("<svg"));
+        // The grid turns the picture's box by its rotation.
+        picture.rotation = 30.0;
+        assert_eq!(turn_style(&picture), "transform:rotate(30deg);");
     }
 }
