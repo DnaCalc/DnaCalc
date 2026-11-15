@@ -484,6 +484,7 @@ fn environment(
         // Recorded only by a capture that asked Excel's NOW() in its session.
         calculation_clock: setting("calculation_clock"),
         addins_open: None,
+        defined_names: None,
     };
     // dc-1943: all 989 FIXED calls in this particular bank were replayed on the same
     // en-ZA host, with identical results. The captured replay is retained under
@@ -549,6 +550,10 @@ fn attest_touchstone_profile(source: &mut ReadingSource, provenance: Option<&Val
     if let Some(open) = evidence["addins_open"].as_array() {
         let files: Option<Vec<&str>> = open.iter().map(Value::as_str).collect();
         context.addins_open = files.map(|files| files.join(","));
+    }
+    if let Some(names) = evidence["defined_names"].as_array() {
+        let names: Option<Vec<&str>> = names.iter().map(Value::as_str).collect();
+        context.defined_names = names.map(|names| names.join(","));
     }
     let profile = &evidence["profile"];
     let (Some(locale), Some(decimal), Some(thousands)) = (
@@ -1638,6 +1643,76 @@ impl calc_func::ReferenceText for UnlocatedReferenceText {
     }
 }
 
+/// A workbook attested to hold no defined name and no table (dc-ymjf.2.94: the Touchstone
+/// scratch book, `defined_names` ""), with one sheet of unknown contents. Only text that is a
+/// name, and so names nothing there, is decided; a cell reference stays not modelled, since its
+/// sheet and the formula's position were not captured.
+struct NamelessBook;
+
+impl calc_fml::reference::ReferenceCatalog for NamelessBook {
+    fn sheet_named(&self, _name: &str) -> Option<calc_func::value::SheetId> {
+        None
+    }
+    fn defined_name(&self, _name: &str, _scope: calc_fml::reference::NameScope) -> calc_fml::reference::NameDefinition {
+        calc_fml::reference::NameDefinition::Unknown
+    }
+    fn table(&self, _name: &str) -> calc_fml::reference::TableLookup {
+        calc_fml::reference::TableLookup::Unknown
+    }
+    fn table_containing(&self, _cell: calc_func::value::CellKey) -> calc_fml::reference::TableLookup {
+        calc_fml::reference::TableLookup::Unknown
+    }
+    fn sheet_span(
+        &self,
+        _first: calc_func::value::SheetId,
+        _last: calc_func::value::SheetId,
+    ) -> Option<Vec<calc_func::value::SheetId>> {
+        None
+    }
+    fn unknown_calls_are_names(&self) -> bool {
+        false
+    }
+    fn workbook_name(&self) -> Option<&str> {
+        None
+    }
+    fn external_sheet(
+        &self,
+        _book: &calc_fml::reference::ExternalBookRef,
+        _sheet: &str,
+    ) -> Option<calc_func::value::SheetId> {
+        None
+    }
+    fn external_function_target(&self, _book: &calc_fml::reference::ExternalBookRef) -> Option<String> {
+        None
+    }
+}
+
+/// [`UnlocatedReferenceText`], and with no names attested, text that binds to no reference
+/// in [`NamelessBook`] is #REF!.
+struct NamelessReferenceText;
+
+impl calc_func::ReferenceText for NamelessReferenceText {
+    fn resolve(&mut self, text: &[u16], a1: bool) -> calc_func::TextReference {
+        let context_free = UnlocatedReferenceText.resolve(text, a1);
+        if context_free != calc_func::TextReference::NotModelled {
+            return context_free;
+        }
+        let notation = if a1 {
+            calc_fml::reference::ReferenceNotation::A1
+        } else {
+            calc_fml::reference::ReferenceNotation::R1C1
+        };
+        let sheet = calc_func::value::SheetId::from_parts(1, 0);
+        let anchor = calc_fml::reference::FormulaAnchor::new(
+            calc_func::value::CellKey::new(sheet, 1, 1).expect("A1"),
+        );
+        match calc_fml::reference::bind_text(text, notation, anchor, &NamelessBook) {
+            calc_func::TextReference::Invalid => calc_func::TextReference::Invalid,
+            _ => calc_func::TextReference::NotModelled,
+        }
+    }
+}
+
 fn calculate_with_context(
     function: &str,
     args: &[Value],
@@ -1646,7 +1721,13 @@ fn calculate_with_context(
     apply: bool,
 ) -> String {
     catch_unwind(AssertUnwindSafe(|| {
-        if function.eq_ignore_ascii_case("INDIRECT") {
+        let nameless = apply && context.is_some_and(|c| c.defined_names.as_deref() == Some(""));
+        if function.eq_ignore_ascii_case("INDIRECT") && nameless {
+            let mut reference_text = NamelessReferenceText;
+            witness_call::calculate_with_reference_text(
+                function, args, index, context, apply, Some(&mut reference_text),
+            )
+        } else if function.eq_ignore_ascii_case("INDIRECT") {
             let mut reference_text = UnlocatedReferenceText;
             witness_call::calculate_with_reference_text(
                 function, args, index, context, apply, Some(&mut reference_text),
@@ -4166,6 +4247,25 @@ mod tests {
         );
     }
 
+    /// dc-ymjf.2.94: with no defined names attested, INDIRECT of name text is #REF!; a cell
+    /// reference still needs the sheet and position the bank did not capture.
+    #[test]
+    fn indirect_of_a_name_in_a_nameless_book_is_ref() {
+        let nameless = calc_verdict::WitnessInvocation {
+            defined_names: Some(String::new()),
+            ..Default::default()
+        };
+        let call = |text: &str, context: Option<&calc_verdict::WitnessInvocation>| {
+            calculate_with_context("INDIRECT", &[Value::String(text.into())], None, context, true)
+        };
+        for name in ["hello", "i", "a?", "Rate"] {
+            assert_eq!(call(name, Some(&nameless)), "error:Ref", "{name}");
+            assert!(call(name, None).starts_with("fault:"), "{name}");
+        }
+        assert!(call("A1", Some(&nameless)).starts_with("fault:"));
+        assert!(call("B2:C3", Some(&nameless)).starts_with("fault:"));
+    }
+
     /// dc-7ofm: the en-ZA attestation of Touchstone environment 29bedb2b6722 rests on the
     /// catalogue capture of the same Excel and on that environment's own DOLLAR answers.
     #[test]
@@ -4206,6 +4306,7 @@ mod tests {
         assert_eq!(context.decimal_separator.as_deref(), Some("."));
         assert_eq!(context.thousands_separator.as_deref(), Some(" "));
         assert_eq!(context.addins_open.as_deref(), Some(""));
+        assert_eq!(context.defined_names.as_deref(), Some(""));
         let record = &evidence["touchstone_environment"];
         assert_eq!(record["addins_installed"], serde_json::json!([]));
         assert_eq!(record["build"], "20527");

@@ -213,6 +213,8 @@ pub struct WitnessInvocation {
     /// The add-in files open in the capture's Excel session, comma-separated ("" for none),
     /// as the environment record attests; a library-qualified add-in call needs its file open.
     pub addins_open: Option<String>,
+    /// The workbook's visible defined names, comma-separated ("" for none), when attested.
+    pub defined_names: Option<String>,
 }
 
 impl WitnessInvocation {
@@ -236,6 +238,7 @@ impl WitnessInvocation {
                 "compatibility_version" => &mut result.compatibility_version,
                 "calculation_clock" => &mut result.calculation_clock,
                 "addins_open" => &mut result.addins_open,
+                "defined_names" => &mut result.defined_names,
                 _ => return Err(format!("{path}.{key}: unknown invocation field")),
             };
             *field = if value.is_null() {
@@ -264,6 +267,7 @@ impl WitnessInvocation {
             ("compatibility_version", &self.compatibility_version),
             ("calculation_clock", &self.calculation_clock),
             ("addins_open", &self.addins_open),
+            ("defined_names", &self.defined_names),
         ] {
             if let Some(value) = value {
                 node.insert(key.to_owned(), json!(value));

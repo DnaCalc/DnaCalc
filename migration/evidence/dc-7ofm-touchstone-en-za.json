@@ -49,7 +49,7 @@
   "cpu": "AMD Ryzen 7 4800H with Radeon Graphics"
  },
  "evidence_repository": "CalcFunc-Evidence",
- "evidence_commit": "31e9df797e3c1ebd11cd1d9330d3ef510b358e74",
+ "evidence_commit": "2e9e923ca49b3cbabed7024fea9168532825d55f",
  "env_id": "29bedb2b6722",
  "service": "touchstone/1",
  "profile": {
@@ -58,6 +58,10 @@
   "thousands_separator": " "
  },
  "addins_open": [],
+ "defined_names": [],
+ "defined_names_evidence": [
+  "OwnedExcel.cs Setup makes the scratch book by Workbooks.Add (a new workbook holds no defined name or table), and the fingerprint compared with the baseline after every batch counts its visible names (VisibleNames; Excel's hidden _xlfn.* future-function names aside), so a batch that left a name would have recycled the instance."
+ ],
  "addins_evidence": [
   "The environment record (touchstone_environment, whose JSON env_id hashes) lists addins_installed [] and com_addins_connected [VS15ExcelAdaptor], the Visual Studio design-time adaptor, which adds no worksheet function.",
   "The worker (tools/excel-service/engines/excel/OwnedExcel.cs Setup, unchanged since fdcc4472 of 2026-11-08, before the 2026-11-12 captures) refuses an Excel instance with any AddIns2 entry open or any registered XLL function, and opens no workbook besides its scratch book (sheets S, A, Q)."
@@ -2185,7 +2189,7 @@
   {
    "path": "readings/excel-20527/admit3-answers-averageifs-range-mixed.json",
    "function": "AVERAGEIFS",
-   "sha256": "d1917822366df550f9b2e92ff6e91d8423725636dcb5e7b331177afd81e537ba"
+   "sha256": "06b52b5a95e383882bf459f5a03706443cdbc4604e5c881493cd41df5bd31f17"
   },
   {
    "path": "readings/excel-20527/admit3-answers-choosecols-range-mixed.json",
@@ -2205,7 +2209,7 @@
   {
    "path": "readings/excel-20527/admit3-answers-countifs-range-mixed.json",
    "function": "COUNTIFS",
-   "sha256": "c0da303531942fd0cff6dd183a016554cf30b7bb6ae0638f1d715fc4a21c1822"
+   "sha256": "b99ceac4e74628e9cfe85ff9743ac8286c269ba3b4efadaba321abbc35daa20e"
   },
   {
    "path": "readings/excel-20527/admit3-answers-drop-range-mixed.json",
@@ -2265,12 +2269,12 @@
   {
    "path": "readings/excel-20527/admit3-answers-maxifs-range-mixed.json",
    "function": "MAXIFS",
-   "sha256": "31459d4ce9241b351980fc9b57a5470b214246c2c0245d19e9c7b701e562b2c6"
+   "sha256": "f66b2c65e382c8a68f6baf7b41fb7beaa16971bcb1eba2d2d4637157873c6798"
   },
   {
    "path": "readings/excel-20527/admit3-answers-minifs-range-mixed.json",
    "function": "MINIFS",
-   "sha256": "f95c151a9a4a30347f73d426184a833b4b845c1137267c81267aca3be8077bfd"
+   "sha256": "e04d2ae457bea85852065c9e04d4be0c03aaf3e4d562b6eb7a1601e4ed430198"
   },
   {
    "path": "readings/excel-20527/admit3-answers-sortby-range-mixed.json",
@@ -2290,7 +2294,7 @@
   {
    "path": "readings/excel-20527/admit3-answers-sumifs-range-mixed.json",
    "function": "SUMIFS",
-   "sha256": "b95d90507f1612e10166d507d912f9b97de5f37223c75b80edf56105c4f9cee7"
+   "sha256": "a81a06c44f885ab1bca6328672ca3df08501883f42362776a17f8f3ab9db4b1b"
   },
   {
    "path": "readings/excel-20527/admit3-answers-take-range-mixed.json",

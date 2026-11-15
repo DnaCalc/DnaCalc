@@ -53,6 +53,14 @@ out = {
     'profile': {'locale': 'en-ZA', 'decimal_separator': '.', 'thousands_separator': ' '},
     # dc-ymjf.2.65: no add-in file is open in this environment's sessions.
     'addins_open': [],
+    # dc-ymjf.2.94: its scratch workbook holds no visible defined name and no table.
+    'defined_names': [],
+    'defined_names_evidence': [
+        'OwnedExcel.cs Setup makes the scratch book by Workbooks.Add (a new workbook holds no defined name or '
+        'table), and the fingerprint compared with the baseline after every batch counts its visible names '
+        '(VisibleNames; Excel\'s hidden _xlfn.* future-function names aside), so a batch that left a name would '
+        'have recycled the instance.',
+    ],
     'addins_evidence': [
         'The environment record (touchstone_environment, whose JSON env_id hashes) lists addins_installed [] and '
         'com_addins_connected [VS15ExcelAdaptor], the Visual Studio design-time adaptor, which adds no worksheet function.',
