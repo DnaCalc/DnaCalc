@@ -204,19 +204,16 @@ impl AddinHost {
                     .wrapping_add(u64::from(r.use_count) << 40)
             })
         };
-        let start = std::time::Instant::now();
-        let (mut quiet_since, mut last) = (start, signature());
-        while start.elapsed() < limit && quiet_since.elapsed() < quiet {
-            calc_platform_desktop::pump_pending();
-            let _ = self.after_calculate();
-            std::thread::sleep(std::time::Duration::from_millis(10));
-            let now = signature();
-            if now != last {
-                // ubs:ignore - Registration-count signatures are public change counters, not secrets.
-                last = now;
-                quiet_since = std::time::Instant::now();
-            }
-        }
+        crate::settle::settle_loop(
+            quiet,
+            limit,
+            std::time::Duration::from_millis(10),
+            signature,
+            calc_platform_desktop::pump_pending,
+            || {
+                let _ = self.after_calculate();
+            },
+        );
     }
 
     /// The XLLs loaded, in load order.

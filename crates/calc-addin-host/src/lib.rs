@@ -19,6 +19,7 @@
 #[cfg(target_arch = "wasm32")]
 compile_error!("calc-addin-host is native-only");
 
+mod settle;
 #[cfg(windows)]
 mod host;
 #[cfg(windows)]
