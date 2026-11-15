@@ -167,6 +167,16 @@ ported_shared_family! {
             numbers.push(s.number_argument(0, value)?);
             Ok(())
         })?;
+        // Scalar blank-cell references have no numeric argument. A blank
+        // multi-cell range instead supplies the empty collection, whose
+        // multinomial is one.
+        if numbers.is_empty()
+            && !a.is_empty()
+            && a.iter().all(|arg| matches!(arg.core_ref(), CoreRef::Reference(reference)
+                if matches!(reference.areas(), [area] if area.cell_count() == 1)))
+        {
+            return fail(WorksheetErrorCode::Value);
+        }
         let mut items = Vec::with_capacity(numbers.len());
         for n in numbers {
             if !n.is_finite() || n < 0.0 {
