@@ -1,7 +1,8 @@
 //! Single-byte code pages of BIFF5/7 workbooks (the CODEPAGE record): 128 characters for the
 //! bytes 0x80 to 0xFF of each page, as the Windows, DOS and Mac Roman code page tables give them
 //! (generated from the standard code page tables; an unassigned byte of a Windows page is the control character of the same code, as Windows maps it). Bytes below
-//! 0x80 are ASCII in every page listed. Double-byte pages (932, 936, 949, 950) are not read.
+//! 0x80 are ASCII in every page listed. Code page 932 uses the portable Shift-JIS decoder;
+//! other double-byte pages (936, 949, 950) are not read.
 
 /// The characters of bytes 0x80 to 0xFF of code page `page`, when it is a single-byte page this
 /// reader knows.
@@ -86,6 +87,12 @@ pub(crate) fn decode(page: u16, bytes: &[u8]) -> Result<String, String> {
     if bytes.is_ascii() {
         return Ok(bytes.iter().map(|b| char::from(*b)).collect());
     }
+    if page == 932 {
+        return encoding_rs::SHIFT_JIS
+            .decode_without_bom_handling_and_without_replacement(bytes)
+            .map(|text| text.into_owned())
+            .ok_or_else(|| "invalid text in code page 932".to_owned());
+    }
     let table = high_half(if page == 0 { 1252 } else { page })
         .ok_or_else(|| format!("text in code page {page}, which is not read"))?;
     Ok(bytes
@@ -100,11 +107,13 @@ mod tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn single_byte_pages_decode_and_double_byte_pages_refuse() {
+    fn code_pages_decode_and_invalid_sequences_refuse() {
         assert_eq!(decode(1252, b"abc \x80 \xE9 \x93x\x94").unwrap(), "abc \u{20AC} \u{E9} \u{201C}x\u{201D}");
         assert_eq!(decode(1251, b"\xCF\xF0\xE8").unwrap(), "\u{41F}\u{440}\u{438}");
         assert_eq!(decode(10000, b"\x8E").unwrap(), "\u{E9}");
         assert_eq!(decode(932, b"plain").unwrap(), "plain");
-        assert!(decode(932, b"\x82\xA0").is_err());
+        assert_eq!(decode(932, b"\x82\xA0").unwrap(), "あ");
+        assert!(decode(932, b"\x82").is_err());
+        assert!(decode(936, b"\x81\x40").is_err());
     }
 }

@@ -681,13 +681,15 @@ fn biff5_page_breaks_span_the_sheet() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn a_biff5_workbook_in_a_double_byte_code_page_refuses_its_high_bytes() {
+fn a_biff5_workbook_reads_code_page_932_and_refuses_invalid_text() {
     use xls_kit::v5;
     let ascii = v5::xls(932, &[], &[v5::Sheet { name: b"S".to_vec(), records: v5::label(0, 0, b"plain") }]);
     assert_eq!(cells(load(&ascii).model(), 0), vec!["A1 s:plain"]);
     let japanese = v5::xls(932, &[], &[v5::Sheet { name: b"S".to_vec(), records: v5::label(0, 0, b"\x82\xA0") }]);
-    match calc_doc::open(source(&japanese), &OpenPolicy::default()) {
-        Err(OpenError::LegacyWorkbook { detail, .. }) => assert!(detail.contains("code page 932"), "{detail}"),
+    assert_eq!(cells(load(&japanese).model(), 0), vec!["A1 s:あ"]);
+    let invalid = v5::xls(932, &[], &[v5::Sheet { name: b"S".to_vec(), records: v5::label(0, 0, b"\x82") }]);
+    match calc_doc::open(source(&invalid), &OpenPolicy::default()) {
+        Err(OpenError::LegacyWorkbook { detail, .. }) => assert!(detail.contains("invalid text in code page 932"), "{detail}"),
         other => panic!("{:?}", other.err()),
     }
 }
