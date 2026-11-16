@@ -523,6 +523,11 @@ const TOUCHSTONE_PROFILES: &[(&str, &str)] = &[
         "145016f4397d",
         include_str!("../../../migration/evidence/dc-wi2wu-touchstone-mt-en-za.json"),
     ),
+    // The EUROTOOL.XLAM environment variant (dc-ymjf.2.65).
+    (
+        "2b054213670b",
+        include_str!("../../../migration/evidence/dc-ymjf-2-65-touchstone-eurotool-en-za.json"),
+    ),
     // The serial worker, which answers the one-call recaptures (dc-ymjf.2.85).
     (
         "76a02a5594d8",

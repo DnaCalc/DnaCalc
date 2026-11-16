@@ -1,0 +1,163 @@
+{
+ "bead": "dc-ymjf.2.85",
+ "claim": "Touchstone environment 2b054213670b (the variant with EUROTOOL.XLAM open) is Excel 16.0.20527 on the same machine as 29bedb2b6722 (migration/evidence/dc-7ofm-touchstone-en-za.json), under the Windows user culture en-ZA, whose Excel International separators are \".\" and \" \".",
+ "evidence": [
+  "The environment record (touchstone_environment) gives the same build, OS, CPU and scratch sheets as 29bedb2b6722, with a later file version (and, for the serial worker, multithreaded calculation off).",
+  "Its own answers (answers): DOLLAR gives the Rand sign R and U+0020 grouping; DATEVALUE reads 04/02/01 year-first and refuses 4/2/2001, the en-ZA short-date order; VALUE reads U+0020 as the group separator."
+ ],
+ "touchstone_environment": {
+  "engine": "excel",
+  "version": "16.0",
+  "build": "20527",
+  "file_version": "16.0.20527.20196",
+  "machine": "x86-64",
+  "os": "Microsoft Windows NT 10.0.26200.0",
+  "cpu_id": "AMD64 Family 23 Model 96 Stepping 1, AuthenticAMD",
+  "logical_cpus": 16,
+  "mt_calc": "manual:4",
+  "mt_enabled": true,
+  "mt_threads_reported": 4,
+  "calculation": -4135,
+  "iteration": false,
+  "max_iterations": 100,
+  "max_change": "3f50624dd2f1a9fc",
+  "precision_as_displayed": false,
+  "date1904": false,
+  "compatibility_version": 2,
+  "use_system_separators": true,
+  "decimal_separator": ".",
+  "thousands_separator": "\u00a0",
+  "automation_security": 1,
+  "scratch_sheets": "S,A,Q",
+  "com_addins_connected": [
+   "VS15ExcelAdaptor"
+  ],
+  "addins_installed": [],
+  "addins_open": [
+   "EUROTOOL.XLAM"
+  ],
+  "cpu": "AMD Ryzen 7 4800H with Radeon Graphics"
+ },
+ "env_id": "2b054213670b",
+ "service": "touchstone/1",
+ "profile": {
+  "locale": "en-ZA",
+  "decimal_separator": ".",
+  "thousands_separator": " "
+ },
+ "addins_open": [
+  "EUROTOOL.XLAM"
+ ],
+ "answers": [
+  {
+   "function": "DOLLAR",
+   "args": [
+    {
+     "type": "number",
+     "bits": "c0934a0000000000"
+    },
+    {
+     "type": "number",
+     "bits": "4000000000000000"
+    }
+   ],
+   "answer": {
+    "type": "text",
+    "value": "-R1 234.50"
+   },
+   "timestamp": "2026-11-16T07:38:47.930068+00:00"
+  },
+  {
+   "function": "DOLLAR",
+   "args": [
+    {
+     "type": "number",
+     "bits": "4132d687e4189375"
+    },
+    {
+     "type": "number",
+     "bits": "4000000000000000"
+    }
+   ],
+   "answer": {
+    "type": "text",
+    "value": "R1 234 567.89"
+   },
+   "timestamp": "2026-11-16T07:38:48.152020+00:00"
+  },
+  {
+   "function": "DOLLAR",
+   "args": [
+    {
+     "type": "number",
+     "bits": "3fe0000000000000"
+    },
+    {
+     "type": "number",
+     "bits": "0000000000000000"
+    }
+   ],
+   "answer": {
+    "type": "text",
+    "value": "R1"
+   },
+   "timestamp": "2026-11-16T07:38:48.367325+00:00"
+  },
+  {
+   "function": "DATEVALUE",
+   "args": [
+    {
+     "type": "text",
+     "value": "04/02/01"
+    }
+   ],
+   "answer": {
+    "type": "number",
+    "bits": "40e2904000000000"
+   },
+   "timestamp": "2026-11-16T07:38:48.592459+00:00"
+  },
+  {
+   "function": "DATEVALUE",
+   "args": [
+    {
+     "type": "text",
+     "value": "4/2/2001"
+    }
+   ],
+   "answer": {
+    "type": "error",
+    "code": "#VALUE!"
+   },
+   "timestamp": "2026-11-16T07:38:48.799965+00:00"
+  },
+  {
+   "function": "VALUE",
+   "args": [
+    {
+     "type": "text",
+     "value": "1 234.5"
+    }
+   ],
+   "answer": {
+    "type": "number",
+    "bits": "40934a0000000000"
+   },
+   "timestamp": "2026-11-16T07:38:49.023808+00:00"
+  },
+  {
+   "function": "VALUE",
+   "args": [
+    {
+     "type": "text",
+     "value": "1,234"
+    }
+   ],
+   "answer": {
+    "type": "error",
+    "code": "#VALUE!"
+   },
+   "timestamp": "2026-11-16T07:38:49.232785+00:00"
+  }
+ ]
+}
