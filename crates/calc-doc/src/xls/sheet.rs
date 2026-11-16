@@ -49,7 +49,7 @@ pub(crate) struct Context<'a> {
 /// What a formula cell's `<f>` element holds.
 #[derive(Clone, Debug)]
 enum Formula {
-    Plain(String),
+    Plain { text: String, needs_calc: bool },
     /// The anchor of an array formula over `range`.
     Array { range: String, text: String, needs_calc: bool },
     /// The first cell of a data table: the attributes of its `<f>`.
@@ -499,7 +499,12 @@ pub(crate) fn read(
                 let mut c = Cursor::new(&body);
                 let (row, column, ixfe) = cell_head(&mut c)?;
                 let value = c.bytes(8, "Formula").map_err(e)?.to_vec();
-                c.skip(6, "Formula").map_err(e)?;
+                let flags = c.u16("Formula").map_err(e)?;
+                c.skip(4, "Formula").map_err(e)?;
+                let needs_calc = flags & 1 != 0;
+                // Calculation scheduling and the error-check exclusion are not yet applied by
+                // the product, even where the converted formula retains the former flag.
+                if flags & 0x21 != 0 { *unknown.entry(FORMULA).or_insert(0) += 1; }
                 let count = usize::from(c.u16("Formula").map_err(e)?);
                 let rgce = c.bytes(count, "Formula").map_err(e)?;
                 let rgcb = c.bytes(c.remaining(), "Formula").map_err(e)?;
@@ -557,12 +562,16 @@ pub(crate) fn read(
                 let formula = if rgce.first() == Some(&0x02) {
                     // PtgTbl: a cell inside a data table; the first one holds the table.
                     match tables.get(&at) {
-                        Some(attributes) => Formula::Table(attributes.clone()),
+                        Some(attributes) => {
+                            let mut attributes = attributes.clone();
+                            if needs_calc { attributes.push(("ca", "1".to_owned())); }
+                            Formula::Table(attributes)
+                        }
                         None => Formula::Member,
                     }
                 } else {
                     match print(rgce, rgcb, &links, origin).map_err(|m| fail(m.0))? {
-                        Ok(text) => Formula::Plain(text),
+                        Ok(text) => Formula::Plain { text, needs_calc },
                         Err(expanded) => {
                             let key = (expanded.row, expanded.column);
                             if let Some(array) = arrays.get(&key) {
@@ -577,7 +586,7 @@ pub(crate) fn read(
                                         column_name(u32::from(array.columns.1)),
                                         u32::from(array.rows.1) + 1
                                     );
-                                    Formula::Array { range, text, needs_calc: array.needs_calc }
+                                    Formula::Array { range, text, needs_calc: array.needs_calc || needs_calc }
                                 } else {
                                     Formula::Member
                                 }
@@ -585,7 +594,7 @@ pub(crate) fn read(
                                 let text = print(&group.rgce, &group.rgcb, &links, origin)
                                     .map_err(|m| fail(m.0))?
                                     .map_err(|_| fail("a PtgExp in a shared formula".into()))?;
-                                Formula::Plain(text)
+                                Formula::Plain { text, needs_calc }
                             } else {
                                 return Err(fail(format!(
                                     "a PtgExp naming row {} column {}, where no shared or array formula is",
@@ -770,7 +779,10 @@ pub(crate) fn read(
                     }
                     x.open("c", &attributes);
                     match f {
-                        Formula::Plain(text) => x.element("f", &[], text),
+                        Formula::Plain { text, needs_calc } => {
+                            let attributes = if *needs_calc { vec![("ca", "1".to_owned())] } else { Vec::new() };
+                            x.element("f", &attributes, text)
+                        }
                         Formula::Array { range, text, needs_calc } => {
                             let mut a = vec![("t", "array".to_owned()), ("ref", range.clone())];
                             if *needs_calc { a.push(("ca", "1".to_owned())); }

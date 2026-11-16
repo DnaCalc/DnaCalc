@@ -31,7 +31,9 @@ fn write_legacy_excel_session_inputs() {
     row_with_flags[last] |= 0x70;
     cells.extend(row_with_flags);
     cells.extend(number(0, 0, 42.5));
-    cells.extend(formula(1, 0, num_value(43.5), &ptg::join(&[ptg::cell(0, 0, 0), ptg::int(1), ptg::op(ptg::ADD)]), &[]));
+    let mut pending_formula = formula(1, 0, num_value(43.5), &ptg::join(&[ptg::cell(0, 0, 0), ptg::int(1), ptg::op(ptg::ADD)]), &[]);
+    pending_formula[4 + 14] = 1;
+    cells.extend(pending_formula);
     cells.extend(merged(&[(2, 2, 0, 1)]));
     cells.extend(hlink_url((3, 0), "https://example.com/", Some("Example"), Some("part")));
     cells.extend(hlink_file((4, 0), "book.xls", Some("資料.xls"), "Data!A1"));
@@ -762,6 +764,26 @@ fn array_recalculation_flag_survives_conversion() {
         assert_eq!(xml.contains("ca=\"1\""), needs_calc, "{xml}");
         load(&bytes);
     }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn formula_recalculation_flag_is_preserved_and_incomplete_flags_are_counted() {
+    let mut recalculate = formula(0, 0, num_value(1.0), &ptg::int(1), &[]);
+    recalculate[4 + 14] = 1;
+    let mut ignore_error = formula(1, 0, num_value(2.0), &ptg::int(2), &[]);
+    ignore_error[4 + 14] = 0x20;
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", [recalculate, ignore_error].concat())]);
+    let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let xml = String::from_utf8(doc.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+    assert!(xml.contains("<f ca=\"1\">1</f>"), "{xml}");
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert_eq!(report.unknown_records.get(&0x0006), Some(&2));
+    let plan = calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+    let mut saved = Vec::new(); calc_doc::write(plan, &mut saved).unwrap();
+    let doc = calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap();
+    let xml = String::from_utf8(doc.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+    assert!(xml.contains("<f ca=\"1\">1</f>"), "{xml}");
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
