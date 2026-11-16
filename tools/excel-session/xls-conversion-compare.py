@@ -118,6 +118,32 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
     return result
 
 
+def pivot_caches(z, workbook, workbook_path, workbook_rels):
+    result = []
+    for cache in workbook.findall(f'{M}pivotCaches/{M}pivotCache'):
+        rel = workbook_rels.get(cache.get(R + 'id'))
+        if rel is None:
+            raise ValueError('missing pivot cache relationship')
+        path = target(workbook_path, rel)
+        definition = ET.fromstring(z.read(path))
+        records = []
+        for item in relationships(z, path).values():
+            if item.get('Type', '').endswith('/pivotCacheRecords'):
+                records.append(tree(ET.fromstring(z.read(target(path, item)))))
+        result.append({'cache_id': cache.get('cacheId'), 'definition': tree(definition), 'records': records})
+    return result
+
+
+def pivot_tables(z, sheet, sheet_path, sheet_rels):
+    result = []
+    for ref in sheet.findall(f'{M}pivotParts/{M}pivotPart'):
+        rel = sheet_rels.get(ref.get(R + 'id'))
+        if rel is None:
+            raise ValueError('missing pivot table relationship')
+        result.append(tree(ET.fromstring(z.read(target(sheet_path, rel)))))
+    return result
+
+
 def package(data):
     with zipfile.ZipFile(io.BytesIO(data)) as z:
         wbpath = 'xl/workbook.xml'
@@ -179,9 +205,11 @@ def package(data):
                            'merges': merges, 'links': sorted(links, key=repr), 'comments': sorted(comments),
                            'conditional_formats': [tree(e) for e in sh.findall(M + 'conditionalFormatting')],
                            'validations': [tree(e) for e in sh.findall(f'{M}dataValidations/{M}dataValidation')],
-                           'drawings': drawing_objects(z, sh, path, shrels)})
+                           'drawings': drawing_objects(z, sh, path, shrels),
+                           'pivots': pivot_tables(z, sh, path, shrels)})
         props = wb.find(M + 'workbookPr')
-        return {'date1904': props is not None and props.get('date1904', '0') in ('1', 'true'), 'names': names, 'sheets': sheets}
+        return {'date1904': props is not None and props.get('date1904', '0') in ('1', 'true'), 'names': names,
+                'pivot_caches': pivot_caches(z, wb, wbpath, rels), 'sheets': sheets}
 
 
 def compare(expected, actual):
@@ -216,7 +244,13 @@ def main():
     reading = json.loads(args.excel_result.read_text(encoding='utf-8-sig'))
     if reading.get('fatal'):
         raise SystemExit('Excel job failed: ' + str(reading['fatal']))
-    generated = reading.get('generated', [])
+    generated = list(reading.get('generated', []))
+    pivot = reading.get('pivot')
+    if pivot is not None:
+        pivot_source = pivot.get('xls_base64')
+        generated.append({'file': 'excel-pivot.xls', 'source_base64': pivot_source,
+                          'sha256': hashlib.sha256(base64.b64decode(pivot_source, validate=True)).hexdigest() if pivot_source else '',
+                          'package_base64': pivot.get('xlsx_base64'), 'error': pivot.get('error')})
     generated_names = [item['file'] for item in generated if item.get('source_base64')]
     if len(set(generated_names)) != len(generated_names) or any(Path(name).name != name or name in ('.', '..', 'cases.json', 'outcomes.json') for name in generated_names):
         raise SystemExit('invalid or duplicate Excel-generated fixture name')
@@ -294,7 +328,7 @@ def main():
                 row['error'] = str(exc)
         generated_results.append(row)
     output = {'files': results, 'excel_generated': generated_results, 'not_compared': ['calculated provenance', 'drawing formatting',
-              'chart formatting', 'conditional formatting style definitions', 'pivot tables and caches',
+              'chart formatting', 'conditional formatting style definitions', 'pivot refresh and external cache sources',
               'VBA project contents', 'named-style inheritance and rendered style equivalence', 'other metadata']}
     args.output.write_text(json.dumps(output, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     all_results = results + generated_results
