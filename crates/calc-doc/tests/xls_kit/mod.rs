@@ -934,3 +934,219 @@ pub mod v5_styles {
         record(0x001C, &body)
     }
 }
+
+/// OfficeArt and chart builders.
+pub mod art {
+    use super::{record, u16s};
+
+    /// An OfficeArt record: version, instance, type, body.
+    pub fn atom(version: u16, instance: u16, kind: u16, body: &[u8]) -> Vec<u8> {
+        let mut v = ((instance << 4) | version).to_le_bytes().to_vec();
+        v.extend(kind.to_le_bytes());
+        v.extend((body.len() as u32).to_le_bytes());
+        v.extend_from_slice(body);
+        v
+    }
+
+    /// MSODRAWINGGROUP with one PNG in the blip store.
+    pub fn group_with_png(png: &[u8]) -> Vec<u8> {
+        let mut blip = vec![0x11u8; 16];
+        blip.push(0xFF);
+        blip.extend_from_slice(png);
+        let blip_atom = atom(0, 0x6E0, 0xF01E, &blip);
+        let mut bse = vec![6u8, 6];
+        bse.extend([0x22u8; 16]);
+        bse.extend([0, 0]);
+        bse.extend((blip_atom.len() as u32).to_le_bytes());
+        bse.extend(1u32.to_le_bytes());
+        bse.extend(0u32.to_le_bytes());
+        bse.extend([0, 0, 0, 0]);
+        bse.extend_from_slice(&blip_atom);
+        let store = atom(0xF, 1, 0xF001, &atom(2, 6, 0xF007, &bse));
+        record(0x00EB, &atom(0xF, 0, 0xF000, &store))
+    }
+
+    /// A shape container: type (instance of the Fsp), pib (0 for none), anchor, text box flag.
+    pub fn shape(shape_type: u16, picture: u32, anchor: [u16; 8], text_box: bool) -> Vec<u8> {
+        let mut children = atom(2, shape_type, 0xF00A, &[1, 4, 0, 0, 0, 0x0A, 0, 0]);
+        if picture != 0 {
+            let mut prop = 0x4104u16.to_le_bytes().to_vec();
+            prop.extend(picture.to_le_bytes());
+            children.extend(atom(3, 1, 0xF00B, &prop));
+        }
+        let mut a = vec![0u8, 0];
+        a.extend(u16s(&anchor));
+        children.extend(atom(0, 0, 0xF010, &a));
+        if text_box {
+            children.extend(atom(0, 0, 0xF00D, &[]));
+        }
+        children.extend(atom(0, 0, 0xF011, &[]));
+        atom(0xF, 0, 0xF004, &children)
+    }
+
+    /// MSODRAWING holding the group shape and then `shapes`.
+    pub fn drawing(shapes: &[Vec<u8>]) -> Vec<u8> {
+        let group = atom(0xF, 0, 0xF004, &atom(2, 0, 0xF00A, &[0, 4, 0, 0, 5, 0, 0, 0]));
+        let mut inner = group;
+        for s in shapes {
+            inner.extend_from_slice(s);
+        }
+        record(0x00EC, &atom(0xF, 0, 0xF002, &atom(0xF, 0, 0xF003, &inner)))
+    }
+
+    /// OBJ of type `kind` and id.
+    pub fn obj(kind: u16, id: u16) -> Vec<u8> {
+        let mut body = u16s(&[0x0015, 18, kind, id, 0x4011]);
+        body.extend([0u8; 12]);
+        body.extend(u16s(&[0, 0]));
+        record(0x005D, &body)
+    }
+
+    // Chart records.
+    pub fn begin() -> Vec<u8> {
+        record(0x1033, &[])
+    }
+    pub fn end() -> Vec<u8> {
+        record(0x1034, &[])
+    }
+    /// AI with a formula reference: id (0 title, 1 values, 2 categories) and tokens.
+    pub fn ai(id: u8, rgce: &[u8]) -> Vec<u8> {
+        let mut body = vec![id, 2];
+        body.extend(u16s(&[0, 0, rgce.len() as u16]));
+        body.extend_from_slice(rgce);
+        record(0x1051, &body)
+    }
+    /// SERIESTEXT: id 0 and a short string.
+    pub fn series_text(text: &str) -> Vec<u8> {
+        let mut body = 0u16.to_le_bytes().to_vec();
+        body.extend(super::short_string(text));
+        record(0x100D, &body)
+    }
+    pub fn series() -> Vec<u8> {
+        record(0x1003, &u16s(&[1, 1, 4, 4, 0, 0]))
+    }
+    /// A chart substream: BOF (chart), CHART, one chart format group of type `bar_flags`, `series`
+    /// (each (title, categories, values) range tokens), a title and a legend, EOF.
+    pub fn chart(series_list: &[(&str, Vec<u8>, Vec<u8>)], bar_flags: u16, title: &str) -> Vec<u8> {
+        let mut out = super::bof(0x0020);
+        out.extend(record(0x1002, &[0u8; 16]));
+        out.extend(begin());
+        for (name, cats, vals) in series_list {
+            out.extend(series());
+            out.extend(begin());
+            out.extend(ai(2, cats));
+            out.extend(ai(1, vals));
+            out.extend(series_text(name));
+            out.extend(record(0x1045, &u16s(&[0])));
+            out.extend(end());
+        }
+        out.extend(record(0x1014, &[0u8; 20]));
+        out.extend(begin());
+        out.extend(record(0x1017, &u16s(&[0, 150, bar_flags])));
+        out.extend(end());
+        // A TEXT block for the chart title: linked as object 1.
+        out.extend(record(0x1025, &[0u8; 32]));
+        out.extend(begin());
+        out.extend(record(0x1027, &u16s(&[1, 0, 0, 0])));
+        out.extend(series_text(title));
+        out.extend(end());
+        out.extend(record(0x1015, &[0u8; 20]));
+        out.extend(begin());
+        out.extend(end());
+        out.extend(end());
+        out.extend(super::eof());
+        out
+    }
+}
+
+/// Rules: conditional formats, data validations, the automatic filter.
+pub mod rules {
+    use super::{record, u16s};
+
+    pub fn cf_header(count: u16, ranges: &[(u16, u16, u16, u16)]) -> Vec<u8> {
+        let mut body = u16s(&[count, 1]);
+        let (r1, r2) = (ranges.iter().map(|r| r.0).min().unwrap(), ranges.iter().map(|r| r.1).max().unwrap());
+        let (c1, c2) = (ranges.iter().map(|r| r.2).min().unwrap(), ranges.iter().map(|r| r.3).max().unwrap());
+        body.extend(u16s(&[r1, r2, c1, c2, ranges.len() as u16]));
+        for (a, b, c, d) in ranges {
+            body.extend(u16s(&[*a, *b, *c, *d]));
+        }
+        record(0x01B0, &body)
+    }
+
+    /// CF: type, operator, tokens, and a bold font and a solid pattern (style, foreground, background).
+    pub fn cf(kind: u8, operator: u8, first: &[u8], second: &[u8], bold: bool, pattern: Option<(u16, u16, u16)>) -> Vec<u8> {
+        let mut flags = 0u32;
+        if bold {
+            flags |= 0x0400_0000;
+        }
+        if pattern.is_some() {
+            flags |= 0x2000_0000;
+        }
+        let mut body = vec![kind, operator];
+        body.extend(u16s(&[first.len() as u16, second.len() as u16]));
+        body.extend(flags.to_le_bytes());
+        body.extend(2u16.to_le_bytes());
+        if bold {
+            let mut font = vec![0u8; 118];
+            font[64..68].copy_from_slice(&0xFFFF_FFFFu32.to_le_bytes());
+            font[72..74].copy_from_slice(&700u16.to_le_bytes());
+            font[80..84].copy_from_slice(&0xFFFF_FFFFu32.to_le_bytes());
+            font[88..92].copy_from_slice(&0xFFFF_FFFDu32.to_le_bytes());
+            font[92..96].copy_from_slice(&1u32.to_le_bytes());
+            font[96..100].copy_from_slice(&1u32.to_le_bytes());
+            body.extend(font);
+        }
+        if let Some((style, fore, back)) = pattern {
+            body.extend((style << 10).to_le_bytes());
+            body.extend((fore | back << 7).to_le_bytes());
+        }
+        body.extend_from_slice(first);
+        body.extend_from_slice(second);
+        record(0x01B1, &body)
+    }
+
+    fn string(text: &str) -> Vec<u8> {
+        if text.is_empty() {
+            return 0u16.to_le_bytes().to_vec();
+        }
+        let mut v = (text.len() as u16).to_le_bytes().to_vec();
+        v.push(0);
+        v.extend(text.bytes());
+        v
+    }
+
+    /// DV: type (3 list), operator, flags set by the caller, strings, tokens and one range.
+    pub fn dv(
+        flags: u32,
+        strings: [&str; 4],
+        first: &[u8],
+        second: &[u8],
+        range: (u16, u16, u16, u16),
+    ) -> Vec<u8> {
+        let mut body = flags.to_le_bytes().to_vec();
+        for s in strings {
+            body.extend(string(s));
+        }
+        body.extend(u16s(&[first.len() as u16, 0]));
+        body.extend_from_slice(first);
+        body.extend(u16s(&[second.len() as u16, 0]));
+        body.extend_from_slice(second);
+        body.extend(u16s(&[1, range.0, range.1, range.2, range.3]));
+        record(0x01BE, &body)
+    }
+
+    pub fn autofilter_info(columns: u16) -> Vec<u8> {
+        record(0x009D, &columns.to_le_bytes())
+    }
+
+    /// AUTOFILTER with one numeric "greater than" criterion on `column`.
+    pub fn autofilter_greater_than(column: u16, value: f64) -> Vec<u8> {
+        let mut body = u16s(&[column, 0]);
+        let mut doper = vec![4u8, 4];
+        doper.extend(value.to_le_bytes());
+        body.extend(doper);
+        body.extend([0u8; 10]);
+        record(0x009E, &body)
+    }
+}

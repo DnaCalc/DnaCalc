@@ -300,6 +300,73 @@ impl<'a> Compound<'a> {
         &self.entries[1..]
     }
 
+    /// The storage at `path` and everything under it as a compound file of its own (the children
+    /// of the storage become the root's), or `None` when there is no such storage.
+    pub(crate) fn extract_storage(&self, path: &str) -> Result<Option<Vec<u8>>, CfbError> {
+        use super::cfb_write::Node;
+        let prefix = format!("{}/", path.to_ascii_uppercase());
+        if !self
+            .entries()
+            .iter()
+            .any(|e| e.kind == EntryKind::Storage && e.path.eq_ignore_ascii_case(path))
+        {
+            return Ok(None);
+        }
+        // Build the tree of what lies under the storage.
+        fn insert(nodes: &mut Vec<(String, Node)>, parts: &[&str], node: Node) {
+            let Some((first, rest)) = parts.split_first() else { return };
+            if rest.is_empty() {
+                nodes.push(((*first).to_owned(), node));
+                return;
+            }
+            let at = match nodes.iter().position(|(n, _)| n == first) {
+                Some(at) => at,
+                None => {
+                    nodes.push(((*first).to_owned(), Node::Storage(Vec::new())));
+                    nodes.len() - 1
+                }
+            };
+            if let Node::Storage(kids) = &mut nodes[at].1 {
+                insert(kids, rest, node);
+            }
+        }
+        let mut root: Vec<(String, Node)> = Vec::new();
+        // Storages first (so a stream's parents exist), then streams.
+        let under: Vec<&Entry> = self
+            .entries()
+            .iter()
+            .filter(|e| e.path.to_ascii_uppercase().starts_with(&prefix))
+            .collect();
+        for entry in under.iter().filter(|e| e.kind == EntryKind::Storage) {
+            let relative: Vec<&str> = entry.path[prefix.len()..].split('/').collect();
+            let exists = {
+                // A storage already created as a parent stays as it is.
+                fn find(nodes: &[(String, Node)], parts: &[&str]) -> bool {
+                    match parts.split_first() {
+                        None => true,
+                        Some((first, rest)) => nodes.iter().any(|(n, node)| {
+                            n == first
+                                && match node {
+                                    Node::Storage(kids) => find(kids, rest),
+                                    Node::Stream(_) => false,
+                                }
+                        }),
+                    }
+                }
+                find(&root, &relative)
+            };
+            if !exists {
+                insert(&mut root, &relative, Node::Storage(Vec::new()));
+            }
+        }
+        for entry in under.iter().filter(|e| e.kind == EntryKind::Stream) {
+            let relative: Vec<&str> = entry.path[prefix.len()..].split('/').collect();
+            let data = self.read_entry(entry)?;
+            insert(&mut root, &relative, Node::Stream(data));
+        }
+        Ok(super::cfb_write::write(root))
+    }
+
     /// The stream at `path`, compared without regard to ASCII case.
     pub(crate) fn find(&self, path: &str) -> Option<&Entry> {
         self.entries()

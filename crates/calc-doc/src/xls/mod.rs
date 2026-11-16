@@ -9,11 +9,15 @@
 //! [`LegacyReport`], never fatal.
 
 pub(crate) mod cfb;
+mod cfb_write;
 pub(crate) mod codepage;
+mod chart;
 mod crypto;
+mod drawing;
 mod features;
 mod formula;
 mod records;
+mod rules;
 mod sheet;
 mod strings;
 mod styles;
@@ -39,6 +43,16 @@ pub struct LegacyReport {
     pub sheets: usize,
     /// Record types not read, with how many of each.
     pub unknown_records: BTreeMap<u16, u32>,
+    /// Drawing objects not written, with how many of each OBJ type (MS-XLS 2.5.145).
+    pub unread_objects: BTreeMap<u16, u32>,
+}
+
+impl LegacyReport {
+    /// How many pivot tables (SXVIEW records) the workbook holds; they are not read (dc-4j0e.13),
+    /// so a conversion drops them and says so here.
+    pub fn pivot_tables(&self) -> u32 {
+        self.unknown_records.get(&0x00B0).copied().unwrap_or(0)
+    }
 }
 
 /// Whether `bytes` start as an OLE compound file.
@@ -138,6 +152,7 @@ pub(crate) fn convert(
         Err(refuse(name, format!("sheet {:?} has no EOF record", sheet.name)))
     };
     // BIFF5 link tables: the globals' and each sheet's own, gathered before any formula prints.
+    let images = drawing::blip_store(&globals.drawing_group);
     let mut registry = v5::Registry::default();
     let mut tables: Vec<v5::Table> = Vec::new();
     let mut global_table = v5::Table::default();
@@ -175,6 +190,7 @@ pub(crate) fn convert(
     }
     let mut sheet_unknown: BTreeMap<u16, u32> = BTreeMap::new();
     let mut extra_entries: Vec<(String, Vec<u8>)> = Vec::new();
+    let mut unread_objects: BTreeMap<u16, u32> = BTreeMap::new();
     for sheet in &globals.sheets {
         if sheet.kind == SheetKind::Module {
             continue;
@@ -195,6 +211,8 @@ pub(crate) fn convert(
             strings: &globals.strings,
             links,
             v5,
+            images: &images,
+            filter_range: filter_range(&globals, &links, number as u32 - 1),
             styles: &globals.styles,
             tab: number as u32 - 1,
             number,
@@ -206,6 +224,10 @@ pub(crate) fn convert(
                     .map_err(|detail| refuse(name, detail))?;
                 for (id, n) in read.unknown {
                     *sheet_unknown.entry(id).or_insert(0) += n;
+                }
+                extra_entries.extend(read.entries.iter().cloned());
+                for (kind, n) in &read.unread_objects {
+                    *unread_objects.entry(*kind).or_insert(0) += n;
                 }
                 parts.extend(read.parts.iter().map(|(n, t, b)| (n.clone(), *t, b.clone())));
                 if !read.rels.is_empty() {
@@ -266,7 +288,7 @@ pub(crate) fn convert(
     if sheet_entries.is_empty() {
         return Err(refuse(name, "the workbook has no sheets"));
     }
-    let has_styles = !globals.styles.is_empty();
+    let has_styles = globals.styles.needs_part();
     if has_styles {
         parts.push((
             "xl/styles.xml".to_owned(),
@@ -377,10 +399,23 @@ pub(crate) fn convert(
         ));
         external_links.push(part);
     }
-    let macros = globals.sheets.iter().any(|s| s.kind == SheetKind::MacroSheet);
+    // The VBA project: the `_VBA_PROJECT_CUR` storage becomes the compound file of its own an
+    // .xlsm keeps in `xl/vbaProject.bin`.
+    let vba = compound
+        .extract_storage("_VBA_PROJECT_CUR")
+        .map_err(|e| refuse("_VBA_PROJECT_CUR", e.0))?;
+    if let Some(bytes) = &vba {
+        parts.push((
+            "xl/vbaProject.bin".to_owned(),
+            "application/vnd.ms-office.vbaProject",
+            bytes.clone(),
+        ));
+    }
+    let macros = vba.is_some() || globals.sheets.iter().any(|s| s.kind == SheetKind::MacroSheet);
     let report = LegacyReport {
         biff_version: if biff5 { 5 } else { 8 },
         sheets: globals.sheets.len(),
+        unread_objects,
         unknown_records: {
             let mut all = std::mem::take(&mut globals.unknown);
             for (id, n) in sheet_unknown {
@@ -399,14 +434,14 @@ pub(crate) fn convert(
             ("xmlns:r", RELATIONSHIPS_NAMESPACE.to_owned()),
         ],
     );
-    xml.empty(
-        "workbookPr",
-        &if globals.date_1904 {
-            vec![("date1904", "1".to_owned())]
-        } else {
-            Vec::new()
-        },
-    );
+    let mut workbook_properties = Vec::new();
+    if globals.date_1904 {
+        workbook_properties.push(("date1904", "1".to_owned()));
+    }
+    if let Some(code_name) = &globals.code_name {
+        workbook_properties.push(("codeName", code_name.clone()));
+    }
+    xml.empty("workbookPr", &workbook_properties);
     if let Some(tab) = globals.active_tab.filter(|t| usize::from(*t) < sheet_entries.len()) {
         xml.open("bookViews", &[]);
         xml.empty("workbookView", &[("activeTab", tab.to_string())]);
@@ -542,6 +577,16 @@ pub(crate) fn convert(
             ],
         );
     }
+    if vba.is_some() {
+        rels.empty(
+            "Relationship",
+            &[
+                ("Id", "rIdVba".to_owned()),
+                ("Type", "http://schemas.microsoft.com/office/2006/relationships/vbaProject".to_owned()),
+                ("Target", "vbaProject.bin".to_owned()),
+            ],
+        );
+    }
     if has_styles {
         rels.empty(
             "Relationship",
@@ -648,4 +693,25 @@ fn empty_chartsheet() -> Vec<u8> {
     xml.open("chartsheet", &[("xmlns", MAIN_NAMESPACE.to_owned())]);
     xml.close("chartsheet");
     xml.out
+}
+
+/// The range of the automatic filter of the sheet at tab index `tab`: the formula of its
+/// `_FilterDatabase` name without the sheet's name.
+fn filter_range(globals: &workbook::Globals, links: &formula::Links, tab: u32) -> Option<String> {
+    let name = globals
+        .names
+        .iter()
+        .find(|n| n.name == "_xlnm._FilterDatabase" && n.scope == Some(tab))?;
+    let context = links.context(Some(tab));
+    let text = match crate::xlsb::formula::print(
+        &name.rgce,
+        &name.rgcb,
+        &context,
+        crate::xlsb::formula::Origin::default(),
+    ) {
+        Ok(Ok(text)) => text,
+        _ => return None,
+    };
+    let range = text.rsplit_once('!').map_or(text.as_str(), |(_, range)| range);
+    Some(range.replace('$', ""))
 }
