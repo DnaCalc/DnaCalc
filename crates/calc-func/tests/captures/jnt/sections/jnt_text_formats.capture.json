@@ -5,7 +5,7 @@
   "source": "section:sha256:bf4aa6c6f243a88295c2e37783323e7452921d5f5e0480f8cc3fb21dcc6e1f2a",
   "acquisition": {
     "kind": "function_questions",
-    "entry": "OxFunc@05196c39:crates/oxfunc_core/src/functions unit tests (hypotheses); answers: question service touchstone/1, Excel 16.0.20527, env f3269992527c;sha256:eeea95346a8716e48e8b0cc87f83bbf171ded3b476c8549240c627bf2eaa765d; rows answered by the live Excel read-back of the sheet (operators, and hand rows whose asked formula differs from the row: dc-vdma), build 20527; 27 rows carry live Excel's answer where the legacy reading differs (contradicted-jnt_text_formats.json)"
+    "entry": "OxFunc@05196c39:crates/oxfunc_core/src/functions unit tests (hypotheses); answers: question service touchstone/1, Excel 16.0.20527, env 145016f4397d;sha256:eeea95346a8716e48e8b0cc87f83bbf171ded3b476c8549240c627bf2eaa765d; rows answered by the live Excel read-back of the sheet (operators, and hand rows whose asked formula differs from the row: dc-vdma), build 20527; 26 rows carry live Excel's answer where the legacy reading differs (contradicted-jnt_text_formats.json)"
   },
   "environment": {
     "excel_build": "16.0.20527.20088",
@@ -314,7 +314,7 @@
     {"sheet":"jnt_text_formats","row":29,"column":4,"excel_raw":{"text":"002d0077006f0072006c0064"}},
     {"sheet":"jnt_text_formats","row":30,"column":4,"excel_raw":{"error":"na"}},
     {"sheet":"jnt_text_formats","row":31,"column":4,"excel_raw":{"text":""}},
-    {"sheet":"jnt_text_formats","row":32,"column":4,"excel_raw":{"error":"spill"}},
+    {"sheet":"jnt_text_formats","row":32,"column":4,"excel_raw":{"text":"0061"}},
     {"sheet":"jnt_text_formats","row":33,"column":4,"excel_raw":{"text":"0031002c00200032002c00200033002c00200034"}},
     {"sheet":"jnt_text_formats","row":34,"column":4,"excel_raw":{"text":"007b0031002c0032003b0033002c0034007d"}},
     {"sheet":"jnt_text_formats","row":35,"column":4,"excel_raw":{"text":"00340032"}},
