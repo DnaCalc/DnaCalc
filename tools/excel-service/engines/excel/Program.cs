@@ -688,10 +688,19 @@ static class Program
                     {
                         var (sheet, cell) = Place((string)p["at"]);
                         if (built.Cells.Contains(sheet + "!" + cell.Replace("$", ""))) overwrote = true;
-                        dynamic target = built.Book.Worksheets.Item(sheet).Range[cell];
                         Stage = "sheet case probe " + (string)p["formula"];
-                        try { target.Formula2 = (string)p["formula"]; placed.Add(target); answers.Add(null); }
-                        catch (Exception e) { placed.Add(null); answers.Add(new Dictionary<string, object> { ["refused"] = e.Message }); }
+                        dynamic target = null;
+                        try
+                        {
+                            target = built.Book.Worksheets.Item(sheet).Range[cell];
+                            target.Formula2 = (string)p["formula"];
+                            placed.Add(target); answers.Add(null);
+                        }
+                        catch (Exception e)
+                        {
+                            // Excel refused the entry (or the probe names no sheet of the case): an answer, not a failure.
+                            placed.Add(null); answers.Add(new Dictionary<string, object> { ["refused"] = e.Message });
+                        }
                     }
                     Stage = "sheet case calculate";
                     X.App.CalculateFull();
