@@ -421,13 +421,23 @@ impl XllFunction {
         let ptr = result.word as *mut XlOper12;
         let value = match kind {
             XllType::Oper12 | XllType::Oper12Reference => {
-                // Copy before the next entry into this module, including xlAutoFree12.
-                let flags = if ptr.is_null() {
-                    0
-                } else {
-                    unsafe { ptr.read_unaligned().xltype }
-                };
-                let copy = unsafe { from_oper(ptr, &self.state.borrow().sheets, sheet) };
+                // Copy before the next entry into this module, including xlAutoFree12. The raw
+                // bytes are taken before conversion follows any pointer, so a refused result
+                // names exactly what the add-in returned (answer 13, step 0).
+                let raw = (!ptr.is_null()).then(|| unsafe { calc_xll_abi::snapshot_operand(ptr) });
+                let flags = raw.map_or(0, |raw| {
+                    u32::from_le_bytes([raw[24], raw[25], raw[26], raw[27]])
+                });
+                let copy =
+                    unsafe { from_oper(ptr, &self.state.borrow().sheets, sheet) }.map_err(|why| {
+                        match &raw {
+                            Some(raw) => format!(
+                                "{why} (returned operand {})",
+                                calc_xll_abi::operand_snapshot_text(raw)
+                            ),
+                            None => why,
+                        }
+                    });
                 if flags & DLL_FREE != 0 {
                     match r.module.address("xlAutoFree12") {
                         Ok(address) => *auto_free = Some((address, ptr)),
@@ -697,6 +707,72 @@ pub(crate) fn normalize_return(value: CalcValue) -> CalcValue {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::native::{Module, Registration, RegistrationInfo};
+    use std::rc::Rc;
+
+    /// Every byte defined, padding included, as native code would leave it.
+    #[repr(C, align(8))]
+    struct Bytes([u8; 32]);
+    unsafe extern "system" fn unknown_error() -> *mut XlOper12 {
+        thread_local! {
+            static RESULT: std::cell::UnsafeCell<Bytes> = const {
+                let mut bytes = [0x5au8; 32];
+                bytes[0] = 99;
+                bytes[1] = 0;
+                bytes[2] = 0;
+                bytes[3] = 0;
+                bytes[24] = XL_ERR as u8;
+                bytes[25] = 0;
+                bytes[26] = 0;
+                bytes[27] = 0;
+                std::cell::UnsafeCell::new(Bytes(bytes))
+            };
+        }
+        RESULT.with(|cell| cell.get().cast::<XlOper12>())
+    }
+    /// Native-only: calls a native export through the registered libffi route. A returned
+    /// operand the host cannot convert refuses with its raw bytes, taken before conversion.
+    #[test]
+    fn unconvertible_return_reports_its_raw_operand() {
+        let host = crate::XllHost::new(0);
+        let module = Module::loaded(std::env::current_exe().unwrap().to_str().unwrap()).unwrap();
+        let signature = XllSignature::parse("Q").unwrap();
+        let registration = Rc::new(Registration {
+            info: RegistrationInfo {
+                id: 1,
+                name: "UnknownError".into(),
+                procedure: "unknown_error".into(),
+                type_text: "Q".into(),
+                signature: signature.clone(),
+                address: unknown_error as *const () as usize,
+                module: module.path.clone(),
+                origin: module.path.clone(),
+                use_count: 1,
+                macro_type: 1,
+                docs: Default::default(),
+            },
+            module: module.clone(),
+            origin: module,
+            uses: std::cell::Cell::new(1),
+            cif: call_interface(&signature),
+        });
+        let function = XllFunction {
+            early: false,
+            parallel: 1,
+            state: host.state.clone(),
+            registration,
+            bound: false,
+        };
+        let why = function.invoke(&[], None).unwrap_err();
+        assert_eq!(
+            why,
+            format!(
+                "dc-snz.2: unknown XLL error 99 (returned operand xltype 0x0010 (kind 0x0010), bytes 63000000{}10000000{})",
+                "5a".repeat(20),
+                "5a".repeat(4)
+            )
+        );
+    }
     /// Native-only: both synchronous and asynchronous native values use this publication step.
     #[test]
     fn native_publication_never_exposes_nonfinite_or_missing_values() {

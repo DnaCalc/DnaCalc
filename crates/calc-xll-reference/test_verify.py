@@ -111,6 +111,18 @@ class FourCountTests(unittest.TestCase):
         self.assertEqual(manifest["repository_commits"], ["c1", "c2"])
         self.assertIn("automatic", manifest["trigger"])
 
+    def test_ordered_pairs_count_one_sided_as_missing(self):
+        pairs = [{"excel": 1, "host": 1, "matched": True}, {"excel": 1, "host": 2, "matched": False},
+                 {"excel": 1, "host": None, "matched": False}, {"excel": None, "host": 3, "matched": False}]
+        counts = verify.four_counts(verify.pair_rows("ordered_boundary_cases", pairs) + verify.pass_rows("value_cases", 2))
+        lane = counts["ordered_boundary_cases"]
+        self.assertEqual((lane["pass"], lane["mismatched"], lane["missing"], lane["fail"]), (1, 1, 2, 3))
+        self.assertEqual(counts["value_cases"]["pass_rate"], 1.0)
+
+    def test_manifest_tolerates_rows_without_operation(self):
+        manifest = verify.comparison_manifest({}, [{"event": "x"}, {"operation": "RegisterXLL a", "value": 1}], [], [])
+        self.assertEqual(manifest["load_order"], ["RegisterXLL a"])
+
 
 if __name__ == "__main__":
     unittest.main()

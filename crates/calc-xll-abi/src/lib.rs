@@ -176,6 +176,22 @@ impl XlOper12 {
     }
 }
 
+/// The 32 bytes of a native operand exactly as the add-in left them, taken before any
+/// conversion follows its pointers (answer 13, step 0: snapshot before conversion). Reads the
+/// bytes, never a Rust value, so add-in padding is kept as it was.
+/// # Safety
+/// `oper` must be nonnull and valid for reading 32 bytes.
+pub unsafe fn snapshot_operand(oper: *const XlOper12) -> [u8; 32] {
+    unsafe { oper.cast::<[u8; 32]>().read_unaligned() }
+}
+
+/// The snapshot as text for a refusal: the type word (base kind and flag bits) and every byte.
+pub fn operand_snapshot_text(raw: &[u8; 32]) -> String {
+    let xltype = u32::from_le_bytes([raw[24], raw[25], raw[26], raw[27]]);
+    let bytes = raw.iter().map(|b| format!("{b:02x}")).collect::<String>();
+    format!("xltype 0x{xltype:04x} (kind 0x{:04x}), bytes {bytes}", xltype & TYPE_MASK)
+}
+
 /// Flexible array: `rows * columns` doubles follow the two dimensions.
 #[repr(C)]
 pub struct Fp12 {
@@ -230,6 +246,19 @@ mod tests {
             };
             assert_eq!(std::mem::size_of_val(&data.byte_count), 4);
         }
+    }
+
+    /// Native-only: reads the C ABI operand bytes, padding included.
+    #[test]
+    fn snapshot_keeps_every_byte_and_the_type_word() {
+        let mut storage = [0xa5u8; 40];
+        storage[4..12].copy_from_slice(&7.5f64.to_le_bytes());
+        storage[28..32].copy_from_slice(&(XL_NUM | DLL_FREE).to_le_bytes());
+        let raw = unsafe { snapshot_operand(storage.as_ptr().add(4).cast::<XlOper12>()) };
+        assert_eq!(&raw[..], &storage[4..36]);
+        let text = operand_snapshot_text(&raw);
+        assert!(text.starts_with("xltype 0x4001 (kind 0x0001), bytes 0000000000001e40a5a5"), "{text}");
+        assert!(text.ends_with("01400000a5a5a5a5"), "{text}");
     }
 
     /// Native-only: reads the C ABI field beside deliberately nonzero structure padding.
