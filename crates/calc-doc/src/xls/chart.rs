@@ -1,8 +1,8 @@
 //! A chart substream of a BIFF8 worksheet (MS-XLS 2.1.7.20.6): the chart groups (bar, column,
 //! line, area, pie, doughnut, scatter), their series with the worksheet ranges of their names,
 //! values and categories, the title, axis titles and the legend, written as the DrawingML chart
-//! part Excel saves. Bar gaps and overlaps and pie angles and hole sizes are retained; other
-//! formatting (colours, fonts, gridlines, 3-D, data labels, trendlines) is not read.
+//! part Excel saves. Bar gaps and overlaps, pie angles and hole sizes, and point-color variation
+//! are retained; other formatting (colours, fonts, gridlines, 3-D, data labels, trendlines) is not read.
 
 use super::records::Record;
 use super::strings::Pieces;
@@ -51,6 +51,7 @@ struct Group {
     overlap: Option<i16>,
     first_slice: Option<u16>,
     hole: Option<u16>,
+    vary_colors: Option<bool>,
 }
 
 #[derive(Debug, Default)]
@@ -113,7 +114,10 @@ impl Chart {
                 self.pending = Some(block_code(Block::Series));
             }
             CHART_FORMAT => {
-                self.groups.push(Group::default());
+                self.groups.push(Group {
+                    vary_colors: body.get(16..18).map(|b| u16::from_le_bytes([b[0], b[1]]) & 1 != 0),
+                    ..Default::default()
+                });
                 self.pending = Some(block_code(Block::Format));
             }
             AXIS => self.pending = Some(block_code(Block::Axis)),
@@ -148,7 +152,7 @@ impl Chart {
                             .then(|| u16::from_le_bytes([body[2], body[3]])),
                         overlap: (-100..=100).contains(&i16::from_le_bytes([body[0], body[1]]))
                             .then(|| i16::from_le_bytes([body[0], body[1]])),
-                        ..Default::default()
+                        ..*g
                     };
                 }
             }
@@ -160,7 +164,7 @@ impl Chart {
                         horizontal: false,
                         stacked: flags & 1 != 0,
                         percent: flags & 2 != 0,
-                        ..Default::default()
+                        ..*g
                     };
                 }
             }
@@ -173,7 +177,7 @@ impl Chart {
                             .then(|| u16::from_le_bytes([body[0], body[1]])),
                         hole: (10..=90).contains(&u16::from_le_bytes([body[2], body[3]]))
                             .then(|| u16::from_le_bytes([body[2], body[3]])),
-                        ..Default::default()
+                        ..*g
                     };
                 }
             }
@@ -181,7 +185,7 @@ impl Chart {
                 if let Some(g) = self.groups.last_mut() {
                     *g = Group {
                         kind: Kind::Scatter,
-                        ..Default::default()
+                        ..*g
                     };
                 }
             }
@@ -303,7 +307,9 @@ impl Chart {
                 }
                 Kind::Pie => {}
             }
-            x.empty("c:varyColors", &[("val", u8::from(group.kind == Kind::Pie).to_string())]);
+            let varies = group.vary_colors.unwrap_or(group.kind == Kind::Pie)
+                && members.len() == 1 && group.kind != Kind::Area;
+            x.empty("c:varyColors", &[("val", u8::from(varies).to_string())]);
             for series in members {
                 x.open("c:ser", &[]);
                 x.empty("c:idx", &[("val", order.to_string())]);

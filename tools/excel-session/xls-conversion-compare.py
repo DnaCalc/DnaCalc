@@ -133,7 +133,7 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
                 obj['chart_geometry'] = [
                     {'type': group.tag.rsplit('}', 1)[-1],
                      'settings': {name: child.get('val') for name in
-                                  ('gapWidth', 'overlap', 'firstSliceAng', 'holeSize')
+                                  ('varyColors', 'gapWidth', 'overlap', 'firstSliceAng', 'holeSize')
                                   if (child := group.find(C + name)) is not None}}
                     for group in chart_root.iter()
                     if group.tag in {C + 'barChart', C + 'pieChart', C + 'doughnutChart'}]

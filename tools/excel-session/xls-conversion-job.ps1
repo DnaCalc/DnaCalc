@@ -90,8 +90,8 @@ try {
                 $sheet.Range('H1').Value2 = 1; $sheet.Range('H2').Value2 = 2
                 $c = $sheet.ChartObjects().Add(200, 100, 200, 150).Chart
                 $c.ChartType = 51; $c.SetSourceData($sheet.Range('H1:H2'))
-                $group = $c.ChartGroups(1); $group.GapWidth = 70; $group.Overlap = -30
-                @{gap=$group.GapWidth; overlap=$group.Overlap}
+                $group = $c.ChartGroups(1); $group.GapWidth = 70; $group.Overlap = -30; $group.VaryByCategories = $true
+                @{gap=$group.GapWidth; overlap=$group.Overlap; varied=$group.VaryByCategories}
             }
             $entry.setup.chart_doughnut_geometry = GetOrError {
                 $c = $sheet.ChartObjects().Add(200, 270, 200, 150).Chart
