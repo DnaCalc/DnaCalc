@@ -635,10 +635,13 @@ fn sheet_phonetic_format_and_unhandled_visibility_ranges() {
     for has_ranges in [false, true] {
         let mut body = u16s(&[0, 7, u16::from(has_ranges)]);
         if has_ranges { body.extend(u16s(&[0, 0, 0, 1])); }
-        let bytes = xls(false, &[], &[Sheet::worksheet("S", record(0x00EF, &body))]);
+        let records = [number(0, 0, 1.0), number(0, 2, 2.0), record(0x00EF, &body)].concat();
+        let bytes = xls(false, &[], &[Sheet::worksheet("S", records)]);
         let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
         let xml = String::from_utf8(doc.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
         assert!(xml.contains("<phoneticPr fontId=\"0\" type=\"noConversion\" alignment=\"left\"/>"), "{xml}");
+        assert_eq!(xml.contains("r=\"A1\" ph=\"1\""), has_ranges, "{xml}");
+        assert!(!xml.contains("r=\"C1\" ph=\"1\""), "{xml}");
         let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
         assert_eq!(report.unknown_records.contains_key(&0x00EF), has_ranges);
         load(&bytes);

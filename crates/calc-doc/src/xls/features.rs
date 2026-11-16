@@ -82,6 +82,7 @@ pub(crate) struct Features {
     selections: Vec<Selection>,
     merges: Vec<String>,
     phonetic: Option<(usize, u8, u8)>,
+    phonetic_ranges: Vec<(u16, u16, u16, u16)>,
     hyperlinks: Vec<Hyperlink>,
     protect: bool,
     objects: bool,
@@ -246,10 +247,19 @@ impl Features {
                 let font = c.u16("PhoneticInfo").map_err(e)?;
                 let flags = c.u16("PhoneticInfo").map_err(e)?;
                 let count = usize::from(c.u16("PhoneticInfo").map_err(e)?);
-                c.skip(count * 8, "PhoneticInfo ranges").map_err(e)?;
+                for _ in 0..count {
+                    let first_row = c.u16("PhoneticInfo range").map_err(e)?;
+                    let last_row = c.u16("PhoneticInfo range").map_err(e)?;
+                    let first_col = c.u16("PhoneticInfo range").map_err(e)?;
+                    let last_col = c.u16("PhoneticInfo range").map_err(e)?;
+                    if first_row > last_row || first_col > last_col || last_col > 255 {
+                        return Err("an invalid PhoneticInfo range".to_owned());
+                    }
+                    self.phonetic_ranges.push((first_row, last_row, first_col, last_col));
+                }
                 let Some(font) = styles.font_index(font).or((font == 0).then_some(0)) else { return Ok(false) };
                 self.phonetic = Some((font, (flags & 3) as u8, ((flags >> 2) & 3) as u8));
-                // Visible phonetic ranges are not yet applied to cells.
+                // Existing cells receive visibility; unstored cells in the range do not yet.
                 if count != 0 { return Ok(false); }
             }
             0x0080 => {
@@ -368,6 +378,10 @@ impl Features {
             _ => return Ok(false),
         }
         Ok(true)
+    }
+
+    pub(crate) fn show_phonetic(&self, row: u16, column: u16) -> bool {
+        self.phonetic_ranges.iter().any(|&(r1, r2, c1, c2)| (r1..=r2).contains(&row) && (c1..=c2).contains(&column))
     }
 
     /// HLINK (MS-XLS 2.4.140, with the HLink object of MS-OSHARED 2.3.7.1).

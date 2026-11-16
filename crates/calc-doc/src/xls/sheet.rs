@@ -623,7 +623,8 @@ pub(crate) fn read(
         x.open("row", &attributes);
         for (column, (ixfe, content)) in &data.cells {
             let style = context.styles.cell_format(*ixfe);
-            if matches!(content, Content::Blank) && style == 0 {
+            let phonetic = features.show_phonetic(*row, *column);
+            if matches!(content, Content::Blank) && style == 0 && !phonetic {
                 continue;
             }
             let reference = format!("{}{}", column_name(u32::from(*column)), u32::from(*row) + 1);
@@ -632,6 +633,7 @@ pub(crate) fn read(
                 if style != 0 {
                     a.push(("s", style.to_string()));
                 }
+                if phonetic { a.push(("ph", "1".to_owned())); }
                 if let Some(kind) = kind {
                     a.push(("t", kind.to_owned()));
                 }
