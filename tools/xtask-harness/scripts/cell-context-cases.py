@@ -223,6 +223,84 @@ def lambda_helpers():
     return fam
 
 
+def lambda_groupby():
+    """Bank-coverage gaps (docs/plan/bank-coverage-2026-11-12.md): MAP, REDUCE, SCAN, BYROW, BYCOL and
+    MAKEARRAY over every lambda body below and several input shapes; GROUPBY and PIVOTBY over a small
+    sales table with every aggregation, header, total, sort and filter form; and functions that read the
+    calculation's clock, compared through its date only (TODAY, INT(NOW())) since the recorded clock is
+    Excel's NOW() before and after the cases."""
+    fam = Family()
+    cells = {}
+    for r, (a, b, c) in enumerate([(1, 10, 'a'), (2, 20, 'b'), (3, 30, None), (4, 40, 'd'), (-5, 0.5, 'e')], start=1):
+        cells[f'B{r}'], cells[f'C{r}'] = n(a), n(b)
+        if c is not None:
+            cells[f'D{r}'] = t(c)
+    cells.update({'E1': 'logical:true', 'E2': 'error:NA', 'E3': n(0), 'E4': t('7'), 'E5': 'logical:false'})
+    grid = fam.layout('grid', [{'name': 'Sheet1', 'cells': cells}])
+    unary = ['x*2', 'x+1', 'x^2', 'ISNUMBER(x)', 'IF(x>2,x,-x)', 'TEXT(x,"0.0")', 'x&"!"', 'SQRT(x)', 'IFERROR(1/x,"inf")',
+             'N(x)', 'LEN(x)', 'ROUND(x/3,2)', 'SEQUENCE(2)', 'x', 'ISBLANK(x)', '{1,2}']
+    ranges = ['B1:B5', 'C1:C5', 'D1:D5', 'E1:E5', 'B1:C5', 'B1:E1', 'B3', '{1,2;3,4}']
+    for body in unary:
+        for rng in ranges:
+            fam.case(f'map-{len(fam.cases):04}', 'MAP', grid, 'Sheet1!H10', f'=MAP({rng},LAMBDA(x,{body}))')
+    for rng in ['B1:B5', 'C1:C5', 'B1:C5']:
+        fam.case(f'map-{len(fam.cases):04}', 'MAP', grid, 'Sheet1!H10', f'=MAP({rng},C1:C5,LAMBDA(x,y,x*y))')
+        fam.case(f'map-{len(fam.cases):04}', 'MAP', grid, 'Sheet1!H10', f'=MAP({rng},D1:D5,LAMBDA(x,y,x&y))')
+    binary = ['a+v', 'a*v', 'a&v', 'MAX(a,v)', 'IF(ISNUMBER(v),a+v,a)', 'a+1', 'v', 'a', 'IFERROR(a+v,a)', 'a-v/2']
+    for init in ['0', '1', '""', '', 'B1', '{0,0}']:
+        for body in binary:
+            for rng in ['B1:B5', 'B1:C5', 'D1:D5', 'E1:E5']:
+                for f in ('REDUCE', 'SCAN'):
+                    fam.case(f'{f.lower()}-{len(fam.cases):04}', f, grid, 'Sheet1!H10', f'={f}({init},{rng},LAMBDA(a,v,{body}))')
+    rowbody = ['SUM(r)', 'COUNTA(r)', 'MAX(r)-MIN(r)', 'AVERAGE(r)', 'TEXTJOIN("-",TRUE,r)', 'ROWS(r)', 'COLUMNS(r)', 'r',
+               'INDEX(r,1)', 'SUMPRODUCT(r,r)', 'CONCAT(r)', 'COUNT(r)']
+    for body in rowbody:
+        for rng in ['B1:C5', 'B1:E5', 'B1:B5', 'B2:D2', '{1,2;3,4}']:
+            for f in ('BYROW', 'BYCOL'):
+                fam.case(f'{f.lower()}-{len(fam.cases):04}', f, grid, 'Sheet1!H10', f'={f}({rng},LAMBDA(r,{body}))')
+    for rows in ['1', '2', '3.7', '0', '-1', '"2"', 'TRUE', 'B2']:
+        for cols in ['1', '2', '2.5', '0', 'C5']:
+            for body in ['r*10+c', 'r', 'INDEX(B1:C5,r,c)', 'r&"/"&c', 'IF(r=c,1,0)']:
+                fam.case(f'makearray-{len(fam.cases):04}', 'MAKEARRAY', grid, 'Sheet1!H10', f'=MAKEARRAY({rows},{cols},LAMBDA(r,c,{body}))')
+
+    table = {'A1': t('Region'), 'B1': t('Product'), 'C1': t('Qty'), 'D1': t('Price')}
+    data = [('North', 'Apples', 10, 1.5), ('South', 'Pears', 4, 2.0), ('North', 'Pears', 7, 2.25), ('East', 'Apples', 3, 1.25),
+            ('South', 'Apples', 12, 1.5), ('North', 'Apples', 5, 1.75), ('East', 'Plums', 9, 3.0), ('South', 'Plums', 1, 2.75)]
+    for i, (reg, prod, q, pr) in enumerate(data, start=2):
+        table.update({f'A{i}': t(reg), f'B{i}': t(prod), f'C{i}': n(q), f'D{i}': n(pr)})
+    sales = fam.layout('sales', [{'name': 'Sheet1', 'cells': table}])
+    aggs = ['SUM', 'COUNT', 'COUNTA', 'AVERAGE', 'MAX', 'MIN', 'PRODUCT', 'MEDIAN', 'STDEV.S', 'VAR.P', 'PERCENTOF',
+            'ARRAYTOTEXT', 'LAMBDA(x,SUM(x)*2)', 'LAMBDA(x,ROWS(x))']
+    for agg in aggs:
+        fam.case(f'groupby-{len(fam.cases):04}', 'GROUPBY', sales, 'Sheet1!G2', f'=GROUPBY(A2:A9,C2:C9,{agg})')
+        fam.case(f'pivotby-{len(fam.cases):04}', 'PIVOTBY', sales, 'Sheet1!G2', f'=PIVOTBY(A2:A9,B2:B9,C2:C9,{agg})')
+    for headers in ['0', '1', '2', '3', '']:
+        for total in ['0', '1', '2', '-1', '-2', '']:
+            for sort in ['1', '-1', '2', '-2', '']:
+                fam.case(f'groupby-{len(fam.cases):04}', 'GROUPBY', sales, 'Sheet1!G2',
+                         f'=GROUPBY(A1:B9,C1:D9,SUM,{headers},{total},{sort})')
+    for headers in ['0', '1', '3']:
+        for rtotal in ['0', '1', '-1']:
+            for ctotal in ['0', '1', '-1']:
+                fam.case(f'pivotby-{len(fam.cases):04}', 'PIVOTBY', sales, 'Sheet1!G2',
+                         f'=PIVOTBY(A1:A9,B1:B9,C1:C9,SUM,{headers},{rtotal},,{ctotal})')
+    for flt in ['C2:C9>4', 'A2:A9<>"East"', 'ISNUMBER(C2:C9)']:
+        fam.case(f'groupby-{len(fam.cases):04}', 'GROUPBY', sales, 'Sheet1!G2', f'=GROUPBY(A2:A9,C2:C9,SUM,,,,{flt})')
+        fam.case(f'pivotby-{len(fam.cases):04}', 'PIVOTBY', sales, 'Sheet1!G2', f'=PIVOTBY(A2:A9,B2:B9,C2:C9,SUM,,,,,,{flt})')
+    for rel in ['0', '1']:
+        fam.case(f'groupby-{len(fam.cases):04}', 'GROUPBY', sales, 'Sheet1!G2', f'=GROUPBY(A2:B9,C2:C9,SUM,,2,,,{rel})')
+    fam.case(f'groupby-{len(fam.cases):04}', 'GROUPBY', sales, 'Sheet1!G2', '=GROUPBY(A2:A9,HSTACK(C2:C9,D2:D9),HSTACK(SUM,MAX))')
+    fam.case(f'groupby-{len(fam.cases):04}', 'GROUPBY', sales, 'Sheet1!B5', '=GROUPBY(A2:A9,C2:C9,SUM)')   # no spill room
+
+    clock = fam.layout('clock', [{'name': 'Sheet1', 'cells': {'A1': n(45000), 'A2': t('2024/03/15')}}])
+    for formula in ['=TODAY()', '=INT(NOW())', '=YEAR(TODAY())', '=TODAY()-A1', '=DATEDIF(A1,TODAY(),"d")',
+                    '=TEXT(TODAY(),"yyyy-mm-dd")', '=WEEKDAY(TODAY())', '=TODAY()>A1', '=DAYS(TODAY(),A2)',
+                    '=EOMONTH(TODAY(),0)', '=YEARFRAC(A1,TODAY())', '=ISOWEEKNUM(TODAY())', '=MONTH(NOW())',
+                    '=DATEVALUE("15/3")', '=VALUE("15 Mar")', '=NETWORKDAYS(A1,TODAY())']:
+        fam.case(f'clock-{len(fam.cases):04}', formula[1:formula.index('(')], clock, 'Sheet1!C1', formula)
+    return fam
+
+
 # The en-ZA number, currency, date and time text of locale-cases.py (dc-7ofm), read here by
 # operators instead of functions (dc-3k5n, en-ZA part).
 COERCION_TEXTS = [
@@ -251,7 +329,7 @@ def operator_coercion():
 
 FAMILIES = {'reference-info': reference_info, 'subtotal-hidden': subtotal_hidden,
             'spill-placement': spill_placement, 'ifs': ifs_family, 'lambda-helpers': lambda_helpers,
-            'operator-coercion': operator_coercion}
+            'operator-coercion': operator_coercion, 'lambda-groupby': lambda_groupby}
 
 
 def main():
