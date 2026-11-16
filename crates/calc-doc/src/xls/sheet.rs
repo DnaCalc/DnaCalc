@@ -543,8 +543,8 @@ pub(crate) fn read(
                 put(&mut rows, row, column, ixfe, Content::Formula(formula, cached));
             }
             STRING => {}
-            // CalcMode is collected across sheet substreams by the workbook converter.
-            0x000D => {}
+            // Workbook calculation settings are collected across sheet substreams.
+            0x000C | 0x000D | 0x0010 | 0x0011 | 0x005F => {}
             // BIFF5's local link table: read with the workbook, before the formulas.
             0x0016 | 0x0017 | 0x0023 if context.v5.is_some() => {}
             other => {

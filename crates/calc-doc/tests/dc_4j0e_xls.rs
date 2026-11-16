@@ -133,6 +133,24 @@ fn sheet_calculation_modes_are_preserved_and_conflicts_refused() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn iterative_calculation_settings_survive_the_workbook_route() {
+    let records = [record(0x000D, &0u16.to_le_bytes()), record(0x000C, &42u16.to_le_bytes()),
+        record(0x0011, &1u16.to_le_bytes()), record(0x0010, &0.005_f64.to_le_bytes()),
+        record(0x005F, &0u16.to_le_bytes())].concat();
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", records)]);
+    let loaded = load(&bytes);
+    assert_eq!(loaded.calc_mode(), calc_doc::CalcMode::Manual);
+    assert!(!loaded.calc_on_save());
+    let iteration = loaded.model().definitions().iteration();
+    assert!(iteration.enabled());
+    assert_eq!(iteration.max_iterations(), 42);
+    assert_eq!(iteration.max_change(), 0.005);
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    for id in [0x000C, 0x0010, 0x0011, 0x005F] { assert!(!report.unknown_records.contains_key(&id)); }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn workbook_protection_is_preserved_in_the_loaded_document() {
     let globals = [record(0x0019, &1u16.to_le_bytes()), record(0x0012, &1u16.to_le_bytes()),
         record(0x0013, &0xCE4Bu16.to_le_bytes())].concat();
