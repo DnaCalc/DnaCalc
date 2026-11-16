@@ -513,20 +513,25 @@ fn environment(
 /// The Touchstone environments whose user culture is shown by recorded evidence, with that
 /// evidence (dc-7ofm). Touchstone/1 captures record their environment id and
 /// Application.DecimalSeparator/ThousandsSeparator but not the user culture.
-const TOUCHSTONE_PROFILES: &[(&str, &str)] = &[(
-    "29bedb2b6722",
-    "migration/evidence/dc-7ofm-touchstone-en-za.json",
-)];
+const TOUCHSTONE_PROFILES: &[(&str, &str)] = &[
+    (
+        "29bedb2b6722",
+        include_str!("../../../migration/evidence/dc-7ofm-touchstone-en-za.json"),
+    ),
+    // The serial worker, which answers the one-call recaptures (dc-ymjf.2.85).
+    (
+        "76a02a5594d8",
+        include_str!("../../../migration/evidence/dc-ymjf-2-85-touchstone-serial-en-za.json"),
+    ),
+];
 
 /// The evidence of a Touchstone/1 capture's environment (dc-7ofm, dc-ymjf.2.65): its locale
 /// profile with Excel's International separators (Excel renders DOLLAR and FIXED groups with
 /// International's U+0020, where Application.ThousandsSeparator reports U+00A0), and the add-in
 /// files open in its sessions.
 fn touchstone_evidence(env_id: &str) -> Option<Value> {
-    static EVIDENCE: &str = include_str!("../../../migration/evidence/dc-7ofm-touchstone-en-za.json");
-    let (_, path) = TOUCHSTONE_PROFILES.iter().find(|(id, _)| *id == env_id)?;
-    debug_assert_eq!(*path, "migration/evidence/dc-7ofm-touchstone-en-za.json");
-    let evidence: Value = serde_json::from_str(EVIDENCE).ok()?;
+    let (_, text) = TOUCHSTONE_PROFILES.iter().find(|(id, _)| *id == env_id)?;
+    let evidence: Value = serde_json::from_str(text).ok()?;
     (evidence["env_id"] == env_id && evidence["service"] == "touchstone/1").then_some(evidence)
 }
 
@@ -1122,6 +1127,86 @@ fn add_binomial_replay(banks: &mut Banks, function: &str, doc: &Value) -> Result
     Ok(())
 }
 
+/// A recapture of bank rows whose answer depended on where the capture put the argument cells
+/// (dc-ymjf.2.85): the same calls, asked again one per serial request, so the formula sat in
+/// S!A1 and its arguments from S!B1 (`touchstone/1-serial-single`, Program.cs EvaluateSerial).
+struct PositionRecapture {
+    path: String,
+    args: Vec<Value>,
+    expected: String,
+    env: ReadingSource,
+}
+
+const RECAPTURES: &str = "recaptures";
+
+/// The position recaptures under `recaptures/`, keyed by (bank file, row id).
+fn position_recaptures(
+    checkout: &Path,
+    only: Option<&str>,
+) -> Result<BTreeMap<(String, String), PositionRecapture>, String> {
+    let mut out = BTreeMap::new();
+    for path in plain_readings(&checkout.join(RECAPTURES)) {
+        let rel = path
+            .strip_prefix(checkout)
+            .map(|p| p.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_default();
+        let doc = fs::read(&path)
+            .map_err(|e| e.to_string())
+            .and_then(|b| bank_json(&b))
+            .map_err(|e| format!("{rel}: {e}"))?;
+        if doc["format"] != "dnacalc-witness-recapture/1" {
+            return Err(format!("{rel}: not a dnacalc-witness-recapture/1 file"));
+        }
+        let function = doc["function"].as_str().unwrap_or_default().to_ascii_uppercase();
+        if only.is_some_and(|f| f != function) {
+            continue;
+        }
+        let provenance = &doc["capture_provenance"];
+        // Only the one-call serial layout is attested; anything else is not a known position.
+        if provenance["service"] != "touchstone/1"
+            || provenance["order"] != "serial"
+            || provenance["calls_per_request"] != 1
+            || provenance["cell_layout"] != "touchstone/1-serial-single"
+        {
+            return Err(format!("{rel}: the recapture's layout is not touchstone/1-serial-single"));
+        }
+        for row in doc["witnesses"].as_array().ok_or_else(|| format!("{rel}: no witnesses"))? {
+            let (Some(id), Some(original), Some(args), Some(expected)) = (
+                row["id"].as_str(),
+                row["original_source"].as_str(),
+                row["args"].as_array(),
+                row["expected_bits"].as_str(),
+            ) else {
+                return Err(format!("{rel}: a row lacks id, original_source, args or expected_bits"));
+            };
+            let mut env = environment(
+                String::new(),
+                format!(
+                    "{CHECKOUT} {rel} env {}; supersedes position-unknown bulk capture {CHECKOUT} {original}",
+                    provenance["env_id"].as_str().unwrap_or("unknown")
+                ),
+                provenance.get("environment"),
+                None,
+                provenance.get("calculation_settings"),
+            );
+            attest_touchstone_profile(&mut env, Some(provenance));
+            env.invocation.get_or_insert_with(Default::default).cell_layout =
+                Some("touchstone/1-serial-single".to_owned());
+            let key = (original.to_owned(), id.to_owned());
+            let recapture = PositionRecapture {
+                path: rel.clone(),
+                args: args.clone(),
+                expected: expected.to_owned(),
+                env,
+            };
+            if out.insert(key, recapture).is_some() {
+                return Err(format!("{rel}: {id} is recaptured twice"));
+            }
+        }
+    }
+    Ok(out)
+}
+
 /// Replace only the obstructed scalar-layout observations with independently captured
 /// free-layout observations of the same calls. The original evidence stays in the bank.
 fn unique_recaptures(doc: &Value) -> Result<BTreeMap<String, (Vec<Value>, String, Value)>, String> {
@@ -1479,6 +1564,7 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
     } else {
         BTreeMap::new()
     };
+    let mut positioned = position_recaptures(checkout, only)?;
     // New readings (`cargo xtask witness read`), kept as plain WitnessSet files.
     for path in plain_readings(&checkout.join(READINGS)) {
         let rel = path
@@ -1553,6 +1639,30 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
                     );
                 }
             }
+            if let Some(recapture) = positioned.remove(&(rel.clone(), id.clone())) {
+                if recapture.args != *args {
+                    return Err(format!("{}: recapture arguments differ for {id}", recapture.path));
+                }
+                selected = recapture.expected;
+                let source = *recapture_source_of
+                    .entry(recapture.env.source.clone())
+                    .or_insert_with(|| {
+                        banks.sources.push(Source {
+                            path: recapture.path.clone(),
+                            env: recapture.env,
+                        });
+                        banks.sources.len() - 1
+                    });
+                banks.readings.push(Reading {
+                    function: function.clone(),
+                    id,
+                    args: args.clone(),
+                    index,
+                    expected: selected,
+                    source,
+                });
+                continue;
+            }
             let source = if recaptured {
                 // Different service environment IDs can share the build and settings.
                 *recapture_source_of
@@ -1576,6 +1686,13 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
                 source,
             });
         }
+    }
+    if let Some(((original, id), recapture)) = positioned.iter().next() {
+        return Err(format!(
+            "{}: {} recaptured rows not found, first {id} of {original}",
+            recapture.path,
+            positioned.len()
+        ));
     }
     if !unique.is_empty() {
         return Err(format!(
@@ -1726,7 +1843,12 @@ fn calculate_with_context(
 ) -> String {
     catch_unwind(AssertUnwindSafe(|| {
         let nameless = apply && context.is_some_and(|c| c.defined_names.as_deref() == Some(""));
-        if function.eq_ignore_ascii_case("INDIRECT") && nameless {
+        let serial_single = apply
+            && context.is_some_and(|c| c.cell_layout.as_deref() == Some("touchstone/1-serial-single"));
+        if serial_single {
+            // The recaptured call's whole sheet is known: judge it where Excel calculated it.
+            crate::cell_context::serial_single(function, args, index, context)
+        } else if function.eq_ignore_ascii_case("INDIRECT") && nameless {
             let mut reference_text = NamelessReferenceText;
             witness_call::calculate_with_reference_text(
                 function, args, index, context, apply, Some(&mut reference_text),

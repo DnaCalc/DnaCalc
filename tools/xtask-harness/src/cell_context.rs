@@ -287,6 +287,127 @@ pub fn evaluate(
     Ok(json!({"value": value, "spill": spill}))
 }
 
+/// The witness form of one bank argument cell (`0x` hex, text, logical, blank, `{"error"}`), or
+/// `None` for a blank cell.
+fn argument_cell(arg: &Value) -> Result<Option<String>, String> {
+    Ok(match arg {
+        Value::Null => None,
+        Value::Bool(b) => Some(format!("logical:{b}")),
+        Value::String(text) if text.len() == 18 && text.starts_with("0x") => Some(text.clone()),
+        Value::String(text) => Some(format!("text:{text}")),
+        Value::Object(error) if error.len() == 1 => {
+            let code = error["error"].as_str().ok_or("argument: unknown object")?;
+            // An error argument is entered as its error formula (`=#N/A`), as the worker does.
+            let spelling = match code {
+                "Null" => "#NULL!",
+                "Div0" => "#DIV/0!",
+                "Value" => "#VALUE!",
+                "Ref" => "#REF!",
+                "Name" => "#NAME?",
+                "Num" => "#NUM!",
+                "NA" => "#N/A",
+                _ => return Err(format!("argument: unknown error {code}")),
+            };
+            Some(format!("={spelling}"))
+        }
+        other => return Err(format!("argument: not a scalar cell: {other}")),
+    })
+}
+
+fn column_letters(mut column: u32) -> String {
+    let mut out = Vec::new();
+    while column > 0 {
+        column -= 1;
+        out.push(b'A' + (column % 26) as u8);
+        column /= 26;
+    }
+    out.reverse();
+    String::from_utf8(out).expect("ASCII")
+}
+
+/// DNA Calc's answer for a bank call that Excel answered as a one-call serial request
+/// (`touchstone/1-serial-single`, dc-ymjf.2.85): the scratch book's sheets S, A and Q, the
+/// arguments in S!B1 onwards (an array argument one cell per element, row by row, read back
+/// through `CHOOSE`), and `=F(B1,C1,...)` in S!A1, wrapped in `INDEX(..., r, c)` for a selected
+/// result, as Program.cs `EvaluateSerial` builds it. The value of S!A1 in witness form.
+pub fn serial_single(
+    function: &str,
+    args: &[Value],
+    index: Option<(usize, usize)>,
+    context: Option<&calc_verdict::WitnessInvocation>,
+) -> String {
+    // The attested culture with the recorded separators; without one no profile is assumed.
+    let locale = context.and_then(|c| {
+        let profile = calc_host::FormatProfile::for_culture(c.locale.as_deref()?)?;
+        profile.with_separators(c.decimal_separator.as_deref()?, c.thousands_separator.as_deref()?)
+    });
+    let built = (|| -> Result<Value, String> {
+        let mut cells = serde_json::Map::new();
+        let mut refs = Vec::new();
+        let mut column = 2u32;
+        let mut place = |arg: &Value, cells: &mut serde_json::Map<String, Value>| -> Result<String, String> {
+            let at = format!("{}1", column_letters(column));
+            column += 1;
+            if let Some(content) = argument_cell(arg)? {
+                cells.insert(at.clone(), Value::String(content));
+            }
+            Ok(at)
+        };
+        for arg in args {
+            match arg {
+                Value::Array(rows) => {
+                    let rows: Vec<&Vec<Value>> = if rows.iter().all(Value::is_array) {
+                        rows.iter().filter_map(Value::as_array).collect()
+                    } else {
+                        vec![rows]
+                    };
+                    let mut indices = Vec::new();
+                    let mut sources = Vec::new();
+                    let mut k = 0;
+                    for row in &rows {
+                        let mut line = Vec::new();
+                        for cell in *row {
+                            k += 1;
+                            line.push(k.to_string());
+                            sources.push(place(cell, &mut cells)?);
+                        }
+                        indices.push(line.join(","));
+                    }
+                    refs.push(format!("CHOOSE({{{}}},{})", indices.join(";"), sources.join(",")));
+                }
+                Value::Object(range) if range.contains_key("range") => {
+                    return Err("a range argument has no serial-single layout".to_owned());
+                }
+                scalar => refs.push(place(scalar, &mut cells)?),
+            }
+        }
+        let mut formula = format!("{function}({})", refs.join(","));
+        if let Some((r, c)) = index {
+            formula = format!("INDEX({formula},{r},{c})");
+        }
+        let case = json!({
+            "sheets": [{"name": "S", "cells": cells}, {"name": "A"}, {"name": "Q"}],
+            "names": {},
+            "at": "S!A1",
+            "formula": format!("={formula}"),
+        });
+        evaluate(&case, locale, None)
+    })();
+    match built {
+        Ok(answer) => match answer["value"].as_str() {
+            // The worker reads Value2: a formula showing an empty cell reads as 0.
+            Some("blank") => "0x0000000000000000".to_owned(),
+            Some(value) if value.starts_with("fault:") => {
+                let end = value[6..].find(':').map_or(value.len(), |i| i + 6);
+                value[..end].to_owned()
+            }
+            Some(value) => value.to_owned(),
+            None => "fault:Unshown".to_owned(),
+        },
+        Err(_) => "fault:WitnessLayout".to_owned(),
+    }
+}
+
 /// The locale a set's answers record (`capture_provenance.calculation_settings`): the user
 /// culture with Excel's International separators. Without them no profile is assumed.
 fn recorded_locale(set: &Value) -> Option<calc_host::FormatProfile> {
@@ -471,5 +592,17 @@ mod tests {
         let text = json!({"id": "f", "function": "FORMULATEXT", "sheets": [{"name": "S", "cells": {"A1": "=1+2"}}],
             "at": "S!C1", "formula": "=FORMULATEXT(A1)"});
         assert_eq!(evaluate(&text, None, None).unwrap()["value"], "text:=1+2");
+    }
+
+    #[test]
+    fn a_serial_single_call_sits_in_s_a1_with_its_arguments_from_b1() {
+        let one = format!("0x{:016x}", 1f64.to_bits());
+        assert_eq!(serial_single("ROW", &[json!(" abc ")], None, None), one);
+        assert_eq!(serial_single("COLUMN", &[json!(true)], None, None), format!("0x{:016x}", 2f64.to_bits()));
+        // OFFSET(B1, 1, 0) reads the blank B2 below the arguments; Value2 shows it as 0.
+        assert_eq!(serial_single("OFFSET", &[json!("x"), json!(one), json!("0x0000000000000000")], None, None), "0x0000000000000000");
+        assert_eq!(serial_single("SUM", &[json!([["0x4000000000000000", "0x4008000000000000"]])], None, None),
+                   format!("0x{:016x}", 5f64.to_bits()));
+        assert_eq!(serial_single("ROW", &[json!({"error": "NA"})], Some((1, 1)), None), one);
     }
 }

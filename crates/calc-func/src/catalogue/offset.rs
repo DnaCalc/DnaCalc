@@ -106,12 +106,14 @@ fn shifted(site: &Site<'_>, arguments: &[CalcValue], positions_known: bool, colu
         Exit::Error(WorksheetErrorCode::Ref) if !positions_known => site.not_modelled(Some(0)),
         other => other,
     };
-    let height = extent(site, 3, arguments.get(3), base.row_count())?;
-    let width = extent(site, 4, arguments.get(4), base.column_count())?;
-    // Excel reads both dimensions before deciding whether a zero extent is valid.
-    if height == 0 || width == 0 {
+    let (height, height_negative) = extent(site, 3, arguments.get(3), base.row_count())?;
+    let (width, width_negative) = extent(site, 4, arguments.get(4), base.column_count())?;
+    // Excel reads both dimensions before deciding whether a zero extent is valid. Only an
+    // extent that is exactly zero is #REF!; a fraction truncates to 0 afterwards (below).
+    if height.is_none() || width.is_none() {
         return Err(without_position(Exit::Error(WorksheetErrorCode::Ref)));
     }
+    let (height, width) = (height.unwrap_or(0), width.unwrap_or(0));
     if !positions_known {
         // A zero shift of a one-cell reference still names that same cell, even
         // when the caller did not supply its worksheet position.
@@ -144,8 +146,8 @@ fn shifted(site: &Site<'_>, arguments: &[CalcValue], positions_known: bool, colu
     }
     let top = i64::from(base.first().row()) + rows;
     let left = i64::from(base.first().column()) + cols;
-    let (top, bottom) = span(top, height);
-    let (left, right) = span(left, width);
+    let (top, bottom) = span(top, height, height_negative);
+    let (left, right) = span(left, width, width_negative);
     let on_grid = |low: i64, high: i64, max: u32| low >= 1 && high <= i64::from(max);
     if !on_grid(top, bottom, MAX_ROWS) || !on_grid(left, right, MAX_COLUMNS) {
         return Err(Exit::Error(WorksheetErrorCode::Ref));
@@ -166,24 +168,34 @@ fn whole(site: &Site<'_>, index: usize, value: &CalcValue) -> Step<i64> {
     Ok(n.clamp(-4_000_000.0, 4_000_000.0) as i64)
 }
 
-/// The height or width argument `index`, truncated: the reference's own `own` when it is not
-/// given. Zero is checked after both dimensions have been read.
-fn extent(site: &Site<'_>, index: usize, value: Option<&CalcValue>, own: u32) -> Step<i64> {
+/// The height or width argument `index`, truncated, with the sign of the value given: the
+/// reference's own `own` when it is not given, and `None` for an extent of exactly zero. Zero
+/// is checked after both dimensions have been read.
+fn extent(site: &Site<'_>, index: usize, value: Option<&CalcValue>, own: u32) -> Step<(Option<i64>, bool)> {
     match value {
-        None => Ok(i64::from(own)),
-        Some(value) if value.is_missing() => Ok(i64::from(own)),
-        Some(value) => whole(site, index, value),
+        None => Ok((Some(i64::from(own)), false)),
+        Some(value) if value.is_missing() => Ok((Some(i64::from(own)), false)),
+        Some(value) => {
+            let n = site.number_argument(index, value)?;
+            if n == 0.0 {
+                return Ok((None, false));
+            }
+            Ok((Some(n.trunc().clamp(-4_000_000.0, 4_000_000.0) as i64), n < 0.0))
+        }
     }
 }
 
-/// The first and last row (or column) of an extent of `size` from `start`: down or right when it
-/// is positive, up or left when it is negative.
-fn span(start: i64, size: i64) -> (i64, i64) {
-    if size > 0 {
-        (start, start + size - 1)
-    } else {
-        (start + size + 1, start)
-    }
+/// The first and last row (or column) of an extent of `size` from `start`: down or right when the
+/// extent given was positive, up or left when it was negative. Excel computes the far edge as
+/// `start + size - 1` (or `start + size + 1`) from the truncated size, so a fraction between -1
+/// and 1 (size 0) names two cells: `start` and the one before it (a positive fraction) or after
+/// it (a negative one). Measured, Excel 16.0.20527 (env 76a02a5594d8, 2026-11-16, serial
+/// one-call layout, B1 holding "x"): `OFFSET(B1,1,0,1E-300,1)` is B1:B2 ("x"),
+/// `OFFSET(B1,1,0,1,0.92)` and `OFFSET(B1,1,0,1,-0.5)` are two columns wide (#SPILL! in A1),
+/// `OFFSET(B1,1,0,1.9,1)` is B2 and `OFFSET(B1,1,0,1,0)` is #REF!.
+fn span(start: i64, size: i64, negative: bool) -> (i64, i64) {
+    let far = if negative { start + size + 1 } else { start + size - 1 };
+    (start.min(far), start.max(far))
 }
 
 /// TRIMRANGE(range, [trim_rows], [trim_cols]) (dc-h9u): the reference to `range` without its
