@@ -1653,11 +1653,13 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
                         });
                         banks.sources.len() - 1
                     });
+                // The recapture read S!A1 with no INDEX around the call (position-recapture.py
+                // never sends a selection): the original row's result_index does not apply.
                 banks.readings.push(Reading {
                     function: function.clone(),
                     id,
                     args: args.clone(),
-                    index,
+                    index: None,
                     expected: selected,
                     source,
                 });
