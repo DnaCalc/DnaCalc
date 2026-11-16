@@ -114,6 +114,14 @@ try {
             $table = $cache.CreatePivotTable($out.Range('A3'), 'LegacyPivot', $true, 1)
             $table.PivotFields('Region').Orientation = 1
             $null = $table.AddDataField($table.PivotFields('Amount'), 'Sum of Amount', -4157)
+            # A second view over the same cache exercises cache sharing, column placement and
+            # a different aggregation. Preserve the first pivot if this optional setup fails.
+            $pivot.second_error = $null
+            try {
+                $second = $cache.CreatePivotTable($out.Range('A12'), 'LegacyPivotColumns', $true, 1)
+                $second.PivotFields('Region').Orientation = 2
+                $null = $second.AddDataField($second.PivotFields('Amount'), 'Average Amount', -4106)
+            } catch { $pivot.second_error = $_.Exception.ToString() }
             $xls = Join-Path $outputDir 'pivot.xls'
             $xlsx = Join-Path $outputDir 'pivot.xlsx'
             $book.SaveAs($xls, 56)
