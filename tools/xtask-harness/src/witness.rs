@@ -518,6 +518,11 @@ const TOUCHSTONE_PROFILES: &[(&str, &str)] = &[
         "29bedb2b6722",
         include_str!("../../../migration/evidence/dc-7ofm-touchstone-en-za.json"),
     ),
+    // The ordinary workers after Excel's 16.0.20527.20196 update (dc-wi2wu).
+    (
+        "145016f4397d",
+        include_str!("../../../migration/evidence/dc-wi2wu-touchstone-mt-en-za.json"),
+    ),
     // The serial worker, which answers the one-call recaptures (dc-ymjf.2.85).
     (
         "76a02a5594d8",

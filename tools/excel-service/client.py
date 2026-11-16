@@ -41,6 +41,17 @@ def cell_range(rows):
     return {"type": "range", "values": rows}
 
 
+def sheet_case(sheets, probes, names=None):
+    """A sheet case: a small workbook and the probe formulas asked in it (function "_CASE"; touchstone/1 PROTOCOL.md).
+    sheets [{"name", "cells": {"A1": typed cell}, "hidden_rows"?, "hidden_columns"?}], probes [{"at", "formula"}]."""
+    return {"type": "sheet_case", "value": {"sheets": sheets, "names": names or {}, "probes": probes}}
+
+
+def formula(text):
+    """A layout cell holding a formula (sheet cases)."""
+    return {"type": "formula", "formula": text}
+
+
 def cell_array(rows):
     """A rectangular array of typed values, passed as an array expression."""
     return {"type": "mixed_array", "values": rows}
@@ -151,7 +162,7 @@ class Client:
             raise ValueError("timeout must be between 0 and 900 seconds")
 
     def submit(self, function, rows, *, result_index=None, priority=None, order="any", echo_inputs=False,
-               shape="scalar", primer=None):
+               shape="scalar", primer=None, addins=None):
         """Send a question; returns a concurrent.futures.Future of the reply (ServiceError on failure).
 
         priority: "interactive" or "bulk" (default: up to 100 calls are interactive); order "any" or "serial"
@@ -162,18 +173,21 @@ class Client:
         whose answer depends on the call before it; WEEKNUM is always served this way); primer is a list of
         (function, row) calls evaluated first to put the engine in a known state.  shape="array" asks for the whole
         array an array-returning function spills: each answer row is {"type": "array", "rows", "cols", "values"}.
+        addins names the add-in files the answering Excel must have open (an environment variant the broker runs
+        with --addin-worker); a request without it is answered by a worker with none open.
         """
         self._check_timeout()
         if order not in ("any", "serial"):
             raise ValueError("order must be 'any' or 'serial'")
         connection = self._socket()
         if connection is None:
-            if shape != "scalar" or order != "any" or primer:
+            if shape != "scalar" or order != "any" or primer or addins:
                 raise RuntimeError("array answers and serial mode need the touchstone socket, not the v1 file queue")
             return self._executor().submit(self._ask_file, function, rows, result_index)
         future = concurrent.futures.Future()
         pending = connection.submit_rows(function, rows, result_index=result_index, priority=priority,
-                                         echo=echo_inputs, order=order, spill=(shape == "array"), primer=primer)
+                                         echo=echo_inputs, order=order, spill=(shape == "array"), primer=primer,
+                                         addins=addins)
 
         def settle(done):
             try:
@@ -193,17 +207,17 @@ class Client:
         return future
 
     def ask(self, function, rows, *, result_index=None, priority=None, order="any", echo_inputs=False,
-            shape="scalar", primer=None):
+            shape="scalar", primer=None, addins=None):
         """Return {rows: typed answers, ...provenance}; failures raise ServiceError.
 
         A timeout raises TimeoutError; the request stays known to the service, and retrying ask creates a new
         question.  The service never silently substitutes or rounds an input.
         """
         self._check_timeout()
-        if self._socket() is None and shape == "scalar" and order == "any" and not primer:
+        if self._socket() is None and shape == "scalar" and order == "any" and not primer and not addins:
             return self._ask_file(function, rows, result_index)
         future = self.submit(function, rows, result_index=result_index, priority=priority, order=order,
-                             echo_inputs=echo_inputs, shape=shape, primer=primer)
+                             echo_inputs=echo_inputs, shape=shape, primer=primer, addins=addins)
         try:
             return future.result(self.timeout)
         except concurrent.futures.TimeoutError:

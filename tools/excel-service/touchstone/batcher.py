@@ -35,7 +35,8 @@ DEFAULT_COST_US = 25.0        # per call, until a function has been measured
 class Piece:
     """One submit frame's worth of calls: answered as a unit by (origin, id, seq)."""
     __slots__ = ("conn", "origin", "rid", "seq", "last", "priority", "groups", "calls", "echo", "serial",
-                 "t_received", "t_dispatched", "remaining", "frames", "done", "fail", "env_ids", "workers", "primer", "fair")
+                 "t_received", "t_dispatched", "remaining", "frames", "done", "fail", "env_ids", "workers", "primer", "fair",
+                 "addins")
 
     def __init__(self, conn, rid, seq, groups, last, priority, echo=False, serial=False):
         self.conn, self.origin, self.rid, self.seq, self.last = conn, conn.origin, rid, seq, last
@@ -53,6 +54,7 @@ class Piece:
         self.env_ids = set()
         self.workers = set()
         self.primer = []        # serial mode: calls evaluated first, their answers dropped
+        self.addins = ()        # the add-in files the answering Excel must have open (sorted); () for none
 
 
 class Item:
@@ -75,9 +77,11 @@ class Slice:
 
 
 class Batch:
-    __slots__ = ("groups", "slices", "calls", "echo", "serial", "t_created", "pieces", "interactive", "primer", "est_ms")
+    __slots__ = ("groups", "slices", "calls", "echo", "serial", "t_created", "pieces", "interactive", "primer", "est_ms",
+                 "addins")
 
     def __init__(self):
+        self.addins = ()        # a pinned batch: only a worker with exactly these add-ins open runs it
         self.est_ms = 0.0
         self.groups, self.slices, self.calls = [], [], 0
         self.primer = []
@@ -302,6 +306,27 @@ class Batcher:
         self.recent_interactive = 0.0
         self.costs = {}          # function -> estimated microseconds per call
         self.serial = deque()    # serial pieces, oldest first; only the serial worker takes them
+        self.pinned = {}         # add-in set -> pieces, oldest first; only a worker with those add-ins open takes them
+
+    def pinned_pending(self, addins):
+        return bool(self.pinned.get(addins))
+
+    def next_pinned_batch(self, addins):
+        """The oldest piece that needs `addins` open, whole: only a worker with that environment runs it."""
+        piece = self.pinned[addins].popleft()
+        batch = Batch()
+        batch.addins = addins
+        batch.echo = piece.echo
+        batch.interactive = piece.priority == "interactive"
+        for index, group in enumerate(piece.groups):
+            batch.groups.append(group)
+            batch.slices.append(Slice(Item(piece, group), index, 0))
+            batch.calls += group["n"]
+        batch.pieces.add(piece)
+        piece.remaining = len(piece.groups)
+        piece.t_dispatched = time.monotonic()
+        batch.est_ms = sum(g["n"] * self.costs.get(g["f"], DEFAULT_COST_US) for g in batch.groups) / 1000
+        return batch
 
     def queued_calls(self):
         return self.interactive.calls + self.bulk.calls
@@ -326,6 +351,10 @@ class Batcher:
         return batch
 
     def add_piece(self, piece):
+        if piece.addins:
+            self.pinned.setdefault(piece.addins, deque()).append(piece)
+            piece.remaining = len(piece.groups)
+            return
         if piece.serial:
             self.serial.append(piece)
             piece.remaining = len(piece.groups)
@@ -419,6 +448,7 @@ class Batcher:
         """Receive time of the oldest queued item, or None when nothing waits."""
         times = [t for t in (self.interactive.oldest(), self.bulk.oldest()) if t is not None]
         times += [p.t_received for p in self.serial]
+        times += [p.t_received for queue in self.pinned.values() for p in queue]
         return min(times) if times else None
 
     def requeue_items(self, items):
@@ -429,6 +459,10 @@ class Batcher:
 
     def requeue(self, batch):
         """Put a batch's items back at the front (a worker was lost before running it)."""
+        if batch.addins:
+            for piece in batch.pieces:
+                self.pinned.setdefault(batch.addins, deque()).appendleft(piece)
+            return
         for sl in reversed(batch.slices):
             cls = self.interactive if sl.item.piece.priority == "interactive" else self.bulk
             cls.push_front(sl.item)

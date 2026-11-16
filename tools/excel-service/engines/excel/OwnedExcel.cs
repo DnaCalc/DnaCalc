@@ -97,7 +97,7 @@ sealed class OwnedExcel
 
     static object Get(object o, string name) => o.GetType().InvokeMember(name, System.Reflection.BindingFlags.GetProperty, null, o, null);
 
-    public static OwnedExcel Start(string root, string name, int launch, int mtThreads, int startupSeconds)
+    public static OwnedExcel Start(string root, string name, int launch, int mtThreads, int startupSeconds, IReadOnlyList<string> addins = null)
     {
         var before = Process.GetProcessesByName("EXCEL").Select(p => p.Id).ToHashSet();
         var launches = Path.Combine(root, "launches");
@@ -135,7 +135,7 @@ sealed class OwnedExcel
             if (bound != pid || process.StartTime.ToUniversalTime().Ticks != ticks)
                 throw new InvalidOperationException("Native object model belongs to another process; no application mutation attempted.");
             x.App = app;
-            x.Setup(mtThreads);
+            x.Setup(mtThreads, addins ?? Array.Empty<string>());
         }
         catch
         {
@@ -145,7 +145,9 @@ sealed class OwnedExcel
         return x;
     }
 
-    void Setup(int mtThreads)
+    public List<string> AddinsOpen = new();
+
+    void Setup(int mtThreads, IReadOnlyList<string> addins)
     {
         dynamic a = App;
         a.DisplayAlerts = false;
@@ -181,6 +183,16 @@ sealed class OwnedExcel
         object registered = a.RegisteredFunctions;
         if (registered != null && registered is not DBNull) loaded.Add("XLL functions are registered");
         if (loaded.Count > 0) throw new InvalidOperationException("this Excel instance is not isolated: " + string.Join("; ", loaded));
+        // An environment variant: the add-in files named at start, opened read-only (from Excel's library folder
+        // unless a full path is given) as workbooks; nothing is installed and no setting changes. App.Quit closes them.
+        foreach (var addin in addins)
+        {
+            string path = Path.IsPathRooted(addin) ? addin : Path.Combine((string)a.LibraryPath, addin);
+            if (!File.Exists(path)) throw new InvalidOperationException("add-in file not found: " + path);
+            a.Workbooks.Open(path, 0, true);
+            AddinsOpen.Add(Path.GetFileName(path).ToUpperInvariant());
+        }
+        AddinsOpen.Sort(StringComparer.Ordinal);
         mtc = a.MultiThreadedCalculation; namesObj = Book.Names; sheetsObj = Book.Worksheets; booksObj = a.Workbooks;
         Snapshot0 = FullSnapshot();
         Baseline = Fingerprint();
@@ -320,6 +332,8 @@ sealed class OwnedExcel
             ["com_addins_connected"] = ComConnected(),
             ["addins_installed"] = AddinsInstalled(),
         };
+        // Only a variant names its open add-ins, so the plain workers' environment ids stay as they were.
+        if (AddinsOpen.Count > 0) e["addins_open"] = AddinsOpen.ToList();
         return e;
     }
 

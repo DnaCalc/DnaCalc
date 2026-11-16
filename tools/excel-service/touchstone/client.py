@@ -279,11 +279,13 @@ class Connection:
         return pending
 
     def submit_rows(self, function, rows, *, result_index=None, priority=None, echo=False, order="any", rid=None,
-                    spill=False, primer=None):
+                    spill=False, primer=None, addins=None):
         """primer: [(function, typed_row), ...] evaluated first, in order, in serial mode (answers dropped)."""
         rid = rid or uuid.uuid4().hex
         groups = protocol.rows_to_groups(function, rows, result_index, spill)
         opts = {"echo": echo, "order": order, "calls": len(rows)}
+        if addins:
+            opts["addins"] = sorted(str(a).upper() for a in addins)
         if primer:
             opts["primer"] = [protocol.rows_to_groups(f, [row])[0] for f, row in primer]
         if priority:

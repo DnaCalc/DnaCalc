@@ -169,6 +169,23 @@ class BatcherTests(unittest.TestCase):
         self.assertEqual(batch.primer, p.primer)
         self.assertFalse(b.serial_pending())
 
+    def test_add_in_pieces_wait_for_a_worker_with_exactly_those_add_ins(self):
+        b = batcher.Batcher()
+        p = piece("a", "x", "EUROCONVERT", 30)
+        p.addins = ("EUROTOOL.XLAM",)
+        b.add_piece(p)
+        b.add_piece(piece("a", "y", "ABS", 5))
+        self.assertFalse(b.pinned_pending(()))
+        self.assertTrue(b.pinned_pending(("EUROTOOL.XLAM",)))
+        plain = b.next_batch()
+        self.assertEqual({g["f"] for g in plain.groups}, {"ABS"})    # ordinary workers never see it
+        self.assertFalse(b.has_work())
+        batch = b.next_pinned_batch(("EUROTOOL.XLAM",))
+        self.assertEqual((batch.addins, batch.calls), (("EUROTOOL.XLAM",), 30))
+        b.requeue(batch)                                              # a lost worker gives it back to the same queue
+        self.assertTrue(b.pinned_pending(("EUROTOOL.XLAM",)))
+        self.assertFalse(b.has_work())
+
     def test_spill_calls_never_share_a_batch_with_scalar_calls_and_are_capped(self):
         b = batcher.Batcher()
         spill = protocol.with_positions([{"f": "MINVERSE", "k": "a2x2", "n": 1500, "v": [ONE] * 6000, "spill": True}])
@@ -330,6 +347,25 @@ class AdmissionTests(unittest.TestCase):
         import policy
         cls.policy = policy
         cls.admission = policy.admission(ROOT)
+
+    def test_sheet_cases_travel_as_one_token_and_are_bounded(self):
+        case = protocol.sheet_case([{"name": "Data", "cells": {"B2": number(ONE), "C3": {"type": "text", "value": "x"},
+                                                             "D4": {"type": "formula", "formula": "=B2*2"}},
+                                     "hidden_rows": [3]}], [{"at": "Data!F6", "formula": "=ROW(B2:B3)"}])
+        [group] = protocol.rows_to_groups(protocol.CASE_FUNCTION, [[case], [case]])
+        self.assertEqual((group["f"], group["k"], group["n"]), ("_CASE", "L", 2))
+        self.admission.check(group)
+        self.assertEqual(protocol.group_to_rows(group)[0], [case])
+        for bad in ({**case["value"], "probes": []}, {**case["value"], "probes": [{"at": "F6", "formula": "=1"}]},
+                    {**case["value"], "sheets": [{"name": "S", "cells": {"A1": {"type": "array"}}}]},
+                    {**case["value"], "sheets": [{"name": "S", "cells": {"A1": {"type": "error", "code": "#SPILL!"}}}]}):
+            with self.assertRaises(ValueError):
+                self.admission.check({"f": "_CASE", "k": "L", "n": 1, "v": [bad]})
+        answer = protocol.answer_to_typed("c", {"probes": [
+            {"ty": "n", "v": ONE, "spill": {"r": 2, "c": 1, "ty": "nn", "v": [ONE, TWO]}}, {"refused": "formula"}]})
+        self.assertEqual(answer["probes"][0]["value"], number(ONE))
+        self.assertEqual(answer["probes"][0]["spill"]["rows"], 2)
+        self.assertEqual(answer["probes"][1], {"type": "refused", "detail": "formula"})
 
     def group(self, **changes):
         g = {"f": "ERF.PRECISE", "k": "n", "n": 2, "v": [ONE, TWO]}

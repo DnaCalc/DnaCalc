@@ -19,7 +19,9 @@ compressed; the ssh stream between the broker and a relay is.
 A request has an `id` (32 hex digits) and is sent as one or more `submit` frames with `seq` 0, 1, ...; the last has
 `"last": true`. Frame 0 carries `opts`: `echo` (read back the inputs), `order` (`any` or `serial`), `priority`
 (`interactive` or `bulk`), `calls` (the total, for the default priority), `primer` (serial mode: calls evaluated first).
-`c` is a tag the relay adds and the service returns. A resent `(id, seq)` is answered from the service's cache for 15
+`addins` (a list of add-in file names, e.g. `["EUROTOOL.XLAM"]`) asks for an environment variant whose Excel has
+exactly those add-in files open; only a worker the broker started with `--addin-worker` serves it (other requests never
+reach it), and a request naming a set no worker has is refused. `c` is a tag the relay adds and the service returns. A resent `(id, seq)` is answered from the service's cache for 15
 minutes and never evaluated twice.
 
 A **group** holds calls of one function and one argument shape, columnar:
@@ -39,6 +41,16 @@ finite numbers, text, booleans, blanks or worksheet errors; R and C are at most 
 `f` supplies UTF-8 text content, which the worker writes to a temporary file under its session directory and passes as
 a path. With echo, the range cells and file content are read back; a changed input is unread. These tokens use the
 socket service and are currently unavailable in serial mode and the legacy file queue. Each call is evaluated separately.
+
+A **sheet case** (function `_CASE`, the one token `L`) lays out a small workbook and asks probe formulas in it:
+`{"sheets": [{"name", "cells": {"A1": cell}, "hidden_rows": [n], "hidden_columns": [n]}], "names": {"Name": "=..."},
+"probes": [{"at": "Sheet1!H10", "formula": "=ROW()"}]}`, a cell being `{"type": "number", "bits"}`, `{"type": "text",
+"value"}` (in a text-formatted cell), `{"type": "boolean", "value"}`, `{"type": "error", "code"}` (entered as its error
+formula) or `{"type": "formula", "formula"}`. The worker builds each distinct layout once per batch (one new workbook,
+closed unsaved at the end; its sheets named and ordered as listed), constants as one Value2 rectangle per sheet,
+checks they read back, then for each case enters its probes by Formula2, calculates once (CalculateFull), reads every
+probe and its spill range and clears them. Answer letter `c`: `{"probes": [{"ty", "v", "spill": matrix | null} |
+{"refused": message}]}`; a layout whose constants changed is `u`. Send the cases of one layout together.
 
 ## Answers
 An answer frame holds groups `{"ty": "nnte...", "o" | "i", "v": [...]}`: one type letter and value per call: `n` bits,

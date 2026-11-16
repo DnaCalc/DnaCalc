@@ -150,7 +150,7 @@ class V1Conn:
 
 
 class Request:
-    __slots__ = ("pieces", "last_seq", "priority", "echo", "serial", "t_first", "calls", "done_sent", "cache_bytes", "envs", "touched", "client", "primer")
+    __slots__ = ("pieces", "last_seq", "priority", "echo", "serial", "t_first", "calls", "done_sent", "cache_bytes", "envs", "touched", "client", "primer", "addins")
 
     def __init__(self):
         self.pieces, self.last_seq = {}, None
@@ -163,14 +163,16 @@ class Request:
         self.touched = time.monotonic()
         self.client = None
         self.primer = []
+        self.addins = ()
 
 
 class Slot:
     """One engine worker in the pool."""
 
-    def __init__(self, name, mt, state, root, log_dir, exe):
+    def __init__(self, name, mt, state, root, log_dir, exe, addins=()):
         self.name, self.mt = name, mt
-        self.proc = engine.WorkerProcess(root, name, mt=mt, log_dir=log_dir, exe=exe)
+        self.addins = tuple(addins)  # add-in files this worker's Excel opens (an environment variant); () for none
+        self.proc = engine.WorkerProcess(root, name, mt=mt, log_dir=log_dir, exe=exe, addins=self.addins)
         self.state = "new"          # new, idle, busy, down
         self.serial = mt == 0       # the serial worker: multithreaded calculation off, takes serial requests
         self.hello = None
@@ -299,15 +301,24 @@ class Broker:
             slot = Slot(f"w{i + 1}", mt, self.state_dir, self.state_dir / "excel", self.state_dir / "excel" / "worker-logs", self.worker_exe)
             slot.proc.sweep_leftovers = self.opt("sweep_orphans", True)
             self.slots.append(slot)
+        # Environment variants: one more worker per --addin-worker, its Excel with those add-in files open
+        # (read-only, from Excel's library folder). It takes only requests that ask for exactly that set.
+        for n, spec in enumerate(self.opt("addin_workers", []) or []):
+            addins = tuple(sorted(a.strip().upper() for a in spec.split("+") if a.strip()))
+            slot = Slot(f"x{n + 1}", 4, self.state_dir, self.state_dir / "excel", self.state_dir / "excel" / "worker-logs",
+                        self.worker_exe, addins=addins)
+            slot.proc.sweep_leftovers = self.opt("sweep_orphans", True)
+            self.slots.append(slot)
         # Suspect and isolated calls run on the last non-serial worker only, so their crashes never take the
         # shared workers down. A pool with a single such worker has no other choice.
-        plain = [s for s in self.slots if not s.serial]
+        plain = [s for s in self.slots if not s.serial and not s.addins]
         if len(plain) > 1:
             plain[-1].isolation = True
         await asyncio.gather(*(self.start_slot(s, initial=True) for s in self.slots))
 
     def new_process(self, slot):
-        proc = engine.WorkerProcess(slot.proc.root, slot.name, mt=slot.mt, log_dir=slot.proc.log_dir, exe=slot.proc.exe)
+        proc = engine.WorkerProcess(slot.proc.root, slot.name, mt=slot.mt, log_dir=slot.proc.log_dir, exe=slot.proc.exe,
+                                    addins=slot.addins)
         proc.sweep_leftovers = slot.proc.sweep_leftovers
         return proc
 
@@ -454,6 +465,7 @@ class Broker:
             req.echo = bool(opts.get("echo"))
             req.serial = opts.get("order") == "serial"
             req.primer = opts.get("primer") or []
+            req.addins = tuple(sorted(str(a).upper() for a in (opts.get("addins") or [])))
             total = opts.get("calls", 0)
             req.priority = opts.get("priority") or ("interactive" if 0 < total <= batcher.INTERACTIVE_CALLS else "bulk")
         req.touched = time.monotonic()
@@ -486,8 +498,25 @@ class Broker:
             conn.send(protocol.ERROR, self.tag({"id": rid, "seq": seq, "code": "refused", "detail": str(error)}, req.client), True)
             self.maybe_done(key, req)
             return
-        serial = req.serial or any(g["f"] in self.registry for g in groups)
+        if req.addins and not any(s.addins == req.addins for s in self.slots):
+            detail = "no worker has exactly these add-ins open: " + "+".join(req.addins)
+            piece = batcher.Piece(conn, rid, seq, groups, bool(body.get("last")), req.priority)
+            piece.done, piece.fail = True, ("refused", detail)
+            req.pieces[seq] = piece
+            conn.send(protocol.ERROR, self.tag({"id": rid, "seq": seq, "code": "refused", "detail": detail}, req.client), True)
+            self.maybe_done(key, req)
+            return
+        if req.addins and (req.serial or req.primer):
+            detail = "serial order is not served by an add-in environment"
+            piece = batcher.Piece(conn, rid, seq, groups, bool(body.get("last")), req.priority)
+            piece.done, piece.fail = True, ("refused", detail)
+            req.pieces[seq] = piece
+            conn.send(protocol.ERROR, self.tag({"id": rid, "seq": seq, "code": "refused", "detail": detail}, req.client), True)
+            self.maybe_done(key, req)
+            return
+        serial = not req.addins and (req.serial or any(g["f"] in self.registry for g in groups))
         piece = batcher.Piece(conn, rid, seq, groups, bool(body.get("last")), req.priority, req.echo, serial)
+        piece.addins = req.addins
         if req.client is not None:
             piece.fair = f"{conn.origin}/{req.client}"          # clients behind one relay share fairly, too
         if serial and seq == 0:
@@ -501,7 +530,7 @@ class Broker:
     def kick(self):
         # Serial work goes to the serial worker, in order; while any waits, ordinary batches keep off that worker.
         if self.batcher.serial_pending():
-            serial_slots = [s for s in self.slots if s.serial and s.state != "down"]
+            serial_slots = [s for s in self.slots if s.serial and not s.addins and s.state != "down"]
             if not serial_slots:
                 while self.batcher.serial_pending():
                     batch = self.batcher.next_serial_batch()
@@ -513,14 +542,21 @@ class Broker:
                     slot.state = "busy"
                     slot.running = "serial"
                     asyncio.create_task(self.run_batch(slot, batch))
+        # Pinned work (an add-in environment) goes only to the worker with exactly that environment.
+        for slot in self.slots:
+            if slot.addins and slot.state == "idle" and self.batcher.pinned_pending(slot.addins):
+                batch = self.batcher.next_pinned_batch(slot.addins)
+                slot.state = "busy"
+                slot.running = "interactive" if batch.interactive else "bulk"
+                asyncio.create_task(self.run_batch(slot, batch))
         keep_free = self.batcher.serial_pending()
         reserve = self.opt("reserve", RESERVE_WORKERS)
         while self.batcher.has_work():
             interactive = not self.batcher.interactive.empty()
-            idle = [s for s in self.slots if s.state == "idle" and not (keep_free and s.serial)]
+            idle = [s for s in self.slots if s.state == "idle" and not s.addins and not (keep_free and s.serial)]
             if not interactive:
                 # Bulk never fills the last `reserve` workers: interactive questions always find one free.
-                up = [s for s in self.slots if s.state in ("idle", "busy")]
+                up = [s for s in self.slots if s.state in ("idle", "busy") and not s.addins]
                 bulk_busy = sum(1 for s in up if s.state == "busy" and s.running == "bulk")
                 if len(up) > reserve and bulk_busy >= len(up) - reserve:
                     return
@@ -634,7 +670,7 @@ class Broker:
             restart = error in ("excel-crashed", "fingerprint-drift-after")
             if error == "excel-crashed":
                 slot.crashes += 1
-                if not batch.serial:
+                if not batch.serial and not batch.addins:
                     # the batch is answered or split here, not failed: no caller retries a call that crashed Excel
                     self.log_batch(slot, number, batch, None, t_dispatch, t_back, error=error)
                     self.waits.add("excel-calc", worker=slot.name, seconds=round(t_back - t_dispatch, 3), detail="excel-crashed")
@@ -782,7 +818,7 @@ class Broker:
     # ---- reversed-order and fresh-Excel checks ---------------------------------------------
     def remember(self, batch, result):
         """Keep recent scalar answers (calls and their answers) for the fresh-Excel sample."""
-        if batch.serial or any(g.get("spill") for g in batch.groups) or result.get("order"):
+        if batch.serial or batch.addins or any(g.get("spill") for g in batch.groups) or result.get("order"):
             return
         for g, a in zip(batch.groups, result["groups"]):
             if "ity" in a:
@@ -811,7 +847,7 @@ class Broker:
         """One batch in `leak_every`: the same calls in reversed order on another worker, answers compared.
 
         A difference is a candidate for the state-sensitive registry (leakage.jsonl); no answer is changed."""
-        if batch.serial or batch.interactive or any(g.get("spill") for g in batch.groups):
+        if batch.serial or batch.interactive or batch.addins or any(g.get("spill") for g in batch.groups):
             return
         self.leak_counter += 1
         if not force and (not self.leak_every or self.leak_counter % self.leak_every):
@@ -1282,6 +1318,8 @@ def command_start(options):
         run += f" --restart-cap {options.restart_cap}"
     if getattr(options, "crash_budget", None) is not None:
         run += f" --crash-budget {options.crash_budget}"
+    for spec in getattr(options, "addin_workers", None) or []:
+        run += f" --addin-worker {spec}"
     subprocess.Popen(["pwsh", "-NoProfile", "-File", str(guard), "-Command", run, "-Log", str(state / "console.log"),
                       "-GuardOut", str(state / "guard.json"), "-SessionRoot", str(state / "excel"),
                       "-DesktopName", options.desktop],
@@ -1375,6 +1413,9 @@ def main():
     parser.add_argument("--restart-cap", type=int, default=None, help=f"restarts per worker per hour (default {RESTART_CAP})")
     parser.add_argument("--crash-budget", type=int, default=None,
                         help=f"calls of one function that may crash Excel per hour before its suspect calls are refused (default {CRASH_BUDGET})")
+    parser.add_argument("--addin-worker", dest="addin_workers", action="append", default=None,
+                        help="one more worker whose Excel opens these add-in files read-only (EUROTOOL.XLAM; several "
+                             "joined by +); it serves only requests whose opts name exactly that set (repeatable)")
     parser.add_argument("--since", default=None, help="e.g. 24h, 7d or an ISO time")
     options = parser.parse_args()
     options.local_queue = options.local_queue or options.state / "queue"

@@ -159,6 +159,10 @@ SPILL_FUNCTIONS = {"TEXTSPLIT", "MINVERSE", "MMULT", "MUNIT", "MODE.MULT", "FREQ
                    "WRAPCOLS", "WRAPROWS", "EXPAND", "REGEXEXTRACT", "TRIMRANGE", "FLATTEN",
                    "RANDARRAY", "GROUPBY", "PIVOTBY", "BYROW", "BYCOL", "MAP", "MAKEARRAY", "SCAN"}
 TOKENS = re.compile(r"n|s|S|b|B|e|z|f|[arm][0-9]+x[0-9]+")
+MAX_CASE_SHEETS = 16
+MAX_CASE_CELLS = 10000
+MAX_CASE_PROBES = 256
+CASE_CELL_TYPES = {"number", "text", "boolean", "error", "formula"}
 BAD_TEXT = re.compile(r'\x00')
 
 
@@ -172,8 +176,41 @@ class Admission:
         request = validate(decode(raw), self.names, request_id)
         return request["function"], request["rows"], request.get("result_index")
 
+    def _check_cases(self, group):
+        """Sheet cases (token L): bounded layouts of typed cells and probe formulas, nothing else."""
+        n = group["n"]
+        if group["k"] != "L" or group.get("spill") or group.get("x") is not None:
+            raise ValueError("a sheet-case group has the one token L")
+        if type(n) is not int or not 1 <= n <= MAX_GROUP_CALLS or not isinstance(group["v"], list) or len(group["v"]) != n:
+            raise ValueError("expected 1..%d sheet cases" % MAX_GROUP_CALLS)
+        for case in group["v"]:
+            sheets, probes = case.get("sheets"), case.get("probes")
+            if not isinstance(sheets, list) or not 1 <= len(sheets) <= MAX_CASE_SHEETS:
+                raise ValueError("a sheet case has 1..%d sheets" % MAX_CASE_SHEETS)
+            if not isinstance(probes, list) or not 1 <= len(probes) <= MAX_CASE_PROBES:
+                raise ValueError("a sheet case has 1..%d probes" % MAX_CASE_PROBES)
+            cells = 0
+            for sheet in sheets:
+                if not isinstance(sheet.get("name"), str) or not isinstance(sheet.get("cells", {}), dict):
+                    raise ValueError("a sheet has a name and cells")
+                for cell in sheet.get("cells", {}).values():
+                    if not isinstance(cell, dict) or cell.get("type") not in CASE_CELL_TYPES:
+                        raise ValueError("unsupported layout cell")
+                    if cell["type"] == "number":
+                        self._numbers([cell["bits"]])
+                    if cell["type"] == "error" and cell.get("code") not in ("#NULL!", "#DIV/0!", "#VALUE!", "#REF!", "#NAME?", "#NUM!", "#N/A"):
+                        raise ValueError("unsupported error cell")
+                cells += len(sheet.get("cells", {}))
+            if cells > MAX_CASE_CELLS:
+                raise ValueError("a sheet case has at most %d cells" % MAX_CASE_CELLS)
+            for probe in probes:
+                if not isinstance(probe.get("at"), str) or "!" not in probe["at"] or not str(probe.get("formula", "")).startswith("="):
+                    raise ValueError("a probe has a Sheet!A1 place and a formula")
+
     def check(self, group):
         name = group["f"]
+        if name == "_CASE":
+            return self._check_cases(group)
         spill = bool(group.get("spill"))
         if spill:
             if name not in self.names:

@@ -19,6 +19,7 @@ static class Program
     static OwnedExcel X;
     static string Root, Name;
     static int Mt, Launch, StartupSeconds = 60;
+    static readonly List<string> Addins = new();   // --open-addin: add-in files this worker's Excel opens (an environment variant)
     static long DeadlineTicks;          // watchdog: 0 = none
     static bool WatchdogFired;
     static int Batches;
@@ -44,6 +45,7 @@ static class Program
                 case "--name": Name = args[i + 1]; break;
                 case "--mt": Mt = int.Parse(args[i + 1]); break;
                 case "--startup-seconds": StartupSeconds = int.Parse(args[i + 1]); break;
+                case "--open-addin": Addins.Add(args[i + 1]); break;
             }
         }
         if (Root == null || Name == null) { Console.Error.WriteLine("usage: excel-worker --root DIR --name NAME [--mt N]"); return 2; }
@@ -125,7 +127,7 @@ static class Program
             // Test hook: the named worker's first start fails, so the pool's "down, no retry loop" path can be exercised.
             if (Environment.GetEnvironmentVariable("TOUCHSTONE_TEST_FAIL_START") == Name)
                 throw new InvalidOperationException("start refused by TOUCHSTONE_TEST_FAIL_START");
-            X = OwnedExcel.Start(Root, Name, Launch, Mt, StartupSeconds);
+            X = OwnedExcel.Start(Root, Name, Launch, Mt, StartupSeconds, Addins);
             WatchdogFired = false;
             Warm();
             Send('H', Json.Write(new Dictionary<string, object>
@@ -287,9 +289,11 @@ static class Program
             WatchdogFired = false;
             Interlocked.Exchange(ref DeadlineTicks, DateTime.UtcNow.AddMilliseconds(deadlineMs).Ticks);
             var groupList = (List<object>)req["groups"];
+            var cases = groupList.Cast<Dictionary<string, object>>().Any(g => ((string)g["k"]).Split(',').Any(t => t == "L"));
             var special = groupList.Cast<Dictionary<string, object>>().Any(g => ((string)g["k"]).Split(',').Any(t => t == "f" || t.StartsWith("r") || t.StartsWith("m")));
-            if (special && serial) throw new InvalidOperationException("range/file arguments are not supported in serial mode");
-            var groups = special ? EvaluateSpecial(groupList, echo, timing)
+            if ((special || cases) && serial) throw new InvalidOperationException("range/file arguments and sheet cases are not supported in serial mode");
+            var groups = cases ? EvaluateCases(groupList, timing)
+                : special ? EvaluateSpecial(groupList, echo, timing)
                 : serial ? EvaluateSerial(groupList, echo, timing)
                 : groupList.Count > 0 && ((Dictionary<string, object>)groupList[0]).ContainsKey("spill") ? EvaluateSpill(groupList, echo, timing)
                 : EvaluateBatch(groupList, echo, false, timing);
@@ -500,6 +504,234 @@ static class Program
             if (echo) { result["ity"] = inputTypes.ToString(); result["iv"] = inputs; }
             output.Add(result);
         }
+        return output;
+    }
+
+    // ----- sheet cases (token L) ---------------------------------------------------------
+
+    /// <summary>"A1" or "$AB$12" to (row, column), 1-based.</summary>
+    static (int row, int col) A1(string text)
+    {
+        text = text.Replace("$", "");
+        int i = 0, col = 0;
+        while (i < text.Length && char.IsLetter(text[i])) { col = col * 26 + (char.ToUpperInvariant(text[i]) - 'A' + 1); i++; }
+        if (i == 0 || i == text.Length) throw new InvalidOperationException("not an A1 cell: " + text);
+        return (int.Parse(text.Substring(i), CultureInfo.InvariantCulture), col);
+    }
+
+    /// <summary>"Sheet1!H10" or "'My Sheet'!H10" to the sheet name and the cell.</summary>
+    static (string sheet, string cell) Place(string at)
+    {
+        int i = at.LastIndexOf('!');
+        if (i < 0) throw new InvalidOperationException("a probe's place names its sheet: " + at);
+        return (at.Substring(0, i).Trim('\'').Replace("''", "'"), at.Substring(i + 1));
+    }
+
+    sealed class BuiltLayout
+    {
+        public dynamic Book;
+        public string Key;
+        public List<string> Changed = new();          // constants that did not read back as written
+        public HashSet<string> Cells = new(StringComparer.OrdinalIgnoreCase);   // "Sheet!A1" of every layout cell
+    }
+
+    /// <summary>
+    /// Builds a sheet case's workbook: a new workbook of one worksheet, its sheets named and ordered as listed,
+    /// constants written per sheet as one Value2 rectangle (text cells formatted as text first, errors entered as
+    /// error formulas afterwards), formulas by Formula2, names added, rows and columns hidden; then every constant
+    /// read back in one rectangle per sheet. Ported from tools/excel-session/cell-context-job.ps1 (fn1), which did
+    /// the same one COM call per cell and one workbook per case.
+    /// </summary>
+    static BuiltLayout BuildLayout(Dictionary<string, object> c, string key)
+    {
+        var built = new BuiltLayout { Key = key };
+        dynamic book = X.App.Workbooks.Add(-4167);
+        built.Book = book;
+        var sheets = (List<object>)c["sheets"];
+        dynamic previous = null;
+        var made = new List<object>();
+        for (int s = 0; s < sheets.Count; s++)
+        {
+            var sh = (Dictionary<string, object>)sheets[s];
+            dynamic ws = s == 0 ? book.Worksheets.Item(1) : book.Worksheets.Add(Type.Missing, previous);
+            ws.Name = (string)sh["name"];
+            previous = ws;
+            made.Add(ws);
+        }
+        var formulas = new List<(dynamic ws, string at, string f)>();
+        var reads = new List<(dynamic ws, int r0, int c0, int r1, int c1, List<(int r, int c, object v, string at)> want)>();
+        for (int s = 0; s < sheets.Count; s++)
+        {
+            var sh = (Dictionary<string, object>)sheets[s];
+            dynamic ws = made[s];
+            string name = (string)sh["name"];
+            var cells = sh.TryGetValue("cells", out var cv) && cv is Dictionary<string, object> d ? d : new Dictionary<string, object>();
+            var constants = new List<(int r, int c, object v, string at)>();
+            var texts = new List<string>();
+            var errors = new List<(string at, string code)>();
+            foreach (var kv in cells)
+            {
+                built.Cells.Add(name + "!" + kv.Key.Replace("$", ""));
+                var cell = (Dictionary<string, object>)kv.Value;
+                var (r, col) = A1(kv.Key);
+                switch ((string)cell["type"])
+                {
+                    case "number": constants.Add((r, col, Bits(cell["bits"]), kv.Key)); break;
+                    case "text": constants.Add((r, col, (string)cell["value"], kv.Key)); texts.Add(kv.Key); break;
+                    case "boolean": constants.Add((r, col, (bool)cell["value"], kv.Key)); break;
+                    case "error":
+                        string code = (string)cell["code"];
+                        constants.Add((r, col, new ErrorWrapper(Codes[code]), kv.Key));
+                        errors.Add((kv.Key, code));
+                        break;
+                    case "formula": formulas.Add((ws, kv.Key, (string)cell["formula"])); break;
+                    default: throw new InvalidOperationException("unsupported layout cell " + kv.Key);
+                }
+            }
+            if (constants.Count == 0) continue;
+            int r0 = constants.Min(x => x.r), r1 = constants.Max(x => x.r), c0 = constants.Min(x => x.c), c1 = constants.Max(x => x.c);
+            var block = new object[r1 - r0 + 1, c1 - c0 + 1];
+            foreach (var x in constants) block[x.r - r0, x.c - c0] = x.v is ErrorWrapper ? null : x.v;
+            // A Range of several areas takes one NumberFormat; its text is kept under 255 characters.
+            for (int i = 0; i < texts.Count;)
+            {
+                var part = new List<string>();
+                int length = 0;
+                while (i < texts.Count && (part.Count == 0 || length + texts[i].Length + 1 < 240)) { part.Add(texts[i]); length += texts[i].Length + 1; i++; }
+                ws.Range[string.Join(",", part)].NumberFormat = "@";
+            }
+            Rng(ws, r0, c0, r1, c1).Value2 = block;
+            foreach (var (at, code) in errors) ws.Range[at].Formula = "=" + code;
+            reads.Add((ws, r0, c0, r1, c1, constants));
+        }
+        foreach (var (ws, at, f) in formulas) ws.Range[at].Formula2 = f;
+        if (c.TryGetValue("names", out var nv) && nv is Dictionary<string, object> names)
+            foreach (var kv in names) book.Names.Add(kv.Key, (string)kv.Value);
+        for (int s = 0; s < sheets.Count; s++)
+        {
+            var sh = (Dictionary<string, object>)sheets[s];
+            dynamic ws = made[s];
+            if (sh.TryGetValue("hidden_rows", out var hr) && hr is List<object> rows)
+                foreach (var r in rows) ws.Rows.Item((int)(long)r).Hidden = true;
+            if (sh.TryGetValue("hidden_columns", out var hc) && hc is List<object> cols)
+                foreach (var col in cols) ws.Columns.Item((int)(long)col).Hidden = true;
+        }
+        foreach (var (ws, r0, c0, r1, c1, want) in reads)
+        {
+            object raw = Rng(ws, r0, c0, r1, c1).Value2;
+            foreach (var x in want)
+            {
+                object back = raw is object[,] m ? m[m.GetLowerBound(0) + x.r - r0, m.GetLowerBound(1) + x.c - c0] : raw;
+                if (!Same(x.v, back)) built.Changed.Add((string)ws.Name + "!" + x.at);
+            }
+        }
+        return built;
+    }
+
+    static Dictionary<string, object> Matrix(object body)
+    {
+        var a = body as object[,];
+        int nr = a?.GetLength(0) ?? 1, nc = a?.GetLength(1) ?? 1;
+        var ty = new StringBuilder(); var vv = new List<object>();
+        if (a == null) { var (l, v) = Convert1(body); ty.Append(l); vv.Add(v); }
+        else foreach (object cell in a) { var (l, v) = Convert1(cell); ty.Append(l); vv.Add(v); }
+        return new Dictionary<string, object> { ["r"] = nr, ["c"] = nc, ["ty"] = ty.ToString(), ["v"] = vv };
+    }
+
+    /// <summary>
+    /// Sheet cases: cases with the same sheets and names share one built workbook (rebuilt when the layout changes
+    /// or a probe overwrote a layout cell); each case's probes are entered by Formula2 (a refused entry is answered
+    /// as refused), calculated together by one full calculation, read (the value, and the whole spill range when it
+    /// is larger than one cell, up to 64 x 64) and cleared before the next case. A case whose constants did not read
+    /// back as written is unread. Every workbook is closed unsaved before the batch ends.
+    /// </summary>
+    static List<object> EvaluateCases(List<object> groupList, Dictionary<string, object> timing)
+    {
+        var sw = Stopwatch.StartNew();
+        double buildMs = 0, calcMs = 0, readMs = 0;
+        int layouts = 0, cases = 0;
+        BuiltLayout built = null;
+        var output = new List<object>();
+        try
+        {
+            foreach (Dictionary<string, object> raw in groupList)
+            {
+                if ((string)raw["k"] != "L") throw new InvalidOperationException("a sheet-case group has the one token L");
+                int count = (int)(long)raw["n"];
+                var values = (List<object>)raw["v"];
+                var types = new StringBuilder(); var results = new List<object>();
+                for (int i = 0; i < count; i++, cases++)
+                {
+                    var c = (Dictionary<string, object>)values[i];
+                    string key = Json.Write(new Dictionary<string, object> { ["sheets"] = c["sheets"], ["names"] = c.TryGetValue("names", out var nm) ? nm : null });
+                    var t0 = sw.Elapsed.TotalMilliseconds;
+                    if (built == null || built.Key != key)
+                    {
+                        if (built != null) { built.Book.Close(false); built = null; }
+                        Stage = "sheet case layout";
+                        built = BuildLayout(c, key);
+                        layouts++;
+                    }
+                    buildMs += sw.Elapsed.TotalMilliseconds - t0;
+                    if (built.Changed.Count > 0)
+                    {
+                        types.Append('u');
+                        results.Add(new Dictionary<string, object> { ["reason"] = "input-changed", ["read_back"] = built.Changed.ToList() });
+                        continue;
+                    }
+                    var probes = (List<object>)c["probes"];
+                    var placed = new List<dynamic>();
+                    var answers = new List<object>();
+                    bool overwrote = false;
+                    t0 = sw.Elapsed.TotalMilliseconds;
+                    foreach (Dictionary<string, object> p in probes)
+                    {
+                        var (sheet, cell) = Place((string)p["at"]);
+                        if (built.Cells.Contains(sheet + "!" + cell.Replace("$", ""))) overwrote = true;
+                        dynamic target = built.Book.Worksheets.Item(sheet).Range[cell];
+                        Stage = "sheet case probe " + (string)p["formula"];
+                        try { target.Formula2 = (string)p["formula"]; placed.Add(target); answers.Add(null); }
+                        catch (Exception e) { placed.Add(null); answers.Add(new Dictionary<string, object> { ["refused"] = e.Message }); }
+                    }
+                    Stage = "sheet case calculate";
+                    X.App.CalculateFull();
+                    while ((int)X.App.CalculationState != 0) Thread.Sleep(0);
+                    calcMs += sw.Elapsed.TotalMilliseconds - t0;
+                    t0 = sw.Elapsed.TotalMilliseconds;
+                    for (int k = 0; k < placed.Count; k++)
+                    {
+                        dynamic target = placed[k];
+                        if (target == null) continue;
+                        object top = target.Value2;
+                        var (l, v) = Convert1(top);
+                        var answer = new Dictionary<string, object> { ["ty"] = l.ToString(), ["v"] = v, ["spill"] = null };
+                        if ((bool)target.HasSpill)
+                        {
+                            dynamic range = target.SpillingToRange;
+                            int nr = (int)range.Rows.Count, nc = (int)range.Columns.Count;
+                            if (nr > 64 || nc > 64) answer["spill"] = new Dictionary<string, object> { ["r"] = nr, ["c"] = nc, ["ty"] = "", ["v"] = new List<object>(), ["unread"] = "spill-larger-than-the-bound" };
+                            else if (nr * nc > 1) answer["spill"] = Matrix((object)range.Value2);
+                        }
+                        answers[k] = answer;
+                    }
+                    foreach (var target in placed) if (target != null) target.ClearContents();
+                    readMs += sw.Elapsed.TotalMilliseconds - t0;
+                    if (overwrote) { built.Book.Close(false); built = null; }
+                    types.Append('c');
+                    results.Add(new Dictionary<string, object> { ["probes"] = answers });
+                }
+                output.Add(new Dictionary<string, object> { ["ty"] = types.ToString(), ["v"] = results });
+            }
+        }
+        finally
+        {
+            if (built != null) { try { built.Book.Close(false); } catch { } }
+        }
+        timing["write_ms"] = Math.Round(buildMs, 3);
+        timing["calc_ms"] = Math.Round(calcMs, 3);
+        timing["read_ms"] = Math.Round(readMs, 3);
+        timing["layouts"] = layouts;
+        timing["calls"] = cases;
         return output;
     }
 

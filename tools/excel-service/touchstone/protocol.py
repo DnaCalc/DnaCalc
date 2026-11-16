@@ -12,11 +12,24 @@ shape travel as a *group* (columnar, so thousands of calls cost one small header
     e  worksheet error (value: "#N/A" ...)
     z  blank (value: null)
     aRxC  numeric array of R rows and C columns, value: R*C hex strings inline
+    L  a sheet case (value: an object, below); a group of sheet cases has the function "_CASE" and the
+       one token L
 ``x`` is an optional [row, column] result selector (regression functions).  Each group says where its
 calls sit in the request: ``o`` (first position, calls contiguous) or ``i`` (the list of positions).
 
 An answer group is {"ty": "nntb...", "v": [...]} with one type letter and value per call:
     n hex bits   t text   b boolean   e "#N/A"   z null   u {"reason":..., "read_back":...}
+    c a sheet case's answer {"probes": [{"ty", "v", "spill": {"r", "c", "ty", "v"} | null} |
+      {"refused": detail}]}
+
+A sheet case lays out a small workbook and asks the formulas of its probes in it, all in one
+calculation: {"sheets": [{"name", "cells": {"A1": typed cell}, "hidden_rows": [n], "hidden_columns": [n]}],
+"names": {"Name": "=Sheet1!$A$1"}, "probes": [{"at": "Sheet1!H10", "formula": "=ROW()"}]}. A typed cell is
+{"type": "number", "bits"}, {"type": "text", "value"} (in a text-formatted cell), {"type": "boolean", "value"},
+{"type": "error", "code"} (entered as its error formula) or {"type": "formula", "formula"}. The sheets
+are the workbook's, named and ordered as listed; nothing else is in it. Cases with the same sheets and
+names share one built workbook; each case's probes are entered, calculated (a full calculation), read
+and cleared before the next case.
 Frames: 4-byte big-endian length, then a type byte and a JSON body; a type byte >= 0x80
 marks a zlib-compressed body.
 """
@@ -100,6 +113,8 @@ def _token(arg):
         return f"{'r' if kind == 'range' else 'm'}{len(rows)}x{len(rows[0])}", [v for row in rows for v in row]
     if kind == "file":
         return "f", arg["content"]
+    if kind == "sheet_case":
+        return "L", arg["value"]
     raise ValueError("unsupported argument type " + str(kind))
 
 
@@ -140,6 +155,15 @@ def positions(group):
     if "o" in group:
         return range(group["o"], group["o"] + group["n"])
     return group["i"]
+
+
+CASE_FUNCTION = "_CASE"
+
+
+def sheet_case(sheets, probes, names=None):
+    """A sheet case (token L): sheets [{"name", "cells": {address: typed cell}, "hidden_rows"?, "hidden_columns"?}],
+    probes [{"at": "Sheet!A1", "formula": "=..."}], names {"Name": "=refers"}."""
+    return {"type": "sheet_case", "value": {"sheets": sheets, "names": names or {}, "probes": probes}}
 
 
 def token_width(token):
@@ -185,6 +209,8 @@ def group_to_rows(group):
                 row.append({"type": "blank"})
             elif token == "f":
                 row.append({"type": "file", "content": value})
+            elif token == "L":
+                row.append({"type": "sheet_case", "value": value})
             elif token[0] in "rm":
                 r, c = (int(x) for x in token[1:].split("x"))
                 row.append({"type": "range" if token[0] == "r" else "mixed_array", "values": [value[a * c:(a + 1) * c] for a in range(r)]})
@@ -228,6 +254,17 @@ def answer_to_typed(letter, value):
     if letter == "x":
         # Excel crashed on this call, run alone: a recorded answer, never retried (arguments: raw group values)
         return {"type": "crashed", **value}
+    if letter == "c":
+        probes = []
+        for probe in value["probes"]:
+            if "refused" in probe:
+                probes.append({"type": "refused", "detail": probe["refused"]})
+                continue
+            answer = {"value": answer_to_typed(probe["ty"], probe["v"]), "spill": None}
+            if probe.get("spill"):
+                answer["spill"] = answer_to_typed("m", probe["spill"])
+            probes.append(answer)
+        return {"type": "sheet_case", "probes": probes}
     if letter == "m":
         r, c = value["r"], value["c"]
         cells = [answer_to_typed(l, x) for l, x in zip(value["ty"], value["v"])]
