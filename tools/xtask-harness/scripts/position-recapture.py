@@ -13,13 +13,14 @@ with serialCalc), so a one-call request has its formula in S!A1 and its argument
 The file records that layout as `cell_layout: touchstone/1-serial-single`; the harness keeps
 each row's id and counts it once, the recaptured answer superseding the bulk one. Rows whose
 inputs Excel read back differently, or that Excel could not answer, are listed as rejected and
-stay failures.
+stay failures. Each answer is S!A1's value (`result_selection: anchor`): a spill wider than one
+column meets the argument cells and is #SPILL!, as in the bulk layout.
 """
 import argparse, concurrent.futures, importlib.util, json, pathlib, sys
 
 HERE = pathlib.Path(__file__).resolve()
 sys.path.insert(0, str(HERE.parents[3] / 'tools' / 'excel-service'))
-from client import Client, number, text, boolean, blank, error  # noqa: E402
+from client import Client, number, number_array, text, boolean, blank, error  # noqa: E402
 
 spec = importlib.util.spec_from_file_location('drift', HERE.with_name('witness-drift.py'))
 drift = importlib.util.module_from_spec(spec)
@@ -31,6 +32,12 @@ SOURCES = {
     'ROW': ['readings/excel-20527/admit2-answers-row-%s.json' % s for s in ('enrich', 'more', 'scalar', 'special')],
     'OFFSET': ['readings/excel-20527/admit2-answers-offset-%s.json' % s for s in ('enrich', 'more', 'scalar', 'special')],
     'CELL': ['readings/excel-20527/admit2-answers-cell-%s.json' % s for s in ('enrich', 'more', 'scalar', 'special')],
+    # The spill banks' calls reached Excel's bulk layout (formula in column A, arguments to its right),
+    # so a spill wider than one column met the argument cells: #SPILL! at an unrecorded row.
+    'TRANSPOSE': ['readings/excel-20527/bank2-answers-transpose-spill.json'],
+    'SEQUENCE': ['readings/excel-20527/bank2-answers-sequence-spill.json'],
+    'TREND': ['readings/excel-20527/bank2-answers-trend-spill.json'],
+    'FREQUENCY': ['readings/excel-20527/bank2-answers-frequency-spill.json'],
 }
 
 
@@ -42,6 +49,11 @@ def typed(arg):
         return blank()
     if isinstance(arg, dict) and set(arg) == {'error'}:
         return error(CODES[arg['error']])
+    if isinstance(arg, list):
+        rows = arg if all(isinstance(r, list) for r in arg) else [arg]
+        if not all(isinstance(v, str) and v.startswith('0x') and len(v) == 18 for r in rows for v in r):
+            raise ValueError('only numeric arrays travel as cells: %r' % (arg,))
+        return number_array([[v[2:] for v in r] for r in rows])
     if isinstance(arg, str):
         if arg.startswith('0x') and len(arg) == 18:
             return number(arg[2:])
@@ -51,6 +63,8 @@ def typed(arg):
 
 def bank_arg(read):
     kind = read['type']
+    if kind == 'array':
+        return [[bank_arg(x) for x in row] for row in read['values']]
     if kind == 'number':
         return '0x' + read['bits'].lower()
     if kind in ('text', 'boolean'):
@@ -121,7 +135,10 @@ def main():
             'service': 'touchstone/1', 'env_id': next(iter(envs), None),
             'environment': {'excel_build': '20527', 'platform': 'Windows', 'excel_input_plumbing': 'cell_value2_bulk'},
             'calculation_settings': settings, 'order': 'serial', 'calls_per_request': 1,
-            'cell_layout': LAYOUT, 'first': min(stamps, default=None), 'last': max(stamps, default=None),
+            'cell_layout': LAYOUT,
+            # The answer is S!A1's value as calculated, with no INDEX around the call; a bank row's
+            # result_index does not apply to it.
+            'result_selection': 'anchor', 'first': min(stamps, default=None), 'last': max(stamps, default=None),
             'script': 'DnaCalc tools/xtask-harness/scripts/position-recapture.py',
         },
         'capture_summary': {'requested': len(rows), 'accepted': len(accepted),
