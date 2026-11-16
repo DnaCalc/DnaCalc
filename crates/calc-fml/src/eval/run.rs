@@ -2544,11 +2544,13 @@ struct Callables<'b, 'a, 'r> {
     remaining: usize,
 }
 
-impl CallableInvoker for Callables<'_, '_, '_> {
-    fn call_slice(
+impl Callables<'_, '_, '_> {
+    /// One slice of a helper's call; `value_result` reads a reference result as its values.
+    fn slice(
         &mut self,
         callable: &CalcValue,
         arguments: &[CalcValue],
+        value_result: bool,
     ) -> Result<Option<CalcValue>, CallAbandoned> {
         if self.fault.is_some() {
             return Err(CallAbandoned);
@@ -2565,7 +2567,7 @@ impl CallableInvoker for Callables<'_, '_, '_> {
             }
             if !self
                 .run
-                .child_slice(self.pending, &mut self.remaining, true)?
+                .child_slice(self.pending, &mut self.remaining, value_result)?
             {
                 return Ok(None);
             }
@@ -2577,7 +2579,24 @@ impl CallableInvoker for Callables<'_, '_, '_> {
             CallAbandoned
         })
     }
+}
 
+impl CallableInvoker for Callables<'_, '_, '_> {
+    fn call_slice(
+        &mut self,
+        callable: &CalcValue,
+        arguments: &[CalcValue],
+    ) -> Result<Option<CalcValue>, CallAbandoned> {
+        self.slice(callable, arguments, true)
+    }
+
+    fn call_slice_keeping_reference(
+        &mut self,
+        callable: &CalcValue,
+        arguments: &[CalcValue],
+    ) -> Result<Option<CalcValue>, CallAbandoned> {
+        self.slice(callable, arguments, false)
+    }
     fn call(
         &mut self,
         callable: &CalcValue,
