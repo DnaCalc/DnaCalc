@@ -39,8 +39,7 @@ use crate::reference::{
     BindError, BoundName, ExternalBookRef, ExternalOperand, FormulaAnchor, NameBindingProof,
     NameDefinition, NameScope, ReferenceCatalog, ReferenceNotation, ReferenceOperand, SheetTarget,
     TableLookup, bind_references, external_name_parts, external_operand, qualified_call,
-    qualified_name,
-    qualified_sheet_call,
+    qualified_name, qualified_sheet_call,
 };
 use crate::syntax::{SyntaxChild, SyntaxKind, SyntaxNode, SyntaxTree, TextSpan, Token, TokenKind};
 use calc_catalogue::{FIELD_ACCESS_FILE_NAME as FIELD_ACCESS, FilePrefix};
@@ -1022,12 +1021,7 @@ impl<'c> Lowering<'c> {
                     },
                 });
                 for argument in arguments.into_iter().rev() {
-                    tasks.push(Task::Lower {
-                        node: argument,
-                        tail: false,
-                        block,
-                        place: Place::Unknown,
-                    });
+                    self.lower_given_value(argument, block, tasks);
                 }
                 tasks.push(Task::Lower {
                     node: callee,
@@ -1393,14 +1387,38 @@ impl<'c> Lowering<'c> {
             },
         });
         for argument in arguments.iter().rev() {
-            tasks.push(Task::Lower {
-                node: argument,
-                tail: false,
-                block,
-                place: Place::Unknown,
-            });
+            self.lower_given_value(argument, block, tasks);
         }
         Ok(())
+    }
+
+    /// Pushes the task that lowers `node`, a value a LAMBDA is given or LET's calculation, into
+    /// block `block`. A 3-D reference there is #VALUE! (dc-b1l, Excel 16.0.20527 through
+    /// Touchstone, 2026-11-16, cell-context family three-d: `=LAMBDA(x,x)(Ja:Ma!A1)` and
+    /// `=LET(x,1,Ja:Ma!A1)` are #VALUE!), where elsewhere it is #REF!.
+    fn lower_given_value<'t>(
+        &mut self,
+        node: &'t SyntaxNode,
+        block: usize,
+        tasks: &mut Vec<Task<'t>>,
+    ) {
+        let span = node.span();
+        if let Some((Ok(bound), _)) = self.sites.get(&span)
+            && matches!(bound.sheet, SheetTarget::Span { .. })
+        {
+            self.sites.remove(&span);
+            tasks.push(Task::Emit {
+                block,
+                instruction: Instruction::Literal(Literal::Error(WorksheetErrorCode::Value)),
+            });
+            return;
+        }
+        tasks.push(Task::Lower {
+            node,
+            tail: false,
+            block,
+            place: Place::Unknown,
+        });
     }
 
     fn user_call<'t>(
@@ -1600,12 +1618,7 @@ impl<'c> Lowering<'c> {
         tasks.push(Task::Unbind(pairs));
         // LET's result is not adjusted: `=LET(a,1,(1+7*POWER(2,-52))-a)` is 7*2^-52 (dc-b1l).
         let _ = tail;
-        tasks.push(Task::Lower {
-            node: arguments[argc - 1],
-            tail: false,
-            block,
-            place: inner,
-        });
+        self.lower_given_value(arguments[argc - 1], block, tasks);
         for pair in (0..pairs).rev() {
             let name = self.declared_name(arguments[2 * pair])?;
             if name.1 {
@@ -1781,7 +1794,9 @@ impl<'c> Lowering<'c> {
         };
         let refers = refers.strip_prefix('=').unwrap_or(&refers);
         if refers.eq_ignore_ascii_case("#REF!") {
-            self.blocks[block].push(Instruction::Literal(Literal::Error(WorksheetErrorCode::Ref)));
+            self.blocks[block].push(Instruction::Literal(Literal::Error(
+                WorksheetErrorCode::Ref,
+            )));
             return Ok(());
         }
         let spelled = match book {
@@ -1799,8 +1814,7 @@ impl<'c> Lowering<'c> {
         let Some(expression) = tree.expression() else {
             return Err(refused());
         };
-        let a1 = CellKey::new(self.name_context.lookup_sheet(), 1, 1)
-            .expect("A1 lies on the grid");
+        let a1 = CellKey::new(self.name_context.lookup_sheet(), 1, 1).expect("A1 lies on the grid");
         match external_operand(expression, ReferenceNotation::A1, FormulaAnchor::new(a1)) {
             Some(operand) => {
                 self.blocks[block].push(Instruction::External(self.externals.len()));
@@ -2049,6 +2063,11 @@ impl<'c> Lowering<'c> {
         if place == calc_func::ThreeDPlace::ReferenceError {
             return Some(Ok(ThreeD::Arguments(vec![Instruction::Literal(
                 Literal::Error(WorksheetErrorCode::Ref),
+            )])));
+        }
+        if place == calc_func::ThreeDPlace::ArgumentValueError {
+            return Some(Ok(ThreeD::Arguments(vec![Instruction::Literal(
+                Literal::Error(WorksheetErrorCode::Value),
             )])));
         }
         if place == calc_func::ThreeDPlace::Unknown {

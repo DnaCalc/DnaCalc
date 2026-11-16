@@ -117,8 +117,13 @@ pub enum ThreeDPlace {
     Unknown,
     Take,
     Spread,
+    /// The call is #VALUE!.
     ValueError,
+    /// The argument is #REF!.
     ReferenceError,
+    /// The argument is #VALUE!, read only where the call reads it (a branch, a fallback, a
+    /// selected value).
+    ArgumentValueError,
 }
 
 /// dc-10y: Excel 16.0.20430, 2026-10-25, `Range.Formula`, three sheets with 1, 2 and 3 in A1.
@@ -130,6 +135,25 @@ pub struct ThreeD {
     take: Option<&'static [usize]>,
     value: Option<&'static [usize]>,
     reference: Option<&'static [usize]>,
+    value_argument: Option<&'static [usize]>,
+}
+
+/// `N` argument positions: `lead`, then every other position from `start` (dc-b1l: the criteria
+/// and criteria ranges of COUNTIFS and SUMIFS, the conditions and values of IFS).
+pub const fn alternate<const N: usize>(lead: &[usize], start: usize) -> [usize; N] {
+    let mut out = [0; N];
+    let mut i = 0;
+    while i < lead.len() {
+        out[i] = lead[i];
+        i += 1;
+    }
+    let mut next = start;
+    while i < N {
+        out[i] = next;
+        next += 2;
+        i += 1;
+    }
+    out
 }
 
 impl Default for ThreeD {
@@ -143,6 +167,7 @@ impl ThreeD {
         take: None,
         value: None,
         reference: None,
+        value_argument: None,
     };
     pub const fn new(
         take: Option<&'static [usize]>,
@@ -153,7 +178,14 @@ impl ThreeD {
             take,
             value,
             reference,
+            value_argument: None,
         }
+    }
+    /// The positions where a 3-D reference is a #VALUE! argument
+    /// ([`ThreeDPlace::ArgumentValueError`]).
+    pub const fn value_arguments(mut self, positions: &'static [usize]) -> Self {
+        self.value_argument = Some(positions);
+        self
     }
     fn has(positions: Option<&[usize]>, index: usize) -> bool {
         match positions {
@@ -175,6 +207,8 @@ impl ThreeD {
             ThreeDPlace::ValueError
         } else if Self::has(self.reference, index) {
             ThreeDPlace::ReferenceError
+        } else if Self::has(self.value_argument, index) {
+            ThreeDPlace::ArgumentValueError
         } else if Self::has(self.take, index) {
             if Self::is_tail(self.take, index) {
                 ThreeDPlace::Spread

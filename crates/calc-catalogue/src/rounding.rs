@@ -119,5 +119,10 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
         ),
     call(EVEN, "EVEN", 1, NUMBER).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
     call(ODD, "ODD", 1, NUMBER).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
-    call(ECMA_CEILING, "ECMA.CEILING", 2, SIGNIFICANCE),
+    // dc-b1l (Touchstone 2026-11-16, three-d): `=ECMA.CEILING(Ja:Ma!A1,1)` is #REF!, either argument.
+    call(ECMA_CEILING, "ECMA.CEILING", 2, SIGNIFICANCE).with_three_d(super::ThreeD::new(
+        None,
+        None,
+        Some(&[]),
+    )),
 ];

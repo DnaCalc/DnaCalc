@@ -149,7 +149,7 @@ pub mod bonds {
     6 "YIELDMAT" (5, 6) [V "settlement", V "maturity", V "issue", V "rate", V "pr", V "basis"] three_d (None, Some(&[]), None); ;
     7 "YIELDDISC" (4, 5) [V "settlement", V "maturity", V "pr", V "redemption", V "basis"] three_d (None, Some(&[]), None); ;
     8 "ACCRINT" (6, 8) [V "issue", V "first_interest", V "settlement", V "rate", V "par", V "frequency", V "basis", V "calc_method"] three_d (None, Some(&[]), None); ;
-    9 "ACCRINTM" (4, 5) [V "issue", V "settlement", V "rate", V "par", V "basis"] three_d (None, Some(&[3]), None); ;
+    9 "ACCRINTM" (4, 5) [V "issue", V "settlement", V "rate", V "par", V "basis"] three_d (None, Some(&[]), None); ;
     10 "COUPDAYBS" (3, 4) [V "settlement", V "maturity", V "frequency", V "basis"] three_d (None, Some(&[0, 1]), Some(&[2, 3])); ;
     11 "COUPDAYS" (3, 4) [V "settlement", V "maturity", V "frequency", V "basis"] three_d (None, Some(&[0, 1]), Some(&[2, 3])); ;
     12 "COUPDAYSNC" (3, 4) [V "settlement", V "maturity", V "frequency", V "basis"] three_d (None, Some(&[0, 1]), Some(&[2, 3])); ;
@@ -319,7 +319,7 @@ pub mod grouping {
     pub const CODE: u16 = 321;
     data_family! {
         code: CODE;
-    1 "GROUPBY" (3, 8) [R "row_fields" ~ ArrayAlways, R "values" ~ ArrayAlways, R "function", V "field_headers", V "total_depth", R "sort_order", R "filter_array" ~ ArrayAlways, V "field_relationship"] ;
+    1 "GROUPBY" (3, 8) [R "row_fields" ~ ArrayAlways, R "values" ~ ArrayAlways, R "function", V "field_headers", V "total_depth", R "sort_order", R "filter_array" ~ ArrayAlways, V "field_relationship"] three_d (None, Some(&[0, 1]), Some(&[3])); ;
     2 "PIVOTBY" (4, 11) [R "row_fields" ~ ArrayAlways, R "col_fields" ~ ArrayAlways, R "values" ~ ArrayAlways, R "function", V "field_headers", V "row_total_depth", R "row_sort_order", V "col_total_depth", R "col_sort_order", R "filter_array" ~ ArrayAlways, V "relative_to"] ;
     }
 }
@@ -329,8 +329,8 @@ pub mod host_facts {
     pub const CODE: u16 = 204;
     data_family! {
         code: CODE;
-    1 "CELL" (1, 2) [V "info_type", F "reference" @Reference] traits lift_dynamic_references; volatile true; ;
-    2 "INFO" (1, 1) [V "type_text"] volatile true; ;
+    1 "CELL" (1, 2) [V "info_type", F "reference" @Reference] traits lift_dynamic_references; volatile true; three_d (None, Some(&[1]), Some(&[0])); ;
+    2 "INFO" (1, 1) [V "type_text"] volatile true; three_d (None, None, Some(&[])); ;
     3 "SHEET" (0, 1) [R "value" ~ AggregateAtRoot] traits value_error_references; volatile true; three_d (Some(&[0]), None, None); ;
     4 "SHEETS" (0, 1) [R "reference" ~ ArrayAtRoot] traits value_error_references; volatile true; three_d (Some(&[0]), None, None); ;
     5 "FORMULATEXT" (1, 1) [F "reference" @Reference] traits lift_dynamic_references; volatile true; three_d (None, Some(&[]), None); ;
@@ -402,9 +402,9 @@ pub mod dates {
     17 "WEEKNUM" (1, 2) [V "serial_number", V "return_type"] three_d (None, Some(&[]), None); ;
     18 "ISOWEEKNUM" (1, 1) [V "date"] three_d (None, None, Some(&[])); ;
     19 "WORKDAY" (2, 3) [V "start_date", V "days", R "holidays" ~ AggregateAtRoot] three_d (None, Some(&[]), None); ;
-    20 "WORKDAY.INTL" (2, 4) [V "start_date", V "days", V "weekend", R "holidays"] three_d (None, Some(&[0, 1]), Some(&[2])); ;
+    20 "WORKDAY.INTL" (2, 4) [V "start_date", V "days", V "weekend", R "holidays"] three_d (None, Some(&[0, 1, 3]), Some(&[2])); ;
     21 "NETWORKDAYS" (2, 3) [V "start_date", V "end_date", R "holidays" ~ AggregateAtRoot] three_d (None, Some(&[]), None); ;
-    22 "NETWORKDAYS.INTL" (2, 4) [V "start_date", V "end_date", V "weekend", R "holidays"] three_d (None, Some(&[0, 1]), Some(&[2])); ;
+    22 "NETWORKDAYS.INTL" (2, 4) [V "start_date", V "end_date", V "weekend", R "holidays"] three_d (None, Some(&[0, 1, 3]), Some(&[2])); ;
     23 "YEARFRAC" (2, 3) [V "start_date", V "end_date", V "basis"] three_d (None, Some(&[]), None); ;
     24 "NOW" (0, 0) [] volatile true; ;
     25 "TODAY" (0, 0) [] volatile true; ;
@@ -487,18 +487,18 @@ pub mod database {
     pub const CODE: u16 = 205;
     data_family! {
         code: CODE;
-    1 "DAVERAGE" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); ;
-    2 "DCOUNT" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); ;
-    3 "DCOUNTA" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); ;
-    4 "DGET" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); ;
-    5 "DMAX" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); ;
-    6 "DMIN" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); ;
-    7 "DPRODUCT" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); ;
-    8 "DSTDEV" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); ;
-    9 "DSTDEVP" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); ;
-    10 "DSUM" (3, 3) [R "database" @Reference, V "field", R "criteria"] traits lift_dynamic_references; three_d (None, Some(&[0]), None); ;
-    11 "DVAR" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); ;
-    12 "DVARP" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); ;
+    1 "DAVERAGE" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[]), None); ;
+    2 "DCOUNT" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[]), None); ;
+    3 "DCOUNTA" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[]), None); ;
+    4 "DGET" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[]), None); ;
+    5 "DMAX" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[]), None); ;
+    6 "DMIN" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[]), None); ;
+    7 "DPRODUCT" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[]), None); ;
+    8 "DSTDEV" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[]), None); ;
+    9 "DSTDEVP" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[]), None); ;
+    10 "DSUM" (3, 3) [R "database" @Reference, V "field", R "criteria"] traits lift_dynamic_references; three_d (None, Some(&[]), None); ;
+    11 "DVAR" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[]), None); ;
+    12 "DVARP" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[]), None); ;
     }
 }
 
@@ -508,7 +508,7 @@ pub mod arrays {
     data_family! {
         code: CODE;
     1 "SEQUENCE" (1, 4) [V "rows", V "columns", V "start", V "step"] three_d (None, None, Some(&[]));  ;
-    2 "FILTER" (2, 3) [R "array" ~ ArrayAtRoot, R "include" ~ ArrayAtRoot, R "if_empty" ~ AggregateAtRoot] traits value_error_references; three_d (None, Some(&[0, 1]), None); ;
+    2 "FILTER" (2, 3) [R "array" ~ ArrayAtRoot, R "include" ~ ArrayAtRoot, R "if_empty" ~ AggregateAtRoot] traits value_error_references; three_d (None, Some(&[0, 1]), Some(&[2])); ;
     3 "SORT" (1, 4) [R "array" ~ ArrayAtRoot, R "sort_index" ~ ArrayAtRoot, R "sort_order", V "by_col"] traits value_error_references; three_d (None, None, Some(&[])); ;
     4 "SORTBY" (2, 255) [R "array" ~ ArrayAtRoot, R "by_array1" ~ ArrayAtRoot, R "sort_order1" ~ AggregateAtRoot] groups (1, 2, 0); traits value_error_references; three_d (None, None, Some(&[])); ;
     5 "UNIQUE" (1, 3) [R "array" ~ ArrayAtRoot, V "by_col", V "exactly_once"] three_d (None, None, Some(&[])); ;
@@ -518,10 +518,10 @@ pub mod arrays {
     9 "CHOOSECOLS" (2, 255) [R "array" ~ ArrayAtRoot, R "col_num1" ~ AggregateAtRoot, R "col_num2" ~ AggregateAtRoot] traits value_error_references; three_d (None, Some(&[0]), Some(&[1, usize::MAX])); ;
     10 "VSTACK" (1, 254) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRootRepeated] traits value_error_references; three_d (Some(&[]), None, None); ;
     11 "HSTACK" (1, 254) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRootRepeated] traits value_error_references; three_d (Some(&[]), None, None); ;
-    12 "TOCOL" (1, 3) [R "array" ~ ArrayAtRoot, V "ignore", V "scan_by_column"] traits value_error_references; three_d (Some(&[0]), None, Some(&[1])); ;
-    13 "TOROW" (1, 3) [R "array" ~ ArrayAtRoot, V "ignore", V "scan_by_column"] traits value_error_references; three_d (Some(&[0]), None, Some(&[1])); ;
-    14 "WRAPROWS" (2, 3) [R "vector" ~ ArrayAtRoot, V "wrap_count", V "pad_with"] three_d (None, None, Some(&[0, 1])); ;
-    15 "WRAPCOLS" (2, 3) [R "vector" ~ ArrayAtRoot, V "wrap_count", V "pad_with"] three_d (None, None, Some(&[0, 1])); ;
+    12 "TOCOL" (1, 3) [R "array" ~ ArrayAtRoot, V "ignore", V "scan_by_column"] traits value_error_references; three_d (Some(&[0]), None, Some(&[1, 2])); ;
+    13 "TOROW" (1, 3) [R "array" ~ ArrayAtRoot, V "ignore", V "scan_by_column"] traits value_error_references; three_d (Some(&[0]), None, Some(&[1, 2])); ;
+    14 "WRAPROWS" (2, 3) [R "vector" ~ ArrayAtRoot, V "wrap_count", V "pad_with"] three_d (None, None, Some(&[])); ;
+    15 "WRAPCOLS" (2, 3) [R "vector" ~ ArrayAtRoot, V "wrap_count", V "pad_with"] three_d (None, None, Some(&[])); ;
     16 "EXPAND" (2, 4) [R "array" ~ ArrayAtRoot, V "rows", V "columns", R "pad_with"] traits value_error_references; three_d (None, None, Some(&[])); ;
     }
 }
@@ -559,9 +559,9 @@ pub mod text_format {
     16 "REGEXTEST" (2, 3) [V "text", V "pattern", V "case_sensitivity"] three_d (None, None, Some(&[])); ;
     17 "REGEXEXTRACT" (2, 4) [V "text", V "pattern", V "return_mode", V "case_sensitivity"] three_d (None, None, Some(&[])); ;
     18 "REGEXREPLACE" (3, 5) [V "text", V "pattern", V "replacement", V "occurrence", V "case_sensitivity"] three_d (None, None, Some(&[])); ;
-    19 "ENCODEURL" (1, 1) [V "text"] ;
-    20 "FILTERXML" (2, 2) [V "xml", V "xpath"] traits intersect_legacy_result; ;
-    21 "HYPERLINK" (1, 2) [V "link_location", V "friendly_name"] ;
+    19 "ENCODEURL" (1, 1) [V "text"] three_d (None, None, Some(&[])); ;
+    20 "FILTERXML" (2, 2) [V "xml", V "xpath"] traits intersect_legacy_result; three_d (None, None, Some(&[])); ;
+    21 "HYPERLINK" (1, 2) [V "link_location", V "friendly_name"] three_d (None, None, Some(&[])); ;
     }
 }
 
@@ -609,7 +609,7 @@ pub mod random {
     data_family! {
         code: CODE;
     1 "RAND" (0, 0) [] volatile true; ;
-    2 "RANDBETWEEN" (2, 2) [V "bottom", V "top"] volatile true; ;
+    2 "RANDBETWEEN" (2, 2) [V "bottom", V "top"] volatile true; three_d (None, Some(&[]), None); ;
     3 "RANDARRAY" (0, 5) [V "rows", V "columns", V "min", V "max", V "whole_number"] volatile true; ;
     }
 }

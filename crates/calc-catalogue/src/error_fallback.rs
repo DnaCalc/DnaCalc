@@ -26,7 +26,9 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
         demand: ArgumentDemand::FallbackOnError,
         traits: super::EntryTraits::NONE,
     }
-    .with_three_d(super::ThreeD::new(None, None, Some(&[0]))),
+    // dc-b1l (Touchstone 2026-11-16, three-d): a 3-D fallback is #VALUE! where it is given
+    // (`=IFERROR(1,Ja:Ma!A1)` 1, `=IFERROR(NA(),Ja:Ma!A1)` #VALUE!; IFNA likewise).
+    .with_three_d(super::ThreeD::new(None, None, Some(&[0])).value_arguments(&[1])),
     WorksheetDeclaration {
         localized_names: None,
         context_facilities: None,
@@ -42,5 +44,7 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
         demand: ArgumentDemand::FallbackOnError,
         traits: super::EntryTraits::NONE,
     }
-    .with_three_d(super::ThreeD::new(None, None, Some(&[0]))),
+    // dc-b1l (Touchstone 2026-11-16, three-d): a 3-D fallback is #VALUE! where it is given
+    // (`=IFERROR(1,Ja:Ma!A1)` 1, `=IFERROR(NA(),Ja:Ma!A1)` #VALUE!; IFNA likewise).
+    .with_three_d(super::ThreeD::new(None, None, Some(&[0])).value_arguments(&[1])),
 ];

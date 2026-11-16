@@ -8,6 +8,9 @@ pub const CODE: u16 = 201;
 pub const IFS: FunctionId = FunctionId::new(CODE, 1);
 pub const SWITCH: FunctionId = FunctionId::new(CODE, 2);
 
+const IFS_CONDITIONS: [usize; 127] = super::alternate(&[], 0);
+const IFS_VALUES: [usize; 126] = super::alternate(&[], 3);
+
 pub const ENTRIES: &[WorksheetDeclaration] = &[
     // Formula entry (dc-mx3x, Excel 16.0.20527, 2026-11-07, Formula2 and Formula alike): the
     // conditions and values come in pairs, so IFS takes 2, 4, 6 or 8 arguments of 1 to 8
@@ -34,7 +37,12 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
             .paired_result(super::PairedResult::Odd)
             .whole_result(super::WholeResultPolicy::Conditions),
     }
-    .with_three_d(super::ThreeD::new(None, Some(&[1]), Some(&[0]))),
+    // dc-b1l (Touchstone 2026-11-16, three-d): a 3-D reference is a #REF! later condition and a
+    // #VALUE! later value (`=IFS(FALSE,1,Ja:Ma!A1,2)` #REF!, `=IFS(FALSE,1,TRUE,Ja:Ma!A1)`
+    // #VALUE!, `=IFS(TRUE,1,TRUE,Ja:Ma!A1)` 1).
+    .with_three_d(
+        super::ThreeD::new(None, Some(&[1]), Some(&IFS_CONDITIONS)).value_arguments(&IFS_VALUES),
+    ),
     // The values and results come in pairs, with an optional default after them (dc-mx3x):
     // SWITCH takes every count from 3 to 8 (`=SWITCH(1,1)` is refused, `=SWITCH(1,1,2)` and
     // `=SWITCH(1,1,2,3)` enter), and a call gives one of its results, which may be a

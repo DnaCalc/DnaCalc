@@ -375,10 +375,13 @@ fn three_d_references_reach_the_functions_that_take_them() {
             ("=IRR(Ja:Ma!A1)", "B52", e(W::Value)),
         ],
     );
-    // A position whose handling of a 3-D reference is not measured (SUMIF's criteria, where a
-    // 3-D reference and #REF! both match nothing): refused.
+    // SUMIF's criterion is a #REF! (dc-b1l, Excel 16.0.20527 through Touchstone, 2026-11-16,
+    // cell-context family three-d: `=SUMIF(E1:E2,Ja:Ma!A1,B1:B2)` sums beside a #REF! cell).
+    assert_eq!(book.legacy("=SUMIF(A1:A3,Ja:Ma!A1)", "B1"), n(0.0));
+    // A position whose handling of a 3-D reference is not measured (SWITCH's fourth argument is a
+    // value or the default by the argument count): refused.
     assert!(matches!(
-        book.refusal("=SUMIF(A1:A3,Ja:Ma!A1)", "B1"),
+        book.refusal("=SWITCH(1,2,3,Ja:Ma!A1)", "B1"),
         CompileError::NotModelled {
             gap: calc_fml::Gap::Construct {
                 owner: "dc-10y",
