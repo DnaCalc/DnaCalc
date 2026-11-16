@@ -144,6 +144,18 @@ def pivot_tables(z, sheet, sheet_path, sheet_rels):
     return result
 
 
+def printer_settings(z, sheet, sheet_path, sheet_rels):
+    setup = sheet.find(M + 'pageSetup')
+    ident = None if setup is None else setup.get(R + 'id')
+    if ident is None:
+        return None
+    rel = sheet_rels.get(ident)
+    if rel is None or not rel.get('Type', '').endswith('/printerSettings'):
+        raise ValueError('missing printer settings relationship')
+    data = z.read(target(sheet_path, rel))
+    return {'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data)}
+
+
 def package(data):
     with zipfile.ZipFile(io.BytesIO(data)) as z:
         wbpath = 'xl/workbook.xml'
@@ -206,6 +218,7 @@ def package(data):
                            'conditional_formats': [tree(e) for e in sh.findall(M + 'conditionalFormatting')],
                            'validations': [tree(e) for e in sh.findall(f'{M}dataValidations/{M}dataValidation')],
                            'drawings': drawing_objects(z, sh, path, shrels),
+                           'printer_settings': printer_settings(z, sh, path, shrels),
                            'pivots': pivot_tables(z, sh, path, shrels)})
         props = wb.find(M + 'workbookPr')
         return {'date1904': props is not None and props.get('date1904', '0') in ('1', 'true'), 'names': names,
