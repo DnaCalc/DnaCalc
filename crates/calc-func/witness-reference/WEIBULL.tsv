@@ -1,0 +1,2 @@
+id	args	excel	ours	reference	excel_ulp	ours_ulp	class
+bank2-more-WEIBULL-0536	["0x40457fffffffffff", "0x3feb4646cd8e6755", "0x408c1acddc602ab6", "0xbfe0000000000000"]	0x3fb279dd9f2d8e64	0x3fb279dd9f2d8e63	0.0721720231645633335843568	0.246	0.754	ours-wrong

@@ -1,0 +1,4 @@
+id	args	excel	ours	reference	excel_ulp	ours_ulp	class
+tanh-composition-heldout-00375-boundary-neighbor	["0x3e45798ee2308c41"]	0x3e45798ee2308c42	0x3e45798ee2308c41	1.000000000000001145642085e-8	1.201	0.201	excel-quirk
+tanh-composition-heldout-00393-boundary-neighbor	["0xbe45798ee2308c41"]	0xbe45798ee2308c42	0xbe45798ee2308c41	-1.000000000000001145642085e-8	1.201	0.201	excel-quirk
+w111inthyp-heldout-TANH-007700	["0xbfcde8ec16456440"]	0xbfcd6089ff8149e6	0xbfcd6089ff8149e7	-0.2295086381514714302169955	0.120	1.120	ours-wrong

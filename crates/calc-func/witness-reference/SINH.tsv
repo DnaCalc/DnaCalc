@@ -1,0 +1,4 @@
+id	args	excel	ours	reference	excel_ulp	ours_ulp	class
+sinh-tanh-dependency-00082-failed-tanh-input	["0x3e45798ee2308c41"]	0x3e45798ee2308c42	0x3e45798ee2308c41	1.000000000000001195642085e-8	0.899	0.101	excel-quirk
+sinh-tanh-dependency-00091-failed-tanh-input	["0xbe45798ee2308c41"]	0xbe45798ee2308c42	0xbe45798ee2308c41	-1.000000000000001195642085e-8	0.899	0.101	excel-quirk
+w111inthyp-heldout-SINH-007698	["0xbfcde8ec16456440"]	0xbfce2ecb12696673	0xbfce2ecb12696674	-0.2358030166531538275038845	0.523	0.477	excel-quirk

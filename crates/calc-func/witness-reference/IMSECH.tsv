@@ -1,0 +1,5 @@
+id	args	excel	ours	reference	excel_ulp	ours_ulp	class
+w111extended-2026092903-IMSECH-00159	["0x4024607e399e5b98"]	text:0.0000752032701638533	text:0.0000752032701638534				structural:text/text
+w111extended-2026092903-IMSECH-00035	["0x402d64c59fac7230"]	text:8.28480059299066E-07	text:8.28480059299067E-07				structural:text/text
+w111extended-2026092903-IMSECH-00426	["0xc0203d9a843ac630"]	text:0.000594867182269324	text:0.000594867182269325				structural:text/text
+w111extended-2026092903-IMSECH-00682	["0xc0321a5cd82b0490"]	text:2.74793228170364E-08	text:2.74793228170365E-08				structural:text/text

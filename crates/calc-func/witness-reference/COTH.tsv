@@ -1,0 +1,4 @@
+id	args	excel	ours	reference	excel_ulp	ours_ulp	class
+coth-composition-heldout-00375-boundary-neighbor	["0x3e45798ee2308c41"]	0x4197d783fffffff7	0x4197d783fffffff8	99999999.99999988543579149	1.312	0.312	excel-quirk
+coth-composition-heldout-00393-boundary-neighbor	["0xbe45798ee2308c41"]	0xc197d783fffffff7	0xc197d783fffffff8	-99999999.99999988543579149	1.312	0.312	excel-quirk
+w111extended-2026092903-COTH-01065	["0xbfe6161332e5ba88"]	0xbffac045aff67b0d	0xbffac045aff67b0f	-1.671941459040400194400927	0.716	1.284	both-inexact

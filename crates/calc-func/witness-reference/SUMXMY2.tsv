@@ -1,0 +1,12 @@
+id	args	excel	ours	reference	excel_ulp	ours_ulp	class
+bank2-more-SUMXMY2-0423	["0x4007ffffffffffff", "0x321ecc6d16b09886"]	0x4021fffffffffffe	0x4021ffffffffffff	8.999999999999997335464741	0.500	0.500	both-inexact
+bank2-more-SUMXMY2-0788	["0x401bffffffffffff", "0x3ff0000000000001"]	0x4041fffffffffffe	0x4041ffffffffffff	35.9999999999999866773237	0.125	0.875	ours-wrong
+bank2-scalar-SUMXMY2-1037	["0x4037ffffffffffff", "0x0000000000000000"]	0x4081fffffffffffe	0x4081ffffffffffff	575.9999999999998294697434	0.500	0.500	both-inexact
+bank2-more-SUMXMY2-0344	["0x4048ffffffffffff", "0x4000000000000000"]	0x40a1fffffffffffe	0x40a1ffffffffffff	2303.999999999999317878974	0.500	0.500	both-inexact
+bank2-scalar-SUMXMY2-0069	["0xb0d6ab5a901b33c0", "0x3ff331b22ce554ae"]	0x3ff706a185b3cd30	0x3ff706a185b3cd31	1.439118883395007597620082	0.500	0.500	excel-quirk
+bank2-more-SUMXMY2-0928	["0xc027ffffffffffff", "0x2b2bff2ee48e0530"]	0x4061fffffffffffe	0x4061ffffffffffff	143.9999999999999573674359	0.500	0.500	both-inexact
+bank2-more-SUMXMY2-1068	["0xc029ffffffffffff", "0xbff0000000000000"]	0x4061fffffffffffe	0x4061ffffffffffff	143.9999999999999573674359	0.500	0.500	both-inexact
+bank2-scalar-SUMXMY2-1252	["0xc033000000000001", "0x3ff0000000000001"]	0x4079000000000002	0x4079000000000003	400.0000000000001509903313	0.656	0.344	excel-quirk
+bank2-scalar-SUMXMY2-0285	["0xc038ffffffffffff", "0xbff0000000000000"]	0x4081fffffffffffe	0x4081ffffffffffff	575.9999999999998294697434	0.500	0.500	both-inexact
+bank2-scalar-SUMXMY2-1019	["0xc043800000000001", "0x3fefffffffffffff"]	0x4099000000000002	0x4099000000000003	1600.000000000000559552404	0.461	0.539	ours-wrong
+bank2-scalar-SUMXMY2-0088	["0xc047ffffffffffff", "0xab2bff2ee48e0530"]	0x40a1fffffffffffe	0x40a1ffffffffffff	2303.999999999999317878974	0.500	0.500	both-inexact

@@ -1,0 +1,7 @@
+id	args	excel	ours	reference	excel_ulp	ours_ulp	class
+bank2-more-RATE-0717	["0x3fc0823b181d87a0", "0x40934c0000000000", "0xbfe0000000000000", "0x4024000000000000"]	0x4206c8dd7af6659e	error:Num				structural:number/error:Num
+bank2-more-RATE-1195	["0x3fc1d01214000b64", "0x4024000000000000", "0xc07b61bd158551d8", "0x40c0068000000000", "0x3fe0000000000000", "0x3ff0000000000001"]	0x41d84a88f5c0e275	error:Num				structural:number/error:Num
+bank2-more-RATE-1302	["0x3fd31be0f3944686", "0xc000000000000000", "0x3fefffffffffffff", "0x408df66b8b13090c", "0x4068800000000000"]	0x42022e96d903f175	error:Num				structural:number/error:Num
+bank2-more-RATE-0203	["0xbed11fcfc43c0058", "0x2b2bff2ee48e0530", "0x4059000000000000", "0x2ea3557de8d63790", "0x4066e00000000000", "0xbfe0000000000000"]	0x7fc9f86a1e336208	error:Num				structural:number/error:Num
+bank2-scalar-RATE-0371	["0xce2e16a0cac4fade", "0x3ff0000000000000", "0xab2bff2ee48e0530", "0x4076d00000000000", "0x40b17c0000000000", "0x0000000000000000"]	0x3f668168168115c4	error:Num				structural:number/error:Num
+bank2-more-RATE-0603	["0xceb7d02fa2a1403c", "0x3ff0000000000000", "0xab2bff2ee48e0530", "0x4076d00000000000", "0xc0537fffffffffff", "0x0000000000000000"]	0x3f668168168115c4	error:Num				structural:number/error:Num

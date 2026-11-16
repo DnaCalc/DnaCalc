@@ -1,0 +1,5 @@
+id	args	excel	ours	reference	excel_ulp	ours_ulp	class
+admit2-scalar-AGGREGATE-0829	["0x402e000000000000", "0x3fd57a71b49bb4f8", "0xbff0000000000000", "0x54b249ad2594c37d"]	error:Num	fault:NotModeled				structural:error:Num/refused
+admit2-enrich-AGGREGATE-0895	["0x402e000000000000", "0x4000000000000000", "0xd4b249ad2594c37d", "0x40e5f90000000000"]	error:Num	fault:NotModeled				structural:error:Num/refused
+admit2-more-AGGREGATE-0433	["0x4030000000000000", "0x3fe0000000000000", "12.34", "0x3fe515c4b8d16a72"]	error:Num	fault:NotModeled				structural:error:Num/refused
+admit2-scalar-AGGREGATE-1045	["0x4030ffffffffffff", "0xab2bff2ee48e0530", "0x4076d00000000000", "0xbdf0b49a41eab856"]	error:Num	fault:NotModeled				structural:error:Num/refused

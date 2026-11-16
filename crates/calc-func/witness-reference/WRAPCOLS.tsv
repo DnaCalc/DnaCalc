@@ -1,0 +1,6 @@
+id	args	excel	ours	reference	excel_ulp	ours_ulp	class
+admit3-range-mixed-WRAPCOLS-0904	[[["0x4051627627627627", true, "apple7", "0x401c000000000000", true, "0x4051627627627627"]], "0x4014000000000000", "pad904"]	error:Spill	0x4051627627627627				structural:error:Spill/number
+admit3-range-mixed-WRAPCOLS-0908	[[["0x4051762762762762", "a*5", "apple11", {"error": "NA"}, {"error": "NA"}, "0x4051762762762762"]], "0x4010000000000000", "pad908"]	error:Spill	0x4051762762762762				structural:error:Spill/number
+admit3-range-mixed-WRAPCOLS-0928	[[["0x4051d89d89d89d8a", "0x40e6118000000000", "0x4014000000000000", true, "0x40e6118000000000", "0xc008000000000000", "0x4051d89d89d89d8a"]], "0x4010000000000000", "pad928"]	error:Spill	0x4051d89d89d89d8a				structural:error:Spill/number
+admit3-range-mixed-WRAPCOLS-0934	[[["0x4051f62762762762", "0xc001249249249249", {"error": "NA"}, "apple14", "apple14", {"error": "NA"}]], "0x4014000000000000", "pad934"]	error:Spill	0x4051f62762762762				structural:error:Spill/number
+admit3-range-mixed-WRAPCOLS-0938	[[["0x405209d89d89d89e", true, "0xbff9249249249249", true, "a*0", "a*0"]], "0x4010000000000000", "pad938"]	error:Spill	0x405209d89d89d89e				structural:error:Spill/number

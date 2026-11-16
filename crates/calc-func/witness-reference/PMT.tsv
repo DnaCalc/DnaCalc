@@ -1,0 +1,2 @@
+id	args	excel	ours	reference	excel_ulp	ours_ulp	class
+round3-pmt-balance-0529	["0x3fa999999999999a", "0x3ff0000000000000", "0x7fcfffffffffffff", "0xffcfffffffffffff", "0x3ff0000000000000"]	0xff88618618618617	0xff88618618618618	-2.140110874836090241887249e+306	0.982	0.018	excel-quirk
