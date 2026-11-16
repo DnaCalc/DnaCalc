@@ -17,6 +17,7 @@ pub(crate) struct Record<'a> {
 
 impl<'a> Record<'a> {
     /// The body and the continuations as one byte string.
+    #[allow(dead_code)] // read by the record readers of dc-4j0e.3 and later
     pub(crate) fn joined(&self) -> std::borrow::Cow<'a, [u8]> {
         if self.continues.is_empty() {
             std::borrow::Cow::Borrowed(self.body)

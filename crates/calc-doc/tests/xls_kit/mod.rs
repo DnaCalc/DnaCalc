@@ -258,3 +258,113 @@ pub fn workbook_stream(date_1904: bool, extra: &[u8], sheets: &[Sheet]) -> Vec<u
 pub fn xls(date_1904: bool, extra: &[u8], sheets: &[Sheet]) -> Vec<u8> {
     compound(&[("Workbook", workbook_stream(date_1904, extra, sheets))])
 }
+
+/// NUMBER: row, column, ixfe, IEEE double.
+pub fn number(row: u16, column: u16, value: f64) -> Vec<u8> {
+    let mut body = u16s(&[row, column, 15]);
+    body.extend_from_slice(&value.to_le_bytes());
+    record(0x0203, &body)
+}
+
+/// RK with the raw 32-bit RK value.
+pub fn rk_cell(row: u16, column: u16, rk: u32) -> Vec<u8> {
+    let mut body = u16s(&[row, column, 15]);
+    body.extend_from_slice(&rk.to_le_bytes());
+    record(0x027E, &body)
+}
+
+/// MULRK: consecutive RK cells from `column`.
+pub fn mulrk(row: u16, column: u16, rks: &[u32]) -> Vec<u8> {
+    let mut body = u16s(&[row, column]);
+    for rk in rks {
+        body.extend_from_slice(&15u16.to_le_bytes());
+        body.extend_from_slice(&rk.to_le_bytes());
+    }
+    body.extend_from_slice(&(column + rks.len() as u16 - 1).to_le_bytes());
+    record(0x00BD, &body)
+}
+
+/// LABELSST: row, column, ixfe, string index.
+pub fn label_sst(row: u16, column: u16, index: u32) -> Vec<u8> {
+    let mut body = u16s(&[row, column, 15]);
+    body.extend_from_slice(&index.to_le_bytes());
+    record(0x00FD, &body)
+}
+
+/// BOOLERR: a logical (`is_error` false) or an error code.
+pub fn bool_err(row: u16, column: u16, value: u8, is_error: bool) -> Vec<u8> {
+    let mut body = u16s(&[row, column, 15]);
+    body.push(value);
+    body.push(u8::from(is_error));
+    record(0x0205, &body)
+}
+
+/// BLANK.
+pub fn blank(row: u16, column: u16) -> Vec<u8> {
+    record(0x0201, &u16s(&[row, column, 15]))
+}
+
+/// An SST holding `strings` as XLUnicodeRichExtendedString entries (`(text, runs)`, runs being
+/// `(character index, font index)`), compressed when ASCII. The record splits into CONTINUE
+/// records at 8224 bytes; a split inside characters repeats the flag byte as Excel writes it
+/// only when `split_at` cuts a string: the kit cuts after `split_at` bytes of the body to test it.
+pub fn sst(strings: &[(&str, &[(u16, u16)])], split_at: Option<usize>) -> Vec<u8> {
+    let mut body = Vec::new();
+    body.extend_from_slice(&(strings.len() as u32).to_le_bytes());
+    body.extend_from_slice(&(strings.len() as u32).to_le_bytes());
+    // Entries with the byte offset where each one's characters begin, for a cut inside them.
+    let mut cut_flag: Option<(usize, bool)> = None;
+    for (text, runs) in strings {
+        let ascii = text.is_ascii();
+        let units: Vec<u16> = text.encode_utf16().collect();
+        body.extend_from_slice(&(units.len() as u16).to_le_bytes());
+        body.push(u8::from(!ascii) | if runs.is_empty() { 0 } else { 8 });
+        if !runs.is_empty() {
+            body.extend_from_slice(&(runs.len() as u16).to_le_bytes());
+        }
+        let chars_at = body.len();
+        if ascii {
+            body.extend_from_slice(text.as_bytes());
+        } else {
+            body.extend(u16s(&units));
+        }
+        if let Some(cut) = split_at
+            && cut_flag.is_none()
+            && cut >= chars_at
+            && cut < body.len()
+        {
+            cut_flag = Some((cut, !ascii));
+        }
+        for (ich, font) in *runs {
+            body.extend(u16s(&[*ich, *font]));
+        }
+    }
+    match (split_at, cut_flag) {
+        (Some(cut), Some((_, wide))) => {
+            let mut out = record(0x00FC, &body[..cut]);
+            let mut tail = vec![u8::from(wide)];
+            tail.extend_from_slice(&body[cut..]);
+            out.extend(record(0x003C, &tail));
+            out
+        }
+        (Some(cut), None) => {
+            let mut out = record(0x00FC, &body[..cut]);
+            out.extend(record(0x003C, &body[cut..]));
+            out
+        }
+        _ => record(0x00FC, &body),
+    }
+}
+
+/// ROW: row index, height in twips, and the flag bits (outline level, hidden 0x20, custom
+/// height 0x40).
+pub fn row(row: u16, height: u16, flags: u8) -> Vec<u8> {
+    let mut body = u16s(&[row, 0, 0, height, 0, 0]);
+    body.extend_from_slice(&(u32::from(flags) | 0x100).to_le_bytes());
+    record(0x0208, &body)
+}
+
+/// COLINFO: first and last column, width in 1/256 characters, flags.
+pub fn colinfo(first: u16, last: u16, width: u16, flags: u16) -> Vec<u8> {
+    record(0x007D, &u16s(&[first, last, width, 15, flags, 0]))
+}

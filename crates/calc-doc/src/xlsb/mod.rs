@@ -21,7 +21,7 @@
 //! (its lengths and fill), so a data bar converts with SpreadsheetML 2006's.
 
 mod commands;
-mod formula;
+pub(crate) mod formula;
 mod parts;
 mod records;
 mod sheet;

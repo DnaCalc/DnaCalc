@@ -10,6 +10,8 @@
 
 pub(crate) mod cfb;
 mod records;
+mod sheet;
+mod strings;
 mod workbook;
 
 use crate::OpenError;
@@ -85,6 +87,7 @@ pub(crate) fn convert(bytes: &[u8]) -> Result<(Vec<u8>, LegacyReport), OpenError
     let mut parts: Vec<(String, &'static str, Vec<u8>)> = Vec::new();
     let mut sheet_entries: Vec<(String, u8, String)> = Vec::new();
     let mut number = 0usize;
+    let mut sheet_unknown: BTreeMap<u16, u32> = BTreeMap::new();
     for sheet in &globals.sheets {
         if sheet.kind == SheetKind::Module {
             continue;
@@ -103,40 +106,62 @@ pub(crate) fn convert(bytes: &[u8]) -> Result<(Vec<u8>, LegacyReport), OpenError
             ));
         }
         let mut depth = 0usize;
-        let mut closed = false;
-        for record in substream {
+        let mut end = None;
+        for (k, record) in substream.iter().enumerate() {
             match record.id {
                 workbook::BOF => depth += 1,
                 workbook::EOF => {
                     depth -= 1;
                     if depth == 0 {
-                        closed = true;
+                        end = Some(k + 1);
                         break;
                     }
                 }
-                id => *globals.unknown.entry(id).or_insert(0) += 1,
+                _ => {}
             }
         }
-        if !closed {
+        let Some(end) = end else {
             return Err(refuse(name, format!("sheet {:?} has no EOF record", sheet.name)));
-        }
+        };
         number += 1;
+        let context = sheet::Context {
+            strings: &globals.strings,
+        };
         let (part, content_type, xml) = match sheet.kind {
-            SheetKind::MacroSheet => (
-                format!("xl/macrosheets/sheet{number}.xml"),
-                "application/vnd.ms-excel.macrosheet+xml",
-                empty_sheet("xm:macrosheet"),
-            ),
-            SheetKind::Chart => (
-                format!("xl/chartsheets/sheet{number}.xml"),
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.chartsheet+xml",
-                empty_chartsheet(),
-            ),
-            _ => (
-                format!("xl/worksheets/sheet{number}.xml"),
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml",
-                empty_sheet("worksheet"),
-            ),
+            SheetKind::MacroSheet | SheetKind::Worksheet => {
+                let macro_sheet = sheet.kind == SheetKind::MacroSheet;
+                let read = sheet::read(&substream[..end], &context, macro_sheet, &sheet.name)
+                    .map_err(|detail| refuse(name, detail))?;
+                for (id, n) in read.unknown {
+                    *sheet_unknown.entry(id).or_insert(0) += n;
+                }
+                if macro_sheet {
+                    (
+                        format!("xl/macrosheets/sheet{number}.xml"),
+                        "application/vnd.ms-excel.macrosheet+xml",
+                        read.xml,
+                    )
+                } else {
+                    (
+                        format!("xl/worksheets/sheet{number}.xml"),
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml",
+                        read.xml,
+                    )
+                }
+            }
+            SheetKind::Chart => {
+                for record in &substream[1..end - 1] {
+                    *sheet_unknown.entry(record.id).or_insert(0) += 1;
+                }
+                (
+                    format!("xl/chartsheets/sheet{number}.xml"),
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.chartsheet+xml",
+                    empty_chartsheet(),
+                )
+            }
+            SheetKind::Module | SheetKind::Other(_) => {
+                return Err(refuse(name, format!("sheet {:?} of an unknown kind", sheet.name)));
+            }
         };
         sheet_entries.push((sheet.name.clone(), sheet.state, part.clone()));
         parts.push((part, content_type, xml));
@@ -144,11 +169,40 @@ pub(crate) fn convert(bytes: &[u8]) -> Result<(Vec<u8>, LegacyReport), OpenError
     if sheet_entries.is_empty() {
         return Err(refuse(name, "the workbook has no sheets"));
     }
+    let has_strings = !globals.strings.is_empty();
+    if has_strings {
+        let mut sst = Xml::new();
+        sst.open(
+            "sst",
+            &[
+                ("xmlns", MAIN_NAMESPACE.to_owned()),
+                ("count", globals.strings.len().to_string()),
+                ("uniqueCount", globals.strings.len().to_string()),
+            ],
+        );
+        for string in &globals.strings {
+            sst.open("si", &[]);
+            sheet::text_element(&mut sst, &string.units);
+            sst.close("si");
+        }
+        sst.close("sst");
+        parts.push((
+            "xl/sharedStrings.xml".to_owned(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml",
+            sst.out,
+        ));
+    }
     let macros = globals.sheets.iter().any(|s| s.kind == SheetKind::MacroSheet);
     let report = LegacyReport {
         biff_version: 8,
         sheets: globals.sheets.len(),
-        unknown_records: std::mem::take(&mut globals.unknown),
+        unknown_records: {
+            let mut all = std::mem::take(&mut globals.unknown);
+            for (id, n) in sheet_unknown {
+                *all.entry(id).or_insert(0) += n;
+            }
+            all
+        },
     };
 
     // xl/workbook.xml
@@ -219,6 +273,16 @@ pub(crate) fn convert(bytes: &[u8]) -> Result<(Vec<u8>, LegacyReport), OpenError
                 ("Id", format!("rId{}", index + 1)),
                 ("Type", kind),
                 ("Target", part.trim_start_matches("xl/").to_owned()),
+            ],
+        );
+    }
+    if has_strings {
+        rels.empty(
+            "Relationship",
+            &[
+                ("Id", "rIdStrings".to_owned()),
+                ("Type", format!("{REL_TYPE}/sharedStrings")),
+                ("Target", "sharedStrings.xml".to_owned()),
             ],
         );
     }
@@ -300,21 +364,6 @@ pub(crate) fn convert(bytes: &[u8]) -> Result<(Vec<u8>, LegacyReport), OpenError
     let archive = crate::save::new_archive(&entries)
         .ok_or_else(|| refuse(name, "the converted package is too large for a ZIP archive"))?;
     Ok((archive, report))
-}
-
-fn empty_sheet(root: &str) -> Vec<u8> {
-    let mut xml = Xml::new();
-    let mut attributes = vec![("xmlns", MAIN_NAMESPACE.to_owned())];
-    if root == "xm:macrosheet" {
-        attributes.push((
-            "xmlns:xm",
-            "http://schemas.microsoft.com/office/excel/2006/main".to_owned(),
-        ));
-    }
-    xml.open(root, &attributes);
-    xml.empty("sheetData", &[]);
-    xml.close(root);
-    xml.out
 }
 
 fn empty_chartsheet() -> Vec<u8> {

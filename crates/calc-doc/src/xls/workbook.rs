@@ -4,6 +4,7 @@
 //! counted by type in [`Globals::unknown`], never fatal.
 
 use super::records::Record;
+use super::strings::{Pieces, RichString};
 use crate::xlsb::Cursor;
 use std::collections::BTreeMap;
 
@@ -14,6 +15,7 @@ const DATEMODE: u16 = 0x0022;
 const FILEPASS: u16 = 0x002F;
 const BOUNDSHEET: u16 = 0x0085;
 const WINDOW1: u16 = 0x003D;
+const SST: u16 = 0x00FC;
 
 /// What a BOUNDSHEET8 sheet is (its `dt`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -44,9 +46,11 @@ pub(crate) struct Globals {
     pub(crate) date_1904: bool,
     pub(crate) sheets: Vec<BoundSheet>,
     pub(crate) active_tab: Option<u16>,
+    /// The shared string table (SST), in index order.
+    pub(crate) strings: Vec<RichString>,
     /// A FILEPASS record: the stream is encrypted (dc-4j0e.7).
     pub(crate) encrypted: bool,
-    /// Record types not read, with how many of each, over the whole workbook stream.
+    /// Record types not read, with how many of each, over the whole workbook stream, sheets included.
     pub(crate) unknown: BTreeMap<u16, u32>,
     /// The index of the record after the globals' EOF.
     pub(crate) end: usize,
@@ -121,6 +125,17 @@ pub(crate) fn read(records: &[Record<'_>]) -> Result<Globals, String> {
                     kind,
                     name,
                 });
+            }
+            SST => {
+                let mut p = Pieces::new(record);
+                p.skip(4, "the SST").map_err(|e| e.0)?;
+                let unique = p.u32("the SST").map_err(|e| e.0)? as usize;
+                for _ in 0..unique {
+                    if p.done() {
+                        break;
+                    }
+                    globals.strings.push(p.rich_string().map_err(|e| e.0)?);
+                }
             }
             WINDOW1 => {
                 // xWn, yWn, dxWn, dyWn, grbit, itabCur, ...
