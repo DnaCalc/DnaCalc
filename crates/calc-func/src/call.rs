@@ -8,8 +8,8 @@
 //! arguments it selects itself, each admitted when it is asked for, so an argument it does not
 //! select is never evaluated.
 
-use crate::catalogue::{CatalogueEntry, FunctionCallTarget, FunctionId, Kernel, ParameterClass};
 use crate::Availability;
+use crate::catalogue::{CatalogueEntry, FunctionCallTarget, FunctionId, Kernel, ParameterClass};
 use crate::locale::CalcEnvironment;
 use crate::value::{
     CalcValue, CellKey, CoreRef, GridArea, NumericMode, SheetId, WorksheetErrorCode,
@@ -80,6 +80,19 @@ pub struct SubtotalExclusions {
 pub trait RandomSource {
     /// A number in [0, 1).
     fn next_unit(&mut self) -> f64;
+}
+
+/// The week start the last WEEKNUM or ISOWEEKNUM of a calculation pass left, which a WEEKNUM
+/// whose return type is below 1 or from 22 up reads (dc-amhpx; Excel 16.0.20527, serial
+/// Touchstone requests with primers, fn2 2026-11-16: with no such call earlier in the pass it is
+/// #NUM!; after types 1 and 17 it numbers weeks from Sunday, after 2, 11, 21 and ISOWEEKNUM from
+/// Monday as type 2 does; after types 12 to 16, type 0 or an erroring WEEKNUM it is #NUM!).
+pub trait WeekState {
+    /// `Some(None)`: no week start (the result is #NUM!); `Some(Some(t))`: number weeks as
+    /// return type `t` does; `None`: not known in this evaluation (the call is refused).
+    fn week_start(&self) -> Option<Option<u8>>;
+    /// Records what a WEEKNUM or ISOWEEKNUM call left; `None` makes it unknown.
+    fn set_week_start(&mut self, start: Option<Option<u8>>);
 }
 
 /// A [`CellReader`]'s refusal to supply the values of an area.
@@ -323,6 +336,7 @@ pub struct EvalServices<'s> {
     number_separators: Option<(&'s str, &'s str)>,
     host: Option<&'s mut dyn HostFacts>,
     callables: Option<&'s mut dyn CallableInvoker>,
+    week: Option<&'s mut dyn WeekState>,
 }
 
 impl<'s> EvalServices<'s> {
@@ -338,6 +352,7 @@ impl<'s> EvalServices<'s> {
             number_separators: None,
             host: None,
             callables: None,
+            week: None,
         }
     }
 
@@ -352,6 +367,7 @@ impl<'s> EvalServices<'s> {
             number_separators: None,
             host: None,
             callables: None,
+            week: None,
         }
     }
 
@@ -367,6 +383,12 @@ impl<'s> EvalServices<'s> {
     /// These services with `random` as the source of RAND, RANDBETWEEN and RANDARRAY.
     pub fn with_random(mut self, random: &'s mut dyn RandomSource) -> Self {
         self.random = Some(random);
+        self
+    }
+
+    /// These services with the calculation pass's WEEKNUM state ([`WeekState`]).
+    pub fn with_week_state(mut self, week: &'s mut dyn WeekState) -> Self {
+        self.week = Some(week);
         self
     }
 
@@ -426,6 +448,10 @@ impl<'s> EvalServices<'s> {
 
     pub(crate) fn random(&mut self) -> Option<&mut (dyn RandomSource + 's)> {
         self.random.as_deref_mut()
+    }
+
+    pub(crate) fn week_state(&mut self) -> Option<&mut (dyn WeekState + 's)> {
+        self.week.as_deref_mut()
     }
 
     pub(crate) fn reference_text(&mut self) -> Option<&mut (dyn ReferenceText + 's)> {

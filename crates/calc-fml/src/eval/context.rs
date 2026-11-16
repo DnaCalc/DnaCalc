@@ -42,6 +42,8 @@ impl From<CalcEnvironment> for SemanticEnvironment {
 pub struct PassServices<'s> {
     pub clock: Option<f64>,
     pub random: Option<&'s mut dyn RandomSource>,
+    /// The pass's WEEKNUM state (dc-amhpx), given only where the evaluation knows it.
+    pub week: Option<&'s mut dyn calc_func::WeekState>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -105,6 +107,9 @@ pub enum FactInvalidation {
 /// belongs to the formula instance, so a scenario cannot accidentally substitute its caller.
 pub struct FormulaEvaluationContext<'s> {
     pub(super) reference_result: bool,
+    /// The formula is placed in its anchor cell and spills from it (a worksheet cell's formula),
+    /// so a range result holding that cell is checked for spill room before it is read.
+    pub(super) placed: bool,
     pub(super) numeric: &'s NumericMode,
     pub(super) reader: &'s mut dyn ReferenceReader,
     pub(super) environment: Option<SemanticEnvironment>,
@@ -134,6 +139,7 @@ impl<'s> FormulaEvaluationContext<'s> {
     ) -> Self {
         Self {
             reference_result: false,
+            placed: false,
             numeric,
             reader,
             environment: environment.map(Into::into),
@@ -142,6 +148,7 @@ impl<'s> FormulaEvaluationContext<'s> {
             pass: PassServices {
                 clock: environment.and_then(|e| e.now),
                 random: None,
+                week: None,
             },
             observer: None,
             catalog: None,
@@ -162,6 +169,12 @@ impl<'s> FormulaEvaluationContext<'s> {
     /// inside the expression still use the same reader, services and evaluator.
     pub fn with_reference_result(mut self) -> Self {
         self.reference_result = true;
+        self
+    }
+
+    /// The formula is a worksheet cell's, placed at its anchor and spilling from it.
+    pub fn placed_in_cell(mut self) -> Self {
+        self.placed = true;
         self
     }
 
@@ -204,6 +217,12 @@ impl<'s> FormulaEvaluationContext<'s> {
         self.user_function_effects = Some(effects);
         self
     }
+    /// These services with the pass's WEEKNUM state ([`calc_func::WeekState`]).
+    pub fn with_week_state(mut self, week: &'s mut dyn calc_func::WeekState) -> Self {
+        self.pass.week = Some(week);
+        self
+    }
+
     pub fn with_random(mut self, random: &'s mut dyn RandomSource) -> Self {
         self.pass.random = Some(random);
         self

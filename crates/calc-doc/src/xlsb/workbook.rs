@@ -544,6 +544,8 @@ pub(crate) fn write(book: &Book, shared: &Shared) -> Result<Vec<u8>, OpenError> 
         x.open("definedNames", &[]);
         for name in listed {
             let context = Context {
+                layout: formula::Layout::Xlsb,
+                code_page: 0,
                 sheets: &shared.sheet_names,
                 xti: &book.xti,
                 supbooks: &shared.supbooks,

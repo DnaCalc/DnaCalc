@@ -1,0 +1,150 @@
+//! dc-4j0e: the read sweep over legacy Excel files. Native-only: it reads the file system.
+//!
+//! `DNACALC_XLS_SWEEP` is a list of files and directories (separated by `:`); every OLE2 file
+//! under them (by its first eight bytes, whatever its extension) is opened and loaded. Files are
+//! data: they are read, never executed or opened in Office. The test prints the progress table:
+//! files opened, refused by reason, load refusals, panics, and the record types the converter
+//! did not read, most frequent first. It fails only on a panic. Run:
+//!
+//! `DNACALC_XLS_PASSWORD` (optional) is tried on every encrypted file.
+//!
+//! `DNACALC_XLS_SWEEP=/path/a:/path/b cargo test -p calc-doc --test dc_4j0e_xls_sweep -- --nocapture`
+
+use calc_doc::model::value::{IdAllocator, SheetId};
+use calc_doc::{MemorySource, OpenError, OpenPolicy, PackageRead, legacy_workbook_report};
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
+fn collect(path: &Path, out: &mut Vec<PathBuf>) {
+    if path.is_dir() {
+        if let Ok(read) = std::fs::read_dir(path) {
+            let mut children: Vec<_> = read.flatten().map(|e| e.path()).collect();
+            children.sort();
+            for child in children {
+                collect(&child, out);
+            }
+        }
+    } else if path.is_file() {
+        out.push(path.to_owned());
+    }
+}
+
+/// Native-only: reads the files named by `DNACALC_XLS_SWEEP`.
+#[test]
+fn sweep() {
+    let Ok(list) = std::env::var("DNACALC_XLS_SWEEP") else {
+        println!("DNACALC_XLS_SWEEP is not set: nothing to sweep");
+        return;
+    };
+    let mut files = Vec::new();
+    for item in list.split(':').filter(|s| !s.is_empty()) {
+        collect(Path::new(item), &mut files);
+    }
+    let mut seen = 0usize;
+    let mut opened = 0usize;
+    let mut loaded = 0usize;
+    let (mut formula_cells, mut parse_failures) = (0usize, 0usize);
+    let mut refused: BTreeMap<String, usize> = BTreeMap::new();
+    let mut load_refused: BTreeMap<String, usize> = BTreeMap::new();
+    let mut panics: Vec<String> = Vec::new();
+    let mut unknown: BTreeMap<u16, (u32, usize)> = BTreeMap::new();
+    let mut shown_refusals: BTreeMap<String, String> = BTreeMap::new();
+    std::panic::set_hook(Box::new(|_| {}));
+    for file in &files {
+        let Ok(bytes) = std::fs::read(file) else { continue };
+        if bytes.len() < 8 || bytes[..8] != [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1] {
+            continue;
+        }
+        seen += 1;
+        let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes));
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let policy = OpenPolicy::default();
+            let report = legacy_workbook_report(source.clone(), &policy);
+            let password = std::env::var("DNACALC_XLS_PASSWORD").ok();
+            let document = calc_doc::open_with_password(source, &policy, password.as_deref());
+            let load = document.as_ref().ok().map(|d| {
+                let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+                calc_doc::load(d, &mut ids).map_err(|e| e.to_string()).map(|loaded| {
+                    // Every formula must re-parse in calc-fml.
+                    let (mut formulas, mut failed) = (0usize, 0usize);
+                    for sheet in loaded.model().sheets() {
+                        for (_, input) in loaded.model().sheet_cells(sheet.id()).into_iter().flatten() {
+                            if let calc_doc::model::CellInput::Formula(f) = input {
+                                formulas += 1;
+                                let text = f.rendered().to_string_lossy();
+                                if !calc_fml::parse_formula(&text).diagnostics().is_empty() {
+                                    failed += 1;
+                                }
+                            }
+                        }
+                    }
+                    (formulas, failed)
+                })
+            });
+            (report, document.map(|_| ()), load)
+        }));
+        match result {
+            Err(_) => panics.push(file.display().to_string()),
+            Ok((report, document, load)) => {
+                match document {
+                    Err(OpenError::LegacyWorkbook { detail, .. }) => {
+                        let key = detail.chars().take(70).collect::<String>();
+                        *refused.entry(key.clone()).or_insert(0) += 1;
+                        shown_refusals.entry(key).or_insert_with(|| file.display().to_string());
+                    }
+                    Err(other) => {
+                        let key: String = other.to_string().chars().take(70).collect();
+                        *refused.entry(key.clone()).or_insert(0) += 1;
+                        shown_refusals.entry(key).or_insert_with(|| file.display().to_string());
+                    }
+                    Ok(()) => {
+                        opened += 1;
+                        match load {
+                            Some(Ok((formulas, failed))) => {
+                                loaded += 1;
+                                formula_cells += formulas;
+                                parse_failures += failed;
+                            }
+                            Some(Err(e)) => {
+                                let key: String = e.chars().take(90).collect();
+                                *load_refused.entry(key).or_insert(0) += 1;
+                            }
+                            None => {}
+                        }
+                        if let Ok(Some(report)) = report {
+                            for (id, n) in report.unknown_records {
+                                let slot = unknown.entry(id).or_insert((0, 0));
+                                slot.0 += n;
+                                slot.1 += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    println!("OLE2 files seen:      {seen}");
+    println!("opened (converted):   {opened}");
+    println!("loaded (model built): {loaded}");
+    println!("formula cells loaded: {formula_cells}, not re-parsed by calc-fml: {parse_failures}");
+    println!("refused to open, by reason:");
+    for (reason, n) in &refused {
+        println!("  {n:5}  {reason}   e.g. {}", shown_refusals[reason]);
+    }
+    println!("opened but refused to load, by reason:");
+    for (reason, n) in &load_refused {
+        println!("  {n:5}  {reason}");
+    }
+    println!("panics: {}", panics.len());
+    for p in &panics {
+        println!("  {p}");
+    }
+    let mut by_count: Vec<_> = unknown.iter().collect();
+    by_count.sort_by_key(|(_, (n, files))| std::cmp::Reverse((*files, *n)));
+    println!("record types not read (type: records, files), top 25:");
+    for (id, (n, files)) in by_count.into_iter().take(25) {
+        println!("  0x{id:04X}: {n} records in {files} files");
+    }
+    assert!(panics.is_empty(), "the reader panicked on {} files", panics.len());
+}

@@ -66,18 +66,40 @@ impl RandomSource for RandomDraws<'_, '_> {
     }
 }
 
-/// Services for one kernel call: the shared reader as its cells and, when the caller gave one,
-/// the shared random source.
+/// The pass's WEEKNUM state shared by the calls of one evaluation (dc-amhpx).
+struct SharedWeek<'w> {
+    state: RefCell<&'w mut dyn calc_func::WeekState>,
+}
+
+/// One call's view of the shared WEEKNUM state.
+struct WeekView<'a, 'w>(&'a SharedWeek<'w>);
+
+impl calc_func::WeekState for WeekView<'_, '_> {
+    fn week_start(&self) -> Option<Option<u8>> {
+        self.0.state.borrow().week_start()
+    }
+    fn set_week_start(&mut self, start: Option<Option<u8>>) {
+        self.0.state.borrow_mut().set_week_start(start);
+    }
+}
+
+/// Services for one kernel call: the shared reader as its cells and, when the caller gave them,
+/// the shared random source and WEEKNUM state.
 fn call_services<'s>(
     numeric: &'s NumericMode,
     cells: &'s mut ReaderCells<'_, '_>,
     random: Option<&'s mut RandomDraws<'_, '_>>,
+    week: Option<&'s mut WeekView<'_, '_>>,
     host: &'s mut ReaderHost<'_, '_>,
     environment: Option<&'s crate::CalcEnvironment>,
 ) -> EvalServices<'s> {
     let services = EvalServices::with_cells(numeric, cells).with_host(host);
     let services = match environment {
         Some(e) => services.with_environment(e),
+        None => services,
+    };
+    let services = match week {
+        Some(week) => services.with_week_state(week),
         None => services,
     };
     match random {
@@ -416,6 +438,44 @@ pub fn evaluate(
     }
 }
 
+/// Whether a dynamic-array formula at `at` whose result is `reference`, a range of one area that
+/// holds `at` itself, cannot spill: a cell of its spill area other than `at` is not blank. Excel
+/// checks the spill area before it reads the range (Excel 16.0.20527 serial recaptures,
+/// admit2-*-OFFSET rows: `=OFFSET(B1,0,-1,100,2)` in A1 beside its arguments in B1:F1 is
+/// #SPILL!, where reading the range first meets its own cell).
+fn spill_blocked_over_itself(
+    reader: &SharedReader<'_>,
+    reference: &ReferenceLike,
+    at: CellKey,
+) -> Result<bool, EvalFault> {
+    let [area] = reference.areas() else {
+        return Ok(false);
+    };
+    if area.cell_count() <= 1 || area.sheet() != at.sheet() || !area.contains(at) {
+        return Ok(false);
+    }
+    let (rows, cols) = (area.row_count(), area.column_count());
+    for r in 0..rows {
+        for c in 0..cols {
+            let (Some(row), Some(column)) = (at.row().checked_add(r), at.column().checked_add(c))
+            else {
+                return Ok(true);
+            };
+            if r == 0 && c == 0 {
+                continue;
+            }
+            let Ok(cell) = CellKey::new(at.sheet(), row, column) else {
+                return Ok(true);
+            };
+            let value = reader.value_of(&ReferenceLike::cell(cell))?;
+            if !matches!(value.core_ref(), CoreRef::Empty | CoreRef::Missing) {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
+}
+
 fn evaluate_slice(
     frame: EvalFrame<'_>,
     services: &mut FormulaEvaluationContext<'_>,
@@ -423,6 +483,7 @@ fn evaluate_slice(
     quantum: usize,
 ) -> EvalStep {
     let reference_result = services.reference_result;
+    let placed = services.placed;
     let EvalFrame { instance, scratch } = frame;
     if cursor.base.is_none()
         && let Some(effects) = services.user_function_effects.as_deref_mut()
@@ -464,6 +525,12 @@ fn evaluate_slice(
         }),
         None => None,
     };
+    let week = match services.pass.week.as_mut() {
+        Some(state) => Some(SharedWeek {
+            state: RefCell::new(&mut **state),
+        }),
+        None => None,
+    };
     let observation_reader = services.observation_reader.as_mut().map(|reader| {
         SharedReader::new(
             &mut **reader,
@@ -480,6 +547,7 @@ fn evaluate_slice(
         held: None,
         current_name: None,
         random: random.as_ref(),
+        week: week.as_ref(),
         instance,
         stack: &mut scratch.stack,
         calls: &mut scratch.calls,
@@ -535,6 +603,9 @@ fn evaluate_slice(
             // A reference stays a reference throughout expression evaluation. Only the final
             // cell result displays its blank positions as zero (dc-b1l.8, W111 cases 129/177).
             (FormulaForm::Dynamic, CoreRef::Reference(reference)) => {
+                if placed && spill_blocked_over_itself(&reader, reference, at)? {
+                    return Ok(CalcValue::error(WorksheetErrorCode::Spill));
+                }
                 zero_array_blanks(reader.values_of(reference)?)
             }
             _ => value,
@@ -590,6 +661,7 @@ struct Run<'a, 'r> {
     reader: &'a SharedReader<'r>,
     /// The source of RAND, RANDBETWEEN and RANDARRAY, when the caller gave one.
     random: Option<&'a SharedRandom<'r>>,
+    week: Option<&'a SharedWeek<'r>>,
     /// The workbook context INDIRECT's text is bound in, when the caller gave one.
     catalog: Option<&'a dyn ReferenceCatalog>,
     functions: Option<&'a crate::CallableTable>,
@@ -1639,10 +1711,12 @@ impl Run<'_, '_> {
             };
             let environment = self.reader.environment();
             let mut draws = self.random.map(RandomDraws);
+            let mut week = self.week.map(WeekView);
             let mut services = call_services(
                 self.numeric,
                 &mut cells,
                 draws.as_mut(),
+                week.as_mut(),
                 &mut host,
                 environment.as_ref(),
             );
@@ -1688,6 +1762,7 @@ impl Run<'_, '_> {
         let reader = self.reader;
         let numeric = self.numeric;
         let random = self.random;
+        let week = self.week;
         reader.clear_refusal();
         let mut callables = Callables {
             run: &mut *self,
@@ -1700,10 +1775,12 @@ impl Run<'_, '_> {
             let mut host = ReaderHost { shared: reader };
             let environment = reader.environment();
             let mut draws = random.map(RandomDraws);
+            let mut week = week.map(WeekView);
             let mut services = call_services(
                 numeric,
                 &mut cells,
                 draws.as_mut(),
+                week.as_mut(),
                 &mut host,
                 environment.as_ref(),
             )
@@ -1885,10 +1962,12 @@ impl Run<'_, '_> {
             };
             let environment = self.reader.environment();
             let mut draws = self.random.map(RandomDraws);
+            let mut week = self.week.map(WeekView);
             let mut services = call_services(
                 self.numeric,
                 &mut cells,
                 draws.as_mut(),
+                week.as_mut(),
                 &mut host,
                 environment.as_ref(),
             );
@@ -2001,10 +2080,12 @@ impl Run<'_, '_> {
                 };
                 let environment = self.reader.environment();
                 let mut draws = self.random.map(RandomDraws);
+                let mut week = self.week.map(WeekView);
                 let mut services = call_services(
                     self.numeric,
                     &mut cells,
                     draws.as_mut(),
+                    week.as_mut(),
                     &mut host,
                     environment.as_ref(),
                 );
@@ -4555,6 +4636,7 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
             numeric: self.run.numeric,
             reader: self.run.reader,
             random: self.run.random,
+            week: self.run.week,
             catalog: self.run.catalog,
             functions: self.run.functions,
             read_policy: self.run.read_policy,

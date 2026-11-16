@@ -21,7 +21,7 @@
 //! (its lengths and fill), so a data bar converts with SpreadsheetML 2006's.
 
 mod commands;
-mod formula;
+pub(crate) mod formula;
 mod parts;
 mod records;
 mod sheet;
@@ -33,7 +33,7 @@ use crate::opc::{Package, TargetMode};
 use crate::save::text::{attribute_value, xstring};
 use std::collections::BTreeMap;
 
-pub(crate) use records::Malformed;
+pub(crate) use records::{Cursor, Malformed};
 
 /// The content type of an Excel binary workbook's workbook part.
 const BINARY_MAIN: &str = "application/vnd.ms-excel.sheet.binary.macroEnabled.main";

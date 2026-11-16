@@ -512,6 +512,42 @@ struct Sizing {
     previous: Option<GridArea>,
 }
 
+/// A pass's WEEKNUM state for one evaluation (calc_fml::WeekState, dc-amhpx): no week start
+/// until a WEEKNUM or ISOWEEKNUM of the evaluation leaves one.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct PassWeek {
+    /// What the last call left; `None` before any.
+    left: Option<Option<Option<u8>>>,
+    /// Whether a call read the fresh state (no call before it left anything).
+    read_fresh: Cell<bool>,
+    /// Whether a later call left a week start (or an unknown state) after such a read.
+    set_after_fresh_read: bool,
+}
+
+impl PassWeek {
+    fn history_dependent(&self) -> bool {
+        self.set_after_fresh_read
+    }
+}
+
+impl calc_fml::WeekState for PassWeek {
+    fn week_start(&self) -> Option<Option<u8>> {
+        match self.left {
+            Some(left) => left,
+            None => {
+                self.read_fresh.set(true);
+                Some(None)
+            }
+        }
+    }
+    fn set_week_start(&mut self, start: Option<Option<u8>>) {
+        if self.read_fresh.get() && matches!(start, Some(Some(_)) | None) {
+            self.set_after_fresh_read = true;
+        }
+        self.left = Some(start);
+    }
+}
+
 /// The storage one evaluation works in (dc-2m0: each thread of a parallel recalculation has its
 /// own; a one-thread recalculation keeps one in its work): the evaluator's scratch, the areas the
 /// evaluation read, the reader's gathering storage, and whether it read a formula of `kept`.
@@ -529,6 +565,9 @@ pub(crate) struct EvalLocal {
     activation: Option<calc_fml::EvalContinuation>,
     placement: Option<(CalcValue, Vec<Prerequisite>, Calculation)>,
     random: Option<RandomStream>,
+    /// The WEEKNUM state of this formula's evaluation when it is alone with WEEKNUM in the
+    /// workbook (dc-amhpx), kept with its activation.
+    week: Option<PassWeek>,
     quantum: usize,
     read_stamps: Vec<ReadSpan>,
     name_reads: Vec<calc_fml::reference::NameBindingProof>,
@@ -5960,6 +5999,16 @@ fn evaluate_unstamped(
     let mut activation = local.activation.take().unwrap_or_else(|| {
         calc_fml::EvalContinuation::new(instance, std::mem::take(&mut local.scratch))
     });
+    // A new activation starts with no WEEKNUM run before it in the pass when the formula is the
+    // only one that may call WEEKNUM or ISOWEEKNUM; otherwise the state is not known.
+    let mut week = if local.activation.is_some() {
+        local.week.take()
+    } else {
+        state
+            .bindings
+            .alone_with_week(&node)
+            .then(PassWeek::default)
+    };
     let mut random = local.random.take().unwrap_or_else(|| {
         RandomStream::new(
             shared.random_seed
@@ -6029,7 +6078,11 @@ fn evaluate_unstamped(
             .with_catalog(&catalog)
             .with_random(&mut random)
             .with_user_function_effects(&mut user_effects)
-            .observed_by(instrument);
+            .observed_by(instrument)
+            .placed_in_cell();
+            if let Some(week) = week.as_mut() {
+                services = services.with_week_state(week);
+            }
             if let Some(inputs) = shared.external_inputs {
                 services = services.with_external_inputs(inputs);
             }
@@ -6120,6 +6173,7 @@ fn evaluate_unstamped(
                 local.footprint = footprint.into_inner();
                 local.activation = Some(activation);
                 local.random = Some(random);
+                local.week = week;
                 return Ok(Attempt::Suspended);
             }
             let reason = match reason {
@@ -6148,6 +6202,7 @@ fn evaluate_unstamped(
             local.footprint = footprint.into_inner();
             local.activation = Some(activation);
             local.random = Some(random);
+            local.week = week;
             return Ok(Attempt::Waits { on, cell });
         }
         if local.effects.calls() > 0 {
@@ -6184,6 +6239,7 @@ fn evaluate_unstamped(
             local.footprint = footprint.into_inner();
             local.activation = Some(activation);
             local.random = Some(random);
+            local.week = week;
             return Ok(
                 if local
                     .activation
@@ -6198,7 +6254,18 @@ fn evaluate_unstamped(
         }
         calc_fml::EvalStep::Complete(outcome) => {
             local.scratch = activation.into_scratch();
-            outcome
+            // A WEEKNUM that read the fresh state before the same evaluation left a week start
+            // depends on what earlier evaluations left (Excel keeps the state past a pass:
+            // cell-context weeknum-pass, `=WEEKNUM(45000,30)&"|"&WEEKNUM(45000,2)` is #NUM! asked
+            // alone and 12|12 after another case): not modelled.
+            if week.as_ref().is_some_and(PassWeek::history_dependent) {
+                Err(EvalFault::NotModelled {
+                    construct: "a WEEKNUM that read the pass state before its own formula set one",
+                    owner: "dc-amhpx",
+                })
+            } else {
+                outcome
+            }
         }
     };
     let mut areas = footprint.into_inner();

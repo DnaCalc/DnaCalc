@@ -401,7 +401,7 @@ impl App {
                     "Open a workbook",
                     &[calc_platform_desktop::dialogs::FileFilter {
                         name: "Excel workbooks",
-                        patterns: "*.xlsx;*.xlsm;*.xlsb;*.xltx;*.xltm",
+                        patterns: "*.xlsx;*.xlsm;*.xlsb;*.xltx;*.xltm;*.xls;*.xla;*.xlt",
                     }],
                 )
                 .and_then(|path| path.map(|path| read_open_file(&path)).transpose());

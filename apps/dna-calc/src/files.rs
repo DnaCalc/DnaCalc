@@ -171,7 +171,7 @@ pub(crate) fn controls(
                     node_ref=editing
                     type="file"
                     hidden=true
-                    accept=".xlsx,.xlsm,.xlsb,.xltx,.xltm"
+                    accept=".xlsx,.xlsm,.xlsb,.xltx,.xltm,.xls,.xla,.xlt"
                     data-dnacalc="open-editing-file"
                     on:change=move |ev| {
                         use wasm_bindgen::JsCast;

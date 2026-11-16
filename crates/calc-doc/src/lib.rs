@@ -89,6 +89,7 @@ mod session;
 mod session_look;
 mod source;
 mod vba;
+mod xls;
 mod xlsb;
 mod xml;
 mod zip;
@@ -126,6 +127,7 @@ pub use session::{
 };
 pub use source::{MemorySource, PackageRead, PackageWrite, SinkError, SourceError};
 pub use vba::{VBA_PROJECT_CONTENT_TYPE, VbaProjectPart, VbaReadError, VbaReadPolicy};
+pub use xls::LegacyReport;
 pub use xml::{
     XmlAttribute, XmlElement, XmlError, XmlEvent, XmlLimits, XmlName, XmlPart, XmlReader, XmlStr,
 };
@@ -135,11 +137,18 @@ use std::sync::Arc;
 /// A document opened from a package.
 pub struct OpenedDocument {
     package: Arc<opc::Package>,
+    legacy: Option<Arc<[u8]>>,
 }
 
 impl OpenedDocument {
     pub fn package(&self) -> &Package {
         &self.package
+    }
+
+    /// The bytes of the legacy Excel workbook (.xls, .xla, .xlt) this document was converted from,
+    /// `None` for any other document.
+    pub fn legacy_source(&self) -> Option<&[u8]> {
+        self.legacy.as_deref()
     }
 
     pub(crate) fn package_arc(&self) -> &Arc<Package> {
@@ -158,7 +167,36 @@ pub fn open(
     source: Arc<dyn PackageRead>,
     policy: &OpenPolicy,
 ) -> Result<OpenedDocument, OpenError> {
-    let package = opc::Package::open(source, policy)?;
+    open_with_password(source, policy, None)
+}
+
+/// [`open`] with the password of an encrypted legacy Excel workbook (.xls, .xla, .xlt: XOR
+/// obfuscation, RC4 or RC4 CryptoAPI). `None` tries only the password Excel uses for a workbook
+/// it saves read-only recommended (`VelvetSweatshop`); a workbook that needs another is
+/// [`OpenError::PasswordRequired`], and a wrong one [`OpenError::WrongPassword`]. A package that
+/// is not a legacy workbook ignores the password.
+pub fn open_with_password(
+    source: Arc<dyn PackageRead>,
+    policy: &OpenPolicy,
+    password: Option<&str>,
+) -> Result<OpenedDocument, OpenError> {
+    let package = match opc::Package::open(source.clone(), policy) {
+        Ok(package) => package,
+        // Not a ZIP archive: an OLE compound file is a legacy Excel workbook. (The ZIP route is
+        // tried first so a package's own bytes are not read at offset 0 before it is opened.)
+        Err(OpenError::NotAZipArchive) => {
+            let Some(bytes) = legacy_bytes(source.as_ref(), policy)? else {
+                return Err(OpenError::NotAZipArchive);
+            };
+            let (converted, _) = xls::convert(&bytes, password)?;
+            let package = opc::Package::open(Arc::new(MemorySource::new(converted)), policy)?;
+            return Ok(OpenedDocument {
+                package: Arc::new(package),
+                legacy: Some(bytes.into()),
+            });
+        }
+        Err(other) => return Err(other),
+    };
     // An Excel binary workbook is read as the SpreadsheetML package it stands for.
     if let Some(workbook) = xlsb::binary_workbook(&package) {
         let converted = xlsb::convert(&package, &workbook)?;
@@ -167,11 +205,48 @@ pub fn open(
             .with_original_binary(original);
         return Ok(OpenedDocument {
             package: Arc::new(package),
+            legacy: None,
         });
     }
     Ok(OpenedDocument {
         package: Arc::new(package),
+        legacy: None,
     })
+}
+
+/// The bytes of `source` when it is an OLE compound file (a legacy Excel workbook), within the
+/// policy's package size limit.
+fn legacy_bytes(source: &dyn PackageRead, policy: &OpenPolicy) -> Result<Option<Vec<u8>>, OpenError> {
+    let length = source.size();
+    if length < 8 {
+        return Ok(None);
+    }
+    let mut signature = [0u8; 8];
+    source.read_at(0, &mut signature).map_err(OpenError::Source)?;
+    if !xls::is_legacy(&signature) {
+        return Ok(None);
+    }
+    if length > policy.package.max_package_bytes {
+        return Err(OpenError::PackageTooLarge {
+            length,
+            limit: policy.package.max_package_bytes,
+        });
+    }
+    let mut bytes = vec![0u8; length as usize];
+    source.read_at(0, &mut bytes).map_err(OpenError::Source)?;
+    Ok(Some(bytes))
+}
+
+/// What reading the legacy Excel workbook in `source` found (its BIFF version, its sheets and the
+/// record types not read, counted); `None` when `source` is not a legacy workbook.
+pub fn legacy_workbook_report(
+    source: Arc<dyn PackageRead>,
+    policy: &OpenPolicy,
+) -> Result<Option<LegacyReport>, OpenError> {
+    match legacy_bytes(source.as_ref(), policy)? {
+        Some(bytes) => xls::convert(&bytes, None).map(|(_, report)| Some(report)),
+        None => Ok(None),
+    }
 }
 
 /// The SpreadsheetML package (the bytes of an .xlsx or .xlsm archive) an Excel binary workbook

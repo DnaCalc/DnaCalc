@@ -228,6 +228,9 @@ pub(crate) struct Bindings {
     /// Slots whose current binding can spill, in the same order as `iter`.
     /// Range reads inspect these producers rather than every scalar formula.
     spill_slots: BTreeSet<u32>,
+    /// Slots whose current binding may call WEEKNUM or ISOWEEKNUM, data tables included (their
+    /// cells run other formulas): a pass's WEEKNUM state is known only to a formula alone here.
+    week_slots: BTreeSet<u32>,
 }
 
 impl Bindings {
@@ -254,6 +257,12 @@ impl Bindings {
         })
     }
 
+    /// Whether `node` is the only bound formula that may call WEEKNUM or ISOWEEKNUM (dc-amhpx):
+    /// no other call of them runs in its calculation pass.
+    pub(crate) fn alone_with_week(&self, node: &NodeId) -> bool {
+        self.week_slots.len() == 1 && self.week_slots.contains(&node.slot())
+    }
+
     pub(crate) fn contains_key(&self, node: &NodeId) -> bool {
         self.get(node).is_some()
     }
@@ -268,6 +277,19 @@ impl Bindings {
         } else {
             self.spill_slots.remove(&node.slot());
         }
+        let week = match &binding {
+            Binding::Placed(instance, _) => instance
+                .plan()
+                .calls()
+                .any(|target| matches!(target.spelling(), "WEEKNUM" | "ISOWEEKNUM")),
+            Binding::DataTable(_) => true,
+            Binding::Refused(_) => false,
+        };
+        if week {
+            self.week_slots.insert(node.slot());
+        } else {
+            self.week_slots.remove(&node.slot());
+        }
         self.slots[slot] = Some((node, binding));
     }
 
@@ -276,6 +298,7 @@ impl Bindings {
             && entry.as_ref().is_some_and(|(held, _)| held == node)
         {
             self.spill_slots.remove(&node.slot());
+            self.week_slots.remove(&node.slot());
             *entry = None;
         }
     }

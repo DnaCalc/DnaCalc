@@ -340,11 +340,19 @@ fn sum_pairwise(
     term: fn(f64, f64) -> f64,
 ) -> Step<CalcValue> {
     validate_paired_singletons(site, a, [0, 1], services)?;
-    let left = numeric_cells(site, a, 0, services)?;
-    let right = numeric_cells(site, a, 1, services)?;
-    if left.0 != right.0 {
+    // Arguments of different shapes are #N/A before an error cell of either is read (Excel
+    // 16.0.20527 through Touchstone, 2026-11-16: `=SUMX2PY2({#VALUE!;1},{1;2;3})`,
+    // `=SUMX2MY2({#NUM!;1},{1;2;3})` and `=SUMXMY2({#DIV/0!;1},{1;2;3})` are #N/A).
+    let (left_shape, right_shape) = {
+        let left = grid(site, a, 0, services)?;
+        let right = grid(site, a, 1, services)?;
+        ((left.rows, left.cols), (right.rows, right.cols))
+    };
+    if left_shape != right_shape {
         return fail(WorksheetErrorCode::NA);
     }
+    let left = numeric_cells(site, a, 0, services)?;
+    let right = numeric_cells(site, a, 1, services)?;
     let mut seen = false;
     let mut sum = 0.0;
     for (x, y) in left.1.iter().zip(&right.1) {

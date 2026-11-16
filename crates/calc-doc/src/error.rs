@@ -77,6 +77,14 @@ pub enum OpenError {
     /// An Excel binary workbook (.xlsb) holds a part, a record or a formula token its conversion
     /// to SpreadsheetML does not read (bead dc-5sr): `part` names the part, `detail` what in it.
     BinaryWorkbook { part: String, detail: String },
+    /// A legacy Excel workbook (.xls, .xla, .xlt; dc-4j0e) holds a stream, a record or a form its
+    /// conversion to SpreadsheetML does not read: `stream` names the stream, `detail` what in it.
+    LegacyWorkbook { stream: String, detail: String },
+    /// A legacy Excel workbook is encrypted and the password it needs was not given
+    /// ([`crate::open_with_password`] takes one).
+    PasswordRequired,
+    /// The password given does not open the legacy Excel workbook.
+    WrongPassword,
 }
 
 impl fmt::Display for OpenError {
@@ -136,6 +144,12 @@ impl fmt::Display for OpenError {
             Self::InvalidRelationships { part, detail } => {
                 write!(f, "the relationships part {part:?} is invalid: {detail}")
             }
+            Self::PasswordRequired => f.write_str("the workbook is encrypted and needs a password"),
+            Self::WrongPassword => f.write_str("the password does not open the workbook"),
+            Self::LegacyWorkbook { stream, detail } => write!(
+                f,
+                "the legacy workbook stream {stream:?} holds {detail}, which is not read"
+            ),
             Self::BinaryWorkbook { part, detail } => write!(
                 f,
                 "the binary workbook part {part:?} holds {detail}, which is not read"
