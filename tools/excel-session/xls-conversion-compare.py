@@ -238,6 +238,8 @@ def package(data):
             sheets.append({'name': s.get('name'), 'state': s.get('state', 'visible'), 'cells': cells,
                            'default_column_width': (sh.find(M + 'sheetFormatPr').get('defaultColWidth')
                                                     if sh.find(M + 'sheetFormatPr') is not None else None),
+                           'columns': [(e.get('min'), e.get('max'), e.get('width'))
+                                       for e in sh.findall(f'{M}cols/{M}col')],
                            'views': [{k: e.get(k) for k in ('showOutlineSymbols', 'defaultGridColor', 'colorId', 'view',
                                                              'zoomScale', 'zoomScaleNormal', 'zoomScaleSheetLayoutView')
                                       if e.get(k) is not None} for e in sh.findall(f'{M}sheetViews/{M}sheetView')],

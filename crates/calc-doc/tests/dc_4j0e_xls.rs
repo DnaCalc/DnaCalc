@@ -38,7 +38,9 @@ fn write_legacy_excel_session_inputs() {
     let globals = [supbook_self(1), extern_sheet(&[(0, 0, 0)]),
         name_record(0, 0, "Rate", &ptg::cell3d(0, 0, 0, 0))].concat();
     let biff8 = xls(false, &globals, &[Sheet::worksheet("Data", cells)]);
-    let mut old_cells = v5::label(0, 0, b"legacy");
+    let mut gcw = u16s(&[32]); gcw.push(0b0000_0101); gcw.extend([0u8; 31]);
+    let mut old_cells = [record(0x0055, &u16s(&[8])), colinfo(0, 1, 3072, 0x0002),
+        record(0x0099, &u16s(&[2340])), record(0x00AB, &gcw), v5::label(0, 0, b"legacy")].concat();
     old_cells.extend(record(0x001B, &u16s(&[1, 25])));
     old_cells.extend(record(0x001A, &u16s(&[1, 5])));
     let biff5 = v5::xls(1252, &[], &[v5::Sheet { name: b"Data".to_vec(), records: old_cells }]);
@@ -622,6 +624,29 @@ fn fractional_standard_width_takes_precedence_and_survives_save() {
     let reopened = calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap();
     let loaded = calc_doc::load(&reopened, &mut IdAllocator::<SheetId>::new()).unwrap();
     assert_eq!(loaded.sheets()[0].geometry().default_column_width, Some(2340.0 / 256.0));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn biff5_global_width_bitmap_overrides_only_selected_columns() {
+    let mut gcw = u16s(&[32]);
+    gcw.extend([0b0000_0101]); // A and C use STANDARDWIDTH, B keeps COLINFO.
+    gcw.extend([0u8; 31]);
+    let records = [record(0x0055, &u16s(&[8])), colinfo(0, 1, 3072, 0x0002),
+        record(0x0099, &u16s(&[2340])), record(0x00AB, &gcw), v5::label(0, 0, b"x")].concat();
+    let bytes = v5::xls(1252, &[], &[v5::Sheet { name: b"S".to_vec(), records }]);
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let loaded = calc_doc::load(&document, &mut IdAllocator::<SheetId>::new()).unwrap();
+    let columns = &loaded.sheets()[0].geometry().columns;
+    assert_eq!(columns.iter().map(|c| (c.first, c.last, c.width)).collect::<Vec<_>>(),
+        vec![(1, 1, Some(2340.0 / 256.0)), (2, 2, Some(12.0)), (3, 3, Some(2340.0 / 256.0))]);
+    assert!(!legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap().unknown_records.contains_key(&0x00AB));
+    let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+    let mut saved = Vec::new(); calc_doc::write(plan, &mut saved).unwrap();
+    let doc = calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap();
+    let loaded = calc_doc::load(&doc, &mut IdAllocator::<SheetId>::new()).unwrap();
+    assert_eq!(loaded.sheets()[0].geometry().columns.iter().map(|c| c.width).collect::<Vec<_>>(),
+        vec![Some(2340.0 / 256.0), Some(12.0), Some(2340.0 / 256.0)]);
 }
 
 fn defined_names(bytes: &[u8]) -> Vec<String> {
