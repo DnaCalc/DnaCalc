@@ -371,7 +371,7 @@ fn no_count_string(c: &mut Cursor<'_>, count: usize, what: &str) -> Result<Strin
 }
 
 /// The name a built-in NAME record's code stands for (2.5.171 and the `_xlnm.` names).
-fn built_in_name(code: u16) -> Option<&'static str> {
+pub(crate) fn built_in_name(code: u16) -> Option<&'static str> {
     Some(match code {
         0x00 => "_xlnm.Consolidate_Area",
         0x01 => "_xlnm.Auto_Open",

@@ -517,17 +517,22 @@ pub(crate) fn convert(
             if ids.iter().filter(|(_, r)| r.body == id_record.body).count() != 1 { continue; }
             let (Some(kind), Some(source)) = (globals_records.get(position + 1), globals_records.get(position + 2)) else { continue };
             if kind.id != 0x00E3 || kind.body != [1, 0] || !kind.continues.is_empty() { continue; }
-            let Some((sheet, range, columns)) = pivot_cache::source(source, &globals.sheets) else { continue };
+            let Some(source) = pivot_cache::source(source, &globals.sheets, &globals.names) else { continue };
             let Ok(Some(bytes)) = compound.read(&format!("_SX_DB_CUR/{id:04X}")) else { continue };
             let Some(parsed) = pivot_cache::read(&bytes, id) else { continue };
-            if parsed.fields.len() != columns { continue; }
+            let (sheet, range, source_name) = match source {
+                pivot_cache::Source::Range { sheet, range, columns } if parsed.fields.len() == columns =>
+                    (Some(sheet), Some(range), None),
+                pivot_cache::Source::WorkbookName(name) => (None, None, Some(name)),
+                _ => continue,
+            };
             let number = cache_id + 1;
             let part = format!("xl/pivotCache/pivotCacheDefinition{number}.xml");
             let records_part = format!("xl/pivotCache/pivotCacheRecords{number}.xml");
             let cache = PivotCache {
                 id: cache_id as u32, part: part.clone(), records_part: Some(records_part.clone()),
                 record_count: Some(parsed.rows.len() as u64), source_type: "worksheet".into(),
-                source_connection_id: None, source_sheet: Some(sheet), source_range: Some(range), source_name: None,
+                source_connection_id: None, source_sheet: sheet, source_range: range, source_name,
                 fields: parsed.fields, calculated_items: Vec::new(), attributes: BTreeMap::new(), unsupported: Vec::new(),
                 snapshot: Some(Arc::new(PivotSnapshot { records: parsed.rows,
                     origin: PivotSnapshotOrigin::FileRecords { part: records_part.clone() },

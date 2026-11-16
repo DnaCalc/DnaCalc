@@ -1249,14 +1249,15 @@ fn fresh_cache(cache: &PivotCache, records_id: &str) -> Result<Vec<u8>, SaveRefu
         &mut out,
     );
     out.extend(b"><cacheSource type=\"worksheet\"><worksheetSource");
-    let (Some(sheet), Some(range)) = (&cache.source_sheet, &cache.source_range) else {
-        return Err(bad(
-            &cache.part,
-            "New pivots need an explicit worksheet source",
-        ));
-    };
-    string_attr("sheet", sheet, &mut out);
-    attr("ref", range, &mut out);
+    if let (Some(sheet), Some(range)) = (&cache.source_sheet, &cache.source_range) {
+        string_attr("sheet", sheet, &mut out);
+        attr("ref", range, &mut out);
+    } else if let Some(name) = &cache.source_name {
+        string_attr("name", name, &mut out);
+        if let Some(sheet) = &cache.source_sheet { string_attr("sheet", sheet, &mut out); }
+    } else {
+        return Err(bad(&cache.part, "New pivots need an explicit worksheet source"));
+    }
     out.extend(b"/></cacheSource>");
     out.extend(cache_fields(cache)?);
     out.extend(b"</pivotCacheDefinition>");

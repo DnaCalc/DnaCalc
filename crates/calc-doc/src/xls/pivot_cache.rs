@@ -1,5 +1,5 @@
 //! Saved BIFF8 pivot-cache source records. Unsupported or ambiguous caches are left unread.
-use super::{records::{self, Record}, strings::Pieces, workbook::BoundSheet};
+use super::{records::{self, Record}, strings::Pieces, workbook::{BoundSheet, NameRecord}};
 use calc_doc_model::pivot::{PivotCacheField, PivotItem};
 use std::collections::BTreeMap;
 
@@ -8,8 +8,21 @@ pub(crate) struct Cache {
     pub rows: Vec<Vec<PivotItem>>,
 }
 
-/// A cache's explicit range in this workbook; external and named sources stay unread.
-pub(crate) fn source(record: &Record<'_>, sheets: &[BoundSheet]) -> Option<(String, String, usize)> {
+pub(crate) enum Source {
+    Range { sheet: String, range: String, columns: usize },
+    WorkbookName(String),
+}
+
+/// An explicit local range or unambiguous workbook-scoped built-in name.
+pub(crate) fn source(record: &Record<'_>, sheets: &[BoundSheet], names: &[NameRecord]) -> Option<Source> {
+    if record.id == 0x01B5 && record.body.len() == 6 && record.continues.is_empty() {
+        let b = record.body;
+        if b[1..] != [0; 5] { return None; }
+        let name = super::workbook::built_in_name(u16::from(b[0]))?;
+        let matches: Vec<_> = names.iter().filter(|n| n.scope.is_none() && n.name.eq_ignore_ascii_case(name)
+            && !n.rgce.is_empty()).collect();
+        return (matches.len() == 1).then(|| Source::WorkbookName(matches[0].name.clone()));
+    }
     if record.id != 0x0051 || record.body.len() < 11 || !record.continues.is_empty() { return None; }
     let b = record.body;
     let first_row = u16::from_le_bytes([b[0], b[1]]);
@@ -30,7 +43,7 @@ pub(crate) fn source(record: &Record<'_>, sheets: &[BoundSheet]) -> Option<(Stri
     if matching.len() != 1 || matching[0].kind != super::workbook::SheetKind::Worksheet { return None; }
     let cell = |row: u16, col: u8| format!("{}{}", super::sheet::column_name(u32::from(col)), u32::from(row) + 1);
     let range = format!("{}:{}", cell(first_row, first_col), cell(last_row, last_col));
-    Some((sheet, range, usize::from(last_col - first_col) + 1))
+    Some(Source::Range { sheet, range, columns: usize::from(last_col - first_col) + 1 })
 }
 
 fn item(record: &Record<'_>) -> Option<PivotItem> {
@@ -249,5 +262,35 @@ mod tests {
         let plan = crate::prepare_save(&document.snapshot(), &crate::SavePolicy::default()).unwrap();
         let mut saved = Vec::new(); crate::write(plan, &mut saved).unwrap();
         check(&crate::open(source(&saved), &crate::OpenPolicy::default()).unwrap());
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn workbook_scoped_builtin_cache_source_remains_a_name() {
+        let named = kit::name_record(0x20, 0, "\u{4}", &kit::ptg::area3d(0, (0, 2), (0, 1), 0));
+        for have_name in [false, true] {
+            let globals = [kit::supbook_self(1), kit::extern_sheet(&[(0, 0, 0)]),
+                if have_name { named.clone() } else { Vec::new() },
+                kit::record(0x00D5, &kit::u16s(&[7])), kit::record(0x00E3, &kit::u16s(&[1])),
+                kit::record(0x01B5, &[4, 0, 0, 0, 0, 0])].concat();
+            let workbook = kit::workbook_stream(false, &globals, &[kit::Sheet::worksheet("S", Vec::new())]);
+            let bytes = cfb_write::write(vec![("Workbook".into(), Node::Stream(workbook)),
+                ("_SX_DB_CUR".into(), Node::Storage(vec![("0007".into(), Node::Stream(cache(true)))]))]).unwrap();
+            let source = |bytes: &[u8]| Arc::new(crate::MemorySource::new(bytes.to_vec())) as Arc<dyn crate::PackageRead>;
+            let document = crate::open(source(&bytes), &crate::OpenPolicy::default()).unwrap();
+            let check = |doc: &crate::OpenedDocument| {
+                let mut ids = IdAllocator::<SheetId>::new();
+                let loaded = crate::load(doc, &mut ids).unwrap();
+                if have_name {
+                    let cached = loaded.pivot_caches().caches.get(&0).unwrap();
+                    assert_eq!(cached.source_name.as_deref(), Some("_xlnm.Database"));
+                    assert_eq!(loaded.pivot_records(0, 10).unwrap().records.len(), 2);
+                } else { assert!(loaded.pivot_caches().caches.is_empty()); }
+            };
+            check(&document);
+            let plan = crate::prepare_save(&document.snapshot(), &crate::SavePolicy::default()).unwrap();
+            let mut saved = Vec::new(); crate::write(plan, &mut saved).unwrap();
+            check(&crate::open(source(&saved), &crate::OpenPolicy::default()).unwrap());
+        }
     }
 }
