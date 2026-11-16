@@ -489,6 +489,7 @@ pub(crate) fn convert(
     if globals.date_1904 {
         workbook_properties.push(("date1904", "1".to_owned()));
     }
+    if globals.backup_file { workbook_properties.push(("backupFile", "1".to_owned())); }
     if let Some(code_name) = &globals.code_name {
         workbook_properties.push(("codeName", code_name.clone()));
     }
