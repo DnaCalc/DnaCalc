@@ -205,6 +205,7 @@ try {
             try {
                 $null = $book.Names.Add('cx_pivot_source', '=Data!$A$1:$C$201')
                 $namedCache = $book.PivotCaches().Create(1, 'cx_pivot_source', 1)
+                $pivot.named_refresh_setup = GetOrError { $namedCache.RefreshOnFileOpen = $true; $namedCache.RefreshOnFileOpen }
                 $named = $namedCache.CreatePivotTable($out.Range('A22'), 'LegacyPivotNamed', $true, 1)
                 $named.PivotFields('Region').Orientation = 1
                 $null = $named.AddDataField($named.PivotFields('Amount'), 'Named Sum', -4157)
