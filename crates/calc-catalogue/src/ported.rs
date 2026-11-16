@@ -220,12 +220,12 @@ pub mod math {
     43 "BASE" (2, 3) [V "number", V "radix", V "min_length"] three_d (None, None, Some(&[])); ;
     44 "DECIMAL" (2, 2) [V "text", V "radix"] three_d (None, None, Some(&[])); ;
     45 "SERIESSUM" (4, 4) [V "x", V "n", V "m", R "coefficients" ~ AggregateAtRoot] three_d (None, Some(&[]), None); ;
-    46 "SUMX2MY2" (2, 2) [R "array_x" ~ ArrayAtRoot, R "array_y" ~ ArrayAtRoot] three_d (None, None, Some(&[])); ;
-    47 "SUMX2PY2" (2, 2) [R "array_x" ~ ArrayAtRoot, R "array_y" ~ ArrayAtRoot] three_d (None, None, Some(&[])); ;
+    46 "SUMX2MY2" (2, 2) [R "array_x" ~ ArrayAtRoot, R "array_y" ~ ArrayAtRoot] traits num_error_references; three_d (None, None, Some(&[])); ;
+    47 "SUMX2PY2" (2, 2) [R "array_x" ~ ArrayAtRoot, R "array_y" ~ ArrayAtRoot] traits num_error_references; three_d (None, None, Some(&[])); ;
     48 "SUMXMY2" (2, 2) [R "array_x" ~ ArrayAtRoot, R "array_y" ~ ArrayAtRoot] three_d (None, None, Some(&[])); ;
     49 "MDETERM" (1, 1) [R "array" ~ ArrayAtRoot] three_d (None, None, Some(&[])); ;
     50 "MINVERSE" (1, 1) [R "array" ~ ArrayAlways] three_d (None, None, Some(&[])); ;
-    51 "MMULT" (2, 2) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRoot] three_d (None, None, Some(&[])); ;
+    51 "MMULT" (2, 2) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRoot] traits value_error_references; three_d (None, None, Some(&[])); ;
     52 "MUNIT" (1, 1) [V "dimension"] three_d (None, None, Some(&[])); ;
     }
 }
@@ -235,11 +235,11 @@ pub mod lambda_helpers {
     pub const CODE: u16 = 311;
     data_family! {
         code: CODE;
-    1 "MAP" (2, 254) [R "array1" ~ ArrayAtRoot, R "lambda_or_array2" ~ AggregateAtRootTwice] three_d (None, Some(&[0]), Some(&[1, usize::MAX]));  ;
-    2 "REDUCE" (3, 3) [R "initial_value" ~ AggregateAtRoot, R "array" ~ ArrayAtRoot, R "lambda" ~ AggregateAtRoot] result MayBeEither; three_d (None, Some(&[1]), Some(&[0, 2]));  ;
-    3 "SCAN" (3, 3) [R "initial_value" ~ AggregateAtRoot, R "array" ~ ArrayAtRoot, R "lambda" ~ AggregateAtRoot] three_d (None, Some(&[1]), Some(&[0, 2]));  ;
-    4 "BYROW" (1, 2) [R "array" ~ ArrayAtRoot, R "lambda" ~ AggregateAtRoot] three_d (None, Some(&[0]), Some(&[1]));  ;
-    5 "BYCOL" (1, 2) [R "array" ~ ArrayAtRoot, R "lambda" ~ AggregateAtRoot] three_d (None, Some(&[0]), Some(&[1]));  ;
+    1 "MAP" (2, 254) [R "array1" ~ ArrayAtRoot, R "lambda_or_array2" ~ AggregateAtRootTwice] traits take_reference_array; three_d (None, Some(&[0]), Some(&[1, usize::MAX]));  ;
+    2 "REDUCE" (3, 3) [R "initial_value" ~ AggregateAtRoot, R "array" ~ ArrayAtRoot, R "lambda" ~ AggregateAtRoot] result MayBeEither; traits take_reference_array; three_d (None, Some(&[1]), Some(&[0, 2]));  ;
+    3 "SCAN" (3, 3) [R "initial_value" ~ AggregateAtRoot, R "array" ~ ArrayAtRoot, R "lambda" ~ AggregateAtRoot] traits take_reference_array; three_d (None, Some(&[1]), Some(&[0, 2]));  ;
+    4 "BYROW" (1, 2) [R "array" ~ ArrayAtRoot, R "lambda" ~ AggregateAtRoot] traits take_reference_array; three_d (None, Some(&[0]), Some(&[1]));  ;
+    5 "BYCOL" (1, 2) [R "array" ~ ArrayAtRoot, R "lambda" ~ AggregateAtRoot] traits take_reference_array; three_d (None, Some(&[0]), Some(&[1]));  ;
     6 "MAKEARRAY" (3, 3) [V "rows", V "cols", R "lambda" ~ AggregateAtRoot] three_d (None, None, Some(&[]));  ;
     }
 }
@@ -249,60 +249,60 @@ pub mod statistics {
     pub const CODE: u16 = 103;
     data_family! {
         code: CODE;
-    1 "AVEDEV" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); ;
-    2 "DEVSQ" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); ;
-    3 "GEOMEAN" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); ;
-    4 "HARMEAN" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); ;
-    5 "MEDIAN" (1, 255) [R "number1" ~ AggregateUnderArray, R "number2" ~ AggregateUnderArrayRepeated] three_d (Some(&[]), None, None); ;
-    6 "MODE" (1, 255) [R "number1" ~ ArrayAtRoot, R "number2" ~ ArrayAtRootRepeated] three_d (None, None, Some(&[])); ;
-    7 "MODE.SNGL" (1, 255) [R "number1" ~ ArrayAtRoot, R "number2" ~ ArrayAtRootRepeated] three_d (None, None, Some(&[])); ;
-    8 "MODE.MULT" (1, 255) [R "number1" ~ ArrayAtRoot, R "number2" ~ ArrayAtRootRepeated] three_d (None, None, Some(&[])); ;
-    9 "LARGE" (2, 2) [R "array" ~ AggregateAtRoot, V "k"] three_d (Some(&[0]), None, Some(&[1])); ;
-    10 "SMALL" (2, 2) [R "array" ~ AggregateAtRoot, V "k"] three_d (Some(&[0]), None, Some(&[1])); ;
-    11 "RANK" (2, 3) [V "number", F "ref" @Reference, V "order"] three_d (Some(&[1]), None, Some(&[0, 2])); ;
-    12 "RANK.EQ" (2, 3) [V "number", F "ref" @Reference, V "order"] three_d (Some(&[1]), None, Some(&[0, 2])); ;
-    13 "RANK.AVG" (2, 3) [V "number", F "ref" @Reference, V "order"] three_d (Some(&[1]), None, Some(&[0, 2])); ;
-    14 "PERCENTILE" (2, 2) [R "array" ~ AggregateAtRoot, V "k"] three_d (Some(&[0]), None, Some(&[1])); ;
-    15 "PERCENTILE.INC" (2, 2) [R "array" ~ AggregateAtRoot, V "k"] three_d (Some(&[0]), None, Some(&[1])); ;
+    1 "AVEDEV" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] traits first_cell_references; three_d (Some(&[]), None, None); ;
+    2 "DEVSQ" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] traits first_cell_references; three_d (Some(&[]), None, None); ;
+    3 "GEOMEAN" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] traits first_cell_references; three_d (Some(&[]), None, None); ;
+    4 "HARMEAN" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] traits value_error_references; three_d (Some(&[]), None, None); ;
+    5 "MEDIAN" (1, 255) [R "number1" ~ AggregateUnderArray, R "number2" ~ AggregateUnderArrayRepeated] traits value_error_references; three_d (Some(&[]), None, None); ;
+    6 "MODE" (1, 255) [R "number1" ~ ArrayAtRoot, R "number2" ~ ArrayAtRootRepeated] traits value_error_references; three_d (None, None, Some(&[])); ;
+    7 "MODE.SNGL" (1, 255) [R "number1" ~ ArrayAtRoot, R "number2" ~ ArrayAtRootRepeated] traits value_error_references; three_d (None, None, Some(&[])); ;
+    8 "MODE.MULT" (1, 255) [R "number1" ~ ArrayAtRoot, R "number2" ~ ArrayAtRootRepeated] traits value_error_references; three_d (None, None, Some(&[])); ;
+    9 "LARGE" (2, 2) [R "array" ~ AggregateAtRoot, V "k"] traits value_error_references; three_d (Some(&[0]), None, Some(&[1])); ;
+    10 "SMALL" (2, 2) [R "array" ~ AggregateAtRoot, V "k"] traits value_error_references; three_d (Some(&[0]), None, Some(&[1])); ;
+    11 "RANK" (2, 3) [V "number", F "ref" @Reference, V "order"] traits lift_dynamic_references; three_d (Some(&[1]), None, Some(&[0, 2])); ;
+    12 "RANK.EQ" (2, 3) [V "number", F "ref" @Reference, V "order"] traits lift_dynamic_references; three_d (Some(&[1]), None, Some(&[0, 2])); ;
+    13 "RANK.AVG" (2, 3) [V "number", F "ref" @Reference, V "order"] traits lift_dynamic_references; three_d (Some(&[1]), None, Some(&[0, 2])); ;
+    14 "PERCENTILE" (2, 2) [R "array" ~ AggregateAtRoot, V "k"] traits value_error_references; three_d (Some(&[0]), None, Some(&[1])); ;
+    15 "PERCENTILE.INC" (2, 2) [R "array" ~ AggregateAtRoot, V "k"] traits value_error_references; three_d (Some(&[0]), None, Some(&[1])); ;
     16 "PERCENTILE.EXC" (2, 2) [R "array" ~ AggregateAtRoot, V "k"] three_d (Some(&[0]), None, Some(&[1])); ;
-    17 "QUARTILE" (2, 2) [R "array" ~ AggregateAtRoot, V "quart"] three_d (Some(&[0]), None, Some(&[1])); ;
+    17 "QUARTILE" (2, 2) [R "array" ~ AggregateAtRoot, V "quart"] traits value_error_references; three_d (Some(&[0]), None, Some(&[1])); ;
     18 "QUARTILE.INC" (2, 2) [R "array" ~ AggregateAtRoot, V "quart"] three_d (Some(&[0]), None, Some(&[1])); ;
     19 "QUARTILE.EXC" (2, 2) [R "array" ~ AggregateAtRoot, V "quart"] three_d (Some(&[0]), None, Some(&[1])); ;
-    20 "PERCENTRANK" (2, 3) [R "array" ~ AggregateAtRoot, V "x", V "significance"] three_d (Some(&[0]), None, Some(&[1, 2])); ;
+    20 "PERCENTRANK" (2, 3) [R "array" ~ AggregateAtRoot, V "x", V "significance"] traits value_error_references; three_d (Some(&[0]), None, Some(&[1, 2])); ;
     21 "PERCENTRANK.INC" (2, 3) [R "array" ~ AggregateAtRoot, V "x", V "significance"] three_d (Some(&[0]), None, Some(&[1, 2])); ;
     22 "PERCENTRANK.EXC" (2, 3) [R "array" ~ AggregateAtRoot, V "x", V "significance"] three_d (Some(&[0]), None, Some(&[1, 2])); ;
-    23 "STDEV" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); ;
-    24 "STDEV.S" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); ;
-    25 "STDEV.P" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); ;
-    26 "STDEVA" (1, 255) [R "value1" ~ AggregateAtRoot, R "value2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); ;
+    23 "STDEV" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] traits first_cell_references; three_d (Some(&[]), None, None); ;
+    24 "STDEV.S" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] traits first_cell_references; three_d (Some(&[]), None, None); ;
+    25 "STDEV.P" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] traits first_cell_references; three_d (Some(&[]), None, None); ;
+    26 "STDEVA" (1, 255) [R "value1" ~ AggregateAtRoot, R "value2" ~ AggregateAtRootRepeated] traits first_cell_references; three_d (Some(&[]), None, None); ;
     27 "STDEVP" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); ;
     28 "STDEVPA" (1, 255) [R "value1" ~ AggregateAtRoot, R "value2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); ;
-    29 "VAR" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); ;
-    30 "VAR.S" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); ;
-    31 "VAR.P" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); ;
+    29 "VAR" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] traits first_cell_references; three_d (Some(&[]), None, None); ;
+    30 "VAR.S" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] traits first_cell_references; three_d (Some(&[]), None, None); ;
+    31 "VAR.P" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] traits first_cell_references; three_d (Some(&[]), None, None); ;
     32 "VARA" (1, 255) [R "value1" ~ AggregateAtRoot, R "value2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); ;
     33 "VARP" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); ;
-    34 "VARPA" (1, 255) [R "value1" ~ AggregateAtRoot, R "value2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); ;
-    35 "COVAR" (2, 2) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRoot] three_d (None, None, Some(&[])); ;
+    34 "VARPA" (1, 255) [R "value1" ~ AggregateAtRoot, R "value2" ~ AggregateAtRootRepeated] traits first_cell_references; three_d (Some(&[]), None, None); ;
+    35 "COVAR" (2, 2) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRoot] traits num_error_references; three_d (None, None, Some(&[])); ;
     36 "COVARIANCE.P" (2, 2) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRoot] three_d (None, None, Some(&[])); ;
     37 "COVARIANCE.S" (2, 2) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRoot] three_d (None, None, Some(&[])); ;
-    38 "CORREL" (2, 2) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRoot] three_d (None, None, Some(&[])); ;
-    39 "PEARSON" (2, 2) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRoot] three_d (None, None, Some(&[])); ;
-    40 "RSQ" (2, 2) [R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAtRoot] three_d (None, None, Some(&[])); ;
-    41 "SLOPE" (2, 2) [R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAtRoot] three_d (None, None, Some(&[])); ;
-    42 "INTERCEPT" (2, 2) [R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAtRoot] three_d (None, None, Some(&[])); ;
+    38 "CORREL" (2, 2) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRoot] traits num_error_references; three_d (None, None, Some(&[])); ;
+    39 "PEARSON" (2, 2) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRoot] traits num_error_references; three_d (None, None, Some(&[])); ;
+    40 "RSQ" (2, 2) [R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAtRoot] traits num_error_references; three_d (None, None, Some(&[])); ;
+    41 "SLOPE" (2, 2) [R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAtRoot] traits num_error_references; three_d (None, None, Some(&[])); ;
+    42 "INTERCEPT" (2, 2) [R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAtRoot] traits num_error_references; three_d (None, None, Some(&[])); ;
     43 "STEYX" (2, 2) [R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAtRoot] three_d (None, None, Some(&[])); ;
     44 "FORECAST" (3, 3) [V "x", R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAtRoot] three_d (None, None, Some(&[])); ;
     45 "FORECAST.LINEAR" (3, 3) [V "x", R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAtRoot] three_d (None, None, Some(&[])); ;
-    46 "KURT" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); ;
-    47 "SKEW" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); ;
+    46 "KURT" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] traits value_error_references; three_d (Some(&[]), None, None); ;
+    47 "SKEW" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] traits value_error_references; three_d (Some(&[]), None, None); ;
     48 "SKEW.P" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); ;
-    49 "TRIMMEAN" (2, 2) [R "array" ~ AggregateAtRoot, V "percent"] three_d (Some(&[0]), None, Some(&[1])); ;
+    49 "TRIMMEAN" (2, 2) [R "array" ~ AggregateAtRoot, V "percent"] traits value_error_references; three_d (Some(&[0]), None, Some(&[1])); ;
     50 "STANDARDIZE" (3, 3) [V "x", V "mean", V "standard_dev"] three_d (None, None, Some(&[])); ;
     51 "FISHER" (1, 1) [V "x"] three_d (None, None, Some(&[])); ;
     52 "FISHERINV" (1, 1) [V "y"] three_d (None, None, Some(&[])); ;
     53 "PROB" (3, 4) [R "x_range" ~ ArrayAtRoot, R "prob_range" ~ ArrayAtRoot, V "lower_limit", V "upper_limit"] three_d (None, None, Some(&[])); ;
-    54 "FREQUENCY" (2, 2) [R "data_array" ~ ArrayAtRoot, R "bins_array" ~ ArrayAtRoot] three_d (Some(&[0, 1]), None, None); ;
+    54 "FREQUENCY" (2, 2) [R "data_array" ~ ArrayAtRoot, R "bins_array" ~ ArrayAtRoot] traits first_cell_references; three_d (Some(&[0, 1]), None, None); ;
     55 "TREND" (1, 4) [R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAtRoot, R "new_xs", V "const"] three_d (None, Some(&[]), None); ;
     56 "GROWTH" (1, 4) [R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAtRoot, R "new_xs", V "const"] three_d (None, Some(&[]), None); ;
     57 "LINEST" (1, 4) [R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAlways, V "const", V "stats"] three_d (None, Some(&[]), None); ;
@@ -331,12 +331,12 @@ pub mod host_facts {
         code: CODE;
     1 "CELL" (1, 2) [V "info_type", F "reference" @Reference] traits lift_dynamic_references; volatile true; ;
     2 "INFO" (1, 1) [V "type_text"] volatile true; ;
-    3 "SHEET" (0, 1) [R "value" ~ AggregateAtRoot] volatile true; three_d (Some(&[0]), None, None); ;
-    4 "SHEETS" (0, 1) [R "reference" ~ ArrayAtRoot] volatile true; three_d (Some(&[0]), None, None); ;
-    5 "FORMULATEXT" (1, 1) [F "reference" @Reference] volatile true; three_d (None, Some(&[]), None); ;
+    3 "SHEET" (0, 1) [R "value" ~ AggregateAtRoot] traits value_error_references; volatile true; three_d (Some(&[0]), None, None); ;
+    4 "SHEETS" (0, 1) [R "reference" ~ ArrayAtRoot] traits value_error_references; volatile true; three_d (Some(&[0]), None, None); ;
+    5 "FORMULATEXT" (1, 1) [F "reference" @Reference] traits lift_dynamic_references; volatile true; three_d (None, Some(&[]), None); ;
     6 "ADDRESS" (2, 5) [V "row_num", V "column_num", V "abs_num", V "a1", V "sheet_text"] three_d (None, None, Some(&[])); ;
     7 "GETPIVOTDATA" (2, 254) [R "data_field", R "pivot_table", V "field1", V "item1"] ;
-    8 "TRANSPOSE" (1, 1) [R "array" ~ AggregateAlwaysIntersectReference] three_d (None, None, Some(&[])); ;
+    8 "TRANSPOSE" (1, 1) [R "array" ~ AggregateAlwaysIntersectReference] traits value_error_references; three_d (None, None, Some(&[])); ;
     9 "FIELDVALUE" (2, 2) [V "value" ~ SingleValue, V "field_name" ~ SingleValue] ;
     }
 }
@@ -351,7 +351,7 @@ pub mod financial {
     3 "PMT" (3, 5) [V "rate", V "nper", V "pv", V "fv", V "type"] three_d (None, None, Some(&[])); ;
     4 "NPER" (3, 5) [V "rate", V "pmt", V "pv", V "fv", V "type"] three_d (None, None, Some(&[])); ;
     5 "RATE" (3, 6) [V "nper", V "pmt", V "pv", V "fv", V "type", V "guess"] three_d (None, None, Some(&[])); ;
-    6 "NPV" (2, 255) [V "rate" ~ AggregateAtRoot, R "value1" ~ AggregateAtRoot, R "value2" ~ AggregateAtRootRepeated] three_d (Some(&[1, usize::MAX]), None, Some(&[0])); ;
+    6 "NPV" (2, 255) [V "rate" ~ AggregateAtRoot, R "value1" ~ AggregateAtRoot, R "value2" ~ AggregateAtRootRepeated] traits first_cell_references; three_d (Some(&[1, usize::MAX]), None, Some(&[0])); ;
     7 "IPMT" (4, 6) [V "rate", V "per", V "nper", V "pv", V "fv", V "type"] three_d (None, None, Some(&[])); ;
     8 "PPMT" (4, 6) [V "rate", V "per", V "nper", V "pv", V "fv", V "type"] three_d (None, None, Some(&[])); ;
     9 "ISPMT" (4, 4) [V "rate", V "per", V "nper", V "pv"] three_d (None, None, Some(&[])); ;
@@ -496,7 +496,7 @@ pub mod database {
     7 "DPRODUCT" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); ;
     8 "DSTDEV" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); ;
     9 "DSTDEVP" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); ;
-    10 "DSUM" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); ;
+    10 "DSUM" (3, 3) [R "database" @Reference, V "field", R "criteria"] traits lift_dynamic_references; three_d (None, Some(&[0]), None); ;
     11 "DVAR" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); ;
     12 "DVARP" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); ;
     }
@@ -508,21 +508,21 @@ pub mod arrays {
     data_family! {
         code: CODE;
     1 "SEQUENCE" (1, 4) [V "rows", V "columns", V "start", V "step"] three_d (None, None, Some(&[]));  ;
-    2 "FILTER" (2, 3) [R "array" ~ ArrayAtRoot, R "include" ~ ArrayAtRoot, R "if_empty" ~ AggregateAtRoot] three_d (None, Some(&[0, 1]), None); ;
-    3 "SORT" (1, 4) [R "array" ~ ArrayAtRoot, R "sort_index" ~ ArrayAtRoot, R "sort_order", V "by_col"] three_d (None, None, Some(&[])); ;
-    4 "SORTBY" (2, 255) [R "array" ~ ArrayAtRoot, R "by_array1" ~ ArrayAtRoot, R "sort_order1" ~ AggregateAtRoot] groups (1, 2, 0); three_d (None, None, Some(&[])); ;
+    2 "FILTER" (2, 3) [R "array" ~ ArrayAtRoot, R "include" ~ ArrayAtRoot, R "if_empty" ~ AggregateAtRoot] traits value_error_references; three_d (None, Some(&[0, 1]), None); ;
+    3 "SORT" (1, 4) [R "array" ~ ArrayAtRoot, R "sort_index" ~ ArrayAtRoot, R "sort_order", V "by_col"] traits value_error_references; three_d (None, None, Some(&[])); ;
+    4 "SORTBY" (2, 255) [R "array" ~ ArrayAtRoot, R "by_array1" ~ ArrayAtRoot, R "sort_order1" ~ AggregateAtRoot] groups (1, 2, 0); traits value_error_references; three_d (None, None, Some(&[])); ;
     5 "UNIQUE" (1, 3) [R "array" ~ ArrayAtRoot, V "by_col", V "exactly_once"] three_d (None, None, Some(&[])); ;
-    6 "TAKE" (2, 3) [R "array" ~ ArrayAtRoot, V "rows", V "columns"] result MayBeReference; three_d (None, Some(&[0]), Some(&[1, 2])); ;
-    7 "DROP" (2, 3) [R "array" ~ ArrayAtRoot, V "rows", V "columns"] result MayBeReference; three_d (None, Some(&[0]), Some(&[1, 2])); ;
-    8 "CHOOSEROWS" (2, 255) [R "array" ~ ArrayAtRoot, R "row_num1" ~ AggregateAtRoot, R "row_num2" ~ AggregateAtRoot] three_d (None, Some(&[0]), Some(&[1, usize::MAX])); ;
-    9 "CHOOSECOLS" (2, 255) [R "array" ~ ArrayAtRoot, R "col_num1" ~ AggregateAtRoot, R "col_num2" ~ AggregateAtRoot] three_d (None, Some(&[0]), Some(&[1, usize::MAX])); ;
-    10 "VSTACK" (1, 254) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRootRepeated] three_d (Some(&[]), None, None); ;
-    11 "HSTACK" (1, 254) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRootRepeated] three_d (Some(&[]), None, None); ;
-    12 "TOCOL" (1, 3) [R "array" ~ ArrayAtRoot, V "ignore", V "scan_by_column"] three_d (Some(&[0]), None, Some(&[1])); ;
-    13 "TOROW" (1, 3) [R "array" ~ ArrayAtRoot, V "ignore", V "scan_by_column"] three_d (Some(&[0]), None, Some(&[1])); ;
+    6 "TAKE" (2, 3) [R "array" ~ ArrayAtRoot, V "rows", V "columns"] result MayBeReference; traits value_error_references; three_d (None, Some(&[0]), Some(&[1, 2])); ;
+    7 "DROP" (2, 3) [R "array" ~ ArrayAtRoot, V "rows", V "columns"] result MayBeReference; traits value_error_references; three_d (None, Some(&[0]), Some(&[1, 2])); ;
+    8 "CHOOSEROWS" (2, 255) [R "array" ~ ArrayAtRoot, R "row_num1" ~ AggregateAtRoot, R "row_num2" ~ AggregateAtRoot] traits value_error_references; three_d (None, Some(&[0]), Some(&[1, usize::MAX])); ;
+    9 "CHOOSECOLS" (2, 255) [R "array" ~ ArrayAtRoot, R "col_num1" ~ AggregateAtRoot, R "col_num2" ~ AggregateAtRoot] traits value_error_references; three_d (None, Some(&[0]), Some(&[1, usize::MAX])); ;
+    10 "VSTACK" (1, 254) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRootRepeated] traits value_error_references; three_d (Some(&[]), None, None); ;
+    11 "HSTACK" (1, 254) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRootRepeated] traits value_error_references; three_d (Some(&[]), None, None); ;
+    12 "TOCOL" (1, 3) [R "array" ~ ArrayAtRoot, V "ignore", V "scan_by_column"] traits value_error_references; three_d (Some(&[0]), None, Some(&[1])); ;
+    13 "TOROW" (1, 3) [R "array" ~ ArrayAtRoot, V "ignore", V "scan_by_column"] traits value_error_references; three_d (Some(&[0]), None, Some(&[1])); ;
     14 "WRAPROWS" (2, 3) [R "vector" ~ ArrayAtRoot, V "wrap_count", V "pad_with"] three_d (None, None, Some(&[0, 1])); ;
     15 "WRAPCOLS" (2, 3) [R "vector" ~ ArrayAtRoot, V "wrap_count", V "pad_with"] three_d (None, None, Some(&[0, 1])); ;
-    16 "EXPAND" (2, 4) [R "array" ~ ArrayAtRoot, V "rows", V "columns", R "pad_with"] three_d (None, None, Some(&[])); ;
+    16 "EXPAND" (2, 4) [R "array" ~ ArrayAtRoot, V "rows", V "columns", R "pad_with"] traits value_error_references; three_d (None, None, Some(&[])); ;
     }
 }
 
@@ -532,7 +532,7 @@ pub mod subtotal {
     data_family! {
         code: CODE;
     1 "SUBTOTAL" (2, 255) [V "function_num", F "ref1" @Reference ~ ArrayAlwaysLiftReferences, F "ref2" @Reference ~ ArrayAlwaysLiftReferencesRepeated] traits skip_nested_subtotals, lift_dynamic_references; three_d (None, Some(&[1, usize::MAX]), Some(&[0])); ;
-    2 "AGGREGATE" (3, 253) [V "function_num", V "options", R "ref1" ~ ArrayAtRoot, R "ref2" ~ AggregateAtRoot, R "ref3" @Reference] traits skip_nested_subtotals; three_d (None, Some(&[2, usize::MAX]), Some(&[0, 1])); ;
+    2 "AGGREGATE" (3, 253) [V "function_num", V "options", R "ref1" ~ ArrayAtRoot, R "ref2" ~ AggregateAtRoot, R "ref3" @Reference] traits skip_nested_subtotals, value_error_references; three_d (None, Some(&[2, usize::MAX]), Some(&[0, 1])); ;
     }
 }
 
@@ -598,8 +598,8 @@ pub mod text_functions {
     26 "SUBSTITUTE" (3, 4) [V "text", V "old_text", V "new_text", V "instance_num"] three_d (None, None, Some(&[])); ;
     27 "T" (1, 1) [V "value" ~ LiftReferences] traits lift_dynamic_references; three_d (None, Some(&[]), None); ;
     28 "CONCATENATE" (1, 255) [V "text1", V "text2"] three_d (None, None, Some(&[])); ;
-    29 "CONCAT" (1, 254) [R "text1" ~ AggregateAtRoot, R "text2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); ;
-    30 "TEXTJOIN" (3, 252) [R "delimiter" ~ AggregateAtRoot, V "ignore_empty" ~ AggregateAtRoot, R "text1" ~ AggregateAtRoot, R "text2" ~ AggregateAtRootRepeated] three_d (Some(&[0, 2, usize::MAX]), None, Some(&[1])); ;
+    29 "CONCAT" (1, 254) [R "text1" ~ AggregateAtRoot, R "text2" ~ AggregateAtRootRepeated] traits value_error_references; three_d (Some(&[]), None, None); ;
+    30 "TEXTJOIN" (3, 252) [R "delimiter" ~ AggregateAtRoot, V "ignore_empty" ~ AggregateAtRoot, R "text1" ~ AggregateAtRoot, R "text2" ~ AggregateAtRootRepeated] traits value_error_references; three_d (Some(&[0, 2, usize::MAX]), None, Some(&[1])); ;
     }
 }
 

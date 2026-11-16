@@ -9,7 +9,7 @@ A family names its layouts once and lists (layout, address, formula) cases; addi
 reference-shaped case is one fam.case(...) line. Every case records layout_sha, the SHA-256 of its layout and
 formula, so an Excel answer is only ever judged against the layout Excel built.
 """
-import argparse, hashlib, json, pathlib, struct
+import argparse, hashlib, json, pathlib, re, struct
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 OUT = ROOT / 'tools/xtask-harness/cell-context'
@@ -365,10 +365,126 @@ def operator_coercion():
     return fam
 
 
+# Arrays of references (dc-b1l): OFFSET and INDIRECT lifted over an array give one reference per
+# element; each consumer below is asked how it takes them (whole, once per reference, or its first).
+REFERENCE_ARRAYS = ['OFFSET(A1,{0;1;2},0,2)', 'OFFSET(A1,{0;1;2},0)', 'INDIRECT({"A1:A2";"A3:A4"})',
+                    'OFFSET(A1,0,{0,2})', 'OFFSET(A1,{0;2},{0,2},2,1)', 'OFFSET(A1,{0;0;1},0)', 'OFFSET(B1,{0;1},0)']
+REFERENCE_ARRAY_CONSUMERS = [
+    'SUM(X)', 'AVERAGE(X)', 'MAX(X)', 'MIN(X)', 'COUNT(X)', 'COUNTA(X)', 'COUNTBLANK(X)', 'PRODUCT(X)', 'SUMSQ(X)',
+    'AVERAGEA(X)', 'MAXA(X)', 'MINA(X)', 'MEDIAN(X)', 'MODE(X)', 'MODE.SNGL(X)', 'MODE.MULT(X)', 'STDEV(X)',
+    'STDEV.S(X)', 'STDEV.P(X)', 'STDEVA(X)', 'VAR(X)', 'VAR.S(X)', 'VAR.P(X)', 'VARPA(X)', 'DEVSQ(X)', 'AVEDEV(X)',
+    'GEOMEAN(X)', 'HARMEAN(X)', 'KURT(X)', 'SKEW(X)', 'LARGE(X,1)', 'SMALL(X,1)', 'PERCENTILE(X,0.5)',
+    'PERCENTILE.INC(X,0.5)', 'QUARTILE(X,1)', 'RANK(1,X)', 'RANK.EQ(2,X)', 'RANK.AVG(2,X)', 'PERCENTRANK(X,2)',
+    'TRIMMEAN(X,0)', 'AGGREGATE(9,0,X)', 'AGGREGATE(4,0,X)', 'AGGREGATE(2,4,X)', 'AGGREGATE(14,0,X,1)',
+    'AGGREGATE(9,0,X,X)', 'SUMPRODUCT(X)', 'SUMPRODUCT(--X)', 'CONCAT(X)', 'TEXTJOIN(",",TRUE,X)', 'NPV(0.1,X)',
+    'SUM(X,1)', 'SUMX2PY2(X,X)', 'CORREL(X,X)', 'COVAR(X,X)', 'SLOPE(X,X)', 'FREQUENCY(X,{2})',
+    'INDEX(X,1)', 'INDEX(X,1,1,2)', 'MATCH(2,X,0)', 'VLOOKUP(2,X,1,0)', 'HLOOKUP(2,X,1,0)', 'LOOKUP(2,X)',
+    'XLOOKUP(2,X,X)', 'XMATCH(2,X)', 'ROWS(X)', 'COLUMNS(X)', 'AREAS(X)', 'ROW(X)', 'COLUMN(X)', 'ISREF(X)',
+    'ISFORMULA(X)', 'FORMULATEXT(X)', 'SHEET(X)', 'SHEETS(X)', 'CELL("address",X)', 'CELL("contents",X)', 'N(X)',
+    'T(X)', 'TYPE(X)', 'ISBLANK(X)', 'ISNUMBER(X)', 'ISTEXT(X)', 'ISERROR(X)', 'LEN(X)', 'ABS(X)', 'ROUND(X,0)',
+    'X+0', '-X', 'X&""', 'X=1', 'IF(TRUE,X)', 'IFERROR(X,0)', 'CHOOSE(1,X)', 'LET(r,X,r)', 'LET(r,X,SUM(r))',
+    'SUMIF(X,">1")', 'COUNTIF(X,">1")', 'AVERAGEIF(X,">1")', 'SUMIFS(X,X,">1")', 'COUNTIFS(X,">1")',
+    'AVERAGEIFS(X,X,">1")', 'MAXIFS(X,X,">1")', 'MINIFS(X,X,">1")', 'SUBTOTAL(9,X)', 'SUBTOTAL(3,X)',
+    'SORT(X)', 'UNIQUE(X)', 'TAKE(X,1)', 'DROP(X,1)', 'VSTACK(X)', 'HSTACK(X)', 'TOCOL(X)', 'TOROW(X)',
+    'TRANSPOSE(X)', 'CHOOSECOLS(X,1)', 'CHOOSEROWS(X,1)', 'EXPAND(X,3)', 'FILTER(X,TRUE)', 'SORTBY(X,X)',
+    'MAP(X,LAMBDA(v,v))', 'BYROW(X,LAMBDA(r,SUM(r)))', 'REDUCE(0,X,LAMBDA(a,v,a+v))', 'MMULT(X,1)',
+    'DSUM(X,1,X)', 'ISNA(MATCH(1,X,0))', 'COUNTA(X,X)', 'ARRAYTOTEXT(X)', 'AND(X)', 'OR(X)', 'XOR(X)',
+    'INDEX(X,1,1)', 'INDEX(X,2,1)', 'INDEX(X,1,2)', 'INDEX(X,0,1)', 'INDEX(X,2)', 'INDEX(X,1,1,1)', 'INDEX(X,0)',
+    'UNIQUE(X,TRUE)', 'UNIQUE(X,,TRUE)', 'SCAN(0,X,LAMBDA(a,v,a+v))', 'BYCOL(X,LAMBDA(c,SUM(c)))', 'ISERR(X)',
+    'ERROR.TYPE(X)', 'IFNA(X,0)', 'ISNA(X)', 'NOT(X)', 'AND(X,TRUE)', 'OR(X,FALSE)', 'SUMX2MY2(X,X)',
+    'PEARSON(X,X)', 'RSQ(X,X)', 'INTERCEPT(X,X)', 'SUMX2PY2(X,{1;2;3})', 'CORREL(X,{1;2;3})', 'ARRAYTOTEXT(X,1)',
+    'MAKEARRAY(2,1,LAMBDA(r,c,INDEX(X,r)))', 'ISLOGICAL(X)', 'ISREF(INDEX(X,1,1))', 'TEXT(X,"0")', 'VALUE(X)',
+]
+# Plain arrays beside the reference arrays: how the same consumers read text, errors and logicals.
+REFERENCE_ARRAY_CONTROLS = [
+    'SUMX2PY2({"a";"b";"c"},{"a";"b";"c"})', 'CORREL({"a";"b";"c"},{"a";"b";"c"})', 'SLOPE({"a";"b"},{"a";"b"})',
+    'SUMX2PY2({1;2},{1;2})', 'AND({"a"})', 'AND({"a";"b"})', 'OR({"a"})', 'AND(A1:A2&"")', 'AND({1;#VALUE!})',
+    'ARRAYTOTEXT({#VALUE!;#VALUE!})', 'SUMX2PY2({#VALUE!;1},{1;1})', 'CORREL({#VALUE!;1;2},{1;1;2})',
+    'UNIQUE({#VALUE!;#VALUE!})',
+]
+
+
+def reference_arrays():
+    """Each consumer of an array of references (dc-b1l), over five arrays of references."""
+    fam = Family()
+    cells = {}
+    for i in range(6):
+        cells[f'A{i + 1}'] = n(i + 1)
+        cells[f'C{i + 1}'] = n(10 * (i + 1))
+    cells.update({'B1': t('x'), 'B2': 'logical:true', 'B4': n(7), 'B5': 'error:NA', 'B6': '=A6*2'})
+    sheet = fam.layout('grid', [{'name': 'Sheet1', 'cells': cells}, {'name': 'Data', 'cells': {'A1': n(9)}}])
+    for i, ref in enumerate(REFERENCE_ARRAYS):
+        for j, consumer in enumerate(REFERENCE_ARRAY_CONSUMERS):
+            call = re.match(r'([A-Z][A-Z0-9.]*)\(', consumer)
+            fam.case(f'refarray-{i}-{j:03}', call.group(1) if call else 'OPERATOR', sheet, 'Sheet1!H1',
+                     '=' + re.sub(r'\bX\b', lambda _: ref, consumer))
+    for j, control in enumerate(REFERENCE_ARRAY_CONTROLS):
+        fam.case(f'refarray-control-{j:02}', re.match(r'([A-Z][A-Z0-9.]*)\(', control).group(1), sheet, 'Sheet1!H1',
+                 '=' + control)
+    return fam
+
+
+# 3-D references at the argument positions whose treatment the catalogue does not hold (dc-b1l): a
+# 3-D reference spreads across its sheets (Take), makes the call #VALUE!, or is #REF! as that argument.
+# A pair of cases per position where a branch or a match decides whether the argument is read.
+THREE_D_CASES = [
+    'IF(TRUE,1,X)', 'IF(FALSE,1,X)', 'ECMA.CEILING(X,1)', 'ECMA.CEILING(2.5,X)',
+    'COUNTIF(A1:A3,X)', 'SUMIF(A1:A3,X)', 'SUMIF(A1:A3,X,B1:B3)', 'COUNTIFS(A1:A3,X)',
+    'COUNTIFS(A1:A3,">0",X,">0")', 'COUNTIFS(A1:A3,">0",A1:A3,X)', 'COUNTIFS(A1:A3,">5",A1:A3,X)',
+    'SUMIFS(B1:B3,A1:A3,X)', 'SUMIFS(B1:B3,A1:A3,">0",X,">0")', 'SUMIFS(B1:B3,A1:A3,">0",A1:A3,X)',
+    'AVERAGEIFS(B1:B3,A1:A3,">0",X,">0")', 'AVERAGEIFS(B1:B3,A1:A3,">0",A1:A3,X)', 'MAXIFS(B1:B3,A1:A3,X)',
+    'MAXIFS(B1:B3,A1:A3,">0",X,">0")', 'MINIFS(B1:B3,A1:A3,X)', 'MINIFS(B1:B3,A1:A3,">0",A1:A3,X)',
+    'IFERROR(1,X)', 'IFERROR(NA(),X)', 'IFNA(1,X)', 'IFNA(NA(),X)', 'XMATCH(2,A1:A3,0,X)',
+    'XLOOKUP(2,A1:A3,B1:B3,X)', 'XLOOKUP(9,A1:A3,B1:B3,X)', 'XLOOKUP(2,A1:A3,B1:B3,"",X)',
+    'XLOOKUP(2,A1:A3,B1:B3,"",0,X)', 'CHOOSE(1,1,X)', 'CHOOSE(2,1,X)', 'TRIMRANGE(X)', 'RANDBETWEEN(X,X)',
+    'IFS(TRUE,1,X,2)', 'IFS(FALSE,1,X,2)', 'IFS(FALSE,1,TRUE,X)', 'IFS(TRUE,1,TRUE,X)', 'SWITCH(1,1,2,X)',
+    'SWITCH(1,2,3,X)', 'SWITCH(1,2,3,X,4)', 'SWITCH(1,1,2,2,X)', 'ENCODEURL(X)', 'FILTERXML(X,"//a")',
+    'JIS(X)', 'WORKDAY.INTL(45000,1,1,X)', 'NETWORKDAYS.INTL(45000,45010,1,X)', 'CELL("address",X)',
+    'CELL("contents",X)', 'CELL(X)', 'INFO(X)', 'DSUM(A5:B8,X,D5:D6)', 'DSUM(A5:B8,1,X)', 'DCOUNT(A5:B8,X,D5:D6)',
+    'DAVERAGE(A5:B8,1,X)', 'DGET(A5:B8,X,D5:D6)', 'DMAX(A5:B8,1,X)', 'ACCRINTM(X,45100,0.1,1000)',
+    'ACCRINTM(45000,X,0.1,1000)', 'ACCRINTM(45000,45100,X,1000)', 'ACCRINTM(45000,45100,0.1,1000,X)',
+    'FILTER(A1:A3,A1:A3>5,X)', 'FILTER(A1:A3,A1:A3>0,X)', 'TOCOL(A1:B3,0,X)', 'TOROW(A1:B3,0,X)',
+    'WRAPROWS(A1:A3,2,X)', 'WRAPCOLS(A1:A3,2,X)', 'PERCENTOF(X,1)', 'PERCENTOF(1,X)', 'LET(x,X,1)', 'LET(x,1,X)',
+    'LAMBDA(x,x)(X)', 'X+1', '1+X', 'X-1', 'X*2', 'X/2', 'X^2', 'X&"a"', 'X=1', 'X<>1', 'X<1', 'X<=1', 'X>1',
+    'X>=1', '-X', '+X', 'X%', 'GROUPBY(X,X,SUM)', 'HYPERLINK(X)',
+    # Controls at positions the catalogue holds (dc-10y, measured through Range.Formula).
+    'ABS(X)', 'ROUND(X,0)', 'ROUND(1.5,X)', 'NORM.DIST(X,0,1,TRUE)', 'SUM(X)', 'SUM(X,1)', 'COUNT(X)', 'INDEX(X,1)',
+    'ROWS(X)', 'ISREF(X)', 'LEN(X)', 'DATE(X,1,1)', 'MAX(X)', 'AVERAGE(X)', 'CONCAT(X)', 'RANK(1,X)', 'ISNUMBER(X)',
+    'N(X)', 'T(X)', 'TYPE(X)', 'SIN(X)', 'POWER(X,2)', 'MOD(X,2)', 'TEXT(X,"0")', 'VALUE(X)', 'IF(X,1,2)',
+    'SUMPRODUCT(X)', 'MATCH(1,X,0)', 'VLOOKUP(1,X,1,0)',
+    # Criteria: E1 holds #VALUE! and E2 #REF!, so a criterion read as either error matches one.
+    'COUNTIF(E1:E2,X)', 'SUMIF(E1:E2,X,B1:B2)', 'COUNTIFS(E1:E2,X)', 'SUMIFS(B1:B2,E1:E2,X)',
+    'COUNTIFS(A1:A2,">0",E1:E2,X)', 'MAXIFS(B1:B2,E1:E2,X)', 'MINIFS(B1:B2,A1:A2,">0",E1:E2,X)',
+    'AVERAGEIFS(B1:B2,A1:A2,">0",E1:E2,X)', 'SUMIFS(B1:B2,A1:A2,">0",E1:E2,X)', 'COUNTIFS(E1:E2,X,E1:E2,X)',
+    'XLOOKUP(9,A1:A3,B1:B3,X)&""', 'ISERROR(IF(FALSE,1,X))', 'ERROR.TYPE(IF(FALSE,1,X))',
+    'ERROR.TYPE(IFERROR(NA(),X))', 'ERROR.TYPE(CHOOSE(2,1,X))', 'ERROR.TYPE(IFS(FALSE,1,TRUE,X))',
+    'FILTERXML("<a>1</a>",X)', 'HYPERLINK("x",X)', 'GROUPBY(A1:A3,B1:B3,SUM,X)',
+]
+
+
+def three_d():
+    """A 3-D reference (Ja:Ma!A1, the sheets holding 1, 2 and 3 there) at each position whose
+    treatment is not measured (dc-b1l)."""
+    fam = Family()
+    calc = {'A1': n(1), 'A2': n(2), 'A3': n(3), 'B1': n(10), 'B2': n(20), 'B3': n(30),
+            'A5': t('h'), 'B5': t('v'), 'A6': n(1), 'B6': n(5), 'A7': n(2), 'B7': n(6), 'A8': n(3), 'B8': n(7),
+            'D5': t('h'), 'D6': t('>1'), 'E1': 'error:Value', 'E2': 'error:Ref'}
+    # Sheet names that are no cell address (S1:S3!A1 would read as S1 to S3!A1).
+    sheets = [{'name': 'Calc', 'cells': calc}] + [{'name': name, 'cells': {'A1': n(i), 'B1': n(10 * i)}}
+                                                   for i, name in ((1, 'Ja'), (2, 'Fe'), (3, 'Ma'))]
+    layout = fam.layout('sheets', sheets)
+    for j, case in enumerate(THREE_D_CASES):
+        call = re.match(r'([A-Z][A-Z0-9.]*)\(', case)
+        fam.case(f'threed-{j:03}', call.group(1) if call else 'OPERATOR', layout, 'Calc!H1',
+                 '=' + re.sub(r'\bX\b', lambda _: 'Ja:Ma!A1', case))
+    return fam
+
+
 FAMILIES = {'reference-info': reference_info, 'subtotal-hidden': subtotal_hidden,
             'spill-placement': spill_placement, 'ifs': ifs_family, 'lambda-helpers': lambda_helpers,
             'operator-coercion': operator_coercion, 'lambda-groupby': lambda_groupby,
-            'lambda-references': lambda_references}
+            'lambda-references': lambda_references, 'reference-arrays': reference_arrays,
+            'three-d': three_d}
 
 
 def main():

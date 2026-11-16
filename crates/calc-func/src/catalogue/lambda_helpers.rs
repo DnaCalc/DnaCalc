@@ -148,14 +148,18 @@ fn lambda<'v>(a: &'v [CalcValue], index: usize, count: usize) -> Step<&'v CalcVa
     }
 }
 
-/// An item of an array as the LAMBDA receives it.
+/// An item of an array as the LAMBDA receives it. A reference an array of references holds (OFFSET
+/// or INDIRECT lifted over an array) is passed as the reference (dc-b1l, Excel 16.0.20527 through
+/// Touchstone, 2026-11-16: `=REDUCE(0,OFFSET(A1,{0;1;2},0,2),LAMBDA(a,v,a+v))` spills 6|9 over 1..6
+/// in A1:A6, `=MAP(OFFSET(A1,{0;1;2},0),LAMBDA(v,v))` spills 1|2|3 and over two-cell references is
+/// #CALC!).
 fn item(cell: &CalcValue) -> CalcValue {
     if cell.callable_value().is_some() {
         return cell.clone();
     }
     match cell.core_ref() {
         CoreRef::Empty | CoreRef::Missing => CalcValue::empty(),
-        CoreRef::Array(_) | CoreRef::Reference(_) => CalcValue::error(W::Value),
+        CoreRef::Array(_) => CalcValue::error(W::Value),
         _ => cell.clone(),
     }
 }

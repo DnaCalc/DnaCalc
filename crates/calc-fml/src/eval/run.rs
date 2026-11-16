@@ -44,8 +44,8 @@ use calc_func::value::{
 };
 use calc_func::{
     ArgumentDemand, CallAbandoned, CallableInvoker, EvalServices, FunctionCallScratch,
-    FunctionFault, ParameterClass, PreparedArguments, RandomSource, ReferenceText, TextReference,
-    invoke, invoke_slice,
+    FunctionFault, HeldReferences, ParameterClass, PreparedArguments, RandomSource, ReferenceText,
+    TextReference, invoke, invoke_slice,
 };
 use std::cell::RefCell;
 use std::sync::Arc;
@@ -1432,19 +1432,58 @@ impl Run<'_, '_> {
             lifted |= is_lifted(target, self.instance.plan.form, index, &admitted);
             arguments.push(admitted);
         }
-        for (index, value) in arguments.iter().enumerate() {
-            if reference_array(value)
+        for index in 0..arguments.len() {
+            if reference_array(&arguments[index])
                 && target.0.parameter_class(index) != Some(ParameterClass::Value)
                 && !lifts_over_references(target, form)
                 && !target.0.traits().take_reference_array
             {
-                return Err(not_modelled_by(
-                    "an array of references given to a function whose handling of one is not measured",
-                    "dc-b1l",
-                ));
+                arguments[index] = self
+                    .read_held_references(&arguments[index], target.0.traits().held_references)?;
             }
         }
         Ok((lifted, computed_blank_results))
+    }
+
+    /// `array`, an array of references, with each reference it holds read as `how` says
+    /// ([`HeldReferences`], dc-b1l); refused where how the function reads one is not measured.
+    fn read_held_references(
+        &self,
+        array: &CalcValue,
+        how: HeldReferences,
+    ) -> Result<CalcValue, EvalFault> {
+        let array = array.as_array().expect("an array of references");
+        let mut cells = Vec::with_capacity(array.cell_count());
+        for element in array.iter_row_major() {
+            let CoreRef::Reference(reference) = element.core_ref() else {
+                cells.push(element.clone());
+                continue;
+            };
+            cells.push(match how {
+                HeldReferences::Refuse => {
+                    return Err(not_modelled_by(
+                        "an array of references given to a function whose handling of one is not measured",
+                        "dc-b1l",
+                    ));
+                }
+                HeldReferences::FirstCell => {
+                    let first = reference.areas()[0].first();
+                    match self.reader.value_of(&ReferenceLike::cell(first))? {
+                        value if matches!(value.core_ref(), CoreRef::Missing) => CalcValue::empty(),
+                        value => value,
+                    }
+                }
+                HeldReferences::NoNumber => {
+                    CalcValue::text(calc_func::value::ExcelText::from_utf16_code_units(Vec::new()))
+                }
+                HeldReferences::ValueError => CalcValue::error(WorksheetErrorCode::Value),
+                HeldReferences::NumError => CalcValue::error(WorksheetErrorCode::Num),
+                HeldReferences::NaError => CalcValue::error(WorksheetErrorCode::NA),
+            });
+        }
+        Ok(CalcValue::array(
+            CalcArray::new(array.shape(), cells).expect("the array's own shape"),
+        ))
     }
 
     /// Runs `target` on its admitted `arguments`, whose operands still start at `start` on the
@@ -1747,21 +1786,30 @@ impl Run<'_, '_> {
                     let array = arguments[*index].as_array().expect("a lifted array");
                     match lift::element(array, row, col) {
                         // dc-b1l: a reference of an array of references where one value is taken
-                        // is #VALUE! (`=TEXT(OFFSET(A1,{0;1},0),"0.0")`, `OFFSET(...)*1`), except
-                        // for the functions that run once per reference, which read its value
-                        // (`=T(OFFSET(C1,{0;1},0))` spills x and empty text).
+                        // is #VALUE! (`=TEXT(OFFSET(A1,{0;1},0),"0.0")`, `OFFSET(...)*1`), given to
+                        // the call as that value (Excel 16.0.20527, Touchstone 2026-11-16:
+                        // `=ISERROR(OFFSET(A1,{0;1;2},0,2))` spills TRUE, `=ISNUMBER(...)` and
+                        // `=ISBLANK(...)` FALSE), except for the functions that run once per
+                        // reference, which read its value (`=T(OFFSET(C1,{0;1},0))` spills x and
+                        // empty text).
                         Some(value)
                             if matches!(value.core_ref(), CoreRef::Reference(_))
                                 && target.0.parameter_class(*index)
                                     == Some(ParameterClass::Value) =>
                         {
                             if lifts_over_references(target, self.instance.plan.form) {
-                                element[*index] =
-                                    self.admit_value(value.clone(), Admission::Lift)?;
+                                // A reference of several cells gives its first cell, as an
+                                // element's array result does ([`lifted_element`]; Excel:
+                                // `=T(OFFSET(A1,{0;1;2},0,2))` spills three empty texts).
+                                let read = self.admit_value(value.clone(), Admission::Lift)?;
+                                element[*index] = match read.as_array() {
+                                    Some(array) if read.callable_value().is_none() => {
+                                        first_element(array)
+                                    }
+                                    _ => read,
+                                };
                             } else {
-                                let error = CalcValue::error(WorksheetErrorCode::Value);
-                                element[*index] = error.clone();
-                                held = held.or(Some(error));
+                                element[*index] = CalcValue::error(WorksheetErrorCode::Value);
                             }
                         }
                         Some(value) => {
@@ -2015,6 +2063,16 @@ impl Run<'_, '_> {
                 for (index, argument) in arguments.iter().enumerate() {
                     if let Some(array) = lifted_array(argument) {
                         match lift::element(array, row, col) {
+                            // dc-b1l: a reference of an array of references where one value is
+                            // taken is #VALUE! (Excel 16.0.20527, Touchstone 2026-11-16:
+                            // `=IFERROR(OFFSET(A1,{0;1;2},0,2),0)` spills 0|0|0).
+                            Some(value)
+                                if matches!(value.core_ref(), CoreRef::Reference(_))
+                                    && target.0.parameter_class(index)
+                                        == Some(ParameterClass::Value) =>
+                            {
+                                element[index] = CalcValue::error(WorksheetErrorCode::Value);
+                            }
                             Some(value) => {
                                 match held_array_element(target, self.instance.plan.form, value) {
                                     None => element[index] = value.clone(),

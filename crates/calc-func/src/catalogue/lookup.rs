@@ -1452,9 +1452,25 @@ fn indexed(site: &Site<'_>, arguments: &[CalcValue]) -> Step<CalcValue> {
         }
     };
     let (rows, columns) = (grid.rows() as f64, grid.columns() as f64);
+    // An array of references (OFFSET or INDIRECT lifted over an array) of one column gives the
+    // selected row as an array of one reference, which shows #VALUE!, where a value array gives
+    // the element (dc-b1l, Excel 16.0.20527 through Touchstone, 2026-11-16:
+    // `=INDEX(OFFSET(A1,{0;1;2},0),2)` is #VALUE!, `=INDEX(OFFSET(A1,{0;1;2},0),2,1)` 2 and
+    // `=INDEX(OFFSET(A1,0,{0,2}),2)` 10).
+    let holds_references = matches!(grid, Grid::Array(array) if array
+        .iter_row_major()
+        .any(|element| matches!(element.core_ref(), CoreRef::Reference(_))));
     let (row, column) = if column_omitted {
         if rows == 1.0 {
             (1.0, row)
+        } else if columns == 1.0 && holds_references {
+            if row > rows {
+                return Err(ref_error());
+            }
+            let Grid::Array(array) = grid else {
+                unreachable!("an array holds the references")
+            };
+            return Ok(select(array, row as u64, 0));
         } else if columns == 1.0 {
             (row, 1.0)
         } else if matches!(grid, Grid::Area { .. }) {

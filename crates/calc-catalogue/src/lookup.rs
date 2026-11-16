@@ -62,7 +62,10 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
     )
     .with_three_d(super::ThreeD::new(None, Some(&[0]), Some(&[1, usize::MAX])))
     .with_result(ResultForm::MayBeReference)
-    .with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
+    // dc-b1l (Touchstone 2026-11-16, reference-arrays): an array of references is indexed as an
+    // array, its selected element a reference (`=INDEX(OFFSET(A1,{0;1;2},0,2),2,1)` spills 2|3,
+    // `=ISREF(INDEX(OFFSET(A1,{0;1;2},0,2),1,1))` is TRUE).
+    .with_traits(super::EntryTraits::NONE.take_reference_array()),
     eager(
         MATCH,
         "MATCH",
@@ -74,7 +77,8 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
             Parameter::value("match_type"),
         ],
     )
-    .with_three_d(super::ThreeD::new(None, Some(&[1, 2]), Some(&[0]))),
+    .with_three_d(super::ThreeD::new(None, Some(&[1, 2]), Some(&[0])))
+    .with_traits(super::EntryTraits::NONE.value_error_references()),
     eager(
         XMATCH,
         "XMATCH",
@@ -86,7 +90,8 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
             Parameter::value("search_mode"),
         ],
     )
-    .with_three_d(super::ThreeD::new(None, Some(&[1]), Some(&[0, 2]))),
+    .with_three_d(super::ThreeD::new(None, Some(&[1]), Some(&[0, 2])))
+    .with_traits(super::EntryTraits::NONE.value_error_references()),
     eager(
         XLOOKUP,
         "XLOOKUP",
@@ -104,7 +109,8 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
     .with_three_d(super::ThreeD::new(None, Some(&[1, 2]), Some(&[0])))
     // A call may give a reference (dc-mx3x): `=COUNTBLANK(XLOOKUP(1,B1:B3,B1:B3))` and
     // `=XLOOKUP(1,B1:B3,B1:B3)(3)` (#REF!) enter.
-    .with_result(ResultForm::MayBeReference),
+    .with_result(ResultForm::MayBeReference)
+    .with_traits(super::EntryTraits::NONE.value_error_references()),
     eager(
         VLOOKUP,
         "VLOOKUP",
@@ -117,7 +123,8 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
             Parameter::value("range_lookup"),
         ],
     )
-    .with_three_d(super::ThreeD::new(None, Some(&[1]), Some(&[0, 2, 3]))),
+    .with_three_d(super::ThreeD::new(None, Some(&[1]), Some(&[0, 2, 3])))
+    .with_traits(super::EntryTraits::NONE.value_error_references()),
     eager(
         HLOOKUP,
         "HLOOKUP",
@@ -130,7 +137,8 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
             Parameter::value("range_lookup"),
         ],
     )
-    .with_three_d(super::ThreeD::new(None, Some(&[1]), Some(&[0, 2, 3]))),
+    .with_three_d(super::ThreeD::new(None, Some(&[1]), Some(&[0, 2, 3])))
+    .with_traits(super::EntryTraits::NONE.value_error_references()),
     eager(
         LOOKUP,
         "LOOKUP",
@@ -141,7 +149,8 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
             Parameter::value_or_reference("result_vector").legacy(super::LegacyPlace::ArrayAtRoot),
         ],
     )
-    .with_three_d(super::ThreeD::new(None, Some(&[1, 2]), Some(&[0]))),
+    .with_three_d(super::ThreeD::new(None, Some(&[1, 2]), Some(&[0])))
+    .with_traits(super::EntryTraits::NONE.value_error_references()),
     // A call gives one of its values, which may be a reference or a LAMBDA (dc-mx3x):
     // `=COUNTBLANK(CHOOSE(1,A1))` enters, and `=CHOOSE(1,LAMBDA(x,x))(3)` is 3.
     WorksheetDeclaration {
@@ -190,7 +199,11 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
         &[Parameter::value_or_reference("reference").entry(super::EntryClass::Reference)],
     )
     .with_three_d(super::ThreeD::new(None, Some(&[]), None))
-    .with_traits(super::EntryTraits::NONE.intersect_legacy_result()),
+    .with_traits(
+        super::EntryTraits::NONE
+            .intersect_legacy_result()
+            .lift_dynamic_references(),
+    ),
     eager(
         ROWS,
         "ROWS",
@@ -205,7 +218,8 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
         CallableArityShape::exact(1),
         &[Parameter::value_or_reference("array").legacy(super::LegacyPlace::ArrayAtRoot)],
     )
-    .with_three_d(super::ThreeD::new(None, Some(&[]), None)),
+    .with_three_d(super::ThreeD::new(None, Some(&[]), None))
+    .with_traits(super::EntryTraits::NONE.value_error_references()),
     eager(
         AREAS,
         "AREAS",

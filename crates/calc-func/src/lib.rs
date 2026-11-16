@@ -50,8 +50,8 @@ pub use call::{
 };
 pub use catalogue::{
     ArgumentDemand, ArgumentGroups, Availability, BindingForm, Catalogue, Deferral, EntryClass,
-    EntryKind, EntryRule, EntryTraits, FunctionCallTarget, FunctionId, HelpParameter,
-    HostRouteKind, Implementation, LegacyPlace, Notation, OperandForm, PairedResult,
+    EntryKind, EntryRule, EntryTraits, FunctionCallTarget, FunctionId, HeldReferences,
+    HelpParameter, HostRouteKind, Implementation, LegacyPlace, Notation, OperandForm, PairedResult,
     ParameterClass, RegistrationError, ResultForm, SignatureHelp, ThreeDPlace, WholeResultPolicy,
     catalogue,
 };

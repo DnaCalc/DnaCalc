@@ -106,13 +106,16 @@ const fn conditional(
 // `=SUMIFS(B1:B3,B1:B3,1,B1:B3,1)` enter: COUNTIFS takes 2, 4, 6 and 8 arguments of 1 to 8, and
 // SUMIFS, AVERAGEIFS, MAXIFS and MINIFS 3, 5 and 7.
 // 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
+// dc-b1l (Touchstone 2026-11-16, reference-arrays): COUNTIFS, AVERAGEIFS, MAXIFS and MINIFS
+// given an array of references run once per reference, as SUMIF, COUNTIF and SUMIFS do.
 pub const ENTRIES: &[WorksheetDeclaration] = &[
     conditional(COUNTIF, "COUNTIF", (2, 2), RANGE_CRITERIA)
         .with_three_d(super::ThreeD::new(None, Some(&[0]), None))
         .with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
     conditional(COUNTIFS, "COUNTIFS", (2, 254), COUNT_PAIRS)
         .with_three_d(super::ThreeD::new(None, Some(&[0]), None))
-        .with_groups(ArgumentGroups::new(0, 2, 0)),
+        .with_groups(ArgumentGroups::new(0, 2, 0))
+        .with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
     conditional(SUMIF, "SUMIF", (2, 3), SUM_RANGE)
         .with_three_d(super::ThreeD::new(None, Some(&[0, 2]), None))
         .with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
@@ -125,11 +128,14 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
         .with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
     conditional(AVERAGEIFS, "AVERAGEIFS", (3, 255), AVERAGE_PAIRS)
         .with_three_d(super::ThreeD::new(None, Some(&[0, 1]), Some(&[2])))
-        .with_groups(ArgumentGroups::new(1, 2, 0)),
+        .with_groups(ArgumentGroups::new(1, 2, 0))
+        .with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
     conditional(MAXIFS, "MAXIFS", (3, 255), MAX_PAIRS)
         .with_three_d(super::ThreeD::new(None, Some(&[0, 1]), None))
-        .with_groups(ArgumentGroups::new(1, 2, 0)),
+        .with_groups(ArgumentGroups::new(1, 2, 0))
+        .with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
     conditional(MINIFS, "MINIFS", (3, 255), MIN_PAIRS)
         .with_three_d(super::ThreeD::new(None, Some(&[0, 1]), None))
-        .with_groups(ArgumentGroups::new(1, 2, 0)),
+        .with_groups(ArgumentGroups::new(1, 2, 0))
+        .with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
 ];
