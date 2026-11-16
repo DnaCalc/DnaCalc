@@ -1169,6 +1169,20 @@ impl HostSession {
                     )),
                     other => other.clone(),
                 };
+                // A cell formatted as text (`@`) keeps what is typed as text, a formula's or a
+                // number's spelling too (Excel 16.0.20527, 2026-11-16, Touchstone sheet cases:
+                // =GROUPBY(...) entered over a text cell reads back as its own text). An entry
+                // that begins with an apostrophe keeps its own reading.
+                let input = match input {
+                    Some(CellInput::Formula(_) | CellInput::Number(_) | CellInput::Logical(_) | CellInput::Error(_))
+                        if !text.starts_with('\'') && self.host.number_format(at) == Some("@") =>
+                    {
+                        calc_doc_model::CellText::new(ExcelText::from_utf16_code_units(text.encode_utf16().collect()))
+                            .map(CellInput::Text)
+                            .or(input)
+                    }
+                    other => other,
+                };
                 if let Err(failure) = self.host.check_entry(at, input.as_ref()) {
                     if failure.style == crate::validation::ErrorStyle::Stop {
                         return Err(IntentError::Validation(failure));

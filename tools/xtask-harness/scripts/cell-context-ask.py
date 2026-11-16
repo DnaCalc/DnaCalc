@@ -67,141 +67,6 @@ def to_case(set_, case):
     return sheet_case(sheets, [{'at': case['at'], 'formula': case['formula']}], layout.get('names') or {})
 
 
-# Tiling (dc-wi2wu): a relocatable case, one whose formulas hold no absolute or whole-row/column
-# reference, no defined name and no function that reads a position, gives the same answer at any
-# offset. Copies of its layout shifted across one sheet, each with its own probe, share one
-# calculation. Hidden rows stay shared, so such layouts tile across columns only (and hidden
-# columns across rows only); a layout with both is not tiled.
-import re
-CELL = re.compile(r"(?<![A-Za-z0-9_.])([A-Z]{1,3})([0-9]+)(?![A-Za-z0-9_(.])")
-POSITIONAL = re.compile(r"\b(ROW|ROWS|COLUMN|COLUMNS|CELL|OFFSET|INDIRECT|ADDRESS|INFO|SHEET|SHEETS|FORMULATEXT|ISFORMULA|"
-                        r"TODAY|NOW|RAND|RANDBETWEEN|RANDARRAY|GETPIVOTDATA|LET|LAMBDA)\s*\(", re.I)
-TILE_ROOM = 66          # spill room right of and below each tile's probe (the worker reads up to 64 x 64)
-MAX_PROBES = 256        # the admission's bound per sheet case
-MAX_CELLS = 10000
-
-
-def column_number(letters):
-    n = 0
-    for ch in letters:
-        n = n * 26 + ord(ch) - 64
-    return n
-
-
-def column_letters(n):
-    out = ''
-    while n:
-        n, r = divmod(n - 1, 26)
-        out = chr(65 + r) + out
-    return out
-
-
-def split_strings(formula):
-    """(text, inside_quotes) pieces of a formula."""
-    parts, quoted, start = [], False, 0
-    for i, ch in enumerate(formula):
-        if ch == '"':
-            parts.append((formula[start:i], quoted))
-            start, quoted = i, not quoted
-    parts.append((formula[start:], quoted))
-    return parts
-
-
-def relocatable(formula):
-    if not formula.startswith('='):
-        return True
-    code = ''.join(text for text, quoted in split_strings(formula) if not quoted)
-    if '$' in code or '#' in code.replace('#N/A', '').replace('#DIV/0!', '').replace('#VALUE!', '').replace('#REF!', '') \
-            .replace('#NAME?', '').replace('#NUM!', '').replace('#NULL!', '') or POSITIONAL.search(code):
-        return False
-    if re.search(r"(?<![A-Za-z0-9_.])[A-Z]{1,3}:[A-Z]{1,3}(?![A-Za-z0-9_(])|(?<![A-Za-z0-9_.:])[0-9]+:[0-9]+(?![0-9])", code):
-        return False
-    return True
-
-
-def shift(formula, dr, dc):
-    if not formula.startswith('='):
-        return formula
-    out = []
-    for text, quoted in split_strings(formula):
-        if quoted:
-            out.append(text)
-            continue
-        out.append(CELL.sub(lambda m: column_letters(column_number(m.group(1)) + dc) + str(int(m.group(2)) + dr), text))
-    return ''.join(out)
-
-
-def tileable(set_, case):
-    # Spill-placement cases are about the room around the formula, the sheet's edges included.
-    if set_.get('family') == 'spill-placement':
-        return False
-    layout = set_['layouts'][case['layout']] if 'layout' in case else case
-    if layout.get('names'):
-        return False
-    hidden_rows = any(s.get('hidden_rows') for s in layout['sheets'])
-    hidden_cols = any(s.get('hidden_columns') for s in layout['sheets'])
-    if hidden_rows and hidden_cols:
-        return False
-    texts = [case['formula']] + [v for s in layout['sheets'] for v in (s.get('cells') or {}).values() if v.startswith('=')]
-    return all(relocatable(t) for t in texts)
-
-
-def bounds(set_, case):
-    layout = set_['layouts'][case['layout']] if 'layout' in case else case
-    cells = [a for s in layout['sheets'] for a in (s.get('cells') or {})] + [case['at'].split('!')[-1]]
-    rows = [int(re.match(r'[A-Z]+([0-9]+)', a.replace('$', '')).group(1)) for a in cells]
-    cols = [column_number(re.match(r'([A-Z]+)', a.replace('$', '')).group(1)) for a in cells]
-    return max(rows), max(cols)
-
-
-def tiled_case(set_, cases):
-    """One sheet case holding every case of `cases` (one layout) in its own tile."""
-    first = cases[0]
-    layout = set_['layouts'][first['layout']] if 'layout' in first else first
-    height, width = bounds(set_, first)
-    across = not any(s.get('hidden_columns') for s in layout['sheets'])
-    step = (width + TILE_ROOM) if across else (height + TILE_ROOM)
-    sheets = [{'name': s['name'], 'cells': {}, 'hidden_rows': s.get('hidden_rows') or [],
-               'hidden_columns': s.get('hidden_columns') or []} for s in layout['sheets']]
-    probes = []
-    for t, case in enumerate(cases):
-        dr, dc = (0, t * step) if across else (t * step, 0)
-        for s, target in zip(layout['sheets'], sheets):
-            for a, v in (s.get('cells') or {}).items():
-                m = re.match(r'([A-Z]+)([0-9]+)', a)
-                target['cells'][column_letters(column_number(m.group(1)) + dc) + str(int(m.group(2)) + dr)] = typed_cell(shift(v, dr, dc))
-        sheet, at = case['at'].rsplit('!', 1)
-        m = re.match(r'([A-Z]+)([0-9]+)', at)
-        probes.append({'at': sheet + '!' + column_letters(column_number(m.group(1)) + dc) + str(int(m.group(2)) + dr),
-                       'formula': shift(case['formula'], dr, dc)})
-    return sheet_case(sheets, probes, {})
-
-
-def packs(set_, order):
-    """Groups of case indices sent as one tiled sheet case (or alone)."""
-    out, current, key = [], [], None
-    for i in order:
-        case = set_['cases'][i]
-        if not tileable(set_, case):
-            out.append([i])
-            continue
-        height, width = bounds(set_, case)
-        layout = set_['layouts'][case['layout']] if 'layout' in case else case
-        across = not any(s.get('hidden_columns') for s in layout['sheets'])
-        room = (16384 // (width + TILE_ROOM)) if across else (1048576 // (height + TILE_ROOM))
-        cells = max(1, sum(len(s.get('cells') or {}) for s in layout['sheets']))
-        limit = max(1, min(MAX_PROBES, room, MAX_CELLS // cells))
-        k = case.get('layout')
-        if current and (k != key or len(current) >= limit):
-            out.append(current)
-            current = []
-        current.append(i)
-        key = k
-    if current:
-        out.append(current)
-    return out
-
-
 def answer_of(row):
     if row['type'] == 'unread':
         return {'value': 'unread:input-changed', 'spill': None}, None
@@ -233,30 +98,21 @@ def clock(client):
     return reply.get('env_id'), row['bits'] if row.get('type') == 'number' else None
 
 
-def ask_family(client, path, out, per_request, tile=False):
+def ask_family(client, path, out, per_request):
     set_ = json.load(open(path))
     order = sorted(range(len(set_['cases'])), key=lambda i: (set_['cases'][i].get('layout', ''), i))
-    groups = packs(set_, order) if tile else [[i] for i in order]
-    chunks = [groups[i:i + per_request] for i in range(0, len(groups), per_request)]
+    chunks = [order[i:i + per_request] for i in range(0, len(order), per_request)]
     env_before, clock_before = clock(client)
     started = time.monotonic()
     sock = client._socket()
-
-    def sent(group):
-        return tiled_case(set_, [set_['cases'][i] for i in group]) if len(group) > 1 else to_case(set_, set_['cases'][group[0]])
-
-    futures = [(chunk, sock.submit_rows('_CASE', [[sent(g)] for g in chunk], priority='bulk')) for chunk in chunks]
+    futures = [(chunk, sock.submit_rows('_CASE', [[to_case(set_, set_['cases'][i])] for i in chunk], priority='bulk'))
+               for chunk in chunks]
     answers, envs = {}, set()
     for chunk, pending in futures:
         reply = pending.result(timeout=client.timeout)
         envs.update(pending.env_ids)
-        for group, row in zip(chunk, reply['rows']):
-            if row.get('type') == 'sheet_case':
-                for k, i in enumerate(group):
-                    answers[i] = answer_of({'type': 'sheet_case', 'probes': [row['probes'][k]]})
-            else:
-                for i in group:
-                    answers[i] = answer_of(row)
+        for i, row in zip(chunk, reply['rows']):
+            answers[i] = answer_of(row)
     seconds = time.monotonic() - started
     env_after, clock_after = clock(client)
     if len(envs) != 1:
@@ -280,7 +136,6 @@ def ask_family(client, path, out, per_request, tile=False):
     doc = {'format': set_['format'], 'family': set_['family'], 'layouts': set_.get('layouts', {}), 'cases': cases,
            'capture_provenance': {'service': 'touchstone/1', 'env_id': env_id, 'request': 'sheet cases (_CASE, token L)',
                                   'calculation_settings': settings, 'cases_per_second': round(len(cases) / seconds, 1),
-                                  'tiled': tile,
                                   'script': 'DnaCalc tools/xtask-harness/scripts/cell-context-ask.py',
                                   'timestamp': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}}
     target = out / (set_['family'] + '.json')
@@ -296,14 +151,13 @@ def main():
     p.add_argument('--out', type=pathlib.Path, required=True)
     p.add_argument('--family')
     p.add_argument('--per-request', type=int, default=200)
-    p.add_argument('--tile', action='store_true', help='pack relocatable cases of one layout into tiles of one sheet case')
     o = p.parse_args()
     o.out.mkdir(parents=True, exist_ok=True)
     client = Client(transport='socket', timeout=900)
     for path in sorted(glob.glob(str(REPO / 'tools' / 'xtask-harness' / 'cell-context' / '*.json'))):
         if o.family and pathlib.Path(path).stem != o.family:
             continue
-        print(ask_family(client, path, o.out, o.per_request, o.tile), flush=True)
+        print(ask_family(client, path, o.out, o.per_request), flush=True)
 
 
 if __name__ == '__main__':

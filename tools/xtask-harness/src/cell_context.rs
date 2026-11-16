@@ -198,7 +198,9 @@ pub fn evaluate(
         ids.insert(name.to_ascii_uppercase(), id);
     }
     let sheet_id = |name: &str| ids.get(&name.to_ascii_uppercase()).copied();
-    // Constants first in one edit, then formulas typed in cell order.
+    // Constants first in one edit, then formulas typed in cell order. Text constants are in
+    // text-formatted cells, as Excel's side writes them (NumberFormat "@" before Value2).
+    let mut text_cells = Vec::new();
     let mut edits = Vec::new();
     let mut formulas = Vec::new();
     for sheet in sheets {
@@ -215,9 +217,24 @@ pub fn evaluate(
                 } else if content.starts_with('=') {
                     formulas.push((key, content.to_owned()));
                 } else {
+                    if content.starts_with("text:") {
+                        text_cells.push(GridArea::cell(key));
+                    }
                     edits.push(CellEdit::Set { at: key, input: constant(content)? });
                 }
             }
+        }
+    }
+    if !text_cells.is_empty() {
+        let receipt = session.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {
+            areas: text_cells,
+            patch: calc_host::FormatPatch {
+                number_format: Some("@".to_owned()),
+                ..calc_host::FormatPatch::default()
+            },
+        }));
+        if let Some(error) = receipt.error {
+            return Err(format!("text formats: {error}"));
         }
     }
     if !edits.is_empty() {
@@ -307,7 +324,6 @@ pub fn evaluate(
         }
         _ => Value::Null,
     };
-    let _ = GridArea::new;
     Ok(json!({"value": value, "spill": spill}))
 }
 
