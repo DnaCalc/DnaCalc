@@ -500,10 +500,10 @@ impl Walk<'_, '_> {
             }
             return self.binding(&upper, &arguments, depth);
         }
-        if !prefixed && let Some(entry) = entry {
-            let prefix = calc_catalogue::file_prefix(entry.name)
-                .expect("measured function prefix")
-                .text();
+        // Prefix and array-shape measurements are independent: a function may have a
+        // measured file spelling even when its array positions have not been measured.
+        if !prefixed && let Some(prefix) = calc_catalogue::file_prefix(&upper) {
+            let prefix = prefix.text();
             if !prefix.is_empty() {
                 self.insert(name.span().start, prefix);
             }

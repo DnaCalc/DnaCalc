@@ -665,6 +665,23 @@ fn ets_scalar_history_shape_precedes_its_value() {
     }
 }
 
+/// Excel 20527 serial controls: numeric options preserve an earlier worksheet error
+/// before the unequal history shape, while numeric options alone leave #N/A.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_scalar_history_with_numeric_options_keeps_error_order() {
+    use calc_func::value::WorksheetErrorCode::{Name, Null};
+    let timeline = col(&[1.0, 2.0, 3.0, 4.0, 5.0]);
+    for history in [n(3.0), t("bad"), b(false), calc_func::value::CalcValue::empty(), e(Div0)] {
+        for code in [Null, Div0, Value, Ref, Name, Num, NA] {
+            error(call("FORECAST.ETS.STAT", vec![history.clone(), timeline.clone(), n(1.0), e(code), e(Ref)]), code);
+            error(call("FORECAST.ETS.SEASONALITY", vec![history.clone(), timeline.clone(), n(1.0), e(code)]), code);
+        }
+        error(call("FORECAST.ETS.STAT", vec![history.clone(), timeline.clone(), n(1.0), n(-2.0)]), NA);
+        error(call("FORECAST.ETS.SEASONALITY", vec![history, timeline.clone(), n(1.0), n(-2.0)]), NA);
+    }
+}
+
 /// Excel 20527 rejects lost-addend beta shapes for normal probabilities through one half.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
