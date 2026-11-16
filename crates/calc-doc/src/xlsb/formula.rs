@@ -54,8 +54,18 @@ pub(crate) struct TableRef {
     pub(crate) columns: Vec<String>,
 }
 
+/// Which file form's tokens are read: the widths of references, strings and array data differ
+/// (MS-XLSB 2.5.98 and MS-XLS 2.5.198); the token numbers, function numbers and printed forms
+/// do not.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Layout {
+    Xlsb,
+    Biff8,
+}
+
 /// What a formula's tokens are printed against.
 pub(crate) struct Context<'a> {
+    pub(crate) layout: Layout,
     pub(crate) sheets: &'a [String],
     pub(crate) xti: &'a [Xti],
     pub(crate) supbooks: &'a [SupBook],
@@ -254,6 +264,8 @@ pub(crate) fn print(
 ) -> Read<Result<String, Expanded>> {
     let mut cursor = Cursor::new(rgce);
     let mut extra = Cursor::new(rgcb);
+    let biff8 = context.layout == Layout::Biff8;
+    let layout = context.layout;
     let mut stack: Vec<Item> = Vec::new();
     let mut pending = Pending::default();
     let pop = |stack: &mut Vec<Item>| -> Read<Item> {
@@ -270,8 +282,14 @@ pub(crate) fn print(
         };
         match base {
             0x01 => {
-                let row = cursor.u32("PtgExp")?;
-                let column = extra.u32("PtgExtraCol")?;
+                let (row, column) = if biff8 {
+                    (
+                        u32::from(cursor.u16("PtgExp")?),
+                        u32::from(cursor.u16("PtgExp")?),
+                    )
+                } else {
+                    (cursor.u32("PtgExp")?, extra.u32("PtgExtraCol")?)
+                };
                 if stack.is_empty() && cursor.remaining() == 0 {
                     return Ok(Err(Expanded { row, column }));
                 }
@@ -332,13 +350,27 @@ pub(crate) fn print(
                 stack.push(Item { text: space });
             }
             0x17 => {
-                let count = cursor.u16("PtgStr")? as usize;
-                let units = cursor.units(count, "PtgStr")?;
+                let (count, wide) = if biff8 {
+                    let count = usize::from(cursor.u8("PtgStr")?);
+                    (count, cursor.u8("PtgStr")? & 1 != 0)
+                } else {
+                    (cursor.u16("PtgStr")? as usize, true)
+                };
+                let units = if wide {
+                    cursor.units(count, "PtgStr")?
+                } else {
+                    cursor
+                        .bytes(count, "PtgStr")?
+                        .iter()
+                        .map(|b| u16::from(*b))
+                        .collect()
+                };
                 let space = pending.take();
                 stack.push(Item {
                     text: format!("{space}{}", quoted(&text(&units))),
                 });
             }
+            0x18 if biff8 => return Err(bad("a structured reference token in a BIFF8 formula")),
             0x18 => {
                 let eptg = cursor.u8("an extended token")?;
                 if eptg != 0x19 {
@@ -418,8 +450,13 @@ pub(crate) fn print(
                 });
             }
             0x20 => {
-                cursor.skip(14, "PtgArray")?;
-                let array = array_constant(&mut extra)?;
+                let array = if biff8 {
+                    cursor.skip(7, "PtgArray")?;
+                    biff8_array_constant(&mut extra)?
+                } else {
+                    cursor.skip(14, "PtgArray")?;
+                    array_constant(&mut extra)?
+                };
                 let space = pending.take();
                 stack.push(Item {
                     text: format!("{space}{array}"),
@@ -487,18 +524,29 @@ pub(crate) fn print(
                 });
             }
             0x24 | 0x2C => {
-                let row = cursor.u32("a reference's row")?;
+                let row = if biff8 {
+                    u32::from(cursor.u16("a reference's row")?)
+                } else {
+                    cursor.u32("a reference's row")?
+                };
                 let column = cursor.u16("a reference's column")?;
-                let cell = cell_text(row, column, base == 0x2C, origin);
+                let cell = cell_text(row, column, base == 0x2C, origin, layout);
                 let space = pending.take();
                 stack.push(Item {
                     text: format!("{space}{cell}"),
                 });
             }
             0x25 | 0x2D => {
-                let rows = (cursor.u32("an area")?, cursor.u32("an area")?);
+                let rows = if biff8 {
+                    (
+                        u32::from(cursor.u16("an area")?),
+                        u32::from(cursor.u16("an area")?),
+                    )
+                } else {
+                    (cursor.u32("an area")?, cursor.u32("an area")?)
+                };
                 let columns = (cursor.u16("an area")?, cursor.u16("an area")?);
-                let area = area_text(rows, columns, base == 0x2D, origin);
+                let area = area_text(rows, columns, base == 0x2D, origin, layout);
                 let space = pending.take();
                 stack.push(Item {
                     text: format!("{space}{area}"),
@@ -508,20 +556,25 @@ pub(crate) fn print(
             // follows prints itself; their extra data is skipped.
             0x26 => {
                 cursor.skip(6, "PtgMemArea")?;
-                let count = extra.u32("PtgExtraMem")? as usize;
-                extra.skip(count * 16, "PtgExtraMem")?;
+                if biff8 {
+                    let count = usize::from(extra.u16("PtgExtraMem")?);
+                    extra.skip(count * 8, "PtgExtraMem")?;
+                } else {
+                    let count = extra.u32("PtgExtraMem")? as usize;
+                    extra.skip(count * 16, "PtgExtraMem")?;
+                }
             }
             0x27 | 0x28 => cursor.skip(6, "PtgMemErr")?,
             0x29 => cursor.skip(2, "PtgMemFunc")?,
             0x2A => {
-                cursor.skip(6, "PtgRefErr")?;
+                cursor.skip(if biff8 { 4 } else { 6 }, "PtgRefErr")?;
                 let space = pending.take();
                 stack.push(Item {
                     text: format!("{space}#REF!"),
                 });
             }
             0x2B => {
-                cursor.skip(12, "PtgAreaErr")?;
+                cursor.skip(if biff8 { 8 } else { 12 }, "PtgAreaErr")?;
                 let space = pending.take();
                 stack.push(Item {
                     text: format!("{space}#REF!"),
@@ -538,13 +591,17 @@ pub(crate) fn print(
             }
             0x3A | 0x3C => {
                 let ixti = cursor.u16("a 3-D reference")?;
-                let row = cursor.u32("a 3-D reference")?;
+                let row = if biff8 {
+                    u32::from(cursor.u16("a 3-D reference")?)
+                } else {
+                    cursor.u32("a 3-D reference")?
+                };
                 let column = cursor.u16("a 3-D reference")?;
                 let prefix = sheets_prefix(ixti, context)?;
                 let cell = if base == 0x3C {
                     "#REF!".to_owned()
                 } else {
-                    cell_text(row, column, false, origin)
+                    cell_text(row, column, false, origin, layout)
                 };
                 let space = pending.take();
                 stack.push(Item {
@@ -556,13 +613,20 @@ pub(crate) fn print(
             }
             0x3B | 0x3D => {
                 let ixti = cursor.u16("a 3-D area")?;
-                let rows = (cursor.u32("a 3-D area")?, cursor.u32("a 3-D area")?);
+                let rows = if biff8 {
+                    (
+                        u32::from(cursor.u16("a 3-D area")?),
+                        u32::from(cursor.u16("a 3-D area")?),
+                    )
+                } else {
+                    (cursor.u32("a 3-D area")?, cursor.u32("a 3-D area")?)
+                };
                 let columns = (cursor.u16("a 3-D area")?, cursor.u16("a 3-D area")?);
                 let prefix = sheets_prefix(ixti, context)?;
                 let area = if base == 0x3D {
                     "#REF!".to_owned()
                 } else {
-                    area_text(rows, columns, false, origin)
+                    area_text(rows, columns, false, origin, layout)
                 };
                 let space = pending.take();
                 stack.push(Item {
@@ -585,22 +649,34 @@ pub(crate) fn print(
 /// A row and a column of a reference as A1 text: `$` before each absolute coordinate. A relative
 /// coordinate of a PtgRefN or PtgAreaN (`offsets`) is an offset from `origin`, wrapping around
 /// the grid's edge.
-fn coordinate_text(row: u32, raw_column: u16, offsets: bool, origin: Origin) -> (String, String) {
-    let column = u32::from(raw_column & 0x3FFF);
+fn coordinate_text(
+    row: u32,
+    raw_column: u16,
+    offsets: bool,
+    origin: Origin,
+    layout: Layout,
+) -> (String, String) {
+    let biff8 = layout == Layout::Biff8;
+    let column = u32::from(raw_column & if biff8 { 0x00FF } else { 0x3FFF });
     let column_relative = raw_column & 0x4000 != 0;
     let row_relative = raw_column & 0x8000 != 0;
+    let (rows, columns) = if biff8 { (65_536, 256) } else { (1_048_576, 16_384) };
     let row = if offsets && row_relative {
-        (i64::from(origin.row) + i64::from(row as i32)).rem_euclid(1_048_576) as u32
+        // BIFF8 stores a relative row as a signed 16-bit offset, xlsb as a signed 32-bit one.
+        let offset = if biff8 { i64::from(row as u16 as i16) } else { i64::from(row as i32) };
+        (i64::from(origin.row) + offset).rem_euclid(rows) as u32
     } else {
         row
     };
     let column = if offsets && column_relative {
-        let offset = if column & 0x2000 != 0 {
+        let offset = if biff8 {
+            i64::from(column as u8 as i8)
+        } else if column & 0x2000 != 0 {
             i64::from(column) - 0x4000
         } else {
             i64::from(column)
         };
-        (i64::from(origin.column) + offset).rem_euclid(16_384) as u32
+        (i64::from(origin.column) + offset).rem_euclid(columns) as u32
     } else {
         column
     };
@@ -614,18 +690,28 @@ fn coordinate_text(row: u32, raw_column: u16, offsets: bool, origin: Origin) -> 
     )
 }
 
-fn cell_text(row: u32, column: u16, offsets: bool, origin: Origin) -> String {
-    let (c, r) = coordinate_text(row, column, offsets, origin);
+fn cell_text(row: u32, column: u16, offsets: bool, origin: Origin, layout: Layout) -> String {
+    let (c, r) = coordinate_text(row, column, offsets, origin, layout);
     format!("{c}{r}")
 }
 
 /// An area as A1 text: whole columns (`A:B`) when it spans every row, whole rows (`1:3`) when it
 /// spans every column.
-fn area_text(rows: (u32, u32), columns: (u16, u16), offsets: bool, origin: Origin) -> String {
-    let (c1, r1) = coordinate_text(rows.0, columns.0, offsets, origin);
-    let (c2, r2) = coordinate_text(rows.1, columns.1, offsets, origin);
-    let all_rows = !offsets && rows.0 == 0 && rows.1 == 1_048_575;
-    let all_columns = !offsets && columns.0 & 0x3FFF == 0 && columns.1 & 0x3FFF == 16_383;
+fn area_text(
+    rows: (u32, u32),
+    columns: (u16, u16),
+    offsets: bool,
+    origin: Origin,
+    layout: Layout,
+) -> String {
+    let (c1, r1) = coordinate_text(rows.0, columns.0, offsets, origin, layout);
+    let (c2, r2) = coordinate_text(rows.1, columns.1, offsets, origin, layout);
+    let (last_row, last_column, mask) = match layout {
+        Layout::Xlsb => (1_048_575, 16_383, 0x3FFF),
+        Layout::Biff8 => (65_535, 255, 0x00FF),
+    };
+    let all_rows = !offsets && rows.0 == 0 && rows.1 == last_row;
+    let all_columns = !offsets && columns.0 & mask == 0 && columns.1 & mask == last_column;
     if all_rows && !all_columns {
         format!("{c1}:{c2}")
     } else if all_columns && !all_rows {
@@ -809,6 +895,61 @@ fn array_constant(extra: &mut Cursor<'_>) -> Read<String> {
                 0x04 => {
                     let code = extra.u8("an array error")?;
                     extra.skip(3, "an array error")?;
+                    out.push_str(
+                        error_text(code).ok_or_else(|| bad(format!("the error 0x{code:02X}")))?,
+                    );
+                }
+                other => return Err(bad(format!("the array value type {other}"))),
+            }
+        }
+    }
+    out.push('}');
+    Ok(out)
+}
+
+/// An array constant of a BIFF8 formula (PtgExtraArray, MS-XLS 2.5.198.8): the column count less
+/// one (a byte), the row count less one (16 bits), then each value in row order, 8 bytes or a
+/// string: 0 empty, 1 number, 2 string, 4 boolean, 16 error.
+fn biff8_array_constant(extra: &mut Cursor<'_>) -> Read<String> {
+    let columns = usize::from(extra.u8("an array's columns")?) + 1;
+    let rows = usize::from(extra.u16("an array's rows")?) + 1;
+    let mut out = String::from("{");
+    for row in 0..rows {
+        if row > 0 {
+            out.push(';');
+        }
+        for column in 0..columns {
+            if column > 0 {
+                out.push(',');
+            }
+            match extra.u8("an array value")? {
+                0x00 => {
+                    extra.skip(8, "an empty array value")?;
+                    out.push_str("\"\"");
+                }
+                0x01 => out.push_str(&formula_number(extra.f64("an array number")?)),
+                0x02 => {
+                    let count = usize::from(extra.u16("an array string")?);
+                    let wide = extra.u8("an array string")? & 1 != 0;
+                    let units: Vec<u16> = if wide {
+                        extra.units(count, "an array string")?
+                    } else {
+                        extra
+                            .bytes(count, "an array string")?
+                            .iter()
+                            .map(|b| u16::from(*b))
+                            .collect()
+                    };
+                    out.push_str(&quoted(&text(&units)));
+                }
+                0x04 => {
+                    let value = extra.u8("an array boolean")?;
+                    extra.skip(7, "an array boolean")?;
+                    out.push_str(if value != 0 { "TRUE" } else { "FALSE" });
+                }
+                0x10 => {
+                    let code = extra.u8("an array error")?;
+                    extra.skip(7, "an array error")?;
                     out.push_str(
                         error_text(code).ok_or_else(|| bad(format!("the error 0x{code:02X}")))?,
                     );

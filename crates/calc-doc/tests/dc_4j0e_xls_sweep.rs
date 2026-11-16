@@ -42,6 +42,7 @@ fn sweep() {
     let mut seen = 0usize;
     let mut opened = 0usize;
     let mut loaded = 0usize;
+    let (mut formula_cells, mut parse_failures) = (0usize, 0usize);
     let mut refused: BTreeMap<String, usize> = BTreeMap::new();
     let mut load_refused: BTreeMap<String, usize> = BTreeMap::new();
     let mut panics: Vec<String> = Vec::new();
@@ -61,7 +62,22 @@ fn sweep() {
             let document = calc_doc::open(source, &policy);
             let load = document.as_ref().ok().map(|d| {
                 let mut ids: IdAllocator<SheetId> = IdAllocator::new();
-                calc_doc::load(d, &mut ids).map(|_| ()).map_err(|e| e.to_string())
+                calc_doc::load(d, &mut ids).map_err(|e| e.to_string()).map(|loaded| {
+                    // Every formula must re-parse in calc-fml.
+                    let (mut formulas, mut failed) = (0usize, 0usize);
+                    for sheet in loaded.model().sheets() {
+                        for (_, input) in loaded.model().sheet_cells(sheet.id()).into_iter().flatten() {
+                            if let calc_doc::model::CellInput::Formula(f) = input {
+                                formulas += 1;
+                                let text = f.rendered().to_string_lossy();
+                                if !calc_fml::parse_formula(&text).diagnostics().is_empty() {
+                                    failed += 1;
+                                }
+                            }
+                        }
+                    }
+                    (formulas, failed)
+                })
             });
             (report, document.map(|_| ()), load)
         }));
@@ -82,7 +98,11 @@ fn sweep() {
                     Ok(()) => {
                         opened += 1;
                         match load {
-                            Some(Ok(())) => loaded += 1,
+                            Some(Ok((formulas, failed))) => {
+                                loaded += 1;
+                                formula_cells += formulas;
+                                parse_failures += failed;
+                            }
                             Some(Err(e)) => {
                                 let key: String = e.chars().take(90).collect();
                                 *load_refused.entry(key).or_insert(0) += 1;
@@ -104,6 +124,7 @@ fn sweep() {
     println!("OLE2 files seen:      {seen}");
     println!("opened (converted):   {opened}");
     println!("loaded (model built): {loaded}");
+    println!("formula cells loaded: {formula_cells}, not re-parsed by calc-fml: {parse_failures}");
     println!("refused to open, by reason:");
     for (reason, n) in &refused {
         println!("  {n:5}  {reason}   e.g. {}", shown_refusals[reason]);

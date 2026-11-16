@@ -142,6 +142,7 @@ impl Shared {
     /// The context a formula on the sheet `sheet` (a tab index) is printed against.
     pub(crate) fn context(&self, sheet: Option<u32>) -> Context<'_> {
         Context {
+            layout: formula::Layout::Xlsb,
             sheets: &self.sheet_names,
             xti: &self.xti,
             supbooks: &self.supbooks,

@@ -6,6 +6,7 @@
 use super::records::Record;
 use super::strings::{Pieces, RichString};
 use crate::xlsb::Cursor;
+use crate::xlsb::formula::Xti;
 use std::collections::BTreeMap;
 
 pub(crate) const BOF: u16 = 0x0809;
@@ -16,6 +17,10 @@ const FILEPASS: u16 = 0x002F;
 const BOUNDSHEET: u16 = 0x0085;
 const WINDOW1: u16 = 0x003D;
 const SST: u16 = 0x00FC;
+const NAME: u16 = 0x0018;
+const EXTERNSHEET: u16 = 0x0017;
+const SUPBOOK: u16 = 0x01AE;
+const EXTERNNAME: u16 = 0x0023;
 
 /// What a BOUNDSHEET8 sheet is (its `dt`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -39,6 +44,36 @@ pub(crate) struct BoundSheet {
     pub(crate) name: String,
 }
 
+/// A NAME record (Lbl, MS-XLS 2.4.150): a defined name with its formula tokens.
+#[derive(Clone, Debug)]
+pub(crate) struct NameRecord {
+    pub(crate) flags: u16,
+    pub(crate) key: u8,
+    /// The sheet the name is local to (0-based tab index); `None` for a workbook name.
+    pub(crate) scope: Option<u32>,
+    /// The name as SpreadsheetML writes it (a built-in name with `_xlnm.` before it).
+    pub(crate) name: String,
+    pub(crate) rgce: Vec<u8>,
+    pub(crate) rgcb: Vec<u8>,
+    pub(crate) description: Option<String>,
+    pub(crate) help: Option<String>,
+}
+
+/// A SUPBOOK record (2.4.271) with the EXTERNNAME records after it.
+#[derive(Clone, Debug)]
+pub(crate) enum SupBookRecord {
+    /// This workbook (virtual path 0x0401).
+    This,
+    /// An add-in's functions (0x3A01).
+    AddIn { names: Vec<String> },
+    /// Another workbook: its encoded path, sheet names and defined names.
+    External {
+        path: String,
+        sheets: Vec<String>,
+        names: Vec<String>,
+    },
+}
+
 /// What the globals substream says.
 #[derive(Debug, Default)]
 pub(crate) struct Globals {
@@ -48,6 +83,9 @@ pub(crate) struct Globals {
     pub(crate) active_tab: Option<u16>,
     /// The shared string table (SST), in index order.
     pub(crate) strings: Vec<RichString>,
+    pub(crate) names: Vec<NameRecord>,
+    pub(crate) supbooks: Vec<SupBookRecord>,
+    pub(crate) xti: Vec<Xti>,
     /// A FILEPASS record: the stream is encrypted (dc-4j0e.7).
     pub(crate) encrypted: bool,
     /// Record types not read, with how many of each, over the whole workbook stream, sheets included.
@@ -137,6 +175,30 @@ pub(crate) fn read(records: &[Record<'_>]) -> Result<Globals, String> {
                     globals.strings.push(p.rich_string().map_err(|e| e.0)?);
                 }
             }
+            NAME => globals.names.push(name_record(record)?),
+            SUPBOOK => globals.supbooks.push(supbook(record)?),
+            EXTERNNAME => {
+                let mut c = Cursor::new(record.body);
+                c.skip(6, "ExternName").map_err(|e| e.0)?;
+                let name = short_string(&mut c, "an external name")?;
+                match globals.supbooks.last_mut() {
+                    Some(SupBookRecord::External { names, .. } | SupBookRecord::AddIn { names }) => {
+                        names.push(name)
+                    }
+                    _ => return Err("an EXTERNNAME record outside an external SUPBOOK".into()),
+                }
+            }
+            EXTERNSHEET => {
+                let mut c = Cursor::new(record.body);
+                let count = c.u16("ExternSheet").map_err(|e| e.0)?;
+                for _ in 0..count {
+                    globals.xti.push(Xti {
+                        supbook: u32::from(c.u16("Xti").map_err(|e| e.0)?),
+                        first: i32::from(c.u16("Xti").map_err(|e| e.0)? as i16),
+                        last: i32::from(c.u16("Xti").map_err(|e| e.0)? as i16),
+                    });
+                }
+            }
             WINDOW1 => {
                 // xWn, yWn, dxWn, dyWn, grbit, itabCur, ...
                 let mut c = Cursor::new(record.body);
@@ -150,4 +212,132 @@ pub(crate) fn read(records: &[Record<'_>]) -> Result<Globals, String> {
         return Err("the workbook globals have no EOF record".into());
     }
     Ok(globals)
+}
+
+/// The text of an XLUnicodeStringNoCch: a flag byte (bit 0: UTF-16), then `count` characters.
+fn no_count_string(c: &mut Cursor<'_>, count: usize, what: &str) -> Result<String, String> {
+    if count == 0 {
+        return Ok(String::new());
+    }
+    let flags = c.u8(what).map_err(|e| e.0)?;
+    if flags & 1 != 0 {
+        Ok(String::from_utf16_lossy(&c.units(count, what).map_err(|e| e.0)?))
+    } else {
+        Ok(c.bytes(count, what).map_err(|e| e.0)?.iter().map(|b| char::from(*b)).collect())
+    }
+}
+
+/// The name a built-in NAME record's code stands for (2.5.171 and the `_xlnm.` names).
+fn built_in_name(code: u16) -> Option<&'static str> {
+    Some(match code {
+        0x00 => "_xlnm.Consolidate_Area",
+        0x01 => "_xlnm.Auto_Open",
+        0x02 => "_xlnm.Auto_Close",
+        0x03 => "_xlnm.Extract",
+        0x04 => "_xlnm.Database",
+        0x05 => "_xlnm.Criteria",
+        0x06 => "_xlnm.Print_Area",
+        0x07 => "_xlnm.Print_Titles",
+        0x08 => "_xlnm.Recorder",
+        0x09 => "_xlnm.Data_Form",
+        0x0A => "_xlnm.Auto_Activate",
+        0x0B => "_xlnm.Auto_Deactivate",
+        0x0C => "_xlnm.Sheet_Title",
+        0x0D => "_xlnm._FilterDatabase",
+        _ => return None,
+    })
+}
+
+fn name_record(record: &Record<'_>) -> Result<NameRecord, String> {
+    let body = record.joined();
+    let mut c = Cursor::new(&body);
+    let what = "a NAME record";
+    let m = |e: crate::xlsb::Malformed| e.0;
+    let flags = c.u16(what).map_err(m)?;
+    let key = c.u8(what).map_err(m)?;
+    let name_len = usize::from(c.u8(what).map_err(m)?);
+    let formula_len = usize::from(c.u16(what).map_err(m)?);
+    c.skip(2, what).map_err(m)?;
+    let tab = c.u16(what).map_err(m)?;
+    let menu_len = usize::from(c.u8(what).map_err(m)?);
+    let description_len = usize::from(c.u8(what).map_err(m)?);
+    let help_len = usize::from(c.u8(what).map_err(m)?);
+    let status_len = usize::from(c.u8(what).map_err(m)?);
+    let name = no_count_string(&mut c, name_len, what)?;
+    let name = if flags & 0x20 != 0 {
+        // A built-in name: one character whose code says which.
+        let code = name.chars().next().map_or(0, |ch| ch as u32 as u16);
+        built_in_name(code)
+            .map(str::to_owned)
+            .ok_or_else(|| format!("the built-in name code {code}"))?
+    } else {
+        name
+    };
+    let rgce = c.bytes(formula_len, what).map_err(m)?.to_vec();
+    // The array data of the formula, when it has any, is what is left before the strings; the
+    // strings are located from the end, so only the formula bytes are taken here.
+    let _menu = no_count_string(&mut c, menu_len, what)?;
+    let description = no_count_string(&mut c, description_len, what)?;
+    let help = no_count_string(&mut c, help_len, what)?;
+    let _status = no_count_string(&mut c, status_len, what)?;
+    Ok(NameRecord {
+        flags,
+        key,
+        scope: tab.checked_sub(1).map(u32::from),
+        name,
+        rgce,
+        rgcb: Vec::new(),
+        description: (!description.is_empty()).then_some(description),
+        help: (!help.is_empty()).then_some(help),
+    })
+}
+
+fn supbook(record: &Record<'_>) -> Result<SupBookRecord, String> {
+    let mut c = Cursor::new(record.body);
+    let what = "a SUPBOOK record";
+    let m = |e: crate::xlsb::Malformed| e.0;
+    let sheets = usize::from(c.u16(what).map_err(m)?);
+    let marker = c.u16(what).map_err(m)?;
+    if marker == 0x0401 {
+        return Ok(SupBookRecord::This);
+    }
+    if marker == 0x3A01 {
+        return Ok(SupBookRecord::AddIn { names: Vec::new() });
+    }
+    let path = no_count_string(&mut c, usize::from(marker), what)?;
+    let mut names = Vec::new();
+    for _ in 0..sheets {
+        let count = usize::from(c.u16(what).map_err(m)?);
+        names.push(no_count_string(&mut c, count, what)?);
+    }
+    Ok(SupBookRecord::External {
+        path: decode_path(&path),
+        sheets: names,
+        names: Vec::new(),
+    })
+}
+
+/// A SUPBOOK's encoded URL (MS-XLS 2.5.272, Virtual Path) as a file path: the control
+/// characters that stand for a volume, a directory separator or a step up become what they say.
+fn decode_path(encoded: &str) -> String {
+    let mut out = String::new();
+    let mut chars = encoded.chars().peekable();
+    while let Some(ch) = chars.next() {
+        match ch {
+            '\u{01}' => match chars.next() {
+                Some('\u{40}') => out.push_str("\\\\"),
+                Some(drive) if drive.is_ascii_alphabetic() => {
+                    out.push(drive);
+                    out.push(':');
+                }
+                _ => {}
+            },
+            '\u{02}' => out.push('\\'),
+            '\u{03}' => out.push('\\'),
+            '\u{04}' => out.push_str("..\\"),
+            '\u{05}' | '\u{06}' | '\u{07}' | '\u{08}' => {}
+            other => out.push(other),
+        }
+    }
+    out
 }

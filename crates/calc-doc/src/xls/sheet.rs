@@ -5,6 +5,8 @@
 
 use super::records::Record;
 use super::strings::Pieces;
+use super::formula::Links;
+use crate::xlsb::formula::{Origin, print};
 use crate::xlsb::{Cursor, Xml, formula};
 use std::collections::BTreeMap;
 
@@ -22,10 +24,61 @@ const RK: u16 = 0x027E;
 const MULRK: u16 = 0x00BD;
 const MULBLANK: u16 = 0x00BE;
 const LABELSST: u16 = 0x00FD;
+const SHRFMLA: u16 = 0x04BC;
+const ARRAY: u16 = 0x0221;
+const TABLE: u16 = 0x0236;
 
 /// Where a sheet's cells are read from and what they need from the workbook.
 pub(crate) struct Context<'a> {
     pub(crate) strings: &'a [super::strings::RichString],
+    pub(crate) links: &'a Links,
+    /// The tab index of the sheet being read.
+    pub(crate) tab: u32,
+}
+
+/// What a formula cell's `<f>` element holds.
+#[derive(Clone, Debug)]
+enum Formula {
+    Plain(String),
+    /// The anchor of an array formula over `range`.
+    Array { range: String, text: String },
+    /// The first cell of a data table: the attributes of its `<f>`.
+    Table(Vec<(&'static str, String)>),
+    /// A cell an array formula or a data table fills: its value only.
+    Member,
+}
+
+#[derive(Clone, Debug)]
+enum Cached {
+    Number(f64),
+    Text(Vec<u16>),
+    Bool(bool),
+    Error(u8),
+}
+
+/// A shared or array formula record: its range, tokens and extra data.
+struct Group {
+    rows: (u16, u16),
+    columns: (u8, u8),
+    rgce: Vec<u8>,
+    rgcb: Vec<u8>,
+}
+
+fn group(body: &[u8], array: bool) -> Result<Group, String> {
+    let mut c = Cursor::new(body);
+    let rows = (c.u16("a formula group").map_err(e)?, c.u16("a formula group").map_err(e)?);
+    let columns = (c.u8("a formula group").map_err(e)?, c.u8("a formula group").map_err(e)?);
+    // ARRAY: flags (2) and 4 unused bytes; SHRFMLA: 1 unused byte and the use count (1).
+    c.skip(if array { 6 } else { 2 }, "a formula group").map_err(e)?;
+    let count = usize::from(c.u16("a formula group").map_err(e)?);
+    let rgce = c.bytes(count, "a formula group").map_err(e)?.to_vec();
+    let rgcb = c.bytes(c.remaining(), "a formula group").map_err(e)?.to_vec();
+    Ok(Group {
+        rows,
+        columns,
+        rgce,
+        rgcb,
+    })
 }
 
 /// A cell's content as written to SpreadsheetML.
@@ -36,6 +89,7 @@ enum Content {
     Text(Vec<u16>),
     Bool(bool),
     Error(u8),
+    Formula(Formula, Cached),
 }
 
 #[derive(Default)]
@@ -88,12 +142,87 @@ pub(crate) fn read(
     let mut default_height: u16 = 255;
     let mut default_row_attributes: Vec<(&'static str, String)> = Vec::new();
     let mut depth = 0usize;
+    // Shared and array formulas and data tables, by the cell of the FORMULA record they follow
+    // (where a PtgExp finds them) and, for shared formulas, by the first cell of their range.
+    let mut shared: BTreeMap<(u32, u32), Group> = BTreeMap::new();
+    let mut arrays: BTreeMap<(u32, u32), Group> = BTreeMap::new();
+    let mut tables: BTreeMap<(u32, u32), Vec<(&'static str, String)>> = BTreeMap::new();
+    for (i, record) in records.iter().enumerate() {
+        if !matches!(record.id, SHRFMLA | ARRAY | TABLE) {
+            continue;
+        }
+        let mut j = i;
+        while j > 0 && matches!(records[j - 1].id, SHRFMLA | ARRAY | TABLE) {
+            j -= 1;
+        }
+        let Some(previous) = j.checked_sub(1).map(|j| &records[j]).filter(|r| r.id == FORMULA) else {
+            return Err(format!("a formula group record on sheet {sheet_name:?} that follows no formula"));
+        };
+        let mut c = Cursor::new(previous.body);
+        let at = (
+            u32::from(c.u16("Formula").map_err(e)?),
+            u32::from(c.u16("Formula").map_err(e)?),
+        );
+        let body = record.joined();
+        match record.id {
+            SHRFMLA => {
+                let g = group(&body, false)?;
+                shared.insert((u32::from(g.rows.0), u32::from(g.columns.0)), group(&body, false)?);
+                shared.insert(at, g);
+            }
+            ARRAY => {
+                arrays.insert(at, group(&body, true)?);
+            }
+            _ => {
+                let mut c = Cursor::new(&body);
+                let first_row = c.u16("Table").map_err(e)?;
+                let last_row = c.u16("Table").map_err(e)?;
+                let first_column = c.u8("Table").map_err(e)?;
+                let last_column = c.u8("Table").map_err(e)?;
+                let flags = c.u16("Table").map_err(e)?;
+                let row_input = (c.u16("Table").map_err(e)?, c.u16("Table").map_err(e)?);
+                let column_input = (c.u16("Table").map_err(e)?, c.u16("Table").map_err(e)?);
+                let two = flags & 0x08 != 0;
+                let mut attributes = vec![
+                    ("t", "dataTable".to_owned()),
+                    (
+                        "ref",
+                        format!(
+                            "{}{}:{}{}",
+                            column_name(u32::from(first_column)),
+                            u32::from(first_row) + 1,
+                            column_name(u32::from(last_column)),
+                            u32::from(last_row) + 1
+                        ),
+                    ),
+                ];
+                if two {
+                    attributes.push(("dt2D", "1".to_owned()));
+                }
+                if flags & 0x04 != 0 {
+                    attributes.push(("dtr", "1".to_owned()));
+                }
+                if flags & 0x10 != 0 {
+                    attributes.push(("del1", "1".to_owned()));
+                }
+                if flags & 0x20 != 0 {
+                    attributes.push(("del2", "1".to_owned()));
+                }
+                let cell = |p: (u16, u16)| format!("{}{}", column_name(u32::from(p.1)), u32::from(p.0) + 1);
+                attributes.push(("r1", cell(row_input)));
+                if two {
+                    attributes.push(("r2", cell(column_input)));
+                }
+                tables.insert(at, attributes);
+            }
+        }
+    }
     let put = |rows: &mut BTreeMap<u16, RowData>, row: u16, column: u16, content: Content| {
         rows.entry(row).or_default().cells.insert(column, content);
     };
     // Rows are known before the cells that fill them: ROW records come first, but a cell may
     // lie in a row with no ROW record, so cells create theirs.
-    for record in records {
+    for (index, record) in records.iter().enumerate() {
         if depth > 1 {
             // Inside a nested substream (an embedded chart): skipped, counted.
             match record.id {
@@ -240,9 +369,100 @@ pub(crate) fn read(
                 // A formatted blank cell carries no value; its format is read with the styles.
             }
             FORMULA => {
-                return Err(format!(
-                    "a formula cell on sheet {sheet_name:?}, which dc-4j0e.3 reads"
-                ));
+                let body = record.joined();
+                let mut c = Cursor::new(&body);
+                let (row, column, _) = cell_head(&mut c)?;
+                let value = c.bytes(8, "Formula").map_err(e)?.to_vec();
+                c.skip(6, "Formula").map_err(e)?;
+                let count = usize::from(c.u16("Formula").map_err(e)?);
+                let rgce = c.bytes(count, "Formula").map_err(e)?;
+                let rgcb = c.bytes(c.remaining(), "Formula").map_err(e)?;
+                let cached = if value[6] == 0xFF && value[7] == 0xFF {
+                    match value[0] {
+                        0 | 3 => {
+                            // The text is in the STRING record after this formula (and its
+                            // shared, array or table record); a type 3 value is the empty text.
+                            let mut units = Vec::new();
+                            if value[0] == 0 {
+                                let next = records[index + 1..]
+                                    .iter()
+                                    .find(|r| !matches!(r.id, SHRFMLA | ARRAY | TABLE));
+                                match next {
+                                    Some(r) if r.id == STRING => {
+                                        let mut p = Pieces::new(r);
+                                        units = p.unicode_string("a formula's text").map_err(|m| m.0)?;
+                                    }
+                                    _ => {
+                                        return Err(format!(
+                                            "a formula cell on sheet {sheet_name:?} with a text result and no STRING record"
+                                        ));
+                                    }
+                                }
+                            }
+                            Cached::Text(units)
+                        }
+                        1 => Cached::Bool(value[2] != 0),
+                        2 => Cached::Error(value[2]),
+                        other => {
+                            return Err(format!("a formula result of type {other} on sheet {sheet_name:?}"));
+                        }
+                    }
+                } else {
+                    let mut bytes = [0u8; 8];
+                    bytes.copy_from_slice(&value);
+                    Cached::Number(f64::from_le_bytes(bytes))
+                };
+                let at = (u32::from(row), u32::from(column));
+                let here = format!("{}{}", column_name(at.1), at.0 + 1);
+                let links = context.links.context(Some(context.tab));
+                let origin = Origin {
+                    row: at.0,
+                    column: at.1,
+                };
+                let fail = |what: String| format!("{what} in the formula of {here} on sheet {sheet_name:?}");
+                let formula = if rgce.first() == Some(&0x02) {
+                    // PtgTbl: a cell inside a data table; the first one holds the table.
+                    match tables.get(&at) {
+                        Some(attributes) => Formula::Table(attributes.clone()),
+                        None => Formula::Member,
+                    }
+                } else {
+                    match print(rgce, rgcb, &links, origin).map_err(|m| fail(m.0))? {
+                        Ok(text) => Formula::Plain(text),
+                        Err(expanded) => {
+                            let key = (expanded.row, expanded.column);
+                            if let Some(array) = arrays.get(&key) {
+                                if key == at {
+                                    let text = print(&array.rgce, &array.rgcb, &links, origin)
+                                        .map_err(|m| fail(m.0))?
+                                        .map_err(|_| fail("a PtgExp in an array formula".into()))?;
+                                    let range = format!(
+                                        "{}{}:{}{}",
+                                        column_name(u32::from(array.columns.0)),
+                                        u32::from(array.rows.0) + 1,
+                                        column_name(u32::from(array.columns.1)),
+                                        u32::from(array.rows.1) + 1
+                                    );
+                                    Formula::Array { range, text }
+                                } else {
+                                    Formula::Member
+                                }
+                            } else if let Some(group) = shared.get(&key) {
+                                let text = print(&group.rgce, &group.rgcb, &links, origin)
+                                    .map_err(|m| fail(m.0))?
+                                    .map_err(|_| fail("a PtgExp in a shared formula".into()))?;
+                                Formula::Plain(text)
+                            } else {
+                                return Err(fail(format!(
+                                    "a PtgExp naming row {} column {}, where no shared or array formula is",
+                                    key.0 + 1,
+                                    key.1 + 1
+                                )));
+                            }
+                        }
+                    }
+                };
+                put(&mut rows, row, column, Content::Formula(formula, cached));
             }
             STRING => {}
             other => *unknown.entry(other).or_insert(0) += 1,
@@ -301,6 +521,36 @@ pub(crate) fn read(
                 Content::Bool(b) => {
                     x.open("c", &[("r", reference), ("t", "b".to_owned())]);
                     x.element("v", &[], if *b { "1" } else { "0" });
+                    x.close("c");
+                }
+                Content::Formula(f, cached) => {
+                    let mut attributes = vec![("r", reference)];
+                    let (kind, value): (Option<&str>, String) = match cached {
+                        Cached::Number(v) => (None, formula::number_text(*v)),
+                        Cached::Text(units) => (Some("str"), String::from_utf16_lossy(units)),
+                        Cached::Bool(b) => (Some("b"), if *b { "1" } else { "0" }.to_owned()),
+                        Cached::Error(code) => (
+                            Some("e"),
+                            formula::error_text(*code)
+                                .ok_or_else(|| format!("the error code 0x{code:02X} on sheet {sheet_name:?}"))?
+                                .to_owned(),
+                        ),
+                    };
+                    if let Some(kind) = kind {
+                        attributes.push(("t", kind.to_owned()));
+                    }
+                    x.open("c", &attributes);
+                    match f {
+                        Formula::Plain(text) => x.element("f", &[], text),
+                        Formula::Array { range, text } => x.element(
+                            "f",
+                            &[("t", "array".to_owned()), ("ref", range.clone())],
+                            text,
+                        ),
+                        Formula::Table(attributes) => x.empty("f", attributes),
+                        Formula::Member => {}
+                    }
+                    x.element("v", &[], &value);
                     x.close("c");
                 }
                 Content::Error(code) => {

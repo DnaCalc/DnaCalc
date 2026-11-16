@@ -186,8 +186,15 @@ fn cells(model: &ModelRoot, index: usize) -> Vec<String> {
                 CellInput::Text(t) => format!("s:{}", t.text().to_string_lossy()),
                 CellInput::Logical(b) => format!("b:{b}"),
                 CellInput::Error(e) => format!("e:{e:?}"),
-                CellInput::Formula(f) => format!("f:{f:?}"),
+                CellInput::Formula(f) => format!("f:{}", f.rendered().to_string_lossy()),
             };
+            if let CellInput::Formula(f) = input {
+                let text = f.rendered().to_string_lossy();
+                assert!(
+                    calc_fml::parse_formula(&text).diagnostics().is_empty(),
+                    "calc-fml reads {text:?} with a diagnostic"
+                );
+            }
             format!("{}{} {what}", column_letters(at.column()), at.row())
         })
         .collect()
@@ -282,13 +289,150 @@ fn rows_and_columns_keep_height_hidden_and_outline() {
     assert!(geometry.rows.get(&3).is_some_and(|r| r.hidden));
 }
 
+fn defined_names(bytes: &[u8]) -> Vec<String> {
+    load(bytes)
+        .model()
+        .definitions()
+        .names()
+        .iter()
+        .map(|n| format!("{} = {}", n.name, n.formula))
+        .collect()
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn a_formula_cell_is_a_typed_refusal_until_formulas_are_read() {
-    let formula = record(0x0006, &[0; 24]);
-    let bytes = xls(false, &[], &[Sheet::worksheet("S", formula)]);
+fn formula_tokens_print_as_excel_writes_them_and_cached_results_are_kept() {
+    use ptg::*;
+    let mut r = Vec::new();
+    r.extend(formula(0, 0, STR_VALUE, &join(&[text("a"), text("b"), op(CONCAT)]), &[]));
+    r.extend(string_result("ab"));
+    r.extend(formula(0, 1, num_value(9.0), &join(&[int(1), int(2), op(ADD), op(PAREN), int(3), op(MUL)]), &[]));
+    r.extend(formula(0, 2, num_value(0.0), &cell(4, 2, 0), &[]));
+    r.extend(formula(0, 3, num_value(0.0), &cell(4, 2, REL_COL), &[]));
+    r.extend(formula(0, 4, num_value(0.0), &cell(4, 2, REL_ROW), &[]));
+    r.extend(formula(0, 5, num_value(0.0), &area((0, 65535), (0, 0), REL_ROW | REL_COL), &[]));
+    r.extend(formula(0, 6, num_value(0.0), &area((0, 0), (0, 255), REL_ROW | REL_COL), &[]));
+    r.extend(formula(0, 7, bool_value(true), &int(1), &[]));
+    r.extend(formula(0, 8, err_value(0x2A), &num(0.5), &[]));
+    r.extend(formula(0, 9, num_value(0.0), &join(&[text("é✓"), func_var(1, 111)]), &[]));
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", r)]);
+    assert_eq!(
+        sheet_cells(&bytes),
+        vec![
+            "A1 f:\"a\"&\"b\"", "B1 f:(1+2)*3", "C1 f:$C$5", "D1 f:C$5", "E1 f:$C5", "F1 f:A:A", "G1 f:1:1",
+            "H1 f:1", "I1 f:0.5", "J1 f:CHAR(\"é✓\")",
+        ]
+    );
+    let loaded = load(&bytes);
+    let sheet = &loaded.sheets()[0];
+    let cached = |row, column| format!("{:?}", sheet.formula(row, column).and_then(|f| f.cache()));
+    assert!(cached(1, 1).contains("[97, 98]"), "{}", cached(1, 1));
+    assert!(cached(1, 2).contains('9'), "{}", cached(1, 2));
+    assert!(cached(1, 8).to_lowercase().contains("true") || cached(1, 8).contains("Logical"), "{}", cached(1, 8));
+    assert!(cached(1, 9).contains("NA"), "{}", cached(1, 9));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn shared_array_and_table_formulas() {
+    use ptg::*;
+    let mut r = Vec::new();
+    // Shared B3:B5 = A3+1: PtgRefN offsets are applied at each member.
+    for k in 2..5u16 {
+        r.extend(formula(k, 1, num_value(1.0), &exp(2, 1), &[]));
+        if k == 2 {
+            r.extend(shrfmla((2, 4), (1, 1), &join(&[cell_n(0, -1, REL_ROW | REL_COL), int(1), op(ADD)])));
+        }
+    }
+    // Array A8:B9 = {1+2}: the anchor holds the formula, the others only values.
+    r.extend(formula(7, 0, num_value(3.0), &exp(7, 0), &[]));
+    r.extend(array_record((7, 8), (0, 1), &join(&[int(1), int(2), op(ADD)]), &[]));
+    r.extend(formula(7, 1, num_value(3.0), &exp(7, 0), &[]));
+    r.extend(formula(8, 0, num_value(3.0), &exp(7, 0), &[]));
+    r.extend(formula(8, 1, num_value(3.0), &exp(7, 0), &[]));
+    // A one-input data table over C11:C13 with column input cell A1.
+    r.extend(formula(10, 2, num_value(1.0), &table(10, 2), &[]));
+    r.extend(table_record((10, 12), (2, 2), 0, (0, 0), (0, 0)));
+    r.extend(formula(11, 2, num_value(2.0), &table(10, 2), &[]));
+    r.extend(formula(12, 2, num_value(3.0), &table(10, 2), &[]));
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", r)]);
+    assert_eq!(sheet_cells(&bytes), vec!["B3 f:A3+1", "B4 f:A4+1", "B5 f:A5+1", "A8 f:1+2"]);
+    let loaded = load(&bytes);
+    let definitions = loaded.model().definitions();
+    assert_eq!(definitions.arrays().count(), 1);
+    assert_eq!(definitions.data_tables().len(), 1);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn names_3d_external_references_and_add_in_functions() {
+    use ptg::*;
+    let globals = [
+        supbook_self(1),
+        supbook_external("\u{1}C\u{3}dir\u{3}book.xls", &["Rates"]),
+        supbook_addin(),
+        extern_name("myfunc"),
+        extern_sheet(&[(0, 0, 0), (1, 0, 0), (2, -2, -2)]),
+        name_record(0, 0, "Rate", &cell3d(0, 0, 0, 0)),
+        // A built-in Print_Area local to the first sheet.
+        name_record(0x20, 1, "\u{6}", &area3d(0, (0, 9), (0, 3), 0)),
+        // A hidden macro-function name.
+        name_record(0x0001 | 0x0002, 0, "Helper", &int(1)),
+    ]
+    .concat();
+    let mut r = Vec::new();
+    r.extend(formula(13, 0, num_value(1.0), &cell3d(1, 1, 1, 0), &[]));
+    r.extend(formula(13, 1, num_value(1.0), &join(&[name_x(2, 1), int(5), func_var(2, 255)]), &[]));
+    r.extend(formula(13, 2, num_value(1.0), &name(1), &[]));
+    let bytes = xls(false, &globals, &[Sheet::worksheet("S", r)]);
+    assert_eq!(sheet_cells(&bytes), vec!["A14 f:[1]Rates!$B$2", "B14 f:_xll.myfunc(5)", "C14 f:Rate"]);
+    let names = defined_names(&bytes);
+    assert_eq!(
+        names,
+        vec!["Rate = S!$A$1", "_xlnm.Print_Area = S!$A$1:$D$10", "Helper = 1"]
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn a_formula_the_converter_cannot_print_is_a_typed_refusal_naming_the_cell() {
+    // Token 0x7F is no token.
+    let r = formula(0, 0, ptg_value(), &[0x7F], &[]);
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", r)]);
     match calc_doc::open(source(&bytes), &OpenPolicy::default()) {
-        Err(OpenError::LegacyWorkbook { detail, .. }) => assert!(detail.contains("dc-4j0e.3"), "{detail}"),
+        Err(OpenError::LegacyWorkbook { detail, .. }) => {
+            assert!(detail.contains("A1") && detail.contains("0x3F"), "{detail}")
+        }
         other => panic!("{:?}", other.err()),
     }
+}
+
+fn ptg_value() -> [u8; 8] {
+    num_value(0.0)
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn array_constants_attributes_and_relative_references_that_wrap() {
+    use ptg::*;
+    let mut r = Vec::new();
+    // {1,"a";TRUE,#N/A}: 2 columns, 2 rows.
+    let mut data = vec![1u8];
+    data.extend(1u16.to_le_bytes());
+    data.push(1);
+    data.extend(1.0f64.to_le_bytes());
+    data.extend([2, 1, 0, 0, b'a']);
+    data.extend([4, 1, 0, 0, 0, 0, 0, 0, 0]);
+    data.extend([0x10, 0x2A, 0, 0, 0, 0, 0, 0, 0]);
+    r.extend(formula(0, 0, num_value(1.0), &array(), &data));
+    // SUM written with its attribute token, and a space before the 2.
+    r.extend(formula(0, 1, num_value(3.0), &join(&[int(1), vec![0x19, 0x40, 0x00, 0x01], int(2), op(ADD), vec![0x19, 0x10, 0, 0]]), &[]));
+    // A shared formula on row 1 whose relative row offset -1 wraps around the 65,536-row grid.
+    r.extend(formula(0, 2, num_value(0.0), &exp(0, 2), &[]));
+    r.extend(shrfmla((0, 0), (2, 2), &cell_n(-1, 0, REL_ROW | REL_COL)));
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", r)]);
+    assert_eq!(
+        sheet_cells(&bytes),
+        vec!["A1 f:{1,\"a\";TRUE,#N/A}", "B1 f:SUM(1+ 2)", "C1 f:C65536"]
+    );
 }

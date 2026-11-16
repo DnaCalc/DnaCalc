@@ -9,6 +9,7 @@
 //! [`LegacyReport`], never fatal.
 
 pub(crate) mod cfb;
+mod formula;
 mod records;
 mod sheet;
 mod strings;
@@ -87,6 +88,15 @@ pub(crate) fn convert(bytes: &[u8]) -> Result<(Vec<u8>, LegacyReport), OpenError
     let mut parts: Vec<(String, &'static str, Vec<u8>)> = Vec::new();
     let mut sheet_entries: Vec<(String, u8, String)> = Vec::new();
     let mut number = 0usize;
+    let links = formula::Links::new(
+        &globals,
+        globals
+            .sheets
+            .iter()
+            .filter(|s| s.kind != SheetKind::Module)
+            .map(|s| s.name.clone())
+            .collect(),
+    );
     let mut sheet_unknown: BTreeMap<u16, u32> = BTreeMap::new();
     for sheet in &globals.sheets {
         if sheet.kind == SheetKind::Module {
@@ -126,6 +136,8 @@ pub(crate) fn convert(bytes: &[u8]) -> Result<(Vec<u8>, LegacyReport), OpenError
         number += 1;
         let context = sheet::Context {
             strings: &globals.strings,
+            links: &links,
+            tab: number as u32 - 1,
         };
         let (part, content_type, xml) = match sheet.kind {
             SheetKind::MacroSheet | SheetKind::Worksheet => {
@@ -192,6 +204,66 @@ pub(crate) fn convert(bytes: &[u8]) -> Result<(Vec<u8>, LegacyReport), OpenError
             sst.out,
         ));
     }
+    // The external workbooks the formulas name, as external link parts.
+    let mut external_links: Vec<String> = Vec::new();
+    let mut extra_entries: Vec<(String, Vec<u8>)> = Vec::new();
+    for book in &globals.supbooks {
+        let workbook::SupBookRecord::External { path, sheets, names } = book else {
+            continue;
+        };
+        let number = external_links.len() + 1;
+        let mut x = Xml::new();
+        x.open(
+            "externalLink",
+            &[
+                ("xmlns", MAIN_NAMESPACE.to_owned()),
+                ("xmlns:r", RELATIONSHIPS_NAMESPACE.to_owned()),
+            ],
+        );
+        x.open("externalBook", &[("r:id", "rId1".to_owned())]);
+        if !sheets.is_empty() {
+            x.open("sheetNames", &[]);
+            for sheet in sheets {
+                x.empty("sheetName", &[("val", sheet.clone())]);
+            }
+            x.close("sheetNames");
+        }
+        if !names.is_empty() {
+            x.open("definedNames", &[]);
+            for name in names {
+                x.empty("definedName", &[("name", name.clone())]);
+            }
+            x.close("definedNames");
+        }
+        x.close("externalBook");
+        x.close("externalLink");
+        let part = format!("xl/externalLinks/externalLink{number}.xml");
+        let mut r = Xml::new();
+        r.open(
+            "Relationships",
+            &[(
+                "xmlns",
+                "http://schemas.openxmlformats.org/package/2006/relationships".to_owned(),
+            )],
+        );
+        r.empty(
+            "Relationship",
+            &[
+                ("Id", "rId1".to_owned()),
+                ("Type", format!("{REL_TYPE}/externalLinkPath")),
+                ("Target", path.clone()),
+                ("TargetMode", "External".to_owned()),
+            ],
+        );
+        r.close("Relationships");
+        extra_entries.push((format!("xl/externalLinks/_rels/externalLink{number}.xml.rels"), r.out));
+        parts.push((
+            part.clone(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.externalLink+xml",
+            x.out,
+        ));
+        external_links.push(part);
+    }
     let macros = globals.sheets.iter().any(|s| s.kind == SheetKind::MacroSheet);
     let report = LegacyReport {
         biff_version: 8,
@@ -242,6 +314,77 @@ pub(crate) fn convert(bytes: &[u8]) -> Result<(Vec<u8>, LegacyReport), OpenError
         xml.empty("sheet", &attributes);
     }
     xml.close("sheets");
+    if !external_links.is_empty() {
+        xml.open("externalReferences", &[]);
+        for k in 0..external_links.len() {
+            xml.empty("externalReference", &[("r:id", format!("rIdLink{}", k + 1))]);
+        }
+        xml.close("externalReferences");
+    }
+    let listed: Vec<&workbook::NameRecord> = globals
+        .names
+        .iter()
+        .filter(|n| !n.rgce.is_empty() && !n.name.starts_with("_xlpm."))
+        .collect();
+    let stream_name = name;
+    if !listed.is_empty() {
+        xml.open("definedNames", &[]);
+        for name in listed {
+            let context = links.context(name.scope);
+            let text = match crate::xlsb::formula::print(
+                &name.rgce,
+                &name.rgcb,
+                &context,
+                crate::xlsb::formula::Origin::default(),
+            ) {
+                Ok(Ok(text)) => text,
+                Ok(Err(_)) => return Err(refuse(stream_name, "a defined name holding a PtgExp")),
+                Err(error) => {
+                    return Err(refuse(
+                        stream_name,
+                        format!("the defined name {:?}: {}", name.name, error.0),
+                    ));
+                }
+            };
+            let mut attributes = vec![("name", name.name.clone())];
+            if let Some(description) = &name.description {
+                attributes.push(("description", description.clone()));
+            }
+            if let Some(help) = &name.help {
+                attributes.push(("help", help.clone()));
+            }
+            if let Some(scope) = name.scope {
+                attributes.push(("localSheetId", scope.to_string()));
+            }
+            if name.flags & 0x0001 != 0 {
+                attributes.push(("hidden", "1".to_owned()));
+            }
+            // fFunc (bit 1), fOB (bit 2, a VBA procedure) and fProc (bit 3, a macro).
+            let (function, visual_basic, procedure) = (
+                name.flags & 0x0002 != 0,
+                name.flags & 0x0004 != 0,
+                name.flags & 0x0008 != 0,
+            );
+            if function {
+                attributes.push(("function", "1".to_owned()));
+            }
+            if visual_basic {
+                attributes.push(("vbProcedure", "1".to_owned()));
+            }
+            if procedure && !visual_basic {
+                attributes.push(("xlm", "1".to_owned()));
+            }
+            let group = (name.flags >> 6) & 0xFF;
+            if procedure && group != 0 {
+                attributes.push(("functionGroupId", group.to_string()));
+            }
+            if name.key != 0 {
+                attributes.push(("shortcutKey", char::from(name.key).to_string()));
+            }
+            xml.element("definedName", &attributes, &text);
+        }
+        xml.close("definedNames");
+    }
     xml.close("workbook");
     let workbook_xml = xml.out;
 
@@ -272,6 +415,16 @@ pub(crate) fn convert(bytes: &[u8]) -> Result<(Vec<u8>, LegacyReport), OpenError
             &[
                 ("Id", format!("rId{}", index + 1)),
                 ("Type", kind),
+                ("Target", part.trim_start_matches("xl/").to_owned()),
+            ],
+        );
+    }
+    for (k, part) in external_links.iter().enumerate() {
+        rels.empty(
+            "Relationship",
+            &[
+                ("Id", format!("rIdLink{}", k + 1)),
+                ("Type", format!("{REL_TYPE}/externalLink")),
                 ("Target", part.trim_start_matches("xl/").to_owned()),
             ],
         );
@@ -361,6 +514,7 @@ pub(crate) fn convert(bytes: &[u8]) -> Result<(Vec<u8>, LegacyReport), OpenError
         ("xl/_rels/workbook.xml.rels", &rels.out),
     ];
     entries.extend(parts.iter().map(|(n, _, c)| (n.as_str(), c.as_slice())));
+    entries.extend(extra_entries.iter().map(|(n, c)| (n.as_str(), c.as_slice())));
     let archive = crate::save::new_archive(&entries)
         .ok_or_else(|| refuse(name, "the converted package is too large for a ZIP archive"))?;
     Ok((archive, report))

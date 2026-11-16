@@ -368,3 +368,224 @@ pub fn row(row: u16, height: u16, flags: u8) -> Vec<u8> {
 pub fn colinfo(first: u16, last: u16, width: u16, flags: u16) -> Vec<u8> {
     record(0x007D, &u16s(&[first, last, width, 15, flags, 0]))
 }
+
+/// Formula tokens (ptg bytes).
+pub mod ptg {
+    use super::u16s;
+    pub fn int(n: u16) -> Vec<u8> {
+        let mut v = vec![0x1E];
+        v.extend(n.to_le_bytes());
+        v
+    }
+    pub fn num(x: f64) -> Vec<u8> {
+        let mut v = vec![0x1F];
+        v.extend(x.to_le_bytes());
+        v
+    }
+    pub fn text(s: &str) -> Vec<u8> {
+        let mut v = vec![0x17, s.chars().count() as u8];
+        if s.is_ascii() {
+            v.push(0);
+            v.extend(s.bytes());
+        } else {
+            v.push(1);
+            v.extend(u16s(&s.encode_utf16().collect::<Vec<_>>()));
+        }
+        v
+    }
+    pub const REL_ROW: u16 = 0x8000;
+    pub const REL_COL: u16 = 0x4000;
+    /// PtgRef: 0-based row and column; `flags` REL_ROW | REL_COL.
+    pub fn cell(row: u16, column: u16, flags: u16) -> Vec<u8> {
+        let mut v = vec![0x24];
+        v.extend(u16s(&[row, column | flags]));
+        v
+    }
+    /// PtgRefN: relative offsets (signed) for relative parts.
+    pub fn cell_n(row: i16, column: i8, flags: u16) -> Vec<u8> {
+        let mut v = vec![0x2C];
+        v.extend(u16s(&[row as u16, u16::from(column as u8) | flags]));
+        v
+    }
+    pub fn area(rows: (u16, u16), columns: (u16, u16), flags: u16) -> Vec<u8> {
+        let mut v = vec![0x25];
+        v.extend(u16s(&[rows.0, rows.1, columns.0 | flags, columns.1 | flags]));
+        v
+    }
+    pub fn area3d(ixti: u16, rows: (u16, u16), columns: (u16, u16), flags: u16) -> Vec<u8> {
+        let mut v = vec![0x3B];
+        v.extend(u16s(&[ixti, rows.0, rows.1, columns.0 | flags, columns.1 | flags]));
+        v
+    }
+    pub fn cell3d(ixti: u16, row: u16, column: u16, flags: u16) -> Vec<u8> {
+        let mut v = vec![0x3A];
+        v.extend(u16s(&[ixti, row, column | flags]));
+        v
+    }
+    pub fn name(index: u32) -> Vec<u8> {
+        let mut v = vec![0x23];
+        v.extend(index.to_le_bytes());
+        v
+    }
+    pub fn name_x(ixti: u16, index: u32) -> Vec<u8> {
+        let mut v = vec![0x39];
+        v.extend(ixti.to_le_bytes());
+        v.extend(index.to_le_bytes());
+        v
+    }
+    pub fn exp(row: u16, column: u16) -> Vec<u8> {
+        let mut v = vec![0x01];
+        v.extend(u16s(&[row, column]));
+        v
+    }
+    pub fn table(row: u16, column: u16) -> Vec<u8> {
+        let mut v = vec![0x02];
+        v.extend(u16s(&[row, column]));
+        v
+    }
+    pub const ADD: u8 = 0x03;
+    pub const MUL: u8 = 0x05;
+    pub const CONCAT: u8 = 0x08;
+    pub const PAREN: u8 = 0x15;
+    /// PtgFuncVar with `count` arguments of function `id`.
+    pub fn func_var(count: u8, id: u16) -> Vec<u8> {
+        let mut v = vec![0x42, count];
+        v.extend(id.to_le_bytes());
+        v
+    }
+    /// PtgFunc of a fixed-arity function.
+    pub fn func(id: u16) -> Vec<u8> {
+        let mut v = vec![0x41];
+        v.extend(id.to_le_bytes());
+        v
+    }
+    pub fn join(parts: &[Vec<u8>]) -> Vec<u8> {
+        parts.concat()
+    }
+    pub fn op(code: u8) -> Vec<u8> {
+        vec![code]
+    }
+    /// PtgArray (7 reserved bytes); its data goes in the formula's extra bytes.
+    pub fn array() -> Vec<u8> {
+        let mut v = vec![0x20];
+        v.extend([0u8; 7]);
+        v
+    }
+}
+
+/// FORMULA: cell, 8 value bytes, tokens, extra data.
+pub fn formula(row: u16, column: u16, value: [u8; 8], rgce: &[u8], rgcb: &[u8]) -> Vec<u8> {
+    let mut body = u16s(&[row, column, 15]);
+    body.extend(value);
+    body.extend(u16s(&[0, 0, 0]));
+    body.extend((rgce.len() as u16).to_le_bytes());
+    body.extend_from_slice(rgce);
+    body.extend_from_slice(rgcb);
+    record(0x0006, &body)
+}
+
+pub fn num_value(x: f64) -> [u8; 8] {
+    x.to_le_bytes()
+}
+pub const STR_VALUE: [u8; 8] = [0, 0, 0, 0, 0, 0, 0xFF, 0xFF];
+pub fn bool_value(b: bool) -> [u8; 8] {
+    [1, 0, u8::from(b), 0, 0, 0, 0xFF, 0xFF]
+}
+pub fn err_value(code: u8) -> [u8; 8] {
+    [2, 0, code, 0, 0, 0, 0xFF, 0xFF]
+}
+
+/// STRING: the text result of the formula before it.
+pub fn string_result(text: &str) -> Vec<u8> {
+    let mut body = (text.chars().count() as u16).to_le_bytes().to_vec();
+    body.push(0);
+    body.extend(text.bytes());
+    record(0x0207, &body)
+}
+
+/// SHRFMLA over rows/columns (inclusive) with the given tokens.
+pub fn shrfmla(rows: (u16, u16), columns: (u8, u8), rgce: &[u8]) -> Vec<u8> {
+    let mut body = u16s(&[rows.0, rows.1]);
+    body.extend([columns.0, columns.1, 0, 1]);
+    body.extend((rgce.len() as u16).to_le_bytes());
+    body.extend_from_slice(rgce);
+    record(0x04BC, &body)
+}
+
+/// ARRAY over rows/columns (inclusive).
+pub fn array_record(rows: (u16, u16), columns: (u8, u8), rgce: &[u8], rgcb: &[u8]) -> Vec<u8> {
+    let mut body = u16s(&[rows.0, rows.1]);
+    body.extend([columns.0, columns.1]);
+    body.extend([0u8; 6]);
+    body.extend((rgce.len() as u16).to_le_bytes());
+    body.extend_from_slice(rgce);
+    body.extend_from_slice(rgcb);
+    record(0x0221, &body)
+}
+
+/// TABLE: range, flags (0x04 row input, 0x08 two inputs), row input cell, column input cell.
+pub fn table_record(
+    rows: (u16, u16),
+    columns: (u8, u8),
+    flags: u16,
+    row_input: (u16, u16),
+    column_input: (u16, u16),
+) -> Vec<u8> {
+    let mut body = u16s(&[rows.0, rows.1]);
+    body.extend([columns.0, columns.1]);
+    body.extend(u16s(&[flags, row_input.0, row_input.1, column_input.0, column_input.1]));
+    record(0x0236, &body)
+}
+
+/// NAME: flags, scope (0 workbook, else 1-based sheet), name text (or the built-in code), tokens.
+pub fn name_record(flags: u16, scope: u16, name: &str, rgce: &[u8]) -> Vec<u8> {
+    let mut body = flags.to_le_bytes().to_vec();
+    body.extend([0, name.len() as u8]);
+    body.extend((rgce.len() as u16).to_le_bytes());
+    body.extend(u16s(&[0, scope]));
+    body.extend([0, 0, 0, 0]);
+    body.push(0);
+    body.extend(name.bytes());
+    body.extend_from_slice(rgce);
+    record(0x0018, &body)
+}
+
+/// SUPBOOK for this workbook.
+pub fn supbook_self(sheets: u16) -> Vec<u8> {
+    record(0x01AE, &u16s(&[sheets, 0x0401]))
+}
+
+/// SUPBOOK for an add-in's functions.
+pub fn supbook_addin() -> Vec<u8> {
+    record(0x01AE, &u16s(&[1, 0x3A01]))
+}
+
+/// SUPBOOK for another workbook: encoded path and its sheet names.
+pub fn supbook_external(path: &str, sheets: &[&str]) -> Vec<u8> {
+    let mut body = u16s(&[sheets.len() as u16, path.len() as u16]);
+    body.push(0);
+    body.extend(path.bytes());
+    for s in sheets {
+        body.extend((s.len() as u16).to_le_bytes());
+        body.push(0);
+        body.extend(s.bytes());
+    }
+    record(0x01AE, &body)
+}
+
+/// EXTERNNAME of the SUPBOOK before it.
+pub fn extern_name(name: &str) -> Vec<u8> {
+    let mut body = u16s(&[0, 0, 0]);
+    body.extend(short_string(name));
+    body.extend(u16s(&[0]));
+    record(0x0023, &body)
+}
+
+/// EXTERNSHEET: each XTI as (supbook, first sheet, last sheet).
+pub fn extern_sheet(xti: &[(u16, i16, i16)]) -> Vec<u8> {
+    let mut body = (xti.len() as u16).to_le_bytes().to_vec();
+    for (b, f, l) in xti {
+        body.extend(u16s(&[*b, *f as u16, *l as u16]));
+    }
+    record(0x0017, &body)
+}
