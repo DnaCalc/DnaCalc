@@ -864,10 +864,10 @@ pub(super) fn evaluate(
     let offset = usize::from(matches!(output, Output::Forecast | Output::Confidence));
     // Excel 20527 coerces the target before inspecting history shape or option domains.
     let target = if offset == 1 { Some(num(site, args, 0)?) } else { None };
-    // In the measured serial layout, STAT and SEASONALITY read scalar option
-    // errors before rejecting a scalar history against a longer numeric timeline.
-    // Keep this to the numeric-option and one-cell-history forms we measured;
-    // other option kinds can have different coercion precedence.
+    // In the measured serial layout, STAT and SEASONALITY coerce scalar options
+    // before rejecting a scalar history against a longer numeric timeline. Keep
+    // this to the one-cell history and option kinds covered by controls; an
+    // unreadable option keeps its typed refusal.
     if matches!(output, Output::Statistic | Output::Seasonality)
         && let Some(timeline) = args.get(1).and_then(CalcValue::as_array)
         && timeline.shape().cols == 1
@@ -876,7 +876,7 @@ pub(super) fn evaluate(
         && !matches!(args[0].core_ref(), CoreRef::Array(_))
         && args[2..].iter().all(|v| match v.core_ref() {
             CoreRef::Number(n) => n.is_finite() && !n.is_subnormal(),
-            CoreRef::Error(_) => true,
+            CoreRef::Error(_) | CoreRef::Text(_) => true,
             _ => false,
         })
     {
@@ -888,10 +888,8 @@ pub(super) fn evaluate(
                 _ => false,
             }
         {
-            for option in &args[2..] {
-                if let CoreRef::Error(error) = option.core_ref() {
-                    return fail(error);
-                }
+            for index in 2..args.len() {
+                num(site, args, index)?;
             }
             return fail(WorksheetErrorCode::NA);
         }
