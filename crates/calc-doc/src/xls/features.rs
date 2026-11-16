@@ -83,7 +83,7 @@ pub(crate) struct Features {
     merges: Vec<String>,
     phonetic: Option<(usize, u8, u8)>,
     phonetic_ranges: Vec<(u16, u16, u16, u16)>,
-    /// PLS records, kept separate until a single complete DEVMODE can be identified.
+    /// PLS records, kept separate until a single length-consistent DEVMODE can be identified.
     printer_settings: Vec<Vec<u8>>,
     hyperlinks: Vec<Hyperlink>,
     protect: bool,
@@ -392,16 +392,16 @@ impl Features {
         self.phonetic_ranges.iter().any(|&(r1, r2, c1, c2)| (r1..=r2).contains(&row) && (c1..=c2).contains(&column))
     }
 
-    /// A single complete DEVMODEA or DEVMODEW; ambiguous or malformed records stay unread.
+    /// A single length-consistent DEVMODEA or DEVMODEW; ambiguous or short records stay unread.
     pub(crate) fn printer_part(&self) -> Option<(String, &'static str, Vec<u8>)> {
         let [data] = self.printer_settings.as_slice() else { return None };
-        let complete = [36usize, 68].into_iter().any(|offset| {
+        let length_consistent = [36usize, 68].into_iter().any(|offset| {
             let Some(bytes) = data.get(offset..offset + 4) else { return false };
             let size = usize::from(u16::from_le_bytes([bytes[0], bytes[1]]));
             let extra = usize::from(u16::from_le_bytes([bytes[2], bytes[3]]));
             size >= offset + 4 && size.checked_add(extra) == Some(data.len())
         });
-        complete.then(|| (format!("xl/printerSettings/printerSettings{}.bin", self.number),
+        length_consistent.then(|| (format!("xl/printerSettings/printerSettings{}.bin", self.number),
             "application/vnd.openxmlformats-officedocument.spreadsheetml.printerSettings", data.clone()))
     }
 
