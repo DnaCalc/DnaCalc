@@ -139,6 +139,9 @@ class Relay:
             self.envs.update(body.get("envs", {}))
             self.hello_seen.set()
             return
+        if kind == protocol.PING:
+            self.broker.send(protocol.PONG, {**body, "sock": self.owns_socket_path(), "clients": len(self.clients)}, True)
+            return
         if kind == protocol.ENV:
             self.envs[body["env_id"]] = body["env"]
             for client in self.clients.values():
