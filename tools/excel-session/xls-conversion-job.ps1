@@ -92,8 +92,12 @@ try {
                 $c.ChartType = 51; $c.SetSourceData($sheet.Range('H1:H2'))
                 $c.PlotVisibleOnly = $false; $c.DisplayBlanksAs = 3
                 $group = $c.ChartGroups(1); $group.GapWidth = 70; $group.Overlap = -30; $group.VaryByCategories = $true
+                $axis = $c.Axes(2); $axis.MinimumScale = 2; $axis.MaximumScale = 20
+                $axis.MajorUnit = 5; $axis.MinorUnit = 1; $axis.ReversePlotOrder = $true
                 @{gap=$group.GapWidth; overlap=$group.Overlap; varied=$group.VaryByCategories;
-                  visible_only=$c.PlotVisibleOnly; display_blanks=$c.DisplayBlanksAs}
+                  visible_only=$c.PlotVisibleOnly; display_blanks=$c.DisplayBlanksAs;
+                  minimum=$axis.MinimumScale; maximum=$axis.MaximumScale; major=$axis.MajorUnit;
+                  minor=$axis.MinorUnit; reversed=$axis.ReversePlotOrder}
             }
             $entry.setup.chart_doughnut_geometry = GetOrError {
                 $c = $sheet.ChartObjects().Add(200, 270, 200, 150).Chart
