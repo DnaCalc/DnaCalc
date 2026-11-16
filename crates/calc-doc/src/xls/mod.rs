@@ -490,6 +490,7 @@ pub(crate) fn convert(
         workbook_properties.push(("date1904", "1".to_owned()));
     }
     if globals.backup_file { workbook_properties.push(("backupFile", "1".to_owned())); }
+    if globals.refresh_all { workbook_properties.push(("refreshAllConnections", "1".to_owned())); }
     if let Some(flags) = globals.book_bool {
         if flags & 1 != 0 { workbook_properties.push(("saveExternalLinkValues", "0".to_owned())); }
         if flags & 0x100 != 0 { workbook_properties.push(("showBorderUnselectedTables", "0".to_owned())); }

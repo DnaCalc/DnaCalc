@@ -86,6 +86,7 @@ pub(crate) struct Globals {
     pub(crate) protection_verifier: Option<u16>,
     pub(crate) hide_objects: Option<u16>,
     pub(crate) backup_file: bool,
+    pub(crate) refresh_all: bool,
     /// BookBool flags; mail-envelope state has no SpreadsheetML mapping here.
     pub(crate) book_bool: Option<u16>,
     /// The shared string table (SST), in index order.
@@ -157,6 +158,14 @@ pub(crate) fn read(records: &[Record<'_>], biff5: bool) -> Result<Globals, Strin
                 globals.date_1904 = c.u16("Date1904").map_err(|e| e.0)? == 1;
             }
             FILEPASS => globals.encrypted = true,
+            0x01B7 => {
+                let mut c = Cursor::new(record.body);
+                let value = c.u16("RefreshAll").map_err(|e| e.0)?;
+                if value > 1 { return Err(format!("the refresh-all setting {value}")); }
+                globals.refresh_all = value != 0;
+                // The OOXML connection flag does not cover legacy pivot and XML-map refresh.
+                if globals.refresh_all { *globals.unknown.entry(record.id).or_insert(0) += 1; }
+            }
             0x00DA => {
                 let mut c = Cursor::new(record.body);
                 let flags = c.u16("BookBool").map_err(|e| e.0)?;

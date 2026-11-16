@@ -262,6 +262,22 @@ fn workbook_external_link_settings_survive_conversion() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn workbook_refresh_setting_survives_conversion() {
+    for value in [0u16, 1] {
+        let bytes = xls(false, &record(0x01B7, &value.to_le_bytes()), &[Sheet::worksheet("S", Vec::new())]);
+        let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let xml = String::from_utf8(document.package().read_part("xl/workbook.xml").unwrap()).unwrap();
+        assert_eq!(xml.contains("refreshAllConnections=\"1\""), value == 1, "{xml}");
+        let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+        assert_eq!(report.unknown_records.contains_key(&0x01B7), value == 1);
+        load(&bytes);
+    }
+    let bytes = xls(false, &record(0x01B7, &2u16.to_le_bytes()), &[Sheet::worksheet("S", Vec::new())]);
+    assert!(calc_doc::open(source(&bytes), &OpenPolicy::default()).is_err());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn outline_gutter_levels_survive_conversion() {
     let bytes = xls(false, &[], &[Sheet::worksheet("S", record(0x0080, &u16s(&[0, 0, 3, 2])))]);
     let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
