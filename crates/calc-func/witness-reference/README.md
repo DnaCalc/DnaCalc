@@ -49,6 +49,9 @@ Inverse distributions are solved from the definition (a bracketing root find on 
 at Excel's answer. Bond functions (PRICE, YIELD, DURATION, MDURATION) use the documented coupon
 arithmetic with the 1900 date system; the bank rows do not record more than that.
 
-Note on `large-deviation`: a distance of 1e15 ulp on an inverse function means the answer is near zero by
-cancellation (for example `mean + sd * z` close to 0) and the two doubles differ at the scale of the operands,
-not of the result. Read such rows by the absolute difference to the reference.
+Note on `large-deviation`: a distance of millions of ulp (PPMT, F.TEST, BESSELJ near a zero) means the result is
+small by cancellation and both doubles differ from the true value at the scale of the operands, not of the result.
+Read such rows by the absolute difference to the reference.
+
+Rows with a `text15:` class (COMPLEX, IM* results) compare the 15 significant digits of the text with the true
+value rounded to 15 digits; there is no ulp distance.
