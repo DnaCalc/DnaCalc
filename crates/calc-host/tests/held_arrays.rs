@@ -131,6 +131,60 @@ fn shown(session: &HostSession, at: CellKey) -> String {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_2u2g_1__entered_forecast_functions_keep_their_file_prefix() {
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(calc_host::blank_package()));
+    let options = HostOptions { calc_mode: Some(CalcMode::Automatic), ..Default::default() };
+    let mut session = HostSession::open(source, &OpenPolicy::default(), options).unwrap();
+    let at = CellKey::new(session.host().sheets()[0].id(), 1, 1).unwrap();
+    // Excel 16.0.20527, serial single-call controls with inputs read back.
+    for (formula, expected) in [
+        ("=FORECAST.ETS(3,{1;2},{1;2})", "3"),
+        ("=FORECAST.ETS.CONFINT(3,{1;2},{1;2})", "0"),
+        ("=FORECAST.ETS.SEASONALITY({1;2},{1;2})", "0"),
+        ("=FORECAST.ETS.STAT({1;2},{1;2},1)", "0.9"),
+    ] {
+        assert!(session.dispatch(SkinIntent::EnterCell { at, text: formula.into() }).accepted());
+        assert_eq!(shown(&session, at), expected, "{formula}");
+    }
+    let mut saved = Vec::new();
+    session.save(&Default::default(), &mut saved).unwrap();
+    let mut reopened = HostSession::open(
+        Arc::new(MemorySource::new(saved)),
+        &OpenPolicy::default(),
+        HostOptions { calc_mode: Some(CalcMode::Automatic), ..Default::default() },
+    ).unwrap();
+    assert!(reopened.dispatch(SkinIntent::Rebuild).accepted());
+    while reopened.has_pending_calculation() {
+        assert!(!matches!(reopened.advance_calculation(), calc_host::HostProgress::Failed(_)));
+    }
+    assert_eq!(shown(&reopened, at), "0.9");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_ymjf_2_71__entered_ets_preserves_option_error_before_shape() {
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(calc_host::blank_package()));
+    let mut session = HostSession::open(
+        source, &OpenPolicy::default(),
+        HostOptions { calc_mode: Some(CalcMode::Automatic), ..Default::default() },
+    ).unwrap();
+    let sheet = session.host().sheets()[0].id();
+    let at = CellKey::new(sheet, 1, 1).unwrap();
+    let option = CellKey::new(sheet, 1, 2).unwrap();
+    assert!(session.dispatch(SkinIntent::EnterCell { at: option, text: "#REF!".into() }).accepted());
+    assert!(session.dispatch(SkinIntent::EnterCell {
+        at, text: "=FORECAST.ETS.STAT(3,{1;2},{1;2},B1)".into(),
+    }).accepted());
+    assert_eq!(shown(&session, at), "Ref");
+    assert!(session.dispatch(SkinIntent::EnterCell { at: option, text: "bad".into() }).accepted());
+    assert!(session.dispatch(SkinIntent::EnterCell {
+        at, text: "=FORECAST.ETS.SEASONALITY(B1,{1;2},{1;2},1)".into(),
+    }).accepted());
+    assert_eq!(shown(&session, at), "NA");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_h9u__a_groupby_cell_holds_its_lambdas_array() {
     let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(calc_host::blank_package()));
     let mut session = HostSession::open(

@@ -864,6 +864,38 @@ pub(super) fn evaluate(
     let offset = usize::from(matches!(output, Output::Forecast | Output::Confidence));
     // Excel 20527 coerces the target before inspecting history shape or option domains.
     let target = if offset == 1 { Some(num(site, args, 0)?) } else { None };
+    // In the measured serial layout, STAT and SEASONALITY read scalar option
+    // errors before rejecting a scalar history against a longer numeric timeline.
+    // Keep this to the numeric-option and one-cell-history forms we measured;
+    // other option kinds can have different coercion precedence.
+    if matches!(output, Output::Statistic | Output::Seasonality)
+        && let Some(timeline) = args.get(1).and_then(CalcValue::as_array)
+        && timeline.shape().cols == 1
+        && (2..=32).contains(&timeline.shape().rows)
+        && timeline.iter_row_major().all(|v| v.as_number().is_some_and(|n| n.is_finite() && !n.is_subnormal()))
+        && !matches!(args[0].core_ref(), CoreRef::Array(_))
+        && args[2..].iter().all(|v| match v.core_ref() {
+            CoreRef::Number(n) => n.is_finite() && !n.is_subnormal(),
+            CoreRef::Error(_) => true,
+            _ => false,
+        })
+    {
+        let history = grid(site, args, 0, sv)?;
+        if history.rows == 1 && history.cols == 1
+            && match history.cells[0].core_ref() {
+                CoreRef::Number(n) => n.is_finite() && !n.is_subnormal(),
+                CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Empty | CoreRef::Error(_) => true,
+                _ => false,
+            }
+        {
+            for option in &args[2..] {
+                if let CoreRef::Error(error) = option.core_ref() {
+                    return fail(error);
+                }
+            }
+            return fail(WorksheetErrorCode::NA);
+        }
+    }
     // Excel 20527 checks this unequal-length shape before reading the scalar history,
     // even when that scalar holds an error. Optional scalar coercion can take priority,
     // so admit only the default-argument forms covered by independent controls.

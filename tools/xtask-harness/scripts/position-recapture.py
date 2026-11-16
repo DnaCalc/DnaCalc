@@ -46,6 +46,11 @@ SOURCES = {
     'SEQUENCE': ['readings/excel-20527/bank2-answers-sequence-spill.json'],
     'TREND': ['readings/excel-20527/bank2-answers-trend-spill.json'],
     'FREQUENCY': ['readings/excel-20527/bank2-answers-frequency-spill.json'],
+    # These malformed ETS calls spill in the old shared-row layout. A single-call
+    # capture records the placement that determines their anchor value.
+    **{f: ['readings/excel-20527/bank2-answers-%s-%s.json' % (f.lower(), s)
+           for s in ('more', 'scalar', 'special')]
+       for f in ('FORECAST.ETS.STAT', 'FORECAST.ETS.SEASONALITY')},
 }
 
 
@@ -112,6 +117,8 @@ def main():
         assert doc['function'].upper() == o.function, rel
         for w in doc['witnesses']:
             if o.function == 'WEEKNUM' and not outside_return_types(w):
+                continue
+            if o.function in ('FORECAST.ETS.STAT', 'FORECAST.ETS.SEASONALITY') and w['expected_bits'] != 'error:Spill':
                 continue
             rows.append((rel, w))
     if o.limit:

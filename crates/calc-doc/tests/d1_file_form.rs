@@ -51,6 +51,17 @@ fn flags(value: &Value) -> Vec<Option<bool>> {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn measured_prefix_does_not_depend_on_array_shape_measurements() {
+    for function in ["FORECAST.ETS", "FORECAST.ETS.CONFINT", "FORECAST.ETS.SEASONALITY", "FORECAST.ETS.STAT"] {
+        let formula = format!("{function}(A1,B1,C1)");
+        assert_eq!(form(&formula, &[]).0, format!("_xlfn.{formula}"));
+        assert_eq!(form(&format!("_xlfn.{formula}"), &[]).0, format!("_xlfn.{formula}"));
+    }
+    assert_eq!(form("NOT_A_REAL_FUNCTION(A1)", &[]).0, "NOT_A_REAL_FUNCTION(A1)");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d1_file_form__table_matches_the_measurements() {
     let prefixes = measurement("excel-prefixes.json");
     let positions = measurement("excel-array-positions.json");
