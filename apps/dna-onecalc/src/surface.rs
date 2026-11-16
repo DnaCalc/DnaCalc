@@ -52,6 +52,12 @@ use web_sys::HtmlElement;
 /// The sheet a new surface's session starts with; the scratch grid's cells are on it.
 const FIRST_SHEET: &str = "Sheet1";
 
+const SESSION_FILE_TYPES: &str = concat!(
+    ".xlsx,.xlsm,.xls,.xla,.xlt,",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,",
+    "application/vnd.ms-excel.sheet.macroEnabled.12"
+);
+
 /// The most functions the function list shows at once.
 const MAX_LISTED_FUNCTIONS: usize = 60;
 
@@ -1258,7 +1264,7 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                     node_ref=file_input
                     data-onecalc="file-input"
                     type="file"
-                    accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel.sheet.macroEnabled.12"
+                    accept=SESSION_FILE_TYPES
                     hidden
                     aria-label="Open a session workbook"
                     on:change=move |ev| {

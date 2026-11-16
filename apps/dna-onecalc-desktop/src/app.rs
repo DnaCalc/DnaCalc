@@ -194,20 +194,18 @@ fn dna_calc_beside_us() -> Option<PathBuf> {
     exe.is_file().then_some(exe)
 }
 
-const SESSION_FILES: [FileFilter<'static>; 2] = [
-    FileFilter {
-        name: "OneCalc sessions (*.xlsx; *.xlsm)",
-        patterns: "*.xlsx;*.xlsm",
-    },
-    FileFilter {
-        name: "All files",
-        patterns: "*.*",
-    },
-];
+fn session_files(open: bool) -> [FileFilter<'static>; 2] {
+    let (name, patterns) = if open {
+        ("OneCalc sessions (*.xlsx; *.xlsm; *.xls; *.xla; *.xlt)", "*.xlsx;*.xlsm;*.xls;*.xla;*.xlt")
+    } else {
+        ("OneCalc sessions (*.xlsx; *.xlsm)", "*.xlsx;*.xlsm")
+    };
+    [FileFilter { name, patterns }, FileFilter { name: "All files", patterns: "*.*" }]
+}
 
 impl Files for Dialogs {
     fn choose_open(&mut self) -> Result<Option<(String, Vec<u8>)>, String> {
-        let Some(path) = dialogs::open_file(self.owner.cast(), "Open a session", &SESSION_FILES)?
+        let Some(path) = dialogs::open_file(self.owner.cast(), "Open a session", &session_files(true))?
         else {
             return Ok(None);
         };
@@ -332,7 +330,7 @@ impl Files for Dialogs {
         let Some(path) = dialogs::save_file(
             self.owner.cast(),
             "Save the session",
-            &SESSION_FILES,
+            &session_files(false),
             extension,
         )?
         else {
