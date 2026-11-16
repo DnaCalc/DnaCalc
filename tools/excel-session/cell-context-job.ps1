@@ -11,6 +11,10 @@
 # workbook is closed unsaved. No setting of Excel is changed.
 param($OwnedExcel, [string]$Cases, [string]$Result)
 $ErrorActionPreference = 'Stop'
+# PowerShell's COM binder caches the Value2 setter by member name: after a double was written, a later string
+# write is cast to double (InvalidCastException, seen 2026-11-16 on the first text cell after a number).
+# Writing through InvokeMember skips that cache.
+function SetValue2($cell, $value) { [void]$cell.GetType().InvokeMember('Value2', [Reflection.BindingFlags]::SetProperty, $null, $cell, @($value)) }
 $codes = @{2000='Null';2007='Div0';2015='Value';2023='Ref';2029='Name';2036='Num';2042='NA';2043='GettingData';2045='Spill';2046='Connect';2047='Blocked';2048='Unknown';2049='Field';2050='Calc'}
 $literals = @{Null='#NULL!';Div0='#DIV/0!';Value='#VALUE!';Ref='#REF!';Name='#NAME?';Num='#NUM!';NA='#N/A'}
 function Form($v) {
@@ -31,7 +35,11 @@ $set = Get-Content -LiteralPath $Cases -Raw -Encoding utf8 | ConvertFrom-Json
 # Excel's own clock before and after the cases (two-part dates such as 15/3 take its year).
 $clockBefore = [double]$OwnedExcel.Evaluate('NOW()')
 $answered = New-Object System.Collections.Generic.List[object]
+$progress = $Result + '.progress'
+[IO.File]::WriteAllText($progress, '')
 foreach ($case in $set.cases) {
+    # One line per case before it runs: a job that stops shows the case it stopped in.
+    [IO.File]::AppendAllText($progress, [string]$case.id + "`n")
     # xlWBATWorksheet: a new workbook of exactly one worksheet.
     $book = $OwnedExcel.Workbooks.Add(-4167)
     try {
@@ -55,10 +63,10 @@ foreach ($case in $set.cases) {
                 $v = [string]$p.Value
                 $cell = $ws.Range($p.Name)
                 if ($v.StartsWith('=')) { $formulas += ,@($cell, $v) }
-                elseif ($v.StartsWith('0x')) { $cell.Value2 = [BitConverter]::Int64BitsToDouble([Convert]::ToInt64($v.Substring(2), 16)) }
-                elseif ($v.StartsWith('text:')) { $cell.NumberFormat = '@'; $cell.Value2 = $v.Substring(5) }
-                elseif ($v -ceq 'logical:true' -or $v -ceq 'logical:True') { $cell.Value2 = $true }
-                elseif ($v -ceq 'logical:false' -or $v -ceq 'logical:False') { $cell.Value2 = $false }
+                elseif ($v.StartsWith('0x')) { SetValue2 $cell ([BitConverter]::Int64BitsToDouble([Convert]::ToInt64($v.Substring(2), 16))) }
+                elseif ($v.StartsWith('text:')) { $cell.NumberFormat = '@'; SetValue2 $cell ($v.Substring(5)) }
+                elseif ($v -ceq 'logical:true' -or $v -ceq 'logical:True') { SetValue2 $cell ($true) }
+                elseif ($v -ceq 'logical:false' -or $v -ceq 'logical:False') { SetValue2 $cell ($false) }
                 elseif ($v.StartsWith('error:')) { $cell.Formula = '=' + $literals[$v.Substring(6)] }
                 else { throw "case $($case.id): cell $($p.Name) holds $v" }
             }

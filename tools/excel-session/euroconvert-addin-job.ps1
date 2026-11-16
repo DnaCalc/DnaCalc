@@ -10,6 +10,10 @@
 # full calculation the inputs are read back: a row whose inputs Excel holds differently is rejected, never kept.
 param($OwnedExcel, [string]$Evidence, [string]$Result)
 $ErrorActionPreference = 'Stop'
+# PowerShell's COM binder caches the Value2 setter by member name: after a double was written, a later string
+# write is cast to double (InvalidCastException, seen 2026-11-16 on the first text cell after a number).
+# Writing through InvokeMember skips that cache.
+function SetValue2($cell, $value) { [void]$cell.GetType().InvokeMember('Value2', [Reflection.BindingFlags]::SetProperty, $null, $cell, @($value)) }
 $codes = @{2000='Null';2007='Div0';2015='Value';2023='Ref';2029='Name';2036='Num';2042='NA';2043='GettingData';2045='Spill';2050='Calc'}
 $literals = @{Null='#NULL!';Div0='#DIV/0!';Value='#VALUE!';Ref='#REF!';Name='#NAME?';Num='#NUM!';NA='#N/A'}
 function Bits([double]$d) { '0x' + ('{0:x16}' -f [BitConverter]::DoubleToInt64Bits($d)) }
@@ -54,9 +58,9 @@ try {
             $a = $row.args[$i]
             $cell = $ws.Range("$($columns[$i])$r")
             if ($null -eq $a) { }
-            elseif ($a -is [bool]) { $cell.Value2 = $a }
-            elseif ($a -is [string] -and $a -match '^0x[0-9a-fA-F]{16}$') { $cell.Value2 = [BitConverter]::Int64BitsToDouble([Convert]::ToInt64($a.Substring(2), 16)) }
-            elseif ($a -is [string]) { $cell.NumberFormat = '@'; $cell.Value2 = $a }
+            elseif ($a -is [bool]) { SetValue2 $cell ($a) }
+            elseif ($a -is [string] -and $a -match '^0x[0-9a-fA-F]{16}$') { SetValue2 $cell ([BitConverter]::Int64BitsToDouble([Convert]::ToInt64($a.Substring(2), 16))) }
+            elseif ($a -is [string]) { $cell.NumberFormat = '@'; SetValue2 $cell ($a) }
             else { $cell.Formula = '=' + $literals[[string]$a.error] }
             $refs += "$($columns[$i])$r"
         }
