@@ -469,6 +469,23 @@ class BrokerTests(unittest.TestCase):
         finally:
             stop()
 
+    def test_an_add_in_request_runs_only_on_the_add_in_worker_and_others_never_do(self):
+        broker, state, stop = start_broker(workers=1, extra={"addin_workers": ["EUROTOOL.XLAM"]})
+        try:
+            from touchstone import client
+            self.assertEqual([(s.name, s.addins) for s in broker.slots], [("w1", ()), ("x1", ("EUROTOOL.XLAM",))])
+            conn = self.connect(state)
+            pending = conn.submit_rows("ID", [[number(ONE)]] * 3, addins=["eurotool.xlam"])
+            self.assertEqual([r["bits"] for r in pending.result(30)["rows"]], [ONE] * 3)
+            self.assertEqual(broker.slots[1].calls, 3)
+            plain = conn.submit_rows("ID", [[number(TWO)]] * 4)
+            self.assertEqual([r["bits"] for r in plain.result(30)["rows"]], [TWO] * 4)
+            self.assertEqual((broker.slots[0].calls, broker.slots[1].calls), (4, 3))
+            with self.assertRaises(client.ServiceError):
+                conn.submit_rows("ID", [[number(ONE)]], addins=["OTHER.XLAM"]).raw(10)
+        finally:
+            stop()
+
     def test_refusal_is_typed_and_logged_not_evaluated(self):
         _, state, stop = start_broker()
         try:
