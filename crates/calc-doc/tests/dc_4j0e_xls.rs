@@ -17,6 +17,55 @@ fn source(bytes: &[u8]) -> Arc<dyn PackageRead> {
     Arc::new(MemorySource::new(bytes.to_vec()))
 }
 
+/// Native-only: writes controlled inputs for the owned Windows Excel session when requested.
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn write_legacy_excel_session_inputs() {
+    let Some(dir) = std::env::var_os("DNACALC_XLS_SESSION_INPUTS") else { return };
+    let dir = std::path::PathBuf::from(dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut cells = number(0, 0, 42.5);
+    cells.extend(formula(1, 0, num_value(43.5), &ptg::join(&[ptg::cell(0, 0, 0), ptg::int(1), ptg::op(ptg::ADD)]), &[]));
+    cells.extend(merged(&[(2, 2, 0, 1)]));
+    cells.extend(hlink_url((3, 0), "https://example.com/", Some("Example"), Some("part")));
+    cells.extend(hlink_file((4, 0), "book.xls", Some("資料.xls"), "Data!A1"));
+    let globals = [supbook_self(1), extern_sheet(&[(0, 0, 0)]),
+        name_record(0, 0, "Rate", &ptg::cell3d(0, 0, 0, 0))].concat();
+    let biff8 = xls(false, &globals, &[Sheet::worksheet("Data", cells)]);
+    let mut old_cells = v5::label(0, 0, b"legacy");
+    old_cells.extend(record(0x001B, &u16s(&[1, 25])));
+    old_cells.extend(record(0x001A, &u16s(&[1, 5])));
+    let biff5 = v5::xls(1252, &[], &[v5::Sheet { name: b"Data".to_vec(), records: old_cells }]);
+    std::fs::write(dir.join("cells-biff8.xls"), biff8).unwrap();
+    std::fs::write(dir.join("cells-biff5.xls"), biff5).unwrap();
+    std::fs::write(dir.join("forms.xls"), include_bytes!("fixtures/dc_4j0e/FormsWorkbook.xls")).unwrap();
+    for name in ["cells-biff8", "cells-biff5", "forms"] {
+        let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
+        let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
+        let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+        let mut converted = Vec::new();
+        calc_doc::write(plan, &mut converted).unwrap();
+        std::fs::write(dir.join(format!("{name}.dnacalc.xlsx")), converted).unwrap();
+    }
+    let cases = serde_json::json!({
+        "files": ["cells-biff8.xls", "cells-biff5.xls", "forms.xls"],
+        "create_pivot": true,
+        "formulas": [
+            ["rows_full_column", "=ROWS(A:A)"], ["columns_full_row", "=COLUMNS(1:1)"],
+            ["rows_modern_extent", "=ROWS(1:1048576)"], ["beyond_old_grid", "=A65537"],
+            ["whole_column_sum", "=SUM(A:A)"], ["xlookup", "=XLOOKUP(1,{1},{2})"],
+            ["let", "=LET(x,1,x+1)"], ["lambda", "=LAMBDA(x,x+1)(1)"],
+            ["filter", "=FILTER({1;2},{TRUE;FALSE})"], ["sort", "=SORT({2;1})"],
+            ["sequence", "=SEQUENCE(2)"], ["textjoin", "=TEXTJOIN(\",\",TRUE,\"a\",\"b\")"],
+            ["ifs", "=IFS(TRUE,1)"], ["concat", "=CONCAT(\"a\",\"b\")"],
+            ["stdev_s", "=STDEV.S(1,2)"], ["ceiling_math", "=CEILING.MATH(1.2)"],
+            ["norm_s_dist", "=NORM.S.DIST(0,TRUE)"], ["webservice", "=WEBSERVICE(\"\")"],
+            ["randarray", "=RANDARRAY(1,1)"], ["xmatch", "=XMATCH(1,{1,2})"]
+        ]
+    });
+    std::fs::write(dir.join("cases.json"), serde_json::to_vec_pretty(&cases).unwrap()).unwrap();
+}
+
 fn load(bytes: &[u8]) -> LoadedWorkbook {
     let document = calc_doc::open(source(bytes), &OpenPolicy::default()).expect("the file opens");
     let mut ids: IdAllocator<SheetId> = IdAllocator::new();
