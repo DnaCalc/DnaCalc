@@ -1049,7 +1049,24 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
                       "all_delivered_event_counts_excel_and_host": delivered,
                       "event_scope": "Ordered SheetChange calls and addresses agree; other event counts are retained separately. Retained Python COM objects/futures are explicitly released before teardown.",
                       "raw_workbook_names": [env["workbook_name"] for env in environments]}
+    # C.1 four counts. Every formula outcome was required above. Boundary: X3/X4 count each pre-close
+    # callback, a raw difference (even one tolerated above) as mismatched; X2 counts each nested
+    # callback of the compared invocations. Lifecycle: startup registrations, owned-result frees,
+    # close of each host, reload when exercised. Framework lanes: one per measured native export,
+    # a raw-record difference after identity normalization as mismatched.
+    if x3:
+        boundary_rows = (pass_rows("ordered_boundary_cases", len(callbacks[0]) - len(differences))
+                         + [{"lane": "ordered_boundary_cases", "outcome": "mismatched"}] * len(differences))
+        frees = ownership[0]["free_calls"]
+    else:
+        boundary_rows = pass_rows("ordered_boundary_cases", sum(len(c["same_ordered_callbacks"]) for c in call_comparisons.values()))
+        frees = sum(1 for x in traces[0][1].values() if x["entry"].endswith("!xlAutoFree12"))
+    lanes = (pass_rows("value_cases", len(cases)) + boundary_rows
+             + pass_rows("lifecycle_ownership_cases", len(signatures[0]) + frees + 2 + (1 if any(o["reload_results"] for o in host_outputs) else 0))
+             + [{"lane": "framework_feature_lanes", "outcome": "pass" if c["same_raw_record_after_identity_normalization"] else "mismatched"}
+                for c in call_comparisons.values()])
     return {"status": "failed strict async callback result comparison" if async_callback_differences else "verified X4 measured cases" if x4 else "verified X3 measured cases" if x3 else "verified X2 measured cases", "fixture": fixture_name,
+            "counts": four_counts(lanes), "manifest": comparison_manifest(environments[0], jsonl(excel / "controller.jsonl"), cases, environments[2:]),
             "formula_cases": len(cases), "matched_each_capture": len(cases), "controls_match": True,
             "source_revisions": sorted({e["repository_commit"] for e in environments}),
             "source_publication_revisions": [p["revision"] for p in publications],
@@ -1255,7 +1272,11 @@ def verify_rtd_extended(excel, excel_control, host, host_control, cases_path, pu
                         value["value"] = "<async-topic-%d>" % identity["async_topics"][value["value"]]
     native_pairs = [{"position": i, "excel": a, "host": b, "matched": a == b} for i, (a,b) in enumerate(zip_longest(*normalized_native))]
     strict = all(p["matched"] for p in pairs + native_pairs)
-    result = {"status": "verified RTD values and ordered client/native calls" if strict else "failed strict RTD client/native comparison", "formula_cases": len(cases), "matched_values_each_capture": len(cases), "controls_match": True, "source_bindings_checked": sum(len(e["source_files"]) + 2 for e in envs), "source_publication_revisions": [p["revision"] for p in publications], "client_protocol_comparison": pairs, "client_calls_matched": sum(p["matched"] for p in pairs), "client_calls_failed": sum(not p["matched"] for p in pairs), "native_invocation_comparison": native_pairs, "native_calls_matched": sum(p["matched"] for p in native_pairs), "native_calls_failed": sum(not p["matched"] for p in native_pairs), "raw_native_invocations_excel_and_host": native, "internal_server_bodies": internal, "identity_bindings_excel_and_host": identities, "host_results": outputs, "scope": "Every value, dependent and P07 certificate checked. Every observed client and native call retained; unequal ordered client traffic stays a failure. RTD input is distinct from native async completion. Topic IDs and GUID topic strings are normalized only by first observed identity; raw bindings remain."}
+    # C.1: client protocol and native invocations are ordered boundary rows; each host's teardown is lifecycle.
+    lanes = (pass_rows("value_cases", len(cases)) + pair_rows("ordered_boundary_cases", pairs + native_pairs)
+             + pass_rows("lifecycle_ownership_cases", 2))
+    result = {"counts": four_counts(lanes), "manifest": comparison_manifest(envs[0], jsonl(excel / "controller.jsonl"), cases, envs[2:]),
+              "status": "verified RTD values and ordered client/native calls" if strict else "failed strict RTD client/native comparison", "formula_cases": len(cases), "matched_values_each_capture": len(cases), "controls_match": True, "source_bindings_checked": sum(len(e["source_files"]) + 2 for e in envs), "source_publication_revisions": [p["revision"] for p in publications], "client_protocol_comparison": pairs, "client_calls_matched": sum(p["matched"] for p in pairs), "client_calls_failed": sum(not p["matched"] for p in pairs), "native_invocation_comparison": native_pairs, "native_calls_matched": sum(p["matched"] for p in native_pairs), "native_calls_failed": sum(not p["matched"] for p in native_pairs), "raw_native_invocations_excel_and_host": native, "internal_server_bodies": internal, "identity_bindings_excel_and_host": identities, "host_results": outputs, "scope": "Every value, dependent and P07 certificate checked. Every observed client and native call retained; unequal ordered client traffic stays a failure. RTD input is distinct from native async completion. Topic IDs and GUID topic strings are normalized only by first observed identity; raw bindings remain."}
     return result
 
 
@@ -1486,7 +1507,12 @@ def verify_rtd(excel, excel_control, host, host_control, cases_path, publication
     publications = verify_sources(environments, publication_path)
     source_bindings_checked = sum(len(e["source_files"]) + 2 for e in environments)
     strict = all(r["matched"] for r in protocol_pairs)
-    return {"status": "failed strict ordered RTD client protocol comparison" if not strict else "verified original xlOil signaling RTD protocol" if signaling else "verified controlled numeric RTD protocol", "formula_cases": len(cases), "matched_each_capture": len(cases), "controls_match": True,
+    # C.1: values and dependents were required above; the client protocol is the ordered boundary;
+    # teardown (callback storage, subscriptions, close) of each host and the native frees are lifecycle.
+    lanes = (pass_rows("value_cases", len(cases)) + pair_rows("ordered_boundary_cases", protocol_pairs)
+             + pass_rows("lifecycle_ownership_cases", 2 + ownership[0]["free_calls"] if ownership else 2))
+    return {"counts": four_counts(lanes), "manifest": comparison_manifest(environments[0], jsonl(excel / "controller.jsonl"), cases, environments[2:]),
+            "status": "failed strict ordered RTD client protocol comparison" if not strict else "verified original xlOil signaling RTD protocol" if signaling else "verified controlled numeric RTD protocol", "formula_cases": len(cases), "matched_each_capture": len(cases), "controls_match": True,
             "client_calls_matched":sum(r["matched"] for r in protocol_pairs), "client_calls_failed":sum(not r["matched"] for r in protocol_pairs),
             "client_protocol_each_host": protocols[0], "raw_client_protocols_excel_and_host": raw_protocols, "client_protocol_comparison": protocol_pairs, "client_calls_by_method": method_pairs, "server_bindings": server_bindings, "native_invocations_excel_and_host": native, "native_ownership_excel_and_host": ownership, "internal_server_body_observations": internals, "notification_threads": notifications,
             "host_results": outputs, "source_publication_revisions": [p["revision"] for p in publications], "source_bindings_checked": sum(len(e["source_files"]) + 2 for e in environments),
@@ -1652,7 +1678,12 @@ def verify_workbook_pool(excel, excel_control, host, host_control, cases_path, p
     if not all(o["owned_returns"] == o["free_calls"] == 2 for o in ownership): failures.append("Owned result/free counts differ")
     require(worker_calls[0] == worker_calls[1], "Calculation-phase barrier calls differ")
     require(not failures, "; ".join(failures))
-    return {"status":"verified within-workbook legacy scalar pool", "formula_cases":len(cases), "native_invocations_each_host":sum(entry_counts[0].values()),
+    # C.1: each native invocation (required equal above) is an ordered boundary row; frees and each
+    # host's teardown are lifecycle rows.
+    lanes = (pass_rows("value_cases", len(cases)) + pass_rows("ordered_boundary_cases", sum(entry_counts[0].values()))
+             + pass_rows("lifecycle_ownership_cases", ownership[0]["free_calls"] + 2))
+    return {"status":"verified within-workbook legacy scalar pool", "formula_cases":len(cases),
+            "counts": four_counts(lanes), "manifest": comparison_manifest(envs[0], jsonl(excel / "controller.jsonl"), cases, envs[2:]), "native_invocations_each_host":sum(entry_counts[0].values()),
             "native_records":records[0], "overlap_excel_and_host":overlaps,"ownership_excel_and_host":ownership,"host_results":outputs,
             "source_bindings_checked":sum(len(e["source_files"])+2 for e in envs),
             "scope":"Two independent explicitly legacy scalar cells in one workbook, distinct worker entries, owner-serviced callbacks, exact P07 activations and same-thread frees. Dynamic spill formulas stay ordered; volatile plans and additional dynamic callback prerequisites are outside this concurrent route."}
@@ -1741,7 +1772,7 @@ def comparison_manifest(excel_env, controller_rows, cases, host_envs):
     """The comparison profile of one Excel run against its host runs (C.1)."""
     modes = []
     for row in controller_rows:
-        if row["operation"].startswith("calculation mode ") and row["value"] not in modes:
+        if row.get("operation", "").startswith("calculation mode ") and row.get("value") not in modes:
             modes.append(row["value"])
     manual = any(case.get("manual") for case in cases)
     return {"excel_build": excel_env.get("excel_file_version"), "bitness": excel_env.get("process_bits"),
@@ -1749,7 +1780,7 @@ def comparison_manifest(excel_env, controller_rows, cases, host_envs):
             "mtr": {"enabled": excel_env.get("multi_threaded_enabled"), "threads": excel_env.get("multi_thread_count")},
             "trigger": "Formula2 entry into one cell" + (", then Application.Calculate for manual cases" if manual else ", automatic recalculation"),
             "addin_files": excel_env.get("fixture_files"), "workbook": excel_env.get("workbook_name"),
-            "load_order": [row["operation"] for row in controller_rows if row["operation"].startswith("RegisterXLL")],
+            "load_order": [row["operation"] for row in controller_rows if row.get("operation", "").startswith("RegisterXLL")],
             "excel_mode": excel_env.get("mode"),
             "host_executables": sorted({e.get("executable_sha256") for e in host_envs if e.get("executable_sha256")}),
             "host_process_identity": sorted({e.get("assume_excel_process") for e in host_envs if e.get("assume_excel_process")}),
@@ -1765,6 +1796,17 @@ def four_counts(rows):
         total = sum(count.values())
         count.update(total=total, fail=total - count["pass"], pass_rate=count["pass"] / total if total else None)
     return counts
+
+
+def pass_rows(lane, n):
+    """C.1 rows for n cases a verifier has already required to match."""
+    return [{"lane": lane, "outcome": "pass"}] * n
+
+
+def pair_rows(lane, pairs):
+    """C.1 rows from ordered {"excel", "host", "matched"} pairs: one-sided is missing, unequal is mismatched."""
+    return [{"lane": lane, "outcome": "pass" if p["matched"] else "missing" if p["excel"] is None or p["host"] is None else "mismatched"}
+            for p in pairs]
 
 
 def verify_boundary(excel, hosts, cases_path, repeat=None):
