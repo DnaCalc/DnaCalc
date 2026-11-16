@@ -588,6 +588,10 @@ pub(crate) fn read(
     if let Some(width) = default_column_width {
         format.push(("defaultColWidth", width.to_string()));
     }
+    if let Some((row, column)) = features.outline_levels {
+        if row != 0 { format.push(("outlineLevelRow", row.to_string())); }
+        if column != 0 { format.push(("outlineLevelCol", column.to_string())); }
+    }
     x.empty("sheetFormatPr", &format);
     if !columns.is_empty() {
         x.open("cols", &[]);

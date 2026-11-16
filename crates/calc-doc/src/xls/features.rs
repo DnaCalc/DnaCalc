@@ -98,6 +98,7 @@ pub(crate) struct Features {
     ws_bool: Option<u16>,
     row_breaks: Vec<(u16, u16, u16)>,
     column_breaks: Vec<(u16, u16, u16)>,
+    pub(crate) outline_levels: Option<(u8, u8)>,
     pub(crate) default_column_width: Option<u16>,
     /// The id of the comment object (OBJ of type note) waiting for its text box.
     waiting_object: Option<u16>,
@@ -240,6 +241,14 @@ impl Features {
             PRINT_GRIDLINES => self.grid_lines = c.u16("PrintGrid").map_err(e)? != 0,
             PRINT_HEADERS => self.headings = c.u16("PrintRowCol").map_err(e)? != 0,
             WSBOOL => self.ws_bool = Some(c.u16("WsBool").map_err(e)?),
+            0x0080 => {
+                c.skip(4, "Guts").map_err(e)?;
+                let level = |value: u16| -> Result<u8, String> {
+                    match value { 0 => Ok(0), 2..=8 => Ok((value - 1) as u8),
+                        _ => Err(format!("the outline gutter level {value}")) }
+                };
+                self.outline_levels = Some((level(c.u16("Guts").map_err(e)?)?, level(c.u16("Guts").map_err(e)?)?));
+            }
             H_PAGE_BREAKS | V_PAGE_BREAKS => {
                 let count = c.u16("PageBreaks").map_err(e)?;
                 let mut breaks = Vec::new();
