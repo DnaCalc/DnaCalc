@@ -40,6 +40,8 @@ const OBJ: u16 = 0x005D;
 const TXO: u16 = 0x01B6;
 const NOTE: u16 = 0x001C;
 const CODE_NAME: u16 = 0x01BA;
+const FEAT: u16 = 0x0868;
+const FEAT_HEADER: u16 = 0x0867;
 
 /// A relationship the sheet part needs: a hyperlink target, a comments part, a VML drawing.
 #[derive(Clone, Debug)]
@@ -85,6 +87,7 @@ pub(crate) struct Features {
     merges: Vec<String>,
     phonetic: Option<(usize, u8, u8)>,
     phonetic_ranges: Vec<(u16, u16, u16, u16)>,
+    ignored_errors: Vec<(Vec<String>, u32)>,
     /// PLS records, kept separate until a single length-consistent DEVMODE can be identified.
     printer_settings: Vec<Vec<u8>>,
     hyperlinks: Vec<Hyperlink>,
@@ -111,6 +114,7 @@ pub(crate) struct Features {
     waiting_object: Option<u16>,
     /// The sheet's number, which names its comment parts.
     pub(crate) number: usize,
+    pub(crate) macro_sheet: bool,
     /// The code page of a BIFF5 or BIFF7 workbook.
     pub(crate) v5: Option<u16>,
     /// The sheet's VBA code name (CODENAME).
@@ -395,6 +399,36 @@ impl Features {
                     object,
                     author,
                 });
+            }
+            FEAT_HEADER if !self.macro_sheet && record.continues.is_empty() => {
+                let b = record.body;
+                if b.len() != 19 || b.get(..2) != Some(&[0x67, 0x08]) || b[2] & 3 != 0 || b.get(12..14) != Some(&[3, 0])
+                    || b.get(14) != Some(&1) || b.get(15..19) != Some(&[0, 0, 0, 0]) {
+                    return Ok(false);
+                }
+            }
+            FEAT if !self.macro_sheet && record.continues.is_empty() => {
+                // ISFFEC2: one FFErrorCheck bit per kind of ignored error, with Ref8U ranges.
+                let b = record.body;
+                if b.len() < 31 || b.get(..2) != Some(&[0x68, 0x08]) || b[2] & 3 != 0 || b.get(12..14) != Some(&[3, 0])
+                    || b.get(14..19) != Some(&[0, 0, 0, 0, 0]) || b.get(25..27) != Some(&[0, 0]) {
+                    return Ok(false);
+                }
+                let count = usize::from(u16::from_le_bytes([b[19], b[20]]));
+                let size = u32::from_le_bytes([b[21], b[22], b[23], b[24]]);
+                let Some(end) = count.checked_mul(8).and_then(|n| 27usize.checked_add(n)) else { return Ok(false) };
+                if count == 0 || size != 4 || end.checked_add(4) != Some(b.len()) { return Ok(false); }
+                let mut ranges = Vec::with_capacity(count);
+                for r in b[27..end].chunks_exact(8) {
+                    let first_row = u16::from_le_bytes([r[0], r[1]]);
+                    let last_row = u16::from_le_bytes([r[2], r[3]]);
+                    let first_col = u16::from_le_bytes([r[4], r[5]]);
+                    let last_col = u16::from_le_bytes([r[6], r[7]]);
+                    if first_row > last_row || first_col > last_col || last_col > 255 { return Ok(false); }
+                    ranges.push(range((first_row, last_row), (first_col, last_col)));
+                }
+                let flags = u32::from_le_bytes(b[end..end + 4].try_into().expect("four bytes"));
+                self.ignored_errors.push((ranges, flags & 0xFF));
             }
             DEF_COL_WIDTH => self.default_column_width = Some(c.u16("DefColWidth").map_err(e)?),
             STANDARD_WIDTH if record.body.len() == 2 => {
@@ -798,6 +832,19 @@ impl Features {
                 );
             }
             x.close(name);
+        }
+        if self.ignored_errors.iter().any(|(_, flags)| *flags != 0) {
+            x.open("ignoredErrors", &[]);
+            for (ranges, flags) in &self.ignored_errors {
+                if *flags == 0 { continue; }
+                let mut attributes = vec![("sqref", ranges.join(" "))];
+                for (bit, name) in ["evalError", "emptyCellReference", "numberStoredAsText", "formulaRange",
+                    "formula", "twoDigitTextYear", "unlockedFormula", "listDataValidation"].into_iter().enumerate() {
+                    if flags & (1 << bit) != 0 { attributes.push((name, "1".to_owned())); }
+                }
+                x.empty("ignoredError", &attributes);
+            }
+            x.close("ignoredErrors");
         }
         if let Some(id) = drawing {
             x.empty("drawing", &[("r:id", id.to_owned())]);

@@ -180,6 +180,7 @@ pub(crate) fn read(
     let mut drawing = super::drawing::Drawing::default();
     let mut rules = super::rules::Rules::default();
     features.number = context.number;
+    features.macro_sheet = macro_sheet;
     features.v5 = context.v5;
     // Shared and array formulas and data tables, by the cell of the FORMULA record they follow
     // (where a PtgExp finds them) and, for shared formulas, by the first cell of their range.

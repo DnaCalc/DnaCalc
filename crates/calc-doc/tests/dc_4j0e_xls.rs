@@ -41,6 +41,16 @@ fn external_cache_biff5_fixture() -> Vec<u8> {
     v5::xls(1252, &[], &[v5::Sheet { name: b"S".to_vec(), records }])
 }
 
+fn ignored_error_feature() -> Vec<u8> {
+    let mut header = vec![0x67, 0x08]; header.extend([0u8; 10]);
+    header.extend(u16s(&[3])); header.push(1); header.extend(0u32.to_le_bytes());
+    let mut body = vec![0x68, 0x08]; body.extend([0u8; 10]);
+    body.extend(u16s(&[3])); body.extend([0u8; 5]); body.extend(u16s(&[1]));
+    body.extend(4u32.to_le_bytes()); body.extend(u16s(&[0]));
+    body.extend(u16s(&[0, 1, 0, 1])); body.extend((0x15u32).to_le_bytes());
+    [record(0x0867, &header), record(0x0868, &body)].concat()
+}
+
 /// Native-only: writes controlled inputs for the owned Windows Excel session when requested.
 #[cfg(not(target_arch = "wasm32"))]
 #[test]
@@ -64,6 +74,7 @@ fn write_legacy_excel_session_inputs() {
     cells.extend(merged(&[(2, 2, 0, 1)]));
     cells.extend(hlink_url((3, 0), "https://example.com/", Some("Example"), Some("part")));
     cells.extend(hlink_file((4, 0), "book.xls", Some("資料.xls"), "Data!A1"));
+    cells.extend(ignored_error_feature());
     let globals = [supbook_self(1), extern_sheet(&[(0, 0, 0)]),
         name_record(0, 0, "Rate", &ptg::cell3d(0, 0, 0, 0))].concat();
     let biff8 = xls(false, &globals, &[Sheet::worksheet("Data", cells)]);
@@ -817,6 +828,36 @@ fn formula_recalculation_flag_is_preserved_and_incomplete_flags_are_counted() {
     let doc = calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap();
     let xml = String::from_utf8(doc.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
     assert!(xml.contains("<f ca=\"1\">1</f>"), "{xml}");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ignored_formula_error_ranges_survive_conversion_and_save() {
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", [number(0, 0, 1.0), ignored_error_feature()].concat())]);
+    let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let check = |doc: &calc_doc::OpenedDocument| {
+        let xml = String::from_utf8(doc.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+        let tag = xml.split("<ignoredError ").nth(1).unwrap().split("/>").next().unwrap();
+        assert!(tag.contains("sqref=\"A1:B2\"") && tag.contains("evalError=\"1\"") &&
+            tag.contains("numberStoredAsText=\"1\"") && tag.contains("formula=\"1\""));
+        assert!(!tag.contains("emptyCellReference"));
+    };
+    check(&doc);
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert!(!report.unknown_records.contains_key(&0x0868));
+    assert!(!report.unknown_records.contains_key(&0x0867));
+    let plan = calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+    let mut saved = Vec::new(); calc_doc::write(plan, &mut saved).unwrap();
+    check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+    let mut malformed = ignored_error_feature();
+    // Claim two ranges while supplying one; leave the BIFF record framing intact.
+    malformed[4 + 19 + 4 + 19] = 2;
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", malformed)]);
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert_eq!(report.unknown_records.get(&0x0868), Some(&1));
+    let bytes = xls(false, &[], &[Sheet { kind: 1, ..Sheet::worksheet("Macro", ignored_error_feature()) }]);
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert_eq!(report.unknown_records.get(&0x0868), Some(&1));
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
