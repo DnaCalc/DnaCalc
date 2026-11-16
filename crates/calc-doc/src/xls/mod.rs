@@ -189,7 +189,7 @@ pub(crate) fn convert(
     }
     let mut sheet_unknown: BTreeMap<u16, u32> = BTreeMap::new();
     let mut calculation_mode: Option<&str> = None;
-    let (mut calc_on_save, mut iterate, mut iteration_count, mut iteration_delta) = (None, None, None, None);
+    let (mut calc_on_save, mut iterate, mut iteration_count, mut iteration_delta, mut ref_a1) = (None, None, None, None, None);
     fn agree<T: PartialEq>(slot: &mut Option<T>, value: T, what: &str) -> Result<(), String> {
         if slot.as_ref().is_some_and(|previous| *previous != value) {
             return Err(format!("conflicting {what} across sheets"));
@@ -220,7 +220,7 @@ pub(crate) fn convert(
             }
             calculation_mode = Some(mode);
         }
-        for record in substream.iter().filter(|r| matches!(r.id, 0x000C | 0x0010 | 0x0011 | 0x005F)) {
+        for record in substream.iter().filter(|r| matches!(r.id, 0x000C | 0x000F | 0x0010 | 0x0011 | 0x005F)) {
             let read_word = || -> Result<u16, OpenError> {
                 let b = record.body.get(..2).ok_or_else(|| refuse(name, "a short calculation settings record"))?;
                 Ok(u16::from_le_bytes([b[0], b[1]]))
@@ -238,10 +238,10 @@ pub(crate) fn convert(
                     if !value.is_finite() || value < 0.0 { return Err(refuse(name, "an invalid iteration delta")); }
                     agree(&mut iteration_delta, value.to_bits(), "iteration deltas").map_err(|e| refuse(name, e))?;
                 }
-                0x0011 | 0x005F => {
+                0x000F | 0x0011 | 0x005F => {
                     let value = read_word()?;
                     if value > 1 { return Err(refuse(name, "an invalid calculation setting")); }
-                    let slot = if record.id == 0x0011 { &mut iterate } else { &mut calc_on_save };
+                    let slot = match record.id { 0x000F => &mut ref_a1, 0x0011 => &mut iterate, _ => &mut calc_on_save };
                     agree(slot, value != 0, "calculation settings").map_err(|e| refuse(name, e))?;
                 }
                 _ => unreachable!(),
@@ -319,7 +319,7 @@ pub(crate) fn convert(
             }
             SheetKind::Chart => {
                 for record in &substream[1..end - 1] {
-                    if !matches!(record.id, 0x000C | 0x000D | 0x0010 | 0x0011 | 0x005F) {
+                    if !matches!(record.id, 0x000C | 0x000D | 0x000F | 0x0010 | 0x0011 | 0x005F) {
                         *sheet_unknown.entry(record.id).or_insert(0) += 1;
                     }
                 }
@@ -489,6 +489,7 @@ pub(crate) fn convert(
     if globals.date_1904 {
         workbook_properties.push(("date1904", "1".to_owned()));
     }
+    if globals.backup_file { workbook_properties.push(("backupFile", "1".to_owned())); }
     if let Some(code_name) = &globals.code_name {
         workbook_properties.push(("codeName", code_name.clone()));
     }
@@ -606,6 +607,7 @@ pub(crate) fn convert(
     }
     let mut calc_properties = Vec::new();
     if let Some(mode) = calculation_mode { calc_properties.push(("calcMode", mode.to_owned())); }
+    if ref_a1 == Some(false) { calc_properties.push(("refMode", "R1C1".to_owned())); }
     if let Some(save) = calc_on_save { calc_properties.push(("calcOnSave", if save { "1" } else { "0" }.to_owned())); }
     if let Some(enabled) = iterate { calc_properties.push(("iterate", if enabled { "1" } else { "0" }.to_owned())); }
     if let Some(count) = iteration_count { calc_properties.push(("iterateCount", count.to_string())); }
