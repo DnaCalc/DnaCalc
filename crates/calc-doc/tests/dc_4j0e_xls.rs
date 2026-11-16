@@ -114,6 +114,25 @@ fn sheets_in_order_with_state_and_date_system() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn sheet_calculation_modes_are_preserved_and_conflicts_refused() {
+    for (value, expected) in [(0u16, calc_doc::CalcMode::Manual), (1, calc_doc::CalcMode::Automatic),
+        (2, calc_doc::CalcMode::AutomaticExceptTables)] {
+        let mode = record(0x000D, &value.to_le_bytes());
+        let bytes = xls(false, &[], &[Sheet::worksheet("A", mode.clone()), Sheet::worksheet("B", mode)]);
+        assert_eq!(load(&bytes).calc_mode(), expected);
+        let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+        assert!(!report.unknown_records.contains_key(&0x000D));
+    }
+    let bytes = xls(false, &[], &[Sheet::worksheet("A", record(0x000D, &0u16.to_le_bytes())),
+        Sheet::worksheet("B", record(0x000D, &1u16.to_le_bytes()))]);
+    match calc_doc::open(source(&bytes), &OpenPolicy::default()) {
+        Err(OpenError::LegacyWorkbook { detail, .. }) => assert!(detail.contains("conflicting calculation modes"), "{detail}"),
+        other => panic!("{:?}", other.err()),
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn a_large_workbook_stream_is_read_from_regular_sectors_and_unknown_records_are_counted() {
     // Padding records of an unknown type push the stream past the mini stream cutoff.
     let mut filler = Vec::new();

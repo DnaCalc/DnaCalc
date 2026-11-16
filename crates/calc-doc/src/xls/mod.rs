@@ -188,6 +188,7 @@ pub(crate) fn convert(
         links = links.with_table(books, xti);
     }
     let mut sheet_unknown: BTreeMap<u16, u32> = BTreeMap::new();
+    let mut calculation_mode: Option<&str> = None;
     let mut extra_entries: Vec<(String, Vec<u8>)> = Vec::new();
     let mut unread_objects: BTreeMap<u16, u32> = BTreeMap::new();
     for (source_tab, sheet) in globals.sheets.iter().enumerate() {
@@ -197,6 +198,20 @@ pub(crate) fn convert(
         let (start, end) = locate(sheet)?;
         let substream = &records[start..end];
         let end = substream.len();
+        for record in substream.iter().filter(|r| r.id == 0x000D) {
+            let raw = record.body.get(..2).ok_or_else(|| refuse(name, "a short CalcMode record"))?;
+            let mode = match i16::from_le_bytes([raw[0], raw[1]]) {
+                0 => "manual",
+                1 => "auto",
+                2 => "autoNoTable",
+                -1 if biff5 => "autoNoTable",
+                other => return Err(refuse(name, format!("the calculation mode {other}"))),
+            };
+            if calculation_mode.is_some_and(|previous| previous != mode) {
+                return Err(refuse(name, "conflicting calculation modes across sheets"));
+            }
+            calculation_mode = Some(mode);
+        }
         number += 1;
         let sheet_links;
         let links = if v5.is_some() {
@@ -269,7 +284,9 @@ pub(crate) fn convert(
             }
             SheetKind::Chart => {
                 for record in &substream[1..end - 1] {
-                    *sheet_unknown.entry(record.id).or_insert(0) += 1;
+                    if record.id != 0x000D {
+                        *sheet_unknown.entry(record.id).or_insert(0) += 1;
+                    }
                 }
                 (
                     format!("xl/chartsheets/sheet{number}.xml"),
@@ -537,6 +554,9 @@ pub(crate) fn convert(
             xml.element("definedName", &attributes, &text);
         }
         xml.close("definedNames");
+    }
+    if let Some(mode) = calculation_mode {
+        xml.empty("calcPr", &[("calcMode", mode.to_owned())]);
     }
     xml.close("workbook");
     let workbook_xml = xml.out;
