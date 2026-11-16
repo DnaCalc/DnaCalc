@@ -172,6 +172,14 @@ impl Registry {
 }
 
 impl Table {
+    /// The external workbook and sheet associated with an EXTERNSHEET entry.
+    pub(crate) fn cache_target(&self, index: usize) -> Option<(usize, u16)> {
+        match &self.targets.get(index)?.0 {
+            Target::External { document, sheet: Some(sheet) } => Some((*document, u16::try_from(*sheet).ok()?)),
+            _ => None,
+        }
+    }
+
     /// The supporting workbooks and sheet references of this table as the formula printer reads
     /// them: entry `k` of the first list is the book of entry `k` of the second. An external
     /// document's number is its position among `documents` plus one, the number of its

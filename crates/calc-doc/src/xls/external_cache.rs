@@ -12,7 +12,7 @@ pub(crate) enum Value {
 pub(crate) type Cells = BTreeMap<(u16, u8), Value>;
 pub(crate) type Caches = BTreeMap<(usize, u16), Cells>;
 
-fn values(record: &Record<'_>) -> Option<Cells> {
+fn values(record: &Record<'_>, code_page: Option<u16>) -> Option<Cells> {
     if !record.continues.is_empty() { return None; }
     let mut c = Cursor::new(record.body);
     let last = c.u8("CRN").ok()?;
@@ -29,11 +29,16 @@ fn values(record: &Record<'_>) -> Option<Cells> {
                 Some(Value::Number(n))
             }
             2 => {
-                let count = usize::from(c.u16("CRN string").ok()?);
-                let flags = c.u8("CRN string").ok()?;
-                if flags & !1 != 0 { return None; }
-                let text = if flags & 1 != 0 { c.units(count, "CRN string").ok()? }
-                    else { c.bytes(count, "CRN string").ok()?.iter().map(|&b| u16::from(b)).collect() };
+                let text = if let Some(page) = code_page {
+                    let count = usize::from(c.u8("CRN string").ok()?);
+                    super::codepage::decode(page, c.bytes(count, "CRN string").ok()?).ok()?.encode_utf16().collect()
+                } else {
+                    let count = usize::from(c.u16("CRN string").ok()?);
+                    let flags = c.u8("CRN string").ok()?;
+                    if flags & !1 != 0 { return None; }
+                    if flags & 1 != 0 { c.units(count, "CRN string").ok()? }
+                    else { c.bytes(count, "CRN string").ok()?.iter().map(|&b| u16::from(b)).collect() }
+                };
                 Some(Value::Text(text))
             }
             4 => {
@@ -88,7 +93,7 @@ pub(crate) fn read(records: &[Record<'_>], books: &[SupBookRecord], unknown: &mu
                     let mut valid = true;
                     for record in &records[i + 1..i + 1 + count] {
                         if record.id != 0x005A { valid = false; break; }
-                        let Some(row) = values(record) else { valid = false; break };
+                        let Some(row) = values(record, None) else { valid = false; break };
                         for (key, value) in row {
                             if cells.insert(key, value).is_some() { valid = false; }
                         }
@@ -114,4 +119,62 @@ pub(crate) fn read(records: &[Record<'_>], books: &[SupBookRecord], unknown: &mu
         }
     }
     out
+}
+
+/// BIFF5 caches follow a sheet-local EXTERNSHEET, and text uses the workbook code page.
+/// A sheet appearing in more than one group is left unread until their combination is known.
+pub(crate) fn read_biff5<'a>(
+    tables: impl IntoIterator<Item = (&'a [Record<'a>], &'a super::v5::Table)>,
+    code_page: u16,
+) -> (Caches, BTreeMap<u16, u32>) {
+    let mut candidates: BTreeMap<(usize, u16), Option<(Cells, u32)>> = BTreeMap::new();
+    let mut blocked_books = BTreeSet::new();
+    for (records, table) in tables {
+        let mut next_target = 0usize;
+        let mut target = None;
+        let mut i = 0usize;
+        while i < records.len() {
+            let record = &records[i];
+            if record.id == 0x0017 {
+                target = table.cache_target(next_target);
+                next_target += 1;
+            }
+            if (record.id == 0x0059 && (record.body.len() != 2 || !record.continues.is_empty())) || record.id == 0x005A {
+                if let Some((book, _)) = target { blocked_books.insert(book); }
+            }
+            if record.id == 0x0059 && record.body.len() == 2 && record.continues.is_empty() {
+                let count = u16::from_le_bytes([record.body[0], record.body[1]]) as usize;
+                if let Some(key) = target {
+                    if candidates.contains_key(&key) || count > i16::MAX as usize || count > records.len().saturating_sub(i + 1) {
+                        candidates.insert(key, None); i += 1; continue;
+                    }
+                    let mut cells = Cells::new();
+                    let mut valid = true;
+                    for crn in &records[i + 1..i + 1 + count] {
+                        if crn.id != 0x005A { valid = false; break; }
+                        let Some(row) = values(crn, Some(code_page)) else { valid = false; break };
+                        for (cell, value) in row {
+                            if cells.insert(cell, value).is_some() { valid = false; }
+                        }
+                    }
+                    if valid {
+                        candidates.insert(key, Some((cells, count as u32)));
+                        i += count;
+                    } else { candidates.insert(key, None); }
+                }
+            }
+            i += 1;
+        }
+    }
+    let mut out = Caches::new();
+    let mut consumed = BTreeMap::new();
+    for (key, candidate) in candidates {
+        if blocked_books.contains(&key.0) { continue; }
+        if let Some((cells, count)) = candidate {
+            out.insert(key, cells);
+            *consumed.entry(0x0059).or_insert(0) += 1;
+            *consumed.entry(0x005A).or_insert(0) += count;
+        }
+    }
+    (out, consumed)
 }

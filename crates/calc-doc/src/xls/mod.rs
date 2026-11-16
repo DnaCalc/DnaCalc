@@ -157,6 +157,7 @@ pub(crate) fn convert(
     let mut registry = v5::Registry::default();
     let mut tables: Vec<v5::Table> = Vec::new();
     let mut global_table = v5::Table::default();
+    let mut v5_cache_consumed = BTreeMap::new();
     if let Some(page) = v5 {
         global_table = registry
             .table(&records[..globals.end], page)
@@ -174,6 +175,14 @@ pub(crate) fn convert(
                 names: d.names.clone(),
             })
             .collect();
+        let mut cache_tables = vec![(&records[..globals.end], &global_table)];
+        for (sheet, table) in globals.sheets.iter().filter(|s| s.kind != SheetKind::Module).zip(&tables) {
+            let (start, end) = locate(sheet)?;
+            cache_tables.push((&records[start..end], table));
+        }
+        let (caches, consumed) = external_cache::read_biff5(cache_tables, page);
+        globals.external_cache = caches;
+        v5_cache_consumed = consumed;
     }
     let mut links = formula::Links::new(
         &globals,
@@ -514,6 +523,12 @@ pub(crate) fn convert(
             let mut all = std::mem::take(&mut globals.unknown);
             for (id, n) in sheet_unknown {
                 *all.entry(id).or_insert(0) += n;
+            }
+            for (id, n) in v5_cache_consumed {
+                if let Some(count) = all.get_mut(&id) {
+                    *count = count.saturating_sub(n);
+                    if *count == 0 { all.remove(&id); }
+                }
             }
             all
         },
