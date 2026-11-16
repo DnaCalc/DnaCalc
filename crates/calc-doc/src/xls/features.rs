@@ -396,11 +396,20 @@ impl Features {
                     let _up = c.u16(what).map_err(e)?;
                     let length = c.u32(what).map_err(e)? as usize;
                     let bytes = c.bytes(length, what).map_err(e)?;
-                    let path: String = bytes
-                        .iter()
-                        .take_while(|b| **b != 0)
-                        .map(|b| char::from(*b))
-                        .collect();
+                    let ansi_end = bytes.iter().position(|b| *b == 0).unwrap_or(bytes.len());
+                    let mut path = super::codepage::decode(1252, &bytes[..ansi_end])?;
+                    // FileMoniker's fixed tail precedes both its optional Unicode path and
+                    // the hyperlink location. The Unicode path, when present, is complete.
+                    c.skip(24, what).map_err(e)?;
+                    let unicode_size = c.u32(what).map_err(e)? as usize;
+                    if unicode_size != 0 {
+                        let bytes = c.u32(what).map_err(e)? as usize;
+                        let key = c.u16(what).map_err(e)?;
+                        if bytes % 2 != 0 || unicode_size != bytes + 6 || key != 3 {
+                            return Err("an invalid Unicode file moniker path".into());
+                        }
+                        path = read_string(c, bytes / 2, what)?;
+                    }
                     link.target = Some(path);
                 } else {
                     return Err("a hyperlink with a moniker of a kind other than URL or file".into());

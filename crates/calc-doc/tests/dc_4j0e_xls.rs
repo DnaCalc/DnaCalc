@@ -608,6 +608,19 @@ fn merges_hyperlinks_panes_protection_and_page_setup() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn file_moniker_keeps_unicode_path_and_location() {
+    let records = [hlink_file((0, 0), "book.xls", None, "Sheet1!A1"),
+        hlink_file((1, 0), "book.xls", Some("資料.xls"), "Sheet2!B2")].concat();
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", records)]);
+    let loaded = load(&bytes);
+    let links = format!("{:?}", loaded.sheets()[0].review().links);
+    for expected in ["book.xls", "Sheet1!A1", "資料.xls", "Sheet2!B2"] {
+        assert!(links.contains(expected), "{links}");
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn comments_are_read_from_note_obj_and_txo_records() {
     let mut r = Vec::new();
     r.extend(number(0, 0, 1.0));
