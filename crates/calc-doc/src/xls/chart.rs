@@ -19,6 +19,7 @@ const SERIES: u16 = 0x1003;
 const SERIES_TEXT: u16 = 0x100D;
 const AI: u16 = 0x1051;
 const CHART_FORMAT: u16 = 0x1014;
+const CHART_PROPERTIES: u16 = 0x1044;
 const BAR: u16 = 0x1017;
 const LINE: u16 = 0x1018;
 const PIE: u16 = 0x1019;
@@ -83,6 +84,8 @@ pub(crate) struct Chart {
     pending: Option<u8>,
     link: Option<u16>,
     seen_chart: bool,
+    plot_visible_only: Option<bool>,
+    blanks: Option<&'static str>,
 }
 
 fn block_code(block: Block) -> u8 {
@@ -106,6 +109,10 @@ impl Chart {
     pub(crate) fn read(&mut self, record: &Record<'_>, print: &dyn Fn(&[u8]) -> Option<String>) {
         let body = record.body;
         match record.id {
+            CHART_PROPERTIES if body.len() >= 3 => {
+                self.plot_visible_only = Some(u16::from_le_bytes([body[0], body[1]]) & 2 != 0);
+                self.blanks = match body[2] { 0 => Some("gap"), 1 => Some("zero"), 2 => Some("span"), _ => None };
+            }
             SERIES => {
                 self.series.push(Series {
                     group: 0,
@@ -394,7 +401,8 @@ impl Chart {
             x.empty("c:legendPos", &[("val", "r".to_owned())]);
             x.close("c:legend");
         }
-        x.empty("c:plotVisOnly", &[("val", "1".to_owned())]);
+        x.empty("c:plotVisOnly", &[("val", u8::from(self.plot_visible_only.unwrap_or(true)).to_string())]);
+        if let Some(blanks) = self.blanks { x.empty("c:dispBlanksAs", &[("val", blanks.to_owned())]); }
         x.close("c:chart");
         x.close("c:chartSpace");
         Some(x.out)

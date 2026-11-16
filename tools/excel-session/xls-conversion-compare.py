@@ -137,6 +137,9 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
                                   if (child := group.find(C + name)) is not None}}
                     for group in chart_root.iter()
                     if group.tag in {C + 'barChart', C + 'pieChart', C + 'doughnutChart'}]
+                obj['chart_settings'] = {
+                    name: node.get('val') for name in ('plotVisOnly', 'dispBlanksAs')
+                    if (node := chart_root.find('.//' + C + name)) is not None}
             result.append(obj)
     return result
 

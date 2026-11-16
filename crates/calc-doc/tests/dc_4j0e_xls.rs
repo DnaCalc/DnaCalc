@@ -1778,6 +1778,7 @@ fn chart_group_geometry_survives_legacy_conversion() {
         let format = record(0x1014, &[0u8; 20]);
         let at = chart.windows(format.len()).position(|window| window == format).unwrap();
         chart[at + 4 + 16] = u8::from(varied);
+        chart.splice(at..at, record(0x1044, &[0, 0, 2, 0]));
         let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]),
             art::obj(5, 1), chart].concat();
         let bytes = xls(false, &[], &[Sheet::worksheet("S", records)]);
@@ -1785,6 +1786,7 @@ fn chart_group_geometry_survives_legacy_conversion() {
         let check = |doc: &calc_doc::OpenedDocument| {
             let xml = String::from_utf8(doc.package().read_part("xl/charts/chart1_1.xml").unwrap()).unwrap();
             for item in &expected { assert!(xml.contains(item), "{item} in {xml}"); }
+            assert!(xml.contains("<c:plotVisOnly val=\"0\"/>") && xml.contains("<c:dispBlanksAs val=\"span\"/>"), "{xml}");
         };
         check(&document);
         let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
@@ -1798,11 +1800,13 @@ fn chart_group_geometry_survives_legacy_conversion() {
     let format = record(0x1014, &[0u8; 20]);
     let at = chart.windows(format.len()).position(|window| window == format).unwrap();
     chart[at + 4 + 16] = 1;
+    chart.splice(at..at, record(0x1044, &[2, 0, 1, 0]));
     let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
     let bytes = xls(false, &[], &[Sheet::worksheet("S", records)]);
     let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
     let xml = String::from_utf8(document.package().read_part("xl/charts/chart1_1.xml").unwrap()).unwrap();
     assert!(xml.contains("<c:varyColors val=\"0\"/>"), "{xml}");
+    assert!(xml.contains("<c:plotVisOnly val=\"1\"/>") && xml.contains("<c:dispBlanksAs val=\"zero\"/>"), "{xml}");
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
