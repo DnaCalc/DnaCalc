@@ -90,13 +90,12 @@ pub(crate) fn read(bytes: &[u8], stream_id: u16) -> Option<Cache> {
         let r = records.get(at)?;
         if r.id != 0x00C7 || r.body.len() < 17 || !r.continues.is_empty() { return None; }
         let flags = u16::from_le_bytes([r.body[0], r.body[1]]);
-        if flags & 0xE01A != 0 { return None; }
+        if flags & 0xE018 != 0 { return None; }
         let all_shared = flags & 1 != 0;
+        if all_shared && flags & 2 != 0 { return None; }
         let short = flags & 0x0200 != 0;
         let count = usize::from(u16::from_le_bytes([r.body[12], r.body[13]]));
-        // The shared-items metadata writer derives its type flags from these items. Fields with
-        // inline-only values need those flags derived from the records before they can be kept.
-        if !all_shared || short != (count > 255) { return None; }
+        if (!all_shared && count != 0) || short != (count > 255) { return None; }
         let mut p = Pieces::new(r);
         p.skip(14, "pivot cache field").ok()?;
         let name = String::from_utf16(&p.unicode_string("pivot cache field name").ok()?).ok()?;
@@ -157,16 +156,26 @@ mod tests {
     use calc_doc_model::value::{IdAllocator, SheetId};
     use std::sync::Arc;
 
-    fn cache() -> Vec<u8> {
+    fn cache(inline: bool) -> Vec<u8> {
         let mut header = 2i32.to_le_bytes().to_vec();
-        header.extend(kit::u16s(&[7, 0x21, 0, 1, 1, 2, 1, 0xFFFF]));
+        let fields = if inline { 2 } else { 1 };
+        header.extend(kit::u16s(&[7, 0x21, 0, fields, fields, 2, 1, 0xFFFF]));
         let mut field = kit::u16s(&[1, 0, 0, 0, 0, 0, 3]);
         field.extend([1, 0, 0, b'X']);
-        [kit::record(0x00C6, &header), kit::record(0x0122, &[0; 12]),
+        let mut out = [kit::record(0x00C6, &header), kit::record(0x0122, &[0; 12]),
          kit::record(0x00C7, &field), kit::record(0x01BB, &[0, 0]),
          kit::record(0x00CD, &[1, 0, 0, b'A']), kit::record(0x00CD, &[1, 0, 0, b'B']),
-         kit::record(0x00CD, &[1, 0, 0, b'C']),
-         kit::record(0x00C8, &[0]), kit::record(0x00C8, &[1]), kit::record(0x000A, &[])].concat()
+         kit::record(0x00CD, &[1, 0, 0, b'C'])].concat();
+        if inline {
+            let mut second = kit::u16s(&[0, 0, 0, 0, 0, 0, 0]); second.extend([1, 0, 0, b'Y']);
+            out.extend(kit::record(0x00C7, &second)); out.extend(kit::record(0x01BB, &[0, 0]));
+        }
+        for (index, value) in [(0, 3.5_f64), (1, -2.0)] {
+            out.extend(kit::record(0x00C8, &[index]));
+            if inline { out.extend(kit::record(0x00C9, &value.to_le_bytes())); }
+        }
+        out.extend(kit::record(0x000A, &[]));
+        out
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -179,7 +188,7 @@ mod tests {
         let workbook = kit::workbook_stream(false, &globals,
             &[kit::Sheet::worksheet("S", [kit::number(0, 0, 1.0), kit::record(0x00B0, &[])].concat())]);
         let bytes = cfb_write::write(vec![("Workbook".into(), Node::Stream(workbook)),
-            ("_SX_DB_CUR".into(), Node::Storage(vec![("0007".into(), Node::Stream(cache()))]))]).unwrap();
+            ("_SX_DB_CUR".into(), Node::Storage(vec![("0007".into(), Node::Stream(cache(false)))]))]).unwrap();
         let source = |bytes: &[u8]| Arc::new(crate::MemorySource::new(bytes.to_vec())) as Arc<dyn crate::PackageRead>;
         let document = crate::open(source(&bytes), &crate::OpenPolicy::default()).unwrap();
         let report = crate::legacy_workbook_report(source(&bytes), &crate::OpenPolicy::default()).unwrap().unwrap();
@@ -205,7 +214,7 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn invalid_cache_or_grouped_fields_are_not_interpreted() {
-        let bytes = cache();
+        let bytes = cache(false);
         assert!(read(&bytes, 7).is_some());
         assert!(read(&bytes, 8).is_none());
         let mut invalid = bytes.clone(); invalid[4 + 6] |= 2;
@@ -214,5 +223,31 @@ mod tests {
         let start = grouped.windows(2).position(|b| b == [0xC7, 0]).unwrap();
         grouped[start + 4] |= 8;
         assert!(read(&grouped, 7).is_none());
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn cache_with_inline_values_keeps_record_types_and_indexes() {
+        let mut source = kit::u16s(&[0, 2]); source.extend([0, 1]);
+        source.extend(kit::u16s(&[2])); source.extend([0, 2, b'S', 0]);
+        let globals = [kit::record(0x00D5, &kit::u16s(&[7])), kit::record(0x00E3, &kit::u16s(&[1])),
+            kit::record(0x0051, &source)].concat();
+        let workbook = kit::workbook_stream(false, &globals, &[kit::Sheet::worksheet("S", Vec::new())]);
+        let bytes = cfb_write::write(vec![("Workbook".into(), Node::Stream(workbook)),
+            ("_SX_DB_CUR".into(), Node::Storage(vec![("0007".into(), Node::Stream(cache(true)))]))]).unwrap();
+        let source = |bytes: &[u8]| Arc::new(crate::MemorySource::new(bytes.to_vec())) as Arc<dyn crate::PackageRead>;
+        let document = crate::open(source(&bytes), &crate::OpenPolicy::default()).unwrap();
+        let check = |doc: &crate::OpenedDocument| {
+            let mut ids = IdAllocator::<SheetId>::new();
+            let loaded = crate::load(doc, &mut ids).unwrap();
+            assert_eq!(loaded.pivot_records(0, 10).unwrap().records, vec![
+                vec![PivotItem::Index(0), PivotItem::Number("3.5".into())],
+                vec![PivotItem::Index(1), PivotItem::Number("-2".into())]]);
+            assert!(loaded.pivot_caches().caches[&0].fields[1].items.is_empty());
+        };
+        check(&document);
+        let plan = crate::prepare_save(&document.snapshot(), &crate::SavePolicy::default()).unwrap();
+        let mut saved = Vec::new(); crate::write(plan, &mut saved).unwrap();
+        check(&crate::open(source(&saved), &crate::OpenPolicy::default()).unwrap());
     }
 }
