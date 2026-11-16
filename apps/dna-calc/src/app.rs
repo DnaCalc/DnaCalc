@@ -731,7 +731,7 @@ pub fn app_with_transport(
                     node_ref=file_input
                     type="file"
                     data-dnacalc="open-file"
-                    accept=".xlsx,.xlsm,.xlsb,.xltx,.xltm"
+                    accept=".xlsx,.xlsm,.xlsb,.xltx,.xltm,.xls,.xla,.xlt"
                     hidden=true
                     on:change=move |ev| {
                         use wasm_bindgen::JsCast;

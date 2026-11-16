@@ -33,7 +33,7 @@ use crate::opc::{Package, TargetMode};
 use crate::save::text::{attribute_value, xstring};
 use std::collections::BTreeMap;
 
-pub(crate) use records::Malformed;
+pub(crate) use records::{Cursor, Malformed};
 
 /// The content type of an Excel binary workbook's workbook part.
 const BINARY_MAIN: &str = "application/vnd.ms-excel.sheet.binary.macroEnabled.main";
