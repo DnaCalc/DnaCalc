@@ -365,6 +365,31 @@ pub fn calculate_with_reference_text(
             }
         }
     }
+    // The attested Touchstone array worker builds numeric arrays with CHOOSE
+    // and passes scalar errors as references to their source cells. Preserve
+    // that origin for regression without inventing the cells' worksheet positions.
+    let mixed_regression_error_cells = !cell_transport
+        && matches!(target.spelling(), "LINEST" | "LOGEST")
+        && args.iter().all(|arg| arg.get("range").is_none())
+        && values.iter().any(|v| matches!(v.core_ref(), CoreRef::Array(_)))
+        && context.is_some_and(|c| {
+            c.input_transport.as_deref() == Some("cell_value2_bulk")
+                && c.cell_layout.as_deref() == Some("touchstone/1-bulk")
+        });
+    if mixed_regression_error_cells {
+        for (position, argument) in prepared.iter_mut().enumerate() {
+            if matches!(values[position].core_ref(), CoreRef::Error(_))
+                && matches!(target.parameter_class(position), Some(ParameterClass::ValueOrReference))
+            {
+                let column = position as u32 + 1;
+                grid.insert((1, column), values[position].clone());
+                let cell = CellKey::new(SheetId::from_parts(1, 0), 1, column)
+                    .expect("argument fits the grid");
+                *argument = CalcValue::reference(ReferenceLike::area(GridArea::cell(cell)));
+                has_reference = true;
+            }
+        }
+    }
     if has_reference
         && (target.spelling() == "ROW" || (target.spelling() == "COLUMN" && !bulk_layout))
     {
@@ -692,6 +717,30 @@ mod tests {
                 "fault:WitnessReferencePosition",
                 "{info}"
             );
+        }
+    }
+
+    /// Independent Excel controls distinguish cell errors from formed errors in mixed regressions.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn mixed_regression_error_origin_uses_attested_cell_transport() {
+        let attested = WitnessInvocation {
+            input_transport: Some("cell_value2_bulk".into()),
+            cell_layout: Some("touchstone/1-bulk".into()),
+            ..Default::default()
+        };
+        let unknown = WitnessInvocation {
+            input_transport: Some("cell_value2_bulk".into()),
+            ..Default::default()
+        };
+        let y = json!([["0x3ff0000000000000"], ["0x4000000000000000"],
+            ["0x4008000000000000"], ["0x4010000000000000"], ["0x4014000000000000"]]);
+        let err = json!({"error": "Div0"});
+        for name in ["LINEST", "LOGEST"] {
+            assert_eq!(calculate(name, &[y.clone(), err.clone()], None, Some(&attested), true), "error:Ref");
+            assert_eq!(calculate(name, &[err.clone(), y.clone()], None, Some(&attested), true), "error:Value");
+            assert_eq!(calculate(name, &[y.clone(), err.clone()], None, Some(&unknown), true), "error:Div0");
+            assert_eq!(calculate(name, &[json!({"range": y.clone()}), err.clone()], None, Some(&attested), true), "error:Div0");
         }
     }
 

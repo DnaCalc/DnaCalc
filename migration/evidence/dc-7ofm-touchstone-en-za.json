@@ -64,7 +64,8 @@
  ],
  "cell_layout": "touchstone/1-bulk",
  "cell_layout_evidence": [
-  "tools/excel-service/engines/excel/Program.cs (the bulk path, identical in every version from 03be1c0f of 2026-11-09 to 21920da5 of 2026-11-13, around the 2026-11-12 12:17-12:30 UTC captures): call i of a batch has its formula in column A of row i of sheet S and its arguments as cells from column B of that row (Formula: RC[k+1]; Rng(sheet, 1, 2, totalRows, maxCols).Value2), an error argument entered as its error formula (Formula2R1C1 \"=#N/A\"); OwnedExcel.cs Setup names the sheets S, A, Q in that order. The row depends on the batch and is not recorded."
+  "tools/excel-service/engines/excel/Program.cs (the bulk path, identical in every version from 03be1c0f of 2026-11-09 to 21920da5 of 2026-11-13, around the 2026-11-12 12:17-12:30 UTC captures): call i of a batch has its formula in column A of row i of sheet S and its arguments as cells from column B of that row (Formula: RC[k+1]; Rng(sheet, 1, 2, totalRows, maxCols).Value2), an error argument entered as its error formula (Formula2R1C1 \"=#N/A\"); OwnedExcel.cs Setup names the sheets S, A, Q in that order. The row depends on the batch and is not recorded.",
+  "In the same worker's Formula and SpillFormula methods, a numeric array is constructed with CHOOSE from argument cells and a scalar error token is a worksheet-cell reference. SpillFormula is byte-identical at commits 03be1c0f and 21920da5 (SHA-256 6c5a02f12a9fd712e4a38d6a94306d7efdac03785111a5f24aa6bae56bf748c7). The bank-coverage variants generator emits scalar errors in cell mode. Their cell origin is therefore retained even when a mixed call contains an array; its exact address and spill placement are not implied."
  ],
  "addins_evidence": [
   "The environment record (touchstone_environment, whose JSON env_id hashes) lists addins_installed [] and com_addins_connected [VS15ExcelAdaptor], the Visual Studio design-time adaptor, which adds no worksheet function.",
