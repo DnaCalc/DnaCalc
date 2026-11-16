@@ -13,7 +13,8 @@
 //! (`=BYCOL(B1:C3,LAMBDA(c,ROW(c)))` is #CALC!, ROW giving an array); an array argument passes
 //! its elements as values (`=MAP({1,2},LAMBDA(x,ISREF(x)))` is {FALSE,FALSE}). A LAMBDA result
 //! that is a one-cell reference is published as the cell's value (`=MAP(C1:C3,LAMBDA(x,x))`);
-//! REDUCE's own result may stay a reference (`=ISREF(REDUCE(0,B1:B3,LAMBDA(a,v,v)))` is TRUE).
+//! REDUCE's accumulator and result keep a reference the LAMBDA gives
+//! (`=ISREF(REDUCE(0,B1:B3,LAMBDA(a,v,v)))` is TRUE); a larger reference is an array result.
 //! REDUCE's and SCAN's initial value is passed as given (`=SCAN(B1,B1:B3,LAMBDA(a,v,ISREF(a)))`
 //! is {TRUE;FALSE;FALSE}); an omitted one starts the calls at the second item and the
 //! accumulator at the first: REDUCE passes that item as it is, a reference into a range
@@ -519,7 +520,7 @@ impl KernelTask for HelperTask {
             let value = match sv
                 .callables()
                 .ok_or_else(refused)?
-                .call_slice(&self.callee, args)
+                .call_slice_keeping_reference(&self.callee, args)
             {
                 Ok(Some(value)) => value,
                 Ok(None) => return Ok(None),

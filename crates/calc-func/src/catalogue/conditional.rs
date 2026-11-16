@@ -26,8 +26,9 @@
 //! makes a following *, ? or ~ literal and is itself literal before any other character or at
 //! the end), else a number when the operand reads as one by worksheet number coercion, a logical
 //! when it spells TRUE or FALSE, and text otherwise (a label such as 2016-17 Winter, which
-//! coercion finds is no number, is text). An array, an operand that coercion refuses (number text
-//! by locale rules) and an error literal Excel added after #N/A are not modelled.
+//! coercion finds is no number, is text). An array criterion, or a reference of several cells, is
+//! answered element by element ([`lift`]). An operand that coercion refuses (number text by locale
+//! rules) and an error literal Excel added after #N/A are not modelled.
 //!
 //! A cell meets a criterion by kind. A number criterion compares numbers; text meets it under =
 //! when the text reads as that number, never under <, <=, > or >=, and always under <>. A text
@@ -66,6 +67,7 @@ use super::comparison::{self, Want};
 use crate::call::{EvalServices, FunctionFault};
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
+use crate::value::CalcArray;
 use crate::value::{
     CalcValue, CellKey, CoreRef, ExcelText, GridArea, MAX_COLUMNS, MAX_ROWS, ReferenceLike,
     WorksheetErrorCode,
@@ -84,14 +86,123 @@ use calc_catalogue::conditional::{
 
 attach_eager_family! {
     code: CODE; declarations: DECLARATIONS;
-    COUNTIF => countif;
-    COUNTIFS => countifs;
-    SUMIF => sumif;
-    SUMIFS => sumifs;
-    AVERAGEIF => averageif;
-    AVERAGEIFS => averageifs;
-    MAXIFS => maxifs;
-    MINIFS => minifs;
+    COUNTIF => countif_lifted;
+    COUNTIFS => countifs_lifted;
+    SUMIF => sumif_lifted;
+    SUMIFS => sumifs_lifted;
+    AVERAGEIF => averageif_lifted;
+    AVERAGEIFS => averageifs_lifted;
+    MAXIFS => maxifs_lifted;
+    MINIFS => minifs_lifted;
+}
+
+type Kernel = fn(&[CalcValue], &mut EvalServices<'_>) -> Result<CalcValue, FunctionFault>;
+
+/// The call once per element when a criterion is an array or a reference of several cells: an
+/// array of the answers, as tall as the tallest such criterion and as wide as the widest, a
+/// position one of them lacks #N/A (Excel 16.0.20527, 2026-11-16, Touchstone sheet cases:
+/// `=COUNTIFS(A1:A15,{">10","<5"})` spills {4,1}, `=AVERAGEIFS(B1:B15,A1:A15,{">10","<5"},C1:C15,E2)`
+/// {5,#DIV/0!}). A cell of a criteria reference is passed as a one-cell reference.
+fn lift(
+    id: super::FunctionId,
+    arguments: &[CalcValue],
+    services: &mut EvalServices<'_>,
+    criterion: fn(usize) -> bool,
+    kernel: Kernel,
+) -> Result<CalcValue, FunctionFault> {
+    enum Many<'a> {
+        Array(&'a CalcArray),
+        Area(GridArea),
+    }
+    let many: Vec<(usize, Many<'_>)> = arguments
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| criterion(*index))
+        .filter_map(|(index, value)| match value.core_ref() {
+            CoreRef::Array(array) => Some((index, Many::Array(array))),
+            CoreRef::Reference(reference) => match reference.areas() {
+                [area] if area.cell_count() > 1 => Some((index, Many::Area(*area))),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect();
+    if many.is_empty() {
+        return kernel(arguments, services);
+    }
+    let shape_of = |m: &Many<'_>| match m {
+        Many::Array(array) => (array.shape().rows, array.shape().cols),
+        Many::Area(area) => (area.row_count() as usize, area.column_count() as usize),
+    };
+    let rows = many.iter().map(|(_, m)| shape_of(m).0).max().unwrap_or(1);
+    let cols = many.iter().map(|(_, m)| shape_of(m).1).max().unwrap_or(1);
+    if rows.saturating_mul(cols) > 1 << 20 {
+        return Err(FunctionFault::NotImplemented { id, argument: Some(many[0].0) });
+    }
+    let mut cells = Vec::with_capacity(rows * cols);
+    let mut call = arguments.to_vec();
+    for r in 0..rows {
+        for c in 0..cols {
+            let mut missing = false;
+            for (index, m) in &many {
+                let (h, w) = shape_of(m);
+                if r >= h || c >= w {
+                    missing = true;
+                    break;
+                }
+                call[*index] = match m {
+                    Many::Array(array) => array.get(r, c).cloned().unwrap_or_else(CalcValue::empty),
+                    Many::Area(area) => {
+                        let cell = crate::value::CellKey::new(area.sheet(), area.first().row() + r as u32, area.first().column() + c as u32)
+                            .expect("inside the area");
+                        CalcValue::reference(crate::value::ReferenceLike::cell(cell))
+                    }
+                };
+            }
+            cells.push(if missing {
+                CalcValue::error(WorksheetErrorCode::NA)
+            } else {
+                kernel(&call, services)?
+            });
+        }
+    }
+    Ok(CalcValue::array(
+        CalcArray::new(crate::value::ArrayShape { rows, cols }, cells).expect("one answer per position"),
+    ))
+}
+
+fn odd(index: usize) -> bool {
+    index % 2 == 1
+}
+fn second(index: usize) -> bool {
+    index == 1
+}
+fn even_after_target(index: usize) -> bool {
+    index >= 2 && index % 2 == 0
+}
+fn countif_lifted(a: &[CalcValue], sv: &mut EvalServices<'_>) -> Result<CalcValue, FunctionFault> {
+    lift(COUNTIF, a, sv, second, countif)
+}
+fn countifs_lifted(a: &[CalcValue], sv: &mut EvalServices<'_>) -> Result<CalcValue, FunctionFault> {
+    lift(COUNTIFS, a, sv, odd, countifs)
+}
+fn sumif_lifted(a: &[CalcValue], sv: &mut EvalServices<'_>) -> Result<CalcValue, FunctionFault> {
+    lift(SUMIF, a, sv, second, sumif)
+}
+fn sumifs_lifted(a: &[CalcValue], sv: &mut EvalServices<'_>) -> Result<CalcValue, FunctionFault> {
+    lift(SUMIFS, a, sv, even_after_target, sumifs)
+}
+fn averageif_lifted(a: &[CalcValue], sv: &mut EvalServices<'_>) -> Result<CalcValue, FunctionFault> {
+    lift(AVERAGEIF, a, sv, second, averageif)
+}
+fn averageifs_lifted(a: &[CalcValue], sv: &mut EvalServices<'_>) -> Result<CalcValue, FunctionFault> {
+    lift(AVERAGEIFS, a, sv, even_after_target, averageifs)
+}
+fn maxifs_lifted(a: &[CalcValue], sv: &mut EvalServices<'_>) -> Result<CalcValue, FunctionFault> {
+    lift(MAXIFS, a, sv, even_after_target, maxifs)
+}
+fn minifs_lifted(a: &[CalcValue], sv: &mut EvalServices<'_>) -> Result<CalcValue, FunctionFault> {
+    lift(MINIFS, a, sv, even_after_target, minifs)
 }
 
 /// COUNTIF: the cells of the range that meet the criterion.

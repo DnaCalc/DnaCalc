@@ -207,7 +207,11 @@ fn isref(
     Site::finish(step)
 }
 
-/// ISFORMULA: whether the reference's first cell holds a formula, as the host says; see the
+/// The most cells ISFORMULA and FORMULATEXT answer one by one; a larger range is refused.
+pub(crate) const PER_CELL_LIMIT: u64 = 1 << 20;
+
+/// ISFORMULA: whether the reference's cell holds a formula, as the host says (one answer per cell
+/// of a range of one area); see the
 /// module documentation. The call interface refuses any other argument at admission, as Excel refuses
 /// such a formula at entry.
 fn isformula(
@@ -215,10 +219,44 @@ fn isformula(
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(ISFORMULA, services);
-    let cell = match arguments[0].core_ref() {
-        CoreRef::Reference(reference) => reference.areas()[0].first(),
+    let (cell, area) = match arguments[0].core_ref() {
+        CoreRef::Reference(reference) => (reference.areas()[0].first(), reference.areas()[0]),
         _ => return Site::finish(Err(site.not_modelled(Some(0)))),
     };
+    // A range of one area gives one answer per cell (Excel 16.0.20527, 2026-11-16, Touchstone
+    // sheet cases: `=ISFORMULA(B2:D4)` spills a 3 by 3 array, `=ISFORMULA(D1#)` one per spilled
+    // cell); a legacy formula then reads its first cell.
+    if area.cell_count() > PER_CELL_LIMIT && arguments[0].as_reference().is_some_and(|r| r.areas().len() == 1) {
+        return Site::finish(Err(site.not_modelled(Some(0))));
+    }
+    if area.cell_count() > 1
+        && area.cell_count() <= PER_CELL_LIMIT
+        && let CoreRef::Reference(reference) = arguments[0].core_ref()
+        && reference.areas().len() == 1
+    {
+        let (rows, cols) = (area.row_count() as usize, area.column_count() as usize);
+        let mut cells = Vec::with_capacity(rows * cols);
+        for r in 0..rows {
+            for c in 0..cols {
+                let at = crate::value::CellKey::new(area.sheet(), area.first().row() + r as u32, area.first().column() + c as u32)
+                    .expect("inside the area");
+                let answer = if services.host().is_some_and(|host| host.is_external_sheet(at.sheet())) {
+                    Some(CalcValue::error(WorksheetErrorCode::NA))
+                } else {
+                    services.host().and_then(|host| host.is_formula(at)).map(CalcValue::logical)
+                };
+                match answer {
+                    Some(value) => cells.push(value),
+                    None => return Site::finish(Err(site.not_modelled(Some(0)))),
+                }
+            }
+        }
+        return Site::finish(
+            crate::value::CalcArray::new(crate::value::ArrayShape { rows, cols }, cells)
+                .map(CalcValue::array)
+                .ok_or_else(|| site.not_modelled(Some(0))),
+        );
+    }
     // dc-ylr: Excel gives ISFORMULA of a reference to a closed workbook #N/A.
     if services
         .host()

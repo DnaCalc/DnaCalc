@@ -294,6 +294,17 @@ pub trait CallableInvoker {
     ) -> Result<Option<CalcValue>, CallAbandoned> {
         self.call(callable, arguments).map(Some)
     }
+
+    /// [`call_slice`](Self::call_slice), except that a call whose value is a reference gives the
+    /// reference itself rather than its values (REDUCE's result may be one: Excel 16.0.20527,
+    /// `=ISREF(REDUCE(0,B1:B3,LAMBDA(a,v,v)))` is TRUE). The caller reads it where it needs values.
+    fn call_slice_keeping_reference(
+        &mut self,
+        callable: &CalcValue,
+        arguments: &[CalcValue],
+    ) -> Result<Option<CalcValue>, CallAbandoned> {
+        self.call_slice(callable, arguments)
+    }
 }
 
 /// A [`CallableInvoker`]'s report that a call stopped with a fault it keeps.
