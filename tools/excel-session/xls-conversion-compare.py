@@ -44,6 +44,32 @@ def tree(element):
             'text': (element.text or '').strip(), 'children': [tree(x) for x in element]}
 
 
+def cell_styles(root):
+    """Resolve indexed cell style components before comparing their XML definitions.
+
+    This is a structural comparison: different representations of the same displayed style
+    can still be reported as differences. It does not resolve named-style inheritance.
+    """
+    collections = {
+        'fontId': root.findall(f'{M}fonts/{M}font'),
+        'fillId': root.findall(f'{M}fills/{M}fill'),
+        'borderId': root.findall(f'{M}borders/{M}border'),
+    }
+    result = []
+    for xf in root.findall(f'{M}cellXfs/{M}xf'):
+        definition = tree(xf)
+        for name, items in collections.items():
+            index = int(xf.get(name, '0'))
+            if index >= len(items):
+                raise ValueError(f'invalid {name} index {index}')
+            definition['attributes'].pop(name, None)
+            definition[name] = tree(items[index])
+        # Number formats are compared by meaning in the adjacent number_format field.
+        definition['attributes'].pop('numFmtId', None)
+        result.append(definition)
+    return result
+
+
 def drawing_objects(z, sheet, sheet_path, sheet_rels):
     result = []
     for ref in sheet.findall(M + 'drawing'):
@@ -86,8 +112,10 @@ def package(data):
             root = ET.fromstring(z.read('xl/sharedStrings.xml'))
             strings = [''.join(x.text or '' for x in s.iter(M + 't')) for s in root.findall(M + 'si')]
         formats = []
+        styles = []
         if 'xl/styles.xml' in z.namelist():
             root = ET.fromstring(z.read('xl/styles.xml'))
+            styles = cell_styles(root)
             custom = {int(e.get('numFmtId')): e.get('formatCode') for e in root.findall(f'{M}numFmts/{M}numFmt')}
             for xf in root.findall(f'{M}cellXfs/{M}xf'):
                 ident = int(xf.get('numFmtId', '0'))
@@ -118,7 +146,8 @@ def package(data):
                 style = int(c.get('s', '0'))
                 cells[c.get('r')] = {'type': typ, 'value': val, 'formula': None if f is None else (f.text or ''),
                                      'formula_attributes': {} if f is None else dict(f.attrib),
-                                     'number_format': formats[style] if style < len(formats) else f'unknown-style:{style}'}
+                                     'number_format': formats[style] if style < len(formats) else f'unknown-style:{style}',
+                                     'style_definition': styles[style] if style < len(styles) else f'unknown-style:{style}'}
             merges = sorted(e.get('ref') for e in sh.findall(f'{M}mergeCells/{M}mergeCell'))
             links = []
             for link in sh.findall(f'{M}hyperlinks/{M}hyperlink'):
@@ -204,7 +233,7 @@ def main():
         results.append(row)
     output = {'files': results, 'not_compared': ['calculated provenance', 'drawing formatting and image contents',
               'chart formatting', 'conditional formatting style definitions', 'pivot tables and caches',
-              'VBA project contents', 'style properties other than number formats', 'other metadata']}
+              'VBA project contents', 'named-style inheritance and rendered style equivalence', 'other metadata']}
     args.output.write_text(json.dumps(output, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     print(f"Compared {sum('differences' in r for r in results)}/{len(results)} files; {sum(len(r.get('differences', [])) for r in results)} differences; {sum('error' in r for r in results)} errors. Not compared: {', '.join(output['not_compared'])}.")
 
