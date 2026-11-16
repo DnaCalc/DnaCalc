@@ -81,6 +81,9 @@ pub(crate) struct Globals {
     pub(crate) date_1904: bool,
     pub(crate) sheets: Vec<BoundSheet>,
     pub(crate) active_tab: Option<u16>,
+    pub(crate) protect_structure: bool,
+    pub(crate) protect_windows: bool,
+    pub(crate) protection_verifier: Option<u16>,
     /// The shared string table (SST), in index order.
     pub(crate) strings: Vec<RichString>,
     pub(crate) names: Vec<NameRecord>,
@@ -150,6 +153,20 @@ pub(crate) fn read(records: &[Record<'_>], biff5: bool) -> Result<Globals, Strin
                 globals.date_1904 = c.u16("Date1904").map_err(|e| e.0)? == 1;
             }
             FILEPASS => globals.encrypted = true,
+            0x0012 | 0x0019 => {
+                let mut c = Cursor::new(record.body);
+                let value = c.u16("workbook protection").map_err(|e| e.0)?;
+                if value > 1 {
+                    return Err(format!("the workbook protection flag {value}"));
+                }
+                if record.id == 0x0012 { globals.protect_structure = value != 0; }
+                else { globals.protect_windows = value != 0; }
+            }
+            0x0013 => {
+                let mut c = Cursor::new(record.body);
+                let verifier = c.u16("workbook protection verifier").map_err(|e| e.0)?;
+                globals.protection_verifier = (verifier != 0).then_some(verifier);
+            }
             0x0016 if biff5 => {}
             EXTERNSHEET | EXTERNNAME if biff5 => {}
             BOUNDSHEET => {
