@@ -167,6 +167,19 @@ pub fn open(
     source: Arc<dyn PackageRead>,
     policy: &OpenPolicy,
 ) -> Result<OpenedDocument, OpenError> {
+    open_with_password(source, policy, None)
+}
+
+/// [`open`] with the password of an encrypted legacy Excel workbook (.xls, .xla, .xlt: XOR
+/// obfuscation, RC4 or RC4 CryptoAPI). `None` tries only the password Excel uses for a workbook
+/// it saves read-only recommended (`VelvetSweatshop`); a workbook that needs another is
+/// [`OpenError::PasswordRequired`], and a wrong one [`OpenError::WrongPassword`]. A package that
+/// is not a legacy workbook ignores the password.
+pub fn open_with_password(
+    source: Arc<dyn PackageRead>,
+    policy: &OpenPolicy,
+    password: Option<&str>,
+) -> Result<OpenedDocument, OpenError> {
     let package = match opc::Package::open(source.clone(), policy) {
         Ok(package) => package,
         // Not a ZIP archive: an OLE compound file is a legacy Excel workbook. (The ZIP route is
@@ -175,7 +188,7 @@ pub fn open(
             let Some(bytes) = legacy_bytes(source.as_ref(), policy)? else {
                 return Err(OpenError::NotAZipArchive);
             };
-            let (converted, _) = xls::convert(&bytes)?;
+            let (converted, _) = xls::convert(&bytes, password)?;
             let package = opc::Package::open(Arc::new(MemorySource::new(converted)), policy)?;
             return Ok(OpenedDocument {
                 package: Arc::new(package),
@@ -231,7 +244,7 @@ pub fn legacy_workbook_report(
     policy: &OpenPolicy,
 ) -> Result<Option<LegacyReport>, OpenError> {
     match legacy_bytes(source.as_ref(), policy)? {
-        Some(bytes) => xls::convert(&bytes).map(|(_, report)| Some(report)),
+        Some(bytes) => xls::convert(&bytes, None).map(|(_, report)| Some(report)),
         None => Ok(None),
     }
 }

@@ -343,33 +343,8 @@ fn supbook(record: &Record<'_>) -> Result<SupBookRecord, String> {
         names.push(no_count_string(&mut c, count, what)?);
     }
     Ok(SupBookRecord::External {
-        path: decode_path(&path),
+        path: super::v5::decode_url(&path),
         sheets: names,
         names: Vec::new(),
     })
-}
-
-/// A SUPBOOK's encoded URL (MS-XLS 2.5.272, Virtual Path) as a file path: the control
-/// characters that stand for a volume, a directory separator or a step up become what they say.
-fn decode_path(encoded: &str) -> String {
-    let mut out = String::new();
-    let mut chars = encoded.chars().peekable();
-    while let Some(ch) = chars.next() {
-        match ch {
-            '\u{01}' => match chars.next() {
-                Some('\u{40}') => out.push_str("\\\\"),
-                Some(drive) if drive.is_ascii_alphabetic() => {
-                    out.push(drive);
-                    out.push(':');
-                }
-                _ => {}
-            },
-            '\u{02}' => out.push('\\'),
-            '\u{03}' => out.push('\\'),
-            '\u{04}' => out.push_str("..\\"),
-            '\u{05}' | '\u{06}' | '\u{07}' | '\u{08}' => {}
-            other => out.push(other),
-        }
-    }
-    out
 }

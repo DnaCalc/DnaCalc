@@ -6,6 +6,8 @@
 //! files opened, refused by reason, load refusals, panics, and the record types the converter
 //! did not read, most frequent first. It fails only on a panic. Run:
 //!
+//! `DNACALC_XLS_PASSWORD` (optional) is tried on every encrypted file.
+//!
 //! `DNACALC_XLS_SWEEP=/path/a:/path/b cargo test -p calc-doc --test dc_4j0e_xls_sweep -- --nocapture`
 
 use calc_doc::model::value::{IdAllocator, SheetId};
@@ -59,7 +61,8 @@ fn sweep() {
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let policy = OpenPolicy::default();
             let report = legacy_workbook_report(source.clone(), &policy);
-            let document = calc_doc::open(source, &policy);
+            let password = std::env::var("DNACALC_XLS_PASSWORD").ok();
+            let document = calc_doc::open_with_password(source, &policy, password.as_deref());
             let load = document.as_ref().ok().map(|d| {
                 let mut ids: IdAllocator<SheetId> = IdAllocator::new();
                 calc_doc::load(d, &mut ids).map_err(|e| e.to_string()).map(|loaded| {

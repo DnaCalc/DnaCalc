@@ -136,10 +136,15 @@ fn files_that_are_not_read_are_typed_refusals() {
     let (name, detail) = refused(&compound(&[("Book", stream)]));
     assert_eq!(name, "Book");
     assert!(detail.contains("BIFF version 0x0400"), "{detail}");
-    // FILEPASS: an encrypted workbook, which dc-4j0e.7 reads.
+    // FILEPASS: an encrypted workbook needs its password (and one of a scheme not read is typed).
     let encrypted = xls(false, &record(0x002F, &[0, 0, 1, 0, 1, 0]), &[Sheet::worksheet("S", Vec::new())]);
-    let (_, detail) = refused(&encrypted);
-    assert!(detail.contains("encrypted"), "{detail}");
+    assert_eq!(
+        calc_doc::open(source(&encrypted), &OpenPolicy::default()).err(),
+        Some(OpenError::PasswordRequired)
+    );
+    let odd = xls(false, &record(0x002F, &[9, 0, 1, 0, 1, 0]), &[Sheet::worksheet("S", Vec::new())]);
+    let (_, detail) = refused(&odd);
+    assert!(detail.contains("encryption type 9"), "{detail}");
     // A truncated compound file and a sheet offset into nowhere.
     let good = xls(false, &[], &[Sheet::worksheet("S", Vec::new())]);
     refused(&good[..600]);
@@ -721,4 +726,65 @@ fn a_biff5_workbook_styles_notes_and_external_references() {
     let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
     let rels = String::from_utf8(document.package().read_part("xl/externalLinks/_rels/externalLink1.xml.rels").unwrap()).unwrap();
     assert!(rels.contains("D:\\data\\book.xls"), "{rels}");
+}
+
+mod encrypted {
+    use super::*;
+
+    const PLAIN: &[u8] = include_bytes!("fixtures/dc_4j0e/plain.bin");
+    const XOR: &[u8] = include_bytes!("fixtures/dc_4j0e/xor.bin");
+    const RC4: &[u8] = include_bytes!("fixtures/dc_4j0e/rc4.bin");
+    const RC4_VELVET: &[u8] = include_bytes!("fixtures/dc_4j0e/rc4-velvet.bin");
+    const CRYPTOAPI_128: &[u8] = include_bytes!("fixtures/dc_4j0e/cryptoapi-128.bin");
+    const CRYPTOAPI_40: &[u8] = include_bytes!("fixtures/dc_4j0e/cryptoapi-40.bin");
+
+    fn open_with(stream: &[u8], password: Option<&str>) -> Result<calc_doc::OpenedDocument, OpenError> {
+        let file = compound(&[("Workbook", stream.to_vec())]);
+        calc_doc::open_with_password(source(&file), &OpenPolicy::default(), password)
+    }
+
+    fn cells_of(document: &calc_doc::OpenedDocument) -> Vec<String> {
+        let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+        let loaded = calc_doc::load(document, &mut ids).expect("loads");
+        cells(loaded.model(), 0)
+    }
+
+    const EXPECTED: [&str; 2] = ["A1 n:42.5", "B1 s:classified"];
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn the_plain_stream_reads() {
+        assert_eq!(cells_of(&open_with(PLAIN, None).unwrap()), EXPECTED);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn xor_obfuscation_opens_with_the_password() {
+        assert_eq!(cells_of(&open_with(XOR, Some("swordfish")).unwrap()), EXPECTED);
+        assert_eq!(open_with(XOR, Some("wrong")).err(), Some(OpenError::WrongPassword));
+        assert_eq!(open_with(XOR, None).err(), Some(OpenError::PasswordRequired));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn rc4_opens_with_the_password_across_1024_byte_blocks() {
+        assert_eq!(cells_of(&open_with(RC4, Some("p\u{e4}ssw\u{f6}rd")).unwrap()), EXPECTED);
+        assert_eq!(open_with(RC4, Some("password")).err(), Some(OpenError::WrongPassword));
+        assert_eq!(open_with(RC4, None).err(), Some(OpenError::PasswordRequired));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_velvet_sweatshop_workbook_opens_without_a_password() {
+        assert_eq!(cells_of(&open_with(RC4_VELVET, None).unwrap()), EXPECTED);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn rc4_cryptoapi_opens_with_128_and_40_bit_keys() {
+        for stream in [CRYPTOAPI_128, CRYPTOAPI_40] {
+            assert_eq!(cells_of(&open_with(stream, Some("p\u{e4}ssw\u{f6}rd")).unwrap()), EXPECTED);
+            assert_eq!(open_with(stream, Some("nope")).err(), Some(OpenError::WrongPassword));
+        }
+    }
 }

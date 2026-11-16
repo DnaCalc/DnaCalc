@@ -10,6 +10,7 @@
 
 pub(crate) mod cfb;
 pub(crate) mod codepage;
+mod crypto;
 mod features;
 mod formula;
 mod records;
@@ -54,7 +55,12 @@ fn refuse(stream: &str, detail: impl Into<String>) -> OpenError {
 
 /// The SpreadsheetML package (the bytes of a ZIP archive) the legacy workbook in `bytes` stands
 /// for, with what was found reading it.
-pub(crate) fn convert(bytes: &[u8]) -> Result<(Vec<u8>, LegacyReport), OpenError> {
+/// `password` opens a workbook that asks for one; without it the password Excel itself uses for
+/// a workbook saved read-only recommended ("VelvetSweatshop") is tried.
+pub(crate) fn convert(
+    bytes: &[u8],
+    password: Option<&str>,
+) -> Result<(Vec<u8>, LegacyReport), OpenError> {
     let compound = cfb::Compound::open(bytes).map_err(|e| refuse("(compound file)", e.0))?;
     let name = ["Workbook", "Book"]
         .into_iter()
@@ -64,6 +70,18 @@ pub(crate) fn convert(bytes: &[u8]) -> Result<(Vec<u8>, LegacyReport), OpenError
         .read(name)
         .map_err(|e| refuse(name, e.0))?
         .expect("found above");
+    let (stream, decrypted) = match crypto::decrypt(&stream, password.unwrap_or("VelvetSweatshop")) {
+        Ok(Some(plain)) => (plain, true),
+        Ok(None) => (stream, false),
+        Err(crypto::CryptoError::WrongPassword) => {
+            return Err(if password.is_some() {
+                OpenError::WrongPassword
+            } else {
+                OpenError::PasswordRequired
+            });
+        }
+        Err(crypto::CryptoError::Unsupported(what)) => return Err(refuse(name, what)),
+    };
     let records = records::read_all(&stream).map_err(|e| refuse(name, e.0))?;
     let first = records
         .first()
@@ -82,7 +100,7 @@ pub(crate) fn convert(bytes: &[u8]) -> Result<(Vec<u8>, LegacyReport), OpenError
     let mut globals = workbook::read(&records, biff5).map_err(|e| refuse(name, e))?;
     // A BIFF5 or BIFF7 workbook: its strings are bytes in this code page.
     let v5 = biff5.then(|| globals.code_page.unwrap_or(1252));
-    if globals.encrypted {
+    if globals.encrypted && !decrypted {
         return Err(refuse(name, "an encrypted workbook (FILEPASS), which dc-4j0e.7 reads"));
     }
     // Each sheet's substream: its BOF at the BOUNDSHEET offset, to its EOF.
