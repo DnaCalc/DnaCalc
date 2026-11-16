@@ -123,7 +123,7 @@ Owner direction 2026-11-16: store each corpus in R2 as its source distributes it
 | `panko-student-spreadsheets` | a paper, no dataset release |
 | `sheetcopilot`, `bluefin`, `realhitbench` | non-commercial terms |
 | `fxbench` | card says "other", its Croissant file says CC BY-SA 4.0 |
-| `auto-formula-microsoft` | data under the Microsoft Research License |
+| `auto-formula-microsoft` | data under the Microsoft Research License; owner 2026-11-16: we do not use it or ask for permission. Its Cisco, PGE and TI sets were crawled from the public web, so look for those origins instead. Later we may suggest it to an independent researcher as a way to check DNA Calc against Excel |
 | `sheetjs-test-files` | no licence for the zip as a whole; GitHub blocks the repository for "private_information"; the zip host (341,452,051 bytes) sets robots content signal `ai-train=no` |
 | `ofwat-pr24` | HTTP 403 browser check |
 | `gnumeric-20261116`, `openpyxl-20261116` | the hosts' robots.txt disallow archive downloads |
