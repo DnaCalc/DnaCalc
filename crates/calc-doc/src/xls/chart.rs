@@ -1,8 +1,8 @@
 //! A chart substream of a BIFF8 worksheet (MS-XLS 2.1.7.20.6): the chart groups (bar, column,
 //! line, area, pie, doughnut, scatter), their series with the worksheet ranges of their names,
 //! values and categories, the title, axis titles and the legend, written as the DrawingML chart
-//! part Excel saves. Formatting (colours, fonts, gridlines, 3-D, data labels, trendlines) is not
-//! read; the chart is written with the default look.
+//! part Excel saves. Bar gaps and overlaps and pie angles and hole sizes are retained; other
+//! formatting (colours, fonts, gridlines, 3-D, data labels, trendlines) is not read.
 
 use super::records::Record;
 use super::strings::Pieces;
@@ -47,6 +47,10 @@ struct Group {
     stacked: bool,
     percent: bool,
     doughnut: bool,
+    gap: Option<u16>,
+    overlap: Option<i16>,
+    first_slice: Option<u16>,
+    hole: Option<u16>,
 }
 
 #[derive(Debug, Default)]
@@ -140,7 +144,11 @@ impl Chart {
                         horizontal: flags & 1 != 0,
                         stacked: flags & 2 != 0,
                         percent: flags & 4 != 0,
-                        doughnut: false,
+                        gap: (u16::from_le_bytes([body[2], body[3]]) <= 500)
+                            .then(|| u16::from_le_bytes([body[2], body[3]])),
+                        overlap: (-100..=100).contains(&i16::from_le_bytes([body[0], body[1]]))
+                            .then(|| i16::from_le_bytes([body[0], body[1]])),
+                        ..Default::default()
                     };
                 }
             }
@@ -152,7 +160,7 @@ impl Chart {
                         horizontal: false,
                         stacked: flags & 1 != 0,
                         percent: flags & 2 != 0,
-                        doughnut: false,
+                        ..Default::default()
                     };
                 }
             }
@@ -161,6 +169,10 @@ impl Chart {
                     *g = Group {
                         kind: Kind::Pie,
                         doughnut: u16::from_le_bytes([body[2], body[3]]) != 0,
+                        first_slice: (u16::from_le_bytes([body[0], body[1]]) <= 360)
+                            .then(|| u16::from_le_bytes([body[0], body[1]])),
+                        hole: (10..=90).contains(&u16::from_le_bytes([body[2], body[3]]))
+                            .then(|| u16::from_le_bytes([body[2], body[3]])),
                         ..Default::default()
                     };
                 }
@@ -330,6 +342,13 @@ impl Chart {
                     x.close(value_tag);
                 }
                 x.close("c:ser");
+            }
+            if group.kind == Kind::Bar {
+                if let Some(gap) = group.gap { x.empty("c:gapWidth", &[("val", gap.to_string())]); }
+                if let Some(overlap) = group.overlap { x.empty("c:overlap", &[("val", overlap.to_string())]); }
+            } else if group.kind == Kind::Pie {
+                if let Some(angle) = group.first_slice { x.empty("c:firstSliceAng", &[("val", angle.to_string())]); }
+                if group.doughnut && let Some(hole) = group.hole { x.empty("c:holeSize", &[("val", hole.to_string())]); }
             }
             if plain_axes {
                 axes = true;

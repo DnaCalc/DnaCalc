@@ -130,6 +130,13 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
                 obj['series_formulas'] = [x.text or '' for x in chart_root.iter(C + 'f')]
                 obj['chart_text'] = [x.text or '' for x in chart_root.iter()
                                      if x.tag.endswith('}t') and x.text]
+                obj['chart_geometry'] = [
+                    {'type': group.tag.rsplit('}', 1)[-1],
+                     'settings': {name: child.get('val') for name in
+                                  ('gapWidth', 'overlap', 'firstSliceAng', 'holeSize')
+                                  if (child := group.find(C + name)) is not None}}
+                    for group in chart_root.iter()
+                    if group.tag in {C + 'barChart', C + 'pieChart', C + 'doughnutChart'}]
             result.append(obj)
     return result
 

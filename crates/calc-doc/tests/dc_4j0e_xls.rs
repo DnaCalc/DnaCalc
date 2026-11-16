@@ -1761,6 +1761,39 @@ fn pictures_text_boxes_and_charts_are_written_as_a_drawing() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_group_geometry_survives_legacy_conversion() {
+    use xls_kit::art;
+    let original = record(0x1017, &u16s(&[0, 150, 0]));
+    for (replacement, expected) in [
+        (record(0x1017, &u16s(&[(-30i16) as u16, 70, 0])),
+         vec!["<c:gapWidth val=\"70\"/>", "<c:overlap val=\"-30\"/>"]),
+        (record(0x1019, &u16s(&[135, 45, 0])),
+         vec!["<c:doughnutChart>", "<c:firstSliceAng val=\"135\"/>", "<c:holeSize val=\"45\"/>"]),
+        (record(0x1019, &u16s(&[270, 0, 0])),
+         vec!["<c:pieChart>", "<c:firstSliceAng val=\"270\"/>"]),
+    ] {
+        let mut chart = art::chart(&[("Sales", Vec::new(), Vec::new())], 0, "Title");
+        let at = chart.windows(original.len()).position(|window| window == original).unwrap();
+        chart.splice(at..at + original.len(), replacement);
+        let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]),
+            art::obj(5, 1), chart].concat();
+        let bytes = xls(false, &[], &[Sheet::worksheet("S", records)]);
+        let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let check = |doc: &calc_doc::OpenedDocument| {
+            let xml = String::from_utf8(doc.package().read_part("xl/charts/chart1_1.xml").unwrap()).unwrap();
+            for item in &expected { assert!(xml.contains(item), "{item} in {xml}"); }
+        };
+        check(&document);
+        let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+        let mut saved = Vec::new();
+        calc_doc::write(plan, &mut saved).unwrap();
+        check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+        assert_eq!(load(&bytes).sheets()[0].charts().charts.len(), 1);
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn conditional_formats_validations_and_the_automatic_filter() {
     use ptg::*;
     use xls_kit::rules;
