@@ -1,0 +1,8 @@
+[
+ {
+  "formula": "=COM_IDENTITY()"
+ },
+ {
+  "formula": "=COM_STA2()"
+ }
+]

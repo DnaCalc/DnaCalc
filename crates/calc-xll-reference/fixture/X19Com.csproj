@@ -11,6 +11,7 @@
     <Compile Include="ComProbe.cs" />
     <Compile Include="OmProbe.cs" />
     <Reference Include="Microsoft.CSharp" />
+    <Reference Include="Microsoft.VisualBasic" />
     <PackageReference Include="ExcelDna.AddIn" Version="1.9.0" />
     <PackageReference Include="ExcelDna.Interop" Version="15.0.1" />
   </ItemGroup>
