@@ -211,6 +211,16 @@ pub(crate) fn beta_inv_kernel(
     if probability <= 0.0 || probability >= 1.0 {
         return Err(WorksheetErrorCode::Num);
     }
+    // In the measured lower tail with shapes one-half and one, Excel stores
+    // EXP(2*LN(p)); multiplying p by itself loses the observed last bits.
+    // Leave smaller probabilities and the unmeasured upper region on the
+    // existing inverse path.
+    if alpha == 0.5 && beta == 1.0 && lower == 0.0 && upper == 1.0
+        && (2.0_f64.powi(-20)..=1.0 / 16.0).contains(&probability)
+    {
+        use crate::ported::excel_numeric::{excel_exp, excel_log};
+        return Ok(excel_exp(2.0 * excel_log(probability)));
+    }
     // Upper probabilities search the reflected beta coordinate. Fresh paired
     // controls identify this staging, including the tiny-shape root floor.
     let (probability, alpha, beta, reflected) = if probability > 0.5 {

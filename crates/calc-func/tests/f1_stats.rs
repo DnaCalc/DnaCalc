@@ -10,6 +10,28 @@ use calc_func::SubtotalExclusions;
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Ref, Value};
 use f1_support::*;
 
+/// Excel 20527 stores the half-shape beta inverse through LN and EXP.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beta_inverse_half_shape_uses_stored_logarithm_and_exponential() {
+    for (p, expected) in [
+        (2.0_f64.powi(-20), 0x3d70_0000_0000_0000),
+        (f64::from_bits(0x3f87_4d68_3efc_4e40), 0x3f20_f801_198d_6895),
+        (1.0 / 16.0, 0x3f70_0000_0000_0001),
+    ] {
+        exact(call("BETA.INV", vec![n(p), n(0.5), n(1.0)]), f64::from_bits(expected));
+        exact(call("BETAINV", vec![n(p), n(0.5), n(1.0)]), f64::from_bits(expected));
+    }
+    let p = 0.9387973716984606;
+    for name in ["TINV", "T.INV.2T"] {
+        exact(call(name, vec![n(p), n(2.0)]), f64::from_bits(0x3fb6_3307_8d57_03d3));
+    }
+    exact(
+        call("T.INV", vec![n(f64::from_bits(0x3fde_5272_5352_ceba)), n(2.0)]),
+        f64::from_bits(0xbfb3_0289_7a50_7c16),
+    );
+}
+
 /// Excel 20527 rejects a reflected beta inverse when the second shape absorbs the first.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
