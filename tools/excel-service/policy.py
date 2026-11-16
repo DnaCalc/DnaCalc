@@ -204,8 +204,16 @@ class Admission:
             if cells > MAX_CASE_CELLS:
                 raise ValueError("a sheet case has at most %d cells" % MAX_CASE_CELLS)
             for probe in probes:
-                if not isinstance(probe.get("at"), str) or "!" not in probe["at"] or not str(probe.get("formula", "")).startswith("="):
+                entry = probe.get("entry")
+                if entry not in (None, "local"):
+                    raise ValueError("a probe's entry is \"local\" or absent")
+                if not isinstance(probe.get("at"), str) or "!" not in probe["at"] or not isinstance(probe.get("formula"), str):
                     raise ValueError("a probe has a Sheet!A1 place and a formula")
+                # A typed entry ("entry": "local") may be any text; otherwise the probe is a formula.
+                if entry is None and not probe["formula"].startswith("="):
+                    raise ValueError("a probe has a Sheet!A1 place and a formula")
+                if entry is not None and not 0 < len(probe["formula"]) <= 255:
+                    raise ValueError("a typed entry has 1..255 characters")
 
     def check(self, group):
         name = group["f"]

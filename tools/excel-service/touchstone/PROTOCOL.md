@@ -50,7 +50,10 @@ formula) or `{"type": "formula", "formula"}`. The worker builds each distinct la
 closed unsaved at the end; its sheets named and ordered as listed), constants as one Value2 rectangle per sheet,
 checks they read back, then for each case enters its probes by Formula2, calculates once (CalculateFull for a layout's first case, then Calculate), reads every
 probe and its spill range and clears them (contents and formats). Answer letter `c`: `{"probes": [{"ty", "v", "spill": matrix | null} |
-{"refused": message}]}`; a layout whose constants changed is `u`. Send the cases of one layout together.
+{"refused": message}]}`; a layout whose constants changed is `u`. A probe with `"entry": "local"` is a typed entry, not
+a formula: its text (any text of 1 to 255 characters) is entered by FormulaLocal, as the user's locale reads what is typed
+into a cell (a number, date, time, percentage or currency takes the number format Excel gives it), and its answer adds
+`"nf"`, the cell's NumberFormat after the entry (decoded as `number_format`). Send the cases of one layout together.
 
 ## Answers
 An answer frame holds groups `{"ty": "nnte...", "o" | "i", "v": [...]}`: one type letter and value per call: `n` bits,

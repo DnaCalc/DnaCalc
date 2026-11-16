@@ -367,6 +367,20 @@ class AdmissionTests(unittest.TestCase):
         self.assertEqual(answer["probes"][0]["spill"]["rows"], 2)
         self.assertEqual(answer["probes"][1], {"type": "refused", "detail": "formula"})
 
+    def test_a_typed_entry_probe_is_any_text_and_answers_its_number_format(self):
+        sheets = [{"name": "S", "cells": {}}]
+        for probes in ([{"at": "S!A1", "formula": "5%", "entry": "local"}, {"at": "S!B1", "formula": "=A1"}],
+                       [{"at": "S!A1", "formula": "+abc", "entry": "local"}]):
+            self.admission.check({"f": "_CASE", "k": "L", "n": 1, "v": [protocol.sheet_case(sheets, probes)["value"]]})
+        for bad in ([{"at": "S!A1", "formula": "5%"}], [{"at": "S!A1", "formula": "5%", "entry": "value"}],
+                    [{"at": "S!A1", "formula": "", "entry": "local"}], [{"at": "S!A1", "formula": "x" * 256, "entry": "local"}]):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                self.admission.check({"f": "_CASE", "k": "L", "n": 1, "v": [protocol.sheet_case(sheets, bad)["value"]]})
+        answer = protocol.answer_to_typed("c", {"probes": [{"ty": "n", "v": ONE, "spill": None, "nf": "0%"},
+                                                          {"ty": "n", "v": ONE, "spill": None}]})
+        self.assertEqual(answer["probes"][0]["number_format"], "0%")
+        self.assertNotIn("number_format", answer["probes"][1])
+
     def group(self, **changes):
         g = {"f": "ERF.PRECISE", "k": "n", "n": 2, "v": [ONE, TWO]}
         g.update(changes)
