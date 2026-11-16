@@ -80,14 +80,17 @@ fn offset(
     let positions_known = !services
         .cells()
         .is_some_and(|reader| !reader.reference_positions_known());
+    let columns_known = !services
+        .cells()
+        .is_some_and(|reader| !reader.reference_columns_known());
     let site = Site::new(OFFSET, services);
     if external {
         return Site::finish(Err(Exit::Error(WorksheetErrorCode::Value)));
     }
-    Site::finish(shifted(&site, arguments, positions_known))
+    Site::finish(shifted(&site, arguments, positions_known, columns_known))
 }
 
-fn shifted(site: &Site<'_>, arguments: &[CalcValue], positions_known: bool) -> Step<CalcValue> {
+fn shifted(site: &Site<'_>, arguments: &[CalcValue], positions_known: bool, columns_known: bool) -> Step<CalcValue> {
     site.scalar_operands(arguments)?;
     let Some(reference) = arguments[0].as_reference() else {
         return Err(Exit::Error(WorksheetErrorCode::Value));
@@ -116,6 +119,18 @@ fn shifted(site: &Site<'_>, arguments: &[CalcValue], positions_known: bool) -> S
             && base.row_count() == 1 && base.column_count() == 1
         {
             return Ok(arguments[0].clone());
+        }
+        // A known column and zero row shift identify the destination within the
+        // same relocated row. Its absolute row remains unknown to the caller.
+        if columns_known && rows == 0 && (1..=2).contains(&cols) && height.abs() == 1 && width.abs() == 1
+            && base.row_count() == 1 && base.column_count() == 1
+        {
+            let column = i64::from(base.first().column()) + cols;
+            if (1..=i64::from(MAX_COLUMNS)).contains(&column) {
+                let cell = CellKey::new(base.sheet(), base.first().row(), column as u32)
+                    .expect("checked column and existing row");
+                return Ok(CalcValue::reference(ReferenceLike::area(GridArea::cell(cell))));
+            }
         }
         // A single-cell result cannot spill, and a shift at least as large as the
         // grid leaves it regardless of the original cell's unknown position.
@@ -443,6 +458,33 @@ mod tests {
         );
         assert_eq!(run(vec![cell, n(0.0), n(0.0), n(0.0), n(1.0)]), refusal);
         assert_eq!(run(vec![wide, n(0.0), n(0.0)]), refusal);
+    }
+
+    /// Excel 20527 controls confirm same-row shifts between attested argument columns.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn offset_uses_known_column_without_claiming_the_row() {
+        use crate::call::{CellReader, SubtotalExclusions, Unreadable};
+        struct Columns;
+        impl CellReader for Columns {
+            fn reference_positions_known(&self) -> bool { false }
+            fn reference_columns_known(&self) -> bool { true }
+            fn read_area(&mut self, _: GridArea, _: &mut dyn FnMut(CellKey, &CalcValue) -> ControlFlow<()>)
+                -> Result<(), Unreadable> { Err(Unreadable) }
+            fn subtotal_exclusions(&mut self, _: GridArea) -> Option<SubtotalExclusions> { None }
+        }
+        let sheet = IdAllocator::<SheetId>::new().issue().unwrap();
+        let cell = area(sheet, (4, 7), (4, 7));
+        let mode = NumericMode::Fast;
+        let n = CalcValue::number;
+        let run = |args| crate::call::invoke(
+            catalogue().resolve(OFFSET).unwrap(), &mut Given(args),
+            &mut EvalServices::with_cells(&mode, &mut Columns), &mut FunctionCallScratch::new(),
+        );
+        assert_eq!(run(vec![cell.clone(), n(0.5), n(2.5)]), Ok(area(sheet, (4, 9), (4, 9))));
+        let refusal = Err(FunctionFault::NotImplemented { id: OFFSET, argument: Some(0) });
+        assert_eq!(run(vec![cell.clone(), n(1.0), n(2.0)]), refusal);
+        assert_eq!(run(vec![cell, n(0.0), n(2.0), n(2.0)]), refusal);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
