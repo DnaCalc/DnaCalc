@@ -636,6 +636,7 @@ pub(crate) fn convert(
     if let Some(enabled) = iterate { calc_properties.push(("iterate", if enabled { "1" } else { "0" }.to_owned())); }
     if let Some(count) = iteration_count { calc_properties.push(("iterateCount", count.to_string())); }
     if let Some(delta) = iteration_delta { calc_properties.push(("iterateDelta", f64::from_bits(delta).to_string())); }
+    if globals.full_precision == Some(false) { calc_properties.push(("fullPrecision", "0".to_owned())); }
     if !calc_properties.is_empty() {
         xml.empty("calcPr", &calc_properties);
     }

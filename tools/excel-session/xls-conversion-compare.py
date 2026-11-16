@@ -260,7 +260,9 @@ def package(data):
                            'phonetic_properties': [tree(e) for e in sh.findall(M + 'phoneticPr')],
                            'pivots': pivot_tables(z, sh, path, shrels)})
         props = wb.find(M + 'workbookPr')
-        return {'date1904': props is not None and props.get('date1904', '0') in ('1', 'true'), 'names': names,
+        calc = wb.find(M + 'calcPr')
+        return {'date1904': props is not None and props.get('date1904', '0') in ('1', 'true'),
+                'full_precision': calc is None or calc.get('fullPrecision', '1') in ('1', 'true'), 'names': names,
                 'indexed_colors': indexed_colors, 'pivot_caches': pivot_caches(z, wb, wbpath, rels), 'sheets': sheets}
 
 

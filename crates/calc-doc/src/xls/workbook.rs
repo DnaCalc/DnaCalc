@@ -79,6 +79,8 @@ pub(crate) enum SupBookRecord {
 pub(crate) struct Globals {
     pub(crate) code_page: Option<u16>,
     pub(crate) date_1904: bool,
+    /// Workbook precision setting, when the globals contain one unambiguous valid record.
+    pub(crate) full_precision: Option<bool>,
     pub(crate) sheets: Vec<BoundSheet>,
     pub(crate) active_tab: Option<u16>,
     pub(crate) protect_structure: bool,
@@ -138,11 +140,29 @@ pub(crate) fn short_string(cursor: &mut Cursor<'_>, what: &str) -> Result<String
 /// Reads the globals substream starting at `records[0]` (a BOF).
 pub(crate) fn read(records: &[Record<'_>], biff5: bool) -> Result<Globals, String> {
     let mut globals = Globals::default();
+    let mut precision_seen = false;
     let mut depth = 0usize;
     let mut finished = false;
     for (index, record) in records.iter().enumerate() {
         match record.id {
             BOF => depth += 1,
+            0x000E if depth == 1 => {
+                let valid = if record.body.len() == 2 {
+                    match u16::from_le_bytes([record.body[0], record.body[1]]) {
+                        0 => Some(false), 1 => Some(true), _ => None,
+                    }
+                } else { None };
+                if precision_seen || valid.is_none() {
+                    *globals.unknown.entry(record.id).or_insert(0) += 1;
+                    globals.full_precision = None;
+                } else {
+                    globals.full_precision = valid;
+                    // The converted package retains precision-as-displayed, but the product
+                    // does not yet apply it to calculation.
+                    if valid == Some(false) { *globals.unknown.entry(record.id).or_insert(0) += 1; }
+                }
+                precision_seen = true;
+            }
             EOF => {
                 depth = depth.saturating_sub(1);
                 if depth == 0 {

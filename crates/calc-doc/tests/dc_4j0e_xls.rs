@@ -46,6 +46,8 @@ fn write_legacy_excel_session_inputs() {
     let biff5 = v5::xls(1252, &[], &[v5::Sheet { name: b"Data".to_vec(), records: old_cells }]);
     std::fs::write(dir.join("cells-biff8.xls"), biff8).unwrap();
     std::fs::write(dir.join("cells-biff5.xls"), biff5).unwrap();
+    std::fs::write(dir.join("precision-biff8.xls"), xls(false, &record(0x000E, &0u16.to_le_bytes()),
+        &[Sheet::worksheet("Data", number(0, 0, 1.25))])).unwrap();
     std::fs::write(dir.join("forms.xls"), include_bytes!("fixtures/dc_4j0e/FormsWorkbook.xls")).unwrap();
     let repair_cases = [
         ("repair-slash.xls", "Bad/Name"),
@@ -77,7 +79,7 @@ fn write_legacy_excel_session_inputs() {
             formula(0, 1, num_value(0.0), &tokens, &[])].concat();
         std::fs::write(dir.join(file), xls(false, &sst(&[("Sales", &[])], None), &[Sheet::worksheet("Data", cells)])).unwrap();
     }
-    for name in ["cells-biff8", "cells-biff5", "forms"] {
+    for name in ["cells-biff8", "cells-biff5", "precision-biff8", "forms"] {
         let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
         let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
         let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
@@ -86,7 +88,7 @@ fn write_legacy_excel_session_inputs() {
         std::fs::write(dir.join(format!("{name}.dnacalc.xlsx")), converted).unwrap();
     }
     let cases = serde_json::json!({
-        "files": ["cells-biff8.xls", "cells-biff5.xls", "forms.xls"],
+        "files": ["cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "forms.xls"],
         "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls",
             "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls",
             "repair-elf-column.xls", "repair-elf-radical.xls"],
@@ -218,6 +220,24 @@ fn iterative_calculation_settings_survive_the_workbook_route() {
     assert_eq!(iteration.max_change(), 0.005);
     let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
     for id in [0x000C, 0x0010, 0x0011, 0x005F] { assert!(!report.unknown_records.contains_key(&id)); }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn precision_setting_survives_while_nondefault_remains_counted() {
+    for (value, expected_unread) in [(0u16, true), (1u16, false)] {
+        let bytes = xls(false, &record(0x000E, &value.to_le_bytes()), &[Sheet::worksheet("S", Vec::new())]);
+        let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let xml = String::from_utf8(doc.package().read_part("xl/workbook.xml").unwrap()).unwrap();
+        assert_eq!(xml.contains("fullPrecision=\"0\""), value == 0);
+        let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+        assert_eq!(report.unknown_records.contains_key(&0x000E), expected_unread);
+        let plan = calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+        let mut saved = Vec::new(); calc_doc::write(plan, &mut saved).unwrap();
+        let reopened = calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap();
+        let xml = String::from_utf8(reopened.package().read_part("xl/workbook.xml").unwrap()).unwrap();
+        assert_eq!(xml.contains("fullPrecision=\"0\""), value == 0);
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
