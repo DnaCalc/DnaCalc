@@ -539,6 +539,10 @@ pub fn table_record(
 
 /// NAME: flags, scope (0 workbook, else 1-based sheet), name text (or the built-in code), tokens.
 pub fn name_record(flags: u16, scope: u16, name: &str, rgce: &[u8]) -> Vec<u8> {
+    name_record_extra(flags, scope, name, rgce, &[])
+}
+
+pub fn name_record_extra(flags: u16, scope: u16, name: &str, rgce: &[u8], rgcb: &[u8]) -> Vec<u8> {
     let mut body = flags.to_le_bytes().to_vec();
     body.extend([0, name.len() as u8]);
     body.extend((rgce.len() as u16).to_le_bytes());
@@ -547,6 +551,7 @@ pub fn name_record(flags: u16, scope: u16, name: &str, rgce: &[u8]) -> Vec<u8> {
     body.push(0);
     body.extend(name.bytes());
     body.extend_from_slice(rgce);
+    body.extend_from_slice(rgcb);
     record(0x0018, &body)
 }
 

@@ -400,6 +400,18 @@ fn names_3d_external_references_and_add_in_functions() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn defined_name_array_keeps_its_extra_data() {
+    let mut extra = vec![1, 0, 0, 1]; // two columns, one row, first value is numeric
+    extra.extend(1.5_f64.to_le_bytes());
+    extra.push(1);
+    extra.extend(2.5_f64.to_le_bytes());
+    let globals = name_record_extra(0, 0, "Values", &ptg::array(), &extra);
+    let bytes = xls(false, &globals, &[Sheet::worksheet("S", Vec::new())]);
+    assert_eq!(defined_names(&bytes), vec!["Values = {1.5,2.5}"]);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn a_formula_the_converter_cannot_print_is_a_typed_refusal_naming_the_cell() {
     // Token 0x7F is no token.
     let r = formula(0, 0, ptg_value(), &[0x7F], &[]);
