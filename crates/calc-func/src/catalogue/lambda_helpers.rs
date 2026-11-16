@@ -549,6 +549,21 @@ impl KernelTask for HelperTask {
                 );
                 // A one-cell reference is published as the cell's value.
                 let value = read_one_cell(self.id, value, sv)?;
+                // An array holding references (a row of an array of references INDEX gives,
+                // dc-b1l) is #CALC! (Excel 16.0.20527, Touchstone, 2026-11-16:
+                // `=MAKEARRAY(2,1,LAMBDA(r,c,INDEX(OFFSET(A1,{0;1;2},0),r)))` is #CALC!, and over a
+                // 2 x 2 array of references too).
+                let error = match value.as_array() {
+                    Some(array)
+                        if value.callable_value().is_none()
+                            && array
+                                .iter_row_major()
+                                .any(|v| matches!(v.core_ref(), CoreRef::Reference(_))) =>
+                    {
+                        W::Calc
+                    }
+                    _ => error,
+                };
                 let Some(value) = cell(value, singleton) else {
                     return Ok(Some(CalcValue::error(error)));
                 };
