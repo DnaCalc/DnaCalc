@@ -436,6 +436,14 @@ fn module_sheets_do_not_shift_formula_indices_or_local_name_scope() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn biff_attribute_with_no_flags_keeps_the_expression() {
+    let tokens = ptg::join(&[ptg::int(7), vec![0x19, 0, 10, 0]]);
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", formula(0, 0, num_value(7.0), &tokens, &[]))]);
+    assert_eq!(sheet_cells(&bytes), vec!["A1 f:7"]);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn a_formula_the_converter_cannot_print_is_a_typed_refusal_naming_the_cell() {
     // Token 0x7F is no token.
     let r = formula(0, 0, ptg_value(), &[0x7F], &[]);

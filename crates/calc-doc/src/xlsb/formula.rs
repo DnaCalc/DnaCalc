@@ -398,6 +398,9 @@ pub(crate) fn print(
                 let kind = cursor.u8("PtgAttr")?;
                 let data = cursor.u16("PtgAttr")?;
                 match kind {
+                    // BIFF can retain an attribute with no flags set; its data word carries
+                    // no text or operation when none of the attribute flags is enabled.
+                    0x00 if biff8 => {}
                     // Space and line breaks (PtgAttrSpace, PtgAttrSpaceSemi).
                     0x40 | 0x41 => {
                         let kind = (data & 0xFF) as u8;
