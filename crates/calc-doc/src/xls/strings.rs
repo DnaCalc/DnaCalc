@@ -43,6 +43,16 @@ pub(crate) struct PhoneticRun {
     pub(crate) text: Vec<u16>,
 }
 
+/// Preserve formatting independently when the run encoding is not yet supported.
+fn phonetic_format(bytes: &[u8]) -> Option<Phonetic> {
+    let mut c = crate::xlsb::Cursor::new(bytes);
+    let what = "phonetic string";
+    if c.u16(what).ok()? != 1 || usize::from(c.u16(what).ok()?) + 4 != bytes.len() { return None; }
+    let font = c.u16(what).ok()?;
+    let flags = c.u16(what).ok()?;
+    Some(Phonetic { font, kind: (flags & 3) as u8, alignment: ((flags >> 2) & 3) as u8, runs: Vec::new() })
+}
+
 /// Parse only explicitly mapped runs with a fully accounted-for ExtRst. Zero-run and
 /// trailing-byte forms stay unread until their Excel behavior has been observed.
 fn phonetic_extension(bytes: &[u8], base_len: usize) -> Option<Phonetic> {
@@ -193,8 +203,8 @@ impl<'a> Pieces<'a> {
         for _ in 0..run_count {
             runs.push((self.u16(what)?, self.u16(what)?));
         }
-        let parsed = if phonetic == 0 {
-            None
+        let (parsed, phonetic_unread) = if phonetic == 0 {
+            (None, false)
         } else if phonetic <= 65539 {
             let start_piece = self.piece;
             let starts_at_cut = self.at >= self.pieces[self.piece].len() && self.piece + 1 < self.pieces.len();
@@ -202,12 +212,17 @@ impl<'a> Pieces<'a> {
             for _ in 0..phonetic { bytes.push(self.u8(what)?); }
             // Continuation boundaries inside ExtRst need an Excel-observed flag treatment.
             // Do not emit a pronunciation if those bytes may have been joined ambiguously.
-            if starts_at_cut || self.piece != start_piece { None } else { phonetic_extension(&bytes, units.len()) }
+            if starts_at_cut || self.piece != start_piece {
+                (None, true)
+            } else if let Some(parsed) = phonetic_extension(&bytes, units.len()) {
+                (Some(parsed), false)
+            } else {
+                (phonetic_format(&bytes), true)
+            }
         } else {
             self.skip(phonetic, what)?;
-            None
+            (None, true)
         };
-        let phonetic_unread = phonetic != 0 && parsed.is_none();
         Ok(RichString { units, runs, phonetic_unread, phonetic: parsed })
     }
 }

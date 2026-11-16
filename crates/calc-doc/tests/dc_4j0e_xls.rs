@@ -689,10 +689,14 @@ fn shared_string_phonetic_extension_is_reported_unread() {
     sst_body.extend(1u32.to_le_bytes()); // unique string count
     sst_body.extend(1u16.to_le_bytes()); // one compressed character
     sst_body.push(0x04); // phonetic extension present
-    sst_body.extend(3u32.to_le_bytes());
-    sst_body.extend([b'A', 1, 2, 3]);
+    let extension = u16s(&[1, 10, 0, 7, 0, 0, 0]);
+    sst_body.extend((extension.len() as u32).to_le_bytes());
+    sst_body.push(b'A'); sst_body.extend(extension);
     let bytes = xls(false, &record(0x00FC, &sst_body), &[Sheet::worksheet("S", label_sst(0, 0, 0))]);
     assert_eq!(sheet_cells(&bytes), vec!["A1 s:A"]);
+    let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let xml = String::from_utf8(doc.package().read_part("xl/sharedStrings.xml").unwrap()).unwrap();
+    assert!(xml.contains("<phoneticPr fontId=\"0\" type=\"noConversion\" alignment=\"left\"/>"), "{xml}");
     let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
     assert_eq!(report.unknown_records.get(&0x00FC), Some(&1));
 }
