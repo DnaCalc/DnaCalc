@@ -10355,15 +10355,31 @@ fn cfunc_m3_5__criteria_semantics() {
         );
         refused_calls += 1;
     }
-    // A criterion that is an array or a reference of several cells lifts the function over it,
-    // which is not modelled; so is a NaN criterion, which no formula writes. A blank given
-    // directly reads as an empty cell does, 0.
-    for criterion in [
-        array.clone(),
-        reference(s, &["A1:A2"]).value,
-        reference(s, &["A1", "A2"]).value,
-        CalcValue::number(f64::NAN),
+    // A criterion that is an array or a reference of one area of several cells lifts the
+    // function over it: one answer per element, each the call with that element (a cell of the
+    // reference as a one-cell reference), as Excel 16.0.20527 answers COUNTIFS(A1:A15,{">10","<5"})
+    // with {4,1} (fn2 cell-context ifs set, 2026-11-16).
+    for (criterion, elements) in [
+        (array.clone(), vec![CalcValue::number(1.0), CalcValue::number(2.0)]),
+        (reference(s, &["A1:A2"]).value, vec![reference(s, &["A1"]).value, reference(s, &["A2"]).value]),
     ] {
+        let lifted = conditional_call("COUNTIF", vec![range.clone(), criterion.clone()], &fast, s)
+            .expect("a lifted call");
+        let cells: Vec<CalcValue> = lifted
+            .as_array()
+            .expect("one answer per element")
+            .iter_row_major()
+            .cloned()
+            .collect();
+        let each: Vec<CalcValue> = elements
+            .into_iter()
+            .map(|element| conditional_call("COUNTIF", vec![range.clone(), element], &fast, s).expect("an element's call"))
+            .collect();
+        assert_eq!(cells, each, "COUNTIF lifted over {criterion:?}");
+    }
+    // A reference of several areas and a NaN criterion, which no formula writes, stay not
+    // modelled. A blank given directly reads as an empty cell does, 0.
+    for criterion in [reference(s, &["A1", "A2"]).value, CalcValue::number(f64::NAN)] {
         let id = surface(Notation::Call, "COUNTIF").id();
         assert_eq!(
             conditional_call("COUNTIF", vec![range.clone(), criterion.clone()], &fast, s),
