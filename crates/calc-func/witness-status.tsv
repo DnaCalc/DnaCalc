@@ -445,14 +445,14 @@ LEFT	full	20527	2475	2475	-	exact	cddc5b323b	0
 LEFTB	full	20527	2478	2478	-	exact	cddc5b323b	0
 LEN	full	20527	2087	2087	-	exact	cddc5b323b	0
 LENB	full	20527	2083	2083	-	exact	cddc5b323b	0
-LINEST	full	20527	3225	3201	1	structural	cddc5b323b	0
+LINEST	full	20527	3225	3224	1	last_bit	76c42a6b84	0
 LN	full	20131,20228,20430,20527,?	1685	1672	1	last_bit	cddc5b323b	0
 LN	pinned	20131,20228,20430	120	120	-	exact	7a3e51cd1b+changes	0
 LOG	full	20430	25233	25233	-	exact	cddc5b323b	0
 LOG	pinned	20430	120	120	-	exact	7a3e51cd1b+changes	0
 LOG10	full	20430	2823	2823	-	exact	cddc5b323b	0
 LOG10	pinned	20430	120	120	-	exact	7a3e51cd1b+changes	0
-LOGEST	full	20228,20527	3585	3560	1	structural	cddc5b323b	0
+LOGEST	full	20228,20527	3585	3583	1	last_bit	76c42a6b84	0
 LOGEST	pinned	20228	121	2	-	structural	7a3e51cd1b+changes	0
 LOGINV	full	20527	2916	2638	6562	gross	cddc5b323b	0
 LOGNORM.DIST	full	20131,20430,?	7809	7809	-	exact	cddc5b323b	0
