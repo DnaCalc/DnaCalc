@@ -1082,6 +1082,24 @@ fn ambiguous_external_cache_is_not_exposed_as_complete() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn external_caches_stay_with_their_own_workbooks() {
+    let cache = |value: f64| {
+        let mut body = vec![0, 0, 0, 0, 1]; body.extend(value.to_le_bytes());
+        [record(0x0059, &u16s(&[1, 0])), record(0x005A, &body)].concat()
+    };
+    let globals = [supbook_self(1), supbook_external("one.xls", &["Data"]), cache(1.0),
+        supbook_external("two.xls", &["Data"]), cache(2.0)].concat();
+    let bytes = xls(false, &globals, &[Sheet::worksheet("S", Vec::new())]);
+    let loaded = load(&bytes);
+    for (number, expected) in [(1, 1.0), (2, 2.0)] {
+        let sheet = &loaded.model().definitions().external_book(number).unwrap().sheets[0];
+        assert!(sheet.cached);
+        assert_eq!(sheet.cells.get(&(1, 1)), Some(&calc_doc::model::CachedValue::Number(calc_doc::model::FiniteNumber::new(expected).unwrap())));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn defined_name_array_keeps_its_extra_data() {
     let mut extra = vec![1, 0, 0, 1]; // two columns, one row, first value is numeric
     extra.extend(1.5_f64.to_le_bytes());
