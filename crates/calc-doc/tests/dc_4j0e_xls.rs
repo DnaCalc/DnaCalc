@@ -57,6 +57,18 @@ fn write_legacy_excel_session_inputs() {
         let cell = formula(1, 0, num_value(0.0), &tokens, &[]);
         std::fs::write(dir.join(file), xls(false, &[], &[Sheet::worksheet("Data", cell)])).unwrap();
     }
+    let mut elf_col = vec![0x18, 0x03];
+    elf_col.extend(u16s(&[0, 0])); // PtgElfCol referring to the A1 label
+    let mut elf_radical = vec![0x18, 0x0A];
+    elf_radical.extend(u16s(&[0, 0])); // PtgElfRadical referring to the A1 label
+    for (file, tokens) in [
+        ("repair-elf-column.xls", ptg::join(&[elf_col, ptg::func_var(1, 4)])),
+        ("repair-elf-radical.xls", ptg::join(&[elf_radical, ptg::area((1, 2), (0, 0), 0), ptg::func_var(1, 4)])),
+    ] {
+        let cells = [label_sst(0, 0, 0), number(1, 0, 2.0), number(2, 0, 3.0),
+            formula(0, 1, num_value(0.0), &tokens, &[])].concat();
+        std::fs::write(dir.join(file), xls(false, &sst(&[("Sales", &[])], None), &[Sheet::worksheet("Data", cells)])).unwrap();
+    }
     for name in ["cells-biff8", "cells-biff5", "forms"] {
         let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
         let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
@@ -68,7 +80,8 @@ fn write_legacy_excel_session_inputs() {
     let cases = serde_json::json!({
         "files": ["cells-biff8.xls", "cells-biff5.xls", "forms.xls"],
         "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls",
-            "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls"],
+            "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls",
+            "repair-elf-column.xls", "repair-elf-radical.xls"],
         "create_pivot": true,
         "formulas": [
             ["rows_full_column", "=ROWS(A:A)"], ["columns_full_row", "=COLUMNS(1:1)"],
@@ -682,6 +695,18 @@ fn shared_string_phonetic_extension_is_reported_unread() {
     assert_eq!(sheet_cells(&bytes), vec!["A1 s:A"]);
     let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
     assert_eq!(report.unknown_records.get(&0x00FC), Some(&1));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn natural_language_formula_refusal_names_the_feature() {
+    let tokens = [0x18, 0x03, 0, 0, 0, 0];
+    let cell = formula(0, 1, num_value(0.0), &tokens, &[]);
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", cell)]);
+    match calc_doc::open(source(&bytes), &OpenPolicy::default()) {
+        Err(OpenError::LegacyWorkbook { detail, .. }) => assert!(detail.contains("natural-language formula token") && detail.contains("dc-4j0e.3"), "{detail}"),
+        _ => panic!("natural-language formula was not refused"),
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

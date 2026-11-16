@@ -382,7 +382,7 @@ pub(crate) fn print(
                     text: format!("{space}{}", quoted(&text(&units))),
                 });
             }
-            0x18 if biff8 => return Err(bad("a structured reference token in a BIFF8 formula")),
+            0x18 if biff8 => return Err(bad("a natural-language formula token in a BIFF8 formula (dc-4j0e.3)")),
             0x18 => {
                 let eptg = cursor.u8("an extended token")?;
                 if eptg != 0x19 {
