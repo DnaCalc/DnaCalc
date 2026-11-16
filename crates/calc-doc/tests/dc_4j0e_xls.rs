@@ -66,6 +66,36 @@ fn write_legacy_excel_session_inputs() {
     std::fs::write(dir.join("cases.json"), serde_json::to_vec_pretty(&cases).unwrap()).unwrap();
 }
 
+/// Native-only: converts the controlled workbooks returned by the owned Excel session.
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn convert_excel_session_returned_inputs() {
+    let Some(dir) = std::env::var_os("DNACALC_XLS_RETURNED_INPUTS") else { return };
+    let dir = std::path::PathBuf::from(dir);
+    let files: Vec<String> = serde_json::from_slice(&std::fs::read(dir.join("cases.json")).unwrap()).unwrap();
+    let mut outcomes = serde_json::Map::new();
+    for file in files {
+        let path = std::path::Path::new(&file);
+        assert!(matches!(path.components().collect::<Vec<_>>().as_slice(), [std::path::Component::Normal(_)]), "invalid fixture filename");
+        let input = std::fs::read(dir.join(path)).unwrap();
+        let result = (|| -> Result<Vec<u8>, String> {
+            let doc = calc_doc::open(source(&input), &OpenPolicy::default()).map_err(|e| e.to_string())?;
+            let plan = calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).map_err(|e| e.to_string())?;
+            let mut out = Vec::new();
+            calc_doc::write(plan, &mut out).map_err(|e| e.to_string())?;
+            Ok(out)
+        })();
+        match result {
+            Ok(bytes) => {
+                std::fs::write(dir.join(format!("{file}.dnacalc.xlsx")), bytes).unwrap();
+                outcomes.insert(file, serde_json::Value::Null);
+            }
+            Err(error) => { outcomes.insert(file, serde_json::Value::String(error)); }
+        }
+    }
+    std::fs::write(dir.join("outcomes.json"), serde_json::to_vec_pretty(&outcomes).unwrap()).unwrap();
+}
+
 fn load(bytes: &[u8]) -> LoadedWorkbook {
     let document = calc_doc::open(source(bytes), &OpenPolicy::default()).expect("the file opens");
     let mut ids: IdAllocator<SheetId> = IdAllocator::new();

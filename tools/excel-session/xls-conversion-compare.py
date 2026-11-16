@@ -194,10 +194,30 @@ def main():
     parser.add_argument('--excel-result', required=True, type=Path)
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--extract-pivot', type=Path, help='write the job-generated pivot twins here for dc-4j0e.13')
+    parser.add_argument('--extract-excel-inputs', type=Path, help='extract Excel-created legacy inputs for product conversion')
+    parser.add_argument('--excel-inputs', type=Path, help='compare Excel-created inputs after the product conversion test')
     args = parser.parse_args()
     reading = json.loads(args.excel_result.read_text(encoding='utf-8-sig'))
     if reading.get('fatal'):
         raise SystemExit('Excel job failed: ' + str(reading['fatal']))
+    generated = reading.get('generated', [])
+    generated_names = [item['file'] for item in generated if item.get('source_base64')]
+    if len(set(generated_names)) != len(generated_names) or any(Path(name).name != name or name in ('.', '..', 'cases.json', 'outcomes.json') for name in generated_names):
+        raise SystemExit('invalid or duplicate Excel-generated fixture name')
+    if args.extract_excel_inputs:
+        directory = args.extract_excel_inputs
+        directory.mkdir(parents=True, exist_ok=True)
+        destinations = [directory / name for name in generated_names] + [directory / 'cases.json']
+        if any(path.exists() for path in destinations):
+            raise SystemExit('refusing to overwrite Excel-generated input')
+        for item in generated:
+            if not item.get('source_base64'):
+                continue
+            data = base64.b64decode(item['source_base64'], validate=True)
+            if hashlib.sha256(data).hexdigest() != item.get('sha256', '').lower():
+                raise SystemExit('Excel-generated input hash mismatch: ' + item['file'])
+            (directory / item['file']).write_bytes(data)
+        (directory / 'cases.json').write_text(json.dumps(generated_names, indent=2) + '\n', encoding='utf-8')
     if args.extract_pivot:
         pivot = reading.get('pivot') or {}
         if pivot.get('error') or not pivot.get('xls_base64') or not pivot.get('xlsx_base64'):
@@ -231,11 +251,38 @@ def main():
             except (ValueError, KeyError, ET.ParseError, zipfile.BadZipFile, OSError) as exc:
                 row['error'] = str(exc)
         results.append(row)
-    output = {'files': results, 'not_compared': ['calculated provenance', 'drawing formatting and image contents',
+    generated_results = []
+    outcomes = None
+    if args.excel_inputs:
+        outcomes = json.loads((args.excel_inputs / 'outcomes.json').read_text(encoding='utf-8'))
+    for item in generated:
+        name = item['file']
+        row = {'file': name}
+        if item.get('error') or not item.get('source_base64') or not item.get('package_base64'):
+            row['error'] = item.get('error') or 'Excel-generated source or package missing'
+        elif outcomes is None:
+            row['not_compared'] = 'extract the generated inputs and run the product conversion test'
+        elif name not in outcomes:
+            row['error'] = 'product conversion outcome missing'
+        elif outcomes[name] is not None:
+            row['error'] = 'product conversion refused: ' + outcomes[name]
+        else:
+            try:
+                source = (args.excel_inputs / name).read_bytes()
+                if hashlib.sha256(source).hexdigest() != item['sha256'].lower():
+                    raise ValueError('Excel-generated input hash mismatch')
+                excel = package(base64.b64decode(item['package_base64'], validate=True))
+                ours = package((args.excel_inputs / (name + '.dnacalc.xlsx')).read_bytes())
+                row['differences'] = compare(excel, ours)
+            except (ValueError, KeyError, ET.ParseError, zipfile.BadZipFile, OSError) as exc:
+                row['error'] = str(exc)
+        generated_results.append(row)
+    output = {'files': results, 'excel_generated': generated_results, 'not_compared': ['calculated provenance', 'drawing formatting and image contents',
               'chart formatting', 'conditional formatting style definitions', 'pivot tables and caches',
               'VBA project contents', 'named-style inheritance and rendered style equivalence', 'other metadata']}
     args.output.write_text(json.dumps(output, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-    print(f"Compared {sum('differences' in r for r in results)}/{len(results)} files; {sum(len(r.get('differences', [])) for r in results)} differences; {sum('error' in r for r in results)} errors. Not compared: {', '.join(output['not_compared'])}.")
+    all_results = results + generated_results
+    print(f"Compared {sum('differences' in r for r in all_results)}/{len(all_results)} files; {sum(len(r.get('differences', [])) for r in all_results)} differences; {sum('error' in r for r in all_results)} errors. Not compared: {', '.join(output['not_compared'])}.")
 
 
 if __name__ == '__main__':

@@ -9,6 +9,7 @@ $inputDir = [IO.Path]::GetDirectoryName($casesPath)
 $outputDir = Join-Path ([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($Result))) ('xls-conversion-' + [guid]::NewGuid().ToString('N'))
 [IO.Directory]::CreateDirectory($outputDir) | Out-Null
 $rows = [Collections.Generic.List[object]]::new()
+$generated = [Collections.Generic.List[object]]::new()
 $book = $null; $fatal = $null; $pivot = $null; $oldAlerts = $app.DisplayAlerts
 function GetOrError([scriptblock]$f) { try { return & $f } catch { return @{unread=$_.Exception.Message} } }
 function Snapshot($workbook) {
@@ -58,6 +59,36 @@ try {
         finally { if ($book) { try {$book.Close($false)} catch {}; $book=$null } }
         $rows.Add($entry)
     }
+    # Create fresh, macro-free fixtures in Excel, then reopen each legacy file before conversion.
+    # FileFormat 18 is an add-in and is saved as an Open XML add-in (55).
+    foreach ($fixture in @(
+        @{name='excel-biff8.xls'; legacy=56; modern=51; ext='.xlsx'},
+        @{name='excel-biff5.xls'; legacy=39; modern=51; ext='.xlsx'},
+        @{name='excel-addin.xla'; legacy=18; modern=55; ext='.xlam'}
+    )) {
+        $entry = [ordered]@{file=$fixture.name; error=$null}
+        try {
+            $path = Join-Path $outputDir $fixture.name
+            $saved = Join-Path $outputDir ([IO.Path]::GetFileNameWithoutExtension($fixture.name) + $fixture.ext)
+            $book = $app.Workbooks.Add(-4167)
+            $sheet = $book.Worksheets.Item(1); $sheet.Name = 'Data'
+            $sheet.Range('A1').Value2 = 42.5
+            $sheet.Range('A2').Formula = '=A1+1'
+            $sheet.Range('A1').NumberFormat = '0.00'
+            $book.SaveAs($path, $fixture.legacy)
+            $book.Close($false); $book=$null
+            $entry.source_base64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($path))
+            $entry.sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToLowerInvariant()
+            $book = $app.Workbooks.Open($path, 0, $false)
+            $entry.before = Snapshot $book
+            $book.SaveAs($saved, $fixture.modern)
+            $entry.after = Snapshot $book
+            $book.Close($false); $book=$null
+            $entry.package_base64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($saved))
+        } catch { $entry.error = $_.Exception.ToString() }
+        finally { if ($book) { try {$book.Close($false)} catch {}; $book=$null } }
+        $generated.Add($entry)
+    }
     if ($cases.create_pivot) {
         $pivot = [ordered]@{error=$null}
         try {
@@ -89,5 +120,5 @@ try {
     }
 } catch { $fatal = $_.Exception.ToString() }
 finally { if ($book) { try {$book.Close($false)} catch {} }; $app.DisplayAlerts = $oldAlerts }
-@{fatal=$fatal; excel_version=[string]$app.Version; excel_build=[string]$app.Build; files=$rows.ToArray(); pivot=$pivot} |
+@{fatal=$fatal; excel_version=[string]$app.Version; excel_build=[string]$app.Build; files=$rows.ToArray(); generated=$generated.ToArray(); pivot=$pivot} |
     ConvertTo-Json -Depth 30 | Set-Content -LiteralPath $Result -Encoding utf8NoBOM
