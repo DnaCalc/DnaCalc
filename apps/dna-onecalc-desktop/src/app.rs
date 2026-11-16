@@ -7,9 +7,9 @@
 //! The window chain, the WebView2 host and its string bridge are `calc-platform-desktop`'s, the
 //! add-in set `calc-addin-host`'s, and the file dialogs `calc-platform-desktop`'s: nothing here is
 //! OneCalc-only beyond wiring them to the host.
-use crate::host::{CloseChoice, Files, Host, Libraries};
+use crate::host::{CloseChoice, Files, Host, Libraries, RtdLinks, RtdUpdate};
 use crate::settings::Settings;
-use calc_addin_host::{AddinHost, Document, RtdClient, RtdInput};
+use calc_addin_host::{AddinHost, Document, RtdClient, RtdProvider};
 use calc_fml::CallableTable;
 use calc_platform_desktop::dialogs::{self, Buttons, FileFilter, Pressed};
 use calc_platform_desktop::{
@@ -467,8 +467,9 @@ impl Libraries for Addins {
         }
     }
 
-    fn rtd(&self) -> Option<Rc<RtdClient>> {
-        self.set.borrow().rtd().cloned()
+    fn rtd(&self) -> Option<Rc<dyn RtdLinks>> {
+        let client: Rc<RtdClient> = self.set.borrow().rtd().cloned()?;
+        Some(client)
     }
 
     fn registration_names(&self) -> Vec<String> {
@@ -480,14 +481,50 @@ impl Libraries for Addins {
             .collect()
     }
 
-    fn poll_rtd(&mut self, evaluating: bool) -> Vec<RtdInput> {
+    fn poll_rtd(&mut self, evaluating: bool) -> Vec<RtdUpdate> {
         match self.set.borrow().poll_rtd(evaluating) {
-            Ok(inputs) => inputs,
+            Ok(inputs) => inputs
+                .into_iter()
+                .map(|input| RtdUpdate {
+                    topic: input.topic,
+                    lease: input.lease,
+                    sequence: input.sequence,
+                    value: input.value,
+                })
+                .collect(),
             Err(why) => {
                 eprintln!("dna-onecalc-desktop: RTD: {why}");
                 Vec::new()
             }
         }
+    }
+}
+
+/// The host drives calc-com-host's RTD client through its seam.
+impl RtdLinks for RtdClient {
+    fn begin_replacement(
+        &self,
+        providers: &std::collections::BTreeSet<RtdProvider>,
+        caller: calc_value::CellKey,
+    ) -> Result<Vec<(calc_fml::TopicKey, calc_fml::RtdLease)>, String> {
+        RtdClient::begin_replacement(self, providers, caller)
+    }
+
+    fn finish_replacement(
+        &self,
+        providers: &std::collections::BTreeSet<RtdProvider>,
+        caller: calc_value::CellKey,
+    ) -> Result<(), String> {
+        RtdClient::finish_replacement(self, providers, caller)
+    }
+
+    fn reconcile_evaluation(
+        &self,
+        providers: &std::collections::BTreeSet<RtdProvider>,
+        caller: calc_value::CellKey,
+        invocations: &std::collections::BTreeSet<u64>,
+    ) -> Result<(), String> {
+        RtdClient::reconcile_evaluation(self, providers, caller, invocations)
     }
 }
 

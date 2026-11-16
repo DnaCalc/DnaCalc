@@ -183,7 +183,8 @@ one loaded - except the two runtimes that cannot start twice in one process, whi
 beads (Excel-DNA Native AOT, dc-snz.19; xlOil Python, dc-snz.21). xlOil Utils and SQL reloaded.
 
 Not shown: the native file dialog itself (a person must choose a file; the host logic runs in unit
-tests with a scripted chooser, and the page's other route, a typed path, runs the same load);
+tests with a scripted chooser, which build and run on Linux as well as Windows since the RTD client is
+reached through `host::RtdLinks`, and the page's other route, a typed path, runs the same load);
 commands and ribbons (not offered); RTD (milestone 6); xlOil Python's event cases (they toggle
 `Application.EnableEvents`, which OneCalc has no control for; the page does tell add-ins of a changed
 grid cell and of each calculation); the x5 permission and RTD case files.

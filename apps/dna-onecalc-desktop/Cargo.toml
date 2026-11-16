@@ -13,17 +13,21 @@ portability = "native-only"
 # closure (`cargo xtask sweep` checks it); calc-doc is allowed (the session file, through dna-onecalc).
 # calc-verdict supplies the SHA-256 a saved session lists for each loaded add-in. Add-ins come through calc-addin-host, the window chain
 # from calc-platform-desktop; this crate only drives the `Session`.
-[target.'cfg(windows)'.dependencies]
+# The native side of the SessionPort (src/host.rs) holds no window and no COM: it and its tests
+# build on every native target, so the session, file and add-in flows run in the Linux checks too.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 dna-onecalc = { path = "../dna-onecalc" }
 calc-fml = { path = "../../crates/calc-fml" }
 calc-vba = { path = "../../crates/calc-vba" }
+calc-value = { path = "../../crates/calc-value" }
+calc-verdict = { path = "../../tools/calc-verdict" }
+serde_json = "=1.0.154"
+
+[target.'cfg(windows)'.dependencies]
 calc-addin-host = { path = "../../crates/calc-addin-host" }
 calc-platform-desktop = { path = "../../platform/calc-platform-desktop" }
 calc-xll-host = { path = "../../crates/calc-xll-host" }
 calc-xll-abi = { path = "../../crates/calc-xll-abi" }
-calc-value = { path = "../../crates/calc-value" }
-calc-verdict = { path = "../../tools/calc-verdict" }
-serde_json = "=1.0.154"
 
 [target.'cfg(windows)'.dev-dependencies]
 calc-xll-fixture = { path = "../../crates/calc-xll-fixture" }

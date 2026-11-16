@@ -25,7 +25,8 @@ pub unsafe extern "system" fn MdCallBack12(
 mod app;
 #[cfg(windows)]
 mod embedded;
-#[cfg(windows)]
+// The host is the window's on Windows; elsewhere it builds for its tests (no window, no COM).
+#[cfg(any(windows, test))]
 mod host;
 #[cfg(windows)]
 mod rtd;

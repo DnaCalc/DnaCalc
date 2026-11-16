@@ -11,12 +11,14 @@
 //! the add-ins this process has loaded; one opened lists the file's, loaded or not (the surface
 //! offers to load them, never the host).
 //!
-//! It holds no window and no COM: [`Files`] and [`Libraries`] are the seams to the platform and to
-//! `calc-addin-host`, so the unit tests give them scripted implementations and drive the same code
-//! the window runs.
+//! It holds no window and no COM: [`Files`] and [`Libraries`] (with [`RtdLinks`]) are the seams to
+//! the platform and to `calc-addin-host`, so the unit tests give them scripted implementations and
+//! drive the same code the window runs. It names no Windows type, so it and its tests build on every
+//! native target (on Linux for the tests only).
+#![cfg_attr(not(windows), allow(dead_code))]
 
-use calc_addin_host::{RtdClient, RtdInput, RtdProvider};
-use calc_fml::CallableTable;
+use calc_fml::{CallableHandle as RtdProvider, CallableTable, RtdLease, TopicKey};
+use calc_value::{CalcValue, CellKey};
 use dna_onecalc::bridge::{Answer, Call};
 use dna_onecalc::port::{LoadedAddin, LocalPort, Reply, Request, SessionPort};
 use dna_onecalc::{AddinRef, Session};
@@ -98,6 +100,44 @@ pub trait Files {
     }
 }
 
+/// One real-time value an add-in's server sent, as the session admits it (calc-com-host's
+/// `RtdInput` on Windows).
+#[derive(Clone, Debug)]
+pub struct RtdUpdate {
+    pub topic: TopicKey,
+    pub lease: RtdLease,
+    pub sequence: u64,
+    pub value: CalcValue,
+}
+
+/// The RTD client over the add-ins' real-time servers, as the host drives it around an evaluation
+/// (calc-com-host's `RtdClient` on Windows). `providers` are the handles the session gave the
+/// add-ins' registrations; `caller` is the formula's cell.
+pub trait RtdLinks {
+    /// The formula at `caller` is being replaced: the topics it read leave the ledger, and are
+    /// returned so the session retires them; they disconnect at [`Self::finish_replacement`].
+    fn begin_replacement(
+        &self,
+        providers: &BTreeSet<RtdProvider>,
+        caller: CellKey,
+    ) -> Result<Vec<(TopicKey, RtdLease)>, String>;
+
+    /// The replacement is calculated: the replaced formula's topics disconnect.
+    fn finish_replacement(
+        &self,
+        providers: &BTreeSet<RtdProvider>,
+        caller: CellKey,
+    ) -> Result<(), String>;
+
+    /// The client keeps only the connections the evaluation's calls (`invocations`) declared.
+    fn reconcile_evaluation(
+        &self,
+        providers: &BTreeSet<RtdProvider>,
+        caller: CellKey,
+        invocations: &BTreeSet<u64>,
+    ) -> Result<(), String>;
+}
+
 /// The add-ins a process has loaded and the one table of functions they publish.
 pub trait Libraries {
     /// Loads the .xll at `path`, running its open routine. A failed load leaves nothing registered.
@@ -147,7 +187,7 @@ pub trait Libraries {
     fn calculated(&mut self);
 
     /// The RTD client over the add-ins' real-time servers, when they are enabled.
-    fn rtd(&self) -> Option<Rc<RtdClient>> {
+    fn rtd(&self) -> Option<Rc<dyn RtdLinks>> {
         None
     }
 
@@ -159,7 +199,7 @@ pub trait Libraries {
 
     /// The RTD updates that have arrived; `evaluating` takes only those the evaluation just done
     /// may see.
-    fn poll_rtd(&mut self, _evaluating: bool) -> Vec<RtdInput> {
+    fn poll_rtd(&mut self, _evaluating: bool) -> Vec<RtdUpdate> {
         Vec::new()
     }
 }
@@ -915,9 +955,63 @@ mod tests {
         seen: u32,
         events: Vec<(u32, u32)>,
         calculations: u32,
+        /// The RTD client, when the test gives the add-ins one; the values its servers sent.
+        rtd: Option<Rc<FakeRtd>>,
+        updates: Vec<RtdUpdate>,
+    }
+
+    /// An RTD client that records what the host asks of it, in order.
+    #[derive(Default)]
+    struct FakeRtd {
+        asked: std::cell::RefCell<Vec<&'static str>>,
+    }
+
+    impl FakeRtd {
+        fn take(&self) -> Vec<&'static str> {
+            std::mem::take(&mut *self.asked.borrow_mut())
+        }
+    }
+
+    impl RtdLinks for FakeRtd {
+        fn begin_replacement(
+            &self,
+            _providers: &BTreeSet<RtdProvider>,
+            _caller: CellKey,
+        ) -> Result<Vec<(TopicKey, RtdLease)>, String> {
+            self.asked.borrow_mut().push("begin");
+            Ok(Vec::new())
+        }
+
+        fn finish_replacement(
+            &self,
+            _providers: &BTreeSet<RtdProvider>,
+            _caller: CellKey,
+        ) -> Result<(), String> {
+            self.asked.borrow_mut().push("finish");
+            Ok(())
+        }
+
+        fn reconcile_evaluation(
+            &self,
+            _providers: &BTreeSet<RtdProvider>,
+            _caller: CellKey,
+            _invocations: &BTreeSet<u64>,
+        ) -> Result<(), String> {
+            self.asked.borrow_mut().push("reconcile");
+            Ok(())
+        }
     }
 
     impl Libraries for Fake {
+        fn rtd(&self) -> Option<Rc<dyn RtdLinks>> {
+            let client: Rc<FakeRtd> = self.rtd.clone()?;
+            Some(client)
+        }
+
+        fn poll_rtd(&mut self, _evaluating: bool) -> Vec<RtdUpdate> {
+            std::mem::take(&mut self.updates)
+        }
+
         fn load_xll(&mut self, path: &Path) -> Result<(), String> {
             if path.file_name().is_some_and(|n| n == "broken.xll") {
                 return Err("xlAutoOpen failed; after rollback: 0 active registrations".into());
@@ -1062,6 +1156,45 @@ mod tests {
             formula: text.to_owned(),
             ..Authored::default()
         }
+    }
+
+    /// Native-only: the exe's host. Around each evaluation the host settles the RTD client
+    /// (replaced topics disconnect, the client keeps what the calls declared); a replaced formula,
+    /// or a new session, first lets go of the old formula's topics; the same formula again does not.
+    /// A value for a topic the formula did not read asks for no new evaluation, and with no client
+    /// polling asks for none.
+    #[test]
+    fn evaluations_settle_the_rtd_client_and_a_replaced_formula_lets_go_first() {
+        let mut plain = host();
+        assert!(!plain.poll_rtd());
+
+        let rtd = Rc::new(FakeRtd::default());
+        let mut host = Host::new(
+            Session::new("Sheet1").unwrap(),
+            Scripted::default(),
+            Fake {
+                rtd: Some(Rc::clone(&rtd)),
+                ..Fake::default()
+            },
+        );
+        host.handle(Request::Evaluate(formula("=1+1")));
+        assert_eq!(rtd.take(), ["finish", "reconcile"]);
+        host.handle(Request::Evaluate(formula("=1+1")));
+        assert_eq!(rtd.take(), ["finish", "reconcile"]);
+        host.handle(Request::Evaluate(formula("=2+2")));
+        assert_eq!(rtd.take(), ["begin", "finish", "reconcile"]);
+        host.handle(Request::New);
+        assert_eq!(rtd.take(), ["begin", "finish", "reconcile"]);
+
+        host.libs.updates.push(RtdUpdate {
+            topic: TopicKey::new("Fake.Rtd", "", &["unread".to_owned()]),
+            lease: RtdLease(1),
+            sequence: 1,
+            value: CalcValue::number(7.),
+        });
+        assert!(!host.poll_rtd());
+        assert!(host.libs.updates.is_empty());
+        assert!(rtd.take().is_empty());
     }
 
     /// Native-only: the exe's host. A session saved through the native dialog is a workbook the
