@@ -148,3 +148,14 @@ Owner direction 2026-11-16: get GovDocs1, keep its Excel files, discard the rest
 The extracted set is 62,672 files, 30,071,088,567 bytes: 62,635 from `xls.zip` and 37 from `xlsx.zip`. By first bytes only (no workbook opened): 60,058 OLE2, 2,579 raw BIFF (pre-OLE BIFF2 to BIFF5), 35 ZIP; two of the OLE2 files are named `.xlsx`. 1,562 SHA-256 values occur more than once: GovDocs1 is not de-duplicated. Every upload batch passed `rclone check --one-way`, and the R2 counts equal the manifest. The files are not kept on kode-fi (they would take free disk below 20 GB); `~/corpora/govdocs1-excel/` holds the manifest, `sources.tsv`, `SOURCE.json` and `extract_failures.tsv`, and the files come back with `rclone copy`.
 
 The by-type archives select by file name. A sample of 10 of the 1,000 corpus zips (`000.zip`, `100.zip`, ... `900.zip`; 9,845 members) found every `.xls` and `.xlsx` member in the by-type set by SHA-256, and 7 spreadsheet files under other names: 4 SpreadsheetML 2003 XML files (three `.xml`, one `.html`) and 3 raw BIFF files named `.unk`. Times 100, that is roughly 700 more files in the whole corpus, about 1.1 percent of the by-type set (the Forensic Innovations report counts 507 SpreadsheetML files). The full scan would download all 333 GB of corpus zips for those files, so it was not run. Run log, scripts and per-zip results: `~/codex-runs/govdocs1-excel-20261116/` on kode-fi.
+
+## Small sets copied to R2 (2026-11-16, dc-ztvv.19)
+
+The kode-fi housekeeping check found two open-licensed sets from 2026-11-14 with no copy in R2. Both are now stored, and both passed `rclone check --one-way`:
+
+| Prefix | Files | Bytes | Licence |
+|---|---:|---:|---|
+| `sources/ironcalc-20261114/20261116/` | 268 | 4,205,981 | MIT OR Apache-2.0 (IronCalc test workbooks, commit 53c00566) |
+| `sources/modern-lambda/20261116/` | 12 | 2,219,551 | MIT (BigSpill LAMBDA library, commit ad38a3b2) |
+
+Every other `~/corpora` set on kode-fi either matches its R2 prefix file for file or has its source archive in R2. The exceptions are `exceloffthegrid-local-20261115` (personal-use EULA, so it stays local only) and `zenodo-replicator-dynamics` (53 KB).
