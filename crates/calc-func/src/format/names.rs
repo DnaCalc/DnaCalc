@@ -10,15 +10,76 @@ struct LocaleNames {
     weekdays_long: [&'static str; 7],
 }
 
+/// Which list of names a tagged format reads.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Field {
+    MonthsLong,
+    MonthsShort,
+    WeekdaysLong,
+    WeekdaysShort,
+}
+
+/// Names Excel 16.0.20527 writes under an explicit locale tag (`[$-LCID]mmm`), where they are not
+/// the locale table's: read through Touchstone sheet cases (env 145016f4397d, en-ZA host) for every
+/// LCID `LocaleId::from_excel_lcid` maps, as TEXT of the first of each month of 2023 and of
+/// 1 to 7 January 2023 (Sunday first) under `mmmm`, `mmm`, `dddd`, `ddd`, `d mmmm` and `d mmm`
+/// (dc-zsn.4, fn5 2026-11-16). Several LCIDs share one locale table (de-AT and de-DE, zh-TW and
+/// zh-CN), so this table is keyed by the tag's LCID.
+#[rustfmt::skip]
+const TAGGED: [(u16, Field, &[&str]); 29] = [
+    (0x0404, Field::WeekdaysShort, &["週日", "週一", "週二", "週三", "週四", "週五", "週六"]),
+    (0x0404, Field::MonthsShort, &["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"]),
+    (0x0405, Field::MonthsShort, &["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"]),
+    (0x040A, Field::WeekdaysShort, &["do.", "lu.", "ma.", "mi.", "ju.", "vi.", "sá."]),
+    (0x040A, Field::MonthsShort, &["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]),
+    (0x0412, Field::MonthsShort, &["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"]),
+    (0x0414, Field::WeekdaysShort, &["søn", "man", "tir", "ons", "tor", "fre", "lør"]),
+    (0x0416, Field::WeekdaysShort, &["dom", "seg", "ter", "qua", "qui", "sex", "sáb"]),
+    (0x0416, Field::MonthsShort, &["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]),
+    (0x041B, Field::MonthsShort, &["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"]),
+    (0x0425, Field::MonthsShort, &["jaan", "veebr", "märts", "apr", "mai", "juuni", "juuli", "aug", "sept", "okt", "nov", "dets"]),
+    (0x0426, Field::WeekdaysLong, &["svētdiena", "pirmdiena", "otrdiena", "trešdiena", "ceturtdiena", "piektdiena", "sestdiena"]),
+    (0x0427, Field::MonthsShort, &["saus.", "vas.", "kov.", "bal.", "geg.", "birž.", "liep.", "rugp.", "rugs.", "spal.", "lapkr.", "gruod."]),
+    (0x0807, Field::MonthsShort, &["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"]),
+    (0x0809, Field::MonthsShort, &["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]),
+    (0x080A, Field::WeekdaysShort, &["dom.", "lun.", "mar.", "mié.", "jue.", "vie.", "sáb."]),
+    (0x080A, Field::MonthsShort, &["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]),
+    (0x0814, Field::MonthsShort, &["jan.", "feb.", "mars", "apr.", "mai", "juni", "juli", "aug.", "sep.", "okt.", "nov.", "des."]),
+    (0x0816, Field::WeekdaysShort, &["dom", "seg", "ter", "qua", "qui", "sex", "sáb"]),
+    (0x0816, Field::MonthsShort, &["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]),
+    (0x0C04, Field::WeekdaysShort, &["週日", "週一", "週二", "週三", "週四", "週五", "週六"]),
+    (0x0C04, Field::MonthsShort, &["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"]),
+    (0x0C07, Field::MonthsShort, &["Jän", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"]),
+    (0x0C07, Field::MonthsLong, &["Jänner", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"]),
+    (0x0C09, Field::MonthsShort, &["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]),
+    (0x0C0A, Field::WeekdaysShort, &["do.", "lu.", "ma.", "mi.", "ju.", "vi.", "sá."]),
+    (0x0C0A, Field::MonthsShort, &["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]),
+    (0x1004, Field::MonthsShort, &["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"]),
+    (0x4009, Field::MonthsShort, &["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]),
+];
+
+fn tagged_names(lcid: Option<u16>, field: Field) -> Option<&'static [&'static str]> {
+    let lcid = lcid?;
+    TAGGED
+        .iter()
+        .find(|&&(l, f, _)| l == lcid && f == field)
+        .map(|&(_, _, names)| names)
+}
+
 pub(crate) fn month_name(
     profile: &FormatProfile,
     month: i64,
     abbreviated: bool,
     tagged: bool,
+    lcid: Option<u16>,
 ) -> String {
     let Ok(index) = usize::try_from(month - 1) else {
         return String::new();
     };
+    let field = if abbreviated { Field::MonthsShort } else { Field::MonthsLong };
+    if let Some(names) = tagged_names(lcid, field).filter(|_| tagged) {
+        return names.get(index).copied().unwrap_or("").to_owned();
+    }
     // Fn1 and fn3 measure names under explicit format tags. These tagged forms
     // differ from the locale data's ordinary abbreviations.
     if tagged && profile.id == LocaleId::DeDe && month == 3 && abbreviated {
@@ -68,7 +129,12 @@ pub(crate) fn weekday_name(
     index: usize,
     abbreviated: bool,
     tagged: bool,
+    lcid: Option<u16>,
 ) -> String {
+    let field = if abbreviated { Field::WeekdaysShort } else { Field::WeekdaysLong };
+    if let Some(names) = tagged_names(lcid, field).filter(|_| tagged) {
+        return names.get(index).copied().unwrap_or("").to_owned();
+    }
     let names = locale_names(profile.id);
     let name = if abbreviated {
         names.weekdays_short.get(index).copied().unwrap_or("")

@@ -98,6 +98,7 @@ pub(crate) fn render_with_datetime_tokens(
     value: f64,
     section: &str,
     name_locale: Option<LocaleId>,
+    name_lcid: Option<u16>,
     untagged_locale: bool,
 ) -> Option<String> {
     if !value.is_finite() {
@@ -204,15 +205,15 @@ pub(crate) fn render_with_datetime_tokens(
                         match width {
                             1 => month.to_string(),
                             2 => format!("{month:02}"),
-                            3 => month_name(&names_profile, month, true, name_locale.is_some()),
+                            3 => month_name(&names_profile, month, true, name_locale.is_some(), name_lcid),
                             // mmmmm is the month name's first letter (measured, Excel 16.0 build
                             // 20527, dc-0f1k formats oracle).
-                            5 => month_name(&names_profile, month, false, name_locale.is_some())
+                            5 => month_name(&names_profile, month, false, name_locale.is_some(), name_lcid)
                                 .chars()
                                 .next()
                                 .map(String::from)
                                 .unwrap_or_default(),
-                            _ => month_name(&names_profile, month, false, name_locale.is_some()),
+                            _ => month_name(&names_profile, month, false, name_locale.is_some(), name_lcid),
                         }
                     }
                     DateTimeTokenKind::Minute => {
@@ -232,12 +233,14 @@ pub(crate) fn render_with_datetime_tokens(
                                 weekday_index?,
                                 true,
                                 name_locale.is_some(),
+                                name_lcid,
                             ),
                             _ => weekday_name(
                                 &names_profile,
                                 weekday_index?,
                                 false,
                                 name_locale.is_some(),
+                                name_lcid,
                             ),
                         }
                     }
