@@ -87,6 +87,12 @@ try {
             $entry.setup.conditional = GetOrError { $c = $sheet.Range('C5').FormatConditions.Add(1, 3, '1'); $c.Interior.Color = 65535; $sheet.Range('C5').FormatConditions.Count }
             $entry.setup.shape = GetOrError { $s = $sheet.Shapes.AddShape(1, 100, 100, 60, 30); [string]$s.Name }
             $entry.setup.page = GetOrError { $sheet.PageSetup.Orientation = 2; $sheet.PageSetup.PrintArea = '$A$1:$D$5'; $sheet.PageSetup.Orientation }
+            $entry.setup.header_picture = GetOrError {
+                $picture = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../crates/calc-doc/tests/fixtures/drawing/pictures/card.png'))
+                $sheet.PageSetup.LeftHeaderPicture.Filename = $picture
+                $sheet.PageSetup.LeftHeader = '&G'
+                @{header=[string]$sheet.PageSetup.LeftHeader; picture=[string]$sheet.PageSetup.LeftHeaderPicture.Filename}
+            }
             $entry.setup.view = GetOrError {
                 $sheet.Activate(); $window = $book.Windows.Item(1)
                 $window.DisplayOutline = $false; $window.GridlineColorIndex = 5

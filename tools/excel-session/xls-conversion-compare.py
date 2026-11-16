@@ -189,6 +189,24 @@ def printer_settings(z, sheet, sheet_path, sheet_rels):
     return {'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data)}
 
 
+def header_footer_pictures(z, sheet, sheet_path, sheet_rels):
+    result = []
+    for ref in sheet.findall(M + 'legacyDrawingHF'):
+        rel = sheet_rels.get(ref.get(R + 'id'))
+        if rel is None:
+            result.append({'error': 'missing header/footer drawing relationship'})
+            continue
+        path = target(sheet_path, rel)
+        drawing = ET.fromstring(z.read(path))
+        images = []
+        for item in relationships(z, path).values():
+            if item.get('Type', '').endswith('/image'):
+                data = z.read(target(path, item))
+                images.append({'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest()})
+        result.append({'drawing': tree(drawing), 'images': sorted(images, key=lambda e: e['sha256'])})
+    return result
+
+
 def package(data):
     with zipfile.ZipFile(io.BytesIO(data)) as z:
         wbpath = 'xl/workbook.xml'
@@ -268,6 +286,8 @@ def package(data):
                                           [tree(e) for e in sh.findall(f'{M}autoFilter/{M}sortState')],
                            'drawings': drawing_objects(z, sh, path, shrels),
                            'printer_settings': printer_settings(z, sh, path, shrels),
+                           'header_footer': None if sh.find(M + 'headerFooter') is None else tree(sh.find(M + 'headerFooter')),
+                           'header_footer_pictures': header_footer_pictures(z, sh, path, shrels),
                            'phonetic_columns': [(e.get('min'), e.get('max')) for e in sh.findall(f'{M}cols/{M}col')
                                                 if e.get('phonetic', '0') in ('1', 'true')],
                            'row_display_flags': [(e.get('r'), e.get('thickTop', '0') in ('1', 'true'),
