@@ -34,6 +34,9 @@ fn write_legacy_excel_session_inputs() {
     let mut pending_formula = formula(1, 0, num_value(43.5), &ptg::join(&[ptg::cell(0, 0, 0), ptg::int(1), ptg::op(ptg::ADD)]), &[]);
     pending_formula[4 + 14] = 1;
     cells.extend(pending_formula);
+    let mut excluded_formula = formula(1, 1, num_value(1.0), &ptg::int(1), &[]);
+    excluded_formula[4 + 14] = 0x20;
+    cells.extend(excluded_formula);
     cells.extend(merged(&[(2, 2, 0, 1)]));
     cells.extend(hlink_url((3, 0), "https://example.com/", Some("Example"), Some("part")));
     cells.extend(hlink_file((4, 0), "book.xls", Some("資料.xls"), "Data!A1"));

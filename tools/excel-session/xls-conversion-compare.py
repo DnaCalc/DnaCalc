@@ -246,6 +246,7 @@ def package(data):
                            'merges': merges, 'links': sorted(links, key=repr), 'comments': sorted(comments),
                            'conditional_formats': [tree(e) for e in sh.findall(M + 'conditionalFormatting')],
                            'validations': [tree(e) for e in sh.findall(f'{M}dataValidations/{M}dataValidation')],
+                           'ignored_errors': [tree(e) for e in sh.findall(f'{M}ignoredErrors/{M}ignoredError')],
                            'sort_states': [tree(e) for e in sh.findall(M + 'sortState')] +
                                           [tree(e) for e in sh.findall(f'{M}autoFilter/{M}sortState')],
                            'drawings': drawing_objects(z, sh, path, shrels),
