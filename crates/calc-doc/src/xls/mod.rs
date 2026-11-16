@@ -119,7 +119,7 @@ pub(crate) fn convert(
     }
     // Each sheet's substream: its BOF at the BOUNDSHEET offset, to its EOF.
     let mut parts: Vec<(String, &'static str, Vec<u8>)> = Vec::new();
-    let mut sheet_entries: Vec<(String, u8, String)> = Vec::new();
+    let mut sheet_entries: Vec<(String, u8, String, u32)> = Vec::new();
     let mut number = 0usize;
     // Where each sheet's substream starts and ends in the record list.
     let locate = |sheet: &workbook::BoundSheet| -> Result<(usize, usize), OpenError> {
@@ -333,7 +333,8 @@ pub(crate) fn convert(
                 return Err(refuse(name, format!("sheet {:?} of an unknown kind", sheet.name)));
             }
         };
-        sheet_entries.push((sheet.name.clone(), sheet.state, part.clone()));
+        let sheet_id = globals.tab_ids.as_ref().map_or(number as u32, |ids| u32::from(ids[source_tab]));
+        sheet_entries.push((sheet.name.clone(), sheet.state, part.clone(), sheet_id));
         parts.push((part, content_type, xml));
     }
     if sheet_entries.is_empty() {
@@ -524,10 +525,10 @@ pub(crate) fn convert(
         xml.close("bookViews");
     }
     xml.open("sheets", &[]);
-    for (index, (sheet_name, state, _)) in sheet_entries.iter().enumerate() {
+    for (index, (sheet_name, state, _, sheet_id)) in sheet_entries.iter().enumerate() {
         let mut attributes = vec![
             ("name", sheet_name.clone()),
-            ("sheetId", (index + 1).to_string()),
+            ("sheetId", sheet_id.to_string()),
         ];
         match state {
             1 => attributes.push(("state", "hidden".to_owned())),
@@ -637,7 +638,7 @@ pub(crate) fn convert(
             "http://schemas.openxmlformats.org/package/2006/relationships".to_owned(),
         )],
     );
-    for (index, (_, _, part)) in sheet_entries.iter().enumerate() {
+    for (index, (_, _, part, _)) in sheet_entries.iter().enumerate() {
         let kind = if part.starts_with("xl/macrosheets/") {
             "http://schemas.microsoft.com/office/2006/relationships/xlMacrosheet"
         } else if part.starts_with("xl/chartsheets/") {

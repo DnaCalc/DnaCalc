@@ -86,6 +86,8 @@ pub(crate) struct Globals {
     pub(crate) protection_verifier: Option<u16>,
     pub(crate) hide_objects: Option<u16>,
     pub(crate) backup_file: bool,
+    /// Sheet identifiers in BOUNDSHEET order, when the complete mapping is usable.
+    pub(crate) tab_ids: Option<Vec<u16>>,
     pub(crate) refresh_all: bool,
     /// BookBool flags; mail-envelope state has no SpreadsheetML mapping here.
     pub(crate) book_bool: Option<u16>,
@@ -158,6 +160,14 @@ pub(crate) fn read(records: &[Record<'_>], biff5: bool) -> Result<Globals, Strin
                 globals.date_1904 = c.u16("Date1904").map_err(|e| e.0)? == 1;
             }
             FILEPASS => globals.encrypted = true,
+            0x013D => {
+                let body = record.joined();
+                if body.len() % 2 != 0 || globals.tab_ids.is_some() {
+                    *globals.unknown.entry(record.id).or_insert(0) += 1;
+                } else {
+                    globals.tab_ids = Some(body.chunks_exact(2).map(|p| u16::from_le_bytes([p[0], p[1]])).collect());
+                }
+            }
             0x01B7 => {
                 let mut c = Cursor::new(record.body);
                 let value = c.u16("RefreshAll").map_err(|e| e.0)?;
@@ -294,6 +304,14 @@ pub(crate) fn read(records: &[Record<'_>], biff5: bool) -> Result<Globals, Strin
     }
     if !finished {
         return Err("the workbook globals have no EOF record".into());
+    }
+    if let Some(ids) = &globals.tab_ids {
+        let unique: std::collections::BTreeSet<_> = ids.iter().copied().collect();
+        if ids.len() != globals.sheets.len() || unique.len() != ids.len() || unique.contains(&0)
+            || globals.unknown.contains_key(&0x013D) {
+            globals.tab_ids = None;
+            *globals.unknown.entry(0x013D).or_insert(0) += 1;
+        }
     }
     Ok(globals)
 }

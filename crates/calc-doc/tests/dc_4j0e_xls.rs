@@ -647,6 +647,28 @@ fn sheet_phonetic_format_and_unhandled_visibility_ranges() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn legacy_sheet_ids_follow_source_tabs_even_with_module() {
+    let sheets = [Sheet::worksheet("First", Vec::new()),
+        Sheet { kind: 6, ..Sheet::worksheet("Module", Vec::new()) },
+        Sheet::worksheet("Last", Vec::new())];
+    for (ids, first, last, unread) in [
+        (vec![8, 3, 19], 8, 19, false),
+        (vec![8, 3, 0], 1, 2, true),
+        (vec![8, 8, 19], 1, 2, true),
+    ] {
+        let bytes = xls(false, &record(0x013D, &u16s(&ids)), &sheets);
+        let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let xml = String::from_utf8(doc.package().read_part("xl/workbook.xml").unwrap()).unwrap();
+        assert!(xml.contains(&format!("name=\"First\" sheetId=\"{first}\"")), "{xml}");
+        assert!(xml.contains(&format!("name=\"Last\" sheetId=\"{last}\"")), "{xml}");
+        let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+        assert_eq!(report.unknown_records.contains_key(&0x013D), unread);
+        load(&bytes);
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn names_3d_external_references_and_add_in_functions() {
     use ptg::*;
     let globals = [
