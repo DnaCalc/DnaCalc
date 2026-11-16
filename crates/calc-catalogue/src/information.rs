@@ -80,12 +80,14 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
     unary(ISREF, "ISREF", ISREF_VALUE)
         .with_three_d(super::ThreeD::new(None, None, Some(&[])))
         .with_traits(super::EntryTraits::NONE.take_reference_array()),
-    unary(ISFORMULA, "ISFORMULA", REFERENCE).with_three_d(super::ThreeD::new(
-        None,
-        Some(&[]),
-        None,
-    )),
-    unary(TYPE, "TYPE", TYPE_VALUE).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
+    // dc-b1l (Touchstone 2026-11-16, reference-arrays): ISFORMULA runs once per reference of an
+    // array of references; TYPE reads each held reference as #VALUE! (the array is of type 64).
+    unary(ISFORMULA, "ISFORMULA", REFERENCE)
+        .with_three_d(super::ThreeD::new(None, Some(&[]), None))
+        .with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
+    unary(TYPE, "TYPE", TYPE_VALUE)
+        .with_three_d(super::ThreeD::new(None, None, Some(&[])))
+        .with_traits(super::EntryTraits::NONE.value_error_references()),
     unary(N, "N", N_VALUE)
         .with_three_d(super::ThreeD::new(None, Some(&[]), None))
         .with_traits(super::EntryTraits::NONE.lift_dynamic_references()),

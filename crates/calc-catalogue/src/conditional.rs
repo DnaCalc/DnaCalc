@@ -105,31 +105,64 @@ const fn conditional(
 // `=SUMIFS(B1:B3,B1:B3,1,B1:B3)` are refused, `=COUNTIFS(B1:B3,1,B1:B3,1)` and
 // `=SUMIFS(B1:B3,B1:B3,1,B1:B3,1)` enter: COUNTIFS takes 2, 4, 6 and 8 arguments of 1 to 8, and
 // SUMIFS, AVERAGEIFS, MAXIFS and MINIFS 3, 5 and 7.
-// 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
+// 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet. dc-b1l
+// (Excel 16.0.20527, Touchstone 2026-11-16, cell-context family three-d): a 3-D reference is a
+// #REF! criterion (`=COUNTIF(E1:E2,Ja:Ma!A1)` counts the #REF! in E2) and makes a criteria range
+// of the *IFS functions #VALUE! (`=COUNTIFS(A1:A3,">0",Ja:Ma!A1,">0")`).
+const COUNTIFS_RANGES: [usize; 127] = super::alternate(&[], 0);
+const COUNTIFS_CRITERIA: [usize; 127] = super::alternate(&[], 1);
+const SUMIFS_RANGES: [usize; 128] = super::alternate(&[0], 1);
+const SUMIFS_CRITERIA: [usize; 127] = super::alternate(&[], 2);
+// dc-b1l (Touchstone 2026-11-16, reference-arrays): COUNTIFS, AVERAGEIFS, MAXIFS and MINIFS
+// given an array of references run once per reference, as SUMIF, COUNTIF and SUMIFS do.
 pub const ENTRIES: &[WorksheetDeclaration] = &[
     conditional(COUNTIF, "COUNTIF", (2, 2), RANGE_CRITERIA)
-        .with_three_d(super::ThreeD::new(None, Some(&[0]), None))
+        .with_three_d(super::ThreeD::new(None, Some(&[0]), Some(&[1])))
         .with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
     conditional(COUNTIFS, "COUNTIFS", (2, 254), COUNT_PAIRS)
-        .with_three_d(super::ThreeD::new(None, Some(&[0]), None))
-        .with_groups(ArgumentGroups::new(0, 2, 0)),
+        .with_three_d(super::ThreeD::new(
+            None,
+            Some(&COUNTIFS_RANGES),
+            Some(&COUNTIFS_CRITERIA),
+        ))
+        .with_groups(ArgumentGroups::new(0, 2, 0))
+        .with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
     conditional(SUMIF, "SUMIF", (2, 3), SUM_RANGE)
-        .with_three_d(super::ThreeD::new(None, Some(&[0, 2]), None))
+        .with_three_d(super::ThreeD::new(None, Some(&[0, 2]), Some(&[1])))
         .with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
     conditional(SUMIFS, "SUMIFS", (3, 255), SUM_PAIRS)
-        .with_three_d(super::ThreeD::new(None, Some(&[0, 1]), None))
+        .with_three_d(super::ThreeD::new(
+            None,
+            Some(&SUMIFS_RANGES),
+            Some(&SUMIFS_CRITERIA),
+        ))
         .with_groups(ArgumentGroups::new(1, 2, 0))
         .with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
     conditional(AVERAGEIF, "AVERAGEIF", (2, 3), AVERAGE_RANGE)
         .with_three_d(super::ThreeD::new(None, Some(&[0, 2]), Some(&[1])))
         .with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
     conditional(AVERAGEIFS, "AVERAGEIFS", (3, 255), AVERAGE_PAIRS)
-        .with_three_d(super::ThreeD::new(None, Some(&[0, 1]), Some(&[2])))
-        .with_groups(ArgumentGroups::new(1, 2, 0)),
+        .with_three_d(super::ThreeD::new(
+            None,
+            Some(&SUMIFS_RANGES),
+            Some(&SUMIFS_CRITERIA),
+        ))
+        .with_groups(ArgumentGroups::new(1, 2, 0))
+        .with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
     conditional(MAXIFS, "MAXIFS", (3, 255), MAX_PAIRS)
-        .with_three_d(super::ThreeD::new(None, Some(&[0, 1]), None))
-        .with_groups(ArgumentGroups::new(1, 2, 0)),
+        .with_three_d(super::ThreeD::new(
+            None,
+            Some(&SUMIFS_RANGES),
+            Some(&SUMIFS_CRITERIA),
+        ))
+        .with_groups(ArgumentGroups::new(1, 2, 0))
+        .with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
     conditional(MINIFS, "MINIFS", (3, 255), MIN_PAIRS)
-        .with_three_d(super::ThreeD::new(None, Some(&[0, 1]), None))
-        .with_groups(ArgumentGroups::new(1, 2, 0)),
+        .with_three_d(super::ThreeD::new(
+            None,
+            Some(&SUMIFS_RANGES),
+            Some(&SUMIFS_CRITERIA),
+        ))
+        .with_groups(ArgumentGroups::new(1, 2, 0))
+        .with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
 ];

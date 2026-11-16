@@ -15,8 +15,8 @@ use crate::call::{EagerKernel, LazyKernel, StartKernel};
 use crate::value::{CalcValue, CallableArityShape, NumericMode};
 pub(crate) use calc_catalogue::Parameter;
 pub use calc_catalogue::{
-    ArgumentDemand, Availability, BindingForm, Deferral, EntryTraits, FunctionId, Implementation,
-    LegacyPlace, Notation, PairedResult, ParameterClass, ThreeDPlace, WholeResultPolicy,
+    ArgumentDemand, Availability, BindingForm, Deferral, EntryTraits, FunctionId, HeldReferences,
+    Implementation, LegacyPlace, Notation, PairedResult, ParameterClass, ThreeDPlace, WholeResultPolicy,
 };
 use std::cmp::Ordering;
 

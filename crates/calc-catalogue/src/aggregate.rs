@@ -80,13 +80,15 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
     aggregate(SUM, "SUM", NUMBERS)
         .with_three_d(super::ThreeD::new(Some(&[]), None, None))
         .with_traits(super::EntryTraits::NONE.take_reference_array()),
-    aggregate(PRODUCT, "PRODUCT", NUMBERS).with_three_d(super::ThreeD::new(Some(&[]), None, None)),
-    aggregate(SUMSQ, "SUMSQ", NUMBERS).with_three_d(super::ThreeD::new(Some(&[]), None, None)),
-    aggregate(SUMPRODUCT, "SUMPRODUCT", ARRAYS).with_three_d(super::ThreeD::new(
-        None,
-        None,
-        Some(&[]),
-    )),
+    aggregate(PRODUCT, "PRODUCT", NUMBERS)
+        .with_three_d(super::ThreeD::new(Some(&[]), None, None))
+        .with_traits(super::EntryTraits::NONE.first_cell_references()),
+    aggregate(SUMSQ, "SUMSQ", NUMBERS)
+        .with_three_d(super::ThreeD::new(Some(&[]), None, None))
+        .with_traits(super::EntryTraits::NONE.first_cell_references()),
+    aggregate(SUMPRODUCT, "SUMPRODUCT", ARRAYS)
+        .with_three_d(super::ThreeD::new(None, None, Some(&[])))
+        .with_traits(super::EntryTraits::NONE.no_number_references()),
     aggregate(COUNT, "COUNT", COUNT_VALUES)
         .with_three_d(super::ThreeD::new(Some(&[]), None, None))
         .with_traits(super::EntryTraits::NONE.take_reference_array()),
@@ -107,17 +109,28 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
         result: ResultForm::Value,
         demand: ArgumentDemand::Eager,
         // W111 and w089: a computed array lifts; a reference is consumed whole.
-        traits: super::EntryTraits::NONE.lift_computed_array(),
+        // dc-b1l: an array of references runs it once per reference (Touchstone 2026-11-16).
+        traits: super::EntryTraits::NONE
+            .lift_computed_array()
+            .lift_dynamic_references(),
     }
     .with_three_d(super::ThreeD::new(None, Some(&[]), None)),
     aggregate(AVERAGE, "AVERAGE", NUMBERS)
         .with_three_d(super::ThreeD::new(Some(&[]), None, None))
         .with_traits(super::EntryTraits::NONE.take_reference_array()),
-    aggregate(AVERAGEA, "AVERAGEA", VALUES).with_three_d(super::ThreeD::new(Some(&[]), None, None)),
-    aggregate(MIN, "MIN", NUMBERS).with_three_d(super::ThreeD::new(Some(&[]), None, None)),
+    aggregate(AVERAGEA, "AVERAGEA", VALUES)
+        .with_three_d(super::ThreeD::new(Some(&[]), None, None))
+        .with_traits(super::EntryTraits::NONE.first_cell_references()),
+    aggregate(MIN, "MIN", NUMBERS)
+        .with_three_d(super::ThreeD::new(Some(&[]), None, None))
+        .with_traits(super::EntryTraits::NONE.first_cell_references()),
     aggregate(MAX, "MAX", NUMBERS)
         .with_three_d(super::ThreeD::new(Some(&[]), None, None))
         .with_traits(super::EntryTraits::NONE.take_reference_array()),
-    aggregate(MINA, "MINA", VALUES).with_three_d(super::ThreeD::new(Some(&[]), None, None)),
-    aggregate(MAXA, "MAXA", VALUES).with_three_d(super::ThreeD::new(Some(&[]), None, None)),
+    aggregate(MINA, "MINA", VALUES)
+        .with_three_d(super::ThreeD::new(Some(&[]), None, None))
+        .with_traits(super::EntryTraits::NONE.first_cell_references()),
+    aggregate(MAXA, "MAXA", VALUES)
+        .with_three_d(super::ThreeD::new(Some(&[]), None, None))
+        .with_traits(super::EntryTraits::NONE.first_cell_references()),
 ];

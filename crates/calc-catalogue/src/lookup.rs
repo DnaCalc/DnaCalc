@@ -62,7 +62,10 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
     )
     .with_three_d(super::ThreeD::new(None, Some(&[0]), Some(&[1, usize::MAX])))
     .with_result(ResultForm::MayBeReference)
-    .with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
+    // dc-b1l (Touchstone 2026-11-16, reference-arrays): an array of references is indexed as an
+    // array, its selected element a reference (`=INDEX(OFFSET(A1,{0;1;2},0,2),2,1)` spills 2|3,
+    // `=ISREF(INDEX(OFFSET(A1,{0;1;2},0,2),1,1))` is TRUE).
+    .with_traits(super::EntryTraits::NONE.take_reference_array()),
     eager(
         MATCH,
         "MATCH",
@@ -74,7 +77,8 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
             Parameter::value("match_type"),
         ],
     )
-    .with_three_d(super::ThreeD::new(None, Some(&[1, 2]), Some(&[0]))),
+    .with_three_d(super::ThreeD::new(None, Some(&[1, 2]), Some(&[0])))
+    .with_traits(super::EntryTraits::NONE.value_error_references()),
     eager(
         XMATCH,
         "XMATCH",
@@ -86,7 +90,9 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
             Parameter::value("search_mode"),
         ],
     )
-    .with_three_d(super::ThreeD::new(None, Some(&[1]), Some(&[0, 2]))),
+    // dc-b1l (Touchstone 2026-11-16, three-d): a 3-D search_mode is #REF!.
+    .with_three_d(super::ThreeD::new(None, Some(&[1]), Some(&[0, 2, 3])))
+    .with_traits(super::EntryTraits::NONE.value_error_references()),
     eager(
         XLOOKUP,
         "XLOOKUP",
@@ -101,10 +107,13 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
             Parameter::value("search_mode"),
         ],
     )
-    .with_three_d(super::ThreeD::new(None, Some(&[1, 2]), Some(&[0])))
+    // dc-b1l (Touchstone 2026-11-16, three-d): a 3-D if_not_found is #VALUE! where it is given
+    // (`=XLOOKUP(2,A1:A3,B1:B3,Ja:Ma!A1)` 20, `=XLOOKUP(9,...)` #VALUE!), the modes #REF!.
+    .with_three_d(super::ThreeD::new(None, Some(&[1, 2]), Some(&[0, 4, 5])).value_arguments(&[3]))
     // A call may give a reference (dc-mx3x): `=COUNTBLANK(XLOOKUP(1,B1:B3,B1:B3))` and
     // `=XLOOKUP(1,B1:B3,B1:B3)(3)` (#REF!) enter.
-    .with_result(ResultForm::MayBeReference),
+    .with_result(ResultForm::MayBeReference)
+    .with_traits(super::EntryTraits::NONE.value_error_references()),
     eager(
         VLOOKUP,
         "VLOOKUP",
@@ -117,7 +126,8 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
             Parameter::value("range_lookup"),
         ],
     )
-    .with_three_d(super::ThreeD::new(None, Some(&[1]), Some(&[0, 2, 3]))),
+    .with_three_d(super::ThreeD::new(None, Some(&[1]), Some(&[0, 2, 3])))
+    .with_traits(super::EntryTraits::NONE.value_error_references()),
     eager(
         HLOOKUP,
         "HLOOKUP",
@@ -130,7 +140,8 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
             Parameter::value("range_lookup"),
         ],
     )
-    .with_three_d(super::ThreeD::new(None, Some(&[1]), Some(&[0, 2, 3]))),
+    .with_three_d(super::ThreeD::new(None, Some(&[1]), Some(&[0, 2, 3])))
+    .with_traits(super::EntryTraits::NONE.value_error_references()),
     eager(
         LOOKUP,
         "LOOKUP",
@@ -141,7 +152,8 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
             Parameter::value_or_reference("result_vector").legacy(super::LegacyPlace::ArrayAtRoot),
         ],
     )
-    .with_three_d(super::ThreeD::new(None, Some(&[1, 2]), Some(&[0]))),
+    .with_three_d(super::ThreeD::new(None, Some(&[1, 2]), Some(&[0])))
+    .with_traits(super::EntryTraits::NONE.value_error_references()),
     // A call gives one of its values, which may be a reference or a LAMBDA (dc-mx3x):
     // `=COUNTBLANK(CHOOSE(1,A1))` enters, and `=CHOOSE(1,LAMBDA(x,x))(3)` is 3.
     WorksheetDeclaration {
@@ -164,7 +176,9 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
         // Dynamic fn2 q193: lifted CHOOSE materializes a selected blank as zero.
         traits: super::EntryTraits::NONE.choose_blanks(),
     }
-    .with_three_d(super::ThreeD::new(None, None, Some(&[0, 1]))),
+    // dc-b1l (Touchstone 2026-11-16, three-d): a 3-D later value is #VALUE! where it is chosen
+    // (`=CHOOSE(1,1,Ja:Ma!A1)` 1, `=CHOOSE(2,1,Ja:Ma!A1)` #VALUE!).
+    .with_three_d(super::ThreeD::new(None, None, Some(&[0, 1])).value_arguments(&[2, usize::MAX])),
     // ROW's, COLUMN's and AREAS's reference takes only an operand that may give one
     // (dc-mx3x, both forms): `=ROW(2)`, `=ROW({1,2})`, `=ROW(1+1)`, `=COLUMN(2)` and `=AREAS(2)`
     // are refused, `=ROW(B1:B3)`, `=ROW(INDEX(B1:B3,0))` and `=AREAS(B1:B3)` enter. ROWS's
@@ -190,7 +204,11 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
         &[Parameter::value_or_reference("reference").entry(super::EntryClass::Reference)],
     )
     .with_three_d(super::ThreeD::new(None, Some(&[]), None))
-    .with_traits(super::EntryTraits::NONE.intersect_legacy_result()),
+    .with_traits(
+        super::EntryTraits::NONE
+            .intersect_legacy_result()
+            .lift_dynamic_references(),
+    ),
     eager(
         ROWS,
         "ROWS",
@@ -205,7 +223,8 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
         CallableArityShape::exact(1),
         &[Parameter::value_or_reference("array").legacy(super::LegacyPlace::ArrayAtRoot)],
     )
-    .with_three_d(super::ThreeD::new(None, Some(&[]), None)),
+    .with_three_d(super::ThreeD::new(None, Some(&[]), None))
+    .with_traits(super::EntryTraits::NONE.value_error_references()),
     eager(
         AREAS,
         "AREAS",

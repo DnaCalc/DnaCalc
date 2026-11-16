@@ -22,4 +22,6 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[WorksheetDeclaration {
     result: super::ResultForm::Value,
     demand: ArgumentDemand::Eager,
     traits: super::EntryTraits::NONE,
-}];
+}
+// dc-b1l (Touchstone 2026-11-16, three-d): `=PERCENTOF(Ja:Ma!A1,1)` is #VALUE!, either argument.
+.with_three_d(super::ThreeD::new(None, Some(&[]), None))];

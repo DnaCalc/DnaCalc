@@ -279,6 +279,19 @@ try {
                             [void][Runtime.InteropServices.Marshal]::ReleaseComObject($cell)
                         }
                     }
+                    # Drawing objects (dc-tqul7): Excel's own frame in points (the unrotated frame for a turned shape), turn,
+                    # fill and outline. compare.py converts them with the calibrated origin and measures the same colours in
+                    # both rasters.
+                    $shapes = [Collections.Generic.List[object]]::new()
+                    foreach ($shape in $sheet.Shapes) {
+                        $record = @{name=[string]$shape.Name;type=[int]$shape.Type;left=[double]$shape.Left;top=[double]$shape.Top;width=[double]$shape.Width;height=[double]$shape.Height;rotation=[double]$shape.Rotation;visible=[bool]$shape.Visible}
+                        try { $record.auto_shape_type=[int]$shape.AutoShapeType } catch { $record.auto_shape_type=$null }
+                        try { $record.h_flip=[bool]$shape.HorizontalFlip; $record.v_flip=[bool]$shape.VerticalFlip } catch {}
+                        try { $record.fill_visible=[bool]$shape.Fill.Visible; $record.fill_type=[int]$shape.Fill.Type; $record.fill_rgb=[long]$shape.Fill.ForeColor.RGB; $record.fill_transparency=[double]$shape.Fill.Transparency } catch { $record.fill_visible=$null }
+                        try { $record.line_visible=[bool]$shape.Line.Visible; $record.line_rgb=[long]$shape.Line.ForeColor.RGB; $record.line_weight_points=[double]$shape.Line.Weight } catch { $record.line_visible=$null }
+                        $shapes.Add($record)
+                        [void][Runtime.InteropServices.Marshal]::ReleaseComObject($shape)
+                    }
                     $prefix = [IO.Path]::GetFileNameWithoutExtension([string]$inputBook.path)+'-'+$sheet.Name+'-excel-'+$zoom
                     $bitmap = [Drawing.Bitmap]::new($rect.R-$rect.L,$rect.B-$rect.T)
                     $graphics = [Drawing.Graphics]::FromImage($bitmap)
@@ -289,7 +302,7 @@ try {
                         if (-not $printed) { throw 'PrintWindow failed; no screen-copy fallback' }
                         $bitmap.Save((Join-Path $out "$prefix.png"),[Drawing.Imaging.ImageFormat]::Png)
                     } finally { $bitmap.Dispose() }
-                    $records.Add(@{sha256=$inputBook.sha256;image_sha256=(File-Hash (Join-Path $out "$prefix.png"));sheet=$sheet.Name;zoom=[int]$zoom;dpi=[int]$dpi;origin=@{x=$originX;y=$originY};sheet_bounds=@{x=$sheetRect.L-$rect.L;y=$sheetRect.T-$rect.T;w=$sheetRect.R-$sheetRect.L;h=$sheetRect.B-$sheetRect.T};cells=@($cells.ToArray());prefix=$prefix;capture='PrintWindow(PW_RENDERFULLCONTENT)';excel_version=$excel.Version;excel_build=$excel.Build;normal_font=$book.Styles.Item('Normal').Font.Name;normal_size=$book.Styles.Item('Normal').Font.Size;default_row_height=$sheet.StandardHeight;default_column_width=$sheet.StandardWidth;gridlines=$win.DisplayGridlines;freeze=$win.FreezePanes})
+                    $records.Add(@{sha256=$inputBook.sha256;image_sha256=(File-Hash (Join-Path $out "$prefix.png"));sheet=$sheet.Name;zoom=[int]$zoom;dpi=[int]$dpi;origin=@{x=$originX;y=$originY};sheet_bounds=@{x=$sheetRect.L-$rect.L;y=$sheetRect.T-$rect.T;w=$sheetRect.R-$sheetRect.L;h=$sheetRect.B-$sheetRect.T};cells=@($cells.ToArray());shapes=@($shapes.ToArray());prefix=$prefix;capture='PrintWindow(PW_RENDERFULLCONTENT)';excel_version=$excel.Version;excel_build=$excel.Build;normal_font=$book.Styles.Item('Normal').Font.Name;normal_size=$book.Styles.Item('Normal').Font.Size;default_row_height=$sheet.StandardHeight;default_column_width=$sheet.StandardWidth;gridlines=$win.DisplayGridlines;freeze=$win.FreezePanes})
                     $records[$records.Count-1].coordinate_calibrated=$calibrated
                     $records[$records.Count-1].desktop=$WorkerDesktop
                     $records[$records.Count-1].format_environment=@{locale=[Globalization.CultureInfo]::CurrentCulture.Name;decimal_separator=[string]$excel.DecimalSeparator;thousands_separator=[string]$excel.ThousandsSeparator;use_system_separators=[bool]$excel.UseSystemSeparators}

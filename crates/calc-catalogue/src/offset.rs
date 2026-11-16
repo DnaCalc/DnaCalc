@@ -73,5 +73,7 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
         result: super::ResultForm::MayBeReference,
         demand: ArgumentDemand::Eager,
         traits: super::EntryTraits::NONE,
-    },
+    }
+    // dc-b1l (Touchstone 2026-11-16, three-d): `=TRIMRANGE(Ja:Ma!A1)` is #VALUE!.
+    .with_three_d(super::ThreeD::new(None, Some(&[0]), None)),
 ];

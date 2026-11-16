@@ -367,6 +367,20 @@ class AdmissionTests(unittest.TestCase):
         self.assertEqual(answer["probes"][0]["spill"]["rows"], 2)
         self.assertEqual(answer["probes"][1], {"type": "refused", "detail": "formula"})
 
+    def test_a_typed_entry_probe_is_any_text_and_answers_its_number_format(self):
+        sheets = [{"name": "S", "cells": {}}]
+        for probes in ([{"at": "S!A1", "formula": "5%", "entry": "local"}, {"at": "S!B1", "formula": "=A1"}],
+                       [{"at": "S!A1", "formula": "+abc", "entry": "local"}]):
+            self.admission.check({"f": "_CASE", "k": "L", "n": 1, "v": [protocol.sheet_case(sheets, probes)["value"]]})
+        for bad in ([{"at": "S!A1", "formula": "5%"}], [{"at": "S!A1", "formula": "5%", "entry": "value"}],
+                    [{"at": "S!A1", "formula": "", "entry": "local"}], [{"at": "S!A1", "formula": "x" * 256, "entry": "local"}]):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                self.admission.check({"f": "_CASE", "k": "L", "n": 1, "v": [protocol.sheet_case(sheets, bad)["value"]]})
+        answer = protocol.answer_to_typed("c", {"probes": [{"ty": "n", "v": ONE, "spill": None, "nf": "0%"},
+                                                          {"ty": "n", "v": ONE, "spill": None}]})
+        self.assertEqual(answer["probes"][0]["number_format"], "0%")
+        self.assertNotIn("number_format", answer["probes"][1])
+
     def group(self, **changes):
         g = {"f": "ERF.PRECISE", "k": "n", "n": 2, "v": [ONE, TWO]}
         g.update(changes)
@@ -1294,3 +1308,147 @@ class OrphanAndBuildTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+FAKE_RELAY = r"""
+import sys, time
+sys.path.insert(0, %r)
+import protocol
+mode, lives = sys.argv[1], float(sys.argv[2])
+start = time.time()
+reader = protocol.FrameReader()
+out = sys.stdout.buffer
+while True:
+    data = sys.stdin.buffer.read1(65536)
+    if not data:
+        break
+    for kind, body in reader.feed(data):
+        if kind == protocol.PING and (mode != "silent" or time.time() - start < lives):
+            out.write(protocol.pack(protocol.PONG, {**body, "sock": mode != "nosock"}, True)); out.flush()
+    if mode == "exit" and time.time() - start >= lives:
+        break
+"""
+
+
+class FakeRelayBroker:
+    """The part of the broker the peer manager uses: serve a connection, log events."""
+
+    def __init__(self):
+        self.stopping = False
+        self.events = []
+        self.sessions = 0
+
+    def log_event(self, event, **data):
+        self.events.append((event, data))
+
+    async def serve(self, conn):
+        import broker
+        await broker.Broker.serve(self, conn)
+
+    def on_frame(self, conn, kind, body):
+        import broker
+        broker.Broker.on_frame(self, conn, kind, body)
+
+    conns = None
+
+
+class RelaySupervisionTests(unittest.TestCase):
+    """The broker restarts a relay that dies, goes silent or loses its lane socket, and logs and shows each (dc-us1ji)."""
+
+    def run_peers(self, modes, seconds, **timing):
+        import tempfile
+        script = Path(tempfile.mkdtemp()) / "fake_relay.py"
+        script.write_text(FAKE_RELAY % str(HERE), encoding="utf-8")
+        broker_like = FakeRelayBroker()
+        broker_like.conns = []
+        launches = []
+
+        async def spawn(host):
+            mode = modes[min(len(launches), len(modes) - 1)]
+            launches.append(mode)
+            return await asyncio.create_subprocess_exec(sys.executable, "-I", str(script), mode, "0.6",
+                                                        stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE)
+
+        manager = peers.PeerManager(broker_like, ["lane1"], spawn=spawn, max_backoff=0.4, first_backoff=0.1, **timing)
+
+        async def go():
+            task = asyncio.create_task(manager.run())
+            await asyncio.sleep(seconds)
+            snapshots = manager.snapshot()
+            summary = manager.summary()
+            broker_like.stopping = True
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            return snapshots, summary
+
+        snapshots, summary = asyncio.run(go())
+        return broker_like, launches, snapshots, summary
+
+    TIMING = dict(ping_seconds=0.1, silent_seconds=0.5, socket_gone_seconds=0.5)
+
+    def test_a_healthy_relay_stays_up_and_is_reported_up(self):
+        events, launches, snapshots, summary = self.run_peers(["ok"], 1.5, **self.TIMING)
+        self.assertEqual(launches, ["ok"])
+        self.assertEqual(snapshots[0]["state"], "up")
+        self.assertEqual(snapshots[0]["restarts"], 0)
+        self.assertEqual(summary, "")
+
+    def test_a_relay_that_stops_answering_is_restarted_and_the_drop_is_logged_with_time_and_host(self):
+        events, launches, snapshots, summary = self.run_peers(["silent", "ok"], 3.0, **self.TIMING)
+        self.assertEqual(launches[:2], ["silent", "ok"])
+        down = [d for e, d in events.events if e == "peer-down"]
+        self.assertTrue(down)
+        self.assertEqual(down[0]["host"], "lane1")
+        self.assertIn("silent", down[0]["reason"])
+        self.assertTrue(down[0]["lost_utc"])
+        self.assertEqual(snapshots[0]["state"], "up")
+        self.assertGreaterEqual(snapshots[0]["restarts"], 1)
+
+    def test_a_relay_whose_socket_is_gone_is_restarted(self):
+        events, launches, snapshots, summary = self.run_peers(["nosock", "ok"], 3.0, **self.TIMING)
+        self.assertEqual(launches[:2], ["nosock", "ok"])
+        reasons = [d["reason"] for e, d in events.events if e == "peer-down"]
+        self.assertIn("socket gone", reasons[0])
+
+    def test_a_relay_whose_session_ends_is_restarted_with_backoff_and_shown_down_meanwhile(self):
+        events, launches, snapshots, summary = self.run_peers(["exit"], 3.0, **self.TIMING)
+        self.assertGreaterEqual(len(launches), 3)
+        downs = [d for e, d in events.events if e == "peer-down"]
+        self.assertEqual(downs[0]["reason"], "ssh session ended")
+        self.assertGreater(downs[1]["retry_in_s"], downs[0]["retry_in_s"])
+
+    def test_a_relay_that_cannot_start_is_shown_down_with_the_reason(self):
+        broker_like = FakeRelayBroker()
+        broker_like.conns = []
+
+        async def spawn(host):
+            raise OSError("ssh not found")
+
+        manager = peers.PeerManager(broker_like, ["h"], spawn=spawn, max_backoff=0.1)
+
+        async def go():
+            task = asyncio.create_task(manager.run())
+            await asyncio.sleep(0.4)
+            broker_like.stopping = True
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        asyncio.run(go())
+        snap = manager.snapshot()[0]
+        self.assertEqual(snap["state"], "down")
+        self.assertIn("ssh not found", snap["reason"])
+        self.assertIn("relays down: h since", manager.summary())
+
+    def test_status_prints_one_line_per_relay_with_state_and_reason(self):
+        import broker
+        line = broker.format_relay({"host": "lane1", "state": "down", "since_utc": "2026-11-16T10:40:00+00:00", "sessions": 3,
+                                    "restarts": 2, "last_rx_utc": None, "reason": "relay silent for 21s", "retry_in_s": 4.0})
+        self.assertIn("relay lane1: DOWN since 2026-11-16T10:40:00", line)
+        self.assertIn("relay silent for 21s", line)
+        self.assertIn("retry_in=4.0s", line)

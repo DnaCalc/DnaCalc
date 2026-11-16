@@ -83,12 +83,20 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
         // W111: IF materializes selected array blanks and lifted blanks as zero.
         traits: super::EntryTraits::NONE.if_blanks(),
     }
-    .with_three_d(super::ThreeD::new(None, None, Some(&[0, 1]))),
-    logicals(AND, "AND", 255).with_three_d(super::ThreeD::new(Some(&[]), None, None)),
-    logicals(OR, "OR", 255).with_three_d(super::ThreeD::new(Some(&[]), None, None)),
+    // dc-b1l (Touchstone 2026-11-16, three-d): a 3-D reference in the branch not given is a
+    // #VALUE! read only when taken (`=IF(TRUE,1,Ja:Ma!A1)` 1, `=IF(FALSE,1,Ja:Ma!A1)` #VALUE!).
+    .with_three_d(super::ThreeD::new(None, None, Some(&[0, 1])).value_arguments(&[2])),
+    logicals(AND, "AND", 255)
+        .with_three_d(super::ThreeD::new(Some(&[]), None, None))
+        .with_traits(super::EntryTraits::NONE.na_error_references()),
+    logicals(OR, "OR", 255)
+        .with_three_d(super::ThreeD::new(Some(&[]), None, None))
+        .with_traits(super::EntryTraits::NONE.na_error_references()),
     // XOR takes one argument fewer than AND and OR: Microsoft's XOR page gives 1 to 254
     // conditions.
-    logicals(XOR, "XOR", 254).with_three_d(super::ThreeD::new(Some(&[]), None, None)),
+    logicals(XOR, "XOR", 254)
+        .with_three_d(super::ThreeD::new(Some(&[]), None, None))
+        .with_traits(super::EntryTraits::NONE.na_error_references()),
     WorksheetDeclaration {
         localized_names: None,
         context_facilities: None,

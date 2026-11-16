@@ -117,8 +117,13 @@ pub enum ThreeDPlace {
     Unknown,
     Take,
     Spread,
+    /// The call is #VALUE!.
     ValueError,
+    /// The argument is #REF!.
     ReferenceError,
+    /// The argument is #VALUE!, read only where the call reads it (a branch, a fallback, a
+    /// selected value).
+    ArgumentValueError,
 }
 
 /// dc-10y: Excel 16.0.20430, 2026-10-25, `Range.Formula`, three sheets with 1, 2 and 3 in A1.
@@ -130,6 +135,25 @@ pub struct ThreeD {
     take: Option<&'static [usize]>,
     value: Option<&'static [usize]>,
     reference: Option<&'static [usize]>,
+    value_argument: Option<&'static [usize]>,
+}
+
+/// `N` argument positions: `lead`, then every other position from `start` (dc-b1l: the criteria
+/// and criteria ranges of COUNTIFS and SUMIFS, the conditions and values of IFS).
+pub const fn alternate<const N: usize>(lead: &[usize], start: usize) -> [usize; N] {
+    let mut out = [0; N];
+    let mut i = 0;
+    while i < lead.len() {
+        out[i] = lead[i];
+        i += 1;
+    }
+    let mut next = start;
+    while i < N {
+        out[i] = next;
+        next += 2;
+        i += 1;
+    }
+    out
 }
 
 impl Default for ThreeD {
@@ -143,6 +167,7 @@ impl ThreeD {
         take: None,
         value: None,
         reference: None,
+        value_argument: None,
     };
     pub const fn new(
         take: Option<&'static [usize]>,
@@ -153,7 +178,14 @@ impl ThreeD {
             take,
             value,
             reference,
+            value_argument: None,
         }
+    }
+    /// The positions where a 3-D reference is a #VALUE! argument
+    /// ([`ThreeDPlace::ArgumentValueError`]).
+    pub const fn value_arguments(mut self, positions: &'static [usize]) -> Self {
+        self.value_argument = Some(positions);
+        self
     }
     fn has(positions: Option<&[usize]>, index: usize) -> bool {
         match positions {
@@ -175,6 +207,8 @@ impl ThreeD {
             ThreeDPlace::ValueError
         } else if Self::has(self.reference, index) {
             ThreeDPlace::ReferenceError
+        } else if Self::has(self.value_argument, index) {
+            ThreeDPlace::ArgumentValueError
         } else if Self::has(self.take, index) {
             if Self::is_tail(self.take, index) {
                 ThreeDPlace::Spread
@@ -234,6 +268,33 @@ pub enum HostRouteKind {
     Rtd,
 }
 
+/// How a dynamic-array call reads each reference an array of references holds (OFFSET or
+/// INDIRECT lifted over an array) at a parameter that takes references, when it neither runs once
+/// per reference ([`EntryTraits::lift_dynamic_references`]) nor reads the array whole
+/// ([`EntryTraits::take_reference_array`]). dc-b1l, Excel 16.0.20527 through Touchstone sheet
+/// cases (2026-11-16, cell-context family reference-arrays, five arrays of references over 1..6
+/// in A1:A6 and 10..60 in C1:C6).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum HeldReferences {
+    /// Not measured: the call is refused.
+    #[default]
+    Refuse,
+    /// Each reference is the value of its first cell (`=MIN(OFFSET(A1,{0;1;2},0,2))` is 1,
+    /// `=STDEV(...)` 1, `=NPV(0.1,...)` 4.8159..., `=FREQUENCY(...,{2})` 2|1).
+    FirstCell,
+    /// Each reference is no number (`=SUMPRODUCT(OFFSET(A1,{0;1;2},0,2))` is 0).
+    NoNumber,
+    /// Each reference is #VALUE! (`=MEDIAN(...)` and `=LARGE(...,1)` are #VALUE!, `=SORT(...)`
+    /// spills #VALUE! in each cell, `=MATCH(2,...,0)` is #N/A, `=COLUMNS(...)` 1, `=TYPE(...)` 64).
+    ValueError,
+    /// Each reference is #NUM! (`=CORREL(OFFSET(A1,{0;1;2},0,2),{1;2;3})` is #NUM!, and #N/A
+    /// beside an array of another size; text arrays there are #DIV/0!).
+    NumError,
+    /// Each reference is #N/A (`=AND(OFFSET(A1,{0;1;2},0,2),TRUE)` is #N/A; a text array there
+    /// is #VALUE!).
+    NaError,
+}
+
 /// Measured behavior of a catalogue entry that is independent of its parameter classes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct EntryTraits {
@@ -251,6 +312,8 @@ pub struct EntryTraits {
     pub lift_dynamic_references: bool,
     /// Read an array of references as a whole.
     pub take_reference_array: bool,
+    /// How a held reference of an array of references is read otherwise.
+    pub held_references: HeldReferences,
     /// Lift a computed array even when this entry takes a reference whole.
     pub lift_computed_array: bool,
     pub paired_result: PairedResult,
@@ -275,6 +338,7 @@ impl EntryTraits {
         is_subtotal: false,
         lift_dynamic_references: false,
         take_reference_array: false,
+        held_references: HeldReferences::Refuse,
         lift_computed_array: false,
         paired_result: PairedResult::None,
         whole_result_policy: WholeResultPolicy::None,
@@ -312,6 +376,26 @@ impl EntryTraits {
     }
     pub const fn take_reference_array(mut self) -> Self {
         self.take_reference_array = true;
+        self
+    }
+    pub const fn first_cell_references(mut self) -> Self {
+        self.held_references = HeldReferences::FirstCell;
+        self
+    }
+    pub const fn no_number_references(mut self) -> Self {
+        self.held_references = HeldReferences::NoNumber;
+        self
+    }
+    pub const fn value_error_references(mut self) -> Self {
+        self.held_references = HeldReferences::ValueError;
+        self
+    }
+    pub const fn num_error_references(mut self) -> Self {
+        self.held_references = HeldReferences::NumError;
+        self
+    }
+    pub const fn na_error_references(mut self) -> Self {
+        self.held_references = HeldReferences::NaError;
         self
     }
     pub const fn lift_computed_array(mut self) -> Self {
