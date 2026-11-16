@@ -805,6 +805,49 @@ fn custom_view_print_settings_do_not_replace_default_sheet_settings() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn window_view_preserves_outline_grid_color_and_preview() {
+    let mut view = window2(0x0816, 0, 0);
+    view[10..12].copy_from_slice(&42u16.to_le_bytes());
+    view[14..16].copy_from_slice(&80u16.to_le_bytes());
+    view[16..18].copy_from_slice(&120u16.to_le_bytes());
+    for with_scl in [false, true] {
+        let mut records = view.clone();
+        if with_scl { records.extend(record(0x00A0, &u16s(&[1, 2]))); }
+        let bytes = xls(false, &[], &[Sheet::worksheet("S", records)]);
+        let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let xml = String::from_utf8(doc.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+        for expected in ["showOutlineSymbols=\"0\"", "defaultGridColor=\"0\"", "colorId=\"42\"", "view=\"pageBreakPreview\"", "zoomScaleNormal=\"120\""] {
+            assert!(xml.contains(expected), "{xml}");
+        }
+        assert_eq!(xml.contains("zoomScaleSheetLayoutView=\"80\""), !with_scl, "{xml}");
+        if with_scl { assert!(xml.contains("zoomScale=\"50\""), "{xml}"); }
+        let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+        assert!(!report.unknown_records.contains_key(&0x023E));
+        load(&bytes);
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn custom_palette_keeps_window_grid_color_index() {
+    let mut palette = 56u16.to_le_bytes().to_vec();
+    for index in 0..56 { palette.extend(if index == 34 { [0x12, 0x34, 0x56, 0] } else { [0, 0, 0, 0] }); }
+    let mut view = window2(0x0096, 0, 0); // nondefault grid color, outline shown
+    view[10..12].copy_from_slice(&42u16.to_le_bytes());
+    let bytes = xls(false, &record(0x0092, &palette), &[Sheet::worksheet("S", view)]);
+    let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let styles = String::from_utf8(doc.package().read_part("xl/styles.xml").unwrap()).unwrap();
+    let indexed = styles.split("<indexedColors>").nth(1).unwrap().split("</indexedColors>").next().unwrap();
+    let colors: Vec<_> = indexed.split("<rgbColor ").skip(1).collect();
+    assert_eq!(colors.len(), 64);
+    assert!(colors[42].starts_with("rgb=\"FF123456\""), "{}", colors[42]);
+    let sheet = String::from_utf8(doc.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+    assert!(sheet.contains("colorId=\"42\""), "{sheet}");
+    load(&bytes);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn legacy_sheet_ids_follow_source_tabs_even_with_module() {
     let sheets = [Sheet::worksheet("First", Vec::new()),
         Sheet { kind: 6, ..Sheet::worksheet("Module", Vec::new()) },

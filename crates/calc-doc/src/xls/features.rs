@@ -76,7 +76,8 @@ struct Hyperlink {
 
 #[derive(Default)]
 pub(crate) struct Features {
-    window: Option<(u16, u16, u16)>,
+    window: Option<(u16, u16, u16, Option<u16>, Option<u16>, Option<u16>)>,
+    grid_color_representable: bool,
     zoom: Option<(u16, u16)>,
     pane: Option<Pane>,
     selections: Vec<Selection>,
@@ -156,7 +157,18 @@ impl Features {
                 let flags = c.u16("Window2").map_err(e)?;
                 let top = c.u16("Window2").map_err(e)?;
                 let left = c.u16("Window2").map_err(e)?;
-                self.window = Some((flags, top, left));
+                let word_at = |offset: usize| record.body.get(offset..offset + 2)
+                    .map(|b| u16::from_le_bytes([b[0], b[1]]));
+                let color = word_at(6);
+                let zoom_page = word_at(10);
+                let zoom_normal = word_at(12);
+                self.window = Some((flags, top, left, color, zoom_page, zoom_normal));
+                self.grid_color_representable = styles.indexed_colors_representable();
+                // A nondefault grid color without a representable index is not fully read.
+                if flags & 0x0020 == 0 && (color.is_none_or(|value| value >= 64) || !self.grid_color_representable) { return Ok(false); }
+                if [zoom_page, zoom_normal].into_iter().flatten().any(|value| value != 0 && !(10..=400).contains(&value)) {
+                    return Ok(false);
+                }
             }
             SCL => {
                 self.zoom = Some((c.u16("Scl").map_err(e)?, c.u16("Scl").map_err(e)?));
@@ -523,7 +535,7 @@ impl Features {
 
     /// `<sheetViews>`.
     pub(crate) fn write_views(&self, x: &mut Xml) {
-        let Some((flags, top, left)) = self.window else { return };
+        let Some((flags, top, left, color, zoom_page, zoom_normal)) = self.window else { return };
         let mut a: Vec<(&str, String)> = Vec::new();
         if flags & 0x0001 != 0 {
             a.push(("showFormulas", "1".to_owned()));
@@ -540,6 +552,18 @@ impl Features {
         if flags & 0x0040 != 0 {
             a.push(("rightToLeft", "1".to_owned()));
         }
+        if flags & 0x0080 == 0 {
+            a.push(("showOutlineSymbols", "0".to_owned()));
+        }
+        if flags & 0x0020 == 0 && self.grid_color_representable {
+            if let Some(color) = color.filter(|value| *value < 64) {
+                a.push(("defaultGridColor", "0".to_owned()));
+                if color != 64 { a.push(("colorId", color.to_string())); }
+            }
+        }
+        if flags & 0x0800 != 0 {
+            a.push(("view", "pageBreakPreview".to_owned()));
+        }
         if flags & 0x0200 != 0 {
             a.push(("tabSelected", "1".to_owned()));
         }
@@ -548,6 +572,14 @@ impl Features {
             && numerator != denominator
         {
             a.push(("zoomScale", (u32::from(numerator) * 100 / u32::from(denominator)).to_string()));
+        }
+        if let Some(scale) = zoom_page.filter(|value| (10..=400).contains(value))
+            && (flags & 0x0800 == 0 || self.zoom.is_none()) {
+            a.push(("zoomScaleSheetLayoutView", scale.to_string()));
+        }
+        if let Some(scale) = zoom_normal.filter(|value| (10..=400).contains(value))
+            && (flags & 0x0800 != 0 || self.zoom.is_none()) {
+            a.push(("zoomScaleNormal", scale.to_string()));
         }
         if (top, left) != (0, 0) {
             a.push(("topLeftCell", cell(top, left)));
