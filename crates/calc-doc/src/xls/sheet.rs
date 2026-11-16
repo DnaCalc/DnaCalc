@@ -320,6 +320,12 @@ pub(crate) fn read(
                 if flags & 0x02 != 0 {
                     default_row_attributes.push(("zeroHeight", "1".to_owned()));
                 }
+                if flags & 0x04 != 0 {
+                    default_row_attributes.push(("thickTop", "1".to_owned()));
+                }
+                if flags & 0x08 != 0 {
+                    default_row_attributes.push(("thickBottom", "1".to_owned()));
+                }
             }
             ROW => {
                 let mut c = Cursor::new(record.body);
@@ -345,6 +351,15 @@ pub(crate) fn read(
                 }
                 if flags & 0x10 != 0 {
                     attributes.push(("collapsed", "1".to_owned()));
+                }
+                if flags & (1 << 28) != 0 {
+                    attributes.push(("thickTop", "1".to_owned()));
+                }
+                if flags & (1 << 29) != 0 {
+                    attributes.push(("thickBot", "1".to_owned()));
+                }
+                if flags & (1 << 30) != 0 {
+                    attributes.push(("ph", "1".to_owned()));
                 }
                 if flags & 0x80 != 0 {
                     let style = context.styles.cell_format(((flags >> 16) & 0x0FFF) as u16);
