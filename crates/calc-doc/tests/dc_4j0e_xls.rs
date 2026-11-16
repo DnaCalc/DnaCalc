@@ -24,7 +24,12 @@ fn write_legacy_excel_session_inputs() {
     let Some(dir) = std::env::var_os("DNACALC_XLS_SESSION_INPUTS") else { return };
     let dir = std::path::PathBuf::from(dir);
     std::fs::create_dir_all(&dir).unwrap();
-    let mut cells = colinfo(1, 2, 3072, 0x000A);
+    let mut cells = record(0x0099, &u16s(&[2340]));
+    cells.extend(colinfo(1, 2, 3072, 0x000A));
+    let mut row_with_flags = row(0, 255, 0);
+    let last = row_with_flags.len() - 1;
+    row_with_flags[last] |= 0x70;
+    cells.extend(row_with_flags);
     cells.extend(number(0, 0, 42.5));
     cells.extend(formula(1, 0, num_value(43.5), &ptg::join(&[ptg::cell(0, 0, 0), ptg::int(1), ptg::op(ptg::ADD)]), &[]));
     cells.extend(merged(&[(2, 2, 0, 1)]));
@@ -33,7 +38,9 @@ fn write_legacy_excel_session_inputs() {
     let globals = [supbook_self(1), extern_sheet(&[(0, 0, 0)]),
         name_record(0, 0, "Rate", &ptg::cell3d(0, 0, 0, 0))].concat();
     let biff8 = xls(false, &globals, &[Sheet::worksheet("Data", cells)]);
-    let mut old_cells = v5::label(0, 0, b"legacy");
+    let mut gcw = u16s(&[32]); gcw.push(0b0000_0101); gcw.extend([0u8; 31]);
+    let mut old_cells = [record(0x0055, &u16s(&[8])), colinfo(0, 1, 3072, 0x0002),
+        record(0x0099, &u16s(&[2340])), record(0x00AB, &gcw), v5::label(0, 0, b"legacy")].concat();
     old_cells.extend(record(0x001B, &u16s(&[1, 25])));
     old_cells.extend(record(0x001A, &u16s(&[1, 5])));
     let biff5 = v5::xls(1252, &[], &[v5::Sheet { name: b"Data".to_vec(), records: old_cells }]);
@@ -575,6 +582,71 @@ fn rows_and_columns_keep_height_hidden_and_outline() {
     assert!(geometry.columns[1].hidden);
     assert_eq!(geometry.rows.get(&2).map(|r| r.height), Some(Some(30.0)));
     assert!(geometry.rows.get(&3).is_some_and(|r| r.hidden));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn row_border_and_phonetic_flags_survive_conversion_and_save() {
+    let mut records = record(0x0225, &u16s(&[0x000C, 255]));
+    let mut formatted = row(0, 255, 0);
+    let last = formatted.len() - 1;
+    formatted[last] |= 0x70;
+    records.extend(formatted);
+    records.extend(number(0, 0, 1.0));
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", records)]);
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let check = |doc: &calc_doc::OpenedDocument| {
+        let xml = String::from_utf8(doc.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+        let defaults = xml.split("<sheetFormatPr ").nth(1).unwrap().split('>').next().unwrap();
+        assert!(defaults.contains("thickTop=\"1\"") && defaults.contains("thickBottom=\"1\""));
+        let row = xml.split("<row ").nth(1).unwrap().split('>').next().unwrap();
+        assert!(row.contains("thickTop=\"1\"") && row.contains("thickBot=\"1\"") && row.contains("ph=\"1\""));
+    };
+    check(&document);
+    let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+    let mut saved = Vec::new();
+    calc_doc::write(plan, &mut saved).unwrap();
+    check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn fractional_standard_width_takes_precedence_and_survives_save() {
+    let records = [record(0x0099, &u16s(&[2340])), record(0x0055, &u16s(&[10])), number(0, 0, 1.0)].concat();
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", records)]);
+    let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let mut ids = IdAllocator::<SheetId>::new();
+    let loaded = calc_doc::load(&doc, &mut ids).unwrap();
+    assert_eq!(loaded.sheets()[0].geometry().default_column_width, Some(2340.0 / 256.0));
+    let plan = calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+    let mut saved = Vec::new();
+    calc_doc::write(plan, &mut saved).unwrap();
+    let reopened = calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap();
+    let loaded = calc_doc::load(&reopened, &mut IdAllocator::<SheetId>::new()).unwrap();
+    assert_eq!(loaded.sheets()[0].geometry().default_column_width, Some(2340.0 / 256.0));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn biff5_global_width_bitmap_overrides_only_selected_columns() {
+    let mut gcw = u16s(&[32]);
+    gcw.extend([0b0000_0101]); // A and C use STANDARDWIDTH, B keeps COLINFO.
+    gcw.extend([0u8; 31]);
+    let records = [record(0x0055, &u16s(&[8])), colinfo(0, 1, 3072, 0x0002),
+        record(0x0099, &u16s(&[2340])), record(0x00AB, &gcw), v5::label(0, 0, b"x")].concat();
+    let bytes = v5::xls(1252, &[], &[v5::Sheet { name: b"S".to_vec(), records }]);
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let loaded = calc_doc::load(&document, &mut IdAllocator::<SheetId>::new()).unwrap();
+    let columns = &loaded.sheets()[0].geometry().columns;
+    assert_eq!(columns.iter().map(|c| (c.first, c.last, c.width)).collect::<Vec<_>>(),
+        vec![(1, 1, Some(2340.0 / 256.0)), (2, 2, Some(12.0)), (3, 3, Some(2340.0 / 256.0))]);
+    assert!(!legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap().unknown_records.contains_key(&0x00AB));
+    let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+    let mut saved = Vec::new(); calc_doc::write(plan, &mut saved).unwrap();
+    let doc = calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap();
+    let loaded = calc_doc::load(&doc, &mut IdAllocator::<SheetId>::new()).unwrap();
+    assert_eq!(loaded.sheets()[0].geometry().columns.iter().map(|c| c.width).collect::<Vec<_>>(),
+        vec![Some(2340.0 / 256.0), Some(12.0), Some(2340.0 / 256.0)]);
 }
 
 fn defined_names(bytes: &[u8]) -> Vec<String> {

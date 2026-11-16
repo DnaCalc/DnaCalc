@@ -13,6 +13,7 @@ use std::collections::BTreeMap;
 const DIMENSIONS: u16 = 0x0200;
 const ROW: u16 = 0x0208;
 const COLINFO: u16 = 0x007D;
+const GCW: u16 = 0x00AB;
 const DEFAULT_ROW_HEIGHT: u16 = 0x0225;
 const BLANK: u16 = 0x0201;
 const NUMBER: u16 = 0x0203;
@@ -170,6 +171,7 @@ pub(crate) fn read(
     let mut default_height: u16 = 255;
     let mut default_column_width: Option<u16> = None;
     let mut column_widths: Vec<(u16, u16, u16)> = Vec::new();
+    let mut global_column_widths: Vec<[u8; 32]> = Vec::new();
     let mut row_heights: BTreeMap<u16, f64> = BTreeMap::new();
     let mut default_row_attributes: Vec<(&'static str, String)> = Vec::new();
     let mut depth = 0usize;
@@ -320,6 +322,12 @@ pub(crate) fn read(
                 if flags & 0x02 != 0 {
                     default_row_attributes.push(("zeroHeight", "1".to_owned()));
                 }
+                if flags & 0x04 != 0 {
+                    default_row_attributes.push(("thickTop", "1".to_owned()));
+                }
+                if flags & 0x08 != 0 {
+                    default_row_attributes.push(("thickBottom", "1".to_owned()));
+                }
             }
             ROW => {
                 let mut c = Cursor::new(record.body);
@@ -345,6 +353,15 @@ pub(crate) fn read(
                 }
                 if flags & 0x10 != 0 {
                     attributes.push(("collapsed", "1".to_owned()));
+                }
+                if flags & (1 << 28) != 0 {
+                    attributes.push(("thickTop", "1".to_owned()));
+                }
+                if flags & (1 << 29) != 0 {
+                    attributes.push(("thickBot", "1".to_owned()));
+                }
+                if flags & (1 << 30) != 0 {
+                    attributes.push(("ph", "1".to_owned()));
                 }
                 if flags & 0x80 != 0 {
                     let style = context.styles.cell_format(((flags >> 16) & 0x0FFF) as u16);
@@ -393,6 +410,11 @@ pub(crate) fn read(
                 }
                 column_widths.push((first, last.min(255), width));
                 columns.push(attributes);
+            }
+            GCW if context.v5.is_some() && record.body.len() == 34 && record.body[..2] == [32, 0] => {
+                let mut bits = [0u8; 32];
+                bits.copy_from_slice(&record.body[2..]);
+                global_column_widths.push(bits);
             }
             NUMBER => {
                 let mut c = Cursor::new(record.body);
@@ -605,6 +627,43 @@ pub(crate) fn read(
             if *count == 0 { unknown.remove(&0x004D); }
         }
     }
+    // In BIFF5 GCW chooses the standard width even where COLINFO provides an explicit width.
+    // Emit non-overlapping columns so the selection does not erase their other formatting.
+    if let [bits] = global_column_widths.as_slice() {
+        let standard = features.standard_column_width;
+        let fallback = features.default_column_width.unwrap_or(8).min(255) * 256;
+        let mut expanded = BTreeMap::new();
+        for attrs in &columns {
+            let first = attrs.iter().find(|(key, _)| *key == "min").and_then(|(_, v)| v.parse::<u16>().ok()).unwrap_or(1);
+            let last = attrs.iter().find(|(key, _)| *key == "max").and_then(|(_, v)| v.parse::<u16>().ok()).unwrap_or(0).min(256);
+            for column in first..=last {
+                let mut a = attrs.clone();
+                for (key, value) in &mut a {
+                    if *key == "min" || *key == "max" { *value = column.to_string(); }
+                }
+                expanded.insert(column - 1, a);
+            }
+        }
+        for column in 0..256u16 {
+            if bits[usize::from(column / 8)] & (1 << (column % 8)) == 0 { continue; }
+            if standard.is_none() && !expanded.contains_key(&column) { continue; }
+            let width = standard.unwrap_or(fallback);
+            let a = expanded.entry(column).or_insert_with(|| vec![
+                ("min", (column + 1).to_string()), ("max", (column + 1).to_string()),
+            ]);
+            a.retain(|(key, _)| !matches!(*key, "width" | "customWidth"));
+            a.push(("width", formula::number_text(f64::from(width) / 256.0)));
+            a.push(("customWidth", "1".to_owned()));
+        }
+        columns = expanded.into_values().collect();
+        column_widths = columns.iter().filter_map(|a| {
+            let column = a.iter().find(|(k, _)| *k == "min")?.1.parse::<u16>().ok()?.checked_sub(1)?;
+            let width = a.iter().find(|(k, _)| *k == "width")?.1.parse::<f64>().ok()?;
+            Some((column, column, (width * 256.0) as u16))
+        }).collect();
+    } else if !global_column_widths.is_empty() {
+        *unknown.entry(GCW).or_insert(0) += global_column_widths.len() as u32;
+    }
     let mut x = Xml::new();
     let root = if macro_sheet { "xm:macrosheet" } else { "worksheet" };
     let mut namespaces = vec![
@@ -625,7 +684,9 @@ pub(crate) fn read(
     }
     let mut format = vec![("defaultRowHeight", formula::number_text(f64::from(default_height) / 20.0))];
     format.extend(default_row_attributes);
-    if let Some(width) = default_column_width {
+    if let Some(width) = features.standard_column_width.filter(|_| context.v5.is_none()) {
+        format.push(("defaultColWidth", formula::number_text(f64::from(width) / 256.0)));
+    } else if let Some(width) = default_column_width {
         format.push(("defaultColWidth", width.to_string()));
     }
     if let Some((row, column)) = features.outline_levels {

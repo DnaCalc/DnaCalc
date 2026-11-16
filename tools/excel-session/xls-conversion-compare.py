@@ -236,6 +236,10 @@ def package(data):
                     comments.extend((e.get('ref'), ''.join(x.text or '' for x in e.iter(M + 't')))
                                     for e in comment_root.iter(M + 'comment'))
             sheets.append({'name': s.get('name'), 'state': s.get('state', 'visible'), 'cells': cells,
+                           'default_column_width': (sh.find(M + 'sheetFormatPr').get('defaultColWidth')
+                                                    if sh.find(M + 'sheetFormatPr') is not None else None),
+                           'columns': [(e.get('min'), e.get('max'), e.get('width'))
+                                       for e in sh.findall(f'{M}cols/{M}col')],
                            'views': [{k: e.get(k) for k in ('showOutlineSymbols', 'defaultGridColor', 'colorId', 'view',
                                                              'zoomScale', 'zoomScaleNormal', 'zoomScaleSheetLayoutView')
                                       if e.get(k) is not None} for e in sh.findall(f'{M}sheetViews/{M}sheetView')],
@@ -248,6 +252,11 @@ def package(data):
                            'printer_settings': printer_settings(z, sh, path, shrels),
                            'phonetic_columns': [(e.get('min'), e.get('max')) for e in sh.findall(f'{M}cols/{M}col')
                                                 if e.get('phonetic', '0') in ('1', 'true')],
+                           'row_display_flags': [(e.get('r'), e.get('thickTop', '0') in ('1', 'true'),
+                                                  e.get('thickBot', '0') in ('1', 'true'),
+                                                  e.get('ph', '0') in ('1', 'true'))
+                                                 for e in sh.findall(f'{M}sheetData/{M}row')
+                                                 if any(e.get(k, '0') in ('1', 'true') for k in ('thickTop', 'thickBot', 'ph'))],
                            'phonetic_properties': [tree(e) for e in sh.findall(M + 'phoneticPr')],
                            'pivots': pivot_tables(z, sh, path, shrels)})
         props = wb.find(M + 'workbookPr')
