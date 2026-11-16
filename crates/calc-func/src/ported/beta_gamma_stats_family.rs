@@ -384,34 +384,14 @@ const HALF_LN_2PI: crate::ported::double_double::Dd =
 
 /// `ln D(a, x)`, `D = x^a e^-x / Gamma(a + 1)`, in double-double.
 /// For `a >= 10` and `u = (x - a) / a` in (-0.75, 3) it is `a (ln(1 + u) - u) - ln(2 pi a) / 2 - S(a)`
-/// with `ln(1 + u) = 2 atanh(u / (2 + u))`; below 10 the shape is first raised to `a + m >= 10`
-/// through `ln Gamma(a + 1) = ln Gamma(a + m + 1) - ln((a + 1) ... (a + m))`.
+/// with `ln(1 + u) = 2 atanh(u / (2 + u))`.
 fn gamma_log_prefactor_dd(
     a: f64,
     x: crate::ported::double_double::Dd,
 ) -> Option<crate::ported::double_double::Dd> {
     use crate::ported::double_double::{Dd, ln};
     if a < 10.0 {
-        let m = (10.0 - a).ceil();
-        let big = Dd::from(a).add(Dd::from(m));
-        if big.1 != 0.0 {
-            return None;
-        }
-        let mut product = Dd::from(1.0);
-        let mut j = 1.0;
-        while j <= m {
-            product = product.mul(Dd::from(a).add(Dd::from(j)));
-            j += 1.0;
-        }
-        let big = big.0;
-        let ln_big = ln(Dd::from(big));
-        let ln_gamma_big = ln_big
-            .mul_f64(big + 0.5)
-            .sub(Dd::from(big))
-            .add(HALF_LN_2PI)
-            .add(stirling_series_dd(big));
-        let ln_gamma = ln_gamma_big.sub(ln(product));
-        return Some(ln(x).mul_f64(a).sub(x).sub(ln_gamma));
+        return None;
     }
     let u = x.sub(Dd::from(a)).div_f64(a);
     if !(u.0 > -0.75 && u.0 < 3.0) {
@@ -434,7 +414,9 @@ fn gamma_log_prefactor_dd(
     Some(log_ratio.mul_f64(a).sub(half_ln_a).sub(HALF_LN_2PI).sub(stirling_series_dd(a)))
 }
 
-/// The smallest shape whose inverse is polished (measured on the full bank, fn6).
+/// The smallest shape whose inverse is polished. Measured on the full bank (fn6): polishing
+/// integer and half-integer shapes from a = 1 changes CHIINV +14, CHISQ.INV -6, CHISQ.INV.RT -2
+/// rows against a = 10; below 10 Excel's root is mostly not the correctly rounded one.
 const GAMMA_POLISH_MIN_SHAPE: f64 = 10.0;
 
 /// The root of `P(a, x) = target` (lower regularized gamma, unit scale) rounded once to binary64,

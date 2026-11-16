@@ -596,3 +596,17 @@ So the prefactor is the Poisson mass's exponent, as landed. What multiplies exp(
 implied factor scatters +-5 ulps (sd 2) about the exact sqrt(a/2pi)/x (1 + sum); 24 arrangements at a = 2
 (sum = 1/x exactly; 14,000 new controls, `pois_ctrl.tsv`) reach 43% at best, Morris's 15-digit rt2pin 0%,
 the exact finite sum 2/313, forward or extended summation <= 24%.
+
+## fn6 (2026-11-17)
+
+GAMMALN on [0.7, 2) is not LN of Excel's own GAMMA: on 3,000 fresh x (Touchstone, Excel 16.0.20527)
+GAMMALN(x) equals LN(GAMMA(x)) at 24 of 720 x in [0.7, 1), 33 of 1,109 in [1, 1.5) and 27 of 1,171 in [1.5, 2);
+GAMMALN.PRECISE equals GAMMALN at all 3,000. With E4 (GAMMA is not EXP(GAMMALN)) neither is composed from the
+other.
+
+Gamma inverses: for shapes 10 <= a <= 1e7 Excel publishes the correctly rounded root of P(a, x) = p; the
+landed polish (double-double P, Newton from the lattice root) gains 684 and loses 89 full-bank rows. From a = 1
+the same polish changes CHIINV +14, CHISQ.INV -6, CHISQ.INV.RT -2 rows against a = 10, so below 10 Excel's root is
+mostly not the correctly rounded one. (That trial raised the shape by an integer m to a + m >= 10 and skipped
+shapes where a + m is inexact, so it covered integer and half-integer shapes only; GAMMA.INV's bank shapes were
+largely not exercised.)
