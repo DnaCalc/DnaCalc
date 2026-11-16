@@ -34,6 +34,10 @@ SOURCES = {
     'CELL': ['readings/excel-20527/admit2-answers-cell-%s.json' % s for s in ('enrich', 'more', 'scalar', 'special')],
     # The spill banks' calls reached Excel's bulk layout (formula in column A, arguments to its right),
     # so a spill wider than one column met the argument cells: #SPILL! at an unrecorded row.
+    # Whether a referenced row is hidden, filtered or holds a nested subtotal is a fact of the sheet
+    # the bulk layout does not record; the one-call layout's sheet holds only the call.
+    'SUBTOTAL': ['readings/excel-20527/admit2-answers-subtotal-%s.json' % s for s in ('enrich', 'more', 'scalar', 'special')],
+    'AGGREGATE': ['readings/excel-20527/admit2-answers-aggregate-%s.json' % s for s in ('enrich', 'more', 'scalar', 'special')],
     'TRANSPOSE': ['readings/excel-20527/bank2-answers-transpose-spill.json'],
     'SEQUENCE': ['readings/excel-20527/bank2-answers-sequence-spill.json'],
     'TREND': ['readings/excel-20527/bank2-answers-trend-spill.json'],
