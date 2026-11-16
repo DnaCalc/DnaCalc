@@ -27,10 +27,14 @@ impl PreparedArguments for Given {
 // did not record their absolute addresses. Calls needing those addresses are declined, except
 // that an attested bulk layout fixes the sheet and column (not the row) for the functions
 // that read only those (the third field).
-struct InputCells(BTreeMap<(u32, u32), CalcValue>, bool, bool);
+struct InputCells(BTreeMap<(u32, u32), CalcValue>, bool, bool, bool);
 impl CellReader for InputCells {
     fn reference_positions_known(&self) -> bool {
         self.2
+    }
+
+    fn reference_columns_known(&self) -> bool {
+        self.3
     }
 
     fn read_area(
@@ -400,7 +404,7 @@ pub fn calculate_with_reference_text(
         .is_some_and(|c| c.input_sheet_state.as_deref() == Some("visible-constant-inputs"))
         || args.iter().any(|arg| arg.get("range").is_some());
     let row_free = bulk_layout && matches!(target.spelling(), "SHEET" | "ISFORMULA" | "FORMULATEXT" | "COLUMN");
-    let mut cells = InputCells(grid, visible_constants, row_free);
+    let mut cells = InputCells(grid, visible_constants, row_free, bulk_layout);
     // A capture can know its separators without knowing its complete locale.
     // Preserve only those facts; VALUE and date parsing still require a profile.
     let separators = context.and_then(|c| {

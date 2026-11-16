@@ -41,6 +41,12 @@ pub trait CellReader {
         true
     }
 
+    /// Whether reference columns are their original worksheet columns, even if rows are
+    /// relocated. This does not make the row or the full address known.
+    fn reference_columns_known(&self) -> bool {
+        self.reference_positions_known()
+    }
+
     /// Calls `visit` for the cells of `area` that hold a value, in row-major order (each row left
     /// to right, rows top to bottom), until `visit` returns [`ControlFlow::Break`]; it then
     /// returns `Ok`. A cell it does not visit is blank, and it may also visit a blank cell as

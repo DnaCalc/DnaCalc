@@ -2520,6 +2520,28 @@ fn tests_of_samples() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn subtotal_neutral_cells_do_not_need_exclusion_locations() {
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![t("123"), b(true), CalcValue::empty()]);
+    let neutral = sheet.area(1, 1, 3, 1);
+    for selector in [2.0, 4.0, 5.0, 6.0, 9.0] {
+        exact(call_on(&mut sheet, "SUBTOTAL", vec![n(selector), neutral.clone()]), 0.0);
+        exact(call_on(&mut sheet, "AGGREGATE", vec![n(selector), n(1.0), neutral.clone()]), 0.0);
+    }
+    error(call_on(&mut sheet, "SUBTOTAL", vec![n(1.0), neutral.clone()]), Div0);
+    error(call_on(&mut sheet, "AGGREGATE", vec![n(1.0), n(1.0), neutral.clone()]), Div0);
+    refused(call_on(&mut sheet, "SUBTOTAL", vec![n(3.0), neutral.clone()]));
+    refused(call_on(&mut sheet, "AGGREGATE", vec![n(3.0), n(1.0), neutral]));
+    sheet.column(1, 2, vec![e(NA)]);
+    sheet.column(1, 3, vec![n(1.0)]);
+    let error_cell = sheet.area(1, 2, 1, 2);
+    let number_cell = sheet.area(1, 3, 1, 3);
+    refused(call_on(&mut sheet, "SUBTOTAL", vec![n(9.0), error_cell]));
+    refused(call_on(&mut sheet, "SUBTOTAL", vec![n(9.0), number_cell]));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn subtotal_needs_the_readers_exclusions() {
     let mut sheet = Sheet::new();
     sheet.column(1, 1, vec![n(1.0), n(2.0), n(3.0), n(10.0)]);

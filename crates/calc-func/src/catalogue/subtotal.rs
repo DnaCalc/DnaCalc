@@ -4,7 +4,8 @@
 //! SUBTOTAL or AGGREGATE formula and every row a filter hides, and with function numbers 101 to
 //! 111 also the rows hidden by hand; AGGREGATE what its options say. Only the cell reader knows
 //! which cells those are ([`crate::CellReader::subtotal_exclusions`]); when it cannot say, a call
-//! that must leave such cells out is refused as not modelled, never computed over every cell.
+//! that must leave such cells out is refused as not modelled, unless all held cells are neutral
+//! to the selected statistic regardless of which are excluded.
 //! AGGREGATE's options 4 and 6, which leave nothing out, need no such knowledge.
 //!
 //! The values a reference holds are read as the aggregate family reads held values (numbers
@@ -37,6 +38,7 @@ fn held_values(
     from: usize,
     sv: &mut EvalServices<'_>,
     rule: Rule,
+    neutral_without_exclusions: bool,
 ) -> Step<Vec<CalcValue>> {
     let mut found = Vec::new();
     for (index, argument) in a.iter().enumerate().skip(from) {
@@ -47,6 +49,7 @@ fn held_values(
                 let mut excluded_rows = BTreeSet::new();
                 if needs_knowledge {
                     let reader = aggregate::reader(site, sv, index)?;
+                    let mut unknown = false;
                     for &area in reference.areas() {
                         let Some(SubtotalExclusions {
                             nested_subtotals,
@@ -54,7 +57,8 @@ fn held_values(
                             filtered_rows,
                         }) = reader.subtotal_exclusions(area)
                         else {
-                            return Err(site.not_modelled(Some(index)));
+                            unknown = true;
+                            break;
                         };
                         if rule.nested {
                             excluded_cells.extend(nested_subtotals.iter().map(|k| (k.row(), k.column())));
@@ -65,6 +69,26 @@ fn held_values(
                         if rule.filtered {
                             excluded_rows.extend(filtered_rows);
                         }
+                    }
+                    if unknown {
+                        // Text, logical and blank cells contribute nothing to these
+                        // selectors, whichever of them Excel excludes. COUNTA must
+                        // still know which cells are included.
+                        if neutral_without_exclusions {
+                            let mut neutral = true;
+                            let read = read_reference(site, reader, reference, index, &mut |_, _, value| {
+                                neutral &= value.callable_value().is_none()
+                                    && matches!(
+                                        value.core_ref(),
+                                        CoreRef::Empty | CoreRef::Missing | CoreRef::Logical(_) | CoreRef::Text(_)
+                                    );
+                                Ok(())
+                            });
+                            if read.is_ok() && neutral {
+                                continue;
+                            }
+                        }
+                        return Err(site.not_modelled(Some(index)));
                     }
                 }
                 let reader = aggregate::reader(site, sv, index)?;
@@ -219,7 +243,7 @@ ported_shared_family! {
             _ => return fail(WorksheetErrorCode::Value),
         };
         let rule = Rule { nested: true, hidden, filtered: true, errors: false };
-        let values = held_values(s, a, 1, sv, rule)?;
+        let values = held_values(s, a, 1, sv, rule, function != 3)?;
         compute(s, function, &values)
     }
     // AGGREGATE's third and fourth arguments take any operand, being the array form's array and
@@ -256,7 +280,7 @@ ported_shared_family! {
             {
                 return fail(WorksheetErrorCode::Value);
             }
-            let values = held_values(s, a, 2, sv, rule)?;
+            let values = held_values(s, a, 2, sv, rule, function != 3)?;
             return compute(s, function, &values);
         }
         // The array form: AGGREGATE(function_num, options, array, k).
@@ -265,7 +289,7 @@ ported_shared_family! {
         }
         let k = num(s, a, 3)?;
         let values = match a[2].core_ref() {
-            CoreRef::Reference(_) => held_values(s, &a[..3], 2, sv, rule)?,
+            CoreRef::Reference(_) => held_values(s, &a[..3], 2, sv, rule, false)?,
             CoreRef::Array(array) => array
                 .iter_row_major()
                 .filter(|v| !(rule.errors && matches!(v.core_ref(), CoreRef::Error(_))))
