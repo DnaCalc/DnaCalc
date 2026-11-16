@@ -50,7 +50,7 @@ pub(crate) struct Context<'a> {
 enum Formula {
     Plain(String),
     /// The anchor of an array formula over `range`.
-    Array { range: String, text: String },
+    Array { range: String, text: String, needs_calc: bool },
     /// The first cell of a data table: the attributes of its `<f>`.
     Table(Vec<(&'static str, String)>),
     /// A cell an array formula or a data table fills: its value only.
@@ -71,14 +71,22 @@ struct Group {
     columns: (u8, u8),
     rgce: Vec<u8>,
     rgcb: Vec<u8>,
+    needs_calc: bool,
 }
 
 fn group(body: &[u8], array: bool) -> Result<Group, String> {
     let mut c = Cursor::new(body);
     let rows = (c.u16("a formula group").map_err(e)?, c.u16("a formula group").map_err(e)?);
     let columns = (c.u8("a formula group").map_err(e)?, c.u8("a formula group").map_err(e)?);
-    // ARRAY: flags (2) and 4 unused bytes; SHRFMLA: 1 unused byte and the use count (1).
-    c.skip(if array { 6 } else { 2 }, "a formula group").map_err(e)?;
+    // ARRAY: calculation flags and 4 unused bytes; SHRFMLA: unused byte and use count.
+    let needs_calc = if array {
+        let flags = c.u16("a formula group").map_err(e)?;
+        c.skip(4, "a formula group").map_err(e)?;
+        flags & 1 != 0
+    } else {
+        c.skip(2, "a formula group").map_err(e)?;
+        false
+    };
     let count = usize::from(c.u16("a formula group").map_err(e)?);
     let rgce = c.bytes(count, "a formula group").map_err(e)?.to_vec();
     let rgcb = c.bytes(c.remaining(), "a formula group").map_err(e)?.to_vec();
@@ -87,6 +95,7 @@ fn group(body: &[u8], array: bool) -> Result<Group, String> {
         columns,
         rgce,
         rgcb,
+        needs_calc,
     })
 }
 
@@ -524,7 +533,7 @@ pub(crate) fn read(
                                         column_name(u32::from(array.columns.1)),
                                         u32::from(array.rows.1) + 1
                                     );
-                                    Formula::Array { range, text }
+                                    Formula::Array { range, text, needs_calc: array.needs_calc }
                                 } else {
                                     Formula::Member
                                 }
@@ -671,11 +680,11 @@ pub(crate) fn read(
                     x.open("c", &attributes);
                     match f {
                         Formula::Plain(text) => x.element("f", &[], text),
-                        Formula::Array { range, text } => x.element(
-                            "f",
-                            &[("t", "array".to_owned()), ("ref", range.clone())],
-                            text,
-                        ),
+                        Formula::Array { range, text, needs_calc } => {
+                            let mut a = vec![("t", "array".to_owned()), ("ref", range.clone())];
+                            if *needs_calc { a.push(("ca", "1".to_owned())); }
+                            x.element("f", &a, text);
+                        }
                         Formula::Table(attributes) => x.empty("f", attributes),
                         Formula::Member => {}
                     }

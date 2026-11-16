@@ -601,6 +601,22 @@ fn shared_array_and_table_formulas() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn array_recalculation_flag_survives_conversion() {
+    for needs_calc in [false, true] {
+        let mut records = formula(0, 0, num_value(1.0), &ptg::exp(0, 0), &[]);
+        let mut array = array_record((0, 0), (0, 0), &ptg::int(1), &[]);
+        array[10] = u8::from(needs_calc); // four-byte record header, six-byte array range
+        records.extend(array);
+        let bytes = xls(false, &[], &[Sheet::worksheet("S", records)]);
+        let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let xml = String::from_utf8(doc.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+        assert_eq!(xml.contains("ca=\"1\""), needs_calc, "{xml}");
+        load(&bytes);
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn names_3d_external_references_and_add_in_functions() {
     use ptg::*;
     let globals = [
