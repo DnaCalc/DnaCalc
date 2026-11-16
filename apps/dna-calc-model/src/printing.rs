@@ -189,6 +189,26 @@ const COLUMN_DIGIT_PX: f64 = 7.;
 const COLUMN_PADDING_PX: f64 = 5.;
 const COLUMN_DIGIT_DEVICE: f64 = 47.;
 const COLUMN_PADDING_DEVICE: f64 = 34.;
+/// A Calibri 11 workbook (default digit 7 px; PB1, Excel 16.0.20527, Microsoft Print to PDF): 15 pt rows print as 121
+/// device pixels (UI30), and a 64 px column prints as 459 or 460 (the 13 PB1 layouts and 10 papers bound it to that
+/// from both sides: A4 portrait fits 8 such columns across and not 9, B4 fits 11 and not 12). Its slope is taken from
+/// the Aptos Narrow rate and the padding from that one fit: 63 device pixels, not 34. Wider columns are only bounded
+/// (a 145 px column prints between 960 and 1152), so those are the least certain of the Calibri rates.
+const CALIBRI_ROW_DEVICE_PER_POINT: f64 = 7.975;
+const CALIBRI_COLUMN_PADDING_DEVICE: f64 = 63.;
+/// The rates of one workbook's Normal font as far as they are known.
+#[derive(Clone, Copy)]
+struct Rates {
+    row_per_point: f64,
+    column_padding: f64,
+}
+fn rates(geometry: &Geometry) -> Rates {
+    if geometry.default_digit_px == Some(7.) {
+        Rates { row_per_point: CALIBRI_ROW_DEVICE_PER_POINT, column_padding: CALIBRI_COLUMN_PADDING_DEVICE }
+    } else {
+        Rates { row_per_point: ROW_DEVICE_PER_POINT, column_padding: COLUMN_PADDING_DEVICE }
+    }
+}
 /// Device pixels per point of row height: UI30 P2 puts it between 8.45 and 8.4583 (rows of 8,
 /// 12, 12.75, 15, 20 and 30 pt print as 68, 101, 108, 127, 169 and 254).
 const ROW_DEVICE_PER_POINT: f64 = 8.454;
@@ -201,11 +221,11 @@ fn heading_width_device(last_row: u32) -> f64 {
     COLUMN_DIGIT_DEVICE * digits as f64 + 32.
 }
 /// The printed width of a column of `px` screen pixels, before the print scale.
-fn column_device(px: f64) -> f64 {
+fn column_device(px: f64, rates: Rates) -> f64 {
     if px <= 0. {
         0.
     } else {
-        (px - COLUMN_PADDING_PX) * COLUMN_DIGIT_DEVICE / COLUMN_DIGIT_PX + COLUMN_PADDING_DEVICE
+        (px - COLUMN_PADDING_PX) * COLUMN_DIGIT_DEVICE / COLUMN_DIGIT_PX + rates.column_padding
     }
 }
 /// Page and margin sizes: 600 dpi device pixels per CSS pixel.
@@ -213,15 +233,16 @@ const PAGE_DEVICE_PER_PX: f64 = 600. / 96.;
 /// Bands in device pixels at one print scale, indexed like the pixel metrics.
 fn device_metrics(m: &GridMetrics, geometry: &Geometry, scale: f64, last_row: u32) -> GridMetrics {
     let round = |v: f64| (v * scale).round();
-    let row_default = geometry.default_row_height.unwrap_or(15.) * ROW_DEVICE_PER_POINT;
-    let col_default = column_device(m.col_width);
+    let rates = rates(geometry);
+    let row_default = geometry.default_row_height.unwrap_or(15.) * rates.row_per_point;
+    let col_default = column_device(m.col_width, rates);
     let rows = geometry.rows.iter().map(|&(row, height, hidden)| {
         (
             row,
             if hidden {
                 0.
             } else {
-                round(height.map_or(row_default, |h| h * ROW_DEVICE_PER_POINT))
+                round(height.map_or(row_default, |h| h * rates.row_per_point))
             },
         )
     });
@@ -231,7 +252,7 @@ fn device_metrics(m: &GridMetrics, geometry: &Geometry, scale: f64, last_row: u3
             let size = if hidden {
                 0.
             } else {
-                round(column_device(m.col_start(column + 1) - m.col_start(column)))
+                round(column_device(m.col_start(column + 1) - m.col_start(column), rates))
             };
             columns.push((column, size));
         }
@@ -240,7 +261,7 @@ fn device_metrics(m: &GridMetrics, geometry: &Geometry, scale: f64, last_row: u3
         scale: 1.,
         row_height: round(row_default),
         col_width: round(col_default),
-        header_h: round(m.header_h * ROW_DEVICE_PER_POINT * 0.75),
+        header_h: round(m.header_h * rates.row_per_point * 0.75),
         header_w: round(heading_width_device(last_row)),
         rows: Sizes::new(round(row_default), rows),
         cols: Sizes::new(round(col_default), columns),
@@ -349,7 +370,9 @@ fn paper_size(code: u32) -> Option<(f64, f64)> {
         8 => (297. * MM, 420. * MM),
         9 | 10 => (210. * MM, 297. * MM),
         11 => (148. * MM, 210. * MM),
-        12 => (250. * MM, 354. * MM),
+        // PB1 (Microsoft Print to PDF): Excel paged code 12 on 364 mm of height (64 rows of 15 pt between 0.75 inch margins), the
+        // JIS B4 sheet, not the list's 250 x 354 mm (ISO B4 is code 33); the printer's substitution is what Excel printed on.
+        12 => (257. * MM, 364. * MM),
         13 => (182. * MM, 257. * MM),
         14 => (8.5 * IN, 13. * IN),
         15 => (215. * MM, 275. * MM),
@@ -1178,7 +1201,8 @@ mod tests {
         assert!(close(size("9").unwrap(), (210. * 96. / 25.4, 297. * 96. / 25.4)));
         // Others of the list: Folio, B4 (JIS), the envelopes, A2 and A6 (inches or millimetres as the list gives).
         assert_eq!(size("14").unwrap(), (8.5 * 96., 13. * 96.));
-        assert!(close(size("12").unwrap(), (250. * 96. / 25.4, 354. * 96. / 25.4)));
+        // Code 12 is the JIS B4 sheet Excel paged on in PB1 (364 mm tall), not the list's 250 x 354 mm.
+        assert!(close(size("12").unwrap(), (257. * 96. / 25.4, 364. * 96. / 25.4)));
         assert_eq!(size("20").unwrap(), (4.125 * 96., 9.5 * 96.));
         assert!(close(size("66").unwrap(), (420. * 96. / 25.4, 594. * 96. / 25.4)));
         assert!(close(size("70").unwrap(), (105. * 96. / 25.4, 148. * 96. / 25.4)));
@@ -1200,6 +1224,8 @@ mod tests {
     }
 }
 
+#[cfg(test)]
+mod pb1;
 #[cfg(test)]
 mod ui27;
 #[cfg(test)]

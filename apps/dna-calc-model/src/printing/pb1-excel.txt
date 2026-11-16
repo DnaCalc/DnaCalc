@@ -1,0 +1,150 @@
+PB1	Excel 16.0 build 20527	printer=Microsoft Print to PDF on Ne01:
+CASE	c1	Letter portrait default margins 100% A1:J120 8.43 x 15pt	printer=Microsoft Print to PDF on Ne01:
+c1	pages	6
+c1	zoom	100	wide	1	tall	1
+c1	H	1	A48	-4105	1
+c1	H	2	A95	-4105	1
+c1	V	1	J1	-4105	1
+CASE	c2	A4 portrait default margins 100% A1:J120	printer=Microsoft Print to PDF on Ne01:
+c2	pages	6
+c2	zoom	100	wide	1	tall	1
+c2	H	1	A51	-4105	1
+c2	H	2	A101	-4105	1
+c2	V	1	I1	-4105	1
+CASE	c3	Letter landscape 100% A1:O60 20 x 25pt	printer=Microsoft Print to PDF on Ne01:
+c3	pages	9
+c3	zoom	100	wide	1	tall	1
+c3	H	1	A22	-4105	1
+c3	H	2	A43	-4105	1
+c3	V	1	F1	-4105	1
+c3	V	2	K1	-4105	1
+CASE	c4	Letter portrait margins 0.25 100% A1:J120 8.43 x 12.75pt	printer=Microsoft Print to PDF on Ne01:
+c4	pages	2
+c4	zoom	100	wide	1	tall	1
+c4	H	1	A62	-4105	1
+c4	V	1	K1	-4105	1
+CASE	c5	Letter portrait scale 50 A1:T120	printer=Microsoft Print to PDF on Ne01:
+c5	pages	4
+c5	zoom	50	wide	1	tall	1
+c5	H	1	A95	-4105	1
+c5	V	1	S1	-4105	1
+CASE	c6	Letter portrait scale 150 A1:J120	printer=Microsoft Print to PDF on Ne01:
+c6	pages	8
+c6	zoom	150	wide	1	tall	1
+c6	H	1	A32	-4105	1
+c6	H	2	A63	-4105	1
+c6	H	3	A94	-4105	1
+c6	V	1	G1	-4105	1
+CASE	c7	Fit 2 wide x automatic tall, A1:T200	printer=Microsoft Print to PDF on Ne01:
+c7	pages	8
+c7	zoom	False	wide	2	tall	False
+c7	H	1	A53	-4105	1
+c7	V	1	K1	-4105	n/a
+c7	V	2	U1	-4105	1
+CASE	c8	Fit 1 wide x 3 tall, A1:L200	printer=Microsoft Print to PDF on Ne01:
+c8	pages	3
+c8	zoom	False	wide	1	tall	3
+c8	H	1	A68	-4105	1
+ERR	c8 breaks	9	Subscript out of range
+CASE	c9	Print area B5:K110	printer=Microsoft Print to PDF on Ne01:
+c9	pages	6
+c9	zoom	100	wide	1	tall	1
+c9	H	1	B52	-4105	2
+c9	H	2	B99	-4105	2
+c9	V	1	K5	-4105	2
+CASE	c10	Titles rows 1:2 and column A, A1:X150	printer=Microsoft Print to PDF on Ne01:
+c10	pages	12
+c10	zoom	100	wide	1	tall	1
+c10	H	1	A48	-4105	1
+c10	H	2	A93	-4105	1
+c10	V	1	J1	-4105	n/a
+c10	V	2	R1	-4105	1
+CASE	c11	Manual H before row 31 and V before column E, A1:X150	printer=Microsoft Print to PDF on Ne01:
+c11	pages	16
+c11	zoom	100	wide	1	tall	1
+c11	H	1	A31	-4135	1
+c11	H	2	A78	-4105	1
+c11	V	1	E1	-4135	n/a
+c11	V	2	N1	-4105	1
+c11	V	3	W1	-4105	1
+CASE	c12	Rows 10:20 and column C hidden, A1:J120	printer=Microsoft Print to PDF on Ne01:
+c12	pages	3
+c12	zoom	100	wide	1	tall	1
+c12	H	1	A59	-4105	1
+c12	H	2	A106	-4105	1
+c12	V	1	K1	-4105	1
+CASE	c13	Mixed row heights 30pt every 7th, 6pt every 5th, A1:J120	printer=Microsoft Print to PDF on Ne01:
+c13	pages	6
+c13	zoom	100	wide	1	tall	1
+c13	H	1	A47	-4105	1
+c13	H	2	A92	-4105	1
+c13	V	1	J1	-4105	1
+CASE	plegal	paper legal code 5	printer=Microsoft Print to PDF on Ne01:
+plegal	pages	6
+plegal	zoom	100	wide	1	tall	1
+plegal	H	1	A63	-4105	1
+plegal	V	1	J1	-4105	n/a
+CASE	ptabloid	paper tabloid code 3	printer=Microsoft Print to PDF on Ne01:
+ptabloid	pages	2
+ptabloid	zoom	100	wide	1	tall	1
+ptabloid	H	1	A78	-4105	1
+ptabloid	V	1	M1	-4105	1
+CASE	pa3	paper a3 code 8	printer=Microsoft Print to PDF on Ne01:
+pa3	pages	2
+pa3	zoom	100	wide	1	tall	1
+pa3	H	1	A76	-4105	1
+ERR	pa3 breaks	9	Subscript out of range
+CASE	pa5	paper a5 code 11	printer=Microsoft Print to PDF on Ne01:
+pa5	pages	15
+pa5	zoom	100	wide	1	tall	1
+pa5	H	1	A34	-4105	1
+pa5	H	2	A67	-4105	1
+pa5	H	3	A100	-4105	1
+pa5	V	1	F1	-4105	n/a
+pa5	V	2	K1	-4105	1
+CASE	pexecutive	paper executive code 7	printer=Microsoft Print to PDF on Ne01:
+pexecutive	pages	8
+pexecutive	zoom	100	wide	1	tall	1
+pexecutive	H	1	A45	-4105	1
+pexecutive	H	2	A89	-4105	1
+pexecutive	V	1	H1	-4105	n/a
+ERR	paper folio	1004	Unable to set the PaperSize property of the PageSetup class
+CASE	pfolio	paper folio code 14	printer=Microsoft Print to PDF on Ne01:
+pfolio	pages	8
+pfolio	zoom	100	wide	1	tall	1
+pfolio	H	1	A48	-4105	1
+pfolio	H	2	A95	-4105	1
+pfolio	V	1	J1	-4105	n/a
+CASE	pb4	paper b4 code 12	printer=Microsoft Print to PDF on Ne01:
+pb4	pages	6
+pb4	zoom	100	wide	1	tall	1
+pb4	H	1	A65	-4105	1
+pb4	V	1	L1	-4105	n/a
+CASE	pb5	paper b5 code 13	printer=Microsoft Print to PDF on Ne01:
+pb5	pages	8
+pb5	zoom	100	wide	1	tall	1
+pb5	H	1	A44	-4105	1
+pb5	H	2	A87	-4105	1
+pb5	V	1	H1	-4105	n/a
+CASE	pa6	paper a6 code 70	printer=Microsoft Print to PDF on Ne01:
+pa6	pages	32
+pa6	zoom	100	wide	1	tall	1
+pa6	H	1	A22	-4105	1
+pa6	H	2	A43	-4105	1
+pa6	H	3	A64	-4105	1
+pa6	H	4	A85	-4105	1
+pa6	V	1	D1	-4105	n/a
+pa6	V	2	G1	-4105	1
+pa6	V	3	J1	-4105	1
+pa6	V	4	M1	-4105	1
+CASE	penv10	paper env10 code 20	printer=Microsoft Print to PDF on Ne01:
+penv10	pages	16
+penv10	zoom	100	wide	1	tall	1
+penv10	H	1	A40	-4105	1
+penv10	H	2	A79	-4105	1
+penv10	V	1	D1	-4105	n/a
+penv10	V	2	G1	-4105	1
+penv10	V	3	J1	-4105	1
+penv10	V	4	M1	-4105	1
+ERR	savecopyas	0	
+

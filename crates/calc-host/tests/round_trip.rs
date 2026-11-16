@@ -29325,3 +29325,64 @@ fn dc_971p_6__superscript_and_subscript_exclude_each_other_and_survive_a_save() 
     assert!(apply(&mut book, None, Some(false)).accepted());
     assert_eq!(script(&book), None);
 }
+
+/// FC1 (excel-answers/fc1-superscript.txt, Excel 16.0, 2026-11-15, lane eng13's macro): what `Font.Superscript` and
+/// `Font.Subscript` read after each step of a script on A1 and A1:A2. The host's patch (the one Format Cells sends) gives
+/// each cell the same states: on turns the other off, off leaves the other alone. A range whose cells differ in their
+/// vertical alignment reads Null for both properties, including a Subscript that is False in each of them.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_6__fc1_font_superscript_and_subscript_states_follow_excels_steps() {
+    use calc_host::{FormatPatch, WorkbookCommand};
+    let log = std::str::from_utf8(include_bytes!("fixtures/excel-answers/fc1-superscript.txt")).unwrap();
+    let mut book = session(&calc_host::blank_package());
+    let sheet = book.host().sheets()[0].id();
+    let (a1, a2) = (at(sheet, "A1"), at(sheet, "A2"));
+    assert!(enter(&mut book, a1, "x2").accepted());
+    assert!(enter(&mut book, a2, "y").accepted());
+    let state = |book: &HostSession, cell: CellKey| {
+        let table = book.host().styles().clone();
+        let format = &table.cell_formats[book.host().cell_style(cell) as usize];
+        let script = format.font_id.and_then(|id| table.fonts[id as usize].vert_align.clone());
+        (script.as_deref() == Some("superscript"), script.as_deref() == Some("subscript"))
+    };
+    let apply = |book: &mut HostSession, area: GridArea, superscript: Option<bool>, subscript: Option<bool>| {
+        assert!(book
+            .dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {
+                areas: vec![area],
+                patch: FormatPatch { superscript, subscript, ..Default::default() },
+            }))
+            .accepted());
+    };
+    let both = GridArea::new(a1, a2).unwrap();
+    let steps = log.lines().filter(|l| !l.starts_with("ERR") && !l.is_empty()).collect::<Vec<_>>();
+    assert_eq!(steps.len(), 8);
+    for line in steps {
+        let f: Vec<&str> = line.split('\t').collect();
+        match f[0] {
+            "initial" => {}
+            "A1 superscript on" => apply(&mut book, GridArea::cell(a1), Some(true), None),
+            "A1 subscript on (superscript was on)" => apply(&mut book, GridArea::cell(a1), None, Some(true)),
+            "A1 superscript off (subscript was on)" => apply(&mut book, GridArea::cell(a1), Some(false), None),
+            "A1 subscript off" => apply(&mut book, GridArea::cell(a1), None, Some(false)),
+            "A1 superscript on then subscript off" => {
+                apply(&mut book, GridArea::cell(a1), Some(true), None);
+                apply(&mut book, GridArea::cell(a1), None, Some(false));
+            }
+            "A1:A2 superscript on" => apply(&mut book, both, Some(true), None),
+            "A2 subscript on (A1 superscript, A2 was superscript)" => apply(&mut book, GridArea::cell(a2), None, Some(true)),
+            other => panic!("{other}"),
+        }
+        let truth = |text: &str| text.ends_with("True");
+        let (up, down) = state(&book, a1);
+        assert_eq!((up, down), (truth(f[1]), truth(f[2])), "{}: A1", f[0]);
+        let (second_up, second_down) = state(&book, a2);
+        // Excel keeps one vertical alignment per font: a range whose cells differ in it reads Null for both properties
+        // (A1 superscript beside a plain A2 reads Null for Subscript too).
+        let same = (up, down) == (second_up, second_down);
+        let read = |one: bool, _: bool| if same { one.to_string() } else { "Null".to_string() };
+        let expect = |text: &str| text.rsplit(':').next().unwrap().to_lowercase();
+        assert_eq!(read(up, second_up).to_lowercase(), expect(f[3]), "{}: A1:A2 Superscript", f[0]);
+        assert_eq!(read(down, second_down).to_lowercase(), expect(f[4]), "{}: A1:A2 Subscript", f[0]);
+    }
+}

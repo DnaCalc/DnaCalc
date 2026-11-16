@@ -177,7 +177,7 @@ fn column_and_row_sizes_print_as_excel_printed_them_in_ui30() {
         (425., 2854.),
     ];
     for (px, device) in columns {
-        assert_eq!(column_device(px).round(), device, "{px} px");
+        assert_eq!(column_device(px, rates(&Geometry::default())).round(), device, "{px} px");
     }
     // Row heights of 8, 12, 12.75, 15, 20 and 30 pt.
     for (points, device) in [

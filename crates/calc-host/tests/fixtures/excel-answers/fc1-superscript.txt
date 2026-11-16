@@ -1,0 +1,10 @@
+initial	A1.Superscript=False	A1.Subscript=False	A1:A2.Superscript=Boolean:False	A1:A2.Subscript=Boolean:False
+A1 superscript on	A1.Superscript=True	A1.Subscript=False	A1:A2.Superscript=Null:Null	A1:A2.Subscript=Null:Null
+A1 subscript on (superscript was on)	A1.Superscript=False	A1.Subscript=True	A1:A2.Superscript=Null:Null	A1:A2.Subscript=Null:Null
+A1 superscript off (subscript was on)	A1.Superscript=False	A1.Subscript=True	A1:A2.Superscript=Null:Null	A1:A2.Subscript=Null:Null
+A1 subscript off	A1.Superscript=False	A1.Subscript=False	A1:A2.Superscript=Boolean:False	A1:A2.Subscript=Boolean:False
+A1 superscript on then subscript off	A1.Superscript=True	A1.Subscript=False	A1:A2.Superscript=Null:Null	A1:A2.Subscript=Null:Null
+A1:A2 superscript on	A1.Superscript=True	A1.Subscript=False	A1:A2.Superscript=Boolean:True	A1:A2.Subscript=Boolean:False
+A2 subscript on (A1 superscript, A2 was superscript)	A1.Superscript=True	A1.Subscript=False	A1:A2.Superscript=Null:Null	A1:A2.Subscript=Null:Null
+ERR	savecopyas	0	
+
