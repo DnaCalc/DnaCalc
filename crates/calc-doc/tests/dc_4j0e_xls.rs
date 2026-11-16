@@ -666,6 +666,38 @@ fn shared_string_phonetic_extension_is_reported_unread() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn printer_settings_are_carried_as_an_explicit_part() {
+    let mut mode = vec![0u8; 156];
+    mode[36..38].copy_from_slice(&156u16.to_le_bytes());
+    let mut body = vec![0, 0];
+    body.extend(&mode);
+    let pls = record(0x004D, &body);
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", pls.clone())]);
+    let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    assert_eq!(doc.package().read_part("xl/printerSettings/printerSettings1.bin").unwrap(), mode);
+    let sheet = String::from_utf8(doc.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+    assert!(sheet.contains("<pageSetup r:id=\"rIdPrinter\"/>"), "{sheet}");
+    let rels = String::from_utf8(doc.package().read_part("xl/worksheets/_rels/sheet1.xml.rels").unwrap()).unwrap();
+    assert!(rels.contains("relationships/printerSettings"), "{rels}");
+    let plan = calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+    let mut saved = Vec::new();
+    calc_doc::write(plan, &mut saved).unwrap();
+    let reopened = calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap();
+    assert_eq!(reopened.package().read_part("xl/printerSettings/printerSettings1.bin").unwrap(), mode);
+    let sheet = String::from_utf8(reopened.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+    assert!(sheet.contains("rIdPrinter"), "{sheet}");
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert!(!report.unknown_records.contains_key(&0x004D));
+    let duplicated = xls(false, &[], &[Sheet::worksheet("S", [pls.clone(), pls].concat())]);
+    let report = legacy_workbook_report(source(&duplicated), &OpenPolicy::default()).unwrap().unwrap();
+    assert_eq!(report.unknown_records.get(&0x004D), Some(&2));
+    let invalid = xls(false, &[], &[Sheet::worksheet("S", record(0x004D, &[0, 0, 0]))]);
+    let report = legacy_workbook_report(source(&invalid), &OpenPolicy::default()).unwrap().unwrap();
+    assert_eq!(report.unknown_records.get(&0x004D), Some(&1));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn legacy_sheet_ids_follow_source_tabs_even_with_module() {
     let sheets = [Sheet::worksheet("First", Vec::new()),
         Sheet { kind: 6, ..Sheet::worksheet("Module", Vec::new()) },

@@ -577,6 +577,9 @@ pub(crate) fn read(
         }
     }
 
+    if features.printer_part().is_some() {
+        unknown.remove(&0x004D);
+    }
     let mut x = Xml::new();
     let root = if macro_sheet { "xm:macrosheet" } else { "worksheet" };
     let mut namespaces = vec![
@@ -790,6 +793,7 @@ pub(crate) fn read(
         rels,
         parts: {
             parts.extend(features.comment_parts());
+            if let Some(printer) = features.printer_part() { parts.push(printer); }
             parts
         },
         entries,

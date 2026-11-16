@@ -83,6 +83,8 @@ pub(crate) struct Features {
     merges: Vec<String>,
     phonetic: Option<(usize, u8, u8)>,
     phonetic_ranges: Vec<(u16, u16, u16, u16)>,
+    /// PLS records, kept separate until a single complete DEVMODE can be identified.
+    printer_settings: Vec<Vec<u8>>,
     hyperlinks: Vec<Hyperlink>,
     protect: bool,
     objects: bool,
@@ -243,6 +245,12 @@ impl Features {
             PRINT_GRIDLINES => self.grid_lines = c.u16("PrintGrid").map_err(e)? != 0,
             PRINT_HEADERS => self.headings = c.u16("PrintRowCol").map_err(e)? != 0,
             WSBOOL => self.ws_bool = Some(c.u16("WsBool").map_err(e)?),
+            0x004D => {
+                let joined = record.joined();
+                self.printer_settings.push(joined.get(2..).unwrap_or_default().to_vec());
+                // Count it unread until the sheet has been checked for a single valid record.
+                return Ok(false);
+            }
             0x00EF => {
                 let font = c.u16("PhoneticInfo").map_err(e)?;
                 let flags = c.u16("PhoneticInfo").map_err(e)?;
@@ -382,6 +390,19 @@ impl Features {
 
     pub(crate) fn show_phonetic(&self, row: u16, column: u16) -> bool {
         self.phonetic_ranges.iter().any(|&(r1, r2, c1, c2)| (r1..=r2).contains(&row) && (c1..=c2).contains(&column))
+    }
+
+    /// A single complete DEVMODEA or DEVMODEW; ambiguous or malformed records stay unread.
+    pub(crate) fn printer_part(&self) -> Option<(String, &'static str, Vec<u8>)> {
+        let [data] = self.printer_settings.as_slice() else { return None };
+        let complete = [36usize, 68].into_iter().any(|offset| {
+            let Some(bytes) = data.get(offset..offset + 4) else { return false };
+            let size = usize::from(u16::from_le_bytes([bytes[0], bytes[1]]));
+            let extra = usize::from(u16::from_le_bytes([bytes[2], bytes[3]]));
+            size >= offset + 4 && size.checked_add(extra) == Some(data.len())
+        });
+        complete.then(|| (format!("xl/printerSettings/printerSettings{}.bin", self.number),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.printerSettings", data.clone()))
     }
 
     /// HLINK (MS-XLS 2.4.140, with the HLink object of MS-OSHARED 2.3.7.1).
@@ -648,6 +669,15 @@ impl Features {
                 ],
             );
         }
+        let printer_id = self.printer_part().map(|_| {
+            rels.push(Rel {
+                id: "rIdPrinter".to_owned(),
+                kind: "printerSettings",
+                target: format!("../printerSettings/printerSettings{}.bin", self.number),
+                external: false,
+            });
+            "rIdPrinter"
+        });
         if let Some([paper, scale, first_page, fit_width, fit_height, flags]) = self.setup {
             let mut a = vec![("paperSize", paper.to_string())];
             if scale != 100 && scale != 0 {
@@ -681,7 +711,10 @@ impl Features {
             if flags & 0x0020 != 0 {
                 a.push(("cellComments", "atEnd".to_owned()));
             }
+            if let Some(id) = printer_id { a.push(("r:id", id.to_owned())); }
             x.empty("pageSetup", &a);
+        } else if let Some(id) = printer_id {
+            x.empty("pageSetup", &[("r:id", id.to_owned())]);
         }
         if self.header.as_deref().is_some_and(|h| !h.is_empty()) || self.footer.as_deref().is_some_and(|f| !f.is_empty()) {
             x.open("headerFooter", &[]);
