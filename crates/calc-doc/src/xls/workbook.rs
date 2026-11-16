@@ -309,6 +309,12 @@ pub(crate) fn read(records: &[Record<'_>], biff5: bool) -> Result<Globals, Strin
     if !finished {
         return Err("the workbook globals have no EOF record".into());
     }
+    let bad_phonetic_font = globals.strings.iter().filter_map(|s| s.phonetic.as_ref()).any(|p| {
+        p.font == 4 || (p.font != 0 && globals.styles.font_index(p.font).is_none())
+    });
+    if bad_phonetic_font && !globals.unknown.contains_key(&SST) {
+        *globals.unknown.entry(SST).or_insert(0) += 1;
+    }
     if let Some(ids) = &globals.tab_ids {
         let unique: std::collections::BTreeSet<_> = ids.iter().copied().collect();
         if ids.len() != globals.sheets.len() || unique.len() != ids.len() || unique.contains(&0)

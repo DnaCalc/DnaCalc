@@ -699,6 +699,35 @@ fn shared_string_phonetic_extension_is_reported_unread() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn explicit_phonetic_string_runs_survive_conversion() {
+    let mut extension = u16s(&[1, 0, 0, 7, 2, 3, 3]);
+    extension.extend(u16s(&['x' as u16, 'y' as u16, 'z' as u16]));
+    extension.extend(u16s(&[0, 0, 1, 2, 1, 1]));
+    let cb = (extension.len() - 4) as u16;
+    extension[2..4].copy_from_slice(&cb.to_le_bytes());
+    let mut body = Vec::new();
+    body.extend(1u32.to_le_bytes()); body.extend(1u32.to_le_bytes());
+    body.extend(2u16.to_le_bytes()); body.push(0x04);
+    body.extend((extension.len() as u32).to_le_bytes()); body.extend(b"AB"); body.extend(extension);
+    let bytes = xls(false, &record(0x00FC, &body), &[Sheet::worksheet("S", label_sst(0, 0, 0))]);
+    let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let xml = String::from_utf8(doc.package().read_part("xl/sharedStrings.xml").unwrap()).unwrap();
+    assert!(xml.contains("<rPh sb=\"0\" eb=\"1\"><t>xy</t></rPh>"), "{xml}");
+    assert!(xml.contains("<rPh sb=\"1\" eb=\"2\"><t>z</t></rPh>"), "{xml}");
+    assert!(xml.contains("<phoneticPr fontId=\"0\" type=\"noConversion\" alignment=\"left\"/>"), "{xml}");
+    assert_eq!(sheet_cells(&bytes), vec!["A1 s:AB"]);
+    let plan = calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+    let mut saved = Vec::new();
+    calc_doc::write(plan, &mut saved).unwrap();
+    let reopened = calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap();
+    let saved_xml = String::from_utf8(reopened.package().read_part("xl/sharedStrings.xml").unwrap()).unwrap();
+    assert!(saved_xml.contains("<rPh sb=\"0\" eb=\"1\"><t>xy</t></rPh>"), "{saved_xml}");
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert!(!report.unknown_records.contains_key(&0x00FC));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn natural_language_formula_refusal_names_the_feature() {
     let tokens = [0x18, 0x03, 0, 0, 0, 0];
     let cell = formula(0, 1, num_value(0.0), &tokens, &[]);

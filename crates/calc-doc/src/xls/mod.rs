@@ -383,6 +383,19 @@ pub(crate) fn convert(
                     sst.close("r");
                 }
             }
+            if let Some(p) = &string.phonetic {
+                let font = if p.font == 4 { None } else { globals.styles.font_index(p.font).or((p.font == 0).then_some(0)) };
+                if let Some(font) = font {
+                    for run in &p.runs {
+                        sst.open("rPh", &[("sb", run.first.to_string()), ("eb", run.end.to_string())]);
+                        sheet::text_element(&mut sst, &run.text);
+                        sst.close("rPh");
+                    }
+                    let kind = ["halfwidthKatakana", "fullwidthKatakana", "Hiragana", "noConversion"][p.kind as usize];
+                    let alignment = ["noControl", "left", "center", "distributed"][p.alignment as usize];
+                    sst.empty("phoneticPr", &[("fontId", font.to_string()), ("type", kind.to_owned()), ("alignment", alignment.to_owned())]);
+                }
+            }
             sst.close("si");
         }
         sst.close("sst");
