@@ -180,14 +180,16 @@ try {
             $data = $book.Worksheets.Item(1); $data.Name = 'Data'
             $out = $book.Worksheets.Add([Type]::Missing, $data); $out.Name = 'Pivot'
             # Repeated source values exercise shared cache items and their record indexes.
-            $values = [object[,]]::new(201,2)
-            $values[0,0]='Region'; $values[0,1]='Amount'
+            $values = [object[,]]::new(201,3)
+            $values[0,0]='Region'; $values[0,1]='Amount'; $values[0,2]='Time'
             for ($i = 1; $i -le 200; $i++) {
                 $values[$i,0] = if ($i % 2) {'North'} else {'South'}
                 $values[$i,1] = [double](2 + ($i % 3))
+                $values[$i,2] = [double](($i % 4) / 4.0)
             }
-            $data.Range('A1:B201').Value2 = $values
-            $cache = $book.PivotCaches().Create(1, 'Data!R1C1:R201C2', 1)
+            $data.Range('A1:C201').Value2 = $values
+            $data.Range('C2:C201').NumberFormat = 'h:mm'
+            $cache = $book.PivotCaches().Create(1, 'Data!R1C1:R201C3', 1)
             $table = $cache.CreatePivotTable($out.Range('A3'), 'LegacyPivot', $true, 1)
             $table.PivotFields('Region').Orientation = 1
             $null = $table.AddDataField($table.PivotFields('Amount'), 'Sum of Amount', -4157)
@@ -199,6 +201,15 @@ try {
                 $second.PivotFields('Region').Orientation = 2
                 $null = $second.AddDataField($second.PivotFields('Amount'), 'Average Amount', -4106)
             } catch { $pivot.second_error = $_.Exception.ToString() }
+            $pivot.named_error = $null
+            try {
+                $null = $book.Names.Add('cx_pivot_source', '=Data!$A$1:$C$201')
+                $namedCache = $book.PivotCaches().Create(1, 'cx_pivot_source', 1)
+                $named = $namedCache.CreatePivotTable($out.Range('A22'), 'LegacyPivotNamed', $true, 1)
+                $named.PivotFields('Region').Orientation = 1
+                $null = $named.AddDataField($named.PivotFields('Amount'), 'Named Sum', -4157)
+                $pivot.named_source = [string]$namedCache.SourceData
+            } catch { $pivot.named_error = $_.Exception.ToString() }
             $xls = Join-Path $outputDir 'pivot.xls'
             $xlsx = Join-Path $outputDir 'pivot.xlsx'
             $book.SaveAs($xls, 56)
