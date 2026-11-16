@@ -403,7 +403,7 @@ fn number(text: &str, profile: &FormatProfile) -> Result<Option<f64>, Unread> {
         .ok_or(Unread::Rejected)
 }
 
-/// The binary64 nearest `digits` (ASCII decimal digits) times 10^scale, its significant digits
+/// Excel's reading of `digits` (ASCII decimal digits) times 10^scale, its significant digits
 /// cut to 15; `None` when the value's decimal point lies outside -308..=308, as Excel's number
 /// text reading rejects it.
 pub(crate) fn decimal(digits: &str, scale: i64) -> Option<f64> {
@@ -416,6 +416,13 @@ pub(crate) fn decimal(digits: &str, scale: i64) -> Option<f64> {
     let position = scale + trimmed.len() as i64;
     if !(-308..=308).contains(&position) {
         return None;
+    }
+    // Excel 20527 keeps the reciprocal of 10^15 in x87 precision for this
+    // measured 15-digit scale. Storing it as binary64 first or using a single
+    // correctly rounded decimal conversion changes answers near midpoints.
+    if trimmed.len() == 15 && scale == -15 {
+        let coefficient: u64 = trimmed.parse().ok()?;
+        return Some(crate::ported::excel_numeric::decimal_scale_15(coefficient as f64));
     }
     let n: f64 = format!("{kept}e{}", scale + dropped).parse().ok()?;
     Some(if n.is_subnormal() { 0.0 } else { n })

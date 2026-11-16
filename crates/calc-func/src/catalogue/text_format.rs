@@ -630,6 +630,10 @@ fn numbervalue(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     };
     let decimal = separator(1, decimal_default)?;
     let group = separator(2, group_default)?;
+    // This is a final argument error; the host VALUE grammar cannot recover it.
+    if decimal.is_some() && decimal == group {
+        return fail(WorksheetErrorCode::Value);
+    }
     // Excel 20527 en-ZA (dc-7ofm locale answers): whatever separators the call names, a
     // measured non-ASCII space other than the named group separator is #VALUE!, and text the
     // separators cannot read falls back to the host's VALUE grammar (R12 is 12, (12) is -12).

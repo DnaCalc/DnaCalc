@@ -381,6 +381,32 @@ fn the_1904_date_system() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn decimal_reader_uses_extended_reciprocal_at_fifteen_digits() {
+    let env = host();
+    for (source, bits) in [
+        ("0.526151728402037", 0x3fe0_d63c_2647_0f58),
+        ("0.757980888354922", 0x3fe8_4161_22cf_4700),
+        ("0.811932786917339", 0x3fe9_fb5a_77cb_8600),
+    ] {
+        let expected = f64::from_bits(bits);
+        exact(c(&env, "VALUE", vec![t(source)]), expected);
+        exact(c(&env, "NUMBERVALUE", vec![t(source), t("."), t(",")]), expected);
+    }
+    exact(c(&env, "VALUE", vec![t("526151728402037e-15")]), f64::from_bits(0x3fe0_d63c_2647_0f58));
+    exact(c(&env, "VALUE", vec![t("526151728402037e-13%")]), f64::from_bits(0x3fe0_d63c_2647_0f58));
+    exact(
+        c(&env, "NUMBERVALUE", vec![n(f64::from_bits(0xbfe1_4d34_fbc6_84a8)), t("1")]),
+        f64::from_bits(0xbfe1_4d34_fbc6_84a8),
+    );
+    for separator in [",", ".", " ", "\u{a0}"] {
+        error(c(&env, "NUMBERVALUE", vec![t("123.45"), t(separator), t(separator)]), Value);
+        error(c(&env, "NUMBERVALUE", vec![n(12.0), t(separator), t(separator)]), Value);
+        error(c(&env, "NUMBERVALUE", vec![e(NA), t(separator), t(separator)]), NA);
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn value_datevalue_timevalue() {
     let e = host();
     // Excel: VALUE("1 234.5") 1234.5, VALUE("R 12") 12, VALUE("12:30") 0.520833..., VALUE("1/2")

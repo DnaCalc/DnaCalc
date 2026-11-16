@@ -186,6 +186,13 @@ fn binary_with<F: Fpu>(op: fn(&Ext80, &Ext80, u16) -> Ext80, a: f64, b: f64) -> 
     F::store(&op(&load(a), &load(b), CW), CW)
 }
 
+/// A 15-digit decimal coefficient scaled by the x87 reciprocal of 10^15.
+/// Keep the reciprocal in extended precision through the multiplication.
+pub(crate) fn decimal_scale_15(coefficient: f64) -> f64 {
+    let reciprocal = Native::div(&load(1.0), &load(1_000_000_000_000_000.0), CW);
+    Native::store(&Native::mul(&load(coefficient), &reciprocal, CW), CW)
+}
+
 /// The SIN chain: `FPREM1(x, FLDPI)`, `FSIN`, the `(-1)^Q` sign.
 fn sin_with<F: Fpu>(x: f64) -> f64 {
     let (r, q) = F::prem1_quo(&load(x), &ext_pi(), CW);
