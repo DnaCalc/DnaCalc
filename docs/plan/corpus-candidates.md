@@ -167,3 +167,25 @@ Static ZIP/XML profiling of the 989 workbook files found 296 formula-bearing wor
 ### R2 and interesting examples
 
 Copy plus `rclone check --one-way` found 0 differences for the Microsoft sets (2, 4 and 6 matching files), GitHub (3,427 matching files) and the eligible creator set (192 matching files, including `sources.tsv`). Excel Off The Grid's 438-file set stays local-only under its EULA; it was not copied. The 38 rows in `~/corpus-meta/interesting-examples.tsv` cover the requested formula families, plus structured references/tables, charts, PivotTables, slicers, What-If data tables, embedded VBA and standalone modules. Category totals overlap when a single example shows multiple features: dynamic arrays/spills 6; LAMBDA/LET 9; GROUPBY 3; PIVOTBY 2; IMAGE 2; REGEX 3; TRIMRANGE 3; structured references/tables 5; PivotTables/charts/slicers 3; What-If data tables 2; VBA modules/projects 3.
+
+## Source search 2026-11-16 (dc-ztvv.19)
+
+Record only; nothing downloaded. Full report: `codex-runs/excel-sources-search-20261116/report.md` (outside the repository). Size and licence claims are the sources' own.
+
+**Auto-Formula's company sets.** Owner 2026-11-16: we do not use the Auto-Formula data. Its Cisco, PGE and TI workbooks came from those companies' public websites. The terms of use on all three sites reserve rights and bar bots and scraping, so we do not crawl them. In two recent Common Crawl crawls, ti.com had no spreadsheet captures, and five of cisco.com's seven index pages had none. pge.com was not counted because the index API kept timing out. Record only.
+
+**Other languages.** The only open multilingual set with formulas we found is synthetic:
+- **Sinabis synthetic xlsx** (https://huggingface.co/datasets/sinabis-group/sinabis-1m-synthetic-xlsx, CC BY 4.0). 1,005,997 workbooks, about 22 GB; 1k, 10k and 100k variants exist. 24 languages: en 81%, ja 5%, zh 5%. Over 99% have formulas. The workbooks are written by xlsxwriter from LLM blueprints, so there is little function variety and the cached values are not Excel's. Worth holding the 1k and 10k variants for text, sheet names and number formats.
+- **TableEval** (wenge-research, Apache-2.0): 617 Chinese and English report spreadsheets. **MiMoTable** (COLING 2025): 428 Chinese and English spreadsheets, licence not yet read. **FormulaCascade**: Chinese and English, deep formula chains, but CC BY-NC (skip). **IDX Financial Statements**: Indonesian filings, 5.4 GB; the card says CC BY 4.0, but the filings belong to the issuers.
+- **Sheetpedia** (held): a search summary of the paper puts it at 78% or more English, so perhaps 46,000 of the files we hold are non-English. This is an estimate and is measured in dc-ztvv.18.
+- **FUSE URLs** (held, metadata only): country domains outside the English-speaking world are about 1% of 2.1 million records. The largest are it, hu, kr, th, de, id, tr and jp.
+- **Open-data portals**: dataset counts with an XLS or XLSX resource are data.gouv.fr 2,523 / 2,534, GovData.de 36 / 412, dati.gov.it (XLSX) 2,205 and data.gov.il (XLSX) 444. No model workbook was found; they are mostly flat tables. The Japanese, Korean, Taiwanese, Spanish and Brazilian portals were not reachable by API.
+
+**Other leads.**
+- AER (Australia) tariff and expenditure models, some with macros: read the AER copyright page, then download.
+- Utility Regulator NI tariff model.
+- JetBrains excelforum-nemo-gym (730 MB, licence not stated).
+- gdpval-excel (licence not stated).
+- workbook-change-benchmark (MIT, tiny).
+- Trap4Phish 2025: 20,000 Excel files, half of them malicious, with VBA and XLM. No licence. It would need a decision on handling malware.
+- No benign macro corpus was found beyond what we hold, and no spreadsheet benchmark released since 2026-11-09.

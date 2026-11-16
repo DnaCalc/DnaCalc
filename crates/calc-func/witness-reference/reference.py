@@ -226,26 +226,47 @@ def _(x, d=0.0): return _rdec(x, _digits(d), 'down')
 
 
 X0 = 0.0
-ROW_SECONDS = 4
+ROW_SECONDS = 10
 
 class RowTimeout(Exception): pass
 def _alarm(*a): raise RowTimeout()
 signal.signal(signal.SIGALRM, _alarm)
 
-def inv(cdf, p, positive=True, incr=True):
+def illinois(g, a, b):
+    """root of an increasing g on [a, b] with g(a) <= 0 <= g(b): Illinois regula falsi, stop at 1e-45 relative"""
+    fa, fb = g(a), g(b); side = 0
+    if fa == 0: return a
+    if fb == 0: return b
+    for _ in range(2000):
+        c = (a * fb - b * fa) / (fb - fa)
+        if not (min(a, b) < c < max(a, b)): c = (a + b) / 2
+        fc = g(c)
+        if fc == 0 or abs(b - a) <= mpf(10) ** -45 * abs(c): return c
+        if fc < 0:
+            a, fa = c, fc
+            if side == -1: fb /= 2
+            side = -1
+        else:
+            b, fb = c, fc
+            if side == 1: fa /= 2
+            side = 1
+    return c
+
+
+def inv(cdf, p, positive=True, incr=True, x0=None):
     """root of cdf(x) = p (cdf increasing, or decreasing with incr=False): bracket around Excel's answer
     (X0), then the Illinois method at working precision"""
     p = mpf(p); sgn = 1 if incr else -1
     g = lambda x: sgn * (cdf(x) - p)
-    x0 = mpf(X0) if math.isfinite(X0) and X0 != 0 else mpf(1)
+    if x0 is None: x0 = mpf(X0) if math.isfinite(X0) and X0 != 0 else mpf(1)
     if positive:
-        x0 = abs(x0); a, b = x0 / 2, x0 * 2
+        x0 = abs(x0); a, b = x0 / mpf('1.01'), x0 * mpf('1.01')
         for _ in range(4000):
             if g(a) <= 0: break
-            a /= 4
+            a /= mpf('1.3')
         for _ in range(4000):
             if g(b) >= 0: break
-            b *= 4
+            b *= mpf('1.3')
     else:
         d = max(abs(x0) * mpf('1e-3'), mpf('1e-3')); a, b = x0 - d, x0 + d
         for _ in range(200):
@@ -256,15 +277,15 @@ def inv(cdf, p, positive=True, incr=True):
             if g(b) >= 0: break
             b += d; d *= 2
     if g(a) > 0 or g(b) < 0: raise ValueError('no bracket')
-    return mp.findroot(g, (a, b), solver='illinois', tol=mpf(10) ** -50, maxsteps=400, verify=False)
+    return illinois(g, a, b)
 
-def _q(p): return inv(_phi, p, positive=False)   # normal quantile
+def _q(p, x0=None): return inv(_phi, p, positive=False, x0=x0)   # normal quantile
 @ref('NORM.S.INV', 'NORMSINV')
 def _(p): return _q(p)
 @ref('NORM.INV', 'NORMINV')
-def _(p, m, s): return mpf(m) + mpf(s) * _q(p)
+def _(p, m, s): return mpf(m) + mpf(s) * _q(p, (mpf(X0) - mpf(m)) / mpf(s))
 @ref('LOGNORM.INV', 'LOGINV')
-def _(p, m, s): return mp.exp(mpf(m) + mpf(s) * _q(p))
+def _(p, m, s): return mp.exp(mpf(m) + mpf(s) * _q(p, (mp.log(X0) - mpf(m)) / mpf(s) if X0 > 0 else None))
 @ref('CONFIDENCE.NORM', 'CONFIDENCE')
 def _(a, sd, n): return -_q(mpf(a) / 2) * mpf(sd) / mp.sqrt(fl(n))
 @ref('GAMMA.INV', 'GAMMAINV')
@@ -328,8 +349,7 @@ def _(p, a, b, lo=0.0, hi=1.0):
     return lo + z * (hi - lo)
 def inv_unit(cdf, p, z0):
     p = mpf(p)
-    if not (0 < z0 < 1): z0 = mpf('0.5')
-    return mp.findroot(lambda z: cdf(z) - p, (z0, z0 * (1 + mpf(10) ** -12)), solver='secant', tol=mpf(10) ** -45, maxsteps=300)
+    return illinois(lambda z: cdf(z) - p, mpf(0), mpf(1))
 @ref('NEGBINOM.DIST')
 def _(f, s, p, cum):
     f, s, p = fl(f), fl(s), mpf(p)
@@ -464,6 +484,32 @@ def _(settle, mat, rate, yld, freq, basis=0.0):
     d, y = _dur(settle, mat, rate, yld, freq, basis); return d / (1 + y)
 
 
+# text results with 15 significant digits (COMPLEX, IM*): the true value rounded to 15 digits decides
+TEXTREF = {
+    'IMSINH': lambda x: mp.sinh(mpf(x)), 'IMCOSH': lambda x: mp.cosh(mpf(x)),
+    'IMCSCH': lambda x: 1 / mp.sinh(mpf(x)), 'IMSECH': lambda x: 1 / mp.cosh(mpf(x)),
+    'COMPLEX': lambda re, im, *_: mpf(im) if re == 0 else None,
+}
+def _textnum(t):
+    from decimal import Decimal
+    t = t[5:]
+    if t.endswith(('i', 'j')): t = t[:-1]
+    return Decimal(t.replace('E', 'e'))
+def text_class(f, args, e, a):
+    from decimal import Decimal
+    if f not in TEXTREF or any(not isinstance(x, float) for x in args): return None, ''
+    try:
+        t = TEXTREF[f](*args)
+        if t is None: return None, ''
+        want = Decimal(mp.nstr(t, 15, min_fixed=1, max_fixed=0).replace('E', 'e')) if False else Decimal(mp.nstr(t, 15))
+        de, da = _textnum(e), _textnum(a)
+    except Exception:
+        return None, ''
+    ok_e, ok_a = de == want, da == want
+    cls = 'ours-wrong' if ok_e and not ok_a else 'excel-quirk' if ok_a and not ok_e else 'both-inexact'
+    return cls, mp.nstr(t, 25)
+
+
 def main():
     trace, outdir = sys.argv[1], sys.argv[2]
     only = set(sys.argv[3:])
@@ -504,6 +550,9 @@ def classify(f, rs, outdir):
         cls = None; ref_s = ''; ue = uo = ''
         if not (isnum(e) and isnum(a)):
             cls = 'structural:%s/%s' % (kind(e), kind(a))
+            if isinstance(e, str) and isinstance(a, str) and e.startswith('text:') and a.startswith('text:'):
+                c2, r2 = text_class(f, args, e, a)
+                if c2: cls, ref_s = 'text15:' + c2, r2
         elif f not in R:
             cls = 'no-reference'
             d = abs(okey(b2f(int(e, 16))) - okey(b2f(int(a, 16))))

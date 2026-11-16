@@ -706,6 +706,52 @@ fn iteration_prefix_and_measured_han_repeat_order() {
     );
 }
 
+/// dc-zsn.2: the unassigned units of the Hangul jamo blocks (U+A97D-U+A97F, U+D7C7-U+D7CA,
+/// U+D7FC-U+D7FF) are ignorable, as Excel 16.0.20527 compares them (3132 measured relations,
+/// tests/fixtures/fn5_hangul_gaps). Seven rows put an ignorable unit before archaic jamo, which
+/// the collation does not model (collation.rs); Excel gives them the relation it gives with U+00AD
+/// in each such unit's place, and so must calc-func (one of them, an iteration mark after a
+/// hyphen, stays refused either way).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn unassigned_hangul_block_units_are_ignorable() {
+    use std::cmp::Ordering;
+    let units = |s: &str| -> Vec<u16> {
+        s.split(' ')
+            .filter(|x| !x.is_empty())
+            .map(|x| u16::from_str_radix(x, 16).unwrap())
+            .collect()
+    };
+    let relation = |r: &str| match r {
+        "<" => Ordering::Less,
+        "=" => Ordering::Equal,
+        ">" => Ordering::Greater,
+        other => panic!("relation {other}"),
+    };
+    let gap = |c: u16| matches!(c, 0xA97D..=0xA97F | 0xD7C7..=0xD7CA | 0xD7FC..=0xD7FF);
+    let soft =
+        |t: &[u16]| -> Vec<u16> { t.iter().map(|&c| if gap(c) { 0x00AD } else { c }).collect() };
+    let (mut exact, mut through_soft_hyphen) = (0, 0);
+    for line in include_str!("fixtures/fn5_hangul_gaps/excel-relations.tsv").lines() {
+        if line.starts_with('#') {
+            continue;
+        }
+        let cols: Vec<&str> = line.split('\t').collect();
+        let (a, b) = (units(cols[0]), units(cols[1]));
+        let excel = relation(cols[2]);
+        let ours = calc_func::text_order(&a, &b);
+        if let Some(with_soft_hyphen) = cols.get(3) {
+            assert_eq!(relation(with_soft_hyphen), excel, "{line}");
+            assert_eq!(ours, calc_func::text_order(&soft(&a), &soft(&b)), "{line}");
+            through_soft_hyphen += 1;
+        } else {
+            assert_eq!(ours, Some(excel), "{line}");
+            exact += 1;
+        }
+    }
+    assert_eq!((exact, through_soft_hyphen), (3125, 7));
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn char_code_unichar_unicode() {

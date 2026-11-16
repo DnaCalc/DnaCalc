@@ -382,6 +382,10 @@ fn build() -> Table {
             )
         } else if !covered {
             Weight::Refused
+        } else if matches!(code, 0xA97D..=0xA97F | 0xD7C7..=0xD7CA | 0xD7FC..=0xD7FF) {
+            // Unassigned units in the Hangul jamo blocks: ignorable (measured in Excel
+            // 16.0.20527, dc-zsn.2, fn5 2026-11-16).
+            Weight::Ignorable
         } else if let Some(exception) = exceptions.get(&code) {
             match exception {
                 Exception::Ignorable => Weight::Ignorable,

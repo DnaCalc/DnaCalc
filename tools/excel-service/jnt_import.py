@@ -902,6 +902,12 @@ def build_rows(batch, legacy, repo):
 POSITION_SENSITIVE = {"ROW", "COLUMN", "ADDRESS", "CELL", "INDIRECT", "OFFSET", "ISREF", "AREAS"}
 
 
+# The question service's answer when its own layout blocks an array result (dc-vdma): TEXTSPLIT("a-b-c","-")
+# read #SPILL! there, while in a cell with an empty spill range Excel 16.0.20527 spills a, b, c (Touchstone
+# sheet case, env 145016f4397d, 2026-11-16).
+SERVICE_SPILL = ("error", "spill")
+
+
 def asked_differs(function, args):
     """True when the question service would be asked another formula than the one the sheet row holds, so
     that its answer is not evidence of the row (dc-vdma): the service builds every number as a cell (a
@@ -1059,7 +1065,7 @@ def hand_rows(batch, repo, work, first_row=1, reuse=False):
                               legacy=legacy_hypothesis(legacy), line=line, extras={}, live_reason="asked formula differs"))
             continue
         stored = stored_formula(formula, row)
-        if (row, stored) in carried:
+        if (row, stored) in carried and carried[(row, stored)] != SERVICE_SPILL:
             expected = carried[(row, stored)]
             builds.add(carried_build[0] if carried_build else "unknown")
             envs.add(carried_build[1] if carried_build else "unknown")
@@ -1085,6 +1091,13 @@ def hand_rows(batch, repo, work, first_row=1, reuse=False):
             expected = ("text", answer["value"])
         else:
             sys.exit("the service did not answer %s: %r" % (line, answer))
+        if expected == SERVICE_SPILL:
+            # The service's own sheet layout blocked the spill: not evidence of the row, whose spill
+            # range in the workbook is empty. Its answer is live Excel's read-back of the sheet.
+            lines.append(line)
+            cases.append(dict(family=function, id=source, source=source, expected=None,
+                              legacy=legacy_hypothesis(legacy), line=line, extras={}, live_reason="service spill blocked"))
+            continue
         lines.append(line)
         cases.append(dict(family=function, id=source, source=source, expected=expected, line=line, extras={}))
         check_legacy(legacy, expected, line, source, builds, contradicted)
