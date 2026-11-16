@@ -38,6 +38,7 @@ const DEF_COL_WIDTH: u16 = 0x0055;
 const OBJ: u16 = 0x005D;
 const TXO: u16 = 0x01B6;
 const NOTE: u16 = 0x001C;
+const CODE_NAME: u16 = 0x01BA;
 
 /// A relationship the sheet part needs: a hyperlink target, a comments part, a VML drawing.
 #[derive(Clone, Debug)]
@@ -104,6 +105,8 @@ pub(crate) struct Features {
     pub(crate) number: usize,
     /// The code page of a BIFF5 or BIFF7 workbook.
     pub(crate) v5: Option<u16>,
+    /// The sheet's VBA code name (CODENAME).
+    pub(crate) code_name: Option<String>,
     note_texts: std::collections::BTreeMap<u16, Vec<u16>>,
     notes: Vec<Note>,
 }
@@ -251,6 +254,12 @@ impl Features {
                     self.row_breaks = breaks;
                 } else {
                     self.column_breaks = breaks;
+                }
+            }
+            CODE_NAME => {
+                let mut p = Pieces::new(record);
+                if let Ok(units) = p.unicode_string("a code name") {
+                    self.code_name = Some(String::from_utf16_lossy(&units));
                 }
             }
             OBJ => {
@@ -405,14 +414,18 @@ impl Features {
 
     /// `<sheetPr>`, when the sheet has outline or page setup properties to state.
     pub(crate) fn write_properties(&self, x: &mut Xml) {
-        let Some(flags) = self.ws_bool else { return };
+        let flags = self.ws_bool.unwrap_or(0x00C0);
         let summary_below = flags & 0x0040 != 0;
         let summary_right = flags & 0x0080 != 0;
         let fit = flags & 0x0100 != 0;
-        if summary_below && summary_right && !fit {
+        if summary_below && summary_right && !fit && self.code_name.is_none() {
             return;
         }
-        x.open("sheetPr", &[]);
+        let mut properties = Vec::new();
+        if let Some(code_name) = &self.code_name {
+            properties.push(("codeName", code_name.clone()));
+        }
+        x.open("sheetPr", &properties);
         if !summary_below || !summary_right {
             let mut a = Vec::new();
             if !summary_below {
@@ -492,7 +505,14 @@ impl Features {
     }
 
     /// The elements after `<sheetData>`; hyperlinks add relationships to `rels`.
-    pub(crate) fn write_after_data(&self, x: &mut Xml, rels: &mut Vec<Rel>, drawing: Option<&str>) {
+    pub(crate) fn write_after_data(
+        &self,
+        x: &mut Xml,
+        rels: &mut Vec<Rel>,
+        drawing: Option<&str>,
+        rules: &super::rules::Rules,
+        filter_range: Option<&str>,
+    ) {
         if self.protect || self.objects || self.scenarios {
             let mut a = Vec::new();
             if let Some(hash) = self.password {
@@ -509,6 +529,7 @@ impl Features {
             }
             x.empty("sheetProtection", &a);
         }
+        rules.write_auto_filter(x, filter_range);
         if !self.merges.is_empty() {
             x.open("mergeCells", &[("count", self.merges.len().to_string())]);
             for m in &self.merges {
@@ -516,6 +537,7 @@ impl Features {
             }
             x.close("mergeCells");
         }
+        rules.write_rules(x);
         if !self.hyperlinks.is_empty() {
             x.open("hyperlinks", &[]);
             for link in &self.hyperlinks {

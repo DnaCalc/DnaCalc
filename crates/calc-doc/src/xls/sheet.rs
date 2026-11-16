@@ -41,6 +41,8 @@ pub(crate) struct Context<'a> {
     pub(crate) v5: Option<u16>,
     /// The pictures of the workbook's blip store.
     pub(crate) images: &'a [Option<super::drawing::Image>],
+    /// The range of the sheet's `_FilterDatabase` name (its automatic filter).
+    pub(crate) filter_range: Option<String>,
 }
 
 /// What a formula cell's `<f>` element holds.
@@ -164,6 +166,7 @@ pub(crate) fn read(
     let mut depth = 0usize;
     let mut features = super::features::Features::default();
     let mut drawing = super::drawing::Drawing::default();
+    let mut rules = super::rules::Rules::default();
     features.number = context.number;
     features.v5 = context.v5;
     // Shared and array formulas and data tables, by the cell of the FORMULA record they follow
@@ -545,7 +548,15 @@ pub(crate) fn read(
             other => {
                 // The drawing sees OBJ before the features do (both read it), and a TXO first.
                 let taken = drawing.read(record);
-                if !taken && !features.read(record)? {
+                let print_at = |rgce: &[u8], at: (u16, u16)| -> Option<String> {
+                    let links = context.links.context(Some(context.tab));
+                    let origin = Origin { row: u32::from(at.0), column: u32::from(at.1) };
+                    match print(rgce, &[], &links, origin) {
+                        Ok(Ok(text)) => Some(text),
+                        _ => None,
+                    }
+                };
+                if !taken && !rules.read(record, context.styles, &print_at, sheet_name)? && !features.read(record)? {
                     *unknown.entry(other).or_insert(0) += 1;
                 }
             }
@@ -751,7 +762,7 @@ pub(crate) fn read(
             }
         }
     }
-    features.write_after_data(&mut x, &mut rels, drawing_id);
+    features.write_after_data(&mut x, &mut rels, drawing_id, &rules, context.filter_range.as_deref());
     x.close(root);
     Ok(SheetPart {
         xml: x.out,

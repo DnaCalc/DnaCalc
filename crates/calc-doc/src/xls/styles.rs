@@ -81,6 +81,8 @@ pub(crate) struct Styles {
     xfs: Vec<XfRecord>,
     styles: Vec<StyleRecord>,
     palette: Option<Vec<u32>>,
+    /// Differential formats conditional formats ask for, as `<dxf>` elements.
+    dxfs: std::cell::RefCell<Vec<Vec<u8>>>,
 }
 
 fn e(m: crate::xlsb::Malformed) -> String {
@@ -246,6 +248,11 @@ impl Styles {
         self.xfs.is_empty()
     }
 
+    /// Whether a styles part is written: there are formats, or differential formats.
+    pub(crate) fn needs_part(&self) -> bool {
+        !self.xfs.is_empty() || !self.dxfs.borrow().is_empty()
+    }
+
     /// The index of BIFF XF `ixfe` in the written `cellXfs`: cell formats keep their order, style
     /// formats follow them.
     pub(crate) fn cell_format(&self, ixfe: u16) -> u32 {
@@ -274,6 +281,30 @@ impl Styles {
     }
 
     /// `<color .../>` attributes for palette index `icv`.
+    pub(crate) fn color_attributes(&self, icv: u16) -> Vec<(&'static str, String)> {
+        self.color(icv)
+    }
+
+    /// Adds a differential format (a `<dxf>` element) and returns its index; equal ones are shared.
+    pub(crate) fn add_dxf(&self, xml: Vec<u8>) -> usize {
+        let mut dxfs = self.dxfs.borrow_mut();
+        match dxfs.iter().position(|d| *d == xml) {
+            Some(at) => at,
+            None => {
+                dxfs.push(xml);
+                dxfs.len() - 1
+            }
+        }
+    }
+
+    pub(crate) fn pattern_name(&self, style: u16) -> &'static str {
+        PATTERNS.get(usize::from(style)).copied().unwrap_or("none")
+    }
+
+    pub(crate) fn border_style_name(&self, style: u32) -> &'static str {
+        BORDER_STYLES.get(style as usize).copied().unwrap_or("thin")
+    }
+
     fn color(&self, icv: u16) -> Vec<(&'static str, String)> {
         match self.rgb(icv) {
             Some(rgb) => vec![("rgb", rgb)],
@@ -342,6 +373,15 @@ impl Styles {
             x.close("numFmts");
         }
         // Fonts.
+        if self.fonts.is_empty() {
+            x.open("fonts", &[("count", "1".to_owned())]);
+            x.open("font", &[]);
+            x.empty("sz", &[("val", "10".to_owned())]);
+            x.empty("name", &[("val", "Arial".to_owned())]);
+            x.close("font");
+            x.close("fonts");
+        }
+        if !self.fonts.is_empty() {
         x.open("fonts", &[("count", self.fonts.len().to_string())]);
         for font in &self.fonts {
             x.open("font", &[]);
@@ -384,6 +424,7 @@ impl Styles {
             x.close("font");
         }
         x.close("fonts");
+        }
 
         // Fills and borders, deduplicated; xlsx wants the "none" and "gray125" fills first.
         let mut fills: Vec<(u32, u16, u16)> = vec![(0, 0, 0), (17, 0, 0)];
@@ -565,7 +606,18 @@ impl Styles {
             x.empty("cellStyle", &attributes);
         }
         x.close("cellStyles");
-        x.empty("dxfs", &[("count", "0".to_owned())]);
+        {
+            let dxfs = self.dxfs.borrow();
+            if dxfs.is_empty() {
+                x.empty("dxfs", &[("count", "0".to_owned())]);
+            } else {
+                x.open("dxfs", &[("count", dxfs.len().to_string())]);
+                for dxf in dxfs.iter() {
+                    x.out.extend_from_slice(dxf);
+                }
+                x.close("dxfs");
+            }
+        }
         x.empty(
             "tableStyles",
             &[

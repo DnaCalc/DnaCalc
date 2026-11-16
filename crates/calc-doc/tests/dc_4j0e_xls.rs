@@ -852,3 +852,161 @@ fn pictures_text_boxes_and_charts_are_written_as_a_drawing() {
     assert_eq!(charts.charts[0].title.as_deref(), Some("Quarterly"));
     assert_eq!(charts.charts[0].plots.len(), 1);
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn conditional_formats_validations_and_the_automatic_filter() {
+    use ptg::*;
+    use xls_kit::rules;
+    let globals = [
+        supbook_self(1),
+        extern_sheet(&[(0, 0, 0)]),
+        // The sheet's _FilterDatabase: a hidden built-in name (code 13) local to sheet 1.
+        name_record(0x0021, 1, "\u{d}", &area3d(0, (0, 9), (0, 2), 0)),
+    ]
+    .concat();
+    let mut r = Vec::new();
+    r.extend(number(0, 0, 1.0));
+    // Cells B2:B10 greater than 5 -> bold, solid yellow (palette 13) fill; and a formula rule.
+    r.extend(rules::cf_header(2, &[(1, 9, 1, 1)]));
+    r.extend(rules::cf(1, 5, &int(5), &[], true, Some((1, 13, 64))));
+    r.extend(rules::cf(2, 0, &join(&[cell_n(0, -1, REL_ROW | REL_COL), int(0), op(0x0D)]), &[], false, None));
+    // A list "yes,no" (explicit) on D1:D5 and a whole-number validation between 1 and 10 on E1:E5.
+    let mut list = vec![0x17u8, 6, 0];
+    list.extend(b"yes\0no");
+    r.extend(rules::dv(0x0003 | 0x80 | 0x100 | 0x4_0000 | 0x8_0000, ["", "Oops", "", "Pick one"], &list, &[], (0, 4, 3, 3)));
+    r.extend(rules::dv(0x0001 | 0x100 | 0x8_0000, ["", "", "", ""], &int(1), &int(10), (0, 4, 4, 4)));
+    // The automatic filter over A1:C10 keeps rows where column B > 3.
+    r.extend(rules::autofilter_info(3));
+    r.extend(rules::autofilter_greater_than(1, 3.0));
+    let bytes = xls(false, &globals, &[Sheet::worksheet("S", r)]);
+    let loaded = load(&bytes);
+    let sheet = &loaded.sheets()[0];
+    let formats = sheet.conditional_formats();
+    assert_eq!(formats.len(), 1, "{formats:?}");
+    assert_eq!(formats[0].rules.len(), 2);
+    assert_eq!(formats[0].areas, vec![(2, 2, 10, 2)], "rows and columns are 1-based");
+    let validations = sheet.validations();
+    assert_eq!(validations.len(), 2, "{validations:?}");
+    let text = format!("{validations:?}");
+    assert!(text.contains("yes,no") && text.contains("Pick one") && text.contains("Oops"), "{text}");
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let part = String::from_utf8(document.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+    for expected in [
+        "<autoFilter ref=\"A1:C10\"><filterColumn colId=\"1\"><customFilters><customFilter operator=\"greaterThan\" val=\"3\"/>",
+        "<cfRule type=\"cellIs\" dxfId=\"0\" priority=\"1\" operator=\"greaterThan\"><formula>5</formula></cfRule>",
+        "<cfRule type=\"expression\"",
+        "type=\"whole\"",
+    ] {
+        assert!(part.contains(expected), "{expected} in {part}");
+    }
+    // The rule's formatting is a differential format of the styles part: bold, and the solid fill.
+    let loaded_styles = loaded.styles();
+    assert_eq!(loaded_styles.differential_formats.len(), 2, "{:?}", loaded_styles.differential_formats);
+    let first = format!("{:?}", loaded_styles.differential_formats[0]);
+    assert!(first.contains("bold: true") && first.contains("FFFFFF00"), "{first}");
+}
+
+mod vba {
+    use super::*;
+
+    const XLS: &[u8] = include_bytes!("fixtures/dc_4j0e/FormsWorkbook.xls");
+    const XLSM: &[u8] = include_bytes!("fixtures/dc_4j0e/FormsWorkbook.xlsm");
+
+    fn project_of(bytes: &[u8]) -> calc_vba::OfficeProject {
+        let document = calc_doc::open(source(bytes), &OpenPolicy::default()).unwrap();
+        let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+        let loaded = calc_doc::load(&document, &mut ids).unwrap();
+        let part = loaded.vba_project(&Default::default()).unwrap().expect("a VBA project");
+        calc_vba::read_office_project(&part.bytes).expect("CalcVBA reads the project")
+    }
+
+    /// Native-only: none; the real workbook (written by Excel, with a user form) and the .xlsm
+    /// Excel saved from it hold one project, and the converted .xls hands CalcVBA the same modules.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn the_vba_project_of_an_xls_is_the_one_of_the_xlsm_saved_from_it() {
+        let from_xls = project_of(XLS);
+        let from_xlsm = project_of(XLSM);
+        let modules = |p: &calc_vba::OfficeProject| -> Vec<(String, String)> {
+            let mut v: Vec<_> = p.modules().iter().map(|m| (m.name.clone(), m.source.clone())).collect();
+            v.sort();
+            v
+        };
+        let (a, b) = (modules(&from_xls), modules(&from_xlsm));
+        assert!(!a.is_empty());
+        assert_eq!(a.iter().map(|m| &m.0).collect::<Vec<_>>(), b.iter().map(|m| &m.0).collect::<Vec<_>>());
+        assert_eq!(a, b);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn read_vba_file_takes_the_compound_file_and_names_the_workbook() {
+        let session = calc_doc::read_vba_file(XLS.to_vec()).expect("reads").expect("a project");
+        let text = format!("{session:?}");
+        assert!(text.contains("ThisWorkbook"), "{text}");
+        let document = calc_doc::open(source(XLS), &OpenPolicy::default()).unwrap();
+        let workbook = String::from_utf8(document.package().read_part("xl/workbook.xml").unwrap()).unwrap();
+        assert!(workbook.contains("codeName=\"ThisWorkbook\""), "{workbook}");
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn a_saved_macro_enabled_xls_keeps_its_vba_project() {
+    const XLS: &[u8] = include_bytes!("fixtures/dc_4j0e/FormsWorkbook.xls");
+    let document = calc_doc::open(source(XLS), &OpenPolicy::default()).unwrap();
+    let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).expect("a plan");
+    let mut saved = Vec::new();
+    calc_doc::write(plan, &mut saved).expect("written");
+    assert_eq!(&saved[..2], b"PK");
+    let session = calc_doc::read_vba_file(saved).expect("reads").expect("the saved package keeps the project");
+    assert!(format!("{session:?}").contains("ThisWorkbook"));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn an_excel_4_macro_sheet_of_an_xls_opens_as_dc_xuw_describes_and_saves_as_xlsm() {
+    use ptg::*;
+    // Macro1 (BOUNDSHEET type 1): A2 = 21; A3 = ALERT("hi"), a command (PtgFuncVar with the
+    // command bit), cached 1; A4 = A2*2. Data!A1 reads Macro1!A2.
+    let mut macro_records = Vec::new();
+    macro_records.extend(number(1, 0, 21.0));
+    macro_records.extend(formula(2, 0, bool_value(true), &join(&[text("hi"), {
+        let mut v = vec![0x42, 1];
+        v.extend((118u16 | 0x8000).to_le_bytes());
+        v
+    }]), &[]));
+    macro_records.extend(formula(3, 0, num_value(42.0), &join(&[cell(1, 0, REL_ROW | REL_COL), int(2), op(MUL)]), &[]));
+    let mut data_records = Vec::new();
+    data_records.extend(formula(0, 0, num_value(21.0), &cell3d(0, 1, 0, REL_ROW | REL_COL), &[]));
+    let globals = [supbook_self(2), extern_sheet(&[(0, 1, 1)])].concat();
+    let bytes = xls(
+        false,
+        &globals,
+        &[
+            Sheet::worksheet("Data", data_records),
+            Sheet {
+                kind: 1,
+                ..Sheet::worksheet("Macro1", macro_records)
+            },
+        ],
+    );
+    let loaded = load(&bytes);
+    let sheets = loaded.sheets();
+    assert!(sheets[1].is_macro_sheet() && !sheets[0].is_macro_sheet());
+    assert!(loaded.model().definitions().macro_enabled());
+    // The constant is an input; the macro formulas are not loaded, but their cached results are kept.
+    assert_eq!(cells(loaded.model(), 1), vec!["A2 n:21.0"]);
+    let cached: Vec<(u32, u32)> = sheets[1].value_caches().map(|(r, c, _)| (r, c)).collect();
+    assert_eq!(cached, vec![(3, 1), (4, 1)], "{cached:?}");
+    assert_eq!(cells(loaded.model(), 0), vec!["A1 f:Macro1!A2"]);
+    // Saved, it is a macro-enabled package that keeps the macro sheet.
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).expect("a plan");
+    let mut saved = Vec::new();
+    calc_doc::write(plan, &mut saved).expect("written");
+    let reopened = calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap();
+    let macro_part = String::from_utf8(reopened.package().read_part("xl/macrosheets/sheet2.xml").unwrap()).unwrap();
+    assert!(macro_part.contains("ALERT("), "{macro_part}");
+}

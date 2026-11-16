@@ -89,6 +89,8 @@ pub(crate) struct Globals {
     pub(crate) styles: super::styles::Styles,
     /// The MSODRAWINGGROUP record: the drawing group container with the blip store.
     pub(crate) drawing_group: Vec<u8>,
+    /// The workbook's VBA code name (CODENAME in the globals).
+    pub(crate) code_name: Option<String>,
     /// A FILEPASS record: the stream is encrypted (dc-4j0e.7).
     pub(crate) encrypted: bool,
     /// Record types not read, with how many of each, over the whole workbook stream, sheets included.
@@ -192,6 +194,12 @@ pub(crate) fn read(records: &[Record<'_>], biff5: bool) -> Result<Globals, Strin
                 globals.styles.read(record, biff5.then(|| globals.code_page.unwrap_or(1252)))?;
             }
             super::drawing::MSODRAWING_GROUP => globals.drawing_group.extend_from_slice(&record.joined()),
+            0x01BA => {
+                let mut p = Pieces::new(record);
+                if let Ok(units) = p.unicode_string("a code name") {
+                    globals.code_name = Some(String::from_utf16_lossy(&units));
+                }
+            }
             NAME => globals.names.push(name_record(
                 record,
                 biff5.then(|| globals.code_page.unwrap_or(1252)),
