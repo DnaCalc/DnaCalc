@@ -62,6 +62,46 @@ $groups = $rows | ForEach-Object { $f = $_ -split "`t"; [pscustomobject]@{ row =
         $book.Date1904 = ($first[5] -eq '1904')
         $sheet = $book.Worksheets.Item(1)
         $sheet.Columns.ColumnWidth = 60
+        $items = @($group.Group | ForEach-Object { , ($_.row -split "`t", 9) })
+        $n = $items.Count
+        # Bulk route (dc-wi2wu): one row per case in this one workbook. Column A holds a number or text case, column B the
+        # TEXT() formula of an fn case; formats, values and formulas go in as 2-D arrays, one Calculate, then the displayed
+        # text (Range.Text has no array form) and the invariant format are read back per cell. A write the array route
+        # cannot take (a code Excel rejects) sends the group down the per-case route below, which says which case failed.
+        $bulk = $false
+        try {
+            $general = New-Object 'object[,]' $n, 1; $local = New-Object 'object[,]' $n, 1
+            $values = New-Object 'object[,]' $n, 1; $formulas = New-Object 'object[,]' $n, 1
+            for ($i = 0; $i -lt $n; $i++) {
+                $f = $items[$i]
+                $prefix = ''
+                if ($f[4]) { $prefix = '[$-' + $f[4] + ']' }
+                $code = Literal $f[8]
+                $general[$i, 0] = if ($f[6] -eq 'text') { '@' } else { 'General' }
+                $local[$i, 0] = if ($f[6] -eq 'fn') { 'General' } else { $prefix + $code }
+                $values[$i, 0] = if ($f[6] -eq 'number') { [double]::Parse($f[7], [Globalization.CultureInfo]::InvariantCulture) } elseif ($f[6] -eq 'text') { [string]$f[7] } else { $null }
+                $formulas[$i, 0] = if ($f[6] -eq 'fn') { '=TEXT(' + $f[7] + ',"' + ($code -replace '"', '""') + '")' } else { $null }
+            }
+            $colA = $sheet.Range("A1:A$n"); $colB = $sheet.Range("B1:B$n")
+            $colA.NumberFormat = $general
+            $colA.Value2 = $values
+            $colB.Formula = $formulas
+            $colA.NumberFormatLocal = $local
+            $sheet.Calculate() | Out-Null
+            $bulk = $true
+        } catch { $sheet.Cells.Clear() | Out-Null }
+        if ($bulk) {
+            for ($i = 0; $i -lt $n; $i++) {
+                $f = $items[$i]
+                $text = ''; $invariant = ''; $err = ''
+                try {
+                    $cell = if ($f[6] -eq 'fn') { $sheet.Cells.Item($i + 1, 2) } else { $sheet.Cells.Item($i + 1, 1) }
+                    $text = $cell.Text
+                    $invariant = $cell.NumberFormat
+                } catch { $err = $_.Exception.Message -replace "[\t\r\n]+", ' ' }
+                $out.Add(($f[0], $f[1], $f[2], $f[3], $f[4], $f[5], $f[6], $f[7], $f[8], (Show $text), (Show $invariant), $err) -join "`t")
+            }
+        } else {
         foreach ($item in $group.Group) {
             $f = $item.row -split "`t", 9
             $text = ''; $invariant = ''; $err = ''
@@ -88,6 +128,7 @@ $groups = $rows | ForEach-Object { $f = $_ -split "`t"; [pscustomobject]@{ row =
                 $invariant = $cell.NumberFormat
             } catch { $err = $_.Exception.Message -replace "[\t\r\n]+", ' ' }
             $out.Add(($f[0], $f[1], $f[2], $f[3], $f[4], $f[5], $f[6], $f[7], $f[8], (Show $text), (Show $invariant), $err) -join "`t")
+        }
         }
         $book.Close($false)
         $book = $null

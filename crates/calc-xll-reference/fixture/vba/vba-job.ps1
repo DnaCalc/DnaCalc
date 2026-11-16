@@ -195,8 +195,42 @@ switch ($Action) {
             # functions are called unqualified (an .xlsm); otherwise into a new workbook (an add-in).
             if ($InBook) { $sheet = $opened.Worksheets.Item(1) } else { $book = $excel.Workbooks.Add(); $sheet = $book.Worksheets.Item(1) }
             $result.sheet = $sheet.Name
-            foreach ($case in $list) {
+            # Bulk route (dc-wi2wu): the cases that do not depend on call order or on where the formula sits go into
+            # one column as 2-D arrays, a tile of 16 rows each (room for a spill), one Calculate, one Value2 read of the
+            # column; only the displayed Text is read per case (Range.Text has no array form). A case whose answer is a
+            # spill collision, a stateful or position-dependent case, or any case when the array write fails is answered
+            # by the per-case route below, in the case file's order, on a cleared sheet.
+            $tile = 16
+            $serialPattern = 'Count|Caller|Active|Selection|ROW\(|COLUMN\(|CELL\(|NOW\(|TODAY\(|RAND|SHEET|Address|OFFSET|INDIRECT'
+            $answers = @{}
+            $bulkIndex = @(0..($list.Count - 1) | Where-Object { $list[$_].formula -notmatch $serialPattern })
+            if ($bulkIndex.Count -gt 1) {
+                try {
+                    $anchor = $sheet.Range($FormulaCell); $firstRow = $anchor.Row; $column = $anchor.Column
+                    $rowsTotal = $bulkIndex.Count * $tile
+                    $block = $sheet.Range($sheet.Cells.Item($firstRow, $column), $sheet.Cells.Item($firstRow + $rowsTotal - 1, $column))
+                    $formulas = New-Object 'object[,]' $rowsTotal, 1
+                    for ($k = 0; $k -lt $bulkIndex.Count; $k++) { $formulas[($k * $tile), 0] = [string]$list[$bulkIndex[$k]].formula }
+                    $block.Formula2 = $formulas
+                    $excel.Calculate()
+                    $values = $block.Value2
+                    for ($k = 0; $k -lt $bulkIndex.Count; $k++) {
+                        $value = $values[($k * $tile + 1), 1]
+                        if ($value -is [int] -and $value -eq -2146826243) { continue }   # #SPILL! (2045): ask again alone
+                        $cell = $sheet.Cells.Item($firstRow + $k * $tile, $column)
+                        $answers[$bulkIndex[$k]] = @{ excel = (Describe $value); text = [string]$cell.Text }
+                    }
+                } catch { $answers = @{} }
+                Step 'clear bulk block' { $sheet.Range($FormulaCell).Resize($bulkIndex.Count * $tile, 1).Clear() | Out-Null }
+            }
+            for ($i = 0; $i -lt $list.Count; $i++) {
+                $case = $list[$i]
                 $row = [ordered]@{ formula = $case.formula }
+                if ($answers.ContainsKey($i)) {
+                    $row.excel = $answers[$i].excel; $row.text = $answers[$i].text
+                    $result.rows += $row
+                    continue
+                }
                 $cell = $sheet.Range($FormulaCell)
                 try {
                     $cell.Formula2 = $case.formula
