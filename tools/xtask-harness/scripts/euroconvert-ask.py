@@ -26,13 +26,33 @@ ADDINS = ['EUROTOOL.XLAM']
 SOURCES = ['readings/excel-20527/admit2-answers-_eurotool.euroconvert-%s.json' % s for s in ('enrich', 'more', 'scalar', 'special')]
 
 
+CODES = ['EUR', 'BEF', 'LUF', 'DEM', 'ESP', 'FRF', 'IEP', 'ITL', 'NLG', 'ATS', 'PTE', 'FIM', 'GRD', 'SIT', 'CYP', 'MTL',
+         'SKK', 'EEK', 'LVL', 'LTL', 'USD', 'dem', ' DEM', '']
+AMOUNTS = [0, 1, -1, 100, 1234.5678, 0.005, 1e9, -0.125, 2.5e-7]
+
+
+def generated():
+    """Calls with real currency codes (the bank's random arguments only reach the errors): every pair of a
+    subset of codes, amounts, full_precision omitted/TRUE/FALSE and triangulation_precision omitted/2/3/6."""
+    import struct
+    hexf = lambda x: '0x%016x' % struct.unpack('>Q', struct.pack('>d', float(x)))[0]
+    rows = []
+    for a in AMOUNTS:
+        for src in CODES:
+            for dst in ['EUR', 'DEM', 'FRF', 'ITL', 'GRD', 'LTL', 'USD', 'eur']:
+                for extra in ([], [True], [False], [True, hexf(3)], [False, hexf(3)], [False, hexf(2)], [True, hexf(6)]):
+                    rows.append({'id': 'gen-%05d' % len(rows), 'args': [hexf(a), src, dst, *extra]})
+    return rows
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('--evidence', type=pathlib.Path, required=True)
     p.add_argument('--out', type=pathlib.Path, required=True)
     p.add_argument('--per-request', type=int, default=500)
+    p.add_argument('--generated', action='store_true', help='ask generated calls with real currency codes instead of the bank rows')
     o = p.parse_args()
-    rows = [w for rel in SOURCES for w in json.loads((o.evidence / rel).read_text())['witnesses']]
+    rows = generated() if o.generated else [w for rel in SOURCES for w in json.loads((o.evidence / rel).read_text())['witnesses']]
     client = Client(transport='socket', timeout=900)
     sock = client._socket()
     started = time.monotonic()
@@ -54,7 +74,7 @@ def main():
             elif result is None:
                 why = 'unread or unsupported answer: ' + str(observed.get('type'))
             else:
-                accepted.append({'id': 'addin-' + w['id'], 'args': [recapture.bank_arg(a) for a in readback],
+                accepted.append({'id': ('eurotool-' if o.generated else 'addin-') + w['id'], 'args': [recapture.bank_arg(a) for a in readback],
                                  'expected_bits': result})
                 continue
             rejected[why] = rejected.get(why, 0) + 1

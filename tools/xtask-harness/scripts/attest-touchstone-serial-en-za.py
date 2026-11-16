@@ -3,12 +3,14 @@ Touchstone serial worker's environment (the one answering `order="serial"` reque
 calculation off) is Excel 16.0.20527 under the en-ZA user culture, with no add-in file open.
 It asks that environment directly, as one-call serial requests, the culture questions dc-7ofm
 read from the bank: DOLLAR (currency sign and grouping) and DATEVALUE (short-date order).
-Usage: python3 attest-touchstone-serial-en-za.py <DnaCalc checkout> <out json> [any]
-With "any" the questions go to the ordinary (multithreaded) workers instead of the serial one."""
+Usage: python3 attest-touchstone-serial-en-za.py <DnaCalc checkout> <out json> [any [ADDIN.XLAM]]
+With "any" the questions go to the ordinary (multithreaded) workers instead of the serial one; with an add-in
+file named as well, to the environment variant whose Excel has it open."""
 import json, sys
 
 repo, out = sys.argv[1], sys.argv[2]
 order = sys.argv[3] if len(sys.argv) > 3 else 'serial'
+addins = sys.argv[4:] or None
 sys.path.insert(0, repo + '/tools/excel-service')
 from client import Client, number, text  # noqa: E402
 
@@ -19,7 +21,7 @@ client = Client(transport='socket', timeout=600)
 sock = client._socket()
 answers, envs = [], set()
 for function, row in QUESTIONS:
-    pending = sock.submit_rows(function, [row], priority='bulk' if order == 'any' else 'interactive', echo=True, order=order)
+    pending = sock.submit_rows(function, [row], priority='bulk' if order == 'any' else 'interactive', echo=True, order=order, addins=addins)
     reply = pending.result(timeout=600)
     envs.update(pending.env_ids)
     answers.append({'function': function, 'args': reply['inputs'][0], 'answer': reply['rows'][0],
@@ -33,7 +35,8 @@ doc = {
     'claim': ('Touchstone environment %s (%s) is Excel 16.0.20527 on the same machine as '
               '29bedb2b6722 (migration/evidence/dc-7ofm-touchstone-en-za.json), under the Windows user culture '
               'en-ZA, whose Excel International separators are "." and " ".'
-              % (env_id, 'an ordinary multithreaded worker' if order == 'any' else 'the serial worker')),
+              % (env_id, ('the variant with %s open' % '+'.join(addins)) if addins else
+                 'an ordinary multithreaded worker' if order == 'any' else 'the serial worker')),
     'evidence': [
         'The environment record (touchstone_environment) gives the same build, OS, CPU and scratch sheets as '
         '29bedb2b6722, with a later file version (and, for the serial worker, multithreaded calculation off).',
@@ -44,7 +47,7 @@ doc = {
     'env_id': env_id,
     'service': 'touchstone/1',
     'profile': {'locale': 'en-ZA', 'decimal_separator': '.', 'thousands_separator': ' '},
-    'addins_open': record.get('addins_installed') if record else None,
+    'addins_open': (record.get('addins_open') or []) if record else None,
     'answers': answers,
 }
 with open(out, 'w') as f:
