@@ -20,6 +20,7 @@ M = '{http://schemas.openxmlformats.org/spreadsheetml/2006/main}'
 R = '{http://schemas.openxmlformats.org/officeDocument/2006/relationships}'
 P = '{http://schemas.openxmlformats.org/package/2006/relationships}'
 XDR = '{http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing}'
+A = '{http://schemas.openxmlformats.org/drawingml/2006/main}'
 C = '{http://schemas.openxmlformats.org/drawingml/2006/chart}'
 
 
@@ -87,6 +88,21 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
             obj = {'anchor': anchor.tag.rsplit('}', 1)[-1], 'position': position,
                    'types': sorted(x.tag.rsplit('}', 1)[-1] for x in anchor if x.tag in
                                    (XDR + 'sp', XDR + 'pic', XDR + 'graphicFrame', XDR + 'grpSp'))}
+            images = []
+            for blip in anchor.iter(A + 'blip'):
+                for attribute in ('embed', 'link'):
+                    ident = blip.get(R + attribute)
+                    if ident is None:
+                        continue
+                    image_rel = rels.get(ident)
+                    if image_rel is None:
+                        raise ValueError('missing image relationship')
+                    if image_rel.get('TargetMode') == 'External':
+                        images.append({'external': image_rel.get('Target')})
+                    else:
+                        data = z.read(target(path, image_rel))
+                        images.append({'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data)})
+            obj['images'] = images
             chart = next(anchor.iter(C + 'chart'), None)
             if chart is not None:
                 chart_rel = rels.get(chart.get(R + 'id'))
@@ -277,7 +293,7 @@ def main():
             except (ValueError, KeyError, ET.ParseError, zipfile.BadZipFile, OSError) as exc:
                 row['error'] = str(exc)
         generated_results.append(row)
-    output = {'files': results, 'excel_generated': generated_results, 'not_compared': ['calculated provenance', 'drawing formatting and image contents',
+    output = {'files': results, 'excel_generated': generated_results, 'not_compared': ['calculated provenance', 'drawing formatting',
               'chart formatting', 'conditional formatting style definitions', 'pivot tables and caches',
               'VBA project contents', 'named-style inheritance and rendered style equivalence', 'other metadata']}
     args.output.write_text(json.dumps(output, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
