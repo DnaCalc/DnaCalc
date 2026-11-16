@@ -244,11 +244,14 @@ impl Features {
                 let count = c.u16("PageBreaks").map_err(e)?;
                 let mut breaks = Vec::new();
                 for _ in 0..count {
-                    breaks.push((
-                        c.u16("PageBreaks").map_err(e)?,
-                        c.u16("PageBreaks").map_err(e)?,
-                        c.u16("PageBreaks").map_err(e)?,
-                    ));
+                    let at = c.u16("PageBreaks").map_err(e)?;
+                    let (start, end) = if self.v5.is_some() {
+                        // BIFF5/7 stores only the index; each break crosses the whole sheet.
+                        (0, if record.id == H_PAGE_BREAKS { 255 } else { 65535 })
+                    } else {
+                        (c.u16("PageBreaks").map_err(e)?, c.u16("PageBreaks").map_err(e)?)
+                    };
+                    breaks.push((at, start, end));
                 }
                 if record.id == H_PAGE_BREAKS {
                     self.row_breaks = breaks;

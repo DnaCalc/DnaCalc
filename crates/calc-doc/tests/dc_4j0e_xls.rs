@@ -667,6 +667,20 @@ fn a_biff5_workbook_with_code_page_text_formulas_and_names() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn biff5_page_breaks_span_the_sheet() {
+    let mut records = record(0x001B, &u16s(&[2, 59, 114]));
+    records.extend(record(0x001A, &u16s(&[1, 5])));
+    let bytes = v5::xls(1252, &[], &[v5::Sheet { name: b"S".to_vec(), records }]);
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let part = String::from_utf8(document.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+    assert!(part.contains("<brk id=\"59\" min=\"0\" max=\"16383\" man=\"1\"/>"), "{part}");
+    assert!(part.contains("<brk id=\"114\" min=\"0\" max=\"16383\" man=\"1\"/>"), "{part}");
+    assert!(part.contains("<brk id=\"5\" min=\"0\" max=\"1048575\" man=\"1\"/>"), "{part}");
+    load(&bytes);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn a_biff5_workbook_in_a_double_byte_code_page_refuses_its_high_bytes() {
     use xls_kit::v5;
     let ascii = v5::xls(932, &[], &[v5::Sheet { name: b"S".to_vec(), records: v5::label(0, 0, b"plain") }]);
