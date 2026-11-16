@@ -1139,6 +1139,44 @@ struct PositionRecapture {
 
 const RECAPTURES: &str = "recaptures";
 
+/// Puts the position recapture of bank row (`rel`, `id`) in the bank in its place, when there is
+/// one: the same id and arguments, the recaptured answer and environment (dc-ymjf.2.85).
+fn take_recapture(
+    banks: &mut Banks,
+    positioned: &mut BTreeMap<(String, String), PositionRecapture>,
+    source_of: &mut BTreeMap<String, usize>,
+    function: &str,
+    rel: &str,
+    id: &str,
+    args: &[Value],
+) -> Result<bool, String> {
+    let Some(recapture) = positioned.remove(&(rel.to_owned(), id.to_owned())) else {
+        return Ok(false);
+    };
+    if recapture.args != args {
+        return Err(format!("{}: recapture arguments differ for {id}", recapture.path));
+    }
+    let source = *source_of.entry(recapture.env.source.clone()).or_insert_with(|| {
+        banks.sources.push(Source {
+            path: recapture.path.clone(),
+            env: recapture.env,
+        });
+        banks.sources.len() - 1
+    });
+    // The recapture read S!A1 with no INDEX around the call (position-recapture.py never sends
+    // a selection): the original row's result_index does not apply.
+    banks.readings.push(Reading {
+        function: function.to_owned(),
+        id: id.to_owned(),
+        args: args.to_vec(),
+        index: None,
+        expected: recapture.expected,
+        source,
+    });
+    Ok(true)
+}
+
+
 /// The position recaptures under `recaptures/`, keyed by (bank file, row id).
 fn position_recaptures(
     checkout: &Path,
@@ -1320,6 +1358,8 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
         import_notes: Vec::new(),
         unread_rows: BTreeMap::new(),
     };
+    let mut positioned = position_recaptures(checkout, only)?;
+    let mut recapture_source_of = BTreeMap::new();
     let inverse_replay = if only.is_none_or(|f| f == "MINVERSE") {
         Some(bank_json(&gunzip(
             include_bytes!("../../../migration/evidence/dc-1943-minverse-replay.json.gz"),
@@ -1526,6 +1566,20 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
             hex_repairs += usize::from(
                 original_args != row["args"] || normalized_expected != row["expected_bits"],
             );
+            let row_id = row["id"]
+                .as_str()
+                .map_or_else(|| format!("row{i}"), str::to_owned);
+            if take_recapture(
+                &mut banks,
+                &mut positioned,
+                &mut recapture_source_of,
+                &function,
+                rel,
+                &row_id,
+                args.as_array().unwrap(),
+            )? {
+                continue;
+            }
             let source = retain_source(
                 &mut banks,
                 &mut source_of,
@@ -1564,7 +1618,6 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
     } else {
         BTreeMap::new()
     };
-    let mut positioned = position_recaptures(checkout, only)?;
     // New readings (`cargo xtask witness read`), kept as plain WitnessSet files.
     for path in plain_readings(&checkout.join(READINGS)) {
         let rel = path
@@ -1639,30 +1692,7 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
                     );
                 }
             }
-            if let Some(recapture) = positioned.remove(&(rel.clone(), id.clone())) {
-                if recapture.args != *args {
-                    return Err(format!("{}: recapture arguments differ for {id}", recapture.path));
-                }
-                selected = recapture.expected;
-                let source = *recapture_source_of
-                    .entry(recapture.env.source.clone())
-                    .or_insert_with(|| {
-                        banks.sources.push(Source {
-                            path: recapture.path.clone(),
-                            env: recapture.env,
-                        });
-                        banks.sources.len() - 1
-                    });
-                // The recapture read S!A1 with no INDEX around the call (position-recapture.py
-                // never sends a selection): the original row's result_index does not apply.
-                banks.readings.push(Reading {
-                    function: function.clone(),
-                    id,
-                    args: args.clone(),
-                    index: None,
-                    expected: selected,
-                    source,
-                });
+            if take_recapture(&mut banks, &mut positioned, &mut recapture_source_of, &function, &rel, &id, args)? {
                 continue;
             }
             let source = if recaptured {
@@ -2137,7 +2167,8 @@ fn order_dependent_weeknum(reading: &Reading) -> bool {
 }
 
 fn exclusion_reason(reading: &Reading, source: &Source) -> Option<&'static str> {
-    if order_dependent_weeknum(reading) {
+    // A recaptured call ran alone in its own calculation pass, so no earlier call set its state.
+    if order_dependent_weeknum(reading) && !source.path.starts_with(RECAPTURES) {
         return Some("order-dependent");
     }
     if reading.function == "TEXTSPLIT"

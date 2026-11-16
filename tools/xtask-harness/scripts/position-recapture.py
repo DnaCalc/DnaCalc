@@ -16,7 +16,7 @@ inputs Excel read back differently, or that Excel could not answer, are listed a
 stay failures. Each answer is S!A1's value (`result_selection: anchor`): a spill wider than one
 column meets the argument cells and is #SPILL!, as in the bulk layout.
 """
-import argparse, concurrent.futures, importlib.util, json, pathlib, sys
+import argparse, concurrent.futures, gzip, importlib.util, json, pathlib, sys
 
 HERE = pathlib.Path(__file__).resolve()
 sys.path.insert(0, str(HERE.parents[3] / 'tools' / 'excel-service'))
@@ -38,6 +38,10 @@ SOURCES = {
     # the bulk layout does not record; the one-call layout's sheet holds only the call.
     'SUBTOTAL': ['readings/excel-20527/admit2-answers-subtotal-%s.json' % s for s in ('enrich', 'more', 'scalar', 'special')],
     'AGGREGATE': ['readings/excel-20527/admit2-answers-aggregate-%s.json' % s for s in ('enrich', 'more', 'scalar', 'special')],
+    # WEEKNUM with a return type outside 1-21 reads a state the previous WEEKNUM or ISOWEEKNUM of
+    # the same calculation pass left (dc-amhpx); a call alone in its pass has no previous call.
+    'WEEKNUM': ['runs/w111-%s-20260929/answers/answers-weeknum.json' % s
+                for s in ('date-boundaries', 'date-conversion', 'date-integer', 'broad')],
     'TRANSPOSE': ['readings/excel-20527/bank2-answers-transpose-spill.json'],
     'SEQUENCE': ['readings/excel-20527/bank2-answers-sequence-spill.json'],
     'TREND': ['readings/excel-20527/bank2-answers-trend-spill.json'],
@@ -65,6 +69,19 @@ def typed(arg):
     raise ValueError('argument form %r is not a scalar cell' % (arg,))
 
 
+def outside_return_types(w):
+    """A WEEKNUM row whose return type is a number below 1 or from 21 up: a superset of the
+    harness's order-dependent rows (witness.rs order_dependent_weeknum)."""
+    if len(w['args']) < 2:
+        return False
+    t = w['args'][1]
+    if not (isinstance(t, str) and t.startswith('0x') and len(t) == 18):
+        return False
+    import struct
+    x = struct.unpack('>d', bytes.fromhex(t[2:]))[0]
+    return x == x and (x < 1 or x >= 21)
+
+
 def bank_arg(read):
     kind = read['type']
     if kind == 'array':
@@ -90,9 +107,12 @@ def main():
     o = p.parse_args()
     rows = []
     for rel in SOURCES[o.function]:
-        doc = json.loads((o.evidence / rel).read_text())
+        path = o.evidence / rel
+        doc = json.loads(path.read_text() if path.exists() else gzip.open(str(path) + '.gz').read())
         assert doc['function'].upper() == o.function, rel
         for w in doc['witnesses']:
+            if o.function == 'WEEKNUM' and not outside_return_types(w):
+                continue
             rows.append((rel, w))
     if o.limit:
         rows = rows[:o.limit]
