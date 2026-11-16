@@ -317,8 +317,13 @@ fn name_record(record: &Record<'_>, v5: Option<u16>) -> Result<NameRecord, Strin
         name
     };
     let rgce = c.bytes(formula_len, what).map_err(m)?.to_vec();
-    // The array data of the formula, when it has any, is what is left before the strings; the
-    // strings are located from the end, so only the formula bytes are taken here.
+    // BIFF8 reserves these four lengths as zero. In that common case all remaining bytes
+    // belong to NameParsedFormula's RgbExtra, including any array constants.
+    let rgcb = if menu_len == 0 && description_len == 0 && help_len == 0 && status_len == 0 {
+        c.bytes(c.remaining(), what).map_err(m)?.to_vec()
+    } else {
+        Vec::new()
+    };
     let _menu = text(&mut c, menu_len)?;
     let description = text(&mut c, description_len)?;
     let help = text(&mut c, help_len)?;
@@ -329,7 +334,7 @@ fn name_record(record: &Record<'_>, v5: Option<u16>) -> Result<NameRecord, Strin
         scope: tab.checked_sub(1).map(u32::from),
         name,
         rgce,
-        rgcb: Vec::new(),
+        rgcb,
         description: (!description.is_empty()).then_some(description),
         help: (!help.is_empty()).then_some(help),
     })

@@ -400,6 +400,18 @@ fn names_3d_external_references_and_add_in_functions() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn defined_name_array_keeps_its_extra_data() {
+    let mut extra = vec![1, 0, 0, 1]; // two columns, one row, first value is numeric
+    extra.extend(1.5_f64.to_le_bytes());
+    extra.push(1);
+    extra.extend(2.5_f64.to_le_bytes());
+    let globals = name_record_extra(0, 0, "Values", &ptg::array(), &extra);
+    let bytes = xls(false, &globals, &[Sheet::worksheet("S", Vec::new())]);
+    assert_eq!(defined_names(&bytes), vec!["Values = {1.5,2.5}"]);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn a_formula_the_converter_cannot_print_is_a_typed_refusal_naming_the_cell() {
     // Token 0x7F is no token.
     let r = formula(0, 0, ptg_value(), &[0x7F], &[]);
@@ -651,6 +663,20 @@ fn a_biff5_workbook_with_code_page_text_formulas_and_names() {
     assert_eq!(defined_names(&bytes), vec!["Rate = Sheet2!A1"]);
     let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
     assert_eq!(report.biff_version, 5);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn biff5_page_breaks_span_the_sheet() {
+    let mut records = record(0x001B, &u16s(&[2, 59, 114]));
+    records.extend(record(0x001A, &u16s(&[1, 5])));
+    let bytes = v5::xls(1252, &[], &[v5::Sheet { name: b"S".to_vec(), records }]);
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let part = String::from_utf8(document.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+    assert!(part.contains("<brk id=\"59\" min=\"0\" max=\"16383\" man=\"1\"/>"), "{part}");
+    assert!(part.contains("<brk id=\"114\" min=\"0\" max=\"16383\" man=\"1\"/>"), "{part}");
+    assert!(part.contains("<brk id=\"5\" min=\"0\" max=\"1048575\" man=\"1\"/>"), "{part}");
+    load(&bytes);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
