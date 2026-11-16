@@ -430,7 +430,15 @@ impl WorkbookFacts for HostFacts {
 
     fn column_width(&self, sheet: SheetId, column: u32) -> Option<ColumnWidth> {
         let mdw = maximum_digit_width(&self.styles)?;
-        let geometry = self.sheet(sheet)?.geometry();
+        // A sheet added in this session has no file geometry: a new sheet's defaults (Excel
+        // 16.0.20527, 2026-11-16, Touchstone sheet cases: `=CELL("width",Data!C3)` on an added
+        // sheet is {8,TRUE}, as on the workbook's first sheet).
+        let added = calc_doc::SheetGeometry::default();
+        let geometry = match self.sheet(sheet) {
+            Some(loaded) => loaded.geometry(),
+            None if self.model.sheets().iter().any(|entry| entry.id() == sheet) => &added,
+            None => return None,
+        };
         let format = self.model.definitions().axis_layouts().get(
             sheet,
             calc_doc_model::Axis::Columns,

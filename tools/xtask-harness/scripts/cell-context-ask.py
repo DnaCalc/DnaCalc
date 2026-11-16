@@ -76,6 +76,8 @@ def answer_of(row):
     if probe.get('type') == 'refused':
         return {'value': 'entry:refused', 'spill': None}, probe['detail']
     spill = probe['spill']
+    if spill is not None and spill.get('type') == 'unread':
+        return {'value': 'unread:' + spill['reason'], 'spill': None}, None
     rows = None
     if spill is not None and spill['rows'] * spill['cols'] > 1:
         rows = [[form(v) for v in r] for r in spill['values']]

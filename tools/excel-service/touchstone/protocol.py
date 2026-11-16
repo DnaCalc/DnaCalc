@@ -261,7 +261,10 @@ def answer_to_typed(letter, value):
                 probes.append({"type": "refused", "detail": probe["refused"]})
                 continue
             answer = {"value": answer_to_typed(probe["ty"], probe["v"]), "spill": None}
-            if probe.get("spill"):
+            if probe.get("spill") and "unread" in probe["spill"]:
+                answer["spill"] = {"type": "unread", "reason": probe["spill"]["unread"],
+                                   "rows": probe["spill"]["r"], "cols": probe["spill"]["c"]}
+            elif probe.get("spill"):
                 answer["spill"] = answer_to_typed("m", probe["spill"])
             probes.append(answer)
         return {"type": "sheet_case", "probes": probes}

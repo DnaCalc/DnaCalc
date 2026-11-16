@@ -916,12 +916,17 @@ fn pivotby(
         for level in 0..kc {
             let mut header = vec![text(""); kr];
             if level == 0 {
+                // The field's name sits above its first column; a grand total put first stays
+                // blank above (Excel 16.0.20527, 2026-11-16, Touchstone sheet cases:
+                // `=PIVOTBY(A1:A9,B1:B9,C1:C9,SUM,3,0,,-1)` names Product above Apples).
+                let before = columns.iter().take_while(|column| column.grand).count() * np;
+                header.extend(std::iter::repeat_n(text(""), before));
                 header.push(if has_header {
                     col_fields.rows[0][0].clone()
                 } else {
                     text("Column Field 1")
                 });
-                header.extend(std::iter::repeat_n(text(""), columns.len() * np - 1));
+                header.extend(std::iter::repeat_n(text(""), columns.len() * np - 1 - before));
             } else {
                 header.extend(std::iter::repeat_n(text(""), columns.len() * np));
             }

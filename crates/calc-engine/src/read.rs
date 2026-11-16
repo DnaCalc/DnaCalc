@@ -2121,25 +2121,21 @@ impl HostFacts for WorkbookReader<'_> {
         ))
     }
 
-    /// A formula's text as FORMULATEXT shows it: `=` and the formula. Text that spells a function
-    /// with a file prefix (`_xlfn.`, `_xlws.`, `_xludf.`), which Excel shows without it, is not
-    /// modelled.
+    /// A formula's text as FORMULATEXT shows it: `=` and the formula, a function's file prefixes
+    /// `_xlfn.` and `_xlws.` left out as Excel shows it (Excel 16.0.20527, 2026-11-16, Touchstone
+    /// sheet cases: `=FORMULATEXT(D1)` over D1 `=SEQUENCE(3)` is `=SEQUENCE(3)`). Text that spells
+    /// a user-defined function's prefix (`_xludf.`) is not modelled.
     fn formula_text(&mut self, cell: CellKey) -> Option<Option<String>> {
         match self.view.inputs.cell(cell) {
             Some(CellInput::Formula(text)) => {
                 let text = String::from_utf16(text.text().utf16_code_units()).ok()?;
-                let lower = text.to_ascii_lowercase();
-                if [
-                    calc_catalogue::FUTURE_FUNCTION_PREFIX,
-                    calc_catalogue::WORKSHEET_FUNCTION_PREFIX,
-                    calc_catalogue::USER_DEFINED_FUNCTION_PREFIX,
-                ]
-                .iter()
-                .any(|p| lower.contains(p))
+                if text
+                    .to_ascii_lowercase()
+                    .contains(calc_catalogue::USER_DEFINED_FUNCTION_PREFIX)
                 {
                     return None;
                 }
-                Some(Some(format!("={text}")))
+                Some(Some(format!("={}", without_file_prefixes(&text))))
             }
             _ => Some(None),
         }
@@ -2531,4 +2527,31 @@ impl CachedReadLease {
                 .any(|at| region.contains(*at)),
         }
     }
+}
+
+/// `text` without the function file prefixes `_xlfn.` and `_xlws.` (any letter case) outside
+/// string literals, as Excel shows a formula.
+fn without_file_prefixes(text: &str) -> String {
+    let prefixes = [
+        calc_catalogue::FUTURE_FUNCTION_PREFIX,
+        calc_catalogue::WORKSHEET_FUNCTION_PREFIX,
+    ];
+    let mut out = String::with_capacity(text.len());
+    let mut quoted = false;
+    let mut rest = text;
+    while let Some(c) = rest.chars().next() {
+        if c == '"' {
+            quoted = !quoted;
+        } else if !quoted
+            && let Some(p) = prefixes.iter().find(|p| {
+                rest.len() >= p.len() && rest.is_char_boundary(p.len()) && rest[..p.len()].eq_ignore_ascii_case(p)
+            })
+        {
+            rest = &rest[p.len()..];
+            continue;
+        }
+        out.push(c);
+        rest = &rest[c.len_utf8()..];
+    }
+    out
 }

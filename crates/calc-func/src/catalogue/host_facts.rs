@@ -393,6 +393,35 @@ fn sheets(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<C
 
 fn formulatext(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
     let at = first_cell(site, a, 0, sv)?;
+    // A range of one area gives one answer per cell (Excel 16.0.20527, 2026-11-16, Touchstone sheet
+    // cases: `=FORMULATEXT(B2:D4)` spills #N/A for the constants and the formula of C3); a legacy
+    // formula then reads its first cell.
+    if let CoreRef::Reference(reference) = a[0].core_ref()
+        && let [area] = reference.areas()
+        && area.cell_count() > 1
+    {
+        // A larger range (whole columns) is refused rather than read cell by cell.
+        if area.cell_count() > crate::catalogue::information::PER_CELL_LIMIT {
+            return Err(site.not_modelled(Some(0)));
+        }
+        let (rows, cols) = (area.row_count() as usize, area.column_count() as usize);
+        let mut cells = Vec::with_capacity(rows * cols);
+        for r in 0..rows {
+            for c in 0..cols {
+                let cell = CellKey::new(area.sheet(), area.first().row() + r as u32, area.first().column() + c as u32)
+                    .expect("inside the area");
+                let one = [CalcValue::reference(ReferenceLike::cell(cell))];
+                cells.push(match formulatext(site, &one, sv) {
+                    Ok(value) => value,
+                    Err(Exit::Error(code)) => CalcValue::error(code),
+                    Err(other) => return Err(other),
+                });
+            }
+        }
+        return CalcArray::new(crate::value::ArrayShape { rows, cols }, cells)
+            .map(CalcValue::array)
+            .ok_or_else(|| site.not_modelled(Some(0)));
+    }
     // dc-ylr: Excel gives FORMULATEXT of a reference to a closed workbook #N/A.
     if sv
         .host()

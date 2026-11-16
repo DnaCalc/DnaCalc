@@ -124,6 +124,20 @@ fn constant(text: &str) -> Result<CellInput, String> {
     Err(format!("{text}: not a witness-form constant"))
 }
 
+/// The error formula Excel's side enters for an `error:` constant.
+fn error_formula(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "Null" => "=#NULL!",
+        "Div0" => "=#DIV/0!",
+        "Value" => "=#VALUE!",
+        "Ref" => "=#REF!",
+        "Name" => "=#NAME?",
+        "Num" => "=#NUM!",
+        "NA" => "=#N/A",
+        _ => return None,
+    })
+}
+
 /// A case with its layout's sheets and names in place (a case may also carry them itself).
 pub fn resolved(set: &Value, case: &Value) -> Value {
     let mut out = case.clone();
@@ -194,7 +208,11 @@ pub fn evaluate(
                 let (row, column) = a1(at).ok_or_else(|| format!("cell {at}"))?;
                 let key = CellKey::new(id, row, column).map_err(|e| format!("cell {at}: {e:?}"))?;
                 let content = content.as_str().ok_or_else(|| format!("cell {at}: not a string"))?;
-                if content.starts_with('=') {
+                // Excel's side enters an error constant as its error formula (`=#N/A`), as the
+                // Touchstone worker and cell-context-job.ps1 do: the cell holds a formula.
+                if let Some(spelling) = content.strip_prefix("error:").and_then(error_formula) {
+                    formulas.push((key, spelling.to_owned()));
+                } else if content.starts_with('=') {
                     formulas.push((key, content.to_owned()));
                 } else {
                     edits.push(CellEdit::Set { at: key, input: constant(content)? });
@@ -263,6 +281,12 @@ pub fn evaluate(
         Ok(match cell.value() {
             ProjectedValue::Calculated { value, .. } | ProjectedValue::Literal(value) => witness_form(value),
             ProjectedValue::Empty => "blank".to_owned(),
+            // CalcFml's entry check claims Excel refuses this formula at entry: scored as Excel's
+            // refused entry (CompileError::Rejected).
+            ProjectedValue::NotModeled {
+                refusal: calc_host::NotModeled::Compile(calc_fml::CompileError::Rejected { .. }),
+                ..
+            } => "entry:refused".to_owned(),
             ProjectedValue::NotModeled { refusal, .. } => format!("fault:NotModeled:{refusal:?}"),
             other => format!("fault:{other:?}"),
         })
