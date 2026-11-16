@@ -81,6 +81,10 @@ pub(crate) struct Globals {
     pub(crate) date_1904: bool,
     pub(crate) sheets: Vec<BoundSheet>,
     pub(crate) active_tab: Option<u16>,
+    pub(crate) protect_structure: bool,
+    pub(crate) protect_windows: bool,
+    pub(crate) protection_verifier: Option<u16>,
+    pub(crate) hide_objects: Option<u16>,
     /// The shared string table (SST), in index order.
     pub(crate) strings: Vec<RichString>,
     pub(crate) names: Vec<NameRecord>,
@@ -150,6 +154,26 @@ pub(crate) fn read(records: &[Record<'_>], biff5: bool) -> Result<Globals, Strin
                 globals.date_1904 = c.u16("Date1904").map_err(|e| e.0)? == 1;
             }
             FILEPASS => globals.encrypted = true,
+            0x008D => {
+                let mut c = Cursor::new(record.body);
+                let value = c.u16("HideObj").map_err(|e| e.0)?;
+                if value > 2 { return Err(format!("the object display mode {value}")); }
+                globals.hide_objects = Some(value);
+            }
+            0x0012 | 0x0019 => {
+                let mut c = Cursor::new(record.body);
+                let value = c.u16("workbook protection").map_err(|e| e.0)?;
+                if value > 1 {
+                    return Err(format!("the workbook protection flag {value}"));
+                }
+                if record.id == 0x0012 { globals.protect_structure = value != 0; }
+                else { globals.protect_windows = value != 0; }
+            }
+            0x0013 => {
+                let mut c = Cursor::new(record.body);
+                let verifier = c.u16("workbook protection verifier").map_err(|e| e.0)?;
+                globals.protection_verifier = (verifier != 0).then_some(verifier);
+            }
             0x0016 if biff5 => {}
             EXTERNSHEET | EXTERNNAME if biff5 => {}
             BOUNDSHEET => {
@@ -317,8 +341,13 @@ fn name_record(record: &Record<'_>, v5: Option<u16>) -> Result<NameRecord, Strin
         name
     };
     let rgce = c.bytes(formula_len, what).map_err(m)?.to_vec();
-    // The array data of the formula, when it has any, is what is left before the strings; the
-    // strings are located from the end, so only the formula bytes are taken here.
+    // BIFF8 reserves these four lengths as zero. In that common case all remaining bytes
+    // belong to NameParsedFormula's RgbExtra, including any array constants.
+    let rgcb = if menu_len == 0 && description_len == 0 && help_len == 0 && status_len == 0 {
+        c.bytes(c.remaining(), what).map_err(m)?.to_vec()
+    } else {
+        Vec::new()
+    };
     let _menu = text(&mut c, menu_len)?;
     let description = text(&mut c, description_len)?;
     let help = text(&mut c, help_len)?;
@@ -329,7 +358,7 @@ fn name_record(record: &Record<'_>, v5: Option<u16>) -> Result<NameRecord, Strin
         scope: tab.checked_sub(1).map(u32::from),
         name,
         rgce,
-        rgcb: Vec::new(),
+        rgcb,
         description: (!description.is_empty()).then_some(description),
         help: (!help.is_empty()).then_some(help),
     })

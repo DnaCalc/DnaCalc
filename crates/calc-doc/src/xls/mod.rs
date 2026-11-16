@@ -179,7 +179,6 @@ pub(crate) fn convert(
         globals
             .sheets
             .iter()
-            .filter(|s| s.kind != SheetKind::Module)
             .map(|s| s.name.clone())
             .collect(),
         v5,
@@ -189,15 +188,65 @@ pub(crate) fn convert(
         links = links.with_table(books, xti);
     }
     let mut sheet_unknown: BTreeMap<u16, u32> = BTreeMap::new();
+    let mut calculation_mode: Option<&str> = None;
+    let (mut calc_on_save, mut iterate, mut iteration_count, mut iteration_delta) = (None, None, None, None);
+    fn agree<T: PartialEq>(slot: &mut Option<T>, value: T, what: &str) -> Result<(), String> {
+        if slot.as_ref().is_some_and(|previous| *previous != value) {
+            return Err(format!("conflicting {what} across sheets"));
+        }
+        *slot = Some(value);
+        Ok(())
+    }
     let mut extra_entries: Vec<(String, Vec<u8>)> = Vec::new();
     let mut unread_objects: BTreeMap<u16, u32> = BTreeMap::new();
-    for sheet in &globals.sheets {
+    for (source_tab, sheet) in globals.sheets.iter().enumerate() {
         if sheet.kind == SheetKind::Module {
             continue;
         }
         let (start, end) = locate(sheet)?;
         let substream = &records[start..end];
         let end = substream.len();
+        for record in substream.iter().filter(|r| r.id == 0x000D) {
+            let raw = record.body.get(..2).ok_or_else(|| refuse(name, "a short CalcMode record"))?;
+            let mode = match i16::from_le_bytes([raw[0], raw[1]]) {
+                0 => "manual",
+                1 => "auto",
+                2 => "autoNoTable",
+                -1 if biff5 => "autoNoTable",
+                other => return Err(refuse(name, format!("the calculation mode {other}"))),
+            };
+            if calculation_mode.is_some_and(|previous| previous != mode) {
+                return Err(refuse(name, "conflicting calculation modes across sheets"));
+            }
+            calculation_mode = Some(mode);
+        }
+        for record in substream.iter().filter(|r| matches!(r.id, 0x000C | 0x0010 | 0x0011 | 0x005F)) {
+            let read_word = || -> Result<u16, OpenError> {
+                let b = record.body.get(..2).ok_or_else(|| refuse(name, "a short calculation settings record"))?;
+                Ok(u16::from_le_bytes([b[0], b[1]]))
+            };
+            match record.id {
+                0x000C => {
+                    let count = read_word()?;
+                    if count == 0 || count > 32767 { return Err(refuse(name, "an invalid iteration count")); }
+                    agree(&mut iteration_count, count, "iteration counts").map_err(|e| refuse(name, e))?;
+                }
+                0x0010 => {
+                    let b: [u8; 8] = record.body.get(..8).ok_or_else(|| refuse(name, "a short CalcDelta record"))?
+                        .try_into().expect("eight bytes");
+                    let value = f64::from_le_bytes(b);
+                    if !value.is_finite() || value < 0.0 { return Err(refuse(name, "an invalid iteration delta")); }
+                    agree(&mut iteration_delta, value.to_bits(), "iteration deltas").map_err(|e| refuse(name, e))?;
+                }
+                0x0011 | 0x005F => {
+                    let value = read_word()?;
+                    if value > 1 { return Err(refuse(name, "an invalid calculation setting")); }
+                    let slot = if record.id == 0x0011 { &mut iterate } else { &mut calc_on_save };
+                    agree(slot, value != 0, "calculation settings").map_err(|e| refuse(name, e))?;
+                }
+                _ => unreachable!(),
+            }
+        }
         number += 1;
         let sheet_links;
         let links = if v5.is_some() {
@@ -212,9 +261,9 @@ pub(crate) fn convert(
             links,
             v5,
             images: &images,
-            filter_range: filter_range(&globals, &links, number as u32 - 1),
+            filter_range: filter_range(&globals, &links, source_tab as u32),
             styles: &globals.styles,
-            tab: number as u32 - 1,
+            tab: source_tab as u32,
             number,
         };
         let (part, content_type, xml) = match sheet.kind {
@@ -270,7 +319,9 @@ pub(crate) fn convert(
             }
             SheetKind::Chart => {
                 for record in &substream[1..end - 1] {
-                    *sheet_unknown.entry(record.id).or_insert(0) += 1;
+                    if !matches!(record.id, 0x000C | 0x000D | 0x0010 | 0x0011 | 0x005F) {
+                        *sheet_unknown.entry(record.id).or_insert(0) += 1;
+                    }
                 }
                 (
                     format!("xl/chartsheets/sheet{number}.xml"),
@@ -441,7 +492,21 @@ pub(crate) fn convert(
     if let Some(code_name) = &globals.code_name {
         workbook_properties.push(("codeName", code_name.clone()));
     }
+    match globals.hide_objects {
+        Some(1) => workbook_properties.push(("showObjects", "placeholders".to_owned())),
+        Some(2) => workbook_properties.push(("showObjects", "none".to_owned())),
+        _ => {}
+    }
     xml.empty("workbookPr", &workbook_properties);
+    if globals.protect_structure || globals.protect_windows || globals.protection_verifier.is_some() {
+        let mut protection = Vec::new();
+        if globals.protect_structure { protection.push(("lockStructure", "1".to_owned())); }
+        if globals.protect_windows { protection.push(("lockWindows", "1".to_owned())); }
+        if let Some(verifier) = globals.protection_verifier {
+            protection.push(("workbookPassword", format!("{verifier:04X}")));
+        }
+        xml.empty("workbookProtection", &protection);
+    }
     if let Some(tab) = globals.active_tab.filter(|t| usize::from(*t) < sheet_entries.len()) {
         xml.open("bookViews", &[]);
         xml.empty("workbookView", &[("activeTab", tab.to_string())]);
@@ -502,7 +567,13 @@ pub(crate) fn convert(
                 attributes.push(("help", help.clone()));
             }
             if let Some(scope) = name.scope {
-                attributes.push(("localSheetId", scope.to_string()));
+                let source = globals.sheets.get(scope as usize)
+                    .ok_or_else(|| refuse(stream_name, format!("the sheet {scope} of a defined name")))?;
+                if source.kind == SheetKind::Module {
+                    return Err(refuse(stream_name, format!("a name scoped to omitted module sheet {scope}")));
+                }
+                let output_scope = globals.sheets[..scope as usize].iter().filter(|s| s.kind != SheetKind::Module).count();
+                attributes.push(("localSheetId", output_scope.to_string()));
             }
             if name.flags & 0x0001 != 0 {
                 attributes.push(("hidden", "1".to_owned()));
@@ -532,6 +603,15 @@ pub(crate) fn convert(
             xml.element("definedName", &attributes, &text);
         }
         xml.close("definedNames");
+    }
+    let mut calc_properties = Vec::new();
+    if let Some(mode) = calculation_mode { calc_properties.push(("calcMode", mode.to_owned())); }
+    if let Some(save) = calc_on_save { calc_properties.push(("calcOnSave", if save { "1" } else { "0" }.to_owned())); }
+    if let Some(enabled) = iterate { calc_properties.push(("iterate", if enabled { "1" } else { "0" }.to_owned())); }
+    if let Some(count) = iteration_count { calc_properties.push(("iterateCount", count.to_string())); }
+    if let Some(delta) = iteration_delta { calc_properties.push(("iterateDelta", f64::from_bits(delta).to_string())); }
+    if !calc_properties.is_empty() {
+        xml.empty("calcPr", &calc_properties);
     }
     xml.close("workbook");
     let workbook_xml = xml.out;

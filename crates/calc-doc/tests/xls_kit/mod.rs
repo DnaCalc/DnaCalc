@@ -539,6 +539,10 @@ pub fn table_record(
 
 /// NAME: flags, scope (0 workbook, else 1-based sheet), name text (or the built-in code), tokens.
 pub fn name_record(flags: u16, scope: u16, name: &str, rgce: &[u8]) -> Vec<u8> {
+    name_record_extra(flags, scope, name, rgce, &[])
+}
+
+pub fn name_record_extra(flags: u16, scope: u16, name: &str, rgce: &[u8], rgcb: &[u8]) -> Vec<u8> {
     let mut body = flags.to_le_bytes().to_vec();
     body.extend([0, name.len() as u8]);
     body.extend((rgce.len() as u16).to_le_bytes());
@@ -547,6 +551,7 @@ pub fn name_record(flags: u16, scope: u16, name: &str, rgce: &[u8]) -> Vec<u8> {
     body.push(0);
     body.extend(name.bytes());
     body.extend_from_slice(rgce);
+    body.extend_from_slice(rgcb);
     record(0x0018, &body)
 }
 
@@ -734,6 +739,35 @@ pub fn hlink_url(cell: (u16, u16), url: &str, display: Option<&str>, location: O
     if let Some(l) = location {
         body.extend(wide(l));
     }
+    record(0x01B8, &body)
+}
+
+/// HLINK with a file moniker, optional Unicode path, and a location inside the target.
+pub fn hlink_file(cell: (u16, u16), ansi: &str, unicode: Option<&str>, location: &str) -> Vec<u8> {
+    let mut body = u16s(&[cell.0, cell.0, cell.1, cell.1]);
+    body.extend([0xD0, 0xC9, 0xEA, 0x79, 0xF9, 0xBA, 0xCE, 0x11, 0x8C, 0x82, 0x00, 0xAA, 0x00, 0x4B, 0xA9, 0x0B]);
+    body.extend(2u32.to_le_bytes());
+    body.extend(9u32.to_le_bytes());
+    body.extend([0x03, 0x03, 0, 0, 0, 0, 0, 0, 0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
+    body.extend(0u16.to_le_bytes());
+    body.extend(((ansi.len() + 1) as u32).to_le_bytes());
+    body.extend(ansi.as_bytes());
+    body.push(0);
+    body.extend(u16s(&[0xFFFF, 0xDEAD]));
+    body.extend([0; 20]);
+    if let Some(path) = unicode {
+        let units: Vec<u16> = path.encode_utf16().collect();
+        body.extend(((units.len() * 2 + 6) as u32).to_le_bytes());
+        body.extend(((units.len() * 2) as u32).to_le_bytes());
+        body.extend(3u16.to_le_bytes());
+        body.extend(u16s(&units));
+    } else {
+        body.extend(0u32.to_le_bytes());
+    }
+    let mut units: Vec<u16> = location.encode_utf16().collect();
+    units.push(0);
+    body.extend((units.len() as u32).to_le_bytes());
+    body.extend(u16s(&units));
     record(0x01B8, &body)
 }
 
@@ -1107,9 +1141,6 @@ pub mod rules {
     }
 
     fn string(text: &str) -> Vec<u8> {
-        if text.is_empty() {
-            return 0u16.to_le_bytes().to_vec();
-        }
         let mut v = (text.len() as u16).to_le_bytes().to_vec();
         v.push(0);
         v.extend(text.bytes());

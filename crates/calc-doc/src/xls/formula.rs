@@ -9,6 +9,7 @@ pub(crate) struct Links {
     layout: Layout,
     code_page: u16,
     sheets: Vec<String>,
+    unavailable_sheets: Vec<u32>,
     xti: Vec<Xti>,
     supbooks: Vec<SupBook>,
     names: Vec<NameRef>,
@@ -41,6 +42,9 @@ impl Links {
             layout: if v5.is_some() { Layout::Biff5 } else { Layout::Biff8 },
             code_page: v5.unwrap_or(0),
             sheets,
+            unavailable_sheets: globals.sheets.iter().enumerate().filter_map(|(i, sheet)| {
+                (sheet.kind == super::workbook::SheetKind::Module).then_some(i as u32)
+            }).collect(),
             xti: globals.xti.clone(),
             supbooks,
             names: globals
@@ -62,6 +66,7 @@ impl Links {
             layout: self.layout,
             code_page: self.code_page,
             sheets: self.sheets.clone(),
+            unavailable_sheets: self.unavailable_sheets.clone(),
             xti,
             supbooks,
             names: self.names.clone(),
@@ -75,6 +80,7 @@ impl Links {
             layout: self.layout,
             code_page: self.code_page,
             sheets: &self.sheets,
+            unavailable_sheets: &self.unavailable_sheets,
             xti: &self.xti,
             supbooks: &self.supbooks,
             names: &self.names,

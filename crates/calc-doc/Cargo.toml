@@ -24,6 +24,8 @@ quick-xml = "=0.37.5"
 # Apache-2.0; its one non-optional dependency, adler2, is 0BSD OR MIT OR Apache-2.0. Pure Rust,
 # so it builds for wasm32-unknown-unknown.
 miniz_oxide = "=0.8.9"
+# Portable Shift-JIS decoder for BIFF5/7 code page 932. MIT OR Apache-2.0.
+encoding_rs = "=0.8.44"
 
 # The acceptance cases read the committed wire fixtures and the encoder's output with serde_json.
 # serde_json is also the codec's JSON tokenizer, so that reading is not independent of the codec;

@@ -17,6 +17,55 @@ fn source(bytes: &[u8]) -> Arc<dyn PackageRead> {
     Arc::new(MemorySource::new(bytes.to_vec()))
 }
 
+/// Native-only: writes controlled inputs for the owned Windows Excel session when requested.
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn write_legacy_excel_session_inputs() {
+    let Some(dir) = std::env::var_os("DNACALC_XLS_SESSION_INPUTS") else { return };
+    let dir = std::path::PathBuf::from(dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut cells = number(0, 0, 42.5);
+    cells.extend(formula(1, 0, num_value(43.5), &ptg::join(&[ptg::cell(0, 0, 0), ptg::int(1), ptg::op(ptg::ADD)]), &[]));
+    cells.extend(merged(&[(2, 2, 0, 1)]));
+    cells.extend(hlink_url((3, 0), "https://example.com/", Some("Example"), Some("part")));
+    cells.extend(hlink_file((4, 0), "book.xls", Some("資料.xls"), "Data!A1"));
+    let globals = [supbook_self(1), extern_sheet(&[(0, 0, 0)]),
+        name_record(0, 0, "Rate", &ptg::cell3d(0, 0, 0, 0))].concat();
+    let biff8 = xls(false, &globals, &[Sheet::worksheet("Data", cells)]);
+    let mut old_cells = v5::label(0, 0, b"legacy");
+    old_cells.extend(record(0x001B, &u16s(&[1, 25])));
+    old_cells.extend(record(0x001A, &u16s(&[1, 5])));
+    let biff5 = v5::xls(1252, &[], &[v5::Sheet { name: b"Data".to_vec(), records: old_cells }]);
+    std::fs::write(dir.join("cells-biff8.xls"), biff8).unwrap();
+    std::fs::write(dir.join("cells-biff5.xls"), biff5).unwrap();
+    std::fs::write(dir.join("forms.xls"), include_bytes!("fixtures/dc_4j0e/FormsWorkbook.xls")).unwrap();
+    for name in ["cells-biff8", "cells-biff5", "forms"] {
+        let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
+        let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
+        let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+        let mut converted = Vec::new();
+        calc_doc::write(plan, &mut converted).unwrap();
+        std::fs::write(dir.join(format!("{name}.dnacalc.xlsx")), converted).unwrap();
+    }
+    let cases = serde_json::json!({
+        "files": ["cells-biff8.xls", "cells-biff5.xls", "forms.xls"],
+        "create_pivot": true,
+        "formulas": [
+            ["rows_full_column", "=ROWS(A:A)"], ["columns_full_row", "=COLUMNS(1:1)"],
+            ["rows_modern_extent", "=ROWS(1:1048576)"], ["beyond_old_grid", "=A65537"],
+            ["whole_column_sum", "=SUM(A:A)"], ["xlookup", "=XLOOKUP(1,{1},{2})"],
+            ["let", "=LET(x,1,x+1)"], ["lambda", "=LAMBDA(x,x+1)(1)"],
+            ["filter", "=FILTER({1;2},{TRUE;FALSE})"], ["sort", "=SORT({2;1})"],
+            ["sequence", "=SEQUENCE(2)"], ["textjoin", "=TEXTJOIN(\",\",TRUE,\"a\",\"b\")"],
+            ["ifs", "=IFS(TRUE,1)"], ["concat", "=CONCAT(\"a\",\"b\")"],
+            ["stdev_s", "=STDEV.S(1,2)"], ["ceiling_math", "=CEILING.MATH(1.2)"],
+            ["norm_s_dist", "=NORM.S.DIST(0,TRUE)"], ["webservice", "=WEBSERVICE(\"\")"],
+            ["randarray", "=RANDARRAY(1,1)"], ["xmatch", "=XMATCH(1,{1,2})"]
+        ]
+    });
+    std::fs::write(dir.join("cases.json"), serde_json::to_vec_pretty(&cases).unwrap()).unwrap();
+}
+
 fn load(bytes: &[u8]) -> LoadedWorkbook {
     let document = calc_doc::open(source(bytes), &OpenPolicy::default()).expect("the file opens");
     let mut ids: IdAllocator<SheetId> = IdAllocator::new();
@@ -61,6 +110,75 @@ fn sheets_in_order_with_state_and_date_system() {
     assert_eq!(loaded.date_system(), DateSystem::Date1904);
     let plain = load(&xls(false, &[], &[Sheet::worksheet("S", Vec::new())]));
     assert_eq!(plain.date_system(), DateSystem::Date1900);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn sheet_calculation_modes_are_preserved_and_conflicts_refused() {
+    for (value, expected) in [(0u16, calc_doc::CalcMode::Manual), (1, calc_doc::CalcMode::Automatic),
+        (2, calc_doc::CalcMode::AutomaticExceptTables)] {
+        let mode = record(0x000D, &value.to_le_bytes());
+        let bytes = xls(false, &[], &[Sheet::worksheet("A", mode.clone()), Sheet::worksheet("B", mode)]);
+        assert_eq!(load(&bytes).calc_mode(), expected);
+        let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+        assert!(!report.unknown_records.contains_key(&0x000D));
+    }
+    let bytes = xls(false, &[], &[Sheet::worksheet("A", record(0x000D, &0u16.to_le_bytes())),
+        Sheet::worksheet("B", record(0x000D, &1u16.to_le_bytes()))]);
+    match calc_doc::open(source(&bytes), &OpenPolicy::default()) {
+        Err(OpenError::LegacyWorkbook { detail, .. }) => assert!(detail.contains("conflicting calculation modes"), "{detail}"),
+        other => panic!("{:?}", other.err()),
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn iterative_calculation_settings_survive_the_workbook_route() {
+    let records = [record(0x000D, &0u16.to_le_bytes()), record(0x000C, &42u16.to_le_bytes()),
+        record(0x0011, &1u16.to_le_bytes()), record(0x0010, &0.005_f64.to_le_bytes()),
+        record(0x005F, &0u16.to_le_bytes())].concat();
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", records)]);
+    let loaded = load(&bytes);
+    assert_eq!(loaded.calc_mode(), calc_doc::CalcMode::Manual);
+    assert!(!loaded.calc_on_save());
+    let iteration = loaded.model().definitions().iteration();
+    assert!(iteration.enabled());
+    assert_eq!(iteration.max_iterations(), 42);
+    assert_eq!(iteration.max_change(), 0.005);
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    for id in [0x000C, 0x0010, 0x0011, 0x005F] { assert!(!report.unknown_records.contains_key(&id)); }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn workbook_protection_is_preserved_in_the_loaded_document() {
+    let globals = [record(0x0019, &1u16.to_le_bytes()), record(0x0012, &1u16.to_le_bytes()),
+        record(0x0013, &0xCE4Bu16.to_le_bytes())].concat();
+    let bytes = xls(false, &globals, &[Sheet::worksheet("S", Vec::new())]);
+    assert!(load(&bytes).structure_protected());
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let xml = String::from_utf8(document.package().read_part("xl/workbook.xml").unwrap()).unwrap();
+    assert!(xml.contains("<workbookProtection lockStructure=\"1\" lockWindows=\"1\" workbookPassword=\"CE4B\"/>"), "{xml}");
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    for id in [0x0012, 0x0013, 0x0019] { assert!(!report.unknown_records.contains_key(&id)); }
+    let unprotected = xls(false, &[], &[Sheet::worksheet("S", Vec::new())]);
+    assert!(!load(&unprotected).structure_protected());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn workbook_object_display_setting_survives_conversion() {
+    for (mode, expected) in [(0u16, None), (1, Some("placeholders")), (2, Some("none"))] {
+        let bytes = xls(false, &record(0x008D, &mode.to_le_bytes()), &[Sheet::worksheet("S", Vec::new())]);
+        let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let xml = String::from_utf8(document.package().read_part("xl/workbook.xml").unwrap()).unwrap();
+        if let Some(value) = expected {
+            assert!(xml.contains(&format!("showObjects=\"{value}\"")), "{xml}");
+        } else { assert!(!xml.contains("showObjects="), "{xml}"); }
+        load(&bytes);
+        let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+        assert!(!report.unknown_records.contains_key(&0x008D));
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -400,6 +518,50 @@ fn names_3d_external_references_and_add_in_functions() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn defined_name_array_keeps_its_extra_data() {
+    let mut extra = vec![1, 0, 0, 1]; // two columns, one row, first value is numeric
+    extra.extend(1.5_f64.to_le_bytes());
+    extra.push(1);
+    extra.extend(2.5_f64.to_le_bytes());
+    let globals = name_record_extra(0, 0, "Values", &ptg::array(), &extra);
+    let bytes = xls(false, &globals, &[Sheet::worksheet("S", Vec::new())]);
+    assert_eq!(defined_names(&bytes), vec!["Values = {1.5,2.5}"]);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn module_sheets_do_not_shift_formula_indices_or_local_name_scope() {
+    let globals = [
+        supbook_self(3), extern_sheet(&[(0, 2, 2), (0, 1, 1)]),
+        name_record(0, 3, "Rate", &ptg::cell3d(0, 0, 0, 0)),
+    ].concat();
+    let module = || Sheet { kind: 6, ..Sheet::worksheet("Module", Vec::new()) };
+    let sheets = [Sheet::worksheet("First", formula(0, 0, num_value(1.0), &ptg::cell3d(0, 0, 0, 0), &[])),
+        module(), Sheet::worksheet("Last", Vec::new())];
+    let bytes = xls(false, &globals, &sheets);
+    assert_eq!(sheet_cells(&bytes), vec!["A1 f:Last!$A$1"]);
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let workbook = String::from_utf8(document.package().read_part("xl/workbook.xml").unwrap()).unwrap();
+    assert!(workbook.contains("name=\"Rate\" localSheetId=\"1\""), "{workbook}");
+    let sheets = [Sheet::worksheet("First", formula(0, 0, num_value(1.0), &ptg::cell3d(1, 0, 0, 0), &[])),
+        module(), Sheet::worksheet("Last", Vec::new())];
+    let bytes = xls(false, &globals, &sheets);
+    match calc_doc::open(source(&bytes), &OpenPolicy::default()) {
+        Err(OpenError::LegacyWorkbook { detail, .. }) => assert!(detail.contains("omitted module sheet"), "{detail}"),
+        other => panic!("{:?}", other.err()),
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn biff_attribute_with_no_flags_keeps_the_expression() {
+    let tokens = ptg::join(&[ptg::int(7), vec![0x19, 0, 10, 0]]);
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", formula(0, 0, num_value(7.0), &tokens, &[]))]);
+    assert_eq!(sheet_cells(&bytes), vec!["A1 f:7"]);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn a_formula_the_converter_cannot_print_is_a_typed_refusal_naming_the_cell() {
     // Token 0x7F is no token.
     let r = formula(0, 0, ptg_value(), &[0x7F], &[]);
@@ -564,6 +726,19 @@ fn merges_hyperlinks_panes_protection_and_page_setup() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn file_moniker_keeps_unicode_path_and_location() {
+    let records = [hlink_file((0, 0), "book.xls", None, "Sheet1!A1"),
+        hlink_file((1, 0), "book.xls", Some("資料.xls"), "Sheet2!B2")].concat();
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", records)]);
+    let loaded = load(&bytes);
+    let links = format!("{:?}", loaded.sheets()[0].review().links);
+    for expected in ["book.xls", "Sheet1!A1", "資料.xls", "Sheet2!B2"] {
+        assert!(links.contains(expected), "{links}");
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn comments_are_read_from_note_obj_and_txo_records() {
     let mut r = Vec::new();
     r.extend(number(0, 0, 1.0));
@@ -655,13 +830,29 @@ fn a_biff5_workbook_with_code_page_text_formulas_and_names() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn a_biff5_workbook_in_a_double_byte_code_page_refuses_its_high_bytes() {
+fn biff5_page_breaks_span_the_sheet() {
+    let mut records = record(0x001B, &u16s(&[2, 59, 114]));
+    records.extend(record(0x001A, &u16s(&[1, 5])));
+    let bytes = v5::xls(1252, &[], &[v5::Sheet { name: b"S".to_vec(), records }]);
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let part = String::from_utf8(document.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+    assert!(part.contains("<brk id=\"59\" min=\"0\" max=\"16383\" man=\"1\"/>"), "{part}");
+    assert!(part.contains("<brk id=\"114\" min=\"0\" max=\"16383\" man=\"1\"/>"), "{part}");
+    assert!(part.contains("<brk id=\"5\" min=\"0\" max=\"1048575\" man=\"1\"/>"), "{part}");
+    load(&bytes);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn a_biff5_workbook_reads_code_page_932_and_refuses_invalid_text() {
     use xls_kit::v5;
     let ascii = v5::xls(932, &[], &[v5::Sheet { name: b"S".to_vec(), records: v5::label(0, 0, b"plain") }]);
     assert_eq!(cells(load(&ascii).model(), 0), vec!["A1 s:plain"]);
     let japanese = v5::xls(932, &[], &[v5::Sheet { name: b"S".to_vec(), records: v5::label(0, 0, b"\x82\xA0") }]);
-    match calc_doc::open(source(&japanese), &OpenPolicy::default()) {
-        Err(OpenError::LegacyWorkbook { detail, .. }) => assert!(detail.contains("code page 932"), "{detail}"),
+    assert_eq!(cells(load(&japanese).model(), 0), vec!["A1 s:あ"]);
+    let invalid = v5::xls(932, &[], &[v5::Sheet { name: b"S".to_vec(), records: v5::label(0, 0, b"\x82") }]);
+    match calc_doc::open(source(&invalid), &OpenPolicy::default()) {
+        Err(OpenError::LegacyWorkbook { detail, .. }) => assert!(detail.contains("invalid text in code page 932"), "{detail}"),
         other => panic!("{:?}", other.err()),
     }
 }
@@ -905,6 +1096,22 @@ fn conditional_formats_validations_and_the_automatic_filter() {
     assert_eq!(loaded_styles.differential_formats.len(), 2, "{:?}", loaded_styles.differential_formats);
     let first = format!("{:?}", loaded_styles.differential_formats[0]);
     assert!(first.contains("bold: true") && first.contains("FFFFFF00"), "{first}");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn biff5_filter_text_uses_the_workbook_code_page() {
+    let globals = [v5::extern_own(b"S"), v5::name(0x21, 1, b"\r", &v5::cell3d(1, 0, 0, 0))].concat();
+    let mut doper = [0u8; 10];
+    doper[0] = 6; doper[1] = 2; doper[6] = 4;
+    let mut filter = u16s(&[0, 0]);
+    filter.extend(doper); filter.extend([0u8; 10]); filter.extend(b"caf\xE9");
+    let records = [rules::autofilter_info(1), record(0x009E, &filter)].concat();
+    let bytes = v5::xls(1252, &globals, &[v5::Sheet::new("S", records)]);
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let xml = String::from_utf8(document.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+    assert!(xml.contains("val=\"café\""), "{xml}");
+    load(&bytes);
 }
 
 mod vba {

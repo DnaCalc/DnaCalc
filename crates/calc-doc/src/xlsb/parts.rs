@@ -145,6 +145,7 @@ impl Shared {
             layout: formula::Layout::Xlsb,
             code_page: 0,
             sheets: &self.sheet_names,
+            unavailable_sheets: &[],
             xti: &self.xti,
             supbooks: &self.supbooks,
             names: &self.names,

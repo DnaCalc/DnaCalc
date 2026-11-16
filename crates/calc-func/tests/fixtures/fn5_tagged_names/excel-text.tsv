@@ -1,0 +1,537 @@
+# dc-zsn.4: TEXT of dates under explicit locale tags, Excel 16.0.20527 (Touchstone sheet cases, env
+# 145016f4397d, en-ZA host), 2026-11-16, lane fn5: every LCID LocaleId::from_excel_lcid maps. Each line:
+# the format, the date serials (1900 system), and Excel's texts joined by |. The first block measured
+# the names (1 Jan to 1 Dec 2023, 1 to 7 Jan 2023, the 15th of each month); the second is held out.
+[$-409]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	January|February|March|April|May|June|July|August|September|October|November|December
+[$-409]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec
+[$-409]dddd	44927,44928,44929,44930,44931,44932,44933	Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday
+[$-409]ddd	44927,44928,44929,44930,44931,44932,44933	Sun|Mon|Tue|Wed|Thu|Fri|Sat
+[$-409]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 January|15 February|15 March|15 April|15 May|15 June|15 July|15 August|15 September|15 October|15 November|15 December
+[$-409]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 Jan|15 Feb|15 Mar|15 Apr|15 May|15 Jun|15 Jul|15 Aug|15 Sep|15 Oct|15 Nov|15 Dec
+[$-809]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	January|February|March|April|May|June|July|August|September|October|November|December
+[$-809]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec
+[$-809]dddd	44927,44928,44929,44930,44931,44932,44933	Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday
+[$-809]ddd	44927,44928,44929,44930,44931,44932,44933	Sun|Mon|Tue|Wed|Thu|Fri|Sat
+[$-809]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 January|15 February|15 March|15 April|15 May|15 June|15 July|15 August|15 September|15 October|15 November|15 December
+[$-809]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 Jan|15 Feb|15 Mar|15 Apr|15 May|15 Jun|15 Jul|15 Aug|15 Sep|15 Oct|15 Nov|15 Dec
+[$-1809]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	January|February|March|April|May|June|July|August|September|October|November|December
+[$-1809]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sept|Oct|Nov|Dec
+[$-1809]dddd	44927,44928,44929,44930,44931,44932,44933	Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday
+[$-1809]ddd	44927,44928,44929,44930,44931,44932,44933	Sun|Mon|Tue|Wed|Thu|Fri|Sat
+[$-1809]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 January|15 February|15 March|15 April|15 May|15 June|15 July|15 August|15 September|15 October|15 November|15 December
+[$-1809]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 Jan|15 Feb|15 Mar|15 Apr|15 May|15 Jun|15 Jul|15 Aug|15 Sept|15 Oct|15 Nov|15 Dec
+[$-C09]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	January|February|March|April|May|June|July|August|September|October|November|December
+[$-C09]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec
+[$-C09]dddd	44927,44928,44929,44930,44931,44932,44933	Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday
+[$-C09]ddd	44927,44928,44929,44930,44931,44932,44933	Sun|Mon|Tue|Wed|Thu|Fri|Sat
+[$-C09]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 January|15 February|15 March|15 April|15 May|15 June|15 July|15 August|15 September|15 October|15 November|15 December
+[$-C09]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 Jan|15 Feb|15 Mar|15 Apr|15 May|15 Jun|15 Jul|15 Aug|15 Sep|15 Oct|15 Nov|15 Dec
+[$-1409]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	January|February|March|April|May|June|July|August|September|October|November|December
+[$-1409]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sept|Oct|Nov|Dec
+[$-1409]dddd	44927,44928,44929,44930,44931,44932,44933	Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday
+[$-1409]ddd	44927,44928,44929,44930,44931,44932,44933	Sun|Mon|Tue|Wed|Thu|Fri|Sat
+[$-1409]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 January|15 February|15 March|15 April|15 May|15 June|15 July|15 August|15 September|15 October|15 November|15 December
+[$-1409]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 Jan|15 Feb|15 Mar|15 Apr|15 May|15 Jun|15 Jul|15 Aug|15 Sept|15 Oct|15 Nov|15 Dec
+[$-1C09]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	January|February|March|April|May|June|July|August|September|October|November|December
+[$-1C09]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sept|Oct|Nov|Dec
+[$-1C09]dddd	44927,44928,44929,44930,44931,44932,44933	Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday
+[$-1C09]ddd	44927,44928,44929,44930,44931,44932,44933	Sun|Mon|Tue|Wed|Thu|Fri|Sat
+[$-1C09]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 January|15 February|15 March|15 April|15 May|15 June|15 July|15 August|15 September|15 October|15 November|15 December
+[$-1C09]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 Jan|15 Feb|15 Mar|15 Apr|15 May|15 Jun|15 Jul|15 Aug|15 Sept|15 Oct|15 Nov|15 Dec
+[$-4009]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	January|February|March|April|May|June|July|August|September|October|November|December
+[$-4009]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec
+[$-4009]dddd	44927,44928,44929,44930,44931,44932,44933	Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday
+[$-4009]ddd	44927,44928,44929,44930,44931,44932,44933	Sun|Mon|Tue|Wed|Thu|Fri|Sat
+[$-4009]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 January|15 February|15 March|15 April|15 May|15 June|15 July|15 August|15 September|15 October|15 November|15 December
+[$-4009]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 Jan|15 Feb|15 Mar|15 Apr|15 May|15 Jun|15 Jul|15 Aug|15 Sep|15 Oct|15 Nov|15 Dec
+[$-1009]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	January|February|March|April|May|June|July|August|September|October|November|December
+[$-1009]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec
+[$-1009]dddd	44927,44928,44929,44930,44931,44932,44933	Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday
+[$-1009]ddd	44927,44928,44929,44930,44931,44932,44933	Sun|Mon|Tue|Wed|Thu|Fri|Sat
+[$-1009]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 January|15 February|15 March|15 April|15 May|15 June|15 July|15 August|15 September|15 October|15 November|15 December
+[$-1009]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 Jan|15 Feb|15 Mar|15 Apr|15 May|15 Jun|15 Jul|15 Aug|15 Sep|15 Oct|15 Nov|15 Dec
+[$-3409]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	January|February|March|April|May|June|July|August|September|October|November|December
+[$-3409]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec
+[$-3409]dddd	44927,44928,44929,44930,44931,44932,44933	Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday
+[$-3409]ddd	44927,44928,44929,44930,44931,44932,44933	Sun|Mon|Tue|Wed|Thu|Fri|Sat
+[$-3409]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 January|15 February|15 March|15 April|15 May|15 June|15 July|15 August|15 September|15 October|15 November|15 December
+[$-3409]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 Jan|15 Feb|15 Mar|15 Apr|15 May|15 Jun|15 Jul|15 Aug|15 Sep|15 Oct|15 Nov|15 Dec
+[$-407]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember
+[$-407]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	Jan|Feb|Mrz|Apr|Mai|Jun|Jul|Aug|Sep|Okt|Nov|Dez
+[$-407]dddd	44927,44928,44929,44930,44931,44932,44933	Sonntag|Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag
+[$-407]ddd	44927,44928,44929,44930,44931,44932,44933	So|Mo|Di|Mi|Do|Fr|Sa
+[$-407]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 Januar|15 Februar|15 März|15 April|15 Mai|15 Juni|15 Juli|15 August|15 September|15 Oktober|15 November|15 Dezember
+[$-407]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 Jan|15 Feb|15 Mrz|15 Apr|15 Mai|15 Jun|15 Jul|15 Aug|15 Sep|15 Okt|15 Nov|15 Dez
+[$-807]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember
+[$-807]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	Jan|Feb|Mär|Apr|Mai|Jun|Jul|Aug|Sep|Okt|Nov|Dez
+[$-807]dddd	44927,44928,44929,44930,44931,44932,44933	Sonntag|Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag
+[$-807]ddd	44927,44928,44929,44930,44931,44932,44933	So|Mo|Di|Mi|Do|Fr|Sa
+[$-807]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 Januar|15 Februar|15 März|15 April|15 Mai|15 Juni|15 Juli|15 August|15 September|15 Oktober|15 November|15 Dezember
+[$-807]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 Jan|15 Feb|15 Mär|15 Apr|15 Mai|15 Jun|15 Jul|15 Aug|15 Sep|15 Okt|15 Nov|15 Dez
+[$-C07]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	Jänner|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember
+[$-C07]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	Jän|Feb|Mär|Apr|Mai|Jun|Jul|Aug|Sep|Okt|Nov|Dez
+[$-C07]dddd	44927,44928,44929,44930,44931,44932,44933	Sonntag|Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag
+[$-C07]ddd	44927,44928,44929,44930,44931,44932,44933	So|Mo|Di|Mi|Do|Fr|Sa
+[$-C07]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 Jänner|15 Februar|15 März|15 April|15 Mai|15 Juni|15 Juli|15 August|15 September|15 Oktober|15 November|15 Dezember
+[$-C07]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 Jän|15 Feb|15 Mär|15 Apr|15 Mai|15 Jun|15 Jul|15 Aug|15 Sep|15 Okt|15 Nov|15 Dez
+[$-419]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	Январь|Февраль|Март|Апрель|Май|Июнь|Июль|Август|Сентябрь|Октябрь|Ноябрь|Декабрь
+[$-419]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	янв|фев|мар|апр|май|июн|июл|авг|сен|окт|ноя|дек
+[$-419]dddd	44927,44928,44929,44930,44931,44932,44933	воскресенье|понедельник|вторник|среда|четверг|пятница|суббота
+[$-419]ddd	44927,44928,44929,44930,44931,44932,44933	Вс|Пн|Вт|Ср|Чт|Пт|Сб
+[$-419]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 Январь|15 Февраль|15 Март|15 Апрель|15 Май|15 Июнь|15 Июль|15 Август|15 Сентябрь|15 Октябрь|15 Ноябрь|15 Декабрь
+[$-419]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 янв|15 фев|15 мар|15 апр|15 май|15 июн|15 июл|15 авг|15 сен|15 окт|15 ноя|15 дек
+[$-40B]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	tammikuu|helmikuu|maaliskuu|huhtikuu|toukokuu|kesäkuu|heinäkuu|elokuu|syyskuu|lokakuu|marraskuu|joulukuu
+[$-40B]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	tammi|helmi|maalis|huhti|touko|kesä|heinä|elo|syys|loka|marras|joulu
+[$-40B]dddd	44927,44928,44929,44930,44931,44932,44933	sunnuntai|maanantai|tiistai|keskiviikko|torstai|perjantai|lauantai
+[$-40B]ddd	44927,44928,44929,44930,44931,44932,44933	su|ma|ti|ke|to|pe|la
+[$-40B]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 tammikuu|15 helmikuu|15 maaliskuu|15 huhtikuu|15 toukokuu|15 kesäkuu|15 heinäkuu|15 elokuu|15 syyskuu|15 lokakuu|15 marraskuu|15 joulukuu
+[$-40B]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 tammi|15 helmi|15 maalis|15 huhti|15 touko|15 kesä|15 heinä|15 elo|15 syys|15 loka|15 marras|15 joulu
+[$-425]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	jaanuar|veebruar|märts|aprill|mai|juuni|juuli|august|september|oktoober|november|detsember
+[$-425]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	jaan|veebr|märts|apr|mai|juuni|juuli|aug|sept|okt|nov|dets
+[$-425]dddd	44927,44928,44929,44930,44931,44932,44933	pühapäev|esmaspäev|teisipäev|kolmapäev|neljapäev|reede|laupäev
+[$-425]ddd	44927,44928,44929,44930,44931,44932,44933	P|E|T|K|N|R|L
+[$-425]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 jaanuar|15 veebruar|15 märts|15 aprill|15 mai|15 juuni|15 juuli|15 august|15 september|15 oktoober|15 november|15 detsember
+[$-425]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 jaan|15 veebr|15 märts|15 apr|15 mai|15 juuni|15 juuli|15 aug|15 sept|15 okt|15 nov|15 dets
+[$-426]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	janvāris|februāris|marts|aprīlis|maijs|jūnijs|jūlijs|augusts|septembris|oktobris|novembris|decembris
+[$-426]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	janv.|febr.|marts|apr.|maijs|jūn.|jūl.|aug.|sept.|okt.|nov.|dec.
+[$-426]dddd	44927,44928,44929,44930,44931,44932,44933	svētdiena|pirmdiena|otrdiena|trešdiena|ceturtdiena|piektdiena|sestdiena
+[$-426]ddd	44927,44928,44929,44930,44931,44932,44933	Svētd.|Pirmd.|Otrd.|Trešd.|Ceturtd.|Piektd.|Sestd.
+[$-426]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 janvāris|15 februāris|15 marts|15 aprīlis|15 maijs|15 jūnijs|15 jūlijs|15 augusts|15 septembris|15 oktobris|15 novembris|15 decembris
+[$-426]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 janv.|15 febr.|15 marts|15 apr.|15 maijs|15 jūn.|15 jūl.|15 aug.|15 sept.|15 okt.|15 nov.|15 dec.
+[$-427]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	sausis|vasaris|kovas|balandis|gegužė|birželis|liepa|rugpjūtis|rugsėjis|spalis|lapkritis|gruodis
+[$-427]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	saus.|vas.|kov.|bal.|geg.|birž.|liep.|rugp.|rugs.|spal.|lapkr.|gruod.
+[$-427]dddd	44927,44928,44929,44930,44931,44932,44933	sekmadienis|pirmadienis|antradienis|trečiadienis|ketvirtadienis|penktadienis|šeštadienis
+[$-427]ddd	44927,44928,44929,44930,44931,44932,44933	sk|pr|an|tr|kt|pn|št
+[$-427]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 sausis|15 vasaris|15 kovas|15 balandis|15 gegužė|15 birželis|15 liepa|15 rugpjūtis|15 rugsėjis|15 spalis|15 lapkritis|15 gruodis
+[$-427]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 saus.|15 vas.|15 kov.|15 bal.|15 geg.|15 birž.|15 liep.|15 rugp.|15 rugs.|15 spal.|15 lapkr.|15 gruod.
+[$-41B]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	január|február|marec|apríl|máj|jún|júl|august|september|október|november|december
+[$-41B]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	1|2|3|4|5|6|7|8|9|10|11|12
+[$-41B]dddd	44927,44928,44929,44930,44931,44932,44933	nedeľa|pondelok|utorok|streda|štvrtok|piatok|sobota
+[$-41B]ddd	44927,44928,44929,44930,44931,44932,44933	ne|po|ut|st|št|pi|so
+[$-41B]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 január|15 február|15 marec|15 apríl|15 máj|15 jún|15 júl|15 august|15 september|15 október|15 november|15 december
+[$-41B]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 1|15 2|15 3|15 4|15 5|15 6|15 7|15 8|15 9|15 10|15 11|15 12
+[$-405]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	leden|únor|březen|duben|květen|červen|červenec|srpen|září|říjen|listopad|prosinec
+[$-405]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII
+[$-405]dddd	44927,44928,44929,44930,44931,44932,44933	neděle|pondělí|úterý|středa|čtvrtek|pátek|sobota
+[$-405]ddd	44927,44928,44929,44930,44931,44932,44933	ne|po|út|st|čt|pá|so
+[$-405]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 leden|15 únor|15 březen|15 duben|15 květen|15 červen|15 červenec|15 srpen|15 září|15 říjen|15 listopad|15 prosinec
+[$-405]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 I|15 II|15 III|15 IV|15 V|15 VI|15 VII|15 VIII|15 IX|15 X|15 XI|15 XII
+[$-414]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	januar|februar|mars|april|mai|juni|juli|august|september|oktober|november|desember
+[$-414]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	jan|feb|mar|apr|mai|jun|jul|aug|sep|okt|nov|des
+[$-414]dddd	44927,44928,44929,44930,44931,44932,44933	søndag|mandag|tirsdag|onsdag|torsdag|fredag|lørdag
+[$-414]ddd	44927,44928,44929,44930,44931,44932,44933	søn|man|tir|ons|tor|fre|lør
+[$-414]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 januar|15 februar|15 mars|15 april|15 mai|15 juni|15 juli|15 august|15 september|15 oktober|15 november|15 desember
+[$-414]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 jan|15 feb|15 mar|15 apr|15 mai|15 jun|15 jul|15 aug|15 sep|15 okt|15 nov|15 des
+[$-814]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	januar|februar|mars|april|mai|juni|juli|august|september|oktober|november|desember
+[$-814]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	jan.|feb.|mars|apr.|mai|juni|juli|aug.|sep.|okt.|nov.|des.
+[$-814]dddd	44927,44928,44929,44930,44931,44932,44933	søndag|måndag|tysdag|onsdag|torsdag|fredag|laurdag
+[$-814]ddd	44927,44928,44929,44930,44931,44932,44933	søn|mån|tys|ons|tor|fre|lau
+[$-814]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 januar|15 februar|15 mars|15 april|15 mai|15 juni|15 juli|15 august|15 september|15 oktober|15 november|15 desember
+[$-814]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 jan.|15 feb.|15 mars|15 apr.|15 mai|15 juni|15 juli|15 aug.|15 sep.|15 okt.|15 nov.|15 des.
+[$-40C]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre
+[$-40C]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	janv.|févr.|mars|avr.|mai|juin|juil.|août|sept.|oct.|nov.|déc.
+[$-40C]dddd	44927,44928,44929,44930,44931,44932,44933	dimanche|lundi|mardi|mercredi|jeudi|vendredi|samedi
+[$-40C]ddd	44927,44928,44929,44930,44931,44932,44933	dim.|lun.|mar.|mer.|jeu.|ven.|sam.
+[$-40C]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 janvier|15 février|15 mars|15 avril|15 mai|15 juin|15 juillet|15 août|15 septembre|15 octobre|15 novembre|15 décembre
+[$-40C]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 janv.|15 févr.|15 mars|15 avr.|15 mai|15 juin|15 juil.|15 août|15 sept.|15 oct.|15 nov.|15 déc.
+[$-80C]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre
+[$-80C]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	janv.|févr.|mars|avr.|mai|juin|juil.|août|sept.|oct.|nov.|déc.
+[$-80C]dddd	44927,44928,44929,44930,44931,44932,44933	dimanche|lundi|mardi|mercredi|jeudi|vendredi|samedi
+[$-80C]ddd	44927,44928,44929,44930,44931,44932,44933	dim.|lun.|mar.|mer.|jeu.|ven.|sam.
+[$-80C]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 janvier|15 février|15 mars|15 avril|15 mai|15 juin|15 juillet|15 août|15 septembre|15 octobre|15 novembre|15 décembre
+[$-80C]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 janv.|15 févr.|15 mars|15 avr.|15 mai|15 juin|15 juil.|15 août|15 sept.|15 oct.|15 nov.|15 déc.
+[$-C0C]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre
+[$-C0C]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	janv.|févr.|mars|avr.|mai|juin|juil.|août|sept.|oct.|nov.|déc.
+[$-C0C]dddd	44927,44928,44929,44930,44931,44932,44933	dimanche|lundi|mardi|mercredi|jeudi|vendredi|samedi
+[$-C0C]ddd	44927,44928,44929,44930,44931,44932,44933	dim.|lun.|mar.|mer.|jeu.|ven.|sam.
+[$-C0C]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 janvier|15 février|15 mars|15 avril|15 mai|15 juin|15 juillet|15 août|15 septembre|15 octobre|15 novembre|15 décembre
+[$-C0C]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 janv.|15 févr.|15 mars|15 avr.|15 mai|15 juin|15 juil.|15 août|15 sept.|15 oct.|15 nov.|15 déc.
+[$-100C]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre
+[$-100C]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	janv.|févr.|mars|avr.|mai|juin|juil.|août|sept.|oct.|nov.|déc.
+[$-100C]dddd	44927,44928,44929,44930,44931,44932,44933	dimanche|lundi|mardi|mercredi|jeudi|vendredi|samedi
+[$-100C]ddd	44927,44928,44929,44930,44931,44932,44933	dim.|lun.|mar.|mer.|jeu.|ven.|sam.
+[$-100C]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 janvier|15 février|15 mars|15 avril|15 mai|15 juin|15 juillet|15 août|15 septembre|15 octobre|15 novembre|15 décembre
+[$-100C]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 janv.|15 févr.|15 mars|15 avr.|15 mai|15 juin|15 juil.|15 août|15 sept.|15 oct.|15 nov.|15 déc.
+[$-40A]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre
+[$-40A]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	ene.|feb.|mar.|abr.|may.|jun.|jul.|ago.|sep.|oct.|nov.|dic.
+[$-40A]dddd	44927,44928,44929,44930,44931,44932,44933	domingo|lunes|martes|miércoles|jueves|viernes|sábado
+[$-40A]ddd	44927,44928,44929,44930,44931,44932,44933	do.|lu.|ma.|mi.|ju.|vi.|sá.
+[$-40A]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 enero|15 febrero|15 marzo|15 abril|15 mayo|15 junio|15 julio|15 agosto|15 septiembre|15 octubre|15 noviembre|15 diciembre
+[$-40A]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 ene.|15 feb.|15 mar.|15 abr.|15 may.|15 jun.|15 jul.|15 ago.|15 sep.|15 oct.|15 nov.|15 dic.
+[$-80A]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre
+[$-80A]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	ene.|feb.|mar.|abr.|may.|jun.|jul.|ago.|sep.|oct.|nov.|dic.
+[$-80A]dddd	44927,44928,44929,44930,44931,44932,44933	domingo|lunes|martes|miércoles|jueves|viernes|sábado
+[$-80A]ddd	44927,44928,44929,44930,44931,44932,44933	dom.|lun.|mar.|mié.|jue.|vie.|sáb.
+[$-80A]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 enero|15 febrero|15 marzo|15 abril|15 mayo|15 junio|15 julio|15 agosto|15 septiembre|15 octubre|15 noviembre|15 diciembre
+[$-80A]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 ene.|15 feb.|15 mar.|15 abr.|15 may.|15 jun.|15 jul.|15 ago.|15 sep.|15 oct.|15 nov.|15 dic.
+[$-C0A]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre
+[$-C0A]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	ene.|feb.|mar.|abr.|may.|jun.|jul.|ago.|sep.|oct.|nov.|dic.
+[$-C0A]dddd	44927,44928,44929,44930,44931,44932,44933	domingo|lunes|martes|miércoles|jueves|viernes|sábado
+[$-C0A]ddd	44927,44928,44929,44930,44931,44932,44933	do.|lu.|ma.|mi.|ju.|vi.|sá.
+[$-C0A]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 enero|15 febrero|15 marzo|15 abril|15 mayo|15 junio|15 julio|15 agosto|15 septiembre|15 octubre|15 noviembre|15 diciembre
+[$-C0A]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 ene.|15 feb.|15 mar.|15 abr.|15 may.|15 jun.|15 jul.|15 ago.|15 sep.|15 oct.|15 nov.|15 dic.
+[$-816]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	janeiro|fevereiro|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro
+[$-816]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez
+[$-816]dddd	44927,44928,44929,44930,44931,44932,44933	domingo|segunda-feira|terça-feira|quarta-feira|quinta-feira|sexta-feira|sábado
+[$-816]ddd	44927,44928,44929,44930,44931,44932,44933	dom|seg|ter|qua|qui|sex|sáb
+[$-816]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 janeiro|15 fevereiro|15 março|15 abril|15 maio|15 junho|15 julho|15 agosto|15 setembro|15 outubro|15 novembro|15 dezembro
+[$-816]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 jan|15 fev|15 mar|15 abr|15 mai|15 jun|15 jul|15 ago|15 set|15 out|15 nov|15 dez
+[$-410]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre
+[$-410]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	gen|feb|mar|apr|mag|giu|lug|ago|set|ott|nov|dic
+[$-410]dddd	44927,44928,44929,44930,44931,44932,44933	domenica|lunedì|martedì|mercoledì|giovedì|venerdì|sabato
+[$-410]ddd	44927,44928,44929,44930,44931,44932,44933	dom|lun|mar|mer|gio|ven|sab
+[$-410]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 gennaio|15 febbraio|15 marzo|15 aprile|15 maggio|15 giugno|15 luglio|15 agosto|15 settembre|15 ottobre|15 novembre|15 dicembre
+[$-410]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 gen|15 feb|15 mar|15 apr|15 mag|15 giu|15 lug|15 ago|15 set|15 ott|15 nov|15 dic
+[$-413]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	januari|februari|maart|april|mei|juni|juli|augustus|september|oktober|november|december
+[$-413]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	jan|feb|mrt|apr|mei|jun|jul|aug|sep|okt|nov|dec
+[$-413]dddd	44927,44928,44929,44930,44931,44932,44933	zondag|maandag|dinsdag|woensdag|donderdag|vrijdag|zaterdag
+[$-413]ddd	44927,44928,44929,44930,44931,44932,44933	zo|ma|di|wo|do|vr|za
+[$-413]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 januari|15 februari|15 maart|15 april|15 mei|15 juni|15 juli|15 augustus|15 september|15 oktober|15 november|15 december
+[$-413]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 jan|15 feb|15 mrt|15 apr|15 mei|15 jun|15 jul|15 aug|15 sep|15 okt|15 nov|15 dec
+[$-813]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	januari|februari|maart|april|mei|juni|juli|augustus|september|oktober|november|december
+[$-813]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	jan|feb|mrt|apr|mei|jun|jul|aug|sep|okt|nov|dec
+[$-813]dddd	44927,44928,44929,44930,44931,44932,44933	zondag|maandag|dinsdag|woensdag|donderdag|vrijdag|zaterdag
+[$-813]ddd	44927,44928,44929,44930,44931,44932,44933	zo|ma|di|wo|do|vr|za
+[$-813]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 januari|15 februari|15 maart|15 april|15 mei|15 juni|15 juli|15 augustus|15 september|15 oktober|15 november|15 december
+[$-813]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 jan|15 feb|15 mrt|15 apr|15 mei|15 jun|15 jul|15 aug|15 sep|15 okt|15 nov|15 dec
+[$-415]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	styczeń|luty|marzec|kwiecień|maj|czerwiec|lipiec|sierpień|wrzesień|październik|listopad|grudzień
+[$-415]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	sty|lut|mar|kwi|maj|cze|lip|sie|wrz|paź|lis|gru
+[$-415]dddd	44927,44928,44929,44930,44931,44932,44933	niedziela|poniedziałek|wtorek|środa|czwartek|piątek|sobota
+[$-415]ddd	44927,44928,44929,44930,44931,44932,44933	niedz.|pon.|wt.|śr.|czw.|pt.|sob.
+[$-415]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 styczeń|15 luty|15 marzec|15 kwiecień|15 maj|15 czerwiec|15 lipiec|15 sierpień|15 wrzesień|15 październik|15 listopad|15 grudzień
+[$-415]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 sty|15 lut|15 mar|15 kwi|15 maj|15 cze|15 lip|15 sie|15 wrz|15 paź|15 lis|15 gru
+[$-416]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	janeiro|fevereiro|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro
+[$-416]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez
+[$-416]dddd	44927,44928,44929,44930,44931,44932,44933	domingo|segunda-feira|terça-feira|quarta-feira|quinta-feira|sexta-feira|sábado
+[$-416]ddd	44927,44928,44929,44930,44931,44932,44933	dom|seg|ter|qua|qui|sex|sáb
+[$-416]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 janeiro|15 fevereiro|15 março|15 abril|15 maio|15 junho|15 julho|15 agosto|15 setembro|15 outubro|15 novembro|15 dezembro
+[$-416]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 jan|15 fev|15 mar|15 abr|15 mai|15 jun|15 jul|15 ago|15 set|15 out|15 nov|15 dez
+[$-411]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	1月|2月|3月|4月|5月|6月|7月|8月|9月|10月|11月|12月
+[$-411]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	1|2|3|4|5|6|7|8|9|10|11|12
+[$-411]dddd	44927,44928,44929,44930,44931,44932,44933	日曜日|月曜日|火曜日|水曜日|木曜日|金曜日|土曜日
+[$-411]ddd	44927,44928,44929,44930,44931,44932,44933	日|月|火|水|木|金|土
+[$-411]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 1月|15 2月|15 3月|15 4月|15 5月|15 6月|15 7月|15 8月|15 9月|15 10月|15 11月|15 12月
+[$-411]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 1|15 2|15 3|15 4|15 5|15 6|15 7|15 8|15 9|15 10|15 11|15 12
+[$-412]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	1월|2월|3월|4월|5월|6월|7월|8월|9월|10월|11월|12월
+[$-412]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	1|2|3|4|5|6|7|8|9|10|11|12
+[$-412]dddd	44927,44928,44929,44930,44931,44932,44933	일요일|월요일|화요일|수요일|목요일|금요일|토요일
+[$-412]ddd	44927,44928,44929,44930,44931,44932,44933	일|월|화|수|목|금|토
+[$-412]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 1월|15 2월|15 3월|15 4월|15 5월|15 6월|15 7월|15 8월|15 9월|15 10월|15 11월|15 12월
+[$-412]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 1|15 2|15 3|15 4|15 5|15 6|15 7|15 8|15 9|15 10|15 11|15 12
+[$-804]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	一月|二月|三月|四月|五月|六月|七月|八月|九月|十月|十一月|十二月
+[$-804]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	1月|2月|3月|4月|5月|6月|7月|8月|9月|10月|11月|12月
+[$-804]dddd	44927,44928,44929,44930,44931,44932,44933	星期日|星期一|星期二|星期三|星期四|星期五|星期六
+[$-804]ddd	44927,44928,44929,44930,44931,44932,44933	周日|周一|周二|周三|周四|周五|周六
+[$-804]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 一月|15 二月|15 三月|15 四月|15 五月|15 六月|15 七月|15 八月|15 九月|15 十月|15 十一月|15 十二月
+[$-804]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 1月|15 2月|15 3月|15 4月|15 5月|15 6月|15 7月|15 8月|15 9月|15 10月|15 11月|15 12月
+[$-1004]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	一月|二月|三月|四月|五月|六月|七月|八月|九月|十月|十一月|十二月
+[$-1004]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	一月|二月|三月|四月|五月|六月|七月|八月|九月|十月|十一月|十二月
+[$-1004]dddd	44927,44928,44929,44930,44931,44932,44933	星期日|星期一|星期二|星期三|星期四|星期五|星期六
+[$-1004]ddd	44927,44928,44929,44930,44931,44932,44933	周日|周一|周二|周三|周四|周五|周六
+[$-1004]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 一月|15 二月|15 三月|15 四月|15 五月|15 六月|15 七月|15 八月|15 九月|15 十月|15 十一月|15 十二月
+[$-1004]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 一月|15 二月|15 三月|15 四月|15 五月|15 六月|15 七月|15 八月|15 九月|15 十月|15 十一月|15 十二月
+[$-404]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	一月|二月|三月|四月|五月|六月|七月|八月|九月|十月|十一月|十二月
+[$-404]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	一月|二月|三月|四月|五月|六月|七月|八月|九月|十月|十一月|十二月
+[$-404]dddd	44927,44928,44929,44930,44931,44932,44933	星期日|星期一|星期二|星期三|星期四|星期五|星期六
+[$-404]ddd	44927,44928,44929,44930,44931,44932,44933	週日|週一|週二|週三|週四|週五|週六
+[$-404]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 一月|15 二月|15 三月|15 四月|15 五月|15 六月|15 七月|15 八月|15 九月|15 十月|15 十一月|15 十二月
+[$-404]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 一月|15 二月|15 三月|15 四月|15 五月|15 六月|15 七月|15 八月|15 九月|15 十月|15 十一月|15 十二月
+[$-C04]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	一月|二月|三月|四月|五月|六月|七月|八月|九月|十月|十一月|十二月
+[$-C04]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	一月|二月|三月|四月|五月|六月|七月|八月|九月|十月|十一月|十二月
+[$-C04]dddd	44927,44928,44929,44930,44931,44932,44933	星期日|星期一|星期二|星期三|星期四|星期五|星期六
+[$-C04]ddd	44927,44928,44929,44930,44931,44932,44933	週日|週一|週二|週三|週四|週五|週六
+[$-C04]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 一月|15 二月|15 三月|15 四月|15 五月|15 六月|15 七月|15 八月|15 九月|15 十月|15 十一月|15 十二月
+[$-C04]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 一月|15 二月|15 三月|15 四月|15 五月|15 六月|15 七月|15 八月|15 九月|15 十月|15 十一月|15 十二月
+[$-40E]mmmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	január|február|március|április|május|június|július|augusztus|szeptember|október|november|december
+[$-40E]mmm	44927,44958,44986,45017,45047,45078,45108,45139,45170,45200,45231,45261	jan.|febr.|márc.|ápr.|máj.|jún.|júl.|aug.|szept.|okt.|nov.|dec.
+[$-40E]dddd	44927,44928,44929,44930,44931,44932,44933	vasárnap|hétfő|kedd|szerda|csütörtök|péntek|szombat
+[$-40E]ddd	44927,44928,44929,44930,44931,44932,44933	V|H|K|Sze|Cs|P|Szo
+[$-40E]d mmmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 január|15 február|15 március|15 április|15 május|15 június|15 július|15 augusztus|15 szeptember|15 október|15 november|15 december
+[$-40E]d mmm	44941,44972,45000,45031,45061,45092,45122,45153,45184,45214,45245,45275	15 jan.|15 febr.|15 márc.|15 ápr.|15 máj.|15 jún.|15 júl.|15 aug.|15 szept.|15 okt.|15 nov.|15 dec.
+[$-409]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Monday 29 September 2025|Wednesday 18 September 2024|Thursday 2 January 2025|Monday 8 December 2025|Wednesday 29 October 2025|Thursday 26 June 2025|Tuesday 30 January 2024|Monday 21 April 2025|Thursday 12 September 2024|Sunday 26 October 2025|Friday 23 February 2024|Sunday 9 June 2024
+[$-409]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Mon, Sep 29|Wed, Sep 18|Thu, Jan 2|Mon, Dec 8|Wed, Oct 29|Thu, Jun 26|Tue, Jan 30|Mon, Apr 21|Thu, Sep 12|Sun, Oct 26|Fri, Feb 23|Sun, Jun 9
+[$-409]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	S|S|J|D|O|J|J|A|S|O|F|J
+[$-409]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Sep-25|Sep-24|Jan-25|Dec-25|Oct-25|Jun-25|Jan-24|Apr-25|Sep-24|Oct-25|Feb-24|Jun-24
+[$-409]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. September|18. September|2. January|8. December|29. October|26. June|30. January|21. April|12. September|26. October|23. February|9. June
+[$-409]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	September 2025|September 2024|January 2025|December 2025|October 2025|June 2025|January 2024|April 2025|September 2024|October 2025|February 2024|June 2024
+[$-409]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Mon|Wed|Thu|Mon|Wed|Thu|Tue|Mon|Thu|Sun|Fri|Sun
+[$-809]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Monday 29 September 2025|Wednesday 18 September 2024|Thursday 2 January 2025|Monday 8 December 2025|Wednesday 29 October 2025|Thursday 26 June 2025|Tuesday 30 January 2024|Monday 21 April 2025|Thursday 12 September 2024|Sunday 26 October 2025|Friday 23 February 2024|Sunday 9 June 2024
+[$-809]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Mon, Sep 29|Wed, Sep 18|Thu, Jan 2|Mon, Dec 8|Wed, Oct 29|Thu, Jun 26|Tue, Jan 30|Mon, Apr 21|Thu, Sep 12|Sun, Oct 26|Fri, Feb 23|Sun, Jun 9
+[$-809]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	S|S|J|D|O|J|J|A|S|O|F|J
+[$-809]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Sep-25|Sep-24|Jan-25|Dec-25|Oct-25|Jun-25|Jan-24|Apr-25|Sep-24|Oct-25|Feb-24|Jun-24
+[$-809]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. September|18. September|2. January|8. December|29. October|26. June|30. January|21. April|12. September|26. October|23. February|9. June
+[$-809]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	September 2025|September 2024|January 2025|December 2025|October 2025|June 2025|January 2024|April 2025|September 2024|October 2025|February 2024|June 2024
+[$-809]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Mon|Wed|Thu|Mon|Wed|Thu|Tue|Mon|Thu|Sun|Fri|Sun
+[$-1809]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Monday 29 September 2025|Wednesday 18 September 2024|Thursday 2 January 2025|Monday 8 December 2025|Wednesday 29 October 2025|Thursday 26 June 2025|Tuesday 30 January 2024|Monday 21 April 2025|Thursday 12 September 2024|Sunday 26 October 2025|Friday 23 February 2024|Sunday 9 June 2024
+[$-1809]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Mon, Sept 29|Wed, Sept 18|Thu, Jan 2|Mon, Dec 8|Wed, Oct 29|Thu, Jun 26|Tue, Jan 30|Mon, Apr 21|Thu, Sept 12|Sun, Oct 26|Fri, Feb 23|Sun, Jun 9
+[$-1809]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	S|S|J|D|O|J|J|A|S|O|F|J
+[$-1809]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Sept-25|Sept-24|Jan-25|Dec-25|Oct-25|Jun-25|Jan-24|Apr-25|Sept-24|Oct-25|Feb-24|Jun-24
+[$-1809]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. September|18. September|2. January|8. December|29. October|26. June|30. January|21. April|12. September|26. October|23. February|9. June
+[$-1809]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	September 2025|September 2024|January 2025|December 2025|October 2025|June 2025|January 2024|April 2025|September 2024|October 2025|February 2024|June 2024
+[$-1809]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Mon|Wed|Thu|Mon|Wed|Thu|Tue|Mon|Thu|Sun|Fri|Sun
+[$-C09]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Monday 29 September 2025|Wednesday 18 September 2024|Thursday 2 January 2025|Monday 8 December 2025|Wednesday 29 October 2025|Thursday 26 June 2025|Tuesday 30 January 2024|Monday 21 April 2025|Thursday 12 September 2024|Sunday 26 October 2025|Friday 23 February 2024|Sunday 9 June 2024
+[$-C09]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Mon, Sep 29|Wed, Sep 18|Thu, Jan 2|Mon, Dec 8|Wed, Oct 29|Thu, Jun 26|Tue, Jan 30|Mon, Apr 21|Thu, Sep 12|Sun, Oct 26|Fri, Feb 23|Sun, Jun 9
+[$-C09]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	S|S|J|D|O|J|J|A|S|O|F|J
+[$-C09]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Sep-25|Sep-24|Jan-25|Dec-25|Oct-25|Jun-25|Jan-24|Apr-25|Sep-24|Oct-25|Feb-24|Jun-24
+[$-C09]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. September|18. September|2. January|8. December|29. October|26. June|30. January|21. April|12. September|26. October|23. February|9. June
+[$-C09]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	September 2025|September 2024|January 2025|December 2025|October 2025|June 2025|January 2024|April 2025|September 2024|October 2025|February 2024|June 2024
+[$-C09]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Mon|Wed|Thu|Mon|Wed|Thu|Tue|Mon|Thu|Sun|Fri|Sun
+[$-1409]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Monday 29 September 2025|Wednesday 18 September 2024|Thursday 2 January 2025|Monday 8 December 2025|Wednesday 29 October 2025|Thursday 26 June 2025|Tuesday 30 January 2024|Monday 21 April 2025|Thursday 12 September 2024|Sunday 26 October 2025|Friday 23 February 2024|Sunday 9 June 2024
+[$-1409]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Mon, Sept 29|Wed, Sept 18|Thu, Jan 2|Mon, Dec 8|Wed, Oct 29|Thu, Jun 26|Tue, Jan 30|Mon, Apr 21|Thu, Sept 12|Sun, Oct 26|Fri, Feb 23|Sun, Jun 9
+[$-1409]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	S|S|J|D|O|J|J|A|S|O|F|J
+[$-1409]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Sept-25|Sept-24|Jan-25|Dec-25|Oct-25|Jun-25|Jan-24|Apr-25|Sept-24|Oct-25|Feb-24|Jun-24
+[$-1409]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. September|18. September|2. January|8. December|29. October|26. June|30. January|21. April|12. September|26. October|23. February|9. June
+[$-1409]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	September 2025|September 2024|January 2025|December 2025|October 2025|June 2025|January 2024|April 2025|September 2024|October 2025|February 2024|June 2024
+[$-1409]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Mon|Wed|Thu|Mon|Wed|Thu|Tue|Mon|Thu|Sun|Fri|Sun
+[$-1C09]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Monday 29 September 2025|Wednesday 18 September 2024|Thursday 2 January 2025|Monday 8 December 2025|Wednesday 29 October 2025|Thursday 26 June 2025|Tuesday 30 January 2024|Monday 21 April 2025|Thursday 12 September 2024|Sunday 26 October 2025|Friday 23 February 2024|Sunday 9 June 2024
+[$-1C09]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Mon, Sept 29|Wed, Sept 18|Thu, Jan 2|Mon, Dec 8|Wed, Oct 29|Thu, Jun 26|Tue, Jan 30|Mon, Apr 21|Thu, Sept 12|Sun, Oct 26|Fri, Feb 23|Sun, Jun 9
+[$-1C09]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	S|S|J|D|O|J|J|A|S|O|F|J
+[$-1C09]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Sept-25|Sept-24|Jan-25|Dec-25|Oct-25|Jun-25|Jan-24|Apr-25|Sept-24|Oct-25|Feb-24|Jun-24
+[$-1C09]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. September|18. September|2. January|8. December|29. October|26. June|30. January|21. April|12. September|26. October|23. February|9. June
+[$-1C09]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	September 2025|September 2024|January 2025|December 2025|October 2025|June 2025|January 2024|April 2025|September 2024|October 2025|February 2024|June 2024
+[$-1C09]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Mon|Wed|Thu|Mon|Wed|Thu|Tue|Mon|Thu|Sun|Fri|Sun
+[$-4009]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Monday 29 September 2025|Wednesday 18 September 2024|Thursday 2 January 2025|Monday 8 December 2025|Wednesday 29 October 2025|Thursday 26 June 2025|Tuesday 30 January 2024|Monday 21 April 2025|Thursday 12 September 2024|Sunday 26 October 2025|Friday 23 February 2024|Sunday 9 June 2024
+[$-4009]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Mon, Sep 29|Wed, Sep 18|Thu, Jan 2|Mon, Dec 8|Wed, Oct 29|Thu, Jun 26|Tue, Jan 30|Mon, Apr 21|Thu, Sep 12|Sun, Oct 26|Fri, Feb 23|Sun, Jun 9
+[$-4009]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	S|S|J|D|O|J|J|A|S|O|F|J
+[$-4009]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Sep-25|Sep-24|Jan-25|Dec-25|Oct-25|Jun-25|Jan-24|Apr-25|Sep-24|Oct-25|Feb-24|Jun-24
+[$-4009]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. September|18. September|2. January|8. December|29. October|26. June|30. January|21. April|12. September|26. October|23. February|9. June
+[$-4009]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	September 2025|September 2024|January 2025|December 2025|October 2025|June 2025|January 2024|April 2025|September 2024|October 2025|February 2024|June 2024
+[$-4009]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Mon|Wed|Thu|Mon|Wed|Thu|Tue|Mon|Thu|Sun|Fri|Sun
+[$-1009]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Monday 29 September 2025|Wednesday 18 September 2024|Thursday 2 January 2025|Monday 8 December 2025|Wednesday 29 October 2025|Thursday 26 June 2025|Tuesday 30 January 2024|Monday 21 April 2025|Thursday 12 September 2024|Sunday 26 October 2025|Friday 23 February 2024|Sunday 9 June 2024
+[$-1009]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Mon, Sep 29|Wed, Sep 18|Thu, Jan 2|Mon, Dec 8|Wed, Oct 29|Thu, Jun 26|Tue, Jan 30|Mon, Apr 21|Thu, Sep 12|Sun, Oct 26|Fri, Feb 23|Sun, Jun 9
+[$-1009]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	S|S|J|D|O|J|J|A|S|O|F|J
+[$-1009]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Sep-25|Sep-24|Jan-25|Dec-25|Oct-25|Jun-25|Jan-24|Apr-25|Sep-24|Oct-25|Feb-24|Jun-24
+[$-1009]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. September|18. September|2. January|8. December|29. October|26. June|30. January|21. April|12. September|26. October|23. February|9. June
+[$-1009]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	September 2025|September 2024|January 2025|December 2025|October 2025|June 2025|January 2024|April 2025|September 2024|October 2025|February 2024|June 2024
+[$-1009]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Mon|Wed|Thu|Mon|Wed|Thu|Tue|Mon|Thu|Sun|Fri|Sun
+[$-3409]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Monday 29 September 2025|Wednesday 18 September 2024|Thursday 2 January 2025|Monday 8 December 2025|Wednesday 29 October 2025|Thursday 26 June 2025|Tuesday 30 January 2024|Monday 21 April 2025|Thursday 12 September 2024|Sunday 26 October 2025|Friday 23 February 2024|Sunday 9 June 2024
+[$-3409]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Mon, Sep 29|Wed, Sep 18|Thu, Jan 2|Mon, Dec 8|Wed, Oct 29|Thu, Jun 26|Tue, Jan 30|Mon, Apr 21|Thu, Sep 12|Sun, Oct 26|Fri, Feb 23|Sun, Jun 9
+[$-3409]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	S|S|J|D|O|J|J|A|S|O|F|J
+[$-3409]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Sep-25|Sep-24|Jan-25|Dec-25|Oct-25|Jun-25|Jan-24|Apr-25|Sep-24|Oct-25|Feb-24|Jun-24
+[$-3409]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. September|18. September|2. January|8. December|29. October|26. June|30. January|21. April|12. September|26. October|23. February|9. June
+[$-3409]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	September 2025|September 2024|January 2025|December 2025|October 2025|June 2025|January 2024|April 2025|September 2024|October 2025|February 2024|June 2024
+[$-3409]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Mon|Wed|Thu|Mon|Wed|Thu|Tue|Mon|Thu|Sun|Fri|Sun
+[$-407]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Montag 29 September 2025|Mittwoch 18 September 2024|Donnerstag 2 Januar 2025|Montag 8 Dezember 2025|Mittwoch 29 Oktober 2025|Donnerstag 26 Juni 2025|Dienstag 30 Januar 2024|Montag 21 April 2025|Donnerstag 12 September 2024|Sonntag 26 Oktober 2025|Freitag 23 Februar 2024|Sonntag 9 Juni 2024
+[$-407]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Mo, Sep 29|Mi, Sep 18|Do, Jan 2|Mo, Dez 8|Mi, Okt 29|Do, Jun 26|Di, Jan 30|Mo, Apr 21|Do, Sep 12|So, Okt 26|Fr, Feb 23|So, Jun 9
+[$-407]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	S|S|J|D|O|J|J|A|S|O|F|J
+[$-407]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Sep-25|Sep-24|Jan-25|Dez-25|Okt-25|Jun-25|Jan-24|Apr-25|Sep-24|Okt-25|Feb-24|Jun-24
+[$-407]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. September|18. September|2. Januar|8. Dezember|29. Oktober|26. Juni|30. Januar|21. April|12. September|26. Oktober|23. Februar|9. Juni
+[$-407]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	September 2025|September 2024|Januar 2025|Dezember 2025|Oktober 2025|Juni 2025|Januar 2024|April 2025|September 2024|Oktober 2025|Februar 2024|Juni 2024
+[$-407]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Mo|Mi|Do|Mo|Mi|Do|Di|Mo|Do|So|Fr|So
+[$-807]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Montag 29 September 2025|Mittwoch 18 September 2024|Donnerstag 2 Januar 2025|Montag 8 Dezember 2025|Mittwoch 29 Oktober 2025|Donnerstag 26 Juni 2025|Dienstag 30 Januar 2024|Montag 21 April 2025|Donnerstag 12 September 2024|Sonntag 26 Oktober 2025|Freitag 23 Februar 2024|Sonntag 9 Juni 2024
+[$-807]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Mo, Sep 29|Mi, Sep 18|Do, Jan 2|Mo, Dez 8|Mi, Okt 29|Do, Jun 26|Di, Jan 30|Mo, Apr 21|Do, Sep 12|So, Okt 26|Fr, Feb 23|So, Jun 9
+[$-807]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	S|S|J|D|O|J|J|A|S|O|F|J
+[$-807]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Sep-25|Sep-24|Jan-25|Dez-25|Okt-25|Jun-25|Jan-24|Apr-25|Sep-24|Okt-25|Feb-24|Jun-24
+[$-807]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. September|18. September|2. Januar|8. Dezember|29. Oktober|26. Juni|30. Januar|21. April|12. September|26. Oktober|23. Februar|9. Juni
+[$-807]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	September 2025|September 2024|Januar 2025|Dezember 2025|Oktober 2025|Juni 2025|Januar 2024|April 2025|September 2024|Oktober 2025|Februar 2024|Juni 2024
+[$-807]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Mo|Mi|Do|Mo|Mi|Do|Di|Mo|Do|So|Fr|So
+[$-C07]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Montag 29 September 2025|Mittwoch 18 September 2024|Donnerstag 2 Jänner 2025|Montag 8 Dezember 2025|Mittwoch 29 Oktober 2025|Donnerstag 26 Juni 2025|Dienstag 30 Jänner 2024|Montag 21 April 2025|Donnerstag 12 September 2024|Sonntag 26 Oktober 2025|Freitag 23 Februar 2024|Sonntag 9 Juni 2024
+[$-C07]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Mo, Sep 29|Mi, Sep 18|Do, Jän 2|Mo, Dez 8|Mi, Okt 29|Do, Jun 26|Di, Jän 30|Mo, Apr 21|Do, Sep 12|So, Okt 26|Fr, Feb 23|So, Jun 9
+[$-C07]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	S|S|J|D|O|J|J|A|S|O|F|J
+[$-C07]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Sep-25|Sep-24|Jän-25|Dez-25|Okt-25|Jun-25|Jän-24|Apr-25|Sep-24|Okt-25|Feb-24|Jun-24
+[$-C07]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. September|18. September|2. Jänner|8. Dezember|29. Oktober|26. Juni|30. Jänner|21. April|12. September|26. Oktober|23. Februar|9. Juni
+[$-C07]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	September 2025|September 2024|Jänner 2025|Dezember 2025|Oktober 2025|Juni 2025|Jänner 2024|April 2025|September 2024|Oktober 2025|Februar 2024|Juni 2024
+[$-C07]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Mo|Mi|Do|Mo|Mi|Do|Di|Mo|Do|So|Fr|So
+[$-419]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	понедельник 29 Сентябрь 2025|среда 18 Сентябрь 2024|четверг 2 Январь 2025|понедельник 8 Декабрь 2025|среда 29 Октябрь 2025|четверг 26 Июнь 2025|вторник 30 Январь 2024|понедельник 21 Апрель 2025|четверг 12 Сентябрь 2024|воскресенье 26 Октябрь 2025|пятница 23 Февраль 2024|воскресенье 9 Июнь 2024
+[$-419]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Пн, сен 29|Ср, сен 18|Чт, янв 2|Пн, дек 8|Ср, окт 29|Чт, июн 26|Вт, янв 30|Пн, апр 21|Чт, сен 12|Вс, окт 26|Пт, фев 23|Вс, июн 9
+[$-419]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	С|С|Я|Д|О|И|Я|А|С|О|Ф|И
+[$-419]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	сен-25|сен-24|янв-25|дек-25|окт-25|июн-25|янв-24|апр-25|сен-24|окт-25|фев-24|июн-24
+[$-419]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. Сентябрь|18. Сентябрь|2. Январь|8. Декабрь|29. Октябрь|26. Июнь|30. Январь|21. Апрель|12. Сентябрь|26. Октябрь|23. Февраль|9. Июнь
+[$-419]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Сентябрь 2025|Сентябрь 2024|Январь 2025|Декабрь 2025|Октябрь 2025|Июнь 2025|Январь 2024|Апрель 2025|Сентябрь 2024|Октябрь 2025|Февраль 2024|Июнь 2024
+[$-419]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Пн|Ср|Чт|Пн|Ср|Чт|Вт|Пн|Чт|Вс|Пт|Вс
+[$-40B]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	maanantai 29 syyskuu 2025|keskiviikko 18 syyskuu 2024|torstai 2 tammikuu 2025|maanantai 8 joulukuu 2025|keskiviikko 29 lokakuu 2025|torstai 26 kesäkuu 2025|tiistai 30 tammikuu 2024|maanantai 21 huhtikuu 2025|torstai 12 syyskuu 2024|sunnuntai 26 lokakuu 2025|perjantai 23 helmikuu 2024|sunnuntai 9 kesäkuu 2024
+[$-40B]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	ma, syys 29|ke, syys 18|to, tammi 2|ma, joulu 8|ke, loka 29|to, kesä 26|ti, tammi 30|ma, huhti 21|to, syys 12|su, loka 26|pe, helmi 23|su, kesä 9
+[$-40B]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	s|s|t|j|l|k|t|h|s|l|h|k
+[$-40B]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	syys-25|syys-24|tammi-25|joulu-25|loka-25|kesä-25|tammi-24|huhti-25|syys-24|loka-25|helmi-24|kesä-24
+[$-40B]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. syyskuu|18. syyskuu|2. tammikuu|8. joulukuu|29. lokakuu|26. kesäkuu|30. tammikuu|21. huhtikuu|12. syyskuu|26. lokakuu|23. helmikuu|9. kesäkuu
+[$-40B]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	syyskuu 2025|syyskuu 2024|tammikuu 2025|joulukuu 2025|lokakuu 2025|kesäkuu 2025|tammikuu 2024|huhtikuu 2025|syyskuu 2024|lokakuu 2025|helmikuu 2024|kesäkuu 2024
+[$-40B]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	ma|ke|to|ma|ke|to|ti|ma|to|su|pe|su
+[$-425]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	esmaspäev 29 september 2025|kolmapäev 18 september 2024|neljapäev 2 jaanuar 2025|esmaspäev 8 detsember 2025|kolmapäev 29 oktoober 2025|neljapäev 26 juuni 2025|teisipäev 30 jaanuar 2024|esmaspäev 21 aprill 2025|neljapäev 12 september 2024|pühapäev 26 oktoober 2025|reede 23 veebruar 2024|pühapäev 9 juuni 2024
+[$-425]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	E, sept 29|K, sept 18|N, jaan 2|E, dets 8|K, okt 29|N, juuni 26|T, jaan 30|E, apr 21|N, sept 12|P, okt 26|R, veebr 23|P, juuni 9
+[$-425]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	s|s|j|d|o|j|j|a|s|o|v|j
+[$-425]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	sept-25|sept-24|jaan-25|dets-25|okt-25|juuni-25|jaan-24|apr-25|sept-24|okt-25|veebr-24|juuni-24
+[$-425]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. september|18. september|2. jaanuar|8. detsember|29. oktoober|26. juuni|30. jaanuar|21. aprill|12. september|26. oktoober|23. veebruar|9. juuni
+[$-425]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	september 2025|september 2024|jaanuar 2025|detsember 2025|oktoober 2025|juuni 2025|jaanuar 2024|aprill 2025|september 2024|oktoober 2025|veebruar 2024|juuni 2024
+[$-425]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	E|K|N|E|K|N|T|E|N|P|R|P
+[$-426]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	pirmdiena 29 septembris 2025|trešdiena 18 septembris 2024|ceturtdiena 2 janvāris 2025|pirmdiena 8 decembris 2025|trešdiena 29 oktobris 2025|ceturtdiena 26 jūnijs 2025|otrdiena 30 janvāris 2024|pirmdiena 21 aprīlis 2025|ceturtdiena 12 septembris 2024|svētdiena 26 oktobris 2025|piektdiena 23 februāris 2024|svētdiena 9 jūnijs 2024
+[$-426]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Pirmd., sept. 29|Trešd., sept. 18|Ceturtd., janv. 2|Pirmd., dec. 8|Trešd., okt. 29|Ceturtd., jūn. 26|Otrd., janv. 30|Pirmd., apr. 21|Ceturtd., sept. 12|Svētd., okt. 26|Piektd., febr. 23|Svētd., jūn. 9
+[$-426]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	s|s|j|d|o|j|j|a|s|o|f|j
+[$-426]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	sept.-25|sept.-24|janv.-25|dec.-25|okt.-25|jūn.-25|janv.-24|apr.-25|sept.-24|okt.-25|febr.-24|jūn.-24
+[$-426]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. septembris|18. septembris|2. janvāris|8. decembris|29. oktobris|26. jūnijs|30. janvāris|21. aprīlis|12. septembris|26. oktobris|23. februāris|9. jūnijs
+[$-426]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	septembris 2025|septembris 2024|janvāris 2025|decembris 2025|oktobris 2025|jūnijs 2025|janvāris 2024|aprīlis 2025|septembris 2024|oktobris 2025|februāris 2024|jūnijs 2024
+[$-426]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	Pirmd.|Trešd.|Ceturtd.|Pirmd.|Trešd.|Ceturtd.|Otrd.|Pirmd.|Ceturtd.|Svētd.|Piektd.|Svētd.
+[$-427]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	pirmadienis 29 rugsėjis 2025|trečiadienis 18 rugsėjis 2024|ketvirtadienis 2 sausis 2025|pirmadienis 8 gruodis 2025|trečiadienis 29 spalis 2025|ketvirtadienis 26 birželis 2025|antradienis 30 sausis 2024|pirmadienis 21 balandis 2025|ketvirtadienis 12 rugsėjis 2024|sekmadienis 26 spalis 2025|penktadienis 23 vasaris 2024|sekmadienis 9 birželis 2024
+[$-427]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	pr, rugs. 29|tr, rugs. 18|kt, saus. 2|pr, gruod. 8|tr, spal. 29|kt, birž. 26|an, saus. 30|pr, bal. 21|kt, rugs. 12|sk, spal. 26|pn, vas. 23|sk, birž. 9
+[$-427]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	r|r|s|g|s|b|s|b|r|s|v|b
+[$-427]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	rugs.-25|rugs.-24|saus.-25|gruod.-25|spal.-25|birž.-25|saus.-24|bal.-25|rugs.-24|spal.-25|vas.-24|birž.-24
+[$-427]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. rugsėjis|18. rugsėjis|2. sausis|8. gruodis|29. spalis|26. birželis|30. sausis|21. balandis|12. rugsėjis|26. spalis|23. vasaris|9. birželis
+[$-427]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	rugsėjis 2025|rugsėjis 2024|sausis 2025|gruodis 2025|spalis 2025|birželis 2025|sausis 2024|balandis 2025|rugsėjis 2024|spalis 2025|vasaris 2024|birželis 2024
+[$-427]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	pr|tr|kt|pr|tr|kt|an|pr|kt|sk|pn|sk
+[$-41B]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	pondelok 29 september 2025|streda 18 september 2024|štvrtok 2 január 2025|pondelok 8 december 2025|streda 29 október 2025|štvrtok 26 jún 2025|utorok 30 január 2024|pondelok 21 apríl 2025|štvrtok 12 september 2024|nedeľa 26 október 2025|piatok 23 február 2024|nedeľa 9 jún 2024
+[$-41B]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	po, 9 29|st, 9 18|št, 1 2|po, 12 8|st, 10 29|št, 6 26|ut, 1 30|po, 4 21|št, 9 12|ne, 10 26|pi, 2 23|ne, 6 9
+[$-41B]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	s|s|j|d|o|j|j|a|s|o|f|j
+[$-41B]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	9-25|9-24|1-25|12-25|10-25|6-25|1-24|4-25|9-24|10-25|2-24|6-24
+[$-41B]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. september|18. september|2. január|8. december|29. október|26. jún|30. január|21. apríl|12. september|26. október|23. február|9. jún
+[$-41B]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	september 2025|september 2024|január 2025|december 2025|október 2025|jún 2025|január 2024|apríl 2025|september 2024|október 2025|február 2024|jún 2024
+[$-41B]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	po|st|št|po|st|št|ut|po|št|ne|pi|ne
+[$-405]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	pondělí 29 září 2025|středa 18 září 2024|čtvrtek 2 leden 2025|pondělí 8 prosinec 2025|středa 29 říjen 2025|čtvrtek 26 červen 2025|úterý 30 leden 2024|pondělí 21 duben 2025|čtvrtek 12 září 2024|neděle 26 říjen 2025|pátek 23 únor 2024|neděle 9 červen 2024
+[$-405]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	po, IX 29|st, IX 18|čt, I 2|po, XII 8|st, X 29|čt, VI 26|út, I 30|po, IV 21|čt, IX 12|ne, X 26|pá, II 23|ne, VI 9
+[$-405]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	z|z|l|p|ř|č|l|d|z|ř|ú|č
+[$-405]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	IX-25|IX-24|I-25|XII-25|X-25|VI-25|I-24|IV-25|IX-24|X-25|II-24|VI-24
+[$-405]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. září|18. září|2. leden|8. prosinec|29. říjen|26. červen|30. leden|21. duben|12. září|26. říjen|23. únor|9. červen
+[$-405]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	září 2025|září 2024|leden 2025|prosinec 2025|říjen 2025|červen 2025|leden 2024|duben 2025|září 2024|říjen 2025|únor 2024|červen 2024
+[$-405]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	po|st|čt|po|st|čt|út|po|čt|ne|pá|ne
+[$-414]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	mandag 29 september 2025|onsdag 18 september 2024|torsdag 2 januar 2025|mandag 8 desember 2025|onsdag 29 oktober 2025|torsdag 26 juni 2025|tirsdag 30 januar 2024|mandag 21 april 2025|torsdag 12 september 2024|søndag 26 oktober 2025|fredag 23 februar 2024|søndag 9 juni 2024
+[$-414]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	man, sep 29|ons, sep 18|tor, jan 2|man, des 8|ons, okt 29|tor, jun 26|tir, jan 30|man, apr 21|tor, sep 12|søn, okt 26|fre, feb 23|søn, jun 9
+[$-414]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	s|s|j|d|o|j|j|a|s|o|f|j
+[$-414]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	sep-25|sep-24|jan-25|des-25|okt-25|jun-25|jan-24|apr-25|sep-24|okt-25|feb-24|jun-24
+[$-414]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. september|18. september|2. januar|8. desember|29. oktober|26. juni|30. januar|21. april|12. september|26. oktober|23. februar|9. juni
+[$-414]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	september 2025|september 2024|januar 2025|desember 2025|oktober 2025|juni 2025|januar 2024|april 2025|september 2024|oktober 2025|februar 2024|juni 2024
+[$-414]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	man|ons|tor|man|ons|tor|tir|man|tor|søn|fre|søn
+[$-814]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	måndag 29 september 2025|onsdag 18 september 2024|torsdag 2 januar 2025|måndag 8 desember 2025|onsdag 29 oktober 2025|torsdag 26 juni 2025|tysdag 30 januar 2024|måndag 21 april 2025|torsdag 12 september 2024|søndag 26 oktober 2025|fredag 23 februar 2024|søndag 9 juni 2024
+[$-814]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	mån, sep. 29|ons, sep. 18|tor, jan. 2|mån, des. 8|ons, okt. 29|tor, juni 26|tys, jan. 30|mån, apr. 21|tor, sep. 12|søn, okt. 26|fre, feb. 23|søn, juni 9
+[$-814]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	s|s|j|d|o|j|j|a|s|o|f|j
+[$-814]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	sep.-25|sep.-24|jan.-25|des.-25|okt.-25|juni-25|jan.-24|apr.-25|sep.-24|okt.-25|feb.-24|juni-24
+[$-814]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. september|18. september|2. januar|8. desember|29. oktober|26. juni|30. januar|21. april|12. september|26. oktober|23. februar|9. juni
+[$-814]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	september 2025|september 2024|januar 2025|desember 2025|oktober 2025|juni 2025|januar 2024|april 2025|september 2024|oktober 2025|februar 2024|juni 2024
+[$-814]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	mån|ons|tor|mån|ons|tor|tys|mån|tor|søn|fre|søn
+[$-40C]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	lundi 29 septembre 2025|mercredi 18 septembre 2024|jeudi 2 janvier 2025|lundi 8 décembre 2025|mercredi 29 octobre 2025|jeudi 26 juin 2025|mardi 30 janvier 2024|lundi 21 avril 2025|jeudi 12 septembre 2024|dimanche 26 octobre 2025|vendredi 23 février 2024|dimanche 9 juin 2024
+[$-40C]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	lun., sept. 29|mer., sept. 18|jeu., janv. 2|lun., déc. 8|mer., oct. 29|jeu., juin 26|mar., janv. 30|lun., avr. 21|jeu., sept. 12|dim., oct. 26|ven., févr. 23|dim., juin 9
+[$-40C]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	s|s|j|d|o|j|j|a|s|o|f|j
+[$-40C]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	sept.-25|sept.-24|janv.-25|déc.-25|oct.-25|juin-25|janv.-24|avr.-25|sept.-24|oct.-25|févr.-24|juin-24
+[$-40C]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. septembre|18. septembre|2. janvier|8. décembre|29. octobre|26. juin|30. janvier|21. avril|12. septembre|26. octobre|23. février|9. juin
+[$-40C]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	septembre 2025|septembre 2024|janvier 2025|décembre 2025|octobre 2025|juin 2025|janvier 2024|avril 2025|septembre 2024|octobre 2025|février 2024|juin 2024
+[$-40C]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	lun.|mer.|jeu.|lun.|mer.|jeu.|mar.|lun.|jeu.|dim.|ven.|dim.
+[$-80C]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	lundi 29 septembre 2025|mercredi 18 septembre 2024|jeudi 2 janvier 2025|lundi 8 décembre 2025|mercredi 29 octobre 2025|jeudi 26 juin 2025|mardi 30 janvier 2024|lundi 21 avril 2025|jeudi 12 septembre 2024|dimanche 26 octobre 2025|vendredi 23 février 2024|dimanche 9 juin 2024
+[$-80C]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	lun., sept. 29|mer., sept. 18|jeu., janv. 2|lun., déc. 8|mer., oct. 29|jeu., juin 26|mar., janv. 30|lun., avr. 21|jeu., sept. 12|dim., oct. 26|ven., févr. 23|dim., juin 9
+[$-80C]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	s|s|j|d|o|j|j|a|s|o|f|j
+[$-80C]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	sept.-25|sept.-24|janv.-25|déc.-25|oct.-25|juin-25|janv.-24|avr.-25|sept.-24|oct.-25|févr.-24|juin-24
+[$-80C]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. septembre|18. septembre|2. janvier|8. décembre|29. octobre|26. juin|30. janvier|21. avril|12. septembre|26. octobre|23. février|9. juin
+[$-80C]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	septembre 2025|septembre 2024|janvier 2025|décembre 2025|octobre 2025|juin 2025|janvier 2024|avril 2025|septembre 2024|octobre 2025|février 2024|juin 2024
+[$-80C]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	lun.|mer.|jeu.|lun.|mer.|jeu.|mar.|lun.|jeu.|dim.|ven.|dim.
+[$-C0C]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	lundi 29 septembre 2025|mercredi 18 septembre 2024|jeudi 2 janvier 2025|lundi 8 décembre 2025|mercredi 29 octobre 2025|jeudi 26 juin 2025|mardi 30 janvier 2024|lundi 21 avril 2025|jeudi 12 septembre 2024|dimanche 26 octobre 2025|vendredi 23 février 2024|dimanche 9 juin 2024
+[$-C0C]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	lun., sept. 29|mer., sept. 18|jeu., janv. 2|lun., déc. 8|mer., oct. 29|jeu., juin 26|mar., janv. 30|lun., avr. 21|jeu., sept. 12|dim., oct. 26|ven., févr. 23|dim., juin 9
+[$-C0C]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	s|s|j|d|o|j|j|a|s|o|f|j
+[$-C0C]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	sept.-25|sept.-24|janv.-25|déc.-25|oct.-25|juin-25|janv.-24|avr.-25|sept.-24|oct.-25|févr.-24|juin-24
+[$-C0C]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. septembre|18. septembre|2. janvier|8. décembre|29. octobre|26. juin|30. janvier|21. avril|12. septembre|26. octobre|23. février|9. juin
+[$-C0C]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	septembre 2025|septembre 2024|janvier 2025|décembre 2025|octobre 2025|juin 2025|janvier 2024|avril 2025|septembre 2024|octobre 2025|février 2024|juin 2024
+[$-C0C]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	lun.|mer.|jeu.|lun.|mer.|jeu.|mar.|lun.|jeu.|dim.|ven.|dim.
+[$-100C]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	lundi 29 septembre 2025|mercredi 18 septembre 2024|jeudi 2 janvier 2025|lundi 8 décembre 2025|mercredi 29 octobre 2025|jeudi 26 juin 2025|mardi 30 janvier 2024|lundi 21 avril 2025|jeudi 12 septembre 2024|dimanche 26 octobre 2025|vendredi 23 février 2024|dimanche 9 juin 2024
+[$-100C]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	lun., sept. 29|mer., sept. 18|jeu., janv. 2|lun., déc. 8|mer., oct. 29|jeu., juin 26|mar., janv. 30|lun., avr. 21|jeu., sept. 12|dim., oct. 26|ven., févr. 23|dim., juin 9
+[$-100C]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	s|s|j|d|o|j|j|a|s|o|f|j
+[$-100C]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	sept.-25|sept.-24|janv.-25|déc.-25|oct.-25|juin-25|janv.-24|avr.-25|sept.-24|oct.-25|févr.-24|juin-24
+[$-100C]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. septembre|18. septembre|2. janvier|8. décembre|29. octobre|26. juin|30. janvier|21. avril|12. septembre|26. octobre|23. février|9. juin
+[$-100C]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	septembre 2025|septembre 2024|janvier 2025|décembre 2025|octobre 2025|juin 2025|janvier 2024|avril 2025|septembre 2024|octobre 2025|février 2024|juin 2024
+[$-100C]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	lun.|mer.|jeu.|lun.|mer.|jeu.|mar.|lun.|jeu.|dim.|ven.|dim.
+[$-40A]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	lunes 29 septiembre 2025|miércoles 18 septiembre 2024|jueves 2 enero 2025|lunes 8 diciembre 2025|miércoles 29 octubre 2025|jueves 26 junio 2025|martes 30 enero 2024|lunes 21 abril 2025|jueves 12 septiembre 2024|domingo 26 octubre 2025|viernes 23 febrero 2024|domingo 9 junio 2024
+[$-40A]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	lu., sep. 29|mi., sep. 18|ju., ene. 2|lu., dic. 8|mi., oct. 29|ju., jun. 26|ma., ene. 30|lu., abr. 21|ju., sep. 12|do., oct. 26|vi., feb. 23|do., jun. 9
+[$-40A]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	s|s|e|d|o|j|e|a|s|o|f|j
+[$-40A]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	sep.-25|sep.-24|ene.-25|dic.-25|oct.-25|jun.-25|ene.-24|abr.-25|sep.-24|oct.-25|feb.-24|jun.-24
+[$-40A]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. septiembre|18. septiembre|2. enero|8. diciembre|29. octubre|26. junio|30. enero|21. abril|12. septiembre|26. octubre|23. febrero|9. junio
+[$-40A]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	septiembre 2025|septiembre 2024|enero 2025|diciembre 2025|octubre 2025|junio 2025|enero 2024|abril 2025|septiembre 2024|octubre 2025|febrero 2024|junio 2024
+[$-40A]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	lu.|mi.|ju.|lu.|mi.|ju.|ma.|lu.|ju.|do.|vi.|do.
+[$-80A]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	lunes 29 septiembre 2025|miércoles 18 septiembre 2024|jueves 2 enero 2025|lunes 8 diciembre 2025|miércoles 29 octubre 2025|jueves 26 junio 2025|martes 30 enero 2024|lunes 21 abril 2025|jueves 12 septiembre 2024|domingo 26 octubre 2025|viernes 23 febrero 2024|domingo 9 junio 2024
+[$-80A]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	lun., sep. 29|mié., sep. 18|jue., ene. 2|lun., dic. 8|mié., oct. 29|jue., jun. 26|mar., ene. 30|lun., abr. 21|jue., sep. 12|dom., oct. 26|vie., feb. 23|dom., jun. 9
+[$-80A]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	s|s|e|d|o|j|e|a|s|o|f|j
+[$-80A]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	sep.-25|sep.-24|ene.-25|dic.-25|oct.-25|jun.-25|ene.-24|abr.-25|sep.-24|oct.-25|feb.-24|jun.-24
+[$-80A]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. septiembre|18. septiembre|2. enero|8. diciembre|29. octubre|26. junio|30. enero|21. abril|12. septiembre|26. octubre|23. febrero|9. junio
+[$-80A]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	septiembre 2025|septiembre 2024|enero 2025|diciembre 2025|octubre 2025|junio 2025|enero 2024|abril 2025|septiembre 2024|octubre 2025|febrero 2024|junio 2024
+[$-80A]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	lun.|mié.|jue.|lun.|mié.|jue.|mar.|lun.|jue.|dom.|vie.|dom.
+[$-C0A]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	lunes 29 septiembre 2025|miércoles 18 septiembre 2024|jueves 2 enero 2025|lunes 8 diciembre 2025|miércoles 29 octubre 2025|jueves 26 junio 2025|martes 30 enero 2024|lunes 21 abril 2025|jueves 12 septiembre 2024|domingo 26 octubre 2025|viernes 23 febrero 2024|domingo 9 junio 2024
+[$-C0A]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	lu., sep. 29|mi., sep. 18|ju., ene. 2|lu., dic. 8|mi., oct. 29|ju., jun. 26|ma., ene. 30|lu., abr. 21|ju., sep. 12|do., oct. 26|vi., feb. 23|do., jun. 9
+[$-C0A]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	s|s|e|d|o|j|e|a|s|o|f|j
+[$-C0A]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	sep.-25|sep.-24|ene.-25|dic.-25|oct.-25|jun.-25|ene.-24|abr.-25|sep.-24|oct.-25|feb.-24|jun.-24
+[$-C0A]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. septiembre|18. septiembre|2. enero|8. diciembre|29. octubre|26. junio|30. enero|21. abril|12. septiembre|26. octubre|23. febrero|9. junio
+[$-C0A]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	septiembre 2025|septiembre 2024|enero 2025|diciembre 2025|octubre 2025|junio 2025|enero 2024|abril 2025|septiembre 2024|octubre 2025|febrero 2024|junio 2024
+[$-C0A]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	lu.|mi.|ju.|lu.|mi.|ju.|ma.|lu.|ju.|do.|vi.|do.
+[$-816]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	segunda-feira 29 setembro 2025|quarta-feira 18 setembro 2024|quinta-feira 2 janeiro 2025|segunda-feira 8 dezembro 2025|quarta-feira 29 outubro 2025|quinta-feira 26 junho 2025|terça-feira 30 janeiro 2024|segunda-feira 21 abril 2025|quinta-feira 12 setembro 2024|domingo 26 outubro 2025|sexta-feira 23 fevereiro 2024|domingo 9 junho 2024
+[$-816]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	seg, set 29|qua, set 18|qui, jan 2|seg, dez 8|qua, out 29|qui, jun 26|ter, jan 30|seg, abr 21|qui, set 12|dom, out 26|sex, fev 23|dom, jun 9
+[$-816]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	s|s|j|d|o|j|j|a|s|o|f|j
+[$-816]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	set-25|set-24|jan-25|dez-25|out-25|jun-25|jan-24|abr-25|set-24|out-25|fev-24|jun-24
+[$-816]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. setembro|18. setembro|2. janeiro|8. dezembro|29. outubro|26. junho|30. janeiro|21. abril|12. setembro|26. outubro|23. fevereiro|9. junho
+[$-816]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	setembro 2025|setembro 2024|janeiro 2025|dezembro 2025|outubro 2025|junho 2025|janeiro 2024|abril 2025|setembro 2024|outubro 2025|fevereiro 2024|junho 2024
+[$-816]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	seg|qua|qui|seg|qua|qui|ter|seg|qui|dom|sex|dom
+[$-410]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	lunedì 29 settembre 2025|mercoledì 18 settembre 2024|giovedì 2 gennaio 2025|lunedì 8 dicembre 2025|mercoledì 29 ottobre 2025|giovedì 26 giugno 2025|martedì 30 gennaio 2024|lunedì 21 aprile 2025|giovedì 12 settembre 2024|domenica 26 ottobre 2025|venerdì 23 febbraio 2024|domenica 9 giugno 2024
+[$-410]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	lun, set 29|mer, set 18|gio, gen 2|lun, dic 8|mer, ott 29|gio, giu 26|mar, gen 30|lun, apr 21|gio, set 12|dom, ott 26|ven, feb 23|dom, giu 9
+[$-410]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	s|s|g|d|o|g|g|a|s|o|f|g
+[$-410]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	set-25|set-24|gen-25|dic-25|ott-25|giu-25|gen-24|apr-25|set-24|ott-25|feb-24|giu-24
+[$-410]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. settembre|18. settembre|2. gennaio|8. dicembre|29. ottobre|26. giugno|30. gennaio|21. aprile|12. settembre|26. ottobre|23. febbraio|9. giugno
+[$-410]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	settembre 2025|settembre 2024|gennaio 2025|dicembre 2025|ottobre 2025|giugno 2025|gennaio 2024|aprile 2025|settembre 2024|ottobre 2025|febbraio 2024|giugno 2024
+[$-410]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	lun|mer|gio|lun|mer|gio|mar|lun|gio|dom|ven|dom
+[$-413]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	maandag 29 september 2025|woensdag 18 september 2024|donderdag 2 januari 2025|maandag 8 december 2025|woensdag 29 oktober 2025|donderdag 26 juni 2025|dinsdag 30 januari 2024|maandag 21 april 2025|donderdag 12 september 2024|zondag 26 oktober 2025|vrijdag 23 februari 2024|zondag 9 juni 2024
+[$-413]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	ma, sep 29|wo, sep 18|do, jan 2|ma, dec 8|wo, okt 29|do, jun 26|di, jan 30|ma, apr 21|do, sep 12|zo, okt 26|vr, feb 23|zo, jun 9
+[$-413]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	s|s|j|d|o|j|j|a|s|o|f|j
+[$-413]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	sep-25|sep-24|jan-25|dec-25|okt-25|jun-25|jan-24|apr-25|sep-24|okt-25|feb-24|jun-24
+[$-413]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. september|18. september|2. januari|8. december|29. oktober|26. juni|30. januari|21. april|12. september|26. oktober|23. februari|9. juni
+[$-413]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	september 2025|september 2024|januari 2025|december 2025|oktober 2025|juni 2025|januari 2024|april 2025|september 2024|oktober 2025|februari 2024|juni 2024
+[$-413]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	ma|wo|do|ma|wo|do|di|ma|do|zo|vr|zo
+[$-813]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	maandag 29 september 2025|woensdag 18 september 2024|donderdag 2 januari 2025|maandag 8 december 2025|woensdag 29 oktober 2025|donderdag 26 juni 2025|dinsdag 30 januari 2024|maandag 21 april 2025|donderdag 12 september 2024|zondag 26 oktober 2025|vrijdag 23 februari 2024|zondag 9 juni 2024
+[$-813]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	ma, sep 29|wo, sep 18|do, jan 2|ma, dec 8|wo, okt 29|do, jun 26|di, jan 30|ma, apr 21|do, sep 12|zo, okt 26|vr, feb 23|zo, jun 9
+[$-813]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	s|s|j|d|o|j|j|a|s|o|f|j
+[$-813]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	sep-25|sep-24|jan-25|dec-25|okt-25|jun-25|jan-24|apr-25|sep-24|okt-25|feb-24|jun-24
+[$-813]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. september|18. september|2. januari|8. december|29. oktober|26. juni|30. januari|21. april|12. september|26. oktober|23. februari|9. juni
+[$-813]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	september 2025|september 2024|januari 2025|december 2025|oktober 2025|juni 2025|januari 2024|april 2025|september 2024|oktober 2025|februari 2024|juni 2024
+[$-813]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	ma|wo|do|ma|wo|do|di|ma|do|zo|vr|zo
+[$-415]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	poniedziałek 29 wrzesień 2025|środa 18 wrzesień 2024|czwartek 2 styczeń 2025|poniedziałek 8 grudzień 2025|środa 29 październik 2025|czwartek 26 czerwiec 2025|wtorek 30 styczeń 2024|poniedziałek 21 kwiecień 2025|czwartek 12 wrzesień 2024|niedziela 26 październik 2025|piątek 23 luty 2024|niedziela 9 czerwiec 2024
+[$-415]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	pon., wrz 29|śr., wrz 18|czw., sty 2|pon., gru 8|śr., paź 29|czw., cze 26|wt., sty 30|pon., kwi 21|czw., wrz 12|niedz., paź 26|pt., lut 23|niedz., cze 9
+[$-415]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	w|w|s|g|p|c|s|k|w|p|l|c
+[$-415]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	wrz-25|wrz-24|sty-25|gru-25|paź-25|cze-25|sty-24|kwi-25|wrz-24|paź-25|lut-24|cze-24
+[$-415]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. wrzesień|18. wrzesień|2. styczeń|8. grudzień|29. październik|26. czerwiec|30. styczeń|21. kwiecień|12. wrzesień|26. październik|23. luty|9. czerwiec
+[$-415]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	wrzesień 2025|wrzesień 2024|styczeń 2025|grudzień 2025|październik 2025|czerwiec 2025|styczeń 2024|kwiecień 2025|wrzesień 2024|październik 2025|luty 2024|czerwiec 2024
+[$-415]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	pon.|śr.|czw.|pon.|śr.|czw.|wt.|pon.|czw.|niedz.|pt.|niedz.
+[$-416]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	segunda-feira 29 setembro 2025|quarta-feira 18 setembro 2024|quinta-feira 2 janeiro 2025|segunda-feira 8 dezembro 2025|quarta-feira 29 outubro 2025|quinta-feira 26 junho 2025|terça-feira 30 janeiro 2024|segunda-feira 21 abril 2025|quinta-feira 12 setembro 2024|domingo 26 outubro 2025|sexta-feira 23 fevereiro 2024|domingo 9 junho 2024
+[$-416]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	seg, set 29|qua, set 18|qui, jan 2|seg, dez 8|qua, out 29|qui, jun 26|ter, jan 30|seg, abr 21|qui, set 12|dom, out 26|sex, fev 23|dom, jun 9
+[$-416]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	s|s|j|d|o|j|j|a|s|o|f|j
+[$-416]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	set-25|set-24|jan-25|dez-25|out-25|jun-25|jan-24|abr-25|set-24|out-25|fev-24|jun-24
+[$-416]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. setembro|18. setembro|2. janeiro|8. dezembro|29. outubro|26. junho|30. janeiro|21. abril|12. setembro|26. outubro|23. fevereiro|9. junho
+[$-416]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	setembro 2025|setembro 2024|janeiro 2025|dezembro 2025|outubro 2025|junho 2025|janeiro 2024|abril 2025|setembro 2024|outubro 2025|fevereiro 2024|junho 2024
+[$-416]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	seg|qua|qui|seg|qua|qui|ter|seg|qui|dom|sex|dom
+[$-411]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	月曜日 29 9月 2025|水曜日 18 9月 2024|木曜日 2 1月 2025|月曜日 8 12月 2025|水曜日 29 10月 2025|木曜日 26 6月 2025|火曜日 30 1月 2024|月曜日 21 4月 2025|木曜日 12 9月 2024|日曜日 26 10月 2025|金曜日 23 2月 2024|日曜日 9 6月 2024
+[$-411]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	月, 9 29|水, 9 18|木, 1 2|月, 12 8|水, 10 29|木, 6 26|火, 1 30|月, 4 21|木, 9 12|日, 10 26|金, 2 23|日, 6 9
+[$-411]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	9|9|1|1|1|6|1|4|9|1|2|6
+[$-411]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	9-25|9-24|1-25|12-25|10-25|6-25|1-24|4-25|9-24|10-25|2-24|6-24
+[$-411]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. 9月|18. 9月|2. 1月|8. 12月|29. 10月|26. 6月|30. 1月|21. 4月|12. 9月|26. 10月|23. 2月|9. 6月
+[$-411]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	9月 2025|9月 2024|1月 2025|12月 2025|10月 2025|6月 2025|1月 2024|4月 2025|9月 2024|10月 2025|2月 2024|6月 2024
+[$-411]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	月|水|木|月|水|木|火|月|木|日|金|日
+[$-412]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	월요일 29 9월 2025|수요일 18 9월 2024|목요일 2 1월 2025|월요일 8 12월 2025|수요일 29 10월 2025|목요일 26 6월 2025|화요일 30 1월 2024|월요일 21 4월 2025|목요일 12 9월 2024|일요일 26 10월 2025|금요일 23 2월 2024|일요일 9 6월 2024
+[$-412]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	월, 9 29|수, 9 18|목, 1 2|월, 12 8|수, 10 29|목, 6 26|화, 1 30|월, 4 21|목, 9 12|일, 10 26|금, 2 23|일, 6 9
+[$-412]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	9|9|1|1|1|6|1|4|9|1|2|6
+[$-412]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	9-25|9-24|1-25|12-25|10-25|6-25|1-24|4-25|9-24|10-25|2-24|6-24
+[$-412]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. 9월|18. 9월|2. 1월|8. 12월|29. 10월|26. 6월|30. 1월|21. 4월|12. 9월|26. 10월|23. 2월|9. 6월
+[$-412]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	9월 2025|9월 2024|1월 2025|12월 2025|10월 2025|6월 2025|1월 2024|4월 2025|9월 2024|10월 2025|2월 2024|6월 2024
+[$-412]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	월|수|목|월|수|목|화|월|목|일|금|일
+[$-804]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	星期一 29 九月 2025|星期三 18 九月 2024|星期四 2 一月 2025|星期一 8 十二月 2025|星期三 29 十月 2025|星期四 26 六月 2025|星期二 30 一月 2024|星期一 21 四月 2025|星期四 12 九月 2024|星期日 26 十月 2025|星期五 23 二月 2024|星期日 9 六月 2024
+[$-804]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	周一, 9月 29|周三, 9月 18|周四, 1月 2|周一, 12月 8|周三, 10月 29|周四, 6月 26|周二, 1月 30|周一, 4月 21|周四, 9月 12|周日, 10月 26|周五, 2月 23|周日, 6月 9
+[$-804]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	九|九|一|十|十|六|一|四|九|十|二|六
+[$-804]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	9月-25|9月-24|1月-25|12月-25|10月-25|6月-25|1月-24|4月-25|9月-24|10月-25|2月-24|6月-24
+[$-804]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. 九月|18. 九月|2. 一月|8. 十二月|29. 十月|26. 六月|30. 一月|21. 四月|12. 九月|26. 十月|23. 二月|9. 六月
+[$-804]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	九月 2025|九月 2024|一月 2025|十二月 2025|十月 2025|六月 2025|一月 2024|四月 2025|九月 2024|十月 2025|二月 2024|六月 2024
+[$-804]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	周一|周三|周四|周一|周三|周四|周二|周一|周四|周日|周五|周日
+[$-1004]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	星期一 29 九月 2025|星期三 18 九月 2024|星期四 2 一月 2025|星期一 8 十二月 2025|星期三 29 十月 2025|星期四 26 六月 2025|星期二 30 一月 2024|星期一 21 四月 2025|星期四 12 九月 2024|星期日 26 十月 2025|星期五 23 二月 2024|星期日 9 六月 2024
+[$-1004]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	周一, 九月 29|周三, 九月 18|周四, 一月 2|周一, 十二月 8|周三, 十月 29|周四, 六月 26|周二, 一月 30|周一, 四月 21|周四, 九月 12|周日, 十月 26|周五, 二月 23|周日, 六月 9
+[$-1004]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	九|九|一|十|十|六|一|四|九|十|二|六
+[$-1004]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	九月-25|九月-24|一月-25|十二月-25|十月-25|六月-25|一月-24|四月-25|九月-24|十月-25|二月-24|六月-24
+[$-1004]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. 九月|18. 九月|2. 一月|8. 十二月|29. 十月|26. 六月|30. 一月|21. 四月|12. 九月|26. 十月|23. 二月|9. 六月
+[$-1004]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	九月 2025|九月 2024|一月 2025|十二月 2025|十月 2025|六月 2025|一月 2024|四月 2025|九月 2024|十月 2025|二月 2024|六月 2024
+[$-1004]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	周一|周三|周四|周一|周三|周四|周二|周一|周四|周日|周五|周日
+[$-404]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	星期一 29 九月 2025|星期三 18 九月 2024|星期四 2 一月 2025|星期一 8 十二月 2025|星期三 29 十月 2025|星期四 26 六月 2025|星期二 30 一月 2024|星期一 21 四月 2025|星期四 12 九月 2024|星期日 26 十月 2025|星期五 23 二月 2024|星期日 9 六月 2024
+[$-404]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	週一, 九月 29|週三, 九月 18|週四, 一月 2|週一, 十二月 8|週三, 十月 29|週四, 六月 26|週二, 一月 30|週一, 四月 21|週四, 九月 12|週日, 十月 26|週五, 二月 23|週日, 六月 9
+[$-404]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	九|九|一|十|十|六|一|四|九|十|二|六
+[$-404]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	九月-25|九月-24|一月-25|十二月-25|十月-25|六月-25|一月-24|四月-25|九月-24|十月-25|二月-24|六月-24
+[$-404]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. 九月|18. 九月|2. 一月|8. 十二月|29. 十月|26. 六月|30. 一月|21. 四月|12. 九月|26. 十月|23. 二月|9. 六月
+[$-404]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	九月 2025|九月 2024|一月 2025|十二月 2025|十月 2025|六月 2025|一月 2024|四月 2025|九月 2024|十月 2025|二月 2024|六月 2024
+[$-404]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	週一|週三|週四|週一|週三|週四|週二|週一|週四|週日|週五|週日
+[$-C04]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	星期一 29 九月 2025|星期三 18 九月 2024|星期四 2 一月 2025|星期一 8 十二月 2025|星期三 29 十月 2025|星期四 26 六月 2025|星期二 30 一月 2024|星期一 21 四月 2025|星期四 12 九月 2024|星期日 26 十月 2025|星期五 23 二月 2024|星期日 9 六月 2024
+[$-C04]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	週一, 九月 29|週三, 九月 18|週四, 一月 2|週一, 十二月 8|週三, 十月 29|週四, 六月 26|週二, 一月 30|週一, 四月 21|週四, 九月 12|週日, 十月 26|週五, 二月 23|週日, 六月 9
+[$-C04]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	九|九|一|十|十|六|一|四|九|十|二|六
+[$-C04]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	九月-25|九月-24|一月-25|十二月-25|十月-25|六月-25|一月-24|四月-25|九月-24|十月-25|二月-24|六月-24
+[$-C04]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. 九月|18. 九月|2. 一月|8. 十二月|29. 十月|26. 六月|30. 一月|21. 四月|12. 九月|26. 十月|23. 二月|9. 六月
+[$-C04]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	九月 2025|九月 2024|一月 2025|十二月 2025|十月 2025|六月 2025|一月 2024|四月 2025|九月 2024|十月 2025|二月 2024|六月 2024
+[$-C04]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	週一|週三|週四|週一|週三|週四|週二|週一|週四|週日|週五|週日
+[$-40E]dddd d mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	hétfő 29 szeptember 2025|szerda 18 szeptember 2024|csütörtök 2 január 2025|hétfő 8 december 2025|szerda 29 október 2025|csütörtök 26 június 2025|kedd 30 január 2024|hétfő 21 április 2025|csütörtök 12 szeptember 2024|vasárnap 26 október 2025|péntek 23 február 2024|vasárnap 9 június 2024
+[$-40E]ddd, mmm d	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	H, szept. 29|Sze, szept. 18|Cs, jan. 2|H, dec. 8|Sze, okt. 29|Cs, jún. 26|K, jan. 30|H, ápr. 21|Cs, szept. 12|V, okt. 26|P, febr. 23|V, jún. 9
+[$-40E]mmmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	s|s|j|d|o|j|j|á|s|o|f|j
+[$-40E]mmm-yy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	szept.-25|szept.-24|jan.-25|dec.-25|okt.-25|jún.-25|jan.-24|ápr.-25|szept.-24|okt.-25|febr.-24|jún.-24
+[$-40E]d. mmmm	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	29. szeptember|18. szeptember|2. január|8. december|29. október|26. június|30. január|21. április|12. szeptember|26. október|23. február|9. június
+[$-40E]mmmm yyyy	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	szeptember 2025|szeptember 2024|január 2025|december 2025|október 2025|június 2025|január 2024|április 2025|szeptember 2024|október 2025|február 2024|június 2024
+[$-40E]ddd	45929,45553,45659,45999,45959,45834,45321,45768,45547,45956,45345,45452	H|Sze|Cs|H|Sze|Cs|K|H|Cs|V|P|V

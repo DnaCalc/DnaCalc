@@ -244,11 +244,14 @@ impl Features {
                 let count = c.u16("PageBreaks").map_err(e)?;
                 let mut breaks = Vec::new();
                 for _ in 0..count {
-                    breaks.push((
-                        c.u16("PageBreaks").map_err(e)?,
-                        c.u16("PageBreaks").map_err(e)?,
-                        c.u16("PageBreaks").map_err(e)?,
-                    ));
+                    let at = c.u16("PageBreaks").map_err(e)?;
+                    let (start, end) = if self.v5.is_some() {
+                        // BIFF5/7 stores only the index; each break crosses the whole sheet.
+                        (0, if record.id == H_PAGE_BREAKS { 255 } else { 65535 })
+                    } else {
+                        (c.u16("PageBreaks").map_err(e)?, c.u16("PageBreaks").map_err(e)?)
+                    };
+                    breaks.push((at, start, end));
                 }
                 if record.id == H_PAGE_BREAKS {
                     self.row_breaks = breaks;
@@ -393,11 +396,20 @@ impl Features {
                     let _up = c.u16(what).map_err(e)?;
                     let length = c.u32(what).map_err(e)? as usize;
                     let bytes = c.bytes(length, what).map_err(e)?;
-                    let path: String = bytes
-                        .iter()
-                        .take_while(|b| **b != 0)
-                        .map(|b| char::from(*b))
-                        .collect();
+                    let ansi_end = bytes.iter().position(|b| *b == 0).unwrap_or(bytes.len());
+                    let mut path = super::codepage::decode(1252, &bytes[..ansi_end])?;
+                    // FileMoniker's fixed tail precedes both its optional Unicode path and
+                    // the hyperlink location. The Unicode path, when present, is complete.
+                    c.skip(24, what).map_err(e)?;
+                    let unicode_size = c.u32(what).map_err(e)? as usize;
+                    if unicode_size != 0 {
+                        let bytes = c.u32(what).map_err(e)? as usize;
+                        let key = c.u16(what).map_err(e)?;
+                        if bytes % 2 != 0 || unicode_size != bytes + 6 || key != 3 {
+                            return Err("an invalid Unicode file moniker path".into());
+                        }
+                        path = read_string(c, bytes / 2, what)?;
+                    }
                     link.target = Some(path);
                 } else {
                     return Err("a hyperlink with a moniker of a kind other than URL or file".into());

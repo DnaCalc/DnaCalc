@@ -50,6 +50,7 @@ fn sweep() {
     let mut panics: Vec<String> = Vec::new();
     let mut unknown: BTreeMap<u16, (u32, usize)> = BTreeMap::new();
     let mut shown_refusals: BTreeMap<String, String> = BTreeMap::new();
+    let mut shown_load_refusals: BTreeMap<String, String> = BTreeMap::new();
     std::panic::set_hook(Box::new(|_| {}));
     for file in &files {
         let Ok(bytes) = std::fs::read(file) else { continue };
@@ -108,7 +109,8 @@ fn sweep() {
                             }
                             Some(Err(e)) => {
                                 let key: String = e.chars().take(90).collect();
-                                *load_refused.entry(key).or_insert(0) += 1;
+                                *load_refused.entry(key.clone()).or_insert(0) += 1;
+                                shown_load_refusals.entry(key).or_insert_with(|| file.display().to_string());
                             }
                             None => {}
                         }
@@ -134,7 +136,7 @@ fn sweep() {
     }
     println!("opened but refused to load, by reason:");
     for (reason, n) in &load_refused {
-        println!("  {n:5}  {reason}");
+        println!("  {n:5}  {reason}   e.g. {}", shown_load_refusals[reason]);
     }
     println!("panics: {}", panics.len());
     for p in &panics {
@@ -142,8 +144,8 @@ fn sweep() {
     }
     let mut by_count: Vec<_> = unknown.iter().collect();
     by_count.sort_by_key(|(_, (n, files))| std::cmp::Reverse((*files, *n)));
-    println!("record types not read (type: records, files), top 25:");
-    for (id, (n, files)) in by_count.into_iter().take(25) {
+    println!("record types not read (type: records, files):");
+    for (id, (n, files)) in by_count {
         println!("  0x{id:04X}: {n} records in {files} files");
     }
     assert!(panics.is_empty(), "the reader panicked on {} files", panics.len());

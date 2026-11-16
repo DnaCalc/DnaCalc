@@ -10,15 +10,47 @@ struct LocaleNames {
     weekdays_long: [&'static str; 7],
 }
 
+/// Which list of names a tagged format reads (in the order of format/tagged_names.rs).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Field {
+    MonthsLong = 0,
+    MonthsShort = 1,
+    WeekdaysLong = 2,
+    WeekdaysShort = 3,
+}
+
+/// The names Excel writes under a locale tag with this LCID (format/tagged_names.rs), or `None` when it
+/// writes the host's (an LCID Excel does not name).
+fn tagged_names(lcid: Option<u16>, field: Field) -> Option<&'static [&'static str]> {
+    use super::tagged_names::{BY_LCID, LISTS};
+    let lcid = lcid?;
+    let at = BY_LCID.binary_search_by_key(&lcid, |&(l, _, _)| l).ok()?;
+    Some(LISTS[usize::from(BY_LCID[at].1[field as usize])])
+}
+
+/// The AM or PM designator Excel writes under a locale tag with this LCID, or `None` when it writes
+/// the host's.
+pub(crate) fn tagged_designator(lcid: Option<u16>, am: bool) -> Option<&'static str> {
+    use super::tagged_names::BY_LCID;
+    let lcid = lcid?;
+    let at = BY_LCID.binary_search_by_key(&lcid, |&(l, _, _)| l).ok()?;
+    Some(BY_LCID[at].2[usize::from(!am)])
+}
+
 pub(crate) fn month_name(
     profile: &FormatProfile,
     month: i64,
     abbreviated: bool,
     tagged: bool,
+    lcid: Option<u16>,
 ) -> String {
     let Ok(index) = usize::try_from(month - 1) else {
         return String::new();
     };
+    let field = if abbreviated { Field::MonthsShort } else { Field::MonthsLong };
+    if let Some(names) = tagged_names(lcid, field) {
+        return names.get(index).copied().unwrap_or("").to_owned();
+    }
     // Fn1 and fn3 measure names under explicit format tags. These tagged forms
     // differ from the locale data's ordinary abbreviations.
     if tagged && profile.id == LocaleId::DeDe && month == 3 && abbreviated {
@@ -68,7 +100,12 @@ pub(crate) fn weekday_name(
     index: usize,
     abbreviated: bool,
     tagged: bool,
+    lcid: Option<u16>,
 ) -> String {
+    let field = if abbreviated { Field::WeekdaysShort } else { Field::WeekdaysLong };
+    if let Some(names) = tagged_names(lcid, field) {
+        return names.get(index).copied().unwrap_or("").to_owned();
+    }
     let names = locale_names(profile.id);
     let name = if abbreviated {
         names.weekdays_short.get(index).copied().unwrap_or("")

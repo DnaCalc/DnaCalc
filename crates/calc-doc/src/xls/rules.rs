@@ -84,6 +84,7 @@ impl Rules {
         styles: &Styles,
         print: Print<'_>,
         sheet_name: &str,
+        v5: Option<u16>,
     ) -> Result<bool, String> {
         match record.id {
             CF_HEADER => {
@@ -304,7 +305,7 @@ impl Rules {
                 } else {
                     let mut criteria = Vec::new();
                     for doper in [&first, &second] {
-                        if let Some(criterion) = criterion(doper, &mut p)? {
+                        if let Some(criterion) = criterion(doper, &mut p, v5)? {
                             criteria.push(criterion);
                         }
                     }
@@ -381,7 +382,7 @@ impl Rules {
 }
 
 /// The four strings of a DV record (prompt title, error title, prompt, error) and where the
-/// formulas begin: each a 16-bit length, then (when it is not 0) a flag byte and the characters.
+/// formulas begin: each a 16-bit length, a flag byte and the characters.
 fn dv_strings(body: &[u8]) -> Result<(Vec<String>, usize), String> {
     let mut at = 4usize;
     let mut out = Vec::new();
@@ -391,27 +392,24 @@ fn dv_strings(body: &[u8]) -> Result<(Vec<String>, usize), String> {
             *body.get(at + 1).ok_or("a DV record that is cut off")?,
         ]));
         at += 2;
-        let mut text = String::new();
-        if count > 0 {
-            let flags = *body.get(at).ok_or("a DV record that is cut off")?;
-            let width = if flags & 1 != 0 { 2 } else { 1 };
-            let bytes = body.get(at + 1..at + 1 + count * width).ok_or("a DV string that is cut off")?;
-            text = if width == 2 {
+        let flags = *body.get(at).ok_or("a DV record that is cut off")?;
+        let width = if flags & 1 != 0 { 2 } else { 1 };
+        let bytes = body.get(at + 1..at + 1 + count * width).ok_or("a DV string that is cut off")?;
+        let text = if width == 2 {
                 String::from_utf16_lossy(
                     &bytes.chunks_exact(2).map(|p| u16::from_le_bytes([p[0], p[1]])).collect::<Vec<_>>(),
                 )
             } else {
                 bytes.iter().map(|b| char::from(*b)).collect()
             };
-            at += 1 + count * width;
-        }
+        at += 1 + count * width;
         out.push(text.trim_end_matches('\0').to_owned());
     }
     Ok((out, at))
 }
 
 /// One AutoFilter criterion (a DOPER, 10 bytes): its comparison and value, `None` when unused.
-fn criterion(doper: &[u8], strings: &mut Pieces<'_>) -> Result<Option<(&'static str, String)>, String> {
+fn criterion(doper: &[u8], strings: &mut Pieces<'_>, v5: Option<u16>) -> Result<Option<(&'static str, String)>, String> {
     let kind = doper[0];
     let sign = doper[1];
     let operator = match sign {
@@ -437,11 +435,17 @@ fn criterion(doper: &[u8], strings: &mut Pieces<'_>) -> Result<Option<(&'static 
             Some((operator, crate::xlsb::formula::number_text(f64::from_le_bytes(b))))
         }
         6 => {
-            // The text follows the AutoFilter record's fixed part: a flag byte and the characters.
+            // BIFF8 uses a Unicode option byte; BIFF5 stores code-page bytes directly.
             let count = usize::from(doper[6]);
-            let flag = strings.u8("AutoFilter").map_err(|m| m.0)?;
-            let units = strings.characters(count, flag & 1 != 0, "a filter text").map_err(|m| m.0)?;
-            Some((operator, String::from_utf16_lossy(&units)))
+            let text = if let Some(page) = v5 {
+                let bytes = (0..count).map(|_| strings.u8("a filter text")).collect::<Result<Vec<_>, _>>().map_err(|m| m.0)?;
+                super::codepage::decode(page, &bytes)?
+            } else {
+                let flag = strings.u8("AutoFilter").map_err(|m| m.0)?;
+                let units = strings.characters(count, flag & 1 != 0, "a filter text").map_err(|m| m.0)?;
+                String::from_utf16_lossy(&units)
+            };
+            Some((operator, text))
         }
         8 => Some((operator, if doper[3] != 0 { "#N/A".to_owned() } else if doper[2] != 0 { "TRUE".to_owned() } else { "FALSE".to_owned() })),
         0xC => Some(("equal", String::new())),
