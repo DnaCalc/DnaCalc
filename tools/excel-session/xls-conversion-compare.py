@@ -183,9 +183,13 @@ def package(data):
             strings = [string_item(s) for s in root.findall(M + 'si')]
         formats = []
         styles = []
+        indexed_colors = None
         if 'xl/styles.xml' in z.namelist():
             root = ET.fromstring(z.read('xl/styles.xml'))
             styles = cell_styles(root)
+            palette = root.find(f'{M}colors/{M}indexedColors')
+            if palette is not None:
+                indexed_colors = [item.get('rgb') for item in palette.findall(M + 'rgbColor')]
             custom = {int(e.get('numFmtId')): e.get('formatCode') for e in root.findall(f'{M}numFmts/{M}numFmt')}
             for xf in root.findall(f'{M}cellXfs/{M}xf'):
                 ident = int(xf.get('numFmtId', '0'))
@@ -232,6 +236,9 @@ def package(data):
                     comments.extend((e.get('ref'), ''.join(x.text or '' for x in e.iter(M + 't')))
                                     for e in comment_root.iter(M + 'comment'))
             sheets.append({'name': s.get('name'), 'state': s.get('state', 'visible'), 'cells': cells,
+                           'views': [{k: e.get(k) for k in ('showOutlineSymbols', 'defaultGridColor', 'colorId', 'view',
+                                                             'zoomScale', 'zoomScaleNormal', 'zoomScaleSheetLayoutView')
+                                      if e.get(k) is not None} for e in sh.findall(f'{M}sheetViews/{M}sheetView')],
                            'merges': merges, 'links': sorted(links, key=repr), 'comments': sorted(comments),
                            'conditional_formats': [tree(e) for e in sh.findall(M + 'conditionalFormatting')],
                            'validations': [tree(e) for e in sh.findall(f'{M}dataValidations/{M}dataValidation')],
@@ -243,7 +250,7 @@ def package(data):
                            'pivots': pivot_tables(z, sh, path, shrels)})
         props = wb.find(M + 'workbookPr')
         return {'date1904': props is not None and props.get('date1904', '0') in ('1', 'true'), 'names': names,
-                'pivot_caches': pivot_caches(z, wb, wbpath, rels), 'sheets': sheets}
+                'indexed_colors': indexed_colors, 'pivot_caches': pivot_caches(z, wb, wbpath, rels), 'sheets': sheets}
 
 
 def compare(expected, actual):

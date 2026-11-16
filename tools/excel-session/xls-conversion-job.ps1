@@ -87,6 +87,12 @@ try {
             $entry.setup.conditional = GetOrError { $c = $sheet.Range('C5').FormatConditions.Add(1, 3, '1'); $c.Interior.Color = 65535; $sheet.Range('C5').FormatConditions.Count }
             $entry.setup.shape = GetOrError { $s = $sheet.Shapes.AddShape(1, 100, 100, 60, 30); [string]$s.Name }
             $entry.setup.page = GetOrError { $sheet.PageSetup.Orientation = 2; $sheet.PageSetup.PrintArea = '$A$1:$D$5'; $sheet.PageSetup.Orientation }
+            $entry.setup.view = GetOrError {
+                $sheet.Activate(); $window = $book.Windows.Item(1)
+                $window.DisplayOutline = $false; $window.GridlineColorIndex = 5
+                $window.View = 2; $window.Zoom = 80
+                @{outline=$window.DisplayOutline; grid_color_index=$window.GridlineColorIndex; view=$window.View; zoom=$window.Zoom}
+            }
             $entry.setup.phonetic = GetOrError {
                 $p = $sheet.Range('F1'); $p.Value2 = [string]::Concat([char]0x6771, [char]0x4EAC)
                 $reading = [string]::Concat([char]0x3068, [char]0x3046, [char]0x304D, [char]0x3087, [char]0x3046)
