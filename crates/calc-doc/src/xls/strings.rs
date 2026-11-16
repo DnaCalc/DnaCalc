@@ -196,9 +196,13 @@ impl<'a> Pieces<'a> {
         let parsed = if phonetic == 0 {
             None
         } else if phonetic <= 65539 {
+            let start_piece = self.piece;
+            let starts_at_cut = self.at >= self.pieces[self.piece].len() && self.piece + 1 < self.pieces.len();
             let mut bytes = Vec::with_capacity(phonetic);
             for _ in 0..phonetic { bytes.push(self.u8(what)?); }
-            phonetic_extension(&bytes, units.len())
+            // Continuation boundaries inside ExtRst need an Excel-observed flag treatment.
+            // Do not emit a pronunciation if those bytes may have been joined ambiguously.
+            if starts_at_cut || self.piece != start_piece { None } else { phonetic_extension(&bytes, units.len()) }
         } else {
             self.skip(phonetic, what)?;
             None
@@ -263,5 +267,20 @@ mod tests {
         assert!(phonetic_extension(&bytes, 0).is_none());
         bytes.extend([0, 0]);
         assert!(phonetic_extension(&bytes, 1).is_none());
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn phonetic_extension_crossing_continue_stays_unread() {
+        let mut ext = Vec::new();
+        for value in [1u16, 18, 0, 7, 1, 1, 1, b'x' as u16, 0, 0, 1] { ext.extend(value.to_le_bytes()); }
+        let mut body = vec![1, 0, 4];
+        body.extend((ext.len() as u32).to_le_bytes()); body.push(b'A');
+        body.extend(&ext[..10]);
+        let r = record(&body, vec![&ext[10..]]);
+        let item = Pieces::new(&r).rich_string().unwrap();
+        assert!(item.phonetic.is_none());
+        assert!(item.phonetic_unread);
+        assert_eq!(item.units, vec![u16::from(b'A')]);
     }
 }

@@ -92,6 +92,11 @@ try {
                 $null = $p.Phonetics.Add(1, 2, $reading); $p.Phonetics.Visible = $true
                 @{count=$p.Phonetics.Count; visible=$p.Phonetics.Visible}
             }
+            $entry.setup.phonetic_long = GetOrError {
+                $p = $sheet.Range('F2'); $p.Value2 = 'AB'
+                $null = $p.Phonetics.Add(1, 2, ('a' * 5000)); $p.Phonetics.Visible = $true
+                @{count=$p.Phonetics.Count; visible=$p.Phonetics.Visible}
+            }
             $entry.setup.sort = GetOrError {
                 $sortSheet = $book.Worksheets.Add(); $sortSheet.Name = 'SortData'
                 $sortSheet.Range('A1').Value2 = 'Key'; $sortSheet.Range('B1').Value2 = 'Value'
