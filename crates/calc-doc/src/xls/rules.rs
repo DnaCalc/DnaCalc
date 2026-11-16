@@ -381,7 +381,7 @@ impl Rules {
 }
 
 /// The four strings of a DV record (prompt title, error title, prompt, error) and where the
-/// formulas begin: each a 16-bit length, then (when it is not 0) a flag byte and the characters.
+/// formulas begin: each a 16-bit length, a flag byte and the characters.
 fn dv_strings(body: &[u8]) -> Result<(Vec<String>, usize), String> {
     let mut at = 4usize;
     let mut out = Vec::new();
@@ -391,20 +391,17 @@ fn dv_strings(body: &[u8]) -> Result<(Vec<String>, usize), String> {
             *body.get(at + 1).ok_or("a DV record that is cut off")?,
         ]));
         at += 2;
-        let mut text = String::new();
-        if count > 0 {
-            let flags = *body.get(at).ok_or("a DV record that is cut off")?;
-            let width = if flags & 1 != 0 { 2 } else { 1 };
-            let bytes = body.get(at + 1..at + 1 + count * width).ok_or("a DV string that is cut off")?;
-            text = if width == 2 {
+        let flags = *body.get(at).ok_or("a DV record that is cut off")?;
+        let width = if flags & 1 != 0 { 2 } else { 1 };
+        let bytes = body.get(at + 1..at + 1 + count * width).ok_or("a DV string that is cut off")?;
+        let text = if width == 2 {
                 String::from_utf16_lossy(
                     &bytes.chunks_exact(2).map(|p| u16::from_le_bytes([p[0], p[1]])).collect::<Vec<_>>(),
                 )
             } else {
                 bytes.iter().map(|b| char::from(*b)).collect()
             };
-            at += 1 + count * width;
-        }
+        at += 1 + count * width;
         out.push(text.trim_end_matches('\0').to_owned());
     }
     Ok((out, at))

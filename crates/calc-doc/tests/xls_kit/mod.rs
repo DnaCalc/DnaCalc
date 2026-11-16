@@ -1141,9 +1141,6 @@ pub mod rules {
     }
 
     fn string(text: &str) -> Vec<u8> {
-        if text.is_empty() {
-            return 0u16.to_le_bytes().to_vec();
-        }
         let mut v = (text.len() as u16).to_le_bytes().to_vec();
         v.push(0);
         v.extend(text.bytes());
