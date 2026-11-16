@@ -15,6 +15,7 @@ mod chart;
 mod crypto;
 mod drawing;
 mod external_cache;
+mod pivot_cache;
 mod features;
 mod formula;
 mod records;
@@ -502,6 +503,48 @@ pub(crate) fn convert(
         ));
         external_links.push(part);
     }
+    // Preserve complete local pivot-cache source records through the existing pivot package
+    // writer. The views are still unread, so their SXVIEW records remain in the report.
+    let mut pivot_caches = Vec::new();
+    if !biff5 && !decrypted {
+        use calc_doc_model::pivot::{PivotCache, PivotSnapshot, PivotSnapshotOrigin};
+        use std::sync::Arc;
+        let globals_records = &records[..globals.end];
+        let ids: Vec<_> = globals_records.iter().enumerate().filter(|(_, r)| r.id == 0x00D5).collect();
+        for (cache_id, (position, id_record)) in ids.iter().enumerate() {
+            if id_record.body.len() != 2 || !id_record.continues.is_empty() { continue; }
+            let id = u16::from_le_bytes([id_record.body[0], id_record.body[1]]);
+            if ids.iter().filter(|(_, r)| r.body == id_record.body).count() != 1 { continue; }
+            let (Some(kind), Some(source)) = (globals_records.get(position + 1), globals_records.get(position + 2)) else { continue };
+            if kind.id != 0x00E3 || kind.body != [1, 0] || !kind.continues.is_empty() { continue; }
+            let Some((sheet, range, columns)) = pivot_cache::source(source, &globals.sheets) else { continue };
+            let Ok(Some(bytes)) = compound.read(&format!("_SX_DB_CUR/{id:04X}")) else { continue };
+            let Some(parsed) = pivot_cache::read(&bytes, id) else { continue };
+            if parsed.fields.len() != columns { continue; }
+            let number = cache_id + 1;
+            let part = format!("xl/pivotCache/pivotCacheDefinition{number}.xml");
+            let records_part = format!("xl/pivotCache/pivotCacheRecords{number}.xml");
+            let cache = PivotCache {
+                id: cache_id as u32, part: part.clone(), records_part: Some(records_part.clone()),
+                record_count: Some(parsed.rows.len() as u64), source_type: "worksheet".into(),
+                source_connection_id: None, source_sheet: Some(sheet), source_range: Some(range), source_name: None,
+                fields: parsed.fields, calculated_items: Vec::new(), attributes: BTreeMap::new(), unsupported: Vec::new(),
+                snapshot: Some(Arc::new(PivotSnapshot { records: parsed.rows,
+                    origin: PivotSnapshotOrigin::FileRecords { part: records_part.clone() },
+                    source_revision: 0, numeric: Default::default() })),
+            };
+            let Ok((definition, data)) = crate::save::pivot::legacy_cache_parts(&cache) else { continue };
+            parts.push((part.clone(), "application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheDefinition+xml", definition));
+            parts.push((records_part, "application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheRecords+xml", data));
+            let mut r = Xml::new();
+            r.open("Relationships", &[("xmlns", "http://schemas.openxmlformats.org/package/2006/relationships".to_owned())]);
+            r.empty("Relationship", &[("Id", "rId1".to_owned()), ("Type", format!("{REL_TYPE}/pivotCacheRecords")),
+                ("Target", format!("pivotCacheRecords{number}.xml"))]);
+            r.close("Relationships");
+            extra_entries.push((format!("xl/pivotCache/_rels/pivotCacheDefinition{number}.xml.rels"), r.out));
+            pivot_caches.push((cache_id, part));
+        }
+    }
     // The VBA project: the `_VBA_PROJECT_CUR` storage becomes the compound file of its own an
     // .xlsm keeps in `xl/vbaProject.bin`.
     let vba = compound
@@ -684,6 +727,13 @@ pub(crate) fn convert(
     if !calc_properties.is_empty() {
         xml.empty("calcPr", &calc_properties);
     }
+    if !pivot_caches.is_empty() {
+        xml.open("pivotCaches", &[]);
+        for (id, _) in &pivot_caches {
+            xml.empty("pivotCache", &[("cacheId", id.to_string()), ("r:id", format!("rIdPivot{id}"))]);
+        }
+        xml.close("pivotCaches");
+    }
     xml.close("workbook");
     let workbook_xml = xml.out;
 
@@ -727,6 +777,10 @@ pub(crate) fn convert(
                 ("Target", part.trim_start_matches("xl/").to_owned()),
             ],
         );
+    }
+    for (id, part) in &pivot_caches {
+        rels.empty("Relationship", &[("Id", format!("rIdPivot{id}")), ("Type", format!("{REL_TYPE}/pivotCacheDefinition")),
+            ("Target", part.trim_start_matches("xl/").to_owned())]);
     }
     if vba.is_some() {
         rels.empty(

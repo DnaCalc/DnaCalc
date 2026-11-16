@@ -92,8 +92,12 @@ try {
                 $c.ChartType = 51; $c.SetSourceData($sheet.Range('H1:H2'))
                 $c.PlotVisibleOnly = $false; $c.DisplayBlanksAs = 3
                 $group = $c.ChartGroups(1); $group.GapWidth = 70; $group.Overlap = -30; $group.VaryByCategories = $true
+                $axis = $c.Axes(2); $axis.MinimumScale = 2; $axis.MaximumScale = 20
+                $axis.MajorUnit = 5; $axis.MinorUnit = 1; $axis.ReversePlotOrder = $true
                 @{gap=$group.GapWidth; overlap=$group.Overlap; varied=$group.VaryByCategories;
-                  visible_only=$c.PlotVisibleOnly; display_blanks=$c.DisplayBlanksAs}
+                  visible_only=$c.PlotVisibleOnly; display_blanks=$c.DisplayBlanksAs;
+                  minimum=$axis.MinimumScale; maximum=$axis.MaximumScale; major=$axis.MajorUnit;
+                  minor=$axis.MinorUnit; reversed=$axis.ReversePlotOrder}
             }
             $entry.setup.chart_doughnut_geometry = GetOrError {
                 $c = $sheet.ChartObjects().Add(200, 270, 200, 150).Chart
@@ -175,13 +179,15 @@ try {
             $book = $app.Workbooks.Add(-4167)
             $data = $book.Worksheets.Item(1); $data.Name = 'Data'
             $out = $book.Worksheets.Add([Type]::Missing, $data); $out.Name = 'Pivot'
-            $values = [object[,]]::new(4,2)
+            # Repeated source values exercise shared cache items and their record indexes.
+            $values = [object[,]]::new(201,2)
             $values[0,0]='Region'; $values[0,1]='Amount'
-            $values[1,0]='North'; $values[1,1]=2.0
-            $values[2,0]='South'; $values[2,1]=3.0
-            $values[3,0]='North'; $values[3,1]=5.0
-            $data.Range('A1:B4').Value2 = $values
-            $cache = $book.PivotCaches().Create(1, 'Data!R1C1:R4C2', 1)
+            for ($i = 1; $i -le 200; $i++) {
+                $values[$i,0] = if ($i % 2) {'North'} else {'South'}
+                $values[$i,1] = [double](2 + ($i % 3))
+            }
+            $data.Range('A1:B201').Value2 = $values
+            $cache = $book.PivotCaches().Create(1, 'Data!R1C1:R201C2', 1)
             $table = $cache.CreatePivotTable($out.Range('A3'), 'LegacyPivot', $true, 1)
             $table.PivotFields('Region').Orientation = 1
             $null = $table.AddDataField($table.PivotFields('Amount'), 'Sum of Amount', -4157)

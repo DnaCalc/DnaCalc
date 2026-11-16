@@ -140,6 +140,10 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
                 obj['chart_settings'] = {
                     name: node.get('val') for name in ('plotVisOnly', 'dispBlanksAs')
                     if (node := chart_root.find('.//' + C + name)) is not None}
+                obj['value_axes'] = [
+                    {name: node.get('val') for name in ('orientation', 'min', 'max', 'majorUnit', 'minorUnit')
+                     if (node := axis.find('.//' + C + name)) is not None}
+                    for axis in chart_root.iter(C + 'valAx')]
             result.append(obj)
     return result
 
