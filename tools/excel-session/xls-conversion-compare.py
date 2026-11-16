@@ -42,7 +42,23 @@ def target(base, rel):
 def tree(element):
     """Retain XML content and attributes; namespace prefixes and attribute order are irrelevant."""
     return {'tag': element.tag, 'attributes': dict(sorted(element.attrib.items())),
-            'text': (element.text or '').strip(), 'children': [tree(x) for x in element]}
+            'text': (element.text or '') if element.tag == M + 't' else (element.text or '').strip(),
+            'children': [tree(x) for x in element]}
+
+
+def string_item(element):
+    """Cell text excludes phonetic runs, which are compared separately."""
+    if element is None:
+        raise ValueError('inline string content is missing')
+    def text_without_phonetics(node):
+        if node.tag == M + 'rPh':
+            return ''
+        if node.tag == M + 't':
+            return node.text or ''
+        return ''.join(text_without_phonetics(child) for child in node)
+    return {'text': text_without_phonetics(element),
+            'runs': [tree(run) for run in element.findall(M + 'rPh')],
+            'properties': [tree(prop) for prop in element.findall(M + 'phoneticPr')]}
 
 
 def cell_styles(root):
@@ -164,7 +180,7 @@ def package(data):
         strings = []
         if 'xl/sharedStrings.xml' in z.namelist():
             root = ET.fromstring(z.read('xl/sharedStrings.xml'))
-            strings = [''.join(x.text or '' for x in s.iter(M + 't')) for s in root.findall(M + 'si')]
+            strings = [string_item(s) for s in root.findall(M + 'si')]
         formats = []
         styles = []
         if 'xl/styles.xml' in z.namelist():
@@ -188,10 +204,11 @@ def package(data):
                 typ = c.get('t', 'n')
                 v = c.find(M + 'v')
                 val = None if v is None else v.text or ''
+                phonetic = None
                 if typ == 's' and val is not None:
-                    val = strings[int(val)]; typ = 'str'
+                    item = strings[int(val)]; val = item['text']; phonetic = {'runs': item['runs'], 'properties': item['properties']} if item['runs'] or item['properties'] else None; typ = 'str'
                 elif typ == 'inlineStr':
-                    val = ''.join(x.text or '' for x in c.iter(M + 't')); typ = 'str'
+                    item = string_item(c.find(M + 'is')); val = item['text']; phonetic = {'runs': item['runs'], 'properties': item['properties']} if item['runs'] or item['properties'] else None; typ = 'str'
                 elif typ in ('str', 's'):
                     typ = 'str'
                 elif typ == 'n' and val not in (None, ''):
@@ -201,7 +218,8 @@ def package(data):
                 cells[c.get('r')] = {'type': typ, 'value': val, 'formula': None if f is None else (f.text or ''),
                                      'formula_attributes': {} if f is None else dict(f.attrib),
                                      'number_format': formats[style] if style < len(formats) else f'unknown-style:{style}',
-                                     'style_definition': styles[style] if style < len(styles) else f'unknown-style:{style}'}
+                                     'style_definition': styles[style] if style < len(styles) else f'unknown-style:{style}',
+                                     'phonetic_visible': c.get('ph', '0') in ('1', 'true'), 'phonetic': phonetic}
             merges = sorted(e.get('ref') for e in sh.findall(f'{M}mergeCells/{M}mergeCell'))
             links = []
             for link in sh.findall(f'{M}hyperlinks/{M}hyperlink'):
@@ -221,6 +239,7 @@ def package(data):
                                           [tree(e) for e in sh.findall(f'{M}autoFilter/{M}sortState')],
                            'drawings': drawing_objects(z, sh, path, shrels),
                            'printer_settings': printer_settings(z, sh, path, shrels),
+                           'phonetic_properties': [tree(e) for e in sh.findall(M + 'phoneticPr')],
                            'pivots': pivot_tables(z, sh, path, shrels)})
         props = wb.find(M + 'workbookPr')
         return {'date1904': props is not None and props.get('date1904', '0') in ('1', 'true'), 'names': names,

@@ -86,6 +86,12 @@ try {
             $entry.setup.conditional = GetOrError { $c = $sheet.Range('C5').FormatConditions.Add(1, 3, '1'); $c.Interior.Color = 65535; $sheet.Range('C5').FormatConditions.Count }
             $entry.setup.shape = GetOrError { $s = $sheet.Shapes.AddShape(1, 100, 100, 60, 30); [string]$s.Name }
             $entry.setup.page = GetOrError { $sheet.PageSetup.Orientation = 2; $sheet.PageSetup.PrintArea = '$A$1:$D$5'; $sheet.PageSetup.Orientation }
+            $entry.setup.phonetic = GetOrError {
+                $p = $sheet.Range('F1'); $p.Value2 = [string]::Concat([char]0x6771, [char]0x4EAC)
+                $reading = [string]::Concat([char]0x3068, [char]0x3046, [char]0x304D, [char]0x3087, [char]0x3046)
+                $null = $p.Phonetics.Add(1, 2, $reading); $p.Phonetics.Visible = $true
+                @{count=$p.Phonetics.Count; visible=$p.Phonetics.Visible}
+            }
             $entry.setup.sort = GetOrError {
                 $sortSheet = $book.Worksheets.Add(); $sortSheet.Name = 'SortData'
                 $sortSheet.Range('A1').Value2 = 'Key'; $sortSheet.Range('B1').Value2 = 'Value'
