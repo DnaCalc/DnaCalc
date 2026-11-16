@@ -81,3 +81,56 @@ The engine/research review also found that `formulas` documents `test/test_files
 ### Interesting-example index
 
 The local `~/corpus-meta/interesting-examples.tsv` currently has 11 entries: 1 data-table case, 1 structured-reference/PivotTable/chart combination, 1 tables/charts example, 2 VBA modules, 1 dynamic-array spill example, 2 recursive LAMBDA examples, 1 TRIMRANGE case, 1 REGEX* case and 1 GROUPBY case. It records hashes and workbook/module locations, without copying workbook contents into the repository.
+
+## Archive pass 2026-11-16 (dc-w3zu0)
+
+Owner direction 2026-11-16: store each corpus in R2 as its source distributes it, with its metadata, without unpacking or inspecting any file, and with no Excel conversion for now. Every file was hashed whole (SHA-256, and compared with the source's own checksum where one is published), copied with `rclone copy --checksum` and checked with `rclone check --one-way` (0 differences for every prefix). Each prefix holds a `SOURCE.json` (download URLs, pinned revision, licence with its wording and where it is stated, other terms, the source's own claims about its contents, citation, overlap with held sets) and a `meta/` folder with the landing pages and API records as fetched. The run folder is `~/codex-runs/corpus-archive-20261116/` on kode-fi (report, logs, scripts); no local corpus copies are kept. `sources/` in `dnacalc-corpus` now holds 12,319 objects, 41,815,287,128 bytes.
+
+### Stored (prefix `sources/<set>/20261116/`)
+
+| Set | Files | Bytes | Licence as stated | Source checksums | What the source says it holds |
+|---|---:|---:|---|---|---|
+| `fuse` (project-page files) | 7 | 9,740,628,208 | CC BY 4.0 on the Zenodo record; the project page states none for these files | 7 of 7 SHA-1 matched | 4 analysis JSON.gz files, SHA-1 list, dedup map, 6.9 GB binaries tarball; 2,127,284 URLs, 249,376 unique files (Common Crawl, 2013 to 2014). Whether the tarball repeats `fuse.zip` is not known without opening either |
+| `enron` (email volumes) | 13 | 8,859,674,182 | CC BY 4.0 (figshare) | 13 of 13 MD5 matched | `eml.7z.001` to `.013`, one multi-volume 7z: the emails with the original attachments |
+| `venron1-0` | 1 | 64,878,068 | CC0 (figshare 4797943) | MD5 matched | 360 evolution groups, 7,294 spreadsheets |
+| `venron1-1` | 1 | 156,037,432 | CC0 (figshare 4797961) | MD5 matched | 322 groups, 7,171 spreadsheets (fixes to 1.0) |
+| `venron2` | 1 | 315,143,533 | CC0 (figshare 4798042) | MD5 matched | 1,609 groups, 12,254 spreadsheets (SpreadCluster) |
+| `tmplenron` | 1 | 16,516,099 | CC BY 4.0 (figshare 5838600) | MD5 matched | 47 templates with 490 instances; 21 instance-template groups |
+| `sheetjs-enron-xls` | 1 | 1,396,470,057 | CC0 1.0 (LICENSE file) | none published | GitHub archive of commit 5b73fc39: Enron spreadsheets in original formats (BIFF2 to BIFF8, TSV, SYLK, HTML saved as .xls), de-duplicated by MD5 |
+| `spreadsheetbench-v1` | 4 | 110,716,218 | CC BY-SA 4.0 (card) | 4 of 4 matched | 912 tasks and 2,729 test cases; Verified, 400 tasks |
+| `spreadsheet-rl` | 16 | 1,240,089,950 | CC BY-SA 4.0 (card) | 16 of 16 matched | 5,925 ExcelForum training tasks plus test parts that reuse SpreadsheetBench and others |
+| `gdp-xlsx` | 34 | 740,708 | Apache-2.0 (card; asks to be kept out of training) | 34 of 34 matched | 3 of the 70 tasks |
+| `finch-finworkbench` | 537 | 175,072,804 | CC BY 3.0 (card) | 537 of 537 matched | 172 workflows, 1,710 spreadsheets, 27 million cells, built on Enron, EUSES and public-sector files |
+| `npoi-20261116` | 1 | 89,282,263 | Apache-2.0 | none published | pinned GitHub archive |
+| `phpspreadsheet-20261116` | 1 | 1,067,186 | MIT | none published | pinned GitHub archive; holds no spreadsheets (`.gitattributes` export-ignores `/tests` and `/samples`) |
+| `pandas-20261116` | 1 | 5,702,023 | BSD-3-Clause | none published | pinned GitHub archive; holds no spreadsheets (`.gitattributes` export-ignores the spreadsheet extensions) |
+| `open-xml-sdk-20261116` | 1 | 46,118,826 | MIT | none published | pinned GitHub archive |
+| `umya-spreadsheet-20261116` | 1 | 8,515,805 | MIT | none published | pinned GitHub archive |
+| `aspose-cells-for-net-20261116` | 1 | 53,876,464 | MIT (the examples repository, not the product) | none published | pinned GitHub archive |
+| `formulas-20261116` | 1 | 633,863 | EUPL-1.1 | none published | pinned GitHub archive |
+| `format-corpus-20261116` | 1 | 560,845,440 | CC0 per the README, "unless otherwise stated" | none published | Open Preservation Foundation format-corpus, pinned GitHub archive |
+| `ofgem-price-cap-20261116` | 199 | 1,537,419,746 | Crown copyright under the Open Government Licence (Ofgem copyright page; the version is not written there, the link goes to OGL v3.0) | none published; sizes equal HTTP Content-Length | per quarter: cap levels, Annexes 2, 3, 4, 5 and 9, demand and losses workbook, monthly rates; the 3 workbooks held since 2026-10 were not fetched again |
+| `desnz-appraisal-20261116` | 3 | 2,211,654 | OGL v3.0 (gov.uk) | none published | appraisal toolkit (.xlsm), data tables, emissions-savings template |
+| `hmt-green-book-20261116` | 3 | 123,162 | OGL v3.0 (gov.uk) | none published | appraisal summary tables, discount factors, financial annex template |
+| `govdocs1` (metadata only) | 10 metadata files | 14,200,000 (about) | site metadata CC0; corpus "may be (to the best of our knowledge) freely redistributed" | SHA-1 and MD5 of the 1,000 zips saved | about 1 million files in 1,000 zips (333,494,682,740 bytes in all, from the site index); the Forensic Innovations report counts 62,876 OLE Excel files; by-type archives `xls.zip` (8,050,349,823 bytes) and `xlsx.zip` are offered |
+
+### Pointers only (prefix `sources/_pointers/<set>/20261116/`: landing page, record and SOURCE.json, no corpus files)
+
+| Set | Why no files |
+|---|---|
+| `modified-euses-tugraz`, `info1-tugraz`, `integer-corpus-tugraz`, `payroll-gradebook-tugraz`, `enron-errors` | no licence on the source pages |
+| `custodes`, `deco-tu-dresden` | host does not answer, or the dataset pages are gone |
+| `panko-student-spreadsheets` | a paper, no dataset release |
+| `sheetcopilot`, `bluefin`, `realhitbench` | non-commercial terms |
+| `fxbench` | card says "other", its Croissant file says CC BY-SA 4.0 |
+| `auto-formula-microsoft` | data under the Microsoft Research License |
+| `sheetjs-test-files` | no licence for the zip as a whole; GitHub blocks the repository for "private_information"; the zip host (341,452,051 bytes) sets robots content signal `ai-train=no` |
+| `ofwat-pr24` | HTTP 403 browser check |
+| `gnumeric-20261116`, `openpyxl-20261116` | the hosts' robots.txt disallow archive downloads |
+
+### Notes from the pass
+
+- kode-fi reaches figshare only over IPv4 (IPv6 gets 403); use `curl -4`. figshare web pages return a bot-challenge page, so only API records are saved for figshare items.
+- The VEnron project host does not resolve; VEnron 1.0 and 1.1 are CC0 figshare deposits, stored above.
+- PhpSpreadsheet's and pandas' test spreadsheets are not in their GitHub archives; storing them needs a pinned git clone of the test folders, packed as the 2026-11-11 library sets were.
+- The Touchstone catalogue's note that TmplEnron has no public release is wrong: figshare 5838600 exists.

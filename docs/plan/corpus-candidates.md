@@ -36,6 +36,12 @@ These extracted files and per-file source lists stay on the kode-fi host because
 
 ## Not downloaded
 
+Update 2026-11-16 (dc-w3zu0): the archive pass stored FUSE's project-page files, the Enron email
+volumes, VEnron 1.0, 1.1 and 2, TmplEnron and the Ofgem models in R2 as compressed downloads, and
+recorded SheetJS test_files and openpyxl as pointers only. The table below is the 2026-11-11 view;
+the current state of each source is in [`corpus-sources.md`](corpus-sources.md), section "Archive
+pass 2026-11-16".
+
 | Corpus | Source (exact) | Size | Files | Licence as stated | What it would add | Note |
 |---|---|---:|---:|---|---|---|
 | FUSE | https://zenodo.org/records/581678 `fuse.zip` | 9,392,830,118 bytes | 249,376 | CC BY 4.0 (Zenodo) | breadth of web spreadsheets, with JSON metadata that lets a formula-dense subset be chosen first | does not fit koderbot (about 21 GB free) next to the 15 GB reserve; needs the dc-kapl.6 archive decision or firehorse |
