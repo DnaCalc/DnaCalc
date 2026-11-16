@@ -556,3 +556,43 @@ Refresh49 calculated pin predictions through the existing witness command,
 classifying every newly lost match. An invariant check preserves every
 original input, reading, context and Excel answer; full-run status bytes
 are restored after the narrow refresh.
+
+## fn3 (2026-11-16): GAMMA seed shape, and the Poisson upper tail beyond x = 31
+
+Lane fn3 (Claude Opus 5.5, dna-firehorse). Sources: tier 1 (Excel 16.0.20527 answers through Touchstone,
+DLMF, Morris's TOMS 654 structure as already ported in calc-func), tier 2 (our code). Tools in
+`gamma-family-2026-11-12/fn3/` (C with `__float128` truth; `remez.c` is a rational minimax solver). Raw Excel
+answers: `r2:dnacalc-evidence/research/round61/fn3-20261116/` (8 files, 29,694,816 bytes). Nothing landed.
+
+Baseline, full bank at 029e4770 (release judge): GAMMA 8,193/12,603 (worst 5 ULP; fails (0,1) 2,587, [1,10)
+1,402, (-10,0) 391, |x| >= 10 30), GAMMALN 2,646/4,538 (worst 7; [0.7,1.5) 962, [1.5,2) 869), GAMMALN.PRECISE
+11,643/14,278 (worst 7; [0.7,1.5) 1,242, [1.5,2) 899, [0.5,0.7) 330 inherited from [1.5,1.7)), POISSON
+1,006/1,560 (worst 42), POISSON.DIST 49,162/49,714 (worst 7).
+
+GAMMA seed Gamma(1+y), y in [0,1) (524,288 + 262,144 + 52,768 + 6,154 new answers):
+- Excel minus truth: mean +0.56 (y -> 0) rising to +0.96 (y -> 1) output ulps, sd 0.8 to 1.2 in every window,
+  and still +-3 ulps at y = j 2^-52, j < 30 (GAMMA(1+6 2^-52) is 4 ulps below 1 where the truth is 7). A form
+  1 + N(y)/D(y) (the Cody stand-in) cannot carry that noise near y = 0.
+- Rejected: Stirling at x+K divided down (K = 1..20, four arrangements, <= 10.4%), the A&S 6.1.34 series for
+  1/Gamma (20..26 terms, six graphs, <= 26%), minimax rationals in y, and [2,3] tables divided by x.
+- Lead: the relative-error minimax P(x)/Q(x), degree 7/8 in x itself on [1,2], Q monic, rounded to binary64,
+  gives the same smooth bias as Excel (rms 0.11 ulps over 256 window means; one-ulp changes of single
+  coefficients move it by 1 to 6 ulps; degrees 6/6 .. 9/9 and the y forms do not reproduce it). But no
+  evaluation graph of that table reproduces the noise: all 64 store/resident masks of the Horner stages, FMA,
+  Estrin, even/odd, ascending powers and reciprocal forms give 20% to 38%; a regression of Excel's residual on
+  each Horner stage's own rounding residual gives beta ~ 0 for every stage (1 if stored). The strongest line at
+  y -> 0 (frequency 0.40945, amplitude 1.43 ulps) has log-derivative ~1, an exponential-like stored stage.
+  The same minimax construction does not give the fitted B3 table (171/700 B3 bank rows under G4 against
+  660 for the fitted table), so "Excel uses minimax tables" is not established either.
+
+POISSON / POISSON.DIST cumulative (CHIDIST shares it): Excel's POISSON equals its CHIDIST(2 mean, 2(k+1)) on all
+1,029 failing cumulative rows. Failures by gratio branch (legacy POISSON, normal magnitude): asymptotic
+x >= 31 105/117 (a < 20) and 157/196 (a >= 20), Temme 218/324; the rest of POISSON.DIST's failures (481) are
+the near-DBL_MIN publication family. In the x >= 31 branch Excel's error against the exact finite sum has
+sd 18.6 ulps: the exponent's binary64 rounding. Its implied exponent ln(Q_Excel / exact factor) equals our
+Loader exponent -stirling_error(a) - deviance(a, x) (count a = k+1, mean x) exactly on 99/117 and 134/196 rows
+(within 0.2 of its ulp; chance ~40%); a ln x - x, a ln x - x - GAMMALN(a or a+1) and Morris's RCOMP t1 do not.
+So the prefactor is the Poisson mass's exponent, as landed. What multiplies exp(E) is not found: Excel's
+implied factor scatters +-5 ulps (sd 2) about the exact sqrt(a/2pi)/x (1 + sum); 24 arrangements at a = 2
+(sum = 1/x exactly; 14,000 new controls, `pois_ctrl.tsv`) reach 43% at best, Morris's 15-digit rt2pin 0%,
+the exact finite sum 2/313, forward or extended summation <= 24%.
