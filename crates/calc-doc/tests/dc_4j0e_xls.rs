@@ -24,7 +24,8 @@ fn write_legacy_excel_session_inputs() {
     let Some(dir) = std::env::var_os("DNACALC_XLS_SESSION_INPUTS") else { return };
     let dir = std::path::PathBuf::from(dir);
     std::fs::create_dir_all(&dir).unwrap();
-    let mut cells = number(0, 0, 42.5);
+    let mut cells = colinfo(1, 2, 3072, 0x000A);
+    cells.extend(number(0, 0, 42.5));
     cells.extend(formula(1, 0, num_value(43.5), &ptg::join(&[ptg::cell(0, 0, 0), ptg::int(1), ptg::op(ptg::ADD)]), &[]));
     cells.extend(merged(&[(2, 2, 0, 1)]));
     cells.extend(hlink_url((3, 0), "https://example.com/", Some("Example"), Some("part")));
@@ -549,13 +550,22 @@ fn the_shared_string_table_split_across_continue_records() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn rows_and_columns_keep_height_hidden_and_outline() {
     let mut r = Vec::new();
-    r.extend(colinfo(1, 2, 3072, 0x0002));
+    r.extend(colinfo(1, 2, 3072, 0x000A));
     r.extend(colinfo(4, 4, 2560, 0x0001 | (2 << 8)));
     r.extend(row(0, 255, 0));
     r.extend(row(1, 600, 0x40));
     r.extend(row(2, 255, 0x20 | 1));
     r.extend(number(1, 0, 1.0));
     let bytes = xls(false, &[], &[Sheet::worksheet("S", r)]);
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let xml = String::from_utf8(document.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+    assert!(xml.contains("phonetic=\"1\""));
+    let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+    let mut saved = Vec::new();
+    calc_doc::write(plan, &mut saved).unwrap();
+    let reopened = calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap();
+    let xml = String::from_utf8(reopened.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+    assert!(xml.contains("phonetic=\"1\""));
     let loaded = load(&bytes);
     let geometry = loaded.sheets()[0].geometry();
     assert_eq!(geometry.columns.len(), 2);

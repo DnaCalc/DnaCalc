@@ -378,6 +378,9 @@ pub(crate) fn read(
                 if flags & 0x04 != 0 {
                     attributes.push(("bestFit", "1".to_owned()));
                 }
+                if flags & 0x08 != 0 {
+                    attributes.push(("phonetic", "1".to_owned()));
+                }
                 if flags & 0x02 != 0 {
                     attributes.push(("customWidth", "1".to_owned()));
                 }

@@ -246,6 +246,8 @@ def package(data):
                                           [tree(e) for e in sh.findall(f'{M}autoFilter/{M}sortState')],
                            'drawings': drawing_objects(z, sh, path, shrels),
                            'printer_settings': printer_settings(z, sh, path, shrels),
+                           'phonetic_columns': [(e.get('min'), e.get('max')) for e in sh.findall(f'{M}cols/{M}col')
+                                                if e.get('phonetic', '0') in ('1', 'true')],
                            'phonetic_properties': [tree(e) for e in sh.findall(M + 'phoneticPr')],
                            'pivots': pivot_tables(z, sh, path, shrels)})
         props = wb.find(M + 'workbookPr')
