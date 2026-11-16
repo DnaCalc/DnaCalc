@@ -403,8 +403,13 @@ fn object(shape: &Shape, remap: &BTreeMap<u32, u32>, media: &MediaRels, out: &mu
         out.extend(b"</xdr:grpSp>");
         return Ok(());
     }
+    // Excel (20527) repairs an avLst that names some of a multi-guide preset's guides but not all: the dc-8ari6 bisect
+    // of shapes-paint2/3 failed on one hexagon with `adj` alone and one wedgeRoundRectCallout with `adj3` alone, and
+    // opened every other anchor. Excel itself lists every guide, so a partial list is completed in the preset's order
+    // with the preset's own defaults.
+    let guides = complete_guides(geometry, &shape.adjust);
     let mut adjust = String::new();
-    for (name, value) in &shape.adjust {
+    for (name, value) in &guides {
         adjust.push_str(&format!("<a:gd name=\"{name}\" fmla=\"val {value}\"/>"));
     }
     let avlst = if adjust.is_empty() { "<a:avLst/>".to_owned() } else { format!("<a:avLst>{adjust}</a:avLst>") };
@@ -580,4 +585,31 @@ fn object(shape: &Shape, remap: &BTreeMap<u32, u32>, media: &MediaRels, out: &mu
         out.extend(b"</xdr:txBody></xdr:sp>");
     }
     Ok(())
+}
+
+/// The guides of the presets that have more than one, in the preset's order, with the default of each.
+const MULTI_GUIDE_PRESETS: &[(&str, &[(&str, i64)])] = &[
+    ("hexagon", &[("adj", 25_000), ("vf", 115_470)]),
+    ("rightArrow", &[("adj1", 50_000), ("adj2", 50_000)]),
+    ("leftArrow", &[("adj1", 50_000), ("adj2", 50_000)]),
+    ("upArrow", &[("adj1", 50_000), ("adj2", 50_000)]),
+    ("downArrow", &[("adj1", 50_000), ("adj2", 50_000)]),
+    ("wedgeRectCallout", &[("adj1", -20_833), ("adj2", 62_500)]),
+    ("wedgeRoundRectCallout", &[("adj1", -20_833), ("adj2", 62_500), ("adj3", 16_667)]),
+];
+
+/// The guides to write: the shape's own, and for a multi-guide preset with any guide set, all of its guides.
+fn complete_guides(geometry: &str, own: &[(String, i64)]) -> Vec<(String, i64)> {
+    let Some((_, all)) = MULTI_GUIDE_PRESETS.iter().find(|(name, _)| *name == geometry) else {
+        return own.to_vec();
+    };
+    if own.is_empty() {
+        return Vec::new();
+    }
+    let mut out: Vec<(String, i64)> = all
+        .iter()
+        .map(|(name, default)| ((*name).to_owned(), own.iter().find(|(n, _)| n == name).map_or(*default, |(_, v)| *v)))
+        .collect();
+    out.extend(own.iter().filter(|(n, _)| !all.iter().any(|(name, _)| name == n)).cloned());
+    out
 }

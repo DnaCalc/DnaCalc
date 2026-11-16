@@ -652,7 +652,7 @@ fn paint2_shapes() -> Vec<Shape> {
         ("trapezoid", &[("adj", 40_000)]),
         ("pentagon", &[]),
         ("hexagon", &[]),
-        ("hexagon", &[("adj", 40_000)]),
+        ("hexagon", &[("adj", 40_000), ("vf", 115_470)]),
         ("octagon", &[]),
         ("rightArrow", &[]),
         ("rightArrow", &[("adj1", 25_000), ("adj2", 80_000)]),
@@ -907,7 +907,7 @@ fn paint3_shapes() -> Vec<Shape> {
         ("flowChartTerminator", &[]),
         ("flowChartDocument", &[]),
         ("wedgeRectCallout", &[]),
-        ("wedgeRoundRectCallout", &[("adj3", 40_000)]),
+        ("wedgeRoundRectCallout", &[("adj1", -20_833), ("adj2", 62_500), ("adj3", 40_000)]),
     ];
     for (i, (prst, adjust)) in presets.into_iter().enumerate() {
         let name = format!("TextRect {prst}");
@@ -1055,4 +1055,30 @@ fn dc_zjsg_2__shapes_paint3_workbook() {
     assert!(matches!(&by_name("Mod accent1 shade50").fill, ShapeFill::Solid(ShapeColour::Modified(_, m)) if m == &[("shade".to_owned(), 50_000)]));
     assert_eq!(by_name("Shadow rot 30 with shape").shadow.as_ref().map(|s| s.rotate_with_shape), Some(true));
     assert_eq!(by_name("Group flipH with picture").children.len(), 3);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8ari6__a_partial_guide_list_is_saved_complete() {
+    // Excel 20527 repairs `<a:avLst>` of a hexagon that names adj without vf (bisect of shapes-paint2: anchor 42).
+    let base = load(SHAPES_BASE);
+    let sheet = first_sheet(&base);
+    let mut shapes = Vec::new();
+    let mut next = 2;
+    let index = put(&mut shapes, &mut next, "hex", ShapeKind::Shape, "hexagon", (0, 56), (3 * CELL_W, 3 * CELL_H), 0.0);
+    shapes[index].adjust = vec![("adj".to_owned(), 40_000)];
+    let index = put(&mut shapes, &mut next, "callout", ShapeKind::Shape, "wedgeRoundRectCallout", (4, 56), (3 * CELL_W, 3 * CELL_H), 0.0);
+    shapes[index].adjust = vec![("adj3".to_owned(), 40_000)];
+    let model = edited(&base, vec![WorkbookOp::SetShapes { sheet, shapes }]);
+    let (saved, _) = save_model(&base, &model);
+    let part = part_text(&saved, "xl/drawings/dnaDrawing.xml");
+    assert!(
+        part.contains(r#"<a:avLst><a:gd name="adj" fmla="val 40000"/><a:gd name="vf" fmla="val 115470"/></a:avLst>"#),
+        "{part}"
+    );
+    // The callout with adj3 alone (the failing anchor of shapes-paint3) lists adj1, adj2 and adj3.
+    assert!(
+        part.contains(r#"<a:avLst><a:gd name="adj1" fmla="val -20833"/><a:gd name="adj2" fmla="val 62500"/><a:gd name="adj3" fmla="val 40000"/></a:avLst>"#),
+        "{part}"
+    );
 }

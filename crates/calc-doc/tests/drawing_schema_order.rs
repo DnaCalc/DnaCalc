@@ -190,3 +190,34 @@ fn dc_8ari6__the_order_check_catches_a_misordered_part() {
     assert!(errors.iter().any(|e| e.contains("solidFill comes after a later sibling in ln")), "{errors:?}");
     assert!(errors.iter().any(|e| e.contains("frob")), "{errors:?}");
 }
+
+/// Every `a:prstGeom prst="hexagon"` avLst in a drawing part, as the guide names it lists.
+fn hexagon_guides(xml: &str) -> Vec<Vec<String>> {
+    let mut found = Vec::new();
+    let mut rest = xml;
+    while let Some(at) = rest.find("prst=\"hexagon\"") {
+        rest = &rest[at..];
+        let end = rest.find("</a:prstGeom>").unwrap_or(rest.len());
+        let geometry = &rest[..end];
+        let names = geometry.split("<a:gd name=\"").skip(1).map(|s| s.split('"').next().unwrap().to_owned()).collect();
+        found.push(names);
+        rest = &rest[end..];
+    }
+    found
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8ari6__a_hexagon_with_a_guide_list_names_adj_and_vf() {
+    // Excel 20527 repairs a hexagon whose avLst has `adj` without `vf` (the bisect of shapes-paint2/3: that one
+    // anchor alone failed). It writes both; so does the saved part, whatever the model holds.
+    let mut saw = 0;
+    for (name, package) in FIXTURES {
+        let part = part(package, "xl/drawings/dnaDrawing.xml").or_else(|| part(package, "xl/drawings/drawing1.xml")).unwrap();
+        for names in hexagon_guides(std::str::from_utf8(&part).unwrap()) {
+            saw += 1;
+            assert!(names.is_empty() || (names.contains(&"adj".to_owned()) && names.contains(&"vf".to_owned())), "{name}: {names:?}");
+        }
+    }
+    assert!(saw >= 3, "{saw}");
+}
