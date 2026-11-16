@@ -45,6 +45,8 @@ fn sweep() {
     let mut opened = 0usize;
     let mut loaded = 0usize;
     let (mut formula_cells, mut parse_failures) = (0usize, 0usize);
+    let audit_phonetic = std::env::var_os("DNACALC_XLS_AUDIT_PHONETIC").is_some();
+    let (mut phonetic_runs, mut phonetic_files, mut phonetic_errors) = (0usize, 0usize, 0usize);
     let mut refused: BTreeMap<String, usize> = BTreeMap::new();
     let mut load_refused: BTreeMap<String, usize> = BTreeMap::new();
     let mut panics: Vec<String> = Vec::new();
@@ -64,6 +66,13 @@ fn sweep() {
             let report = legacy_workbook_report(source.clone(), &policy);
             let password = std::env::var("DNACALC_XLS_PASSWORD").ok();
             let document = calc_doc::open_with_password(source, &policy, password.as_deref());
+            let written_phonetic = if audit_phonetic {
+                document.as_ref().ok().and_then(|doc| {
+                    if doc.package().part("xl/sharedStrings.xml").is_none() { return Some(0); }
+                    doc.package().read_part("xl/sharedStrings.xml").ok()
+                        .map(|xml| xml.windows(5).filter(|window| *window == b"<rPh ").count())
+                })
+            } else { Some(0) };
             let load = document.as_ref().ok().map(|d| {
                 let mut ids: IdAllocator<SheetId> = IdAllocator::new();
                 calc_doc::load(d, &mut ids).map_err(|e| e.to_string()).map(|loaded| {
@@ -83,11 +92,11 @@ fn sweep() {
                     (formulas, failed)
                 })
             });
-            (report, document.map(|_| ()), load)
+            (report, document.map(|_| ()), load, written_phonetic)
         }));
         match result {
             Err(_) => panics.push(file.display().to_string()),
-            Ok((report, document, load)) => {
+            Ok((report, document, load, written_phonetic)) => {
                 match document {
                     Err(OpenError::LegacyWorkbook { detail, .. }) => {
                         let key = detail.chars().take(70).collect::<String>();
@@ -101,6 +110,12 @@ fn sweep() {
                     }
                     Ok(()) => {
                         opened += 1;
+                        if let Some(count) = written_phonetic {
+                            phonetic_runs += count;
+                            phonetic_files += usize::from(count != 0);
+                        } else if audit_phonetic {
+                            phonetic_errors += 1;
+                        }
                         match load {
                             Some(Ok((formulas, failed))) => {
                                 loaded += 1;
@@ -130,6 +145,9 @@ fn sweep() {
     println!("opened (converted):   {opened}");
     println!("loaded (model built): {loaded}");
     println!("formula cells loaded: {formula_cells}, not re-parsed by calc-fml: {parse_failures}");
+    if audit_phonetic {
+        println!("phonetic runs written: {phonetic_runs} in {phonetic_files} files; audit errors: {phonetic_errors} (not an Excel match verdict)");
+    }
     println!("refused to open, by reason:");
     for (reason, n) in &refused {
         println!("  {n:5}  {reason}   e.g. {}", shown_refusals[reason]);
