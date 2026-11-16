@@ -636,6 +636,155 @@ def cell_summary(cells):
             "status":"fail" if counts["fail"] else "unmeasured" if counts["unmeasured"] else "pass"}
 
 
+SHAPE_METRICS = ("frame", "rotation", "fill_box", "outline_box", "picture_box")
+MSO_PICTURE, MSO_LINKED_PICTURE = 13, 11
+MSO_FILL_SOLID = 1
+
+
+def bgr_rgb(value):
+    """Excel colours are 0x00BBGGRR longs."""
+    value = int(value)
+    return (value & 255, (value >> 8) & 255, (value >> 16) & 255)
+
+
+def colour_box(image, region, rgb, tolerance=24, minimum=4):
+    """Bounding box (x0, y0, x1, y1; x1 and y1 exclusive, image pixels) of the pixels within `tolerance` of `rgb`
+    inside `region`, or None when fewer than `minimum` match.  Measured the same way in both rasters."""
+    x0, y0, x1, y1 = (int(round(v)) for v in region)
+    x0, y0, x1, y1 = max(0, x0), max(0, y0), min(image.width, x1), min(image.height, y1)
+    if x1 <= x0 or y1 <= y0:
+        return None
+    pixels = np.asarray(image.crop((x0, y0, x1, y1)).convert("RGB"), dtype=np.int16)
+    mask = np.max(np.abs(pixels - np.array(rgb, dtype=np.int16)), axis=2) <= tolerance
+    if int(mask.sum()) < minimum:
+        return None
+    ys, xs = np.where(mask)
+    return (x0 + int(xs.min()), y0 + int(ys.min()), x0 + int(xs.max()) + 1, y0 + int(ys.max()) + 1)
+
+
+def content_box(image, region, background_floor=200, spread=8, minimum=4):
+    """Bounding box of everything that is not white or a neutral light grid line in `region`."""
+    x0, y0, x1, y1 = (int(round(v)) for v in region)
+    x0, y0, x1, y1 = max(0, x0), max(0, y0), min(image.width, x1), min(image.height, y1)
+    if x1 <= x0 or y1 <= y0:
+        return None
+    pixels = np.asarray(image.crop((x0, y0, x1, y1)).convert("RGB"), dtype=np.int16)
+    neutral = (pixels.max(axis=2) - pixels.min(axis=2) <= spread) & (pixels.min(axis=2) >= background_floor)
+    mask = ~neutral
+    if int(mask.sum()) < minimum:
+        return None
+    ys, xs = np.where(mask)
+    return (x0 + int(xs.min()), y0 + int(ys.min()), x0 + int(xs.max()) + 1, y0 + int(ys.max()) + 1)
+
+
+def box_delta(a, b):
+    return [b[i] - a[i] for i in range(4)]
+
+
+def rotated_extent(width, height, degrees):
+    import math
+    c, s = abs(math.cos(math.radians(degrees))), abs(math.sin(math.radians(degrees)))
+    return width * c + height * s, width * s + height * c
+
+
+def shape_parity(excel_shapes, dna_shapes, excel_image, dna_image, excel_origin, dna_origin, dpr, dpi, zoom):
+    """Each drawing object of Excel's own list against the object DNA Calc drew with the same name.
+
+    `excel_shapes`: Excel's records (points); `dna_shapes`: the page's [data-dnacalc=shape] elements with their
+    bounding client rectangles in image pixels already (`bbox`, `width`, `height`, `rotation`).  `excel_origin` and
+    `dna_origin` are A1's top-left in each image, so a translation is removed, nothing is stretched.
+    Frame: the unrotated frame (Excel's Shape.Left/Top/Width/Height against the element's centre and size), 2 px.
+    Rotation: degrees mod 360, 0.5 degree.  fill_box / outline_box: the bounding box of the fill (or outline) colour
+    Excel reports, measured in both rasters inside the object's own extent plus a margin, 2 px per edge.
+    picture_box: the non-background content box of a picture.  A check whose colour is not solid, is transparent or
+    equals the other colour is unmeasured; unmeasured never counts as a pass."""
+    factor = dpi / 72 * zoom / 100
+    by_name = {s["name"]: s for s in dna_shapes}
+    results = []
+    for ex in excel_shapes:
+        entry = {"name": ex["name"], "type": ex.get("type"), "excel_rotation": ex.get("rotation")}
+        checks = {}
+        results.append({"entry": entry, "checks": checks})
+        if not ex.get("visible", True):
+            for k in SHAPE_METRICS:
+                checks[k] = check(reason="hidden in Excel")
+            continue
+        ew, eh = ex["width"] * factor, ex["height"] * factor
+        ex_x = excel_origin["x"] + ex["left"] * factor
+        ex_y = excel_origin["y"] + ex["top"] * factor
+        entry["excel_frame_px"] = {"x": ex_x, "y": ex_y, "w": ew, "h": eh}
+        dn = by_name.get(ex["name"])
+        if dn is None:
+            for k in SHAPE_METRICS:
+                checks[k] = check(False if k == "frame" else None, reason="DNA Calc drew no object of this name")
+            continue
+        bb = dn["bbox"]
+        cx, cy = (bb["x"] + bb["width"] / 2) * dpr, (bb["y"] + bb["height"] / 2) * dpr
+        dw, dh = dn["width"] * dpr, dn["height"] * dpr
+        dx, dy = cx - dw / 2, cy - dh / 2
+        entry["dna_frame_px"] = {"x": dx, "y": dy, "w": dw, "h": dh}
+        delta = {"x": (dx - dna_origin["x"]) - (ex_x - excel_origin["x"]), "y": (dy - dna_origin["y"]) - (ex_y - excel_origin["y"]),
+                 "w": dw - ew, "h": dh - eh}
+        checks["frame"] = check(all(abs(v) <= 2 for v in delta.values()), delta_px=delta, tolerance_px=2,
+                                method="unrotated frame: Excel Shape.Left/Top/Width/Height against the element's centre and size")
+        flipped = bool(ex.get("h_flip") or ex.get("v_flip"))
+        if flipped:
+            checks["rotation"] = check(reason="flipped shapes: the page's matrix mixes flip and turn")
+        else:
+            diff = (dn["rotation"] - ex["rotation"] + 180) % 360 - 180
+            checks["rotation"] = check(abs(diff) <= 0.5, delta_degrees=diff, tolerance_degrees=0.5)
+        # Search region: the turned frame's extent around the Excel centre, plus a margin for outline weight and shadow.
+        margin = 4 + (ex.get("line_weight_points") or 0) * factor
+        rw, rh = rotated_extent(ew, eh, ex["rotation"])
+        ecx, ecy = ex_x + ew / 2, ex_y + eh / 2
+        region_e = (ecx - rw / 2 - margin, ecy - rh / 2 - margin, ecx + rw / 2 + margin, ecy + rh / 2 + margin)
+        shift_x, shift_y = dna_origin["x"] - excel_origin["x"], dna_origin["y"] - excel_origin["y"]
+        region_d = (region_e[0] + shift_x, region_e[1] + shift_y, region_e[2] + shift_x, region_e[3] + shift_y)
+        is_picture = ex.get("type") in (MSO_PICTURE, MSO_LINKED_PICTURE)
+        tolerance = max(2, round(2 * zoom / 100))
+        fill_rgb = line_rgb = None
+        if not is_picture and ex.get("fill_visible") and ex.get("fill_type", MSO_FILL_SOLID) == MSO_FILL_SOLID and not ex.get("fill_transparency"):
+            fill_rgb = bgr_rgb(ex["fill_rgb"])
+        if not is_picture and ex.get("line_visible") and (ex.get("line_weight_points") or 0) * factor >= 1.5:
+            line_rgb = bgr_rgb(ex["line_rgb"])
+        for name, rgb, other in (("fill_box", fill_rgb, line_rgb), ("outline_box", line_rgb, fill_rgb)):
+            if rgb is None or (other is not None and max(abs(a - b) for a, b in zip(rgb, other)) <= 24):
+                checks[name] = check(reason="no solid, opaque, distinct colour to measure" if not is_picture else "picture")
+                continue
+            a, b = colour_box(excel_image, region_e, rgb), colour_box(dna_image, region_d, rgb)
+            if a is None or b is None:
+                # Excel shows the colour and DNA does not (or the reverse): a measured failure, unless neither shows it.
+                checks[name] = check(None if a is None and b is None else False, excel_box=a, dna_box=b, colour=list(rgb),
+                                     reason="colour not found in " + ("both rasters" if a is None and b is None else "Excel" if a is None else "DNA Calc"))
+                continue
+            rel_b = (b[0] - shift_x, b[1] - shift_y, b[2] - shift_x, b[3] - shift_y)
+            d = box_delta(a, rel_b)
+            checks[name] = check(all(abs(v) <= tolerance for v in d), excel_box=a, dna_box=list(b), delta_px=d, tolerance_px=tolerance,
+                                 colour=list(rgb), method="bounding box of the reported colour inside the object's extent plus margin, both rasters")
+        if is_picture:
+            a, b = content_box(excel_image, region_e), content_box(dna_image, region_d)
+            if a is None or b is None:
+                checks["picture_box"] = check(None if a is None and b is None else False, excel_box=a, dna_box=b)
+            else:
+                rel_b = (b[0] - shift_x, b[1] - shift_y, b[2] - shift_x, b[3] - shift_y)
+                d = box_delta(a, rel_b)
+                checks["picture_box"] = check(all(abs(v) <= tolerance for v in d), excel_box=a, dna_box=list(b), delta_px=d, tolerance_px=tolerance,
+                                              method="bounding box of non-white, non-grid pixels inside the picture's extent plus margin")
+        else:
+            checks["picture_box"] = check(reason="not a picture")
+    return results
+
+
+def shape_summary(shape_results):
+    summary = {}
+    for name in SHAPE_METRICS:
+        counts = Counter(r["checks"][name]["status"] for r in shape_results)
+        measured = counts["pass"] + counts["fail"]
+        summary[name] = {"status": "fail" if counts["fail"] else "pass" if measured else "unmeasured",
+                         "measured": measured, "passed": counts["pass"], "failed": counts["fail"], "unmeasured": counts["unmeasured"]}
+    return summary
+
+
 def write_report(out, data):
     encoded = json.dumps(data).replace("<", "\\u003c").replace("&", "\\u0026")
     page = r'''<!doctype html>
@@ -661,6 +810,7 @@ body{font:14px system-ui;margin:24px;color:#18262c;background:white}h1{font-size
 <table><caption id="caption"></caption><thead><tr><th>Cell</th><th>Excel / DNA text</th><th>Result and measurements</th></tr></thead><tbody id="cells"></tbody></table>
 <details><summary>Coarse pixel regression observations</summary><p id="pixels"></p><p>Original pixels are retained. Pixel difference rates do not determine cell results or sorting.</p></details>
 <details><summary>Cells outside the measured area</summary><pre id="excluded"></pre></details>
+<details><summary>Drawing objects (frame, turn, fill and outline boxes against Excel's pixels)</summary><pre id="shapes"></pre></details>
 <p>Baseline displacement is estimated by vertically registering ink-row profiles for identical text and equal visible line counts. Weak or ambiguous registrations and clipped lines remain unmeasured; absolute Excel font baselines are not exposed. Ink-bottom deltas remain as diagnostics, because a descender fringe alone can change them. Patterned and rotated text are left unmeasured where foreground ink cannot be isolated. Ink line counts do not identify each line's characters. Clipping and overflow compare visible envelopes, not OCR glyph identity. Borders are measured in original images across the cell boundary. Authoring merged cells is never part of this tool.</p>
 <script type="application/json" id="observations">__PAINT_DATA__</script>
 <script>
@@ -685,6 +835,7 @@ function draw(){
  get('cells').replaceChildren();for(const c of cells){const tr=row(get('cells'),[address(c),JSON.stringify(c.excel_text)+' / '+JSON.stringify(c.dna_text??''),'']);tr.children[1].className='text';const target=tr.children[2],status=document.createElement('strong');status.className=c.cell_result.status;status.textContent=c.cell_result.status;target.append(status);for(const[k,v]of Object.entries(c.parity)){if(metric&&metric!==k)continue;if(get('failed').checked&&v.status!=='fail')continue;const d=document.createElement('details'),s=document.createElement('summary'),p=document.createElement('pre');s.textContent=label(k)+': '+v.status;s.className=v.status;p.textContent=JSON.stringify(v,null,2);d.append(s,p);target.append(d)}}
  get('caption').textContent=`${cells.length} cells displayed. Checks are sorted by the number of failures, independently of pixel differences.`;
  get('excluded').textContent=JSON.stringify(r.not_compared,null,2);
+ get('shapes').textContent=(r.shapes||[]).map(s=>s.entry.name+': '+Object.entries(s.checks).filter(([k,v])=>v.status!=='unmeasured').map(([k,v])=>k+' '+v.status+(v.delta_px?' '+JSON.stringify(v.delta_px):'')).join('; ')).join('\n')||'no drawing objects';
  get('pixels').textContent=`Exact changed pixels: ${r.global_exact.changed}/${r.global_exact.pixels} (${r.global_exact.percent.toFixed(2)}%). Above 16 channel levels: ${r.global_over16.percent.toFixed(2)}%. Translation: ${r.translation_px.x}, ${r.translation_px.y} px.`;
 }
 for(const id of['capture','scope','view','find','metric','sort','failed'])get(id).addEventListener('input',draw);draw();
@@ -886,6 +1037,70 @@ def self_test():
             self.assertEqual(result["raster_axes"]["x"][4], 150)
             self.assertEqual(result["raster_axes"]["y"][4], 81)  # the strict path reads a gridline at its centre + 1
             self.assertIn("reported geometry", result["coordinate_method"])
+
+        def shape_pair(self, dna_offset=(0, 0), dna_size=(80, 40), rotation=0.0):
+            # Excel: a 60 x 30 pt frame (80 x 40 px at 96 dpi) at 11.25 pt (A1 + 15 px), a red fill and a 3 px blue outline.
+            excel = Image.new("RGB", (300, 200), "white")
+            dna = Image.new("RGB", (300, 200), "white")
+            ex_shape = {"name": "Box", "type": 1, "left": 11.25, "top": 11.25, "width": 60.0, "height": 30.0, "rotation": 0.0,
+                        "visible": True, "fill_visible": True, "fill_type": 1, "fill_rgb": 0x0000C8, "fill_transparency": 0.0,
+                        "line_visible": True, "line_rgb": 0xC80000, "line_weight_points": 2.25}
+            def paint(image, x, y, w, h):
+                d = ImageDraw.Draw(image)
+                d.rectangle((x, y, x + w - 1, y + h - 1), fill=(200, 0, 0), outline=(0, 0, 200), width=3)
+            paint(excel, 20, 20, 80, 40)
+            paint(dna, 20 + dna_offset[0], 20 + dna_offset[1], dna_size[0], dna_size[1])
+            bbox = {"x": 20 + dna_offset[0], "y": 20 + dna_offset[1], "width": dna_size[0], "height": dna_size[1]}
+            dna_shape = {"name": "Box", "kind": "shape", "bbox": bbox, "width": dna_size[0], "height": dna_size[1], "rotation": rotation}
+            return ex_shape, dna_shape, excel, dna
+        def measure_shape(self, ex_shape, dna_shape, excel, dna, dna_shapes=None):
+            return shape_parity([ex_shape], [dna_shape] if dna_shapes is None else dna_shapes, excel, dna,
+                                {"x": 5, "y": 5}, {"x": 5, "y": 5}, 1, 96, 100)[0]["checks"]
+        def test_a_shape_painted_where_excel_paints_it_passes(self):
+            checks = self.measure_shape(*self.shape_pair())
+            for key in ("frame", "rotation", "fill_box", "outline_box"):
+                self.assertEqual(checks[key]["status"], "pass", (key, checks[key]))
+            self.assertEqual(checks["picture_box"]["status"], "unmeasured")
+        def test_a_displaced_or_resized_shape_fails_frame_and_boxes(self):
+            checks = self.measure_shape(*self.shape_pair(dna_offset=(6, 0)))
+            for key in ("frame", "fill_box", "outline_box"):
+                self.assertEqual(checks[key]["status"], "fail", key)
+            self.assertAlmostEqual(checks["frame"]["delta_px"]["x"], 6)
+            checks = self.measure_shape(*self.shape_pair(dna_size=(70, 40)))
+            self.assertEqual(checks["frame"]["status"], "fail")
+            self.assertEqual(checks["outline_box"]["delta_px"], [0, 0, -10, 0])
+        def test_a_wrong_fill_colour_or_missing_object_is_a_failure_not_a_pass(self):
+            ex_shape, dna_shape, excel, dna = self.shape_pair()
+            ImageDraw.Draw(dna).rectangle((23, 23, 96, 56), fill=(0, 160, 0))
+            checks = self.measure_shape(ex_shape, dna_shape, excel, dna)
+            self.assertEqual(checks["fill_box"]["status"], "fail")
+            checks = self.measure_shape(ex_shape, dna_shape, excel, dna, dna_shapes=[])
+            self.assertEqual(checks["frame"]["status"], "fail")
+            self.assertEqual(checks["fill_box"]["status"], "unmeasured")
+        def test_a_turn_that_differs_fails_rotation_and_a_flip_is_unmeasured(self):
+            ex_shape, dna_shape, excel, dna = self.shape_pair(rotation=12.0)
+            self.assertEqual(self.measure_shape(ex_shape, dna_shape, excel, dna)["rotation"]["status"], "fail")
+            ex_shape, dna_shape, excel, dna = self.shape_pair(rotation=359.8)
+            self.assertEqual(self.measure_shape(ex_shape, dna_shape, excel, dna)["rotation"]["status"], "pass")
+            ex_shape["h_flip"] = True
+            self.assertEqual(self.measure_shape(ex_shape, dna_shape, excel, dna)["rotation"]["status"], "unmeasured")
+        def test_a_gradient_or_transparent_fill_is_unmeasured_and_a_picture_is_measured_by_content(self):
+            ex_shape, dna_shape, excel, dna = self.shape_pair()
+            ex_shape["fill_type"] = 3
+            self.assertEqual(self.measure_shape(ex_shape, dna_shape, excel, dna)["fill_box"]["status"], "unmeasured")
+            ex_shape["type"] = 13
+            checks = self.measure_shape(ex_shape, dna_shape, excel, dna)
+            self.assertEqual(checks["picture_box"]["status"], "pass")
+            self.assertEqual(checks["fill_box"]["status"], "unmeasured")
+            moved = self.measure_shape(ex_shape, *self.shape_pair(dna_offset=(0, 5))[1:])
+            self.assertEqual(moved["picture_box"]["status"], "fail")
+        def test_the_shape_summary_counts_unmeasured_apart_from_passes(self):
+            rows = shape_parity([self.shape_pair()[0]], [], Image.new("RGB", (300, 200), "white"), Image.new("RGB", (300, 200), "white"),
+                                {"x": 0, "y": 0}, {"x": 0, "y": 0}, 1, 96, 100)
+            summary = shape_summary(rows)
+            self.assertEqual(summary["frame"]["failed"], 1)
+            self.assertEqual(summary["fill_box"]["passed"], 0)
+            self.assertEqual(summary["fill_box"]["unmeasured"], 1)
     result=unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(Controls))
     if not result.wasSuccessful():
         raise SystemExit(1)
@@ -1033,6 +1248,9 @@ def compare(out, report=None):
             headers[name] = {"excel_extent_px": ew if name == "rows" else eh,
                              "dna_extent_px": dw if name == "rows" else dh,
                              "common_extent_over16": changed(ha, hb, 16) if ha and hb else None}
+        # Drawing objects: DNA's element boxes are viewport client rectangles in CSS pixels, like the cells' layer offsets.
+        dna_shapes = capture.get("shapes", [])
+        shape_rows = shape_parity(ref.get("shapes", []), dna_shapes, excel, dna, ref["origin"], origin, dpr, ref["dpi"], capture["zoom"])
         result = {"prefix": prefix, "sha256": capture["sha256"], "zoom": capture["zoom"],
                   "painter": capture["painter"], "sheet": capture["sheet"],
                   "translation_px": {k: origin[k] - ref["origin"][k] for k in origin},
@@ -1041,6 +1259,8 @@ def compare(out, report=None):
                   "missing_text_ink_cells": sum(c["missing_text_ink"] for c in comparisons),
                   "cells": comparisons, "not_compared": skipped}
         result["parity_summary"] = parity_summary(comparisons)
+        result["shapes"] = shape_rows
+        result["shape_summary"] = shape_summary(shape_rows)
         result["cell_summary"] = cell_summary(comparisons)
         result["cells_with_failures"] = sum(any(v["status"] == "fail" for v in c["parity"].values()) for c in comparisons)
         result["number_text_differences"] = [{key:c[key] for key in ("row","col","excel_text","dna_text","dna_provenance","source_formula")} for c in comparisons if c["dna_kind"]=="number" and c["parity"]["display_text"]["status"]=="fail"]
@@ -1060,6 +1280,7 @@ def compare(out, report=None):
         "desktop": browser["desktop"],
         "uncalibrated_references": uncalibrated, "uncompared_captures": uncompared,
         "parity_summary": parity_summary([c for r in results for c in r["cells"]]),
+        "shape_summary": shape_summary([s for r in results for s in r["shapes"]]),
         "cell_summary": cell_summary([c for r in results for c in r["cells"]]),
         "source": {"browser_json_sha256": hashlib.sha256((out/"browser.json").read_bytes()).hexdigest(),
                    "request_sha256": hashlib.sha256((out/"request.json").read_bytes()).hexdigest(),
@@ -1073,6 +1294,8 @@ def compare(out, report=None):
     print(f"PARITY cells: {cs['status']}; measured {cs['measured']}, pass {cs['passed']}, fail {cs['failed']}, unmeasured {cs['unmeasured']}; outside measured area {sum(len(r['not_compared']) for r in results)}")
     for name, count in data["parity_summary"].items():
         print(f"PARITY {name}: {count['status']}; measured {count['measured']}, pass {count['passed']}, fail {count['failed']}, unmeasured/not applicable {count['unmeasured']}")
+    for name, count in data["shape_summary"].items():
+        print(f"PARITY shape_{name}: {count['status']}; measured {count['measured']}, pass {count['passed']}, fail {count['failed']}, unmeasured/not applicable {count['unmeasured']}")
 
 
 if __name__ == "__main__":

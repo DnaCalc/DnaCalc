@@ -90,3 +90,12 @@ a private desktop (`tools/excel-session/on-private-desktop.ps1`) to keep the win
 Regional overrides can be passed with `--decimal-separator` and `--thousands-separator`.
 These use the application URL settings, copied to its workbook worker; the capture records them.
 Use the recorded Excel separators when the reference has host overrides that differ from browser defaults.
+
+Drawing objects (dc-tqul7): the Excel worker also lists each sheet shape (`Shape.Left/Top/Width/Height` in points, turn,
+flips, fill and outline colour and weight) and the page capture lists each `[data-dnacalc=shape]` element (client
+rectangle, CSS size, turn). `comparison.json` gives per capture `shapes` and `shape_summary`, and the report prints
+`PARITY shape_*` lines: `frame` (unrotated frame, 2 px), `rotation` (0.5 degree; flipped shapes unmeasured), `fill_box` and
+`outline_box` (bounding box of the colour Excel reports, measured in both rasters inside the object's extent plus a
+margin, 2 px per edge at 100%), `picture_box` (the non-white, non-grid content box of a picture). A gradient, a transparent
+fill, a hairline outline or a fill equal to its outline is unmeasured, never a pass; an object DNA Calc did not draw fails.
+Objects are matched by name; a group is one object by its top-level name.

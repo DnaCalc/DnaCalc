@@ -421,6 +421,7 @@ class Broker:
                 data = await conn.reader.read(1 << 20)
                 if not data:
                     break
+                conn.last_rx = time.monotonic()
                 for kind, body in reader.feed(data):
                     self.on_frame(conn, kind, body)
         except (ConnectionError, OSError, ValueError):
@@ -446,6 +447,9 @@ class Broker:
             self.on_submit(conn, body)
         elif kind == protocol.PING:
             conn.send(protocol.PONG, body, True)
+        elif kind == protocol.PONG:
+            if isinstance(body, dict) and "sock" in body:
+                conn.relay_socket = bool(body["sock"])      # a relay says whether its lane socket still exists
         elif kind == protocol.WAIT:
             self.waits.add(body.get("kind", "client-timeout") if body.get("kind") in logs.WAIT_KINDS else "client-timeout",
                            origin=conn.origin, reason=str(body.get("reason"))[:200], seconds=float(body.get("seconds", 0)),
@@ -1205,6 +1209,11 @@ class Broker:
                 f"utc={logs.utc().isoformat(timespec='seconds')}")
         if down:
             line += " | " + "; ".join(f"{x.name}: {(x.down_reason or 'down')[:100]}" for x in down)
+        peers = getattr(self, "peers", None)
+        if peers is not None and peers.summary():
+            line += " | " + peers.summary()
+            if line.startswith("OK"):
+                line = "DEGRADED" + line[2:]
         return line
 
     def write_health(self):
@@ -1224,6 +1233,7 @@ class Broker:
                                "down_reason": s.down_reason if s.state == "down" else None,
                                "retry_at_utc": datetime.fromtimestamp(s.retry_at, timezone.utc).isoformat(timespec="seconds")
                                if s.state == "down" else None} for s in self.slots],
+                  "relays": self.peers.snapshot() if getattr(self, "peers", None) is not None else [],
                   "isolated_functions": sorted(self.batcher.isolate), "answer_cache_bytes": self.cache_bytes,
                   "leak_checks": self.leak_checks, "pending_leak_checks": len(self.pending_checks), "serial_registry": sorted(self.registry)}
         tmp = self.state_dir / "status.json.tmp"
@@ -1337,6 +1347,15 @@ def command_start(options):
     raise TimeoutError("broker start not confirmed; see " + str(state / "console.log"))
 
 
+def format_relay(relay):
+    """One status line per relay host: state since when, sessions and restarts, last frame, why it last dropped."""
+    line = (f"relay {relay['host']}: {relay['state'].upper()} since {relay['since_utc']} sessions={relay['sessions']} "
+            f"restarts={relay['restarts']} last_frame={relay['last_rx_utc'] or 'never'}")
+    if relay["state"] != "up":
+        line += f" retry_in={relay['retry_in_s']}s"
+    return line + f" | {relay['reason']}"
+
+
 def command_status(options):
     """One line: OK, DEGRADED or DOWN with workers, queue, oldest queued age and last answer.  --json for the rest."""
     path = options.state / "status.json"
@@ -1357,6 +1376,8 @@ def command_status(options):
         print(f"DOWN broker status is {age:.0f}s old (pid {data.get('pid')} not updating) | last: {data.get('health')}")
         raise SystemExit(2)
     print(data.get("health"))
+    for relay in data.get("relays") or []:
+        print(format_relay(relay))
     raise SystemExit(0 if str(data.get("health")).startswith("OK") else 1)
 
 
