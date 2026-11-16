@@ -33,7 +33,7 @@ def main():
     p.add_argument('--per-request', type=int, default=500)
     o = p.parse_args()
     rows = [w for rel in SOURCES for w in json.loads((o.evidence / rel).read_text())['witnesses']]
-    client = Client(transport='socket', timeout=1800)
+    client = Client(transport='socket', timeout=900)
     sock = client._socket()
     started = time.monotonic()
     pending = []

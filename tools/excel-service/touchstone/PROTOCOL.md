@@ -48,8 +48,8 @@ A **sheet case** (function `_CASE`, the one token `L`) lays out a small workbook
 "value"}` (in a text-formatted cell), `{"type": "boolean", "value"}`, `{"type": "error", "code"}` (entered as its error
 formula) or `{"type": "formula", "formula"}`. The worker builds each distinct layout once per batch (one new workbook,
 closed unsaved at the end; its sheets named and ordered as listed), constants as one Value2 rectangle per sheet,
-checks they read back, then for each case enters its probes by Formula2, calculates once (CalculateFull), reads every
-probe and its spill range and clears them. Answer letter `c`: `{"probes": [{"ty", "v", "spill": matrix | null} |
+checks they read back, then for each case enters its probes by Formula2, calculates once (CalculateFull for a layout's first case, then Calculate), reads every
+probe and its spill range and clears them (contents and formats). Answer letter `c`: `{"probes": [{"ty", "v", "spill": matrix | null} |
 {"refused": message}]}`; a layout whose constants changed is `u`. Send the cases of one layout together.
 
 ## Answers

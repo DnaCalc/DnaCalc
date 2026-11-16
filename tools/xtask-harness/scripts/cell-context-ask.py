@@ -73,7 +73,7 @@ def answer_of(row):
     if row['type'] != 'sheet_case':
         return {'value': 'unread:' + row['type'], 'spill': None}, None
     probe = row['probes'][0]
-    if probe['type'] == 'refused':
+    if probe.get('type') == 'refused':
         return {'value': 'entry:refused', 'spill': None}, probe['detail']
     spill = probe['spill']
     rows = None
@@ -151,7 +151,7 @@ def main():
     p.add_argument('--per-request', type=int, default=200)
     o = p.parse_args()
     o.out.mkdir(parents=True, exist_ok=True)
-    client = Client(transport='socket', timeout=1800)
+    client = Client(transport='socket', timeout=900)
     for path in sorted(glob.glob(str(REPO / 'tools' / 'xtask-harness' / 'cell-context' / '*.json'))):
         if o.family and pathlib.Path(path).stem != o.family:
             continue
