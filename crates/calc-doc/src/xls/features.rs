@@ -35,6 +35,7 @@ const WSBOOL: u16 = 0x0081;
 const H_PAGE_BREAKS: u16 = 0x001B;
 const V_PAGE_BREAKS: u16 = 0x001A;
 const DEF_COL_WIDTH: u16 = 0x0055;
+const STANDARD_WIDTH: u16 = 0x0099;
 const OBJ: u16 = 0x005D;
 const TXO: u16 = 0x01B6;
 const NOTE: u16 = 0x001C;
@@ -105,6 +106,7 @@ pub(crate) struct Features {
     column_breaks: Vec<(u16, u16, u16)>,
     pub(crate) outline_levels: Option<(u8, u8)>,
     pub(crate) default_column_width: Option<u16>,
+    pub(crate) standard_column_width: Option<u16>,
     /// The id of the comment object (OBJ of type note) waiting for its text box.
     waiting_object: Option<u16>,
     /// The sheet's number, which names its comment parts.
@@ -395,6 +397,9 @@ impl Features {
                 });
             }
             DEF_COL_WIDTH => self.default_column_width = Some(c.u16("DefColWidth").map_err(e)?),
+            STANDARD_WIDTH if record.body.len() == 2 => {
+                self.standard_column_width = Some(c.u16("DxGCol").map_err(e)?);
+            }
             _ => return Ok(false),
         }
         Ok(true)

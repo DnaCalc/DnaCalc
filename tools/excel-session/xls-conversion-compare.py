@@ -236,6 +236,8 @@ def package(data):
                     comments.extend((e.get('ref'), ''.join(x.text or '' for x in e.iter(M + 't')))
                                     for e in comment_root.iter(M + 'comment'))
             sheets.append({'name': s.get('name'), 'state': s.get('state', 'visible'), 'cells': cells,
+                           'default_column_width': (sh.find(M + 'sheetFormatPr').get('defaultColWidth')
+                                                    if sh.find(M + 'sheetFormatPr') is not None else None),
                            'views': [{k: e.get(k) for k in ('showOutlineSymbols', 'defaultGridColor', 'colorId', 'view',
                                                              'zoomScale', 'zoomScaleNormal', 'zoomScaleSheetLayoutView')
                                       if e.get(k) is not None} for e in sh.findall(f'{M}sheetViews/{M}sheetView')],

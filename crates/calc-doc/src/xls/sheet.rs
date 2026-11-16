@@ -640,7 +640,9 @@ pub(crate) fn read(
     }
     let mut format = vec![("defaultRowHeight", formula::number_text(f64::from(default_height) / 20.0))];
     format.extend(default_row_attributes);
-    if let Some(width) = default_column_width {
+    if let Some(width) = features.standard_column_width {
+        format.push(("defaultColWidth", formula::number_text(f64::from(width) / 256.0)));
+    } else if let Some(width) = default_column_width {
         format.push(("defaultColWidth", width.to_string()));
     }
     if let Some((row, column)) = features.outline_levels {

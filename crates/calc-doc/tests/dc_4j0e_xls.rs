@@ -24,7 +24,8 @@ fn write_legacy_excel_session_inputs() {
     let Some(dir) = std::env::var_os("DNACALC_XLS_SESSION_INPUTS") else { return };
     let dir = std::path::PathBuf::from(dir);
     std::fs::create_dir_all(&dir).unwrap();
-    let mut cells = colinfo(1, 2, 3072, 0x000A);
+    let mut cells = record(0x0099, &u16s(&[2340]));
+    cells.extend(colinfo(1, 2, 3072, 0x000A));
     let mut row_with_flags = row(0, 255, 0);
     let last = row_with_flags.len() - 1;
     row_with_flags[last] |= 0x70;
@@ -604,6 +605,23 @@ fn row_border_and_phonetic_flags_survive_conversion_and_save() {
     let mut saved = Vec::new();
     calc_doc::write(plan, &mut saved).unwrap();
     check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn fractional_standard_width_takes_precedence_and_survives_save() {
+    let records = [record(0x0099, &u16s(&[2340])), record(0x0055, &u16s(&[10])), number(0, 0, 1.0)].concat();
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", records)]);
+    let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let mut ids = IdAllocator::<SheetId>::new();
+    let loaded = calc_doc::load(&doc, &mut ids).unwrap();
+    assert_eq!(loaded.sheets()[0].geometry().default_column_width, Some(2340.0 / 256.0));
+    let plan = calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+    let mut saved = Vec::new();
+    calc_doc::write(plan, &mut saved).unwrap();
+    let reopened = calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap();
+    let loaded = calc_doc::load(&reopened, &mut IdAllocator::<SheetId>::new()).unwrap();
+    assert_eq!(loaded.sheets()[0].geometry().default_column_width, Some(2340.0 / 256.0));
 }
 
 fn defined_names(bytes: &[u8]) -> Vec<String> {
