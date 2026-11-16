@@ -9,6 +9,9 @@ use std::time::{Duration, Instant};
 /// startup AfterCalculate the Excel-DNA X0 trace shows after AutoOpen, with no cell changed, and
 /// the fifth the original xlOil counts by its first read). An idle add-in set raises nothing per
 /// pass: Excel raises AfterCalculate for a calculation, never per message-loop pass (dc-1nbp.3.1).
+/// The load's own raise is not added to the ones its changing registrations raised: the Excel-DNA X0
+/// trace has one AfterCalculate after the add-in's load, where a raise per changing pass and one more
+/// at the end gave two.
 #[cfg_attr(not(windows), allow(dead_code))]
 pub(crate) fn settle_loop(
     quiet: Duration,
@@ -20,6 +23,7 @@ pub(crate) fn settle_loop(
 ) {
     let start = Instant::now();
     let (mut quiet_since, mut last) = (start, signature());
+    let mut raised_in_loop = false;
     while start.elapsed() < limit && quiet_since.elapsed() < quiet {
         pump();
         std::thread::sleep(pause);
@@ -28,9 +32,10 @@ pub(crate) fn settle_loop(
             last = now;
             quiet_since = Instant::now();
             raise();
+            raised_in_loop = true;
         }
     }
-    if last != 0 {
+    if last != 0 && !raised_in_loop {
         raise();
     }
 }
@@ -66,7 +71,7 @@ mod tests {
         assert_eq!(raised.get(), 0);
     }
 
-    /// Each pass that finds a new registration raises one, the loop outlasts the last change, and the load's own recalculation follows.
+    /// Each pass that finds a new registration raises one and the loop outlasts the last change; the load's own recalculation is not a further one.
     #[test]
     fn dc_1nbp_3_1__each_registration_change_raises_one_after_calculate() {
         let (passes, raised) = (Cell::new(0u32), Cell::new(0u32));
@@ -78,6 +83,6 @@ mod tests {
             || passes.set(passes.get() + 1),
             || raised.set(raised.get() + 1),
         );
-        assert_eq!(raised.get(), 4);
+        assert_eq!(raised.get(), 3);
     }
 }
