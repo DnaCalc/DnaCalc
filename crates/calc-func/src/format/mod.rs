@@ -601,9 +601,14 @@ fn condition_of(section: &str) -> Option<String> {
 
 /// A section with its bracketed tokens resolved: colors dropped, locale recorded for names, a currency tag
 /// `[$sym-xxxx]` written as its symbol (quoted), conditions dropped, elapsed-time tokens kept.
-fn strip_tokens(section: &str) -> Result<(String, Option<crate::locale::LocaleId>, bool), Failure> {
+/// The locale tag's LCID (`[$-407]`), when it is written as one, travels with its locale: names
+/// under a tag are measured per LCID (names.rs).
+type Stripped = (String, Option<crate::locale::LocaleId>, Option<u16>, bool);
+
+fn strip_tokens(section: &str) -> Result<Stripped, Failure> {
     let mut out = String::new();
     let mut name_locale = None;
+    let mut name_lcid = None;
     let mut locale_declared = false;
     let mut chars = section.chars().peekable();
     let (mut quoted, mut escaped) = (false, false);
@@ -639,8 +644,8 @@ fn strip_tokens(section: &str) -> Result<(String, Option<crate::locale::LocaleId
                     if !locale.is_empty() {
                         locale_declared = true;
                         use crate::locale::LocaleId;
-                        name_locale = u16::from_str_radix(locale, 16)
-                            .ok()
+                        name_lcid = u16::from_str_radix(locale, 16).ok();
+                        name_locale = name_lcid
                             .and_then(LocaleId::from_excel_lcid)
                             .or_else(|| LocaleId::from_bcp47_language_tag(locale));
                     }
@@ -658,7 +663,7 @@ fn strip_tokens(section: &str) -> Result<(String, Option<crate::locale::LocaleId
             _ => out.push(ch),
         }
     }
-    Ok((out, name_locale, locale_declared))
+    Ok((out, name_locale, name_lcid, locale_declared))
 }
 
 /// The section a number is rendered with, and whether that section shows the number's sign
@@ -1883,7 +1888,7 @@ pub(crate) fn text_declared_date_locale(system: DateSystem, value: f64, code: &s
         return Err(Failure::NotModelled);
     }
     let (section, _) = choose(&sections, value).map_err(|_| Failure::NotModelled)?;
-    let (stripped, name_locale, _) = strip_tokens(&section).map_err(|_| Failure::NotModelled)?;
+    let (stripped, name_locale, _, _) = strip_tokens(&section).map_err(|_| Failure::NotModelled)?;
     let locale = name_locale.ok_or(Failure::NotModelled)?;
     if stripped.trim().is_empty()
         || !stripped.chars().all(|c| {
@@ -1938,7 +1943,7 @@ fn render_text(profile: &FormatProfile, system: DateSystem, value: f64, code: &s
     }
     let sections = sections(code);
     let (section, signed_section) = choose(&sections, value)?;
-    let (stripped, name_locale, locale_declared) = strip_tokens(&section)?;
+    let (stripped, name_locale, name_lcid, locale_declared) = strip_tokens(&section)?;
     if stripped.trim().eq_ignore_ascii_case("general") {
         let shown = general(profile, if signed_section { value.abs() } else { value });
         return Ok(shown);
@@ -2006,6 +2011,7 @@ fn render_text(profile: &FormatProfile, system: DateSystem, value: f64, code: &s
             value,
             &stripped,
             name_locale,
+            name_lcid,
             !locale_declared,
         )
         .ok_or(Failure::NotModelled);
@@ -2102,7 +2108,7 @@ fn render_text_of_text(text: &str, code: &str, profile: &FormatProfile) -> Rende
         None if sections.len() == 1 && sections[0].contains('@') => sections[0].clone(),
         None => return Ok(text.to_owned()),
     };
-    let (stripped, _, _) = strip_tokens(&section)?;
+    let (stripped, _, _, _) = strip_tokens(&section)?;
     let mut out = String::new();
     for part in stripped.split('@').enumerate() {
         if part.0 > 0 {

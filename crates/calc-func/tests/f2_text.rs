@@ -752,6 +752,33 @@ fn unassigned_hangul_block_units_are_ignorable() {
     assert_eq!((exact, through_soft_hyphen), (3125, 7));
 }
 
+/// dc-zsn.4: month and weekday names under an explicit locale tag are Excel's for that tag's LCID
+/// (de-AT writes Jänner, es-ES ene., zh-TW 一月), 6528 dates read from Excel 16.0.20527
+/// (tests/fixtures/fn5_tagged_names, held-out formats included).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn tagged_date_names_follow_the_tag_lcid() {
+    use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
+    let env = CalcEnvironment {
+        profile: Some(format_profile(LocaleId::EnZa)),
+        ..CalcEnvironment::dates(DateSystem::System1900)
+    };
+    let mut dates = 0;
+    for line in include_str!("fixtures/fn5_tagged_names/excel-text.tsv").lines() {
+        if line.starts_with('#') {
+            continue;
+        }
+        let cols: Vec<&str> = line.split('\t').collect();
+        let (format, serials, answers) = (cols[0], cols[1].split(','), cols[2].split('|'));
+        for (serial, expected) in serials.zip(answers) {
+            let serial: f64 = serial.parse().unwrap();
+            text(call_in(&env, None, None, "TEXT", vec![n(serial), t(format)]), expected);
+            dates += 1;
+        }
+    }
+    assert_eq!(dates, 2542 + 3444);
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn char_code_unichar_unicode() {
