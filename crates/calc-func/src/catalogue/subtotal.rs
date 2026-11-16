@@ -61,7 +61,8 @@ fn held_values(
                             break;
                         };
                         if rule.nested {
-                            excluded_cells.extend(nested_subtotals.iter().map(|k| (k.row(), k.column())));
+                            excluded_cells
+                                .extend(nested_subtotals.iter().map(|k| (k.row(), k.column())));
                         }
                         if rule.hidden {
                             excluded_rows.extend(hidden_rows);
@@ -76,14 +77,23 @@ fn held_values(
                         // still know which cells are included.
                         if neutral_without_exclusions {
                             let mut neutral = true;
-                            let read = read_reference(site, reader, reference, index, &mut |_, _, value| {
-                                neutral &= value.callable_value().is_none()
-                                    && matches!(
-                                        value.core_ref(),
-                                        CoreRef::Empty | CoreRef::Missing | CoreRef::Logical(_) | CoreRef::Text(_)
-                                    );
-                                Ok(())
-                            });
+                            let read = read_reference(
+                                site,
+                                reader,
+                                reference,
+                                index,
+                                &mut |_, _, value| {
+                                    neutral &= value.callable_value().is_none()
+                                        && matches!(
+                                            value.core_ref(),
+                                            CoreRef::Empty
+                                                | CoreRef::Missing
+                                                | CoreRef::Logical(_)
+                                                | CoreRef::Text(_)
+                                        );
+                                    Ok(())
+                                },
+                            );
                             if read.is_ok() && neutral {
                                 continue;
                             }
@@ -287,7 +297,23 @@ ported_shared_family! {
         if a.len() != 4 {
             return fail(WorksheetErrorCode::Value);
         }
-        let k = num(s, a, 3)?;
+        // k given by a one-cell reference (the parameter takes references for the reference
+        // form) is that cell's value (Excel 16.0.20527 serial recaptures: =AGGREGATE(B1,C1,D1,E1)
+        // with k in E1, admit2-more-AGGREGATE-0433).
+        let k = match a[3].core_ref() {
+            CoreRef::Reference(reference)
+                if matches!(reference.areas(), [area] if area.cell_count() == 1) =>
+            {
+                let mut cell = CalcValue::empty();
+                let reader = aggregate::reader(s, sv, 3)?;
+                read_reference(s, reader, reference, 3, &mut |_, _, value| {
+                    cell = value.clone();
+                    Ok(())
+                })?;
+                s.number_argument(3, &cell)?
+            }
+            _ => num(s, a, 3)?,
+        };
         let values = match a[2].core_ref() {
             CoreRef::Reference(_) => held_values(s, &a[..3], 2, sv, rule, false)?,
             CoreRef::Array(array) => array
@@ -312,8 +338,10 @@ ported_shared_family! {
             }
             16 => percentile_inc_kernel(&mut numbers, k),
             17 => {
+                // A negative quart is #NUM! before it is truncated, as QUARTILE's is
+                // (dc-ymjf.2.98; bank row admit2-scalar-AGGREGATE-1045: k -1.5e-10 is #NUM!).
                 let q = k.trunc();
-                if !(0.0..=4.0).contains(&q) { Err(WorksheetErrorCode::Num) }
+                if k < 0.0 || !(0.0..=4.0).contains(&q) { Err(WorksheetErrorCode::Num) }
                 else { percentile_inc_kernel(&mut numbers, q / 4.0) }
             }
             18 => percentile_exc_kernel(&mut numbers, k),

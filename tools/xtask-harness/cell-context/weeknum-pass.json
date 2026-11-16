@@ -1,0 +1,38 @@
+{
+ "format": "dnacalc-cell-context/1",
+ "family": "weeknum-pass",
+ "layouts": {
+  "empty": {
+   "sheets": [
+    {
+     "name": "Sheet1",
+     "cells": {}
+    }
+   ],
+   "names": {}
+  }
+ },
+ "cases": [
+{"id":"weeknum-pass-00","function":"WEEKNUM","layout":"empty","at":"Sheet1!B2","formula":"=WEEKNUM(45000,30)","layout_sha":"4429e4b0620d4129bb4e1f356b2c5d2727579afb3c2cb2c3aac2ca4f8032a17b"},
+{"id":"weeknum-pass-01","function":"WEEKNUM","layout":"empty","at":"Sheet1!B2","formula":"=WEEKNUM(45000,0.5)","layout_sha":"64c38876140e4519de0c04a867148034bdd4d925d5d4567446d9b6d04fc8eb7e"},
+{"id":"weeknum-pass-02","function":"WEEKNUM","layout":"empty","at":"Sheet1!B2","formula":"=WEEKNUM(45000,1)&\"|\"&WEEKNUM(45000,30)","layout_sha":"d7e3f863fd0a106d97562a057c0919c33c7d1f6d28eb0f4196845025f6610c57"},
+{"id":"weeknum-pass-03","function":"WEEKNUM","layout":"empty","at":"Sheet1!B2","formula":"=WEEKNUM(45000,2)&\"|\"&WEEKNUM(45000,30)","layout_sha":"a1faaf0cf323f7d128f65ff3f9365ee860d6648f297c850ca49d9994d79b326c"},
+{"id":"weeknum-pass-04","function":"WEEKNUM","layout":"empty","at":"Sheet1!B2","formula":"=WEEKNUM(45000,30)&\"|\"&WEEKNUM(45000,2)","layout_sha":"05d0ed47b38e6768422c06a9805e8a452075a1f0c0cfbfcb7694ac711ae5f092"},
+{"id":"weeknum-pass-05","function":"WEEKNUM","layout":"empty","at":"Sheet1!B2","formula":"=ISOWEEKNUM(45000)&\"|\"&WEEKNUM(45000,30)","layout_sha":"4607566bb6ab23eaebfd6924032bcc3ffc71ab328b70012980fbf5cf0d1291b6"},
+{"id":"weeknum-pass-06","function":"WEEKNUM","layout":"empty","at":"Sheet1!B2","formula":"=WEEKNUM(45000,21)&\"|\"&WEEKNUM(45002,30)","layout_sha":"20419c26b1c143fa70402905f30c1690fd820e958f9e52fc050542351a82425c"},
+{"id":"weeknum-pass-07","function":"WEEKNUM","layout":"empty","at":"Sheet1!B2","formula":"=WEEKNUM(45000,13)&\"|\"&WEEKNUM(45000,30)","layout_sha":"14e000a47de9b61c32a6225856eab6a793321931ce10c9b0c0c6e4640ac81abb"},
+{"id":"weeknum-pass-08","function":"WEEKNUM","layout":"empty","at":"Sheet1!B2","formula":"=WEEKNUM(45000,2)&\"|\"&WEEKNUM(45000,3)&\"|\"&WEEKNUM(45000,30)","layout_sha":"b2e65f19fc6fb629bb6613c26fda7616629939745af9e7e68b99b7ed6416724f"},
+{"id":"weeknum-pass-09","function":"WEEKNUM","layout":"empty","at":"Sheet1!B2","formula":"=WEEKNUM(45000,{2,30})","layout_sha":"91cb8cf7e0a2ed27998ea2a9d007fa33c5e85b22a6129ac897d7e30d4da87dd6"},
+{"id":"weeknum-pass-10","function":"WEEKNUM","layout":"empty","at":"Sheet1!B2","formula":"=WEEKNUM(45000,{30,2})","layout_sha":"ae023d72c43497402674616961a617df6d41d6dabd40322aa346c4184f40a2d5"},
+{"id":"weeknum-pass-11","function":"WEEKNUM","layout":"empty","at":"Sheet1!B2","formula":"=WEEKNUM(45000,{2;30})","layout_sha":"38095640a345215677ebd9e0b4535f5bb69fc73876df920128ff6e95f8a42b98"},
+{"id":"weeknum-pass-12","function":"WEEKNUM","layout":"empty","at":"Sheet1!B2","formula":"=WEEKNUM({45000,45002},{17,30})","layout_sha":"948f6da136ae536e7733162270da4ab4135e89b503a93a3d9b0900630a096bcc"},
+{"id":"weeknum-pass-13","function":"WEEKNUM","layout":"empty","at":"Sheet1!B2","formula":"=IF(TRUE,WEEKNUM(45000,2),0)&\"|\"&WEEKNUM(45000,30)","layout_sha":"c72ba0ab12e818605967562e396cc7387483cd8e5d0d0994dee36e911b794421"},
+{"id":"weeknum-pass-14","function":"WEEKNUM","layout":"empty","at":"Sheet1!B2","formula":"=WEEKNUM(45000,30)+WEEKNUM(45000,30)","layout_sha":"15f55d1d592ed3e41276e5ac4c0dde9291e21fe1c57bec682a307269681dbbf1"},
+{"id":"weeknum-pass-15","function":"WEEKNUM","layout":"empty","at":"Sheet1!B2","formula":"=LET(a,WEEKNUM(45000,11),b,WEEKNUM(45002,99),a&\"|\"&b)","layout_sha":"7d7e1091ec9dd2f2f0fe45aac52c2e62c89a056f35edb3f769cbeab55b65e092"},
+{"id":"weeknum-pass-16","function":"WEEKNUM","layout":"empty","at":"Sheet1!B2","formula":"=SUM(WEEKNUM(45000,2),WEEKNUM(45001,-1))","layout_sha":"b430d76dd701dc0fb4806be9967ee37d53c547ee9c7960fd9e48351900b934ca"},
+{"id":"weeknum-pass-17","function":"WEEKNUM","layout":"empty","at":"Sheet1!B2","formula":"=WEEKNUM(45000,2)&\"|\"&ABS(1)&\"|\"&WEEKNUM(45000,30)","layout_sha":"701416ebfb1dc506110a9259604d6eb8938b19cd22f180f95fb7cd20c1d3ba81"},
+{"id":"weeknum-pass-18","function":"WEEKNUM","layout":"empty","at":"Sheet1!B2","formula":"=WEEKNUM(45000,17)&\"|\"&WEEKNUM(45001,22)","layout_sha":"a4e7163c82037ce81c94f298c3755f7ede4f01689e90b57188a55fc2744339ea"},
+{"id":"weeknum-pass-19","function":"WEEKNUM","layout":"empty","at":"Sheet1!B2","formula":"=WEEKNUM(\"x\",2)&\"|\"&WEEKNUM(45000,30)","layout_sha":"a9576ab5b88c814c4e495f3b55df7c352fc51ddaef649b25dee16179ab0818f7"},
+{"id":"weeknum-pass-20","function":"WEEKNUM","layout":"empty","at":"Sheet1!B2","formula":"=IFERROR(WEEKNUM(-1,2),0)&\"|\"&WEEKNUM(45000,30)","layout_sha":"d2ba3b4908b055e8eaaf84d0b5ffc2365958d2b18d89666fe68649dd1f4146e4"}
+ ]
+}

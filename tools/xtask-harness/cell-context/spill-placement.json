@@ -105,6 +105,22 @@
     }
    ],
    "names": {}
+  },
+  "own": {
+   "sheets": [
+    {
+     "name": "Sheet1",
+     "cells": {
+      "B1": "0x3feccccccccccccd",
+      "C1": "0x3ff0000000000000",
+      "D1": "text:-1",
+      "E1": "0x4076d00000000000",
+      "G6": "0x4014000000000000",
+      "H6": "0x4018000000000000"
+     }
+    }
+   ],
+   "names": {}
   }
  },
  "cases": [
@@ -211,6 +227,24 @@
 {"id":"wrapcols-1-far","function":"WRAPCOLS","layout":"far","at":"Sheet1!H10","formula":"=WRAPCOLS(B1:B5,2,0)","layout_sha":"e6b3fa89df3b08e0513595bab4ac925bf0f09e55c29fe780bf09b9356e752ae5"},
 {"id":"wrapcols-1-edge-XFD1048576","function":"WRAPCOLS","layout":"free","at":"Sheet1!XFD1048576","formula":"=WRAPCOLS(B1:B5,2,0)","layout_sha":"56ea20b2b3963e3e9f8a995489299e21137bd146f20bdcdb698d503eb42d0dce"},
 {"id":"wrapcols-1-edge-XFD1","function":"WRAPCOLS","layout":"free","at":"Sheet1!XFD1","formula":"=WRAPCOLS(B1:B5,2,0)","layout_sha":"aac3f22e3bfa4a846223262a356da784e462a8fb52bd0a24d94afe6cca50dcc1"},
-{"id":"wrapcols-1-edge-A1048576","function":"WRAPCOLS","layout":"free","at":"Sheet1!A1048576","formula":"=WRAPCOLS(B1:B5,2,0)","layout_sha":"5331562d90f6e367e0355373d5cf87942ec55ed66ae54dd4dc06a2cc28a6116f"}
+{"id":"wrapcols-1-edge-A1048576","function":"WRAPCOLS","layout":"free","at":"Sheet1!A1048576","formula":"=WRAPCOLS(B1:B5,2,0)","layout_sha":"5331562d90f6e367e0355373d5cf87942ec55ed66ae54dd4dc06a2cc28a6116f"},
+{"id":"own-00","function":"SPILL","layout":"own","at":"Sheet1!A1","formula":"=OFFSET(B1,C1,D1,E1)","layout_sha":"73927cf2f7615f81f777b7424b577a1d0357cfea80eb87d3e550b552942f4880"},
+{"id":"own-01","function":"SPILL","layout":"own","at":"Sheet1!A1","formula":"=OFFSET(B1,1,-1,3)","layout_sha":"ca87b9bfb3133f6c2091764d66667a91940018dffba5c3c50612f070a4fe08b7"},
+{"id":"own-02","function":"SPILL","layout":"own","at":"Sheet1!A1","formula":"=OFFSET(A1,1,0,3)","layout_sha":"3ab841c9127cc483ba217e2d18f969d9583b7a699099b1a769bd655e12e92cbe"},
+{"id":"own-03","function":"SPILL","layout":"own","at":"Sheet1!A1","formula":"=A2:A4","layout_sha":"709cbc6fd0fef98ef7f73ee0730300fce13ce6f0c5062454c8ef0efc5da888a7"},
+{"id":"own-04","function":"SPILL","layout":"own","at":"Sheet1!A1","formula":"=A2:A4*1","layout_sha":"909c9be057dd789c251cc2add29a17a2fcc37d1e9aec2f0ddc427dc35faced3d"},
+{"id":"own-05","function":"SPILL","layout":"own","at":"Sheet1!A1","formula":"=A2:A4&\"\"","layout_sha":"3e375a75bd3f1dd76fe278f33cc078907461b1f1c937d69dfea833116889ba13"},
+{"id":"own-06","function":"SPILL","layout":"own","at":"Sheet1!A1","formula":"=SEQUENCE(3)+A3","layout_sha":"12afff9bb5fd6d1a8d84c84789e1a50fdaf1e920d9eed995b3e68d397ec23da3"},
+{"id":"own-07","function":"SPILL","layout":"own","at":"Sheet1!A1","formula":"=SUM(A2:A3)+SEQUENCE(3)","layout_sha":"eaaae23ca17b603ca2e7b0f163436c4b975e69a59fd8f4d38dbaa12d847248f4"},
+{"id":"own-08","function":"SPILL","layout":"own","at":"Sheet1!A1","formula":"=A2:A6","layout_sha":"00c1ea7a609684233ee5bc84f879b0155c38dfa7023d0a391e5d125cb5fcd5af"},
+{"id":"own-09","function":"SPILL","layout":"own","at":"Sheet1!A1","formula":"=OFFSET(A1,1,0,6)","layout_sha":"03f2cebc31eefe7f3931cf22e94f2929157f18b885b9daff4a449bfd10245093"},
+{"id":"own-10","function":"SPILL","layout":"own","at":"Sheet1!A1","formula":"=TRANSPOSE(B1:B3)","layout_sha":"2a442e13f0e6d15f2af99da875374c3f4cc677c0f6f10fc6543cf92e9f71779b"},
+{"id":"own-11","function":"SPILL","layout":"own","at":"Sheet1!A1","formula":"=IF(TRUE,A2:A4)","layout_sha":"86936778c72ccff755c9cd2b81772baefb4f441e0c1d77dad5f6b8eb27c5a90d"},
+{"id":"own-12","function":"SPILL","layout":"own","at":"Sheet1!A1","formula":"=INDEX(A2:A10,0)","layout_sha":"9117b4a7827c5b336daef706f5c41c5b1fc251d660f8704be687fc3f8102bbac"},
+{"id":"own-13","function":"SPILL","layout":"own","at":"Sheet1!A1","formula":"=ROWS(A2:A4)+SEQUENCE(3)","layout_sha":"f2ab7f0b8ebbfcb511504c12318d62c765ddad7b9c3f456c60bfe4691b9c4471"},
+{"id":"own-14","function":"SPILL","layout":"own","at":"Sheet1!A1","formula":"=ISBLANK(A2:A4)","layout_sha":"eb7ac5adb07fa43e528129afc33aa85379407d8b6034c9096d4bb28ca9d195b8"},
+{"id":"own-g-00","function":"SPILL","layout":"own","at":"Sheet1!G1","formula":"=G2:G7","layout_sha":"60ea5dba8fb788dfae680f313c17f45bd32a2bc16d100404f286f829135489a6"},
+{"id":"own-g-01","function":"SPILL","layout":"own","at":"Sheet1!G1","formula":"=G2:H7","layout_sha":"c1d198ca3f4341ce00557c566aee2d56dd2fd0fae0e19b5f086dfe86816ede9e"},
+{"id":"own-g-02","function":"SPILL","layout":"own","at":"Sheet1!G1","formula":"=OFFSET(G2,0,0,3,2)","layout_sha":"98e47481dd1c075b939add7e50b6119793b51a330846a4e9f8b2fa9ec5a861d1"}
  ]
 }

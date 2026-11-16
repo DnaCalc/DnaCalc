@@ -18,12 +18,11 @@ pub use calc_value as value;
 mod call;
 mod udf;
 pub use udf::{
-    MAX_TOPIC_STRINGS, RTD_CONNECT_FAILED, RTD_PROVIDER, ReferenceHandleError, ReferenceHandles, ReferenceRead,
-    RtdConnection,
-    RtdCallRead, RtdConnector, RtdCut, RtdEntry, RtdLease, RtdRead, RtdTopicRead,
-    StoredReference, TopicKey, read_rtd_call,
-    UserCallableIdentity, UserFunction, UserFunctionContext, UserFunctionInvocation,
-    UserFunctionStep, UserInvocationFrame, UserReevaluationReason, UserView,
+    MAX_TOPIC_STRINGS, RTD_CONNECT_FAILED, RTD_PROVIDER, ReferenceHandleError, ReferenceHandles,
+    ReferenceRead, RtdCallRead, RtdConnection, RtdConnector, RtdCut, RtdEntry, RtdLease, RtdRead,
+    RtdTopicRead, StoredReference, TopicKey, UserCallableIdentity, UserFunction,
+    UserFunctionContext, UserFunctionInvocation, UserFunctionStep, UserInvocationFrame,
+    UserReevaluationReason, UserView, read_rtd_call,
 };
 mod catalogue;
 mod coerce;
@@ -46,7 +45,7 @@ pub use call::{
     ApplicationFacts, CalculationMode, CallAbandoned, CallableInvoker, CellFormatFacts, CellReader,
     ColumnWidth, EvalServices, FunctionCallScratch, FunctionFault, HorizontalAlignment, HostFacts,
     PivotLookup, PreparedArguments, RandomSource, ReferenceText, SubtotalExclusions, TextReference,
-    Unreadable, WorkbookFacts, WorkbookFile, invoke, invoke_slice,
+    Unreadable, WeekState, WorkbookFacts, WorkbookFile, invoke, invoke_slice,
 };
 pub use catalogue::{
     ArgumentDemand, ArgumentGroups, Availability, BindingForm, Catalogue, Deferral, EntryClass,

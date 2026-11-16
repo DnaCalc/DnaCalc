@@ -561,3 +561,118 @@ fn dc_b1l__offset_and_indirect_over_an_array_give_references() {
         }
     }
 }
+
+/// Each consumer reads an array of references as Excel 16.0.20527 does (Touchstone sheet cases,
+/// 2026-11-16, cell-context family reference-arrays, over 1..6 in A1:A6 and 10..60 in C1:C6).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_b1l__each_consumer_reads_an_array_of_references_as_excel() {
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(calc_host::blank_package()));
+    let mut session = HostSession::open(
+        source,
+        &OpenPolicy::default(),
+        HostOptions {
+            calc_mode: Some(CalcMode::Automatic),
+            ..HostOptions::default()
+        },
+    )
+    .expect("a new workbook opens");
+    let sheet = session.host().sheets()[0].id();
+    let at = |row: u32, column: u32| CellKey::new(sheet, row, column).expect("a cell");
+    let mut enter = |row: u32, column: u32, text: &str| {
+        let receipt = session.dispatch(SkinIntent::EnterCell {
+            at: at(row, column),
+            text: text.to_owned(),
+        });
+        assert!(receipt.accepted(), "{text}: {receipt:?}");
+    };
+    for row in 1..=6 {
+        enter(row, 1, &row.to_string());
+        enter(row, 3, &(10 * row).to_string());
+    }
+    let r = "OFFSET(A1,{0;1;2},0,2)";
+    let cases = [
+        (format!("=MIN({r})"), vec!["1"]),
+        (format!("=STDEV({r})"), vec!["1"]),
+        (format!("=NPV(0.1,{r})"), vec!["4.815927873779113"]),
+        (format!("=SUMPRODUCT({r})"), vec!["0"]),
+        (format!("=MEDIAN({r})"), vec!["Value"]),
+        (format!("=MATCH(2,{r},0)"), vec!["NA"]),
+        (format!("=CORREL({r},{r})"), vec!["Num"]),
+        (format!("=AND({r})"), vec!["NA"]),
+        (format!("=ISERROR({r})"), vec!["true", "true", "true"]),
+        (format!("=IFERROR({r},0)"), vec!["0", "0", "0"]),
+        (format!("=RANK(1,{r})"), vec!["2", "NA", "NA"]),
+        (format!("=COUNTIFS({r},\">1\")"), vec!["1", "2", "2"]),
+        (format!("=INDEX({r},2,1)"), vec!["2", "3"]),
+        (format!("=ISREF(INDEX({r},1,1))"), vec!["true"]),
+        (format!("=INDEX({r},2)"), vec!["Value"]),
+        (format!("=REDUCE(0,{r},LAMBDA(a,v,a+v))"), vec!["6", "9"]),
+        (format!("=T({r})"), vec!["\"\"", "\"\"", "\"\""]),
+        (format!("=UNIQUE({r})"), vec!["not modelled"]),
+    ];
+    for (i, (formula, _)) in cases.iter().enumerate() {
+        enter(4 * i as u32 + 1, 8, formula);
+    }
+    for (i, (formula, values)) in cases.iter().enumerate() {
+        for (offset, value) in values.iter().enumerate() {
+            let row = 4 * i as u32 + 1 + offset as u32;
+            assert_eq!(shown(&session, at(row, 8)), *value, "{formula} (H{row})");
+        }
+    }
+}
+
+/// WEEKNUM with a return type outside 1-21 numbers weeks from the start the evaluation's last
+/// WEEKNUM or ISOWEEKNUM left, #NUM! with none (dc-amhpx; Excel 16.0.20527, Touchstone, cell-context
+/// family weeknum-pass, each case asked alone). Known only to a formula alone with WEEKNUM in its
+/// workbook; a second such formula leaves the state unknown, and the call is refused.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_amhpx__weeknum_reads_the_week_start_its_formula_left() {
+    for (formula, value) in [
+        ("=WEEKNUM(45000,30)", "Num"),
+        ("=WEEKNUM(45000,2)&\"|\"&WEEKNUM(45000,30)", "\"12|12\""),
+        ("=WEEKNUM(45000,1)&\"|\"&WEEKNUM(45000,30)", "\"11|11\""),
+        ("=ISOWEEKNUM(45000)&\"|\"&WEEKNUM(45000,30)", "\"11|12\""),
+        ("=WEEKNUM(45000,13)&\"|\"&WEEKNUM(45000,30)", "Num"),
+        ("=IFERROR(WEEKNUM(-1,2),0)&\"|\"&WEEKNUM(45000,30)", "Num"),
+        ("=WEEKNUM(45000,30)&\"|\"&WEEKNUM(45000,2)", "not modelled"),
+    ] {
+        let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(calc_host::blank_package()));
+        let mut session = HostSession::open(
+            source,
+            &OpenPolicy::default(),
+            HostOptions {
+                calc_mode: Some(CalcMode::Automatic),
+                ..HostOptions::default()
+            },
+        )
+        .expect("a new workbook opens");
+        let sheet = session.host().sheets()[0].id();
+        let b2 = CellKey::new(sheet, 2, 2).unwrap();
+        let entered = session.dispatch(SkinIntent::EnterCell {
+            at: b2,
+            text: formula.to_owned(),
+        });
+        assert!(entered.accepted(), "{formula}");
+        assert_eq!(shown(&session, b2), value, "{formula}");
+        // A second formula that may call WEEKNUM: the state is no longer known.
+        let d4 = CellKey::new(sheet, 4, 4).unwrap();
+        assert!(
+            session
+                .dispatch(SkinIntent::EnterCell {
+                    at: d4,
+                    text: "=WEEKNUM(45000,2)".to_owned(),
+                })
+                .accepted()
+        );
+        if formula == "=WEEKNUM(45000,30)" {
+            assert!(session.dispatch(SkinIntent::Rebuild).accepted());
+            assert_eq!(
+                shown(&session, b2),
+                "not modelled",
+                "{formula} beside another WEEKNUM"
+            );
+        }
+    }
+}

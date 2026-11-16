@@ -162,6 +162,17 @@ def spill_placement():
             for at in ('Sheet1!XFD1048576', 'Sheet1!XFD1', 'Sheet1!A1048576'):
                 sheets = fam.layout('free', [{'name': 'Sheet1', 'cells': dict(data)}])
                 fam.case(f'{function.lower()}-{j}-edge-{at[7:]}', function, sheets, at, formula)
+    # A spill over cells its own result reads (Excel's P05, dc-hsa5): the formula in A1, its
+    # source below or beside it, the arguments of the serial bank layout in B1:E1.
+    own = fam.layout('own', [{'name': 'Sheet1', 'cells': {'B1': n(0.9), 'C1': n(1), 'D1': t('-1'), 'E1': n(365),
+                                                           'G6': n(5), 'H6': n(6)}}])
+    for j, formula in enumerate(['=OFFSET(B1,C1,D1,E1)', '=OFFSET(B1,1,-1,3)', '=OFFSET(A1,1,0,3)', '=A2:A4',
+                                 '=A2:A4*1', '=A2:A4&""', '=SEQUENCE(3)+A3', '=SUM(A2:A3)+SEQUENCE(3)',
+                                 '=A2:A6', '=OFFSET(A1,1,0,6)', '=TRANSPOSE(B1:B3)', '=IF(TRUE,A2:A4)',
+                                 '=INDEX(A2:A10,0)', '=ROWS(A2:A4)+SEQUENCE(3)', '=ISBLANK(A2:A4)']):
+        fam.case(f'own-{j:02}', 'SPILL', own, 'Sheet1!A1', formula)
+    for j, formula in enumerate(['=G2:G7', '=G2:H7', '=OFFSET(G2,0,0,3,2)']):
+        fam.case(f'own-g-{j:02}', 'SPILL', own, 'Sheet1!G1', formula)
     return fam
 
 
@@ -480,11 +491,35 @@ def three_d():
     return fam
 
 
+# WEEKNUM with a return type outside 1-21 reads the week start the pass's last WEEKNUM or
+# ISOWEEKNUM left (dc-amhpx): one formula alone with WEEKNUM in its workbook, the calls in it.
+WEEKNUM_PASS = [
+    'WEEKNUM(45000,30)', 'WEEKNUM(45000,0.5)', 'WEEKNUM(45000,1)&"|"&WEEKNUM(45000,30)',
+    'WEEKNUM(45000,2)&"|"&WEEKNUM(45000,30)', 'WEEKNUM(45000,30)&"|"&WEEKNUM(45000,2)',
+    'ISOWEEKNUM(45000)&"|"&WEEKNUM(45000,30)', 'WEEKNUM(45000,21)&"|"&WEEKNUM(45002,30)',
+    'WEEKNUM(45000,13)&"|"&WEEKNUM(45000,30)', 'WEEKNUM(45000,2)&"|"&WEEKNUM(45000,3)&"|"&WEEKNUM(45000,30)',
+    'WEEKNUM(45000,{2,30})', 'WEEKNUM(45000,{30,2})', 'WEEKNUM(45000,{2;30})', 'WEEKNUM({45000,45002},{17,30})',
+    'IF(TRUE,WEEKNUM(45000,2),0)&"|"&WEEKNUM(45000,30)', 'WEEKNUM(45000,30)+WEEKNUM(45000,30)',
+    'LET(a,WEEKNUM(45000,11),b,WEEKNUM(45002,99),a&"|"&b)', 'SUM(WEEKNUM(45000,2),WEEKNUM(45001,-1))',
+    'WEEKNUM(45000,2)&"|"&ABS(1)&"|"&WEEKNUM(45000,30)', 'WEEKNUM(45000,17)&"|"&WEEKNUM(45001,22)',
+    'WEEKNUM("x",2)&"|"&WEEKNUM(45000,30)', 'IFERROR(WEEKNUM(-1,2),0)&"|"&WEEKNUM(45000,30)',
+]
+
+
+def weeknum_pass():
+    """Each case one formula, alone with WEEKNUM in its workbook (dc-amhpx)."""
+    fam = Family()
+    sheet = fam.layout('empty', [{'name': 'Sheet1', 'cells': {}}])
+    for j, formula in enumerate(WEEKNUM_PASS):
+        fam.case(f'weeknum-pass-{j:02}', 'WEEKNUM', sheet, 'Sheet1!B2', '=' + formula)
+    return fam
+
+
 FAMILIES = {'reference-info': reference_info, 'subtotal-hidden': subtotal_hidden,
             'spill-placement': spill_placement, 'ifs': ifs_family, 'lambda-helpers': lambda_helpers,
             'operator-coercion': operator_coercion, 'lambda-groupby': lambda_groupby,
             'lambda-references': lambda_references, 'reference-arrays': reference_arrays,
-            'three-d': three_d}
+            'three-d': three_d, 'weeknum-pass': weeknum_pass}
 
 
 def main():

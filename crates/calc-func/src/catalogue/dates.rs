@@ -319,19 +319,45 @@ ported_shared_family! {
         out(s, k::weekday(serial, kind))
     }
     17 weeknum_fn |s, a, sv| {
-        let serial = strict_date_arg(s, a, 0)?;
-        let kind = return_type(s, a, true)?;
-        // Q3, dc-1943: these types can inherit the preceding WEEKNUM call's state.
-        // The function service has no such state, so it cannot promise a result.
-        if (0.0..(k::MAX_SERIAL_1900 + 1) as f64).contains(&serial)
-            && kind.is_some_and(|v| !(0.0..22.0).contains(&k::date_integer_floor(v))) {
-            return Err(s.not_modelled(Some(1)));
+        // Q3, dc-1943, dc-amhpx: a return type below 1 or from 22 up reads the week start the
+        // pass's last WEEKNUM or ISOWEEKNUM left ([`crate::WeekState`]); refused where the
+        // evaluation does not know it.
+        let result = (|| {
+            let serial = strict_date_arg(s, a, 0)?;
+            let kind = return_type(s, a, true)?;
+            if (0.0..(k::MAX_SERIAL_1900 + 1) as f64).contains(&serial)
+                && kind.is_some_and(|v| !(0.0..22.0).contains(&k::date_integer_floor(v)))
+            {
+                return match sv.week_state().and_then(|week| week.week_start()) {
+                    None => Err(s.not_modelled(Some(1))),
+                    Some(None) => fail(W::Num),
+                    Some(Some(start)) => out(s, k::weeknum(serial, Some(f64::from(start)))),
+                };
+            }
+            let left = match k::date_integer_floor(kind.unwrap_or(1.0)) {
+                t if t == 1.0 || t == 17.0 => Some(1),
+                t if t == 2.0 || t == 11.0 || t == 21.0 => Some(2),
+                _ => None,
+            };
+            let value = out(s, k::weeknum(serial, kind))?;
+            if let Some(week) = sv.week_state() {
+                week.set_week_start(Some(left));
+            }
+            Ok(value)
+        })();
+        if let (Err(crate::kernel::Exit::Error(_)), Some(week)) = (&result, sv.week_state()) {
+            week.set_week_start(Some(None));
         }
-        out(s, k::weeknum(serial, kind))
+        result
     }
     18 isoweeknum_fn |s, a, sv| {
         let serial = date_arg(s, a, 0)?;
-        out(s, k::isoweeknum(serial))
+        let result = out(s, k::isoweeknum(serial));
+        if let Some(week) = sv.week_state() {
+            // An erroring ISOWEEKNUM's effect is not measured: unknown after it.
+            week.set_week_start(if result.is_ok() { Some(Some(2)) } else { None });
+        }
+        result
     }
     19 workday_fn |s, a, sv| {
         workday(s, a, sv, false)
