@@ -448,7 +448,7 @@ impl Features {
                     let units = length.min(c.remaining()) / 2;
                     link.target = Some(read_string(c, units, what)?);
                 } else if clsid == FILE {
-                    let _up = c.u16(what).map_err(e)?;
+                    let up = usize::from(c.u16(what).map_err(e)?);
                     let length = c.u32(what).map_err(e)? as usize;
                     let bytes = c.bytes(length, what).map_err(e)?;
                     let ansi_end = bytes.iter().position(|b| *b == 0).unwrap_or(bytes.len());
@@ -464,6 +464,18 @@ impl Features {
                             return Err("an invalid Unicode file moniker path".into());
                         }
                         path = read_string(c, bytes / 2, what)?;
+                    }
+                    if up != 0 {
+                        if path.starts_with('/') || path.starts_with('\\') || path.as_bytes().get(1) == Some(&b':') {
+                            return Err("an absolute file moniker path with parent indicators".into());
+                        }
+                        let mut rest = path.as_str();
+                        let mut present = 0usize;
+                        while let Some(next) = rest.strip_prefix("../").or_else(|| rest.strip_prefix("..\\")) {
+                            present += 1;
+                            rest = next;
+                        }
+                        if present < up { path = format!("{}{}", "../".repeat(up - present), path); }
                     }
                     link.target = Some(path);
                 } else {

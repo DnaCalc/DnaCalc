@@ -1078,6 +1078,28 @@ fn file_moniker_keeps_unicode_path_and_location() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn file_moniker_keeps_parent_directory_indicators() {
+    let with_parents = |row, ansi: &str, unicode: Option<&str>, parents: u16| {
+        let mut rec = hlink_file((row, 0), ansi, unicode, "Data!A1");
+        rec[52..54].copy_from_slice(&parents.to_le_bytes());
+        rec
+    };
+    let records = [with_parents(0, "book.xls", None, 1),
+        with_parents(1, "book.xls", Some("資料.xls"), 2),
+        with_parents(2, "../book.xls", None, 1)].concat();
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", records)]);
+    let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let rels = String::from_utf8(doc.package().read_part("xl/worksheets/_rels/sheet1.xml.rels").unwrap()).unwrap();
+    assert_eq!(rels.matches("Target=\"../book.xls\"").count(), 2, "{rels}");
+    assert!(rels.contains("Target=\"../../資料.xls\""), "{rels}");
+    let links = format!("{:?}", load(&bytes).sheets()[0].review().links);
+    assert!(links.contains("../book.xls") && links.contains("../../資料.xls"), "{links}");
+    let invalid = xls(false, &[], &[Sheet::worksheet("S", with_parents(0, "C:\\book.xls", None, 1))]);
+    assert!(calc_doc::open(source(&invalid), &OpenPolicy::default()).is_err());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn comments_are_read_from_note_obj_and_txo_records() {
     let mut r = Vec::new();
     r.extend(number(0, 0, 1.0));
