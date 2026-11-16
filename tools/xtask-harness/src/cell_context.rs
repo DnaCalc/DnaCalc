@@ -629,4 +629,24 @@ mod tests {
                    format!("0x{:016x}", 5f64.to_bits()));
         assert_eq!(serial_single("ROW", &[json!({"error": "NA"})], Some((1, 1)), None), one);
     }
+
+    /// Native-only: exercises the application's HostSession and workbook entry route.
+    #[test]
+    fn ets_text_options_are_read_before_the_unequal_history_shape() {
+        let locale = calc_host::FormatProfile::for_culture("en-ZA").and_then(|p| p.with_separators(".", " "));
+        // Excel 16.0.20527 read these options from cells in a serial single-call layout.
+        for (input, expected) in [("bad", "error:Value"), ("1,234", "error:Value"), ("1", "error:NA"), ("25%", "error:NA")] {
+            for name in ["FORECAST.ETS.STAT", "FORECAST.ETS.SEASONALITY"] {
+                let formula = format!("={name}(3,{{1;2}},{{1;2}},B1)");
+                let case = json!({"sheets": [{"name": "S", "cells": {"B1": format!("text:{input}")}}],
+                    "names": {}, "at": "S!A1", "formula": formula});
+                assert_eq!(evaluate(&case, locale, None).unwrap()["value"], expected, "{name}, option {input:?}");
+            }
+        }
+        // Excel reads this as a date in the current year. With no recorded clock,
+        // the application must not claim to have decided the shape result.
+        let case = json!({"sheets": [{"name": "S", "cells": {"B1": "text:1/2"}}], "names": {},
+            "at": "S!A1", "formula": "=FORECAST.ETS.STAT(3,{1;2},{1;2},B1)"});
+        assert!(evaluate(&case, locale, None).unwrap()["value"].as_str().unwrap().starts_with("fault:NotModeled"));
+    }
 }

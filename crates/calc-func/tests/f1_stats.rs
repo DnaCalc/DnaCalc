@@ -682,6 +682,32 @@ fn ets_scalar_history_with_numeric_options_keeps_error_order() {
     }
 }
 
+/// Excel 20527 reads text options in the recorded locale before the history shape.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_scalar_history_reads_text_options_in_the_calculation_environment() {
+    use calc_func::locale::{CalcEnvironment, DateSystem, FormatProfile};
+    let mut env = CalcEnvironment {
+        compatibility_version: 2,
+        date_system: DateSystem::System1900,
+        profile: FormatProfile::for_culture("en-ZA").and_then(|p| p.with_separators(".", " ")),
+        now: None,
+    };
+    let timeline = col(&[1.0, 2.0, 3.0, 4.0, 5.0]);
+    for name in ["FORECAST.ETS.STAT", "FORECAST.ETS.SEASONALITY"] {
+        for (option, expected) in [("bad", Value), ("1,234", Value), ("1", NA), ("25%", NA)] {
+            error(call_in(&env, None, None, name, vec![n(3.0), timeline.clone(), n(1.0), t(option)]), expected);
+        }
+        assert!(matches!(
+            call_in(&env, None, None, name, vec![n(3.0), timeline.clone(), n(1.0), t("1/2")]),
+            Err(calc_func::FunctionFault::NotImplemented { .. })
+        ));
+        env.now = Some(46318.6);
+        error(call_in(&env, None, None, name, vec![n(3.0), timeline.clone(), n(1.0), t("1/2")]), NA);
+        env.now = None;
+    }
+}
+
 /// Excel 20527 rejects lost-addend beta shapes for normal probabilities through one half.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
