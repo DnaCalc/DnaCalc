@@ -242,6 +242,26 @@ fn workbook_backup_setting_survives_conversion() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn workbook_external_link_settings_survive_conversion() {
+    for (flags, present, unread) in [
+        (0u16, vec![], false),
+        (0x0121, vec!["saveExternalLinkValues=\"0\"", "showBorderUnselectedTables=\"0\"", "updateLinks=\"never\""], false),
+        (0x0044, vec!["updateLinks=\"always\""], true),
+    ] {
+        let bytes = xls(false, &record(0x00DA, &flags.to_le_bytes()), &[Sheet::worksheet("S", Vec::new())]);
+        let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let xml = String::from_utf8(document.package().read_part("xl/workbook.xml").unwrap()).unwrap();
+        for attribute in present { assert!(xml.contains(attribute), "{xml}"); }
+        let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+        assert_eq!(report.unknown_records.contains_key(&0x00DA), unread);
+        load(&bytes);
+    }
+    let bytes = xls(false, &record(0x00DA, &0x0060u16.to_le_bytes()), &[Sheet::worksheet("S", Vec::new())]);
+    assert!(calc_doc::open(source(&bytes), &OpenPolicy::default()).is_err());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn outline_gutter_levels_survive_conversion() {
     let bytes = xls(false, &[], &[Sheet::worksheet("S", record(0x0080, &u16s(&[0, 0, 3, 2])))]);
     let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();

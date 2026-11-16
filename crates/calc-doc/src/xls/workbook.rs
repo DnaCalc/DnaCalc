@@ -86,6 +86,8 @@ pub(crate) struct Globals {
     pub(crate) protection_verifier: Option<u16>,
     pub(crate) hide_objects: Option<u16>,
     pub(crate) backup_file: bool,
+    /// BookBool flags; mail-envelope state has no SpreadsheetML mapping here.
+    pub(crate) book_bool: Option<u16>,
     /// The shared string table (SST), in index order.
     pub(crate) strings: Vec<RichString>,
     pub(crate) names: Vec<NameRecord>,
@@ -155,6 +157,13 @@ pub(crate) fn read(records: &[Record<'_>], biff5: bool) -> Result<Globals, Strin
                 globals.date_1904 = c.u16("Date1904").map_err(|e| e.0)? == 1;
             }
             FILEPASS => globals.encrypted = true,
+            0x00DA => {
+                let mut c = Cursor::new(record.body);
+                let flags = c.u16("BookBool").map_err(|e| e.0)?;
+                if (flags >> 5) & 3 == 3 { return Err("the external-link update setting 3".to_owned()); }
+                globals.book_bool = Some(flags);
+                if flags & 0x1C != 0 { *globals.unknown.entry(record.id).or_insert(0) += 1; }
+            }
             0x0040 => {
                 let mut c = Cursor::new(record.body);
                 let value = c.u16("Backup").map_err(|e| e.0)?;
