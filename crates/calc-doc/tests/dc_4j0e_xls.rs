@@ -242,6 +242,20 @@ fn workbook_backup_setting_survives_conversion() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn extra_empty_backup_record_is_counted_before_valid_setting() {
+    let globals = [record(0x0040, &[]), record(0x0040, &1u16.to_le_bytes())].concat();
+    let bytes = xls(false, &globals, &[Sheet::worksheet("S", Vec::new())]);
+    let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let xml = String::from_utf8(doc.package().read_part("xl/workbook.xml").unwrap()).unwrap();
+    assert!(xml.contains("backupFile=\"1\""), "{xml}");
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert_eq!(report.unknown_records.get(&0x0040), Some(&1));
+    let missing = xls(false, &record(0x0040, &[]), &[Sheet::worksheet("S", Vec::new())]);
+    assert!(calc_doc::open(source(&missing), &OpenPolicy::default()).is_err());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn workbook_external_link_settings_survive_conversion() {
     for (flags, present, unread) in [
         (0u16, vec![], false),

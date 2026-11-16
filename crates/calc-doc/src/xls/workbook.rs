@@ -174,6 +174,13 @@ pub(crate) fn read(records: &[Record<'_>], biff5: bool) -> Result<Globals, Strin
                 if flags & 0x1C != 0 { *globals.unknown.entry(record.id).or_insert(0) += 1; }
             }
             0x0040 => {
+                if record.body.is_empty() && records[index + 1..].iter().take_while(|r| r.id != EOF)
+                    .any(|r| r.id == 0x0040 && r.body.len() >= 2) {
+                    // Some files have an empty extra record before the actual Backup setting.
+                    // Retain the valid setting below and count the malformed extra as unread.
+                    *globals.unknown.entry(record.id).or_insert(0) += 1;
+                    continue;
+                }
                 let mut c = Cursor::new(record.body);
                 let value = c.u16("Backup").map_err(|e| e.0)?;
                 if value > 1 { return Err(format!("the backup setting {value}")); }
