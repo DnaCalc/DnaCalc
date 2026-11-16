@@ -291,7 +291,8 @@ def main():
             if dest.exists():
                 raise SystemExit('refusing to overwrite ' + str(dest))
             dest.write_bytes(base64.b64decode(pivot[extension + '_base64'], validate=True))
-    expected_files = json.loads((args.inputs / 'cases.json').read_text(encoding='utf-8'))['files']
+    cases = json.loads((args.inputs / 'cases.json').read_text(encoding='utf-8'))
+    expected_files = cases['files']
     actual_files = [item['file'] for item in reading['files']]
     if sorted(expected_files) != sorted(actual_files):
         raise SystemExit('Excel result does not contain exactly the requested fixtures')
@@ -340,12 +341,23 @@ def main():
             except (ValueError, KeyError, ET.ParseError, zipfile.BadZipFile, OSError) as exc:
                 row['error'] = str(exc)
         generated_results.append(row)
-    output = {'files': results, 'excel_generated': generated_results, 'not_compared': ['calculated provenance', 'drawing formatting',
+    repairs = reading.get('repairs', [])
+    if sorted(cases.get('repair_cases', [])) != sorted(item['file'] for item in repairs):
+        raise SystemExit('Excel result does not contain exactly the requested repair fixtures')
+    repair_results = []
+    for item in repairs:
+        name = item['file']
+        if Path(name).name != name or hashlib.sha256((args.inputs / name).read_bytes()).hexdigest() != item['sha256'].lower():
+            raise SystemExit('repair fixture name or hash mismatch: ' + name)
+        repair_results.append({key: item.get(key) for key in ('file', 'opened', 'saved', 'error')})
+    output = {'files': results, 'excel_generated': generated_results, 'repair_observations': repair_results,
+              'not_compared': ['calculated provenance', 'drawing formatting',
               'chart formatting', 'conditional formatting style definitions', 'pivot refresh and external cache sources',
               'VBA project contents', 'named-style inheritance and rendered style equivalence', 'other metadata']}
     args.output.write_text(json.dumps(output, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     all_results = results + generated_results
-    print(f"Compared {sum('differences' in r for r in all_results)}/{len(all_results)} files; {sum(len(r.get('differences', [])) for r in all_results)} differences; {sum('error' in r for r in all_results)} errors. Not compared: {', '.join(output['not_compared'])}.")
+    print(f"Compared {sum('differences' in r for r in all_results)}/{len(all_results)} files; {sum(len(r.get('differences', [])) for r in all_results)} differences; {sum('error' in r for r in all_results)} comparison errors. "
+          f"Repair observations: {len(repair_results)}, including {sum(bool(r.get('error')) for r in repair_results)} errors. Not compared: {', '.join(output['not_compared'])}.")
 
 
 if __name__ == '__main__':

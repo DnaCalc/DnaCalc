@@ -39,6 +39,16 @@ fn write_legacy_excel_session_inputs() {
     std::fs::write(dir.join("cells-biff8.xls"), biff8).unwrap();
     std::fs::write(dir.join("cells-biff5.xls"), biff5).unwrap();
     std::fs::write(dir.join("forms.xls"), include_bytes!("fixtures/dc_4j0e/FormsWorkbook.xls")).unwrap();
+    let repair_cases = [
+        ("repair-slash.xls", "Bad/Name"),
+        ("repair-stars.xls", "****"),
+        ("repair-empty.xls", ""),
+        ("repair-long.xls", "This sheet name exceeds thirty one"),
+    ];
+    for (file, name) in repair_cases {
+        let bytes = xls(false, &[], &[Sheet::worksheet(name, number(0, 0, 42.0))]);
+        std::fs::write(dir.join(file), bytes).unwrap();
+    }
     for name in ["cells-biff8", "cells-biff5", "forms"] {
         let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
         let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
@@ -49,6 +59,7 @@ fn write_legacy_excel_session_inputs() {
     }
     let cases = serde_json::json!({
         "files": ["cells-biff8.xls", "cells-biff5.xls", "forms.xls"],
+        "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls"],
         "create_pivot": true,
         "formulas": [
             ["rows_full_column", "=ROWS(A:A)"], ["columns_full_row", "=COLUMNS(1:1)"],

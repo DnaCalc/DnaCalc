@@ -10,6 +10,7 @@ $outputDir = Join-Path ([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($Resu
 [IO.Directory]::CreateDirectory($outputDir) | Out-Null
 $rows = [Collections.Generic.List[object]]::new()
 $generated = [Collections.Generic.List[object]]::new()
+$repairs = [Collections.Generic.List[object]]::new()
 $book = $null; $fatal = $null; $pivot = $null; $oldAlerts = $app.DisplayAlerts
 function GetOrError([scriptblock]$f) { try { return & $f } catch { return @{unread=$_.Exception.Message} } }
 function Snapshot($workbook) {
@@ -99,6 +100,27 @@ try {
         finally { if ($book) { try {$book.Close($false)} catch {}; $book=$null } }
         $generated.Add($entry)
     }
+    # These inputs are constructed by the test, not taken from the real-file corpus.
+    # xlRepairFile (1) asks Excel to repair the malformed sheet-name fixture explicitly.
+    foreach ($name in $cases.repair_cases) {
+        $name = [string]$name
+        if ([IO.Path]::GetFileName($name) -ne $name) { throw "Input must be a fixture basename: $name" }
+        $path = Join-Path $inputDir $name
+        $entry = [ordered]@{file=$name; sha256=(Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToLowerInvariant(); error=$null}
+        try {
+            $missing = [Type]::Missing
+            $book = $app.Workbooks.Open($path, 0, $true, $missing, $missing, $missing, $missing,
+                $missing, $missing, $missing, $missing, $missing, $missing, $missing, 1)
+            $entry.opened = Snapshot $book
+            $saved = Join-Path $outputDir ([IO.Path]::GetFileNameWithoutExtension($name) + '-repaired.xlsx')
+            $book.SaveAs($saved, 51)
+            $entry.saved = Snapshot $book
+            $book.Close($false); $book=$null
+            $entry.package_base64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($saved))
+        } catch { $entry.error = $_.Exception.ToString() }
+        finally { if ($book) { try {$book.Close($false)} catch {}; $book=$null } }
+        $repairs.Add($entry)
+    }
     if ($cases.create_pivot) {
         $pivot = [ordered]@{error=$null}
         try {
@@ -138,5 +160,5 @@ try {
     }
 } catch { $fatal = $_.Exception.ToString() }
 finally { if ($book) { try {$book.Close($false)} catch {} }; $app.DisplayAlerts = $oldAlerts }
-@{fatal=$fatal; excel_version=[string]$app.Version; excel_build=[string]$app.Build; files=$rows.ToArray(); generated=$generated.ToArray(); pivot=$pivot} |
+@{fatal=$fatal; excel_version=[string]$app.Version; excel_build=[string]$app.Build; files=$rows.ToArray(); generated=$generated.ToArray(); repairs=$repairs.ToArray(); pivot=$pivot} |
     ConvertTo-Json -Depth 30 | Set-Content -LiteralPath $Result -Encoding utf8NoBOM
