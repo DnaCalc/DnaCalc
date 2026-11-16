@@ -492,6 +492,11 @@ pub(crate) fn convert(
     if let Some(code_name) = &globals.code_name {
         workbook_properties.push(("codeName", code_name.clone()));
     }
+    match globals.hide_objects {
+        Some(1) => workbook_properties.push(("showObjects", "placeholders".to_owned())),
+        Some(2) => workbook_properties.push(("showObjects", "none".to_owned())),
+        _ => {}
+    }
     xml.empty("workbookPr", &workbook_properties);
     if globals.protect_structure || globals.protect_windows || globals.protection_verifier.is_some() {
         let mut protection = Vec::new();

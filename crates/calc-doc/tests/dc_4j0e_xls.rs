@@ -167,6 +167,22 @@ fn workbook_protection_is_preserved_in_the_loaded_document() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn workbook_object_display_setting_survives_conversion() {
+    for (mode, expected) in [(0u16, None), (1, Some("placeholders")), (2, Some("none"))] {
+        let bytes = xls(false, &record(0x008D, &mode.to_le_bytes()), &[Sheet::worksheet("S", Vec::new())]);
+        let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let xml = String::from_utf8(document.package().read_part("xl/workbook.xml").unwrap()).unwrap();
+        if let Some(value) = expected {
+            assert!(xml.contains(&format!("showObjects=\"{value}\"")), "{xml}");
+        } else { assert!(!xml.contains("showObjects="), "{xml}"); }
+        load(&bytes);
+        let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+        assert!(!report.unknown_records.contains_key(&0x008D));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn a_large_workbook_stream_is_read_from_regular_sectors_and_unknown_records_are_counted() {
     // Padding records of an unknown type push the stream past the mini stream cutoff.
     let mut filler = Vec::new();
