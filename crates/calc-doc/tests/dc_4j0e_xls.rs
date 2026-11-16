@@ -772,6 +772,35 @@ fn printer_settings_are_carried_as_an_explicit_part() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn custom_view_print_settings_do_not_replace_default_sheet_settings() {
+    let mode = |marker| {
+        let mut data = vec![0u8; 156]; data[0] = marker;
+        data[36..38].copy_from_slice(&156u16.to_le_bytes());
+        data
+    };
+    let pls = |data: &[u8]| { let mut body = vec![0, 0]; body.extend(data); record(0x004D, &body) };
+    let header = |text: &str| {
+        let mut body = (text.len() as u16).to_le_bytes().to_vec(); body.push(0); body.extend(text.as_bytes());
+        record(0x0014, &body)
+    };
+    let default = mode(1);
+    let custom = mode(2);
+    let records = [header("default"), pls(&default), record(0x01AA, &[]), header("custom"),
+        pls(&custom), record(0x01AB, &[])].concat();
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", records)]);
+    let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let xml = String::from_utf8(doc.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+    assert!(xml.contains("default") && !xml.contains("custom"), "{xml}");
+    assert_eq!(doc.package().read_part("xl/printerSettings/printerSettings1.bin").unwrap(), default);
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert_eq!(report.unknown_records.get(&0x004D), Some(&1));
+    assert_eq!(report.unknown_records.get(&0x0014), Some(&1));
+    assert_eq!(report.unknown_records.get(&0x01AA), Some(&1));
+    assert_eq!(report.unknown_records.get(&0x01AB), Some(&1));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn legacy_sheet_ids_follow_source_tabs_even_with_module() {
     let sheets = [Sheet::worksheet("First", Vec::new()),
         Sheet { kind: 6, ..Sheet::worksheet("Module", Vec::new()) },

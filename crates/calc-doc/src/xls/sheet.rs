@@ -173,6 +173,7 @@ pub(crate) fn read(
     let mut row_heights: BTreeMap<u16, f64> = BTreeMap::new();
     let mut default_row_attributes: Vec<(&'static str, String)> = Vec::new();
     let mut depth = 0usize;
+    let mut in_custom_view = false;
     let mut features = super::features::Features::default();
     let mut drawing = super::drawing::Drawing::default();
     let mut rules = super::rules::Rules::default();
@@ -275,6 +276,24 @@ pub(crate) fn read(
                     drawing.chart_record(record, &print);
                 }
             }
+            continue;
+        }
+        if depth == 1 && record.id == 0x01AA {
+            if in_custom_view { return Err(format!("a nested custom sheet view on {sheet_name:?}")); }
+            in_custom_view = true;
+            *unknown.entry(record.id).or_insert(0) += 1;
+            continue;
+        }
+        if depth == 1 && record.id == 0x01AB && in_custom_view {
+            in_custom_view = false;
+            *unknown.entry(record.id).or_insert(0) += 1;
+            continue;
+        }
+        if depth == 1 && in_custom_view {
+            if record.id == super::workbook::EOF {
+                return Err(format!("an unterminated custom sheet view on {sheet_name:?}"));
+            }
+            *unknown.entry(record.id).or_insert(0) += 1;
             continue;
         }
         match record.id {
@@ -578,7 +597,10 @@ pub(crate) fn read(
     }
 
     if features.printer_part().is_some() {
-        unknown.remove(&0x004D);
+        if let Some(count) = unknown.get_mut(&0x004D) {
+            *count -= 1;
+            if *count == 0 { unknown.remove(&0x004D); }
+        }
     }
     let mut x = Xml::new();
     let root = if macro_sheet { "xm:macrosheet" } else { "worksheet" };
