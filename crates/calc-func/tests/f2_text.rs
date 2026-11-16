@@ -779,6 +779,57 @@ fn tagged_date_names_follow_the_tag_lcid() {
     assert_eq!(dates, 2542 + 3444);
 }
 
+/// dc-zsn.4: under every LCID tag (primary languages 0x01 to 0xFF, sublanguages 1 to 16) and the BCP 47
+/// tags Excel names, the month and weekday names are Excel's; an LCID Excel does not name writes the
+/// host's names, as LCID 0 does (tests/fixtures/fn5_tagged_names/excel-lcids.tsv).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn tagged_names_for_every_lcid_are_excels() {
+    use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
+    let env = CalcEnvironment {
+        profile: Some(format_profile(LocaleId::EnZa)),
+        ..CalcEnvironment::dates(DateSystem::System1900)
+    };
+    // 1 January 2023 is serial 44927, a Sunday.
+    let check = |tag: &str, lists: &[&str]| {
+        for (field, (code, names)) in ["mmmm", "mmm", "dddd", "ddd"].iter().zip(lists).enumerate() {
+            for (i, expected) in names.split('|').enumerate() {
+                let serial = if field < 2 {
+                    [44927, 44958, 44986, 45017, 45047, 45078, 45108, 45139, 45170, 45200, 45231, 45261][i]
+                } else {
+                    44927 + i as i32
+                };
+                let format = format!("[$-{tag}]{code}");
+                text(
+                    call_in(&env, None, None, "TEXT", vec![n(f64::from(serial)), t(&format)]),
+                    expected,
+                );
+            }
+        }
+    };
+    let (mut fallback, mut named) = (Vec::new(), 0);
+    let mut host: Vec<&str> = Vec::new();
+    for line in include_str!("fixtures/fn5_tagged_names/excel-lcids.tsv").lines() {
+        if line.starts_with('#') {
+            continue;
+        }
+        let cols: Vec<&str> = line.split('\t').collect();
+        if cols[0] == "fallback" {
+            fallback = cols[1].split(',').collect();
+            continue;
+        }
+        if cols[0] == "0" {
+            host = cols[1..].to_vec();
+        }
+        check(cols[0], &cols[1..]);
+        named += 1;
+    }
+    for tag in &fallback {
+        check(tag, &host);
+    }
+    assert_eq!((named, fallback.len()), (1 + 246 + 176, 3834));
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn char_code_unichar_unicode() {

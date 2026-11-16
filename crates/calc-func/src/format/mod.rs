@@ -28,6 +28,7 @@
 pub(crate) mod cell_info;
 mod datetime;
 mod names;
+mod tagged_names;
 
 use crate::decimal::{Direction, ExactDecimal};
 use crate::locale::{
@@ -644,7 +645,12 @@ fn strip_tokens(section: &str) -> Result<Stripped, Failure> {
                     if !locale.is_empty() {
                         locale_declared = true;
                         use crate::locale::LocaleId;
-                        name_lcid = u16::from_str_radix(locale, 16).ok();
+                        name_lcid = u16::from_str_radix(locale, 16).ok().or_else(|| {
+                            tagged_names::BY_TAG
+                                .iter()
+                                .find(|(tag, _)| tag.eq_ignore_ascii_case(locale))
+                                .map(|&(_, lcid)| lcid)
+                        });
                         name_locale = name_lcid
                             .and_then(LocaleId::from_excel_lcid)
                             .or_else(|| LocaleId::from_bcp47_language_tag(locale));
