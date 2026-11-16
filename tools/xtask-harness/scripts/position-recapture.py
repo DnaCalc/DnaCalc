@@ -105,13 +105,28 @@ def bank_arg(read):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('--evidence', type=pathlib.Path, required=True)
-    p.add_argument('--function', required=True, choices=sorted(SOURCES))
+    p.add_argument('--function', required=True)
     p.add_argument('--out', type=pathlib.Path, required=True)
     p.add_argument('--limit', type=int)
+    p.add_argument('--from-trace', type=pathlib.Path,
+                   help='take the rows from a judge trace (cargo xtask witness judge --trace) instead of SOURCES')
+    p.add_argument('--actual', help='with --from-trace: only rows whose actual is this (e.g. excluded:spill-layout)')
+    p.add_argument('--excel-index', action='store_true',
+                   help="ask Excel for INDEX(call, r, c) with each row's result_index (the selection the bank made)")
     p.add_argument('--workers', type=int, default=16)
     o = p.parse_args()
     rows = []
-    for rel in SOURCES[o.function]:
+    if o.from_trace:
+        for line in open(o.from_trace):
+            if f'"function":"{o.function}"' not in line:
+                continue
+            r = json.loads(line)
+            if r['function'] == o.function and (o.actual is None or r['actual'] == o.actual):
+                w = {'id': r['id'], 'args': r['args'], 'expected_bits': r['expected']}
+                if r.get('result_index') is not None:
+                    w['result_index'] = r['result_index']
+                rows.append((r['source'], w))
+    for rel in ([] if o.from_trace else SOURCES[o.function]):
         path = o.evidence / rel
         doc = json.loads(path.read_text() if path.exists() else gzip.open(str(path) + '.gz').read())
         assert doc['function'].upper() == o.function, rel
@@ -129,7 +144,8 @@ def main():
     def ask(item):
         rel, w = item
         call = [typed(a) for a in w['args']]
-        pending = socket.submit_rows(o.function, [call], priority='bulk', echo=True, order='serial')
+        index = tuple(w['result_index']) if o.excel_index and w.get('result_index') else None
+        pending = socket.submit_rows(o.function, [call], result_index=index, priority='bulk', echo=True, order='serial')
         reply = pending.result(timeout=client.timeout)
         return rel, w, call, reply, sorted(pending.env_ids)
 
@@ -151,9 +167,12 @@ def main():
                     envs.update(env_ids)
                     stamps.append(reply.get('timestamp'))
                     settings = settings or reply.get('calculation_settings')
-                    accepted.append({'id': w['id'], 'original_source': rel,
-                                     'args': [bank_arg(a) for a in readback], 'expected_bits': result,
-                                     'bulk_expected_bits': w['expected_bits']})
+                    row = {'id': w['id'], 'original_source': rel,
+                           'args': [bank_arg(a) for a in readback], 'expected_bits': result,
+                           'bulk_expected_bits': w['expected_bits']}
+                    if o.excel_index and w.get('result_index'):
+                        row['result_index'] = w['result_index']
+                    accepted.append(row)
                     continue
             rejected.setdefault(why, []).append(w['id'])
     if len(envs) > 1:
@@ -167,9 +186,9 @@ def main():
             'environment': {'excel_build': '20527', 'platform': 'Windows', 'excel_input_plumbing': 'cell_value2_bulk'},
             'calculation_settings': settings, 'order': 'serial', 'calls_per_request': 1,
             'cell_layout': LAYOUT,
-            # The answer is S!A1's value as calculated, with no INDEX around the call; a bank row's
-            # result_index does not apply to it.
-            'result_selection': 'anchor', 'first': min(stamps, default=None), 'last': max(stamps, default=None),
+            # The answer is S!A1's value as calculated: the call itself, or INDEX(call, r, c) for a row
+            # that carries result_index (asked with --excel-index); a bank row's own selection does not apply.
+            'result_selection': 'excel-index' if o.excel_index else 'anchor', 'first': min(stamps, default=None), 'last': max(stamps, default=None),
             'script': 'DnaCalc tools/xtask-harness/scripts/position-recapture.py',
         },
         'capture_summary': {'requested': len(rows), 'accepted': len(accepted),

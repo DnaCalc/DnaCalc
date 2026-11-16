@@ -641,7 +641,7 @@ static class Program
     /// <summary>
     /// Sheet cases: cases with the same sheets and names share one built workbook (rebuilt when the layout changes
     /// or a probe overwrote a layout cell); each case's probes are entered by Formula2 (a refused entry is answered
-    /// as refused), calculated together by one full calculation, read (the value, and the whole spill range when it
+    /// as refused), calculated together (a full calculation for a layout's first case, then Calculate), read (the value, and the whole spill range when it
     /// is larger than one cell, up to 64 x 64) and cleared before the next case. A case whose constants did not read
     /// back as written is unread. Every workbook is closed unsaved before the batch ends.
     /// </summary>
@@ -651,6 +651,7 @@ static class Program
         double buildMs = 0, calcMs = 0, readMs = 0;
         int layouts = 0, cases = 0;
         BuiltLayout built = null;
+        bool fresh = false;
         var output = new List<object>();
         try
         {
@@ -671,6 +672,7 @@ static class Program
                         Stage = "sheet case layout";
                         built = BuildLayout(c, key);
                         layouts++;
+                        fresh = true;
                     }
                     buildMs += sw.Elapsed.TotalMilliseconds - t0;
                     if (built.Changed.Count > 0)
@@ -702,8 +704,11 @@ static class Program
                             placed.Add(null); answers.Add(new Dictionary<string, object> { ["refused"] = e.Message });
                         }
                     }
+                    // The first case of a layout calculates the whole workbook; later ones need only what is
+                    // dirty: the new probes and whatever the last case's cleared probes fed.
                     Stage = "sheet case calculate";
-                    X.App.CalculateFull();
+                    if (fresh) X.App.CalculateFull(); else X.App.Calculate();
+                    fresh = false;
                     while ((int)X.App.CalculationState != 0) Thread.Sleep(0);
                     calcMs += sw.Elapsed.TotalMilliseconds - t0;
                     t0 = sw.Elapsed.TotalMilliseconds;
@@ -723,7 +728,9 @@ static class Program
                         }
                         answers[k] = answer;
                     }
-                    foreach (var target in placed) if (target != null) target.ClearContents();
+                    // Clear, not ClearContents: entering a formula that reads a text-formatted cell gives
+                    // the formula cell the @ format, and the next case's entry there would then be text.
+                    foreach (var target in placed) if (target != null) target.Clear();
                     readMs += sw.Elapsed.TotalMilliseconds - t0;
                     if (overwrote) { built.Book.Close(false); built = null; }
                     types.Append('c');

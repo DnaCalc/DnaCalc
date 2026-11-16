@@ -1138,6 +1138,8 @@ fn add_binomial_replay(banks: &mut Banks, function: &str, doc: &Value) -> Result
 struct PositionRecapture {
     path: String,
     args: Vec<Value>,
+    /// The INDEX(..., r, c) the recapture put around the call in Excel, when it asked one.
+    index: Option<(usize, usize)>,
     expected: String,
     env: ReadingSource,
 }
@@ -1168,13 +1170,13 @@ fn take_recapture(
         });
         banks.sources.len() - 1
     });
-    // The recapture read S!A1 with no INDEX around the call (position-recapture.py never sends
-    // a selection): the original row's result_index does not apply.
+    // The recapture read S!A1: the call itself, or the INDEX(..., r, c) around it that the
+    // recapture asked Excel for (its own result_index); the original row's selection does not apply.
     banks.readings.push(Reading {
         function: function.to_owned(),
         id: id.to_owned(),
         args: args.to_vec(),
-        index: None,
+        index: recapture.index,
         expected: recapture.expected,
         source,
     });
@@ -1236,9 +1238,11 @@ fn position_recaptures(
             env.invocation.get_or_insert_with(Default::default).cell_layout =
                 Some("touchstone/1-serial-single".to_owned());
             let key = (original.to_owned(), id.to_owned());
+            let index = row.as_object().and_then(calc_verdict::result_index);
             let recapture = PositionRecapture {
                 path: rel.clone(),
                 args: args.clone(),
+                index,
                 expected: expected.to_owned(),
                 env,
             };
@@ -1460,6 +1464,17 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
                         .or_default() += 1;
                     continue;
                 };
+                if take_recapture(
+                    &mut banks,
+                    &mut positioned,
+                    &mut recapture_source_of,
+                    &function.to_ascii_uppercase(),
+                    rel,
+                    &format!("oc{}", line_no + 1),
+                    &args,
+                )? {
+                    continue;
+                }
                 let env = record.get("environment");
                 let source = retain_source(
                     &mut banks,
