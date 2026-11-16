@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 pub(crate) struct Cache {
     pub fields: Vec<PivotCacheField>,
     pub rows: Vec<Vec<PivotItem>>,
+    pub refresh_on_load: bool,
 }
 
 pub(crate) enum Source {
@@ -87,8 +88,8 @@ fn item(record: &Record<'_>) -> Option<PivotItem> {
     }
 }
 
-/// The bounded, complete worksheet-source cache subset: no grouped, calculated, invalid or
-/// refresh-on-load caches. Its values remain file records, not calculated pivot output.
+/// The bounded, complete worksheet-source cache subset: no grouped, calculated or invalid
+/// caches. Its values remain file records, not calculated pivot output.
 pub(crate) fn read(bytes: &[u8], stream_id: u16) -> Option<Cache> {
     let records = records::read_all(bytes).ok()?;
     let header = records.first()?;
@@ -100,7 +101,7 @@ pub(crate) fn read(bytes: &[u8], stream_id: u16) -> Option<Cache> {
     let sources = usize::from(u16::from_le_bytes([h[10], h[11]]));
     let fields = usize::from(u16::from_le_bytes([h[12], h[13]]));
     let source_type = u16::from_le_bytes([h[16], h[17]]);
-    if id != stream_id || flags & 0x27 != 0x21 || source_type != 1 || fields == 0 || sources != fields
+    if id != stream_id || flags & 0x23 != 0x21 || source_type != 1 || fields == 0 || sources != fields
         || rows > 100_000 || rows.checked_mul(fields)? > 1_000_000 { return None; }
     let mut at = 1usize;
     if records.get(at)?.id != 0x0122 { return None; }
@@ -162,7 +163,7 @@ pub(crate) fn read(bytes: &[u8], stream_id: u16) -> Option<Cache> {
         }
         field.unused_items = used.iter().enumerate().filter_map(|(i, used)| (!used).then_some(i as u32)).collect();
     }
-    Some(Cache { fields: out, rows: data })
+    Some(Cache { fields: out, rows: data, refresh_on_load: flags & 4 != 0 })
 }
 
 #[cfg(test)]
@@ -265,6 +266,32 @@ mod tests {
                 vec![PivotItem::Index(0), PivotItem::Number("3.5".into())],
                 vec![PivotItem::Index(1), PivotItem::Number("-2".into())]]);
             assert!(loaded.pivot_caches().caches[&0].fields[1].items.is_empty());
+        };
+        check(&document);
+        let plan = crate::prepare_save(&document.snapshot(), &crate::SavePolicy::default()).unwrap();
+        let mut saved = Vec::new(); crate::write(plan, &mut saved).unwrap();
+        check(&crate::open(source(&saved), &crate::OpenPolicy::default()).unwrap());
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn refresh_on_load_cache_keeps_its_saved_source_records_and_flag() {
+        let mut source = kit::u16s(&[0, 2]); source.extend([0, 1]);
+        source.extend(kit::u16s(&[2])); source.extend([0, 2, b'S', 0]);
+        let globals = [kit::record(0x00D5, &kit::u16s(&[7])), kit::record(0x00E3, &kit::u16s(&[1])),
+            kit::record(0x0051, &source)].concat();
+        let workbook = kit::workbook_stream(false, &globals, &[kit::Sheet::worksheet("S", Vec::new())]);
+        let mut data = cache(true); data[10] |= 4;
+        let bytes = cfb_write::write(vec![("Workbook".into(), Node::Stream(workbook)),
+            ("_SX_DB_CUR".into(), Node::Storage(vec![("0007".into(), Node::Stream(data))]))]).unwrap();
+        let source = |bytes: &[u8]| Arc::new(crate::MemorySource::new(bytes.to_vec())) as Arc<dyn crate::PackageRead>;
+        let document = crate::open(source(&bytes), &crate::OpenPolicy::default()).unwrap();
+        let check = |doc: &crate::OpenedDocument| {
+            let mut ids = IdAllocator::<SheetId>::new();
+            let loaded = crate::load(doc, &mut ids).unwrap();
+            let cache = loaded.pivot_caches().caches.get(&0).unwrap();
+            assert_eq!(cache.attributes.get("refreshOnLoad").map(String::as_str), Some("1"));
+            assert_eq!(loaded.pivot_records(0, 10).unwrap().records.len(), 2);
         };
         check(&document);
         let plan = crate::prepare_save(&document.snapshot(), &crate::SavePolicy::default()).unwrap();

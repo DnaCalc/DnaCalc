@@ -1241,7 +1241,8 @@ fn fresh_cache(cache: &PivotCache, records_id: &str) -> Result<Vec<u8>, SaveRefu
     attrs(
         &BTreeMap::from([
             ("saveData".into(), "1".into()),
-            ("refreshOnLoad".into(), "0".into()),
+            ("refreshOnLoad".into(), if matches!(cache.attributes.get("refreshOnLoad").map(String::as_str),
+                Some("1" | "true")) { "1" } else { "0" }.into()),
             ("createdVersion".into(), "6".into()),
             ("refreshedVersion".into(), "6".into()),
             ("minRefreshableVersion".into(), "3".into()),
