@@ -47,6 +47,7 @@ fn sweep() {
     let (mut formula_cells, mut parse_failures) = (0usize, 0usize);
     let audit_phonetic = std::env::var_os("DNACALC_XLS_AUDIT_PHONETIC").is_some();
     let (mut phonetic_runs, mut phonetic_files, mut phonetic_errors) = (0usize, 0usize, 0usize);
+    let (mut phonetic_formats, mut phonetic_format_files) = (0usize, 0usize);
     let mut refused: BTreeMap<String, usize> = BTreeMap::new();
     let mut load_refused: BTreeMap<String, usize> = BTreeMap::new();
     let mut panics: Vec<String> = Vec::new();
@@ -68,11 +69,12 @@ fn sweep() {
             let document = calc_doc::open_with_password(source, &policy, password.as_deref());
             let written_phonetic = if audit_phonetic {
                 document.as_ref().ok().and_then(|doc| {
-                    if doc.package().part("xl/sharedStrings.xml").is_none() { return Some(0); }
+                    if doc.package().part("xl/sharedStrings.xml").is_none() { return Some((0, 0)); }
                     doc.package().read_part("xl/sharedStrings.xml").ok()
-                        .map(|xml| xml.windows(5).filter(|window| *window == b"<rPh ").count())
+                        .map(|xml| (xml.windows(5).filter(|window| *window == b"<rPh ").count(),
+                            xml.windows(12).filter(|window| *window == b"<phoneticPr ").count()))
                 })
-            } else { Some(0) };
+            } else { Some((0, 0)) };
             let load = document.as_ref().ok().map(|d| {
                 let mut ids: IdAllocator<SheetId> = IdAllocator::new();
                 calc_doc::load(d, &mut ids).map_err(|e| e.to_string()).map(|loaded| {
@@ -110,9 +112,11 @@ fn sweep() {
                     }
                     Ok(()) => {
                         opened += 1;
-                        if let Some(count) = written_phonetic {
-                            phonetic_runs += count;
-                            phonetic_files += usize::from(count != 0);
+                        if let Some((runs, formats)) = written_phonetic {
+                            phonetic_runs += runs;
+                            phonetic_files += usize::from(runs != 0);
+                            phonetic_formats += formats;
+                            phonetic_format_files += usize::from(formats != 0);
                         } else if audit_phonetic {
                             phonetic_errors += 1;
                         }
@@ -147,6 +151,7 @@ fn sweep() {
     println!("formula cells loaded: {formula_cells}, not re-parsed by calc-fml: {parse_failures}");
     if audit_phonetic {
         println!("phonetic runs written: {phonetic_runs} in {phonetic_files} files; audit errors: {phonetic_errors} (not an Excel match verdict)");
+        println!("shared-string phonetic formats written: {phonetic_formats} in {phonetic_format_files} files (not an Excel match verdict)");
     }
     println!("refused to open, by reason:");
     for (reason, n) in &refused {
