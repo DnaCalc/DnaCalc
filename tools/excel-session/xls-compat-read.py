@@ -66,13 +66,14 @@ def main():
         if row['name'] in by_name:
             raise SystemExit('duplicate observation: ' + row['name'])
         by_name[row['name']] = row
-    expected = {prefix + str(case[0]) for case in cases for prefix in ('formula/', 'reopened/')}
+    expected = {prefix + str(case[0]) for case in cases for prefix in ('formula/', 'reopened/', 'converted/')}
     missing = sorted(expected - by_name.keys())
     legacy = base64.b64decode(result.get('legacy_base64') or '', validate=True)
     modern = base64.b64decode(result.get('converted_base64') or '', validate=True)
     stored = tokens(legacy, len(cases)) if legacy else {}
     formulas = [{'id': case[0], 'submitted': case[1], 'entry': by_name.get('formula/' + case[0]),
-                 'reopened': by_name.get('reopened/' + case[0]), 'stored_tokens_hex': stored.get(i)}
+                 'reopened': by_name.get('reopened/' + case[0]), 'converted': by_name.get('converted/' + case[0]),
+                 'stored_tokens_hex': stored.get(i)}
                 for i, case in enumerate(cases)]
     calc_id = None
     if modern:
@@ -89,7 +90,7 @@ def main():
             if dest.exists():
                 raise SystemExit('refusing to overwrite ' + str(dest))
             dest.write_bytes(data)
-    report = {'formulas': formulas, 'other_observations': [r for r in observations if not r['name'].startswith(('formula/', 'reopened/'))],
+    report = {'formulas': formulas, 'other_observations': [r for r in observations if not r['name'].startswith(('formula/', 'reopened/', 'converted/'))],
               'missing_observations': missing, 'converted_calc_id': calc_id, 'not_run': result.get('not_run', []),
               'product_comparison': 'not available: Compatibility Mode is not modelled'}
     args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
