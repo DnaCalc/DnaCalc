@@ -788,3 +788,67 @@ mod encrypted {
         }
     }
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn pictures_text_boxes_and_charts_are_written_as_a_drawing() {
+    use ptg::*;
+    use xls_kit::art;
+    let png = [0x89, b'P', b'N', b'G', 13, 10, 26, 10, 1, 2, 3, 4];
+    let globals = [art::group_with_png(&png), supbook_self(1), extern_sheet(&[(0, 0, 0)])].concat();
+    let mut r = Vec::new();
+    r.extend(number(0, 0, 1.0));
+    r.extend(art::drawing(&[
+        art::shape(75, 1, [1, 0, 1, 0, 3, 512, 5, 128], false),
+        art::shape(202, 0, [4, 0, 6, 0, 7, 0, 9, 0], true),
+        art::shape(201, 0, [10, 0, 12, 0, 14, 0, 20, 0], false),
+    ]));
+    r.extend(art::obj(8, 1));
+    r.extend(art::obj(6, 2));
+    r.extend(record(0x01B6, &{
+        let mut b = u16s(&[0x0212, 0, 0, 0, 0, 5, 16]);
+        b.extend([0u8; 4]);
+        b
+    }));
+    r.extend(record(0x003C, b"\0hello"));
+    r.extend(record(0x003C, &[0u8; 16]));
+    r.extend(art::obj(5, 3));
+    r.extend(art::chart(
+        &[("Sales", area3d(0, (1, 4), (0, 0), 0), area3d(0, (1, 4), (1, 1), 0))],
+        0x0001,
+        "Quarterly",
+    ));
+    let bytes = xls(false, &globals, &[Sheet::worksheet("Sheet1", r)]);
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let text = |part: &str| String::from_utf8(document.package().read_part(part).unwrap()).unwrap();
+    let drawing = text("xl/drawings/drawing1.xml");
+    assert!(drawing.contains("<xdr:pic>"), "{drawing}");
+    assert!(drawing.contains("hello"), "{drawing}");
+    assert!(drawing.contains("<xdr:graphicFrame"), "{drawing}");
+    assert!(drawing.contains("<xdr:col>1</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>1</xdr:row>"), "{drawing}");
+    assert_eq!(document.package().read_part("xl/media/image1_1.png").unwrap(), png);
+    let chart = text("xl/charts/chart1_1.xml");
+    for expected in [
+        "<c:barDir val=\"bar\"/>",
+        "<c:f>Sheet1!$B$2:$B$5</c:f>",
+        "<c:f>Sheet1!$A$2:$A$5</c:f>",
+        "Sales",
+        "Quarterly",
+        "<c:legendPos",
+    ] {
+        assert!(chart.contains(expected), "{expected} in {chart}");
+    }
+    // The ellipse-less type 201 shape is not written, and says so.
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert_eq!(report.unread_objects.values().sum::<u32>(), 0, "{:?}", report.unread_objects);
+    // The workbook loads and has a chart and shapes.
+    let loaded = load(&bytes);
+    let sheet = &loaded.sheets()[0];
+    // The picture and the text box are shapes the model holds; the chart is the chart reader's.
+    assert_eq!(sheet.shapes().shapes.len(), 2, "{:?}", sheet.shapes());
+    assert_eq!(sheet.shapes().unread, 0);
+    let charts = sheet.charts();
+    assert_eq!(charts.charts.len(), 1, "{charts:?}");
+    assert_eq!(charts.charts[0].title.as_deref(), Some("Quarterly"));
+    assert_eq!(charts.charts[0].plots.len(), 1);
+}

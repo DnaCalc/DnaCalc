@@ -39,6 +39,8 @@ pub(crate) struct Context<'a> {
     pub(crate) number: usize,
     /// The code page of a BIFF5 or BIFF7 workbook, whose strings are bytes in it.
     pub(crate) v5: Option<u16>,
+    /// The pictures of the workbook's blip store.
+    pub(crate) images: &'a [Option<super::drawing::Image>],
 }
 
 /// What a formula cell's `<f>` element holds.
@@ -113,6 +115,10 @@ pub(crate) struct SheetPart {
     pub(crate) rels: Vec<super::features::Rel>,
     /// Parts the sheet owns: its comments and their VML drawing.
     pub(crate) parts: Vec<(String, &'static str, Vec<u8>)>,
+    /// Relationship parts of those (the drawing's).
+    pub(crate) entries: Vec<(String, Vec<u8>)>,
+    /// Drawing objects not written, by OBJ type.
+    pub(crate) unread_objects: BTreeMap<u16, u32>,
 }
 
 /// The A1 name of a column (0-based).
@@ -152,9 +158,12 @@ pub(crate) fn read(
     let mut unknown: BTreeMap<u16, u32> = BTreeMap::new();
     let mut default_height: u16 = 255;
     let mut default_column_width: Option<u16> = None;
+    let mut column_widths: Vec<(u16, u16, u16)> = Vec::new();
+    let mut row_heights: BTreeMap<u16, f64> = BTreeMap::new();
     let mut default_row_attributes: Vec<(&'static str, String)> = Vec::new();
     let mut depth = 0usize;
     let mut features = super::features::Features::default();
+    let mut drawing = super::drawing::Drawing::default();
     features.number = context.number;
     features.v5 = context.v5;
     // Shared and array formulas and data tables, by the cell of the FORMULA record they follow
@@ -239,11 +248,20 @@ pub(crate) fn read(
     // lie in a row with no ROW record, so cells create theirs.
     for (index, record) in records.iter().enumerate() {
         if depth > 1 {
-            // Inside a nested substream (an embedded chart): skipped, counted.
+            // Inside a nested substream (an embedded chart): read by the chart's object.
             match record.id {
                 super::workbook::BOF => depth += 1,
                 super::workbook::EOF => depth -= 1,
-                id => *unknown.entry(id).or_insert(0) += 1,
+                _ => {
+                    let print = |rgce: &[u8]| -> Option<String> {
+                        let context = context.links.context(Some(context.tab));
+                        match print(rgce, &[], &context, Origin::default()) {
+                            Ok(Ok(text)) => Some(text),
+                            _ => None,
+                        }
+                    };
+                    drawing.chart_record(record, &print);
+                }
             }
             continue;
         }
@@ -301,6 +319,7 @@ pub(crate) fn read(
                     }
                     attributes.push(("customFormat", "1".to_owned()));
                 }
+                row_heights.insert(row, f64::from(height) / 20.0);
                 rows.entry(row).or_default().attributes = attributes;
             }
             COLINFO => {
@@ -335,6 +354,7 @@ pub(crate) fn read(
                 if flags & (1 << 12) != 0 {
                     attributes.push(("collapsed", "1".to_owned()));
                 }
+                column_widths.push((first, last.min(255), width));
                 columns.push(attributes);
             }
             NUMBER => {
@@ -523,7 +543,9 @@ pub(crate) fn read(
             // BIFF5's local link table: read with the workbook, before the formulas.
             0x0016 | 0x0017 | 0x0023 if context.v5.is_some() => {}
             other => {
-                if !features.read(record)? {
+                // The drawing sees OBJ before the features do (both read it), and a TXO first.
+                let taken = drawing.read(record);
+                if !taken && !features.read(record)? {
                     *unknown.entry(other).or_insert(0) += 1;
                 }
             }
@@ -654,13 +676,93 @@ pub(crate) fn read(
     }
     x.close("sheetData");
     let mut rels = Vec::new();
-    features.write_after_data(&mut x, &mut rels);
+    let mut parts = Vec::new();
+    let mut entries = Vec::new();
+    let mut unread_objects = BTreeMap::new();
+    let mut drawing_id = None;
+    if !drawing.is_empty() && context.v5.is_none() {
+        let width_px = |column: u16| -> f64 {
+            let found = column_widths
+                .iter()
+                .find(|(first, last, _)| (*first..=*last).contains(&column));
+            found.map_or(64.0, |(_, _, w)| f64::from(*w) / 256.0 * 7.0 + 0.0)
+        };
+        let height_pt = |row: u16| -> f64 {
+            row_heights.get(&row).copied().unwrap_or(f64::from(default_height) / 20.0)
+        };
+        let geometry = |column: u16, dx: u16, row: u16, dy: u16| -> (u16, i64, u16, i64) {
+            (
+                column,
+                (f64::from(dx) / 1024.0 * width_px(column) * 9525.0) as i64,
+                row,
+                (f64::from(dy) / 256.0 * height_pt(row) * 12700.0) as i64,
+            )
+        };
+        if let Some(written) = drawing.write(context.number, context.images, &geometry, sheet_name) {
+            unread_objects = written.unread.clone();
+            if !written.xml.is_empty() {
+                let drawing_part = format!("xl/drawings/drawing{}.xml", context.number);
+                let mut drels = Xml::new();
+                drels.open(
+                    "Relationships",
+                    &[("xmlns", "http://schemas.openxmlformats.org/package/2006/relationships".to_owned())],
+                );
+                for rel in &written.rels {
+                    drels.empty(
+                        "Relationship",
+                        &[
+                            ("Id", rel.id.clone()),
+                            ("Type", format!("{}/{}", super::RELATIONSHIPS_NAMESPACE, rel.kind)),
+                            ("Target", rel.target.clone()),
+                        ],
+                    );
+                }
+                drels.close("Relationships");
+                entries.push((
+                    format!("xl/drawings/_rels/drawing{}.xml.rels", context.number),
+                    drels.out,
+                ));
+                parts.push((
+                    drawing_part,
+                    "application/vnd.openxmlformats-officedocument.drawing+xml",
+                    written.xml,
+                ));
+                for (k, image) in written.images.iter().enumerate() {
+                    parts.push((
+                        format!("xl/media/image{}_{}.{}", context.number, k + 1, image.extension),
+                        image.content_type,
+                        image.bytes.clone(),
+                    ));
+                }
+                for (k, chart) in written.charts.into_iter().enumerate() {
+                    parts.push((
+                        format!("xl/charts/chart{}_{}.xml", context.number, k + 1),
+                        "application/vnd.openxmlformats-officedocument.drawingml.chart+xml",
+                        chart,
+                    ));
+                }
+                rels.push(super::features::Rel {
+                    id: "rIdDrawing".to_owned(),
+                    kind: "drawing",
+                    target: format!("../drawings/drawing{}.xml", context.number),
+                    external: false,
+                });
+                drawing_id = Some("rIdDrawing");
+            }
+        }
+    }
+    features.write_after_data(&mut x, &mut rels, drawing_id);
     x.close(root);
     Ok(SheetPart {
         xml: x.out,
         unknown,
         rels,
-        parts: features.comment_parts(),
+        parts: {
+            parts.extend(features.comment_parts());
+            parts
+        },
+        entries,
+        unread_objects,
     })
 }
 

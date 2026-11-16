@@ -10,7 +10,9 @@
 
 pub(crate) mod cfb;
 pub(crate) mod codepage;
+mod chart;
 mod crypto;
+mod drawing;
 mod features;
 mod formula;
 mod records;
@@ -39,6 +41,8 @@ pub struct LegacyReport {
     pub sheets: usize,
     /// Record types not read, with how many of each.
     pub unknown_records: BTreeMap<u16, u32>,
+    /// Drawing objects not written, with how many of each OBJ type (MS-XLS 2.5.145).
+    pub unread_objects: BTreeMap<u16, u32>,
 }
 
 /// Whether `bytes` start as an OLE compound file.
@@ -138,6 +142,7 @@ pub(crate) fn convert(
         Err(refuse(name, format!("sheet {:?} has no EOF record", sheet.name)))
     };
     // BIFF5 link tables: the globals' and each sheet's own, gathered before any formula prints.
+    let images = drawing::blip_store(&globals.drawing_group);
     let mut registry = v5::Registry::default();
     let mut tables: Vec<v5::Table> = Vec::new();
     let mut global_table = v5::Table::default();
@@ -175,6 +180,7 @@ pub(crate) fn convert(
     }
     let mut sheet_unknown: BTreeMap<u16, u32> = BTreeMap::new();
     let mut extra_entries: Vec<(String, Vec<u8>)> = Vec::new();
+    let mut unread_objects: BTreeMap<u16, u32> = BTreeMap::new();
     for sheet in &globals.sheets {
         if sheet.kind == SheetKind::Module {
             continue;
@@ -195,6 +201,7 @@ pub(crate) fn convert(
             strings: &globals.strings,
             links,
             v5,
+            images: &images,
             styles: &globals.styles,
             tab: number as u32 - 1,
             number,
@@ -206,6 +213,10 @@ pub(crate) fn convert(
                     .map_err(|detail| refuse(name, detail))?;
                 for (id, n) in read.unknown {
                     *sheet_unknown.entry(id).or_insert(0) += n;
+                }
+                extra_entries.extend(read.entries.iter().cloned());
+                for (kind, n) in &read.unread_objects {
+                    *unread_objects.entry(*kind).or_insert(0) += n;
                 }
                 parts.extend(read.parts.iter().map(|(n, t, b)| (n.clone(), *t, b.clone())));
                 if !read.rels.is_empty() {
@@ -381,6 +392,7 @@ pub(crate) fn convert(
     let report = LegacyReport {
         biff_version: if biff5 { 5 } else { 8 },
         sheets: globals.sheets.len(),
+        unread_objects,
         unknown_records: {
             let mut all = std::mem::take(&mut globals.unknown);
             for (id, n) in sheet_unknown {

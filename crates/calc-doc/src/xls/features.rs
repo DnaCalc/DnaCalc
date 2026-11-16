@@ -492,7 +492,7 @@ impl Features {
     }
 
     /// The elements after `<sheetData>`; hyperlinks add relationships to `rels`.
-    pub(crate) fn write_after_data(&self, x: &mut Xml, rels: &mut Vec<Rel>) {
+    pub(crate) fn write_after_data(&self, x: &mut Xml, rels: &mut Vec<Rel>, drawing: Option<&str>) {
         if self.protect || self.objects || self.scenarios {
             let mut a = Vec::new();
             if let Some(hash) = self.password {
@@ -643,6 +643,9 @@ impl Features {
                 );
             }
             x.close(name);
+        }
+        if let Some(id) = drawing {
+            x.empty("drawing", &[("r:id", id.to_owned())]);
         }
         let _ = REL;
         if !self.notes.is_empty() {
