@@ -279,6 +279,9 @@ pub(crate) fn read(
                 }
             }
             DIMENSIONS => {}
+            // Shared formula definitions were parsed in the group pass above and expanded into
+            // each member's formula. They are not unread records.
+            SHRFMLA => {}
             DEFAULT_ROW_HEIGHT => {
                 let mut c = Cursor::new(record.body);
                 let flags = c.u16("DefaultRowHeight").map_err(e)?;

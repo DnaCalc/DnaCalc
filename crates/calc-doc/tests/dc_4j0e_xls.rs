@@ -592,6 +592,11 @@ fn shared_array_and_table_formulas() {
     let definitions = loaded.model().definitions();
     assert_eq!(definitions.arrays().count(), 1);
     assert_eq!(definitions.data_tables().len(), 1);
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert!(!report.unknown_records.contains_key(&0x04BC), "shared definitions were read");
+    // The array's recalculation flag and some data-table metadata are still not fully retained.
+    assert!(report.unknown_records.contains_key(&0x0221));
+    assert!(report.unknown_records.contains_key(&0x0236));
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
