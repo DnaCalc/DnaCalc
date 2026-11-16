@@ -695,7 +695,10 @@ static class Program
                         try
                         {
                             target = built.Book.Worksheets.Item(sheet).Range[cell];
-                            target.Formula2 = (string)p["formula"];
+                            // "entry": "local" types the text as the user's locale reads an entry (FormulaLocal: a
+                            // number, date, percentage or currency takes the number format Excel gives it).
+                            if (p.TryGetValue("entry", out var en) && en as string == "local") target.FormulaLocal = (string)p["formula"];
+                            else target.Formula2 = (string)p["formula"];
                             placed.Add(target); answers.Add(null);
                         }
                         catch (Exception e)
@@ -719,6 +722,8 @@ static class Program
                         object top = target.Value2;
                         var (l, v) = Convert1(top);
                         var answer = new Dictionary<string, object> { ["ty"] = l.ToString(), ["v"] = v, ["spill"] = null };
+                        var probe = (Dictionary<string, object>)probes[k];
+                        if (probe.TryGetValue("entry", out var pe) && pe as string == "local") answer["nf"] = (string)target.NumberFormat;
                         if ((bool)target.HasSpill)
                         {
                             dynamic range = target.SpillingToRange;
