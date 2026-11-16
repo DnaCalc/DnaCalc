@@ -49,6 +49,14 @@ fn write_legacy_excel_session_inputs() {
         let bytes = xls(false, &[], &[Sheet::worksheet(name, number(0, 0, 42.0))]);
         std::fs::write(dir.join(file), bytes).unwrap();
     }
+    for (file, tokens) in [
+        ("repair-pivot-0.xls", ptg::func(358)),
+        ("repair-pivot-2.xls", ptg::join(&[ptg::text("Amount"), ptg::cell(0, 0, 0), ptg::func(358)])),
+        ("repair-pivot-4.xls", ptg::join(&[ptg::text("Amount"), ptg::cell(0, 0, 0), ptg::text("Region"), ptg::text("North"), ptg::func(358)])),
+    ] {
+        let cell = formula(1, 0, num_value(0.0), &tokens, &[]);
+        std::fs::write(dir.join(file), xls(false, &[], &[Sheet::worksheet("Data", cell)])).unwrap();
+    }
     for name in ["cells-biff8", "cells-biff5", "forms"] {
         let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
         let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
@@ -59,7 +67,8 @@ fn write_legacy_excel_session_inputs() {
     }
     let cases = serde_json::json!({
         "files": ["cells-biff8.xls", "cells-biff5.xls", "forms.xls"],
-        "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls"],
+        "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls",
+            "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls"],
         "create_pivot": true,
         "formulas": [
             ["rows_full_column", "=ROWS(A:A)"], ["columns_full_row", "=COLUMNS(1:1)"],

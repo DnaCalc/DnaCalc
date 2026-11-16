@@ -101,7 +101,7 @@ try {
         $generated.Add($entry)
     }
     # These inputs are constructed by the test, not taken from the real-file corpus.
-    # xlRepairFile (1) asks Excel to repair the malformed sheet-name fixture explicitly.
+    # xlRepairFile (1) asks Excel to repair each malformed fixture explicitly.
     foreach ($name in $cases.repair_cases) {
         $name = [string]$name
         if ([IO.Path]::GetFileName($name) -ne $name) { throw "Input must be a fixture basename: $name" }
