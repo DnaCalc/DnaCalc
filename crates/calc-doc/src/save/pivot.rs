@@ -1262,6 +1262,14 @@ fn fresh_cache(cache: &PivotCache, records_id: &str) -> Result<Vec<u8>, SaveRefu
     out.extend(b"</pivotCacheDefinition>");
     Ok(out)
 }
+
+/// Serialize a legacy source cache through the same definition and record writers used on save.
+pub(crate) fn legacy_cache_parts(cache: &PivotCache) -> Result<(Vec<u8>, Vec<u8>), SaveRefusal> {
+    let definition = fresh_cache(cache, "rId1")?;
+    let part = cache.records_part.as_deref().ok_or_else(|| bad(&cache.part, "Missing cache records part"))?;
+    let empty = XmlPart::new(part.into(), format!("<pivotCacheRecords xmlns=\"{M}\" count=\"0\"/>").into_bytes(), crate::xml::XmlLimits::default());
+    Ok((definition, records(&empty, cache)?))
+}
 fn fresh_table(table: &PivotTable) -> Vec<u8> {
     let mut out = format!("<pivotTableDefinition xmlns=\"{M}\"").into_bytes();
     let mut a = table.attributes.clone();
