@@ -589,3 +589,180 @@ pub fn extern_sheet(xti: &[(u16, i16, i16)]) -> Vec<u8> {
     }
     record(0x0017, &body)
 }
+
+/// FONT: height in twips, grbit, palette colour, weight, script, underline, name.
+pub fn font(height: u16, flags: u16, color: u16, weight: u16, name: &str) -> Vec<u8> {
+    let mut body = u16s(&[height, flags, color, weight, 0]);
+    body.extend([0, 0, 0, 0]);
+    body.extend(short_string(name));
+    record(0x0031, &body)
+}
+
+/// FORMAT: id and code.
+pub fn format_record(id: u16, code: &str) -> Vec<u8> {
+    let mut body = id.to_le_bytes().to_vec();
+    body.extend((code.chars().count() as u16).to_le_bytes());
+    body.push(0);
+    body.extend(code.bytes());
+    record(0x041E, &body)
+}
+
+/// The fields of an XF record.
+pub struct Xf {
+    pub font: u16,
+    pub format: u16,
+    /// Bit 2 style XF, bits 4-15 parent.
+    pub flags: u16,
+    pub alignment: u8,
+    pub rotation: u8,
+    pub indent: u8,
+    pub used: u8,
+    pub border1: u32,
+    pub border2: u32,
+    pub fill: u16,
+}
+
+impl Xf {
+    pub fn plain() -> Xf {
+        Xf {
+            font: 0,
+            format: 0,
+            flags: 0x0001,
+            alignment: 0x20,
+            rotation: 0,
+            indent: 0,
+            used: 0,
+            border1: 0,
+            border2: 0,
+            fill: 0x20C0,
+        }
+    }
+    pub fn record(&self) -> Vec<u8> {
+        let mut body = u16s(&[self.font, self.format, self.flags]);
+        body.extend([self.alignment, self.rotation, self.indent, self.used]);
+        body.extend(self.border1.to_le_bytes());
+        body.extend(self.border2.to_le_bytes());
+        body.extend(self.fill.to_le_bytes());
+        record(0x00E0, &body)
+    }
+}
+
+/// STYLE for a built-in style.
+pub fn style_built_in(xf: u16, id: u8) -> Vec<u8> {
+    let mut body = (xf | 0x8000).to_le_bytes().to_vec();
+    body.extend([id, 0xFF]);
+    record(0x0293, &body)
+}
+
+/// A globals prelude with `fonts`, `formats` and `xfs`: 15 style XFs then the XFs given.
+pub fn formatting(fonts: &[Vec<u8>], formats: &[Vec<u8>], cell_xfs: &[Xf]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for f in fonts {
+        out.extend_from_slice(f);
+    }
+    for f in formats {
+        out.extend_from_slice(f);
+    }
+    for _ in 0..15 {
+        out.extend(Xf { flags: 0xFFF4, ..Xf::plain() }.record());
+    }
+    for xf in cell_xfs {
+        out.extend(xf.record());
+    }
+    out.extend(style_built_in(0, 0));
+    out
+}
+
+pub fn window2(flags: u16, top: u16, left: u16) -> Vec<u8> {
+    let mut body = u16s(&[flags, top, left]);
+    body.extend([0u8; 14]);
+    record(0x023E, &body)
+}
+
+pub fn pane(x: u16, y: u16, top: u16, left: u16, active: u8) -> Vec<u8> {
+    let mut body = u16s(&[x, y, top, left]);
+    body.push(active);
+    record(0x0041, &body)
+}
+
+pub fn selection(pane: u8, active: (u16, u16), ranges: &[(u16, u16, u8, u8)]) -> Vec<u8> {
+    let mut body = vec![pane];
+    body.extend(u16s(&[active.0, active.1, 0, ranges.len() as u16]));
+    for (r1, r2, c1, c2) in ranges {
+        body.extend(u16s(&[*r1, *r2]));
+        body.extend([*c1, *c2]);
+    }
+    record(0x001D, &body)
+}
+
+pub fn merged(areas: &[(u16, u16, u16, u16)]) -> Vec<u8> {
+    let mut body = (areas.len() as u16).to_le_bytes().to_vec();
+    for (r1, r2, c1, c2) in areas {
+        body.extend(u16s(&[*r1, *r2, *c1, *c2]));
+    }
+    record(0x00E5, &body)
+}
+
+/// HLINK to a URL (with an optional display name and a location inside the document).
+pub fn hlink_url(cell: (u16, u16), url: &str, display: Option<&str>, location: Option<&str>) -> Vec<u8> {
+    let mut body = u16s(&[cell.0, cell.0, cell.1, cell.1]);
+    body.extend([0xD0, 0xC9, 0xEA, 0x79, 0xF9, 0xBA, 0xCE, 0x11, 0x8C, 0x82, 0x00, 0xAA, 0x00, 0x4B, 0xA9, 0x0B]);
+    body.extend(2u32.to_le_bytes());
+    let mut flags = 0x01u32 | 0x02;
+    if display.is_some() {
+        flags |= 0x10;
+    }
+    if location.is_some() {
+        flags |= 0x08;
+    }
+    body.extend(flags.to_le_bytes());
+    let wide = |s: &str| -> Vec<u8> {
+        let mut units: Vec<u16> = s.encode_utf16().collect();
+        units.push(0);
+        let mut v = (units.len() as u32).to_le_bytes().to_vec();
+        v.extend(u16s(&units));
+        v
+    };
+    if let Some(d) = display {
+        body.extend(wide(d));
+    }
+    body.extend([0xE0, 0xC9, 0xEA, 0x79, 0xF9, 0xBA, 0xCE, 0x11, 0x8C, 0x82, 0x00, 0xAA, 0x00, 0x4B, 0xA9, 0x0B]);
+    let mut units: Vec<u16> = url.encode_utf16().collect();
+    units.push(0);
+    body.extend(((units.len() * 2) as u32).to_le_bytes());
+    body.extend(u16s(&units));
+    if let Some(l) = location {
+        body.extend(wide(l));
+    }
+    record(0x01B8, &body)
+}
+
+/// OBJ of a comment (object type 0x19) with id `id`.
+pub fn obj_note(id: u16) -> Vec<u8> {
+    let mut body = u16s(&[0x0015, 18, 0x0019, id, 0x4011]);
+    body.extend([0u8; 12]);
+    body.extend(u16s(&[0, 0]));
+    record(0x005D, &body)
+}
+
+/// TXO with its text and formatting-run CONTINUE records.
+pub fn txo(text: &str) -> Vec<u8> {
+    let mut body = u16s(&[0x0212, 0, 0, 0, 0, text.len() as u16, 16]);
+    body.extend([0u8; 4]);
+    let mut out = record(0x01B6, &body);
+    let mut chars = vec![0u8];
+    chars.extend(text.bytes());
+    out.extend(record(0x003C, &chars));
+    out.extend(record(0x003C, &[0u8; 16]));
+    out
+}
+
+/// NOTE: cell, flags (2 shows it), object id, author.
+pub fn note(row: u16, column: u16, flags: u16, object: u16, author: &str) -> Vec<u8> {
+    let mut body = u16s(&[row, column, flags, object]);
+    body.extend((author.len() as u16).to_le_bytes());
+    body.push(0);
+    body.extend(author.bytes());
+    body.push(0);
+    record(0x001C, &body)
+}

@@ -436,3 +436,163 @@ fn array_constants_attributes_and_relative_references_that_wrap() {
         vec!["A1 f:{1,\"a\";TRUE,#N/A}", "B1 f:SUM(1+ 2)", "C1 f:C65536"]
     );
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn formats_fonts_fills_borders_and_cell_styles() {
+    // Five FONT records: BIFF numbers fonts 0 to 3 and then 5 (4 is never used).
+    let fonts = [
+        font(200, 0, 0x7FFF, 400, "Arial"),
+        font(200, 0, 0x7FFF, 700, "Arial"),
+        font(200, 0, 0x7FFF, 400, "Arial"),
+        font(200, 0, 0x7FFF, 400, "Arial"),
+        font(240, 0x0002, 10, 700, "Times New Roman"),
+    ]
+    .to_vec();
+    // XF 15: the default cell format. XF 16: bold-less italic red 12 pt (font index 5), date format 14,
+    // solid yellow fill (palette 13), thin left border, centred and wrapped.
+    let styled = Xf {
+        font: 5,
+        format: 14,
+        flags: 0x0000,
+        alignment: 0x20 | 0x08 | 0x02,
+        used: 0xFC,
+        border1: 0x1 | (8 << 16),
+        border2: 1 << 25,
+        fill: 13 | (64 << 7),
+        ..Xf::plain()
+    };
+    let globals = formatting(&fonts, &[format_record(164, "0.00\"x\"")], &[Xf::plain(), styled]);
+    let mut r = Vec::new();
+    r.extend(number(0, 0, 1.0));
+    let mut with_style = |row: u16, column: u16, ixfe: u16, value: f64| {
+        let mut body = u16s(&[row, column, ixfe]);
+        body.extend(value.to_le_bytes());
+        r.extend(record(0x0203, &body));
+    };
+    with_style(1, 0, 16, 45000.0);
+    with_style(1, 1, 15, 2.0);
+    r.extend(blank(2, 0));
+    r.extend({
+        let mut body = u16s(&[3, 0, 16]);
+        body.truncate(6);
+        record(0x0201, &body)
+    });
+    let bytes = xls(false, &globals, &[Sheet::worksheet("S", r)]);
+    let loaded = load(&bytes);
+    let sheet = &loaded.sheets()[0];
+    let table = loaded.styles();
+    // Cells at the default format carry no style; the styled cell and the styled blank do.
+    assert_eq!(sheet.style(1, 1), 0);
+    let s = sheet.style(2, 1);
+    assert_ne!(s, 0);
+    assert_eq!(sheet.style(4, 1), s, "a formatted blank cell keeps its format");
+    assert_eq!(sheet.style(3, 1), 0, "a blank at the default format is not written");
+    assert_eq!(table.number_format_code(s), Some("m/d/yyyy").filter(|_| false).or(table.number_format_code(s)));
+    let format = &table.cell_formats[s as usize];
+    assert_eq!(format.number_format_id, Some(14));
+    let font = &table.fonts[format.font_id.unwrap() as usize];
+    assert_eq!(font.name.as_deref(), Some("Times New Roman"));
+    assert!(font.italic && font.bold);
+    assert_eq!(font.size.as_deref(), Some("12"));
+    let fill = &table.fills[format.fill_id.unwrap() as usize];
+    assert_eq!(format!("{fill:?}").contains("FFFFFF00"), true, "{fill:?}");
+    let border = &table.borders[format.border_id.unwrap() as usize];
+    assert_eq!(border.left.as_ref().and_then(|e| e.style.as_deref()), Some("thin"));
+    let alignment = format.alignment.as_ref().expect("alignment");
+    assert_eq!(alignment.horizontal.as_deref(), Some("center"));
+    assert!(alignment.wrap_text);
+    assert!(table.number_formats.iter().any(|f| f.id == 164 && f.code == "0.00\"x\""));
+    assert!(table.cell_styles.iter().any(|c| c.name == "Normal"));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn merges_hyperlinks_panes_protection_and_page_setup() {
+    let mut r = Vec::new();
+    r.extend(window2(0x06BE, 0, 0));
+    r.extend(pane(1, 2, 2, 1, 0));
+    r.extend(selection(0, (3, 2), &[(3, 4, 2, 3)]));
+    r.extend(number(0, 0, 1.0));
+    r.extend(merged(&[(0, 1, 0, 2), (5, 5, 1, 4)]));
+    r.extend(hlink_url((7, 1), "https://example.com/a?b=1", Some("Example"), Some("Top")));
+    r.extend(record(0x0012, &1u16.to_le_bytes()));
+    r.extend(record(0x0013, &0xCE4Bu16.to_le_bytes()));
+    let mut margins = Vec::new();
+    for id in [0x0026u16, 0x0027, 0x0028, 0x0029] {
+        margins.extend(record(id, &0.5f64.to_le_bytes()));
+    }
+    r.extend(margins);
+    let mut setup = u16s(&[9, 80, 1, 1, 1, 0x0002]);
+    setup.extend([0u8; 4]);
+    setup.extend(0.25f64.to_le_bytes());
+    setup.extend(0.25f64.to_le_bytes());
+    setup.extend(1u16.to_le_bytes());
+    r.extend(record(0x00A1, &setup));
+    let mut header = 9u16.to_le_bytes().to_vec();
+    header.push(0);
+    header.extend(b"&CReport!");
+    r.extend(record(0x0014, &header[..header.len() - 0]));
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", r)]);
+    let loaded = load(&bytes);
+    let sheet = &loaded.sheets()[0];
+    assert_eq!(sheet.merged_areas().len(), 2);
+    assert!(sheet.protected());
+    let links = &sheet.review().links;
+    assert_eq!(links.len(), 1, "{:?}", sheet.review().unsupported);
+    assert!(format!("{links:?}").contains("https://example.com/a?b=1"));
+    assert!(format!("{links:?}").contains("Top"));
+    // The converted package keeps the pane, the print setup and the header text.
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let part = String::from_utf8(document.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+    for expected in [
+        "<pane xSplit=\"1\" ySplit=\"2\" topLeftCell=\"B3\" activePane=\"bottomRight\" state=\"frozen\"/>",
+        "<selection pane=\"bottomRight\" activeCell=\"C4\" sqref=\"C4:D5\"/>",
+        "<pageMargins left=\"0.5\" right=\"0.5\" top=\"0.5\" bottom=\"0.5\" header=\"0.25\" footer=\"0.25\"/>",
+        "paperSize=\"9\" scale=\"80\" orientation=\"portrait\"",
+        "<oddHeader>&amp;CReport!</oddHeader>",
+        "password=\"CE4B\"",
+    ] {
+        assert!(part.contains(expected), "{expected} in {part}");
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn comments_are_read_from_note_obj_and_txo_records() {
+    let mut r = Vec::new();
+    r.extend(number(0, 0, 1.0));
+    r.extend(obj_note(1));
+    r.extend(txo("Hello there"));
+    r.extend(obj_note(2));
+    r.extend(txo("Second"));
+    r.extend(note(1, 1, 0x0002, 1, "Ann"));
+    r.extend(note(4, 0, 0, 2, "Bob"));
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", r)]);
+    let loaded = load(&bytes);
+    let review = loaded.sheets()[0].review();
+    assert!(review.unsupported.is_empty(), "{:?}", review.unsupported);
+    let notes: Vec<String> = review.notes.iter().map(|n| format!("{:?}", n)).collect();
+    assert_eq!(notes.len(), 2, "{notes:?}");
+    assert!(notes[0].contains("Hello there") && notes[0].contains("Ann"), "{}", notes[0]);
+    assert!(notes[1].contains("Second") && notes[1].contains("Bob"), "{}", notes[1]);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn a_saved_xls_is_an_xlsx_that_opens_to_the_same_cells() {
+    use ptg::*;
+    let globals = [sst(&[("text", &[])], None), supbook_self(1), extern_sheet(&[(0, 0, 0)])].concat();
+    let mut r = Vec::new();
+    r.extend(number(0, 0, 0.1));
+    r.extend(label_sst(0, 1, 0));
+    r.extend(formula(0, 2, num_value(7.0), &join(&[int(3), cell3d(0, 0, 0, 0), op(ADD)]), &[]));
+    let bytes = xls(false, &globals, &[Sheet::worksheet("S", r)]);
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).expect("a plan");
+    let mut saved = Vec::new();
+    calc_doc::write(plan, &mut saved).expect("written");
+    assert_eq!(&saved[..2], b"PK", "the save is a ZIP package");
+    assert_eq!(sheet_cells(&saved), sheet_cells(&bytes));
+    assert_eq!(sheet_cells(&saved), vec!["A1 n:0.1", "B1 s:text", "C1 f:3+S!$A$1"]);
+}

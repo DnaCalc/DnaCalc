@@ -86,6 +86,7 @@ pub(crate) struct Globals {
     pub(crate) names: Vec<NameRecord>,
     pub(crate) supbooks: Vec<SupBookRecord>,
     pub(crate) xti: Vec<Xti>,
+    pub(crate) styles: super::styles::Styles,
     /// A FILEPASS record: the stream is encrypted (dc-4j0e.7).
     pub(crate) encrypted: bool,
     /// Record types not read, with how many of each, over the whole workbook stream, sheets included.
@@ -174,6 +175,13 @@ pub(crate) fn read(records: &[Record<'_>]) -> Result<Globals, String> {
                     }
                     globals.strings.push(p.rich_string().map_err(|e| e.0)?);
                 }
+            }
+            super::styles::FONT
+            | super::styles::FORMAT
+            | super::styles::XF
+            | super::styles::STYLE
+            | super::styles::PALETTE => {
+                globals.styles.read(record)?;
             }
             NAME => globals.names.push(name_record(record)?),
             SUPBOOK => globals.supbooks.push(supbook(record)?),

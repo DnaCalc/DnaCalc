@@ -9,10 +9,12 @@
 //! [`LegacyReport`], never fatal.
 
 pub(crate) mod cfb;
+mod features;
 mod formula;
 mod records;
 mod sheet;
 mod strings;
+mod styles;
 mod workbook;
 
 use crate::OpenError;
@@ -98,6 +100,7 @@ pub(crate) fn convert(bytes: &[u8]) -> Result<(Vec<u8>, LegacyReport), OpenError
             .collect(),
     );
     let mut sheet_unknown: BTreeMap<u16, u32> = BTreeMap::new();
+    let mut extra_entries: Vec<(String, Vec<u8>)> = Vec::new();
     for sheet in &globals.sheets {
         if sheet.kind == SheetKind::Module {
             continue;
@@ -137,7 +140,9 @@ pub(crate) fn convert(bytes: &[u8]) -> Result<(Vec<u8>, LegacyReport), OpenError
         let context = sheet::Context {
             strings: &globals.strings,
             links: &links,
+            styles: &globals.styles,
             tab: number as u32 - 1,
+            number,
         };
         let (part, content_type, xml) = match sheet.kind {
             SheetKind::MacroSheet | SheetKind::Worksheet => {
@@ -146,6 +151,31 @@ pub(crate) fn convert(bytes: &[u8]) -> Result<(Vec<u8>, LegacyReport), OpenError
                     .map_err(|detail| refuse(name, detail))?;
                 for (id, n) in read.unknown {
                     *sheet_unknown.entry(id).or_insert(0) += n;
+                }
+                parts.extend(read.parts.iter().map(|(n, t, b)| (n.clone(), *t, b.clone())));
+                if !read.rels.is_empty() {
+                    let mut r = Xml::new();
+                    r.open(
+                        "Relationships",
+                        &[(
+                            "xmlns",
+                            "http://schemas.openxmlformats.org/package/2006/relationships".to_owned(),
+                        )],
+                    );
+                    for rel in &read.rels {
+                        let mut a = vec![
+                            ("Id", rel.id.clone()),
+                            ("Type", format!("{REL_TYPE}/{}", rel.kind)),
+                            ("Target", rel.target.clone()),
+                        ];
+                        if rel.external {
+                            a.push(("TargetMode", "External".to_owned()));
+                        }
+                        r.empty("Relationship", &a);
+                    }
+                    r.close("Relationships");
+                    let folder = if macro_sheet { "macrosheets" } else { "worksheets" };
+                    extra_entries.push((format!("xl/{folder}/_rels/sheet{number}.xml.rels"), r.out));
                 }
                 if macro_sheet {
                     (
@@ -181,6 +211,14 @@ pub(crate) fn convert(bytes: &[u8]) -> Result<(Vec<u8>, LegacyReport), OpenError
     if sheet_entries.is_empty() {
         return Err(refuse(name, "the workbook has no sheets"));
     }
+    let has_styles = !globals.styles.is_empty();
+    if has_styles {
+        parts.push((
+            "xl/styles.xml".to_owned(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml",
+            globals.styles.write(),
+        ));
+    }
     let has_strings = !globals.strings.is_empty();
     if has_strings {
         let mut sst = Xml::new();
@@ -194,7 +232,28 @@ pub(crate) fn convert(bytes: &[u8]) -> Result<(Vec<u8>, LegacyReport), OpenError
         );
         for string in &globals.strings {
             sst.open("si", &[]);
-            sheet::text_element(&mut sst, &string.units);
+            if string.runs.is_empty() || globals.styles.is_empty() {
+                sheet::text_element(&mut sst, &string.units);
+            } else {
+                // Rich text: each run from its start to the next one's, in its font; text before
+                // the first run is in the default font (font 0).
+                let mut starts: Vec<(usize, u16)> = Vec::new();
+                if string.runs[0].0 != 0 {
+                    starts.push((0, 0));
+                }
+                starts.extend(string.runs.iter().map(|(at, font)| (usize::from(*at), *font)));
+                for (k, (at, font)) in starts.iter().enumerate() {
+                    let end = starts.get(k + 1).map_or(string.units.len(), |next| next.0);
+                    let (at, end) = (*at.min(&string.units.len()), end.min(string.units.len()));
+                    if at >= end {
+                        continue;
+                    }
+                    sst.open("r", &[]);
+                    globals.styles.write_run_properties(&mut sst, *font);
+                    sheet::text_element(&mut sst, &string.units[at..end]);
+                    sst.close("r");
+                }
+            }
             sst.close("si");
         }
         sst.close("sst");
@@ -206,7 +265,6 @@ pub(crate) fn convert(bytes: &[u8]) -> Result<(Vec<u8>, LegacyReport), OpenError
     }
     // The external workbooks the formulas name, as external link parts.
     let mut external_links: Vec<String> = Vec::new();
-    let mut extra_entries: Vec<(String, Vec<u8>)> = Vec::new();
     for book in &globals.supbooks {
         let workbook::SupBookRecord::External { path, sheets, names } = book else {
             continue;
@@ -426,6 +484,16 @@ pub(crate) fn convert(bytes: &[u8]) -> Result<(Vec<u8>, LegacyReport), OpenError
                 ("Id", format!("rIdLink{}", k + 1)),
                 ("Type", format!("{REL_TYPE}/externalLink")),
                 ("Target", part.trim_start_matches("xl/").to_owned()),
+            ],
+        );
+    }
+    if has_styles {
+        rels.empty(
+            "Relationship",
+            &[
+                ("Id", "rIdStyles".to_owned()),
+                ("Type", format!("{REL_TYPE}/styles")),
+                ("Target", "styles.xml".to_owned()),
             ],
         );
     }

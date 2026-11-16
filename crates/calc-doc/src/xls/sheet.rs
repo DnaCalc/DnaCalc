@@ -32,8 +32,10 @@ const TABLE: u16 = 0x0236;
 pub(crate) struct Context<'a> {
     pub(crate) strings: &'a [super::strings::RichString],
     pub(crate) links: &'a Links,
+    pub(crate) styles: &'a super::styles::Styles,
     /// The tab index of the sheet being read.
     pub(crate) tab: u32,
+    pub(crate) number: usize,
 }
 
 /// What a formula cell's `<f>` element holds.
@@ -90,18 +92,24 @@ enum Content {
     Bool(bool),
     Error(u8),
     Formula(Formula, Cached),
+    /// A cell with a format and no value.
+    Blank,
 }
 
 #[derive(Default)]
 struct RowData {
     attributes: Vec<(&'static str, String)>,
-    cells: BTreeMap<u16, Content>,
+    cells: BTreeMap<u16, (u16, Content)>,
 }
 
 /// The worksheet part of one sheet substream, and what in it was not read.
 pub(crate) struct SheetPart {
     pub(crate) xml: Vec<u8>,
     pub(crate) unknown: BTreeMap<u16, u32>,
+    /// The relationships of the sheet part (hyperlink targets).
+    pub(crate) rels: Vec<super::features::Rel>,
+    /// Parts the sheet owns: its comments and their VML drawing.
+    pub(crate) parts: Vec<(String, &'static str, Vec<u8>)>,
 }
 
 /// The A1 name of a column (0-based).
@@ -140,8 +148,11 @@ pub(crate) fn read(
     let mut columns: Vec<Vec<(&'static str, String)>> = Vec::new();
     let mut unknown: BTreeMap<u16, u32> = BTreeMap::new();
     let mut default_height: u16 = 255;
+    let mut default_column_width: Option<u16> = None;
     let mut default_row_attributes: Vec<(&'static str, String)> = Vec::new();
     let mut depth = 0usize;
+    let mut features = super::features::Features::default();
+    features.number = context.number;
     // Shared and array formulas and data tables, by the cell of the FORMULA record they follow
     // (where a PtgExp finds them) and, for shared formulas, by the first cell of their range.
     let mut shared: BTreeMap<(u32, u32), Group> = BTreeMap::new();
@@ -217,8 +228,8 @@ pub(crate) fn read(
             }
         }
     }
-    let put = |rows: &mut BTreeMap<u16, RowData>, row: u16, column: u16, content: Content| {
-        rows.entry(row).or_default().cells.insert(column, content);
+    let put = |rows: &mut BTreeMap<u16, RowData>, row: u16, column: u16, ixfe: u16, content: Content| {
+        rows.entry(row).or_default().cells.insert(column, (ixfe, content));
     };
     // Rows are known before the cells that fill them: ROW records come first, but a cell may
     // lie in a row with no ROW record, so cells create theirs.
@@ -279,6 +290,13 @@ pub(crate) fn read(
                 if flags & 0x10 != 0 {
                     attributes.push(("collapsed", "1".to_owned()));
                 }
+                if flags & 0x80 != 0 {
+                    let style = context.styles.cell_format(((flags >> 16) & 0x0FFF) as u16);
+                    if style != 0 {
+                        attributes.push(("s", style.to_string()));
+                    }
+                    attributes.push(("customFormat", "1".to_owned()));
+                }
                 rows.entry(row).or_default().attributes = attributes;
             }
             COLINFO => {
@@ -286,13 +304,17 @@ pub(crate) fn read(
                 let first = c.u16("ColInfo").map_err(e)?;
                 let last = c.u16("ColInfo").map_err(e)?;
                 let width = c.u16("ColInfo").map_err(e)?;
-                let _style = c.u16("ColInfo").map_err(e)?;
+                let ixfe = c.u16("ColInfo").map_err(e)?;
                 let flags = c.u16("ColInfo").map_err(e)?;
                 let mut attributes = vec![
                     ("min", (u32::from(first) + 1).to_string()),
                     ("max", (u32::from(last.min(255)) + 1).to_string()),
                     ("width", formula::number_text(f64::from(width) / 256.0)),
                 ];
+                let style = context.styles.cell_format(ixfe);
+                if style != 0 {
+                    attributes.push(("style", style.to_string()));
+                }
                 if flags & 0x01 != 0 {
                     attributes.push(("hidden", "1".to_owned()));
                 }
@@ -313,13 +335,13 @@ pub(crate) fn read(
             }
             NUMBER => {
                 let mut c = Cursor::new(record.body);
-                let (row, column, _) = cell_head(&mut c)?;
-                put(&mut rows, row, column, Content::Number(c.f64("Number").map_err(e)?));
+                let (row, column, ixfe) = cell_head(&mut c)?;
+                put(&mut rows, row, column, ixfe, Content::Number(c.f64("Number").map_err(e)?));
             }
             RK => {
                 let mut c = Cursor::new(record.body);
-                let (row, column, _) = cell_head(&mut c)?;
-                put(&mut rows, row, column, Content::Number(c.rk("RK").map_err(e)?));
+                let (row, column, ixfe) = cell_head(&mut c)?;
+                put(&mut rows, row, column, ixfe, Content::Number(c.rk("RK").map_err(e)?));
             }
             MULRK => {
                 let mut c = Cursor::new(record.body);
@@ -328,14 +350,14 @@ pub(crate) fn read(
                 // (ixfe, rk) pairs, then the last column.
                 let pairs = c.remaining().saturating_sub(2) / 6;
                 for k in 0..pairs {
-                    c.skip(2, "MulRk").map_err(e)?;
+                    let ixfe = c.u16("MulRk").map_err(e)?;
                     let value = c.rk("MulRk").map_err(e)?;
-                    put(&mut rows, row, first.saturating_add(k as u16), Content::Number(value));
+                    put(&mut rows, row, first.saturating_add(k as u16), ixfe, Content::Number(value));
                 }
             }
             LABELSST => {
                 let mut c = Cursor::new(record.body);
-                let (row, column, _) = cell_head(&mut c)?;
+                let (row, column, ixfe) = cell_head(&mut c)?;
                 let index = c.u32("LabelSst").map_err(e)?;
                 if index as usize >= context.strings.len() {
                     return Err(format!(
@@ -343,19 +365,19 @@ pub(crate) fn read(
                         context.strings.len()
                     ));
                 }
-                put(&mut rows, row, column, Content::SharedString(index));
+                put(&mut rows, row, column, ixfe, Content::SharedString(index));
             }
             LABEL => {
                 let mut c = Cursor::new(&record.body[..record.body.len().min(6)]);
-                let (row, column, _) = cell_head(&mut c)?;
+                let (row, column, ixfe) = cell_head(&mut c)?;
                 let mut p = Pieces::new(record);
                 p.skip(6, "Label").map_err(|m| m.0)?;
                 let units = p.unicode_string("a label").map_err(|m| m.0)?;
-                put(&mut rows, row, column, Content::Text(units));
+                put(&mut rows, row, column, ixfe, Content::Text(units));
             }
             BOOLERR => {
                 let mut c = Cursor::new(record.body);
-                let (row, column, _) = cell_head(&mut c)?;
+                let (row, column, ixfe) = cell_head(&mut c)?;
                 let value = c.u8("BoolErr").map_err(e)?;
                 let is_error = c.u8("BoolErr").map_err(e)? != 0;
                 let content = if is_error {
@@ -363,15 +385,26 @@ pub(crate) fn read(
                 } else {
                     Content::Bool(value != 0)
                 };
-                put(&mut rows, row, column, content);
+                put(&mut rows, row, column, ixfe, content);
             }
-            BLANK | MULBLANK => {
-                // A formatted blank cell carries no value; its format is read with the styles.
+            BLANK => {
+                let mut c = Cursor::new(record.body);
+                let (row, column, ixfe) = cell_head(&mut c)?;
+                put(&mut rows, row, column, ixfe, Content::Blank);
+            }
+            MULBLANK => {
+                let mut c = Cursor::new(record.body);
+                let row = c.u16("MulBlank").map_err(e)?;
+                let first = c.u16("MulBlank").map_err(e)?;
+                for k in 0..c.remaining().saturating_sub(2) / 2 {
+                    let ixfe = c.u16("MulBlank").map_err(e)?;
+                    put(&mut rows, row, first.saturating_add(k as u16), ixfe, Content::Blank);
+                }
             }
             FORMULA => {
                 let body = record.joined();
                 let mut c = Cursor::new(&body);
-                let (row, column, _) = cell_head(&mut c)?;
+                let (row, column, ixfe) = cell_head(&mut c)?;
                 let value = c.bytes(8, "Formula").map_err(e)?.to_vec();
                 c.skip(6, "Formula").map_err(e)?;
                 let count = usize::from(c.u16("Formula").map_err(e)?);
@@ -462,16 +495,23 @@ pub(crate) fn read(
                         }
                     }
                 };
-                put(&mut rows, row, column, Content::Formula(formula, cached));
+                put(&mut rows, row, column, ixfe, Content::Formula(formula, cached));
             }
             STRING => {}
-            other => *unknown.entry(other).or_insert(0) += 1,
+            other => {
+                if !features.read(record)? {
+                    *unknown.entry(other).or_insert(0) += 1;
+                }
+            }
         }
     }
 
     let mut x = Xml::new();
     let root = if macro_sheet { "xm:macrosheet" } else { "worksheet" };
-    let mut namespaces = vec![("xmlns", super::MAIN_NAMESPACE.to_owned())];
+    let mut namespaces = vec![
+        ("xmlns", super::MAIN_NAMESPACE.to_owned()),
+        ("xmlns:r", super::RELATIONSHIPS_NAMESPACE.to_owned()),
+    ];
     if macro_sheet {
         namespaces.push((
             "xmlns:xm",
@@ -479,8 +519,16 @@ pub(crate) fn read(
         ));
     }
     x.open(root, &namespaces);
+    features.write_properties(&mut x);
+    features.write_views(&mut x);
+    if let Some(width) = features.default_column_width.filter(|w| *w != 8) {
+        default_column_width = Some(width);
+    }
     let mut format = vec![("defaultRowHeight", formula::number_text(f64::from(default_height) / 20.0))];
     format.extend(default_row_attributes);
+    if let Some(width) = default_column_width {
+        format.push(("defaultColWidth", width.to_string()));
+    }
     x.empty("sheetFormatPr", &format);
     if !columns.is_empty() {
         x.open("cols", &[]);
@@ -498,33 +546,48 @@ pub(crate) fn read(
             continue;
         }
         x.open("row", &attributes);
-        for (column, content) in &data.cells {
+        for (column, (ixfe, content)) in &data.cells {
+            let style = context.styles.cell_format(*ixfe);
+            if matches!(content, Content::Blank) && style == 0 {
+                continue;
+            }
             let reference = format!("{}{}", column_name(u32::from(*column)), u32::from(*row) + 1);
+            let attrs = |kind: Option<&str>| -> Vec<(&'static str, String)> {
+                let mut a = vec![("r", reference.clone())];
+                if style != 0 {
+                    a.push(("s", style.to_string()));
+                }
+                if let Some(kind) = kind {
+                    a.push(("t", kind.to_owned()));
+                }
+                a
+            };
             match content {
+                Content::Blank => x.empty("c", &attrs(None)),
                 Content::Number(v) => {
-                    x.open("c", &[("r", reference)]);
+                    x.open("c", &attrs(None));
                     x.element("v", &[], &formula::number_text(*v));
                     x.close("c");
                 }
                 Content::SharedString(i) => {
-                    x.open("c", &[("r", reference), ("t", "s".to_owned())]);
+                    x.open("c", &attrs(Some("s")));
                     x.element("v", &[], &i.to_string());
                     x.close("c");
                 }
                 Content::Text(units) => {
-                    x.open("c", &[("r", reference), ("t", "inlineStr".to_owned())]);
+                    x.open("c", &attrs(Some("inlineStr")));
                     x.open("is", &[]);
                     text_element(&mut x, units);
                     x.close("is");
                     x.close("c");
                 }
                 Content::Bool(b) => {
-                    x.open("c", &[("r", reference), ("t", "b".to_owned())]);
+                    x.open("c", &attrs(Some("b")));
                     x.element("v", &[], if *b { "1" } else { "0" });
                     x.close("c");
                 }
                 Content::Formula(f, cached) => {
-                    let mut attributes = vec![("r", reference)];
+                    let mut attributes = attrs(None);
                     let (kind, value): (Option<&str>, String) = match cached {
                         Cached::Number(v) => (None, formula::number_text(*v)),
                         Cached::Text(units) => (Some("str"), String::from_utf16_lossy(units)),
@@ -557,7 +620,7 @@ pub(crate) fn read(
                     let text = formula::error_text(*code).ok_or_else(|| {
                         format!("the error code 0x{code:02X} on sheet {sheet_name:?}")
                     })?;
-                    x.open("c", &[("r", reference), ("t", "e".to_owned())]);
+                    x.open("c", &attrs(Some("e")));
                     x.element("v", &[], text);
                     x.close("c");
                 }
@@ -566,8 +629,15 @@ pub(crate) fn read(
         x.close("row");
     }
     x.close("sheetData");
+    let mut rels = Vec::new();
+    features.write_after_data(&mut x, &mut rels);
     x.close(root);
-    Ok(SheetPart { xml: x.out, unknown })
+    Ok(SheetPart {
+        xml: x.out,
+        unknown,
+        rels,
+        parts: features.comment_parts(),
+    })
 }
 
 /// `<t>` with `xml:space="preserve"` when the text starts or ends with a space.
