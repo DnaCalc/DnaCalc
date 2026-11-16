@@ -55,6 +55,8 @@ def calibrate(reference, image):
     row_strip = (min(round(data_right) + 16, right - 100), max(bounds["y"], y0 - 3), right - 4, bottom - 4)
 
     def candidates(rect, horizontal):
+        if rect[2] <= rect[0] or rect[3] <= rect[1]:
+            return [], []
         mask = image.crop(rect).convert("L").point(lambda p: 255 if p < 245 else 0)
         projection = mask.resize((1, mask.height) if horizontal else (mask.width, 1), Image.Resampling.BOX)
         values = projection.tobytes()
@@ -93,12 +95,17 @@ def calibrate(reference, image):
             ys = [y for y in ys if y < bottom]
             break
 
-    def edges(count, origin, values, sizes, limit):
+    geometry_axes = []
+
+    def edges(count, origin, values, sizes, limit, geometry=False):
+        """Edge positions from gridline projections. With geometry=True an edge with no gridline near its
+        estimate (a drawing covers it) is taken from the reported row/column sizes instead; the first
+        edge is still verified in the raster."""
         found = {}
         estimate = origin
         for i in range(1, count + 2):
             if i == 1:
-                if not any(abs(p - origin) <= 1 for p in values):
+                if not geometry and not any(abs(p - origin) <= 1 for p in values):
                     raise ValueError(f"Cannot verify the captured A1 origin: {ref['prefix']}")
                 found[i] = origin
                 continue
@@ -114,11 +121,25 @@ def calibrate(reference, image):
             if not possible:
                 if estimate > limit - 48 * ref["dpi"] / 96:
                     break
+                if geometry:
+                    found[i] = round(estimate)
+                    continue
                 raise ValueError(f"Cannot calibrate grid edge {i} at {estimate}: {ref['prefix']}")
             found[i] = min(possible, key=lambda p: abs(p - estimate))
         return found
 
-    ye = edges(row_count, y0, ys, [cells[r, 1]["points"]["h"] for r in range(1, row_count + 1)], bottom)
+    row_sizes = [cells[r, 1]["points"]["h"] for r in range(1, row_count + 1)]
+    try:
+        ye = edges(row_count, y0, ys, row_sizes, bottom)
+    except ValueError:
+        # Drawings can cover the strip right of the data. The row headers are never covered: their separators
+        # lie on the row edges. Failing that, the reported row heights stand in where no gridline shows.
+        header_rows, _ = candidates((bounds["x"] + 1, max(bounds["y"], y0 - 3), max(bounds["x"] + 2, x0 - 2), bottom - 4), True)
+        try:
+            ye = edges(row_count, y0, header_rows, row_sizes, bottom)
+        except ValueError:
+            ye = edges(row_count, y0, ys, row_sizes, bottom, geometry=True)
+            geometry_axes.append("rows")
     strips = []
     if data_bottom + 24 < bottom:
         strips.append((max(bounds["x"], x0 - 3), round(data_bottom) + 8, right - 4, bottom - 4))
@@ -137,6 +158,23 @@ def calibrate(reference, image):
         except ValueError as error:
             last_error = error
     if xe is None:
+        # No strip below the data is free of drawings; the column header's separators lie on the column edges.
+        header_cols, _ = candidates((max(bounds["x"], x0 - 3), bounds["y"] + 1, right - 4, max(bounds["y"] + 2, y0 - 2)), False)
+        try:
+            xe = edges(col_count, x0, header_cols, [cells[1, c]["points"]["w"] for c in range(1, col_count + 1)], right)
+        except ValueError as error:
+            last_error = error
+    if xe is None:
+        # Still none: use the reported column widths where no gridline shows.
+        for col_strip in strips:
+            xs, _ = candidates(col_strip, False)
+            try:
+                xe = edges(col_count, x0, xs, [cells[1, c]["points"]["w"] for c in range(1, col_count + 1)], right, geometry=True)
+                geometry_axes.append("columns")
+                break
+            except ValueError as error:
+                last_error = error
+    if xe is None:
         raise last_error
     for (row, col), cell in cells.items():
         cell["raster_calibrated"] = row + 1 in ye and col + 1 in xe
@@ -145,6 +183,8 @@ def calibrate(reference, image):
     ref["origin"] = {"x": xe[1], "y": ye[1]}
     ref["sheet_bounds"]["h"] = bottom - bounds["y"]
     ref["coordinate_method"] = "captured raster gridline projections; point geometry predicts adjacent edges"
+    if geometry_axes:
+        ref["coordinate_method"] += "; " + " and ".join(geometry_axes) + " taken from the reported geometry where drawings cover the gridlines"
     ref["raster_axes"] = {"x": xe, "y": ye, "column_strip": col_strip, "row_strip": row_strip}
     return ref
 
@@ -158,6 +198,14 @@ METRICS = ("geometry", "display_text", "text_ink_box", "baseline", "alignment",
            "clipping_overflow", "line_breaks", "line_position", "line_thickness",
            "line_joins", "line_dashes", "fill_colour_class", "fill_pattern",
            "text_colour_class", "selection")
+
+
+DEFAULT_STYLES = (
+    b'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+    b'<fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts>'
+    b'<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>'
+    b'<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
+    b'<cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellXfs></styleSheet>')
 
 
 def workbook_cells(path, sheet_name):
@@ -186,7 +234,9 @@ def workbook_cells(path, sheet_name):
         import posixpath
         sheet_path = target.lstrip("/") if target.startswith("/") else posixpath.normpath("xl/" + target)
         sheet = ET.fromstring(z.read(sheet_path))
-        styles = ET.fromstring(z.read("xl/styles.xml"))
+        # A package without xl/styles.xml has the default styles: one Calibri 11 font, the two required fills,
+        # one border and one cell format.
+        styles = ET.fromstring(z.read("xl/styles.xml") if "xl/styles.xml" in z.namelist() else DEFAULT_STYLES)
     fonts, fills, borders, xfs = [list(styles.find("s:" + name, ns)) for name in ("fonts", "fills", "borders", "cellXfs")]
     parsed = []
     for xf in xfs:
@@ -805,6 +855,37 @@ def self_test():
             ImageDraw.Draw(self.a).line((19,20,19,54),fill="#154c94")
             result=parity(self.a.crop((20,20,100,55)),self.a.crop((20,20,100,55)),dict(x=0,y=0,w=0,h=0),"",self.cell,self.rect,self.rect,self.a,self.a)
             self.assertEqual(result["line_dashes"]["status"],"unmeasured")
+        def test_missing_styles_part_means_default_styles(self):
+            import io, tempfile, zipfile, os
+            sheet = '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>x</t></is></c></row></sheetData></worksheet>'
+            parts = {"xl/workbook.xml": '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>',
+                     "xl/_rels/workbook.xml.rels": '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="x" Target="worksheets/sheet1.xml"/></Relationships>',
+                     "xl/worksheets/sheet1.xml": sheet}
+            with tempfile.TemporaryDirectory() as folder:
+                path = os.path.join(folder, "nostyles.xlsx")
+                with zipfile.ZipFile(path, "w") as z:
+                    for name, text in parts.items():
+                        z.writestr(name, text)
+                read = workbook_cells(path, "S")
+            self.assertEqual(read["default_style"]["family"], "Calibri")
+            self.assertAlmostEqual(read["default_style"]["pixels"], 11 * 96 / 72)
+            self.assertTrue(read["cells"][(1, 1)]["occupied"])
+        def test_calibration_uses_reported_geometry_where_drawings_cover_the_gridlines(self):
+            # 3 columns x 3 rows of 40 x 20 px at (30, 20); a drawing covers everything below the data, so only the rows have gridlines to read (the column gridlines are hidden under it).
+            image = Image.new("RGB", (400, 300), "white")
+            draw = ImageDraw.Draw(image)
+            for i in range(4):
+                draw.line((30, 20 + 20 * i, 150, 20 + 20 * i), fill=(200, 200, 200))
+            for i in range(4):
+                draw.line((160, 20 + 20 * i, 399, 20 + 20 * i), fill=(200, 200, 200))
+            draw.rectangle((0, 88, 399, 299), fill=(46, 117, 182))
+            cells = [{"row": r, "col": c, "points": {"w": 30.0, "h": 15.0}, "text": ""} for r in (1, 2, 3) for c in (1, 2, 3)]
+            ref = {"prefix": "t", "dpi": 96, "zoom": 100, "origin": {"x": 30, "y": 20}, "cells": cells,
+                   "sheet_bounds": {"x": 0, "y": 0, "w": 400, "h": 300}}
+            result = calibrate(ref, image)
+            self.assertEqual(result["raster_axes"]["x"][4], 150)
+            self.assertEqual(result["raster_axes"]["y"][4], 81)  # the strict path reads a gridline at its centre + 1
+            self.assertIn("reported geometry", result["coordinate_method"])
     result=unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(Controls))
     if not result.wasSuccessful():
         raise SystemExit(1)
