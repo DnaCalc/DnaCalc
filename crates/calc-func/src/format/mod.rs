@@ -62,6 +62,11 @@ fn currency_literal<'a>(profile: &FormatProfile, text: &'a str) -> &'a str {
     }
 }
 
+/// Whether `rest` starts with a weekday token (`aaa`, `AAAA`): three or more of one letter `c`.
+fn weekday_run(rest: &str, c: char) -> bool {
+    rest.chars().take_while(|&x| x == c).count() >= 3
+}
+
 /// The AM or PM designator of a locale.
 pub(crate) fn designator(profile: &FormatProfile, am: bool) -> &'static str {
     let lower = matches!(profile.id, LocaleId::EnZa | LocaleId::CurrentExcelHost);
@@ -815,7 +820,7 @@ fn items(section: &str, profile: &FormatProfile) -> Result<Vec<Item>, Failure> {
             c if c.is_ascii_alphabetic() => {
                 // A letter that is a token in some other format (dates, eras, A/P) is not modelled.
                 if "ymdhsbegYMDHSBEG".contains(c)
-                    || (matches!(c, 'a' | 'A') && !measured_host(profile))
+                    || (matches!(c, 'a' | 'A') && (!measured_host(profile) || weekday_run(&rest, c)))
                 {
                     return Err(Failure::NotModelled);
                 }
@@ -1365,7 +1370,7 @@ fn fraction_layout(
             }
             c if c.is_ascii_alphabetic() => {
                 if "ymdhsbegYMDHSBEG".contains(c)
-                    || (matches!(c, 'a' | 'A') && !measured_host(profile))
+                    || (matches!(c, 'a' | 'A') && (!measured_host(profile) || weekday_run(&rest, c)))
                 {
                     refusal.get_or_insert(Failure::NotModelled);
                 }

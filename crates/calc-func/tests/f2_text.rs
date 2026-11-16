@@ -780,8 +780,8 @@ fn tagged_date_names_follow_the_tag_lcid() {
 }
 
 /// dc-zsn.4: under every LCID tag (primary languages 0x01 to 0xFF, sublanguages 1 to 16) and the BCP 47
-/// tags Excel names, the month and weekday names are Excel's; an LCID Excel does not name writes the
-/// host's names, as LCID 0 does (tests/fixtures/fn5_tagged_names/excel-lcids.tsv).
+/// tags Excel names, the month and weekday names and the AM/PM designators are Excel's; an LCID Excel does
+/// not name writes the host's, as LCID 0 does (tests/fixtures/fn5_tagged_names/excel-lcids.tsv).
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn tagged_names_for_every_lcid_are_excels() {
@@ -792,6 +792,10 @@ fn tagged_names_for_every_lcid_are_excels() {
     };
     // 1 January 2023 is serial 44927, a Sunday.
     let check = |tag: &str, lists: &[&str]| {
+        for (serial, expected) in [0.25, 0.75].iter().zip(lists[4].split('|')) {
+            let format = format!("[$-{tag}]AM/PM");
+            text(call_in(&env, None, None, "TEXT", vec![n(*serial), t(&format)]), expected);
+        }
         for (field, (code, names)) in ["mmmm", "mmm", "dddd", "ddd"].iter().zip(lists).enumerate() {
             for (i, expected) in names.split('|').enumerate() {
                 let serial = if field < 2 {
@@ -828,6 +832,57 @@ fn tagged_names_for_every_lcid_are_excels() {
         check(tag, &host);
     }
     assert_eq!((named, fallback.len()), (1 + 246 + 176, 3834));
+}
+
+/// dc-zsn.4: aaa and AAA write the short weekday name, four or more the long one; aa, a and mixed-case
+/// runs are literal; a weekday run in a number format is not a number format. Excel 16.0.20527 (en-ZA host,
+/// Touchstone sheet cases, env 145016f4397d, 2026-11-16).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn weekday_a_runs_and_tagged_designators() {
+    use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
+    let env = CalcEnvironment {
+        profile: Some(format_profile(LocaleId::EnZa)),
+        ..CalcEnvironment::dates(DateSystem::System1900)
+    };
+    let text_of = |x: f64, code: &str| call_in(&env, None, None, "TEXT", vec![n(x), t(code)]);
+    for (x, code, expected) in [
+        (44927.0, "aaa", "Sun"),
+        (44927.0, "aaaa", "Sunday"),
+        (44927.0, "AAA", "Sun"),
+        (44927.0, "aaaaaaa", "Sunday"),
+        (44927.0, "Aaa", "Aaa"),
+        (44927.0, "aAaA", "aAaA"),
+        (44927.0, "a", "a"),
+        (44927.0, "aa d", "aa 1"),
+        (44928.0, "aaa d", "Mon 2"),
+        (1.5, "aaa", "Sun"),
+        (0.0, "aaa", "Sat"),
+        (0.75, "aaa h AM/PM", "Sat 6 pm"),
+        (0.75, "h aaa", "18 Sat"),
+        (44927.0, "\"aaa\"", "aaa"),
+        (44927.0, "\\aaaa", "aSun"),
+        (44927.0, "aaam", "Sun1"),
+        (44927.0, "[$-407]aaa", "So"),
+        (44927.0, "[$-411]aaa", "日"),
+        (44927.0, "[$-404]aaaa", "星期日"),
+        (44927.0, "aaa;@", "Sun"),
+        (0.75, "h am/pm", "6 pm"),
+        (0.75, "h Am/Pm", "6 pm"),
+        (0.75, "[$-409]h am/pm", "6 PM"),
+        (0.75, "[$-407]hh:mm AM/PM", "06:00 PM"),
+        (0.25, "[$-407]h:mm:ss AM/PM", "6:00:00 AM"),
+        (0.75, "[$-411]AM/PM h", "午後 6"),
+        (44927.75, "[$-411]aaa h AM/PM", "日 6 午後"),
+        (0.5, "[$-412]h AM/PM", "12 오후"),
+        (0.0, "[$-412]h AM/PM", "12 오전"),
+        (0.75, "[$-9999]h AM/PM", "6 pm"),
+        (0.75, "[$-de-AT]h AM/PM", "6 PM"),
+    ] {
+        text(text_of(x, code), expected);
+    }
+    error(text_of(-1.0, "aaa"), Value);
+    assert!(text_of(44927.0, "0 aaa").is_err(), "Excel: #VALUE!; not modelled here");
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
