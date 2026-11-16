@@ -1029,6 +1029,22 @@ fn conditional_formats_validations_and_the_automatic_filter() {
     assert!(first.contains("bold: true") && first.contains("FFFFFF00"), "{first}");
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn biff5_filter_text_uses_the_workbook_code_page() {
+    let globals = [v5::extern_own(b"S"), v5::name(0x21, 1, b"\r", &v5::cell3d(1, 0, 0, 0))].concat();
+    let mut doper = [0u8; 10];
+    doper[0] = 6; doper[1] = 2; doper[6] = 4;
+    let mut filter = u16s(&[0, 0]);
+    filter.extend(doper); filter.extend([0u8; 10]); filter.extend(b"caf\xE9");
+    let records = [rules::autofilter_info(1), record(0x009E, &filter)].concat();
+    let bytes = v5::xls(1252, &globals, &[v5::Sheet::new("S", records)]);
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let xml = String::from_utf8(document.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+    assert!(xml.contains("val=\"café\""), "{xml}");
+    load(&bytes);
+}
+
 mod vba {
     use super::*;
 

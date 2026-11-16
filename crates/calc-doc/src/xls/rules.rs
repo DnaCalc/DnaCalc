@@ -84,6 +84,7 @@ impl Rules {
         styles: &Styles,
         print: Print<'_>,
         sheet_name: &str,
+        v5: Option<u16>,
     ) -> Result<bool, String> {
         match record.id {
             CF_HEADER => {
@@ -304,7 +305,7 @@ impl Rules {
                 } else {
                     let mut criteria = Vec::new();
                     for doper in [&first, &second] {
-                        if let Some(criterion) = criterion(doper, &mut p)? {
+                        if let Some(criterion) = criterion(doper, &mut p, v5)? {
                             criteria.push(criterion);
                         }
                     }
@@ -408,7 +409,7 @@ fn dv_strings(body: &[u8]) -> Result<(Vec<String>, usize), String> {
 }
 
 /// One AutoFilter criterion (a DOPER, 10 bytes): its comparison and value, `None` when unused.
-fn criterion(doper: &[u8], strings: &mut Pieces<'_>) -> Result<Option<(&'static str, String)>, String> {
+fn criterion(doper: &[u8], strings: &mut Pieces<'_>, v5: Option<u16>) -> Result<Option<(&'static str, String)>, String> {
     let kind = doper[0];
     let sign = doper[1];
     let operator = match sign {
@@ -434,11 +435,17 @@ fn criterion(doper: &[u8], strings: &mut Pieces<'_>) -> Result<Option<(&'static 
             Some((operator, crate::xlsb::formula::number_text(f64::from_le_bytes(b))))
         }
         6 => {
-            // The text follows the AutoFilter record's fixed part: a flag byte and the characters.
+            // BIFF8 uses a Unicode option byte; BIFF5 stores code-page bytes directly.
             let count = usize::from(doper[6]);
-            let flag = strings.u8("AutoFilter").map_err(|m| m.0)?;
-            let units = strings.characters(count, flag & 1 != 0, "a filter text").map_err(|m| m.0)?;
-            Some((operator, String::from_utf16_lossy(&units)))
+            let text = if let Some(page) = v5 {
+                let bytes = (0..count).map(|_| strings.u8("a filter text")).collect::<Result<Vec<_>, _>>().map_err(|m| m.0)?;
+                super::codepage::decode(page, &bytes)?
+            } else {
+                let flag = strings.u8("AutoFilter").map_err(|m| m.0)?;
+                let units = strings.characters(count, flag & 1 != 0, "a filter text").map_err(|m| m.0)?;
+                String::from_utf16_lossy(&units)
+            };
+            Some((operator, text))
         }
         8 => Some((operator, if doper[3] != 0 { "#N/A".to_owned() } else if doper[2] != 0 { "TRUE".to_owned() } else { "FALSE".to_owned() })),
         0xC => Some(("equal", String::new())),
