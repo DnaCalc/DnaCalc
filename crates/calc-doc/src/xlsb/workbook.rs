@@ -547,6 +547,7 @@ pub(crate) fn write(book: &Book, shared: &Shared) -> Result<Vec<u8>, OpenError> 
                 layout: formula::Layout::Xlsb,
                 code_page: 0,
                 sheets: &shared.sheet_names,
+                unavailable_sheets: &[],
                 xti: &book.xti,
                 supbooks: &shared.supbooks,
                 names: &shared.names,

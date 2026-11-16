@@ -412,6 +412,30 @@ fn defined_name_array_keeps_its_extra_data() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn module_sheets_do_not_shift_formula_indices_or_local_name_scope() {
+    let globals = [
+        supbook_self(3), extern_sheet(&[(0, 2, 2), (0, 1, 1)]),
+        name_record(0, 3, "Rate", &ptg::cell3d(0, 0, 0, 0)),
+    ].concat();
+    let module = || Sheet { kind: 6, ..Sheet::worksheet("Module", Vec::new()) };
+    let sheets = [Sheet::worksheet("First", formula(0, 0, num_value(1.0), &ptg::cell3d(0, 0, 0, 0), &[])),
+        module(), Sheet::worksheet("Last", Vec::new())];
+    let bytes = xls(false, &globals, &sheets);
+    assert_eq!(sheet_cells(&bytes), vec!["A1 f:Last!$A$1"]);
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let workbook = String::from_utf8(document.package().read_part("xl/workbook.xml").unwrap()).unwrap();
+    assert!(workbook.contains("name=\"Rate\" localSheetId=\"1\""), "{workbook}");
+    let sheets = [Sheet::worksheet("First", formula(0, 0, num_value(1.0), &ptg::cell3d(1, 0, 0, 0), &[])),
+        module(), Sheet::worksheet("Last", Vec::new())];
+    let bytes = xls(false, &globals, &sheets);
+    match calc_doc::open(source(&bytes), &OpenPolicy::default()) {
+        Err(OpenError::LegacyWorkbook { detail, .. }) => assert!(detail.contains("omitted module sheet"), "{detail}"),
+        other => panic!("{:?}", other.err()),
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn a_formula_the_converter_cannot_print_is_a_typed_refusal_naming_the_cell() {
     // Token 0x7F is no token.
     let r = formula(0, 0, ptg_value(), &[0x7F], &[]);

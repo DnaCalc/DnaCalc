@@ -179,7 +179,6 @@ pub(crate) fn convert(
         globals
             .sheets
             .iter()
-            .filter(|s| s.kind != SheetKind::Module)
             .map(|s| s.name.clone())
             .collect(),
         v5,
@@ -191,7 +190,7 @@ pub(crate) fn convert(
     let mut sheet_unknown: BTreeMap<u16, u32> = BTreeMap::new();
     let mut extra_entries: Vec<(String, Vec<u8>)> = Vec::new();
     let mut unread_objects: BTreeMap<u16, u32> = BTreeMap::new();
-    for sheet in &globals.sheets {
+    for (source_tab, sheet) in globals.sheets.iter().enumerate() {
         if sheet.kind == SheetKind::Module {
             continue;
         }
@@ -212,9 +211,9 @@ pub(crate) fn convert(
             links,
             v5,
             images: &images,
-            filter_range: filter_range(&globals, &links, number as u32 - 1),
+            filter_range: filter_range(&globals, &links, source_tab as u32),
             styles: &globals.styles,
-            tab: number as u32 - 1,
+            tab: source_tab as u32,
             number,
         };
         let (part, content_type, xml) = match sheet.kind {
@@ -502,7 +501,13 @@ pub(crate) fn convert(
                 attributes.push(("help", help.clone()));
             }
             if let Some(scope) = name.scope {
-                attributes.push(("localSheetId", scope.to_string()));
+                let source = globals.sheets.get(scope as usize)
+                    .ok_or_else(|| refuse(stream_name, format!("the sheet {scope} of a defined name")))?;
+                if source.kind == SheetKind::Module {
+                    return Err(refuse(stream_name, format!("a name scoped to omitted module sheet {scope}")));
+                }
+                let output_scope = globals.sheets[..scope as usize].iter().filter(|s| s.kind != SheetKind::Module).count();
+                attributes.push(("localSheetId", output_scope.to_string()));
             }
             if name.flags & 0x0001 != 0 {
                 attributes.push(("hidden", "1".to_owned()));

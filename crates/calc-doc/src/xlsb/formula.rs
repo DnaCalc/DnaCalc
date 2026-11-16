@@ -71,6 +71,8 @@ pub(crate) struct Context<'a> {
     /// The code page of byte strings (BIFF5 only).
     pub(crate) code_page: u16,
     pub(crate) sheets: &'a [String],
+    /// Source tab indices omitted from the converted workbook.
+    pub(crate) unavailable_sheets: &'a [u32],
     pub(crate) xti: &'a [Xti],
     pub(crate) supbooks: &'a [SupBook],
     pub(crate) names: &'a [NameRef],
@@ -740,6 +742,9 @@ fn biff5_prefix(cursor: &mut Cursor<'_>, context: &Context<'_>) -> Read<Option<S
         return Ok(None);
     }
     let name = |tab: u16| -> Read<&String> {
+        if context.unavailable_sheets.contains(&u32::from(tab)) {
+            return Err(bad(format!("a reference to omitted module sheet {tab}")));
+        }
         context
             .sheets
             .get(usize::from(tab))
@@ -851,6 +856,9 @@ fn sheets_prefix(ixti: u16, context: &Context<'_>) -> Read<Option<String>> {
         SupBook::AddIn { .. } => return Err(bad("a 3-D reference into an add-in")),
     };
     let name = |tab: i32| -> Read<Option<String>> {
+        if book_prefix.is_empty() && tab >= 0 && context.unavailable_sheets.contains(&(tab as u32)) {
+            return Err(bad(format!("a reference to omitted module sheet {tab}")));
+        }
         match tab {
             -1 | -2 => Ok(None),
             tab if tab >= 0 => sheets
@@ -900,6 +908,9 @@ fn defined_name(index: u32, context: &Context<'_>) -> Read<String> {
         .ok_or_else(|| bad(format!("the defined name {index}")))?;
     Ok(match name.sheet {
         Some(sheet) if Some(sheet) != context.sheet => {
+            if context.unavailable_sheets.contains(&sheet) {
+                return Err(bad(format!("a name scoped to omitted module sheet {sheet}")));
+            }
             let sheet_name = context
                 .sheets
                 .get(sheet as usize)
