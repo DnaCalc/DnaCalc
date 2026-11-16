@@ -75,6 +75,15 @@ try {
             $sheet.Range('A1').Value2 = 42.5
             $sheet.Range('A2').Formula = '=A1+1'
             $sheet.Range('A1').NumberFormat = '0.00'
+            # Record setup failures individually; a format may refuse particular features.
+            $entry.setup = [ordered]@{}
+            $entry.setup.name = GetOrError { $n = $book.Names.Add('cx_rate', '=Data!$A$1'); [string]$n.RefersTo }
+            $entry.setup.merge = GetOrError { $sheet.Range('C1:D1').Merge(); [string]$sheet.Range('C1').MergeArea.Address($false,$false) }
+            $entry.setup.hyperlink = GetOrError { $h = $sheet.Hyperlinks.Add($sheet.Range('C2'), 'https://example.com/'); [string]$h.Address }
+            $entry.setup.comment = GetOrError { $c = $sheet.Range('C3').AddComment('Controlled note'); [string]$c.Text() }
+            $entry.setup.validation = GetOrError { $sheet.Range('C4').Validation.Add(1, 1, 1, '1', '10'); $sheet.Range('C4').Validation.Type }
+            $entry.setup.conditional = GetOrError { $c = $sheet.Range('C5').FormatConditions.Add(1, 3, '1'); $c.Interior.Color = 65535; $sheet.Range('C5').FormatConditions.Count }
+            $entry.setup.shape = GetOrError { $s = $sheet.Shapes.AddShape(1, 100, 100, 60, 30); [string]$s.Name }
             $book.SaveAs($path, $fixture.legacy)
             $book.Close($false); $book=$null
             $entry.source_base64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($path))
