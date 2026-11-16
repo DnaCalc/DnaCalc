@@ -24,8 +24,17 @@ enum Field {
 fn tagged_names(lcid: Option<u16>, field: Field) -> Option<&'static [&'static str]> {
     use super::tagged_names::{BY_LCID, LISTS};
     let lcid = lcid?;
-    let at = BY_LCID.binary_search_by_key(&lcid, |&(l, _)| l).ok()?;
+    let at = BY_LCID.binary_search_by_key(&lcid, |&(l, _, _)| l).ok()?;
     Some(LISTS[usize::from(BY_LCID[at].1[field as usize])])
+}
+
+/// The AM or PM designator Excel writes under a locale tag with this LCID, or `None` when it writes
+/// the host's.
+pub(crate) fn tagged_designator(lcid: Option<u16>, am: bool) -> Option<&'static str> {
+    use super::tagged_names::BY_LCID;
+    let lcid = lcid?;
+    let at = BY_LCID.binary_search_by_key(&lcid, |&(l, _, _)| l).ok()?;
+    Some(BY_LCID[at].2[usize::from(!am)])
 }
 
 pub(crate) fn month_name(

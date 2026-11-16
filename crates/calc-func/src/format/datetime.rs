@@ -276,11 +276,10 @@ pub(crate) fn render_with_datetime_tokens(
                     DateTimeTokenKind::SubSecond => {
                         format!("{}{:0width$}", profile.decimal_separator, time.subsecond)
                     }
-                    DateTimeTokenKind::AmPmUpper => {
-                        super::designator(profile, time.hour < 12).to_string()
-                    }
-                    DateTimeTokenKind::AmPmLower => {
-                        super::designator(profile, time.hour < 12).to_string()
+                    DateTimeTokenKind::AmPmUpper | DateTimeTokenKind::AmPmLower => {
+                        super::names::tagged_designator(name_lcid, time.hour < 12)
+                            .unwrap_or_else(|| super::designator(profile, time.hour < 12))
+                            .to_string()
                     }
                     DateTimeTokenKind::BuddhistYear => {
                         let (year, _, _) = date?;
@@ -434,6 +433,21 @@ fn tokenize_datetime_format(section: &str, profile: Option<&FormatProfile>) -> V
             parts.push(DateTimePart::Token { kind, width: 5 });
             index += 5;
             continue;
+        }
+
+        // aaa writes the short weekday name and aaaa (or longer) the long one, in one letter case
+        // only; aa, a and mixed-case runs are literal (Excel 16.0.20527, dc-zsn.4, fn5 2026-11-16).
+        if matches!(ch, 'a' | 'A') {
+            let run = chars[index..].iter().take_while(|&&c| c == ch).count();
+            if run >= 3 {
+                push_literal(&mut parts, &mut literal);
+                parts.push(DateTimePart::Token {
+                    kind: DateTimeTokenKind::Day,
+                    width: run.min(4),
+                });
+                index += run;
+                continue;
+            }
         }
 
         let lower = ch.to_ascii_lowercase();

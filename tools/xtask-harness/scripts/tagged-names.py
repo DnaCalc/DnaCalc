@@ -6,9 +6,9 @@
 
 `ask` sends Touchstone sheet cases (tools/excel-service/touchstone/PROTOCOL.md), one per tag: the TEXT of
 the first of each month of 2023 and of 1 to 7 January 2023 (a Sunday first) under `[$-<tag>]mmmm`, `mmm`,
-`dddd` and `ddd`, joined by |. The tags are every LCID with a primary language 0x01 to 0xFF and a
-sublanguage 1 to 16, LCID 0, and the BCP 47 forms (`de-AT`) of the LCIDs Python's locale.windows_locale
-names. Nothing is computed: each answer is Excel's.
+`dddd` and `ddd`, and of 6 am and 6 pm under `[$-<tag>]AM/PM`, joined by |. The tags are every LCID with a
+primary language 0x01 to 0xFF and a sublanguage 1 to 16, LCID 0, and the BCP 47 forms (`de-AT`) of the LCIDs
+Python's locale.windows_locale names. Nothing is computed: each answer is Excel's.
 
 `write` turns the readings into
   crates/calc-func/tests/fixtures/fn5_tagged_names/excel-lcids.tsv (the readings the test checks), and
@@ -23,14 +23,15 @@ REPO = HERE.parents[3]
 FIXTURE = REPO / 'crates/calc-func/tests/fixtures/fn5_tagged_names/excel-lcids.tsv'
 TABLE = REPO / 'crates/calc-func/src/format/tagged_names.rs'
 FIELDS = ('mmmm', 'mmm', 'dddd', 'ddd')
+ALL = FIELDS + ('AM/PM',)
 MONTHS = 'DATE(2023,SEQUENCE(12),1)'
 DAYS = 'DATE(2023,1,SEQUENCE(7))'
 
 
 def probe(tag):
     text = lambda dates, code: 'TEXT(%s,"[$-%s]%s")' % (dates, tag, code)
-    return '=TEXTJOIN("|",FALSE,%s,%s,%s,%s)' % (text(MONTHS, 'mmmm'), text(MONTHS, 'mmm'), text(DAYS, 'dddd'),
-                                                text(DAYS, 'ddd'))
+    return '=TEXTJOIN("|",FALSE,%s,%s,%s,%s,%s,%s)' % (text(MONTHS, 'mmmm'), text(MONTHS, 'mmm'), text(DAYS, 'dddd'),
+                                                      text(DAYS, 'ddd'), text('0.25', 'AM/PM'), text('0.75', 'AM/PM'))
 
 
 def ask(out):
@@ -57,9 +58,10 @@ def ask(out):
         if value.get('type') != 'text':
             sys.exit('%s: no text answer: %r' % (tag, row))
         names = value['value'].split('|')
-        if len(names) != 38:
+        if len(names) != 40:
             sys.exit('%s: %d names' % (tag, len(names)))
-        readings[tag] = {'mmmm': names[0:12], 'mmm': names[12:24], 'dddd': names[24:31], 'ddd': names[31:38]}
+        readings[tag] = {'mmmm': names[0:12], 'mmm': names[12:24], 'dddd': names[24:31], 'ddd': names[31:38],
+                         'AM/PM': names[38:40]}
     doc = {'service': 'touchstone/1', 'env_id': envs.pop(), 'timestamp': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
            'script': 'tools/xtask-harness/scripts/tagged-names.py', 'readings': readings}
     pathlib.Path(out).write_text(json.dumps(doc, ensure_ascii=False, indent=0) + '\n', encoding='utf-8')
@@ -89,18 +91,19 @@ def write(path):
     head = ['# dc-zsn.4: month and weekday names under [$-<tag>] as Excel writes them, %s (env %s, en-ZA host), read by' % (
                 doc['timestamp'][:10], doc['env_id']),
             '# tools/xtask-harness/scripts/tagged-names.py: TEXT of 1 Jan to 1 Dec 2023 (mmmm, mmm) and 1 to 7 Jan 2023',
-            '# (dddd, ddd). Lines: tag, then the four lists joined by |. The fallback line is LCID 0, whose names every',
-            '# LCID of the "fallback" line also writes (the host\'s names).']
+            '# (dddd, ddd), 6 am and 6 pm (AM/PM). Lines: tag, then the five lists joined by |. The fallback line lists',
+            '# the LCIDs that write what LCID 0 writes (the host\'s names and designators).']
     lines = head + ['fallback\t' + ','.join('%X' % lcid for lcid in fallen)]
     for tag in ['0'] + ['%X' % lcid for lcid in known] + sorted(by_name):
-        lines.append('\t'.join([tag] + ['|'.join(readings[tag][field]) for field in FIELDS]))
+        lines.append('\t'.join([tag] + ['|'.join(readings[tag][field]) for field in ALL]))
     FIXTURE.parent.mkdir(parents=True, exist_ok=True)
     FIXTURE.write_text('\n'.join(lines) + '\n', encoding='utf-8')
     rust = ['//! Month and weekday names under a number format\'s locale tag (`[$-407]mmmm`), as Excel 16.0.%s writes them' % '20527',
             '//! under an en-ZA host (dc-zsn.4). Written by tools/xtask-harness/scripts/tagged-names.py from its Touchstone',
             '//! readings (env %s, %s), which tests/fixtures/fn5_tagged_names/excel-lcids.tsv keeps; do not edit by hand.' % (
                 doc['env_id'], doc['timestamp'][:10]),
-            '//! An LCID that is not listed writes the host\'s names (Excel\'s answer for the LCIDs it does not know).',
+            '//! An LCID that is not listed writes the host\'s names and designators (Excel\'s answer for the LCIDs it does not',
+            '//! know).',
             '',
             '/// The distinct lists of names.',
             '#[rustfmt::skip]',
@@ -109,11 +112,13 @@ def write(path):
         rust.append('    &[%s],' % ', '.join(rust_text(n) for n in names))
     rust += ['];', '',
              '/// Each LCID Excel names otherwise than its fallback: its long and short months, then its long and short',
-             '/// weekdays (Sunday first), as indexes into [`LISTS`]; in LCID order.',
+             '/// weekdays (Sunday first), as indexes into [`LISTS`], and its AM and PM designators; in LCID order.',
              '#[rustfmt::skip]',
-             'pub(super) const BY_LCID: [(u16, [u16; 4]); %d] = [' % len(known)]
+             'pub(super) const BY_LCID: [(u16, [u16; 4], [&str; 2]); %d] = [' % len(known)]
     for lcid in known:
-        rust.append('    (0x%04X, [%s]),' % (lcid, ', '.join(str(lists[tuple(readings['%X' % lcid][f])]) for f in FIELDS)))
+        r = readings['%X' % lcid]
+        rust.append('    (0x%04X, [%s], [%s]),' % (lcid, ', '.join(str(lists[tuple(r[f])]) for f in FIELDS),
+                                                 ', '.join(rust_text(x) for x in r['AM/PM'])))
     rust += ['];', '',
              '/// BCP 47 tags (`[$-de-AT]`) whose names Excel writes as its LCID\'s; in tag order.',
              '#[rustfmt::skip]',
