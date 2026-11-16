@@ -81,6 +81,7 @@ pub(crate) struct Features {
     pane: Option<Pane>,
     selections: Vec<Selection>,
     merges: Vec<String>,
+    phonetic: Option<(usize, u8, u8)>,
     hyperlinks: Vec<Hyperlink>,
     protect: bool,
     objects: bool,
@@ -145,7 +146,7 @@ fn read_string(c: &mut Cursor<'_>, units: usize, what: &str) -> Result<String, S
 
 impl Features {
     /// Reads `record` when it is a sheet-feature record; `false` when it is not one.
-    pub(crate) fn read(&mut self, record: &Record<'_>) -> Result<bool, String> {
+    pub(crate) fn read(&mut self, record: &Record<'_>, styles: &super::styles::Styles) -> Result<bool, String> {
         let mut c = Cursor::new(record.body);
         match record.id {
             WINDOW2 => {
@@ -241,6 +242,16 @@ impl Features {
             PRINT_GRIDLINES => self.grid_lines = c.u16("PrintGrid").map_err(e)? != 0,
             PRINT_HEADERS => self.headings = c.u16("PrintRowCol").map_err(e)? != 0,
             WSBOOL => self.ws_bool = Some(c.u16("WsBool").map_err(e)?),
+            0x00EF => {
+                let font = c.u16("PhoneticInfo").map_err(e)?;
+                let flags = c.u16("PhoneticInfo").map_err(e)?;
+                let count = usize::from(c.u16("PhoneticInfo").map_err(e)?);
+                c.skip(count * 8, "PhoneticInfo ranges").map_err(e)?;
+                let Some(font) = styles.font_index(font).or((font == 0).then_some(0)) else { return Ok(false) };
+                self.phonetic = Some((font, (flags & 3) as u8, ((flags >> 2) & 3) as u8));
+                // Visible phonetic ranges are not yet applied to cells.
+                if count != 0 { return Ok(false); }
+            }
             0x0080 => {
                 c.skip(4, "Guts").map_err(e)?;
                 let level = |value: u16| -> Result<u8, String> {
@@ -557,6 +568,11 @@ impl Features {
                 x.empty("mergeCell", &[("ref", m.clone())]);
             }
             x.close("mergeCells");
+        }
+        if let Some((font, kind, alignment)) = self.phonetic {
+            let kind = ["halfwidthKatakana", "fullwidthKatakana", "Hiragana", "noConversion"][kind as usize];
+            let alignment = ["noControl", "left", "center", "distributed"][alignment as usize];
+            x.empty("phoneticPr", &[("fontId", font.to_string()), ("type", kind.to_owned()), ("alignment", alignment.to_owned())]);
         }
         rules.write_rules(x);
         if !self.hyperlinks.is_empty() {

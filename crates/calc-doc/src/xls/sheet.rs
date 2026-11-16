@@ -570,7 +570,7 @@ pub(crate) fn read(
                         _ => None,
                     }
                 };
-                if !taken && !rules.read(record, context.styles, &print_at, sheet_name, context.v5)? && !features.read(record)? {
+                if !taken && !rules.read(record, context.styles, &print_at, sheet_name, context.v5)? && !features.read(record, context.styles)? {
                     *unknown.entry(other).or_insert(0) += 1;
                 }
             }

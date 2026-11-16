@@ -617,6 +617,22 @@ fn array_recalculation_flag_survives_conversion() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn sheet_phonetic_format_and_unhandled_visibility_ranges() {
+    for has_ranges in [false, true] {
+        let mut body = u16s(&[0, 7, u16::from(has_ranges)]);
+        if has_ranges { body.extend(u16s(&[0, 0, 0, 1])); }
+        let bytes = xls(false, &[], &[Sheet::worksheet("S", record(0x00EF, &body))]);
+        let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let xml = String::from_utf8(doc.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+        assert!(xml.contains("<phoneticPr fontId=\"0\" type=\"noConversion\" alignment=\"left\"/>"), "{xml}");
+        let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+        assert_eq!(report.unknown_records.contains_key(&0x00EF), has_ranges);
+        load(&bytes);
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn names_3d_external_references_and_add_in_functions() {
     use ptg::*;
     let globals = [

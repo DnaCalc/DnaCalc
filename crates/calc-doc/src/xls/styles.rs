@@ -313,7 +313,7 @@ impl Styles {
         }
     }
 
-    fn font_index(&self, ifnt: u16) -> Option<usize> {
+    pub(crate) fn font_index(&self, ifnt: u16) -> Option<usize> {
         // BIFF numbers fonts from 0 but never uses 4.
         let at = if ifnt >= 5 { ifnt - 1 } else { ifnt };
         (usize::from(at) < self.fonts.len()).then_some(usize::from(at))
