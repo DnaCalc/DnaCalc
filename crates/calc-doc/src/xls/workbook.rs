@@ -245,12 +245,16 @@ pub(crate) fn read(records: &[Record<'_>], biff5: bool) -> Result<Globals, Strin
                 let mut p = Pieces::new(record);
                 p.skip(4, "the SST").map_err(|e| e.0)?;
                 let unique = p.u32("the SST").map_err(|e| e.0)? as usize;
+                let mut phonetic_unread = false;
                 for _ in 0..unique {
                     if p.done() {
                         break;
                     }
-                    globals.strings.push(p.rich_string().map_err(|e| e.0)?);
+                    let string = p.rich_string().map_err(|e| e.0)?;
+                    phonetic_unread |= string.phonetic_unread;
+                    globals.strings.push(string);
                 }
+                if phonetic_unread { *globals.unknown.entry(SST).or_insert(0) += 1; }
             }
             super::styles::FONT
             | super::styles::FORMAT

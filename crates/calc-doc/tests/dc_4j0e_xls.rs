@@ -650,6 +650,22 @@ fn sheet_phonetic_format_and_unhandled_visibility_ranges() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn shared_string_phonetic_extension_is_reported_unread() {
+    let mut sst_body = Vec::new();
+    sst_body.extend(1u32.to_le_bytes()); // total string count
+    sst_body.extend(1u32.to_le_bytes()); // unique string count
+    sst_body.extend(1u16.to_le_bytes()); // one compressed character
+    sst_body.push(0x04); // phonetic extension present
+    sst_body.extend(3u32.to_le_bytes());
+    sst_body.extend([b'A', 1, 2, 3]);
+    let bytes = xls(false, &record(0x00FC, &sst_body), &[Sheet::worksheet("S", label_sst(0, 0, 0))]);
+    assert_eq!(sheet_cells(&bytes), vec!["A1 s:A"]);
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert_eq!(report.unknown_records.get(&0x00FC), Some(&1));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn legacy_sheet_ids_follow_source_tabs_even_with_module() {
     let sheets = [Sheet::worksheet("First", Vec::new()),
         Sheet { kind: 6, ..Sheet::worksheet("Module", Vec::new()) },

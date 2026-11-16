@@ -23,6 +23,8 @@ fn short(what: &str) -> Malformed {
 pub(crate) struct RichString {
     pub(crate) units: Vec<u16>,
     pub(crate) runs: Vec<(u16, u16)>,
+    /// The phonetic extension is not yet converted to SpreadsheetML.
+    pub(crate) phonetic_unread: bool,
 }
 
 impl<'a> Pieces<'a> {
@@ -142,7 +144,7 @@ impl<'a> Pieces<'a> {
             runs.push((self.u16(what)?, self.u16(what)?));
         }
         self.skip(phonetic, what)?;
-        Ok(RichString { units, runs })
+        Ok(RichString { units, runs, phonetic_unread: phonetic != 0 })
     }
 }
 
@@ -183,6 +185,7 @@ mod tests {
         let s = p.rich_string().unwrap();
         assert_eq!(String::from_utf16(&s.units).unwrap(), "hi");
         assert_eq!(s.runs, vec![(0, 5), (1, 7)]);
+        assert!(s.phonetic_unread);
         assert!(p.done());
         // The same string without its phonetic bytes is a typed failure, not a panic.
         let short = record(&body, vec![&tail[..4]]);
