@@ -133,6 +133,22 @@ fn sheet_calculation_modes_are_preserved_and_conflicts_refused() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn workbook_protection_is_preserved_in_the_loaded_document() {
+    let globals = [record(0x0019, &1u16.to_le_bytes()), record(0x0012, &1u16.to_le_bytes()),
+        record(0x0013, &0xCE4Bu16.to_le_bytes())].concat();
+    let bytes = xls(false, &globals, &[Sheet::worksheet("S", Vec::new())]);
+    assert!(load(&bytes).structure_protected());
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let xml = String::from_utf8(document.package().read_part("xl/workbook.xml").unwrap()).unwrap();
+    assert!(xml.contains("<workbookProtection lockStructure=\"1\" lockWindows=\"1\" workbookPassword=\"CE4B\"/>"), "{xml}");
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    for id in [0x0012, 0x0013, 0x0019] { assert!(!report.unknown_records.contains_key(&id)); }
+    let unprotected = xls(false, &[], &[Sheet::worksheet("S", Vec::new())]);
+    assert!(!load(&unprotected).structure_protected());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn a_large_workbook_stream_is_read_from_regular_sectors_and_unknown_records_are_counted() {
     // Padding records of an unknown type push the stream past the mini stream cutoff.
     let mut filler = Vec::new();

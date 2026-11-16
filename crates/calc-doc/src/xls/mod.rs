@@ -458,6 +458,15 @@ pub(crate) fn convert(
         workbook_properties.push(("codeName", code_name.clone()));
     }
     xml.empty("workbookPr", &workbook_properties);
+    if globals.protect_structure || globals.protect_windows || globals.protection_verifier.is_some() {
+        let mut protection = Vec::new();
+        if globals.protect_structure { protection.push(("lockStructure", "1".to_owned())); }
+        if globals.protect_windows { protection.push(("lockWindows", "1".to_owned())); }
+        if let Some(verifier) = globals.protection_verifier {
+            protection.push(("workbookPassword", format!("{verifier:04X}")));
+        }
+        xml.empty("workbookProtection", &protection);
+    }
     if let Some(tab) = globals.active_tab.filter(|t| usize::from(*t) < sheet_entries.len()) {
         xml.open("bookViews", &[]);
         xml.empty("workbookView", &[("activeTab", tab.to_string())]);
