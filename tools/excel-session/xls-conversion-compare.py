@@ -217,6 +217,8 @@ def package(data):
                            'merges': merges, 'links': sorted(links, key=repr), 'comments': sorted(comments),
                            'conditional_formats': [tree(e) for e in sh.findall(M + 'conditionalFormatting')],
                            'validations': [tree(e) for e in sh.findall(f'{M}dataValidations/{M}dataValidation')],
+                           'sort_states': [tree(e) for e in sh.findall(M + 'sortState')] +
+                                          [tree(e) for e in sh.findall(f'{M}autoFilter/{M}sortState')],
                            'drawings': drawing_objects(z, sh, path, shrels),
                            'printer_settings': printer_settings(z, sh, path, shrels),
                            'pivots': pivot_tables(z, sh, path, shrels)})
