@@ -301,6 +301,44 @@ def lambda_groupby():
     return fam
 
 
+def lambda_references():
+    """What the LAMBDA helpers hand their LAMBDA (fn2, 2026-11-16): references into a range argument,
+    values from an array, an omitted REDUCE/SCAN initial value, MAP's alignment by row and column."""
+    fam = Family()
+    cells = {'B1': n(1), 'B2': n(2), 'B3': n(3), 'C1': n(10), 'C2': t('t'), 'C3': 'logical:true', 'D1': t('a'), 'D2': t('b')}
+    grid = fam.layout('refs', [{'name': 'Sheet1', 'cells': cells}])
+    for formula in [
+            '=MAP(B1:B2,LAMBDA(x,ISREF(x)))', '=MAP({1,2},LAMBDA(x,ISREF(x)))', '=MAP(B1:B3,LAMBDA(x,ROW(x)))',
+            '=MAP(B3,LAMBDA(x,ISREF(x)))', '=MAP(C1:C3,LAMBDA(x,SUM(x)))', '=MAP(C1:C3,LAMBDA(x,x))',
+            '=MAP(B1:B3,LAMBDA(x,B1:B2))', '=MAP(B1:B3,LAMBDA(x,INDEX(B1:B3,1)))',
+            '=MAP(B1:B3,C1:C2,LAMBDA(x,y,x&y))', '=MAP(B1:C3,B1:B3,LAMBDA(x,y,x+y))', '=MAP(B1:B2,{1,2,3},LAMBDA(x,y,x&y))',
+            '=MAP({1,2,3},B1:B2,LAMBDA(x,y,x&y))', '=MAP(B1:B3,5,LAMBDA(x,y,x+y))', '=MAP(5,B1:B3,LAMBDA(x,y,x+y))',
+            '=MAP({1;2},{1,2,3},LAMBDA(x,y,x&y))', '=MAP(B1:C1,B1:B3,LAMBDA(x,y,x&y))', '=MAP(B1:B3,C1:C2,LAMBDA(x,y,IFERROR(y,"pad")))',
+            '=MAP(B1:B3,C1:C2,LAMBDA(x,y,ISNA(y)))', '=MAP(B1:C1,B1:B3,LAMBDA(x,y,"k"))',
+            '=SCAN(0,B1:B3,LAMBDA(a,v,ROW(v)))', '=SCAN(,B1:B3,LAMBDA(a,v,ISREF(a)))', '=SCAN(,B1:B3,LAMBDA(a,v,ROW(a)))',
+            '=SCAN(,B1:B3,LAMBDA(a,v,a))', '=SCAN(,{5,6},LAMBDA(a,v,a+v))', '=SCAN(,C1:C3,LAMBDA(a,v,TYPE(a)))',
+            '=SCAN(,C1:C3,LAMBDA(a,v,ISREF(v)))', '=SCAN(,D1:D2,LAMBDA(a,v,ISTEXT(a)))', '=SCAN(,D1:D2,LAMBDA(a,v,MAX(a)))',
+            '=SCAN(,D1:D2,LAMBDA(a,v,MAX(a,v)))', '=SCAN(,{"a","b"},LAMBDA(a,v,MAX(a,v)))', '=SCAN(0,B1:B3,LAMBDA(a,v,ISREF(a)))',
+            '=SCAN(B1,B1:B3,LAMBDA(a,v,ISREF(a)))', '=SCAN(0,C1:C3,LAMBDA(a,v,v))', '=SCAN(,B1:B1,LAMBDA(a,v,a+v))',
+            '=REDUCE(0,B1:B3,LAMBDA(a,v,ISREF(a)))', '=REDUCE(,B1:B3,LAMBDA(a,v,ROW(a)))', '=REDUCE(,B1:B2,LAMBDA(a,v,ISREF(a)))',
+            '=REDUCE(,B1:B2,LAMBDA(a,v,ROW(a)))', '=REDUCE(,C1:C2,LAMBDA(a,v,ISREF(a)))', '=REDUCE(,D1:D2,LAMBDA(a,v,MAX(a,v)))',
+            '=REDUCE(,D1:D2,LAMBDA(a,v,ISTEXT(a)))', '=REDUCE(,D1:D2,LAMBDA(a,v,MAX(a)))', '=REDUCE(,D1:D2,LAMBDA(a,v,MAX(v)))',
+            '=REDUCE(,D1:D2,LAMBDA(a,v,TYPE(a)))', '=REDUCE(,D1:D2,LAMBDA(a,v,a))', '=REDUCE(,D1:D2,LAMBDA(a,v,ISBLANK(a)))',
+            '=REDUCE(,{"a","b"},LAMBDA(a,v,MAX(a,v)))', '=REDUCE(,C1:C2,LAMBDA(a,v,MAX(a,v)))', '=REDUCE(0,C1:C3,LAMBDA(a,v,v))',
+            '=REDUCE(,{5,6},LAMBDA(a,v,a))', '=REDUCE(,B1,LAMBDA(a,v,a+v))', '=REDUCE(0,C1:C3,LAMBDA(a,v,ISREF(a)))',
+            '=REDUCE(0,B1:B3,LAMBDA(a,v,v))+0', '=ISREF(REDUCE(0,B1:B3,LAMBDA(a,v,v)))',
+            '=REDUCE(0,B1:C2,LAMBDA(a,v,a+ROW(v)*10+COLUMN(v)))',
+            '=BYROW(B1:C2,LAMBDA(r,ISREF(r)))', '=BYCOL(B1:C3,LAMBDA(c,ISREF(c)))', '=BYCOL(B1:C3,LAMBDA(c,ROW(c)))',
+            '=BYROW(B1:C3,LAMBDA(r,ROWS(r)&COLUMNS(r)))', '=BYROW({1,2;3,4},LAMBDA(r,ISREF(r)))', '=BYROW(B1:C3,LAMBDA(r,ROW(r)))',
+            '=BYCOL(B1:C3,LAMBDA(c,COLUMN(c)))', '=MAKEARRAY(2,2,LAMBDA(r,c,ISREF(r)))',
+            '=MAP(B1:B3,"x",LAMBDA(x,y,x&y))', '=MAP({1,2},5,LAMBDA(x,y,x+y))', '=MAP(B1:B3,{5},LAMBDA(x,y,x+y))',
+            '=MAP(B1:B3,B1,LAMBDA(x,y,x+y))', '=MAP(5,6,LAMBDA(x,y,x+y))', '=ISREF(REDUCE(0,B1:B3,LAMBDA(a,v,B2)))',
+            '=ISREF(REDUCE(B1,B1:B3,LAMBDA(a,v,a)))', '=ROWS(REDUCE(0,B1:B3,LAMBDA(a,v,B1:B2)))']:
+        f = formula[1:formula.index('(')]
+        fam.case(f'{f.lower()}-{len(fam.cases):03}', f, grid, 'Sheet1!H10', formula)
+    return fam
+
+
 # The en-ZA number, currency, date and time text of locale-cases.py (dc-7ofm), read here by
 # operators instead of functions (dc-3k5n, en-ZA part).
 COERCION_TEXTS = [
@@ -329,7 +367,8 @@ def operator_coercion():
 
 FAMILIES = {'reference-info': reference_info, 'subtotal-hidden': subtotal_hidden,
             'spill-placement': spill_placement, 'ifs': ifs_family, 'lambda-helpers': lambda_helpers,
-            'operator-coercion': operator_coercion, 'lambda-groupby': lambda_groupby}
+            'operator-coercion': operator_coercion, 'lambda-groupby': lambda_groupby,
+            'lambda-references': lambda_references}
 
 
 def main():

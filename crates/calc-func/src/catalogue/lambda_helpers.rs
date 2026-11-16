@@ -4,15 +4,32 @@
 //! as not modelled, and a LAMBDA call that stops with a fault stops the helper, whose caller
 //! reports that fault.
 //!
-//! OxFunc's rules are kept. A reference argument is read as the array of its values (a single
-//! cell as its value); the items are taken in row-major order, a blank cell as an empty value.
+//! The items are taken in row-major order. Excel hands the LAMBDA references into a reference
+//! argument of one area, not values (Excel 16.0.20527 env 145016f4397d, 2026-11-16, Touchstone
+//! sheet cases): MAP, REDUCE and SCAN pass each cell as a one-cell reference
+//! (`=MAP(B1:B2,LAMBDA(x,ISREF(x)))` is {TRUE;TRUE}, `=SCAN(0,B1:B3,LAMBDA(a,v,ROW(v)))` {1;2;3},
+//! and `=REDUCE(0,D1:D5,LAMBDA(a,v,MAX(a,v)))` over text cells 0, since MAX skips text it reads
+//! through a reference), BYROW and BYCOL each row or column as a reference
+//! (`=BYCOL(B1:C3,LAMBDA(c,ROW(c)))` is #CALC!, ROW giving an array); an array argument passes
+//! its elements as values (`=MAP({1,2},LAMBDA(x,ISREF(x)))` is {FALSE,FALSE}). A LAMBDA result
+//! that is a one-cell reference is published as the cell's value (`=MAP(C1:C3,LAMBDA(x,x))`);
+//! REDUCE's own result may stay a reference (`=ISREF(REDUCE(0,B1:B3,LAMBDA(a,v,v)))` is TRUE).
+//! REDUCE's and SCAN's initial value is passed as given (`=SCAN(B1,B1:B3,LAMBDA(a,v,ISREF(a)))`
+//! is {TRUE;FALSE;FALSE}); an omitted one starts the calls at the second item and the
+//! accumulator at the first: REDUCE passes that item as it is, a reference into a range
+//! (`=REDUCE(,B1:B2,LAMBDA(a,v,ISREF(a)))` is TRUE), SCAN its value, which it shows first
+//! (`=SCAN(,B1:B3,LAMBDA(a,v,ISREF(a)))` is {1;FALSE;FALSE}); `=REDUCE(,B1:B5,LAMBDA(a,v,a*v))`
+//! is the product of B1:B5 and `=SCAN(,{5,6},LAMBDA(a,v,a+v))` {5,11}. MAP lines its arrays up by row and column: the
+//! result is as tall as the tallest and as wide as the widest, and a position some array lacks
+//! is #N/A without a call (`=MAP(B1:B3,C1:C2,LAMBDA(x,y,IFERROR(y,"pad")))` ends in #N/A).
+//!
+//! OxFunc's other rules are kept.
 //! The last argument must be a LAMBDA: any other value, an error included, is #VALUE! (Excel
 //! 16.0.20430, 2026-10-25, dc-6au: `=BYCOL(1,#REF!)`, `=MAP(1,1,#REF!)`, `=MAKEARRAY(1,1,#REF!)`,
 //! `=REDUCE(1,1,#REF!)` and `=BYCOL(1,#DIV/0!)` are #VALUE!, where OxFunc gave the error), and a
 //! LAMBDA that does not take the number of arguments the helper passes is #VALUE!. An error among
-//! the other arguments is the result (`=BYCOL(#REF!,LAMBDA(x,x))` is #REF!). MAP pads a
-//! shorter array with #N/A and takes the shape of its first array when that holds every item (a
-//! row otherwise). MAP gives #CALC! when a call returns an array; SCAN, BYROW and BYCOL admit
+//! the other arguments is the result (`=BYCOL(#REF!,LAMBDA(x,x))` is #REF!). MAP gives #CALC!
+//! when a call returns an array; SCAN, BYROW and BYCOL admit
 //! a one-cell result array but reject larger ones with #CALC!. MAKEARRAY gives #VALUE! for an
 //! array result. REDUCE's accumulator may be an array. MAKEARRAY's dimensions are
 //! positive integers, anything else #VALUE!.
@@ -22,7 +39,9 @@ use crate::call::{CallAbandoned, EvalServices, FunctionFault, KernelTask};
 use crate::catalogue::FunctionId;
 use crate::kernel::{Site, Step};
 use crate::ported::dynamic_array_reshape_family::coerce_prepared_to_number;
-use crate::value::{ArrayShape, CalcArray, CalcValue, CoreRef, WorksheetErrorCode};
+use crate::value::{
+    ArrayShape, CalcArray, CalcValue, CellKey, CoreRef, GridArea, ReferenceLike, WorksheetErrorCode,
+};
 
 type W = WorksheetErrorCode;
 
@@ -52,6 +71,70 @@ fn prepared(
     )
     .map(CalcValue::array)
     .ok_or_else(|| site.not_modelled(Some(index)))
+}
+
+/// The one area of a reference argument, when it is one.
+fn one_area(value: &CalcValue) -> Option<GridArea> {
+    match value.core_ref() {
+        CoreRef::Reference(reference) => match reference.areas() {
+            [area] => Some(*area),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn reference_to(area: GridArea) -> CalcValue {
+    CalcValue::reference(ReferenceLike::area(area))
+}
+
+/// The cell at (`r`, `c`) of `area` (0-based) as a one-cell reference.
+fn cell_of(area: GridArea, r: usize, c: usize) -> CalcValue {
+    let first = area.first();
+    let cell = CellKey::new(area.sheet(), first.row() + r as u32, first.column() + c as u32)
+        .expect("a cell inside the area");
+    reference_to(GridArea::cell(cell))
+}
+
+/// The shape and the row-major items of a source as the LAMBDA receives them: a reference of one
+/// area as one-cell references, an array as its elements, anything else as itself (1 by 1).
+fn source_items(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    index: usize,
+    sv: &mut EvalServices<'_>,
+) -> Step<(ArrayShape, Vec<CalcValue>)> {
+    if let Some(area) = one_area(&a[index]) {
+        let (rows, cols) = (area.row_count() as usize, area.column_count() as usize);
+        let cells = (0..rows * cols).map(|k| cell_of(area, k / cols, k % cols)).collect();
+        return Ok((ArrayShape { rows, cols }, cells));
+    }
+    let value = prepared(site, a, index, sv)?;
+    let list = items(&value);
+    let shape = match value.as_array() {
+        Some(array) if value.callable_value().is_none() => array.shape(),
+        _ => ArrayShape {
+            rows: 1,
+            cols: list.len().max(1),
+        },
+    };
+    Ok((shape, list))
+}
+
+/// A LAMBDA's result read as Excel publishes it in a helper's cell: a one-cell reference as the
+/// cell's value.
+fn read_one_cell(id: FunctionId, value: CalcValue, sv: &mut EvalServices<'_>) -> Result<CalcValue, FunctionFault> {
+    match one_area(&value) {
+        Some(area) if area.cell_count() == 1 => {
+            let site = Site::new(id, sv);
+            match grid(&site, std::slice::from_ref(&value), 0, sv) {
+                Ok(g) => Ok(g.cells.into_iter().next().unwrap_or_else(CalcValue::empty)),
+                Err(crate::kernel::Exit::Error(code)) => Ok(CalcValue::error(code)),
+                Err(crate::kernel::Exit::Fault(fault)) => Err(fault),
+            }
+        }
+        _ => Ok(value),
+    }
 }
 
 /// The LAMBDA at argument `index`: any other value, an error included, is #VALUE!, and so is a
@@ -118,27 +201,28 @@ fn map_task(
     let inputs = a.len() - 1;
     let mut sources = Vec::with_capacity(inputs);
     for index in 0..inputs {
-        sources.push(prepared(site, a, index, sv)?);
+        sources.push(source_items(site, a, index, sv)?);
     }
     let f = lambda(a, inputs, inputs)?;
     // Fn5 helper015: later whole-argument errors are invalid MAP sources.
     // Held errors and errors inside arrays still reach the LAMBDA (016/017).
+    // A later source must be an array or a reference: a direct scalar is #VALUE! as well, though
+    // the first may be one (Excel 16.0.20527, 2026-11-16: `=MAP(B1:B3,5,LAMBDA(x,y,x+y))`,
+    // `=MAP(B1:B3,"x",...)` and `=MAP(5,6,...)` are #VALUE!, `=MAP(5,B1:B3,...)` and
+    // `=MAP(B1:B3,{5},...)` are {6;#N/A;#N/A}).
     for value in &a[1..inputs] {
-        if value.callable_value().is_none() && matches!(value.core_ref(), CoreRef::Error(_)) {
+        if value.callable_value().is_none()
+            && !matches!(value.core_ref(), CoreRef::Array(_) | CoreRef::Reference(_))
+        {
             return fail(W::Value);
         }
     }
-    let lists: Vec<Vec<CalcValue>> = sources.iter().map(items).collect();
-    let count = lists.iter().map(Vec::len).max().unwrap_or(1);
-    let shape = sources
-        .iter()
-        .find_map(|source| source.as_array().map(CalcArray::shape))
-        .filter(|shape| shape.rows * shape.cols == count)
-        .unwrap_or(ArrayShape {
-            rows: 1,
-            cols: count.max(1),
-        });
-    Ok(helper(site, f, HelperInput::Map(lists), shape, count))
+    let shape = ArrayShape {
+        rows: sources.iter().map(|(shape, _)| shape.rows).max().unwrap_or(1),
+        cols: sources.iter().map(|(shape, _)| shape.cols).max().unwrap_or(1),
+    };
+    let count = shape.rows * shape.cols;
+    Ok(helper(site, f, HelperInput::Map(sources), shape, count))
 }
 
 /// The value a REDUCE or SCAN accumulator starts with: argument 0, a reference read as its value.
@@ -148,29 +232,41 @@ fn reduce_task(
     sv: &mut EvalServices<'_>,
     scan: bool,
 ) -> Step<Box<dyn KernelTask>> {
-    let accumulator = prepared(site, a, 0, sv)?;
-    let source = prepared(site, a, 1, sv)?;
+    let (shape, list) = source_items(site, a, 1, sv)?;
     let f = lambda(a, 2, 2)?;
-    let list = items(&source);
-    let shape = match source.as_array() {
-        Some(array) if source.callable_value().is_none() => array.shape(),
-        _ => ArrayShape {
-            rows: 1,
-            cols: list.len().max(1),
-        },
-    };
     let count = list.len();
-    Ok(helper(
-        site,
-        f,
-        HelperInput::Reduce {
+    // An omitted initial value: the calls start at the second item, the accumulator at the first,
+    // which REDUCE passes as it is (a reference into a range: `=REDUCE(,B1:B2,LAMBDA(a,v,ROW(a)))`
+    // is 1) and SCAN as the value it shows first (`=SCAN(,B1:B3,LAMBDA(a,v,ISREF(a)))` is
+    // {1;FALSE;FALSE}).
+    let (accumulator, at, cells) = if a[0].is_missing() && count > 0 {
+        if scan {
+            let first = read_one_cell(site.id(), list[0].clone(), sv).map_err(crate::kernel::Exit::Fault)?;
+            let shown = cell(first.clone(), true).into_iter().collect();
+            (first, 1, shown)
+        } else {
+            (list[0].clone(), 1, Vec::new())
+        }
+    } else {
+        // A reference stays a reference (`=SCAN(B1,B1:B3,LAMBDA(a,v,ISREF(a)))` begins TRUE).
+        let initial = if matches!(a[0].core_ref(), CoreRef::Reference(_)) { a[0].clone() } else { prepared(site, a, 0, sv)? };
+        (initial, 0, Vec::new())
+    };
+    let task = HelperTask {
+        id: site.id(),
+        callee: f.clone(),
+        input: HelperInput::Reduce {
             list,
             accumulator,
             scan,
         },
         shape,
         count,
-    ))
+        at,
+        arguments: None,
+        cells,
+    };
+    Ok(Box::new(task))
 }
 
 fn reduce_start(
@@ -203,6 +299,14 @@ fn by_task(
     // (`=BYROW(B1:B3,)`).
     if a.len() < 2 {
         return fail(W::Calc);
+    }
+    // A reference of one area: each row or column as a reference into it.
+    if let Some(area) = one_area(&a[0]) {
+        let f = lambda(a, 1, 1)?;
+        let (rows, cols) = (area.row_count() as usize, area.column_count() as usize);
+        let count = if columns { cols } else { rows };
+        let shape = if columns { ArrayShape { rows: 1, cols: count } } else { ArrayShape { rows: count, cols: 1 } };
+        return Ok(helper(site, f, HelperInput::ByArea { area, columns }, shape, count));
     }
     let source = prepared(site, a, 0, sv)?;
     let f = lambda(a, 1, 1)?;
@@ -287,7 +391,8 @@ fn makearray_task(
 
 #[derive(Debug)]
 enum HelperInput {
-    Map(Vec<Vec<CalcValue>>),
+    /// Each source's shape and row-major items.
+    Map(Vec<(ArrayShape, Vec<CalcValue>)>),
     Reduce {
         list: Vec<CalcValue>,
         accumulator: CalcValue,
@@ -295,6 +400,10 @@ enum HelperInput {
     },
     By {
         source: CalcArray,
+        columns: bool,
+    },
+    ByArea {
+        area: GridArea,
         columns: bool,
     },
     MakeArray,
@@ -347,15 +456,36 @@ impl KernelTask for HelperTask {
             if self.at == self.count {
                 break;
             }
+            // MAP: a position one of the arrays lacks is #N/A, with no call.
+            if let HelperInput::Map(sources) = &self.input {
+                let (r, c) = (self.at / self.shape.cols, self.at % self.shape.cols);
+                if sources.iter().any(|(shape, _)| r >= shape.rows || c >= shape.cols) {
+                    self.cells.push(CalcValue::error(W::NA));
+                    self.at += 1;
+                    continue;
+                }
+            }
+            let (shape_cols, at) = (self.shape.cols, self.at);
             let args = self.arguments.get_or_insert_with(|| match &self.input {
-                HelperInput::Map(lists) => lists
+                HelperInput::Map(sources) => sources
                     .iter()
-                    .map(|list| {
-                        list.get(self.at)
-                            .cloned()
-                            .unwrap_or_else(|| CalcValue::error(W::NA))
+                    .map(|(shape, list)| {
+                        let (r, c) = (at / shape_cols, at % shape_cols);
+                        list.get(r * shape.cols + c).cloned().unwrap_or_else(|| CalcValue::error(W::NA))
                     })
                     .collect(),
+                HelperInput::ByArea { area, columns } => {
+                    let first = area.first();
+                    let (rows, cols) = (area.row_count(), area.column_count());
+                    let (top, left, height, width) = if *columns {
+                        (first.row(), first.column() + at as u32, rows, 1)
+                    } else {
+                        (first.row() + at as u32, first.column(), 1, cols)
+                    };
+                    let start = CellKey::new(area.sheet(), top, left).expect("inside the area");
+                    let end = CellKey::new(area.sheet(), top + height - 1, left + width - 1).expect("inside the area");
+                    vec![reference_to(GridArea::new(start, end).expect("one sheet"))]
+                }
                 HelperInput::Reduce {
                     list, accumulator, ..
                 } => vec![accumulator.clone(), list[self.at].clone()],
@@ -410,8 +540,10 @@ impl KernelTask for HelperTask {
             if keep {
                 let singleton = matches!(
                     &self.input,
-                    HelperInput::By { .. } | HelperInput::Reduce { scan: true, .. }
+                    HelperInput::By { .. } | HelperInput::ByArea { .. } | HelperInput::Reduce { scan: true, .. }
                 );
+                // A one-cell reference is published as the cell's value.
+                let value = read_one_cell(self.id, value, sv)?;
                 let Some(value) = cell(value, singleton) else {
                     return Ok(Some(CalcValue::error(error)));
                 };
