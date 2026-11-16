@@ -97,6 +97,8 @@ pub(crate) struct Globals {
     pub(crate) strings: Vec<RichString>,
     pub(crate) names: Vec<NameRecord>,
     pub(crate) supbooks: Vec<SupBookRecord>,
+    /// Explicitly saved external-cell values; never calculated workbook results.
+    pub(crate) external_cache: super::external_cache::Caches,
     pub(crate) xti: Vec<Xti>,
     pub(crate) styles: super::styles::Styles,
     /// The MSODRAWINGGROUP record: the drawing group container with the blip store.
@@ -328,6 +330,9 @@ pub(crate) fn read(records: &[Record<'_>], biff5: bool) -> Result<Globals, Strin
     }
     if !finished {
         return Err("the workbook globals have no EOF record".into());
+    }
+    if !biff5 {
+        globals.external_cache = super::external_cache::read(&records[..globals.end], &globals.supbooks, &mut globals.unknown);
     }
     let bad_phonetic_font = globals.strings.iter().filter_map(|s| s.phonetic.as_ref()).any(|p| {
         p.font == 4 || (p.font != 0 && globals.styles.font_index(p.font).is_none())

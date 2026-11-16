@@ -17,6 +17,19 @@ fn source(bytes: &[u8]) -> Arc<dyn PackageRead> {
     Arc::new(MemorySource::new(bytes.to_vec()))
 }
 
+fn external_cache_fixture() -> Vec<u8> {
+    let mut crn = vec![4, 0, 2, 0, 1];
+    crn.extend(1.25_f64.to_le_bytes());
+    crn.extend([2, 2, 0, 0, b'O', b'K']);
+    crn.extend([4, 1, 0, 0, 0, 0, 0, 0, 0]);
+    crn.extend([16, 0x07, 0, 0, 0, 0, 0, 0, 0]);
+    crn.extend([0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    let globals = [supbook_external("book.xls", &["Rates"]), record(0x0059, &u16s(&[1, 0])),
+        record(0x005A, &crn), extern_sheet(&[(0, 0, 0)])].concat();
+    let cells = formula(0, 0, num_value(1.25), &ptg::cell3d(0, 2, 0, 0), &[]);
+    xls(false, &globals, &[Sheet::worksheet("S", cells)])
+}
+
 /// Native-only: writes controlled inputs for the owned Windows Excel session when requested.
 #[cfg(not(target_arch = "wasm32"))]
 #[test]
@@ -53,6 +66,7 @@ fn write_legacy_excel_session_inputs() {
     std::fs::write(dir.join("cells-biff5.xls"), biff5).unwrap();
     std::fs::write(dir.join("precision-biff8.xls"), xls(false, &record(0x000E, &0u16.to_le_bytes()),
         &[Sheet::worksheet("Data", number(0, 0, 1.25))])).unwrap();
+    std::fs::write(dir.join("external-cache-biff8.xls"), external_cache_fixture()).unwrap();
     std::fs::write(dir.join("forms.xls"), include_bytes!("fixtures/dc_4j0e/FormsWorkbook.xls")).unwrap();
     let repair_cases = [
         ("repair-slash.xls", "Bad/Name"),
@@ -84,7 +98,7 @@ fn write_legacy_excel_session_inputs() {
             formula(0, 1, num_value(0.0), &tokens, &[])].concat();
         std::fs::write(dir.join(file), xls(false, &sst(&[("Sales", &[])], None), &[Sheet::worksheet("Data", cells)])).unwrap();
     }
-    for name in ["cells-biff8", "cells-biff5", "precision-biff8", "forms"] {
+    for name in ["cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "forms"] {
         let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
         let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
         let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
@@ -93,7 +107,7 @@ fn write_legacy_excel_session_inputs() {
         std::fs::write(dir.join(format!("{name}.dnacalc.xlsx")), converted).unwrap();
     }
     let cases = serde_json::json!({
-        "files": ["cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "forms.xls"],
+        "files": ["cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "forms.xls"],
         "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls",
             "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls",
             "repair-elf-column.xls", "repair-elf-radical.xls"],
@@ -1023,6 +1037,47 @@ fn names_3d_external_references_and_add_in_functions() {
         names,
         vec!["Rate = S!$A$1", "_xlnm.Print_Area = S!$A$1:$D$10", "Helper = 1"]
     );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn biff8_external_cache_survives_open_and_save_as_cached_input() {
+    let bytes = external_cache_fixture();
+    let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let check = |doc: &calc_doc::OpenedDocument| {
+        let loaded = calc_doc::load(doc, &mut IdAllocator::<SheetId>::new()).unwrap();
+        let book = loaded.model().definitions().external_book(1).unwrap();
+        let sheet = &book.sheets[0];
+        assert!(sheet.cached && !sheet.refresh_error);
+        assert_eq!(sheet.cells.len(), 4);
+        assert_eq!(sheet.cells.get(&(3, 1)), Some(&calc_doc::model::CachedValue::Number(calc_doc::model::FiniteNumber::new(1.25).unwrap())));
+        let text = calc_doc::model::value::ExcelText::from_utf16_code_units(vec![79, 75]);
+        assert_eq!(sheet.cells.get(&(3, 2)), Some(&calc_doc::model::CachedValue::Text(calc_doc::model::CellText::new(text).unwrap())));
+        assert_eq!(sheet.cells.get(&(3, 3)), Some(&calc_doc::model::CachedValue::Logical(true)));
+        assert_eq!(sheet.cells.get(&(3, 4)), Some(&calc_doc::model::CachedValue::Error(calc_doc::model::value::WorksheetErrorCode::Div0)));
+        assert!(!sheet.cells.contains_key(&(3, 5)));
+    };
+    check(&doc);
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert!(!report.unknown_records.contains_key(&0x0059));
+    assert!(!report.unknown_records.contains_key(&0x005A));
+    let plan = calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+    let mut saved = Vec::new(); calc_doc::write(plan, &mut saved).unwrap();
+    check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ambiguous_external_cache_is_not_exposed_as_complete() {
+    let mut crn = vec![0, 0, 0, 0, 1]; crn.extend(1.0_f64.to_le_bytes());
+    let group = [record(0x0059, &u16s(&[1, 0])), record(0x005A, &crn)].concat();
+    let globals = [supbook_external("book.xls", &["Rates"]), group.clone(), group].concat();
+    let bytes = xls(false, &globals, &[Sheet::worksheet("S", Vec::new())]);
+    let loaded = load(&bytes);
+    assert!(!loaded.model().definitions().external_book(1).unwrap().sheets[0].cached);
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert_eq!(report.unknown_records.get(&0x0059), Some(&2));
+    assert_eq!(report.unknown_records.get(&0x005A), Some(&2));
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

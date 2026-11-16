@@ -134,6 +134,23 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
     return result
 
 
+def external_caches(z, workbook, workbook_path, workbook_rels):
+    result = []
+    for entry in workbook.findall(f'{M}externalReferences/{M}externalReference'):
+        rel = workbook_rels.get(entry.get(R + 'id'))
+        if rel is None:
+            result.append({'error': 'missing external-link relationship'})
+            continue
+        root = ET.fromstring(z.read(target(workbook_path, rel)))
+        book = root.find(M + 'externalBook')
+        if book is None:
+            result.append({'error': 'external link is not an external workbook'})
+            continue
+        result.append({'sheet_names': [e.get('val') for e in book.findall(f'{M}sheetNames/{M}sheetName')],
+                       'sheet_data': [tree(e) for e in book.findall(f'{M}sheetDataSet/{M}sheetData')]})
+    return result
+
+
 def pivot_caches(z, workbook, workbook_path, workbook_rels):
     result = []
     for cache in workbook.findall(f'{M}pivotCaches/{M}pivotCache'):
@@ -264,7 +281,8 @@ def package(data):
         calc = wb.find(M + 'calcPr')
         return {'date1904': props is not None and props.get('date1904', '0') in ('1', 'true'),
                 'full_precision': calc is None or calc.get('fullPrecision', '1') in ('1', 'true'), 'names': names,
-                'indexed_colors': indexed_colors, 'pivot_caches': pivot_caches(z, wb, wbpath, rels), 'sheets': sheets}
+                'indexed_colors': indexed_colors, 'external_caches': external_caches(z, wb, wbpath, rels),
+                'pivot_caches': pivot_caches(z, wb, wbpath, rels), 'sheets': sheets}
 
 
 def compare(expected, actual):

@@ -14,6 +14,7 @@ pub(crate) mod codepage;
 mod chart;
 mod crypto;
 mod drawing;
+mod external_cache;
 mod features;
 mod formula;
 mod records;
@@ -407,7 +408,7 @@ pub(crate) fn convert(
     }
     // The external workbooks the formulas name, as external link parts.
     let mut external_links: Vec<String> = Vec::new();
-    for book in &globals.supbooks {
+    for (book_index, book) in globals.supbooks.iter().enumerate() {
         let workbook::SupBookRecord::External { path, sheets, names } = book else {
             continue;
         };
@@ -434,6 +435,34 @@ pub(crate) fn convert(
                 x.empty("definedName", &[("name", name.clone())]);
             }
             x.close("definedNames");
+        }
+        let caches: Vec<_> = globals.external_cache.iter().filter(|((book, _), _)| *book == book_index).collect();
+        if !caches.is_empty() {
+            x.open("sheetDataSet", &[]);
+            for ((_, sheet_index), cells) in caches {
+                x.open("sheetData", &[("sheetId", sheet_index.to_string())]);
+                let mut open_row = None;
+                for (&(row, column), value) in cells {
+                    if matches!(value, external_cache::Value::Empty) { continue; }
+                    if open_row != Some(row) {
+                        if open_row.is_some() { x.close("row"); }
+                        x.open("row", &[("r", (u32::from(row) + 1).to_string())]);
+                        open_row = Some(row);
+                    }
+                    let (kind, text): (&str, Vec<u16>) = match value {
+                        external_cache::Value::Empty => unreachable!(),
+                        external_cache::Value::Number(v) => ("n", crate::xlsb::formula::number_text(*v).encode_utf16().collect()),
+                        external_cache::Value::Text(v) => ("str", v.clone()),
+                        external_cache::Value::Boolean(v) => ("b", if *v { "1" } else { "0" }.encode_utf16().collect()),
+                        external_cache::Value::Error(v) => ("e", v.encode_utf16().collect()),
+                    };
+                    x.open("cell", &[("r", format!("{}{}", sheet::column_name(u32::from(column)), u32::from(row) + 1)), ("t", kind.to_owned())]);
+                    x.open("v", &[]); x.text(&text); x.close("v"); x.close("cell");
+                }
+                if open_row.is_some() { x.close("row"); }
+                x.close("sheetData");
+            }
+            x.close("sheetDataSet");
         }
         x.close("externalBook");
         x.close("externalLink");
