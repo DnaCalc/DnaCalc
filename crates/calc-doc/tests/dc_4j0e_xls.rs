@@ -151,6 +151,21 @@ fn iterative_calculation_settings_survive_the_workbook_route() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn reference_display_mode_survives_conversion() {
+    for (mode, expected) in [(0u16, true), (1u16, false)] {
+        let records = [record(0x000F, &mode.to_le_bytes()), formula(0, 0, num_value(1.0), &ptg::int(1), &[])].concat();
+        let bytes = xls(false, &[], &[Sheet::worksheet("S", records)]);
+        let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let xml = String::from_utf8(document.package().read_part("xl/workbook.xml").unwrap()).unwrap();
+        assert_eq!(xml.contains("refMode=\"R1C1\""), expected, "{xml}");
+        assert_eq!(sheet_cells(&bytes), vec!["A1 f:1"]);
+        let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+        assert!(!report.unknown_records.contains_key(&0x000F));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn workbook_protection_is_preserved_in_the_loaded_document() {
     let globals = [record(0x0019, &1u16.to_le_bytes()), record(0x0012, &1u16.to_le_bytes()),
         record(0x0013, &0xCE4Bu16.to_le_bytes())].concat();
