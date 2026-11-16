@@ -183,6 +183,19 @@ fn workbook_object_display_setting_survives_conversion() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn outline_gutter_levels_survive_conversion() {
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", record(0x0080, &u16s(&[0, 0, 3, 2])))]);
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let xml = String::from_utf8(document.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+    assert!(xml.contains("outlineLevelRow=\"2\""), "{xml}");
+    assert!(xml.contains("outlineLevelCol=\"1\""), "{xml}");
+    load(&bytes);
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert!(!report.unknown_records.contains_key(&0x0080));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn a_large_workbook_stream_is_read_from_regular_sectors_and_unknown_records_are_counted() {
     // Padding records of an unknown type push the stream past the mini stream cutoff.
     let mut filler = Vec::new();
