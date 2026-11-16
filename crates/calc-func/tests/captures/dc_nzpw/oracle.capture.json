@@ -1,13 +1,13 @@
 {
   "format": "dnacalc-capture-record",
   "version": 2,
-  "case": "dc_nzpw__excel_comparison",
+  "case": "oracle",
   "source": "sha256:a00beb0092961e06082007939d1d8d92c53e7f7f6f2f73e8d7048ec9b3875460",
   "acquisition": {
     "kind": "live_capture"
   },
   "environment": {
-    "excel_build": "16.0.20527.20088",
+    "excel_build": "16.0.20527.20196",
     "channel": "current",
     "compatibility": "compat-1/calc-191029",
     "numeric_environment": "excel-x86-64/cpu-x86-64",
@@ -42,36 +42,39 @@
       "max_iterations": "100",
       "max_change": "3f50624dd2f1a9fc",
       "precision_as_displayed": "false",
-      "automation_security": "3",
+      "automation_security": "1",
       "enable_events": "false",
+      "macro_policy_requested": "preserved (1)",
+      "update_links": "never (Workbooks.Open UpdateLinks 0)",
+      "data_refresh": "none (no connection, query or pivot cache is refreshed)",
+      "calculation_file_mode": "auto",
+      "calculation_full_rebuild": "CalculateFullRebuild after the policy was set",
       "interactive": "false",
       "display_alerts": "false",
       "ask_to_update_links": "false",
       "ignore_remote_requests": "false",
-      "add_ins": "COM add-in Carousel.ExcelAddin connect=false;COM add-in Dna_78b015d8b23f56a68ecce694f11f8794_3 connect=false;COM add-in ExcelPlugInShell.PowerMapConnect connect=false;COM add-in ExcelVstoAddIn1 connect=false;COM add-in MicrosoftDataStreamerforExcel connect=false;COM add-in NativeShim.InquireConnector.1 connect=false;COM add-in OxVbaExcelAddin.ExcelAddin connect=false;COM add-in PDFMaker.OfficeAddin connect=false;COM add-in PowerPivotExcelClientAddIn.NativeEntry.1 connect=false;COM add-in TestComAddIn.ComAddIn connect=false;COM add-in TestRibbonRegistration.MyCustomRibbon connect=false;COM add-in VS15ExcelAdaptor connect=true;COM add-in xlPerf connect=false;add-in ANALYS32.XLL open=false installed=false;add-in ATPVBAEN.XLAM open=false installed=false;add-in CsTest160PR-AddIn64-packed.xll open=false installed=false;add-in EUROTOOL.XLAM open=false installed=false;add-in ExcelDna.IntelliSense.Tools-AddIn64.xll open=false installed=false;add-in ExcelDna.IntelliSense64.xll open=false installed=false;add-in ExcelDna64.xll open=false installed=false;add-in GENERIC.xll open=false installed=false;add-in McpExcel-AddIn64.xll open=false installed=true;add-in RibbonTest-AddIn64.xll open=false installed=false;add-in SOLVER.XLAM open=false installed=false;add-in Test160rc1Local-AddIn64.xll open=false installed=false;add-in TestCrashGuard-AddIn64.xll open=false installed=true;add-in TestCs170rc2-AddIn64.xll open=false installed=false;add-in TestDoc170-AddIn64.xll open=false installed=false;add-in TestIntelliEmbed-AddIn64.xll open=false installed=false;add-in TestOpen16-AddIn64-packed.xll open=false installed=false",
+      "add_ins": "COM add-in Carousel.ExcelAddin connect=false;COM add-in Dna_78b015d8b23f56a68ecce694f11f8794_3 connect=false;COM add-in ExcelPlugInShell.PowerMapConnect connect=false;COM add-in ExcelVstoAddIn1 connect=false;COM add-in MicrosoftDataStreamerforExcel connect=false;COM add-in MsoTDAddin.Connect.1 connect=false;COM add-in NativeShim.InquireConnector.1 connect=false;COM add-in OxVbaExcelAddin.ExcelAddin connect=false;COM add-in PDFMaker.OfficeAddin connect=false;COM add-in PowerPivotExcelClientAddIn.NativeEntry.1 connect=false;COM add-in TestComAddIn.ComAddIn connect=false;COM add-in TestRibbonRegistration.MyCustomRibbon connect=false;COM add-in VS15ExcelAdaptor connect=true;COM add-in xlPerf connect=false;add-in ANALYS32.XLL open=false installed=false;add-in ATPVBAEN.XLAM open=false installed=false;add-in CsTest160PR-AddIn64-packed.xll open=false installed=false;add-in CsTest160PR-AddIn64-packed.xll open=false installed=false;add-in EUROTOOL.XLAM open=false installed=false;add-in ExcelDna.IntelliSense.Tools-AddIn64.xll open=false installed=false;add-in ExcelDna.IntelliSense64.xll open=false installed=false;add-in GENERIC.xll open=false installed=false;add-in TestIntelliEmbed-AddIn64.xll open=false installed=false;add-in ExcelDna64.xll open=false installed=false;add-in RibbonTest-AddIn64.xll open=false installed=false;add-in SOLVER.XLAM open=false installed=false;add-in Test160rc1Local-AddIn64.xll open=false installed=false;add-in TestCs170rc2-AddIn64.xll open=false installed=false;add-in TestDoc170-AddIn64.xll open=false installed=false;add-in TestOpen16-AddIn64-packed.xll open=false installed=false",
       "com_add_ins_connected": "VS15ExcelAdaptor|Visual Studio Tools for Office Design-Time Adaptor for Excel",
-      "add_ins_installed": "McpExcel-AddIn64.xll;TestCrashGuard-AddIn64.xll",
+      "add_ins_installed": "",
       "has_vb_project": "false",
       "opened_read_only": "true",
       "external_links": "",
       "ole_dde_links": "",
       "connections": "",
-      "calculation_clock": "40e69e958719a0fb"
+      "calculation_clock": "40e6a0e204a46f47",
+      "workbook_path": "C:\\c\\eng20nzpw\\in\\oracle.xlsx"
     }
   },
   "session": {
     "revision": 0,
     "operations": [],
     "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false",
-    "tool": "calc-oracle-excel 0.1.0; worker sha256:599032d018da3b9889269e0ca46c2c1c7f2f21572fb378bc1781a73b9cd93d25; repository 4f063f15a5447eae93ae8d2d5fe0edb6376207b7+dirty",
+    "tool": "calc-oracle-excel 0.1.0; worker results 1; worker sha256:2181e4223d5a1fc9aa9561cc0cf306ecf446fc44c6136f4d283f583eb457bcb0; repository ab94a291533361557662a0d65dad886e41e5928f",
     "packages": {
       "input": "sha256:a00beb0092961e06082007939d1d8d92c53e7f7f6f2f73e8d7048ec9b3875460",
-      "output": "sha256:eb8bb7f4fe7999ab822768596fede42bbc30cf3cdfad73ef081dbc9f2ffa6057"
+      "output": "sha256:634a42f7bc88502227a1cf2a5c556c748f06f3d7d8df947ed929c8be8a67d5fa"
     },
-    "failures": [
-      {"stage":"value","sheet":"information_functions","row":157,"column":4,"message":"Excel error code 2051 is not one this value model holds"},
-      {"stage":"reopen","sheet":"information_functions","row":157,"column":4,"message":"Excel error code 2051 is not one this value model holds"}
-    ]
+    "failures": []
   },
   "sheets": [
     {"name":"information_functions","visibility":"visible"}
@@ -425,6 +428,7 @@
     {"sheet":"information_functions","row":154,"column":4,"excel_raw":{"logical":true}},
     {"sheet":"information_functions","row":155,"column":4,"excel_raw":{"logical":false}},
     {"sheet":"information_functions","row":156,"column":4,"excel_raw":{"number":"4008000000000000"}},
+    {"sheet":"information_functions","row":157,"column":4,"excel_raw":{"error":"busy"}},
     {"sheet":"information_functions","row":158,"column":4,"excel_raw":{"logical":false}},
     {"sheet":"information_functions","row":159,"column":4,"excel_raw":{"logical":true}},
     {"sheet":"information_functions","row":160,"column":4,"excel_raw":{"logical":false}},
@@ -800,6 +804,7 @@
     {"sheet":"information_functions","row":154,"column":4,"excel_raw":{"logical":true}},
     {"sheet":"information_functions","row":155,"column":4,"excel_raw":{"logical":false}},
     {"sheet":"information_functions","row":156,"column":4,"excel_raw":{"number":"4008000000000000"}},
+    {"sheet":"information_functions","row":157,"column":4,"excel_raw":{"error":"busy"}},
     {"sheet":"information_functions","row":158,"column":4,"excel_raw":{"logical":false}},
     {"sheet":"information_functions","row":159,"column":4,"excel_raw":{"logical":true}},
     {"sheet":"information_functions","row":160,"column":4,"excel_raw":{"logical":false}},
