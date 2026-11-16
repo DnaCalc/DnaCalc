@@ -122,7 +122,7 @@ pub(crate) fn short_string(cursor: &mut Cursor<'_>, what: &str) -> Result<String
 }
 
 /// Reads the globals substream starting at `records[0]` (a BOF).
-pub(crate) fn read(records: &[Record<'_>]) -> Result<Globals, String> {
+pub(crate) fn read(records: &[Record<'_>], biff5: bool) -> Result<Globals, String> {
     let mut globals = Globals::default();
     let mut depth = 0usize;
     let mut finished = false;
@@ -146,6 +146,8 @@ pub(crate) fn read(records: &[Record<'_>]) -> Result<Globals, String> {
                 globals.date_1904 = c.u16("Date1904").map_err(|e| e.0)? == 1;
             }
             FILEPASS => globals.encrypted = true,
+            0x0016 if biff5 => {}
+            EXTERNSHEET | EXTERNNAME if biff5 => {}
             BOUNDSHEET => {
                 let mut c = Cursor::new(record.body);
                 let offset = c.u32("BoundSheet8").map_err(|e| e.0)?;
@@ -157,7 +159,11 @@ pub(crate) fn read(records: &[Record<'_>]) -> Result<Globals, String> {
                     6 => SheetKind::Module,
                     other => SheetKind::Other(other),
                 };
-                let name = short_string(&mut c, "the sheet name")?;
+                let name = if biff5 {
+                    byte_string(&mut c, globals.code_page.unwrap_or(1252), "the sheet name")?
+                } else {
+                    short_string(&mut c, "the sheet name")?
+                };
                 globals.sheets.push(BoundSheet {
                     offset,
                     state,
@@ -181,9 +187,12 @@ pub(crate) fn read(records: &[Record<'_>]) -> Result<Globals, String> {
             | super::styles::XF
             | super::styles::STYLE
             | super::styles::PALETTE => {
-                globals.styles.read(record)?;
+                globals.styles.read(record, biff5.then(|| globals.code_page.unwrap_or(1252)))?;
             }
-            NAME => globals.names.push(name_record(record)?),
+            NAME => globals.names.push(name_record(
+                record,
+                biff5.then(|| globals.code_page.unwrap_or(1252)),
+            )?),
             SUPBOOK => globals.supbooks.push(supbook(record)?),
             EXTERNNAME => {
                 let mut c = Cursor::new(record.body);
@@ -222,6 +231,12 @@ pub(crate) fn read(records: &[Record<'_>]) -> Result<Globals, String> {
     Ok(globals)
 }
 
+/// A byte string with an 8-bit length (BIFF5) in code page `page`.
+pub(crate) fn byte_string(c: &mut Cursor<'_>, page: u16, what: &str) -> Result<String, String> {
+    let count = usize::from(c.u8(what).map_err(|e| e.0)?);
+    super::codepage::decode(page, c.bytes(count, what).map_err(|e| e.0)?)
+}
+
 /// The text of an XLUnicodeStringNoCch: a flag byte (bit 0: UTF-16), then `count` characters.
 fn no_count_string(c: &mut Cursor<'_>, count: usize, what: &str) -> Result<String, String> {
     if count == 0 {
@@ -256,7 +271,7 @@ fn built_in_name(code: u16) -> Option<&'static str> {
     })
 }
 
-fn name_record(record: &Record<'_>) -> Result<NameRecord, String> {
+fn name_record(record: &Record<'_>, v5: Option<u16>) -> Result<NameRecord, String> {
     let body = record.joined();
     let mut c = Cursor::new(&body);
     let what = "a NAME record";
@@ -271,7 +286,16 @@ fn name_record(record: &Record<'_>) -> Result<NameRecord, String> {
     let description_len = usize::from(c.u8(what).map_err(m)?);
     let help_len = usize::from(c.u8(what).map_err(m)?);
     let status_len = usize::from(c.u8(what).map_err(m)?);
-    let name = no_count_string(&mut c, name_len, what)?;
+    let text = |c: &mut Cursor<'_>, count: usize| -> Result<String, String> {
+        match v5 {
+            Some(page) => {
+                let bytes = c.bytes(count, what).map_err(m)?;
+                super::codepage::decode(page, bytes)
+            }
+            None => no_count_string(c, count, what),
+        }
+    };
+    let name = text(&mut c, name_len)?;
     let name = if flags & 0x20 != 0 {
         // A built-in name: one character whose code says which.
         let code = name.chars().next().map_or(0, |ch| ch as u32 as u16);
@@ -284,10 +308,10 @@ fn name_record(record: &Record<'_>) -> Result<NameRecord, String> {
     let rgce = c.bytes(formula_len, what).map_err(m)?.to_vec();
     // The array data of the formula, when it has any, is what is left before the strings; the
     // strings are located from the end, so only the formula bytes are taken here.
-    let _menu = no_count_string(&mut c, menu_len, what)?;
-    let description = no_count_string(&mut c, description_len, what)?;
-    let help = no_count_string(&mut c, help_len, what)?;
-    let _status = no_count_string(&mut c, status_len, what)?;
+    let _menu = text(&mut c, menu_len)?;
+    let description = text(&mut c, description_len)?;
+    let help = text(&mut c, help_len)?;
+    let _status = text(&mut c, status_len)?;
     Ok(NameRecord {
         flags,
         key,

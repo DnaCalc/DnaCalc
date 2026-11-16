@@ -61,11 +61,15 @@ pub(crate) struct TableRef {
 pub(crate) enum Layout {
     Xlsb,
     Biff8,
+    /// BIFF5 and BIFF7: 14-bit rows, byte strings in the workbook's code page, local link tables.
+    Biff5,
 }
 
 /// What a formula's tokens are printed against.
 pub(crate) struct Context<'a> {
     pub(crate) layout: Layout,
+    /// The code page of byte strings (BIFF5 only).
+    pub(crate) code_page: u16,
     pub(crate) sheets: &'a [String],
     pub(crate) xti: &'a [Xti],
     pub(crate) supbooks: &'a [SupBook],
@@ -264,8 +268,10 @@ pub(crate) fn print(
 ) -> Read<Result<String, Expanded>> {
     let mut cursor = Cursor::new(rgce);
     let mut extra = Cursor::new(rgcb);
-    let biff8 = context.layout == Layout::Biff8;
     let layout = context.layout;
+    let biff5 = layout == Layout::Biff5;
+    // Widths shared by BIFF5 and BIFF8: the tExp and tTbl row and column are 16 bits each.
+    let biff8 = layout != Layout::Xlsb;
     let mut stack: Vec<Item> = Vec::new();
     let mut pending = Pending::default();
     let pop = |stack: &mut Vec<Item>| -> Read<Item> {
@@ -350,7 +356,9 @@ pub(crate) fn print(
                 stack.push(Item { text: space });
             }
             0x17 => {
-                let (count, wide) = if biff8 {
+                let (count, wide) = if biff5 {
+                    (usize::from(cursor.u8("PtgStr")?), false)
+                } else if biff8 {
                     let count = usize::from(cursor.u8("PtgStr")?);
                     (count, cursor.u8("PtgStr")? & 1 != 0)
                 } else {
@@ -358,6 +366,8 @@ pub(crate) fn print(
                 };
                 let units = if wide {
                     cursor.units(count, "PtgStr")?
+                } else if biff5 {
+                    byte_units(context.code_page, cursor.bytes(count, "PtgStr")?)?
                 } else {
                     cursor
                         .bytes(count, "PtgStr")?
@@ -450,7 +460,10 @@ pub(crate) fn print(
                 });
             }
             0x20 => {
-                let array = if biff8 {
+                let array = if biff5 {
+                    cursor.skip(7, "PtgArray")?;
+                    biff5_array_constant(&mut extra, context.code_page)?
+                } else if biff8 {
                     cursor.skip(7, "PtgArray")?;
                     biff8_array_constant(&mut extra)?
                 } else {
@@ -516,7 +529,13 @@ pub(crate) fn print(
                 });
             }
             0x23 => {
-                let index = cursor.u32("PtgName")?;
+                let index = if biff5 {
+                    let index = u32::from(cursor.u16("PtgName")?);
+                    cursor.skip(12, "PtgName")?;
+                    index
+                } else {
+                    cursor.u32("PtgName")?
+                };
                 let name = defined_name(index, context)?;
                 let space = pending.take();
                 stack.push(Item {
@@ -524,12 +543,7 @@ pub(crate) fn print(
                 });
             }
             0x24 | 0x2C => {
-                let row = if biff8 {
-                    u32::from(cursor.u16("a reference's row")?)
-                } else {
-                    cursor.u32("a reference's row")?
-                };
-                let column = cursor.u16("a reference's column")?;
+                let (row, column) = read_cell(&mut cursor, layout)?;
                 let cell = cell_text(row, column, base == 0x2C, origin, layout);
                 let space = pending.take();
                 stack.push(Item {
@@ -537,15 +551,7 @@ pub(crate) fn print(
                 });
             }
             0x25 | 0x2D => {
-                let rows = if biff8 {
-                    (
-                        u32::from(cursor.u16("an area")?),
-                        u32::from(cursor.u16("an area")?),
-                    )
-                } else {
-                    (cursor.u32("an area")?, cursor.u32("an area")?)
-                };
-                let columns = (cursor.u16("an area")?, cursor.u16("an area")?);
+                let (rows, columns) = read_area(&mut cursor, layout)?;
                 let area = area_text(rows, columns, base == 0x2D, origin, layout);
                 let space = pending.take();
                 stack.push(Item {
@@ -556,7 +562,10 @@ pub(crate) fn print(
             // follows prints itself; their extra data is skipped.
             0x26 => {
                 cursor.skip(6, "PtgMemArea")?;
-                if biff8 {
+                if biff5 {
+                    let count = usize::from(extra.u16("PtgExtraMem")?);
+                    extra.skip(count * 6, "PtgExtraMem")?;
+                } else if biff8 {
                     let count = usize::from(extra.u16("PtgExtraMem")?);
                     extra.skip(count * 8, "PtgExtraMem")?;
                 } else {
@@ -567,37 +576,54 @@ pub(crate) fn print(
             0x27 | 0x28 => cursor.skip(6, "PtgMemErr")?,
             0x29 => cursor.skip(2, "PtgMemFunc")?,
             0x2A => {
-                cursor.skip(if biff8 { 4 } else { 6 }, "PtgRefErr")?;
+                cursor.skip(if biff5 { 3 } else if biff8 { 4 } else { 6 }, "PtgRefErr")?;
                 let space = pending.take();
                 stack.push(Item {
                     text: format!("{space}#REF!"),
                 });
             }
             0x2B => {
-                cursor.skip(if biff8 { 8 } else { 12 }, "PtgAreaErr")?;
+                cursor.skip(if biff5 { 6 } else if biff8 { 8 } else { 12 }, "PtgAreaErr")?;
                 let space = pending.take();
                 stack.push(Item {
                     text: format!("{space}#REF!"),
                 });
             }
             0x39 => {
-                let ixti = cursor.u16("PtgNameX")?;
-                let index = cursor.u32("PtgNameX")?;
-                let name = external_name(ixti, index, context)?;
+                let name = if biff5 {
+                    let ixti = cursor.u16("PtgNameX")? as i16;
+                    cursor.skip(8, "PtgNameX")?;
+                    let index = u32::from(cursor.u16("PtgNameX")?);
+                    cursor.skip(12, "PtgNameX")?;
+                    if ixti < 0 {
+                        defined_name(index, context)?
+                    } else {
+                        external_name((ixti - 1) as u16, index, context)?
+                    }
+                } else {
+                    let ixti = cursor.u16("PtgNameX")?;
+                    let index = cursor.u32("PtgNameX")?;
+                    external_name(ixti, index, context)?
+                };
                 let space = pending.take();
                 stack.push(Item {
                     text: format!("{space}{name}"),
                 });
             }
             0x3A | 0x3C => {
-                let ixti = cursor.u16("a 3-D reference")?;
-                let row = if biff8 {
-                    u32::from(cursor.u16("a 3-D reference")?)
+                let (prefix, (row, column)) = if biff5 {
+                    let prefix = biff5_prefix(&mut cursor, context)?;
+                    (prefix, read_cell(&mut cursor, layout)?)
                 } else {
-                    cursor.u32("a 3-D reference")?
+                    let ixti = cursor.u16("a 3-D reference")?;
+                    let row = if biff8 {
+                        u32::from(cursor.u16("a 3-D reference")?)
+                    } else {
+                        cursor.u32("a 3-D reference")?
+                    };
+                    let column = cursor.u16("a 3-D reference")?;
+                    (sheets_prefix(ixti, context)?, (row, column))
                 };
-                let column = cursor.u16("a 3-D reference")?;
-                let prefix = sheets_prefix(ixti, context)?;
                 let cell = if base == 0x3C {
                     "#REF!".to_owned()
                 } else {
@@ -612,17 +638,22 @@ pub(crate) fn print(
                 });
             }
             0x3B | 0x3D => {
-                let ixti = cursor.u16("a 3-D area")?;
-                let rows = if biff8 {
-                    (
-                        u32::from(cursor.u16("a 3-D area")?),
-                        u32::from(cursor.u16("a 3-D area")?),
-                    )
+                let (prefix, (rows, columns)) = if biff5 {
+                    let prefix = biff5_prefix(&mut cursor, context)?;
+                    (prefix, read_area(&mut cursor, layout)?)
                 } else {
-                    (cursor.u32("a 3-D area")?, cursor.u32("a 3-D area")?)
+                    let ixti = cursor.u16("a 3-D area")?;
+                    let rows = if biff8 {
+                        (
+                            u32::from(cursor.u16("a 3-D area")?),
+                            u32::from(cursor.u16("a 3-D area")?),
+                        )
+                    } else {
+                        (cursor.u32("a 3-D area")?, cursor.u32("a 3-D area")?)
+                    };
+                    let columns = (cursor.u16("a 3-D area")?, cursor.u16("a 3-D area")?);
+                    (sheets_prefix(ixti, context)?, (rows, columns))
                 };
-                let columns = (cursor.u16("a 3-D area")?, cursor.u16("a 3-D area")?);
-                let prefix = sheets_prefix(ixti, context)?;
                 let area = if base == 0x3D {
                     "#REF!".to_owned()
                 } else {
@@ -646,6 +677,79 @@ pub(crate) fn print(
     Ok(Ok(format!("{}{}", pending.lead, item.text)))
 }
 
+/// A cell address as a token holds it: the row and the raw column word with its relative flags in
+/// bits 14 (column) and 15 (row). BIFF5 stores a 14-bit row with both flags in the row word and a
+/// byte for the column.
+fn read_cell(cursor: &mut Cursor<'_>, layout: Layout) -> Read<(u32, u16)> {
+    Ok(match layout {
+        Layout::Xlsb => (cursor.u32("a reference's row")?, cursor.u16("a reference's column")?),
+        Layout::Biff8 => (
+            u32::from(cursor.u16("a reference's row")?),
+            cursor.u16("a reference's column")?,
+        ),
+        Layout::Biff5 => {
+            let row = cursor.u16("a reference's row")?;
+            let column = cursor.u8("a reference's column")?;
+            (u32::from(row & 0x3FFF), u16::from(column) | (row & 0xC000))
+        }
+    })
+}
+
+/// A cell range address as a token holds it: (first row, last row), (first column word, last
+/// column word); see [`read_cell`].
+fn read_area(cursor: &mut Cursor<'_>, layout: Layout) -> Read<((u32, u32), (u16, u16))> {
+    Ok(match layout {
+        Layout::Xlsb => (
+            (cursor.u32("an area")?, cursor.u32("an area")?),
+            (cursor.u16("an area")?, cursor.u16("an area")?),
+        ),
+        Layout::Biff8 => (
+            (u32::from(cursor.u16("an area")?), u32::from(cursor.u16("an area")?)),
+            (cursor.u16("an area")?, cursor.u16("an area")?),
+        ),
+        Layout::Biff5 => {
+            let (first, last) = (cursor.u16("an area")?, cursor.u16("an area")?);
+            let (c1, c2) = (cursor.u8("an area")?, cursor.u8("an area")?);
+            (
+                (u32::from(first & 0x3FFF), u32::from(last & 0x3FFF)),
+                (u16::from(c1) | (first & 0xC000), u16::from(c2) | (last & 0xC000)),
+            )
+        }
+    })
+}
+
+/// Code page `page` bytes as UTF-16 units.
+fn byte_units(page: u16, bytes: &[u8]) -> Read<Vec<u16>> {
+    crate::xls::codepage::decode(page, bytes)
+        .map(|text| text.encode_utf16().collect())
+        .map_err(bad)
+}
+
+/// The qualifier of a BIFF5 3-D token: a negative index to the local link table, then 8 unused
+/// bytes and the first and last sheet of this workbook (`0xFFFF` for a deleted one); a positive
+/// index names an external workbook's sheet and 12 bytes follow that are not used.
+fn biff5_prefix(cursor: &mut Cursor<'_>, context: &Context<'_>) -> Read<Option<String>> {
+    let index = cursor.u16("a 3-D reference")? as i16;
+    if index >= 0 {
+        cursor.skip(12, "a 3-D reference")?;
+        return sheets_prefix((index - 1) as u16, context);
+    }
+    cursor.skip(8, "a 3-D reference")?;
+    let (first, last) = (cursor.u16("a 3-D reference")?, cursor.u16("a 3-D reference")?);
+    if first == 0xFFFF || last == 0xFFFF {
+        return Ok(None);
+    }
+    let name = |tab: u16| -> Read<&String> {
+        context
+            .sheets
+            .get(usize::from(tab))
+            .ok_or_else(|| bad(format!("the sheet {tab} of a reference")))
+    };
+    let (first, last) = (name(first)?, name(last)?);
+    let joined = if first != last { format!("{first}:{last}") } else { first.clone() };
+    Ok(Some(format!("{}!", sheet_prefix(&joined))))
+}
+
 /// A row and a column of a reference as A1 text: `$` before each absolute coordinate. A relative
 /// coordinate of a PtgRefN or PtgAreaN (`offsets`) is an offset from `origin`, wrapping around
 /// the grid's edge.
@@ -656,14 +760,22 @@ fn coordinate_text(
     origin: Origin,
     layout: Layout,
 ) -> (String, String) {
-    let biff8 = layout == Layout::Biff8;
+    let biff8 = layout != Layout::Xlsb;
     let column = u32::from(raw_column & if biff8 { 0x00FF } else { 0x3FFF });
     let column_relative = raw_column & 0x4000 != 0;
     let row_relative = raw_column & 0x8000 != 0;
-    let (rows, columns) = if biff8 { (65_536, 256) } else { (1_048_576, 16_384) };
+    let (rows, columns) = match layout {
+        Layout::Xlsb => (1_048_576, 16_384),
+        Layout::Biff8 => (65_536, 256),
+        Layout::Biff5 => (16_384, 256),
+    };
     let row = if offsets && row_relative {
-        // BIFF8 stores a relative row as a signed 16-bit offset, xlsb as a signed 32-bit one.
-        let offset = if biff8 { i64::from(row as u16 as i16) } else { i64::from(row as i32) };
+        // BIFF8 stores a relative row as a signed 16-bit offset, BIFF5 as 14 bits, xlsb as 32.
+        let offset = match layout {
+            Layout::Xlsb => i64::from(row as i32),
+            Layout::Biff8 => i64::from(row as u16 as i16),
+            Layout::Biff5 => i64::from(((row << 18) as i32) >> 18),
+        };
         (i64::from(origin.row) + offset).rem_euclid(rows) as u32
     } else {
         row
@@ -709,6 +821,7 @@ fn area_text(
     let (last_row, last_column, mask) = match layout {
         Layout::Xlsb => (1_048_575, 16_383, 0x3FFF),
         Layout::Biff8 => (65_535, 255, 0x00FF),
+        Layout::Biff5 => (16_383, 255, 0x00FF),
     };
     let all_rows = !offsets && rows.0 == 0 && rows.1 == last_row;
     let all_columns = !offsets && columns.0 & mask == 0 && columns.1 & mask == last_column;
@@ -940,6 +1053,55 @@ fn biff8_array_constant(extra: &mut Cursor<'_>) -> Read<String> {
                             .map(|b| u16::from(*b))
                             .collect()
                     };
+                    out.push_str(&quoted(&text(&units)));
+                }
+                0x04 => {
+                    let value = extra.u8("an array boolean")?;
+                    extra.skip(7, "an array boolean")?;
+                    out.push_str(if value != 0 { "TRUE" } else { "FALSE" });
+                }
+                0x10 => {
+                    let code = extra.u8("an array error")?;
+                    extra.skip(7, "an array error")?;
+                    out.push_str(
+                        error_text(code).ok_or_else(|| bad(format!("the error 0x{code:02X}")))?,
+                    );
+                }
+                other => return Err(bad(format!("the array value type {other}"))),
+            }
+        }
+    }
+    out.push('}');
+    Ok(out)
+}
+
+/// An array constant of a BIFF5 formula (MS-XLS-free: OpenOffice.org's Excel file format 2.5.8):
+/// the column count (a byte, 0 for 256) and the row count (16 bits), then each value, 9 bytes
+/// or a byte string: 0 empty, 1 number, 2 string, 4 boolean, 16 error.
+fn biff5_array_constant(extra: &mut Cursor<'_>, code_page: u16) -> Read<String> {
+    let columns = match extra.u8("an array's columns")? {
+        0 => 256,
+        n => usize::from(n),
+    };
+    let rows = usize::from(extra.u16("an array's rows")?);
+    let mut out = String::from("{");
+    for row in 0..rows {
+        if row > 0 {
+            out.push(';');
+        }
+        for column in 0..columns {
+            if column > 0 {
+                out.push(',');
+            }
+            match extra.u8("an array value")? {
+                0x00 => {
+                    extra.skip(8, "an empty array value")?;
+                    out.push_str("\"\"");
+                }
+                0x01 => out.push_str(&formula_number(extra.f64("an array number")?)),
+                0x02 => {
+                    let count = usize::from(extra.u8("an array string")?);
+                    let units = byte_units(code_page, extra.bytes(count, "an array string")?)?;
                     out.push_str(&quoted(&text(&units)));
                 }
                 0x04 => {

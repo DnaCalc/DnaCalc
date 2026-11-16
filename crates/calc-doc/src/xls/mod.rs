@@ -9,12 +9,14 @@
 //! [`LegacyReport`], never fatal.
 
 pub(crate) mod cfb;
+pub(crate) mod codepage;
 mod features;
 mod formula;
 mod records;
 mod sheet;
 mod strings;
 mod styles;
+mod v5;
 mod workbook;
 
 use crate::OpenError;
@@ -72,17 +74,14 @@ pub(crate) fn convert(bytes: &[u8]) -> Result<(Vec<u8>, LegacyReport), OpenError
     if workbook::bof_type(first) != Some(0x0005) {
         return Err(refuse(name, "the first substream is not the workbook globals"));
     }
-    match version {
-        0x0600 => {}
-        0x0500 => {
-            return Err(refuse(
-                name,
-                "a BIFF5/7 workbook, which dc-4j0e.8 reads",
-            ));
-        }
+    let biff5 = match version {
+        0x0600 => false,
+        0x0500 => true,
         other => return Err(refuse(name, format!("BIFF version {other:#06x}"))),
-    }
-    let mut globals = workbook::read(&records).map_err(|e| refuse(name, e))?;
+    };
+    let mut globals = workbook::read(&records, biff5).map_err(|e| refuse(name, e))?;
+    // A BIFF5 or BIFF7 workbook: its strings are bytes in this code page.
+    let v5 = biff5.then(|| globals.code_page.unwrap_or(1252));
     if globals.encrypted {
         return Err(refuse(name, "an encrypted workbook (FILEPASS), which dc-4j0e.7 reads"));
     }
@@ -90,21 +89,8 @@ pub(crate) fn convert(bytes: &[u8]) -> Result<(Vec<u8>, LegacyReport), OpenError
     let mut parts: Vec<(String, &'static str, Vec<u8>)> = Vec::new();
     let mut sheet_entries: Vec<(String, u8, String)> = Vec::new();
     let mut number = 0usize;
-    let links = formula::Links::new(
-        &globals,
-        globals
-            .sheets
-            .iter()
-            .filter(|s| s.kind != SheetKind::Module)
-            .map(|s| s.name.clone())
-            .collect(),
-    );
-    let mut sheet_unknown: BTreeMap<u16, u32> = BTreeMap::new();
-    let mut extra_entries: Vec<(String, Vec<u8>)> = Vec::new();
-    for sheet in &globals.sheets {
-        if sheet.kind == SheetKind::Module {
-            continue;
-        }
+    // Where each sheet's substream starts and ends in the record list.
+    let locate = |sheet: &workbook::BoundSheet| -> Result<(usize, usize), OpenError> {
         let Some(start) = records.iter().position(|r| r.offset == sheet.offset as usize) else {
             return Err(refuse(
                 name,
@@ -119,27 +105,78 @@ pub(crate) fn convert(bytes: &[u8]) -> Result<(Vec<u8>, LegacyReport), OpenError
             ));
         }
         let mut depth = 0usize;
-        let mut end = None;
         for (k, record) in substream.iter().enumerate() {
             match record.id {
                 workbook::BOF => depth += 1,
                 workbook::EOF => {
                     depth -= 1;
                     if depth == 0 {
-                        end = Some(k + 1);
-                        break;
+                        return Ok((start, start + k + 1));
                     }
                 }
                 _ => {}
             }
         }
-        let Some(end) = end else {
-            return Err(refuse(name, format!("sheet {:?} has no EOF record", sheet.name)));
-        };
+        Err(refuse(name, format!("sheet {:?} has no EOF record", sheet.name)))
+    };
+    // BIFF5 link tables: the globals' and each sheet's own, gathered before any formula prints.
+    let mut registry = v5::Registry::default();
+    let mut tables: Vec<v5::Table> = Vec::new();
+    let mut global_table = v5::Table::default();
+    if let Some(page) = v5 {
+        global_table = registry
+            .table(&records[..globals.end], page)
+            .map_err(|e| refuse(name, e))?;
+        for sheet in globals.sheets.iter().filter(|s| s.kind != SheetKind::Module) {
+            let (start, end) = locate(sheet)?;
+            tables.push(registry.table(&records[start..end], page).map_err(|e| refuse(name, e))?);
+        }
+        globals.supbooks = registry
+            .documents
+            .iter()
+            .map(|d| workbook::SupBookRecord::External {
+                path: d.path.clone(),
+                sheets: d.sheets.clone(),
+                names: d.names.clone(),
+            })
+            .collect();
+    }
+    let mut links = formula::Links::new(
+        &globals,
+        globals
+            .sheets
+            .iter()
+            .filter(|s| s.kind != SheetKind::Module)
+            .map(|s| s.name.clone())
+            .collect(),
+        v5,
+    );
+    if v5.is_some() {
+        let (books, xti) = global_table.references(&registry.documents);
+        links = links.with_table(books, xti);
+    }
+    let mut sheet_unknown: BTreeMap<u16, u32> = BTreeMap::new();
+    let mut extra_entries: Vec<(String, Vec<u8>)> = Vec::new();
+    for sheet in &globals.sheets {
+        if sheet.kind == SheetKind::Module {
+            continue;
+        }
+        let (start, end) = locate(sheet)?;
+        let substream = &records[start..end];
+        let end = substream.len();
         number += 1;
+        let sheet_links;
+        let links = if v5.is_some() {
+            let (books, xti) = tables[number - 1].references(&registry.documents);
+            sheet_links = links.with_table(books, xti);
+            &sheet_links
+        } else {
+            &links
+        };
         let context = sheet::Context {
             strings: &globals.strings,
-            links: &links,
+            links,
+            v5,
             styles: &globals.styles,
             tab: number as u32 - 1,
             number,
@@ -324,7 +361,7 @@ pub(crate) fn convert(bytes: &[u8]) -> Result<(Vec<u8>, LegacyReport), OpenError
     }
     let macros = globals.sheets.iter().any(|s| s.kind == SheetKind::MacroSheet);
     let report = LegacyReport {
-        biff_version: 8,
+        biff_version: if biff5 { 5 } else { 8 },
         sheets: globals.sheets.len(),
         unknown_records: {
             let mut all = std::mem::take(&mut globals.unknown);

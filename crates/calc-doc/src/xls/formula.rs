@@ -6,6 +6,8 @@ use crate::xlsb::formula::{Context, Layout, NameRef, SupBook, TableRef, Xti};
 use std::collections::BTreeMap;
 
 pub(crate) struct Links {
+    layout: Layout,
+    code_page: u16,
     sheets: Vec<String>,
     xti: Vec<Xti>,
     supbooks: Vec<SupBook>,
@@ -15,7 +17,7 @@ pub(crate) struct Links {
 
 impl Links {
     /// The links of `globals`; `sheets` are the workbook's sheet names in tab order.
-    pub(crate) fn new(globals: &Globals, sheets: Vec<String>) -> Links {
+    pub(crate) fn new(globals: &Globals, sheets: Vec<String>, v5: Option<u16>) -> Links {
         let mut external = 0u32;
         let supbooks = globals
             .supbooks
@@ -36,6 +38,8 @@ impl Links {
             })
             .collect();
         Links {
+            layout: if v5.is_some() { Layout::Biff5 } else { Layout::Biff8 },
+            code_page: v5.unwrap_or(0),
             sheets,
             xti: globals.xti.clone(),
             supbooks,
@@ -51,10 +55,25 @@ impl Links {
         }
     }
 
+    /// These links with another link table (a BIFF5 sheet's own): its supporting workbooks and
+    /// sheet references.
+    pub(crate) fn with_table(&self, supbooks: Vec<SupBook>, xti: Vec<Xti>) -> Links {
+        Links {
+            layout: self.layout,
+            code_page: self.code_page,
+            sheets: self.sheets.clone(),
+            xti,
+            supbooks,
+            names: self.names.clone(),
+            tables: BTreeMap::new(),
+        }
+    }
+
     /// The context for a formula on the sheet at tab index `tab`, or in a workbook-level name.
     pub(crate) fn context(&self, tab: Option<u32>) -> Context<'_> {
         Context {
-            layout: Layout::Biff8,
+            layout: self.layout,
+            code_page: self.code_page,
             sheets: &self.sheets,
             xti: &self.xti,
             supbooks: &self.supbooks,

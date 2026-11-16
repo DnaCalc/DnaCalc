@@ -102,6 +102,8 @@ pub(crate) struct Features {
     waiting_object: Option<u16>,
     /// The sheet's number, which names its comment parts.
     pub(crate) number: usize,
+    /// The code page of a BIFF5 or BIFF7 workbook.
+    pub(crate) v5: Option<u16>,
     note_texts: std::collections::BTreeMap<u16, Vec<u16>>,
     notes: Vec<Note>,
 }
@@ -218,6 +220,8 @@ impl Features {
             HEADER | FOOTER => {
                 let text = if record.body.is_empty() {
                     String::new()
+                } else if let Some(page) = self.v5 {
+                    super::workbook::byte_string(&mut c, page, "a header or footer")?
                 } else {
                     let mut p = Pieces::new(record);
                     String::from_utf16_lossy(&p.unicode_string("a header or footer").map_err(|m| m.0)?)
@@ -281,6 +285,31 @@ impl Features {
                         let units = p.characters(length, flag & 1 != 0, "a note's text").map_err(|m| m.0)?;
                         self.note_texts.insert(id, units);
                     }
+                }
+            }
+            NOTE if self.v5.is_some() => {
+                // BIFF5: the text is in the record. A row of 0xFFFF continues the note before.
+                let row = c.u16("Note").map_err(e)?;
+                let column = c.u16("Note").map_err(e)?;
+                let count = usize::from(c.u16("Note").map_err(e)?);
+                let bytes = c.bytes(count.min(c.remaining()), "Note").map_err(e)?;
+                let text: Vec<u16> = super::codepage::decode(self.v5.unwrap_or(1252), bytes)?
+                    .encode_utf16()
+                    .collect();
+                if row == 0xFFFF {
+                    if let Some(last) = self.notes.last() {
+                        self.note_texts.entry(last.object).or_default().extend(text);
+                    }
+                } else {
+                    let object = self.notes.len() as u16 + 1;
+                    self.note_texts.insert(object, text);
+                    self.notes.push(Note {
+                        row,
+                        column,
+                        visible: false,
+                        object,
+                        author: String::new(),
+                    });
                 }
             }
             NOTE => {

@@ -24,6 +24,7 @@ const RK: u16 = 0x027E;
 const MULRK: u16 = 0x00BD;
 const MULBLANK: u16 = 0x00BE;
 const LABELSST: u16 = 0x00FD;
+const RSTRING: u16 = 0x00D6;
 const SHRFMLA: u16 = 0x04BC;
 const ARRAY: u16 = 0x0221;
 const TABLE: u16 = 0x0236;
@@ -36,6 +37,8 @@ pub(crate) struct Context<'a> {
     /// The tab index of the sheet being read.
     pub(crate) tab: u32,
     pub(crate) number: usize,
+    /// The code page of a BIFF5 or BIFF7 workbook, whose strings are bytes in it.
+    pub(crate) v5: Option<u16>,
 }
 
 /// What a formula cell's `<f>` element holds.
@@ -153,6 +156,7 @@ pub(crate) fn read(
     let mut depth = 0usize;
     let mut features = super::features::Features::default();
     features.number = context.number;
+    features.v5 = context.v5;
     // Shared and array formulas and data tables, by the cell of the FORMULA record they follow
     // (where a PtgExp finds them) and, for shared formulas, by the first cell of their range.
     let mut shared: BTreeMap<(u32, u32), Group> = BTreeMap::new();
@@ -367,6 +371,16 @@ pub(crate) fn read(
                 }
                 put(&mut rows, row, column, ixfe, Content::SharedString(index));
             }
+            LABEL | RSTRING if context.v5.is_some() => {
+                // BIFF5: a 16-bit length and the bytes in the workbook's code page; an RSTRING's
+                // formatting runs after them are not read.
+                let mut c = Cursor::new(record.body);
+                let (row, column, ixfe) = cell_head(&mut c)?;
+                let count = usize::from(c.u16("Label").map_err(e)?);
+                let bytes = c.bytes(count, "Label").map_err(e)?;
+                let text = super::codepage::decode(context.v5.unwrap_or(1252), bytes)?;
+                put(&mut rows, row, column, ixfe, Content::Text(text.encode_utf16().collect()));
+            }
             LABEL => {
                 let mut c = Cursor::new(&record.body[..record.body.len().min(6)]);
                 let (row, column, ixfe) = cell_head(&mut c)?;
@@ -421,6 +435,14 @@ pub(crate) fn read(
                                     .iter()
                                     .find(|r| !matches!(r.id, SHRFMLA | ARRAY | TABLE));
                                 match next {
+                                    Some(r) if r.id == STRING && context.v5.is_some() => {
+                                        let mut c = Cursor::new(r.body);
+                                        let count = usize::from(c.u16("String").map_err(e)?);
+                                        let bytes = c.bytes(count, "String").map_err(e)?;
+                                        units = super::codepage::decode(context.v5.unwrap_or(1252), bytes)?
+                                            .encode_utf16()
+                                            .collect();
+                                    }
                                     Some(r) if r.id == STRING => {
                                         let mut p = Pieces::new(r);
                                         units = p.unicode_string("a formula's text").map_err(|m| m.0)?;
@@ -498,6 +520,8 @@ pub(crate) fn read(
                 put(&mut rows, row, column, ixfe, Content::Formula(formula, cached));
             }
             STRING => {}
+            // BIFF5's local link table: read with the workbook, before the formulas.
+            0x0016 | 0x0017 | 0x0023 if context.v5.is_some() => {}
             other => {
                 if !features.read(record)? {
                     *unknown.entry(other).or_insert(0) += 1;

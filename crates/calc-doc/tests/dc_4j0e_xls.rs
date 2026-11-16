@@ -130,12 +130,12 @@ fn files_that_are_not_read_are_typed_refusals() {
     };
     let (_, detail) = refused(&compound(&[("WordDocument", vec![1, 2, 3])]));
     assert!(detail.contains("no Workbook"), "{detail}");
-    // BIFF5/7, which dc-4j0e.8 reads.
-    let mut stream = record(0x0809, &u16s(&[0x0500, 0x0005, 0x1234, 0x07CC]));
+    // BIFF4, a different file layout.
+    let mut stream = record(0x0809, &u16s(&[0x0400, 0x0005, 0x1234, 0x07CC]));
     stream.extend(eof());
     let (name, detail) = refused(&compound(&[("Book", stream)]));
     assert_eq!(name, "Book");
-    assert!(detail.contains("BIFF5/7"), "{detail}");
+    assert!(detail.contains("BIFF version 0x0400"), "{detail}");
     // FILEPASS: an encrypted workbook, which dc-4j0e.7 reads.
     let encrypted = xls(false, &record(0x002F, &[0, 0, 1, 0, 1, 0]), &[Sheet::worksheet("S", Vec::new())]);
     let (_, detail) = refused(&encrypted);
@@ -595,4 +595,130 @@ fn a_saved_xls_is_an_xlsx_that_opens_to_the_same_cells() {
     assert_eq!(&saved[..2], b"PK", "the save is a ZIP package");
     assert_eq!(sheet_cells(&saved), sheet_cells(&bytes));
     assert_eq!(sheet_cells(&saved), vec!["A1 n:0.1", "B1 s:text", "C1 f:3+S!$A$1"]);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn a_biff5_workbook_with_code_page_text_formulas_and_names() {
+    use ptg::*;
+    use xls_kit::v5;
+    // Sheet 1 "Données" (0xE9 in code page 1252): a label with an accent and a euro sign, a number,
+    // a formula =A2+1 (relative cell), one into sheet 2 through a local EXTERNSHEET record, and a
+    // string formula. The workbook has a global name Rate = Sheet2!$A$1.
+    let mut first = Vec::new();
+    first.extend(v5::label(0, 0, b"caf\xE9 \x80"));
+    first.extend(number(1, 0, 41.0));
+    first.extend(v5::extern_own(b"Sheet2"));
+    first.extend(v5::formula(2, 0, 42.0, &join(&[v5::cell(1, 0, true, true), int(1), op(ADD)])));
+    first.extend(v5::formula(2, 1, 5.0, &v5::cell3d(1, 1, 0, 0)));
+    let mut text = vec![0x17, 3];
+    text.extend(b"\xE9t\xE9");
+    first.extend(v5::formula(2, 2, 0.0, &text));
+    let mut second = Vec::new();
+    second.extend(number(0, 0, 5.0));
+    let globals = [
+        v5::extern_own(b"Sheet2"),
+        v5::name(0, 0, b"Rate", &v5::cell3d(1, 1, 0, 0)),
+    ]
+    .concat();
+    let bytes = v5::xls(
+        1252,
+        &globals,
+        &[
+            v5::Sheet { name: b"Donn\xE9es".to_vec(), records: first },
+            v5::Sheet { name: b"Sheet2".to_vec(), records: second },
+        ],
+    );
+    let loaded = load(&bytes);
+    let names: Vec<String> = loaded.model().sheets().iter().map(|s| s.name().text().to_string_lossy()).collect();
+    assert_eq!(names, vec!["Donn\u{e9}es", "Sheet2"]);
+    assert_eq!(
+        cells(loaded.model(), 0),
+        vec![
+            "A1 s:caf\u{e9} \u{20ac}",
+            "A2 n:41.0",
+            "A3 f:A2+1",
+            "B3 f:Sheet2!A1",
+            "C3 f:\"\u{e9}t\u{e9}\"",
+        ]
+    );
+    assert_eq!(cells(loaded.model(), 1), vec!["A1 n:5.0"]);
+    assert_eq!(defined_names(&bytes), vec!["Rate = Sheet2!A1"]);
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert_eq!(report.biff_version, 5);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn a_biff5_workbook_in_a_double_byte_code_page_refuses_its_high_bytes() {
+    use xls_kit::v5;
+    let ascii = v5::xls(932, &[], &[v5::Sheet { name: b"S".to_vec(), records: v5::label(0, 0, b"plain") }]);
+    assert_eq!(cells(load(&ascii).model(), 0), vec!["A1 s:plain"]);
+    let japanese = v5::xls(932, &[], &[v5::Sheet { name: b"S".to_vec(), records: v5::label(0, 0, b"\x82\xA0") }]);
+    match calc_doc::open(source(&japanese), &OpenPolicy::default()) {
+        Err(OpenError::LegacyWorkbook { detail, .. }) => assert!(detail.contains("code page 932"), "{detail}"),
+        other => panic!("{:?}", other.err()),
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn a_biff5_workbook_styles_notes_and_external_references() {
+    use xls_kit::{v5, v5_styles};
+    let formatting = [
+        v5_styles::font(200, 0, 0x7FFF, 400, "Arial"),
+        v5_styles::font(240, 0x0002, 10, 700, "Courier New"),
+        v5_styles::format(164, "0.0\"u\""),
+        // A style XF, then a cell XF: font 1, format 164, locked, centred and wrapped, solid
+        // pattern 1 with colours 13 / 64, thin top and bottom lines.
+        v5_styles::xf(0, 0, 0xFFF5, 0x20, 0xFC, 0, 0),
+        v5_styles::xf(0, 0, 0x0001, 0x20, 0, 0, 0),
+        v5_styles::xf(1, 164, 0x0001, 0x2A, 0xFC, 13 | 64 << 7 | 1 << 16 | 1 << 22 | 8 << 25, 1),
+        record(0x0293, &{
+            let mut b = 0x8000u16.to_le_bytes().to_vec();
+            b.extend([0, 0xFF]);
+            b
+        }),
+    ]
+    .concat();
+    // An external workbook sheet "Rates" of file D:\data\book.xls: its encoded name with the file in brackets.
+    let mut external = b"\x01\x01Ddata\x03[book.xls]Rates".to_vec();
+    let mut record_body = vec![external.len() as u8];
+    record_body.append(&mut external);
+    let mut body = Vec::new();
+    body.extend(record(0x0017, &record_body));
+    let mut external_ref = vec![0x3A];
+    external_ref.extend(1i16.to_le_bytes());
+    external_ref.extend([0u8; 12]);
+    external_ref.extend(u16s(&[1 | 0x8000 | 0x4000]));
+    external_ref.push(2);
+    body.extend(v5::formula(0, 0, 3.0, &external_ref));
+    let mut with_style = u16s(&[1, 0, 2]);
+    with_style.extend(7.0f64.to_le_bytes());
+    body.extend(record(0x0203, &with_style));
+    body.extend(v5_styles::note(1, 0, "remember"));
+    let bytes = v5::xls(1252, &formatting, &[v5::Sheet::new("S", body)]);
+    let loaded = load(&bytes);
+    assert_eq!(cells(loaded.model(), 0), vec!["A1 f:[1]Rates!C2", "A2 n:7.0"]);
+    let sheet = &loaded.sheets()[0];
+    let s = sheet.style(2, 1);
+    assert_ne!(s, 0);
+    let table = loaded.styles();
+    let format = &table.cell_formats[s as usize];
+    assert_eq!(format.number_format_id, Some(164));
+    let font = &table.fonts[format.font_id.unwrap() as usize];
+    assert_eq!(font.name.as_deref(), Some("Courier New"));
+    assert!(font.italic && font.bold);
+    let border = &table.borders[format.border_id.unwrap() as usize];
+    assert_eq!(border.top.as_ref().and_then(|e| e.style.as_deref()), Some("thin"));
+    assert_eq!(border.bottom.as_ref().and_then(|e| e.style.as_deref()), Some("thin"));
+    assert!(format.alignment.as_ref().is_some_and(|a| a.wrap_text && a.horizontal.as_deref() == Some("center")));
+    assert!(format!("{:?}", table.fills[format.fill_id.unwrap() as usize]).contains("FFFFFF00"));
+    let notes = &sheet.review().notes;
+    assert_eq!(notes.len(), 1, "{:?}", sheet.review().unsupported);
+    assert!(format!("{:?}", notes[0]).contains("remember"));
+    // The external workbook is a link part whose target is the decoded path.
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let rels = String::from_utf8(document.package().read_part("xl/externalLinks/_rels/externalLink1.xml.rels").unwrap()).unwrap();
+    assert!(rels.contains("D:\\data\\book.xls"), "{rels}");
 }

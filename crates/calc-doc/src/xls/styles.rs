@@ -89,7 +89,8 @@ fn e(m: crate::xlsb::Malformed) -> String {
 
 impl Styles {
     /// Reads one formatting record of the globals; `false` when `record` is not one.
-    pub(crate) fn read(&mut self, record: &Record<'_>) -> Result<bool, String> {
+    /// `v5` is the code page of a BIFF5 or BIFF7 workbook, whose records lay these out differently.
+    pub(crate) fn read(&mut self, record: &Record<'_>, v5: Option<u16>) -> Result<bool, String> {
         match record.id {
             FONT => {
                 let body = record.joined();
@@ -103,7 +104,10 @@ impl Styles {
                 let family = c.u8("Font").map_err(e)?;
                 let charset = c.u8("Font").map_err(e)?;
                 c.skip(1, "Font").map_err(e)?;
-                let name = super::workbook::short_string(&mut c, "a font name")?;
+                let name = match v5 {
+                    Some(page) => super::workbook::byte_string(&mut c, page, "a font name")?,
+                    None => super::workbook::short_string(&mut c, "a font name")?,
+                };
                 self.fonts.push(FontRecord {
                     height,
                     flags,
@@ -114,6 +118,49 @@ impl Styles {
                     family,
                     charset,
                     name,
+                });
+            }
+            FORMAT if v5.is_some() => {
+                let mut c = Cursor::new(record.body);
+                let id = c.u16("Format").map_err(e)?;
+                let code = super::workbook::byte_string(&mut c, v5.unwrap_or(1252), "a number format")?;
+                self.formats.insert(id, code);
+            }
+            XF if v5.is_some() => {
+                // 16 bytes: font, format, type/protection/parent, alignment, orientation and
+                // used attributes, fill colours and pattern with the bottom border, the other
+                // three borders with their colours. Laid out as the BIFF8 XF the writer reads.
+                let mut c = Cursor::new(record.body);
+                let font = c.u16("XF").map_err(e)?;
+                let format = c.u16("XF").map_err(e)?;
+                let flags = c.u16("XF").map_err(e)?;
+                let alignment = c.u8("XF").map_err(e)?;
+                let orientation = c.u8("XF").map_err(e)?;
+                let fill = c.u32("XF").map_err(e)?;
+                let lines = c.u32("XF").map_err(e)?;
+                let (top, left, right) = (lines & 7, (lines >> 3) & 7, (lines >> 6) & 7);
+                let (top_color, left_color, right_color) =
+                    ((lines >> 9) & 0x7F, (lines >> 16) & 0x7F, (lines >> 23) & 0x7F);
+                let (bottom, bottom_color) = ((fill >> 22) & 7, (fill >> 25) & 0x7F);
+                let pattern = (fill >> 16) & 0x3F;
+                self.xfs.push(XfRecord {
+                    font,
+                    format,
+                    // Type, protection and parent: the same bits as BIFF8.
+                    flags,
+                    alignment: alignment & 0x7F,
+                    // 0 none, 1 stacked, 2 90 degrees up, 3 90 degrees down.
+                    rotation: match orientation & 3 {
+                        1 => 255,
+                        2 => 90,
+                        3 => 180,
+                        _ => 0,
+                    },
+                    indent: 0,
+                    used: orientation & 0xFC,
+                    border1: left | right << 4 | top << 8 | bottom << 12 | left_color << 16 | right_color << 23,
+                    border2: top_color | bottom_color << 7 | pattern << 25,
+                    fill: ((fill & 0x7F) | (((fill >> 7) & 0x7F) << 7)) as u16,
                 });
             }
             FORMAT => {
@@ -151,7 +198,16 @@ impl Styles {
                 let mut p = super::strings::Pieces::new(record);
                 let head = p.u16("Style").map_err(|m| m.0)?;
                 let xf = head & 0x0FFF;
-                if head & 0x8000 != 0 {
+                if v5.is_some() && head & 0x8000 == 0 {
+                    // BIFF5 names a user style as a byte string with an 8-bit length.
+                    let mut c = Cursor::new(&record.body[2.min(record.body.len())..]);
+                    let name = super::workbook::byte_string(&mut c, v5.unwrap_or(1252), "a style name")?;
+                    self.styles.push(StyleRecord {
+                        xf,
+                        built_in: None,
+                        name,
+                    });
+                } else if head & 0x8000 != 0 {
                     let id = p.u8("Style").map_err(|m| m.0)?;
                     let level = p.u8("Style").map_err(|m| m.0)?;
                     self.styles.push(StyleRecord {

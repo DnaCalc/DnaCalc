@@ -766,3 +766,171 @@ pub fn note(row: u16, column: u16, flags: u16, object: u16, author: &str) -> Vec
     body.push(0);
     record(0x001C, &body)
 }
+
+/// BIFF5/BIFF7 builders: byte strings in the workbook's code page, 14-bit rows, local link tables.
+pub mod v5 {
+    use super::{record, u16s};
+
+    pub fn bof(kind: u16) -> Vec<u8> {
+        let mut body = u16s(&[0x0500, kind, 0x1234, 0x07C9]);
+        body.extend([0; 8]);
+        record(0x0809, &body)
+    }
+
+    /// A byte string with an 8-bit length.
+    pub fn string(bytes: &[u8]) -> Vec<u8> {
+        let mut v = vec![bytes.len() as u8];
+        v.extend_from_slice(bytes);
+        v
+    }
+
+    pub struct Sheet {
+        pub name: Vec<u8>,
+        pub records: Vec<u8>,
+    }
+
+    /// The `Book` stream: CODEPAGE, `extra` globals records, BOUNDSHEETs, then each sheet.
+    pub fn book(code_page: u16, extra: &[u8], sheets: &[Sheet]) -> Vec<u8> {
+        let globals = |offsets: &[u32]| -> Vec<u8> {
+            let mut g = bof(0x0005);
+            g.extend(record(0x0042, &code_page.to_le_bytes()));
+            g.extend(record(0x0022, &0u16.to_le_bytes()));
+            g.extend_from_slice(extra);
+            for (k, s) in sheets.iter().enumerate() {
+                let mut body = offsets[k].to_le_bytes().to_vec();
+                body.extend([0, 0]);
+                body.extend(string(&s.name));
+                g.extend(record(0x0085, &body));
+            }
+            g.extend(super::eof());
+            g
+        };
+        let substream = |s: &Sheet| -> Vec<u8> {
+            let mut v = bof(0x0010);
+            v.extend_from_slice(&s.records);
+            v.extend(super::eof());
+            v
+        };
+        let length = globals(&vec![0; sheets.len()]).len() as u32;
+        let mut offsets = Vec::new();
+        let mut at = length;
+        for s in sheets {
+            offsets.push(at);
+            at += substream(s).len() as u32;
+        }
+        let mut out = globals(&offsets);
+        for s in sheets {
+            out.extend(substream(s));
+        }
+        out
+    }
+
+    pub fn xls(code_page: u16, extra: &[u8], sheets: &[Sheet]) -> Vec<u8> {
+        super::compound(&[("Book", book(code_page, extra, sheets))])
+    }
+
+    /// LABEL: row, column, ixfe, bytes.
+    pub fn label(row: u16, column: u16, bytes: &[u8]) -> Vec<u8> {
+        let mut body = u16s(&[row, column, 0, bytes.len() as u16]);
+        body.extend_from_slice(bytes);
+        record(0x0204, &body)
+    }
+
+    /// FORMULA with a numeric result and BIFF5 tokens.
+    pub fn formula(row: u16, column: u16, value: f64, rgce: &[u8]) -> Vec<u8> {
+        let mut body = u16s(&[row, column, 0]);
+        body.extend(value.to_le_bytes());
+        body.extend(u16s(&[0, 0, 0]));
+        body.extend((rgce.len() as u16).to_le_bytes());
+        body.extend_from_slice(rgce);
+        record(0x0006, &body)
+    }
+
+    /// tRef: 14-bit row with the relative flags (bit 15 row, bit 14 column), a byte column.
+    pub fn cell(row: u16, column: u8, relative_row: bool, relative_column: bool) -> Vec<u8> {
+        let mut flags = row;
+        if relative_row {
+            flags |= 0x8000;
+        }
+        if relative_column {
+            flags |= 0x4000;
+        }
+        let mut v = vec![0x24];
+        v.extend(flags.to_le_bytes());
+        v.push(column);
+        v
+    }
+
+    /// tRef3d into this workbook: the (negative) index to the sheet's EXTERNSHEET record, then
+    /// 8 unused bytes, the first and last sheet and the cell.
+    pub fn cell3d(extern_index: i16, sheet: u16, row: u16, column: u8) -> Vec<u8> {
+        let mut v = vec![0x3A];
+        v.extend((-extern_index).to_le_bytes());
+        v.extend([0u8; 8]);
+        v.extend(u16s(&[sheet, sheet, row | 0x8000 | 0x4000]));
+        v.push(column);
+        v
+    }
+
+    /// EXTERNSHEET for a sheet of this workbook (the length field is one less than the bytes).
+    pub fn extern_own(sheet: &[u8]) -> Vec<u8> {
+        let mut body = vec![sheet.len() as u8, 3];
+        body.extend_from_slice(sheet);
+        record(0x0017, &body)
+    }
+
+    /// NAME: flags, scope (0 or a 1-based sheet), name, tokens.
+    pub fn name(flags: u16, scope: u16, name: &[u8], rgce: &[u8]) -> Vec<u8> {
+        let mut body = flags.to_le_bytes().to_vec();
+        body.extend([0, name.len() as u8]);
+        body.extend((rgce.len() as u16).to_le_bytes());
+        body.extend(u16s(&[0, scope]));
+        body.extend([0, 0, 0, 0]);
+        body.extend_from_slice(name);
+        body.extend_from_slice(rgce);
+        record(0x0018, &body)
+    }
+}
+
+impl v5::Sheet {
+    pub fn new(name: &str, records: Vec<u8>) -> v5::Sheet {
+        v5::Sheet {
+            name: name.as_bytes().to_vec(),
+            records,
+        }
+    }
+}
+
+pub mod v5_styles {
+    use super::{record, u16s, v5};
+
+    /// FONT of BIFF5: the name is a byte string.
+    pub fn font(height: u16, flags: u16, color: u16, weight: u16, name: &str) -> Vec<u8> {
+        let mut body = u16s(&[height, flags, color, weight, 0]);
+        body.extend([0, 0, 0, 0]);
+        body.extend(v5::string(name.as_bytes()));
+        record(0x0031, &body)
+    }
+
+    pub fn format(id: u16, code: &str) -> Vec<u8> {
+        let mut body = id.to_le_bytes().to_vec();
+        body.extend(v5::string(code.as_bytes()));
+        record(0x041E, &body)
+    }
+
+    /// XF of BIFF5 (16 bytes).
+    pub fn xf(font: u16, format: u16, flags: u16, alignment: u8, orientation_used: u8, fill: u32, lines: u32) -> Vec<u8> {
+        let mut body = u16s(&[font, format, flags]);
+        body.extend([alignment, orientation_used]);
+        body.extend(fill.to_le_bytes());
+        body.extend(lines.to_le_bytes());
+        record(0x00E0, &body)
+    }
+
+    /// NOTE of BIFF5: the text is in the record.
+    pub fn note(row: u16, column: u16, text: &str) -> Vec<u8> {
+        let mut body = u16s(&[row, column, text.len() as u16]);
+        body.extend(text.bytes());
+        record(0x001C, &body)
+    }
+}
