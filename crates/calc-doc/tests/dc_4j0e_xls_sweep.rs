@@ -51,6 +51,7 @@ fn sweep() {
     let audit_chart_sheets = std::env::var_os("DNACALC_XLS_AUDIT_CHART_SHEETS").is_some();
     let audit_core = std::env::var_os("DNACALC_XLS_AUDIT_CORE_PROPERTIES").is_some();
     let (mut core_files, mut core_titles, mut core_authors, mut core_modifiers) = (0usize, 0usize, 0usize, 0usize);
+    let (mut core_created, mut core_modified) = (0usize, 0usize);
     let (mut chart_sheets, mut chart_sheet_files) = (0usize, 0usize);
     let (mut chart_points, mut chart_files) = (0usize, 0usize);
     let (mut category_points, mut category_files) = (0usize, 0usize);
@@ -79,7 +80,8 @@ fn sweep() {
             let core = if audit_core {
                 document.as_ref().ok().and_then(|doc| doc.package().read_part("docProps/core.xml").ok()).map(|xml| {
                     let has = |tag: &[u8]| xml.windows(tag.len()).any(|window| window == tag);
-                    (has(b"<dc:title>"), has(b"<dc:creator>"), has(b"<cp:lastModifiedBy>"))
+                    (has(b"<dc:title>"), has(b"<dc:creator>"), has(b"<cp:lastModifiedBy>"),
+                        has(b"<dcterms:created "), has(b"<dcterms:modified "))
                 })
             } else { None };
             let written_chart_sheets = if audit_chart_sheets {
@@ -149,9 +151,10 @@ fn sweep() {
                     }
                     Ok(()) => {
                         opened += 1;
-                        if let Some((title, author, modifier)) = core {
+                        if let Some((title, author, modifier, created, modified)) = core {
                             core_files += 1; core_titles += usize::from(title);
                             core_authors += usize::from(author); core_modifiers += usize::from(modifier);
+                            core_created += usize::from(created); core_modified += usize::from(modified);
                         }
                         chart_sheets += written_chart_sheets;
                         chart_sheet_files += usize::from(written_chart_sheets != 0);
@@ -214,7 +217,7 @@ fn sweep() {
         println!("chart sheets with a linked chart: {chart_sheets} in {chart_sheet_files} files (partial chart conversion, not an Excel match verdict)");
     }
     if audit_core {
-        println!("core metadata parts: {core_files} files; title {core_titles}, author {core_authors}, last saved by {core_modifiers} (not an Excel match verdict)");
+        println!("core metadata parts: {core_files} files; title {core_titles}, author {core_authors}, last saved by {core_modifiers}, created {core_created}, modified {core_modified} (not an Excel match verdict)");
     }
     println!("refused to open, by reason:");
     for (reason, n) in &refused {

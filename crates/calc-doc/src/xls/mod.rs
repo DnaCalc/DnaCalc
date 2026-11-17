@@ -627,10 +627,19 @@ pub(crate) fn convert(
     if !summary.is_empty() {
         let mut core = Xml::new();
         core.open("cp:coreProperties", &[("xmlns:cp", "http://schemas.openxmlformats.org/package/2006/metadata/core-properties".to_owned()),
-            ("xmlns:dc", "http://purl.org/dc/elements/1.1/".to_owned())]);
+            ("xmlns:dc", "http://purl.org/dc/elements/1.1/".to_owned()),
+            ("xmlns:dcterms", "http://purl.org/dc/terms/".to_owned()),
+            ("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance".to_owned())]);
         for (id, name) in [(2, "dc:title"), (3, "dc:subject"), (4, "dc:creator"), (5, "cp:keywords"),
             (6, "dc:description"), (8, "cp:lastModifiedBy"), (9, "cp:revision")] {
-            if let Some(text) = summary.get(&id) { core.element(name, &[], text); }
+            if let Some(text) = summary.get(&id) {
+                core.open(name, &[]); core.xml_text_str(text); core.close(name);
+            }
+        }
+        for (id, name) in [(12, "dcterms:created"), (13, "dcterms:modified")] {
+            if let Some(text) = summary.get(&id) {
+                core.element(name, &[("xsi:type", "dcterms:W3CDTF".to_owned())], text);
+            }
         }
         core.close("cp:coreProperties");
         parts.push(("docProps/core.xml".to_owned(), "application/vnd.openxmlformats-package.core-properties+xml", core.out));

@@ -13,6 +13,43 @@ fn dword(data: &[u8], at: usize) -> Option<usize> {
     Some(u32::from_le_bytes(data.get(at..at.checked_add(4)?)?.try_into().ok()?) as usize)
 }
 
+fn xml_text(text: &str) -> bool {
+    text.chars().all(|c| matches!(c, '\t' | '\n' | '\r') || ('\u{20}'..='\u{fffd}').contains(&c) || c >= '\u{10000}')
+}
+
+/// FILETIME is a UTC count of 100-nanosecond ticks since 1601-01-01.
+fn filetime(ticks: u64) -> Option<String> {
+    if ticks == 0 { return None; } // Some writers use zero for an unset property.
+    let seconds = ticks / 10_000_000;
+    let mut days = seconds / 86_400;
+    let time = seconds % 86_400;
+    let mut year = 1601u64.checked_add((days / 146_097).checked_mul(400)?)?;
+    days %= 146_097;
+    if year > 9999 { return None; }
+    let leap = |year: u64| year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+    loop {
+        let length = if leap(year) { 366 } else { 365 };
+        if days < length { break; }
+        days -= length; year += 1;
+        if year > 9999 { return None; }
+    }
+    let months = [31u64, if leap(year) { 29 } else { 28 }, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let mut month = 1;
+    for length in months {
+        if days < length { break; }
+        days -= length; month += 1;
+    }
+    let mut result = format!("{year:04}-{month:02}-{:02}T{:02}:{:02}:{:02}", days + 1,
+        time / 3600, (time / 60) % 60, time % 60);
+    let fraction = ticks % 10_000_000;
+    if fraction != 0 {
+        result.push('.');
+        result.push_str(format!("{fraction:07}").trim_end_matches('0'));
+    }
+    result.push('Z');
+    Some(result)
+}
+
 /// Return the properties we can decode without making up a code page or accepting overlapping data.
 pub(crate) fn summary(data: &[u8]) -> Option<BTreeMap<u32, String>> {
     if data.len() > 2 * 1024 * 1024 || word(data, 0)? != 0xfffe || word(data, 2)? > 1
@@ -52,7 +89,7 @@ pub(crate) fn summary(data: &[u8]) -> Option<BTreeMap<u32, String>> {
                     if raw.len() % 2 != 0 { continue; }
                     let units: Vec<u16> = raw.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
                     if units.last() != Some(&0) || units[..units.len()-1].contains(&0) { continue; }
-                    if let Ok(text) = String::from_utf16(&units[..units.len()-1]) { result.insert(id, text); }
+                    if let Ok(text) = String::from_utf16(&units[..units.len()-1]) && xml_text(&text) { result.insert(id, text); }
                     continue;
                 }
                 if raw.last() != Some(&0) || raw[..raw.len()-1].contains(&0) { continue; }
@@ -72,7 +109,13 @@ pub(crate) fn summary(data: &[u8]) -> Option<BTreeMap<u32, String>> {
             }
             _ => None,
         };
-        if let Some(text) = text { result.insert(id, text); }
+        if let Some(text) = text.filter(|text| xml_text(text)) { result.insert(id, text); }
+    }
+    for id in [12, 13] {
+        let Some(bytes) = value(id) else { continue };
+        if word(bytes, 0) != Some(0x40) || word(bytes, 2) != Some(0) { continue; }
+        let Some(raw) = bytes.get(4..12) else { continue };
+        if let Some(text) = filetime(u64::from_le_bytes(raw.try_into().expect("eight bytes"))) { result.insert(id, text); }
     }
     Some(result)
 }
@@ -102,5 +145,15 @@ mod tests {
         section[36..40].copy_from_slice(&6u32.to_le_bytes());
         section[40..46].copy_from_slice(&[b'A', 0, 0xe9, 0, 0, 0]);
         assert_eq!(summary(&data).unwrap().get(&2).map(String::as_str), Some("Aé"));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn filetime_keeps_utc_and_fractional_seconds() {
+        assert_eq!(filetime(116_444_736_000_000_000).as_deref(), Some("1970-01-01T00:00:00Z"));
+        assert_eq!(filetime(125_963_423_991_234_500).as_deref(), Some("2000-02-29T23:59:59.12345Z"));
+        assert_eq!(filetime(2_650_467_743_990_000_000).as_deref(), Some("9999-12-31T23:59:59Z"));
+        assert_eq!(filetime(0), None);
+        assert_eq!(filetime(u64::MAX), None);
     }
 }

@@ -219,6 +219,20 @@ impl Xml {
         xstring(&units, &mut self.out);
     }
 
+    /// Ordinary XML character data, for parts whose schema does not use ST_Xstring.
+    /// The caller must reject characters forbidden by XML 1.0.
+    pub(crate) fn xml_text_str(&mut self, text: &str) {
+        for c in text.chars() {
+            match c {
+                '&' => self.out.extend_from_slice(b"&amp;"),
+                '<' => self.out.extend_from_slice(b"&lt;"),
+                '>' => self.out.extend_from_slice(b"&gt;"),
+                '\r' => self.out.extend_from_slice(b"&#xD;"),
+                c => self.out.extend_from_slice(c.encode_utf8(&mut [0; 4]).as_bytes()),
+            }
+        }
+    }
+
     /// `<name attributes>text</name>`.
     pub(crate) fn element(&mut self, name: &str, attributes: &[(&str, String)], text: &str) {
         self.open(name, attributes);

@@ -564,11 +564,15 @@ fn ole_summary_properties_survive_conversion_and_save() {
         let mut v = 30u32.to_le_bytes().to_vec(); v.extend(((text.len() + 1) as u32).to_le_bytes());
         v.extend(text); v.push(0); v
     };
-    properties.push((2, ansi(b"A & B")));
+    properties.push((2, ansi(b"A & B _x0041_\rC")));
+    properties.push((3, ansi(b"bad\x01subject")));
     properties.push((4, ansi(b"caf\xE9")));
     let mut unicode = 31u32.to_le_bytes().to_vec(); unicode.extend(3u32.to_le_bytes());
     unicode.extend(u16s(&[0x6771, 0x4eac, 0]));
     properties.push((8, unicode));
+    let mut created = 0x40u32.to_le_bytes().to_vec();
+    created.extend(116_444_736_000_000_000u64.to_le_bytes());
+    properties.push((12, created));
     let mut section = vec![0u8; 8 + properties.len() * 8];
     section[4..8].copy_from_slice(&(properties.len() as u32).to_le_bytes());
     for (i, (id, data)) in properties.iter().enumerate() {
@@ -590,8 +594,10 @@ fn ole_summary_properties_survive_conversion_and_save() {
     let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
     let check = |doc: &calc_doc::OpenedDocument| {
         let xml = String::from_utf8(doc.package().read_part("docProps/core.xml").unwrap()).unwrap();
-        for part in ["<dc:title>A &amp; B</dc:title>", "<dc:creator>café</dc:creator>",
-            "<cp:lastModifiedBy>東京</cp:lastModifiedBy>"] { assert!(xml.contains(part), "{xml}"); }
+        for part in ["<dc:title>A &amp; B _x0041_&#xD;C</dc:title>", "<dc:creator>café</dc:creator>",
+            "<cp:lastModifiedBy>東京</cp:lastModifiedBy>",
+            "<dcterms:created xsi:type=\"dcterms:W3CDTF\">1970-01-01T00:00:00Z</dcterms:created>"] { assert!(xml.contains(part), "{xml}"); }
+        assert!(!xml.contains("dc:subject"), "{xml}");
         let rels = doc.package().relationships_of(None).unwrap();
         assert!(rels.items().iter().any(|rel| rel.resolved.as_deref() == Some("docProps/core.xml")));
     };
