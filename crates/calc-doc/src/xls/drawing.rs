@@ -235,6 +235,8 @@ pub(crate) struct Drawing {
     objects: Vec<Object>,
     /// An object waiting for its TXO text record.
     waiting_text: Option<usize>,
+    /// End of the most recent successfully parsed OBJ, including its continuations.
+    last_object_end: Option<usize>,
     /// The chart object whose substream is being read.
     chart_object: Option<usize>,
 }
@@ -251,7 +253,8 @@ impl Drawing {
                 let bytes = record.joined();
                 // Excel may put the client-textbox marker after the OBJ in its own
                 // MsoDrawing record; the immediately following TxO belongs to that object.
-                if bytes.as_ref() == [0, 0, 0x0d, 0xf0, 0, 0, 0, 0] {
+                if bytes.as_ref() == [0, 0, 0x0d, 0xf0, 0, 0, 0, 0]
+                    && self.last_object_end == Some(record.offset) {
                     self.waiting_text = self.objects.len().checked_sub(1).filter(|&index| {
                         let object = &self.objects[index];
                         object.kind != 0x19 && object.shape.is_some()
@@ -262,6 +265,7 @@ impl Drawing {
                 true
             }
             OBJ => {
+                self.last_object_end = None;
                 let body = record.body;
                 let mut at = 0usize;
                 let mut kind = None;
@@ -277,6 +281,8 @@ impl Drawing {
                     at += 4 + cb;
                 }
                 if let Some(kind) = kind {
+                    self.last_object_end = record.offset.checked_add(4 + record.body.len())
+                        .and_then(|end| record.continues.iter().try_fold(end, |at, piece| at.checked_add(4 + piece.len())));
                     // The shape the MSODRAWING records gave for this object: the next one with
                     // client data, in order.
                     let mut shape = None;

@@ -2021,6 +2021,14 @@ fn continued_txo_text_is_read_for_notes_and_text_boxes() {
     let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
     let drawing = String::from_utf8(document.package().read_part("xl/drawings/drawing1.xml").unwrap()).unwrap();
     assert!(drawing.contains("Aé漢"), "{drawing}");
+    let unrelated = [art::drawing(&[art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], false)]),
+        art::obj(6, 2), number(0, 0, 1.0), record(0x00EC, &[0, 0, 0x0d, 0xf0, 0, 0, 0, 0]),
+        record(0x01B6, &body), record(0x003C, &[0, b'A']),
+        record(0x003C, &[1, 0xe9, 0, 0x22, 0x6f]), record(0x003C, &[0; 16])].concat();
+    let unrelated = xls(false, &[], &[Sheet::worksheet("S", unrelated)]);
+    let document = calc_doc::open(source(&unrelated), &OpenPolicy::default()).unwrap();
+    let drawing = String::from_utf8(document.package().read_part("xl/drawings/drawing1.xml").unwrap()).unwrap();
+    assert!(!drawing.contains("Aé漢"), "{drawing}");
     body[10] = 4;
     let truncated = [obj_note(1), record(0x01B6, &body), record(0x003C, &[0, b'A']),
         record(0x003C, &[1, 0xe9, 0, 0x22, 0x6f]), record(0x003C, &[0; 16]),
