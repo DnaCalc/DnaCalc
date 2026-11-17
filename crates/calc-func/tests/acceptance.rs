@@ -25,10 +25,10 @@ use calc_func::{
     Unreadable, catalogue, invoke,
 };
 use calc_verdict::{
-    Acquisition, CacheCellType, CalculationContext, CaptureFailure, CaptureRecord, CaptureSession,
-    CellAddress, CellObservation, CellResult, Evaluation, EvaluationRecord, FormulaCell,
-    FormulaKind, JudgeError, MissingCapture, Observation, Provenance, ResultSet, RunIdentity,
-    STAGE_INVENTORY, STAGE_ISOLATION, SavedCache, SheetEntry, SheetVisibility, Verdict,
+    Acquisition, CalculationContext, CaptureFailure, CaptureRecord, CaptureSession, CellAddress,
+    CellObservation, CellResult, Evaluation, EvaluationRecord, FormulaCell, FormulaKind,
+    JudgeError, MissingCapture, Observation, Provenance, ResultSet, RunIdentity, STAGE_INVENTORY,
+    STAGE_ISOLATION, SheetEntry, SheetVisibility, Verdict,
     VerdictPolicy, VerdictReport, judge, sha256_hex,
 };
 use std::alloc::{GlobalAlloc, Layout, System};
@@ -19921,10 +19921,8 @@ fn cdoc_jpha__excel_comparison() {
 // row's cell in the committed capture, which dc_nzpw__excel_comparison asserts through
 // calc_verdict::judge's report. A `refused` row ends in a fault and names the bead that owns the
 // behaviour it refuses, never dc-nzpw itself; the comparison publishes it as not modelled with
-// that owner. An `unrecorded` row, N(B9), computes
-// #BUSY!, whose CVErr code the capture's value model does not hold: it is published not modelled
-// with its owner, and the comparison checks the capture's value failure naming the code and
-// Excel's saved cache of the cell instead. The comparison also checks each formula's text as
+// that owner. N(B9) gives #BUSY!, which the capture records as Excel's raw value (CVErr 2051), so
+// it is compared like any calculated row. The comparison also checks each formula's text as
 // Excel loaded it, where Excel inserts `@`, and which rows are dynamic-array formulas.
 //
 // A row that reads a source cell of column F (FILTER with no match, #CALC!; SEQUENCE blocked by
@@ -19986,26 +19984,17 @@ enum InfoBasis {
     Measured(&'static str),
     /// Refused; the behaviour is this bead's.
     Refused(Owner),
-    /// Computed by this rule, which Microsoft's page states, but Excel's raw value is an error the
-    /// capture's value model holds no code for: the row is published not modelled with this
-    /// owner, and the comparison checks Excel's saved cache of the cell and the capture's failure
-    /// naming the error's code instead.
-    Unrecorded(&'static str, Owner),
 }
 
 impl InfoBasis {
     /// The bead that owns what the row does not publish as calculated, if any.
     fn owner(self) -> Option<Owner> {
         match self {
-            InfoBasis::Refused(owner) | InfoBasis::Unrecorded(_, owner) => Some(owner),
+            InfoBasis::Refused(owner) => Some(owner),
             InfoBasis::Documented(_) | InfoBasis::Measured(_) => None,
         }
     }
 }
-
-/// Excel's CVErr code for #BUSY! (the low 16 bits of the VT_ERROR value), which bead dc-nzpw's
-/// capture records in its failure at the row reading B9.
-const BUSY_CODE: u64 = 2051;
 
 /// A source formula of column F: a call to a function calc_func has no entry for, which the
 /// workbook holds as a dynamic-array formula over its one cell. Rows read the error the case's
@@ -20078,10 +20067,6 @@ const FORMULA_FACT: Owner = Owner {
 const RANGE_TO_VALUE: Owner = Owner {
     bead: "dc-10y",
     behaviour: "a range given to a value argument in a legacy formula, which Excel loads with @ (implicit intersection) and the caller intersects before the call",
-};
-const BUSY_RAW: Owner = Owner {
-    bead: "dc-uar",
-    behaviour: "#BUSY! as Excel's raw value: its CVErr code 2051 is none the capture's value model holds, so the comparison checks Excel's saved cache of the cell",
 };
 
 /// The rows of a dc-nzpw case, with each row's basis, the source cell a conditional row reads and
@@ -20172,16 +20157,6 @@ fn info_row(
                 "{formula}: a refused row names dc-nzpw as its owner"
             );
         }
-        InfoBasis::Unrecorded(_, owner) => {
-            assert!(
-                result.is_ok(),
-                "{formula}: a row of dc-nzpw computes a value"
-            );
-            assert!(
-                !owner.bead.split(", ").any(|bead| bead == "dc-nzpw"),
-                "{formula}: an unrecorded row names dc-nzpw as its owner"
-            );
-        }
         InfoBasis::Documented(_) | InfoBasis::Measured(_) => {
             assert!(
                 result.is_ok(),
@@ -20217,10 +20192,6 @@ fn info_row(
                 result.as_ref().err(),
                 owner.bead,
                 owner.behaviour
-            ),
-            InfoBasis::Unrecorded(rule, owner) => format!(
-                "documented: {rule}; published not modelled, owned by {}: {}",
-                owner.bead, owner.behaviour
             ),
         };
         let conditional = match source {
@@ -21329,7 +21300,7 @@ fn information_rows(s: &mut TestSheet, quiet: bool) -> InfoRows {
         "N",
         [reference(s, &["B9"])],
         E(W::Busy),
-        InfoBasis::Unrecorded(N_TABLE, BUSY_RAW)
+        Doc(N_TABLE)
     );
 
     // ISEVEN and ISODD just below an integer, typed and in a cell.
@@ -21600,21 +21571,6 @@ fn information_loaded(formula: &str) -> String {
         .to_owned()
 }
 
-/// The saved cache Excel writes for a value: an error as its literal, anything else as text.
-fn information_saved_cache(value: &CalcValue) -> SavedCache {
-    let cache = match value.core() {
-        CoreValue::Error(code) => SavedCache::new(
-            CacheCellType::Error,
-            ALL_ERROR_LITERALS
-                .iter()
-                .find(|(known, _)| known == code)
-                .map(|(_, literal)| *literal)
-                .expect("every error has a literal"),
-        ),
-        _ => SavedCache::new(CacheCellType::Text, &shown_value(value)),
-    };
-    cache.expect("a saved cache")
-}
 
 /// The error constants the information oracle workbook holds, by their literals.
 const INFORMATION_ERROR_LITERALS: [(WorksheetErrorCode, &str); 9] = [
@@ -22167,7 +22123,7 @@ fn dc_nzpw__information_functions() {
     }
     let owners: Vec<String> = owners.iter().map(|(b, c)| format!("{c} {b}")).collect();
     note!(
-        "ACCEPT-NOTE: {CASE}: {} rows through calc_func::invoke ({} of them information-function rows; row 3 is IF), each asserted against its expectation and each with its formula on sheet {INFORMATION_SHEET} of {INFORMATION_WORKBOOK_PATH} (rows {:?} as dynamic-array formulas): {} from documented rules, {} measured, {} refused and {} computed but unrecorded in the capture's value model (not modelled, owned by: {}); {} rows read a source cell of column F and are conditional on its value; dc_nzpw__excel_comparison compares every row with Excel's capture",
+        "ACCEPT-NOTE: {CASE}: {} rows through calc_func::invoke ({} of them information-function rows; row 3 is IF), each asserted against its expectation and each with its formula on sheet {INFORMATION_SHEET} of {INFORMATION_WORKBOOK_PATH} (rows {:?} as dynamic-array formulas): {} from documented rules, {} measured and {} refused (not modelled, owned by: {}); {} rows read a source cell of column F and are conditional on its value; dc_nzpw__excel_comparison compares every row with Excel's capture",
         rows.oracle.len(),
         rows.oracle
             .iter()
@@ -22177,7 +22133,6 @@ fn dc_nzpw__information_functions() {
         info.count(|basis| matches!(basis, InfoBasis::Documented(_))),
         info.count(|basis| matches!(basis, InfoBasis::Measured(_))),
         info.count(|basis| matches!(basis, InfoBasis::Refused(_))),
-        info.count(|basis| matches!(basis, InfoBasis::Unrecorded(..))),
         owners.join(", "),
         info.sources_read.len()
     );
@@ -22301,10 +22256,8 @@ fn source_cell(source: &InfoSource) -> CellAddress {
 /// formula cell no row or source has, a source cell whose verdict is not `not_modeled` or whose
 /// raw value is not the error assumed for it, a row that reads no source and computes whose
 /// verdict is not `matched`, a conditional row whose verdict is not `not_modeled` or whose raw
-/// value is not the value calc_func::invoke gave, a refused or unrecorded row that names dc-nzpw
-/// or whose verdict is not `not_modeled` with its owner, an unrecorded row whose cell has a raw
-/// value, lacks the value failure naming #BUSY!'s code or has a saved cache other than the value
-/// calc_func::invoke gave, a row or source whose loaded formula text or dynamic-array flag is not
+/// value is not the value calc_func::invoke gave, a refused row that names dc-nzpw or whose
+/// verdict is not `not_modeled` with its owner, a row or source whose loaded formula text or dynamic-array flag is not
 /// the one it expects, and a row or source whose cell the inventory lacks. Returns the report, the
 /// problems and how many conditional rows agree.
 fn information_comparison(
@@ -22431,44 +22384,6 @@ fn information_comparison(
             ));
         }
     }
-    // An unrecorded row: no raw value, the capture's value failure naming #BUSY!'s code, and
-    // Excel's saved cache of the cell equal to the value calc_func::invoke gave.
-    let session = capture.session.as_ref();
-    for (row, basis) in info.rows.oracle.iter().zip(&info.basis) {
-        if !matches!(basis, InfoBasis::Unrecorded(..)) {
-            continue;
-        }
-        let address = oracle_cell(INFORMATION_SHEET, row.row);
-        let at = format!("{}!{}", address.sheet(), address.a1());
-        let Ok(value) = &row.outcome else {
-            problems.push(format!("{at} {}: an unrecorded row refuses", row.formula));
-            continue;
-        };
-        let named = format!("Excel error code {BUSY_CODE} ");
-        let failed = session.is_some_and(|session| {
-            session.failures.iter().any(|failure| {
-                failure.stage == "value"
-                    && failure.cell.as_ref() == Some(&address)
-                    && failure.message.starts_with(&named)
-            })
-        });
-        let cache = session
-            .and_then(|session| session.saved.iter().find(|saved| saved.cell == address))
-            .and_then(|saved| match &saved.observation {
-                Observation::ExcelSavedCache(cache) => Some(cache),
-                _ => None,
-            });
-        match (raw(&address), failed, cache) {
-            (None, true, Some(cache)) if identical(cache.value(), value) => {}
-            (excel, failed, cache) => problems.push(format!(
-                "{at} {}: an unrecorded row: Excel's raw value {excel:?}, a value failure naming error code {BUSY_CODE} {}, Excel's saved cache {:?}, where calc_func::invoke gave {}",
-                row.formula,
-                if failed { "recorded" } else { "absent" },
-                cache.map(SavedCache::text),
-                shown_value(value)
-            )),
-        }
-    }
     for outside in &report.outside_inventory {
         problems.push(format!(
             "{}!{}: the capture's inventory lacks this cell",
@@ -22482,9 +22397,7 @@ fn information_comparison(
 /// A capture record of the information oracle workbook built here in memory: a version 2 live
 /// capture of the workbook as authored by the committed worker, listing every row's formula cell,
 /// with the text Excel loads it as and its dynamic-array flag, and every source cell, with the raw
-/// value `observe` gives a row and `source_value` a source. For an unrecorded row it holds what
-/// the capture adapter records of an error it has no code for: no raw value, a value failure
-/// naming #BUSY!'s code, and the saved cache of the value `observe` gives.
+/// value `observe` gives a row and `source_value` a source.
 fn information_capture(
     info: &InfoRows,
     observe: impl Fn(&OracleRow) -> Option<CalcValue>,
@@ -22493,9 +22406,7 @@ fn information_capture(
     let source = format!("sha256:{}", sha256_hex(INFORMATION_WORKBOOK));
     let mut formulas = Vec::new();
     let mut observations = Vec::new();
-    let mut failures = Vec::new();
-    let mut saved = Vec::new();
-    for (row, basis) in info.rows.oracle.iter().zip(&info.basis) {
+    for row in &info.rows.oracle {
         let cell = oracle_cell(INFORMATION_SHEET, row.row);
         formulas.push(FormulaCell {
             cell: cell.clone(),
@@ -22503,20 +22414,6 @@ fn information_capture(
             formula: Some(information_loaded(&row.formula)),
             dynamic_array: info.dynamic.contains(&row.row),
         });
-        if let InfoBasis::Unrecorded(..) = basis {
-            failures.push(CaptureFailure {
-                stage: "value".to_owned(),
-                cell: Some(cell.clone()),
-                message: format!("Excel error code {BUSY_CODE} is not one this value model holds"),
-            });
-            if let Some(value) = observe(row) {
-                saved.push(CellObservation {
-                    cell,
-                    observation: Observation::ExcelSavedCache(information_saved_cache(&value)),
-                });
-            }
-            continue;
-        }
         if let Some(value) = observe(row) {
             observations.push(CellObservation {
                 cell,
@@ -22554,9 +22451,9 @@ fn information_capture(
             tool: format!("worker sha256:{}", sha256_hex(CAPTURE_WORKER)),
             input_package: source,
             output_package: None,
-            failures,
+            failures: Vec::new(),
             shared_ranges: Vec::new(),
-            saved,
+            saved: Vec::new(),
             reopened: Vec::new(),
         }),
     }
@@ -22584,14 +22481,12 @@ fn dc_nzpw__excel_comparison() {
     let all = rows.oracle.len();
     let refused = rows.refused();
     let conditional = info.sources_read.len();
-    let unrecorded = info.count(|basis| matches!(basis, InfoBasis::Unrecorded(..)));
-    let calculated = all - refused - conditional - unrecorded;
+    let calculated = all - refused - conditional;
     assert!(
-        rows.oracle.iter().zip(&info.basis).all(|(row, basis)| {
-            row.owner.is_some()
-                == (row.outcome.is_err() || matches!(basis, InfoBasis::Unrecorded(..)))
-        }),
-        "a refused or unrecorded row names its owner, a calculated row none"
+        rows.oracle
+            .iter()
+            .all(|row| row.owner.is_some() == row.outcome.is_err()),
+        "a refused row names its owner, a calculated row none"
     );
     assert!(
         info.sources_read
@@ -22627,14 +22522,14 @@ fn dc_nzpw__excel_comparison() {
             (all + INFO_SOURCES.len()) as u64,
             calculated as u64,
             calculated as u64,
-            (refused + conditional + unrecorded + INFO_SOURCES.len()) as u64,
+            (refused + conditional + INFO_SOURCES.len()) as u64,
             0,
             all as u64
         ),
         "{}",
         report.summary()
     );
-    let probes: [RowProbe<'_>; 4] = [
+    let probes: [RowProbe<'_>; 3] = [
         (
             "a calculated row",
             Box::new(|row: &OracleRow| {
@@ -22660,12 +22555,6 @@ fn dc_nzpw__excel_comparison() {
         (
             "a conditional row",
             Box::new(|row: &OracleRow| info.sources_read.contains_key(&row.row)),
-        ),
-        (
-            "an unrecorded row's saved cache",
-            Box::new(|row: &OracleRow| {
-                matches!(info.basis[row.row as usize - 1], InfoBasis::Unrecorded(..))
-            }),
         ),
     ];
     let mut changed_cells = Vec::new();
@@ -22715,26 +22604,18 @@ fn dc_nzpw__excel_comparison() {
         problems.len() == 1 && problems[0].starts_with(&format!("{INFORMATION_SHEET}!F2 ")),
         "a source observed with another error than assumed gives {problems:?}"
     );
-    // A loaded formula text without Excel's @, a dynamic-array row loaded as a legacy formula, and
-    // an unrecorded row without its value failure are each exactly one problem, at its cell.
+    // A loaded formula text without Excel's @ and a dynamic-array row loaded as a legacy formula
+    // are each exactly one problem, at its cell.
     let at_row = rows
         .oracle
         .iter()
         .find(|row| information_loaded(&row.formula).contains('@'))
         .expect("a row Excel loads with @");
     let dynamic_row = *info.dynamic.first().expect("a dynamic-array row");
-    let unrecorded_row = rows
-        .oracle
-        .iter()
-        .zip(&info.basis)
-        .find(|(_, basis)| matches!(basis, InfoBasis::Unrecorded(..)))
-        .map(|(row, _)| row.row)
-        .expect("an unrecorded row");
     let mut altered_cells = Vec::new();
     for (what, row) in [
         ("the written text as loaded", at_row.row),
         ("a legacy formula loaded", dynamic_row),
-        ("no value failure", unrecorded_row),
     ] {
         let cell = oracle_cell(INFORMATION_SHEET, row);
         let mut capture = information_capture(&info, information_agreeing, assumed);
@@ -22747,7 +22628,7 @@ fn dc_nzpw__excel_comparison() {
                     .expect("the row's formula cell")
                     .formula = Some(at_row.formula.clone());
             }
-            "a legacy formula loaded" => {
+            _ => {
                 capture
                     .formulas
                     .iter_mut()
@@ -22755,12 +22636,6 @@ fn dc_nzpw__excel_comparison() {
                     .expect("the row's formula cell")
                     .dynamic_array = false;
             }
-            _ => capture
-                .session
-                .as_mut()
-                .expect("a version 2 record")
-                .failures
-                .retain(|failure| failure.cell.as_ref() != Some(&cell)),
         }
         let (_, problems, _) = information_comparison(&capture, &info)
             .unwrap_or_else(|refusal| panic!("judge refused the in-memory capture: {refusal}"));
@@ -22795,7 +22670,7 @@ fn dc_nzpw__excel_comparison() {
         "a row owned by dc-nzpw at {self_cell} gives {problems:?}"
     );
     note!(
-        "ACCEPT-NOTE: {CASE}: on in-memory captures of {INFORMATION_WORKBOOK_PATH} (no Excel evidence; {all} rows: {calculated} calculated, {conditional} conditional on a source, {refused} refused, {unrecorded} unrecorded; {} sources): calc_verdict::judge's report through the comparison matches every calculated row of the agreeing capture, agrees on every conditional row, counts every refused and unrecorded row and source not modeled with its owner, and finds every loaded formula text and dynamic-array flag as expected; a change at {} is exactly one problem each, at that cell; F2 observed as #CALC! instead of the assumed #SPILL! is exactly one problem, at F2; {} is exactly one problem each, at that cell; the refused row at {self_cell} given dc-nzpw as its owner is exactly one problem, at that cell",
+        "ACCEPT-NOTE: {CASE}: on in-memory captures of {INFORMATION_WORKBOOK_PATH} (no Excel evidence; {all} rows: {calculated} calculated, {conditional} conditional on a source, {refused} refused; {} sources): calc_verdict::judge's report through the comparison matches every calculated row of the agreeing capture, agrees on every conditional row, counts every refused row and source not modeled with its owner, and finds every loaded formula text and dynamic-array flag as expected; a change at {} is exactly one problem each, at that cell; F2 observed as #CALC! instead of the assumed #SPILL! is exactly one problem, at F2; {} is exactly one problem each, at that cell; the refused row at {self_cell} given dc-nzpw as its owner is exactly one problem, at that cell",
         INFO_SOURCES.len(),
         changed_cells.join(", "),
         altered_cells.join(", ")
@@ -22862,7 +22737,7 @@ fn dc_nzpw__excel_comparison() {
         report.summary()
     );
     note!(
-        "ACCEPT-NOTE: {CASE}: Excel comparison through calc_verdict::judge against Excel {}'s capture of {INFORMATION_WORKBOOK_PATH}: {} (every calculated row matched; every row that reads a source not modeled, with Excel's raw value equal to calc_func::invoke's ({agreed} of {conditional}); every source's raw value the assumed error; every refused row not modeled with its owner; every unrecorded row ({unrecorded}) not modeled with its owner, with no raw value, the capture's value failure naming error code {BUSY_CODE} and Excel's saved cache equal to calc_func::invoke's value; every row's and source's formula as Excel loaded it, {} of them with @, and rows {:?} dynamic-array formulas); the whole workbook: {}",
+        "ACCEPT-NOTE: {CASE}: Excel comparison through calc_verdict::judge against Excel {}'s capture of {INFORMATION_WORKBOOK_PATH}: {} (every calculated row matched; every row that reads a source not modeled, with Excel's raw value equal to calc_func::invoke's ({agreed} of {conditional}); every source's raw value the assumed error; every refused row not modeled with its owner; every row's and source's formula as Excel loaded it, {} of them with @, and rows {:?} dynamic-array formulas); the whole workbook: {}",
         environment.target.excel_build(),
         sheet_verdicts(&report, rows),
         rows.oracle
