@@ -171,6 +171,26 @@ try {
                 $s = $sheet.Shapes.AddShape(62, 600, 100, 60, 30)
                 @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
             }
+            $entry.setup.shape_down_arrow_wide = GetOrError {
+                $s = $sheet.Shapes.AddShape(36, 670, 100, 90, 30)
+                $s.TextFrame.Characters().Text = 'wide arrow'
+                @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
+            }
+            $entry.setup.shape_down_arrow_tall = GetOrError {
+                $s = $sheet.Shapes.AddShape(36, 770, 100, 30, 90)
+                $s.TextFrame.Characters().Text = 'tall arrow'
+                @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
+            }
+            $entry.setup.shape_octagon = GetOrError {
+                $s = $sheet.Shapes.AddShape(6, 810, 100, 60, 30)
+                $s.TextFrame.Characters().Text = 'octagon'
+                @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
+            }
+            $entry.setup.shape_parallelogram = GetOrError {
+                $s = $sheet.Shapes.AddShape(2, 880, 100, 60, 30)
+                $s.TextFrame.Characters().Text = 'parallelogram'
+                @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
+            }
             $entry.setup.flipped_shapes = @(
                 foreach ($direction in @(0, 1)) {
                     GetOrError {
