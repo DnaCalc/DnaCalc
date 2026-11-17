@@ -176,6 +176,9 @@ struct Shape {
     no_fill: bool,
     fixed_geometry_unsafe: bool,
     flip_invalid: bool,
+    text_insets: [Option<u32>; 4],
+    text_insets_invalid: bool,
+    text_boolean: Option<u32>,
     flags: Option<u32>,
 }
 
@@ -193,10 +196,12 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                             if shape.flags.replace(flags).is_some() || child.body.len() != 8 {
                                 shape.fixed_geometry_unsafe = true;
                                 shape.flip_invalid = true;
+                                shape.text_insets_invalid = true;
                             }
                         } else {
                             shape.fixed_geometry_unsafe = true;
                             shape.flip_invalid = true;
+                            shape.text_insets_invalid = true;
                         }
                     }
                     0xF00B => {
@@ -205,6 +210,7 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                             shape.fill_invalid = true;
                             shape.fixed_geometry_unsafe = true;
                             shape.flip_invalid = true;
+                            shape.text_insets_invalid = true;
                         }
                         for k in 0..usize::from(child.instance) {
                             let at = k * 6;
@@ -212,6 +218,18 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                             let id = u16::from_le_bytes([p[0], p[1]]);
                             let value = u32::from_le_bytes([p[2], p[3], p[4], p[5]]);
                             let property = id & 0x3fff;
+                            if (0x0081..=0x0084).contains(&property) {
+                                let slot = usize::from(property - 0x0081);
+                                if id & 0xc000 != 0 || value > 0x0132_f540 || shape.text_insets[slot].replace(value).is_some() {
+                                    shape.text_insets_invalid = true;
+                                }
+                            }
+                            if property == 0x00bf && (id & 0xc000 != 0 || shape.text_boolean.replace(value).is_some()) {
+                                shape.text_insets_invalid = true;
+                            }
+                            if (property == 4 && (value != 0 || id & 0xc000 != 0)) || property == 0x0088 || property == 0x033f {
+                                shape.text_insets_invalid = true;
+                            }
                             // Transform or override properties and rotation require separate handling.
                             if matches!(property, 0x0004 | 0x003f | 0x033f) { shape.flip_invalid = true; }
                             // Do not infer a preset when the shape has rotation, custom geometry,
@@ -242,7 +260,7 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                     }
                     0xF011 => shape.client_data = true,
                     0xF00D => shape.text_box = true,
-                    0xF121 | 0xF122 => shape.flip_invalid = true,
+                    0xF121 | 0xF122 => { shape.flip_invalid = true; shape.text_insets_invalid = true; }
                     _ => {}
                 }
             }
@@ -620,11 +638,17 @@ impl Drawing {
                     x.close("xdr:spPr");
                     if let Some(text) = &object.text {
                         x.open("xdr:txBody", &[]);
+                        let mut body_attributes = Vec::new();
                         if let Some((_, vertical)) = object.text_alignment {
-                            x.empty("a:bodyPr", &[("anchor", vertical.to_owned())]);
-                        } else {
-                            x.empty("a:bodyPr", &[]);
+                            body_attributes.push(("anchor", vertical.to_owned()));
+                            let manual_margin = shape.text_boolean.is_some_and(|v| v & 0x0008_0008 == 0x0008_0000);
+                            if shape.flags.is_some_and(|v| v & 0x05ff == 0) && !shape.text_insets_invalid && manual_margin {
+                                for (name, value) in ["lIns", "tIns", "rIns", "bIns"].into_iter().zip(shape.text_insets) {
+                                    if let Some(value) = value { body_attributes.push((name, value.to_string())); }
+                                }
+                            }
                         }
+                        x.empty("a:bodyPr", &body_attributes);
                         x.empty("a:lstStyle", &[]);
                         for line in text.split(|u| *u == 0x0D || *u == 0x0A) {
                             x.open("a:p", &[]);

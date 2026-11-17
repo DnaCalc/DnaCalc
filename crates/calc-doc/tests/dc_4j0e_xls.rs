@@ -2106,6 +2106,39 @@ fn text_box_alignment_is_loaded_and_saved() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn explicit_text_box_insets_are_loaded_and_saved() {
+    use xls_kit::art;
+    for (properties, expected) in [
+        (vec![(0x81u16, 100u32), (0x82, 200), (0x83, 300), (0x84, 400), (0xbf, 0x0008_0000)], true),
+        (vec![(0x81, 100)], false),
+        (vec![(0x81, 100), (0x81, 100)], false),
+        (vec![(0x81, 100), (0xbf, 0x0008_0008)], false),
+        (vec![(0x81, 0x0132_f541)], false),
+        (vec![(0x81, 100), (0x88, 1)], false),
+    ] {
+        let mut shape = art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], true);
+        let mut bytes = Vec::new();
+        for (id, value) in &properties { bytes.extend(id.to_le_bytes()); bytes.extend(value.to_le_bytes()); }
+        shape.splice(8..8, art::atom(3, properties.len() as u16, 0xf00b, &bytes));
+        let length = (shape.len() - 8) as u32; shape[4..8].copy_from_slice(&length.to_le_bytes());
+        let bytes = xls(false, &[], &[Sheet::worksheet("S", [art::drawing(&[shape]), art::obj(6, 1), txo("ABC")].concat())]);
+        let check = |bytes: &[u8]| {
+            let loaded = load(bytes); let body = &loaded.sheets()[0].shapes().shapes[0].body;
+            assert_eq!((body.left_inset, body.top_inset, body.right_inset, body.bottom_inset),
+                if expected { (Some(100), Some(200), Some(300), Some(400)) } else { (None, None, None, None) });
+        };
+        check(&bytes);
+        if expected {
+            let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            check(&saved);
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn continued_txo_text_is_read_for_notes_and_text_boxes() {
     use xls_kit::art;
     let mut body = u16s(&[0x0212, 0, 0, 0, 0, 3, 16]);

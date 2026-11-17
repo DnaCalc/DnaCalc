@@ -198,6 +198,10 @@ fn sweep() {
                         let flipped = loaded.sheets().iter().flat_map(|s| &s.shapes().shapes)
                             .filter(|shape| shape.flip_horizontal || shape.flip_vertical).count();
                         println!("drawing shapes with a flip: {flipped}");
+                        let insets = loaded.sheets().iter().flat_map(|s| &s.shapes().shapes)
+                            .filter(|shape| shape.body.left_inset.is_some() || shape.body.top_inset.is_some()
+                                || shape.body.right_inset.is_some() || shape.body.bottom_inset.is_some()).count();
+                        println!("drawing shapes with explicit text insets: {insets}");
                     }
                     if std::env::var_os("DNACALC_XLS_AUDIT_NOTE_RUNS").is_some() {
                         let count = loaded.sheets().iter().flat_map(|s| &s.review().notes)

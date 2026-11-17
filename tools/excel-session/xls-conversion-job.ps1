@@ -160,7 +160,11 @@ try {
                 $box = $sheet.Shapes.AddTextbox(1, 300, 100, 120, 55)
                 $box.TextFrame.Characters().Text = 'A controlled justified text example with several words.'
                 $box.TextFrame.HorizontalAlignment = -4130
-                @{name=[string]$box.Name; horizontal_alignment=$box.TextFrame.HorizontalAlignment}
+                $box.TextFrame.MarginLeft = 7; $box.TextFrame.MarginTop = 8
+                $box.TextFrame.MarginRight = 9; $box.TextFrame.MarginBottom = 10
+                @{name=[string]$box.Name; horizontal_alignment=$box.TextFrame.HorizontalAlignment;
+                  left=$box.TextFrame.MarginLeft; top=$box.TextFrame.MarginTop;
+                  right=$box.TextFrame.MarginRight; bottom=$box.TextFrame.MarginBottom}
             }
             $entry.setup.rotated_text = @(
                 foreach ($angle in @(-90, 90)) {
