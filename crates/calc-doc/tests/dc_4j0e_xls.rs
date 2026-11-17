@@ -2012,8 +2012,8 @@ fn continued_txo_text_is_read_for_notes_and_text_boxes() {
     let text = [record(0x01B6, &body), record(0x003C, &[0, b'A']),
         record(0x003C, &[1, 0xe9, 0, 0x22, 0x6f]), record(0x003C, &[0; 16])].concat();
     let records = [obj_note(1), text.clone(), note(0, 0, 0, 1, "Ann"),
-        art::drawing(&[art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], true)]),
-        art::obj(6, 2), text].concat();
+        art::drawing(&[art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], false)]),
+        art::obj(6, 2), record(0x00EC, &[0, 0, 0x0d, 0xf0, 0, 0, 0, 0]), text].concat();
     let bytes = xls(false, &[], &[Sheet::worksheet("S", records)]);
     let loaded = load(&bytes);
     let notes = format!("{:?}", loaded.sheets()[0].review().notes);

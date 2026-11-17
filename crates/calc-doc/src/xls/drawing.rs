@@ -248,7 +248,17 @@ impl Drawing {
     pub(crate) fn read(&mut self, record: &Record<'_>) -> bool {
         match record.id {
             MSODRAWING => {
-                shapes_of(&record.joined(), &mut self.shapes);
+                let bytes = record.joined();
+                // Excel may put the client-textbox marker after the OBJ in its own
+                // MsoDrawing record; the immediately following TxO belongs to that object.
+                if bytes.as_ref() == [0, 0, 0x0d, 0xf0, 0, 0, 0, 0] {
+                    self.waiting_text = self.objects.len().checked_sub(1).filter(|&index| {
+                        let object = &self.objects[index];
+                        object.kind != 0x19 && object.shape.is_some()
+                    });
+                } else {
+                    shapes_of(&bytes, &mut self.shapes);
+                }
                 true
             }
             OBJ => {
