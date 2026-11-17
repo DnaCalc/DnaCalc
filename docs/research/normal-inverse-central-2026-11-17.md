@@ -176,3 +176,24 @@ duplicates removed per region; before -> after): AS241 lower tail 393,140 -> 393
   look like changes of formula or of a dominant intermediate, not of one variable's binade.
 - No emulated family (Horner of P/Q in the variables above, every product and sum stored; 1,589 families) reproduces
   the two steps: the best has a quarter of their size. Scripts and data `~/codex-runs/fn9/c/`.
+- Last operations, checked with a shifted null: x = RN(RN(a R) RN(sqrt 2)) with R a double reaches all 94,208
+  answers (shifted answers: 16,354 to 39,067 unreachable); x = RN(a R2) with sqrt 2 folded into R2 leaves 27,317
+  unreachable.
+- Shape of the noise (the strongest clue, fn9). The noise before R's last rounding has sd about 0.70, 0.56 and 0.46 ulp
+  in the three segments; inside each it grows slowly with t, then drops at a step: a sawtooth. That is what a stored
+  quantity's relative rounding gives as the quantity falls through a power of two. With R = RN(P/Q) and P and Q each
+  stored, the steps are P (or Q) falling through 2^k at t1 and the other at t2; that needs P and Q each to fall by
+  d ln/dt of about -20 (P1Q2) or -28 (Q1P2) across C while their ratio stays near 0.745, i.e. P and Q dominated by
+  high powers of a variable far from its expansion point (raw-variable Horner, e.g. effective degree about 6 in -ln v,
+  3 in 1/v, 9 in s) or a near-cancelling pole-zero pair. Emulating rational interpolants (t, N = 12..16) rescaled so
+  that their P crosses a binade at t1 reproduces both steps at full size (profile correlation 0.91 with Excel's), while
+  the same families with their natural scaling show none: the mechanism fits, the family is not found (bits 1,300 to
+  1,400 of 3,000 against 1,700 for the accurate ratio).
+- Bit scans (rational interpolants at Chebyshev zeros, 770 typed intervals in t mapped to t, s, -ln v, sqrt(-ln v),
+  1/sqrt(-ln v), -ln(1-s); raw and centred Horner, stored and extended variable; N 3..16, every split; 3,000 answers
+  with R pinned to one double): best 1,700, the accurate-ratio level (1,694). Chebyshev series by Clenshaw in the same
+  variables (N 8..30): best 1,682, no steps once converged.
+- Next (needs Excel; prepared in `~/codex-runs/fn9/q2`, `q3`): the steps' exact positions (41 windows of 384 inputs
+  across each bracket) and a 250-window noise map of C; with t1 and t2 to 1e-6 the normalisation-free condition
+  log2 P(t1) - log2 Q(t2) in Z and the natural-normalisation conditions log2 P(t1), log2 Q(t2) in Z select a family
+  (chance about 1e-5 per family against about 0.4 % now).
