@@ -306,6 +306,16 @@ def printer_settings(z, sheet, sheet_path, sheet_rels):
     return {'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data)}
 
 
+def sheet_protection(sheet):
+    element = sheet.find(M + 'sheetProtection')
+    if element is None:
+        return None
+    # Report protection switches without exposing a saved password verifier or salt.
+    return {'attributes': {key: value for key, value in element.attrib.items()
+                           if key not in ('password', 'hashValue', 'saltValue', 'algorithmName', 'spinCount')},
+            'password_present': any(key in element.attrib for key in ('password', 'hashValue'))}
+
+
 def header_footer_pictures(z, sheet, sheet_path, sheet_rels):
     result = []
     for ref in sheet.findall(M + 'legacyDrawingHF'):
@@ -389,6 +399,7 @@ def package(data):
                                     for e in comment_root.iter(M + 'comment'))
             sheets.append({'name': s.get('name'), 'state': s.get('state', 'visible'), 'cells': cells,
                            'sheet_properties': None if sh.find(M + 'sheetPr') is None else tree(sh.find(M + 'sheetPr')),
+                           'sheet_protection': sheet_protection(sh),
                            'filter_mode': sh.find(M + 'sheetPr') is not None and sh.find(M + 'sheetPr').get('filterMode', '0') in ('1', 'true'),
                            'default_column_width': (sh.find(M + 'sheetFormatPr').get('defaultColWidth')
                                                     if sh.find(M + 'sheetFormatPr') is not None else None),

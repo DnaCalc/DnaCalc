@@ -230,6 +230,19 @@ try {
                     }
                 }
             )
+            $entry.setup.chart_sheet_protection = @(
+                foreach ($mode in @(@{name='Both'; objects=$true; contents=$true},
+                                    @{name='Objects'; objects=$true; contents=$false},
+                                    @{name='Contents'; objects=$false; contents=$true})) {
+                    GetOrError {
+                        $protected = $book.Charts.Add(); $protected.Name = 'ChartProtect' + $mode.name
+                        $protected.ChartType = 51; $protected.SetSourceData($sheet.Range('H1:H2'))
+                        $protected.Protect([Type]::Missing, $mode.objects, $mode.contents)
+                        @{name=[string]$protected.Name; contents=$protected.ProtectContents;
+                          objects=$protected.ProtectDrawingObjects}
+                    }
+                }
+            )
             $entry.setup.page = GetOrError { $sheet.PageSetup.Orientation = 2; $sheet.PageSetup.PrintArea = '$A$1:$D$5'; $sheet.PageSetup.Orientation }
             $entry.setup.print_comments = GetOrError {
                 $sheet.PageSetup.PrintComments = 16
