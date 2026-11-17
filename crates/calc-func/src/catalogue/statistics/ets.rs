@@ -1045,6 +1045,28 @@ fn detect_period(y: &[f64]) -> usize {
             re * re + im * im
         })
         .collect();
+    if n <= 9 {
+        // Six to nine observations (eng24, Touchstone boundary probes of
+        // Excel 20527): the strongest bin k of the residual periodogram gives
+        // the period n/k rounded half down, refused above floor(n/2.5); it is
+        // accepted exactly when that bin's power is at least 2 - 3/n times
+        // the next strongest bin's. Every bisected boundary (n = 6, 7, 8, 9:
+        // 284, 299, 641, 474 points) sits at that ratio to 1e-6, and the rule
+        // reproduces 40,000 of 40,000 random six- and seven-point histories.
+        // eng21's five-point rule above is the same test (2 - 3/5 = 1.4).
+        let mut top = 1;
+        for k in 2..power.len() {
+            if power[k] > power[top] {
+                top = k;
+            }
+        }
+        let second = (1..power.len()).filter(|&k| k != top).map(|k| power[k]).fold(0.0_f64, f64::max);
+        if power[top] < (2.0 - 3.0 / n as f64) * second {
+            return 0;
+        }
+        let period = (n as f64 / top as f64 - 0.5 - 1e-12).ceil();
+        return if period >= 2.0 && period <= last_lag as f64 { period as usize } else { 0 };
+    }
     let lags_of = |bin: usize| -> usize {
         let low = n as f64 / (bin + 1) as f64;
         let high = if bin > 1 { n as f64 / (bin - 1) as f64 } else { f64::INFINITY };

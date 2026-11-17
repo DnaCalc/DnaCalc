@@ -672,6 +672,26 @@ fn ets_seasonality_follows_the_strongest_frequency() {
     }
 }
 
+/// Excel 20527 automatic periods on six to nine points (oracle corpus dcj9k_r38_ets rows 1571
+/// and 3699 (its repeated timestamp averaged), dcj9k_r39_ets rows 520 and 795; eng21 probe_minlen): the strongest residual bin is
+/// accepted when its power is at least 2 - 3/n times the next bin's, whatever the autocorrelation
+/// at the lag (0.11 for the first history), and a bin whose period exceeds floor(n/2.5) gives 0.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_short_seasonality_is_a_dominant_bin() {
+    let cases: [(f64, &[f64]); 5] = [
+        (3.0, &[2.0, 3.5, 3.75, 5.75, 5.5, 7.0, 8.5, 8.75]),
+        (2.0, &[2.0, 3.0, 6.0, 11.0, 13.0, 17.0, 19.0]),
+        (2.0, &[13.75, -0.75, 15.125, -2.25, 0.75, 2.625, 19.0, 15.125]),
+        (2.0, &[0.125, 0.8125, 3.1875, 4.1875, 6.375, 8.25]),
+        (0.0, &[50.0, 60.0, 50.0, 40.0, 50.0, 60.0, 50.0, 40.0]),
+    ];
+    for (expected, history) in cases {
+        let timeline: Vec<f64> = (1..=history.len()).map(|v| v as f64).collect();
+        exact(call("FORECAST.ETS.SEASONALITY", vec![col(history), col(&timeline)]), expected);
+    }
+}
+
 /// Excel 20527 seasonal starting states below four cycles (oracle corpus dcj9k_r38_ets rows
 /// 1737-1738 and 2633-2634, period 4 on 8 and 12 points): the history is extended to
 /// ceil(3.5 p) points before the phase-mean chain, and the parameter search runs on the extension.
