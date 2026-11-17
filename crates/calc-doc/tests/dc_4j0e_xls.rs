@@ -76,13 +76,24 @@ fn ole_property_section(items: &[(u32, Vec<u8>)]) -> Vec<u8> {
     result
 }
 
-fn custom_blob_fixture() -> Vec<u8> {
+fn custom_property_fixture(unaligned_page: bool) -> Vec<u8> {
     let mut page = 2u32.to_le_bytes().to_vec(); page.extend(u16s(&[1252, 0]));
     let document = ole_property_section(&[(1, page.clone())]);
     let mut dictionary = 1u32.to_le_bytes().to_vec(); dictionary.extend(2u32.to_le_bytes());
     dictionary.extend(7u32.to_le_bytes()); dictionary.extend(b"cxBlob\0");
-    let mut blob = 0x41u32.to_le_bytes().to_vec(); blob.extend(4u32.to_le_bytes()); blob.extend([0, 1, 2, 255]);
-    let user = ole_property_section(&[(0, dictionary), (1, page), (2, blob)]);
+    let mut value = if unaligned_page { 3u32.to_le_bytes().to_vec() } else { 0x41u32.to_le_bytes().to_vec() };
+    if unaligned_page { value.extend(42i32.to_le_bytes()); }
+    else { value.extend(4u32.to_le_bytes()); value.extend([0, 1, 2, 255]); }
+    let mut user = ole_property_section(&[(0, dictionary), (1, page), (2, value)]);
+    if unaligned_page {
+        let at = u32::from_le_bytes(user[20..24].try_into().unwrap()) as usize;
+        let next = u32::from_le_bytes(user[28..32].try_into().unwrap()) as usize;
+        user.splice(at..at, [0, 0]);
+        user.splice(next+2..next+2, [0, 0]);
+        user[20..24].copy_from_slice(&((at + 2) as u32).to_le_bytes());
+        user[28..32].copy_from_slice(&((next + 4) as u32).to_le_bytes());
+        let size = user.len() as u32; user[..4].copy_from_slice(&size.to_le_bytes());
+    }
     let mut stream = vec![0u8; 68]; stream[..2].copy_from_slice(&0xfffeu16.to_le_bytes());
     stream[24..28].copy_from_slice(&2u32.to_le_bytes());
     stream[28..44].copy_from_slice(&[0x02, 0xd5, 0xcd, 0xd5, 0x9c, 0x2e, 0x1b, 0x10,
@@ -182,12 +193,13 @@ fn write_legacy_excel_session_inputs() {
         std::fs::write(dir.join(file), xls(false, &sst(&[("Sales", &[])], None), &[Sheet::worksheet("Data", cells)])).unwrap();
     }
     std::fs::write(dir.join("repair-addin-cell.xls"), addin_cell_reference_fixture()).unwrap();
-    std::fs::write(dir.join("custom-blob.xls"), custom_blob_fixture()).unwrap();
+    std::fs::write(dir.join("custom-blob.xls"), custom_property_fixture(false)).unwrap();
+    std::fs::write(dir.join("custom-unaligned-page.xls"), custom_property_fixture(true)).unwrap();
     for (file, bytes) in damaged_compound_fixtures() { std::fs::write(dir.join(file), bytes).unwrap(); }
     let short_format = record(0x041e, &[0xa4, 0x00, 0x02, 0x00, 0x00, b'x']);
     std::fs::write(dir.join("repair-short-format.xls"),
         xls(false, &short_format, &[Sheet::worksheet("Data", number(0, 0, 42.0))])).unwrap();
-    for name in ["cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "forms", "custom-blob"] {
+    for name in ["cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "forms", "custom-blob", "custom-unaligned-page"] {
         let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
         let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
         let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
@@ -196,7 +208,7 @@ fn write_legacy_excel_session_inputs() {
         std::fs::write(dir.join(format!("{name}.dnacalc.xlsx")), converted).unwrap();
     }
     let cases = serde_json::json!({
-        "files": ["cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "forms.xls", "custom-blob.xls"],
+        "files": ["cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls"],
         "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls",
             "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls",
             "repair-elf-column.xls", "repair-elf-radical.xls", "repair-addin-cell.xls",
@@ -640,7 +652,7 @@ fn damaged_compound_and_format_fixtures_report_their_missing_data() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn custom_blob_fixture_is_counted_as_unread() {
-    let bytes = custom_blob_fixture();
+    let bytes = custom_property_fixture(false);
     let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
     assert!(document.package().part("docProps/custom.xml").is_none());
     let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
