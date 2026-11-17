@@ -5383,7 +5383,10 @@ fn chi_inverse_scaled_tail_and_probability_fold_match_excel() {
     }
 }
 
-/// Excel 20527's large-degree plateau extends below 2^107 for these probabilities.
+/// Excel 20527's large-degree plateau extends below 2^107 for these probabilities. The second
+/// point was a conservative #NUM! (outside the then measured plateau); Excel answers it
+/// (Touchstone, 2026-11-17, fn9: CHIINV and CHISQ.INV.RT agree) with Goldstein's leading
+/// terms, c = 1.0000886 + 0.4713941 z / sqrt(n) one ulp below its plateau value (dc-6332.18).
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn chi_inverse_quantile_bound_keeps_the_large_degree_plateau() {
@@ -5392,7 +5395,7 @@ fn chi_inverse_quantile_bound_keeps_the_large_degree_plateau() {
             call(name, vec![n(f64::from_bits(0x3fef_42d8_dd06_a5be)), n(f64::from_bits(0x468f_22bf_0f7e_b500))]),
             f64::from_bits(0x468f_24dd_79f6_cee4),
         );
-        error(call(name, vec![n(63.0 / 64.0), n(2.0_f64.powi(106))]), Num);
+        exact(call(name, vec![n(63.0 / 64.0), n(2.0_f64.powi(106))]), f64::from_bits(0x4690_0116_bc77_4cb3));
     }
 }
 

@@ -69,3 +69,24 @@ The search bracket now covers binary64's exponent range instead of stopping
 after 200 doublings. This removes an artificial 2^200 ceiling in F inverses;
 it does not make the remaining F inverse words exact. Probability endpoints
 are admitted only after degree validation, including CHIINV(1,large_df)=0.
+
+## Very large degrees are Goldstein's leading terms (fn9, 2026-11-17, dc-6332.18)
+
+At n >= 2^53 the right-tail inverse (CHIINV, CHISQ.INV.RT) publishes x = n c^3 with
+c = 1.0000886 + 0.4713941 z / sqrt(n), z the upper-tail normal deviate of p. The two constants are
+the last two coefficients of R. B. Goldstein's chi-square quantile approximation (Comm. ACM 16(8),
+1973, Algorithm 451); its other terms carry powers of 1/n and fall below the last place there.
+
+- Found from the 11 structural rows (n = 8.9e10 to 3.4e22, ours #NUM!): a stored cube
+  x = RN(n RN(RN(c c) c)) has a preimage c for 10 of 11 answers (shifted answers: 0 to 4 of 11).
+  The c values read off are c - 1 = K + k z / sqrt(n) with K = 8.86000000000016e-5 and
+  k = sqrt(2/9) * 0.999977893 = 0.4713941, residuals within 0.56 ulp of c.
+- The measured large-shape routes this file's later sections and `large_shape_inverse_*` describe
+  are the same formula: the unit factor 0x3ff00116bc774cb6 is RN(1.0000886^3), and their
+  "neighbouring factors three binary64 words apart" are one-ulp steps of c in the cube.
+- Bit check over every full-bank CHIINV and CHISQ.INV.RT row with n >= 2^53 and 0 < p < 1:
+  244 of 244 (the 234 the measured routes matched plus 10 of the 11 structural rows), for each of
+  six stagings of c (they cannot be told apart on these rows) and for z = NORMSINV(1 - p) or
+  -NORMSINV(p). The n = 8.9e10 row is not a cube of this form: the 1/n terms show there.
+- Landed for n in [2^53, 2^1000) and p in [0.0025, 1) (the measured range); GAMMA.INV's
+  large-shape route (shared code) is unchanged.
