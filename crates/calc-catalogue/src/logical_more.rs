@@ -69,5 +69,5 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
             .paired_result(super::PairedResult::EvenAfterSelector)
             .whole_result(super::WholeResultPolicy::Selector),
     }
-    .with_three_d(super::ThreeD::new(None, Some(&[2]), Some(&[0, 1]))),
+    .with_three_d(super::ThreeD::selector_pairs()),
 ];

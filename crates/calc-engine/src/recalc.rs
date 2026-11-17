@@ -5148,8 +5148,10 @@ impl ReferenceReader for Observed<'_, '_> {
     }
 
     fn read_fact(&mut self, fact: calc_fml::FactRead) {
-        if let calc_fml::FactSubject::Cell(at) = fact.subject {
-            self.footprint.borrow_mut().push(GridArea::cell(at));
+        match fact.subject {
+            calc_fml::FactSubject::Cell(at) => self.footprint.borrow_mut().push(GridArea::cell(at)),
+            calc_fml::FactSubject::Area(area) => self.footprint.borrow_mut().push(area),
+            _ => {}
         }
         // A fact is read once as evidence: an instruction that runs again after a wait asks the
         // same fact again, and the certificate holds one stamp for it (dc-hsa5.19).

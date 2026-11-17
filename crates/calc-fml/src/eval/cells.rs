@@ -373,6 +373,34 @@ impl HostFacts for ReaderHost<'_, '_> {
             .formula_text(cell)
     }
 
+    fn formula_kinds(&mut self, area: GridArea) -> Option<Vec<bool>> {
+        self.fact(
+            crate::FactSubject::Area(area),
+            crate::ReadPurpose::FormulaKind,
+            crate::ObservableFacets::FormulaKind,
+            crate::FactInvalidation::OnChange,
+        );
+        let mut host = self.shared.host.borrow_mut();
+        let host = host.as_deref_mut()?;
+        calc_func::area_cells(area)
+            .map(|cell| host.is_formula(cell))
+            .collect()
+    }
+
+    fn formula_texts(&mut self, area: GridArea) -> Option<Vec<Option<String>>> {
+        self.fact(
+            crate::FactSubject::Area(area),
+            crate::ReadPurpose::FormulaText,
+            crate::ObservableFacets::FormulaText,
+            crate::FactInvalidation::OnChange,
+        );
+        let mut host = self.shared.host.borrow_mut();
+        let host = host.as_deref_mut()?;
+        calc_func::area_cells(area)
+            .map(|cell| host.formula_text(cell))
+            .collect()
+    }
+
     fn sheet_index(&mut self, sheet: SheetId) -> Option<u32> {
         self.fact(
             crate::FactSubject::Sheet(sheet),

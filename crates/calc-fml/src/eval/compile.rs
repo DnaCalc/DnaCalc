@@ -1198,7 +1198,7 @@ impl<'c> Lowering<'c> {
         let mut three_d: Vec<Option<Vec<Instruction>>> = Vec::with_capacity(argc);
         for (index, argument) in arguments.iter().enumerate() {
             match self
-                .three_d_argument(argument, target, index, !lazy)
+                .three_d_argument(argument, target, index, argc, !lazy)
                 .transpose()?
             {
                 Some(ThreeD::CallIs(code)) => {
@@ -2045,6 +2045,7 @@ impl<'c> Lowering<'c> {
         node: &SyntaxNode,
         target: Target,
         index: usize,
+        argc: usize,
         may_spread: bool,
     ) -> Option<Result<ThreeD, CompileError>> {
         let span = node.span();
@@ -2056,7 +2057,12 @@ impl<'c> Lowering<'c> {
         };
         let shape = operand.shape;
         self.sites.remove(&span);
-        let place = target.0.three_d_place(index);
+        // A name Excel on Windows does not hold (JIS) is #NAME? whatever its arguments (dc-b1l,
+        // Touchstone 2026-11-16, family three-d: `=JIS(Ja:Ma!A1)` #NAME?).
+        if target.0.availability() == calc_func::Availability::AbsentOnWindows {
+            return Some(Ok(ThreeD::CallIs(WorksheetErrorCode::Name)));
+        }
+        let place = target.0.three_d_place(index, argc);
         if place == calc_func::ThreeDPlace::ValueError {
             return Some(Ok(ThreeD::CallIs(WorksheetErrorCode::Value)));
         }

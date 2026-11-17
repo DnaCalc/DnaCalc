@@ -16134,16 +16134,15 @@ fn cfunc_m3_6__lookup_edges() {
         positions("COLUMN", "A1:XFD1"),
         numbers(vec![(1..=16_384).map(f64::from).collect()])
     );
-    let row_id = surface(Notation::Call, "ROW").id();
+    // A whole column's row numbers are built (fn8, Excel 16.0.20527 through Touchstone,
+    // 2026-11-17, cell-context family reference-info: `=SUM(ROW(C:C))` is 549756338176 and
+    // `=COUNT(ROW(A:A))` 1048576).
     assert_eq!(
         positions("ROW", "A:A"),
-        Err(FunctionFault::NotImplemented {
-            id: row_id,
-            argument: Some(0)
-        })
+        numbers((1..=1_048_576).map(|n| vec![f64::from(n)]).collect())
     );
     note!(
-        "ACCEPT-NOTE: {CASE}: ROW(B2:C3) is {{2;3}}, COLUMN(B2:C3) {{2,3}} and COLUMN(A1:XFD1) the 16,384 column numbers; ROW(A:A) is refused with NotImplemented naming argument 0 (its array is not built); the oracle rows ROW(B3:B5), COLUMN(B3:D3), SUM(ROW(B3:B5)), MATCH(4,ROW(B3:B5),0) and SUM(COLUMN(B3:D3)) state what Excel shows in a legacy formula, which the capture judges"
+        "ACCEPT-NOTE: {CASE}: ROW(B2:C3) is {{2;3}}, COLUMN(B2:C3) {{2,3}} and COLUMN(A1:XFD1) the 16,384 column numbers; ROW(A:A) the 1,048,576 row numbers; the oracle rows ROW(B3:B5), COLUMN(B3:D3), SUM(ROW(B3:B5)), MATCH(4,ROW(B3:B5),0) and SUM(COLUMN(B3:D3)) state what Excel shows in a legacy formula, which the capture judges"
     );
 
     // A reference with no cell reader, or one the reader refuses or breaks the contract on,

@@ -252,6 +252,8 @@ impl fmt::Debug for FormulaEvaluationContext<'_> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum FactSubject {
     Cell(calc_func::value::CellKey),
+    /// Every cell of an area, asked as one question (ISFORMULA or FORMULATEXT of a range).
+    Area(calc_func::value::GridArea),
     Sheet(calc_func::value::SheetId),
     Workbook,
 }

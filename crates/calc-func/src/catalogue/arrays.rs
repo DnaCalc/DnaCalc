@@ -515,9 +515,13 @@ fn same(site: &Site<'_>, x: &CalcValue, y: &CalcValue) -> Step<bool> {
 /// numbers by their bits), so each line is compared only with the lines that share it; `None`
 /// when a text's sort key is not built (dc-zsn.1), whose equality to the other texts is then not
 /// decided.
-fn bucket(cells: &[CalcValue]) -> Option<String> {
+fn bucket(cells: &[CalcValue], references: &[Option<u64>]) -> Option<String> {
     let mut key = String::new();
-    for cell in cells {
+    for (cell, reference) in cells.iter().zip(references) {
+        if let Some(reference) = reference {
+            key.push_str(&format!("r{reference:x}|"));
+            continue;
+        }
         match cell.core_ref() {
             CoreRef::Number(n) => key.push_str(&format!("n{:x}|", (n + 0.0).to_bits())),
             CoreRef::Text(t) => {
@@ -535,6 +539,57 @@ fn bucket(cells: &[CalcValue]) -> Option<String> {
     Some(key)
 }
 
+/// For UNIQUE given an array of references (OFFSET or INDIRECT lifted over an array, dc-b1l): each
+/// line's key per cell, `None` for a value, and each held reference replaced by #VALUE!, the
+/// value Excel shows for it. Excel 16.0.20527 through Touchstone sheet cases (2026-11-17,
+/// family reference-arrays): two references on the formula's own sheet are the same when their
+/// top rows are (`=UNIQUE(INDIRECT({"A1";"B1"}))`, `{"A1";"A1:B2"}`, `{"A1:A2";"B1:B2"}` and
+/// `{"A1";"XFD1"}` keep one, `{"A1";"A2"}` and `{"A1";"B2"}` two, by row and by column alike); a
+/// reference to another sheet is the same as no other (`=UNIQUE(OFFSET(Data!A1,{0;0},0))` keeps
+/// two). Not modelled: Excel also keeps apart two own-sheet references INDIRECT built from text
+/// naming the sheet (`{"Sheet1!A1";"Sheet1!A1"}` keeps two), which a reference value does not
+/// record.
+fn held_reference_keys(
+    site: &Site<'_>,
+    lines: &mut [Vec<CalcValue>],
+    sv: &mut EvalServices<'_>,
+) -> Step<Vec<Vec<Option<u64>>>> {
+    let holds = lines
+        .iter()
+        .flatten()
+        .any(|cell| cell.as_reference().is_some());
+    if !holds {
+        return Ok(lines.iter().map(|line| vec![None; line.len()]).collect());
+    }
+    let caller = sv
+        .host()
+        .and_then(|host| host.caller())
+        .ok_or_else(|| site.not_modelled(None))?;
+    let mut other_sheet = 0u64;
+    let mut keys = Vec::with_capacity(lines.len());
+    for line in lines.iter_mut() {
+        let mut line_keys = Vec::with_capacity(line.len());
+        for cell in line.iter_mut() {
+            let Some(reference) = cell.as_reference() else {
+                line_keys.push(None);
+                continue;
+            };
+            let first = reference.areas()[0].first();
+            line_keys.push(Some(
+                if reference.sheet() == caller.sheet() && !reference.spans_sheets() {
+                    u64::from(first.row())
+                } else {
+                    other_sheet += 1;
+                    (1 << 40) + other_sheet
+                },
+            ));
+            *cell = CalcValue::error(WorksheetErrorCode::Value);
+        }
+        keys.push(line_keys);
+    }
+    Ok(keys)
+}
+
 fn unique(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
     let args = prepared(site, a, sv)?;
     let array = as_array(&args[0]);
@@ -542,18 +597,23 @@ fn unique(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<C
     let exactly_once = flag(site, args.get(2))?;
     let ArrayShape { rows, cols } = array.shape();
     let len = if by_col { cols } else { rows };
-    let lines: Vec<Vec<CalcValue>> = (0..len).map(|i| line(&array, i, by_col)).collect();
+    let mut lines: Vec<Vec<CalcValue>> = (0..len).map(|i| line(&array, i, by_col)).collect();
+    let references = held_reference_keys(site, &mut lines, sv)?;
     // Each line's group: the first earlier line equal to it, or itself.
     let mut buckets: HashMap<String, Vec<usize>> = HashMap::new();
     let mut group = vec![0usize; len];
     for i in 0..len {
-        let key = bucket(&lines[i]).ok_or_else(|| site.not_modelled(None))?;
+        let key = bucket(&lines[i], &references[i]).ok_or_else(|| site.not_modelled(None))?;
         let members = buckets.entry(key).or_default();
         let mut found = None;
         for &j in members.iter() {
             let mut equal = true;
-            for (x, y) in lines[i].iter().zip(&lines[j]) {
-                if !same(site, x, y)? {
+            for (k, (x, y)) in lines[i].iter().zip(&lines[j]).enumerate() {
+                let same = match (references[i][k], references[j][k]) {
+                    (None, None) => same(site, x, y)?,
+                    (a, b) => a == b,
+                };
+                if !same {
                     equal = false;
                     break;
                 }

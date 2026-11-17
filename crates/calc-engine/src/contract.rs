@@ -971,6 +971,7 @@ pub(crate) fn producer_pending_in(
 pub(crate) fn fact_version(state: &EngineState, read: FactRead, facts: u64) -> u64 {
     match read.subject {
         calc_fml::FactSubject::Cell(at) => state.contract.authored(GridArea::cell(at)),
+        calc_fml::FactSubject::Area(area) => state.contract.authored(area),
         calc_fml::FactSubject::Sheet(_) => state.contract.bindings,
         calc_fml::FactSubject::Workbook => {
             if read.invalidation == calc_fml::FactInvalidation::OnNextAuthorizedCalculation {
