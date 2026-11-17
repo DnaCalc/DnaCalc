@@ -179,6 +179,8 @@ struct Shape {
     text_insets: [Option<u32>; 4],
     text_insets_invalid: bool,
     text_boolean: Option<u32>,
+    text_wrap: Option<u32>,
+    text_wrap_invalid: bool,
     flags: Option<u32>,
 }
 
@@ -218,6 +220,9 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                             let id = u16::from_le_bytes([p[0], p[1]]);
                             let value = u32::from_le_bytes([p[2], p[3], p[4], p[5]]);
                             let property = id & 0x3fff;
+                            if property == 0x0085 && (id & 0xc000 != 0 || value > 2 || shape.text_wrap.replace(value).is_some()) {
+                                shape.text_wrap_invalid = true;
+                            }
                             if (0x0081..=0x0084).contains(&property) {
                                 let slot = usize::from(property - 0x0081);
                                 if id & 0xc000 != 0 || value > 0x0132_f540 || shape.text_insets[slot].replace(value).is_some() {
@@ -642,9 +647,14 @@ impl Drawing {
                         if let Some((_, vertical)) = object.text_alignment {
                             body_attributes.push(("anchor", vertical.to_owned()));
                             let manual_margin = shape.text_boolean.is_some_and(|v| v & 0x0008_0008 == 0x0008_0000);
-                            if shape.flags.is_some_and(|v| v & 0x05ff == 0) && !shape.text_insets_invalid && manual_margin {
-                                for (name, value) in ["lIns", "tIns", "rIns", "bIns"].into_iter().zip(shape.text_insets) {
-                                    if let Some(value) = value { body_attributes.push((name, value.to_string())); }
+                            if shape.flags.is_some_and(|v| v & 0x05ff == 0) && !shape.text_insets_invalid {
+                                if !shape.text_wrap_invalid && let Some(wrap) = shape.text_wrap {
+                                    body_attributes.push(("wrap", if wrap == 2 { "none" } else { "square" }.to_owned()));
+                                }
+                                if manual_margin {
+                                    for (name, value) in ["lIns", "tIns", "rIns", "bIns"].into_iter().zip(shape.text_insets) {
+                                        if let Some(value) = value { body_attributes.push((name, value.to_string())); }
+                                    }
                                 }
                             }
                         }

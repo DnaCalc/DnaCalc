@@ -2139,6 +2139,32 @@ fn explicit_text_box_insets_are_loaded_and_saved() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn explicit_text_box_wrap_is_loaded_and_saved() {
+    use xls_kit::art;
+    for (values, expected) in [(&[0u32][..], Some("square")), (&[1][..], Some("square")),
+        (&[2][..], Some("none")), (&[3][..], None), (&[2, 2][..], None)] {
+        let mut shape = art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], true);
+        let mut props = Vec::new();
+        for value in values { props.extend(0x0085u16.to_le_bytes()); props.extend(value.to_le_bytes()); }
+        shape.splice(8..8, art::atom(3, values.len() as u16, 0xf00b, &props));
+        let length = (shape.len() - 8) as u32; shape[4..8].copy_from_slice(&length.to_le_bytes());
+        let bytes = xls(false, &[], &[Sheet::worksheet("S", [art::drawing(&[shape]), art::obj(6, 1), txo("ABC")].concat())]);
+        let check = |bytes: &[u8]| {
+            let loaded = load(bytes);
+            assert_eq!(loaded.sheets()[0].shapes().shapes[0].body.wrap.as_deref(), expected);
+        };
+        check(&bytes);
+        if expected.is_some() {
+            let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            check(&saved);
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn continued_txo_text_is_read_for_notes_and_text_boxes() {
     use xls_kit::art;
     let mut body = u16s(&[0x0212, 0, 0, 0, 0, 3, 16]);

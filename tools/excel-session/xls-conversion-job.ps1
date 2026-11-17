@@ -176,6 +176,16 @@ try {
                     }
                 }
             )
+            $entry.setup.text_wrap = @(
+                foreach ($wrap in @(0, -1)) {
+                    GetOrError {
+                        $box = $sheet.Shapes.AddTextbox(1, 430, 230, 80, 45)
+                        $box.TextFrame.Characters().Text = 'Text long enough to exceed the box width'
+                        $box.TextFrame2.WordWrap = $wrap
+                        @{name=[string]$box.Name; requested=$wrap; word_wrap=$box.TextFrame2.WordWrap}
+                    }
+                }
+            )
             $entry.setup.checkbox = GetOrError {
                 $box = $sheet.CheckBoxes().Add(180, 145, 90, 24)
                 $box.Caption = 'Controlled checkbox'; $box.Value = 1; $box.LinkedCell = '$M$2'
