@@ -1045,9 +1045,31 @@ fn detect_period(y: &[f64]) -> usize {
             re * re + im * im
         })
         .collect();
-    let mut fallback = false;
-    if n <= 16 {
-        // Six to sixteen observations (eng24, Touchstone boundary probes of
+    let lags_of = |bin: usize| -> usize {
+        let low = n as f64 / (bin + 1) as f64;
+        let high = if bin > 1 { n as f64 / (bin - 1) as f64 } else { f64::INFINITY };
+        let mut chosen = 0;
+        let mut best = f64::NEG_INFINITY;
+        for p in 2..=last_lag {
+            let lag = p as f64;
+            if low < lag && lag < high {
+                let value = unbiased(p);
+                if value > best {
+                    best = value;
+                    chosen = p;
+                }
+            }
+        }
+        if chosen == 0 {
+            let nearest = (n as f64 / bin as f64 - 0.5 - 1e-12).ceil();
+            if nearest >= 2.0 && nearest <= last_lag as f64 { nearest as usize } else { 0 }
+        } else {
+            chosen
+        }
+    };
+    let mut fallback: Option<f64> = None;
+    if n <= 23 {
+        // Six to twenty-three observations (eng24, Touchstone boundary probes of
         // Excel 20527): the strongest bin k of the residual periodogram gives
         // the period n/k rounded half down, refused above floor(n/2.5); it is
         // accepted exactly when that bin's power is at least 2 - 3/n times
@@ -1084,37 +1106,30 @@ fn detect_period(y: &[f64]) -> usize {
             }
         }
         let second = (1..power.len()).filter(|&k| k != top).map(|k| power[k]).fold(0.0_f64, f64::max);
-        let period = (n as f64 / top as f64 - 0.5 - 1e-12).ceil();
-        if power[top] >= (2.0 - 3.0 / n as f64) * second && period >= 2.0 && period <= last_lag as f64 {
-            return period as usize;
+        let dominant = power[top] >= (2.0 - 3.0 / n as f64) * second;
+        if dominant && n >= 17 && n as f64 / top as f64 > 5.25 {
+            // Seventeen to twenty-three observations, a bin period above
+            // 5.25: the lag is the unbiased-autocorrelation maximum among
+            // the lags strictly between n/(k+1) and n/(k-1), kept when that
+            // autocorrelation is at least 0.45 (the value at the measured
+            // boundaries). The 5.25 split is fitted (eng24 hyb5.py): random
+            // histories at n = 17, 20, 23 agree 97%, 90%, 91% (the earlier
+            // rule 78-80%), sinusoid maps 545 of 620 (511).
+            let chosen = lags_of(top);
+            if chosen != 0 {
+                return if unbiased(chosen) >= 0.45 { chosen } else { 0 };
+            }
+        } else {
+            let period = (n as f64 / top as f64 - 0.5 - 1e-12).ceil();
+            if dominant && period >= 2.0 && period <= last_lag as f64 {
+                return period as usize;
+            }
         }
         if n <= 10 {
             return 0;
         }
-        fallback = true;
+        fallback = Some(if n <= 16 { 0.6 } else { 0.45 });
     }
-    let lags_of = |bin: usize| -> usize {
-        let low = n as f64 / (bin + 1) as f64;
-        let high = if bin > 1 { n as f64 / (bin - 1) as f64 } else { f64::INFINITY };
-        let mut chosen = 0;
-        let mut best = f64::NEG_INFINITY;
-        for p in 2..=last_lag {
-            let lag = p as f64;
-            if low < lag && lag < high {
-                let value = unbiased(p);
-                if value > best {
-                    best = value;
-                    chosen = p;
-                }
-            }
-        }
-        if chosen == 0 {
-            let nearest = (n as f64 / bin as f64 - 0.5 - 1e-12).ceil();
-            if nearest >= 2.0 && nearest <= last_lag as f64 { nearest as usize } else { 0 }
-        } else {
-            chosen
-        }
-    };
     let mut top = 1;
     for k in 2..power.len() {
         if power[k] > power[top] {
@@ -1144,16 +1159,17 @@ fn detect_period(y: &[f64]) -> usize {
             }
         }
     };
-    if fallback {
+    if let Some(threshold) = fallback {
         // Eleven to sixteen observations without a dominant bin: Excel still
         // accepts some periods of four or more with a high autocorrelation
         // (boundary probes put the unbiased autocorrelation at 0.45 where it
         // decides, but the candidate it is applied to is not identified).
         // This keeps the candidate above when it is at least 4 with unbiased
-        // autocorrelation >= 0.6, a fitted value: against 'never' it gains 2
-        // corpus readings, 14 of 316 eng21 probes and 7 of 358 sinusoid map
-        // readings, and is level on 40,000 random histories (eng24 fb5.py).
-        return if chosen >= 4 && unbiased(chosen) >= 0.6 { chosen } else { 0 };
+        // autocorrelation >= 0.6 (n <= 16, a fitted value: against 'never'
+        // it gains 2 corpus readings, 14 of 316 eng21 probes and 7 of 358
+        // sinusoid map readings, and is level on 40,000 random histories;
+        // eng24 fb5.py) or >= 0.45 (n = 17..23, hyb5.py).
+        return if chosen >= 4 && unbiased(chosen) >= threshold { chosen } else { 0 };
     }
     if r(chosen) >= 0.3 { chosen } else { 0 }
 }
