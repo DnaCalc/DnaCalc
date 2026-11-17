@@ -3291,6 +3291,45 @@ fn chart_axis_font_is_scoped_to_unambiguous_primary_axes() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_legend_font_refuses_ambiguous_scopes_and_overrides() {
+    use xls_kit::art;
+    for (index, extra, expected) in [
+        (1u16, 0u16, true), (0, 0, false), (2, 0, false),
+        (1, 0x1026, false), (1, 0x1050, false), (1, 0x08A5, false), (1, 0x08A6, false),
+        (1, 0xFFFC, false), (1, 0xFFFD, false), (1, 0xFFFE, false), (1, 0xFFFF, false),
+    ] {
+        let mut chart = art::chart(&[("A", Vec::new(), Vec::new())], 0, "Title");
+        let legend = record(0x1015, &[0u8; 20]);
+        let pos = chart.windows(legend.len()).position(|w| w == legend).unwrap();
+        if extra == 0xFFFE { chart.splice(pos..pos + legend.len(), record(0x1015, &[0u8; 2])); }
+        let header = if extra == 0xFFFE { record(0x1015, &[0u8; 2]) } else { legend };
+        let marker = [header, art::begin()].concat();
+        let at = chart.windows(marker.len()).position(|w| w == marker).unwrap() + marker.len();
+        let mut text = [record(0x1025, &[0u8; 32]), art::begin(), record(0x1026, &u16s(&[index]))].concat();
+        if extra != 0 && extra < 0xFFFC { text.extend(record(extra, &u16s(&[index]))); }
+        if extra == 0xFFFD { text.extend(record(0x1027, &u16s(&[1, 0, 0, 0]))); }
+        text.extend(art::end());
+        if extra == 0xFFFC { text.extend([record(0x1025, &[0u8; 32]), art::begin(), record(0x1026, &u16s(&[index])), art::end()].concat()); }
+        if extra == 0xFFFF { text.extend([record(0x1015, &[0u8; 20]), art::begin(), art::end()].concat()); }
+        chart.splice(at..at, text);
+        let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
+        let bytes = xls(false, &font(200, 2, 0x7FFF, 700, "Arial"), &[Sheet::worksheet("S", records)]);
+        let loaded = load(&bytes);
+        let style = loaded.sheets()[0].charts().charts[0].element_text.get("legend");
+        assert_eq!(style.is_some(), expected);
+        if let Some(style) = style {
+            assert_eq!((style.family.as_deref(), style.bold, style.italic), (Some("Arial"), Some(true), Some(true)));
+            let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            let reopened = load(&saved);
+            assert_eq!(reopened.sheets()[0].charts().charts[0].element_text.get("legend"), Some(style));
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn conditional_formats_validations_and_the_automatic_filter() {
     use ptg::*;
     use xls_kit::rules;

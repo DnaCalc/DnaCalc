@@ -161,6 +161,9 @@ pub(crate) struct Chart {
     axis_font_invalid: [bool; 2],
     primary_axis_seen: [bool; 2],
     primary_axis_parent_valid: bool,
+    legend_font: Option<(String, bool, bool)>,
+    legend_text_seen: bool,
+    legend_font_invalid: bool,
     seen_chart: bool,
     plot_visible_only: Option<bool>,
     blanks: Option<&'static str>,
@@ -470,7 +473,11 @@ impl Chart {
             AL_RUNS | 0x08A5 | 0x08A6 if self.primary_axis_group && self.stack.last().is_some_and(|code| block_of(*code) == Block::Axis) => {
                 if let Some(index) = self.axis_index { self.axis_font_invalid[index] = true; }
             }
+            AL_RUNS | 0x08A5 | 0x08A6 if self.stack.last().is_some_and(|code| block_of(*code) == Block::Legend) => {
+                self.legend_font_invalid = true;
+            }
             LEGEND => {
+                if self.legend || body.len() != 20 || !record.continues.is_empty() { self.legend_font_invalid = true; }
                 self.legend = true;
                 self.pending = Some(block_code(Block::Legend));
             }
@@ -482,6 +489,14 @@ impl Chart {
                 if let Some(code) = self.stack.pop() {
                     match block_of(code) {
                         Block::Text => {
+                            if self.stack.last().is_some_and(|code| block_of(*code) == Block::Legend) {
+                                if self.legend_text_seen || self.link.is_some() || self.attached_invalid || self.attached_font_invalid {
+                                    self.legend_font_invalid = true;
+                                } else {
+                                    self.legend_font = self.attached_font.take();
+                                }
+                                self.legend_text_seen = true;
+                            }
                             if let Some(link) = self.link {
                                 if link == 1 {
                                     self.title_font = if !self.seen_title_links.contains(&link)
@@ -861,6 +876,7 @@ impl Chart {
         if self.legend {
             x.open("c:legend", &[]);
             x.empty("c:legendPos", &[("val", "r".to_owned())]);
+            text_font_element(&mut x, if self.legend_font_invalid { None } else { self.legend_font.as_ref() });
             x.close("c:legend");
         }
         x.empty("c:plotVisOnly", &[("val", u8::from(self.plot_visible_only.unwrap_or(true)).to_string())]);
