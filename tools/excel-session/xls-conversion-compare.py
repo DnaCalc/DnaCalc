@@ -72,6 +72,21 @@ def extended_properties(z):
     return result
 
 
+def custom_properties(z):
+    links = [rel for rel in relationships(z, '').values()
+             if rel.get('Type', '').endswith('/custom-properties')]
+    if not links:
+        return []
+    if len(links) != 1:
+        raise ValueError('multiple custom-properties relationships')
+    root = ET.fromstring(z.read(target('', links[0])))
+    result = []
+    for prop in root:
+        values = [{'type': child.tag.rsplit('}', 1)[-1], 'value': child.text or ''} for child in prop]
+        result.append({'name': prop.get('name'), 'values': values})
+    return sorted(result, key=lambda item: (item['name'] or '', repr(item['values'])))
+
+
 def target(base, rel):
     if rel.get('TargetMode') == 'External':
         return rel.get('Target')
@@ -381,6 +396,7 @@ def package(data):
         props = wb.find(M + 'workbookPr')
         calc = wb.find(M + 'calcPr')
         return {'core_properties': core_properties(z), 'extended_properties': extended_properties(z),
+                'custom_properties': custom_properties(z),
                 'date1904': props is not None and props.get('date1904', '0') in ('1', 'true'),
                 'full_precision': calc is None or calc.get('fullPrecision', '1') in ('1', 'true'), 'names': names,
                 'indexed_colors': indexed_colors, 'external_caches': external_caches(z, wb, wbpath, rels),

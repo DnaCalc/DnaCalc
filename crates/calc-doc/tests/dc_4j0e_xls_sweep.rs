@@ -53,6 +53,7 @@ fn sweep() {
     let (mut core_files, mut core_titles, mut core_authors, mut core_modifiers) = (0usize, 0usize, 0usize, 0usize);
     let (mut core_created, mut core_modified) = (0usize, 0usize);
     let (mut core_categories, mut app_files, mut app_names, mut app_managers, mut app_companies) = (0usize, 0usize, 0usize, 0usize, 0usize);
+    let (mut custom_files, mut custom_count) = (0usize, 0usize);
     let (mut chart_sheets, mut chart_sheet_files) = (0usize, 0usize);
     let (mut chart_points, mut chart_files) = (0usize, 0usize);
     let (mut category_points, mut category_files) = (0usize, 0usize);
@@ -63,6 +64,8 @@ fn sweep() {
     let mut load_refused: BTreeMap<String, usize> = BTreeMap::new();
     let mut panics: Vec<String> = Vec::new();
     let mut unknown: BTreeMap<u16, (u32, usize)> = BTreeMap::new();
+    let mut unread_custom: BTreeMap<u16, (u32, usize)> = BTreeMap::new();
+    let mut unread_custom_sets = 0u32;
     let mut shown_refusals: BTreeMap<String, String> = BTreeMap::new();
     let mut shown_load_refusals: BTreeMap<String, String> = BTreeMap::new();
     std::panic::set_hook(Box::new(|_| {}));
@@ -90,6 +93,10 @@ fn sweep() {
                     let has = |tag: &[u8]| xml.windows(tag.len()).any(|window| window == tag);
                     (has(b"<Application>"), has(b"<Manager>"), has(b"<Company>"))
                 })
+            } else { None };
+            let custom = if audit_core {
+                document.as_ref().ok().and_then(|doc| doc.package().read_part("docProps/custom.xml").ok())
+                    .map(|xml| xml.windows(10).filter(|window| *window == b"<property ").count())
             } else { None };
             let written_chart_sheets = if audit_chart_sheets {
                 document.as_ref().ok().map(|doc| doc.package().parts().iter()
@@ -140,11 +147,11 @@ fn sweep() {
                     (formulas, failed, caches, saved_records, points, categories)
                 })
             });
-            (report, document.map(|_| ()), load, written_phonetic, written_chart_sheets, core, app)
+            (report, document.map(|_| ()), load, written_phonetic, written_chart_sheets, core, app, custom)
         }));
         match result {
             Err(_) => panics.push(file.display().to_string()),
-            Ok((report, document, load, written_phonetic, written_chart_sheets, core, app)) => {
+            Ok((report, document, load, written_phonetic, written_chart_sheets, core, app, custom)) => {
                 match document {
                     Err(OpenError::LegacyWorkbook { detail, .. }) => {
                         let key = detail.chars().take(70).collect::<String>();
@@ -168,6 +175,7 @@ fn sweep() {
                             app_files += 1; app_names += usize::from(name); app_managers += usize::from(manager);
                             app_companies += usize::from(company);
                         }
+                        if let Some(count) = custom { custom_files += 1; custom_count += count; }
                         chart_sheets += written_chart_sheets;
                         chart_sheet_files += usize::from(written_chart_sheets != 0);
                         if let Some((runs, formats)) = written_phonetic {
@@ -199,6 +207,11 @@ fn sweep() {
                             None => {}
                         }
                         if let Ok(Some(report)) = report {
+                            unread_custom_sets += report.unread_custom_property_sets;
+                            for (kind, n) in report.unread_custom_property_types {
+                                let slot = unread_custom.entry(kind).or_insert((0, 0));
+                                slot.0 += n; slot.1 += 1;
+                            }
                             for (id, n) in report.unknown_records {
                                 let slot = unknown.entry(id).or_insert((0, 0));
                                 slot.0 += n;
@@ -231,6 +244,7 @@ fn sweep() {
     if audit_core {
         println!("core metadata parts: {core_files} files; title {core_titles}, author {core_authors}, last saved by {core_modifiers}, created {core_created}, modified {core_modified}, category {core_categories} (not an Excel match verdict)");
         println!("extended metadata parts: {app_files} files; application {app_names}, manager {app_managers}, company {app_companies} (not an Excel match verdict)");
+        println!("custom scalar metadata: {custom_count} properties in {custom_files} files (not an Excel match verdict)");
     }
     println!("refused to open, by reason:");
     for (reason, n) in &refused {
@@ -243,6 +257,11 @@ fn sweep() {
     println!("panics: {}", panics.len());
     for p in &panics {
         println!("  {p}");
+    }
+    println!("unread custom property sets: {unread_custom_sets}");
+    println!("unread custom property value types (type: values, files):");
+    for (kind, (count, files)) in &unread_custom {
+        println!("  0x{kind:04X}: {count} values in {files} files");
     }
     let mut by_count: Vec<_> = unknown.iter().collect();
     by_count.sort_by_key(|(_, (n, files))| std::cmp::Reverse((*files, *n)));

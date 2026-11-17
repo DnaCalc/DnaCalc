@@ -642,10 +642,20 @@ fn ole_summary_properties_survive_conversion_and_save() {
     doc_summary[48..64].copy_from_slice(&[0x05, 0xd5, 0xcd, 0xd5, 0x9c, 0x2e, 0x1b, 0x10,
         0x93, 0x97, 0x08, 0x00, 0x2b, 0x2c, 0xf9, 0xae]);
     doc_summary[64..68].copy_from_slice(&(68u32 + doc_section.len() as u32).to_le_bytes());
-    doc_summary.extend(doc_section); doc_summary.extend(section(&[]));
+    let mut dictionary = 4u32.to_le_bytes().to_vec();
+    for (id, name) in [(2u32, "Note & Name"), (3, "Count"), (4, "Approved"), (5, "Opaque")] {
+        dictionary.extend(id.to_le_bytes()); dictionary.extend(((name.len() + 1) as u32).to_le_bytes());
+        dictionary.extend(name.as_bytes()); dictionary.push(0);
+    }
+    let mut integer = 3u32.to_le_bytes().to_vec(); integer.extend((-42i32).to_le_bytes());
+    let mut boolean = 11u32.to_le_bytes().to_vec(); boolean.extend(u16s(&[0xffff, 0]));
+    let mut blob = 0x41u32.to_le_bytes().to_vec(); blob.extend(2u32.to_le_bytes()); blob.extend([1, 2]);
+    let custom_section = section(&[(0, dictionary), (1, properties[0].1.clone()), (2, ansi(b"Value & data")),
+        (3, integer), (4, boolean), (5, blob)]);
+    doc_summary.extend(doc_section); doc_summary.extend(custom_section);
     let workbook = workbook_stream(false, &[], &[Sheet::worksheet("S", number(0, 0, 1.0))]);
     let bytes = compound(&[("Workbook", workbook.clone()), ("\u{5}SummaryInformation", summary.clone()),
-        ("\u{5}DocumentSummaryInformation", doc_summary)]);
+        ("\u{5}DocumentSummaryInformation", doc_summary.clone())]);
     let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
     let check = |doc: &calc_doc::OpenedDocument| {
         let xml = String::from_utf8(doc.package().read_part("docProps/core.xml").unwrap()).unwrap();
@@ -660,11 +670,38 @@ fn ole_summary_properties_survive_conversion_and_save() {
         for part in ["<Application>Excel</Application>", "<Manager>Manager</Manager>",
             "<Company>Company &amp; Co</Company>"] { assert!(app.contains(part), "{app}"); }
         assert!(rels.items().iter().any(|rel| rel.resolved.as_deref() == Some("docProps/app.xml")));
+        let custom = String::from_utf8(doc.package().read_part("docProps/custom.xml").unwrap()).unwrap();
+        for part in ["name=\"Note &amp; Name\"", "<vt:lpwstr>Value &amp; data</vt:lpwstr>",
+            "<vt:i4>-42</vt:i4>", "<vt:bool>true</vt:bool>"] { assert!(custom.contains(part), "{custom}"); }
+        assert!(!custom.contains("Opaque"));
+        assert!(rels.items().iter().any(|rel| rel.resolved.as_deref() == Some("docProps/custom.xml")));
     };
     check(&document);
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert_eq!(report.unread_custom_property_types.get(&0x41), Some(&1));
+    assert_eq!(report.unread_custom_property_sets, 0);
     let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
     let mut saved = Vec::new(); calc_doc::write(plan, &mut saved).unwrap();
     check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+    let user_offset = u32::from_le_bytes(doc_summary[64..68].try_into().unwrap()) as usize;
+    let mut unicode_doc = doc_summary[..user_offset].to_vec();
+    let mut unicode_dictionary = 1u32.to_le_bytes().to_vec();
+    unicode_dictionary.extend(2u32.to_le_bytes()); unicode_dictionary.extend(3u32.to_le_bytes());
+    unicode_dictionary.extend(u16s(&[0x540d, 0x00e9, 0])); unicode_dictionary.extend([0, 0]);
+    let mut unicode_page = 2u32.to_le_bytes().to_vec(); unicode_page.extend(u16s(&[1200, 0]));
+    let mut unicode_value = 31u32.to_le_bytes().to_vec(); unicode_value.extend(3u32.to_le_bytes());
+    unicode_value.extend(u16s(&[0x6771, 0x4eac, 0]));
+    unicode_doc.extend(section(&[(0, unicode_dictionary), (1, unicode_page), (2, unicode_value)]));
+    let unicode_bytes = compound(&[("Workbook", workbook.clone()), ("\u{5}DocumentSummaryInformation", unicode_doc)]);
+    let unicode_open = calc_doc::open(source(&unicode_bytes), &OpenPolicy::default()).unwrap();
+    let unicode_custom = String::from_utf8(unicode_open.package().read_part("docProps/custom.xml").unwrap()).unwrap();
+    assert!(unicode_custom.contains("name=\"名é\"") && unicode_custom.contains("<vt:lpwstr>東京</vt:lpwstr>"), "{unicode_custom}");
+    let mut invalid_doc = doc_summary;
+    let name_at = invalid_doc.windows(8).position(|part| part == b"Approved").unwrap();
+    invalid_doc[name_at] = 1;
+    let invalid_custom = compound(&[("Workbook", workbook.clone()), ("\u{5}DocumentSummaryInformation", invalid_doc)]);
+    assert!(calc_doc::open(source(&invalid_custom), &OpenPolicy::default()).unwrap().package().part("docProps/custom.xml").is_none());
+    assert_eq!(legacy_workbook_report(source(&invalid_custom), &OpenPolicy::default()).unwrap().unwrap().unread_custom_property_sets, 1);
     // Duplicate property identifiers are ambiguous: keep opening the workbook, but do not guess.
     summary[48+16..48+20].copy_from_slice(&1u32.to_le_bytes());
     let bad = compound(&[("Workbook", workbook), ("\u{5}SummaryInformation", summary)]);
@@ -879,6 +916,7 @@ fn row_border_and_phonetic_flags_survive_conversion_and_save() {
     let mut saved = Vec::new();
     calc_doc::write(plan, &mut saved).unwrap();
     check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

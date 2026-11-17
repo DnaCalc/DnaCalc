@@ -94,6 +94,13 @@ try {
                 $properties.Item('Company').Value = 'Controlled company'
                 @{category=[string]$properties.Item('Category').Value; company=[string]$properties.Item('Company').Value}
             }
+            $entry.setup.document_properties_custom = GetOrError {
+                $properties = $book.CustomDocumentProperties
+                $null = $properties.Add('cxText', $false, 4, 'Controlled custom value')
+                $null = $properties.Add('cxCount', $false, 1, 42)
+                $null = $properties.Add('cxApproved', $false, 2, $true)
+                @{count=$properties.Count; text=[string]$properties.Item('cxText').Value}
+            }
             $entry.setup.name = GetOrError { $n = $book.Names.Add('cx_rate', '=Data!$A$1'); [string]$n.RefersTo }
             $entry.setup.merge = GetOrError { $sheet.Range('C1:D1').Merge(); [string]$sheet.Range('C1').MergeArea.Address($false,$false) }
             $entry.setup.hyperlink = GetOrError { $h = $sheet.Hyperlinks.Add($sheet.Range('C2'), 'https://example.com/'); [string]$h.Address }

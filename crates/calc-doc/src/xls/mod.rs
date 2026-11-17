@@ -48,6 +48,10 @@ pub struct LegacyReport {
     pub unknown_records: BTreeMap<u16, u32>,
     /// Drawing objects not written, with how many of each OBJ type (MS-XLS 2.5.145).
     pub unread_objects: BTreeMap<u16, u32>,
+    /// OLE user-property value types not retained; 0xffff means the type could not be read.
+    pub unread_custom_property_types: BTreeMap<u16, u32>,
+    /// OLE user-property sets whose dictionary or structure could not be decoded.
+    pub unread_custom_property_sets: u32,
 }
 
 impl LegacyReport {
@@ -81,8 +85,14 @@ pub(crate) fn convert(
     let compound = cfb::Compound::open(bytes).map_err(|e| refuse("(compound file)", e.0))?;
     let summary = compound.read("\u{5}SummaryInformation").ok().flatten()
         .and_then(|bytes| properties::summary(&bytes)).unwrap_or_default();
-    let document_properties = compound.read("\u{5}DocumentSummaryInformation").ok().flatten()
-        .and_then(|bytes| properties::document(&bytes)).unwrap_or_default();
+    let document_stream = compound.read("\u{5}DocumentSummaryInformation").ok().flatten();
+    let document_properties = document_stream.as_deref().and_then(properties::document).unwrap_or_default();
+    let custom_read = document_stream.as_deref().and_then(properties::custom);
+    let unread_custom_property_sets = u32::from(custom_read.is_none()
+        && document_stream.as_deref().is_some_and(properties::has_custom));
+    let custom_read = custom_read.unwrap_or_default();
+    let unread_custom_property_types = custom_read.unread;
+    let custom_properties = custom_read.entries;
     let has_core_properties = summary.keys().any(|id| *id != 18) || document_properties.contains_key(&2);
     let has_extended_properties = summary.contains_key(&18) || document_properties.contains_key(&14)
         || document_properties.contains_key(&15);
@@ -662,10 +672,25 @@ pub(crate) fn convert(
         app.close("Properties");
         parts.push(("docProps/app.xml".to_owned(), "application/vnd.openxmlformats-officedocument.extended-properties+xml", app.out));
     }
+    if !custom_properties.is_empty() {
+        let mut custom = Xml::new();
+        custom.open("Properties", &[("xmlns", "http://schemas.openxmlformats.org/officeDocument/2006/custom-properties".to_owned()),
+            ("xmlns:vt", "http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes".to_owned())]);
+        for (index, property) in custom_properties.iter().enumerate() {
+            custom.open("property", &[("fmtid", "{D5CDD505-2E9C-101B-9397-08002B2CF9AE}".to_owned()),
+                ("pid", (index + 2).to_string()), ("name", property.name.clone())]);
+            custom.open(property.kind, &[]); custom.xml_text_str(&property.value); custom.close(property.kind);
+            custom.close("property");
+        }
+        custom.close("Properties");
+        parts.push(("docProps/custom.xml".to_owned(), "application/vnd.openxmlformats-officedocument.custom-properties+xml", custom.out));
+    }
     let report = LegacyReport {
         biff_version: if biff5 { 5 } else { 8 },
         sheets: globals.sheets.len(),
         unread_objects,
+        unread_custom_property_types,
+        unread_custom_property_sets,
         unknown_records: {
             let mut all = std::mem::take(&mut globals.unknown);
             for (id, n) in sheet_unknown {
@@ -942,6 +967,10 @@ pub(crate) fn convert(
     if has_extended_properties {
         root_rels.empty("Relationship", &[("Id", "rIdApp".to_owned()),
             ("Type", format!("{REL_TYPE}/extended-properties")), ("Target", "docProps/app.xml".to_owned())]);
+    }
+    if !custom_properties.is_empty() {
+        root_rels.empty("Relationship", &[("Id", "rIdCustom".to_owned()),
+            ("Type", format!("{REL_TYPE}/custom-properties")), ("Target", "docProps/custom.xml".to_owned())]);
     }
     root_rels.close("Relationships");
 

@@ -7,6 +7,8 @@ const SUMMARY_FMTID: [u8; 16] = [0xe0, 0x85, 0x9f, 0xf2, 0xf9, 0x4f, 0x68, 0x10,
     0xab, 0x91, 0x08, 0x00, 0x2b, 0x27, 0xb3, 0xd9];
 const DOCUMENT_FMTID: [u8; 16] = [0x02, 0xd5, 0xcd, 0xd5, 0x9c, 0x2e, 0x1b, 0x10,
     0x93, 0x97, 0x08, 0x00, 0x2b, 0x2c, 0xf9, 0xae];
+const USER_FMTID: [u8; 16] = [0x05, 0xd5, 0xcd, 0xd5, 0x9c, 0x2e, 0x1b, 0x10,
+    0x93, 0x97, 0x08, 0x00, 0x2b, 0x2c, 0xf9, 0xae];
 
 fn word(data: &[u8], at: usize) -> Option<u16> {
     Some(u16::from_le_bytes(data.get(at..at.checked_add(2)?)?.try_into().ok()?))
@@ -61,10 +63,29 @@ pub(crate) fn document(data: &[u8]) -> Option<BTreeMap<u32, String>> {
     read(data, &DOCUMENT_FMTID, &[2, 14, 15], false)
 }
 
-fn read(data: &[u8], fmtid: &[u8; 16], ids: &[u32], dates: bool) -> Option<BTreeMap<u32, String>> {
+struct Section<'a> {
+    bytes: &'a [u8],
+    offsets: BTreeMap<u32, usize>,
+    ordered: Vec<usize>,
+}
+
+impl<'a> Section<'a> {
+    fn value(&self, id: u32) -> Option<&'a [u8]> {
+        let at = *self.offsets.get(&id)?;
+        let end = self.ordered.iter().copied().find(|offset| *offset > at).unwrap_or(self.bytes.len());
+        self.bytes.get(at..end)
+    }
+
+    fn code_page(&self) -> Option<u16> {
+        let bytes = self.value(1)?;
+        (word(bytes, 0) == Some(2) && word(bytes, 2) == Some(0)).then(|| word(bytes, 4)).flatten()
+    }
+}
+
+fn section<'a>(data: &'a [u8], fmtid: &[u8; 16], single: bool) -> Option<Section<'a>> {
     if data.len() > 2 * 1024 * 1024 || word(data, 0)? != 0xfffe || word(data, 2)? > 1 { return None; }
     let set_count = dword(data, 24)?;
-    if !(1..=2).contains(&set_count) || (dates && set_count != 1) { return None; }
+    if !(1..=2).contains(&set_count) || (single && set_count != 1) { return None; }
     let header_end = 28 + set_count * 20;
     let mut ranges = Vec::new();
     let mut wanted = None;
@@ -80,29 +101,28 @@ fn read(data: &[u8], fmtid: &[u8; 16], ids: &[u32], dates: bool) -> Option<BTree
     }
     let offset = wanted?;
     let size = dword(data, offset)?;
-    let section = data.get(offset..offset.checked_add(size)?)?;
-    let count = dword(section, 4)?;
+    let bytes = data.get(offset..offset.checked_add(size)?)?;
+    let count = dword(bytes, 4)?;
     let table_end = 8usize.checked_add(count.checked_mul(8)?)?;
     if count > 1024 || table_end > size { return None; }
     let mut offsets = BTreeMap::new();
     for i in 0..count {
-        let id = dword(section, 8 + i * 8)? as u32;
-        let at = dword(section, 12 + i * 8)?;
+        let id = dword(bytes, 8 + i * 8)? as u32;
+        let at = dword(bytes, 12 + i * 8)?;
         if at < table_end || at % 4 != 0 || at.checked_add(4)? > size || offsets.insert(id, at).is_some() { return None; }
     }
     let mut ordered: Vec<usize> = offsets.values().copied().collect();
     ordered.sort_unstable();
     if ordered.windows(2).any(|pair| pair[0] == pair[1]) { return None; }
-    let value = |id: u32| -> Option<&[u8]> {
-        let at = *offsets.get(&id)?;
-        let end = ordered.iter().copied().find(|offset| *offset > at).unwrap_or(size);
-        section.get(at..end)
-    };
-    let cp = value(1).and_then(|bytes| (word(bytes, 0) == Some(2) && word(bytes, 2) == Some(0))
-        .then(|| word(bytes, 4)).flatten());
+    Some(Section { bytes, offsets, ordered })
+}
+
+fn read(data: &[u8], fmtid: &[u8; 16], ids: &[u32], dates: bool) -> Option<BTreeMap<u32, String>> {
+    let section = section(data, fmtid, dates)?;
+    let cp = section.code_page();
     let mut result = BTreeMap::new();
     for &id in ids {
-        let Some(bytes) = value(id) else { continue };
+        let Some(bytes) = section.value(id) else { continue };
         if word(bytes, 2) != Some(0) { continue; }
         let Some(length) = dword(bytes, 4) else { continue };
         let text = match word(bytes, 0) {
@@ -135,12 +155,107 @@ fn read(data: &[u8], fmtid: &[u8; 16], ids: &[u32], dates: bool) -> Option<BTree
         if let Some(text) = text.filter(|text| xml_text(text)) { result.insert(id, text); }
     }
     for id in if dates { &[12, 13][..] } else { &[][..] } {
-        let Some(bytes) = value(*id) else { continue };
+        let Some(bytes) = section.value(*id) else { continue };
         if word(bytes, 0) != Some(0x40) || word(bytes, 2) != Some(0) { continue; }
         let Some(raw) = bytes.get(4..12) else { continue };
         if let Some(text) = filetime(u64::from_le_bytes(raw.try_into().expect("eight bytes"))) { result.insert(*id, text); }
     }
     Some(result)
+}
+
+#[derive(Debug)]
+pub(crate) struct CustomProperty {
+    pub(crate) name: String,
+    pub(crate) kind: &'static str,
+    pub(crate) value: String,
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct CustomProperties {
+    pub(crate) entries: Vec<CustomProperty>,
+    /// Types not retained, including malformed values (0xffff means no readable type).
+    pub(crate) unread: BTreeMap<u16, u32>,
+}
+
+pub(crate) fn has_custom(data: &[u8]) -> bool {
+    let Some(count @ 1..=2) = dword(data, 24) else { return false };
+    (0..count).any(|i| data.get(28 + i * 20..44 + i * 20) == Some(&USER_FMTID[..]))
+}
+
+/// The named, scalar user properties in a second OLE property set. Unrecognized types stay unread.
+pub(crate) fn custom(data: &[u8]) -> Option<CustomProperties> {
+    let section = section(data, &USER_FMTID, false)?;
+    let page = section.code_page()?;
+    let dictionary = section.value(0)?;
+    let count = dword(dictionary, 0)?;
+    if count > 1024 { return None; }
+    let mut at = 4usize;
+    let mut names = BTreeMap::new();
+    let mut folded = std::collections::BTreeSet::new();
+    for _ in 0..count {
+        let id = dword(dictionary, at)? as u32;
+        let length = dword(dictionary, at.checked_add(4)?)?;
+        at = at.checked_add(8)?;
+        if !(2..=0x7fff_ffff).contains(&id) || length == 0 { return None; }
+        let byte_length = if page == 1200 { length.checked_mul(2)? } else { length };
+        let end = at.checked_add(byte_length)?;
+        let raw = dictionary.get(at..end)?;
+        let name = if page == 1200 {
+            let units: Vec<u16> = raw.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
+            if units.last() != Some(&0) || units[..units.len()-1].contains(&0) { return None; }
+            String::from_utf16(&units[..units.len()-1]).ok()?
+        } else {
+            if raw.last() != Some(&0) || raw[..raw.len()-1].contains(&0) { return None; }
+            let raw = &raw[..raw.len()-1];
+            match page {
+                65001 => std::str::from_utf8(raw).ok()?.to_owned(),
+                page if page == 932 || super::codepage::high_half(page).is_some()
+                    || (matches!(page, 936 | 949 | 950) && raw.is_ascii()) => super::codepage::decode(page, raw).ok()?,
+                _ => return None,
+            }
+        };
+        if name.is_empty() || name.chars().count() > 255 || !xml_text(&name)
+            || name.chars().any(|c| c < ' ') || !folded.insert(name.to_lowercase()) || names.insert(id, name).is_some() {
+            return None;
+        }
+        at = if page == 1200 { end.checked_add(3)? & !3 } else { end };
+        if at > dictionary.len() { return None; }
+    }
+    let ids: Vec<u32> = names.keys().copied().collect();
+    let strings = read(data, &USER_FMTID, &ids, false)?;
+    let mut out = CustomProperties::default();
+    for (&id, _) in &section.offsets {
+        if (2..=0x7fff_ffff).contains(&id) && !names.contains_key(&id) {
+            let kind = section.value(id).and_then(|bytes| word(bytes, 0)).unwrap_or(0xffff);
+            *out.unread.entry(kind).or_insert(0) += 1;
+        }
+    }
+    for (id, name) in names {
+        let Some(bytes) = section.value(id) else { *out.unread.entry(0xffff).or_insert(0) += 1; continue };
+        if word(bytes, 2) != Some(0) {
+            *out.unread.entry(word(bytes, 0).unwrap_or(0xffff)).or_insert(0) += 1;
+            continue;
+        }
+        let result = match word(bytes, 0) {
+            Some(0x1e | 0x1f) => strings.get(&id).map(|text| ("vt:lpwstr", text.clone())),
+            Some(2) => word(bytes, 4).map(|n| ("vt:i2", (n as i16).to_string())),
+            Some(3) => bytes.get(4..8).and_then(|b| <[u8; 4]>::try_from(b).ok())
+                .map(|b| ("vt:i4", i32::from_le_bytes(b).to_string())),
+            Some(5) => bytes.get(4..12).and_then(|b| <[u8; 8]>::try_from(b).ok()).map(f64::from_le_bytes)
+                .filter(|n| n.is_finite()).map(|n| ("vt:r8", n.to_string())),
+            Some(0x0b) => match word(bytes, 4) {
+                Some(0) => Some(("vt:bool", "false".to_owned())),
+                Some(0xffff) => Some(("vt:bool", "true".to_owned())),
+                _ => None,
+            },
+            Some(0x40) => bytes.get(4..12).and_then(|b| <[u8; 8]>::try_from(b).ok())
+                .and_then(|b| filetime(u64::from_le_bytes(b))).map(|text| ("vt:filetime", text)),
+            _ => None,
+        };
+        if let Some((kind, value)) = result { out.entries.push(CustomProperty { name, kind, value }); }
+        else { *out.unread.entry(word(bytes, 0).unwrap_or(0xffff)).or_insert(0) += 1; }
+    }
+    Some(out)
 }
 
 #[cfg(test)]
