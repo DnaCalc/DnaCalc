@@ -231,6 +231,18 @@ fn sweep() {
                             .filter(|chart| chart.element_text.get("legend").is_some_and(|style|
                                 style.family.is_some() || style.bold.is_some() || style.italic.is_some())).count();
                         println!("chart legends with explicit font properties: {legends}");
+                        let titles = loaded.sheets().iter().flat_map(|s| &s.charts().charts)
+                            .flat_map(|chart| &chart.axes).filter(|axis| axis.title.is_some()).count();
+                        println!("chart axes with modelled titles: {titles}");
+                        let title_fonts = loaded.sheets().iter().flat_map(|s| &s.charts().charts)
+                            .map(|chart| chart.axes.iter().filter(|axis| axis.title.is_some()
+                                && chart.element_text.get(&format!("axis-title:{}", axis.id)).is_some_and(|style|
+                                    style.family.is_some() || style.bold.is_some() || style.italic.is_some())).count()).sum::<usize>();
+                        println!("chart axis titles with explicit font properties: {title_fonts}");
+                        let chart_fonts = loaded.sheets().iter().flat_map(|s| &s.charts().charts)
+                            .filter(|chart| chart.text_style.family.is_some()
+                                || chart.text_style.bold.is_some() || chart.text_style.italic.is_some()).count();
+                        println!("charts with explicit default font properties: {chart_fonts}");
                     }
                     if std::env::var_os("DNACALC_XLS_AUDIT_NOTE_RUNS").is_some() {
                         let count = loaded.sheets().iter().flat_map(|s| &s.review().notes)

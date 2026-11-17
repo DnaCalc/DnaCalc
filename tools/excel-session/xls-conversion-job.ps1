@@ -346,6 +346,14 @@ try {
                 $c.ChartType = 51; $c.SetSourceData($dataSheet.Range('A1:B3'))
                 @{series=[string]$c.SeriesCollection(1).Formula; points=$c.SeriesCollection(1).Points().Count}
             }
+            $entry.setup.chart_default_font = GetOrError {
+                $chart = $sheet.ChartObjects('cxCacheChart').Chart
+                $chart.ChartArea.Font.Name = 'Calibri'
+                $chart.ChartArea.Font.Bold = $false
+                $chart.ChartArea.Font.Italic = $false
+                @{font_name=[string]$chart.ChartArea.Font.Name; bold=$chart.ChartArea.Font.Bold;
+                  italic=$chart.ChartArea.Font.Italic}
+            }
             $entry.setup.chart_linked_title = GetOrError {
                 $dataSheet.Range('D1').Value2 = 'Controlled linked title'
                 $linkedChart = $sheet.ChartObjects('cxCacheChart').Chart
@@ -364,6 +372,19 @@ try {
                 $axis.TickLabels.Font.Italic = $true
                 @{font_name=[string]$axis.TickLabels.Font.Name; bold=$axis.TickLabels.Font.Bold;
                   italic=$axis.TickLabels.Font.Italic}
+            }
+            $entry.setup.chart_axis_titles = GetOrError {
+                $chart = $sheet.ChartObjects('cxCacheChart').Chart
+                $category = $chart.Axes(1); $category.HasTitle = $true
+                $category.AxisTitle.Text = 'Region & area'
+                $category.AxisTitle.Font.Name = 'Arial'
+                $category.AxisTitle.Font.Bold = $true
+                $category.AxisTitle.Font.Italic = $true
+                $value = $chart.Axes(2); $value.HasTitle = $true
+                $value.AxisTitle.Text = 'Revenue'
+                @{category=[string]$category.AxisTitle.Text; value=[string]$value.AxisTitle.Text;
+                  font_name=[string]$category.AxisTitle.Font.Name; bold=$category.AxisTitle.Font.Bold;
+                  italic=$category.AxisTitle.Font.Italic}
             }
             $entry.setup.chart_legend_font = GetOrError {
                 $chart = $sheet.ChartObjects('cxCacheChart').Chart

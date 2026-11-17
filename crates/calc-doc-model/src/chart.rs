@@ -126,6 +126,8 @@ pub struct ChartAxis {
     pub cross_axis: Option<u32>,
     pub kind: String,
     pub position: Option<String>,
+    /// Literal title text, when available.
+    pub title: Option<String>,
     pub minimum: Option<String>,
     pub maximum: Option<String>,
     pub major_unit: Option<String>,
