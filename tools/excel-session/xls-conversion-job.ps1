@@ -177,9 +177,12 @@ try {
                 $box.TextFrame.Characters().Font.Italic = $true
                 $box.TextFrame.Characters().Font.Size = 12
                 $box.TextFrame.Characters().Font.Color = 255
+                $box.TextFrame.HorizontalAlignment = -4108
+                $box.TextFrame.VerticalAlignment = -4108
                 @{name=[string]$box.Name; characters=$box.TextFrame.Characters().Count;
                   bold=$box.TextFrame.Characters().Font.Bold; italic=$box.TextFrame.Characters().Font.Italic;
-                  size=$box.TextFrame.Characters().Font.Size; color=$box.TextFrame.Characters().Font.Color}
+                  size=$box.TextFrame.Characters().Font.Size; color=$box.TextFrame.Characters().Font.Color;
+                  horizontal_alignment=$box.TextFrame.HorizontalAlignment; vertical_alignment=$box.TextFrame.VerticalAlignment}
             }
             $entry.setup.line_shapes = @(
                 foreach ($reverse in @($false, $true)) {

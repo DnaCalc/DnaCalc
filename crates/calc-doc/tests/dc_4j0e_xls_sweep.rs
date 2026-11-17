@@ -192,6 +192,9 @@ fn sweep() {
                         let colours = loaded.sheets().iter().flat_map(|s| &s.shapes().shapes)
                             .filter(|shape| shape.body.colour.is_some()).count();
                         println!("drawing shapes with explicit text colour: {colours}");
+                        let aligned = loaded.sheets().iter().flat_map(|s| &s.shapes().shapes)
+                            .filter(|shape| shape.body.anchor.is_some() || shape.body.alignment.iter().any(Option::is_some)).count();
+                        println!("drawing shapes with text alignment: {aligned}");
                     }
                     if std::env::var_os("DNACALC_XLS_AUDIT_NOTE_RUNS").is_some() {
                         let count = loaded.sheets().iter().flat_map(|s| &s.review().notes)

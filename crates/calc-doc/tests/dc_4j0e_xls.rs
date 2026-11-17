@@ -2071,6 +2071,38 @@ fn uniform_text_box_font_is_loaded_and_saved() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn text_box_alignment_is_loaded_and_saved() {
+    use xls_kit::art;
+    for (horizontal, vertical, rotation, expected) in [
+        (1u16, 1u16, 0u16, Some(("l", "t"))),
+        (2, 2, 0, Some(("ctr", "ctr"))),
+        (3, 3, 0, Some(("r", "b"))),
+        (7, 1, 0, None),
+        (1, 1, 2, None),
+    ] {
+        let mut text = txo("ABC");
+        text[4..6].copy_from_slice(&(0x0200 | horizontal << 1 | vertical << 4).to_le_bytes());
+        text[6..8].copy_from_slice(&rotation.to_le_bytes());
+        let records = [art::drawing(&[art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], true)]), art::obj(6, 1), text].concat();
+        let bytes = xls(false, &[], &[Sheet::worksheet("S", records)]);
+        let check = |bytes: &[u8]| {
+            let loaded = load(bytes);
+            let body = &loaded.sheets()[0].shapes().shapes[0].body;
+            assert_eq!(body.alignment.first().and_then(|v| v.as_deref()), expected.map(|v| v.0));
+            assert_eq!(body.anchor.as_deref(), expected.map(|v| v.1));
+        };
+        check(&bytes);
+        if expected.is_some() {
+            let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            check(&saved);
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn continued_txo_text_is_read_for_notes_and_text_boxes() {
     use xls_kit::art;
     let mut body = u16s(&[0x0212, 0, 0, 0, 0, 3, 16]);

@@ -287,6 +287,7 @@ struct Object {
     shape: Option<Shape>,
     text: Option<Vec<u16>>,
     text_font: Option<u16>,
+    text_alignment: Option<(&'static str, &'static str)>,
     chart: Option<super::chart::Chart>,
 }
 
@@ -389,6 +390,15 @@ impl Drawing {
                 match self.waiting_text.take() {
                 Some(index) => {
                     if let Ok(Some(units)) = super::strings::txo_text(record) {
+                        if let Some(bytes) = record.body.get(..4) {
+                            let flags = u16::from_le_bytes([bytes[0], bytes[1]]);
+                            let rotation = u16::from_le_bytes([bytes[2], bytes[3]]);
+                            let horizontal = match (flags >> 1) & 7 { 1 => Some("l"), 2 => Some("ctr"), 3 => Some("r"), _ => None };
+                            let vertical = match (flags >> 4) & 7 { 1 => Some("t"), 2 => Some("ctr"), 3 => Some("b"), _ => None };
+                            if rotation == 0 && flags & 0x4000 == 0 {
+                                self.objects[index].text_alignment = horizontal.zip(vertical);
+                            }
+                        }
                         if let Some(runs) = super::strings::txo_runs(record, &units)
                             && let Some(&(_, font)) = runs.first()
                             && runs.iter().all(|&(_, current)| current == font) {
@@ -593,10 +603,17 @@ impl Drawing {
                     x.close("xdr:spPr");
                     if let Some(text) = &object.text {
                         x.open("xdr:txBody", &[]);
-                        x.empty("a:bodyPr", &[]);
+                        if let Some((_, vertical)) = object.text_alignment {
+                            x.empty("a:bodyPr", &[("anchor", vertical.to_owned())]);
+                        } else {
+                            x.empty("a:bodyPr", &[]);
+                        }
                         x.empty("a:lstStyle", &[]);
                         for line in text.split(|u| *u == 0x0D || *u == 0x0A) {
                             x.open("a:p", &[]);
+                            if let Some((horizontal, _)) = object.text_alignment {
+                                x.empty("a:pPr", &[("algn", horizontal.to_owned())]);
+                            }
                             if !line.is_empty() {
                                 x.open("a:r", &[]);
                                 if let Some((size, bold, italic, colour)) = object.text_font.and_then(|font| styles.drawing_text_font(font)) {

@@ -215,6 +215,8 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
                     text = ''.join(node.text or '' for node in body.iter(A + 't'))
                     obj['shape_text'].append({'utf16_units': len(text.encode('utf-16-le')) // 2,
                                               'sha256': hashlib.sha256(text.encode('utf-8')).hexdigest(),
+                                              'body_properties': None if body.find(A + 'bodyPr') is None else tree(body.find(A + 'bodyPr')),
+                                              'paragraph_properties': [tree(p) for p in body.iter(A + 'pPr')],
                                               'run_properties': [tree(run) for run in body.iter(A + 'rPr')]})
             images = []
             for blip in anchor.iter(A + 'blip'):
