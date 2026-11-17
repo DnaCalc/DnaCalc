@@ -458,6 +458,18 @@ fn initial_slope(y: &[f64]) -> f64 {
     regression_slope(&extended)
 }
 
+/// The parameter search validates on the last min(floor(0.4 N), max(10, 2p,
+/// ceil(N/5))) of the N points searched, none up to ten points (eng23; period
+/// one for the nonseasonal fit, whose probe_nons selections diverged from 52
+/// points with STAT's ten-point tail).
+fn search_window(searched: usize, period: usize) -> usize {
+    if searched <= 10 {
+        searched
+    } else {
+        ((searched as f64 * 0.4) as usize).min(10.max(2 * period).max(searched.div_ceil(5)))
+    }
+}
+
 fn statistic_window(n: usize) -> usize {
     if n <= 10 {
         n
@@ -810,7 +822,7 @@ fn nonseasonal_fit(
     if !general && y.iter().all(|&v| v == y[0]) {
         return Err(unfinished(site));
     }
-    let start = search_history.len() - statistic_window(search_history.len());
+    let start = search_history.len() - search_window(search_history.len(), 1);
     let validation = (start != 0).then_some(start);
     let mut best = f64::INFINITY;
     let mut chosen = PARAMETERS[0];
@@ -1211,18 +1223,12 @@ fn seasonal_general(
     // Excel's triple in 447 of 520 short histories, 220 when searching the history).
     let (initial, search_history) = excel_seasonal_initial(y, period);
     let candidates = if short { SHORT_TWO_PARAMETERS } else { SEASONAL_PARAMETERS };
-    // The search validates on the last min(floor(0.4 N), max(10, 2p, ceil(N/5)))
-    // points of the N searched (none up to ten points). With the reset below
-    // and these candidates this reproduces Excel's triple for every one of
-    // 16,020 short and 687 longer probe histories (eng23 wingrid3; eng21's list
-    // with STAT's ten-point tail and no reset: 13,237 and, of eng21's 400, 218).
+    // With the reset below and these candidates, search_window reproduces
+    // Excel's triple for every one of 16,020 short and 687 longer probe
+    // histories (eng23 wingrid3; eng21's list with STAT's ten-point tail and no
+    // reset: 13,237 and, of eng21's 400, 218).
     let searched = search_history.len();
-    let window = if searched <= 10 {
-        searched
-    } else {
-        ((searched as f64 * 0.4) as usize).min(10.max(2 * period).max(searched.div_ceil(5)))
-    };
-    let start = searched - window;
+    let start = searched - search_window(searched, period);
     let validation = (start != 0).then_some(start);
     let run_on = |history: &[f64], (alpha, beta, gamma): (f64, f64, f64), validation: Option<usize>| {
         let initial = Initial { gamma, seasons: initial.seasons.clone(), ..initial };
