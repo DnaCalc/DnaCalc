@@ -716,6 +716,18 @@ fn ets_seasonal_search_window_and_trend_reset() {
     exact(call("FORECAST.ETS.STAT", vec![col(&longer), col(&timeline), n(1.0), n(4.0)]), 0.501);
 }
 
+/// Excel 20527's nonseasonal search uses the same validation window (eng23 probe_nons):
+/// 64 points validate on ceil(64/5) = 13 and select (0.666667, 0.166667).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_nonseasonal_search_window_grows_with_the_history() {
+    let history: [f64; 64] = [11.327, 10.085, 10.324, 10.613, 11.333, 12.334, 12.074, 12.368, 11.87, 12.671, 12.336, 11.357, 14.9, 12.379, 13.826, 14.992, 15.793, 16.702, 15.926, 16.8, 15.064, 16.281, 14.81, 14.686, 15.299, 13.397, 13.579, 13.647, 12.636, 11.619, 10.541, 10.918, 9.538, 10.308, 7.993, 7.95, 8.062, 7.792, 5.701, 4.655, 2.675, 1.997, 0.853, 0.02, -2.141, -0.991, -5.925, -6.087, -5.298, -6.696, -7.319, -7.416, -9.602, -9.515, -8.59, -12.254, -13.38, -13.238, -13.489, -17.939, -17.274, -18.324, -19.293, -21.15];
+    let timeline: Vec<f64> = (1..=64).map(|v| v as f64).collect();
+    exact(call("FORECAST.ETS", vec![n(65.0), col(&history), col(&timeline), n(0.0)]), f64::from_bits(0xc036_19f9_dacd_25b2));
+    exact(call("FORECAST.ETS.STAT", vec![col(&history), col(&timeline), n(1.0), n(0.0)]), 0.666667);
+    exact(call("FORECAST.ETS.STAT", vec![col(&history), col(&timeline), n(2.0), n(0.0)]), 0.166667);
+}
+
 /// Excel 20527 checks a scalar history against the longer timeline before reading the history.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
