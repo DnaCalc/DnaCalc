@@ -2,8 +2,8 @@
 //! line, area, pie, doughnut, scatter), their series with the worksheet ranges of their names,
 //! values and categories, the title, axis titles and the legend, written as the DrawingML chart
 //! part Excel saves. Bar and pie geometry, point-color variation, and primary linear value-axis
-//! bounds and units, and unambiguous solid series colors are retained; other formatting (fonts, gridlines, 3-D, data labels,
-//! trendlines) is not read.
+//! bounds and units, unambiguous solid series colors, and simple value-label settings are retained;
+//! other formatting (fonts, gridlines, 3-D, most data labels, trendlines) is not read.
 
 use super::records::Record;
 use super::strings::Pieces;
@@ -249,7 +249,7 @@ impl Chart {
                         if !format.labels_header_valid || format.series.is_none_or(|index| index >= self.series.len()) {
                             self.data_labels_ambiguous = true;
                         }
-                        if format.labels_seen { format.invalid = true; self.data_labels_ambiguous = true; }
+                        if format.labels_seen { self.data_labels_ambiguous = true; }
                         format.labels_seen = true;
                         format.show_values = body == [1, 0] && record.continues.is_empty();
                         if !format.show_values { self.data_labels_ambiguous = true; }

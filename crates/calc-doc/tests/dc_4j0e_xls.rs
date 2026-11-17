@@ -2508,9 +2508,12 @@ fn chart_explicit_line_color_reaches_the_loaded_series() {
 fn chart_unambiguous_series_value_labels_survive_save() {
     use ptg::*;
     use xls_kit::art;
-    for (group, point, flags, extra, expected) in [(false, 0xffff, 1, Vec::new(), true),
-        (false, 0xffff, 2, Vec::new(), false), (false, 0, 1, Vec::new(), false),
-        (false, 0xffff, 1, record(0x086A, &[]), false), (true, 0, 1, Vec::new(), true)] {
+    let duplicate_with_fill = [record(0x100C, &u16s(&[1])),
+        record(0x100A, &[255, 0, 0, 0, 255, 255, 255, 0, 1, 0, 0, 0, 10, 0, 9, 0])].concat();
+    for (group, point, flags, extra, expected, fill) in [(false, 0xffff, 1, Vec::new(), true, false),
+        (false, 0xffff, 2, Vec::new(), false, false), (false, 0, 1, Vec::new(), false, false),
+        (false, 0xffff, 1, record(0x086A, &[]), false, false), (true, 0, 1, Vec::new(), true, false),
+        (false, 0xffff, 1, duplicate_with_fill, false, true)] {
         let mut chart = art::chart(&[("Sales", Vec::new(), area3d(0, (1, 4), (1, 1), 0))], 0, "Title");
         let anchor = record(0x1045, &u16s(&[0]));
         let at = if group {
@@ -2527,6 +2530,7 @@ fn chart_unambiguous_series_value_labels_survive_save() {
         let check = |doc: &calc_doc::OpenedDocument| {
             let chart = String::from_utf8(doc.package().read_part("xl/charts/chart1_1.xml").unwrap()).unwrap();
             assert_eq!(chart.contains("<c:dLbls><c:showVal val=\"1\"/></c:dLbls>"), expected, "{chart}");
+            if fill { assert!(chart.contains("<a:srgbClr val=\"FF0000\"/>"), "{chart}"); }
         };
         check(&doc);
         if expected {
