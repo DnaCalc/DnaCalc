@@ -867,9 +867,18 @@ fn forecast_ets_confint_zero_probability_precedes_fractional_horizon() {
         error(call("FORECAST.ETS.CONFINT", vec![n(2.0_f64.powi(31) + 5.0), values.clone(), times.clone(), n(confidence)]), Num);
     }
     assert!(matches!(
-        call("FORECAST.ETS.CONFINT", vec![n(5.25), values.clone(), times, n(f64::from_bits(0x3ca7_ff00_0000_0000))]),
-        Err(calc_func::FunctionFault::NotHeld { owner: "dc-j9k", .. })
+        call("FORECAST.ETS.CONFINT", vec![n(5.25), values.clone(), times.clone(), n(f64::from_bits(0x3ca7_ff00_0000_0000))]),
+        Ok(_)
     ));
+    // Touchstone (eng21): the default interval grows from zero across the first step
+    // as sqrt(fraction) times the one-step interval. Here that interval itself is one
+    // ULP below Excel's 0x3fd3_65bd_64d3_5b62; the quarter step is exactly half of it.
+    let one_step = f64::from_bits(0x3fd3_65bd_64d3_5b61);
+    exact(call("FORECAST.ETS.CONFINT", vec![n(6.0), values.clone(), times.clone()]), one_step);
+    // Excel: 5.25 -> 0.1515423528969349, half of its own one-step interval.
+    exact(call("FORECAST.ETS.CONFINT", vec![n(5.25), values.clone(), times.clone()]), one_step * 0.5);
+    exact(call("FORECAST.ETS.CONFINT", vec![n(5.001), values.clone(), times.clone()]), one_step * (5.001_f64 - 5.0).sqrt());
+    error(call("FORECAST.ETS.CONFINT", vec![n(5.0005), values.clone(), times]), Num);
     let incomplete = arr(vec![vec![1.0, 1.0, 2.0, 4.0, 7.0]]);
     error(call("FORECAST.ETS.CONFINT", vec![n(7.25), values, incomplete, n(1e-100)]), Num);
 }
@@ -5474,5 +5483,26 @@ fn forecast_ets_five_point_period_two_fit() {
         let y = y.map(f64::from_bits);
         exact(call("FORECAST.ETS", vec![n(f64::from_bits(target)), col(&y), t.clone()]), f64::from_bits(expected));
         exact(call("FORECAST.ETS.SEASONALITY", vec![col(&y), t.clone()]), 2.0);
+    }
+}
+
+/// Touchstone (eng21, Excel 20527): FORECAST.ETS.CONFINT snaps within 0.001
+/// step of a timestamp and otherwise interpolates the squared interval.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn forecast_ets_confint_fractional_targets() {
+    let y = col(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.5]);
+    let t = col(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
+    for (target, expected) in [
+        (14.0, 0.31259216649668303),
+        (14.000000000000002, 0.31259216649668303),
+        (14.001, 0.31259216649668303),
+        (13.999, 0.31259216649668303),
+        (14.25, 0.3132200590661818),
+        (14.5, 0.31384669545457194),
+        (14.75, 0.31447208317128444),
+        (15.0, 0.31509622965122835),
+    ] {
+        exact(call("FORECAST.ETS.CONFINT", vec![n(target), y.clone(), t.clone()]), expected);
     }
 }

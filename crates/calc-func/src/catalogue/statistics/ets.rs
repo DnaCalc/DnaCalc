@@ -1370,7 +1370,7 @@ pub(super) fn evaluate(
         }
         // Fractional forecasts use adjacent integer forecasts only when the
         // timeline division is exact; other fractional outputs remain open.
-        if h.fract() != 0.0 && (output != Output::Forecast
+        if h.fract() != 0.0 && (!matches!(output, Output::Forecast | Output::Confidence)
             || h >= i32::MAX as f64 || h.mul_add(series.step, -distance) != 0.0)
         {
             return Err(unfinished(site));
@@ -1390,9 +1390,23 @@ pub(super) fn evaluate(
     if output == Output::Confidence && confidence == 0.0 {
         return site.number(0.0);
     }
-    if output == Output::Forecast && horizon.fract() != 0.0 {
+    if matches!(output, Output::Forecast | Output::Confidence) && horizon.fract() != 0.0 {
         let lower_horizon = horizon.floor();
         let fraction = horizon - lower_horizon;
+        // The interval is NUM at the last timestamp itself, and its square
+        // grows from zero across the first step (Touchstone, eng21).
+        if output == Output::Confidence && lower_horizon == 0.0 {
+            if fraction <= 0.001 {
+                return fail(WorksheetErrorCode::Num);
+            }
+            if 1.0 - fraction > 0.001 {
+                let upper = match evaluate_fitted(site, &series, output, statistic, confidence, season, 1.0)?.core_ref() {
+                    CoreRef::Number(v) => v,
+                    _ => return Err(unfinished(site)),
+                };
+                return finite(site, upper * fraction.sqrt());
+            }
+        }
         // Excel snaps targets within 0.001 of a timeline point; otherwise it
         // interpolates the two fitted forecasts with stored x87 operations.
         if fraction <= 0.001 {
@@ -1407,6 +1421,12 @@ pub(super) fn evaluate(
             (CoreRef::Number(lower), CoreRef::Number(upper)) => (lower, upper),
             _ => return Err(unfinished(site)),
         };
+        if output == Output::Confidence {
+            // Touchstone (eng21): the interval's square, the forecast
+            // variance, is interpolated linearly between the two horizons.
+            let (low, high) = (lower * lower, upper * upper);
+            return finite(site, (low + (high - low) * fraction).sqrt());
+        }
         use crate::ported::excel_numeric::{excel_x87_add, excel_x87_mul, excel_x87_sub};
         let difference = excel_x87_sub(upper, lower);
         let increment = excel_x87_mul(difference, fraction);
