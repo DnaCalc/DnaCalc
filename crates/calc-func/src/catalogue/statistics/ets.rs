@@ -1363,16 +1363,19 @@ pub(super) fn evaluate(
                 return site.number(0.0);
             }
         }
-        let distance = exact_sum(target, -series.last).ok_or_else(|| unfinished(site))?;
+        // An inexact subtraction or division takes Excel's binary64 horizon
+        // (the rounded quotient), which then snaps within 0.001 of a
+        // timestamp: bank2 rows with targets one ULP from a timestamp.
+        let exact_distance = exact_sum(target, -series.last);
+        let distance = exact_distance.unwrap_or(target - series.last);
         let h = distance / series.step;
-        if h * series.step != distance {
+        let exact_division = exact_distance.is_some()
+            && h * series.step == distance
+            && (h.fract() == 0.0 || h.mul_add(series.step, -distance) == 0.0);
+        if !exact_division && !matches!(output, Output::Forecast | Output::Confidence) {
             return Err(unfinished(site));
         }
-        // Fractional forecasts use adjacent integer forecasts only when the
-        // timeline division is exact; other fractional outputs remain open.
-        if h.fract() != 0.0 && (!matches!(output, Output::Forecast | Output::Confidence)
-            || h >= i32::MAX as f64 || h.mul_add(series.step, -distance) != 0.0)
-        {
+        if h.fract() != 0.0 && (!matches!(output, Output::Forecast | Output::Confidence) || h >= i32::MAX as f64) {
             return Err(unfinished(site));
         }
         // Both target functions share this signed-32-bit future-index limit,
@@ -1414,6 +1417,21 @@ pub(super) fn evaluate(
         }
         if 1.0 - fraction <= 0.001 {
             return evaluate_fitted(site, &series, output, statistic, confidence, season, lower_horizon + 1.0);
+        }
+        if output == Output::Forecast && horizon < 0.0 {
+            // Inside the history Excel anchors at the later timestamp and
+            // uses the slope of the interval after it, in binary64, as it
+            // does before the first timestamp (Touchstone, eng21).
+            let anchor = lower_horizon + 1.0;
+            let fitted = |h: f64| -> Step<f64> {
+                match evaluate_fitted(site, &series, output, statistic, confidence, season, h)?.core_ref() {
+                    CoreRef::Number(v) => Ok(v),
+                    _ => Err(unfinished(site)),
+                }
+            };
+            let first = fitted(anchor)?;
+            let second = fitted(anchor + 1.0)?;
+            return finite(site, first + (second - first) * (horizon - anchor));
         }
         let lower = evaluate_fitted(site, &series, output, statistic, confidence, season, lower_horizon)?;
         let upper = evaluate_fitted(site, &series, output, statistic, confidence, season, lower_horizon + 1.0)?;

@@ -5506,3 +5506,26 @@ fn forecast_ets_confint_fractional_targets() {
         exact(call("FORECAST.ETS.CONFINT", vec![n(target), y.clone(), t.clone()]), expected);
     }
 }
+
+/// Touchstone (eng21, Excel 20527): between two historical timestamps the
+/// forecast is anchored at the later one with the slope of the interval after
+/// it (bank2 history of row target 1.5325303972943622; period two).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn forecast_ets_historical_fractional_targets_use_the_next_interval() {
+    let t = col(&[1.0, 2.0, 3.0, 4.0, 5.0]);
+    let y = col(&[1.9823275881758256, 2.3331159731655986, 3.6439711188652915, 4.641443873621043, 5.097678056076448]);
+    for (target, expected) in [
+        (1.25, 1.442160565938415),
+        (1.5, 1.7756219285222303),
+        (1.75, 2.109083291106046),
+        (2.0, 2.442544653689861),
+        (4.5, 5.39186507834005),
+        (5.5, 5.955124126299383),
+    ] {
+        // The interval rule is Excel's; this period-two fit is still a few ULP
+        // from Excel's own fitted values (dc-2u2g), so compare to 1e-14 relative.
+        let got = call("FORECAST.ETS", vec![n(target), y.clone(), t.clone()]).unwrap().as_number().unwrap();
+        assert!(((got - expected) / expected).abs() < 1e-14, "{target}: {got} vs {expected}");
+    }
+}
