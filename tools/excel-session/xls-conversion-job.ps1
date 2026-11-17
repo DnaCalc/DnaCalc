@@ -112,6 +112,13 @@ try {
                 $c.ChartType = 51; $c.SetSourceData($dataSheet.Range('A1:A2'))
                 @{series=[string]$c.SeriesCollection(1).Formula; points=$c.SeriesCollection(1).Points().Count}
             }
+            $entry.setup.chart_sheet = GetOrError {
+                $chartSheet = $book.Charts.Add(); $chartSheet.Name = 'ChartTab'
+                $chartSheet.ChartType = 51; $chartSheet.SetSourceData($sheet.Range('H1:H2'))
+                $chartSheet.HasTitle = $true; $chartSheet.ChartTitle.Text = 'Controlled chart sheet'
+                @{name=[string]$chartSheet.Name; type=$chartSheet.ChartType;
+                  series=[string]$chartSheet.SeriesCollection(1).Formula; title=[string]$chartSheet.ChartTitle.Text}
+            }
             $entry.setup.page = GetOrError { $sheet.PageSetup.Orientation = 2; $sheet.PageSetup.PrintArea = '$A$1:$D$5'; $sheet.PageSetup.Orientation }
             $entry.setup.header_picture = GetOrError {
                 $picture = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../crates/calc-doc/tests/fixtures/drawing/pictures/card.png'))
