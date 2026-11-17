@@ -4296,10 +4296,14 @@ fn an_excel_4_macro_sheet_of_an_xls_opens_as_dc_xuw_describes_and_saves_as_xlsm(
 fn standalone_solid_lines_keep_endpoints_flips_and_stroke_after_save() {
     use calc_doc::model::{ShapeColour, ShapeKind};
     use xls_kit::art;
+    for kind in [1u16, 0x1e] {
     for flip in [0, 0x40, 0x80, 0xc0] {
         for anchor in [[1, 128, 2, 64, 5, 512, 6, 192], [1, 0, 2, 0, 5, 0, 2, 0], [1, 0, 2, 0, 1, 0, 6, 0]] {
             let properties = [(0x1c0, 0x00563412), (0x1cb, 38100), (0x1ff, 0x180018)];
-            let bytes = xls(false, &[], &[Sheet::worksheet("S", art::plain_line(&properties, 0xa00 | flip, anchor))]);
+            let mut records = art::plain_line(&properties, 0xa00 | flip, anchor);
+            records.truncate(records.len() - art::obj(1, 1).len());
+            records.extend(art::obj(kind, 1));
+            let bytes = xls(false, &[], &[Sheet::worksheet("S", records)]);
             let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
             let check = |loaded: LoadedWorkbook| {
                 let shapes = &loaded.sheets()[0].shapes().shapes;
@@ -4324,9 +4328,10 @@ fn standalone_solid_lines_keep_endpoints_flips_and_stroke_after_save() {
             calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
             check(load(&saved));
             let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
-            assert!(!report.unread_objects.contains_key(&1));
+            assert!(!report.unread_objects.contains_key(&kind));
         }
     }
+}
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
