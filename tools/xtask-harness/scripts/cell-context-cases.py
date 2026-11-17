@@ -178,6 +178,13 @@ def spill_placement():
         fam.case(f'own-{j:02}', 'SPILL', own, 'Sheet1!A1', formula)
     for j, formula in enumerate(['=G2:G7', '=G2:H7', '=OFFSET(G2,0,0,3,2)']):
         fam.case(f'own-g-{j:02}', 'SPILL', own, 'Sheet1!G1', formula)
+    # The own-spill formula already in place and calculated again (fn8 2026-11-17): the layout
+    # holds it in A1, volatile or not, and each probe in C1 reads its spill after a recalculation.
+    for k, held in enumerate(['=SEQUENCE(3)+A3+0*RAND()', '=SEQUENCE(3)+A3', '=ISBLANK(A2:A4)+0*RAND()',
+                              '=OFFSET(B1,1,-1,3)+0*RAND()']):
+        placed = fam.layout(f'own-placed-{k}', [{'name': 'Sheet1', 'cells': {'A1': held}}])
+        for j, probe in enumerate(['=A1', '=A2', '=A3', '=ISFORMULA(A2)', '=A1#']):
+            fam.case(f'own-placed-{k}-{j}', 'SPILL', placed, 'Sheet1!C1', probe)
     return fam
 
 
