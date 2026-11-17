@@ -47,6 +47,8 @@ fn sweep() {
     let (mut formula_cells, mut parse_failures) = (0usize, 0usize);
     let audit_phonetic = std::env::var_os("DNACALC_XLS_AUDIT_PHONETIC").is_some();
     let audit_pivots = std::env::var_os("DNACALC_XLS_AUDIT_PIVOT_CACHE").is_some();
+    let audit_charts = std::env::var_os("DNACALC_XLS_AUDIT_CHART_CACHE").is_some();
+    let (mut chart_points, mut chart_files) = (0usize, 0usize);
     let (mut pivot_caches, mut pivot_records, mut pivot_files) = (0usize, 0u64, 0usize);
     let (mut phonetic_runs, mut phonetic_files, mut phonetic_errors) = (0usize, 0usize, 0usize);
     let (mut phonetic_formats, mut phonetic_format_files) = (0usize, 0usize);
@@ -97,7 +99,13 @@ fn sweep() {
                     let saved_records = if audit_pivots {
                         loaded.pivot_caches().caches.values().filter_map(|c| c.record_count).sum()
                     } else { 0 };
-                    (formulas, failed, caches, saved_records)
+                    let points = if audit_charts {
+                        loaded.sheets().iter().flat_map(|s| &s.charts().charts)
+                            .flat_map(|c| &c.plots).flat_map(|p| &p.series)
+                            .filter_map(|s| s.values.as_ref()).filter(|v| v.numeric)
+                            .map(|v| v.cache.iter().flatten().count()).sum()
+                    } else { 0 };
+                    (formulas, failed, caches, saved_records, points)
                 })
             });
             (report, document.map(|_| ()), load, written_phonetic)
@@ -127,13 +135,15 @@ fn sweep() {
                             phonetic_errors += 1;
                         }
                         match load {
-                            Some(Ok((formulas, failed, caches, saved_records))) => {
+                            Some(Ok((formulas, failed, caches, saved_records, points))) => {
                                 loaded += 1;
                                 formula_cells += formulas;
                                 parse_failures += failed;
                                 pivot_caches += caches;
                                 pivot_records += saved_records;
                                 pivot_files += usize::from(caches != 0);
+                                chart_points += points;
+                                chart_files += usize::from(points != 0);
                             }
                             Some(Err(e)) => {
                                 let key: String = e.chars().take(90).collect();
@@ -164,6 +174,9 @@ fn sweep() {
     }
     if audit_pivots {
         println!("saved pivot source caches: {pivot_caches} in {pivot_files} files, {pivot_records} declared source records (not pivot views or calculated results)");
+    }
+    if audit_charts {
+        println!("numeric chart display-cache points: {chart_points} in {chart_files} files (not calculated cell results)");
     }
     println!("refused to open, by reason:");
     for (reason, n) in &refused {
