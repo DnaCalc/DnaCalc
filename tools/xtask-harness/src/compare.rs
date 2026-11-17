@@ -1051,7 +1051,8 @@ fn run_workbook_with_code(
             (projected.value(), formula.formula.as_deref())
             && let Some(text) = literal.as_text().map(|text| text.to_string_lossy())
             && let Some(body) = text.strip_prefix('=')
-            && text.replace("_xlfn.", "") == asked.replace("_xlfn.", "")
+            && text.replace(calc_catalogue::FUTURE_FUNCTION_PREFIX, "")
+                == asked.replace(calc_catalogue::FUTURE_FUNCTION_PREFIX, "")
             && let Err(rejection) = calc_fml::check_entry(&calc_fml::parse_formula(body), true)
             && rejection.rule.is_measured()
         {

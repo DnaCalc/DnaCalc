@@ -114,7 +114,10 @@ const TABLE: [(&str, &str); 11] = [
 
 /// The prefixes a file stores before a function's name (`_xlfn._xlws.SORT`); a user-defined
 /// function's `_xludf.` is not one of them, so such a name stays unassigned.
-const FILE_PREFIXES: [&str; 2] = ["_XLFN.", "_XLWS."];
+const FILE_PREFIXES: [&str; 2] = [
+    calc_catalogue::FUTURE_FUNCTION_PREFIX,
+    calc_catalogue::WORKSHEET_FUNCTION_PREFIX,
+];
 
 /// The work package that owns the function or operator spelled `spelling` (any case, with or
 /// without the file prefixes), or [`UNASSIGNED`].
@@ -122,7 +125,7 @@ pub(crate) fn function_owner(spelling: &str) -> &'static str {
     let mut name = spelling.trim().to_ascii_uppercase();
     while let Some(rest) = FILE_PREFIXES
         .iter()
-        .find_map(|prefix| name.strip_prefix(prefix))
+        .find_map(|prefix| calc_catalogue::strip_ascii_prefix(&name, prefix))
     {
         name = rest.to_owned();
     }
