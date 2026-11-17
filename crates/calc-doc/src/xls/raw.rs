@@ -308,6 +308,14 @@ pub(super) fn convert_biff2(bytes: &[u8], password: Option<&str>) -> Result<(Vec
                 name.extend(&b[5..5 + length + formula]); record(&mut adapted, 0x0218, &name)?;
                 names += 1;
             }
+            0x003e if b.len() == 14 && r.continues.is_empty()
+                && b[..5].iter().chain(&b[9..10]).all(|v| *v <= 1) => {
+                if word(b, 5) >= 16384 || word(b, 7) >= 256 { return Err(bad("a BIFF2 view outside its grid")); }
+                let mut flags = u16::from(b[9]) << 5;
+                for (bit, value) in b[..5].iter().enumerate() { flags |= u16::from(*value) << bit; }
+                let mut window = flags.to_le_bytes().to_vec(); window.extend(&b[5..9]); window.extend(&b[10..14]);
+                record(&mut adapted, 0x023e, &window)?;
+            }
             0x0006 | 0x0007 | 0x0021 => return Err(bad("raw BIFF2 formula and array layouts are not read")),
             _ => original(&mut adapted, r)?,
         }

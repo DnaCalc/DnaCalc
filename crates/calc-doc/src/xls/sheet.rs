@@ -1,4 +1,4 @@
-//! A worksheet substream of a BIFF8 file (MS-XLS 2.1.7.20.5), read into the SpreadsheetML
+//! A worksheet substream of a legacy BIFF file (MS-XLS 2.1.7.20.5), read into the SpreadsheetML
 //! worksheet part it stands for: rows (ROW), columns (COLINFO) and cells (NUMBER, RK, MULRK,
 //! LABELSST, LABEL, BOOLERR, BLANK, MULBLANK, FORMULA with its STRING). Records this reader does
 //! not read are counted by type in [`SheetPart::unknown`].
@@ -38,7 +38,7 @@ pub(crate) struct Context<'a> {
     /// The tab index of the sheet being read.
     pub(crate) tab: u32,
     pub(crate) number: usize,
-    /// The code page of a BIFF5 or BIFF7 workbook, whose strings are bytes in it.
+    /// The code page of a pre-BIFF8 workbook, whose strings are bytes in it.
     pub(crate) v5: Option<u16>,
     /// The pictures of the workbook's blip store.
     pub(crate) images: &'a [Option<super::drawing::Image>],
@@ -319,10 +319,14 @@ pub(crate) fn read(
             // Shared formula definitions were parsed in the group pass above and expanded into
             // each member's formula. They are not unread records.
             SHRFMLA => {}
-            DEFAULT_ROW_HEIGHT => {
+            DEFAULT_ROW_HEIGHT | 0x0025 if record.id == DEFAULT_ROW_HEIGHT
+                || (context.v5.is_some() && record.body.len() == 2 && record.continues.is_empty()) => {
                 let mut c = Cursor::new(record.body);
-                let flags = c.u16("DefaultRowHeight").map_err(e)?;
-                default_height = c.u16("DefaultRowHeight").map_err(e)?;
+                let (flags, height) = if record.id == 0x0025 {
+                    let height = c.u16("BIFF2 DefaultRowHeight").map_err(e)?;
+                    (u16::from(height & 0x8000 == 0), height & 0x7fff)
+                } else { (c.u16("DefaultRowHeight").map_err(e)?, c.u16("DefaultRowHeight").map_err(e)?) };
+                default_height = height;
                 if flags & 0x01 != 0 {
                     default_row_attributes.push(("customHeight", "1".to_owned()));
                 }
@@ -336,13 +340,20 @@ pub(crate) fn read(
                     default_row_attributes.push(("thickBottom", "1".to_owned()));
                 }
             }
-            ROW => {
+            ROW | 0x0008 if record.id == ROW || (context.v5.is_some() && record.body.len() == 13
+                && record.body[10] == 0 && record.continues.is_empty()) => {
                 let mut c = Cursor::new(record.body);
                 let row = c.u16("Row").map_err(e)?;
                 c.skip(4, "Row").map_err(e)?;
-                let height = c.u16("Row").map_err(e)? & 0x7FFF;
-                c.skip(4, "Row").map_err(e)?;
-                let flags = c.u32("Row").map_err(e)?;
+                let stored_height = c.u16("Row").map_err(e)?;
+                let height = stored_height & 0x7fff;
+                let flags = if record.id == 0x0008 {
+                    if row >= 16384 { return Err("a BIFF2 row outside its grid".to_owned()); }
+                    if stored_height & 0x8000 == 0 { 0x40 } else { 0 }
+                } else {
+                    c.skip(4, "Row").map_err(e)?;
+                    c.u32("Row").map_err(e)?
+                };
                 let mut attributes = Vec::new();
                 let custom_height = flags & 0x40 != 0;
                 if custom_height || height != default_height {
@@ -380,20 +391,25 @@ pub(crate) fn read(
                 row_heights.insert(row, f64::from(height) / 20.0);
                 rows.entry(row).or_default().attributes = attributes;
             }
-            COLINFO => {
+            COLINFO | 0x0024 if record.id == COLINFO
+                || (context.v5.is_some() && record.body.len() == 4 && record.continues.is_empty()) => {
                 let mut c = Cursor::new(record.body);
-                let first = c.u16("ColInfo").map_err(e)?;
-                let last = c.u16("ColInfo").map_err(e)?;
-                let width = c.u16("ColInfo").map_err(e)?;
-                let ixfe = c.u16("ColInfo").map_err(e)?;
-                let flags = c.u16("ColInfo").map_err(e)?;
+                let (first, last, width, ixfe, flags) = if record.id == 0x0024 {
+                    let first = u16::from(c.u8("BIFF2 ColWidth").map_err(e)?);
+                    let last = u16::from(c.u8("BIFF2 ColWidth").map_err(e)?);
+                    if first > last { return Err("a reversed BIFF2 column-width range".to_owned()); }
+                    // COLWIDTH carries no column cell format.
+                    (first, last, c.u16("BIFF2 ColWidth").map_err(e)?, None, 2)
+                } else {
+                    (c.u16("ColInfo").map_err(e)?, c.u16("ColInfo").map_err(e)?,
+                        c.u16("ColInfo").map_err(e)?, Some(c.u16("ColInfo").map_err(e)?), c.u16("ColInfo").map_err(e)?)
+                };
                 let mut attributes = vec![
                     ("min", (u32::from(first) + 1).to_string()),
                     ("max", (u32::from(last.min(255)) + 1).to_string()),
                     ("width", formula::number_text(f64::from(width) / 256.0)),
                 ];
-                let style = context.styles.cell_format(ixfe);
-                if style != 0 {
+                if let Some(style) = ixfe.map(|index| context.styles.cell_format(index)).filter(|index| *index != 0) {
                     attributes.push(("style", style.to_string()));
                 }
                 if flags & 0x01 != 0 {
