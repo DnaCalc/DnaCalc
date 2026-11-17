@@ -179,6 +179,8 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
                 if chart_rel is None:
                     raise ValueError('missing chart relationship')
                 chart_root = ET.fromstring(z.read(target(path, chart_rel)))
+                settings = chart_root.find(C + 'printSettings')
+                obj['chart_print_settings'] = None if settings is None else tree(settings)
                 obj['chart_types'] = sorted({x.tag.rsplit('}', 1)[-1] for x in chart_root.iter()
                                              if x.tag.startswith(C) and x.tag.endswith('Chart')})
                 obj['series_formulas'] = [x.text or '' for x in chart_root.iter(C + 'f')]

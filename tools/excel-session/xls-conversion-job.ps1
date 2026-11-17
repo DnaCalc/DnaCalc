@@ -131,6 +131,12 @@ try {
                   minimum=$axis.MinimumScale; maximum=$axis.MaximumScale; major=$axis.MajorUnit;
                   minor=$axis.MinorUnit; reversed=$axis.ReversePlotOrder}
             }
+            $entry.setup.chart_print_text = GetOrError {
+                $chart = $sheet.ChartObjects().Item(1).Chart
+                $chart.PageSetup.CenterHeader = 'Controlled chart header'
+                $chart.PageSetup.RightFooter = 'Page &P'
+                @{header=[string]$chart.PageSetup.CenterHeader; footer=[string]$chart.PageSetup.RightFooter}
+            }
             $entry.setup.chart_doughnut_geometry = GetOrError {
                 $c = $sheet.ChartObjects().Add(200, 270, 200, 150).Chart
                 $c.ChartType = -4120; $c.SetSourceData($sheet.Range('H1:H2'))

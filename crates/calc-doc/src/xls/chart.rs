@@ -149,6 +149,11 @@ pub(crate) struct Chart {
     category_caches: BTreeMap<usize, CategoryCache>,
     data_format: Option<SeriesFormat>,
     auxiliary_series: bool,
+    print_header: Option<Vec<u16>>,
+    print_footer: Option<Vec<u16>>,
+    print_header_seen: bool,
+    print_footer_seen: bool,
+    print_text_invalid: bool,
 }
 
 fn block_code(block: Block) -> u8 {
@@ -172,8 +177,30 @@ impl Chart {
     /// Reads one record of the chart substream; `print` prints the formula tokens of an AI record
     /// as the range they name.
     pub(crate) fn read(&mut self, record: &Record<'_>, print: &dyn Fn(&[u8]) -> Option<String>,
-        code_page: Option<u16>, styles: &super::styles::Styles) {
+        code_page: Option<u16>, styles: &super::styles::Styles, embedded: bool) {
         let body = record.body;
+        if embedded && matches!(record.id, 0x0866 | 0x089C) { self.print_text_invalid = true; }
+        if embedded && self.stack.is_empty() && matches!(record.id, 0x0014 | 0x0015) {
+            let (seen, value) = if record.id == 0x0014 {
+                (&mut self.print_header_seen, &mut self.print_header)
+            } else { (&mut self.print_footer_seen, &mut self.print_footer) };
+            if *seen { self.print_text_invalid = true; }
+            *seen = true;
+            let parsed = if body.is_empty() && record.continues.is_empty() { Some(Vec::new()) }
+            else if code_page.is_none() && record.continues.is_empty() {
+                let mut p = Pieces::new(record);
+                p.u16("chart print text length").ok().and_then(|count| {
+                    let flags = p.u8("chart print text flags").ok()?;
+                    if flags & !1 != 0 { return None; }
+                    let text = p.characters(usize::from(count), flags & 1 != 0, "chart print text").ok()?;
+                    p.done().then_some(text)
+                })
+            } else { None };
+            if parsed.as_ref().is_none_or(|text| text.windows(2).any(|w| w == [38, 71] || w == [38, 103])) {
+                self.print_text_invalid = true;
+            }
+            *value = parsed;
+        }
         if self.stack.iter().any(|code| block_of(*code) == Block::DataFormat)
             && (record.id == 0x1066 || (0x0800..=0x08ff).contains(&record.id))
             && let Some(format) = &mut self.data_format { format.invalid = true; }
@@ -696,6 +723,16 @@ impl Chart {
         x.empty("c:plotVisOnly", &[("val", u8::from(self.plot_visible_only.unwrap_or(true)).to_string())]);
         if let Some(blanks) = self.blanks { x.empty("c:dispBlanksAs", &[("val", blanks.to_owned())]); }
         x.close("c:chart");
+        if !self.print_text_invalid && (self.print_header.as_ref().is_some_and(|v| !v.is_empty())
+            || self.print_footer.as_ref().is_some_and(|v| !v.is_empty())) {
+            x.open("c:printSettings", &[]); x.open("c:headerFooter", &[]);
+            for (name, value) in [("c:oddHeader", &self.print_header), ("c:oddFooter", &self.print_footer)] {
+                if let Some(value) = value.as_ref().filter(|v| !v.is_empty()) {
+                    x.open(name, &[]); x.text(value); x.close(name);
+                }
+            }
+            x.close("c:headerFooter"); x.close("c:printSettings");
+        }
         x.close("c:chartSpace");
         Some(x.out)
     }

@@ -402,7 +402,7 @@ pub(crate) fn convert(
                                 0x103A | 0x103E..=0x1040 | 0x1061 => unsupported_chart_type = true,
                                 _ => {},
                             }
-                            chart.read(record, &print, v5, &globals.styles);
+                            chart.read(record, &print, v5, &globals.styles, false);
                         },
                         _ => {},
                     }

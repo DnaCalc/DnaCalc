@@ -324,7 +324,7 @@ impl Drawing {
         styles: &super::styles::Styles) {
         if let Some(index) = self.chart_object {
             let chart = self.objects[index].chart.get_or_insert_with(Default::default);
-            chart.read(record, print, None, styles);
+            chart.read(record, print, None, styles, true);
         }
     }
 
