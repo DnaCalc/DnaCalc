@@ -262,6 +262,7 @@ fn read_chart_xml(
     let mut title_runs = 0;
     let mut title = String::new();
     let mut title_cache: Option<String> = None;
+    let mut axis_title_has_field = false;
     loop {
         let element = match events.next()? {
             Some(XmlEvent::Start(element)) => element,
@@ -380,7 +381,17 @@ fn read_chart_xml(
         }
         let plot = chart.plots.last_mut();
         match (parent, local.as_str()) {
+            (_, "fld") if in_axis_title
+                && element.name.namespace.as_deref()
+                    == Some("http://schemas.openxmlformats.org/drawingml/2006/main") =>
+            {
+                axis_title_has_field = true;
+                if let Some(axis) = chart.axes.last_mut() {
+                    axis.title = None;
+                }
+            }
             (_, "p" | "br") if in_axis_title
+                && !axis_title_has_field
                 && element.name.namespace.as_deref()
                     == Some("http://schemas.openxmlformats.org/drawingml/2006/main") =>
             {
@@ -391,6 +402,7 @@ fn read_chart_xml(
                 }
             }
             (_, "t") if in_axis_title
+                && !axis_title_has_field
                 && element.name.namespace.as_deref()
                     == Some("http://schemas.openxmlformats.org/drawingml/2006/main") =>
             {
@@ -403,6 +415,7 @@ fn read_chart_xml(
             (Some("plotArea"), "valAx" | "catAx" | "dateAx" | "serAx")
                 if element.name.namespace.as_deref() == Some(CHART_NAMESPACE) =>
             {
+                axis_title_has_field = false;
                 chart.axes.push(calc_doc_model::ChartAxis {
                     kind: local.clone(),
                     ..Default::default()
@@ -610,6 +623,7 @@ mod tests {
         let text = format!(r#"<c:chartSpace xmlns:c="{CHART_NAMESPACE}" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><c:chart><c:plotArea>
             <c:catAx><c:axId val="1"/><c:title><c:tx><c:rich><a:p><a:r><a:t>East &amp; </a:t></a:r><a:r><a:t>West</a:t></a:r></a:p><a:p><a:r><a:t>regions</a:t></a:r></a:p></c:rich></c:tx></c:title></c:catAx>
             <c:valAx><c:axId val="2"/><c:title><c:tx><c:strRef><c:f>Sheet1!A1</c:f><c:strCache><c:pt idx="0"><c:v>stale</c:v></c:pt></c:strCache></c:strRef></c:tx></c:title></c:valAx>
+            <c:valAx><c:axId val="3"/><c:title><c:tx><c:rich><a:p><a:r><a:t>Prefix</a:t></a:r><a:fld id="x" type="date"><a:t>stale field</a:t></a:fld><a:r><a:t>Suffix</a:t></a:r></a:p></c:rich></c:tx></c:title></c:valAx>
             </c:plotArea></c:chart></c:chartSpace>"#);
         let xml = XmlPart::new("chart.xml".into(), text.into_bytes(), crate::xml::XmlLimits::default());
         let chart = read_chart_xml(&xml, "chart.xml", "Chart".into(), ChartAnchor::Absolute {
@@ -617,6 +631,7 @@ mod tests {
         }).unwrap();
         assert_eq!(chart.axes[0].title.as_deref(), Some("East & West regions"));
         assert_eq!(chart.axes[1].title, None);
+        assert_eq!(chart.axes[2].title, None);
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
