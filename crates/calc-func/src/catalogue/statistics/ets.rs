@@ -469,7 +469,7 @@ fn statistic_window(n: usize) -> usize {
 struct Model {
     level: f64,
     trend: f64,
-    seasons: [f64; 8],
+    seasons: Vec<f64>,
     period: usize,
     errors: Vec<f64>,
     predictions: Vec<f64>,
@@ -479,7 +479,7 @@ struct Model {
 struct Initial {
     level: f64,
     trend: f64,
-    seasons: [f64; 8],
+    seasons: Vec<f64>,
     period: usize,
     gamma: f64,
 }
@@ -496,7 +496,7 @@ impl Model {
             Initial {
                 level: y[0],
                 trend: initial_slope(y),
-                seasons: [0.0; 8],
+                seasons: vec![0.0; 2],
                 period: 2,
                 gamma: f64::EPSILON,
             },
@@ -664,7 +664,7 @@ fn exact_seasonal(
     let level = exact_total(&adjusted)
         .and_then(|v| exact_ratio(v, period as f64))
         .ok_or_else(|| unfinished(site))?;
-    let mut seasons = [0.0; 8];
+    let mut seasons = vec![0.0; period];
     for (target, &v) in seasons.iter_mut().zip(&adjusted) {
         *target = exact_sum(v, -level).ok_or_else(|| unfinished(site))?;
     }
@@ -748,18 +748,37 @@ fn nonseasonal(
     horizon: f64,
     confidence: f64,
 ) -> Step<CalcValue> {
-    if y.iter()
-        .any(|&v| v != 0.0 && !(2.0_f64.powi(-400)..=2.0_f64.powi(400)).contains(&v.abs()))
+    nonseasonal_fit(site, y, output, statistic, horizon, confidence, false)
+}
+
+/// The nonseasonal fit. `general` admits the histories outside the measured
+/// exact region (long, constant or extreme-scale histories): the same
+/// recurrence and search, without the claim that its rounding is Excel's.
+fn nonseasonal_fit(
+    site: &Site<'_>,
+    y: &[f64],
+    output: Output,
+    statistic: f64,
+    horizon: f64,
+    confidence: f64,
+    general: bool,
+) -> Step<CalcValue> {
+    if !general
+        && y.iter()
+            .any(|&v| v != 0.0 && !(2.0_f64.powi(-400)..=2.0_f64.powi(400)).contains(&v.abs()))
     {
         return Err(unfinished(site));
     }
     // Gamma does not require the unidentified initial states. Fresh short and
     // rounded-constant selections retain the same two epsilon seasonal states.
-    if output == Output::Statistic && statistic == 3.0 && (3..=32).contains(&y.len()) {
+    if output == Output::Statistic && statistic == 3.0 && (general || (3..=32).contains(&y.len())) {
         return site.number(f64::EPSILON);
     }
-    if !(3..=32).contains(&y.len()) {
+    if !general && !(3..=32).contains(&y.len()) {
         return Err(unfinished(site));
+    }
+    if output == Output::Seasonality {
+        return site.number(0.0);
     }
     // Outside the exact short-history region, the private initial regression's
     // rounding remains unidentified. Every refusal remains a counted failure.
@@ -781,7 +800,7 @@ fn nonseasonal(
     };
     // The exact-affine route has already failed here. Rounded constant
     // initialisation changes the search parameters in retained adjacent probes.
-    if y.iter().all(|&v| v == y[0]) {
+    if !general && y.iter().all(|&v| v == y[0]) {
         return Err(unfinished(site));
     }
     let start = search_history.len() - statistic_window(search_history.len());
@@ -795,7 +814,7 @@ fn nonseasonal(
             chosen = (alpha, beta);
         }
     }
-    if !best.is_finite() {
+    if !best.is_finite() && !general {
         return Err(unfinished(site));
     }
     let (alpha, mut beta) = chosen;
@@ -809,6 +828,9 @@ fn nonseasonal(
                 return Err(unfinished(site));
             }
             let phase = ((y.len() - 1) as u64 + horizon as u64) % 2;
+            if general {
+                return finite(site, model.level + horizon * model.trend + model.seasons[phase as usize]);
+            }
             // Fresh midpoint questions distinguish the final seasonal addition
             // at PC64 followed by a binary64 store from strict binary64 addition.
             site.number(crate::ported::excel_numeric::excel_x87_add(
@@ -851,7 +873,266 @@ fn nonseasonal(
                 ((squared_errors / y.len() as f64) * variance).sqrt(),
             ))
         }
-        Output::Seasonality => Err(unfinished(site)),
+        Output::Seasonality => unreachable!(),
+    }
+}
+
+/// A calculated result; a non-finite one is Excel's overflow error.
+fn finite(site: &Site<'_>, value: f64) -> Step<CalcValue> {
+    if value.is_finite() {
+        site.number(value)
+    } else {
+        fail(WorksheetErrorCode::Num)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// General AAA path (dc-2u2g). Histories outside the measured exact regions
+// above are calculated here rather than refused. Its shape is Excel 2016's
+// additive ETS as measured through Touchstone (eng21, 2026-11-17):
+// - parameters come from a finite candidate set, not a continuous optimiser:
+//   every (alpha, beta, gamma) Excel reported for 400 random seasonal
+//   histories is one of SEASONAL_PARAMETERS (nonseasonal: PARAMETERS);
+// - the automatic period is an autocorrelation peak of the least-squares
+//   detrended history (linear trends of any size leave it unchanged);
+// - the selection objective is the shared validation-window squared error.
+// Not yet identified, so these results are not Excel's bits: the seasonal
+// initial states (forecasts differ by a few percent with Excel's own
+// parameters), the detector's acceptance rule (this one agrees with about 83%
+// of 1,615 probe answers) and the final state adjustment.
+// ---------------------------------------------------------------------------
+
+/// Every (alpha, beta, gamma) Excel 20527 reported in probe_triples (400
+/// random histories with an explicit period, eng21).
+const SEASONAL_PARAMETERS: &[(f64, f64, f64)] = &[
+    (0.002, 0.001, 0.125),
+    (0.002, 0.001, 0.25),
+    (0.002, 0.001, 0.5),
+    (0.002, 0.001, 0.75),
+    (0.126, 0.001, 0.001),
+    (0.126, 0.125, 0.001),
+    (0.166667, 0.0833333, 0.0833333),
+    (0.251, 0.001, 0.001),
+    (0.251, 0.001, 0.25),
+    (0.251, 0.25, 0.25),
+    (0.333333, 0.001, 0.166667),
+    (0.333333, 0.166667, 0.166667),
+    (0.333333, 0.166667, 0.5),
+    (0.5, 0.001, 0.001),
+    (0.5, 0.001, 0.25),
+    (0.5, 0.001, 0.499),
+    (0.5, 0.25, 0.001),
+    (0.5, 0.25, 0.25),
+    (0.5, 0.499, 0.499),
+    (0.501, 0.001, 0.001),
+    (0.501, 0.5, 0.001),
+    (0.666667, 0.001, 0.166667),
+    (0.666667, 0.166667, 0.166667),
+    (0.666667, 0.5, 0.166667),
+    (0.75, 0.001, 0.249),
+    (0.75, 0.749, 0.249),
+    (0.751, 0.001, 0.001),
+    (0.751, 0.75, 0.001),
+    (0.833333, 0.001, 0.0833333),
+    (0.833333, 0.0833333, 0.0833333),
+    (0.833333, 0.75, 0.0833333),
+    (0.9, 0.001, 0.099),
+    (0.9, 0.899, 0.099),
+    (0.998, 0.001, 0.001),
+    (0.998, 0.099, 0.001),
+    (0.998, 0.249, 0.001),
+    (0.998, 0.499, 0.001),
+    (0.998, 0.749, 0.001),
+    (0.998, 0.899, 0.001),
+];
+
+/// Least-squares residuals of the history against its position 1..n.
+fn detrended(y: &[f64]) -> Vec<f64> {
+    let n = y.len() as f64;
+    let mx = (n + 1.0) / 2.0;
+    let my = y.iter().sum::<f64>() / n;
+    let (mut sxy, mut sxx) = (0.0, 0.0);
+    for (i, &v) in y.iter().enumerate() {
+        let dx = i as f64 + 1.0 - mx;
+        sxy += dx * (v - my);
+        sxx += dx * dx;
+    }
+    let slope = if sxx == 0.0 { 0.0 } else { sxy / sxx };
+    y.iter()
+        .enumerate()
+        .map(|(i, &v)| v - (my + slope * (i as f64 + 1.0 - mx)))
+        .collect()
+}
+
+/// The automatic period: the highest autocorrelation peak of the detrended
+/// history over lags 2..=0.4n, accepted above 0.3; otherwise no seasonality.
+fn detect_period(y: &[f64]) -> usize {
+    let n = y.len();
+    let last_lag = (n as f64 * 0.4) as usize;
+    if last_lag < 2 {
+        return 0;
+    }
+    let e = detrended(y);
+    let mean = e.iter().sum::<f64>() / n as f64;
+    let d: Vec<f64> = e.iter().map(|v| v - mean).collect();
+    let denominator: f64 = d.iter().map(|v| v * v).sum();
+    let scale = y.iter().fold(0.0_f64, |m, v| m.max(v.abs()));
+    if denominator == 0.0 || !denominator.is_finite() || denominator.sqrt() <= scale * 1e-12 {
+        return 0;
+    }
+    let r = |k: usize| -> f64 { (0..n - k).map(|i| d[i] * d[i + k]).sum::<f64>() / denominator };
+    if n == 5 {
+        // Measured five-point boundary (eng21 five_quadric: 22 switch points
+        // on 12 residual planes fit one quadric to 7e-7): period two exactly
+        // when the residual periodogram at frequency two exceeds 1.4 times
+        // the one at frequency one.
+        let c1 = r(1) + r(4);
+        let c2 = r(2) + r(3);
+        let (w1, w2) = ((2.0 * std::f64::consts::PI / 5.0).cos(), (4.0 * std::f64::consts::PI / 5.0).cos());
+        let p1 = 1.0 + 2.0 * c1 * w1 + 2.0 * c2 * w2;
+        let p2 = 1.0 + 2.0 * c1 * w2 + 2.0 * c2 * w1;
+        return if p2 > 1.4 * p1 { 2 } else { 0 };
+    }
+    let (mut best, mut chosen) = (f64::NEG_INFINITY, 0);
+    for k in 2..=last_lag {
+        let here = r(k);
+        let right = if k < last_lag { r(k + 1) } else { f64::NEG_INFINITY };
+        if here > r(k - 1) && here >= right && here > best {
+            best = here;
+            chosen = k;
+        }
+    }
+    if best > 0.3 { chosen } else { 0 }
+}
+
+/// Seasonal initial states: least-squares trend over the whole history and
+/// centred phase means of its residuals; the level is the fitted value at
+/// the first observation.
+fn seasonal_initial(y: &[f64], period: usize) -> Initial {
+    let n = y.len();
+    let e = detrended(y);
+    let trend = regression_slope(y);
+    let mut seasons = vec![0.0; period];
+    for (q, season) in seasons.iter_mut().enumerate() {
+        let phase: Vec<f64> = e.iter().skip(q).step_by(period).copied().collect();
+        *season = phase.iter().sum::<f64>() / phase.len() as f64;
+    }
+    let center = seasons.iter().sum::<f64>() / period as f64;
+    for season in &mut seasons {
+        *season -= center;
+    }
+    let my = y.iter().sum::<f64>() / n as f64;
+    let level = my + trend * (1.0 - (n as f64 + 1.0) / 2.0);
+    Initial { level, trend, seasons, period, gamma: 0.0 }
+}
+
+fn seasonal_general(
+    site: &Site<'_>,
+    y: &[f64],
+    period: usize,
+    output: Output,
+    statistic: f64,
+    horizon: f64,
+    confidence: f64,
+) -> Step<CalcValue> {
+    if output == Output::Seasonality {
+        return site.number(period as f64);
+    }
+    let start = y.len() - statistic_window(y.len());
+    let validation = (start != 0).then_some(start);
+    let run = |(alpha, beta, gamma): (f64, f64, f64), validation: Option<usize>| {
+        let initial = Initial { gamma, ..seasonal_initial(y, period) };
+        Model::run_initialized(y, alpha, beta, validation, initial)
+    };
+    let mut best = f64::INFINITY;
+    let mut chosen = SEASONAL_PARAMETERS[0];
+    for &candidate in SEASONAL_PARAMETERS {
+        let score = run(candidate, validation).squared_errors();
+        if score < best {
+            best = score;
+            chosen = candidate;
+        }
+    }
+    let (alpha, beta, gamma) = chosen;
+    let model = run(chosen, None);
+    match output {
+        Output::Statistic => {
+            let statistics = model.statistics(y);
+            finite(site, match statistic as u8 {
+                1 => alpha,
+                2 => beta,
+                3 => gamma,
+                4..=7 => statistics[statistic as usize - 4],
+                _ => unreachable!(),
+            })
+        }
+        Output::Forecast => {
+            if horizon < 0.0 {
+                return Err(unfinished(site));
+            }
+            let phase = ((y.len() - 1) as u64 + horizon as u64) % period as u64;
+            finite(site, model.level + horizon * model.trend + model.seasons[phase as usize])
+        }
+        Output::Confidence => {
+            // Additive-error class-1 variance: one plus the squared sum of the
+            // smoothing weights carried to each intermediate horizon j < h.
+            let h = horizon;
+            let steps = (h - 1.0).max(0.0);
+            let cycles = (steps / period as f64).floor();
+            let p = period as f64;
+            let variance = 1.0
+                + steps * alpha * alpha
+                + 2.0 * alpha * beta * steps * h / 2.0
+                + beta * beta * steps * h * (2.0 * h - 1.0) / 6.0
+                + cycles * gamma * (gamma + 2.0 * alpha)
+                + 2.0 * gamma * beta * p * cycles * (cycles + 1.0) / 2.0;
+            let probability = (1.0 + confidence) / 2.0;
+            let z = if probability == 1.0 {
+                1.0
+            } else {
+                crate::ported::normal_log_family::norm_s_inv_kernel(probability).map_err(Exit::Error)?
+            };
+            finite(site, z * ((model.squared_errors() / y.len() as f64) * variance.max(0.0)).sqrt())
+        }
+        Output::Seasonality => unreachable!(),
+    }
+}
+
+/// Route a history the measured paths refused: the automatic or explicit
+/// period, then the seasonal or nonseasonal general fit.
+fn general(
+    site: &Site<'_>,
+    y: &[f64],
+    season: f64,
+    output: Output,
+    statistic: f64,
+    horizon: f64,
+    confidence: f64,
+) -> Step<CalcValue> {
+    let period = if season == 0.0 || y.len() <= 4 {
+        0
+    } else if season == 1.0 {
+        detect_period(y)
+    } else if season > (y.len() / 2) as f64 {
+        0
+    } else {
+        season as usize
+    };
+    if period >= 2 {
+        seasonal_general(site, y, period, output, statistic, horizon, confidence)
+    } else {
+        nonseasonal_fit(site, y, output, statistic, horizon, confidence, true)
+    }
+}
+
+/// Keep a measured path's answer; where it is not held, calculate generally.
+fn or_general(
+    measured: Step<CalcValue>,
+    general: impl FnOnce() -> Step<CalcValue>,
+) -> Step<CalcValue> {
+    match measured {
+        Err(Exit::Fault(FunctionFault::NotHeld { .. })) => general(),
+        other => other,
     }
 }
 
@@ -1061,6 +1342,21 @@ pub(super) fn evaluate(
 }
 
 fn evaluate_fitted(
+    site: &Site<'_>,
+    series: &Series,
+    output: Output,
+    statistic: f64,
+    confidence: f64,
+    season: f64,
+    horizon: f64,
+) -> Step<CalcValue> {
+    or_general(
+        evaluate_measured(site, series, output, statistic, confidence, season, horizon),
+        || general(site, &series.values, season, output, statistic, horizon, confidence),
+    )
+}
+
+fn evaluate_measured(
     site: &Site<'_>,
     series: &Series,
     output: Output,
