@@ -242,7 +242,8 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
                 title = chart_root.find(f'{C}chart/{C}title')
                 obj['chart_title'] = None if title is None else {
                     'text': [e.text or '' for e in title.iter() if e.tag in (A + 't', C + 'v')],
-                    'formulas': [e.text or '' for e in title.iter(C + 'f')]}
+                    'formulas': [e.text or '' for e in title.iter(C + 'f')],
+                    'font_properties': [tree(e) for e in title.iter() if e.tag in (A + 'defRPr', A + 'rPr')]}
                 legend = chart_root.find(f'{C}chart/{C}legend')
                 obj['chart_legend'] = None if legend is None else tree(legend)
                 settings = chart_root.find(C + 'printSettings')

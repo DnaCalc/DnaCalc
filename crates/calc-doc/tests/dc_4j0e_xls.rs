@@ -2836,6 +2836,51 @@ fn chart_attached_title_binds_after_text_without_changing_series_name() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_title_font_uses_one_based_globals_and_refuses_ambiguous_overrides() {
+    use ptg::*;
+    use xls_kit::art;
+    for linked in [false, true] {
+    for (index, override_record, expected) in [
+        (1u16, None, Some(("Arial", false, false))),
+        (4, None, Some(("Courier New", false, false))),
+        (5, None, Some(("Times New Roman", true, true))),
+        (0, None, None), (6, None, None),
+        (5, Some(0x1026), None), (5, Some(0x1050), None),
+        (5, Some(0x08A5), None), (5, Some(0x08A6), None),
+    ] {
+        let mut chart = art::chart(&[("Sales", Vec::new(), area3d(0, (1, 4), (1, 1), 0))], 0, "Quarterly");
+        if linked {
+            let literal = record(0x1051, &[0, 1, 0, 0, 0, 0, 0, 0]);
+            let at = chart.windows(literal.len()).position(|w| w == literal).unwrap();
+            chart.splice(at..at + literal.len(), art::ai(0, &area3d(0, (0, 0), (0, 0), 0)));
+        }
+        let marker = [record(0x1025, &[0u8; 32]), art::begin()].concat();
+        let at = chart.windows(marker.len()).position(|w| w == marker).unwrap() + marker.len();
+        let mut extra = record(0x1026, &u16s(&[index]));
+        if let Some(id) = override_record { extra.extend(record(id, &u16s(&[index]))); }
+        chart.splice(at..at, extra);
+        let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
+        let globals = [font(200, 0, 0x7FFF, 400, "Arial"), font(200, 0, 0x7FFF, 400, "Arial"),
+            font(200, 0, 0x7FFF, 400, "Arial"), font(200, 0, 0x7FFF, 400, "Courier New"),
+            font(240, 2, 0x7FFF, 700, "Times New Roman"), supbook_self(1), extern_sheet(&[(0, 0, 0)])].concat();
+        let bytes = xls(false, &globals, &[Sheet::worksheet("S", records)]);
+        let loaded = load(&bytes);
+        let chart = &loaded.sheets()[0].charts().charts[0];
+        let style = chart.element_text.get("title");
+        assert_eq!(style.map(|s| (s.family.as_deref().unwrap(), s.bold.unwrap(), s.italic.unwrap())), expected);
+        if expected.is_some() {
+            let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            let reopened = load(&saved);
+            assert_eq!(reopened.sheets()[0].charts().charts[0].element_text.get("title"), style);
+        }
+    }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn chart_numeric_display_cache_survives_conversion() {
     use ptg::*;
     use xls_kit::art;

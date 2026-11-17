@@ -32,6 +32,8 @@ const VALUE_RANGE: u16 = 0x101F;
 const SI_INDEX: u16 = 0x1065;
 const LEGEND: u16 = 0x1015;
 const TEXT: u16 = 0x1025;
+const FONT_X: u16 = 0x1026;
+const AL_RUNS: u16 = 0x1050;
 const OBJECT_LINK: u16 = 0x1027;
 const SERIES_TO_CHART_GROUP: u16 = 0x1045;
 const DATA_FORMAT: u16 = 0x1006;
@@ -150,6 +152,10 @@ pub(crate) struct Chart {
     attached_formula: Option<String>,
     attached_ai_seen: bool,
     attached_invalid: bool,
+    attached_font: Option<(String, bool, bool)>,
+    attached_font_seen: bool,
+    attached_font_invalid: bool,
+    title_font: Option<(String, bool, bool)>,
     seen_chart: bool,
     plot_visible_only: Option<bool>,
     blanks: Option<&'static str>,
@@ -424,6 +430,19 @@ impl Chart {
                 self.attached_formula = None;
                 self.attached_ai_seen = false;
                 self.attached_invalid = false;
+                self.attached_font = None;
+                self.attached_font_seen = false;
+                self.attached_font_invalid = false;
+            }
+            FONT_X if self.stack.last().is_some_and(|code| block_of(*code) == Block::Text) => {
+                if self.attached_font_seen { self.attached_font_invalid = true; }
+                self.attached_font_seen = true;
+                self.attached_font = if code_page.is_none() && record.continues.is_empty() && body.len() == 2 {
+                    styles.chart_title_font(u16::from_le_bytes([body[0], body[1]]))
+                } else { None };
+            }
+            AL_RUNS | 0x08A5 | 0x08A6 if self.stack.last().is_some_and(|code| block_of(*code) == Block::Text) => {
+                self.attached_font_invalid = true;
             }
             LEGEND => {
                 self.legend = true;
@@ -438,6 +457,12 @@ impl Chart {
                     match block_of(code) {
                         Block::Text => {
                             if let Some(link) = self.link {
+                                if link == 1 {
+                                    self.title_font = if !self.seen_title_links.contains(&link)
+                                        && !self.attached_invalid && !self.attached_font_invalid {
+                                        self.attached_font.take()
+                                    } else { None };
+                                }
                                 if !self.seen_title_links.insert(link) {
                                     self.titles.remove(&link);
                                     if link == 1 { self.title_formula = None; }
@@ -612,8 +637,8 @@ impl Chart {
         x.open("c:chart", &[]);
         if self.title_formula.is_some() || self.titles.contains_key(&1) {
             if let Some(formula) = &self.title_formula {
-                linked_title_element(&mut x, formula, self.titles.get(&1).map(String::as_str));
-            } else if let Some(title) = self.titles.get(&1) { title_element(&mut x, title); }
+                linked_title_element(&mut x, formula, self.titles.get(&1).map(String::as_str), self.title_font.as_ref());
+            } else if let Some(title) = self.titles.get(&1) { title_element(&mut x, title, self.title_font.as_ref()); }
             x.empty("c:autoTitleDeleted", &[("val", "0".to_owned())]);
         } else {
             x.empty("c:autoTitleDeleted", &[("val", "1".to_owned())]);
@@ -797,7 +822,7 @@ impl Chart {
                 x.empty("c:delete", &[("val", "0".to_owned())]);
                 x.empty("c:axPos", &[("val", pos.to_owned())]);
                 if let Some(title) = self.titles.get(&title_key) {
-                    title_element(&mut x, title);
+                    title_element(&mut x, title, None);
                 }
                 x.empty("c:crossAx", &[("val", cross.to_owned())]);
                 if let Some(value) = range.and_then(|r| r.major) { x.empty("c:majorUnit", &[("val", crate::xlsb::formula::number_text(value))]); }
@@ -847,7 +872,7 @@ fn grouping(group: &Group, plain: &'static str) -> &'static str {
     }
 }
 
-fn title_element(x: &mut Xml, title: &str) {
+fn title_element(x: &mut Xml, title: &str, font: Option<&(String, bool, bool)>) {
     x.open("c:title", &[]);
     x.open("c:tx", &[]);
     x.open("c:rich", &[]);
@@ -861,10 +886,11 @@ fn title_element(x: &mut Xml, title: &str) {
     x.close("c:rich");
     x.close("c:tx");
     x.empty("c:overlay", &[("val", "0".to_owned())]);
+    title_font_element(x, font);
     x.close("c:title");
 }
 
-fn linked_title_element(x: &mut Xml, formula: &str, cached: Option<&str>) {
+fn linked_title_element(x: &mut Xml, formula: &str, cached: Option<&str>, font: Option<&(String, bool, bool)>) {
     x.open("c:title", &[]); x.open("c:tx", &[]); x.open("c:strRef", &[]);
     x.element("c:f", &[], formula);
     if let Some(cached) = cached {
@@ -872,5 +898,16 @@ fn linked_title_element(x: &mut Xml, formula: &str, cached: Option<&str>) {
         x.open("c:pt", &[("idx", "0".to_owned())]); x.element("c:v", &[], cached);
         x.close("c:pt"); x.close("c:strCache");
     }
-    x.close("c:strRef"); x.close("c:tx"); x.empty("c:overlay", &[("val", "0".to_owned())]); x.close("c:title");
+    x.close("c:strRef"); x.close("c:tx"); x.empty("c:overlay", &[("val", "0".to_owned())]);
+    title_font_element(x, font);
+    x.close("c:title");
+}
+
+fn title_font_element(x: &mut Xml, font: Option<&(String, bool, bool)>) {
+    let Some((face, bold, italic)) = font else { return };
+    x.open("c:txPr", &[]); x.empty("a:bodyPr", &[]); x.empty("a:lstStyle", &[]);
+    x.open("a:p", &[]); x.open("a:pPr", &[]);
+    x.open("a:defRPr", &[("b", u8::from(*bold).to_string()), ("i", u8::from(*italic).to_string())]);
+    x.empty("a:latin", &[("typeface", face.clone())]);
+    x.close("a:defRPr"); x.close("a:pPr"); x.empty("a:endParaRPr", &[]); x.close("a:p"); x.close("c:txPr");
 }

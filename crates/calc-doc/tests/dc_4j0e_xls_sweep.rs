@@ -217,6 +217,12 @@ fn sweep() {
                             .filter(|shape| shape.body.underline).count();
                         println!("drawing shapes with single-underlined first run: {underlined}");
                     }
+                    if std::env::var_os("DNACALC_XLS_AUDIT_CHART_FONT").is_some() {
+                        let count = loaded.sheets().iter().flat_map(|s| &s.charts().charts)
+                            .filter(|chart| chart.element_text.get("title").is_some_and(|style|
+                                style.family.is_some() || style.bold.is_some() || style.italic.is_some())).count();
+                        println!("chart titles with explicit font properties: {count}");
+                    }
                     if std::env::var_os("DNACALC_XLS_AUDIT_NOTE_RUNS").is_some() {
                         let count = loaded.sheets().iter().flat_map(|s| &s.review().notes)
                             .filter(|note| !note.spans.is_empty()).count();

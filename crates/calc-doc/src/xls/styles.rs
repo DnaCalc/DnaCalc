@@ -341,6 +341,15 @@ impl Styles {
             && !font.name.chars().any(|c| c.is_control() || matches!(c, '\u{fffd}' | '\u{fffe}' | '\u{ffff}'))).then_some(font.name.as_str())
     }
 
+    /// FontX uses a one-based index into workbook Font records, unlike FontIndex.
+    pub(crate) fn chart_title_font(&self, index: u16) -> Option<(String, bool, bool)> {
+        let zero_based = index.checked_sub(1)?;
+        let ifnt = if zero_based >= 4 { zero_based.checked_add(1)? } else { zero_based };
+        let ((_, bold, italic, _), _, underline) = self.drawing_rich_font(ifnt)?;
+        if underline { return None; }
+        Some((self.drawing_latin_face(ifnt)?.to_owned(), bold, italic))
+    }
+
     /// Single underline is the only BIFF underline represented by the shape model.
     pub(crate) fn drawing_single_underline(&self, ifnt: u16) -> Option<bool> {
         if ifnt == 4 { return None; }

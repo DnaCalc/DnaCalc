@@ -350,7 +350,12 @@ try {
                 $dataSheet.Range('D1').Value2 = 'Controlled linked title'
                 $linkedChart = $sheet.ChartObjects('cxCacheChart').Chart
                 $linkedChart.HasTitle = $true; $linkedChart.ChartTitle.Formula = '=ChartSource!$D$1'
-                @{formula=[string]$linkedChart.ChartTitle.Formula; text=[string]$linkedChart.ChartTitle.Text}
+                $linkedChart.ChartTitle.Font.Name = 'Arial'
+                $linkedChart.ChartTitle.Font.Bold = $true
+                $linkedChart.ChartTitle.Font.Italic = $true
+                @{formula=[string]$linkedChart.ChartTitle.Formula; text=[string]$linkedChart.ChartTitle.Text;
+                  font_name=[string]$linkedChart.ChartTitle.Font.Name; bold=$linkedChart.ChartTitle.Font.Bold;
+                  italic=$linkedChart.ChartTitle.Font.Italic}
             }
             $entry.setup.chart_series_fill = GetOrError {
                 $series = $sheet.ChartObjects('cxCacheChart').Chart.SeriesCollection(1)
