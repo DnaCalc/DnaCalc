@@ -132,10 +132,14 @@ pub(crate) struct Chart {
     series: Vec<Series>,
     legend: bool,
     titles: BTreeMap<u16, String>,
+    title_formula: Option<String>,
+    seen_title_links: std::collections::BTreeSet<u16>,
     stack: Vec<u8>,
     pending: Option<u8>,
     link: Option<u16>,
     attached_text: Option<String>,
+    attached_formula: Option<String>,
+    attached_ai_seen: bool,
     attached_invalid: bool,
     seen_chart: bool,
     plot_visible_only: Option<bool>,
@@ -382,6 +386,8 @@ impl Chart {
                 self.pending = Some(block_code(Block::Text));
                 self.link = None;
                 self.attached_text = None;
+                self.attached_formula = None;
+                self.attached_ai_seen = false;
                 self.attached_invalid = false;
             }
             LEGEND => {
@@ -396,11 +402,22 @@ impl Chart {
                 if let Some(code) = self.stack.pop() {
                     match block_of(code) {
                         Block::Text => {
-                            if !self.attached_invalid && let (Some(link), Some(text)) = (self.link, self.attached_text.take()) {
-                                self.titles.insert(link, text);
+                            if let Some(link) = self.link {
+                                if !self.seen_title_links.insert(link) {
+                                    self.titles.remove(&link);
+                                    if link == 1 { self.title_formula = None; }
+                                } else if !self.attached_invalid && let Some(formula) = self.attached_formula.take() {
+                                    if link == 1 {
+                                        self.title_formula = Some(formula);
+                                        if let Some(text) = self.attached_text.take() { self.titles.insert(link, text); }
+                                    }
+                                } else if !self.attached_invalid && let Some(text) = self.attached_text.take() {
+                                    self.titles.insert(link, text);
+                                }
                             }
                             self.link = None;
                             self.attached_text = None;
+                            self.attached_formula = None;
                         }
                         Block::Axis => self.axis_index = None,
                         Block::AxisParent => self.primary_axis_group = false,
@@ -483,9 +500,12 @@ impl Chart {
                     .flatten()
                     .and_then(print);
                 if self.stack.iter().any(|c| block_of(*c) == Block::Text) {
-                    // A linked attached label is not a literal chart title and its formula is
-                    // not a series formula. Leave it unconverted until title links are modeled.
-                    if reference_type == 2 && count > 0 { self.attached_invalid = true; }
+                    if self.attached_ai_seen { self.attached_invalid = true; }
+                    self.attached_ai_seen = true;
+                    if reference_type == 2 && count > 0 {
+                        if id == 0 && formula.is_some() { self.attached_formula = formula; }
+                        else { self.attached_invalid = true; }
+                    }
                 } else if let Some(s) = self.series.last_mut() {
                     match id {
                         0 => s.title_formula = formula,
@@ -549,8 +569,10 @@ impl Chart {
             ],
         );
         x.open("c:chart", &[]);
-        if let Some(title) = self.titles.get(&1) {
-            title_element(&mut x, title);
+        if self.title_formula.is_some() || self.titles.contains_key(&1) {
+            if let Some(formula) = &self.title_formula {
+                linked_title_element(&mut x, formula, self.titles.get(&1).map(String::as_str));
+            } else if let Some(title) = self.titles.get(&1) { title_element(&mut x, title); }
             x.empty("c:autoTitleDeleted", &[("val", "0".to_owned())]);
         } else {
             x.empty("c:autoTitleDeleted", &[("val", "1".to_owned())]);
@@ -793,4 +815,15 @@ fn title_element(x: &mut Xml, title: &str) {
     x.close("c:tx");
     x.empty("c:overlay", &[("val", "0".to_owned())]);
     x.close("c:title");
+}
+
+fn linked_title_element(x: &mut Xml, formula: &str, cached: Option<&str>) {
+    x.open("c:title", &[]); x.open("c:tx", &[]); x.open("c:strRef", &[]);
+    x.element("c:f", &[], formula);
+    if let Some(cached) = cached {
+        x.open("c:strCache", &[]); x.empty("c:ptCount", &[("val", "1".to_owned())]);
+        x.open("c:pt", &[("idx", "0".to_owned())]); x.element("c:v", &[], cached);
+        x.close("c:pt"); x.close("c:strCache");
+    }
+    x.close("c:strRef"); x.close("c:tx"); x.empty("c:overlay", &[("val", "0".to_owned())]); x.close("c:title");
 }
