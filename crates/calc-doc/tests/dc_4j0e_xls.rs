@@ -3080,16 +3080,64 @@ fn chart_unambiguous_series_value_labels_survive_save() {
         let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
         let check = |doc: &calc_doc::OpenedDocument| {
             let chart = String::from_utf8(doc.package().read_part("xl/charts/chart1_1.xml").unwrap()).unwrap();
-            assert_eq!(chart.contains("<c:dLbls><c:showVal val=\"1\"/></c:dLbls>"), expected, "{chart}");
+            assert_eq!(chart.contains("<c:showVal val=\"1\"/>"), expected, "{chart}");
             if fill { assert!(chart.contains("<a:srgbClr val=\"FF0000\"/>"), "{chart}"); }
         };
         check(&doc);
         if expected {
-            let _loaded = load(&bytes);
+            let loaded = load(&bytes);
+            let plot = &loaded.sheets()[0].charts().charts[0].plots[0];
+            assert_eq!(if group { plot.show_values } else { plot.series[0].show_values }, Some(true));
+            assert!(if group { plot.value_labels_source_linked } else { plot.series[0].value_labels_source_linked });
             let mut saved = Vec::new();
             calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
             check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
         }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_value_label_source_link_requires_brai_linked_format() {
+    use ptg::*;
+    use xls_kit::art;
+    for (flags, group_default, global_case, linked) in [
+        (0u16, false, 0u8, true), (1, false, 0, false), (2, false, 0, false),
+        (0, true, 0, false), (0, false, 1, false), (0, false, 2, false),
+    ] {
+        let tokens = area3d(0, (1, 4), (1, 1), 0);
+        let mut chart = art::chart(&[("Sales", Vec::new(), tokens.clone())], 0, "Title");
+        let ai = art::ai(1, &tokens);
+        let at = chart.windows(ai.len()).position(|w| w == ai).unwrap();
+        chart[at + 6..at + 8].copy_from_slice(&flags.to_le_bytes());
+        let anchor = record(0x1045, &u16s(&[0]));
+        let at = chart.windows(anchor.len()).position(|w| w == anchor).unwrap() + anchor.len();
+        chart.splice(at..at, [record(0x1006, &u16s(&[0xffff, 0, 0, 0])), art::begin(),
+            record(0x100C, &u16s(&[1])), art::end()].concat());
+        if group_default {
+            let bar = record(0x1017, &u16s(&[0, 150, 0]));
+            let at = chart.windows(bar.len()).position(|w| w == bar).unwrap();
+            chart.splice(at..at, record(0x1024, &u16s(&[0])));
+        }
+        if global_case == 1 {
+            let format = record(0x1014, &[0u8; 20]);
+            let at = chart.windows(format.len()).position(|w| w == format).unwrap();
+            chart.splice(at..at, [record(0x1024, &u16s(&[2])), record(0x1025, &[0u8; 32]), art::begin(),
+                record(0x104F, &[0u8; 20]), record(0x1026, &u16s(&[1])),
+                record(0x1051, &[0, 1, 1, 0, 0, 0, 0, 0]), art::end()].concat());
+        }
+        if global_case == 2 {
+            let format = record(0x1014, &[0u8; 20]);
+            let at = chart.windows(format.len()).position(|w| w == format).unwrap();
+            chart.splice(at..at, record(0x1024, &[2]));
+        }
+        let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
+        let globals = [supbook_self(1), extern_sheet(&[(0, 0, 0)])].concat();
+        let bytes = xls(false, &globals, &[Sheet::worksheet("S", records)]);
+        let loaded = load(&bytes);
+        let series = &loaded.sheets()[0].charts().charts[0].plots[0].series[0];
+        assert_eq!(series.show_values, Some(true));
+        assert_eq!(series.value_labels_source_linked, linked);
     }
 }
 

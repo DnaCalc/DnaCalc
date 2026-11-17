@@ -74,6 +74,9 @@ struct Series {
     title: Option<String>,
     title_formula: Option<String>,
     values: Option<String>,
+    value_format_seen: bool,
+    value_format_invalid: bool,
+    value_format_linked: bool,
     categories: Option<String>,
     category_type: Option<u16>,
     category_count: Option<u16>,
@@ -188,6 +191,7 @@ pub(crate) struct Chart {
     data_format: Option<SeriesFormat>,
     auxiliary_series: bool,
     data_labels_ambiguous: bool,
+    label_format_ambiguous: bool,
     print_header: Option<Vec<u16>>,
     print_footer: Option<Vec<u16>>,
     print_header_seen: bool,
@@ -221,6 +225,10 @@ impl Chart {
     pub(crate) fn read(&mut self, record: &Record<'_>, print: &dyn Fn(&[u8]) -> Option<String>,
         code_page: Option<u16>, styles: &super::styles::Styles, embedded: bool) {
         let body = record.body;
+        if record.id == DEFAULT_TEXT && self.stack.len() != 1 {
+            // Group-level default labels can carry their own number format.
+            self.label_format_ambiguous = true;
+        }
         if self.pending_default_font.is_some() && record.id != TEXT {
             self.pending_default_font = None;
             self.default_font_invalid = true;
@@ -667,6 +675,9 @@ impl Chart {
                         self.default_font_ai_valid = body.len() == 8 && record.continues.is_empty()
                             && id == 0 && reference_type == 1 && count == 0
                             && self.default_font_pos_seen && self.attached_font_seen;
+                        if u16::from_le_bytes([body[2], body[3]]) & 1 != 0 {
+                            self.label_format_ambiguous = true;
+                        }
                     }
                     if self.attached_ai_seen { self.attached_invalid = true; }
                     self.attached_ai_seen = true;
@@ -677,7 +688,14 @@ impl Chart {
                 } else if let Some(s) = self.series.last_mut() {
                     match id {
                         0 => s.title_formula = formula,
-                        1 => s.values = formula,
+                        1 => {
+                            if s.value_format_seen { s.value_format_invalid = true; }
+                            s.value_format_seen = true;
+                            s.value_format_linked = !s.value_format_invalid && reference_type == 2
+                                && formula.is_some() && record.continues.is_empty() && body.len() == 8 + count
+                                && u16::from_le_bytes([body[2], body[3]]) == 0;
+                            s.values = formula;
+                        }
                         2 => s.categories = formula,
                         _ => {}
                     }
@@ -767,6 +785,8 @@ impl Chart {
             if members.is_empty() {
                 continue;
             }
+            let group_source_linked = !self.label_format_ambiguous && !self.default_font_invalid
+                && members.iter().all(|(_, series)| series.value_format_linked);
             let (name, plain_axes) = match group.kind {
                 Kind::Bar => ("c:barChart", true),
                 Kind::Line => ("c:lineChart", true),
@@ -825,7 +845,7 @@ impl Chart {
                     x.close("a:solidFill"); x.close("a:ln"); x.close("c:spPr");
                 }
                 if !self.data_labels_ambiguous && !self.auxiliary_series && series.show_values && !group.show_values {
-                    x.open("c:dLbls", &[]); x.empty("c:showVal", &[("val", "1".to_owned())]); x.close("c:dLbls");
+                    value_labels_element(&mut x, !self.label_format_ambiguous && !self.default_font_invalid && series.value_format_linked);
                 }
                 let (category_tag, value_tag) = if group.kind == Kind::Scatter {
                     ("c:xVal", "c:yVal")
@@ -887,7 +907,7 @@ impl Chart {
                 x.close("c:ser");
             }
             if !self.data_labels_ambiguous && !self.auxiliary_series && group.show_values {
-                x.open("c:dLbls", &[]); x.empty("c:showVal", &[("val", "1".to_owned())]); x.close("c:dLbls");
+                value_labels_element(&mut x, group_source_linked);
             }
             if group.kind == Kind::Bar {
                 if let Some(gap) = group.gap { x.empty("c:gapWidth", &[("val", gap.to_string())]); }
@@ -979,6 +999,15 @@ fn grouping(group: &Group, plain: &'static str) -> &'static str {
     } else {
         plain
     }
+}
+
+fn value_labels_element(x: &mut Xml, source_linked: bool) {
+    x.open("c:dLbls", &[]);
+    if source_linked {
+        x.empty("c:numFmt", &[("formatCode", "General".to_owned()), ("sourceLinked", "1".to_owned())]);
+    }
+    x.empty("c:showVal", &[("val", "1".to_owned())]);
+    x.close("c:dLbls");
 }
 
 fn title_element(x: &mut Xml, title: &str, font: Option<&(String, bool, bool)>) {

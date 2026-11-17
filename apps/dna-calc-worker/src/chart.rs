@@ -732,6 +732,7 @@ fn category_marks(
         y1 - y0
     );
     let zero = value_at(0.0_f64.clamp(min, max));
+    let mut data_labels = String::new();
     match plot.kind {
         ChartKind::Column | ChartKind::Bar => {
             // Excel's default gap between categories is 150% of a bar.
@@ -772,6 +773,15 @@ fn category_marks(
                     );
                     mark(svg, i + offset, j, v);
                     svg.push_str("/>");
+                    if let Some(Some(label)) = series.value_labels.get(j) {
+                        if horizontal {
+                            let (x, anchor) = if v >= 0. { (to - 4., "end") } else { (to + 4., "start") };
+                            let _ = write!(data_labels, "<text data-dnacalc=\"chart-value-label\" data-series=\"{}\" data-point=\"{j}\" x=\"{x:.1}\" y=\"{:.1}\" text-anchor=\"{anchor}\" fill=\"{AXIS}\">{}</text>", i + offset, y + h / 2. + 4., escape(label));
+                        } else {
+                            let y = if v >= 0. { to + 12. } else { to - 4. };
+                            let _ = write!(data_labels, "<text data-dnacalc=\"chart-value-label\" data-series=\"{}\" data-point=\"{j}\" x=\"{:.1}\" y=\"{y:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">{}</text>", i + offset, x + w / 2., escape(label));
+                        }
+                    }
                 }
             }
         }
@@ -840,6 +850,9 @@ fn category_marks(
                     );
                     mark(&mut shapes, i, j, v);
                     shapes.push_str("/>");
+                    if plot.kind == ChartKind::Line && let Some(Some(label)) = series.value_labels.get(j) {
+                        let _ = write!(data_labels, "<text data-dnacalc=\"chart-value-label\" data-series=\"{i}\" data-point=\"{j}\" x=\"{x:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">{}</text>", y - 4., escape(label));
+                    }
                     if plot.stacked {
                         base[j] += v;
                     }
@@ -864,6 +877,7 @@ fn category_marks(
         }
     }
     svg.push_str("</svg>");
+    svg.push_str(&data_labels);
 }
 
 /// A pie's or doughnut's slices: the first series' positive values, clockwise from twelve.
@@ -1065,6 +1079,16 @@ mod tests {
             assert!(svg.contains("data-point=\"0\""), "{}: {svg}", chart.name);
             assert!(!svg.contains("chart-cache"));
         }
+        let mut labelled = charts[0].clone();
+        labelled.plots[0].series[0].value_labels = vec![Some("12 & units".into())];
+        let svg = chart_svg(&labelled, 600., 350.);
+        assert!(svg.contains("data-dnacalc=\"chart-value-label\""));
+        assert!(svg.contains("12 &amp; units"));
+        let mut line = charts[2].clone();
+        line.plots[0].series[0].value_labels = vec![Some("20.00".into())];
+        let svg = chart_svg(&line, 600., 350.);
+        assert!(svg.contains("data-dnacalc=\"chart-value-label\""));
+        assert!(svg.contains("20.00"));
         let mut cached = charts[0].clone();
         cached.plots[0].series[0].cached = true;
         assert!(chart_svg(&cached, 600., 350.).contains("Includes saved chart values"));
