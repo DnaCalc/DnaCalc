@@ -231,6 +231,10 @@ try {
                 }
             )
             $entry.setup.page = GetOrError { $sheet.PageSetup.Orientation = 2; $sheet.PageSetup.PrintArea = '$A$1:$D$5'; $sheet.PageSetup.Orientation }
+            $entry.setup.print_comments = GetOrError {
+                $sheet.PageSetup.PrintComments = 16
+                @{mode=$sheet.PageSetup.PrintComments}
+            }
             $entry.setup.header_picture = GetOrError {
                 $picture = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../crates/calc-doc/tests/fixtures/drawing/pictures/card.png'))
                 $sheet.PageSetup.LeftHeaderPicture.Filename = $picture

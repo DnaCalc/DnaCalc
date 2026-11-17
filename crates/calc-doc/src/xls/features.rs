@@ -96,6 +96,7 @@ pub(crate) struct Features {
     scenarios: bool,
     password: Option<u16>,
     setup: Option<[u16; 6]>,
+    setup_printer: Option<(u16, u16, Option<u16>)>,
     chart_setup: Option<[u8; 34]>,
     setup_numbers: Option<(f64, f64)>,
     margins: [Option<f64>; 4],
@@ -286,10 +287,13 @@ impl Features {
                 for item in &mut v {
                     *item = c.u16("Setup").map_err(e)?;
                 }
-                c.skip(4, "Setup").map_err(e)?;
+                let horizontal = c.u16("Setup").map_err(e)?;
+                let vertical = c.u16("Setup").map_err(e)?;
                 self.setup = Some(v);
                 self.setup_numbers = Some((c.f64("Setup").map_err(e)?, c.f64("Setup").map_err(e)?));
-                // Resolution, copies, comment placement and error display are not all retained.
+                let copies = if c.remaining() >= 2 { Some(c.u16("Setup").map_err(e)?) } else { None };
+                self.setup_printer = Some((horizontal, vertical, copies));
+                // Other page setup and printer-specific details are not all retained.
                 return Ok(false);
             }
             LEFT_MARGIN => self.margins[0] = Some(c.f64("LeftMargin").map_err(e)?),
@@ -844,7 +848,7 @@ impl Features {
             } else {
                 a.push(("usePrinterDefaults", "1".to_owned()));
             }
-            if flags & 0x0080 != 0 {
+            if flags & 0x0080 != 0 && (first_page as i16) > 0 {
                 a.push(("firstPageNumber", first_page.to_string()));
                 a.push(("useFirstPageNumber", "1".to_owned()));
             }
@@ -862,6 +866,11 @@ impl Features {
                     "orientation",
                     if flags & 0x0040 != 0 || flags & 0x0002 != 0 { "portrait" } else { "landscape" }.to_owned(),
                 ));
+                if let Some((horizontal, vertical, copies)) = self.setup_printer {
+                    if horizontal != 0 { a.push(("horizontalDpi", horizontal.to_string())); }
+                    if vertical != 0 { a.push(("verticalDpi", vertical.to_string())); }
+                    if let Some(copies) = copies.filter(|n| *n != 0) { a.push(("copies", copies.to_string())); }
+                }
             }
             if flags & 0x0008 != 0 {
                 a.push(("blackAndWhite", "1".to_owned()));
@@ -870,7 +879,10 @@ impl Features {
                 a.push(("draft", "1".to_owned()));
             }
             if flags & 0x0020 != 0 {
-                a.push(("cellComments", "atEnd".to_owned()));
+                a.push(("cellComments", if flags & 0x0200 != 0 { "atEnd" } else { "asDisplayed" }.to_owned()));
+            }
+            if let Some(errors) = [None, Some("blank"), Some("dash"), Some("NA")][usize::from((flags >> 10) & 3)] {
+                a.push(("errors", errors.to_owned()));
             }
             if let Some(id) = printer_id { a.push(("r:id", id.to_owned())); }
             x.empty("pageSetup", &a);

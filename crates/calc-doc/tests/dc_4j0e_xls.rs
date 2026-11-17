@@ -1921,6 +1921,31 @@ fn setup_ignores_undefined_printer_values_and_respects_no_orientation() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn setup_retains_resolution_copies_comment_and_error_print_modes() {
+    for (flags, comments, errors, printer) in [(0x0420, "asDisplayed", "blank", true),
+        (0x0a20, "atEnd", "dash", true), (0x0c24, "asDisplayed", "NA", false)] {
+        let mut setup = u16s(&[9, 100, 1, 1, 1, flags, 300, 600]);
+        setup.extend(0.25_f64.to_le_bytes()); setup.extend(0.25_f64.to_le_bytes());
+        setup.extend(3u16.to_le_bytes());
+        let bytes = xls(false, &[], &[Sheet::worksheet("S", record(0xa1, &setup))]);
+        let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let check = |doc: &calc_doc::OpenedDocument| {
+            let sheet = String::from_utf8(doc.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+            assert!(sheet.contains(&format!("cellComments=\"{comments}\"")), "{sheet}");
+            assert!(sheet.contains(&format!("errors=\"{errors}\"")), "{sheet}");
+            for attr in ["horizontalDpi=\"300\"", "verticalDpi=\"600\"", "copies=\"3\""] {
+                assert_eq!(sheet.contains(attr), printer, "{sheet}");
+            }
+        };
+        check(&doc);
+        let mut saved = Vec::new();
+        calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+        check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn file_moniker_keeps_unicode_path_and_location() {
     let records = [hlink_file((0, 0), "book.xls", None, "Sheet1!A1"),
         hlink_file((1, 0), "book.xls", Some("資料.xls"), "Sheet2!B2")].concat();

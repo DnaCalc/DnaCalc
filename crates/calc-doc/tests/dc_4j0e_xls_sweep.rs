@@ -55,6 +55,8 @@ fn sweep() {
     let audit_filter_mode = std::env::var_os("DNACALC_XLS_AUDIT_FILTER_MODE").is_some();
     let (mut filter_modes, mut filter_mode_files) = (0usize, 0usize);
     let audit_chart_print = std::env::var_os("DNACALC_XLS_AUDIT_CHART_PRINT").is_some();
+    let audit_page_setup = std::env::var_os("DNACALC_XLS_AUDIT_PAGE_SETUP").is_some();
+    let mut page_setup_fields = [0usize; 7];
     let (mut chart_print_texts, mut chart_print_files) = (0usize, 0usize);
     let (mut chart_print_setups, mut chart_print_setup_files) = (0usize, 0usize);
     let (mut core_files, mut core_titles, mut core_authors, mut core_modifiers) = (0usize, 0usize, 0usize, 0usize);
@@ -140,6 +142,23 @@ fn sweep() {
                         setups + usize::from(xml.windows(10).any(|w| w == b"<pageSetup")))))
                     .unwrap_or((0, 0))
             } else { (0, 0) };
+            let written_page_setup = if audit_page_setup {
+                document.as_ref().ok().map(|doc| {
+                    let mut counts = [0usize; 7];
+                    for part in doc.package().parts().iter().filter(|part|
+                        part.name().starts_with("xl/worksheets/sheet") && part.name().ends_with(".xml")) {
+                        let Ok(xml) = doc.package().read_part(part.name()) else { continue };
+                        let text = String::from_utf8_lossy(&xml);
+                        for setup in text.split("<pageSetup").skip(1).filter_map(|s| s.split('>').next()) {
+                            for (index, field) in ["horizontalDpi=", "verticalDpi=", "copies=", "cellComments=", "errors=",
+                                "cellComments=\"asDisplayed\"", "cellComments=\"atEnd\""].iter().enumerate() {
+                                counts[index] += usize::from(setup.contains(field));
+                            }
+                        }
+                    }
+                    counts
+                }).unwrap_or([0; 7])
+            } else { [0; 7] };
             let written_phonetic = if audit_phonetic {
                 document.as_ref().ok().and_then(|doc| {
                     if doc.package().part("xl/sharedStrings.xml").is_none() { return Some((0, 0)); }
@@ -194,11 +213,11 @@ fn sweep() {
                     (formulas, failed, caches, saved_records, points, categories, fills, lines)
                 })
             });
-            (report, document.map(|_| ()), load, written_phonetic, written_chart_sheets, core, app, custom, written_scenarios, written_filter_modes, written_chart_print)
+            (report, document.map(|_| ()), load, written_phonetic, written_chart_sheets, core, app, custom, written_scenarios, written_filter_modes, written_chart_print, written_page_setup)
         }));
         match result {
             Err(_) => panics.push(file.display().to_string()),
-            Ok((report, document, load, written_phonetic, written_chart_sheets, core, app, custom, written_scenarios, written_filter_modes, written_chart_print)) => {
+            Ok((report, document, load, written_phonetic, written_chart_sheets, core, app, custom, written_scenarios, written_filter_modes, written_chart_print, written_page_setup)) => {
                 match document {
                     Err(OpenError::LegacyWorkbook { detail, .. }) => {
                         let key = detail.chars().take(70).collect::<String>();
@@ -235,6 +254,7 @@ fn sweep() {
                         chart_sheet_files += usize::from(written_chart_sheets.0 != 0);
                         chart_setups += written_chart_sheets.1;
                         chart_setup_files += usize::from(written_chart_sheets.1 != 0);
+                        for (total, value) in page_setup_fields.iter_mut().zip(written_page_setup) { *total += value; }
                         if let Some((runs, formats)) = written_phonetic {
                             phonetic_runs += runs;
                             phonetic_files += usize::from(runs != 0);
@@ -308,6 +328,11 @@ fn sweep() {
     if audit_chart_sheets {
         println!("chart sheets with a linked chart: {chart_sheets} in {chart_sheet_files} files (partial chart conversion, not an Excel match verdict)");
         println!("chart sheets with partial print setup: {chart_setups} in {chart_setup_files} files (not an Excel match verdict)");
+    }
+    if audit_page_setup {
+        println!("worksheet page setup fields: horizontal DPI {}, vertical DPI {}, copies {}, comment mode {}, error mode {} (not an Excel match verdict)",
+            page_setup_fields[0], page_setup_fields[1], page_setup_fields[2], page_setup_fields[3], page_setup_fields[4]);
+        println!("worksheet comment printing: as displayed {}, at end {} (not an Excel match verdict)", page_setup_fields[5], page_setup_fields[6]);
     }
     if audit_core {
         println!("core metadata parts: {core_files} files; title {core_titles}, author {core_authors}, last saved by {core_modifiers}, created {core_created}, modified {core_modified}, category {core_categories} (not an Excel match verdict)");
