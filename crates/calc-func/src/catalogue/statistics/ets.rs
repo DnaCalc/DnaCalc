@@ -991,21 +991,14 @@ fn detrended(y: &[f64]) -> Vec<f64> {
         .collect()
 }
 
-/// The automatic period (eng22, Touchstone probes of Excel 20527; this is
-/// closer to Excel than the plain autocorrelation peak it replaces but is not
-/// yet Excel's exact rule):
-/// - the residuals of the least-squares line (any linear trend is invisible);
-/// - the strongest DFT bin k >= 1 of the residuals; its candidate lags are the
-///   integers strictly between n/(k+1) and n/(k-1), up to floor(n/2.5), and the
-///   period is the one with the largest unbiased autocorrelation (an empty
-///   range takes n/k rounded half down);
-/// - a lower-frequency second bin (the strongest local maximum below k-1)
-///   with more than a quarter of bin k's power gives a second candidate the
-///   same way, taken when its unbiased autocorrelation is higher;
-/// - accepted when the plain autocorrelation at that lag is at least 0.3.
-/// Measured agreement: 645 of 782 corpus readings (was 503, none lost), 1,491
-/// of 1,801 random probes (was 1,417), 91% of 14,835 single-sinusoid and 75%
-/// of 16,240 two-sinusoid readings (eng22 report).
+/// The automatic period of FORECAST.ETS.SEASONALITY and seasonality 1.
+/// eng24 (Touchstone boundary probes of Excel 20527): a dominant-bin test on
+/// the tapered periodogram of the least-squares residuals (see the block
+/// below); from 17 points longer bin periods take their lag from the unbiased
+/// autocorrelation; without a dominant bin a fallback keeps some candidates of
+/// eng22's detector (strongest bin, its lag range, a competing lower bin).
+/// Exact at n = 5..10 on every probe; the lag choice and the fallback are
+/// fitted, not Excel's identified rule.
 fn detect_period(y: &[f64]) -> usize {
     let n = y.len();
     let last_lag = 2 * n / 5;
@@ -1067,27 +1060,41 @@ fn detect_period(y: &[f64]) -> usize {
             chosen
         }
     };
-    let mut fallback: Option<f64> = None;
-    if n <= 23 {
-        // Six to twenty-three observations (eng24, Touchstone boundary probes of
-        // Excel 20527): the strongest bin k of the residual periodogram gives
-        // the period n/k rounded half down, refused above floor(n/2.5); it is
+    let fallback: f64;
+    {
+        // The automatic period (eng24, Touchstone boundary probes of Excel
+        // 20527): the strongest bin k of the residual periodogram gives the
+        // period n/k rounded half down, refused above floor(n/2.5); it is
         // accepted exactly when that bin's power is at least 2 - 3/n times
-        // the next strongest bin's. From ten observations the periodogram
-        // weights the first and last residual by one half (recovered from the
-        // quadric boundaries at n = 10: end weight 0.500000, fit 5e-13).
-        // Every bisected boundary at n = 6..12 (3,320 points) sits at that
-        // ratio to 1e-6; random histories agree 40,000 of 40,000 at n = 6, 7
-        // and 10, and 96-99% at n = 11..16, where an autocorrelation route
-        // accepts a few more (the fallback below). eng21's five-point rule above is the same test
-        // (2 - 3/5 = 1.4).
+        // the next strongest bin's. The periodogram tapers floor(n/10) points
+        // at each end by 0.5 (1 - cos(pi (j + 1/2) / L)) (none below ten
+        // points; 1/2 for ten to nineteen; 0.146447, 0.853553 from twenty),
+        // recovered from the quadric decision boundaries at n = 10 and 20
+        // (fit 5e-13, 1e-12); the boundary sets at n = 6..12, 17..20, 24, 36,
+        // 48 sit at that ratio to 1e-6 where no autocorrelation choice is
+        // involved. Random histories agree 40,000 of 40,000 at n = 6, 7 and
+        // 10, 96-99% at n = 11..17, 96% at n = 20 and 23. eng21's five-point
+        // rule above is the same test (2 - 3/5 = 1.4).
         let weighted: Vec<f64>;
+        let ends = n / 10;
+        let taper: Vec<f64> = (0..n)
+            .map(|t| {
+                let j = t.min(n - 1 - t);
+                if j >= ends {
+                    1.0
+                } else if ends == 1 {
+                    0.5
+                } else {
+                    0.5 * (1.0 - (std::f64::consts::PI * (j as f64 + 0.5) / ends as f64).cos())
+                }
+            })
+            .collect();
         let power = if n >= 10 {
             weighted = (0..=n / 2)
                 .map(|k| {
                     let (mut re, mut im) = (0.0, 0.0);
                     for (t, &v) in e.iter().enumerate() {
-                        let w = if t == 0 || t == n - 1 { 0.5 * v } else { v };
+                        let w = v * taper[t];
                         let angle = -2.0 * std::f64::consts::PI * ((k * t) % n) as f64 / n as f64;
                         re += w * angle.cos();
                         im += w * angle.sin();
@@ -1108,13 +1115,13 @@ fn detect_period(y: &[f64]) -> usize {
         let second = (1..power.len()).filter(|&k| k != top).map(|k| power[k]).fold(0.0_f64, f64::max);
         let dominant = power[top] >= (2.0 - 3.0 / n as f64) * second;
         if dominant && n >= 17 && n as f64 / top as f64 > 5.25 {
-            // Seventeen to twenty-three observations, a bin period above
-            // 5.25: the lag is the unbiased-autocorrelation maximum among
+            // From seventeen observations, a bin period above 5.25: the lag is the unbiased-autocorrelation maximum among
             // the lags strictly between n/(k+1) and n/(k-1), kept when that
             // autocorrelation is at least 0.45 (the value at the measured
-            // boundaries). The 5.25 split is fitted (eng24 hyb5.py): random
-            // histories at n = 17, 20, 23 agree 97%, 90%, 91% (the earlier
-            // rule 78-80%), sinusoid maps 545 of 620 (511).
+            // boundaries). The 5.25 split is fitted (eng24 hyb5.py, eval24.py):
+            // random histories at n = 17, 20, 23 agree 97%, 96%, 96% (the
+            // earlier rule 78-80%), sinusoid maps from 17 points 7,568 of
+            // 8,476 (7,354), eng21 probes 1,143 of 1,337 (1,080).
             let chosen = lags_of(top);
             if chosen != 0 {
                 return if unbiased(chosen) >= 0.45 { chosen } else { 0 };
@@ -1128,7 +1135,7 @@ fn detect_period(y: &[f64]) -> usize {
         if n <= 10 {
             return 0;
         }
-        fallback = Some(if n <= 16 { 0.6 } else { 0.45 });
+        fallback = if n <= 16 { 0.6 } else { 0.45 };
     }
     let mut top = 1;
     for k in 2..power.len() {
@@ -1159,19 +1166,16 @@ fn detect_period(y: &[f64]) -> usize {
             }
         }
     };
-    if let Some(threshold) = fallback {
-        // Eleven to sixteen observations without a dominant bin: Excel still
-        // accepts some periods of four or more with a high autocorrelation
-        // (boundary probes put the unbiased autocorrelation at 0.45 where it
-        // decides, but the candidate it is applied to is not identified).
-        // This keeps the candidate above when it is at least 4 with unbiased
-        // autocorrelation >= 0.6 (n <= 16, a fitted value: against 'never'
-        // it gains 2 corpus readings, 14 of 316 eng21 probes and 7 of 358
-        // sinusoid map readings, and is level on 40,000 random histories;
-        // eng24 fb5.py) or >= 0.45 (n = 17..23, hyb5.py).
-        return if chosen >= 4 && unbiased(chosen) >= threshold { chosen } else { 0 };
-    }
-    if r(chosen) >= 0.3 { chosen } else { 0 }
+    // Eleven or more observations without a dominant bin: Excel still
+    // accepts some periods of four or more with a high autocorrelation
+    // (boundary probes put the unbiased autocorrelation at 0.45 where it
+    // decides, but the candidate it is applied to is not identified). This
+    // keeps the candidate above when it is at least 4 with unbiased
+    // autocorrelation >= 0.6 (n <= 16, a fitted value: against 'never' it
+    // gains 2 corpus readings, 14 of 316 eng21 probes and 7 of 358 sinusoid
+    // map readings, and is level on 40,000 random histories; eng24 fb5.py)
+    // or >= 0.45 (from 17 points, hyb5.py).
+    if chosen >= 4 && unbiased(chosen) >= fallback { chosen } else { 0 }
 }
 
 /// The five candidates Excel 20527 selects among for period two on five to

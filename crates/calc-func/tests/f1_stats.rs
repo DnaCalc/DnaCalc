@@ -736,6 +736,23 @@ fn ets_seasonality_from_seventeen_points_chooses_long_lags_by_autocorrelation() 
     }
 }
 
+/// Excel 20527 automatic periods from twenty points (eng23 probe_B2: history B at 24 points from
+/// its third value, and at 30 points): the dominant-bin test on the periodogram tapered over
+/// floor(n/10) points at each end by 0.5 (1 - cos(pi (j + 1/2) / L)); at 24 points from the first
+/// value the bin is not dominant and the answer is 0 (ets_seasonality_follows_the_strongest_frequency).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_seasonality_from_twenty_points_tapers_the_ends() {
+    let cases: [(f64, &[f64]); 2] = [
+        (2.0, &[3.75, 5.75, 5.5, 7.0, 8.5, 8.75, 10.75, 10.5, 12.0, 13.5, 13.75, 15.75, 15.5, 17.0, 18.5, 18.75, 20.75, 20.5, 22.0, 23.5, 23.75, 25.75, 25.5, 27.0]),
+        (2.0, &[2.0, 3.5, 3.75, 5.75, 5.5, 7.0, 8.5, 8.75, 10.75, 10.5, 12.0, 13.5, 13.75, 15.75, 15.5, 17.0, 18.5, 18.75, 20.75, 20.5, 22.0, 23.5, 23.75, 25.75, 25.5, 27.0, 28.5, 28.75, 30.75, 30.5]),
+    ];
+    for (expected, history) in cases {
+        let timeline: Vec<f64> = (1..=history.len()).map(|v| v as f64).collect();
+        exact(call("FORECAST.ETS.SEASONALITY", vec![col(history), col(&timeline)]), expected);
+    }
+}
+
 /// Excel 20527 seasonal starting states below four cycles (oracle corpus dcj9k_r38_ets rows
 /// 1737-1738 and 2633-2634, period 4 on 8 and 12 points): the history is extended to
 /// ceil(3.5 p) points before the phase-mean chain, and the parameter search runs on the extension.
