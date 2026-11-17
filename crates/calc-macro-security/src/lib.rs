@@ -328,3 +328,28 @@ impl std::fmt::Display for MacroBlock {
         }
     }
 }
+
+#[cfg(test)]
+mod origin_tests {
+    use super::*;
+
+    /// The one decision both desktop applications share (dc-2nn1): zones 3 and 4, the network and
+    /// an unverified origin are blocked; this computer, the intranet, trusted sites and an
+    /// unmarked local file are not.
+    #[test]
+    fn one_block_decision_for_every_origin() {
+        assert_eq!(FileOrigin::default(), FileOrigin::Unknown);
+        for (origin, block) in [
+            (FileOrigin::Unknown, Some(MacroBlock::Unknown)),
+            (FileOrigin::Network, Some(MacroBlock::Network)),
+            (FileOrigin::Zone(3), Some(MacroBlock::Zone(3))),
+            (FileOrigin::Zone(4), Some(MacroBlock::Zone(4))),
+            (FileOrigin::Zone(0), None),
+            (FileOrigin::Zone(1), None),
+            (FileOrigin::Zone(2), None),
+            (FileOrigin::Local, None),
+        ] {
+            assert_eq!(origin.block(), block, "{origin:?}");
+        }
+    }
+}

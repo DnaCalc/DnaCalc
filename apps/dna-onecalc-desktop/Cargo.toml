@@ -23,6 +23,10 @@ calc-value = { path = "../../crates/calc-value" }
 calc-verdict = { path = "../../tools/calc-verdict" }
 serde_json = "=1.0.154"
 
+[dev-dependencies]
+# The disk-origin test reads real files through the platform's own open route on every target.
+calc-platform-desktop = { path = "../../platform/calc-platform-desktop" }
+
 [target.'cfg(windows)'.dependencies]
 calc-addin-host = { path = "../../crates/calc-addin-host" }
 calc-platform-desktop = { path = "../../platform/calc-platform-desktop" }

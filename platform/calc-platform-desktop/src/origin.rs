@@ -227,6 +227,24 @@ mod tests {
         ));
     }
 
+    /// Both desktop applications decide through `file_origin(..).block()`: a UNC path is blocked
+    /// as the network on every target, and a mapped drive is when the drive type says remote.
+    #[test]
+    fn a_network_path_is_blocked_through_the_shared_origin_decision() {
+        use calc_macro_security::MacroBlock;
+        assert_eq!(
+            file_origin(Path::new(r"\\server\share\book.xlsm")).block(),
+            Some(MacroBlock::Network)
+        );
+        for (drive_type, network) in [(2, false), (3, false), (4, true), (5, false), (6, false)] {
+            assert_eq!(
+                network_path_with_drive_type(Path::new(r"Z:\book.xlsm"), |_| drive_type),
+                network,
+                "GetDriveTypeW {drive_type}"
+            );
+        }
+    }
+
     #[test]
     fn zone_ids_outside_zone_transfer_are_not_trusted() {
         assert_eq!(
