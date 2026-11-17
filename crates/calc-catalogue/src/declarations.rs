@@ -350,6 +350,9 @@ pub struct EntryTraits {
     pub is_subtotal: bool,
     /// In a dynamic formula, run once for each reference in an array of references.
     pub lift_dynamic_references: bool,
+    /// The first argument position [`Self::lift_dynamic_references`] lifts over (0: every one);
+    /// from a position above 0 a dynamic formula also lifts over any array there.
+    pub lift_references_from: u8,
     /// Read an array of references as a whole.
     pub take_reference_array: bool,
     /// How a held reference of an array of references is read otherwise.
@@ -377,6 +380,7 @@ impl EntryTraits {
         can_skip_nested_subtotals: false,
         is_subtotal: false,
         lift_dynamic_references: false,
+        lift_references_from: 0,
         take_reference_array: false,
         held_references: HeldReferences::Refuse,
         lift_computed_array: false,
@@ -412,6 +416,19 @@ impl EntryTraits {
     }
     pub const fn lift_dynamic_references(mut self) -> Self {
         self.lift_dynamic_references = true;
+        self
+    }
+    /// AGGREGATE: in a dynamic formula, run once for each element of an array given as ref2 or
+    /// later (each reference of an array of references, each value of any other array), while
+    /// ref1's references are read as [`Self::held_references`] says.
+    /// dc-b1l, Excel 16.0.20527 through Touchstone sheet cases (2026-11-17, family
+    /// reference-arrays): `=AGGREGATE(9,0,A1:A2,OFFSET(A1,{0;1;2},0,2))` spills 6|8|10,
+    /// `=AGGREGATE(9,0,A1:A2,OFFSET(A1,{0;1},0),OFFSET(C1,{0,1},0))` a 2 by 2 array,
+    /// `=AGGREGATE(9,0,OFFSET(A1,{0;1},0),OFFSET(A1,{0;1},0))` #VALUE!|#VALUE! and
+    /// `=AGGREGATE(9,0,OFFSET(A1,{0;1;2},0))` #VALUE!.
+    pub const fn lift_references_after_ref1(mut self) -> Self {
+        self.lift_dynamic_references = true;
+        self.lift_references_from = 3;
         self
     }
     pub const fn take_reference_array(mut self) -> Self {

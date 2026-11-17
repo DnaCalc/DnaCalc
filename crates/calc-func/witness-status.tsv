@@ -669,7 +669,7 @@ STDEVPA	full	20430	1212	1212	-	exact	218dcceeef	0
 STDEVPA	pinned	20430	120	120	-	exact	7a3e51cd1b+changes	0
 STEYX	full	20527	2858	2858	-	exact	218dcceeef	0
 SUBSTITUTE	full	20527	2921	2921	-	exact	218dcceeef	0
-SUBTOTAL	full	20527	5448	4986	-	structural	218dcceeef	0
+SUBTOTAL	full	20527	5448	5448	-	exact	4fd4754ab4	0
 SUM	full	20430	1211	1211	-	exact	218dcceeef	0
 SUM	pinned	20430	120	120	-	exact	7a3e51cd1b+changes	0
 SUMIF	full	20527	5561	5561	-	exact	218dcceeef	0

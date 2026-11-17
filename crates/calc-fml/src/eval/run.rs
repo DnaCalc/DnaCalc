@@ -1507,7 +1507,8 @@ impl Run<'_, '_> {
         for index in 0..arguments.len() {
             if reference_array(&arguments[index])
                 && target.0.parameter_class(index) != Some(ParameterClass::Value)
-                && !lifts_over_references(target, form)
+                && !(lifts_over_references(target, form)
+                    && index >= usize::from(target.0.traits().lift_references_from))
                 && !target.0.traits().take_reference_array
             {
                 arguments[index] = self
@@ -2555,7 +2556,18 @@ fn is_lifted(target: Target, form: FormulaForm, index: usize, value: &CalcValue)
         // W111 count-family readings and w089-axis-reference-vs-array-variant).
         || target.0.traits().lift_computed_array)
         && lifted_array(value).is_some())
-        || (reference_array(value) && lifts_over_references(target, form))
+        || (reference_array(value)
+            && lifts_over_references(target, form)
+            && index >= usize::from(target.0.traits().lift_references_from))
+        // AGGREGATE's ref2 and later lift over any array in a dynamic formula (dc-b1l, Excel
+        // 16.0.20527 through Touchstone, 2026-11-17, family reference-arrays:
+        // `=AGGREGATE(9,0,A1:A2,{1;2})` and `=AGGREGATE(9,0,A1:A2,A1:A2*1)` spill #VALUE!|#VALUE!,
+        // `=AGGREGATE(9,0,A1:A2,{#N/A;1})` #N/A|#VALUE!, `=AGGREGATE(14,0,A1:A6,{1;2})` 6|5,
+        // while `=AGGREGATE(9,0,{1;2})` is one #VALUE!).
+        || (form == FormulaForm::Dynamic
+            && target.0.traits().lift_references_from > 0
+            && index >= usize::from(target.0.traits().lift_references_from)
+            && lifted_array(value).is_some())
 }
 
 /// The measured reference-origin policy of these binary functions (OxFunc-Evidence,
