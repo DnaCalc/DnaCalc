@@ -227,6 +227,8 @@ pub struct ShapeParagraphRun {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ShapeText {
     pub paragraphs: Vec<ShapeParagraph>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub face: Option<String>,
     /// Left, top, right and bottom insets, in pixels at 100%.
     pub inset: [f64; 4],
     /// `t`, `ctr` or `b`.
@@ -845,6 +847,15 @@ fn escape(text: &str) -> String {
     out
 }
 
+/// Quote typeface text as CSS escapes, so it cannot escape the style attribute.
+fn font_family(face: Option<&str>) -> String {
+    face.filter(|face| !face.is_empty() && !face.chars().any(char::is_control)).map(|face| {
+        let mut escaped = String::new();
+        for c in face.chars() { let _ = write!(escaped, "\\{:x} ", c as u32); }
+        format!(";font-family:'{escaped}'")
+    }).unwrap_or_default()
+}
+
 /// The size of an arrowhead's `w` or `len` in line widths.
 fn arrow_factor(size: &str) -> f64 {
     match size {
@@ -1150,7 +1161,7 @@ fn finish(shape: &DrawnShape, w: f64, h: f64, zoom: f64, id: &str, defs: String,
         let [rl, rt, rr, rb] = text_rect(&shape.geometry, w, h, &shape.adjust);
         let _ = write!(
             out,
-            "<div class=\"dc-shape-text\" style=\"position:absolute;left:{}px;top:{}px;width:{}px;height:{}px;box-sizing:border-box;padding:{}px {}px {}px {}px;display:flex;flex-direction:column;justify-content:{justify};font-size:{}px;line-height:1.2;color:{};font-weight:{};font-style:{};white-space:{};overflow:visible;{turn}\">",
+            "<div class=\"dc-shape-text\" style=\"position:absolute;left:{}px;top:{}px;width:{}px;height:{}px;box-sizing:border-box;padding:{}px {}px {}px {}px;display:flex;flex-direction:column;justify-content:{justify};font-size:{}px;line-height:1.2;color:{};font-weight:{};font-style:{}{};white-space:{};overflow:visible;{turn}\">",
             number(rl),
             number(rt),
             number((rr - rl).max(0.0)),
@@ -1163,6 +1174,7 @@ fn finish(shape: &DrawnShape, w: f64, h: f64, zoom: f64, id: &str, defs: String,
             text.colour,
             if text.bold { "bold" } else { "normal" },
             if text.italic { "italic" } else { "normal" },
+            font_family(text.face.as_deref()),
             if text.wrap { "pre-wrap" } else { "pre" },
         );
         for paragraph in &text.paragraphs {
@@ -1175,11 +1187,7 @@ fn finish(shape: &DrawnShape, w: f64, h: f64, zoom: f64, id: &str, defs: String,
             let _ = write!(out, "<p style=\"margin:0;min-height:1.2em;text-align:{align}\">");
             if !paragraph.runs.is_empty() && paragraph.runs.iter().map(|r| r.text.as_str()).collect::<String>() == paragraph.text {
                 for run in &paragraph.runs {
-                    let face = run.face.as_deref().filter(|face| !face.is_empty() && !face.chars().any(char::is_control)).map(|face| {
-                        let mut escaped = String::new();
-                        for c in face.chars() { let _ = write!(escaped, "\\{:x} ", c as u32); }
-                        format!(";font-family:'{escaped}'")
-                    }).unwrap_or_default();
+                    let face = font_family(run.face.as_deref());
                     let _ = write!(out, "<span style=\"font-size:{}px;font-weight:{};font-style:{};color:{}{}{}\">{}</span>",
                         number(run.size * zoom), if run.bold { "bold" } else { "normal" },
                         if run.italic { "italic" } else { "normal" }, run.colour, face,
@@ -1366,6 +1374,7 @@ mod tests {
             shadow: None,
             line: Some(ShapeStroke { width: 2.0, colour: "#ED7D31".into(), dash: "dash".into(), head: None, tail: None }),
             text: Some(ShapeText {
+                face: None,
                 paragraphs: vec![
                     ShapeParagraph { text: "a < b".into(), align: "ctr".into(), runs: Vec::new() },
                     ShapeParagraph { text: String::new(), align: "l".into(), runs: Vec::new() },
@@ -1391,6 +1400,11 @@ mod tests {
         assert!(markup.contains("<p style=\"margin:0;min-height:1.2em;text-align:center\">a &lt; b</p>"), "{markup}");
         assert!(markup.contains("text-align:left\"></p>"), "{markup}");
         assert!(markup.contains("font-weight:bold"), "{markup}");
+        let mut named = sample();
+        named.text.as_mut().unwrap().face = Some("A\";color:red".into());
+        let named_markup = shape_markup(&named, 80.0, 40.0, 1.0).unwrap();
+        assert!(named_markup.contains("font-family:'\\41 \\22 \\3b "), "{named_markup}");
+        assert!(!named_markup.contains("color:red"), "{named_markup}");
         // Zoom scales the stroke and the insets with the frame.
         let zoomed = shape_markup(&sample(), 160.0, 80.0, 2.0).unwrap();
         assert!(zoomed.contains("stroke-width=\"4\" stroke-dasharray=\"16 12\""), "{zoomed}");

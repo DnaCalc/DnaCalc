@@ -694,7 +694,7 @@ impl Drawing {
                                 let fonts: Vec<_> = runs.iter().map(|&(_, font)| styles.drawing_rich_font(font)).collect::<Option<_>>()?;
                                 let explicit = fonts.iter().all(|(_, (name, charset, family), _)|
                                     *charset == 0 && *family <= 5 && !name.starts_with('+')
-                                        && !name.chars().any(|c| c.is_control() || matches!(c, '\u{fffe}' | '\u{ffff}')));
+                                        && !name.chars().any(|c| c.is_control() || matches!(c, '\u{fffd}' | '\u{fffe}' | '\u{ffff}')));
                                 let first_face = &fonts.first()?.1;
                                 (explicit || fonts.iter().all(|(_, face, _)| face == first_face)).then_some((runs, fonts, explicit))
                             })
@@ -714,7 +714,8 @@ impl Drawing {
                                         if start < end { write_text_run(&mut x, &text[start..end], Some(fonts[index].0.clone()), explicit.then_some(fonts[index].1.0), Some(fonts[index].2)); }
                                     }
                                 } else {
-                                    write_text_run(&mut x, line, object.text_font.and_then(|font| styles.drawing_text_font(font)), None, None);
+                                    write_text_run(&mut x, line, object.text_font.and_then(|font| styles.drawing_text_font(font)),
+                                        object.text_font.and_then(|font| styles.drawing_latin_face(font)), None);
                                 }
                             }
                             x.close("a:p");

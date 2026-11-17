@@ -244,6 +244,7 @@ pub(crate) fn drawn(shape: &Shape, place: ChartPlace, theme: &[String]) -> Optio
             shape_colour::css(Resolved { rgb: scheme(name, theme).unwrap_or(0), alpha: 1.0 })
         };
         ShapeText {
+            face: body.face.clone(),
             paragraphs: paragraphs
                 .iter()
                 .enumerate()
@@ -339,6 +340,7 @@ mod tests {
         s.body.anchor = Some("ctr".into());
         s.body.alignment = vec![Some("ctr".into()), None];
         s.body.size = Some(1100);
+        s.body.face = Some("Arial".into());
         s.body.bold = true;
         let d = drawn(&s, place(), &[]).unwrap();
         assert_eq!(d.fill.as_deref(), Some("#FF8000"));
@@ -351,6 +353,7 @@ mod tests {
         assert_eq!(text.paragraphs[1].align, "l");
         assert!((text.size - 11.0 * 96.0 / 72.0).abs() < 1e-9);
         assert!(text.bold && text.wrap);
+        assert_eq!(text.face.as_deref(), Some("Arial"));
         // A ribbon shape's text is white.
         assert_eq!(text.colour, "#FFFFFF");
     }

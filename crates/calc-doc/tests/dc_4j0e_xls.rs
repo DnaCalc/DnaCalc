@@ -2060,6 +2060,7 @@ fn uniform_text_box_font_is_loaded_and_saved() {
             let loaded = load(bytes);
             let shape = &loaded.sheets()[0].shapes().shapes[0];
             assert_eq!(shape.body.size, expected.then_some(1200));
+            assert_eq!(shape.body.face.as_deref(), expected.then_some("Arial"));
             assert_eq!(shape.body.bold, expected);
             assert_eq!(shape.body.italic, expected);
             assert_eq!(shape.body.colour, expected.then_some(calc_doc::model::ShapeColour::Rgb(0xff0000)));
@@ -2123,13 +2124,21 @@ fn text_anchor_conflict_fixture() -> Vec<u8> {
     xls(false, &[], &[Sheet::worksheet("S", [art::drawing(&[shape]), art::obj(6, 1), txo("ABC")].concat())])
 }
 
+fn invalid_utf16_font() -> Vec<u8> {
+    let mut body = u16s(&[240, 2, 10, 700, 0]);
+    body.extend([0, 0, 0, 0, 1, 1, 0, 0xd8]);
+    record(0x0031, &body)
+}
+
 fn rich_drawing_fixture(second_face: &str, missing_font: bool, multiline: bool, second_flags: u16, second_colour: u16, same_style: bool, second_weight: u16, second_charset: u8, second_underline: u8) -> Vec<u8> {
     use xls_kit::art;
     let mut body = u16s(&[0x0212, 0, 0, 0, 0, 6, 24]); body.extend([0u8; 4]);
     let runs = u16s(&[0, 0, 0, 0, 3, if missing_font { 5 } else { 1 }, 0, 0, 6, 0, 0, 0]);
     let records = [art::drawing(&[art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], true)]), art::obj(6, 1),
         record(0x01b6, &body), record(0x003c, if multiline { b"\0AB\rCDE" } else { b"\0AB CDE" }), record(0x003c, &runs)].concat();
-    let mut second = font(if same_style { 200 } else { 240 }, second_flags, second_colour, second_weight, second_face);
+    let mut second = if second_face == "<invalid>" { invalid_utf16_font() } else {
+        font(if same_style { 200 } else { 240 }, second_flags, second_colour, second_weight, second_face)
+    };
     second[14] = second_underline;
     second[16] = second_charset;
     let globals = [font(200, 0, 10, 700, "Arial"), second].concat();
@@ -2144,7 +2153,8 @@ fn legacy_drawing_rich_runs_reach_the_model_and_survive_save() {
         ("Arial", false, 10, 0x7fff, false, 400, 0, 0, false), ("Arial", false, 2, 64, false, 400, 0, 0, false),
         ("Arial", false, 0, 10, true, 700, 0, 0, false), ("Courier", false, 0, 10, true, 700, 0, 0, true),
         ("Arial", false, 2, 0x7fff, false, 600, 0, 0, false), ("Courier", false, 2, 0x7fff, false, 400, 162, 0, false),
-        ("Arial", false, 2, 0x7fff, false, 400, 0, 1, true), ("Arial", false, 2, 0x7fff, false, 400, 0, 2, false)] {
+        ("Arial", false, 2, 0x7fff, false, 400, 0, 1, true), ("Arial", false, 2, 0x7fff, false, 400, 0, 2, false),
+        ("<invalid>", false, 2, 0x7fff, false, 400, 0, 0, false)] {
         let bytes = rich_drawing_fixture(face, missing_font, false, flags, colour, same_style, weight, charset, underline);
         let check = |bytes: &[u8]| {
             let loaded = load(bytes); let shape = &loaded.sheets()[0].shapes().shapes[0];
@@ -2181,6 +2191,20 @@ fn legacy_drawing_rich_runs_reach_the_model_and_survive_save() {
     let mut saved = Vec::new();
     calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
     check(&saved);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn malformed_font_name_is_not_projected_as_a_typeface() {
+    use xls_kit::art;
+    let runs = u16s(&[0, 0, 0, 0, 3, 0, 0, 0]);
+    let mut body = u16s(&[0x0212, 0, 0, 0, 0, 3, runs.len() as u16]); body.extend([0u8; 4]);
+    let records = [art::drawing(&[art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], true)]), art::obj(6, 1),
+        record(0x01b6, &body), record(0x003c, b"\0ABC"), record(0x003c, &runs)].concat();
+    let loaded = load(&xls(false, &invalid_utf16_font(), &[Sheet::worksheet("S", records)]));
+    let shape = &loaded.sheets()[0].shapes().shapes[0];
+    assert_eq!(shape.body.size, Some(1200));
+    assert_eq!(shape.body.face, None);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

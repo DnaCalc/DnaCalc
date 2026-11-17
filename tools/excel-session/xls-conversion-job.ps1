@@ -214,12 +214,14 @@ try {
                 $box.TextFrame.Characters().Text = $text
                 $box.TextFrame.Characters().Font.Bold = $true
                 $box.TextFrame.Characters().Font.Italic = $true
+                $box.TextFrame.Characters().Font.Name = 'Arial'
                 $box.TextFrame.Characters().Font.Size = 12
                 $box.TextFrame.Characters().Font.Color = 255
                 $box.TextFrame.HorizontalAlignment = -4108
                 $box.TextFrame.VerticalAlignment = -4108
                 @{name=[string]$box.Name; characters=$box.TextFrame.Characters().Count;
                   bold=$box.TextFrame.Characters().Font.Bold; italic=$box.TextFrame.Characters().Font.Italic;
+                  font_name=$box.TextFrame.Characters().Font.Name;
                   size=$box.TextFrame.Characters().Font.Size; color=$box.TextFrame.Characters().Font.Color;
                   horizontal_alignment=$box.TextFrame.HorizontalAlignment; vertical_alignment=$box.TextFrame.VerticalAlignment}
             }

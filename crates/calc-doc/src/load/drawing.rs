@@ -531,6 +531,10 @@ fn text_body(body: &Node) -> ShapeBody {
         .and_then(|r| r.child("rPr"));
     if let Some(run) = run {
         read.size = run.number("sz");
+        read.face = run.child("latin").filter(|n| n.children.is_empty() && n.attributes.iter().all(|(k, _)| k == "typeface"))
+            .and_then(|n| n.attribute("typeface"))
+            .filter(|face| !face.is_empty() && !face.starts_with('+') && !face.chars().any(|c| c.is_control() || matches!(c, '\u{fffe}' | '\u{ffff}')))
+            .map(str::to_owned);
         read.bold = run.flag("b");
         read.italic = run.flag("i");
         read.colour = run.child("solidFill").and_then(colour);

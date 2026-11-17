@@ -333,6 +333,14 @@ impl Styles {
             self.rgb(font.color).map(|argb| argb[2..].to_owned())))
     }
 
+    /// A literal Latin font name that can be carried without guessing charset or theme behavior.
+    pub(crate) fn drawing_latin_face(&self, ifnt: u16) -> Option<&str> {
+        if ifnt == 4 { return None; }
+        let font = &self.fonts[self.font_index(ifnt)?];
+        (font.charset == 0 && font.family <= 5 && !font.name.is_empty() && !font.name.starts_with('+')
+            && !font.name.chars().any(|c| c.is_control() || matches!(c, '\u{fffd}' | '\u{fffe}' | '\u{ffff}'))).then_some(font.name.as_str())
+    }
+
     /// A run whose effects the drawing text model can represent, plus its font-face identity.
     pub(crate) fn drawing_rich_font(&self, ifnt: u16) -> Option<((u32, bool, bool, Option<String>), (&str, u8, u8), bool)> {
         if ifnt == 4 { return None; }

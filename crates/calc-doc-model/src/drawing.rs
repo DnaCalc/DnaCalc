@@ -150,6 +150,8 @@ pub struct ShapeBody {
     pub alignment: Vec<Option<String>>,
     /// The first run's `sz`, in hundredths of a point.
     pub size: Option<i64>,
+    /// The first run's explicit Latin typeface.
+    pub face: Option<String>,
     pub bold: bool,
     pub italic: bool,
     pub colour: Option<ShapeColour>,
@@ -186,7 +188,7 @@ impl ShapeBody {
             || self.runs.iter().flatten().any(|run| !(100..=400_000).contains(&run.size))
             || self.runs.iter().flatten().any(|run| run.face.as_deref().is_some_and(|face|
                 face.is_empty() || face.starts_with('+') || face.chars().any(|c| c.is_control() || matches!(c, '\u{fffe}' | '\u{ffff}'))))
-            || paragraphs.len() != self.runs.len() || self.size != Some(first.size)
+            || paragraphs.len() != self.runs.len() || self.size != Some(first.size) || self.face != first.face
             || self.bold != first.bold || self.italic != first.italic || self.colour != first.colour
             || self.runs.iter().zip(paragraphs).any(|(runs, text)| runs.iter().map(|run| run.text.as_str()).collect::<String>() != *text)
         { return None; }

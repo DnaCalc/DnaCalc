@@ -210,6 +210,9 @@ fn sweep() {
                         let rich = loaded.sheets().iter().flat_map(|s| &s.shapes().shapes)
                             .filter(|shape| shape.text.as_ref().is_some_and(|text| shape.body.rich_runs_for(text).is_some())).count();
                         println!("drawing shapes with supported rich runs: {rich}");
+                        let faces = loaded.sheets().iter().flat_map(|s| &s.shapes().shapes)
+                            .filter(|shape| shape.body.face.is_some()).count();
+                        println!("drawing shapes with explicit first-run face: {faces}");
                     }
                     if std::env::var_os("DNACALC_XLS_AUDIT_NOTE_RUNS").is_some() {
                         let count = loaded.sheets().iter().flat_map(|s| &s.review().notes)
