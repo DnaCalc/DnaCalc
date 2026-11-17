@@ -175,6 +175,7 @@ struct Shape {
     fill_invalid: bool,
     no_fill: bool,
     fixed_geometry_unsafe: bool,
+    flip_invalid: bool,
     flags: Option<u32>,
 }
 
@@ -189,7 +190,10 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                         if child.body.len() >= 8 {
                             let flags = u32::from_le_bytes(child.body[4..8].try_into().expect("4 bytes"));
                             shape.group = flags & 0x1 != 0;
-                            if shape.flags.replace(flags).is_some() { shape.fixed_geometry_unsafe = true; }
+                            if shape.flags.replace(flags).is_some() {
+                                shape.fixed_geometry_unsafe = true;
+                                shape.flip_invalid = true;
+                            }
                         }
                     }
                     0xF00B => {
@@ -197,6 +201,7 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                         if usize::from(child.instance) * 6 > child.body.len() {
                             shape.fill_invalid = true;
                             shape.fixed_geometry_unsafe = true;
+                            shape.flip_invalid = true;
                         }
                         for k in 0..usize::from(child.instance) {
                             let at = k * 6;
@@ -204,6 +209,8 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                             let id = u16::from_le_bytes([p[0], p[1]]);
                             let value = u32::from_le_bytes([p[2], p[3], p[4], p[5]]);
                             let property = id & 0x3fff;
+                            // Transform or override properties and rotation require separate handling.
+                            if matches!(property, 0x0004 | 0x003f | 0x033f) { shape.flip_invalid = true; }
                             // Do not infer a preset when the shape has rotation, custom geometry,
                             // or group visibility properties other than the observed default.
                             if (property == 4 && (value != 0 || id & 0xc000 != 0))
@@ -232,6 +239,7 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                     }
                     0xF011 => shape.client_data = true,
                     0xF00D => shape.text_box = true,
+                    0xF121 | 0xF122 => shape.flip_invalid = true,
                     _ => {}
                 }
             }
@@ -481,7 +489,12 @@ impl Drawing {
                 x.close("xdr:to");
             };
             let xfrm = |x: &mut Xml| {
-                x.open("a:xfrm", &[]);
+                let mut attrs = Vec::new();
+                if let Some(flags) = shape.flags.filter(|flags| flags & 0x53f == 0 && !shape.flip_invalid) {
+                    if flags & 0x40 != 0 { attrs.push(("flipH", "1".to_owned())); }
+                    if flags & 0x80 != 0 { attrs.push(("flipV", "1".to_owned())); }
+                }
+                x.open("a:xfrm", &attrs);
                 x.empty("a:off", &[("x", "0".to_owned()), ("y", "0".to_owned())]);
                 x.empty("a:ext", &[("cx", "0".to_owned()), ("cy", "0".to_owned())]);
                 x.close("a:xfrm");

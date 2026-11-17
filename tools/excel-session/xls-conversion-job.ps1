@@ -147,6 +147,15 @@ try {
                 $s = $sheet.Shapes.AddShape(61, 180, 100, 60, 30)
                 @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
             }
+            $entry.setup.flipped_shapes = @(
+                foreach ($direction in @(0, 1)) {
+                    GetOrError {
+                        $s = $sheet.Shapes.AddShape(1, 300, 170, 60, 30)
+                        $s.Flip($direction)
+                        @{name=[string]$s.Name; direction=$direction; horizontal=$s.HorizontalFlip; vertical=$s.VerticalFlip}
+                    }
+                }
+            )
             $entry.setup.justified_text = GetOrError {
                 $box = $sheet.Shapes.AddTextbox(1, 300, 100, 120, 55)
                 $box.TextFrame.Characters().Text = 'A controlled justified text example with several words.'

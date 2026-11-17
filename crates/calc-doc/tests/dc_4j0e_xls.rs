@@ -2510,6 +2510,36 @@ fn flowchart_process_preserves_only_untransformed_preset_geometry() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn unambiguous_shape_flips_are_loaded_and_saved() {
+    use xls_kit::art;
+    for (flags, override_property, expected) in [
+        (0x0a40u32, false, (true, false)), (0x0a80, false, (false, true)),
+        (0x0ac0, false, (true, true)), (0x0a42, false, (false, false)),
+        (0x0a40, true, (false, false)),
+    ] {
+        let mut shape = art::shape(1, 0, [1, 0, 1, 0, 4, 0, 6, 0], false);
+        shape[20..24].copy_from_slice(&flags.to_le_bytes());
+        if override_property {
+            let mut prop = 0x033fu16.to_le_bytes().to_vec(); prop.extend(0u32.to_le_bytes());
+            shape.splice(8..8, art::atom(3, 1, 0xf00b, &prop));
+            let length = (shape.len() - 8) as u32; shape[4..8].copy_from_slice(&length.to_le_bytes());
+        }
+        let bytes = xls(false, &[], &[Sheet::worksheet("S", [art::drawing(&[shape]), art::obj(2, 1)].concat())]);
+        let check = |bytes: &[u8]| {
+            let loaded = load(bytes);
+            let shape = &loaded.sheets()[0].shapes().shapes[0];
+            assert_eq!((shape.flip_horizontal, shape.flip_vertical), expected);
+        };
+        check(&bytes);
+        let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let mut saved = Vec::new();
+        calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+        check(&saved);
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn drawing_shape_in_obj_continuation_belongs_to_next_object() {
     for (intervening, expected) in [(false, 2), (true, 1)] {
         let bytes = obj_continuation_fixture(intervening);

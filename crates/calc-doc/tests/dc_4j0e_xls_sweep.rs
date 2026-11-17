@@ -195,6 +195,9 @@ fn sweep() {
                         let aligned = loaded.sheets().iter().flat_map(|s| &s.shapes().shapes)
                             .filter(|shape| shape.body.anchor.is_some() || shape.body.alignment.iter().any(Option::is_some)).count();
                         println!("drawing shapes with text alignment: {aligned}");
+                        let flipped = loaded.sheets().iter().flat_map(|s| &s.shapes().shapes)
+                            .filter(|shape| shape.flip_horizontal || shape.flip_vertical).count();
+                        println!("drawing shapes with a flip: {flipped}");
                     }
                     if std::env::var_os("DNACALC_XLS_AUDIT_NOTE_RUNS").is_some() {
                         let count = loaded.sheets().iter().flat_map(|s| &s.review().notes)
