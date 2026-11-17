@@ -77,6 +77,7 @@ try {
     # FileFormat 18 is an add-in and is saved as an Open XML add-in (55).
     foreach ($fixture in @(
         @{name='excel-biff8.xls'; legacy=56; modern=51; ext='.xlsx'},
+        @{name='excel-biff8-arial10.xls'; legacy=56; modern=51; ext='.xlsx'; font='Arial'; font_size=10},
         @{name='excel-biff5.xls'; legacy=39; modern=51; ext='.xlsx'},
         @{name='excel-addin.xla'; legacy=18; modern=55; ext='.xlam'}
     )) {
@@ -86,6 +87,10 @@ try {
             $saved = Join-Path $outputDir ([IO.Path]::GetFileNameWithoutExtension($fixture.name) + $fixture.ext)
             $book = $app.Workbooks.Add(-4167)
             $sheet = $book.Worksheets.Item(1); $sheet.Name = 'Data'
+            if ($fixture.ContainsKey('font')) {
+                $book.Styles.Item('Normal').Font.Name = $fixture.font
+                $book.Styles.Item('Normal').Font.Size = $fixture.font_size
+            }
             $sheet.Range('A1').Value2 = 42.5
             $sheet.Range('A2').Formula = '=A1+1'
             $sheet.Range('A1').NumberFormat = '0.00'
@@ -259,6 +264,18 @@ try {
                 $names = @([string]$first.Name, [string]$second.Name)
                 $group = $sheet.Shapes.Range($names).Group()
                 @{name=[string]$group.Name; children=$group.GroupItems.Count}
+            }
+            $entry.setup.picture_group = GetOrError {
+                $path = Join-Path $inputDir 'linked-picture.png'
+                $first = $sheet.Shapes.AddPicture($path, 0, -1, 100, 800, 50, 25)
+                $second = $sheet.Shapes.AddPicture($path, 0, -1, 160, 810, 40, 30)
+                $names = @([string]$first.Name, [string]$second.Name)
+                $group = $sheet.Shapes.Range($names).Group()
+                @{name=[string]$group.Name; children=$group.GroupItems.Count;
+                  left=$group.Left; top=$group.Top; width=$group.Width; height=$group.Height;
+                  column_a_width=$sheet.Columns.Item(1).Width; row_1_height=$sheet.Rows.Item(1).Height;
+                  normal_font=[string]$book.Styles.Item('Normal').Font.Name;
+                  normal_size=$book.Styles.Item('Normal').Font.Size}
             }
             $entry.setup.long_text_box = GetOrError {
                 $box = $sheet.Shapes.AddTextbox(1, 100, 300, 160, 90)
