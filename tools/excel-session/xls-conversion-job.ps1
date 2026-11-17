@@ -688,6 +688,15 @@ try {
             $pivot.cache_refresh_users = @($book.PivotCaches() | ForEach-Object {
                 GetOrError { @{index=[int]$_.Index; refresh_name=[string]$_.RefreshName} }
             })
+            $pivot.cache_refresh_dates = @($book.PivotCaches() | ForEach-Object {
+                GetOrError {
+                    $date = [datetime]$_.RefreshDate
+                    $serial = $date.ToOADate()
+                    @{index=[int]$_.Index; refresh_date_iso=$date.ToString('o');
+                        oa_date=$serial; oa_date_bits=[BitConverter]::DoubleToInt64Bits($serial).ToString('X16');
+                        workbook_date1904=[bool]$book.Date1904}
+                }
+            })
             $book.SaveAs($xlsx, 51)
             $book.Close($false); $book = $null
             $pivot.xlsx_base64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($xlsx))

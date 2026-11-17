@@ -708,6 +708,9 @@ fn convert_compound(
             let records_part = format!("xl/pivotCache/pivotCacheRecords{number}.xml");
             let mut attributes = BTreeMap::from([("refreshOnLoad".into(), u8::from(parsed.refresh_on_load).to_string())]);
             if let Some(user) = parsed.refreshed_by { attributes.insert("refreshedBy".into(), user); }
+            if !globals.date_1904 {
+                if let Some(date) = parsed.refreshed_date { attributes.insert("refreshedDate".into(), date); }
+            }
             let cache = PivotCache {
                 id: cache_id as u32, part: part.clone(), records_part: Some(records_part.clone()),
                 record_count: Some(parsed.rows.len() as u64), source_type: "worksheet".into(),

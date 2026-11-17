@@ -8,6 +8,7 @@ pub(crate) struct Cache {
     pub rows: Vec<Vec<PivotItem>>,
     pub refresh_on_load: bool,
     pub refreshed_by: Option<String>,
+    pub refreshed_date: Option<String>,
 }
 
 pub(crate) enum Source {
@@ -105,6 +106,16 @@ fn refreshed_by(header: &Record<'_>) -> Option<String> {
     String::from_utf16(&units).ok()
 }
 
+// MS-XLS 2.4.277 SXDBEx.numDate. Keep a round-trippable serial, without inventing a
+// timezone or rounding to seconds. The caller emits this only for the 1900 date system;
+// early/zero dates and 1904 conversion await the controlled Excel twins.
+fn refreshed_date(record: &Record<'_>) -> Option<String> {
+    if record.id != 0x0122 || record.body.len() != 12 || !record.continues.is_empty() { return None; }
+    let serial = f64::from_le_bytes(record.body[..8].try_into().ok()?);
+    (serial.is_finite() && (61.0..2_958_466.0).contains(&serial))
+        .then(|| crate::xlsb::formula::number_text(serial))
+}
+
 /// The bounded, complete worksheet-source cache subset: no grouped, calculated or invalid
 /// caches. Its values remain file records, not calculated pivot output.
 pub(crate) fn read(bytes: &[u8], stream_id: u16) -> Option<Cache> {
@@ -122,6 +133,7 @@ pub(crate) fn read(bytes: &[u8], stream_id: u16) -> Option<Cache> {
         || rows > 100_000 || rows.checked_mul(fields)? > 1_000_000 { return None; }
     let mut at = 1usize;
     if records.get(at)?.id != 0x0122 { return None; }
+    let refreshed_date = refreshed_date(&records[at]);
     at += 1;
     let mut out = Vec::with_capacity(fields);
     let mut sizes = Vec::with_capacity(fields);
@@ -180,7 +192,7 @@ pub(crate) fn read(bytes: &[u8], stream_id: u16) -> Option<Cache> {
         }
         field.unused_items = used.iter().enumerate().filter_map(|(i, used)| (!used).then_some(i as u32)).collect();
     }
-    Some(Cache { fields: out, rows: data, refresh_on_load: flags & 4 != 0, refreshed_by: refreshed_by(header) })
+    Some(Cache { fields: out, rows: data, refresh_on_load: flags & 4 != 0, refreshed_by: refreshed_by(header), refreshed_date })
 }
 
 #[cfg(test)]
@@ -221,13 +233,17 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn worksheet_cache_is_visible_as_saved_source_records_after_open_and_save() {
         for (user, wide) in [(None, false), (Some("A&B"), false), (Some("作者 _x0042_\u{1}"), true)] {
+        for date_1904 in [false, true] {
             let mut source = kit::u16s(&[0, 2]); source.extend([0, 0]);
             source.extend(kit::u16s(&[2])); source.extend([0, 2, b'S', 0]);
-            let globals = [kit::record(0x00D5, &kit::u16s(&[7])), kit::record(0x00E3, &kit::u16s(&[1])),
+            let globals = [kit::record(0x0022, &kit::u16s(&[u16::from(date_1904)])),
+                kit::record(0x00D5, &kit::u16s(&[7])), kit::record(0x00E3, &kit::u16s(&[1])),
                 kit::record(0x0051, &source)].concat();
             let workbook = kit::workbook_stream(false, &globals,
                 &[kit::Sheet::worksheet("S", [kit::number(0, 0, 1.0), kit::record(0x00B0, &[])].concat())]);
             let mut cache_bytes = cache(false);
+            let serial = 37320.48645347222_f64;
+            cache_bytes[28..36].copy_from_slice(&serial.to_le_bytes());
             if let Some(user) = user {
                 let mut header = cache_bytes[4..24].to_vec();
                 let units: Vec<_> = user.encode_utf16().collect();
@@ -250,6 +266,12 @@ mod tests {
                 let cached = loaded.pivot_caches().caches.get(&0).unwrap();
                 assert_eq!(cached.source_sheet.as_deref(), Some("S"));
                 assert_eq!(cached.attributes.get("refreshedBy").map(String::as_str), user);
+                if date_1904 {
+                    assert!(!cached.attributes.contains_key("refreshedDate"));
+                } else {
+                    let retained: f64 = cached.attributes["refreshedDate"].parse().unwrap();
+                    assert_eq!(retained.to_bits(), serial.to_bits());
+                }
                 assert_eq!(cached.source_range.as_deref(), Some("A1:A3"));
                 assert_eq!(cached.fields[0].items, vec![PivotItem::Text("A".into()), PivotItem::Text("B".into()), PivotItem::Text("C".into())]);
                 assert_eq!(cached.fields[0].unused_items, vec![2]);
@@ -261,7 +283,7 @@ mod tests {
             let plan = crate::prepare_save(&document.snapshot(), &crate::SavePolicy::default()).unwrap();
             let mut saved = Vec::new(); crate::write(plan, &mut saved).unwrap();
             check(&crate::open(source(&saved), &crate::OpenPolicy::default()).unwrap());
-        }
+        }}
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -276,6 +298,25 @@ mod tests {
         let start = grouped.windows(2).position(|b| b == [0xC7, 0]).unwrap();
         grouped[start + 4] |= 8;
         assert!(read(&grouped, 7).is_none());
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn invalid_or_ambiguous_refresh_dates_do_not_change_source_records() {
+        for serial in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, -1.0, 0.0, 60.5, 2_958_466.0] {
+            let mut bytes = cache(false);
+            bytes[28..36].copy_from_slice(&serial.to_le_bytes());
+            let parsed = read(&bytes, 7).unwrap();
+            assert!(parsed.refreshed_date.is_none());
+            assert_eq!(parsed.rows, vec![vec![PivotItem::Index(0)], vec![PivotItem::Index(1)]]);
+        }
+        for body in [vec![], vec![0; 8], vec![0; 11], vec![0; 13]] {
+            let mut bytes = cache(false);
+            bytes.splice(24..40, kit::record(0x0122, &body));
+            let parsed = read(&bytes, 7).unwrap();
+            assert!(parsed.refreshed_date.is_none());
+            assert_eq!(parsed.rows.len(), 2);
+        }
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -313,6 +313,9 @@ fn sweep() {
                         let refreshed_by = loaded.pivot_caches().caches.values()
                             .filter(|cache| cache.attributes.contains_key("refreshedBy")).count();
                         println!("pivot caches with last-refreshed user: {refreshed_by}");
+                        let refreshed_date = loaded.pivot_caches().caches.values()
+                            .filter(|cache| cache.attributes.contains_key("refreshedDate")).count();
+                        println!("pivot caches with last-refreshed date: {refreshed_date}");
                     }
                     let caches = if audit_pivots { loaded.pivot_caches().caches.len() } else { 0 };
                     let saved_records = if audit_pivots {
