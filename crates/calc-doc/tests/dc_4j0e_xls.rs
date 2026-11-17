@@ -178,6 +178,7 @@ fn write_legacy_excel_session_inputs() {
     std::fs::write(dir.join("gcw-biff8.xls"), xls(false, &[], &[Sheet::worksheet("Data", biff8_gcw_cells)])).unwrap();
     std::fs::write(dir.join("drawing-obj-continuation.xls"), obj_continuation_fixture(false)).unwrap();
     std::fs::write(dir.join("drawing-txo-continuation.xls"), txo_continuation_fixture(false)).unwrap();
+    std::fs::write(dir.join("drawing-text-anchor-conflict.xls"), text_anchor_conflict_fixture()).unwrap();
     std::fs::write(dir.join("emf-checksum-valid.xls"), emf_checksum_fixture(false)).unwrap();
     std::fs::write(dir.join("emf-checksum-invalid.xls"), emf_checksum_fixture(true)).unwrap();
     std::fs::write(dir.join("forms.xls"), include_bytes!("fixtures/dc_4j0e/FormsWorkbook.xls")).unwrap();
@@ -221,7 +222,7 @@ fn write_legacy_excel_session_inputs() {
     let short_format = record(0x041e, &[0xa4, 0x00, 0x02, 0x00, 0x00, b'x']);
     std::fs::write(dir.join("repair-short-format.xls"),
         xls(false, &short_format, &[Sheet::worksheet("Data", number(0, 0, 42.0))])).unwrap();
-    for name in ["cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "drawing-obj-continuation", "drawing-txo-continuation", "emf-checksum-valid", "emf-checksum-invalid", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
+    for name in ["cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "emf-checksum-valid", "emf-checksum-invalid", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
         let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
         let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
         let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
@@ -230,7 +231,7 @@ fn write_legacy_excel_session_inputs() {
         std::fs::write(dir.join(format!("{name}.dnacalc.xlsx")), converted).unwrap();
     }
     let cases = serde_json::json!({
-        "files": ["cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
+        "files": ["cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
         "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls",
             "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls",
             "repair-elf-column.xls", "repair-elf-radical.xls", "repair-addin-cell.xls",
@@ -2102,6 +2103,19 @@ fn text_box_alignment_is_loaded_and_saved() {
             check(&saved);
         }
     }
+    let bytes = text_anchor_conflict_fixture();
+    let loaded = load(&bytes); let body = &loaded.sheets()[0].shapes().shapes[0].body;
+    assert_eq!(body.anchor, None);
+    assert!(body.alignment.iter().all(Option::is_none));
+}
+
+fn text_anchor_conflict_fixture() -> Vec<u8> {
+    use xls_kit::art;
+    let mut shape = art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], true);
+    let mut prop = 0x0087u16.to_le_bytes().to_vec(); prop.extend(1u32.to_le_bytes());
+    shape.splice(8..8, art::atom(3, 1, 0xf00b, &prop));
+    let length = (shape.len() - 8) as u32; shape[4..8].copy_from_slice(&length.to_le_bytes());
+    xls(false, &[], &[Sheet::worksheet("S", [art::drawing(&[shape]), art::obj(6, 1), txo("ABC")].concat())])
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -179,6 +179,7 @@ struct Shape {
     text_insets: [Option<u32>; 4],
     text_insets_invalid: bool,
     text_boolean: Option<u32>,
+    text_anchor_ambiguous: bool,
     text_wrap: Option<u32>,
     text_wrap_invalid: bool,
     flags: Option<u32>,
@@ -199,11 +200,13 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                                 shape.fixed_geometry_unsafe = true;
                                 shape.flip_invalid = true;
                                 shape.text_insets_invalid = true;
+                                shape.text_anchor_ambiguous = true;
                             }
                         } else {
                             shape.fixed_geometry_unsafe = true;
                             shape.flip_invalid = true;
                             shape.text_insets_invalid = true;
+                            shape.text_anchor_ambiguous = true;
                         }
                     }
                     0xF00B => {
@@ -213,6 +216,7 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                             shape.fixed_geometry_unsafe = true;
                             shape.flip_invalid = true;
                             shape.text_insets_invalid = true;
+                            shape.text_anchor_ambiguous = true;
                         }
                         for k in 0..usize::from(child.instance) {
                             let at = k * 6;
@@ -220,6 +224,7 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                             let id = u16::from_le_bytes([p[0], p[1]]);
                             let value = u32::from_le_bytes([p[2], p[3], p[4], p[5]]);
                             let property = id & 0x3fff;
+                            if property == 0x0087 { shape.text_anchor_ambiguous = true; }
                             if property == 0x0085 && (id & 0xc000 != 0 || value > 2 || shape.text_wrap.replace(value).is_some()) {
                                 shape.text_wrap_invalid = true;
                             }
@@ -265,7 +270,7 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                     }
                     0xF011 => shape.client_data = true,
                     0xF00D => shape.text_box = true,
-                    0xF121 | 0xF122 => { shape.flip_invalid = true; shape.text_insets_invalid = true; }
+                    0xF121 | 0xF122 => { shape.flip_invalid = true; shape.text_insets_invalid = true; shape.text_anchor_ambiguous = true; }
                     _ => {}
                 }
             }
@@ -644,7 +649,7 @@ impl Drawing {
                     if let Some(text) = &object.text {
                         x.open("xdr:txBody", &[]);
                         let mut body_attributes = Vec::new();
-                        if let Some((_, vertical)) = object.text_alignment {
+                        if let Some((_, vertical)) = object.text_alignment.filter(|_| !shape.text_anchor_ambiguous) {
                             body_attributes.push(("anchor", vertical.to_owned()));
                             let manual_margin = shape.text_boolean.is_some_and(|v| v & 0x0008_0008 == 0x0008_0000);
                             if shape.flags.is_some_and(|v| v & 0x05ff == 0) && !shape.text_insets_invalid {
@@ -662,7 +667,7 @@ impl Drawing {
                         x.empty("a:lstStyle", &[]);
                         for line in text.split(|u| *u == 0x0D || *u == 0x0A) {
                             x.open("a:p", &[]);
-                            if let Some((horizontal, _)) = object.text_alignment {
+                            if let Some((horizontal, _)) = object.text_alignment.filter(|_| !shape.text_anchor_ambiguous) {
                                 x.empty("a:pPr", &[("algn", horizontal.to_owned())]);
                             }
                             if !line.is_empty() {
