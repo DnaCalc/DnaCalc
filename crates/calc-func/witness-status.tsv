@@ -764,7 +764,7 @@ WORKDAY	full	20430	3600	3600	-	exact	218dcceeef	0
 WORKDAY	pinned	20430	120	120	-	exact	7a3e51cd1b+changes	0
 WORKDAY.INTL	full	20430	6000	6000	-	exact	218dcceeef	0
 WORKDAY.INTL	pinned	20430	120	120	-	exact	7a3e51cd1b+changes	0
-WRAPCOLS	full	20527	3000	2994	-	structural	218dcceeef	0
+WRAPCOLS	full	20527	3000	2999	-	structural	c6b7d6bb6d+changes	0
 WRAPROWS	full	20527	3000	3000	-	exact	218dcceeef	0
 XIRR	full	20527	2861	2861	-	exact	218dcceeef	0
 XLOOKUP	full	20527	3360	3360	-	exact	218dcceeef	0

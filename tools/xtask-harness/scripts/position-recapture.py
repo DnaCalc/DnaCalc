@@ -16,11 +16,11 @@ inputs Excel read back differently, or that Excel could not answer, are listed a
 stay failures. Each answer is S!A1's value (`result_selection: anchor`): a spill wider than one
 column meets the argument cells and is #SPILL!, as in the bulk layout.
 """
-import argparse, concurrent.futures, gzip, importlib.util, json, pathlib, sys
+import argparse, concurrent.futures, gzip, importlib.util, json, pathlib, sys, time
 
 HERE = pathlib.Path(__file__).resolve()
 sys.path.insert(0, str(HERE.parents[3] / 'tools' / 'excel-service'))
-from client import Client, number, number_array, text, boolean, blank, error  # noqa: E402
+from client import Client, number, number_array, text, boolean, blank, error, sheet_case  # noqa: E402
 
 spec = importlib.util.spec_from_file_location('drift', HERE.with_name('witness-drift.py'))
 drift = importlib.util.module_from_spec(spec)
@@ -74,6 +74,67 @@ def typed(arg):
     raise ValueError('argument form %r is not a scalar cell' % (arg,))
 
 
+def column_letters(column):
+    out = ''
+    while column > 0:
+        column, rem = divmod(column - 1, 26)
+        out = chr(65 + rem) + out
+    return out
+
+
+def layout_cell(arg):
+    """A bank argument as a sheet-case cell (None for a blank), as the serial worker types it."""
+    if arg is None:
+        return None
+    if isinstance(arg, bool):
+        return {'type': 'boolean', 'value': arg}
+    if isinstance(arg, dict) and set(arg) == {'error'}:
+        return {'type': 'error', 'code': CODES[arg['error']]}
+    if isinstance(arg, str) and arg.startswith('0x') and len(arg) == 18:
+        return {'type': 'number', 'bits': arg[2:].lower()}
+    if isinstance(arg, str):
+        return {'type': 'text', 'value': arg}
+    raise ValueError('argument form %r is not a scalar cell' % (arg,))
+
+
+def serial_single_case(function, args, index):
+    """The one-call serial layout (touchstone/1-serial-single) as a sheet case, built exactly as the
+    harness's cell_context::serial_single builds it: sheets S, A and Q, the arguments in S!B1 onwards
+    (an array argument one cell per element, row by row, read back through CHOOSE), and
+    =F(B1,C1,...) in S!A1, wrapped in INDEX(..., r, c) for a selected result. For arguments the
+    serial request cannot carry (an array holding text, logicals, errors or blanks)."""
+    cells, refs, column = {}, [], [2]
+
+    def place(arg):
+        at = '%s1' % column_letters(column[0])
+        column[0] += 1
+        cell = layout_cell(arg)
+        if cell is not None:
+            cells[at] = cell
+        return at
+
+    for arg in args:
+        if isinstance(arg, list):
+            rows = arg if all(isinstance(r, list) for r in arg) else [arg]
+            indices, sources, k = [], [], 0
+            for row in rows:
+                line = []
+                for value in row:
+                    k += 1
+                    line.append(str(k))
+                    sources.append(place(value))
+                indices.append(','.join(line))
+            refs.append('CHOOSE({%s},%s)' % (';'.join(indices), ','.join(sources)))
+        else:
+            refs.append(place(arg))
+    formula = '%s(%s)' % (function, ','.join(refs))
+    if index:
+        formula = 'INDEX(%s,%d,%d)' % (formula, index[0], index[1])
+    sheets = [{'name': name, 'cells': c, 'hidden_rows': [], 'hidden_columns': []}
+              for name, c in (('S', cells), ('A', {}), ('Q', {}))]
+    return sheet_case(sheets, [{'at': 'S!A1', 'formula': '=' + formula}], {})
+
+
 def outside_return_types(w):
     """A WEEKNUM row whose return type is a number below 1 or from 21 up: a superset of the
     harness's order-dependent rows (witness.rs order_dependent_weeknum)."""
@@ -114,6 +175,10 @@ def main():
     p.add_argument('--excel-index', action='store_true',
                    help="ask Excel for INDEX(call, r, c) with each row's result_index (the selection the bank made)")
     p.add_argument('--workers', type=int, default=16)
+    p.add_argument('--sheet-case', action='store_true',
+                   help='ask each row as a sheet case holding the serial-single layout (for arguments a serial '
+                        'request cannot carry: arrays of text, logicals, errors or blanks)')
+    p.add_argument('--priority', choices=('bulk', 'interactive'), default='bulk')
     o = p.parse_args()
     rows = []
     if o.from_trace:
@@ -140,6 +205,9 @@ def main():
         rows = rows[:o.limit]
     client = Client(transport='socket', timeout=1800)
     socket = client._socket()
+
+    if o.sheet_case:
+        return ask_sheet_cases(o, rows, client)
 
     def ask(item):
         rel, w = item
@@ -197,6 +265,50 @@ def main():
     }
     o.out.write_text(json.dumps(doc, ensure_ascii=True, separators=(',', ':')) + '\n')
     print(f'{o.function}: accepted {len(accepted)}/{len(rows)} rejected {doc["capture_summary"]["rejected"]} env {sorted(envs)}')
+
+
+def ask_sheet_cases(o, rows, client):
+    """--sheet-case: every row its own sheet case (one layout each), in one request."""
+    cases = [serial_single_case(o.function, w['args'], tuple(w['result_index'])
+                                if o.excel_index and w.get('result_index') else None) for _, w in rows]
+    sock = client._socket()
+    pending = sock.submit_rows('_CASE', [[c] for c in cases], priority=o.priority)
+    reply = pending.result(timeout=client.timeout)
+    envs = sorted(pending.env_ids)
+    accepted, rejected = [], {}
+    for (rel, w), row in zip(rows, reply['rows']):
+        result = None
+        if row.get('type') == 'sheet_case':
+            probe = row['probes'][0]
+            if probe.get('type') != 'refused':
+                result = drift.answer(probe['value'])
+        if result is None:
+            rejected.setdefault('unread, refused or changed input: %s' % row.get('type'), []).append(w['id'])
+            continue
+        out = {'id': w['id'], 'original_source': rel, 'args': w['args'], 'expected_bits': result,
+               'bulk_expected_bits': w['expected_bits']}
+        if o.excel_index and w.get('result_index'):
+            out['result_index'] = w['result_index']
+        accepted.append(out)
+    if len(envs) != 1:
+        raise SystemExit('answers came from several environments: %s' % envs)
+    doc = {
+        'format': 'dnacalc-witness-recapture/1',
+        'function': o.function,
+        'witnesses': accepted,
+        'capture_provenance': {
+            'service': 'touchstone/1', 'env_id': envs[0],
+            'environment': {'excel_build': '20527', 'platform': 'Windows', 'excel_input_plumbing': 'cell_value2_bulk'},
+            'request': 'sheet cases (_CASE, token L)', 'calls_per_request': 1, 'cell_layout': LAYOUT,
+            'result_selection': 'excel-index' if o.excel_index else 'anchor',
+            'timestamp': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+            'script': 'DnaCalc tools/xtask-harness/scripts/position-recapture.py --sheet-case',
+        },
+        'capture_summary': {'requested': len(rows), 'accepted': len(accepted),
+                            'rejected': {k: len(v) for k, v in rejected.items()}, 'rejected_ids': rejected},
+    }
+    o.out.write_text(json.dumps(doc, ensure_ascii=True, separators=(',', ':')) + '\n')
+    print(f'{o.function}: accepted {len(accepted)}/{len(rows)} rejected {doc["capture_summary"]["rejected"]} env {envs}')
 
 
 if __name__ == '__main__':
