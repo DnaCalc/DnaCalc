@@ -42,6 +42,12 @@ fn external_cache_biff5_fixture() -> Vec<u8> {
     v5::xls(1252, &[], &[v5::Sheet { name: b"S".to_vec(), records }])
 }
 
+fn addin_cell_reference_fixture() -> Vec<u8> {
+    let globals = [supbook_addin(), extern_sheet(&[(0, -2, -2)])].concat();
+    let cell = formula(0, 0, num_value(0.0), &ptg::cell3d(0, 0, 0, 0), &[]);
+    xls(false, &globals, &[Sheet::worksheet("Data", cell)])
+}
+
 fn ignored_error_feature() -> Vec<u8> {
     let mut header = vec![0x67, 0x08]; header.extend([0u8; 10]);
     header.extend(u16s(&[3])); header.push(1); header.extend(0u32.to_le_bytes());
@@ -127,6 +133,7 @@ fn write_legacy_excel_session_inputs() {
             formula(0, 1, num_value(0.0), &tokens, &[])].concat();
         std::fs::write(dir.join(file), xls(false, &sst(&[("Sales", &[])], None), &[Sheet::worksheet("Data", cells)])).unwrap();
     }
+    std::fs::write(dir.join("repair-addin-cell.xls"), addin_cell_reference_fixture()).unwrap();
     for name in ["cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "forms"] {
         let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
         let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
@@ -139,7 +146,7 @@ fn write_legacy_excel_session_inputs() {
         "files": ["cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "forms.xls"],
         "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls",
             "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls",
-            "repair-elf-column.xls", "repair-elf-radical.xls"],
+            "repair-elf-column.xls", "repair-elf-radical.xls", "repair-addin-cell.xls"],
         "create_pivot": true,
         "formulas": [
             ["rows_full_column", "=ROWS(A:A)"], ["columns_full_row", "=COLUMNS(1:1)"],
@@ -1096,6 +1103,15 @@ fn names_3d_external_references_and_add_in_functions() {
         names,
         vec!["Rate = S!$A$1", "_xlnm.Print_Area = S!$A$1:$D$10", "Helper = 1"]
     );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn addin_cell_reference_remains_an_explicit_refusal() {
+    match calc_doc::open(source(&addin_cell_reference_fixture()), &OpenPolicy::default()) {
+        Err(OpenError::LegacyWorkbook { detail, .. }) => assert!(detail.contains("3-D reference into an add-in"), "{detail}"),
+        _ => panic!("the add-in cell reference was not refused"),
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
