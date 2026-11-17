@@ -5459,3 +5459,20 @@ fn forecast_ets_targets_inside_and_before_the_history() {
         error(call("FORECAST.ETS", vec![n(target), y.clone(), t.clone()]), Num);
     }
 }
+
+/// Excel 20527 bank rows (bank2-more-FORECAST.ETS-0788, -1220): five-point
+/// histories with automatic period two use the measured short period-two
+/// initial states and its five candidates.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn forecast_ets_five_point_period_two_fit() {
+    let t = col(&[1.0, 2.0, 3.0, 4.0, 5.0]);
+    for (target, y, expected) in [
+        (0x3fe9_7a48_00db_f6b4_u64, [0x3ffd_a0cb_c023_312e_u64, 0x4004_cf30_6128_99a0, 0x400b_d093_ca8c_c0b8, 0x4012_efa2_8a83_e1b7, 0x4015_6050_deaf_d77e], 0x3ff7_fb91_3d22_8c6c_u64),
+        (0x4017_ffff_ffff_ffff, [0x3ff3_b034_c8d6_ccd6, 0x4007_4138_15fa_13fa, 0x4009_adfc_7811_b7c2, 0x4011_71d8_7310_f858, 0x4015_91a3_85d8_f001], 0x4019_ab11_103b_b2ab),
+    ] {
+        let y = y.map(f64::from_bits);
+        exact(call("FORECAST.ETS", vec![n(f64::from_bits(target)), col(&y), t.clone()]), f64::from_bits(expected));
+        exact(call("FORECAST.ETS.SEASONALITY", vec![col(&y), t.clone()]), 2.0);
+    }
+}

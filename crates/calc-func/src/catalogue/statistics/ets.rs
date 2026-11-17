@@ -1031,6 +1031,43 @@ fn seasonal_initial(y: &[f64], period: usize) -> Initial {
     Initial { level, trend, seasons, period, gamma: 0.0 }
 }
 
+/// The five candidates Excel 20527 selects among for period two on five to
+/// seven observations: all 655 recorded five-point selections (bank5, eng21).
+const SHORT_TWO_PARAMETERS: &[(f64, f64, f64)] = &[
+    (0.751, 0.001, 0.001),
+    (0.501, 0.001, 0.001),
+    (0.251, 0.001, 0.001),
+    (0.126, 0.001, 0.001),
+    (0.002, 0.001, 0.125),
+];
+
+/// Period-two initial states for five to seven observations, identified
+/// exactly from Excel's fitted values (eng21 solve_init: the final states of
+/// 80 to 160 histories per length are linear in the history to 1e-14, and the
+/// initial states solved from them are these rationals):
+/// - tau, the mean over both phases of the end-to-end phase slope, extends the
+///   history to seven points as e_j = y_(j mod 2) + (j - j mod 2) tau;
+/// - the phase-one index is -3/8 e0 + 7/8 e1 - 1/2 e2 - 1/8 e4 + 1/8 e5,
+///   relative to phase zero, whose level+index is the first observation;
+/// - the trend is the least-squares slope of the deseasonalised extension.
+fn short_two_initial(y: &[f64]) -> (Initial, Vec<f64>) {
+    let n = y.len();
+    let phase_slope = |q: usize| {
+        let last = q + ((n - 1 - q) / 2) * 2;
+        (y[last] - y[q]) / (last - q) as f64
+    };
+    let tau = (phase_slope(0) + phase_slope(1)) / 2.0;
+    let mut e = y.to_vec();
+    for j in n..7 {
+        e.push(y[j % 2] + (j - j % 2) as f64 * tau);
+    }
+    let index = -0.375 * e[0] + 0.875 * e[1] - 0.5 * e[2] - 0.125 * e[4] + 0.125 * e[5];
+    let adjusted: Vec<f64> =
+        e.iter().enumerate().map(|(j, &v)| if j % 2 == 1 { v - index } else { v }).collect();
+    let trend = regression_slope(&adjusted);
+    (Initial { level: y[0], trend, seasons: vec![0.0, index], period: 2, gamma: 0.0 }, e)
+}
+
 fn seasonal_general(
     site: &Site<'_>,
     y: &[f64],
@@ -1043,16 +1080,24 @@ fn seasonal_general(
     if output == Output::Seasonality {
         return site.number(period as f64);
     }
-    let start = y.len() - statistic_window(y.len());
-    let validation = (start != 0).then_some(start);
-    let run = |(alpha, beta, gamma): (f64, f64, f64), validation: Option<usize>| {
-        let initial = Initial { gamma, ..seasonal_initial(y, period) };
-        Model::run_initialized(y, alpha, beta, validation, initial)
+    let short = period == 2 && (5..=7).contains(&y.len());
+    let (initial, search_history, candidates) = if short {
+        let (initial, extended) = short_two_initial(y);
+        (initial, extended, SHORT_TWO_PARAMETERS)
+    } else {
+        (seasonal_initial(y, period), y.to_vec(), SEASONAL_PARAMETERS)
     };
+    let start = search_history.len() - statistic_window(search_history.len());
+    let validation = (start != 0).then_some(start);
+    let run_on = |history: &[f64], (alpha, beta, gamma): (f64, f64, f64), validation: Option<usize>| {
+        let initial = Initial { gamma, seasons: initial.seasons.clone(), ..initial };
+        Model::run_initialized(history, alpha, beta, validation, initial)
+    };
+    let run = |candidate, validation| run_on(y, candidate, validation);
     let mut best = f64::INFINITY;
-    let mut chosen = SEASONAL_PARAMETERS[0];
-    for &candidate in SEASONAL_PARAMETERS {
-        let score = run(candidate, validation).squared_errors();
+    let mut chosen = candidates[0];
+    for &candidate in candidates {
+        let score = run_on(&search_history, candidate, validation).squared_errors();
         if score < best {
             best = score;
             chosen = candidate;
