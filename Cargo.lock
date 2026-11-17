@@ -377,6 +377,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "calc-surrogate-wire"
+version = "0.1.0"
+dependencies = [
+ "wasm-bindgen-test",
+]
+
+[[package]]
 name = "calc-syntax"
 version = "0.1.0"
 

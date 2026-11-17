@@ -1,0 +1,16 @@
+[package]
+name = "calc-surrogate-wire"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "The add-in surrogate's message envelope (docs/architecture/ADDIN_SURROGATE.md section 4): frames, incarnation and sequence rules, and the controller and surrogate ends of a link, over bytes only."
+
+[package.metadata.dnacalc]
+portability = "portable"
+
+# No dependencies: the envelope moves bytes and never decodes a payload. The applications decode
+# their own seam payloads (dna-onecalc `Request`/`Reply`), after the kind check here.
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "=0.3.67"

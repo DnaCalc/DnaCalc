@@ -22,6 +22,7 @@ members = [
     "crates/calc-host",
     "crates/calc-host-vba",
     "crates/calc-macro-security",
+    "crates/calc-surrogate-wire",
     "apps/dna-formula-ui",
     "apps/dna-onecalc",
     "apps/dna-calc",

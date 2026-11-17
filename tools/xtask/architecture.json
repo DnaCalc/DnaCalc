@@ -240,6 +240,29 @@
       "reason": "the desktop platform adapter has no product dependency: windows, WebView2, WinHTTP and file dialogs only; the applications and the add-in host build on it (milestone 1 of the OneCalc desktop note)"
     },
     {
+      "package": "calc-surrogate-wire",
+      "scope": "closure",
+      "forbidden": [
+        "calc-value",
+        "calc-func",
+        "calc-fml",
+        "calc-vba",
+        "calc-xll-host",
+        "calc-com-host",
+        "calc-addin-host",
+        "calc-doc",
+        "calc-engine",
+        "calc-host",
+        "calc-platform-desktop",
+        "dna-onecalc",
+        "dna-calc",
+        "dna-calc-model",
+        "dna-onecalc-desktop",
+        "dna-calc-desktop"
+      ],
+      "reason": "ADDIN_SURROGATE.md sections 4 and 10: the surrogate envelope moves envelopes and bytes and never decodes a payload; the platform and both applications build on it"
+    },
+    {
       "package": "calc-addin-host",
       "scope": "closure",
       "forbidden": [
