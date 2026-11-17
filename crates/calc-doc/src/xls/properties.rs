@@ -142,8 +142,8 @@ fn read(data: &[u8], fmtid: &[u8; 16], ids: &[u32], dates: bool) -> Option<BTree
                 let raw = &raw[..raw.len()-1];
                 match cp {
                     Some(65001) => std::str::from_utf8(raw).ok().map(str::to_owned),
-                    Some(page) if page == 932 || super::codepage::high_half(page).is_some()
-                        || (matches!(page, 936 | 949 | 950) && raw.is_ascii()) => super::codepage::decode(page, raw).ok(),
+                    Some(page) if matches!(page, 932 | 936 | 949 | 950) || super::codepage::high_half(page).is_some()
+                        => super::codepage::decode(page, raw).ok(),
                     _ => None,
                 }
             }
@@ -212,8 +212,8 @@ pub(crate) fn custom(data: &[u8]) -> Option<CustomProperties> {
             let raw = &raw[..raw.len()-1];
             match page {
                 65001 => std::str::from_utf8(raw).ok()?.to_owned(),
-                page if page == 932 || super::codepage::high_half(page).is_some()
-                    || (matches!(page, 936 | 949 | 950) && raw.is_ascii()) => super::codepage::decode(page, raw).ok()?,
+                page if matches!(page, 932 | 936 | 949 | 950) || super::codepage::high_half(page).is_some()
+                    => super::codepage::decode(page, raw).ok()?,
                 _ => return None,
             }
         };

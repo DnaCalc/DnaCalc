@@ -743,6 +743,17 @@ fn ole_summary_properties_survive_conversion_and_save() {
     let bad_company = calc_doc::open(source(&bad_company), &OpenPolicy::default()).unwrap();
     let app = String::from_utf8(bad_company.package().read_part("docProps/app.xml").unwrap()).unwrap();
     assert!(app.contains("<Manager>Manager</Manager>") && !app.contains("<Company>"), "{app}");
+    for (page, encoded, expected) in [(936u16, &b"\xd6\xd0"[..], "中"), (949, &b"\xb0\xa1"[..], "가"),
+        (950, &b"\xa4\xa4"[..], "中")] {
+        let mut cp = 2u32.to_le_bytes().to_vec(); cp.extend(u16s(&[page, 0]));
+        let mut d = doc_summary[..48].to_vec(); d[24..28].copy_from_slice(&1u32.to_le_bytes());
+        d[44..48].copy_from_slice(&48u32.to_le_bytes());
+        d.extend(section(&[(1, cp), (15, ansi(encoded))]));
+        let input = compound(&[("Workbook", workbook.clone()), ("\u{5}DocumentSummaryInformation", d)]);
+        let opened = calc_doc::open(source(&input), &OpenPolicy::default()).unwrap();
+        let app = String::from_utf8(opened.package().read_part("docProps/app.xml").unwrap()).unwrap();
+        assert!(app.contains(&format!("<Company>{expected}</Company>")), "{app}");
+    }
     let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
     assert_eq!(report.unread_custom_property_types.get(&0x41), Some(&1));
     assert_eq!(report.unread_custom_property_sets, 0);
