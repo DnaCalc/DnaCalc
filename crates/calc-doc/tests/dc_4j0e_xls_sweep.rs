@@ -69,6 +69,7 @@ fn sweep() {
     let (mut category_points, mut category_files) = (0usize, 0usize);
     let (mut series_fills, mut series_fill_files) = (0usize, 0usize);
     let (mut series_lines, mut series_line_files) = (0usize, 0usize);
+    let (mut chart_titles, mut chart_title_files) = (0usize, 0usize);
     let (mut pivot_caches, mut pivot_records, mut pivot_files) = (0usize, 0u64, 0usize);
     let (mut phonetic_runs, mut phonetic_files, mut phonetic_errors) = (0usize, 0usize, 0usize);
     let (mut phonetic_formats, mut phonetic_format_files) = (0usize, 0usize);
@@ -210,7 +211,10 @@ fn sweep() {
                             .flat_map(|c| &c.plots).filter(|p| matches!(p.kind.as_str(), "lineChart" | "scatterChart"))
                             .flat_map(|p| &p.series).filter(|s| s.fill.is_some()).count()
                     } else { 0 };
-                    (formulas, failed, caches, saved_records, points, categories, fills, lines)
+                    let titles = if audit_charts {
+                        loaded.sheets().iter().flat_map(|s| &s.charts().charts).filter(|c| c.title.is_some()).count()
+                    } else { 0 };
+                    (formulas, failed, caches, saved_records, points, categories, fills, lines, titles)
                 })
             });
             (report, document.map(|_| ()), load, written_phonetic, written_chart_sheets, core, app, custom, written_scenarios, written_filter_modes, written_chart_print, written_page_setup)
@@ -264,10 +268,12 @@ fn sweep() {
                             phonetic_errors += 1;
                         }
                         match load {
-                            Some(Ok((formulas, failed, caches, saved_records, points, categories, fills, lines))) => {
+                            Some(Ok((formulas, failed, caches, saved_records, points, categories, fills, lines, titles))) => {
                                 loaded += 1;
                                 formula_cells += formulas;
                                 parse_failures += failed;
+                                chart_titles += titles;
+                                chart_title_files += usize::from(titles != 0);
                                 pivot_caches += caches;
                                 pivot_records += saved_records;
                                 pivot_files += usize::from(caches != 0);
@@ -324,6 +330,7 @@ fn sweep() {
         println!("chart category display-cache points: {category_points} in {category_files} files (not calculated cell results)");
         println!("chart series with explicit solid fill: {series_fills} in {series_fill_files} files (not an Excel match verdict)");
         println!("line and scatter series with explicit solid line color: {series_lines} in {series_line_files} files (not an Excel match verdict)");
+        println!("loaded embedded charts with titles: {chart_titles} in {chart_title_files} files (not an Excel match verdict)");
     }
     if audit_chart_sheets {
         println!("chart sheets with a linked chart: {chart_sheets} in {chart_sheet_files} files (partial chart conversion, not an Excel match verdict)");

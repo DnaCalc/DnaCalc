@@ -1081,8 +1081,10 @@ pub mod art {
         // A TEXT block for the chart title: linked as object 1.
         out.extend(record(0x1025, &[0u8; 32]));
         out.extend(begin());
-        out.extend(record(0x1027, &u16s(&[1, 0, 0, 0])));
+        out.extend(record(0x104F, &[0u8; 20]));
+        out.extend(record(0x1051, &[0, 1, 0, 0, 0, 0, 0, 0]));
         out.extend(series_text(title));
+        out.extend(record(0x1027, &u16s(&[1, 0, 0, 0])));
         out.extend(end());
         out.extend(record(0x1015, &[0u8; 20]));
         out.extend(begin());

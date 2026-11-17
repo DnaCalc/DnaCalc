@@ -135,6 +135,8 @@ pub(crate) struct Chart {
     stack: Vec<u8>,
     pending: Option<u8>,
     link: Option<u16>,
+    attached_text: Option<String>,
+    attached_invalid: bool,
     seen_chart: bool,
     plot_visible_only: Option<bool>,
     blanks: Option<&'static str>,
@@ -379,6 +381,8 @@ impl Chart {
             TEXT => {
                 self.pending = Some(block_code(Block::Text));
                 self.link = None;
+                self.attached_text = None;
+                self.attached_invalid = false;
             }
             LEGEND => {
                 self.legend = true;
@@ -391,7 +395,13 @@ impl Chart {
             END => {
                 if let Some(code) = self.stack.pop() {
                     match block_of(code) {
-                        Block::Text => self.link = None,
+                        Block::Text => {
+                            if !self.attached_invalid && let (Some(link), Some(text)) = (self.link, self.attached_text.take()) {
+                                self.titles.insert(link, text);
+                            }
+                            self.link = None;
+                            self.attached_text = None;
+                        }
                         Block::Axis => self.axis_index = None,
                         Block::AxisParent => self.primary_axis_group = false,
                         Block::DataFormat => {
@@ -472,7 +482,11 @@ impl Chart {
                     .then(|| body.get(8..8 + count))
                     .flatten()
                     .and_then(print);
-                if let Some(s) = self.series.last_mut() {
+                if self.stack.iter().any(|c| block_of(*c) == Block::Text) {
+                    // A linked attached label is not a literal chart title and its formula is
+                    // not a series formula. Leave it unconverted until title links are modeled.
+                    if reference_type == 2 && count > 0 { self.attached_invalid = true; }
+                } else if let Some(s) = self.series.last_mut() {
                     match id {
                         0 => s.title_formula = formula,
                         1 => s.values = formula,
@@ -482,7 +496,10 @@ impl Chart {
                 }
             }
             OBJECT_LINK if body.len() >= 2 => {
-                self.link = Some(u16::from_le_bytes([body[0], body[1]]));
+                if self.stack.iter().any(|c| block_of(*c) == Block::Text) {
+                    if self.link.is_some() { self.attached_invalid = true; }
+                    self.link = Some(u16::from_le_bytes([body[0], body[1]]));
+                }
             }
             SERIES_TEXT => {
                 let text = if let Some(page) = code_page {
@@ -497,19 +514,14 @@ impl Chart {
                         .map(|units| String::from_utf16_lossy(&units))
                 };
                 if let Some(text) = text {
-                    let in_text = self.stack.iter().any(|c| block_of(*c) == Block::Text);
-                    match (in_text, self.link) {
-                        (true, Some(link)) => {
-                            self.titles.insert(link, text);
-                        }
-                        _ => {
-                            if let Some(s) = self.series.last_mut()
-                                && s.title.is_none()
-                            {
-                                s.title = Some(text);
-                            }
-                        }
+                    if self.stack.iter().any(|c| block_of(*c) == Block::Text) {
+                        if self.attached_text.is_some() { self.attached_invalid = true; }
+                        self.attached_text = Some(text);
+                    } else if let Some(s) = self.series.last_mut() && s.title.is_none() {
+                        s.title = Some(text);
                     }
+                } else if self.stack.iter().any(|c| block_of(*c) == Block::Text) {
+                    self.attached_invalid = true;
                 }
             }
             0x1002 => self.seen_chart = true,

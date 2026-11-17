@@ -2289,6 +2289,38 @@ fn pictures_text_boxes_and_charts_are_written_as_a_drawing() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_attached_title_binds_after_text_without_changing_series_name() {
+    use ptg::*;
+    use xls_kit::art;
+    for (linked, duplicate, expected) in [(false, false, true), (true, false, false), (false, true, false)] {
+        let mut chart = art::chart(&[("Sales", Vec::new(), area3d(0, (1, 4), (1, 1), 0))], 0, "Quarterly");
+        let title = art::series_text("Quarterly");
+        let at = chart.windows(title.len()).position(|w| w == title).unwrap();
+        if linked { chart.splice(at..at, art::ai(0, &area3d(0, (0, 0), (0, 0), 0))); }
+        if duplicate {
+            let link = record(0x1027, &u16s(&[1, 0, 0, 0]));
+            let at = chart.windows(link.len()).position(|w| w == link).unwrap() + link.len();
+            chart.splice(at..at, link);
+        }
+        let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
+        let globals = [supbook_self(1), extern_sheet(&[(0, 0, 0)])].concat();
+        let bytes = xls(false, &globals, &[Sheet::worksheet("S", records)]);
+        let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let xml = String::from_utf8(doc.package().read_part("xl/charts/chart1_1.xml").unwrap()).unwrap();
+        assert_eq!(xml.contains("Quarterly"), expected, "{xml}");
+        assert!(xml.contains("Sales"), "{xml}");
+        assert!(!xml.contains("<c:f>S!$A$1"), "{xml}");
+        if expected {
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            let reopened = load(&saved);
+            assert_eq!(reopened.sheets()[0].charts().charts[0].title.as_deref(), Some("Quarterly"));
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn chart_numeric_display_cache_survives_conversion() {
     use ptg::*;
     use xls_kit::art;

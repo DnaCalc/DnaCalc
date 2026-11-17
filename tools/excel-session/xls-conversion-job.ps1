@@ -144,11 +144,12 @@ try {
                 $sheet.Range('H1').Value2 = 1; $sheet.Range('H2').Value2 = 2
                 $c = $sheet.ChartObjects().Add(200, 100, 200, 150).Chart
                 $c.ChartType = 51; $c.SetSourceData($sheet.Range('H1:H2'))
+                $c.HasTitle = $true; $c.ChartTitle.Text = 'Controlled embedded title'
                 $c.PlotVisibleOnly = $false; $c.DisplayBlanksAs = 3
                 $group = $c.ChartGroups(1); $group.GapWidth = 70; $group.Overlap = -30; $group.VaryByCategories = $true
                 $axis = $c.Axes(2); $axis.MinimumScale = 2; $axis.MaximumScale = 20
                 $axis.MajorUnit = 5; $axis.MinorUnit = 1; $axis.ReversePlotOrder = $true
-                @{gap=$group.GapWidth; overlap=$group.Overlap; varied=$group.VaryByCategories;
+                @{gap=$group.GapWidth; overlap=$group.Overlap; varied=$group.VaryByCategories; title=[string]$c.ChartTitle.Text;
                   visible_only=$c.PlotVisibleOnly; display_blanks=$c.DisplayBlanksAs;
                   minimum=$axis.MinimumScale; maximum=$axis.MaximumScale; major=$axis.MajorUnit;
                   minor=$axis.MinorUnit; reversed=$axis.ReversePlotOrder}
