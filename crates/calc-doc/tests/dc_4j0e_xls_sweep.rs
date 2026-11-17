@@ -61,6 +61,7 @@ fn sweep() {
     let (mut core_categories, mut app_files, mut app_names, mut app_managers, mut app_companies) = (0usize, 0usize, 0usize, 0usize, 0usize);
     let (mut custom_files, mut custom_count) = (0usize, 0usize);
     let (mut chart_sheets, mut chart_sheet_files) = (0usize, 0usize);
+    let (mut chart_setups, mut chart_setup_files) = (0usize, 0usize);
     let (mut chart_points, mut chart_files) = (0usize, 0usize);
     let (mut category_points, mut category_files) = (0usize, 0usize);
     let (mut series_fills, mut series_fill_files) = (0usize, 0usize);
@@ -130,9 +131,12 @@ fn sweep() {
             let written_chart_sheets = if audit_chart_sheets {
                 document.as_ref().ok().map(|doc| doc.package().parts().iter()
                     .filter(|part| part.name().starts_with("xl/chartsheets/sheet") && part.name().ends_with(".xml"))
-                    .filter(|part| doc.package().read_part(part.name()).is_ok_and(|xml| xml.windows(8).any(|w| w == b"<drawing")))
-                    .count()).unwrap_or(0)
-            } else { 0 };
+                    .filter_map(|part| doc.package().read_part(part.name()).ok())
+                    .fold((0usize, 0usize), |(charts, setups), xml| (
+                        charts + usize::from(xml.windows(8).any(|w| w == b"<drawing")),
+                        setups + usize::from(xml.windows(10).any(|w| w == b"<pageSetup")))))
+                    .unwrap_or((0, 0))
+            } else { (0, 0) };
             let written_phonetic = if audit_phonetic {
                 document.as_ref().ok().and_then(|doc| {
                     if doc.package().part("xl/sharedStrings.xml").is_none() { return Some((0, 0)); }
@@ -222,8 +226,10 @@ fn sweep() {
                         filter_mode_files += usize::from(written_filter_modes != 0);
                         chart_print_texts += written_chart_print;
                         chart_print_files += usize::from(written_chart_print != 0);
-                        chart_sheets += written_chart_sheets;
-                        chart_sheet_files += usize::from(written_chart_sheets != 0);
+                        chart_sheets += written_chart_sheets.0;
+                        chart_sheet_files += usize::from(written_chart_sheets.0 != 0);
+                        chart_setups += written_chart_sheets.1;
+                        chart_setup_files += usize::from(written_chart_sheets.1 != 0);
                         if let Some((runs, formats)) = written_phonetic {
                             phonetic_runs += runs;
                             phonetic_files += usize::from(runs != 0);
@@ -296,6 +302,7 @@ fn sweep() {
     }
     if audit_chart_sheets {
         println!("chart sheets with a linked chart: {chart_sheets} in {chart_sheet_files} files (partial chart conversion, not an Excel match verdict)");
+        println!("chart sheets with partial print setup: {chart_setups} in {chart_setup_files} files (not an Excel match verdict)");
     }
     if audit_core {
         println!("core metadata parts: {core_files} files; title {core_titles}, author {core_authors}, last saved by {core_modifiers}, created {core_created}, modified {core_modified}, category {core_categories} (not an Excel match verdict)");

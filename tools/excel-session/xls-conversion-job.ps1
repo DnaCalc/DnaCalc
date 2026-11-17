@@ -184,6 +184,12 @@ try {
                   top=$chartSheet.PageSetup.TopMargin; bottom=$chartSheet.PageSetup.BottomMargin;
                   header_margin=$chartSheet.PageSetup.HeaderMargin; footer_margin=$chartSheet.PageSetup.FooterMargin}
             }
+            $entry.setup.chart_sheet_page_setup = GetOrError {
+                $chartSheet.PageSetup.Orientation = 2; $chartSheet.PageSetup.PaperSize = 9
+                $chartSheet.PageSetup.BlackAndWhite = $true
+                @{orientation=$chartSheet.PageSetup.Orientation; paper=$chartSheet.PageSetup.PaperSize;
+                  black_and_white=$chartSheet.PageSetup.BlackAndWhite}
+            }
             $entry.setup.page = GetOrError { $sheet.PageSetup.Orientation = 2; $sheet.PageSetup.PrintArea = '$A$1:$D$5'; $sheet.PageSetup.Orientation }
             $entry.setup.header_picture = GetOrError {
                 $picture = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../crates/calc-doc/tests/fixtures/drawing/pictures/card.png'))

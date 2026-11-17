@@ -420,6 +420,9 @@ pub(crate) fn convert(
                         }
                     }
                 }
+                if let [record] = margin_records[4].as_slice() {
+                    print_features.read_chart_setup(record);
+                }
                 // A chart sheet's pageMargins requires all four margins and the two in Setup.
                 // Keep Setup unread: its other print settings are not converted here.
                 let valid_margins = margin_records.iter().enumerate().all(|(index, records)| {
@@ -1114,6 +1117,7 @@ fn linked_chartsheet(features: &features::Features, selected: Option<bool>) -> V
     xml.empty("sheetView", &attributes);
     xml.close("sheetViews");
     features.write_chart_margins(&mut xml);
+    features.write_chart_setup(&mut xml);
     features.write_header_footer(&mut xml);
     xml.empty("drawing", &[("r:id", "rId1".to_owned())]);
     xml.close("chartsheet");
@@ -1160,6 +1164,7 @@ fn empty_chartsheet(features: &features::Features, selected: Option<bool>) -> Ve
         xml.close("sheetViews");
     }
     features.write_chart_margins(&mut xml);
+    features.write_chart_setup(&mut xml);
     features.write_header_footer(&mut xml);
     xml.close("chartsheet");
     xml.out

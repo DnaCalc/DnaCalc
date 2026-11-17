@@ -645,6 +645,39 @@ fn chart_sheet_preserves_complete_unambiguous_print_margins() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_sheet_preserves_representable_print_setup() {
+    let make = |flags| {
+        let mut setup = u16s(&[9, 100, 3, 1, 1, flags, 300, 600]);
+        setup.extend(0.5_f64.to_le_bytes()); setup.extend(0.5_f64.to_le_bytes());
+        setup.extend(2u16.to_le_bytes());
+        xls(false, &[], &[Sheet { kind: 2, ..Sheet::worksheet("Chart", record(0xa1, &setup)) }])
+    };
+    let bytes = make(0x00da); // portrait, monochrome, draft and explicit first page
+    let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let verify = |doc: &calc_doc::OpenedDocument| {
+        let sheet = String::from_utf8(doc.package().read_part("xl/chartsheets/sheet1.xml").unwrap()).unwrap();
+        for expected in ["paperSize=\"9\"", "orientation=\"portrait\"", "horizontalDpi=\"300\"",
+            "verticalDpi=\"600\"", "copies=\"2\"", "blackAndWhite=\"1\"", "draft=\"1\"",
+            "firstPageNumber=\"3\"", "useFirstPageNumber=\"1\""] {
+            assert!(sheet.contains(expected), "{expected}: {sheet}");
+        }
+    };
+    verify(&doc);
+    let mut saved = Vec::new();
+    calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+    verify(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+    assert_eq!(legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap().unknown_records.get(&0xa1), Some(&1));
+    let undefined = make(4);
+    let doc = calc_doc::open(source(&undefined), &OpenPolicy::default()).unwrap();
+    let sheet = String::from_utf8(doc.package().read_part("xl/chartsheets/sheet1.xml").unwrap()).unwrap();
+    assert!(sheet.contains("usePrinterDefaults=\"1\""), "{sheet}");
+    for absent in ["paperSize=", "orientation=", "horizontalDpi=", "verticalDpi=", "copies="] {
+        assert!(!sheet.contains(absent), "{sheet}");
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn scenarios_survive_conversion_as_unsupported_metadata() {
     let full = |text: &str| {
         let mut bytes = (text.len() as u16).to_le_bytes().to_vec(); bytes.push(0); bytes.extend(text.as_bytes()); bytes
