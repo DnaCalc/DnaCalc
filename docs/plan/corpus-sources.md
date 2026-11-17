@@ -159,3 +159,41 @@ The kode-fi housekeeping check found two open-licensed sets from 2026-11-14 with
 | `sources/modern-lambda/20261116/` | 12 | 2,219,551 | MIT (BigSpill LAMBDA library, commit ad38a3b2) |
 
 Every other `~/corpora` set on kode-fi either matches its R2 prefix file for file or has its source archive in R2. The exceptions are `exceloffthegrid-local-20261115` (personal-use EULA, so it stays local only) and `zenodo-replicator-dynamics` (53 KB).
+## Cross-corpus deduplication (2026-11-17, dc-ztvv.17)
+
+Every Excel-family file in `sources/` (46 sets, all but `_pointers/`) is in one index, with one copy of each distinct file. Run on dna-firehorse. Only containers and first bytes were read: no workbook was parsed, opened or converted. A file counts as Excel-family if its content shows it (an OLE2 Workbook or Book stream, a zip with `xl/workbook.xml` or `.bin`, SpreadsheetML 2003, raw BIFF2-5) or if it has an Excel-family extension. CSV, ODS and Lotus files are counted per set, not indexed.
+
+| Prefix | Objects | Bytes | Contents |
+|---|---:|---:|---|
+| `sources/xl-unique/20261116/<xx>/<sha256>.<ext>` | 607,119 | 63,399,170,875 | one copy per distinct file; the extension follows the content class |
+| `runs/dna-firehorse/20261116-xl-dedup/` | 73 | about 371 MB | `files.tsv` (one row per distinct file), `origins.tsv` (996,929 occurrences, with archive or e-mail member chains), `sets.tsv`, `overlap.tsv`, `errors.tsv` (54 damaged members), `scope.tsv`, `SOURCE.json`, scripts, check logs, report |
+
+**Totals.** 996,929 occurrences of 607,119 distinct files (63.4 GB):
+- 288,166 zip workbooks;
+- 256,887 OLE2 workbooks;
+- 58,420 OLE2 files from GovDocs1 whose Workbook stream was not checked, because their class comes from the GovDocs1 manifest;
+- 2,650 raw BIFF files;
+- a few hundred text, HTML or other files with Excel extensions.
+
+**Checks.**
+- Each upload batch passed `rclone check --one-way`.
+- GovDocs1's files were copied within R2 and matched on size and MD5.
+- The store's listing equals `files.tsv` key for key, and every size matches.
+- A random sample of 400 files re-hashed to their names.
+
+**Largest contributors of distinct files.**
+- FUSE: 239,788 (its two binary tarballs are the same files).
+- Sheetpedia: 211,323, all unique to it.
+- GovDocs1: 61,110.
+- The Enron e-mail attachments: 18,362.
+- Spreadsheet-RL: 32,635.
+
+**Overlap.**
+- The `.xls` attachments read from the Enron e-mails contain SheetJS enron_xls (17,062 shared), VEnron2 (12,206), VEnron 1.0 (7,228) and VEnron 1.1 (7,140), and add 1,300 files none of those has.
+- The older `enron/20261111/spreadsheets.7z` is a converted `.xlsx` copy (15,927 files). It shares no bytes with the originals.
+- Spreadsheet-RL contains 2,745 SpreadsheetBench v1 files and 290 from v2.
+- TmplEnron shares fewer than 100 files with any set.
+
+**Extensions.** 479,580 occurrences have no extension, nearly all FUSE binaries. 1,327 `.xls` files are really text.
+
+The internals catalogue (dc-ztvv.18) reads from the unique store. Run folder on dna-firehorse: `~/codex-runs/xl-dedup-20261116/`.
