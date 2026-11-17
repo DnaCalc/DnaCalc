@@ -17,6 +17,38 @@ fn short(what: &str) -> Malformed {
     Malformed(format!("the record ends inside {what}"))
 }
 
+/// The text continuations of a TxO precede separate formatting-run continuations.
+pub(crate) fn txo_text(record: &Record<'_>) -> Result<Option<Vec<u16>>, Malformed> {
+    let body = record.body;
+    let Some(first) = record.continues.first() else { return Ok(None) };
+    if body.len() < 14 || first.is_empty() { return Err(short("Txo text")); }
+    let count = usize::from(u16::from_le_bytes([body[10], body[11]]));
+    let first_count = (first.len() - 1) / if first[0] & 1 != 0 { 2 } else { 1 };
+    let mut text_end = 1;
+    if first_count < count {
+        let mut remaining = count;
+        for piece in &record.continues {
+            if piece.is_empty() || piece[0] > 1 { return Err(short("Txo text")); }
+            let width = if piece[0] == 1 { 2 } else { 1 };
+            if (piece.len() - 1) % width != 0 { return Err(short("Txo text")); }
+            let units = (piece.len() - 1) / width;
+            if units > remaining || units == 0 { return Err(short("Txo text")); }
+            remaining -= units;
+            if remaining == 0 { break; }
+            text_end += 1;
+        }
+        if remaining != 0 { return Err(short("Txo text")); }
+        let runs = usize::from(u16::from_le_bytes([body[12], body[13]]));
+        if record.continues[text_end..].iter().map(|piece| piece.len()).sum::<usize>() != runs {
+            return Err(short("Txo formatting runs"));
+        }
+    }
+    let mut pieces = Pieces::new(&Record { id: 0, body: first,
+        continues: record.continues[1..text_end].to_vec(), offset: 0 });
+    let flag = pieces.u8("Txo")?;
+    Ok(Some(pieces.characters(count, flag & 1 != 0, "Txo text")?))
+}
+
 /// A string with its formatting runs (character index, font index), as the shared string table
 /// holds it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

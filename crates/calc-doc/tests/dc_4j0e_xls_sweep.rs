@@ -174,6 +174,12 @@ fn sweep() {
             let load = document.as_ref().ok().map(|d| {
                 let mut ids: IdAllocator<SheetId> = IdAllocator::new();
                 calc_doc::load(d, &mut ids).map_err(|e| e.to_string()).map(|loaded| {
+                    if std::env::var_os("DNACALC_XLS_AUDIT_DRAWING_TEXT").is_some() {
+                        let units: usize = loaded.sheets().iter().flat_map(|s| &s.shapes().shapes)
+                            .filter_map(|shape| shape.text.as_ref()).flatten()
+                            .map(|text| text.encode_utf16().count()).sum();
+                        println!("drawing text UTF-16 units: {units}");
+                    }
                     // Every formula must re-parse in calc-fml.
                     let (mut formulas, mut failed) = (0usize, 0usize);
                     for sheet in loaded.model().sheets() {

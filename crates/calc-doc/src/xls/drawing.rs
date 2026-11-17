@@ -7,7 +7,6 @@
 use super::features::Rel;
 use super::records::Record;
 use super::sheet::column_name;
-use super::strings::Pieces;
 use crate::xlsb::Xml;
 use std::collections::BTreeMap;
 
@@ -294,22 +293,8 @@ impl Drawing {
             }
             TXO => match self.waiting_text.take() {
                 Some(index) => {
-                    let body = record.body;
-                    if body.len() >= 14
-                        && let Some(text) = record.continues.first()
-                    {
-                        let length = usize::from(u16::from_le_bytes([body[10], body[11]]));
-                        let mut p = Pieces::new(&Record {
-                            id: 0,
-                            body: text,
-                            continues: Vec::new(),
-                            offset: 0,
-                        });
-                        if let Ok(flag) = p.u8("Txo")
-                            && let Ok(units) = p.characters(length, flag & 1 != 0, "text")
-                        {
-                            self.objects[index].text = Some(units);
-                        }
+                    if let Ok(Some(units)) = super::strings::txo_text(record) {
+                        self.objects[index].text = Some(units);
                     }
                     true
                 }

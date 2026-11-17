@@ -403,17 +403,7 @@ impl Features {
             }
             TXO => {
                 if let Some(id) = self.waiting_object.take() {
-                    c.skip(10, "Txo").map_err(e)?;
-                    let length = usize::from(c.u16("Txo").map_err(e)?);
-                    if let Some(text) = record.continues.first() {
-                        let mut p = Pieces::new(&Record {
-                            id: 0,
-                            body: text,
-                            continues: Vec::new(),
-                            offset: 0,
-                        });
-                        let flag = p.u8("Txo").map_err(|m| m.0)?;
-                        let units = p.characters(length, flag & 1 != 0, "a note's text").map_err(|m| m.0)?;
+                    if let Some(units) = super::strings::txo_text(record).map_err(|m| m.0)? {
                         self.note_texts.insert(id, units);
                     }
                 }

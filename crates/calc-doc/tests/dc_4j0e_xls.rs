@@ -2005,6 +2005,32 @@ fn comments_are_read_from_note_obj_and_txo_records() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn continued_txo_text_is_read_for_notes_and_text_boxes() {
+    use xls_kit::art;
+    let mut body = u16s(&[0x0212, 0, 0, 0, 0, 3, 16]);
+    body.extend([0u8; 4]);
+    let text = [record(0x01B6, &body), record(0x003C, &[0, b'A']),
+        record(0x003C, &[1, 0xe9, 0, 0x22, 0x6f]), record(0x003C, &[0; 16])].concat();
+    let records = [obj_note(1), text.clone(), note(0, 0, 0, 1, "Ann"),
+        art::drawing(&[art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], true)]),
+        art::obj(6, 2), text].concat();
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", records)]);
+    let loaded = load(&bytes);
+    let notes = format!("{:?}", loaded.sheets()[0].review().notes);
+    assert!(notes.contains("Aé漢"), "{notes}");
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let drawing = String::from_utf8(document.package().read_part("xl/drawings/drawing1.xml").unwrap()).unwrap();
+    assert!(drawing.contains("Aé漢"), "{drawing}");
+    body[10] = 4;
+    let truncated = [obj_note(1), record(0x01B6, &body), record(0x003C, &[0, b'A']),
+        record(0x003C, &[1, 0xe9, 0, 0x22, 0x6f]), record(0x003C, &[0; 16]),
+        note(0, 0, 0, 1, "Ann")].concat();
+    let invalid = xls(false, &[], &[Sheet::worksheet("S", truncated)]);
+    assert!(calc_doc::open(source(&invalid), &OpenPolicy::default()).is_err());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn a_saved_xls_is_an_xlsx_that_opens_to_the_same_cells() {
     use ptg::*;
     let globals = [sst(&[("text", &[])], None), supbook_self(1), extern_sheet(&[(0, 0, 0)])].concat();
