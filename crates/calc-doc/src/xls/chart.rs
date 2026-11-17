@@ -1,8 +1,9 @@
 //! A chart substream of a BIFF8 worksheet (MS-XLS 2.1.7.20.6): the chart groups (bar, column,
 //! line, area, pie, doughnut, scatter), their series with the worksheet ranges of their names,
 //! values and categories, the title, axis titles and the legend, written as the DrawingML chart
-//! part Excel saves. Formatting (colours, fonts, gridlines, 3-D, data labels, trendlines) is not
-//! read; the chart is written with the default look.
+//! part Excel saves. Bar and pie geometry, point-color variation, and primary linear value-axis
+//! bounds and units are retained; other formatting (colours, fonts, gridlines, 3-D, data labels,
+//! trendlines) is not read.
 
 use super::records::Record;
 use super::strings::Pieces;
@@ -19,12 +20,15 @@ const SERIES: u16 = 0x1003;
 const SERIES_TEXT: u16 = 0x100D;
 const AI: u16 = 0x1051;
 const CHART_FORMAT: u16 = 0x1014;
+const CHART_PROPERTIES: u16 = 0x1044;
 const BAR: u16 = 0x1017;
 const LINE: u16 = 0x1018;
 const PIE: u16 = 0x1019;
 const AREA: u16 = 0x101A;
 const SCATTER: u16 = 0x101B;
 const AXIS: u16 = 0x101D;
+const AXIS_PARENT: u16 = 0x1041;
+const VALUE_RANGE: u16 = 0x101F;
 const LEGEND: u16 = 0x1015;
 const TEXT: u16 = 0x1025;
 const OBJECT_LINK: u16 = 0x1027;
@@ -47,6 +51,11 @@ struct Group {
     stacked: bool,
     percent: bool,
     doughnut: bool,
+    gap: Option<u16>,
+    overlap: Option<i16>,
+    first_slice: Option<u16>,
+    hole: Option<u16>,
+    vary_colors: Option<bool>,
 }
 
 #[derive(Debug, Default)]
@@ -58,6 +67,15 @@ struct Series {
     categories: Option<String>,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct ValueRange {
+    min: Option<f64>,
+    max: Option<f64>,
+    major: Option<f64>,
+    minor: Option<f64>,
+    reversed: bool,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Block {
     Series,
@@ -66,6 +84,7 @@ enum Block {
     Text,
     Legend,
     Other,
+    AxisParent,
 }
 
 #[derive(Debug, Default)]
@@ -78,6 +97,12 @@ pub(crate) struct Chart {
     pending: Option<u8>,
     link: Option<u16>,
     seen_chart: bool,
+    plot_visible_only: Option<bool>,
+    blanks: Option<&'static str>,
+    primary_axis_group: bool,
+    axis_index: Option<usize>,
+    value_ranges: [Option<ValueRange>; 2],
+    range_seen: [bool; 2],
 }
 
 fn block_code(block: Block) -> u8 {
@@ -91,6 +116,7 @@ fn block_of(code: u8) -> Block {
         2 => Block::Axis,
         3 => Block::Text,
         4 => Block::Legend,
+        6 => Block::AxisParent,
         _ => Block::Other,
     }
 }
@@ -101,6 +127,10 @@ impl Chart {
     pub(crate) fn read(&mut self, record: &Record<'_>, print: &dyn Fn(&[u8]) -> Option<String>) {
         let body = record.body;
         match record.id {
+            CHART_PROPERTIES if body.len() >= 3 => {
+                self.plot_visible_only = Some(u16::from_le_bytes([body[0], body[1]]) & 2 != 0);
+                self.blanks = match body[2] { 0 => Some("gap"), 1 => Some("zero"), 2 => Some("span"), _ => None };
+            }
             SERIES => {
                 self.series.push(Series {
                     group: 0,
@@ -109,10 +139,51 @@ impl Chart {
                 self.pending = Some(block_code(Block::Series));
             }
             CHART_FORMAT => {
-                self.groups.push(Group::default());
+                self.groups.push(Group {
+                    vary_colors: body.get(16..18).map(|b| u16::from_le_bytes([b[0], b[1]]) & 1 != 0),
+                    ..Default::default()
+                });
                 self.pending = Some(block_code(Block::Format));
             }
-            AXIS => self.pending = Some(block_code(Block::Axis)),
+            AXIS_PARENT if body.len() >= 2 => {
+                self.primary_axis_group = u16::from_le_bytes([body[0], body[1]]) == 0;
+                self.pending = Some(block_code(Block::AxisParent));
+            }
+            AXIS => {
+                self.axis_index = body.get(..2).and_then(|b| match u16::from_le_bytes([b[0], b[1]]) {
+                    0 => Some(0), 1 => Some(1), _ => None,
+                });
+                self.pending = Some(block_code(Block::Axis));
+            }
+            VALUE_RANGE if body.len() >= 42 && self.primary_axis_group
+                && self.stack.iter().any(|c| block_of(*c) == Block::AxisParent)
+                && self.stack.iter().any(|c| block_of(*c) == Block::Axis) => {
+                if let Some(index) = self.axis_index {
+                    if self.range_seen[index] {
+                        self.value_ranges[index] = None;
+                    } else {
+                        self.range_seen[index] = true;
+                        let flags = u16::from_le_bytes([body[40], body[41]]);
+                        // A chart extension can specify a different logarithm base.
+                        if flags & 0x20 == 0 {
+                            let number = |at: usize| f64::from_le_bytes(body[at..at + 8].try_into().expect("eight bytes"));
+                            let optional = |at: usize, bit: u16| {
+                                let v = number(at);
+                                (flags & bit == 0 && v.is_finite()).then_some(v)
+                            };
+                            let (min, max) = (optional(0, 1), optional(8, 2));
+                            if !matches!((min, max), (Some(a), Some(b)) if a >= b) {
+                                self.value_ranges[index] = Some(ValueRange {
+                                    min, max,
+                                    major: optional(16, 4).filter(|v| *v > 0.0),
+                                    minor: optional(24, 8).filter(|v| *v > 0.0),
+                                    reversed: flags & 0x40 != 0,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
             TEXT => {
                 self.pending = Some(block_code(Block::Text));
                 self.link = None;
@@ -126,10 +197,13 @@ impl Chart {
                 self.stack.push(code);
             }
             END => {
-                if let Some(code) = self.stack.pop()
-                    && block_of(code) == Block::Text
-                {
-                    self.link = None;
+                if let Some(code) = self.stack.pop() {
+                    match block_of(code) {
+                        Block::Text => self.link = None,
+                        Block::Axis => self.axis_index = None,
+                        Block::AxisParent => self.primary_axis_group = false,
+                        _ => {}
+                    }
                 }
             }
             BAR if body.len() >= 6 => {
@@ -140,7 +214,11 @@ impl Chart {
                         horizontal: flags & 1 != 0,
                         stacked: flags & 2 != 0,
                         percent: flags & 4 != 0,
-                        doughnut: false,
+                        gap: (u16::from_le_bytes([body[2], body[3]]) <= 500)
+                            .then(|| u16::from_le_bytes([body[2], body[3]])),
+                        overlap: (-100..=100).contains(&i16::from_le_bytes([body[0], body[1]]))
+                            .then(|| i16::from_le_bytes([body[0], body[1]])),
+                        ..*g
                     };
                 }
             }
@@ -152,7 +230,7 @@ impl Chart {
                         horizontal: false,
                         stacked: flags & 1 != 0,
                         percent: flags & 2 != 0,
-                        doughnut: false,
+                        ..*g
                     };
                 }
             }
@@ -161,7 +239,11 @@ impl Chart {
                     *g = Group {
                         kind: Kind::Pie,
                         doughnut: u16::from_le_bytes([body[2], body[3]]) != 0,
-                        ..Default::default()
+                        first_slice: (u16::from_le_bytes([body[0], body[1]]) <= 360)
+                            .then(|| u16::from_le_bytes([body[0], body[1]])),
+                        hole: (10..=90).contains(&u16::from_le_bytes([body[2], body[3]]))
+                            .then(|| u16::from_le_bytes([body[2], body[3]])),
+                        ..*g
                     };
                 }
             }
@@ -169,7 +251,7 @@ impl Chart {
                 if let Some(g) = self.groups.last_mut() {
                     *g = Group {
                         kind: Kind::Scatter,
-                        ..Default::default()
+                        ..*g
                     };
                 }
             }
@@ -291,7 +373,9 @@ impl Chart {
                 }
                 Kind::Pie => {}
             }
-            x.empty("c:varyColors", &[("val", u8::from(group.kind == Kind::Pie).to_string())]);
+            let varies = group.vary_colors.unwrap_or(group.kind == Kind::Pie)
+                && members.len() == 1 && group.kind != Kind::Area;
+            x.empty("c:varyColors", &[("val", u8::from(varies).to_string())]);
             for series in members {
                 x.open("c:ser", &[]);
                 x.empty("c:idx", &[("val", order.to_string())]);
@@ -331,6 +415,13 @@ impl Chart {
                 }
                 x.close("c:ser");
             }
+            if group.kind == Kind::Bar {
+                if let Some(gap) = group.gap { x.empty("c:gapWidth", &[("val", gap.to_string())]); }
+                if let Some(overlap) = group.overlap { x.empty("c:overlap", &[("val", overlap.to_string())]); }
+            } else if group.kind == Kind::Pie {
+                if let Some(angle) = group.first_slice { x.empty("c:firstSliceAng", &[("val", angle.to_string())]); }
+                if group.doughnut && let Some(hole) = group.hole { x.empty("c:holeSize", &[("val", hole.to_string())]); }
+            }
             if plain_axes {
                 axes = true;
                 x.empty("c:axId", &[("val", "111111111".to_owned())]);
@@ -345,14 +436,17 @@ impl Chart {
                 ("c:catAx", "c:valAx")
             };
             let (first_pos, second_pos) = if horizontal { ("l", "b") } else { ("b", "l") };
-            for (tag, id, cross, pos, title_key) in [
+            for (axis_index, (tag, id, cross, pos, title_key)) in [
                 (first, "111111111", "222222222", first_pos, 3u16),
                 (second, "222222222", "111111111", second_pos, 2u16),
-            ] {
+            ].into_iter().enumerate() {
+                let range = (tag == "c:valAx").then_some(self.value_ranges[axis_index]).flatten();
                 x.open(tag, &[]);
                 x.empty("c:axId", &[("val", id.to_owned())]);
                 x.open("c:scaling", &[]);
-                x.empty("c:orientation", &[("val", "minMax".to_owned())]);
+                x.empty("c:orientation", &[("val", if range.is_some_and(|r| r.reversed) { "maxMin" } else { "minMax" }.to_owned())]);
+                if let Some(value) = range.and_then(|r| r.max) { x.empty("c:max", &[("val", crate::xlsb::formula::number_text(value))]); }
+                if let Some(value) = range.and_then(|r| r.min) { x.empty("c:min", &[("val", crate::xlsb::formula::number_text(value))]); }
                 x.close("c:scaling");
                 x.empty("c:delete", &[("val", "0".to_owned())]);
                 x.empty("c:axPos", &[("val", pos.to_owned())]);
@@ -360,6 +454,8 @@ impl Chart {
                     title_element(&mut x, title);
                 }
                 x.empty("c:crossAx", &[("val", cross.to_owned())]);
+                if let Some(value) = range.and_then(|r| r.major) { x.empty("c:majorUnit", &[("val", crate::xlsb::formula::number_text(value))]); }
+                if let Some(value) = range.and_then(|r| r.minor) { x.empty("c:minorUnit", &[("val", crate::xlsb::formula::number_text(value))]); }
                 x.close(tag);
             }
         }
@@ -369,7 +465,8 @@ impl Chart {
             x.empty("c:legendPos", &[("val", "r".to_owned())]);
             x.close("c:legend");
         }
-        x.empty("c:plotVisOnly", &[("val", "1".to_owned())]);
+        x.empty("c:plotVisOnly", &[("val", u8::from(self.plot_visible_only.unwrap_or(true)).to_string())]);
+        if let Some(blanks) = self.blanks { x.empty("c:dispBlanksAs", &[("val", blanks.to_owned())]); }
         x.close("c:chart");
         x.close("c:chartSpace");
         Some(x.out)

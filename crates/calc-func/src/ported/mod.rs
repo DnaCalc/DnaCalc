@@ -116,6 +116,7 @@ pub(crate) mod depreciation_family;
 pub(crate) mod discount_bill_yearfrac_family;
 pub(crate) mod discrete_dist;
 pub(crate) mod dollar_fraction_family;
+pub(crate) mod double_double;
 pub(crate) mod dynamic_array_reshape_family;
 pub(crate) mod financial_time_value_family;
 pub(crate) mod odd_bond_family;

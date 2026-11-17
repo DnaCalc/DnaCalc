@@ -35,10 +35,13 @@ const WSBOOL: u16 = 0x0081;
 const H_PAGE_BREAKS: u16 = 0x001B;
 const V_PAGE_BREAKS: u16 = 0x001A;
 const DEF_COL_WIDTH: u16 = 0x0055;
+const STANDARD_WIDTH: u16 = 0x0099;
 const OBJ: u16 = 0x005D;
 const TXO: u16 = 0x01B6;
 const NOTE: u16 = 0x001C;
 const CODE_NAME: u16 = 0x01BA;
+const FEAT: u16 = 0x0868;
+const FEAT_HEADER: u16 = 0x0867;
 
 /// A relationship the sheet part needs: a hyperlink target, a comments part, a VML drawing.
 #[derive(Clone, Debug)]
@@ -76,11 +79,17 @@ struct Hyperlink {
 
 #[derive(Default)]
 pub(crate) struct Features {
-    window: Option<(u16, u16, u16)>,
+    window: Option<(u16, u16, u16, Option<u16>, Option<u16>, Option<u16>)>,
+    grid_color_representable: bool,
     zoom: Option<(u16, u16)>,
     pane: Option<Pane>,
     selections: Vec<Selection>,
     merges: Vec<String>,
+    phonetic: Option<(usize, u8, u8)>,
+    phonetic_ranges: Vec<(u16, u16, u16, u16)>,
+    ignored_errors: Vec<(Vec<String>, u32)>,
+    /// PLS records, kept separate until a single length-consistent DEVMODE can be identified.
+    printer_settings: Vec<Vec<u8>>,
     hyperlinks: Vec<Hyperlink>,
     protect: bool,
     objects: bool,
@@ -100,10 +109,12 @@ pub(crate) struct Features {
     column_breaks: Vec<(u16, u16, u16)>,
     pub(crate) outline_levels: Option<(u8, u8)>,
     pub(crate) default_column_width: Option<u16>,
+    pub(crate) standard_column_width: Option<u16>,
     /// The id of the comment object (OBJ of type note) waiting for its text box.
     waiting_object: Option<u16>,
     /// The sheet's number, which names its comment parts.
     pub(crate) number: usize,
+    pub(crate) macro_sheet: bool,
     /// The code page of a BIFF5 or BIFF7 workbook.
     pub(crate) v5: Option<u16>,
     /// The sheet's VBA code name (CODENAME).
@@ -145,14 +156,25 @@ fn read_string(c: &mut Cursor<'_>, units: usize, what: &str) -> Result<String, S
 
 impl Features {
     /// Reads `record` when it is a sheet-feature record; `false` when it is not one.
-    pub(crate) fn read(&mut self, record: &Record<'_>) -> Result<bool, String> {
+    pub(crate) fn read(&mut self, record: &Record<'_>, styles: &super::styles::Styles) -> Result<bool, String> {
         let mut c = Cursor::new(record.body);
         match record.id {
             WINDOW2 => {
                 let flags = c.u16("Window2").map_err(e)?;
                 let top = c.u16("Window2").map_err(e)?;
                 let left = c.u16("Window2").map_err(e)?;
-                self.window = Some((flags, top, left));
+                let word_at = |offset: usize| record.body.get(offset..offset + 2)
+                    .map(|b| u16::from_le_bytes([b[0], b[1]]));
+                let color = word_at(6);
+                let zoom_page = word_at(10);
+                let zoom_normal = word_at(12);
+                self.window = Some((flags, top, left, color, zoom_page, zoom_normal));
+                self.grid_color_representable = styles.indexed_colors_representable();
+                // A nondefault grid color without a representable index is not fully read.
+                if flags & 0x0020 == 0 && (color.is_none_or(|value| value >= 64) || !self.grid_color_representable) { return Ok(false); }
+                if [zoom_page, zoom_normal].into_iter().flatten().any(|value| value != 0 && !(10..=400).contains(&value)) {
+                    return Ok(false);
+                }
             }
             SCL => {
                 self.zoom = Some((c.u16("Scl").map_err(e)?, c.u16("Scl").map_err(e)?));
@@ -241,6 +263,31 @@ impl Features {
             PRINT_GRIDLINES => self.grid_lines = c.u16("PrintGrid").map_err(e)? != 0,
             PRINT_HEADERS => self.headings = c.u16("PrintRowCol").map_err(e)? != 0,
             WSBOOL => self.ws_bool = Some(c.u16("WsBool").map_err(e)?),
+            0x004D => {
+                let joined = record.joined();
+                self.printer_settings.push(joined.get(2..).unwrap_or_default().to_vec());
+                // Count it unread until the sheet has been checked for a single valid record.
+                return Ok(false);
+            }
+            0x00EF => {
+                let font = c.u16("PhoneticInfo").map_err(e)?;
+                let flags = c.u16("PhoneticInfo").map_err(e)?;
+                let count = usize::from(c.u16("PhoneticInfo").map_err(e)?);
+                for _ in 0..count {
+                    let first_row = c.u16("PhoneticInfo range").map_err(e)?;
+                    let last_row = c.u16("PhoneticInfo range").map_err(e)?;
+                    let first_col = c.u16("PhoneticInfo range").map_err(e)?;
+                    let last_col = c.u16("PhoneticInfo range").map_err(e)?;
+                    if first_row > last_row || first_col > last_col || last_col > 255 {
+                        return Err("an invalid PhoneticInfo range".to_owned());
+                    }
+                    self.phonetic_ranges.push((first_row, last_row, first_col, last_col));
+                }
+                let Some(font) = styles.font_index(font).or((font == 0).then_some(0)) else { return Ok(false) };
+                self.phonetic = Some((font, (flags & 3) as u8, ((flags >> 2) & 3) as u8));
+                // Existing cells receive visibility; unstored cells in the range do not yet.
+                if count != 0 { return Ok(false); }
+            }
             0x0080 => {
                 c.skip(4, "Guts").map_err(e)?;
                 let level = |value: u16| -> Result<u8, String> {
@@ -353,10 +400,60 @@ impl Features {
                     author,
                 });
             }
+            FEAT_HEADER if !self.macro_sheet && record.continues.is_empty() => {
+                let b = record.body;
+                if b.len() != 19 || b.get(..2) != Some(&[0x67, 0x08]) || b[2] & 3 != 0 || b.get(12..14) != Some(&[3, 0])
+                    || b.get(14) != Some(&1) || b.get(15..19) != Some(&[0, 0, 0, 0]) {
+                    return Ok(false);
+                }
+            }
+            FEAT if !self.macro_sheet && record.continues.is_empty() => {
+                // ISFFEC2: one FFErrorCheck bit per kind of ignored error, with Ref8U ranges.
+                let b = record.body;
+                if b.len() < 31 || b.get(..2) != Some(&[0x68, 0x08]) || b[2] & 3 != 0 || b.get(12..14) != Some(&[3, 0])
+                    || b.get(14..19) != Some(&[0, 0, 0, 0, 0]) || b.get(25..27) != Some(&[0, 0]) {
+                    return Ok(false);
+                }
+                let count = usize::from(u16::from_le_bytes([b[19], b[20]]));
+                let size = u32::from_le_bytes([b[21], b[22], b[23], b[24]]);
+                let Some(end) = count.checked_mul(8).and_then(|n| 27usize.checked_add(n)) else { return Ok(false) };
+                if count == 0 || size != 4 || end.checked_add(4) != Some(b.len()) { return Ok(false); }
+                let mut ranges = Vec::with_capacity(count);
+                for r in b[27..end].chunks_exact(8) {
+                    let first_row = u16::from_le_bytes([r[0], r[1]]);
+                    let last_row = u16::from_le_bytes([r[2], r[3]]);
+                    let first_col = u16::from_le_bytes([r[4], r[5]]);
+                    let last_col = u16::from_le_bytes([r[6], r[7]]);
+                    if first_row > last_row || first_col > last_col || last_col > 255 { return Ok(false); }
+                    ranges.push(range((first_row, last_row), (first_col, last_col)));
+                }
+                let flags = u32::from_le_bytes(b[end..end + 4].try_into().expect("four bytes"));
+                self.ignored_errors.push((ranges, flags & 0xFF));
+            }
             DEF_COL_WIDTH => self.default_column_width = Some(c.u16("DefColWidth").map_err(e)?),
+            STANDARD_WIDTH if record.body.len() == 2 => {
+                self.standard_column_width = Some(c.u16("DxGCol").map_err(e)?);
+            }
             _ => return Ok(false),
         }
         Ok(true)
+    }
+
+    pub(crate) fn show_phonetic(&self, row: u16, column: u16) -> bool {
+        self.phonetic_ranges.iter().any(|&(r1, r2, c1, c2)| (r1..=r2).contains(&row) && (c1..=c2).contains(&column))
+    }
+
+    /// A single length-consistent DEVMODEA or DEVMODEW; ambiguous or short records stay unread.
+    pub(crate) fn printer_part(&self) -> Option<(String, &'static str, Vec<u8>)> {
+        let [data] = self.printer_settings.as_slice() else { return None };
+        let length_consistent = [36usize, 68].into_iter().any(|offset| {
+            let Some(bytes) = data.get(offset..offset + 4) else { return false };
+            let size = usize::from(u16::from_le_bytes([bytes[0], bytes[1]]));
+            let extra = usize::from(u16::from_le_bytes([bytes[2], bytes[3]]));
+            size >= offset + 4 && size.checked_add(extra) == Some(data.len())
+        });
+        length_consistent.then(|| (format!("xl/printerSettings/printerSettings{}.bin", self.number),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.printerSettings", data.clone()))
     }
 
     /// HLINK (MS-XLS 2.4.140, with the HLink object of MS-OSHARED 2.3.7.1).
@@ -402,7 +499,7 @@ impl Features {
                     let units = length.min(c.remaining()) / 2;
                     link.target = Some(read_string(c, units, what)?);
                 } else if clsid == FILE {
-                    let _up = c.u16(what).map_err(e)?;
+                    let up = usize::from(c.u16(what).map_err(e)?);
                     let length = c.u32(what).map_err(e)? as usize;
                     let bytes = c.bytes(length, what).map_err(e)?;
                     let ansi_end = bytes.iter().position(|b| *b == 0).unwrap_or(bytes.len());
@@ -418,6 +515,18 @@ impl Features {
                             return Err("an invalid Unicode file moniker path".into());
                         }
                         path = read_string(c, bytes / 2, what)?;
+                    }
+                    if up != 0 {
+                        if path.starts_with('/') || path.starts_with('\\') || path.as_bytes().get(1) == Some(&b':') {
+                            return Err("an absolute file moniker path with parent indicators".into());
+                        }
+                        let mut rest = path.as_str();
+                        let mut present = 0usize;
+                        while let Some(next) = rest.strip_prefix("../").or_else(|| rest.strip_prefix("..\\")) {
+                            present += 1;
+                            rest = next;
+                        }
+                        if present < up { path = format!("{}{}", "../".repeat(up - present), path); }
                     }
                     link.target = Some(path);
                 } else {
@@ -465,7 +574,7 @@ impl Features {
 
     /// `<sheetViews>`.
     pub(crate) fn write_views(&self, x: &mut Xml) {
-        let Some((flags, top, left)) = self.window else { return };
+        let Some((flags, top, left, color, zoom_page, zoom_normal)) = self.window else { return };
         let mut a: Vec<(&str, String)> = Vec::new();
         if flags & 0x0001 != 0 {
             a.push(("showFormulas", "1".to_owned()));
@@ -482,6 +591,18 @@ impl Features {
         if flags & 0x0040 != 0 {
             a.push(("rightToLeft", "1".to_owned()));
         }
+        if flags & 0x0080 == 0 {
+            a.push(("showOutlineSymbols", "0".to_owned()));
+        }
+        if flags & 0x0020 == 0 && self.grid_color_representable {
+            if let Some(color) = color.filter(|value| *value < 64) {
+                a.push(("defaultGridColor", "0".to_owned()));
+                if color != 64 { a.push(("colorId", color.to_string())); }
+            }
+        }
+        if flags & 0x0800 != 0 {
+            a.push(("view", "pageBreakPreview".to_owned()));
+        }
         if flags & 0x0200 != 0 {
             a.push(("tabSelected", "1".to_owned()));
         }
@@ -490,6 +611,14 @@ impl Features {
             && numerator != denominator
         {
             a.push(("zoomScale", (u32::from(numerator) * 100 / u32::from(denominator)).to_string()));
+        }
+        if let Some(scale) = zoom_page.filter(|value| (10..=400).contains(value))
+            && (flags & 0x0800 == 0 || self.zoom.is_none()) {
+            a.push(("zoomScaleSheetLayoutView", scale.to_string()));
+        }
+        if let Some(scale) = zoom_normal.filter(|value| (10..=400).contains(value))
+            && (flags & 0x0800 != 0 || self.zoom.is_none()) {
+            a.push(("zoomScaleNormal", scale.to_string()));
         }
         if (top, left) != (0, 0) {
             a.push(("topLeftCell", cell(top, left)));
@@ -558,6 +687,11 @@ impl Features {
             }
             x.close("mergeCells");
         }
+        if let Some((font, kind, alignment)) = self.phonetic {
+            let kind = ["halfwidthKatakana", "fullwidthKatakana", "Hiragana", "noConversion"][kind as usize];
+            let alignment = ["noControl", "left", "center", "distributed"][alignment as usize];
+            x.empty("phoneticPr", &[("fontId", font.to_string()), ("type", kind.to_owned()), ("alignment", alignment.to_owned())]);
+        }
         rules.write_rules(x);
         if !self.hyperlinks.is_empty() {
             x.open("hyperlinks", &[]);
@@ -618,6 +752,15 @@ impl Features {
                 ],
             );
         }
+        let printer_id = self.printer_part().map(|_| {
+            rels.push(Rel {
+                id: "rIdPrinter".to_owned(),
+                kind: "printerSettings",
+                target: format!("../printerSettings/printerSettings{}.bin", self.number),
+                external: false,
+            });
+            "rIdPrinter"
+        });
         if let Some([paper, scale, first_page, fit_width, fit_height, flags]) = self.setup {
             let mut a = vec![("paperSize", paper.to_string())];
             if scale != 100 && scale != 0 {
@@ -651,7 +794,10 @@ impl Features {
             if flags & 0x0020 != 0 {
                 a.push(("cellComments", "atEnd".to_owned()));
             }
+            if let Some(id) = printer_id { a.push(("r:id", id.to_owned())); }
             x.empty("pageSetup", &a);
+        } else if let Some(id) = printer_id {
+            x.empty("pageSetup", &[("r:id", id.to_owned())]);
         }
         if self.header.as_deref().is_some_and(|h| !h.is_empty()) || self.footer.as_deref().is_some_and(|f| !f.is_empty()) {
             x.open("headerFooter", &[]);
@@ -686,6 +832,19 @@ impl Features {
                 );
             }
             x.close(name);
+        }
+        if self.ignored_errors.iter().any(|(_, flags)| *flags != 0) {
+            x.open("ignoredErrors", &[]);
+            for (ranges, flags) in &self.ignored_errors {
+                if *flags == 0 { continue; }
+                let mut attributes = vec![("sqref", ranges.join(" "))];
+                for (bit, name) in ["evalError", "emptyCellReference", "numberStoredAsText", "formulaRange",
+                    "formula", "twoDigitTextYear", "unlockedFormula", "listDataValidation"].into_iter().enumerate() {
+                    if flags & (1 << bit) != 0 { attributes.push((name, "1".to_owned())); }
+                }
+                x.empty("ignoredError", &attributes);
+            }
+            x.close("ignoredErrors");
         }
         if let Some(id) = drawing {
             x.empty("drawing", &[("r:id", id.to_owned())]);

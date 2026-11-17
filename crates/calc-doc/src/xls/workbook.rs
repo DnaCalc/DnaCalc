@@ -79,6 +79,8 @@ pub(crate) enum SupBookRecord {
 pub(crate) struct Globals {
     pub(crate) code_page: Option<u16>,
     pub(crate) date_1904: bool,
+    /// Workbook precision setting, when the globals contain one unambiguous valid record.
+    pub(crate) full_precision: Option<bool>,
     pub(crate) sheets: Vec<BoundSheet>,
     pub(crate) active_tab: Option<u16>,
     pub(crate) protect_structure: bool,
@@ -86,10 +88,17 @@ pub(crate) struct Globals {
     pub(crate) protection_verifier: Option<u16>,
     pub(crate) hide_objects: Option<u16>,
     pub(crate) backup_file: bool,
+    /// Sheet identifiers in BOUNDSHEET order, when the complete mapping is usable.
+    pub(crate) tab_ids: Option<Vec<u16>>,
+    pub(crate) refresh_all: bool,
+    /// BookBool flags; mail-envelope state has no SpreadsheetML mapping here.
+    pub(crate) book_bool: Option<u16>,
     /// The shared string table (SST), in index order.
     pub(crate) strings: Vec<RichString>,
     pub(crate) names: Vec<NameRecord>,
     pub(crate) supbooks: Vec<SupBookRecord>,
+    /// Explicitly saved external-cell values; never calculated workbook results.
+    pub(crate) external_cache: super::external_cache::Caches,
     pub(crate) xti: Vec<Xti>,
     pub(crate) styles: super::styles::Styles,
     /// The MSODRAWINGGROUP record: the drawing group container with the blip store.
@@ -133,11 +142,29 @@ pub(crate) fn short_string(cursor: &mut Cursor<'_>, what: &str) -> Result<String
 /// Reads the globals substream starting at `records[0]` (a BOF).
 pub(crate) fn read(records: &[Record<'_>], biff5: bool) -> Result<Globals, String> {
     let mut globals = Globals::default();
+    let mut precision_seen = false;
     let mut depth = 0usize;
     let mut finished = false;
     for (index, record) in records.iter().enumerate() {
         match record.id {
             BOF => depth += 1,
+            0x000E if depth == 1 => {
+                let valid = if record.body.len() == 2 {
+                    match u16::from_le_bytes([record.body[0], record.body[1]]) {
+                        0 => Some(false), 1 => Some(true), _ => None,
+                    }
+                } else { None };
+                if precision_seen || valid.is_none() {
+                    *globals.unknown.entry(record.id).or_insert(0) += 1;
+                    globals.full_precision = None;
+                } else {
+                    globals.full_precision = valid;
+                    // The converted package retains precision-as-displayed, but the product
+                    // does not yet apply it to calculation.
+                    if valid == Some(false) { *globals.unknown.entry(record.id).or_insert(0) += 1; }
+                }
+                precision_seen = true;
+            }
             EOF => {
                 depth = depth.saturating_sub(1);
                 if depth == 0 {
@@ -155,7 +182,37 @@ pub(crate) fn read(records: &[Record<'_>], biff5: bool) -> Result<Globals, Strin
                 globals.date_1904 = c.u16("Date1904").map_err(|e| e.0)? == 1;
             }
             FILEPASS => globals.encrypted = true,
+            0x013D => {
+                let body = record.joined();
+                if body.len() % 2 != 0 || globals.tab_ids.is_some() {
+                    *globals.unknown.entry(record.id).or_insert(0) += 1;
+                } else {
+                    globals.tab_ids = Some(body.chunks_exact(2).map(|p| u16::from_le_bytes([p[0], p[1]])).collect());
+                }
+            }
+            0x01B7 => {
+                let mut c = Cursor::new(record.body);
+                let value = c.u16("RefreshAll").map_err(|e| e.0)?;
+                if value > 1 { return Err(format!("the refresh-all setting {value}")); }
+                globals.refresh_all = value != 0;
+                // The OOXML connection flag does not cover legacy pivot and XML-map refresh.
+                if globals.refresh_all { *globals.unknown.entry(record.id).or_insert(0) += 1; }
+            }
+            0x00DA => {
+                let mut c = Cursor::new(record.body);
+                let flags = c.u16("BookBool").map_err(|e| e.0)?;
+                if (flags >> 5) & 3 == 3 { return Err("the external-link update setting 3".to_owned()); }
+                globals.book_bool = Some(flags);
+                if flags & 0x1C != 0 { *globals.unknown.entry(record.id).or_insert(0) += 1; }
+            }
             0x0040 => {
+                if record.body.is_empty() && records[index + 1..].iter().take_while(|r| r.id != EOF)
+                    .any(|r| r.id == 0x0040 && r.body.len() >= 2) {
+                    // Some files have an empty extra record before the actual Backup setting.
+                    // Retain the valid setting below and count the malformed extra as unread.
+                    *globals.unknown.entry(record.id).or_insert(0) += 1;
+                    continue;
+                }
                 let mut c = Cursor::new(record.body);
                 let value = c.u16("Backup").map_err(|e| e.0)?;
                 if value > 1 { return Err(format!("the backup setting {value}")); }
@@ -210,12 +267,16 @@ pub(crate) fn read(records: &[Record<'_>], biff5: bool) -> Result<Globals, Strin
                 let mut p = Pieces::new(record);
                 p.skip(4, "the SST").map_err(|e| e.0)?;
                 let unique = p.u32("the SST").map_err(|e| e.0)? as usize;
+                let mut phonetic_unread = false;
                 for _ in 0..unique {
                     if p.done() {
                         break;
                     }
-                    globals.strings.push(p.rich_string().map_err(|e| e.0)?);
+                    let string = p.rich_string().map_err(|e| e.0)?;
+                    phonetic_unread |= string.phonetic_unread;
+                    globals.strings.push(string);
                 }
+                if phonetic_unread { *globals.unknown.entry(SST).or_insert(0) += 1; }
             }
             super::styles::FONT
             | super::styles::FORMAT
@@ -270,6 +331,23 @@ pub(crate) fn read(records: &[Record<'_>], biff5: bool) -> Result<Globals, Strin
     if !finished {
         return Err("the workbook globals have no EOF record".into());
     }
+    if !biff5 {
+        globals.external_cache = super::external_cache::read(&records[..globals.end], &globals.supbooks, &mut globals.unknown);
+    }
+    let bad_phonetic_font = globals.strings.iter().filter_map(|s| s.phonetic.as_ref()).any(|p| {
+        p.font == 4 || (p.font != 0 && globals.styles.font_index(p.font).is_none())
+    });
+    if bad_phonetic_font && !globals.unknown.contains_key(&SST) {
+        *globals.unknown.entry(SST).or_insert(0) += 1;
+    }
+    if let Some(ids) = &globals.tab_ids {
+        let unique: std::collections::BTreeSet<_> = ids.iter().copied().collect();
+        if ids.len() != globals.sheets.len() || unique.len() != ids.len() || unique.contains(&0)
+            || globals.unknown.contains_key(&0x013D) {
+            globals.tab_ids = None;
+            *globals.unknown.entry(0x013D).or_insert(0) += 1;
+        }
+    }
     Ok(globals)
 }
 
@@ -293,7 +371,7 @@ fn no_count_string(c: &mut Cursor<'_>, count: usize, what: &str) -> Result<Strin
 }
 
 /// The name a built-in NAME record's code stands for (2.5.171 and the `_xlnm.` names).
-fn built_in_name(code: u16) -> Option<&'static str> {
+pub(crate) fn built_in_name(code: u16) -> Option<&'static str> {
     Some(match code {
         0x00 => "_xlnm.Consolidate_Area",
         0x01 => "_xlnm.Auto_Open",

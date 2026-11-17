@@ -13,6 +13,7 @@ use std::collections::BTreeMap;
 const DIMENSIONS: u16 = 0x0200;
 const ROW: u16 = 0x0208;
 const COLINFO: u16 = 0x007D;
+const GCW: u16 = 0x00AB;
 const DEFAULT_ROW_HEIGHT: u16 = 0x0225;
 const BLANK: u16 = 0x0201;
 const NUMBER: u16 = 0x0203;
@@ -48,9 +49,9 @@ pub(crate) struct Context<'a> {
 /// What a formula cell's `<f>` element holds.
 #[derive(Clone, Debug)]
 enum Formula {
-    Plain(String),
+    Plain { text: String, needs_calc: bool },
     /// The anchor of an array formula over `range`.
-    Array { range: String, text: String },
+    Array { range: String, text: String, needs_calc: bool },
     /// The first cell of a data table: the attributes of its `<f>`.
     Table(Vec<(&'static str, String)>),
     /// A cell an array formula or a data table fills: its value only.
@@ -71,14 +72,22 @@ struct Group {
     columns: (u8, u8),
     rgce: Vec<u8>,
     rgcb: Vec<u8>,
+    needs_calc: bool,
 }
 
 fn group(body: &[u8], array: bool) -> Result<Group, String> {
     let mut c = Cursor::new(body);
     let rows = (c.u16("a formula group").map_err(e)?, c.u16("a formula group").map_err(e)?);
     let columns = (c.u8("a formula group").map_err(e)?, c.u8("a formula group").map_err(e)?);
-    // ARRAY: flags (2) and 4 unused bytes; SHRFMLA: 1 unused byte and the use count (1).
-    c.skip(if array { 6 } else { 2 }, "a formula group").map_err(e)?;
+    // ARRAY: calculation flags and 4 unused bytes; SHRFMLA: unused byte and use count.
+    let needs_calc = if array {
+        let flags = c.u16("a formula group").map_err(e)?;
+        c.skip(4, "a formula group").map_err(e)?;
+        flags & 1 != 0
+    } else {
+        c.skip(2, "a formula group").map_err(e)?;
+        false
+    };
     let count = usize::from(c.u16("a formula group").map_err(e)?);
     let rgce = c.bytes(count, "a formula group").map_err(e)?.to_vec();
     let rgcb = c.bytes(c.remaining(), "a formula group").map_err(e)?.to_vec();
@@ -87,6 +96,7 @@ fn group(body: &[u8], array: bool) -> Result<Group, String> {
         columns,
         rgce,
         rgcb,
+        needs_calc,
     })
 }
 
@@ -161,13 +171,16 @@ pub(crate) fn read(
     let mut default_height: u16 = 255;
     let mut default_column_width: Option<u16> = None;
     let mut column_widths: Vec<(u16, u16, u16)> = Vec::new();
+    let mut global_column_widths: Vec<[u8; 32]> = Vec::new();
     let mut row_heights: BTreeMap<u16, f64> = BTreeMap::new();
     let mut default_row_attributes: Vec<(&'static str, String)> = Vec::new();
     let mut depth = 0usize;
+    let mut in_custom_view = false;
     let mut features = super::features::Features::default();
     let mut drawing = super::drawing::Drawing::default();
     let mut rules = super::rules::Rules::default();
     features.number = context.number;
+    features.macro_sheet = macro_sheet;
     features.v5 = context.v5;
     // Shared and array formulas and data tables, by the cell of the FORMULA record they follow
     // (where a PtgExp finds them) and, for shared formulas, by the first cell of their range.
@@ -268,6 +281,24 @@ pub(crate) fn read(
             }
             continue;
         }
+        if depth == 1 && record.id == 0x01AA {
+            if in_custom_view { return Err(format!("a nested custom sheet view on {sheet_name:?}")); }
+            in_custom_view = true;
+            *unknown.entry(record.id).or_insert(0) += 1;
+            continue;
+        }
+        if depth == 1 && record.id == 0x01AB && in_custom_view {
+            in_custom_view = false;
+            *unknown.entry(record.id).or_insert(0) += 1;
+            continue;
+        }
+        if depth == 1 && in_custom_view {
+            if record.id == super::workbook::EOF {
+                return Err(format!("an unterminated custom sheet view on {sheet_name:?}"));
+            }
+            *unknown.entry(record.id).or_insert(0) += 1;
+            continue;
+        }
         match record.id {
             super::workbook::BOF => {
                 depth += 1;
@@ -279,6 +310,9 @@ pub(crate) fn read(
                 }
             }
             DIMENSIONS => {}
+            // Shared formula definitions were parsed in the group pass above and expanded into
+            // each member's formula. They are not unread records.
+            SHRFMLA => {}
             DEFAULT_ROW_HEIGHT => {
                 let mut c = Cursor::new(record.body);
                 let flags = c.u16("DefaultRowHeight").map_err(e)?;
@@ -288,6 +322,12 @@ pub(crate) fn read(
                 }
                 if flags & 0x02 != 0 {
                     default_row_attributes.push(("zeroHeight", "1".to_owned()));
+                }
+                if flags & 0x04 != 0 {
+                    default_row_attributes.push(("thickTop", "1".to_owned()));
+                }
+                if flags & 0x08 != 0 {
+                    default_row_attributes.push(("thickBottom", "1".to_owned()));
                 }
             }
             ROW => {
@@ -314,6 +354,15 @@ pub(crate) fn read(
                 }
                 if flags & 0x10 != 0 {
                     attributes.push(("collapsed", "1".to_owned()));
+                }
+                if flags & (1 << 28) != 0 {
+                    attributes.push(("thickTop", "1".to_owned()));
+                }
+                if flags & (1 << 29) != 0 {
+                    attributes.push(("thickBot", "1".to_owned()));
+                }
+                if flags & (1 << 30) != 0 {
+                    attributes.push(("ph", "1".to_owned()));
                 }
                 if flags & 0x80 != 0 {
                     let style = context.styles.cell_format(((flags >> 16) & 0x0FFF) as u16);
@@ -347,6 +396,9 @@ pub(crate) fn read(
                 if flags & 0x04 != 0 {
                     attributes.push(("bestFit", "1".to_owned()));
                 }
+                if flags & 0x08 != 0 {
+                    attributes.push(("phonetic", "1".to_owned()));
+                }
                 if flags & 0x02 != 0 {
                     attributes.push(("customWidth", "1".to_owned()));
                 }
@@ -359,6 +411,11 @@ pub(crate) fn read(
                 }
                 column_widths.push((first, last.min(255), width));
                 columns.push(attributes);
+            }
+            GCW if context.v5.is_some() && record.body.len() == 34 && record.body[..2] == [32, 0] => {
+                let mut bits = [0u8; 32];
+                bits.copy_from_slice(&record.body[2..]);
+                global_column_widths.push(bits);
             }
             NUMBER => {
                 let mut c = Cursor::new(record.body);
@@ -443,7 +500,12 @@ pub(crate) fn read(
                 let mut c = Cursor::new(&body);
                 let (row, column, ixfe) = cell_head(&mut c)?;
                 let value = c.bytes(8, "Formula").map_err(e)?.to_vec();
-                c.skip(6, "Formula").map_err(e)?;
+                let flags = c.u16("Formula").map_err(e)?;
+                c.skip(4, "Formula").map_err(e)?;
+                let needs_calc = flags & 1 != 0;
+                // Calculation scheduling and the error-check exclusion are not yet applied by
+                // the product, even where the converted formula retains the former flag.
+                if flags & 0x21 != 0 { *unknown.entry(FORMULA).or_insert(0) += 1; }
                 let count = usize::from(c.u16("Formula").map_err(e)?);
                 let rgce = c.bytes(count, "Formula").map_err(e)?;
                 let rgcb = c.bytes(c.remaining(), "Formula").map_err(e)?;
@@ -501,12 +563,16 @@ pub(crate) fn read(
                 let formula = if rgce.first() == Some(&0x02) {
                     // PtgTbl: a cell inside a data table; the first one holds the table.
                     match tables.get(&at) {
-                        Some(attributes) => Formula::Table(attributes.clone()),
+                        Some(attributes) => {
+                            let mut attributes = attributes.clone();
+                            if needs_calc { attributes.push(("ca", "1".to_owned())); }
+                            Formula::Table(attributes)
+                        }
                         None => Formula::Member,
                     }
                 } else {
                     match print(rgce, rgcb, &links, origin).map_err(|m| fail(m.0))? {
-                        Ok(text) => Formula::Plain(text),
+                        Ok(text) => Formula::Plain { text, needs_calc },
                         Err(expanded) => {
                             let key = (expanded.row, expanded.column);
                             if let Some(array) = arrays.get(&key) {
@@ -521,7 +587,7 @@ pub(crate) fn read(
                                         column_name(u32::from(array.columns.1)),
                                         u32::from(array.rows.1) + 1
                                     );
-                                    Formula::Array { range, text }
+                                    Formula::Array { range, text, needs_calc: array.needs_calc || needs_calc }
                                 } else {
                                     Formula::Member
                                 }
@@ -529,7 +595,7 @@ pub(crate) fn read(
                                 let text = print(&group.rgce, &group.rgcb, &links, origin)
                                     .map_err(|m| fail(m.0))?
                                     .map_err(|_| fail("a PtgExp in a shared formula".into()))?;
-                                Formula::Plain(text)
+                                Formula::Plain { text, needs_calc }
                             } else {
                                 return Err(fail(format!(
                                     "a PtgExp naming row {} column {}, where no shared or array formula is",
@@ -558,13 +624,56 @@ pub(crate) fn read(
                         _ => None,
                     }
                 };
-                if !taken && !rules.read(record, context.styles, &print_at, sheet_name, context.v5)? && !features.read(record)? {
+                if !taken && !rules.read(record, context.styles, &print_at, sheet_name, context.v5)? && !features.read(record, context.styles)? {
                     *unknown.entry(other).or_insert(0) += 1;
                 }
             }
         }
     }
 
+    if features.printer_part().is_some() {
+        if let Some(count) = unknown.get_mut(&0x004D) {
+            *count -= 1;
+            if *count == 0 { unknown.remove(&0x004D); }
+        }
+    }
+    // In BIFF5 GCW chooses the standard width even where COLINFO provides an explicit width.
+    // Emit non-overlapping columns so the selection does not erase their other formatting.
+    if let [bits] = global_column_widths.as_slice() {
+        let standard = features.standard_column_width;
+        let fallback = features.default_column_width.unwrap_or(8).min(255) * 256;
+        let mut expanded = BTreeMap::new();
+        for attrs in &columns {
+            let first = attrs.iter().find(|(key, _)| *key == "min").and_then(|(_, v)| v.parse::<u16>().ok()).unwrap_or(1);
+            let last = attrs.iter().find(|(key, _)| *key == "max").and_then(|(_, v)| v.parse::<u16>().ok()).unwrap_or(0).min(256);
+            for column in first..=last {
+                let mut a = attrs.clone();
+                for (key, value) in &mut a {
+                    if *key == "min" || *key == "max" { *value = column.to_string(); }
+                }
+                expanded.insert(column - 1, a);
+            }
+        }
+        for column in 0..256u16 {
+            if bits[usize::from(column / 8)] & (1 << (column % 8)) == 0 { continue; }
+            if standard.is_none() && !expanded.contains_key(&column) { continue; }
+            let width = standard.unwrap_or(fallback);
+            let a = expanded.entry(column).or_insert_with(|| vec![
+                ("min", (column + 1).to_string()), ("max", (column + 1).to_string()),
+            ]);
+            a.retain(|(key, _)| !matches!(*key, "width" | "customWidth"));
+            a.push(("width", formula::number_text(f64::from(width) / 256.0)));
+            a.push(("customWidth", "1".to_owned()));
+        }
+        columns = expanded.into_values().collect();
+        column_widths = columns.iter().filter_map(|a| {
+            let column = a.iter().find(|(k, _)| *k == "min")?.1.parse::<u16>().ok()?.checked_sub(1)?;
+            let width = a.iter().find(|(k, _)| *k == "width")?.1.parse::<f64>().ok()?;
+            Some((column, column, (width * 256.0) as u16))
+        }).collect();
+    } else if !global_column_widths.is_empty() {
+        *unknown.entry(GCW).or_insert(0) += global_column_widths.len() as u32;
+    }
     let mut x = Xml::new();
     let root = if macro_sheet { "xm:macrosheet" } else { "worksheet" };
     let mut namespaces = vec![
@@ -585,7 +694,9 @@ pub(crate) fn read(
     }
     let mut format = vec![("defaultRowHeight", formula::number_text(f64::from(default_height) / 20.0))];
     format.extend(default_row_attributes);
-    if let Some(width) = default_column_width {
+    if let Some(width) = features.standard_column_width.filter(|_| context.v5.is_none()) {
+        format.push(("defaultColWidth", formula::number_text(f64::from(width) / 256.0)));
+    } else if let Some(width) = default_column_width {
         format.push(("defaultColWidth", width.to_string()));
     }
     if let Some((row, column)) = features.outline_levels {
@@ -611,7 +722,8 @@ pub(crate) fn read(
         x.open("row", &attributes);
         for (column, (ixfe, content)) in &data.cells {
             let style = context.styles.cell_format(*ixfe);
-            if matches!(content, Content::Blank) && style == 0 {
+            let phonetic = features.show_phonetic(*row, *column);
+            if matches!(content, Content::Blank) && style == 0 && !phonetic {
                 continue;
             }
             let reference = format!("{}{}", column_name(u32::from(*column)), u32::from(*row) + 1);
@@ -620,6 +732,7 @@ pub(crate) fn read(
                 if style != 0 {
                     a.push(("s", style.to_string()));
                 }
+                if phonetic { a.push(("ph", "1".to_owned())); }
                 if let Some(kind) = kind {
                     a.push(("t", kind.to_owned()));
                 }
@@ -667,12 +780,15 @@ pub(crate) fn read(
                     }
                     x.open("c", &attributes);
                     match f {
-                        Formula::Plain(text) => x.element("f", &[], text),
-                        Formula::Array { range, text } => x.element(
-                            "f",
-                            &[("t", "array".to_owned()), ("ref", range.clone())],
-                            text,
-                        ),
+                        Formula::Plain { text, needs_calc } => {
+                            let attributes = if *needs_calc { vec![("ca", "1".to_owned())] } else { Vec::new() };
+                            x.element("f", &attributes, text)
+                        }
+                        Formula::Array { range, text, needs_calc } => {
+                            let mut a = vec![("t", "array".to_owned()), ("ref", range.clone())];
+                            if *needs_calc { a.push(("ca", "1".to_owned())); }
+                            x.element("f", &a, text);
+                        }
                         Formula::Table(attributes) => x.empty("f", attributes),
                         Formula::Member => {}
                     }
@@ -776,6 +892,7 @@ pub(crate) fn read(
         rels,
         parts: {
             parts.extend(features.comment_parts());
+            if let Some(printer) = features.printer_part() { parts.push(printer); }
             parts
         },
         entries,

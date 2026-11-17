@@ -1,20 +1,5 @@
 [
 {
-"formula": "_xlfn.TEXTSPLIT(\"a-b-c\",\"-\")",
-"inputs": [],
-"source": "array_text_split_family.rs textsplit_first_cell",
-"legacy": [
-"text",
-"a"
-],
-"excel": [
-"error",
-"spill"
-],
-"excel_build": "20527",
-"reason": "the legacy unit-test expectation differs from Excel's answer"
-},
-{
 "formula": "EXACT(TRUE,\"TRUE\")",
 "inputs": [],
 "source": "exact_fn.rs exact_bool_vs_text",

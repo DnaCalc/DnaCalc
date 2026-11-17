@@ -45,6 +45,11 @@ fn sweep() {
     let mut opened = 0usize;
     let mut loaded = 0usize;
     let (mut formula_cells, mut parse_failures) = (0usize, 0usize);
+    let audit_phonetic = std::env::var_os("DNACALC_XLS_AUDIT_PHONETIC").is_some();
+    let audit_pivots = std::env::var_os("DNACALC_XLS_AUDIT_PIVOT_CACHE").is_some();
+    let (mut pivot_caches, mut pivot_records, mut pivot_files) = (0usize, 0u64, 0usize);
+    let (mut phonetic_runs, mut phonetic_files, mut phonetic_errors) = (0usize, 0usize, 0usize);
+    let (mut phonetic_formats, mut phonetic_format_files) = (0usize, 0usize);
     let mut refused: BTreeMap<String, usize> = BTreeMap::new();
     let mut load_refused: BTreeMap<String, usize> = BTreeMap::new();
     let mut panics: Vec<String> = Vec::new();
@@ -64,6 +69,14 @@ fn sweep() {
             let report = legacy_workbook_report(source.clone(), &policy);
             let password = std::env::var("DNACALC_XLS_PASSWORD").ok();
             let document = calc_doc::open_with_password(source, &policy, password.as_deref());
+            let written_phonetic = if audit_phonetic {
+                document.as_ref().ok().and_then(|doc| {
+                    if doc.package().part("xl/sharedStrings.xml").is_none() { return Some((0, 0)); }
+                    doc.package().read_part("xl/sharedStrings.xml").ok()
+                        .map(|xml| (xml.windows(5).filter(|window| *window == b"<rPh ").count(),
+                            xml.windows(12).filter(|window| *window == b"<phoneticPr ").count()))
+                })
+            } else { Some((0, 0)) };
             let load = document.as_ref().ok().map(|d| {
                 let mut ids: IdAllocator<SheetId> = IdAllocator::new();
                 calc_doc::load(d, &mut ids).map_err(|e| e.to_string()).map(|loaded| {
@@ -80,14 +93,18 @@ fn sweep() {
                             }
                         }
                     }
-                    (formulas, failed)
+                    let caches = if audit_pivots { loaded.pivot_caches().caches.len() } else { 0 };
+                    let saved_records = if audit_pivots {
+                        loaded.pivot_caches().caches.values().filter_map(|c| c.record_count).sum()
+                    } else { 0 };
+                    (formulas, failed, caches, saved_records)
                 })
             });
-            (report, document.map(|_| ()), load)
+            (report, document.map(|_| ()), load, written_phonetic)
         }));
         match result {
             Err(_) => panics.push(file.display().to_string()),
-            Ok((report, document, load)) => {
+            Ok((report, document, load, written_phonetic)) => {
                 match document {
                     Err(OpenError::LegacyWorkbook { detail, .. }) => {
                         let key = detail.chars().take(70).collect::<String>();
@@ -101,11 +118,22 @@ fn sweep() {
                     }
                     Ok(()) => {
                         opened += 1;
+                        if let Some((runs, formats)) = written_phonetic {
+                            phonetic_runs += runs;
+                            phonetic_files += usize::from(runs != 0);
+                            phonetic_formats += formats;
+                            phonetic_format_files += usize::from(formats != 0);
+                        } else if audit_phonetic {
+                            phonetic_errors += 1;
+                        }
                         match load {
-                            Some(Ok((formulas, failed))) => {
+                            Some(Ok((formulas, failed, caches, saved_records))) => {
                                 loaded += 1;
                                 formula_cells += formulas;
                                 parse_failures += failed;
+                                pivot_caches += caches;
+                                pivot_records += saved_records;
+                                pivot_files += usize::from(caches != 0);
                             }
                             Some(Err(e)) => {
                                 let key: String = e.chars().take(90).collect();
@@ -130,6 +158,13 @@ fn sweep() {
     println!("opened (converted):   {opened}");
     println!("loaded (model built): {loaded}");
     println!("formula cells loaded: {formula_cells}, not re-parsed by calc-fml: {parse_failures}");
+    if audit_phonetic {
+        println!("phonetic runs written: {phonetic_runs} in {phonetic_files} files; audit errors: {phonetic_errors} (not an Excel match verdict)");
+        println!("shared-string phonetic formats written: {phonetic_formats} in {phonetic_format_files} files (not an Excel match verdict)");
+    }
+    if audit_pivots {
+        println!("saved pivot source caches: {pivot_caches} in {pivot_files} files, {pivot_records} declared source records (not pivot views or calculated results)");
+    }
     println!("refused to open, by reason:");
     for (reason, n) in &refused {
         println!("  {n:5}  {reason}   e.g. {}", shown_refusals[reason]);

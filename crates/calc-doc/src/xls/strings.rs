@@ -23,6 +23,68 @@ fn short(what: &str) -> Malformed {
 pub(crate) struct RichString {
     pub(crate) units: Vec<u16>,
     pub(crate) runs: Vec<(u16, u16)>,
+    /// The phonetic extension is not yet converted to SpreadsheetML.
+    pub(crate) phonetic_unread: bool,
+    pub(crate) phonetic: Option<Phonetic>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Phonetic {
+    pub(crate) font: u16,
+    pub(crate) kind: u8,
+    pub(crate) alignment: u8,
+    pub(crate) runs: Vec<PhoneticRun>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct PhoneticRun {
+    pub(crate) first: u16,
+    pub(crate) end: u16,
+    pub(crate) text: Vec<u16>,
+}
+
+/// Preserve formatting independently when the run encoding is not yet supported.
+fn phonetic_format(bytes: &[u8]) -> Option<Phonetic> {
+    let mut c = crate::xlsb::Cursor::new(bytes);
+    let what = "phonetic string";
+    if c.u16(what).ok()? != 1 || usize::from(c.u16(what).ok()?) + 4 != bytes.len() { return None; }
+    let font = c.u16(what).ok()?;
+    let flags = c.u16(what).ok()?;
+    Some(Phonetic { font, kind: (flags & 3) as u8, alignment: ((flags >> 2) & 3) as u8, runs: Vec::new() })
+}
+
+/// Parse only explicitly mapped runs with a fully accounted-for ExtRst. Zero-run and
+/// trailing-byte forms stay unread until their Excel behavior has been observed.
+fn phonetic_extension(bytes: &[u8], base_len: usize) -> Option<Phonetic> {
+    let mut c = crate::xlsb::Cursor::new(bytes);
+    let what = "phonetic string";
+    if c.u16(what).ok()? != 1 || usize::from(c.u16(what).ok()?) + 4 != bytes.len() { return None; }
+    let font = c.u16(what).ok()?;
+    let flags = c.u16(what).ok()?;
+    let count = usize::from(c.u16(what).ok()?);
+    let units = usize::from(c.u16(what).ok()?);
+    if count == 0 || units == 0 || usize::from(c.u16(what).ok()?) != units { return None; }
+    let text = c.units(units, what).ok()?;
+    let mut positions = Vec::with_capacity(count);
+    let mut base_units = 0usize;
+    for _ in 0..count {
+        let phonetic = c.u16(what).ok()?;
+        let first = c.u16(what).ok()?;
+        let length = c.u16(what).ok()?;
+        let end = usize::from(first).checked_add(usize::from(length))?;
+        base_units = base_units.checked_add(usize::from(length))?;
+        if base_units > base_len { return None; }
+        if usize::from(phonetic) >= units || end > base_len || end > usize::from(u16::MAX) { return None; }
+        if positions.last().is_some_and(|&(p, b, _)| p >= phonetic || b >= first) { return None; }
+        positions.push((phonetic, first, end as u16));
+    }
+    if c.remaining() != 0 || positions.first()?.0 != 0 { return None; }
+    let mut runs = Vec::with_capacity(count);
+    for (i, &(start, first, end)) in positions.iter().enumerate() {
+        let stop = positions.get(i + 1).map_or(units, |next| usize::from(next.0));
+        runs.push(PhoneticRun { first, end, text: text[usize::from(start)..stop].to_vec() });
+    }
+    Some(Phonetic { font, kind: (flags & 3) as u8, alignment: ((flags >> 2) & 3) as u8, runs })
 }
 
 impl<'a> Pieces<'a> {
@@ -141,8 +203,27 @@ impl<'a> Pieces<'a> {
         for _ in 0..run_count {
             runs.push((self.u16(what)?, self.u16(what)?));
         }
-        self.skip(phonetic, what)?;
-        Ok(RichString { units, runs })
+        let (parsed, phonetic_unread) = if phonetic == 0 {
+            (None, false)
+        } else if phonetic <= 65539 {
+            let start_piece = self.piece;
+            let starts_at_cut = self.at >= self.pieces[self.piece].len() && self.piece + 1 < self.pieces.len();
+            let mut bytes = Vec::with_capacity(phonetic);
+            for _ in 0..phonetic { bytes.push(self.u8(what)?); }
+            // Continuation boundaries inside ExtRst need an Excel-observed flag treatment.
+            // Do not emit a pronunciation if those bytes may have been joined ambiguously.
+            if starts_at_cut || self.piece != start_piece {
+                (None, true)
+            } else if let Some(parsed) = phonetic_extension(&bytes, units.len()) {
+                (Some(parsed), false)
+            } else {
+                (phonetic_format(&bytes), true)
+            }
+        } else {
+            self.skip(phonetic, what)?;
+            (None, true)
+        };
+        Ok(RichString { units, runs, phonetic_unread, phonetic: parsed })
     }
 }
 
@@ -183,9 +264,38 @@ mod tests {
         let s = p.rich_string().unwrap();
         assert_eq!(String::from_utf16(&s.units).unwrap(), "hi");
         assert_eq!(s.runs, vec![(0, 5), (1, 7)]);
+        assert!(s.phonetic_unread);
         assert!(p.done());
         // The same string without its phonetic bytes is a typed failure, not a panic.
         let short = record(&body, vec![&tail[..4]]);
         assert!(Pieces::new(&short).rich_string().is_err());
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn phonetic_mapping_refuses_out_of_bounds_and_unaccounted_data() {
+        let mut bytes = Vec::new();
+        for value in [1u16, 18, 0, 7, 1, 1, 1, b'x' as u16, 0, 0, 1] {
+            bytes.extend(value.to_le_bytes());
+        }
+        assert!(phonetic_extension(&bytes, 1).is_some());
+        assert!(phonetic_extension(&bytes, 0).is_none());
+        bytes.extend([0, 0]);
+        assert!(phonetic_extension(&bytes, 1).is_none());
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn phonetic_extension_crossing_continue_stays_unread() {
+        let mut ext = Vec::new();
+        for value in [1u16, 18, 0, 7, 1, 1, 1, b'x' as u16, 0, 0, 1] { ext.extend(value.to_le_bytes()); }
+        let mut body = vec![1, 0, 4];
+        body.extend((ext.len() as u32).to_le_bytes()); body.push(b'A');
+        body.extend(&ext[..10]);
+        let r = record(&body, vec![&ext[10..]]);
+        let item = Pieces::new(&r).rich_string().unwrap();
+        assert!(item.phonetic.is_none());
+        assert!(item.phonetic_unread);
+        assert_eq!(item.units, vec![u16::from(b'A')]);
     }
 }

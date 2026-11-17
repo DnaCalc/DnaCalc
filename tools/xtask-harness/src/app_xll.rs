@@ -580,7 +580,15 @@ fn run_session_set(
         sheet,
         name,
         out,
-        &["--save-dir".to_owned(), saved_dir.display().to_string()],
+        // Pinned to Off as DNA Calc's page acceptance does (app_xll_calc): otherwise the level is
+        // the per-user stored one or DNACALC_TRUST_ALL_MACROS, and under Unguarded the project
+        // runs on open, so the page never offers Enable macros (dc-a3fza).
+        &[
+            "--save-dir".to_owned(),
+            saved_dir.display().to_string(),
+            "--macros".to_owned(),
+            "off".to_owned(),
+        ],
     )?;
     let page = (|| -> Result<(Value, Vec<(String, Result<(String, Vec<String>, Option<Shown>), String>, Option<String>)>), String> {
         if !wait_until(PAGE_WAIT, || !text_of(&session, "addin-count").is_empty()) {
@@ -588,7 +596,15 @@ fn run_session_set(
         }
         open_through_page(&session, &file)?;
         // A macro file opens with macros disabled, as in Excel: the person enables them for it.
-        click(&session, "macros-enable")?;
+        // Without the button, say which view the page is in (enabled, blocked, no project).
+        click(&session, "macros-enable").map_err(|why| {
+            format!(
+                "{why}; macros bar: {:?}; level: {:?}; project: {:?}",
+                text_of(&session, "macros-bar"),
+                text_of(&session, "macro-security-line"),
+                text_of(&session, "vba-status")
+            )
+        })?;
         if !wait_until(PAGE_WAIT, || {
             let status = text_of(&session, "vba-status");
             !status.is_empty() && !status.starts_with("Macros are disabled")

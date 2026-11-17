@@ -250,7 +250,11 @@ impl Styles {
 
     /// Whether a styles part is written: there are formats, or differential formats.
     pub(crate) fn needs_part(&self) -> bool {
-        !self.xfs.is_empty() || !self.dxfs.borrow().is_empty()
+        !self.xfs.is_empty() || !self.dxfs.borrow().is_empty() || self.palette.as_ref().is_some_and(|p| p.len() == 56)
+    }
+
+    pub(crate) fn indexed_colors_representable(&self) -> bool {
+        self.palette.as_ref().is_none_or(|p| p.len() == 56)
     }
 
     /// The index of BIFF XF `ixfe` in the written `cellXfs`: cell formats keep their order, style
@@ -313,7 +317,7 @@ impl Styles {
         }
     }
 
-    fn font_index(&self, ifnt: u16) -> Option<usize> {
+    pub(crate) fn font_index(&self, ifnt: u16) -> Option<usize> {
         // BIFF numbers fonts from 0 but never uses 4.
         let at = if ifnt >= 5 { ifnt - 1 } else { ifnt };
         (usize::from(at) < self.fonts.len()).then_some(usize::from(at))
@@ -626,6 +630,15 @@ impl Styles {
                 ("defaultPivotStyle", "PivotStyleLight16".to_owned()),
             ],
         );
+        if self.palette.as_ref().is_some_and(|p| p.len() == 56) {
+            x.open("colors", &[]);
+            x.open("indexedColors", &[]);
+            for index in 0..64u16 {
+                if let Some(rgb) = self.rgb(index) { x.empty("rgbColor", &[("rgb", rgb)]); }
+            }
+            x.close("indexedColors");
+            x.close("colors");
+        }
         x.close("styleSheet");
         x.out
     }

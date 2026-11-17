@@ -112,4 +112,114 @@ public static class ComProbe
         });
         return string.Join(";", log);
     }
+
+    // D.15 second half (dc-6332.16): COM identity and a second-apartment client. Capture Excel first;
+    // the same cases then run through the host. Identity compares canonical IUnknown pointers
+    // (QueryInterface for IUnknown, which the RCW holds) within this apartment; nothing crosses
+    // processes and nothing is registered.
+    [DllImport("oleacc.dll")]
+    private static extern int AccessibleObjectFromWindow(IntPtr hwnd, uint objectId, ref Guid iid,
+        [MarshalAs(UnmanagedType.IDispatch)] out object result);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after, string className, string title);
+    [DllImport("ole32.dll")]
+    private static extern int CoMarshalInterThreadInterfaceInStream(ref Guid iid,
+        [MarshalAs(UnmanagedType.IUnknown)] object unknown, out IntPtr stream);
+    [DllImport("ole32.dll")]
+    private static extern int CoGetInterfaceAndReleaseStream(IntPtr stream, ref Guid iid,
+        [MarshalAs(UnmanagedType.IUnknown)] out object result);
+    private static readonly Guid IID_IDispatch = new Guid("00020400-0000-0000-C000-000000000046");
+    // Excel's _Application (the PIA's Excel._Application): only a registered proxy/stub (installed
+    // Office metadata) can marshal it to another apartment.
+    private static readonly Guid IID__Application = new Guid("000208D5-0000-0000-C000-000000000046");
+    private const uint OBJID_NATIVEOM = 0xFFFFFFF0;
+
+    private static IntPtr Identity(object o)
+    {
+        IntPtr unknown = Marshal.GetIUnknownForObject(o);
+        Marshal.Release(unknown);
+        return unknown;
+    }
+    private static string Hr(int code) => "HRESULT:" + ((uint)code).ToString("X8");
+    private static object NativeWindow(dynamic app)
+    {
+        IntPtr main = new IntPtr((int)app.Hwnd);
+        IntPtr desk = FindWindowEx(main, IntPtr.Zero, "XLDESK", null);
+        IntPtr book = FindWindowEx(desk, IntPtr.Zero, "EXCEL7", null);
+        if (book == IntPtr.Zero) throw new COMException("no EXCEL7 window", unchecked((int)0x80004005));
+        Guid iid = IID_IDispatch;
+        int code = AccessibleObjectFromWindow(book, OBJID_NATIVEOM, ref iid, out object window);
+        if (code != 0) throw new COMException("AccessibleObjectFromWindow", code);
+        return window;
+    }
+
+    [ExcelFunction(Name = "COM_IDENTITY")]
+    public static string ComIdentity()
+    {
+        var log = new List<string>();
+        dynamic app = null;
+        Observe(log, "acquire", () => { app = ExcelDnaUtil.Application; return Marshal.IsComObject((object)app); });
+        if (app == null) return string.Join(";", log);
+        IntPtr appId = Identity((object)app);
+        Observe(log, "AppType", () => Microsoft.VisualBasic.Information.TypeName((object)app));
+        Observe(log, "AppApplicationIsApp", () => Identity((object)app.Application) == appId);
+        Observe(log, "AppParentIsApp", () => Identity((object)app.Parent) == appId);
+        object first = null, second = null;
+        Observe(log, "Window", () => { first = NativeWindow(app); second = NativeWindow(app); return Marshal.IsComObject(first); });
+        if (first != null)
+        {
+            dynamic window = first;
+            Observe(log, "WindowType", () => Microsoft.VisualBasic.Information.TypeName(first));
+            Observe(log, "WindowSameTwice", () => Identity(first) == Identity(second));
+            Observe(log, "WindowApplicationIsApp", () => Identity((object)window.Application) == appId);
+            Observe(log, "ParentType", () => Microsoft.VisualBasic.Information.TypeName((object)window.Parent));
+            Observe(log, "ParentApplicationIsApp", () => Identity((object)window.Parent.Application) == appId);
+            Observe(log, "WindowIsApp", () => Identity(first) == appId);
+        }
+        Observe(log, "RangeSameTwice", () => Identity((object)app.Range["A1"]) == Identity((object)app.Range["A1"]));
+        return string.Join(";", log);
+    }
+
+    // The Application marshalled to a second STA thread through a stream while this (owner) thread
+    // waits; the CLR's STA wait pumps COM calls. Late-bound Version goes through IDispatch's
+    // system proxy; the typed QueryInterface needs _Application's proxy/stub registration.
+    [ExcelFunction(Name = "COM_STA2")]
+    public static string ComSecondApartment()
+    {
+        var log = new List<string>();
+        object app = ExcelDnaUtil.Application;
+        Guid iid = IID_IDispatch;
+        int marshalled = CoMarshalInterThreadInterfaceInStream(ref iid, app, out IntPtr stream);
+        log.Add("marshal=" + Hr(marshalled));
+        if (marshalled != 0) return string.Join(";", log);
+        string unmarshal = "not-run", version = "not-run", typed = "not-run", type = "not-run";
+        var thread = new System.Threading.Thread(() =>
+        {
+            Guid local = IID_IDispatch;
+            int code = CoGetInterfaceAndReleaseStream(stream, ref local, out object proxy);
+            unmarshal = Hr(code);
+            if (code != 0) return;
+            try { version = Describe(((dynamic)proxy).Version); }
+            catch (Exception e) { version = Hr(e.HResult); }
+            try { type = Microsoft.VisualBasic.Information.TypeName(proxy); }
+            catch (Exception e) { type = Hr(e.HResult); }
+            IntPtr unknown = Marshal.GetIUnknownForObject(proxy);
+            Guid application = IID__Application;
+            int query = Marshal.QueryInterface(unknown, ref application, out IntPtr typedPointer);
+            typed = Hr(query);
+            if (query == 0) Marshal.Release(typedPointer);
+            Marshal.Release(unknown);
+            Marshal.ReleaseComObject(proxy);
+        });
+        thread.SetApartmentState(System.Threading.ApartmentState.STA);
+        thread.IsBackground = true;
+        thread.Start();
+        bool finished = thread.Join(10000);
+        log.Add("finished=" + finished);
+        log.Add("unmarshal=" + unmarshal);
+        log.Add("Version=" + version);
+        log.Add("TypeName=" + type);
+        log.Add("QueryApplication=" + typed);
+        return string.Join(";", log);
+    }
 }

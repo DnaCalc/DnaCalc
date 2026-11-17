@@ -1,3 +1,4 @@
+use crate::ported::double_double::Dd;
 use crate::ported::excel_numeric::crt_pow;
 use crate::ported::special_dist_family::erfc_of_sqrt_half_x;
 use crate::ported::special_math_common::{
@@ -185,7 +186,8 @@ pub fn chisq_inv_rt_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Wo
         let target = 1.0 - p;
         let forward = |x| regularized_gamma_p(k / 2.0, x / 2.0);
         let hi = search_upper_bound(target, k, forward);
-        return Ok(bisect_inverse_closest(target, 0.0, hi, forward));
+        let x = bisect_inverse_closest(target, 0.0, hi, forward);
+        return Ok(polished_chi_root(k, Dd::from(target), x));
     }
     // Excel 20527: the df=1 arm first forms P = .5 + (.5-p).
     // All 320 independently chosen probabilities retain the same CHIINV word
@@ -204,9 +206,19 @@ pub fn chisq_inv_rt_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Wo
     // Keep the measured df=1 fold and invert the smaller right tail directly.
     // Q decreases in x, so negate it for the increasing-forward convention.
     let hi = search_upper_bound(-p, k, |x| -regularized_gamma_q(k / 2.0, x / 2.0));
-    Ok(bisect_inverse(-p, 0.0, hi, |x| {
-        -regularized_gamma_q(k / 2.0, x / 2.0)
-    }))
+    let x = bisect_inverse(-p, 0.0, hi, |x| -regularized_gamma_q(k / 2.0, x / 2.0));
+    if p < 1e-12 {
+        // The double-double lower tail cannot resolve so small an upper tail.
+        return Ok(x);
+    }
+    Ok(polished_chi_root(k, Dd::from(1.0).sub(Dd::from(p)), x))
+}
+
+/// The chi-square root `x` of `P(k/2, x/2) = lower`, re-rounded from the double-double gamma
+/// root where it applies (shape k/2 >= 10); otherwise the lattice search's `x`.
+fn polished_chi_root(k: f64, lower: Dd, x: f64) -> f64 {
+    crate::ported::beta_gamma_stats_family::gamma_unit_root_polished(k / 2.0, lower, x / 2.0)
+        .map_or(x, |unit| 2.0 * unit)
 }
 
 pub fn f_pdf_kernel(x: f64, deg1: f64, deg2: f64) -> Result<f64, WorksheetErrorCode> {
@@ -551,6 +563,26 @@ pub fn t_inv_2t_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Worksh
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Full-bank rows (Excel 16.0.20527) where Excel publishes the correctly rounded root and the
+    /// lattice search on the binary64 forward was one unit off; the double-double polish matches.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn large_shape_inverses_publish_the_correctly_rounded_root() {
+        let chi = [
+            (0.05949171, f64::from_bits(0x4052_0000_0000_0001), 0x4056_e618_a857_ec13_u64),
+            (0.42169944, 100.0, 0x4059_8927_f500_71cc),
+        ];
+        for (p, df, excel) in chi {
+            assert_eq!(chisq_inv_rt_kernel(p, df).unwrap().to_bits(), excel, "CHIINV({p}, {df})");
+        }
+        let unit = crate::ported::beta_gamma_stats_family::gamma_inv_kernel(
+            f64::from_bits(0x3fbb_c819_39e8_ff40),
+            100.0,
+            f64::from_bits(0x3fe1_4a8f_0049_03dc),
+        );
+        assert_eq!(unit.unwrap().to_bits(), 0x4047_bc14_af00_45bc);
+    }
 
     /// FDIST and F.DIST on either side of `d1 f = d2`, in the series and recurrence arms and with
     /// a unit shape: Excel 16.0.20527's answers (the Excel answer service, 2026-11-12; dc-6332.8).

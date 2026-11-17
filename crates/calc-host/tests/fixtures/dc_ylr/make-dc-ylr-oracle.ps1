@@ -12,8 +12,18 @@
 # source. Excel reads the closed source when the formulas are entered and saves what it read as
 # the link's cache (xl/externalLinks/externalLink1.xml): the cells the formulas name that hold a
 # value, so C1 (empty) is not cached. It saves the linking book as <OutDir>/oracle.xlsx and the
-# same book as <OutDir>/oracle.xlsb. The source is not committed: the capture and DNA Calc read
-# the link's cache, as Excel does with its links not updated.
+# same book as <OutDir>/oracle.xlsb. The capture reads the link's cache, as Excel does with its
+# links not updated (the source is not at the path the link names).
+#
+# The source book Excel saved is also copied to <OutDir>/ylr-source.xlsx, beside the linking
+# book. The corpus comparison resolves a link to a file of the link's name in the referring book's
+# folder (tools/xtask-harness/src/linked_workbooks.rs) and calculates it, so the external
+# references are calculated from the source rather than counted as external link caches.
+# With -SourceOnly only that source is built and copied, and oracle.xlsx, oracle.xlsb and their
+# capture stay as they are:
+#
+#   powershell -NoProfile -ExecutionPolicy Bypass -File make-dc-ylr-oracle.ps1 -WorkDir <directory>
+#       -OutDir crates/calc-host/tests/fixtures/dc_ylr -SourceOnly
 #
 #   cargo xtask capture --fixture crates/calc-host/tests/fixtures/dc_ylr/oracle.xlsx \
 #       --out crates/calc-host/tests/captures/dc_ylr/oracle.capture.json --work-dir <short dir>
@@ -25,7 +35,8 @@
 
 param(
     [Parameter(Mandatory = $true)][string]$WorkDir,
-    [Parameter(Mandatory = $true)][string]$OutDir
+    [Parameter(Mandatory = $true)][string]$OutDir,
+    [switch]$SourceOnly
 )
 
 Set-StrictMode -Version 2.0
@@ -69,7 +80,9 @@ $formulas = @(
 $spills = [ordered]@{ 'C1' = '=X!A1:A3'; 'E1' = '=TRANSPOSE(X!A1:A3)'; 'C6' = '=X!A1:A3*2' }
 
 $source = Join-Path $WorkDir 'ylr-source.xlsx'
-Remove-Item -ErrorAction SilentlyContinue $source, (Join-Path $OutDir 'oracle.xlsx'), (Join-Path $OutDir 'oracle.xlsb')
+$sourceCopy = Join-Path $OutDir 'ylr-source.xlsx'
+Remove-Item -ErrorAction SilentlyContinue $source, $sourceCopy
+if (-not $SourceOnly) { Remove-Item -ErrorAction SilentlyContinue (Join-Path $OutDir 'oracle.xlsx'), (Join-Path $OutDir 'oracle.xlsb') }
 $excel = New-Object -ComObject Excel.Application
 $excelPid = 0
 [void][P.W]::GetWindowThreadProcessId([System.IntPtr]$excel.Hwnd, [ref]$excelPid)
@@ -83,6 +96,8 @@ try {
     $other = $book.Worksheets.Add([Type]::Missing, $sheet); $other.Name = 'My Sheet'; $other.Range('A1').Value2 = 10
     Retry { $book.SaveAs($source, 51) } | Out-Null
     Retry { $book.Close($false) } | Out-Null
+    Copy-Item -LiteralPath $source -Destination $sourceCopy
+    if ($SourceOnly) { return }
 
     $book = Retry { $excel.Workbooks.Add() }
     $main = $book.Worksheets.Item(1); $main.Name = 'Main'

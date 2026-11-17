@@ -37,7 +37,9 @@ try {
     Probe 'metadata' { @{excel_version=[string]$app.Version; excel_build=[string]$app.Build;
         compatibility_mode=$book.Excel8CompatibilityMode; file_format=$book.FileFormat;
         application_calculation_version=$app.CalculationVersion; workbook_calculation_version=$book.CalculationVersion;
-        title=[string]$app.Caption; rows=$sheet.Rows.Count; columns=$sheet.Columns.Count} }
+        title=[string]$app.Caption; window_caption=[string]$book.Windows.Item(1).Caption;
+        full_name=[string]$book.FullName; check_compatibility=$book.CheckCompatibility;
+        rows=$sheet.Rows.Count; columns=$sheet.Columns.Count} }
     $row = 1
     foreach ($case in $cases.formulas) {
         $id = [string]$case[0]; $formula = [string]$case[1]; $cell = $sheet.Cells.Item($row, 3)
@@ -48,6 +50,7 @@ try {
     Probe 'end_down_full_column' { $sheet.Range('F1:F65536').Value2 = 1; [string]$sheet.Range('F1').End(-4121).Address($false,$false) }
     Probe 'resize_past_old_limit' { [string]$sheet.Range('A65536').Resize(2,1).Address($false,$false) }
     Probe 'fill_down_at_limit' { $sheet.Range('G65535').Value2 = 17; $sheet.Range('G65535:G65536').FillDown(); $sheet.Range('G65536').Value2 }
+    Probe 'fill_down_past_limit' { $sheet.Range('G65535:G65537').FillDown(); [string]$sheet.Range('G65537').Value2 }
     Probe 'used_range_before_corner' { [string]$sheet.UsedRange.Address($false,$false) }
     Probe 'last_legacy_cell' { $sheet.Range('IV65536').Value2 = 'edge'; [string]$sheet.Cells.SpecialCells(11).Address($false,$false) }
     Probe 'spill_across_legacy_edge' { $c = $sheet.Range('B65536'); $c.Formula2 = '=SEQUENCE(2)'; $c.Calculate() | Out-Null; ReadCell $c }
@@ -65,6 +68,7 @@ try {
         Probe ('formula_string_length/' + $n) { $sheet.Range('D5').Formula = '="' + ('x' * $n) + '"'; ReadCell $sheet.Range('D5') }
     }
     Probe 'column_width' { $sheet.Columns.Item(8).ColumnWidth = 255; @{set=255; read=$sheet.Columns.Item(8).ColumnWidth} }
+    Probe 'column_width_over_limit' { $sheet.Columns.Item(8).ColumnWidth = 256; @{set=256; read=$sheet.Columns.Item(8).ColumnWidth} }
     Probe 'conditional_formats' {
         $rules = $sheet.Range('I1').FormatConditions
         $results = @()
@@ -75,12 +79,16 @@ try {
         return ,$results
     }
     Probe 'defined_name' { $n = $book.Names.Add('cx_name', '=Cases!$A$1'); @{name=[string]$n.Name; refers_to=[string]$n.RefersTo} }
+    foreach ($n in @(255,256)) {
+        Probe ('defined_name_length/' + $n) { $name = 'n' * $n; $item = $book.Names.Add($name, '=Cases!$A$1'); ([string]$item.Name).Length }
+    }
     Probe 'legacy_table_rows' {
         $sheet.Range('J1').Value2 = 'Values'
         $table = $sheet.ListObjects.Add(1, $sheet.Range('J1:J65536'), $null, 1)
         @{rows=$table.Range.Rows.Count; address=[string]$table.Range.Address($false,$false)}
     }
-    Probe 'save_legacy' { $book.Save(); $book.FileFormat }
+    Probe 'legacy_table_grow_past_limit' { $t = $sheet.ListObjects.Item(1); $t.Resize($sheet.Range('J1:J65537')); [string]$t.Range.Address($false,$false) }
+    Probe 'save_legacy' { $book.Save(); @{file_format=$book.FileFormat; full_name=[string]$book.FullName} }
     $book.Close($false); $book = $null
     $legacyBytes = [Convert]::ToBase64String([IO.File]::ReadAllBytes($path))
     $book = $app.Workbooks.Open($path, 0, $false); $sheet = $book.Worksheets.Item(1)
@@ -88,6 +96,8 @@ try {
     foreach ($case in $cases.formulas) { $cell = $sheet.Cells.Item($row, 3); Probe ('reopened/' + [string]$case[0]) { ReadCell $cell }; $row++ }
     Probe 'palette_roundtrip_after' { $sheet.Range('D1').Interior.Color }
     Probe 'convert_xlsx' { $book.SaveAs($modern, 51); @{file_format=$book.FileFormat; compatibility_mode=$book.Excel8CompatibilityMode; used_range=[string]$sheet.UsedRange.Address($false,$false)} }
+    $row = 1
+    foreach ($case in $cases.formulas) { $cell = $sheet.Cells.Item($row, 3); Probe ('converted/' + [string]$case[0]) { if ($book.FileFormat -ne 51) { throw 'Conversion to xlsx did not succeed' }; ReadCell $cell }; $row++ }
     $book.Close($false); $book = $null
     if (Test-Path -LiteralPath $modern) { $modernBytes = [Convert]::ToBase64String([IO.File]::ReadAllBytes($modern)) }
 } catch { $fatal = $_.Exception.ToString() }
@@ -96,6 +106,5 @@ finally {
     $app.DisplayAlerts = $oldAlerts
 }
 @{fatal=$fatal; cases=$answers.ToArray(); legacy_base64=$legacyBytes; converted_base64=$modernBytes;
-    not_run=@('Ctrl+End keyboard action', 'fill-down past the grid', 'style count', 'column width beyond 255',
-        'table growth beyond the old grid', 'name count and length limits', 'recalculation across saving versions',
+    not_run=@('Ctrl+End keyboard action', 'style count', 'name count limits', 'recalculation across saving versions',
         'compatibility checker findings')} | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $Result -Encoding utf8NoBOM

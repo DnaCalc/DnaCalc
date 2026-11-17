@@ -1,8 +1,9 @@
 //! The normal, lognormal and related inverse kernels.
 //!
-//! The inverse uses the published Acklam rational approximation and one Newton
-//! refinement. Exact Excel parity for this generic method remains open.
+//! The inverse follows Excel's route: the AS241 tails and, between them, stored x87 products of
+//! a correctly rounded inverse-erf ratio (Excel's own central rational is still open).
 
+use crate::ported::double_double::Dd;
 use crate::ported::excel_numeric::crt_log;
 use crate::ported::normal_dist_common::{
     FRAC_1_SQRT_2_BITS, GAUSS_TINY_MAX_BITS, erf_approx, phi_kernel, stored_normal_z,
@@ -210,28 +211,62 @@ fn inverse_standard_normal_acklam_refined(p: f64) -> f64 {
     if density == 0.0 { x } else { x - err / density }
 }
 
+/// `erf(y) - t` in double-double for `|y| <= 1.2`, from the Maclaurin series
+/// `2/sqrt(pi) * sum (-1)^n y^(2n+1) / (n! (2n+1))`.
+fn erf_minus_dd(y: Dd, t: f64) -> f64 {
+    const TWO_OVER_SQRT_PI: Dd = Dd(1.1283791670955126, 1.533545961316588e-17);
+    let y2 = y.mul(y);
+    let minus_y2 = y2.neg();
+    let mut term = y;
+    let mut sum = y;
+    for n in 1..48 {
+        term = term.mul(minus_y2).div_f64(n as f64);
+        sum = sum.add(term.div_f64((2 * n + 1) as f64));
+        if term.0.abs() < 1e-36 {
+            break;
+        }
+    }
+    let erf = TWO_OVER_SQRT_PI.mul(sum);
+    erf.sub(Dd::from(t)).0
+}
+
+/// The ratio `erfinv(t) / t` for `0 < |t| <= 0.875`, rounded once to binary64 from a
+/// double-double inverse (three Newton steps on the series erf from the Acklam start).
+fn inverse_erf_ratio(t: f64) -> f64 {
+    let start = inverse_standard_normal_acklam_refined(0.5 + 0.5 * t) * std::f64::consts::FRAC_1_SQRT_2;
+    let mut y = Dd::from(start);
+    for _ in 0..3 {
+        let residual = erf_minus_dd(y, t);
+        // erf'(y) = 2/sqrt(pi) exp(-y^2)
+        let delta = residual * 0.886_226_925_452_758 * libm::exp(y.0 * y.0);
+        y = y.add(Dd::from(-delta));
+    }
+    y.div_f64(t).to_f64()
+}
+
 fn inverse_standard_normal(p: f64) -> Result<f64, WorksheetErrorCode> {
     validate_probability_open_unit(p)?;
 
-    // In the independently measured windows immediately around one half,
-    // Excel stores each product of the leading inverse-erf term separately.
-    // Keep to a power-of-two interval inside both retained windows.
-    let q = p - 0.5;
-    if q.abs() <= 2.0_f64.powi(-42) {
-        use crate::ported::excel_numeric::excel_x87_mul;
-        let leading = excel_x87_mul(2.0 * q, f64::from_bits(0x3fec_5bf8_91b4_ef6b));
-        return Ok(excel_x87_mul(leading, std::f64::consts::SQRT_2));
-    }
-
     // R39 single-bit regions separate the upper AS241 route at 15/16. Below AS241's
     // central bound (`p - 0.5 < -0.425`) Excel publishes the same AS241 tail evaluated at
-    // `p` itself (R42: 393,140 of 393,216 retained R41 answers there). The central route and
-    // the upper interval (0.925, 15/16] keep their existing numerical program.
-    Ok(if p > 15.0 / 16.0 || p - 0.5 < -0.425 {
-        inverse_standard_normal_as241_tail(p)
+    // `p` itself (R42: 393,140 of 393,216 retained R41 answers there).
+    let q = p - 0.5;
+    if p > 15.0 / 16.0 || q < -0.425 {
+        return Ok(inverse_standard_normal_as241_tail(p));
+    }
+    // Between them Excel publishes sqrt(2) * erfinv(t), t = 2q exact, as two stored x87
+    // products: y = t * R, then y * RN(sqrt 2) (fix4 near one half, where R = RN(sqrt(pi)/2)).
+    // R here is the correctly rounded erfinv(t)/t; Excel's own R, a stored rational, is not
+    // identified and differs from it by up to a few ulp (fn6, dc-j9k.47).
+    use crate::ported::excel_numeric::excel_x87_mul;
+    let t = 2.0 * q;
+    let ratio = if q.abs() <= 2.0_f64.powi(-42) {
+        f64::from_bits(0x3fec_5bf8_91b4_ef6b)
     } else {
-        inverse_standard_normal_acklam_refined(p)
-    })
+        inverse_erf_ratio(t)
+    };
+    let y = excel_x87_mul(t, ratio);
+    Ok(excel_x87_mul(y, std::f64::consts::SQRT_2))
 }
 
 pub fn norm_s_dist_kernel(z: f64, cumulative: bool) -> Result<f64, WorksheetErrorCode> {
@@ -490,15 +525,39 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn norm_inv_central_witnesses_keep_existing_excel_matches() {
         for (p, expected_bits) in [
-            (0.15_f64, 0xbff0_953b_2d85_bb6c),
-            (0.35_f64, 0xbfd8_a917_2c6c_cc51),
-            (0.4_f64, 0xbfd0_36d6_c4a0_4b5a),
+            (0.4_f64, 0xbfd0_36d6_c4a0_4b5a_u64),
             (0.5_f64, 0x0000_0000_0000_0000),
             (0.925_f64, 0x3ff7_0852_26d3_e526),
         ] {
             assert_bits(norm_s_inv_kernel(p).unwrap(), expected_bits);
             assert_bits(norm_inv_kernel(p, 0.0, 1.0).unwrap(), expected_bits);
         }
+    }
+
+    /// Excel 16.0.20527 (re-asked through Touchstone on 2026-11-17) against the correctly rounded
+    /// inverse-erf ratio the central route uses: Excel's own stored rational P(s)/Q(s) is not
+    /// identified (docs/research/normal-inverse-central-2026-11-17.md), so these stay one and two
+    /// units low. The old Acklam-plus-Newton route matched them and lost up to 1,032 ULP elsewhere.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn norm_inv_central_records_known_gaps() {
+        for (p, excel_bits, calculated_bits) in [
+            (0.15_f64, 0xbff0_953b_2d85_bb6c_u64, 0xbff0_953b_2d85_bb6b_u64),
+            (0.35_f64, 0xbfd8_a917_2c6c_cc51, 0xbfd8_a917_2c6c_cc4f),
+        ] {
+            assert_ne!(excel_bits, calculated_bits);
+            assert_bits(norm_s_inv_kernel(p).unwrap(), calculated_bits);
+            assert_bits(norm_inv_kernel(p, 0.0, 1.0).unwrap(), calculated_bits);
+        }
+    }
+
+    /// Near one half the old Newton residual cancelled: Excel's answer for bank row
+    /// 0x3fe00160d8d68c36 was 580 ULP from the old route and is matched now.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn norm_inv_central_near_half_is_accurate() {
+        let x = norm_s_inv_kernel(f64::from_bits(0x3fe0_0160_d8d6_8c36)).unwrap();
+        assert_bits(x, 0x3f3b_a3a6_9c29_238c);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

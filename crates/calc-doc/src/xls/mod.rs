@@ -14,6 +14,8 @@ pub(crate) mod codepage;
 mod chart;
 mod crypto;
 mod drawing;
+mod external_cache;
+mod pivot_cache;
 mod features;
 mod formula;
 mod records;
@@ -119,7 +121,7 @@ pub(crate) fn convert(
     }
     // Each sheet's substream: its BOF at the BOUNDSHEET offset, to its EOF.
     let mut parts: Vec<(String, &'static str, Vec<u8>)> = Vec::new();
-    let mut sheet_entries: Vec<(String, u8, String)> = Vec::new();
+    let mut sheet_entries: Vec<(String, u8, String, u32)> = Vec::new();
     let mut number = 0usize;
     // Where each sheet's substream starts and ends in the record list.
     let locate = |sheet: &workbook::BoundSheet| -> Result<(usize, usize), OpenError> {
@@ -156,6 +158,7 @@ pub(crate) fn convert(
     let mut registry = v5::Registry::default();
     let mut tables: Vec<v5::Table> = Vec::new();
     let mut global_table = v5::Table::default();
+    let mut v5_cache_consumed = BTreeMap::new();
     if let Some(page) = v5 {
         global_table = registry
             .table(&records[..globals.end], page)
@@ -173,6 +176,14 @@ pub(crate) fn convert(
                 names: d.names.clone(),
             })
             .collect();
+        let mut cache_tables = vec![(&records[..globals.end], &global_table)];
+        for (sheet, table) in globals.sheets.iter().filter(|s| s.kind != SheetKind::Module).zip(&tables) {
+            let (start, end) = locate(sheet)?;
+            cache_tables.push((&records[start..end], table));
+        }
+        let (caches, consumed) = external_cache::read_biff5(cache_tables, page);
+        globals.external_cache = caches;
+        v5_cache_consumed = consumed;
     }
     let mut links = formula::Links::new(
         &globals,
@@ -333,7 +344,8 @@ pub(crate) fn convert(
                 return Err(refuse(name, format!("sheet {:?} of an unknown kind", sheet.name)));
             }
         };
-        sheet_entries.push((sheet.name.clone(), sheet.state, part.clone()));
+        let sheet_id = globals.tab_ids.as_ref().map_or(number as u32, |ids| u32::from(ids[source_tab]));
+        sheet_entries.push((sheet.name.clone(), sheet.state, part.clone(), sheet_id));
         parts.push((part, content_type, xml));
     }
     if sheet_entries.is_empty() {
@@ -382,6 +394,19 @@ pub(crate) fn convert(
                     sst.close("r");
                 }
             }
+            if let Some(p) = &string.phonetic {
+                let font = if p.font == 4 { None } else { globals.styles.font_index(p.font).or((p.font == 0).then_some(0)) };
+                if let Some(font) = font {
+                    for run in &p.runs {
+                        sst.open("rPh", &[("sb", run.first.to_string()), ("eb", run.end.to_string())]);
+                        sheet::text_element(&mut sst, &run.text);
+                        sst.close("rPh");
+                    }
+                    let kind = ["halfwidthKatakana", "fullwidthKatakana", "Hiragana", "noConversion"][p.kind as usize];
+                    let alignment = ["noControl", "left", "center", "distributed"][p.alignment as usize];
+                    sst.empty("phoneticPr", &[("fontId", font.to_string()), ("type", kind.to_owned()), ("alignment", alignment.to_owned())]);
+                }
+            }
             sst.close("si");
         }
         sst.close("sst");
@@ -393,7 +418,7 @@ pub(crate) fn convert(
     }
     // The external workbooks the formulas name, as external link parts.
     let mut external_links: Vec<String> = Vec::new();
-    for book in &globals.supbooks {
+    for (book_index, book) in globals.supbooks.iter().enumerate() {
         let workbook::SupBookRecord::External { path, sheets, names } = book else {
             continue;
         };
@@ -420,6 +445,34 @@ pub(crate) fn convert(
                 x.empty("definedName", &[("name", name.clone())]);
             }
             x.close("definedNames");
+        }
+        let caches: Vec<_> = globals.external_cache.iter().filter(|((book, _), _)| *book == book_index).collect();
+        if !caches.is_empty() {
+            x.open("sheetDataSet", &[]);
+            for ((_, sheet_index), cells) in caches {
+                x.open("sheetData", &[("sheetId", sheet_index.to_string())]);
+                let mut open_row = None;
+                for (&(row, column), value) in cells {
+                    if matches!(value, external_cache::Value::Empty) { continue; }
+                    if open_row != Some(row) {
+                        if open_row.is_some() { x.close("row"); }
+                        x.open("row", &[("r", (u32::from(row) + 1).to_string())]);
+                        open_row = Some(row);
+                    }
+                    let (kind, text): (&str, Vec<u16>) = match value {
+                        external_cache::Value::Empty => unreachable!(),
+                        external_cache::Value::Number(v) => ("n", crate::xlsb::formula::number_text(*v).encode_utf16().collect()),
+                        external_cache::Value::Text(v) => ("str", v.clone()),
+                        external_cache::Value::Boolean(v) => ("b", if *v { "1" } else { "0" }.encode_utf16().collect()),
+                        external_cache::Value::Error(v) => ("e", v.encode_utf16().collect()),
+                    };
+                    x.open("cell", &[("r", format!("{}{}", sheet::column_name(u32::from(column)), u32::from(row) + 1)), ("t", kind.to_owned())]);
+                    x.open("v", &[]); x.text(&text); x.close("v"); x.close("cell");
+                }
+                if open_row.is_some() { x.close("row"); }
+                x.close("sheetData");
+            }
+            x.close("sheetDataSet");
         }
         x.close("externalBook");
         x.close("externalLink");
@@ -450,6 +503,55 @@ pub(crate) fn convert(
         ));
         external_links.push(part);
     }
+    // Preserve complete local pivot-cache source records through the existing pivot package
+    // writer. The views are still unread, so their SXVIEW records remain in the report.
+    let mut pivot_caches = Vec::new();
+    if !biff5 && !decrypted {
+        use calc_doc_model::pivot::{PivotCache, PivotSnapshot, PivotSnapshotOrigin};
+        use std::sync::Arc;
+        let globals_records = &records[..globals.end];
+        let ids: Vec<_> = globals_records.iter().enumerate().filter(|(_, r)| r.id == 0x00D5).collect();
+        for (cache_id, (position, id_record)) in ids.iter().enumerate() {
+            if id_record.body.len() != 2 || !id_record.continues.is_empty() { continue; }
+            let id = u16::from_le_bytes([id_record.body[0], id_record.body[1]]);
+            if ids.iter().filter(|(_, r)| r.body == id_record.body).count() != 1 { continue; }
+            let (Some(kind), Some(source)) = (globals_records.get(position + 1), globals_records.get(position + 2)) else { continue };
+            if kind.id != 0x00E3 || kind.body != [1, 0] || !kind.continues.is_empty() { continue; }
+            let Some(source) = pivot_cache::source(source, &globals.sheets, &globals.names) else { continue };
+            let Ok(Some(bytes)) = compound.read(&format!("_SX_DB_CUR/{id:04X}")) else { continue };
+            let Some(parsed) = pivot_cache::read(&bytes, id) else { continue };
+            let (sheet, range, source_name) = match source {
+                pivot_cache::Source::Range { sheet, range, columns } if parsed.fields.len() == columns =>
+                    (Some(sheet), Some(range), None),
+                pivot_cache::Source::WorkbookName(name) => (None, None, Some(name)),
+                _ => continue,
+            };
+            let number = cache_id + 1;
+            let part = format!("xl/pivotCache/pivotCacheDefinition{number}.xml");
+            let records_part = format!("xl/pivotCache/pivotCacheRecords{number}.xml");
+            let cache = PivotCache {
+                id: cache_id as u32, part: part.clone(), records_part: Some(records_part.clone()),
+                record_count: Some(parsed.rows.len() as u64), source_type: "worksheet".into(),
+                source_connection_id: None, source_sheet: sheet, source_range: range, source_name,
+                fields: parsed.fields, calculated_items: Vec::new(),
+                attributes: BTreeMap::from([("refreshOnLoad".into(), u8::from(parsed.refresh_on_load).to_string())]),
+                unsupported: Vec::new(),
+                snapshot: Some(Arc::new(PivotSnapshot { records: parsed.rows,
+                    origin: PivotSnapshotOrigin::FileRecords { part: records_part.clone() },
+                    source_revision: 0, numeric: Default::default() })),
+            };
+            let Ok((definition, data)) = crate::save::pivot::legacy_cache_parts(&cache) else { continue };
+            parts.push((part.clone(), "application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheDefinition+xml", definition));
+            parts.push((records_part, "application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheRecords+xml", data));
+            let mut r = Xml::new();
+            r.open("Relationships", &[("xmlns", "http://schemas.openxmlformats.org/package/2006/relationships".to_owned())]);
+            r.empty("Relationship", &[("Id", "rId1".to_owned()), ("Type", format!("{REL_TYPE}/pivotCacheRecords")),
+                ("Target", format!("pivotCacheRecords{number}.xml"))]);
+            r.close("Relationships");
+            extra_entries.push((format!("xl/pivotCache/_rels/pivotCacheDefinition{number}.xml.rels"), r.out));
+            pivot_caches.push((cache_id, part));
+        }
+    }
     // The VBA project: the `_VBA_PROJECT_CUR` storage becomes the compound file of its own an
     // .xlsm keeps in `xl/vbaProject.bin`.
     let vba = compound
@@ -472,6 +574,12 @@ pub(crate) fn convert(
             for (id, n) in sheet_unknown {
                 *all.entry(id).or_insert(0) += n;
             }
+            for (id, n) in v5_cache_consumed {
+                if let Some(count) = all.get_mut(&id) {
+                    *count = count.saturating_sub(n);
+                    if *count == 0 { all.remove(&id); }
+                }
+            }
             all
         },
     };
@@ -490,6 +598,16 @@ pub(crate) fn convert(
         workbook_properties.push(("date1904", "1".to_owned()));
     }
     if globals.backup_file { workbook_properties.push(("backupFile", "1".to_owned())); }
+    if globals.refresh_all { workbook_properties.push(("refreshAllConnections", "1".to_owned())); }
+    if let Some(flags) = globals.book_bool {
+        if flags & 1 != 0 { workbook_properties.push(("saveExternalLinkValues", "0".to_owned())); }
+        if flags & 0x100 != 0 { workbook_properties.push(("showBorderUnselectedTables", "0".to_owned())); }
+        match (flags >> 5) & 3 {
+            1 => workbook_properties.push(("updateLinks", "never".to_owned())),
+            2 => workbook_properties.push(("updateLinks", "always".to_owned())),
+            _ => {}
+        }
+    }
     if let Some(code_name) = &globals.code_name {
         workbook_properties.push(("codeName", code_name.clone()));
     }
@@ -514,10 +632,10 @@ pub(crate) fn convert(
         xml.close("bookViews");
     }
     xml.open("sheets", &[]);
-    for (index, (sheet_name, state, _)) in sheet_entries.iter().enumerate() {
+    for (index, (sheet_name, state, _, sheet_id)) in sheet_entries.iter().enumerate() {
         let mut attributes = vec![
             ("name", sheet_name.clone()),
-            ("sheetId", (index + 1).to_string()),
+            ("sheetId", sheet_id.to_string()),
         ];
         match state {
             1 => attributes.push(("state", "hidden".to_owned())),
@@ -612,8 +730,16 @@ pub(crate) fn convert(
     if let Some(enabled) = iterate { calc_properties.push(("iterate", if enabled { "1" } else { "0" }.to_owned())); }
     if let Some(count) = iteration_count { calc_properties.push(("iterateCount", count.to_string())); }
     if let Some(delta) = iteration_delta { calc_properties.push(("iterateDelta", f64::from_bits(delta).to_string())); }
+    if globals.full_precision == Some(false) { calc_properties.push(("fullPrecision", "0".to_owned())); }
     if !calc_properties.is_empty() {
         xml.empty("calcPr", &calc_properties);
+    }
+    if !pivot_caches.is_empty() {
+        xml.open("pivotCaches", &[]);
+        for (id, _) in &pivot_caches {
+            xml.empty("pivotCache", &[("cacheId", id.to_string()), ("r:id", format!("rIdPivot{id}"))]);
+        }
+        xml.close("pivotCaches");
     }
     xml.close("workbook");
     let workbook_xml = xml.out;
@@ -627,7 +753,7 @@ pub(crate) fn convert(
             "http://schemas.openxmlformats.org/package/2006/relationships".to_owned(),
         )],
     );
-    for (index, (_, _, part)) in sheet_entries.iter().enumerate() {
+    for (index, (_, _, part, _)) in sheet_entries.iter().enumerate() {
         let kind = if part.starts_with("xl/macrosheets/") {
             "http://schemas.microsoft.com/office/2006/relationships/xlMacrosheet"
         } else if part.starts_with("xl/chartsheets/") {
@@ -658,6 +784,10 @@ pub(crate) fn convert(
                 ("Target", part.trim_start_matches("xl/").to_owned()),
             ],
         );
+    }
+    for (id, part) in &pivot_caches {
+        rels.empty("Relationship", &[("Id", format!("rIdPivot{id}")), ("Type", format!("{REL_TYPE}/pivotCacheDefinition")),
+            ("Target", part.trim_start_matches("xl/").to_owned())]);
     }
     if vba.is_some() {
         rels.empty(

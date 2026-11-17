@@ -1241,7 +1241,8 @@ fn fresh_cache(cache: &PivotCache, records_id: &str) -> Result<Vec<u8>, SaveRefu
     attrs(
         &BTreeMap::from([
             ("saveData".into(), "1".into()),
-            ("refreshOnLoad".into(), "0".into()),
+            ("refreshOnLoad".into(), if matches!(cache.attributes.get("refreshOnLoad").map(String::as_str),
+                Some("1" | "true")) { "1" } else { "0" }.into()),
             ("createdVersion".into(), "6".into()),
             ("refreshedVersion".into(), "6".into()),
             ("minRefreshableVersion".into(), "3".into()),
@@ -1249,18 +1250,27 @@ fn fresh_cache(cache: &PivotCache, records_id: &str) -> Result<Vec<u8>, SaveRefu
         &mut out,
     );
     out.extend(b"><cacheSource type=\"worksheet\"><worksheetSource");
-    let (Some(sheet), Some(range)) = (&cache.source_sheet, &cache.source_range) else {
-        return Err(bad(
-            &cache.part,
-            "New pivots need an explicit worksheet source",
-        ));
-    };
-    string_attr("sheet", sheet, &mut out);
-    attr("ref", range, &mut out);
+    if let (Some(sheet), Some(range)) = (&cache.source_sheet, &cache.source_range) {
+        string_attr("sheet", sheet, &mut out);
+        attr("ref", range, &mut out);
+    } else if let Some(name) = &cache.source_name {
+        string_attr("name", name, &mut out);
+        if let Some(sheet) = &cache.source_sheet { string_attr("sheet", sheet, &mut out); }
+    } else {
+        return Err(bad(&cache.part, "New pivots need an explicit worksheet source"));
+    }
     out.extend(b"/></cacheSource>");
     out.extend(cache_fields(cache)?);
     out.extend(b"</pivotCacheDefinition>");
     Ok(out)
+}
+
+/// Serialize a legacy source cache through the same definition and record writers used on save.
+pub(crate) fn legacy_cache_parts(cache: &PivotCache) -> Result<(Vec<u8>, Vec<u8>), SaveRefusal> {
+    let definition = fresh_cache(cache, "rId1")?;
+    let part = cache.records_part.as_deref().ok_or_else(|| bad(&cache.part, "Missing cache records part"))?;
+    let empty = XmlPart::new(part.into(), format!("<pivotCacheRecords xmlns=\"{M}\" count=\"0\"/>").into_bytes(), crate::xml::XmlLimits::default());
+    Ok((definition, records(&empty, cache)?))
 }
 fn fresh_table(table: &PivotTable) -> Vec<u8> {
     let mut out = format!("<pivotTableDefinition xmlns=\"{M}\"").into_bytes();

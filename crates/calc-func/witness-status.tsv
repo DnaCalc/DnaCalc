@@ -92,12 +92,12 @@ CELL	full	20527	2862	2862	-	exact	218dcceeef	0
 CHAR	full	20527	1056	1056	-	exact	218dcceeef	0
 CHIDIST	full	20131,20527,?	3241	3194	167	numeric	218dcceeef	0
 CHIDIST	pinned	20131	120	117	4	last_bit	7a3e51cd1b+changes	0
-CHIINV	full	20131,20527,?	4293	3661	530	structural	218dcceeef	0
+CHIINV	full	20131,20527,?	4293	3826	530	structural	af24bf9759+changes	0
 CHIINV	pinned	20131	100	36	91	numeric	7a3e51cd1b+changes	0
 CHISQ.DIST	full	20527	4276	4213	86	numeric	218dcceeef	0
 CHISQ.DIST.RT	full	20131,20527,?	2859	2821	347	numeric	218dcceeef	0
 CHISQ.DIST.RT	pinned	20131	6	6	-	exact	7a3e51cd1b+changes	0
-CHISQ.INV	full	20131,20527,?	2903	2453	165	numeric	218dcceeef	0
+CHISQ.INV	full	20131,20527,?	2903	2566	165	numeric	af24bf9759+changes	0
 CHISQ.INV	pinned	20131	40	14	20	numeric	7a3e51cd1b+changes	0
 CHISQ.INV.RT	full	20527	4191	3576	116	structural	218dcceeef	0
 CHISQ.TEST	full	20131,20527	2860	2860	-	exact	218dcceeef	0
@@ -301,7 +301,7 @@ GAMMA	full	20131,20527,?	12603	8193	5	numeric	218dcceeef	0
 GAMMA	pinned	20131	120	83	2	last_bit	7a3e51cd1b+changes	0
 GAMMA.DIST	full	20131,20430,20527,?	77975	77897	8	numeric	218dcceeef	0
 GAMMA.DIST	pinned	20131,20430	120	119	1	last_bit	bce9c5aa4d+changes	0
-GAMMA.INV	full	20131,20527,?	4484	3750	1731866076314	structural	218dcceeef	0
+GAMMA.INV	full	20131,20527,?	4484	3829	1731866076314	structural	af24bf9759+changes	0
 GAMMA.INV	pinned	20131	120	45	55	numeric	7a3e51cd1b+changes	0
 GAMMADIST	full	20131,20527,?	2954	2854	94	numeric	218dcceeef	0
 GAMMADIST	pinned	20131	6	6	-	exact	7a3e51cd1b+changes	0

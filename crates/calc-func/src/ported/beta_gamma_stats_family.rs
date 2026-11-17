@@ -351,6 +351,116 @@ pub fn gamma_dist_kernel(
     }
 }
 
+/// The Stirling series `S(a) = ln Gamma(a + 1) - (a + 1/2) ln a + a - ln(2 pi) / 2`, to B24,
+/// in double-double for `a >= 10`.
+fn stirling_series_dd(a: f64) -> crate::ported::double_double::Dd {
+    use crate::ported::double_double::Dd;
+    // B_2k / (2k (2k - 1)) for k = 1..12.
+    const STIRLING: [(f64, f64); 12] = [
+        (1.0, 12.0),
+        (-1.0, 360.0),
+        (1.0, 1260.0),
+        (-1.0, 1680.0),
+        (1.0, 1188.0),
+        (-691.0, 360360.0),
+        (1.0, 156.0),
+        (-3617.0, 122400.0),
+        (43867.0, 244188.0),
+        (-174611.0, 125400.0),
+        (77683.0, 5796.0),
+        (-236364091.0, 1506960.0),
+    ];
+    let inv = Dd::from(1.0).div_f64(a);
+    let inv2 = inv.mul(inv);
+    let mut series = Dd::from(0.0);
+    for &(num, den) in STIRLING.iter().rev() {
+        series = series.mul(inv2).add(Dd::from(num).div_f64(den));
+    }
+    series.mul(inv)
+}
+
+const HALF_LN_2PI: crate::ported::double_double::Dd =
+    crate::ported::double_double::Dd(0.9189385332046728, -3.8782941580672414e-17);
+
+/// `ln D(a, x)`, `D = x^a e^-x / Gamma(a + 1)`, in double-double.
+/// For `a >= 10` and `u = (x - a) / a` in (-0.75, 3) it is `a (ln(1 + u) - u) - ln(2 pi a) / 2 - S(a)`
+/// with `ln(1 + u) = 2 atanh(u / (2 + u))`.
+fn gamma_log_prefactor_dd(
+    a: f64,
+    x: crate::ported::double_double::Dd,
+) -> Option<crate::ported::double_double::Dd> {
+    use crate::ported::double_double::{Dd, ln};
+    if a < 10.0 {
+        return None;
+    }
+    let u = x.sub(Dd::from(a)).div_f64(a);
+    if !(u.0 > -0.75 && u.0 < 3.0) {
+        return None;
+    }
+    let w = u.div(Dd::from(2.0).add(u));
+    let w2 = w.mul(w);
+    let mut term = w;
+    let mut sum = w;
+    for k in 1..200 {
+        term = term.mul(w2);
+        let add = term.div_f64((2 * k + 1) as f64);
+        sum = sum.add(add);
+        if add.0.abs() <= sum.0.abs() * 1e-34 {
+            break;
+        }
+    }
+    let log_ratio = sum.add(sum).sub(u);
+    let half_ln_a = ln(Dd::from(a)).div_f64(2.0);
+    Some(log_ratio.mul_f64(a).sub(half_ln_a).sub(HALF_LN_2PI).sub(stirling_series_dd(a)))
+}
+
+/// The smallest shape whose inverse is polished. Measured on the full bank (fn6): polishing
+/// integer and half-integer shapes from a = 1 changes CHIINV +14, CHISQ.INV -6, CHISQ.INV.RT -2
+/// rows against a = 10; below 10 Excel's root is mostly not the correctly rounded one.
+const GAMMA_POLISH_MIN_SHAPE: f64 = 10.0;
+
+/// The root of `P(a, x) = target` (lower regularized gamma, unit scale) rounded once to binary64,
+/// polished by Newton steps on a double-double `P = D(a, x) sum x^n / ((a + 1)...(a + n))` from a
+/// root `x0` the lattice search already found. Excel 20527 publishes the correctly rounded root at
+/// these shapes, where the binary64 forward is too coarse for the search to resolve it (fn6).
+pub(crate) fn gamma_unit_root_polished(
+    a: f64,
+    target: crate::ported::double_double::Dd,
+    x0: f64,
+) -> Option<f64> {
+    use crate::ported::double_double::{Dd, exp};
+    if !(GAMMA_POLISH_MIN_SHAPE..=1.0e7).contains(&a) || !(target.0 > 0.0 && target.0 < 1.0) || !(x0 > 0.0) {
+        return None;
+    }
+    let mut x = Dd::from(x0);
+    for _ in 0..4 {
+        let d = exp(gamma_log_prefactor_dd(a, x)?);
+        let mut term = Dd::from(1.0);
+        let mut sum = Dd::from(1.0);
+        let mut n = 1.0;
+        loop {
+            term = term.mul(x).div(Dd::from(a).add(Dd::from(n)));
+            sum = sum.add(term);
+            if term.0 <= sum.0 * 1e-34 {
+                break;
+            }
+            n += 1.0;
+            if n > 200_000.0 {
+                return None;
+            }
+        }
+        let p = d.mul(sum);
+        let density = d.mul_f64(a).div(x);
+        let step = p.sub(target).div(density);
+        x = x.sub(step);
+        if step.0.abs() <= x.0 * 1e-32 {
+            break;
+        }
+    }
+    let root = x.to_f64();
+    (root.is_finite() && root > 0.0).then_some(root)
+}
+
 pub fn gamma_inv_kernel(
     probability: f64,
     alpha: f64,
@@ -450,11 +560,20 @@ pub fn gamma_inv_kernel(
         }
         hi *= 2.0;
     }
-    let unit = if upper {
+    let mut unit = if upper {
         bisect_inverse_closest(target, 0.0, hi, forward)
     } else {
         bisect_inverse(target, 0.0, hi, forward)
     };
+    if upper && 1.0 - probability < 1e-12 {
+        // The double-double lower tail cannot resolve so small an upper tail.
+    } else if let Some(root) = gamma_unit_root_polished(
+        alpha,
+        crate::ported::double_double::Dd::from(probability),
+        unit,
+    ) {
+        unit = root;
+    }
     let x = crate::ported::excel_numeric::excel_x87_mul(beta, unit);
     Ok(if x.is_subnormal() { 0.0 } else { x })
 }
