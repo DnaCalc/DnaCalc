@@ -502,6 +502,22 @@ REFERENCE_ARRAY_PROBES = [
     'AGGREGATE(3,0,A1:A2,{1;2})',
     'AGGREGATE(9,0,A1:A2,(A1,A2))',
     'AGGREGATE(9,0,A1:A2,TRUE)',
+    'AGGREGATE(9,6,#N/A)',
+    'AGGREGATE(9,6,A1:A2,#N/A)',
+    'AGGREGATE(9,6,A1:A2,1/0)',
+    'AGGREGATE(9,6,A1:A2,B5)',
+    'AGGREGATE(9,6,A1:A2,NA(),C1)',
+    'AGGREGATE(9,2,A1:A2,#N/A)',
+    'AGGREGATE(9,3,A1:A2,#N/A)',
+    'AGGREGATE(9,7,A1:A2,#N/A)',
+    'AGGREGATE(9,5,A1:A2,#N/A)',
+    'AGGREGATE(9,0,A1:A2,#N/A)',
+    'AGGREGATE(14,6,A1:A6,#N/A)',
+    'AGGREGATE(9,6,1/0)',
+    'AGGREGATE(9,6,A1:A2,"x")',
+    'AGGREGATE(1,6,A1:A2,#N/A)',
+    'AGGREGATE(9,6,B4:B5)',
+    'AGGREGATE(9,6,A1:A2,B4:B5)',
 ]
 
 def reference_arrays():
