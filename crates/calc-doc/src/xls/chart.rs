@@ -150,7 +150,7 @@ fn block_of(code: u8) -> Block {
 impl Chart {
     /// Reads one record of the chart substream; `print` prints the formula tokens of an AI record
     /// as the range they name.
-    pub(crate) fn read(&mut self, record: &Record<'_>, print: &dyn Fn(&[u8]) -> Option<String>) {
+    pub(crate) fn read(&mut self, record: &Record<'_>, print: &dyn Fn(&[u8]) -> Option<String>, code_page: Option<u16>) {
         let body = record.body;
         match record.id {
             CHART_PROPERTIES if body.len() >= 3 => {
@@ -370,13 +370,18 @@ impl Chart {
                 self.link = Some(u16::from_le_bytes([body[0], body[1]]));
             }
             SERIES_TEXT => {
-                let mut p = Pieces::new(record);
-                if p.u16("SeriesText").is_ok()
-                    && let Ok(count) = p.u8("SeriesText")
-                    && let Ok(flag) = p.u8("SeriesText")
-                    && let Ok(units) = p.characters(usize::from(count), flag & 1 != 0, "text")
-                {
-                    let text = String::from_utf16_lossy(&units);
+                let text = if let Some(page) = code_page {
+                    body.get(2).and_then(|count| body.get(3..3 + usize::from(*count)))
+                        .filter(|bytes| record.continues.is_empty() && body.len() == 3 + bytes.len())
+                        .and_then(|bytes| super::codepage::decode(page, bytes).ok())
+                } else {
+                    let mut p = Pieces::new(record);
+                    p.u16("SeriesText").ok().and_then(|_| p.u8("SeriesText").ok())
+                        .and_then(|count| p.u8("SeriesText").ok().and_then(|flag|
+                            p.characters(usize::from(count), flag & 1 != 0, "text").ok()))
+                        .map(|units| String::from_utf16_lossy(&units))
+                };
+                if let Some(text) = text {
                     let in_text = self.stack.iter().any(|c| block_of(*c) == Block::Text);
                     match (in_text, self.link) {
                         (true, Some(link)) => {
@@ -395,6 +400,11 @@ impl Chart {
             0x1002 => self.seen_chart = true,
             _ => {}
         }
+    }
+
+    /// Avoid inventing an empty or partial chart when an old series source could not be decoded.
+    pub(crate) fn has_all_value_sources(&self) -> bool {
+        !self.series.is_empty() && self.series.iter().all(|series| series.values.is_some())
     }
 
     /// The chart part, or `None` when the chart has no series this reader writes.
