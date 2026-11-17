@@ -840,7 +840,7 @@ pub(crate) fn read(
                 (f64::from(dy) / 256.0 * height_pt(row) * 12700.0) as i64,
             )
         };
-        if let Some(written) = drawing.write(context.number, context.images, &geometry, sheet_name) {
+        if let Some(written) = drawing.write(context.number, context.images, &geometry, sheet_name, context.styles) {
             unread_objects = written.unread.clone();
             if !written.xml.is_empty() {
                 let drawing_part = format!("xl/drawings/drawing{}.xml", context.number);

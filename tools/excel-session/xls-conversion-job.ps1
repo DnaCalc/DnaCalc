@@ -173,7 +173,12 @@ try {
                 $box = $sheet.Shapes.AddTextbox(1, 100, 300, 160, 90)
                 $text = ('é漢' * 5000)
                 $box.TextFrame.Characters().Text = $text
-                @{name=[string]$box.Name; characters=$box.TextFrame.Characters().Count}
+                $box.TextFrame.Characters().Font.Bold = $true
+                $box.TextFrame.Characters().Font.Italic = $true
+                $box.TextFrame.Characters().Font.Size = 12
+                @{name=[string]$box.Name; characters=$box.TextFrame.Characters().Count;
+                  bold=$box.TextFrame.Characters().Font.Bold; italic=$box.TextFrame.Characters().Font.Italic;
+                  size=$box.TextFrame.Characters().Font.Size}
             }
             $entry.setup.line_shapes = @(
                 foreach ($reverse in @($false, $true)) {

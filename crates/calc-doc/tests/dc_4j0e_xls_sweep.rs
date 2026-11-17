@@ -185,6 +185,11 @@ fn sweep() {
                             .filter(|shape| matches!(shape.fill, calc_doc::model::ShapeFill::None)).count();
                         println!("drawing shapes with no fill: {count}");
                     }
+                    if std::env::var_os("DNACALC_XLS_AUDIT_DRAWING_FONT").is_some() {
+                        let count = loaded.sheets().iter().flat_map(|s| &s.shapes().shapes)
+                            .filter(|shape| shape.body.size.is_some()).count();
+                        println!("drawing shapes with explicit text size: {count}");
+                    }
                     if std::env::var_os("DNACALC_XLS_AUDIT_NOTE_RUNS").is_some() {
                         let count = loaded.sheets().iter().flat_map(|s| &s.review().notes)
                             .filter(|note| !note.spans.is_empty()).count();

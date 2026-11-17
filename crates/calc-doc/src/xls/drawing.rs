@@ -286,6 +286,7 @@ struct Object {
     kind: u16,
     shape: Option<Shape>,
     text: Option<Vec<u16>>,
+    text_font: Option<u16>,
     chart: Option<super::chart::Chart>,
 }
 
@@ -388,6 +389,11 @@ impl Drawing {
                 match self.waiting_text.take() {
                 Some(index) => {
                     if let Ok(Some(units)) = super::strings::txo_text(record) {
+                        if let Some(runs) = super::strings::txo_runs(record, &units)
+                            && let Some(&(_, font)) = runs.first()
+                            && runs.iter().all(|&(_, current)| current == font) {
+                            self.objects[index].text_font = Some(font);
+                        }
                         self.objects[index].text = Some(units);
                     }
                     true
@@ -417,6 +423,7 @@ impl Drawing {
         images: &[Option<Image>],
         geometry: &dyn Fn(u16, u16, u16, u16) -> (u16, i64, u16, i64),
         links_sheet: &str,
+        styles: &super::styles::Styles,
     ) -> Option<DrawingParts> {
         let mut x = Xml::new();
         x.open(
@@ -592,6 +599,10 @@ impl Drawing {
                             x.open("a:p", &[]);
                             if !line.is_empty() {
                                 x.open("a:r", &[]);
+                                if let Some((size, bold, italic)) = object.text_font.and_then(|font| styles.drawing_text_font(font)) {
+                                    x.empty("a:rPr", &[("sz", size.to_string()), ("b", u8::from(bold).to_string()),
+                                        ("i", u8::from(italic).to_string())]);
+                                }
                                 x.open("a:t", &[]);
                                 x.text(line);
                                 x.close("a:t");

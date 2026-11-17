@@ -2037,6 +2037,39 @@ fn note_txo_format_runs_are_preserved_when_complete() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn uniform_text_box_font_is_loaded_and_saved() {
+    use xls_kit::art;
+    for (runs, expected) in [
+        (u16s(&[0, 0, 0, 0, 6, 0, 0, 0]), true),
+        (u16s(&[0, 0, 0, 0, 3, 1, 0, 0, 6, 0, 0, 0]), false),
+        (u16s(&[0, 4, 0, 0, 6, 0, 0, 0]), false),
+        (u16s(&[0, 0, 0, 0, 5, 0, 0, 0]), false),
+    ] {
+        let mut body = u16s(&[0x0212, 0, 0, 0, 0, 6, runs.len() as u16]); body.extend([0u8; 4]);
+        let records = [art::drawing(&[art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], true)]),
+            art::obj(6, 1), record(0x01b6, &body), record(0x003c, b"\0ABCDEF"), record(0x003c, &runs)].concat();
+        let globals = [font(240, 2, 0x7fff, 700, "Arial"), font(200, 0, 0x7fff, 400, "Arial")].concat();
+        let bytes = xls(false, &globals, &[Sheet::worksheet("S", records)]);
+        let check = |bytes: &[u8]| {
+            let loaded = load(bytes);
+            let shape = &loaded.sheets()[0].shapes().shapes[0];
+            assert_eq!(shape.body.size, expected.then_some(1200));
+            assert_eq!(shape.body.bold, expected);
+            assert_eq!(shape.body.italic, expected);
+            assert_eq!(shape.text.as_ref().unwrap()[0], "ABCDEF");
+        };
+        check(&bytes);
+        if expected {
+            let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            check(&saved);
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn continued_txo_text_is_read_for_notes_and_text_boxes() {
     use xls_kit::art;
     let mut body = u16s(&[0x0212, 0, 0, 0, 0, 3, 16]);
