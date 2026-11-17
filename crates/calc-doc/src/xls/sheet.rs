@@ -628,7 +628,12 @@ pub(crate) fn read(
                         _ => None,
                     }
                 };
-                if !taken && !rules.read(record, context.styles, &print_at, sheet_name, context.v5)? && !features.read(record, context.styles)? {
+                let read = taken || rules.read(record, context.styles, &print_at, sheet_name, context.v5)?
+                    || features.read(record, context.styles)?;
+                // The drawing route retains some shapes, pictures and text, but not all OfficeArt
+                // formatting, controls, note-box geometry or rich text. Keep those records in the
+                // incomplete census even when part of the record was converted.
+                if !read || matches!(other, 0x00EC | 0x005D | 0x01B6) {
                     *unknown.entry(other).or_insert(0) += 1;
                 }
             }

@@ -1998,6 +1998,9 @@ fn comments_are_read_from_note_obj_and_txo_records() {
     assert_eq!(notes.len(), 2, "{notes:?}");
     assert!(notes[0].contains("Hello there") && notes[0].contains("Ann"), "{}", notes[0]);
     assert!(notes[1].contains("Second") && notes[1].contains("Bob"), "{}", notes[1]);
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert_eq!(report.unknown_records.get(&0x005D), Some(&2));
+    assert_eq!(report.unknown_records.get(&0x01B6), Some(&2));
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -2274,6 +2277,7 @@ fn pictures_text_boxes_and_charts_are_written_as_a_drawing() {
     // The ellipse-less type 201 shape is not written, and says so.
     let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
     assert_eq!(report.unread_objects.values().sum::<u32>(), 0, "{:?}", report.unread_objects);
+    assert!(report.unknown_records.contains_key(&0x00EC));
     assert_eq!(report.unknown_records.get(&0x1017), Some(&1));
     // The workbook loads and has a chart and shapes.
     let loaded = load(&bytes);
