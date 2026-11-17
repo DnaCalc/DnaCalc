@@ -182,6 +182,12 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
                 obj['chart_types'] = sorted({x.tag.rsplit('}', 1)[-1] for x in chart_root.iter()
                                              if x.tag.startswith(C) and x.tag.endswith('Chart')})
                 obj['series_formulas'] = [x.text or '' for x in chart_root.iter(C + 'f')]
+                obj['series_solid_fills'] = []
+                for series in chart_root.iter(C + 'ser'):
+                    fill = series.find(f'{C}spPr/{A}solidFill')
+                    color = None if fill is None else next(iter(fill), None)
+                    obj['series_solid_fills'].append(None if color is None else {
+                        'kind': color.tag.rsplit('}', 1)[-1], 'value': color.get('val')})
                 obj['series_value_caches'] = []
                 for series in chart_root.iter(C + 'ser'):
                     data = series.find(C + 'val')

@@ -5556,3 +5556,29 @@ fn forecast_ets_cycle_initialisation_periods_two_and_three() {
         }
     }
 }
+
+/// Touchstone (eng21, Excel 20527): periods four and six use the pivoted
+/// cycle chain (pivot p/2 - 1); Excel's parameters and three forecasts each,
+/// to 1e-12 relative.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn forecast_ets_cycle_initialisation_periods_four_and_six() {
+    for (period, y, parameters, forecasts) in [
+        (4.0, vec![2.035978, 2.662543, 1.81852, 4.886643, 6.182574, 6.465446, 6.040515, 7.671862, 11.040199, 9.969509, 10.265558, 12.263876, 14.754488, 14.049714, 15.090689, 15.941141],
+         [0.002, 0.001, 0.5], [18.81532561872999, 18.275706622437202, 18.720974435521384]),
+        (6.0, vec![0.043147, 1.828801, 2.422828, 5.265925, 3.109382, 6.60286, 6.00061, 8.59762, 7.729794, 11.707896, 10.535819, 12.753818, 12.650636, 14.062224, 15.375087, 17.212355, 16.037124, 18.028995, 18.268118, 20.320263, 20.755535, 24.038281, 23.118296, 23.947682],
+         [0.002, 0.001, 0.125], [24.613996034214324, 26.575424954442116, 26.718188348677717]),
+    ] {
+        let count = y.len();
+        let t = col(&(1..=count).map(|i| i as f64).collect::<Vec<_>>());
+        let y = col(&y);
+        for (stat, expected) in [1.0, 2.0, 3.0].into_iter().zip(parameters) {
+            exact(call("FORECAST.ETS.STAT", vec![y.clone(), t.clone(), n(stat), n(period)]), expected);
+        }
+        for (i, expected) in forecasts.into_iter().enumerate() {
+            let target = (count + 1 + i) as f64;
+            let got = call("FORECAST.ETS", vec![n(target), y.clone(), t.clone(), n(period)]).unwrap().as_number().unwrap();
+            assert!(((got - expected) / expected).abs() < 1e-12, "{period} {target}: {got} vs {expected}");
+        }
+    }
+}

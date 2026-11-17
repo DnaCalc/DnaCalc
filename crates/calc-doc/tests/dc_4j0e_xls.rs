@@ -2127,6 +2127,53 @@ fn chart_category_display_caches_survive_conversion() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_explicit_series_fill_uses_unambiguous_palette_color() {
+    use ptg::*;
+    use xls_kit::art;
+    for (point, flags, rgb, overridden, nested, custom_palette, expected) in [
+        (0xffff, 0, [255, 0, 0], false, false, false, Some("FF0000")),
+        (0xffff, 0, [0x12, 0x34, 0x56], false, false, true, Some("123456")),
+        (0, 0, [255, 0, 0], false, false, false, None),
+        (0xffff, 1, [255, 0, 0], false, false, false, None),
+        (0xffff, 0, [0, 0, 255], false, false, false, None),
+        (0xffff, 0, [255, 0, 0], true, false, false, None),
+        (0xffff, 0, [255, 0, 0], false, true, false, None),
+    ] {
+        let mut chart = art::chart(&[("Sales", Vec::new(), area3d(0, (1, 4), (1, 1), 0))], 0, "Title");
+        let anchor = record(0x1045, &u16s(&[0]));
+        let at = chart.windows(anchor.len()).position(|window| window == anchor).unwrap() + anchor.len();
+        let mut area = vec![rgb[0], rgb[1], rgb[2], 0, 255, 255, 255, 0];
+        area.extend(u16s(&[1, flags, 10, 9]));
+        let mut format = [record(0x1006, &u16s(&[point, 0, 0, 0])), art::begin()].concat();
+        if nested { format.extend(art::begin()); }
+        format.extend(record(0x100A, &area));
+        if nested { format.extend(art::end()); }
+        if overridden { format.extend(record(0x1066, &[])); }
+        format.extend(art::end()); chart.splice(at..at, format);
+        let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
+        let palette = if custom_palette {
+            let mut body = u16s(&[56]); body.extend([0u8; 56 * 4]);
+            body[10..14].copy_from_slice(&[0x12, 0x34, 0x56, 0]); record(0x0092, &body)
+        } else { Vec::new() };
+        let globals = [supbook_self(1), extern_sheet(&[(0, 0, 0)]), palette].concat();
+        let bytes = xls(false, &globals, &[Sheet::worksheet("S", records)]);
+        let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let xml = String::from_utf8(document.package().read_part("xl/charts/chart1_1.xml").unwrap()).unwrap();
+        let color = format!("{:02X}{:02X}{:02X}", rgb[0], rgb[1], rgb[2]);
+        assert_eq!(xml.contains(&format!("<a:srgbClr val=\"{color}\"/>")), expected.is_some(), "{xml}");
+        if let Some(expected) = expected {
+            let loaded = load(&bytes);
+            assert_eq!(loaded.sheets()[0].charts().charts[0].plots[0].series[0].fill.as_deref(), Some(expected));
+            let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+            let mut saved = Vec::new(); calc_doc::write(plan, &mut saved).unwrap();
+            let reopened = load(&saved);
+            assert_eq!(reopened.sheets()[0].charts().charts[0].plots[0].series[0].fill.as_deref(), Some(expected));
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn chart_group_geometry_survives_legacy_conversion() {
     use xls_kit::art;
     let original = record(0x1017, &u16s(&[0, 150, 0]));
