@@ -740,3 +740,56 @@ fn dc_mlhgn__whole_columns_are_built_and_placed() {
         assert_eq!(shown(&session, h10), value, "{formula}");
     }
 }
+
+/// A formula reads the cells its own spill occupies as blank, when it is entered and each time it
+/// is calculated again with its spill in place, and its spill does not feed back (Excel P05,
+/// 16.0.20527 through Touchstone sheet cases: cell-context family spill-placement own-*, and
+/// fn8's re-evaluation probes 2026-11-17, a layout holding the formula in A1 read after a full
+/// calculation and after each recalculation, R2 dnacalc-evidence/research/fn8-20261117-step4/).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_mlhgn__a_spill_over_cells_it_reads_reads_them_as_blank() {
+    for (formula, expected) in [
+        ("=SEQUENCE(3)+A3", ["1", "2", "3"]),
+        ("=SEQUENCE(3)+A3+0*RAND()", ["1", "2", "3"]),
+        ("=A2:A4&\"\"", ["\"\"", "\"\"", "\"\""]),
+        ("=ISBLANK(A2:A4)", ["true", "true", "true"]),
+        ("=OFFSET(B1,1,-1,3)+0*RAND()", ["0", "0", "0"]),
+    ] {
+        let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(calc_host::blank_package()));
+        let mut session = HostSession::open(
+            source,
+            &OpenPolicy::default(),
+            HostOptions {
+                calc_mode: Some(CalcMode::Automatic),
+                ..HostOptions::default()
+            },
+        )
+        .expect("a new workbook opens");
+        let sheet = session.host().sheets()[0].id();
+        let at = |row| CellKey::new(sheet, row, 1).unwrap();
+        let spill = |session: &HostSession| -> Vec<String> {
+            (1..=3).map(|row| shown(session, at(row))).collect()
+        };
+        assert!(
+            session
+                .dispatch(SkinIntent::EnterCell {
+                    at: at(1),
+                    text: formula.to_owned(),
+                })
+                .accepted()
+        );
+        assert_eq!(spill(&session), expected, "{formula} entered");
+        assert!(
+            session
+                .dispatch(SkinIntent::EnterCell {
+                    at: CellKey::new(sheet, 1, 5).unwrap(),
+                    text: "7".to_owned(),
+                })
+                .accepted()
+        );
+        assert_eq!(spill(&session), expected, "{formula} after an edit elsewhere");
+        assert!(session.dispatch(SkinIntent::Rebuild).accepted());
+        assert_eq!(spill(&session), expected, "{formula} after a full calculation");
+    }
+}

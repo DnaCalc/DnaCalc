@@ -663,17 +663,22 @@ pub(crate) fn meets(a: GridArea, b: GridArea) -> bool {
         && b.first().column() <= a.last().column()
 }
 
+/// The versions of what produces `region`'s values. `reader`, the formula that read the region,
+/// is left out: its own spill over cells it read is no producer of what it read (Excel P05,
+/// 16.0.20527 through Touchstone, 2026-11-16, cell-context family spill-placement own-*: a
+/// formula reads the cells its own spill will occupy as blank, and its spill does not feed back).
 pub(crate) fn span_versions_at(
     state: &EngineState,
     progress: &Progress,
     region: GridArea,
     cut: Option<&RequirementCut>,
+    reader: Option<NodeId>,
 ) -> SpanVersions {
     let mut versions = SpanVersions {
         authored: state.contract.authored(region),
         ..SpanVersions::default()
     };
-    for node in span_nodes_at(state, progress, region) {
+    for node in span_nodes_at(state, progress, region).filter(|node| Some(*node) != reader) {
         let mut current = cut
             .and_then(|cut| cut.get(&node))
             .copied()
@@ -1089,7 +1094,9 @@ pub(crate) fn certificate_valid_at(
         .reads
         .dependencies
         .iter()
-        .all(|read| span_versions_at(state, progress, read.region, cut) == read.versions)
+        .all(|read| {
+            span_versions_at(state, progress, read.region, cut, Some(target.node)) == read.versions
+        })
         && stamp
             .reads
             .facts

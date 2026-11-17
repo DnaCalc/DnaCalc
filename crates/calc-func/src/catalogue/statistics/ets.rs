@@ -1045,15 +1045,38 @@ fn detect_period(y: &[f64]) -> usize {
             re * re + im * im
         })
         .collect();
-    if n <= 9 {
-        // Six to nine observations (eng24, Touchstone boundary probes of
+    let mut fallback = false;
+    if n <= 16 {
+        // Six to sixteen observations (eng24, Touchstone boundary probes of
         // Excel 20527): the strongest bin k of the residual periodogram gives
         // the period n/k rounded half down, refused above floor(n/2.5); it is
         // accepted exactly when that bin's power is at least 2 - 3/n times
-        // the next strongest bin's. Every bisected boundary (n = 6, 7, 8, 9:
-        // 284, 299, 641, 474 points) sits at that ratio to 1e-6, and the rule
-        // reproduces 40,000 of 40,000 random six- and seven-point histories.
-        // eng21's five-point rule above is the same test (2 - 3/5 = 1.4).
+        // the next strongest bin's. From ten observations the periodogram
+        // weights the first and last residual by one half (recovered from the
+        // quadric boundaries at n = 10: end weight 0.500000, fit 5e-13).
+        // Every bisected boundary at n = 6..12 (3,320 points) sits at that
+        // ratio to 1e-6; random histories agree 40,000 of 40,000 at n = 6, 7
+        // and 10, and 96-99% at n = 11..16, where an autocorrelation route
+        // accepts a few more (the fallback below). eng21's five-point rule above is the same test
+        // (2 - 3/5 = 1.4).
+        let weighted: Vec<f64>;
+        let power = if n >= 10 {
+            weighted = (0..=n / 2)
+                .map(|k| {
+                    let (mut re, mut im) = (0.0, 0.0);
+                    for (t, &v) in e.iter().enumerate() {
+                        let w = if t == 0 || t == n - 1 { 0.5 * v } else { v };
+                        let angle = -2.0 * std::f64::consts::PI * ((k * t) % n) as f64 / n as f64;
+                        re += w * angle.cos();
+                        im += w * angle.sin();
+                    }
+                    re * re + im * im
+                })
+                .collect();
+            &weighted
+        } else {
+            &power
+        };
         let mut top = 1;
         for k in 2..power.len() {
             if power[k] > power[top] {
@@ -1061,11 +1084,14 @@ fn detect_period(y: &[f64]) -> usize {
             }
         }
         let second = (1..power.len()).filter(|&k| k != top).map(|k| power[k]).fold(0.0_f64, f64::max);
-        if power[top] < (2.0 - 3.0 / n as f64) * second {
+        let period = (n as f64 / top as f64 - 0.5 - 1e-12).ceil();
+        if power[top] >= (2.0 - 3.0 / n as f64) * second && period >= 2.0 && period <= last_lag as f64 {
+            return period as usize;
+        }
+        if n <= 10 {
             return 0;
         }
-        let period = (n as f64 / top as f64 - 0.5 - 1e-12).ceil();
-        return if period >= 2.0 && period <= last_lag as f64 { period as usize } else { 0 };
+        fallback = true;
     }
     let lags_of = |bin: usize| -> usize {
         let low = n as f64 / (bin + 1) as f64;
@@ -1118,6 +1144,17 @@ fn detect_period(y: &[f64]) -> usize {
             }
         }
     };
+    if fallback {
+        // Eleven to sixteen observations without a dominant bin: Excel still
+        // accepts some periods of four or more with a high autocorrelation
+        // (boundary probes put the unbiased autocorrelation at 0.45 where it
+        // decides, but the candidate it is applied to is not identified).
+        // This keeps the candidate above when it is at least 4 with unbiased
+        // autocorrelation >= 0.6, a fitted value: against 'never' it gains 2
+        // corpus readings, 14 of 316 eng21 probes and 7 of 358 sinusoid map
+        // readings, and is level on 40,000 random histories (eng24 fb5.py).
+        return if chosen >= 4 && unbiased(chosen) >= 0.6 { chosen } else { 0 };
+    }
     if r(chosen) >= 0.3 { chosen } else { 0 }
 }
 
