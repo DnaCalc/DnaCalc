@@ -786,6 +786,13 @@
 {"id":"cell-13-10","function":"CELL","layout":"base","at":"Sheet1!H10","formula":"=CELL(\"\",E3)","layout_sha":"75c6b3a00ffdc8b755f9caebf31bb47d554e2a413af5a84600e2754c2fb92299"},
 {"id":"cell-13-11","function":"CELL","layout":"base","at":"Sheet1!H10","formula":"=CELL(\"\",Data!C3)","layout_sha":"5efb8849f0c105e80bfa8d26e668c319fbc9d40cb8c82214078b44e1cae93178"},
 {"id":"cell-13-12","function":"CELL","layout":"base","at":"Sheet1!H10","formula":"=CELL(\"\",'Third Sheet'!E9)","layout_sha":"52dccc8aced5365068a3ee786bf0b115ffc6fa607eb05371981fbc34ce6b7031"},
-{"id":"cell-13-13","function":"CELL","layout":"base","at":"Sheet1!H10","formula":"=CELL(\"\",Rate)","layout_sha":"89be1d40228eac264f237898eabd2a8bc3c9c09ba83c179666fe9ccfb4dac57f"}
+{"id":"cell-13-13","function":"CELL","layout":"base","at":"Sheet1!H10","formula":"=CELL(\"\",Rate)","layout_sha":"89be1d40228eac264f237898eabd2a8bc3c9c09ba83c179666fe9ccfb4dac57f"},
+{"id":"whole-column-0","function":"SUM","layout":"base","at":"Sheet1!H10","formula":"=SUM(ROW(C:C))","layout_sha":"c6fc5e440af2e90dc0032713991f60029029362d59a011a00531c0ac53bb931d"},
+{"id":"whole-column-1","function":"ROWS","layout":"base","at":"Sheet1!H10","formula":"=ROWS(ISFORMULA(C:D))","layout_sha":"dc872dbc628c2fec2edeeeb3c28be6205eb3de9f6d1bcba652efd91cce2cc340"},
+{"id":"whole-column-2","function":"SUM","layout":"base","at":"Sheet1!H10","formula":"=SUM(--ISFORMULA(C:D))","layout_sha":"70603130595b6c063ff4c4334fb612a046b0d680ea301a06fbdafa65de167167"},
+{"id":"whole-column-3","function":"ROWS","layout":"base","at":"Sheet1!H10","formula":"=ROWS(FORMULATEXT(C:D))","layout_sha":"deba48bcaa6fe7527ab6b4f24d14bd7fdbe7037f3a4d5a6ce43b89316a379522"},
+{"id":"whole-column-4","function":"COUNTA","layout":"base","at":"Sheet1!H10","formula":"=COUNTA(FORMULATEXT(A:A))","layout_sha":"003e9cece00442b0c854f42d85d13d15e959fe437af244fdb22a1566f3c09e8d"},
+{"id":"whole-column-5","function":"COUNT","layout":"base","at":"Sheet1!H10","formula":"=COUNT(ROW(A:A))","layout_sha":"5423a981e7a0e318187f6eca9b95e18d30a81786769fe8a5cea8c3f065882ba3"},
+{"id":"whole-column-6","function":"ROW","layout":"base","at":"Sheet1!H10","formula":"=ROW(A:A)","layout_sha":"6b809a4d4cf236e39f3ec98156e38d3d5b7ed09e08d785520c7c0b733bde4b0d"}
  ]
 }

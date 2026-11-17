@@ -378,10 +378,15 @@ fn three_d_references_reach_the_functions_that_take_them() {
     // SUMIF's criterion is a #REF! (dc-b1l, Excel 16.0.20527 through Touchstone, 2026-11-16,
     // cell-context family three-d: `=SUMIF(E1:E2,Ja:Ma!A1,B1:B2)` sums beside a #REF! cell).
     assert_eq!(book.legacy("=SUMIF(A1:A3,Ja:Ma!A1)", "B1"), n(0.0));
-    // A position whose handling of a 3-D reference is not measured (SWITCH's fourth argument is a
-    // value or the default by the argument count): refused.
+    // SWITCH's roles depend on the argument count (fn8, Excel 16.0.20527 through Touchstone,
+    // 2026-11-17, cell-context family three-d): the default is a #VALUE! read only when reached,
+    // a compared value a #REF!.
+    assert_eq!(book.legacy("=SWITCH(1,2,3,Ja:Ma!A1)", "B1"), e(W::Value));
+    assert_eq!(book.legacy("=SWITCH(1,2,3,Ja:Ma!A1,4,5)", "B1"), e(W::Ref));
+    assert_eq!(book.legacy("=SWITCH(1,1,2,Ja:Ma!A1,3)", "B1"), n(2.0));
+    // A position whose handling of a 3-D reference is not measured: refused.
     assert!(matches!(
-        book.refusal("=SWITCH(1,2,3,Ja:Ma!A1)", "B1"),
+        book.refusal("=PIVOTBY(Ja:Ma!A1,A1:A3,A1:A3,SUM)", "B1"),
         CompileError::NotModelled {
             gap: calc_fml::Gap::Construct {
                 owner: "dc-10y",

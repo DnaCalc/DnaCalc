@@ -45,7 +45,7 @@ pub use call::{
     ApplicationFacts, CalculationMode, CallAbandoned, CallableInvoker, CellFormatFacts, CellReader,
     ColumnWidth, EvalServices, FunctionCallScratch, FunctionFault, HorizontalAlignment, HostFacts,
     PivotLookup, PreparedArguments, RandomSource, ReferenceText, SubtotalExclusions, TextReference,
-    Unreadable, WeekState, WorkbookFacts, WorkbookFile, invoke, invoke_slice,
+    Unreadable, WeekState, WorkbookFacts, WorkbookFile, area_cells, invoke, invoke_slice,
 };
 pub use catalogue::{
     ArgumentDemand, ArgumentGroups, Availability, BindingForm, Catalogue, Deferral, EntryClass,

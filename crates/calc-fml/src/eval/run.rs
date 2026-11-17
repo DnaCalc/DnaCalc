@@ -2139,10 +2139,17 @@ impl Run<'_, '_> {
         let shape = lift::shape(arguments.iter().filter_map(lifted_array));
         let mut cells = Vec::with_capacity(shape.rows * shape.cols);
         let mut element: Vec<CalcValue> = arguments.to_vec();
+        let mut picked: Vec<CalcValue> = Vec::new();
         for row in 0..shape.rows {
             for col in 0..shape.cols {
+                picked.clear();
                 for (index, argument) in arguments.iter().enumerate() {
                     if let Some(array) = lifted_array(argument) {
+                        if let Some(value) = lift::element(array, row, col)
+                            && matches!(value.core_ref(), CoreRef::Reference(_))
+                        {
+                            picked.push(value.clone());
+                        }
                         match lift::element(array, row, col) {
                             // dc-b1l: a reference of an array of references where one value is
                             // taken is #VALUE! (Excel 16.0.20527, Touchstone 2026-11-16:
@@ -2168,6 +2175,21 @@ impl Run<'_, '_> {
                     }
                 }
                 let value = self.lazy_once(target, &element)?;
+                // dc-b1l: an element's result that is a reference it took from an array of
+                // references is #VALUE! (Excel 16.0.20527, Touchstone 2026-11-17, family
+                // reference-arrays: `=SUM(IF({1;1;0},OFFSET(A1,{0;1;2},0),5))` and
+                // `=SUM(CHOOSE({1;2},OFFSET(A1,{0;1},0),5))` #VALUE!, `=ISREF(INDEX(IF(...),1,1))`
+                // FALSE, while the unlifted `=SUM(IF(TRUE,OFFSET(A1,{0;1;2},0)))` is 6).
+                let value = if matches!(value.core_ref(), CoreRef::Reference(_))
+                    && value.callable_value().is_none()
+                    && picked
+                        .iter()
+                        .any(|reference| reference.core_ref() == value.core_ref())
+                {
+                    CalcValue::error(WorksheetErrorCode::Value)
+                } else {
+                    value
+                };
                 // W111 lifted IF/IFERROR/IFNA and Dynamic fn2 q193 CHOOSE selections
                 // materialize selected blanks into zero.
                 // Scalar calls retain their kernels' blank policy (dc-ibp2 controls).

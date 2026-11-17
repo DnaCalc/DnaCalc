@@ -207,8 +207,10 @@ fn isref(
     Site::finish(step)
 }
 
-/// The most cells ISFORMULA and FORMULATEXT answer one by one; a larger range is refused.
-pub(crate) const PER_CELL_LIMIT: u64 = 1 << 20;
+/// The most cells ISFORMULA and FORMULATEXT answer one by one (four whole columns); a larger
+/// range is refused. A result this large is placed as any other, so `=ISFORMULA(C:D)` at H10 is
+/// #SPILL! by the placement check (Excel 16.0.20527, Touchstone 2026-11-16, reference-info).
+pub(crate) const PER_CELL_LIMIT: u64 = 1 << 22;
 
 /// ISFORMULA: whether the reference's cell holds a formula, as the host says (one answer per cell
 /// of a range of one area); see the
@@ -235,22 +237,17 @@ fn isformula(
         && reference.areas().len() == 1
     {
         let (rows, cols) = (area.row_count() as usize, area.column_count() as usize);
-        let mut cells = Vec::with_capacity(rows * cols);
-        for r in 0..rows {
-            for c in 0..cols {
-                let at = crate::value::CellKey::new(area.sheet(), area.first().row() + r as u32, area.first().column() + c as u32)
-                    .expect("inside the area");
-                let answer = if services.host().is_some_and(|host| host.is_external_sheet(at.sheet())) {
-                    Some(CalcValue::error(WorksheetErrorCode::NA))
-                } else {
-                    services.host().and_then(|host| host.is_formula(at)).map(CalcValue::logical)
-                };
-                match answer {
-                    Some(value) => cells.push(value),
-                    None => return Site::finish(Err(site.not_modelled(Some(0)))),
-                }
+        let cells = if services
+            .host()
+            .is_some_and(|host| host.is_external_sheet(area.sheet()))
+        {
+            vec![CalcValue::error(WorksheetErrorCode::NA); rows * cols]
+        } else {
+            match services.host().and_then(|host| host.formula_kinds(area)) {
+                Some(kinds) => kinds.into_iter().map(CalcValue::logical).collect(),
+                None => return Site::finish(Err(site.not_modelled(Some(0)))),
             }
-        }
+        };
         return Site::finish(
             crate::value::CalcArray::new(crate::value::ArrayShape { rows, cols }, cells)
                 .map(CalcValue::array)

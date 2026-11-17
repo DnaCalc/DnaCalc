@@ -130,12 +130,13 @@ pub enum ThreeDPlace {
 /// `SUM(Ja:Ma!A1)` takes the three sheet values; `INDEX(Ja:Ma!A1,1)` gives #VALUE!;
 /// arithmetic functions at measured scalar places give #REF!. The catalogue oracle's ThreeD
 /// sheet records each measured position and its #REF! control.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ThreeD {
     take: Option<&'static [usize]>,
     value: Option<&'static [usize]>,
     reference: Option<&'static [usize]>,
     value_argument: Option<&'static [usize]>,
+    selector_pairs: bool,
 }
 
 /// `N` argument positions: `lead`, then every other position from `start` (dc-b1l: the criteria
@@ -156,6 +157,22 @@ pub const fn alternate<const N: usize>(lead: &[usize], start: usize) -> [usize; 
     out
 }
 
+// The declaration snapshots (calc-catalogue/tests/fixtures) print every entry's traits; SWITCH's
+// argument-count roles show only where they are set.
+impl std::fmt::Debug for ThreeD {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut out = f.debug_struct("ThreeD");
+        out.field("take", &self.take)
+            .field("value", &self.value)
+            .field("reference", &self.reference)
+            .field("value_argument", &self.value_argument);
+        if self.selector_pairs {
+            out.field("selector_pairs", &true);
+        }
+        out.finish()
+    }
+}
+
 impl Default for ThreeD {
     fn default() -> Self {
         Self::NONE
@@ -168,6 +185,7 @@ impl ThreeD {
         value: None,
         reference: None,
         value_argument: None,
+        selector_pairs: false,
     };
     pub const fn new(
         take: Option<&'static [usize]>,
@@ -179,7 +197,20 @@ impl ThreeD {
             value,
             reference,
             value_argument: None,
+            selector_pairs: false,
         }
+    }
+    /// SWITCH's roles, which depend on the argument count: the expression and each compared
+    /// value is a #REF! argument, each result and the default (the last of an even count) a
+    /// #VALUE! argument read only when selected. dc-b1l, Excel 16.0.20527 through Touchstone
+    /// sheet cases (2026-11-17, family three-d): `=SWITCH(Ja:Ma!A1,1,2)` and
+    /// `=SWITCH(1,2,3,Ja:Ma!A1,4,5)` #REF!, `=SWITCH(1,1,2,Ja:Ma!A1,3)` 2, `=SWITCH(1,1,Ja:Ma!A1)`
+    /// and `=SWITCH(1,2,3,Ja:Ma!A1)` #VALUE!, `=SWITCH(1,2,Ja:Ma!A1,3)` 3, `=SWITCH(1,2,Ja:Ma!A1)`
+    /// #N/A.
+    pub const fn selector_pairs() -> Self {
+        let mut out = Self::NONE;
+        out.selector_pairs = true;
+        out
     }
     /// The positions where a 3-D reference is a #VALUE! argument
     /// ([`ThreeDPlace::ArgumentValueError`]).
@@ -202,7 +233,16 @@ impl ThreeD {
             _ => false,
         }
     }
-    pub fn at(self, index: usize) -> ThreeDPlace {
+    /// The treatment at argument `index` of a call of `argc` arguments.
+    pub fn at(self, index: usize, argc: usize) -> ThreeDPlace {
+        if self.selector_pairs {
+            let default = argc % 2 == 0 && index + 1 == argc;
+            return if index == 0 || (index % 2 == 1 && !default) {
+                ThreeDPlace::ReferenceError
+            } else {
+                ThreeDPlace::ArgumentValueError
+            };
+        }
         if Self::has(self.value, index) {
             ThreeDPlace::ValueError
         } else if Self::has(self.reference, index) {

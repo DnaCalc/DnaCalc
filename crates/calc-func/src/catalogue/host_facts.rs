@@ -405,19 +405,24 @@ fn formulatext(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> S
             return Err(site.not_modelled(Some(0)));
         }
         let (rows, cols) = (area.row_count() as usize, area.column_count() as usize);
-        let mut cells = Vec::with_capacity(rows * cols);
-        for r in 0..rows {
-            for c in 0..cols {
-                let cell = CellKey::new(area.sheet(), area.first().row() + r as u32, area.first().column() + c as u32)
-                    .expect("inside the area");
-                let one = [CalcValue::reference(ReferenceLike::cell(cell))];
-                cells.push(match formulatext(site, &one, sv) {
-                    Ok(value) => value,
-                    Err(Exit::Error(code)) => CalcValue::error(code),
-                    Err(other) => return Err(other),
-                });
+        // dc-ylr: a reference to a closed workbook is #N/A in every cell.
+        let cells = if sv
+            .host()
+            .is_some_and(|host| host.is_external_sheet(area.sheet()))
+        {
+            vec![CalcValue::error(WorksheetErrorCode::NA); rows * cols]
+        } else {
+            match sv.host().and_then(|host| host.formula_texts(*area)) {
+                Some(texts) => texts
+                    .into_iter()
+                    .map(|text| match text {
+                        Some(text) => crate::catalogue::kit::text_value(&text),
+                        None => CalcValue::error(WorksheetErrorCode::NA),
+                    })
+                    .collect(),
+                None => return Err(site.not_modelled(Some(0))),
             }
-        }
+        };
         return CalcArray::new(crate::value::ArrayShape { rows, cols }, cells)
             .map(CalcValue::array)
             .ok_or_else(|| site.not_modelled(Some(0)));

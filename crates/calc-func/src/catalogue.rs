@@ -718,9 +718,9 @@ impl<'c> FunctionCallTarget<'c> {
         self.entry.traits
     }
 
-    /// How a 3-D reference is handled at `index`.
-    pub fn three_d_place(self, index: usize) -> ThreeDPlace {
-        self.entry.traits.three_d.at(index)
+    /// How a 3-D reference is handled at `index` of a call of `argc` arguments.
+    pub fn three_d_place(self, index: usize, argc: usize) -> ThreeDPlace {
+        self.entry.traits.three_d.at(index, argc)
     }
 
     /// Whether an absent lifted coordinate produces #N/A before the eager kernel runs.
