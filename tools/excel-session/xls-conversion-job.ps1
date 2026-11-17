@@ -13,6 +13,17 @@ $generated = [Collections.Generic.List[object]]::new()
 $repairs = [Collections.Generic.List[object]]::new()
 $book = $null; $fatal = $null; $pivot = $null; $oldAlerts = $app.DisplayAlerts
 function GetOrError([scriptblock]$f) { try { return & $f } catch { return @{unread=$_.Exception.Message} } }
+function CacheRefreshDates($workbook) {
+    $workbook.PivotCaches() | ForEach-Object {
+        GetOrError {
+            $date = [datetime]$_.RefreshDate
+            $serial = $date.ToOADate()
+            @{index=[int]$_.Index; refresh_date_iso=$date.ToString('o');
+                oa_date=$serial; oa_date_bits=[BitConverter]::DoubleToInt64Bits($serial).ToString('X16');
+                workbook_date1904=[bool]$workbook.Date1904}
+        }
+    }
+}
 function Snapshot($workbook) {
     # Force formula calculation before reading values; an unfinished rebuild is a failed
     # observation, not permission to call the file's old cache a calculated answer.
@@ -291,6 +302,11 @@ try {
                 $shape = $sheet.Shapes.AddShape(1, 100, 145, 60, 30)
                 $shape.Fill.Visible = 0
                 @{name=[string]$shape.Name; visible=$shape.Fill.Visible}
+            }
+            $entry.setup.shape_no_line = GetOrError {
+                $shape = $sheet.Shapes.AddShape(1, 170, 145, 60, 30)
+                $shape.Line.Visible = 0
+                @{name=[string]$shape.Name; visible=$shape.Line.Visible}
             }
             $entry.setup.linked_picture = GetOrError {
                 $path = Join-Path $inputDir 'linked-picture.png'
@@ -688,15 +704,7 @@ try {
             $pivot.cache_refresh_users = @($book.PivotCaches() | ForEach-Object {
                 GetOrError { @{index=[int]$_.Index; refresh_name=[string]$_.RefreshName} }
             })
-            $pivot.cache_refresh_dates = @($book.PivotCaches() | ForEach-Object {
-                GetOrError {
-                    $date = [datetime]$_.RefreshDate
-                    $serial = $date.ToOADate()
-                    @{index=[int]$_.Index; refresh_date_iso=$date.ToString('o');
-                        oa_date=$serial; oa_date_bits=[BitConverter]::DoubleToInt64Bits($serial).ToString('X16');
-                        workbook_date1904=[bool]$book.Date1904}
-                }
-            })
+            $pivot.cache_refresh_dates = @(CacheRefreshDates $book)
             $book.SaveAs($xlsx, 51)
             $book.Close($false); $book = $null
             $pivot.xlsx_base64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($xlsx))
@@ -718,6 +726,27 @@ try {
             } catch { $encrypted.error = $_.Exception.ToString() }
             finally { if ($book) { try {$book.Close($false)} catch {}; $book=$null } }
             $generated.Add($encrypted)
+            # Refresh a controlled 1904-system twin to measure the cache date epoch.
+            $date1904 = [ordered]@{file='excel-pivot-1904.xls'; error=$null}
+            try {
+                $legacy1904 = Join-Path $outputDir 'pivot-1904.xls'
+                $modern1904 = Join-Path $outputDir 'pivot-1904.xlsx'
+                $book = $app.Workbooks.Open($xlsx, 0, $false)
+                $book.Date1904 = $true
+                foreach ($sourceCache in $book.PivotCaches()) { $sourceCache.Refresh() }
+                $book.SaveAs($legacy1904, 56)
+                $book.Close($false); $book = $null
+                $date1904.source_base64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($legacy1904))
+                $date1904.sha256 = (Get-FileHash -LiteralPath $legacy1904 -Algorithm SHA256).Hash.ToLowerInvariant()
+                $book = $app.Workbooks.Open($legacy1904, 0, $false)
+                $date1904.before = Snapshot $book
+                $date1904.cache_refresh_dates = @(CacheRefreshDates $book)
+                $book.SaveAs($modern1904, 51)
+                $book.Close($false); $book = $null
+                $date1904.package_base64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($modern1904))
+            } catch { $date1904.error = $_.Exception.ToString() }
+            finally { if ($book) { try {$book.Close($false)} catch {}; $book=$null } }
+            $generated.Add($date1904)
         } catch { $pivot.error = $_.Exception.ToString() }
         finally { if ($book) { try {$book.Close($false)} catch {}; $book=$null } }
     }

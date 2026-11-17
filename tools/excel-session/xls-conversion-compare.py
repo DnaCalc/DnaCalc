@@ -11,6 +11,8 @@ import base64
 import hashlib
 import io
 import json
+import math
+import struct
 import posixpath
 import xml.etree.ElementTree as ET
 import zipfile
@@ -363,6 +365,20 @@ def external_caches(z, workbook, workbook_path, workbook_rels):
     return result
 
 
+def refresh_date_number_bits(definition):
+    """Expose timestamp number identity without assuming an epoch or COM precision."""
+    text = definition.get('refreshedDate')
+    if text is None:
+        return None
+    try:
+        serial = float(text)
+    except ValueError:
+        return {'text': text, 'invalid': 'not a number'}
+    if not math.isfinite(serial):
+        return {'text': text, 'invalid': 'not finite'}
+    return {'text': text, 'ieee754_bits': struct.pack('>d', serial).hex().upper()}
+
+
 def pivot_caches(z, workbook, workbook_path, workbook_rels):
     result = []
     for cache in workbook.findall(f'{M}pivotCaches/{M}pivotCache'):
@@ -375,7 +391,8 @@ def pivot_caches(z, workbook, workbook_path, workbook_rels):
         for item in relationships(z, path).values():
             if item.get('Type', '').endswith('/pivotCacheRecords'):
                 records.append(tree(ET.fromstring(z.read(target(path, item)))))
-        result.append({'cache_id': cache.get('cacheId'), 'definition': tree(definition), 'records': records})
+        result.append({'cache_id': cache.get('cacheId'), 'definition': tree(definition),
+                       'refresh_date_number': refresh_date_number_bits(definition), 'records': records})
     return result
 
 
