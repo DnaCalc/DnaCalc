@@ -139,6 +139,23 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
                         'count': count.get('val') if count is not None else None,
                         'points': [{'index': point.get('idx'), 'value': point.findtext(C + 'v')}
                                    for point in cache.findall(C + 'pt')]})
+                obj['series_category_caches'] = []
+                for series in chart_root.iter(C + 'ser'):
+                    data = series.find(C + 'cat')
+                    if data is None:
+                        data = series.find(C + 'xVal')
+                    cache = None; kind = None
+                    if data is not None:
+                        for ref, cache_name in (('numRef', 'numCache'), ('strRef', 'strCache')):
+                            cache = data.find(f'{C}{ref}/{C}{cache_name}')
+                            if cache is not None:
+                                kind = cache_name
+                                break
+                    count = cache.find(C + 'ptCount') if cache is not None else None
+                    obj['series_category_caches'].append(None if cache is None else {
+                        'kind': kind, 'count': count.get('val') if count is not None else None,
+                        'points': [{'index': point.get('idx'), 'value': point.findtext(C + 'v')}
+                                   for point in cache.findall(C + 'pt')]})
                 obj['chart_text'] = [x.text or '' for x in chart_root.iter()
                                      if x.tag.endswith('}t') and x.text]
                 obj['chart_geometry'] = [

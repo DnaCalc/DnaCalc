@@ -107,9 +107,11 @@ try {
             }
             $entry.setup.chart_cross_sheet_cache = GetOrError {
                 $dataSheet = $book.Worksheets.Add(); $dataSheet.Name = 'ChartSource'
-                $dataSheet.Range('A1').Value2 = 7.5; $dataSheet.Range('A2').Value2 = 4
+                $dataSheet.Range('A1').Value2 = 'Category'; $dataSheet.Range('B1').Value2 = 'Value'
+                $dataSheet.Range('A2').Value2 = 'one'; $dataSheet.Range('A3').Value2 = 'two'
+                $dataSheet.Range('B2').Value2 = 7.5; $dataSheet.Range('B3').Value2 = 4
                 $c = $sheet.ChartObjects().Add(410, 100, 200, 150).Chart
-                $c.ChartType = 51; $c.SetSourceData($dataSheet.Range('A1:A2'))
+                $c.ChartType = 51; $c.SetSourceData($dataSheet.Range('A1:B3'))
                 @{series=[string]$c.SeriesCollection(1).Formula; points=$c.SeriesCollection(1).Points().Count}
             }
             $entry.setup.chart_sheet = GetOrError {
