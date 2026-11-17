@@ -898,13 +898,14 @@ fn finite(site: &Site<'_>, value: f64) -> Step<CalcValue> {
 // - parameters come from a finite candidate set, not a continuous optimiser:
 //   every (alpha, beta, gamma) Excel reported for 400 random seasonal
 //   histories is one of SEASONAL_PARAMETERS (nonseasonal: PARAMETERS);
-// - the automatic period is an autocorrelation peak of the least-squares
+// - the automatic period follows the strongest DFT bin of the least-squares
 //   detrended history (linear trends of any size leave it unchanged);
-// - the selection objective is the shared validation-window squared error.
-// Not yet identified, so these results are not Excel's bits: the seasonal
-// initial states (forecasts differ by a few percent with Excel's own
-// parameters), the detector's acceptance rule (this one agrees with about 83%
-// of 1,615 probe answers) and the final state adjustment.
+// - the selection objective is the shared validation-window squared error;
+// - the seasonal initial states are Excel's (excel_seasonal_initial, eng23).
+// Not yet identified, so these results are not always Excel's bits: the
+// detector's acceptance rule, the parameter search where it differs from the
+// candidate scan (Excel's triple in about 85% of short seasonal probes), the
+// arithmetic order of the initial states and the final state adjustment.
 // ---------------------------------------------------------------------------
 
 /// Every (alpha, beta, gamma) Excel 20527 reported in probe_triples (400
@@ -1077,27 +1078,6 @@ fn detect_period(y: &[f64]) -> usize {
     if r(chosen) >= 0.3 { chosen } else { 0 }
 }
 
-/// Seasonal initial states: least-squares trend over the whole history and
-/// centred phase means of its residuals; the level is the fitted value at
-/// the first observation.
-fn seasonal_initial(y: &[f64], period: usize) -> Initial {
-    let n = y.len();
-    let e = detrended(y);
-    let trend = regression_slope(y);
-    let mut seasons = vec![0.0; period];
-    for (q, season) in seasons.iter_mut().enumerate() {
-        let phase: Vec<f64> = e.iter().skip(q).step_by(period).copied().collect();
-        *season = phase.iter().sum::<f64>() / phase.len() as f64;
-    }
-    let center = seasons.iter().sum::<f64>() / period as f64;
-    for season in &mut seasons {
-        *season -= center;
-    }
-    let my = y.iter().sum::<f64>() / n as f64;
-    let level = my + trend * (1.0 - (n as f64 + 1.0) / 2.0);
-    Initial { level, trend, seasons, period, gamma: 0.0 }
-}
-
 /// The five candidates Excel 20527 selects among for period two on five to
 /// seven observations: all 655 recorded five-point selections (bank5, eng21).
 const SHORT_TWO_PARAMETERS: &[(f64, f64, f64)] = &[
@@ -1108,74 +1088,101 @@ const SHORT_TWO_PARAMETERS: &[(f64, f64, f64)] = &[
     (0.002, 0.001, 0.125),
 ];
 
-/// Period-two initial states for five to seven observations, identified
-/// exactly from Excel's fitted values (eng21 solve_init: the final states of
-/// 80 to 160 histories per length are linear in the history to 1e-14, and the
-/// initial states solved from them are these rationals):
-/// - tau, the mean over both phases of the end-to-end phase slope, extends the
-///   history to seven points as e_j = y_(j mod 2) + (j - j mod 2) tau;
-/// - the phase-one index is -3/8 e0 + 7/8 e1 - 1/2 e2 - 1/8 e4 + 1/8 e5,
-///   relative to phase zero, whose level+index is the first observation;
-/// - the trend is the least-squares slope of the deseasonalised extension.
-fn short_two_initial(y: &[f64]) -> (Initial, Vec<f64>) {
-    let n = y.len();
-    let phase_slope = |q: usize| {
-        let last = q + ((n - 1 - q) / 2) * 2;
-        (y[last] - y[q]) / (last - q) as f64
-    };
-    let tau = (phase_slope(0) + phase_slope(1)) / 2.0;
-    let mut e = y.to_vec();
-    for j in n..7 {
-        e.push(y[j % 2] + (j - j % 2) as f64 * tau);
-    }
-    let index = -0.375 * e[0] + 0.875 * e[1] - 0.5 * e[2] - 0.125 * e[4] + 0.125 * e[5];
-    let adjusted: Vec<f64> =
-        e.iter().enumerate().map(|(j, &v)| if j % 2 == 1 { v - index } else { v }).collect();
-    let trend = regression_slope(&adjusted);
-    (Initial { level: y[0], trend, seasons: vec![0.0, index], period: 2, gamma: 0.0 }, e)
-}
-
-/// Excel's seasonal initial states over at least four complete cycles (eng21
-/// solve_init / rule_check / chain_check: exact for p = 2 at n = 8, 10-14, 16,
-/// 20; p = 3 at 12, 15, 17, 18; p = 4 at 16, 20, 24; p = 5 at 20, 25; p = 6
-/// at 24; with Excel's own parameters every fitted value of 3,680 histories
-/// agrees to 1e-12):
-/// - K = min(complete cycles, 5) cycles form the window, M = ceil(K/2);
-/// - A_q, the mean of phase q over the first M cycles, starting one cycle
-///   later for the phases before the pivot c = p/2 - 1 (integer division);
-/// - tau_q, phase q's slope from its first two to its last two window cycles;
-/// - from s_c = 0 the chain runs c, c+1, ..., wrapping, and step i (phase r
-///   to r+1) adds A_(r+1) - A_r - tau_i: the slope of phase i, not of r;
+/// Excel's seasonal initial states for any history of at least two cycles
+/// (eng23: identified exactly from 64 initial-state tables solved from
+/// Touchstone fitted values, p = 2..8, n = 2p..25; every table agrees to
+/// 1e-13, including the p = 7, 8 tables that took no part in finding it).
+/// eng21's four-cycle chain is the complete-cycle case of the same rule:
+/// - a history shorter than N0 = ceil(3.5 p) is first extended to N0 points:
+///   e_j = y_(j mod p) + (j - j mod p) tau, tau the mean over the phases of
+///   each phase's least-squares slope against its positions;
+/// - the working length is m = min(len, 5p); its phase means A_q run over the
+///   m - 2p positions starting at the pivot c = p/2 - 1 (integer division);
+/// - tau_i, phase i's slope from its first two to its last two occurrences
+///   in the working length;
+/// - from s_c = 0 the chain runs c, c+1, ..., wrapping; step i (phase r to
+///   r+1) adds A_(r+1) - A_r - tau_i. Where the window ends inside a cycle the
+///   phase after the cut has one value fewer; that step also subtracts a
+///   cycle trend from the k = m / p last complete cycles, ending at the last
+///   working position: (C_0 - C_2)/4 for k = 3, (C_0 + 2C_1 - C_2 - 2C_3)/12
+///   for k = 4 (cycle means C);
 /// - level+index of phase zero is the first observation; the trend is the
-///   least-squares slope of the deseasonalised history.
-/// Below four cycles, and partial final cycles below five, other rules hold
-/// that are not yet identified (None).
-fn cycle_initial(y: &[f64], period: usize) -> Option<Initial> {
-    let n = y.len();
-    let cycles = (n / period).min(5);
-    if period < 2 || cycles < 4 || (n % period != 0 && n < 5 * period) {
-        return None;
+///   least-squares slope of the deseasonalised (extended) history.
+/// Returns the initial states and the (extended) history.
+fn excel_seasonal_initial(y: &[f64], period: usize) -> (Initial, Vec<f64>) {
+    let p = period;
+    let start = (7 * p).div_ceil(2);
+    let mut e = y.to_vec();
+    if y.len() < start {
+        let n = y.len();
+        let mut tau = 0.0;
+        for q in 0..p {
+            let positions: Vec<usize> = (q..n).step_by(p).collect();
+            let slope = if positions.len() <= 3 {
+                let last = *positions.last().unwrap();
+                (y[last] - y[q]) / (last - q) as f64
+            } else {
+                let center = positions.iter().sum::<usize>() as f64 / positions.len() as f64;
+                let (mut sxy, mut sxx) = (0.0, 0.0);
+                for &t in &positions {
+                    let dx = t as f64 - center;
+                    sxy += dx * y[t];
+                    sxx += dx * dx;
+                }
+                sxy / sxx
+            };
+            tau += slope;
+        }
+        tau /= p as f64;
+        for j in n..start {
+            e.push(y[j % p] + (j - j % p) as f64 * tau);
+        }
     }
-    let first = cycles.div_ceil(2);
-    let pivot = period / 2 - 1;
-    let mean = |q: usize| {
-        let shift = usize::from(q < pivot);
-        (0..first).map(|c| y[(c + shift) * period + q]).sum::<f64>() / first as f64
-    };
+    let m = e.len().min(5 * p);
+    let pivot = p / 2 - 1;
+    let window = pivot..pivot + m - 2 * p;
+    let mut means = vec![0.0; p];
+    let mut counts = vec![0usize; p];
+    for q in 0..p {
+        let positions = window.clone().filter(|t| t % p == q);
+        let (mut total, mut count) = (0.0, 0);
+        for t in positions {
+            total += e[t];
+            count += 1;
+        }
+        means[q] = total / count as f64;
+        counts[q] = count;
+    }
     let slope = |q: usize| {
-        let late = y[(cycles - 2) * period + q] + y[(cycles - 1) * period + q];
-        let early = y[q] + y[period + q];
-        (late - early) / 2.0 / ((cycles - 2) * period) as f64
+        let occurrences = (m - q).div_ceil(p);
+        let late = e[q + (occurrences - 2) * p] + e[q + (occurrences - 1) * p];
+        let early = e[q] + e[p + q];
+        (late - early) / 2.0 / ((occurrences - 2) * p) as f64
     };
-    let mut chain = vec![0.0; period];
-    for i in 0..period - 1 {
-        let r = (pivot + i) % period;
-        let next = (r + 1) % period;
-        chain[next] = chain[r] + (mean(next) - mean(r)) - slope(i);
+    let cycles = m / p;
+    let first = m - cycles * p;
+    let cycle = |k: usize| e[first + k * p..first + (k + 1) * p].iter().sum::<f64>() / p as f64;
+    let cut = match cycles {
+        3 => (cycle(0) - cycle(2)) / 4.0,
+        4 => (cycle(0) + 2.0 * cycle(1) - cycle(2) - 2.0 * cycle(3)) / 12.0,
+        _ => 0.0,
+    };
+    let mut chain = vec![0.0; p];
+    for i in 0..p - 1 {
+        let r = (pivot + i) % p;
+        let next = (r + 1) % p;
+        let step = if counts[next] == counts[r] { slope(i) } else { slope(i) + cut };
+        chain[next] = chain[r] + (means[next] - means[r]) - step;
     }
-    let seasons: Vec<f64> = chain.iter().map(|v| v - chain[0]).collect();
-    let adjusted: Vec<f64> = y.iter().enumerate().map(|(j, &v)| v - seasons[j % period]).collect();
-    Some(Initial { level: y[0], trend: regression_slope(&adjusted), seasons, period, gamma: 0.0 })
+    let mut seasons: Vec<f64> = chain.iter().map(|v| v - chain[0]).collect();
+    if p == 2 && e.len() == 7 {
+        // The same index in the arithmetic that matches Excel's bits on the
+        // five-point bank rows (eng21: 6 FORECAST.ETS and 7 CONFINT rows more).
+        seasons[1] = -0.375 * e[0] + 0.875 * e[1] - 0.5 * e[2] - 0.125 * e[4] + 0.125 * e[5];
+    }
+    let adjusted: Vec<f64> = e.iter().enumerate().map(|(j, &v)| v - seasons[j % p]).collect();
+    let initial = Initial { level: y[0], trend: regression_slope(&adjusted), seasons, period, gamma: 0.0 };
+    (initial, e)
 }
 
 fn seasonal_general(
@@ -1191,13 +1198,10 @@ fn seasonal_general(
         return site.number(period as f64);
     }
     let short = period == 2 && (5..=7).contains(&y.len());
-    let (initial, search_history, candidates) = if short {
-        let (initial, extended) = short_two_initial(y);
-        (initial, extended, SHORT_TWO_PARAMETERS)
-    } else {
-        let initial = cycle_initial(y, period).unwrap_or_else(|| seasonal_initial(y, period));
-        (initial, y.to_vec(), SEASONAL_PARAMETERS)
-    };
+    // Below N0 the parameter search runs on the extension (eng23 probe_short:
+    // Excel's triple in 447 of 520 short histories, 220 when searching the history).
+    let (initial, search_history) = excel_seasonal_initial(y, period);
+    let candidates = if short { SHORT_TWO_PARAMETERS } else { SEASONAL_PARAMETERS };
     let start = search_history.len() - statistic_window(search_history.len());
     let validation = (start != 0).then_some(start);
     let run_on = |history: &[f64], (alpha, beta, gamma): (f64, f64, f64), validation: Option<usize>| {

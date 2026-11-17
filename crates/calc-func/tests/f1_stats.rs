@@ -672,6 +672,28 @@ fn ets_seasonality_follows_the_strongest_frequency() {
     }
 }
 
+/// Excel 20527 seasonal starting states below four cycles (oracle corpus dcj9k_r38_ets rows
+/// 1737-1738 and 2633-2634, period 4 on 8 and 12 points): the history is extended to
+/// ceil(3.5 p) points before the phase-mean chain, and the parameter search runs on the extension.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_short_seasonal_history_extends_before_the_starting_states() {
+    let history = [2.0, 3.5, 3.75, 5.75, 5.5, 7.0, 8.5, 8.75, 10.75, 10.5, 12.0, 13.5];
+    for (len, forecast, confidence) in [
+        (8, 0x4022_67d9_aaec_4dee_u64, 0x3fea_7dd8_7764_7300_u64),
+        (12, 0x402c_5a7e_22cd_f86c, 0x3ff4_23d3_cf16_5a7c),
+    ] {
+        let y = col(&history[..len]);
+        let timeline: Vec<f64> = (1..=len).map(|v| v as f64).collect();
+        let target = n(len as f64 + 1.0);
+        exact(call("FORECAST.ETS", vec![target.clone(), y.clone(), col(&timeline), n(4.0), n(0.0), n(1.0)]), f64::from_bits(forecast));
+        exact(
+            call("FORECAST.ETS.CONFINT", vec![target, y, col(&timeline), n(0.95), n(4.0), n(0.0), n(1.0)]),
+            f64::from_bits(confidence),
+        );
+    }
+}
+
 /// Excel 20527 checks a scalar history against the longer timeline before reading the history.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
