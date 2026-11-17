@@ -557,6 +557,56 @@ fn the_source_bytes_are_kept() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ole_summary_properties_survive_conversion_and_save() {
+    let mut properties = Vec::<(u32, Vec<u8>)>::new();
+    properties.push((1, [2u32.to_le_bytes().as_slice(), 1252u16.to_le_bytes().as_slice(), &[0, 0]].concat()));
+    let ansi = |text: &[u8]| {
+        let mut v = 30u32.to_le_bytes().to_vec(); v.extend(((text.len() + 1) as u32).to_le_bytes());
+        v.extend(text); v.push(0); v
+    };
+    properties.push((2, ansi(b"A & B")));
+    properties.push((4, ansi(b"caf\xE9")));
+    let mut unicode = 31u32.to_le_bytes().to_vec(); unicode.extend(3u32.to_le_bytes());
+    unicode.extend(u16s(&[0x6771, 0x4eac, 0]));
+    properties.push((8, unicode));
+    let mut section = vec![0u8; 8 + properties.len() * 8];
+    section[4..8].copy_from_slice(&(properties.len() as u32).to_le_bytes());
+    for (i, (id, data)) in properties.iter().enumerate() {
+        while section.len() % 4 != 0 { section.push(0); }
+        let offset = section.len() as u32;
+        section[8+i*8..12+i*8].copy_from_slice(&id.to_le_bytes());
+        section[12+i*8..16+i*8].copy_from_slice(&offset.to_le_bytes());
+        section.extend(data);
+    }
+    let len = section.len() as u32; section[..4].copy_from_slice(&len.to_le_bytes());
+    let mut summary = vec![0u8; 48];
+    summary[..2].copy_from_slice(&0xfffeu16.to_le_bytes());
+    summary[24..28].copy_from_slice(&1u32.to_le_bytes());
+    summary[28..44].copy_from_slice(&[0xe0, 0x85, 0x9f, 0xf2, 0xf9, 0x4f, 0x68, 0x10,
+        0xab, 0x91, 0x08, 0x00, 0x2b, 0x27, 0xb3, 0xd9]);
+    summary[44..48].copy_from_slice(&48u32.to_le_bytes()); summary.extend(section);
+    let workbook = workbook_stream(false, &[], &[Sheet::worksheet("S", number(0, 0, 1.0))]);
+    let bytes = compound(&[("Workbook", workbook.clone()), ("\u{5}SummaryInformation", summary.clone())]);
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let check = |doc: &calc_doc::OpenedDocument| {
+        let xml = String::from_utf8(doc.package().read_part("docProps/core.xml").unwrap()).unwrap();
+        for part in ["<dc:title>A &amp; B</dc:title>", "<dc:creator>café</dc:creator>",
+            "<cp:lastModifiedBy>東京</cp:lastModifiedBy>"] { assert!(xml.contains(part), "{xml}"); }
+        let rels = doc.package().relationships_of(None).unwrap();
+        assert!(rels.items().iter().any(|rel| rel.resolved.as_deref() == Some("docProps/core.xml")));
+    };
+    check(&document);
+    let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+    let mut saved = Vec::new(); calc_doc::write(plan, &mut saved).unwrap();
+    check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+    // Duplicate property identifiers are ambiguous: keep opening the workbook, but do not guess.
+    summary[48+16..48+20].copy_from_slice(&1u32.to_le_bytes());
+    let bad = compound(&[("Workbook", workbook), ("\u{5}SummaryInformation", summary)]);
+    assert!(calc_doc::open(source(&bad), &OpenPolicy::default()).unwrap().package().part("docProps/core.xml").is_none());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn files_that_are_not_read_are_typed_refusals() {
     // A compound file with no Workbook stream.
     let refused = |bytes: &[u8]| {

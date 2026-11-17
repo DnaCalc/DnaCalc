@@ -16,6 +16,7 @@ mod crypto;
 mod drawing;
 mod external_cache;
 mod pivot_cache;
+mod properties;
 mod features;
 mod formula;
 mod records;
@@ -78,6 +79,8 @@ pub(crate) fn convert(
     password: Option<&str>,
 ) -> Result<(Vec<u8>, LegacyReport), OpenError> {
     let compound = cfb::Compound::open(bytes).map_err(|e| refuse("(compound file)", e.0))?;
+    let summary = compound.read("\u{5}SummaryInformation").ok().flatten()
+        .and_then(|bytes| properties::summary(&bytes)).unwrap_or_default();
     let name = ["Workbook", "Book"]
         .into_iter()
         .find(|name| compound.find(name).is_some())
@@ -621,6 +624,17 @@ pub(crate) fn convert(
         ));
     }
     let macros = vba.is_some() || globals.sheets.iter().any(|s| s.kind == SheetKind::MacroSheet);
+    if !summary.is_empty() {
+        let mut core = Xml::new();
+        core.open("cp:coreProperties", &[("xmlns:cp", "http://schemas.openxmlformats.org/package/2006/metadata/core-properties".to_owned()),
+            ("xmlns:dc", "http://purl.org/dc/elements/1.1/".to_owned())]);
+        for (id, name) in [(2, "dc:title"), (3, "dc:subject"), (4, "dc:creator"), (5, "cp:keywords"),
+            (6, "dc:description"), (8, "cp:lastModifiedBy"), (9, "cp:revision")] {
+            if let Some(text) = summary.get(&id) { core.element(name, &[], text); }
+        }
+        core.close("cp:coreProperties");
+        parts.push(("docProps/core.xml".to_owned(), "application/vnd.openxmlformats-package.core-properties+xml", core.out));
+    }
     let report = LegacyReport {
         biff_version: if biff5 { 5 } else { 8 },
         sheets: globals.sheets.len(),
@@ -893,6 +907,11 @@ pub(crate) fn convert(
             ("Target", "xl/workbook.xml".to_owned()),
         ],
     );
+    if !summary.is_empty() {
+        root_rels.empty("Relationship", &[("Id", "rIdCore".to_owned()),
+            ("Type", "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties".to_owned()),
+            ("Target", "docProps/core.xml".to_owned())]);
+    }
     root_rels.close("Relationships");
 
     let mut types = Xml::new();

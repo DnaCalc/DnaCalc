@@ -49,6 +49,8 @@ fn sweep() {
     let audit_pivots = std::env::var_os("DNACALC_XLS_AUDIT_PIVOT_CACHE").is_some();
     let audit_charts = std::env::var_os("DNACALC_XLS_AUDIT_CHART_CACHE").is_some();
     let audit_chart_sheets = std::env::var_os("DNACALC_XLS_AUDIT_CHART_SHEETS").is_some();
+    let audit_core = std::env::var_os("DNACALC_XLS_AUDIT_CORE_PROPERTIES").is_some();
+    let (mut core_files, mut core_titles, mut core_authors, mut core_modifiers) = (0usize, 0usize, 0usize, 0usize);
     let (mut chart_sheets, mut chart_sheet_files) = (0usize, 0usize);
     let (mut chart_points, mut chart_files) = (0usize, 0usize);
     let (mut category_points, mut category_files) = (0usize, 0usize);
@@ -74,6 +76,12 @@ fn sweep() {
             let report = legacy_workbook_report(source.clone(), &policy);
             let password = std::env::var("DNACALC_XLS_PASSWORD").ok();
             let document = calc_doc::open_with_password(source, &policy, password.as_deref());
+            let core = if audit_core {
+                document.as_ref().ok().and_then(|doc| doc.package().read_part("docProps/core.xml").ok()).map(|xml| {
+                    let has = |tag: &[u8]| xml.windows(tag.len()).any(|window| window == tag);
+                    (has(b"<dc:title>"), has(b"<dc:creator>"), has(b"<cp:lastModifiedBy>"))
+                })
+            } else { None };
             let written_chart_sheets = if audit_chart_sheets {
                 document.as_ref().ok().map(|doc| doc.package().parts().iter()
                     .filter(|part| part.name().starts_with("xl/chartsheets/sheet") && part.name().ends_with(".xml"))
@@ -123,11 +131,11 @@ fn sweep() {
                     (formulas, failed, caches, saved_records, points, categories)
                 })
             });
-            (report, document.map(|_| ()), load, written_phonetic, written_chart_sheets)
+            (report, document.map(|_| ()), load, written_phonetic, written_chart_sheets, core)
         }));
         match result {
             Err(_) => panics.push(file.display().to_string()),
-            Ok((report, document, load, written_phonetic, written_chart_sheets)) => {
+            Ok((report, document, load, written_phonetic, written_chart_sheets, core)) => {
                 match document {
                     Err(OpenError::LegacyWorkbook { detail, .. }) => {
                         let key = detail.chars().take(70).collect::<String>();
@@ -141,6 +149,10 @@ fn sweep() {
                     }
                     Ok(()) => {
                         opened += 1;
+                        if let Some((title, author, modifier)) = core {
+                            core_files += 1; core_titles += usize::from(title);
+                            core_authors += usize::from(author); core_modifiers += usize::from(modifier);
+                        }
                         chart_sheets += written_chart_sheets;
                         chart_sheet_files += usize::from(written_chart_sheets != 0);
                         if let Some((runs, formats)) = written_phonetic {
@@ -200,6 +212,9 @@ fn sweep() {
     }
     if audit_chart_sheets {
         println!("chart sheets with a linked chart: {chart_sheets} in {chart_sheet_files} files (partial chart conversion, not an Excel match verdict)");
+    }
+    if audit_core {
+        println!("core metadata parts: {core_files} files; title {core_titles}, author {core_authors}, last saved by {core_modifiers} (not an Excel match verdict)");
     }
     println!("refused to open, by reason:");
     for (reason, n) in &refused {
