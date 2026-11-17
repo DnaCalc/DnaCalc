@@ -79,6 +79,10 @@ try {
         @{name='excel-biff8.xls'; legacy=56; modern=51; ext='.xlsx'},
         @{name='excel-biff8-arial10.xls'; legacy=56; modern=51; ext='.xlsx'; font='Arial'; font_size=10},
         @{name='excel-biff5.xls'; legacy=39; modern=51; ext='.xlsx'},
+        # Microsoft XlFileFormat: https://learn.microsoft.com/en-us/office/vba/api/excel.xlfileformat
+        @{name='excel-biff2.xls'; legacy=16; modern=51; ext='.xlsx'; raw=$true},
+        @{name='excel-biff3.xls'; legacy=29; modern=51; ext='.xlsx'; raw=$true},
+        @{name='excel-biff4.xls'; legacy=33; modern=51; ext='.xlsx'; raw=$true},
         @{name='excel-addin.xla'; legacy=18; modern=55; ext='.xlam'}
     )) {
         $entry = [ordered]@{file=$fixture.name; error=$null}
@@ -94,6 +98,22 @@ try {
             $sheet.Range('A1').Value2 = 42.5
             $sheet.Range('A2').Formula = '=A1+1'
             $sheet.Range('A1').NumberFormat = '0.00'
+            if ($fixture.ContainsKey('raw')) {
+                # A single controlled worksheet; ask Excel for old name/reference tokens.
+                # SaveAs refusals are observations, never silently replaced by BIFF8 files.
+                $entry.setup = [ordered]@{}
+                $entry.setup.names = GetOrError {
+                    $null = $book.Names.Add('RawCell', '=Data!$A$1')
+                    $null = $book.Names.Add('RawArea', '=Data!$A$1:$A$2')
+                    $sheet.Range('B1').Formula = '=SUM(RawArea)'
+                    $sheet.Range('B2').Formula = '=RawCell+1'
+                    @($book.Names | ForEach-Object { @{name=[string]$_.Name; refers_to=[string]$_.RefersTo} })
+                }
+                $entry.setup.grid = GetOrError {
+                    $sheet.Activate(); $book.Windows.Item(1).GridlineColor = 5649426
+                    $book.Windows.Item(1).GridlineColor
+                }
+            } else {
             $entry.tab_color_setup = GetOrError {
                 $sheet.Tab.ColorIndex = 3
                 @{color_index=$sheet.Tab.ColorIndex; color=$sheet.Tab.Color}
@@ -570,6 +590,7 @@ try {
             $entry.setup.chart_sheet_selection = GetOrError {
                 $chartSheet.Activate(); $book.Windows.Item(1).Zoom = 75
                 @{active=[string]$book.ActiveSheet.Name; zoom=$book.Windows.Item(1).Zoom}
+            }
             }
             $book.SaveAs($path, $fixture.legacy)
             $book.Close($false); $book=$null

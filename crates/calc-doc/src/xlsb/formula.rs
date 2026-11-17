@@ -278,6 +278,10 @@ pub(crate) fn print(
     let biff5 = matches!(layout, Layout::Biff3 | Layout::Biff4 | Layout::Biff5);
     // Widths shared by BIFF5 and BIFF8: the tExp and tTbl row and column are 16 bits each.
     let biff8 = layout != Layout::Xlsb;
+    // A raw worksheet has one sheet. Its workbook-level names' unqualified references
+    // belong to that sheet; make that binding explicit in the resulting workbook.
+    let raw_name_prefix = if context.sheet.is_none() && matches!(layout, Layout::Biff3 | Layout::Biff4)
+        && context.sheets.len() == 1 { format!("{}!", sheet_prefix(&context.sheets[0])) } else { String::new() };
     let mut stack: Vec<Item> = Vec::new();
     let mut pending = Pending::default();
     let pop = |stack: &mut Vec<Item>| -> Read<Item> {
@@ -556,7 +560,7 @@ pub(crate) fn print(
                 let cell = cell_text(row, column, base == 0x2C, origin, layout);
                 let space = pending.take();
                 stack.push(Item {
-                    text: format!("{space}{cell}"),
+                    text: format!("{space}{raw_name_prefix}{cell}"),
                 });
             }
             0x25 | 0x2D => {
@@ -564,7 +568,7 @@ pub(crate) fn print(
                 let area = area_text(rows, columns, base == 0x2D, origin, layout);
                 let space = pending.take();
                 stack.push(Item {
-                    text: format!("{space}{area}"),
+                    text: format!("{space}{raw_name_prefix}{area}"),
                 });
             }
             // PtgMemArea, PtgMemErr, PtgMemNoMem, PtgMemFunc: the reference expression that

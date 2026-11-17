@@ -42,7 +42,7 @@ const REL_TYPE: &str = "http://schemas.openxmlformats.org/officeDocument/2006/re
 /// What reading a legacy workbook found, beside the package it became.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct LegacyReport {
-    /// The source BIFF version (3, 4, 5, 7 or 8).
+    /// The source BIFF version (2, 3, 4, 5, 7 or 8).
     pub biff_version: u8,
     /// The sheets of the workbook, of every kind.
     pub sheets: usize,
@@ -108,6 +108,7 @@ pub(crate) fn convert(
     password: Option<&str>,
 ) -> Result<(Vec<u8>, LegacyReport), OpenError> {
     if let Some(LegacyFormat::RawBiff { version }) = LegacyFormat::sniff(bytes) {
+        if version == 2 { return raw::convert_biff2(bytes, password); }
         if matches!(version, 3 | 4) { return raw::convert_biff34(bytes, version, password); }
         return Err(refuse("(raw stream)", format!("raw BIFF{version} streams are not read (dc-4j0e.14)")));
     }
