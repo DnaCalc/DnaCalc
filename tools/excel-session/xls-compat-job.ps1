@@ -111,24 +111,24 @@ try {
             $initialStyles = $limits.Styles.Count; $styleAdded = 0; $styleError = $null
             $styleMilestones = @()
             $clock = [Diagnostics.Stopwatch]::StartNew()
-            foreach ($i in 1..4100) {
-                if ($clock.Elapsed.TotalSeconds -ge 240) { $styleError = @{attempt=$i; message='Time budget reached'; hresult=$null}; break }
+            foreach ($i in 1..64000) {
+                if ($clock.Elapsed.TotalSeconds -ge 900) { $styleError = @{attempt=$i; message='Time budget reached'; hresult=$null}; break }
                 try {
                     $style = $limits.Styles.Add(('cxstyle_{0:D5}' -f $i))
                     $style.Interior.Color = $i
                     $limitSheet.Cells.Item($i, 1).Style = [string]$style.Name
                     $styleAdded++
-                    if ($i -in @(1000, 4000, 4001, 4100)) { $styleMilestones += @{added=$i; styles=$limits.Styles.Count} }
+                    if ($i -in @(1000, 4000, 4001, 4100, 10000, 32000, 64000)) { $styleMilestones += @{added=$i; styles=$limits.Styles.Count} }
                 } catch { $styleError = @{attempt=$i; message=$_.Exception.Message; hresult=$_.Exception.HResult}; break }
             }
             $nameAdded = 0; $nameError = $null; $nameMilestones = @()
             $clock.Restart()
-            foreach ($i in 1..4100) {
-                if ($clock.Elapsed.TotalSeconds -ge 240) { $nameError = @{attempt=$i; message='Time budget reached'; hresult=$null}; break }
+            foreach ($i in 1..10000) {
+                if ($clock.Elapsed.TotalSeconds -ge 300) { $nameError = @{attempt=$i; message='Time budget reached'; hresult=$null}; break }
                 try {
                     $null = $limits.Names.Add(('cxname_{0:D5}' -f $i), '=Limits!$A$1')
                     $nameAdded++
-                    if ($i -in @(1000, 4000, 4001, 4100)) { $nameMilestones += @{added=$i; names=$limits.Names.Count} }
+                    if ($i -in @(1000, 4000, 4001, 4100, 5000, 10000)) { $nameMilestones += @{added=$i; names=$limits.Names.Count} }
                 } catch { $nameError = @{attempt=$i; message=$_.Exception.Message; hresult=$_.Exception.HResult}; break }
             }
             $before = @{styles=$limits.Styles.Count; names=$limits.Names.Count}
@@ -156,5 +156,5 @@ finally {
     $app.DisplayAlerts = $oldAlerts
 }
 @{fatal=$fatal; cases=$answers.ToArray(); legacy_base64=$legacyBytes; converted_base64=$modernBytes; limits_base64=$limitsBytes;
-    not_run=@('Ctrl+End keyboard action', 'style count up to 64000', 'name count above 4100', 'recalculation across saving versions',
+    not_run=@('Ctrl+End keyboard action', 'recalculation across saving versions',
         'compatibility checker findings')} | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $Result -Encoding utf8NoBOM
