@@ -319,6 +319,10 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
                      'properties': [tree(e) for tx in axis.findall(C + 'txPr') for e in tx.iter()
                                     if e.tag in (A + 'defRPr', A + 'rPr', A + 'endParaRPr')]}
                     for axis in chart_root.iter() if axis.tag in (C + 'catAx', C + 'valAx', C + 'dateAx', C + 'serAx')]
+                obj['axis_tick_label_positions'] = [
+                    {'type': axis.tag.rsplit('}', 1)[-1],
+                     'position': None if (pos := axis.find(C + 'tickLblPos')) is None else pos.get('val')}
+                    for axis in chart_root.iter() if axis.tag in (C + 'catAx', C + 'valAx', C + 'dateAx', C + 'serAx')]
                 obj['axis_titles'] = [
                     {'type': axis.tag.rsplit('}', 1)[-1],
                      'text': [e.text or '' for e in title.iter() if e.tag in (A + 't', C + 'v')],

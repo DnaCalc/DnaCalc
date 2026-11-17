@@ -263,6 +263,7 @@ fn read_chart_xml(
     let mut title = String::new();
     let mut title_cache: Option<String> = None;
     let mut axis_title_has_field = false;
+    let mut axis_tick_position_seen = false;
     loop {
         let element = match events.next()? {
             Some(XmlEvent::Start(element)) => element,
@@ -438,10 +439,18 @@ fn read_chart_xml(
                 if element.name.namespace.as_deref() == Some(CHART_NAMESPACE) =>
             {
                 axis_title_has_field = false;
+                axis_tick_position_seen = false;
                 chart.axes.push(calc_doc_model::ChartAxis {
                     kind: local.clone(),
                     ..Default::default()
                 });
+            }
+            (Some("valAx" | "catAx" | "dateAx" | "serAx"), "tickLblPos")
+                if element.name.namespace.as_deref() == Some(CHART_NAMESPACE) => {
+                if let Some(axis) = chart.axes.last_mut() {
+                    axis.tick_labels_hidden = !axis_tick_position_seen && val.as_deref() == Some("none");
+                    axis_tick_position_seen = true;
+                }
             }
             (
                 Some("valAx" | "catAx" | "dateAx" | "serAx"),
@@ -669,6 +678,22 @@ fn read_simple_value_labels(events: &mut Events<'_>) -> Result<(bool, bool), Loa
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn hidden_tick_labels_require_one_position_record() {
+        for (positions, expected) in [
+            (r#"<c:tickLblPos val="none"/>"#, true),
+            (r#"<c:tickLblPos val="low"/>"#, false),
+            (r#"<c:tickLblPos val="none"/><c:tickLblPos val="none"/>"#, false),
+        ] {
+            let text = format!(r#"<c:chartSpace xmlns:c="{CHART_NAMESPACE}"><c:chart><c:plotArea><c:catAx><c:axId val="1"/>{positions}</c:catAx></c:plotArea></c:chart></c:chartSpace>"#);
+            let xml = XmlPart::new("chart.xml".into(), text.into_bytes(), crate::xml::XmlLimits::default());
+            let chart = read_chart_xml(&xml, "chart.xml", "Chart".into(), ChartAnchor::Absolute {
+                x: 0, y: 0, width: 100, height: 100,
+            }).unwrap();
+            assert_eq!(chart.axes[0].tick_labels_hidden, expected);
+        }
+    }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn value_labels_accept_only_an_unambiguous_show_value_flag() {

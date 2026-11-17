@@ -29,6 +29,7 @@ const SCATTER: u16 = 0x101B;
 const AXIS: u16 = 0x101D;
 const AXIS_PARENT: u16 = 0x1041;
 const VALUE_RANGE: u16 = 0x101F;
+const TICK: u16 = 0x101E;
 const SI_INDEX: u16 = 0x1065;
 const LEGEND: u16 = 0x1015;
 const TEXT: u16 = 0x1025;
@@ -172,6 +173,9 @@ pub(crate) struct Chart {
     axis_font_seen: [bool; 2],
     axis_font_invalid: [bool; 2],
     primary_axis_seen: [bool; 2],
+    tick_seen: [bool; 2],
+    tick_invalid: [bool; 2],
+    tick_labels_hidden: [bool; 2],
     primary_axis_parent_valid: bool,
     legend_font: Option<(String, bool, bool)>,
     legend_text_seen: bool,
@@ -429,11 +433,22 @@ impl Chart {
                     && let Some(index) = self.axis_index {
                     if body.len() != 18 || !record.continues.is_empty() || !self.primary_axis_parent_valid {
                         self.axis_font_invalid[index] = true;
+                        self.tick_invalid[index] = true;
                     }
-                    if self.primary_axis_seen[index] { self.axis_font_invalid[index] = true; }
+                    if self.primary_axis_seen[index] { self.axis_font_invalid[index] = true; self.tick_invalid[index] = true; }
                     self.primary_axis_seen[index] = true;
                 }
                 self.pending = Some(block_code(Block::Axis));
+            }
+            TICK if self.primary_axis_group && self.stack.last().is_some_and(|code| block_of(*code) == Block::Axis) => {
+                if let Some(index) = self.axis_index {
+                    if self.tick_seen[index] { self.tick_invalid[index] = true; }
+                    self.tick_seen[index] = true;
+                    if code_page.is_none() && self.primary_axis_parent_valid && body.len() == 30
+                        && record.continues.is_empty() && body[0] <= 3 && body[1] <= 3 && body[2] <= 3 {
+                        self.tick_labels_hidden[index] = body[2] == 0;
+                    } else { self.tick_invalid[index] = true; }
+                }
             }
             VALUE_RANGE if body.len() >= 42 && self.primary_axis_group
                 && self.stack.iter().any(|c| block_of(*c) == Block::AxisParent)
@@ -946,6 +961,9 @@ impl Chart {
                 x.empty("c:axPos", &[("val", pos.to_owned())]);
                 if let Some(title) = self.titles.get(&title_key) {
                     title_element(&mut x, title, self.axis_title_fonts[usize::from(title_key - 2)].as_ref());
+                }
+                if !self.tick_invalid[axis_index] && self.tick_labels_hidden[axis_index] {
+                    x.empty("c:tickLblPos", &[("val", "none".to_owned())]);
                 }
                 text_font_element(&mut x, if self.axis_font_invalid[axis_index] { None } else { self.axis_fonts[axis_index].as_ref() });
                 x.empty("c:crossAx", &[("val", cross.to_owned())]);
