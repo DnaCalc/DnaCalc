@@ -130,3 +130,70 @@ and 120,000 random inputs, both sides); 244,928 distinct |t| after the odd fold 
   (best chi^2 3,525). So the node set is identified but not the function, variable or evaluation.
 - The lattice read-out that found piece A's Q is swamped in B by the output grid (x > 1 there; peaks only at
   lambda = t, t/sqrt 2 and their combinations).
+
+## fn9 (2026-11-17): piece B identified and landed; the tail's logarithm
+
+The fable-r2 review (Claude Fable 5.2, `~/codex-runs/fable-r2/review.md`) found piece B's function and constants:
+
+    v = 1 - |t|,  a = sqrt(-ln v),  s = RN(t * t),  R = RN(P(s) / Q(s)),  y = RN(a * R),  x = sign(t) * RN(y * RN(sqrt 2))
+
+P degree 7 and Q degree 5 with Q(0) = 1, Horner in raw s with every product and sum stored from x87 precision 64;
+P/Q is the exact rational interpolant of erfinv(sqrt s) / sqrt(-ln(1 - sqrt s)) at the 13 zeros of T13 on
+[0.5, 0.73], rounded to binary64 (no perturbation). With binary64 `log` and `sqrt` it matched 244,847 of 244,928
+retained answers; every other one needed the logarithm moved one ulp.
+
+fn9 identified that logarithm: **a is FYL2X (ln 2 * log2 v) stored, then FSQRT stored**, the x87 staging Excel's
+worksheet LN already uses (`excel_log`, `excel_sqrt_staged`). Retained piece-B answers 244,928 of 244,928 with it
+(binary64 log and root 244,847; the runtime's FMA3 log 244,841; FYL2X with a binary64 root 244,868; binary64 log with
+FSQRT 244,907). The AS241 tail forms `sqrt(-ln p)` the same way: the retained R41 lower-tail answers at normal inputs
+match 393,216 of 393,216 (the runtime log with a binary64 root, the previous route, 393,140; FYL2X with a binary64 root
+393,181). The 76 tail misses fn6 and fn7 attributed to "a detail of the logarithm" were this.
+
+Dispatch: piece B is `|t| <= 0.85` (typed in t). On the lower side that is AS241's bound `q >= -0.425`; on the upper
+side p = 0.925 itself (t = 0.85 + 1 ulp) is piece C in Excel (its retained answer is not B's), the double below is B.
+
+Rust route over every retained and fresh answer on this host (1,369,488 rows: fn7's alldata plus fable-r2 q1-q3,
+duplicates removed per region; before -> after): AS241 lower tail 393,140 -> 393,216 of 393,216; piece A 682,142 ->
+682,142 of 682,142; piece B 29,928 -> 141,345 of 141,345; piece C 49,582 -> 49,582 of 94,207 (unchanged route).
+
+### Piece C (0.85 < t, p <= 15/16): what is known (fn9)
+
+- (a) refuted: piece B's program evaluated on C's inputs is 6,405 ulp of R off on average (2,888 of 94,208 inside the
+  pinned interval).
+- With a known exactly, each answer pins R to one double (38,794 of 94,208) or two (55,414). R is a function of t
+  (or s, v), not of the stored a or the stored log: in the 8,192 inputs below p = 15/16, where the log's rounding is
+  one constant, R's bias against erfinv(t)/a_true is smooth (+0.456 ulp; neighbours +0.463) and against
+  erfinv/a_stored jumps (+0.162).
+- R's bias is smooth, +0.36 ulp at t = 0.85 to +0.46 at 0.875. Rational interpolants at Chebyshev zeros with rounded
+  coefficients in t, s, -ln v, a, 1/a, -ln(1-s), -1/ln v (raw or centred, 770 intervals, N 3..16, every split) fit
+  that curve with chi^2 about 11 on 23 windows by the dozen, so the bias does not select a family.
+- R stored beats R extended: st(a * RN(G + 0.4 ulp)) reproduces 64,902 of 94,208 answers, st(a * (G + 0.4 ulp))
+  unstored 61,042.
+- Noise fingerprint: the error spectrum in dense windows has sharp lines. One drifts at about -282 cycles per unit t
+  up to the first noise step (t in (0.85464, 0.85472)) and vanishes there; another at about -390 appears after it; a
+  third changes at the second step (t in (0.86921, 0.86928)); a weak line at 0.4385 -> 0.4456 cycles per input runs
+  through all of C. A line that only changed binade would come back at twice its rate; these do not, so the steps
+  look like changes of formula or of a dominant intermediate, not of one variable's binade.
+- No emulated family (Horner of P/Q in the variables above, every product and sum stored; 1,589 families) reproduces
+  the two steps: the best has a quarter of their size. Scripts and data `~/codex-runs/fn9/c/`.
+- Last operations, checked with a shifted null: x = RN(RN(a R) RN(sqrt 2)) with R a double reaches all 94,208
+  answers (shifted answers: 16,354 to 39,067 unreachable); x = RN(a R2) with sqrt 2 folded into R2 leaves 27,317
+  unreachable.
+- Shape of the noise (the strongest clue, fn9). The noise before R's last rounding has sd about 0.70, 0.56 and 0.46 ulp
+  in the three segments; inside each it grows slowly with t, then drops at a step: a sawtooth. That is what a stored
+  quantity's relative rounding gives as the quantity falls through a power of two. With R = RN(P/Q) and P and Q each
+  stored, the steps are P (or Q) falling through 2^k at t1 and the other at t2; that needs P and Q each to fall by
+  d ln/dt of about -20 (P1Q2) or -28 (Q1P2) across C while their ratio stays near 0.745, i.e. P and Q dominated by
+  high powers of a variable far from its expansion point (raw-variable Horner, e.g. effective degree about 6 in -ln v,
+  3 in 1/v, 9 in s) or a near-cancelling pole-zero pair. Emulating rational interpolants (t, N = 12..16) rescaled so
+  that their P crosses a binade at t1 reproduces both steps at full size (profile correlation 0.91 with Excel's), while
+  the same families with their natural scaling show none: the mechanism fits, the family is not found (bits 1,300 to
+  1,400 of 3,000 against 1,700 for the accurate ratio).
+- Bit scans (rational interpolants at Chebyshev zeros, 770 typed intervals in t mapped to t, s, -ln v, sqrt(-ln v),
+  1/sqrt(-ln v), -ln(1-s); raw and centred Horner, stored and extended variable; N 3..16, every split; 3,000 answers
+  with R pinned to one double): best 1,700, the accurate-ratio level (1,694). Chebyshev series by Clenshaw in the same
+  variables (N 8..30): best 1,682, no steps once converged.
+- Next (needs Excel; prepared in `~/codex-runs/fn9/q2`, `q3`): the steps' exact positions (41 windows of 384 inputs
+  across each bracket) and a 250-window noise map of C; with t1 and t2 to 1e-6 the normalisation-free condition
+  log2 P(t1) - log2 Q(t2) in Z and the natural-normalisation conditions log2 P(t1), log2 Q(t2) in Z select a family
+  (chance about 1e-5 per family against about 0.4 % now).

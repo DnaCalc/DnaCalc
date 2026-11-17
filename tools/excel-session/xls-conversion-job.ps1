@@ -357,6 +357,22 @@ try {
                   font_name=[string]$linkedChart.ChartTitle.Font.Name; bold=$linkedChart.ChartTitle.Font.Bold;
                   italic=$linkedChart.ChartTitle.Font.Italic}
             }
+            $entry.setup.chart_axis_font = GetOrError {
+                $axis = $sheet.ChartObjects('cxCacheChart').Chart.Axes(1)
+                $axis.TickLabels.Font.Name = 'Arial'
+                $axis.TickLabels.Font.Bold = $true
+                $axis.TickLabels.Font.Italic = $true
+                @{font_name=[string]$axis.TickLabels.Font.Name; bold=$axis.TickLabels.Font.Bold;
+                  italic=$axis.TickLabels.Font.Italic}
+            }
+            $entry.setup.chart_legend_font = GetOrError {
+                $chart = $sheet.ChartObjects('cxCacheChart').Chart
+                $chart.HasLegend = $true
+                $chart.Legend.Font.Name = 'Arial'
+                $chart.Legend.Font.Bold = $true
+                $chart.Legend.Font.Italic = $true
+                @{font_name=[string]$chart.Legend.Font.Name; bold=$chart.Legend.Font.Bold; italic=$chart.Legend.Font.Italic}
+            }
             $entry.setup.chart_series_fill = GetOrError {
                 $series = $sheet.ChartObjects('cxCacheChart').Chart.SeriesCollection(1)
                 $series.Format.Fill.Visible = -1; $series.Format.Fill.Solid()

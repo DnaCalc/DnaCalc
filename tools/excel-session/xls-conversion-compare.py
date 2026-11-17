@@ -243,7 +243,7 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
                 obj['chart_title'] = None if title is None else {
                     'text': [e.text or '' for e in title.iter() if e.tag in (A + 't', C + 'v')],
                     'formulas': [e.text or '' for e in title.iter(C + 'f')],
-                    'font_properties': [tree(e) for e in title.iter() if e.tag in (A + 'defRPr', A + 'rPr')]}
+                    'font_properties': [tree(e) for e in title.iter() if e.tag in (A + 'defRPr', A + 'rPr', A + 'endParaRPr')]}
                 legend = chart_root.find(f'{C}chart/{C}legend')
                 obj['chart_legend'] = None if legend is None else tree(legend)
                 settings = chart_root.find(C + 'printSettings')
@@ -312,6 +312,11 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
                     {name: node.get('val') for name in ('orientation', 'min', 'max', 'majorUnit', 'minorUnit')
                      if (node := axis.find('.//' + C + name)) is not None}
                     for axis in chart_root.iter(C + 'valAx')]
+                obj['axis_font_properties'] = [
+                    {'type': axis.tag.rsplit('}', 1)[-1],
+                     'properties': [tree(e) for tx in axis.findall(C + 'txPr') for e in tx.iter()
+                                    if e.tag in (A + 'defRPr', A + 'rPr', A + 'endParaRPr')]}
+                    for axis in chart_root.iter() if axis.tag in (C + 'catAx', C + 'valAx', C + 'dateAx', C + 'serAx')]
             result.append(obj)
     return result
 
