@@ -128,6 +128,17 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
                 obj['chart_types'] = sorted({x.tag.rsplit('}', 1)[-1] for x in chart_root.iter()
                                              if x.tag.startswith(C) and x.tag.endswith('Chart')})
                 obj['series_formulas'] = [x.text or '' for x in chart_root.iter(C + 'f')]
+                obj['series_value_caches'] = []
+                for series in chart_root.iter(C + 'ser'):
+                    data = series.find(C + 'val')
+                    if data is None:
+                        data = series.find(C + 'yVal')
+                    cache = data.find(f'{C}numRef/{C}numCache') if data is not None else None
+                    count = cache.find(C + 'ptCount') if cache is not None else None
+                    obj['series_value_caches'].append(None if cache is None else {
+                        'count': count.get('val') if count is not None else None,
+                        'points': [{'index': point.get('idx'), 'value': point.findtext(C + 'v')}
+                                   for point in cache.findall(C + 'pt')]})
                 obj['chart_text'] = [x.text or '' for x in chart_root.iter()
                                      if x.tag.endswith('}t') and x.text]
                 obj['chart_geometry'] = [
