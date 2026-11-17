@@ -193,9 +193,9 @@ pub fn rename_table_column(
     use crate::syntax::{SyntaxKind, Token};
     let tree = crate::parse_formula(source);
     let lambda = tree.tokens().iter().any(|t| {
-        t.text().eq_ignore_ascii_case("LAMBDA")
-            || crate::eval::without_prefix(t.text(), calc_catalogue::FUTURE_FUNCTION_PREFIX)
-                .is_some_and(|name| name.eq_ignore_ascii_case("LAMBDA"))
+        let name = crate::eval::without_prefix(t.text(), calc_catalogue::FUTURE_FUNCTION_PREFIX)
+            .unwrap_or(t.text());
+        calc_catalogue::binding_form(name) == Some(calc_catalogue::BindingForm::Lambda)
     });
     let old_index = columns
         .iter()

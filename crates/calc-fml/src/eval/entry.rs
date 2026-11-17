@@ -278,10 +278,7 @@ fn operator_call(written: &str, loaded: bool) -> Option<Operator> {
             Notation::Postfix => Some(Operator::FileOnly),
             _ => None,
         }
-    } else if ["_TRO_LEADING", "_TRO_TRAILING", "_TRO_ALL"]
-        .iter()
-        .any(|operator| spelling.eq_ignore_ascii_case(operator))
-    {
+    } else if calc_catalogue::unheld::trim_reference_file_mode(spelling).is_some() {
         Some(Operator::FileOnly)
     } else {
         None

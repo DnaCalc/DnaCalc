@@ -517,7 +517,8 @@ pub(crate) fn apply(
                     value.clone()
                 };
                 let cutoff = format!(
-                    "IF(COUNT({range})=0,0,_xlfn.AGGREGATE({},6,{range},MIN(COUNT({range}),MAX(1,{k}))))",
+                    "IF(COUNT({range})=0,0,{}({},6,{range},MIN(COUNT({range}),MAX(1,{k}))))",
+                    calc_func::file_call_name("AGGREGATE"),
                     if *top { 14 } else { 15 }
                 );
                 let cutoff_value = context

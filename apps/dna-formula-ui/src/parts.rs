@@ -134,19 +134,12 @@ fn operands(node: &SyntaxNode) -> Vec<&SyntaxNode> {
         | SyntaxKind::IdentifierExpr
         | SyntaxKind::QuotedIdentifierExpr => Vec::new(),
         SyntaxKind::CallExpr => {
-            let declares = node.children().first().is_some_and(|child| match child {
-                SyntaxChild::Token(callee) => {
-                    let name = calc_fml::assist::unprefixed(callee.text());
-                    name.eq_ignore_ascii_case("LET") || name.eq_ignore_ascii_case("LAMBDA")
-                }
-                SyntaxChild::Node(_) => false,
+            let form = node.children().first().and_then(|child| match child {
+                SyntaxChild::Token(callee) => calc_fml::assist::binding_form(callee.text()),
+                SyntaxChild::Node(_) => None,
             });
-            let is_let = node.children().first().is_some_and(|child| match child {
-                SyntaxChild::Token(callee) => {
-                    calc_fml::assist::unprefixed(callee.text()).eq_ignore_ascii_case("LET")
-                }
-                SyntaxChild::Node(_) => false,
-            });
+            let declares = form.is_some();
+            let is_let = form == Some(calc_func::BindingForm::Let);
             let Some(arguments) = node
                 .child_nodes()
                 .find(|child| child.kind() == SyntaxKind::ArgumentList)
