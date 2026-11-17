@@ -51,6 +51,7 @@ fn sweep() {
     let audit_chart_sheets = std::env::var_os("DNACALC_XLS_AUDIT_CHART_SHEETS").is_some();
     let (mut chart_sheets, mut chart_sheet_files) = (0usize, 0usize);
     let (mut chart_points, mut chart_files) = (0usize, 0usize);
+    let (mut category_points, mut category_files) = (0usize, 0usize);
     let (mut pivot_caches, mut pivot_records, mut pivot_files) = (0usize, 0u64, 0usize);
     let (mut phonetic_runs, mut phonetic_files, mut phonetic_errors) = (0usize, 0usize, 0usize);
     let (mut phonetic_formats, mut phonetic_format_files) = (0usize, 0usize);
@@ -113,7 +114,13 @@ fn sweep() {
                             .filter_map(|s| s.values.as_ref()).filter(|v| v.numeric)
                             .map(|v| v.cache.iter().flatten().count()).sum()
                     } else { 0 };
-                    (formulas, failed, caches, saved_records, points)
+                    let categories = if audit_charts {
+                        loaded.sheets().iter().flat_map(|s| &s.charts().charts)
+                            .flat_map(|c| &c.plots).flat_map(|p| &p.series)
+                            .filter_map(|s| s.categories.as_ref())
+                            .map(|v| v.cache.iter().flatten().count()).sum()
+                    } else { 0 };
+                    (formulas, failed, caches, saved_records, points, categories)
                 })
             });
             (report, document.map(|_| ()), load, written_phonetic, written_chart_sheets)
@@ -145,7 +152,7 @@ fn sweep() {
                             phonetic_errors += 1;
                         }
                         match load {
-                            Some(Ok((formulas, failed, caches, saved_records, points))) => {
+                            Some(Ok((formulas, failed, caches, saved_records, points, categories))) => {
                                 loaded += 1;
                                 formula_cells += formulas;
                                 parse_failures += failed;
@@ -154,6 +161,8 @@ fn sweep() {
                                 pivot_files += usize::from(caches != 0);
                                 chart_points += points;
                                 chart_files += usize::from(points != 0);
+                                category_points += categories;
+                                category_files += usize::from(categories != 0);
                             }
                             Some(Err(e)) => {
                                 let key: String = e.chars().take(90).collect();
@@ -187,6 +196,7 @@ fn sweep() {
     }
     if audit_charts {
         println!("numeric chart display-cache points: {chart_points} in {chart_files} files (not calculated cell results)");
+        println!("chart category display-cache points: {category_points} in {category_files} files (not calculated cell results)");
     }
     if audit_chart_sheets {
         println!("chart sheets with a linked chart: {chart_sheets} in {chart_sheet_files} files (partial chart conversion, not an Excel match verdict)");

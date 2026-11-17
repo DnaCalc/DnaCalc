@@ -66,6 +66,8 @@ struct Series {
     title_formula: Option<String>,
     values: Option<String>,
     categories: Option<String>,
+    category_type: Option<u16>,
+    category_count: Option<u16>,
     value_type: Option<u16>,
     value_count: Option<u16>,
 }
@@ -74,6 +76,15 @@ struct Series {
 struct ValueCache {
     /// None is an explicitly blank point, not a calculated value.
     points: BTreeMap<u16, Option<f64>>,
+    invalid: bool,
+}
+
+#[derive(Debug)]
+enum CategoryPoint { Number(f64), Text(Vec<u16>), Blank }
+
+#[derive(Debug, Default)]
+struct CategoryCache {
+    points: BTreeMap<u16, CategoryPoint>,
     invalid: bool,
 }
 
@@ -117,6 +128,7 @@ pub(crate) struct Chart {
     cache_stage: u16,
     cache_invalid: bool,
     value_caches: BTreeMap<usize, ValueCache>,
+    category_caches: BTreeMap<usize, CategoryCache>,
 }
 
 fn block_code(block: Block) -> u8 {
@@ -148,6 +160,8 @@ impl Chart {
             SERIES => {
                 self.series.push(Series {
                     group: 0,
+                    category_type: body.get(0..2).map(|b| u16::from_le_bytes([b[0], b[1]])),
+                    category_count: body.get(4..6).map(|b| u16::from_le_bytes([b[0], b[1]])),
                     value_type: body.get(2..4).map(|b| u16::from_le_bytes([b[0], b[1]])),
                     value_count: body.get(6..8).map(|b| u16::from_le_bytes([b[0], b[1]])),
                     ..Default::default()
@@ -189,6 +203,32 @@ impl Chart {
                         };
                         if series.value_type != Some(1) || series.value_count.is_none_or(|count| row >= count)
                             || value.is_none() || cache.points.contains_key(&row) {
+                            cache.invalid = true;
+                        } else if let Some(value) = value { cache.points.insert(row, value); }
+                    } else { self.cache_invalid = true; }
+                }
+            }
+            0x0201 | 0x0203 | 0x0204 | 0x0205 if self.cache_section == 2 => {
+                if body.len() < 6 { self.cache_invalid = true; }
+                else {
+                    let row = u16::from_le_bytes([body[0], body[1]]);
+                    let column = usize::from(u16::from_le_bytes([body[2], body[3]]));
+                    if let Some(series) = self.series.get(column) {
+                        let cache = self.category_caches.entry(column).or_default();
+                        let value = if !record.continues.is_empty() { None } else { match record.id {
+                            0x0201 if body.len() == 6 && matches!(series.category_type, Some(1 | 3)) => Some(CategoryPoint::Blank),
+                            0x0203 if body.len() == 14 && series.category_type == Some(1) => {
+                                let n = f64::from_le_bytes(body[6..14].try_into().expect("eight bytes"));
+                                n.is_finite().then_some(CategoryPoint::Number(n))
+                            }
+                            0x0204 if body.len() >= 9 && body[8] & !1 == 0 && series.category_type == Some(3) => {
+                                let mut pieces = Pieces::new(record);
+                                pieces.skip(6, "chart category").ok().and_then(|_| pieces.unicode_string("chart category").ok())
+                                    .filter(|_| pieces.done()).map(CategoryPoint::Text)
+                            }
+                            _ => None,
+                        }};
+                        if series.category_count.is_none_or(|count| row >= count) || value.is_none() || cache.points.contains_key(&row) {
                             cache.invalid = true;
                         } else if let Some(value) = value { cache.points.insert(row, value); }
                     } else { self.cache_invalid = true; }
@@ -450,10 +490,33 @@ impl Chart {
                     ("c:cat", "c:val")
                 };
                 if let Some(f) = &series.categories {
+                    let cache = self.category_caches.get(&series_index).filter(|cache|
+                        !self.cache_invalid && self.cache_stage == 0b1110 && !cache.invalid && !cache.points.is_empty());
+                    let numeric = group.kind == Kind::Scatter || (cache.is_some() && series.category_type == Some(1));
                     x.open(category_tag, &[]);
-                    x.open(if group.kind == Kind::Scatter { "c:numRef" } else { "c:strRef" }, &[]);
+                    x.open(if numeric { "c:numRef" } else { "c:strRef" }, &[]);
                     x.element("c:f", &[], f);
-                    x.close(if group.kind == Kind::Scatter { "c:numRef" } else { "c:strRef" });
+                    if let (Some(count), Some(cache)) = (series.category_count, cache)
+                        && (series.category_type == Some(1) || (!numeric && series.category_type == Some(3)))
+                    {
+                        let cache_tag = if numeric { "c:numCache" } else { "c:strCache" };
+                        x.open(cache_tag, &[]);
+                        x.empty("c:ptCount", &[("val", count.to_string())]);
+                        for (index, point) in &cache.points {
+                            if !matches!(point, CategoryPoint::Blank) {
+                                x.open("c:pt", &[("idx", index.to_string())]);
+                                x.open("c:v", &[]);
+                                match point {
+                                    CategoryPoint::Number(n) => x.text_str(&crate::xlsb::formula::number_text(*n)),
+                                    CategoryPoint::Text(text) => x.text(text),
+                                    CategoryPoint::Blank => {},
+                                }
+                                x.close("c:v"); x.close("c:pt");
+                            }
+                        }
+                        x.close(cache_tag);
+                    }
+                    x.close(if numeric { "c:numRef" } else { "c:strRef" });
                     x.close(category_tag);
                 }
                 if let Some(f) = &series.values {

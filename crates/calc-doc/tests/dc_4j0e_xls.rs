@@ -1853,6 +1853,48 @@ fn chart_numeric_display_cache_survives_conversion() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_category_display_caches_survive_conversion() {
+    use ptg::*;
+    use xls_kit::art;
+    for (text, invalid) in [(false, false), (true, false), (true, true)] {
+        let mut chart = art::chart(&[("Sales", area3d(0, (1, 4), (0, 0), 0),
+            area3d(0, (1, 4), (1, 1), 0))], 0, "Title");
+        if text {
+            let series = record(0x1003, &u16s(&[1, 1, 4, 4, 0, 0]));
+            let at = chart.windows(series.len()).position(|part| part == series).unwrap();
+            chart[at + 4] = 3;
+        }
+        let mut data = record(0x1065, &u16s(&[2]));
+        if text {
+            let mut label = u16s(&[0, 0, 0, 3]); label.push(0); label.extend(b"one");
+            data.extend(record(0x0204, &label));
+            if invalid { data.extend(record(0x0204, &label)); }
+        } else { data.extend(number(0, 0, 7.5)); }
+        data.extend(record(0x0201, &u16s(&[1, 0, 0])));
+        data.extend(record(0x1065, &u16s(&[1])));
+        data.extend(record(0x1065, &u16s(&[3])));
+        chart.splice(chart.len() - 4..chart.len() - 4, data);
+        let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
+        let globals = [supbook_self(1), extern_sheet(&[(0, 0, 0)])].concat();
+        let bytes = xls(false, &globals, &[Sheet::worksheet("S", records)]);
+        let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let xml = String::from_utf8(doc.package().read_part("xl/charts/chart1_1.xml").unwrap()).unwrap();
+        assert_eq!(xml.contains(if text { "<c:strCache>" } else { "<c:numCache>" }), !invalid, "{xml}");
+        if !invalid {
+            let loaded = load(&bytes);
+            let categories = loaded.sheets()[0].charts().charts[0].plots[0].series[0].categories.as_ref().unwrap();
+            assert_eq!(categories.numeric, !text);
+            assert_eq!(categories.cache[0].as_deref(), Some(if text { "one" } else { "7.5" }));
+            let plan = calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+            let mut saved = Vec::new(); calc_doc::write(plan, &mut saved).unwrap();
+            let reopened = load(&saved);
+            assert_eq!(reopened.sheets()[0].charts().charts[0].plots[0].series[0].categories.as_ref().unwrap(), categories);
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn chart_group_geometry_survives_legacy_conversion() {
     use xls_kit::art;
     let original = record(0x1017, &u16s(&[0, 150, 0]));
