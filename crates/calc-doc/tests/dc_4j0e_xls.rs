@@ -177,7 +177,7 @@ fn write_legacy_excel_session_inputs() {
         record(0x0099, &u16s(&[2340])), record(0x00AB, &biff8_gcw), number(0, 0, 1.0)].concat();
     std::fs::write(dir.join("gcw-biff8.xls"), xls(false, &[], &[Sheet::worksheet("Data", biff8_gcw_cells)])).unwrap();
     std::fs::write(dir.join("drawing-rgb-solid-fill.xls"),
-        shape_solid_fill_fixture(&[(0x0181, 0x00563412), (0x01bf, 0x00100010)], None)).unwrap();
+        shape_solid_fill_fixture(&[(0x0181, 0x00563412), (0x01bf, 0x00100010)], None, &[])).unwrap();
     std::fs::write(dir.join("drawing-obj-continuation.xls"), obj_continuation_fixture(false)).unwrap();
     std::fs::write(dir.join("drawing-txo-continuation.xls"), txo_continuation_fixture(false)).unwrap();
     std::fs::write(dir.join("drawing-text-anchor-conflict.xls"), text_anchor_conflict_fixture()).unwrap();
@@ -2650,7 +2650,7 @@ fn explicit_shape_no_fill_is_preserved() {
     }
 }
 
-fn shape_solid_fill_fixture(properties: &[(u16, u32)], extra: Option<Vec<u8>>) -> Vec<u8> {
+fn shape_solid_fill_fixture(properties: &[(u16, u32)], extra: Option<Vec<u8>>, defaults: &[u8]) -> Vec<u8> {
     use xls_kit::art;
     let mut shape = art::shape(1, 0, [1, 0, 1, 0, 4, 0, 6, 0], false);
     let properties: Vec<_> = properties.iter().flat_map(|(id, value)|
@@ -2660,7 +2660,7 @@ fn shape_solid_fill_fixture(properties: &[(u16, u32)], extra: Option<Vec<u8>>) -
     shape.splice(8..8, atoms);
     let length = (shape.len() - 8) as u32;
     shape[4..8].copy_from_slice(&length.to_le_bytes());
-    xls(false, &[], &[Sheet::worksheet("S", [art::drawing(&[shape]), art::obj(2, 1)].concat())])
+    xls(false, defaults, &[Sheet::worksheet("S", [art::drawing(&[shape]), art::obj(2, 1)].concat())])
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -2674,9 +2674,10 @@ fn opaque_rgb_shape_fill_survives_load_and_save() {
         (vec![(0x0180, 1)], false), (vec![(0x0182, 0x8000)], false),
         (vec![(0x0181, 0x00563412)], false), (vec![(0x019e, 0xff)], false),
         (vec![(0x4182, 0x10000)], false), (vec![(0x0186, 1)], false),
+        (vec![(0x0301, 1)], false),
     ] {
         let properties = [base.as_slice(), extra.as_slice()].concat();
-        let bytes = shape_solid_fill_fixture(&properties, None);
+        let bytes = shape_solid_fill_fixture(&properties, None, &[]);
         let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
         let loaded = load(&bytes);
         let fill = &loaded.sheets()[0].shapes().shapes[0].fill;
@@ -2689,12 +2690,28 @@ fn opaque_rgb_shape_fill_survives_load_and_save() {
     }
     for properties in [vec![(0x0181, 0x08000009), base[1]], vec![base[0]],
         vec![base[0], (0x01bf, 0x00100000)]] {
-        let loaded = load(&shape_solid_fill_fixture(&properties, None));
+        let loaded = load(&shape_solid_fill_fixture(&properties, None, &[]));
         assert!(!matches!(loaded.sheets()[0].shapes().shapes[0].fill, ShapeFill::Solid(_)));
     }
     for kind in [0xf121, 0xf122] {
         let extra = art::atom(3, 1, kind, &[0x9e, 1, 255, 0, 0, 0]);
-        let loaded = load(&shape_solid_fill_fixture(&base, Some(extra)));
+        let loaded = load(&shape_solid_fill_fixture(&base, Some(extra), &[]));
+        assert!(!matches!(loaded.sheets()[0].shapes().shapes[0].fill, ShapeFill::Solid(_)));
+    }
+    for (id, value, expected) in [(0x0180u16, 0u32, true), (0x0180, 4, false),
+        (0x0182, 0x10000, true), (0x0182, 0x8000, false), (0x019e, 0, false),
+        (0x0301, 1, false)] {
+        for kind in [0xf00b, 0xf121, 0xf122] {
+            let props = [id.to_le_bytes().as_slice(), value.to_le_bytes().as_slice()].concat();
+            let group = art::atom(15, 0, 0xf000, &art::atom(3, 1, kind, &props));
+            let globals = record(0x00eb, &group);
+            let loaded = load(&shape_solid_fill_fixture(&base, None, &globals));
+            assert_eq!(matches!(loaded.sheets()[0].shapes().shapes[0].fill, ShapeFill::Solid(_)), expected,
+                "default {id:04x}={value:x} in {kind:04x}");
+        }
+    }
+    for group in [vec![0], art::atom(3, 2, 0xf00b, &[0x80, 1, 0, 0, 0, 0])] {
+        let loaded = load(&shape_solid_fill_fixture(&base, None, &record(0x00eb, &group)));
         assert!(!matches!(loaded.sheets()[0].shapes().shapes[0].fill, ShapeFill::Solid(_)));
     }
 }

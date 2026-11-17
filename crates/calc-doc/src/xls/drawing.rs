@@ -27,6 +27,7 @@ struct Atom<'a> {
     instance: u16,
     kind: u16,
     container: bool,
+    complete: bool,
     body: &'a [u8],
 }
 
@@ -43,6 +44,7 @@ fn atoms(data: &[u8]) -> Vec<Atom<'_>> {
             instance: word >> 4,
             kind,
             container: word & 0xF == 0xF,
+            complete: length <= data.len() - at - 8,
             body: &data[at + 8..end],
         });
         at = end;
@@ -89,6 +91,35 @@ pub(crate) fn blip_store(group: &[u8]) -> Vec<Option<Image>> {
             blip_image(&atom)
         })
         .collect()
+}
+
+/// Document drawing defaults can supply properties omitted from an individual shape
+/// (MS-ODRAW 2.2.12). Decline the literal-solid subset when those defaults change its meaning.
+pub(crate) fn solid_fill_defaults_safe(data: &[u8]) -> bool {
+    let records = atoms(data);
+    if records.iter().map(|atom| atom.body.len() + 8).sum::<usize>() != data.len() { return false; }
+    for atom in records {
+        if !atom.complete { return false; }
+        if matches!(atom.kind, 0xF00B | 0xF121 | 0xF122) {
+            if usize::from(atom.instance) * 6 > atom.body.len() { return false; }
+            for p in atom.body[..usize::from(atom.instance) * 6].chunks_exact(6) {
+                let id = u16::from_le_bytes([p[0], p[1]]);
+                let value = u32::from_le_bytes(p[2..6].try_into().expect("four bytes"));
+                if id & 0x3fff == 0x0301 && value != 0 { return false; }
+                if (0x0180..=0x01bf).contains(&(id & 0x3fff)) {
+                    if id & 0xc000 != 0 { return false; }
+                    match id {
+                        0x0180 if value == 0 => {},
+                        0x0182 if value == 0x10000 => {},
+                        0x0181 | 0x0183 | 0x0184 => {}, // Explicit foreground; unused background.
+                        0x01bf if value & !0x0011_0011 == 0 => {},
+                        _ => return false,
+                    }
+                }
+            }
+        } else if atom.container && !solid_fill_defaults_safe(atom.body) { return false; }
+    }
+    true
 }
 
 fn blip_image(atom: &Atom<'_>) -> Option<Image> {
@@ -243,6 +274,7 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                             let id = u16::from_le_bytes([p[0], p[1]]);
                             let value = u32::from_le_bytes([p[2], p[3], p[4], p[5]]);
                             let property = id & 0x3fff;
+                            if property == 0x0301 && value != 0 { shape.solid_fill_invalid = true; }
                             if (0x0180..=0x01bf).contains(&property) {
                                 if id & 0xc000 != 0
                                     || !matches!(property, 0x0180..=0x0184 | 0x01bf)
@@ -530,6 +562,7 @@ impl Drawing {
         geometry: &dyn Fn(u16, u16, u16, u16) -> (u16, i64, u16, i64),
         links_sheet: &str,
         styles: &super::styles::Styles,
+        solid_fill_defaults_safe: bool,
     ) -> Option<DrawingParts> {
         let mut x = Xml::new();
         x.open(
@@ -714,7 +747,7 @@ impl Drawing {
                     x.empty("a:avLst", &[]);
                     x.close("a:prstGeom");
                     if shape.no_fill && !shape.fill_invalid { x.empty("a:noFill", &[]); }
-                    else if let Some(rgb) = shape.solid_fill() {
+                    else if solid_fill_defaults_safe && let Some(rgb) = shape.solid_fill() {
                         x.open("a:solidFill", &[]);
                         x.empty("a:srgbClr", &[("val", rgb)]);
                         x.close("a:solidFill");
