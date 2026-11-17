@@ -258,6 +258,9 @@ fn sweep() {
                         let formats = loaded.sheets().iter().flat_map(|s| &s.charts().charts)
                             .flat_map(|chart| &chart.axes).filter(|axis| axis.number_format.is_some()).count();
                         println!("chart axes with explicit number formats: {formats}");
+                        let gridlines = loaded.sheets().iter().flat_map(|s| &s.charts().charts)
+                            .flat_map(|chart| &chart.axes).filter(|axis| axis.major_gridline_color.is_some()).count();
+                        println!("chart axes with explicit major gridline colors: {gridlines}");
                     }
                     if std::env::var_os("DNACALC_XLS_AUDIT_NOTE_RUNS").is_some() {
                         let count = loaded.sheets().iter().flat_map(|s| &s.review().notes)

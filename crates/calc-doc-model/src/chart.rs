@@ -140,6 +140,8 @@ pub struct ChartAxis {
     pub line_hidden: bool,
     /// Explicit axis label number format, when it is independent of source cells.
     pub number_format: Option<String>,
+    /// Explicit RGB for the major gridlines, when their line is supported.
+    pub major_gridline_color: Option<String>,
     /// Literal title text, when available.
     pub title: Option<String>,
     pub minimum: Option<String>,

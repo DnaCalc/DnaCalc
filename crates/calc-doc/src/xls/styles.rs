@@ -276,7 +276,7 @@ impl Styles {
         (if xf.is_style() { cell_formats + before } else { before }) as u32
     }
 
-    fn rgb(&self, icv: u16) -> Option<String> {
+    pub(crate) fn rgb(&self, icv: u16) -> Option<String> {
         let value = match icv {
             0..=7 => DEFAULT_PALETTE[usize::from(icv)],
             8..=63 => {

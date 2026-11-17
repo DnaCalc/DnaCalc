@@ -329,6 +329,9 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
                 obj['axis_text_bodies'] = [
                     {'type': axis.tag.rsplit('}', 1)[-1], 'body': None if (body := axis.find(C + 'txPr/' + A + 'bodyPr')) is None else tree(body)}
                     for axis in chart_root.iter() if axis.tag in (C + 'catAx', C + 'valAx', C + 'dateAx', C + 'serAx')]
+                obj['axis_major_gridlines'] = [
+                    {'type': axis.tag.rsplit('}', 1)[-1], 'properties': None if (lines := axis.find(C + 'majorGridlines')) is None else tree(lines)}
+                    for axis in chart_root.iter() if axis.tag in (C + 'catAx', C + 'valAx', C + 'dateAx', C + 'serAx')]
                 obj['axis_shapes'] = [
                     {'type': axis.tag.rsplit('}', 1)[-1], 'properties': None if (shape := axis.find(C + 'spPr')) is None else tree(shape)}
                     for axis in chart_root.iter() if axis.tag in (C + 'catAx', C + 'valAx', C + 'dateAx', C + 'serAx')]

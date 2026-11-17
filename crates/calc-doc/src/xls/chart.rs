@@ -185,6 +185,10 @@ pub(crate) struct Chart {
     axis_format_seen: [bool; 2],
     axis_format_invalid: [bool; 2],
     axis_formats: [Option<String>; 2],
+    pending_major_gridline: Option<usize>,
+    major_gridline_seen: [bool; 2],
+    major_gridline_invalid: [bool; 2],
+    major_gridline_color: [Option<String>; 2],
     primary_axis_parent_valid: bool,
     legend_font: Option<(String, bool, bool)>,
     legend_text_seen: bool,
@@ -241,6 +245,10 @@ impl Chart {
         if let Some(index) = self.pending_axis_line && record.id != LINE_FORMAT {
             self.pending_axis_line = None;
             self.axis_line_invalid[index] = true;
+        }
+        if let Some(index) = self.pending_major_gridline && record.id != LINE_FORMAT {
+            self.pending_major_gridline = None;
+            self.major_gridline_invalid[index] = true;
         }
         if record.id == DEFAULT_TEXT && self.stack.len() != 1 {
             // Group-level default labels can carry their own number format.
@@ -449,8 +457,9 @@ impl Chart {
                         self.tick_invalid[index] = true;
                         self.axis_line_invalid[index] = true;
                         self.axis_format_invalid[index] = true;
+                        self.major_gridline_invalid[index] = true;
                     }
-                    if self.primary_axis_seen[index] { self.axis_font_invalid[index] = true; self.tick_invalid[index] = true; self.axis_line_invalid[index] = true; self.axis_format_invalid[index] = true; }
+                    if self.primary_axis_seen[index] { self.axis_font_invalid[index] = true; self.tick_invalid[index] = true; self.axis_line_invalid[index] = true; self.axis_format_invalid[index] = true; self.major_gridline_invalid[index] = true; }
                     self.primary_axis_seen[index] = true;
                 }
                 self.pending = Some(block_code(Block::Axis));
@@ -478,10 +487,15 @@ impl Chart {
                 if let Some(index) = self.axis_index {
                     if body.len() != 2 || !record.continues.is_empty() || !self.primary_axis_parent_valid {
                         self.axis_line_invalid[index] = true;
+                        self.major_gridline_invalid[index] = true;
                     } else if body == [0, 0] {
                         if self.axis_line_seen[index] { self.axis_line_invalid[index] = true; }
                         self.axis_line_seen[index] = true;
                         self.pending_axis_line = Some(index);
+                    } else if body == [1, 0] {
+                        if self.major_gridline_seen[index] { self.major_gridline_invalid[index] = true; }
+                        self.major_gridline_seen[index] = true;
+                        self.pending_major_gridline = Some(index);
                     }
                 }
             }
@@ -491,6 +505,16 @@ impl Chart {
                         self.axis_line_hidden[index] = body[4..6] == [5, 0] && body[6..8] == [255, 255]
                             && body[8..10] == [8, 0] && body[10..12] == [0x4d, 0];
                     } else { self.axis_line_invalid[index] = true; }
+                }
+            }
+            LINE_FORMAT if self.pending_major_gridline.is_some() => {
+                if let Some(index) = self.pending_major_gridline.take() {
+                    if code_page.is_none() && record.continues.is_empty() && body.len() == 12
+                        && body[3] == 0 && body[4..10] == [0, 0, 255, 255, 0, 0] {
+                        let rgb = format!("FF{:02X}{:02X}{:02X}", body[0], body[1], body[2]);
+                        self.major_gridline_color[index] = styles.rgb(u16::from_le_bytes([body[10], body[11]]))
+                            .filter(|palette| palette == &rgb).map(|_| rgb[2..].to_owned());
+                    } else { self.major_gridline_invalid[index] = true; }
                 }
             }
             VALUE_RANGE if body.len() >= 42 && self.primary_axis_group
@@ -1002,6 +1026,12 @@ impl Chart {
                 x.close("c:scaling");
                 x.empty("c:delete", &[("val", "0".to_owned())]);
                 x.empty("c:axPos", &[("val", pos.to_owned())]);
+                if tag == "c:valAx" && !self.major_gridline_invalid[axis_index]
+                    && let Some(color) = self.major_gridline_color[axis_index].as_ref() {
+                    x.open("c:majorGridlines", &[]); x.open("c:spPr", &[]); x.open("a:ln", &[]);
+                    x.open("a:solidFill", &[]); x.empty("a:srgbClr", &[("val", color.clone())]);
+                    x.close("a:solidFill"); x.close("a:ln"); x.close("c:spPr"); x.close("c:majorGridlines");
+                }
                 if let Some(title) = self.titles.get(&title_key) {
                     title_element(&mut x, title, self.axis_title_fonts[usize::from(title_key - 2)].as_ref());
                 }

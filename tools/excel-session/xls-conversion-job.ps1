@@ -409,6 +409,13 @@ try {
                 $axis.TickLabels.NumberFormat = '0.00%'
                 @{format=[string]$axis.TickLabels.NumberFormat; linked=$axis.TickLabels.NumberFormatLinked}
             }
+            $entry.setup.chart_gridline_color = GetOrError {
+                $axis = $sheet.ChartObjects('cxCacheChart').Chart.Axes(2)
+                $axis.HasMajorGridlines = $true
+                $line = $axis.MajorGridlines.Format.Line
+                $line.Visible = -1; $line.ForeColor.RGB = 255; $line.Weight = 0.75
+                @{rgb=$line.ForeColor.RGB; weight=$line.Weight; visible=$line.Visible}
+            }
             $entry.setup.chart_legend_font = GetOrError {
                 $chart = $sheet.ChartObjects('cxCacheChart').Chart
                 $chart.HasLegend = $true

@@ -47,6 +47,15 @@ fn axis_label(chart: &ChartView, axis_id: u32, value: f64, step: f64) -> String 
         .unwrap_or_else(|| label(value, step))
 }
 
+/// A validated explicit gridline RGB, or the existing default.
+fn gridline_color(chart: &ChartView, axis_id: u32) -> String {
+    chart.axes.iter().find(|axis| axis.id == axis_id)
+        .and_then(|axis| axis.major_gridline_color.as_deref())
+        .filter(|color| color.len() == 6 && color.bytes().all(|b| b.is_ascii_hexdigit()))
+        .map(|color| format!("#{color}"))
+        .unwrap_or_else(|| GRID.to_owned())
+}
+
 /// An axis over `low..=high`: steps of 1, 2 or 5 times a power of ten, at most about eight over
 /// the values, from zero when the values allow it, and a twentieth of the range of room past the
 /// highest value (as Excel's 0 to 45 for values up to 40). Excel also fits the step to the axis'
@@ -591,6 +600,7 @@ fn category_marks(
         return;
     };
     let value_axis = axes[0].id;
+    let grid_color = gridline_color(chart, value_axis);
     let Some(category_axis) = chart
         .axes
         .iter()
@@ -655,14 +665,14 @@ fn category_marks(
         if horizontal {
             let _ = write!(
                 svg,
-                "<line x1=\"{p:.1}\" y1=\"{y0:.1}\" x2=\"{p:.1}\" y2=\"{y1:.1}\" stroke=\"{GRID}\"/><text data-dnacalc=\"chart-axis-tick\" data-chart-text=\"axis:{value_axis}\" x=\"{p:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">{}</text>",
+                "<line x1=\"{p:.1}\" y1=\"{y0:.1}\" x2=\"{p:.1}\" y2=\"{y1:.1}\" stroke=\"{grid_color}\"/><text data-dnacalc=\"chart-axis-tick\" data-chart-text=\"axis:{value_axis}\" x=\"{p:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">{}</text>",
                 y1 + 13.0,
                 escape(&axis_label(chart, value_axis, v, step))
             );
         } else {
             let _ = write!(
                 svg,
-                "<line x1=\"{x0:.1}\" y1=\"{p:.1}\" x2=\"{x1:.1}\" y2=\"{p:.1}\" stroke=\"{GRID}\"/><text data-dnacalc=\"chart-axis-tick\" data-chart-text=\"axis:{value_axis}\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"end\" fill=\"{AXIS}\">{}</text>",
+                "<line x1=\"{x0:.1}\" y1=\"{p:.1}\" x2=\"{x1:.1}\" y2=\"{p:.1}\" stroke=\"{grid_color}\"/><text data-dnacalc=\"chart-axis-tick\" data-chart-text=\"axis:{value_axis}\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"end\" fill=\"{AXIS}\">{}</text>",
                 x0 - 4.0,
                 p + 4.0,
                 escape(&axis_label(chart, value_axis, v, step))
@@ -976,6 +986,8 @@ fn scatter_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: Are
         }
     };
     let (x_axis, y_axis) = (axes[0].id, axes[1].id);
+    let grid_x = gridline_color(chart, x_axis);
+    let grid_y = gridline_color(chart, y_axis);
     let series = plot
         .series
         .iter()
@@ -1022,7 +1034,7 @@ fn scatter_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: Are
     for v in yscale.ticks() {
         let _ = write!(
             svg,
-            "<line x1=\"{x0:.1}\" y1=\"{:.1}\" x2=\"{x1:.1}\" y2=\"{:.1}\" stroke=\"{GRID}\"/><text data-chart-text=\"axis:{y_axis}\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"end\" fill=\"{AXIS}\">{}</text>",
+            "<line x1=\"{x0:.1}\" y1=\"{:.1}\" x2=\"{x1:.1}\" y2=\"{:.1}\" stroke=\"{grid_y}\"/><text data-chart-text=\"axis:{y_axis}\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"end\" fill=\"{AXIS}\">{}</text>",
             py(v),
             py(v),
             x0 - 4.0,
@@ -1033,7 +1045,7 @@ fn scatter_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: Are
     for v in xscale.ticks() {
         let _ = write!(
             svg,
-            "<line x1=\"{:.1}\" y1=\"{y0:.1}\" x2=\"{:.1}\" y2=\"{y1:.1}\" stroke=\"{GRID}\"/><text data-chart-text=\"axis:{x_axis}\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">{}</text>",
+            "<line x1=\"{:.1}\" y1=\"{y0:.1}\" x2=\"{:.1}\" y2=\"{y1:.1}\" stroke=\"{grid_x}\"/><text data-chart-text=\"axis:{x_axis}\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">{}</text>",
             px(v),
             px(v),
             px(v),
@@ -1113,6 +1125,10 @@ mod tests {
         assert_eq!(axis_label(&formatted, value_axis_id, 0.125, 0.1), "12.50%");
         let svg = chart_svg(&formatted, 600., 350.);
         assert!(svg.split('<').any(|tag| tag.starts_with("text ") && tag.contains("data-dnacalc=\"chart-axis-tick\"") && tag.contains('%')), "{svg}");
+        let mut grid_chart = charts[0].clone();
+        grid_chart.axes.iter_mut().find(|axis| axis.kind == "valAx").unwrap().major_gridline_color = Some("FF0000".into());
+        let grid_svg = chart_svg(&grid_chart, 600., 350.);
+        assert!(grid_svg.split('<').any(|tag| tag.starts_with("line ") && tag.contains("stroke=\"#FF0000\"")), "{grid_svg}");
         let mut no_axis_line = charts[0].clone();
         let category = no_axis_line.axes.iter_mut().find(|axis| axis.kind == "catAx").unwrap();
         category.line_hidden = true;
