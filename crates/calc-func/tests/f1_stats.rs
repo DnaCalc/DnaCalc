@@ -692,6 +692,28 @@ fn ets_short_seasonality_is_a_dominant_bin() {
     }
 }
 
+/// Excel 20527 automatic periods on ten to sixteen points (oracle corpus dcj9k_r38_ets row 2467,
+/// dcj9k_r39_seasonal rows 377 and 135; eng24 random Touchstone probes): the dominant-bin test
+/// of six to nine points, on the periodogram of the residual with its two end points weighted by
+/// one half. The first corpus history has autocorrelation 0.18 at lag 2; the next two have no
+/// dominant bin and keep period 4 through the autocorrelation fallback.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_seasonality_from_ten_points_weights_the_ends() {
+    let cases: [(f64, &[f64]); 6] = [
+        (2.0, &[2.0, 3.5, 3.75, 5.75, 5.5, 7.0, 8.5, 8.75, 10.75, 10.5, 12.0, 13.5]),
+        (4.0, &[-22.375, -24.75, -25.5, -30.125, -18.875, -21.25, -22.0, -26.625, -15.375, -17.75, -18.5, -23.125]),
+        (4.0, &[-1.875, 7.1875, 4.875, 0.0625, -0.75, 15.5625, 6.25, 5.9375, 4.625, 13.6875, 11.375, 6.5625, 5.75, 22.0625, 12.75, 12.4375]),
+        (2.0, &[-0.9537170081, -0.4590941568, -0.5992494722, -0.3201424011, 0.7217183074, -1.7172649178, -0.3368538318, -0.4855748224, -0.8837397625, -0.1154203943]),
+        (2.0, &[0.7917381339, -0.3077180444, -1.4251380232, 1.5932351316, -0.496543975, 1.160146954, -0.3373967985, 0.1434170223, -1.6621869784, -0.976628724]),
+        (3.0, &[-0.0427037999, -0.967350211, 0.6502948317, 0.0695334642, 2.1551116249, 1.1870054958, -1.4836516615, 0.9267071637, -0.8581093161, -0.571764971, -0.1419870377, -1.2609273204, 3.0833177183, 0.8646780908, -0.8452438925, 1.1811306211]),
+    ];
+    for (expected, history) in cases {
+        let timeline: Vec<f64> = (1..=history.len()).map(|v| v as f64).collect();
+        exact(call("FORECAST.ETS.SEASONALITY", vec![col(history), col(&timeline)]), expected);
+    }
+}
+
 /// Excel 20527 seasonal starting states below four cycles (oracle corpus dcj9k_r38_ets rows
 /// 1737-1738 and 2633-2634, period 4 on 8 and 12 points): the history is extended to
 /// ceil(3.5 p) points before the phase-mean chain, and the parameter search runs on the extension.
