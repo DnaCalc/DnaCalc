@@ -541,7 +541,10 @@ impl Model {
         self.errors.iter().fold(0.0, |sum, &v| sum + v * v)
     }
 
-    fn finish(&mut self, y: &[f64], beta: &mut f64) -> bool {
+    /// Excel's trend-stability test over the final half of the fitted trends;
+    /// an unstable trend restarts from the history's end (nonseasonal and
+    /// seasonal fits alike).
+    fn trend_unstable(&self, y: &[f64]) -> bool {
         // This window is independent of STAT's tail. It retains the transitions
         // within the final half of the observations, including its first state.
         let window = if y.len() <= 10 {
@@ -564,7 +567,11 @@ impl Model {
         let squares = trends.iter().fold(0.0, |sum, &v| add(sum, mul(v, v)));
         let mean = div(total, divisor);
         let variance = sub(div(squares, divisor), mul(mean, mean));
-        let reset = mean.abs() < div(mul(variance.sqrt(), divisor_window as f64), divisor);
+        mean.abs() < div(mul(variance.sqrt(), divisor_window as f64), divisor)
+    }
+
+    fn finish(&mut self, y: &[f64], beta: &mut f64) -> bool {
+        let reset = self.trend_unstable(y);
         if reset {
             self.level = *y.last().unwrap() - self.seasons[(y.len() - 1) % 2];
             self.trend = initial_slope(y);
@@ -908,43 +915,45 @@ fn finite(site: &Site<'_>, value: f64) -> Step<CalcValue> {
 // arithmetic order of the initial states and the final state adjustment.
 // ---------------------------------------------------------------------------
 
-/// Every (alpha, beta, gamma) Excel 20527 reported in probe_triples (400
-/// random histories with an explicit period, eng21).
+/// The (alpha, beta, gamma) candidates Excel 20527's seasonal search ends on:
+/// every triple Excel reported for 16,020 probe histories (eng21 probe_triples,
+/// eng21-23 initial-state probes) except the six that only its trend reset
+/// produces (a candidate with beta 0.001 in place of its own beta; see
+/// seasonal_general).
 const SEASONAL_PARAMETERS: &[(f64, f64, f64)] = &[
     (0.002, 0.001, 0.125),
     (0.002, 0.001, 0.25),
     (0.002, 0.001, 0.5),
     (0.002, 0.001, 0.75),
+    (0.1, 0.001, 0.899),
     (0.126, 0.001, 0.001),
     (0.126, 0.125, 0.001),
     (0.166667, 0.0833333, 0.0833333),
+    (0.166667, 0.0833333, 0.75),
+    (0.25, 0.001, 0.749),
+    (0.25, 0.249, 0.749),
     (0.251, 0.001, 0.001),
     (0.251, 0.001, 0.25),
+    (0.251, 0.25, 0.001),
     (0.251, 0.25, 0.25),
-    (0.333333, 0.001, 0.166667),
     (0.333333, 0.166667, 0.166667),
     (0.333333, 0.166667, 0.5),
-    (0.5, 0.001, 0.001),
-    (0.5, 0.001, 0.25),
     (0.5, 0.001, 0.499),
     (0.5, 0.25, 0.001),
     (0.5, 0.25, 0.25),
     (0.5, 0.499, 0.499),
     (0.501, 0.001, 0.001),
     (0.501, 0.5, 0.001),
-    (0.666667, 0.001, 0.166667),
     (0.666667, 0.166667, 0.166667),
     (0.666667, 0.5, 0.166667),
     (0.75, 0.001, 0.249),
     (0.75, 0.749, 0.249),
     (0.751, 0.001, 0.001),
     (0.751, 0.75, 0.001),
-    (0.833333, 0.001, 0.0833333),
     (0.833333, 0.0833333, 0.0833333),
     (0.833333, 0.75, 0.0833333),
     (0.9, 0.001, 0.099),
     (0.9, 0.899, 0.099),
-    (0.998, 0.001, 0.001),
     (0.998, 0.099, 0.001),
     (0.998, 0.249, 0.001),
     (0.998, 0.499, 0.001),
@@ -1202,7 +1211,12 @@ fn seasonal_general(
     // Excel's triple in 447 of 520 short histories, 220 when searching the history).
     let (initial, search_history) = excel_seasonal_initial(y, period);
     let candidates = if short { SHORT_TWO_PARAMETERS } else { SEASONAL_PARAMETERS };
-    let start = search_history.len() - statistic_window(search_history.len());
+    // The search validates on the last min(floor(0.4 N), max(10, 2p)) points of
+    // the N searched (none up to ten points): 381 of eng21's 400 longer probe
+    // selections against 282 with STAT's ten-point tail.
+    let searched = search_history.len();
+    let window = if searched <= 10 { searched } else { ((searched as f64 * 0.4) as usize).min(10.max(2 * period)) };
+    let start = searched - window;
     let validation = (start != 0).then_some(start);
     let run_on = |history: &[f64], (alpha, beta, gamma): (f64, f64, f64), validation: Option<usize>| {
         let initial = Initial { gamma, seasons: initial.seasons.clone(), ..initial };
@@ -1218,8 +1232,16 @@ fn seasonal_general(
             chosen = candidate;
         }
     }
-    let (alpha, beta, gamma) = chosen;
-    let model = run(chosen, None);
+    let (alpha, mut beta, gamma) = chosen;
+    let mut model = run(chosen, None);
+    // An unstable final trend restarts from the last observation with the
+    // starting trend, and Excel then reports beta 0.001 (22 of 23 eng21
+    // probe_fc forecasts that Excel's reported triple did not reproduce).
+    if model.trend_unstable(y) {
+        model.level = *y.last().unwrap() - model.seasons[(y.len() - 1) % period];
+        model.trend = initial.trend;
+        beta = 0.001;
+    }
     match output {
         Output::Statistic => {
             let statistics = model.statistics(y);

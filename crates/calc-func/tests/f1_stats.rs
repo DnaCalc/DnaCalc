@@ -694,6 +694,23 @@ fn ets_short_seasonal_history_extends_before_the_starting_states() {
     }
 }
 
+/// Excel 20527's seasonal search and trend reset (eng23 probe_long): the search validates on
+/// min(floor(0.4 N), max(10, 2p)) points, so period 12 on 44 points selects (0.251, 0.001, 0.25);
+/// an unstable final trend restarts from the last observation with the starting trend (period 2).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_seasonal_search_window_and_trend_reset() {
+    let reset: [f64; 44] = [10.372, 11.762, 10.235, 12.325, 8.256, 8.925, 10.819, 9.045, 18.416, 14.112, 16.82, 8.707, 15.913, 20.456, 12.851, 24.094, 17.563, 18.107, 7.596, 15.05, 2.075, -8.378, 10.762, 2.365, 26.789, 0.201, 13.276, 4.61, 19.964, 17.171, 12.494, 28.971, -11.222, -11.303, 2.716, 4.279, 22.65, 28.144, 44.542, 35.896, -22.565, 39.122, -17.413, 14.485];
+    let long: [f64; 44] = [10.106, 9.916, 10.642, 8.857, 7.505, 9.895, 9.41, 8.374, 5.372, 9.798, 5.091, 16.738, 4.571, 0.874, 21.259, -2.631, 24.382, 19.345, 19.872, 15.194, 27.922, 15.677, 11.242, 12.93, 1.527, 4.745, -9.307, 10.736, 6.989, 23.194, -3.645, 3.385, 6.949, 30.599, -15.173, 34.992, -4.434, 34.577, -16.609, 28.029, 40.318, 50.613, 49.53, -19.409];
+    let timeline: Vec<f64> = (1..=44).map(|v| v as f64).collect();
+    for (history, period, forecast) in [(&reset, 2.0, 0x402b_8ce3_12c6_fcef_u64), (&long, 12.0, 0x4039_6799_c47a_4cba)] {
+        exact(call("FORECAST.ETS", vec![n(45.0), col(history), col(&timeline), n(period)]), f64::from_bits(forecast));
+    }
+    for (statistic, expected) in [(1.0, 0.251), (2.0, 0.001), (3.0, 0.25)] {
+        exact(call("FORECAST.ETS.STAT", vec![col(&long), col(&timeline), n(statistic), n(12.0)]), expected);
+    }
+}
+
 /// Excel 20527 checks a scalar history against the longer timeline before reading the history.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
