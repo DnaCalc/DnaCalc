@@ -331,11 +331,12 @@ struct Object {
     chart: Option<super::chart::Chart>,
 }
 
-fn write_text_run(x: &mut Xml, text: &[u16], font: Option<(u32, bool, bool, Option<String>)>, face: Option<&str>) {
+fn write_text_run(x: &mut Xml, text: &[u16], font: Option<(u32, bool, bool, Option<String>)>, face: Option<&str>, underline: Option<bool>) {
     x.open("a:r", &[]);
     if let Some((size, bold, italic, colour)) = font {
-        x.open("a:rPr", &[("sz", size.to_string()), ("b", u8::from(bold).to_string()),
-            ("i", u8::from(italic).to_string())]);
+        let mut attributes = vec![("sz", size.to_string()), ("b", u8::from(bold).to_string()), ("i", u8::from(italic).to_string())];
+        if let Some(underline) = underline { attributes.push(("u", if underline { "sng" } else { "none" }.to_owned())); }
+        x.open("a:rPr", &attributes);
         if let Some(colour) = colour {
             x.open("a:solidFill", &[]);
             x.empty("a:srgbClr", &[("val", colour)]);
@@ -691,11 +692,11 @@ impl Drawing {
                         let rich = if String::from_utf16(text).is_ok() {
                             object.text_runs.as_ref().and_then(|runs| {
                                 let fonts: Vec<_> = runs.iter().map(|&(_, font)| styles.drawing_rich_font(font)).collect::<Option<_>>()?;
-                                let explicit = fonts.iter().all(|(_, (name, charset, family))|
+                                let explicit = fonts.iter().all(|(_, (name, charset, family), _)|
                                     *charset == 0 && *family <= 5 && !name.starts_with('+')
                                         && !name.chars().any(|c| c.is_control() || matches!(c, '\u{fffe}' | '\u{ffff}')));
                                 let first_face = &fonts.first()?.1;
-                                (explicit || fonts.iter().all(|(_, face)| face == first_face)).then_some((runs, fonts, explicit))
+                                (explicit || fonts.iter().all(|(_, face, _)| face == first_face)).then_some((runs, fonts, explicit))
                             })
                         } else { None };
                         let mut line_start = 0usize;
@@ -710,10 +711,10 @@ impl Drawing {
                                         let next = runs.get(index + 1).map_or(text.len(), |(next, _)| usize::from(*next));
                                         let start = usize::from(start).max(line_start);
                                         let end = next.min(line_start + line.len());
-                                        if start < end { write_text_run(&mut x, &text[start..end], Some(fonts[index].0.clone()), explicit.then_some(fonts[index].1.0)); }
+                                        if start < end { write_text_run(&mut x, &text[start..end], Some(fonts[index].0.clone()), explicit.then_some(fonts[index].1.0), Some(fonts[index].2)); }
                                     }
                                 } else {
-                                    write_text_run(&mut x, line, object.text_font.and_then(|font| styles.drawing_text_font(font)), None);
+                                    write_text_run(&mut x, line, object.text_font.and_then(|font| styles.drawing_text_font(font)), None, None);
                                 }
                             }
                             x.close("a:p");

@@ -167,12 +167,14 @@ pub struct ShapeTextRun {
     pub size: i64,
     pub bold: bool,
     pub italic: bool,
+    pub underline: bool,
     pub colour: Option<ShapeColour>,
 }
 
 impl ShapeTextRun {
     pub fn same_style_as(&self, other: &Self) -> bool {
-        self.face == other.face && self.size == other.size && self.bold == other.bold && self.italic == other.italic && self.colour == other.colour
+        self.face == other.face && self.size == other.size && self.bold == other.bold && self.italic == other.italic
+            && self.underline == other.underline && self.colour == other.colour
     }
 }
 

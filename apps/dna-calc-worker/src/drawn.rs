@@ -258,7 +258,7 @@ pub(crate) fn drawn(shape: &Shape, place: ChartPlace, theme: &[String]) -> Optio
                     runs: rich_runs.and_then(|runs| runs.get(i)).map_or_else(Vec::new, |runs| {
                         runs.iter().map(|run| ShapeParagraphRun {
                             text: run.text.clone(), face: run.face.clone(), size: run.size as f64 / 100.0 * 96.0 / 72.0,
-                            bold: run.bold, italic: run.italic,
+                            bold: run.bold, italic: run.italic, underline: run.underline,
                             colour: run.colour.as_ref().and_then(|c| css(c, theme)).unwrap_or_else(default_colour),
                         }).collect()
                     }),
@@ -363,8 +363,8 @@ mod tests {
         s.text = Some(vec!["AB".into()]); s.body.size = Some(1200); s.body.bold = true;
         s.body.colour = Some(ShapeColour::Rgb(0xff0000));
         s.body.runs = vec![vec![
-            ShapeTextRun { text: "A".into(), face: None, size: 1200, bold: true, italic: false, colour: Some(ShapeColour::Rgb(0xff0000)) },
-            ShapeTextRun { text: "B".into(), face: Some("Courier".into()), size: 900, bold: false, italic: true, colour: None },
+            ShapeTextRun { text: "A".into(), face: None, size: 1200, bold: true, italic: false, underline: false, colour: Some(ShapeColour::Rgb(0xff0000)) },
+            ShapeTextRun { text: "B".into(), face: Some("Courier".into()), size: 900, bold: false, italic: true, underline: true, colour: None },
         ]];
         let d = drawn(&s, place(), &[]).unwrap();
         let text = d.text.as_ref().unwrap();
@@ -372,9 +372,10 @@ mod tests {
         assert_eq!(text.paragraphs[0].runs[0].colour, "#FF0000");
         assert_eq!(text.paragraphs[0].runs[1].colour, "#000000");
         assert_eq!(text.paragraphs[0].runs[1].face.as_deref(), Some("Courier"));
+        assert!(text.paragraphs[0].runs[1].underline);
         let markup = dna_calc_model::drawn_shapes::shape_markup(&d, 100.0, 60.0, 1.0).unwrap();
         assert!(markup.contains("font-weight:bold;font-style:normal;color:#FF0000\">A</span>"), "{markup}");
-        assert!(markup.contains("font-weight:normal;font-style:italic;color:#000000;font-family:'\\43 \\6f \\75 \\72 \\69 \\65 \\72 '\">B</span>"), "{markup}");
+        assert!(markup.contains("font-weight:normal;font-style:italic;color:#000000;font-family:'\\43 \\6f \\75 \\72 \\69 \\65 \\72 ';text-decoration:underline\">B</span>"), "{markup}");
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -334,12 +334,12 @@ impl Styles {
     }
 
     /// A run whose effects the drawing text model can represent, plus its font-face identity.
-    pub(crate) fn drawing_rich_font(&self, ifnt: u16) -> Option<((u32, bool, bool, Option<String>), (&str, u8, u8))> {
+    pub(crate) fn drawing_rich_font(&self, ifnt: u16) -> Option<((u32, bool, bool, Option<String>), (&str, u8, u8), bool)> {
         if ifnt == 4 { return None; }
         let font = &self.fonts[self.font_index(ifnt)?];
-        if font.name.is_empty() || font.underline != 0 || font.script != 0 || font.flags & 0x00f8 != 0
+        if font.name.is_empty() || font.underline > 1 || font.script != 0 || font.flags & 0x00f8 != 0
             || !matches!(font.weight, 400 | 700) { return None; }
-        Some((self.drawing_text_font(ifnt)?, (&font.name, font.charset, font.family)))
+        Some((self.drawing_text_font(ifnt)?, (&font.name, font.charset, font.family), font.underline == 1))
     }
 
     /// `<rPr>` for the font `ifnt` of a rich text run; nothing when there is no such font.

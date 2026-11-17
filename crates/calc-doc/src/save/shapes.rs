@@ -573,8 +573,8 @@ fn object(shape: &Shape, remap: &BTreeMap<u32, u32>, media: &MediaRels, out: &mu
                 out.extend(format!("<a:endParaRPr lang=\"{lang}\" sz=\"{size}\"/>").as_bytes());
             } else if let Some(runs) = rich_runs.and_then(|runs| runs.get(index)) {
                 for run in runs {
-                    out.extend(format!("<a:r><a:rPr lang=\"{lang}\" sz=\"{}\" b=\"{}\" i=\"{}\">",
-                        run.size, u8::from(run.bold), u8::from(run.italic)).as_bytes());
+                    out.extend(format!("<a:r><a:rPr lang=\"{lang}\" sz=\"{}\" b=\"{}\" i=\"{}\" u=\"{}\">",
+                        run.size, u8::from(run.bold), u8::from(run.italic), if run.underline { "sng" } else { "none" }).as_bytes());
                     if let Some(c) = &run.colour {
                         out.extend(b"<a:solidFill>");
                         colour(c, out).map_err(fail)?;

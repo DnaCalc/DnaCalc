@@ -473,7 +473,7 @@ fn rich_text_runs(body: &Node) -> Option<Vec<Vec<ShapeTextRun>>> {
             || child.children.iter().filter(|n| n.local == "rPr").count() != 1
             || child.children.iter().filter(|n| n.local == "t").count() != 1 { return None; }
         let properties = child.child("rPr")?;
-        if properties.attributes.iter().any(|(k, _)| !matches!(k.as_str(), "sz" | "b" | "i" | "lang"))
+        if properties.attributes.iter().any(|(k, _)| !matches!(k.as_str(), "sz" | "b" | "i" | "u" | "lang"))
             || properties.children.iter().any(|n| !matches!(n.local.as_str(), "solidFill" | "latin"))
             || properties.children.iter().filter(|n| n.local == "solidFill").count() > 1
             || properties.children.iter().filter(|n| n.local == "latin").count() > 1 { return None; }
@@ -495,8 +495,9 @@ fn rich_text_runs(body: &Node) -> Option<Vec<Vec<ShapeTextRun>>> {
             Some(_) => return None,
             None => None,
         };
+        let underline = match properties.attribute("u") { None | Some("none") => false, Some("sng") => true, _ => return None };
         runs.push(ShapeTextRun { text: child.child("t")?.text.clone(), face, size,
-            bold: boolean("b")?, italic: boolean("i")?, colour });
+            bold: boolean("b")?, italic: boolean("i")?, underline, colour });
       }
       out.push(runs);
     }

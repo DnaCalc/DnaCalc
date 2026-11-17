@@ -219,6 +219,8 @@ pub struct ShapeParagraphRun {
     pub size: f64,
     pub bold: bool,
     pub italic: bool,
+    #[serde(default)]
+    pub underline: bool,
     pub colour: String,
 }
 
@@ -1178,9 +1180,10 @@ fn finish(shape: &DrawnShape, w: f64, h: f64, zoom: f64, id: &str, defs: String,
                         for c in face.chars() { let _ = write!(escaped, "\\{:x} ", c as u32); }
                         format!(";font-family:'{escaped}'")
                     }).unwrap_or_default();
-                    let _ = write!(out, "<span style=\"font-size:{}px;font-weight:{};font-style:{};color:{}{}\">{}</span>",
+                    let _ = write!(out, "<span style=\"font-size:{}px;font-weight:{};font-style:{};color:{}{}{}\">{}</span>",
                         number(run.size * zoom), if run.bold { "bold" } else { "normal" },
-                        if run.italic { "italic" } else { "normal" }, run.colour, face, escape(&run.text));
+                        if run.italic { "italic" } else { "normal" }, run.colour, face,
+                        if run.underline { ";text-decoration:underline" } else { "" }, escape(&run.text));
                 }
             } else {
                 out.push_str(&escape(&paragraph.text));
@@ -1400,8 +1403,8 @@ mod tests {
         let mut shape = sample();
         let paragraph = &mut shape.text.as_mut().unwrap().paragraphs[0];
         paragraph.runs = vec![
-            ShapeParagraphRun { text: "a ".into(), face: None, size: 12.0, bold: true, italic: false, colour: "#FF0000".into() },
-            ShapeParagraphRun { text: "< b".into(), face: None, size: 16.0, bold: false, italic: true, colour: "#000000".into() },
+            ShapeParagraphRun { text: "a ".into(), face: None, size: 12.0, bold: true, italic: false, underline: false, colour: "#FF0000".into() },
+            ShapeParagraphRun { text: "< b".into(), face: None, size: 16.0, bold: false, italic: true, underline: false, colour: "#000000".into() },
         ];
         let markup = shape_markup(&shape, 80.0, 40.0, 1.0).unwrap();
         assert!(markup.contains("font-size:12px;font-weight:bold;font-style:normal;color:#FF0000\">a </span>"), "{markup}");
