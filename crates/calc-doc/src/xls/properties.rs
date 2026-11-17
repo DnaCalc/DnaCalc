@@ -5,6 +5,8 @@ use std::collections::BTreeMap;
 
 const SUMMARY_FMTID: [u8; 16] = [0xe0, 0x85, 0x9f, 0xf2, 0xf9, 0x4f, 0x68, 0x10,
     0xab, 0x91, 0x08, 0x00, 0x2b, 0x27, 0xb3, 0xd9];
+const DOCUMENT_FMTID: [u8; 16] = [0x02, 0xd5, 0xcd, 0xd5, 0x9c, 0x2e, 0x1b, 0x10,
+    0x93, 0x97, 0x08, 0x00, 0x2b, 0x2c, 0xf9, 0xae];
 
 fn word(data: &[u8], at: usize) -> Option<u16> {
     Some(u16::from_le_bytes(data.get(at..at.checked_add(2)?)?.try_into().ok()?))
@@ -52,10 +54,31 @@ fn filetime(ticks: u64) -> Option<String> {
 
 /// Return the properties we can decode without making up a code page or accepting overlapping data.
 pub(crate) fn summary(data: &[u8]) -> Option<BTreeMap<u32, String>> {
-    if data.len() > 2 * 1024 * 1024 || word(data, 0)? != 0xfffe || word(data, 2)? > 1
-        || dword(data, 24)? != 1 || data.get(28..44)? != SUMMARY_FMTID { return None; }
-    let offset = dword(data, 44)?;
-    if offset < 48 || offset % 4 != 0 { return None; }
+    read(data, &SUMMARY_FMTID, &[2, 3, 4, 5, 6, 8, 9, 18], true)
+}
+
+pub(crate) fn document(data: &[u8]) -> Option<BTreeMap<u32, String>> {
+    read(data, &DOCUMENT_FMTID, &[2, 14, 15], false)
+}
+
+fn read(data: &[u8], fmtid: &[u8; 16], ids: &[u32], dates: bool) -> Option<BTreeMap<u32, String>> {
+    if data.len() > 2 * 1024 * 1024 || word(data, 0)? != 0xfffe || word(data, 2)? > 1 { return None; }
+    let set_count = dword(data, 24)?;
+    if !(1..=2).contains(&set_count) || (dates && set_count != 1) { return None; }
+    let header_end = 28 + set_count * 20;
+    let mut ranges = Vec::new();
+    let mut wanted = None;
+    for i in 0..set_count {
+        let at = 28 + i * 20;
+        let kind = data.get(at..at + 16)?;
+        let offset = dword(data, at + 16)?;
+        if offset < header_end || offset % 4 != 0 { return None; }
+        let end = offset.checked_add(dword(data, offset)?)?;
+        if end > data.len() || ranges.iter().any(|&(start, stop)| offset < stop && start < end) { return None; }
+        ranges.push((offset, end));
+        if kind == fmtid && wanted.replace(offset).is_some() { return None; }
+    }
+    let offset = wanted?;
     let size = dword(data, offset)?;
     let section = data.get(offset..offset.checked_add(size)?)?;
     let count = dword(section, 4)?;
@@ -78,7 +101,7 @@ pub(crate) fn summary(data: &[u8]) -> Option<BTreeMap<u32, String>> {
     let cp = value(1).and_then(|bytes| (word(bytes, 0) == Some(2) && word(bytes, 2) == Some(0))
         .then(|| word(bytes, 4)).flatten());
     let mut result = BTreeMap::new();
-    for id in [2, 3, 4, 5, 6, 8, 9] {
+    for &id in ids {
         let Some(bytes) = value(id) else { continue };
         if word(bytes, 2) != Some(0) { continue; }
         let Some(length) = dword(bytes, 4) else { continue };
@@ -111,11 +134,11 @@ pub(crate) fn summary(data: &[u8]) -> Option<BTreeMap<u32, String>> {
         };
         if let Some(text) = text.filter(|text| xml_text(text)) { result.insert(id, text); }
     }
-    for id in [12, 13] {
-        let Some(bytes) = value(id) else { continue };
+    for id in if dates { &[12, 13][..] } else { &[][..] } {
+        let Some(bytes) = value(*id) else { continue };
         if word(bytes, 0) != Some(0x40) || word(bytes, 2) != Some(0) { continue; }
         let Some(raw) = bytes.get(4..12) else { continue };
-        if let Some(text) = filetime(u64::from_le_bytes(raw.try_into().expect("eight bytes"))) { result.insert(id, text); }
+        if let Some(text) = filetime(u64::from_le_bytes(raw.try_into().expect("eight bytes"))) { result.insert(*id, text); }
     }
     Some(result)
 }

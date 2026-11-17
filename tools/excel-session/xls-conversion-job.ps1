@@ -87,6 +87,13 @@ try {
                 $properties.Item('Comments').Value = 'Controlled description'
                 @{title=[string]$properties.Item('Title').Value; author=[string]$properties.Item('Author').Value}
             }
+            $entry.setup.document_properties_extended = GetOrError {
+                $properties = $book.BuiltinDocumentProperties
+                $properties.Item('Category').Value = 'Controlled category'
+                $properties.Item('Manager').Value = 'Controlled manager'
+                $properties.Item('Company').Value = 'Controlled company'
+                @{category=[string]$properties.Item('Category').Value; company=[string]$properties.Item('Company').Value}
+            }
             $entry.setup.name = GetOrError { $n = $book.Names.Add('cx_rate', '=Data!$A$1'); [string]$n.RefersTo }
             $entry.setup.merge = GetOrError { $sheet.Range('C1:D1').Merge(); [string]$sheet.Range('C1').MergeArea.Address($false,$false) }
             $entry.setup.hyperlink = GetOrError { $h = $sheet.Hyperlinks.Add($sheet.Range('C2'), 'https://example.com/'); [string]$h.Address }

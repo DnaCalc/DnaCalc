@@ -43,11 +43,30 @@ def core_properties(z):
     root = ET.fromstring(z.read(target('', links[0])))
     dc = '{http://purl.org/dc/elements/1.1/}'
     cp = '{http://schemas.openxmlformats.org/package/2006/metadata/core-properties}'
+    dcterms = '{http://purl.org/dc/terms/}'
     result = {}
     for key, tag in [('title', dc + 'title'), ('subject', dc + 'subject'), ('author', dc + 'creator'),
                      ('keywords', cp + 'keywords'), ('description', dc + 'description'),
-                     ('last_modified_by', cp + 'lastModifiedBy'), ('revision', cp + 'revision')]:
+                     ('last_modified_by', cp + 'lastModifiedBy'), ('revision', cp + 'revision'), ('category', cp + 'category'),
+                     ('created', dcterms + 'created'), ('modified', dcterms + 'modified')]:
         element = root.find(tag)
+        if element is not None:
+            result[key] = element.text or ''
+    return result
+
+
+def extended_properties(z):
+    links = [rel for rel in relationships(z, '').values()
+             if rel.get('Type', '').endswith('/extended-properties')]
+    if not links:
+        return {}
+    if len(links) != 1:
+        raise ValueError('multiple extended-properties relationships')
+    root = ET.fromstring(z.read(target('', links[0])))
+    ns = '{http://schemas.openxmlformats.org/officeDocument/2006/extended-properties}'
+    result = {}
+    for key, tag in [('application', 'Application'), ('manager', 'Manager'), ('company', 'Company')]:
+        element = root.find(ns + tag)
         if element is not None:
             result[key] = element.text or ''
     return result
@@ -361,7 +380,7 @@ def package(data):
                            'pivots': pivot_tables(z, sh, path, shrels)})
         props = wb.find(M + 'workbookPr')
         calc = wb.find(M + 'calcPr')
-        return {'core_properties': core_properties(z),
+        return {'core_properties': core_properties(z), 'extended_properties': extended_properties(z),
                 'date1904': props is not None and props.get('date1904', '0') in ('1', 'true'),
                 'full_precision': calc is None or calc.get('fullPrecision', '1') in ('1', 'true'), 'names': names,
                 'indexed_colors': indexed_colors, 'external_caches': external_caches(z, wb, wbpath, rels),

@@ -573,33 +573,56 @@ fn ole_summary_properties_survive_conversion_and_save() {
     let mut created = 0x40u32.to_le_bytes().to_vec();
     created.extend(116_444_736_000_000_000u64.to_le_bytes());
     properties.push((12, created));
-    let mut section = vec![0u8; 8 + properties.len() * 8];
-    section[4..8].copy_from_slice(&(properties.len() as u32).to_le_bytes());
-    for (i, (id, data)) in properties.iter().enumerate() {
-        while section.len() % 4 != 0 { section.push(0); }
-        let offset = section.len() as u32;
-        section[8+i*8..12+i*8].copy_from_slice(&id.to_le_bytes());
-        section[12+i*8..16+i*8].copy_from_slice(&offset.to_le_bytes());
-        section.extend(data);
-    }
-    let len = section.len() as u32; section[..4].copy_from_slice(&len.to_le_bytes());
+    properties.push((18, ansi(b"Excel")));
+    let section = |items: &[(u32, Vec<u8>)]| {
+        let mut result = vec![0u8; 8 + items.len() * 8];
+        result[4..8].copy_from_slice(&(items.len() as u32).to_le_bytes());
+        for (i, (id, data)) in items.iter().enumerate() {
+            while result.len() % 4 != 0 { result.push(0); }
+            let offset = result.len() as u32;
+            result[8+i*8..12+i*8].copy_from_slice(&id.to_le_bytes());
+            result[12+i*8..16+i*8].copy_from_slice(&offset.to_le_bytes());
+            result.extend(data);
+        }
+        while result.len() % 4 != 0 { result.push(0); }
+        let len = result.len() as u32; result[..4].copy_from_slice(&len.to_le_bytes());
+        result
+    };
     let mut summary = vec![0u8; 48];
     summary[..2].copy_from_slice(&0xfffeu16.to_le_bytes());
     summary[24..28].copy_from_slice(&1u32.to_le_bytes());
     summary[28..44].copy_from_slice(&[0xe0, 0x85, 0x9f, 0xf2, 0xf9, 0x4f, 0x68, 0x10,
         0xab, 0x91, 0x08, 0x00, 0x2b, 0x27, 0xb3, 0xd9]);
-    summary[44..48].copy_from_slice(&48u32.to_le_bytes()); summary.extend(section);
+    summary[44..48].copy_from_slice(&48u32.to_le_bytes()); summary.extend(section(&properties));
+    let doc_section = section(&[(1, properties[0].1.clone()), (2, ansi(b"Planning")),
+        (14, ansi(b"Manager")), (15, ansi(b"Company & Co"))]);
+    let mut doc_summary = vec![0u8; 68];
+    doc_summary[..2].copy_from_slice(&0xfffeu16.to_le_bytes());
+    doc_summary[24..28].copy_from_slice(&2u32.to_le_bytes());
+    doc_summary[28..44].copy_from_slice(&[0x02, 0xd5, 0xcd, 0xd5, 0x9c, 0x2e, 0x1b, 0x10,
+        0x93, 0x97, 0x08, 0x00, 0x2b, 0x2c, 0xf9, 0xae]);
+    doc_summary[44..48].copy_from_slice(&68u32.to_le_bytes());
+    doc_summary[48..64].copy_from_slice(&[0x05, 0xd5, 0xcd, 0xd5, 0x9c, 0x2e, 0x1b, 0x10,
+        0x93, 0x97, 0x08, 0x00, 0x2b, 0x2c, 0xf9, 0xae]);
+    doc_summary[64..68].copy_from_slice(&(68u32 + doc_section.len() as u32).to_le_bytes());
+    doc_summary.extend(doc_section); doc_summary.extend(section(&[]));
     let workbook = workbook_stream(false, &[], &[Sheet::worksheet("S", number(0, 0, 1.0))]);
-    let bytes = compound(&[("Workbook", workbook.clone()), ("\u{5}SummaryInformation", summary.clone())]);
+    let bytes = compound(&[("Workbook", workbook.clone()), ("\u{5}SummaryInformation", summary.clone()),
+        ("\u{5}DocumentSummaryInformation", doc_summary)]);
     let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
     let check = |doc: &calc_doc::OpenedDocument| {
         let xml = String::from_utf8(doc.package().read_part("docProps/core.xml").unwrap()).unwrap();
         for part in ["<dc:title>A &amp; B _x0041_&#xD;C</dc:title>", "<dc:creator>café</dc:creator>",
             "<cp:lastModifiedBy>東京</cp:lastModifiedBy>",
+            "<cp:category>Planning</cp:category>",
             "<dcterms:created xsi:type=\"dcterms:W3CDTF\">1970-01-01T00:00:00Z</dcterms:created>"] { assert!(xml.contains(part), "{xml}"); }
         assert!(!xml.contains("dc:subject"), "{xml}");
         let rels = doc.package().relationships_of(None).unwrap();
         assert!(rels.items().iter().any(|rel| rel.resolved.as_deref() == Some("docProps/core.xml")));
+        let app = String::from_utf8(doc.package().read_part("docProps/app.xml").unwrap()).unwrap();
+        for part in ["<Application>Excel</Application>", "<Manager>Manager</Manager>",
+            "<Company>Company &amp; Co</Company>"] { assert!(app.contains(part), "{app}"); }
+        assert!(rels.items().iter().any(|rel| rel.resolved.as_deref() == Some("docProps/app.xml")));
     };
     check(&document);
     let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();

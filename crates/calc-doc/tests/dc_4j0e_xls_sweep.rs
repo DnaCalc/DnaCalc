@@ -52,6 +52,7 @@ fn sweep() {
     let audit_core = std::env::var_os("DNACALC_XLS_AUDIT_CORE_PROPERTIES").is_some();
     let (mut core_files, mut core_titles, mut core_authors, mut core_modifiers) = (0usize, 0usize, 0usize, 0usize);
     let (mut core_created, mut core_modified) = (0usize, 0usize);
+    let (mut core_categories, mut app_files, mut app_names, mut app_managers, mut app_companies) = (0usize, 0usize, 0usize, 0usize, 0usize);
     let (mut chart_sheets, mut chart_sheet_files) = (0usize, 0usize);
     let (mut chart_points, mut chart_files) = (0usize, 0usize);
     let (mut category_points, mut category_files) = (0usize, 0usize);
@@ -81,7 +82,13 @@ fn sweep() {
                 document.as_ref().ok().and_then(|doc| doc.package().read_part("docProps/core.xml").ok()).map(|xml| {
                     let has = |tag: &[u8]| xml.windows(tag.len()).any(|window| window == tag);
                     (has(b"<dc:title>"), has(b"<dc:creator>"), has(b"<cp:lastModifiedBy>"),
-                        has(b"<dcterms:created "), has(b"<dcterms:modified "))
+                        has(b"<dcterms:created "), has(b"<dcterms:modified "), has(b"<cp:category>"))
+                })
+            } else { None };
+            let app = if audit_core {
+                document.as_ref().ok().and_then(|doc| doc.package().read_part("docProps/app.xml").ok()).map(|xml| {
+                    let has = |tag: &[u8]| xml.windows(tag.len()).any(|window| window == tag);
+                    (has(b"<Application>"), has(b"<Manager>"), has(b"<Company>"))
                 })
             } else { None };
             let written_chart_sheets = if audit_chart_sheets {
@@ -133,11 +140,11 @@ fn sweep() {
                     (formulas, failed, caches, saved_records, points, categories)
                 })
             });
-            (report, document.map(|_| ()), load, written_phonetic, written_chart_sheets, core)
+            (report, document.map(|_| ()), load, written_phonetic, written_chart_sheets, core, app)
         }));
         match result {
             Err(_) => panics.push(file.display().to_string()),
-            Ok((report, document, load, written_phonetic, written_chart_sheets, core)) => {
+            Ok((report, document, load, written_phonetic, written_chart_sheets, core, app)) => {
                 match document {
                     Err(OpenError::LegacyWorkbook { detail, .. }) => {
                         let key = detail.chars().take(70).collect::<String>();
@@ -151,10 +158,15 @@ fn sweep() {
                     }
                     Ok(()) => {
                         opened += 1;
-                        if let Some((title, author, modifier, created, modified)) = core {
+                        if let Some((title, author, modifier, created, modified, category)) = core {
                             core_files += 1; core_titles += usize::from(title);
                             core_authors += usize::from(author); core_modifiers += usize::from(modifier);
                             core_created += usize::from(created); core_modified += usize::from(modified);
+                            core_categories += usize::from(category);
+                        }
+                        if let Some((name, manager, company)) = app {
+                            app_files += 1; app_names += usize::from(name); app_managers += usize::from(manager);
+                            app_companies += usize::from(company);
                         }
                         chart_sheets += written_chart_sheets;
                         chart_sheet_files += usize::from(written_chart_sheets != 0);
@@ -217,7 +229,8 @@ fn sweep() {
         println!("chart sheets with a linked chart: {chart_sheets} in {chart_sheet_files} files (partial chart conversion, not an Excel match verdict)");
     }
     if audit_core {
-        println!("core metadata parts: {core_files} files; title {core_titles}, author {core_authors}, last saved by {core_modifiers}, created {core_created}, modified {core_modified} (not an Excel match verdict)");
+        println!("core metadata parts: {core_files} files; title {core_titles}, author {core_authors}, last saved by {core_modifiers}, created {core_created}, modified {core_modified}, category {core_categories} (not an Excel match verdict)");
+        println!("extended metadata parts: {app_files} files; application {app_names}, manager {app_managers}, company {app_companies} (not an Excel match verdict)");
     }
     println!("refused to open, by reason:");
     for (reason, n) in &refused {

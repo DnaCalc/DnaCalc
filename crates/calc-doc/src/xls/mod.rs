@@ -81,6 +81,11 @@ pub(crate) fn convert(
     let compound = cfb::Compound::open(bytes).map_err(|e| refuse("(compound file)", e.0))?;
     let summary = compound.read("\u{5}SummaryInformation").ok().flatten()
         .and_then(|bytes| properties::summary(&bytes)).unwrap_or_default();
+    let document_properties = compound.read("\u{5}DocumentSummaryInformation").ok().flatten()
+        .and_then(|bytes| properties::document(&bytes)).unwrap_or_default();
+    let has_core_properties = summary.keys().any(|id| *id != 18) || document_properties.contains_key(&2);
+    let has_extended_properties = summary.contains_key(&18) || document_properties.contains_key(&14)
+        || document_properties.contains_key(&15);
     let name = ["Workbook", "Book"]
         .into_iter()
         .find(|name| compound.find(name).is_some())
@@ -624,7 +629,7 @@ pub(crate) fn convert(
         ));
     }
     let macros = vba.is_some() || globals.sheets.iter().any(|s| s.kind == SheetKind::MacroSheet);
-    if !summary.is_empty() {
+    if has_core_properties {
         let mut core = Xml::new();
         core.open("cp:coreProperties", &[("xmlns:cp", "http://schemas.openxmlformats.org/package/2006/metadata/core-properties".to_owned()),
             ("xmlns:dc", "http://purl.org/dc/elements/1.1/".to_owned()),
@@ -641,8 +646,21 @@ pub(crate) fn convert(
                 core.element(name, &[("xsi:type", "dcterms:W3CDTF".to_owned())], text);
             }
         }
+        if let Some(text) = document_properties.get(&2) {
+            core.open("cp:category", &[]); core.xml_text_str(text); core.close("cp:category");
+        }
         core.close("cp:coreProperties");
         parts.push(("docProps/core.xml".to_owned(), "application/vnd.openxmlformats-package.core-properties+xml", core.out));
+    }
+    if has_extended_properties {
+        let mut app = Xml::new();
+        app.open("Properties", &[("xmlns", "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties".to_owned())]);
+        for (name, text) in [("Application", summary.get(&18)), ("Manager", document_properties.get(&14)),
+            ("Company", document_properties.get(&15))] {
+            if let Some(text) = text { app.open(name, &[]); app.xml_text_str(text); app.close(name); }
+        }
+        app.close("Properties");
+        parts.push(("docProps/app.xml".to_owned(), "application/vnd.openxmlformats-officedocument.extended-properties+xml", app.out));
     }
     let report = LegacyReport {
         biff_version: if biff5 { 5 } else { 8 },
@@ -916,10 +934,14 @@ pub(crate) fn convert(
             ("Target", "xl/workbook.xml".to_owned()),
         ],
     );
-    if !summary.is_empty() {
+    if has_core_properties {
         root_rels.empty("Relationship", &[("Id", "rIdCore".to_owned()),
             ("Type", "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties".to_owned()),
             ("Target", "docProps/core.xml".to_owned())]);
+    }
+    if has_extended_properties {
+        root_rels.empty("Relationship", &[("Id", "rIdApp".to_owned()),
+            ("Type", format!("{REL_TYPE}/extended-properties")), ("Target", "docProps/app.xml".to_owned())]);
     }
     root_rels.close("Relationships");
 
