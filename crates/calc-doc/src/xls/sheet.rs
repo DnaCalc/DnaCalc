@@ -269,6 +269,10 @@ pub(crate) fn read(
                 super::workbook::BOF => depth += 1,
                 super::workbook::EOF => depth -= 1,
                 _ => {
+                    // Chart records are only partially converted: formatting, cache values,
+                    // secondary axes and other data remain unsupported. Count them until the
+                    // chart reader can report complete handling for each record.
+                    *unknown.entry(record.id).or_insert(0) += 1;
                     let print = |rgce: &[u8]| -> Option<String> {
                         let context = context.links.context(Some(context.tab));
                         match print(rgce, &[], &context, Origin::default()) {

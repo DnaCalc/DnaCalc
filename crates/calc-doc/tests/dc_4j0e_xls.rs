@@ -1763,6 +1763,7 @@ fn pictures_text_boxes_and_charts_are_written_as_a_drawing() {
     // The ellipse-less type 201 shape is not written, and says so.
     let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
     assert_eq!(report.unread_objects.values().sum::<u32>(), 0, "{:?}", report.unread_objects);
+    assert_eq!(report.unknown_records.get(&0x1017), Some(&1));
     // The workbook loads and has a chart and shapes.
     let loaded = load(&bytes);
     let sheet = &loaded.sheets()[0];
