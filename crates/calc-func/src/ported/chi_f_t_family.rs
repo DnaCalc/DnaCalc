@@ -129,26 +129,39 @@ pub fn chisq_inv_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Works
     )
 }
 
-/// Excel's right-tail chi-square inverse at very large degrees (dc-6332.18, fn9): the leading
-/// terms of R. B. Goldstein's chi-square quantile approximation (Comm. ACM 16(8), 1973,
-/// Algorithm 451), `x = n * c^3` with `c = 1.0000886 + 0.4713941 * z / sqrt(n)` and `z` the
-/// upper-tail normal deviate of p; its other terms carry powers of 1/n and are below the last
-/// place here. The constants are the published coefficients; the staging (every product and sum
-/// stored from x87 precision 64, the cube as `(c c) c`) is one of several the answers cannot tell
-/// apart. Excel 16.0.20527 bank rows with n >= 2^53 and p in [0.0025, 1): 244 of 244, which
-/// includes every row the measured large-shape factor and unit routes matched. Below 2^53 the
-/// other terms show (n = 8.9e10 is not a cube of this form) and Excel's route is not identified.
+/// Excel's right-tail chi-square inverse at large degrees (dc-6332.18, fn9): R. B. Goldstein's
+/// chi-square quantile approximation (Comm. ACM 16(8), 1973, Algorithm 451) without refinement,
+/// `x = n c^3` with `n` the truncated degrees and `c` a polynomial in the upper-tail normal
+/// deviate `z`, Horner in `z`, whose coefficients are polynomials in `f = 1/n`:
+/// `c = (1.0000886 - 0.2237368 f) + z (0.4713941 sqrt f + z 1.348028e-4 f)`. These are
+/// Goldstein's published coefficients (no code read); Excel's answers select them (the `f` terms
+/// read off at n = 1e11 are -0.223732 and 0.000135 z^2) and their staging (every product and sum
+/// stored from x87 precision 64; the `f`-free constant rounded with its `f` term first). His
+/// terms in higher powers of `sqrt f` stay below the last place for `|z| <= 4` from n = 2^40 and
+/// `|z| <= 2.75` from n = 5e10.
+/// Between 1e10 and about 4.5e10 Excel returns #NUM! for a band of answers (not modelled: the
+/// route starts above it).
 fn goldstein_large_degree_root(p: f64, deg_freedom: f64) -> Option<f64> {
     use crate::ported::excel_numeric::{excel_sqrt_staged, excel_x87_add, excel_x87_div, excel_x87_mul};
-    if !(f64::from_bits(0x4340_0000_0000_0000)..f64::from_bits(0x7e70_0000_0000_0000)).contains(&deg_freedom) // [2^53, 2^1000)
-        || !(0.0025..1.0).contains(&p)
-    {
+    let n = deg_freedom.trunc();
+    if !(5e10..f64::from_bits(0x7e70_0000_0000_0000)).contains(&n) {
+        // [5e10, 2^1000)
         return None;
     }
     let z = crate::ported::normal_log_family::norm_s_inv_kernel(1.0 - p).ok()?;
-    let f1 = excel_sqrt_staged(excel_x87_div(1.0, deg_freedom));
-    let c = excel_x87_add(excel_x87_mul(excel_x87_mul(0.4713941, z), f1), 1.0000886);
-    Some(excel_x87_mul(deg_freedom, excel_x87_mul(excel_x87_mul(c, c), c)))
+    // Goldstein's terms in z^3 f^(3/2) and beyond reach the last place for larger |z| at the
+    // smaller degrees (fresh Excel answers: misses only at |z| >= 2.98 with n <= 2.6e11).
+    let z_bound = if n >= f64::from_bits(0x4270_0000_0000_0000) { 4.0 } else { 2.75 }; // 2^40
+    if !(z.abs() <= z_bound) {
+        return None;
+    }
+    let f = excel_x87_div(1.0, n);
+    let f1 = excel_sqrt_staged(f);
+    let a0 = excel_x87_add(1.0000886, excel_x87_mul(-0.2237368, f));
+    let a1 = excel_x87_mul(0.4713941, f1);
+    let a2 = excel_x87_mul(1.348028e-4, f);
+    let c = excel_x87_add(excel_x87_mul(excel_x87_add(excel_x87_mul(a2, z), a1), z), a0);
+    Some(excel_x87_mul(n, excel_x87_mul(excel_x87_mul(c, c), c)))
 }
 
 pub fn chisq_inv_rt_kernel(probability: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorCode> {
@@ -609,11 +622,12 @@ mod tests {
         assert_eq!(unit.unwrap().to_bits(), 0x4047_bc14_af00_45bc);
     }
 
-    /// Excel 16.0.20527 full-bank rows (dc-6332.18) at degrees 1e16 to 3.4e22 where Excel publishes
-    /// Goldstein's leading terms and the old route refused with #NUM!.
+    /// Excel 16.0.20527 full-bank rows (dc-6332.18) at degrees 8.9e10 to 3.4e22 where Excel publishes
+    /// Goldstein's approximation and the old route refused with #NUM!, then fresh Touchstone answers
+    /// (2026-11-17, fn9) at non-integer degrees 9e10 to 1.6e17, which Excel truncates.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn huge_degree_right_tail_is_goldstein_leading_terms() {
+    fn large_degree_right_tail_is_goldsteins_approximation() {
         for (p, df, excel) in [
             (0.11070131_f64, 0x43fa_85f8_1b35_198c_u64, 0x43fa_87c6_2b7b_7a57_u64),
             (f64::from_bits(0x3f65_4b16_7c9e_eb00), 0x4341_fc91_497f_ccf2, 0x4341_fdca_ad94_65e9),
@@ -625,6 +639,13 @@ mod tests {
             (f64::from_bits(0x3fd8_cdc7_eddc_570a), 0x43d1_3b91_ce4c_21a6, 0x43d1_3cbe_045b_5c58),
             (f64::from_bits(0x3fda_b73e_2bf5_86bc), 0x43e4_246f_50ec_f36c, 0x43e4_25ce_3744_d962),
             (f64::from_bits(0x3fea_2137_c1fa_f303), 0x4387_4e58_7cfc_85d8, 0x4387_4fee_7fad_833c),
+            (f64::from_bits(0x3fe0_4834_c6d4_b9b8), 0x4234_a8a1_cbb6_2890, 0x4234_aa09_8caa_8d7b),
+            (f64::from_bits(0x3fef_b953_ca59_65e5), 0x4235_68a8_776c_72db, 0x4235_6a0d_d880_08e5),
+            (f64::from_bits(0x3fef_5a9c_3e49_81cf), 0x4238_dc09_67c2_e0f9, 0x4238_ddac_06f4_acef),
+            (f64::from_bits(0x3fad_8482_bc0e_5cb1), 0x4243_1017_ae29_a0e8, 0x4243_116a_a6c6_5319),
+            (f64::from_bits(0x3fa3_86c6_b5fc_af84), 0x425e_a996_05ef_015c, 0x425e_abb3_22dd_c316),
+            (f64::from_bits(0x3f6c_5f21_fafb_ae3c), 0x42b1_a6f4_4253_98de, 0x42b1_a828_c7d6_9637),
+            (f64::from_bits(0x3fbb_4143_b3a2_169c), 0x4376_410b_84d9_c2fa, 0x4376_428f_3738_0314),
         ] {
             let df = f64::from_bits(df);
             assert_eq!(chisq_inv_rt_kernel(p, df).unwrap().to_bits(), excel, "CHISQ.INV.RT({p}, {df})");

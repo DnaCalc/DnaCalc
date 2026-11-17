@@ -90,3 +90,23 @@ the last two coefficients of R. B. Goldstein's chi-square quantile approximation
   -NORMSINV(p). The n = 8.9e10 row is not a cube of this form: the 1/n terms show there.
 - Landed for n in [2^53, 2^1000) and p in [0.0025, 1) (the measured range); GAMMA.INV's
   large-shape route (shared code) is unchanged.
+
+### Down to n = 5e10: the 1/n terms (fn9, same day)
+
+Below 2^53 the leading terms drift (12 ulp at 1e14, 1,375 at 1e12). Excel answers there are
+still n c^3 with Goldstein's c, now with its 1/n terms. Read off at n = 1e11 (c minus the leading
+terms, divided by f = 1/n, fitted as a polynomial in z): -0.223732 + 0.000135 z^2, Goldstein's
+-0.2237368 and 1.348028e-4. Bit level: c is Horner in z with coefficients in f,
+c = (1.0000886 - 0.2237368 f) + z (0.4713941 sqrt f + z 1.348028e-4 f), every product and sum
+stored; the constant with its f term rounds first (sum orders without it miss by one ulp of c on
+about a fifth of the points). n is the truncated degrees (the 8.9e10 bank row has a fraction).
+
+- Excel returns #NUM! in a band from about 1e10 to 4.5e10 (at 3e10 for nearly every p; at 4e10 for
+  z <= -0.31; at 1.2e10 for z >= -0.52): not modelled; the route starts at 5e10.
+- Goldstein's higher terms (z^3 f^(3/2) and beyond) reach the last place at large |z| and small n:
+  the route takes |z| <= 2.75 from 5e10 and |z| <= 4 from 2^40.
+- Fresh, frozen before asking (chiq6: 5,000 points, |z| within the bounds, n from 5e10 to 2^90,
+  non-integer degrees): CHISQ.INV.RT and CHIINV 4,990 of 5,000; the 10 misses are single-ulp
+  cases at n <= 2.9e11. None of the published f^(3/2) coefficients placed on z f^(3/2) or
+  z^3 f^(3/2) removes them (best 16,189 of 16,200 over all batches), so that residue is open.
+- Raw answers: R2 dnacalc-evidence/research/round63/fn9-20261117/ (chiq1 to chiq6).
