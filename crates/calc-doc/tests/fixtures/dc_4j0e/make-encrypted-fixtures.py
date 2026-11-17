@@ -1,10 +1,12 @@
-"""Writes the encrypted Workbook streams of dc-4j0e.7's tests (run: python3 -I make-encrypted-fixtures.py).
+"""Writes encrypted Workbook and pivot-cache streams for dc-4j0e.7/.13 tests (run: python3 -I make-encrypted-fixtures.py).
 
-Each output is the `Workbook` stream of a BIFF8 file with one sheet, "Secret", holding the number
+The original outputs are `Workbook` streams of a BIFF8 file with one sheet, "Secret", holding the number
 42.5 in A1 and the text "classified" in B1, obfuscated or encrypted as the specifications say:
 MS-OFFCRYPTO 2.3.7 (XOR), 2.3.6 (RC4) and 2.3.5 (RC4 CryptoAPI), MS-XLS 2.2.10 (which records and
 bytes stay clear, the 1024-byte RC4 blocks). Written independently of the Rust reader, from the
-specification text: only Python's hashlib is shared. The tests wrap each stream in a compound file.
+specification text: only Python's hashlib is shared. The tests wrap the streams in a compound file.
+The pivot variants add two independent cache streams with shared numbers and long inline text;
+each stream restarts its cipher at byte zero and crosses multiple 1024-byte block boundaries.
 """
 import hashlib
 import struct
@@ -54,11 +56,12 @@ def plain_stream(filepass_body):
 CLEAR = {0x0809, 0x002F, 0x0194, 0x0195, 0x00E1, 0x0196, 0x0138}  # BOF, FilePass, UsrExcl, FileLock, InterfaceHdr, RRDInfo, RRDHead (MS-XLS 2.2.10)
 
 
-def crypt_records(parts, keystream_byte):
+def crypt_records(parts, keystream_byte, encrypt_from_start=False):
     """Encrypts every record body after the FILEPASS, given `keystream_byte(position, record)`
-    returning the transformation of one byte (position counted from the stream start)."""
+    returning the transformation of one byte (position counted from the stream start).
+    Cache streams have no FILEPASS; encrypt_from_start selects their first record."""
     out = bytearray()
-    seen_filepass = False
+    seen_filepass = encrypt_from_start
     for kind, data in parts:
         rid, size = struct.unpack_from("<HH", data)
         body = bytearray(data[4:])
@@ -145,11 +148,11 @@ def password_verifier(pw):
     return verifier ^ 0xCE4B
 
 
-def xor_stream(pw_text):
+def xor_stream(pw_text, parts_factory=plain_stream, encrypt_from_start=False):
     pw = pw_text.encode("latin-1")
     arr = xor_array(pw)
     filepass = struct.pack("<HHH", 0, xor_key(pw), password_verifier(pw))
-    parts = plain_stream(filepass)
+    parts = parts_factory(filepass)
 
     # XorArrayIndex starts at (position of the record's data + record size) mod 16 and advances
     # one for each byte of the record.
@@ -158,7 +161,7 @@ def xor_stream(pw_text):
         value = ((byte << 5) | (byte >> 3)) & 0xFF
         return value ^ arr[index]
 
-    return crypt_records(parts, transform_record)
+    return crypt_records(parts, transform_record, encrypt_from_start)
 
 
 # --- RC4 ---
@@ -196,17 +199,19 @@ def rc4_97_key_for_block(password, salt):
     return lambda block: hashlib.md5(h1[:5] + struct.pack("<I", block)).digest()
 
 
-def rc4_stream(password, salt=bytes(range(16)), verifier=bytes(range(100, 116))):
+def rc4_stream(password, salt=bytes(range(16)), verifier=bytes(range(100, 116)),
+               parts_factory=plain_stream, encrypt_from_start=False):
     key = rc4_97_key_for_block(password, salt)
     gen = rc4(key(0))
     enc = bytes(b ^ next(gen) for b in verifier + hashlib.md5(verifier).digest())
     filepass = struct.pack("<HHH", 1, 1, 1) + salt + enc[:16] + enc[16:]
-    parts = plain_stream(filepass)
+    parts = parts_factory(filepass)
     ks = block_keystreams(key)
-    return crypt_records(parts, lambda position, k, size, byte: byte ^ ks(position))
+    return crypt_records(parts, lambda position, k, size, byte: byte ^ ks(position), encrypt_from_start)
 
 
-def cryptoapi_stream(password, key_bits, salt=bytes(range(50, 66)), verifier=bytes(range(7, 23))):
+def cryptoapi_stream(password, key_bits, salt=bytes(range(50, 66)), verifier=bytes(range(7, 23)),
+                     parts_factory=plain_stream, encrypt_from_start=False):
     def key_for_block(block):
         h0 = hashlib.sha1(salt + password.encode("utf-16-le")).digest()
         final = hashlib.sha1(h0 + struct.pack("<I", block)).digest()
@@ -221,9 +226,50 @@ def cryptoapi_stream(password, key_bits, salt=bytes(range(50, 66)), verifier=byt
     info = struct.pack("<HH", 4, 2) + struct.pack("<II", flags, len(header)) + header
     info += struct.pack("<I", 16) + salt + enc[:16] + struct.pack("<I", 20) + enc[16:]
     filepass = struct.pack("<H", 1) + info
-    parts = plain_stream(filepass)
+    parts = parts_factory(filepass)
     ks = block_keystreams(key_for_block)
-    return crypt_records(parts, lambda position, k, size, byte: byte ^ ks(position))
+    return crypt_records(parts, lambda position, k, size, byte: byte ^ ks(position), encrypt_from_start)
+
+
+def pivot_workbook_parts(filepass):
+    """Two caches referenced in globals; keep the ordinary visible cells as a control."""
+    parts = plain_stream(filepass)
+    extra = []
+    for cache_id in (7, 8):
+        extra.extend([
+            ("cache-id", record(0x00D5, struct.pack("<H", cache_id))),
+            ("cache-kind", record(0x00E3, struct.pack("<H", 1))),
+            ("cache-source", record(0x0051, struct.pack("<HHBBHB", 0, 2, 0, 1, 7, 0)
+                                    + b"\x02Secret\0")),
+        ])
+    added = sum(len(data) for _, data in extra)
+    result = []
+    for kind, data in parts:
+        if kind == "boundsheet":
+            offset = struct.unpack_from("<I", data, 4)[0]
+            data = data[:4] + struct.pack("<I", offset + added) + data[8:]
+        if kind == "eof_globals":
+            result.extend(extra)
+        result.append((kind, data))
+    return result
+
+
+def pivot_cache_parts(cache_id):
+    """Shared numeric field and long inline text spanning several RC4 blocks."""
+    def text(value):
+        return struct.pack("<HB", len(value), 0) + value.encode("ascii")
+
+    bodies = [(0x00C6, struct.pack("<i8H", 2, cache_id, 0x21, 0, 2, 2, 2, 1, 0xFFFF)),
+              (0x0122, bytes(12)),
+              (0x00C7, struct.pack("<7H", 1, 0, 0, 0, 0, 0, 2) + text("X")),
+              (0x01BB, bytes(2)), (0x00C9, struct.pack("<d", 3.5)),
+              (0x00C9, struct.pack("<d", -2)),
+              (0x00C7, bytes(14) + text("Y")), (0x01BB, bytes(2))]
+    for row in range(2):
+        bodies.extend([(0x00C8, bytes([row])),
+                       (0x00CD, text(f"cache-{cache_id}-row-{row}-" + "z" * 1600))])
+    bodies.append((0x000A, b""))
+    return [("cache", record(rid, body)) for rid, body in bodies]
 
 
 def main(out):
@@ -235,6 +281,18 @@ def main(out):
         "cryptoapi-40.bin": cryptoapi_stream(PASSWORD_RC4, 40),
         "plain.bin": b"".join(b for _, b in plain_stream(None)),
     }
+    for name, encrypt in [
+        ("xor", lambda **kw: xor_stream(PASSWORD_XOR, **kw)),
+        ("rc4", lambda **kw: rc4_stream(PASSWORD_RC4, **kw)),
+        ("rc4-velvet", lambda **kw: rc4_stream(PASSWORD_VELVET, **kw)),
+        ("cryptoapi-40", lambda **kw: cryptoapi_stream(PASSWORD_RC4, 40, **kw)),
+        ("cryptoapi-128", lambda **kw: cryptoapi_stream(PASSWORD_RC4, 128, **kw)),
+    ]:
+        files[f"pivot-{name}-workbook.bin"] = encrypt(parts_factory=pivot_workbook_parts)
+        for cache_id in (7, 8):
+            files[f"pivot-{name}-{cache_id}.bin"] = encrypt(
+                parts_factory=lambda _, cache_id=cache_id: pivot_cache_parts(cache_id),
+                encrypt_from_start=True)
     for name, data in files.items():
         with open(f"{out}/{name}", "wb") as handle:
             handle.write(data)
