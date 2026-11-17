@@ -609,6 +609,49 @@ fn chart_sheet_preserves_series_in_a_linked_chart_part() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn scenarios_survive_conversion_as_unsupported_metadata() {
+    let full = |text: &str| {
+        let mut bytes = (text.len() as u16).to_le_bytes().to_vec(); bytes.push(0); bytes.extend(text.as_bytes()); bytes
+    };
+    let mut manager = u16s(&[1, 0, 0xffff, 1, 4, 4, 3, 3]);
+    let mut scenario = u16s(&[2]);
+    scenario.extend([1, 0, 4, 4, 3]); // locked, visible, name/comment/user lengths
+    scenario.extend([0, b'P', b'l', b'a', b'n']);
+    scenario.extend(full("Ann")); scenario.extend(full("note"));
+    scenario.extend(u16s(&[0, 0, 2, 1]));
+    scenario.extend(full("12")); scenario.extend(full("_x0041_")); scenario.extend([0, 0, 0, 0]);
+    let make = |m: &[u8], s: &[u8]| xls(false, &[], &[Sheet::worksheet("S",
+        [record(0x00AE, m), record(0x00AF, s), number(0, 0, 1.0)].concat())]);
+    let bytes = make(&manager, &scenario);
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let check = |doc: &calc_doc::OpenedDocument| {
+        let xml = String::from_utf8(doc.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+        for expected in ["<scenarios current=\"0\" sqref=\"D5\">", "<scenario name=\"Plan\" locked=\"1\" count=\"2\" user=\"Ann\" comment=\"note\">",
+            "<inputCells r=\"A1\" val=\"12\"/>", "<inputCells r=\"B3\" val=\"_x005F_x0041_\"/>"] {
+            assert!(xml.contains(expected), "{expected} in {xml}");
+        }
+    };
+    check(&document);
+    let _loaded = load(&bytes);
+    let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+    let mut saved = Vec::new(); calc_doc::write(plan, &mut saved).unwrap();
+    check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert_eq!(report.unknown_records.get(&0x00AE), Some(&1));
+    assert_eq!(report.unknown_records.get(&0x00AF), Some(&1));
+    // A mismatched manager and a deleted input do not yield a partial scenario.
+    manager[..2].copy_from_slice(&2u16.to_le_bytes());
+    let bad = calc_doc::open(source(&make(&manager, &scenario)), &OpenPolicy::default()).unwrap();
+    assert!(!String::from_utf8(bad.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap().contains("<scenarios"));
+    manager[..2].copy_from_slice(&1u16.to_le_bytes());
+    let reference = scenario.windows(8).position(|w| w == u16s(&[0, 0, 2, 1])).unwrap();
+    scenario[reference+2..reference+4].copy_from_slice(&0x4000u16.to_le_bytes());
+    let bad = calc_doc::open(source(&make(&manager, &scenario)), &OpenPolicy::default()).unwrap();
+    assert!(!String::from_utf8(bad.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap().contains("<scenarios"));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn biff5_chart_sheet_preserves_decodable_series_and_title() {
     use xls_kit::{art, v5};
     let value = v5::cell3d(1, 0, 0, 0);

@@ -671,6 +671,7 @@ impl Features {
         drawing: Option<&str>,
         rules: &super::rules::Rules,
         filter_range: Option<&str>,
+        scenarios: Option<&super::scenario::Scenarios>,
     ) {
         if self.protect || self.objects || self.scenarios {
             let mut a = Vec::new();
@@ -688,6 +689,7 @@ impl Features {
             }
             x.empty("sheetProtection", &a);
         }
+        if let Some(scenarios) = scenarios { scenarios.write(x); }
         rules.write_auto_filter(x, filter_range);
         if !self.merges.is_empty() {
             x.open("mergeCells", &[("count", self.merges.len().to_string())]);

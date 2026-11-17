@@ -21,6 +21,7 @@ mod features;
 mod formula;
 mod records;
 mod rules;
+mod scenario;
 mod sheet;
 mod strings;
 mod styles;

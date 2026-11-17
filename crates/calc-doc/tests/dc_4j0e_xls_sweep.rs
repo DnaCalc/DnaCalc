@@ -50,6 +50,8 @@ fn sweep() {
     let audit_charts = std::env::var_os("DNACALC_XLS_AUDIT_CHART_CACHE").is_some();
     let audit_chart_sheets = std::env::var_os("DNACALC_XLS_AUDIT_CHART_SHEETS").is_some();
     let audit_core = std::env::var_os("DNACALC_XLS_AUDIT_CORE_PROPERTIES").is_some();
+    let audit_scenarios = std::env::var_os("DNACALC_XLS_AUDIT_SCENARIOS").is_some();
+    let (mut scenarios, mut scenario_files) = (0usize, 0usize);
     let (mut core_files, mut core_titles, mut core_authors, mut core_modifiers) = (0usize, 0usize, 0usize, 0usize);
     let (mut core_created, mut core_modified) = (0usize, 0usize);
     let (mut core_categories, mut app_files, mut app_names, mut app_managers, mut app_companies) = (0usize, 0usize, 0usize, 0usize, 0usize);
@@ -100,6 +102,12 @@ fn sweep() {
                 document.as_ref().ok().and_then(|doc| doc.package().read_part("docProps/custom.xml").ok())
                     .map(|xml| xml.windows(10).filter(|window| *window == b"<property ").count())
             } else { None };
+            let written_scenarios = if audit_scenarios {
+                document.as_ref().ok().map(|doc| doc.package().parts().iter()
+                    .filter(|part| part.name().starts_with("xl/worksheets/sheet") && part.name().ends_with(".xml"))
+                    .filter_map(|part| doc.package().read_part(part.name()).ok())
+                    .map(|xml| xml.windows(10).filter(|w| *w == b"<scenario ").count()).sum::<usize>()).unwrap_or(0)
+            } else { 0 };
             let written_chart_sheets = if audit_chart_sheets {
                 document.as_ref().ok().map(|doc| doc.package().parts().iter()
                     .filter(|part| part.name().starts_with("xl/chartsheets/sheet") && part.name().ends_with(".xml"))
@@ -160,11 +168,11 @@ fn sweep() {
                     (formulas, failed, caches, saved_records, points, categories, fills, lines)
                 })
             });
-            (report, document.map(|_| ()), load, written_phonetic, written_chart_sheets, core, app, custom)
+            (report, document.map(|_| ()), load, written_phonetic, written_chart_sheets, core, app, custom, written_scenarios)
         }));
         match result {
             Err(_) => panics.push(file.display().to_string()),
-            Ok((report, document, load, written_phonetic, written_chart_sheets, core, app, custom)) => {
+            Ok((report, document, load, written_phonetic, written_chart_sheets, core, app, custom, written_scenarios)) => {
                 match document {
                     Err(OpenError::LegacyWorkbook { detail, .. }) => {
                         let key = detail.chars().take(70).collect::<String>();
@@ -189,6 +197,8 @@ fn sweep() {
                             app_companies += usize::from(company);
                         }
                         if let Some(count) = custom { custom_files += 1; custom_count += count; }
+                        scenarios += written_scenarios;
+                        scenario_files += usize::from(written_scenarios != 0);
                         chart_sheets += written_chart_sheets;
                         chart_sheet_files += usize::from(written_chart_sheets != 0);
                         if let Some((runs, formats)) = written_phonetic {
@@ -264,6 +274,9 @@ fn sweep() {
         println!("core metadata parts: {core_files} files; title {core_titles}, author {core_authors}, last saved by {core_modifiers}, created {core_created}, modified {core_modified}, category {core_categories} (not an Excel match verdict)");
         println!("extended metadata parts: {app_files} files; application {app_names}, manager {app_managers}, company {app_companies} (not an Excel match verdict)");
         println!("custom scalar metadata: {custom_count} properties in {custom_files} files (not an Excel match verdict)");
+    }
+    if audit_scenarios {
+        println!("saved scenario definitions: {scenarios} in {scenario_files} files (not applied by the application)");
     }
     println!("refused to open, by reason:");
     for (reason, n) in &refused {

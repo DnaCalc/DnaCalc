@@ -387,6 +387,7 @@ def package(data):
                                                              'zoomScale', 'zoomScaleNormal', 'zoomScaleSheetLayoutView')
                                       if e.get(k) is not None} for e in sh.findall(f'{M}sheetViews/{M}sheetView')],
                            'merges': merges, 'links': sorted(links, key=repr), 'comments': sorted(comments),
+                           'scenarios': None if sh.find(M + 'scenarios') is None else tree(sh.find(M + 'scenarios')),
                            'conditional_formats': [tree(e) for e in sh.findall(M + 'conditionalFormatting')],
                            'validations': [tree(e) for e in sh.findall(f'{M}dataValidations/{M}dataValidation')],
                            'ignored_errors': [tree(e) for e in sh.findall(f'{M}ignoredErrors/{M}ignoredError')],

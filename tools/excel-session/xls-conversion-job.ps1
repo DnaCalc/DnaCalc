@@ -108,6 +108,10 @@ try {
             $entry.setup.comment = GetOrError { $c = $sheet.Range('C3').AddComment('Controlled note'); [string]$c.Text() }
             $entry.setup.validation = GetOrError { $sheet.Range('C4').Validation.Add(1, 1, 1, '1', '10'); $sheet.Range('C4').Validation.Type }
             $entry.setup.conditional = GetOrError { $c = $sheet.Range('C5').FormatConditions.Add(1, 3, '1'); $c.Interior.Color = 65535; $sheet.Range('C5').FormatConditions.Count }
+            $entry.setup.scenario = GetOrError {
+                $scenario = $sheet.Scenarios().Add('cxPlan', $sheet.Range('A1'), [object[]]@(42), 'Controlled scenario', $true, $false)
+                @{name=[string]$scenario.Name; comment=[string]$scenario.Comment; count=$sheet.Scenarios().Count}
+            }
             $entry.setup.shape = GetOrError { $s = $sheet.Shapes.AddShape(1, 100, 100, 60, 30); [string]$s.Name }
             $entry.setup.chart_bar_geometry = GetOrError {
                 $sheet.Range('H1').Value2 = 1; $sheet.Range('H2').Value2 = 2
