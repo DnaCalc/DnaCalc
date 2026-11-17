@@ -186,6 +186,15 @@ try {
                 $s.TextFrame.Characters().Text = 'tall arrow'
                 @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
             }
+            $entry.setup.shape_rgb_solid_fill = GetOrError {
+                $s = $sheet.Shapes.AddShape(1, 1110, 100, 90, 30)
+                $s.Name = 'cx_rgb_solid_fill'
+                $s.Fill.Visible = -1
+                $s.Fill.Solid()
+                $s.Fill.ForeColor.RGB = 0x563412
+                $s.Fill.Transparency = 0
+                @{name=[string]$s.Name; rgb=$s.Fill.ForeColor.RGB; transparency=$s.Fill.Transparency}
+            }
             $entry.setup.shape_octagon = GetOrError {
                 $s = $sheet.Shapes.AddShape(6, 810, 100, 60, 30)
                 $s.TextFrame.Characters().Text = 'octagon'

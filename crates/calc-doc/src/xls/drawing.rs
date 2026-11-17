@@ -174,6 +174,8 @@ struct Shape {
     fill_seen: bool,
     fill_invalid: bool,
     no_fill: bool,
+    fill_properties: BTreeMap<u16, u32>,
+    solid_fill_invalid: bool,
     fixed_geometry_unsafe: bool,
     flip_invalid: bool,
     text_insets: [Option<u32>; 4],
@@ -183,6 +185,21 @@ struct Shape {
     text_wrap: Option<u32>,
     text_wrap_invalid: bool,
     flags: Option<u32>,
+}
+
+impl Shape {
+    /// MS-ODRAW 2.3.7: an explicitly enabled, opaque solid fill with a literal RGB.
+    /// Keep palette/system colours, gradients and extended colour overrides unread.
+    fn solid_fill(&self) -> Option<String> {
+        if self.fill_invalid || self.solid_fill_invalid
+            || self.fill_properties.get(&0x0180).copied().unwrap_or(0) != 0
+            || self.fill_properties.get(&0x0182).copied().unwrap_or(0x10000) != 0x10000
+            || self.fill_properties.get(&0x01bf).copied()? & 0x0010_0010 != 0x0010_0010
+        { return None; }
+        let rgb = *self.fill_properties.get(&0x0181)?;
+        if rgb >> 24 != 0 { return None; }
+        Some(format!("{:02X}{:02X}{:02X}", rgb & 255, (rgb >> 8) & 255, (rgb >> 16) & 255))
+    }
 }
 
 fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
@@ -197,12 +214,14 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                             let flags = u32::from_le_bytes(child.body[4..8].try_into().expect("4 bytes"));
                             shape.group = flags & 0x1 != 0;
                             if shape.flags.replace(flags).is_some() || child.body.len() != 8 {
+                                shape.solid_fill_invalid = true;
                                 shape.fixed_geometry_unsafe = true;
                                 shape.flip_invalid = true;
                                 shape.text_insets_invalid = true;
                                 shape.text_anchor_ambiguous = true;
                             }
                         } else {
+                            shape.solid_fill_invalid = true;
                             shape.fixed_geometry_unsafe = true;
                             shape.flip_invalid = true;
                             shape.text_insets_invalid = true;
@@ -224,6 +243,13 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                             let id = u16::from_le_bytes([p[0], p[1]]);
                             let value = u32::from_le_bytes([p[2], p[3], p[4], p[5]]);
                             let property = id & 0x3fff;
+                            if (0x0180..=0x01bf).contains(&property) {
+                                if id & 0xc000 != 0
+                                    || !matches!(property, 0x0180..=0x0184 | 0x01bf)
+                                    || shape.fill_properties.insert(property, value).is_some() {
+                                    shape.solid_fill_invalid = true;
+                                }
+                            }
                             if property == 0x0087 { shape.text_anchor_ambiguous = true; }
                             if property == 0x0085 && (id & 0xc000 != 0 || value > 2 || shape.text_wrap.replace(value).is_some()) {
                                 shape.text_wrap_invalid = true;
@@ -270,7 +296,13 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                     }
                     0xF011 => shape.client_data = true,
                     0xF00D => shape.text_box = true,
-                    0xF121 | 0xF122 => { shape.flip_invalid = true; shape.text_insets_invalid = true; shape.text_anchor_ambiguous = true; }
+                    // Secondary/tertiary properties can override the primary fill colour.
+                    0xF121 | 0xF122 => {
+                        shape.solid_fill_invalid = true;
+                        shape.flip_invalid = true;
+                        shape.text_insets_invalid = true;
+                        shape.text_anchor_ambiguous = true;
+                    }
                     _ => {}
                 }
             }
@@ -682,6 +714,11 @@ impl Drawing {
                     x.empty("a:avLst", &[]);
                     x.close("a:prstGeom");
                     if shape.no_fill && !shape.fill_invalid { x.empty("a:noFill", &[]); }
+                    else if let Some(rgb) = shape.solid_fill() {
+                        x.open("a:solidFill", &[]);
+                        x.empty("a:srgbClr", &[("val", rgb)]);
+                        x.close("a:solidFill");
+                    }
                     x.close("xdr:spPr");
                     if let Some(text) = &object.text {
                         x.open("xdr:txBody", &[]);

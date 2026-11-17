@@ -184,6 +184,9 @@ fn sweep() {
                         let count = loaded.sheets().iter().flat_map(|s| &s.shapes().shapes)
                             .filter(|shape| matches!(shape.fill, calc_doc::model::ShapeFill::None)).count();
                         println!("drawing shapes with no fill: {count}");
+                        let solid = loaded.sheets().iter().flat_map(|s| &s.shapes().shapes)
+                            .filter(|shape| matches!(shape.fill, calc_doc::model::ShapeFill::Solid(_))).count();
+                        println!("drawing shapes with explicit solid fill: {solid}");
                     }
                     if std::env::var_os("DNACALC_XLS_AUDIT_DRAWING_FONT").is_some() {
                         let count = loaded.sheets().iter().flat_map(|s| &s.shapes().shapes)
