@@ -167,6 +167,10 @@ try {
                 $s = $sheet.Shapes.AddShape(81, 530, 100, 60, 30)
                 @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
             }
+            $entry.setup.shape_flowchart_alternate_process = GetOrError {
+                $s = $sheet.Shapes.AddShape(62, 600, 100, 60, 30)
+                @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
+            }
             $entry.setup.flipped_shapes = @(
                 foreach ($direction in @(0, 1)) {
                     GetOrError {

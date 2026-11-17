@@ -2654,7 +2654,7 @@ fn officeart_presets_preserve_only_untransformed_geometry() {
     use xls_kit::art;
     for (shape_type, geometry) in [(109, "flowChartProcess"), (5, "triangle"),
         (110, "flowChartDecision"), (120, "flowChartConnector"), (6, "rtTriangle"),
-        (127, "flowChartExtract")] {
+        (127, "flowChartExtract"), (176, "flowChartAlternateProcess")] {
     for (flags, property, expected) in [
         (0u32, None, true),
         (0, Some((0x03bf, 0x0008_0000)), true),

@@ -652,6 +652,8 @@ impl Drawing {
                             && !shape.fixed_geometry_unsafe => "flowChartConnector",
                         127 if shape.flags.is_some_and(|flags| flags & 0xff == 0)
                             && !shape.fixed_geometry_unsafe => "flowChartExtract",
+                        176 if shape.flags.is_some_and(|flags| flags & 0xff == 0)
+                            && !shape.fixed_geometry_unsafe => "flowChartAlternateProcess",
                         // MS-ODRAW msosptFlowChartProcess; preserve only the untransformed preset.
                         109 if shape.flags.is_some_and(|flags| flags & 0xff == 0)
                             && !shape.fixed_geometry_unsafe => "flowChartProcess",

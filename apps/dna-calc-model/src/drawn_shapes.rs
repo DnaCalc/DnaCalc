@@ -332,6 +332,7 @@ const PRESETS: &[&str] = &[
     "flowChartDecision",
     "flowChartConnector",
     "flowChartExtract",
+    "flowChartAlternateProcess",
     "flowChartTerminator",
     "flowChartDocument",
     "bentConnector2",
@@ -455,6 +456,7 @@ pub fn geometry_path(prst: &str, w: f64, h: f64, adjust: &[(String, i64)]) -> Op
             let a = pin(0.0, av(adjust, "adj", 16667.0), 50000.0);
             rounded(w, h, ss * a / 100_000.0)
         }
+        "flowChartAlternateProcess" => rounded(w, h, ss / 6.0),
         "ellipse" | "flowChartConnector" => {
             let (rx, ry) = (w / 2.0, h / 2.0);
             let (kx, ky) = (rx * KAPPA, ry * KAPPA);
@@ -657,6 +659,10 @@ pub fn text_rect(prst: &str, w: f64, h: f64, adjust: &[(String, i64)]) -> [f64; 
     let (hc, vc) = (w / 2.0, h / 2.0);
     let whole = [0.0, 0.0, w, h];
     match prst {
+        "flowChartAlternateProcess" => {
+            let il = ss / 6.0 * 29_289.0 / 100_000.0;
+            [il, il, w - il, h - il]
+        }
         "roundRect" => {
             let il = ss * pin(0.0, av(adjust, "adj", 16667.0), 50000.0) / 100_000.0 * 0.292_893_218_8;
             [il, il, w - il, h - il]
@@ -1478,6 +1484,7 @@ mod tests {
         assert_eq!(d("flowChartDecision", 40.0, 20.0, &[]), d("diamond", 40.0, 20.0, &[]));
         assert_eq!(d("flowChartConnector", 40.0, 20.0, &[]), d("ellipse", 40.0, 20.0, &[]));
         assert_eq!(d("flowChartExtract", 40.0, 20.0, &[]), d("triangle", 40.0, 20.0, &[]));
+        assert_eq!(geometry_path("flowChartAlternateProcess", 120.0, 60.0, &[]), Some(rounded(120.0, 60.0, 10.0)));
         assert_eq!(d("flowChartProcess", 40.0, 20.0, &[]), d("rect", 40.0, 20.0, &[]));
         // parallelogram: the slant is ss * adj / 100000, held to 100000 * w / ss.
         assert_eq!(d("parallelogram", 100.0, 40.0, &[]), "M0 40L10 0L100 0L90 40Z");
@@ -1869,6 +1876,7 @@ mod tests {
         let [l, t, r, b] = text_rect("ellipse", 100.0, 40.0, &[]);
         assert_eq!(text_rect("flowChartConnector", 100.0, 40.0, &[]), [l, t, r, b]);
         assert_eq!(text_rect("flowChartExtract", 120.0, 120.0, &[]), [30.0, 60.0, 90.0, 120.0]);
+        assert_eq!(text_rect("flowChartAlternateProcess", 120.0, 60.0, &[]), [2.9289, 2.9289, 117.0711, 57.0711]);
         assert_eq!(text_rect("rtTriangle", 120.0, 120.0, &[]), [10.0, 70.0, 70.0, 110.0]);
         assert!((l - 14.644).abs() < 0.001 && (t - 5.858).abs() < 0.001 && (r - 85.355).abs() < 0.001 && (b - 34.142).abs() < 0.001);
         assert_eq!(text_rect("diamond", 100.0, 40.0, &[]), [25.0, 10.0, 75.0, 30.0]);
