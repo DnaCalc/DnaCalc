@@ -39,6 +39,14 @@ fn label(value: f64, step: f64) -> String {
     )
 }
 
+/// Format a numeric tick with an explicit workbook axis format when supported.
+fn axis_label(chart: &ChartView, axis_id: u32, value: f64, step: f64) -> String {
+    let format = chart.axes.iter().find(|axis| axis.id == axis_id).and_then(|axis| axis.number_format.as_deref());
+    format.and_then(|code| calc_func::cell_text(&chart.format_profile, chart.date_system,
+        &calc_value::CalcValue::number(value), code).ok())
+        .unwrap_or_else(|| label(value, step))
+}
+
 /// An axis over `low..=high`: steps of 1, 2 or 5 times a power of ten, at most about eight over
 /// the values, from zero when the values allow it, and a twentieth of the range of room past the
 /// highest value (as Excel's 0 to 45 for values up to 40). Excel also fits the step to the axis'
@@ -502,10 +510,10 @@ fn combination_layouts(chart: &ChartView, area: Area) -> Result<Vec<CategoryLayo
         return Err("Three-plot category crossing with an area is preserved but needs an Excel measurement before drawing (dc-971p.59)".into());
     }
     let first = calc_host::chart::category_scale(chart, &chart.plots[0])?;
-    let width = |s: calc_host::chart::ChartScale| {
-        label(s.minimum, s.step)
+    let width = |s: calc_host::chart::ChartScale, id: u32| {
+        axis_label(chart, id, s.minimum, s.step)
             .len()
-            .max(label(s.maximum, s.step).len()) as f64
+            .max(axis_label(chart, id, s.maximum, s.step).len()) as f64
             * 6.5
             + 8.
     };
@@ -515,11 +523,12 @@ fn combination_layouts(chart: &ChartView, area: Area) -> Result<Vec<CategoryLayo
         let axis = calc_host::chart::value_axes(&chart.axes, &plot.axis_ids, false)?[0];
         let secondary = axis.position.as_deref() == Some("r");
         if secondary {
-            right = width(calc_host::chart::category_scale(chart, plot)?);
+            right = width(calc_host::chart::category_scale(chart, plot)?, axis.id);
         }
         axes.push((axis.id, secondary));
     }
-    let x0 = area.left + width(first);
+    let first_axis = calc_host::chart::value_axes(&chart.axes, &chart.plots[0].axis_ids, false)?[0];
+    let x0 = area.left + width(first, first_axis.id);
     let x1 = (area.right - right).max(x0 + 1.);
     let count = chart
         .plots
@@ -594,7 +603,7 @@ fn category_marks(
     // Room for the value labels and the category labels.
     let widest = [min, max]
         .iter()
-        .map(|v| label(*v, step).len())
+        .map(|v| axis_label(chart, value_axis, *v, step).len())
         .max()
         .unwrap_or(1) as f64;
     let (plot_left, plot_bottom) = if horizontal {
@@ -639,7 +648,7 @@ fn category_marks(
                 "<text data-dnacalc=\"chart-axis-tick\" data-chart-text=\"axis:{value_axis}\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"start\" fill=\"{AXIS}\">{}</text>",
                 x1 + 4.,
                 p + 4.,
-                label(v, step)
+                escape(&axis_label(chart, value_axis, v, step))
             );
             continue;
         }
@@ -648,7 +657,7 @@ fn category_marks(
                 svg,
                 "<line x1=\"{p:.1}\" y1=\"{y0:.1}\" x2=\"{p:.1}\" y2=\"{y1:.1}\" stroke=\"{GRID}\"/><text data-dnacalc=\"chart-axis-tick\" data-chart-text=\"axis:{value_axis}\" x=\"{p:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">{}</text>",
                 y1 + 13.0,
-                label(v, step)
+                escape(&axis_label(chart, value_axis, v, step))
             );
         } else {
             let _ = write!(
@@ -656,7 +665,7 @@ fn category_marks(
                 "<line x1=\"{x0:.1}\" y1=\"{p:.1}\" x2=\"{x1:.1}\" y2=\"{p:.1}\" stroke=\"{GRID}\"/><text data-dnacalc=\"chart-axis-tick\" data-chart-text=\"axis:{value_axis}\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"end\" fill=\"{AXIS}\">{}</text>",
                 x0 - 4.0,
                 p + 4.0,
-                label(v, step)
+                escape(&axis_label(chart, value_axis, v, step))
             );
         }
     }
@@ -995,7 +1004,7 @@ fn scatter_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: Are
     };
     let (xmin, xmax, xstep) = (xscale.minimum, xscale.maximum, xscale.step);
     let (ymin, ymax, ystep) = (yscale.minimum, yscale.maximum, yscale.step);
-    let widest = label(ymax, ystep).len().max(label(ymin, ystep).len()) as f64;
+    let widest = axis_label(chart, y_axis, ymax, ystep).len().max(axis_label(chart, y_axis, ymin, ystep).len()) as f64;
     let (x0, x1, y0, y1) = (
         area.left + widest * 6.5 + 8.0,
         area.right,
@@ -1018,7 +1027,7 @@ fn scatter_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: Are
             py(v),
             x0 - 4.0,
             py(v) + 4.0,
-            label(v, ystep)
+            escape(&axis_label(chart, y_axis, v, ystep))
         );
     }
     for v in xscale.ticks() {
@@ -1029,7 +1038,7 @@ fn scatter_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: Are
             px(v),
             px(v),
             y1 + 13.0,
-            label(v, xstep)
+            escape(&axis_label(chart, x_axis, v, xstep))
         );
     }
     let _ = write!(
@@ -1097,6 +1106,13 @@ mod tests {
             assert!(tags.iter().all(|tag| tag.contains("visibility=\"hidden\"")), "{svg}");
             assert!(svg.contains("<line "), "gridlines remain visible: {svg}");
         }
+        let mut formatted = charts[0].clone();
+        let value_axis = formatted.axes.iter_mut().find(|axis| axis.kind == "valAx").unwrap();
+        let value_axis_id = value_axis.id;
+        value_axis.number_format = Some("0.00%".into());
+        assert_eq!(axis_label(&formatted, value_axis_id, 0.125, 0.1), "12.50%");
+        let svg = chart_svg(&formatted, 600., 350.);
+        assert!(svg.split('<').any(|tag| tag.starts_with("text ") && tag.contains("data-dnacalc=\"chart-axis-tick\"") && tag.contains('%')), "{svg}");
         let mut no_axis_line = charts[0].clone();
         let category = no_axis_line.axes.iter_mut().find(|axis| axis.kind == "catAx").unwrap();
         category.line_hidden = true;

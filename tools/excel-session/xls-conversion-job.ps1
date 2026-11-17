@@ -394,6 +394,21 @@ try {
                 @{category_position=$category.TickLabelPosition; value_position=$chart.Axes(2).TickLabelPosition;
                   category_line_visible=$category.Format.Line.Visible}
             }
+            $entry.setup.chart_axis_rotations = @(
+                foreach ($angle in @(45, -45, 90, -90)) {
+                    GetOrError {
+                        $rotatedChart = $sheet.ChartObjects().Add(620, 270 + 160 * (($angle + 90) / 45), 200, 150).Chart
+                        $rotatedChart.ChartType = 51; $rotatedChart.SetSourceData($dataSheet.Range('A1:B3'))
+                        $rotatedChart.Axes(1).TickLabels.Orientation = $angle
+                        @{requested=$angle; actual=$rotatedChart.Axes(1).TickLabels.Orientation}
+                    }
+                }
+            )
+            $entry.setup.chart_axis_number_format = GetOrError {
+                $axis = $sheet.ChartObjects('cxCacheChart').Chart.Axes(2)
+                $axis.TickLabels.NumberFormat = '0.00%'
+                @{format=[string]$axis.TickLabels.NumberFormat; linked=$axis.TickLabels.NumberFormatLinked}
+            }
             $entry.setup.chart_legend_font = GetOrError {
                 $chart = $sheet.ChartObjects('cxCacheChart').Chart
                 $chart.HasLegend = $true

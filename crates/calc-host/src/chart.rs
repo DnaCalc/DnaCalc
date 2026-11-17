@@ -112,6 +112,9 @@ pub struct ChartView {
     pub legend: Option<String>,
     pub plots: Vec<PlotView>,
     pub axes: Vec<calc_doc_model::ChartAxis>,
+    /// Workbook locale and date system used to format explicit axis labels.
+    pub format_profile: calc_fml::FormatProfile,
+    pub date_system: calc_func::locale::DateSystem,
     /// The theme's accent colours, accent1 to accent6, `RRGGBB`: a varied plot's point colours.
     pub palette: Vec<String>,
     pub text_style: calc_doc_model::ChartTextStyle,
@@ -299,6 +302,8 @@ impl HostState {
                     style
                 },
                 axes: chart.axes.clone(),
+                format_profile: self.entry_environment().profile.unwrap_or_else(|| calc_func::locale::format_profile(calc_func::locale::LocaleId::EnUs)),
+                date_system: if self.declared_date1904() { calc_func::locale::DateSystem::System1904 } else { calc_func::locale::DateSystem::System1900 },
             });
         }
         (views, unread)

@@ -323,6 +323,12 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
                     {'type': axis.tag.rsplit('}', 1)[-1],
                      'position': None if (pos := axis.find(C + 'tickLblPos')) is None else pos.get('val')}
                     for axis in chart_root.iter() if axis.tag in (C + 'catAx', C + 'valAx', C + 'dateAx', C + 'serAx')]
+                obj['axis_number_formats'] = [
+                    {'type': axis.tag.rsplit('}', 1)[-1], 'format': None if (fmt := axis.find(C + 'numFmt')) is None else tree(fmt)}
+                    for axis in chart_root.iter() if axis.tag in (C + 'catAx', C + 'valAx', C + 'dateAx', C + 'serAx')]
+                obj['axis_text_bodies'] = [
+                    {'type': axis.tag.rsplit('}', 1)[-1], 'body': None if (body := axis.find(C + 'txPr/' + A + 'bodyPr')) is None else tree(body)}
+                    for axis in chart_root.iter() if axis.tag in (C + 'catAx', C + 'valAx', C + 'dateAx', C + 'serAx')]
                 obj['axis_shapes'] = [
                     {'type': axis.tag.rsplit('}', 1)[-1], 'properties': None if (shape := axis.find(C + 'spPr')) is None else tree(shape)}
                     for axis in chart_root.iter() if axis.tag in (C + 'catAx', C + 'valAx', C + 'dateAx', C + 'serAx')]

@@ -244,6 +244,13 @@ impl Styles {
         Ok(true)
     }
 
+    /// A small set of built-in axis number formats whose codes are locale invariant.
+    pub(crate) fn simple_axis_format(&self, id: u16) -> Option<&str> {
+        if self.formats.contains_key(&id) { return None; }
+        match id { 1 => Some("0"), 2 => Some("0.00"), 3 => Some("#,##0"),
+            4 => Some("#,##0.00"), 9 => Some("0%"), 10 => Some("0.00%"), _ => None }
+    }
+
     pub(crate) fn is_empty(&self) -> bool {
         self.xfs.is_empty()
     }

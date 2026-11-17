@@ -138,6 +138,8 @@ pub struct ChartAxis {
     pub tick_labels_hidden: bool,
     /// Whether the file explicitly suppresses the axis line.
     pub line_hidden: bool,
+    /// Explicit axis label number format, when it is independent of source cells.
+    pub number_format: Option<String>,
     /// Literal title text, when available.
     pub title: Option<String>,
     pub minimum: Option<String>,

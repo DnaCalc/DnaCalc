@@ -264,6 +264,7 @@ fn read_chart_xml(
     let mut title_cache: Option<String> = None;
     let mut axis_title_has_field = false;
     let mut axis_tick_position_seen = false;
+    let mut axis_number_format_seen = false;
     let (mut axis_shape_seen, mut axis_line_seen, mut axis_line_invalid, mut axis_no_fill_seen) = (false, false, false, false);
     loop {
         let element = match events.next()? {
@@ -459,11 +460,22 @@ fn read_chart_xml(
             {
                 axis_title_has_field = false;
                 axis_tick_position_seen = false;
+                axis_number_format_seen = false;
                 (axis_shape_seen, axis_line_seen, axis_line_invalid, axis_no_fill_seen) = (false, false, false, false);
                 chart.axes.push(calc_doc_model::ChartAxis {
                     kind: local.clone(),
                     ..Default::default()
                 });
+            }
+            (Some("valAx"), "numFmt") if element.name.namespace.as_deref() == Some(CHART_NAMESPACE) => {
+                if let Some(axis) = chart.axes.last_mut() {
+                    let code = element.attribute("formatCode");
+                    axis.number_format = if !axis_number_format_seen && matches!(element.attribute("sourceLinked"), Some("0" | "false"))
+                        && matches!(code, Some("0" | "0.00" | "#,##0" | "#,##0.00" | "0%" | "0.00%")) {
+                        code.map(str::to_owned)
+                    } else { None };
+                    axis_number_format_seen = true;
+                }
             }
             (Some("valAx" | "catAx" | "dateAx" | "serAx"), "tickLblPos")
                 if element.name.namespace.as_deref() == Some(CHART_NAMESPACE) => {
@@ -698,6 +710,22 @@ fn read_simple_value_labels(events: &mut Events<'_>) -> Result<(bool, bool), Loa
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn explicit_axis_number_format_requires_one_unlinked_supported_code() {
+        for (formats, expected) in [
+            (r#"<c:numFmt formatCode="0.00%" sourceLinked="0"/>"#, Some("0.00%")),
+            (r#"<c:numFmt formatCode="0.00%" sourceLinked="1"/>"#, None),
+            (r#"<c:numFmt formatCode="0.00%"/>"#, None),
+            (r#"<c:numFmt formatCode="custom" sourceLinked="0"/>"#, None),
+            (r#"<c:numFmt formatCode="0" sourceLinked="0"/><c:numFmt formatCode="0" sourceLinked="0"/>"#, None),
+        ] {
+            let text = format!(r#"<c:chartSpace xmlns:c="{CHART_NAMESPACE}"><c:chart><c:plotArea><c:valAx><c:axId val="1"/>{formats}</c:valAx></c:plotArea></c:chart></c:chartSpace>"#);
+            let xml = XmlPart::new("chart.xml".into(), text.into_bytes(), crate::xml::XmlLimits::default());
+            let chart = read_chart_xml(&xml, "chart.xml", "Chart".into(), ChartAnchor::Absolute { x: 0, y: 0, width: 100, height: 100 }).unwrap();
+            assert_eq!(chart.axes[0].number_format.as_deref(), expected);
+        }
+    }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn hidden_axis_line_requires_one_unambiguous_no_fill() {
