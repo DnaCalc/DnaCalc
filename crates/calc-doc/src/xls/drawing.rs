@@ -331,7 +331,7 @@ struct Object {
     chart: Option<super::chart::Chart>,
 }
 
-fn write_text_run(x: &mut Xml, text: &[u16], font: Option<(u32, bool, bool, Option<String>)>) {
+fn write_text_run(x: &mut Xml, text: &[u16], font: Option<(u32, bool, bool, Option<String>)>, face: Option<&str>) {
     x.open("a:r", &[]);
     if let Some((size, bold, italic, colour)) = font {
         x.open("a:rPr", &[("sz", size.to_string()), ("b", u8::from(bold).to_string()),
@@ -341,6 +341,7 @@ fn write_text_run(x: &mut Xml, text: &[u16], font: Option<(u32, bool, bool, Opti
             x.empty("a:srgbClr", &[("val", colour)]);
             x.close("a:solidFill");
         }
+        if let Some(face) = face { x.empty("a:latin", &[("typeface", face.to_owned())]); }
         x.close("a:rPr");
     }
     x.open("a:t", &[("xml:space", "preserve".to_owned())]);
@@ -690,8 +691,11 @@ impl Drawing {
                         let rich = if String::from_utf16(text).is_ok() {
                             object.text_runs.as_ref().and_then(|runs| {
                                 let fonts: Vec<_> = runs.iter().map(|&(_, font)| styles.drawing_rich_font(font)).collect::<Option<_>>()?;
-                                let face = &fonts.first()?.1;
-                                fonts.iter().all(|(_, current)| current == face).then_some((runs, fonts))
+                                let explicit = fonts.iter().all(|(_, (name, charset, family))|
+                                    *charset == 0 && *family <= 5 && !name.starts_with('+')
+                                        && !name.chars().any(|c| c.is_control() || matches!(c, '\u{fffe}' | '\u{ffff}')));
+                                let first_face = &fonts.first()?.1;
+                                (explicit || fonts.iter().all(|(_, face)| face == first_face)).then_some((runs, fonts, explicit))
                             })
                         } else { None };
                         let mut line_start = 0usize;
@@ -701,15 +705,15 @@ impl Drawing {
                                 x.empty("a:pPr", &[("algn", horizontal.to_owned())]);
                             }
                             if !line.is_empty() {
-                                if let Some((runs, fonts)) = &rich {
+                                if let Some((runs, fonts, explicit)) = &rich {
                                     for (index, &(start, _)) in runs.iter().enumerate() {
                                         let next = runs.get(index + 1).map_or(text.len(), |(next, _)| usize::from(*next));
                                         let start = usize::from(start).max(line_start);
                                         let end = next.min(line_start + line.len());
-                                        if start < end { write_text_run(&mut x, &text[start..end], Some(fonts[index].0.clone())); }
+                                        if start < end { write_text_run(&mut x, &text[start..end], Some(fonts[index].0.clone()), explicit.then_some(fonts[index].1.0)); }
                                     }
                                 } else {
-                                    write_text_run(&mut x, line, object.text_font.and_then(|font| styles.drawing_text_font(font)));
+                                    write_text_run(&mut x, line, object.text_font.and_then(|font| styles.drawing_text_font(font)), None);
                                 }
                             }
                             x.close("a:p");

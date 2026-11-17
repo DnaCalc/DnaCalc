@@ -179,7 +179,8 @@ fn write_legacy_excel_session_inputs() {
     std::fs::write(dir.join("drawing-obj-continuation.xls"), obj_continuation_fixture(false)).unwrap();
     std::fs::write(dir.join("drawing-txo-continuation.xls"), txo_continuation_fixture(false)).unwrap();
     std::fs::write(dir.join("drawing-text-anchor-conflict.xls"), text_anchor_conflict_fixture()).unwrap();
-    std::fs::write(dir.join("drawing-rich-text.xls"), rich_drawing_fixture("Arial", false, true, 2, 0x7fff, false, 400)).unwrap();
+    std::fs::write(dir.join("drawing-rich-text.xls"), rich_drawing_fixture("Arial", false, true, 2, 0x7fff, false, 400, 0)).unwrap();
+    std::fs::write(dir.join("drawing-rich-faces.xls"), rich_drawing_fixture("Courier", false, true, 2, 0x7fff, false, 400, 0)).unwrap();
     std::fs::write(dir.join("emf-checksum-valid.xls"), emf_checksum_fixture(false)).unwrap();
     std::fs::write(dir.join("emf-checksum-invalid.xls"), emf_checksum_fixture(true)).unwrap();
     std::fs::write(dir.join("forms.xls"), include_bytes!("fixtures/dc_4j0e/FormsWorkbook.xls")).unwrap();
@@ -223,7 +224,7 @@ fn write_legacy_excel_session_inputs() {
     let short_format = record(0x041e, &[0xa4, 0x00, 0x02, 0x00, 0x00, b'x']);
     std::fs::write(dir.join("repair-short-format.xls"),
         xls(false, &short_format, &[Sheet::worksheet("Data", number(0, 0, 42.0))])).unwrap();
-    for name in ["cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "emf-checksum-valid", "emf-checksum-invalid", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
+    for name in ["cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "emf-checksum-valid", "emf-checksum-invalid", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
         let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
         let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
         let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
@@ -232,7 +233,7 @@ fn write_legacy_excel_session_inputs() {
         std::fs::write(dir.join(format!("{name}.dnacalc.xlsx")), converted).unwrap();
     }
     let cases = serde_json::json!({
-        "files": ["cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
+        "files": ["cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
         "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls",
             "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls",
             "repair-elf-column.xls", "repair-elf-radical.xls", "repair-addin-cell.xls",
@@ -2121,33 +2122,38 @@ fn text_anchor_conflict_fixture() -> Vec<u8> {
     xls(false, &[], &[Sheet::worksheet("S", [art::drawing(&[shape]), art::obj(6, 1), txo("ABC")].concat())])
 }
 
-fn rich_drawing_fixture(second_face: &str, missing_font: bool, multiline: bool, second_flags: u16, second_colour: u16, same_style: bool, second_weight: u16) -> Vec<u8> {
+fn rich_drawing_fixture(second_face: &str, missing_font: bool, multiline: bool, second_flags: u16, second_colour: u16, same_style: bool, second_weight: u16, second_charset: u8) -> Vec<u8> {
     use xls_kit::art;
     let mut body = u16s(&[0x0212, 0, 0, 0, 0, 6, 24]); body.extend([0u8; 4]);
     let runs = u16s(&[0, 0, 0, 0, 3, if missing_font { 5 } else { 1 }, 0, 0, 6, 0, 0, 0]);
     let records = [art::drawing(&[art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], true)]), art::obj(6, 1),
         record(0x01b6, &body), record(0x003c, if multiline { b"\0AB\rCDE" } else { b"\0AB CDE" }), record(0x003c, &runs)].concat();
-    let globals = [font(200, 0, 10, 700, "Arial"), font(if same_style { 200 } else { 240 }, second_flags,
-        second_colour, second_weight, second_face)].concat();
+    let mut second = font(if same_style { 200 } else { 240 }, second_flags, second_colour, second_weight, second_face);
+    second[16] = second_charset;
+    let globals = [font(200, 0, 10, 700, "Arial"), second].concat();
     xls(false, &globals, &[Sheet::worksheet("S", records)])
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn legacy_drawing_rich_runs_reach_the_model_and_survive_save() {
-    for (face, missing_font, flags, colour, same_style, weight, expected) in [("Arial", false, 2, 0x7fff, false, 400, true),
-        ("Courier", false, 2, 0x7fff, false, 400, false), ("Arial", true, 2, 0x7fff, false, 400, false),
-        ("Arial", false, 10, 0x7fff, false, 400, false), ("Arial", false, 2, 64, false, 400, false),
-        ("Arial", false, 0, 10, true, 700, false), ("Arial", false, 2, 0x7fff, false, 600, false)] {
-        let bytes = rich_drawing_fixture(face, missing_font, false, flags, colour, same_style, weight);
+    for (face, missing_font, flags, colour, same_style, weight, charset, expected) in [("Arial", false, 2, 0x7fff, false, 400, 0, true),
+        ("Courier", false, 2, 0x7fff, false, 400, 0, true), ("+Theme", false, 2, 0x7fff, false, 400, 0, false), ("Arial", true, 2, 0x7fff, false, 400, 0, false),
+        ("Arial", false, 10, 0x7fff, false, 400, 0, false), ("Arial", false, 2, 64, false, 400, 0, false),
+        ("Arial", false, 0, 10, true, 700, 0, false), ("Courier", false, 0, 10, true, 700, 0, true),
+        ("Arial", false, 2, 0x7fff, false, 600, 0, false), ("Courier", false, 2, 0x7fff, false, 400, 162, false)] {
+        let bytes = rich_drawing_fixture(face, missing_font, false, flags, colour, same_style, weight, charset);
         let check = |bytes: &[u8]| {
             let loaded = load(bytes); let shape = &loaded.sheets()[0].shapes().shapes[0];
             assert_eq!(shape.text.as_deref(), Some(&["AB CDE".to_owned()][..]));
             assert_eq!(shape.body.rich_runs_for(shape.text.as_ref().unwrap()).is_some(), expected);
             if expected {
                 assert_eq!(shape.body.runs[0].len(), 2);
+                assert_eq!(shape.body.runs[0][0].face.as_deref(), Some("Arial"));
+                assert_eq!(shape.body.runs[0][1].face.as_deref(), Some(face));
                 assert_eq!((shape.body.runs[0][0].text.as_str(), shape.body.runs[0][0].size, shape.body.runs[0][0].bold), ("AB ", 1000, true));
-                assert_eq!((shape.body.runs[0][1].text.as_str(), shape.body.runs[0][1].size, shape.body.runs[0][1].italic), ("CDE", 1200, true));
+                assert_eq!((shape.body.runs[0][1].text.as_str(), shape.body.runs[0][1].size, shape.body.runs[0][1].italic),
+                    ("CDE", if same_style { 1000 } else { 1200 }, !same_style));
             }
         };
         check(&bytes);
@@ -2158,7 +2164,7 @@ fn legacy_drawing_rich_runs_reach_the_model_and_survive_save() {
             check(&saved);
         }
     }
-    let bytes = rich_drawing_fixture("Arial", false, true, 2, 0x7fff, false, 400);
+    let bytes = rich_drawing_fixture("Arial", false, true, 2, 0x7fff, false, 400, 0);
     let check = |bytes: &[u8]| {
         let loaded = load(bytes); let shape = &loaded.sheets()[0].shapes().shapes[0];
         assert_eq!(shape.text.as_deref(), Some(&["AB".to_owned(), "CDE".to_owned()][..]));

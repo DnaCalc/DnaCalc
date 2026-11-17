@@ -161,6 +161,8 @@ pub struct ShapeBody {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ShapeTextRun {
     pub text: String,
+    /// Explicit Latin typeface, when represented.
+    pub face: Option<String>,
     /// Hundredths of a point.
     pub size: i64,
     pub bold: bool,
@@ -170,7 +172,7 @@ pub struct ShapeTextRun {
 
 impl ShapeTextRun {
     pub fn same_style_as(&self, other: &Self) -> bool {
-        self.size == other.size && self.bold == other.bold && self.italic == other.italic && self.colour == other.colour
+        self.face == other.face && self.size == other.size && self.bold == other.bold && self.italic == other.italic && self.colour == other.colour
     }
 }
 
@@ -180,6 +182,8 @@ impl ShapeBody {
         let first = self.runs.iter().flatten().next()?;
         if !self.runs.iter().flatten().any(|run| !run.same_style_as(first))
             || self.runs.iter().flatten().any(|run| !(100..=400_000).contains(&run.size))
+            || self.runs.iter().flatten().any(|run| run.face.as_deref().is_some_and(|face|
+                face.is_empty() || face.starts_with('+') || face.chars().any(|c| c.is_control() || matches!(c, '\u{fffe}' | '\u{ffff}'))))
             || paragraphs.len() != self.runs.len() || self.size != Some(first.size)
             || self.bold != first.bold || self.italic != first.italic || self.colour != first.colour
             || self.runs.iter().zip(paragraphs).any(|(runs, text)| runs.iter().map(|run| run.text.as_str()).collect::<String>() != *text)

@@ -181,10 +181,10 @@ fn explicit_shape_text_runs_survive_save_and_reopen() {
     shape.body.size = Some(1200); shape.body.bold = true;
     shape.body.colour = Some(ShapeColour::Rgb(0xff0000));
     shape.body.runs = vec![vec![
-        ShapeTextRun { text: "A&".into(), size: 1200, bold: true, italic: false, colour: Some(ShapeColour::Rgb(0xff0000)) },
-        ShapeTextRun { text: "B".into(), size: 1000, bold: false, italic: true, colour: None },
+        ShapeTextRun { text: "A&".into(), face: None, size: 1200, bold: true, italic: false, colour: Some(ShapeColour::Rgb(0xff0000)) },
+        ShapeTextRun { text: "B".into(), face: Some("A&B\"C".into()), size: 1000, bold: false, italic: true, colour: None },
     ], vec![
-        ShapeTextRun { text: "C".into(), size: 1000, bold: false, italic: true, colour: None },
+        ShapeTextRun { text: "C".into(), face: None, size: 1000, bold: false, italic: true, colour: None },
     ]];
     shapes.push(shape.clone());
     let model = edited(&loaded, vec![WorkbookOp::SetShapes { sheet, shapes }]);

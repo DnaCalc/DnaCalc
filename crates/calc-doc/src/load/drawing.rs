@@ -474,8 +474,9 @@ fn rich_text_runs(body: &Node) -> Option<Vec<Vec<ShapeTextRun>>> {
             || child.children.iter().filter(|n| n.local == "t").count() != 1 { return None; }
         let properties = child.child("rPr")?;
         if properties.attributes.iter().any(|(k, _)| !matches!(k.as_str(), "sz" | "b" | "i" | "lang"))
-            || properties.children.iter().any(|n| n.local != "solidFill")
-            || properties.children.len() > 1 { return None; }
+            || properties.children.iter().any(|n| !matches!(n.local.as_str(), "solidFill" | "latin"))
+            || properties.children.iter().filter(|n| n.local == "solidFill").count() > 1
+            || properties.children.iter().filter(|n| n.local == "latin").count() > 1 { return None; }
         let size = properties.number("sz")?;
         if !(100..=400_000).contains(&size) { return None; }
         let boolean = |name| match properties.attribute(name)? {
@@ -485,7 +486,16 @@ fn rich_text_runs(body: &Node) -> Option<Vec<Vec<ShapeTextRun>>> {
             Some(fill) => Some(colour(fill)?),
             None => None,
         };
-        runs.push(ShapeTextRun { text: child.child("t")?.text.clone(), size,
+        let face = match properties.child("latin") {
+            Some(latin) if latin.children.is_empty() && latin.attributes.iter().all(|(k, _)| k == "typeface") => {
+                let face = latin.attribute("typeface")?;
+                if face.is_empty() || face.starts_with('+') || face.chars().any(|c| c.is_control() || matches!(c, '\u{fffe}' | '\u{ffff}')) { return None; }
+                Some(face.to_owned())
+            }
+            Some(_) => return None,
+            None => None,
+        };
+        runs.push(ShapeTextRun { text: child.child("t")?.text.clone(), face, size,
             bold: boolean("b")?, italic: boolean("i")?, colour });
       }
       out.push(runs);

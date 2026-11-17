@@ -580,6 +580,11 @@ fn object(shape: &Shape, remap: &BTreeMap<u32, u32>, media: &MediaRels, out: &mu
                         colour(c, out).map_err(fail)?;
                         out.extend(b"</a:solidFill>");
                     }
+                    if let Some(face) = &run.face {
+                        out.extend(b"<a:latin typeface=");
+                        attribute_value(face, out);
+                        out.extend(b"/>");
+                    }
                     out.extend(b"</a:rPr><a:t xml:space=\"preserve\">");
                     element_text(&run.text, out);
                     out.extend(b"</a:t></a:r>");
