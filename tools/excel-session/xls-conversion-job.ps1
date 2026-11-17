@@ -189,6 +189,9 @@ try {
                 $null = $sortSheet.Range('A1:B3').Sort($sortSheet.Range('A1'), 1, $missing, $missing, 1, $missing, 1, 1)
                 [string]$sortSheet.Range('A2').Value2
             }
+            $entry.setup.chart_sheet_selection = GetOrError {
+                $chartSheet.Activate(); @{active=[string]$book.ActiveSheet.Name}
+            }
             $book.SaveAs($path, $fixture.legacy)
             $book.Close($false); $book=$null
             $entry.source_base64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($path))

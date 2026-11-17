@@ -377,7 +377,7 @@ def package(data):
                                                     if sh.find(M + 'sheetFormatPr') is not None else None),
                            'columns': [(e.get('min'), e.get('max'), e.get('width'))
                                        for e in sh.findall(f'{M}cols/{M}col')],
-                           'views': [{k: e.get(k) for k in ('showOutlineSymbols', 'defaultGridColor', 'colorId', 'view',
+                           'views': [{k: e.get(k) for k in ('tabSelected', 'showOutlineSymbols', 'defaultGridColor', 'colorId', 'view',
                                                              'zoomScale', 'zoomScaleNormal', 'zoomScaleSheetLayoutView')
                                       if e.get(k) is not None} for e in sh.findall(f'{M}sheetViews/{M}sheetView')],
                            'merges': merges, 'links': sorted(links, key=repr), 'comments': sorted(comments),
