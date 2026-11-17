@@ -4419,3 +4419,74 @@ fn solid_shape_outlines_keep_rgb_width_and_default_overrides() {
         check(load(&saved));
     }
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_attached_text_colors_require_explicit_unambiguous_palette_rgb() {
+    use xls_kit::art;
+    for target in [1u16, 2, 3, 0, 4] {
+        for case in ["explicit", "no-font", "auto", "deleted", "rgb-mismatch", "reserved-rgb",
+            "system", "short", "continued", "runs", "extended", "bad-font", "duplicate", "custom-palette", "palette-mismatch"] {
+            let mut chart = art::chart(&[("Sales", Vec::new(), Vec::new())], 0, "Sales chart");
+            let mut text = [0u8; 32];
+            text[4] = 255; // Red, agreeing with the default workbook palette's index 10.
+            text[26] = 10;
+            match case {
+                "custom-palette" => text[4..7].copy_from_slice(&[17, 34, 51]),
+                "auto" => text[24] = 1,
+                "deleted" => text[24] = 0x40,
+                "rgb-mismatch" => text[5] = 255,
+                "reserved-rgb" => text[7] = 1,
+                "system" => text[26..28].copy_from_slice(&0x7fffu16.to_le_bytes()),
+                _ => {},
+            }
+            let mut block = record(0x1025, if case == "short" { &text[..30] } else { &text });
+            if case == "continued" { block.extend(record(0x003c, &[0])); }
+            block.extend(art::begin());
+            if case != "no-font" { block.extend(record(0x1026, &u16s(&[if case == "bad-font" { 0 } else { 1 }]))); }
+            if target != 0 {
+                if target == 4 { block.extend(art::ai(0, &ptg::area3d(0, (0, 0), (0, 0), 0))); }
+                block.extend(art::series_text("Coloured title"));
+                block.extend(record(0x1027, &u16s(&[if target == 4 { 1 } else { target }, 0, 0, 0])));
+            }
+            if case == "runs" { block.extend(record(0x1050, &[0; 4])); }
+            if case == "extended" { block.extend(record(0x08a5, &[0; 4])); }
+            block.extend(art::end());
+            if case == "duplicate" { block.extend(block.clone()); }
+            let marker = if target == 1 || target == 4 {
+                let start = record(0x1025, &[0; 32]);
+                let at = chart.windows(start.len()).position(|w| w == start).unwrap();
+                let legend = record(0x1015, &[0; 20]);
+                let end = chart.windows(legend.len()).position(|w| w == legend).unwrap();
+                chart.splice(at..end, std::mem::take(&mut block)); None
+            } else if target == 0 { Some([record(0x1015, &[0; 20]), art::begin()].concat()) }
+            else { Some(record(0x1015, &[0; 20])) };
+            if let Some(marker) = marker {
+                let at = chart.windows(marker.len()).position(|w| w == marker).unwrap()
+                    + if target == 0 { marker.len() } else { 0 };
+                chart.splice(at..at, block);
+            }
+            let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]),
+                art::obj(5, 1), chart].concat();
+            let mut globals = [font(200, 0, 0x7fff, 400, "Arial"), supbook_self(1), extern_sheet(&[(0, 0, 0)])].concat();
+            if matches!(case, "custom-palette" | "palette-mismatch") {
+                let mut palette = u16s(&[56]); palette.extend([0u8; 224]);
+                palette[10..13].copy_from_slice(&[17, 34, 51]); // Palette index 10.
+                globals.extend(record(0x0092, &palette));
+            }
+            let bytes = xls(false, &globals, &[Sheet::worksheet("S", records)]);
+            let expected = match case { "explicit" | "no-font" => Some("FF0000"), "custom-palette" => Some("112233"), _ => None };
+            let key = match target { 1 | 4 => "title", 2 => "axis-title:222222222", 3 => "axis-title:111111111", _ => "legend" };
+            let check = |bytes: &[u8]| {
+                let loaded = load(bytes);
+                assert_eq!(loaded.sheets()[0].charts().charts[0].element_text.get(key).and_then(|s| s.color.as_deref()),
+                    expected, "target {target}, case {case}");
+            };
+            check(&bytes);
+            let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            check(&saved);
+        }
+    }
+}
