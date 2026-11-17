@@ -14,6 +14,11 @@ $repairs = [Collections.Generic.List[object]]::new()
 $book = $null; $fatal = $null; $pivot = $null; $oldAlerts = $app.DisplayAlerts
 function GetOrError([scriptblock]$f) { try { return & $f } catch { return @{unread=$_.Exception.Message} } }
 function Snapshot($workbook) {
+    # Force formula calculation before reading values; an unfinished rebuild is a failed
+    # observation, not permission to call the file's old cache a calculated answer.
+    $app.CalculateFullRebuild()
+    $calculationState = [int]$app.CalculationState
+    if ($calculationState -ne 0) { throw "Excel calculation did not finish: state $calculationState" }
     $sheets = [Collections.Generic.List[object]]::new()
     foreach ($sheet in $workbook.Sheets) {
         # A chart sheet is a Chart, not a Worksheet, and has no UsedRange or Hyperlinks.
@@ -49,7 +54,8 @@ function Snapshot($workbook) {
             charts=(GetOrError {$sheet.ChartObjects().Count})})
     }
     $names = @($workbook.Names | ForEach-Object { @{name=[string]$_.Name; refers_to=[string]$_.RefersTo; visible=$_.Visible} })
-    return @{date1904=$workbook.Date1904; sheets=$sheets.ToArray(); names=$names; file_format=$workbook.FileFormat}
+    return @{date1904=$workbook.Date1904; sheets=$sheets.ToArray(); names=$names; file_format=$workbook.FileFormat;
+        calculation=@{operation='CalculateFullRebuild'; state=$calculationState}}
 }
 try {
     $app.DisplayAlerts = $false

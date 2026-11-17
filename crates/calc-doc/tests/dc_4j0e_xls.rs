@@ -453,6 +453,22 @@ fn write_legacy_excel_session_inputs() {
         let bytes = xls(false, &[], &[Sheet::worksheet(name, number(0, 0, 42.0))]);
         std::fs::write(dir.join(file), bytes).unwrap();
     }
+    for (file, names) in [
+        ("repair-name-collisions.xls", vec!["Bad/Name", "Bad\\Name", "Bad_Name", "Sheet1", "", "****"]),
+        ("repair-long-collisions.xls", vec!["1234567890123456789012345678901-A", "1234567890123456789012345678901-B",
+            "1234567890123456789012345678901", "Sheet1"]),
+    ] {
+        let count = names.len() as u16;
+        let references: Vec<_> = (0..count).map(|index| (0, index as i16, index as i16)).collect();
+        let globals = [supbook_self(count), extern_sheet(&references)].concat();
+        let sheets: Vec<_> = names.into_iter().enumerate().map(|(index, name)| {
+            let target = (index as u16 + 1) % count;
+            let values = [number(0, 0, index as f64 + 1.0),
+                formula(0, 1, num_value(f64::from(target) + 1.0), &ptg::cell3d(target, 0, 0, 0), &[])].concat();
+            Sheet::worksheet(name, values)
+        }).collect();
+        std::fs::write(dir.join(file), xls(false, &globals, &sheets)).unwrap();
+    }
     for (file, tokens) in [
         ("repair-pivot-0.xls", ptg::func(358)),
         ("repair-pivot-2.xls", ptg::join(&[ptg::text("Amount"), ptg::cell(0, 0, 0), ptg::func(358)])),
@@ -494,6 +510,7 @@ fn write_legacy_excel_session_inputs() {
     let cases = serde_json::json!({
         "files": ["raw-biff2-layout.xls", "raw-grid.xls", "raw-biff2.xls", "raw-biff2-inline.xls", "raw-biff3.xls", "raw-biff4.xls", "cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "tab-color-biff8.xls", "drawing-rgb-solid-fill.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "drawing-uniform-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
         "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls",
+            "repair-name-collisions.xls", "repair-long-collisions.xls",
             "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls",
             "repair-elf-column.xls", "repair-elf-radical.xls", "repair-addin-cell.xls",
             "repair-missing-fat.xls", "repair-missing-chain.xls", "repair-short-format.xls"],
