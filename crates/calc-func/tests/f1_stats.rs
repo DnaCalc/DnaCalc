@@ -5431,3 +5431,31 @@ fn chi_inverse_preserves_the_small_lower_tail() {
         }
     }
 }
+
+/// Touchstone (eng21, Excel 20527): a target inside the history extrapolates the
+/// final state backwards, and a target within one step before the first
+/// timestamp interpolates towards that backward extrapolation.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn forecast_ets_targets_inside_and_before_the_history() {
+    let y = col(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.5]);
+    let t = col(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
+    for (target, expected) in [
+        (1.0, 0.9491528037840906),
+        (2.0, 1.9904089578278334),
+        (3.0, 3.0316651118715763),
+        (8.0, 8.23794588209029),
+        (1.5, 1.469780880805962),
+        (0.25, 0.1682106882512835),
+        (0.5, 0.4285247267622192),
+        (0.001, -0.09106209410560817),
+        (0.0011, -0.09095796849020399),
+        (0.999, 0.9481115476300466),
+        (0.99901, 0.9491528037840906),
+    ] {
+        exact(call("FORECAST.ETS", vec![n(target), y.clone(), t.clone()]), expected);
+    }
+    for target in [0.0, 1e-80, 0.000999, -0.5, -5.0] {
+        error(call("FORECAST.ETS", vec![n(target), y.clone(), t.clone()]), Num);
+    }
+}

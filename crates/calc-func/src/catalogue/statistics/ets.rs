@@ -824,10 +824,9 @@ fn nonseasonal_fit(
     model.finish(y, &mut beta);
     match output {
         Output::Forecast => {
-            if horizon < 0.0 {
-                return Err(unfinished(site));
-            }
-            let phase = ((y.len() - 1) as u64 + horizon as u64) % 2;
+            // A target inside the history extrapolates the final state
+            // backwards (Touchstone, eng21): the same formula with h < 0.
+            let phase = season_phase(y.len(), horizon, 2);
             if general {
                 return finite(site, model.level + horizon * model.trend + model.seasons[phase as usize]);
             }
@@ -875,6 +874,12 @@ fn nonseasonal_fit(
         }
         Output::Seasonality => unreachable!(),
     }
+}
+
+/// The seasonal phase of an integer horizon from the last observation; negative
+/// horizons (targets inside the history) count backwards.
+fn season_phase(n: usize, horizon: f64, period: usize) -> usize {
+    ((n as i64 - 1) + horizon as i64).rem_euclid(period as i64) as usize
 }
 
 /// A calculated result; a non-finite one is Excel's overflow error.
@@ -1067,10 +1072,7 @@ fn seasonal_general(
             })
         }
         Output::Forecast => {
-            if horizon < 0.0 {
-                return Err(unfinished(site));
-            }
-            let phase = ((y.len() - 1) as u64 + horizon as u64) % period as u64;
+            let phase = season_phase(y.len(), horizon, period);
             finite(site, model.level + horizon * model.trend + model.seasons[phase as usize])
         }
         Output::Confidence => {
@@ -1245,11 +1247,38 @@ pub(super) fn evaluate(
     if target < series.first {
         // A reversed input timeline can admit extrapolation before its minimum
         // where an ascending one returns NUM. Its admission rule is still open.
-        return if series.ordered {
-            fail(WorksheetErrorCode::Num)
-        } else {
-            Err(unfinished(site))
+        if !series.ordered {
+            return Err(unfinished(site));
+        }
+        // Touchstone (eng21): within one step before the first timestamp the
+        // forecast interpolates towards the backward extrapolation at
+        // first - step; at or before that point it is NUM.
+        if output != Output::Forecast {
+            return fail(WorksheetErrorCode::Num);
+        }
+        // Excel extends the line through the first two fitted values, in
+        // binary64; it snaps within 0.001 step of the first timestamp and
+        // refuses more than 0.999 step before it (Touchstone, eng21).
+        let position = (target - series.first) / series.step;
+        if position < -0.999 {
+            return fail(WorksheetErrorCode::Num);
+        }
+        let first_horizon = -((series.values.len() - 1) as f64);
+        let fitted = |h: f64| -> Step<f64> {
+            match evaluate_fitted(site, &series, output, statistic, confidence, season, h)?.core_ref() {
+                CoreRef::Number(v) => Ok(v),
+                _ => Err(unfinished(site)),
+            }
         };
+        let first = fitted(first_horizon)?;
+        if position > -0.001 {
+            return site.number(first);
+        }
+        // The slope's multiplier is the horizon from the last timestamp less
+        // the first one's, not the position measured from the first.
+        let along = (target - series.last) / series.step - first_horizon;
+        let second = fitted(first_horizon + 1.0)?;
+        return finite(site, first + (second - first) * along);
     }
     if output == Output::Confidence && target <= series.last {
         // On directly observed, ascending timelines Excel returns zero inside
@@ -1296,7 +1325,7 @@ pub(super) fn evaluate(
         }
         // Fractional forecasts use adjacent integer forecasts only when the
         // timeline division is exact; other fractional outputs remain open.
-        if h.fract() != 0.0 && (output != Output::Forecast || h < 0.0
+        if h.fract() != 0.0 && (output != Output::Forecast
             || h >= i32::MAX as f64 || h.mul_add(series.step, -distance) != 0.0)
         {
             return Err(unfinished(site));
