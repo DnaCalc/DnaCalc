@@ -165,6 +165,15 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
             obj['shape_properties'] = [tree(properties) for element in anchor
                                        if element.tag in (XDR + 'sp', XDR + 'cxnSp')
                                        for properties in element.findall(XDR + 'spPr')]
+            obj['shape_text'] = []
+            for element in anchor:
+                if element.tag != XDR + 'sp':
+                    continue
+                body = element.find(XDR + 'txBody')
+                if body is not None:
+                    text = ''.join(node.text or '' for node in body.iter(A + 't'))
+                    obj['shape_text'].append({'utf16_units': len(text.encode('utf-16-le')) // 2,
+                                              'sha256': hashlib.sha256(text.encode('utf-8')).hexdigest()})
             images = []
             for blip in anchor.iter(A + 'blip'):
                 for attribute in ('embed', 'link'):

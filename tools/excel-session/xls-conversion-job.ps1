@@ -131,6 +131,12 @@ try {
                 @{name=[string]$scenario.Name; comment=[string]$scenario.Comment; count=$sheet.Scenarios().Count}
             }
             $entry.setup.shape = GetOrError { $s = $sheet.Shapes.AddShape(1, 100, 100, 60, 30); [string]$s.Name }
+            $entry.setup.long_text_box = GetOrError {
+                $box = $sheet.Shapes.AddTextbox(1, 100, 300, 160, 90)
+                $text = ('é漢' * 5000)
+                $box.TextFrame.Characters().Text = $text
+                @{name=[string]$box.Name; characters=$box.TextFrame.Characters().Count}
+            }
             $entry.setup.line_shapes = @(
                 foreach ($reverse in @($false, $true)) {
                     GetOrError {
