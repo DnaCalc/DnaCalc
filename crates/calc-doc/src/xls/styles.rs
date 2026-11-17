@@ -327,6 +327,8 @@ impl Styles {
     pub(crate) fn drawing_text_font(&self, ifnt: u16) -> Option<(u32, bool, bool, Option<String>)> {
         if ifnt == 4 { return None; }
         let font = &self.fonts[self.font_index(ifnt)?];
+        // DrawingML text sizes are at least one point; malformed BIFF heights stay incomplete.
+        if font.height < 20 { return None; }
         Some((u32::from(font.height) * 5, font.weight >= 700, font.flags & 0x0002 != 0,
             self.rgb(font.color).map(|argb| argb[2..].to_owned())))
     }
