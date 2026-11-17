@@ -691,7 +691,7 @@ pub(crate) fn read(
         ));
     }
     x.open(root, &namespaces);
-    features.write_properties(&mut x);
+    features.write_properties(&mut x, rules.has_active_filter(context.filter_range.as_deref()));
     features.write_views(&mut x);
     if let Some(width) = features.default_column_width.filter(|w| *w != 8) {
         default_column_width = Some(width);

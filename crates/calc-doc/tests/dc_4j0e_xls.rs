@@ -2444,8 +2444,11 @@ fn conditional_formats_validations_and_the_automatic_filter() {
     r.extend(rules::dv(0x0003 | 0x80 | 0x100 | 0x4_0000 | 0x8_0000, ["", "Oops", "", "Pick one"], &list, &[], (0, 4, 3, 3)));
     r.extend(rules::dv(0x0001 | 0x100 | 0x8_0000, ["", "", "", ""], &int(1), &int(10), (0, 4, 4, 4)));
     // The automatic filter over A1:C10 keeps rows where column B > 3.
+    r.extend(record(0x009B, &[]));
     r.extend(rules::autofilter_info(3));
     r.extend(rules::autofilter_greater_than(1, 3.0));
+    let mut duplicate_filter_mode = r.clone();
+    duplicate_filter_mode.extend(record(0x009B, &[]));
     let bytes = xls(false, &globals, &[Sheet::worksheet("S", r)]);
     let loaded = load(&bytes);
     let sheet = &loaded.sheets()[0];
@@ -2460,6 +2463,7 @@ fn conditional_formats_validations_and_the_automatic_filter() {
     let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
     let part = String::from_utf8(document.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
     for expected in [
+        "<sheetPr filterMode=\"1\">",
         "<autoFilter ref=\"A1:C10\"><filterColumn colId=\"1\"><customFilters><customFilter operator=\"greaterThan\" val=\"3\"/>",
         "<cfRule type=\"cellIs\" dxfId=\"0\" priority=\"1\" operator=\"greaterThan\"><formula>5</formula></cfRule>",
         "<cfRule type=\"expression\"",
@@ -2467,6 +2471,15 @@ fn conditional_formats_validations_and_the_automatic_filter() {
     ] {
         assert!(part.contains(expected), "{expected} in {part}");
     }
+    assert_eq!(legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap().unknown_records.get(&0x009B), Some(&1));
+    let duplicate = xls(false, &globals, &[Sheet::worksheet("S", duplicate_filter_mode)]);
+    let duplicate = calc_doc::open(source(&duplicate), &OpenPolicy::default()).unwrap();
+    let xml = String::from_utf8(duplicate.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+    assert!(!xml.contains("filterMode=\"1\""), "{xml}");
+    let missing = xls(false, &globals, &[Sheet::worksheet("S", record(0x009B, &[]))]);
+    let missing = calc_doc::open(source(&missing), &OpenPolicy::default()).unwrap();
+    let xml = String::from_utf8(missing.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+    assert!(!xml.contains("filterMode=\"1\""), "{xml}");
     // The rule's formatting is a differential format of the styles part: bold, and the solid fill.
     let loaded_styles = loaded.styles();
     assert_eq!(loaded_styles.differential_formats.len(), 2, "{:?}", loaded_styles.differential_formats);

@@ -52,6 +52,8 @@ fn sweep() {
     let audit_core = std::env::var_os("DNACALC_XLS_AUDIT_CORE_PROPERTIES").is_some();
     let audit_scenarios = std::env::var_os("DNACALC_XLS_AUDIT_SCENARIOS").is_some();
     let (mut scenarios, mut scenario_files) = (0usize, 0usize);
+    let audit_filter_mode = std::env::var_os("DNACALC_XLS_AUDIT_FILTER_MODE").is_some();
+    let (mut filter_modes, mut filter_mode_files) = (0usize, 0usize);
     let (mut core_files, mut core_titles, mut core_authors, mut core_modifiers) = (0usize, 0usize, 0usize, 0usize);
     let (mut core_created, mut core_modified) = (0usize, 0usize);
     let (mut core_categories, mut app_files, mut app_names, mut app_managers, mut app_companies) = (0usize, 0usize, 0usize, 0usize, 0usize);
@@ -107,6 +109,13 @@ fn sweep() {
                     .filter(|part| part.name().starts_with("xl/worksheets/sheet") && part.name().ends_with(".xml"))
                     .filter_map(|part| doc.package().read_part(part.name()).ok())
                     .map(|xml| xml.windows(10).filter(|w| *w == b"<scenario ").count()).sum::<usize>()).unwrap_or(0)
+            } else { 0 };
+            let written_filter_modes = if audit_filter_mode {
+                document.as_ref().ok().map(|doc| doc.package().parts().iter()
+                    .filter(|part| part.name().starts_with("xl/worksheets/sheet") && part.name().ends_with(".xml"))
+                    .filter_map(|part| doc.package().read_part(part.name()).ok())
+                    .filter(|xml| xml.windows(14).any(|w| w == b"filterMode=\"1\""))
+                    .count()).unwrap_or(0)
             } else { 0 };
             let written_chart_sheets = if audit_chart_sheets {
                 document.as_ref().ok().map(|doc| doc.package().parts().iter()
@@ -168,11 +177,11 @@ fn sweep() {
                     (formulas, failed, caches, saved_records, points, categories, fills, lines)
                 })
             });
-            (report, document.map(|_| ()), load, written_phonetic, written_chart_sheets, core, app, custom, written_scenarios)
+            (report, document.map(|_| ()), load, written_phonetic, written_chart_sheets, core, app, custom, written_scenarios, written_filter_modes)
         }));
         match result {
             Err(_) => panics.push(file.display().to_string()),
-            Ok((report, document, load, written_phonetic, written_chart_sheets, core, app, custom, written_scenarios)) => {
+            Ok((report, document, load, written_phonetic, written_chart_sheets, core, app, custom, written_scenarios, written_filter_modes)) => {
                 match document {
                     Err(OpenError::LegacyWorkbook { detail, .. }) => {
                         let key = detail.chars().take(70).collect::<String>();
@@ -199,6 +208,8 @@ fn sweep() {
                         if let Some(count) = custom { custom_files += 1; custom_count += count; }
                         scenarios += written_scenarios;
                         scenario_files += usize::from(written_scenarios != 0);
+                        filter_modes += written_filter_modes;
+                        filter_mode_files += usize::from(written_filter_modes != 0);
                         chart_sheets += written_chart_sheets;
                         chart_sheet_files += usize::from(written_chart_sheets != 0);
                         if let Some((runs, formats)) = written_phonetic {
@@ -277,6 +288,9 @@ fn sweep() {
     }
     if audit_scenarios {
         println!("saved scenario definitions: {scenarios} in {scenario_files} files (not applied by the application)");
+    }
+    if audit_filter_mode {
+        println!("sheets retaining active filter state: {filter_modes} in {filter_mode_files} files (not an Excel match verdict)");
     }
     println!("refused to open, by reason:");
     for (reason, n) in &refused {

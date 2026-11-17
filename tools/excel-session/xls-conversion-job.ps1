@@ -107,6 +107,11 @@ try {
             $entry.setup.relative_hyperlink = GetOrError { $h = $sheet.Hyperlinks.Add($sheet.Range('C6'), '..\folder\book.xls', 'Data!A1'); @{address=[string]$h.Address; location=[string]$h.SubAddress} }
             $entry.setup.comment = GetOrError { $c = $sheet.Range('C3').AddComment('Controlled note'); [string]$c.Text() }
             $entry.setup.validation = GetOrError { $sheet.Range('C4').Validation.Add(1, 1, 1, '1', '10'); $sheet.Range('C4').Validation.Type }
+            $entry.setup.active_filter = GetOrError {
+                $sheet.Range('K1').Value2 = 'Group'; $sheet.Range('K2').Value2 = 'keep'; $sheet.Range('K3').Value2 = 'drop'
+                $null = $sheet.Range('K1:K3').AutoFilter(1, 'keep')
+                @{filter_mode=$sheet.FilterMode; hidden=$sheet.Rows.Item(3).Hidden}
+            }
             $entry.setup.conditional = GetOrError { $c = $sheet.Range('C5').FormatConditions.Add(1, 3, '1'); $c.Interior.Color = 65535; $sheet.Range('C5').FormatConditions.Count }
             $entry.setup.scenario = GetOrError {
                 $scenario = $sheet.Scenarios().Add('cxPlan', $sheet.Range('A1'), [object[]]@(42), 'Controlled scenario', $true, $false)

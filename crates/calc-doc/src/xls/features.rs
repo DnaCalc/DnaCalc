@@ -105,6 +105,7 @@ pub(crate) struct Features {
     grid_lines: bool,
     headings: bool,
     ws_bool: Option<u16>,
+    filter_mode: Option<bool>,
     row_breaks: Vec<(u16, u16, u16)>,
     column_breaks: Vec<(u16, u16, u16)>,
     pub(crate) outline_levels: Option<(u8, u8)>,
@@ -263,6 +264,12 @@ impl Features {
             PRINT_GRIDLINES => self.grid_lines = c.u16("PrintGrid").map_err(e)? != 0,
             PRINT_HEADERS => self.headings = c.u16("PrintRowCol").map_err(e)? != 0,
             WSBOOL => self.ws_bool = Some(c.u16("WsBool").map_err(e)?),
+            0x009B => {
+                let valid = record.body.is_empty() && record.continues.is_empty();
+                self.filter_mode = Some(valid && self.filter_mode.is_none());
+                // The application does not use this saved state directly.
+                return Ok(false);
+            }
             0x004D => {
                 let joined = record.joined();
                 self.printer_settings.push(joined.get(2..).unwrap_or_default().to_vec());
@@ -543,15 +550,17 @@ impl Features {
     }
 
     /// `<sheetPr>`, when the sheet has outline or page setup properties to state.
-    pub(crate) fn write_properties(&self, x: &mut Xml) {
+    pub(crate) fn write_properties(&self, x: &mut Xml, has_active_filter: bool) {
         let flags = self.ws_bool.unwrap_or(0x00C0);
         let summary_below = flags & 0x0040 != 0;
         let summary_right = flags & 0x0080 != 0;
         let fit = flags & 0x0100 != 0;
-        if summary_below && summary_right && !fit && self.code_name.is_none() {
+        let filter_mode = self.filter_mode == Some(true) && has_active_filter;
+        if summary_below && summary_right && !fit && self.code_name.is_none() && !filter_mode {
             return;
         }
         let mut properties = Vec::new();
+        if filter_mode { properties.push(("filterMode", "1".to_owned())); }
         if let Some(code_name) = &self.code_name {
             properties.push(("codeName", code_name.clone()));
         }

@@ -379,6 +379,7 @@ def package(data):
                     comments.extend((e.get('ref'), ''.join(x.text or '' for x in e.iter(M + 't')))
                                     for e in comment_root.iter(M + 'comment'))
             sheets.append({'name': s.get('name'), 'state': s.get('state', 'visible'), 'cells': cells,
+                           'filter_mode': sh.find(M + 'sheetPr') is not None and sh.find(M + 'sheetPr').get('filterMode', '0') in ('1', 'true'),
                            'default_column_width': (sh.find(M + 'sheetFormatPr').get('defaultColWidth')
                                                     if sh.find(M + 'sheetFormatPr') is not None else None),
                            'columns': [(e.get('min'), e.get('max'), e.get('width'))
