@@ -180,6 +180,11 @@ fn sweep() {
                             .map(|text| text.encode_utf16().count()).sum();
                         println!("drawing text UTF-16 units: {units}");
                     }
+                    if std::env::var_os("DNACALC_XLS_AUDIT_DRAWING_FILL").is_some() {
+                        let count = loaded.sheets().iter().flat_map(|s| &s.shapes().shapes)
+                            .filter(|shape| matches!(shape.fill, calc_doc::model::ShapeFill::None)).count();
+                        println!("drawing shapes with no fill: {count}");
+                    }
                     // Every formula must re-parse in calc-fml.
                     let (mut formulas, mut failed) = (0usize, 0usize);
                     for sheet in loaded.model().sheets() {

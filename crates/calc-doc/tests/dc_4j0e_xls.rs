@@ -2351,6 +2351,32 @@ fn pictures_text_boxes_and_charts_are_written_as_a_drawing() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn explicit_shape_no_fill_is_preserved() {
+    use xls_kit::art;
+    for (flags, expected) in [(&[0x0010_0000u32][..], true), (&[0x0010_0010][..], false),
+        (&[0][..], false), (&[0x0010_0000, 0x0010_0000][..], false)] {
+        let mut shape = art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], false);
+        let mut properties = Vec::new();
+        for flag in flags { properties.extend(0x01bfu16.to_le_bytes()); properties.extend(flag.to_le_bytes()); }
+        let props = art::atom(3, flags.len() as u16, 0xf00b, &properties);
+        shape.splice(8..8, props);
+        let length = (shape.len() - 8) as u32;
+        shape[4..8].copy_from_slice(&length.to_le_bytes());
+        let records = [art::drawing(&[shape]), art::obj(6, 1)].concat();
+        let bytes = xls(false, &[], &[Sheet::worksheet("S", records)]);
+        let loaded = load(&bytes);
+        assert_eq!(matches!(loaded.sheets()[0].shapes().shapes[0].fill, calc_doc::model::ShapeFill::None), expected);
+        if expected {
+            let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            assert!(matches!(load(&saved).sheets()[0].shapes().shapes[0].fill, calc_doc::model::ShapeFill::None));
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn chart_attached_title_binds_after_text_without_changing_series_name() {
     use ptg::*;
     use xls_kit::art;

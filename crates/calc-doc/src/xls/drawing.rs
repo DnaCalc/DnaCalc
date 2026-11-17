@@ -171,6 +171,9 @@ struct Shape {
     anchor: Option<[u16; 8]>,
     client_data: bool,
     text_box: bool,
+    fill_seen: bool,
+    fill_invalid: bool,
+    no_fill: bool,
 }
 
 fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
@@ -188,6 +191,7 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                     }
                     0xF00B => {
                         // Properties: id (14 bits), blip flag, complex flag, then a 32-bit value.
+                        if usize::from(child.instance) * 6 > child.body.len() { shape.fill_invalid = true; }
                         for k in 0..usize::from(child.instance) {
                             let at = k * 6;
                             let Some(p) = child.body.get(at..at + 6) else { break };
@@ -195,6 +199,12 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                             let value = u32::from_le_bytes([p[2], p[3], p[4], p[5]]);
                             if id & 0x3FFF == 0x0104 {
                                 shape.picture = Some(value);
+                            }
+                            if id & 0x3FFF == 0x01BF {
+                                if shape.fill_seen || id & 0xC000 != 0 { shape.fill_invalid = true; }
+                                shape.fill_seen = true;
+                                // fUsefFilled and fFilled: an explicit false suppresses the fill.
+                                shape.no_fill = value & 0x0010_0010 == 0x0010_0000;
                             }
                         }
                     }
@@ -500,6 +510,7 @@ impl Drawing {
                     x.open("a:prstGeom", &[("prst", geometry_name.to_owned())]);
                     x.empty("a:avLst", &[]);
                     x.close("a:prstGeom");
+                    if shape.no_fill && !shape.fill_invalid { x.empty("a:noFill", &[]); }
                     x.close("xdr:spPr");
                     if let Some(text) = &object.text {
                         x.open("xdr:txBody", &[]);

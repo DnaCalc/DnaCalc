@@ -131,6 +131,11 @@ try {
                 @{name=[string]$scenario.Name; comment=[string]$scenario.Comment; count=$sheet.Scenarios().Count}
             }
             $entry.setup.shape = GetOrError { $s = $sheet.Shapes.AddShape(1, 100, 100, 60, 30); [string]$s.Name }
+            $entry.setup.shape_no_fill = GetOrError {
+                $shape = $sheet.Shapes.AddShape(1, 100, 145, 60, 30)
+                $shape.Fill.Visible = 0
+                @{name=[string]$shape.Name; visible=$shape.Fill.Visible}
+            }
             $entry.setup.long_text_box = GetOrError {
                 $box = $sheet.Shapes.AddTextbox(1, 100, 300, 160, 90)
                 $text = ('é漢' * 5000)
