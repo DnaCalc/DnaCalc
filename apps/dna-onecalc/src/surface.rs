@@ -243,6 +243,7 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
     });
     // Whether the file's VBA project may run: Excel's default is not until the person enables it.
     let macros_view = RwSignal::new(MacrosView::Enabled);
+    let block_reason = RwSignal::new(String::new());
     // The macro security level in force and the information notice of a marked file's macros that
     // ran (dc-15dk): the level is always shown.
     let macro_policy = RwSignal::new(crate::MacroPolicy::default());
@@ -436,6 +437,12 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                     .map_or(MacrosView::Enabled, |view| view.macros),
             );
             macro_policy.set(policy);
+            block_reason.set(
+                project
+                    .as_ref()
+                    .map(|view| view.block_reason.clone())
+                    .unwrap_or_default(),
+            );
             macro_notice.set(
                 project
                     .as_ref()
@@ -1350,7 +1357,8 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                         match macros_view.get() {
                             MacrosView::Enabled => macro_notice.get(),
                             MacrosView::Blocked => format!(
-                                "Macros are blocked: this file came from the internet or another computer, so its VBA project is held and not run. Warning: unblocking lets its macros run with your access to files and the network; unblock only a file you trust."
+                                "Macros are blocked. {}; its VBA project is held and not run. Warning: unblocking lets its macros run with your access to files and the network; unblock only a file you trust.",
+                                block_reason.get()
                             ),
                             MacrosView::Disabled => format!(
                                 "Macros are disabled for this file: its VBA project is kept and saved, but nothing in it runs."

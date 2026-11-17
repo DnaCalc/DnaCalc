@@ -257,6 +257,10 @@ pub struct ProjectView {
     /// trusts every file; empty for none (dc-15dk).
     #[serde(default)]
     pub notice: String,
+    /// Why a Blocked project cannot simply be enabled (`MacroBlock::origin_description`); empty
+    /// when the view is not Blocked.
+    #[serde(default)]
+    pub block_reason: String,
 }
 
 /// Whether the file's VBA project may run (Excel's default: not until the person enables it).
@@ -454,6 +458,10 @@ pub fn project_view(session: &Session, report: ProjectReport) -> ProjectView {
             .project()
             .and_then(|p| p.notice.clone())
             .unwrap_or_default(),
+        block_reason: match session.project().map(|p| p.macros) {
+            Some(crate::MacroState::Blocked(block)) => block.origin_description(),
+            _ => String::new(),
+        },
     }
 }
 

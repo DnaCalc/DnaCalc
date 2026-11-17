@@ -395,6 +395,19 @@ fn a_macro_file_opens_disabled_and_the_mark_of_the_web_blocks_it() {
             };
             let view = opened.project.expect("the file's project");
             assert_eq!(view.macros, expected, "{origin:?}");
+            // The Blocked bar names the real reason, not always "the internet".
+            match origin {
+                dna_onecalc::FileOrigin::Unknown => {
+                    assert_eq!(view.block_reason, "The file origin could not be verified");
+                }
+                dna_onecalc::FileOrigin::Network => {
+                    assert_eq!(view.block_reason, "This file was opened from the network");
+                }
+                dna_onecalc::FileOrigin::Zone(3 | 4) => {
+                    assert!(view.block_reason.contains("internet or another computer"), "{view:?}");
+                }
+                _ => assert!(view.block_reason.is_empty(), "{view:?}"),
+            }
             assert!(
                 view.functions.is_empty() && !view.notes.is_empty(),
                 "{view:?}"
