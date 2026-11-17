@@ -129,6 +129,28 @@ pub fn chisq_inv_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Works
     )
 }
 
+/// Excel's right-tail chi-square inverse at very large degrees (dc-6332.18, fn9): the leading
+/// terms of R. B. Goldstein's chi-square quantile approximation (Comm. ACM 16(8), 1973,
+/// Algorithm 451), `x = n * c^3` with `c = 1.0000886 + 0.4713941 * z / sqrt(n)` and `z` the
+/// upper-tail normal deviate of p; its other terms carry powers of 1/n and are below the last
+/// place here. The constants are the published coefficients; the staging (every product and sum
+/// stored from x87 precision 64, the cube as `(c c) c`) is one of several the answers cannot tell
+/// apart. Excel 16.0.20527 bank rows with n >= 2^53 and p in [0.0025, 1): 244 of 244, which
+/// includes every row the measured large-shape factor and unit routes matched. Below 2^53 the
+/// other terms show (n = 8.9e10 is not a cube of this form) and Excel's route is not identified.
+fn goldstein_large_degree_root(p: f64, deg_freedom: f64) -> Option<f64> {
+    use crate::ported::excel_numeric::{excel_sqrt_staged, excel_x87_add, excel_x87_div, excel_x87_mul};
+    if !(f64::from_bits(0x4340_0000_0000_0000)..f64::from_bits(0x7e70_0000_0000_0000)).contains(&deg_freedom) // [2^53, 2^1000)
+        || !(0.0025..1.0).contains(&p)
+    {
+        return None;
+    }
+    let z = crate::ported::normal_log_family::norm_s_inv_kernel(1.0 - p).ok()?;
+    let f1 = excel_sqrt_staged(excel_x87_div(1.0, deg_freedom));
+    let c = excel_x87_add(excel_x87_mul(excel_x87_mul(0.4713941, z), f1), 1.0000886);
+    Some(excel_x87_mul(deg_freedom, excel_x87_mul(excel_x87_mul(c, c), c)))
+}
+
 pub fn chisq_inv_rt_kernel(probability: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorCode> {
     let p = if probability == 1.0 {
         1.0
@@ -142,6 +164,9 @@ pub fn chisq_inv_rt_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Wo
         } else {
             Err(WorksheetErrorCode::Num)
         };
+    }
+    if let Some(x) = goldstein_large_degree_root(p, deg_freedom) {
+        return Ok(x);
     }
     if let Some(factor) = crate::ported::beta_gamma_stats_family::large_shape_inverse_factor(
         1.0 - p, deg_freedom / 2.0,
@@ -582,6 +607,28 @@ mod tests {
             f64::from_bits(0x3fe1_4a8f_0049_03dc),
         );
         assert_eq!(unit.unwrap().to_bits(), 0x4047_bc14_af00_45bc);
+    }
+
+    /// Excel 16.0.20527 full-bank rows (dc-6332.18) at degrees 1e16 to 3.4e22 where Excel publishes
+    /// Goldstein's leading terms and the old route refused with #NUM!.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn huge_degree_right_tail_is_goldstein_leading_terms() {
+        for (p, df, excel) in [
+            (0.11070131_f64, 0x43fa_85f8_1b35_198c_u64, 0x43fa_87c6_2b7b_7a57_u64),
+            (f64::from_bits(0x3f65_4b16_7c9e_eb00), 0x4341_fc91_497f_ccf2, 0x4341_fdca_ad94_65e9),
+            (f64::from_bits(0x3fd5_8281_8955_c26e), 0x4402_5663_9601_09c8, 0x4402_57a3_0b0a_6480),
+            (f64::from_bits(0x3fda_a23c_4870_5910), 0x449c_ec8e_37ce_60c0, 0x449c_ee86_1aa8_cf0d),
+            (f64::from_bits(0x3f76_4ee1_b26e_3a80), 0x43e5_4ccd_792a_4678, 0x43e5_4e40_8adf_a4db),
+            (f64::from_bits(0x3fb8_d71b_e79b_41d8), 0x4397_13b9_1ee5_b028, 0x4397_154b_2684_5777),
+            (f64::from_bits(0x3fc8_a5d5_ba5d_f914), 0x4448_9108_2ade_fcc8, 0x4448_92b4_2430_8042),
+            (f64::from_bits(0x3fd8_cdc7_eddc_570a), 0x43d1_3b91_ce4c_21a6, 0x43d1_3cbe_045b_5c58),
+            (f64::from_bits(0x3fda_b73e_2bf5_86bc), 0x43e4_246f_50ec_f36c, 0x43e4_25ce_3744_d962),
+            (f64::from_bits(0x3fea_2137_c1fa_f303), 0x4387_4e58_7cfc_85d8, 0x4387_4fee_7fad_833c),
+        ] {
+            let df = f64::from_bits(df);
+            assert_eq!(chisq_inv_rt_kernel(p, df).unwrap().to_bits(), excel, "CHISQ.INV.RT({p}, {df})");
+        }
     }
 
     /// FDIST and F.DIST on either side of `d1 f = d2`, in the series and recurrence arms and with
