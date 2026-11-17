@@ -437,11 +437,19 @@ def package(data):
                 rel = shrels.get(link.get(R + 'id'))
                 links.append((link.get('ref'), None if rel is None else rel.get('Target'), link.get('location'), link.get('display')))
             comments = []
+            comment_runs = []
             for rel in shrels.values():
                 if rel.get('Type', '').endswith('/comments'):
                     comment_root = ET.fromstring(z.read(target(path, rel)))
                     comments.extend((e.get('ref'), ''.join(x.text or '' for x in e.iter(M + 't')))
                                     for e in comment_root.iter(M + 'comment'))
+                    for note in comment_root.iter(M + 'comment'):
+                        runs = []
+                        for run in note.findall(f'{M}text/{M}r'):
+                            props = run.find(M + 'rPr')
+                            runs.append({'text': ''.join(x.text or '' for x in run.iter(M + 't')),
+                                         'properties': None if props is None else tree(props)})
+                        comment_runs.append({'ref': note.get('ref'), 'runs': runs})
             sheets.append({'name': s.get('name'), 'state': s.get('state', 'visible'), 'cells': cells,
                            'sheet_properties': None if sh.find(M + 'sheetPr') is None else tree(sh.find(M + 'sheetPr')),
                            'sheet_protection': sheet_protection(sh),
@@ -454,6 +462,7 @@ def package(data):
                                                              'zoomScale', 'zoomScaleNormal', 'zoomScaleSheetLayoutView')
                                       if e.get(k) is not None} for e in sh.findall(f'{M}sheetViews/{M}sheetView')],
                            'merges': merges, 'links': sorted(links, key=repr), 'comments': sorted(comments),
+                           'comment_runs': sorted(comment_runs, key=repr),
                            'note_geometry': note_geometry(z, sh, path, shrels),
                            'scenarios': None if sh.find(M + 'scenarios') is None else tree(sh.find(M + 'scenarios')),
                            'conditional_formats': [tree(e) for e in sh.findall(M + 'conditionalFormatting')],

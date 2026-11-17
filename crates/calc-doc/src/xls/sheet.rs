@@ -901,7 +901,7 @@ pub(crate) fn read(
         unknown,
         rels,
         parts: {
-            parts.extend(features.comment_parts());
+            parts.extend(features.comment_parts(context.styles));
             if let Some(printer) = features.printer_part() { parts.push(printer); }
             parts
         },

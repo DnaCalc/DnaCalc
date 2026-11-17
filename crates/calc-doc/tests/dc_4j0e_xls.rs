@@ -2009,6 +2009,33 @@ fn comments_are_read_from_note_obj_and_txo_records() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn note_txo_format_runs_are_preserved_when_complete() {
+    for (last, expected) in [(6u16, true), (5, false)] {
+        let mut body = u16s(&[0x0212, 0, 0, 0, 0, 6, 24]); body.extend([0u8; 4]);
+        let runs = u16s(&[0, 0, 0, 0, 3, 1, 0, 0, last, 0, 0, 0]);
+        let records = [obj_note(1), record(0x01b6, &body), record(0x003c, b"\0ABCDEF"),
+            record(0x003c, &runs[..10]), record(0x003c, &runs[10..]), note(0, 0, 0, 1, "Ann")].concat();
+        let globals = [font(200, 0, 0x7fff, 400, "Arial"), font(200, 0, 0x7fff, 700, "Arial")].concat();
+        let bytes = xls(false, &globals, &[Sheet::worksheet("S", records)]);
+        let check = |bytes: &[u8]| {
+            let loaded = load(bytes);
+            let notes = &loaded.sheets()[0].review().notes;
+            assert_eq!(notes[0].text, "ABCDEF");
+            assert_eq!(!notes[0].spans.is_empty(), expected, "{:?}", notes[0].spans);
+            if expected { assert!(notes[0].spans.iter().any(|span| span.start == 3 && span.end == 6 && span.style.bold)); }
+        };
+        check(&bytes);
+        if expected {
+            let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            check(&saved);
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn continued_txo_text_is_read_for_notes_and_text_boxes() {
     use xls_kit::art;
     let mut body = u16s(&[0x0212, 0, 0, 0, 0, 3, 16]);

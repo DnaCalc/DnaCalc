@@ -54,6 +54,45 @@ pub(crate) fn txo_text(record: &Record<'_>) -> Result<Option<Vec<u16>>, Malforme
     Ok(Some(pieces.characters(count, flag & 1 != 0, "Txo text")?))
 }
 
+/// The explicitly bounded formatting runs following a TxO's character continuations.
+pub(crate) fn txo_runs(record: &Record<'_>, text: &[u16]) -> Option<Vec<(u16, u16)>> {
+    let body = record.body;
+    if body.len() < 14 || text.is_empty() { return None; }
+    let count = usize::from(u16::from_le_bytes([body[10], body[11]]));
+    let size = usize::from(u16::from_le_bytes([body[12], body[13]]));
+    if count != text.len() || size < 16 || size % 8 != 0 { return None; }
+    let mut remaining = count;
+    let mut end = 0;
+    for piece in &record.continues {
+        if piece.is_empty() || piece[0] > 1 { return None; }
+        let width = if piece[0] == 1 { 2 } else { 1 };
+        if (piece.len() - 1) % width != 0 { return None; }
+        let units = (piece.len() - 1) / width;
+        if units == 0 || units > remaining { return None; }
+        remaining -= units; end += 1;
+        if remaining == 0 { break; }
+    }
+    if remaining != 0 { return None; }
+    let mut bytes = Vec::with_capacity(size);
+    for piece in &record.continues[end..] {
+        if bytes.len().checked_add(piece.len())? > size { return None; }
+        bytes.extend_from_slice(piece);
+        if bytes.len() == size { break; }
+    }
+    if bytes.len() != size || usize::from(u16::from_le_bytes([bytes[size-8], bytes[size-7]])) != count { return None; }
+    let mut runs = Vec::new();
+    for chunk in bytes[..size-8].chunks_exact(8) {
+        let at = u16::from_le_bytes([chunk[0], chunk[1]]);
+        let font = u16::from_le_bytes([chunk[2], chunk[3]]);
+        let index = usize::from(at);
+        if index >= count || (index > 0 && (0xdc00..=0xdfff).contains(&text[index])
+            && (0xd800..=0xdbff).contains(&text[index-1]))
+            || runs.last().is_some_and(|&(previous, _)| previous >= at) { return None; }
+        runs.push((at, font));
+    }
+    (runs.first().is_some_and(|(at, _)| *at == 0)).then_some(runs)
+}
+
 /// A string with its formatting runs (character index, font index), as the shared string table
 /// holds it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

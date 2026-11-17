@@ -123,6 +123,7 @@ pub(crate) struct Features {
     /// The sheet's VBA code name (CODENAME).
     pub(crate) code_name: Option<String>,
     note_texts: std::collections::BTreeMap<u16, Vec<u16>>,
+    note_runs: std::collections::BTreeMap<u16, Vec<(u16, u16)>>,
     notes: Vec<Note>,
 }
 
@@ -404,6 +405,11 @@ impl Features {
             TXO => {
                 if let Some(id) = self.waiting_object.take() {
                     if let Some(units) = super::strings::txo_text(record).map_err(|m| m.0)? {
+                        self.note_runs.remove(&id);
+                        if let Some(runs) = super::strings::txo_runs(record, &units)
+                            && runs.iter().all(|&(_, font)| font != 4 && styles.font_index(font).is_some()) {
+                            self.note_runs.insert(id, runs);
+                        }
                         self.note_texts.insert(id, units);
                     }
                 }
@@ -939,7 +945,7 @@ impl Features {
     }
 
     /// The comments part and the VML drawing that shows each note.
-    pub(crate) fn comment_parts(&self) -> Vec<(String, &'static str, Vec<u8>)> {
+    pub(crate) fn comment_parts(&self, styles: &super::styles::Styles) -> Vec<(String, &'static str, Vec<u8>)> {
         if self.notes.is_empty() {
             return Vec::new();
         }
@@ -964,7 +970,18 @@ impl Features {
                 &[("ref", cell(note.row, note.column)), ("authorId", id.to_string())],
             );
             x.open("text", &[]);
-            super::sheet::text_element(&mut x, self.note_texts.get(&note.object).map_or(&[][..], |t| t));
+            let text = self.note_texts.get(&note.object).map_or(&[][..], |t| t);
+            if let Some(runs) = self.note_runs.get(&note.object) {
+                for (index, &(start, font)) in runs.iter().enumerate() {
+                    let end = runs.get(index + 1).map_or(text.len(), |next| usize::from(next.0));
+                    x.open("r", &[]);
+                    styles.write_run_properties(&mut x, font);
+                    super::sheet::text_element(&mut x, &text[usize::from(start)..end]);
+                    x.close("r");
+                }
+            } else {
+                super::sheet::text_element(&mut x, text);
+            }
             x.close("text");
             x.close("comment");
         }

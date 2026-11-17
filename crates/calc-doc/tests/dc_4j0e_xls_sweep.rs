@@ -185,6 +185,11 @@ fn sweep() {
                             .filter(|shape| matches!(shape.fill, calc_doc::model::ShapeFill::None)).count();
                         println!("drawing shapes with no fill: {count}");
                     }
+                    if std::env::var_os("DNACALC_XLS_AUDIT_NOTE_RUNS").is_some() {
+                        let count = loaded.sheets().iter().flat_map(|s| &s.review().notes)
+                            .filter(|note| !note.spans.is_empty()).count();
+                        println!("notes with rich text spans: {count}");
+                    }
                     // Every formula must re-parse in calc-fml.
                     let (mut formulas, mut failed) = (0usize, 0usize);
                     for sheet in loaded.model().sheets() {

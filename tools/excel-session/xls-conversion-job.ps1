@@ -119,6 +119,13 @@ try {
             $entry.setup.hyperlink = GetOrError { $h = $sheet.Hyperlinks.Add($sheet.Range('C2'), 'https://example.com/'); [string]$h.Address }
             $entry.setup.relative_hyperlink = GetOrError { $h = $sheet.Hyperlinks.Add($sheet.Range('C6'), '..\folder\book.xls', 'Data!A1'); @{address=[string]$h.Address; location=[string]$h.SubAddress} }
             $entry.setup.comment = GetOrError { $c = $sheet.Range('C3').AddComment('Controlled note'); [string]$c.Text() }
+            $entry.setup.comment_rich = GetOrError {
+                $note = $sheet.Range('C3').Comment
+                $note.Shape.TextFrame.Characters(1, 4).Font.Bold = $true
+                $note.Shape.TextFrame.Characters(5, 4).Font.Italic = $true
+                @{bold=$note.Shape.TextFrame.Characters(1, 4).Font.Bold;
+                  italic=$note.Shape.TextFrame.Characters(5, 4).Font.Italic}
+            }
             $entry.setup.comment_geometry = GetOrError {
                 $shape = $sheet.Range('C3').Comment.Shape
                 $shape.Left = 135; $shape.Top = 80; $shape.Width = 144; $shape.Height = 75
