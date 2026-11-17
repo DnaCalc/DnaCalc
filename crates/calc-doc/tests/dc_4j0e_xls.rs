@@ -2537,6 +2537,12 @@ fn unambiguous_shape_flips_are_loaded_and_saved() {
         calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
         check(&saved);
     }
+    let mut shape = art::shape(1, 0, [1, 0, 1, 0, 4, 0, 6, 0], false);
+    shape[20..24].copy_from_slice(&0x0a40u32.to_le_bytes());
+    shape.splice(8..8, art::atom(2, 1, 0xf00a, &[0; 4]));
+    let length = (shape.len() - 8) as u32; shape[4..8].copy_from_slice(&length.to_le_bytes());
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", [art::drawing(&[shape]), art::obj(2, 1)].concat())]);
+    assert!(!load(&bytes).sheets()[0].shapes().shapes[0].flip_horizontal);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

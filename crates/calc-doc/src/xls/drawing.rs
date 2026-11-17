@@ -190,10 +190,13 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                         if child.body.len() >= 8 {
                             let flags = u32::from_le_bytes(child.body[4..8].try_into().expect("4 bytes"));
                             shape.group = flags & 0x1 != 0;
-                            if shape.flags.replace(flags).is_some() {
+                            if shape.flags.replace(flags).is_some() || child.body.len() != 8 {
                                 shape.fixed_geometry_unsafe = true;
                                 shape.flip_invalid = true;
                             }
+                        } else {
+                            shape.fixed_geometry_unsafe = true;
+                            shape.flip_invalid = true;
                         }
                     }
                     0xF00B => {
