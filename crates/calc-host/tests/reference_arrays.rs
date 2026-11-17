@@ -634,6 +634,11 @@ fn dc_b1l__each_consumer_reads_an_array_of_references_as_excel() {
         (format!("=ARRAYTOTEXT({r},-1)"), vec!["Calc"]),
         (format!("=ARRAYTOTEXT({r},\"x\")"), vec!["Value"]),
         (format!("=ARRAYTOTEXT({r},NA())"), vec!["NA"]),
+        // AGGREGATE runs once per reference given as ref2 or later; ref1's are #VALUE!.
+        (format!("=AGGREGATE(9,0,A1:A2,{r})"), vec!["6", "8", "10"]),
+        (format!("=AGGREGATE(14,0,A1:A6,OFFSET(A1,{{0;1;2}},0))"), vec!["6", "5", "4"]),
+        (format!("=AGGREGATE(9,0,{r},{r})"), vec!["Value", "Value", "Value"]),
+        (format!("=AGGREGATE(9,0,{r})"), vec!["Value"]),
     ];
     for (i, (formula, _)) in cases.iter().enumerate() {
         enter(4 * i as u32 + 1, 8, formula);

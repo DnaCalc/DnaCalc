@@ -532,7 +532,7 @@ pub mod subtotal {
     data_family! {
         code: CODE;
     1 "SUBTOTAL" (2, 255) [V "function_num", F "ref1" @Reference ~ ArrayAlwaysLiftReferences, F "ref2" @Reference ~ ArrayAlwaysLiftReferencesRepeated] traits skip_nested_subtotals, lift_dynamic_references; three_d (None, Some(&[1, usize::MAX]), Some(&[0])); ;
-    2 "AGGREGATE" (3, 253) [V "function_num", V "options", R "ref1" ~ ArrayAtRoot, R "ref2" ~ AggregateAtRoot, R "ref3" @Reference] traits skip_nested_subtotals, value_error_references; three_d (None, Some(&[2, usize::MAX]), Some(&[0, 1])); ;
+    2 "AGGREGATE" (3, 253) [V "function_num", V "options", R "ref1" ~ ArrayAtRoot, R "ref2" ~ AggregateAtRoot, R "ref3" @Reference] traits skip_nested_subtotals, value_error_references, lift_references_after_ref1; three_d (None, Some(&[2, usize::MAX]), Some(&[0, 1])); ;
     }
 }
 
