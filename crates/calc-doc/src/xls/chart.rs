@@ -160,6 +160,7 @@ pub(crate) struct Chart {
     attached_ai_seen: bool,
     attached_invalid: bool,
     attached_font: Option<(String, bool, bool)>,
+    attached_color: Option<String>,
     attached_font_seen: bool,
     attached_font_invalid: bool,
     pending_default_font: Option<usize>,
@@ -170,6 +171,9 @@ pub(crate) struct Chart {
     default_font_seen: [bool; 2],
     default_font_invalid: bool,
     title_font: Option<(String, bool, bool)>,
+    title_color: Option<String>,
+    axis_title_colors: [Option<String>; 2],
+    legend_color: Option<String>,
     axis_title_fonts: [Option<(String, bool, bool)>; 2],
     axis_fonts: [Option<(String, bool, bool)>; 2],
     axis_font_seen: [bool; 2],
@@ -574,6 +578,15 @@ impl Chart {
                 self.attached_ai_seen = false;
                 self.attached_invalid = false;
                 self.attached_font = None;
+                // MS-XLS 2.4.324: rgbText and icvText describe the same explicit colour.
+                // Automatic colours, malformed/local records and palette disagreements stay unread.
+                self.attached_color = if code_page.is_none() && body.len() == 32 && record.continues.is_empty()
+                    && body[7] == 0 && u16::from_le_bytes([body[24], body[25]]) & 0x41 == 0 {
+                    let rgb = format!("{:02X}{:02X}{:02X}", body[4], body[5], body[6]);
+                    let index = u16::from_le_bytes([body[26], body[27]]);
+                    styles.color_attributes(index).first().is_some_and(|(kind, value)|
+                        *kind == "rgb" && value.strip_prefix("FF") == Some(rgb.as_str())).then_some(rgb)
+                } else { None };
                 self.attached_font_seen = false;
                 self.attached_font_invalid = body.len() != 32 || !record.continues.is_empty();
             }
@@ -594,6 +607,7 @@ impl Chart {
                 self.attached_font = if code_page.is_none() && record.continues.is_empty() && body.len() == 2 {
                     styles.chart_font(u16::from_le_bytes([body[0], body[1]]))
                 } else { None };
+                if self.attached_font.is_none() { self.attached_color = None; }
             }
             FONT_X if self.primary_axis_group && self.stack.last().is_some_and(|code| block_of(*code) == Block::Axis) => {
                 if let Some(index) = self.axis_index {
@@ -642,17 +656,24 @@ impl Chart {
                                     self.legend_font_invalid = true;
                                 } else {
                                     self.legend_font = self.attached_font.take();
+                                    self.legend_color = self.attached_color.clone();
                                 }
                                 self.legend_text_seen = true;
                             }
                             if let Some(link) = self.link {
                                 if link == 1 {
+                                    self.title_color = (!self.seen_title_links.contains(&link)
+                                        && !self.attached_invalid && !self.attached_font_invalid)
+                                        .then(|| self.attached_color.clone()).flatten();
                                     self.title_font = if !self.seen_title_links.contains(&link)
                                         && !self.attached_invalid && !self.attached_font_invalid {
                                         self.attached_font.take()
                                     } else { None };
                                 }
                                 if (2..=3).contains(&link) {
+                                    self.axis_title_colors[usize::from(link - 2)] = (!self.seen_title_links.contains(&link)
+                                        && !self.attached_invalid && !self.attached_font_invalid)
+                                        .then(|| self.attached_color.clone()).flatten();
                                     self.axis_title_fonts[usize::from(link - 2)] = if !self.seen_title_links.contains(&link)
                                         && !self.attached_invalid && !self.attached_font_invalid {
                                         self.attached_font.take()
@@ -847,8 +868,11 @@ impl Chart {
         x.open("c:chart", &[]);
         if self.title_formula.is_some() || self.titles.contains_key(&1) {
             if let Some(formula) = &self.title_formula {
-                linked_title_element(&mut x, formula, self.titles.get(&1).map(String::as_str), self.title_font.as_ref());
-            } else if let Some(title) = self.titles.get(&1) { title_element(&mut x, title, self.title_font.as_ref()); }
+                linked_title_element(&mut x, formula, self.titles.get(&1).map(String::as_str),
+                    self.title_font.as_ref(), self.title_color.as_deref());
+            } else if let Some(title) = self.titles.get(&1) {
+                title_element(&mut x, title, self.title_font.as_ref(), self.title_color.as_deref());
+            }
             x.empty("c:autoTitleDeleted", &[("val", "0".to_owned())]);
         } else {
             x.empty("c:autoTitleDeleted", &[("val", "1".to_owned())]);
@@ -1040,7 +1064,8 @@ impl Chart {
                     x.close("a:solidFill"); x.close("a:ln"); x.close("c:spPr"); x.close("c:majorGridlines");
                 }
                 if let Some(title) = self.titles.get(&title_key) {
-                    title_element(&mut x, title, self.axis_title_fonts[usize::from(title_key - 2)].as_ref());
+                    title_element(&mut x, title, self.axis_title_fonts[usize::from(title_key - 2)].as_ref(),
+                        self.axis_title_colors[usize::from(title_key - 2)].as_deref());
                 }
                 if tag == "c:valAx" && !self.axis_format_invalid[axis_index]
                     && let Some(code) = self.axis_formats[axis_index].as_ref() {
@@ -1057,7 +1082,7 @@ impl Chart {
                     x.empty("a:srgbClr", &[("val", color.clone())]);
                     x.close("a:solidFill"); x.close("a:ln"); x.close("c:spPr");
                 }
-                text_font_element(&mut x, if self.axis_font_invalid[axis_index] { None } else { self.axis_fonts[axis_index].as_ref() });
+                text_font_element(&mut x, if self.axis_font_invalid[axis_index] { None } else { self.axis_fonts[axis_index].as_ref() }, None);
                 x.empty("c:crossAx", &[("val", cross.to_owned())]);
                 if let Some(value) = range.and_then(|r| r.major) { x.empty("c:majorUnit", &[("val", crate::xlsb::formula::number_text(value))]); }
                 if let Some(value) = range.and_then(|r| r.minor) { x.empty("c:minorUnit", &[("val", crate::xlsb::formula::number_text(value))]); }
@@ -1068,7 +1093,8 @@ impl Chart {
         if self.legend {
             x.open("c:legend", &[]);
             x.empty("c:legendPos", &[("val", "r".to_owned())]);
-            text_font_element(&mut x, if self.legend_font_invalid { None } else { self.legend_font.as_ref() });
+            text_font_element(&mut x, if self.legend_font_invalid { None } else { self.legend_font.as_ref() },
+                if self.legend_font_invalid { None } else { self.legend_color.as_deref() });
             x.close("c:legend");
         }
         x.empty("c:plotVisOnly", &[("val", u8::from(self.plot_visible_only.unwrap_or(true)).to_string())]);
@@ -1076,7 +1102,7 @@ impl Chart {
         x.close("c:chart");
         if !self.default_font_invalid && self.default_font_seen == [true, true]
             && self.default_fonts[0] == self.default_fonts[1] {
-            text_font_element(&mut x, self.default_fonts[0].as_ref());
+            text_font_element(&mut x, self.default_fonts[0].as_ref(), None);
         }
         let print_text = !self.print_text_invalid && (self.print_header.as_ref().is_some_and(|v| !v.is_empty())
             || self.print_footer.as_ref().is_some_and(|v| !v.is_empty()));
@@ -1120,7 +1146,7 @@ fn value_labels_element(x: &mut Xml, source_linked: bool) {
     x.close("c:dLbls");
 }
 
-fn title_element(x: &mut Xml, title: &str, font: Option<&(String, bool, bool)>) {
+fn title_element(x: &mut Xml, title: &str, font: Option<&(String, bool, bool)>, color: Option<&str>) {
     x.open("c:title", &[]);
     x.open("c:tx", &[]);
     x.open("c:rich", &[]);
@@ -1134,11 +1160,11 @@ fn title_element(x: &mut Xml, title: &str, font: Option<&(String, bool, bool)>) 
     x.close("c:rich");
     x.close("c:tx");
     x.empty("c:overlay", &[("val", "0".to_owned())]);
-    text_font_element(x, font);
+    text_font_element(x, font, color);
     x.close("c:title");
 }
 
-fn linked_title_element(x: &mut Xml, formula: &str, cached: Option<&str>, font: Option<&(String, bool, bool)>) {
+fn linked_title_element(x: &mut Xml, formula: &str, cached: Option<&str>, font: Option<&(String, bool, bool)>, color: Option<&str>) {
     x.open("c:title", &[]); x.open("c:tx", &[]); x.open("c:strRef", &[]);
     x.element("c:f", &[], formula);
     if let Some(cached) = cached {
@@ -1147,15 +1173,20 @@ fn linked_title_element(x: &mut Xml, formula: &str, cached: Option<&str>, font: 
         x.close("c:pt"); x.close("c:strCache");
     }
     x.close("c:strRef"); x.close("c:tx"); x.empty("c:overlay", &[("val", "0".to_owned())]);
-    text_font_element(x, font);
+    text_font_element(x, font, color);
     x.close("c:title");
 }
 
-fn text_font_element(x: &mut Xml, font: Option<&(String, bool, bool)>) {
-    let Some((face, bold, italic)) = font else { return };
+fn text_font_element(x: &mut Xml, font: Option<&(String, bool, bool)>, color: Option<&str>) {
+    if font.is_none() && color.is_none() { return; }
     x.open("c:txPr", &[]); x.empty("a:bodyPr", &[]); x.empty("a:lstStyle", &[]);
     x.open("a:p", &[]); x.open("a:pPr", &[]);
-    x.open("a:defRPr", &[("b", u8::from(*bold).to_string()), ("i", u8::from(*italic).to_string())]);
-    x.empty("a:latin", &[("typeface", face.clone())]);
+    let attrs = font.map(|(_, bold, italic)| vec![("b", u8::from(*bold).to_string()), ("i", u8::from(*italic).to_string())])
+        .unwrap_or_default();
+    x.open("a:defRPr", &attrs);
+    if let Some(color) = color {
+        x.open("a:solidFill", &[]); x.empty("a:srgbClr", &[("val", color.to_owned())]); x.close("a:solidFill");
+    }
+    if let Some((face, _, _)) = font { x.empty("a:latin", &[("typeface", face.clone())]); }
     x.close("a:defRPr"); x.close("a:pPr"); x.empty("a:endParaRPr", &[]); x.close("a:p"); x.close("c:txPr");
 }

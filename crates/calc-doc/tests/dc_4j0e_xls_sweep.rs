@@ -78,6 +78,8 @@ fn sweep() {
     let (mut pivot_caches, mut pivot_records, mut pivot_files) = (0usize, 0u64, 0usize);
     let (mut phonetic_runs, mut phonetic_files, mut phonetic_errors) = (0usize, 0usize, 0usize);
     let (mut phonetic_formats, mut phonetic_format_files) = (0usize, 0usize);
+    let (mut text_colors, mut text_color_files) = (0usize, 0usize);
+    let audit_text_colors = std::env::var_os("DNACALC_XLS_AUDIT_CHART_TEXT_COLOR").is_some();
     let mut refused: BTreeMap<String, usize> = BTreeMap::new();
     let mut load_refused: BTreeMap<String, usize> = BTreeMap::new();
     let mut panics: Vec<String> = Vec::new();
@@ -251,6 +253,14 @@ fn sweep() {
                         let underlined = loaded.sheets().iter().flat_map(|s| &s.shapes().shapes)
                             .filter(|shape| shape.body.underline).count();
                         println!("drawing shapes with single-underlined first run: {underlined}");
+                    }
+                    if audit_text_colors {
+                        let count = loaded.sheets().iter().flat_map(|s| &s.charts().charts)
+                            .flat_map(|chart| chart.element_text.iter())
+                            .filter(|(name, style)| (name.as_str() == "title" || name.as_str() == "legend"
+                                || name.starts_with("axis-title:")) && style.color.is_some()).count();
+                        text_colors += count;
+                        text_color_files += usize::from(count != 0);
                     }
                     if std::env::var_os("DNACALC_XLS_AUDIT_CHART_FONT").is_some() {
                         let count = loaded.sheets().iter().flat_map(|s| &s.charts().charts)
@@ -527,6 +537,9 @@ fn sweep() {
     println!("panics: {}", panics.len());
     for p in &panics {
         println!("  {p}");
+    }
+    if audit_text_colors {
+        println!("chart attached text colors: {text_colors} in {text_color_files} files (not an Excel match verdict)");
     }
     println!("unread custom property sets: {unread_custom_sets}");
     println!("unread custom property value types (type: values, files):");

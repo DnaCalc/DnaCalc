@@ -687,7 +687,7 @@ fn convert_compound(
     // Preserve complete local pivot-cache source records through the existing pivot package
     // writer. The views are still unread, so their SXVIEW records remain in the report.
     let mut pivot_caches = Vec::new();
-    if !biff5 && !decrypted {
+    if !biff5 {
         use calc_doc_model::pivot::{PivotCache, PivotSnapshot, PivotSnapshotOrigin};
         use std::sync::Arc;
         let globals_records = &records[..globals.end];
@@ -700,6 +700,13 @@ fn convert_compound(
             if kind.id != 0x00E3 || kind.body != [1, 0] || !kind.continues.is_empty() { continue; }
             let Some(source) = pivot_cache::source(source, &globals.sheets, &globals.names) else { continue };
             let Ok(Some(bytes)) = compound.read(&format!("_SX_DB_CUR/{id:04X}")) else { continue };
+            let bytes = if decrypted {
+                let Some(filepass) = records.iter().find(|r| r.id == 0x002F) else { continue };
+                if !filepass.continues.is_empty() { continue; }
+                let Ok(plain) = crypto::decrypt_pivot_cache(&bytes, filepass.body,
+                    password.unwrap_or("VelvetSweatshop")) else { continue };
+                plain
+            } else { bytes };
             let Some(parsed) = pivot_cache::read(&bytes, id) else { continue };
             let (sheet, range, source_name) = match source {
                 pivot_cache::Source::Range { sheet, range, columns } if parsed.fields.len() == columns =>

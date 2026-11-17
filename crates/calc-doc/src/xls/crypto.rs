@@ -438,7 +438,21 @@ pub(crate) fn decrypt(stream: &[u8], password: &str) -> Result<Option<Vec<u8>>, 
     let Some((body_at, body_size)) = found else {
         return Ok(None);
     };
-    let scheme = scheme(&stream[body_at..body_at + body_size])?;
+    decrypt_records(stream, &stream[body_at..body_at + body_size], password, body_at + body_size).map(Some)
+}
+
+/// A pivot-cache BIFF stream uses the Workbook FILEPASS scheme, starting its own
+/// cipher position at zero (MS-XLS 2.2.10). Its record headers remain clear.
+pub(crate) fn decrypt_pivot_cache(
+    stream: &[u8], filepass: &[u8], password: &str,
+) -> Result<Vec<u8>, CryptoError> {
+    decrypt_records(stream, filepass, password, 0)
+}
+
+fn decrypt_records(
+    stream: &[u8], filepass: &[u8], password: &str, start_at: usize,
+) -> Result<Vec<u8>, CryptoError> {
+    let scheme = scheme(filepass)?;
     // Check the password, and build the keystream source.
     let mut output = stream.to_vec();
     let mut keystream: Option<(u32, Vec<u8>)> = None;
@@ -470,8 +484,8 @@ pub(crate) fn decrypt(stream: &[u8], password: &str) -> Result<Option<Vec<u8>>, 
             None
         }
     };
-    // Every record after FILEPASS.
-    let mut position = body_at + body_size;
+    // Workbook records after FILEPASS, or every record in a cache stream.
+    let mut position = start_at;
     while position + 4 <= output.len() {
         let id = u16::from_le_bytes([output[position], output[position + 1]]);
         let size = usize::from(u16::from_le_bytes([output[position + 2], output[position + 3]]));
@@ -506,7 +520,7 @@ pub(crate) fn decrypt(stream: &[u8], password: &str) -> Result<Option<Vec<u8>>, 
         }
         position = start + size;
     }
-    Ok(Some(output))
+    Ok(output)
 }
 
 #[cfg(test)]

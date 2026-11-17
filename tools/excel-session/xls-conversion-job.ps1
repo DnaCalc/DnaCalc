@@ -476,9 +476,10 @@ try {
                 $linkedChart.ChartTitle.Font.Name = 'Arial'
                 $linkedChart.ChartTitle.Font.Bold = $true
                 $linkedChart.ChartTitle.Font.Italic = $true
+                $linkedChart.ChartTitle.Font.Color = 255
                 @{formula=[string]$linkedChart.ChartTitle.Formula; text=[string]$linkedChart.ChartTitle.Text;
                   font_name=[string]$linkedChart.ChartTitle.Font.Name; bold=$linkedChart.ChartTitle.Font.Bold;
-                  italic=$linkedChart.ChartTitle.Font.Italic}
+                  italic=$linkedChart.ChartTitle.Font.Italic; color=$linkedChart.ChartTitle.Font.Color}
             }
             $entry.setup.chart_axis_font = GetOrError {
                 $axis = $sheet.ChartObjects('cxCacheChart').Chart.Axes(1)
@@ -495,11 +496,13 @@ try {
                 $category.AxisTitle.Font.Name = 'Arial'
                 $category.AxisTitle.Font.Bold = $true
                 $category.AxisTitle.Font.Italic = $true
+                $category.AxisTitle.Font.Color = 16711680
                 $value = $chart.Axes(2); $value.HasTitle = $true
                 $value.AxisTitle.Text = 'Revenue'
+                $value.AxisTitle.Font.Color = 255
                 @{category=[string]$category.AxisTitle.Text; value=[string]$value.AxisTitle.Text;
                   font_name=[string]$category.AxisTitle.Font.Name; bold=$category.AxisTitle.Font.Bold;
-                  italic=$category.AxisTitle.Font.Italic}
+                  italic=$category.AxisTitle.Font.Italic; category_color=$category.AxisTitle.Font.Color; value_color=$value.AxisTitle.Font.Color}
             }
             $entry.setup.chart_hidden_axis_labels = GetOrError {
                 $chart = $sheet.ChartObjects().Add(620, 100, 200, 150).Chart
@@ -551,7 +554,8 @@ try {
                 $chart.Legend.Font.Name = 'Arial'
                 $chart.Legend.Font.Bold = $true
                 $chart.Legend.Font.Italic = $true
-                @{font_name=[string]$chart.Legend.Font.Name; bold=$chart.Legend.Font.Bold; italic=$chart.Legend.Font.Italic}
+                $chart.Legend.Font.Color = 32768
+                @{font_name=[string]$chart.Legend.Font.Name; bold=$chart.Legend.Font.Bold; italic=$chart.Legend.Font.Italic; color=$chart.Legend.Font.Color}
             }
             $entry.setup.chart_series_fill = GetOrError {
                 $series = $sheet.ChartObjects('cxCacheChart').Chart.SeriesCollection(1)
