@@ -161,7 +161,10 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
                     position[end] = dict(marker.attrib)
             obj = {'anchor': anchor.tag.rsplit('}', 1)[-1], 'position': position,
                    'types': sorted(x.tag.rsplit('}', 1)[-1] for x in anchor if x.tag in
-                                   (XDR + 'sp', XDR + 'pic', XDR + 'graphicFrame', XDR + 'grpSp'))}
+                                   (XDR + 'sp', XDR + 'pic', XDR + 'graphicFrame', XDR + 'grpSp', XDR + 'cxnSp'))}
+            obj['shape_properties'] = [tree(properties) for element in anchor
+                                       if element.tag in (XDR + 'sp', XDR + 'cxnSp')
+                                       for properties in element.findall(XDR + 'spPr')]
             images = []
             for blip in anchor.iter(A + 'blip'):
                 for attribute in ('embed', 'link'):

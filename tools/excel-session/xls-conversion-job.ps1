@@ -131,6 +131,15 @@ try {
                 @{name=[string]$scenario.Name; comment=[string]$scenario.Comment; count=$sheet.Scenarios().Count}
             }
             $entry.setup.shape = GetOrError { $s = $sheet.Shapes.AddShape(1, 100, 100, 60, 30); [string]$s.Name }
+            $entry.setup.line_shapes = @(
+                foreach ($reverse in @($false, $true)) {
+                    GetOrError {
+                        $line = if ($reverse) {$sheet.Shapes.AddLine(100, 240, 180, 200)} else {$sheet.Shapes.AddLine(100, 200, 180, 240)}
+                        $line.Line.ForeColor.RGB = 255; $line.Line.Weight = 0.75
+                        @{name=[string]$line.Name; reverse=$reverse; color=$line.Line.ForeColor.RGB; weight=$line.Line.Weight}
+                    }
+                }
+            )
             $entry.setup.chart_bar_geometry = GetOrError {
                 $sheet.Range('H1').Value2 = 1; $sheet.Range('H2').Value2 = 2
                 $c = $sheet.ChartObjects().Add(200, 100, 200, 150).Chart
