@@ -34,6 +34,8 @@ const LEGEND: u16 = 0x1015;
 const TEXT: u16 = 0x1025;
 const OBJECT_LINK: u16 = 0x1027;
 const SERIES_TO_CHART_GROUP: u16 = 0x1045;
+const DATA_FORMAT: u16 = 0x1006;
+const AREA_FORMAT: u16 = 0x100A;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum Kind {
@@ -70,6 +72,16 @@ struct Series {
     category_count: Option<u16>,
     value_type: Option<u16>,
     value_count: Option<u16>,
+    fill: Option<String>,
+    fill_seen: bool,
+}
+
+#[derive(Debug, Default)]
+struct SeriesFormat {
+    series: Option<usize>,
+    fill: Option<String>,
+    area_seen: bool,
+    invalid: bool,
 }
 
 #[derive(Debug, Default)]
@@ -106,6 +118,7 @@ enum Block {
     Legend,
     Other,
     AxisParent,
+    DataFormat,
 }
 
 #[derive(Debug, Default)]
@@ -129,6 +142,8 @@ pub(crate) struct Chart {
     cache_invalid: bool,
     value_caches: BTreeMap<usize, ValueCache>,
     category_caches: BTreeMap<usize, CategoryCache>,
+    data_format: Option<SeriesFormat>,
+    auxiliary_series: bool,
 }
 
 fn block_code(block: Block) -> u8 {
@@ -143,6 +158,7 @@ fn block_of(code: u8) -> Block {
         3 => Block::Text,
         4 => Block::Legend,
         6 => Block::AxisParent,
+        7 => Block::DataFormat,
         _ => Block::Other,
     }
 }
@@ -150,9 +166,36 @@ fn block_of(code: u8) -> Block {
 impl Chart {
     /// Reads one record of the chart substream; `print` prints the formula tokens of an AI record
     /// as the range they name.
-    pub(crate) fn read(&mut self, record: &Record<'_>, print: &dyn Fn(&[u8]) -> Option<String>, code_page: Option<u16>) {
+    pub(crate) fn read(&mut self, record: &Record<'_>, print: &dyn Fn(&[u8]) -> Option<String>,
+        code_page: Option<u16>, styles: &super::styles::Styles) {
         let body = record.body;
+        if self.stack.iter().any(|code| block_of(*code) == Block::DataFormat)
+            && (record.id == 0x1066 || (0x0800..=0x08ff).contains(&record.id))
+            && let Some(format) = &mut self.data_format { format.invalid = true; }
         match record.id {
+            0x104B | 0x105B => self.auxiliary_series = true,
+            DATA_FORMAT if body.len() == 8 && record.continues.is_empty() => {
+                let point = u16::from_le_bytes([body[0], body[1]]);
+                let series = usize::from(u16::from_le_bytes([body[2], body[3]]));
+                self.data_format = Some(SeriesFormat { series: (point == 0xffff).then_some(series), ..Default::default() });
+                self.pending = Some(block_code(Block::DataFormat));
+            }
+            AREA_FORMAT if self.stack.last().is_some_and(|code| block_of(*code) == Block::DataFormat) => {
+                if let Some(format) = &mut self.data_format {
+                    if format.area_seen { format.invalid = true; }
+                    format.area_seen = true;
+                    if body.len() == 16 && record.continues.is_empty() && body[3] == 0
+                        && u16::from_le_bytes([body[8], body[9]]) == 1
+                        && u16::from_le_bytes([body[10], body[11]]) == 0 {
+                        let index = u16::from_le_bytes([body[12], body[13]]);
+                        let rgb = format!("{:02X}{:02X}{:02X}", body[0], body[1], body[2]);
+                        if styles.color_attributes(index).first().is_some_and(|(kind, value)|
+                            *kind == "rgb" && value.strip_prefix("FF") == Some(rgb.as_str())) {
+                            format.fill = Some(rgb);
+                        }
+                    }
+                }
+            }
             CHART_PROPERTIES if body.len() >= 3 => {
                 self.plot_visible_only = Some(u16::from_le_bytes([body[0], body[1]]) & 2 != 0);
                 self.blanks = match body[2] { 0 => Some("gap"), 1 => Some("zero"), 2 => Some("span"), _ => None };
@@ -291,6 +334,15 @@ impl Chart {
                         Block::Text => self.link = None,
                         Block::Axis => self.axis_index = None,
                         Block::AxisParent => self.primary_axis_group = false,
+                        Block::DataFormat => {
+                            if let Some(format) = self.data_format.take()
+                                && let Some(index) = format.series
+                                && let Some(series) = self.series.get_mut(index) {
+                                if series.fill_seen { series.fill = None; }
+                                else if !format.invalid { series.fill = format.fill; }
+                                series.fill_seen = true;
+                            }
+                        }
                         _ => {}
                     }
                 }
@@ -493,6 +545,12 @@ impl Chart {
                         _ => {}
                     }
                     x.close("c:tx");
+                }
+                if !self.auxiliary_series && matches!(group.kind, Kind::Bar | Kind::Pie | Kind::Area)
+                    && let Some(fill) = &series.fill {
+                    x.open("c:spPr", &[]); x.open("a:solidFill", &[]);
+                    x.empty("a:srgbClr", &[("val", fill.clone())]);
+                    x.close("a:solidFill"); x.close("c:spPr");
                 }
                 let (category_tag, value_tag) = if group.kind == Kind::Scatter {
                     ("c:xVal", "c:yVal")

@@ -320,10 +320,11 @@ impl Drawing {
     }
 
     /// A record of a chart substream, for the chart object it belongs to.
-    pub(crate) fn chart_record(&mut self, record: &Record<'_>, print: &dyn Fn(&[u8]) -> Option<String>) {
+    pub(crate) fn chart_record(&mut self, record: &Record<'_>, print: &dyn Fn(&[u8]) -> Option<String>,
+        styles: &super::styles::Styles) {
         if let Some(index) = self.chart_object {
             let chart = self.objects[index].chart.get_or_insert_with(Default::default);
-            chart.read(record, print, None);
+            chart.read(record, print, None, styles);
         }
     }
 
