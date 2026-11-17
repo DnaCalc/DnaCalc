@@ -269,6 +269,10 @@ pub(crate) fn read(
                 super::workbook::BOF => depth += 1,
                 super::workbook::EOF => depth -= 1,
                 _ => {
+                    // Chart records are only partially converted: formatting, cache values,
+                    // secondary axes and other data remain unsupported. Count them until the
+                    // chart reader can report complete handling for each record.
+                    *unknown.entry(record.id).or_insert(0) += 1;
                     let print = |rgce: &[u8]| -> Option<String> {
                         let context = context.links.context(Some(context.tab));
                         match print(rgce, &[], &context, Origin::default()) {
@@ -276,7 +280,7 @@ pub(crate) fn read(
                             _ => None,
                         }
                     };
-                    drawing.chart_record(record, &print);
+                    drawing.chart_record(record, &print, context.styles);
                 }
             }
             continue;
@@ -624,7 +628,12 @@ pub(crate) fn read(
                         _ => None,
                     }
                 };
-                if !taken && !rules.read(record, context.styles, &print_at, sheet_name, context.v5)? && !features.read(record, context.styles)? {
+                let read = taken || rules.read(record, context.styles, &print_at, sheet_name, context.v5)?
+                    || features.read(record, context.styles)?;
+                // The drawing route retains some shapes, pictures and text, but not all OfficeArt
+                // formatting, controls, note-box geometry or rich text. Keep those records in the
+                // incomplete census even when part of the record was converted.
+                if !read || matches!(other, 0x00EC | 0x005D | 0x01B6) {
                     *unknown.entry(other).or_insert(0) += 1;
                 }
             }
@@ -687,7 +696,7 @@ pub(crate) fn read(
         ));
     }
     x.open(root, &namespaces);
-    features.write_properties(&mut x);
+    features.write_properties(&mut x, rules.has_active_filter(context.filter_range.as_deref()));
     features.write_views(&mut x);
     if let Some(width) = features.default_column_width.filter(|w| *w != 8) {
         default_column_width = Some(width);
@@ -831,7 +840,7 @@ pub(crate) fn read(
                 (f64::from(dy) / 256.0 * height_pt(row) * 12700.0) as i64,
             )
         };
-        if let Some(written) = drawing.write(context.number, context.images, &geometry, sheet_name) {
+        if let Some(written) = drawing.write(context.number, context.images, &geometry, sheet_name, context.styles) {
             unread_objects = written.unread.clone();
             if !written.xml.is_empty() {
                 let drawing_part = format!("xl/drawings/drawing{}.xml", context.number);
@@ -884,14 +893,15 @@ pub(crate) fn read(
             }
         }
     }
-    features.write_after_data(&mut x, &mut rels, drawing_id, &rules, context.filter_range.as_deref());
+    let scenarios = super::scenario::read(records, context.v5);
+    features.write_after_data(&mut x, &mut rels, drawing_id, &rules, context.filter_range.as_deref(), scenarios.as_ref());
     x.close(root);
     Ok(SheetPart {
         xml: x.out,
         unknown,
         rels,
         parts: {
-            parts.extend(features.comment_parts());
+            parts.extend(features.comment_parts(context.styles));
             if let Some(printer) = features.printer_part() { parts.push(printer); }
             parts
         },

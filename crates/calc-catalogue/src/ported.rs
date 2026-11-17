@@ -511,7 +511,7 @@ pub mod arrays {
     2 "FILTER" (2, 3) [R "array" ~ ArrayAtRoot, R "include" ~ ArrayAtRoot, R "if_empty" ~ AggregateAtRoot] traits value_error_references; three_d (None, Some(&[0, 1]), Some(&[2])); ;
     3 "SORT" (1, 4) [R "array" ~ ArrayAtRoot, R "sort_index" ~ ArrayAtRoot, R "sort_order", V "by_col"] traits value_error_references; three_d (None, None, Some(&[])); ;
     4 "SORTBY" (2, 255) [R "array" ~ ArrayAtRoot, R "by_array1" ~ ArrayAtRoot, R "sort_order1" ~ AggregateAtRoot] groups (1, 2, 0); traits value_error_references; three_d (None, None, Some(&[])); ;
-    5 "UNIQUE" (1, 3) [R "array" ~ ArrayAtRoot, V "by_col", V "exactly_once"] three_d (None, None, Some(&[])); ;
+    5 "UNIQUE" (1, 3) [R "array" ~ ArrayAtRoot, V "by_col", V "exactly_once"] traits take_reference_array; three_d (None, None, Some(&[])); ;
     6 "TAKE" (2, 3) [R "array" ~ ArrayAtRoot, V "rows", V "columns"] result MayBeReference; traits value_error_references; three_d (None, Some(&[0]), Some(&[1, 2])); ;
     7 "DROP" (2, 3) [R "array" ~ ArrayAtRoot, V "rows", V "columns"] result MayBeReference; traits value_error_references; three_d (None, Some(&[0]), Some(&[1, 2])); ;
     8 "CHOOSEROWS" (2, 255) [R "array" ~ ArrayAtRoot, R "row_num1" ~ AggregateAtRoot, R "row_num2" ~ AggregateAtRoot] traits value_error_references; three_d (None, Some(&[0]), Some(&[1, usize::MAX])); ;
@@ -532,7 +532,7 @@ pub mod subtotal {
     data_family! {
         code: CODE;
     1 "SUBTOTAL" (2, 255) [V "function_num", F "ref1" @Reference ~ ArrayAlwaysLiftReferences, F "ref2" @Reference ~ ArrayAlwaysLiftReferencesRepeated] traits skip_nested_subtotals, lift_dynamic_references; three_d (None, Some(&[1, usize::MAX]), Some(&[0])); ;
-    2 "AGGREGATE" (3, 253) [V "function_num", V "options", R "ref1" ~ ArrayAtRoot, R "ref2" ~ AggregateAtRoot, R "ref3" @Reference] traits skip_nested_subtotals, value_error_references; three_d (None, Some(&[2, usize::MAX]), Some(&[0, 1])); ;
+    2 "AGGREGATE" (3, 253) [V "function_num", V "options", R "ref1" ~ ArrayAtRoot, R "ref2" ~ AggregateAtRoot, R "ref3" @Reference] traits skip_nested_subtotals, value_error_references, lift_references_after_ref1; three_d (None, Some(&[2, usize::MAX]), Some(&[0, 1])); ;
     }
 }
 
@@ -547,7 +547,7 @@ pub mod text_format {
     4 "DOLLAR" (1, 2) [V "number", V "decimals"] three_d (None, None, Some(&[])); ;
     5 "NUMBERVALUE" (1, 3) [V "text", V "decimal_separator", V "group_separator"] three_d (None, None, Some(&[])); ;
     6 "VALUETOTEXT" (1, 2) [V "value", V "format"] three_d (None, None, Some(&[])); ;
-    7 "ARRAYTOTEXT" (1, 2) [R "array" ~ ArrayAtRoot, V "format"] three_d (None, None, Some(&[])); ;
+    7 "ARRAYTOTEXT" (1, 2) [R "array" ~ ArrayAtRoot, V "format"] traits take_reference_array; three_d (None, None, Some(&[])); ;
     8 "BAHTTEXT" (1, 1) [V "number"] three_d (None, None, Some(&[])); ;
     9 "ASC" (1, 1) [V "text"] three_d (None, None, Some(&[])); ;
     10 "DBCS" (1, 1) [V "text"] three_d (None, None, Some(&[])); ;

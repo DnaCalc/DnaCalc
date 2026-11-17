@@ -323,6 +323,48 @@ impl Styles {
         (usize::from(at) < self.fonts.len()).then_some(usize::from(at))
     }
 
+    /// DrawingML text properties supported by the shape model, including explicit palette colours.
+    pub(crate) fn drawing_text_font(&self, ifnt: u16) -> Option<(u32, bool, bool, Option<String>)> {
+        if ifnt == 4 { return None; }
+        let font = &self.fonts[self.font_index(ifnt)?];
+        // DrawingML text sizes are at least one point; malformed BIFF heights stay incomplete.
+        if font.height < 20 || (font.color > 63 && font.color != 0x7fff) { return None; }
+        Some((u32::from(font.height) * 5, font.weight >= 700, font.flags & 0x0002 != 0,
+            self.rgb(font.color).map(|argb| argb[2..].to_owned())))
+    }
+
+    /// A literal Latin font name that can be carried without guessing charset or theme behavior.
+    pub(crate) fn drawing_latin_face(&self, ifnt: u16) -> Option<&str> {
+        if ifnt == 4 { return None; }
+        let font = &self.fonts[self.font_index(ifnt)?];
+        (font.charset == 0 && font.family <= 5 && !font.name.is_empty() && !font.name.starts_with('+')
+            && !font.name.chars().any(|c| c.is_control() || matches!(c, '\u{fffd}' | '\u{fffe}' | '\u{ffff}'))).then_some(font.name.as_str())
+    }
+
+    /// FontX uses a one-based index into workbook Font records, unlike FontIndex.
+    pub(crate) fn chart_font(&self, index: u16) -> Option<(String, bool, bool)> {
+        let zero_based = index.checked_sub(1)?;
+        let ifnt = if zero_based >= 4 { zero_based.checked_add(1)? } else { zero_based };
+        let ((_, bold, italic, _), _, underline) = self.drawing_rich_font(ifnt)?;
+        if underline { return None; }
+        Some((self.drawing_latin_face(ifnt)?.to_owned(), bold, italic))
+    }
+
+    /// Single underline is the only BIFF underline represented by the shape model.
+    pub(crate) fn drawing_single_underline(&self, ifnt: u16) -> Option<bool> {
+        if ifnt == 4 { return None; }
+        (self.fonts[self.font_index(ifnt)?].underline == 1).then_some(true)
+    }
+
+    /// A run whose effects the drawing text model can represent, plus its font-face identity.
+    pub(crate) fn drawing_rich_font(&self, ifnt: u16) -> Option<((u32, bool, bool, Option<String>), (&str, u8, u8), bool)> {
+        if ifnt == 4 { return None; }
+        let font = &self.fonts[self.font_index(ifnt)?];
+        if font.name.is_empty() || font.underline > 1 || font.script != 0 || font.flags & 0x00f8 != 0
+            || !matches!(font.weight, 400 | 700) { return None; }
+        Some((self.drawing_text_font(ifnt)?, (&font.name, font.charset, font.family), font.underline == 1))
+    }
+
     /// `<rPr>` for the font `ifnt` of a rich text run; nothing when there is no such font.
     pub(crate) fn write_run_properties(&self, x: &mut Xml, ifnt: u16) {
         let Some(font) = self.font_index(ifnt).map(|k| &self.fonts[k]) else {

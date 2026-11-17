@@ -541,6 +541,9 @@ fn object(shape: &Shape, remap: &BTreeMap<u32, u32>, media: &MediaRels, out: &mu
             if body.italic {
                 attributes.push_str(" i=\"1\"");
             }
+            if body.underline {
+                attributes.push_str(" u=\"sng\"");
+            }
             let colour = match &body.colour {
                 Some(c) => {
                     let mut element = Vec::new();
@@ -549,10 +552,22 @@ fn object(shape: &Shape, remap: &BTreeMap<u32, u32>, media: &MediaRels, out: &mu
                 }
                 None => String::new(),
             };
-            (attributes, colour)
+            let face = match &body.face {
+                Some(face) if !face.is_empty() && !face.starts_with('+')
+                    && !face.chars().any(|c| c.is_control() || matches!(c, '\u{fffe}' | '\u{ffff}')) => {
+                    let mut element = b"<a:latin typeface=".to_vec();
+                    attribute_value(face, &mut element);
+                    element.extend(b"/>");
+                    String::from_utf8(element).expect("typeface is UTF-8")
+                }
+                Some(_) => return Err(fail("The typeface cannot be represented")),
+                None => String::new(),
+            };
+            (attributes, colour, face)
         };
         let lang = shape.lang.as_deref().unwrap_or("en-US");
         let paragraphs = shape.text.as_deref().unwrap_or(&[]);
+        let rich_runs = body.rich_runs_for(paragraphs);
         if paragraphs.is_empty() {
             out.extend(
                 format!(
@@ -570,12 +585,30 @@ fn object(shape: &Shape, remap: &BTreeMap<u32, u32>, media: &MediaRels, out: &mu
             out.extend(format!("<a:p>{align}").as_bytes());
             if paragraph.is_empty() {
                 out.extend(format!("<a:endParaRPr lang=\"{lang}\" sz=\"{size}\"/>").as_bytes());
+            } else if let Some(runs) = rich_runs.and_then(|runs| runs.get(index)) {
+                for run in runs {
+                    out.extend(format!("<a:r><a:rPr lang=\"{lang}\" sz=\"{}\" b=\"{}\" i=\"{}\" u=\"{}\">",
+                        run.size, u8::from(run.bold), u8::from(run.italic), if run.underline { "sng" } else { "none" }).as_bytes());
+                    if let Some(c) = &run.colour {
+                        out.extend(b"<a:solidFill>");
+                        colour(c, out).map_err(fail)?;
+                        out.extend(b"</a:solidFill>");
+                    }
+                    if let Some(face) = &run.face {
+                        out.extend(b"<a:latin typeface=");
+                        attribute_value(face, out);
+                        out.extend(b"/>");
+                    }
+                    out.extend(b"</a:rPr><a:t xml:space=\"preserve\">");
+                    element_text(&run.text, out);
+                    out.extend(b"</a:t></a:r>");
+                }
             } else {
-                let (attributes, colour) = &run_font;
-                if colour.is_empty() {
+                let (attributes, colour, face) = &run_font;
+                if colour.is_empty() && face.is_empty() {
                     out.extend(format!("<a:r><a:rPr lang=\"{lang}\" sz=\"{size}\"{attributes}/><a:t>").as_bytes());
                 } else {
-                    out.extend(format!("<a:r><a:rPr lang=\"{lang}\" sz=\"{size}\"{attributes}>{colour}</a:rPr><a:t>").as_bytes());
+                    out.extend(format!("<a:r><a:rPr lang=\"{lang}\" sz=\"{size}\"{attributes}>{colour}{face}</a:rPr><a:t>").as_bytes());
                 }
                 element_text(paragraph, out);
                 out.extend(b"</a:t></a:r>");

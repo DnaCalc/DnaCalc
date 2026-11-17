@@ -96,6 +96,8 @@ pub(crate) struct Features {
     scenarios: bool,
     password: Option<u16>,
     setup: Option<[u16; 6]>,
+    setup_printer: Option<(u16, u16, Option<u16>)>,
+    chart_setup: Option<[u8; 34]>,
     setup_numbers: Option<(f64, f64)>,
     margins: [Option<f64>; 4],
     header: Option<String>,
@@ -105,6 +107,7 @@ pub(crate) struct Features {
     grid_lines: bool,
     headings: bool,
     ws_bool: Option<u16>,
+    filter_mode: Option<bool>,
     row_breaks: Vec<(u16, u16, u16)>,
     column_breaks: Vec<(u16, u16, u16)>,
     pub(crate) outline_levels: Option<(u8, u8)>,
@@ -120,6 +123,7 @@ pub(crate) struct Features {
     /// The sheet's VBA code name (CODENAME).
     pub(crate) code_name: Option<String>,
     note_texts: std::collections::BTreeMap<u16, Vec<u16>>,
+    note_runs: std::collections::BTreeMap<u16, Vec<(u16, u16)>>,
     notes: Vec<Note>,
 }
 
@@ -154,7 +158,56 @@ fn read_string(c: &mut Cursor<'_>, units: usize, what: &str) -> Result<String, S
     Ok(text.trim_end_matches('\0').to_owned())
 }
 
+/// Shared chart-sheet and embedded-chart page setup projection.
+pub(crate) fn write_chart_setup(x: &mut Xml, data: &[u8; 34], element: &str) {
+    let word = |at: usize| u16::from_le_bytes([data[at], data[at + 1]]);
+    let flags = word(10);
+    let mut a = Vec::new();
+    if flags & 4 == 0 {
+        let paper = word(0);
+        if (1..=117).contains(&paper) && paper != 48 && paper != 49 {
+            a.push(("paperSize", paper.to_string()));
+        }
+        a.push(("orientation", if flags & 0x42 != 0 { "portrait" } else { "landscape" }.to_owned()));
+        for (name, value) in [("horizontalDpi", word(12)), ("verticalDpi", word(14)), ("copies", word(32))] {
+            if value != 0 { a.push((name, value.to_string())); }
+        }
+    } else {
+        a.push(("usePrinterDefaults", "1".to_owned()));
+    }
+    if flags & 8 != 0 { a.push(("blackAndWhite", "1".to_owned())); }
+    if flags & 16 != 0 { a.push(("draft", "1".to_owned())); }
+    let first = word(4) as i16;
+    if flags & 0x80 != 0 && first > 0 {
+        a.push(("firstPageNumber", first.to_string()));
+        a.push(("useFirstPageNumber", "1".to_owned()));
+    }
+    if !a.is_empty() { x.empty(element, &a); }
+}
+
 impl Features {
+    /// Chart-sheet Setup has a different OOXML pageSetup schema from worksheets.
+    pub(crate) fn read_chart_setup(&mut self, record: &Record<'_>) {
+        if record.continues.is_empty() {
+            self.chart_setup = record.body.try_into().ok();
+        }
+    }
+
+    pub(crate) fn write_chart_setup(&self, x: &mut Xml) {
+        if let Some(data) = self.chart_setup { write_chart_setup(x, &data, "pageSetup"); }
+    }
+
+    /// Chart-sheet margins are retained only when all six values are available.
+    pub(crate) fn write_chart_margins(&self, x: &mut Xml) {
+        if let ([Some(left), Some(right), Some(top), Some(bottom)], Some((header, footer))) =
+            (self.margins, self.setup_numbers)
+        {
+            x.empty("pageMargins", &[("left", number_text(left)), ("right", number_text(right)),
+                ("top", number_text(top)), ("bottom", number_text(bottom)),
+                ("header", number_text(header)), ("footer", number_text(footer))]);
+        }
+    }
+
     /// Reads `record` when it is a sheet-feature record; `false` when it is not one.
     pub(crate) fn read(&mut self, record: &Record<'_>, styles: &super::styles::Styles) -> Result<bool, String> {
         let mut c = Cursor::new(record.body);
@@ -235,9 +288,14 @@ impl Features {
                 for item in &mut v {
                     *item = c.u16("Setup").map_err(e)?;
                 }
-                c.skip(4, "Setup").map_err(e)?;
+                let horizontal = c.u16("Setup").map_err(e)?;
+                let vertical = c.u16("Setup").map_err(e)?;
                 self.setup = Some(v);
                 self.setup_numbers = Some((c.f64("Setup").map_err(e)?, c.f64("Setup").map_err(e)?));
+                let copies = if c.remaining() >= 2 { Some(c.u16("Setup").map_err(e)?) } else { None };
+                self.setup_printer = Some((horizontal, vertical, copies));
+                // Other page setup and printer-specific details are not all retained.
+                return Ok(false);
             }
             LEFT_MARGIN => self.margins[0] = Some(c.f64("LeftMargin").map_err(e)?),
             RIGHT_MARGIN => self.margins[1] = Some(c.f64("RightMargin").map_err(e)?),
@@ -263,6 +321,12 @@ impl Features {
             PRINT_GRIDLINES => self.grid_lines = c.u16("PrintGrid").map_err(e)? != 0,
             PRINT_HEADERS => self.headings = c.u16("PrintRowCol").map_err(e)? != 0,
             WSBOOL => self.ws_bool = Some(c.u16("WsBool").map_err(e)?),
+            0x009B => {
+                let valid = record.body.is_empty() && record.continues.is_empty();
+                self.filter_mode = Some(valid && self.filter_mode.is_none());
+                // The application does not use this saved state directly.
+                return Ok(false);
+            }
             0x004D => {
                 let joined = record.joined();
                 self.printer_settings.push(joined.get(2..).unwrap_or_default().to_vec());
@@ -340,17 +404,12 @@ impl Features {
             }
             TXO => {
                 if let Some(id) = self.waiting_object.take() {
-                    c.skip(10, "Txo").map_err(e)?;
-                    let length = usize::from(c.u16("Txo").map_err(e)?);
-                    if let Some(text) = record.continues.first() {
-                        let mut p = Pieces::new(&Record {
-                            id: 0,
-                            body: text,
-                            continues: Vec::new(),
-                            offset: 0,
-                        });
-                        let flag = p.u8("Txo").map_err(|m| m.0)?;
-                        let units = p.characters(length, flag & 1 != 0, "a note's text").map_err(|m| m.0)?;
+                    if let Some(units) = super::strings::txo_text(record).map_err(|m| m.0)? {
+                        self.note_runs.remove(&id);
+                        if let Some(runs) = super::strings::txo_runs(record, &units)
+                            && runs.iter().all(|&(_, font)| font != 4 && styles.font_index(font).is_some()) {
+                            self.note_runs.insert(id, runs);
+                        }
                         self.note_texts.insert(id, units);
                     }
                 }
@@ -543,15 +602,17 @@ impl Features {
     }
 
     /// `<sheetPr>`, when the sheet has outline or page setup properties to state.
-    pub(crate) fn write_properties(&self, x: &mut Xml) {
+    pub(crate) fn write_properties(&self, x: &mut Xml, has_active_filter: bool) {
         let flags = self.ws_bool.unwrap_or(0x00C0);
         let summary_below = flags & 0x0040 != 0;
         let summary_right = flags & 0x0080 != 0;
         let fit = flags & 0x0100 != 0;
-        if summary_below && summary_right && !fit && self.code_name.is_none() {
+        let filter_mode = self.filter_mode == Some(true) && has_active_filter;
+        if summary_below && summary_right && !fit && self.code_name.is_none() && !filter_mode {
             return;
         }
         let mut properties = Vec::new();
+        if filter_mode { properties.push(("filterMode", "1".to_owned())); }
         if let Some(code_name) = &self.code_name {
             properties.push(("codeName", code_name.clone()));
         }
@@ -654,6 +715,15 @@ impl Features {
         x.close("sheetViews");
     }
 
+    pub(crate) fn write_header_footer(&self, x: &mut Xml) {
+        if self.header.as_deref().is_some_and(|h| !h.is_empty()) || self.footer.as_deref().is_some_and(|f| !f.is_empty()) {
+            x.open("headerFooter", &[]);
+            if let Some(h) = self.header.as_deref().filter(|h| !h.is_empty()) { x.element("oddHeader", &[], h); }
+            if let Some(f) = self.footer.as_deref().filter(|f| !f.is_empty()) { x.element("oddFooter", &[], f); }
+            x.close("headerFooter");
+        }
+    }
+
     /// The elements after `<sheetData>`; hyperlinks add relationships to `rels`.
     pub(crate) fn write_after_data(
         &self,
@@ -662,6 +732,7 @@ impl Features {
         drawing: Option<&str>,
         rules: &super::rules::Rules,
         filter_range: Option<&str>,
+        scenarios: Option<&super::scenario::Scenarios>,
     ) {
         if self.protect || self.objects || self.scenarios {
             let mut a = Vec::new();
@@ -679,6 +750,7 @@ impl Features {
             }
             x.empty("sheetProtection", &a);
         }
+        if let Some(scenarios) = scenarios { scenarios.write(x); }
         rules.write_auto_filter(x, filter_range);
         if !self.merges.is_empty() {
             x.open("mergeCells", &[("count", self.merges.len().to_string())]);
@@ -762,11 +834,17 @@ impl Features {
             "rIdPrinter"
         });
         if let Some([paper, scale, first_page, fit_width, fit_height, flags]) = self.setup {
-            let mut a = vec![("paperSize", paper.to_string())];
-            if scale != 100 && scale != 0 {
-                a.push(("scale", scale.to_string()));
+            let mut a = Vec::new();
+            // fNoPls makes the printer-dependent paper, scale and orientation undefined.
+            if flags & 0x0004 == 0 {
+                a.push(("paperSize", paper.to_string()));
+                if scale != 100 && scale != 0 {
+                    a.push(("scale", scale.to_string()));
+                }
+            } else {
+                a.push(("usePrinterDefaults", "1".to_owned()));
             }
-            if flags & 0x0080 != 0 {
+            if flags & 0x0080 != 0 && (first_page as i16) > 0 {
                 a.push(("firstPageNumber", first_page.to_string()));
                 a.push(("useFirstPageNumber", "1".to_owned()));
             }
@@ -782,8 +860,13 @@ impl Features {
             if flags & 0x0004 == 0 {
                 a.push((
                     "orientation",
-                    if flags & 0x0002 != 0 { "portrait" } else { "landscape" }.to_owned(),
+                    if flags & 0x0040 != 0 || flags & 0x0002 != 0 { "portrait" } else { "landscape" }.to_owned(),
                 ));
+                if let Some((horizontal, vertical, copies)) = self.setup_printer {
+                    if horizontal != 0 { a.push(("horizontalDpi", horizontal.to_string())); }
+                    if vertical != 0 { a.push(("verticalDpi", vertical.to_string())); }
+                    if let Some(copies) = copies.filter(|n| *n != 0) { a.push(("copies", copies.to_string())); }
+                }
             }
             if flags & 0x0008 != 0 {
                 a.push(("blackAndWhite", "1".to_owned()));
@@ -792,23 +875,17 @@ impl Features {
                 a.push(("draft", "1".to_owned()));
             }
             if flags & 0x0020 != 0 {
-                a.push(("cellComments", "atEnd".to_owned()));
+                a.push(("cellComments", if flags & 0x0200 != 0 { "atEnd" } else { "asDisplayed" }.to_owned()));
+            }
+            if let Some(errors) = [None, Some("blank"), Some("dash"), Some("NA")][usize::from((flags >> 10) & 3)] {
+                a.push(("errors", errors.to_owned()));
             }
             if let Some(id) = printer_id { a.push(("r:id", id.to_owned())); }
             x.empty("pageSetup", &a);
         } else if let Some(id) = printer_id {
             x.empty("pageSetup", &[("r:id", id.to_owned())]);
         }
-        if self.header.as_deref().is_some_and(|h| !h.is_empty()) || self.footer.as_deref().is_some_and(|f| !f.is_empty()) {
-            x.open("headerFooter", &[]);
-            if let Some(h) = self.header.as_deref().filter(|h| !h.is_empty()) {
-                x.element("oddHeader", &[], h);
-            }
-            if let Some(f) = self.footer.as_deref().filter(|f| !f.is_empty()) {
-                x.element("oddFooter", &[], f);
-            }
-            x.close("headerFooter");
-        }
+        self.write_header_footer(x);
         for (name, breaks, full, full_text) in [
             ("rowBreaks", &self.row_breaks, 255u16, "16383"),
             ("colBreaks", &self.column_breaks, 65535u16, "1048575"),
@@ -868,7 +945,7 @@ impl Features {
     }
 
     /// The comments part and the VML drawing that shows each note.
-    pub(crate) fn comment_parts(&self) -> Vec<(String, &'static str, Vec<u8>)> {
+    pub(crate) fn comment_parts(&self, styles: &super::styles::Styles) -> Vec<(String, &'static str, Vec<u8>)> {
         if self.notes.is_empty() {
             return Vec::new();
         }
@@ -893,7 +970,18 @@ impl Features {
                 &[("ref", cell(note.row, note.column)), ("authorId", id.to_string())],
             );
             x.open("text", &[]);
-            super::sheet::text_element(&mut x, self.note_texts.get(&note.object).map_or(&[][..], |t| t));
+            let text = self.note_texts.get(&note.object).map_or(&[][..], |t| t);
+            if let Some(runs) = self.note_runs.get(&note.object) {
+                for (index, &(start, font)) in runs.iter().enumerate() {
+                    let end = runs.get(index + 1).map_or(text.len(), |next| usize::from(next.0));
+                    x.open("r", &[]);
+                    styles.write_run_properties(&mut x, font);
+                    super::sheet::text_element(&mut x, &text[usize::from(start)..end]);
+                    x.close("r");
+                }
+            } else {
+                super::sheet::text_element(&mut x, text);
+            }
             x.close("text");
             x.close("comment");
         }

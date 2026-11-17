@@ -1051,7 +1051,8 @@ mod references {
         assert_eq!(book.dynamic("=SUM(OFFSET(A1,{0;1},0))"), n(302.0));
         // AGGREGATE reads each held reference as #VALUE! (Excel 16.0.20527, Touchstone
         // 2026-11-16, cell-context family reference-arrays: =AGGREGATE(9,0,OFFSET(A1,{0;1;2},0,2))
-        // is #VALUE!); UNIQUE's reading of one is not measured and is refused.
+        // is #VALUE!); UNIQUE keeps references with the same top row together (fn8, Touchstone
+        // 2026-11-17: =ROWS(UNIQUE(OFFSET(A1,{0;0;1},0))) is 2).
         assert_eq!(
             book.eval_in(
                 FormulaForm::Dynamic,
@@ -1062,12 +1063,13 @@ mod references {
             Ok(CalcValue::error(W::Value))
         );
         assert_eq!(
-            book.eval_in(FormulaForm::Dynamic, "=UNIQUE(OFFSET(A1,{0;1},0,2))", "Z100")
-                .unwrap(),
-            Err(EvalFault::NotModelled {
-                construct: "an array of references given to a function whose handling of one is not measured",
-                owner: "dc-b1l",
-            })
+            book.eval_in(
+                FormulaForm::Dynamic,
+                "=ROWS(UNIQUE(OFFSET(A1,{0;0;1},0)))",
+                "Z100"
+            )
+            .unwrap(),
+            Ok(CalcValue::number(2.0))
         );
         // In a legacy formula OFFSET's result is intersected.
         assert_eq!(book.legacy_at("=OFFSET(A1,0,0,3,1)", "Z2"), n(201.0));

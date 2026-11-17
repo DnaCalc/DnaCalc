@@ -156,6 +156,20 @@ pub trait HostFacts {
     /// holds none.
     fn formula_text(&mut self, cell: CellKey) -> Option<Option<String>>;
 
+    /// Whether each cell of `area` holds a formula, row by row: one question for the whole area
+    /// (ISFORMULA of a range), so a host that records what was asked records one fact for it.
+    fn formula_kinds(&mut self, area: GridArea) -> Option<Vec<bool>> {
+        area_cells(area).map(|cell| self.is_formula(cell)).collect()
+    }
+
+    /// The formula each cell of `area` holds, row by row, as [`Self::formula_text`] gives it:
+    /// one question for the whole area (FORMULATEXT of a range).
+    fn formula_texts(&mut self, area: GridArea) -> Option<Vec<Option<String>>> {
+        area_cells(area)
+            .map(|cell| self.formula_text(cell))
+            .collect()
+    }
+
     /// The one-based position of `sheet` among the workbook's sheets.
     fn sheet_index(&mut self, sheet: SheetId) -> Option<u32>;
 
@@ -961,4 +975,14 @@ mod tests {
         assert_eq!(array.shape().rows, 5);
         assert_eq!(array.get(4, 0), Some(&CalcValue::number(5.0)));
     }
+}
+
+/// The cells of `area`, row by row.
+pub fn area_cells(area: GridArea) -> impl Iterator<Item = CellKey> {
+    let (top, left) = (area.first().row(), area.first().column());
+    (0..area.row_count()).flat_map(move |r| {
+        (0..area.column_count()).map(move |c| {
+            CellKey::new(area.sheet(), top + r, left + c).expect("a cell inside the area")
+        })
+    })
 }

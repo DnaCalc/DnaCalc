@@ -78,6 +78,9 @@ pub(crate) struct Rules {
 pub(crate) type Print<'a> = &'a dyn Fn(&[u8], (u16, u16)) -> Option<String>;
 
 impl Rules {
+    pub(crate) fn has_active_filter(&self, range: Option<&str>) -> bool {
+        range.is_some() && !self.filter_columns.is_empty()
+    }
     pub(crate) fn read(
         &mut self,
         record: &Record<'_>,

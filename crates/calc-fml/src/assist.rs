@@ -230,6 +230,12 @@ pub fn function_named(spelling: &str) -> Option<FunctionCallTarget<'static>> {
         .ok()
 }
 
+/// The binding form (LET or LAMBDA) a call written `spelling` introduces, read in any ASCII case
+/// after the prefixes a file stores before a function's name (`_xlfn.`, then `_xlws.`).
+pub fn binding_form(spelling: &str) -> Option<calc_func::BindingForm> {
+    calc_catalogue::binding_form(crate::eval::file_unprefixed(spelling))
+}
+
 /// A call's name without the prefixes a file stores before it (`_xlfn.`, then `_xlws.`).
 pub fn unprefixed(spelling: &str) -> &str {
     crate::eval::file_unprefixed(spelling)
@@ -516,11 +522,10 @@ pub fn local_bindings_at(tree: &SyntaxTree, text: &str, caret: usize) -> Vec<Loc
         let Some(SyntaxChild::Token(callee)) = call.children().first() else {
             continue;
         };
-        let unprefixed = crate::eval::file_unprefixed(callee.text());
-        let is_let = unprefixed.eq_ignore_ascii_case("LET");
-        if !is_let && !unprefixed.eq_ignore_ascii_case("LAMBDA") {
+        let Some(form) = binding_form(callee.text()) else {
             continue;
-        }
+        };
+        let is_let = form == calc_func::BindingForm::Let;
         let Some(arguments) = argument_list(call) else {
             continue;
         };

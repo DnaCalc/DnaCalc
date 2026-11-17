@@ -9,6 +9,7 @@ pub fn compound(streams: &[(&str, Vec<u8>)]) -> Vec<u8> {
     const SECTOR: usize = 512;
     const END: u32 = 0xFFFF_FFFE;
     const FATS: u32 = 0xFFFF_FFFD;
+    const DIFATS: u32 = 0xFFFF_FFFC;
     let small: Vec<usize> = (0..streams.len()).filter(|k| streams[*k].1.len() < 4096).collect();
     let big: Vec<usize> = (0..streams.len()).filter(|k| streams[*k].1.len() >= 4096).collect();
     // The mini stream and its FAT.
@@ -38,14 +39,18 @@ pub fn compound(streams: &[(&str, Vec<u8>)]) -> Vec<u8> {
     let big_sectors: Vec<usize> = big.iter().map(|k| streams[*k].1.len().div_ceil(SECTOR)).collect();
     let data_sectors = dir_sectors + mini_fat_sectors + mini_sectors + big_sectors.iter().sum::<usize>();
     let mut fat_sectors = 1usize;
-    while fat_sectors * 128 < data_sectors + fat_sectors {
+    while fat_sectors * 128 < data_sectors + fat_sectors + fat_sectors.saturating_sub(109).div_ceil(127) {
         fat_sectors += 1;
     }
-    assert!(fat_sectors <= 109, "the kit writes no DIFAT chain");
+    let difat_sectors = fat_sectors.saturating_sub(109).div_ceil(127);
     let mut fat: Vec<u32> = vec![0xFFFF_FFFF; fat_sectors * 128];
     let mut next = 0usize;
     for _ in 0..fat_sectors {
         fat[next] = FATS;
+        next += 1;
+    }
+    for _ in 0..difat_sectors {
+        fat[next] = DIFATS;
         next += 1;
     }
     let chain = |fat: &mut Vec<u32>, count: usize, next: &mut usize| -> u32 {
@@ -76,7 +81,9 @@ pub fn compound(streams: &[(&str, Vec<u8>)]) -> Vec<u8> {
     out[0x38..0x3C].copy_from_slice(&4096u32.to_le_bytes());
     out[0x3C..0x40].copy_from_slice(&mini_fat_start.to_le_bytes());
     out[0x40..0x44].copy_from_slice(&(mini_fat_sectors as u32).to_le_bytes());
-    out[0x44..0x48].copy_from_slice(&END.to_le_bytes());
+    let difat_start = if difat_sectors == 0 { END } else { fat_sectors as u32 };
+    out[0x44..0x48].copy_from_slice(&difat_start.to_le_bytes());
+    out[0x48..0x4C].copy_from_slice(&(difat_sectors as u32).to_le_bytes());
     for k in 0..109 {
         let value = if k < fat_sectors { k as u32 } else { 0xFFFF_FFFF };
         out[0x4C + 4 * k..0x50 + 4 * k].copy_from_slice(&value.to_le_bytes());
@@ -84,6 +91,15 @@ pub fn compound(streams: &[(&str, Vec<u8>)]) -> Vec<u8> {
     // The FAT sectors.
     for value in &fat {
         out.extend_from_slice(&value.to_le_bytes());
+    }
+    for sector in 0..difat_sectors {
+        for index in 0..127 {
+            let fat_index = 109 + sector * 127 + index;
+            let value = if fat_index < fat_sectors { fat_index as u32 } else { 0xFFFF_FFFF };
+            out.extend_from_slice(&value.to_le_bytes());
+        }
+        let next = if sector + 1 < difat_sectors { (fat_sectors + sector + 1) as u32 } else { END };
+        out.extend_from_slice(&next.to_le_bytes());
     }
     // The directory.
     let entry = |name: &str, kind: u8, left: u32, right: u32, child: u32, start: u32, size: u64| {
@@ -131,10 +147,10 @@ pub fn compound(streams: &[(&str, Vec<u8>)]) -> Vec<u8> {
     for value in &mini_fat {
         out.extend_from_slice(&value.to_le_bytes());
     }
-    out.resize(SECTOR * (1 + fat_sectors + dir_sectors) + mini_fat_sectors * SECTOR, 0xFF);
+    out.resize(SECTOR * (1 + fat_sectors + difat_sectors + dir_sectors) + mini_fat_sectors * SECTOR, 0xFF);
     out.extend_from_slice(&mini);
     out.resize(
-        SECTOR * (1 + fat_sectors + dir_sectors + mini_fat_sectors + mini_sectors),
+        SECTOR * (1 + fat_sectors + difat_sectors + dir_sectors + mini_fat_sectors + mini_sectors),
         0,
     );
     for (p, k) in big.iter().enumerate() {
@@ -988,16 +1004,35 @@ pub mod art {
         blip.push(0xFF);
         blip.extend_from_slice(png);
         let blip_atom = atom(0, 0x6E0, 0xF01E, &blip);
-        let mut bse = vec![6u8, 6];
+        group_with_blip(6, &blip_atom)
+    }
+
+    fn group_with_blip(kind: u8, blip_atom: &[u8]) -> Vec<u8> {
+        let mut bse = vec![kind, kind];
         bse.extend([0x22u8; 16]);
         bse.extend([0, 0]);
         bse.extend((blip_atom.len() as u32).to_le_bytes());
         bse.extend(1u32.to_le_bytes());
         bse.extend(0u32.to_le_bytes());
         bse.extend([0, 0, 0, 0]);
-        bse.extend_from_slice(&blip_atom);
-        let store = atom(0xF, 1, 0xF001, &atom(2, 6, 0xF007, &bse));
+        bse.extend_from_slice(blip_atom);
+        let store = atom(0xF, 1, 0xF001, &atom(2, u16::from(kind), 0xF007, &bse));
         record(0x00EB, &atom(0xF, 0, 0xF000, &store))
+    }
+
+    /// An EMF blip with either a valid or deliberately damaged zlib checksum.
+    pub fn group_with_emf(emf: &[u8], corrupt_checksum: bool) -> Vec<u8> {
+        let mut compressed = miniz_oxide::deflate::compress_to_vec_zlib(emf, 6);
+        if corrupt_checksum { *compressed.last_mut().unwrap() ^= 1; }
+        let mut blip = vec![0x11u8; 16];
+        let mut header = [0u8; 34];
+        header[0..4].copy_from_slice(&(emf.len() as u32).to_le_bytes());
+        header[20..24].copy_from_slice(&1_000_000u32.to_le_bytes());
+        header[24..28].copy_from_slice(&1_000_000u32.to_le_bytes());
+        header[28..32].copy_from_slice(&(compressed.len() as u32).to_le_bytes());
+        header[33] = 0xfe;
+        blip.extend(header); blip.extend(compressed);
+        group_with_blip(2, &atom(0, 0x3d4, 0xf01a, &blip))
     }
 
     /// A shape container: type (instance of the Fsp), pib (0 for none), anchor, text box flag.
@@ -1081,8 +1116,10 @@ pub mod art {
         // A TEXT block for the chart title: linked as object 1.
         out.extend(record(0x1025, &[0u8; 32]));
         out.extend(begin());
-        out.extend(record(0x1027, &u16s(&[1, 0, 0, 0])));
+        out.extend(record(0x104F, &[0u8; 20]));
+        out.extend(record(0x1051, &[0, 1, 0, 0, 0, 0, 0, 0]));
         out.extend(series_text(title));
+        out.extend(record(0x1027, &u16s(&[1, 0, 0, 0])));
         out.extend(end());
         out.extend(record(0x1015, &[0u8; 20]));
         out.extend(begin());

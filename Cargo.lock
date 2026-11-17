@@ -371,9 +371,17 @@ name = "calc-platform-desktop"
 version = "0.1.0"
 dependencies = [
  "calc-macro-security",
+ "calc-surrogate-wire",
  "webview2-com",
  "windows",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "calc-surrogate-wire"
+version = "0.1.0"
+dependencies = [
+ "wasm-bindgen-test",
 ]
 
 [[package]]
@@ -1250,6 +1258,7 @@ dependencies = [
  "calc-addin-host",
  "calc-fml",
  "calc-platform-desktop",
+ "calc-surrogate-wire",
  "calc-value",
  "calc-vba",
  "calc-verdict",
@@ -1258,6 +1267,7 @@ dependencies = [
  "calc-xll-host",
  "calc-xll-shim",
  "dna-onecalc",
+ "serde",
  "serde_json",
 ]
 

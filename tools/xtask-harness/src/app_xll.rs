@@ -30,12 +30,25 @@
 //! calculates in the reopened file, and records whether Excel repaired it (a "[Repaired]" name or a
 //! new `error*.xml` repair log).
 //!
+//! `--transport surrogate` runs every set with the session and its add-ins in OneCalc's add-in
+//! process (docs/architecture/ADDIN_SURROGATE.md, Stage 3; the exe's `--transport surrogate`); the
+//! default `in-process` is the conformance mode. The summary records which, so the counts of the two
+//! runs can be compared.
+//!
 //! Exit code: 0 when every case of every selected set matched, 1 otherwise, 2 for a usage error.
 
 use super::*;
 use std::collections::BTreeMap;
 
-pub const USAGE: &str = "usage: cargo xtask app xll-accept onecalc --exe <dna-onecalc-desktop.exe> --bundle <dir> --plan <plan.json> --out <dir> [--var NAME=VALUE]... [--set <name>]... [--allow-unmatched]";
+pub const USAGE: &str = "usage: cargo xtask app xll-accept onecalc --exe <dna-onecalc-desktop.exe> --bundle <dir> --plan <plan.json> --out <dir> [--var NAME=VALUE]... [--set <name>]... [--transport in-process|surrogate] [--allow-unmatched]";
+
+/// The transport the exe runs its session over (`--transport`), for every set of a run.
+static TRANSPORT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// The `--transport` value: `in-process` or `surrogate`.
+fn transport_of(value: &str) -> Option<&'static str> {
+    ["in-process", "surrogate"].into_iter().find(|t| *t == value)
+}
 
 pub(super) const PAGE_WAIT: Duration = Duration::from_secs(60);
 pub(super) const LOAD_WAIT: Duration = Duration::from_secs(240);
@@ -449,6 +462,8 @@ fn start_page(
             &upstream.to_string(),
             "--size",
             "1280x1000",
+            "--transport",
+            TRANSPORT.get().map_or("in-process", String::as_str),
         ])
         .args(extra)
         .env(
@@ -529,6 +544,30 @@ pub(super) fn open_through_page(session: &Session, path: &Path) -> Result<(), St
     Ok(())
 }
 
+/// Open a file the way a person does in the desktop app: press the page's Open button, which asks
+/// the host for its native dialog. The app was started with `--open-file <path>`, so the dialog's
+/// answer is that path and the page receives the file's real path and Mark of the Web (an unmarked
+/// local file is `FileOrigin::Local`), not the `Unknown` origin a page upload carries (dc-a3fza).
+/// The harness never presses Unblock and never changes the macro level.
+fn open_through_native_dialog(session: &Session, path: &Path) -> Result<(), String> {
+    // The Open button is in the session-file panel, which a person opens first.
+    session.script("var d = document.querySelector('[data-onecalc=\"file-controls\"]'); if (!d.open) { d.querySelector('summary').click(); } return d.open;")?;
+    click(session, "file-open")?;
+    let file = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    if !wait_until(PAGE_WAIT, || {
+        text_of(session, "file-status").contains(&format!("Opened {file}"))
+    }) {
+        return Err(format!(
+            "the page did not open {file} through the native Open dialog: {}",
+            text_of(session, "file-status")
+        ));
+    }
+    Ok(())
+}
+
 /// A session set (see the module comment): open the .xlsm through the page, evaluate and save each
 /// case, have Excel reopen the saved files, compare.
 fn run_session_set(
@@ -588,13 +627,21 @@ fn run_session_set(
             saved_dir.display().to_string(),
             "--macros".to_owned(),
             "off".to_owned(),
+            // The native Open dialog answers with the session file (its real local origin).
+            "--open-file".to_owned(),
+            file.canonicalize()
+                .map_err(|e| format!("{}: {e}", file.display()))?
+                .display()
+                .to_string()
+                .trim_start_matches(r"\\?\")
+                .to_owned(),
         ],
     )?;
     let page = (|| -> Result<(Value, Vec<(String, Result<(String, Vec<String>, Option<Shown>), String>, Option<String>)>), String> {
         if !wait_until(PAGE_WAIT, || !text_of(&session, "addin-count").is_empty()) {
             return Err("the page did not mount".to_owned());
         }
-        open_through_page(&session, &file)?;
+        open_through_native_dialog(&session, &file)?;
         // A macro file opens with macros disabled, as in Excel: the person enables them for it.
         // Without the button, say which view the page is in (enabled, blocked, no project).
         click(&session, "macros-enable").map_err(|why| {
@@ -1004,6 +1051,15 @@ pub fn run(ws: &Workspace, raw: &[String]) -> ExitCode {
             ("--plan", Some(v)) => plan = Some(PathBuf::from(v)),
             ("--out", Some(v)) => out = Some(PathBuf::from(v)),
             ("--set", Some(v)) => only.push(v.clone()),
+            ("--transport", Some(v)) => match transport_of(v) {
+                Some(t) => {
+                    let _ = TRANSPORT.set(t.to_owned());
+                }
+                None => {
+                    eprintln!("{USAGE}");
+                    return ExitCode::from(2);
+                }
+            },
             ("--var", Some(v)) => match v.split_once('=') {
                 Some((name, value)) => {
                     vars.insert(name.to_owned(), value.to_owned());
@@ -1077,14 +1133,15 @@ pub fn run(ws: &Workspace, raw: &[String]) -> ExitCode {
             );
             reports.push(report);
         }
-        let summary = json!({"sets": reports, "cases": total, "matched": matched, "dnacalc_only": dna_only});
+        let transport = TRANSPORT.get().map_or("in-process", String::as_str);
+        let summary = json!({"sets": reports, "cases": total, "matched": matched, "dnacalc_only": dna_only, "transport": transport});
         fs::write(
             out.join("summary.json"),
             serde_json::to_string_pretty(&summary).map_err(|e| e.to_string())?,
         )
         .map_err(|e| e.to_string())?;
         println!(
-            "ONECALC XLL-ACCEPT total: matched {matched} of {total} cases, {dna_only} DNA Calc-only (need a workbook); summary {}",
+            "ONECALC XLL-ACCEPT total ({transport}): matched {matched} of {total} cases, {dna_only} DNA Calc-only (need a workbook); summary {}",
             out.join("summary.json").display()
         );
         Ok((summary, clean))

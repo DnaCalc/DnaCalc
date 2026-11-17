@@ -1,7 +1,7 @@
 //! The normal, lognormal and related inverse kernels.
 //!
 //! The inverse follows Excel's route: the AS241 tails and, between them, stored x87 products of
-//! a correctly rounded inverse-erf ratio (Excel's own central rational is still open).
+//! an inverse-erf ratio: Excel's stored rational for t^2 <= 1/2, a correctly rounded ratio beyond.
 
 use crate::ported::double_double::Dd;
 use crate::ported::excel_numeric::crt_log;
@@ -85,6 +85,15 @@ fn validate_probability_open_unit(p: f64) -> Result<(), WorksheetErrorCode> {
     Ok(())
 }
 
+/// `sqrt(-ln v)` as Excel's normal inverse forms it on the x87 (fn9, 2026-11-17): the logarithm
+/// by `FYL2X` and the root by `FSQRT`, each stored to binary64. With this staging the AS241 lower
+/// tail matches 393,216 of 393,216 retained R41 answers at normal inputs (the runtime `log` with
+/// a binary64 root left 76) and piece B 244,928 of 244,928.
+fn x87_sqrt_of_minus_log(v: f64) -> f64 {
+    use crate::ported::excel_numeric::{excel_log, excel_sqrt_staged};
+    excel_sqrt_staged(-excel_log(v))
+}
+
 /// The tail of the inverse standard normal by the rational approximations of
 /// M. J. Wichura, "Algorithm AS 241: The Percentage Points of the Normal Distribution",
 /// Applied Statistics 37(3), 1988, pp. 477-484 (PPND16): the published coefficients of its
@@ -142,7 +151,7 @@ fn inverse_standard_normal_as241_tail(p: f64) -> f64 {
 
     let q = p - 0.5;
     let tail_p = if q < 0.0 { p } else { 1.0 - p };
-    let mut r = libm::sqrt(-crt_log(tail_p));
+    let mut r = x87_sqrt_of_minus_log(tail_p);
     let x = if r <= 5.0 {
         r -= 1.6;
         excel_x87_div(horner(&C, r), horner(&D, r))
@@ -244,6 +253,78 @@ fn inverse_erf_ratio(t: f64) -> f64 {
     y.div_f64(t).to_f64()
 }
 
+/// Excel's `erfinv(t) / t` for `s = RN(t * t) <= 1/2` (dc-j9k.47, fn7): `RN(P(s) / Q(s))`, P and Q
+/// degree 7 in Horner form with every product and sum stored from x87 precision 64, Q monic.
+/// The rational interpolates `erfinv(sqrt s) / sqrt s` at the 15 zeros of T15 on [0, 0.73]; the
+/// constants are that interpolant moved by -2.0e-15 along the smallest singular vector of its
+/// 15 x 15 system (what a limited-precision solve leaves), then rounded to binary64. They match
+/// 656,542 of 656,542 retained Excel answers and 44,739 of 44,739 fresh ones
+/// (docs/research/normal-inverse-central-2026-11-17.md).
+fn central_inverse_erf_ratio(s: f64) -> f64 {
+    use crate::ported::excel_numeric::{excel_x87_add, excel_x87_div, excel_x87_mul};
+    const P: [u64; 8] = [
+        0x3fec_5bf8_91b4_ef6b,
+        0xc00b_0359_9ad6_a33a,
+        0x4014_92fc_431b_904d,
+        0xc00f_ce6e_6f12_a56b,
+        0x3ffa_0cbd_20e4_ce55,
+        0xbfd5_444e_88a5_1cee,
+        0x3f9c_034f_2417_c47b,
+        0xbf3c_6105_b261_ae5d,
+    ];
+    const Q: [u64; 8] = [
+        0x3ff0_0000_0000_0000,
+        0xc010_49a6_a945_1cab,
+        0x401a_e761_f165_bea6,
+        0xc017_08d9_97e8_09b9,
+        0x4005_9bb8_7268_973c,
+        0xbfe5_70c8_8781_d342,
+        0x3fb3_8664_c121_c0db,
+        0xbf65_ae11_dcad_f003,
+    ];
+    let horner = |c: &[u64; 8]| {
+        c[..7]
+            .iter()
+            .rev()
+            .fold(f64::from_bits(c[7]), |v, &a| excel_x87_add(excel_x87_mul(v, s), f64::from_bits(a)))
+    };
+    excel_x87_div(horner(&P), horner(&Q))
+}
+
+/// Excel's ratio for piece B of the central inverse (dc-j9k.47, fn9 after the fable-r2 review):
+/// `1/2 < s = RN(t * t)` with `|t| <= 0.85`. `RN(P(s) / Q(s))`, P degree 7 and Q degree 5 monic in
+/// Horner form, every product and sum stored from x87 precision 64. The rational is the exact
+/// interpolant of `erfinv(sqrt s) / sqrt(-ln(1 - sqrt s))` at the 13 zeros of T13 on [0.5, 0.73],
+/// rounded to binary64; the caller multiplies it by `sqrt(-ln(1 - |t|))`.
+fn piece_b_inverse_erf_ratio(s: f64) -> f64 {
+    use crate::ported::excel_numeric::{excel_x87_add, excel_x87_div, excel_x87_mul};
+    const P: [u64; 8] = [
+        0x3fd1_99fb_95ef_4e09,
+        0x401f_f5f6_0cbe_8bba,
+        0x4015_a1d4_5395_4a8d,
+        0xc043_aefb_9a3e_c59f,
+        0x403e_f9ff_b45a_3761,
+        0xc008_6cf9_d01e_16b2,
+        0xc003_2e5a_7e82_7056,
+        0x3fd0_8ad0_740a_6d4a,
+    ];
+    const Q: [u64; 6] = [
+        0x3ff0_0000_0000_0000,
+        0x402c_caea_b51a_6b87,
+        0xc01a_4548_a23b_3e33,
+        0xc045_9120_f7e3_3292,
+        0x4047_ea3a_c1d3_95ff,
+        0xc02a_d7d1_c366_79b0,
+    ];
+    let horner = |c: &[u64]| {
+        let (last, rest) = c.split_last().expect("coefficients");
+        rest.iter()
+            .rev()
+            .fold(f64::from_bits(*last), |v, &a| excel_x87_add(excel_x87_mul(v, s), f64::from_bits(a)))
+    };
+    excel_x87_div(horner(&P), horner(&Q))
+}
+
 fn inverse_standard_normal(p: f64) -> Result<f64, WorksheetErrorCode> {
     validate_probability_open_unit(p)?;
 
@@ -256,16 +337,26 @@ fn inverse_standard_normal(p: f64) -> Result<f64, WorksheetErrorCode> {
     }
     // Between them Excel publishes sqrt(2) * erfinv(t), t = 2q exact, as two stored x87
     // products: y = t * R, then y * RN(sqrt 2) (fix4 near one half, where R = RN(sqrt(pi)/2)).
-    // R here is the correctly rounded erfinv(t)/t; Excel's own R, a stored rational, is not
-    // identified and differs from it by up to a few ulp (fn6, dc-j9k.47).
+    // For s = RN(t * t) <= 1/2 (edge probed bit for bit, fn7) R is Excel's stored rational.
+    // In piece C (0.85 < t, p <= 15/16, not yet identified) R is the correctly rounded
+    // erfinv(t)/t, which differs from Excel's by a few ulp.
     use crate::ported::excel_numeric::excel_x87_mul;
     let t = 2.0 * q;
-    let ratio = if q.abs() <= 2.0_f64.powi(-42) {
-        f64::from_bits(0x3fec_5bf8_91b4_ef6b)
-    } else {
-        inverse_erf_ratio(t)
-    };
-    let y = excel_x87_mul(t, ratio);
+    let s = excel_x87_mul(t, t);
+    if s <= 0.5 {
+        let y = excel_x87_mul(t, central_inverse_erf_ratio(s));
+        return Ok(excel_x87_mul(y, std::f64::consts::SQRT_2));
+    }
+    // Piece B (fn9): y = st(sqrt(-ln(1 - |t|)) * R(s)) for |t| <= 0.85. On the lower side that is
+    // AS241's bound q >= -0.425; on the upper the last input is the double below p = 0.925
+    // (p = 0.925 itself, t = 0.85 + 1 ulp, is piece C in Excel).
+    if t.abs() <= 0.85 {
+        let a = x87_sqrt_of_minus_log(1.0 - t.abs());
+        let y = excel_x87_mul(a, piece_b_inverse_erf_ratio(s));
+        let x = excel_x87_mul(y, std::f64::consts::SQRT_2);
+        return Ok(if t < 0.0 { -x } else { x });
+    }
+    let y = excel_x87_mul(t, inverse_erf_ratio(t));
     Ok(excel_x87_mul(y, std::f64::consts::SQRT_2))
 }
 
@@ -378,7 +469,9 @@ pub fn confidence_norm_kernel(
     if size_int < 1.0 {
         return Err(WorksheetErrorCode::Num);
     }
-    Ok(inverse_standard_normal(1.0 - alpha / 2.0)? * standard_dev / size_int.sqrt())
+    // dc-bc1o: Excel scales the upper inverse by (sd / sqrt(n)), 121 of 121 against Excel's own
+    // NORM.S.INV values (docs/research/confidence-normal-arithmetic-2026-11-12.md).
+    Ok(inverse_standard_normal(1.0 - alpha / 2.0)? * (standard_dev / size_int.sqrt()))
 }
 
 #[cfg(test)]
@@ -534,20 +627,105 @@ mod tests {
         }
     }
 
-    /// Excel 16.0.20527 (re-asked through Touchstone on 2026-11-17) against the correctly rounded
-    /// inverse-erf ratio the central route uses: Excel's own stored rational P(s)/Q(s) is not
-    /// identified (docs/research/normal-inverse-central-2026-11-17.md), so these stay one and two
-    /// units low. The old Acklam-plus-Newton route matched them and lost up to 1,032 ULP elsewhere.
+    /// Excel 16.0.20527 through Touchstone on 2026-11-17: the central piece s = t^2 <= 1/2 is
+    /// Excel's stored rational (dc-j9k.47, fn7). p = 0.15 and 0.35 were one and two units low
+    /// with the correctly rounded ratio; the table holds fresh answers asked after the constants
+    /// were frozen (random inputs across s, the ends of dense windows at s = 0.46 to 0.4995 on
+    /// both sides, and inputs where the last bit of the x^7 numerator constant decides).
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn norm_inv_central_records_known_gaps() {
-        for (p, excel_bits, calculated_bits) in [
-            (0.15_f64, 0xbff0_953b_2d85_bb6c_u64, 0xbff0_953b_2d85_bb6b_u64),
-            (0.35_f64, 0xbfd8_a917_2c6c_cc51, 0xbfd8_a917_2c6c_cc4f),
+    fn norm_inv_central_rational_matches_excel() {
+        for (p, excel_bits) in [
+            (0.15_f64.to_bits(), 0xbff0_953b_2d85_bb6c_u64),
+            (0.35_f64.to_bits(), 0xbfd8_a917_2c6c_cc51),
+            (0x3fe00016c61b4f00, 0x3efc8af482986bc0),
+            (0x3fe07f9823c0dfb6, 0x3fa3fe9aae69cf26),
+            (0x3fe0ff12ab06b2ff, 0x3fb4003029677f3a),
+            (0x3fdcfd0308e85f26, 0xbfbe4456246a9da1),
+            (0x3fdc044011c33310, 0xbfc40d2f44e0c020),
+            (0x3fdb0eccbc8f34ff, 0xbfc8eee8e3d8a784),
+            (0x3fe2f87387eed8fa, 0x3fce0ed059507870),
+            (0x3fd91188d27dcccc, 0xbfd1980486de7031),
+            (0x3fe3f8647de6e9d8, 0x3fd43c7a8ec4aac2),
+            (0x3fd713e3b3e4d10c, 0xbfd6d7341b664ecd),
+            (0x3fd616e5e1e12266, 0xbfd9804776515ea4),
+            (0x3fe56f43cc58b418, 0x3fdc1ff190ab1c48),
+            (0x3fe5eeb04cd992b2, 0x3fdee67506ac638c),
+            (0x3fe66c6086621e06, 0x3fe0d916cef0c9eb),
+            (0x3fd22bc37749b488, 0xbfe24788d3e5d044),
+            (0x3fd12abb423d2b61, 0xbfe3c803073c015b),
+            (0x3fd03aabf509940d, 0xbfe5397382135789),
+            (0x3fe861b7c8980ec8, 0x3fe6ccf5ddfab228),
+            (0x3fe8e11174c575fa, 0x3fe87027078e77a1),
+            (0x3fe95d184c12b886, 0x3fea18c849c80578),
+            (0x3fc87e67fcf4aa7a, 0xbfebeed5134524f5),
+            (0x3fc68b0ad6908b02, 0xbfedc4b0ab3264ba),
+            (0x3fead4dfe39a0f56, 0x3fef9fc520e02dc7),
+            (0x3fc2c08d64d60a72, 0xbff0d32e4f5988be),
+            (0x3feada0ad82d180e, 0x3fefb4e7f83da5e2),
+            (0x3feada0ad82d200d, 0x3fefb4e7f83dc6a2),
+            (0x3feada0ad82d280d, 0x3fefb4e7f83de75e),
+            (0x3feb15cac3567d11, 0x3ff056a992aadcac),
+            (0x3feb15cac3568510, 0x3ff056a992aaed8f),
+            (0x3feb15cac3568d10, 0x3ff056a992aafe73),
+            (0x3feb41ca9bff5f31, 0x3ff0b4a5941d658d),
+            (0x3feb41ca9bff6730, 0x3ff0b4a5941d76e5),
+            (0x3feb41ca9bff6f30, 0x3ff0b4a5941d8824),
+            (0x3fc41fb20c770b5c, 0xbff0186a1b194a7c),
+            (0x3fc41fb20c77135b, 0xbff0186a1b194662),
+            (0x3fc41fb20c771b5b, 0xbff0186a1b194236),
+            (0x3fc3333333332b34, 0xbff0953b2d85bfb7),
+            (0x3fc3333333333333, 0xbff0953b2d85bb6c),
+            (0x3fc3333333333b33, 0xbff0953b2d85b714),
+            (0x3feb4edc613e8bbc, 0x3ff0d10027b178f0),
+            (0x3feb4edc613e93bb, 0x3ff0d10027b18a54),
+            (0x3feb4edc613e9bbb, 0x3ff0d10027b19bc4),
+            (0x3feb06fccda8b49c, 0x3ff03787cf33a8f7),
+            (0x3fc717429853e0fd, 0xbfed3e4647887078),
+            (0x3fea69997a100da8, 0x3fedf49389baf684),
+            (0x3feaf6b5ec1636ab, 0x3ff01593b2838662),
+            (0x3fc81534d912be93, 0xbfec4fd420e44499),
         ] {
-            assert_ne!(excel_bits, calculated_bits);
-            assert_bits(norm_s_inv_kernel(p).unwrap(), calculated_bits);
-            assert_bits(norm_inv_kernel(p, 0.0, 1.0).unwrap(), calculated_bits);
+            let p = f64::from_bits(p);
+            assert_bits(norm_s_inv_kernel(p).unwrap(), excel_bits);
+            assert_bits(norm_inv_kernel(p, 0.0, 1.0).unwrap(), excel_bits);
+        }
+    }
+
+    /// Piece B of the central inverse and the AS241 tail (dc-j9k.47, fn9): Excel 16.0.20527 answers
+    /// retained in DnaCalc-Research (R41 dense sweep) and asked through Touchstone on 2026-11-17 by
+    /// fn7 and the fable-r2 review. Both form `sqrt(-ln v)` by FYL2X and FSQRT, each stored; the old
+    /// route (the runtime log, a binary64 root, and in B the correctly rounded `erfinv(t)/t`) missed
+    /// every one of these, the last three because a binary64 logarithm is one ulp off there.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn norm_inv_piece_b_and_tail_use_x87_log_and_root() {
+        for (p, excel_bits) in [
+            (0x0145_16b7_cda5_4b1f_u64, 0xc042_946b_b420_e517_u64), // tail, old route +1 ulp
+            (0x2d55_3f13_5c24_ab79, 0xc034_1e02_3283_2e85), // tail, old route +1 ulp
+            (0x3b19_89d0_5328_61e3, 0xc024_128e_04ba_b0e1), // tail, old route -1 ulp
+            (0x3d18_418f_d786_1609, 0xc01e_348c_bd98_858d), // tail, old route +2 ulp
+            (0x3d18_418f_d786_1613, 0xc01e_348c_bd98_858d), // tail, old route +2 ulp
+            (0x3d18_418f_d786_1615, 0xc01e_348c_bd98_858d), // tail, old route +2 ulp
+            (0x3fb3_74bc_6a7e_fc8f, 0xbff6_eb87_f916_0a9d), // B lower, old route -1 ulp
+            (0x3fb3_74bc_6a7f_00db, 0xbff6_eb87_f916_08b5), // B lower, old route +6 ulp
+            (0x3fb3_74bc_6a7f_03c7, 0xbff6_eb87_f916_0770), // B lower, old route +4 ulp
+            (0x3fb7_9c32_76ac_ebd8, 0xbff5_3c10_e3d2_a3e2), // B lower, old route -2 ulp
+            (0x3fbf_ffff_ffff_f2aa, 0xbff2_67d4_c07b_0974), // B lower, old route +1 ulp
+            (0x3fc1_b27a_4b27_fc28, 0xbff1_6928_de49_d604), // B lower, old route -2 ulp
+            (0x3feb_504f_333f_9e4d, 0x3ff0_d427_e557_a614), // B upper, old route -2 ulp
+            (0x3feb_8684_b047_dfc9, 0x3ff1_4c21_69be_7d58), // B upper, old route -2 ulp
+            (0x3fec_02ea_4093_133e, 0x3ff2_6eeb_2352_419b), // B upper, old route -2 ulp
+            (0x3fec_a316_9164_bd20, 0x3ff4_0c89_8dac_a5ca), // B upper, old route +4 ulp
+            (0x3fec_a316_9164_c692, 0x3ff4_0c89_8dac_bfc5), // B upper, old route -3 ulp
+            (0x3fec_cccc_cccc_d53b, 0x3ff4_813c_36e2_8535), // B upper, old route +2 ulp
+            (0x3feb_51eb_851e_b462, 0x3ff0_d7aa_cd5c_646b), // B, binary64 log one ulp off
+            (0x3fec_4d7b_e7d7_4a68, 0x3ff3_2943_13a5_f4a6), // B, binary64 log one ulp off
+            (0x3fed_4456_d061_2345, 0x3ff5_e9d4_c769_38db), // B, binary64 log one ulp off
+        ] {
+            let p = f64::from_bits(p);
+            assert_bits(norm_s_inv_kernel(p).unwrap(), excel_bits);
+            assert_bits(norm_inv_kernel(p, 0.0, 1.0).unwrap(), excel_bits);
         }
     }
 
@@ -617,7 +795,7 @@ mod tests {
             Err(WorksheetErrorCode::Num)
         );
     }
-    /// Fresh R39 upper-tail controls distinguish the CRT logarithm and full tables.
+    /// Fresh R39 upper-tail controls distinguish the full tables.
     /// R42: below p - 0.5 = -0.425 Excel 16.0.20527 publishes the AS241 tail at p, its Horner
     /// steps and quotient stored from precision 64 (R41 dense sweep, retained in
     /// DnaCalc-Research). The first input is the last double below 0.075; the other two separate
@@ -638,7 +816,7 @@ mod tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn norm_inv_upper_as241_uses_full_coefficients_and_crt_log() {
+    fn norm_inv_upper_as241_uses_full_coefficients() {
         for (p, expected) in [
             (0x3fee000000000001u64, 0x3ff88bc1fbe1dac1u64),
             (0x3fee9b9ca4d07cf6u64, 0x3ffb61dc5570acfdu64),
@@ -651,3 +829,4 @@ mod tests {
         }
     }
 }
+

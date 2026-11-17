@@ -16,10 +16,12 @@ mod crypto;
 mod drawing;
 mod external_cache;
 mod pivot_cache;
+mod properties;
 mod features;
 mod formula;
 mod records;
 mod rules;
+mod scenario;
 mod sheet;
 mod strings;
 mod styles;
@@ -47,6 +49,10 @@ pub struct LegacyReport {
     pub unknown_records: BTreeMap<u16, u32>,
     /// Drawing objects not written, with how many of each OBJ type (MS-XLS 2.5.145).
     pub unread_objects: BTreeMap<u16, u32>,
+    /// OLE user-property value types not retained; 0xffff means the type could not be read.
+    pub unread_custom_property_types: BTreeMap<u16, u32>,
+    /// OLE user-property sets whose dictionary or structure could not be decoded.
+    pub unread_custom_property_sets: u32,
 }
 
 impl LegacyReport {
@@ -78,6 +84,19 @@ pub(crate) fn convert(
     password: Option<&str>,
 ) -> Result<(Vec<u8>, LegacyReport), OpenError> {
     let compound = cfb::Compound::open(bytes).map_err(|e| refuse("(compound file)", e.0))?;
+    let summary = compound.read("\u{5}SummaryInformation").ok().flatten()
+        .and_then(|bytes| properties::summary(&bytes)).unwrap_or_default();
+    let document_stream = compound.read("\u{5}DocumentSummaryInformation").ok().flatten();
+    let document_properties = document_stream.as_deref().and_then(properties::document).unwrap_or_default();
+    let custom_read = document_stream.as_deref().and_then(properties::custom);
+    let unread_custom_property_sets = u32::from(custom_read.is_none()
+        && document_stream.as_deref().is_some_and(properties::has_custom));
+    let custom_read = custom_read.unwrap_or_default();
+    let unread_custom_property_types = custom_read.unread;
+    let custom_properties = custom_read.entries;
+    let has_core_properties = summary.keys().any(|id| *id != 18) || document_properties.contains_key(&2);
+    let has_extended_properties = summary.contains_key(&18) || document_properties.contains_key(&14)
+        || document_properties.contains_key(&15);
     let name = ["Workbook", "Book"]
         .into_iter()
         .find(|name| compound.find(name).is_some())
@@ -329,15 +348,135 @@ pub(crate) fn convert(
                 }
             }
             SheetKind::Chart => {
+                let mut chart = chart::Chart::default();
+                let mut print_features = features::Features::default();
+                print_features.v5 = v5;
+                let mut print_records = [Vec::new(), Vec::new()];
+                let mut margin_records = [Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new()];
+                let mut window_records = Vec::new();
+                let mut custom_view_depth = 0usize;
+                let mut depth = 1usize;
+                let (mut chart_groups, mut supported_groups) = (0usize, 0usize);
+                let mut unsupported_chart_type = false;
+                let mut chart_size = None;
+                let print = |rgce: &[u8]| -> Option<String> {
+                    let context = links.context(Some(source_tab as u32));
+                    match crate::xlsb::formula::print(rgce, &[], &context, crate::xlsb::formula::Origin::default()) {
+                        Ok(Ok(text)) => Some(text),
+                        _ => None,
+                    }
+                };
                 for record in &substream[1..end - 1] {
                     if !matches!(record.id, 0x000C | 0x000D | 0x000F | 0x0010 | 0x0011 | 0x005F) {
                         *sheet_unknown.entry(record.id).or_insert(0) += 1;
                     }
+                    match record.id {
+                        workbook::BOF => depth += 1,
+                        workbook::EOF => depth = depth.saturating_sub(1),
+                        _ if depth == 1 => {
+                            match record.id {
+                                0x01AA => custom_view_depth += 1,
+                                0x01AB => custom_view_depth = custom_view_depth.saturating_sub(1),
+                                0x0014 | 0x0015 if custom_view_depth == 0 => print_records[usize::from(record.id - 0x0014)].push(record),
+                                0x023E if custom_view_depth == 0 => window_records.push(record),
+                                0x0026..=0x0029 if custom_view_depth == 0 => margin_records[usize::from(record.id - 0x0026)].push(record),
+                                0x00A1 if custom_view_depth == 0 => margin_records[4].push(record),
+                                _ => {},
+                            }
+                            match record.id {
+                                0x1002 if record.body.len() >= 16 => {
+                                    let fixed = |at: usize| i32::from_le_bytes(record.body[at..at + 4].try_into().expect("four bytes"));
+                                    let (width, height) = (fixed(8), fixed(12));
+                                    if width > 0 && height > 0 {
+                                        chart_size = Some((i64::from(width) * 12_700 / 65_536, i64::from(height) * 12_700 / 65_536));
+                                    }
+                                }
+                                0x1014 => chart_groups += 1,
+                                0x1017..=0x101A => supported_groups += 1,
+                                0x101B => {
+                                    supported_groups += 1;
+                                    // Scatter also describes bubble charts, which need a third value.
+                                    if !(v5.is_some() && record.body.is_empty())
+                                        && (record.body.len() < 6 || u16::from_le_bytes([record.body[4], record.body[5]]) & 1 != 0) {
+                                        unsupported_chart_type = true;
+                                    }
+                                }
+                                // 3-D, radar, surface, filled radar and pie-of-pie groups.
+                                0x103A | 0x103E..=0x1040 | 0x1061 => unsupported_chart_type = true,
+                                _ => {},
+                            }
+                            chart.read(record, &print, v5, &globals.styles, false);
+                        },
+                        _ => {},
+                    }
                 }
+                for records in &print_records {
+                    if let [record] = records.as_slice() {
+                        if matches!(print_features.read(record, &globals.styles), Ok(true)) {
+                            if let Some(count) = sheet_unknown.get_mut(&record.id) {
+                                *count -= 1;
+                                if *count == 0 { sheet_unknown.remove(&record.id); }
+                            }
+                        }
+                    }
+                }
+                if let [record] = margin_records[4].as_slice() {
+                    print_features.read_chart_setup(record);
+                }
+                // A chart sheet's pageMargins requires all four margins and the two in Setup.
+                // Keep Setup unread: its other print settings are not converted here.
+                let valid_margins = margin_records.iter().enumerate().all(|(index, records)| {
+                    let [record] = records.as_slice() else { return false };
+                    if !record.continues.is_empty() || record.body.len() != if index == 4 { 34 } else { 8 } {
+                        return false;
+                    }
+                    let offsets: &[usize] = if index == 4 { &[16, 24] } else { &[0] };
+                    offsets.iter().all(|&at| {
+                        let value = f64::from_le_bytes(record.body[at..at + 8].try_into().expect("eight bytes"));
+                        value.is_finite() && value >= 0.0 && if index == 4 { value < 49.0 } else { value <= 49.0 }
+                    })
+                });
+                if valid_margins {
+                    for records in &margin_records {
+                        let record = records[0];
+                        let _ = print_features.read(record, &globals.styles);
+                        if record.id != 0x00A1 {
+                            if let Some(count) = sheet_unknown.get_mut(&record.id) {
+                                *count -= 1;
+                                if *count == 0 { sheet_unknown.remove(&record.id); }
+                            }
+                        }
+                    }
+                }
+                // On a chart sheet only fSelected is defined in the ten-byte Window2.
+                let selected = match window_records.as_slice() {
+                    [record] if record.body.len() == 10 && record.continues.is_empty() => {
+                        if let Some(count) = sheet_unknown.get_mut(&record.id) {
+                            *count -= 1;
+                            if *count == 0 { sheet_unknown.remove(&record.id); }
+                        }
+                        Some(u16::from_le_bytes([record.body[0], record.body[1]]) & 0x0200 != 0)
+                    }
+                    _ => None,
+                };
+                let written_chart = (!unsupported_chart_type && chart_groups > 0 && chart_groups == supported_groups
+                    && (v5.is_none() || chart.has_all_value_sources()))
+                    .then(|| chart.write(&sheet.name)).flatten();
+                let xml = if let Some(chart_xml) = written_chart {
+                    let chart_part = format!("xl/charts/chart{number}_1.xml");
+                    let drawing_part = format!("xl/drawings/drawing{number}.xml");
+                    parts.push((chart_part, "application/vnd.openxmlformats-officedocument.drawingml.chart+xml", chart_xml));
+                    parts.push((drawing_part, "application/vnd.openxmlformats-officedocument.drawing+xml", chartsheet_drawing(chart_size)));
+                    extra_entries.push((format!("xl/chartsheets/_rels/sheet{number}.xml.rels"),
+                        single_relationship("drawing", &format!("../drawings/drawing{number}.xml"))));
+                    extra_entries.push((format!("xl/drawings/_rels/drawing{number}.xml.rels"),
+                        single_relationship("chart", &format!("../charts/chart{number}_1.xml"))));
+                    linked_chartsheet(&print_features, selected)
+                } else { empty_chartsheet(&print_features, selected) };
                 (
                     format!("xl/chartsheets/sheet{number}.xml"),
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.chartsheet+xml",
-                    empty_chartsheet(),
+                    xml,
                 )
             }
             SheetKind::Module | SheetKind::Other(_) => {
@@ -565,10 +704,58 @@ pub(crate) fn convert(
         ));
     }
     let macros = vba.is_some() || globals.sheets.iter().any(|s| s.kind == SheetKind::MacroSheet);
+    if has_core_properties {
+        let mut core = Xml::new();
+        core.open("cp:coreProperties", &[("xmlns:cp", "http://schemas.openxmlformats.org/package/2006/metadata/core-properties".to_owned()),
+            ("xmlns:dc", "http://purl.org/dc/elements/1.1/".to_owned()),
+            ("xmlns:dcterms", "http://purl.org/dc/terms/".to_owned()),
+            ("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance".to_owned())]);
+        for (id, name) in [(2, "dc:title"), (3, "dc:subject"), (4, "dc:creator"), (5, "cp:keywords"),
+            (6, "dc:description"), (8, "cp:lastModifiedBy"), (9, "cp:revision")] {
+            if let Some(text) = summary.get(&id) {
+                core.open(name, &[]); core.xml_text_str(text); core.close(name);
+            }
+        }
+        for (id, name) in [(12, "dcterms:created"), (13, "dcterms:modified")] {
+            if let Some(text) = summary.get(&id) {
+                core.element(name, &[("xsi:type", "dcterms:W3CDTF".to_owned())], text);
+            }
+        }
+        if let Some(text) = document_properties.get(&2) {
+            core.open("cp:category", &[]); core.xml_text_str(text); core.close("cp:category");
+        }
+        core.close("cp:coreProperties");
+        parts.push(("docProps/core.xml".to_owned(), "application/vnd.openxmlformats-package.core-properties+xml", core.out));
+    }
+    if has_extended_properties {
+        let mut app = Xml::new();
+        app.open("Properties", &[("xmlns", "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties".to_owned())]);
+        for (name, text) in [("Application", summary.get(&18)), ("Manager", document_properties.get(&14)),
+            ("Company", document_properties.get(&15))] {
+            if let Some(text) = text { app.open(name, &[]); app.xml_text_str(text); app.close(name); }
+        }
+        app.close("Properties");
+        parts.push(("docProps/app.xml".to_owned(), "application/vnd.openxmlformats-officedocument.extended-properties+xml", app.out));
+    }
+    if !custom_properties.is_empty() {
+        let mut custom = Xml::new();
+        custom.open("Properties", &[("xmlns", "http://schemas.openxmlformats.org/officeDocument/2006/custom-properties".to_owned()),
+            ("xmlns:vt", "http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes".to_owned())]);
+        for (index, property) in custom_properties.iter().enumerate() {
+            custom.open("property", &[("fmtid", "{D5CDD505-2E9C-101B-9397-08002B2CF9AE}".to_owned()),
+                ("pid", (index + 2).to_string()), ("name", property.name.clone())]);
+            custom.open(property.kind, &[]); custom.xml_text_str(&property.value); custom.close(property.kind);
+            custom.close("property");
+        }
+        custom.close("Properties");
+        parts.push(("docProps/custom.xml".to_owned(), "application/vnd.openxmlformats-officedocument.custom-properties+xml", custom.out));
+    }
     let report = LegacyReport {
         biff_version: if biff5 { 5 } else { 8 },
         sheets: globals.sheets.len(),
         unread_objects,
+        unread_custom_property_types,
+        unread_custom_property_sets,
         unknown_records: {
             let mut all = std::mem::take(&mut globals.unknown);
             for (id, n) in sheet_unknown {
@@ -837,6 +1024,19 @@ pub(crate) fn convert(
             ("Target", "xl/workbook.xml".to_owned()),
         ],
     );
+    if has_core_properties {
+        root_rels.empty("Relationship", &[("Id", "rIdCore".to_owned()),
+            ("Type", "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties".to_owned()),
+            ("Target", "docProps/core.xml".to_owned())]);
+    }
+    if has_extended_properties {
+        root_rels.empty("Relationship", &[("Id", "rIdApp".to_owned()),
+            ("Type", format!("{REL_TYPE}/extended-properties")), ("Target", "docProps/app.xml".to_owned())]);
+    }
+    if !custom_properties.is_empty() {
+        root_rels.empty("Relationship", &[("Id", "rIdCustom".to_owned()),
+            ("Type", format!("{REL_TYPE}/custom-properties")), ("Target", "docProps/custom.xml".to_owned())]);
+    }
     root_rels.close("Relationships");
 
     let mut types = Xml::new();
@@ -900,9 +1100,72 @@ pub(crate) fn convert(
     Ok((archive, report))
 }
 
-fn empty_chartsheet() -> Vec<u8> {
+fn single_relationship(kind: &str, target: &str) -> Vec<u8> {
+    let mut xml = Xml::new();
+    xml.open("Relationships", &[("xmlns", "http://schemas.openxmlformats.org/package/2006/relationships".to_owned())]);
+    xml.empty("Relationship", &[("Id", "rId1".to_owned()), ("Type", format!("{REL_TYPE}/{kind}")), ("Target", target.to_owned())]);
+    xml.close("Relationships");
+    xml.out
+}
+
+fn linked_chartsheet(features: &features::Features, selected: Option<bool>) -> Vec<u8> {
+    let mut xml = Xml::new();
+    xml.open("chartsheet", &[("xmlns", MAIN_NAMESPACE.to_owned()), ("xmlns:r", RELATIONSHIPS_NAMESPACE.to_owned())]);
+    xml.open("sheetViews", &[]);
+    let mut attributes = vec![("workbookViewId", "0".to_owned()), ("zoomToFit", "1".to_owned())];
+    if selected == Some(true) { attributes.push(("tabSelected", "1".to_owned())); }
+    xml.empty("sheetView", &attributes);
+    xml.close("sheetViews");
+    features.write_chart_margins(&mut xml);
+    features.write_chart_setup(&mut xml);
+    features.write_header_footer(&mut xml);
+    xml.empty("drawing", &[("r:id", "rId1".to_owned())]);
+    xml.close("chartsheet");
+    xml.out
+}
+
+fn chartsheet_drawing(size: Option<(i64, i64)>) -> Vec<u8> {
+    // The BIFF chart size is in 16.16 points; a missing size uses default drawing extents.
+    let (width, height) = size.unwrap_or((9293678, 6000000));
+    let mut xml = Xml::new();
+    xml.open("xdr:wsDr", &[("xmlns:xdr", "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing".to_owned()),
+        ("xmlns:a", "http://schemas.openxmlformats.org/drawingml/2006/main".to_owned()),
+        ("xmlns:c", "http://schemas.openxmlformats.org/drawingml/2006/chart".to_owned()),
+        ("xmlns:r", RELATIONSHIPS_NAMESPACE.to_owned())]);
+    xml.open("xdr:absoluteAnchor", &[]);
+    xml.empty("xdr:pos", &[("x", "0".to_owned()), ("y", "0".to_owned())]);
+    xml.empty("xdr:ext", &[("cx", width.to_string()), ("cy", height.to_string())]);
+    xml.open("xdr:graphicFrame", &[("macro", String::new())]);
+    xml.open("xdr:nvGraphicFramePr", &[]);
+    xml.empty("xdr:cNvPr", &[("id", "2".to_owned()), ("name", "Chart 1".to_owned())]);
+    xml.empty("xdr:cNvGraphicFramePr", &[]);
+    xml.close("xdr:nvGraphicFramePr");
+    xml.open("xdr:xfrm", &[]);
+    xml.empty("a:off", &[("x", "0".to_owned()), ("y", "0".to_owned())]);
+    xml.empty("a:ext", &[("cx", "0".to_owned()), ("cy", "0".to_owned())]);
+    xml.close("xdr:xfrm");
+    xml.open("a:graphic", &[]);
+    xml.open("a:graphicData", &[("uri", "http://schemas.openxmlformats.org/drawingml/2006/chart".to_owned())]);
+    xml.empty("c:chart", &[("r:id", "rId1".to_owned())]);
+    xml.close("a:graphicData"); xml.close("a:graphic"); xml.close("xdr:graphicFrame");
+    xml.empty("xdr:clientData", &[]);
+    xml.close("xdr:absoluteAnchor"); xml.close("xdr:wsDr");
+    xml.out
+}
+
+fn empty_chartsheet(features: &features::Features, selected: Option<bool>) -> Vec<u8> {
     let mut xml = Xml::new();
     xml.open("chartsheet", &[("xmlns", MAIN_NAMESPACE.to_owned())]);
+    if let Some(selected) = selected {
+        xml.open("sheetViews", &[]);
+        let mut attributes = vec![("workbookViewId", "0".to_owned())];
+        if selected { attributes.push(("tabSelected", "1".to_owned())); }
+        xml.empty("sheetView", &attributes);
+        xml.close("sheetViews");
+    }
+    features.write_chart_margins(&mut xml);
+    features.write_chart_setup(&mut xml);
+    features.write_header_footer(&mut xml);
     xml.close("chartsheet");
     xml.out
 }

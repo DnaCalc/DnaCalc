@@ -2,6 +2,7 @@
 """Excel's answers to cell-context case sets (dc-483v), asked as Touchstone sheet cases (dc-wi2wu).
 
   python3 tools/xtask-harness/scripts/cell-context-ask.py --out <dir> [--family F] [--per-request 200]
+      [--priority bulk|interactive]
 
 Each case of tools/xtask-harness/cell-context/<family>.json becomes one sheet case (function "_CASE",
 token L; tools/excel-service/touchstone/PROTOCOL.md): its layout's sheets, cells and names, and one probe,
@@ -98,14 +99,14 @@ def clock(client):
     return reply.get('env_id'), row['bits'] if row.get('type') == 'number' else None
 
 
-def ask_family(client, path, out, per_request):
+def ask_family(client, path, out, per_request, priority='bulk'):
     set_ = json.load(open(path))
     order = sorted(range(len(set_['cases'])), key=lambda i: (set_['cases'][i].get('layout', ''), i))
     chunks = [order[i:i + per_request] for i in range(0, len(order), per_request)]
     env_before, clock_before = clock(client)
     started = time.monotonic()
     sock = client._socket()
-    futures = [(chunk, sock.submit_rows('_CASE', [[to_case(set_, set_['cases'][i])] for i in chunk], priority='bulk'))
+    futures = [(chunk, sock.submit_rows('_CASE', [[to_case(set_, set_['cases'][i])] for i in chunk], priority=priority))
                for chunk in chunks]
     answers, envs = {}, set()
     for chunk, pending in futures:
@@ -151,13 +152,14 @@ def main():
     p.add_argument('--out', type=pathlib.Path, required=True)
     p.add_argument('--family')
     p.add_argument('--per-request', type=int, default=200)
+    p.add_argument('--priority', choices=('bulk', 'interactive'), default='bulk')
     o = p.parse_args()
     o.out.mkdir(parents=True, exist_ok=True)
     client = Client(transport='socket', timeout=900)
     for path in sorted(glob.glob(str(REPO / 'tools' / 'xtask-harness' / 'cell-context' / '*.json'))):
         if o.family and pathlib.Path(path).stem != o.family:
             continue
-        print(ask_family(client, path, o.out, o.per_request), flush=True)
+        print(ask_family(client, path, o.out, o.per_request, o.priority), flush=True)
 
 
 if __name__ == '__main__':

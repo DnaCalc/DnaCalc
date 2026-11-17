@@ -275,6 +275,15 @@ pub unsafe extern "system" fn xlAutoOpen() -> i32 {
     if !unsafe { dynamic_registrations(&module) } {
         return 0;
     }
+    // dc-r0vsc: the add-in surrogate's fault fixtures, registered only when asked for, so every
+    // other run's registration list (and Excel's) is unchanged.
+    if std::env::var_os("DNA_XLL_FAULTS").is_some() {
+        for (proc, signature) in [("MyFaultAccess", "BB"), ("MyFaultHang", "BB")] {
+            if !unsafe { register(&module, proc, signature, proc) } {
+                return 0;
+            }
+        }
+    }
     if let Ok(extra) = std::env::var("DNA_XLL_EXTRA_REGISTRATIONS") {
         let Ok(extra) = extra.parse::<usize>() else {
             return 0;
@@ -1305,6 +1314,28 @@ pub extern "system" fn MyIntAdd(a: i32, b: i32) -> i32 {
 #[unsafe(no_mangle)]
 pub extern "system" fn MyThreeArgs(a: f64, b: f64, c: f64) -> f64 {
     a * 100. + b * 10. + c
+}
+
+/// dc-r0vsc fault fixture: `=MyFaultAccess(1)` writes to an unmapped address, an access violation
+/// that ends the process it runs in (Excel, or OneCalc's add-in process); any other argument is
+/// returned unchanged.
+#[unsafe(no_mangle)]
+pub extern "system" fn MyFaultAccess(trigger: f64) -> f64 {
+    if trigger == 1. {
+        // SAFETY: none: the fault is the point. Address 8 is in the never-mapped first page.
+        unsafe { std::ptr::write_volatile(std::hint::black_box(8usize) as *mut u32, 1) };
+    }
+    trigger
+}
+
+/// dc-r0vsc fault fixture: `=MyFaultHang(1)` never returns (it sleeps forever on the calling
+/// thread); any other argument is returned unchanged.
+#[unsafe(no_mangle)]
+pub extern "system" fn MyFaultHang(trigger: f64) -> f64 {
+    while trigger == 1. {
+        std::thread::sleep(std::time::Duration::from_secs(1));
+    }
+    trigger
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn MyDoubleInc(value: *mut f64) -> f64 {

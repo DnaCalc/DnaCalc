@@ -1507,7 +1507,8 @@ impl Run<'_, '_> {
         for index in 0..arguments.len() {
             if reference_array(&arguments[index])
                 && target.0.parameter_class(index) != Some(ParameterClass::Value)
-                && !lifts_over_references(target, form)
+                && !(lifts_over_references(target, form)
+                    && index >= usize::from(target.0.traits().lift_references_from))
                 && !target.0.traits().take_reference_array
             {
                 arguments[index] = self
@@ -2139,10 +2140,17 @@ impl Run<'_, '_> {
         let shape = lift::shape(arguments.iter().filter_map(lifted_array));
         let mut cells = Vec::with_capacity(shape.rows * shape.cols);
         let mut element: Vec<CalcValue> = arguments.to_vec();
+        let mut picked: Vec<CalcValue> = Vec::new();
         for row in 0..shape.rows {
             for col in 0..shape.cols {
+                picked.clear();
                 for (index, argument) in arguments.iter().enumerate() {
                     if let Some(array) = lifted_array(argument) {
+                        if let Some(value) = lift::element(array, row, col)
+                            && matches!(value.core_ref(), CoreRef::Reference(_))
+                        {
+                            picked.push(value.clone());
+                        }
                         match lift::element(array, row, col) {
                             // dc-b1l: a reference of an array of references where one value is
                             // taken is #VALUE! (Excel 16.0.20527, Touchstone 2026-11-16:
@@ -2168,6 +2176,21 @@ impl Run<'_, '_> {
                     }
                 }
                 let value = self.lazy_once(target, &element)?;
+                // dc-b1l: an element's result that is a reference it took from an array of
+                // references is #VALUE! (Excel 16.0.20527, Touchstone 2026-11-17, family
+                // reference-arrays: `=SUM(IF({1;1;0},OFFSET(A1,{0;1;2},0),5))` and
+                // `=SUM(CHOOSE({1;2},OFFSET(A1,{0;1},0),5))` #VALUE!, `=ISREF(INDEX(IF(...),1,1))`
+                // FALSE, while the unlifted `=SUM(IF(TRUE,OFFSET(A1,{0;1;2},0)))` is 6).
+                let value = if matches!(value.core_ref(), CoreRef::Reference(_))
+                    && value.callable_value().is_none()
+                    && picked
+                        .iter()
+                        .any(|reference| reference.core_ref() == value.core_ref())
+                {
+                    CalcValue::error(WorksheetErrorCode::Value)
+                } else {
+                    value
+                };
                 // W111 lifted IF/IFERROR/IFNA and Dynamic fn2 q193 CHOOSE selections
                 // materialize selected blanks into zero.
                 // Scalar calls retain their kernels' blank policy (dc-ibp2 controls).
@@ -2533,7 +2556,18 @@ fn is_lifted(target: Target, form: FormulaForm, index: usize, value: &CalcValue)
         // W111 count-family readings and w089-axis-reference-vs-array-variant).
         || target.0.traits().lift_computed_array)
         && lifted_array(value).is_some())
-        || (reference_array(value) && lifts_over_references(target, form))
+        || (reference_array(value)
+            && lifts_over_references(target, form)
+            && index >= usize::from(target.0.traits().lift_references_from))
+        // AGGREGATE's ref2 and later lift over any array in a dynamic formula (dc-b1l, Excel
+        // 16.0.20527 through Touchstone, 2026-11-17, family reference-arrays:
+        // `=AGGREGATE(9,0,A1:A2,{1;2})` and `=AGGREGATE(9,0,A1:A2,A1:A2*1)` spill #VALUE!|#VALUE!,
+        // `=AGGREGATE(9,0,A1:A2,{#N/A;1})` #N/A|#VALUE!, `=AGGREGATE(14,0,A1:A6,{1;2})` 6|5,
+        // while `=AGGREGATE(9,0,{1;2})` is one #VALUE!).
+        || (form == FormulaForm::Dynamic
+            && target.0.traits().lift_references_from > 0
+            && index >= usize::from(target.0.traits().lift_references_from)
+            && lifted_array(value).is_some())
 }
 
 /// The measured reference-origin policy of these binary functions (OxFunc-Evidence,

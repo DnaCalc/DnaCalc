@@ -1,7 +1,7 @@
 {
   "format": "dnacalc-capture-record",
   "version": 2,
-  "case": "oracle",
+  "case": "dc_nzpw__excel_comparison",
   "source": "sha256:a00beb0092961e06082007939d1d8d92c53e7f7f6f2f73e8d7048ec9b3875460",
   "acquisition": {
     "kind": "live_capture"

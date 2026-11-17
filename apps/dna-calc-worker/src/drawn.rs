@@ -7,7 +7,7 @@
 //! accent 1 shaded, a point wide, the text white. A text box has no style: no fill, no outline,
 //! black text. Scheme colours come from the Office theme; a workbook's own theme is not read here.
 
-use crate::wire::{ChartPlace, DrawnShape, ShapeParagraph, ShapeStroke, ShapeText};
+use crate::wire::{ChartPlace, DrawnShape, ShapeParagraph, ShapeParagraphRun, ShapeStroke, ShapeText};
 use calc_host::{LineEnd, Shape, ShapeColour, ShapeFill, ShapeKind};
 use calc_host::ShapeShadow as FileShadow;
 use dna_calc_model::drawn_shapes::{DrawnChild, DrawnPicture, ShapeArrow, ShapeGradient, ShapeShadow};
@@ -238,7 +238,13 @@ pub(crate) fn drawn(shape: &Shape, place: ChartPlace, theme: &[String]) -> Optio
     let body = &shape.body;
     let text = shape.text.as_ref().filter(|p| p.iter().any(|t| !t.is_empty())).map(|paragraphs| {
         let inset = |value: Option<i64>, default: i64| value.unwrap_or(default) as f64 / EMU_PER_PIXEL;
+        let rich_runs = body.rich_runs_for(paragraphs);
+        let default_colour = || {
+            let name = if styled { "lt1" } else { "dk1" };
+            shape_colour::css(Resolved { rgb: scheme(name, theme).unwrap_or(0), alpha: 1.0 })
+        };
         ShapeText {
+            face: body.face.clone(),
             paragraphs: paragraphs
                 .iter()
                 .enumerate()
@@ -250,6 +256,13 @@ pub(crate) fn drawn(shape: &Shape, place: ChartPlace, theme: &[String]) -> Optio
                         .cloned()
                         .flatten()
                         .unwrap_or_else(|| "l".into()),
+                    runs: rich_runs.and_then(|runs| runs.get(i)).map_or_else(Vec::new, |runs| {
+                        runs.iter().map(|run| ShapeParagraphRun {
+                            text: run.text.clone(), face: run.face.clone(), size: run.size as f64 / 100.0 * 96.0 / 72.0,
+                            bold: run.bold, italic: run.italic, underline: run.underline,
+                            colour: run.colour.as_ref().and_then(|c| css(c, theme)).unwrap_or_else(default_colour),
+                        }).collect()
+                    }),
                 })
                 .collect(),
             inset: [
@@ -264,14 +277,12 @@ pub(crate) fn drawn(shape: &Shape, place: ChartPlace, theme: &[String]) -> Optio
             size: body.size.map_or(11.0, |s| s as f64 / 100.0) * 96.0 / 72.0,
             bold: body.bold,
             italic: body.italic,
+            underline: body.underline && rich_runs.is_none(),
             colour: body
                 .colour
                 .as_ref()
                 .and_then(|c| css(c, theme))
-                .unwrap_or_else(|| {
-                    let name = if styled { "lt1" } else { "dk1" };
-                    shape_colour::css(Resolved { rgb: scheme(name, theme).unwrap_or(0), alpha: 1.0 })
-                }),
+                .unwrap_or_else(default_colour),
         }
     });
     Some(DrawnShape {
@@ -330,7 +341,9 @@ mod tests {
         s.body.anchor = Some("ctr".into());
         s.body.alignment = vec![Some("ctr".into()), None];
         s.body.size = Some(1100);
+        s.body.face = Some("Arial".into());
         s.body.bold = true;
+        s.body.underline = true;
         let d = drawn(&s, place(), &[]).unwrap();
         assert_eq!(d.fill.as_deref(), Some("#FF8000"));
         let line = d.line.unwrap();
@@ -342,8 +355,34 @@ mod tests {
         assert_eq!(text.paragraphs[1].align, "l");
         assert!((text.size - 11.0 * 96.0 / 72.0).abs() < 1e-9);
         assert!(text.bold && text.wrap);
+        assert_eq!(text.face.as_deref(), Some("Arial"));
+        assert!(text.underline);
         // A ribbon shape's text is white.
         assert_eq!(text.colour, "#FFFFFF");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn explicit_rich_runs_reach_the_shape_renderer() {
+        use calc_host::ShapeTextRun;
+        let mut s = shape(ShapeKind::TextBox);
+        s.text = Some(vec!["AB".into()]); s.body.size = Some(1200); s.body.bold = true;
+        s.body.colour = Some(ShapeColour::Rgb(0xff0000));
+        s.body.underline = true;
+        s.body.runs = vec![vec![
+            ShapeTextRun { text: "A".into(), face: None, size: 1200, bold: true, italic: false, underline: true, colour: Some(ShapeColour::Rgb(0xff0000)) },
+            ShapeTextRun { text: "B".into(), face: Some("Courier".into()), size: 900, bold: false, italic: true, underline: false, colour: None },
+        ]];
+        let d = drawn(&s, place(), &[]).unwrap();
+        let text = d.text.as_ref().unwrap();
+        assert_eq!(text.paragraphs[0].runs.len(), 2);
+        assert_eq!(text.paragraphs[0].runs[0].colour, "#FF0000");
+        assert_eq!(text.paragraphs[0].runs[1].colour, "#000000");
+        assert_eq!(text.paragraphs[0].runs[1].face.as_deref(), Some("Courier"));
+        assert!(!text.underline && text.paragraphs[0].runs[0].underline && !text.paragraphs[0].runs[1].underline);
+        let markup = dna_calc_model::drawn_shapes::shape_markup(&d, 100.0, 60.0, 1.0).unwrap();
+        assert!(markup.contains("font-weight:bold;font-style:normal;color:#FF0000;text-decoration:underline\">A</span>"), "{markup}");
+        assert!(markup.contains("font-weight:normal;font-style:italic;color:#000000;font-family:'\\43 \\6f \\75 \\72 \\69 \\65 \\72 '\">B</span>"), "{markup}");
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

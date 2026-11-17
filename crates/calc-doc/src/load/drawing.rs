@@ -1,7 +1,7 @@
 //! A worksheet's drawing objects other than charts (dc-zjsg.1): shapes, text boxes, pictures,
 //! connectors and groups, read from the drawing part its relationships name. Each anchor is read
 //! into a small tree and the fields the model holds are taken from it; the part itself stays in
-//! the package as stored, so what is not held here (effects, custom geometry, rich text runs,
+//! the package as stored, so what is not held here (effects, custom geometry, unsupported rich runs,
 //! extension lists) is never lost. An anchor holding anything else (SmartArt, OLE, ink, an
 //! alternate-content block) is counted in [`SheetShapes::unread`]; chart frames are the chart
 //! reader's and are not counted.
@@ -11,7 +11,7 @@ use crate::opc::Package;
 use crate::xml::XmlEvent;
 use calc_doc_model::{
     ChartAnchor, DrawingPoint, LineEnd, Shape, ShapeBody, ShapeColour, ShapeConnection, ShapeFill, ShapeShadow,
-    PictureMedia, ShapeGradient, ShapeKind, ShapeLine, ShapePicture, SheetShapes,
+    PictureMedia, ShapeGradient, ShapeKind, ShapeLine, ShapePicture, ShapeTextRun, SheetShapes,
 };
 
 const DRAWING: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing";
@@ -434,6 +434,7 @@ fn object_shape(node: &Node, anchor: ChartAnchor) -> Option<Shape> {
     }
     if let Some(body) = node.child("txBody") {
         shape.body = text_body(body);
+        shape.body.runs = rich_text_runs(body).unwrap_or_default();
         shape.text = Some(
             body.children
                 .iter()
@@ -454,6 +455,55 @@ fn object_shape(node: &Node, anchor: ChartAnchor) -> Option<Shape> {
         );
     }
     Some(shape)
+}
+
+/// Narrow, explicitly specified run properties; other run forms stay in the package.
+fn rich_text_runs(body: &Node) -> Option<Vec<Vec<ShapeTextRun>>> {
+    let mut out = Vec::new();
+    for paragraph in body.children.iter().filter(|p| p.local == "p") {
+      let mut runs = Vec::new();
+      for child in &paragraph.children {
+        match child.local.as_str() {
+            "pPr" if child.children.is_empty() && child.attributes.iter().all(|(k, _)| k == "algn") => continue,
+            "endParaRPr" => continue,
+            "r" => {}
+            _ => return None,
+        }
+        if child.children.iter().any(|n| !matches!(n.local.as_str(), "rPr" | "t"))
+            || child.children.iter().filter(|n| n.local == "rPr").count() != 1
+            || child.children.iter().filter(|n| n.local == "t").count() != 1 { return None; }
+        let properties = child.child("rPr")?;
+        if properties.attributes.iter().any(|(k, _)| !matches!(k.as_str(), "sz" | "b" | "i" | "u" | "lang"))
+            || properties.children.iter().any(|n| !matches!(n.local.as_str(), "solidFill" | "latin"))
+            || properties.children.iter().filter(|n| n.local == "solidFill").count() > 1
+            || properties.children.iter().filter(|n| n.local == "latin").count() > 1 { return None; }
+        let size = properties.number("sz")?;
+        if !(100..=400_000).contains(&size) { return None; }
+        let boolean = |name| match properties.attribute(name)? {
+            "1" | "true" => Some(true), "0" | "false" => Some(false), _ => None,
+        };
+        let colour = match properties.child("solidFill") {
+            Some(fill) => Some(colour(fill)?),
+            None => None,
+        };
+        let face = match properties.child("latin") {
+            Some(latin) if latin.children.is_empty() && latin.attributes.iter().all(|(k, _)| k == "typeface") => {
+                let face = latin.attribute("typeface")?;
+                if face.is_empty() || face.starts_with('+') || face.chars().any(|c| c.is_control() || matches!(c, '\u{fffe}' | '\u{ffff}')) { return None; }
+                Some(face.to_owned())
+            }
+            Some(_) => return None,
+            None => None,
+        };
+        let underline = match properties.attribute("u") { None | Some("none") => false, Some("sng") => true, _ => return None };
+        runs.push(ShapeTextRun { text: child.child("t")?.text.clone(), face, size,
+            bold: boolean("b")?, italic: boolean("i")?, underline, colour });
+      }
+      out.push(runs);
+    }
+    let mut runs = out.iter().flatten();
+    let first = runs.next()?;
+    runs.any(|run| !run.same_style_as(first)).then_some(out)
 }
 
 /// The properties of a text body: `a:bodyPr`, each paragraph's alignment and the first run's font.
@@ -481,8 +531,13 @@ fn text_body(body: &Node) -> ShapeBody {
         .and_then(|r| r.child("rPr"));
     if let Some(run) = run {
         read.size = run.number("sz");
+        read.face = run.child("latin").filter(|n| n.children.is_empty() && n.attributes.iter().all(|(k, _)| k == "typeface"))
+            .and_then(|n| n.attribute("typeface"))
+            .filter(|face| !face.is_empty() && !face.starts_with('+') && !face.chars().any(|c| c.is_control() || matches!(c, '\u{fffe}' | '\u{ffff}')))
+            .map(str::to_owned);
         read.bold = run.flag("b");
         read.italic = run.flag("i");
+        read.underline = run.attribute("u") == Some("sng");
         read.colour = run.child("solidFill").and_then(colour);
     }
     read

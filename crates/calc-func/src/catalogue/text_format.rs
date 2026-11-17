@@ -585,6 +585,21 @@ fn arraytotext(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> S
     if let CoreRef::Error(code) = a[0].core_ref() {
         return fail(code);
     }
+    // An array of references (OFFSET or INDIRECT lifted over an array, dc-b1l) is #CALC! once the
+    // format reads as a number, whatever number (Excel 16.0.20527 through Touchstone sheet cases,
+    // 2026-11-17, family reference-arrays: `=ARRAYTOTEXT(OFFSET(A1,{0;1},0),5)` and `,-1)` #CALC!,
+    // `,"x")` #VALUE!, `,NA())` #N/A, `=ARRAYTOTEXT(INDIRECT({"A1";"A1,B1"}))` #CALC!, while
+    // `=ARRAYTOTEXT({1;2},5)` is #VALUE!).
+    if a[0].as_array().is_some_and(|array| {
+        array
+            .iter_row_major()
+            .any(|cell| cell.as_reference().is_some())
+    }) {
+        if given(a, 1) {
+            num(site, a, 1)?;
+        }
+        return fail(WorksheetErrorCode::Calc);
+    }
     let strict = binary_flag(site, a, 1, true)?;
     let g = grid(site, a, 0, sv)?;
     let mut parts = Vec::with_capacity(g.cells.len());

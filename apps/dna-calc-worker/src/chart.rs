@@ -365,6 +365,42 @@ pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
             }
         }
     }
+    if !pie {
+        // Reserve a strip for each associated axis title, outside the tick labels.
+        // The precise Excel text metrics and manual title positions are not modelled here.
+        for axis in &chart.axes {
+            let Some(title) = axis.title.as_deref().filter(|s| !s.is_empty()) else { continue };
+            if !chart.plots.iter().any(|plot| plot.axis_ids.contains(&axis.id)) {
+                continue;
+            }
+            let (x, y, rotation) = match axis.position.as_deref() {
+                Some("l") if right - left > 80. => {
+                    let x = left + 11.;
+                    left += 20.;
+                    (x, (top + bottom) / 2., -90)
+                }
+                Some("r") if right - left > 80. => {
+                    let x = right - 7.;
+                    right -= 20.;
+                    (x, (top + bottom) / 2., 90)
+                }
+                Some("t") if bottom - top > 80. => {
+                    let y = top + 12.;
+                    top += 20.;
+                    ((left + right) / 2., y, 0)
+                }
+                Some("b") if bottom - top > 80. => {
+                    let y = bottom - 3.;
+                    bottom -= 20.;
+                    ((left + right) / 2., y, 0)
+                }
+                _ => continue,
+            };
+            let _ = write!(svg,
+                "<text data-dnacalc=\"chart-axis-title\" data-chart-text=\"axis-title:{}\" data-axis=\"{}\" x=\"{x:.1}\" y=\"{y:.1}\" text-anchor=\"middle\" transform=\"rotate({rotation} {x:.1} {y:.1})\" fill=\"{AXIS}\">{}</text>",
+                axis.id, axis.id, escape(title));
+        }
+    }
     let area = Area {
         left,
         top,
@@ -1690,6 +1726,15 @@ mod ui29_chart_tests {
         }));
         assert!(result.accepted(), "{result:?}");
         let chart = book.host().charts(sheet).0[0].clone();
+        let mut titled = chart.clone();
+        let axis = titled.axes.iter_mut().find(|axis| axis.position.as_deref() == Some("l")).unwrap();
+        axis.title = Some("Revenue & costs".into());
+        let key = format!("axis-title:{}", axis.id);
+        titled.element_text.entry(key).or_default().family = Some("Arial".into());
+        let titled_svg = chart_svg(&titled, 640., 360.);
+        assert!(titled_svg.contains("data-dnacalc=\"chart-axis-title\""));
+        assert!(titled_svg.contains("Revenue &amp; costs"));
+        assert!(titled_svg.contains("&quot;Arial&quot;"));
         let svg = chart_svg(&chart, 640., 360.);
         assert!(!svg.contains("chart-notice"), "{svg}");
         assert_eq!(svg.matches("data-dnacalc=\"chart-mark\"").count(), 12);

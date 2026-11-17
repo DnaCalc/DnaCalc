@@ -207,11 +207,28 @@ pub struct ShapeParagraph {
     pub text: String,
     /// `l`, `ctr`, `r` or `just`.
     pub align: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub runs: Vec<ShapeParagraphRun>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ShapeParagraphRun {
+    pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub face: Option<String>,
+    pub size: f64,
+    pub bold: bool,
+    pub italic: bool,
+    #[serde(default)]
+    pub underline: bool,
+    pub colour: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ShapeText {
     pub paragraphs: Vec<ShapeParagraph>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub face: Option<String>,
     /// Left, top, right and bottom insets, in pixels at 100%.
     pub inset: [f64; 4],
     /// `t`, `ctr` or `b`.
@@ -221,6 +238,8 @@ pub struct ShapeText {
     pub size: f64,
     pub bold: bool,
     pub italic: bool,
+    #[serde(default)]
+    pub underline: bool,
     pub colour: String,
 }
 
@@ -311,6 +330,9 @@ const PRESETS: &[&str] = &[
     "wedgeRoundRectCallout",
     "flowChartProcess",
     "flowChartDecision",
+    "flowChartConnector",
+    "flowChartExtract",
+    "flowChartAlternateProcess",
     "flowChartTerminator",
     "flowChartDocument",
     "bentConnector2",
@@ -434,7 +456,8 @@ pub fn geometry_path(prst: &str, w: f64, h: f64, adjust: &[(String, i64)]) -> Op
             let a = pin(0.0, av(adjust, "adj", 16667.0), 50000.0);
             rounded(w, h, ss * a / 100_000.0)
         }
-        "ellipse" => {
+        "flowChartAlternateProcess" => rounded(w, h, ss / 6.0),
+        "ellipse" | "flowChartConnector" => {
             let (rx, ry) = (w / 2.0, h / 2.0);
             let (kx, ky) = (rx * KAPPA, ry * KAPPA);
             vec![
@@ -451,6 +474,7 @@ pub fn geometry_path(prst: &str, w: f64, h: f64, adjust: &[(String, i64)]) -> Op
             let a = pin(0.0, av(adjust, "adj", 50000.0), 100_000.0);
             polygon(&[(0.0, h), (w * a / 100_000.0, 0.0), (w, h)])
         }
+        "flowChartExtract" => polygon(&[(0.0, h), (hc, 0.0), (w, h)]),
         "rtTriangle" => polygon(&[(0.0, h), (0.0, 0.0), (w, h)]),
         "diamond" | "flowChartDecision" => polygon(&[(0.0, vc), (hc, 0.0), (w, vc), (hc, h)]),
         "parallelogram" => {
@@ -635,6 +659,10 @@ pub fn text_rect(prst: &str, w: f64, h: f64, adjust: &[(String, i64)]) -> [f64; 
     let (hc, vc) = (w / 2.0, h / 2.0);
     let whole = [0.0, 0.0, w, h];
     match prst {
+        "flowChartAlternateProcess" => {
+            let il = ss / 6.0 * 29_289.0 / 100_000.0;
+            [il, il, w - il, h - il]
+        }
         "roundRect" => {
             let il = ss * pin(0.0, av(adjust, "adj", 16667.0), 50000.0) / 100_000.0 * 0.292_893_218_8;
             [il, il, w - il, h - il]
@@ -644,7 +672,7 @@ pub fn text_rect(prst: &str, w: f64, h: f64, adjust: &[(String, i64)]) -> [f64; 
             [il, il, w - il, h - il]
         }
         // The square inscribed in the ellipse: cos 45 degrees of each radius.
-        "ellipse" => {
+        "ellipse" | "flowChartConnector" => {
             let (dx, dy) = (hc * std::f64::consts::FRAC_1_SQRT_2, vc * std::f64::consts::FRAC_1_SQRT_2);
             [hc - dx, vc - dy, hc + dx, vc + dy]
         }
@@ -652,6 +680,7 @@ pub fn text_rect(prst: &str, w: f64, h: f64, adjust: &[(String, i64)]) -> [f64; 
             let x1 = w * pin(0.0, av(adjust, "adj", 50000.0), 100_000.0) / 200_000.0;
             [x1, vc, x1 + hc, h]
         }
+        "flowChartExtract" => [w / 4.0, vc, w * 3.0 / 4.0, h],
         "diamond" | "flowChartDecision" => [w / 4.0, h / 4.0, w * 3.0 / 4.0, h * 3.0 / 4.0],
         "octagon" => {
             let il = ss * pin(0.0, av(adjust, "adj", 29289.0), 50000.0) / 100_000.0 / 2.0;
@@ -691,7 +720,7 @@ pub fn text_rect(prst: &str, w: f64, h: f64, adjust: &[(String, i64)]) -> [f64; 
         }
         "flowChartTerminator" => [w * 1018.0 / 21600.0, h * 3163.0 / 21600.0, w * 20582.0 / 21600.0, h * 18437.0 / 21600.0],
         "flowChartDocument" => [0.0, 0.0, w, h * 17322.0 / 21600.0],
-        "rtTriangle" => [w / 12.0, h / 2.0, w * 7.0 / 12.0, h * 11.0 / 12.0],
+        "rtTriangle" => [w / 12.0, h * 7.0 / 12.0, w * 7.0 / 12.0, h * 11.0 / 12.0],
         _ => whole,
     }
 }
@@ -828,6 +857,15 @@ fn escape(text: &str) -> String {
         }
     }
     out
+}
+
+/// Quote typeface text as CSS escapes, so it cannot escape the style attribute.
+fn font_family(face: Option<&str>) -> String {
+    face.filter(|face| !face.is_empty() && !face.chars().any(char::is_control)).map(|face| {
+        let mut escaped = String::new();
+        for c in face.chars() { let _ = write!(escaped, "\\{:x} ", c as u32); }
+        format!(";font-family:'{escaped}'")
+    }).unwrap_or_default()
 }
 
 /// The size of an arrowhead's `w` or `len` in line widths.
@@ -1135,7 +1173,7 @@ fn finish(shape: &DrawnShape, w: f64, h: f64, zoom: f64, id: &str, defs: String,
         let [rl, rt, rr, rb] = text_rect(&shape.geometry, w, h, &shape.adjust);
         let _ = write!(
             out,
-            "<div class=\"dc-shape-text\" style=\"position:absolute;left:{}px;top:{}px;width:{}px;height:{}px;box-sizing:border-box;padding:{}px {}px {}px {}px;display:flex;flex-direction:column;justify-content:{justify};font-size:{}px;line-height:1.2;color:{};font-weight:{};font-style:{};white-space:{};overflow:visible;{turn}\">",
+            "<div class=\"dc-shape-text\" style=\"position:absolute;left:{}px;top:{}px;width:{}px;height:{}px;box-sizing:border-box;padding:{}px {}px {}px {}px;display:flex;flex-direction:column;justify-content:{justify};font-size:{}px;line-height:1.2;color:{};font-weight:{};font-style:{}{}{};white-space:{};overflow:visible;{turn}\">",
             number(rl),
             number(rt),
             number((rr - rl).max(0.0)),
@@ -1148,6 +1186,8 @@ fn finish(shape: &DrawnShape, w: f64, h: f64, zoom: f64, id: &str, defs: String,
             text.colour,
             if text.bold { "bold" } else { "normal" },
             if text.italic { "italic" } else { "normal" },
+            font_family(text.face.as_deref()),
+            if text.underline { ";text-decoration:underline" } else { "" },
             if text.wrap { "pre-wrap" } else { "pre" },
         );
         for paragraph in &text.paragraphs {
@@ -1157,11 +1197,19 @@ fn finish(shape: &DrawnShape, w: f64, h: f64, zoom: f64, id: &str, defs: String,
                 "just" => "justify",
                 _ => "left",
             };
-            let _ = write!(
-                out,
-                "<p style=\"margin:0;min-height:1.2em;text-align:{align}\">{}</p>",
-                escape(&paragraph.text)
-            );
+            let _ = write!(out, "<p style=\"margin:0;min-height:1.2em;text-align:{align}\">");
+            if !paragraph.runs.is_empty() && paragraph.runs.iter().map(|r| r.text.as_str()).collect::<String>() == paragraph.text {
+                for run in &paragraph.runs {
+                    let face = font_family(run.face.as_deref());
+                    let _ = write!(out, "<span style=\"font-size:{}px;font-weight:{};font-style:{};color:{}{}{}\">{}</span>",
+                        number(run.size * zoom), if run.bold { "bold" } else { "normal" },
+                        if run.italic { "italic" } else { "normal" }, run.colour, face,
+                        if run.underline { ";text-decoration:underline" } else { "" }, escape(&run.text));
+                }
+            } else {
+                out.push_str(&escape(&paragraph.text));
+            }
+            out.push_str("</p>");
         }
         out.push_str("</div>");
     }
@@ -1339,9 +1387,10 @@ mod tests {
             shadow: None,
             line: Some(ShapeStroke { width: 2.0, colour: "#ED7D31".into(), dash: "dash".into(), head: None, tail: None }),
             text: Some(ShapeText {
+                face: None,
                 paragraphs: vec![
-                    ShapeParagraph { text: "a < b".into(), align: "ctr".into() },
-                    ShapeParagraph { text: String::new(), align: "l".into() },
+                    ShapeParagraph { text: "a < b".into(), align: "ctr".into(), runs: Vec::new() },
+                    ShapeParagraph { text: String::new(), align: "l".into(), runs: Vec::new() },
                 ],
                 inset: [9.6, 4.8, 9.6, 4.8],
                 anchor: "ctr".into(),
@@ -1349,6 +1398,7 @@ mod tests {
                 size: 14.666,
                 bold: true,
                 italic: false,
+                underline: false,
                 colour: "#000000".into(),
             }),
         }
@@ -1364,10 +1414,39 @@ mod tests {
         assert!(markup.contains("<p style=\"margin:0;min-height:1.2em;text-align:center\">a &lt; b</p>"), "{markup}");
         assert!(markup.contains("text-align:left\"></p>"), "{markup}");
         assert!(markup.contains("font-weight:bold"), "{markup}");
+        let mut named = sample();
+        named.text.as_mut().unwrap().face = Some("A\";color:red".into());
+        named.text.as_mut().unwrap().underline = true;
+        let named_markup = shape_markup(&named, 80.0, 40.0, 1.0).unwrap();
+        assert!(named_markup.contains("font-family:'\\41 \\22 \\3b "), "{named_markup}");
+        assert!(named_markup.contains("text-decoration:underline"), "{named_markup}");
+        assert!(!named_markup.contains("color:red"), "{named_markup}");
         // Zoom scales the stroke and the insets with the frame.
         let zoomed = shape_markup(&sample(), 160.0, 80.0, 2.0).unwrap();
         assert!(zoomed.contains("stroke-width=\"4\" stroke-dasharray=\"16 12\""), "{zoomed}");
         assert!(zoomed.contains("padding:9.6px 19.2px 9.6px 19.2px"), "{zoomed}");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn mixed_text_runs_keep_their_properties_and_escape_text() {
+        let mut shape = sample();
+        let paragraph = &mut shape.text.as_mut().unwrap().paragraphs[0];
+        paragraph.runs = vec![
+            ShapeParagraphRun { text: "a ".into(), face: None, size: 12.0, bold: true, italic: false, underline: false, colour: "#FF0000".into() },
+            ShapeParagraphRun { text: "< b".into(), face: None, size: 16.0, bold: false, italic: true, underline: false, colour: "#000000".into() },
+        ];
+        let markup = shape_markup(&shape, 80.0, 40.0, 1.0).unwrap();
+        assert!(markup.contains("font-size:12px;font-weight:bold;font-style:normal;color:#FF0000\">a </span>"), "{markup}");
+        assert!(markup.contains("font-size:16px;font-weight:normal;font-style:italic;color:#000000\">&lt; b</span>"), "{markup}");
+        shape.text.as_mut().unwrap().paragraphs[0].runs[1].face = Some("X\";color:red".into());
+        let markup = shape_markup(&shape, 80.0, 40.0, 1.0).unwrap();
+        assert!(markup.contains("font-family:'\\58 \\22 \\3b "), "{markup}");
+        assert!(!markup.contains("color:red"), "{markup}");
+        shape.text.as_mut().unwrap().paragraphs[0].text = "edited".into();
+        let markup = shape_markup(&shape, 80.0, 40.0, 1.0).unwrap();
+        assert!(markup.contains(">edited</p>"), "{markup}");
+        assert!(!markup.contains("<span style="), "{markup}");
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -1403,6 +1482,9 @@ mod tests {
         assert_eq!(d("rtTriangle", 40.0, 20.0, &[]), "M0 20L0 0L40 20Z");
         assert_eq!(d("diamond", 40.0, 20.0, &[]), "M0 10L20 0L40 10L20 20Z");
         assert_eq!(d("flowChartDecision", 40.0, 20.0, &[]), d("diamond", 40.0, 20.0, &[]));
+        assert_eq!(d("flowChartConnector", 40.0, 20.0, &[]), d("ellipse", 40.0, 20.0, &[]));
+        assert_eq!(d("flowChartExtract", 40.0, 20.0, &[]), d("triangle", 40.0, 20.0, &[]));
+        assert_eq!(geometry_path("flowChartAlternateProcess", 120.0, 60.0, &[]), Some(rounded(120.0, 60.0, 10.0)));
         assert_eq!(d("flowChartProcess", 40.0, 20.0, &[]), d("rect", 40.0, 20.0, &[]));
         // parallelogram: the slant is ss * adj / 100000, held to 100000 * w / ss.
         assert_eq!(d("parallelogram", 100.0, 40.0, &[]), "M0 40L10 0L100 0L90 40Z");
@@ -1792,6 +1874,10 @@ mod tests {
         assert_eq!(text_rect("rect", 100.0, 40.0, &[]), [0.0, 0.0, 100.0, 40.0]);
         // Ellipse: the inscribed square at cos 45 of each radius.
         let [l, t, r, b] = text_rect("ellipse", 100.0, 40.0, &[]);
+        assert_eq!(text_rect("flowChartConnector", 100.0, 40.0, &[]), [l, t, r, b]);
+        assert_eq!(text_rect("flowChartExtract", 120.0, 120.0, &[]), [30.0, 60.0, 90.0, 120.0]);
+        assert_eq!(text_rect("flowChartAlternateProcess", 120.0, 60.0, &[]), [2.9289, 2.9289, 117.0711, 57.0711]);
+        assert_eq!(text_rect("rtTriangle", 120.0, 120.0, &[]), [10.0, 70.0, 70.0, 110.0]);
         assert!((l - 14.644).abs() < 0.001 && (t - 5.858).abs() < 0.001 && (r - 85.355).abs() < 0.001 && (b - 34.142).abs() < 0.001);
         assert_eq!(text_rect("diamond", 100.0, 40.0, &[]), [25.0, 10.0, 75.0, 30.0]);
         // Triangle: the lower half between the points a quarter and three quarters across (apex at the middle).

@@ -37,7 +37,11 @@ impl Closure {
     /// The closure as a value.
     pub(super) fn into_value(self) -> CalcValue {
         let arity = CallableArityShape::range(self.required, self.params);
-        CalcValue::callable(CallableValue::new(arity, "LAMBDA", Arc::new(self)))
+        CalcValue::callable(CallableValue::new(
+            arity,
+            calc_catalogue::binding_spelling(calc_catalogue::BindingForm::Lambda),
+            Arc::new(self),
+        ))
     }
 
     /// The closure behind `value`, when it is one.

@@ -2,8 +2,8 @@
 //! line, area, pie, doughnut, scatter), their series with the worksheet ranges of their names,
 //! values and categories, the title, axis titles and the legend, written as the DrawingML chart
 //! part Excel saves. Bar and pie geometry, point-color variation, and primary linear value-axis
-//! bounds and units are retained; other formatting (colours, fonts, gridlines, 3-D, data labels,
-//! trendlines) is not read.
+//! bounds and units, unambiguous solid series colors, and simple value-label settings are retained;
+//! other formatting (fonts, gridlines, 3-D, most data labels, trendlines) is not read.
 
 use super::records::Record;
 use super::strings::Pieces;
@@ -29,10 +29,17 @@ const SCATTER: u16 = 0x101B;
 const AXIS: u16 = 0x101D;
 const AXIS_PARENT: u16 = 0x1041;
 const VALUE_RANGE: u16 = 0x101F;
+const SI_INDEX: u16 = 0x1065;
 const LEGEND: u16 = 0x1015;
 const TEXT: u16 = 0x1025;
+const FONT_X: u16 = 0x1026;
+const AL_RUNS: u16 = 0x1050;
 const OBJECT_LINK: u16 = 0x1027;
 const SERIES_TO_CHART_GROUP: u16 = 0x1045;
+const DATA_FORMAT: u16 = 0x1006;
+const LINE_FORMAT: u16 = 0x1007;
+const AREA_FORMAT: u16 = 0x100A;
+const ATTACHED_LABEL: u16 = 0x100C;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum Kind {
@@ -56,6 +63,8 @@ struct Group {
     first_slice: Option<u16>,
     hole: Option<u16>,
     vary_colors: Option<bool>,
+    show_values: bool,
+    labels_seen: bool,
 }
 
 #[derive(Debug, Default)]
@@ -65,6 +74,46 @@ struct Series {
     title_formula: Option<String>,
     values: Option<String>,
     categories: Option<String>,
+    category_type: Option<u16>,
+    category_count: Option<u16>,
+    value_type: Option<u16>,
+    value_count: Option<u16>,
+    fill: Option<String>,
+    fill_seen: bool,
+    line: Option<String>,
+    line_seen: bool,
+    show_values: bool,
+    labels_seen: bool,
+}
+
+#[derive(Debug, Default)]
+struct SeriesFormat {
+    series: Option<usize>,
+    fill: Option<String>,
+    area_seen: bool,
+    line: Option<String>,
+    line_seen: bool,
+    invalid: bool,
+    show_values: bool,
+    labels_seen: bool,
+    group_default: bool,
+    labels_header_valid: bool,
+}
+
+#[derive(Debug, Default)]
+struct ValueCache {
+    /// None is an explicitly blank point, not a calculated value.
+    points: BTreeMap<u16, Option<f64>>,
+    invalid: bool,
+}
+
+#[derive(Debug)]
+enum CategoryPoint { Number(f64), Text(Vec<u16>), Blank }
+
+#[derive(Debug, Default)]
+struct CategoryCache {
+    points: BTreeMap<u16, CategoryPoint>,
+    invalid: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -85,6 +134,7 @@ enum Block {
     Legend,
     Other,
     AxisParent,
+    DataFormat,
 }
 
 #[derive(Debug, Default)]
@@ -93,9 +143,28 @@ pub(crate) struct Chart {
     series: Vec<Series>,
     legend: bool,
     titles: BTreeMap<u16, String>,
+    title_formula: Option<String>,
+    seen_title_links: std::collections::BTreeSet<u16>,
     stack: Vec<u8>,
     pending: Option<u8>,
     link: Option<u16>,
+    attached_text: Option<String>,
+    attached_formula: Option<String>,
+    attached_ai_seen: bool,
+    attached_invalid: bool,
+    attached_font: Option<(String, bool, bool)>,
+    attached_font_seen: bool,
+    attached_font_invalid: bool,
+    title_font: Option<(String, bool, bool)>,
+    axis_title_fonts: [Option<(String, bool, bool)>; 2],
+    axis_fonts: [Option<(String, bool, bool)>; 2],
+    axis_font_seen: [bool; 2],
+    axis_font_invalid: [bool; 2],
+    primary_axis_seen: [bool; 2],
+    primary_axis_parent_valid: bool,
+    legend_font: Option<(String, bool, bool)>,
+    legend_text_seen: bool,
+    legend_font_invalid: bool,
     seen_chart: bool,
     plot_visible_only: Option<bool>,
     blanks: Option<&'static str>,
@@ -103,6 +172,22 @@ pub(crate) struct Chart {
     axis_index: Option<usize>,
     value_ranges: [Option<ValueRange>; 2],
     range_seen: [bool; 2],
+    cache_section: u16,
+    cache_stage: u16,
+    cache_invalid: bool,
+    value_caches: BTreeMap<usize, ValueCache>,
+    category_caches: BTreeMap<usize, CategoryCache>,
+    data_format: Option<SeriesFormat>,
+    auxiliary_series: bool,
+    data_labels_ambiguous: bool,
+    print_header: Option<Vec<u16>>,
+    print_footer: Option<Vec<u16>>,
+    print_header_seen: bool,
+    print_footer_seen: bool,
+    print_text_invalid: bool,
+    print_setup: Option<[u8; 34]>,
+    print_setup_seen: bool,
+    print_setup_invalid: bool,
 }
 
 fn block_code(block: Block) -> u8 {
@@ -117,6 +202,7 @@ fn block_of(code: u8) -> Block {
         3 => Block::Text,
         4 => Block::Legend,
         6 => Block::AxisParent,
+        7 => Block::DataFormat,
         _ => Block::Other,
     }
 }
@@ -124,9 +210,108 @@ fn block_of(code: u8) -> Block {
 impl Chart {
     /// Reads one record of the chart substream; `print` prints the formula tokens of an AI record
     /// as the range they name.
-    pub(crate) fn read(&mut self, record: &Record<'_>, print: &dyn Fn(&[u8]) -> Option<String>) {
+    pub(crate) fn read(&mut self, record: &Record<'_>, print: &dyn Fn(&[u8]) -> Option<String>,
+        code_page: Option<u16>, styles: &super::styles::Styles, embedded: bool) {
         let body = record.body;
+        if embedded && record.id == 0x01AA { self.print_setup_invalid = true; }
+        if embedded && self.stack.is_empty() && record.id == 0x00A1 {
+            if self.print_setup_seen { self.print_setup_invalid = true; }
+            self.print_setup_seen = true;
+            self.print_setup = if record.continues.is_empty() { body.try_into().ok() } else { None };
+            if self.print_setup.is_none() { self.print_setup_invalid = true; }
+        }
+        if embedded && matches!(record.id, 0x0866 | 0x089C) { self.print_text_invalid = true; }
+        if embedded && self.stack.is_empty() && matches!(record.id, 0x0014 | 0x0015) {
+            let (seen, value) = if record.id == 0x0014 {
+                (&mut self.print_header_seen, &mut self.print_header)
+            } else { (&mut self.print_footer_seen, &mut self.print_footer) };
+            if *seen { self.print_text_invalid = true; }
+            *seen = true;
+            let parsed = if body.is_empty() && record.continues.is_empty() { Some(Vec::new()) }
+            else if code_page.is_none() && record.continues.is_empty() {
+                let mut p = Pieces::new(record);
+                p.u16("chart print text length").ok().and_then(|count| {
+                    let flags = p.u8("chart print text flags").ok()?;
+                    if flags & !1 != 0 { return None; }
+                    let text = p.characters(usize::from(count), flags & 1 != 0, "chart print text").ok()?;
+                    p.done().then_some(text)
+                })
+            } else { None };
+            if parsed.as_ref().is_none_or(|text| text.windows(2).any(|w| w == [38, 71] || w == [38, 103])) {
+                self.print_text_invalid = true;
+            }
+            *value = parsed;
+        }
+        if self.stack.iter().any(|code| block_of(*code) == Block::DataFormat)
+            && (record.id == 0x1066 || (0x0800..=0x08ff).contains(&record.id))
+            && let Some(format) = &mut self.data_format { format.invalid = true; }
         match record.id {
+            0x104B | 0x105B => self.auxiliary_series = true,
+            DATA_FORMAT if body.len() == 8 && record.continues.is_empty() => {
+                let point = u16::from_le_bytes([body[0], body[1]]);
+                let series = usize::from(u16::from_le_bytes([body[2], body[3]]));
+                self.data_format = Some(SeriesFormat { series: (point == 0xffff).then_some(series),
+                    group_default: body == [0, 0, 0, 0, 0xfd, 0xff, 0, 0],
+                    labels_header_valid: body[6..8] == [0, 0], ..Default::default() });
+                self.pending = Some(block_code(Block::DataFormat));
+            }
+            ATTACHED_LABEL => {
+                let in_format = self.stack.last().is_some_and(|code| block_of(*code) == Block::DataFormat);
+                let in_series = self.stack.iter().any(|code| block_of(*code) == Block::Series);
+                let in_group = self.stack.iter().any(|code| block_of(*code) == Block::Format);
+                if in_format && in_series {
+                    if let Some(format) = &mut self.data_format {
+                        if !format.labels_header_valid || format.series.is_none_or(|index| index >= self.series.len()) {
+                            self.data_labels_ambiguous = true;
+                        }
+                        if format.labels_seen { self.data_labels_ambiguous = true; }
+                        format.labels_seen = true;
+                        format.show_values = body == [1, 0] && record.continues.is_empty();
+                        if !format.show_values { self.data_labels_ambiguous = true; }
+                    }
+                } else if in_format && in_group && let Some(group) = self.groups.last_mut() {
+                    if group.labels_seen || body != [1, 0] || !record.continues.is_empty()
+                        || !self.data_format.as_ref().is_some_and(|format| format.group_default && !format.invalid) {
+                        self.data_labels_ambiguous = true;
+                    } else { group.show_values = true; }
+                    group.labels_seen = true;
+                } else { self.data_labels_ambiguous = true; }
+            }
+            0x086A | 0x086B => self.data_labels_ambiguous = true,
+            AREA_FORMAT if self.stack.last().is_some_and(|code| block_of(*code) == Block::DataFormat) => {
+                if let Some(format) = &mut self.data_format {
+                    if format.area_seen { format.invalid = true; }
+                    format.area_seen = true;
+                    if body.len() == 16 && record.continues.is_empty() && body[3] == 0
+                        && u16::from_le_bytes([body[8], body[9]]) == 1
+                        && u16::from_le_bytes([body[10], body[11]]) == 0 {
+                        let index = u16::from_le_bytes([body[12], body[13]]);
+                        let rgb = format!("{:02X}{:02X}{:02X}", body[0], body[1], body[2]);
+                        if styles.color_attributes(index).first().is_some_and(|(kind, value)|
+                            *kind == "rgb" && value.strip_prefix("FF") == Some(rgb.as_str())) {
+                            format.fill = Some(rgb);
+                        }
+                    }
+                }
+            }
+            LINE_FORMAT if self.stack.last().is_some_and(|code| block_of(*code) == Block::DataFormat) => {
+                if let Some(format) = &mut self.data_format {
+                    if format.line_seen { format.invalid = true; }
+                    format.line_seen = true;
+                    // Explicit solid narrow line, with the RGB and indexed palette in agreement.
+                    if body.len() == 12 && record.continues.is_empty() && body[3] == 0
+                        && u16::from_le_bytes([body[4], body[5]]) == 0
+                        && u16::from_le_bytes([body[6], body[7]]) == 0
+                        && u16::from_le_bytes([body[8], body[9]]) == 0 {
+                        let index = u16::from_le_bytes([body[10], body[11]]);
+                        let rgb = format!("{:02X}{:02X}{:02X}", body[0], body[1], body[2]);
+                        if styles.color_attributes(index).first().is_some_and(|(kind, value)|
+                            *kind == "rgb" && value.strip_prefix("FF") == Some(rgb.as_str())) {
+                            format.line = Some(rgb);
+                        }
+                    }
+                }
+            }
             CHART_PROPERTIES if body.len() >= 3 => {
                 self.plot_visible_only = Some(u16::from_le_bytes([body[0], body[1]]) & 2 != 0);
                 self.blanks = match body[2] { 0 => Some("gap"), 1 => Some("zero"), 2 => Some("span"), _ => None };
@@ -134,6 +319,10 @@ impl Chart {
             SERIES => {
                 self.series.push(Series {
                     group: 0,
+                    category_type: body.get(0..2).map(|b| u16::from_le_bytes([b[0], b[1]])),
+                    category_count: body.get(4..6).map(|b| u16::from_le_bytes([b[0], b[1]])),
+                    value_type: body.get(2..4).map(|b| u16::from_le_bytes([b[0], b[1]])),
+                    value_count: body.get(6..8).map(|b| u16::from_le_bytes([b[0], b[1]])),
                     ..Default::default()
                 });
                 self.pending = Some(block_code(Block::Series));
@@ -145,14 +334,82 @@ impl Chart {
                 });
                 self.pending = Some(block_code(Block::Format));
             }
+            SI_INDEX => {
+                let next = (body.len() == 2 && record.continues.is_empty())
+                    .then(|| u16::from_le_bytes([body[0], body[1]]));
+                if next.is_none_or(|n| !(1..=3).contains(&n) || self.cache_stage & (1 << n) != 0) {
+                    self.cache_invalid = true;
+                    self.cache_section = 0;
+                } else {
+                    self.cache_section = next.unwrap_or(0);
+                    self.cache_stage |= 1 << self.cache_section;
+                }
+            }
+            0x0201 | 0x0203 | 0x0204 | 0x0205 if self.cache_section == 1 => {
+                if body.len() < 6 { self.cache_invalid = true; }
+                else {
+                    let row = u16::from_le_bytes([body[0], body[1]]);
+                    let column = usize::from(u16::from_le_bytes([body[2], body[3]]));
+                    if let Some(series) = self.series.get(column) {
+                        let cache = self.value_caches.entry(column).or_default();
+                        let value = match record.id {
+                            0x0201 if body.len() == 6 && record.continues.is_empty() => Some(None),
+                            0x0203 if body.len() == 14 && record.continues.is_empty() => {
+                                let n = f64::from_le_bytes(body[6..14].try_into().expect("eight bytes"));
+                                n.is_finite().then_some(Some(n))
+                            }
+                            _ => None,
+                        };
+                        if series.value_type != Some(1) || series.value_count.is_none_or(|count| row >= count)
+                            || value.is_none() || cache.points.contains_key(&row) {
+                            cache.invalid = true;
+                        } else if let Some(value) = value { cache.points.insert(row, value); }
+                    } else { self.cache_invalid = true; }
+                }
+            }
+            0x0201 | 0x0203 | 0x0204 | 0x0205 if self.cache_section == 2 => {
+                if body.len() < 6 { self.cache_invalid = true; }
+                else {
+                    let row = u16::from_le_bytes([body[0], body[1]]);
+                    let column = usize::from(u16::from_le_bytes([body[2], body[3]]));
+                    if let Some(series) = self.series.get(column) {
+                        let cache = self.category_caches.entry(column).or_default();
+                        let value = if !record.continues.is_empty() { None } else { match record.id {
+                            0x0201 if body.len() == 6 && matches!(series.category_type, Some(1 | 3)) => Some(CategoryPoint::Blank),
+                            0x0203 if body.len() == 14 && series.category_type == Some(1) => {
+                                let n = f64::from_le_bytes(body[6..14].try_into().expect("eight bytes"));
+                                n.is_finite().then_some(CategoryPoint::Number(n))
+                            }
+                            0x0204 if body.len() >= 9 && body[8] & !1 == 0 && series.category_type == Some(3) => {
+                                let mut pieces = Pieces::new(record);
+                                pieces.skip(6, "chart category").ok().and_then(|_| pieces.unicode_string("chart category").ok())
+                                    .filter(|_| pieces.done()).map(CategoryPoint::Text)
+                            }
+                            _ => None,
+                        }};
+                        if series.category_count.is_none_or(|count| row >= count) || value.is_none() || cache.points.contains_key(&row) {
+                            cache.invalid = true;
+                        } else if let Some(value) = value { cache.points.insert(row, value); }
+                    } else { self.cache_invalid = true; }
+                }
+            }
             AXIS_PARENT if body.len() >= 2 => {
                 self.primary_axis_group = u16::from_le_bytes([body[0], body[1]]) == 0;
+                self.primary_axis_parent_valid = body.len() == 18 && record.continues.is_empty();
                 self.pending = Some(block_code(Block::AxisParent));
             }
             AXIS => {
                 self.axis_index = body.get(..2).and_then(|b| match u16::from_le_bytes([b[0], b[1]]) {
                     0 => Some(0), 1 => Some(1), _ => None,
                 });
+                if self.primary_axis_group && self.stack.iter().any(|c| block_of(*c) == Block::AxisParent)
+                    && let Some(index) = self.axis_index {
+                    if body.len() != 18 || !record.continues.is_empty() || !self.primary_axis_parent_valid {
+                        self.axis_font_invalid[index] = true;
+                    }
+                    if self.primary_axis_seen[index] { self.axis_font_invalid[index] = true; }
+                    self.primary_axis_seen[index] = true;
+                }
                 self.pending = Some(block_code(Block::Axis));
             }
             VALUE_RANGE if body.len() >= 42 && self.primary_axis_group
@@ -187,8 +444,41 @@ impl Chart {
             TEXT => {
                 self.pending = Some(block_code(Block::Text));
                 self.link = None;
+                self.attached_text = None;
+                self.attached_formula = None;
+                self.attached_ai_seen = false;
+                self.attached_invalid = false;
+                self.attached_font = None;
+                self.attached_font_seen = false;
+                self.attached_font_invalid = body.len() != 32 || !record.continues.is_empty();
+            }
+            FONT_X if self.stack.last().is_some_and(|code| block_of(*code) == Block::Text) => {
+                if self.attached_font_seen { self.attached_font_invalid = true; }
+                self.attached_font_seen = true;
+                self.attached_font = if code_page.is_none() && record.continues.is_empty() && body.len() == 2 {
+                    styles.chart_font(u16::from_le_bytes([body[0], body[1]]))
+                } else { None };
+            }
+            FONT_X if self.primary_axis_group && self.stack.last().is_some_and(|code| block_of(*code) == Block::Axis) => {
+                if let Some(index) = self.axis_index {
+                    if self.axis_font_seen[index] { self.axis_font_invalid[index] = true; }
+                    self.axis_font_seen[index] = true;
+                    self.axis_fonts[index] = if code_page.is_none() && record.continues.is_empty() && body.len() == 2 {
+                        styles.chart_font(u16::from_le_bytes([body[0], body[1]]))
+                    } else { None };
+                }
+            }
+            AL_RUNS | 0x08A5 | 0x08A6 if self.stack.last().is_some_and(|code| block_of(*code) == Block::Text) => {
+                self.attached_font_invalid = true;
+            }
+            AL_RUNS | 0x08A5 | 0x08A6 if self.primary_axis_group && self.stack.last().is_some_and(|code| block_of(*code) == Block::Axis) => {
+                if let Some(index) = self.axis_index { self.axis_font_invalid[index] = true; }
+            }
+            AL_RUNS | 0x08A5 | 0x08A6 if self.stack.last().is_some_and(|code| block_of(*code) == Block::Legend) => {
+                self.legend_font_invalid = true;
             }
             LEGEND => {
+                if self.legend || body.len() != 20 || !record.continues.is_empty() { self.legend_font_invalid = true; }
                 self.legend = true;
                 self.pending = Some(block_code(Block::Legend));
             }
@@ -199,9 +489,63 @@ impl Chart {
             END => {
                 if let Some(code) = self.stack.pop() {
                     match block_of(code) {
-                        Block::Text => self.link = None,
+                        Block::Text => {
+                            if self.stack.last().is_some_and(|code| block_of(*code) == Block::Legend) {
+                                if self.legend_text_seen || self.link.is_some() || self.attached_invalid || self.attached_font_invalid {
+                                    self.legend_font_invalid = true;
+                                } else {
+                                    self.legend_font = self.attached_font.take();
+                                }
+                                self.legend_text_seen = true;
+                            }
+                            if let Some(link) = self.link {
+                                if link == 1 {
+                                    self.title_font = if !self.seen_title_links.contains(&link)
+                                        && !self.attached_invalid && !self.attached_font_invalid {
+                                        self.attached_font.take()
+                                    } else { None };
+                                }
+                                if (2..=3).contains(&link) {
+                                    self.axis_title_fonts[usize::from(link - 2)] = if !self.seen_title_links.contains(&link)
+                                        && !self.attached_invalid && !self.attached_font_invalid {
+                                        self.attached_font.take()
+                                    } else { None };
+                                }
+                                if !self.seen_title_links.insert(link) {
+                                    self.titles.remove(&link);
+                                    if link == 1 { self.title_formula = None; }
+                                } else if !self.attached_invalid && let Some(formula) = self.attached_formula.take() {
+                                    if link == 1 {
+                                        self.title_formula = Some(formula);
+                                        if let Some(text) = self.attached_text.take() { self.titles.insert(link, text); }
+                                    }
+                                } else if !self.attached_invalid && let Some(text) = self.attached_text.take() {
+                                    self.titles.insert(link, text);
+                                }
+                            }
+                            self.link = None;
+                            self.attached_text = None;
+                            self.attached_formula = None;
+                        }
                         Block::Axis => self.axis_index = None,
-                        Block::AxisParent => self.primary_axis_group = false,
+                        Block::AxisParent => { self.primary_axis_group = false; self.primary_axis_parent_valid = false; }
+                        Block::DataFormat => {
+                            if let Some(format) = self.data_format.take()
+                                && let Some(index) = format.series
+                                && let Some(series) = self.series.get_mut(index) {
+                                if series.fill_seen { series.fill = None; }
+                                else if !format.invalid { series.fill = format.fill; }
+                                series.fill_seen = true;
+                                if series.line_seen { series.line = None; }
+                                else if !format.invalid { series.line = format.line; }
+                                series.line_seen = true;
+                                if format.labels_seen {
+                                    if series.labels_seen { series.show_values = false; self.data_labels_ambiguous = true; }
+                                    else if !format.invalid { series.show_values = format.show_values; }
+                                    series.labels_seen = true;
+                                }
+                            }
+                        }
                         _ => {}
                     }
                 }
@@ -268,7 +612,14 @@ impl Chart {
                     .then(|| body.get(8..8 + count))
                     .flatten()
                     .and_then(print);
-                if let Some(s) = self.series.last_mut() {
+                if self.stack.iter().any(|c| block_of(*c) == Block::Text) {
+                    if self.attached_ai_seen { self.attached_invalid = true; }
+                    self.attached_ai_seen = true;
+                    if reference_type == 2 && count > 0 {
+                        if id == 0 && formula.is_some() { self.attached_formula = formula; }
+                        else { self.attached_invalid = true; }
+                    }
+                } else if let Some(s) = self.series.last_mut() {
                     match id {
                         0 => s.title_formula = formula,
                         1 => s.values = formula,
@@ -278,34 +629,43 @@ impl Chart {
                 }
             }
             OBJECT_LINK if body.len() >= 2 => {
-                self.link = Some(u16::from_le_bytes([body[0], body[1]]));
+                if self.stack.iter().any(|c| block_of(*c) == Block::Text) {
+                    if self.link.is_some() { self.attached_invalid = true; }
+                    self.link = Some(u16::from_le_bytes([body[0], body[1]]));
+                    if self.link == Some(4) { self.data_labels_ambiguous = true; }
+                }
             }
             SERIES_TEXT => {
-                let mut p = Pieces::new(record);
-                if p.u16("SeriesText").is_ok()
-                    && let Ok(count) = p.u8("SeriesText")
-                    && let Ok(flag) = p.u8("SeriesText")
-                    && let Ok(units) = p.characters(usize::from(count), flag & 1 != 0, "text")
-                {
-                    let text = String::from_utf16_lossy(&units);
-                    let in_text = self.stack.iter().any(|c| block_of(*c) == Block::Text);
-                    match (in_text, self.link) {
-                        (true, Some(link)) => {
-                            self.titles.insert(link, text);
-                        }
-                        _ => {
-                            if let Some(s) = self.series.last_mut()
-                                && s.title.is_none()
-                            {
-                                s.title = Some(text);
-                            }
-                        }
+                let text = if let Some(page) = code_page {
+                    body.get(2).and_then(|count| body.get(3..3 + usize::from(*count)))
+                        .filter(|bytes| record.continues.is_empty() && body.len() == 3 + bytes.len())
+                        .and_then(|bytes| super::codepage::decode(page, bytes).ok())
+                } else {
+                    let mut p = Pieces::new(record);
+                    p.u16("SeriesText").ok().and_then(|_| p.u8("SeriesText").ok())
+                        .and_then(|count| p.u8("SeriesText").ok().and_then(|flag|
+                            p.characters(usize::from(count), flag & 1 != 0, "text").ok()))
+                        .map(|units| String::from_utf16_lossy(&units))
+                };
+                if let Some(text) = text {
+                    if self.stack.iter().any(|c| block_of(*c) == Block::Text) {
+                        if self.attached_text.is_some() { self.attached_invalid = true; }
+                        self.attached_text = Some(text);
+                    } else if let Some(s) = self.series.last_mut() && s.title.is_none() {
+                        s.title = Some(text);
                     }
+                } else if self.stack.iter().any(|c| block_of(*c) == Block::Text) {
+                    self.attached_invalid = true;
                 }
             }
             0x1002 => self.seen_chart = true,
             _ => {}
         }
+    }
+
+    /// Avoid inventing an empty or partial chart when an old series source could not be decoded.
+    pub(crate) fn has_all_value_sources(&self) -> bool {
+        !self.series.is_empty() && self.series.iter().all(|series| series.values.is_some())
     }
 
     /// The chart part, or `None` when the chart has no series this reader writes.
@@ -323,8 +683,10 @@ impl Chart {
             ],
         );
         x.open("c:chart", &[]);
-        if let Some(title) = self.titles.get(&1) {
-            title_element(&mut x, title);
+        if self.title_formula.is_some() || self.titles.contains_key(&1) {
+            if let Some(formula) = &self.title_formula {
+                linked_title_element(&mut x, formula, self.titles.get(&1).map(String::as_str), self.title_font.as_ref());
+            } else if let Some(title) = self.titles.get(&1) { title_element(&mut x, title, self.title_font.as_ref()); }
             x.empty("c:autoTitleDeleted", &[("val", "0".to_owned())]);
         } else {
             x.empty("c:autoTitleDeleted", &[("val", "1".to_owned())]);
@@ -341,10 +703,11 @@ impl Chart {
         let mut horizontal = false;
         let mut scatter = false;
         for (index, group) in groups.iter().enumerate() {
-            let members: Vec<&Series> = self
+            let members: Vec<(usize, &Series)> = self
                 .series
                 .iter()
-                .filter(|s| s.group == index || (self.groups.is_empty()))
+                .enumerate()
+                .filter(|(_, s)| s.group == index || (self.groups.is_empty()))
                 .collect();
             if members.is_empty() {
                 continue;
@@ -376,7 +739,7 @@ impl Chart {
             let varies = group.vary_colors.unwrap_or(group.kind == Kind::Pie)
                 && members.len() == 1 && group.kind != Kind::Area;
             x.empty("c:varyColors", &[("val", u8::from(varies).to_string())]);
-            for series in members {
+            for (series_index, series) in members {
                 x.open("c:ser", &[]);
                 x.empty("c:idx", &[("val", order.to_string())]);
                 x.empty("c:order", &[("val", order.to_string())]);
@@ -394,26 +757,82 @@ impl Chart {
                     }
                     x.close("c:tx");
                 }
+                if !self.auxiliary_series && matches!(group.kind, Kind::Bar | Kind::Pie | Kind::Area)
+                    && let Some(fill) = &series.fill {
+                    x.open("c:spPr", &[]); x.open("a:solidFill", &[]);
+                    x.empty("a:srgbClr", &[("val", fill.clone())]);
+                    x.close("a:solidFill"); x.close("c:spPr");
+                }
+                if !self.auxiliary_series && matches!(group.kind, Kind::Line | Kind::Scatter)
+                    && let Some(color) = &series.line {
+                    x.open("c:spPr", &[]); x.open("a:ln", &[]); x.open("a:solidFill", &[]);
+                    x.empty("a:srgbClr", &[("val", color.clone())]);
+                    x.close("a:solidFill"); x.close("a:ln"); x.close("c:spPr");
+                }
+                if !self.data_labels_ambiguous && !self.auxiliary_series && series.show_values && !group.show_values {
+                    x.open("c:dLbls", &[]); x.empty("c:showVal", &[("val", "1".to_owned())]); x.close("c:dLbls");
+                }
                 let (category_tag, value_tag) = if group.kind == Kind::Scatter {
                     ("c:xVal", "c:yVal")
                 } else {
                     ("c:cat", "c:val")
                 };
                 if let Some(f) = &series.categories {
+                    let cache = self.category_caches.get(&series_index).filter(|cache|
+                        !self.cache_invalid && self.cache_stage == 0b1110 && !cache.invalid && !cache.points.is_empty());
+                    let numeric = group.kind == Kind::Scatter || (cache.is_some() && series.category_type == Some(1));
                     x.open(category_tag, &[]);
-                    x.open(if group.kind == Kind::Scatter { "c:numRef" } else { "c:strRef" }, &[]);
+                    x.open(if numeric { "c:numRef" } else { "c:strRef" }, &[]);
                     x.element("c:f", &[], f);
-                    x.close(if group.kind == Kind::Scatter { "c:numRef" } else { "c:strRef" });
+                    if let (Some(count), Some(cache)) = (series.category_count, cache)
+                        && (series.category_type == Some(1) || (!numeric && series.category_type == Some(3)))
+                    {
+                        let cache_tag = if numeric { "c:numCache" } else { "c:strCache" };
+                        x.open(cache_tag, &[]);
+                        x.empty("c:ptCount", &[("val", count.to_string())]);
+                        for (index, point) in &cache.points {
+                            if !matches!(point, CategoryPoint::Blank) {
+                                x.open("c:pt", &[("idx", index.to_string())]);
+                                x.open("c:v", &[]);
+                                match point {
+                                    CategoryPoint::Number(n) => x.text_str(&crate::xlsb::formula::number_text(*n)),
+                                    CategoryPoint::Text(text) => x.text(text),
+                                    CategoryPoint::Blank => {},
+                                }
+                                x.close("c:v"); x.close("c:pt");
+                            }
+                        }
+                        x.close(cache_tag);
+                    }
+                    x.close(if numeric { "c:numRef" } else { "c:strRef" });
                     x.close(category_tag);
                 }
                 if let Some(f) = &series.values {
                     x.open(value_tag, &[]);
                     x.open("c:numRef", &[]);
                     x.element("c:f", &[], f);
+                    if !self.cache_invalid && self.cache_stage == 0b1110
+                        && let (Some(count), Some(cache)) = (series.value_count, self.value_caches.get(&series_index))
+                        && !cache.invalid && !cache.points.is_empty()
+                    {
+                        x.open("c:numCache", &[]);
+                        x.empty("c:ptCount", &[("val", count.to_string())]);
+                        for (index, value) in &cache.points {
+                            if let Some(value) = value {
+                                x.open("c:pt", &[("idx", index.to_string())]);
+                                x.element("c:v", &[], &crate::xlsb::formula::number_text(*value));
+                                x.close("c:pt");
+                            }
+                        }
+                        x.close("c:numCache");
+                    }
                     x.close("c:numRef");
                     x.close(value_tag);
                 }
                 x.close("c:ser");
+            }
+            if !self.data_labels_ambiguous && !self.auxiliary_series && group.show_values {
+                x.open("c:dLbls", &[]); x.empty("c:showVal", &[("val", "1".to_owned())]); x.close("c:dLbls");
             }
             if group.kind == Kind::Bar {
                 if let Some(gap) = group.gap { x.empty("c:gapWidth", &[("val", gap.to_string())]); }
@@ -451,8 +870,9 @@ impl Chart {
                 x.empty("c:delete", &[("val", "0".to_owned())]);
                 x.empty("c:axPos", &[("val", pos.to_owned())]);
                 if let Some(title) = self.titles.get(&title_key) {
-                    title_element(&mut x, title);
+                    title_element(&mut x, title, self.axis_title_fonts[usize::from(title_key - 2)].as_ref());
                 }
+                text_font_element(&mut x, if self.axis_font_invalid[axis_index] { None } else { self.axis_fonts[axis_index].as_ref() });
                 x.empty("c:crossAx", &[("val", cross.to_owned())]);
                 if let Some(value) = range.and_then(|r| r.major) { x.empty("c:majorUnit", &[("val", crate::xlsb::formula::number_text(value))]); }
                 if let Some(value) = range.and_then(|r| r.minor) { x.empty("c:minorUnit", &[("val", crate::xlsb::formula::number_text(value))]); }
@@ -463,11 +883,30 @@ impl Chart {
         if self.legend {
             x.open("c:legend", &[]);
             x.empty("c:legendPos", &[("val", "r".to_owned())]);
+            text_font_element(&mut x, if self.legend_font_invalid { None } else { self.legend_font.as_ref() });
             x.close("c:legend");
         }
         x.empty("c:plotVisOnly", &[("val", u8::from(self.plot_visible_only.unwrap_or(true)).to_string())]);
         if let Some(blanks) = self.blanks { x.empty("c:dispBlanksAs", &[("val", blanks.to_owned())]); }
         x.close("c:chart");
+        let print_text = !self.print_text_invalid && (self.print_header.as_ref().is_some_and(|v| !v.is_empty())
+            || self.print_footer.as_ref().is_some_and(|v| !v.is_empty()));
+        // DrawingML's pageSetup has no usePrinterDefaults attribute.
+        let print_setup = self.print_setup.filter(|data| !self.print_setup_invalid && data[10] & 4 == 0);
+        if print_text || print_setup.is_some() {
+            x.open("c:printSettings", &[]);
+            if print_text {
+                x.open("c:headerFooter", &[]);
+                for (name, value) in [("c:oddHeader", &self.print_header), ("c:oddFooter", &self.print_footer)] {
+                    if let Some(value) = value.as_ref().filter(|v| !v.is_empty()) {
+                        x.open(name, &[]); x.text(value); x.close(name);
+                    }
+                }
+                x.close("c:headerFooter");
+            }
+            if let Some(data) = print_setup { super::features::write_chart_setup(&mut x, &data, "c:pageSetup"); }
+            x.close("c:printSettings");
+        }
         x.close("c:chartSpace");
         Some(x.out)
     }
@@ -483,7 +922,7 @@ fn grouping(group: &Group, plain: &'static str) -> &'static str {
     }
 }
 
-fn title_element(x: &mut Xml, title: &str) {
+fn title_element(x: &mut Xml, title: &str, font: Option<&(String, bool, bool)>) {
     x.open("c:title", &[]);
     x.open("c:tx", &[]);
     x.open("c:rich", &[]);
@@ -497,5 +936,28 @@ fn title_element(x: &mut Xml, title: &str) {
     x.close("c:rich");
     x.close("c:tx");
     x.empty("c:overlay", &[("val", "0".to_owned())]);
+    text_font_element(x, font);
     x.close("c:title");
+}
+
+fn linked_title_element(x: &mut Xml, formula: &str, cached: Option<&str>, font: Option<&(String, bool, bool)>) {
+    x.open("c:title", &[]); x.open("c:tx", &[]); x.open("c:strRef", &[]);
+    x.element("c:f", &[], formula);
+    if let Some(cached) = cached {
+        x.open("c:strCache", &[]); x.empty("c:ptCount", &[("val", "1".to_owned())]);
+        x.open("c:pt", &[("idx", "0".to_owned())]); x.element("c:v", &[], cached);
+        x.close("c:pt"); x.close("c:strCache");
+    }
+    x.close("c:strRef"); x.close("c:tx"); x.empty("c:overlay", &[("val", "0".to_owned())]);
+    text_font_element(x, font);
+    x.close("c:title");
+}
+
+fn text_font_element(x: &mut Xml, font: Option<&(String, bool, bool)>) {
+    let Some((face, bold, italic)) = font else { return };
+    x.open("c:txPr", &[]); x.empty("a:bodyPr", &[]); x.empty("a:lstStyle", &[]);
+    x.open("a:p", &[]); x.open("a:pPr", &[]);
+    x.open("a:defRPr", &[("b", u8::from(*bold).to_string()), ("i", u8::from(*italic).to_string())]);
+    x.empty("a:latin", &[("typeface", face.clone())]);
+    x.close("a:defRPr"); x.close("a:pPr"); x.empty("a:endParaRPr", &[]); x.close("a:p"); x.close("c:txPr");
 }

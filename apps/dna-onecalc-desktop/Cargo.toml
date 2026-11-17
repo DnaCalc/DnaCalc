@@ -21,11 +21,14 @@ calc-fml = { path = "../../crates/calc-fml" }
 calc-vba = { path = "../../crates/calc-vba" }
 calc-value = { path = "../../crates/calc-value" }
 calc-verdict = { path = "../../tools/calc-verdict" }
+serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.154"
+# The add-in surrogate (src/surrogate.rs): the envelope, and the byte connection and supervisor.
+calc-surrogate-wire = { path = "../../crates/calc-surrogate-wire" }
+calc-platform-desktop = { path = "../../platform/calc-platform-desktop" }
 
 [target.'cfg(windows)'.dependencies]
 calc-addin-host = { path = "../../crates/calc-addin-host" }
-calc-platform-desktop = { path = "../../platform/calc-platform-desktop" }
 calc-xll-host = { path = "../../crates/calc-xll-host" }
 calc-xll-abi = { path = "../../crates/calc-xll-abi" }
 

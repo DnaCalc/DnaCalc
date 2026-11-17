@@ -262,6 +262,7 @@ fn read_chart_xml(
     let mut title_runs = 0;
     let mut title = String::new();
     let mut title_cache: Option<String> = None;
+    let mut axis_title_has_field = false;
     loop {
         let element = match events.next()? {
             Some(XmlEvent::Start(element)) => element,
@@ -283,6 +284,11 @@ fn read_chart_xml(
         let local = element.name.local.as_str().to_owned();
         let parent = path.last().map(String::as_str);
         let in_title = path.len() >= 2 && path[0] == "chart" && path[1] == "title";
+        let in_axis_title = path.len() >= 6
+            && path[0] == "chart"
+            && path[1] == "plotArea"
+            && matches!(path[2].as_str(), "valAx" | "catAx" | "dateAx" | "serAx")
+            && path[3..6] == ["title", "tx", "rich"];
         let val = element.attribute("val").map(str::to_owned);
         if path.is_empty() && element.name.is(CHART_NAMESPACE, "txPr") {
             chart.text_style = read_text_style(&mut events)?;
@@ -297,6 +303,9 @@ fn read_chart_xml(
             {
                 ["chart", "title"] => Some("title".to_owned()),
                 ["chart", "legend"] => Some("legend".to_owned()),
+                ["chart", "plotArea", axis, "title"] if axis.ends_with("Ax") => {
+                    chart.axes.last().map(|a| format!("axis-title:{}", a.id))
+                }
                 ["chart", "plotArea", axis] if axis.ends_with("Ax") => {
                     chart.axes.last().map(|a| format!("axis:{}", a.id))
                 }
@@ -375,9 +384,41 @@ fn read_chart_xml(
         }
         let plot = chart.plots.last_mut();
         match (parent, local.as_str()) {
+            (_, "fld") if in_axis_title
+                && element.name.namespace.as_deref()
+                    == Some("http://schemas.openxmlformats.org/drawingml/2006/main") =>
+            {
+                axis_title_has_field = true;
+                if let Some(axis) = chart.axes.last_mut() {
+                    axis.title = None;
+                }
+            }
+            (_, "p" | "br") if in_axis_title
+                && !axis_title_has_field
+                && element.name.namespace.as_deref()
+                    == Some("http://schemas.openxmlformats.org/drawingml/2006/main") =>
+            {
+                if let Some(title) = chart.axes.last_mut().and_then(|axis| axis.title.as_mut())
+                    && !title.is_empty()
+                {
+                    title.push(' ');
+                }
+            }
+            (_, "t") if in_axis_title
+                && !axis_title_has_field
+                && element.name.namespace.as_deref()
+                    == Some("http://schemas.openxmlformats.org/drawingml/2006/main") =>
+            {
+                let text = events.text()?;
+                if let Some(axis) = chart.axes.last_mut() {
+                    axis.title.get_or_insert_with(String::new).push_str(&text);
+                }
+                continue;
+            }
             (Some("plotArea"), "valAx" | "catAx" | "dateAx" | "serAx")
                 if element.name.namespace.as_deref() == Some(CHART_NAMESPACE) =>
             {
+                axis_title_has_field = false;
                 chart.axes.push(calc_doc_model::ChartAxis {
                     kind: local.clone(),
                     ..Default::default()
@@ -579,6 +620,22 @@ fn data_of(plots: &mut [ChartPlot], slot: Option<Slot>) -> Option<&mut ChartData
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn axis_titles_read_rich_text_without_using_linked_caches() {
+        let text = format!(r#"<c:chartSpace xmlns:c="{CHART_NAMESPACE}" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><c:chart><c:plotArea>
+            <c:catAx><c:axId val="1"/><c:title><c:tx><c:rich><a:p><a:r><a:t>East &amp; </a:t></a:r><a:r><a:t>West</a:t></a:r></a:p><a:p><a:r><a:t>regions</a:t></a:r></a:p></c:rich></c:tx></c:title></c:catAx>
+            <c:valAx><c:axId val="2"/><c:title><c:tx><c:strRef><c:f>Sheet1!A1</c:f><c:strCache><c:pt idx="0"><c:v>stale</c:v></c:pt></c:strCache></c:strRef></c:tx></c:title></c:valAx>
+            <c:valAx><c:axId val="3"/><c:title><c:tx><c:rich><a:p><a:r><a:t>Prefix</a:t></a:r><a:fld id="x" type="date"><a:t>stale field</a:t></a:fld><a:r><a:t>Suffix</a:t></a:r></a:p></c:rich></c:tx></c:title></c:valAx>
+            </c:plotArea></c:chart></c:chartSpace>"#);
+        let xml = XmlPart::new("chart.xml".into(), text.into_bytes(), crate::xml::XmlLimits::default());
+        let chart = read_chart_xml(&xml, "chart.xml", "Chart".into(), ChartAnchor::Absolute {
+            x: 0, y: 0, width: 100, height: 100,
+        }).unwrap();
+        assert_eq!(chart.axes[0].title.as_deref(), Some("East & West regions"));
+        assert_eq!(chart.axes[1].title, None);
+        assert_eq!(chart.axes[2].title, None);
+    }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn outline_colours_do_not_replace_shape_fills() {

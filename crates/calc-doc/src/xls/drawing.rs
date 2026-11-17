@@ -7,7 +7,6 @@
 use super::features::Rel;
 use super::records::Record;
 use super::sheet::column_name;
-use super::strings::Pieces;
 use crate::xlsb::Xml;
 use std::collections::BTreeMap;
 
@@ -172,6 +171,18 @@ struct Shape {
     anchor: Option<[u16; 8]>,
     client_data: bool,
     text_box: bool,
+    fill_seen: bool,
+    fill_invalid: bool,
+    no_fill: bool,
+    fixed_geometry_unsafe: bool,
+    flip_invalid: bool,
+    text_insets: [Option<u32>; 4],
+    text_insets_invalid: bool,
+    text_boolean: Option<u32>,
+    text_anchor_ambiguous: bool,
+    text_wrap: Option<u32>,
+    text_wrap_invalid: bool,
+    flags: Option<u32>,
 }
 
 fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
@@ -185,17 +196,68 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                         if child.body.len() >= 8 {
                             let flags = u32::from_le_bytes(child.body[4..8].try_into().expect("4 bytes"));
                             shape.group = flags & 0x1 != 0;
+                            if shape.flags.replace(flags).is_some() || child.body.len() != 8 {
+                                shape.fixed_geometry_unsafe = true;
+                                shape.flip_invalid = true;
+                                shape.text_insets_invalid = true;
+                                shape.text_anchor_ambiguous = true;
+                            }
+                        } else {
+                            shape.fixed_geometry_unsafe = true;
+                            shape.flip_invalid = true;
+                            shape.text_insets_invalid = true;
+                            shape.text_anchor_ambiguous = true;
                         }
                     }
                     0xF00B => {
                         // Properties: id (14 bits), blip flag, complex flag, then a 32-bit value.
+                        if usize::from(child.instance) * 6 > child.body.len() {
+                            shape.fill_invalid = true;
+                            shape.fixed_geometry_unsafe = true;
+                            shape.flip_invalid = true;
+                            shape.text_insets_invalid = true;
+                            shape.text_anchor_ambiguous = true;
+                        }
                         for k in 0..usize::from(child.instance) {
                             let at = k * 6;
                             let Some(p) = child.body.get(at..at + 6) else { break };
                             let id = u16::from_le_bytes([p[0], p[1]]);
                             let value = u32::from_le_bytes([p[2], p[3], p[4], p[5]]);
+                            let property = id & 0x3fff;
+                            if property == 0x0087 { shape.text_anchor_ambiguous = true; }
+                            if property == 0x0085 && (id & 0xc000 != 0 || value > 2 || shape.text_wrap.replace(value).is_some()) {
+                                shape.text_wrap_invalid = true;
+                            }
+                            if (0x0081..=0x0084).contains(&property) {
+                                let slot = usize::from(property - 0x0081);
+                                if id & 0xc000 != 0 || value > 0x0132_f540 || shape.text_insets[slot].replace(value).is_some() {
+                                    shape.text_insets_invalid = true;
+                                }
+                            }
+                            if property == 0x00bf && (id & 0xc000 != 0 || shape.text_boolean.replace(value).is_some()) {
+                                shape.text_insets_invalid = true;
+                            }
+                            if (property == 4 && (value != 0 || id & 0xc000 != 0)) || property == 0x0088 || property == 0x033f {
+                                shape.text_insets_invalid = true;
+                            }
+                            // Transform or override properties and rotation require separate handling.
+                            if matches!(property, 0x0004 | 0x003f | 0x033f) { shape.flip_invalid = true; }
+                            // Do not infer a preset when the shape has rotation, custom geometry,
+                            // or group visibility properties other than the observed default.
+                            if (property == 4 && (value != 0 || id & 0xc000 != 0))
+                                || (0x0140..=0x017f).contains(&property)
+                                || (property == 0x03bf && (id & 0xc000 != 0 || ![0, 0x0008_0000].contains(&value)))
+                            {
+                                shape.fixed_geometry_unsafe = true;
+                            }
                             if id & 0x3FFF == 0x0104 {
                                 shape.picture = Some(value);
+                            }
+                            if id & 0x3FFF == 0x01BF {
+                                if shape.fill_seen || id & 0xC000 != 0 { shape.fill_invalid = true; }
+                                shape.fill_seen = true;
+                                // fUsefFilled and fFilled: an explicit false suppresses the fill.
+                                shape.no_fill = value & 0x0010_0010 == 0x0010_0000;
                             }
                         }
                     }
@@ -208,6 +270,7 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                     }
                     0xF011 => shape.client_data = true,
                     0xF00D => shape.text_box = true,
+                    0xF121 | 0xF122 => { shape.flip_invalid = true; shape.text_insets_invalid = true; shape.text_anchor_ambiguous = true; }
                     _ => {}
                 }
             }
@@ -218,6 +281,42 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
     }
 }
 
+/// A complete worksheet shape placed in a CONTINUE after the preceding OBJ.
+fn continued_shape(data: &[u8]) -> Option<Shape> {
+    if data.len() < 8 || u16::from_le_bytes([data[0], data[1]]) & 0xf != 0xf
+        || u16::from_le_bytes([data[2], data[3]]) != 0xf004
+        || u32::from_le_bytes(data[4..8].try_into().ok()?) as usize != data.len() - 8 { return None; }
+    let mut at = 8usize;
+    let mut has_shape = false;
+    let mut has_anchor = false;
+    let mut has_client = false;
+    while at < data.len() {
+        let header = data.get(at..at.checked_add(8)?)?;
+        let info = u16::from_le_bytes([header[0], header[1]]);
+        let kind = u16::from_le_bytes([header[2], header[3]]);
+        let length = u32::from_le_bytes(header[4..8].try_into().ok()?) as usize;
+        let end = at.checked_add(8)?.checked_add(length)?;
+        if end > data.len() || has_client { return None; }
+        match kind {
+            0xf00a if info & 0xf == 2 && length == 8 && !has_shape => has_shape = true,
+            0xf00b if info & 0xf == 3 && length >= usize::from(info >> 4) * 6 => {},
+            0xf010 if info == 0 && length == 18 && !has_anchor => has_anchor = true,
+            0xf011 if info == 0 && length == 0 => has_client = true,
+            0xf00a | 0xf00b | 0xf010 | 0xf011 => return None,
+            _ => {}
+        }
+        at = end;
+    }
+    if !(has_shape && has_anchor && has_client) { return None; }
+    let mut shapes = Vec::new();
+    shapes_of(data, &mut shapes);
+    (shapes.len() == 1).then(|| shapes.remove(0))
+}
+
+pub(super) fn is_continued_shape(data: &[u8]) -> bool {
+    continued_shape(data).is_some()
+}
+
 // ---- Objects and what they own ----
 
 /// One OBJ record's drawing object.
@@ -226,7 +325,30 @@ struct Object {
     kind: u16,
     shape: Option<Shape>,
     text: Option<Vec<u16>>,
+    text_font: Option<u16>,
+    text_runs: Option<Vec<(u16, u16)>>,
+    text_alignment: Option<(&'static str, &'static str)>,
     chart: Option<super::chart::Chart>,
+}
+
+fn write_text_run(x: &mut Xml, text: &[u16], font: Option<(u32, bool, bool, Option<String>)>, face: Option<&str>, underline: Option<bool>) {
+    x.open("a:r", &[]);
+    if let Some((size, bold, italic, colour)) = font {
+        let mut attributes = vec![("sz", size.to_string()), ("b", u8::from(bold).to_string()), ("i", u8::from(italic).to_string())];
+        if let Some(underline) = underline { attributes.push(("u", if underline { "sng" } else { "none" }.to_owned())); }
+        x.open("a:rPr", &attributes);
+        if let Some(colour) = colour {
+            x.open("a:solidFill", &[]);
+            x.empty("a:srgbClr", &[("val", colour)]);
+            x.close("a:solidFill");
+        }
+        if let Some(face) = face { x.empty("a:latin", &[("typeface", face.to_owned())]); }
+        x.close("a:rPr");
+    }
+    x.open("a:t", &[("xml:space", "preserve".to_owned())]);
+    x.text(text);
+    x.close("a:t");
+    x.close("a:r");
 }
 
 #[derive(Default)]
@@ -236,6 +358,10 @@ pub(crate) struct Drawing {
     objects: Vec<Object>,
     /// An object waiting for its TXO text record.
     waiting_text: Option<usize>,
+    /// End of the most recent successfully parsed OBJ, including its continuations.
+    last_object_end: Option<usize>,
+    /// A validated shape in the preceding OBJ's final CONTINUE, for an adjacent OBJ only.
+    continued_shape: Option<(usize, Shape)>,
     /// The chart object whose substream is being read.
     chart_object: Option<usize>,
 }
@@ -249,10 +375,25 @@ impl Drawing {
     pub(crate) fn read(&mut self, record: &Record<'_>) -> bool {
         match record.id {
             MSODRAWING => {
-                shapes_of(&record.joined(), &mut self.shapes);
+                let bytes = record.joined();
+                // Excel may put the client-textbox marker after the OBJ in its own
+                // MsoDrawing record; the immediately following TxO belongs to that object.
+                if bytes.as_ref() == [0, 0, 0x0d, 0xf0, 0, 0, 0, 0]
+                    && self.last_object_end == Some(record.offset) {
+                    self.waiting_text = self.objects.len().checked_sub(1).filter(|&index| {
+                        let object = &self.objects[index];
+                        object.kind != 0x19 && object.shape.is_some()
+                    });
+                } else {
+                    shapes_of(&bytes, &mut self.shapes);
+                }
                 true
             }
             OBJ => {
+                if let Some((next, shape)) = self.continued_shape.take() && next == record.offset {
+                    self.shapes.push(shape);
+                }
+                self.last_object_end = None;
                 let body = record.body;
                 let mut at = 0usize;
                 let mut kind = None;
@@ -268,6 +409,12 @@ impl Drawing {
                     at += 4 + cb;
                 }
                 if let Some(kind) = kind {
+                    self.last_object_end = record.offset.checked_add(4 + record.body.len())
+                        .and_then(|end| record.continues.iter().try_fold(end, |at, piece| at.checked_add(4 + piece.len())));
+                    if let (Some(end), Some(piece)) = (self.last_object_end, record.continues.last())
+                        && let Some(shape) = continued_shape(piece) {
+                        self.continued_shape = Some((end, shape));
+                    }
                     // The shape the MSODRAWING records gave for this object: the next one with
                     // client data, in order.
                     let mut shape = None;
@@ -292,38 +439,52 @@ impl Drawing {
                 }
                 false
             }
-            TXO => match self.waiting_text.take() {
+            TXO => {
+                self.continued_shape = None;
+                if let Some(piece) = record.continues.last()
+                    && let Some(shape) = continued_shape(piece)
+                    && let Some(end) = record.offset.checked_add(4 + record.body.len())
+                        .and_then(|end| record.continues.iter().try_fold(end, |at, piece| at.checked_add(4 + piece.len()))) {
+                    self.continued_shape = Some((end, shape));
+                }
+                match self.waiting_text.take() {
                 Some(index) => {
-                    let body = record.body;
-                    if body.len() >= 14
-                        && let Some(text) = record.continues.first()
-                    {
-                        let length = usize::from(u16::from_le_bytes([body[10], body[11]]));
-                        let mut p = Pieces::new(&Record {
-                            id: 0,
-                            body: text,
-                            continues: Vec::new(),
-                            offset: 0,
-                        });
-                        if let Ok(flag) = p.u8("Txo")
-                            && let Ok(units) = p.characters(length, flag & 1 != 0, "text")
-                        {
-                            self.objects[index].text = Some(units);
+                    if let Ok(Some(units)) = super::strings::txo_text(record) {
+                        if let Some(bytes) = record.body.get(..4) {
+                            let flags = u16::from_le_bytes([bytes[0], bytes[1]]);
+                            let rotation = u16::from_le_bytes([bytes[2], bytes[3]]);
+                            let horizontal = match (flags >> 1) & 7 { 1 => Some("l"), 2 => Some("ctr"), 3 => Some("r"),
+                                4 => Some("just"), _ => None };
+                            let vertical = match (flags >> 4) & 7 { 1 => Some("t"), 2 => Some("ctr"), 3 => Some("b"), _ => None };
+                            if rotation == 0 && flags & 0x4000 == 0 {
+                                self.objects[index].text_alignment = horizontal.zip(vertical);
+                            }
                         }
+                        if let Some(runs) = super::strings::txo_runs(record, &units)
+                            && let Some(&(_, font)) = runs.first() {
+                            if runs.iter().all(|&(_, current)| current == font) {
+                                self.objects[index].text_font = Some(font);
+                            } else {
+                                self.objects[index].text_runs = Some(runs);
+                            }
+                        }
+                        self.objects[index].text = Some(units);
                     }
                     true
                 }
                 None => false,
-            },
+                }
+            }
             _ => false,
         }
     }
 
     /// A record of a chart substream, for the chart object it belongs to.
-    pub(crate) fn chart_record(&mut self, record: &Record<'_>, print: &dyn Fn(&[u8]) -> Option<String>) {
+    pub(crate) fn chart_record(&mut self, record: &Record<'_>, print: &dyn Fn(&[u8]) -> Option<String>,
+        styles: &super::styles::Styles) {
         if let Some(index) = self.chart_object {
             let chart = self.objects[index].chart.get_or_insert_with(Default::default);
-            chart.read(record, print);
+            chart.read(record, print, None, styles, true);
         }
     }
 
@@ -336,6 +497,7 @@ impl Drawing {
         images: &[Option<Image>],
         geometry: &dyn Fn(u16, u16, u16, u16) -> (u16, i64, u16, i64),
         links_sheet: &str,
+        styles: &super::styles::Styles,
     ) -> Option<DrawingParts> {
         let mut x = Xml::new();
         x.open(
@@ -382,7 +544,12 @@ impl Drawing {
                 x.close("xdr:to");
             };
             let xfrm = |x: &mut Xml| {
-                x.open("a:xfrm", &[]);
+                let mut attrs = Vec::new();
+                if let Some(flags) = shape.flags.filter(|flags| flags & 0x53f == 0 && !shape.flip_invalid) {
+                    if flags & 0x40 != 0 { attrs.push(("flipH", "1".to_owned())); }
+                    if flags & 0x80 != 0 { attrs.push(("flipV", "1".to_owned())); }
+                }
+                x.open("a:xfrm", &attrs);
                 x.empty("a:off", &[("x", "0".to_owned()), ("y", "0".to_owned())]);
                 x.empty("a:ext", &[("cx", "0".to_owned()), ("cy", "0".to_owned())]);
                 x.close("a:xfrm");
@@ -474,6 +641,22 @@ impl Drawing {
                     let geometry_name = match shape.shape_type {
                         3 => "ellipse",
                         1 | 202 => "rect",
+                        // An unadjusted OfficeArt isosceles triangle has a centered apex.
+                        5 if shape.flags.is_some_and(|flags| flags & 0xff == 0)
+                            && !shape.fixed_geometry_unsafe => "triangle",
+                        6 if shape.flags.is_some_and(|flags| flags & 0xff == 0)
+                            && !shape.fixed_geometry_unsafe => "rtTriangle",
+                        110 if shape.flags.is_some_and(|flags| flags & 0xff == 0)
+                            && !shape.fixed_geometry_unsafe => "flowChartDecision",
+                        120 if shape.flags.is_some_and(|flags| flags & 0xff == 0)
+                            && !shape.fixed_geometry_unsafe => "flowChartConnector",
+                        127 if shape.flags.is_some_and(|flags| flags & 0xff == 0)
+                            && !shape.fixed_geometry_unsafe => "flowChartExtract",
+                        // OfficeArt's alternate-process radius is 1/8 of the short side;
+                        // the DrawingML preset uses 1/6, so it cannot be substituted here.
+                        // MS-ODRAW msosptFlowChartProcess; preserve only the untransformed preset.
+                        109 if shape.flags.is_some_and(|flags| flags & 0xff == 0)
+                            && !shape.fixed_geometry_unsafe => "flowChartProcess",
                         _ => {
                             *unread.entry(object.kind).or_insert(0) += 1;
                             continue;
@@ -498,21 +681,59 @@ impl Drawing {
                     x.open("a:prstGeom", &[("prst", geometry_name.to_owned())]);
                     x.empty("a:avLst", &[]);
                     x.close("a:prstGeom");
+                    if shape.no_fill && !shape.fill_invalid { x.empty("a:noFill", &[]); }
                     x.close("xdr:spPr");
                     if let Some(text) = &object.text {
                         x.open("xdr:txBody", &[]);
-                        x.empty("a:bodyPr", &[]);
+                        let mut body_attributes = Vec::new();
+                        if let Some((_, vertical)) = object.text_alignment.filter(|_| !shape.text_anchor_ambiguous) {
+                            body_attributes.push(("anchor", vertical.to_owned()));
+                            let manual_margin = shape.text_boolean.is_some_and(|v| v & 0x0008_0008 == 0x0008_0000);
+                            if shape.flags.is_some_and(|v| v & 0x05ff == 0) && !shape.text_insets_invalid {
+                                if !shape.text_wrap_invalid && let Some(wrap) = shape.text_wrap {
+                                    body_attributes.push(("wrap", if wrap == 2 { "none" } else { "square" }.to_owned()));
+                                }
+                                if manual_margin {
+                                    for (name, value) in ["lIns", "tIns", "rIns", "bIns"].into_iter().zip(shape.text_insets) {
+                                        if let Some(value) = value { body_attributes.push((name, value.to_string())); }
+                                    }
+                                }
+                            }
+                        }
+                        x.empty("a:bodyPr", &body_attributes);
                         x.empty("a:lstStyle", &[]);
+                        let rich = if String::from_utf16(text).is_ok() {
+                            object.text_runs.as_ref().and_then(|runs| {
+                                let fonts: Vec<_> = runs.iter().map(|&(_, font)| styles.drawing_rich_font(font)).collect::<Option<_>>()?;
+                                let explicit = fonts.iter().all(|(_, (name, charset, family), _)|
+                                    *charset == 0 && *family <= 5 && !name.starts_with('+')
+                                        && !name.chars().any(|c| c.is_control() || matches!(c, '\u{fffd}' | '\u{fffe}' | '\u{ffff}')));
+                                let first_face = &fonts.first()?.1;
+                                (explicit || fonts.iter().all(|(_, face, _)| face == first_face)).then_some((runs, fonts, explicit))
+                            })
+                        } else { None };
+                        let mut line_start = 0usize;
                         for line in text.split(|u| *u == 0x0D || *u == 0x0A) {
                             x.open("a:p", &[]);
+                            if let Some((horizontal, _)) = object.text_alignment.filter(|_| !shape.text_anchor_ambiguous) {
+                                x.empty("a:pPr", &[("algn", horizontal.to_owned())]);
+                            }
                             if !line.is_empty() {
-                                x.open("a:r", &[]);
-                                x.open("a:t", &[]);
-                                x.text(line);
-                                x.close("a:t");
-                                x.close("a:r");
+                                if let Some((runs, fonts, explicit)) = &rich {
+                                    for (index, &(start, _)) in runs.iter().enumerate() {
+                                        let next = runs.get(index + 1).map_or(text.len(), |(next, _)| usize::from(*next));
+                                        let start = usize::from(start).max(line_start);
+                                        let end = next.min(line_start + line.len());
+                                        if start < end { write_text_run(&mut x, &text[start..end], Some(fonts[index].0.clone()), explicit.then_some(fonts[index].1.0), Some(fonts[index].2)); }
+                                    }
+                                } else {
+                                    write_text_run(&mut x, line, object.text_font.and_then(|font| styles.drawing_text_font(font)),
+                                        object.text_font.and_then(|font| styles.drawing_latin_face(font)),
+                                        object.text_font.and_then(|font| styles.drawing_single_underline(font)));
+                                }
                             }
                             x.close("a:p");
+                            line_start += line.len() + 1;
                         }
                         x.close("xdr:txBody");
                     }

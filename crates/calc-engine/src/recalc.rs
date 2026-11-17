@@ -5148,8 +5148,10 @@ impl ReferenceReader for Observed<'_, '_> {
     }
 
     fn read_fact(&mut self, fact: calc_fml::FactRead) {
-        if let calc_fml::FactSubject::Cell(at) = fact.subject {
-            self.footprint.borrow_mut().push(GridArea::cell(at));
+        match fact.subject {
+            calc_fml::FactSubject::Cell(at) => self.footprint.borrow_mut().push(GridArea::cell(at)),
+            calc_fml::FactSubject::Area(area) => self.footprint.borrow_mut().push(area),
+            _ => {}
         }
         // A fact is read once as evidence: an instruction that runs again after a wait asks the
         // same fact again, and the certificate holds one stamp for it (dc-hsa5.19).
@@ -5531,8 +5533,13 @@ fn evaluate_with(
             .iter()
             .any(|read| read.region == region && read.request == request)
         {
-            let versions =
-                span_versions_at(state, shared.progress, region, Some(shared.requirements));
+            let versions = span_versions_at(
+                state,
+                shared.progress,
+                region,
+                Some(shared.requirements),
+                Some(node),
+            );
             let mut boundary_caches = if versions.boundary_cache > 0 || versions.imported_cache > 0
             {
                 crate::contract::boundary_ancestry_at(state, shared.progress, region)
@@ -5709,25 +5716,6 @@ fn evaluate_with(
             read,
             version: fact_version(state, read, shared.facts_version),
         });
-    }
-    if done.spill.as_ref().is_some_and(|spill| {
-        local
-            .blank_reads
-            .iter()
-            .any(|(read, blank)| blank.first_intersection(*read, spill.area()).is_some())
-    }) {
-        // Shape is now known: this output would occupy a blank its own evaluation consumed.
-        // P05 decides the Excel outcome; do not turn a prospective self-spill into a cached cycle.
-        if let FormulaResult::Calculated { calculation, .. } = &done.result {
-            done.result = FormulaResult::NotModeled {
-                calculation: calculation.clone(),
-                refusal: NotModeled::Evaluation(EvalFault::NotModelled {
-                    construct: "a spill occupying a blank it read (waiting for Excel P05)",
-                    owner: "dc-hsa5",
-                }),
-            };
-            done.spill = None;
-        }
     }
     for &(region, blank) in local
         .blank_reads
@@ -6720,8 +6708,13 @@ impl RecalcWork {
             .ok_or(AsyncRejection::ContinuationUnavailable)?;
         if state.environment != self.environment.map(Into::into)
             || local.read_stamps.iter().any(|read| {
-                span_versions_at(state, &self.progress, read.region, Some(&self.requirements))
-                    != read.versions
+                span_versions_at(
+                    state,
+                    &self.progress,
+                    read.region,
+                    Some(&self.requirements),
+                    Some(node),
+                ) != read.versions
             })
             || local.fact_reads.iter().any(|read| {
                 fact_version(state, *read, self.facts_version)

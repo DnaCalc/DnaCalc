@@ -609,7 +609,36 @@ fn dc_b1l__each_consumer_reads_an_array_of_references_as_excel() {
         (format!("=INDEX({r},2)"), vec!["Value"]),
         (format!("=REDUCE(0,{r},LAMBDA(a,v,a+v))"), vec!["6", "9"]),
         (format!("=T({r})"), vec!["\"\"", "\"\"", "\"\""]),
-        (format!("=UNIQUE({r})"), vec!["not modelled"]),
+        // fn8 2026-11-17 (Touchstone, family reference-arrays probes): UNIQUE keeps references
+        // apart by their top rows and shows each kept one as #VALUE!; ARRAYTOTEXT is #CALC! once
+        // its format reads as a number.
+        (format!("=UNIQUE({r})"), vec!["Value", "Value", "Value"]),
+        ("=ROWS(UNIQUE(OFFSET(A1,{0;0;1},0)))".to_owned(), vec!["2"]),
+        (
+            "=UNIQUE(INDIRECT({\"A1\";\"B1\"}))".to_owned(),
+            vec!["Value"],
+        ),
+        (
+            "=UNIQUE(OFFSET(A1,{0;0;1},0),FALSE,TRUE)".to_owned(),
+            vec!["Value"],
+        ),
+        (
+            "=UNIQUE(OFFSET(A1,0,{0,0,2}),TRUE,TRUE)".to_owned(),
+            vec!["Calc"],
+        ),
+        (
+            "=UNIQUE(OFFSET(A1,{0;0},{0,1}),TRUE)".to_owned(),
+            vec!["Value", "Value"],
+        ),
+        (format!("=ARRAYTOTEXT({r})"), vec!["Calc"]),
+        (format!("=ARRAYTOTEXT({r},-1)"), vec!["Calc"]),
+        (format!("=ARRAYTOTEXT({r},\"x\")"), vec!["Value"]),
+        (format!("=ARRAYTOTEXT({r},NA())"), vec!["NA"]),
+        // AGGREGATE runs once per reference given as ref2 or later; ref1's are #VALUE!.
+        (format!("=AGGREGATE(9,0,A1:A2,{r})"), vec!["6", "8", "10"]),
+        (format!("=AGGREGATE(14,0,A1:A6,OFFSET(A1,{{0;1;2}},0))"), vec!["6", "5", "4"]),
+        (format!("=AGGREGATE(9,0,{r},{r})"), vec!["Value", "Value", "Value"]),
+        (format!("=AGGREGATE(9,0,{r})"), vec!["Value"]),
     ];
     for (i, (formula, _)) in cases.iter().enumerate() {
         enter(4 * i as u32 + 1, 8, formula);
@@ -674,5 +703,93 @@ fn dc_amhpx__weeknum_reads_the_week_start_its_formula_left() {
                 "{formula} beside another WEEKNUM"
             );
         }
+    }
+}
+
+/// ROW, ISFORMULA and FORMULATEXT of whole columns build their arrays, so a spill that passes the
+/// sheet's edge is #SPILL! by the placement check and a consumer reads the whole array (Excel
+/// 16.0.20527, Touchstone sheet cases, 2026-11-16/17, cell-context family reference-info, H10).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_mlhgn__whole_columns_are_built_and_placed() {
+    for (formula, value) in [
+        ("=ROW(C:D)", "Spill"),
+        ("=ISFORMULA(C:D)", "Spill"),
+        ("=FORMULATEXT(C:D)", "Spill"),
+        ("=SUM(ROW(C:C))", "549756338176"),
+        ("=ROWS(ISFORMULA(C:D))", "1048576"),
+        ("=COUNTA(FORMULATEXT(A:A))", "1048576"),
+    ] {
+        let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(calc_host::blank_package()));
+        let mut session = HostSession::open(
+            source,
+            &OpenPolicy::default(),
+            HostOptions {
+                calc_mode: Some(CalcMode::Automatic),
+                ..HostOptions::default()
+            },
+        )
+        .expect("a new workbook opens");
+        let sheet = session.host().sheets()[0].id();
+        let h10 = CellKey::new(sheet, 10, 8).unwrap();
+        let entered = session.dispatch(SkinIntent::EnterCell {
+            at: h10,
+            text: formula.to_owned(),
+        });
+        assert!(entered.accepted(), "{formula}");
+        assert_eq!(shown(&session, h10), value, "{formula}");
+    }
+}
+
+/// A formula reads the cells its own spill occupies as blank, when it is entered and each time it
+/// is calculated again with its spill in place, and its spill does not feed back (Excel P05,
+/// 16.0.20527 through Touchstone sheet cases: cell-context family spill-placement own-*, and
+/// fn8's re-evaluation probes 2026-11-17, a layout holding the formula in A1 read after a full
+/// calculation and after each recalculation, R2 dnacalc-evidence/research/fn8-20261117-step4/).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_mlhgn__a_spill_over_cells_it_reads_reads_them_as_blank() {
+    for (formula, expected) in [
+        ("=SEQUENCE(3)+A3", ["1", "2", "3"]),
+        ("=SEQUENCE(3)+A3+0*RAND()", ["1", "2", "3"]),
+        ("=A2:A4&\"\"", ["\"\"", "\"\"", "\"\""]),
+        ("=ISBLANK(A2:A4)", ["true", "true", "true"]),
+        ("=OFFSET(B1,1,-1,3)+0*RAND()", ["0", "0", "0"]),
+    ] {
+        let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(calc_host::blank_package()));
+        let mut session = HostSession::open(
+            source,
+            &OpenPolicy::default(),
+            HostOptions {
+                calc_mode: Some(CalcMode::Automatic),
+                ..HostOptions::default()
+            },
+        )
+        .expect("a new workbook opens");
+        let sheet = session.host().sheets()[0].id();
+        let at = |row| CellKey::new(sheet, row, 1).unwrap();
+        let spill = |session: &HostSession| -> Vec<String> {
+            (1..=3).map(|row| shown(session, at(row))).collect()
+        };
+        assert!(
+            session
+                .dispatch(SkinIntent::EnterCell {
+                    at: at(1),
+                    text: formula.to_owned(),
+                })
+                .accepted()
+        );
+        assert_eq!(spill(&session), expected, "{formula} entered");
+        assert!(
+            session
+                .dispatch(SkinIntent::EnterCell {
+                    at: CellKey::new(sheet, 1, 5).unwrap(),
+                    text: "7".to_owned(),
+                })
+                .accepted()
+        );
+        assert_eq!(spill(&session), expected, "{formula} after an edit elsewhere");
+        assert!(session.dispatch(SkinIntent::Rebuild).accepted());
+        assert_eq!(spill(&session), expected, "{formula} after a full calculation");
     }
 }

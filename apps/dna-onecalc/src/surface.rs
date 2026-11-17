@@ -233,16 +233,9 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
     let vba_source = RwSignal::new(calc_vba::EXAMPLE_MODULE.to_owned());
     let vba_status = RwSignal::new("No VBA module loaded.".to_owned());
     let vba_generation = RwSignal::new(0u64);
-    // The host tells the page when a real-time value arrived for the formula: it is evaluated again.
-    link.with_value(|link| {
-        link.on_event(Rc::new(move |event| {
-            if event == "rtd" {
-                vba_generation.update(|generation| *generation += 1);
-            }
-        }))
-    });
     // Whether the file's VBA project may run: Excel's default is not until the person enables it.
     let macros_view = RwSignal::new(MacrosView::Enabled);
+    let block_reason = RwSignal::new(String::new());
     // The macro security level in force and the information notice of a marked file's macros that
     // ran (dc-15dk): the level is always shown.
     let macro_policy = RwSignal::new(crate::MacroPolicy::default());
@@ -327,6 +320,26 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
     let loaded = RwSignal::new(Vec::<String>::new());
     let loaded_addins = RwSignal::new(Vec::<LoadedAddin>::new());
     let addin_status = RwSignal::new(String::new());
+    // Whether the host runs the session and its add-ins in a process of their own (it says so).
+    let addin_process = RwSignal::new(false);
+    // The host tells the page when a real-time value arrived for the formula: it is evaluated again.
+    link.with_value(|link| {
+        link.on_event(Rc::new(move |event| match event.as_str() {
+            "rtd" => vba_generation.update(|generation| *generation += 1),
+            // The desktop host runs the session and its add-ins in a process of their own.
+            "addin-process" => addin_process.set(true),
+            // That process ended by itself: what it had loaded is gone.
+            "addin-process-stopped" => {
+                addin_process.set(true);
+                loaded_addins.set(Vec::new());
+                addin_status.set(
+                    "The add-in process stopped. Restart the add-in process to load add-ins again."
+                        .to_owned(),
+                );
+            }
+            _ => {}
+        }))
+    });
     let addin_path = RwSignal::new(String::new());
     let addins_open = RwSignal::new(false);
     let baseline = RwSignal::new(Some(initial.clone()));
@@ -436,6 +449,12 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                     .map_or(MacrosView::Enabled, |view| view.macros),
             );
             macro_policy.set(policy);
+            block_reason.set(
+                project
+                    .as_ref()
+                    .map(|view| view.block_reason.clone())
+                    .unwrap_or_default(),
+            );
             macro_notice.set(
                 project
                     .as_ref()
@@ -531,6 +550,26 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
         for listed in offered {
             load_listed.run(listed);
         }
+    };
+    // The add-in process (when the host runs one): stop it, or start a new one with nothing loaded.
+    let stop_addin_process = move |_| {
+        call(
+            Request::StopAddinProcess,
+            Box::new(move |reply| {
+                on_addins.run((reply, "Stopped the add-in process.".to_owned()))
+            }),
+        );
+    };
+    let restart_addin_process = move |_| {
+        call(
+            Request::RestartAddinProcess,
+            Box::new(move |reply| {
+                on_addins.run((
+                    reply,
+                    "Restarted the add-in process; nothing that ran before ran again.".to_owned(),
+                ))
+            }),
+        );
     };
     let unload_addin = Callback::new(move |path: String| {
         call(
@@ -1106,6 +1145,14 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                         "Load path"
                     </button>
                 </div>
+                <div class="oc-session-actions" hidden=move || !addin_process.get()>
+                    <button data-onecalc="addin-process-stop" on:click=stop_addin_process>
+                        "Stop add-in process"
+                    </button>
+                    <button data-onecalc="addin-process-restart" on:click=restart_addin_process>
+                        "Restart add-in process"
+                    </button>
+                </div>
                 <p role="status" data-onecalc="addin-status">
                     {move || addin_status.get()}
                 </p>
@@ -1350,7 +1397,8 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                         match macros_view.get() {
                             MacrosView::Enabled => macro_notice.get(),
                             MacrosView::Blocked => format!(
-                                "Macros are blocked: this file came from the internet or another computer, so its VBA project is held and not run. Warning: unblocking lets its macros run with your access to files and the network; unblock only a file you trust."
+                                "Macros are blocked. {}; its VBA project is held and not run. Warning: unblocking lets its macros run with your access to files and the network; unblock only a file you trust.",
+                                block_reason.get()
                             ),
                             MacrosView::Disabled => format!(
                                 "Macros are disabled for this file: its VBA project is kept and saved, but nothing in it runs."

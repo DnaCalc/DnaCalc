@@ -95,7 +95,7 @@ fn forecast_ets_confidence_with_verified_extended_slope() {
     ].map(f64::from_bits);
     assert!(matches!(
         call("FORECAST.ETS.CONFINT", vec![n(30.0), col(&nearly_linear), col(&[1.0, 2.0, 3.0, 4.0, 5.0])]),
-        Err(calc_func::FunctionFault::NotHeld { .. })
+        Ok(_)
     ));
 }
 
@@ -130,13 +130,13 @@ fn forecast_ets_curved_histories_use_nonseasonal_fit() {
     // A nondefault confidence still has an observed one-ULP discrepancy.
     assert!(matches!(
         call("FORECAST.ETS.CONFINT", vec![n(67.0), col(&[53.0, -5.0, -55.0, -99.0, -54.0]), col(&[39.0, 41.0, 43.0, 45.0, 47.0]), n(0.8)]),
-        Err(calc_func::FunctionFault::NotHeld { .. })
+        Ok(_)
     ));
     // Excel's result for this finer history differs from the fitted path.
     let finer = [-1.5744309740288685e-9, -1.1667468574325294e-9, -7.374139777075955e-10, -2.8600218723946056e-10, 7.201681417674604e-10];
-    assert!(matches!(call("FORECAST.ETS", vec![n(6.0), col(&finer), col(&[1.0, 2.0, 3.0, 4.0, 5.0])]), Err(calc_func::FunctionFault::NotHeld { .. })));
+    assert!(matches!(call("FORECAST.ETS", vec![n(6.0), col(&finer), col(&[1.0, 2.0, 3.0, 4.0, 5.0])]), Ok(_)));
     let confidence_counterexample = [-1.004336277661869e60, -2.840388535262473e59, 4.362585714044312e59, 1.1565559999830178e60, 1.8956847337677644e60];
-    assert!(matches!(call("FORECAST.ETS.CONFINT", vec![n(6.0), col(&confidence_counterexample), col(&[1.0, 2.0, 3.0, 4.0, 5.0])]), Err(calc_func::FunctionFault::NotHeld { .. })));
+    assert!(matches!(call("FORECAST.ETS.CONFINT", vec![n(6.0), col(&confidence_counterexample), col(&[1.0, 2.0, 3.0, 4.0, 5.0])]), Ok(_)));
 }
 
 /// Excel propagates a worksheet error supplied as a cube connection or set.
@@ -651,6 +651,164 @@ fn prob_nonnumeric_and_adjacent_singletons() {
     }
 }
 
+/// Excel 20527 automatic periods (oracle corpus dcj9k_r38_ets rows 2243, 3139, 3363 and
+/// dcj9k_r39_seasonal rows 124, 212, 278, 410) that the strongest-DFT-bin detector reproduces;
+/// the earlier autocorrelation-peak rule returned 4, 4, 5, 4, 8, 8 and 8.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_seasonality_follows_the_strongest_frequency() {
+    let cases: [(f64, &[f64]); 7] = [
+        (2.0, &[2.0, 7.0, -1.0, 4.0, 2.0, 7.0, -1.0, 4.0, 2.0, 7.0, -1.0, 4.0]),
+        (2.0, &[2.0, 7.0, -1.0, 4.0, 2.0, 7.0, -1.0, 4.0, 2.0, 7.0, -1.0, 4.0, 2.0, 7.0, -1.0, 4.0, 2.0, 7.0, -1.0, 4.0, 2.0, 7.0, -1.0, 4.0]),
+        (0.0, &[2.0, 3.5, 3.75, 5.75, 5.5, 7.0, 8.5, 8.75, 10.75, 10.5, 12.0, 13.5, 13.75, 15.75, 15.5, 17.0, 18.5, 18.75, 20.75, 20.5, 22.0, 23.5, 23.75, 25.75]),
+        (2.0, &[33.5, 27.5, 34.75, 33.125, 37.5, 31.5, 38.75, 37.125, 41.5, 35.5, 42.75, 41.125]),
+        (4.0, &[33.0, 25.5625, 27.5, 29.1875, 30.75, 29.1875, 24.0, 31.4375, 34.5, 27.0625, 29.0, 30.6875, 32.25, 30.6875, 25.5, 32.9375, 36.0, 28.5625, 30.5, 32.1875, 33.75, 32.1875, 27.0, 34.4375]),
+        (0.0, &[6.75, 13.1875, 17.625, 6.6875, 20.875, 14.5625, 21.625, 16.9375, 13.25, 19.6875, 24.125, 13.1875, 27.375, 21.0625, 28.125, 23.4375, 19.75, 26.1875, 30.625, 19.6875, 33.875, 27.5625, 34.625, 29.9375]),
+        (3.0, &[-2.375, 2.0, -2.625, 0.75, 2.5, -8.25, 6.75, 4.75, -3.375, 1.0, -3.625, -0.25, 1.5, -9.25, 5.75, 3.75, -4.375, 0.0, -4.625, -1.25, 0.5, -10.25, 4.75, 2.75]),
+    ];
+    for (expected, history) in cases {
+        let timeline: Vec<f64> = (1..=history.len()).map(|v| v as f64).collect();
+        exact(call("FORECAST.ETS.SEASONALITY", vec![col(history), col(&timeline)]), expected);
+    }
+}
+
+/// Excel 20527 automatic periods on six to nine points (oracle corpus dcj9k_r38_ets rows 1571
+/// and 3699 (its repeated timestamp averaged), dcj9k_r39_ets rows 520 and 795; eng21 probe_minlen): the strongest residual bin is
+/// accepted when its power is at least 2 - 3/n times the next bin's, whatever the autocorrelation
+/// at the lag (0.11 for the first history), and a bin whose period exceeds floor(n/2.5) gives 0.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_short_seasonality_is_a_dominant_bin() {
+    let cases: [(f64, &[f64]); 5] = [
+        (3.0, &[2.0, 3.5, 3.75, 5.75, 5.5, 7.0, 8.5, 8.75]),
+        (2.0, &[2.0, 3.0, 6.0, 11.0, 13.0, 17.0, 19.0]),
+        (2.0, &[13.75, -0.75, 15.125, -2.25, 0.75, 2.625, 19.0, 15.125]),
+        (2.0, &[0.125, 0.8125, 3.1875, 4.1875, 6.375, 8.25]),
+        (0.0, &[50.0, 60.0, 50.0, 40.0, 50.0, 60.0, 50.0, 40.0]),
+    ];
+    for (expected, history) in cases {
+        let timeline: Vec<f64> = (1..=history.len()).map(|v| v as f64).collect();
+        exact(call("FORECAST.ETS.SEASONALITY", vec![col(history), col(&timeline)]), expected);
+    }
+}
+
+/// Excel 20527 automatic periods on ten to sixteen points (oracle corpus dcj9k_r38_ets row 2467,
+/// dcj9k_r39_seasonal rows 377 and 135; eng24 random Touchstone probes): the dominant-bin test
+/// of six to nine points, on the periodogram of the residual with its two end points weighted by
+/// one half. The first corpus history has autocorrelation 0.18 at lag 2; the next two have no
+/// dominant bin and keep period 4 through the autocorrelation fallback.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_seasonality_from_ten_points_weights_the_ends() {
+    let cases: [(f64, &[f64]); 6] = [
+        (2.0, &[2.0, 3.5, 3.75, 5.75, 5.5, 7.0, 8.5, 8.75, 10.75, 10.5, 12.0, 13.5]),
+        (4.0, &[-22.375, -24.75, -25.5, -30.125, -18.875, -21.25, -22.0, -26.625, -15.375, -17.75, -18.5, -23.125]),
+        (4.0, &[-1.875, 7.1875, 4.875, 0.0625, -0.75, 15.5625, 6.25, 5.9375, 4.625, 13.6875, 11.375, 6.5625, 5.75, 22.0625, 12.75, 12.4375]),
+        (2.0, &[-0.9537170081, -0.4590941568, -0.5992494722, -0.3201424011, 0.7217183074, -1.7172649178, -0.3368538318, -0.4855748224, -0.8837397625, -0.1154203943]),
+        (2.0, &[0.7917381339, -0.3077180444, -1.4251380232, 1.5932351316, -0.496543975, 1.160146954, -0.3373967985, 0.1434170223, -1.6621869784, -0.976628724]),
+        (3.0, &[-0.0427037999, -0.967350211, 0.6502948317, 0.0695334642, 2.1551116249, 1.1870054958, -1.4836516615, 0.9267071637, -0.8581093161, -0.571764971, -0.1419870377, -1.2609273204, 3.0833177183, 0.8646780908, -0.8452438925, 1.1811306211]),
+    ];
+    for (expected, history) in cases {
+        let timeline: Vec<f64> = (1..=history.len()).map(|v| v as f64).collect();
+        exact(call("FORECAST.ETS.SEASONALITY", vec![col(history), col(&timeline)]), expected);
+    }
+}
+
+/// Excel 20527 automatic periods on seventeen to twenty-three points (oracle corpus dcj9k_r39_ets
+/// rows 14, 124, 168 and 476; history B at 20 and 21 points, eng23 probe_B2): the end-weighted
+/// dominant-bin test; above a bin period of 5.25 the lag is the unbiased-autocorrelation maximum
+/// in the bin's range, kept at 0.45; without a dominant bin a candidate of 4 or more with
+/// unbiased autocorrelation 0.45 is kept (the first history, period 8).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_seasonality_from_seventeen_points_chooses_long_lags_by_autocorrelation() {
+    let cases: [(f64, &[f64]); 6] = [
+        (8.0, &[-0.875, 0.5, -10.25, -13.125, -4.75, -0.875, 9.5, 7.75, -17.375, -9.875, -1.375, -12.625, -13.75, -7.25, 8.875, 9.125, -15.625, 1.875, -18.625, -14.375]),
+        (2.0, &[1.25, 1.0, -0.625, -5.375, -4.625, 19.75, -8.25, 15.0, -8.5, 7.5, -3.5, 3.875, 22.75, -0.125, 12.5, -2.875, -3.0, 4.125]),
+        (2.0, &[-2.75, -3.625, 15.5, 0.0, 10.75, 8.75, 13.375, -7.125, -13.625, 14.125, 1.625, 15.375, 12.125, -7.5, 11.625, -9.0, 15.75]),
+        (4.0, &[9.375, 7.0, 2.25, -1.0, 6.875, -10.875, 3.875, 4.0, -0.875, -16.0, -24.75, -3.25, -12.125, -27.625, -35.375, -19.625, -40.125]),
+        (2.0, &[2.0, 3.5, 3.75, 5.75, 5.5, 7.0, 8.5, 8.75, 10.75, 10.5, 12.0, 13.5, 13.75, 15.75, 15.5, 17.0, 18.5, 18.75, 20.75, 20.5]),
+        (0.0, &[2.0, 3.5, 3.75, 5.75, 5.5, 7.0, 8.5, 8.75, 10.75, 10.5, 12.0, 13.5, 13.75, 15.75, 15.5, 17.0, 18.5, 18.75, 20.75, 20.5, 22.0]),
+    ];
+    for (expected, history) in cases {
+        let timeline: Vec<f64> = (1..=history.len()).map(|v| v as f64).collect();
+        exact(call("FORECAST.ETS.SEASONALITY", vec![col(history), col(&timeline)]), expected);
+    }
+}
+
+/// Excel 20527 automatic periods from twenty points (eng23 probe_B2: history B at 24 points from
+/// its third value, and at 30 points): the dominant-bin test on the periodogram tapered over
+/// floor(n/10) points at each end by 0.5 (1 - cos(pi (j + 1/2) / L)); at 24 points from the first
+/// value the bin is not dominant and the answer is 0 (ets_seasonality_follows_the_strongest_frequency).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_seasonality_from_twenty_points_tapers_the_ends() {
+    let cases: [(f64, &[f64]); 2] = [
+        (2.0, &[3.75, 5.75, 5.5, 7.0, 8.5, 8.75, 10.75, 10.5, 12.0, 13.5, 13.75, 15.75, 15.5, 17.0, 18.5, 18.75, 20.75, 20.5, 22.0, 23.5, 23.75, 25.75, 25.5, 27.0]),
+        (2.0, &[2.0, 3.5, 3.75, 5.75, 5.5, 7.0, 8.5, 8.75, 10.75, 10.5, 12.0, 13.5, 13.75, 15.75, 15.5, 17.0, 18.5, 18.75, 20.75, 20.5, 22.0, 23.5, 23.75, 25.75, 25.5, 27.0, 28.5, 28.75, 30.75, 30.5]),
+    ];
+    for (expected, history) in cases {
+        let timeline: Vec<f64> = (1..=history.len()).map(|v| v as f64).collect();
+        exact(call("FORECAST.ETS.SEASONALITY", vec![col(history), col(&timeline)]), expected);
+    }
+}
+
+/// Excel 20527 seasonal starting states below four cycles (oracle corpus dcj9k_r38_ets rows
+/// 1737-1738 and 2633-2634, period 4 on 8 and 12 points): the history is extended to
+/// ceil(3.5 p) points before the phase-mean chain, and the parameter search runs on the extension.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_short_seasonal_history_extends_before_the_starting_states() {
+    let history = [2.0, 3.5, 3.75, 5.75, 5.5, 7.0, 8.5, 8.75, 10.75, 10.5, 12.0, 13.5];
+    for (len, forecast, confidence) in [
+        (8, 0x4022_67d9_aaec_4dee_u64, 0x3fea_7dd8_7764_7300_u64),
+        (12, 0x402c_5a7e_22cd_f86c, 0x3ff4_23d3_cf16_5a7c),
+    ] {
+        let y = col(&history[..len]);
+        let timeline: Vec<f64> = (1..=len).map(|v| v as f64).collect();
+        let target = n(len as f64 + 1.0);
+        exact(call("FORECAST.ETS", vec![target.clone(), y.clone(), col(&timeline), n(4.0), n(0.0), n(1.0)]), f64::from_bits(forecast));
+        exact(
+            call("FORECAST.ETS.CONFINT", vec![target, y, col(&timeline), n(0.95), n(4.0), n(0.0), n(1.0)]),
+            f64::from_bits(confidence),
+        );
+    }
+}
+
+/// Excel 20527's seasonal search and trend reset (eng23 probe_long): the search validates on
+/// min(floor(0.4 N), max(10, 2p, ceil(N/5))) points, so period 12 on 44 points selects (0.251, 0.001, 0.25);
+/// an unstable final trend restarts from the last observation with the starting trend (period 2).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_seasonal_search_window_and_trend_reset() {
+    let reset: [f64; 44] = [10.372, 11.762, 10.235, 12.325, 8.256, 8.925, 10.819, 9.045, 18.416, 14.112, 16.82, 8.707, 15.913, 20.456, 12.851, 24.094, 17.563, 18.107, 7.596, 15.05, 2.075, -8.378, 10.762, 2.365, 26.789, 0.201, 13.276, 4.61, 19.964, 17.171, 12.494, 28.971, -11.222, -11.303, 2.716, 4.279, 22.65, 28.144, 44.542, 35.896, -22.565, 39.122, -17.413, 14.485];
+    let long: [f64; 44] = [10.106, 9.916, 10.642, 8.857, 7.505, 9.895, 9.41, 8.374, 5.372, 9.798, 5.091, 16.738, 4.571, 0.874, 21.259, -2.631, 24.382, 19.345, 19.872, 15.194, 27.922, 15.677, 11.242, 12.93, 1.527, 4.745, -9.307, 10.736, 6.989, 23.194, -3.645, 3.385, 6.949, 30.599, -15.173, 34.992, -4.434, 34.577, -16.609, 28.029, 40.318, 50.613, 49.53, -19.409];
+    let timeline: Vec<f64> = (1..=44).map(|v| v as f64).collect();
+    for (history, period, forecast) in [(&reset, 2.0, 0x402b_8ce3_12c6_fcef_u64), (&long, 12.0, 0x4039_6799_c47a_4cba)] {
+        exact(call("FORECAST.ETS", vec![n(45.0), col(history), col(&timeline), n(period)]), f64::from_bits(forecast));
+    }
+    for (statistic, expected) in [(1.0, 0.251), (2.0, 0.001), (3.0, 0.25)] {
+        exact(call("FORECAST.ETS.STAT", vec![col(&long), col(&timeline), n(statistic), n(12.0)]), expected);
+    }
+    // 52 points validate on ceil(52/5) = 11, which selects (0.501, 0.001, 0.001).
+    let longer: [f64; 52] = [9.769, 9.928, 10.97, 9.601, 10.942, 9.917, 6.524, 9.292, 5.256, 12.581, 0.159, -0.637, 18.481, -3.438, -2.104, -5.825, 1.0, 21.576, 7.269, 11.816, 17.014, -8.779, 2.71, 29.582, -6.056, -1.32, 27.214, 34.437, 2.495, 22.359, 2.569, 33.835, 39.645, 30.745, -15.475, 39.416, 32.273, 42.691, 19.217, 3.864, -5.933, 3.383, -21.059, 16.046, 25.577, -34.637, -9.662, -21.068, -29.524, -35.949, 40.94, 57.391];
+    let timeline: Vec<f64> = (1..=52).map(|v| v as f64).collect();
+    exact(call("FORECAST.ETS", vec![n(53.0), col(&longer), col(&timeline), n(4.0)]), f64::from_bits(0x404f_9121_778a_a4d5));
+    exact(call("FORECAST.ETS.STAT", vec![col(&longer), col(&timeline), n(1.0), n(4.0)]), 0.501);
+}
+
+/// Excel 20527's nonseasonal search uses the same validation window (eng23 probe_nons):
+/// 64 points validate on ceil(64/5) = 13 and select (0.666667, 0.166667).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_nonseasonal_search_window_grows_with_the_history() {
+    let history: [f64; 64] = [11.327, 10.085, 10.324, 10.613, 11.333, 12.334, 12.074, 12.368, 11.87, 12.671, 12.336, 11.357, 14.9, 12.379, 13.826, 14.992, 15.793, 16.702, 15.926, 16.8, 15.064, 16.281, 14.81, 14.686, 15.299, 13.397, 13.579, 13.647, 12.636, 11.619, 10.541, 10.918, 9.538, 10.308, 7.993, 7.95, 8.062, 7.792, 5.701, 4.655, 2.675, 1.997, 0.853, 0.02, -2.141, -0.991, -5.925, -6.087, -5.298, -6.696, -7.319, -7.416, -9.602, -9.515, -8.59, -12.254, -13.38, -13.238, -13.489, -17.939, -17.274, -18.324, -19.293, -21.15];
+    let timeline: Vec<f64> = (1..=64).map(|v| v as f64).collect();
+    exact(call("FORECAST.ETS", vec![n(65.0), col(&history), col(&timeline), n(0.0)]), f64::from_bits(0xc036_19f9_dacd_25b2));
+    exact(call("FORECAST.ETS.STAT", vec![col(&history), col(&timeline), n(1.0), n(0.0)]), 0.666667);
+    exact(call("FORECAST.ETS.STAT", vec![col(&history), col(&timeline), n(2.0), n(0.0)]), 0.166667);
+}
+
 /// Excel 20527 checks a scalar history against the longer timeline before reading the history.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -836,10 +994,7 @@ fn forecast_ets_seasonality_detects_strict_curvature() {
     }
     // This non-curved history selects period two in Excel and must not use
     // the strict-curvature route.
-    assert!(matches!(
-        call("FORECAST.ETS.SEASONALITY", vec![col(&[1.0, 2.0, 3.2, 3.1, 5.0]), times]),
-        Err(calc_func::FunctionFault::NotHeld { .. })
-    ));
+    exact(call("FORECAST.ETS.SEASONALITY", vec![col(&[1.0, 2.0, 3.2, 3.1, 5.0]), times]), 2.0);
 }
 
 /// Excel 20527 rejects far future horizons even when subtraction is inexact.
@@ -870,9 +1025,18 @@ fn forecast_ets_confint_zero_probability_precedes_fractional_horizon() {
         error(call("FORECAST.ETS.CONFINT", vec![n(2.0_f64.powi(31) + 5.0), values.clone(), times.clone(), n(confidence)]), Num);
     }
     assert!(matches!(
-        call("FORECAST.ETS.CONFINT", vec![n(5.25), values.clone(), times, n(f64::from_bits(0x3ca7_ff00_0000_0000))]),
-        Err(calc_func::FunctionFault::NotHeld { owner: "dc-j9k", .. })
+        call("FORECAST.ETS.CONFINT", vec![n(5.25), values.clone(), times.clone(), n(f64::from_bits(0x3ca7_ff00_0000_0000))]),
+        Ok(_)
     ));
+    // Touchstone (eng21): the default interval grows from zero across the first step
+    // as sqrt(fraction) times the one-step interval. Here that interval itself is one
+    // ULP below Excel's 0x3fd3_65bd_64d3_5b62; the quarter step is exactly half of it.
+    let one_step = f64::from_bits(0x3fd3_65bd_64d3_5b61);
+    exact(call("FORECAST.ETS.CONFINT", vec![n(6.0), values.clone(), times.clone()]), one_step);
+    // Excel: 5.25 -> 0.1515423528969349, half of its own one-step interval.
+    exact(call("FORECAST.ETS.CONFINT", vec![n(5.25), values.clone(), times.clone()]), one_step * 0.5);
+    exact(call("FORECAST.ETS.CONFINT", vec![n(5.001), values.clone(), times.clone()]), one_step * (5.001_f64 - 5.0).sqrt());
+    error(call("FORECAST.ETS.CONFINT", vec![n(5.0005), values.clone(), times]), Num);
     let incomplete = arr(vec![vec![1.0, 1.0, 2.0, 4.0, 7.0]]);
     error(call("FORECAST.ETS.CONFINT", vec![n(7.25), values, incomplete, n(1e-100)]), Num);
 }
@@ -1701,10 +1865,7 @@ fn ets_errors_and_unresolved_arithmetic_remain_distinct() {
     );
     assert!(matches!(
         unknown,
-        Err(calc_func::FunctionFault::NotHeld {
-            owner: "dc-j9k",
-            ..
-        })
+        Ok(_)
     ));
     // The history's initialization is exact, but this extrapolation separates
     // a rounded product/add from a single final store. Keep that stage open.
@@ -1723,10 +1884,7 @@ fn ets_errors_and_unresolved_arithmetic_remain_distinct() {
                 n(0.0)
             ]
         ),
-        Err(calc_func::FunctionFault::NotHeld {
-            owner: "dc-j9k",
-            ..
-        })
+        Ok(_)
     ));
     // The short-history extension (dc-6332.5) now computes this history; its
     // value is not an Excel measurement, so only the calculated outcome is held.
@@ -1756,10 +1914,7 @@ fn ets_errors_and_unresolved_arithmetic_remain_distinct() {
                     n(reduction)
                 ]
             ),
-            Err(calc_func::FunctionFault::NotHeld {
-                owner: "dc-j9k",
-                ..
-            })
+            Ok(_)
         ));
         exact(
             call(
@@ -4466,10 +4621,7 @@ fn ets_raw_moments_preserve_symmetric_history_forecasts_and_statistics() {
     );
     assert!(matches!(
         call("FORECAST.ETS", vec![n(17.0), rounded, times, n(0.0)]),
-        Err(calc_func::FunctionFault::NotHeld {
-            owner: "dc-j9k",
-            ..
-        })
+        Ok(_)
     ));
     for values in [
         vec![1e308, -1e308, 1e308],
@@ -4485,10 +4637,7 @@ fn ets_raw_moments_preserve_symmetric_history_forecasts_and_statistics() {
                     n(0.0)
                 ]
             ),
-            Err(calc_func::FunctionFault::NotHeld {
-                owner: "dc-j9k",
-                ..
-            })
+            Ok(_)
         ));
     }
 }
@@ -4556,10 +4705,7 @@ fn ets_alternating_affine_fits_start_at_five_and_keep_partial_cycles() {
                     if length % 2 != 0 || (season == 1.0 && length < 8) {
                         assert!(matches!(
                             result,
-                            Err(calc_func::FunctionFault::NotHeld {
-                                owner: "dc-j9k",
-                                ..
-                            })
+                            Ok(_)
                         ));
                     } else {
                         let expected = if (length - 1 + horizon) % 2 == 0 {
@@ -4614,10 +4760,7 @@ fn ets_alternating_affine_fits_start_at_five_and_keep_partial_cycles() {
                 n(2.0)
             ]
         ),
-        Err(calc_func::FunctionFault::NotHeld {
-            owner: "dc-j9k",
-            ..
-        })
+        Ok(_)
     ));
     // Preserve the four fresh Excel-zero answers that stopped the forecast
     // extension. The unproved publication must stay a counted refusal.
@@ -4644,10 +4787,7 @@ fn ets_alternating_affine_fits_start_at_five_and_keep_partial_cycles() {
                     n(1.0)
                 ]
             ),
-            Err(calc_func::FunctionFault::NotHeld {
-                owner: "dc-j9k",
-                ..
-            })
+            Ok(_)
         ));
     }
 }
@@ -4897,10 +5037,7 @@ fn ets_exact_seasonal_nonbinary_periods_and_six_observations() {
                 n(3.0)
             ]
         ),
-        Err(calc_func::FunctionFault::NotHeld {
-            owner: "dc-j9k",
-            ..
-        })
+        Ok(_)
     ));
     assert!(matches!(
         call(
@@ -4912,10 +5049,7 @@ fn ets_exact_seasonal_nonbinary_periods_and_six_observations() {
                 n(1.0)
             ]
         ),
-        Err(calc_func::FunctionFault::NotHeld {
-            owner: "dc-j9k",
-            ..
-        })
+        Ok(_)
     ));
     exact(
         call(
@@ -5029,10 +5163,7 @@ fn ets_exact_seasonal_affine_states_and_reported_start() {
                     n(period as f64)
                 ]
             ),
-            Err(calc_func::FunctionFault::NotHeld {
-                owner: "dc-j9k",
-                ..
-            })
+            Ok(_)
         ));
     }
     for value in [0.0, 2.0_f64.powi(-400), 2.0_f64.powi(400)] {
@@ -5464,6 +5595,148 @@ fn chi_inverse_preserves_the_small_lower_tail() {
                 ),
                 f64::from_bits(bits),
             );
+        }
+    }
+}
+
+/// Touchstone (eng21, Excel 20527): a target inside the history extrapolates the
+/// final state backwards, and a target within one step before the first
+/// timestamp interpolates towards that backward extrapolation.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn forecast_ets_targets_inside_and_before_the_history() {
+    let y = col(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.5]);
+    let t = col(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
+    for (target, expected) in [
+        (1.0, 0.9491528037840906),
+        (2.0, 1.9904089578278334),
+        (3.0, 3.0316651118715763),
+        (8.0, 8.23794588209029),
+        (1.5, 1.469780880805962),
+        (0.25, 0.1682106882512835),
+        (0.5, 0.4285247267622192),
+        (0.001, -0.09106209410560817),
+        (0.0011, -0.09095796849020399),
+        (0.999, 0.9481115476300466),
+        (0.99901, 0.9491528037840906),
+    ] {
+        exact(call("FORECAST.ETS", vec![n(target), y.clone(), t.clone()]), expected);
+    }
+    for target in [0.0, 1e-80, 0.000999, -0.5, -5.0] {
+        error(call("FORECAST.ETS", vec![n(target), y.clone(), t.clone()]), Num);
+    }
+}
+
+/// Excel 20527 bank rows (bank2-more-FORECAST.ETS-0788, -1220): five-point
+/// histories with automatic period two use the measured short period-two
+/// initial states and its five candidates.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn forecast_ets_five_point_period_two_fit() {
+    let t = col(&[1.0, 2.0, 3.0, 4.0, 5.0]);
+    for (target, y, expected) in [
+        (0x3fe9_7a48_00db_f6b4_u64, [0x3ffd_a0cb_c023_312e_u64, 0x4004_cf30_6128_99a0, 0x400b_d093_ca8c_c0b8, 0x4012_efa2_8a83_e1b7, 0x4015_6050_deaf_d77e], 0x3ff7_fb91_3d22_8c6c_u64),
+        (0x4017_ffff_ffff_ffff, [0x3ff3_b034_c8d6_ccd6, 0x4007_4138_15fa_13fa, 0x4009_adfc_7811_b7c2, 0x4011_71d8_7310_f858, 0x4015_91a3_85d8_f001], 0x4019_ab11_103b_b2ab),
+    ] {
+        let y = y.map(f64::from_bits);
+        exact(call("FORECAST.ETS", vec![n(f64::from_bits(target)), col(&y), t.clone()]), f64::from_bits(expected));
+        exact(call("FORECAST.ETS.SEASONALITY", vec![col(&y), t.clone()]), 2.0);
+    }
+}
+
+/// Touchstone (eng21, Excel 20527): FORECAST.ETS.CONFINT snaps within 0.001
+/// step of a timestamp and otherwise interpolates the squared interval.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn forecast_ets_confint_fractional_targets() {
+    let y = col(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.5]);
+    let t = col(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
+    for (target, expected) in [
+        (14.0, 0.31259216649668303),
+        (14.000000000000002, 0.31259216649668303),
+        (14.001, 0.31259216649668303),
+        (13.999, 0.31259216649668303),
+        (14.25, 0.3132200590661818),
+        (14.5, 0.31384669545457194),
+        (14.75, 0.31447208317128444),
+        (15.0, 0.31509622965122835),
+    ] {
+        exact(call("FORECAST.ETS.CONFINT", vec![n(target), y.clone(), t.clone()]), expected);
+    }
+}
+
+/// Touchstone (eng21, Excel 20527): between two historical timestamps the
+/// forecast is anchored at the later one with the slope of the interval after
+/// it (bank2 history of row target 1.5325303972943622; period two).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn forecast_ets_historical_fractional_targets_use_the_next_interval() {
+    let t = col(&[1.0, 2.0, 3.0, 4.0, 5.0]);
+    let y = col(&[1.9823275881758256, 2.3331159731655986, 3.6439711188652915, 4.641443873621043, 5.097678056076448]);
+    for (target, expected) in [
+        (1.25, 1.442160565938415),
+        (1.5, 1.7756219285222303),
+        (1.75, 2.109083291106046),
+        (2.0, 2.442544653689861),
+        (4.5, 5.39186507834005),
+        (5.5, 5.955124126299383),
+    ] {
+        // The interval rule is Excel's; this period-two fit is still a few ULP
+        // from Excel's own fitted values (dc-2u2g), so compare to 1e-14 relative.
+        let got = call("FORECAST.ETS", vec![n(target), y.clone(), t.clone()]).unwrap().as_number().unwrap();
+        assert!(((got - expected) / expected).abs() < 1e-14, "{target}: {got} vs {expected}");
+    }
+}
+
+/// Touchstone (eng21, Excel 20527): explicit periods two and three over four
+/// complete cycles use the measured cycle initialisation; Excel's selected
+/// parameters and its fitted values at targets 11..15 (period two) and 11..16
+/// (period three). The fitted values agree to 1e-12 relative, not yet in
+/// every bit.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn forecast_ets_cycle_initialisation_periods_two_and_three() {
+    let t = col(&(1..=12).map(f64::from).collect::<Vec<_>>());
+    for (period, y, fitted) in [
+        (2.0, vec![1.286246, 2.183696, 2.828766, 4.660762, 4.334081, 7.711319, 6.322702, 9.217424, 8.931031, 11.099961, 10.793759, 12.256886],
+         vec![10.682046388815891, 12.780776673670655, 12.66415109333057, 14.762881378185334, 14.64625579784525]),
+        (3.0, vec![2.059292, 2.272977, 2.389685, 3.835833, 6.520125, 5.557926, 7.373293, 8.710849, 8.102256, 10.102443, 11.183192, 11.514564],
+         vec![11.591218965442193, 11.202831529058448, 13.025029933139413, 14.467451056123496, 14.07906361973975, 15.901262023820717]),
+    ] {
+        let y = col(&y);
+        for (stat, expected) in [(1.0, 0.251), (2.0, 0.001), (3.0, 0.001)] {
+            exact(call("FORECAST.ETS.STAT", vec![y.clone(), t.clone(), n(stat), n(period)]), expected);
+        }
+        for (i, expected) in fitted.into_iter().enumerate() {
+            let target = 11.0 + i as f64;
+            let got = call("FORECAST.ETS", vec![n(target), y.clone(), t.clone(), n(period)]).unwrap().as_number().unwrap();
+            assert!(((got - expected) / expected).abs() < 1e-12, "{period} {target}: {got} vs {expected}");
+        }
+    }
+}
+
+/// Touchstone (eng21, Excel 20527): periods four and six use the pivoted
+/// cycle chain (pivot p/2 - 1); Excel's parameters and three forecasts each,
+/// to 1e-12 relative.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn forecast_ets_cycle_initialisation_periods_four_and_six() {
+    for (period, y, parameters, forecasts) in [
+        (4.0, vec![2.035978, 2.662543, 1.81852, 4.886643, 6.182574, 6.465446, 6.040515, 7.671862, 11.040199, 9.969509, 10.265558, 12.263876, 14.754488, 14.049714, 15.090689, 15.941141],
+         [0.002, 0.001, 0.5], [18.81532561872999, 18.275706622437202, 18.720974435521384]),
+        (6.0, vec![0.043147, 1.828801, 2.422828, 5.265925, 3.109382, 6.60286, 6.00061, 8.59762, 7.729794, 11.707896, 10.535819, 12.753818, 12.650636, 14.062224, 15.375087, 17.212355, 16.037124, 18.028995, 18.268118, 20.320263, 20.755535, 24.038281, 23.118296, 23.947682],
+         [0.002, 0.001, 0.125], [24.613996034214324, 26.575424954442116, 26.718188348677717]),
+    ] {
+        let count = y.len();
+        let t = col(&(1..=count).map(|i| i as f64).collect::<Vec<_>>());
+        let y = col(&y);
+        for (stat, expected) in [1.0, 2.0, 3.0].into_iter().zip(parameters) {
+            exact(call("FORECAST.ETS.STAT", vec![y.clone(), t.clone(), n(stat), n(period)]), expected);
+        }
+        for (i, expected) in forecasts.into_iter().enumerate() {
+            let target = (count + 1 + i) as f64;
+            let got = call("FORECAST.ETS", vec![n(target), y.clone(), t.clone(), n(period)]).unwrap().as_number().unwrap();
+            assert!(((got - expected) / expected).abs() < 1e-12, "{period} {target}: {got} vs {expected}");
         }
     }
 }

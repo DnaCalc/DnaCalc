@@ -1377,7 +1377,9 @@ fn sort_rows(
     // Empty keys stay last in both directions. Original row index is an explicit tie key.
     // Grid sorting treats all errors as equal. Normalise their codes through the evaluator,
     // whose SORTBY otherwise orders different error codes. No host comparator is introduced.
-    let mut formula = format!("_xlfn.SORTBY(_xlfn.SEQUENCE({count})");
+    let sequence = calc_func::file_call_name("SEQUENCE");
+    let xmatch = calc_func::file_call_name("XMATCH");
+    let mut formula = format!("{}({sequence}({count})", calc_func::file_call_name("SORTBY"));
     let mut sort_arguments = 3usize; // row indexes plus the final tie key/direction
     for (index, key) in keys.iter().enumerate() {
         let range = format!(
@@ -1405,7 +1407,7 @@ fn sort_rows(
             let value = if index == 0 {
                 custom
                     .as_ref()
-                    .map(|list| format!("IF(ISBLANK({range}),0,_xlfn.XMATCH({range},{list},0))"))
+                    .map(|list| format!("IF(ISBLANK({range}),0,{xmatch}({range},{list},0))"))
             } else {
                 None
             }
@@ -1417,7 +1419,7 @@ fn sort_rows(
     if sort_arguments > 255 {
         return Err(unavailable("case-sensitive keys beyond 255 sort arguments"));
     }
-    formula.push_str(&format!(",_xlfn.SEQUENCE({count}),1)"));
+    formula.push_str(&format!(",{sequence}({count}),1)"));
     if formula.encode_utf16().count() > 8192 {
         return Err(unavailable(
             "case-sensitive keys beyond the formula-length limit",
@@ -1644,7 +1646,8 @@ fn sort_option_keys(
             .and_then(|f| f.evaluate(&host.engine, host.model(), data.first()))
             .map_err(|e| format!("Custom order could not be calculated (dc-971p.38): {e}"))
     };
-    let unique = evaluate(&format!("_xlfn.XMATCH({list},{list},0)"))?;
+    let xmatch = calc_func::file_call_name("XMATCH");
+    let unique = evaluate(&format!("{xmatch}({list},{list},0)"))?;
     let distinct =
         match unique.core_ref() {
             calc_value::CoreRef::Array(positions) => positions.shape().rows == order.len()
@@ -1666,7 +1669,7 @@ fn sort_option_keys(
         sort_label(keys[0].column, data.first().row()),
         sort_label(keys[0].column, data.last().row())
     );
-    let ranks = evaluate(&format!("_xlfn.XMATCH({range},{list},0)"))?;
+    let ranks = evaluate(&format!("{xmatch}({range},{list},0)"))?;
     let calc_value::CoreRef::Array(ranks) = ranks.core_ref() else {
         return Err("The custom key did not return row positions (dc-971p.38)".into());
     };

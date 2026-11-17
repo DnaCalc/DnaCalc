@@ -33,7 +33,7 @@
 //! row or column number of 0 and a call of a LAMBDA are dynamic too. A function Excel does not
 //! know is stored as a dynamic array (measured on unknown names).
 
-use calc_catalogue::FunctionFileForm;
+use calc_catalogue::{BindingForm, FunctionFileForm};
 use calc_doc_model::{DefinedName, FormulaText};
 use calc_fml::syntax::{SyntaxChild, SyntaxKind, SyntaxNode, Token, TokenKind, parse_formula};
 use std::collections::BTreeMap;
@@ -482,7 +482,8 @@ impl Walk<'_, '_> {
         // with the spelling of a language function has ordinary arguments. Only
         // the built-in's measured file spelling can introduce parameter bindings.
         let entry = function(plain);
-        let language_binding = (upper == "LET" || upper == "LAMBDA")
+        let binding_form = calc_catalogue::binding_form(&upper);
+        let language_binding = binding_form.is_some()
             && (!prefixed
                 || entry.is_some_and(|entry| {
                     format!(
@@ -494,11 +495,11 @@ impl Walk<'_, '_> {
                     )
                     .eq_ignore_ascii_case(text)
                 }));
-        if language_binding {
+        if let Some(form) = binding_form.filter(|_| language_binding) {
             if !prefixed {
                 self.insert(name.span().start, calc_catalogue::FUTURE_FUNCTION_PREFIX);
             }
-            return self.binding(&upper, &arguments, depth);
+            return self.binding(form, &arguments, depth);
         }
         // Prefix and array-shape measurements are independent: a function may have a
         // measured file spelling even when its array positions have not been measured.
@@ -580,7 +581,7 @@ impl Walk<'_, '_> {
     /// declaration.
     fn binding(
         &mut self,
-        function: &str,
+        form: BindingForm,
         arguments: &[&SyntaxNode],
         depth: usize,
     ) -> Result<Shape, FileFormError> {
@@ -590,7 +591,7 @@ impl Walk<'_, '_> {
         let mut index = 0;
         while index < arguments.len() {
             let argument = arguments[index];
-            let declares = index < last && (function == "LAMBDA" || index % 2 == 0);
+            let declares = index < last && (form == BindingForm::Lambda || index % 2 == 0);
             if declares {
                 let token = argument.tokens().into_iter().next().cloned();
                 match token {
@@ -608,7 +609,7 @@ impl Walk<'_, '_> {
                         if token.kind() == TokenKind::Identifier && !has_prefix(token.text()) =>
                     {
                         self.insert(token.span().start, "_xlpm.");
-                        let value = if function == "LET" {
+                        let value = if form == BindingForm::Let {
                             match arguments.get(index + 1) {
                                 Some(value) => {
                                     let shape = self.walk(value, depth + 1)?;
@@ -630,7 +631,7 @@ impl Walk<'_, '_> {
                             .text()
                             .split_once('.')
                             .map_or(token.text(), |(_, name)| name);
-                        let value = if function == "LET" {
+                        let value = if form == BindingForm::Let {
                             match arguments.get(index + 1) {
                                 Some(value) => {
                                     let shape = self.walk(value, depth + 1)?;
@@ -657,7 +658,7 @@ impl Walk<'_, '_> {
             index += 1;
         }
         self.scopes.pop();
-        if function == "LAMBDA" {
+        if form == BindingForm::Lambda {
             // A LAMBDA's value is a function, which only a call (an InvokeExpr) applies.
             return Ok(Shape { multi: false });
         }

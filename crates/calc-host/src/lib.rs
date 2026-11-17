@@ -191,7 +191,7 @@ pub use tables::TableChange;
 mod shapes;
 pub use calc_doc_model::{
     LineEnd, PictureMedia, Shape, ShapeBody, ShapeColour, ShapeFill, ShapeGradient, ShapeKind, ShapeLine, ShapeShadow,
-    ShapePicture,
+    ShapePicture, ShapeTextRun,
 };
 pub use shapes::{Points, ShapeChange};
 mod review;

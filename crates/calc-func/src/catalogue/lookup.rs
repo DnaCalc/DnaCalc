@@ -1634,9 +1634,11 @@ fn column(
     Site::finish(position_of(&site, arguments, false))
 }
 
-/// The most rows or columns whose numbers ROW and COLUMN build as an array (every column of a
-/// sheet; a whole column's 1,048,576 rows is refused rather than built).
-const POSITIONS_LIMIT: u32 = 16_384;
+/// The most rows or columns whose numbers ROW and COLUMN build as an array: every row of a sheet.
+/// A whole column's array is built and placed as any other, so a formula whose spill passes the
+/// sheet's edge is #SPILL! by the placement check (Excel 16.0.20527, Touchstone sheet cases,
+/// 2026-11-16, family reference-info: `=ROW(C:D)` at H10 #SPILL!, as `=COLUMN(3:5)`).
+const POSITIONS_LIMIT: u32 = 1_048_576;
 
 fn position_of(site: &Site<'_>, arguments: &[CalcValue], of_row: bool) -> Step<CalcValue> {
     let Some(argument) = arguments.first() else {

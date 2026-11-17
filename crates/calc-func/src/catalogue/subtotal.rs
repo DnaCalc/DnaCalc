@@ -118,13 +118,12 @@ fn held_values(
             CoreRef::Array(_) => {
                 return Err(Exit::Error(WorksheetErrorCode::Value));
             }
-            _ => {
-                if rule.errors && matches!(argument.core_ref(), CoreRef::Error(_)) {
-                    // Ignored error under rule.errors
-                } else {
-                    found.push(argument.clone());
-                }
-            }
+            // A value given directly, an error included: the options leave out only the errors
+            // cells hold (dc-b1l, Excel 16.0.20527 through Touchstone, 2026-11-17, family
+            // reference-arrays: `=AGGREGATE(9,6,A1:A2,#N/A)` and `=AGGREGATE(9,6,#N/A)` #N/A,
+            // `=AGGREGATE(9,6,A1:A2,1/0)` #DIV/0!, while `=AGGREGATE(9,6,A1:A2,B5)` over #N/A
+            // in B5 is 3).
+            _ => found.push(argument.clone()),
         }
     }
     Ok(found)

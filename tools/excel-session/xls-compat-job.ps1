@@ -9,11 +9,12 @@ $dir = Join-Path ([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($Result))) 
 [IO.Directory]::CreateDirectory($dir) | Out-Null
 $path = Join-Path $dir 'compat.xls'
 $modern = Join-Path $dir 'converted.xlsx'
+$limitsPath = Join-Path $dir 'limits.xls'
 $book = $null
 $oldAlerts = $app.DisplayAlerts
 $answers = [Collections.Generic.List[object]]::new()
 $fatal = $null
-$legacyBytes = $null; $modernBytes = $null
+$legacyBytes = $null; $modernBytes = $null; $limitsBytes = $null
 function Probe([string]$name, [scriptblock]$action) {
     try { $v = & $action; $answers.Add(@{name=$name; ok=$true; value=$v}) }
     catch { $answers.Add(@{name=$name; ok=$false; error=$_.Exception.Message; hresult=$_.Exception.HResult}) }
@@ -100,11 +101,60 @@ try {
     foreach ($case in $cases.formulas) { $cell = $sheet.Cells.Item($row, 3); Probe ('converted/' + [string]$case[0]) { if ($book.FileFormat -ne 51) { throw 'Conversion to xlsx did not succeed' }; ReadCell $cell }; $row++ }
     $book.Close($false); $book = $null
     if (Test-Path -LiteralPath $modern) { $modernBytes = [Convert]::ToBase64String([IO.File]::ReadAllBytes($modern)) }
+    # Use a separate generated workbook so a limit or save refusal cannot spoil the formula cases.
+    Probe 'style_and_name_counts' {
+        $limits = $null; $reopened = $null
+        try {
+            $limits = $app.Workbooks.Add(-4167)
+            $limitSheet = $limits.Worksheets.Item(1); $limitSheet.Name = 'Limits'
+            $limits.SaveAs($limitsPath, 56)
+            $initialStyles = $limits.Styles.Count; $styleAdded = 0; $styleError = $null
+            $styleMilestones = @()
+            $clock = [Diagnostics.Stopwatch]::StartNew()
+            foreach ($i in 1..64000) {
+                if ($clock.Elapsed.TotalSeconds -ge 900) { $styleError = @{attempt=$i; message='Time budget reached'; hresult=$null}; break }
+                try {
+                    $style = $limits.Styles.Add(('cxstyle_{0:D5}' -f $i))
+                    $style.Interior.Color = $i
+                    $limitSheet.Cells.Item($i, 1).Style = [string]$style.Name
+                    $styleAdded++
+                    if ($i -in @(1000, 4000, 4001, 4100, 10000, 32000, 64000)) { $styleMilestones += @{added=$i; styles=$limits.Styles.Count} }
+                } catch { $styleError = @{attempt=$i; message=$_.Exception.Message; hresult=$_.Exception.HResult}; break }
+            }
+            $nameAdded = 0; $nameError = $null; $nameMilestones = @()
+            $clock.Restart()
+            foreach ($i in 1..10000) {
+                if ($clock.Elapsed.TotalSeconds -ge 300) { $nameError = @{attempt=$i; message='Time budget reached'; hresult=$null}; break }
+                try {
+                    $null = $limits.Names.Add(('cxname_{0:D5}' -f $i), '=Limits!$A$1')
+                    $nameAdded++
+                    if ($i -in @(1000, 4000, 4001, 4100, 5000, 10000)) { $nameMilestones += @{added=$i; names=$limits.Names.Count} }
+                } catch { $nameError = @{attempt=$i; message=$_.Exception.Message; hresult=$_.Exception.HResult}; break }
+            }
+            $before = @{styles=$limits.Styles.Count; names=$limits.Names.Count}
+            $saveError = $null
+            try { $limits.Save() } catch { $saveError = $_.Exception.Message }
+            $limits.Close($false); $limits = $null
+            $after = $null; $openError = $null
+            try {
+                $reopened = $app.Workbooks.Open($limitsPath, 0, $true)
+                $after = @{styles=$reopened.Styles.Count; names=$reopened.Names.Count}
+                $reopened.Close($false); $reopened = $null
+            } catch { $openError = $_.Exception.Message }
+            if (Test-Path -LiteralPath $limitsPath) { $script:limitsBytes = [Convert]::ToBase64String([IO.File]::ReadAllBytes($limitsPath)) }
+            @{initial_styles=$initialStyles; styles_added=$styleAdded; style_milestones=$styleMilestones; style_error=$styleError;
+              names_added=$nameAdded; name_milestones=$nameMilestones; name_error=$nameError;
+              before_save=$before; save_error=$saveError; after_reopen=$after; reopen_error=$openError}
+        } finally {
+            if ($limits) { try { $limits.Close($false) } catch {} }
+            if ($reopened) { try { $reopened.Close($false) } catch {} }
+        }
+    }
 } catch { $fatal = $_.Exception.ToString() }
 finally {
     if ($book) { try { $book.Close($false) } catch {} }
     $app.DisplayAlerts = $oldAlerts
 }
-@{fatal=$fatal; cases=$answers.ToArray(); legacy_base64=$legacyBytes; converted_base64=$modernBytes;
-    not_run=@('Ctrl+End keyboard action', 'style count', 'name count limits', 'recalculation across saving versions',
+@{fatal=$fatal; cases=$answers.ToArray(); legacy_base64=$legacyBytes; converted_base64=$modernBytes; limits_base64=$limitsBytes;
+    not_run=@('Ctrl+End keyboard action', 'recalculation across saving versions',
         'compatibility checker findings')} | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $Result -Encoding utf8NoBOM

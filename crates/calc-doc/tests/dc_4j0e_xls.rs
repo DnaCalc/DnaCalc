@@ -42,6 +42,85 @@ fn external_cache_biff5_fixture() -> Vec<u8> {
     v5::xls(1252, &[], &[v5::Sheet { name: b"S".to_vec(), records }])
 }
 
+fn addin_cell_reference_fixture() -> Vec<u8> {
+    let globals = [supbook_addin(), extern_sheet(&[(0, -2, -2)])].concat();
+    let cell = formula(0, 0, num_value(0.0), &ptg::cell3d(0, 0, 0, 0), &[]);
+    xls(false, &globals, &[Sheet::worksheet("Data", cell)])
+}
+
+fn damaged_compound_fixtures() -> Vec<(&'static str, Vec<u8>)> {
+    let base = xls(false, &[], &[Sheet::worksheet("Data", number(0, 0, 42.0))]);
+    let missing_sector = (base.len() / 512 + 10) as u32;
+    let mut missing_fat = base.clone();
+    missing_fat[0x4c..0x50].copy_from_slice(&missing_sector.to_le_bytes());
+    let mut missing_chain = base;
+    let fat = u32::from_le_bytes(missing_chain[0x4c..0x50].try_into().unwrap()) as usize;
+    let directory = u32::from_le_bytes(missing_chain[0x30..0x34].try_into().unwrap()) as usize;
+    let entry = (fat + 1) * 512 + directory * 4;
+    missing_chain[entry..entry+4].copy_from_slice(&missing_sector.to_le_bytes());
+    vec![("repair-missing-fat.xls", missing_fat), ("repair-missing-chain.xls", missing_chain)]
+}
+
+fn ole_property_section(items: &[(u32, Vec<u8>)]) -> Vec<u8> {
+    let mut result = vec![0u8; 8 + items.len() * 8];
+    result[4..8].copy_from_slice(&(items.len() as u32).to_le_bytes());
+    for (i, (id, data)) in items.iter().enumerate() {
+        while result.len() % 4 != 0 { result.push(0); }
+        let offset = result.len() as u32;
+        result[8+i*8..12+i*8].copy_from_slice(&id.to_le_bytes());
+        result[12+i*8..16+i*8].copy_from_slice(&offset.to_le_bytes());
+        result.extend(data);
+    }
+    while result.len() % 4 != 0 { result.push(0); }
+    let len = result.len() as u32; result[..4].copy_from_slice(&len.to_le_bytes());
+    result
+}
+
+fn custom_property_fixture(unaligned_page: bool) -> Vec<u8> {
+    let mut page = 2u32.to_le_bytes().to_vec(); page.extend(u16s(&[1252, 0]));
+    let document = ole_property_section(&[(1, page.clone())]);
+    let mut dictionary = 1u32.to_le_bytes().to_vec(); dictionary.extend(2u32.to_le_bytes());
+    dictionary.extend(7u32.to_le_bytes()); dictionary.extend(b"cxBlob\0");
+    let mut value = if unaligned_page { 3u32.to_le_bytes().to_vec() } else { 0x41u32.to_le_bytes().to_vec() };
+    if unaligned_page { value.extend(42i32.to_le_bytes()); }
+    else { value.extend(4u32.to_le_bytes()); value.extend([0, 1, 2, 255]); }
+    let mut user = ole_property_section(&[(0, dictionary), (1, page), (2, value)]);
+    if unaligned_page {
+        let at = u32::from_le_bytes(user[20..24].try_into().unwrap()) as usize;
+        let next = u32::from_le_bytes(user[28..32].try_into().unwrap()) as usize;
+        user.splice(at..at, [0, 0]);
+        user.splice(next+2..next+2, [0, 0]);
+        user[20..24].copy_from_slice(&((at + 2) as u32).to_le_bytes());
+        user[28..32].copy_from_slice(&((next + 4) as u32).to_le_bytes());
+        let size = user.len() as u32; user[..4].copy_from_slice(&size.to_le_bytes());
+    }
+    let mut stream = vec![0u8; 68]; stream[..2].copy_from_slice(&0xfffeu16.to_le_bytes());
+    stream[24..28].copy_from_slice(&2u32.to_le_bytes());
+    stream[28..44].copy_from_slice(&[0x02, 0xd5, 0xcd, 0xd5, 0x9c, 0x2e, 0x1b, 0x10,
+        0x93, 0x97, 0x08, 0x00, 0x2b, 0x2c, 0xf9, 0xae]);
+    stream[44..48].copy_from_slice(&68u32.to_le_bytes());
+    stream[48..64].copy_from_slice(&[0x05, 0xd5, 0xcd, 0xd5, 0x9c, 0x2e, 0x1b, 0x10,
+        0x93, 0x97, 0x08, 0x00, 0x2b, 0x2c, 0xf9, 0xae]);
+    stream[64..68].copy_from_slice(&(68u32 + document.len() as u32).to_le_bytes());
+    stream.extend(document); stream.extend(user);
+    let workbook = workbook_stream(false, &[], &[Sheet::worksheet("Data", number(0, 0, 42.0))]);
+    compound(&[("Workbook", workbook), ("\u{5}DocumentSummaryInformation", stream)])
+}
+
+fn east_asian_property_fixture(page: u16, text: &[u8]) -> Vec<u8> {
+    let mut cp = 2u32.to_le_bytes().to_vec(); cp.extend(u16s(&[page, 0]));
+    let mut value = 30u32.to_le_bytes().to_vec(); value.extend(((text.len() + 1) as u32).to_le_bytes());
+    value.extend(text); value.push(0);
+    let mut stream = vec![0u8; 48]; stream[..2].copy_from_slice(&0xfffeu16.to_le_bytes());
+    stream[24..28].copy_from_slice(&1u32.to_le_bytes());
+    stream[28..44].copy_from_slice(&[0x02, 0xd5, 0xcd, 0xd5, 0x9c, 0x2e, 0x1b, 0x10,
+        0x93, 0x97, 0x08, 0x00, 0x2b, 0x2c, 0xf9, 0xae]);
+    stream[44..48].copy_from_slice(&48u32.to_le_bytes());
+    stream.extend(ole_property_section(&[(1, cp), (15, value)]));
+    let workbook = workbook_stream(false, &[], &[Sheet::worksheet("Data", number(0, 0, 42.0))]);
+    compound(&[("Workbook", workbook), ("\u{5}DocumentSummaryInformation", stream)])
+}
+
 fn ignored_error_feature() -> Vec<u8> {
     let mut header = vec![0x67, 0x08]; header.extend([0u8; 10]);
     header.extend(u16s(&[3])); header.push(1); header.extend(0u32.to_le_bytes());
@@ -59,6 +138,7 @@ fn write_legacy_excel_session_inputs() {
     let Some(dir) = std::env::var_os("DNACALC_XLS_SESSION_INPUTS") else { return };
     let dir = std::path::PathBuf::from(dir);
     std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("linked-picture.png"), include_bytes!("fixtures/drawing/pictures/card.png")).unwrap();
     let mut cells = record(0x0099, &u16s(&[2340]));
     cells.extend(colinfo(1, 2, 3072, 0x000A));
     let mut row_with_flags = row(0, 255, 0);
@@ -96,6 +176,15 @@ fn write_legacy_excel_session_inputs() {
     let biff8_gcw_cells = [record(0x0055, &u16s(&[8])), colinfo(0, 1, 3072, 0x0002),
         record(0x0099, &u16s(&[2340])), record(0x00AB, &biff8_gcw), number(0, 0, 1.0)].concat();
     std::fs::write(dir.join("gcw-biff8.xls"), xls(false, &[], &[Sheet::worksheet("Data", biff8_gcw_cells)])).unwrap();
+    std::fs::write(dir.join("drawing-obj-continuation.xls"), obj_continuation_fixture(false)).unwrap();
+    std::fs::write(dir.join("drawing-txo-continuation.xls"), txo_continuation_fixture(false)).unwrap();
+    std::fs::write(dir.join("drawing-text-anchor-conflict.xls"), text_anchor_conflict_fixture()).unwrap();
+    std::fs::write(dir.join("drawing-rich-text.xls"), rich_drawing_fixture("Arial", false, true, 2, 0x7fff, false, 400, 0, 0)).unwrap();
+    std::fs::write(dir.join("drawing-rich-underline.xls"), rich_drawing_fixture("Arial", false, true, 2, 0x7fff, false, 400, 0, 1)).unwrap();
+    std::fs::write(dir.join("drawing-uniform-underline.xls"), uniform_text_box_fixture(&u16s(&[0, 0, 0, 0, 6, 0, 0, 0]), 240, 10, 1)).unwrap();
+    std::fs::write(dir.join("drawing-rich-faces.xls"), rich_drawing_fixture("Courier", false, true, 2, 0x7fff, false, 400, 0, 0)).unwrap();
+    std::fs::write(dir.join("emf-checksum-valid.xls"), emf_checksum_fixture(false)).unwrap();
+    std::fs::write(dir.join("emf-checksum-invalid.xls"), emf_checksum_fixture(true)).unwrap();
     std::fs::write(dir.join("forms.xls"), include_bytes!("fixtures/dc_4j0e/FormsWorkbook.xls")).unwrap();
     let repair_cases = [
         ("repair-slash.xls", "Bad/Name"),
@@ -127,7 +216,17 @@ fn write_legacy_excel_session_inputs() {
             formula(0, 1, num_value(0.0), &tokens, &[])].concat();
         std::fs::write(dir.join(file), xls(false, &sst(&[("Sales", &[])], None), &[Sheet::worksheet("Data", cells)])).unwrap();
     }
-    for name in ["cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "forms"] {
+    std::fs::write(dir.join("repair-addin-cell.xls"), addin_cell_reference_fixture()).unwrap();
+    std::fs::write(dir.join("custom-blob.xls"), custom_property_fixture(false)).unwrap();
+    std::fs::write(dir.join("custom-unaligned-page.xls"), custom_property_fixture(true)).unwrap();
+    for (page, text) in [(936u16, &b"\xd6\xd0"[..]), (949, &b"\xb0\xa1"[..]), (950, &b"\xa4\xa4"[..])] {
+        std::fs::write(dir.join(format!("company-cp{page}.xls")), east_asian_property_fixture(page, text)).unwrap();
+    }
+    for (file, bytes) in damaged_compound_fixtures() { std::fs::write(dir.join(file), bytes).unwrap(); }
+    let short_format = record(0x041e, &[0xa4, 0x00, 0x02, 0x00, 0x00, b'x']);
+    std::fs::write(dir.join("repair-short-format.xls"),
+        xls(false, &short_format, &[Sheet::worksheet("Data", number(0, 0, 42.0))])).unwrap();
+    for name in ["cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "drawing-rich-underline", "drawing-uniform-underline", "emf-checksum-valid", "emf-checksum-invalid", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
         let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
         let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
         let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
@@ -136,10 +235,11 @@ fn write_legacy_excel_session_inputs() {
         std::fs::write(dir.join(format!("{name}.dnacalc.xlsx")), converted).unwrap();
     }
     let cases = serde_json::json!({
-        "files": ["cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "forms.xls"],
+        "files": ["cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "drawing-uniform-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
         "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls",
             "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls",
-            "repair-elf-column.xls", "repair-elf-radical.xls"],
+            "repair-elf-column.xls", "repair-elf-radical.xls", "repair-addin-cell.xls",
+            "repair-missing-fat.xls", "repair-missing-chain.xls", "repair-short-format.xls"],
         "create_pivot": true,
         "formulas": [
             ["rows_full_column", "=ROWS(A:A)"], ["columns_full_row", "=COLUMNS(1:1)"],
@@ -461,10 +561,389 @@ fn a_chart_sheet_and_a_macro_sheet_keep_their_kind_and_a_module_sheet_is_not_a_s
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_sheet_preserves_series_in_a_linked_chart_part() {
+    use ptg::*;
+    use xls_kit::art;
+    let globals = [supbook_self(2), extern_sheet(&[(0, 0, 0)])].concat();
+    let chart = art::chart(&[("Sales", area3d(0, (1, 4), (0, 0), 0),
+        area3d(0, (1, 4), (1, 1), 0))], 0, "Sales chart");
+    let header = |text: &str| {
+        let mut body = (text.len() as u16).to_le_bytes().to_vec(); body.push(0); body.extend(text.as_bytes());
+        record(0x0014, &body)
+    };
+    let records = [header("&CChart & page"), record(0x023E, &u16s(&[0x0200, 0, 0, 0, 0])),
+        record(0x01AA, &[]), header("custom only"), record(0x023E, &[0; 10]), record(0x01AB, &[]),
+        chart[bof(0x0020).len()..chart.len()-eof().len()].to_vec()].concat();
+    let mut three_d_records = records.clone();
+    three_d_records.extend(record(0x103A, &[0; 14]));
+    let mut duplicate_windows = records.clone();
+    duplicate_windows.extend(record(0x023E, &[0; 10]));
+    let bytes = xls(false, &globals, &[Sheet::worksheet("Data", number(1, 1, 7.5)),
+        Sheet { kind: 2, ..Sheet::worksheet("Chart1", records) }]);
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let verify = |doc: &calc_doc::OpenedDocument| {
+        let chart = String::from_utf8(doc.package().read_part("xl/charts/chart2_1.xml").unwrap()).unwrap();
+        assert!(chart.contains("Data!$B$2:$B$5") && chart.contains("Sales chart"), "{chart}");
+        let sheet = String::from_utf8(doc.package().read_part("xl/chartsheets/sheet2.xml").unwrap()).unwrap();
+        assert!(sheet.contains("<drawing r:id=\"rId1\"/>"), "{sheet}");
+        assert!(sheet.contains("tabSelected=\"1\""), "{sheet}");
+        assert!(sheet.contains("<oddHeader>&amp;CChart &amp; page</oddHeader>") && !sheet.contains("custom only"), "{sheet}");
+        assert!(doc.package().part("xl/drawings/drawing2.xml").is_some());
+        assert!(doc.package().part("xl/drawings/_rels/drawing2.xml.rels").is_some());
+    };
+    verify(&document);
+    let mut ids = IdAllocator::<SheetId>::new();
+    assert_eq!(calc_doc::load(&document, &mut ids).unwrap().sheets()[1].preserved_kind(), Some("chart sheet"));
+    let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+    let mut saved = Vec::new();
+    calc_doc::write(plan, &mut saved).unwrap();
+    verify(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert_eq!(report.unknown_records.get(&0x1003), Some(&1));
+    assert_eq!(report.unknown_records.get(&0x0014), Some(&1));
+    assert_eq!(report.unknown_records.get(&0x023E), Some(&1));
+    let duplicate = xls(false, &globals, &[Sheet::worksheet("Data", Vec::new()),
+        Sheet { kind: 2, ..Sheet::worksheet("Chart1", duplicate_windows) }]);
+    let duplicate_doc = calc_doc::open(source(&duplicate), &OpenPolicy::default()).unwrap();
+    let duplicate_sheet = String::from_utf8(duplicate_doc.package().read_part("xl/chartsheets/sheet2.xml").unwrap()).unwrap();
+    assert!(!duplicate_sheet.contains("tabSelected=\"1\""), "{duplicate_sheet}");
+    assert_eq!(legacy_workbook_report(source(&duplicate), &OpenPolicy::default()).unwrap().unwrap().unknown_records.get(&0x023E), Some(&3));
+    let three_d = xls(false, &globals, &[Sheet::worksheet("Data", Vec::new()),
+        Sheet { kind: 2, ..Sheet::worksheet("Chart1", three_d_records) }]);
+    let three_d_doc = calc_doc::open(source(&three_d), &OpenPolicy::default()).unwrap();
+    assert!(three_d_doc.package().part("xl/charts/chart2_1.xml").is_none());
+    let sheet = String::from_utf8(three_d_doc.package().read_part("xl/chartsheets/sheet2.xml").unwrap()).unwrap();
+    assert!(sheet.contains("<oddHeader>&amp;CChart &amp; page</oddHeader>"), "{sheet}");
+    assert!(sheet.contains("tabSelected=\"1\""), "{sheet}");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_sheet_preserves_complete_unambiguous_print_margins() {
+    let mut setup = vec![0; 34];
+    setup[16..24].copy_from_slice(&0.4_f64.to_le_bytes());
+    setup[24..32].copy_from_slice(&0.6_f64.to_le_bytes());
+    let margins = [(0x26, 0.7_f64), (0x27, 0.8), (0x28, 0.9), (0x29, 1.1)]
+        .into_iter().flat_map(|(id, value)| record(id, &value.to_le_bytes())).collect::<Vec<_>>();
+    let records = [margins.clone(), record(0xa1, &setup)].concat();
+    let make = |records| xls(false, &[], &[Sheet { kind: 2, ..Sheet::worksheet("Chart", records) }]);
+    let bytes = make(records.clone());
+    let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let verify = |doc: &calc_doc::OpenedDocument| {
+        let sheet = String::from_utf8(doc.package().read_part("xl/chartsheets/sheet1.xml").unwrap()).unwrap();
+        assert!(sheet.contains("<pageMargins left=\"0.7\" right=\"0.8\" top=\"0.9\" bottom=\"1.1\" header=\"0.4\" footer=\"0.6\"/>"), "{sheet}");
+    };
+    verify(&doc);
+    let plan = calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+    let mut saved = Vec::new();
+    calc_doc::write(plan, &mut saved).unwrap();
+    verify(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert_eq!(report.unknown_records.get(&0x26), None);
+    assert_eq!(report.unknown_records.get(&0xa1), Some(&1));
+    let ambiguous = make([records, record(0x26, &0.1_f64.to_le_bytes())].concat());
+    let doc = calc_doc::open(source(&ambiguous), &OpenPolicy::default()).unwrap();
+    let sheet = doc.package().read_part("xl/chartsheets/sheet1.xml").unwrap();
+    assert!(!sheet.windows(12).any(|w| w == b"<pageMargins"));
+    assert_eq!(legacy_workbook_report(source(&ambiguous), &OpenPolicy::default()).unwrap().unwrap().unknown_records.get(&0x26), Some(&2));
+    setup[16..24].copy_from_slice(&49.0_f64.to_le_bytes());
+    let invalid = make([margins, record(0xa1, &setup)].concat());
+    let doc = calc_doc::open(source(&invalid), &OpenPolicy::default()).unwrap();
+    let sheet = doc.package().read_part("xl/chartsheets/sheet1.xml").unwrap();
+    assert!(!sheet.windows(12).any(|w| w == b"<pageMargins"));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_sheet_preserves_representable_print_setup() {
+    let make = |flags| {
+        let mut setup = u16s(&[9, 100, 3, 1, 1, flags, 300, 600]);
+        setup.extend(0.5_f64.to_le_bytes()); setup.extend(0.5_f64.to_le_bytes());
+        setup.extend(2u16.to_le_bytes());
+        xls(false, &[], &[Sheet { kind: 2, ..Sheet::worksheet("Chart", record(0xa1, &setup)) }])
+    };
+    let bytes = make(0x00da); // portrait, monochrome, draft and explicit first page
+    let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let verify = |doc: &calc_doc::OpenedDocument| {
+        let sheet = String::from_utf8(doc.package().read_part("xl/chartsheets/sheet1.xml").unwrap()).unwrap();
+        for expected in ["paperSize=\"9\"", "orientation=\"portrait\"", "horizontalDpi=\"300\"",
+            "verticalDpi=\"600\"", "copies=\"2\"", "blackAndWhite=\"1\"", "draft=\"1\"",
+            "firstPageNumber=\"3\"", "useFirstPageNumber=\"1\""] {
+            assert!(sheet.contains(expected), "{expected}: {sheet}");
+        }
+    };
+    verify(&doc);
+    let mut saved = Vec::new();
+    calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+    verify(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+    assert_eq!(legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap().unknown_records.get(&0xa1), Some(&1));
+    let undefined = make(4);
+    let doc = calc_doc::open(source(&undefined), &OpenPolicy::default()).unwrap();
+    let sheet = String::from_utf8(doc.package().read_part("xl/chartsheets/sheet1.xml").unwrap()).unwrap();
+    assert!(sheet.contains("usePrinterDefaults=\"1\""), "{sheet}");
+    for absent in ["paperSize=", "orientation=", "horizontalDpi=", "verticalDpi=", "copies="] {
+        assert!(!sheet.contains(absent), "{sheet}");
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn scenarios_survive_conversion_as_unsupported_metadata() {
+    let full = |text: &str| {
+        let mut bytes = (text.len() as u16).to_le_bytes().to_vec(); bytes.push(0); bytes.extend(text.as_bytes()); bytes
+    };
+    let mut manager = u16s(&[1, 0, 0xffff, 1, 4, 4, 3, 3]);
+    let mut scenario = u16s(&[2]);
+    scenario.extend([1, 0, 4, 4, 3]); // locked, visible, name/comment/user lengths
+    scenario.extend([0, b'P', b'l', b'a', b'n']);
+    scenario.extend(full("Ann")); scenario.extend(full("note"));
+    scenario.extend(u16s(&[0, 0, 2, 1]));
+    scenario.extend(full("12")); scenario.extend(full("_x0041_")); scenario.extend([0, 0, 0, 0]);
+    let make = |m: &[u8], s: &[u8]| xls(false, &[], &[Sheet::worksheet("S",
+        [record(0x00AE, m), record(0x00AF, s), number(0, 0, 1.0)].concat())]);
+    let bytes = make(&manager, &scenario);
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let check = |doc: &calc_doc::OpenedDocument| {
+        let xml = String::from_utf8(doc.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+        for expected in ["<scenarios current=\"0\" sqref=\"D5\">", "<scenario name=\"Plan\" locked=\"1\" count=\"2\" user=\"Ann\" comment=\"note\">",
+            "<inputCells r=\"A1\" val=\"12\"/>", "<inputCells r=\"B3\" val=\"_x005F_x0041_\"/>"] {
+            assert!(xml.contains(expected), "{expected} in {xml}");
+        }
+    };
+    check(&document);
+    let _loaded = load(&bytes);
+    let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+    let mut saved = Vec::new(); calc_doc::write(plan, &mut saved).unwrap();
+    check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert_eq!(report.unknown_records.get(&0x00AE), Some(&1));
+    assert_eq!(report.unknown_records.get(&0x00AF), Some(&1));
+    // A mismatched manager and a deleted input do not yield a partial scenario.
+    manager[..2].copy_from_slice(&2u16.to_le_bytes());
+    let bad = calc_doc::open(source(&make(&manager, &scenario)), &OpenPolicy::default()).unwrap();
+    assert!(!String::from_utf8(bad.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap().contains("<scenarios"));
+    manager[..2].copy_from_slice(&1u16.to_le_bytes());
+    let reference = scenario.windows(8).position(|w| w == u16s(&[0, 0, 2, 1])).unwrap();
+    scenario[reference+2..reference+4].copy_from_slice(&0x4000u16.to_le_bytes());
+    let bad = calc_doc::open(source(&make(&manager, &scenario)), &OpenPolicy::default()).unwrap();
+    assert!(!String::from_utf8(bad.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap().contains("<scenarios"));
+    // BIFF5 strings are byte-counted and use the workbook code page.
+    let mut legacy = u16s(&[1]); legacy.extend([1, 0, 4, 0, 3]); legacy.extend(b"caf\xE9");
+    legacy.extend([3, b'A', b'n', b'n']); legacy.extend(u16s(&[0, 0]));
+    legacy.extend([1, b'7', 0, 0]);
+    let records = [record(0x00AE, &u16s(&[1, 0, 0xffff, 0])), record(0x00AF, &legacy)].concat();
+    let legacy = v5::xls(1252, &[], &[v5::Sheet::new("S", records)]);
+    let legacy_doc = calc_doc::open(source(&legacy), &OpenPolicy::default()).unwrap();
+    let xml = String::from_utf8(legacy_doc.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+    assert!(xml.contains("name=\"café\"") && xml.contains("<inputCells r=\"A1\" val=\"7\"/>"), "{xml}");
+    let _loaded = load(&legacy);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn biff5_chart_sheet_preserves_decodable_series_and_title() {
+    use xls_kit::{art, v5};
+    let value = v5::cell3d(1, 0, 0, 0);
+    let mut chart = art::chart(&[("Sales", Vec::new(), value)], 0, "Title");
+    for (old, replacement) in [("Sales", b"Sales".as_slice()), ("Title", b"caf\xE9".as_slice())] {
+        let original = art::series_text(old);
+        let mut body = u16s(&[0]); body.push(replacement.len() as u8); body.extend(replacement);
+        let new = record(0x100D, &body);
+        let at = chart.windows(original.len()).position(|part| part == original).unwrap();
+        chart.splice(at..at + original.len(), new);
+    }
+    let original = art::series();
+    let at = chart.windows(original.len()).position(|part| part == original).unwrap();
+    chart.splice(at..at + original.len(), record(0x1003, &u16s(&[1, 1, 4, 4])));
+    let records = [v5::extern_own(b"Data"), chart[bof(0x0020).len()..chart.len()-eof().len()].to_vec()].concat();
+    let mut book = v5::book(1252, &[], &[v5::Sheet::new("Data", number(0, 0, 7.5)), v5::Sheet::new("Chart1", records)]);
+    let mut at = 0;
+    let mut sheets = 0;
+    while at + 4 <= book.len() {
+        let id = u16::from_le_bytes([book[at], book[at + 1]]);
+        let len = usize::from(u16::from_le_bytes([book[at + 2], book[at + 3]]));
+        if id == 0x0085 {
+            sheets += 1;
+            if sheets == 2 {
+                let offset = u32::from_le_bytes(book[at + 4..at + 8].try_into().unwrap()) as usize;
+                book[at + 9] = 2;
+                book[offset + 6..offset + 8].copy_from_slice(&0x0020u16.to_le_bytes());
+                break;
+            }
+        }
+        at += 4 + len;
+    }
+    assert_eq!(sheets, 2);
+    let bytes = compound(&[("Book", book)]);
+    let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let xml = String::from_utf8(doc.package().read_part("xl/charts/chart2_1.xml").unwrap()).unwrap();
+    assert!(xml.contains("Data!A1") && xml.contains("café"), "{xml}");
+    let plan = calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+    let mut saved = Vec::new(); calc_doc::write(plan, &mut saved).unwrap();
+    assert!(calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap().package().part("xl/charts/chart2_1.xml").is_some());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn the_source_bytes_are_kept() {
     let bytes = xls(false, &[], &[Sheet::worksheet("S", Vec::new())]);
     let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
     assert_eq!(document.legacy_source(), Some(&bytes[..]));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn damaged_compound_and_format_fixtures_report_their_missing_data() {
+    for ((_, bytes), reason) in damaged_compound_fixtures().into_iter().zip([
+        "a FAT sector lies outside the file", "a sector chain leaves the file",
+    ]) {
+        match calc_doc::open(source(&bytes), &OpenPolicy::default()) {
+            Err(OpenError::LegacyWorkbook { detail, .. }) => assert!(detail.contains(reason), "{detail}"),
+            other => panic!("expected {reason}, got {:?}", other.err()),
+        }
+    }
+    let short_format = record(0x041e, &[0xa4, 0x00, 0x02, 0x00, 0x00, b'x']);
+    let bytes = xls(false, &short_format, &[Sheet::worksheet("Data", number(0, 0, 42.0))]);
+    match calc_doc::open(source(&bytes), &OpenPolicy::default()) {
+        Err(OpenError::LegacyWorkbook { detail, .. }) => assert!(detail.contains("record ends inside"), "{detail}"),
+        other => panic!("expected a short format refusal, got {:?}", other.err()),
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn custom_blob_fixture_is_counted_as_unread() {
+    let bytes = custom_property_fixture(false);
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    assert!(document.package().part("docProps/custom.xml").is_none());
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert_eq!(report.unread_custom_property_types.get(&0x41), Some(&1));
+    assert_eq!(report.unread_custom_property_sets, 0);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ole_summary_properties_survive_conversion_and_save() {
+    let mut properties = Vec::<(u32, Vec<u8>)>::new();
+    properties.push((1, [2u32.to_le_bytes().as_slice(), 1252u16.to_le_bytes().as_slice(), &[0, 0]].concat()));
+    let ansi = |text: &[u8]| {
+        let mut v = 30u32.to_le_bytes().to_vec(); v.extend(((text.len() + 1) as u32).to_le_bytes());
+        v.extend(text); v.push(0); v
+    };
+    properties.push((2, ansi(b"A & B _x0041_\rC")));
+    properties.push((3, ansi(b"bad\x01subject")));
+    properties.push((4, ansi(b"caf\xE9")));
+    let mut unicode = 31u32.to_le_bytes().to_vec(); unicode.extend(3u32.to_le_bytes());
+    unicode.extend(u16s(&[0x6771, 0x4eac, 0]));
+    properties.push((8, unicode));
+    let mut created = 0x40u32.to_le_bytes().to_vec();
+    created.extend(116_444_736_000_000_000u64.to_le_bytes());
+    properties.push((12, created));
+    properties.push((18, ansi(b"Excel")));
+    let section = ole_property_section;
+    let mut summary = vec![0u8; 48];
+    summary[..2].copy_from_slice(&0xfffeu16.to_le_bytes());
+    summary[24..28].copy_from_slice(&1u32.to_le_bytes());
+    summary[28..44].copy_from_slice(&[0xe0, 0x85, 0x9f, 0xf2, 0xf9, 0x4f, 0x68, 0x10,
+        0xab, 0x91, 0x08, 0x00, 0x2b, 0x27, 0xb3, 0xd9]);
+    summary[44..48].copy_from_slice(&48u32.to_le_bytes()); summary.extend(section(&properties));
+    let mut doc_section = section(&[(1, properties[0].1.clone()), (2, ansi(b"Planning")),
+        (12, vec![0; 8]), (14, ansi(b"Manager")), (15, ansi(b"Company & Co"))]);
+    // A malformed, unrelated property offset must not hide aligned properties.
+    let unrelated_offset = u32::from_le_bytes(doc_section[28..32].try_into().unwrap());
+    doc_section[28..32].copy_from_slice(&(unrelated_offset + 1).to_le_bytes());
+    let mut doc_summary = vec![0u8; 68];
+    doc_summary[..2].copy_from_slice(&0xfffeu16.to_le_bytes());
+    doc_summary[24..28].copy_from_slice(&2u32.to_le_bytes());
+    doc_summary[28..44].copy_from_slice(&[0x02, 0xd5, 0xcd, 0xd5, 0x9c, 0x2e, 0x1b, 0x10,
+        0x93, 0x97, 0x08, 0x00, 0x2b, 0x2c, 0xf9, 0xae]);
+    doc_summary[44..48].copy_from_slice(&68u32.to_le_bytes());
+    doc_summary[48..64].copy_from_slice(&[0x05, 0xd5, 0xcd, 0xd5, 0x9c, 0x2e, 0x1b, 0x10,
+        0x93, 0x97, 0x08, 0x00, 0x2b, 0x2c, 0xf9, 0xae]);
+    doc_summary[64..68].copy_from_slice(&(68u32 + doc_section.len() as u32).to_le_bytes());
+    let mut dictionary = 4u32.to_le_bytes().to_vec();
+    for (id, name) in [(2u32, "Note & Name"), (3, "Count"), (4, "Approved"), (5, "Opaque")] {
+        dictionary.extend(id.to_le_bytes()); dictionary.extend(((name.len() + 1) as u32).to_le_bytes());
+        dictionary.extend(name.as_bytes()); dictionary.push(0);
+    }
+    let mut integer = 3u32.to_le_bytes().to_vec(); integer.extend((-42i32).to_le_bytes());
+    let mut boolean = 11u32.to_le_bytes().to_vec(); boolean.extend(u16s(&[0xffff, 0]));
+    let mut blob = 0x41u32.to_le_bytes().to_vec(); blob.extend(2u32.to_le_bytes()); blob.extend([1, 2]);
+    let custom_section = section(&[(0, dictionary), (1, properties[0].1.clone()), (2, ansi(b"Value & data")),
+        (3, integer), (4, boolean), (5, blob)]);
+    doc_summary.extend(doc_section); doc_summary.extend(custom_section);
+    let workbook = workbook_stream(false, &[], &[Sheet::worksheet("S", number(0, 0, 1.0))]);
+    let bytes = compound(&[("Workbook", workbook.clone()), ("\u{5}SummaryInformation", summary.clone()),
+        ("\u{5}DocumentSummaryInformation", doc_summary.clone())]);
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let check = |doc: &calc_doc::OpenedDocument| {
+        let xml = String::from_utf8(doc.package().read_part("docProps/core.xml").unwrap()).unwrap();
+        for part in ["<dc:title>A &amp; B _x0041_&#xD;C</dc:title>", "<dc:creator>café</dc:creator>",
+            "<cp:lastModifiedBy>東京</cp:lastModifiedBy>",
+            "<cp:category>Planning</cp:category>",
+            "<dcterms:created xsi:type=\"dcterms:W3CDTF\">1970-01-01T00:00:00Z</dcterms:created>"] { assert!(xml.contains(part), "{xml}"); }
+        assert!(!xml.contains("dc:subject"), "{xml}");
+        let rels = doc.package().relationships_of(None).unwrap();
+        assert!(rels.items().iter().any(|rel| rel.resolved.as_deref() == Some("docProps/core.xml")));
+        let app = String::from_utf8(doc.package().read_part("docProps/app.xml").unwrap()).unwrap();
+        for part in ["<Application>Excel</Application>", "<Manager>Manager</Manager>",
+            "<Company>Company &amp; Co</Company>"] { assert!(app.contains(part), "{app}"); }
+        assert!(rels.items().iter().any(|rel| rel.resolved.as_deref() == Some("docProps/app.xml")));
+        let custom = String::from_utf8(doc.package().read_part("docProps/custom.xml").unwrap()).unwrap();
+        for part in ["name=\"Note &amp; Name\"", "<vt:lpwstr>Value &amp; data</vt:lpwstr>",
+            "<vt:i4>-42</vt:i4>", "<vt:bool>true</vt:bool>"] { assert!(custom.contains(part), "{custom}"); }
+        assert!(!custom.contains("Opaque"));
+        assert!(rels.items().iter().any(|rel| rel.resolved.as_deref() == Some("docProps/custom.xml")));
+    };
+    check(&document);
+    // An unaligned offset for the property itself is still refused independently.
+    let mut bad_company = doc_summary.clone();
+    let company_offset = u32::from_le_bytes(bad_company[112..116].try_into().unwrap());
+    bad_company[112..116].copy_from_slice(&(company_offset + 1).to_le_bytes());
+    let bad_company = compound(&[("Workbook", workbook.clone()), ("\u{5}DocumentSummaryInformation", bad_company)]);
+    let bad_company = calc_doc::open(source(&bad_company), &OpenPolicy::default()).unwrap();
+    let app = String::from_utf8(bad_company.package().read_part("docProps/app.xml").unwrap()).unwrap();
+    assert!(app.contains("<Manager>Manager</Manager>") && !app.contains("<Company>"), "{app}");
+    for (page, encoded, expected) in [(936u16, &b"\xd6\xd0"[..], "中"), (949, &b"\xb0\xa1"[..], "가"),
+        (950, &b"\xa4\xa4"[..], "中")] {
+        let mut cp = 2u32.to_le_bytes().to_vec(); cp.extend(u16s(&[page, 0]));
+        let mut d = doc_summary[..48].to_vec(); d[24..28].copy_from_slice(&1u32.to_le_bytes());
+        d[44..48].copy_from_slice(&48u32.to_le_bytes());
+        d.extend(section(&[(1, cp), (15, ansi(encoded))]));
+        let input = compound(&[("Workbook", workbook.clone()), ("\u{5}DocumentSummaryInformation", d)]);
+        let opened = calc_doc::open(source(&input), &OpenPolicy::default()).unwrap();
+        let app = String::from_utf8(opened.package().read_part("docProps/app.xml").unwrap()).unwrap();
+        assert!(app.contains(&format!("<Company>{expected}</Company>")), "{app}");
+    }
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert_eq!(report.unread_custom_property_types.get(&0x41), Some(&1));
+    assert_eq!(report.unread_custom_property_sets, 0);
+    let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+    let mut saved = Vec::new(); calc_doc::write(plan, &mut saved).unwrap();
+    check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+    let user_offset = u32::from_le_bytes(doc_summary[64..68].try_into().unwrap()) as usize;
+    let mut unicode_doc = doc_summary[..user_offset].to_vec();
+    let mut unicode_dictionary = 1u32.to_le_bytes().to_vec();
+    unicode_dictionary.extend(2u32.to_le_bytes()); unicode_dictionary.extend(3u32.to_le_bytes());
+    unicode_dictionary.extend(u16s(&[0x540d, 0x00e9, 0])); unicode_dictionary.extend([0, 0]);
+    let mut unicode_page = 2u32.to_le_bytes().to_vec(); unicode_page.extend(u16s(&[1200, 0]));
+    let mut unicode_value = 31u32.to_le_bytes().to_vec(); unicode_value.extend(3u32.to_le_bytes());
+    unicode_value.extend(u16s(&[0x6771, 0x4eac, 0]));
+    unicode_doc.extend(section(&[(0, unicode_dictionary), (1, unicode_page), (2, unicode_value)]));
+    let unicode_bytes = compound(&[("Workbook", workbook.clone()), ("\u{5}DocumentSummaryInformation", unicode_doc)]);
+    let unicode_open = calc_doc::open(source(&unicode_bytes), &OpenPolicy::default()).unwrap();
+    let unicode_custom = String::from_utf8(unicode_open.package().read_part("docProps/custom.xml").unwrap()).unwrap();
+    assert!(unicode_custom.contains("name=\"名é\"") && unicode_custom.contains("<vt:lpwstr>東京</vt:lpwstr>"), "{unicode_custom}");
+    let mut invalid_doc = doc_summary;
+    let name_at = invalid_doc.windows(8).position(|part| part == b"Approved").unwrap();
+    invalid_doc[name_at] = 1;
+    let invalid_custom = compound(&[("Workbook", workbook.clone()), ("\u{5}DocumentSummaryInformation", invalid_doc)]);
+    assert!(calc_doc::open(source(&invalid_custom), &OpenPolicy::default()).unwrap().package().part("docProps/custom.xml").is_none());
+    assert_eq!(legacy_workbook_report(source(&invalid_custom), &OpenPolicy::default()).unwrap().unwrap().unread_custom_property_sets, 1);
+    // Duplicate property identifiers are ambiguous: keep opening the workbook, but do not guess.
+    summary[48+16..48+20].copy_from_slice(&1u32.to_le_bytes());
+    let bad = compound(&[("Workbook", workbook), ("\u{5}SummaryInformation", summary)]);
+    assert!(calc_doc::open(source(&bad), &OpenPolicy::default()).unwrap().package().part("docProps/core.xml").is_none());
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -675,6 +1154,7 @@ fn row_border_and_phonetic_flags_survive_conversion_and_save() {
     let mut saved = Vec::new();
     calc_doc::write(plan, &mut saved).unwrap();
     check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -1100,6 +1580,15 @@ fn names_3d_external_references_and_add_in_functions() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn addin_cell_reference_remains_an_explicit_refusal() {
+    match calc_doc::open(source(&addin_cell_reference_fixture()), &OpenPolicy::default()) {
+        Err(OpenError::LegacyWorkbook { detail, .. }) => assert!(detail.contains("3-D reference into an add-in"), "{detail}"),
+        _ => panic!("the add-in cell reference was not refused"),
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn biff8_external_cache_survives_open_and_save_as_cached_input() {
     let bytes = external_cache_fixture(false);
     let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
@@ -1419,6 +1908,54 @@ fn merges_hyperlinks_panes_protection_and_page_setup() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn setup_ignores_undefined_printer_values_and_respects_no_orientation() {
+    for (flags, expected) in [(0, Some("landscape")), (2, Some("portrait")),
+        (0x40, Some("portrait")), (0x44, None)] {
+        let mut setup = u16s(&[9, 80, 1, 1, 1, flags]);
+        setup.extend([0u8; 4]);
+        setup.extend(0.25_f64.to_le_bytes());
+        setup.extend(0.25_f64.to_le_bytes());
+        setup.extend(1u16.to_le_bytes());
+        let bytes = xls(false, &[], &[Sheet::worksheet("S", record(0xa1, &setup))]);
+        let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        assert_eq!(legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap().unknown_records.get(&0xa1), Some(&1));
+        let sheet = String::from_utf8(doc.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+        if let Some(value) = expected {
+            assert!(sheet.contains(&format!("orientation=\"{value}\"")), "{sheet}");
+            assert!(sheet.contains("paperSize=\"9\" scale=\"80\""), "{sheet}");
+        } else {
+            assert!(!sheet.contains("orientation=") && !sheet.contains("paperSize=") && !sheet.contains("scale="), "{sheet}");
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn setup_retains_resolution_copies_comment_and_error_print_modes() {
+    for (flags, comments, errors, printer) in [(0x0420, "asDisplayed", "blank", true),
+        (0x0a20, "atEnd", "dash", true), (0x0c24, "asDisplayed", "NA", false)] {
+        let mut setup = u16s(&[9, 100, 1, 1, 1, flags, 300, 600]);
+        setup.extend(0.25_f64.to_le_bytes()); setup.extend(0.25_f64.to_le_bytes());
+        setup.extend(3u16.to_le_bytes());
+        let bytes = xls(false, &[], &[Sheet::worksheet("S", record(0xa1, &setup))]);
+        let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let check = |doc: &calc_doc::OpenedDocument| {
+            let sheet = String::from_utf8(doc.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+            assert!(sheet.contains(&format!("cellComments=\"{comments}\"")), "{sheet}");
+            assert!(sheet.contains(&format!("errors=\"{errors}\"")), "{sheet}");
+            for attr in ["horizontalDpi=\"300\"", "verticalDpi=\"600\"", "copies=\"3\""] {
+                assert_eq!(sheet.contains(attr), printer, "{sheet}");
+            }
+        };
+        check(&doc);
+        let mut saved = Vec::new();
+        calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+        check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn file_moniker_keeps_unicode_path_and_location() {
     let records = [hlink_file((0, 0), "book.xls", None, "Sheet1!A1"),
         hlink_file((1, 0), "book.xls", Some("資料.xls"), "Sheet2!B2")].concat();
@@ -1471,6 +2008,329 @@ fn comments_are_read_from_note_obj_and_txo_records() {
     assert_eq!(notes.len(), 2, "{notes:?}");
     assert!(notes[0].contains("Hello there") && notes[0].contains("Ann"), "{}", notes[0]);
     assert!(notes[1].contains("Second") && notes[1].contains("Bob"), "{}", notes[1]);
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert_eq!(report.unknown_records.get(&0x005D), Some(&2));
+    assert_eq!(report.unknown_records.get(&0x01B6), Some(&2));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn note_txo_format_runs_are_preserved_when_complete() {
+    for (last, expected) in [(6u16, true), (5, false)] {
+        let mut body = u16s(&[0x0212, 0, 0, 0, 0, 6, 24]); body.extend([0u8; 4]);
+        let runs = u16s(&[0, 0, 0, 0, 3, 1, 0, 0, last, 0, 0, 0]);
+        let records = [obj_note(1), record(0x01b6, &body), record(0x003c, b"\0ABCDEF"),
+            record(0x003c, &runs[..10]), record(0x003c, &runs[10..]), note(0, 0, 0, 1, "Ann")].concat();
+        let globals = [font(200, 0, 0x7fff, 400, "Arial"), font(200, 0, 0x7fff, 700, "Arial")].concat();
+        let bytes = xls(false, &globals, &[Sheet::worksheet("S", records)]);
+        let check = |bytes: &[u8]| {
+            let loaded = load(bytes);
+            let notes = &loaded.sheets()[0].review().notes;
+            assert_eq!(notes[0].text, "ABCDEF");
+            assert_eq!(!notes[0].spans.is_empty(), expected, "{:?}", notes[0].spans);
+            if expected { assert!(notes[0].spans.iter().any(|span| span.start == 3 && span.end == 6 && span.style.bold)); }
+        };
+        check(&bytes);
+        if expected {
+            let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            check(&saved);
+        }
+    }
+}
+
+fn uniform_text_box_fixture(runs: &[u8], height: u16, colour: u16, underline: u8) -> Vec<u8> {
+    use xls_kit::art;
+    let mut body = u16s(&[0x0212, 0, 0, 0, 0, 6, runs.len() as u16]); body.extend([0u8; 4]);
+    let records = [art::drawing(&[art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], true)]),
+        art::obj(6, 1), record(0x01b6, &body), record(0x003c, b"\0ABCDEF"), record(0x003c, runs)].concat();
+    let mut first = font(height, 2, colour, 700, "Arial");
+    first[14] = underline;
+    let globals = [first, font(200, 0, 0x7fff, 400, "Arial")].concat();
+    xls(false, &globals, &[Sheet::worksheet("S", records)])
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn uniform_text_box_font_is_loaded_and_saved() {
+    for (runs, height, colour, underline, expected) in [
+        (u16s(&[0, 0, 0, 0, 6, 0, 0, 0]), 240, 10, 0, true),
+        (u16s(&[0, 0, 0, 0, 6, 0, 0, 0]), 240, 10, 1, true),
+        (u16s(&[0, 0, 0, 0, 6, 0, 0, 0]), 240, 10, 2, true),
+        (u16s(&[0, 0, 0, 0, 3, 1, 0, 0, 6, 0, 0, 0]), 240, 10, 0, true),
+        (u16s(&[0, 4, 0, 0, 6, 0, 0, 0]), 240, 10, 0, false),
+        (u16s(&[0, 0, 0, 0, 5, 0, 0, 0]), 240, 10, 0, false),
+        (u16s(&[0, 0, 0, 0, 6, 0, 0, 0]), 0, 10, 0, false),
+        (u16s(&[0, 0, 0, 0, 6, 0, 0, 0]), 240, 64, 0, false),
+    ] {
+        let bytes = uniform_text_box_fixture(&runs, height, colour, underline);
+        let check = |bytes: &[u8]| {
+            let loaded = load(bytes);
+            let shape = &loaded.sheets()[0].shapes().shapes[0];
+            assert_eq!(shape.body.size, expected.then_some(1200));
+            assert_eq!(shape.body.face.as_deref(), expected.then_some("Arial"));
+            assert_eq!(shape.body.bold, expected);
+            assert_eq!(shape.body.italic, expected);
+            assert_eq!(shape.body.underline, expected && underline == 1);
+            assert_eq!(shape.body.colour, expected.then_some(calc_doc::model::ShapeColour::Rgb(0xff0000)));
+            assert_eq!(shape.text.as_ref().unwrap()[0], "ABCDEF");
+            if runs.len() == 24 { assert_eq!(shape.body.runs[0].len(), 2); }
+        };
+        check(&bytes);
+        if expected {
+            let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            check(&saved);
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn text_box_alignment_is_loaded_and_saved() {
+    use xls_kit::art;
+    for (horizontal, vertical, rotation, expected) in [
+        (1u16, 1u16, 0u16, Some(("l", "t"))),
+        (2, 2, 0, Some(("ctr", "ctr"))),
+        (3, 3, 0, Some(("r", "b"))),
+        (4, 1, 0, Some(("just", "t"))),
+        (0x2004, 1, 0, None), // justify the last line is not represented by the shape model
+        (7, 1, 0, None),
+        (1, 1, 2, None),
+    ] {
+        let mut text = txo("ABC");
+        text[4..6].copy_from_slice(&(0x0200 | horizontal << 1 | vertical << 4).to_le_bytes());
+        text[6..8].copy_from_slice(&rotation.to_le_bytes());
+        let records = [art::drawing(&[art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], true)]), art::obj(6, 1), text].concat();
+        let bytes = xls(false, &[], &[Sheet::worksheet("S", records)]);
+        let check = |bytes: &[u8]| {
+            let loaded = load(bytes);
+            let body = &loaded.sheets()[0].shapes().shapes[0].body;
+            assert_eq!(body.alignment.first().and_then(|v| v.as_deref()), expected.map(|v| v.0));
+            assert_eq!(body.anchor.as_deref(), expected.map(|v| v.1));
+        };
+        check(&bytes);
+        if expected.is_some() {
+            let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            check(&saved);
+        }
+    }
+    let bytes = text_anchor_conflict_fixture();
+    let loaded = load(&bytes); let body = &loaded.sheets()[0].shapes().shapes[0].body;
+    assert_eq!(body.anchor, None);
+    assert!(body.alignment.iter().all(Option::is_none));
+}
+
+fn text_anchor_conflict_fixture() -> Vec<u8> {
+    use xls_kit::art;
+    let mut shape = art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], true);
+    let mut prop = 0x0087u16.to_le_bytes().to_vec(); prop.extend(1u32.to_le_bytes());
+    shape.splice(8..8, art::atom(3, 1, 0xf00b, &prop));
+    let length = (shape.len() - 8) as u32; shape[4..8].copy_from_slice(&length.to_le_bytes());
+    xls(false, &[], &[Sheet::worksheet("S", [art::drawing(&[shape]), art::obj(6, 1), txo("ABC")].concat())])
+}
+
+fn invalid_utf16_font() -> Vec<u8> {
+    let mut body = u16s(&[240, 2, 10, 700, 0]);
+    body.extend([0, 0, 0, 0, 1, 1, 0, 0xd8]);
+    record(0x0031, &body)
+}
+
+fn rich_drawing_fixture(second_face: &str, missing_font: bool, multiline: bool, second_flags: u16, second_colour: u16, same_style: bool, second_weight: u16, second_charset: u8, second_underline: u8) -> Vec<u8> {
+    use xls_kit::art;
+    let mut body = u16s(&[0x0212, 0, 0, 0, 0, 6, 24]); body.extend([0u8; 4]);
+    let runs = u16s(&[0, 0, 0, 0, 3, if missing_font { 5 } else { 1 }, 0, 0, 6, 0, 0, 0]);
+    let records = [art::drawing(&[art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], true)]), art::obj(6, 1),
+        record(0x01b6, &body), record(0x003c, if multiline { b"\0AB\rCDE" } else { b"\0AB CDE" }), record(0x003c, &runs)].concat();
+    let mut second = if second_face == "<invalid>" { invalid_utf16_font() } else {
+        font(if same_style { 200 } else { 240 }, second_flags, second_colour, second_weight, second_face)
+    };
+    second[14] = second_underline;
+    second[16] = second_charset;
+    let globals = [font(200, 0, 10, 700, "Arial"), second].concat();
+    xls(false, &globals, &[Sheet::worksheet("S", records)])
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn legacy_drawing_rich_runs_reach_the_model_and_survive_save() {
+    for (face, missing_font, flags, colour, same_style, weight, charset, underline, expected) in [("Arial", false, 2, 0x7fff, false, 400, 0, 0, true),
+        ("Courier", false, 2, 0x7fff, false, 400, 0, 0, true), ("+Theme", false, 2, 0x7fff, false, 400, 0, 0, false), ("Arial", true, 2, 0x7fff, false, 400, 0, 0, false),
+        ("Arial", false, 10, 0x7fff, false, 400, 0, 0, false), ("Arial", false, 2, 64, false, 400, 0, 0, false),
+        ("Arial", false, 0, 10, true, 700, 0, 0, false), ("Courier", false, 0, 10, true, 700, 0, 0, true),
+        ("Arial", false, 2, 0x7fff, false, 600, 0, 0, false), ("Courier", false, 2, 0x7fff, false, 400, 162, 0, false),
+        ("Arial", false, 2, 0x7fff, false, 400, 0, 1, true), ("Arial", false, 2, 0x7fff, false, 400, 0, 2, false),
+        ("<invalid>", false, 2, 0x7fff, false, 400, 0, 0, false)] {
+        let bytes = rich_drawing_fixture(face, missing_font, false, flags, colour, same_style, weight, charset, underline);
+        let check = |bytes: &[u8]| {
+            let loaded = load(bytes); let shape = &loaded.sheets()[0].shapes().shapes[0];
+            assert_eq!(shape.text.as_deref(), Some(&["AB CDE".to_owned()][..]));
+            assert_eq!(shape.body.rich_runs_for(shape.text.as_ref().unwrap()).is_some(), expected);
+            if expected {
+                assert_eq!(shape.body.runs[0].len(), 2);
+                assert_eq!(shape.body.runs[0][0].face.as_deref(), Some("Arial"));
+                assert_eq!(shape.body.runs[0][1].face.as_deref(), Some(face));
+                assert_eq!(shape.body.runs[0][1].underline, underline == 1);
+                assert_eq!((shape.body.runs[0][0].text.as_str(), shape.body.runs[0][0].size, shape.body.runs[0][0].bold), ("AB ", 1000, true));
+                assert_eq!((shape.body.runs[0][1].text.as_str(), shape.body.runs[0][1].size, shape.body.runs[0][1].italic),
+                    ("CDE", if same_style { 1000 } else { 1200 }, !same_style));
+            }
+        };
+        check(&bytes);
+        if expected {
+            let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            check(&saved);
+        }
+    }
+    let bytes = rich_drawing_fixture("Arial", false, true, 2, 0x7fff, false, 400, 0, 0);
+    let check = |bytes: &[u8]| {
+        let loaded = load(bytes); let shape = &loaded.sheets()[0].shapes().shapes[0];
+        assert_eq!(shape.text.as_deref(), Some(&["AB".to_owned(), "CDE".to_owned()][..]));
+        let runs = shape.body.rich_runs_for(shape.text.as_ref().unwrap()).unwrap();
+        assert_eq!((runs[0][0].text.as_str(), runs[0][0].bold), ("AB", true));
+        assert_eq!((runs[1][0].text.as_str(), runs[1][0].italic), ("CDE", true));
+    };
+    check(&bytes);
+    let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let mut saved = Vec::new();
+    calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+    check(&saved);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn malformed_font_name_is_not_projected_as_a_typeface() {
+    use xls_kit::art;
+    let runs = u16s(&[0, 0, 0, 0, 3, 0, 0, 0]);
+    let mut body = u16s(&[0x0212, 0, 0, 0, 0, 3, runs.len() as u16]); body.extend([0u8; 4]);
+    let records = [art::drawing(&[art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], true)]), art::obj(6, 1),
+        record(0x01b6, &body), record(0x003c, b"\0ABC"), record(0x003c, &runs)].concat();
+    let loaded = load(&xls(false, &invalid_utf16_font(), &[Sheet::worksheet("S", records)]));
+    let shape = &loaded.sheets()[0].shapes().shapes[0];
+    assert_eq!(shape.body.size, Some(1200));
+    assert_eq!(shape.body.face, None);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn explicit_text_box_insets_are_loaded_and_saved() {
+    use xls_kit::art;
+    for (properties, expected) in [
+        (vec![(0x81u16, 100u32), (0x82, 200), (0x83, 300), (0x84, 400), (0xbf, 0x0008_0000)], true),
+        (vec![(0x81, 100)], false),
+        (vec![(0x81, 100), (0x81, 100)], false),
+        (vec![(0x81, 100), (0xbf, 0x0008_0008)], false),
+        (vec![(0x81, 0x0132_f541)], false),
+        (vec![(0x81, 100), (0x88, 1)], false),
+    ] {
+        let mut shape = art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], true);
+        let mut bytes = Vec::new();
+        for (id, value) in &properties { bytes.extend(id.to_le_bytes()); bytes.extend(value.to_le_bytes()); }
+        shape.splice(8..8, art::atom(3, properties.len() as u16, 0xf00b, &bytes));
+        let length = (shape.len() - 8) as u32; shape[4..8].copy_from_slice(&length.to_le_bytes());
+        let bytes = xls(false, &[], &[Sheet::worksheet("S", [art::drawing(&[shape]), art::obj(6, 1), txo("ABC")].concat())]);
+        let check = |bytes: &[u8]| {
+            let loaded = load(bytes); let body = &loaded.sheets()[0].shapes().shapes[0].body;
+            assert_eq!((body.left_inset, body.top_inset, body.right_inset, body.bottom_inset),
+                if expected { (Some(100), Some(200), Some(300), Some(400)) } else { (None, None, None, None) });
+        };
+        check(&bytes);
+        if expected {
+            let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            check(&saved);
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn explicit_text_box_wrap_is_loaded_and_saved() {
+    use xls_kit::art;
+    for (values, expected) in [(&[0u32][..], Some("square")), (&[1][..], Some("square")),
+        (&[2][..], Some("none")), (&[3][..], None), (&[2, 2][..], None)] {
+        let mut shape = art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], true);
+        let mut props = Vec::new();
+        for value in values { props.extend(0x0085u16.to_le_bytes()); props.extend(value.to_le_bytes()); }
+        shape.splice(8..8, art::atom(3, values.len() as u16, 0xf00b, &props));
+        let length = (shape.len() - 8) as u32; shape[4..8].copy_from_slice(&length.to_le_bytes());
+        let bytes = xls(false, &[], &[Sheet::worksheet("S", [art::drawing(&[shape]), art::obj(6, 1), txo("ABC")].concat())]);
+        let check = |bytes: &[u8]| {
+            let loaded = load(bytes);
+            assert_eq!(loaded.sheets()[0].shapes().shapes[0].body.wrap.as_deref(), expected);
+        };
+        check(&bytes);
+        if expected.is_some() {
+            let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            check(&saved);
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn continued_txo_text_is_read_for_notes_and_text_boxes() {
+    use xls_kit::art;
+    let mut body = u16s(&[0x0212, 0, 0, 0, 0, 3, 16]);
+    body.extend([0u8; 4]);
+    let text = [record(0x01B6, &body), record(0x003C, &[0, b'A']),
+        record(0x003C, &[1, 0xe9, 0, 0x22, 0x6f]), record(0x003C, &[0; 16])].concat();
+    let records = [obj_note(1), text.clone(), note(0, 0, 0, 1, "Ann"),
+        art::drawing(&[art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], false)]),
+        art::obj(6, 2), record(0x00EC, &[0, 0, 0x0d, 0xf0, 0, 0, 0, 0]), text].concat();
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", records)]);
+    let loaded = load(&bytes);
+    let notes = format!("{:?}", loaded.sheets()[0].review().notes);
+    assert!(notes.contains("Aé漢"), "{notes}");
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let drawing = String::from_utf8(document.package().read_part("xl/drawings/drawing1.xml").unwrap()).unwrap();
+    assert!(drawing.contains("Aé漢"), "{drawing}");
+    let unrelated = [art::drawing(&[art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], false)]),
+        art::obj(6, 2), number(0, 0, 1.0), record(0x00EC, &[0, 0, 0x0d, 0xf0, 0, 0, 0, 0]),
+        record(0x01B6, &body), record(0x003C, &[0, b'A']),
+        record(0x003C, &[1, 0xe9, 0, 0x22, 0x6f]), record(0x003C, &[0; 16])].concat();
+    let unrelated = xls(false, &[], &[Sheet::worksheet("S", unrelated)]);
+    let document = calc_doc::open(source(&unrelated), &OpenPolicy::default()).unwrap();
+    let drawing = String::from_utf8(document.package().read_part("xl/drawings/drawing1.xml").unwrap()).unwrap();
+    assert!(!drawing.contains("Aé漢"), "{drawing}");
+    body[10] = 4;
+    let truncated = [obj_note(1), record(0x01B6, &body), record(0x003C, &[0, b'A']),
+        record(0x003C, &[1, 0xe9, 0, 0x22, 0x6f]), record(0x003C, &[0; 16]),
+        note(0, 0, 0, 1, "Ann")].concat();
+    let invalid = xls(false, &[], &[Sheet::worksheet("S", truncated)]);
+    assert!(calc_doc::open(source(&invalid), &OpenPolicy::default()).is_err());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn oversized_compound_project_is_refused_instead_of_omitted() {
+    for size in [4096, 7_200_000] {
+        let workbook = workbook_stream(false, &[], &[Sheet::worksheet("S", number(0, 0, 1.0))]);
+        let mut bytes = compound(&[("Workbook", workbook), ("_VBA_PROJECT_CUR", Vec::new()),
+            ("payload", vec![0; size])]);
+        let directory_sector = u32::from_le_bytes(bytes[0x30..0x34].try_into().unwrap()) as usize;
+        let storage = (directory_sector + 1) * 512 + 2 * 128;
+        bytes[storage + 0x42] = 1;
+        bytes[storage + 0x48..storage + 0x4c].copy_from_slice(&u32::MAX.to_le_bytes());
+        bytes[storage + 0x4c..storage + 0x50].copy_from_slice(&3u32.to_le_bytes());
+        let result = calc_doc::open(source(&bytes), &OpenPolicy::default());
+        if size == 4096 {
+            let document = result.unwrap();
+            assert!(document.package().part("xl/vbaProject.bin").is_some());
+        } else {
+            let error = match result { Ok(_) => panic!("oversized storage was silently omitted"), Err(e) => e.to_string() };
+            assert!(error.contains("109 FAT-sector writer limit") && error.contains("dc-4j0e.1"), "{error}");
+        }
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -1747,6 +2607,9 @@ fn pictures_text_boxes_and_charts_are_written_as_a_drawing() {
     // The ellipse-less type 201 shape is not written, and says so.
     let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
     assert_eq!(report.unread_objects.values().sum::<u32>(), 0, "{:?}", report.unread_objects);
+    assert!(report.unknown_records.contains_key(&0x00EC));
+    assert_eq!(report.unknown_records.get(&0x00EB), Some(&1));
+    assert_eq!(report.unknown_records.get(&0x1017), Some(&1));
     // The workbook loads and has a chart and shapes.
     let loaded = load(&bytes);
     let sheet = &loaded.sheets()[0];
@@ -1757,6 +2620,546 @@ fn pictures_text_boxes_and_charts_are_written_as_a_drawing() {
     assert_eq!(charts.charts.len(), 1, "{charts:?}");
     assert_eq!(charts.charts[0].title.as_deref(), Some("Quarterly"));
     assert_eq!(charts.charts[0].plots.len(), 1);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn explicit_shape_no_fill_is_preserved() {
+    use xls_kit::art;
+    for (flags, expected) in [(&[0x0010_0000u32][..], true), (&[0x0010_0010][..], false),
+        (&[0][..], false), (&[0x0010_0000, 0x0010_0000][..], false)] {
+        let mut shape = art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], false);
+        let mut properties = Vec::new();
+        for flag in flags { properties.extend(0x01bfu16.to_le_bytes()); properties.extend(flag.to_le_bytes()); }
+        let props = art::atom(3, flags.len() as u16, 0xf00b, &properties);
+        shape.splice(8..8, props);
+        let length = (shape.len() - 8) as u32;
+        shape[4..8].copy_from_slice(&length.to_le_bytes());
+        let records = [art::drawing(&[shape]), art::obj(6, 1)].concat();
+        let bytes = xls(false, &[], &[Sheet::worksheet("S", records)]);
+        let loaded = load(&bytes);
+        assert_eq!(matches!(loaded.sheets()[0].shapes().shapes[0].fill, calc_doc::model::ShapeFill::None), expected);
+        if expected {
+            let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            assert!(matches!(load(&saved).sheets()[0].shapes().shapes[0].fill, calc_doc::model::ShapeFill::None));
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn officeart_presets_preserve_only_untransformed_geometry() {
+    use xls_kit::art;
+    for (shape_type, geometry) in [(109, "flowChartProcess"), (5, "triangle"),
+        (110, "flowChartDecision"), (120, "flowChartConnector"), (6, "rtTriangle"),
+        (127, "flowChartExtract")] {
+    for (flags, property, expected) in [
+        (0u32, None, true),
+        (0, Some((0x03bf, 0x0008_0000)), true),
+        (0, Some((4, 0x0001_0000)), false),
+        (0, Some((0x0145, 1)), false),
+        (0, Some((0x03bf, 0x0008_0008)), false),
+        (0x40, None, false),
+    ] {
+        let mut shape = art::shape(shape_type, 0, [1, 0, 1, 0, 4, 0, 6, 0], false);
+        shape[20..24].copy_from_slice(&flags.to_le_bytes());
+        if let Some((id, value)) = property {
+            let mut prop = (id as u16).to_le_bytes().to_vec();
+            prop.extend((value as u32).to_le_bytes());
+            shape.splice(8..8, art::atom(3, 1, 0xf00b, &prop));
+            let length = (shape.len() - 8) as u32;
+            shape[4..8].copy_from_slice(&length.to_le_bytes());
+        }
+        let bytes = xls(false, &[], &[Sheet::worksheet("S", [art::drawing(&[shape]), art::obj(0x1e, 1)].concat())]);
+        let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let drawing = doc.package().read_part("xl/drawings/drawing1.xml").unwrap_or_default();
+        assert_eq!(String::from_utf8(drawing).unwrap().contains(geometry), expected);
+        if expected {
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            assert_eq!(load(&saved).sheets()[0].shapes().shapes[0].geometry.as_deref(), Some(geometry));
+        }
+    }
+    }
+    // The legacy alternate-process preset has a different radius from DrawingML's.
+    let shape = art::shape(176, 0, [1, 0, 1, 0, 4, 0, 6, 0], false);
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", [art::drawing(&[shape]), art::obj(0x1e, 1)].concat())]);
+    assert!(load(&bytes).sheets()[0].shapes().shapes.is_empty());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn unambiguous_shape_flips_are_loaded_and_saved() {
+    use xls_kit::art;
+    for (flags, override_property, expected) in [
+        (0x0a40u32, false, (true, false)), (0x0a80, false, (false, true)),
+        (0x0ac0, false, (true, true)), (0x0a42, false, (false, false)),
+        (0x0a40, true, (false, false)),
+    ] {
+        let mut shape = art::shape(1, 0, [1, 0, 1, 0, 4, 0, 6, 0], false);
+        shape[20..24].copy_from_slice(&flags.to_le_bytes());
+        if override_property {
+            let mut prop = 0x033fu16.to_le_bytes().to_vec(); prop.extend(0u32.to_le_bytes());
+            shape.splice(8..8, art::atom(3, 1, 0xf00b, &prop));
+            let length = (shape.len() - 8) as u32; shape[4..8].copy_from_slice(&length.to_le_bytes());
+        }
+        let bytes = xls(false, &[], &[Sheet::worksheet("S", [art::drawing(&[shape]), art::obj(2, 1)].concat())]);
+        let check = |bytes: &[u8]| {
+            let loaded = load(bytes);
+            let shape = &loaded.sheets()[0].shapes().shapes[0];
+            assert_eq!((shape.flip_horizontal, shape.flip_vertical), expected);
+        };
+        check(&bytes);
+        let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let mut saved = Vec::new();
+        calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+        check(&saved);
+    }
+    let mut shape = art::shape(1, 0, [1, 0, 1, 0, 4, 0, 6, 0], false);
+    shape[20..24].copy_from_slice(&0x0a40u32.to_le_bytes());
+    shape.splice(8..8, art::atom(2, 1, 0xf00a, &[0; 4]));
+    let length = (shape.len() - 8) as u32; shape[4..8].copy_from_slice(&length.to_le_bytes());
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", [art::drawing(&[shape]), art::obj(2, 1)].concat())]);
+    assert!(!load(&bytes).sheets()[0].shapes().shapes[0].flip_horizontal);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn drawing_shape_in_obj_continuation_belongs_to_next_object() {
+    for (intervening, expected) in [(false, 2), (true, 1)] {
+        let bytes = obj_continuation_fixture(intervening);
+        let loaded = load(&bytes);
+        assert_eq!(loaded.sheets()[0].shapes().shapes.len(), expected);
+    }
+}
+
+fn obj_continuation_fixture(intervening: bool) -> Vec<u8> {
+    use xls_kit::art;
+    let first = art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], false);
+    let second = art::shape(3, 0, [5, 0, 1, 0, 8, 0, 6, 0], false);
+    let between = if intervening { number(0, 0, 1.0) } else { Vec::new() };
+    let records = [art::drawing(&[first]), art::obj(6, 1), record(0x003c, &second),
+        between, art::obj(3, 2)].concat();
+    xls(false, &[], &[Sheet::worksheet("S", records)])
+}
+
+fn emf_checksum_fixture(corrupt: bool) -> Vec<u8> {
+    use xls_kit::art;
+    let emf = include_bytes!("fixtures/drawing/pictures/withpng.emf");
+    let records = [art::drawing(&[art::shape(75, 1, [1, 0, 1, 0, 4, 0, 6, 0], false)]), art::obj(8, 1)].concat();
+    xls(false, &art::group_with_emf(emf, corrupt), &[Sheet::worksheet("S", records)])
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn emf_checksum_fixture_distinguishes_valid_and_damaged_images() {
+    for (corrupt, expected) in [(false, 0), (true, 1)] {
+        let bytes = emf_checksum_fixture(corrupt);
+        let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+        assert_eq!(report.unread_objects.get(&8).copied().unwrap_or(0), expected);
+        if !corrupt {
+            let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+            assert_eq!(document.package().read_part("xl/media/image1_1.emf").unwrap().as_slice(),
+                include_bytes!("fixtures/drawing/pictures/withpng.emf"));
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn drawing_shape_after_split_txo_does_not_become_text_or_formatting() {
+    for (intervening, expected) in [(false, 2), (true, 1)] {
+        let bytes = txo_continuation_fixture(intervening);
+        let loaded = load(&bytes);
+        assert_eq!(loaded.sheets()[0].shapes().shapes.len(), expected);
+        let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let drawing = String::from_utf8(document.package().read_part("xl/drawings/drawing1.xml").unwrap()).unwrap();
+        assert!(drawing.contains("Aé漢"), "{drawing}");
+    }
+}
+
+fn txo_continuation_fixture(intervening: bool) -> Vec<u8> {
+    use xls_kit::art;
+    let first = art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], true);
+    let second = art::shape(3, 0, [5, 0, 1, 0, 8, 0, 6, 0], false);
+    let mut body = u16s(&[0x0212, 0, 0, 0, 0, 3, 16]); body.extend([0u8; 4]);
+    let between = if intervening { number(0, 0, 1.0) } else { Vec::new() };
+    let records = [art::drawing(&[first]), art::obj(6, 1), record(0x01b6, &body),
+        record(0x003c, &[0, b'A']), record(0x003c, &[1, 0xe9, 0, 0x22, 0x6f]),
+        record(0x003c, &[0; 16]), record(0x003c, &second), between, art::obj(3, 2)].concat();
+    xls(false, &[], &[Sheet::worksheet("S", records)])
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_attached_title_binds_after_text_without_changing_series_name() {
+    use ptg::*;
+    use xls_kit::art;
+    for (linked, duplicate, expected) in [(false, 0, true), (true, 0, true), (false, 1, false), (false, 2, false)] {
+        let mut chart = art::chart(&[("Sales", Vec::new(), area3d(0, (1, 4), (1, 1), 0))], 0, "Quarterly");
+        if linked {
+            let literal = record(0x1051, &[0, 1, 0, 0, 0, 0, 0, 0]);
+            let at = chart.windows(literal.len()).position(|w| w == literal).unwrap();
+            chart.splice(at..at + literal.len(), art::ai(0, &area3d(0, (0, 0), (0, 0), 0)));
+        }
+        if duplicate == 1 {
+            let link = record(0x1027, &u16s(&[1, 0, 0, 0]));
+            let at = chart.windows(link.len()).position(|w| w == link).unwrap() + link.len();
+            chart.splice(at..at, link);
+        }
+        if duplicate == 2 {
+            let second = [record(0x1025, &[0u8; 32]), art::begin(), art::series_text("Other"),
+                record(0x1027, &u16s(&[1, 0, 0, 0])), art::end()].concat();
+            let legend = record(0x1015, &[0u8; 20]);
+            let at = chart.windows(legend.len()).position(|w| w == legend).unwrap();
+            chart.splice(at..at, second);
+        }
+        let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
+        let globals = [supbook_self(1), extern_sheet(&[(0, 0, 0)])].concat();
+        let bytes = xls(false, &globals, &[Sheet::worksheet("S", records)]);
+        let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let xml = String::from_utf8(doc.package().read_part("xl/charts/chart1_1.xml").unwrap()).unwrap();
+        assert_eq!(xml.contains("Quarterly"), expected, "{xml}");
+        assert!(xml.contains("Sales"), "{xml}");
+        assert_eq!(xml.matches("<c:f>S!$A$1").count(), usize::from(linked), "{xml}");
+        if expected {
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            let reopened = load(&saved);
+            assert_eq!(reopened.sheets()[0].charts().charts[0].title.as_deref(), Some("Quarterly"));
+            assert_eq!(reopened.sheets()[0].charts().charts[0].title_formula.is_some(), linked);
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_title_font_uses_one_based_globals_and_refuses_ambiguous_overrides() {
+    use ptg::*;
+    use xls_kit::art;
+    for linked in [false, true] {
+    for (index, override_record, expected) in [
+        (1u16, None, Some(("Arial", false, false))),
+        (4, None, Some(("Courier New", false, false))),
+        (5, None, Some(("Times New Roman", true, true))),
+        (0, None, None), (6, None, None),
+        (5, Some(0x1026), None), (5, Some(0x1050), None),
+        (5, Some(0x08A5), None), (5, Some(0x08A6), None), (5, Some(0xFFFE), None),
+    ] {
+        let mut chart = art::chart(&[("Sales", Vec::new(), area3d(0, (1, 4), (1, 1), 0))], 0, "Quarterly");
+        if linked {
+            let literal = record(0x1051, &[0, 1, 0, 0, 0, 0, 0, 0]);
+            let at = chart.windows(literal.len()).position(|w| w == literal).unwrap();
+            chart.splice(at..at + literal.len(), art::ai(0, &area3d(0, (0, 0), (0, 0), 0)));
+        }
+        if override_record == Some(0xFFFE) {
+            let text = record(0x1025, &[0u8; 32]);
+            let at = chart.windows(text.len()).position(|w| w == text).unwrap();
+            chart.splice(at..at + text.len(), record(0x1025, &[0u8; 2]));
+        }
+        let text = if override_record == Some(0xFFFE) { vec![0u8; 2] } else { vec![0u8; 32] };
+        let marker = [record(0x1025, &text), art::begin()].concat();
+        let at = chart.windows(marker.len()).position(|w| w == marker).unwrap() + marker.len();
+        let mut extra = record(0x1026, &u16s(&[index]));
+        if let Some(id) = override_record.filter(|&id| id != 0xFFFE) { extra.extend(record(id, &u16s(&[index]))); }
+        chart.splice(at..at, extra);
+        let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
+        let globals = [font(200, 0, 0x7FFF, 400, "Arial"), font(200, 0, 0x7FFF, 400, "Arial"),
+            font(200, 0, 0x7FFF, 400, "Arial"), font(200, 0, 0x7FFF, 400, "Courier New"),
+            font(240, 2, 0x7FFF, 700, "Times New Roman"), supbook_self(1), extern_sheet(&[(0, 0, 0)])].concat();
+        let bytes = xls(false, &globals, &[Sheet::worksheet("S", records)]);
+        let loaded = load(&bytes);
+        let chart = &loaded.sheets()[0].charts().charts[0];
+        let style = chart.element_text.get("title");
+        assert_eq!(style.map(|s| (s.family.as_deref().unwrap(), s.bold.unwrap(), s.italic.unwrap())), expected);
+        if expected.is_some() {
+            let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            let reopened = load(&saved);
+            assert_eq!(reopened.sheets()[0].charts().charts[0].element_text.get("title"), style);
+        }
+    }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_numeric_display_cache_survives_conversion() {
+    use ptg::*;
+    use xls_kit::art;
+    for invalid in [false, true] {
+        let mut chart = art::chart(&[("Sales", area3d(0, (1, 4), (0, 0), 0),
+            area3d(0, (1, 4), (1, 1), 0))], 0, "Title");
+        // Some Excel-produced files order the sections 2, 1, 3.
+        let mut data = record(0x1065, &u16s(&[2]));
+        data.extend(record(0x1065, &u16s(&[1])));
+        data.extend(number(0, 0, 7.5));
+        data.extend(record(0x0201, &u16s(&[1, 0, 0])));
+        data.extend(number(2, 0, 4.0));
+        if invalid { data.extend(number(2, 0, 9.0)); }
+        data.extend(record(0x1065, &u16s(&[3])));
+        chart.splice(chart.len() - 4..chart.len() - 4, data);
+        let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]),
+            art::obj(5, 1), chart].concat();
+        let globals = [supbook_self(1), extern_sheet(&[(0, 0, 0)])].concat();
+        let bytes = xls(false, &globals, &[Sheet::worksheet("S", records)]);
+        let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let xml = String::from_utf8(document.package().read_part("xl/charts/chart1_1.xml").unwrap()).unwrap();
+        assert_eq!(xml.contains("<c:numCache>"), !invalid, "{xml}");
+        if !invalid {
+            assert!(xml.contains("<c:ptCount val=\"4\"/>"), "{xml}");
+            let loaded = load(&bytes);
+            let cache = &loaded.sheets()[0].charts().charts[0].plots[0].series[0].values.as_ref().unwrap().cache;
+            assert_eq!(cache, &[Some("7.5".to_string()), None, Some("4".to_string())]);
+            let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+            let mut saved = Vec::new();
+            calc_doc::write(plan, &mut saved).unwrap();
+            let reopened = load(&saved);
+            assert_eq!(reopened.sheets()[0].charts().charts[0].plots[0].series[0].values.as_ref().unwrap().cache, *cache);
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_category_display_caches_survive_conversion() {
+    use ptg::*;
+    use xls_kit::art;
+    for (text, invalid) in [(false, false), (true, false), (true, true)] {
+        let mut chart = art::chart(&[("Sales", area3d(0, (1, 4), (0, 0), 0),
+            area3d(0, (1, 4), (1, 1), 0))], 0, "Title");
+        if text {
+            let series = record(0x1003, &u16s(&[1, 1, 4, 4, 0, 0]));
+            let at = chart.windows(series.len()).position(|part| part == series).unwrap();
+            chart[at + 4] = 3;
+        }
+        let mut data = record(0x1065, &u16s(&[2]));
+        if text {
+            let mut label = u16s(&[0, 0, 0, 3]); label.push(0); label.extend(b"one");
+            data.extend(record(0x0204, &label));
+            if invalid { data.extend(record(0x0204, &label)); }
+        } else { data.extend(number(0, 0, 7.5)); }
+        data.extend(record(0x0201, &u16s(&[1, 0, 0])));
+        data.extend(record(0x1065, &u16s(&[1])));
+        data.extend(record(0x1065, &u16s(&[3])));
+        chart.splice(chart.len() - 4..chart.len() - 4, data);
+        let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
+        let globals = [supbook_self(1), extern_sheet(&[(0, 0, 0)])].concat();
+        let bytes = xls(false, &globals, &[Sheet::worksheet("S", records)]);
+        let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let xml = String::from_utf8(doc.package().read_part("xl/charts/chart1_1.xml").unwrap()).unwrap();
+        assert_eq!(xml.contains(if text { "<c:strCache>" } else { "<c:numCache>" }), !invalid, "{xml}");
+        if !invalid {
+            let loaded = load(&bytes);
+            let categories = loaded.sheets()[0].charts().charts[0].plots[0].series[0].categories.as_ref().unwrap();
+            assert_eq!(categories.numeric, !text);
+            assert_eq!(categories.cache[0].as_deref(), Some(if text { "one" } else { "7.5" }));
+            let plan = calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+            let mut saved = Vec::new(); calc_doc::write(plan, &mut saved).unwrap();
+            let reopened = load(&saved);
+            assert_eq!(reopened.sheets()[0].charts().charts[0].plots[0].series[0].categories.as_ref().unwrap(), categories);
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_explicit_series_fill_uses_unambiguous_palette_color() {
+    use ptg::*;
+    use xls_kit::art;
+    for (point, flags, rgb, overridden, nested, custom_palette, expected) in [
+        (0xffff, 0, [255, 0, 0], false, false, false, Some("FF0000")),
+        (0xffff, 0, [0x12, 0x34, 0x56], false, false, true, Some("123456")),
+        (0, 0, [255, 0, 0], false, false, false, None),
+        (0xffff, 1, [255, 0, 0], false, false, false, None),
+        (0xffff, 0, [0, 0, 255], false, false, false, None),
+        (0xffff, 0, [255, 0, 0], true, false, false, None),
+        (0xffff, 0, [255, 0, 0], false, true, false, None),
+    ] {
+        let mut chart = art::chart(&[("Sales", Vec::new(), area3d(0, (1, 4), (1, 1), 0))], 0, "Title");
+        let anchor = record(0x1045, &u16s(&[0]));
+        let at = chart.windows(anchor.len()).position(|window| window == anchor).unwrap() + anchor.len();
+        let mut area = vec![rgb[0], rgb[1], rgb[2], 0, 255, 255, 255, 0];
+        area.extend(u16s(&[1, flags, 10, 9]));
+        let mut format = [record(0x1006, &u16s(&[point, 0, 0, 0])), art::begin()].concat();
+        if nested { format.extend(art::begin()); }
+        format.extend(record(0x100A, &area));
+        if nested { format.extend(art::end()); }
+        if overridden { format.extend(record(0x1066, &[])); }
+        format.extend(art::end()); chart.splice(at..at, format);
+        let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
+        let palette = if custom_palette {
+            let mut body = u16s(&[56]); body.extend([0u8; 56 * 4]);
+            body[10..14].copy_from_slice(&[0x12, 0x34, 0x56, 0]); record(0x0092, &body)
+        } else { Vec::new() };
+        let globals = [supbook_self(1), extern_sheet(&[(0, 0, 0)]), palette].concat();
+        let bytes = xls(false, &globals, &[Sheet::worksheet("S", records)]);
+        let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let xml = String::from_utf8(document.package().read_part("xl/charts/chart1_1.xml").unwrap()).unwrap();
+        let color = format!("{:02X}{:02X}{:02X}", rgb[0], rgb[1], rgb[2]);
+        assert_eq!(xml.contains(&format!("<a:srgbClr val=\"{color}\"/>")), expected.is_some(), "{xml}");
+        if let Some(expected) = expected {
+            let loaded = load(&bytes);
+            assert_eq!(loaded.sheets()[0].charts().charts[0].plots[0].series[0].fill.as_deref(), Some(expected));
+            let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+            let mut saved = Vec::new(); calc_doc::write(plan, &mut saved).unwrap();
+            let reopened = load(&saved);
+            assert_eq!(reopened.sheets()[0].charts().charts[0].plots[0].series[0].fill.as_deref(), Some(expected));
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_explicit_line_color_reaches_the_loaded_series() {
+    use ptg::*;
+    use xls_kit::art;
+    for (point, style, weight, flags, rgb, nested, overridden, expected) in [
+        (0xffff, 0, 0, 0, [255, 0, 0], false, false, true),
+        (0, 0, 0, 0, [255, 0, 0], false, false, false),
+        (0xffff, 1, 0, 0, [255, 0, 0], false, false, false),
+        (0xffff, 0, 1, 0, [255, 0, 0], false, false, false),
+        (0xffff, 0, 0, 1, [255, 0, 0], false, false, false),
+        (0xffff, 0, 0, 0, [0, 0, 255], false, false, false),
+        (0xffff, 0, 0, 0, [255, 0, 0], true, false, false),
+        (0xffff, 0, 0, 0, [255, 0, 0], false, true, false),
+    ] {
+        let mut chart = art::chart(&[("Sales", Vec::new(), area3d(0, (1, 4), (1, 1), 0))], 0, "Title");
+        let bar = record(0x1017, &u16s(&[0, 150, 0]));
+        let at = chart.windows(bar.len()).position(|window| window == bar).unwrap();
+        chart.splice(at..at + bar.len(), record(0x1018, &u16s(&[0])));
+        let anchor = record(0x1045, &u16s(&[0]));
+        let at = chart.windows(anchor.len()).position(|window| window == anchor).unwrap() + anchor.len();
+        let mut line = vec![rgb[0], rgb[1], rgb[2], 0]; line.extend(u16s(&[style, weight, flags, 10]));
+        let mut format = [record(0x1006, &u16s(&[point, 0, 0, 0])), art::begin()].concat();
+        if nested { format.extend(art::begin()); }
+        format.extend(record(0x1007, &line));
+        if nested { format.extend(art::end()); }
+        if overridden { format.extend(record(0x1066, &[])); }
+        format.extend(art::end()); chart.splice(at..at, format);
+        let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
+        let globals = [supbook_self(1), extern_sheet(&[(0, 0, 0)])].concat();
+        let bytes = xls(false, &globals, &[Sheet::worksheet("S", records)]);
+        let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let color = load(&bytes).sheets()[0].charts().charts[0].plots[0].series[0].fill.clone();
+        assert_eq!(color.as_deref(), expected.then_some("FF0000"));
+        if expected {
+            let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+            let mut saved = Vec::new(); calc_doc::write(plan, &mut saved).unwrap();
+            assert_eq!(load(&saved).sheets()[0].charts().charts[0].plots[0].series[0].fill.as_deref(), Some("FF0000"));
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_unambiguous_series_value_labels_survive_save() {
+    use ptg::*;
+    use xls_kit::art;
+    let duplicate_with_fill = [record(0x100C, &u16s(&[1])),
+        record(0x100A, &[255, 0, 0, 0, 255, 255, 255, 0, 1, 0, 0, 0, 10, 0, 9, 0])].concat();
+    for (group, point, flags, extra, expected, fill) in [(false, 0xffff, 1, Vec::new(), true, false),
+        (false, 0xffff, 2, Vec::new(), false, false), (false, 0, 1, Vec::new(), false, false),
+        (false, 0xffff, 1, record(0x086A, &[]), false, false), (true, 0, 1, Vec::new(), true, false),
+        (false, 0xffff, 1, duplicate_with_fill, false, true)] {
+        let mut chart = art::chart(&[("Sales", Vec::new(), area3d(0, (1, 4), (1, 1), 0))], 0, "Title");
+        let anchor = record(0x1045, &u16s(&[0]));
+        let at = if group {
+            let bar = record(0x1017, &u16s(&[0, 150, 0]));
+            chart.windows(bar.len()).position(|w| w == bar).unwrap()
+        } else { chart.windows(anchor.len()).position(|w| w == anchor).unwrap() + anchor.len() };
+        let data = [record(0x1006, &u16s(&[point, 0, if group { 0xfffd } else { 0 }, 0])), art::begin(),
+            record(0x100C, &u16s(&[flags])), extra, art::end()].concat();
+        chart.splice(at..at, data);
+        let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
+        let globals = [supbook_self(1), extern_sheet(&[(0, 0, 0)])].concat();
+        let bytes = xls(false, &globals, &[Sheet::worksheet("S", records)]);
+        let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let check = |doc: &calc_doc::OpenedDocument| {
+            let chart = String::from_utf8(doc.package().read_part("xl/charts/chart1_1.xml").unwrap()).unwrap();
+            assert_eq!(chart.contains("<c:dLbls><c:showVal val=\"1\"/></c:dLbls>"), expected, "{chart}");
+            if fill { assert!(chart.contains("<a:srgbClr val=\"FF0000\"/>"), "{chart}"); }
+        };
+        check(&doc);
+        if expected {
+            let _loaded = load(&bytes);
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn embedded_chart_print_text_is_preserved_when_unambiguous() {
+    use ptg::*;
+    use xls_kit::art;
+    let text = |id, value: &str| {
+        let mut b = (value.len() as u16).to_le_bytes().to_vec(); b.push(0); b.extend(value.as_bytes()); record(id, &b)
+    };
+    for (header, extra, expected) in [
+        ("&CChart", Vec::new(), true),
+        ("&CChart", record(0x089C, &[]), false),
+        ("&CChart", text(0x0014, "duplicate"), false),
+        ("&G", Vec::new(), false),
+    ] {
+        let mut chart = art::chart(&[("Sales", Vec::new(), area3d(0, (1, 4), (1, 1), 0))], 0, "Title");
+        let at = bof(0x0020).len();
+        chart.splice(at..at, [text(0x0014, header), text(0x0015, "&RPage &P"), extra].concat());
+        let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
+        let globals = [supbook_self(1), extern_sheet(&[(0, 0, 0)])].concat();
+        let bytes = xls(false, &globals, &[Sheet::worksheet("S", records)]);
+        let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let check = |doc: &calc_doc::OpenedDocument| {
+            let xml = String::from_utf8(doc.package().read_part("xl/charts/chart1_1.xml").unwrap()).unwrap();
+            assert_eq!(xml.contains("<c:oddHeader>&amp;CChart</c:oddHeader>"), expected, "{xml}");
+            assert_eq!(xml.contains("<c:oddFooter>&amp;RPage &amp;P</c:oddFooter>"), expected, "{xml}");
+        };
+        check(&document); let _loaded = load(&bytes);
+        if expected {
+            let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+            let mut saved = Vec::new(); calc_doc::write(plan, &mut saved).unwrap();
+            check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn embedded_chart_preserves_unambiguous_print_setup() {
+    use ptg::*;
+    use xls_kit::art;
+    for (flags, duplicate, custom, expected) in [(2, false, false, true), (4, false, false, false),
+        (2, true, false, false), (2, false, true, false)] {
+        let mut setup = u16s(&[9, 100, 3, 1, 1, flags, 300, 600]);
+        setup.extend(0.5_f64.to_le_bytes()); setup.extend(0.5_f64.to_le_bytes());
+        setup.extend(2u16.to_le_bytes());
+        let setup = record(0xa1, &setup);
+        let mut chart = art::chart(&[("Sales", Vec::new(), area3d(0, (1, 4), (1, 1), 0))], 0, "Title");
+        let mut records = setup.clone();
+        if duplicate { records.extend(setup); }
+        if custom { records.extend(record(0x01aa, &[])); records.extend(record(0x01ab, &[])); }
+        chart.splice(bof(0x0020).len()..bof(0x0020).len(), records);
+        let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
+        let globals = [supbook_self(1), extern_sheet(&[(0, 0, 0)])].concat();
+        let bytes = xls(false, &globals, &[Sheet::worksheet("S", records)]);
+        let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let check = |doc: &calc_doc::OpenedDocument| {
+            let xml = String::from_utf8(doc.package().read_part("xl/charts/chart1_1.xml").unwrap()).unwrap();
+            assert_eq!(xml.contains("<c:pageSetup paperSize=\"9\" orientation=\"portrait\""), expected, "{xml}");
+            assert!(!xml.contains("usePrinterDefaults="), "{xml}");
+        };
+        check(&doc);
+        if expected {
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+        }
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -1842,6 +3245,153 @@ fn chart_value_axis_retains_primary_linear_scale() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_axis_literal_titles_survive_conversion_and_save() {
+    use xls_kit::art;
+    let mut chart = art::chart(&[("Sales", Vec::new(), Vec::new())], 0, "Sales chart");
+    let legend = record(0x1015, &[0u8; 20]);
+    let at = chart.windows(legend.len()).position(|w| w == legend).unwrap();
+    let mut titles = Vec::new();
+    for (link, text) in [(2, "Revenue"), (3, "Region & area")] {
+        titles.extend([record(0x1025, &[0u8; 32]), art::begin(), art::series_text(text),
+            record(0x1027, &u16s(&[link, 0, 0, 0])), art::end()].concat());
+    }
+    chart.splice(at..at, titles);
+    let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", records)]);
+    let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let check = |book: &calc_doc::LoadedWorkbook| {
+        let axes = &book.sheets()[0].charts().charts[0].axes;
+        assert_eq!(axes[0].title.as_deref(), Some("Region & area"));
+        assert_eq!(axes[1].title.as_deref(), Some("Revenue"));
+    };
+    check(&load(&bytes));
+    let mut saved = Vec::new();
+    calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+    check(&load(&saved));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_axis_title_fonts_reject_overrides_and_duplicate_links() {
+    use xls_kit::art;
+    for (link, index, extra, expected) in [
+        (2u16, 1u16, 0u16, true), (3, 1, 0, true), (2, 0, 0, false), (2, 2, 0, false),
+        (2, 1, 0x1026, false), (2, 1, 0x1050, false), (2, 1, 0x08A5, false),
+        (2, 1, 0x08A6, false), (2, 1, 0xFFFF, false),
+    ] {
+        let mut chart = art::chart(&[("Sales", Vec::new(), Vec::new())], 0, "Sales chart");
+        let legend = record(0x1015, &[0u8; 20]);
+        let at = chart.windows(legend.len()).position(|w| w == legend).unwrap();
+        let mut text = [record(0x1025, &[0u8; 32]), art::begin(), record(0x1026, &u16s(&[index])),
+            art::series_text("Axis title"), record(0x1027, &u16s(&[link, 0, 0, 0]))].concat();
+        if extra != 0 && extra != 0xFFFF { text.extend(record(extra, &u16s(&[index]))); }
+        text.extend(art::end());
+        if extra == 0xFFFF { text.extend(text.clone()); }
+        chart.splice(at..at, text);
+        let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
+        let bytes = xls(false, &font(200, 2, 0x7FFF, 700, "Arial"), &[Sheet::worksheet("S", records)]);
+        let loaded = load(&bytes);
+        let chart = &loaded.sheets()[0].charts().charts[0];
+        let key = if link == 2 { "axis-title:222222222" } else { "axis-title:111111111" };
+        let style = chart.element_text.get(key);
+        assert_eq!(style.is_some(), expected, "link {link}, index {index}, extra {extra:#x}");
+        if let Some(style) = style {
+            assert_eq!((style.family.as_deref(), style.bold, style.italic), (Some("Arial"), Some(true), Some(true)));
+            let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            assert_eq!(load(&saved).sheets()[0].charts().charts[0].element_text.get(key), Some(style));
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_axis_font_is_scoped_to_unambiguous_primary_axes() {
+    use xls_kit::art;
+    for (parent, axis, index, extra, expected) in [
+        (0u16, 0u16, 1u16, 0u16, true), (0, 1, 1, 0, true),
+        (1, 0, 1, 0, false), (0, 0, 0, 0, false), (0, 0, 2, 0, false),
+        (0, 0, 1, 0x1026, false), (0, 0, 1, 0x1050, false), (0, 0, 1, 0x08A5, false), (0, 0, 1, 0x08A6, false),
+        (0, 0, 1, 0xFFFF, false), (0, 0, 1, 0xFFFE, false), (0, 0, 1, 0xFFFD, false),
+    ] {
+        let mut chart = art::chart(&[("A", Vec::new(), Vec::new())], 0, "Title");
+        let format = record(0x1014, &[0u8; 20]);
+        let at = chart.windows(format.len()).position(|w| w == format).unwrap();
+        let mut parent_body = u16s(&[parent]);
+        if extra != 0xFFFD { parent_body.extend([0u8; 16]); }
+        let mut axis_body = u16s(&[axis]);
+        if extra != 0xFFFE { axis_body.extend([0u8; 16]); }
+        let mut axis_block = [record(0x1041, &parent_body), art::begin(),
+            record(0x101D, &axis_body), art::begin(), record(0x1026, &u16s(&[index]))].concat();
+        if extra != 0 && extra < 0xFFFD { axis_block.extend(record(extra, &u16s(&[index]))); }
+        axis_block.extend(art::end());
+        if extra == 0xFFFF {
+            axis_block.extend([record(0x101D, &axis_body), art::begin(), record(0x1026, &u16s(&[index])), art::end()].concat());
+        }
+        axis_block.extend(art::end());
+        chart.splice(at..at, axis_block);
+        let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
+        let bytes = xls(false, &font(200, 2, 0x7FFF, 700, "Arial"), &[Sheet::worksheet("S", records)]);
+        let loaded = load(&bytes);
+        let chart = &loaded.sheets()[0].charts().charts[0];
+        let key = if axis == 0 { "axis:111111111" } else { "axis:222222222" };
+        let other = if axis == 0 { "axis:222222222" } else { "axis:111111111" };
+        let style = chart.element_text.get(key);
+        assert_eq!(style.is_some(), expected);
+        assert!(!chart.element_text.contains_key(other));
+        if let Some(style) = style {
+            assert_eq!((style.family.as_deref(), style.bold, style.italic), (Some("Arial"), Some(true), Some(true)));
+            let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            let reopened = load(&saved);
+            assert_eq!(reopened.sheets()[0].charts().charts[0].element_text.get(key), Some(style));
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_legend_font_refuses_ambiguous_scopes_and_overrides() {
+    use xls_kit::art;
+    for (index, extra, expected) in [
+        (1u16, 0u16, true), (0, 0, false), (2, 0, false),
+        (1, 0x1026, false), (1, 0x1050, false), (1, 0x08A5, false), (1, 0x08A6, false),
+        (1, 0xFFFC, false), (1, 0xFFFD, false), (1, 0xFFFE, false), (1, 0xFFFF, false),
+    ] {
+        let mut chart = art::chart(&[("A", Vec::new(), Vec::new())], 0, "Title");
+        let legend = record(0x1015, &[0u8; 20]);
+        let pos = chart.windows(legend.len()).position(|w| w == legend).unwrap();
+        if extra == 0xFFFE { chart.splice(pos..pos + legend.len(), record(0x1015, &[0u8; 2])); }
+        let header = if extra == 0xFFFE { record(0x1015, &[0u8; 2]) } else { legend };
+        let marker = [header, art::begin()].concat();
+        let at = chart.windows(marker.len()).position(|w| w == marker).unwrap() + marker.len();
+        let mut text = [record(0x1025, &[0u8; 32]), art::begin(), record(0x1026, &u16s(&[index]))].concat();
+        if extra != 0 && extra < 0xFFFC { text.extend(record(extra, &u16s(&[index]))); }
+        if extra == 0xFFFD { text.extend(record(0x1027, &u16s(&[1, 0, 0, 0]))); }
+        text.extend(art::end());
+        if extra == 0xFFFC { text.extend([record(0x1025, &[0u8; 32]), art::begin(), record(0x1026, &u16s(&[index])), art::end()].concat()); }
+        if extra == 0xFFFF { text.extend([record(0x1015, &[0u8; 20]), art::begin(), art::end()].concat()); }
+        chart.splice(at..at, text);
+        let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
+        let bytes = xls(false, &font(200, 2, 0x7FFF, 700, "Arial"), &[Sheet::worksheet("S", records)]);
+        let loaded = load(&bytes);
+        let style = loaded.sheets()[0].charts().charts[0].element_text.get("legend");
+        assert_eq!(style.is_some(), expected);
+        if let Some(style) = style {
+            assert_eq!((style.family.as_deref(), style.bold, style.italic), (Some("Arial"), Some(true), Some(true)));
+            let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            let reopened = load(&saved);
+            assert_eq!(reopened.sheets()[0].charts().charts[0].element_text.get("legend"), Some(style));
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn conditional_formats_validations_and_the_automatic_filter() {
     use ptg::*;
     use xls_kit::rules;
@@ -1864,8 +3414,11 @@ fn conditional_formats_validations_and_the_automatic_filter() {
     r.extend(rules::dv(0x0003 | 0x80 | 0x100 | 0x4_0000 | 0x8_0000, ["", "Oops", "", "Pick one"], &list, &[], (0, 4, 3, 3)));
     r.extend(rules::dv(0x0001 | 0x100 | 0x8_0000, ["", "", "", ""], &int(1), &int(10), (0, 4, 4, 4)));
     // The automatic filter over A1:C10 keeps rows where column B > 3.
+    r.extend(record(0x009B, &[]));
     r.extend(rules::autofilter_info(3));
     r.extend(rules::autofilter_greater_than(1, 3.0));
+    let mut duplicate_filter_mode = r.clone();
+    duplicate_filter_mode.extend(record(0x009B, &[]));
     let bytes = xls(false, &globals, &[Sheet::worksheet("S", r)]);
     let loaded = load(&bytes);
     let sheet = &loaded.sheets()[0];
@@ -1880,6 +3433,7 @@ fn conditional_formats_validations_and_the_automatic_filter() {
     let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
     let part = String::from_utf8(document.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
     for expected in [
+        "<sheetPr filterMode=\"1\">",
         "<autoFilter ref=\"A1:C10\"><filterColumn colId=\"1\"><customFilters><customFilter operator=\"greaterThan\" val=\"3\"/>",
         "<cfRule type=\"cellIs\" dxfId=\"0\" priority=\"1\" operator=\"greaterThan\"><formula>5</formula></cfRule>",
         "<cfRule type=\"expression\"",
@@ -1887,6 +3441,15 @@ fn conditional_formats_validations_and_the_automatic_filter() {
     ] {
         assert!(part.contains(expected), "{expected} in {part}");
     }
+    assert_eq!(legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap().unknown_records.get(&0x009B), Some(&1));
+    let duplicate = xls(false, &globals, &[Sheet::worksheet("S", duplicate_filter_mode)]);
+    let duplicate = calc_doc::open(source(&duplicate), &OpenPolicy::default()).unwrap();
+    let xml = String::from_utf8(duplicate.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+    assert!(!xml.contains("filterMode=\"1\""), "{xml}");
+    let missing = xls(false, &globals, &[Sheet::worksheet("S", record(0x009B, &[]))]);
+    let missing = calc_doc::open(source(&missing), &OpenPolicy::default()).unwrap();
+    let xml = String::from_utf8(missing.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+    assert!(!xml.contains("filterMode=\"1\""), "{xml}");
     // The rule's formatting is a differential format of the styles part: bold, and the solid fill.
     let loaded_styles = loaded.styles();
     assert_eq!(loaded_styles.differential_formats.len(), 2, "{:?}", loaded_styles.differential_formats);

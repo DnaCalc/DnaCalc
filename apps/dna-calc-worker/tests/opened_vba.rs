@@ -636,6 +636,40 @@ fn a_native_origin_is_not_inherited_by_the_next_page_open() {
     );
 }
 
+/// A file chosen through the page's own file input (or dropped on it) reaches the server as bytes
+/// with no path, so its origin is unknown: the page's Enable macros is refused (dc-2nn1).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn a_page_supplied_file_has_no_origin_and_enable_macros_is_refused() {
+    use dna_calc_worker::{server::Server, wire::Request};
+    let mut server = Server::new();
+    assert!(
+        server
+            .execute_current(
+                Request::Open {
+                    name: "upload.xlsm".into()
+                },
+                Some(LOCAL.to_vec())
+            )
+            .reply
+            .is_ok()
+    );
+    assert_eq!(
+        server.book().macros(),
+        &Macros::Blocked(calc_host_vba::MacroBlock::Unknown)
+    );
+    assert!(
+        server
+            .execute_current(Request::EnableMacros, None)
+            .reply
+            .is_err()
+    );
+    assert_eq!(
+        server.book().macros(),
+        &Macros::Blocked(calc_host_vba::MacroBlock::Unknown)
+    );
+}
+
 /// Native-only: exercises native panic unwinding through the request boundary.
 #[cfg(not(target_arch = "wasm32"))]
 #[test]

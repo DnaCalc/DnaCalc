@@ -45,7 +45,7 @@ pub use call::{
     ApplicationFacts, CalculationMode, CallAbandoned, CallableInvoker, CellFormatFacts, CellReader,
     ColumnWidth, EvalServices, FunctionCallScratch, FunctionFault, HorizontalAlignment, HostFacts,
     PivotLookup, PreparedArguments, RandomSource, ReferenceText, SubtotalExclusions, TextReference,
-    Unreadable, WeekState, WorkbookFacts, WorkbookFile, invoke, invoke_slice,
+    Unreadable, WeekState, WorkbookFacts, WorkbookFile, area_cells, invoke, invoke_slice,
 };
 pub use catalogue::{
     ArgumentDemand, ArgumentGroups, Availability, BindingForm, Catalogue, Deferral, EntryClass,
@@ -62,7 +62,7 @@ pub use fetch::{
     FetchRoute, REDIRECT_LIMIT, RawResponse, decode_body, fetch_following, resolve_location,
     wire_url,
 };
-pub use file_prefix::FilePrefix;
+pub use file_prefix::{FilePrefix, file_call_name};
 pub use import::{IMPORT_FUNCTIONS, IMPORT_PROVIDER, ImportFunction, ImportKind, ImportRoute};
 
 /// The order of two texts (UTF-16 code units) as Excel's comparison operators give it under the

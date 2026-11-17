@@ -22,6 +22,8 @@ P = '{http://schemas.openxmlformats.org/package/2006/relationships}'
 XDR = '{http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing}'
 A = '{http://schemas.openxmlformats.org/drawingml/2006/main}'
 C = '{http://schemas.openxmlformats.org/drawingml/2006/chart}'
+V = '{urn:schemas-microsoft-com:vml}'
+VX = '{urn:schemas-microsoft-com:office:excel}'
 
 
 def relationships(z, path):
@@ -31,6 +33,60 @@ def relationships(z, path):
         return {}
     root = ET.fromstring(z.read(relpath))
     return {r.get('Id'): r for r in root.findall(P + 'Relationship')}
+
+
+def core_properties(z):
+    links = [rel for rel in relationships(z, '').values()
+             if rel.get('Type', '').endswith('/metadata/core-properties')]
+    if not links:
+        return {}
+    if len(links) != 1:
+        raise ValueError('multiple core-properties relationships')
+    root = ET.fromstring(z.read(target('', links[0])))
+    dc = '{http://purl.org/dc/elements/1.1/}'
+    cp = '{http://schemas.openxmlformats.org/package/2006/metadata/core-properties}'
+    dcterms = '{http://purl.org/dc/terms/}'
+    result = {}
+    for key, tag in [('title', dc + 'title'), ('subject', dc + 'subject'), ('author', dc + 'creator'),
+                     ('keywords', cp + 'keywords'), ('description', dc + 'description'),
+                     ('last_modified_by', cp + 'lastModifiedBy'), ('revision', cp + 'revision'), ('category', cp + 'category'),
+                     ('created', dcterms + 'created'), ('modified', dcterms + 'modified')]:
+        element = root.find(tag)
+        if element is not None:
+            result[key] = element.text or ''
+    return result
+
+
+def extended_properties(z):
+    links = [rel for rel in relationships(z, '').values()
+             if rel.get('Type', '').endswith('/extended-properties')]
+    if not links:
+        return {}
+    if len(links) != 1:
+        raise ValueError('multiple extended-properties relationships')
+    root = ET.fromstring(z.read(target('', links[0])))
+    ns = '{http://schemas.openxmlformats.org/officeDocument/2006/extended-properties}'
+    result = {}
+    for key, tag in [('application', 'Application'), ('manager', 'Manager'), ('company', 'Company')]:
+        element = root.find(ns + tag)
+        if element is not None:
+            result[key] = element.text or ''
+    return result
+
+
+def custom_properties(z):
+    links = [rel for rel in relationships(z, '').values()
+             if rel.get('Type', '').endswith('/custom-properties')]
+    if not links:
+        return []
+    if len(links) != 1:
+        raise ValueError('multiple custom-properties relationships')
+    root = ET.fromstring(z.read(target('', links[0])))
+    result = []
+    for prop in root:
+        values = [{'type': child.tag.rsplit('}', 1)[-1], 'value': child.text or ''} for child in prop]
+        result.append({'name': prop.get('name'), 'values': values})
+    return sorted(result, key=lambda item: (item['name'] or '', repr(item['values'])))
 
 
 def target(base, rel):
@@ -87,6 +143,44 @@ def cell_styles(root):
     return result
 
 
+def note_geometry(z, sheet, sheet_path, sheet_rels):
+    result = []
+    for ref in sheet.findall(M + 'legacyDrawing'):
+        rel = sheet_rels.get(ref.get(R + 'id'))
+        if rel is None:
+            raise ValueError('missing legacy drawing relationship')
+        root = ET.fromstring(z.read(target(sheet_path, rel)))
+        for shape in root.iter(V + 'shape'):
+            client = shape.find(VX + 'ClientData')
+            if client is None or client.get('ObjectType') != 'Note':
+                continue
+            style = {}
+            for item in shape.get('style', '').split(';'):
+                name, sep, value = item.partition(':')
+                if sep and name.strip().lower() in ('margin-left', 'margin-top', 'width', 'height', 'visibility'):
+                    style[name.strip().lower()] = value.strip()
+            anchor = client.find(VX + 'Anchor')
+            result.append({'row': client.findtext(VX + 'Row'), 'column': client.findtext(VX + 'Column'),
+                           'anchor': None if anchor is None else [part.strip() for part in (anchor.text or '').split(',')],
+                           'style': style})
+    return sorted(result, key=repr)
+
+
+def form_controls(z, sheet, sheet_path, sheet_rels):
+    result = []
+    for ref in sheet.findall(M + 'legacyDrawing'):
+        rel = sheet_rels.get(ref.get(R + 'id'))
+        if rel is None:
+            raise ValueError('missing legacy drawing relationship')
+        root = ET.fromstring(z.read(target(sheet_path, rel)))
+        for shape in root.iter(V + 'shape'):
+            client = shape.find(VX + 'ClientData')
+            if client is not None and client.get('ObjectType') != 'Note':
+                result.append({'object_type': client.get('ObjectType'), 'client_data': tree(client)})
+    controls = sheet.find(M + 'controls')
+    return {'legacy': sorted(result, key=repr), 'controls': None if controls is None else tree(controls)}
+
+
 def drawing_objects(z, sheet, sheet_path, sheet_rels):
     result = []
     for ref in sheet.findall(M + 'drawing'):
@@ -101,9 +195,29 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
                 marker = anchor.find(XDR + end)
                 if marker is not None:
                     position[end] = {x.tag.rsplit('}', 1)[-1]: x.text for x in marker}
+            for end in ('pos', 'ext'):
+                marker = anchor.find(XDR + end)
+                if marker is not None:
+                    position[end] = dict(marker.attrib)
             obj = {'anchor': anchor.tag.rsplit('}', 1)[-1], 'position': position,
                    'types': sorted(x.tag.rsplit('}', 1)[-1] for x in anchor if x.tag in
-                                   (XDR + 'sp', XDR + 'pic', XDR + 'graphicFrame', XDR + 'grpSp'))}
+                                   (XDR + 'sp', XDR + 'pic', XDR + 'graphicFrame', XDR + 'grpSp', XDR + 'cxnSp'))}
+            obj['group_structure'] = [tree(group) for group in anchor.findall(XDR + 'grpSp')]
+            obj['shape_properties'] = [tree(properties) for element in anchor
+                                       if element.tag in (XDR + 'sp', XDR + 'cxnSp')
+                                       for properties in element.findall(XDR + 'spPr')]
+            obj['shape_text'] = []
+            for element in anchor:
+                if element.tag != XDR + 'sp':
+                    continue
+                body = element.find(XDR + 'txBody')
+                if body is not None:
+                    text = ''.join(node.text or '' for node in body.iter(A + 't'))
+                    obj['shape_text'].append({'utf16_units': len(text.encode('utf-16-le')) // 2,
+                                              'sha256': hashlib.sha256(text.encode('utf-8')).hexdigest(),
+                                              'body_properties': None if body.find(A + 'bodyPr') is None else tree(body.find(A + 'bodyPr')),
+                                              'paragraph_properties': [tree(p) for p in body.iter(A + 'pPr')],
+                                              'run_properties': [tree(run) for run in body.iter(A + 'rPr')]})
             images = []
             for blip in anchor.iter(A + 'blip'):
                 for attribute in ('embed', 'link'):
@@ -125,9 +239,63 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
                 if chart_rel is None:
                     raise ValueError('missing chart relationship')
                 chart_root = ET.fromstring(z.read(target(path, chart_rel)))
+                title = chart_root.find(f'{C}chart/{C}title')
+                obj['chart_title'] = None if title is None else {
+                    'text': [e.text or '' for e in title.iter() if e.tag in (A + 't', C + 'v')],
+                    'formulas': [e.text or '' for e in title.iter(C + 'f')],
+                    'font_properties': [tree(e) for e in title.iter() if e.tag in (A + 'defRPr', A + 'rPr', A + 'endParaRPr')]}
+                legend = chart_root.find(f'{C}chart/{C}legend')
+                obj['chart_legend'] = None if legend is None else tree(legend)
+                settings = chart_root.find(C + 'printSettings')
+                obj['chart_print_settings'] = None if settings is None else tree(settings)
                 obj['chart_types'] = sorted({x.tag.rsplit('}', 1)[-1] for x in chart_root.iter()
                                              if x.tag.startswith(C) and x.tag.endswith('Chart')})
+                obj['group_labels'] = [None if group.find(C + 'dLbls') is None else tree(group.find(C + 'dLbls'))
+                                       for group in chart_root.iter() if group.tag.startswith(C) and group.tag.endswith('Chart')]
                 obj['series_formulas'] = [x.text or '' for x in chart_root.iter(C + 'f')]
+                obj['series_solid_fills'] = []
+                for series in chart_root.iter(C + 'ser'):
+                    fill = series.find(f'{C}spPr/{A}solidFill')
+                    color = None if fill is None else next(iter(fill), None)
+                    obj['series_solid_fills'].append(None if color is None else {
+                        'kind': color.tag.rsplit('}', 1)[-1], 'value': color.get('val')})
+                obj['series_line_colors'] = []
+                obj['series_labels'] = []
+                for series in chart_root.iter(C + 'ser'):
+                    fill = series.find(f'{C}spPr/{A}ln/{A}solidFill')
+                    color = None if fill is None else next(iter(fill), None)
+                    obj['series_line_colors'].append(None if color is None else {
+                        'kind': color.tag.rsplit('}', 1)[-1], 'value': color.get('val')})
+                    labels = series.find(C + 'dLbls')
+                    obj['series_labels'].append(None if labels is None else tree(labels))
+                obj['series_value_caches'] = []
+                for series in chart_root.iter(C + 'ser'):
+                    data = series.find(C + 'val')
+                    if data is None:
+                        data = series.find(C + 'yVal')
+                    cache = data.find(f'{C}numRef/{C}numCache') if data is not None else None
+                    count = cache.find(C + 'ptCount') if cache is not None else None
+                    obj['series_value_caches'].append(None if cache is None else {
+                        'count': count.get('val') if count is not None else None,
+                        'points': [{'index': point.get('idx'), 'value': point.findtext(C + 'v')}
+                                   for point in cache.findall(C + 'pt')]})
+                obj['series_category_caches'] = []
+                for series in chart_root.iter(C + 'ser'):
+                    data = series.find(C + 'cat')
+                    if data is None:
+                        data = series.find(C + 'xVal')
+                    cache = None; kind = None
+                    if data is not None:
+                        for ref, cache_name in (('numRef', 'numCache'), ('strRef', 'strCache')):
+                            cache = data.find(f'{C}{ref}/{C}{cache_name}')
+                            if cache is not None:
+                                kind = cache_name
+                                break
+                    count = cache.find(C + 'ptCount') if cache is not None else None
+                    obj['series_category_caches'].append(None if cache is None else {
+                        'kind': kind, 'count': count.get('val') if count is not None else None,
+                        'points': [{'index': point.get('idx'), 'value': point.findtext(C + 'v')}
+                                   for point in cache.findall(C + 'pt')]})
                 obj['chart_text'] = [x.text or '' for x in chart_root.iter()
                                      if x.tag.endswith('}t') and x.text]
                 obj['chart_geometry'] = [
@@ -144,6 +312,18 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
                     {name: node.get('val') for name in ('orientation', 'min', 'max', 'majorUnit', 'minorUnit')
                      if (node := axis.find('.//' + C + name)) is not None}
                     for axis in chart_root.iter(C + 'valAx')]
+                obj['axis_font_properties'] = [
+                    {'type': axis.tag.rsplit('}', 1)[-1],
+                     'properties': [tree(e) for tx in axis.findall(C + 'txPr') for e in tx.iter()
+                                    if e.tag in (A + 'defRPr', A + 'rPr', A + 'endParaRPr')]}
+                    for axis in chart_root.iter() if axis.tag in (C + 'catAx', C + 'valAx', C + 'dateAx', C + 'serAx')]
+                obj['axis_titles'] = [
+                    {'type': axis.tag.rsplit('}', 1)[-1],
+                     'text': [e.text or '' for e in title.iter() if e.tag in (A + 't', C + 'v')],
+                     'formulas': [e.text or '' for e in title.iter(C + 'f')],
+                     'font_properties': [tree(e) for e in title.iter() if e.tag in (A + 'defRPr', A + 'rPr', A + 'endParaRPr')]}
+                    for axis in chart_root.iter() if axis.tag in (C + 'catAx', C + 'valAx', C + 'dateAx', C + 'serAx')
+                    if (title := axis.find(C + 'title')) is not None]
             result.append(obj)
     return result
 
@@ -201,6 +381,16 @@ def printer_settings(z, sheet, sheet_path, sheet_rels):
         raise ValueError('missing printer settings relationship')
     data = z.read(target(sheet_path, rel))
     return {'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data)}
+
+
+def sheet_protection(sheet):
+    element = sheet.find(M + 'sheetProtection')
+    if element is None:
+        return None
+    # Report protection switches without exposing a saved password verifier or salt.
+    return {'attributes': {key: value for key, value in element.attrib.items()
+                           if key not in ('password', 'hashValue', 'saltValue', 'algorithmName', 'spinCount')},
+            'password_present': any(key in element.attrib for key in ('password', 'hashValue'))}
 
 
 def header_footer_pictures(z, sheet, sheet_path, sheet_rels):
@@ -279,20 +469,36 @@ def package(data):
                 rel = shrels.get(link.get(R + 'id'))
                 links.append((link.get('ref'), None if rel is None else rel.get('Target'), link.get('location'), link.get('display')))
             comments = []
+            comment_runs = []
             for rel in shrels.values():
                 if rel.get('Type', '').endswith('/comments'):
                     comment_root = ET.fromstring(z.read(target(path, rel)))
                     comments.extend((e.get('ref'), ''.join(x.text or '' for x in e.iter(M + 't')))
                                     for e in comment_root.iter(M + 'comment'))
+                    for note in comment_root.iter(M + 'comment'):
+                        runs = []
+                        for run in note.findall(f'{M}text/{M}r'):
+                            props = run.find(M + 'rPr')
+                            runs.append({'text': ''.join(x.text or '' for x in run.iter(M + 't')),
+                                         'properties': None if props is None else tree(props)})
+                        comment_runs.append({'ref': note.get('ref'), 'runs': runs})
             sheets.append({'name': s.get('name'), 'state': s.get('state', 'visible'), 'cells': cells,
+                           'sheet_properties': None if sh.find(M + 'sheetPr') is None else tree(sh.find(M + 'sheetPr')),
+                           'sheet_protection': sheet_protection(sh),
+                           'filter_mode': sh.find(M + 'sheetPr') is not None and sh.find(M + 'sheetPr').get('filterMode', '0') in ('1', 'true'),
+                           'auto_filter': None if sh.find(M + 'autoFilter') is None else tree(sh.find(M + 'autoFilter')),
                            'default_column_width': (sh.find(M + 'sheetFormatPr').get('defaultColWidth')
                                                     if sh.find(M + 'sheetFormatPr') is not None else None),
                            'columns': [(e.get('min'), e.get('max'), e.get('width'))
                                        for e in sh.findall(f'{M}cols/{M}col')],
-                           'views': [{k: e.get(k) for k in ('showOutlineSymbols', 'defaultGridColor', 'colorId', 'view',
+                           'views': [{k: e.get(k) for k in ('tabSelected', 'showOutlineSymbols', 'defaultGridColor', 'colorId', 'view', 'zoomToFit',
                                                              'zoomScale', 'zoomScaleNormal', 'zoomScaleSheetLayoutView')
                                       if e.get(k) is not None} for e in sh.findall(f'{M}sheetViews/{M}sheetView')],
                            'merges': merges, 'links': sorted(links, key=repr), 'comments': sorted(comments),
+                           'comment_runs': sorted(comment_runs, key=repr),
+                           'note_geometry': note_geometry(z, sh, path, shrels),
+                           'form_controls': form_controls(z, sh, path, shrels),
+                           'scenarios': None if sh.find(M + 'scenarios') is None else tree(sh.find(M + 'scenarios')),
                            'conditional_formats': [tree(e) for e in sh.findall(M + 'conditionalFormatting')],
                            'validations': [tree(e) for e in sh.findall(f'{M}dataValidations/{M}dataValidation')],
                            'ignored_errors': [tree(e) for e in sh.findall(f'{M}ignoredErrors/{M}ignoredError')],
@@ -300,6 +506,8 @@ def package(data):
                                           [tree(e) for e in sh.findall(f'{M}autoFilter/{M}sortState')],
                            'drawings': drawing_objects(z, sh, path, shrels),
                            'printer_settings': printer_settings(z, sh, path, shrels),
+                           'page_margins': None if sh.find(M + 'pageMargins') is None else tree(sh.find(M + 'pageMargins')),
+                           'page_setup': None if sh.find(M + 'pageSetup') is None else tree(sh.find(M + 'pageSetup')),
                            'header_footer': None if sh.find(M + 'headerFooter') is None else tree(sh.find(M + 'headerFooter')),
                            'header_footer_pictures': header_footer_pictures(z, sh, path, shrels),
                            'phonetic_columns': [(e.get('min'), e.get('max')) for e in sh.findall(f'{M}cols/{M}col')
@@ -313,7 +521,9 @@ def package(data):
                            'pivots': pivot_tables(z, sh, path, shrels)})
         props = wb.find(M + 'workbookPr')
         calc = wb.find(M + 'calcPr')
-        return {'date1904': props is not None and props.get('date1904', '0') in ('1', 'true'),
+        return {'core_properties': core_properties(z), 'extended_properties': extended_properties(z),
+                'custom_properties': custom_properties(z),
+                'date1904': props is not None and props.get('date1904', '0') in ('1', 'true'),
                 'full_precision': calc is None or calc.get('fullPrecision', '1') in ('1', 'true'), 'names': names,
                 'indexed_colors': indexed_colors, 'external_caches': external_caches(z, wb, wbpath, rels),
                 'pivot_caches': pivot_caches(z, wb, wbpath, rels), 'sheets': sheets}

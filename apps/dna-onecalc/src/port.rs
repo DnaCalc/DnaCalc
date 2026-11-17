@@ -195,7 +195,20 @@ pub enum Request {
     },
     /// The add-ins the host has loaded.
     Addins,
+    /// Ends the add-in process (docs/architecture/ADDIN_SURROGATE.md section 6), without waiting
+    /// for the call it is running: that call reports that its outcome is unknown. Answered with
+    /// [`Reply::Addins`] (none). A host whose add-ins run in its own process refuses.
+    StopAddinProcess,
+    /// Starts a new add-in process with no add-ins loaded; nothing that ran before runs again by
+    /// itself. Answered with [`Reply::Addins`] (none). A host whose add-ins run in its own process
+    /// refuses.
+    RestartAddinProcess,
 }
+
+/// What a host whose add-ins run in its own process answers [`Request::StopAddinProcess`] and
+/// [`Request::RestartAddinProcess`] with.
+pub const NO_ADDIN_PROCESS: &str =
+    "The add-ins run in OneCalc's own process here: there is no add-in process to stop or restart.";
 
 /// An add-in the host has loaded, as the surface lists it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -257,6 +270,10 @@ pub struct ProjectView {
     /// trusts every file; empty for none (dc-15dk).
     #[serde(default)]
     pub notice: String,
+    /// Why a Blocked project cannot simply be enabled (`MacroBlock::origin_description`); empty
+    /// when the view is not Blocked.
+    #[serde(default)]
+    pub block_reason: String,
 }
 
 /// Whether the file's VBA project may run (Excel's default: not until the person enables it).
@@ -454,6 +471,10 @@ pub fn project_view(session: &Session, report: ProjectReport) -> ProjectView {
             .project()
             .and_then(|p| p.notice.clone())
             .unwrap_or_default(),
+        block_reason: match session.project().map(|p| p.macros) {
+            Some(crate::MacroState::Blocked(block)) => block.origin_description(),
+            _ => String::new(),
+        },
     }
 }
 
@@ -711,6 +732,7 @@ impl SessionPort for LocalPort {
                 refused("add-ins load only in the desktop app")
             }
             Request::Addins => Reply::Addins(Vec::new()),
+            Request::StopAddinProcess | Request::RestartAddinProcess => refused(NO_ADDIN_PROCESS),
             Request::Calculate => {
                 let calculation = session.calculate();
                 Reply::Calculated(CalculationView {

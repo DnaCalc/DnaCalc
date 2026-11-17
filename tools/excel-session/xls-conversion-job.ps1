@@ -16,6 +16,19 @@ function GetOrError([scriptblock]$f) { try { return & $f } catch { return @{unre
 function Snapshot($workbook) {
     $sheets = [Collections.Generic.List[object]]::new()
     foreach ($sheet in $workbook.Sheets) {
+        # A chart sheet is a Chart, not a Worksheet, and has no UsedRange or Hyperlinks.
+        $chartSheet = $null
+        try { $chartSheet = $workbook.Charts.Item([string]$sheet.Name) } catch { }
+        if ($null -ne $chartSheet) {
+            $chart = GetOrError {
+                @{type=$chartSheet.ChartType; title=$(if ($chartSheet.HasTitle) {[string]$chartSheet.ChartTitle.Text} else {$null});
+                  series=@($chartSheet.SeriesCollection() | ForEach-Object { [string]$_.Formula });
+                  chart_size=(GetOrError { $chartSheet.PageSetup.ChartSize })}
+            }
+            $sheets.Add(@{name=[string]$sheet.Name; visible=$sheet.Visible; chart_sheet=$chart;
+                cells=@(); links=@(); shapes=@(); conditional_formats=$null; validations=$null; charts=$null})
+            continue
+        }
         $cells = [Collections.Generic.List[object]]::new()
         $used = $sheet.UsedRange
         # Inputs are generated fixtures. Refuse unexpectedly large ranges rather than producing
@@ -64,6 +77,7 @@ try {
     # FileFormat 18 is an add-in and is saved as an Open XML add-in (55).
     foreach ($fixture in @(
         @{name='excel-biff8.xls'; legacy=56; modern=51; ext='.xlsx'},
+        @{name='excel-biff8-arial10.xls'; legacy=56; modern=51; ext='.xlsx'; font='Arial'; font_size=10},
         @{name='excel-biff5.xls'; legacy=39; modern=51; ext='.xlsx'},
         @{name='excel-addin.xla'; legacy=18; modern=55; ext='.xlam'}
     )) {
@@ -73,31 +87,248 @@ try {
             $saved = Join-Path $outputDir ([IO.Path]::GetFileNameWithoutExtension($fixture.name) + $fixture.ext)
             $book = $app.Workbooks.Add(-4167)
             $sheet = $book.Worksheets.Item(1); $sheet.Name = 'Data'
+            if ($fixture.ContainsKey('font')) {
+                $book.Styles.Item('Normal').Font.Name = $fixture.font
+                $book.Styles.Item('Normal').Font.Size = $fixture.font_size
+            }
             $sheet.Range('A1').Value2 = 42.5
             $sheet.Range('A2').Formula = '=A1+1'
             $sheet.Range('A1').NumberFormat = '0.00'
             # Record setup failures individually; a format may refuse particular features.
             $entry.setup = [ordered]@{}
+            $entry.setup.document_properties = GetOrError {
+                $properties = $book.BuiltinDocumentProperties
+                $properties.Item('Title').Value = 'Controlled title'
+                $properties.Item('Subject').Value = 'Controlled subject'
+                $properties.Item('Author').Value = 'Controlled author'
+                $properties.Item('Keywords').Value = 'legacy, controlled'
+                $properties.Item('Comments').Value = 'Controlled description'
+                @{title=[string]$properties.Item('Title').Value; author=[string]$properties.Item('Author').Value}
+            }
+            $entry.setup.document_properties_extended = GetOrError {
+                $properties = $book.BuiltinDocumentProperties
+                $properties.Item('Category').Value = 'Controlled category'
+                $properties.Item('Manager').Value = 'Controlled manager'
+                $properties.Item('Company').Value = 'Controlled company'
+                @{category=[string]$properties.Item('Category').Value; company=[string]$properties.Item('Company').Value}
+            }
+            $entry.setup.document_properties_custom = GetOrError {
+                $properties = $book.CustomDocumentProperties
+                $null = $properties.Add('cxText', $false, 4, 'Controlled custom value')
+                $null = $properties.Add('cxCount', $false, 1, 42)
+                $null = $properties.Add('cxApproved', $false, 2, $true)
+                @{count=$properties.Count; text=[string]$properties.Item('cxText').Value}
+            }
             $entry.setup.name = GetOrError { $n = $book.Names.Add('cx_rate', '=Data!$A$1'); [string]$n.RefersTo }
             $entry.setup.merge = GetOrError { $sheet.Range('C1:D1').Merge(); [string]$sheet.Range('C1').MergeArea.Address($false,$false) }
             $entry.setup.hyperlink = GetOrError { $h = $sheet.Hyperlinks.Add($sheet.Range('C2'), 'https://example.com/'); [string]$h.Address }
             $entry.setup.relative_hyperlink = GetOrError { $h = $sheet.Hyperlinks.Add($sheet.Range('C6'), '..\folder\book.xls', 'Data!A1'); @{address=[string]$h.Address; location=[string]$h.SubAddress} }
             $entry.setup.comment = GetOrError { $c = $sheet.Range('C3').AddComment('Controlled note'); [string]$c.Text() }
+            $entry.setup.comment_rich = GetOrError {
+                $note = $sheet.Range('C3').Comment
+                $note.Shape.TextFrame.Characters(1, 4).Font.Bold = $true
+                $note.Shape.TextFrame.Characters(5, 4).Font.Italic = $true
+                @{bold=$note.Shape.TextFrame.Characters(1, 4).Font.Bold;
+                  italic=$note.Shape.TextFrame.Characters(5, 4).Font.Italic}
+            }
+            $entry.setup.comment_geometry = GetOrError {
+                $shape = $sheet.Range('C3').Comment.Shape
+                $shape.Left = 135; $shape.Top = 80; $shape.Width = 144; $shape.Height = 75
+                @{left=$shape.Left; top=$shape.Top; width=$shape.Width; height=$shape.Height}
+            }
             $entry.setup.validation = GetOrError { $sheet.Range('C4').Validation.Add(1, 1, 1, '1', '10'); $sheet.Range('C4').Validation.Type }
+            $entry.setup.active_filter = GetOrError {
+                $sheet.Range('K1').Value2 = 'Group'; $sheet.Range('K2').Value2 = 'keep'; $sheet.Range('K3').Value2 = 'drop'
+                $null = $sheet.Range('K1:K3').AutoFilter(1, 'keep')
+                @{filter_mode=$sheet.FilterMode; hidden=$sheet.Rows.Item(3).Hidden}
+            }
             $entry.setup.conditional = GetOrError { $c = $sheet.Range('C5').FormatConditions.Add(1, 3, '1'); $c.Interior.Color = 65535; $sheet.Range('C5').FormatConditions.Count }
+            $entry.setup.scenario = GetOrError {
+                $scenario = $sheet.Scenarios().Add('cxPlan', $sheet.Range('A1'), [object[]]@(42), 'Controlled scenario', $true, $false)
+                @{name=[string]$scenario.Name; comment=[string]$scenario.Comment; count=$sheet.Scenarios().Count}
+            }
             $entry.setup.shape = GetOrError { $s = $sheet.Shapes.AddShape(1, 100, 100, 60, 30); [string]$s.Name }
+            $entry.setup.shape_flowchart_process = GetOrError {
+                $s = $sheet.Shapes.AddShape(61, 180, 100, 60, 30)
+                @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
+            }
+            $entry.setup.shape_triangle = GetOrError {
+                $s = $sheet.Shapes.AddShape(7, 250, 100, 60, 30)
+                @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
+            }
+            $entry.setup.shape_flowchart_decision = GetOrError {
+                $s = $sheet.Shapes.AddShape(63, 320, 100, 60, 30)
+                @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
+            }
+            $entry.setup.shape_flowchart_connector = GetOrError {
+                $s = $sheet.Shapes.AddShape(73, 390, 100, 60, 30)
+                @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
+            }
+            $entry.setup.shape_right_triangle = GetOrError {
+                $s = $sheet.Shapes.AddShape(8, 460, 100, 60, 30)
+                @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
+            }
+            $entry.setup.shape_flowchart_extract = GetOrError {
+                $s = $sheet.Shapes.AddShape(81, 530, 100, 60, 30)
+                @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
+            }
+            $entry.setup.shape_flowchart_alternate_process = GetOrError {
+                $s = $sheet.Shapes.AddShape(62, 600, 100, 60, 30)
+                @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
+            }
+            $entry.setup.shape_down_arrow_wide = GetOrError {
+                $s = $sheet.Shapes.AddShape(36, 670, 100, 90, 30)
+                $s.TextFrame.Characters().Text = 'wide arrow'
+                @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
+            }
+            $entry.setup.shape_down_arrow_tall = GetOrError {
+                $s = $sheet.Shapes.AddShape(36, 770, 100, 30, 90)
+                $s.TextFrame.Characters().Text = 'tall arrow'
+                @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
+            }
+            $entry.setup.shape_octagon = GetOrError {
+                $s = $sheet.Shapes.AddShape(6, 810, 100, 60, 30)
+                $s.TextFrame.Characters().Text = 'octagon'
+                @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
+            }
+            $entry.setup.shape_parallelogram = GetOrError {
+                $s = $sheet.Shapes.AddShape(2, 880, 100, 60, 30)
+                $s.TextFrame.Characters().Text = 'parallelogram'
+                @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
+            }
+            $entry.setup.shape_scripts = GetOrError {
+                $s = $sheet.Shapes.AddTextbox(1, 950, 100, 90, 30)
+                $s.TextFrame.Characters().Text = 'H2O x2'
+                $s.TextFrame.Characters(2, 1).Font.Subscript = $true
+                $s.TextFrame.Characters(6, 1).Font.Superscript = $true
+                @{name=[string]$s.Name; subscript=$s.TextFrame.Characters(2, 1).Font.Subscript;
+                  superscript=$s.TextFrame.Characters(6, 1).Font.Superscript}
+            }
+            $entry.setup.flipped_shapes = @(
+                foreach ($direction in @(0, 1)) {
+                    GetOrError {
+                        $s = $sheet.Shapes.AddShape(1, 300, 170, 60, 30)
+                        $s.Flip($direction)
+                        @{name=[string]$s.Name; direction=$direction; horizontal=$s.HorizontalFlip; vertical=$s.VerticalFlip}
+                    }
+                }
+            )
+            $entry.setup.justified_text = GetOrError {
+                $box = $sheet.Shapes.AddTextbox(1, 300, 100, 120, 55)
+                $box.TextFrame.Characters().Text = 'A controlled justified text example with several words.'
+                $box.TextFrame.HorizontalAlignment = -4130
+                $box.TextFrame.MarginLeft = 7; $box.TextFrame.MarginTop = 8
+                $box.TextFrame.MarginRight = 9; $box.TextFrame.MarginBottom = 10
+                @{name=[string]$box.Name; horizontal_alignment=$box.TextFrame.HorizontalAlignment;
+                  left=$box.TextFrame.MarginLeft; top=$box.TextFrame.MarginTop;
+                  right=$box.TextFrame.MarginRight; bottom=$box.TextFrame.MarginBottom}
+            }
+            $entry.setup.rotated_text = @(
+                foreach ($angle in @(-90, 90)) {
+                    GetOrError {
+                        $box = $sheet.Shapes.AddTextbox(1, 430, 100, 40, 100)
+                        $box.TextFrame.Characters().Text = 'Rotated text'
+                        $box.TextFrame.Orientation = $angle
+                        @{name=[string]$box.Name; requested=$angle; orientation=$box.TextFrame.Orientation}
+                    }
+                }
+            )
+            $entry.setup.text_wrap = @(
+                foreach ($wrap in @(0, -1)) {
+                    GetOrError {
+                        $box = $sheet.Shapes.AddTextbox(1, 430, 230, 80, 45)
+                        $box.TextFrame.Characters().Text = 'Text long enough to exceed the box width'
+                        $box.TextFrame2.WordWrap = $wrap
+                        @{name=[string]$box.Name; requested=$wrap; word_wrap=$box.TextFrame2.WordWrap}
+                    }
+                }
+            )
+            $entry.setup.checkbox = GetOrError {
+                $box = $sheet.CheckBoxes().Add(180, 145, 90, 24)
+                $box.Caption = 'Controlled checkbox'; $box.Value = 1; $box.LinkedCell = '$M$2'
+                @{name=[string]$box.Name; value=$box.Value; linked_cell=[string]$box.LinkedCell}
+            }
+            $entry.setup.shape_no_fill = GetOrError {
+                $shape = $sheet.Shapes.AddShape(1, 100, 145, 60, 30)
+                $shape.Fill.Visible = 0
+                @{name=[string]$shape.Name; visible=$shape.Fill.Visible}
+            }
+            $entry.setup.linked_picture = GetOrError {
+                $path = Join-Path $inputDir 'linked-picture.png'
+                $picture = $sheet.Shapes.AddPicture($path, -1, 0, 100, 355, 60, 30)
+                @{name=[string]$picture.Name; linked=$true}
+            }
+            $entry.setup.shape_group = GetOrError {
+                $first = $sheet.Shapes.AddShape(1, 480, 420, 50, 25)
+                $second = $sheet.Shapes.AddShape(9, 540, 430, 40, 30)
+                $names = @([string]$first.Name, [string]$second.Name)
+                $group = $sheet.Shapes.Range($names).Group()
+                @{name=[string]$group.Name; children=$group.GroupItems.Count}
+            }
+            $entry.setup.picture_group = GetOrError {
+                $path = Join-Path $inputDir 'linked-picture.png'
+                $first = $sheet.Shapes.AddPicture($path, 0, -1, 100, 800, 50, 25)
+                $second = $sheet.Shapes.AddPicture($path, 0, -1, 160, 810, 40, 30)
+                $names = @([string]$first.Name, [string]$second.Name)
+                $group = $sheet.Shapes.Range($names).Group()
+                @{name=[string]$group.Name; children=$group.GroupItems.Count;
+                  left=$group.Left; top=$group.Top; width=$group.Width; height=$group.Height;
+                  column_a_width=$sheet.Columns.Item(1).Width; row_1_height=$sheet.Rows.Item(1).Height;
+                  normal_font=[string]$book.Styles.Item('Normal').Font.Name;
+                  normal_size=$book.Styles.Item('Normal').Font.Size}
+            }
+            $entry.setup.long_text_box = GetOrError {
+                $box = $sheet.Shapes.AddTextbox(1, 100, 300, 160, 90)
+                $text = ('é漢' * 5000)
+                $box.TextFrame.Characters().Text = $text
+                $box.TextFrame.Characters().Font.Bold = $true
+                $box.TextFrame.Characters().Font.Italic = $true
+                $box.TextFrame.Characters().Font.Name = 'Arial'
+                $box.TextFrame.Characters().Font.Size = 12
+                $box.TextFrame.Characters().Font.Color = 255
+                $box.TextFrame.HorizontalAlignment = -4108
+                $box.TextFrame.VerticalAlignment = -4108
+                @{name=[string]$box.Name; characters=$box.TextFrame.Characters().Count;
+                  bold=$box.TextFrame.Characters().Font.Bold; italic=$box.TextFrame.Characters().Font.Italic;
+                  font_name=$box.TextFrame.Characters().Font.Name;
+                  size=$box.TextFrame.Characters().Font.Size; color=$box.TextFrame.Characters().Font.Color;
+                  horizontal_alignment=$box.TextFrame.HorizontalAlignment; vertical_alignment=$box.TextFrame.VerticalAlignment}
+            }
+            $entry.setup.line_shapes = @(
+                foreach ($reverse in @($false, $true)) {
+                    GetOrError {
+                        $line = if ($reverse) {$sheet.Shapes.AddLine(100, 240, 180, 200)} else {$sheet.Shapes.AddLine(100, 200, 180, 240)}
+                        $line.Line.ForeColor.RGB = 255; $line.Line.Weight = 0.75
+                        @{name=[string]$line.Name; reverse=$reverse; color=$line.Line.ForeColor.RGB; weight=$line.Line.Weight}
+                    }
+                }
+            )
             $entry.setup.chart_bar_geometry = GetOrError {
                 $sheet.Range('H1').Value2 = 1; $sheet.Range('H2').Value2 = 2
                 $c = $sheet.ChartObjects().Add(200, 100, 200, 150).Chart
                 $c.ChartType = 51; $c.SetSourceData($sheet.Range('H1:H2'))
+                $c.HasTitle = $true; $c.ChartTitle.Text = 'Controlled embedded title'
                 $c.PlotVisibleOnly = $false; $c.DisplayBlanksAs = 3
                 $group = $c.ChartGroups(1); $group.GapWidth = 70; $group.Overlap = -30; $group.VaryByCategories = $true
                 $axis = $c.Axes(2); $axis.MinimumScale = 2; $axis.MaximumScale = 20
                 $axis.MajorUnit = 5; $axis.MinorUnit = 1; $axis.ReversePlotOrder = $true
-                @{gap=$group.GapWidth; overlap=$group.Overlap; varied=$group.VaryByCategories;
+                @{gap=$group.GapWidth; overlap=$group.Overlap; varied=$group.VaryByCategories; title=[string]$c.ChartTitle.Text;
                   visible_only=$c.PlotVisibleOnly; display_blanks=$c.DisplayBlanksAs;
                   minimum=$axis.MinimumScale; maximum=$axis.MaximumScale; major=$axis.MajorUnit;
                   minor=$axis.MinorUnit; reversed=$axis.ReversePlotOrder}
+            }
+            $entry.setup.chart_print_text = GetOrError {
+                $chart = $sheet.ChartObjects().Item(1).Chart
+                $chart.PageSetup.CenterHeader = 'Controlled chart header'
+                $chart.PageSetup.RightFooter = 'Page &P'
+                @{header=[string]$chart.PageSetup.CenterHeader; footer=[string]$chart.PageSetup.RightFooter}
+            }
+            $entry.setup.chart_print_setup = GetOrError {
+                $chart = $sheet.ChartObjects().Item(1).Chart
+                $chart.PageSetup.Orientation = 2; $chart.PageSetup.PaperSize = 9
+                $chart.PageSetup.BlackAndWhite = $true
+                @{orientation=$chart.PageSetup.Orientation; paper=$chart.PageSetup.PaperSize;
+                  black_and_white=$chart.PageSetup.BlackAndWhite}
             }
             $entry.setup.chart_doughnut_geometry = GetOrError {
                 $c = $sheet.ChartObjects().Add(200, 270, 200, 150).Chart
@@ -105,7 +336,144 @@ try {
                 $group = $c.ChartGroups(1); $group.FirstSliceAngle = 135; $group.DoughnutHoleSize = 45
                 @{angle=$group.FirstSliceAngle; hole=$group.DoughnutHoleSize}
             }
+            $entry.setup.chart_cross_sheet_cache = GetOrError {
+                $dataSheet = $book.Worksheets.Add(); $dataSheet.Name = 'ChartSource'
+                $dataSheet.Range('A1').Value2 = 'Category'; $dataSheet.Range('B1').Value2 = 'Value'
+                $dataSheet.Range('A2').Value2 = 'one'; $dataSheet.Range('A3').Value2 = 'two'
+                $dataSheet.Range('B2').Value2 = 7.5; $dataSheet.Range('B3').Value2 = 4
+                $object = $sheet.ChartObjects().Add(410, 100, 200, 150); $object.Name = 'cxCacheChart'
+                $c = $object.Chart
+                $c.ChartType = 51; $c.SetSourceData($dataSheet.Range('A1:B3'))
+                @{series=[string]$c.SeriesCollection(1).Formula; points=$c.SeriesCollection(1).Points().Count}
+            }
+            $entry.setup.chart_linked_title = GetOrError {
+                $dataSheet.Range('D1').Value2 = 'Controlled linked title'
+                $linkedChart = $sheet.ChartObjects('cxCacheChart').Chart
+                $linkedChart.HasTitle = $true; $linkedChart.ChartTitle.Formula = '=ChartSource!$D$1'
+                $linkedChart.ChartTitle.Font.Name = 'Arial'
+                $linkedChart.ChartTitle.Font.Bold = $true
+                $linkedChart.ChartTitle.Font.Italic = $true
+                @{formula=[string]$linkedChart.ChartTitle.Formula; text=[string]$linkedChart.ChartTitle.Text;
+                  font_name=[string]$linkedChart.ChartTitle.Font.Name; bold=$linkedChart.ChartTitle.Font.Bold;
+                  italic=$linkedChart.ChartTitle.Font.Italic}
+            }
+            $entry.setup.chart_axis_font = GetOrError {
+                $axis = $sheet.ChartObjects('cxCacheChart').Chart.Axes(1)
+                $axis.TickLabels.Font.Name = 'Arial'
+                $axis.TickLabels.Font.Bold = $true
+                $axis.TickLabels.Font.Italic = $true
+                @{font_name=[string]$axis.TickLabels.Font.Name; bold=$axis.TickLabels.Font.Bold;
+                  italic=$axis.TickLabels.Font.Italic}
+            }
+            $entry.setup.chart_axis_titles = GetOrError {
+                $chart = $sheet.ChartObjects('cxCacheChart').Chart
+                $category = $chart.Axes(1); $category.HasTitle = $true
+                $category.AxisTitle.Text = 'Region & area'
+                $category.AxisTitle.Font.Name = 'Arial'
+                $category.AxisTitle.Font.Bold = $true
+                $category.AxisTitle.Font.Italic = $true
+                $value = $chart.Axes(2); $value.HasTitle = $true
+                $value.AxisTitle.Text = 'Revenue'
+                @{category=[string]$category.AxisTitle.Text; value=[string]$value.AxisTitle.Text;
+                  font_name=[string]$category.AxisTitle.Font.Name; bold=$category.AxisTitle.Font.Bold;
+                  italic=$category.AxisTitle.Font.Italic}
+            }
+            $entry.setup.chart_legend_font = GetOrError {
+                $chart = $sheet.ChartObjects('cxCacheChart').Chart
+                $chart.HasLegend = $true
+                $chart.Legend.Font.Name = 'Arial'
+                $chart.Legend.Font.Bold = $true
+                $chart.Legend.Font.Italic = $true
+                @{font_name=[string]$chart.Legend.Font.Name; bold=$chart.Legend.Font.Bold; italic=$chart.Legend.Font.Italic}
+            }
+            $entry.setup.chart_series_fill = GetOrError {
+                $series = $sheet.ChartObjects('cxCacheChart').Chart.SeriesCollection(1)
+                $series.Format.Fill.Visible = -1; $series.Format.Fill.Solid()
+                $series.Format.Fill.ForeColor.RGB = 255
+                @{fill_rgb=$series.Format.Fill.ForeColor.RGB}
+            }
+            $entry.setup.chart_value_labels = GetOrError {
+                $series = $sheet.ChartObjects('cxCacheChart').Chart.SeriesCollection(1)
+                $series.ApplyDataLabels(); $series.DataLabels().ShowValue = $true
+                @{show_value=$series.DataLabels().ShowValue}
+            }
+            $entry.setup.chart_group_value_labels = GetOrError {
+                $chart = $sheet.ChartObjects().Item(1).Chart
+                $chart.ApplyDataLabels()
+                $series = $chart.SeriesCollection(1)
+                $series.DataLabels().ShowValue = $true
+                @{show_value=$series.DataLabels().ShowValue}
+            }
+            $entry.setup.chart_series_line = GetOrError {
+                $chart = $sheet.ChartObjects().Add(410, 270, 200, 150).Chart
+                $chart.ChartType = 4; $chart.SetSourceData($sheet.Range('H1:H2'))
+                $line = $chart.SeriesCollection(1).Format.Line
+                $line.Visible = -1; $line.DashStyle = 1; $line.Weight = 0.75; $line.ForeColor.RGB = 255
+                @{color=$line.ForeColor.RGB; weight=$line.Weight; dash=$line.DashStyle}
+            }
+            $entry.setup.chart_legend_positions = @(
+                foreach ($case in @(@{index=1; position=-4160}, @{index=2; position=-4107},
+                                    @{index=3; position=-4131}, @{index=4; position=2})) {
+                    GetOrError {
+                        $chart = $sheet.ChartObjects().Item($case.index).Chart
+                        $chart.HasLegend = $true; $chart.Legend.Position = $case.position
+                        @{index=$case.index; position=$chart.Legend.Position}
+                    }
+                }
+            )
+            $entry.setup.chart_sheet = GetOrError {
+                $chartSheet = $book.Charts.Add(); $chartSheet.Name = 'ChartTab'
+                $chartSheet.ChartType = 51; $chartSheet.SetSourceData($sheet.Range('H1:H2'))
+                $chartSheet.HasTitle = $true; $chartSheet.ChartTitle.Text = 'Controlled chart sheet'
+                @{name=[string]$chartSheet.Name; type=$chartSheet.ChartType;
+                  series=[string]$chartSheet.SeriesCollection(1).Formula; title=[string]$chartSheet.ChartTitle.Text}
+            }
+            $entry.setup.chart_sheet_print = GetOrError {
+                $chartSheet.PageSetup.CenterHeader = 'Controlled & header'
+                $chartSheet.PageSetup.RightFooter = 'Page &P'
+                $chartSheet.PageSetup.LeftMargin = 54; $chartSheet.PageSetup.RightMargin = 36
+                $chartSheet.PageSetup.TopMargin = 72; $chartSheet.PageSetup.BottomMargin = 45
+                $chartSheet.PageSetup.HeaderMargin = 18; $chartSheet.PageSetup.FooterMargin = 27
+                @{header=[string]$chartSheet.PageSetup.CenterHeader; footer=[string]$chartSheet.PageSetup.RightFooter;
+                  left=$chartSheet.PageSetup.LeftMargin; right=$chartSheet.PageSetup.RightMargin;
+                  top=$chartSheet.PageSetup.TopMargin; bottom=$chartSheet.PageSetup.BottomMargin;
+                  header_margin=$chartSheet.PageSetup.HeaderMargin; footer_margin=$chartSheet.PageSetup.FooterMargin}
+            }
+            $entry.setup.chart_sheet_page_setup = GetOrError {
+                $chartSheet.PageSetup.Orientation = 2; $chartSheet.PageSetup.PaperSize = 9
+                $chartSheet.PageSetup.BlackAndWhite = $true
+                @{orientation=$chartSheet.PageSetup.Orientation; paper=$chartSheet.PageSetup.PaperSize;
+                  black_and_white=$chartSheet.PageSetup.BlackAndWhite}
+            }
+            # All three chart-print sizes in one workbook provide an Excel-authored comparison.
+            $entry.setup.chart_sheet_sizes = @(
+                foreach ($size in @(1, 2, 3)) {
+                    GetOrError {
+                        $sized = $book.Charts.Add(); $sized.Name = "ChartSize$size"
+                        $sized.ChartType = 51; $sized.SetSourceData($sheet.Range('H1:H2'))
+                        $sized.PageSetup.ChartSize = $size
+                        @{name=[string]$sized.Name; requested=$size; actual=$sized.PageSetup.ChartSize}
+                    }
+                }
+            )
+            $entry.setup.chart_sheet_protection = @(
+                foreach ($mode in @(@{name='Both'; objects=$true; contents=$true},
+                                    @{name='Objects'; objects=$true; contents=$false},
+                                    @{name='Contents'; objects=$false; contents=$true})) {
+                    GetOrError {
+                        $protected = $book.Charts.Add(); $protected.Name = 'ChartProtect' + $mode.name
+                        $protected.ChartType = 51; $protected.SetSourceData($sheet.Range('H1:H2'))
+                        $protected.Protect([Type]::Missing, $mode.objects, $mode.contents)
+                        @{name=[string]$protected.Name; contents=$protected.ProtectContents;
+                          objects=$protected.ProtectDrawingObjects}
+                    }
+                }
+            )
             $entry.setup.page = GetOrError { $sheet.PageSetup.Orientation = 2; $sheet.PageSetup.PrintArea = '$A$1:$D$5'; $sheet.PageSetup.Orientation }
+            $entry.setup.print_comments = GetOrError {
+                $sheet.PageSetup.PrintComments = 16
+                @{mode=$sheet.PageSetup.PrintComments}
+            }
             $entry.setup.header_picture = GetOrError {
                 $picture = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../crates/calc-doc/tests/fixtures/drawing/pictures/card.png'))
                 $sheet.PageSetup.LeftHeaderPicture.Filename = $picture
@@ -137,6 +505,10 @@ try {
                 $missing = [Type]::Missing
                 $null = $sortSheet.Range('A1:B3').Sort($sortSheet.Range('A1'), 1, $missing, $missing, 1, $missing, 1, 1)
                 [string]$sortSheet.Range('A2').Value2
+            }
+            $entry.setup.chart_sheet_selection = GetOrError {
+                $chartSheet.Activate(); $book.Windows.Item(1).Zoom = 75
+                @{active=[string]$book.ActiveSheet.Name; zoom=$book.Windows.Item(1).Zoom}
             }
             $book.SaveAs($path, $fixture.legacy)
             $book.Close($false); $book=$null

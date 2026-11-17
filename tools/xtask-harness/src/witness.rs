@@ -1212,9 +1212,13 @@ fn position_recaptures(
             continue;
         }
         let provenance = &doc["capture_provenance"];
-        // Only the one-call serial layout is attested; anything else is not a known position.
+        // Only the one-call serial layout is attested; anything else is not a known position. A
+        // sheet case holding that same layout (position-recapture.py --sheet-case, for arguments
+        // a serial request cannot carry) is the same position.
+        let asked = provenance["order"] == "serial"
+            || provenance["request"] == "sheet cases (_CASE, token L)";
         if provenance["service"] != "touchstone/1"
-            || provenance["order"] != "serial"
+            || !asked
             || provenance["calls_per_request"] != 1
             || provenance["cell_layout"] != "touchstone/1-serial-single"
         {
@@ -4141,6 +4145,37 @@ mod tests {
             super::calculate_with_context("INDIRECT", &[json!("0x3ff0000000000000"), json!({"error": "NA"})], None, None, true),
             "error:NA"
         );
+    }
+
+    /// Native-only: writes recapture files to a temporary directory.
+    #[test]
+    fn a_serial_single_recapture_may_be_asked_as_a_sheet_case() {
+        let root = std::env::temp_dir().join(format!("xtask-witness-recapture-{}", std::process::id()));
+        let dir = root.join(super::RECAPTURES);
+        std::fs::create_dir_all(&dir).unwrap();
+        let doc = |provenance: Value| {
+            json!({"format": "dnacalc-witness-recapture/1", "function": "WRAPCOLS",
+                   "capture_provenance": provenance,
+                   "witnesses": [{"id": "r1", "original_source": "readings/x.json",
+                                  "args": [[["0x3ff0000000000000", "a"]], "0x4000000000000000"],
+                                  "expected_bits": "0x3ff0000000000000", "result_index": [1, 1]}]})
+        };
+        let serial = json!({"service": "touchstone/1", "order": "serial", "calls_per_request": 1,
+                            "cell_layout": "touchstone/1-serial-single"});
+        let sheet_case = json!({"service": "touchstone/1", "request": "sheet cases (_CASE, token L)",
+                                "calls_per_request": 1, "cell_layout": "touchstone/1-serial-single"});
+        let bulk = json!({"service": "touchstone/1", "request": "sheet cases (_CASE, token L)",
+                          "calls_per_request": 1, "cell_layout": "touchstone/1-bulk"});
+        for (provenance, accepted) in [(serial, true), (sheet_case, true), (bulk, false)] {
+            std::fs::write(dir.join("serial-single-wrapcols.json"), doc(provenance).to_string()).unwrap();
+            let found = super::position_recaptures(&root, Some("WRAPCOLS"));
+            assert_eq!(found.is_ok(), accepted, "{:?}", found.as_ref().err());
+            if let Ok(found) = found {
+                let row = &found[&("readings/x.json".to_owned(), "r1".to_owned())];
+                assert_eq!(row.index, Some((1, 1)));
+            }
+        }
+        std::fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]

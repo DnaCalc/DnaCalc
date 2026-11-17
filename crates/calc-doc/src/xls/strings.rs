@@ -17,6 +17,82 @@ fn short(what: &str) -> Malformed {
     Malformed(format!("the record ends inside {what}"))
 }
 
+/// The text continuations of a TxO precede separate formatting-run continuations.
+pub(crate) fn txo_text(record: &Record<'_>) -> Result<Option<Vec<u16>>, Malformed> {
+    let body = record.body;
+    let Some(first) = record.continues.first() else { return Ok(None) };
+    if body.len() < 14 || first.is_empty() { return Err(short("Txo text")); }
+    let count = usize::from(u16::from_le_bytes([body[10], body[11]]));
+    let first_count = (first.len() - 1) / if first[0] & 1 != 0 { 2 } else { 1 };
+    let mut text_end = 1;
+    if first_count < count {
+        let mut remaining = count;
+        for piece in &record.continues {
+            if piece.is_empty() || piece[0] > 1 { return Err(short("Txo text")); }
+            let width = if piece[0] == 1 { 2 } else { 1 };
+            if (piece.len() - 1) % width != 0 { return Err(short("Txo text")); }
+            let units = (piece.len() - 1) / width;
+            if units > remaining || units == 0 { return Err(short("Txo text")); }
+            remaining -= units;
+            if remaining == 0 { break; }
+            text_end += 1;
+        }
+        if remaining != 0 { return Err(short("Txo text")); }
+        let runs = usize::from(u16::from_le_bytes([body[12], body[13]]));
+        let formatting = &record.continues[text_end..];
+        let total = formatting.iter().map(|piece| piece.len()).sum::<usize>();
+        let followed_by_shape = formatting.last().is_some_and(|piece| {
+            total.checked_sub(piece.len()) == Some(runs) && super::drawing::is_continued_shape(piece)
+        });
+        if total != runs && !followed_by_shape {
+            return Err(short("Txo formatting runs"));
+        }
+    }
+    let mut pieces = Pieces::new(&Record { id: 0, body: first,
+        continues: record.continues[1..text_end].to_vec(), offset: 0 });
+    let flag = pieces.u8("Txo")?;
+    Ok(Some(pieces.characters(count, flag & 1 != 0, "Txo text")?))
+}
+
+/// The explicitly bounded formatting runs following a TxO's character continuations.
+pub(crate) fn txo_runs(record: &Record<'_>, text: &[u16]) -> Option<Vec<(u16, u16)>> {
+    let body = record.body;
+    if body.len() < 14 || text.is_empty() { return None; }
+    let count = usize::from(u16::from_le_bytes([body[10], body[11]]));
+    let size = usize::from(u16::from_le_bytes([body[12], body[13]]));
+    if count != text.len() || size < 16 || size % 8 != 0 { return None; }
+    let mut remaining = count;
+    let mut end = 0;
+    for piece in &record.continues {
+        if piece.is_empty() || piece[0] > 1 { return None; }
+        let width = if piece[0] == 1 { 2 } else { 1 };
+        if (piece.len() - 1) % width != 0 { return None; }
+        let units = (piece.len() - 1) / width;
+        if units == 0 || units > remaining { return None; }
+        remaining -= units; end += 1;
+        if remaining == 0 { break; }
+    }
+    if remaining != 0 { return None; }
+    let mut bytes = Vec::with_capacity(size);
+    for piece in &record.continues[end..] {
+        if bytes.len().checked_add(piece.len())? > size { return None; }
+        bytes.extend_from_slice(piece);
+        if bytes.len() == size { break; }
+    }
+    if bytes.len() != size || usize::from(u16::from_le_bytes([bytes[size-8], bytes[size-7]])) != count { return None; }
+    let mut runs = Vec::new();
+    for chunk in bytes[..size-8].chunks_exact(8) {
+        let at = u16::from_le_bytes([chunk[0], chunk[1]]);
+        let font = u16::from_le_bytes([chunk[2], chunk[3]]);
+        let index = usize::from(at);
+        if index >= count || (index > 0 && (0xdc00..=0xdfff).contains(&text[index])
+            && (0xd800..=0xdbff).contains(&text[index-1]))
+            || runs.last().is_some_and(|&(previous, _)| previous >= at) { return None; }
+        runs.push((at, font));
+    }
+    (runs.first().is_some_and(|(at, _)| *at == 0)).then_some(runs)
+}
+
 /// A string with its formatting runs (character index, font index), as the shared string table
 /// holds it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

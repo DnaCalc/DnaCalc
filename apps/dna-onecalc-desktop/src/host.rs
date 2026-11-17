@@ -1825,6 +1825,78 @@ mod tests {
         }
     }
 
+    /// Native-only: writes real files with `Zone.Identifier` streams (a sidecar file of that name
+    /// off Windows). The origin comes from the same `origin::open_file` the Open dialog's pick is
+    /// read with, not from a scripted value (RUN-ON-WINDOWS W3, made portable, dc-2nn1).
+    #[test]
+    fn a_file_read_from_disk_carries_its_real_origin_to_the_blocked_bar() {
+        use dna_onecalc::port::MacrosView;
+        struct Disk(PathBuf, Option<calc_platform_desktop::origin::OpenedFile>);
+        impl Files for Disk {
+            fn choose_open(&mut self) -> Result<Option<(String, Vec<u8>)>, String> {
+                let opened = calc_platform_desktop::origin::open_file(&self.0)
+                    .map_err(|e| e.to_string())?;
+                let picked = (opened.name.clone(), opened.bytes.clone());
+                self.1 = Some(opened);
+                Ok(Some(picked))
+            }
+            fn opened_origin(&self) -> dna_onecalc::FileOrigin {
+                self.1.as_ref().map_or(dna_onecalc::FileOrigin::Unknown, |o| o.origin)
+            }
+            fn opened_path(&self) -> Option<PathBuf> {
+                self.1.as_ref().map(|o| o.path.clone())
+            }
+            fn choose_save(&mut self, _: &str, _: &[u8]) -> Result<Option<String>, String> {
+                Ok(None)
+            }
+            fn choose_addin(&mut self) -> Result<Option<PathBuf>, String> {
+                Ok(None)
+            }
+            fn read_recent(&mut self, _: &Path) -> Result<(String, Vec<u8>), String> {
+                Err("not used".into())
+            }
+        }
+        let xlsm =
+            include_bytes!("../../../crates/calc-xll-reference/fixture/vba/DnaExamples.xlsm");
+        let dir = std::env::temp_dir().join(format!("onecalc-disk-origin-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        for (stream, blocked, reason) in [
+            (Some("[ZoneTransfer]\r\nZoneId=3\r\n"), true, "Mark of the Web (zone 3"),
+            (Some("[ZoneTransfer]\r\nZoneId=4\r\n"), true, "Mark of the Web (zone 4"),
+            (Some("[ZoneTransfer]\r\nZoneId=2\r\n"), false, ""),
+            (Some("[ZoneTransfer]\r\nZoneId=junk\r\n"), true, "could not be verified"),
+            (None, false, ""),
+        ] {
+            let path = dir.join(format!("{}.xlsm", blocked as u8 + stream.map_or(0, |s| s.len() as u8)));
+            std::fs::write(&path, xlsm).unwrap();
+            if let Some(text) = stream {
+                let mut name = path.as_os_str().to_owned();
+                name.push(":Zone.Identifier");
+                std::fs::write(PathBuf::from(name), text).unwrap();
+            }
+            let mut host = Host::new(
+                Session::new("Sheet1").unwrap(),
+                Disk(path, None),
+                Fake::default(),
+            );
+            let Reply::Opened(opened) = host.handle(Request::OpenNative) else {
+                panic!("opened")
+            };
+            let view = opened.project.expect("the file's project");
+            if blocked {
+                assert_eq!(view.macros, MacrosView::Blocked, "{stream:?}");
+                assert!(view.block_reason.contains(reason), "{stream:?}: {view:?}");
+                assert!(matches!(host.handle(Request::EnableMacros), Reply::Refused { .. }));
+            } else {
+                assert_eq!(view.macros, MacrosView::Disabled, "{stream:?}");
+                assert!(view.block_reason.is_empty(), "{view:?}");
+                assert!(matches!(host.handle(Request::EnableMacros), Reply::Opened(_)));
+            }
+        }
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
     /// Native-only: the macro security level through the host (dc-15dk). A marked file is blocked
     /// for Enable macros and runs through Unblock and enable, with a notice; the person's level is
     /// handed to the host's store, a level the flag or the variable pins is not; Unguarded runs a

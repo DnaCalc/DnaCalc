@@ -105,6 +105,11 @@ def reference_info():
             if info.lower() == 'address' and '!' in r:
                 continue
             fam.case(f'cell-{k:02}-{i:02}', 'CELL', s, 'Sheet1!H10', f'=CELL("{info}",{r})')
+    # Whole columns read whole (fn8 2026-11-17): the arrays are built, so a consumer reads them.
+    for j, formula in enumerate(['=SUM(ROW(C:C))', '=ROWS(ISFORMULA(C:D))', '=SUM(--ISFORMULA(C:D))',
+                                 '=ROWS(FORMULATEXT(C:D))', '=COUNTA(FORMULATEXT(A:A))', '=COUNT(ROW(A:A))',
+                                 '=ROW(A:A)']):
+        fam.case(f'whole-column-{j}', re.match(r'=([A-Z]+)\(', formula).group(1), s, 'Sheet1!H10', formula)
     return fam
 
 
@@ -173,6 +178,13 @@ def spill_placement():
         fam.case(f'own-{j:02}', 'SPILL', own, 'Sheet1!A1', formula)
     for j, formula in enumerate(['=G2:G7', '=G2:H7', '=OFFSET(G2,0,0,3,2)']):
         fam.case(f'own-g-{j:02}', 'SPILL', own, 'Sheet1!G1', formula)
+    # The own-spill formula already in place and calculated again (fn8 2026-11-17): the layout
+    # holds it in A1, volatile or not, and each probe in C1 reads its spill after a recalculation.
+    for k, held in enumerate(['=SEQUENCE(3)+A3+0*RAND()', '=SEQUENCE(3)+A3', '=ISBLANK(A2:A4)+0*RAND()',
+                              '=OFFSET(B1,1,-1,3)+0*RAND()']):
+        placed = fam.layout(f'own-placed-{k}', [{'name': 'Sheet1', 'cells': {'A1': held}}])
+        for j, probe in enumerate(['=A1', '=A2', '=A3', '=ISFORMULA(A2)', '=A1#']):
+            fam.case(f'own-placed-{k}-{j}', 'SPILL', placed, 'Sheet1!C1', probe)
     return fam
 
 
@@ -415,6 +427,106 @@ REFERENCE_ARRAY_CONTROLS = [
 ]
 
 
+# Reference identity (dc-b1l, fn8 2026-11-17): which references of an array of references UNIQUE
+# keeps apart, and the format argument ARRAYTOTEXT reads before its #CALC!.
+REFERENCE_ARRAY_PROBES = [
+    'UNIQUE(OFFSET(A1,{0;0;1},{0,0}),TRUE)', 'UNIQUE(OFFSET(A1,{0;0;1},{0,2}),TRUE)', 'UNIQUE(OFFSET(A1,0,{0,0,2}))',
+    'UNIQUE(OFFSET(A1,0,{0,0,2}),TRUE)', 'UNIQUE(OFFSET(A1,0,{0,0,2}),TRUE,TRUE)',
+    'UNIQUE(OFFSET(A1,{0;0;1},0),FALSE,TRUE)', 'UNIQUE(IF({1;1;0},OFFSET(A1,{0;1;2},0),5))',
+    'UNIQUE(OFFSET(A1,{0;1},0,{1;1}))', 'UNIQUE(CHOOSE({1;2;3},A1,A1:A1,INDIRECT("A1")))',
+    'UNIQUE(CHOOSE({1;2},A1,Sheet1!A1))', 'UNIQUE(CHOOSE({1;2},A1:A2,A1:A2))', 'UNIQUE(CHOOSE({1;2},A1:A2,A2:A1))',
+    'ROWS(UNIQUE(OFFSET(A1,{0;0;1},0)))', 'UNIQUE(OFFSET(A1,{0;1},{0,0}))', 'UNIQUE(OFFSET(A1,{0;0},{0,1}))',
+    'UNIQUE(OFFSET(A1,{0;0},{0,1}),TRUE)', 'UNIQUE(OFFSET(A1,{0,0;1,1},{0,0;0,0}),TRUE)',
+    'UNIQUE(INDIRECT({"A1";"Sheet1!A1";"$A$1";"A1:A1";"Data!A1";"A1:A2";"a1:a2"}))',
+    'IF({1;1;0},OFFSET(A1,{0;1;2},0),5)', 'UNIQUE(INDIRECT({"A1";"A2";"A1"}),FALSE,TRUE)',
+    'UNIQUE(INDIRECT({"A1","A2";"A1","A2";"A1","C1"}))',
+    'UNIQUE(INDIRECT({"A1","A2";"A1","A2";"A1","C1"}),FALSE,TRUE)', 'UNIQUE(INDIRECT({"A1";"A1"}),TRUE,TRUE)',
+    'UNIQUE(INDIRECT({"A1","C1"}),TRUE,TRUE)', 'UNIQUE(INDIRECT({"A1";"B1"}))',
+    'UNIQUE(INDIRECT({"A1:B2";"A1:B2"}))', 'UNIQUE(INDIRECT({"B5";"B5";"B1"}))', 'UNIQUE(INDIRECT({"A1";"A1:A1"}))',
+    'UNIQUE(INDIRECT({"Data!A1";"A1"}))', 'UNIQUE(INDIRECT({"Data!A1";"data!A1"}))', 'UNIQUE(INDIRECT({"A1";"B2"}))',
+    'UNIQUE(INDIRECT({"A1";"B1:C1"}))', 'UNIQUE(INDIRECT({"A1";"A1:B1"}))', 'UNIQUE(INDIRECT({"A1:A2";"B1:B2"}))',
+    'UNIQUE(INDIRECT({"A1:A2";"A1:B2"}))', 'UNIQUE(INDIRECT({"Sheet1!A1";"sheet1!A1"}))',
+    'UNIQUE(INDIRECT({"Data!A1";"Data!A1"}))', 'UNIQUE(INDIRECT({"Data!A1";"Data!B1"}))',
+    'UNIQUE(INDIRECT({"A1";"XFD1"}))', 'UNIQUE(INDIRECT({"A1";"A65537"}))', 'UNIQUE(INDIRECT({"A1";"A257"}))',
+    'UNIQUE(INDIRECT({"A1","A2"}),TRUE)', 'UNIQUE(INDIRECT({"A1","B1"}),TRUE)', 'UNIQUE(INDIRECT({"A1";"A1,B1"}))',
+    'UNIQUE(INDIRECT({"A1";"1:1"}))', 'UNIQUE(INDIRECT({"A:A";"B:B"}))', 'UNIQUE(INDIRECT({"A1";"R1C2"},FALSE))',
+    'UNIQUE(OFFSET(Data!A1,{0;0},{0;1}))', 'UNIQUE(INDIRECT({"Data!A1";"DATA!A1";"data!A1";"Data!A1"}))',
+    'UNIQUE(INDIRECT({"Sheet1!A1";"Sheet1!A1"}))', 'UNIQUE(INDIRECT({"A1";"Sheet1!A1";"Sheet1!A1"}))',
+    'UNIQUE(INDIRECT({"Sheet1!A1";"A1"}))', 'UNIQUE(INDIRECT({"Sheet1!A1";"Sheet1!B1"}))',
+    'UNIQUE(INDIRECT({"A1";"Sheet1!B1"}))', 'UNIQUE(OFFSET(Data!A1,{0;0},0))', 'UNIQUE(OFFSET(Sheet1!A1,{0;0},0))',
+    'UNIQUE(OFFSET(Sheet1!A1,{0;0},{0;1}))', 'UNIQUE(INDIRECT({"Data!A1";"Data!A1"}),,TRUE)',
+    'UNIQUE(INDIRECT({"A1:A2";"A2:A1"}))', 'UNIQUE(INDIRECT({"A1:B2";"B2:A1"}))',
+    'UNIQUE(INDIRECT({"B1:A2";"A1:B2"}))', 'UNIQUE(OFFSET(A1,{0;0},{0;1},{1;2},{1;3}))',
+    'UNIQUE(OFFSET(A1,{0;0},0,{1;2}))', 'UNIQUE(INDIRECT({"Data!A1";"Data!A2"}))',
+    'UNIQUE(INDIRECT({"Data!A1","C1";"Data!A1","C1"}))', 'ARRAYTOTEXT(OFFSET(A1,{0;1},0),5)',
+    'ARRAYTOTEXT(OFFSET(A1,{0;1},0),"x")', 'ARRAYTOTEXT(OFFSET(A1,{0;1},0),NA())',
+    'ARRAYTOTEXT(INDIRECT({"A1";"A1,B1"}))', 'ARRAYTOTEXT(INDIRECT({"A1,B1";"A1,B1"}))',
+    'ARRAYTOTEXT(OFFSET(A1,{0;1},0),{0,1})', 'ARRAYTOTEXT(OFFSET(A1,{0;1},0),0)',
+    'ARRAYTOTEXT(OFFSET(A1,{0;1},0),-1)', 'ARRAYTOTEXT(OFFSET(A1,{0;1},0),2)', 'VALUETOTEXT(OFFSET(A1,{0;1},0))',
+    'ARRAYTOTEXT(OFFSET(A1,{0;1},0),TRUE)', 'ARRAYTOTEXT(OFFSET(A1,{0;1},0),"1")',
+    'ARRAYTOTEXT(OFFSET(A1,{0;1},0),A1:A2)', 'ARRAYTOTEXT(OFFSET(A1,{0;1},0),B5)', 'ARRAYTOTEXT({1;2},5)',
+    'SUM(IF({1;1;0},OFFSET(A1,{0;1;2},0),5))',
+    'ISREF(INDEX(IF({1;1;0},OFFSET(A1,{0;1;2},0),5),1,1))',
+    'ISERROR(IF({1;1;0},OFFSET(A1,{0;1;2},0),5))',
+    'SUM(CHOOSE({1;2},OFFSET(A1,{0;1},0),5))',
+    'SUM(IFERROR(OFFSET(A1,{0;1},0),5))',
+    'COUNTA(IF({1;1;0},OFFSET(A1,{0;1;2},0),5))',
+    'SUM(IF(TRUE,OFFSET(A1,{0;1;2},0)))',
+    'UNIQUE(IF(TRUE,OFFSET(A1,{0;0;1},0)))',
+    'IFS({TRUE;TRUE},OFFSET(A1,{0;1},0))',
+    'SUM(IFS({TRUE;TRUE},OFFSET(A1,{0;1},0)))',
+    'AGGREGATE(9,0,A1:A2,OFFSET(A1,{0;1;2},0,2))',
+    'AGGREGATE(9,0,A1:A2,OFFSET(A1,{0;1;2},0))',
+    'AGGREGATE(9,0,OFFSET(A1,{0;1;2},0),A1:A2)',
+    'AGGREGATE(9,0,OFFSET(A1,{0;1;2},0))',
+    'AGGREGATE(4,0,A1:A2,OFFSET(A1,{0;1;2},0,2))',
+    'AGGREGATE(14,0,OFFSET(A1,{0;1;2},0),1)',
+    'AGGREGATE(14,0,A1:A6,OFFSET(A1,{0;1;2},0))',
+    'AGGREGATE(9,0,A1:A2,INDIRECT({"A1:A2";"C1:C2"}))',
+    'AGGREGATE(9,0,A1:A2,C1:C2,OFFSET(A1,{0;1},0))',
+    'AGGREGATE(9,0,A1:A2,OFFSET(A1,{0;1},0),C1:C2)',
+    'AGGREGATE(9,0,A1:A2,OFFSET(A1,{0;1},0),OFFSET(C1,{0,1},0))',
+    'AGGREGATE(9,0,OFFSET(A1,{0;1},0),OFFSET(A1,{0;1},0))',
+    'AGGREGATE(9,0,A1:A2,{1;2})',
+    'AGGREGATE(9,0,A1:A2,OFFSET(B1,{0;1;2;3;4},0))',
+    'AGGREGATE(1,0,A1:A2,OFFSET(B1,{0;1;2;3;4},0))',
+    'AGGREGATE(3,0,A1:A2,OFFSET(B1,{0;1;2;3;4},0))',
+    'AGGREGATE(9,6,A1:A2,OFFSET(B1,{0;1;2;3;4},0))',
+    'SUBTOTAL(9,A1:A2,OFFSET(A1,{0;1;2},0,2))',
+    'AGGREGATE(9,0,A1:A2,{1,2,3})',
+    'AGGREGATE(9,0,A1:A2,5)',
+    'AGGREGATE(14,0,A1:A6,{1;2})',
+    'AGGREGATE(9,0,A1:A2,A1:A2*1)',
+    'AGGREGATE(9,0,{1;2})',
+    'AGGREGATE(9,0,{1;2},A1:A2)',
+    'AGGREGATE(9,6,A1:A2,{1;2})',
+    'AGGREGATE(9,0,A1:A2,{1;2},OFFSET(A1,{0,1},0))',
+    'AGGREGATE(4,0,A1:A2,"x")',
+    'AGGREGATE(9,0,A1:A2,#N/A)',
+    'AGGREGATE(9,6,A1:A2,#N/A)',
+    'AGGREGATE(9,0,A1:A2,{#N/A;1})',
+    'AGGREGATE(2,0,A1:A2,{1;2})',
+    'AGGREGATE(3,0,A1:A2,{1;2})',
+    'AGGREGATE(9,0,A1:A2,(A1,A2))',
+    'AGGREGATE(9,0,A1:A2,TRUE)',
+    'AGGREGATE(9,6,#N/A)',
+    'AGGREGATE(9,6,A1:A2,#N/A)',
+    'AGGREGATE(9,6,A1:A2,1/0)',
+    'AGGREGATE(9,6,A1:A2,B5)',
+    'AGGREGATE(9,6,A1:A2,NA(),C1)',
+    'AGGREGATE(9,2,A1:A2,#N/A)',
+    'AGGREGATE(9,3,A1:A2,#N/A)',
+    'AGGREGATE(9,7,A1:A2,#N/A)',
+    'AGGREGATE(9,5,A1:A2,#N/A)',
+    'AGGREGATE(9,0,A1:A2,#N/A)',
+    'AGGREGATE(14,6,A1:A6,#N/A)',
+    'AGGREGATE(9,6,1/0)',
+    'AGGREGATE(9,6,A1:A2,"x")',
+    'AGGREGATE(1,6,A1:A2,#N/A)',
+    'AGGREGATE(9,6,B4:B5)',
+    'AGGREGATE(9,6,A1:A2,B4:B5)',
+]
+
 def reference_arrays():
     """Each consumer of an array of references (dc-b1l), over five arrays of references."""
     fam = Family()
@@ -432,6 +544,9 @@ def reference_arrays():
     for j, control in enumerate(REFERENCE_ARRAY_CONTROLS):
         fam.case(f'refarray-control-{j:02}', re.match(r'([A-Z][A-Z0-9.]*)\(', control).group(1), sheet, 'Sheet1!H1',
                  '=' + control)
+    for j, probe in enumerate(REFERENCE_ARRAY_PROBES):
+        fam.case(f'refarray-probe-{j:02}', re.match(r'([A-Z][A-Z0-9.]*)\(', probe).group(1), sheet, 'Sheet1!H1',
+                 '=' + probe)
     return fam
 
 
@@ -470,6 +585,11 @@ THREE_D_CASES = [
     'XLOOKUP(9,A1:A3,B1:B3,X)&""', 'ISERROR(IF(FALSE,1,X))', 'ERROR.TYPE(IF(FALSE,1,X))',
     'ERROR.TYPE(IFERROR(NA(),X))', 'ERROR.TYPE(CHOOSE(2,1,X))', 'ERROR.TYPE(IFS(FALSE,1,TRUE,X))',
     'FILTERXML("<a>1</a>",X)', 'HYPERLINK("x",X)', 'GROUPBY(A1:A3,B1:B3,SUM,X)',
+    # SWITCH's roles by argument count (fn8 2026-11-17).
+    'SWITCH(1,2,3,1,X)', 'SWITCH(1,1,X)', 'SWITCH(1,X,2)', 'SWITCH(1,X,2,3)', 'SWITCH(1,1,2,X,3)', 'SWITCH(X,1,2)',
+    'SWITCH(X,1,2,3)', 'SWITCH(1,2,3,X,4,5)', 'SWITCH(1,2,3,4,5,X)', 'SWITCH(1,2,3,1,4,X)', 'SWITCH(1,2,X,3)',
+    'SWITCH(1,2,X)', 'SWITCH(1,1,2,X,4,5)', 'SWITCH(1,2,3,X,4,1,5)', 'SWITCH(1,2,3,X,X)', 'ISREF(SWITCH(1,1,X))',
+    'SWITCH(2,1,2,X)', 'SWITCH(1,1,A1:A2,X)', 'SWITCH(1,2,3,4,5,X,6)', 'SWITCH(1,2,3,X)+0',
 ]
 
 

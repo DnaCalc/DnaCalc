@@ -68,6 +68,7 @@ pub use file_call::{
 };
 
 mod registry;
+pub use unheld::{binding_form, binding_spelling};
 pub use registry::{DECLARATION_COUNT, DeclarationRef, declaration, declarations, named};
 
 mod declarations;

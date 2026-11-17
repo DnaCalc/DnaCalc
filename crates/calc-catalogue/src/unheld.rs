@@ -37,6 +37,29 @@ pub enum UnheldKind {
     Rtd { provider: &'static str },
 }
 
+/// The binding form (LET or LAMBDA) a call written `name` introduces: `name` is an invariant
+/// spelling without a file prefix, matched in any ASCII case.
+pub fn binding_form(name: &str) -> Option<BindingForm> {
+    UNHELD_ENTRIES.iter().find_map(|entry| match entry.kind {
+        UnheldKind::Binding(form) if entry.spelling.eq_ignore_ascii_case(name) => Some(form),
+        _ => None,
+    })
+}
+
+/// The invariant spelling of a binding form's declaration (`LET`, `LAMBDA`).
+pub const fn binding_spelling(form: BindingForm) -> &'static str {
+    let mut i = 0;
+    while i < UNHELD_ENTRIES.len() {
+        if let UnheldKind::Binding(declared) = UNHELD_ENTRIES[i].kind
+            && declared as u8 == form as u8
+        {
+            return UNHELD_ENTRIES[i].spelling;
+        }
+        i += 1;
+    }
+    panic!("a binding form without a declaration")
+}
+
 /// Provider identity for the RTD route.
 pub const RTD_PROVIDER: &str = "calc-fml/rtd";
 
@@ -57,15 +80,42 @@ pub fn operator_file_spelling(id: FunctionId) -> Option<&'static str> {
             _ => None,
         })
 }
+/// The trim reference operators: each operator, the name a file stores its call with (after
+/// `_xlfn.`; Excel 16.0.20527 saves `C1.:C20` as `_xlfn._TRO_LEADING(C1:C20)`, `C1:.C20` as
+/// `_xlfn._TRO_TRAILING(C1:C20)` and `C1.:.C20` as `_xlfn._TRO_ALL(C1:C20)`, dc-h9u), and the
+/// trim argument TRIMRANGE ([`crate::offset::TRIMRANGE`]) takes for both rows and columns.
+const TRIM_REFERENCES: [(&str, &str, u8); 3] = [
+    (".:", "_TRO_LEADING", 1),
+    (":.", "_TRO_TRAILING", 2),
+    (".:.", "_TRO_ALL", 3),
+];
+
+/// The file prefix a trim reference's file call takes.
+pub const TRIM_REFERENCE_FILE_PREFIX: crate::FilePrefix = crate::FilePrefix::Xlfn;
+
 /// File form of a trim reference operator measured in the workbook format.
 pub fn trim_reference_file_spelling(operator: &str) -> Option<(crate::FilePrefix, &'static str)> {
-    let name = match operator {
-        ".:" => "_TRO_LEADING",
-        ":." => "_TRO_TRAILING",
-        ".:." => "_TRO_ALL",
-        _ => return None,
-    };
-    Some((crate::FilePrefix::Xlfn, name))
+    TRIM_REFERENCES
+        .iter()
+        .find(|(written, _, _)| *written == operator)
+        .map(|(_, name, _)| (TRIM_REFERENCE_FILE_PREFIX, *name))
+}
+
+/// TRIMRANGE's trim argument for a trim reference operator (`.:`, `:.` or `.:.`).
+pub fn trim_reference_mode(operator: &str) -> Option<u8> {
+    TRIM_REFERENCES
+        .iter()
+        .find(|(written, _, _)| *written == operator)
+        .map(|(_, _, mode)| *mode)
+}
+
+/// TRIMRANGE's trim argument for a trim reference's file call name (`_TRO_LEADING`, without its
+/// prefix, in any ASCII case).
+pub fn trim_reference_file_mode(name: &str) -> Option<u8> {
+    TRIM_REFERENCES
+        .iter()
+        .find(|(_, file, _)| file.eq_ignore_ascii_case(name))
+        .map(|(_, _, mode)| *mode)
 }
 // Signature names and bounds are handbook seeds (calcfunc-catalogue 481f4ab85d3b);
 // entry does not claim they were measured in Excel.
@@ -312,3 +362,38 @@ pub const UNHELD_ENTRIES: &[UnheldEntry] = &[
     reference_operator(15, "@", Notation::Prefix, "_xlfn.SINGLE"),
     reference_operator(16, "#", Notation::Postfix, "_xlfn.ANCHORARRAY"),
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn binding_forms_are_read_from_their_declarations() {
+        assert_eq!(binding_form("LET"), Some(BindingForm::Let));
+        assert_eq!(binding_form("lambda"), Some(BindingForm::Lambda));
+        assert_eq!(binding_form("_xlfn.LET"), None);
+        assert_eq!(binding_form("SUM"), None);
+        assert_eq!(binding_spelling(BindingForm::Let), "LET");
+        assert_eq!(binding_spelling(BindingForm::Lambda), "LAMBDA");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn trim_references_have_one_file_name_and_mode() {
+        for (operator, name, mode) in [
+            (".:", "_TRO_LEADING", 1),
+            (":.", "_TRO_TRAILING", 2),
+            (".:.", "_TRO_ALL", 3),
+        ] {
+            assert_eq!(
+                trim_reference_file_spelling(operator),
+                Some((crate::FilePrefix::Xlfn, name))
+            );
+            assert_eq!(trim_reference_mode(operator), Some(mode));
+            assert_eq!(trim_reference_file_mode(&name.to_ascii_lowercase()), Some(mode));
+        }
+        assert_eq!(trim_reference_mode(":"), None);
+        assert_eq!(trim_reference_file_mode("TRIMRANGE"), None);
+    }
+}

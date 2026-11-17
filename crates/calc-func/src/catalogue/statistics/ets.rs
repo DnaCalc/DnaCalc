@@ -458,6 +458,18 @@ fn initial_slope(y: &[f64]) -> f64 {
     regression_slope(&extended)
 }
 
+/// The parameter search validates on the last min(floor(0.4 N), max(10, 2p,
+/// ceil(N/5))) of the N points searched, none up to ten points (eng23; period
+/// one for the nonseasonal fit, whose probe_nons selections diverged from 52
+/// points with STAT's ten-point tail).
+fn search_window(searched: usize, period: usize) -> usize {
+    if searched <= 10 {
+        searched
+    } else {
+        ((searched as f64 * 0.4) as usize).min(10.max(2 * period).max(searched.div_ceil(5)))
+    }
+}
+
 fn statistic_window(n: usize) -> usize {
     if n <= 10 {
         n
@@ -469,7 +481,7 @@ fn statistic_window(n: usize) -> usize {
 struct Model {
     level: f64,
     trend: f64,
-    seasons: [f64; 8],
+    seasons: Vec<f64>,
     period: usize,
     errors: Vec<f64>,
     predictions: Vec<f64>,
@@ -479,7 +491,7 @@ struct Model {
 struct Initial {
     level: f64,
     trend: f64,
-    seasons: [f64; 8],
+    seasons: Vec<f64>,
     period: usize,
     gamma: f64,
 }
@@ -496,7 +508,7 @@ impl Model {
             Initial {
                 level: y[0],
                 trend: initial_slope(y),
-                seasons: [0.0; 8],
+                seasons: vec![0.0; 2],
                 period: 2,
                 gamma: f64::EPSILON,
             },
@@ -541,7 +553,10 @@ impl Model {
         self.errors.iter().fold(0.0, |sum, &v| sum + v * v)
     }
 
-    fn finish(&mut self, y: &[f64], beta: &mut f64) -> bool {
+    /// Excel's trend-stability test over the final half of the fitted trends;
+    /// an unstable trend restarts from the history's end (nonseasonal and
+    /// seasonal fits alike).
+    fn trend_unstable(&self, y: &[f64]) -> bool {
         // This window is independent of STAT's tail. It retains the transitions
         // within the final half of the observations, including its first state.
         let window = if y.len() <= 10 {
@@ -564,7 +579,11 @@ impl Model {
         let squares = trends.iter().fold(0.0, |sum, &v| add(sum, mul(v, v)));
         let mean = div(total, divisor);
         let variance = sub(div(squares, divisor), mul(mean, mean));
-        let reset = mean.abs() < div(mul(variance.sqrt(), divisor_window as f64), divisor);
+        mean.abs() < div(mul(variance.sqrt(), divisor_window as f64), divisor)
+    }
+
+    fn finish(&mut self, y: &[f64], beta: &mut f64) -> bool {
+        let reset = self.trend_unstable(y);
         if reset {
             self.level = *y.last().unwrap() - self.seasons[(y.len() - 1) % 2];
             self.trend = initial_slope(y);
@@ -664,7 +683,7 @@ fn exact_seasonal(
     let level = exact_total(&adjusted)
         .and_then(|v| exact_ratio(v, period as f64))
         .ok_or_else(|| unfinished(site))?;
-    let mut seasons = [0.0; 8];
+    let mut seasons = vec![0.0; period];
     for (target, &v) in seasons.iter_mut().zip(&adjusted) {
         *target = exact_sum(v, -level).ok_or_else(|| unfinished(site))?;
     }
@@ -748,18 +767,37 @@ fn nonseasonal(
     horizon: f64,
     confidence: f64,
 ) -> Step<CalcValue> {
-    if y.iter()
-        .any(|&v| v != 0.0 && !(2.0_f64.powi(-400)..=2.0_f64.powi(400)).contains(&v.abs()))
+    nonseasonal_fit(site, y, output, statistic, horizon, confidence, false)
+}
+
+/// The nonseasonal fit. `general` admits the histories outside the measured
+/// exact region (long, constant or extreme-scale histories): the same
+/// recurrence and search, without the claim that its rounding is Excel's.
+fn nonseasonal_fit(
+    site: &Site<'_>,
+    y: &[f64],
+    output: Output,
+    statistic: f64,
+    horizon: f64,
+    confidence: f64,
+    general: bool,
+) -> Step<CalcValue> {
+    if !general
+        && y.iter()
+            .any(|&v| v != 0.0 && !(2.0_f64.powi(-400)..=2.0_f64.powi(400)).contains(&v.abs()))
     {
         return Err(unfinished(site));
     }
     // Gamma does not require the unidentified initial states. Fresh short and
     // rounded-constant selections retain the same two epsilon seasonal states.
-    if output == Output::Statistic && statistic == 3.0 && (3..=32).contains(&y.len()) {
+    if output == Output::Statistic && statistic == 3.0 && (general || (3..=32).contains(&y.len())) {
         return site.number(f64::EPSILON);
     }
-    if !(3..=32).contains(&y.len()) {
+    if !general && !(3..=32).contains(&y.len()) {
         return Err(unfinished(site));
+    }
+    if output == Output::Seasonality {
+        return site.number(0.0);
     }
     // Outside the exact short-history region, the private initial regression's
     // rounding remains unidentified. Every refusal remains a counted failure.
@@ -781,10 +819,10 @@ fn nonseasonal(
     };
     // The exact-affine route has already failed here. Rounded constant
     // initialisation changes the search parameters in retained adjacent probes.
-    if y.iter().all(|&v| v == y[0]) {
+    if !general && y.iter().all(|&v| v == y[0]) {
         return Err(unfinished(site));
     }
-    let start = search_history.len() - statistic_window(search_history.len());
+    let start = search_history.len() - search_window(search_history.len(), 1);
     let validation = (start != 0).then_some(start);
     let mut best = f64::INFINITY;
     let mut chosen = PARAMETERS[0];
@@ -795,7 +833,7 @@ fn nonseasonal(
             chosen = (alpha, beta);
         }
     }
-    if !best.is_finite() {
+    if !best.is_finite() && !general {
         return Err(unfinished(site));
     }
     let (alpha, mut beta) = chosen;
@@ -805,10 +843,12 @@ fn nonseasonal(
     model.finish(y, &mut beta);
     match output {
         Output::Forecast => {
-            if horizon < 0.0 {
-                return Err(unfinished(site));
+            // A target inside the history extrapolates the final state
+            // backwards (Touchstone, eng21): the same formula with h < 0.
+            let phase = season_phase(y.len(), horizon, 2);
+            if general {
+                return finite(site, model.level + horizon * model.trend + model.seasons[phase as usize]);
             }
-            let phase = ((y.len() - 1) as u64 + horizon as u64) % 2;
             // Fresh midpoint questions distinguish the final seasonal addition
             // at PC64 followed by a binary64 store from strict binary64 addition.
             site.number(crate::ported::excel_numeric::excel_x87_add(
@@ -851,7 +891,523 @@ fn nonseasonal(
                 ((squared_errors / y.len() as f64) * variance).sqrt(),
             ))
         }
-        Output::Seasonality => Err(unfinished(site)),
+        Output::Seasonality => unreachable!(),
+    }
+}
+
+/// The seasonal phase of an integer horizon from the last observation; negative
+/// horizons (targets inside the history) count backwards.
+fn season_phase(n: usize, horizon: f64, period: usize) -> usize {
+    ((n as i64 - 1) + horizon as i64).rem_euclid(period as i64) as usize
+}
+
+/// A calculated result; a non-finite one is Excel's overflow error.
+fn finite(site: &Site<'_>, value: f64) -> Step<CalcValue> {
+    if value.is_finite() {
+        site.number(value)
+    } else {
+        fail(WorksheetErrorCode::Num)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// General AAA path (dc-2u2g). Histories outside the measured exact regions
+// above are calculated here rather than refused. Its shape is Excel 2016's
+// additive ETS as measured through Touchstone (eng21, 2026-11-17):
+// - parameters come from a finite candidate set, not a continuous optimiser:
+//   every (alpha, beta, gamma) Excel reported for 400 random seasonal
+//   histories is one of SEASONAL_PARAMETERS (nonseasonal: PARAMETERS);
+// - the automatic period follows the strongest DFT bin of the least-squares
+//   detrended history (linear trends of any size leave it unchanged);
+// - the selection objective is the shared validation-window squared error;
+// - the seasonal initial states are Excel's (excel_seasonal_initial, eng23).
+// Not yet identified, so these results are not always Excel's bits: the
+// detector's acceptance rule, the parameter search where it differs from the
+// candidate scan (Excel's triple in about 85% of short seasonal probes), the
+// arithmetic order of the initial states and the final state adjustment.
+// ---------------------------------------------------------------------------
+
+/// The (alpha, beta, gamma) candidates Excel 20527's seasonal search ends on:
+/// every triple Excel reported for 16,020 probe histories (eng21 probe_triples,
+/// eng21-23 initial-state probes) except the six that only its trend reset
+/// produces (a candidate with beta 0.001 in place of its own beta; see
+/// seasonal_general).
+const SEASONAL_PARAMETERS: &[(f64, f64, f64)] = &[
+    (0.002, 0.001, 0.125),
+    (0.002, 0.001, 0.25),
+    (0.002, 0.001, 0.5),
+    (0.002, 0.001, 0.75),
+    (0.1, 0.001, 0.899),
+    (0.126, 0.001, 0.001),
+    (0.126, 0.125, 0.001),
+    (0.166667, 0.0833333, 0.0833333),
+    (0.166667, 0.0833333, 0.75),
+    (0.25, 0.001, 0.749),
+    (0.25, 0.249, 0.749),
+    (0.251, 0.001, 0.001),
+    (0.251, 0.001, 0.25),
+    (0.251, 0.25, 0.001),
+    (0.251, 0.25, 0.25),
+    (0.333333, 0.166667, 0.166667),
+    (0.333333, 0.166667, 0.5),
+    (0.5, 0.001, 0.499),
+    (0.5, 0.25, 0.001),
+    (0.5, 0.25, 0.25),
+    (0.5, 0.499, 0.499),
+    (0.501, 0.001, 0.001),
+    (0.501, 0.5, 0.001),
+    (0.666667, 0.166667, 0.166667),
+    (0.666667, 0.5, 0.166667),
+    (0.75, 0.001, 0.249),
+    (0.75, 0.749, 0.249),
+    (0.751, 0.001, 0.001),
+    (0.751, 0.75, 0.001),
+    (0.833333, 0.0833333, 0.0833333),
+    (0.833333, 0.75, 0.0833333),
+    (0.9, 0.001, 0.099),
+    (0.9, 0.899, 0.099),
+    (0.998, 0.099, 0.001),
+    (0.998, 0.249, 0.001),
+    (0.998, 0.499, 0.001),
+    (0.998, 0.749, 0.001),
+    (0.998, 0.899, 0.001),
+];
+
+/// Least-squares residuals of the history against its position 1..n.
+fn detrended(y: &[f64]) -> Vec<f64> {
+    let n = y.len() as f64;
+    let mx = (n + 1.0) / 2.0;
+    let my = y.iter().sum::<f64>() / n;
+    let (mut sxy, mut sxx) = (0.0, 0.0);
+    for (i, &v) in y.iter().enumerate() {
+        let dx = i as f64 + 1.0 - mx;
+        sxy += dx * (v - my);
+        sxx += dx * dx;
+    }
+    let slope = if sxx == 0.0 { 0.0 } else { sxy / sxx };
+    y.iter()
+        .enumerate()
+        .map(|(i, &v)| v - (my + slope * (i as f64 + 1.0 - mx)))
+        .collect()
+}
+
+/// The automatic period of FORECAST.ETS.SEASONALITY and seasonality 1.
+/// eng24 (Touchstone boundary probes of Excel 20527): a dominant-bin test on
+/// the tapered periodogram of the least-squares residuals (see the block
+/// below); from 17 points longer bin periods take their lag from the unbiased
+/// autocorrelation; without a dominant bin a fallback keeps some candidates of
+/// eng22's detector (strongest bin, its lag range, a competing lower bin).
+/// Exact at n = 5..10 on every probe; the lag choice and the fallback are
+/// fitted, not Excel's identified rule.
+fn detect_period(y: &[f64]) -> usize {
+    let n = y.len();
+    let last_lag = 2 * n / 5;
+    if last_lag < 2 {
+        return 0;
+    }
+    let e = detrended(y);
+    let mean = e.iter().sum::<f64>() / n as f64;
+    let d: Vec<f64> = e.iter().map(|v| v - mean).collect();
+    let denominator: f64 = d.iter().map(|v| v * v).sum();
+    let scale = y.iter().fold(0.0_f64, |m, v| m.max(v.abs()));
+    if denominator == 0.0 || !denominator.is_finite() || denominator.sqrt() <= scale * 1e-12 {
+        return 0;
+    }
+    let r = |k: usize| -> f64 { (0..n - k).map(|i| d[i] * d[i + k]).sum::<f64>() / denominator };
+    if n == 5 {
+        // Measured five-point boundary (eng21 five_quadric: 22 switch points
+        // on 12 residual planes fit one quadric to 7e-7): period two exactly
+        // when the residual periodogram at frequency two exceeds 1.4 times
+        // the one at frequency one.
+        let c1 = r(1) + r(4);
+        let c2 = r(2) + r(3);
+        let (w1, w2) = ((2.0 * std::f64::consts::PI / 5.0).cos(), (4.0 * std::f64::consts::PI / 5.0).cos());
+        let p1 = 1.0 + 2.0 * c1 * w1 + 2.0 * c2 * w2;
+        let p2 = 1.0 + 2.0 * c1 * w2 + 2.0 * c2 * w1;
+        return if p2 > 1.4 * p1 { 2 } else { 0 };
+    }
+    let unbiased = |k: usize| r(k) * n as f64 / (n - k) as f64;
+    let power: Vec<f64> = (0..=n / 2)
+        .map(|k| {
+            let (mut re, mut im) = (0.0, 0.0);
+            for (t, &v) in e.iter().enumerate() {
+                let angle = -2.0 * std::f64::consts::PI * ((k * t) % n) as f64 / n as f64;
+                re += v * angle.cos();
+                im += v * angle.sin();
+            }
+            re * re + im * im
+        })
+        .collect();
+    let lags_of = |bin: usize| -> usize {
+        let low = n as f64 / (bin + 1) as f64;
+        let high = if bin > 1 { n as f64 / (bin - 1) as f64 } else { f64::INFINITY };
+        let mut chosen = 0;
+        let mut best = f64::NEG_INFINITY;
+        for p in 2..=last_lag {
+            let lag = p as f64;
+            if low < lag && lag < high {
+                let value = unbiased(p);
+                if value > best {
+                    best = value;
+                    chosen = p;
+                }
+            }
+        }
+        if chosen == 0 {
+            let nearest = (n as f64 / bin as f64 - 0.5 - 1e-12).ceil();
+            if nearest >= 2.0 && nearest <= last_lag as f64 { nearest as usize } else { 0 }
+        } else {
+            chosen
+        }
+    };
+    let fallback: f64;
+    {
+        // The automatic period (eng24, Touchstone boundary probes of Excel
+        // 20527): the strongest bin k of the residual periodogram gives the
+        // period n/k rounded half down, refused above floor(n/2.5); it is
+        // accepted exactly when that bin's power is at least 2 - 3/n times
+        // the next strongest bin's. The periodogram tapers floor(n/10) points
+        // at each end by 0.5 (1 - cos(pi (j + 1/2) / L)) (none below ten
+        // points; 1/2 for ten to nineteen; 0.146447, 0.853553 from twenty),
+        // recovered from the quadric decision boundaries at n = 10 and 20
+        // (fit 5e-13, 1e-12); the boundary sets at n = 6..12, 17..20, 24, 36,
+        // 48 sit at that ratio to 1e-6 where no autocorrelation choice is
+        // involved. Random histories agree 40,000 of 40,000 at n = 6, 7 and
+        // 10, 96-99% at n = 11..17, 96% at n = 20 and 23. eng21's five-point
+        // rule above is the same test (2 - 3/5 = 1.4).
+        let weighted: Vec<f64>;
+        let ends = n / 10;
+        let taper: Vec<f64> = (0..n)
+            .map(|t| {
+                let j = t.min(n - 1 - t);
+                if j >= ends {
+                    1.0
+                } else if ends == 1 {
+                    0.5
+                } else {
+                    0.5 * (1.0 - (std::f64::consts::PI * (j as f64 + 0.5) / ends as f64).cos())
+                }
+            })
+            .collect();
+        let power = if n >= 10 {
+            weighted = (0..=n / 2)
+                .map(|k| {
+                    let (mut re, mut im) = (0.0, 0.0);
+                    for (t, &v) in e.iter().enumerate() {
+                        let w = v * taper[t];
+                        let angle = -2.0 * std::f64::consts::PI * ((k * t) % n) as f64 / n as f64;
+                        re += w * angle.cos();
+                        im += w * angle.sin();
+                    }
+                    re * re + im * im
+                })
+                .collect();
+            &weighted
+        } else {
+            &power
+        };
+        let mut top = 1;
+        for k in 2..power.len() {
+            if power[k] > power[top] {
+                top = k;
+            }
+        }
+        let second = (1..power.len()).filter(|&k| k != top).map(|k| power[k]).fold(0.0_f64, f64::max);
+        let dominant = power[top] >= (2.0 - 3.0 / n as f64) * second;
+        if dominant && n >= 17 && n as f64 / top as f64 > 5.25 {
+            // From seventeen observations, a bin period above 5.25: the lag is the unbiased-autocorrelation maximum among
+            // the lags strictly between n/(k+1) and n/(k-1), kept when that
+            // autocorrelation is at least 0.45 (the value at the measured
+            // boundaries). The 5.25 split is fitted (eng24 hyb5.py, eval24.py):
+            // random histories at n = 17, 20, 23 agree 97%, 96%, 96% (the
+            // earlier rule 78-80%), sinusoid maps from 17 points 7,568 of
+            // 8,476 (7,354), eng21 probes 1,143 of 1,337 (1,080).
+            let chosen = lags_of(top);
+            if chosen != 0 {
+                return if unbiased(chosen) >= 0.45 { chosen } else { 0 };
+            }
+        } else {
+            let period = (n as f64 / top as f64 - 0.5 - 1e-12).ceil();
+            if dominant && period >= 2.0 && period <= last_lag as f64 {
+                return period as usize;
+            }
+        }
+        if n <= 10 {
+            return 0;
+        }
+        fallback = if n <= 16 { 0.6 } else { 0.45 };
+    }
+    let mut top = 1;
+    for k in 2..power.len() {
+        if power[k] > power[top] {
+            top = k;
+        }
+    }
+    let first = lags_of(top);
+    let mut second_bin = 0;
+    let mut second_power = -1.0;
+    for f in 1..top.saturating_sub(1) {
+        let right = power.get(f + 1).copied().unwrap_or(-1.0);
+        if power[f] >= power[f - 1] && power[f] >= right && power[f] > second_power {
+            second_power = power[f];
+            second_bin = f;
+        }
+    }
+    let second = if second_bin > 0 && second_power * 4.0 > power[top] { lags_of(second_bin) } else { 0 };
+    let chosen = match (first, second) {
+        (0, 0) => return 0,
+        (0, p) | (p, 0) => p,
+        (a, b) if a == b => a,
+        (a, b) => {
+            if unbiased(b) > unbiased(a) {
+                b
+            } else {
+                a
+            }
+        }
+    };
+    // Eleven or more observations without a dominant bin: Excel still
+    // accepts some periods of four or more with a high autocorrelation
+    // (boundary probes put the unbiased autocorrelation at 0.45 where it
+    // decides, but the candidate it is applied to is not identified). This
+    // keeps the candidate above when it is at least 4 with unbiased
+    // autocorrelation >= 0.6 (n <= 16, a fitted value: against 'never' it
+    // gains 2 corpus readings, 14 of 316 eng21 probes and 7 of 358 sinusoid
+    // map readings, and is level on 40,000 random histories; eng24 fb5.py)
+    // or >= 0.45 (from 17 points, hyb5.py).
+    if chosen >= 4 && unbiased(chosen) >= fallback { chosen } else { 0 }
+}
+
+/// The five candidates Excel 20527 selects among for period two on five to
+/// seven observations: all 655 recorded five-point selections (bank5, eng21).
+const SHORT_TWO_PARAMETERS: &[(f64, f64, f64)] = &[
+    (0.751, 0.001, 0.001),
+    (0.501, 0.001, 0.001),
+    (0.251, 0.001, 0.001),
+    (0.126, 0.001, 0.001),
+    (0.002, 0.001, 0.125),
+];
+
+/// Excel's seasonal initial states for any history of at least two cycles
+/// (eng23: identified exactly from 64 initial-state tables solved from
+/// Touchstone fitted values, p = 2..8, n = 2p..25; every table agrees to
+/// 1e-13, including the p = 7, 8 tables that took no part in finding it).
+/// eng21's four-cycle chain is the complete-cycle case of the same rule:
+/// - a history shorter than N0 = ceil(3.5 p) is first extended to N0 points:
+///   e_j = y_(j mod p) + (j - j mod p) tau, tau the mean over the phases of
+///   each phase's least-squares slope against its positions;
+/// - the working length is m = min(len, 5p); its phase means A_q run over the
+///   m - 2p positions starting at the pivot c = p/2 - 1 (integer division);
+/// - tau_i, phase i's slope from its first two to its last two occurrences
+///   in the working length;
+/// - from s_c = 0 the chain runs c, c+1, ..., wrapping; step i (phase r to
+///   r+1) adds A_(r+1) - A_r - tau_i. Where the window ends inside a cycle the
+///   phase after the cut has one value fewer; that step also subtracts a
+///   cycle trend from the k = m / p last complete cycles, ending at the last
+///   working position: (C_0 - C_2)/4 for k = 3, (C_0 + 2C_1 - C_2 - 2C_3)/12
+///   for k = 4 (cycle means C);
+/// - level+index of phase zero is the first observation; the trend is the
+///   least-squares slope of the deseasonalised (extended) history.
+/// Returns the initial states and the (extended) history.
+fn excel_seasonal_initial(y: &[f64], period: usize) -> (Initial, Vec<f64>) {
+    let p = period;
+    let start = (7 * p).div_ceil(2);
+    let mut e = y.to_vec();
+    if y.len() < start {
+        let n = y.len();
+        let mut tau = 0.0;
+        for q in 0..p {
+            let positions: Vec<usize> = (q..n).step_by(p).collect();
+            let slope = if positions.len() <= 3 {
+                let last = *positions.last().unwrap();
+                (y[last] - y[q]) / (last - q) as f64
+            } else {
+                let center = positions.iter().sum::<usize>() as f64 / positions.len() as f64;
+                let (mut sxy, mut sxx) = (0.0, 0.0);
+                for &t in &positions {
+                    let dx = t as f64 - center;
+                    sxy += dx * y[t];
+                    sxx += dx * dx;
+                }
+                sxy / sxx
+            };
+            tau += slope;
+        }
+        tau /= p as f64;
+        for j in n..start {
+            e.push(y[j % p] + (j - j % p) as f64 * tau);
+        }
+    }
+    let m = e.len().min(5 * p);
+    let pivot = p / 2 - 1;
+    let window = pivot..pivot + m - 2 * p;
+    let mut means = vec![0.0; p];
+    let mut counts = vec![0usize; p];
+    for q in 0..p {
+        let positions = window.clone().filter(|t| t % p == q);
+        let (mut total, mut count) = (0.0, 0);
+        for t in positions {
+            total += e[t];
+            count += 1;
+        }
+        means[q] = total / count as f64;
+        counts[q] = count;
+    }
+    let slope = |q: usize| {
+        let occurrences = (m - q).div_ceil(p);
+        let late = e[q + (occurrences - 2) * p] + e[q + (occurrences - 1) * p];
+        let early = e[q] + e[p + q];
+        (late - early) / 2.0 / ((occurrences - 2) * p) as f64
+    };
+    let cycles = m / p;
+    let first = m - cycles * p;
+    let cycle = |k: usize| e[first + k * p..first + (k + 1) * p].iter().sum::<f64>() / p as f64;
+    let cut = match cycles {
+        3 => (cycle(0) - cycle(2)) / 4.0,
+        4 => (cycle(0) + 2.0 * cycle(1) - cycle(2) - 2.0 * cycle(3)) / 12.0,
+        _ => 0.0,
+    };
+    let mut chain = vec![0.0; p];
+    for i in 0..p - 1 {
+        let r = (pivot + i) % p;
+        let next = (r + 1) % p;
+        let step = if counts[next] == counts[r] { slope(i) } else { slope(i) + cut };
+        chain[next] = chain[r] + (means[next] - means[r]) - step;
+    }
+    let mut seasons: Vec<f64> = chain.iter().map(|v| v - chain[0]).collect();
+    if p == 2 && e.len() == 7 {
+        // The same index in the arithmetic that matches Excel's bits on the
+        // five-point bank rows (eng21: 6 FORECAST.ETS and 7 CONFINT rows more).
+        seasons[1] = -0.375 * e[0] + 0.875 * e[1] - 0.5 * e[2] - 0.125 * e[4] + 0.125 * e[5];
+    }
+    let adjusted: Vec<f64> = e.iter().enumerate().map(|(j, &v)| v - seasons[j % p]).collect();
+    let initial = Initial { level: y[0], trend: regression_slope(&adjusted), seasons, period, gamma: 0.0 };
+    (initial, e)
+}
+
+fn seasonal_general(
+    site: &Site<'_>,
+    y: &[f64],
+    period: usize,
+    output: Output,
+    statistic: f64,
+    horizon: f64,
+    confidence: f64,
+) -> Step<CalcValue> {
+    if output == Output::Seasonality {
+        return site.number(period as f64);
+    }
+    let short = period == 2 && (5..=7).contains(&y.len());
+    // Below N0 the parameter search runs on the extension (eng23 probe_short:
+    // Excel's triple in 447 of 520 short histories, 220 when searching the history).
+    let (initial, search_history) = excel_seasonal_initial(y, period);
+    let candidates = if short { SHORT_TWO_PARAMETERS } else { SEASONAL_PARAMETERS };
+    // With the reset below and these candidates, search_window reproduces
+    // Excel's triple for every one of 16,020 short and 687 longer probe
+    // histories (eng23 wingrid3; eng21's list with STAT's ten-point tail and no
+    // reset: 13,237 and, of eng21's 400, 218).
+    let searched = search_history.len();
+    let start = searched - search_window(searched, period);
+    let validation = (start != 0).then_some(start);
+    let run_on = |history: &[f64], (alpha, beta, gamma): (f64, f64, f64), validation: Option<usize>| {
+        let initial = Initial { gamma, seasons: initial.seasons.clone(), ..initial };
+        Model::run_initialized(history, alpha, beta, validation, initial)
+    };
+    let run = |candidate, validation| run_on(y, candidate, validation);
+    let mut best = f64::INFINITY;
+    let mut chosen = candidates[0];
+    for &candidate in candidates {
+        let score = run_on(&search_history, candidate, validation).squared_errors();
+        if score < best {
+            best = score;
+            chosen = candidate;
+        }
+    }
+    let (alpha, mut beta, gamma) = chosen;
+    let mut model = run(chosen, None);
+    // An unstable final trend restarts from the last observation with the
+    // starting trend, and Excel then reports beta 0.001 (22 of 23 eng21
+    // probe_fc forecasts that Excel's reported triple did not reproduce).
+    if model.trend_unstable(y) {
+        model.level = *y.last().unwrap() - model.seasons[(y.len() - 1) % period];
+        model.trend = initial.trend;
+        beta = 0.001;
+    }
+    match output {
+        Output::Statistic => {
+            let statistics = model.statistics(y);
+            finite(site, match statistic as u8 {
+                1 => alpha,
+                2 => beta,
+                3 => gamma,
+                4..=7 => statistics[statistic as usize - 4],
+                _ => unreachable!(),
+            })
+        }
+        Output::Forecast => {
+            let phase = season_phase(y.len(), horizon, period);
+            finite(site, model.level + horizon * model.trend + model.seasons[phase as usize])
+        }
+        Output::Confidence => {
+            // Additive-error class-1 variance: one plus the squared sum of the
+            // smoothing weights carried to each intermediate horizon j < h.
+            let h = horizon;
+            let steps = (h - 1.0).max(0.0);
+            let cycles = (steps / period as f64).floor();
+            let p = period as f64;
+            let variance = 1.0
+                + steps * alpha * alpha
+                + 2.0 * alpha * beta * steps * h / 2.0
+                + beta * beta * steps * h * (2.0 * h - 1.0) / 6.0
+                + cycles * gamma * (gamma + 2.0 * alpha)
+                + 2.0 * gamma * beta * p * cycles * (cycles + 1.0) / 2.0;
+            let probability = (1.0 + confidence) / 2.0;
+            let z = if probability == 1.0 {
+                1.0
+            } else {
+                crate::ported::normal_log_family::norm_s_inv_kernel(probability).map_err(Exit::Error)?
+            };
+            finite(site, z * ((model.squared_errors() / y.len() as f64) * variance.max(0.0)).sqrt())
+        }
+        Output::Seasonality => unreachable!(),
+    }
+}
+
+/// Route a history the measured paths refused: the automatic or explicit
+/// period, then the seasonal or nonseasonal general fit.
+fn general(
+    site: &Site<'_>,
+    y: &[f64],
+    season: f64,
+    output: Output,
+    statistic: f64,
+    horizon: f64,
+    confidence: f64,
+) -> Step<CalcValue> {
+    let period = if season == 0.0 || y.len() <= 4 {
+        0
+    } else if season == 1.0 {
+        detect_period(y)
+    } else if season > (y.len() / 2) as f64 {
+        0
+    } else {
+        season as usize
+    };
+    if period >= 2 {
+        seasonal_general(site, y, period, output, statistic, horizon, confidence)
+    } else {
+        nonseasonal_fit(site, y, output, statistic, horizon, confidence, true)
+    }
+}
+
+/// Keep a measured path's answer; where it is not held, calculate generally.
+fn or_general(
+    measured: Step<CalcValue>,
+    general: impl FnOnce() -> Step<CalcValue>,
+) -> Step<CalcValue> {
+    match measured {
+        Err(Exit::Fault(FunctionFault::NotHeld { .. })) => general(),
+        other => other,
     }
 }
 
@@ -964,11 +1520,38 @@ pub(super) fn evaluate(
     if target < series.first {
         // A reversed input timeline can admit extrapolation before its minimum
         // where an ascending one returns NUM. Its admission rule is still open.
-        return if series.ordered {
-            fail(WorksheetErrorCode::Num)
-        } else {
-            Err(unfinished(site))
+        if !series.ordered {
+            return Err(unfinished(site));
+        }
+        // Touchstone (eng21): within one step before the first timestamp the
+        // forecast interpolates towards the backward extrapolation at
+        // first - step; at or before that point it is NUM.
+        if output != Output::Forecast {
+            return fail(WorksheetErrorCode::Num);
+        }
+        // Excel extends the line through the first two fitted values, in
+        // binary64; it snaps within 0.001 step of the first timestamp and
+        // refuses more than 0.999 step before it (Touchstone, eng21).
+        let position = (target - series.first) / series.step;
+        if position < -0.999 {
+            return fail(WorksheetErrorCode::Num);
+        }
+        let first_horizon = -((series.values.len() - 1) as f64);
+        let fitted = |h: f64| -> Step<f64> {
+            match evaluate_fitted(site, &series, output, statistic, confidence, season, h)?.core_ref() {
+                CoreRef::Number(v) => Ok(v),
+                _ => Err(unfinished(site)),
+            }
         };
+        let first = fitted(first_horizon)?;
+        if position > -0.001 {
+            return site.number(first);
+        }
+        // The slope's multiplier is the horizon from the last timestamp less
+        // the first one's, not the position measured from the first.
+        let along = (target - series.last) / series.step - first_horizon;
+        let second = fitted(first_horizon + 1.0)?;
+        return finite(site, first + (second - first) * along);
     }
     if output == Output::Confidence && target <= series.last {
         // On directly observed, ascending timelines Excel returns zero inside
@@ -1008,16 +1591,19 @@ pub(super) fn evaluate(
                 return site.number(0.0);
             }
         }
-        let distance = exact_sum(target, -series.last).ok_or_else(|| unfinished(site))?;
+        // An inexact subtraction or division takes Excel's binary64 horizon
+        // (the rounded quotient), which then snaps within 0.001 of a
+        // timestamp: bank2 rows with targets one ULP from a timestamp.
+        let exact_distance = exact_sum(target, -series.last);
+        let distance = exact_distance.unwrap_or(target - series.last);
         let h = distance / series.step;
-        if h * series.step != distance {
+        let exact_division = exact_distance.is_some()
+            && h * series.step == distance
+            && (h.fract() == 0.0 || h.mul_add(series.step, -distance) == 0.0);
+        if !exact_division && !matches!(output, Output::Forecast | Output::Confidence) {
             return Err(unfinished(site));
         }
-        // Fractional forecasts use adjacent integer forecasts only when the
-        // timeline division is exact; other fractional outputs remain open.
-        if h.fract() != 0.0 && (output != Output::Forecast || h < 0.0
-            || h >= i32::MAX as f64 || h.mul_add(series.step, -distance) != 0.0)
-        {
+        if h.fract() != 0.0 && (!matches!(output, Output::Forecast | Output::Confidence) || h >= i32::MAX as f64) {
             return Err(unfinished(site));
         }
         // Both target functions share this signed-32-bit future-index limit,
@@ -1035,9 +1621,23 @@ pub(super) fn evaluate(
     if output == Output::Confidence && confidence == 0.0 {
         return site.number(0.0);
     }
-    if output == Output::Forecast && horizon.fract() != 0.0 {
+    if matches!(output, Output::Forecast | Output::Confidence) && horizon.fract() != 0.0 {
         let lower_horizon = horizon.floor();
         let fraction = horizon - lower_horizon;
+        // The interval is NUM at the last timestamp itself, and its square
+        // grows from zero across the first step (Touchstone, eng21).
+        if output == Output::Confidence && lower_horizon == 0.0 {
+            if fraction <= 0.001 {
+                return fail(WorksheetErrorCode::Num);
+            }
+            if 1.0 - fraction > 0.001 {
+                let upper = match evaluate_fitted(site, &series, output, statistic, confidence, season, 1.0)?.core_ref() {
+                    CoreRef::Number(v) => v,
+                    _ => return Err(unfinished(site)),
+                };
+                return finite(site, upper * fraction.sqrt());
+            }
+        }
         // Excel snaps targets within 0.001 of a timeline point; otherwise it
         // interpolates the two fitted forecasts with stored x87 operations.
         if fraction <= 0.001 {
@@ -1046,12 +1646,33 @@ pub(super) fn evaluate(
         if 1.0 - fraction <= 0.001 {
             return evaluate_fitted(site, &series, output, statistic, confidence, season, lower_horizon + 1.0);
         }
+        if output == Output::Forecast && horizon < 0.0 {
+            // Inside the history Excel anchors at the later timestamp and
+            // uses the slope of the interval after it, in binary64, as it
+            // does before the first timestamp (Touchstone, eng21).
+            let anchor = lower_horizon + 1.0;
+            let fitted = |h: f64| -> Step<f64> {
+                match evaluate_fitted(site, &series, output, statistic, confidence, season, h)?.core_ref() {
+                    CoreRef::Number(v) => Ok(v),
+                    _ => Err(unfinished(site)),
+                }
+            };
+            let first = fitted(anchor)?;
+            let second = fitted(anchor + 1.0)?;
+            return finite(site, first + (second - first) * (horizon - anchor));
+        }
         let lower = evaluate_fitted(site, &series, output, statistic, confidence, season, lower_horizon)?;
         let upper = evaluate_fitted(site, &series, output, statistic, confidence, season, lower_horizon + 1.0)?;
         let (lower, upper) = match (lower.core_ref(), upper.core_ref()) {
             (CoreRef::Number(lower), CoreRef::Number(upper)) => (lower, upper),
             _ => return Err(unfinished(site)),
         };
+        if output == Output::Confidence {
+            // Touchstone (eng21): the interval's square, the forecast
+            // variance, is interpolated linearly between the two horizons.
+            let (low, high) = (lower * lower, upper * upper);
+            return finite(site, (low + (high - low) * fraction).sqrt());
+        }
         use crate::ported::excel_numeric::{excel_x87_add, excel_x87_mul, excel_x87_sub};
         let difference = excel_x87_sub(upper, lower);
         let increment = excel_x87_mul(difference, fraction);
@@ -1061,6 +1682,21 @@ pub(super) fn evaluate(
 }
 
 fn evaluate_fitted(
+    site: &Site<'_>,
+    series: &Series,
+    output: Output,
+    statistic: f64,
+    confidence: f64,
+    season: f64,
+    horizon: f64,
+) -> Step<CalcValue> {
+    or_general(
+        evaluate_measured(site, series, output, statistic, confidence, season, horizon),
+        || general(site, &series.values, season, output, statistic, horizon, confidence),
+    )
+}
+
+fn evaluate_measured(
     site: &Site<'_>,
     series: &Series,
     output: Output,

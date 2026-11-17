@@ -10,7 +10,7 @@ mod cdoc_m1_1_support;
 
 use calc_doc::model::value::SheetId;
 use calc_doc::model::{
-    ChartAnchor, DrawingPoint, Shape, ShapeColour, ShapeConnection, ShapeFill, ShapeKind,
+    ChartAnchor, DrawingPoint, Shape, ShapeColour, ShapeConnection, ShapeFill, ShapeKind, ShapeTextRun,
     WorkbookOp,
 };
 use cdoc_m1_1_support::d1::*;
@@ -168,6 +168,60 @@ fn new_shape(id: u32) -> Shape {
     shape.fill = ShapeFill::Solid(ShapeColour::Rgb(0x336699));
     shape.text = Some(vec!["Q & A".into()]);
     shape
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn explicit_shape_text_runs_survive_save_and_reopen() {
+    let loaded = load(WORKBOOK);
+    let sheet = first_sheet(&loaded);
+    let mut shapes = loaded.model().definitions().shapes(sheet).to_vec();
+    let mut shape = new_shape(20);
+    shape.text = Some(vec!["A&B".into(), "C".into()]);
+    shape.body.size = Some(1200); shape.body.bold = true;
+    shape.body.colour = Some(ShapeColour::Rgb(0xff0000));
+    shape.body.underline = true;
+    shape.body.runs = vec![vec![
+        ShapeTextRun { text: "A&".into(), face: None, size: 1200, bold: true, italic: false, underline: true, colour: Some(ShapeColour::Rgb(0xff0000)) },
+        ShapeTextRun { text: "B".into(), face: Some("A&B\"C".into()), size: 1000, bold: false, italic: true, underline: false, colour: None },
+    ], vec![
+        ShapeTextRun { text: "C".into(), face: None, size: 1000, bold: false, italic: true, underline: false, colour: None },
+    ]];
+    shapes.push(shape.clone());
+    let model = edited(&loaded, vec![WorkbookOp::SetShapes { sheet, shapes }]);
+    let (saved, _) = save_model(&loaded, &model);
+    let loaded = load(&saved);
+    let read = loaded.sheets()[0].shapes();
+    let saved_shape = read.shapes.iter().find(|s| s.name == shape.name).unwrap();
+    assert_eq!(saved_shape.text, shape.text);
+    assert_eq!(saved_shape.body.runs, shape.body.runs);
+    assert!(saved_shape.body.rich_runs_for(saved_shape.text.as_ref().unwrap()).is_some());
+    let mut changed = saved_shape.clone();
+    changed.body.bold = false;
+    assert!(changed.body.rich_runs_for(changed.text.as_ref().unwrap()).is_none());
+    changed = saved_shape.clone();
+    changed.body.face = Some("Changed".into());
+    assert!(changed.body.rich_runs_for(changed.text.as_ref().unwrap()).is_none());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn explicit_single_shape_typeface_survives_save_and_reopen() {
+    let loaded = load(WORKBOOK);
+    let sheet = first_sheet(&loaded);
+    let mut shapes = loaded.model().definitions().shapes(sheet).to_vec();
+    let mut shape = new_shape(21);
+    shape.name = "Named font".into();
+    shape.body.face = Some("A&B\"C".into());
+    shape.body.underline = true;
+    shapes.push(shape);
+    let model = edited(&loaded, vec![WorkbookOp::SetShapes { sheet, shapes }]);
+    let (saved, _) = save_model(&loaded, &model);
+    let loaded = load(&saved);
+    let read = loaded.sheets()[0].shapes();
+    let saved_shape = read.shapes.iter().find(|s| s.name == "Named font").unwrap();
+    assert_eq!(saved_shape.body.face.as_deref(), Some("A&B\"C"));
+    assert!(saved_shape.body.underline);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
