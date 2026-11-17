@@ -71,11 +71,15 @@ def main():
         if row['name'] in by_name:
             raise SystemExit('duplicate observation: ' + row['name'])
         by_name[row['name']] = row
-    expected = {prefix + str(case[0]) for case in cases for prefix in ('formula/', 'reopened/', 'converted/')}
+    prefixes = ('formula/', 'reopened/', 'converted/')
+    if result.get('schema_version', 1) >= 2:
+        prefixes += ('modern/',)
+    expected = {prefix + str(case[0]) for case in cases for prefix in prefixes}
     missing = sorted(expected - by_name.keys())
     legacy = base64.b64decode(result.get('legacy_base64') or '', validate=True)
     modern = base64.b64decode(result.get('converted_base64') or '', validate=True)
     limits = base64.b64decode(result.get('limits_base64') or '', validate=True)
+    baseline = base64.b64decode(result.get('modern_baseline_base64') or '', validate=True)
     stored = tokens(legacy, len(cases)) if legacy else {}
     limit_counts = None
     if limits:
@@ -84,6 +88,7 @@ def main():
                         for name, code in [('xf', 0x00e0), ('style', 0x0293), ('defined_name', 0x0018)]}
     formulas = [{'id': case[0], 'submitted': case[1], 'entry': by_name.get('formula/' + case[0]),
                  'reopened': by_name.get('reopened/' + case[0]), 'converted': by_name.get('converted/' + case[0]),
+                 'modern_baseline': by_name.get('modern/' + case[0]),
                  'stored_tokens_hex': stored.get(i)}
                 for i, case in enumerate(cases)]
     calc_id = None
@@ -94,15 +99,17 @@ def main():
             calc_id = None if calc is None else calc.get('calcId')
     if args.extract_dir:
         args.extract_dir.mkdir(parents=True, exist_ok=True)
-        for name, data in [('compat.xls', legacy), ('converted.xlsx', modern), ('limits.xls', limits)]:
+        for name, data in [('compat.xls', legacy), ('converted.xlsx', modern), ('limits.xls', limits),
+                           ('modern-baseline.xlsx', baseline)]:
             if not data:
                 continue
             dest = args.extract_dir / name
             if dest.exists():
                 raise SystemExit('refusing to overwrite ' + str(dest))
             dest.write_bytes(data)
-    report = {'formulas': formulas, 'other_observations': [r for r in observations if not r['name'].startswith(('formula/', 'reopened/', 'converted/'))],
+    report = {'formulas': formulas, 'other_observations': [r for r in observations if not r['name'].startswith(prefixes)],
               'missing_observations': missing, 'converted_calc_id': calc_id, 'limits_record_counts': limit_counts,
+              'modern_baseline_available': bool(baseline),
               'not_run': result.get('not_run', []),
               'product_comparison': 'not available: Compatibility Mode is not modelled'}
     args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')

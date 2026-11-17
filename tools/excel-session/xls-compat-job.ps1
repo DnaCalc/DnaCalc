@@ -10,18 +10,22 @@ $dir = Join-Path ([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($Result))) 
 $path = Join-Path $dir 'compat.xls'
 $modern = Join-Path $dir 'converted.xlsx'
 $limitsPath = Join-Path $dir 'limits.xls'
+$baselinePath = Join-Path $dir 'modern-baseline.xlsx'
 $book = $null
 $oldAlerts = $app.DisplayAlerts
 $answers = [Collections.Generic.List[object]]::new()
 $fatal = $null
-$legacyBytes = $null; $modernBytes = $null; $limitsBytes = $null
+$legacyBytes = $null; $modernBytes = $null; $limitsBytes = $null; $baselineBytes = $null
 function Probe([string]$name, [scriptblock]$action) {
     try { $v = & $action; $answers.Add(@{name=$name; ok=$true; value=$v}) }
     catch { $answers.Add(@{name=$name; ok=$false; error=$_.Exception.Message; hresult=$_.Exception.HResult}) }
 }
 function ReadCell($cell) {
+    $value = $cell.Value2
     return @{formula=[string]$cell.Formula; formula2=$(try {[string]$cell.Formula2} catch {$null});
-        value=$(try {if ($null -eq $cell.Value2) {$null} else {[string]$cell.Value2}} catch {$_.Exception.Message});
+        value=$(if ($null -eq $value) {$null} else {[string]$value});
+        value_type=$(if ($null -eq $value) {$null} else {$value.GetType().FullName});
+        number_bits=$(if ($value -is [double]) {[BitConverter]::DoubleToInt64Bits($value).ToString('X16')} else {$null});
         text=[string]$cell.Text; number_format=[string]$cell.NumberFormat}
 }
 try {
@@ -101,6 +105,34 @@ try {
     foreach ($case in $cases.formulas) { $cell = $sheet.Cells.Item($row, 3); Probe ('converted/' + [string]$case[0]) { if ($book.FileFormat -ne 51) { throw 'Conversion to xlsx did not succeed' }; ReadCell $cell }; $row++ }
     $book.Close($false); $book = $null
     if (Test-Path -LiteralPath $modern) { $modernBytes = [Convert]::ToBase64String([IO.File]::ReadAllBytes($modern)) }
+    # A fresh modern workbook distinguishes entry behaviour from the converted legacy file.
+    # Use the same formulas, source values and entry API in each mode. Volatile values are
+    # observations, not comparisons between workbooks calculated at different times.
+    Probe 'modern_baseline' {
+        $baseline = $null
+        try {
+            $baseline = $app.Workbooks.Add(-4167)
+            $baselineSheet = $baseline.Worksheets.Item(1); $baselineSheet.Name = 'Cases'
+            $baselineSheet.Range('A1').Value2 = 1
+            $baselineSheet.Range('A65536').Value2 = 2
+            $row = 1
+            foreach ($case in $cases.formulas) {
+                $cell = $baselineSheet.Cells.Item($row, 3)
+                Probe ('modern/' + [string]$case[0]) {
+                    $cell.Formula = [string]$case[1]
+                    $cell.Calculate() | Out-Null
+                    ReadCell $cell
+                }
+                $row++
+            }
+            $metadata = @{rows=$baselineSheet.Rows.Count; columns=$baselineSheet.Columns.Count;
+                compatibility_mode=$baseline.Excel8CompatibilityMode; calculation_version=$baseline.CalculationVersion}
+            $baseline.SaveAs($baselinePath, 51)
+            $baseline.Close($false); $baseline = $null
+            $script:baselineBytes = [Convert]::ToBase64String([IO.File]::ReadAllBytes($baselinePath))
+            $metadata
+        } finally { if ($baseline) { try { $baseline.Close($false) } catch {} } }
+    }
     # Use a separate generated workbook so a limit or save refusal cannot spoil the formula cases.
     Probe 'style_and_name_counts' {
         $limits = $null; $reopened = $null
@@ -155,6 +187,7 @@ finally {
     if ($book) { try { $book.Close($false) } catch {} }
     $app.DisplayAlerts = $oldAlerts
 }
-@{fatal=$fatal; cases=$answers.ToArray(); legacy_base64=$legacyBytes; converted_base64=$modernBytes; limits_base64=$limitsBytes;
+@{schema_version=2; fatal=$fatal; cases=$answers.ToArray(); legacy_base64=$legacyBytes; converted_base64=$modernBytes;
+    limits_base64=$limitsBytes; modern_baseline_base64=$baselineBytes;
     not_run=@('Ctrl+End keyboard action', 'recalculation across saving versions',
         'compatibility checker findings')} | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $Result -Encoding utf8NoBOM
