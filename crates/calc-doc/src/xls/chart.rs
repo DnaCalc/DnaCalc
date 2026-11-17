@@ -1051,7 +1051,7 @@ impl Chart {
                 }
                 if !self.axis_line_invalid[axis_index] && self.axis_line_hidden[axis_index] {
                     x.open("c:spPr", &[]); x.open("a:ln", &[]); x.empty("a:noFill", &[]); x.close("a:ln"); x.close("c:spPr");
-                } else if tag == "c:catAx" && !self.axis_line_invalid[axis_index]
+                } else if !self.axis_line_invalid[axis_index]
                     && let Some(color) = self.axis_line_color[axis_index].as_ref() {
                     x.open("c:spPr", &[]); x.open("a:ln", &[]); x.open("a:solidFill", &[]);
                     x.empty("a:srgbClr", &[("val", color.clone())]);

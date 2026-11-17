@@ -340,27 +340,27 @@ fn read_chart_xml(
         }
         if names.as_slice() == ["chart", "plotArea"] && local == "valAx" { grid_axis = grid_plot_area && element.name.is(CHART_NAMESPACE, "valAx"); }
         let drawing = "http://schemas.openxmlformats.org/drawingml/2006/main";
-        if axis_scope {
-            if names.as_slice() == ["chart", "plotArea", "catAx"] && element.name.is(CHART_NAMESPACE, "spPr") {
+        if axis_scope && matches!(chart.axes.last().map(|axis| axis.kind.as_str()), Some("catAx" | "valAx")) {
+            if matches!(names.as_slice(), ["chart", "plotArea", "catAx" | "valAx"]) && element.name.is(CHART_NAMESPACE, "spPr") {
                 if color_shape_seen || !element.attributes.is_empty() { color_invalid = true; }
                 color_shape_seen = true;
             }
-            if names.as_slice() == ["chart", "plotArea", "catAx", "spPr"] {
+            if matches!(names.as_slice(), ["chart", "plotArea", "catAx" | "valAx", "spPr"]) {
                 if !element.name.is(drawing, "ln") || color_line_seen || !element.attributes.is_empty() { color_invalid = true; }
                 color_line_seen = true;
             }
-            if names.as_slice() == ["chart", "plotArea", "catAx", "spPr", "ln"] {
+            if matches!(names.as_slice(), ["chart", "plotArea", "catAx" | "valAx", "spPr", "ln"]) {
                 if !element.name.is(drawing, "solidFill") || color_fill_seen || !element.attributes.is_empty() { color_invalid = true; }
                 color_fill_seen = true;
             }
-            if names.as_slice() == ["chart", "plotArea", "catAx", "spPr", "ln", "solidFill"] {
+            if matches!(names.as_slice(), ["chart", "plotArea", "catAx" | "valAx", "spPr", "ln", "solidFill"]) {
                 let color = element.attribute("val");
                 if !element.name.is(drawing, "srgbClr") || axis_color.is_some() || element.attributes.len() != 1
                     || !color.is_some_and(|c| c.len() == 6 && c.bytes().all(|b| b.is_ascii_hexdigit())) {
                     color_invalid = true;
                 } else { axis_color = color.map(|c| c.to_ascii_uppercase()); }
             }
-            if names.as_slice() == ["chart", "plotArea", "catAx", "spPr", "ln", "solidFill", "srgbClr"] { color_invalid = true; }
+            if matches!(names.as_slice(), ["chart", "plotArea", "catAx" | "valAx", "spPr", "ln", "solidFill", "srgbClr"]) { color_invalid = true; }
             if let Some(axis) = chart.axes.last_mut() {
                 if color_invalid { axis.line_color = None; }
                 else if color_shape_seen && color_line_seen && color_fill_seen && axis_color.is_some() { axis.line_color = axis_color.clone(); }
@@ -803,7 +803,7 @@ mod tests {
     use super::*;
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn category_axis_line_color_requires_one_simple_rgb_line() {
+    fn category_and_value_axis_line_colors_require_one_simple_rgb_line() {
         for (shape, expected) in [
             (r#"<c:spPr><a:ln><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></a:ln></c:spPr>"#, Some("FF0000")),
             (r#"<c:spPr><a:ln w="3"><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></a:ln></c:spPr>"#, None),
@@ -811,10 +811,12 @@ mod tests {
             (r#"<c:spPr><a:ln><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill><a:noFill/></a:ln></c:spPr>"#, None),
             (r#"<u:spPr><a:ln><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></a:ln></u:spPr>"#, None),
         ] {
-            let text = format!(r#"<c:chartSpace xmlns:c="{CHART_NAMESPACE}" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:u="urn:other"><c:chart><c:plotArea><c:catAx><c:axId val="1"/>{shape}</c:catAx></c:plotArea></c:chart></c:chartSpace>"#);
-            let xml = XmlPart::new("chart.xml".into(), text.into_bytes(), crate::xml::XmlLimits::default());
-            let chart = read_chart_xml(&xml, "chart.xml", "Chart".into(), ChartAnchor::Absolute { x: 0, y: 0, width: 100, height: 100 }).unwrap();
-            assert_eq!(chart.axes[0].line_color.as_deref(), expected);
+            for tag in ["catAx", "valAx"] {
+                let text = format!(r#"<c:chartSpace xmlns:c="{CHART_NAMESPACE}" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:u="urn:other"><c:chart><c:plotArea><c:{tag}><c:axId val="1"/>{shape}</c:{tag}></c:plotArea></c:chart></c:chartSpace>"#);
+                let xml = XmlPart::new("chart.xml".into(), text.into_bytes(), crate::xml::XmlLimits::default());
+                let chart = read_chart_xml(&xml, "chart.xml", "Chart".into(), ChartAnchor::Absolute { x: 0, y: 0, width: 100, height: 100 }).unwrap();
+                assert_eq!(chart.axes[0].line_color.as_deref(), expected, "{tag}");
+            }
         }
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -824,10 +826,13 @@ mod tests {
             r#"<u:spPr><a:ln><a:noFill/></a:ln></u:spPr>"#,
             r#"<c:spPr><u:ln><a:noFill/></u:ln></c:spPr>"#,
         ] {
-            let text = format!(r#"<c:chartSpace xmlns:c="{CHART_NAMESPACE}" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:u="urn:other"><c:chart><c:plotArea><c:catAx><c:axId val="1"/>{shape}</c:catAx></c:plotArea></c:chart></c:chartSpace>"#);
-            let xml = XmlPart::new("chart.xml".into(), text.into_bytes(), crate::xml::XmlLimits::default());
-            let chart = read_chart_xml(&xml, "chart.xml", "Chart".into(), ChartAnchor::Absolute { x: 0, y: 0, width: 100, height: 100 }).unwrap();
-            assert!(!chart.axes[0].line_hidden);
+            for tag in ["catAx", "valAx"] {
+                let text = format!(r#"<c:chartSpace xmlns:c="{CHART_NAMESPACE}" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:u="urn:other"><c:chart><c:plotArea><c:{tag}><c:axId val="1"/>{shape}</c:{tag}></c:plotArea></c:chart></c:chartSpace>"#);
+                let xml = XmlPart::new("chart.xml".into(), text.into_bytes(), crate::xml::XmlLimits::default());
+                let chart = read_chart_xml(&xml, "chart.xml", "Chart".into(), ChartAnchor::Absolute { x: 0, y: 0, width: 100, height: 100 }).unwrap();
+                assert!(!chart.axes[0].line_hidden);
+                assert!(chart.axes[0].line_color.is_none());
+            }
         }
         let text = format!(r#"<c:chartSpace xmlns:c="{CHART_NAMESPACE}" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:u="urn:other"><c:chart><c:plotArea><c:catAx><c:axId val="1"/></c:catAx><u:catAx><c:spPr><a:ln><a:noFill/></a:ln></c:spPr></u:catAx></c:plotArea></c:chart></c:chartSpace>"#);
         let xml = XmlPart::new("chart.xml".into(), text.into_bytes(), crate::xml::XmlLimits::default());

@@ -3777,12 +3777,14 @@ fn chart_axis_title_fonts_reject_overrides_and_duplicate_links() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn chart_category_axis_line_color_requires_palette_matched_hairline() {
+fn chart_axis_line_colors_require_palette_matched_hairline() {
     use xls_kit::art;
     for (parent, axis, extra, expected) in [
-        (0u16, 0u16, 0u8, Some("FFFFFF")), (1, 0, 0, None), (0, 1, 0, None),
+        (0u16, 0u16, 0u8, Some("FFFFFF")), (1, 0, 0, None), (0, 1, 0, Some("FFFFFF")), (1, 1, 0, None),
         (0, 0, 1, None), (0, 0, 2, None), (0, 0, 3, None), (0, 0, 4, None),
         (0, 0, 5, None), (0, 0, 6, None), (0, 0, 7, None),
+        (0, 1, 1, None), (0, 1, 2, None), (0, 1, 3, None), (0, 1, 4, None),
+        (0, 1, 5, None), (0, 1, 6, None), (0, 1, 7, None),
     ] {
         let mut chart = art::chart(&[("A", Vec::new(), Vec::new())], 0, "Title");
         let format = record(0x1014, &[0u8; 20]);

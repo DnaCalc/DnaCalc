@@ -287,6 +287,9 @@ fn sweep() {
                         let lines = loaded.sheets().iter().flat_map(|s| &s.charts().charts)
                             .flat_map(|chart| &chart.axes).filter(|axis| axis.line_color.is_some()).count();
                         println!("chart axes with explicit line colors: {lines}");
+                        let value_lines = loaded.sheets().iter().flat_map(|s| &s.charts().charts)
+                            .flat_map(|chart| &chart.axes).filter(|axis| axis.kind == "valAx" && axis.line_color.is_some()).count();
+                        println!("chart value axes with explicit line colors: {value_lines}");
                     }
                     if std::env::var_os("DNACALC_XLS_AUDIT_NOTE_RUNS").is_some() {
                         let count = loaded.sheets().iter().flat_map(|s| &s.review().notes)

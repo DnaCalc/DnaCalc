@@ -462,6 +462,13 @@ try {
                 $line.Visible = -1; $line.ForeColor.RGB = 255; $line.Weight = 0.75
                 @{rgb=$line.ForeColor.RGB; weight=$line.Weight; visible=$line.Visible}
             }
+            $entry.setup.chart_value_axis_line_color = GetOrError {
+                $chart = $sheet.ChartObjects().Add(830, 280, 200, 150).Chart
+                $chart.ChartType = 51; $chart.SetSourceData($dataSheet.Range('A1:B3'))
+                $line = $chart.Axes(2).Format.Line
+                $line.Visible = -1; $line.ForeColor.RGB = 255; $line.Weight = 0.75
+                @{rgb=$line.ForeColor.RGB; weight=$line.Weight; visible=$line.Visible}
+            }
             $entry.setup.chart_legend_font = GetOrError {
                 $chart = $sheet.ChartObjects('cxCacheChart').Chart
                 $chart.HasLegend = $true
