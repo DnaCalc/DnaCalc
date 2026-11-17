@@ -155,6 +155,10 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
                 marker = anchor.find(XDR + end)
                 if marker is not None:
                     position[end] = {x.tag.rsplit('}', 1)[-1]: x.text for x in marker}
+            for end in ('pos', 'ext'):
+                marker = anchor.find(XDR + end)
+                if marker is not None:
+                    position[end] = dict(marker.attrib)
             obj = {'anchor': anchor.tag.rsplit('}', 1)[-1], 'position': position,
                    'types': sorted(x.tag.rsplit('}', 1)[-1] for x in anchor if x.tag in
                                    (XDR + 'sp', XDR + 'pic', XDR + 'graphicFrame', XDR + 'grpSp'))}
@@ -381,6 +385,7 @@ def package(data):
                     comments.extend((e.get('ref'), ''.join(x.text or '' for x in e.iter(M + 't')))
                                     for e in comment_root.iter(M + 'comment'))
             sheets.append({'name': s.get('name'), 'state': s.get('state', 'visible'), 'cells': cells,
+                           'sheet_properties': None if sh.find(M + 'sheetPr') is None else tree(sh.find(M + 'sheetPr')),
                            'filter_mode': sh.find(M + 'sheetPr') is not None and sh.find(M + 'sheetPr').get('filterMode', '0') in ('1', 'true'),
                            'default_column_width': (sh.find(M + 'sheetFormatPr').get('defaultColWidth')
                                                     if sh.find(M + 'sheetFormatPr') is not None else None),

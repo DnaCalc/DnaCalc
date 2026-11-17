@@ -203,6 +203,17 @@ try {
                 @{orientation=$chartSheet.PageSetup.Orientation; paper=$chartSheet.PageSetup.PaperSize;
                   black_and_white=$chartSheet.PageSetup.BlackAndWhite}
             }
+            # All three chart-print sizes in one workbook provide an Excel-authored comparison.
+            $entry.setup.chart_sheet_sizes = @(
+                foreach ($size in @(1, 2, 3)) {
+                    GetOrError {
+                        $sized = $book.Charts.Add(); $sized.Name = "ChartSize$size"
+                        $sized.ChartType = 51; $sized.SetSourceData($sheet.Range('H1:H2'))
+                        $sized.PageSetup.ChartSize = $size
+                        @{name=[string]$sized.Name; requested=$size; actual=$sized.PageSetup.ChartSize}
+                    }
+                }
+            )
             $entry.setup.page = GetOrError { $sheet.PageSetup.Orientation = 2; $sheet.PageSetup.PrintArea = '$A$1:$D$5'; $sheet.PageSetup.Orientation }
             $entry.setup.header_picture = GetOrError {
                 $picture = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../crates/calc-doc/tests/fixtures/drawing/pictures/card.png'))
