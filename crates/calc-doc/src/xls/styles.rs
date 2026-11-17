@@ -342,7 +342,7 @@ impl Styles {
     }
 
     /// FontX uses a one-based index into workbook Font records, unlike FontIndex.
-    pub(crate) fn chart_title_font(&self, index: u16) -> Option<(String, bool, bool)> {
+    pub(crate) fn chart_font(&self, index: u16) -> Option<(String, bool, bool)> {
         let zero_based = index.checked_sub(1)?;
         let ifnt = if zero_based >= 4 { zero_based.checked_add(1)? } else { zero_based };
         let ((_, bold, italic, _), _, underline) = self.drawing_rich_font(ifnt)?;

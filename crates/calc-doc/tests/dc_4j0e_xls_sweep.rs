@@ -222,6 +222,11 @@ fn sweep() {
                             .filter(|chart| chart.element_text.get("title").is_some_and(|style|
                                 style.family.is_some() || style.bold.is_some() || style.italic.is_some())).count();
                         println!("chart titles with explicit font properties: {count}");
+                        let axes = loaded.sheets().iter().flat_map(|s| &s.charts().charts)
+                            .flat_map(|chart| chart.element_text.iter())
+                            .filter(|(name, style)| name.starts_with("axis:")
+                                && (style.family.is_some() || style.bold.is_some() || style.italic.is_some())).count();
+                        println!("chart axes with explicit font properties: {axes}");
                     }
                     if std::env::var_os("DNACALC_XLS_AUDIT_NOTE_RUNS").is_some() {
                         let count = loaded.sheets().iter().flat_map(|s| &s.review().notes)

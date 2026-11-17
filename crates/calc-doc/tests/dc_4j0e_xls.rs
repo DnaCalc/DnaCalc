@@ -2846,7 +2846,7 @@ fn chart_title_font_uses_one_based_globals_and_refuses_ambiguous_overrides() {
         (5, None, Some(("Times New Roman", true, true))),
         (0, None, None), (6, None, None),
         (5, Some(0x1026), None), (5, Some(0x1050), None),
-        (5, Some(0x08A5), None), (5, Some(0x08A6), None),
+        (5, Some(0x08A5), None), (5, Some(0x08A6), None), (5, Some(0xFFFE), None),
     ] {
         let mut chart = art::chart(&[("Sales", Vec::new(), area3d(0, (1, 4), (1, 1), 0))], 0, "Quarterly");
         if linked {
@@ -2854,10 +2854,16 @@ fn chart_title_font_uses_one_based_globals_and_refuses_ambiguous_overrides() {
             let at = chart.windows(literal.len()).position(|w| w == literal).unwrap();
             chart.splice(at..at + literal.len(), art::ai(0, &area3d(0, (0, 0), (0, 0), 0)));
         }
-        let marker = [record(0x1025, &[0u8; 32]), art::begin()].concat();
+        if override_record == Some(0xFFFE) {
+            let text = record(0x1025, &[0u8; 32]);
+            let at = chart.windows(text.len()).position(|w| w == text).unwrap();
+            chart.splice(at..at + text.len(), record(0x1025, &[0u8; 2]));
+        }
+        let text = if override_record == Some(0xFFFE) { vec![0u8; 2] } else { vec![0u8; 32] };
+        let marker = [record(0x1025, &text), art::begin()].concat();
         let at = chart.windows(marker.len()).position(|w| w == marker).unwrap() + marker.len();
         let mut extra = record(0x1026, &u16s(&[index]));
-        if let Some(id) = override_record { extra.extend(record(id, &u16s(&[index]))); }
+        if let Some(id) = override_record.filter(|&id| id != 0xFFFE) { extra.extend(record(id, &u16s(&[index]))); }
         chart.splice(at..at, extra);
         let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
         let globals = [font(200, 0, 0x7FFF, 400, "Arial"), font(200, 0, 0x7FFF, 400, "Arial"),
@@ -3234,6 +3240,52 @@ fn chart_value_axis_retains_primary_linear_scale() {
         let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
         let mut saved = Vec::new(); calc_doc::write(plan, &mut saved).unwrap();
         check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_axis_font_is_scoped_to_unambiguous_primary_axes() {
+    use xls_kit::art;
+    for (parent, axis, index, extra, expected) in [
+        (0u16, 0u16, 1u16, 0u16, true), (0, 1, 1, 0, true),
+        (1, 0, 1, 0, false), (0, 0, 0, 0, false), (0, 0, 2, 0, false),
+        (0, 0, 1, 0x1026, false), (0, 0, 1, 0x1050, false), (0, 0, 1, 0x08A5, false), (0, 0, 1, 0x08A6, false),
+        (0, 0, 1, 0xFFFF, false), (0, 0, 1, 0xFFFE, false), (0, 0, 1, 0xFFFD, false),
+    ] {
+        let mut chart = art::chart(&[("A", Vec::new(), Vec::new())], 0, "Title");
+        let format = record(0x1014, &[0u8; 20]);
+        let at = chart.windows(format.len()).position(|w| w == format).unwrap();
+        let mut parent_body = u16s(&[parent]);
+        if extra != 0xFFFD { parent_body.extend([0u8; 16]); }
+        let mut axis_body = u16s(&[axis]);
+        if extra != 0xFFFE { axis_body.extend([0u8; 16]); }
+        let mut axis_block = [record(0x1041, &parent_body), art::begin(),
+            record(0x101D, &axis_body), art::begin(), record(0x1026, &u16s(&[index]))].concat();
+        if extra != 0 && extra < 0xFFFD { axis_block.extend(record(extra, &u16s(&[index]))); }
+        axis_block.extend(art::end());
+        if extra == 0xFFFF {
+            axis_block.extend([record(0x101D, &axis_body), art::begin(), record(0x1026, &u16s(&[index])), art::end()].concat());
+        }
+        axis_block.extend(art::end());
+        chart.splice(at..at, axis_block);
+        let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
+        let bytes = xls(false, &font(200, 2, 0x7FFF, 700, "Arial"), &[Sheet::worksheet("S", records)]);
+        let loaded = load(&bytes);
+        let chart = &loaded.sheets()[0].charts().charts[0];
+        let key = if axis == 0 { "axis:111111111" } else { "axis:222222222" };
+        let other = if axis == 0 { "axis:222222222" } else { "axis:111111111" };
+        let style = chart.element_text.get(key);
+        assert_eq!(style.is_some(), expected);
+        assert!(!chart.element_text.contains_key(other));
+        if let Some(style) = style {
+            assert_eq!((style.family.as_deref(), style.bold, style.italic), (Some("Arial"), Some(true), Some(true)));
+            let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            let reopened = load(&saved);
+            assert_eq!(reopened.sheets()[0].charts().charts[0].element_text.get(key), Some(style));
+        }
     }
 }
 

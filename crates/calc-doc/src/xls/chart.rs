@@ -156,6 +156,11 @@ pub(crate) struct Chart {
     attached_font_seen: bool,
     attached_font_invalid: bool,
     title_font: Option<(String, bool, bool)>,
+    axis_fonts: [Option<(String, bool, bool)>; 2],
+    axis_font_seen: [bool; 2],
+    axis_font_invalid: [bool; 2],
+    primary_axis_seen: [bool; 2],
+    primary_axis_parent_valid: bool,
     seen_chart: bool,
     plot_visible_only: Option<bool>,
     blanks: Option<&'static str>,
@@ -386,12 +391,21 @@ impl Chart {
             }
             AXIS_PARENT if body.len() >= 2 => {
                 self.primary_axis_group = u16::from_le_bytes([body[0], body[1]]) == 0;
+                self.primary_axis_parent_valid = body.len() == 18 && record.continues.is_empty();
                 self.pending = Some(block_code(Block::AxisParent));
             }
             AXIS => {
                 self.axis_index = body.get(..2).and_then(|b| match u16::from_le_bytes([b[0], b[1]]) {
                     0 => Some(0), 1 => Some(1), _ => None,
                 });
+                if self.primary_axis_group && self.stack.iter().any(|c| block_of(*c) == Block::AxisParent)
+                    && let Some(index) = self.axis_index {
+                    if body.len() != 18 || !record.continues.is_empty() || !self.primary_axis_parent_valid {
+                        self.axis_font_invalid[index] = true;
+                    }
+                    if self.primary_axis_seen[index] { self.axis_font_invalid[index] = true; }
+                    self.primary_axis_seen[index] = true;
+                }
                 self.pending = Some(block_code(Block::Axis));
             }
             VALUE_RANGE if body.len() >= 42 && self.primary_axis_group
@@ -432,17 +446,29 @@ impl Chart {
                 self.attached_invalid = false;
                 self.attached_font = None;
                 self.attached_font_seen = false;
-                self.attached_font_invalid = false;
+                self.attached_font_invalid = body.len() != 32 || !record.continues.is_empty();
             }
             FONT_X if self.stack.last().is_some_and(|code| block_of(*code) == Block::Text) => {
                 if self.attached_font_seen { self.attached_font_invalid = true; }
                 self.attached_font_seen = true;
                 self.attached_font = if code_page.is_none() && record.continues.is_empty() && body.len() == 2 {
-                    styles.chart_title_font(u16::from_le_bytes([body[0], body[1]]))
+                    styles.chart_font(u16::from_le_bytes([body[0], body[1]]))
                 } else { None };
+            }
+            FONT_X if self.primary_axis_group && self.stack.last().is_some_and(|code| block_of(*code) == Block::Axis) => {
+                if let Some(index) = self.axis_index {
+                    if self.axis_font_seen[index] { self.axis_font_invalid[index] = true; }
+                    self.axis_font_seen[index] = true;
+                    self.axis_fonts[index] = if code_page.is_none() && record.continues.is_empty() && body.len() == 2 {
+                        styles.chart_font(u16::from_le_bytes([body[0], body[1]]))
+                    } else { None };
+                }
             }
             AL_RUNS | 0x08A5 | 0x08A6 if self.stack.last().is_some_and(|code| block_of(*code) == Block::Text) => {
                 self.attached_font_invalid = true;
+            }
+            AL_RUNS | 0x08A5 | 0x08A6 if self.primary_axis_group && self.stack.last().is_some_and(|code| block_of(*code) == Block::Axis) => {
+                if let Some(index) = self.axis_index { self.axis_font_invalid[index] = true; }
             }
             LEGEND => {
                 self.legend = true;
@@ -480,7 +506,7 @@ impl Chart {
                             self.attached_formula = None;
                         }
                         Block::Axis => self.axis_index = None,
-                        Block::AxisParent => self.primary_axis_group = false,
+                        Block::AxisParent => { self.primary_axis_group = false; self.primary_axis_parent_valid = false; }
                         Block::DataFormat => {
                             if let Some(format) = self.data_format.take()
                                 && let Some(index) = format.series
@@ -824,6 +850,7 @@ impl Chart {
                 if let Some(title) = self.titles.get(&title_key) {
                     title_element(&mut x, title, None);
                 }
+                text_font_element(&mut x, if self.axis_font_invalid[axis_index] { None } else { self.axis_fonts[axis_index].as_ref() });
                 x.empty("c:crossAx", &[("val", cross.to_owned())]);
                 if let Some(value) = range.and_then(|r| r.major) { x.empty("c:majorUnit", &[("val", crate::xlsb::formula::number_text(value))]); }
                 if let Some(value) = range.and_then(|r| r.minor) { x.empty("c:minorUnit", &[("val", crate::xlsb::formula::number_text(value))]); }
@@ -886,7 +913,7 @@ fn title_element(x: &mut Xml, title: &str, font: Option<&(String, bool, bool)>) 
     x.close("c:rich");
     x.close("c:tx");
     x.empty("c:overlay", &[("val", "0".to_owned())]);
-    title_font_element(x, font);
+    text_font_element(x, font);
     x.close("c:title");
 }
 
@@ -899,11 +926,11 @@ fn linked_title_element(x: &mut Xml, formula: &str, cached: Option<&str>, font: 
         x.close("c:pt"); x.close("c:strCache");
     }
     x.close("c:strRef"); x.close("c:tx"); x.empty("c:overlay", &[("val", "0".to_owned())]);
-    title_font_element(x, font);
+    text_font_element(x, font);
     x.close("c:title");
 }
 
-fn title_font_element(x: &mut Xml, font: Option<&(String, bool, bool)>) {
+fn text_font_element(x: &mut Xml, font: Option<&(String, bool, bool)>) {
     let Some((face, bold, italic)) = font else { return };
     x.open("c:txPr", &[]); x.empty("a:bodyPr", &[]); x.empty("a:lstStyle", &[]);
     x.open("a:p", &[]); x.open("a:pPr", &[]);
