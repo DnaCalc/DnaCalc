@@ -553,6 +553,7 @@ fn object(shape: &Shape, remap: &BTreeMap<u32, u32>, media: &MediaRels, out: &mu
         };
         let lang = shape.lang.as_deref().unwrap_or("en-US");
         let paragraphs = shape.text.as_deref().unwrap_or(&[]);
+        let rich_runs = body.rich_runs_for(paragraphs);
         if paragraphs.is_empty() {
             out.extend(
                 format!(
@@ -570,6 +571,19 @@ fn object(shape: &Shape, remap: &BTreeMap<u32, u32>, media: &MediaRels, out: &mu
             out.extend(format!("<a:p>{align}").as_bytes());
             if paragraph.is_empty() {
                 out.extend(format!("<a:endParaRPr lang=\"{lang}\" sz=\"{size}\"/>").as_bytes());
+            } else if let Some(runs) = rich_runs.and_then(|runs| runs.get(index)) {
+                for run in runs {
+                    out.extend(format!("<a:r><a:rPr lang=\"{lang}\" sz=\"{}\" b=\"{}\" i=\"{}\">",
+                        run.size, u8::from(run.bold), u8::from(run.italic)).as_bytes());
+                    if let Some(c) = &run.colour {
+                        out.extend(b"<a:solidFill>");
+                        colour(c, out).map_err(fail)?;
+                        out.extend(b"</a:solidFill>");
+                    }
+                    out.extend(b"</a:rPr><a:t xml:space=\"preserve\">");
+                    element_text(&run.text, out);
+                    out.extend(b"</a:t></a:r>");
+                }
             } else {
                 let (attributes, colour) = &run_font;
                 if colour.is_empty() {

@@ -207,6 +207,17 @@ pub struct ShapeParagraph {
     pub text: String,
     /// `l`, `ctr`, `r` or `just`.
     pub align: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub runs: Vec<ShapeParagraphRun>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ShapeParagraphRun {
+    pub text: String,
+    pub size: f64,
+    pub bold: bool,
+    pub italic: bool,
+    pub colour: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1157,11 +1168,17 @@ fn finish(shape: &DrawnShape, w: f64, h: f64, zoom: f64, id: &str, defs: String,
                 "just" => "justify",
                 _ => "left",
             };
-            let _ = write!(
-                out,
-                "<p style=\"margin:0;min-height:1.2em;text-align:{align}\">{}</p>",
-                escape(&paragraph.text)
-            );
+            let _ = write!(out, "<p style=\"margin:0;min-height:1.2em;text-align:{align}\">");
+            if !paragraph.runs.is_empty() && paragraph.runs.iter().map(|r| r.text.as_str()).collect::<String>() == paragraph.text {
+                for run in &paragraph.runs {
+                    let _ = write!(out, "<span style=\"font-size:{}px;font-weight:{};font-style:{};color:{}\">{}</span>",
+                        number(run.size * zoom), if run.bold { "bold" } else { "normal" },
+                        if run.italic { "italic" } else { "normal" }, run.colour, escape(&run.text));
+                }
+            } else {
+                out.push_str(&escape(&paragraph.text));
+            }
+            out.push_str("</p>");
         }
         out.push_str("</div>");
     }
@@ -1340,8 +1357,8 @@ mod tests {
             line: Some(ShapeStroke { width: 2.0, colour: "#ED7D31".into(), dash: "dash".into(), head: None, tail: None }),
             text: Some(ShapeText {
                 paragraphs: vec![
-                    ShapeParagraph { text: "a < b".into(), align: "ctr".into() },
-                    ShapeParagraph { text: String::new(), align: "l".into() },
+                    ShapeParagraph { text: "a < b".into(), align: "ctr".into(), runs: Vec::new() },
+                    ShapeParagraph { text: String::new(), align: "l".into(), runs: Vec::new() },
                 ],
                 inset: [9.6, 4.8, 9.6, 4.8],
                 anchor: "ctr".into(),
@@ -1368,6 +1385,24 @@ mod tests {
         let zoomed = shape_markup(&sample(), 160.0, 80.0, 2.0).unwrap();
         assert!(zoomed.contains("stroke-width=\"4\" stroke-dasharray=\"16 12\""), "{zoomed}");
         assert!(zoomed.contains("padding:9.6px 19.2px 9.6px 19.2px"), "{zoomed}");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn mixed_text_runs_keep_their_properties_and_escape_text() {
+        let mut shape = sample();
+        let paragraph = &mut shape.text.as_mut().unwrap().paragraphs[0];
+        paragraph.runs = vec![
+            ShapeParagraphRun { text: "a ".into(), size: 12.0, bold: true, italic: false, colour: "#FF0000".into() },
+            ShapeParagraphRun { text: "< b".into(), size: 16.0, bold: false, italic: true, colour: "#000000".into() },
+        ];
+        let markup = shape_markup(&shape, 80.0, 40.0, 1.0).unwrap();
+        assert!(markup.contains("font-size:12px;font-weight:bold;font-style:normal;color:#FF0000\">a </span>"), "{markup}");
+        assert!(markup.contains("font-size:16px;font-weight:normal;font-style:italic;color:#000000\">&lt; b</span>"), "{markup}");
+        shape.text.as_mut().unwrap().paragraphs[0].text = "edited".into();
+        let markup = shape_markup(&shape, 80.0, 40.0, 1.0).unwrap();
+        assert!(markup.contains(">edited</p>"), "{markup}");
+        assert!(!markup.contains("<span style="), "{markup}");
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -328,9 +328,18 @@ impl Styles {
         if ifnt == 4 { return None; }
         let font = &self.fonts[self.font_index(ifnt)?];
         // DrawingML text sizes are at least one point; malformed BIFF heights stay incomplete.
-        if font.height < 20 { return None; }
+        if font.height < 20 || (font.color > 63 && font.color != 0x7fff) { return None; }
         Some((u32::from(font.height) * 5, font.weight >= 700, font.flags & 0x0002 != 0,
             self.rgb(font.color).map(|argb| argb[2..].to_owned())))
+    }
+
+    /// A run whose effects the drawing text model can represent, plus its font-face identity.
+    pub(crate) fn drawing_rich_font(&self, ifnt: u16) -> Option<((u32, bool, bool, Option<String>), (&str, u8, u8))> {
+        if ifnt == 4 { return None; }
+        let font = &self.fonts[self.font_index(ifnt)?];
+        if font.name.is_empty() || font.underline != 0 || font.script != 0 || font.flags & 0x00f8 != 0
+            || !matches!(font.weight, 400 | 700) { return None; }
+        Some((self.drawing_text_font(ifnt)?, (&font.name, font.charset, font.family)))
     }
 
     /// `<rPr>` for the font `ifnt` of a rich text run; nothing when there is no such font.

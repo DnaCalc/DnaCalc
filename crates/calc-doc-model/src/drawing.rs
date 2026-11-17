@@ -153,6 +153,39 @@ pub struct ShapeBody {
     pub bold: bool,
     pub italic: bool,
     pub colour: Option<ShapeColour>,
+    /// Explicit, individually styled runs in paragraph order; empty when not represented.
+    pub runs: Vec<Vec<ShapeTextRun>>,
+}
+
+/// A text run whose size, weight, italic state and optional colour are specified.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ShapeTextRun {
+    pub text: String,
+    /// Hundredths of a point.
+    pub size: i64,
+    pub bold: bool,
+    pub italic: bool,
+    pub colour: Option<ShapeColour>,
+}
+
+impl ShapeTextRun {
+    pub fn same_style_as(&self, other: &Self) -> bool {
+        self.size == other.size && self.bold == other.bold && self.italic == other.italic && self.colour == other.colour
+    }
+}
+
+impl ShapeBody {
+    /// Runs remain usable only while the paragraph and its first-run properties still match.
+    pub fn rich_runs_for(&self, paragraphs: &[String]) -> Option<&[Vec<ShapeTextRun>]> {
+        let first = self.runs.iter().flatten().next()?;
+        if !self.runs.iter().flatten().any(|run| !run.same_style_as(first))
+            || self.runs.iter().flatten().any(|run| !(100..=400_000).contains(&run.size))
+            || paragraphs.len() != self.runs.len() || self.size != Some(first.size)
+            || self.bold != first.bold || self.italic != first.italic || self.colour != first.colour
+            || self.runs.iter().zip(paragraphs).any(|(runs, text)| runs.iter().map(|run| run.text.as_str()).collect::<String>() != *text)
+        { return None; }
+        Some(&self.runs)
+    }
 }
 
 /// One end of a connector: the shape it is glued to and the connection site on it.

@@ -7,7 +7,7 @@
 //! accent 1 shaded, a point wide, the text white. A text box has no style: no fill, no outline,
 //! black text. Scheme colours come from the Office theme; a workbook's own theme is not read here.
 
-use crate::wire::{ChartPlace, DrawnShape, ShapeParagraph, ShapeStroke, ShapeText};
+use crate::wire::{ChartPlace, DrawnShape, ShapeParagraph, ShapeParagraphRun, ShapeStroke, ShapeText};
 use calc_host::{LineEnd, Shape, ShapeColour, ShapeFill, ShapeKind};
 use calc_host::ShapeShadow as FileShadow;
 use dna_calc_model::drawn_shapes::{DrawnChild, DrawnPicture, ShapeArrow, ShapeGradient, ShapeShadow};
@@ -238,6 +238,11 @@ pub(crate) fn drawn(shape: &Shape, place: ChartPlace, theme: &[String]) -> Optio
     let body = &shape.body;
     let text = shape.text.as_ref().filter(|p| p.iter().any(|t| !t.is_empty())).map(|paragraphs| {
         let inset = |value: Option<i64>, default: i64| value.unwrap_or(default) as f64 / EMU_PER_PIXEL;
+        let rich_runs = body.rich_runs_for(paragraphs);
+        let default_colour = || {
+            let name = if styled { "lt1" } else { "dk1" };
+            shape_colour::css(Resolved { rgb: scheme(name, theme).unwrap_or(0), alpha: 1.0 })
+        };
         ShapeText {
             paragraphs: paragraphs
                 .iter()
@@ -250,6 +255,13 @@ pub(crate) fn drawn(shape: &Shape, place: ChartPlace, theme: &[String]) -> Optio
                         .cloned()
                         .flatten()
                         .unwrap_or_else(|| "l".into()),
+                    runs: rich_runs.and_then(|runs| runs.get(i)).map_or_else(Vec::new, |runs| {
+                        runs.iter().map(|run| ShapeParagraphRun {
+                            text: run.text.clone(), size: run.size as f64 / 100.0 * 96.0 / 72.0,
+                            bold: run.bold, italic: run.italic,
+                            colour: run.colour.as_ref().and_then(|c| css(c, theme)).unwrap_or_else(default_colour),
+                        }).collect()
+                    }),
                 })
                 .collect(),
             inset: [
@@ -268,10 +280,7 @@ pub(crate) fn drawn(shape: &Shape, place: ChartPlace, theme: &[String]) -> Optio
                 .colour
                 .as_ref()
                 .and_then(|c| css(c, theme))
-                .unwrap_or_else(|| {
-                    let name = if styled { "lt1" } else { "dk1" };
-                    shape_colour::css(Resolved { rgb: scheme(name, theme).unwrap_or(0), alpha: 1.0 })
-                }),
+                .unwrap_or_else(default_colour),
         }
     });
     Some(DrawnShape {
@@ -344,6 +353,27 @@ mod tests {
         assert!(text.bold && text.wrap);
         // A ribbon shape's text is white.
         assert_eq!(text.colour, "#FFFFFF");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn explicit_rich_runs_reach_the_shape_renderer() {
+        use calc_host::ShapeTextRun;
+        let mut s = shape(ShapeKind::TextBox);
+        s.text = Some(vec!["AB".into()]); s.body.size = Some(1200); s.body.bold = true;
+        s.body.colour = Some(ShapeColour::Rgb(0xff0000));
+        s.body.runs = vec![vec![
+            ShapeTextRun { text: "A".into(), size: 1200, bold: true, italic: false, colour: Some(ShapeColour::Rgb(0xff0000)) },
+            ShapeTextRun { text: "B".into(), size: 900, bold: false, italic: true, colour: None },
+        ]];
+        let d = drawn(&s, place(), &[]).unwrap();
+        let text = d.text.as_ref().unwrap();
+        assert_eq!(text.paragraphs[0].runs.len(), 2);
+        assert_eq!(text.paragraphs[0].runs[0].colour, "#FF0000");
+        assert_eq!(text.paragraphs[0].runs[1].colour, "#000000");
+        let markup = dna_calc_model::drawn_shapes::shape_markup(&d, 100.0, 60.0, 1.0).unwrap();
+        assert!(markup.contains("font-weight:bold;font-style:normal;color:#FF0000\">A</span>"), "{markup}");
+        assert!(markup.contains("font-weight:normal;font-style:italic;color:#000000\">B</span>"), "{markup}");
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

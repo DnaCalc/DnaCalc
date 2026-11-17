@@ -1304,7 +1304,7 @@ pub struct OutlineGroup {
     pub summary: u32,
     pub collapsed: bool,
 }
-pub use crate::drawn_shapes::{DrawnShape, ShapeParagraph, ShapeStroke, ShapeText};
+pub use crate::drawn_shapes::{DrawnShape, ShapeParagraph, ShapeParagraphRun, ShapeStroke, ShapeText};
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Geometry {
     #[serde(default)]
