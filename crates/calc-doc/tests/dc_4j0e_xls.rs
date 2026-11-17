@@ -505,6 +505,50 @@ fn chart_sheet_preserves_series_in_a_linked_chart_part() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn biff5_chart_sheet_preserves_decodable_series_and_title() {
+    use xls_kit::{art, v5};
+    let value = v5::cell3d(1, 0, 0, 0);
+    let mut chart = art::chart(&[("Sales", Vec::new(), value)], 0, "Title");
+    for (old, replacement) in [("Sales", b"Sales".as_slice()), ("Title", b"caf\xE9".as_slice())] {
+        let original = art::series_text(old);
+        let mut body = u16s(&[0]); body.push(replacement.len() as u8); body.extend(replacement);
+        let new = record(0x100D, &body);
+        let at = chart.windows(original.len()).position(|part| part == original).unwrap();
+        chart.splice(at..at + original.len(), new);
+    }
+    let original = art::series();
+    let at = chart.windows(original.len()).position(|part| part == original).unwrap();
+    chart.splice(at..at + original.len(), record(0x1003, &u16s(&[1, 1, 4, 4])));
+    let records = [v5::extern_own(b"Data"), chart[bof(0x0020).len()..chart.len()-eof().len()].to_vec()].concat();
+    let mut book = v5::book(1252, &[], &[v5::Sheet::new("Data", number(0, 0, 7.5)), v5::Sheet::new("Chart1", records)]);
+    let mut at = 0;
+    let mut sheets = 0;
+    while at + 4 <= book.len() {
+        let id = u16::from_le_bytes([book[at], book[at + 1]]);
+        let len = usize::from(u16::from_le_bytes([book[at + 2], book[at + 3]]));
+        if id == 0x0085 {
+            sheets += 1;
+            if sheets == 2 {
+                let offset = u32::from_le_bytes(book[at + 4..at + 8].try_into().unwrap()) as usize;
+                book[at + 9] = 2;
+                book[offset + 6..offset + 8].copy_from_slice(&0x0020u16.to_le_bytes());
+                break;
+            }
+        }
+        at += 4 + len;
+    }
+    assert_eq!(sheets, 2);
+    let bytes = compound(&[("Book", book)]);
+    let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let xml = String::from_utf8(doc.package().read_part("xl/charts/chart2_1.xml").unwrap()).unwrap();
+    assert!(xml.contains("Data!A1") && xml.contains("café"), "{xml}");
+    let plan = calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+    let mut saved = Vec::new(); calc_doc::write(plan, &mut saved).unwrap();
+    assert!(calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap().package().part("xl/charts/chart2_1.xml").is_some());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn the_source_bytes_are_kept() {
     let bytes = xls(false, &[], &[Sheet::worksheet("S", Vec::new())]);
     let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();

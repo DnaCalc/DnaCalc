@@ -348,7 +348,7 @@ pub(crate) fn convert(
                     match record.id {
                         workbook::BOF => depth += 1,
                         workbook::EOF => depth = depth.saturating_sub(1),
-                        _ if depth == 1 && v5.is_none() => {
+                        _ if depth == 1 => {
                             match record.id {
                                 0x1002 if record.body.len() >= 16 => {
                                     let fixed = |at: usize| i32::from_le_bytes(record.body[at..at + 4].try_into().expect("four bytes"));
@@ -362,7 +362,8 @@ pub(crate) fn convert(
                                 0x101B => {
                                     supported_groups += 1;
                                     // Scatter also describes bubble charts, which need a third value.
-                                    if record.body.len() < 6 || u16::from_le_bytes([record.body[4], record.body[5]]) & 1 != 0 {
+                                    if !(v5.is_some() && record.body.is_empty())
+                                        && (record.body.len() < 6 || u16::from_le_bytes([record.body[4], record.body[5]]) & 1 != 0) {
                                         unsupported_chart_type = true;
                                     }
                                 }
@@ -370,12 +371,13 @@ pub(crate) fn convert(
                                 0x103A | 0x103E..=0x1040 | 0x1061 => unsupported_chart_type = true,
                                 _ => {},
                             }
-                            chart.read(record, &print);
+                            chart.read(record, &print, v5);
                         },
                         _ => {},
                     }
                 }
-                let written_chart = (!unsupported_chart_type && chart_groups > 0 && chart_groups == supported_groups)
+                let written_chart = (!unsupported_chart_type && chart_groups > 0 && chart_groups == supported_groups
+                    && (v5.is_none() || chart.has_all_value_sources()))
                     .then(|| chart.write(&sheet.name)).flatten();
                 let xml = if let Some(chart_xml) = written_chart {
                     let chart_part = format!("xl/charts/chart{number}_1.xml");
