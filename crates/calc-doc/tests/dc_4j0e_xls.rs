@@ -2650,8 +2650,9 @@ fn explicit_shape_no_fill_is_preserved() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn flowchart_process_preserves_only_untransformed_preset_geometry() {
+fn officeart_presets_preserve_only_untransformed_geometry() {
     use xls_kit::art;
+    for (shape_type, geometry) in [(109, "flowChartProcess"), (5, "triangle")] {
     for (flags, property, expected) in [
         (0u32, None, true),
         (0, Some((0x03bf, 0x0008_0000)), true),
@@ -2660,7 +2661,7 @@ fn flowchart_process_preserves_only_untransformed_preset_geometry() {
         (0, Some((0x03bf, 0x0008_0008)), false),
         (0x40, None, false),
     ] {
-        let mut shape = art::shape(109, 0, [1, 0, 1, 0, 4, 0, 6, 0], false);
+        let mut shape = art::shape(shape_type, 0, [1, 0, 1, 0, 4, 0, 6, 0], false);
         shape[20..24].copy_from_slice(&flags.to_le_bytes());
         if let Some((id, value)) = property {
             let mut prop = (id as u16).to_le_bytes().to_vec();
@@ -2672,12 +2673,13 @@ fn flowchart_process_preserves_only_untransformed_preset_geometry() {
         let bytes = xls(false, &[], &[Sheet::worksheet("S", [art::drawing(&[shape]), art::obj(0x1e, 1)].concat())]);
         let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
         let drawing = doc.package().read_part("xl/drawings/drawing1.xml").unwrap_or_default();
-        assert_eq!(String::from_utf8(drawing).unwrap().contains("flowChartProcess"), expected);
+        assert_eq!(String::from_utf8(drawing).unwrap().contains(geometry), expected);
         if expected {
             let mut saved = Vec::new();
             calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
-            assert_eq!(load(&saved).sheets()[0].shapes().shapes[0].geometry.as_deref(), Some("flowChartProcess"));
+            assert_eq!(load(&saved).sheets()[0].shapes().shapes[0].geometry.as_deref(), Some(geometry));
         }
+    }
     }
 }
 

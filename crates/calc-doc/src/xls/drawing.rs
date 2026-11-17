@@ -641,6 +641,9 @@ impl Drawing {
                     let geometry_name = match shape.shape_type {
                         3 => "ellipse",
                         1 | 202 => "rect",
+                        // An unadjusted OfficeArt isosceles triangle has a centered apex.
+                        5 if shape.flags.is_some_and(|flags| flags & 0xff == 0)
+                            && !shape.fixed_geometry_unsafe => "triangle",
                         // MS-ODRAW msosptFlowChartProcess; preserve only the untransformed preset.
                         109 if shape.flags.is_some_and(|flags| flags & 0xff == 0)
                             && !shape.fixed_geometry_unsafe => "flowChartProcess",

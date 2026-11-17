@@ -147,6 +147,10 @@ try {
                 $s = $sheet.Shapes.AddShape(61, 180, 100, 60, 30)
                 @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
             }
+            $entry.setup.shape_triangle = GetOrError {
+                $s = $sheet.Shapes.AddShape(7, 250, 100, 60, 30)
+                @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
+            }
             $entry.setup.flipped_shapes = @(
                 foreach ($direction in @(0, 1)) {
                     GetOrError {
