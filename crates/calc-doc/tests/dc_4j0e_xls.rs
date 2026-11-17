@@ -636,6 +636,11 @@ fn chart_sheet_preserves_complete_unambiguous_print_margins() {
     let sheet = doc.package().read_part("xl/chartsheets/sheet1.xml").unwrap();
     assert!(!sheet.windows(12).any(|w| w == b"<pageMargins"));
     assert_eq!(legacy_workbook_report(source(&ambiguous), &OpenPolicy::default()).unwrap().unwrap().unknown_records.get(&0x26), Some(&2));
+    setup[16..24].copy_from_slice(&49.0_f64.to_le_bytes());
+    let invalid = make([margins, record(0xa1, &setup)].concat());
+    let doc = calc_doc::open(source(&invalid), &OpenPolicy::default()).unwrap();
+    let sheet = doc.package().read_part("xl/chartsheets/sheet1.xml").unwrap();
+    assert!(!sheet.windows(12).any(|w| w == b"<pageMargins"));
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -1855,6 +1860,29 @@ fn merges_hyperlinks_panes_protection_and_page_setup() {
         "password=\"CE4B\"",
     ] {
         assert!(part.contains(expected), "{expected} in {part}");
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn setup_ignores_undefined_printer_values_and_respects_no_orientation() {
+    for (flags, expected) in [(0, Some("landscape")), (2, Some("portrait")),
+        (0x40, Some("portrait")), (0x44, None)] {
+        let mut setup = u16s(&[9, 80, 1, 1, 1, flags]);
+        setup.extend([0u8; 4]);
+        setup.extend(0.25_f64.to_le_bytes());
+        setup.extend(0.25_f64.to_le_bytes());
+        setup.extend(1u16.to_le_bytes());
+        let bytes = xls(false, &[], &[Sheet::worksheet("S", record(0xa1, &setup))]);
+        let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        assert_eq!(legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap().unknown_records.get(&0xa1), Some(&1));
+        let sheet = String::from_utf8(doc.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+        if let Some(value) = expected {
+            assert!(sheet.contains(&format!("orientation=\"{value}\"")), "{sheet}");
+            assert!(sheet.contains("paperSize=\"9\" scale=\"80\""), "{sheet}");
+        } else {
+            assert!(!sheet.contains("orientation=") && !sheet.contains("paperSize=") && !sheet.contains("scale="), "{sheet}");
+        }
     }
 }
 

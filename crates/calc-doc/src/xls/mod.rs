@@ -430,7 +430,7 @@ pub(crate) fn convert(
                     let offsets: &[usize] = if index == 4 { &[16, 24] } else { &[0] };
                     offsets.iter().all(|&at| {
                         let value = f64::from_le_bytes(record.body[at..at + 8].try_into().expect("eight bytes"));
-                        value.is_finite() && (0.0..=49.0).contains(&value)
+                        value.is_finite() && value >= 0.0 && if index == 4 { value < 49.0 } else { value <= 49.0 }
                     })
                 });
                 if valid_margins {

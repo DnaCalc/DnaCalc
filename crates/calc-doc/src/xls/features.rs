@@ -250,6 +250,8 @@ impl Features {
                 c.skip(4, "Setup").map_err(e)?;
                 self.setup = Some(v);
                 self.setup_numbers = Some((c.f64("Setup").map_err(e)?, c.f64("Setup").map_err(e)?));
+                // Resolution, copies, comment placement and error display are not all retained.
+                return Ok(false);
             }
             LEFT_MARGIN => self.margins[0] = Some(c.f64("LeftMargin").map_err(e)?),
             RIGHT_MARGIN => self.margins[1] = Some(c.f64("RightMargin").map_err(e)?),
@@ -793,9 +795,13 @@ impl Features {
             "rIdPrinter"
         });
         if let Some([paper, scale, first_page, fit_width, fit_height, flags]) = self.setup {
-            let mut a = vec![("paperSize", paper.to_string())];
-            if scale != 100 && scale != 0 {
-                a.push(("scale", scale.to_string()));
+            let mut a = Vec::new();
+            // fNoPls makes the printer-dependent paper, scale and orientation undefined.
+            if flags & 0x0004 == 0 {
+                a.push(("paperSize", paper.to_string()));
+                if scale != 100 && scale != 0 {
+                    a.push(("scale", scale.to_string()));
+                }
             }
             if flags & 0x0080 != 0 {
                 a.push(("firstPageNumber", first_page.to_string()));
@@ -813,7 +819,7 @@ impl Features {
             if flags & 0x0004 == 0 {
                 a.push((
                     "orientation",
-                    if flags & 0x0002 != 0 { "portrait" } else { "landscape" }.to_owned(),
+                    if flags & 0x0040 != 0 || flags & 0x0002 != 0 { "portrait" } else { "landscape" }.to_owned(),
                 ));
             }
             if flags & 0x0008 != 0 {
