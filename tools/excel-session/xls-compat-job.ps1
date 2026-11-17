@@ -223,7 +223,8 @@ finally {
     if ($book) { try { $book.Close($false) } catch {} }
     $app.DisplayAlerts = $oldAlerts
 }
-@{schema_version=2; cases_sha256=$casesHash; formula2_cases=$true; fatal=$fatal; cases=$answers.ToArray(); legacy_base64=$legacyBytes; converted_base64=$modernBytes;
+@{schema_version=2; cases_sha256=$casesHash; cases_base64=[Convert]::ToBase64String($caseBytes);
+    formula2_cases=$true; fatal=$fatal; cases=$answers.ToArray(); legacy_base64=$legacyBytes; converted_base64=$modernBytes;
     limits_base64=$limitsBytes; modern_baseline_base64=$baselineBytes;
     not_run=@('Ctrl+End keyboard action', 'recalculation across saving versions',
         'compatibility checker findings')} | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $Result -Encoding utf8NoBOM

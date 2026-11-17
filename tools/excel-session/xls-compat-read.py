@@ -59,14 +59,22 @@ def tokens(data, count, sheet_index=0, row_stride=1):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--cases', type=Path, required=True)
+    p.add_argument('--cases', type=Path, help='optional local cases file to verify against the embedded input')
     p.add_argument('--result', type=Path, required=True)
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--extract-dir', type=Path)
     args = p.parse_args()
-    case_bytes = args.cases.read_bytes()
-    cases = json.loads(case_bytes.decode('utf-8-sig'))['formulas']
     result = json.loads(args.result.read_text(encoding='utf-8-sig'))
+    embedded_cases = base64.b64decode(result.get('cases_base64') or '', validate=True)
+    if args.cases:
+        case_bytes = args.cases.read_bytes()
+        if embedded_cases and embedded_cases != case_bytes:
+            raise SystemExit('embedded Excel cases do not match the supplied cases file')
+    elif embedded_cases:
+        case_bytes = embedded_cases
+    else:
+        raise SystemExit('result has no embedded input; supply --cases for this older result')
+    cases = json.loads(case_bytes.decode('utf-8-sig'))['formulas']
     schema = result.get('schema_version', 1)
     if schema not in (1, 2):
         raise SystemExit('unsupported Excel result schema: ' + str(schema))
@@ -116,7 +124,7 @@ def main():
             calc_id = None if calc is None else calc.get('calcId')
     if args.extract_dir:
         args.extract_dir.mkdir(parents=True, exist_ok=True)
-        for name, data in [('compat.xls', legacy), ('converted.xlsx', modern), ('limits.xls', limits),
+        for name, data in [('cases.json', case_bytes), ('compat.xls', legacy), ('converted.xlsx', modern), ('limits.xls', limits),
                            ('modern-baseline.xlsx', baseline)]:
             if not data:
                 continue
@@ -128,6 +136,7 @@ def main():
               'missing_observations': missing, 'converted_calc_id': calc_id, 'limits_record_counts': limit_counts,
               'modern_baseline_available': bool(baseline),
               'cases_sha256': cases_hash, 'cases_verified': schema == 2,
+              'cases_source': 'local' if args.cases else 'embedded',
               'not_run': result.get('not_run', []),
               'product_comparison': 'not available: Compatibility Mode is not modelled'}
     args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
