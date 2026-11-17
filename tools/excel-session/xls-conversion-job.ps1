@@ -16,6 +16,19 @@ function GetOrError([scriptblock]$f) { try { return & $f } catch { return @{unre
 function Snapshot($workbook) {
     $sheets = [Collections.Generic.List[object]]::new()
     foreach ($sheet in $workbook.Sheets) {
+        # A chart sheet is a Chart, not a Worksheet, and has no UsedRange or Hyperlinks.
+        $chartSheet = $null
+        try { $chartSheet = $workbook.Charts.Item([string]$sheet.Name) } catch { }
+        if ($null -ne $chartSheet) {
+            $chart = GetOrError {
+                @{type=$chartSheet.ChartType; title=$(if ($chartSheet.HasTitle) {[string]$chartSheet.ChartTitle.Text} else {$null});
+                  series=@($chartSheet.SeriesCollection() | ForEach-Object { [string]$_.Formula });
+                  chart_size=(GetOrError { $chartSheet.PageSetup.ChartSize })}
+            }
+            $sheets.Add(@{name=[string]$sheet.Name; visible=$sheet.Visible; chart_sheet=$chart;
+                cells=@(); links=@(); shapes=@(); conditional_formats=$null; validations=$null; charts=$null})
+            continue
+        }
         $cells = [Collections.Generic.List[object]]::new()
         $used = $sheet.UsedRange
         # Inputs are generated fixtures. Refuse unexpectedly large ranges rather than producing
