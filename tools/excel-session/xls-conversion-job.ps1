@@ -248,7 +248,8 @@ try {
                 [string]$sortSheet.Range('A2').Value2
             }
             $entry.setup.chart_sheet_selection = GetOrError {
-                $chartSheet.Activate(); @{active=[string]$book.ActiveSheet.Name}
+                $chartSheet.Activate(); $book.Windows.Item(1).Zoom = 75
+                @{active=[string]$book.ActiveSheet.Name; zoom=$book.Windows.Item(1).Zoom}
             }
             $book.SaveAs($path, $fixture.legacy)
             $book.Close($false); $book=$null
