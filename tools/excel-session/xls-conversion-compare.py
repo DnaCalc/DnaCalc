@@ -22,6 +22,8 @@ P = '{http://schemas.openxmlformats.org/package/2006/relationships}'
 XDR = '{http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing}'
 A = '{http://schemas.openxmlformats.org/drawingml/2006/main}'
 C = '{http://schemas.openxmlformats.org/drawingml/2006/chart}'
+V = '{urn:schemas-microsoft-com:vml}'
+VX = '{urn:schemas-microsoft-com:office:excel}'
 
 
 def relationships(z, path):
@@ -139,6 +141,29 @@ def cell_styles(root):
         definition['attributes'].pop('numFmtId', None)
         result.append(definition)
     return result
+
+
+def note_geometry(z, sheet, sheet_path, sheet_rels):
+    result = []
+    for ref in sheet.findall(M + 'legacyDrawing'):
+        rel = sheet_rels.get(ref.get(R + 'id'))
+        if rel is None:
+            raise ValueError('missing legacy drawing relationship')
+        root = ET.fromstring(z.read(target(sheet_path, rel)))
+        for shape in root.iter(V + 'shape'):
+            client = shape.find(VX + 'ClientData')
+            if client is None or client.get('ObjectType') != 'Note':
+                continue
+            style = {}
+            for item in shape.get('style', '').split(';'):
+                name, sep, value = item.partition(':')
+                if sep and name.strip().lower() in ('margin-left', 'margin-top', 'width', 'height', 'visibility'):
+                    style[name.strip().lower()] = value.strip()
+            anchor = client.find(VX + 'Anchor')
+            result.append({'row': client.findtext(VX + 'Row'), 'column': client.findtext(VX + 'Column'),
+                           'anchor': None if anchor is None else [part.strip() for part in (anchor.text or '').split(',')],
+                           'style': style})
+    return sorted(result, key=repr)
 
 
 def drawing_objects(z, sheet, sheet_path, sheet_rels):
@@ -429,6 +454,7 @@ def package(data):
                                                              'zoomScale', 'zoomScaleNormal', 'zoomScaleSheetLayoutView')
                                       if e.get(k) is not None} for e in sh.findall(f'{M}sheetViews/{M}sheetView')],
                            'merges': merges, 'links': sorted(links, key=repr), 'comments': sorted(comments),
+                           'note_geometry': note_geometry(z, sh, path, shrels),
                            'scenarios': None if sh.find(M + 'scenarios') is None else tree(sh.find(M + 'scenarios')),
                            'conditional_formats': [tree(e) for e in sh.findall(M + 'conditionalFormatting')],
                            'validations': [tree(e) for e in sh.findall(f'{M}dataValidations/{M}dataValidation')],

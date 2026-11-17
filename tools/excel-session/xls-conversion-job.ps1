@@ -119,6 +119,11 @@ try {
             $entry.setup.hyperlink = GetOrError { $h = $sheet.Hyperlinks.Add($sheet.Range('C2'), 'https://example.com/'); [string]$h.Address }
             $entry.setup.relative_hyperlink = GetOrError { $h = $sheet.Hyperlinks.Add($sheet.Range('C6'), '..\folder\book.xls', 'Data!A1'); @{address=[string]$h.Address; location=[string]$h.SubAddress} }
             $entry.setup.comment = GetOrError { $c = $sheet.Range('C3').AddComment('Controlled note'); [string]$c.Text() }
+            $entry.setup.comment_geometry = GetOrError {
+                $shape = $sheet.Range('C3').Comment.Shape
+                $shape.Left = 135; $shape.Top = 80; $shape.Width = 144; $shape.Height = 75
+                @{left=$shape.Left; top=$shape.Top; width=$shape.Width; height=$shape.Height}
+            }
             $entry.setup.validation = GetOrError { $sheet.Range('C4').Validation.Add(1, 1, 1, '1', '10'); $sheet.Range('C4').Validation.Type }
             $entry.setup.active_filter = GetOrError {
                 $sheet.Range('K1').Value2 = 'Group'; $sheet.Range('K2').Value2 = 'keep'; $sheet.Range('K3').Value2 = 'drop'
