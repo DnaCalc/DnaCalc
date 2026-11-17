@@ -455,6 +455,7 @@ def package(data):
                            'sheet_properties': None if sh.find(M + 'sheetPr') is None else tree(sh.find(M + 'sheetPr')),
                            'sheet_protection': sheet_protection(sh),
                            'filter_mode': sh.find(M + 'sheetPr') is not None and sh.find(M + 'sheetPr').get('filterMode', '0') in ('1', 'true'),
+                           'auto_filter': None if sh.find(M + 'autoFilter') is None else tree(sh.find(M + 'autoFilter')),
                            'default_column_width': (sh.find(M + 'sheetFormatPr').get('defaultColWidth')
                                                     if sh.find(M + 'sheetFormatPr') is not None else None),
                            'columns': [(e.get('min'), e.get('max'), e.get('width'))
