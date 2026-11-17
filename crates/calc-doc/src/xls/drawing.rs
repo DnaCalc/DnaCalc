@@ -174,6 +174,8 @@ struct Shape {
     fill_seen: bool,
     fill_invalid: bool,
     no_fill: bool,
+    fixed_geometry_unsafe: bool,
+    flags: Option<u32>,
 }
 
 fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
@@ -187,16 +189,29 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                         if child.body.len() >= 8 {
                             let flags = u32::from_le_bytes(child.body[4..8].try_into().expect("4 bytes"));
                             shape.group = flags & 0x1 != 0;
+                            if shape.flags.replace(flags).is_some() { shape.fixed_geometry_unsafe = true; }
                         }
                     }
                     0xF00B => {
                         // Properties: id (14 bits), blip flag, complex flag, then a 32-bit value.
-                        if usize::from(child.instance) * 6 > child.body.len() { shape.fill_invalid = true; }
+                        if usize::from(child.instance) * 6 > child.body.len() {
+                            shape.fill_invalid = true;
+                            shape.fixed_geometry_unsafe = true;
+                        }
                         for k in 0..usize::from(child.instance) {
                             let at = k * 6;
                             let Some(p) = child.body.get(at..at + 6) else { break };
                             let id = u16::from_le_bytes([p[0], p[1]]);
                             let value = u32::from_le_bytes([p[2], p[3], p[4], p[5]]);
+                            let property = id & 0x3fff;
+                            // Do not infer a preset when the shape has rotation, custom geometry,
+                            // or group visibility properties other than the observed default.
+                            if (property == 4 && (value != 0 || id & 0xc000 != 0))
+                                || (0x0140..=0x017f).contains(&property)
+                                || (property == 0x03bf && (id & 0xc000 != 0 || ![0, 0x0008_0000].contains(&value)))
+                            {
+                                shape.fixed_geometry_unsafe = true;
+                            }
                             if id & 0x3FFF == 0x0104 {
                                 shape.picture = Some(value);
                             }
@@ -540,6 +555,9 @@ impl Drawing {
                     let geometry_name = match shape.shape_type {
                         3 => "ellipse",
                         1 | 202 => "rect",
+                        // MS-ODRAW msosptFlowChartProcess; preserve only the untransformed preset.
+                        109 if shape.flags.is_some_and(|flags| flags & 0xff == 0)
+                            && !shape.fixed_geometry_unsafe => "flowChartProcess",
                         _ => {
                             *unread.entry(object.kind).or_insert(0) += 1;
                             continue;

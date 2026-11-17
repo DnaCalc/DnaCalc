@@ -143,6 +143,10 @@ try {
                 @{name=[string]$scenario.Name; comment=[string]$scenario.Comment; count=$sheet.Scenarios().Count}
             }
             $entry.setup.shape = GetOrError { $s = $sheet.Shapes.AddShape(1, 100, 100, 60, 30); [string]$s.Name }
+            $entry.setup.shape_flowchart_process = GetOrError {
+                $s = $sheet.Shapes.AddShape(61, 180, 100, 60, 30)
+                @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
+            }
             $entry.setup.shape_no_fill = GetOrError {
                 $shape = $sheet.Shapes.AddShape(1, 100, 145, 60, 30)
                 $shape.Fill.Visible = 0
