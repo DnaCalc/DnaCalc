@@ -2292,15 +2292,24 @@ fn pictures_text_boxes_and_charts_are_written_as_a_drawing() {
 fn chart_attached_title_binds_after_text_without_changing_series_name() {
     use ptg::*;
     use xls_kit::art;
-    for (linked, duplicate, expected) in [(false, false, true), (true, false, false), (false, true, false)] {
+    for (linked, duplicate, expected) in [(false, 0, true), (true, 0, true), (false, 1, false), (false, 2, false)] {
         let mut chart = art::chart(&[("Sales", Vec::new(), area3d(0, (1, 4), (1, 1), 0))], 0, "Quarterly");
-        let title = art::series_text("Quarterly");
-        let at = chart.windows(title.len()).position(|w| w == title).unwrap();
-        if linked { chart.splice(at..at, art::ai(0, &area3d(0, (0, 0), (0, 0), 0))); }
-        if duplicate {
+        if linked {
+            let literal = record(0x1051, &[0, 1, 0, 0, 0, 0, 0, 0]);
+            let at = chart.windows(literal.len()).position(|w| w == literal).unwrap();
+            chart.splice(at..at + literal.len(), art::ai(0, &area3d(0, (0, 0), (0, 0), 0)));
+        }
+        if duplicate == 1 {
             let link = record(0x1027, &u16s(&[1, 0, 0, 0]));
             let at = chart.windows(link.len()).position(|w| w == link).unwrap() + link.len();
             chart.splice(at..at, link);
+        }
+        if duplicate == 2 {
+            let second = [record(0x1025, &[0u8; 32]), art::begin(), art::series_text("Other"),
+                record(0x1027, &u16s(&[1, 0, 0, 0])), art::end()].concat();
+            let legend = record(0x1015, &[0u8; 20]);
+            let at = chart.windows(legend.len()).position(|w| w == legend).unwrap();
+            chart.splice(at..at, second);
         }
         let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
         let globals = [supbook_self(1), extern_sheet(&[(0, 0, 0)])].concat();
@@ -2309,12 +2318,13 @@ fn chart_attached_title_binds_after_text_without_changing_series_name() {
         let xml = String::from_utf8(doc.package().read_part("xl/charts/chart1_1.xml").unwrap()).unwrap();
         assert_eq!(xml.contains("Quarterly"), expected, "{xml}");
         assert!(xml.contains("Sales"), "{xml}");
-        assert!(!xml.contains("<c:f>S!$A$1"), "{xml}");
+        assert_eq!(xml.matches("<c:f>S!$A$1").count(), usize::from(linked), "{xml}");
         if expected {
             let mut saved = Vec::new();
             calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
             let reopened = load(&saved);
             assert_eq!(reopened.sheets()[0].charts().charts[0].title.as_deref(), Some("Quarterly"));
+            assert_eq!(reopened.sheets()[0].charts().charts[0].title_formula.is_some(), linked);
         }
     }
 }

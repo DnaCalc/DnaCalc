@@ -183,6 +183,12 @@ try {
                 $c.ChartType = 51; $c.SetSourceData($dataSheet.Range('A1:B3'))
                 @{series=[string]$c.SeriesCollection(1).Formula; points=$c.SeriesCollection(1).Points().Count}
             }
+            $entry.setup.chart_linked_title = GetOrError {
+                $dataSheet.Range('D1').Value2 = 'Controlled linked title'
+                $linkedChart = $sheet.ChartObjects('cxCacheChart').Chart
+                $linkedChart.HasTitle = $true; $linkedChart.ChartTitle.Formula = '=ChartSource!$D$1'
+                @{formula=[string]$linkedChart.ChartTitle.Formula; text=[string]$linkedChart.ChartTitle.Text}
+            }
             $entry.setup.chart_series_fill = GetOrError {
                 $series = $sheet.ChartObjects('cxCacheChart').Chart.SeriesCollection(1)
                 $series.Format.Fill.Visible = -1; $series.Format.Fill.Solid()
