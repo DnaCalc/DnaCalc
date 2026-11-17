@@ -227,6 +227,38 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
     }
 }
 
+/// A complete worksheet shape placed in a CONTINUE after the preceding OBJ.
+fn continued_shape(data: &[u8]) -> Option<Shape> {
+    if data.len() < 8 || u16::from_le_bytes([data[0], data[1]]) & 0xf != 0xf
+        || u16::from_le_bytes([data[2], data[3]]) != 0xf004
+        || u32::from_le_bytes(data[4..8].try_into().ok()?) as usize != data.len() - 8 { return None; }
+    let mut at = 8usize;
+    let mut has_shape = false;
+    let mut has_anchor = false;
+    let mut has_client = false;
+    while at < data.len() {
+        let header = data.get(at..at.checked_add(8)?)?;
+        let info = u16::from_le_bytes([header[0], header[1]]);
+        let kind = u16::from_le_bytes([header[2], header[3]]);
+        let length = u32::from_le_bytes(header[4..8].try_into().ok()?) as usize;
+        let end = at.checked_add(8)?.checked_add(length)?;
+        if end > data.len() || has_client { return None; }
+        match kind {
+            0xf00a if info & 0xf == 2 && length == 8 && !has_shape => has_shape = true,
+            0xf00b if info & 0xf == 3 && length >= usize::from(info >> 4) * 6 => {},
+            0xf010 if info == 0 && length == 18 && !has_anchor => has_anchor = true,
+            0xf011 if info == 0 && length == 0 => has_client = true,
+            0xf00a | 0xf00b | 0xf010 | 0xf011 => return None,
+            _ => {}
+        }
+        at = end;
+    }
+    if !(has_shape && has_anchor && has_client) { return None; }
+    let mut shapes = Vec::new();
+    shapes_of(data, &mut shapes);
+    (shapes.len() == 1).then(|| shapes.remove(0))
+}
+
 // ---- Objects and what they own ----
 
 /// One OBJ record's drawing object.
@@ -247,6 +279,8 @@ pub(crate) struct Drawing {
     waiting_text: Option<usize>,
     /// End of the most recent successfully parsed OBJ, including its continuations.
     last_object_end: Option<usize>,
+    /// A validated shape in the preceding OBJ's final CONTINUE, for an adjacent OBJ only.
+    continued_shape: Option<(usize, Shape)>,
     /// The chart object whose substream is being read.
     chart_object: Option<usize>,
 }
@@ -275,6 +309,9 @@ impl Drawing {
                 true
             }
             OBJ => {
+                if let Some((next, shape)) = self.continued_shape.take() && next == record.offset {
+                    self.shapes.push(shape);
+                }
                 self.last_object_end = None;
                 let body = record.body;
                 let mut at = 0usize;
@@ -293,6 +330,10 @@ impl Drawing {
                 if let Some(kind) = kind {
                     self.last_object_end = record.offset.checked_add(4 + record.body.len())
                         .and_then(|end| record.continues.iter().try_fold(end, |at, piece| at.checked_add(4 + piece.len())));
+                    if let (Some(end), Some(piece)) = (self.last_object_end, record.continues.last())
+                        && let Some(shape) = continued_shape(piece) {
+                        self.continued_shape = Some((end, shape));
+                    }
                     // The shape the MSODRAWING records gave for this object: the next one with
                     // client data, in order.
                     let mut shape = None;
