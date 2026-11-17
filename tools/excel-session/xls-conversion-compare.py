@@ -199,6 +199,8 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
                 obj['chart_title'] = None if title is None else {
                     'text': [e.text or '' for e in title.iter() if e.tag in (A + 't', C + 'v')],
                     'formulas': [e.text or '' for e in title.iter(C + 'f')]}
+                legend = chart_root.find(f'{C}chart/{C}legend')
+                obj['chart_legend'] = None if legend is None else tree(legend)
                 settings = chart_root.find(C + 'printSettings')
                 obj['chart_print_settings'] = None if settings is None else tree(settings)
                 obj['chart_types'] = sorted({x.tag.rsplit('}', 1)[-1] for x in chart_root.iter()

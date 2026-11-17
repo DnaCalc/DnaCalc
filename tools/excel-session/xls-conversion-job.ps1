@@ -225,6 +225,16 @@ try {
                 $line.Visible = -1; $line.DashStyle = 1; $line.Weight = 0.75; $line.ForeColor.RGB = 255
                 @{color=$line.ForeColor.RGB; weight=$line.Weight; dash=$line.DashStyle}
             }
+            $entry.setup.chart_legend_positions = @(
+                foreach ($case in @(@{index=1; position=-4160}, @{index=2; position=-4107},
+                                    @{index=3; position=-4131}, @{index=4; position=2})) {
+                    GetOrError {
+                        $chart = $sheet.ChartObjects().Item($case.index).Chart
+                        $chart.HasLegend = $true; $chart.Legend.Position = $case.position
+                        @{index=$case.index; position=$chart.Legend.Position}
+                    }
+                }
+            )
             $entry.setup.chart_sheet = GetOrError {
                 $chartSheet = $book.Charts.Add(); $chartSheet.Name = 'ChartTab'
                 $chartSheet.ChartType = 51; $chartSheet.SetSourceData($sheet.Range('H1:H2'))

@@ -39,7 +39,12 @@ pub(crate) fn txo_text(record: &Record<'_>) -> Result<Option<Vec<u16>>, Malforme
         }
         if remaining != 0 { return Err(short("Txo text")); }
         let runs = usize::from(u16::from_le_bytes([body[12], body[13]]));
-        if record.continues[text_end..].iter().map(|piece| piece.len()).sum::<usize>() != runs {
+        let formatting = &record.continues[text_end..];
+        let total = formatting.iter().map(|piece| piece.len()).sum::<usize>();
+        let followed_by_shape = formatting.last().is_some_and(|piece| {
+            total.checked_sub(piece.len()) == Some(runs) && super::drawing::is_continued_shape(piece)
+        });
+        if total != runs && !followed_by_shape {
             return Err(short("Txo formatting runs"));
         }
     }
