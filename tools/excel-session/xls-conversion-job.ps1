@@ -147,6 +147,12 @@ try {
                 $s = $sheet.Shapes.AddShape(61, 180, 100, 60, 30)
                 @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
             }
+            $entry.setup.justified_text = GetOrError {
+                $box = $sheet.Shapes.AddTextbox(1, 300, 100, 120, 55)
+                $box.TextFrame.Characters().Text = 'A controlled justified text example with several words.'
+                $box.TextFrame.HorizontalAlignment = -4130
+                @{name=[string]$box.Name; horizontal_alignment=$box.TextFrame.HorizontalAlignment}
+            }
             $entry.setup.checkbox = GetOrError {
                 $box = $sheet.CheckBoxes().Add(180, 145, 90, 24)
                 $box.Caption = 'Controlled checkbox'; $box.Value = 1; $box.LinkedCell = '$M$2'

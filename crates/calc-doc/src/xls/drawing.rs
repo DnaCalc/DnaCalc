@@ -393,7 +393,8 @@ impl Drawing {
                         if let Some(bytes) = record.body.get(..4) {
                             let flags = u16::from_le_bytes([bytes[0], bytes[1]]);
                             let rotation = u16::from_le_bytes([bytes[2], bytes[3]]);
-                            let horizontal = match (flags >> 1) & 7 { 1 => Some("l"), 2 => Some("ctr"), 3 => Some("r"), _ => None };
+                            let horizontal = match (flags >> 1) & 7 { 1 => Some("l"), 2 => Some("ctr"), 3 => Some("r"),
+                                4 => Some("just"), _ => None };
                             let vertical = match (flags >> 4) & 7 { 1 => Some("t"), 2 => Some("ctr"), 3 => Some("b"), _ => None };
                             if rotation == 0 && flags & 0x4000 == 0 {
                                 self.objects[index].text_alignment = horizontal.zip(vertical);

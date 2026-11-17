@@ -2077,6 +2077,8 @@ fn text_box_alignment_is_loaded_and_saved() {
         (1u16, 1u16, 0u16, Some(("l", "t"))),
         (2, 2, 0, Some(("ctr", "ctr"))),
         (3, 3, 0, Some(("r", "b"))),
+        (4, 1, 0, Some(("just", "t"))),
+        (0x2004, 1, 0, None), // justify the last line is not represented by the shape model
         (7, 1, 0, None),
         (1, 1, 2, None),
     ] {
