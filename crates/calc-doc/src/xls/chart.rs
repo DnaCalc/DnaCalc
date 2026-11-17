@@ -156,6 +156,7 @@ pub(crate) struct Chart {
     attached_font_seen: bool,
     attached_font_invalid: bool,
     title_font: Option<(String, bool, bool)>,
+    axis_title_fonts: [Option<(String, bool, bool)>; 2],
     axis_fonts: [Option<(String, bool, bool)>; 2],
     axis_font_seen: [bool; 2],
     axis_font_invalid: [bool; 2],
@@ -500,6 +501,12 @@ impl Chart {
                             if let Some(link) = self.link {
                                 if link == 1 {
                                     self.title_font = if !self.seen_title_links.contains(&link)
+                                        && !self.attached_invalid && !self.attached_font_invalid {
+                                        self.attached_font.take()
+                                    } else { None };
+                                }
+                                if (2..=3).contains(&link) {
+                                    self.axis_title_fonts[usize::from(link - 2)] = if !self.seen_title_links.contains(&link)
                                         && !self.attached_invalid && !self.attached_font_invalid {
                                         self.attached_font.take()
                                     } else { None };
@@ -863,7 +870,7 @@ impl Chart {
                 x.empty("c:delete", &[("val", "0".to_owned())]);
                 x.empty("c:axPos", &[("val", pos.to_owned())]);
                 if let Some(title) = self.titles.get(&title_key) {
-                    title_element(&mut x, title, None);
+                    title_element(&mut x, title, self.axis_title_fonts[usize::from(title_key - 2)].as_ref());
                 }
                 text_font_element(&mut x, if self.axis_font_invalid[axis_index] { None } else { self.axis_fonts[axis_index].as_ref() });
                 x.empty("c:crossAx", &[("val", cross.to_owned())]);

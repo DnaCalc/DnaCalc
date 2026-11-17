@@ -3272,6 +3272,41 @@ fn chart_axis_literal_titles_survive_conversion_and_save() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_axis_title_fonts_reject_overrides_and_duplicate_links() {
+    use xls_kit::art;
+    for (link, index, extra, expected) in [
+        (2u16, 1u16, 0u16, true), (3, 1, 0, true), (2, 0, 0, false), (2, 2, 0, false),
+        (2, 1, 0x1026, false), (2, 1, 0x1050, false), (2, 1, 0x08A5, false),
+        (2, 1, 0x08A6, false), (2, 1, 0xFFFF, false),
+    ] {
+        let mut chart = art::chart(&[("Sales", Vec::new(), Vec::new())], 0, "Sales chart");
+        let legend = record(0x1015, &[0u8; 20]);
+        let at = chart.windows(legend.len()).position(|w| w == legend).unwrap();
+        let mut text = [record(0x1025, &[0u8; 32]), art::begin(), record(0x1026, &u16s(&[index])),
+            art::series_text("Axis title"), record(0x1027, &u16s(&[link, 0, 0, 0]))].concat();
+        if extra != 0 && extra != 0xFFFF { text.extend(record(extra, &u16s(&[index]))); }
+        text.extend(art::end());
+        if extra == 0xFFFF { text.extend(text.clone()); }
+        chart.splice(at..at, text);
+        let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
+        let bytes = xls(false, &font(200, 2, 0x7FFF, 700, "Arial"), &[Sheet::worksheet("S", records)]);
+        let loaded = load(&bytes);
+        let chart = &loaded.sheets()[0].charts().charts[0];
+        let key = if link == 2 { "axis-title:222222222" } else { "axis-title:111111111" };
+        let style = chart.element_text.get(key);
+        assert_eq!(style.is_some(), expected, "link {link}, index {index}, extra {extra:#x}");
+        if let Some(style) = style {
+            assert_eq!((style.family.as_deref(), style.bold, style.italic), (Some("Arial"), Some(true), Some(true)));
+            let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            assert_eq!(load(&saved).sheets()[0].charts().charts[0].element_text.get(key), Some(style));
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn chart_axis_font_is_scoped_to_unambiguous_primary_axes() {
     use xls_kit::art;
     for (parent, axis, index, extra, expected) in [

@@ -369,9 +369,14 @@ try {
                 $chart = $sheet.ChartObjects('cxCacheChart').Chart
                 $category = $chart.Axes(1); $category.HasTitle = $true
                 $category.AxisTitle.Text = 'Region & area'
+                $category.AxisTitle.Font.Name = 'Arial'
+                $category.AxisTitle.Font.Bold = $true
+                $category.AxisTitle.Font.Italic = $true
                 $value = $chart.Axes(2); $value.HasTitle = $true
                 $value.AxisTitle.Text = 'Revenue'
-                @{category=[string]$category.AxisTitle.Text; value=[string]$value.AxisTitle.Text}
+                @{category=[string]$category.AxisTitle.Text; value=[string]$value.AxisTitle.Text;
+                  font_name=[string]$category.AxisTitle.Font.Name; bold=$category.AxisTitle.Font.Bold;
+                  italic=$category.AxisTitle.Font.Italic}
             }
             $entry.setup.chart_legend_font = GetOrError {
                 $chart = $sheet.ChartObjects('cxCacheChart').Chart

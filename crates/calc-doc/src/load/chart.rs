@@ -303,6 +303,9 @@ fn read_chart_xml(
             {
                 ["chart", "title"] => Some("title".to_owned()),
                 ["chart", "legend"] => Some("legend".to_owned()),
+                ["chart", "plotArea", axis, "title"] if axis.ends_with("Ax") => {
+                    chart.axes.last().map(|a| format!("axis-title:{}", a.id))
+                }
                 ["chart", "plotArea", axis] if axis.ends_with("Ax") => {
                     chart.axes.last().map(|a| format!("axis:{}", a.id))
                 }

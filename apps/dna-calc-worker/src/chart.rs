@@ -397,8 +397,8 @@ pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
                 _ => continue,
             };
             let _ = write!(svg,
-                "<text data-dnacalc=\"chart-axis-title\" data-axis=\"{}\" x=\"{x:.1}\" y=\"{y:.1}\" text-anchor=\"middle\" transform=\"rotate({rotation} {x:.1} {y:.1})\" fill=\"{AXIS}\">{}</text>",
-                axis.id, escape(title));
+                "<text data-dnacalc=\"chart-axis-title\" data-chart-text=\"axis-title:{}\" data-axis=\"{}\" x=\"{x:.1}\" y=\"{y:.1}\" text-anchor=\"middle\" transform=\"rotate({rotation} {x:.1} {y:.1})\" fill=\"{AXIS}\">{}</text>",
+                axis.id, axis.id, escape(title));
         }
     }
     let area = Area {
@@ -1729,9 +1729,12 @@ mod ui29_chart_tests {
         let mut titled = chart.clone();
         let axis = titled.axes.iter_mut().find(|axis| axis.position.as_deref() == Some("l")).unwrap();
         axis.title = Some("Revenue & costs".into());
+        let key = format!("axis-title:{}", axis.id);
+        titled.element_text.entry(key).or_default().family = Some("Arial".into());
         let titled_svg = chart_svg(&titled, 640., 360.);
         assert!(titled_svg.contains("data-dnacalc=\"chart-axis-title\""));
         assert!(titled_svg.contains("Revenue &amp; costs"));
+        assert!(titled_svg.contains("&quot;Arial&quot;"));
         let svg = chart_svg(&chart, 640., 360.);
         assert!(!svg.contains("chart-notice"), "{svg}");
         assert_eq!(svg.matches("data-dnacalc=\"chart-mark\"").count(), 12);

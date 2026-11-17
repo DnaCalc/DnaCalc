@@ -320,7 +320,8 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
                 obj['axis_titles'] = [
                     {'type': axis.tag.rsplit('}', 1)[-1],
                      'text': [e.text or '' for e in title.iter() if e.tag in (A + 't', C + 'v')],
-                     'formulas': [e.text or '' for e in title.iter(C + 'f')]}
+                     'formulas': [e.text or '' for e in title.iter(C + 'f')],
+                     'font_properties': [tree(e) for e in title.iter() if e.tag in (A + 'defRPr', A + 'rPr', A + 'endParaRPr')]}
                     for axis in chart_root.iter() if axis.tag in (C + 'catAx', C + 'valAx', C + 'dateAx', C + 'serAx')
                     if (title := axis.find(C + 'title')) is not None]
             result.append(obj)
