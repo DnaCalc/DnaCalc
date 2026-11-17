@@ -58,6 +58,7 @@ fn sweep() {
     let (mut chart_points, mut chart_files) = (0usize, 0usize);
     let (mut category_points, mut category_files) = (0usize, 0usize);
     let (mut series_fills, mut series_fill_files) = (0usize, 0usize);
+    let (mut series_lines, mut series_line_files) = (0usize, 0usize);
     let (mut pivot_caches, mut pivot_records, mut pivot_files) = (0usize, 0u64, 0usize);
     let (mut phonetic_runs, mut phonetic_files, mut phonetic_errors) = (0usize, 0usize, 0usize);
     let (mut phonetic_formats, mut phonetic_format_files) = (0usize, 0usize);
@@ -147,10 +148,16 @@ fn sweep() {
                     } else { 0 };
                     let fills = if audit_charts {
                         loaded.sheets().iter().flat_map(|s| &s.charts().charts)
-                            .flat_map(|c| &c.plots).flat_map(|p| &p.series)
+                            .flat_map(|c| &c.plots).filter(|p| !matches!(p.kind.as_str(), "lineChart" | "scatterChart"))
+                            .flat_map(|p| &p.series)
                             .filter(|s| s.fill.is_some()).count()
                     } else { 0 };
-                    (formulas, failed, caches, saved_records, points, categories, fills)
+                    let lines = if audit_charts {
+                        loaded.sheets().iter().flat_map(|s| &s.charts().charts)
+                            .flat_map(|c| &c.plots).filter(|p| matches!(p.kind.as_str(), "lineChart" | "scatterChart"))
+                            .flat_map(|p| &p.series).filter(|s| s.fill.is_some()).count()
+                    } else { 0 };
+                    (formulas, failed, caches, saved_records, points, categories, fills, lines)
                 })
             });
             (report, document.map(|_| ()), load, written_phonetic, written_chart_sheets, core, app, custom)
@@ -193,7 +200,7 @@ fn sweep() {
                             phonetic_errors += 1;
                         }
                         match load {
-                            Some(Ok((formulas, failed, caches, saved_records, points, categories, fills))) => {
+                            Some(Ok((formulas, failed, caches, saved_records, points, categories, fills, lines))) => {
                                 loaded += 1;
                                 formula_cells += formulas;
                                 parse_failures += failed;
@@ -206,6 +213,8 @@ fn sweep() {
                                 category_files += usize::from(categories != 0);
                                 series_fills += fills;
                                 series_fill_files += usize::from(fills != 0);
+                                series_lines += lines;
+                                series_line_files += usize::from(lines != 0);
                             }
                             Some(Err(e)) => {
                                 let key: String = e.chars().take(90).collect();
@@ -246,6 +255,7 @@ fn sweep() {
         println!("numeric chart display-cache points: {chart_points} in {chart_files} files (not calculated cell results)");
         println!("chart category display-cache points: {category_points} in {category_files} files (not calculated cell results)");
         println!("chart series with explicit solid fill: {series_fills} in {series_fill_files} files (not an Excel match verdict)");
+        println!("line and scatter series with explicit solid line color: {series_lines} in {series_line_files} files (not an Excel match verdict)");
     }
     if audit_chart_sheets {
         println!("chart sheets with a linked chart: {chart_sheets} in {chart_sheet_files} files (partial chart conversion, not an Excel match verdict)");

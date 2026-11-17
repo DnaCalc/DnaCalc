@@ -144,6 +144,13 @@ try {
                 $series.Format.Fill.ForeColor.RGB = 255
                 @{fill_rgb=$series.Format.Fill.ForeColor.RGB}
             }
+            $entry.setup.chart_series_line = GetOrError {
+                $chart = $sheet.ChartObjects().Add(410, 270, 200, 150).Chart
+                $chart.ChartType = 4; $chart.SetSourceData($sheet.Range('H1:H2'))
+                $line = $chart.SeriesCollection(1).Format.Line
+                $line.Visible = -1; $line.DashStyle = 1; $line.Weight = 0.75; $line.ForeColor.RGB = 255
+                @{color=$line.ForeColor.RGB; weight=$line.Weight; dash=$line.DashStyle}
+            }
             $entry.setup.chart_sheet = GetOrError {
                 $chartSheet = $book.Charts.Add(); $chartSheet.Name = 'ChartTab'
                 $chartSheet.ChartType = 51; $chartSheet.SetSourceData($sheet.Range('H1:H2'))

@@ -188,6 +188,12 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
                     color = None if fill is None else next(iter(fill), None)
                     obj['series_solid_fills'].append(None if color is None else {
                         'kind': color.tag.rsplit('}', 1)[-1], 'value': color.get('val')})
+                obj['series_line_colors'] = []
+                for series in chart_root.iter(C + 'ser'):
+                    fill = series.find(f'{C}spPr/{A}ln/{A}solidFill')
+                    color = None if fill is None else next(iter(fill), None)
+                    obj['series_line_colors'].append(None if color is None else {
+                        'kind': color.tag.rsplit('}', 1)[-1], 'value': color.get('val')})
                 obj['series_value_caches'] = []
                 for series in chart_root.iter(C + 'ser'):
                     data = series.find(C + 'val')

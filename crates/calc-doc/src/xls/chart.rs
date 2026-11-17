@@ -2,7 +2,7 @@
 //! line, area, pie, doughnut, scatter), their series with the worksheet ranges of their names,
 //! values and categories, the title, axis titles and the legend, written as the DrawingML chart
 //! part Excel saves. Bar and pie geometry, point-color variation, and primary linear value-axis
-//! bounds and units are retained; other formatting (colours, fonts, gridlines, 3-D, data labels,
+//! bounds and units, and unambiguous solid series colors are retained; other formatting (fonts, gridlines, 3-D, data labels,
 //! trendlines) is not read.
 
 use super::records::Record;
@@ -35,6 +35,7 @@ const TEXT: u16 = 0x1025;
 const OBJECT_LINK: u16 = 0x1027;
 const SERIES_TO_CHART_GROUP: u16 = 0x1045;
 const DATA_FORMAT: u16 = 0x1006;
+const LINE_FORMAT: u16 = 0x1007;
 const AREA_FORMAT: u16 = 0x100A;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -74,6 +75,8 @@ struct Series {
     value_count: Option<u16>,
     fill: Option<String>,
     fill_seen: bool,
+    line: Option<String>,
+    line_seen: bool,
 }
 
 #[derive(Debug, Default)]
@@ -81,6 +84,8 @@ struct SeriesFormat {
     series: Option<usize>,
     fill: Option<String>,
     area_seen: bool,
+    line: Option<String>,
+    line_seen: bool,
     invalid: bool,
 }
 
@@ -192,6 +197,24 @@ impl Chart {
                         if styles.color_attributes(index).first().is_some_and(|(kind, value)|
                             *kind == "rgb" && value.strip_prefix("FF") == Some(rgb.as_str())) {
                             format.fill = Some(rgb);
+                        }
+                    }
+                }
+            }
+            LINE_FORMAT if self.stack.last().is_some_and(|code| block_of(*code) == Block::DataFormat) => {
+                if let Some(format) = &mut self.data_format {
+                    if format.line_seen { format.invalid = true; }
+                    format.line_seen = true;
+                    // Explicit solid narrow line, with the RGB and indexed palette in agreement.
+                    if body.len() == 12 && record.continues.is_empty() && body[3] == 0
+                        && u16::from_le_bytes([body[4], body[5]]) == 0
+                        && u16::from_le_bytes([body[6], body[7]]) == 0
+                        && u16::from_le_bytes([body[8], body[9]]) == 0 {
+                        let index = u16::from_le_bytes([body[10], body[11]]);
+                        let rgb = format!("{:02X}{:02X}{:02X}", body[0], body[1], body[2]);
+                        if styles.color_attributes(index).first().is_some_and(|(kind, value)|
+                            *kind == "rgb" && value.strip_prefix("FF") == Some(rgb.as_str())) {
+                            format.line = Some(rgb);
                         }
                     }
                 }
@@ -341,6 +364,9 @@ impl Chart {
                                 if series.fill_seen { series.fill = None; }
                                 else if !format.invalid { series.fill = format.fill; }
                                 series.fill_seen = true;
+                                if series.line_seen { series.line = None; }
+                                else if !format.invalid { series.line = format.line; }
+                                series.line_seen = true;
                             }
                         }
                         _ => {}
@@ -551,6 +577,12 @@ impl Chart {
                     x.open("c:spPr", &[]); x.open("a:solidFill", &[]);
                     x.empty("a:srgbClr", &[("val", fill.clone())]);
                     x.close("a:solidFill"); x.close("c:spPr");
+                }
+                if !self.auxiliary_series && matches!(group.kind, Kind::Line | Kind::Scatter)
+                    && let Some(color) = &series.line {
+                    x.open("c:spPr", &[]); x.open("a:ln", &[]); x.open("a:solidFill", &[]);
+                    x.empty("a:srgbClr", &[("val", color.clone())]);
+                    x.close("a:solidFill"); x.close("a:ln"); x.close("c:spPr");
                 }
                 let (category_tag, value_tag) = if group.kind == Kind::Scatter {
                     ("c:xVal", "c:yVal")
