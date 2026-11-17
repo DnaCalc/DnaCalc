@@ -54,6 +54,11 @@ struct Options {
     /// instead of asking in the save dialog: an acceptance run drives the page's Save without a
     /// person (the dialog's own code is not exercised then).
     save_dir: Option<PathBuf>,
+    /// `--open-file PATH` (repeatable): the files the native Open dialog answers with, in order,
+    /// instead of showing it (an acceptance run drives the page's Open button without a person).
+    /// The file is read by the same route as a dialog's pick (`origin::open_file`), so the page
+    /// receives its real path and Mark of the Web, never an Unknown origin.
+    open_files: Vec<PathBuf>,
     /// `--trust-macros`: pins the macro security level to Unguarded (dc-15dk).
     trust_macros: bool,
     /// `--macros off|safe|unguarded`: pins the macro security level for this run.
@@ -72,6 +77,7 @@ fn options(args: &[String]) -> Result<Options, String> {
         close_answer: None,
         message_file: None,
         save_dir: None,
+        open_files: Vec::new(),
         trust_macros: false,
         macros: None,
     };
@@ -86,6 +92,7 @@ fn options(args: &[String]) -> Result<Options, String> {
             "--sheet" => o.sheet = value()?,
             "--save-dir" => o.save_dir = Some(PathBuf::from(value()?)),
             "--data-dir" => o.data_dir = Some(PathBuf::from(value()?)),
+            "--open-file" => o.open_files.push(PathBuf::from(value()?)),
             "--trust-macros" => o.trust_macros = true,
             "--macros" => {
                 let text = value()?;
@@ -138,6 +145,7 @@ impl Options {
             || self.close_answer.is_some()
             || self.data_dir.is_some()
             || self.save_dir.is_some()
+            || !self.open_files.is_empty()
             || self.message_file.is_some()
     }
 }
@@ -154,6 +162,8 @@ struct Dialogs {
     owner: *mut std::ffi::c_void,
     /// `--save-dir`: where saves go without the dialog, and how many there have been.
     save_dir: Option<(PathBuf, usize)>,
+    /// `--open-file`: the answers the Open dialog gives, next first.
+    open_files: std::collections::VecDeque<PathBuf>,
     /// The Mark of the Web zone of the file last chosen to open.
     origin: dna_onecalc::FileOrigin,
     /// The path of the file last chosen to open.
@@ -205,8 +215,13 @@ fn session_files(open: bool) -> [FileFilter<'static>; 2] {
 
 impl Files for Dialogs {
     fn choose_open(&mut self) -> Result<Option<(String, Vec<u8>)>, String> {
-        let Some(path) = dialogs::open_file(self.owner.cast(), "Open a session", &session_files(true))?
-        else {
+        let path = if let Some(scripted) = self.open_files.pop_front() {
+            scripted
+        } else if let Some(path) =
+            dialogs::open_file(self.owner.cast(), "Open a session", &session_files(true))?
+        {
+            path
+        } else {
             return Ok(None);
         };
         self.read_recent(&path).map(Some)
@@ -762,6 +777,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let dialogs = Dialogs {
         owner: frame.cast(),
         save_dir: o.save_dir.clone().map(|d| (d, 0)),
+        open_files: o.open_files.iter().cloned().collect(),
         origin: dna_onecalc::FileOrigin::Unknown,
         path: None,
         settings: settings.clone(),
@@ -899,5 +915,13 @@ mod tests {
         );
         assert!(options(&args(&["--app", "--url", "http://127.0.0.1:1/"])).is_ok());
         assert!(options(&args(&["--app", "--bogus"])).is_err());
+        // --open-file answers the Open dialog, in order, and makes the run scripted.
+        let o = options(&args(&[
+            "--app", "--url", "http://x/", "--open-file", "a.xlsm", "--open-file", "b.xlsx",
+        ]))
+        .unwrap();
+        assert_eq!(o.open_files, vec![PathBuf::from("a.xlsm"), PathBuf::from("b.xlsx")]);
+        assert!(o.scripted());
+        assert!(options(&args(&["--app", "--url", "http://x/", "--open-file"])).is_err());
     }
 }
