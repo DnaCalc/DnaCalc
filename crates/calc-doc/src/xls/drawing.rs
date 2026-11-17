@@ -28,6 +28,7 @@ struct Atom<'a> {
     kind: u16,
     container: bool,
     complete: bool,
+    declared_length: usize,
     body: &'a [u8],
 }
 
@@ -45,6 +46,7 @@ fn atoms(data: &[u8]) -> Vec<Atom<'_>> {
             kind,
             container: word & 0xF == 0xF,
             complete: length <= data.len() - at - 8,
+            declared_length: length,
             body: &data[at + 8..end],
         });
         at = end;
@@ -94,8 +96,8 @@ pub(crate) fn blip_store(group: &[u8]) -> Vec<Option<Image>> {
 }
 
 /// Document drawing defaults can supply properties omitted from an individual shape
-/// (MS-ODRAW 2.2.12). Decline the literal-solid subset when those defaults change its meaning.
-pub(crate) fn solid_fill_defaults_safe(data: &[u8]) -> bool {
+/// (MS-ODRAW 2.2.12). Check feature-specific defaults with the same bounded traversal.
+fn drawing_defaults_safe(data: &[u8], property_safe: &dyn Fn(u16, u32) -> bool) -> bool {
     let records = atoms(data);
     if records.iter().map(|atom| atom.body.len() + 8).sum::<usize>() != data.len() { return false; }
     for atom in records {
@@ -105,21 +107,36 @@ pub(crate) fn solid_fill_defaults_safe(data: &[u8]) -> bool {
             for p in atom.body[..usize::from(atom.instance) * 6].chunks_exact(6) {
                 let id = u16::from_le_bytes([p[0], p[1]]);
                 let value = u32::from_le_bytes(p[2..6].try_into().expect("four bytes"));
-                if id & 0x3fff == 0x0301 && value != 0 { return false; }
-                if (0x0180..=0x01bf).contains(&(id & 0x3fff)) {
-                    if id & 0xc000 != 0 { return false; }
-                    match id {
-                        0x0180 if value == 0 => {},
-                        0x0182 if value == 0x10000 => {},
-                        0x0181 | 0x0183 | 0x0184 => {}, // Explicit foreground; unused background.
-                        0x01bf if value & !0x0011_0011 == 0 => {},
-                        _ => return false,
-                    }
-                }
+                if !property_safe(id, value) { return false; }
             }
-        } else if atom.container && !solid_fill_defaults_safe(atom.body) { return false; }
+        } else if atom.container && !drawing_defaults_safe(atom.body, property_safe) { return false; }
     }
     true
+}
+
+pub(crate) fn solid_fill_defaults_safe(data: &[u8]) -> bool {
+    drawing_defaults_safe(data, &|id, value| {
+        if id & 0x3fff == 0x0301 && value != 0 { return false; }
+        if !(0x0180..=0x01bf).contains(&(id & 0x3fff)) { return true; }
+        if id & 0xc000 != 0 { return false; }
+        match id {
+            0x0180 => value == 0,
+            0x0182 => value == 0x10000,
+            0x0181 | 0x0183 | 0x0184 => true, // Explicit foreground; unused background.
+            0x01bf => value & !0x0011_0011 == 0,
+            _ => false,
+        }
+    })
+}
+
+// Side outlines and fNoLineDrawDash can display a line even when fLine is false.
+pub(crate) fn hidden_line_defaults_safe(data: &[u8]) -> bool {
+    drawing_defaults_safe(data, &|id, value| {
+        let property = id & 0x3fff;
+        if property == 0x0301 && value != 0 { return false; }
+        if (0x0540..=0x063f).contains(&property) { return false; }
+        property != 0x01ff || (id == 0x01ff && value & 0x0001_0001 != 0x0001_0001)
+    })
 }
 
 fn blip_image(atom: &Atom<'_>) -> Option<Image> {
@@ -202,6 +219,9 @@ struct Shape {
     anchor: Option<[u16; 8]>,
     client_data: bool,
     text_box: bool,
+    line_boolean: Option<u32>,
+    hidden_line_invalid: bool,
+    hidden_line_pending_textbox: bool,
     fill_seen: bool,
     fill_invalid: bool,
     no_fill: bool,
@@ -219,6 +239,14 @@ struct Shape {
 }
 
 impl Shape {
+    /// MS-ODRAW 2.3.8.38: explicit fUsefLine with fLine=false on a 2-D shape.
+    fn hidden_line(&self) -> bool {
+        !self.hidden_line_invalid && !self.hidden_line_pending_textbox
+            && self.flags.is_some_and(|flags| flags & 0x3b == 0)
+            && self.line_boolean.is_some_and(|flags| flags & 0x0008_0008 == 0x0008_0000
+                && flags & 0x0001_0001 != 0x0001_0001)
+    }
+
     /// MS-ODRAW 2.3.7: an explicitly enabled, opaque solid fill with a literal RGB.
     /// Keep palette/system colours, gradients and extended colour overrides unread.
     fn solid_fill(&self) -> Option<String> {
@@ -237,7 +265,16 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
     for atom in atoms(data) {
         if atom.kind == 0xF004 {
             let mut shape = Shape::default();
-            for child in atoms(atom.body) {
+            let children = atoms(atom.body);
+            // BIFF can split a trailing eight-byte ClientTextbox marker across an OBJ.
+            // Do not use visibility until the adjacent standalone marker is actually read.
+            shape.hidden_line_pending_textbox = !atom.complete
+                && atom.declared_length.checked_sub(atom.body.len()) == Some(8)
+                && children.last().is_some_and(|child| child.kind == 0xf011 && child.body.is_empty());
+            shape.hidden_line_invalid = (!atom.complete && !shape.hidden_line_pending_textbox)
+                || children.iter().map(|child| child.body.len() + 8).sum::<usize>() != atom.body.len();
+            for child in children {
+                if !child.complete { shape.hidden_line_invalid = true; }
                 match child.kind {
                     0xF00A => {
                         shape.shape_type = child.instance;
@@ -246,6 +283,7 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                             shape.group = flags & 0x1 != 0;
                             if shape.flags.replace(flags).is_some() || child.body.len() != 8 {
                                 shape.solid_fill_invalid = true;
+                                shape.hidden_line_invalid = true;
                                 shape.fixed_geometry_unsafe = true;
                                 shape.flip_invalid = true;
                                 shape.text_insets_invalid = true;
@@ -253,6 +291,7 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                             }
                         } else {
                             shape.solid_fill_invalid = true;
+                            shape.hidden_line_invalid = true;
                             shape.fixed_geometry_unsafe = true;
                             shape.flip_invalid = true;
                             shape.text_insets_invalid = true;
@@ -263,6 +302,7 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                         // Properties: id (14 bits), blip flag, complex flag, then a 32-bit value.
                         if usize::from(child.instance) * 6 > child.body.len() {
                             shape.fill_invalid = true;
+                            shape.hidden_line_invalid = true;
                             shape.fixed_geometry_unsafe = true;
                             shape.flip_invalid = true;
                             shape.text_insets_invalid = true;
@@ -274,7 +314,7 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                             let id = u16::from_le_bytes([p[0], p[1]]);
                             let value = u32::from_le_bytes([p[2], p[3], p[4], p[5]]);
                             let property = id & 0x3fff;
-                            if property == 0x0301 && value != 0 { shape.solid_fill_invalid = true; }
+                            if property == 0x0301 && value != 0 { shape.solid_fill_invalid = true; shape.hidden_line_invalid = true; }
                             if (0x0180..=0x01bf).contains(&property) {
                                 if id & 0xc000 != 0
                                     || !matches!(property, 0x0180..=0x0184 | 0x01bf)
@@ -282,6 +322,11 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                                     shape.solid_fill_invalid = true;
                                 }
                             }
+                            if property == 0x01ff
+                                && (id != 0x01ff || shape.line_boolean.replace(value).is_some()) {
+                                shape.hidden_line_invalid = true;
+                            }
+                            if (0x0540..=0x063f).contains(&property) { shape.hidden_line_invalid = true; }
                             if property == 0x0087 { shape.text_anchor_ambiguous = true; }
                             if property == 0x0085 && (id & 0xc000 != 0 || value > 2 || shape.text_wrap.replace(value).is_some()) {
                                 shape.text_wrap_invalid = true;
@@ -331,6 +376,7 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                     // Secondary/tertiary properties can override the primary fill colour.
                     0xF121 | 0xF122 => {
                         shape.solid_fill_invalid = true;
+                        shape.hidden_line_invalid = true;
                         shape.flip_invalid = true;
                         shape.text_insets_invalid = true;
                         shape.text_anchor_ambiguous = true;
@@ -444,6 +490,9 @@ impl Drawing {
                 // MsoDrawing record; the immediately following TxO belongs to that object.
                 if bytes.as_ref() == [0, 0, 0x0d, 0xf0, 0, 0, 0, 0]
                     && self.last_object_end == Some(record.offset) {
+                    if let Some(shape) = self.objects.last_mut().and_then(|object| object.shape.as_mut()) {
+                        shape.hidden_line_pending_textbox = false;
+                    }
                     self.waiting_text = self.objects.len().checked_sub(1).filter(|&index| {
                         let object = &self.objects[index];
                         object.kind != 0x19 && object.shape.is_some()
@@ -563,6 +612,7 @@ impl Drawing {
         links_sheet: &str,
         styles: &super::styles::Styles,
         solid_fill_defaults_safe: bool,
+        hidden_line_defaults_safe: bool,
     ) -> Option<DrawingParts> {
         let mut x = Xml::new();
         x.open(
@@ -751,6 +801,11 @@ impl Drawing {
                         x.open("a:solidFill", &[]);
                         x.empty("a:srgbClr", &[("val", rgb)]);
                         x.close("a:solidFill");
+                    }
+                    if hidden_line_defaults_safe && shape.hidden_line() {
+                        x.open("a:ln", &[]);
+                        x.empty("a:noFill", &[]);
+                        x.close("a:ln");
                     }
                     x.close("xdr:spPr");
                     if let Some(text) = &object.text {

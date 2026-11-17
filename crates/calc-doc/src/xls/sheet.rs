@@ -43,6 +43,7 @@ pub(crate) struct Context<'a> {
     /// The pictures of the workbook's blip store.
     pub(crate) images: &'a [Option<super::drawing::Image>],
     pub(crate) solid_fill_defaults_safe: bool,
+    pub(crate) hidden_line_defaults_safe: bool,
     /// The range of the sheet's `_FilterDatabase` name (its automatic filter).
     pub(crate) filter_range: Option<String>,
 }
@@ -859,7 +860,7 @@ pub(crate) fn read(
             )
         };
         if let Some(written) = drawing.write(context.number, context.images, &geometry, sheet_name, context.styles,
-            context.solid_fill_defaults_safe) {
+            context.solid_fill_defaults_safe, context.hidden_line_defaults_safe) {
             unread_objects = written.unread.clone();
             if !written.xml.is_empty() {
                 let drawing_part = format!("xl/drawings/drawing{}.xml", context.number);

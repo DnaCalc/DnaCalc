@@ -210,6 +210,7 @@ fn convert_compound(
     // BIFF5 link tables: the globals' and each sheet's own, gathered before any formula prints.
     let images = drawing::blip_store(&globals.drawing_group);
     let solid_fill_defaults_safe = drawing::solid_fill_defaults_safe(&globals.drawing_group);
+    let hidden_line_defaults_safe = drawing::hidden_line_defaults_safe(&globals.drawing_group);
     let mut registry = v5::Registry::default();
     let mut tables: Vec<v5::Table> = Vec::new();
     let mut global_table = v5::Table::default();
@@ -329,6 +330,7 @@ fn convert_compound(
             v5,
             images: &images,
             solid_fill_defaults_safe,
+            hidden_line_defaults_safe,
             filter_range: filter_range(&globals, &links, source_tab as u32),
             styles: &globals.styles,
             tab: source_tab as u32,

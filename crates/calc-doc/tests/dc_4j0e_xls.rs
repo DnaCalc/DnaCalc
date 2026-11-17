@@ -431,6 +431,8 @@ fn write_legacy_excel_session_inputs() {
     std::fs::write(dir.join("gcw-biff8.xls"), xls(false, &[], &[Sheet::worksheet("Data", biff8_gcw_cells)])).unwrap();
     std::fs::write(dir.join("tab-color-biff8.xls"),
         xls(false, &[], &[Sheet::worksheet("Data", sheet_ext(10))])).unwrap();
+    std::fs::write(dir.join("drawing-hidden-outline.xls"),
+        shape_solid_fill_fixture(&[(0x01ff, 0x0008_0000)], None, &[])).unwrap();
     std::fs::write(dir.join("drawing-rgb-solid-fill.xls"),
         shape_solid_fill_fixture(&[(0x0181, 0x00563412), (0x01bf, 0x00100010)], None, &[])).unwrap();
     std::fs::write(dir.join("drawing-obj-continuation.xls"), obj_continuation_fixture(false)).unwrap();
@@ -499,7 +501,7 @@ fn write_legacy_excel_session_inputs() {
     let short_format = record(0x041e, &[0xa4, 0x00, 0x02, 0x00, 0x00, b'x']);
     std::fs::write(dir.join("repair-short-format.xls"),
         xls(false, &short_format, &[Sheet::worksheet("Data", number(0, 0, 42.0))])).unwrap();
-    for name in ["raw-biff2-layout", "raw-grid", "raw-biff2", "raw-biff2-inline", "raw-biff3", "raw-biff4", "cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "tab-color-biff8", "drawing-rgb-solid-fill", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "drawing-rich-underline", "drawing-uniform-underline", "emf-checksum-valid", "emf-checksum-invalid", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
+    for name in ["raw-biff2-layout", "raw-grid", "raw-biff2", "raw-biff2-inline", "raw-biff3", "raw-biff4", "cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "tab-color-biff8", "drawing-rgb-solid-fill", "drawing-hidden-outline", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "drawing-rich-underline", "drawing-uniform-underline", "emf-checksum-valid", "emf-checksum-invalid", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
         let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
         let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
         let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
@@ -508,7 +510,7 @@ fn write_legacy_excel_session_inputs() {
         std::fs::write(dir.join(format!("{name}.dnacalc.xlsx")), converted).unwrap();
     }
     let cases = serde_json::json!({
-        "files": ["raw-biff2-layout.xls", "raw-grid.xls", "raw-biff2.xls", "raw-biff2-inline.xls", "raw-biff3.xls", "raw-biff4.xls", "cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "tab-color-biff8.xls", "drawing-rgb-solid-fill.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "drawing-uniform-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
+        "files": ["raw-biff2-layout.xls", "raw-grid.xls", "raw-biff2.xls", "raw-biff2-inline.xls", "raw-biff3.xls", "raw-biff4.xls", "cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "tab-color-biff8.xls", "drawing-rgb-solid-fill.xls", "drawing-hidden-outline.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "drawing-uniform-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
         "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls",
             "repair-name-collisions.xls", "repair-long-collisions.xls",
             "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls",
@@ -2921,6 +2923,58 @@ fn explicit_shape_no_fill_is_preserved() {
             calc_doc::write(calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
             assert!(matches!(load(&saved).sheets()[0].shapes().shapes[0].fill, calc_doc::model::ShapeFill::None));
         }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn explicit_hidden_shape_outline_survives_open_and_save() {
+    use xls_kit::art;
+    let cases = [
+        (vec![(0x01ff, 0x0008_0000)], true),
+        (vec![(0x01ff, 0x0008_0008)], false),
+        (vec![(0x01ff, 0)], false),
+        (vec![(0x01ff, 8)], false), // Value without the use bit is ignored.
+        (vec![(0x01ff, 0x0009_0001)], false), // Draw a phantom dashed line.
+        (vec![(0x01ff, 0x0008_0000), (0x01ff, 0x0008_0000)], false),
+        (vec![(0x41ff, 0x0008_0000)], false), // Invalid fBid.
+        (vec![(0x01ff, 0x0008_0000), (0x0301, 7)], false), // Master inheritance.
+        (vec![(0x01ff, 0x0008_0000), (0x057f, 0x0008_0008)], false), // Side outline.
+    ];
+    let check = |bytes: &[u8], expected| {
+        let loaded = load(bytes);
+        assert_eq!(loaded.sheets()[0].shapes().shapes[0].line.hidden, expected);
+    };
+    for (properties, expected) in cases {
+        let bytes = shape_solid_fill_fixture(&properties, None, &[]);
+        check(&bytes, expected);
+        let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let mut saved = Vec::new();
+        calc_doc::write(calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+        check(&saved, expected);
+    }
+    let base = [(0x01ff, 0x0008_0000)];
+    for (with_marker, intervening, expected) in [(true, false, true), (false, false, false), (true, true, false)] {
+        let mut shape = art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], false);
+        let mut property = 0x01ffu16.to_le_bytes().to_vec(); property.extend(0x0008_0000u32.to_le_bytes());
+        shape.splice(8..8, art::atom(3, 1, 0xf00b, &property));
+        // The declared container includes a ClientTextbox marker placed after the OBJ.
+        let length = shape.len() as u32;
+        shape[4..8].copy_from_slice(&length.to_le_bytes());
+        let mut records = [art::drawing(&[shape]), art::obj(6, 1)].concat();
+        if intervening { records.extend(number(0, 0, 1.0)); }
+        if with_marker { records.extend(record(0x00ec, &art::atom(0, 0, 0xf00d, &[]))); }
+        check(&xls(false, &[], &[Sheet::worksheet("S", records)]), expected);
+    }
+    for extra in [art::atom(3, 0, 0xf121, &[]), art::atom(3, 0, 0xf122, &[]),
+        art::atom(3, 1, 0xf00b, &[0])] {
+        check(&shape_solid_fill_fixture(&base, Some(extra), &[]), false);
+    }
+    for properties in [vec![(0x01ff, 0x0001_0001)], vec![(0x057f, 0x0008_0008)]] {
+        let body: Vec<_> = properties.iter().flat_map(|&(id, value): &(u16, u32)|
+            id.to_le_bytes().into_iter().chain(value.to_le_bytes())).collect();
+        let globals = art::atom(15, 0, 0xf000, &art::atom(3, properties.len() as u16, 0xf00b, &body));
+        check(&shape_solid_fill_fixture(&base, None, &record(0x00eb, &globals)), false);
     }
 }
 
