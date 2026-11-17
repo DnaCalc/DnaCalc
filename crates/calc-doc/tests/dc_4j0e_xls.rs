@@ -2031,6 +2031,29 @@ fn continued_txo_text_is_read_for_notes_and_text_boxes() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn oversized_compound_project_is_refused_instead_of_omitted() {
+    for size in [4096, 7_200_000] {
+        let workbook = workbook_stream(false, &[], &[Sheet::worksheet("S", number(0, 0, 1.0))]);
+        let mut bytes = compound(&[("Workbook", workbook), ("_VBA_PROJECT_CUR", Vec::new()),
+            ("payload", vec![0; size])]);
+        let directory_sector = u32::from_le_bytes(bytes[0x30..0x34].try_into().unwrap()) as usize;
+        let storage = (directory_sector + 1) * 512 + 2 * 128;
+        bytes[storage + 0x42] = 1;
+        bytes[storage + 0x48..storage + 0x4c].copy_from_slice(&u32::MAX.to_le_bytes());
+        bytes[storage + 0x4c..storage + 0x50].copy_from_slice(&3u32.to_le_bytes());
+        let result = calc_doc::open(source(&bytes), &OpenPolicy::default());
+        if size == 4096 {
+            let document = result.unwrap();
+            assert!(document.package().part("xl/vbaProject.bin").is_some());
+        } else {
+            let error = match result { Ok(_) => panic!("oversized storage was silently omitted"), Err(e) => e.to_string() };
+            assert!(error.contains("109 FAT-sector writer limit") && error.contains("dc-4j0e.1"), "{error}");
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn a_saved_xls_is_an_xlsx_that_opens_to_the_same_cells() {
     use ptg::*;
     let globals = [sst(&[("text", &[])], None), supbook_self(1), extern_sheet(&[(0, 0, 0)])].concat();

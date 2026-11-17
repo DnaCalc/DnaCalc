@@ -9,6 +9,7 @@ pub fn compound(streams: &[(&str, Vec<u8>)]) -> Vec<u8> {
     const SECTOR: usize = 512;
     const END: u32 = 0xFFFF_FFFE;
     const FATS: u32 = 0xFFFF_FFFD;
+    const DIFATS: u32 = 0xFFFF_FFFC;
     let small: Vec<usize> = (0..streams.len()).filter(|k| streams[*k].1.len() < 4096).collect();
     let big: Vec<usize> = (0..streams.len()).filter(|k| streams[*k].1.len() >= 4096).collect();
     // The mini stream and its FAT.
@@ -38,14 +39,18 @@ pub fn compound(streams: &[(&str, Vec<u8>)]) -> Vec<u8> {
     let big_sectors: Vec<usize> = big.iter().map(|k| streams[*k].1.len().div_ceil(SECTOR)).collect();
     let data_sectors = dir_sectors + mini_fat_sectors + mini_sectors + big_sectors.iter().sum::<usize>();
     let mut fat_sectors = 1usize;
-    while fat_sectors * 128 < data_sectors + fat_sectors {
+    while fat_sectors * 128 < data_sectors + fat_sectors + fat_sectors.saturating_sub(109).div_ceil(127) {
         fat_sectors += 1;
     }
-    assert!(fat_sectors <= 109, "the kit writes no DIFAT chain");
+    let difat_sectors = fat_sectors.saturating_sub(109).div_ceil(127);
     let mut fat: Vec<u32> = vec![0xFFFF_FFFF; fat_sectors * 128];
     let mut next = 0usize;
     for _ in 0..fat_sectors {
         fat[next] = FATS;
+        next += 1;
+    }
+    for _ in 0..difat_sectors {
+        fat[next] = DIFATS;
         next += 1;
     }
     let chain = |fat: &mut Vec<u32>, count: usize, next: &mut usize| -> u32 {
@@ -76,7 +81,9 @@ pub fn compound(streams: &[(&str, Vec<u8>)]) -> Vec<u8> {
     out[0x38..0x3C].copy_from_slice(&4096u32.to_le_bytes());
     out[0x3C..0x40].copy_from_slice(&mini_fat_start.to_le_bytes());
     out[0x40..0x44].copy_from_slice(&(mini_fat_sectors as u32).to_le_bytes());
-    out[0x44..0x48].copy_from_slice(&END.to_le_bytes());
+    let difat_start = if difat_sectors == 0 { END } else { fat_sectors as u32 };
+    out[0x44..0x48].copy_from_slice(&difat_start.to_le_bytes());
+    out[0x48..0x4C].copy_from_slice(&(difat_sectors as u32).to_le_bytes());
     for k in 0..109 {
         let value = if k < fat_sectors { k as u32 } else { 0xFFFF_FFFF };
         out[0x4C + 4 * k..0x50 + 4 * k].copy_from_slice(&value.to_le_bytes());
@@ -84,6 +91,15 @@ pub fn compound(streams: &[(&str, Vec<u8>)]) -> Vec<u8> {
     // The FAT sectors.
     for value in &fat {
         out.extend_from_slice(&value.to_le_bytes());
+    }
+    for sector in 0..difat_sectors {
+        for index in 0..127 {
+            let fat_index = 109 + sector * 127 + index;
+            let value = if fat_index < fat_sectors { fat_index as u32 } else { 0xFFFF_FFFF };
+            out.extend_from_slice(&value.to_le_bytes());
+        }
+        let next = if sector + 1 < difat_sectors { (fat_sectors + sector + 1) as u32 } else { END };
+        out.extend_from_slice(&next.to_le_bytes());
     }
     // The directory.
     let entry = |name: &str, kind: u8, left: u32, right: u32, child: u32, start: u32, size: u64| {
@@ -131,10 +147,10 @@ pub fn compound(streams: &[(&str, Vec<u8>)]) -> Vec<u8> {
     for value in &mini_fat {
         out.extend_from_slice(&value.to_le_bytes());
     }
-    out.resize(SECTOR * (1 + fat_sectors + dir_sectors) + mini_fat_sectors * SECTOR, 0xFF);
+    out.resize(SECTOR * (1 + fat_sectors + difat_sectors + dir_sectors) + mini_fat_sectors * SECTOR, 0xFF);
     out.extend_from_slice(&mini);
     out.resize(
-        SECTOR * (1 + fat_sectors + dir_sectors + mini_fat_sectors + mini_sectors),
+        SECTOR * (1 + fat_sectors + difat_sectors + dir_sectors + mini_fat_sectors + mini_sectors),
         0,
     );
     for (p, k) in big.iter().enumerate() {

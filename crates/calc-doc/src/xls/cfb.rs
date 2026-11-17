@@ -364,7 +364,9 @@ impl<'a> Compound<'a> {
             let data = self.read_entry(entry)?;
             insert(&mut root, &relative, Node::Stream(data));
         }
-        Ok(super::cfb_write::write(root))
+        super::cfb_write::write(root).map(Some).ok_or_else(|| {
+            CfbError("the extracted compound storage exceeds the 109 FAT-sector writer limit (dc-4j0e.1)".to_owned())
+        })
     }
 
     /// The stream at `path`, compared without regard to ASCII case.
