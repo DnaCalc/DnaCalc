@@ -599,9 +599,15 @@ impl Drawing {
                             x.open("a:p", &[]);
                             if !line.is_empty() {
                                 x.open("a:r", &[]);
-                                if let Some((size, bold, italic)) = object.text_font.and_then(|font| styles.drawing_text_font(font)) {
-                                    x.empty("a:rPr", &[("sz", size.to_string()), ("b", u8::from(bold).to_string()),
+                                if let Some((size, bold, italic, colour)) = object.text_font.and_then(|font| styles.drawing_text_font(font)) {
+                                    x.open("a:rPr", &[("sz", size.to_string()), ("b", u8::from(bold).to_string()),
                                         ("i", u8::from(italic).to_string())]);
+                                    if let Some(colour) = colour {
+                                        x.open("a:solidFill", &[]);
+                                        x.empty("a:srgbClr", &[("val", colour)]);
+                                        x.close("a:solidFill");
+                                    }
+                                    x.close("a:rPr");
                                 }
                                 x.open("a:t", &[]);
                                 x.text(line);

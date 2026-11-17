@@ -323,11 +323,12 @@ impl Styles {
         (usize::from(at) < self.fonts.len()).then_some(usize::from(at))
     }
 
-    /// DrawingML text properties supported by the shape model: size, bold and italic.
-    pub(crate) fn drawing_text_font(&self, ifnt: u16) -> Option<(u32, bool, bool)> {
+    /// DrawingML text properties supported by the shape model, including explicit palette colours.
+    pub(crate) fn drawing_text_font(&self, ifnt: u16) -> Option<(u32, bool, bool, Option<String>)> {
         if ifnt == 4 { return None; }
         let font = &self.fonts[self.font_index(ifnt)?];
-        Some((u32::from(font.height) * 5, font.weight >= 700, font.flags & 0x0002 != 0))
+        Some((u32::from(font.height) * 5, font.weight >= 700, font.flags & 0x0002 != 0,
+            self.rgb(font.color).map(|argb| argb[2..].to_owned())))
     }
 
     /// `<rPr>` for the font `ifnt` of a rich text run; nothing when there is no such font.

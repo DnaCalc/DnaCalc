@@ -189,6 +189,9 @@ fn sweep() {
                         let count = loaded.sheets().iter().flat_map(|s| &s.shapes().shapes)
                             .filter(|shape| shape.body.size.is_some()).count();
                         println!("drawing shapes with explicit text size: {count}");
+                        let colours = loaded.sheets().iter().flat_map(|s| &s.shapes().shapes)
+                            .filter(|shape| shape.body.colour.is_some()).count();
+                        println!("drawing shapes with explicit text colour: {colours}");
                     }
                     if std::env::var_os("DNACALC_XLS_AUDIT_NOTE_RUNS").is_some() {
                         let count = loaded.sheets().iter().flat_map(|s| &s.review().notes)

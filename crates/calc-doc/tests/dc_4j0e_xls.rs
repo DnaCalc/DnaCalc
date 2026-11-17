@@ -2048,7 +2048,7 @@ fn uniform_text_box_font_is_loaded_and_saved() {
         let mut body = u16s(&[0x0212, 0, 0, 0, 0, 6, runs.len() as u16]); body.extend([0u8; 4]);
         let records = [art::drawing(&[art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], true)]),
             art::obj(6, 1), record(0x01b6, &body), record(0x003c, b"\0ABCDEF"), record(0x003c, &runs)].concat();
-        let globals = [font(240, 2, 0x7fff, 700, "Arial"), font(200, 0, 0x7fff, 400, "Arial")].concat();
+        let globals = [font(240, 2, 10, 700, "Arial"), font(200, 0, 0x7fff, 400, "Arial")].concat();
         let bytes = xls(false, &globals, &[Sheet::worksheet("S", records)]);
         let check = |bytes: &[u8]| {
             let loaded = load(bytes);
@@ -2056,6 +2056,7 @@ fn uniform_text_box_font_is_loaded_and_saved() {
             assert_eq!(shape.body.size, expected.then_some(1200));
             assert_eq!(shape.body.bold, expected);
             assert_eq!(shape.body.italic, expected);
+            assert_eq!(shape.body.colour, expected.then_some(calc_doc::model::ShapeColour::Rgb(0xff0000)));
             assert_eq!(shape.text.as_ref().unwrap()[0], "ABCDEF");
         };
         check(&bytes);
