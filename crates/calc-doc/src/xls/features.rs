@@ -107,6 +107,8 @@ pub(crate) struct Features {
     grid_lines: bool,
     headings: bool,
     ws_bool: Option<u16>,
+    tab_color: Option<String>,
+    tab_color_seen: bool,
     filter_mode: Option<bool>,
     row_breaks: Vec<(u16, u16, u16)>,
     column_breaks: Vec<(u16, u16, u16)>,
@@ -321,6 +323,22 @@ impl Features {
             PRINT_GRIDLINES => self.grid_lines = c.u16("PrintGrid").map_err(e)? != 0,
             PRINT_HEADERS => self.headings = c.u16("PrintRowCol").map_err(e)? != 0,
             WSBOOL => self.ws_bool = Some(c.u16("WsBool").map_err(e)?),
+            0x0862 => {
+                let b = record.body;
+                if self.tab_color_seen { self.tab_color = None; return Ok(false); }
+                self.tab_color_seen = true;
+                // MS-XLS 2.4.259: the twenty-byte form has only a palette tab colour.
+                // Optional CFColor extensions need separate handling.
+                if self.v5.is_none() && b.len() == 20 && record.continues.is_empty()
+                    && b[..12] == [0x62, 0x08, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+                    && b[12..16] == [20, 0, 0, 0] && styles.indexed_colors_representable()
+                    && (8..=63).contains(&(b[16] & 0x7f)) {
+                    self.tab_color = styles.rgb(u16::from(b[16] & 0x7f));
+                }
+                // Retained in the converted/saved package; the tab UI and optional fields
+                // are not modelled. Keep SheetExt counted as incomplete.
+                return Ok(false);
+            }
             0x009B => {
                 let valid = record.body.is_empty() && record.continues.is_empty();
                 self.filter_mode = Some(valid && self.filter_mode.is_none());
@@ -608,7 +626,7 @@ impl Features {
         let summary_right = flags & 0x0080 != 0;
         let fit = flags & 0x0100 != 0;
         let filter_mode = self.filter_mode == Some(true) && has_active_filter;
-        if summary_below && summary_right && !fit && self.code_name.is_none() && !filter_mode {
+        if summary_below && summary_right && !fit && self.code_name.is_none() && !filter_mode && self.tab_color.is_none() {
             return;
         }
         let mut properties = Vec::new();
@@ -617,6 +635,7 @@ impl Features {
             properties.push(("codeName", code_name.clone()));
         }
         x.open("sheetPr", &properties);
+        if let Some(color) = &self.tab_color { x.empty("tabColor", &[("rgb", color.clone())]); }
         if !summary_below || !summary_right {
             let mut a = Vec::new();
             if !summary_below {

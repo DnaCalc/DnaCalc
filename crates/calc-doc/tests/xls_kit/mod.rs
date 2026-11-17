@@ -694,6 +694,14 @@ pub fn formatting(fonts: &[Vec<u8>], formats: &[Vec<u8>], cell_xfs: &[Xf]) -> Ve
     out
 }
 
+/// The BIFF8 SheetExt form without optional fields (MS-XLS 2.4.259).
+pub fn sheet_ext(color: u8) -> Vec<u8> {
+    let mut b = vec![0x62, 0x08, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    b.extend(20u32.to_le_bytes());
+    b.extend(u32::from(color).to_le_bytes());
+    record(0x0862, &b)
+}
+
 pub fn window2(flags: u16, top: u16, left: u16) -> Vec<u8> {
     let mut body = u16s(&[flags, top, left]);
     body.extend([0u8; 14]);

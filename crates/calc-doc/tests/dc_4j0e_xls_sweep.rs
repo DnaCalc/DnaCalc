@@ -174,6 +174,13 @@ fn sweep() {
             let load = document.as_ref().ok().map(|d| {
                 let mut ids: IdAllocator<SheetId> = IdAllocator::new();
                 calc_doc::load(d, &mut ids).map_err(|e| e.to_string()).map(|loaded| {
+                    if std::env::var_os("DNACALC_XLS_AUDIT_TAB_COLOR").is_some() {
+                        let count = d.package().parts().iter()
+                            .filter(|part| part.name().starts_with("xl/worksheets/sheet") && part.name().ends_with(".xml"))
+                            .filter_map(|part| d.package().read_part(part.name()).ok())
+                            .map(|xml| xml.windows(10).filter(|tag| *tag == b"<tabColor ").count()).sum::<usize>();
+                        println!("worksheet tab colors retained: {count}");
+                    }
                     if std::env::var_os("DNACALC_XLS_AUDIT_DRAWING_TEXT").is_some() {
                         let units: usize = loaded.sheets().iter().flat_map(|s| &s.shapes().shapes)
                             .filter_map(|shape| shape.text.as_ref()).flatten()

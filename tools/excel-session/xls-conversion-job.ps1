@@ -94,6 +94,10 @@ try {
             $sheet.Range('A1').Value2 = 42.5
             $sheet.Range('A2').Formula = '=A1+1'
             $sheet.Range('A1').NumberFormat = '0.00'
+            $entry.tab_color_setup = GetOrError {
+                $sheet.Tab.ColorIndex = 3
+                @{color_index=$sheet.Tab.ColorIndex; color=$sheet.Tab.Color}
+            }
             # Record setup failures individually; a format may refuse particular features.
             $entry.setup = [ordered]@{}
             $entry.setup.document_properties = GetOrError {

@@ -176,6 +176,8 @@ fn write_legacy_excel_session_inputs() {
     let biff8_gcw_cells = [record(0x0055, &u16s(&[8])), colinfo(0, 1, 3072, 0x0002),
         record(0x0099, &u16s(&[2340])), record(0x00AB, &biff8_gcw), number(0, 0, 1.0)].concat();
     std::fs::write(dir.join("gcw-biff8.xls"), xls(false, &[], &[Sheet::worksheet("Data", biff8_gcw_cells)])).unwrap();
+    std::fs::write(dir.join("tab-color-biff8.xls"),
+        xls(false, &[], &[Sheet::worksheet("Data", sheet_ext(10))])).unwrap();
     std::fs::write(dir.join("drawing-rgb-solid-fill.xls"),
         shape_solid_fill_fixture(&[(0x0181, 0x00563412), (0x01bf, 0x00100010)], None, &[])).unwrap();
     std::fs::write(dir.join("drawing-obj-continuation.xls"), obj_continuation_fixture(false)).unwrap();
@@ -228,7 +230,7 @@ fn write_legacy_excel_session_inputs() {
     let short_format = record(0x041e, &[0xa4, 0x00, 0x02, 0x00, 0x00, b'x']);
     std::fs::write(dir.join("repair-short-format.xls"),
         xls(false, &short_format, &[Sheet::worksheet("Data", number(0, 0, 42.0))])).unwrap();
-    for name in ["cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "drawing-rgb-solid-fill", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "drawing-rich-underline", "drawing-uniform-underline", "emf-checksum-valid", "emf-checksum-invalid", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
+    for name in ["cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "tab-color-biff8", "drawing-rgb-solid-fill", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "drawing-rich-underline", "drawing-uniform-underline", "emf-checksum-valid", "emf-checksum-invalid", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
         let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
         let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
         let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
@@ -237,7 +239,7 @@ fn write_legacy_excel_session_inputs() {
         std::fs::write(dir.join(format!("{name}.dnacalc.xlsx")), converted).unwrap();
     }
     let cases = serde_json::json!({
-        "files": ["cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "drawing-rgb-solid-fill.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "drawing-uniform-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
+        "files": ["cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "tab-color-biff8.xls", "drawing-rgb-solid-fill.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "drawing-uniform-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
         "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls",
             "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls",
             "repair-elf-column.xls", "repair-elf-radical.xls", "repair-addin-cell.xls",
@@ -1516,6 +1518,7 @@ fn custom_palette_keeps_window_grid_color_index() {
     for index in 0..56 { palette.extend(if index == 34 { [0x12, 0x34, 0x56, 0] } else { [0, 0, 0, 0] }); }
     let mut view = window2(0x0096, 0, 0); // nondefault grid color, outline shown
     view[10..12].copy_from_slice(&42u16.to_le_bytes());
+    view.extend(sheet_ext(42));
     let bytes = xls(false, &record(0x0092, &palette), &[Sheet::worksheet("S", view)]);
     let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
     let styles = String::from_utf8(doc.package().read_part("xl/styles.xml").unwrap()).unwrap();
@@ -1525,6 +1528,7 @@ fn custom_palette_keeps_window_grid_color_index() {
     assert!(colors[42].starts_with("rgb=\"FF123456\""), "{}", colors[42]);
     let sheet = String::from_utf8(doc.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
     assert!(sheet.contains("colorId=\"42\""), "{sheet}");
+    assert!(sheet.contains("<tabColor rgb=\"FF123456\"/>"), "{sheet}");
     load(&bytes);
 }
 
@@ -2661,6 +2665,37 @@ fn shape_solid_fill_fixture(properties: &[(u16, u32)], extra: Option<Vec<u8>>, d
     let length = (shape.len() - 8) as u32;
     shape[4..8].copy_from_slice(&length.to_le_bytes());
     xls(false, defaults, &[Sheet::worksheet("S", [art::drawing(&[shape]), art::obj(2, 1)].concat())])
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn plain_sheet_tab_color_is_retained_in_conversion_and_save() {
+    for (color, extra, expected) in [
+        (10, 0, Some("FFFF0000")), (63, 0, Some("FF333333")),
+        (127, 0, None), (64, 0, None), (7, 0, None),
+        (10, 1, None), (10, 2, None), (10, 3, None), (10, 4, None),
+    ] {
+        let mut ext = sheet_ext(color);
+        match extra {
+            1 => { ext[16] = 40; }, // cb disagrees with the body length.
+            2 => { ext.extend(sheet_ext(color)); },
+            3 => { ext[6] = 1; }, // Unsupported FRT flags.
+            4 => { ext.extend(record(0x003c, &[0])); },
+            _ => {},
+        }
+        let bytes = xls(false, &[], &[Sheet::worksheet("S", ext)]);
+        let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let check = |doc: &calc_doc::OpenedDocument| {
+            let xml = doc.package().read_part("xl/worksheets/sheet1.xml").unwrap();
+            let text = std::str::from_utf8(&xml).unwrap();
+            if let Some(rgb) = expected { assert!(text.contains(&format!("<tabColor rgb=\"{rgb}\"/>")), "{text}"); }
+            else { assert!(!text.contains("tabColor"), "{text}"); }
+        };
+        check(&doc);
+        let mut saved = Vec::new();
+        calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+        check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
