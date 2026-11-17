@@ -180,9 +180,10 @@ fn explicit_shape_text_runs_survive_save_and_reopen() {
     shape.text = Some(vec!["A&B".into(), "C".into()]);
     shape.body.size = Some(1200); shape.body.bold = true;
     shape.body.colour = Some(ShapeColour::Rgb(0xff0000));
+    shape.body.underline = true;
     shape.body.runs = vec![vec![
-        ShapeTextRun { text: "A&".into(), face: None, size: 1200, bold: true, italic: false, underline: false, colour: Some(ShapeColour::Rgb(0xff0000)) },
-        ShapeTextRun { text: "B".into(), face: Some("A&B\"C".into()), size: 1000, bold: false, italic: true, underline: true, colour: None },
+        ShapeTextRun { text: "A&".into(), face: None, size: 1200, bold: true, italic: false, underline: true, colour: Some(ShapeColour::Rgb(0xff0000)) },
+        ShapeTextRun { text: "B".into(), face: Some("A&B\"C".into()), size: 1000, bold: false, italic: true, underline: false, colour: None },
     ], vec![
         ShapeTextRun { text: "C".into(), face: None, size: 1000, bold: false, italic: true, underline: false, colour: None },
     ]];
@@ -212,6 +213,7 @@ fn explicit_single_shape_typeface_survives_save_and_reopen() {
     let mut shape = new_shape(21);
     shape.name = "Named font".into();
     shape.body.face = Some("A&B\"C".into());
+    shape.body.underline = true;
     shapes.push(shape);
     let model = edited(&loaded, vec![WorkbookOp::SetShapes { sheet, shapes }]);
     let (saved, _) = save_model(&loaded, &model);
@@ -219,6 +221,7 @@ fn explicit_single_shape_typeface_survives_save_and_reopen() {
     let read = loaded.sheets()[0].shapes();
     let saved_shape = read.shapes.iter().find(|s| s.name == "Named font").unwrap();
     assert_eq!(saved_shape.body.face.as_deref(), Some("A&B\"C"));
+    assert!(saved_shape.body.underline);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

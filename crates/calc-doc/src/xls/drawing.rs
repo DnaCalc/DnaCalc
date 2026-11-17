@@ -715,7 +715,8 @@ impl Drawing {
                                     }
                                 } else {
                                     write_text_run(&mut x, line, object.text_font.and_then(|font| styles.drawing_text_font(font)),
-                                        object.text_font.and_then(|font| styles.drawing_latin_face(font)), None);
+                                        object.text_font.and_then(|font| styles.drawing_latin_face(font)),
+                                        object.text_font.and_then(|font| styles.drawing_single_underline(font)));
                                 }
                             }
                             x.close("a:p");

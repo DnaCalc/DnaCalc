@@ -154,6 +154,7 @@ pub struct ShapeBody {
     pub face: Option<String>,
     pub bold: bool,
     pub italic: bool,
+    pub underline: bool,
     pub colour: Option<ShapeColour>,
     /// Explicit, individually styled runs in paragraph order; empty when not represented.
     pub runs: Vec<Vec<ShapeTextRun>>,
@@ -189,7 +190,7 @@ impl ShapeBody {
             || self.runs.iter().flatten().any(|run| run.face.as_deref().is_some_and(|face|
                 face.is_empty() || face.starts_with('+') || face.chars().any(|c| c.is_control() || matches!(c, '\u{fffe}' | '\u{ffff}'))))
             || paragraphs.len() != self.runs.len() || self.size != Some(first.size) || self.face != first.face
-            || self.bold != first.bold || self.italic != first.italic || self.colour != first.colour
+            || self.bold != first.bold || self.italic != first.italic || self.underline != first.underline || self.colour != first.colour
             || self.runs.iter().zip(paragraphs).any(|(runs, text)| runs.iter().map(|run| run.text.as_str()).collect::<String>() != *text)
         { return None; }
         Some(&self.runs)

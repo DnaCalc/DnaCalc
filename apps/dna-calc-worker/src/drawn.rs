@@ -277,6 +277,7 @@ pub(crate) fn drawn(shape: &Shape, place: ChartPlace, theme: &[String]) -> Optio
             size: body.size.map_or(11.0, |s| s as f64 / 100.0) * 96.0 / 72.0,
             bold: body.bold,
             italic: body.italic,
+            underline: body.underline && rich_runs.is_none(),
             colour: body
                 .colour
                 .as_ref()
@@ -342,6 +343,7 @@ mod tests {
         s.body.size = Some(1100);
         s.body.face = Some("Arial".into());
         s.body.bold = true;
+        s.body.underline = true;
         let d = drawn(&s, place(), &[]).unwrap();
         assert_eq!(d.fill.as_deref(), Some("#FF8000"));
         let line = d.line.unwrap();
@@ -354,6 +356,7 @@ mod tests {
         assert!((text.size - 11.0 * 96.0 / 72.0).abs() < 1e-9);
         assert!(text.bold && text.wrap);
         assert_eq!(text.face.as_deref(), Some("Arial"));
+        assert!(text.underline);
         // A ribbon shape's text is white.
         assert_eq!(text.colour, "#FFFFFF");
     }
@@ -365,9 +368,10 @@ mod tests {
         let mut s = shape(ShapeKind::TextBox);
         s.text = Some(vec!["AB".into()]); s.body.size = Some(1200); s.body.bold = true;
         s.body.colour = Some(ShapeColour::Rgb(0xff0000));
+        s.body.underline = true;
         s.body.runs = vec![vec![
-            ShapeTextRun { text: "A".into(), face: None, size: 1200, bold: true, italic: false, underline: false, colour: Some(ShapeColour::Rgb(0xff0000)) },
-            ShapeTextRun { text: "B".into(), face: Some("Courier".into()), size: 900, bold: false, italic: true, underline: true, colour: None },
+            ShapeTextRun { text: "A".into(), face: None, size: 1200, bold: true, italic: false, underline: true, colour: Some(ShapeColour::Rgb(0xff0000)) },
+            ShapeTextRun { text: "B".into(), face: Some("Courier".into()), size: 900, bold: false, italic: true, underline: false, colour: None },
         ]];
         let d = drawn(&s, place(), &[]).unwrap();
         let text = d.text.as_ref().unwrap();
@@ -375,10 +379,10 @@ mod tests {
         assert_eq!(text.paragraphs[0].runs[0].colour, "#FF0000");
         assert_eq!(text.paragraphs[0].runs[1].colour, "#000000");
         assert_eq!(text.paragraphs[0].runs[1].face.as_deref(), Some("Courier"));
-        assert!(text.paragraphs[0].runs[1].underline);
+        assert!(!text.underline && text.paragraphs[0].runs[0].underline && !text.paragraphs[0].runs[1].underline);
         let markup = dna_calc_model::drawn_shapes::shape_markup(&d, 100.0, 60.0, 1.0).unwrap();
-        assert!(markup.contains("font-weight:bold;font-style:normal;color:#FF0000\">A</span>"), "{markup}");
-        assert!(markup.contains("font-weight:normal;font-style:italic;color:#000000;font-family:'\\43 \\6f \\75 \\72 \\69 \\65 \\72 ';text-decoration:underline\">B</span>"), "{markup}");
+        assert!(markup.contains("font-weight:bold;font-style:normal;color:#FF0000;text-decoration:underline\">A</span>"), "{markup}");
+        assert!(markup.contains("font-weight:normal;font-style:italic;color:#000000;font-family:'\\43 \\6f \\75 \\72 \\69 \\65 \\72 '\">B</span>"), "{markup}");
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

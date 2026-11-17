@@ -181,6 +181,7 @@ fn write_legacy_excel_session_inputs() {
     std::fs::write(dir.join("drawing-text-anchor-conflict.xls"), text_anchor_conflict_fixture()).unwrap();
     std::fs::write(dir.join("drawing-rich-text.xls"), rich_drawing_fixture("Arial", false, true, 2, 0x7fff, false, 400, 0, 0)).unwrap();
     std::fs::write(dir.join("drawing-rich-underline.xls"), rich_drawing_fixture("Arial", false, true, 2, 0x7fff, false, 400, 0, 1)).unwrap();
+    std::fs::write(dir.join("drawing-uniform-underline.xls"), uniform_text_box_fixture(&u16s(&[0, 0, 0, 0, 6, 0, 0, 0]), 240, 10, 1)).unwrap();
     std::fs::write(dir.join("drawing-rich-faces.xls"), rich_drawing_fixture("Courier", false, true, 2, 0x7fff, false, 400, 0, 0)).unwrap();
     std::fs::write(dir.join("emf-checksum-valid.xls"), emf_checksum_fixture(false)).unwrap();
     std::fs::write(dir.join("emf-checksum-invalid.xls"), emf_checksum_fixture(true)).unwrap();
@@ -225,7 +226,7 @@ fn write_legacy_excel_session_inputs() {
     let short_format = record(0x041e, &[0xa4, 0x00, 0x02, 0x00, 0x00, b'x']);
     std::fs::write(dir.join("repair-short-format.xls"),
         xls(false, &short_format, &[Sheet::worksheet("Data", number(0, 0, 42.0))])).unwrap();
-    for name in ["cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "drawing-rich-underline", "emf-checksum-valid", "emf-checksum-invalid", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
+    for name in ["cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "drawing-rich-underline", "drawing-uniform-underline", "emf-checksum-valid", "emf-checksum-invalid", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
         let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
         let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
         let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
@@ -234,7 +235,7 @@ fn write_legacy_excel_session_inputs() {
         std::fs::write(dir.join(format!("{name}.dnacalc.xlsx")), converted).unwrap();
     }
     let cases = serde_json::json!({
-        "files": ["cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
+        "files": ["cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "drawing-uniform-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
         "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls",
             "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls",
             "repair-elf-column.xls", "repair-elf-radical.xls", "repair-addin-cell.xls",
@@ -2039,23 +2040,31 @@ fn note_txo_format_runs_are_preserved_when_complete() {
     }
 }
 
+fn uniform_text_box_fixture(runs: &[u8], height: u16, colour: u16, underline: u8) -> Vec<u8> {
+    use xls_kit::art;
+    let mut body = u16s(&[0x0212, 0, 0, 0, 0, 6, runs.len() as u16]); body.extend([0u8; 4]);
+    let records = [art::drawing(&[art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], true)]),
+        art::obj(6, 1), record(0x01b6, &body), record(0x003c, b"\0ABCDEF"), record(0x003c, runs)].concat();
+    let mut first = font(height, 2, colour, 700, "Arial");
+    first[14] = underline;
+    let globals = [first, font(200, 0, 0x7fff, 400, "Arial")].concat();
+    xls(false, &globals, &[Sheet::worksheet("S", records)])
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn uniform_text_box_font_is_loaded_and_saved() {
-    use xls_kit::art;
-    for (runs, height, colour, expected) in [
-        (u16s(&[0, 0, 0, 0, 6, 0, 0, 0]), 240, 10, true),
-        (u16s(&[0, 0, 0, 0, 3, 1, 0, 0, 6, 0, 0, 0]), 240, 10, true),
-        (u16s(&[0, 4, 0, 0, 6, 0, 0, 0]), 240, 10, false),
-        (u16s(&[0, 0, 0, 0, 5, 0, 0, 0]), 240, 10, false),
-        (u16s(&[0, 0, 0, 0, 6, 0, 0, 0]), 0, 10, false),
-        (u16s(&[0, 0, 0, 0, 6, 0, 0, 0]), 240, 64, false),
+    for (runs, height, colour, underline, expected) in [
+        (u16s(&[0, 0, 0, 0, 6, 0, 0, 0]), 240, 10, 0, true),
+        (u16s(&[0, 0, 0, 0, 6, 0, 0, 0]), 240, 10, 1, true),
+        (u16s(&[0, 0, 0, 0, 6, 0, 0, 0]), 240, 10, 2, true),
+        (u16s(&[0, 0, 0, 0, 3, 1, 0, 0, 6, 0, 0, 0]), 240, 10, 0, true),
+        (u16s(&[0, 4, 0, 0, 6, 0, 0, 0]), 240, 10, 0, false),
+        (u16s(&[0, 0, 0, 0, 5, 0, 0, 0]), 240, 10, 0, false),
+        (u16s(&[0, 0, 0, 0, 6, 0, 0, 0]), 0, 10, 0, false),
+        (u16s(&[0, 0, 0, 0, 6, 0, 0, 0]), 240, 64, 0, false),
     ] {
-        let mut body = u16s(&[0x0212, 0, 0, 0, 0, 6, runs.len() as u16]); body.extend([0u8; 4]);
-        let records = [art::drawing(&[art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], true)]),
-            art::obj(6, 1), record(0x01b6, &body), record(0x003c, b"\0ABCDEF"), record(0x003c, &runs)].concat();
-        let globals = [font(height, 2, colour, 700, "Arial"), font(200, 0, 0x7fff, 400, "Arial")].concat();
-        let bytes = xls(false, &globals, &[Sheet::worksheet("S", records)]);
+        let bytes = uniform_text_box_fixture(&runs, height, colour, underline);
         let check = |bytes: &[u8]| {
             let loaded = load(bytes);
             let shape = &loaded.sheets()[0].shapes().shapes[0];
@@ -2063,6 +2072,7 @@ fn uniform_text_box_font_is_loaded_and_saved() {
             assert_eq!(shape.body.face.as_deref(), expected.then_some("Arial"));
             assert_eq!(shape.body.bold, expected);
             assert_eq!(shape.body.italic, expected);
+            assert_eq!(shape.body.underline, expected && underline == 1);
             assert_eq!(shape.body.colour, expected.then_some(calc_doc::model::ShapeColour::Rgb(0xff0000)));
             assert_eq!(shape.text.as_ref().unwrap()[0], "ABCDEF");
             if runs.len() == 24 { assert_eq!(shape.body.runs[0].len(), 2); }

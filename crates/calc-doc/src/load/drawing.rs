@@ -537,6 +537,7 @@ fn text_body(body: &Node) -> ShapeBody {
             .map(str::to_owned);
         read.bold = run.flag("b");
         read.italic = run.flag("i");
+        read.underline = run.attribute("u") == Some("sng");
         read.colour = run.child("solidFill").and_then(colour);
     }
     read

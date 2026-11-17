@@ -238,6 +238,8 @@ pub struct ShapeText {
     pub size: f64,
     pub bold: bool,
     pub italic: bool,
+    #[serde(default)]
+    pub underline: bool,
     pub colour: String,
 }
 
@@ -1161,7 +1163,7 @@ fn finish(shape: &DrawnShape, w: f64, h: f64, zoom: f64, id: &str, defs: String,
         let [rl, rt, rr, rb] = text_rect(&shape.geometry, w, h, &shape.adjust);
         let _ = write!(
             out,
-            "<div class=\"dc-shape-text\" style=\"position:absolute;left:{}px;top:{}px;width:{}px;height:{}px;box-sizing:border-box;padding:{}px {}px {}px {}px;display:flex;flex-direction:column;justify-content:{justify};font-size:{}px;line-height:1.2;color:{};font-weight:{};font-style:{}{};white-space:{};overflow:visible;{turn}\">",
+            "<div class=\"dc-shape-text\" style=\"position:absolute;left:{}px;top:{}px;width:{}px;height:{}px;box-sizing:border-box;padding:{}px {}px {}px {}px;display:flex;flex-direction:column;justify-content:{justify};font-size:{}px;line-height:1.2;color:{};font-weight:{};font-style:{}{}{};white-space:{};overflow:visible;{turn}\">",
             number(rl),
             number(rt),
             number((rr - rl).max(0.0)),
@@ -1175,6 +1177,7 @@ fn finish(shape: &DrawnShape, w: f64, h: f64, zoom: f64, id: &str, defs: String,
             if text.bold { "bold" } else { "normal" },
             if text.italic { "italic" } else { "normal" },
             font_family(text.face.as_deref()),
+            if text.underline { ";text-decoration:underline" } else { "" },
             if text.wrap { "pre-wrap" } else { "pre" },
         );
         for paragraph in &text.paragraphs {
@@ -1385,6 +1388,7 @@ mod tests {
                 size: 14.666,
                 bold: true,
                 italic: false,
+                underline: false,
                 colour: "#000000".into(),
             }),
         }
@@ -1402,8 +1406,10 @@ mod tests {
         assert!(markup.contains("font-weight:bold"), "{markup}");
         let mut named = sample();
         named.text.as_mut().unwrap().face = Some("A\";color:red".into());
+        named.text.as_mut().unwrap().underline = true;
         let named_markup = shape_markup(&named, 80.0, 40.0, 1.0).unwrap();
         assert!(named_markup.contains("font-family:'\\41 \\22 \\3b "), "{named_markup}");
+        assert!(named_markup.contains("text-decoration:underline"), "{named_markup}");
         assert!(!named_markup.contains("color:red"), "{named_markup}");
         // Zoom scales the stroke and the insets with the frame.
         let zoomed = shape_markup(&sample(), 160.0, 80.0, 2.0).unwrap();

@@ -341,6 +341,12 @@ impl Styles {
             && !font.name.chars().any(|c| c.is_control() || matches!(c, '\u{fffd}' | '\u{fffe}' | '\u{ffff}'))).then_some(font.name.as_str())
     }
 
+    /// Single underline is the only BIFF underline represented by the shape model.
+    pub(crate) fn drawing_single_underline(&self, ifnt: u16) -> Option<bool> {
+        if ifnt == 4 { return None; }
+        (self.fonts[self.font_index(ifnt)?].underline == 1).then_some(true)
+    }
+
     /// A run whose effects the drawing text model can represent, plus its font-face identity.
     pub(crate) fn drawing_rich_font(&self, ifnt: u16) -> Option<((u32, bool, bool, Option<String>), (&str, u8, u8), bool)> {
         if ifnt == 4 { return None; }

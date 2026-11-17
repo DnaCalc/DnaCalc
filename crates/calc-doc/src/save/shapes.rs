@@ -541,6 +541,9 @@ fn object(shape: &Shape, remap: &BTreeMap<u32, u32>, media: &MediaRels, out: &mu
             if body.italic {
                 attributes.push_str(" i=\"1\"");
             }
+            if body.underline {
+                attributes.push_str(" u=\"sng\"");
+            }
             let colour = match &body.colour {
                 Some(c) => {
                     let mut element = Vec::new();

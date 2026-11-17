@@ -213,6 +213,9 @@ fn sweep() {
                         let faces = loaded.sheets().iter().flat_map(|s| &s.shapes().shapes)
                             .filter(|shape| shape.body.face.is_some()).count();
                         println!("drawing shapes with explicit first-run face: {faces}");
+                        let underlined = loaded.sheets().iter().flat_map(|s| &s.shapes().shapes)
+                            .filter(|shape| shape.body.underline).count();
+                        println!("drawing shapes with single-underlined first run: {underlined}");
                     }
                     if std::env::var_os("DNACALC_XLS_AUDIT_NOTE_RUNS").is_some() {
                         let count = loaded.sheets().iter().flat_map(|s| &s.review().notes)
