@@ -1,7 +1,7 @@
 //! The normal, lognormal and related inverse kernels.
 //!
 //! The inverse follows Excel's route: the AS241 tails and, between them, stored x87 products of
-//! a correctly rounded inverse-erf ratio (Excel's own central rational is still open).
+//! an inverse-erf ratio: Excel's stored rational for t^2 <= 1/2, a correctly rounded ratio beyond.
 
 use crate::ported::double_double::Dd;
 use crate::ported::excel_numeric::crt_log;
@@ -244,6 +244,44 @@ fn inverse_erf_ratio(t: f64) -> f64 {
     y.div_f64(t).to_f64()
 }
 
+/// Excel's `erfinv(t) / t` for `s = RN(t * t) <= 1/2` (dc-j9k.47, fn7): `RN(P(s) / Q(s))`, P and Q
+/// degree 7 in Horner form with every product and sum stored from x87 precision 64, Q monic.
+/// The rational interpolates `erfinv(sqrt s) / sqrt s` at the 15 zeros of T15 on [0, 0.73]; the
+/// constants are that interpolant moved by -2.0e-15 along the smallest singular vector of its
+/// 15 x 15 system (what a limited-precision solve leaves), then rounded to binary64. They match
+/// 656,542 of 656,542 retained Excel answers and 44,739 of 44,739 fresh ones
+/// (docs/research/normal-inverse-central-2026-11-17.md).
+fn central_inverse_erf_ratio(s: f64) -> f64 {
+    use crate::ported::excel_numeric::{excel_x87_add, excel_x87_div, excel_x87_mul};
+    const P: [u64; 8] = [
+        0x3fec_5bf8_91b4_ef6b,
+        0xc00b_0359_9ad6_a33a,
+        0x4014_92fc_431b_904d,
+        0xc00f_ce6e_6f12_a56b,
+        0x3ffa_0cbd_20e4_ce55,
+        0xbfd5_444e_88a5_1cee,
+        0x3f9c_034f_2417_c47b,
+        0xbf3c_6105_b261_ae5d,
+    ];
+    const Q: [u64; 8] = [
+        0x3ff0_0000_0000_0000,
+        0xc010_49a6_a945_1cab,
+        0x401a_e761_f165_bea6,
+        0xc017_08d9_97e8_09b9,
+        0x4005_9bb8_7268_973c,
+        0xbfe5_70c8_8781_d342,
+        0x3fb3_8664_c121_c0db,
+        0xbf65_ae11_dcad_f003,
+    ];
+    let horner = |c: &[u64; 8]| {
+        c[..7]
+            .iter()
+            .rev()
+            .fold(f64::from_bits(c[7]), |v, &a| excel_x87_add(excel_x87_mul(v, s), f64::from_bits(a)))
+    };
+    excel_x87_div(horner(&P), horner(&Q))
+}
+
 fn inverse_standard_normal(p: f64) -> Result<f64, WorksheetErrorCode> {
     validate_probability_open_unit(p)?;
 
@@ -256,15 +294,13 @@ fn inverse_standard_normal(p: f64) -> Result<f64, WorksheetErrorCode> {
     }
     // Between them Excel publishes sqrt(2) * erfinv(t), t = 2q exact, as two stored x87
     // products: y = t * R, then y * RN(sqrt 2) (fix4 near one half, where R = RN(sqrt(pi)/2)).
-    // R here is the correctly rounded erfinv(t)/t; Excel's own R, a stored rational, is not
-    // identified and differs from it by up to a few ulp (fn6, dc-j9k.47).
+    // For s = RN(t * t) <= 1/2 (edge probed bit for bit, fn7) R is Excel's stored rational;
+    // beyond it (Excel's pieces up to t = 0.875, not yet identified) R is the correctly
+    // rounded erfinv(t)/t, which differs from Excel's by a few ulp.
     use crate::ported::excel_numeric::excel_x87_mul;
     let t = 2.0 * q;
-    let ratio = if q.abs() <= 2.0_f64.powi(-42) {
-        f64::from_bits(0x3fec_5bf8_91b4_ef6b)
-    } else {
-        inverse_erf_ratio(t)
-    };
+    let s = excel_x87_mul(t, t);
+    let ratio = if s <= 0.5 { central_inverse_erf_ratio(s) } else { inverse_erf_ratio(t) };
     let y = excel_x87_mul(t, ratio);
     Ok(excel_x87_mul(y, std::f64::consts::SQRT_2))
 }
@@ -378,7 +414,9 @@ pub fn confidence_norm_kernel(
     if size_int < 1.0 {
         return Err(WorksheetErrorCode::Num);
     }
-    Ok(inverse_standard_normal(1.0 - alpha / 2.0)? * standard_dev / size_int.sqrt())
+    // dc-bc1o: Excel scales the upper inverse by (sd / sqrt(n)), 121 of 121 against Excel's own
+    // NORM.S.INV values (docs/research/confidence-normal-arithmetic-2026-11-12.md).
+    Ok(inverse_standard_normal(1.0 - alpha / 2.0)? * (standard_dev / size_int.sqrt()))
 }
 
 #[cfg(test)]
@@ -534,20 +572,68 @@ mod tests {
         }
     }
 
-    /// Excel 16.0.20527 (re-asked through Touchstone on 2026-11-17) against the correctly rounded
-    /// inverse-erf ratio the central route uses: Excel's own stored rational P(s)/Q(s) is not
-    /// identified (docs/research/normal-inverse-central-2026-11-17.md), so these stay one and two
-    /// units low. The old Acklam-plus-Newton route matched them and lost up to 1,032 ULP elsewhere.
+    /// Excel 16.0.20527 through Touchstone on 2026-11-17: the central piece s = t^2 <= 1/2 is
+    /// Excel's stored rational (dc-j9k.47, fn7). p = 0.15 and 0.35 were one and two units low
+    /// with the correctly rounded ratio; the table holds fresh answers asked after the constants
+    /// were frozen (random inputs across s, the ends of dense windows at s = 0.46 to 0.4995 on
+    /// both sides, and inputs where the last bit of the x^7 numerator constant decides).
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn norm_inv_central_records_known_gaps() {
-        for (p, excel_bits, calculated_bits) in [
-            (0.15_f64, 0xbff0_953b_2d85_bb6c_u64, 0xbff0_953b_2d85_bb6b_u64),
-            (0.35_f64, 0xbfd8_a917_2c6c_cc51, 0xbfd8_a917_2c6c_cc4f),
+    fn norm_inv_central_rational_matches_excel() {
+        for (p, excel_bits) in [
+            (0.15_f64.to_bits(), 0xbff0_953b_2d85_bb6c_u64),
+            (0.35_f64.to_bits(), 0xbfd8_a917_2c6c_cc51),
+            (0x3fe00016c61b4f00, 0x3efc8af482986bc0),
+            (0x3fe07f9823c0dfb6, 0x3fa3fe9aae69cf26),
+            (0x3fe0ff12ab06b2ff, 0x3fb4003029677f3a),
+            (0x3fdcfd0308e85f26, 0xbfbe4456246a9da1),
+            (0x3fdc044011c33310, 0xbfc40d2f44e0c020),
+            (0x3fdb0eccbc8f34ff, 0xbfc8eee8e3d8a784),
+            (0x3fe2f87387eed8fa, 0x3fce0ed059507870),
+            (0x3fd91188d27dcccc, 0xbfd1980486de7031),
+            (0x3fe3f8647de6e9d8, 0x3fd43c7a8ec4aac2),
+            (0x3fd713e3b3e4d10c, 0xbfd6d7341b664ecd),
+            (0x3fd616e5e1e12266, 0xbfd9804776515ea4),
+            (0x3fe56f43cc58b418, 0x3fdc1ff190ab1c48),
+            (0x3fe5eeb04cd992b2, 0x3fdee67506ac638c),
+            (0x3fe66c6086621e06, 0x3fe0d916cef0c9eb),
+            (0x3fd22bc37749b488, 0xbfe24788d3e5d044),
+            (0x3fd12abb423d2b61, 0xbfe3c803073c015b),
+            (0x3fd03aabf509940d, 0xbfe5397382135789),
+            (0x3fe861b7c8980ec8, 0x3fe6ccf5ddfab228),
+            (0x3fe8e11174c575fa, 0x3fe87027078e77a1),
+            (0x3fe95d184c12b886, 0x3fea18c849c80578),
+            (0x3fc87e67fcf4aa7a, 0xbfebeed5134524f5),
+            (0x3fc68b0ad6908b02, 0xbfedc4b0ab3264ba),
+            (0x3fead4dfe39a0f56, 0x3fef9fc520e02dc7),
+            (0x3fc2c08d64d60a72, 0xbff0d32e4f5988be),
+            (0x3feada0ad82d180e, 0x3fefb4e7f83da5e2),
+            (0x3feada0ad82d200d, 0x3fefb4e7f83dc6a2),
+            (0x3feada0ad82d280d, 0x3fefb4e7f83de75e),
+            (0x3feb15cac3567d11, 0x3ff056a992aadcac),
+            (0x3feb15cac3568510, 0x3ff056a992aaed8f),
+            (0x3feb15cac3568d10, 0x3ff056a992aafe73),
+            (0x3feb41ca9bff5f31, 0x3ff0b4a5941d658d),
+            (0x3feb41ca9bff6730, 0x3ff0b4a5941d76e5),
+            (0x3feb41ca9bff6f30, 0x3ff0b4a5941d8824),
+            (0x3fc41fb20c770b5c, 0xbff0186a1b194a7c),
+            (0x3fc41fb20c77135b, 0xbff0186a1b194662),
+            (0x3fc41fb20c771b5b, 0xbff0186a1b194236),
+            (0x3fc3333333332b34, 0xbff0953b2d85bfb7),
+            (0x3fc3333333333333, 0xbff0953b2d85bb6c),
+            (0x3fc3333333333b33, 0xbff0953b2d85b714),
+            (0x3feb4edc613e8bbc, 0x3ff0d10027b178f0),
+            (0x3feb4edc613e93bb, 0x3ff0d10027b18a54),
+            (0x3feb4edc613e9bbb, 0x3ff0d10027b19bc4),
+            (0x3feb06fccda8b49c, 0x3ff03787cf33a8f7),
+            (0x3fc717429853e0fd, 0xbfed3e4647887078),
+            (0x3fea69997a100da8, 0x3fedf49389baf684),
+            (0x3feaf6b5ec1636ab, 0x3ff01593b2838662),
+            (0x3fc81534d912be93, 0xbfec4fd420e44499),
         ] {
-            assert_ne!(excel_bits, calculated_bits);
-            assert_bits(norm_s_inv_kernel(p).unwrap(), calculated_bits);
-            assert_bits(norm_inv_kernel(p, 0.0, 1.0).unwrap(), calculated_bits);
+            let p = f64::from_bits(p);
+            assert_bits(norm_s_inv_kernel(p).unwrap(), excel_bits);
+            assert_bits(norm_inv_kernel(p, 0.0, 1.0).unwrap(), excel_bits);
         }
     }
 

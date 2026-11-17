@@ -5,9 +5,6 @@ GAMMALN	1892	275	1074	543	0		5.444	5.330
 WEEKNUM	1826	0	0	0	0	structural:error:Num/refused=1806;structural:error:Num/text=17;structural:number/text=3	0.000	0.000
 RTD	1546	0	0	0	0	structural:error:Div0/refused=11;structural:error:NA/refused=1479;structural:error:Name/refused=11;structural:error:Null/refused=11;structural:error:Num/refused=11;structural:error:Ref/refused=11;structural:error:Value/refused=12	0.000	0.000
 BETA.DIST	1127	91	125	846	65		116.301	114.301
-NORM.S.INV	814	60	460	292	2		20.361	2.333
-NORMSINV	777	63	411	294	9		22.807	2.238
-FORECAST.ETS.CONFINT	698	0	0	0	0	no-reference=4;structural:number/refused=694	0.000	0.000
 FORECAST.ETS	679	0	0	0	0	structural:number/error:Num=68;structural:number/refused=611	0.000	0.000
 GAMMA.INV	655	91	171	344	47	reference-failed:NoConvergence=1;structural:error:Num/number=1	211.044	370.523
 GAMMAINV	561	66	112	322	58	reference-failed:NoConvergence=3	152.047	323.047
@@ -17,22 +14,19 @@ FDIST	538	84	83	371	0		13.089	14.089
 CHIINV	467	90	130	211	32	structural:number/error:Num=4	4878498916.306	4878498915.306
 CHISQ.INV.RT	447	84	125	211	20	structural:number/error:Num=7	770379135011.490	770379135012.490
 YIELD	436	1	2	42	391		2788.934	70.726
-NORMINV	359	24	179	142	9	non-scalar-argument=5	230.355	12.416
+FORECAST.ETS.CONFINT	359	0	0	0	0	no-reference=359	0.000	0.000
 FINV	338	23	39	183	80	reference-failed:RowTimeout=13	1011044.684	222.364
 CHISQ.INV	337	41	138	144	13	reference-failed:NoConvergence=1	28.312	164.737
 T.DIST.RT	329	60	48	108	113		7606.036	1023.036
-NORM.INV	314	33	147	117	10	non-scalar-argument=7	89.552	24.251
 F.INV	274	25	45	136	62	reference-failed:RowTimeout=6	22153.934	696.861
 BETA.INV	265	53	56	92	30	non-scalar-argument=1;reference-failed:RowTimeout=15;structural:error:Num/number=18	378368754144163.062	950467.668
-CONFIDENCE.NORM	262	37	66	153	6		1740.897	1741.897
-CONFIDENCE	259	34	66	154	5		176.252	175.252
 F.INV.RT	259	21	27	121	84	reference-failed:RowTimeout=6	11518486.903	343.329
 T.DIST	252	76	49	48	78	non-scalar-argument=1	8715.716	833.185
 BETAINV	251	40	57	93	18	non-scalar-argument=1;reference-failed:RowTimeout=18;structural:error:Num/number=24	958.197	119.717
 T.DIST.2T	245	27	21	92	105		5147.228	806.772
 MULTINOMIAL	235	0	47	3	181	non-scalar-argument=4	4672.445	7.600
-LOGINV	211	12	53	38	103	non-scalar-argument=5	6316.013	691.013
-LOGNORM.INV	210	5	53	59	90	non-scalar-argument=3	7854.599	876.599
+NORM.S.INV	218	17	130	71	0		8.123	1.540
+NORMSINV	188	21	92	75	0		9.527	1.503
 IRR	185	0	0	78	105	structural:number/error:Num=2	1103794.592	1103810.592
 TINV	166	12	15	76	59	reference-failed:ValueError=4	153809318.422	152624415.578
 T.INV	143	16	19	69	39		431942.037	146225.789
@@ -44,15 +38,21 @@ ROUNDUP	102	26	26	50	0		8.446	9.508
 GAMMADIST	100	15	28	45	12		735.327	829.327
 TRUNC	100	24	26	50	0		9.508	8.446
 HYPGEOM.DIST	89	17	13	59	0		15.742	7.572
+NORM.INV	85	10	39	31	3	non-scalar-argument=2	89.552	24.251
+NORMINV	83	7	39	34	2	non-scalar-argument=1	25.700	9.700
 F.DIST	81	13	14	24	20	structural:number/error:Num=10	4981.693	524.403
 GAMMA.DIST	77	21	25	29	2		20.352	24.352
 CONFIDENCE.T	76	8	5	37	26		221802.118	165625.882
 F.DIST.RT	68	11	3	31	23		909.420	913.778
 CHISQ.DIST	63	5	1	10	47		373.205	376.205
+LOGNORM.INV	62	1	10	19	31	non-scalar-argument=1	4583.942	453.804
 TDIST	59	7	8	34	10		1142.336	588.178
+LOGINV	55	1	12	14	27	non-scalar-argument=1	6316.013	691.013
 BESSELY	54	0	0	0	46	non-scalar-argument=7;reference-failed:RowTimeout=1	14598443812.851	14598443876.851
+CONFIDENCE	54	8	11	35	0		10.462	3.410
 PRICE	50	0	0	50	0		6.865	7.087
 CHIDIST	47	3	5	10	29		558.446	566.446
+CONFIDENCE.NORM	45	6	15	24	0		5.025	3.779
 BINOMDIST	42	3	1	10	27	reference-failed:RowTimeout=1	439.683	893.480
 COMPLEX	40	0	0	0	0	structural:text/text=20;text15:excel-quirk=6;text15:ours-wrong=14	0.000	0.000
 CHISQ.DIST.RT	38	1	3	11	23		288.304	286.304
