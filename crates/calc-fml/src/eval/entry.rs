@@ -240,7 +240,7 @@ fn declares_twice<'t>(names: impl Iterator<Item = &'t SyntaxNode>) -> bool {
         let text = text
             .strip_prefix('[')
             .and_then(|inner| inner.strip_suffix(']'))
-            .or_else(|| without_prefix(text, "_xlop."))
+            .or_else(|| without_prefix(text, calc_catalogue::OPTIONAL_PARAMETER_PREFIX))
             .unwrap_or(text);
         let key = parameter_key(text);
         if keys.contains(&key) {

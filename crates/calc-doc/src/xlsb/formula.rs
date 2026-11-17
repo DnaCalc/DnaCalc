@@ -424,7 +424,7 @@ pub(crate) fn print(
                         let operand = pop(&mut stack)?;
                         let space = pending.take();
                         stack.push(Item {
-                            text: format!("{space}SUM({})", operand.text),
+                            text: format!("{space}{}({})", attribute_sum_name(), operand.text),
                         });
                     }
                     // Choose's jump table.
@@ -1220,6 +1220,13 @@ fn list(cursor: &mut Cursor<'_>, extra: &mut Cursor<'_>, context: &Context<'_>) 
     } else {
         format!("{}[{inner}]", table.name)
     })
+}
+
+/// The function a PtgAttrSum calls (MS-XLSB PtgAttrSum: SUM of one argument), from the catalogue.
+fn attribute_sum_name() -> &'static str {
+    calc_catalogue::declaration(calc_catalogue::aggregate::SUM)
+        .expect("SUM is declared")
+        .spelling()
 }
 
 #[cfg(test)]

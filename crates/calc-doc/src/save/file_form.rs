@@ -123,12 +123,15 @@ fn is_constant(formula: &str) -> bool {
         || text.starts_with('#')
 }
 
+/// Whether `name` starts with the first five letters of a file prefix ([`calc_catalogue::FILE_NAME_PREFIXES`]),
+/// in any ASCII case.
 fn has_prefix(name: &str) -> bool {
     let lower = name.get(..5).map(str::to_ascii_lowercase);
-    matches!(
-        lower.as_deref(),
-        Some("_xlfn" | "_xlpm" | "_xlop" | "_xlws" | "_xlud" | "_xlet")
-    )
+    lower.is_some_and(|lower| {
+        calc_catalogue::FILE_NAME_PREFIXES
+            .iter()
+            .any(|prefix| prefix[..5] == lower)
+    })
 }
 
 fn first_token(node: &SyntaxNode) -> Option<&Token> {
@@ -253,7 +256,7 @@ impl Walk<'_, '_> {
                 if token.kind() == TokenKind::Identifier
                     && let Some(parameter) = self.parameter(token.text())
                 {
-                    self.insert(token.span().start, "_xlpm.");
+                    self.insert(token.span().start, calc_catalogue::PARAMETER_PREFIX);
                     return multi(parameter);
                 }
                 if token.kind() == TokenKind::Identifier
@@ -264,7 +267,7 @@ impl Walk<'_, '_> {
                     && function(token.text()).is_some()
                     && (self.name_formula)(None, token.text()).is_none()
                 {
-                    self.insert(token.span().start, "_xleta.");
+                    self.insert(token.span().start, calc_catalogue::FUNCTION_VALUE_PREFIX);
                     return multi(false);
                 }
                 multi(self.name_is_multi(token.text()))
@@ -456,7 +459,7 @@ impl Walk<'_, '_> {
         let text = name.text();
         // A call of a LET-bound function.
         if self.parameter(text).is_some() {
-            self.insert(name.span().start, "_xlpm.");
+            self.insert(name.span().start, calc_catalogue::PARAMETER_PREFIX);
             for argument in &arguments {
                 self.walk(argument, depth + 1)?;
             }
@@ -582,7 +585,7 @@ impl Walk<'_, '_> {
                         let inner = token.text().trim_start_matches('[').trim_end_matches(']');
                         let span = token.span();
                         self.edits
-                            .push((span.start, span.end(), format!("_xlop.{inner}")));
+                            .push((span.start, span.end(), format!("{}{inner}", calc_catalogue::OPTIONAL_PARAMETER_PREFIX)));
                         self.scopes
                             .last_mut()
                             .expect("a scope")
@@ -591,7 +594,7 @@ impl Walk<'_, '_> {
                     Some(token)
                         if token.kind() == TokenKind::Identifier && !has_prefix(token.text()) =>
                     {
-                        self.insert(token.span().start, "_xlpm.");
+                        self.insert(token.span().start, calc_catalogue::PARAMETER_PREFIX);
                         let value = if form == BindingForm::Let {
                             match arguments.get(index + 1) {
                                 Some(value) => {

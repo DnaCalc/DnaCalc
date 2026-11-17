@@ -26,7 +26,7 @@ pub fn display_formula(text: &str) -> String {
     };
     if !text.trim_start().starts_with('=')
         || !(has(calc_catalogue::FUTURE_FUNCTION_PREFIX.as_bytes())
-            || has(b"_xlpm.")
+            || has(calc_catalogue::PARAMETER_PREFIX.as_bytes())
             || has(calc_catalogue::WORKSHEET_FUNCTION_PREFIX.as_bytes()))
     {
         return text.to_owned();
@@ -59,7 +59,7 @@ pub fn display_formula(text: &str) -> String {
     // A LET name or LAMBDA parameter a file stores as `_xlpm.name` is shown as `name`.
     for token in tree.tokens() {
         if token.kind() == TokenKind::Identifier
-            && let Some(name) = crate::eval::without_prefix(token.text(), "_xlpm.")
+            && let Some(name) = crate::eval::without_prefix(token.text(), calc_catalogue::PARAMETER_PREFIX)
             && !name.is_empty()
             && !changes.contains_key(&token.span().start)
         {
@@ -566,8 +566,8 @@ pub fn local_bindings_at(tree: &SyntaxTree, text: &str, caret: usize) -> Vec<Loc
                 .trim_start_matches('[')
                 .trim_end_matches(']')
                 .trim();
-            let raw = crate::eval::without_prefix(raw, "_xlpm.")
-                .or_else(|| crate::eval::without_prefix(raw, "_xlop."))
+            let raw = crate::eval::without_prefix(raw, calc_catalogue::PARAMETER_PREFIX)
+                .or_else(|| crate::eval::without_prefix(raw, calc_catalogue::OPTIONAL_PARAMETER_PREFIX))
                 .unwrap_or(raw);
             let valid = raw
                 .chars()

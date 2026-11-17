@@ -20,6 +20,21 @@ pub const FUTURE_FUNCTION_PREFIX: &str = "_xlfn.";
 pub const WORKSHEET_FUNCTION_PREFIX: &str = "_xlws.";
 /// Prefix preserving a user-defined call that collides with a built-in name.
 pub const USER_DEFINED_FUNCTION_PREFIX: &str = "_xludf.";
+/// Prefix a file writes before a LET name or a LAMBDA parameter (`_xlpm.x`).
+pub const PARAMETER_PREFIX: &str = "_xlpm.";
+/// Prefix a file writes before an optional LAMBDA parameter written `[y]` (`_xlop.y`).
+pub const OPTIONAL_PARAMETER_PREFIX: &str = "_xlop.";
+/// Prefix a file writes before a function named as a value (`_xleta.SUM`).
+pub const FUNCTION_VALUE_PREFIX: &str = "_xleta.";
+/// Every prefix a file writes before a name in a formula.
+pub const FILE_NAME_PREFIXES: [&str; 6] = [
+    FUTURE_FUNCTION_PREFIX,
+    PARAMETER_PREFIX,
+    OPTIONAL_PARAMETER_PREFIX,
+    WORKSHEET_FUNCTION_PREFIX,
+    USER_DEFINED_FUNCTION_PREFIX,
+    FUNCTION_VALUE_PREFIX,
+];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum FilePrefix {

@@ -707,7 +707,7 @@ impl<'c> Lowering<'c> {
                         self.blocks[block].push(Instruction::Literal(Literal::Logical(false)));
                     } else if let Some(slot) = self.local(&parameter_key(text)) {
                         self.blocks[block].push(Instruction::Local(slot));
-                    } else if let Some(function) = without_prefix(text, "_xleta.") {
+                    } else if let Some(function) = without_prefix(text, calc_catalogue::FUNCTION_VALUE_PREFIX) {
                         // dc-h9u: a function named where a LAMBDA value is taken, as a file
                         // stores it.
                         let target = catalogue()
@@ -1714,7 +1714,7 @@ impl<'c> Lowering<'c> {
         }
         let (text, optional) = match text.strip_prefix('[').and_then(|t| t.strip_suffix(']')) {
             Some(inner) => (inner, true),
-            None => match without_prefix(text, "_xlop.") {
+            None => match without_prefix(text, calc_catalogue::OPTIONAL_PARAMETER_PREFIX) {
                 Some(inner) => (inner, true),
                 None => (text, false),
             },
@@ -2124,7 +2124,7 @@ enum ThreeD {
 /// name; calc-value's `parameter_names_equal`). A defined name's block is keyed by the full fold,
 /// as defined names compare.
 pub(super) fn parameter_key(text: &str) -> String {
-    calc_func::value::fold_parameter_name(without_prefix(text, "_xlpm.").unwrap_or(text))
+    calc_func::value::fold_parameter_name(without_prefix(text, calc_catalogue::PARAMETER_PREFIX).unwrap_or(text))
 }
 
 /// An array constant: rows of number, text, logical and error constants (a number may carry a

@@ -537,7 +537,7 @@ pub(crate) fn write(book: &Book, shared: &Shared) -> Result<Vec<u8>, OpenError> 
         .filter(|name| {
             // A future function's name, a LAMBDA parameter's and a name with no formula (a
             // user-defined function a formula calls) are not listed in SpreadsheetML.
-            !name.future_function() && !name.name.starts_with("_xlpm.") && !name.rgce.is_empty()
+            !name.future_function() && !name.name.starts_with(calc_catalogue::PARAMETER_PREFIX) && !name.rgce.is_empty()
         })
         .collect();
     if !listed.is_empty() {

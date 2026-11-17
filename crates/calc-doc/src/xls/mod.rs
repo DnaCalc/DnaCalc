@@ -843,7 +843,7 @@ pub(crate) fn convert(
     let listed: Vec<&workbook::NameRecord> = globals
         .names
         .iter()
-        .filter(|n| !n.rgce.is_empty() && !n.name.starts_with("_xlpm."))
+        .filter(|n| !n.rgce.is_empty() && !n.name.starts_with(calc_catalogue::PARAMETER_PREFIX))
         .collect();
     let stream_name = name;
     if !listed.is_empty() {
