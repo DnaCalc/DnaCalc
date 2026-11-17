@@ -12,6 +12,8 @@ portability = "native-only"
 # The macro security level the two desktop applications store (macro_security.rs, dc-15dk).
 [dependencies]
 calc-macro-security = { path = "../../crates/calc-macro-security" }
+# The add-in surrogate's envelope (surrogate.rs): its incarnation and, in the tests, its link ends.
+calc-surrogate-wire = { path = "../../crates/calc-surrogate-wire" }
 
 # The physical core count (GetLogicalProcessorInformation) for the default number of recalculation
 # threads. windows-sys is already in the workspace lock.
@@ -26,7 +28,10 @@ windows-sys = { version = "=0.61.2", features = [
     "Win32_Storage_FileSystem",
     "Win32_Graphics_Gdi",
     "Win32_Networking_WinHttp",
+    "Win32_Security",
+    "Win32_System_JobObjects",
     "Win32_System_Com",
+    "Win32_System_Console",
     "Win32_System_LibraryLoader",
     "Win32_System_SystemInformation",
     "Win32_System_Threading",

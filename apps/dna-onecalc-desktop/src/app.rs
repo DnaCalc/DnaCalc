@@ -9,6 +9,8 @@
 //! OneCalc-only beyond wiring them to the host.
 use crate::host::{CloseChoice, Files, Host, Libraries, RtdLinks, RtdUpdate};
 use crate::settings::Settings;
+use crate::surrogate::{Remote, RemoteFiles, SurrogateEnd, run_surrogate};
+use calc_platform_desktop::surrogate::{StreamWire, Supervisor};
 use calc_addin_host::{AddinHost, Document, RtdClient, RtdProvider};
 use calc_fml::CallableTable;
 use calc_platform_desktop::dialogs::{self, Buttons, FileFilter, Pressed};
@@ -17,6 +19,7 @@ use calc_platform_desktop::{
     pump_pending, run_message_loop,
 };
 use calc_value::CalcValue;
+use dna_onecalc::bridge::{Answer, Call};
 use dna_onecalc::port::{Reply, Request};
 use dna_onecalc::{ExternalReturns, Session};
 use std::{
@@ -63,7 +66,25 @@ struct Options {
     trust_macros: bool,
     /// `--macros off|safe|unguarded`: pins the macro security level for this run.
     macros: Option<dna_onecalc::MacroSecurity>,
+    /// `--transport surrogate` (or `DNACALC_ONECALC_TRANSPORT=surrogate`): the session and its
+    /// add-ins run in a second process of this executable (docs/architecture/ADDIN_SURROGATE.md,
+    /// Stage 3); the default `in-process` runs them in this one (the conformance mode).
+    surrogate: bool,
+    /// `--call-limit SECONDS`: how long the window waits for the add-in process to answer one
+    /// request before it stops waiting (the call goes on running there).
+    call_limit: Duration,
 }
+
+/// How long the window waits for the add-in process's answer by default: longer than the slowest
+/// add-in load the acceptance runs wait for (four minutes).
+const CALL_LIMIT: Duration = Duration::from_secs(300);
+
+/// How long the add-in process may take to start.
+const START_LIMIT: Duration = Duration::from_secs(60);
+
+/// How long a closing window waits for the add-in process to close its add-ins and exit before it
+/// is ended.
+const FINISH_LIMIT: Duration = Duration::from_secs(20);
 
 fn options(args: &[String]) -> Result<Options, String> {
     let mut o = Options {
@@ -80,6 +101,8 @@ fn options(args: &[String]) -> Result<Options, String> {
         open_files: Vec::new(),
         trust_macros: false,
         macros: None,
+        surrogate: std::env::var("DNACALC_ONECALC_TRANSPORT").is_ok_and(|t| t == "surrogate"),
+        call_limit: CALL_LIMIT,
     };
     let mut args = args.iter();
     while let Some(arg) = args.next() {
@@ -102,6 +125,24 @@ fn options(args: &[String]) -> Result<Options, String> {
                 )
             }
             "--message-file" => o.message_file = Some(PathBuf::from(value()?)),
+            "--transport" => {
+                o.surrogate = match value()?.as_str() {
+                    "surrogate" => true,
+                    "in-process" => false,
+                    other => {
+                        return Err(format!(
+                            "--transport is in-process or surrogate, not {other}"
+                        ));
+                    }
+                }
+            }
+            "--call-limit" => {
+                o.call_limit = Duration::from_secs(
+                    value()?
+                        .parse()
+                        .map_err(|_| "--call-limit needs a number of seconds")?,
+                )
+            }
             "--close-answer" => {
                 o.close_answer = Some(match value()?.as_str() {
                     "save" => CloseChoice::Save,
@@ -381,14 +422,14 @@ const SETTLE_QUIET: Duration = Duration::from_millis(800);
 const SETTLE_LIMIT: Duration = Duration::from_secs(60);
 
 /// The .xll add-ins this process loaded, over `calc-addin-host`'s add-in set.
-struct Addins {
+pub(crate) struct Addins {
     set: Rc<RefCell<AddinHost>>,
     /// What the registrations looked like when the table was last published.
     published: Cell<u64>,
 }
 
 impl Addins {
-    fn new(set: Rc<RefCell<AddinHost>>) -> Self {
+    pub(crate) fn new(set: Rc<RefCell<AddinHost>>) -> Self {
         Addins {
             set,
             published: Cell::new(0),
@@ -596,8 +637,169 @@ impl ExternalReturns for Returns {
     }
 }
 
+/// The session, its add-ins and its add-in set, as this process builds them: in app mode in-process,
+/// or in the surrogate role.
+pub(crate) fn session_and_addins(
+    shell: &Shell,
+    sheet: &str,
+) -> Result<(Session, Rc<RefCell<AddinHost>>), String> {
+    let mut session = Session::new(sheet).map_err(|e| format!("{e:?}"))?;
+    let sheets: Vec<(calc_value::SheetId, String)> = session
+        .sheets()
+        .map(|(name, id)| (id, name.to_owned()))
+        .collect();
+    let sheet_refs: Vec<(calc_value::SheetId, &str)> = sheets
+        .iter()
+        .map(|(id, name)| (*id, name.as_str()))
+        .collect();
+    // The add-in set always exists: the page loads add-ins into it whenever the person asks.
+    let set = Rc::new(RefCell::new(AddinHost::with_profile(
+        shell,
+        &Document {
+            workbook: WORKBOOK,
+            active_sheet: Some(sheet),
+            sheets: &sheet_refs,
+        },
+        calc_vba::Profile::ValuesOnly,
+    )?));
+    // Registered functions that answer later (native async, thread-safe on the pool) suspend the
+    // evaluation instead of blocking the call; the session waits for their returns.
+    set.borrow().enable_async_continuations()?;
+    session.set_external_returns(Some(Box::new(Returns {
+        set: set.clone(),
+        arrived: BTreeMap::new(),
+        since: Instant::now(),
+    })));
+    // The add-ins' real-time servers reach the formula: the session joins and starts their topics.
+    let rtd = set.borrow_mut().enable_rtd()?;
+    session.set_rtd_connector(rtd);
+    Ok((session, set))
+}
+
+/// The session behind the page: in this process, or in the add-in process.
+enum Backend {
+    Local(Host<Dialogs, Addins>),
+    Remote(Controller),
+}
+
+/// The window's side of the add-in process: the dialogs it serves, the supervisor that started it,
+/// and the connection.
+struct Controller {
+    dialogs: Dialogs,
+    supervisor: Supervisor,
+    remote: Option<Remote<StreamWire<std::process::ChildStdin>>>,
+    /// What the add-in process is started with after its role and incarnation.
+    launch: Vec<std::ffi::OsString>,
+    limit: Duration,
+}
+
+impl Controller {
+    /// Starts a new add-in process (a running one is ended first) and waits for its hello.
+    fn start(&mut self) -> Result<(), String> {
+        self.end("replaced");
+        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        let (incarnation, wire) = self.supervisor.launch(&exe, &self.launch)?;
+        let remote = Remote::connect(incarnation, wire, START_LIMIT, &mut || {
+            pump_pending();
+            true
+        });
+        match remote {
+            Ok(remote) => {
+                self.remote = Some(remote);
+                Ok(())
+            }
+            Err(why) => {
+                self.supervisor.stop();
+                Err(why)
+            }
+        }
+    }
+
+    /// Ends the add-in process at once, and retires its incarnation.
+    fn end(&mut self, why: &str) {
+        if let Some(remote) = &mut self.remote {
+            remote.stopped(why);
+        }
+        self.remote = None;
+        self.supervisor.stop();
+    }
+
+    /// One page request. `stop` is set when the person asks to stop the add-in process while the
+    /// request waits.
+    fn handle(&mut self, request: Request, stop: &Cell<bool>) -> Reply {
+        match request {
+            Request::StopAddinProcess => {
+                self.end("stopped by the person");
+                Reply::Addins(Vec::new())
+            }
+            Request::RestartAddinProcess => match self.start() {
+                Ok(()) => Reply::Addins(Vec::new()),
+                Err(message) => Reply::Refused { message },
+            },
+            request => {
+                let Some(remote) = &mut self.remote else {
+                    return Reply::Refused {
+                        message: crate::surrogate::NOT_RUNNING.to_owned(),
+                    };
+                };
+                stop.set(false);
+                let reply = remote.call(&request, &mut self.dialogs, self.limit, &mut || {
+                    pump_pending();
+                    !stop.get()
+                });
+                if stop.replace(false) || !remote.running() {
+                    self.end("stopped");
+                }
+                reply
+            }
+        }
+    }
+
+    /// The add-in process's events since the last tick, and `addin-process-stopped` when it ended
+    /// by itself.
+    fn events(&mut self) -> Vec<String> {
+        let Some(remote) = &mut self.remote else {
+            return Vec::new();
+        };
+        let mut events = remote.take_events();
+        let ended = match self.supervisor.poll() {
+            calc_platform_desktop::surrogate::Ended::Exited(code) => Some(format!(
+                "the add-in process ended (exit code {})",
+                code.map_or("unknown".to_owned(), |c| format!("{:#x}", c as u32))
+            )),
+            _ if !remote.running() => Some(remote.ended().unwrap_or("ended").to_owned()),
+            _ => None,
+        };
+        if let Some(why) = ended {
+            eprintln!("dna-onecalc-desktop: {why}");
+            self.end(&why);
+            events.push("addin-process-stopped".to_owned());
+        }
+        events
+    }
+
+    fn close_requested(&mut self) -> bool {
+        match &mut self.remote {
+            None => true,
+            Some(remote) => remote.close_requested(&mut self.dialogs, self.limit, &mut || {
+                pump_pending();
+                true
+            }),
+        }
+    }
+}
+
+impl Drop for Controller {
+    /// The window closed: the add-in process's input closes, so it closes its add-ins and exits;
+    /// one that does not within the limit is ended.
+    fn drop(&mut self) {
+        self.remote = None;
+        self.supervisor.finish(FINISH_LIMIT);
+    }
+}
+
 struct App {
-    host: RefCell<Host<Dialogs, Addins>>,
+    backend: RefCell<Backend>,
     web: WebView,
     frame: *mut std::ffi::c_void,
     /// The outermost window (as `Shell::hwnd` gives it), for its place.
@@ -608,12 +810,24 @@ struct App {
     /// runs the message loop, which delivers the page's next message): answered in order after it.
     waiting: RefCell<VecDeque<String>>,
     busy: Cell<bool>,
+    /// The person asked to stop the add-in process while a request waits for it.
+    stop: Cell<bool>,
+}
+
+/// Whether the page's message is the request to stop the add-in process.
+fn asks_to_stop(message: &str) -> bool {
+    serde_json::from_str::<Call>(message)
+        .is_ok_and(|call| call.request == Request::StopAddinProcess)
 }
 
 impl App {
     /// One request from the page: answered with the same id. A request that arrives while another
-    /// is being answered waits its turn.
+    /// is being answered waits its turn; only Stop add-in process acts at once (on the request
+    /// being waited for).
     fn request(&self, message: &str) {
+        if self.busy.get() && asks_to_stop(message) {
+            self.stop.set(true);
+        }
         self.waiting.borrow_mut().push_back(message.to_owned());
         if self.busy.replace(true) {
             return;
@@ -622,7 +836,7 @@ impl App {
             let Some(next) = self.waiting.borrow_mut().pop_front() else {
                 break;
             };
-            let answer = self.host.borrow_mut().answer(&next);
+            let (answer, remote) = self.answer(&next);
             match answer {
                 Some(text) => {
                     if let Err(why) = self.web.post(&text, None) {
@@ -631,19 +845,45 @@ impl App {
                 }
                 None => eprintln!("dna-onecalc-desktop: a message that is no call was ignored"),
             }
+            // The page learns that the add-ins run in a process of their own (it can stop and
+            // restart it) from the answer to its first question about them.
+            if remote
+                && serde_json::from_str::<Call>(&next).is_ok_and(|c| c.request == Request::Addins)
+            {
+                let _ = self.web.post(r#"{"event":"addin-process"}"#, None);
+            }
         }
         self.busy.set(false);
+    }
+
+    /// The JSON text of the answer to the JSON text of a call, and whether the add-ins run in a
+    /// process of their own.
+    fn answer(&self, text: &str) -> (Option<String>, bool) {
+        let mut backend = self.backend.borrow_mut();
+        match &mut *backend {
+            Backend::Local(host) => (host.answer(text), false),
+            Backend::Remote(controller) => {
+                let Ok(Call { id, request }) = serde_json::from_str(text) else {
+                    return (None, true);
+                };
+                let reply = controller.handle(request, &self.stop);
+                (serde_json::to_string(&Answer { id, reply }).ok(), true)
+            }
+        }
     }
 
     /// The window is closing: asks about unsaved changes, and keeps the window's place for the next
     /// run. `false` keeps the window open.
     fn close_requested(&self) -> bool {
         // A request being answered (an add-in call that pumps messages) is in the way: not now.
-        let Ok(mut host) = self.host.try_borrow_mut() else {
+        let Ok(mut backend) = self.backend.try_borrow_mut() else {
             return false;
         };
-        let allowed = host.close_requested();
-        drop(host);
+        let allowed = match &mut *backend {
+            Backend::Local(host) => host.close_requested(),
+            Backend::Remote(controller) => controller.close_requested(),
+        };
+        drop(backend);
         if allowed {
             if let Some(place) = calc_platform_desktop::placement_of(self.root) {
                 let mut settings = self.settings.borrow_mut();
@@ -654,17 +894,29 @@ impl App {
         allowed
     }
 
-    /// Real-time values the add-ins' servers sent: the page evaluates its formula again.
+    /// Real-time values the add-ins' servers sent: the page evaluates its formula again. From the
+    /// add-in process, its events, and that it ended.
     fn poll_rtd(&self) {
         if self.busy.get() {
             return;
         }
-        let changed = match self.host.try_borrow_mut() {
-            Ok(mut host) => host.poll_rtd(),
-            Err(_) => false,
+        let Ok(mut backend) = self.backend.try_borrow_mut() else {
+            return;
         };
-        if changed {
-            if let Err(why) = self.web.post(r#"{"event":"rtd"}"#, None) {
+        let events = match &mut *backend {
+            Backend::Local(host) => {
+                if host.poll_rtd() {
+                    vec!["rtd".to_owned()]
+                } else {
+                    Vec::new()
+                }
+            }
+            Backend::Remote(controller) => controller.events(),
+        };
+        drop(backend);
+        for event in events {
+            let text = serde_json::json!({ "event": event }).to_string();
+            if let Err(why) = self.web.post(&text, None) {
                 eprintln!("dna-onecalc-desktop: {why}");
             }
         }
@@ -680,6 +932,23 @@ impl App {
             }
         }
     }
+}
+
+/// The macro security options of the command line, passed on to the add-in process.
+fn macro_args(o: &Options) -> Vec<std::ffi::OsString> {
+    let mut args = Vec::new();
+    if o.trust_macros {
+        args.push("--trust-macros".into());
+    }
+    if let Some(level) = o.macros {
+        args.push("--macros".into());
+        args.push(level.key().into());
+    }
+    if let Some(dir) = &o.data_dir {
+        args.push("--data-dir".into());
+        args.push(dir.into());
+    }
+    args
 }
 
 pub fn run(args: &[String]) -> Result<(), String> {
@@ -744,36 +1013,6 @@ pub fn run(args: &[String]) -> Result<(), String> {
         },
     )?;
 
-    let mut session = Session::new(&o.sheet).map_err(|e| format!("{e:?}"))?;
-    let sheets: Vec<(calc_value::SheetId, String)> = session
-        .sheets()
-        .map(|(name, id)| (id, name.to_owned()))
-        .collect();
-    let sheet_refs: Vec<(calc_value::SheetId, &str)> = sheets
-        .iter()
-        .map(|(id, name)| (*id, name.as_str()))
-        .collect();
-    // The add-in set always exists: the page loads add-ins into it whenever the person asks.
-    let set = Rc::new(RefCell::new(AddinHost::with_profile(
-        &shell,
-        &Document {
-            workbook: WORKBOOK,
-            active_sheet: Some(&o.sheet),
-            sheets: &sheet_refs,
-        },
-        calc_vba::Profile::ValuesOnly,
-    )?));
-    // Registered functions that answer later (native async, thread-safe on the pool) suspend the
-    // evaluation instead of blocking the call; the session waits for their returns.
-    set.borrow().enable_async_continuations()?;
-    session.set_external_returns(Some(Box::new(Returns {
-        set: set.clone(),
-        arrived: BTreeMap::new(),
-        since: Instant::now(),
-    })));
-    // The add-ins' real-time servers reach the formula: the session joins and starts their topics.
-    let rtd = set.borrow_mut().enable_rtd()?;
-    session.set_rtd_connector(rtd);
     let dialogs = Dialogs {
         owner: frame.cast(),
         save_dir: o.save_dir.clone().map(|d| (d, 0)),
@@ -787,20 +1026,46 @@ pub fn run(args: &[String]) -> Result<(), String> {
         scripted: o.scripted(),
         macro_folder: macro_folder.clone(),
     };
-    let mut host = Host::new(session, dialogs, Addins::new(set.clone()));
-    // The macro security level in force: what the person stored, or the level pinned by
-    // `--trust-macros` or `DNACALC_TRUST_ALL_MACROS=1`.
-    host.session_mut()
-        .set_macro_policy(calc_platform_desktop::macro_security::policy(
-            &macro_folder,
-            o.trust_macros,
-            o.macros,
-        ));
+    // In-process (the conformance mode): the session and the add-in set live here. With the
+    // surrogate transport they live in the add-in process, and this process keeps none.
+    let mut set = None;
+    let mut backend = if o.surrogate {
+        let mut launch: Vec<std::ffi::OsString> = vec!["--sheet".into(), o.sheet.clone().into()];
+        launch.extend(macro_args(&o));
+        let mut controller = Controller {
+            dialogs,
+            supervisor: Supervisor::new(),
+            remote: None,
+            launch,
+            limit: o.call_limit,
+        };
+        controller.start()?;
+        Backend::Remote(controller)
+    } else {
+        let (session, addins) = session_and_addins(&shell, &o.sheet)?;
+        set = Some(addins.clone());
+        let mut host = Host::new(session, dialogs, Addins::new(addins));
+        // The macro security level in force: what the person stored, or the level pinned by
+        // `--trust-macros` or `DNACALC_TRUST_ALL_MACROS=1`.
+        host.session_mut()
+            .set_macro_policy(calc_platform_desktop::macro_security::policy(
+                &macro_folder,
+                o.trust_macros,
+                o.macros,
+            ));
+        Backend::Local(host)
+    };
+    let stop = Cell::new(false);
     for xll in &o.xlls {
-        match host.handle(Request::LoadAddin {
+        let request = Request::LoadAddin {
             path: xll.display().to_string(),
             expected_hash: None,
-        }) {
+        };
+        let reply = match &mut backend {
+            Backend::Local(host) => host.handle(request),
+            Backend::Remote(controller) => controller.handle(request, &stop),
+        };
+        match reply {
             Reply::Addins(_) => {}
             Reply::Refused { message } => return Err(message),
             other => {
@@ -813,7 +1078,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
     }
     // Declared after the shell so that it drops first: the add-ins close while their windows exist.
     let app = Rc::new(App {
-        host: RefCell::new(host),
+        backend: RefCell::new(backend),
         web,
         frame: frame.cast(),
         root: shell.hwnd(),
@@ -821,6 +1086,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
         bounds: Cell::new(size),
         waiting: RefCell::new(VecDeque::new()),
         busy: Cell::new(false),
+        stop,
     });
     {
         // The page's messages must not keep the app alive: a weak handle lets it drop at exit.
@@ -867,6 +1133,60 @@ pub fn run(args: &[String]) -> Result<(), String> {
     drop(set);
     drop(shell);
     Ok(())
+}
+
+/// The surrogate role (`dna-onecalc-desktop --surrogate <incarnation> [--sheet NAME] [--data-dir
+/// DIR] [--trust-macros] [--macros LEVEL]`): the session and its add-ins, with the hidden window
+/// chain and the message pump the add-ins need, answering the window's process over its standard
+/// input and output. Its dialogs are the window's.
+pub fn run_surrogate_role(args: &[String]) -> Result<(), String> {
+    let mut args = args.iter();
+    let incarnation = args
+        .next()
+        .and_then(|text| calc_surrogate_wire::Incarnation::parse(text))
+        .ok_or("--surrogate needs the incarnation the window chose")?;
+    let (mut sheet, mut data_dir, mut trust_macros, mut macros) =
+        ("Sheet1".to_owned(), None, false, None);
+    while let Some(arg) = args.next() {
+        let mut value = || args.next().cloned().ok_or(format!("{arg} needs a value"));
+        match arg.as_str() {
+            "--sheet" => sheet = value()?,
+            "--data-dir" => data_dir = Some(PathBuf::from(value()?)),
+            "--trust-macros" => trust_macros = true,
+            "--macros" => {
+                let text = value()?;
+                macros = Some(
+                    dna_onecalc::MacroSecurity::parse(&text)
+                        .ok_or(format!("--macros is off, safe or unguarded, not {text}"))?,
+                )
+            }
+            other => return Err(format!("unknown surrogate argument: {other}")),
+        }
+    }
+    // Frames go out on the standard output this process was started with; anything an add-in
+    // prints goes to standard error from here on.
+    let wire = calc_platform_desktop::surrogate::surrogate_wire()?;
+    let shell = Shell::new("DNA OneCalc")?;
+    let (session, set) = session_and_addins(&shell, &sheet)?;
+    let end = SurrogateEnd::new(incarnation, Box::new(wire));
+    let mut host = Host::new(session, RemoteFiles(end.clone()), Addins::new(set.clone()));
+    let macro_folder =
+        data_dir.unwrap_or_else(calc_platform_desktop::macro_security::default_folder);
+    host.session_mut()
+        .set_macro_policy(calc_platform_desktop::macro_security::policy(
+            &macro_folder,
+            trust_macros,
+            macros,
+        ));
+    let result = run_surrogate(&mut host, &end, |host| {
+        pump_pending();
+        host.poll_rtd()
+    });
+    // The add-ins close while their windows exist.
+    drop(host);
+    drop(set);
+    drop(shell);
+    result
 }
 
 #[cfg(test)]

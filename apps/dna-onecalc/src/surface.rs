@@ -233,14 +233,6 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
     let vba_source = RwSignal::new(calc_vba::EXAMPLE_MODULE.to_owned());
     let vba_status = RwSignal::new("No VBA module loaded.".to_owned());
     let vba_generation = RwSignal::new(0u64);
-    // The host tells the page when a real-time value arrived for the formula: it is evaluated again.
-    link.with_value(|link| {
-        link.on_event(Rc::new(move |event| {
-            if event == "rtd" {
-                vba_generation.update(|generation| *generation += 1);
-            }
-        }))
-    });
     // Whether the file's VBA project may run: Excel's default is not until the person enables it.
     let macros_view = RwSignal::new(MacrosView::Enabled);
     let block_reason = RwSignal::new(String::new());
@@ -328,6 +320,26 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
     let loaded = RwSignal::new(Vec::<String>::new());
     let loaded_addins = RwSignal::new(Vec::<LoadedAddin>::new());
     let addin_status = RwSignal::new(String::new());
+    // Whether the host runs the session and its add-ins in a process of their own (it says so).
+    let addin_process = RwSignal::new(false);
+    // The host tells the page when a real-time value arrived for the formula: it is evaluated again.
+    link.with_value(|link| {
+        link.on_event(Rc::new(move |event| match event.as_str() {
+            "rtd" => vba_generation.update(|generation| *generation += 1),
+            // The desktop host runs the session and its add-ins in a process of their own.
+            "addin-process" => addin_process.set(true),
+            // That process ended by itself: what it had loaded is gone.
+            "addin-process-stopped" => {
+                addin_process.set(true);
+                loaded_addins.set(Vec::new());
+                addin_status.set(
+                    "The add-in process stopped. Restart the add-in process to load add-ins again."
+                        .to_owned(),
+                );
+            }
+            _ => {}
+        }))
+    });
     let addin_path = RwSignal::new(String::new());
     let addins_open = RwSignal::new(false);
     let baseline = RwSignal::new(Some(initial.clone()));
@@ -538,6 +550,26 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
         for listed in offered {
             load_listed.run(listed);
         }
+    };
+    // The add-in process (when the host runs one): stop it, or start a new one with nothing loaded.
+    let stop_addin_process = move |_| {
+        call(
+            Request::StopAddinProcess,
+            Box::new(move |reply| {
+                on_addins.run((reply, "Stopped the add-in process.".to_owned()))
+            }),
+        );
+    };
+    let restart_addin_process = move |_| {
+        call(
+            Request::RestartAddinProcess,
+            Box::new(move |reply| {
+                on_addins.run((
+                    reply,
+                    "Restarted the add-in process; nothing that ran before ran again.".to_owned(),
+                ))
+            }),
+        );
     };
     let unload_addin = Callback::new(move |path: String| {
         call(
@@ -1111,6 +1143,14 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                     />
                     <button data-onecalc="addin-load-path" on:click=load_addin_path>
                         "Load path"
+                    </button>
+                </div>
+                <div class="oc-session-actions" hidden=move || !addin_process.get()>
+                    <button data-onecalc="addin-process-stop" on:click=stop_addin_process>
+                        "Stop add-in process"
+                    </button>
+                    <button data-onecalc="addin-process-restart" on:click=restart_addin_process>
+                        "Restart add-in process"
                     </button>
                 </div>
                 <p role="status" data-onecalc="addin-status">

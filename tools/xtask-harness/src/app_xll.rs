@@ -30,12 +30,25 @@
 //! calculates in the reopened file, and records whether Excel repaired it (a "[Repaired]" name or a
 //! new `error*.xml` repair log).
 //!
+//! `--transport surrogate` runs every set with the session and its add-ins in OneCalc's add-in
+//! process (docs/architecture/ADDIN_SURROGATE.md, Stage 3; the exe's `--transport surrogate`); the
+//! default `in-process` is the conformance mode. The summary records which, so the counts of the two
+//! runs can be compared.
+//!
 //! Exit code: 0 when every case of every selected set matched, 1 otherwise, 2 for a usage error.
 
 use super::*;
 use std::collections::BTreeMap;
 
-pub const USAGE: &str = "usage: cargo xtask app xll-accept onecalc --exe <dna-onecalc-desktop.exe> --bundle <dir> --plan <plan.json> --out <dir> [--var NAME=VALUE]... [--set <name>]... [--allow-unmatched]";
+pub const USAGE: &str = "usage: cargo xtask app xll-accept onecalc --exe <dna-onecalc-desktop.exe> --bundle <dir> --plan <plan.json> --out <dir> [--var NAME=VALUE]... [--set <name>]... [--transport in-process|surrogate] [--allow-unmatched]";
+
+/// The transport the exe runs its session over (`--transport`), for every set of a run.
+static TRANSPORT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// The `--transport` value: `in-process` or `surrogate`.
+fn transport_of(value: &str) -> Option<&'static str> {
+    ["in-process", "surrogate"].into_iter().find(|t| *t == value)
+}
 
 pub(super) const PAGE_WAIT: Duration = Duration::from_secs(60);
 pub(super) const LOAD_WAIT: Duration = Duration::from_secs(240);
@@ -449,6 +462,8 @@ fn start_page(
             &upstream.to_string(),
             "--size",
             "1280x1000",
+            "--transport",
+            TRANSPORT.get().map_or("in-process", String::as_str),
         ])
         .args(extra)
         .env(
@@ -1036,6 +1051,15 @@ pub fn run(ws: &Workspace, raw: &[String]) -> ExitCode {
             ("--plan", Some(v)) => plan = Some(PathBuf::from(v)),
             ("--out", Some(v)) => out = Some(PathBuf::from(v)),
             ("--set", Some(v)) => only.push(v.clone()),
+            ("--transport", Some(v)) => match transport_of(v) {
+                Some(t) => {
+                    let _ = TRANSPORT.set(t.to_owned());
+                }
+                None => {
+                    eprintln!("{USAGE}");
+                    return ExitCode::from(2);
+                }
+            },
             ("--var", Some(v)) => match v.split_once('=') {
                 Some((name, value)) => {
                     vars.insert(name.to_owned(), value.to_owned());
@@ -1109,14 +1133,15 @@ pub fn run(ws: &Workspace, raw: &[String]) -> ExitCode {
             );
             reports.push(report);
         }
-        let summary = json!({"sets": reports, "cases": total, "matched": matched, "dnacalc_only": dna_only});
+        let transport = TRANSPORT.get().map_or("in-process", String::as_str);
+        let summary = json!({"sets": reports, "cases": total, "matched": matched, "dnacalc_only": dna_only, "transport": transport});
         fs::write(
             out.join("summary.json"),
             serde_json::to_string_pretty(&summary).map_err(|e| e.to_string())?,
         )
         .map_err(|e| e.to_string())?;
         println!(
-            "ONECALC XLL-ACCEPT total: matched {matched} of {total} cases, {dna_only} DNA Calc-only (need a workbook); summary {}",
+            "ONECALC XLL-ACCEPT total ({transport}): matched {matched} of {total} cases, {dna_only} DNA Calc-only (need a workbook); summary {}",
             out.join("summary.json").display()
         );
         Ok((summary, clean))

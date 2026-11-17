@@ -29,9 +29,14 @@ mod embedded;
 #[cfg(any(windows, test))]
 mod host;
 #[cfg(windows)]
+mod measure;
+#[cfg(windows)]
 mod rtd;
 #[cfg(windows)]
 mod settings;
+// The session in an add-in surrogate: builds where the host does.
+#[cfg(any(windows, test))]
+mod surrogate;
 
 #[cfg(windows)]
 const WORKBOOK: &str = "Book1";
@@ -44,6 +49,14 @@ fn run() -> Result<(), String> {
     use std::path::PathBuf;
     // `--app`: the OneCalc page in WebView2 over the native session (src/app.rs).
     let raw: Vec<String> = std::env::args().skip(1).collect();
+    // `--surrogate`: the session and its add-ins for a window in another process (src/surrogate.rs).
+    if raw.first().map(String::as_str) == Some(calc_platform_desktop::surrogate::SURROGATE_ARG) {
+        return app::run_surrogate_role(&raw[1..]);
+    }
+    // `--measure-surrogate`: the add-in process's cost against the in-process mode (src/measure.rs).
+    if raw.first().map(String::as_str) == Some("--measure-surrogate") {
+        return measure::run(&raw[1..]);
+    }
     if raw.first().map(String::as_str) == Some("--version") {
         println!("DNA OneCalc {}", env!("CARGO_PKG_VERSION"));
         return Ok(());
@@ -356,6 +369,8 @@ fn main() -> std::process::ExitCode {
                         "--message-file",
                         "--save-dir",
                         "--data-dir",
+                        // The add-in process has no window of its own to show a box from.
+                        calc_platform_desktop::surrogate::SURROGATE_ARG,
                     ]
                     .contains(&a.as_str())
                 });
