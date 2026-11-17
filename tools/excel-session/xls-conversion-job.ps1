@@ -691,6 +691,24 @@ try {
             $book.SaveAs($xlsx, 51)
             $book.Close($false); $book = $null
             $pivot.xlsx_base64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($xlsx))
+            # A controlled encrypted twin probes cache-stream encryption. Never use a corpus file.
+            $encrypted = [ordered]@{file='excel-pivot-encrypted.xls'; error=$null}
+            try {
+                $encryptedXls = Join-Path $outputDir 'pivot-encrypted.xls'
+                $encryptedXlsx = Join-Path $outputDir 'pivot-encrypted.xlsx'
+                $book = $app.Workbooks.Open($xls, 0, $false)
+                $book.SaveAs($encryptedXls, 56, 'VelvetSweatshop')
+                $book.Close($false); $book = $null
+                $encrypted.source_base64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($encryptedXls))
+                $encrypted.sha256 = (Get-FileHash -LiteralPath $encryptedXls -Algorithm SHA256).Hash.ToLowerInvariant()
+                $book = $app.Workbooks.Open($encryptedXls, 0, $false, [Type]::Missing, 'VelvetSweatshop')
+                $encrypted.before = Snapshot $book
+                $book.SaveAs($encryptedXlsx, 51, '')
+                $book.Close($false); $book = $null
+                $encrypted.package_base64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($encryptedXlsx))
+            } catch { $encrypted.error = $_.Exception.ToString() }
+            finally { if ($book) { try {$book.Close($false)} catch {}; $book=$null } }
+            $generated.Add($encrypted)
         } catch { $pivot.error = $_.Exception.ToString() }
         finally { if ($book) { try {$book.Close($false)} catch {}; $book=$null } }
     }
