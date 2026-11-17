@@ -1004,16 +1004,35 @@ pub mod art {
         blip.push(0xFF);
         blip.extend_from_slice(png);
         let blip_atom = atom(0, 0x6E0, 0xF01E, &blip);
-        let mut bse = vec![6u8, 6];
+        group_with_blip(6, &blip_atom)
+    }
+
+    fn group_with_blip(kind: u8, blip_atom: &[u8]) -> Vec<u8> {
+        let mut bse = vec![kind, kind];
         bse.extend([0x22u8; 16]);
         bse.extend([0, 0]);
         bse.extend((blip_atom.len() as u32).to_le_bytes());
         bse.extend(1u32.to_le_bytes());
         bse.extend(0u32.to_le_bytes());
         bse.extend([0, 0, 0, 0]);
-        bse.extend_from_slice(&blip_atom);
-        let store = atom(0xF, 1, 0xF001, &atom(2, 6, 0xF007, &bse));
+        bse.extend_from_slice(blip_atom);
+        let store = atom(0xF, 1, 0xF001, &atom(2, u16::from(kind), 0xF007, &bse));
         record(0x00EB, &atom(0xF, 0, 0xF000, &store))
+    }
+
+    /// An EMF blip with either a valid or deliberately damaged zlib checksum.
+    pub fn group_with_emf(emf: &[u8], corrupt_checksum: bool) -> Vec<u8> {
+        let mut compressed = miniz_oxide::deflate::compress_to_vec_zlib(emf, 6);
+        if corrupt_checksum { *compressed.last_mut().unwrap() ^= 1; }
+        let mut blip = vec![0x11u8; 16];
+        let mut header = [0u8; 34];
+        header[0..4].copy_from_slice(&(emf.len() as u32).to_le_bytes());
+        header[20..24].copy_from_slice(&1_000_000u32.to_le_bytes());
+        header[24..28].copy_from_slice(&1_000_000u32.to_le_bytes());
+        header[28..32].copy_from_slice(&(compressed.len() as u32).to_le_bytes());
+        header[33] = 0xfe;
+        blip.extend(header); blip.extend(compressed);
+        group_with_blip(2, &atom(0, 0x3d4, 0xf01a, &blip))
     }
 
     /// A shape container: type (instance of the Fsp), pib (0 for none), anchor, text box flag.
