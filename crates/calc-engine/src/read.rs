@@ -920,7 +920,25 @@ impl<'a> RecalcView<'a> {
     /// `Err` with the anchor's node and cell when the cell may lie in the spill of an anchor the
     /// recalculation calculates and has not evaluated yet. Both `Ok(None)` when no spill holds
     /// the cell.
+    ///
+    /// The spill of the formula reading ([`Self::caller`]) is none: a formula reads the cells its
+    /// own spill occupies as blank, and its spill does not feed back (Excel P05, 16.0.20527
+    /// through Touchstone sheet cases, 2026-11-16/17, cell-context family spill-placement: in A1
+    /// `=SEQUENCE(3)+A3` spills 1|2|3 when entered and when calculated again with its spill in
+    /// place, and `=ISBLANK(A2:A4)` stays TRUE).
     pub(crate) fn spill_at(&self, at: CellKey) -> Result<Option<&'a Spill>, (NodeId, CellKey)> {
+        let own = |anchor: CellKey| {
+            self.caller
+                .is_some_and(|caller| self.state.node_at(anchor) == Some(caller))
+        };
+        match self.spill_at_any(at) {
+            Ok(Some(spill)) if !self.cached_observation && own(spill.anchor()) => Ok(None),
+            Err((node, _)) if !self.cached_observation && self.caller == Some(node) => Ok(None),
+            other => other,
+        }
+    }
+
+    fn spill_at_any(&self, at: CellKey) -> Result<Option<&'a Spill>, (NodeId, CellKey)> {
         if self.cached_observation {
             return Ok(self.boundary_caches.and_then(|pin| pin.spills.covering(at)));
         }

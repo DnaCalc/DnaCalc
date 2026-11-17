@@ -139,7 +139,9 @@ place, so call counts differ, never values (`EVALUATOR_SUSPENSION.md` section 3)
   restart on an uncalculated read as a named mode, or keep the documented difference.
 - dc-hsa5.4: effectful continuation; async wait inside a provisional evaluation (`recalc.rs:5869,5912,5923`).
 - dc-hsa5.11: cyclic targets and iteration in Manual range calculation (`recalc.rs:1605-1629,2063`).
-- dc-hsa5: certificates that did not stabilize; a spill occupying a blank it read (`recalc.rs:5142,5450`).
+- dc-hsa5: certificates that did not stabilize (`recalc.rs`). A spill over blanks its own formula read is no
+  longer refused: P05 answered (the formula reads its own spill's cells as blank, `read.rs` `spill_at`; its read
+  certificates leave its own spill out, `contract.rs` `span_versions_at`).
 - dc-hsa5.6 (detached current-value evaluation), dc-971p.34 (deleted name), dc-8wp, dc-8wp.19 (pivots), dc-m3u
   (sheet-span binding has no product caller: `lib.rs:16-18`, `state.rs:1350`).
 - Probes without a fixture folder (inferred: not run): P11, P13, P15-P21, P23-P29; P14 remainder (RC 13).
