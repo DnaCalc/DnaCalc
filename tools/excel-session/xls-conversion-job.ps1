@@ -308,6 +308,31 @@ try {
                 $shape.Line.Visible = 0
                 @{name=[string]$shape.Name; visible=$shape.Line.Visible}
             }
+            $entry.setup.straight_lines = @(foreach ($lineCase in @(
+                @{kind='line'; x0=100; y0=700; x1=220; y1=730; arrow=1},
+                @{kind='line'; x0=100; y0=760; x1=220; y1=740; arrow=1},
+                @{kind='line'; x0=220; y0=800; x1=100; y1=780; arrow=1},
+                @{kind='line'; x0=100; y0=820; x1=220; y1=820; arrow=1},
+                @{kind='connector'; x0=100; y0=850; x1=220; y1=875; arrow=2}
+            )) {
+                GetOrError {
+                    $shape = if ($lineCase.kind -eq 'connector') {
+                        $sheet.Shapes.AddConnector(1, $lineCase.x0, $lineCase.y0, $lineCase.x1, $lineCase.y1)
+                    } else {
+                        $sheet.Shapes.AddLine($lineCase.x0, $lineCase.y0, $lineCase.x1, $lineCase.y1)
+                    }
+                    $shape.Line.Visible = -1
+                    $shape.Line.ForeColor.RGB = 0x563412
+                    $shape.Line.Weight = 0.75
+                    $shape.Line.DashStyle = 1
+                    $shape.Line.EndArrowheadStyle = $lineCase.arrow
+                    @{name=[string]$shape.Name; requested=$lineCase; type=[int]$shape.Type;
+                        left=[double]$shape.Left; top=[double]$shape.Top; width=[double]$shape.Width; height=[double]$shape.Height;
+                        rotation=[double]$shape.Rotation; flip_h=[int]$shape.HorizontalFlip; flip_v=[int]$shape.VerticalFlip;
+                        color=[int]$shape.Line.ForeColor.RGB; weight=[double]$shape.Line.Weight;
+                        dash=[int]$shape.Line.DashStyle; end_arrow=[int]$shape.Line.EndArrowheadStyle}
+                }
+            })
             $entry.setup.linked_picture = GetOrError {
                 $path = Join-Path $inputDir 'linked-picture.png'
                 $picture = $sheet.Shapes.AddPicture($path, -1, 0, 100, 355, 60, 30)
