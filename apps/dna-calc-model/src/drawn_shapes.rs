@@ -330,6 +330,7 @@ const PRESETS: &[&str] = &[
     "wedgeRoundRectCallout",
     "flowChartProcess",
     "flowChartDecision",
+    "flowChartConnector",
     "flowChartTerminator",
     "flowChartDocument",
     "bentConnector2",
@@ -453,7 +454,7 @@ pub fn geometry_path(prst: &str, w: f64, h: f64, adjust: &[(String, i64)]) -> Op
             let a = pin(0.0, av(adjust, "adj", 16667.0), 50000.0);
             rounded(w, h, ss * a / 100_000.0)
         }
-        "ellipse" => {
+        "ellipse" | "flowChartConnector" => {
             let (rx, ry) = (w / 2.0, h / 2.0);
             let (kx, ky) = (rx * KAPPA, ry * KAPPA);
             vec![
@@ -663,7 +664,7 @@ pub fn text_rect(prst: &str, w: f64, h: f64, adjust: &[(String, i64)]) -> [f64; 
             [il, il, w - il, h - il]
         }
         // The square inscribed in the ellipse: cos 45 degrees of each radius.
-        "ellipse" => {
+        "ellipse" | "flowChartConnector" => {
             let (dx, dy) = (hc * std::f64::consts::FRAC_1_SQRT_2, vc * std::f64::consts::FRAC_1_SQRT_2);
             [hc - dx, vc - dy, hc + dx, vc + dy]
         }
@@ -1472,6 +1473,7 @@ mod tests {
         assert_eq!(d("rtTriangle", 40.0, 20.0, &[]), "M0 20L0 0L40 20Z");
         assert_eq!(d("diamond", 40.0, 20.0, &[]), "M0 10L20 0L40 10L20 20Z");
         assert_eq!(d("flowChartDecision", 40.0, 20.0, &[]), d("diamond", 40.0, 20.0, &[]));
+        assert_eq!(d("flowChartConnector", 40.0, 20.0, &[]), d("ellipse", 40.0, 20.0, &[]));
         assert_eq!(d("flowChartProcess", 40.0, 20.0, &[]), d("rect", 40.0, 20.0, &[]));
         // parallelogram: the slant is ss * adj / 100000, held to 100000 * w / ss.
         assert_eq!(d("parallelogram", 100.0, 40.0, &[]), "M0 40L10 0L100 0L90 40Z");
@@ -1861,6 +1863,7 @@ mod tests {
         assert_eq!(text_rect("rect", 100.0, 40.0, &[]), [0.0, 0.0, 100.0, 40.0]);
         // Ellipse: the inscribed square at cos 45 of each radius.
         let [l, t, r, b] = text_rect("ellipse", 100.0, 40.0, &[]);
+        assert_eq!(text_rect("flowChartConnector", 100.0, 40.0, &[]), [l, t, r, b]);
         assert!((l - 14.644).abs() < 0.001 && (t - 5.858).abs() < 0.001 && (r - 85.355).abs() < 0.001 && (b - 34.142).abs() < 0.001);
         assert_eq!(text_rect("diamond", 100.0, 40.0, &[]), [25.0, 10.0, 75.0, 30.0]);
         // Triangle: the lower half between the points a quarter and three quarters across (apex at the middle).

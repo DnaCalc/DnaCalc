@@ -2652,7 +2652,8 @@ fn explicit_shape_no_fill_is_preserved() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn officeart_presets_preserve_only_untransformed_geometry() {
     use xls_kit::art;
-    for (shape_type, geometry) in [(109, "flowChartProcess"), (5, "triangle")] {
+    for (shape_type, geometry) in [(109, "flowChartProcess"), (5, "triangle"),
+        (110, "flowChartDecision"), (120, "flowChartConnector")] {
     for (flags, property, expected) in [
         (0u32, None, true),
         (0, Some((0x03bf, 0x0008_0000)), true),

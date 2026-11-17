@@ -644,6 +644,10 @@ impl Drawing {
                         // An unadjusted OfficeArt isosceles triangle has a centered apex.
                         5 if shape.flags.is_some_and(|flags| flags & 0xff == 0)
                             && !shape.fixed_geometry_unsafe => "triangle",
+                        110 if shape.flags.is_some_and(|flags| flags & 0xff == 0)
+                            && !shape.fixed_geometry_unsafe => "flowChartDecision",
+                        120 if shape.flags.is_some_and(|flags| flags & 0xff == 0)
+                            && !shape.fixed_geometry_unsafe => "flowChartConnector",
                         // MS-ODRAW msosptFlowChartProcess; preserve only the untransformed preset.
                         109 if shape.flags.is_some_and(|flags| flags & 0xff == 0)
                             && !shape.fixed_geometry_unsafe => "flowChartProcess",
