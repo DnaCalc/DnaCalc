@@ -259,6 +259,10 @@ fn continued_shape(data: &[u8]) -> Option<Shape> {
     (shapes.len() == 1).then(|| shapes.remove(0))
 }
 
+pub(super) fn is_continued_shape(data: &[u8]) -> bool {
+    continued_shape(data).is_some()
+}
+
 // ---- Objects and what they own ----
 
 /// One OBJ record's drawing object.
@@ -358,7 +362,15 @@ impl Drawing {
                 }
                 false
             }
-            TXO => match self.waiting_text.take() {
+            TXO => {
+                self.continued_shape = None;
+                if let Some(piece) = record.continues.last()
+                    && let Some(shape) = continued_shape(piece)
+                    && let Some(end) = record.offset.checked_add(4 + record.body.len())
+                        .and_then(|end| record.continues.iter().try_fold(end, |at, piece| at.checked_add(4 + piece.len()))) {
+                    self.continued_shape = Some((end, shape));
+                }
+                match self.waiting_text.take() {
                 Some(index) => {
                     if let Ok(Some(units)) = super::strings::txo_text(record) {
                         self.objects[index].text = Some(units);
@@ -366,7 +378,8 @@ impl Drawing {
                     true
                 }
                 None => false,
-            },
+                }
+            }
             _ => false,
         }
     }

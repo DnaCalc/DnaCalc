@@ -176,6 +176,7 @@ fn write_legacy_excel_session_inputs() {
         record(0x0099, &u16s(&[2340])), record(0x00AB, &biff8_gcw), number(0, 0, 1.0)].concat();
     std::fs::write(dir.join("gcw-biff8.xls"), xls(false, &[], &[Sheet::worksheet("Data", biff8_gcw_cells)])).unwrap();
     std::fs::write(dir.join("drawing-obj-continuation.xls"), obj_continuation_fixture(false)).unwrap();
+    std::fs::write(dir.join("drawing-txo-continuation.xls"), txo_continuation_fixture(false)).unwrap();
     std::fs::write(dir.join("forms.xls"), include_bytes!("fixtures/dc_4j0e/FormsWorkbook.xls")).unwrap();
     let repair_cases = [
         ("repair-slash.xls", "Bad/Name"),
@@ -217,7 +218,7 @@ fn write_legacy_excel_session_inputs() {
     let short_format = record(0x041e, &[0xa4, 0x00, 0x02, 0x00, 0x00, b'x']);
     std::fs::write(dir.join("repair-short-format.xls"),
         xls(false, &short_format, &[Sheet::worksheet("Data", number(0, 0, 42.0))])).unwrap();
-    for name in ["cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "drawing-obj-continuation", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
+    for name in ["cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "drawing-obj-continuation", "drawing-txo-continuation", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
         let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
         let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
         let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
@@ -226,7 +227,7 @@ fn write_legacy_excel_session_inputs() {
         std::fs::write(dir.join(format!("{name}.dnacalc.xlsx")), converted).unwrap();
     }
     let cases = serde_json::json!({
-        "files": ["cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "drawing-obj-continuation.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
+        "files": ["cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
         "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls",
             "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls",
             "repair-elf-column.xls", "repair-elf-radical.xls", "repair-addin-cell.xls",
@@ -2393,6 +2394,31 @@ fn obj_continuation_fixture(intervening: bool) -> Vec<u8> {
     let between = if intervening { number(0, 0, 1.0) } else { Vec::new() };
     let records = [art::drawing(&[first]), art::obj(6, 1), record(0x003c, &second),
         between, art::obj(3, 2)].concat();
+    xls(false, &[], &[Sheet::worksheet("S", records)])
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn drawing_shape_after_split_txo_does_not_become_text_or_formatting() {
+    for (intervening, expected) in [(false, 2), (true, 1)] {
+        let bytes = txo_continuation_fixture(intervening);
+        let loaded = load(&bytes);
+        assert_eq!(loaded.sheets()[0].shapes().shapes.len(), expected);
+        let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let drawing = String::from_utf8(document.package().read_part("xl/drawings/drawing1.xml").unwrap()).unwrap();
+        assert!(drawing.contains("Aé漢"), "{drawing}");
+    }
+}
+
+fn txo_continuation_fixture(intervening: bool) -> Vec<u8> {
+    use xls_kit::art;
+    let first = art::shape(202, 0, [1, 0, 1, 0, 4, 0, 6, 0], true);
+    let second = art::shape(3, 0, [5, 0, 1, 0, 8, 0, 6, 0], false);
+    let mut body = u16s(&[0x0212, 0, 0, 0, 0, 3, 16]); body.extend([0u8; 4]);
+    let between = if intervening { number(0, 0, 1.0) } else { Vec::new() };
+    let records = [art::drawing(&[first]), art::obj(6, 1), record(0x01b6, &body),
+        record(0x003c, &[0, b'A']), record(0x003c, &[1, 0xe9, 0, 0x22, 0x6f]),
+        record(0x003c, &[0; 16]), record(0x003c, &second), between, art::obj(3, 2)].concat();
     xls(false, &[], &[Sheet::worksheet("S", records)])
 }
 
