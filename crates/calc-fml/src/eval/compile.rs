@@ -807,14 +807,12 @@ impl<'c> Lowering<'c> {
                         SyntaxChild::Node(_) => None,
                     })
                     .collect();
-                let mode = match operator.as_str() {
-                    ".:" => 1.0,
-                    ":." => 2.0,
-                    ".:." => 3.0,
-                    _ => return Err(syntax(span)),
+                let Some(mode) = calc_catalogue::unheld::trim_reference_mode(&operator) else {
+                    return Err(syntax(span));
                 };
+                let mode = f64::from(mode);
                 let target = catalogue()
-                    .resolve_surface(Notation::Call, "TRIMRANGE")
+                    .resolve(calc_catalogue::offset::TRIMRANGE)
                     .map(Target)
                     .map_err(|_| syntax(span))?;
                 tasks.push(Task::Emit {
@@ -1091,20 +1089,13 @@ impl<'c> Lowering<'c> {
         // dc-h9u: a trim reference as a file stores it (Excel 16.0.20527 saves `C1:.C20` as
         // `_xlfn._TRO_TRAILING(C1:C20)`, `C1.:C20` as `_TRO_LEADING` and `C1.:.C20` as
         // `_TRO_ALL`): TRIMRANGE of the range with both trim arguments 2, 1 or 3.
-        let trim = [
-            ("_TRO_LEADING", 1.0),
-            ("_TRO_TRAILING", 2.0),
-            ("_TRO_ALL", 3.0),
-        ]
-        .into_iter()
-        .find(|(name, _)| spelling.eq_ignore_ascii_case(name))
-        .map(|(_, mode)| mode);
+        let trim = calc_catalogue::unheld::trim_reference_file_mode(spelling).map(f64::from);
         if let (true, Some(mode)) = (prefixed, trim) {
             let [operand] = arguments[..] else {
                 return Err(syntax(span));
             };
             let target = catalogue()
-                .resolve_surface(Notation::Call, "TRIMRANGE")
+                .resolve(calc_catalogue::offset::TRIMRANGE)
                 .map(Target)
                 .map_err(|_| syntax(span))?;
             tasks.push(Task::Emit {
@@ -1127,7 +1118,12 @@ impl<'c> Lowering<'c> {
                 node: operand,
                 tail: false,
                 block,
-                place: place.argument("TRIMRANGE", 0, Some(ParameterClass::Reference), false),
+                place: place.argument(
+                    target.0.spelling(),
+                    0,
+                    Some(ParameterClass::Reference),
+                    false,
+                ),
             });
             return Ok(());
         }
