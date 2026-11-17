@@ -269,12 +269,19 @@ fn read_chart_xml(
     let mut grid_color: Option<String> = None;
     let (mut grid_chart, mut grid_plot_area, mut grid_axis) = (false, false, false);
     let (mut axis_shape_seen, mut axis_line_seen, mut axis_line_invalid, mut axis_no_fill_seen) = (false, false, false, false);
+    let mut axis_scope = false;
+    let (mut color_shape_seen, mut color_line_seen, mut color_fill_seen, mut color_invalid) = (false, false, false, false);
+    let mut axis_color: Option<String> = None;
     loop {
         let element = match events.next()? {
             Some(XmlEvent::Start(element)) => element,
             Some(XmlEvent::End(_)) => {
                 match path.iter().map(String::as_str).collect::<Vec<_>>().as_slice() {
-                    ["chart", "plotArea", "valAx"] => {
+                    ["chart", "plotArea", axis] if matches!(*axis, "valAx" | "catAx" | "dateAx" | "serAx") => {
+                        axis_scope = false;
+                        (axis_shape_seen, axis_line_seen, axis_line_invalid, axis_no_fill_seen) = (false, false, false, false);
+                        (color_shape_seen, color_line_seen, color_fill_seen, color_invalid) = (false, false, false, false);
+                        axis_color = None;
                         grid_axis = false;
                         (grid_seen, grid_shape_seen, grid_line_seen, grid_fill_seen, grid_invalid) = (false, false, false, false, false);
                         grid_color = None;
@@ -307,6 +314,12 @@ fn read_chart_xml(
             && path[3..6] == ["title", "tx", "rich"];
         let val = element.attribute("val").map(str::to_owned);
         let names = path.iter().map(String::as_str).collect::<Vec<_>>();
+        if names.is_empty() && local == "chart" { grid_chart = element.name.is(CHART_NAMESPACE, "chart"); }
+        if names.as_slice() == ["chart"] && local == "plotArea" { grid_plot_area = grid_chart && element.name.is(CHART_NAMESPACE, "plotArea"); }
+        if names.as_slice() == ["chart", "plotArea"] && matches!(local.as_str(), "valAx" | "catAx" | "dateAx" | "serAx") {
+            axis_scope = grid_plot_area && element.name.is(CHART_NAMESPACE, &local);
+        }
+        if axis_scope {
         if matches!(names.as_slice(), ["chart", "plotArea", axis] if axis.ends_with("Ax"))
             && element.name.is(CHART_NAMESPACE, "spPr") {
             if axis_shape_seen { axis_line_invalid = true; }
@@ -323,11 +336,36 @@ fn read_chart_xml(
             } else { axis_line_invalid = true; }
         }
         if axis_line_invalid && let Some(axis) = chart.axes.last_mut() { axis.line_hidden = false; }
-        if axis_no_fill_seen && !axis_line_invalid && let Some(axis) = chart.axes.last_mut() { axis.line_hidden = true; }
-        if names.is_empty() && local == "chart" { grid_chart = element.name.is(CHART_NAMESPACE, "chart"); }
-        if names.as_slice() == ["chart"] && local == "plotArea" { grid_plot_area = grid_chart && element.name.is(CHART_NAMESPACE, "plotArea"); }
+        if axis_shape_seen && axis_line_seen && axis_no_fill_seen && !axis_line_invalid && let Some(axis) = chart.axes.last_mut() { axis.line_hidden = true; }
+        }
         if names.as_slice() == ["chart", "plotArea"] && local == "valAx" { grid_axis = grid_plot_area && element.name.is(CHART_NAMESPACE, "valAx"); }
         let drawing = "http://schemas.openxmlformats.org/drawingml/2006/main";
+        if axis_scope {
+            if names.as_slice() == ["chart", "plotArea", "catAx"] && element.name.is(CHART_NAMESPACE, "spPr") {
+                if color_shape_seen || !element.attributes.is_empty() { color_invalid = true; }
+                color_shape_seen = true;
+            }
+            if names.as_slice() == ["chart", "plotArea", "catAx", "spPr"] {
+                if !element.name.is(drawing, "ln") || color_line_seen || !element.attributes.is_empty() { color_invalid = true; }
+                color_line_seen = true;
+            }
+            if names.as_slice() == ["chart", "plotArea", "catAx", "spPr", "ln"] {
+                if !element.name.is(drawing, "solidFill") || color_fill_seen || !element.attributes.is_empty() { color_invalid = true; }
+                color_fill_seen = true;
+            }
+            if names.as_slice() == ["chart", "plotArea", "catAx", "spPr", "ln", "solidFill"] {
+                let color = element.attribute("val");
+                if !element.name.is(drawing, "srgbClr") || axis_color.is_some() || element.attributes.len() != 1
+                    || !color.is_some_and(|c| c.len() == 6 && c.bytes().all(|b| b.is_ascii_hexdigit())) {
+                    color_invalid = true;
+                } else { axis_color = color.map(|c| c.to_ascii_uppercase()); }
+            }
+            if names.as_slice() == ["chart", "plotArea", "catAx", "spPr", "ln", "solidFill", "srgbClr"] { color_invalid = true; }
+            if let Some(axis) = chart.axes.last_mut() {
+                if color_invalid { axis.line_color = None; }
+                else if color_shape_seen && color_line_seen && color_fill_seen && axis_color.is_some() { axis.line_color = axis_color.clone(); }
+            }
+        }
         if grid_axis {
         if names.as_slice() == ["chart", "plotArea", "valAx"] && element.name.is(CHART_NAMESPACE, "majorGridlines") {
             if grid_seen || !element.attributes.is_empty() { grid_invalid = true; }
@@ -763,6 +801,39 @@ fn read_simple_value_labels(events: &mut Events<'_>) -> Result<(bool, bool), Loa
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn category_axis_line_color_requires_one_simple_rgb_line() {
+        for (shape, expected) in [
+            (r#"<c:spPr><a:ln><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></a:ln></c:spPr>"#, Some("FF0000")),
+            (r#"<c:spPr><a:ln w="3"><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></a:ln></c:spPr>"#, None),
+            (r#"<c:spPr><a:ln><a:solidFill><a:srgbClr val="FF0000"><a:alpha val="50000"/></a:srgbClr></a:solidFill></a:ln></c:spPr>"#, None),
+            (r#"<c:spPr><a:ln><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill><a:noFill/></a:ln></c:spPr>"#, None),
+            (r#"<u:spPr><a:ln><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></a:ln></u:spPr>"#, None),
+        ] {
+            let text = format!(r#"<c:chartSpace xmlns:c="{CHART_NAMESPACE}" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:u="urn:other"><c:chart><c:plotArea><c:catAx><c:axId val="1"/>{shape}</c:catAx></c:plotArea></c:chart></c:chartSpace>"#);
+            let xml = XmlPart::new("chart.xml".into(), text.into_bytes(), crate::xml::XmlLimits::default());
+            let chart = read_chart_xml(&xml, "chart.xml", "Chart".into(), ChartAnchor::Absolute { x: 0, y: 0, width: 100, height: 100 }).unwrap();
+            assert_eq!(chart.axes[0].line_color.as_deref(), expected);
+        }
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn hidden_axis_line_ignores_spoofed_ancestors() {
+        for shape in [
+            r#"<u:spPr><a:ln><a:noFill/></a:ln></u:spPr>"#,
+            r#"<c:spPr><u:ln><a:noFill/></u:ln></c:spPr>"#,
+        ] {
+            let text = format!(r#"<c:chartSpace xmlns:c="{CHART_NAMESPACE}" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:u="urn:other"><c:chart><c:plotArea><c:catAx><c:axId val="1"/>{shape}</c:catAx></c:plotArea></c:chart></c:chartSpace>"#);
+            let xml = XmlPart::new("chart.xml".into(), text.into_bytes(), crate::xml::XmlLimits::default());
+            let chart = read_chart_xml(&xml, "chart.xml", "Chart".into(), ChartAnchor::Absolute { x: 0, y: 0, width: 100, height: 100 }).unwrap();
+            assert!(!chart.axes[0].line_hidden);
+        }
+        let text = format!(r#"<c:chartSpace xmlns:c="{CHART_NAMESPACE}" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:u="urn:other"><c:chart><c:plotArea><c:catAx><c:axId val="1"/></c:catAx><u:catAx><c:spPr><a:ln><a:noFill/></a:ln></c:spPr></u:catAx></c:plotArea></c:chart></c:chartSpace>"#);
+        let xml = XmlPart::new("chart.xml".into(), text.into_bytes(), crate::xml::XmlLimits::default());
+        let chart = read_chart_xml(&xml, "chart.xml", "Chart".into(), ChartAnchor::Absolute { x: 0, y: 0, width: 100, height: 100 }).unwrap();
+        assert!(!chart.axes[0].line_hidden);
+    }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn axis_major_gridline_color_requires_one_simple_rgb_line() {

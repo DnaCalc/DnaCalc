@@ -182,6 +182,7 @@ pub(crate) struct Chart {
     axis_line_seen: [bool; 2],
     axis_line_invalid: [bool; 2],
     axis_line_hidden: [bool; 2],
+    axis_line_color: [Option<String>; 2],
     axis_format_seen: [bool; 2],
     axis_format_invalid: [bool; 2],
     axis_formats: [Option<String>; 2],
@@ -504,6 +505,12 @@ impl Chart {
                     if code_page.is_none() && record.continues.is_empty() && body.len() == 12 {
                         self.axis_line_hidden[index] = body[4..6] == [5, 0] && body[6..8] == [255, 255]
                             && body[8..10] == [8, 0] && body[10..12] == [0x4d, 0];
+                        if body[3] == 0 && body[4..8] == [0, 0, 255, 255]
+                            && matches!(body[8..10], [0, 0] | [4, 0]) {
+                            let rgb = format!("FF{:02X}{:02X}{:02X}", body[0], body[1], body[2]);
+                            self.axis_line_color[index] = styles.rgb(u16::from_le_bytes([body[10], body[11]]))
+                                .filter(|palette| palette == &rgb).map(|_| rgb[2..].to_owned());
+                        }
                     } else { self.axis_line_invalid[index] = true; }
                 }
             }
@@ -1044,6 +1051,11 @@ impl Chart {
                 }
                 if !self.axis_line_invalid[axis_index] && self.axis_line_hidden[axis_index] {
                     x.open("c:spPr", &[]); x.open("a:ln", &[]); x.empty("a:noFill", &[]); x.close("a:ln"); x.close("c:spPr");
+                } else if tag == "c:catAx" && !self.axis_line_invalid[axis_index]
+                    && let Some(color) = self.axis_line_color[axis_index].as_ref() {
+                    x.open("c:spPr", &[]); x.open("a:ln", &[]); x.open("a:solidFill", &[]);
+                    x.empty("a:srgbClr", &[("val", color.clone())]);
+                    x.close("a:solidFill"); x.close("a:ln"); x.close("c:spPr");
                 }
                 text_font_element(&mut x, if self.axis_font_invalid[axis_index] { None } else { self.axis_fonts[axis_index].as_ref() });
                 x.empty("c:crossAx", &[("val", cross.to_owned())]);

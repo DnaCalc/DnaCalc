@@ -3404,6 +3404,42 @@ fn chart_axis_title_fonts_reject_overrides_and_duplicate_links() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_category_axis_line_color_requires_palette_matched_hairline() {
+    use xls_kit::art;
+    for (parent, axis, extra, expected) in [
+        (0u16, 0u16, 0u8, Some("FFFFFF")), (1, 0, 0, None), (0, 1, 0, None),
+        (0, 0, 1, None), (0, 0, 2, None), (0, 0, 3, None), (0, 0, 4, None),
+        (0, 0, 5, None), (0, 0, 6, None), (0, 0, 7, None),
+    ] {
+        let mut chart = art::chart(&[("A", Vec::new(), Vec::new())], 0, "Title");
+        let format = record(0x1014, &[0u8; 20]);
+        let at = chart.windows(format.len()).position(|w| w == format).unwrap();
+        let mut parent_body = u16s(&[parent]); parent_body.extend([0u8; 16]);
+        let mut axis_body = u16s(&[axis]); axis_body.extend([0u8; 16]);
+        let mut line = vec![255, 255, 255, 0, 0, 0, 255, 255, 4, 0, 9, 0];
+        match extra { 1 => line[0] = 0, 2 => line[4] = 2, 3 => line[6] = 0,
+            4 => line[8] = 5, 5 => line.truncate(11), _ => {} }
+        let mut block = [record(0x1041, &parent_body), art::begin(), record(0x101D, &axis_body),
+            art::begin(), record(0x1021, &u16s(&[0]))].concat();
+        if extra == 6 { block.extend(record(0x104F, &[0u8; 20])); }
+        block.extend(record(0x1007, &line));
+        if extra == 7 { block.extend([record(0x1021, &u16s(&[0])), record(0x1007, &line)].concat()); }
+        block.extend([art::end(), art::end()].concat());
+        chart.splice(at..at, block);
+        let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
+        let bytes = xls(false, &[], &[Sheet::worksheet("S", records)]);
+        assert_eq!(load(&bytes).sheets()[0].charts().charts[0].axes[usize::from(axis)].line_color.as_deref(), expected, "extra {extra}");
+        if let Some(color) = expected {
+            let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            assert_eq!(load(&saved).sheets()[0].charts().charts[0].axes[usize::from(axis)].line_color.as_deref(), Some(color));
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn chart_value_axis_major_gridline_color_requires_palette_matched_hairline() {
     use xls_kit::art;
     for (parent, axis, extra, expected) in [

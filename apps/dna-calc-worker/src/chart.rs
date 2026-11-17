@@ -888,18 +888,23 @@ fn category_marks(
         _ => {}
     }
     // The category axis line, at zero.
+    let axis_color = chart.axes.iter().find(|axis| axis.id == category_axis)
+        .and_then(|axis| axis.line_color.as_deref())
+        .filter(|color| color.len() == 6 && color.bytes().all(|b| b.is_ascii_hexdigit()))
+        .map(|color| format!("#{color}"))
+        .unwrap_or_else(|| AXIS.to_owned());
     if layout.is_none_or(|l| l.index == 0)
         && !chart.axes.iter().any(|axis| axis.id == category_axis && axis.line_hidden)
     {
         if horizontal {
             let _ = write!(
                 svg,
-                "<line x1=\"{zero:.1}\" y1=\"{y0:.1}\" x2=\"{zero:.1}\" y2=\"{y1:.1}\" stroke=\"{AXIS}\"/>"
+                "<line x1=\"{zero:.1}\" y1=\"{y0:.1}\" x2=\"{zero:.1}\" y2=\"{y1:.1}\" stroke=\"{axis_color}\"/>"
             );
         } else {
             let _ = write!(
                 svg,
-                "<line x1=\"{x0:.1}\" y1=\"{zero:.1}\" x2=\"{x1:.1}\" y2=\"{zero:.1}\" stroke=\"{AXIS}\"/>"
+                "<line x1=\"{x0:.1}\" y1=\"{zero:.1}\" x2=\"{x1:.1}\" y2=\"{zero:.1}\" stroke=\"{axis_color}\"/>"
             );
         }
     }
@@ -1129,6 +1134,10 @@ mod tests {
         grid_chart.axes.iter_mut().find(|axis| axis.kind == "valAx").unwrap().major_gridline_color = Some("FF0000".into());
         let grid_svg = chart_svg(&grid_chart, 600., 350.);
         assert!(grid_svg.split('<').any(|tag| tag.starts_with("line ") && tag.contains("stroke=\"#FF0000\"")), "{grid_svg}");
+        let mut colored_axis = charts[0].clone();
+        colored_axis.axes.iter_mut().find(|axis| axis.kind == "catAx").unwrap().line_color = Some("FF0000".into());
+        let colored_svg = chart_svg(&colored_axis, 600., 350.);
+        assert!(colored_svg.split('<').any(|tag| tag.starts_with("line ") && tag.contains("stroke=\"#FF0000\"")), "{colored_svg}");
         let mut no_axis_line = charts[0].clone();
         let category = no_axis_line.axes.iter_mut().find(|axis| axis.kind == "catAx").unwrap();
         category.line_hidden = true;

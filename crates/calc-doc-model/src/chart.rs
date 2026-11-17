@@ -138,6 +138,8 @@ pub struct ChartAxis {
     pub tick_labels_hidden: bool,
     /// Whether the file explicitly suppresses the axis line.
     pub line_hidden: bool,
+    /// Explicit RGB for the axis line, when its line is supported.
+    pub line_color: Option<String>,
     /// Explicit axis label number format, when it is independent of source cells.
     pub number_format: Option<String>,
     /// Explicit RGB for the major gridlines, when their line is supported.
