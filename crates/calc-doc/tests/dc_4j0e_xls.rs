@@ -648,6 +648,16 @@ fn scenarios_survive_conversion_as_unsupported_metadata() {
     scenario[reference+2..reference+4].copy_from_slice(&0x4000u16.to_le_bytes());
     let bad = calc_doc::open(source(&make(&manager, &scenario)), &OpenPolicy::default()).unwrap();
     assert!(!String::from_utf8(bad.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap().contains("<scenarios"));
+    // BIFF5 strings are byte-counted and use the workbook code page.
+    let mut legacy = u16s(&[1]); legacy.extend([1, 0, 4, 0, 3]); legacy.extend(b"caf\xE9");
+    legacy.extend([3, b'A', b'n', b'n']); legacy.extend(u16s(&[0, 0]));
+    legacy.extend([1, b'7', 0, 0]);
+    let records = [record(0x00AE, &u16s(&[1, 0, 0xffff, 0])), record(0x00AF, &legacy)].concat();
+    let legacy = v5::xls(1252, &[], &[v5::Sheet::new("S", records)]);
+    let legacy_doc = calc_doc::open(source(&legacy), &OpenPolicy::default()).unwrap();
+    let xml = String::from_utf8(legacy_doc.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+    assert!(xml.contains("name=\"café\"") && xml.contains("<inputCells r=\"A1\" val=\"7\"/>"), "{xml}");
+    let _loaded = load(&legacy);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

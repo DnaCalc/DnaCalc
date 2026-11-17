@@ -888,7 +888,7 @@ pub(crate) fn read(
             }
         }
     }
-    let scenarios = super::scenario::read(records, context.v5.is_some());
+    let scenarios = super::scenario::read(records, context.v5);
     features.write_after_data(&mut x, &mut rels, drawing_id, &rules, context.filter_range.as_deref(), scenarios.as_ref());
     x.close(root);
     Ok(SheetPart {

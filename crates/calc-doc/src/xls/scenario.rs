@@ -1,4 +1,4 @@
-//! Complete BIFF8 scenario definitions retained as unsupported worksheet metadata.
+//! Complete BIFF5/8 scenario definitions retained as unsupported worksheet metadata.
 //! MS-XLS 2.4.244 and 2.4.246; the application does not apply these scenarios.
 use super::{records::Record, strings::Pieces};
 use crate::xlsb::Xml;
@@ -15,17 +15,22 @@ fn word(bytes: &[u8], at: usize) -> Option<u16> {
 fn cell(row: u16, col: u16) -> String {
     format!("{}{}", super::sheet::column_name(u32::from(col)), u32::from(row) + 1)
 }
-fn unicode(p: &mut Pieces<'_>, count: usize) -> Option<Vec<u16>> {
+fn text(p: &mut Pieces<'_>, count: usize, page: Option<u16>) -> Option<Vec<u16>> {
+    if let Some(page) = page {
+        let bytes = (0..count).map(|_| p.u8("scenario string").ok()).collect::<Option<Vec<_>>>()?;
+        return Some(super::codepage::decode(page, &bytes).ok()?.encode_utf16().collect());
+    }
     let flags = p.u8("scenario string").ok()?;
     if flags & !1 != 0 { return None; }
     p.characters(count, flags & 1 != 0, "scenario string").ok()
 }
-fn full_string(p: &mut Pieces<'_>, expected: Option<usize>) -> Option<Vec<u16>> {
-    let count = usize::from(p.u16("scenario string length").ok()?);
+fn full_string(p: &mut Pieces<'_>, expected: Option<usize>, page: Option<u16>) -> Option<Vec<u16>> {
+    let count = if page.is_some() { usize::from(p.u8("scenario string length").ok()?) }
+        else { usize::from(p.u16("scenario string length").ok()?) };
     if expected.is_some_and(|length| count != length) { return None; }
-    unicode(p, count)
+    text(p, count, page)
 }
-fn scenario(record: &Record<'_>) -> Option<Scenario> {
+fn scenario(record: &Record<'_>, page: Option<u16>) -> Option<Scenario> {
     if !record.continues.is_empty() { return None; }
     let mut p = Pieces::new(record);
     let count = usize::from(p.u16("scenario cells").ok()?);
@@ -35,10 +40,10 @@ fn scenario(record: &Record<'_>) -> Option<Scenario> {
     let comment_len = usize::from(p.u8("scenario comment length").ok()?);
     let user_len = usize::from(p.u8("scenario user length").ok()?);
     if !(1..=32).contains(&count) || locked > 1 || hidden > 1 || name_len == 0 || user_len > 52 { return None; }
-    let name = unicode(&mut p, name_len)?;
+    let name = text(&mut p, name_len, page)?;
     String::from_utf16(&name).ok()?;
-    let user = if user_len == 0 { Vec::new() } else { full_string(&mut p, Some(user_len))? };
-    let comment = if comment_len == 0 { Vec::new() } else { full_string(&mut p, Some(comment_len))? };
+    let user = if user_len == 0 { Vec::new() } else { full_string(&mut p, Some(user_len), page)? };
+    let comment = if comment_len == 0 { Vec::new() } else { full_string(&mut p, Some(comment_len), page)? };
     let mut cells = Vec::with_capacity(count);
     let mut distinct = BTreeSet::new();
     for _ in 0..count {
@@ -51,16 +56,15 @@ fn scenario(record: &Record<'_>) -> Option<Scenario> {
         cells.push(address);
     }
     let mut inputs = Vec::with_capacity(count);
-    for cell in cells { inputs.push(Input { cell, value: full_string(&mut p, None)? }); }
+    for cell in cells { inputs.push(Input { cell, value: full_string(&mut p, None, page)? }); }
     p.skip(count.checked_mul(2)?, "scenario unused bytes").ok()?;
     if !p.done() { return None; }
     Some(Scenario { name, user, comment, locked: locked != 0, hidden: hidden != 0, inputs })
 }
 
-/// Only a complete, unambiguous BIFF8 collection is emitted. Its records remain counted unread
+/// Only a complete, unambiguous collection is emitted. Its records remain counted unread
 /// because the application cannot yet apply or edit scenarios.
-pub(crate) fn read(records: &[Record<'_>], biff5: bool) -> Option<Scenarios> {
-    if biff5 { return None; }
+pub(crate) fn read(records: &[Record<'_>], page: Option<u16>) -> Option<Scenarios> {
     let mut depth = 0usize;
     let mut custom = 0usize;
     let mut manager = None;
@@ -100,7 +104,7 @@ pub(crate) fn read(records: &[Record<'_>], biff5: bool) -> Option<Scenarios> {
     let mut names = BTreeSet::new();
     let mut scenarios = Vec::with_capacity(count);
     for record in entries {
-        let item = scenario(record)?;
+        let item = scenario(record, page)?;
         if !names.insert(String::from_utf16(&item.name).ok()?.to_lowercase()) { return None; }
         scenarios.push(item);
     }
