@@ -654,6 +654,15 @@ impl Features {
         x.close("sheetViews");
     }
 
+    pub(crate) fn write_header_footer(&self, x: &mut Xml) {
+        if self.header.as_deref().is_some_and(|h| !h.is_empty()) || self.footer.as_deref().is_some_and(|f| !f.is_empty()) {
+            x.open("headerFooter", &[]);
+            if let Some(h) = self.header.as_deref().filter(|h| !h.is_empty()) { x.element("oddHeader", &[], h); }
+            if let Some(f) = self.footer.as_deref().filter(|f| !f.is_empty()) { x.element("oddFooter", &[], f); }
+            x.close("headerFooter");
+        }
+    }
+
     /// The elements after `<sheetData>`; hyperlinks add relationships to `rels`.
     pub(crate) fn write_after_data(
         &self,
@@ -799,16 +808,7 @@ impl Features {
         } else if let Some(id) = printer_id {
             x.empty("pageSetup", &[("r:id", id.to_owned())]);
         }
-        if self.header.as_deref().is_some_and(|h| !h.is_empty()) || self.footer.as_deref().is_some_and(|f| !f.is_empty()) {
-            x.open("headerFooter", &[]);
-            if let Some(h) = self.header.as_deref().filter(|h| !h.is_empty()) {
-                x.element("oddHeader", &[], h);
-            }
-            if let Some(f) = self.footer.as_deref().filter(|f| !f.is_empty()) {
-                x.element("oddFooter", &[], f);
-            }
-            x.close("headerFooter");
-        }
+        self.write_header_footer(x);
         for (name, breaks, full, full_text) in [
             ("rowBreaks", &self.row_breaks, 255u16, "16383"),
             ("colBreaks", &self.column_breaks, 65535u16, "1048575"),

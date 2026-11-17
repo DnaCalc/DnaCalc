@@ -1,8 +1,7 @@
 //! Single-byte code pages of BIFF5/7 workbooks (the CODEPAGE record): 128 characters for the
 //! bytes 0x80 to 0xFF of each page, as the Windows, DOS and Mac Roman code page tables give them
 //! (generated from the standard code page tables; an unassigned byte of a Windows page is the control character of the same code, as Windows maps it). Bytes below
-//! 0x80 are ASCII in every page listed. Code page 932 uses the portable Shift-JIS decoder;
-//! other double-byte pages (936, 949, 950) are not read.
+//! 0x80 are ASCII in every page listed. East Asian double-byte pages use portable decoders.
 
 /// The characters of bytes 0x80 to 0xFF of code page `page`, when it is a single-byte page this
 /// reader knows.
@@ -87,11 +86,36 @@ pub(crate) fn decode(page: u16, bytes: &[u8]) -> Result<String, String> {
     if bytes.is_ascii() {
         return Ok(bytes.iter().map(|b| char::from(*b)).collect());
     }
-    if page == 932 {
-        return encoding_rs::SHIFT_JIS
+    // WHATWG GBK and Big5 include mappings outside Windows code pages 936 and 950,
+    // and some Big5 mappings differ. Keep only lead-byte ranges with identical
+    // mappings; unsupported ranges remain typed refusals rather than altered text.
+    if matches!(page, 936 | 950) {
+        let mut at = 0;
+        while at < bytes.len() {
+            let lead = bytes[at];
+            if lead < 0x80 { at += 1; continue; }
+            let safe = match page {
+                936 => matches!(lead, 0x81..=0xa0 | 0xb0..=0xd6 | 0xd8..=0xf7),
+                950 => matches!(lead, 0xa1..=0xa2 | 0xa4..=0xc5 | 0xc9..=0xf8),
+                _ => false,
+            };
+            if !safe || at + 1 >= bytes.len() {
+                return Err(format!("unsupported or invalid text in code page {page} (dc-4j0e.3)"));
+            }
+            at += 2;
+        }
+    }
+    if let Some(encoding) = match page {
+        932 => Some(encoding_rs::SHIFT_JIS),
+        936 => Some(encoding_rs::GBK),
+        949 => Some(encoding_rs::EUC_KR),
+        950 => Some(encoding_rs::BIG5),
+        _ => None,
+    } {
+        return encoding
             .decode_without_bom_handling_and_without_replacement(bytes)
             .map(|text| text.into_owned())
-            .ok_or_else(|| "invalid text in code page 932".to_owned());
+            .ok_or_else(|| format!("invalid text in code page {page}"));
     }
     let table = high_half(if page == 0 { 1252 } else { page })
         .ok_or_else(|| format!("text in code page {page}, which is not read"))?;
@@ -114,6 +138,11 @@ mod tests {
         assert_eq!(decode(932, b"plain").unwrap(), "plain");
         assert_eq!(decode(932, b"\x82\xA0").unwrap(), "あ");
         assert!(decode(932, b"\x82").is_err());
-        assert!(decode(936, b"\x81\x40").is_err());
+        assert_eq!(decode(936, b"\xd6\xd0").unwrap(), "中");
+        assert_eq!(decode(949, b"\xb0\xa1").unwrap(), "가");
+        assert_eq!(decode(950, b"\xa4\xa4").unwrap(), "中");
+        assert!(decode(936, b"\xa1\x40").is_err());
+        assert!(decode(950, b"\xc6\xa1").is_err());
+        for page in [936, 949, 950] { assert!(decode(page, b"\x81").is_err()); }
     }
 }

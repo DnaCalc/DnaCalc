@@ -76,13 +76,24 @@ fn ole_property_section(items: &[(u32, Vec<u8>)]) -> Vec<u8> {
     result
 }
 
-fn custom_blob_fixture() -> Vec<u8> {
+fn custom_property_fixture(unaligned_page: bool) -> Vec<u8> {
     let mut page = 2u32.to_le_bytes().to_vec(); page.extend(u16s(&[1252, 0]));
     let document = ole_property_section(&[(1, page.clone())]);
     let mut dictionary = 1u32.to_le_bytes().to_vec(); dictionary.extend(2u32.to_le_bytes());
     dictionary.extend(7u32.to_le_bytes()); dictionary.extend(b"cxBlob\0");
-    let mut blob = 0x41u32.to_le_bytes().to_vec(); blob.extend(4u32.to_le_bytes()); blob.extend([0, 1, 2, 255]);
-    let user = ole_property_section(&[(0, dictionary), (1, page), (2, blob)]);
+    let mut value = if unaligned_page { 3u32.to_le_bytes().to_vec() } else { 0x41u32.to_le_bytes().to_vec() };
+    if unaligned_page { value.extend(42i32.to_le_bytes()); }
+    else { value.extend(4u32.to_le_bytes()); value.extend([0, 1, 2, 255]); }
+    let mut user = ole_property_section(&[(0, dictionary), (1, page), (2, value)]);
+    if unaligned_page {
+        let at = u32::from_le_bytes(user[20..24].try_into().unwrap()) as usize;
+        let next = u32::from_le_bytes(user[28..32].try_into().unwrap()) as usize;
+        user.splice(at..at, [0, 0]);
+        user.splice(next+2..next+2, [0, 0]);
+        user[20..24].copy_from_slice(&((at + 2) as u32).to_le_bytes());
+        user[28..32].copy_from_slice(&((next + 4) as u32).to_le_bytes());
+        let size = user.len() as u32; user[..4].copy_from_slice(&size.to_le_bytes());
+    }
     let mut stream = vec![0u8; 68]; stream[..2].copy_from_slice(&0xfffeu16.to_le_bytes());
     stream[24..28].copy_from_slice(&2u32.to_le_bytes());
     stream[28..44].copy_from_slice(&[0x02, 0xd5, 0xcd, 0xd5, 0x9c, 0x2e, 0x1b, 0x10,
@@ -92,6 +103,20 @@ fn custom_blob_fixture() -> Vec<u8> {
         0x93, 0x97, 0x08, 0x00, 0x2b, 0x2c, 0xf9, 0xae]);
     stream[64..68].copy_from_slice(&(68u32 + document.len() as u32).to_le_bytes());
     stream.extend(document); stream.extend(user);
+    let workbook = workbook_stream(false, &[], &[Sheet::worksheet("Data", number(0, 0, 42.0))]);
+    compound(&[("Workbook", workbook), ("\u{5}DocumentSummaryInformation", stream)])
+}
+
+fn east_asian_property_fixture(page: u16, text: &[u8]) -> Vec<u8> {
+    let mut cp = 2u32.to_le_bytes().to_vec(); cp.extend(u16s(&[page, 0]));
+    let mut value = 30u32.to_le_bytes().to_vec(); value.extend(((text.len() + 1) as u32).to_le_bytes());
+    value.extend(text); value.push(0);
+    let mut stream = vec![0u8; 48]; stream[..2].copy_from_slice(&0xfffeu16.to_le_bytes());
+    stream[24..28].copy_from_slice(&1u32.to_le_bytes());
+    stream[28..44].copy_from_slice(&[0x02, 0xd5, 0xcd, 0xd5, 0x9c, 0x2e, 0x1b, 0x10,
+        0x93, 0x97, 0x08, 0x00, 0x2b, 0x2c, 0xf9, 0xae]);
+    stream[44..48].copy_from_slice(&48u32.to_le_bytes());
+    stream.extend(ole_property_section(&[(1, cp), (15, value)]));
     let workbook = workbook_stream(false, &[], &[Sheet::worksheet("Data", number(0, 0, 42.0))]);
     compound(&[("Workbook", workbook), ("\u{5}DocumentSummaryInformation", stream)])
 }
@@ -182,12 +207,16 @@ fn write_legacy_excel_session_inputs() {
         std::fs::write(dir.join(file), xls(false, &sst(&[("Sales", &[])], None), &[Sheet::worksheet("Data", cells)])).unwrap();
     }
     std::fs::write(dir.join("repair-addin-cell.xls"), addin_cell_reference_fixture()).unwrap();
-    std::fs::write(dir.join("custom-blob.xls"), custom_blob_fixture()).unwrap();
+    std::fs::write(dir.join("custom-blob.xls"), custom_property_fixture(false)).unwrap();
+    std::fs::write(dir.join("custom-unaligned-page.xls"), custom_property_fixture(true)).unwrap();
+    for (page, text) in [(936u16, &b"\xd6\xd0"[..]), (949, &b"\xb0\xa1"[..]), (950, &b"\xa4\xa4"[..])] {
+        std::fs::write(dir.join(format!("company-cp{page}.xls")), east_asian_property_fixture(page, text)).unwrap();
+    }
     for (file, bytes) in damaged_compound_fixtures() { std::fs::write(dir.join(file), bytes).unwrap(); }
     let short_format = record(0x041e, &[0xa4, 0x00, 0x02, 0x00, 0x00, b'x']);
     std::fs::write(dir.join("repair-short-format.xls"),
         xls(false, &short_format, &[Sheet::worksheet("Data", number(0, 0, 42.0))])).unwrap();
-    for name in ["cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "forms", "custom-blob"] {
+    for name in ["cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
         let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
         let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
         let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
@@ -196,7 +225,7 @@ fn write_legacy_excel_session_inputs() {
         std::fs::write(dir.join(format!("{name}.dnacalc.xlsx")), converted).unwrap();
     }
     let cases = serde_json::json!({
-        "files": ["cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "forms.xls", "custom-blob.xls"],
+        "files": ["cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
         "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls",
             "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls",
             "repair-elf-column.xls", "repair-elf-radical.xls", "repair-addin-cell.xls",
@@ -528,7 +557,12 @@ fn chart_sheet_preserves_series_in_a_linked_chart_part() {
     let globals = [supbook_self(2), extern_sheet(&[(0, 0, 0)])].concat();
     let chart = art::chart(&[("Sales", area3d(0, (1, 4), (0, 0), 0),
         area3d(0, (1, 4), (1, 1), 0))], 0, "Sales chart");
-    let records = chart[bof(0x0020).len()..chart.len()-eof().len()].to_vec();
+    let header = |text: &str| {
+        let mut body = (text.len() as u16).to_le_bytes().to_vec(); body.push(0); body.extend(text.as_bytes());
+        record(0x0014, &body)
+    };
+    let records = [header("&CChart & page"), record(0x01AA, &[]), header("custom only"), record(0x01AB, &[]),
+        chart[bof(0x0020).len()..chart.len()-eof().len()].to_vec()].concat();
     let mut three_d_records = records.clone();
     three_d_records.extend(record(0x103A, &[0; 14]));
     let bytes = xls(false, &globals, &[Sheet::worksheet("Data", number(1, 1, 7.5)),
@@ -539,6 +573,7 @@ fn chart_sheet_preserves_series_in_a_linked_chart_part() {
         assert!(chart.contains("Data!$B$2:$B$5") && chart.contains("Sales chart"), "{chart}");
         let sheet = String::from_utf8(doc.package().read_part("xl/chartsheets/sheet2.xml").unwrap()).unwrap();
         assert!(sheet.contains("<drawing r:id=\"rId1\"/>"), "{sheet}");
+        assert!(sheet.contains("<oddHeader>&amp;CChart &amp; page</oddHeader>") && !sheet.contains("custom only"), "{sheet}");
         assert!(doc.package().part("xl/drawings/drawing2.xml").is_some());
         assert!(doc.package().part("xl/drawings/_rels/drawing2.xml.rels").is_some());
     };
@@ -551,10 +586,13 @@ fn chart_sheet_preserves_series_in_a_linked_chart_part() {
     verify(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
     let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
     assert_eq!(report.unknown_records.get(&0x1003), Some(&1));
+    assert_eq!(report.unknown_records.get(&0x0014), Some(&1));
     let three_d = xls(false, &globals, &[Sheet::worksheet("Data", Vec::new()),
         Sheet { kind: 2, ..Sheet::worksheet("Chart1", three_d_records) }]);
     let three_d_doc = calc_doc::open(source(&three_d), &OpenPolicy::default()).unwrap();
     assert!(three_d_doc.package().part("xl/charts/chart2_1.xml").is_none());
+    let sheet = String::from_utf8(three_d_doc.package().read_part("xl/chartsheets/sheet2.xml").unwrap()).unwrap();
+    assert!(sheet.contains("<oddHeader>&amp;CChart &amp; page</oddHeader>"), "{sheet}");
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -631,7 +669,7 @@ fn damaged_compound_and_format_fixtures_report_their_missing_data() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn custom_blob_fixture_is_counted_as_unread() {
-    let bytes = custom_blob_fixture();
+    let bytes = custom_property_fixture(false);
     let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
     assert!(document.package().part("docProps/custom.xml").is_none());
     let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
@@ -722,6 +760,17 @@ fn ole_summary_properties_survive_conversion_and_save() {
     let bad_company = calc_doc::open(source(&bad_company), &OpenPolicy::default()).unwrap();
     let app = String::from_utf8(bad_company.package().read_part("docProps/app.xml").unwrap()).unwrap();
     assert!(app.contains("<Manager>Manager</Manager>") && !app.contains("<Company>"), "{app}");
+    for (page, encoded, expected) in [(936u16, &b"\xd6\xd0"[..], "中"), (949, &b"\xb0\xa1"[..], "가"),
+        (950, &b"\xa4\xa4"[..], "中")] {
+        let mut cp = 2u32.to_le_bytes().to_vec(); cp.extend(u16s(&[page, 0]));
+        let mut d = doc_summary[..48].to_vec(); d[24..28].copy_from_slice(&1u32.to_le_bytes());
+        d[44..48].copy_from_slice(&48u32.to_le_bytes());
+        d.extend(section(&[(1, cp), (15, ansi(encoded))]));
+        let input = compound(&[("Workbook", workbook.clone()), ("\u{5}DocumentSummaryInformation", d)]);
+        let opened = calc_doc::open(source(&input), &OpenPolicy::default()).unwrap();
+        let app = String::from_utf8(opened.package().read_part("docProps/app.xml").unwrap()).unwrap();
+        assert!(app.contains(&format!("<Company>{expected}</Company>")), "{app}");
+    }
     let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
     assert_eq!(report.unread_custom_property_types.get(&0x41), Some(&1));
     assert_eq!(report.unread_custom_property_sets, 0);

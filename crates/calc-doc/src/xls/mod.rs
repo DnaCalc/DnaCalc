@@ -348,6 +348,10 @@ pub(crate) fn convert(
             }
             SheetKind::Chart => {
                 let mut chart = chart::Chart::default();
+                let mut print_features = features::Features::default();
+                print_features.v5 = v5;
+                let mut print_records = [Vec::new(), Vec::new()];
+                let mut custom_view_depth = 0usize;
                 let mut depth = 1usize;
                 let (mut chart_groups, mut supported_groups) = (0usize, 0usize);
                 let mut unsupported_chart_type = false;
@@ -367,6 +371,12 @@ pub(crate) fn convert(
                         workbook::BOF => depth += 1,
                         workbook::EOF => depth = depth.saturating_sub(1),
                         _ if depth == 1 => {
+                            match record.id {
+                                0x01AA => custom_view_depth += 1,
+                                0x01AB => custom_view_depth = custom_view_depth.saturating_sub(1),
+                                0x0014 | 0x0015 if custom_view_depth == 0 => print_records[usize::from(record.id - 0x0014)].push(record),
+                                _ => {},
+                            }
                             match record.id {
                                 0x1002 if record.body.len() >= 16 => {
                                     let fixed = |at: usize| i32::from_le_bytes(record.body[at..at + 4].try_into().expect("four bytes"));
@@ -394,6 +404,16 @@ pub(crate) fn convert(
                         _ => {},
                     }
                 }
+                for records in &print_records {
+                    if let [record] = records.as_slice() {
+                        if matches!(print_features.read(record, &globals.styles), Ok(true)) {
+                            if let Some(count) = sheet_unknown.get_mut(&record.id) {
+                                *count -= 1;
+                                if *count == 0 { sheet_unknown.remove(&record.id); }
+                            }
+                        }
+                    }
+                }
                 let written_chart = (!unsupported_chart_type && chart_groups > 0 && chart_groups == supported_groups
                     && (v5.is_none() || chart.has_all_value_sources()))
                     .then(|| chart.write(&sheet.name)).flatten();
@@ -406,8 +426,8 @@ pub(crate) fn convert(
                         single_relationship("drawing", &format!("../drawings/drawing{number}.xml"))));
                     extra_entries.push((format!("xl/drawings/_rels/drawing{number}.xml.rels"),
                         single_relationship("chart", &format!("../charts/chart{number}_1.xml"))));
-                    linked_chartsheet()
-                } else { empty_chartsheet() };
+                    linked_chartsheet(&print_features)
+                } else { empty_chartsheet(&print_features) };
                 (
                     format!("xl/chartsheets/sheet{number}.xml"),
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.chartsheet+xml",
@@ -1043,12 +1063,13 @@ fn single_relationship(kind: &str, target: &str) -> Vec<u8> {
     xml.out
 }
 
-fn linked_chartsheet() -> Vec<u8> {
+fn linked_chartsheet(features: &features::Features) -> Vec<u8> {
     let mut xml = Xml::new();
     xml.open("chartsheet", &[("xmlns", MAIN_NAMESPACE.to_owned()), ("xmlns:r", RELATIONSHIPS_NAMESPACE.to_owned())]);
     xml.open("sheetViews", &[]);
     xml.empty("sheetView", &[("workbookViewId", "0".to_owned()), ("zoomToFit", "1".to_owned())]);
     xml.close("sheetViews");
+    features.write_header_footer(&mut xml);
     xml.empty("drawing", &[("r:id", "rId1".to_owned())]);
     xml.close("chartsheet");
     xml.out
@@ -1083,9 +1104,10 @@ fn chartsheet_drawing(size: Option<(i64, i64)>) -> Vec<u8> {
     xml.out
 }
 
-fn empty_chartsheet() -> Vec<u8> {
+fn empty_chartsheet(features: &features::Features) -> Vec<u8> {
     let mut xml = Xml::new();
     xml.open("chartsheet", &[("xmlns", MAIN_NAMESPACE.to_owned())]);
+    features.write_header_footer(&mut xml);
     xml.close("chartsheet");
     xml.out
 }
