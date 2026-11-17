@@ -72,6 +72,9 @@ struct Section<'a> {
 impl<'a> Section<'a> {
     fn value(&self, id: u32) -> Option<&'a [u8]> {
         let at = *self.offsets.get(&id)?;
+        // An unrelated malformed property must not hide independently readable values.
+        // Keep its offset as a boundary, but never interpret an unaligned value.
+        if at % 4 != 0 { return None; }
         let end = self.ordered.iter().copied().find(|offset| *offset > at).unwrap_or(self.bytes.len());
         self.bytes.get(at..end)
     }
@@ -109,7 +112,7 @@ fn section<'a>(data: &'a [u8], fmtid: &[u8; 16], single: bool) -> Option<Section
     for i in 0..count {
         let id = dword(bytes, 8 + i * 8)? as u32;
         let at = dword(bytes, 12 + i * 8)?;
-        if at < table_end || at % 4 != 0 || at.checked_add(4)? > size || offsets.insert(id, at).is_some() { return None; }
+        if at < table_end || at.checked_add(4)? > size || offsets.insert(id, at).is_some() { return None; }
     }
     let mut ordered: Vec<usize> = offsets.values().copied().collect();
     ordered.sort_unstable();

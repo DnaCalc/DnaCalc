@@ -665,8 +665,11 @@ fn ole_summary_properties_survive_conversion_and_save() {
     summary[28..44].copy_from_slice(&[0xe0, 0x85, 0x9f, 0xf2, 0xf9, 0x4f, 0x68, 0x10,
         0xab, 0x91, 0x08, 0x00, 0x2b, 0x27, 0xb3, 0xd9]);
     summary[44..48].copy_from_slice(&48u32.to_le_bytes()); summary.extend(section(&properties));
-    let doc_section = section(&[(1, properties[0].1.clone()), (2, ansi(b"Planning")),
-        (14, ansi(b"Manager")), (15, ansi(b"Company & Co"))]);
+    let mut doc_section = section(&[(1, properties[0].1.clone()), (2, ansi(b"Planning")),
+        (12, vec![0; 8]), (14, ansi(b"Manager")), (15, ansi(b"Company & Co"))]);
+    // A malformed, unrelated property offset must not hide aligned properties.
+    let unrelated_offset = u32::from_le_bytes(doc_section[28..32].try_into().unwrap());
+    doc_section[28..32].copy_from_slice(&(unrelated_offset + 1).to_le_bytes());
     let mut doc_summary = vec![0u8; 68];
     doc_summary[..2].copy_from_slice(&0xfffeu16.to_le_bytes());
     doc_summary[24..28].copy_from_slice(&2u32.to_le_bytes());
@@ -711,6 +714,14 @@ fn ole_summary_properties_survive_conversion_and_save() {
         assert!(rels.items().iter().any(|rel| rel.resolved.as_deref() == Some("docProps/custom.xml")));
     };
     check(&document);
+    // An unaligned offset for the property itself is still refused independently.
+    let mut bad_company = doc_summary.clone();
+    let company_offset = u32::from_le_bytes(bad_company[112..116].try_into().unwrap());
+    bad_company[112..116].copy_from_slice(&(company_offset + 1).to_le_bytes());
+    let bad_company = compound(&[("Workbook", workbook.clone()), ("\u{5}DocumentSummaryInformation", bad_company)]);
+    let bad_company = calc_doc::open(source(&bad_company), &OpenPolicy::default()).unwrap();
+    let app = String::from_utf8(bad_company.package().read_part("docProps/app.xml").unwrap()).unwrap();
+    assert!(app.contains("<Manager>Manager</Manager>") && !app.contains("<Company>"), "{app}");
     let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
     assert_eq!(report.unread_custom_property_types.get(&0x41), Some(&1));
     assert_eq!(report.unread_custom_property_sets, 0);
