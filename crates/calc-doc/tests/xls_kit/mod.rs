@@ -825,6 +825,32 @@ pub fn note(row: u16, column: u16, flags: u16, object: u16, author: &str) -> Vec
     record(0x001C, &body)
 }
 
+/// Raw BIFF4 fixtures use the same cell payload helpers where the layouts agree.
+pub mod v4 {
+    use super::*;
+    pub fn xls(records: &[u8]) -> Vec<u8> {
+        [record(0x0409, &u16s(&[0, 0x10, 0])), record(0x0042, &u16s(&[1252])),
+            records.to_vec(), record(0x000a, &[])].concat()
+    }
+    pub fn font(height: u16, flags: u16, color: u16, name: &str) -> Vec<u8> {
+        let mut b = u16s(&[height, flags, color]); b.push(name.len() as u8); b.extend(name.bytes());
+        record(0x0231, &b)
+    }
+    pub fn xf(font: u8, format: u8, flags: u16, alignment: u8, area: u16, border: u32) -> Vec<u8> {
+        let mut b = vec![font, format]; b.extend(flags.to_le_bytes()); b.extend([alignment, 0xfc]);
+        b.extend(area.to_le_bytes()); b.extend(border.to_le_bytes()); record(0x0443, &b)
+    }
+    pub fn formula(row: u16, col: u16, tokens: &[u8], extra: &[u8]) -> Vec<u8> {
+        let mut b = u16s(&[row, col, 0]); b.extend(0f64.to_le_bytes()); b.extend(0u16.to_le_bytes());
+        b.extend((tokens.len() as u16).to_le_bytes()); b.extend(tokens); b.extend(extra);
+        record(0x0406, &b)
+    }
+    pub fn name(name: &str, tokens: &[u8]) -> Vec<u8> {
+        let mut b = vec![0, 0, 0, name.len() as u8]; b.extend((tokens.len() as u16).to_le_bytes());
+        b.extend(name.bytes()); b.extend(tokens); record(0x0218, &b)
+    }
+}
+
 /// BIFF5/BIFF7 builders: byte strings in the workbook's code page, 14-bit rows, local link tables.
 pub mod v5 {
     use super::{record, u16s};

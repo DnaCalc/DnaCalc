@@ -79,6 +79,7 @@ struct Hyperlink {
 
 #[derive(Default)]
 pub(crate) struct Features {
+    pub(crate) biff4: bool,
     window: Option<(u16, u16, u16, Option<u16>, Option<u16>, Option<u16>)>,
     grid_color_representable: bool,
     zoom: Option<(u16, u16)>,
@@ -289,6 +290,11 @@ impl Features {
                 let mut v = [0u16; 6];
                 for item in &mut v {
                     *item = c.u16("Setup").map_err(e)?;
+                }
+                if self.biff4 && c.remaining() == 0 {
+                    self.setup = Some(v);
+                    // BIFF4 has no printer resolution, header/footer margin or copies fields.
+                    return Ok(false);
                 }
                 let horizontal = c.u16("Setup").map_err(e)?;
                 let vertical = c.u16("Setup").map_err(e)?;

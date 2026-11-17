@@ -183,6 +183,7 @@ pub(crate) fn read(
     features.number = context.number;
     features.macro_sheet = macro_sheet;
     features.v5 = context.v5;
+    features.biff4 = context.links.context(None).layout == formula::Layout::Biff4;
     // Shared and array formulas and data tables, by the cell of the FORMULA record they follow
     // (where a PtgExp finds them) and, for shared formulas, by the first cell of their range.
     let mut shared: BTreeMap<(u32, u32), Group> = BTreeMap::new();

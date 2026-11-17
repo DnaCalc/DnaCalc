@@ -21,7 +21,7 @@ fn source(bytes: &[u8]) -> Arc<dyn PackageRead> {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn raw_biff_headers_reach_the_owned_typed_refusal() {
     for (version, id, body) in [(2, 0x0009, u16s(&[2, 0x10])),
-        (3, 0x0209, u16s(&[0, 0x10, 0])), (4, 0x0409, u16s(&[0, 0x10, 0]))] {
+        (3, 0x0209, u16s(&[0, 0x10, 0]))] {
         let bytes = [record(id, &body), record(0x000a, &[])].concat();
         assert_eq!(calc_doc::LegacyFormat::sniff(&bytes), Some(calc_doc::LegacyFormat::RawBiff { version }));
         for error in [calc_doc::open(source(&bytes), &OpenPolicy::default()).err().unwrap(),
@@ -38,6 +38,79 @@ fn raw_biff_headers_reach_the_owned_typed_refusal() {
     let cfb = xls(false, &[], &[Sheet::worksheet("S", Vec::new())]);
     assert_eq!(calc_doc::LegacyFormat::sniff(&cfb), Some(calc_doc::LegacyFormat::Compound));
     assert_eq!(calc_doc::LegacyFormat::sniff(b"<html>spreadsheet</html>"), None);
+}
+
+fn raw_biff4_fixture() -> Vec<u8> {
+    let mut named = vec![0x43, 1, 0]; named.extend([0u8; 8]);
+    named.extend(ptg::int(2)); named.push(3);
+    let styled = |mut cell: Vec<u8>| { cell[8..10].copy_from_slice(&1u16.to_le_bytes()); cell };
+    let numeric = styled(number(0, 0, 42.5));
+    let mut padded_font = v4::font(240, 7, 10, "Courier New");
+    padded_font.extend([0xa5; 16]);
+    let padded_length = u16::from_le_bytes([padded_font[2], padded_font[3]]) + 16;
+    padded_font[2..4].copy_from_slice(&padded_length.to_le_bytes());
+    let globals = [v4::font(200, 0, 0x7fff, "Arial"), padded_font,
+        v5_styles::format(0, "General"), v5_styles::format(0, "0.00\"u\""),
+        v4::xf(0, 0, 0xfff5, 0x20, 0, 0), v4::xf(1, 1, 1, 0x2a, 1 | 10 << 6 | 9 << 11, 1 | 24 << 3),
+        v4::name("Rate", &ptg::int(40)), record(0x00a1, &u16s(&[9, 80, 1, 1, 0, 2]))].concat();
+    v4::xls(&[globals, numeric, styled(v5::label(0, 1, b"caf\xE9")), styled(v4::formula(0, 2, &named, &[])),
+        styled(v4::formula(1, 0, &[0x24, 0, 0, 0], &[])), record(0x7777, &[1, 2])].concat())
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn raw_biff4_uses_the_shared_cells_styles_names_and_save_route() {
+    let bytes = raw_biff4_fixture();
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert_eq!(report.biff_version, 4);
+    assert_eq!(report.unknown_records.get(&0x7777), Some(&1));
+    let loaded = load(&bytes);
+    assert_eq!(cells(loaded.model(), 0), vec!["A1 n:42.5", "B1 s:café", "C1 f:Rate+2", "A2 f:$A$1"]);
+    let style = loaded.sheets()[0].style(1, 1);
+    let table = loaded.styles();
+    assert_eq!(table.number_format_code(style), Some("0.00\"u\""));
+    let format = &table.cell_formats[style as usize];
+    let font = &table.fonts[format.font_id.unwrap() as usize];
+    assert_eq!(font.name.as_deref(), Some("Courier New"));
+    assert!(font.bold && font.italic && font.underline.is_some());
+    let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    assert_eq!(doc.legacy_source(), Some(bytes.as_slice()));
+    let xml = String::from_utf8(doc.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+    for expected in ["paperSize=\"9\"", "scale=\"80\"", "orientation=\"portrait\"", "fitToHeight=\"0\""] {
+        assert!(xml.contains(expected), "{expected}: {xml}");
+    }
+    for absent in ["horizontalDpi=", "verticalDpi=", "copies="] { assert!(!xml.contains(absent), "{xml}"); }
+    let mut saved = Vec::new();
+    calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+    assert_eq!(cells(load(&saved).model(), 0), cells(loaded.model(), 0));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn raw_biff4_array_header_uses_the_existing_array_route() {
+    let exp = [0x01, 0, 0, 0, 0];
+    let mut array = u16s(&[0, 1]); array.extend([0, 0]); array.extend(0u16.to_le_bytes());
+    array.extend(3u16.to_le_bytes()); array.extend(ptg::int(7));
+    let bytes = v4::xls(&[v4::formula(0, 0, &exp, &[]), record(0x0221, &array),
+        v4::formula(1, 0, &exp, &[])].concat());
+    let loaded = load(&bytes);
+    assert_eq!(cells(loaded.model(), 0), vec!["A1 f:7"]);
+    assert_eq!(loaded.model().definitions().arrays().count(), 1);
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert_eq!(report.unknown_records.get(&0x0221), Some(&1));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn raw_biff4_refuses_invalid_grid_and_unread_substreams() {
+    for bytes in [v4::xls(&number(16384, 0, 1.0)), v4::xls(&number(0, 256, 1.0)),
+        [record(0x0409, &u16s(&[0, 0x40, 0])), record(0x000a, &[])].concat(),
+        v4::xls(&record(0x023e, &[0u8; 10]))] {
+        match calc_doc::open(source(&bytes), &OpenPolicy::default()) {
+            Err(OpenError::LegacyWorkbook { detail, .. }) => assert!(detail.contains("dc-4j0e.14"), "{detail}"),
+            other => panic!("unsupported raw feature was not refused: {:?}", other.err()),
+        }
+    }
 }
 
 fn external_cache_fixture(invalid_link: bool) -> Vec<u8> {
@@ -188,6 +261,7 @@ fn write_legacy_excel_session_inputs() {
     old_cells.extend(record(0x001B, &u16s(&[1, 25])));
     old_cells.extend(record(0x001A, &u16s(&[1, 5])));
     let biff5 = v5::xls(1252, &[], &[v5::Sheet { name: b"Data".to_vec(), records: old_cells }]);
+    std::fs::write(dir.join("raw-biff4.xls"), raw_biff4_fixture()).unwrap();
     std::fs::write(dir.join("cells-biff8.xls"), biff8).unwrap();
     std::fs::write(dir.join("cells-biff5.xls"), biff5).unwrap();
     std::fs::write(dir.join("precision-biff8.xls"), xls(false, &record(0x000E, &0u16.to_le_bytes()),
@@ -253,7 +327,7 @@ fn write_legacy_excel_session_inputs() {
     let short_format = record(0x041e, &[0xa4, 0x00, 0x02, 0x00, 0x00, b'x']);
     std::fs::write(dir.join("repair-short-format.xls"),
         xls(false, &short_format, &[Sheet::worksheet("Data", number(0, 0, 42.0))])).unwrap();
-    for name in ["cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "tab-color-biff8", "drawing-rgb-solid-fill", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "drawing-rich-underline", "drawing-uniform-underline", "emf-checksum-valid", "emf-checksum-invalid", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
+    for name in ["raw-biff4", "cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "tab-color-biff8", "drawing-rgb-solid-fill", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "drawing-rich-underline", "drawing-uniform-underline", "emf-checksum-valid", "emf-checksum-invalid", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
         let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
         let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
         let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
@@ -262,7 +336,7 @@ fn write_legacy_excel_session_inputs() {
         std::fs::write(dir.join(format!("{name}.dnacalc.xlsx")), converted).unwrap();
     }
     let cases = serde_json::json!({
-        "files": ["cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "tab-color-biff8.xls", "drawing-rgb-solid-fill.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "drawing-uniform-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
+        "files": ["raw-biff4.xls", "cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "tab-color-biff8.xls", "drawing-rgb-solid-fill.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "drawing-uniform-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
         "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls",
             "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls",
             "repair-elf-column.xls", "repair-elf-radical.xls", "repair-addin-cell.xls",

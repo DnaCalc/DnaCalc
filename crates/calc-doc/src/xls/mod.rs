@@ -17,6 +17,7 @@ mod drawing;
 mod external_cache;
 mod pivot_cache;
 mod properties;
+mod raw;
 mod features;
 mod formula;
 mod records;
@@ -41,7 +42,7 @@ const REL_TYPE: &str = "http://schemas.openxmlformats.org/officeDocument/2006/re
 /// What reading a legacy workbook found, beside the package it became.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct LegacyReport {
-    /// The BIFF version: 8 (BIFF5/7 is refused until dc-4j0e.8).
+    /// The source BIFF version (4, 5, 7 or 8).
     pub biff_version: u8,
     /// The sheets of the workbook, of every kind.
     pub sheets: usize,
@@ -107,8 +108,15 @@ pub(crate) fn convert(
     password: Option<&str>,
 ) -> Result<(Vec<u8>, LegacyReport), OpenError> {
     if let Some(LegacyFormat::RawBiff { version }) = LegacyFormat::sniff(bytes) {
+        if version == 4 { return raw::convert_biff4(bytes, password); }
         return Err(refuse("(raw stream)", format!("raw BIFF{version} streams are not read (dc-4j0e.14)")));
     }
+    convert_compound(bytes, password, None)
+}
+
+fn convert_compound(
+    bytes: &[u8], password: Option<&str>, layout: Option<crate::xlsb::formula::Layout>,
+) -> Result<(Vec<u8>, LegacyReport), OpenError> {
     let compound = cfb::Compound::open(bytes).map_err(|e| refuse("(compound file)", e.0))?;
     let summary = compound.read("\u{5}SummaryInformation").ok().flatten()
         .and_then(|bytes| properties::summary(&bytes)).unwrap_or_default();
@@ -239,6 +247,7 @@ pub(crate) fn convert(
             .map(|s| s.name.clone())
             .collect(),
         v5,
+        layout,
     );
     if v5.is_some() {
         let (books, xti) = global_table.references(&registry.documents);

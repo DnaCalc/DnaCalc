@@ -63,6 +63,8 @@ pub(crate) enum Layout {
     Biff8,
     /// BIFF5 and BIFF7: 14-bit rows, byte strings in the workbook's code page, local link tables.
     Biff5,
+    /// BIFF4: the same reference widths and function IDs, but shorter name tokens.
+    Biff4,
 }
 
 /// What a formula's tokens are printed against.
@@ -271,7 +273,7 @@ pub(crate) fn print(
     let mut cursor = Cursor::new(rgce);
     let mut extra = Cursor::new(rgcb);
     let layout = context.layout;
-    let biff5 = layout == Layout::Biff5;
+    let biff5 = matches!(layout, Layout::Biff4 | Layout::Biff5);
     // Widths shared by BIFF5 and BIFF8: the tExp and tTbl row and column are 16 bits each.
     let biff8 = layout != Layout::Xlsb;
     let mut stack: Vec<Item> = Vec::new();
@@ -536,7 +538,7 @@ pub(crate) fn print(
             0x23 => {
                 let index = if biff5 {
                     let index = u32::from(cursor.u16("PtgName")?);
-                    cursor.skip(12, "PtgName")?;
+                    cursor.skip(if layout == Layout::Biff4 { 8 } else { 12 }, "PtgName")?;
                     index
                 } else {
                     cursor.u32("PtgName")?
@@ -692,7 +694,7 @@ fn read_cell(cursor: &mut Cursor<'_>, layout: Layout) -> Read<(u32, u16)> {
             u32::from(cursor.u16("a reference's row")?),
             cursor.u16("a reference's column")?,
         ),
-        Layout::Biff5 => {
+        Layout::Biff4 | Layout::Biff5 => {
             let row = cursor.u16("a reference's row")?;
             let column = cursor.u8("a reference's column")?;
             (u32::from(row & 0x3FFF), u16::from(column) | (row & 0xC000))
@@ -712,7 +714,7 @@ fn read_area(cursor: &mut Cursor<'_>, layout: Layout) -> Read<((u32, u32), (u16,
             (u32::from(cursor.u16("an area")?), u32::from(cursor.u16("an area")?)),
             (cursor.u16("an area")?, cursor.u16("an area")?),
         ),
-        Layout::Biff5 => {
+        Layout::Biff4 | Layout::Biff5 => {
             let (first, last) = (cursor.u16("an area")?, cursor.u16("an area")?);
             let (c1, c2) = (cursor.u8("an area")?, cursor.u8("an area")?);
             (
@@ -775,14 +777,14 @@ fn coordinate_text(
     let (rows, columns) = match layout {
         Layout::Xlsb => (1_048_576, 16_384),
         Layout::Biff8 => (65_536, 256),
-        Layout::Biff5 => (16_384, 256),
+        Layout::Biff4 | Layout::Biff5 => (16_384, 256),
     };
     let row = if offsets && row_relative {
         // BIFF8 stores a relative row as a signed 16-bit offset, BIFF5 as 14 bits, xlsb as 32.
         let offset = match layout {
             Layout::Xlsb => i64::from(row as i32),
             Layout::Biff8 => i64::from(row as u16 as i16),
-            Layout::Biff5 => i64::from(((row << 18) as i32) >> 18),
+            Layout::Biff4 | Layout::Biff5 => i64::from(((row << 18) as i32) >> 18),
         };
         (i64::from(origin.row) + offset).rem_euclid(rows) as u32
     } else {
@@ -829,7 +831,7 @@ fn area_text(
     let (last_row, last_column, mask) = match layout {
         Layout::Xlsb => (1_048_575, 16_383, 0x3FFF),
         Layout::Biff8 => (65_535, 255, 0x00FF),
-        Layout::Biff5 => (16_383, 255, 0x00FF),
+        Layout::Biff4 | Layout::Biff5 => (16_383, 255, 0x00FF),
     };
     let all_rows = !offsets && rows.0 == 0 && rows.1 == last_row;
     let all_columns = !offsets && columns.0 & mask == 0 && columns.1 & mask == last_column;

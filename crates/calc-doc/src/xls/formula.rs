@@ -18,7 +18,7 @@ pub(crate) struct Links {
 
 impl Links {
     /// The links of `globals`; `sheets` are the workbook's sheet names in tab order.
-    pub(crate) fn new(globals: &Globals, sheets: Vec<String>, v5: Option<u16>) -> Links {
+    pub(crate) fn new(globals: &Globals, sheets: Vec<String>, v5: Option<u16>, layout: Option<Layout>) -> Links {
         let mut external = 0u32;
         let supbooks = globals
             .supbooks
@@ -39,7 +39,7 @@ impl Links {
             })
             .collect();
         Links {
-            layout: if v5.is_some() { Layout::Biff5 } else { Layout::Biff8 },
+            layout: layout.unwrap_or(if v5.is_some() { Layout::Biff5 } else { Layout::Biff8 }),
             code_page: v5.unwrap_or(0),
             sheets,
             unavailable_sheets: globals.sheets.iter().enumerate().filter_map(|(i, sheet)| {
