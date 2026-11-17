@@ -105,6 +105,13 @@ try {
                 $group = $c.ChartGroups(1); $group.FirstSliceAngle = 135; $group.DoughnutHoleSize = 45
                 @{angle=$group.FirstSliceAngle; hole=$group.DoughnutHoleSize}
             }
+            $entry.setup.chart_cross_sheet_cache = GetOrError {
+                $dataSheet = $book.Worksheets.Add(); $dataSheet.Name = 'ChartSource'
+                $dataSheet.Range('A1').Value2 = 7.5; $dataSheet.Range('A2').Value2 = 4
+                $c = $sheet.ChartObjects().Add(410, 100, 200, 150).Chart
+                $c.ChartType = 51; $c.SetSourceData($dataSheet.Range('A1:A2'))
+                @{series=[string]$c.SeriesCollection(1).Formula; points=$c.SeriesCollection(1).Points().Count}
+            }
             $entry.setup.page = GetOrError { $sheet.PageSetup.Orientation = 2; $sheet.PageSetup.PrintArea = '$A$1:$D$5'; $sheet.PageSetup.Orientation }
             $entry.setup.header_picture = GetOrError {
                 $picture = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../crates/calc-doc/tests/fixtures/drawing/pictures/card.png'))

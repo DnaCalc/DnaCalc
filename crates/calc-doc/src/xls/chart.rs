@@ -29,6 +29,7 @@ const SCATTER: u16 = 0x101B;
 const AXIS: u16 = 0x101D;
 const AXIS_PARENT: u16 = 0x1041;
 const VALUE_RANGE: u16 = 0x101F;
+const SI_INDEX: u16 = 0x1065;
 const LEGEND: u16 = 0x1015;
 const TEXT: u16 = 0x1025;
 const OBJECT_LINK: u16 = 0x1027;
@@ -65,6 +66,15 @@ struct Series {
     title_formula: Option<String>,
     values: Option<String>,
     categories: Option<String>,
+    value_type: Option<u16>,
+    value_count: Option<u16>,
+}
+
+#[derive(Debug, Default)]
+struct ValueCache {
+    /// None is an explicitly blank point, not a calculated value.
+    points: BTreeMap<u16, Option<f64>>,
+    invalid: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -103,6 +113,10 @@ pub(crate) struct Chart {
     axis_index: Option<usize>,
     value_ranges: [Option<ValueRange>; 2],
     range_seen: [bool; 2],
+    cache_section: u16,
+    cache_stage: u16,
+    cache_invalid: bool,
+    value_caches: BTreeMap<usize, ValueCache>,
 }
 
 fn block_code(block: Block) -> u8 {
@@ -134,6 +148,8 @@ impl Chart {
             SERIES => {
                 self.series.push(Series {
                     group: 0,
+                    value_type: body.get(2..4).map(|b| u16::from_le_bytes([b[0], b[1]])),
+                    value_count: body.get(6..8).map(|b| u16::from_le_bytes([b[0], b[1]])),
                     ..Default::default()
                 });
                 self.pending = Some(block_code(Block::Series));
@@ -144,6 +160,39 @@ impl Chart {
                     ..Default::default()
                 });
                 self.pending = Some(block_code(Block::Format));
+            }
+            SI_INDEX => {
+                let next = (body.len() == 2 && record.continues.is_empty())
+                    .then(|| u16::from_le_bytes([body[0], body[1]]));
+                if next.is_none_or(|n| !(1..=3).contains(&n) || self.cache_stage & (1 << n) != 0) {
+                    self.cache_invalid = true;
+                    self.cache_section = 0;
+                } else {
+                    self.cache_section = next.unwrap_or(0);
+                    self.cache_stage |= 1 << self.cache_section;
+                }
+            }
+            0x0201 | 0x0203 | 0x0204 | 0x0205 if self.cache_section == 1 => {
+                if body.len() < 6 { self.cache_invalid = true; }
+                else {
+                    let row = u16::from_le_bytes([body[0], body[1]]);
+                    let column = usize::from(u16::from_le_bytes([body[2], body[3]]));
+                    if let Some(series) = self.series.get(column) {
+                        let cache = self.value_caches.entry(column).or_default();
+                        let value = match record.id {
+                            0x0201 if body.len() == 6 && record.continues.is_empty() => Some(None),
+                            0x0203 if body.len() == 14 && record.continues.is_empty() => {
+                                let n = f64::from_le_bytes(body[6..14].try_into().expect("eight bytes"));
+                                n.is_finite().then_some(Some(n))
+                            }
+                            _ => None,
+                        };
+                        if series.value_type != Some(1) || series.value_count.is_none_or(|count| row >= count)
+                            || value.is_none() || cache.points.contains_key(&row) {
+                            cache.invalid = true;
+                        } else if let Some(value) = value { cache.points.insert(row, value); }
+                    } else { self.cache_invalid = true; }
+                }
             }
             AXIS_PARENT if body.len() >= 2 => {
                 self.primary_axis_group = u16::from_le_bytes([body[0], body[1]]) == 0;
@@ -341,10 +390,11 @@ impl Chart {
         let mut horizontal = false;
         let mut scatter = false;
         for (index, group) in groups.iter().enumerate() {
-            let members: Vec<&Series> = self
+            let members: Vec<(usize, &Series)> = self
                 .series
                 .iter()
-                .filter(|s| s.group == index || (self.groups.is_empty()))
+                .enumerate()
+                .filter(|(_, s)| s.group == index || (self.groups.is_empty()))
                 .collect();
             if members.is_empty() {
                 continue;
@@ -376,7 +426,7 @@ impl Chart {
             let varies = group.vary_colors.unwrap_or(group.kind == Kind::Pie)
                 && members.len() == 1 && group.kind != Kind::Area;
             x.empty("c:varyColors", &[("val", u8::from(varies).to_string())]);
-            for series in members {
+            for (series_index, series) in members {
                 x.open("c:ser", &[]);
                 x.empty("c:idx", &[("val", order.to_string())]);
                 x.empty("c:order", &[("val", order.to_string())]);
@@ -410,6 +460,21 @@ impl Chart {
                     x.open(value_tag, &[]);
                     x.open("c:numRef", &[]);
                     x.element("c:f", &[], f);
+                    if !self.cache_invalid && self.cache_stage == 0b1110
+                        && let (Some(count), Some(cache)) = (series.value_count, self.value_caches.get(&series_index))
+                        && !cache.invalid && !cache.points.is_empty()
+                    {
+                        x.open("c:numCache", &[]);
+                        x.empty("c:ptCount", &[("val", count.to_string())]);
+                        for (index, value) in &cache.points {
+                            if let Some(value) = value {
+                                x.open("c:pt", &[("idx", index.to_string())]);
+                                x.element("c:v", &[], &crate::xlsb::formula::number_text(*value));
+                                x.close("c:pt");
+                            }
+                        }
+                        x.close("c:numCache");
+                    }
                     x.close("c:numRef");
                     x.close(value_tag);
                 }
