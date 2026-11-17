@@ -269,7 +269,12 @@ enum Operator {
 fn operator_call(written: &str, loaded: bool) -> Option<Operator> {
     let spelling = file_unprefixed(written);
     let prefixed = spelling.len() != written.len();
-    if loaded && !prefixed && !spelling.eq_ignore_ascii_case("SINGLE") {
+    // `@`'s file call (`_xlfn.SINGLE`) is read without its prefix too.
+    let single = calc_catalogue::unheld::operator_file_spelling(
+        calc_catalogue::unheld::IMPLICIT_INTERSECTION_ID,
+    )
+    .map(file_unprefixed);
+    if loaded && !prefixed && single.is_none_or(|single| !spelling.eq_ignore_ascii_case(single)) {
         return None;
     }
     if let Some(operator) = catalogue().resolve_operator_alias(spelling) {

@@ -84,12 +84,67 @@ pub struct FunctionFileForm {
     pub positions: &'static [bool],
 }
 
+/// How a call's arguments decide its file form beside its measured positions
+/// ([`FunctionFileForm::positions`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FileShapeRule {
+    /// The measured positions alone.
+    Positions,
+    /// INDEX: a range at row and column numbers that are non-zero number literals gives one cell,
+    /// so its range does not make it a dynamic array, and a row or column number of 0 gives a
+    /// whole column or row (measured: INDEX(A1:A3,1) is ordinary, INDEX(A1:A3,0) and
+    /// INDEX(A1:A3,Z1) are dynamic).
+    IndexNumbers,
+    /// XLOOKUP returns one cell of its return array when its lookup array is a range of the same
+    /// orientation; the measured position flag (a range there beside a single-cell lookup array)
+    /// is the case where it returns a whole row or column (measured: XLOOKUP(11,A1:A3,B1:B3) is
+    /// ordinary).
+    LookupRange,
+    /// GROUPBY, PIVOTBY and TRIMRANGE take ranges as they are: their measured position flags only
+    /// repeat that the call alone is a dynamic array, and Excel 16.0.20527 stores
+    /// ROWS(GROUPBY(C1:C6,D1:D6,SUM)), ROWS(PIVOTBY(...)) and ROWS(TRIMRANGE(C1:C20)) as ordinary
+    /// formulas (dc-h9u, 2026-10-30).
+    TakesRanges,
+}
+
+const FILE_SHAPE_RULES: [(FunctionId, FileShapeRule); 5] = [
+    (lookup::INDEX, FileShapeRule::IndexNumbers),
+    (lookup::XLOOKUP, FileShapeRule::LookupRange),
+    (ported::grouping::GROUPBY, FileShapeRule::TakesRanges),
+    (ported::grouping::PIVOTBY, FileShapeRule::TakesRanges),
+    (offset::TRIMRANGE, FileShapeRule::TakesRanges),
+];
+
+/// The file-form rule of an invariant, upper-case function name.
+pub fn file_shape_rule(name: &str) -> FileShapeRule {
+    FILE_SHAPE_RULES
+        .iter()
+        .find(|(id, _)| file_spelling(*id) == name)
+        .map_or(FileShapeRule::Positions, |(_, rule)| *rule)
+}
+
 /// File-form measurements for an invariant, upper-case function name.
 pub fn file_form(name: &str) -> Option<&'static FunctionFileForm> {
     file_form_table::FUNCTIONS
         .binary_search_by(|entry| entry.name.as_bytes().cmp(name.as_bytes()))
         .ok()
         .map(|i| &file_form_table::FUNCTIONS[i])
+}
+
+/// The name a call of the function `name` (an invariant, upper-case name) is written with in a
+/// formula's file form: with the prefix Excel writes before it (`_xlfn.XLOOKUP`,
+/// `_xlfn._xlws.FILTER`, `ISO.CEILING`), or `None` for a name that is not one of the functions
+/// measured ([`file_form`]).
+pub fn file_call_name(name: &str) -> Option<String> {
+    file_form(name).map(|entry| {
+        format!(
+            "{}{}",
+            file_prefix(entry.name)
+                .expect("measured function prefix")
+                .text(),
+            entry.name
+        )
+    })
 }
 
 /// Prefix measured for an invariant, upper-case function name.
@@ -2728,6 +2783,35 @@ const FILE_PREFIXES: &[(&str, FilePrefix, bool)] = &[
 
 #[cfg(test)]
 mod tests {
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn file_shape_rules_name_their_functions() {
+        use super::FileShapeRule::*;
+        for (name, rule) in [
+            ("INDEX", IndexNumbers),
+            ("XLOOKUP", LookupRange),
+            ("GROUPBY", TakesRanges),
+            ("PIVOTBY", TakesRanges),
+            ("TRIMRANGE", TakesRanges),
+            ("SUM", Positions),
+            ("index", Positions),
+        ] {
+            assert_eq!(super::file_shape_rule(name), rule, "{name}");
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn file_call_names_carry_the_measured_prefix() {
+        assert_eq!(super::file_call_name("SORTBY").as_deref(), Some("_xlfn.SORTBY"));
+        assert_eq!(super::file_call_name("SEQUENCE").as_deref(), Some("_xlfn.SEQUENCE"));
+        assert_eq!(super::file_call_name("XMATCH").as_deref(), Some("_xlfn.XMATCH"));
+        assert_eq!(super::file_call_name("AGGREGATE").as_deref(), Some("_xlfn.AGGREGATE"));
+        assert_eq!(super::file_call_name("FILTER").as_deref(), Some("_xlfn._xlws.FILTER"));
+        assert_eq!(super::file_call_name("SUM").as_deref(), Some("SUM"));
+        assert_eq!(super::file_call_name("NOSUCHFUNCTION"), None);
+    }
+
     use super::*;
 
     // These are snapshots of both original declarations, not regenerated Excel answers.

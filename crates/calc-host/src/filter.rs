@@ -518,7 +518,7 @@ pub(crate) fn apply(
                 };
                 let cutoff = format!(
                     "IF(COUNT({range})=0,0,{}({},6,{range},MIN(COUNT({range}),MAX(1,{k}))))",
-                    calc_func::file_call_name("AGGREGATE"),
+                    file_call_name("AGGREGATE"),
                     if *top { 14 } else { 15 }
                 );
                 let cutoff_value = context
@@ -780,4 +780,9 @@ fn fill_color(
             .ok_or_else(|| refusal("solid fill colour is unavailable")),
         _ => Err(refusal("colour filtering on pattern fills is not modelled")),
     }
+}
+
+/// A measured function's name as a file writes its call (`_xlfn.XMATCH`), from the catalogue.
+fn file_call_name(name: &str) -> String {
+    calc_func::file_call_name(name).expect("a function with a measured file form")
 }

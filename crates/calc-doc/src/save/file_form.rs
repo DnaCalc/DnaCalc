@@ -33,7 +33,7 @@
 //! row or column number of 0 and a call of a LAMBDA are dynamic too. A function Excel does not
 //! know is stored as a dynamic array (measured on unknown names).
 
-use calc_catalogue::{BindingForm, FunctionFileForm};
+use calc_catalogue::{BindingForm, FileShapeRule, FunctionFileForm};
 use calc_doc_model::{DefinedName, FormulaText};
 use calc_fml::syntax::{SyntaxChild, SyntaxKind, SyntaxNode, Token, TokenKind, parse_formula};
 use std::collections::BTreeMap;
@@ -46,15 +46,7 @@ fn function(name: &str) -> Option<&'static FunctionFileForm> {
 /// prefix Excel writes before it (`_xlfn.XLOOKUP`, `_xlfn._xlws.FILTER`, `ISO.CEILING`), or `None`
 /// for a name that is not one of the functions measured.
 pub(crate) fn function_file_name(name: &str) -> Option<String> {
-    function(name).map(|entry| {
-        format!(
-            "{}{}",
-            calc_catalogue::file_prefix(entry.name)
-                .expect("measured function prefix")
-                .text(),
-            entry.name
-        )
-    })
+    calc_catalogue::file_call_name(&name.to_ascii_uppercase())
 }
 
 /// A formula in file form.
@@ -526,10 +518,8 @@ impl Walk<'_, '_> {
             entry.bases[at.min(entry.bases.len() - 1)]
         };
         let mut multi = base;
-        // INDEX of a range at row and column numbers that are non-zero number literals gives one
-        // cell, so its range does not make it a dynamic array (measured: INDEX(A1:A3,1) is
-        // ordinary, INDEX(A1:A3,0) and INDEX(A1:A3,Z1) are dynamic).
-        let literal_index = upper == "INDEX"
+        let rule = calc_catalogue::file_shape_rule(&upper);
+        let literal_index = rule == FileShapeRule::IndexNumbers
             && arguments.len() >= 2
             && arguments.iter().skip(1).take(2).all(|argument| {
                 argument.kind() == SyntaxKind::NumberLiteralExpr
@@ -539,16 +529,9 @@ impl Walk<'_, '_> {
                         .parse::<f64>()
                         .is_ok_and(|n| n != 0.0)
             });
-        // XLOOKUP returns one cell of its return array when its lookup array is a range of the
-        // same orientation; the measured position flag (a range there beside a single-cell lookup
-        // array) is the case where it returns a whole row or column (measured:
-        // XLOOKUP(11,A1:A3,B1:B3) is ordinary).
-        let lookup_range = upper == "XLOOKUP" && shapes.get(1).is_some_and(|shape| shape.multi);
-        // GROUPBY, PIVOTBY and TRIMRANGE take ranges as they are: their measured position flags
-        // only repeat that the call alone is a dynamic array, and Excel 16.0.20527 stores
-        // ROWS(GROUPBY(C1:C6,D1:D6,SUM)), ROWS(PIVOTBY(...)) and ROWS(TRIMRANGE(C1:C20)) as
-        // ordinary formulas (dc-h9u, 2026-10-30).
-        let takes_ranges = matches!(upper.as_str(), "GROUPBY" | "PIVOTBY" | "TRIMRANGE");
+        let lookup_range = rule == FileShapeRule::LookupRange
+            && shapes.get(1).is_some_and(|shape| shape.multi);
+        let takes_ranges = rule == FileShapeRule::TakesRanges;
         for (position, shape) in shapes.iter().enumerate() {
             if !shape.multi
                 || takes_ranges
@@ -566,7 +549,7 @@ impl Walk<'_, '_> {
             }
         }
         // INDEX with a row or column number of 0 gives a whole column or row.
-        if upper == "INDEX"
+        if rule == FileShapeRule::IndexNumbers
             && arguments.iter().skip(1).take(2).any(|argument| {
                 argument.kind() == SyntaxKind::NumberLiteralExpr && argument.text().trim() == "0"
             })

@@ -317,6 +317,8 @@ pub mod statistics {
 pub mod grouping {
     use super::*;
     pub const CODE: u16 = 321;
+    pub const GROUPBY: FunctionId = FunctionId::new(CODE, 1);
+    pub const PIVOTBY: FunctionId = FunctionId::new(CODE, 2);
     data_family! {
         code: CODE;
     1 "GROUPBY" (3, 8) [R "row_fields" ~ ArrayAlways, R "values" ~ ArrayAlways, R "function", V "field_headers", V "total_depth", R "sort_order", R "filter_array" ~ ArrayAlways, V "field_relationship"] three_d (None, Some(&[0, 1]), Some(&[3])); ;
@@ -381,6 +383,11 @@ pub mod financial {
 pub mod dates {
     use super::*;
     pub const CODE: u16 = 203;
+    pub const WEEKNUM: FunctionId = FunctionId::new(CODE, 17);
+    pub const ISOWEEKNUM: FunctionId = FunctionId::new(CODE, 18);
+    /// The functions that read and set a recalculation pass's WEEKNUM week start
+    /// (`WeekState`, dc-amhpx): a cell calling one holds the pass-wide state.
+    pub const PASS_WEEK_STATE: &[FunctionId] = &[WEEKNUM, ISOWEEKNUM];
     data_family! {
         code: CODE;
     1 "DATE" (3, 3) [V "year", V "month", V "day"] three_d (None, None, Some(&[])); ;

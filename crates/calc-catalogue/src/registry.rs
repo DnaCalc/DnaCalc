@@ -273,4 +273,14 @@ mod tests {
         let addin = super::declaration(crate::euro_tools::EUROCONVERT).unwrap();
         assert_eq!(addin.file_form().unwrap().name, "EUROCONVERT");
     }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn pass_week_state_names_the_week_functions() {
+        let names: Vec<_> = crate::ported::dates::PASS_WEEK_STATE
+            .iter()
+            .map(|id| super::declaration(*id).unwrap().spelling())
+            .collect();
+        assert_eq!(names, ["WEEKNUM", "ISOWEEKNUM"]);
+    }
 }
