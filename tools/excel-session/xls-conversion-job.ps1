@@ -159,6 +159,14 @@ try {
                 $s = $sheet.Shapes.AddShape(73, 390, 100, 60, 30)
                 @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
             }
+            $entry.setup.shape_right_triangle = GetOrError {
+                $s = $sheet.Shapes.AddShape(8, 460, 100, 60, 30)
+                @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
+            }
+            $entry.setup.shape_flowchart_extract = GetOrError {
+                $s = $sheet.Shapes.AddShape(81, 530, 100, 60, 30)
+                @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
+            }
             $entry.setup.flipped_shapes = @(
                 foreach ($direction in @(0, 1)) {
                     GetOrError {

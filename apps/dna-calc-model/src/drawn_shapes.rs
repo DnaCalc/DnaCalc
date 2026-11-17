@@ -331,6 +331,7 @@ const PRESETS: &[&str] = &[
     "flowChartProcess",
     "flowChartDecision",
     "flowChartConnector",
+    "flowChartExtract",
     "flowChartTerminator",
     "flowChartDocument",
     "bentConnector2",
@@ -471,6 +472,7 @@ pub fn geometry_path(prst: &str, w: f64, h: f64, adjust: &[(String, i64)]) -> Op
             let a = pin(0.0, av(adjust, "adj", 50000.0), 100_000.0);
             polygon(&[(0.0, h), (w * a / 100_000.0, 0.0), (w, h)])
         }
+        "flowChartExtract" => polygon(&[(0.0, h), (hc, 0.0), (w, h)]),
         "rtTriangle" => polygon(&[(0.0, h), (0.0, 0.0), (w, h)]),
         "diamond" | "flowChartDecision" => polygon(&[(0.0, vc), (hc, 0.0), (w, vc), (hc, h)]),
         "parallelogram" => {
@@ -672,6 +674,7 @@ pub fn text_rect(prst: &str, w: f64, h: f64, adjust: &[(String, i64)]) -> [f64; 
             let x1 = w * pin(0.0, av(adjust, "adj", 50000.0), 100_000.0) / 200_000.0;
             [x1, vc, x1 + hc, h]
         }
+        "flowChartExtract" => [w / 4.0, vc, w * 3.0 / 4.0, h],
         "diamond" | "flowChartDecision" => [w / 4.0, h / 4.0, w * 3.0 / 4.0, h * 3.0 / 4.0],
         "octagon" => {
             let il = ss * pin(0.0, av(adjust, "adj", 29289.0), 50000.0) / 100_000.0 / 2.0;
@@ -711,7 +714,7 @@ pub fn text_rect(prst: &str, w: f64, h: f64, adjust: &[(String, i64)]) -> [f64; 
         }
         "flowChartTerminator" => [w * 1018.0 / 21600.0, h * 3163.0 / 21600.0, w * 20582.0 / 21600.0, h * 18437.0 / 21600.0],
         "flowChartDocument" => [0.0, 0.0, w, h * 17322.0 / 21600.0],
-        "rtTriangle" => [w / 12.0, h / 2.0, w * 7.0 / 12.0, h * 11.0 / 12.0],
+        "rtTriangle" => [w / 12.0, h * 7.0 / 12.0, w * 7.0 / 12.0, h * 11.0 / 12.0],
         _ => whole,
     }
 }
@@ -1474,6 +1477,7 @@ mod tests {
         assert_eq!(d("diamond", 40.0, 20.0, &[]), "M0 10L20 0L40 10L20 20Z");
         assert_eq!(d("flowChartDecision", 40.0, 20.0, &[]), d("diamond", 40.0, 20.0, &[]));
         assert_eq!(d("flowChartConnector", 40.0, 20.0, &[]), d("ellipse", 40.0, 20.0, &[]));
+        assert_eq!(d("flowChartExtract", 40.0, 20.0, &[]), d("triangle", 40.0, 20.0, &[]));
         assert_eq!(d("flowChartProcess", 40.0, 20.0, &[]), d("rect", 40.0, 20.0, &[]));
         // parallelogram: the slant is ss * adj / 100000, held to 100000 * w / ss.
         assert_eq!(d("parallelogram", 100.0, 40.0, &[]), "M0 40L10 0L100 0L90 40Z");
@@ -1864,6 +1868,8 @@ mod tests {
         // Ellipse: the inscribed square at cos 45 of each radius.
         let [l, t, r, b] = text_rect("ellipse", 100.0, 40.0, &[]);
         assert_eq!(text_rect("flowChartConnector", 100.0, 40.0, &[]), [l, t, r, b]);
+        assert_eq!(text_rect("flowChartExtract", 120.0, 120.0, &[]), [30.0, 60.0, 90.0, 120.0]);
+        assert_eq!(text_rect("rtTriangle", 120.0, 120.0, &[]), [10.0, 70.0, 70.0, 110.0]);
         assert!((l - 14.644).abs() < 0.001 && (t - 5.858).abs() < 0.001 && (r - 85.355).abs() < 0.001 && (b - 34.142).abs() < 0.001);
         assert_eq!(text_rect("diamond", 100.0, 40.0, &[]), [25.0, 10.0, 75.0, 30.0]);
         // Triangle: the lower half between the points a quarter and three quarters across (apex at the middle).
