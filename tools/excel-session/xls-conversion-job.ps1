@@ -191,6 +191,14 @@ try {
                 $s.TextFrame.Characters().Text = 'parallelogram'
                 @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
             }
+            $entry.setup.shape_scripts = GetOrError {
+                $s = $sheet.Shapes.AddTextbox(1, 950, 100, 90, 30)
+                $s.TextFrame.Characters().Text = 'H2O x2'
+                $s.TextFrame.Characters(2, 1).Font.Subscript = $true
+                $s.TextFrame.Characters(6, 1).Font.Superscript = $true
+                @{name=[string]$s.Name; subscript=$s.TextFrame.Characters(2, 1).Font.Subscript;
+                  superscript=$s.TextFrame.Characters(6, 1).Font.Superscript}
+            }
             $entry.setup.flipped_shapes = @(
                 foreach ($direction in @(0, 1)) {
                     GetOrError {
