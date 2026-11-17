@@ -468,6 +468,43 @@ fn a_chart_sheet_and_a_macro_sheet_keep_their_kind_and_a_module_sheet_is_not_a_s
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_sheet_preserves_series_in_a_linked_chart_part() {
+    use ptg::*;
+    use xls_kit::art;
+    let globals = [supbook_self(2), extern_sheet(&[(0, 0, 0)])].concat();
+    let chart = art::chart(&[("Sales", area3d(0, (1, 4), (0, 0), 0),
+        area3d(0, (1, 4), (1, 1), 0))], 0, "Sales chart");
+    let records = chart[bof(0x0020).len()..chart.len()-eof().len()].to_vec();
+    let mut three_d_records = records.clone();
+    three_d_records.extend(record(0x103A, &[0; 14]));
+    let bytes = xls(false, &globals, &[Sheet::worksheet("Data", number(1, 1, 7.5)),
+        Sheet { kind: 2, ..Sheet::worksheet("Chart1", records) }]);
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let verify = |doc: &calc_doc::OpenedDocument| {
+        let chart = String::from_utf8(doc.package().read_part("xl/charts/chart2_1.xml").unwrap()).unwrap();
+        assert!(chart.contains("Data!$B$2:$B$5") && chart.contains("Sales chart"), "{chart}");
+        let sheet = String::from_utf8(doc.package().read_part("xl/chartsheets/sheet2.xml").unwrap()).unwrap();
+        assert!(sheet.contains("<drawing r:id=\"rId1\"/>"), "{sheet}");
+        assert!(doc.package().part("xl/drawings/drawing2.xml").is_some());
+        assert!(doc.package().part("xl/drawings/_rels/drawing2.xml.rels").is_some());
+    };
+    verify(&document);
+    let mut ids = IdAllocator::<SheetId>::new();
+    assert_eq!(calc_doc::load(&document, &mut ids).unwrap().sheets()[1].preserved_kind(), Some("chart sheet"));
+    let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+    let mut saved = Vec::new();
+    calc_doc::write(plan, &mut saved).unwrap();
+    verify(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert_eq!(report.unknown_records.get(&0x1003), Some(&1));
+    let three_d = xls(false, &globals, &[Sheet::worksheet("Data", Vec::new()),
+        Sheet { kind: 2, ..Sheet::worksheet("Chart1", three_d_records) }]);
+    let three_d_doc = calc_doc::open(source(&three_d), &OpenPolicy::default()).unwrap();
+    assert!(three_d_doc.package().part("xl/charts/chart2_1.xml").is_none());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn the_source_bytes_are_kept() {
     let bytes = xls(false, &[], &[Sheet::worksheet("S", Vec::new())]);
     let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();

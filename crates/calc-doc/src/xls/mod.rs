@@ -329,15 +329,69 @@ pub(crate) fn convert(
                 }
             }
             SheetKind::Chart => {
+                let mut chart = chart::Chart::default();
+                let mut depth = 1usize;
+                let (mut chart_groups, mut supported_groups) = (0usize, 0usize);
+                let mut unsupported_chart_type = false;
+                let mut chart_size = None;
+                let print = |rgce: &[u8]| -> Option<String> {
+                    let context = links.context(Some(source_tab as u32));
+                    match crate::xlsb::formula::print(rgce, &[], &context, crate::xlsb::formula::Origin::default()) {
+                        Ok(Ok(text)) => Some(text),
+                        _ => None,
+                    }
+                };
                 for record in &substream[1..end - 1] {
                     if !matches!(record.id, 0x000C | 0x000D | 0x000F | 0x0010 | 0x0011 | 0x005F) {
                         *sheet_unknown.entry(record.id).or_insert(0) += 1;
                     }
+                    match record.id {
+                        workbook::BOF => depth += 1,
+                        workbook::EOF => depth = depth.saturating_sub(1),
+                        _ if depth == 1 && v5.is_none() => {
+                            match record.id {
+                                0x1002 if record.body.len() >= 16 => {
+                                    let fixed = |at: usize| i32::from_le_bytes(record.body[at..at + 4].try_into().expect("four bytes"));
+                                    let (width, height) = (fixed(8), fixed(12));
+                                    if width > 0 && height > 0 {
+                                        chart_size = Some((i64::from(width) * 12_700 / 65_536, i64::from(height) * 12_700 / 65_536));
+                                    }
+                                }
+                                0x1014 => chart_groups += 1,
+                                0x1017..=0x101A => supported_groups += 1,
+                                0x101B => {
+                                    supported_groups += 1;
+                                    // Scatter also describes bubble charts, which need a third value.
+                                    if record.body.len() < 6 || u16::from_le_bytes([record.body[4], record.body[5]]) & 1 != 0 {
+                                        unsupported_chart_type = true;
+                                    }
+                                }
+                                // 3-D, radar, surface, filled radar and pie-of-pie groups.
+                                0x103A | 0x103E..=0x1040 | 0x1061 => unsupported_chart_type = true,
+                                _ => {},
+                            }
+                            chart.read(record, &print);
+                        },
+                        _ => {},
+                    }
                 }
+                let written_chart = (!unsupported_chart_type && chart_groups > 0 && chart_groups == supported_groups)
+                    .then(|| chart.write(&sheet.name)).flatten();
+                let xml = if let Some(chart_xml) = written_chart {
+                    let chart_part = format!("xl/charts/chart{number}_1.xml");
+                    let drawing_part = format!("xl/drawings/drawing{number}.xml");
+                    parts.push((chart_part, "application/vnd.openxmlformats-officedocument.drawingml.chart+xml", chart_xml));
+                    parts.push((drawing_part, "application/vnd.openxmlformats-officedocument.drawing+xml", chartsheet_drawing(chart_size)));
+                    extra_entries.push((format!("xl/chartsheets/_rels/sheet{number}.xml.rels"),
+                        single_relationship("drawing", &format!("../drawings/drawing{number}.xml"))));
+                    extra_entries.push((format!("xl/drawings/_rels/drawing{number}.xml.rels"),
+                        single_relationship("chart", &format!("../charts/chart{number}_1.xml"))));
+                    linked_chartsheet()
+                } else { empty_chartsheet() };
                 (
                     format!("xl/chartsheets/sheet{number}.xml"),
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.chartsheet+xml",
-                    empty_chartsheet(),
+                    xml,
                 )
             }
             SheetKind::Module | SheetKind::Other(_) => {
@@ -898,6 +952,54 @@ pub(crate) fn convert(
     let archive = crate::save::new_archive(&entries)
         .ok_or_else(|| refuse(name, "the converted package is too large for a ZIP archive"))?;
     Ok((archive, report))
+}
+
+fn single_relationship(kind: &str, target: &str) -> Vec<u8> {
+    let mut xml = Xml::new();
+    xml.open("Relationships", &[("xmlns", "http://schemas.openxmlformats.org/package/2006/relationships".to_owned())]);
+    xml.empty("Relationship", &[("Id", "rId1".to_owned()), ("Type", format!("{REL_TYPE}/{kind}")), ("Target", target.to_owned())]);
+    xml.close("Relationships");
+    xml.out
+}
+
+fn linked_chartsheet() -> Vec<u8> {
+    let mut xml = Xml::new();
+    xml.open("chartsheet", &[("xmlns", MAIN_NAMESPACE.to_owned()), ("xmlns:r", RELATIONSHIPS_NAMESPACE.to_owned())]);
+    xml.open("sheetViews", &[]);
+    xml.empty("sheetView", &[("workbookViewId", "0".to_owned()), ("zoomToFit", "1".to_owned())]);
+    xml.close("sheetViews");
+    xml.empty("drawing", &[("r:id", "rId1".to_owned())]);
+    xml.close("chartsheet");
+    xml.out
+}
+
+fn chartsheet_drawing(size: Option<(i64, i64)>) -> Vec<u8> {
+    // The BIFF chart size is in 16.16 points; a missing size uses default drawing extents.
+    let (width, height) = size.unwrap_or((9293678, 6000000));
+    let mut xml = Xml::new();
+    xml.open("xdr:wsDr", &[("xmlns:xdr", "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing".to_owned()),
+        ("xmlns:a", "http://schemas.openxmlformats.org/drawingml/2006/main".to_owned()),
+        ("xmlns:c", "http://schemas.openxmlformats.org/drawingml/2006/chart".to_owned()),
+        ("xmlns:r", RELATIONSHIPS_NAMESPACE.to_owned())]);
+    xml.open("xdr:absoluteAnchor", &[]);
+    xml.empty("xdr:pos", &[("x", "0".to_owned()), ("y", "0".to_owned())]);
+    xml.empty("xdr:ext", &[("cx", width.to_string()), ("cy", height.to_string())]);
+    xml.open("xdr:graphicFrame", &[("macro", String::new())]);
+    xml.open("xdr:nvGraphicFramePr", &[]);
+    xml.empty("xdr:cNvPr", &[("id", "2".to_owned()), ("name", "Chart 1".to_owned())]);
+    xml.empty("xdr:cNvGraphicFramePr", &[]);
+    xml.close("xdr:nvGraphicFramePr");
+    xml.open("xdr:xfrm", &[]);
+    xml.empty("a:off", &[("x", "0".to_owned()), ("y", "0".to_owned())]);
+    xml.empty("a:ext", &[("cx", "0".to_owned()), ("cy", "0".to_owned())]);
+    xml.close("xdr:xfrm");
+    xml.open("a:graphic", &[]);
+    xml.open("a:graphicData", &[("uri", "http://schemas.openxmlformats.org/drawingml/2006/chart".to_owned())]);
+    xml.empty("c:chart", &[("r:id", "rId1".to_owned())]);
+    xml.close("a:graphicData"); xml.close("a:graphic"); xml.close("xdr:graphicFrame");
+    xml.empty("xdr:clientData", &[]);
+    xml.close("xdr:absoluteAnchor"); xml.close("xdr:wsDr");
+    xml.out
 }
 
 fn empty_chartsheet() -> Vec<u8> {

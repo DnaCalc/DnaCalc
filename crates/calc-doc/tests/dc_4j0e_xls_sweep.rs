@@ -48,6 +48,8 @@ fn sweep() {
     let audit_phonetic = std::env::var_os("DNACALC_XLS_AUDIT_PHONETIC").is_some();
     let audit_pivots = std::env::var_os("DNACALC_XLS_AUDIT_PIVOT_CACHE").is_some();
     let audit_charts = std::env::var_os("DNACALC_XLS_AUDIT_CHART_CACHE").is_some();
+    let audit_chart_sheets = std::env::var_os("DNACALC_XLS_AUDIT_CHART_SHEETS").is_some();
+    let (mut chart_sheets, mut chart_sheet_files) = (0usize, 0usize);
     let (mut chart_points, mut chart_files) = (0usize, 0usize);
     let (mut pivot_caches, mut pivot_records, mut pivot_files) = (0usize, 0u64, 0usize);
     let (mut phonetic_runs, mut phonetic_files, mut phonetic_errors) = (0usize, 0usize, 0usize);
@@ -71,6 +73,12 @@ fn sweep() {
             let report = legacy_workbook_report(source.clone(), &policy);
             let password = std::env::var("DNACALC_XLS_PASSWORD").ok();
             let document = calc_doc::open_with_password(source, &policy, password.as_deref());
+            let written_chart_sheets = if audit_chart_sheets {
+                document.as_ref().ok().map(|doc| doc.package().parts().iter()
+                    .filter(|part| part.name().starts_with("xl/chartsheets/sheet") && part.name().ends_with(".xml"))
+                    .filter(|part| doc.package().read_part(part.name()).is_ok_and(|xml| xml.windows(8).any(|w| w == b"<drawing")))
+                    .count()).unwrap_or(0)
+            } else { 0 };
             let written_phonetic = if audit_phonetic {
                 document.as_ref().ok().and_then(|doc| {
                     if doc.package().part("xl/sharedStrings.xml").is_none() { return Some((0, 0)); }
@@ -108,11 +116,11 @@ fn sweep() {
                     (formulas, failed, caches, saved_records, points)
                 })
             });
-            (report, document.map(|_| ()), load, written_phonetic)
+            (report, document.map(|_| ()), load, written_phonetic, written_chart_sheets)
         }));
         match result {
             Err(_) => panics.push(file.display().to_string()),
-            Ok((report, document, load, written_phonetic)) => {
+            Ok((report, document, load, written_phonetic, written_chart_sheets)) => {
                 match document {
                     Err(OpenError::LegacyWorkbook { detail, .. }) => {
                         let key = detail.chars().take(70).collect::<String>();
@@ -126,6 +134,8 @@ fn sweep() {
                     }
                     Ok(()) => {
                         opened += 1;
+                        chart_sheets += written_chart_sheets;
+                        chart_sheet_files += usize::from(written_chart_sheets != 0);
                         if let Some((runs, formats)) = written_phonetic {
                             phonetic_runs += runs;
                             phonetic_files += usize::from(runs != 0);
@@ -177,6 +187,9 @@ fn sweep() {
     }
     if audit_charts {
         println!("numeric chart display-cache points: {chart_points} in {chart_files} files (not calculated cell results)");
+    }
+    if audit_chart_sheets {
+        println!("chart sheets with a linked chart: {chart_sheets} in {chart_sheet_files} files (partial chart conversion, not an Excel match verdict)");
     }
     println!("refused to open, by reason:");
     for (reason, n) in &refused {
