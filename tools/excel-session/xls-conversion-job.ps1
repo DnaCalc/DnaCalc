@@ -390,7 +390,9 @@ try {
                 $chart = $sheet.ChartObjects().Add(620, 100, 200, 150).Chart
                 $chart.ChartType = 51; $chart.SetSourceData($dataSheet.Range('A1:B3'))
                 $category = $chart.Axes(1); $category.TickLabelPosition = -4142
-                @{category_position=$category.TickLabelPosition; value_position=$chart.Axes(2).TickLabelPosition}
+                $category.Format.Line.Visible = 0
+                @{category_position=$category.TickLabelPosition; value_position=$chart.Axes(2).TickLabelPosition;
+                  category_line_visible=$category.Format.Line.Visible}
             }
             $entry.setup.chart_legend_font = GetOrError {
                 $chart = $sheet.ChartObjects('cxCacheChart').Chart

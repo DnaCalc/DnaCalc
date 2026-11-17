@@ -3404,6 +3404,44 @@ fn chart_axis_title_fonts_reject_overrides_and_duplicate_links() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_hidden_axis_line_requires_unambiguous_primary_line_format() {
+    use xls_kit::art;
+    for (parent, axis, extra, expected) in [
+        (0u16, 0u16, 0u8, true), (0, 1, 0, true), (1, 0, 0, false),
+        (0, 0, 1, false), (0, 0, 2, false), (0, 0, 3, false), (0, 0, 4, false), (0, 0, 5, false),
+    ] {
+        let mut chart = art::chart(&[("A", Vec::new(), Vec::new())], 0, "Title");
+        let format = record(0x1014, &[0u8; 20]);
+        let at = chart.windows(format.len()).position(|w| w == format).unwrap();
+        let mut parent_body = u16s(&[parent]); parent_body.extend([0u8; 16]);
+        let mut axis_body = u16s(&[axis]); axis_body.extend([0u8; 16]);
+        let mut line = vec![0u8; if extra == 1 { 11 } else { 12 }];
+        line[4..6].copy_from_slice(&(if extra == 2 { 0u16 } else { 5 }).to_le_bytes());
+        line[6..8].copy_from_slice(&u16::MAX.to_le_bytes());
+        line[8..10].copy_from_slice(&(if extra == 3 { 12u16 } else { 8 }).to_le_bytes());
+        if line.len() == 12 { line[10..12].copy_from_slice(&0x4du16.to_le_bytes()); }
+        let mut block = [record(0x1041, &parent_body), art::begin(), record(0x101D, &axis_body), art::begin(),
+            record(0x1021, &u16s(&[0]))].concat();
+        if extra == 4 { block.extend(record(0x104F, &[0u8; 20])); }
+        block.extend(record(0x1007, &line));
+        if extra == 5 { block.extend([record(0x1021, &u16s(&[0])), record(0x1007, &line)].concat()); }
+        block.extend([art::end(), art::end()].concat());
+        chart.splice(at..at, block);
+        let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
+        let bytes = xls(false, &[], &[Sheet::worksheet("S", records)]);
+        let loaded = load(&bytes);
+        assert_eq!(loaded.sheets()[0].charts().charts[0].axes[usize::from(axis)].line_hidden, expected);
+        if expected {
+            let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            assert!(load(&saved).sheets()[0].charts().charts[0].axes[usize::from(axis)].line_hidden);
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn chart_hidden_axis_labels_require_unambiguous_primary_tick() {
     use xls_kit::art;
     for (parent, axis, position, extra, expected) in [

@@ -252,6 +252,9 @@ fn sweep() {
                         let hidden = loaded.sheets().iter().flat_map(|s| &s.charts().charts)
                             .flat_map(|chart| &chart.axes).filter(|axis| axis.tick_labels_hidden).count();
                         println!("chart axes with hidden tick labels: {hidden}");
+                        let hidden_lines = loaded.sheets().iter().flat_map(|s| &s.charts().charts)
+                            .flat_map(|chart| &chart.axes).filter(|axis| axis.line_hidden).count();
+                        println!("chart axes with hidden lines: {hidden_lines}");
                     }
                     if std::env::var_os("DNACALC_XLS_AUDIT_NOTE_RUNS").is_some() {
                         let count = loaded.sheets().iter().flat_map(|s| &s.review().notes)

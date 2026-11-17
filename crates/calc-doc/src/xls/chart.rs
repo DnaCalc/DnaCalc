@@ -30,6 +30,7 @@ const AXIS: u16 = 0x101D;
 const AXIS_PARENT: u16 = 0x1041;
 const VALUE_RANGE: u16 = 0x101F;
 const TICK: u16 = 0x101E;
+const AXIS_LINE: u16 = 0x1021;
 const SI_INDEX: u16 = 0x1065;
 const LEGEND: u16 = 0x1015;
 const TEXT: u16 = 0x1025;
@@ -176,6 +177,10 @@ pub(crate) struct Chart {
     tick_seen: [bool; 2],
     tick_invalid: [bool; 2],
     tick_labels_hidden: [bool; 2],
+    pending_axis_line: Option<usize>,
+    axis_line_seen: [bool; 2],
+    axis_line_invalid: [bool; 2],
+    axis_line_hidden: [bool; 2],
     primary_axis_parent_valid: bool,
     legend_font: Option<(String, bool, bool)>,
     legend_text_seen: bool,
@@ -229,6 +234,10 @@ impl Chart {
     pub(crate) fn read(&mut self, record: &Record<'_>, print: &dyn Fn(&[u8]) -> Option<String>,
         code_page: Option<u16>, styles: &super::styles::Styles, embedded: bool) {
         let body = record.body;
+        if let Some(index) = self.pending_axis_line && record.id != LINE_FORMAT {
+            self.pending_axis_line = None;
+            self.axis_line_invalid[index] = true;
+        }
         if record.id == DEFAULT_TEXT && self.stack.len() != 1 {
             // Group-level default labels can carry their own number format.
             self.label_format_ambiguous = true;
@@ -434,8 +443,9 @@ impl Chart {
                     if body.len() != 18 || !record.continues.is_empty() || !self.primary_axis_parent_valid {
                         self.axis_font_invalid[index] = true;
                         self.tick_invalid[index] = true;
+                        self.axis_line_invalid[index] = true;
                     }
-                    if self.primary_axis_seen[index] { self.axis_font_invalid[index] = true; self.tick_invalid[index] = true; }
+                    if self.primary_axis_seen[index] { self.axis_font_invalid[index] = true; self.tick_invalid[index] = true; self.axis_line_invalid[index] = true; }
                     self.primary_axis_seen[index] = true;
                 }
                 self.pending = Some(block_code(Block::Axis));
@@ -448,6 +458,25 @@ impl Chart {
                         && record.continues.is_empty() && body[0] <= 3 && body[1] <= 3 && body[2] <= 3 {
                         self.tick_labels_hidden[index] = body[2] == 0;
                     } else { self.tick_invalid[index] = true; }
+                }
+            }
+            AXIS_LINE if self.primary_axis_group && self.stack.last().is_some_and(|code| block_of(*code) == Block::Axis) => {
+                if let Some(index) = self.axis_index {
+                    if body.len() != 2 || !record.continues.is_empty() || !self.primary_axis_parent_valid {
+                        self.axis_line_invalid[index] = true;
+                    } else if body == [0, 0] {
+                        if self.axis_line_seen[index] { self.axis_line_invalid[index] = true; }
+                        self.axis_line_seen[index] = true;
+                        self.pending_axis_line = Some(index);
+                    }
+                }
+            }
+            LINE_FORMAT if self.pending_axis_line.is_some() => {
+                if let Some(index) = self.pending_axis_line.take() {
+                    if code_page.is_none() && record.continues.is_empty() && body.len() == 12 {
+                        self.axis_line_hidden[index] = body[4..6] == [5, 0] && body[6..8] == [255, 255]
+                            && body[8..10] == [8, 0] && body[10..12] == [0x4d, 0];
+                    } else { self.axis_line_invalid[index] = true; }
                 }
             }
             VALUE_RANGE if body.len() >= 42 && self.primary_axis_group
@@ -964,6 +993,9 @@ impl Chart {
                 }
                 if !self.tick_invalid[axis_index] && self.tick_labels_hidden[axis_index] {
                     x.empty("c:tickLblPos", &[("val", "none".to_owned())]);
+                }
+                if !self.axis_line_invalid[axis_index] && self.axis_line_hidden[axis_index] {
+                    x.open("c:spPr", &[]); x.open("a:ln", &[]); x.empty("a:noFill", &[]); x.close("a:ln"); x.close("c:spPr");
                 }
                 text_font_element(&mut x, if self.axis_font_invalid[axis_index] { None } else { self.axis_fonts[axis_index].as_ref() });
                 x.empty("c:crossAx", &[("val", cross.to_owned())]);

@@ -869,7 +869,9 @@ fn category_marks(
         _ => {}
     }
     // The category axis line, at zero.
-    if layout.is_none_or(|l| l.index == 0) {
+    if layout.is_none_or(|l| l.index == 0)
+        && !chart.axes.iter().any(|axis| axis.id == category_axis && axis.line_hidden)
+    {
         if horizontal {
             let _ = write!(
                 svg,
@@ -1095,6 +1097,15 @@ mod tests {
             assert!(tags.iter().all(|tag| tag.contains("visibility=\"hidden\"")), "{svg}");
             assert!(svg.contains("<line "), "gridlines remain visible: {svg}");
         }
+        let mut no_axis_line = charts[0].clone();
+        let category = no_axis_line.axes.iter_mut().find(|axis| axis.kind == "catAx").unwrap();
+        category.line_hidden = true;
+        let axis_lines = |svg: &str| svg.split('<').filter(|tag| tag.starts_with("line ")
+            && tag.contains(&format!("stroke=\"{AXIS}\""))).count();
+        assert_eq!(axis_lines(&chart_svg(&charts[0], 600., 350.)), 1);
+        let svg = chart_svg(&no_axis_line, 600., 350.);
+        assert_eq!(axis_lines(&svg), 0);
+        assert!(svg.contains(&format!("stroke=\"{GRID}\"")));
         let mut labelled = charts[0].clone();
         labelled.plots[0].series[0].value_labels = vec![Some("12 & units".into())];
         let svg = chart_svg(&labelled, 600., 350.);
