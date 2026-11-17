@@ -194,6 +194,8 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
                 obj['chart_print_settings'] = None if settings is None else tree(settings)
                 obj['chart_types'] = sorted({x.tag.rsplit('}', 1)[-1] for x in chart_root.iter()
                                              if x.tag.startswith(C) and x.tag.endswith('Chart')})
+                obj['group_labels'] = [None if group.find(C + 'dLbls') is None else tree(group.find(C + 'dLbls'))
+                                       for group in chart_root.iter() if group.tag.startswith(C) and group.tag.endswith('Chart')]
                 obj['series_formulas'] = [x.text or '' for x in chart_root.iter(C + 'f')]
                 obj['series_solid_fills'] = []
                 for series in chart_root.iter(C + 'ser'):
@@ -202,11 +204,14 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
                     obj['series_solid_fills'].append(None if color is None else {
                         'kind': color.tag.rsplit('}', 1)[-1], 'value': color.get('val')})
                 obj['series_line_colors'] = []
+                obj['series_labels'] = []
                 for series in chart_root.iter(C + 'ser'):
                     fill = series.find(f'{C}spPr/{A}ln/{A}solidFill')
                     color = None if fill is None else next(iter(fill), None)
                     obj['series_line_colors'].append(None if color is None else {
                         'kind': color.tag.rsplit('}', 1)[-1], 'value': color.get('val')})
+                    labels = series.find(C + 'dLbls')
+                    obj['series_labels'].append(None if labels is None else tree(labels))
                 obj['series_value_caches'] = []
                 for series in chart_root.iter(C + 'ser'):
                     data = series.find(C + 'val')

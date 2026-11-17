@@ -2505,6 +2505,41 @@ fn chart_explicit_line_color_reaches_the_loaded_series() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_unambiguous_series_value_labels_survive_save() {
+    use ptg::*;
+    use xls_kit::art;
+    for (group, point, flags, extra, expected) in [(false, 0xffff, 1, Vec::new(), true),
+        (false, 0xffff, 2, Vec::new(), false), (false, 0, 1, Vec::new(), false),
+        (false, 0xffff, 1, record(0x086A, &[]), false), (true, 0, 1, Vec::new(), true)] {
+        let mut chart = art::chart(&[("Sales", Vec::new(), area3d(0, (1, 4), (1, 1), 0))], 0, "Title");
+        let anchor = record(0x1045, &u16s(&[0]));
+        let at = if group {
+            let bar = record(0x1017, &u16s(&[0, 150, 0]));
+            chart.windows(bar.len()).position(|w| w == bar).unwrap()
+        } else { chart.windows(anchor.len()).position(|w| w == anchor).unwrap() + anchor.len() };
+        let data = [record(0x1006, &u16s(&[point, 0, if group { 0xfffd } else { 0 }, 0])), art::begin(),
+            record(0x100C, &u16s(&[flags])), extra, art::end()].concat();
+        chart.splice(at..at, data);
+        let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
+        let globals = [supbook_self(1), extern_sheet(&[(0, 0, 0)])].concat();
+        let bytes = xls(false, &globals, &[Sheet::worksheet("S", records)]);
+        let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let check = |doc: &calc_doc::OpenedDocument| {
+            let chart = String::from_utf8(doc.package().read_part("xl/charts/chart1_1.xml").unwrap()).unwrap();
+            assert_eq!(chart.contains("<c:dLbls><c:showVal val=\"1\"/></c:dLbls>"), expected, "{chart}");
+        };
+        check(&doc);
+        if expected {
+            let _loaded = load(&bytes);
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn embedded_chart_print_text_is_preserved_when_unambiguous() {
     use ptg::*;
     use xls_kit::art;

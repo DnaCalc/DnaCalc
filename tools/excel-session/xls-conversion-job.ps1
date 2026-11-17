@@ -195,6 +195,11 @@ try {
                 $series.Format.Fill.ForeColor.RGB = 255
                 @{fill_rgb=$series.Format.Fill.ForeColor.RGB}
             }
+            $entry.setup.chart_value_labels = GetOrError {
+                $series = $sheet.ChartObjects('cxCacheChart').Chart.SeriesCollection(1)
+                $series.ApplyDataLabels(); $series.DataLabels().ShowValue = $true
+                @{show_value=$series.DataLabels().ShowValue}
+            }
             $entry.setup.chart_series_line = GetOrError {
                 $chart = $sheet.ChartObjects().Add(410, 270, 200, 150).Chart
                 $chart.ChartType = 4; $chart.SetSourceData($sheet.Range('H1:H2'))

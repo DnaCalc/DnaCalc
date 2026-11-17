@@ -37,6 +37,7 @@ const SERIES_TO_CHART_GROUP: u16 = 0x1045;
 const DATA_FORMAT: u16 = 0x1006;
 const LINE_FORMAT: u16 = 0x1007;
 const AREA_FORMAT: u16 = 0x100A;
+const ATTACHED_LABEL: u16 = 0x100C;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum Kind {
@@ -60,6 +61,8 @@ struct Group {
     first_slice: Option<u16>,
     hole: Option<u16>,
     vary_colors: Option<bool>,
+    show_values: bool,
+    labels_seen: bool,
 }
 
 #[derive(Debug, Default)]
@@ -77,6 +80,8 @@ struct Series {
     fill_seen: bool,
     line: Option<String>,
     line_seen: bool,
+    show_values: bool,
+    labels_seen: bool,
 }
 
 #[derive(Debug, Default)]
@@ -87,6 +92,10 @@ struct SeriesFormat {
     line: Option<String>,
     line_seen: bool,
     invalid: bool,
+    show_values: bool,
+    labels_seen: bool,
+    group_default: bool,
+    labels_header_valid: bool,
 }
 
 #[derive(Debug, Default)]
@@ -155,6 +164,7 @@ pub(crate) struct Chart {
     category_caches: BTreeMap<usize, CategoryCache>,
     data_format: Option<SeriesFormat>,
     auxiliary_series: bool,
+    data_labels_ambiguous: bool,
     print_header: Option<Vec<u16>>,
     print_footer: Option<Vec<u16>>,
     print_header_seen: bool,
@@ -225,9 +235,34 @@ impl Chart {
             DATA_FORMAT if body.len() == 8 && record.continues.is_empty() => {
                 let point = u16::from_le_bytes([body[0], body[1]]);
                 let series = usize::from(u16::from_le_bytes([body[2], body[3]]));
-                self.data_format = Some(SeriesFormat { series: (point == 0xffff).then_some(series), ..Default::default() });
+                self.data_format = Some(SeriesFormat { series: (point == 0xffff).then_some(series),
+                    group_default: body == [0, 0, 0, 0, 0xfd, 0xff, 0, 0],
+                    labels_header_valid: body[6..8] == [0, 0], ..Default::default() });
                 self.pending = Some(block_code(Block::DataFormat));
             }
+            ATTACHED_LABEL => {
+                let in_format = self.stack.last().is_some_and(|code| block_of(*code) == Block::DataFormat);
+                let in_series = self.stack.iter().any(|code| block_of(*code) == Block::Series);
+                let in_group = self.stack.iter().any(|code| block_of(*code) == Block::Format);
+                if in_format && in_series {
+                    if let Some(format) = &mut self.data_format {
+                        if !format.labels_header_valid || format.series.is_none_or(|index| index >= self.series.len()) {
+                            self.data_labels_ambiguous = true;
+                        }
+                        if format.labels_seen { format.invalid = true; self.data_labels_ambiguous = true; }
+                        format.labels_seen = true;
+                        format.show_values = body == [1, 0] && record.continues.is_empty();
+                        if !format.show_values { self.data_labels_ambiguous = true; }
+                    }
+                } else if in_format && in_group && let Some(group) = self.groups.last_mut() {
+                    if group.labels_seen || body != [1, 0] || !record.continues.is_empty()
+                        || !self.data_format.as_ref().is_some_and(|format| format.group_default && !format.invalid) {
+                        self.data_labels_ambiguous = true;
+                    } else { group.show_values = true; }
+                    group.labels_seen = true;
+                } else { self.data_labels_ambiguous = true; }
+            }
+            0x086A | 0x086B => self.data_labels_ambiguous = true,
             AREA_FORMAT if self.stack.last().is_some_and(|code| block_of(*code) == Block::DataFormat) => {
                 if let Some(format) = &mut self.data_format {
                     if format.area_seen { format.invalid = true; }
@@ -431,6 +466,11 @@ impl Chart {
                                 if series.line_seen { series.line = None; }
                                 else if !format.invalid { series.line = format.line; }
                                 series.line_seen = true;
+                                if format.labels_seen {
+                                    if series.labels_seen { series.show_values = false; self.data_labels_ambiguous = true; }
+                                    else if !format.invalid { series.show_values = format.show_values; }
+                                    series.labels_seen = true;
+                                }
                             }
                         }
                         _ => {}
@@ -519,6 +559,7 @@ impl Chart {
                 if self.stack.iter().any(|c| block_of(*c) == Block::Text) {
                     if self.link.is_some() { self.attached_invalid = true; }
                     self.link = Some(u16::from_le_bytes([body[0], body[1]]));
+                    if self.link == Some(4) { self.data_labels_ambiguous = true; }
                 }
             }
             SERIES_TEXT => {
@@ -655,6 +696,9 @@ impl Chart {
                     x.empty("a:srgbClr", &[("val", color.clone())]);
                     x.close("a:solidFill"); x.close("a:ln"); x.close("c:spPr");
                 }
+                if !self.data_labels_ambiguous && !self.auxiliary_series && series.show_values && !group.show_values {
+                    x.open("c:dLbls", &[]); x.empty("c:showVal", &[("val", "1".to_owned())]); x.close("c:dLbls");
+                }
                 let (category_tag, value_tag) = if group.kind == Kind::Scatter {
                     ("c:xVal", "c:yVal")
                 } else {
@@ -713,6 +757,9 @@ impl Chart {
                     x.close(value_tag);
                 }
                 x.close("c:ser");
+            }
+            if !self.data_labels_ambiguous && !self.auxiliary_series && group.show_values {
+                x.open("c:dLbls", &[]); x.empty("c:showVal", &[("val", "1".to_owned())]); x.close("c:dLbls");
             }
             if group.kind == Kind::Bar {
                 if let Some(gap) = group.gap { x.empty("c:gapWidth", &[("val", gap.to_string())]); }
