@@ -85,6 +85,12 @@ fn text_colour(svg: String, chart: &ChartView) -> String {
             .nth(1)
             .and_then(|s| s.split('"').next())
             .map(str::to_owned);
+        if let Some(id) = target.as_deref().and_then(|s| s.strip_prefix("axis:"))
+            .and_then(|s| s.parse::<u32>().ok())
+            && chart.axes.iter().any(|axis| axis.id == id && axis.tick_labels_hidden)
+        {
+            svg_attribute(&mut tag, "visibility", "hidden");
+        }
         if target.as_deref() == Some("title") && let Some(bold) = chart.text_style.bold {
             svg_attribute(&mut tag, "font-weight", if bold { "700" } else { "400" });
         }
@@ -863,7 +869,9 @@ fn category_marks(
         _ => {}
     }
     // The category axis line, at zero.
-    if layout.is_none_or(|l| l.index == 0) {
+    if layout.is_none_or(|l| l.index == 0)
+        && !chart.axes.iter().any(|axis| axis.id == category_axis && axis.line_hidden)
+    {
         if horizontal {
             let _ = write!(
                 svg,
@@ -1079,6 +1087,25 @@ mod tests {
             assert!(svg.contains("data-point=\"0\""), "{}: {svg}", chart.name);
             assert!(!svg.contains("chart-cache"));
         }
+        for index in [0, 5] {
+            let mut hidden = charts[index].clone();
+            hidden.axes[0].tick_labels_hidden = true;
+            let target = format!("data-chart-text=\"axis:{}\"", hidden.axes[0].id);
+            let svg = chart_svg(&hidden, 600., 350.);
+            let tags: Vec<_> = svg.split('<').filter(|tag| tag.starts_with("text ") && tag.contains(&target)).collect();
+            assert!(!tags.is_empty(), "{svg}");
+            assert!(tags.iter().all(|tag| tag.contains("visibility=\"hidden\"")), "{svg}");
+            assert!(svg.contains("<line "), "gridlines remain visible: {svg}");
+        }
+        let mut no_axis_line = charts[0].clone();
+        let category = no_axis_line.axes.iter_mut().find(|axis| axis.kind == "catAx").unwrap();
+        category.line_hidden = true;
+        let axis_lines = |svg: &str| svg.split('<').filter(|tag| tag.starts_with("line ")
+            && tag.contains(&format!("stroke=\"{AXIS}\""))).count();
+        assert_eq!(axis_lines(&chart_svg(&charts[0], 600., 350.)), 1);
+        let svg = chart_svg(&no_axis_line, 600., 350.);
+        assert_eq!(axis_lines(&svg), 0);
+        assert!(svg.contains(&format!("stroke=\"{GRID}\"")));
         let mut labelled = charts[0].clone();
         labelled.plots[0].series[0].value_labels = vec![Some("12 & units".into())];
         let svg = chart_svg(&labelled, 600., 350.);

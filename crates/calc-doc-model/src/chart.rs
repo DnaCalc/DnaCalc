@@ -134,6 +134,10 @@ pub struct ChartAxis {
     pub cross_axis: Option<u32>,
     pub kind: String,
     pub position: Option<String>,
+    /// Whether the file explicitly hides the axis tick labels.
+    pub tick_labels_hidden: bool,
+    /// Whether the file explicitly suppresses the axis line.
+    pub line_hidden: bool,
     /// Literal title text, when available.
     pub title: Option<String>,
     pub minimum: Option<String>,

@@ -263,6 +263,8 @@ fn read_chart_xml(
     let mut title = String::new();
     let mut title_cache: Option<String> = None;
     let mut axis_title_has_field = false;
+    let mut axis_tick_position_seen = false;
+    let (mut axis_shape_seen, mut axis_line_seen, mut axis_line_invalid, mut axis_no_fill_seen) = (false, false, false, false);
     loop {
         let element = match events.next()? {
             Some(XmlEvent::Start(element)) => element,
@@ -290,6 +292,24 @@ fn read_chart_xml(
             && matches!(path[2].as_str(), "valAx" | "catAx" | "dateAx" | "serAx")
             && path[3..6] == ["title", "tx", "rich"];
         let val = element.attribute("val").map(str::to_owned);
+        let names = path.iter().map(String::as_str).collect::<Vec<_>>();
+        if matches!(names.as_slice(), ["chart", "plotArea", axis] if axis.ends_with("Ax"))
+            && element.name.is(CHART_NAMESPACE, "spPr") {
+            if axis_shape_seen { axis_line_invalid = true; }
+            axis_shape_seen = true;
+        }
+        if matches!(names.as_slice(), ["chart", "plotArea", axis, "spPr"] if axis.ends_with("Ax"))
+            && element.name.is("http://schemas.openxmlformats.org/drawingml/2006/main", "ln") {
+            if axis_line_seen { axis_line_invalid = true; }
+            axis_line_seen = true;
+        }
+        if matches!(names.as_slice(), ["chart", "plotArea", axis, "spPr", "ln"] if axis.ends_with("Ax")) {
+            if element.name.is("http://schemas.openxmlformats.org/drawingml/2006/main", "noFill") && !axis_no_fill_seen {
+                axis_no_fill_seen = true;
+            } else { axis_line_invalid = true; }
+        }
+        if axis_line_invalid && let Some(axis) = chart.axes.last_mut() { axis.line_hidden = false; }
+        if axis_no_fill_seen && !axis_line_invalid && let Some(axis) = chart.axes.last_mut() { axis.line_hidden = true; }
         if element.name.is(CHART_NAMESPACE, "dLbls") {
             let names = path.iter().map(String::as_str).collect::<Vec<_>>();
             let series_scope = matches!(names.as_slice(), ["chart", "plotArea", kind, "ser"] if kind.ends_with("Chart"));
@@ -438,10 +458,19 @@ fn read_chart_xml(
                 if element.name.namespace.as_deref() == Some(CHART_NAMESPACE) =>
             {
                 axis_title_has_field = false;
+                axis_tick_position_seen = false;
+                (axis_shape_seen, axis_line_seen, axis_line_invalid, axis_no_fill_seen) = (false, false, false, false);
                 chart.axes.push(calc_doc_model::ChartAxis {
                     kind: local.clone(),
                     ..Default::default()
                 });
+            }
+            (Some("valAx" | "catAx" | "dateAx" | "serAx"), "tickLblPos")
+                if element.name.namespace.as_deref() == Some(CHART_NAMESPACE) => {
+                if let Some(axis) = chart.axes.last_mut() {
+                    axis.tick_labels_hidden = !axis_tick_position_seen && val.as_deref() == Some("none");
+                    axis_tick_position_seen = true;
+                }
             }
             (
                 Some("valAx" | "catAx" | "dateAx" | "serAx"),
@@ -669,6 +698,40 @@ fn read_simple_value_labels(events: &mut Events<'_>) -> Result<(bool, bool), Loa
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn hidden_axis_line_requires_one_unambiguous_no_fill() {
+        for (shape, expected) in [
+            (r#"<c:spPr><a:ln><a:noFill/></a:ln></c:spPr>"#, true),
+            (r#"<c:spPr><a:ln><a:solidFill/></a:ln></c:spPr>"#, false),
+            (r#"<c:spPr><a:ln><a:noFill/><a:solidFill/></a:ln></c:spPr>"#, false),
+            (r#"<c:spPr><a:ln><a:noFill/></a:ln><a:ln><a:noFill/></a:ln></c:spPr>"#, false),
+            (r#"<c:spPr><a:ln><a:noFill/></a:ln></c:spPr><c:spPr/>"#, false),
+        ] {
+            let text = format!(r#"<c:chartSpace xmlns:c="{CHART_NAMESPACE}" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><c:chart><c:plotArea><c:catAx><c:axId val="1"/>{shape}</c:catAx></c:plotArea></c:chart></c:chartSpace>"#);
+            let xml = XmlPart::new("chart.xml".into(), text.into_bytes(), crate::xml::XmlLimits::default());
+            let chart = read_chart_xml(&xml, "chart.xml", "Chart".into(), ChartAnchor::Absolute {
+                x: 0, y: 0, width: 100, height: 100,
+            }).unwrap();
+            assert_eq!(chart.axes[0].line_hidden, expected);
+        }
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn hidden_tick_labels_require_one_position_record() {
+        for (positions, expected) in [
+            (r#"<c:tickLblPos val="none"/>"#, true),
+            (r#"<c:tickLblPos val="low"/>"#, false),
+            (r#"<c:tickLblPos val="none"/><c:tickLblPos val="none"/>"#, false),
+        ] {
+            let text = format!(r#"<c:chartSpace xmlns:c="{CHART_NAMESPACE}"><c:chart><c:plotArea><c:catAx><c:axId val="1"/>{positions}</c:catAx></c:plotArea></c:chart></c:chartSpace>"#);
+            let xml = XmlPart::new("chart.xml".into(), text.into_bytes(), crate::xml::XmlLimits::default());
+            let chart = read_chart_xml(&xml, "chart.xml", "Chart".into(), ChartAnchor::Absolute {
+                x: 0, y: 0, width: 100, height: 100,
+            }).unwrap();
+            assert_eq!(chart.axes[0].tick_labels_hidden, expected);
+        }
+    }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn value_labels_accept_only_an_unambiguous_show_value_flag() {
