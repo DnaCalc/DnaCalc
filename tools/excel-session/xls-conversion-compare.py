@@ -33,6 +33,26 @@ def relationships(z, path):
     return {r.get('Id'): r for r in root.findall(P + 'Relationship')}
 
 
+def core_properties(z):
+    links = [rel for rel in relationships(z, '').values()
+             if rel.get('Type', '').endswith('/metadata/core-properties')]
+    if not links:
+        return {}
+    if len(links) != 1:
+        raise ValueError('multiple core-properties relationships')
+    root = ET.fromstring(z.read(target('', links[0])))
+    dc = '{http://purl.org/dc/elements/1.1/}'
+    cp = '{http://schemas.openxmlformats.org/package/2006/metadata/core-properties}'
+    result = {}
+    for key, tag in [('title', dc + 'title'), ('subject', dc + 'subject'), ('author', dc + 'creator'),
+                     ('keywords', cp + 'keywords'), ('description', dc + 'description'),
+                     ('last_modified_by', cp + 'lastModifiedBy'), ('revision', cp + 'revision')]:
+        element = root.find(tag)
+        if element is not None:
+            result[key] = element.text or ''
+    return result
+
+
 def target(base, rel):
     if rel.get('TargetMode') == 'External':
         return rel.get('Target')
@@ -341,7 +361,8 @@ def package(data):
                            'pivots': pivot_tables(z, sh, path, shrels)})
         props = wb.find(M + 'workbookPr')
         calc = wb.find(M + 'calcPr')
-        return {'date1904': props is not None and props.get('date1904', '0') in ('1', 'true'),
+        return {'core_properties': core_properties(z),
+                'date1904': props is not None and props.get('date1904', '0') in ('1', 'true'),
                 'full_precision': calc is None or calc.get('fullPrecision', '1') in ('1', 'true'), 'names': names,
                 'indexed_colors': indexed_colors, 'external_caches': external_caches(z, wb, wbpath, rels),
                 'pivot_caches': pivot_caches(z, wb, wbpath, rels), 'sheets': sheets}
