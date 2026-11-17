@@ -3277,15 +3277,20 @@ fn chart_default_font_requires_agreeing_unambiguous_defaults() {
     for (second_index, extra, expected) in [
         (2u16, 0u16, true), (1, 0, true), (3, 0, false), (0, 0, false),
         (2, 0x1026, false), (2, 0x1050, false), (2, 0x08A5, false),
+        (2, 0xFFF7, false), (2, 0xFFF8, false), (2, 0xFFF9, false), (2, 0xFFFA, false),
         (2, 0xFFFB, false), (2, 0xFFFC, false), (2, 0xFFFD, false), (2, 0xFFFE, false), (2, 0xFFFF, false),
     ] {
         let mut chart = art::chart(&[("Sales", Vec::new(), Vec::new())], 0, "Sales chart");
         let format = record(0x1014, &[0u8; 20]);
         let at = chart.windows(format.len()).position(|w| w == format).unwrap();
         let block = |id, index, extra| {
-            let mut out = [record(0x1024, &u16s(&[id])), record(0x1025, &[0u8; 32]),
-                art::begin(), record(0x1026, &u16s(&[index]))].concat();
-            if extra != 0 && extra < 0xFFFB { out.extend(record(extra, &u16s(&[index]))); }
+            let mut out = [record(0x1024, &u16s(&[id])), record(0x1025, &[0u8; 32]), art::begin()].concat();
+            let pos = record(0x104F, if extra == 0xFFF8 { &[0u8; 2] } else { &[0u8; 20] });
+            if extra != 0xFFF7 && extra != 0xFFFA { out.extend(pos.clone()); }
+            if extra == 0xFFF9 { out.extend(pos.clone()); }
+            out.extend(record(0x1026, &u16s(&[index])));
+            if extra == 0xFFFA { out.extend(pos); }
+            if extra != 0 && extra < 0xFFF7 { out.extend(record(extra, &u16s(&[index]))); }
             if extra != 0xFFFC {
                 out.extend(record(0x1051, if extra == 0xFFFB { &[0, 2, 0, 0, 0, 0, 0, 0] } else { &[0, 1, 0, 0, 0, 0, 0, 0] }));
             }

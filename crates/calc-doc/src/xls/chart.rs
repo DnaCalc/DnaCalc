@@ -159,6 +159,7 @@ pub(crate) struct Chart {
     pending_default_font: Option<usize>,
     active_default_font: Option<usize>,
     default_font_ai_valid: bool,
+    default_font_pos_seen: bool,
     default_fonts: [Option<(String, bool, bool)>; 2],
     default_font_seen: [bool; 2],
     default_font_invalid: bool,
@@ -469,6 +470,7 @@ impl Chart {
                 self.pending = Some(block_code(Block::Text));
                 self.active_default_font = self.pending_default_font.take();
                 self.default_font_ai_valid = false;
+                self.default_font_pos_seen = false;
                 self.link = None;
                 self.attached_text = None;
                 self.attached_formula = None;
@@ -478,7 +480,18 @@ impl Chart {
                 self.attached_font_seen = false;
                 self.attached_font_invalid = body.len() != 32 || !record.continues.is_empty();
             }
+            0x104F if self.active_default_font.is_some()
+                && self.stack.last().is_some_and(|code| block_of(*code) == Block::Text) => {
+                if self.default_font_pos_seen || self.attached_font_seen || self.attached_ai_seen
+                    || body.len() != 20 || !record.continues.is_empty() {
+                    self.default_font_invalid = true;
+                }
+                self.default_font_pos_seen = true;
+            }
             FONT_X if self.stack.last().is_some_and(|code| block_of(*code) == Block::Text) => {
+                if self.active_default_font.is_some() && (!self.default_font_pos_seen || self.attached_ai_seen) {
+                    self.default_font_invalid = true;
+                }
                 if self.attached_font_seen { self.attached_font_invalid = true; }
                 self.attached_font_seen = true;
                 self.attached_font = if code_page.is_none() && record.continues.is_empty() && body.len() == 2 {
@@ -519,7 +532,8 @@ impl Chart {
                             if let Some(index) = self.active_default_font.take() {
                                 if self.stack.len() != 1 || self.default_font_seen[index]
                                     || self.attached_invalid || self.attached_font_invalid || self.link.is_some()
-                                    || self.attached_font.is_none() || !self.default_font_ai_valid {
+                                    || self.attached_font.is_none() || !self.default_font_ai_valid
+                                    || !self.default_font_pos_seen {
                                     self.default_font_invalid = true;
                                 } else {
                                     self.default_fonts[index] = self.attached_font.take();
@@ -651,7 +665,8 @@ impl Chart {
                 if self.stack.iter().any(|c| block_of(*c) == Block::Text) {
                     if self.active_default_font.is_some() {
                         self.default_font_ai_valid = body.len() == 8 && record.continues.is_empty()
-                            && id == 0 && reference_type == 1 && count == 0;
+                            && id == 0 && reference_type == 1 && count == 0
+                            && self.default_font_pos_seen && self.attached_font_seen;
                     }
                     if self.attached_ai_seen { self.attached_invalid = true; }
                     self.attached_ai_seen = true;
