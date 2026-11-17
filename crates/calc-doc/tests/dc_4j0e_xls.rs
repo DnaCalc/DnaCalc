@@ -528,7 +528,12 @@ fn chart_sheet_preserves_series_in_a_linked_chart_part() {
     let globals = [supbook_self(2), extern_sheet(&[(0, 0, 0)])].concat();
     let chart = art::chart(&[("Sales", area3d(0, (1, 4), (0, 0), 0),
         area3d(0, (1, 4), (1, 1), 0))], 0, "Sales chart");
-    let records = chart[bof(0x0020).len()..chart.len()-eof().len()].to_vec();
+    let header = |text: &str| {
+        let mut body = (text.len() as u16).to_le_bytes().to_vec(); body.push(0); body.extend(text.as_bytes());
+        record(0x0014, &body)
+    };
+    let records = [header("&CChart & page"), record(0x01AA, &[]), header("custom only"), record(0x01AB, &[]),
+        chart[bof(0x0020).len()..chart.len()-eof().len()].to_vec()].concat();
     let mut three_d_records = records.clone();
     three_d_records.extend(record(0x103A, &[0; 14]));
     let bytes = xls(false, &globals, &[Sheet::worksheet("Data", number(1, 1, 7.5)),
@@ -539,6 +544,7 @@ fn chart_sheet_preserves_series_in_a_linked_chart_part() {
         assert!(chart.contains("Data!$B$2:$B$5") && chart.contains("Sales chart"), "{chart}");
         let sheet = String::from_utf8(doc.package().read_part("xl/chartsheets/sheet2.xml").unwrap()).unwrap();
         assert!(sheet.contains("<drawing r:id=\"rId1\"/>"), "{sheet}");
+        assert!(sheet.contains("<oddHeader>&amp;CChart &amp; page</oddHeader>") && !sheet.contains("custom only"), "{sheet}");
         assert!(doc.package().part("xl/drawings/drawing2.xml").is_some());
         assert!(doc.package().part("xl/drawings/_rels/drawing2.xml.rels").is_some());
     };
@@ -551,10 +557,13 @@ fn chart_sheet_preserves_series_in_a_linked_chart_part() {
     verify(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
     let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
     assert_eq!(report.unknown_records.get(&0x1003), Some(&1));
+    assert_eq!(report.unknown_records.get(&0x0014), Some(&1));
     let three_d = xls(false, &globals, &[Sheet::worksheet("Data", Vec::new()),
         Sheet { kind: 2, ..Sheet::worksheet("Chart1", three_d_records) }]);
     let three_d_doc = calc_doc::open(source(&three_d), &OpenPolicy::default()).unwrap();
     assert!(three_d_doc.package().part("xl/charts/chart2_1.xml").is_none());
+    let sheet = String::from_utf8(three_d_doc.package().read_part("xl/chartsheets/sheet2.xml").unwrap()).unwrap();
+    assert!(sheet.contains("<oddHeader>&amp;CChart &amp; page</oddHeader>"), "{sheet}");
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

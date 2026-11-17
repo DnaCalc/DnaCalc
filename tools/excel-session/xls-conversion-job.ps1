@@ -151,6 +151,11 @@ try {
                 @{name=[string]$chartSheet.Name; type=$chartSheet.ChartType;
                   series=[string]$chartSheet.SeriesCollection(1).Formula; title=[string]$chartSheet.ChartTitle.Text}
             }
+            $entry.setup.chart_sheet_print = GetOrError {
+                $chartSheet.PageSetup.CenterHeader = 'Controlled & header'
+                $chartSheet.PageSetup.RightFooter = 'Page &P'
+                @{header=[string]$chartSheet.PageSetup.CenterHeader; footer=[string]$chartSheet.PageSetup.RightFooter}
+            }
             $entry.setup.page = GetOrError { $sheet.PageSetup.Orientation = 2; $sheet.PageSetup.PrintArea = '$A$1:$D$5'; $sheet.PageSetup.Orientation }
             $entry.setup.header_picture = GetOrError {
                 $picture = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../crates/calc-doc/tests/fixtures/drawing/pictures/card.png'))
