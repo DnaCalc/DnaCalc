@@ -153,6 +153,16 @@ try {
                 $box.TextFrame.HorizontalAlignment = -4130
                 @{name=[string]$box.Name; horizontal_alignment=$box.TextFrame.HorizontalAlignment}
             }
+            $entry.setup.rotated_text = @(
+                foreach ($angle in @(-90, 90)) {
+                    GetOrError {
+                        $box = $sheet.Shapes.AddTextbox(1, 430, 100, 40, 100)
+                        $box.TextFrame.Characters().Text = 'Rotated text'
+                        $box.TextFrame.Orientation = $angle
+                        @{name=[string]$box.Name; requested=$angle; orientation=$box.TextFrame.Orientation}
+                    }
+                }
+            )
             $entry.setup.checkbox = GetOrError {
                 $box = $sheet.CheckBoxes().Add(180, 145, 90, 24)
                 $box.Caption = 'Controlled checkbox'; $box.Value = 1; $box.LinkedCell = '$M$2'
