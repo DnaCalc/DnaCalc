@@ -2278,6 +2278,7 @@ fn pictures_text_boxes_and_charts_are_written_as_a_drawing() {
     let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
     assert_eq!(report.unread_objects.values().sum::<u32>(), 0, "{:?}", report.unread_objects);
     assert!(report.unknown_records.contains_key(&0x00EC));
+    assert_eq!(report.unknown_records.get(&0x00EB), Some(&1));
     assert_eq!(report.unknown_records.get(&0x1017), Some(&1));
     // The workbook loads and has a chart and shapes.
     let loaded = load(&bytes);
