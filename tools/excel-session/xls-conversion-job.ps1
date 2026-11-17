@@ -200,6 +200,13 @@ try {
                 $series.ApplyDataLabels(); $series.DataLabels().ShowValue = $true
                 @{show_value=$series.DataLabels().ShowValue}
             }
+            $entry.setup.chart_group_value_labels = GetOrError {
+                $chart = $sheet.ChartObjects().Item(1).Chart
+                $chart.ApplyDataLabels()
+                $series = $chart.SeriesCollection(1)
+                $series.DataLabels().ShowValue = $true
+                @{show_value=$series.DataLabels().ShowValue}
+            }
             $entry.setup.chart_series_line = GetOrError {
                 $chart = $sheet.ChartObjects().Add(410, 270, 200, 150).Chart
                 $chart.ChartType = 4; $chart.SetSourceData($sheet.Range('H1:H2'))
