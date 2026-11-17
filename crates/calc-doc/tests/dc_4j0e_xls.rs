@@ -2654,7 +2654,7 @@ fn officeart_presets_preserve_only_untransformed_geometry() {
     use xls_kit::art;
     for (shape_type, geometry) in [(109, "flowChartProcess"), (5, "triangle"),
         (110, "flowChartDecision"), (120, "flowChartConnector"), (6, "rtTriangle"),
-        (127, "flowChartExtract"), (176, "flowChartAlternateProcess")] {
+        (127, "flowChartExtract")] {
     for (flags, property, expected) in [
         (0u32, None, true),
         (0, Some((0x03bf, 0x0008_0000)), true),
@@ -2683,6 +2683,10 @@ fn officeart_presets_preserve_only_untransformed_geometry() {
         }
     }
     }
+    // The legacy alternate-process preset has a different radius from DrawingML's.
+    let shape = art::shape(176, 0, [1, 0, 1, 0, 4, 0, 6, 0], false);
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", [art::drawing(&[shape]), art::obj(0x1e, 1)].concat())]);
+    assert!(load(&bytes).sheets()[0].shapes().shapes.is_empty());
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
