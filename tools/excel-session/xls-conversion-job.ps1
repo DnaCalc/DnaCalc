@@ -147,6 +147,11 @@ try {
                 $s = $sheet.Shapes.AddShape(61, 180, 100, 60, 30)
                 @{name=[string]$s.Name; auto_shape_type=$s.AutoShapeType}
             }
+            $entry.setup.checkbox = GetOrError {
+                $box = $sheet.CheckBoxes().Add(180, 145, 90, 24)
+                $box.Caption = 'Controlled checkbox'; $box.Value = 1; $box.LinkedCell = '$M$2'
+                @{name=[string]$box.Name; value=$box.Value; linked_cell=[string]$box.LinkedCell}
+            }
             $entry.setup.shape_no_fill = GetOrError {
                 $shape = $sheet.Shapes.AddShape(1, 100, 145, 60, 30)
                 $shape.Fill.Visible = 0

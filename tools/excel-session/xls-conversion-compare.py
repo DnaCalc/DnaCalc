@@ -166,6 +166,21 @@ def note_geometry(z, sheet, sheet_path, sheet_rels):
     return sorted(result, key=repr)
 
 
+def form_controls(z, sheet, sheet_path, sheet_rels):
+    result = []
+    for ref in sheet.findall(M + 'legacyDrawing'):
+        rel = sheet_rels.get(ref.get(R + 'id'))
+        if rel is None:
+            raise ValueError('missing legacy drawing relationship')
+        root = ET.fromstring(z.read(target(sheet_path, rel)))
+        for shape in root.iter(V + 'shape'):
+            client = shape.find(VX + 'ClientData')
+            if client is not None and client.get('ObjectType') != 'Note':
+                result.append({'object_type': client.get('ObjectType'), 'client_data': tree(client)})
+    controls = sheet.find(M + 'controls')
+    return {'legacy': sorted(result, key=repr), 'controls': None if controls is None else tree(controls)}
+
+
 def drawing_objects(z, sheet, sheet_path, sheet_rels):
     result = []
     for ref in sheet.findall(M + 'drawing'):
@@ -466,6 +481,7 @@ def package(data):
                            'merges': merges, 'links': sorted(links, key=repr), 'comments': sorted(comments),
                            'comment_runs': sorted(comment_runs, key=repr),
                            'note_geometry': note_geometry(z, sh, path, shrels),
+                           'form_controls': form_controls(z, sh, path, shrels),
                            'scenarios': None if sh.find(M + 'scenarios') is None else tree(sh.find(M + 'scenarios')),
                            'conditional_formats': [tree(e) for e in sh.findall(M + 'conditionalFormatting')],
                            'validations': [tree(e) for e in sh.findall(f'{M}dataValidations/{M}dataValidation')],
