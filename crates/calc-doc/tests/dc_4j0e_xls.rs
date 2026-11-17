@@ -3272,6 +3272,50 @@ fn chart_axis_literal_titles_survive_conversion_and_save() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_default_font_requires_agreeing_unambiguous_defaults() {
+    use xls_kit::art;
+    for (second_index, extra, expected) in [
+        (2u16, 0u16, true), (1, 0, true), (3, 0, false), (0, 0, false),
+        (2, 0x1026, false), (2, 0x1050, false), (2, 0x08A5, false),
+        (2, 0xFFFB, false), (2, 0xFFFC, false), (2, 0xFFFD, false), (2, 0xFFFE, false), (2, 0xFFFF, false),
+    ] {
+        let mut chart = art::chart(&[("Sales", Vec::new(), Vec::new())], 0, "Sales chart");
+        let format = record(0x1014, &[0u8; 20]);
+        let at = chart.windows(format.len()).position(|w| w == format).unwrap();
+        let block = |id, index, extra| {
+            let mut out = [record(0x1024, &u16s(&[id])), record(0x1025, &[0u8; 32]),
+                art::begin(), record(0x1026, &u16s(&[index]))].concat();
+            if extra != 0 && extra < 0xFFFB { out.extend(record(extra, &u16s(&[index]))); }
+            if extra != 0xFFFC {
+                out.extend(record(0x1051, if extra == 0xFFFB { &[0, 2, 0, 0, 0, 0, 0, 0] } else { &[0, 1, 0, 0, 0, 0, 0, 0] }));
+            }
+            out.extend(art::end()); out
+        };
+        let first = block(2, 1, 0);
+        let mut defaults = first.clone();
+        if extra != 0xFFFE { defaults.extend(block(3, second_index, extra)); }
+        if extra == 0xFFFF { defaults.extend(first); }
+        if extra == 0xFFFD { defaults.extend(record(0x08A5, &[])); }
+        chart.splice(at..at, defaults);
+        let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
+        let globals = [font(200, 2, 0x7FFF, 700, "Arial"), font(240, 2, 0x7FFF, 700, "Arial"),
+            font(200, 0, 0x7FFF, 400, "Courier New")].concat();
+        let bytes = xls(false, &globals, &[Sheet::worksheet("S", records)]);
+        let loaded = load(&bytes);
+        let style = &loaded.sheets()[0].charts().charts[0].text_style;
+        assert_eq!(style.family.is_some(), expected, "index {second_index}, extra {extra:#x}");
+        if expected {
+            assert_eq!((style.family.as_deref(), style.bold, style.italic), (Some("Arial"), Some(true), Some(true)));
+            let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            assert_eq!(&load(&saved).sheets()[0].charts().charts[0].text_style, style);
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn chart_axis_title_fonts_reject_overrides_and_duplicate_links() {
     use xls_kit::art;
     for (link, index, extra, expected) in [

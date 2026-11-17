@@ -239,6 +239,8 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
                 if chart_rel is None:
                     raise ValueError('missing chart relationship')
                 chart_root = ET.fromstring(z.read(target(path, chart_rel)))
+                obj['chart_default_font_properties'] = [tree(e) for tx in chart_root.findall(C + 'txPr')
+                                                        for e in tx.iter() if e.tag in (A + 'defRPr', A + 'rPr', A + 'endParaRPr')]
                 title = chart_root.find(f'{C}chart/{C}title')
                 obj['chart_title'] = None if title is None else {
                     'text': [e.text or '' for e in title.iter() if e.tag in (A + 't', C + 'v')],

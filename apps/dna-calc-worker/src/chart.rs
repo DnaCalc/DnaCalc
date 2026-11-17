@@ -85,6 +85,9 @@ fn text_colour(svg: String, chart: &ChartView) -> String {
             .nth(1)
             .and_then(|s| s.split('"').next())
             .map(str::to_owned);
+        if target.as_deref() == Some("title") && let Some(bold) = chart.text_style.bold {
+            svg_attribute(&mut tag, "font-weight", if bold { "700" } else { "400" });
+        }
         if let Some(style) = target.as_ref().and_then(|key| chart.element_text.get(key)) {
             if let Some(size) = style.size.filter(|n| (100..=40900).contains(n)) {
                 svg_attribute(
@@ -1727,6 +1730,8 @@ mod ui29_chart_tests {
         assert!(result.accepted(), "{result:?}");
         let chart = book.host().charts(sheet).0[0].clone();
         let mut titled = chart.clone();
+        titled.title = Some("Chart title".into());
+        titled.text_style.bold = Some(false);
         let axis = titled.axes.iter_mut().find(|axis| axis.position.as_deref() == Some("l")).unwrap();
         axis.title = Some("Revenue & costs".into());
         let key = format!("axis-title:{}", axis.id);
@@ -1735,6 +1740,8 @@ mod ui29_chart_tests {
         assert!(titled_svg.contains("data-dnacalc=\"chart-axis-title\""));
         assert!(titled_svg.contains("Revenue &amp; costs"));
         assert!(titled_svg.contains("&quot;Arial&quot;"));
+        let title_tag = titled_svg.split("data-dnacalc=\"chart-title\"").nth(1).unwrap().split('>').next().unwrap();
+        assert!(title_tag.contains("font-weight=\"400\""));
         let svg = chart_svg(&chart, 640., 360.);
         assert!(!svg.contains("chart-notice"), "{svg}");
         assert_eq!(svg.matches("data-dnacalc=\"chart-mark\"").count(), 12);
