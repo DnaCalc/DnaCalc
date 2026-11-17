@@ -1068,6 +1068,39 @@ fn short_two_initial(y: &[f64]) -> (Initial, Vec<f64>) {
     (Initial { level: y[0], trend, seasons: vec![0.0, index], period: 2, gamma: 0.0 }, e)
 }
 
+/// Excel's seasonal initial states for periods two and three over at least
+/// four complete cycles (eng21 solve_init/rule_check: exact for p = 2 at
+/// n = 8, 10-14, 16, 20 and p = 3 at n = 12, 15, 17, 18; with Excel's own
+/// parameters every fitted value of 2,360 histories agrees to 1e-12):
+/// - K = min(complete cycles, 5) cycles form the window, M = ceil(K/2);
+/// - A_q, the mean of phase q over the first M cycles; tau_q, phase q's slope
+///   from its first two to its last two window cycles;
+/// - s_0 = 0, s_q = s_(q-1) + A_q - A_(q-1) - tau_(q-1);
+/// - level y_0 (phase zero's level+index is the first observation) and the
+///   least-squares trend of the deseasonalised history.
+/// Partial final cycles below five cycles and periods above three follow
+/// other rules not yet identified (None).
+fn cycle_initial(y: &[f64], period: usize) -> Option<Initial> {
+    let n = y.len();
+    let cycles = (n / period).min(5);
+    if !(2..=3).contains(&period) || cycles < 4 || (n % period != 0 && n < 5 * period) {
+        return None;
+    }
+    let first = cycles.div_ceil(2);
+    let mean = |q: usize| (0..first).map(|c| y[c * period + q]).sum::<f64>() / first as f64;
+    let slope = |q: usize| {
+        let late = y[(cycles - 2) * period + q] + y[(cycles - 1) * period + q];
+        let early = y[q] + y[period + q];
+        (late - early) / 2.0 / ((cycles - 2) * period) as f64
+    };
+    let mut seasons = vec![0.0; period];
+    for q in 1..period {
+        seasons[q] = seasons[q - 1] + (mean(q) - mean(q - 1)) - slope(q - 1);
+    }
+    let adjusted: Vec<f64> = y.iter().enumerate().map(|(j, &v)| v - seasons[j % period]).collect();
+    Some(Initial { level: y[0], trend: regression_slope(&adjusted), seasons, period, gamma: 0.0 })
+}
+
 fn seasonal_general(
     site: &Site<'_>,
     y: &[f64],
@@ -1085,7 +1118,8 @@ fn seasonal_general(
         let (initial, extended) = short_two_initial(y);
         (initial, extended, SHORT_TWO_PARAMETERS)
     } else {
-        (seasonal_initial(y, period), y.to_vec(), SEASONAL_PARAMETERS)
+        let initial = cycle_initial(y, period).unwrap_or_else(|| seasonal_initial(y, period));
+        (initial, y.to_vec(), SEASONAL_PARAMETERS)
     };
     let start = search_history.len() - statistic_window(search_history.len());
     let validation = (start != 0).then_some(start);

@@ -5529,3 +5529,30 @@ fn forecast_ets_historical_fractional_targets_use_the_next_interval() {
         assert!(((got - expected) / expected).abs() < 1e-14, "{target}: {got} vs {expected}");
     }
 }
+
+/// Touchstone (eng21, Excel 20527): explicit periods two and three over four
+/// complete cycles use the measured cycle initialisation; Excel's selected
+/// parameters and its fitted values at targets 11..15 (period two) and 11..16
+/// (period three). The fitted values agree to 1e-12 relative, not yet in
+/// every bit.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn forecast_ets_cycle_initialisation_periods_two_and_three() {
+    let t = col(&(1..=12).map(f64::from).collect::<Vec<_>>());
+    for (period, y, fitted) in [
+        (2.0, vec![1.286246, 2.183696, 2.828766, 4.660762, 4.334081, 7.711319, 6.322702, 9.217424, 8.931031, 11.099961, 10.793759, 12.256886],
+         vec![10.682046388815891, 12.780776673670655, 12.66415109333057, 14.762881378185334, 14.64625579784525]),
+        (3.0, vec![2.059292, 2.272977, 2.389685, 3.835833, 6.520125, 5.557926, 7.373293, 8.710849, 8.102256, 10.102443, 11.183192, 11.514564],
+         vec![11.591218965442193, 11.202831529058448, 13.025029933139413, 14.467451056123496, 14.07906361973975, 15.901262023820717]),
+    ] {
+        let y = col(&y);
+        for (stat, expected) in [(1.0, 0.251), (2.0, 0.001), (3.0, 0.001)] {
+            exact(call("FORECAST.ETS.STAT", vec![y.clone(), t.clone(), n(stat), n(period)]), expected);
+        }
+        for (i, expected) in fitted.into_iter().enumerate() {
+            let target = 11.0 + i as f64;
+            let got = call("FORECAST.ETS", vec![n(target), y.clone(), t.clone(), n(period)]).unwrap().as_number().unwrap();
+            assert!(((got - expected) / expected).abs() < 1e-12, "{period} {target}: {got} vs {expected}");
+        }
+    }
+}
