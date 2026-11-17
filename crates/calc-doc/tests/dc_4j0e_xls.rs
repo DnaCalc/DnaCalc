@@ -3245,6 +3245,33 @@ fn chart_value_axis_retains_primary_linear_scale() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_axis_literal_titles_survive_conversion_and_save() {
+    use xls_kit::art;
+    let mut chart = art::chart(&[("Sales", Vec::new(), Vec::new())], 0, "Sales chart");
+    let legend = record(0x1015, &[0u8; 20]);
+    let at = chart.windows(legend.len()).position(|w| w == legend).unwrap();
+    let mut titles = Vec::new();
+    for (link, text) in [(2, "Revenue"), (3, "Region & area")] {
+        titles.extend([record(0x1025, &[0u8; 32]), art::begin(), art::series_text(text),
+            record(0x1027, &u16s(&[link, 0, 0, 0])), art::end()].concat());
+    }
+    chart.splice(at..at, titles);
+    let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", records)]);
+    let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let check = |book: &calc_doc::LoadedWorkbook| {
+        let axes = &book.sheets()[0].charts().charts[0].axes;
+        assert_eq!(axes[0].title.as_deref(), Some("Region & area"));
+        assert_eq!(axes[1].title.as_deref(), Some("Revenue"));
+    };
+    check(&load(&bytes));
+    let mut saved = Vec::new();
+    calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+    check(&load(&saved));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn chart_axis_font_is_scoped_to_unambiguous_primary_axes() {
     use xls_kit::art;
     for (parent, axis, index, extra, expected) in [

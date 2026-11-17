@@ -365,6 +365,14 @@ try {
                 @{font_name=[string]$axis.TickLabels.Font.Name; bold=$axis.TickLabels.Font.Bold;
                   italic=$axis.TickLabels.Font.Italic}
             }
+            $entry.setup.chart_axis_titles = GetOrError {
+                $chart = $sheet.ChartObjects('cxCacheChart').Chart
+                $category = $chart.Axes(1); $category.HasTitle = $true
+                $category.AxisTitle.Text = 'Region & area'
+                $value = $chart.Axes(2); $value.HasTitle = $true
+                $value.AxisTitle.Text = 'Revenue'
+                @{category=[string]$category.AxisTitle.Text; value=[string]$value.AxisTitle.Text}
+            }
             $entry.setup.chart_legend_font = GetOrError {
                 $chart = $sheet.ChartObjects('cxCacheChart').Chart
                 $chart.HasLegend = $true
