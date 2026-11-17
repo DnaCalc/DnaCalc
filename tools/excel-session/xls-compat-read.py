@@ -96,6 +96,24 @@ def main():
         prefixes += ('formula2/', 'reopened_formula2/', 'converted_formula2/', 'modern_formula2/')
     expected = {prefix + str(case[0]) for case in cases for prefix in prefixes}
     missing = sorted(expected - by_name.keys())
+    completed_calculations, missing_calculations, invalid_calculations = [], [], []
+    for name in sorted(expected & by_name.keys()):
+        row = by_name[name]
+        if not row.get('ok'):
+            continue
+        value = row.get('value')
+        receipt = value.get('calculation') if isinstance(value, dict) else None
+        if receipt is None:
+            missing_calculations.append(name)
+        elif (isinstance(receipt, dict) and receipt.get('operation') == 'Range.Calculate'
+              and type(receipt.get('state')) is int and receipt['state'] == 0):
+            completed_calculations.append(name)
+        else:
+            invalid_calculations.append(name)
+    if result.get('calculation_receipts') and (missing_calculations or invalid_calculations):
+        raise SystemExit('successful formula observation lacks a completed cell-calculation receipt: '
+                         + ', '.join(missing_calculations + invalid_calculations))
+
     legacy = base64.b64decode(result.get('legacy_base64') or '', validate=True)
     modern = base64.b64decode(result.get('converted_base64') or '', validate=True)
     limits = base64.b64decode(result.get('limits_base64') or '', validate=True)
@@ -137,10 +155,14 @@ def main():
               'modern_baseline_available': bool(baseline),
               'cases_sha256': cases_hash, 'cases_verified': schema == 2,
               'cases_source': 'local' if args.cases else 'embedded',
+              'cell_calculation_receipts': {'completed': completed_calculations,
+                                            'missing': missing_calculations, 'invalid': invalid_calculations},
               'not_run': result.get('not_run', []),
               'product_comparison': 'not available: Compatibility Mode is not modelled'}
     args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     print(f"Read {len(observations)} observations; {len(missing)} expected formula observations missing; {len(stored)}/{len(cases)} stored formula token streams found. Product comparison not available.")
+    print(f"Cell calculations: {len(completed_calculations)} completed receipts, "
+          f"{len(missing_calculations)} missing, {len(invalid_calculations)} invalid. This is not a product match count.")
     if result.get('formula2_cases'):
         print(f"Formula2: {len(stored_formula2)}/{len(cases)} stored anchor token streams found; array records remain in compat.xls.")
 

@@ -25,13 +25,18 @@ function Probe([string]$name, [scriptblock]$action) {
     catch { $answers.Add(@{name=$name; ok=$false; error=$_.Exception.Message; hresult=$_.Exception.HResult}) }
 }
 function ReadCell($cell, [string]$entryApi = 'Formula') {
+    # Every stage, including reopen and conversion, reads a newly calculated cell.
+    $cell.Calculate() | Out-Null
+    $state = [int]$app.CalculationState
+    if ($state -ne 0) { throw "Excel cell calculation did not finish: state $state" }
     $value = $cell.Value2
     return @{formula=[string]$cell.Formula; formula2=$(try {[string]$cell.Formula2} catch {$null});
         value=$(if ($null -eq $value) {$null} else {[string]$value});
         value_type=$(if ($null -eq $value) {$null} else {$value.GetType().FullName});
         number_bits=$(if ($value -is [double]) {[BitConverter]::DoubleToInt64Bits($value).ToString('X16')} else {$null});
         text=[string]$cell.Text; number_format=[string]$cell.NumberFormat;
-        address=[string]$cell.Address($false,$false); entry_api=$entryApi}
+        address=[string]$cell.Address($false,$false); entry_api=$entryApi;
+        calculation=@{operation='Range.Calculate'; state=$state}}
 }
 function AddFormula2Cases($workbook, [string]$prefix) {
     $dynamicSheet = $workbook.Worksheets.Add([Type]::Missing, $workbook.Worksheets.Item($workbook.Worksheets.Count))
@@ -44,7 +49,6 @@ function AddFormula2Cases($workbook, [string]$prefix) {
         $cell = $dynamicSheet.Cells.Item(1 + 32 * $index, 3)
         Probe ($prefix + [string]$case[0]) {
             $cell.Formula2 = [string]$case[1]
-            $cell.Calculate() | Out-Null
             ReadCell $cell 'Formula2'
         }
         $index++
@@ -80,7 +84,7 @@ try {
     $row = 1
     foreach ($case in $cases.formulas) {
         $id = [string]$case[0]; $formula = [string]$case[1]; $cell = $sheet.Cells.Item($row, 3)
-        Probe ('formula/' + $id) { $cell.Formula = $formula; $cell.Calculate() | Out-Null; ReadCell $cell }
+        Probe ('formula/' + $id) { $cell.Formula = $formula; ReadCell $cell }
         $row++
     }
     Probe 'formula2_setup' { AddFormula2Cases $book 'formula2/'; @{sheet='Formula2'; row_stride=32} }
@@ -91,7 +95,7 @@ try {
     Probe 'fill_down_past_limit' { $sheet.Range('G65535:G65537').FillDown(); [string]$sheet.Range('G65537').Value2 }
     Probe 'used_range_before_corner' { [string]$sheet.UsedRange.Address($false,$false) }
     Probe 'last_legacy_cell' { $sheet.Range('IV65536').Value2 = 'edge'; [string]$sheet.Cells.SpecialCells(11).Address($false,$false) }
-    Probe 'spill_across_legacy_edge' { $c = $sheet.Range('B65536'); $c.Formula2 = '=SEQUENCE(2)'; $c.Calculate() | Out-Null; ReadCell $c 'Formula2' }
+    Probe 'spill_across_legacy_edge' { $c = $sheet.Range('B65536'); $c.Formula2 = '=SEQUENCE(2)'; ReadCell $c 'Formula2' }
     Probe 'palette_roundtrip_before' { $sheet.Range('D1').Interior.Color = 1193046; $sheet.Range('D1').Interior.Color }
     foreach ($n in @(8192,8193)) {
         Probe ('formula_length/' + $n) { $s = '=' + ('1+' * [int][math]::Floor(($n-2)/2)) + '1'; if ($s.Length -lt $n) { $s = '=+' + $s.Substring(1) }; $sheet.Range('D2').Formula = $s; ([string]$sheet.Range('D2').Formula).Length }
@@ -155,7 +159,6 @@ try {
                 $cell = $baselineSheet.Cells.Item($row, 3)
                 Probe ('modern/' + [string]$case[0]) {
                     $cell.Formula = [string]$case[1]
-                    $cell.Calculate() | Out-Null
                     ReadCell $cell
                 }
                 $row++
@@ -224,7 +227,7 @@ finally {
     $app.DisplayAlerts = $oldAlerts
 }
 @{schema_version=2; cases_sha256=$casesHash; cases_base64=[Convert]::ToBase64String($caseBytes);
-    formula2_cases=$true; fatal=$fatal; cases=$answers.ToArray(); legacy_base64=$legacyBytes; converted_base64=$modernBytes;
+    formula2_cases=$true; calculation_receipts=$true; fatal=$fatal; cases=$answers.ToArray(); legacy_base64=$legacyBytes; converted_base64=$modernBytes;
     limits_base64=$limitsBytes; modern_baseline_base64=$baselineBytes;
     not_run=@('Ctrl+End keyboard action', 'recalculation across saving versions',
         'compatibility checker findings')} | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $Result -Encoding utf8NoBOM
