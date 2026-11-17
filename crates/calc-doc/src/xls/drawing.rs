@@ -1,7 +1,7 @@
 //! Drawings of a BIFF8 worksheet: the OfficeArt shapes of its MSODRAWING records (MS-ODRAWING),
 //! the OBJ records that say what each shape is (MS-XLS 2.4.178), the pictures in the workbook's
 //! MSODRAWINGGROUP blip store, text boxes (TXO) and the chart substreams, written as the DrawingML
-//! drawing part, its images and its chart parts. A shape this reader does not read (a connector,
+//! drawing part, its images and its chart parts. A shape this reader does not read (a decorated connector,
 //! a form control, an ActiveX object) is counted, never fatal.
 
 use super::features::Rel;
@@ -139,6 +139,34 @@ pub(crate) fn hidden_line_defaults_safe(data: &[u8]) -> bool {
     })
 }
 
+/// Defaults for the simple stroke subset. An unresolved colour can be replaced by an
+/// explicit shape colour; unknown properties cannot safely be flattened this way.
+pub(crate) fn line_defaults(data: &[u8]) -> Option<BTreeMap<u16, u32>> {
+    fn read(data: &[u8], out: &mut BTreeMap<u16, u32>) -> Option<()> {
+        let records = atoms(data);
+        if records.iter().map(|a| a.body.len() + 8).sum::<usize>() != data.len() { return None; }
+        for atom in records {
+            if !atom.complete || matches!(atom.kind, 0xf121 | 0xf122) { return None; }
+            if atom.kind == 0xf00b {
+                if usize::from(atom.instance) * 6 != atom.body.len() { return None; }
+                for p in atom.body.chunks_exact(6) {
+                    let id = u16::from_le_bytes([p[0], p[1]]);
+                    let value = u32::from_le_bytes(p[2..6].try_into().ok()?);
+                    let property = id & 0x3fff;
+                    if property == 0x0301 && value != 0 || (0x0540..=0x063f).contains(&property)
+                        || (0x0200..=0x02ff).contains(&property) { return None; }
+                    if (0x01c0..=0x01ff).contains(&property)
+                        && (id != property || out.insert(property, value).is_some()) { return None; }
+                }
+            } else if atom.container { read(atom.body, out)?; }
+        }
+        Some(())
+    }
+    let mut out = BTreeMap::new();
+    read(data, &mut out)?;
+    Some(out)
+}
+
 fn blip_image(atom: &Atom<'_>) -> Option<Image> {
     let body = atom.body;
     // One 16-byte UID, two when the instance is the "with second UID" form.
@@ -236,9 +264,53 @@ struct Shape {
     text_wrap: Option<u32>,
     text_wrap_invalid: bool,
     flags: Option<u32>,
+    line_properties: BTreeMap<u16, u32>,
+    line_invalid: bool,
+    line_effects: bool,
 }
 
 impl Shape {
+    /// An opaque, solid, single stroke without unresolved scheme/system colours.
+    fn solid_stroke(&self, defaults: &Option<BTreeMap<u16, u32>>) -> Option<(String, u32)> {
+        if self.fixed_geometry_unsafe || self.flip_invalid
+            || self.hidden_line_invalid || self.hidden_line_pending_textbox || self.line_invalid
+            || self.text_box || !self.flags.is_some_and(|flags| flags & !0x0ac0 == 0)
+        { return None; }
+        let mut properties = defaults.as_ref()?.clone();
+        for (&id, &value) in &self.line_properties {
+            let value = if id == 0x01ff {
+                let uses = value >> 16;
+                let inherited = properties.get(&id).copied().unwrap_or(0);
+                ((inherited | value) & 0xffff_0000) | ((inherited & !uses | value & uses) & 0xffff)
+            } else { value };
+            properties.insert(id, value);
+        }
+        // Defaults: RGB black, opacity 1, solid fill, 0.75 pt, single solid line,
+        // no arrows. Other properties may change rendering and remain unread.
+        for (&id, &value) in &properties {
+            let safe = match id {
+                0x01c0 => value >> 24 == 0,
+                0x01c1 => value == 0x10000,
+                0x01c2 | 0x01c3 => true, // Background unused by an opaque solid stroke.
+                0x01c5 | 0x01cd | 0x01ce | 0x01cf | 0x01d0 | 0x01d1 => value == 0,
+                0x01cb => value > 0 && value <= 0x0132_f540,
+                0x01cc => value == 0x80000,
+                0x01d2..=0x01d5 => value <= 2, // Sizes unused without arrows.
+                0x01d6 => value == 2, // Round join.
+                0x01d7 => value == 2, // Flat cap, the DrawingML default.
+                0x01ff => value & 0x0001_0001 != 0x0001_0001
+                    && value & 0x0200_0200 != 0x0200_0200
+                    && value & 0x0040_0040 != 0x0040_0040
+                    && value & 0x0008_0008 != 0x0008_0000,
+                _ => false,
+            };
+            if !safe { return None; }
+        }
+        let value = properties.get(&0x01c0).copied().unwrap_or(0);
+        let rgb = format!("{:02X}{:02X}{:02X}", value & 255, value >> 8 & 255, value >> 16 & 255);
+        Some((rgb, properties.get(&0x01cb).copied().unwrap_or(9525)))
+    }
+
     /// MS-ODRAW 2.3.8.38: explicit fUsefLine with fLine=false on a 2-D shape.
     fn hidden_line(&self) -> bool {
         !self.hidden_line_invalid && !self.hidden_line_pending_textbox
@@ -314,6 +386,11 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                             let id = u16::from_le_bytes([p[0], p[1]]);
                             let value = u32::from_le_bytes([p[2], p[3], p[4], p[5]]);
                             let property = id & 0x3fff;
+                            if (0x0200..=0x02ff).contains(&property) { shape.line_effects = true; }
+                            if (0x01c0..=0x01ff).contains(&property)
+                                && (id != property || shape.line_properties.insert(property, value).is_some()) {
+                                shape.line_invalid = true;
+                            }
                             if property == 0x0301 && value != 0 { shape.solid_fill_invalid = true; shape.hidden_line_invalid = true; }
                             if (0x0180..=0x01bf).contains(&property) {
                                 if id & 0xc000 != 0
@@ -365,6 +442,7 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                         }
                     }
                     0xF010 if child.body.len() >= 18 => {
+                        if shape.anchor.is_some() || child.body.len() != 18 { shape.line_invalid = true; }
                         let mut a = [0u16; 8];
                         for (k, item) in a.iter_mut().enumerate() {
                             *item = u16::from_le_bytes([child.body[2 + 2 * k], child.body[3 + 2 * k]]);
@@ -375,6 +453,7 @@ fn shapes_of(data: &[u8], out: &mut Vec<Shape>) {
                     0xF00D => shape.text_box = true,
                     // Secondary/tertiary properties can override the primary fill colour.
                     0xF121 | 0xF122 => {
+                        shape.line_invalid = true;
                         shape.solid_fill_invalid = true;
                         shape.hidden_line_invalid = true;
                         shape.flip_invalid = true;
@@ -613,6 +692,7 @@ impl Drawing {
         styles: &super::styles::Styles,
         solid_fill_defaults_safe: bool,
         hidden_line_defaults_safe: bool,
+        line_defaults: &Option<BTreeMap<u16, u32>>,
     ) -> Option<DrawingParts> {
         let mut x = Xml::new();
         x.open(
@@ -670,6 +750,33 @@ impl Drawing {
                 x.close("a:xfrm");
             };
             match object.kind {
+                0x01 | 0x1e if shape.shape_type == 20 && object.text.is_none() && !shape.line_effects => {
+                    let Some((rgb, width)) = shape.solid_stroke(line_defaults) else {
+                        *unread.entry(object.kind).or_insert(0) += 1;
+                        continue;
+                    };
+                    x.open("xdr:twoCellAnchor", &[]);
+                    anchor(&mut x);
+                    x.open("xdr:cxnSp", &[]);
+                    x.open("xdr:nvCxnSpPr", &[]);
+                    x.empty("xdr:cNvPr", &[("id", name_id.to_string()), ("name", format!("Line {}", written + 1))]);
+                    x.empty("xdr:cNvCxnSpPr", &[]);
+                    x.close("xdr:nvCxnSpPr");
+                    x.open("xdr:spPr", &[]);
+                    xfrm(&mut x);
+                    x.open("a:prstGeom", &[("prst", "line".to_owned())]);
+                    x.empty("a:avLst", &[]);
+                    x.close("a:prstGeom");
+                    x.open("a:ln", &[("w", width.to_string())]);
+                    x.open("a:solidFill", &[]);
+                    x.empty("a:srgbClr", &[("val", rgb)]);
+                    x.close("a:solidFill");
+                    x.close("a:ln");
+                    x.close("xdr:spPr");
+                    x.close("xdr:cxnSp");
+                    x.empty("xdr:clientData", &[]);
+                    x.close("xdr:twoCellAnchor");
+                }
                 // A picture, or an OfficeArt object that is one.
                 0x08 | 0x1E if shape.picture.is_some() => {
                     let index = shape.picture.unwrap_or(0) as usize;
@@ -805,6 +912,13 @@ impl Drawing {
                     if hidden_line_defaults_safe && shape.hidden_line() {
                         x.open("a:ln", &[]);
                         x.empty("a:noFill", &[]);
+                        x.close("a:ln");
+                    } else if shape.line_properties.contains_key(&0x01c0)
+                        && let Some((rgb, width)) = shape.solid_stroke(line_defaults) {
+                        x.open("a:ln", &[("w", width.to_string())]);
+                        x.open("a:solidFill", &[]);
+                        x.empty("a:srgbClr", &[("val", rgb)]);
+                        x.close("a:solidFill");
                         x.close("a:ln");
                     }
                     x.close("xdr:spPr");

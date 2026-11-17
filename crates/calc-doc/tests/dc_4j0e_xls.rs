@@ -435,6 +435,12 @@ fn write_legacy_excel_session_inputs() {
         shape_solid_fill_fixture(&[(0x01ff, 0x0008_0000)], None, &[])).unwrap();
     std::fs::write(dir.join("drawing-rgb-solid-fill.xls"),
         shape_solid_fill_fixture(&[(0x0181, 0x00563412), (0x01bf, 0x00100010)], None, &[])).unwrap();
+    let line_sheets: Vec<_> = [("Down", 0, [1, 0, 1, 0, 4, 0, 5, 0]),
+        ("Up", 0x80, [1, 0, 1, 0, 4, 0, 5, 0]),
+        ("Horizontal", 0, [1, 0, 1, 0, 4, 0, 1, 0]),
+        ("Vertical", 0, [1, 0, 1, 0, 1, 0, 5, 0])].into_iter().map(|(name, flip, anchor)|
+            Sheet::worksheet(name, art::plain_line(&[(0x1c0, 255), (0x1cb, 9525)], 0xa00 | flip, anchor))).collect();
+    std::fs::write(dir.join("drawing-solid-lines.xls"), xls(false, &[], &line_sheets)).unwrap();
     std::fs::write(dir.join("drawing-obj-continuation.xls"), obj_continuation_fixture(false)).unwrap();
     std::fs::write(dir.join("drawing-txo-continuation.xls"), txo_continuation_fixture(false)).unwrap();
     std::fs::write(dir.join("drawing-text-anchor-conflict.xls"), text_anchor_conflict_fixture()).unwrap();
@@ -501,7 +507,7 @@ fn write_legacy_excel_session_inputs() {
     let short_format = record(0x041e, &[0xa4, 0x00, 0x02, 0x00, 0x00, b'x']);
     std::fs::write(dir.join("repair-short-format.xls"),
         xls(false, &short_format, &[Sheet::worksheet("Data", number(0, 0, 42.0))])).unwrap();
-    for name in ["raw-biff2-layout", "raw-grid", "raw-biff2", "raw-biff2-inline", "raw-biff3", "raw-biff4", "cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "tab-color-biff8", "drawing-rgb-solid-fill", "drawing-hidden-outline", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "drawing-rich-underline", "drawing-uniform-underline", "emf-checksum-valid", "emf-checksum-invalid", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
+    for name in ["raw-biff2-layout", "raw-grid", "raw-biff2", "raw-biff2-inline", "raw-biff3", "raw-biff4", "cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "tab-color-biff8", "drawing-rgb-solid-fill", "drawing-solid-lines", "drawing-hidden-outline", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "drawing-rich-underline", "drawing-uniform-underline", "emf-checksum-valid", "emf-checksum-invalid", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
         let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
         let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
         let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
@@ -510,7 +516,7 @@ fn write_legacy_excel_session_inputs() {
         std::fs::write(dir.join(format!("{name}.dnacalc.xlsx")), converted).unwrap();
     }
     let cases = serde_json::json!({
-        "files": ["raw-biff2-layout.xls", "raw-grid.xls", "raw-biff2.xls", "raw-biff2-inline.xls", "raw-biff3.xls", "raw-biff4.xls", "cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "tab-color-biff8.xls", "drawing-rgb-solid-fill.xls", "drawing-hidden-outline.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "drawing-uniform-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
+        "files": ["raw-biff2-layout.xls", "raw-grid.xls", "raw-biff2.xls", "raw-biff2-inline.xls", "raw-biff3.xls", "raw-biff4.xls", "cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "tab-color-biff8.xls", "drawing-rgb-solid-fill.xls", "drawing-solid-lines.xls", "drawing-hidden-outline.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "drawing-uniform-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
         "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls",
             "repair-name-collisions.xls", "repair-long-collisions.xls",
             "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls",
@@ -4283,4 +4289,128 @@ fn an_excel_4_macro_sheet_of_an_xls_opens_as_dc_xuw_describes_and_saves_as_xlsm(
     let reopened = calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap();
     let macro_part = String::from_utf8(reopened.package().read_part("xl/macrosheets/sheet2.xml").unwrap()).unwrap();
     assert!(macro_part.contains("ALERT("), "{macro_part}");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn standalone_solid_lines_keep_endpoints_flips_and_stroke_after_save() {
+    use calc_doc::model::{ShapeColour, ShapeKind};
+    use xls_kit::art;
+    for flip in [0, 0x40, 0x80, 0xc0] {
+        for anchor in [[1, 128, 2, 64, 5, 512, 6, 192], [1, 0, 2, 0, 5, 0, 2, 0], [1, 0, 2, 0, 1, 0, 6, 0]] {
+            let properties = [(0x1c0, 0x00563412), (0x1cb, 38100), (0x1ff, 0x180018)];
+            let bytes = xls(false, &[], &[Sheet::worksheet("S", art::plain_line(&properties, 0xa00 | flip, anchor))]);
+            let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+            let check = |loaded: LoadedWorkbook| {
+                let shapes = &loaded.sheets()[0].shapes().shapes;
+                assert_eq!(shapes.len(), 1);
+                let line = &shapes[0];
+                assert_eq!(line.kind, ShapeKind::Connector);
+                assert_eq!(line.geometry.as_deref(), Some("line"));
+                assert_eq!(line.line.colour, Some(ShapeColour::Rgb(0x123456)));
+                assert_eq!(line.line.weight, Some(38100));
+                assert_eq!((line.flip_horizontal, line.flip_vertical), (flip & 0x40 != 0, flip & 0x80 != 0));
+                match line.anchor {
+                    calc_doc::model::ChartAnchor::TwoCell { from, to, .. } => {
+                        assert_eq!((from.column, from.row, to.column, to.row), (u32::from(anchor[0]), u32::from(anchor[2]), u32::from(anchor[4]), u32::from(anchor[6])));
+                        assert_eq!(from.column_offset == 0, anchor[1] == 0);
+                        assert_eq!(from.row_offset == 0, anchor[3] == 0);
+                    }
+                    _ => panic!("line lost its cell anchor"),
+                }
+            };
+            check(load(&bytes));
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            check(load(&saved));
+            let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+            assert!(!report.unread_objects.contains_key(&1));
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn unsupported_line_geometry_and_strokes_stay_counted() {
+    use xls_kit::art;
+    for extra in [
+        vec![(0x1c0, 0x08000040)], vec![(0x1c1, 0x8000)], vec![(0x1c5, 1)],
+        vec![(0x1cd, 1)], vec![(0x1ce, 1)], vec![(0x1d1, 1)], vec![(0x1d7, 0)],
+        vec![(0x1cb, 0)], vec![(0x1cb, 0x0132f541)], vec![(0x1ff, 0x00080000)],
+        vec![(0x1ff, 0x00010001)], vec![(0x1ff, 0x02000200)], vec![(0x1ff, 0x00400040)],
+        vec![(4, 0x10000)], vec![(0x145, 0)], vec![(0x301, 5)],
+        vec![(0x57f, 0)], vec![(0x23f, 0x20002)], vec![(0x41cb, 9525)], vec![(0x1cb, 9525), (0x1cb, 9525)],
+    ] {
+        let bytes = xls(false, &[], &[Sheet::worksheet("S", art::plain_line(&extra, 0xa00, [1, 0, 2, 0, 5, 0, 6, 0]))]);
+        assert!(load(&bytes).sheets()[0].shapes().shapes.is_empty(), "{extra:?}");
+        let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+        assert_eq!(report.unread_objects.get(&1), Some(&1), "{extra:?}");
+    }
+    for flags in [0xa02, 0xa04, 0xb00, 0xe00, 0x1a00] {
+        let bytes = xls(false, &[], &[Sheet::worksheet("S", art::plain_line(&[], flags, [1, 0, 2, 0, 5, 0, 6, 0]))]);
+        assert!(load(&bytes).sheets()[0].shapes().shapes.is_empty(), "flags {flags:x}");
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn line_strokes_resolve_global_defaults_before_shape_overrides() {
+    use calc_doc::model::ShapeColour;
+    use xls_kit::art;
+    let check = |defaults: &[(u16, u32)], local: &[(u16, u32)], expected: Option<(u32, i64)>| {
+        let properties: Vec<_> = defaults.iter().flat_map(|(id, value)|
+            id.to_le_bytes().into_iter().chain(value.to_le_bytes())).collect();
+        let global = record(0xeb, &art::atom(15, 0, 0xf000, &art::atom(3, defaults.len() as u16, 0xf00b, &properties)));
+        let bytes = xls(false, &global, &[Sheet::worksheet("S", art::plain_line(local, 0xa00, [1, 0, 2, 0, 5, 0, 6, 0]))]);
+        let loaded = load(&bytes);
+        let shapes = &loaded.sheets()[0].shapes().shapes;
+        if let Some((rgb, width)) = expected {
+            assert_eq!(shapes.len(), 1);
+            assert_eq!(shapes[0].line.colour, Some(ShapeColour::Rgb(rgb)));
+            assert_eq!(shapes[0].line.weight, Some(width));
+        } else { assert!(shapes.is_empty()); }
+    };
+    check(&[], &[], Some((0, 9525)));
+    check(&[(0x1c0, 0x563412), (0x1cb, 25400)], &[], Some((0x123456, 25400)));
+    check(&[(0x1c0, 0x08000040)], &[], None);
+    check(&[(0x1c0, 0x08000040)], &[(0x1c0, 0x112233)], Some((0x332211, 9525)));
+    check(&[(0x1c1, 0x8000)], &[], None);
+    check(&[(0x1c1, 0x8000)], &[(0x1c1, 0x10000)], Some((0, 9525)));
+    check(&[(0x1ff, 0x00080000)], &[(0x1ff, 0x00080008)], Some((0, 9525)));
+    check(&[(0x1ff, 0x00080000)], &[(0x1ff, 8)], None);
+    check(&[(0x1ff, 0x00010001)], &[], None);
+    check(&[(0x1ff, 0x00010001)], &[(0x1ff, 0x00010000)], Some((0, 9525)));
+    check(&[(0x1cb, 9525), (0x1cb, 9525)], &[], None);
+    check(&[(0x057f, 0)], &[], None);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn solid_shape_outlines_keep_rgb_width_and_default_overrides() {
+    use calc_doc::model::ShapeColour;
+    use xls_kit::art;
+    let global_body = [(0x1c0u16, 0x08000040u32), (0x1cb, 9525)].into_iter().flat_map(|(id, value)|
+        id.to_le_bytes().into_iter().chain(value.to_le_bytes())).collect::<Vec<_>>();
+    let globals = record(0xeb, &art::atom(15, 0, 0xf000, &art::atom(3, 2, 0xf00b, &global_body)));
+    for (properties, expected) in [
+        (vec![(0x1c0, 0x66ff66), (0x1cb, 3175), (0x1ff, 0xe000e)], Some((0x66ff66, 3175))),
+        (vec![(0x1c0, 0x563412)], Some((0x123456, 9525))),
+        (vec![(0x1c0, 0x563412), (0x1c1, 0x8000)], None),
+        (vec![(0x1c0, 0x563412), (0x1d6, 0)], None),
+        (vec![], None),
+    ] {
+        let bytes = shape_solid_fill_fixture(&properties, None, &globals);
+        let check = |loaded: LoadedWorkbook| {
+            let line = &loaded.sheets()[0].shapes().shapes[0].line;
+            if let Some((rgb, width)) = expected {
+                assert_eq!(line.colour, Some(ShapeColour::Rgb(rgb)));
+                assert_eq!(line.weight, Some(width));
+            } else { assert_eq!(line.colour, None); }
+        };
+        check(load(&bytes));
+        let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let mut saved = Vec::new();
+        calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+        check(load(&saved));
+    }
 }

@@ -1087,6 +1087,18 @@ pub mod art {
         atom(0xF, 0, 0xF004, &children)
     }
 
+    /// A standalone line with its explicit OfficeArt properties and OBJ.
+    pub fn plain_line(properties: &[(u16, u32)], flags: u32, anchor: [u16; 8]) -> Vec<u8> {
+        let mut shape = shape(20, 0, anchor, false);
+        shape[20..24].copy_from_slice(&flags.to_le_bytes());
+        let body: Vec<_> = properties.iter().flat_map(|(id, value)|
+            id.to_le_bytes().into_iter().chain(value.to_le_bytes())).collect();
+        shape.splice(8..8, atom(3, properties.len() as u16, 0xf00b, &body));
+        let length = (shape.len() - 8) as u32;
+        shape[4..8].copy_from_slice(&length.to_le_bytes());
+        [drawing(&[shape]), obj(1, 1)].concat()
+    }
+
     /// MSODRAWING holding the group shape and then `shapes`.
     pub fn drawing(shapes: &[Vec<u8>]) -> Vec<u8> {
         let group = atom(0xF, 0, 0xF004, &atom(2, 0, 0xF00A, &[0, 4, 0, 0, 5, 0, 0, 0]));

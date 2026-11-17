@@ -211,6 +211,7 @@ fn convert_compound(
     let images = drawing::blip_store(&globals.drawing_group);
     let solid_fill_defaults_safe = drawing::solid_fill_defaults_safe(&globals.drawing_group);
     let hidden_line_defaults_safe = drawing::hidden_line_defaults_safe(&globals.drawing_group);
+    let line_defaults = drawing::line_defaults(&globals.drawing_group);
     let mut registry = v5::Registry::default();
     let mut tables: Vec<v5::Table> = Vec::new();
     let mut global_table = v5::Table::default();
@@ -331,6 +332,7 @@ fn convert_compound(
             images: &images,
             solid_fill_defaults_safe,
             hidden_line_defaults_safe,
+            line_defaults: &line_defaults,
             filter_range: filter_range(&globals, &links, source_tab as u32),
             styles: &globals.styles,
             tab: source_tab as u32,

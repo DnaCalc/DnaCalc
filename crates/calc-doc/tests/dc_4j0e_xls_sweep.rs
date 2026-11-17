@@ -204,6 +204,13 @@ fn sweep() {
                         let count = loaded.sheets().iter().flat_map(|s| &s.shapes().shapes)
                             .filter(|shape| shape.line.hidden).count();
                         println!("drawing shapes with hidden outlines: {count}");
+                        let lines = loaded.sheets().iter().flat_map(|s| &s.shapes().shapes)
+                            .filter(|shape| shape.kind == calc_doc::model::ShapeKind::Connector
+                                && shape.geometry.as_deref() == Some("line")).count();
+                        println!("drawing straight lines retained: {lines}");
+                        let strokes = loaded.sheets().iter().flat_map(|s| &s.shapes().shapes)
+                            .filter(|shape| shape.line.colour.is_some()).count();
+                        println!("drawing shapes with explicit stroke colors: {strokes}");
                     }
                     if std::env::var_os("DNACALC_XLS_AUDIT_DRAWING_FILL").is_some() {
                         let count = loaded.sheets().iter().flat_map(|s| &s.shapes().shapes)
