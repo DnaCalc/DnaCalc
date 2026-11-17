@@ -13,6 +13,22 @@ $generated = [Collections.Generic.List[object]]::new()
 $repairs = [Collections.Generic.List[object]]::new()
 $book = $null; $fatal = $null; $pivot = $null; $oldAlerts = $app.DisplayAlerts
 function GetOrError([scriptblock]$f) { try { return & $f } catch { return @{unread=$_.Exception.Message} } }
+function StrokeSnapshot($shape) {
+    GetOrError {
+        $line = $shape.Line
+        $values = @{visible=$line.Visible; rgb=$line.ForeColor.RGB; color_type=$line.ForeColor.Type;
+            weight=$line.Weight; transparency=$line.Transparency; dash=$line.DashStyle;
+            start_arrow=$line.BeginArrowheadStyle; end_arrow=$line.EndArrowheadStyle}
+        # A failed property read must not become numeric zero through a cast.
+        foreach ($key in $values.Keys) { if ($null -eq $values[$key]) { throw "Missing stroke property: $key" } }
+        $values.scheme = GetOrError {
+            $value = $line.ForeColor.SchemeColor
+            if ($null -eq $value) { throw 'Missing stroke scheme colour' }
+            [int]$value
+        }
+        $values
+    }
+}
 function CacheRefreshDates($workbook) {
     $workbook.PivotCaches() | ForEach-Object {
         GetOrError {
@@ -59,7 +75,13 @@ function Snapshot($workbook) {
             }
         }
         $links = @($sheet.Hyperlinks | ForEach-Object { @{address=[string]$_.Range.Address($false,$false); target=[string]$_.Address; location=[string]$_.SubAddress} })
-        $shapes = @($sheet.Shapes | ForEach-Object { @{name=[string]$_.Name; type=$_.Type; top_left=(GetOrError { [string]$_.TopLeftCell.Address($false,$false) }); bottom_right=(GetOrError { [string]$_.BottomRightCell.Address($false,$false) })} })
+        $shapes = @($sheet.Shapes | ForEach-Object {
+            $shape = $_
+            @{name=[string]$shape.Name; type=$shape.Type;
+              top_left=(GetOrError { [string]$shape.TopLeftCell.Address($false,$false) });
+              bottom_right=(GetOrError { [string]$shape.BottomRightCell.Address($false,$false) });
+              stroke=(StrokeSnapshot $shape)}
+        })
         $sheets.Add(@{name=[string]$sheet.Name; visible=$sheet.Visible; cells=$cells.ToArray(); links=$links; shapes=$shapes;
             conditional_formats=(GetOrError {$used.FormatConditions.Count}); validations=(GetOrError {$used.SpecialCells(-4174).CountLarge});
             charts=(GetOrError {$sheet.ChartObjects().Count})})
@@ -307,6 +329,19 @@ try {
                 $shape = $sheet.Shapes.AddShape(1, 170, 145, 60, 30)
                 $shape.Line.Visible = 0
                 @{name=[string]$shape.Name; visible=$shape.Line.Visible}
+            }
+            $entry.setup.shape_solid_outline = GetOrError {
+                $shape = $sheet.Shapes.AddShape(1, 240, 145, 60, 30)
+                $shape.Line.Visible = -1; $shape.Line.ForeColor.RGB = 0x66ff66
+                $shape.Line.Weight = 0.25; $shape.Line.Transparency = 0
+                $shape.Line.DashStyle = 1
+                @{name=[string]$shape.Name; stroke=(StrokeSnapshot $shape)}
+            }
+            $entry.setup.default_line = GetOrError {
+                # Leave Excel's colour untouched: the corpus's dominant scheme-64
+                # source lines need this observation before their colour is modelled.
+                $shape = $sheet.Shapes.AddLine(100, 675, 220, 690)
+                @{name=[string]$shape.Name; stroke=(StrokeSnapshot $shape)}
             }
             $entry.setup.straight_lines = @(foreach ($lineCase in @(
                 @{kind='line'; x0=100; y0=700; x1=220; y1=730; arrow=1},
