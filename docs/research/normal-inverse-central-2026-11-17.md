@@ -108,3 +108,25 @@ Pieces B (1/sqrt 2 < |t| <= 0.85) and C (0.85 < t <= 0.875) are still the correc
 9,168 of 83,968 retained answers have no binary64 R with y = RN(t * R), so piece B does not form y as t times a
 stored ratio; rational interpolants of erfinv or erfinv/t in t or s at Chebyshev zeros (intervals and degrees
 scanned) reach at most 4 % there. Piece C's answers all have such a preimage.
+
+## fn7: piece B (1/sqrt 2 < |t| <= 0.85), what is known and what failed
+
+Data: the 13 retained R41 windows in B, plus 160,960 fresh Excel answers (20 windows of 2,048 at t = 0.7075 to 0.8495
+and 120,000 random inputs, both sides); 244,928 distinct |t| after the odd fold (no conflicts). R2
+`dnacalc-evidence/research/round63/fn7-20261117-B/` (4 files, 3,523,457 bytes). Scripts `fn7-B-*`.
+
+- **Nodes.** The bias of y (100 bins, se 0.03 to 0.18 units of 2^-53) oscillates with 11 extrema between t = 0.710
+  and 0.847. A fit of `c(t) + w(s) * (k0 + k1 t + k2 t^2)`, w the node polynomial of N Chebyshev zeros on [a, b],
+  selects **N = 13 on s in [0.5, 0.73]** (chi^2 741 on 100 bins; [0.5, 0.7325] or [0.5, 0.7275]: 1,506 and 1,539;
+  any N != 13 or variable t, -log(1-t), atanh t, sqrt(-log(1-t)): >= 2,331). Same upper end as piece A.
+- **Final assembly.** No stored double R gives y = RN(t * R) for 31,259 of 244,928 answers (12.8 %), so piece A's
+  `y = t * R` is not B's. Also refuted by unreachable answers: x = RN(RN(t sqrt2) * R) (23,779), x = RN(s * R)
+  (21,299), y = RN(s * R) then x = RN(y sqrt2) (14,369). A final division (y or x = RN(N / D)) remains possible.
+- **Constants.** Rational interpolants at those 13 nodes (m + n = 12, every split) of erfinv(sqrt s)/sqrt s,
+  erfinv(sqrt s), and both times sqrt 2, in s or s - c (c = 0.5, 0.55, 0.6, 0.615, 0.62, 0.65, 0.73), with
+  y = RN(P/Q), y = RN(t * P/Q) unstored, y = RN(RN(t P)/Q), x = RN(t * RN(P/Q)), x = RN(P/Q), each scanned along
+  the system's smallest singular vector (alpha from 1e-20 to 1e-9, both signs): at most 57,318 of 244,928 bit
+  matches (23 %), below the correctly rounded ratio. At the function level the same family misses the bias curve
+  (best chi^2 3,525). So the node set is identified but not the function, variable or evaluation.
+- The lattice read-out that found piece A's Q is swamped in B by the output grid (x > 1 there; peaks only at
+  lambda = t, t/sqrt 2 and their combinations).
