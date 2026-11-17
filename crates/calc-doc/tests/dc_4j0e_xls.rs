@@ -48,6 +48,19 @@ fn addin_cell_reference_fixture() -> Vec<u8> {
     xls(false, &globals, &[Sheet::worksheet("Data", cell)])
 }
 
+fn damaged_compound_fixtures() -> Vec<(&'static str, Vec<u8>)> {
+    let base = xls(false, &[], &[Sheet::worksheet("Data", number(0, 0, 42.0))]);
+    let missing_sector = (base.len() / 512 + 10) as u32;
+    let mut missing_fat = base.clone();
+    missing_fat[0x4c..0x50].copy_from_slice(&missing_sector.to_le_bytes());
+    let mut missing_chain = base;
+    let fat = u32::from_le_bytes(missing_chain[0x4c..0x50].try_into().unwrap()) as usize;
+    let directory = u32::from_le_bytes(missing_chain[0x30..0x34].try_into().unwrap()) as usize;
+    let entry = (fat + 1) * 512 + directory * 4;
+    missing_chain[entry..entry+4].copy_from_slice(&missing_sector.to_le_bytes());
+    vec![("repair-missing-fat.xls", missing_fat), ("repair-missing-chain.xls", missing_chain)]
+}
+
 fn ignored_error_feature() -> Vec<u8> {
     let mut header = vec![0x67, 0x08]; header.extend([0u8; 10]);
     header.extend(u16s(&[3])); header.push(1); header.extend(0u32.to_le_bytes());
@@ -134,6 +147,10 @@ fn write_legacy_excel_session_inputs() {
         std::fs::write(dir.join(file), xls(false, &sst(&[("Sales", &[])], None), &[Sheet::worksheet("Data", cells)])).unwrap();
     }
     std::fs::write(dir.join("repair-addin-cell.xls"), addin_cell_reference_fixture()).unwrap();
+    for (file, bytes) in damaged_compound_fixtures() { std::fs::write(dir.join(file), bytes).unwrap(); }
+    let short_format = record(0x041e, &[0xa4, 0x00, 0x02, 0x00, 0x00, b'x']);
+    std::fs::write(dir.join("repair-short-format.xls"),
+        xls(false, &short_format, &[Sheet::worksheet("Data", number(0, 0, 42.0))])).unwrap();
     for name in ["cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "forms"] {
         let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
         let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
@@ -146,7 +163,8 @@ fn write_legacy_excel_session_inputs() {
         "files": ["cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "forms.xls"],
         "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls",
             "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls",
-            "repair-elf-column.xls", "repair-elf-radical.xls", "repair-addin-cell.xls"],
+            "repair-elf-column.xls", "repair-elf-radical.xls", "repair-addin-cell.xls",
+            "repair-missing-fat.xls", "repair-missing-chain.xls", "repair-short-format.xls"],
         "create_pivot": true,
         "formulas": [
             ["rows_full_column", "=ROWS(A:A)"], ["columns_full_row", "=COLUMNS(1:1)"],
@@ -553,6 +571,25 @@ fn the_source_bytes_are_kept() {
     let bytes = xls(false, &[], &[Sheet::worksheet("S", Vec::new())]);
     let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
     assert_eq!(document.legacy_source(), Some(&bytes[..]));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn damaged_compound_and_format_fixtures_report_their_missing_data() {
+    for ((_, bytes), reason) in damaged_compound_fixtures().into_iter().zip([
+        "a FAT sector lies outside the file", "a sector chain leaves the file",
+    ]) {
+        match calc_doc::open(source(&bytes), &OpenPolicy::default()) {
+            Err(OpenError::LegacyWorkbook { detail, .. }) => assert!(detail.contains(reason), "{detail}"),
+            other => panic!("expected {reason}, got {:?}", other.err()),
+        }
+    }
+    let short_format = record(0x041e, &[0xa4, 0x00, 0x02, 0x00, 0x00, b'x']);
+    let bytes = xls(false, &short_format, &[Sheet::worksheet("Data", number(0, 0, 42.0))]);
+    match calc_doc::open(source(&bytes), &OpenPolicy::default()) {
+        Err(OpenError::LegacyWorkbook { detail, .. }) => assert!(detail.contains("record ends inside"), "{detail}"),
+        other => panic!("expected a short format refusal, got {:?}", other.err()),
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
