@@ -153,6 +153,13 @@ try {
                 $picture = $sheet.Shapes.AddPicture($path, -1, 0, 100, 355, 60, 30)
                 @{name=[string]$picture.Name; linked=$true}
             }
+            $entry.setup.shape_group = GetOrError {
+                $first = $sheet.Shapes.AddShape(1, 480, 420, 50, 25)
+                $second = $sheet.Shapes.AddShape(9, 540, 430, 40, 30)
+                $names = @([string]$first.Name, [string]$second.Name)
+                $group = $sheet.Shapes.Range($names).Group()
+                @{name=[string]$group.Name; children=$group.GroupItems.Count}
+            }
             $entry.setup.long_text_box = GetOrError {
                 $box = $sheet.Shapes.AddTextbox(1, 100, 300, 160, 90)
                 $text = ('é漢' * 5000)

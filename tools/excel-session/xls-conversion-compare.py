@@ -187,6 +187,7 @@ def drawing_objects(z, sheet, sheet_path, sheet_rels):
             obj = {'anchor': anchor.tag.rsplit('}', 1)[-1], 'position': position,
                    'types': sorted(x.tag.rsplit('}', 1)[-1] for x in anchor if x.tag in
                                    (XDR + 'sp', XDR + 'pic', XDR + 'graphicFrame', XDR + 'grpSp', XDR + 'cxnSp'))}
+            obj['group_structure'] = [tree(group) for group in anchor.findall(XDR + 'grpSp')]
             obj['shape_properties'] = [tree(properties) for element in anchor
                                        if element.tag in (XDR + 'sp', XDR + 'cxnSp')
                                        for properties in element.findall(XDR + 'spPr')]
