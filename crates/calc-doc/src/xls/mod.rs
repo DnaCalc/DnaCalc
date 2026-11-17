@@ -63,9 +63,32 @@ impl LegacyReport {
     }
 }
 
-/// Whether `bytes` start as an OLE compound file.
+/// A legacy workbook's container, identified without interpreting workbook content.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LegacyFormat {
+    Compound,
+    RawBiff { version: u8 },
+}
+
+impl LegacyFormat {
+    /// Sniff an OLE signature or an old raw BIFF BOF header. Raw BIFF2/3/4 reading belongs
+    /// to dc-4j0e.14; recognising the header must not silently exclude those files.
+    pub fn sniff(bytes: &[u8]) -> Option<Self> {
+        if cfb::is_compound(bytes) { return Some(Self::Compound); }
+        if bytes.len() < 8 { return None; }
+        let version = match bytes[..4] {
+            [0x09, 0x00, 0x04, 0x00] => 2,
+            [0x09, 0x02, 0x06, 0x00] => 3,
+            [0x09, 0x04, 0x06, 0x00] => 4,
+            _ => return None,
+        };
+        Some(Self::RawBiff { version })
+    }
+}
+
+/// Whether `bytes` start as a legacy workbook container.
 pub(crate) fn is_legacy(bytes: &[u8]) -> bool {
-    cfb::is_compound(bytes)
+    LegacyFormat::sniff(bytes).is_some()
 }
 
 fn refuse(stream: &str, detail: impl Into<String>) -> OpenError {
@@ -83,6 +106,9 @@ pub(crate) fn convert(
     bytes: &[u8],
     password: Option<&str>,
 ) -> Result<(Vec<u8>, LegacyReport), OpenError> {
+    if let Some(LegacyFormat::RawBiff { version }) = LegacyFormat::sniff(bytes) {
+        return Err(refuse("(raw stream)", format!("raw BIFF{version} streams are not read (dc-4j0e.14)")));
+    }
     let compound = cfb::Compound::open(bytes).map_err(|e| refuse("(compound file)", e.0))?;
     let summary = compound.read("\u{5}SummaryInformation").ok().flatten()
         .and_then(|bytes| properties::summary(&bytes)).unwrap_or_default();

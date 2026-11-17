@@ -127,7 +127,7 @@ pub use session::{
 };
 pub use source::{MemorySource, PackageRead, PackageWrite, SinkError, SourceError};
 pub use vba::{VBA_PROJECT_CONTENT_TYPE, VbaProjectPart, VbaReadError, VbaReadPolicy};
-pub use xls::LegacyReport;
+pub use xls::{LegacyFormat, LegacyReport};
 pub use xml::{
     XmlAttribute, XmlElement, XmlError, XmlEvent, XmlLimits, XmlName, XmlPart, XmlReader, XmlStr,
 };
@@ -182,7 +182,7 @@ pub fn open_with_password(
 ) -> Result<OpenedDocument, OpenError> {
     let package = match opc::Package::open(source.clone(), policy) {
         Ok(package) => package,
-        // Not a ZIP archive: an OLE compound file is a legacy Excel workbook. (The ZIP route is
+        // Not a ZIP archive: a compound file or raw BIFF stream is a legacy workbook. (The ZIP route is
         // tried first so a package's own bytes are not read at offset 0 before it is opened.)
         Err(OpenError::NotAZipArchive) => {
             let Some(bytes) = legacy_bytes(source.as_ref(), policy)? else {
@@ -214,7 +214,7 @@ pub fn open_with_password(
     })
 }
 
-/// The bytes of `source` when it is an OLE compound file (a legacy Excel workbook), within the
+/// The bytes of `source` when it is a legacy workbook container, within the
 /// policy's package size limit.
 fn legacy_bytes(source: &dyn PackageRead, policy: &OpenPolicy) -> Result<Option<Vec<u8>>, OpenError> {
     let length = source.size();

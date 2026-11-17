@@ -17,6 +17,29 @@ fn source(bytes: &[u8]) -> Arc<dyn PackageRead> {
     Arc::new(MemorySource::new(bytes.to_vec()))
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn raw_biff_headers_reach_the_owned_typed_refusal() {
+    for (version, id, body) in [(2, 0x0009, u16s(&[2, 0x10])),
+        (3, 0x0209, u16s(&[0, 0x10, 0])), (4, 0x0409, u16s(&[0, 0x10, 0]))] {
+        let bytes = [record(id, &body), record(0x000a, &[])].concat();
+        assert_eq!(calc_doc::LegacyFormat::sniff(&bytes), Some(calc_doc::LegacyFormat::RawBiff { version }));
+        for error in [calc_doc::open(source(&bytes), &OpenPolicy::default()).err().unwrap(),
+            legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap_err()] {
+            match error {
+                OpenError::LegacyWorkbook { detail, .. } => {
+                    assert!(detail.contains(&format!("raw BIFF{version}")) && detail.contains("dc-4j0e.14"), "{detail}");
+                }
+                other => panic!("raw workbook lost its format-specific refusal: {other:?}"),
+            }
+        }
+        assert_eq!(calc_doc::LegacyFormat::sniff(&bytes[..7]), None);
+    }
+    let cfb = xls(false, &[], &[Sheet::worksheet("S", Vec::new())]);
+    assert_eq!(calc_doc::LegacyFormat::sniff(&cfb), Some(calc_doc::LegacyFormat::Compound));
+    assert_eq!(calc_doc::LegacyFormat::sniff(b"<html>spreadsheet</html>"), None);
+}
+
 fn external_cache_fixture(invalid_link: bool) -> Vec<u8> {
     let mut crn = vec![4, 0, 2, 0, 1];
     crn.extend(1.25_f64.to_le_bytes());

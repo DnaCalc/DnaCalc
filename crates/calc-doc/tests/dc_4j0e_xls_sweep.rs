@@ -1,7 +1,8 @@
 //! dc-4j0e: the read sweep over legacy Excel files. Native-only: it reads the file system.
 //!
 //! `DNACALC_XLS_SWEEP` is a list of files and directories (separated by `:`); every OLE2 file
-//! under them (by its first eight bytes, whatever its extension) is opened and loaded. Files are
+//! under them (by its first eight bytes, whatever its extension), plus raw BIFF2/3/4 streams,
+//! is opened and loaded. Other-format `.xls` files are counted separately as exclusions. Files are
 //! data: they are read, never executed or opened in Office. The test prints the progress table:
 //! files opened, refused by reason, load refusals, panics, and the record types the converter
 //! did not read, most frequent first. It fails only on a panic. Run:
@@ -11,7 +12,7 @@
 //! `DNACALC_XLS_SWEEP=/path/a:/path/b cargo test -p calc-doc --test dc_4j0e_xls_sweep -- --nocapture`
 
 use calc_doc::model::value::{IdAllocator, SheetId};
-use calc_doc::{MemorySource, OpenError, OpenPolicy, PackageRead, legacy_workbook_report};
+use calc_doc::{LegacyFormat, MemorySource, OpenError, OpenPolicy, PackageRead, legacy_workbook_report};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -42,6 +43,8 @@ fn sweep() {
         collect(Path::new(item), &mut files);
     }
     let mut seen = 0usize;
+    let mut raw_seen: BTreeMap<u8, usize> = BTreeMap::new();
+    let mut excluded: BTreeMap<&str, usize> = BTreeMap::new();
     let mut opened = 0usize;
     let mut loaded = 0usize;
     let (mut formula_cells, mut parse_failures) = (0usize, 0usize);
@@ -87,10 +90,20 @@ fn sweep() {
     std::panic::set_hook(Box::new(|_| {}));
     for file in &files {
         let Ok(bytes) = std::fs::read(file) else { continue };
-        if bytes.len() < 8 || bytes[..8] != [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1] {
-            continue;
+        match LegacyFormat::sniff(&bytes) {
+            Some(LegacyFormat::Compound) => seen += 1,
+            Some(LegacyFormat::RawBiff { version }) => *raw_seen.entry(version).or_default() += 1,
+            None => {
+                if file.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("xls")) {
+                    let prefix = String::from_utf8_lossy(&bytes[..bytes.len().min(64)]).trim_start().to_ascii_lowercase();
+                    let reason = if bytes.is_empty() { "empty" }
+                        else if prefix.starts_with("<html") || prefix.starts_with("<!doctype") { "HTML" }
+                        else { "other format" };
+                    *excluded.entry(reason).or_default() += 1;
+                }
+                continue;
+            }
         }
-        seen += 1;
         let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes));
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let policy = OpenPolicy::default();
@@ -431,6 +444,12 @@ fn sweep() {
         }
     }
     println!("OLE2 files seen:      {seen}");
+    let raw_total: usize = raw_seen.values().sum();
+    println!("raw BIFF files seen:  {raw_total}");
+    for (version, count) in &raw_seen { println!("  BIFF{version}: {count}"); }
+    println!("legacy binary files:  {}", seen + raw_total);
+    println!("other-format .xls excluded: {}", excluded.values().sum::<usize>());
+    for (reason, count) in &excluded { println!("  {reason}: {count}"); }
     println!("opened (converted):   {opened}");
     println!("loaded (model built): {loaded}");
     println!("formula cells loaded: {formula_cells}, not re-parsed by calc-fml: {parse_failures}");
