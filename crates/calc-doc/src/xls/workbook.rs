@@ -285,7 +285,11 @@ pub(crate) fn read(records: &[Record<'_>], biff5: bool) -> Result<Globals, Strin
             | super::styles::PALETTE => {
                 globals.styles.read(record, biff5.then(|| globals.code_page.unwrap_or(1252)))?;
             }
-            super::drawing::MSODRAWING_GROUP => globals.drawing_group.extend_from_slice(&record.joined()),
+            super::drawing::MSODRAWING_GROUP => {
+                globals.drawing_group.extend_from_slice(&record.joined());
+                // Blips are read, but drawing-group defaults and other OfficeArt properties are not.
+                *globals.unknown.entry(record.id).or_insert(0) += 1;
+            }
             0x01BA => {
                 let mut p = Pieces::new(record);
                 if let Ok(units) = p.unicode_string("a code name") {
