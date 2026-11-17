@@ -377,6 +377,9 @@ impl Features {
                 if count != 0 { return Ok(false); }
             }
             0x0080 => {
+                // Old writers sometimes omit both outline-level words. Retain the
+                // record as unread rather than inventing levels from the gutter widths.
+                if self.v5.is_some() && record.body.len() == 4 { return Ok(false); }
                 c.skip(4, "Guts").map_err(e)?;
                 let level = |value: u16| -> Result<u8, String> {
                     match value { 0 => Ok(0), 2..=8 => Ok((value - 1) as u8),
