@@ -402,8 +402,11 @@ try {
             }
             $entry.setup.chart_value_labels = GetOrError {
                 $series = $sheet.ChartObjects('cxCacheChart').Chart.SeriesCollection(1)
+                $dataSheet.Range('B2:B3').NumberFormat = '0.00'
                 $series.ApplyDataLabels(); $series.DataLabels().ShowValue = $true
-                @{show_value=$series.DataLabels().ShowValue}
+                @{show_value=$series.DataLabels().ShowValue;
+                  number_format_linked=$series.DataLabels().NumberFormatLinked;
+                  first_text=[string]$series.DataLabels().Item(1).Text}
             }
             $entry.setup.chart_group_value_labels = GetOrError {
                 $chart = $sheet.ChartObjects().Item(1).Chart

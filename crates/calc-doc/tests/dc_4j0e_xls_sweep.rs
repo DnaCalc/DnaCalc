@@ -243,6 +243,12 @@ fn sweep() {
                             .filter(|chart| chart.text_style.family.is_some()
                                 || chart.text_style.bold.is_some() || chart.text_style.italic.is_some()).count();
                         println!("charts with explicit default font properties: {chart_fonts}");
+                        let labels = loaded.sheets().iter().flat_map(|s| &s.charts().charts)
+                            .flat_map(|chart| &chart.plots).map(|plot| {
+                                usize::from(plot.show_values == Some(true))
+                                    + plot.series.iter().filter(|series| series.show_values == Some(true)).count()
+                            }).sum::<usize>();
+                        println!("chart value-label settings in the model: {labels}");
                     }
                     if std::env::var_os("DNACALC_XLS_AUDIT_NOTE_RUNS").is_some() {
                         let count = loaded.sheets().iter().flat_map(|s| &s.review().notes)
@@ -441,7 +447,7 @@ fn sweep() {
     if audit_chart_print {
         println!("embedded chart print headers/footers retained: {chart_print_texts} in {chart_print_files} files (not an Excel match verdict)");
         println!("embedded charts with partial print setup: {chart_print_setups} in {chart_print_setup_files} files (not an Excel match verdict)");
-        println!("chart value-label settings retained: {chart_value_labels} in {chart_value_label_files} files (not displayed by the application)");
+        println!("chart value-label settings retained: {chart_value_labels} in {chart_value_label_files} files (application support is partial)");
     }
     println!("refused to open, by reason:");
     for (reason, n) in &refused {

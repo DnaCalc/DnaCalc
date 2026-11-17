@@ -48,6 +48,10 @@ pub struct ChartData {
 pub struct ChartSeries {
     /// `c:idx`: the series' place in the chart's colours.
     pub index: u32,
+    /// A simple series-wide value-label setting; complex labels remain unmodelled.
+    pub show_values: Option<bool>,
+    /// The labels explicitly use the source cells' number formats.
+    pub value_labels_source_linked: bool,
     pub name: Option<ChartData>,
     /// `c:cat`, or a scatter series' `c:xVal`.
     pub categories: Option<ChartData>,
@@ -74,6 +78,10 @@ pub struct ChartPlot {
     pub grouping: Option<String>,
     /// `c:varyColors`: each point its own colour (a pie's slices).
     pub vary_colors: bool,
+    /// A simple plot-wide value-label setting; complex labels remain unmodelled.
+    pub show_values: Option<bool>,
+    /// The labels explicitly use the source cells' number formats.
+    pub value_labels_source_linked: bool,
     pub series: Vec<ChartSeries>,
     /// The axes this plot actually references, in stored order.
     pub axis_ids: Vec<u32>,

@@ -290,6 +290,25 @@ fn read_chart_xml(
             && matches!(path[2].as_str(), "valAx" | "catAx" | "dateAx" | "serAx")
             && path[3..6] == ["title", "tx", "rich"];
         let val = element.attribute("val").map(str::to_owned);
+        if element.name.is(CHART_NAMESPACE, "dLbls") {
+            let names = path.iter().map(String::as_str).collect::<Vec<_>>();
+            let series_scope = matches!(names.as_slice(), ["chart", "plotArea", kind, "ser"] if kind.ends_with("Chart"));
+            let plot_scope = matches!(names.as_slice(), ["chart", "plotArea", kind] if kind.ends_with("Chart"));
+            if series_scope || plot_scope {
+                let (simple, linked) = read_simple_value_labels(&mut events)?;
+                if let Some(plot) = chart.plots.last_mut() {
+                    let setting = if series_scope {
+                        plot.series.last_mut().map(|series| (&mut series.show_values, &mut series.value_labels_source_linked))
+                    } else { Some((&mut plot.show_values, &mut plot.value_labels_source_linked)) };
+                    if let Some((setting, source_linked)) = setting {
+                        let valid = setting.is_none() && simple;
+                        *setting = Some(valid);
+                        *source_linked = valid && linked;
+                    }
+                }
+                continue;
+            }
+        }
         if path.is_empty() && element.name.is(CHART_NAMESPACE, "txPr") {
             chart.text_style = read_text_style(&mut events)?;
             continue;
@@ -617,9 +636,62 @@ fn data_of(plots: &mut [ChartPlot], slot: Option<Slot>) -> Option<&mut ChartData
     Some(data.get_or_insert_with(ChartData::default))
 }
 
+/// Only a single showVal flag is safe without modelling per-point and formatting overrides.
+fn read_simple_value_labels(events: &mut Events<'_>) -> Result<(bool, bool), LoadError> {
+    let mut depth = 0usize;
+    let mut count = 0usize;
+    let mut valid = true;
+    let mut linked = false;
+    let mut formats = 0usize;
+    loop {
+        match events.next()? {
+            Some(XmlEvent::Start(element)) => {
+                depth += 1;
+                if depth == 1 && element.name.is(CHART_NAMESPACE, "showVal") {
+                    count += 1;
+                    valid &= matches!(element.attribute("val"), Some("1" | "true"));
+                } else if depth == 1 && element.name.is(CHART_NAMESPACE, "numFmt") {
+                    formats += 1;
+                    linked = matches!(element.attribute("sourceLinked"), Some("1" | "true") | None)
+                        && element.attribute("formatCode").is_some();
+                    valid &= linked && formats == 1;
+                } else { valid = false; }
+            }
+            Some(XmlEvent::End(_)) if depth == 0 => break,
+            Some(XmlEvent::End(_)) => depth -= 1,
+            Some(XmlEvent::Text(text)) => valid &= text.trim().is_empty(),
+            None => return Err(events.invalid("the part ends inside chart data labels")),
+        }
+    }
+    Ok((valid && count == 1, linked))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn value_labels_accept_only_an_unambiguous_show_value_flag() {
+        for (labels, expected, linked) in [
+            (r#"<c:showVal val="1"/>"#, Some(true), false),
+            (r#"<c:numFmt formatCode="General" sourceLinked="1"/><c:showVal val="1"/>"#, Some(true), true),
+            (r#"<c:showVal val="0"/>"#, Some(false), false),
+            (r#"<c:showVal val="1">unexpected</c:showVal>"#, Some(false), false),
+            (" \n<c:showVal val=\"1\"/> \n", Some(true), false),
+            (r#"<c:showVal val="1"/><c:numFmt formatCode="0%" sourceLinked="0"/>"#, Some(false), false),
+            (r#"<c:showVal val="1"/><c:dLbl><c:idx val="0"/></c:dLbl>"#, Some(false), false),
+            (r#"<c:showVal val="1"/><c:showVal val="1"/>"#, Some(false), false),
+        ] {
+            let text = format!(r#"<c:chartSpace xmlns:c="{CHART_NAMESPACE}"><c:chart><c:plotArea><c:barChart><c:ser><c:idx val="0"/><c:dLbls>{labels}</c:dLbls></c:ser><c:dLbls><c:showVal val="1"/></c:dLbls></c:barChart></c:plotArea></c:chart></c:chartSpace>"#);
+            let xml = XmlPart::new("chart.xml".into(), text.into_bytes(), crate::xml::XmlLimits::default());
+            let chart = read_chart_xml(&xml, "chart.xml", "Chart".into(), ChartAnchor::Absolute {
+                x: 0, y: 0, width: 100, height: 100,
+            }).unwrap();
+            assert_eq!(chart.plots[0].show_values, Some(true));
+            assert_eq!(chart.plots[0].series[0].show_values, expected);
+            assert_eq!(chart.plots[0].series[0].value_labels_source_linked, linked);
+        }
+    }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn axis_titles_read_rich_text_without_using_linked_caches() {

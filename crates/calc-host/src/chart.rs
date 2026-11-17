@@ -77,6 +77,8 @@ pub struct SeriesView {
     pub categories: Vec<Option<CalcValue>>,
     /// The values (a scatter's Y values); `None` is a gap.
     pub values: Vec<Option<f64>>,
+    /// Displayable live value labels, when the source format is supported.
+    pub value_labels: Vec<Option<String>>,
     /// The series' colour, `RRGGBB`.
     pub color: String,
     /// A direct series colour takes precedence over automatic point colours.
@@ -199,6 +201,12 @@ impl HostState {
                             .map(|series| {
                                 let (values, cached) =
                                     self.series_values(series.values.as_ref(), origin);
+                                let source_linked = if series.show_values.is_some() { series.value_labels_source_linked }
+                                    else { plot.value_labels_source_linked };
+                                let value_labels = if matches!(plot.kind.as_str(), "barChart" | "lineChart") && plot.show_values != Some(false)
+                                    && series.show_values.or(plot.show_values) == Some(true) {
+                                    self.simple_value_labels(series.values.as_ref(), &values, cached, source_linked, origin)
+                                } else { Vec::new() };
                                 let (categories, category_cached) = series
                                     .categories
                                     .as_ref()
@@ -233,6 +241,7 @@ impl HostState {
                                     name,
                                     categories,
                                     values,
+                                    value_labels,
                                     color,
                                     explicit_color: series.fill.is_some(),
                                     cached,
@@ -495,6 +504,41 @@ impl HostState {
             cached,
         )
     }
+
+    /// Label live, directly referenced one-dimensional sources with a supported number format.
+    fn simple_value_labels(&self, data: Option<&ChartData>, values: &[Option<f64>], cached: bool, source_linked: bool, origin: CellKey) -> Vec<Option<String>> {
+        if cached || !self.axis_edits.is_empty() { return Vec::new(); }
+        let Some(formula) = data.and_then(|data| data.formula.as_deref()) else { return Vec::new() };
+        let crate::ReferenceTarget::Area(area) = self.resolve_reference_text(origin, formula.trim_start_matches('=')) else { return Vec::new() };
+        if (area.row_count() != 1 && area.column_count() != 1) || area.cell_count() != values.len() as u64 {
+            return Vec::new();
+        }
+        let environment = self.entry_environment();
+        let fallback;
+        let profile = match environment.profile.as_ref() {
+            Some(profile) => profile,
+            None => { fallback = calc_func::locale::format_profile(calc_func::locale::LocaleId::EnUs); &fallback }
+        };
+        let mut labels = Vec::with_capacity(values.len());
+        let system = if self.declared_date1904() { calc_func::locale::DateSystem::System1904 }
+            else { calc_func::locale::DateSystem::System1900 };
+        for (index, value) in values.iter().enumerate() {
+            let row = area.first().row() + if area.column_count() == 1 { index as u32 } else { 0 };
+            let column = area.first().column() + if area.row_count() == 1 { index as u32 } else { 0 };
+            let Ok(at) = CellKey::new(area.sheet(), row, column) else { return Vec::new() };
+            let Some(code) = self.number_format(at) else { return Vec::new() };
+            if !source_linked && !code.eq_ignore_ascii_case("general") { return Vec::new(); }
+            let text = match value {
+                None => None,
+                Some(number) if code.eq_ignore_ascii_case("general") => Some(calc_func::general_format(profile, *number)),
+                Some(number) => match calc_func::cell_text(profile, system, &CalcValue::number(*number), code) {
+                    Ok(text) => Some(text), Err(_) => return Vec::new(),
+                },
+            };
+            labels.push(text);
+        }
+        labels
+    }
 }
 
 /// A value as a chart's label shows it: a text as it is, a number in its shortest form (the cell's
@@ -506,6 +550,39 @@ pub fn text_of(value: &CalcValue) -> String {
         CoreRef::Number(n) => format!("{n}"),
         CoreRef::Logical(b) => if b { "TRUE" } else { "FALSE" }.to_owned(),
         _ => String::new(),
+    }
+}
+
+#[cfg(test)]
+mod value_label_tests {
+    use super::*;
+    use crate::{HostOptions, HostSession, MemorySource, OpenPolicy, SkinIntent, WorkbookCommand};
+    use std::sync::Arc;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn labels_use_live_general_values_and_refuse_saved_caches() {
+        let bytes = include_bytes!("../tests/fixtures/dc_6yw/charts.xlsx");
+        let mut session = HostSession::open(Arc::new(MemorySource::new(bytes.to_vec())), &OpenPolicy::default(), HostOptions::default()).unwrap();
+        assert!(session.dispatch(SkinIntent::Recalculate).accepted());
+        let host = session.host();
+        let sheet = host.sheets()[0].id();
+        let data = host.model().definitions().charts(sheet)[0].plots[0].series[0].values.as_ref().unwrap().clone();
+        let origin = CellKey::new(sheet, 1, 1).unwrap();
+        let (values, cached) = host.series_values(Some(&data), origin);
+        assert!(!cached);
+        let labels = host.simple_value_labels(Some(&data), &values, cached, false, origin);
+        assert_eq!(labels, ["12", "18", "9", "22", "15", "27"].map(|s| Some(s.to_owned())));
+        assert!(host.simple_value_labels(Some(&data), &values, true, false, origin).is_empty());
+        assert!(host.simple_value_labels(Some(&data), &values[..1], false, false, origin).is_empty());
+        let cell = CellKey::new(sheet, 2, 2).unwrap();
+        assert!(session.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {
+            areas: vec![calc_value::GridArea::cell(cell)],
+            patch: crate::FormatPatch { number_format: Some("0.00".into()), ..Default::default() },
+        })).accepted());
+        assert!(session.host().simple_value_labels(Some(&data), &values, false, false, origin).is_empty());
+        let formatted = session.host().simple_value_labels(Some(&data), &values, false, true, origin);
+        assert_eq!(formatted.first().and_then(Option::as_deref), Some("12.00"));
     }
 }
 
@@ -1634,6 +1711,8 @@ fn make_series(
         };
         series.push(ChartSeries {
             index: i,
+            show_values: None,
+            value_labels_source_linked: false,
             name,
             categories: cats.clone(),
             values: Some(data(cell(headers, minor), cell(length - 1, minor), true)?),
@@ -1891,6 +1970,8 @@ fn assemble(
             .into()
         }),
         vary_colors: pie,
+        show_values: None,
+        value_labels_source_linked: false,
         series,
         axis_ids: if pie { Vec::new() } else { vec![1, 2] },
     }];
