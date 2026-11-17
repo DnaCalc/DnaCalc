@@ -73,6 +73,7 @@ fn sweep() {
     let mut panics: Vec<String> = Vec::new();
     let mut unknown: BTreeMap<u16, (u32, usize)> = BTreeMap::new();
     let mut unread_custom: BTreeMap<u16, (u32, usize)> = BTreeMap::new();
+    let mut unread_objects: BTreeMap<u16, (u32, usize)> = BTreeMap::new();
     let mut unread_custom_sets = 0u32;
     let mut shown_refusals: BTreeMap<String, String> = BTreeMap::new();
     let mut shown_load_refusals: BTreeMap<String, String> = BTreeMap::new();
@@ -256,6 +257,10 @@ fn sweep() {
                             None => {}
                         }
                         if let Ok(Some(report)) = report {
+                            for (kind, n) in report.unread_objects {
+                                let slot = unread_objects.entry(kind).or_insert((0, 0));
+                                slot.0 += n; slot.1 += 1;
+                            }
                             unread_custom_sets += report.unread_custom_property_sets;
                             for (kind, n) in report.unread_custom_property_types {
                                 let slot = unread_custom.entry(kind).or_insert((0, 0));
@@ -322,6 +327,12 @@ fn sweep() {
     println!("unread custom property value types (type: values, files):");
     for (kind, (count, files)) in &unread_custom {
         println!("  0x{kind:04X}: {count} values in {files} files");
+    }
+    println!("classified unwritten BIFF8 drawing objects (type: objects, files; BIFF5 and malformed objects not included):");
+    let mut objects: Vec<_> = unread_objects.iter().collect();
+    objects.sort_by_key(|(_, (n, files))| std::cmp::Reverse((*files, *n)));
+    for (kind, (count, files)) in objects {
+        println!("  0x{kind:04X}: {count} objects in {files} files");
     }
     let mut by_count: Vec<_> = unknown.iter().collect();
     by_count.sort_by_key(|(_, (n, files))| std::cmp::Reverse((*files, *n)));

@@ -176,7 +176,13 @@ try {
             $entry.setup.chart_sheet_print = GetOrError {
                 $chartSheet.PageSetup.CenterHeader = 'Controlled & header'
                 $chartSheet.PageSetup.RightFooter = 'Page &P'
-                @{header=[string]$chartSheet.PageSetup.CenterHeader; footer=[string]$chartSheet.PageSetup.RightFooter}
+                $chartSheet.PageSetup.LeftMargin = 54; $chartSheet.PageSetup.RightMargin = 36
+                $chartSheet.PageSetup.TopMargin = 72; $chartSheet.PageSetup.BottomMargin = 45
+                $chartSheet.PageSetup.HeaderMargin = 18; $chartSheet.PageSetup.FooterMargin = 27
+                @{header=[string]$chartSheet.PageSetup.CenterHeader; footer=[string]$chartSheet.PageSetup.RightFooter;
+                  left=$chartSheet.PageSetup.LeftMargin; right=$chartSheet.PageSetup.RightMargin;
+                  top=$chartSheet.PageSetup.TopMargin; bottom=$chartSheet.PageSetup.BottomMargin;
+                  header_margin=$chartSheet.PageSetup.HeaderMargin; footer_margin=$chartSheet.PageSetup.FooterMargin}
             }
             $entry.setup.page = GetOrError { $sheet.PageSetup.Orientation = 2; $sheet.PageSetup.PrintArea = '$A$1:$D$5'; $sheet.PageSetup.Orientation }
             $entry.setup.header_picture = GetOrError {

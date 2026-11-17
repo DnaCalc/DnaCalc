@@ -352,6 +352,7 @@ pub(crate) fn convert(
                 let mut print_features = features::Features::default();
                 print_features.v5 = v5;
                 let mut print_records = [Vec::new(), Vec::new()];
+                let mut margin_records = [Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new()];
                 let mut window_records = Vec::new();
                 let mut custom_view_depth = 0usize;
                 let mut depth = 1usize;
@@ -378,6 +379,8 @@ pub(crate) fn convert(
                                 0x01AB => custom_view_depth = custom_view_depth.saturating_sub(1),
                                 0x0014 | 0x0015 if custom_view_depth == 0 => print_records[usize::from(record.id - 0x0014)].push(record),
                                 0x023E if custom_view_depth == 0 => window_records.push(record),
+                                0x0026..=0x0029 if custom_view_depth == 0 => margin_records[usize::from(record.id - 0x0026)].push(record),
+                                0x00A1 if custom_view_depth == 0 => margin_records[4].push(record),
                                 _ => {},
                             }
                             match record.id {
@@ -410,6 +413,31 @@ pub(crate) fn convert(
                 for records in &print_records {
                     if let [record] = records.as_slice() {
                         if matches!(print_features.read(record, &globals.styles), Ok(true)) {
+                            if let Some(count) = sheet_unknown.get_mut(&record.id) {
+                                *count -= 1;
+                                if *count == 0 { sheet_unknown.remove(&record.id); }
+                            }
+                        }
+                    }
+                }
+                // A chart sheet's pageMargins requires all four margins and the two in Setup.
+                // Keep Setup unread: its other print settings are not converted here.
+                let valid_margins = margin_records.iter().enumerate().all(|(index, records)| {
+                    let [record] = records.as_slice() else { return false };
+                    if !record.continues.is_empty() || record.body.len() != if index == 4 { 34 } else { 8 } {
+                        return false;
+                    }
+                    let offsets: &[usize] = if index == 4 { &[16, 24] } else { &[0] };
+                    offsets.iter().all(|&at| {
+                        let value = f64::from_le_bytes(record.body[at..at + 8].try_into().expect("eight bytes"));
+                        value.is_finite() && (0.0..=49.0).contains(&value)
+                    })
+                });
+                if valid_margins {
+                    for records in &margin_records {
+                        let record = records[0];
+                        let _ = print_features.read(record, &globals.styles);
+                        if record.id != 0x00A1 {
                             if let Some(count) = sheet_unknown.get_mut(&record.id) {
                                 *count -= 1;
                                 if *count == 0 { sheet_unknown.remove(&record.id); }
@@ -1085,6 +1113,7 @@ fn linked_chartsheet(features: &features::Features, selected: Option<bool>) -> V
     if selected == Some(true) { attributes.push(("tabSelected", "1".to_owned())); }
     xml.empty("sheetView", &attributes);
     xml.close("sheetViews");
+    features.write_chart_margins(&mut xml);
     features.write_header_footer(&mut xml);
     xml.empty("drawing", &[("r:id", "rId1".to_owned())]);
     xml.close("chartsheet");
@@ -1130,6 +1159,7 @@ fn empty_chartsheet(features: &features::Features, selected: Option<bool>) -> Ve
         xml.empty("sheetView", &attributes);
         xml.close("sheetViews");
     }
+    features.write_chart_margins(&mut xml);
     features.write_header_footer(&mut xml);
     xml.close("chartsheet");
     xml.out

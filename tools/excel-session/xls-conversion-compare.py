@@ -398,6 +398,7 @@ def package(data):
                                           [tree(e) for e in sh.findall(f'{M}autoFilter/{M}sortState')],
                            'drawings': drawing_objects(z, sh, path, shrels),
                            'printer_settings': printer_settings(z, sh, path, shrels),
+                           'page_margins': None if sh.find(M + 'pageMargins') is None else tree(sh.find(M + 'pageMargins')),
                            'header_footer': None if sh.find(M + 'headerFooter') is None else tree(sh.find(M + 'headerFooter')),
                            'header_footer_pictures': header_footer_pictures(z, sh, path, shrels),
                            'phonetic_columns': [(e.get('min'), e.get('max')) for e in sh.findall(f'{M}cols/{M}col')

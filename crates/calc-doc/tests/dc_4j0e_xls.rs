@@ -609,6 +609,37 @@ fn chart_sheet_preserves_series_in_a_linked_chart_part() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chart_sheet_preserves_complete_unambiguous_print_margins() {
+    let mut setup = vec![0; 34];
+    setup[16..24].copy_from_slice(&0.4_f64.to_le_bytes());
+    setup[24..32].copy_from_slice(&0.6_f64.to_le_bytes());
+    let margins = [(0x26, 0.7_f64), (0x27, 0.8), (0x28, 0.9), (0x29, 1.1)]
+        .into_iter().flat_map(|(id, value)| record(id, &value.to_le_bytes())).collect::<Vec<_>>();
+    let records = [margins.clone(), record(0xa1, &setup)].concat();
+    let make = |records| xls(false, &[], &[Sheet { kind: 2, ..Sheet::worksheet("Chart", records) }]);
+    let bytes = make(records.clone());
+    let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let verify = |doc: &calc_doc::OpenedDocument| {
+        let sheet = String::from_utf8(doc.package().read_part("xl/chartsheets/sheet1.xml").unwrap()).unwrap();
+        assert!(sheet.contains("<pageMargins left=\"0.7\" right=\"0.8\" top=\"0.9\" bottom=\"1.1\" header=\"0.4\" footer=\"0.6\"/>"), "{sheet}");
+    };
+    verify(&doc);
+    let plan = calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+    let mut saved = Vec::new();
+    calc_doc::write(plan, &mut saved).unwrap();
+    verify(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert_eq!(report.unknown_records.get(&0x26), None);
+    assert_eq!(report.unknown_records.get(&0xa1), Some(&1));
+    let ambiguous = make([records, record(0x26, &0.1_f64.to_le_bytes())].concat());
+    let doc = calc_doc::open(source(&ambiguous), &OpenPolicy::default()).unwrap();
+    let sheet = doc.package().read_part("xl/chartsheets/sheet1.xml").unwrap();
+    assert!(!sheet.windows(12).any(|w| w == b"<pageMargins"));
+    assert_eq!(legacy_workbook_report(source(&ambiguous), &OpenPolicy::default()).unwrap().unwrap().unknown_records.get(&0x26), Some(&2));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn scenarios_survive_conversion_as_unsupported_metadata() {
     let full = |text: &str| {
         let mut bytes = (text.len() as u16).to_le_bytes().to_vec(); bytes.push(0); bytes.extend(text.as_bytes()); bytes

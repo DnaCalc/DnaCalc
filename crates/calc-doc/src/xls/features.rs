@@ -156,6 +156,17 @@ fn read_string(c: &mut Cursor<'_>, units: usize, what: &str) -> Result<String, S
 }
 
 impl Features {
+    /// Chart-sheet margins are retained only when all six values are available.
+    pub(crate) fn write_chart_margins(&self, x: &mut Xml) {
+        if let ([Some(left), Some(right), Some(top), Some(bottom)], Some((header, footer))) =
+            (self.margins, self.setup_numbers)
+        {
+            x.empty("pageMargins", &[("left", number_text(left)), ("right", number_text(right)),
+                ("top", number_text(top)), ("bottom", number_text(bottom)),
+                ("header", number_text(header)), ("footer", number_text(footer))]);
+        }
+    }
+
     /// Reads `record` when it is a sheet-feature record; `false` when it is not one.
     pub(crate) fn read(&mut self, record: &Record<'_>, styles: &super::styles::Styles) -> Result<bool, String> {
         let mut c = Cursor::new(record.body);
