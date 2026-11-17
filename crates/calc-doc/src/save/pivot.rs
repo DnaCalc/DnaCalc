@@ -1249,6 +1249,7 @@ fn fresh_cache(cache: &PivotCache, records_id: &str) -> Result<Vec<u8>, SaveRefu
         ]),
         &mut out,
     );
+    if let Some(user) = cache.attributes.get("refreshedBy") { string_attr("refreshedBy", user, &mut out); }
     out.extend(b"><cacheSource type=\"worksheet\"><worksheetSource");
     if let (Some(sheet), Some(range)) = (&cache.source_sheet, &cache.source_range) {
         string_attr("sheet", sheet, &mut out);

@@ -706,12 +706,14 @@ fn convert_compound(
             let number = cache_id + 1;
             let part = format!("xl/pivotCache/pivotCacheDefinition{number}.xml");
             let records_part = format!("xl/pivotCache/pivotCacheRecords{number}.xml");
+            let mut attributes = BTreeMap::from([("refreshOnLoad".into(), u8::from(parsed.refresh_on_load).to_string())]);
+            if let Some(user) = parsed.refreshed_by { attributes.insert("refreshedBy".into(), user); }
             let cache = PivotCache {
                 id: cache_id as u32, part: part.clone(), records_part: Some(records_part.clone()),
                 record_count: Some(parsed.rows.len() as u64), source_type: "worksheet".into(),
                 source_connection_id: None, source_sheet: sheet, source_range: range, source_name,
                 fields: parsed.fields, calculated_items: Vec::new(),
-                attributes: BTreeMap::from([("refreshOnLoad".into(), u8::from(parsed.refresh_on_load).to_string())]),
+                attributes,
                 unsupported: Vec::new(),
                 snapshot: Some(Arc::new(PivotSnapshot { records: parsed.rows,
                     origin: PivotSnapshotOrigin::FileRecords { part: records_part.clone() },

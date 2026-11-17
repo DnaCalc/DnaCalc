@@ -309,6 +309,11 @@ fn sweep() {
                             }
                         }
                     }
+                    if audit_pivots {
+                        let refreshed_by = loaded.pivot_caches().caches.values()
+                            .filter(|cache| cache.attributes.contains_key("refreshedBy")).count();
+                        println!("pivot caches with last-refreshed user: {refreshed_by}");
+                    }
                     let caches = if audit_pivots { loaded.pivot_caches().caches.len() } else { 0 };
                     let saved_records = if audit_pivots {
                         loaded.pivot_caches().caches.values().filter_map(|c| c.record_count).sum()

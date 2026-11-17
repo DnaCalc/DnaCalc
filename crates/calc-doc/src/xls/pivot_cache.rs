@@ -7,6 +7,7 @@ pub(crate) struct Cache {
     pub fields: Vec<PivotCacheField>,
     pub rows: Vec<Vec<PivotItem>>,
     pub refresh_on_load: bool,
+    pub refreshed_by: Option<String>,
 }
 
 pub(crate) enum Source {
@@ -88,6 +89,22 @@ fn item(record: &Record<'_>) -> Option<PivotItem> {
     }
 }
 
+// MS-XLS 2.4.275: SXDB.cchWho and its optional XLUnicodeStringNoCch.
+// Bad optional metadata does not make the otherwise complete source records calculable
+// or change their provenance; the source/view records remain counted unread.
+fn refreshed_by(header: &Record<'_>) -> Option<String> {
+    if !header.continues.is_empty() { return None; }
+    let mut p = Pieces::new(header);
+    p.skip(18, "pivot cache refreshed user").ok()?;
+    let count = usize::from(p.u16("pivot cache refreshed user").ok()?);
+    if !(1..=255).contains(&count) { return None; }
+    let flags = p.u8("pivot cache refreshed user").ok()?;
+    if flags & !1 != 0 { return None; }
+    let units = p.characters(count, flags & 1 != 0, "pivot cache refreshed user").ok()?;
+    if !p.done() { return None; }
+    String::from_utf16(&units).ok()
+}
+
 /// The bounded, complete worksheet-source cache subset: no grouped, calculated or invalid
 /// caches. Its values remain file records, not calculated pivot output.
 pub(crate) fn read(bytes: &[u8], stream_id: u16) -> Option<Cache> {
@@ -163,7 +180,7 @@ pub(crate) fn read(bytes: &[u8], stream_id: u16) -> Option<Cache> {
         }
         field.unused_items = used.iter().enumerate().filter_map(|(i, used)| (!used).then_some(i as u32)).collect();
     }
-    Some(Cache { fields: out, rows: data, refresh_on_load: flags & 4 != 0 })
+    Some(Cache { fields: out, rows: data, refresh_on_load: flags & 4 != 0, refreshed_by: refreshed_by(header) })
 }
 
 #[cfg(test)]
@@ -203,34 +220,48 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn worksheet_cache_is_visible_as_saved_source_records_after_open_and_save() {
-        let mut source = kit::u16s(&[0, 2]); source.extend([0, 0]);
-        source.extend(kit::u16s(&[2])); source.extend([0, 2, b'S', 0]);
-        let globals = [kit::record(0x00D5, &kit::u16s(&[7])), kit::record(0x00E3, &kit::u16s(&[1])),
-            kit::record(0x0051, &source)].concat();
-        let workbook = kit::workbook_stream(false, &globals,
-            &[kit::Sheet::worksheet("S", [kit::number(0, 0, 1.0), kit::record(0x00B0, &[])].concat())]);
-        let bytes = cfb_write::write(vec![("Workbook".into(), Node::Stream(workbook)),
-            ("_SX_DB_CUR".into(), Node::Storage(vec![("0007".into(), Node::Stream(cache(false)))]))]).unwrap();
-        let source = |bytes: &[u8]| Arc::new(crate::MemorySource::new(bytes.to_vec())) as Arc<dyn crate::PackageRead>;
-        let document = crate::open(source(&bytes), &crate::OpenPolicy::default()).unwrap();
-        let report = crate::legacy_workbook_report(source(&bytes), &crate::OpenPolicy::default()).unwrap().unwrap();
-        assert_eq!(report.pivot_tables(), 1); // The table itself is still unsupported.
-        let check = |doc: &crate::OpenedDocument| {
-            let mut ids = IdAllocator::<SheetId>::new();
-            let loaded = crate::load(doc, &mut ids).unwrap();
-            let cached = loaded.pivot_caches().caches.get(&0).unwrap();
-            assert_eq!(cached.source_sheet.as_deref(), Some("S"));
-            assert_eq!(cached.source_range.as_deref(), Some("A1:A3"));
-            assert_eq!(cached.fields[0].items, vec![PivotItem::Text("A".into()), PivotItem::Text("B".into()), PivotItem::Text("C".into())]);
-            assert_eq!(cached.fields[0].unused_items, vec![2]);
-            assert_eq!(loaded.pivot_records(0, 10).unwrap().records,
-                vec![vec![PivotItem::Index(0)], vec![PivotItem::Index(1)]]);
-            assert_eq!(loaded.sheets()[0].pivots().tables.len(), 0);
-        };
-        check(&document);
-        let plan = crate::prepare_save(&document.snapshot(), &crate::SavePolicy::default()).unwrap();
-        let mut saved = Vec::new(); crate::write(plan, &mut saved).unwrap();
-        check(&crate::open(source(&saved), &crate::OpenPolicy::default()).unwrap());
+        for (user, wide) in [(None, false), (Some("A&B"), false), (Some("作者 _x0042_\u{1}"), true)] {
+            let mut source = kit::u16s(&[0, 2]); source.extend([0, 0]);
+            source.extend(kit::u16s(&[2])); source.extend([0, 2, b'S', 0]);
+            let globals = [kit::record(0x00D5, &kit::u16s(&[7])), kit::record(0x00E3, &kit::u16s(&[1])),
+                kit::record(0x0051, &source)].concat();
+            let workbook = kit::workbook_stream(false, &globals,
+                &[kit::Sheet::worksheet("S", [kit::number(0, 0, 1.0), kit::record(0x00B0, &[])].concat())]);
+            let mut cache_bytes = cache(false);
+            if let Some(user) = user {
+                let mut header = cache_bytes[4..24].to_vec();
+                let units: Vec<_> = user.encode_utf16().collect();
+                header[18..20].copy_from_slice(&(units.len() as u16).to_le_bytes());
+                header.push(u8::from(wide));
+                for unit in units {
+                    if wide { header.extend(unit.to_le_bytes()); } else { header.push(unit as u8); }
+                }
+                cache_bytes.splice(..24, kit::record(0x00C6, &header));
+            }
+            let bytes = cfb_write::write(vec![("Workbook".into(), Node::Stream(workbook)),
+                ("_SX_DB_CUR".into(), Node::Storage(vec![("0007".into(), Node::Stream(cache_bytes))]))]).unwrap();
+            let source = |bytes: &[u8]| Arc::new(crate::MemorySource::new(bytes.to_vec())) as Arc<dyn crate::PackageRead>;
+            let document = crate::open(source(&bytes), &crate::OpenPolicy::default()).unwrap();
+            let report = crate::legacy_workbook_report(source(&bytes), &crate::OpenPolicy::default()).unwrap().unwrap();
+            assert_eq!(report.pivot_tables(), 1); // The table itself is still unsupported.
+            let check = |doc: &crate::OpenedDocument| {
+                let mut ids = IdAllocator::<SheetId>::new();
+                let loaded = crate::load(doc, &mut ids).unwrap();
+                let cached = loaded.pivot_caches().caches.get(&0).unwrap();
+                assert_eq!(cached.source_sheet.as_deref(), Some("S"));
+                assert_eq!(cached.attributes.get("refreshedBy").map(String::as_str), user);
+                assert_eq!(cached.source_range.as_deref(), Some("A1:A3"));
+                assert_eq!(cached.fields[0].items, vec![PivotItem::Text("A".into()), PivotItem::Text("B".into()), PivotItem::Text("C".into())]);
+                assert_eq!(cached.fields[0].unused_items, vec![2]);
+                assert_eq!(loaded.pivot_records(0, 10).unwrap().records,
+                    vec![vec![PivotItem::Index(0)], vec![PivotItem::Index(1)]]);
+                assert_eq!(loaded.sheets()[0].pivots().tables.len(), 0);
+            };
+            check(&document);
+            let plan = crate::prepare_save(&document.snapshot(), &crate::SavePolicy::default()).unwrap();
+            let mut saved = Vec::new(); crate::write(plan, &mut saved).unwrap();
+            check(&crate::open(source(&saved), &crate::OpenPolicy::default()).unwrap());
+        }
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -245,6 +276,26 @@ mod tests {
         let start = grouped.windows(2).position(|b| b == [0xC7, 0]).unwrap();
         grouped[start + 4] |= 8;
         assert!(read(&grouped, 7).is_none());
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn malformed_refreshed_user_is_not_invented_or_used_as_cache_data() {
+        for (count, tail) in [
+            (0u16, vec![0]), (256, vec![0]), (1, vec![]),
+            (1, vec![0]), (1, vec![2, b'A']), (1, vec![1, 0, 0xD8]),
+            (1, vec![0, b'A', b'B']),
+        ] {
+            let mut bytes = cache(false);
+            let mut header = bytes[4..24].to_vec();
+            header[18..20].copy_from_slice(&count.to_le_bytes());
+            header.extend(tail);
+            bytes.splice(..24, kit::record(0x00C6, &header));
+            let parsed = read(&bytes, 7).unwrap();
+            assert!(parsed.refreshed_by.is_none());
+            assert_eq!(parsed.rows.len(), 2);
+            assert_eq!(parsed.rows[0], vec![PivotItem::Index(0)]);
+        }
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

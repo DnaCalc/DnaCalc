@@ -685,6 +685,9 @@ try {
             $pivot.xls_base64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($xls))
             $book = $app.Workbooks.Open($xls, 0, $false)
             $pivot.before = Snapshot $book
+            $pivot.cache_refresh_users = @($book.PivotCaches() | ForEach-Object {
+                GetOrError { @{index=[int]$_.Index; refresh_name=[string]$_.RefreshName} }
+            })
             $book.SaveAs($xlsx, 51)
             $book.Close($false); $book = $null
             $pivot.xlsx_base64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($xlsx))

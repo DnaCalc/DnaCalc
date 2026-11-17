@@ -153,6 +153,9 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
         unsupported: Vec::new(),
         snapshot: None,
     };
+    if let Some(user) = root.attribute("refreshedBy") {
+        cache.attributes.insert("refreshedBy".into(), decoded(user, &events)?);
+    }
     let mut path = Vec::<String>::new();
     let mut cache_source_seen = false;
     let mut item_count = 0usize;
