@@ -17,7 +17,7 @@ from pathlib import Path
 import olefile
 
 
-def tokens(data, count):
+def legacy_records(data):
     with olefile.OleFileIO(io.BytesIO(data)) as ole:
         names = {x[-1].lower(): x for x in ole.listdir()}
         stream = ole.openstream(names.get('workbook') or names['book']).read()
@@ -32,11 +32,16 @@ def tokens(data, count):
         at = end
     if any(rid == 0x2f for _, rid, _ in records):
         raise ValueError('encrypted workbook; tokens not inspected')
+    return records, len(stream)
+
+
+def tokens(data, count):
+    records, stream_length = legacy_records(data)
     sheets = [struct.unpack_from('<I', body)[0] for _, rid, body in records if rid == 0x85 and len(body) >= 4]
     if not sheets:
         raise ValueError('no BOUNDSHEET records')
     start = sheets[0]
-    end = min((offset for offset in sheets if offset > start), default=len(stream))
+    end = min((offset for offset in sheets if offset > start), default=stream_length)
     out = {}
     for pos, rid, body in records:
         if start <= pos < end and rid == 6 and len(body) >= 22:
@@ -70,7 +75,13 @@ def main():
     missing = sorted(expected - by_name.keys())
     legacy = base64.b64decode(result.get('legacy_base64') or '', validate=True)
     modern = base64.b64decode(result.get('converted_base64') or '', validate=True)
+    limits = base64.b64decode(result.get('limits_base64') or '', validate=True)
     stored = tokens(legacy, len(cases)) if legacy else {}
+    limit_counts = None
+    if limits:
+        limit_records, _ = legacy_records(limits)
+        limit_counts = {name: sum(rid == code for _, rid, _ in limit_records)
+                        for name, code in [('xf', 0x00e0), ('style', 0x0293), ('defined_name', 0x0018)]}
     formulas = [{'id': case[0], 'submitted': case[1], 'entry': by_name.get('formula/' + case[0]),
                  'reopened': by_name.get('reopened/' + case[0]), 'converted': by_name.get('converted/' + case[0]),
                  'stored_tokens_hex': stored.get(i)}
@@ -83,7 +94,7 @@ def main():
             calc_id = None if calc is None else calc.get('calcId')
     if args.extract_dir:
         args.extract_dir.mkdir(parents=True, exist_ok=True)
-        for name, data in [('compat.xls', legacy), ('converted.xlsx', modern)]:
+        for name, data in [('compat.xls', legacy), ('converted.xlsx', modern), ('limits.xls', limits)]:
             if not data:
                 continue
             dest = args.extract_dir / name
@@ -91,7 +102,8 @@ def main():
                 raise SystemExit('refusing to overwrite ' + str(dest))
             dest.write_bytes(data)
     report = {'formulas': formulas, 'other_observations': [r for r in observations if not r['name'].startswith(('formula/', 'reopened/', 'converted/'))],
-              'missing_observations': missing, 'converted_calc_id': calc_id, 'not_run': result.get('not_run', []),
+              'missing_observations': missing, 'converted_calc_id': calc_id, 'limits_record_counts': limit_counts,
+              'not_run': result.get('not_run', []),
               'product_comparison': 'not available: Compatibility Mode is not modelled'}
     args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     print(f"Read {len(observations)} observations; {len(missing)} expected formula observations missing; {len(stored)}/{len(cases)} stored formula token streams found. Product comparison not available.")
