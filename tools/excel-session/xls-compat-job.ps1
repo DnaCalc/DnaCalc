@@ -4,7 +4,11 @@
 param($OwnedExcel, [string]$Cases, [string]$Result)
 $ErrorActionPreference = 'Stop'
 $app = $OwnedExcel
-$cases = Get-Content -LiteralPath $Cases -Raw -Encoding utf8 | ConvertFrom-Json
+$caseBytes = [IO.File]::ReadAllBytes([IO.Path]::GetFullPath($Cases))
+$cases = [Text.Encoding]::UTF8.GetString($caseBytes).TrimStart([char]0xfeff) | ConvertFrom-Json
+$sha = [Security.Cryptography.SHA256]::Create()
+try { $casesHash = [BitConverter]::ToString($sha.ComputeHash($caseBytes)).Replace('-', '').ToLowerInvariant() }
+finally { $sha.Dispose() }
 $dir = Join-Path ([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($Result))) ('xls-compat-' + [guid]::NewGuid().ToString('N'))
 [IO.Directory]::CreateDirectory($dir) | Out-Null
 $path = Join-Path $dir 'compat.xls'
@@ -20,13 +24,41 @@ function Probe([string]$name, [scriptblock]$action) {
     try { $v = & $action; $answers.Add(@{name=$name; ok=$true; value=$v}) }
     catch { $answers.Add(@{name=$name; ok=$false; error=$_.Exception.Message; hresult=$_.Exception.HResult}) }
 }
-function ReadCell($cell) {
+function ReadCell($cell, [string]$entryApi = 'Formula') {
     $value = $cell.Value2
     return @{formula=[string]$cell.Formula; formula2=$(try {[string]$cell.Formula2} catch {$null});
         value=$(if ($null -eq $value) {$null} else {[string]$value});
         value_type=$(if ($null -eq $value) {$null} else {$value.GetType().FullName});
         number_bits=$(if ($value -is [double]) {[BitConverter]::DoubleToInt64Bits($value).ToString('X16')} else {$null});
-        text=[string]$cell.Text; number_format=[string]$cell.NumberFormat}
+        text=[string]$cell.Text; number_format=[string]$cell.NumberFormat;
+        address=[string]$cell.Address($false,$false); entry_api=$entryApi}
+}
+function AddFormula2Cases($workbook, [string]$prefix) {
+    $dynamicSheet = $workbook.Worksheets.Add([Type]::Missing, $workbook.Worksheets.Item($workbook.Worksheets.Count))
+    $dynamicSheet.Name = 'Formula2'
+    $dynamicSheet.Range('A1').Value2 = 1
+    $dynamicSheet.Range('A65536').Value2 = 2
+    $index = 0
+    foreach ($case in $cases.formulas) {
+        # Separate anchors leave space for the small arrays in these controlled cases.
+        $cell = $dynamicSheet.Cells.Item(1 + 32 * $index, 3)
+        Probe ($prefix + [string]$case[0]) {
+            $cell.Formula2 = [string]$case[1]
+            $cell.Calculate() | Out-Null
+            ReadCell $cell 'Formula2'
+        }
+        $index++
+    }
+}
+function ReadFormula2Cases($workbook, [string]$prefix) {
+    $index = 0
+    foreach ($case in $cases.formulas) {
+        Probe ($prefix + [string]$case[0]) {
+            $cell = $workbook.Worksheets.Item('Formula2').Cells.Item(1 + 32 * $index, 3)
+            ReadCell $cell 'Formula2'
+        }
+        $index++
+    }
 }
 try {
     $app.DisplayAlerts = $false
@@ -51,6 +83,7 @@ try {
         Probe ('formula/' + $id) { $cell.Formula = $formula; $cell.Calculate() | Out-Null; ReadCell $cell }
         $row++
     }
+    Probe 'formula2_setup' { AddFormula2Cases $book 'formula2/'; @{sheet='Formula2'; row_stride=32} }
     Probe 'end_down' { [string]$sheet.Range('A1').End(-4121).Address($false,$false) }
     Probe 'end_down_full_column' { $sheet.Range('F1:F65536').Value2 = 1; [string]$sheet.Range('F1').End(-4121).Address($false,$false) }
     Probe 'resize_past_old_limit' { [string]$sheet.Range('A65536').Resize(2,1).Address($false,$false) }
@@ -58,7 +91,7 @@ try {
     Probe 'fill_down_past_limit' { $sheet.Range('G65535:G65537').FillDown(); [string]$sheet.Range('G65537').Value2 }
     Probe 'used_range_before_corner' { [string]$sheet.UsedRange.Address($false,$false) }
     Probe 'last_legacy_cell' { $sheet.Range('IV65536').Value2 = 'edge'; [string]$sheet.Cells.SpecialCells(11).Address($false,$false) }
-    Probe 'spill_across_legacy_edge' { $c = $sheet.Range('B65536'); $c.Formula2 = '=SEQUENCE(2)'; $c.Calculate() | Out-Null; ReadCell $c }
+    Probe 'spill_across_legacy_edge' { $c = $sheet.Range('B65536'); $c.Formula2 = '=SEQUENCE(2)'; $c.Calculate() | Out-Null; ReadCell $c 'Formula2' }
     Probe 'palette_roundtrip_before' { $sheet.Range('D1').Interior.Color = 1193046; $sheet.Range('D1').Interior.Color }
     foreach ($n in @(8192,8193)) {
         Probe ('formula_length/' + $n) { $s = '=' + ('1+' * [int][math]::Floor(($n-2)/2)) + '1'; if ($s.Length -lt $n) { $s = '=+' + $s.Substring(1) }; $sheet.Range('D2').Formula = $s; ([string]$sheet.Range('D2').Formula).Length }
@@ -99,10 +132,12 @@ try {
     $book = $app.Workbooks.Open($path, 0, $false); $sheet = $book.Worksheets.Item(1)
     $row = 1
     foreach ($case in $cases.formulas) { $cell = $sheet.Cells.Item($row, 3); Probe ('reopened/' + [string]$case[0]) { ReadCell $cell }; $row++ }
+    ReadFormula2Cases $book 'reopened_formula2/'
     Probe 'palette_roundtrip_after' { $sheet.Range('D1').Interior.Color }
     Probe 'convert_xlsx' { $book.SaveAs($modern, 51); @{file_format=$book.FileFormat; compatibility_mode=$book.Excel8CompatibilityMode; used_range=[string]$sheet.UsedRange.Address($false,$false)} }
     $row = 1
     foreach ($case in $cases.formulas) { $cell = $sheet.Cells.Item($row, 3); Probe ('converted/' + [string]$case[0]) { if ($book.FileFormat -ne 51) { throw 'Conversion to xlsx did not succeed' }; ReadCell $cell }; $row++ }
+    if ($book.FileFormat -eq 51) { ReadFormula2Cases $book 'converted_formula2/' }
     $book.Close($false); $book = $null
     if (Test-Path -LiteralPath $modern) { $modernBytes = [Convert]::ToBase64String([IO.File]::ReadAllBytes($modern)) }
     # A fresh modern workbook distinguishes entry behaviour from the converted legacy file.
@@ -125,6 +160,7 @@ try {
                 }
                 $row++
             }
+            Probe 'modern_formula2_setup' { AddFormula2Cases $baseline 'modern_formula2/'; @{sheet='Formula2'; row_stride=32} }
             $metadata = @{rows=$baselineSheet.Rows.Count; columns=$baselineSheet.Columns.Count;
                 compatibility_mode=$baseline.Excel8CompatibilityMode; calculation_version=$baseline.CalculationVersion}
             $baseline.SaveAs($baselinePath, 51)
@@ -187,7 +223,7 @@ finally {
     if ($book) { try { $book.Close($false) } catch {} }
     $app.DisplayAlerts = $oldAlerts
 }
-@{schema_version=2; fatal=$fatal; cases=$answers.ToArray(); legacy_base64=$legacyBytes; converted_base64=$modernBytes;
+@{schema_version=2; cases_sha256=$casesHash; formula2_cases=$true; fatal=$fatal; cases=$answers.ToArray(); legacy_base64=$legacyBytes; converted_base64=$modernBytes;
     limits_base64=$limitsBytes; modern_baseline_base64=$baselineBytes;
     not_run=@('Ctrl+End keyboard action', 'recalculation across saving versions',
         'compatibility checker findings')} | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $Result -Encoding utf8NoBOM

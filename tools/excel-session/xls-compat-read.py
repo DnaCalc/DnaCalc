@@ -7,6 +7,7 @@ that model exists. The input is the job's JSON, never an EUSES workbook opened i
 """
 import argparse
 import base64
+import hashlib
 import io
 import json
 import struct
@@ -35,22 +36,24 @@ def legacy_records(data):
     return records, len(stream)
 
 
-def tokens(data, count):
+def tokens(data, count, sheet_index=0, row_stride=1):
     records, stream_length = legacy_records(data)
     sheets = [struct.unpack_from('<I', body)[0] for _, rid, body in records if rid == 0x85 and len(body) >= 4]
     if not sheets:
         raise ValueError('no BOUNDSHEET records')
-    start = sheets[0]
+    if sheet_index >= len(sheets):
+        return {}
+    start = sheets[sheet_index]
     end = min((offset for offset in sheets if offset > start), default=stream_length)
     out = {}
     for pos, rid, body in records:
         if start <= pos < end and rid == 6 and len(body) >= 22:
             row, column = struct.unpack_from('<HH', body)
-            if column == 2 and row < count:
+            if column == 2 and row % row_stride == 0 and row // row_stride < count:
                 length = struct.unpack_from('<H', body, 20)[0]
                 if 22 + length > len(body):
                     raise ValueError('truncated formula tokens')
-                out[row] = body[22:22 + length].hex()
+                out[row // row_stride] = body[22:22 + length].hex()
     return out
 
 
@@ -61,8 +64,15 @@ def main():
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--extract-dir', type=Path)
     args = p.parse_args()
-    cases = json.loads(args.cases.read_text(encoding='utf-8'))['formulas']
+    case_bytes = args.cases.read_bytes()
+    cases = json.loads(case_bytes.decode('utf-8-sig'))['formulas']
     result = json.loads(args.result.read_text(encoding='utf-8-sig'))
+    schema = result.get('schema_version', 1)
+    if schema not in (1, 2):
+        raise SystemExit('unsupported Excel result schema: ' + str(schema))
+    cases_hash = hashlib.sha256(case_bytes).hexdigest()
+    if schema == 2 and result.get('cases_sha256') != cases_hash:
+        raise SystemExit('Excel result cases_sha256 does not match the supplied cases file')
     if result.get('fatal'):
         raise SystemExit('Excel job failed: ' + str(result['fatal']))
     observations = result['cases']
@@ -72,8 +82,10 @@ def main():
             raise SystemExit('duplicate observation: ' + row['name'])
         by_name[row['name']] = row
     prefixes = ('formula/', 'reopened/', 'converted/')
-    if result.get('schema_version', 1) >= 2:
+    if schema == 2:
         prefixes += ('modern/',)
+    if result.get('formula2_cases'):
+        prefixes += ('formula2/', 'reopened_formula2/', 'converted_formula2/', 'modern_formula2/')
     expected = {prefix + str(case[0]) for case in cases for prefix in prefixes}
     missing = sorted(expected - by_name.keys())
     legacy = base64.b64decode(result.get('legacy_base64') or '', validate=True)
@@ -81,6 +93,7 @@ def main():
     limits = base64.b64decode(result.get('limits_base64') or '', validate=True)
     baseline = base64.b64decode(result.get('modern_baseline_base64') or '', validate=True)
     stored = tokens(legacy, len(cases)) if legacy else {}
+    stored_formula2 = tokens(legacy, len(cases), sheet_index=1, row_stride=32) if legacy and result.get('formula2_cases') else {}
     limit_counts = None
     if limits:
         limit_records, _ = legacy_records(limits)
@@ -89,7 +102,11 @@ def main():
     formulas = [{'id': case[0], 'submitted': case[1], 'entry': by_name.get('formula/' + case[0]),
                  'reopened': by_name.get('reopened/' + case[0]), 'converted': by_name.get('converted/' + case[0]),
                  'modern_baseline': by_name.get('modern/' + case[0]),
-                 'stored_tokens_hex': stored.get(i)}
+                 'formula2_entry': by_name.get('formula2/' + case[0]),
+                 'formula2_reopened': by_name.get('reopened_formula2/' + case[0]),
+                 'formula2_converted': by_name.get('converted_formula2/' + case[0]),
+                 'formula2_modern_baseline': by_name.get('modern_formula2/' + case[0]),
+                 'stored_tokens_hex': stored.get(i), 'stored_formula2_tokens_hex': stored_formula2.get(i)}
                 for i, case in enumerate(cases)]
     calc_id = None
     if modern:
@@ -110,10 +127,13 @@ def main():
     report = {'formulas': formulas, 'other_observations': [r for r in observations if not r['name'].startswith(prefixes)],
               'missing_observations': missing, 'converted_calc_id': calc_id, 'limits_record_counts': limit_counts,
               'modern_baseline_available': bool(baseline),
+              'cases_sha256': cases_hash, 'cases_verified': schema == 2,
               'not_run': result.get('not_run', []),
               'product_comparison': 'not available: Compatibility Mode is not modelled'}
     args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     print(f"Read {len(observations)} observations; {len(missing)} expected formula observations missing; {len(stored)}/{len(cases)} stored formula token streams found. Product comparison not available.")
+    if result.get('formula2_cases'):
+        print(f"Formula2: {len(stored_formula2)}/{len(cases)} stored anchor token streams found; array records remain in compat.xls.")
 
 
 if __name__ == '__main__':
