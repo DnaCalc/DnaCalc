@@ -280,7 +280,7 @@ pub(crate) fn read(
                             _ => None,
                         }
                     };
-                    drawing.chart_record(record, &print);
+                    drawing.chart_record(record, &print, context.styles);
                 }
             }
             continue;
