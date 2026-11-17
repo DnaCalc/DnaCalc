@@ -651,6 +651,27 @@ fn prob_nonnumeric_and_adjacent_singletons() {
     }
 }
 
+/// Excel 20527 automatic periods (oracle corpus dcj9k_r38_ets rows 2243, 3139, 3363 and
+/// dcj9k_r39_seasonal rows 124, 212, 278, 410) that the strongest-DFT-bin detector reproduces;
+/// the earlier autocorrelation-peak rule returned 4, 4, 5, 4, 8, 8 and 8.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_seasonality_follows_the_strongest_frequency() {
+    let cases: [(f64, &[f64]); 7] = [
+        (2.0, &[2.0, 7.0, -1.0, 4.0, 2.0, 7.0, -1.0, 4.0, 2.0, 7.0, -1.0, 4.0]),
+        (2.0, &[2.0, 7.0, -1.0, 4.0, 2.0, 7.0, -1.0, 4.0, 2.0, 7.0, -1.0, 4.0, 2.0, 7.0, -1.0, 4.0, 2.0, 7.0, -1.0, 4.0, 2.0, 7.0, -1.0, 4.0]),
+        (0.0, &[2.0, 3.5, 3.75, 5.75, 5.5, 7.0, 8.5, 8.75, 10.75, 10.5, 12.0, 13.5, 13.75, 15.75, 15.5, 17.0, 18.5, 18.75, 20.75, 20.5, 22.0, 23.5, 23.75, 25.75]),
+        (2.0, &[33.5, 27.5, 34.75, 33.125, 37.5, 31.5, 38.75, 37.125, 41.5, 35.5, 42.75, 41.125]),
+        (4.0, &[33.0, 25.5625, 27.5, 29.1875, 30.75, 29.1875, 24.0, 31.4375, 34.5, 27.0625, 29.0, 30.6875, 32.25, 30.6875, 25.5, 32.9375, 36.0, 28.5625, 30.5, 32.1875, 33.75, 32.1875, 27.0, 34.4375]),
+        (0.0, &[6.75, 13.1875, 17.625, 6.6875, 20.875, 14.5625, 21.625, 16.9375, 13.25, 19.6875, 24.125, 13.1875, 27.375, 21.0625, 28.125, 23.4375, 19.75, 26.1875, 30.625, 19.6875, 33.875, 27.5625, 34.625, 29.9375]),
+        (3.0, &[-2.375, 2.0, -2.625, 0.75, 2.5, -8.25, 6.75, 4.75, -3.375, 1.0, -3.625, -0.25, 1.5, -9.25, 5.75, 3.75, -4.375, 0.0, -4.625, -1.25, 0.5, -10.25, 4.75, 2.75]),
+    ];
+    for (expected, history) in cases {
+        let timeline: Vec<f64> = (1..=history.len()).map(|v| v as f64).collect();
+        exact(call("FORECAST.ETS.SEASONALITY", vec![col(history), col(&timeline)]), expected);
+    }
+}
+
 /// Excel 20527 checks a scalar history against the longer timeline before reading the history.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

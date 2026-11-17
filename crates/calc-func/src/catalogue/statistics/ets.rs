@@ -969,11 +969,24 @@ fn detrended(y: &[f64]) -> Vec<f64> {
         .collect()
 }
 
-/// The automatic period: the highest autocorrelation peak of the detrended
-/// history over lags 2..=0.4n, accepted above 0.3; otherwise no seasonality.
+/// The automatic period (eng22, Touchstone probes of Excel 20527; this is
+/// closer to Excel than the plain autocorrelation peak it replaces but is not
+/// yet Excel's exact rule):
+/// - the residuals of the least-squares line (any linear trend is invisible);
+/// - the strongest DFT bin k >= 1 of the residuals; its candidate lags are the
+///   integers strictly between n/(k+1) and n/(k-1), up to floor(n/2.5), and the
+///   period is the one with the largest unbiased autocorrelation (an empty
+///   range takes n/k rounded half down);
+/// - a lower-frequency second bin (the strongest local maximum below k-1)
+///   with more than a quarter of bin k's power gives a second candidate the
+///   same way, taken when its unbiased autocorrelation is higher;
+/// - accepted when the plain autocorrelation at that lag is at least 0.3.
+/// Measured agreement: 645 of 782 corpus readings (was 503, none lost), 1,491
+/// of 1,801 random probes (was 1,417), 91% of 14,835 single-sinusoid and 75%
+/// of 16,240 two-sinusoid readings (eng22 report).
 fn detect_period(y: &[f64]) -> usize {
     let n = y.len();
-    let last_lag = (n as f64 * 0.4) as usize;
+    let last_lag = 2 * n / 5;
     if last_lag < 2 {
         return 0;
     }
@@ -998,16 +1011,70 @@ fn detect_period(y: &[f64]) -> usize {
         let p2 = 1.0 + 2.0 * c1 * w2 + 2.0 * c2 * w1;
         return if p2 > 1.4 * p1 { 2 } else { 0 };
     }
-    let (mut best, mut chosen) = (f64::NEG_INFINITY, 0);
-    for k in 2..=last_lag {
-        let here = r(k);
-        let right = if k < last_lag { r(k + 1) } else { f64::NEG_INFINITY };
-        if here > r(k - 1) && here >= right && here > best {
-            best = here;
-            chosen = k;
+    let unbiased = |k: usize| r(k) * n as f64 / (n - k) as f64;
+    let power: Vec<f64> = (0..=n / 2)
+        .map(|k| {
+            let (mut re, mut im) = (0.0, 0.0);
+            for (t, &v) in e.iter().enumerate() {
+                let angle = -2.0 * std::f64::consts::PI * ((k * t) % n) as f64 / n as f64;
+                re += v * angle.cos();
+                im += v * angle.sin();
+            }
+            re * re + im * im
+        })
+        .collect();
+    let lags_of = |bin: usize| -> usize {
+        let low = n as f64 / (bin + 1) as f64;
+        let high = if bin > 1 { n as f64 / (bin - 1) as f64 } else { f64::INFINITY };
+        let mut chosen = 0;
+        let mut best = f64::NEG_INFINITY;
+        for p in 2..=last_lag {
+            let lag = p as f64;
+            if low < lag && lag < high {
+                let value = unbiased(p);
+                if value > best {
+                    best = value;
+                    chosen = p;
+                }
+            }
+        }
+        if chosen == 0 {
+            let nearest = (n as f64 / bin as f64 - 0.5 - 1e-12).ceil();
+            if nearest >= 2.0 && nearest <= last_lag as f64 { nearest as usize } else { 0 }
+        } else {
+            chosen
+        }
+    };
+    let mut top = 1;
+    for k in 2..power.len() {
+        if power[k] > power[top] {
+            top = k;
         }
     }
-    if best > 0.3 { chosen } else { 0 }
+    let first = lags_of(top);
+    let mut second_bin = 0;
+    let mut second_power = -1.0;
+    for f in 1..top.saturating_sub(1) {
+        let right = power.get(f + 1).copied().unwrap_or(-1.0);
+        if power[f] >= power[f - 1] && power[f] >= right && power[f] > second_power {
+            second_power = power[f];
+            second_bin = f;
+        }
+    }
+    let second = if second_bin > 0 && second_power * 4.0 > power[top] { lags_of(second_bin) } else { 0 };
+    let chosen = match (first, second) {
+        (0, 0) => return 0,
+        (0, p) | (p, 0) => p,
+        (a, b) if a == b => a,
+        (a, b) => {
+            if unbiased(b) > unbiased(a) {
+                b
+            } else {
+                a
+            }
+        }
+    };
+    if r(chosen) >= 0.3 { chosen } else { 0 }
 }
 
 /// Seasonal initial states: least-squares trend over the whole history and
