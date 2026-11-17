@@ -154,6 +154,9 @@ pub(crate) struct Chart {
     print_header_seen: bool,
     print_footer_seen: bool,
     print_text_invalid: bool,
+    print_setup: Option<[u8; 34]>,
+    print_setup_seen: bool,
+    print_setup_invalid: bool,
 }
 
 fn block_code(block: Block) -> u8 {
@@ -179,6 +182,13 @@ impl Chart {
     pub(crate) fn read(&mut self, record: &Record<'_>, print: &dyn Fn(&[u8]) -> Option<String>,
         code_page: Option<u16>, styles: &super::styles::Styles, embedded: bool) {
         let body = record.body;
+        if embedded && record.id == 0x01AA { self.print_setup_invalid = true; }
+        if embedded && self.stack.is_empty() && record.id == 0x00A1 {
+            if self.print_setup_seen { self.print_setup_invalid = true; }
+            self.print_setup_seen = true;
+            self.print_setup = if record.continues.is_empty() { body.try_into().ok() } else { None };
+            if self.print_setup.is_none() { self.print_setup_invalid = true; }
+        }
         if embedded && matches!(record.id, 0x0866 | 0x089C) { self.print_text_invalid = true; }
         if embedded && self.stack.is_empty() && matches!(record.id, 0x0014 | 0x0015) {
             let (seen, value) = if record.id == 0x0014 {
@@ -723,15 +733,23 @@ impl Chart {
         x.empty("c:plotVisOnly", &[("val", u8::from(self.plot_visible_only.unwrap_or(true)).to_string())]);
         if let Some(blanks) = self.blanks { x.empty("c:dispBlanksAs", &[("val", blanks.to_owned())]); }
         x.close("c:chart");
-        if !self.print_text_invalid && (self.print_header.as_ref().is_some_and(|v| !v.is_empty())
-            || self.print_footer.as_ref().is_some_and(|v| !v.is_empty())) {
-            x.open("c:printSettings", &[]); x.open("c:headerFooter", &[]);
-            for (name, value) in [("c:oddHeader", &self.print_header), ("c:oddFooter", &self.print_footer)] {
-                if let Some(value) = value.as_ref().filter(|v| !v.is_empty()) {
-                    x.open(name, &[]); x.text(value); x.close(name);
+        let print_text = !self.print_text_invalid && (self.print_header.as_ref().is_some_and(|v| !v.is_empty())
+            || self.print_footer.as_ref().is_some_and(|v| !v.is_empty()));
+        // DrawingML's pageSetup has no usePrinterDefaults attribute.
+        let print_setup = self.print_setup.filter(|data| !self.print_setup_invalid && data[10] & 4 == 0);
+        if print_text || print_setup.is_some() {
+            x.open("c:printSettings", &[]);
+            if print_text {
+                x.open("c:headerFooter", &[]);
+                for (name, value) in [("c:oddHeader", &self.print_header), ("c:oddFooter", &self.print_footer)] {
+                    if let Some(value) = value.as_ref().filter(|v| !v.is_empty()) {
+                        x.open(name, &[]); x.text(value); x.close(name);
+                    }
                 }
+                x.close("c:headerFooter");
             }
-            x.close("c:headerFooter"); x.close("c:printSettings");
+            if let Some(data) = print_setup { super::features::write_chart_setup(&mut x, &data, "c:pageSetup"); }
+            x.close("c:printSettings");
         }
         x.close("c:chartSpace");
         Some(x.out)

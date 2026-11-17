@@ -156,6 +156,33 @@ fn read_string(c: &mut Cursor<'_>, units: usize, what: &str) -> Result<String, S
     Ok(text.trim_end_matches('\0').to_owned())
 }
 
+/// Shared chart-sheet and embedded-chart page setup projection.
+pub(crate) fn write_chart_setup(x: &mut Xml, data: &[u8; 34], element: &str) {
+    let word = |at: usize| u16::from_le_bytes([data[at], data[at + 1]]);
+    let flags = word(10);
+    let mut a = Vec::new();
+    if flags & 4 == 0 {
+        let paper = word(0);
+        if (1..=117).contains(&paper) && paper != 48 && paper != 49 {
+            a.push(("paperSize", paper.to_string()));
+        }
+        a.push(("orientation", if flags & 0x42 != 0 { "portrait" } else { "landscape" }.to_owned()));
+        for (name, value) in [("horizontalDpi", word(12)), ("verticalDpi", word(14)), ("copies", word(32))] {
+            if value != 0 { a.push((name, value.to_string())); }
+        }
+    } else {
+        a.push(("usePrinterDefaults", "1".to_owned()));
+    }
+    if flags & 8 != 0 { a.push(("blackAndWhite", "1".to_owned())); }
+    if flags & 16 != 0 { a.push(("draft", "1".to_owned())); }
+    let first = word(4) as i16;
+    if flags & 0x80 != 0 && first > 0 {
+        a.push(("firstPageNumber", first.to_string()));
+        a.push(("useFirstPageNumber", "1".to_owned()));
+    }
+    if !a.is_empty() { x.empty(element, &a); }
+}
+
 impl Features {
     /// Chart-sheet Setup has a different OOXML pageSetup schema from worksheets.
     pub(crate) fn read_chart_setup(&mut self, record: &Record<'_>) {
@@ -165,30 +192,7 @@ impl Features {
     }
 
     pub(crate) fn write_chart_setup(&self, x: &mut Xml) {
-        let Some(data) = self.chart_setup else { return };
-        let word = |at: usize| u16::from_le_bytes([data[at], data[at + 1]]);
-        let flags = word(10);
-        let mut a = Vec::new();
-        if flags & 4 == 0 {
-            let paper = word(0);
-            if (1..=117).contains(&paper) && paper != 48 && paper != 49 {
-                a.push(("paperSize", paper.to_string()));
-            }
-            a.push(("orientation", if flags & 0x42 != 0 { "portrait" } else { "landscape" }.to_owned()));
-            for (name, value) in [("horizontalDpi", word(12)), ("verticalDpi", word(14)), ("copies", word(32))] {
-                if value != 0 { a.push((name, value.to_string())); }
-            }
-        } else {
-            a.push(("usePrinterDefaults", "1".to_owned()));
-        }
-        if flags & 8 != 0 { a.push(("blackAndWhite", "1".to_owned())); }
-        if flags & 16 != 0 { a.push(("draft", "1".to_owned())); }
-        let first = word(4) as i16;
-        if flags & 0x80 != 0 && first > 0 {
-            a.push(("firstPageNumber", first.to_string()));
-            a.push(("useFirstPageNumber", "1".to_owned()));
-        }
-        if !a.is_empty() { x.empty("pageSetup", &a); }
+        if let Some(data) = self.chart_setup { write_chart_setup(x, &data, "pageSetup"); }
     }
 
     /// Chart-sheet margins are retained only when all six values are available.

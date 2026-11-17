@@ -150,6 +150,13 @@ try {
                 $chart.PageSetup.RightFooter = 'Page &P'
                 @{header=[string]$chart.PageSetup.CenterHeader; footer=[string]$chart.PageSetup.RightFooter}
             }
+            $entry.setup.chart_print_setup = GetOrError {
+                $chart = $sheet.ChartObjects().Item(1).Chart
+                $chart.PageSetup.Orientation = 2; $chart.PageSetup.PaperSize = 9
+                $chart.PageSetup.BlackAndWhite = $true
+                @{orientation=$chart.PageSetup.Orientation; paper=$chart.PageSetup.PaperSize;
+                  black_and_white=$chart.PageSetup.BlackAndWhite}
+            }
             $entry.setup.chart_doughnut_geometry = GetOrError {
                 $c = $sheet.ChartObjects().Add(200, 270, 200, 150).Chart
                 $c.ChartType = -4120; $c.SetSourceData($sheet.Range('H1:H2'))

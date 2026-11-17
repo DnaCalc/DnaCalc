@@ -2468,6 +2468,40 @@ fn embedded_chart_print_text_is_preserved_when_unambiguous() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn embedded_chart_preserves_unambiguous_print_setup() {
+    use ptg::*;
+    use xls_kit::art;
+    for (flags, duplicate, custom, expected) in [(2, false, false, true), (4, false, false, false),
+        (2, true, false, false), (2, false, true, false)] {
+        let mut setup = u16s(&[9, 100, 3, 1, 1, flags, 300, 600]);
+        setup.extend(0.5_f64.to_le_bytes()); setup.extend(0.5_f64.to_le_bytes());
+        setup.extend(2u16.to_le_bytes());
+        let setup = record(0xa1, &setup);
+        let mut chart = art::chart(&[("Sales", Vec::new(), area3d(0, (1, 4), (1, 1), 0))], 0, "Title");
+        let mut records = setup.clone();
+        if duplicate { records.extend(setup); }
+        if custom { records.extend(record(0x01aa, &[])); records.extend(record(0x01ab, &[])); }
+        chart.splice(bof(0x0020).len()..bof(0x0020).len(), records);
+        let records = [art::drawing(&[art::shape(201, 0, [0, 0, 0, 0, 4, 0, 10, 0], false)]), art::obj(5, 1), chart].concat();
+        let globals = [supbook_self(1), extern_sheet(&[(0, 0, 0)])].concat();
+        let bytes = xls(false, &globals, &[Sheet::worksheet("S", records)]);
+        let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let check = |doc: &calc_doc::OpenedDocument| {
+            let xml = String::from_utf8(doc.package().read_part("xl/charts/chart1_1.xml").unwrap()).unwrap();
+            assert_eq!(xml.contains("<c:pageSetup paperSize=\"9\" orientation=\"portrait\""), expected, "{xml}");
+            assert!(!xml.contains("usePrinterDefaults="), "{xml}");
+        };
+        check(&doc);
+        if expected {
+            let mut saved = Vec::new();
+            calc_doc::write(calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap(), &mut saved).unwrap();
+            check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn chart_group_geometry_survives_legacy_conversion() {
     use xls_kit::art;
     let original = record(0x1017, &u16s(&[0, 150, 0]));
