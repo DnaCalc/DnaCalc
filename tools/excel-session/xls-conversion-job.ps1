@@ -148,6 +148,11 @@ try {
                 $shape.Fill.Visible = 0
                 @{name=[string]$shape.Name; visible=$shape.Fill.Visible}
             }
+            $entry.setup.linked_picture = GetOrError {
+                $path = Join-Path $inputDir 'linked-picture.png'
+                $picture = $sheet.Shapes.AddPicture($path, -1, 0, 100, 355, 60, 30)
+                @{name=[string]$picture.Name; linked=$true}
+            }
             $entry.setup.long_text_box = GetOrError {
                 $box = $sheet.Shapes.AddTextbox(1, 100, 300, 160, 90)
                 $text = ('é漢' * 5000)

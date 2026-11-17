@@ -138,6 +138,7 @@ fn write_legacy_excel_session_inputs() {
     let Some(dir) = std::env::var_os("DNACALC_XLS_SESSION_INPUTS") else { return };
     let dir = std::path::PathBuf::from(dir);
     std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("linked-picture.png"), include_bytes!("fixtures/drawing/pictures/card.png")).unwrap();
     let mut cells = record(0x0099, &u16s(&[2340]));
     cells.extend(colinfo(1, 2, 3072, 0x000A));
     let mut row_with_flags = row(0, 255, 0);
