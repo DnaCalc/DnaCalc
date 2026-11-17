@@ -59,6 +59,7 @@ fn sweep() {
     let mut page_setup_fields = [0usize; 7];
     let (mut chart_print_texts, mut chart_print_files) = (0usize, 0usize);
     let (mut chart_print_setups, mut chart_print_setup_files) = (0usize, 0usize);
+    let (mut chart_value_labels, mut chart_value_label_files) = (0usize, 0usize);
     let (mut core_files, mut core_titles, mut core_authors, mut core_modifiers) = (0usize, 0usize, 0usize, 0usize);
     let (mut core_created, mut core_modified) = (0usize, 0usize);
     let (mut core_categories, mut app_files, mut app_names, mut app_managers, mut app_companies) = (0usize, 0usize, 0usize, 0usize, 0usize);
@@ -130,11 +131,12 @@ fn sweep() {
                 document.as_ref().ok().map(|doc| doc.package().parts().iter()
                     .filter(|part| part.name().starts_with("xl/charts/chart") && part.name().ends_with(".xml"))
                     .filter_map(|part| doc.package().read_part(part.name()).ok())
-                    .fold((0usize, 0usize), |(texts, setups), xml| (
+                    .fold((0usize, 0usize, 0usize), |(texts, setups, labels), xml| (
                         texts + xml.windows(12).filter(|w| *w == b"<c:oddHeader" || *w == b"<c:oddFooter").count(),
-                        setups + xml.windows(12).filter(|w| *w == b"<c:pageSetup").count())))
-                    .unwrap_or((0, 0))
-            } else { (0, 0) };
+                        setups + xml.windows(12).filter(|w| *w == b"<c:pageSetup").count(),
+                        labels + xml.windows(20).filter(|w| *w == b"<c:showVal val=\"1\"/>").count())))
+                    .unwrap_or((0, 0, 0))
+            } else { (0, 0, 0) };
             let written_chart_sheets = if audit_chart_sheets {
                 document.as_ref().ok().map(|doc| doc.package().parts().iter()
                     .filter(|part| part.name().starts_with("xl/chartsheets/sheet") && part.name().ends_with(".xml"))
@@ -258,6 +260,8 @@ fn sweep() {
                         chart_print_files += usize::from(written_chart_print.0 != 0);
                         chart_print_setups += written_chart_print.1;
                         chart_print_setup_files += usize::from(written_chart_print.1 != 0);
+                        chart_value_labels += written_chart_print.2;
+                        chart_value_label_files += usize::from(written_chart_print.2 != 0);
                         chart_sheets += written_chart_sheets.0;
                         chart_sheet_files += usize::from(written_chart_sheets.0 != 0);
                         chart_setups += written_chart_sheets.1;
@@ -362,6 +366,7 @@ fn sweep() {
     if audit_chart_print {
         println!("embedded chart print headers/footers retained: {chart_print_texts} in {chart_print_files} files (not an Excel match verdict)");
         println!("embedded charts with partial print setup: {chart_print_setups} in {chart_print_setup_files} files (not an Excel match verdict)");
+        println!("chart value-label settings retained: {chart_value_labels} in {chart_value_label_files} files (not displayed by the application)");
     }
     println!("refused to open, by reason:");
     for (reason, n) in &refused {
