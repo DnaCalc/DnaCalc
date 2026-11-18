@@ -529,12 +529,17 @@ fn write_legacy_excel_session_inputs() {
                 let input = xls(false, &globals, &[Sheet::worksheet("Data", label_sst(0, 0, 0))]);
                 std::fs::write(dir.join(format!("{fixture}.xls")), input).unwrap();
             }
-            for (fixture, flag, range) in [("row-guide-summary", true, false),
-                ("row-guide-range", true, true), ("row-guide-range-no-summary", false, true)] {
+            for (fixture, flag, range) in [("row-guide-summary", true, 0),
+                ("row-guide-range", true, 1), ("row-guide-range-no-summary", false, 1),
+                ("row-guide-range-blanks", true, 2)] {
                 let mut row_record = row(0, 255, 0);
                 if flag { let last = row_record.len() - 1; row_record[last] |= 0x40; }
                 let mut records = [row_record, label_sst(0, 0, 0), label_sst(0, 1, 0)].concat();
-                if range { records.extend(record(0x00EF, &u16s(&[0, 7, 1, 0, 0, 0, 0]))); }
+                if range != 0 {
+                    let end_row = u16::from(range == 2);
+                    let end_col = if range == 2 { 2 } else { 0 };
+                    records.extend(record(0x00EF, &u16s(&[0, 7, 1, 0, end_row, 0, end_col])));
+                }
                 let input = xls(false, &globals, &[Sheet::worksheet("Data", records)]);
                 std::fs::write(dir.join(format!("{fixture}.xls")), input).unwrap();
             }
@@ -673,7 +678,7 @@ fn write_legacy_excel_session_inputs() {
     std::fs::write(dir.join("repair-format-no-option.xls"),
         xls(false, &record(0x041e, &format_without_option),
             &[Sheet::worksheet("Data", number(0, 0, 42.0))])).unwrap();
-    for name in ["raw-biff2-layout", "raw-grid", "raw-biff2", "raw-biff2-inline", "raw-biff3", "raw-biff4", "cells-biff8", "cells-biff5", "formula-error-checks", "formula-ref-classes", "formula-structures", "names-3d-addin", "rk-values", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "tab-color-biff8", "drawing-rgb-solid-fill", "drawing-solid-lines", "drawing-hidden-outline", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "drawing-rich-underline", "drawing-uniform-underline", "emf-checksum-valid", "emf-checksum-invalid", "phonetic-empty", "phonetic-empty-pad-zero", "phonetic-empty-pad-nonzero", "phonetic-empty-pad-split", "phonetic-runs-pad-zero", "phonetic-runs-pad-nonzero", "phonetic-runs-pad-split", "phonetic-zero-runs", "phonetic-zero-runs-pad-zero", "phonetic-zero-runs-pad-nonzero", "phonetic-explicit", "phonetic-continuation", "row-guide-summary", "row-guide-range", "row-guide-range-no-summary", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
+    for name in ["raw-biff2-layout", "raw-grid", "raw-biff2", "raw-biff2-inline", "raw-biff3", "raw-biff4", "cells-biff8", "cells-biff5", "formula-error-checks", "formula-ref-classes", "formula-structures", "names-3d-addin", "rk-values", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "tab-color-biff8", "drawing-rgb-solid-fill", "drawing-solid-lines", "drawing-hidden-outline", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "drawing-rich-underline", "drawing-uniform-underline", "emf-checksum-valid", "emf-checksum-invalid", "phonetic-empty", "phonetic-empty-pad-zero", "phonetic-empty-pad-nonzero", "phonetic-empty-pad-split", "phonetic-runs-pad-zero", "phonetic-runs-pad-nonzero", "phonetic-runs-pad-split", "phonetic-zero-runs", "phonetic-zero-runs-pad-zero", "phonetic-zero-runs-pad-nonzero", "phonetic-explicit", "phonetic-continuation", "row-guide-summary", "row-guide-range", "row-guide-range-no-summary", "row-guide-range-blanks", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
         let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
         let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
         let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
@@ -682,7 +687,7 @@ fn write_legacy_excel_session_inputs() {
         std::fs::write(dir.join(format!("{name}.dnacalc.xlsx")), converted).unwrap();
     }
     let cases = serde_json::json!({
-        "files": ["raw-biff2-layout.xls", "raw-grid.xls", "raw-biff2.xls", "raw-biff2-inline.xls", "raw-biff3.xls", "raw-biff4.xls", "cells-biff8.xls", "cells-biff5.xls", "formula-error-checks.xls", "formula-ref-classes.xls", "formula-structures.xls", "names-3d-addin.xls", "rk-values.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "tab-color-biff8.xls", "drawing-rgb-solid-fill.xls", "drawing-solid-lines.xls", "drawing-hidden-outline.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "drawing-uniform-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "phonetic-empty.xls", "phonetic-empty-pad-zero.xls", "phonetic-empty-pad-nonzero.xls", "phonetic-empty-pad-split.xls", "phonetic-runs-pad-zero.xls", "phonetic-runs-pad-nonzero.xls", "phonetic-runs-pad-split.xls", "phonetic-zero-runs.xls", "phonetic-zero-runs-pad-zero.xls", "phonetic-zero-runs-pad-nonzero.xls", "phonetic-explicit.xls", "phonetic-continuation.xls", "row-guide-summary.xls", "row-guide-range.xls", "row-guide-range-no-summary.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
+        "files": ["raw-biff2-layout.xls", "raw-grid.xls", "raw-biff2.xls", "raw-biff2-inline.xls", "raw-biff3.xls", "raw-biff4.xls", "cells-biff8.xls", "cells-biff5.xls", "formula-error-checks.xls", "formula-ref-classes.xls", "formula-structures.xls", "names-3d-addin.xls", "rk-values.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "tab-color-biff8.xls", "drawing-rgb-solid-fill.xls", "drawing-solid-lines.xls", "drawing-hidden-outline.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "drawing-uniform-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "phonetic-empty.xls", "phonetic-empty-pad-zero.xls", "phonetic-empty-pad-nonzero.xls", "phonetic-empty-pad-split.xls", "phonetic-runs-pad-zero.xls", "phonetic-runs-pad-nonzero.xls", "phonetic-runs-pad-split.xls", "phonetic-zero-runs.xls", "phonetic-zero-runs-pad-zero.xls", "phonetic-zero-runs-pad-nonzero.xls", "phonetic-explicit.xls", "phonetic-continuation.xls", "row-guide-summary.xls", "row-guide-range.xls", "row-guide-range-no-summary.xls", "row-guide-range-blanks.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
         "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls",
             "repair-name-collisions.xls", "repair-long-collisions.xls",
             "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls", "repair-pivot-range-first.xls",
