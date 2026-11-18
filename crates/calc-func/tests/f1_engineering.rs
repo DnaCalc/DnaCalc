@@ -157,6 +157,39 @@ fn complex_tangent_and_cotangent_reduce_the_denominator_at_the_real_argument() {
     );
 }
 
+/// Excel 20527 distinguishes the stored leading product of the high J0 seed.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn bessel_high_j0_stores_its_leading_product() {
+    for (x, order, expected) in [
+        (108.43896102905273, 0.0, 0x3faa_3c33_7085_0555),
+        (108.43896102905273, 2.0, 0xbfa9_b1ea_c889_83f1),
+        (52.40333382782054, 0.0, 0x3f98_b5ce_293a_347d),
+        (38.65895045944264, 1.0, 0x3f98_1035_45c9_d0a0),
+    ] {
+        exact(
+            call("BESSELJ", vec![n(x), n(order)]),
+            f64::from_bits(expected),
+        );
+    }
+}
+
+/// Excel 20527 full-bank cases distinguish the backward recurrence stores.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn bessel_backward_j_stores_its_recurrence() {
+    for (x, order, expected) in [
+        (0x3feb_9241_5272_776c, 0x4042_7fff_ffff_ffff, 0x3491_e664_d5a8_d495),
+        (0x402f_ffff_ffff_ffff, 0x4059_0000_0000_0000, 0x31d3_f1f0_533b_5270),
+        (0x4075_3f20_4cc0_563c, 0x4076_d000_0000_0000, 0x3f0e_284a_fd2a_41be),
+    ] {
+        exact(
+            call("BESSELJ", vec![n(f64::from_bits(x)), n(f64::from_bits(order))]),
+            f64::from_bits(expected),
+        );
+    }
+}
+
 /// Excel 20527 switches the two hyperbolic factors at different magnitudes.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
