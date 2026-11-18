@@ -157,6 +157,31 @@ fn complex_tangent_and_cotangent_reduce_the_denominator_at_the_real_argument() {
     );
 }
 
+/// Excel 20527 switches the two hyperbolic factors at different magnitudes.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn complex_cotangent_uses_signed_hyperbolic_factors() {
+    for (input, expected) in [
+        ("0-0.1i", "10.0333111322541i"),
+        ("0.1-0.1i", "4.96671119559759+5.03337769295277i"),
+        ("-0.1-0.1i", "-4.96671119559759+5.03337769295277i"),
+        (
+            "3.141592653589793-0.1i",
+            "-3.22039035684448E-13+10.0333111322541i",
+        ),
+        ("6.339-0.095i", "4.57890469107014+7.856857549072i"),
+        ("0+0.00005i", "-20000.0001548828i"),
+        ("0+0.005i", "-200.001666664444i"),
+        ("0+0.00500000000000035i", "-200.001666662682i"),
+        (
+            "-59177759.6817275-0.00649741821738437i",
+            "6.16565874912588+0.253903609245275i",
+        ),
+    ] {
+        text(call("IMCOT", vec![t(input)]), expected);
+    }
+}
+
 /// Excel 20527 takes the signed imaginary limit before checking the circular
 /// argument. The positive and negative boundaries differ and are both strict.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
