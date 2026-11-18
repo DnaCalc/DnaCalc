@@ -787,3 +787,39 @@ gives 12,572 of 12,603 before and after. The oracle corpus gives 77,641 of
 The frozen predictions, raw replies and measurements are in
 `dnacalc-evidence/research/ax1-20261118/run2-b1-store/`. The frozen file SHA256
 is `bc5d27ffa16a2908f73f14e1bf705f6a95194183234f9ccc555cdad879bc7c4c`.
+
+## ax1 run 2, negative GAMMA and the pole at zero
+
+For a negative half-integer, and for other negative non-integers with magnitude
+`m >= 10`, Excel stores `pi / GAMMA(m)` and then divides by the stored
+`m * SIN(st(pi * t))`. Here `t` is the distance from `m` to its nearest
+integer. The sign alternates with the integer part of `m`. At a half-integer
+Excel uses the positive half product and a sine of one. Subnormal reflection
+results reach the worksheet as positive zero.
+
+With Excel's positive GAMMA and SIN answers as inputs, that order reproduces
+24,171 of 24,171 frozen answers on Excel 20527. Keeping the numerator resident
+reproduces 17,838. The Rust worksheet route gives 24,155. The 16 remaining
+differences coincide with a differing positive GAMMA in 12 cases and a
+differing worksheet SIN in four. The CRT sine used by the previous reflection
+gives 23,578 on these same inputs. All 204 separately tested half-integers,
+including the 33 underflow cases, match through the application.
+
+On either side of zero, through `abs(x) <= 2^-52`, Excel's answers agree
+with the stored reciprocal followed by subtraction of Euler's constant.
+The stored recurrence resumes outside that interval. On 68,400 frozen inputs
+the Rust worksheet call matches all 68,400. Moving the cutoff to `2^-53`
+misses 895 and moving it to `2^-51` misses 1,405. These inputs do not
+determine the low bits of the subtracted constant.
+
+Against d7857f69, full-bank GAMMA gains 22 matches and loses zero, from
+12,572 to 12,594 of 12,603. All 676 negative rows match, including -2.5.
+The nine remaining differences are positive inputs above ten. GAMMALN stays
+at 2,646 of 4,538 and GAMMALN.PRECISE at 11,644 of 14,278. The frozen
+reflection and tiny predictions have SHA256
+`1668ec9399623bfdc83b2a7af6f1a3776a3e0c6f2eb487bc9673ae6c038eb74a` and
+`002c129f8e27e2d99f601ebe006d4e7118571f349b215e44c675aed24e18f72b`.
+The answers are in `dnacalc-evidence/research/ax1-20261118/`, under
+`run2-reflection-and-b2/` and `run2-tiny/`.
+The oracle corpus matches 77,641 of 78,264 before and after this change,
+with 536 mismatches, 73 external links and 14 circular cases.

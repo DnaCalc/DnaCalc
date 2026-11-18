@@ -129,15 +129,20 @@ pub fn gamma_kernel(x: f64) -> Result<f64, WorksheetErrorCode> {
     }
     // Gamma(n+1/2) = sqrt(pi) * product(k+1/2, k=0..n-1).
     // The seed is RN(sqrt(pi)); the product is formed before multiplying it.
-    if x > 0.0 && x.fract() == 0.5 {
-        if x > 171.5 {
-            return Err(WorksheetErrorCode::Num);
+    let m = x.abs();
+    if m.fract() == 0.5 {
+        if m > 171.5 {
+            return if x < 0.0 { Ok(0.0) } else { Err(WorksheetErrorCode::Num) };
         }
         let mut product = 1.0;
-        for k in 0..x as u32 {
+        for k in 0..m as u32 {
             product *= k as f64 + 0.5;
         }
         let value = product * f64::from_bits(0x3ffc_5bf8_91b4_ef6b);
+        if x < 0.0 {
+            // The folded sine is exactly one on the worksheet half-integer path.
+            return Ok(crate::ported::excel_numeric::gamma_from_reflection(m, value, m));
+        }
         return if value.is_finite() {
             Ok(value)
         } else {

@@ -753,6 +753,22 @@ fn ets_seasonality_from_twenty_points_tapers_the_ends() {
     }
 }
 
+/// Excel 20527 reports period 8 for dcj9k_r39_ets!D564, where the strongest
+/// spectral bin stands out from the full spectrum without dominating the second bin.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_seasonality_accepts_a_spectral_outlier() {
+    let mut history = [
+        -3.0, 13.375, -12.625, -5.5, -6.375, -12.625, -13.125, -5.625, -12.75, 3.875, 6.625,
+        1.125, -17.625, -10.25, -7.75, -5.375, -1.75, -0.625, -10.0, -22.625, -29.25, -31.0,
+        -29.0, -22.625,
+    ];
+    let timeline: Vec<f64> = (1..=history.len()).map(|value| value as f64).collect();
+    exact(call("FORECAST.ETS.SEASONALITY", vec![col(&history), col(&timeline)]), 8.0);
+    history[13] += 1.0;
+    exact(call("FORECAST.ETS.SEASONALITY", vec![col(&history), col(&timeline)]), 0.0);
+}
+
 /// Excel 20527 seasonal starting states below four cycles (oracle corpus dcj9k_r38_ets rows
 /// 1737-1738 and 2633-2634, period 4 on 8 and 12 points): the history is extended to
 /// ceil(3.5 p) points before the phase-mean chain, and the parameter search runs on the extension.
@@ -2497,6 +2513,39 @@ fn regressions() {
     );
 }
 
+/// Excel 20527 dcztvv_r24!D1 and a centered-predictor translation control.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn linest_scales_covariance_before_the_intercept_error_sum() {
+    let d = 2.0_f64.powi(-19);
+    for (y, x, expected) in [
+        (
+            [1.0, 2.0, 4.0, 7.0],
+            [[1.0, 2.0], [2.0, 4.0], [5.0, 10.0], [4.0, 8.0001]],
+            "0x3fcaf6fd4fb22b5e",
+        ),
+        (
+            [0.75, 4.5, 1.25, 5.5],
+            [[4.0, 8.0 - d], [6.0, 12.0 - d], [4.0, 8.0 + d], [6.0, 12.0 + d]],
+            "0x3fe4662e2de0b5da",
+        ),
+    ] {
+        let fit = call(
+            "LINEST",
+            vec![
+                col(&y),
+                arr(x.into_iter().map(|row| row.to_vec()).collect()),
+                b(true),
+                b(true),
+            ],
+        )
+        .expect("LINEST result");
+        let fit = fit.as_array().expect("LINEST array");
+        let intercept_error = fit.get(1, 2).expect("intercept standard error");
+        assert_eq!(calc_verdict::encode_result(intercept_error).as_deref(), Some(expected));
+    }
+}
+
 /// Excel 20527: a numeric 2x2 TREND history is read as four paired observations.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -3131,6 +3180,40 @@ fn gamma_negative_recurrence_matches_retained_excel_answers() {
         (0xc00fffffffe00000_u64, 0x4185555555d5dafb_u64),
         (0xc013ffffffe00000_u64, 0xc151111111fa0234_u64),
         (0xc017ffffffc00000_u64, 0x4116c16c196b483e_u64),
+    ] {
+        exact(call("GAMMA", vec![n(f64::from_bits(input))]), f64::from_bits(answer));
+    }
+}
+
+/// Excel 20527. Signed neighbors of the Laurent cutoff, the worksheet half
+/// product, stored reflection quotients and the transition to worksheet zero.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gamma_pole_and_reflection_match_frozen_excel_answers() {
+    for (input, answer) in [
+        (0xbc91ec7adc44b277_u64, 0xc34c90c16b5764d1_u64),
+        (0x3ca0000000000003, 0x433ffffffffffff9),
+        (0x3cafffffffffffff, 0x432fffffffffffff),
+        (0x3cb0000000000000, 0x432fffffffffffff),
+        (0x3cb0000000000001, 0x432ffffffffffffd),
+        (0xbcafffffffffffff, 0xc330000000000001),
+        (0xbcb0000000000000, 0xc330000000000001),
+        (0xbcb0000000000001, 0xc330000000000000),
+        (0xbfe0000000000000, 0xc00c5bf891b4ef6a),
+        (0xc004000000000000, 0xbfee3ff812e32183),
+        (0xc01a000000000000, 0xbf5b81b0e66884ff),
+        (0xc025000000000000, 0xbe91b7b1db2e47f1),
+        (0xc05eb02f0ff27af5, 0x959858aa308d87a9),
+        (0xc03066d8c724fedb, 0xbd2ca0829c97a5b7),
+        (0xc060ac88a7c1650a, 0x10e8f754a8401db1),
+        (0xc055ebe41fc4d79c, 0x244e27a200748509),
+        (0xc065500000000000, 0x8017d2374dfcda78), // -170.5
+        (0xc065480000000000, 0x803e7334b3b3c7f3), // -170.25
+        (0xc065580000000000, 0), // -170.75
+        (0xc0655fffffffffff, 0x82928aa6e7526175),
+        (0xc065700000000000, 0), // -171.5
+        (0xc0657fffffffffff, 0), // nearest double above -172
+        (0xc065900000000000, 0), // -172.5
     ] {
         exact(call("GAMMA", vec![n(f64::from_bits(input))]), f64::from_bits(answer));
     }
