@@ -451,6 +451,9 @@ fn write_legacy_excel_session_inputs() {
     std::fs::write(dir.join("rk-values.xls"), rk_input).unwrap();
     std::fs::write(dir.join("formula-structures.xls"), formula_structures_fixture()).unwrap();
     std::fs::write(dir.join("names-3d-addin.xls"), names_3d_addin_fixture()).unwrap();
+    std::fs::write(dir.join("cell-values.xls"), basic_values_fixture()).unwrap();
+    std::fs::write(dir.join("sst-continued-ascii.xls"), shared_string_fixture(13)).unwrap();
+    std::fs::write(dir.join("sst-continued-utf16.xls"), shared_string_fixture(32)).unwrap();
     std::fs::write(dir.join("cells-biff5.xls"), biff5).unwrap();
     std::fs::write(dir.join("precision-biff8.xls"), xls(false, &record(0x000E, &0u16.to_le_bytes()),
         &[Sheet::worksheet("Data", number(0, 0, 1.25))])).unwrap();
@@ -678,7 +681,7 @@ fn write_legacy_excel_session_inputs() {
     std::fs::write(dir.join("repair-format-no-option.xls"),
         xls(false, &record(0x041e, &format_without_option),
             &[Sheet::worksheet("Data", number(0, 0, 42.0))])).unwrap();
-    for name in ["raw-biff2-layout", "raw-grid", "raw-biff2", "raw-biff2-inline", "raw-biff3", "raw-biff4", "cells-biff8", "cells-biff5", "formula-error-checks", "formula-ref-classes", "formula-structures", "names-3d-addin", "rk-values", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "tab-color-biff8", "drawing-rgb-solid-fill", "drawing-solid-lines", "drawing-hidden-outline", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "drawing-rich-underline", "drawing-uniform-underline", "emf-checksum-valid", "emf-checksum-invalid", "phonetic-empty", "phonetic-empty-pad-zero", "phonetic-empty-pad-nonzero", "phonetic-empty-pad-split", "phonetic-runs-pad-zero", "phonetic-runs-pad-nonzero", "phonetic-runs-pad-split", "phonetic-zero-runs", "phonetic-zero-runs-pad-zero", "phonetic-zero-runs-pad-nonzero", "phonetic-explicit", "phonetic-continuation", "row-guide-summary", "row-guide-range", "row-guide-range-no-summary", "row-guide-range-blanks", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
+    for name in ["raw-biff2-layout", "raw-grid", "raw-biff2", "raw-biff2-inline", "raw-biff3", "raw-biff4", "cells-biff8", "cells-biff5", "cell-values", "sst-continued-ascii", "sst-continued-utf16", "formula-error-checks", "formula-ref-classes", "formula-structures", "names-3d-addin", "rk-values", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "tab-color-biff8", "drawing-rgb-solid-fill", "drawing-solid-lines", "drawing-hidden-outline", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "drawing-rich-underline", "drawing-uniform-underline", "emf-checksum-valid", "emf-checksum-invalid", "phonetic-empty", "phonetic-empty-pad-zero", "phonetic-empty-pad-nonzero", "phonetic-empty-pad-split", "phonetic-runs-pad-zero", "phonetic-runs-pad-nonzero", "phonetic-runs-pad-split", "phonetic-zero-runs", "phonetic-zero-runs-pad-zero", "phonetic-zero-runs-pad-nonzero", "phonetic-explicit", "phonetic-continuation", "row-guide-summary", "row-guide-range", "row-guide-range-no-summary", "row-guide-range-blanks", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
         let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
         let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
         let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
@@ -687,7 +690,7 @@ fn write_legacy_excel_session_inputs() {
         std::fs::write(dir.join(format!("{name}.dnacalc.xlsx")), converted).unwrap();
     }
     let cases = serde_json::json!({
-        "files": ["raw-biff2-layout.xls", "raw-grid.xls", "raw-biff2.xls", "raw-biff2-inline.xls", "raw-biff3.xls", "raw-biff4.xls", "cells-biff8.xls", "cells-biff5.xls", "formula-error-checks.xls", "formula-ref-classes.xls", "formula-structures.xls", "names-3d-addin.xls", "rk-values.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "tab-color-biff8.xls", "drawing-rgb-solid-fill.xls", "drawing-solid-lines.xls", "drawing-hidden-outline.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "drawing-uniform-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "phonetic-empty.xls", "phonetic-empty-pad-zero.xls", "phonetic-empty-pad-nonzero.xls", "phonetic-empty-pad-split.xls", "phonetic-runs-pad-zero.xls", "phonetic-runs-pad-nonzero.xls", "phonetic-runs-pad-split.xls", "phonetic-zero-runs.xls", "phonetic-zero-runs-pad-zero.xls", "phonetic-zero-runs-pad-nonzero.xls", "phonetic-explicit.xls", "phonetic-continuation.xls", "row-guide-summary.xls", "row-guide-range.xls", "row-guide-range-no-summary.xls", "row-guide-range-blanks.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
+        "files": ["raw-biff2-layout.xls", "raw-grid.xls", "raw-biff2.xls", "raw-biff2-inline.xls", "raw-biff3.xls", "raw-biff4.xls", "cells-biff8.xls", "cells-biff5.xls", "cell-values.xls", "sst-continued-ascii.xls", "sst-continued-utf16.xls", "formula-error-checks.xls", "formula-ref-classes.xls", "formula-structures.xls", "names-3d-addin.xls", "rk-values.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "tab-color-biff8.xls", "drawing-rgb-solid-fill.xls", "drawing-solid-lines.xls", "drawing-hidden-outline.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "drawing-uniform-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "phonetic-empty.xls", "phonetic-empty-pad-zero.xls", "phonetic-empty-pad-nonzero.xls", "phonetic-empty-pad-split.xls", "phonetic-runs-pad-zero.xls", "phonetic-runs-pad-nonzero.xls", "phonetic-runs-pad-split.xls", "phonetic-zero-runs.xls", "phonetic-zero-runs-pad-zero.xls", "phonetic-zero-runs-pad-nonzero.xls", "phonetic-explicit.xls", "phonetic-continuation.xls", "row-guide-summary.xls", "row-guide-range.xls", "row-guide-range-no-summary.xls", "row-guide-range-blanks.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
         "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls",
             "repair-name-collisions.xls", "repair-long-collisions.xls",
             "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls", "repair-pivot-range-first.xls",
@@ -1502,9 +1505,7 @@ fn sheet_cells(bytes: &[u8]) -> Vec<String> {
     cells(load(bytes).model(), 0)
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), test)]
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn numbers_rk_forms_logicals_errors_and_strings() {
+fn basic_values_fixture() -> Vec<u8> {
     // RK: integer 512; 123 divided by 100; the double 1.5 in the high 30 bits; negative integer
     // -7; a divided double 0.25 stored as 25/100.
     let rk_int = |v: i32| ((v as u32) << 2) | 2;
@@ -1526,7 +1527,13 @@ fn numbers_rk_forms_logicals_errors_and_strings() {
     r.extend(label_sst(5, 1, 1));
     r.extend(label_sst(5, 2, 2));
     r.extend(label_sst(5, 3, 3));
-    let bytes = xls(false, &globals, &[Sheet::worksheet("S", r)]);
+    xls(false, &globals, &[Sheet::worksheet("S", r)])
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn numbers_rk_forms_logicals_errors_and_strings() {
+    let bytes = basic_values_fixture();
     assert_eq!(
         sheet_cells(&bytes),
         vec![
@@ -1537,26 +1544,31 @@ fn numbers_rk_forms_logicals_errors_and_strings() {
     );
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), test)]
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn the_shared_string_table_split_across_continue_records() {
-    // A cut inside the characters of a compressed string, and inside a UTF-16 one, each
-    // continuing with its own flag byte; and a cut between strings.
+fn shared_string_fixture(cut: usize) -> Vec<u8> {
     let strings: [(&str, &[(u16, u16)]); 4] = [
         ("first string", &[]),
         ("second ✓ string", &[(0, 1), (3, 2)]),
         ("third", &[]),
         ("fourth", &[]),
     ];
-    let probe = sst(&strings, None);
-    let body_len = probe.len() - 4;
-    for cut in [8 + 5, 8 + 2 + 1 + 12 + 5, body_len - 3, 8 + 2 + 1 + 12] {
-        let globals = sst(&strings, Some(cut));
-        let mut r = Vec::new();
-        for k in 0..4u16 {
-            r.extend(label_sst(k, 0, u32::from(k)));
-        }
-        let bytes = xls(false, &globals, &[Sheet::worksheet("S", r)]);
+    let globals = [font(200, 0, 0x7fff, 400, "Arial"), font(200, 0, 0x7fff, 700, "Arial"),
+        font(200, 2, 0x7fff, 400, "Arial"), sst(&strings, Some(cut))].concat();
+    let mut r = Vec::new();
+    for k in 0..4u16 {
+        r.extend(label_sst(k, 0, u32::from(k)));
+    }
+    xls(false, &globals, &[Sheet::worksheet("S", r)])
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn the_shared_string_table_split_across_continue_records() {
+    // Split compressed and UTF-16 characters, and between strings.
+    let strings: [(&str, &[(u16, u16)]); 4] = [("first string", &[]),
+        ("second ✓ string", &[(0, 1), (3, 2)]), ("third", &[]), ("fourth", &[])];
+    let body_len = sst(&strings, None).len() - 4;
+    for cut in [8 + 5, 8 + 2 + 1 + 12 + 5, 32, body_len - 3, 8 + 2 + 1 + 12] {
+        let bytes = shared_string_fixture(cut);
         assert_eq!(
             sheet_cells(&bytes),
             vec!["A1 s:first string", "A2 s:second ✓ string", "A3 s:third", "A4 s:fourth"],
