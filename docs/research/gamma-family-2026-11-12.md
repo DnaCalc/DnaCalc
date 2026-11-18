@@ -856,3 +856,38 @@ and live Excel 20527, `436f1a8bb84835cd`. The frozen degree and arithmetic
 proofs are under `dnacalc-evidence/research/ax1-20261118/run2-quantization-and-star/`,
 with SHA256 `9bd42f9d8781f3ef6d6604898ebeb03cb6d566c2ed3dc87feea3286b5a65ff3b`
 and `eec53222e03e1624e001668a66003b29b79bd6aa4c5beac0ef9cb9f6ae28879a`.
+
+### GAMMALN from 0.7 to the predecessor of 1.5 (ax1, Excel 20527)
+
+Both worksheet names evaluate a degree-9 numerator and degree-8 denominator
+in the raw argument. Each Horner multiply and add is stored to binary64
+from PC64. Store the quotient, multiply by the stored difference from one,
+and store the product. The worksheet returns positive zero at one.
+
+For each Horner partial, the spacing of its product relative to the spacing
+of the following sum determines which coefficient increments can change the
+average rounded sum. Measuring on both sides of each power-of-two crossing
+constrains those increments. The phase of the stored products locates the
+individual partials. Inverting the outer chains then gives intervals on the
+seventh partial of each polynomial. On 248,435 inputs these left one
+correction in each tail. The resulting table reproduces 119,000,000 of
+119,000,000 retained outputs across 119 windows.
+
+With predictions frozen before the worksheet calls, the Rust application
+matched 103,724/103,724 GAMMALN and 14,818/14,818 GAMMALN.PRECISE outputs.
+The stored denominator produces the same predictions for either an exact
+constant of 2^-12 or its binary64 successor. Keeping the denominator's
+last sum in PC64 missed 230 or 231 of the fresh GAMMALN outputs respectively.
+The frozen record has SHA256
+`8126b301adc8e87d1c79c2778f4d4146086ce9725275b27817c05fd928723633`
+under `dnacalc-evidence/research/ax1-20261118/run2-b1-solved/`.
+
+The full bank moved from 2,646 to 3,612 of 4,538 for GAMMALN and from
+11,644 to 12,945 of 14,278 for PRECISE. All 1,364 and 1,744 direct B1
+rows match. The small-argument recurrence gained another 4 and 60 rows
+respectively. Neither function lost a match. GAMMA remained 12,602/12,603.
+The oracle corpus remained 77,675/78,264, including 502 mismatches, 73
+external links and 14 circular-rule cases. One BETAINV pin, oc50, lost
+a previously compensating match. All three of its public log-gamma
+normalizers now agree with live Excel, including the corrected GAMMALN(0.8).
+Excel's inverse gives `3fe2a75ac7442df6` and the engine gives its predecessor.

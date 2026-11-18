@@ -3239,6 +3239,29 @@ fn gamma_large_uses_the_stored_stirling_multiplier() {
     }
 }
 
+/// Excel 20527, frozen B1 controls including both boundaries and inputs that
+/// distinguish the stored denominator sum from a register-resident one.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gammaln_b1_uses_the_stored_raw_argument_table() {
+    for (input, answer) in [
+        (0x3fe6666666666666_u64, 0x3fd0b20c891cde72_u64),
+        (0x3fe6666666666667, 0x3fd0b20c891cde71),
+        (0x3fe73a13de08479b, 0x3fcd7980b77f7d9f),
+        (0x3fe838cdd402bcb6, 0x3fc91060c471afe9),
+        (0x3fe838cdd40a2d53, 0x3fc91060c451e4a5),
+        (0x3feb79c1ccf7bb5c, 0x3fb96c1f81d10333),
+        (0x3ff0000000000000, 0),
+        (0x3ff3227d01c15b65, 0xbfb58d1931c6cbcc),
+        (0x3ff4c46ca11f9a2a, 0xbfbb9a83f1f407a7),
+        (0x3ff7ffffffffffff, 0xbfbeeb95b094c191),
+    ] {
+        for name in ["GAMMALN", "GAMMALN.PRECISE"] {
+            exact(call(name, vec![n(f64::from_bits(input))]), f64::from_bits(answer));
+        }
+    }
+}
+
 /// Original GAMMA answers from both former fitting halves, with known gaps.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -3384,12 +3407,10 @@ fn gamma_density_uses_the_exact_shape_one_normalizer() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn gamma_density_multiplies_the_stored_shape_over_x_ratio() {
-    // One unit high here: with Excel's own GAMMALN(1.375) in the mass the answer is exact, and
-    // calc-func's GAMMALN below 1.5 is several units away.
-    recorded_calculation(
+    // The Poisson mass uses the stored GAMMALN(1.375) in its normalizer.
+    exact(
         call("GAMMA.DIST", vec![n(0.75), n(0.375), n(1.0), b(false)]),
         f64::from_bits(0x3fce_880d_a95a_bce6),
-        f64::from_bits(0x3fce_880d_a95a_bce7),
     );
     error(
         call(

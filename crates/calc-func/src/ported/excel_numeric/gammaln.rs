@@ -2,7 +2,7 @@
 //!
 //! Bands of `GAMMALN`, dispatching on the positive argument `x`:
 //!   * `x < 0.7`         `core(x+1) - ln(x)`, one double subtract.
-//!   * `0.7 <= x < 1.5`  B1: the Cody-Hillstrom stand-in quotient times `x-1`, stored from PC64.
+//!   * `0.7 <= x < 1.5`  B1: a stored degree-9/8 Horner quotient in raw `x`, times `x-1`.
 //!   * `1.5 <= x < 2`    B2: stands in SPECFUN's table in x87 continuous arithmetic.
 //!   * `2 <= x <= 3`     B3: Excel's own form, read from its answers: see [`b3_with`].
 //!   * `3 < x < 8`       the recurrence from the `[2,3)` band, identified: see [`recurrence`].
@@ -10,8 +10,8 @@
 //!
 //! Excel's bands below 3 are rationals in `x` itself: noise reaches a full unit of the result at
 //! `x = 1 + 2^-52` and `2 + 2^-51`, where a polynomial in `x - 1` or `x - 2` could carry none, and the
-//! steps of the mean error mark Horner products stored before each coefficient is added. The tables
-//! of `[1.5,2)` and `[0.7,1.5)` are not identified, and `[1.5,2)` and `[2,3]` are separate bands.
+//! steps of the mean error mark Horner products stored before each coefficient is added. The table
+//! for `[1.5,2)` remains under study. The bands `[1.5,2)` and `[2,3]` are separate.
 //!
 //! The x87 operations run on `super::x87::raw` on `x86_64`, and on `super::soft87` elsewhere.
 // ---- band anchors (correctly-rounded transcendentals) --------------------
@@ -22,26 +22,17 @@ const LS2PI: f64 = f64::from_bits(0x3FED_67F1_C864_BEB5); // ln(2*pi)/2
 // ---- dispatch threshold ---------------------------------------------------
 const THR07: f64 = f64::from_bits(0x3FE6_6666_6666_6666); // 0.7
 
-// ---- B1 [0.7,1.5): Cody & Hillstrom 1967 Table II, n=m=7 (ascending i=0..7) --
-const P1: [f64; 8] = [
-    f64::from_bits(0xC001_ABB6_66D0_134A),
-    f64::from_bits(0xC053_5A47_EFFC_8A03),
-    f64::from_bits(0xC080_2D1B_5724_230B),
-    f64::from_bits(0xC08C_D217_4AAA_2285),
-    f64::from_bits(0xC070_5B8C_BB60_E8EC),
-    f64::from_bits(0x406E_659B_984E_C72C),
-    f64::from_bits(0x4055_6C26_056B_AD85),
-    f64::from_bits(0x4010_7BBE_50EC_A47A),
+// Read from the phases of Excel 20527's Horner products and the changes in
+// rounding when a partial sum crosses a power of two. Lowest power first.
+const B1_N: [u64; 10] = [
+    0xbf55_9f97_cb25_82ff, 0xbfa9_2587_e5c1_24df, 0xbfd8_558f_6ad8_f440, 0xbfed_3f13_70f3_47b5,
+    0xbfe4_c00f_820c_a19d, 0x3fb5_9e7c_382c_45e3, 0x3fc6_d0d4_bff8_a504, 0x3fa3_038d_a170_c471,
+    0x3f5c_3a9d_0165_803a, 0x3ed3_3ada_3fab_ee89,
 ];
-const Q1: [f64; 8] = [
-    f64::from_bits(0x3FDA_39D2_EC8B_FCDF),
-    f64::from_bits(0x4038_6F69_0BC7_F9C5),
-    f64::from_bits(0x4070_64EE_FD4A_C8D5),
-    f64::from_bits(0x408A_709A_B2B9_6CB8),
-    f64::from_bits(0x408D_BA96_BA61_5B30),
-    f64::from_bits(0x4077_9D65_5EAA_2824),
-    f64::from_bits(0x4046_D2C9_6BBB_64C7),
-    f64::from_bits(0x3FF0_0000_0000_0000), // 1.0 (monic)
+const B1_D: [u64; 9] = [
+    0x3f30_0000_0000_0001, 0x3f8f_168c_3e77_cf01, 0x3fc7_2eb2_7395_650d, 0x3fe6_b0b4_a083_5670,
+    0x3ff1_8e83_8fb3_5c8f, 0x3fe6_e6b1_d4f6_36f5, 0x3fc8_a4a6_67dd_ba05, 0x3f93_5397_cc53_8025,
+    0x3f3e_bffd_da5d_d26d,
 ];
 
 // SPECFUN DLGAMA P2/Q2: https://netlib.org/specfun/algama.
@@ -114,19 +105,16 @@ const Q4: [f64; 8] = [
     f64::from_bits(0x4259_FA9F_BBBD_7E2A),
 ];
 
-/// B1 uses a binary64 quotient and a PC64 product stored to binary64. Of nine
-/// million Excel observations, 972 are unreachable with a single-rounded final
-/// multiply for any binary64 quotient. The Horner table still stands in for Excel's.
+/// Store every product and sum, the quotient, and the product by x-1 from PC64.
+/// See the 119 million retained observations and the independent frozen probes
+/// in the ax1 section of docs/research/gamma-family-2026-11-12.md.
 fn b1(x: f64) -> f64 {
-    let mut n = 0.0_f64;
-    for &c in P1.iter().rev() {
-        n = n * x + c;
+    if x == 1.0 {
+        return 0.0;
     }
-    let mut d = 0.0_f64;
-    for &c in Q1.iter().rev() {
-        d = d * x + c;
-    }
-    super::excel_x87_mul(x - 1.0, n / d)
+    let n = stored_horner::<super::Native>(x, &B1_N);
+    let d = stored_horner::<super::Native>(x, &B1_D);
+    super::excel_x87_mul(x - 1.0, super::excel_x87_div(n, d))
 }
 
 /// STIRLING band `x >= 8`: worksheet LN, stored main expression, and the
@@ -575,11 +563,8 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn zeros_at_1_and_2() {
-        // Both are exactly 0 by construction. x=1.0 yields -0.0 (the (x-1)
-        // prefactor times a negative N/D), exactly as the identified op-graph
-        // and the reference model do; x=2.0 (B2, t=0) yields +0.0.
-        assert_eq!(gammaln_excel(1.0), 0.0);
-        assert_eq!(gammaln_excel(1.0).to_bits(), (-0.0_f64).to_bits());
+        // Both worksheet roots return the positive zero word.
+        assert_eq!(gammaln_excel(1.0).to_bits(), 0.0_f64.to_bits());
         assert_eq!(gammaln_excel(2.0).to_bits(), 0.0_f64.to_bits());
     }
 
