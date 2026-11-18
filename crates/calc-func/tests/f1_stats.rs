@@ -3369,6 +3369,23 @@ fn mod_reports_a_subnormal_remainder_as_num() {
     );
 }
 
+/// Excel 20527, ax1 frozen B1 product controls. A direct binary64 multiply
+/// by x-1 cannot produce these words for any binary64 quotient.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gammaln_stores_the_b1_product_from_pc64() {
+    for name in ["GAMMALN", "GAMMALN.PRECISE"] {
+        for (input, expected) in [
+            (0x3fe7_9a1a_b149_7cef, 0x3fcb_c630_3072_9c7c),
+            (0x3fed_f00c_3cf9_bf97, 0x3fa4_da54_9be8_b610),
+            (0x3ff0_97a5_d73f_e912, 0xbf94_bfce_ed53_bd7a),
+            (0x3ff7_aa42_af09_12fa, 0xbfbf_1023_221a_3ab2),
+        ] {
+            exact(call(name, vec![n(f64::from_bits(input))]), f64::from_bits(expected));
+        }
+    }
+}
+
 /// R33 Excel20527 Value2 logarithm discriminants, with both public aliases.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
