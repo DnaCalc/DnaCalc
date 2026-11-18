@@ -1978,7 +1978,7 @@ fn sample_moments_store_the_pc64_square_root() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn gamma_small_inputs_record_known_gaps() {
+fn gamma_small_inputs_match_recorded_answers() {
     // Original recorded answers: one gain from each grouped-input half and a
     // matched control three ULP from the unconditional Taylor-series result.
     for (input, expected, calculated) in [
@@ -1995,7 +1995,7 @@ fn gamma_small_inputs_record_known_gaps() {
         (
             0x3f8f_e551_0015_81b1,
             0x404f_d2d4_c62f_1d4e,
-            0x404fd2d4c62f1d4b,
+            0x404fd2d4c62f1d4e,
         ),
     ] {
         recorded_calculation(
@@ -3071,6 +3071,41 @@ fn error_function_tails_record_known_gaps() {
     }
 }
 
+/// Excel20527, ax1 frozen seed proof and stored-argument edge probes (2026-11-18).
+/// Includes the three PC64 addition discriminants and the internal seed's half-integer seam.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gamma_seed_and_reciprocal_match_frozen_excel_answers() {
+    for (input, answer) in [
+        (0x3ff9e80991d8cf81_u64, 0x3fecaa8421e75ee2_u64),
+        (0x3ffd35a2f6a9abd4_u64, 0x3fee07993ccc0a37_u64),
+        (0x3fff6bbe88769793_u64, 0x3fef8707694ed8f8_u64),
+        (0x3ff2b52206bfcdd6_u64, 0x3feda97661780b6c_u64),
+        (0x3ff3411d48ee165c_u64, 0x3fed5a4fb9ee4bc8_u64),
+        (0x3ff8b2c70bfde0da_u64, 0x3fec6df040fcde6b_u64),
+        (0x3ff312557a7f6225_u64, 0x3fed736961361cac_u64),
+        (0x3ffe00686b18c233_u64, 0x3fee82e444e56b39_u64),
+        (0x3ff4c87a6e71e679_u64, 0x3fecb965acdb1255_u64),
+        (0x3ffe48940ffbd0d3_u64, 0x3feeb28621872638_u64),
+        (0x3ff9f693190c4fce_u64, 0x3fecae438eb391fc_u64),
+        (0x3ffe3ff6adb7b603_u64, 0x3feeacbbe86be25c_u64),
+        (0x3ff9a49e1d721885_u64, 0x3fec9a2ebfd3c72f_u64),
+        (0x3ef115e587c17ff8_u64, 0x40edf772755eb20b_u64),
+        (0x3ee5cdb61b11000d_u64, 0x40f77b7595097d96_u64),
+        (0x3e8f82af7cbff86c_u64, 0x41503fa14b665562_u64),
+        (0x3fdffffffffffffe_u64, 0x3ffc5bf891b4ef6c_u64),
+        (0x3fdfffffffffffff_u64, 0x3ffc5bf891b4ef6a_u64),
+        (0x3fe0000000000000_u64, 0x3ffc5bf891b4ef6b_u64),
+        (0x3fe0000000000001_u64, 0x3ffc5bf891b4ef68_u64),
+        (0x3ff0000000000001_u64, 0x3fefffffffffffff_u64),
+        (0x3ff8000000000000_u64, 0x3fec5bf891b4ef6b_u64),
+        (0x4000000000000001_u64, 0x3ff0000000000002_u64),
+        (0x4021ffffffffffff_u64, 0x40e3afffffffffed_u64),
+    ] {
+        exact(call("GAMMA", vec![n(f64::from_bits(input))]), f64::from_bits(answer));
+    }
+}
+
 /// Original GAMMA answers from both former fitting halves, with known gaps.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -3105,7 +3140,7 @@ fn gamma_generic_body_records_known_gaps() {
         (
             0x3f1f_f366_0a69_738e,
             0x40c0_0605_98b3_6e3b,
-            0x40c0060598b36e3a,
+            0x40c0060598b36e3b,
         ),
         // The same bound admits reduced reflection and the negative fallback.
         (
@@ -3116,18 +3151,18 @@ fn gamma_generic_body_records_known_gaps() {
         (
             0xbfff_b384_bc86_8d32,
             0x403b_41c1_68e1_0426,
-            0x403b41c168e10425,
+            0x403b41c168e10426,
         ),
-        // Old matches differ from the rational by one ULP; keep their route.
+        // The identified seed now reproduces these positive recurrence witnesses.
         (
             0x400c_14f6_1d18_79ae,
             0x400a_e3a0_184f_4257,
-            0x400ae3a0184f4255,
+            0x400ae3a0184f4257,
         ),
         (
             0x400d_7b7b_3b82_609e,
             0x4010_6635_56ba_cf83,
-            0x4010663556bacf82,
+            0x4010663556bacf83,
         ),
         (
             0xc02d_5a3f_39dd_c52f,
