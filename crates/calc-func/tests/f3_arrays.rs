@@ -95,6 +95,30 @@ fn sort_blank_arguments_and_scalar_source_errors() {
     );
 }
 
+/// Excel 20527 merges adjacent ascending runs in pairs, keeping the earlier
+/// row on equal keys. These cyclic comparisons distinguish the merge order.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn sort_merges_adjacent_ascending_runs_in_pairs() {
+    use calc_func::value::{CalcArray, CalcValue};
+
+    for (keys, order, expected_tags) in [
+        (["aー", "a-ー", "a-a", "aa"], 1.0, [1.0, 3.0, 2.0, 0.0]),
+        (["aa", "a-a", "a-ー", "aa"], -1.0, [1.0, 0.0, 3.0, 2.0]),
+    ] {
+        let rows = keys
+            .iter()
+            .enumerate()
+            .map(|(row, key)| vec![t(key), n(row as f64)])
+            .collect();
+        let input = CalcValue::array(CalcArray::from_rows(rows).unwrap());
+        let result = call("SORT", vec![input, n(1.0), n(order)]).unwrap();
+        let result = result.as_array().unwrap();
+        let actual_tags = std::array::from_fn(|row| result.get(row, 1).unwrap().as_number().unwrap());
+        assert_eq!(actual_tags, expected_tags);
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn references_are_read_as_arrays() {
