@@ -325,13 +325,21 @@ fn ole_property_section(items: &[(u32, Vec<u8>)]) -> Vec<u8> {
 }
 
 fn custom_property_fixture(unaligned_page: bool) -> Vec<u8> {
+    custom_property_value_fixture(unaligned_page, 0, if unaligned_page { 3 } else { 0x41 })
+}
+
+fn custom_property_value_fixture(unaligned_page: bool, pad: usize, kind: u32) -> Vec<u8> {
     let mut page = 2u32.to_le_bytes().to_vec(); page.extend(u16s(&[1252, 0]));
     let document = ole_property_section(&[(1, page.clone())]);
     let mut dictionary = 1u32.to_le_bytes().to_vec(); dictionary.extend(2u32.to_le_bytes());
     dictionary.extend(7u32.to_le_bytes()); dictionary.extend(b"cxBlob\0");
-    let mut value = if unaligned_page { 3u32.to_le_bytes().to_vec() } else { 0x41u32.to_le_bytes().to_vec() };
-    if unaligned_page { value.extend(42i32.to_le_bytes()); }
-    else { value.extend(4u32.to_le_bytes()); value.extend([0, 1, 2, 255]); }
+    let mut value = kind.to_le_bytes().to_vec();
+    match kind {
+        3 => value.extend(42i32.to_le_bytes()),
+        0x1e => { value.extend(6u32.to_le_bytes()); value.extend(b"hello\0"); },
+        0x41 => { value.extend(4u32.to_le_bytes()); value.extend([0, 1, 2, 255]); },
+        _ => unreachable!(),
+    }
     let mut user = ole_property_section(&[(0, dictionary), (1, page), (2, value)]);
     if unaligned_page {
         let at = u32::from_le_bytes(user[20..24].try_into().unwrap()) as usize;
@@ -340,6 +348,13 @@ fn custom_property_fixture(unaligned_page: bool) -> Vec<u8> {
         user.splice(next+2..next+2, [0, 0]);
         user[20..24].copy_from_slice(&((at + 2) as u32).to_le_bytes());
         user[28..32].copy_from_slice(&((next + 4) as u32).to_le_bytes());
+        let size = user.len() as u32; user[..4].copy_from_slice(&size.to_le_bytes());
+    }
+    if pad != 0 {
+        let at = u32::from_le_bytes(user[28..32].try_into().unwrap()) as usize;
+        user.splice(at..at, std::iter::repeat_n(0, pad));
+        user[28..32].copy_from_slice(&((at + pad) as u32).to_le_bytes());
+        while user.len() % 4 != 0 { user.push(0); }
         let size = user.len() as u32; user[..4].copy_from_slice(&size.to_le_bytes());
     }
     let mut stream = vec![0u8; 68]; stream[..2].copy_from_slice(&0xfffeu16.to_le_bytes());
@@ -668,6 +683,11 @@ fn write_legacy_excel_session_inputs() {
     std::fs::write(dir.join("repair-addin-cell.xls"), addin_cell_reference_fixture()).unwrap();
     std::fs::write(dir.join("custom-blob.xls"), custom_property_fixture(false)).unwrap();
     std::fs::write(dir.join("custom-unaligned-page.xls"), custom_property_fixture(true)).unwrap();
+    for (label, kind) in [("int", 3), ("string", 0x1e), ("blob", 0x41)] {
+        for pad in 1..=3 {
+            std::fs::write(dir.join(format!("custom-unaligned-{label}-{pad}.xls")), custom_property_value_fixture(false, pad, kind)).unwrap();
+        }
+    }
     for (page, text) in [(936u16, &b"\xd6\xd0"[..]), (949, &b"\xb0\xa1"[..]), (950, &b"\xa4\xa4"[..])] {
         std::fs::write(dir.join(format!("company-cp{page}.xls")), east_asian_property_fixture(page, text)).unwrap();
     }
@@ -683,7 +703,7 @@ fn write_legacy_excel_session_inputs() {
     std::fs::write(dir.join("repair-format-no-option.xls"),
         xls(false, &record(0x041e, &format_without_option),
             &[Sheet::worksheet("Data", number(0, 0, 42.0))])).unwrap();
-    for name in ["raw-biff2-layout", "raw-grid", "raw-biff2", "raw-biff2-inline", "raw-biff3", "raw-biff4", "cells-biff8", "cells-biff5", "cell-values", "sst-continued-ascii", "sst-continued-utf16", "formula-error-checks", "formula-ref-classes", "formula-structures", "names-3d-addin", "rk-values", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "external-cache-invalid-biff5", "gcw-biff8", "tab-color-biff8", "drawing-rgb-solid-fill", "drawing-solid-lines", "drawing-hidden-outline", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "drawing-rich-underline", "drawing-uniform-underline", "emf-checksum-valid", "emf-checksum-invalid", "phonetic-empty", "phonetic-empty-pad-zero", "phonetic-empty-pad-nonzero", "phonetic-empty-pad-split", "phonetic-runs-pad-zero", "phonetic-runs-pad-nonzero", "phonetic-runs-pad-split", "phonetic-zero-runs", "phonetic-zero-runs-pad-zero", "phonetic-zero-runs-pad-nonzero", "phonetic-explicit", "phonetic-continuation", "row-guide-summary", "row-guide-range", "row-guide-range-no-summary", "row-guide-range-blanks", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
+    for name in ["raw-biff2-layout", "raw-grid", "raw-biff2", "raw-biff2-inline", "raw-biff3", "raw-biff4", "cells-biff8", "cells-biff5", "cell-values", "sst-continued-ascii", "sst-continued-utf16", "formula-error-checks", "formula-ref-classes", "formula-structures", "names-3d-addin", "rk-values", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "external-cache-invalid-biff5", "gcw-biff8", "tab-color-biff8", "drawing-rgb-solid-fill", "drawing-solid-lines", "drawing-hidden-outline", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "drawing-rich-underline", "drawing-uniform-underline", "emf-checksum-valid", "emf-checksum-invalid", "phonetic-empty", "phonetic-empty-pad-zero", "phonetic-empty-pad-nonzero", "phonetic-empty-pad-split", "phonetic-runs-pad-zero", "phonetic-runs-pad-nonzero", "phonetic-runs-pad-split", "phonetic-zero-runs", "phonetic-zero-runs-pad-zero", "phonetic-zero-runs-pad-nonzero", "phonetic-explicit", "phonetic-continuation", "row-guide-summary", "row-guide-range", "row-guide-range-no-summary", "row-guide-range-blanks", "forms", "custom-blob", "custom-unaligned-page", "custom-unaligned-int-1", "custom-unaligned-int-2", "custom-unaligned-int-3", "custom-unaligned-string-1", "custom-unaligned-string-2", "custom-unaligned-string-3", "custom-unaligned-blob-1", "custom-unaligned-blob-2", "custom-unaligned-blob-3", "company-cp936", "company-cp949", "company-cp950"] {
         let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
         let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
         let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
@@ -692,7 +712,7 @@ fn write_legacy_excel_session_inputs() {
         std::fs::write(dir.join(format!("{name}.dnacalc.xlsx")), converted).unwrap();
     }
     let cases = serde_json::json!({
-        "files": ["raw-biff2-layout.xls", "raw-grid.xls", "raw-biff2.xls", "raw-biff2-inline.xls", "raw-biff3.xls", "raw-biff4.xls", "cells-biff8.xls", "cells-biff5.xls", "cell-values.xls", "sst-continued-ascii.xls", "sst-continued-utf16.xls", "formula-error-checks.xls", "formula-ref-classes.xls", "formula-structures.xls", "names-3d-addin.xls", "rk-values.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "external-cache-invalid-biff5.xls", "gcw-biff8.xls", "tab-color-biff8.xls", "drawing-rgb-solid-fill.xls", "drawing-solid-lines.xls", "drawing-hidden-outline.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "drawing-uniform-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "phonetic-empty.xls", "phonetic-empty-pad-zero.xls", "phonetic-empty-pad-nonzero.xls", "phonetic-empty-pad-split.xls", "phonetic-runs-pad-zero.xls", "phonetic-runs-pad-nonzero.xls", "phonetic-runs-pad-split.xls", "phonetic-zero-runs.xls", "phonetic-zero-runs-pad-zero.xls", "phonetic-zero-runs-pad-nonzero.xls", "phonetic-explicit.xls", "phonetic-continuation.xls", "row-guide-summary.xls", "row-guide-range.xls", "row-guide-range-no-summary.xls", "row-guide-range-blanks.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
+        "files": ["raw-biff2-layout.xls", "raw-grid.xls", "raw-biff2.xls", "raw-biff2-inline.xls", "raw-biff3.xls", "raw-biff4.xls", "cells-biff8.xls", "cells-biff5.xls", "cell-values.xls", "sst-continued-ascii.xls", "sst-continued-utf16.xls", "formula-error-checks.xls", "formula-ref-classes.xls", "formula-structures.xls", "names-3d-addin.xls", "rk-values.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "external-cache-invalid-biff5.xls", "gcw-biff8.xls", "tab-color-biff8.xls", "drawing-rgb-solid-fill.xls", "drawing-solid-lines.xls", "drawing-hidden-outline.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "drawing-uniform-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "phonetic-empty.xls", "phonetic-empty-pad-zero.xls", "phonetic-empty-pad-nonzero.xls", "phonetic-empty-pad-split.xls", "phonetic-runs-pad-zero.xls", "phonetic-runs-pad-nonzero.xls", "phonetic-runs-pad-split.xls", "phonetic-zero-runs.xls", "phonetic-zero-runs-pad-zero.xls", "phonetic-zero-runs-pad-nonzero.xls", "phonetic-explicit.xls", "phonetic-continuation.xls", "row-guide-summary.xls", "row-guide-range.xls", "row-guide-range-no-summary.xls", "row-guide-range-blanks.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "custom-unaligned-int-1.xls", "custom-unaligned-int-2.xls", "custom-unaligned-int-3.xls", "custom-unaligned-string-1.xls", "custom-unaligned-string-2.xls", "custom-unaligned-string-3.xls", "custom-unaligned-blob-1.xls", "custom-unaligned-blob-2.xls", "custom-unaligned-blob-3.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
         "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls",
             "repair-name-collisions.xls", "repair-long-collisions.xls",
             "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls", "repair-pivot-range-first.xls",
