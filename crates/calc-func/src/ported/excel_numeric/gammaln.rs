@@ -2,7 +2,7 @@
 //!
 //! Bands of `GAMMALN`, dispatching on the positive argument `x`:
 //!   * `x < 0.7`         `core(x+1) - ln(x)`, one double subtract.
-//!   * `0.7 <= x < 1.5`  B1: stands in the Cody-Hillstrom 1967 n=7 table in plain double.
+//!   * `0.7 <= x < 1.5`  B1: the Cody-Hillstrom stand-in quotient times `x-1`, stored from PC64.
 //!   * `1.5 <= x < 2`    B2: stands in SPECFUN's table in x87 continuous arithmetic.
 //!   * `2 <= x <= 3`     B3: Excel's own form, read from its answers: see [`b3_with`].
 //!   * `3 < x < 8`       the recurrence from the `[2,3)` band, identified: see [`recurrence`].
@@ -114,8 +114,9 @@ const Q4: [f64; 8] = [
     f64::from_bits(0x4259_FA9F_BBBD_7E2A),
 ];
 
-/// B1 band `[0.7, 1.5)`: `(x-1) * N(x)/D(x)`, every op plain double, Horner
-/// descending over the ascending-stored coefficients.
+/// B1 uses a binary64 quotient and a PC64 product stored to binary64. Of nine
+/// million Excel observations, 972 are unreachable with a single-rounded final
+/// multiply for any binary64 quotient. The Horner table still stands in for Excel's.
 fn b1(x: f64) -> f64 {
     let mut n = 0.0_f64;
     for &c in P1.iter().rev() {
@@ -125,7 +126,7 @@ fn b1(x: f64) -> f64 {
     for &c in Q1.iter().rev() {
         d = d * x + c;
     }
-    (x - 1.0) * (n / d)
+    super::excel_x87_mul(x - 1.0, n / d)
 }
 
 /// STIRLING band `x >= 8`: worksheet LN, stored main expression, and the
