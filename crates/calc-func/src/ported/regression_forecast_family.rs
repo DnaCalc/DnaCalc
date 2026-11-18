@@ -979,6 +979,8 @@ fn one_observation_statistics(first: Vec<f64>) -> CalcValue {
 /// of y, F and the degrees of freedom, and the regression and residual sums of squares. LOGEST's
 /// statistics are those of the fit to ln y.
 fn statistics_block(fit: &RegressionFit, use_const: bool, first: Vec<f64>) -> CalcValue {
+    use excel_numeric::{excel_x87_add as add, excel_x87_div as div, excel_x87_mul as mul};
+
     if fit.order.is_empty() {
         return one_observation_statistics(first);
     }
@@ -1018,20 +1020,23 @@ fn statistics_block(fit: &RegressionFit, use_const: bool, first: Vec<f64>) -> Ca
     let nz = (0..p).take_while(|j| fit.r[*j][*j] != 0.0).count();
     let mut inverse = vec![vec![0.0; nz]; nz];
     for j in 0..nz {
-        inverse[j][j] = 1.0 / fit.r[j][j];
+        inverse[j][j] = div(1.0, fit.r[j][j]);
         for i in (0..j).rev() {
-            let sum = ((i + 1)..=j).fold(0.0, |sum, k| sum + fit.r[i][k] * inverse[k][j]);
-            inverse[i][j] = -sum / fit.r[i][i];
+            let sum = ((i + 1)..=j).fold(0.0, |sum, k| add(sum, mul(fit.r[i][k], inverse[k][j])));
+            inverse[i][j] = div(-sum, fit.r[i][i]);
         }
     }
-    // (R'R)^-1 = R^-1 R^-T.
-    let covariance =
-        |a: usize, b: usize| (0..nz).fold(0.0, |sum, k| sum + inverse[a][k] * inverse[b][k]);
+    // (R'R)^-1 = R^-1 R^-T. The reported coefficient covariance multiplies
+    // each entry by the residual sum of squares and then divides by df.
+    let scaled_covariance = |a: usize, b: usize| {
+        let entry = (0..nz).fold(0.0, |sum, k| add(sum, mul(inverse[a][k], inverse[b][k])));
+        div(mul(ss_resid, entry), df)
+    };
     let mut se = vec![0.0; fit.model.coefficients.len()];
     for (position, predictor) in fit.order.iter().enumerate().take(nz) {
         if let Some(index) = predictor {
             if !exact {
-                se[*index] = (ss_resid * covariance(position, position) / df).sqrt();
+                se[*index] = scaled_covariance(position, position).sqrt();
             }
         }
     }
@@ -1046,32 +1051,35 @@ fn statistics_block(fit: &RegressionFit, use_const: bool, first: Vec<f64>) -> Ca
     let cols = first.len();
     let mut second: Vec<CalcValue> = se.iter().rev().map(|v| number(*v)).collect();
     if use_const {
-        // The constant is my - sum(b_j m_j): its variance is w'(R'R)^-1 w with w = 1 at the
-        // ones column and -m_j at predictor j's column.
-        let w: Vec<f64> = fit
-            .order
-            .iter()
-            .take(nz)
-            .map(|predictor| match predictor {
-                None => 1.0,
-                Some(index) => -fit.means[*index],
-            })
-            .collect();
-        let mut variance = 0.0;
-        for a in 0..nz {
-            for b in 0..nz {
-                variance += w[a] * w[b] * covariance(a, b);
-            }
-        }
-        // R37 zero-mean predictors isolate this consumer from translation:
-        // all 360 discovery and 288 fresh LINEST/LOGEST selections agree
-        // with residual * variance before /df, conditioned on their published
-        // residual sum and inverse ones-column norm. The private QR/residual
-        // producers remain incomplete; this changes only the final association.
         let se_b = if exact {
             0.0
         } else {
-            (ss_resid * variance / df).sqrt()
+            // The constant is my - sum(b_j m_j). Its variance sums the
+            // diagonal contributions before the cross terms of the scaled
+            // covariance. Start with the constant and walk back through the
+            // predictor diagonal. Walk the pairs backwards as well.
+            // Excel 20527 translation probes and dcztvv_r24!D1 distinguish
+            // early scaling and the cross-term order under cancellation.
+            let weights: Vec<f64> = fit
+                .order
+                .iter()
+                .take(nz)
+                .map(|predictor| match predictor {
+                    None => 1.0,
+                    Some(index) => -fit.means[*index],
+                })
+                .collect();
+            let mut variance = (1..nz).rev().fold(scaled_covariance(0, 0), |sum, i| {
+                let squared_weight = mul(weights[i], weights[i]);
+                add(sum, mul(squared_weight, scaled_covariance(i, i)))
+            });
+            for a in (0..nz).rev() {
+                for b in (0..a).rev() {
+                    let weight = mul(2.0, mul(weights[a], weights[b]));
+                    variance = add(variance, mul(weight, scaled_covariance(a, b)));
+                }
+            }
+            variance.sqrt()
         };
         second.push(number(se_b));
     } else {
