@@ -528,6 +528,17 @@ def package(data):
                                                     if sh.find(M + 'sheetFormatPr') is not None else None),
                            'columns': [(e.get('min'), e.get('max'), e.get('width'))
                                        for e in sh.findall(f'{M}cols/{M}col')],
+                           'column_properties': [{k: e.get(k) for k in
+                                                  ('min', 'max', 'hidden', 'outlineLevel', 'collapsed',
+                                                   'bestFit', 'customWidth', 'style') if e.get(k) is not None}
+                                                 for e in sh.findall(f'{M}cols/{M}col')],
+                           'row_properties': [{k: e.get(k) for k in
+                                               ('r', 'ht', 'customHeight', 'hidden', 'outlineLevel',
+                                                'collapsed', 's', 'customFormat') if e.get(k) is not None}
+                                              for e in sh.findall(f'{M}sheetData/{M}row')
+                                              if any(e.get(k) is not None for k in
+                                                     ('ht', 'customHeight', 'hidden', 'outlineLevel',
+                                                      'collapsed', 's', 'customFormat'))],
                            'views': [{k: e.get(k) for k in ('tabSelected', 'showOutlineSymbols', 'defaultGridColor', 'colorId', 'view', 'zoomToFit',
                                                              'zoomScale', 'zoomScaleNormal', 'zoomScaleSheetLayoutView')
                                       if e.get(k) is not None} for e in sh.findall(f'{M}sheetViews/{M}sheetView')],
