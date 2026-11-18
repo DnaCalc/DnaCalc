@@ -2513,6 +2513,39 @@ fn regressions() {
     );
 }
 
+/// Excel 20527 dcztvv_r24!D1 and a centered-predictor translation control.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn linest_scales_covariance_before_the_intercept_error_sum() {
+    let d = 2.0_f64.powi(-19);
+    for (y, x, expected) in [
+        (
+            [1.0, 2.0, 4.0, 7.0],
+            [[1.0, 2.0], [2.0, 4.0], [5.0, 10.0], [4.0, 8.0001]],
+            "0x3fcaf6fd4fb22b5e",
+        ),
+        (
+            [0.75, 4.5, 1.25, 5.5],
+            [[4.0, 8.0 - d], [6.0, 12.0 - d], [4.0, 8.0 + d], [6.0, 12.0 + d]],
+            "0x3fe4662e2de0b5da",
+        ),
+    ] {
+        let fit = call(
+            "LINEST",
+            vec![
+                col(&y),
+                arr(x.into_iter().map(|row| row.to_vec()).collect()),
+                b(true),
+                b(true),
+            ],
+        )
+        .expect("LINEST result");
+        let fit = fit.as_array().expect("LINEST array");
+        let intercept_error = fit.get(1, 2).expect("intercept standard error");
+        assert_eq!(calc_verdict::encode_result(intercept_error).as_deref(), Some(expected));
+    }
+}
+
 /// Excel 20527: a numeric 2x2 TREND history is read as four paired observations.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
