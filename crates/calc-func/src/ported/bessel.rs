@@ -8,12 +8,12 @@
 //! - J0, J1, Y0 and Y1 call the licensed fixed helpers in `bessel_rational`.
 //!   High J uses the R27 literal-transcription hypotheses with worksheet
 //!   SIN/COS. High J/Y correction multiplies (8/x)*trig before its polynomial;
-//!   paired R25 phase observations distinguish this grouping. The separate
-//!   low-Y and forward discrepancies stay counted. These are discovery results,
-//!   not proof of Excel's source or agreement outside those readings.
+//!   paired R25 phase observations distinguish this grouping. Remaining high
+//!   seed differences stay counted in the witness reports.
 //! - The three-term recurrence `C(n+1) = (2n/x) C(n) - C(n-1)` (A&S 9.1.27, 9.6.26), run forward
-//!   for Y and K and for J above its order. J below its order calls the separately
-//!   licensed published adaptive backward program in `bessel_rational`.
+//!   for Y and K and for J above its order. Excel stores the division, both
+//!   multiplications and the last addition or subtraction. J below its order
+//!   calls the separately licensed adaptive backward program in `bessel_rational`.
 //! - I0 and I of order at least two use the fixed published ITK GaussianOperator
 //!   helpers in `bessel_rational` (Apache-2.0, commit
 //!   311b7060ef39e371f3cd209ec135284ff5fde735), with the existing stored PC64
@@ -49,7 +49,7 @@ use crate::value::WorksheetErrorCode;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
 /// A binary64 that computes as Excel does here: subnormal operands and results are zero.
-/// `D<true>` stores each basic operation from PC64; the K entry point selects it.
+/// `D<true>` stores each basic operation from PC64.
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 struct D<const STORED_PC64: bool = false>(f64);
 
@@ -338,6 +338,10 @@ fn forward<const S: bool>(x: D<S>, n: u32, c0: D<S>, c1: D<S>, plus: bool) -> D<
     c
 }
 
+fn forward_jy(x: D, n: u32, c0: D, c1: D) -> D {
+    D(forward::<true>(D(x.0), n, D(c0.0), D(c1.0), false).0)
+}
+
 /// I_n(x) from the defining positive series (DLMF 10.25.2).
 /// Sum relative to its leading term; logarithms combine the normalizer and sum
 /// so an underflowed leading term does not erase a normal result.
@@ -416,7 +420,7 @@ pub fn besselj_kernel(x: f64, n: f64) -> Result<f64, WorksheetErrorCode> {
         _ => {
             let ax = x.abs();
             let v = if ax.0 > n as f64 {
-                forward(ax, n, j0(ax)?, j1(ax)?, false)
+                forward_jy(ax, n, j0(ax)?, j1(ax)?)
             } else {
                 D::new(super::bessel_rational::jn(n as i32, ax.0))
             };
@@ -438,7 +442,7 @@ pub fn bessely_kernel(x: f64, n: f64) -> Result<f64, WorksheetErrorCode> {
     finish(match n {
         0 => y0(x),
         1 => y1(x),
-        _ => Ok(forward(x, n, y0(x)?, y1(x)?, false)),
+        _ => Ok(forward_jy(x, n, y0(x)?, y1(x)?)),
     })
 }
 

@@ -407,6 +407,21 @@ fn bessel_order_one_seed_staging_matches_excel() {
     assert_eq!(actual, [0x3fc6_16b4_a079_a19e, 0xbfcd_b4bd_82a6_e1f7]);
 }
 
+/// Excel 20527 controls that distinguish stores in the shared forward recurrence.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn bessel_forward_stores_each_recurrence_operation() {
+    for (function, x, order, expected) in [
+        ("BESSELY", f64::from_bits(1.0_f64.to_bits() - 1), 10.0, 0xc19c_fef9_7b53_aa46),
+        ("BESSELY", 479.0, 365.0, 0x3fa4_c801_8aad_87d2),
+        ("BESSELY", 25_569.0, 5_569.0, 0xbf50_989b_ad6b_5918),
+        ("BESSELJ", f64::from_bits(16.0_f64.to_bits() - 1), 10.0, 0xbfca_64f2_b129_529b),
+    ] {
+        let result = call(function, vec![n(x), n(order)]).unwrap();
+        assert_eq!(result.as_number().unwrap().to_bits(), expected, "{function}({x}, {order})");
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn bessel_low_rational_seeds_match_recorded_excel_bits() {
