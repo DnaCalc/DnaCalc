@@ -501,12 +501,14 @@ fn write_legacy_excel_session_inputs() {
         body.extend(u16s(&[0, 0, 1, 1]));
         let boundary = body.len() - 2;
         body.extend(4u16.to_le_bytes()); body.push(0); body.extend(b"NEXT");
-        let globals = if split {
+        let sst = if split {
             let mut tail = Vec::new();
             if flag { tail.push(0); }
             tail.extend_from_slice(&body[boundary..]);
             [record(0x00FC, &body[..boundary]), record(0x003C, &tail)].concat()
         } else { record(0x00FC, &body) };
+        let globals = [formatting(&[font(200, 0, 0x7fff, 400, "Arial"),
+            font(200, 0, 0x7fff, 700, "Arial")], &[], &[Xf::plain()]), sst].concat();
         let cells = [label_sst(0, 0, 0), label_sst(1, 0, 1)].concat();
         std::fs::write(dir.join(name), xls(false, &globals, &[Sheet::worksheet("Data", cells)])).unwrap();
     }
