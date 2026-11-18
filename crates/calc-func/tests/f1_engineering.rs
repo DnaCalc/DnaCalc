@@ -143,6 +143,20 @@ fn complex_tangent_and_cotangent_keep_the_excel_circular_factors() {
     );
 }
 
+/// Excel 20527 jnt_parity_complex D391 and D411, near the real-argument limit.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn complex_tangent_and_cotangent_reduce_the_denominator_at_the_real_argument() {
+    text(
+        call("IMTAN", vec![t("134217727+1e-100i")]),
+        "3.25845642561188+1.16175382776114E-99i",
+    );
+    text(
+        call("IMCOT", vec![t("134217727-0.1i")]),
+        "0.303561173457951+0.108953168171161i",
+    );
+}
+
 /// Excel 20527 Value2 controls and independent literal and complex-zero controls.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
