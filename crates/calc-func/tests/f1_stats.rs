@@ -753,6 +753,22 @@ fn ets_seasonality_from_twenty_points_tapers_the_ends() {
     }
 }
 
+/// Excel 20527 reports period 8 for dcj9k_r39_ets!D564, where the strongest
+/// spectral bin stands out from the full spectrum without dominating the second bin.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_seasonality_accepts_a_spectral_outlier() {
+    let mut history = [
+        -3.0, 13.375, -12.625, -5.5, -6.375, -12.625, -13.125, -5.625, -12.75, 3.875, 6.625,
+        1.125, -17.625, -10.25, -7.75, -5.375, -1.75, -0.625, -10.0, -22.625, -29.25, -31.0,
+        -29.0, -22.625,
+    ];
+    let timeline: Vec<f64> = (1..=history.len()).map(|value| value as f64).collect();
+    exact(call("FORECAST.ETS.SEASONALITY", vec![col(&history), col(&timeline)]), 8.0);
+    history[13] += 1.0;
+    exact(call("FORECAST.ETS.SEASONALITY", vec![col(&history), col(&timeline)]), 0.0);
+}
+
 /// Excel 20527 seasonal starting states below four cycles (oracle corpus dcj9k_r38_ets rows
 /// 1737-1738 and 2633-2634, period 4 on 8 and 12 points): the history is extended to
 /// ceil(3.5 p) points before the phase-mean chain, and the parameter search runs on the extension.
