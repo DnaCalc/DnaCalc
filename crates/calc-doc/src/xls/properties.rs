@@ -73,14 +73,18 @@ impl<'a> Section<'a> {
     fn value(&self, id: u32) -> Option<&'a [u8]> {
         let at = *self.offsets.get(&id)?;
         // An unrelated malformed property must not hide independently readable values.
-        // Keep its offset as a boundary, but never interpret an unaligned value.
         if at % 4 != 0 { return None; }
+        self.value_at(at)
+    }
+
+    fn value_at(&self, at: usize) -> Option<&'a [u8]> {
         let end = self.ordered.iter().copied().find(|offset| *offset > at).unwrap_or(self.bytes.len());
         self.bytes.get(at..end)
     }
 
     fn code_page(&self) -> Option<u16> {
-        let bytes = self.value(1)?;
+        // Excel reads the code page even when its offset is not four-byte aligned.
+        let bytes = self.value_at(*self.offsets.get(&1)?)?;
         (word(bytes, 0) == Some(2) && word(bytes, 2) == Some(0)).then(|| word(bytes, 4)).flatten()
     }
 }

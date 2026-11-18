@@ -450,6 +450,68 @@ fn write_legacy_excel_session_inputs() {
     std::fs::write(dir.join("drawing-rich-faces.xls"), rich_drawing_fixture("Courier", false, true, 2, 0x7fff, false, 400, 0, 0)).unwrap();
     std::fs::write(dir.join("emf-checksum-valid.xls"), emf_checksum_fixture(false)).unwrap();
     std::fs::write(dir.join("emf-checksum-invalid.xls"), emf_checksum_fixture(true)).unwrap();
+    // Controlled probes for the two unsupported shared-string phonetic forms.
+    // The paired explicit-run inputs differ only in their SST continuation boundary.
+    for (name, zero_runs, split) in [("phonetic-zero-runs", true, false),
+        ("phonetic-explicit", false, false), ("phonetic-continuation", false, true)] {
+        let mut extension = u16s(&[1, 0, 0, 7, if zero_runs { 0 } else { 2 }, 3, 3]);
+        extension.extend(u16s(&[b'x' as u16, b'y' as u16, b'z' as u16]));
+        if !zero_runs { extension.extend(u16s(&[0, 0, 1, 2, 1, 1])); }
+        let size = (extension.len() - 4) as u16;
+        extension[2..4].copy_from_slice(&size.to_le_bytes());
+        let mut body = Vec::new();
+        body.extend(1u32.to_le_bytes()); body.extend(1u32.to_le_bytes());
+        body.extend(2u16.to_le_bytes()); body.push(0x04);
+        body.extend((extension.len() as u32).to_le_bytes()); body.extend(b"AB");
+        let boundary = body.len() + 10;
+        body.extend(extension);
+        let globals = if split { [record(0x00FC, &body[..boundary]), record(0x003C, &body[boundary..])].concat() }
+            else { record(0x00FC, &body) };
+        let input = xls(false, &globals, &[Sheet::worksheet("Data", label_sst(0, 0, 0))]);
+        std::fs::write(dir.join(format!("{name}.xls")), input).unwrap();
+    }
+    // Continue starts within ExtRst and includes the continuation option byte.
+    // A second SST entry exposes any accidental consumption past the extension.
+    let mut extension = u16s(&[1, 0, 0, 7, 2, 3, 3]);
+    extension.extend(u16s(&[b'x' as u16, b'y' as u16, b'z' as u16, 0, 0, 1, 2, 1, 1]));
+    let size = (extension.len() - 4) as u16;
+    extension[2..4].copy_from_slice(&size.to_le_bytes());
+    let mut body = Vec::new();
+    body.extend(2u32.to_le_bytes()); body.extend(2u32.to_le_bytes());
+    body.extend(2u16.to_le_bytes()); body.push(0x04);
+    body.extend((extension.len() as u32).to_le_bytes()); body.extend(b"AB");
+    let boundary = body.len() + 10;
+    body.extend(extension);
+    body.extend(4u16.to_le_bytes()); body.push(0); body.extend(b"NEXT");
+    let mut continued = vec![0];
+    continued.extend_from_slice(&body[boundary..]);
+    let globals = [record(0x00FC, &body[..boundary]), record(0x003C, &continued)].concat();
+    let cells = [label_sst(0, 0, 0), label_sst(1, 0, 1)].concat();
+    std::fs::write(dir.join("repair-phonetic-continue-flag.xls"),
+        xls(false, &globals, &[Sheet::worksheet("Data", cells)])).unwrap();
+    // Compare an unsplit rich string with cuts inside its second FormatRun.
+    // The following SST entry reveals whether a continuation byte was consumed.
+    for (name, split, flag) in [("repair-rich-unsplit.xls", false, false),
+        ("repair-rich-continue-flag.xls", true, true),
+        ("repair-rich-continue-no-flag.xls", true, false)] {
+        let mut body = Vec::new();
+        body.extend(2u32.to_le_bytes()); body.extend(2u32.to_le_bytes());
+        body.extend(2u16.to_le_bytes()); body.push(0x08);
+        body.extend(2u16.to_le_bytes()); body.extend(b"AB");
+        body.extend(u16s(&[0, 0, 1, 1]));
+        let boundary = body.len() - 2;
+        body.extend(4u16.to_le_bytes()); body.push(0); body.extend(b"NEXT");
+        let sst = if split {
+            let mut tail = Vec::new();
+            if flag { tail.push(0); }
+            tail.extend_from_slice(&body[boundary..]);
+            [record(0x00FC, &body[..boundary]), record(0x003C, &tail)].concat()
+        } else { record(0x00FC, &body) };
+        let globals = [formatting(&[font(200, 0, 0x7fff, 400, "Arial"),
+            font(200, 0, 0x7fff, 700, "Arial")], &[], &[Xf::plain()]), sst].concat();
+        let cells = [label_sst(0, 0, 0), label_sst(1, 0, 1)].concat();
+        std::fs::write(dir.join(name), xls(false, &globals, &[Sheet::worksheet("Data", cells)])).unwrap();
+    }
     std::fs::write(dir.join("forms.xls"), include_bytes!("fixtures/dc_4j0e/FormsWorkbook.xls")).unwrap();
     let repair_cases = [
         ("repair-slash.xls", "Bad/Name"),
@@ -485,6 +547,12 @@ fn write_legacy_excel_session_inputs() {
         let cell = formula(1, 0, num_value(0.0), &tokens, &[]);
         std::fs::write(dir.join(file), xls(false, &[], &[Sheet::worksheet("Data", cell)])).unwrap();
     }
+    // The real-file refusal has the range before the text, at B44. Keep it a
+    // controlled synthetic workbook while asking Excel how it interprets this token order.
+    let legacy_pivot = ptg::join(&[ptg::area((14, 15), (5, 9), 0xC000), ptg::text("John"), ptg::func(358)]);
+    let cells = formula(43, 1, num_value(0.0), &legacy_pivot, &[]);
+    std::fs::write(dir.join("repair-pivot-range-first.xls"),
+        xls(false, &[], &[Sheet::worksheet("Data", cells)])).unwrap();
     let mut elf_col = vec![0x18, 0x03];
     elf_col.extend(u16s(&[0, 0])); // PtgElfCol referring to the A1 label
     let mut elf_radical = vec![0x18, 0x0A];
@@ -507,7 +575,15 @@ fn write_legacy_excel_session_inputs() {
     let short_format = record(0x041e, &[0xa4, 0x00, 0x02, 0x00, 0x00, b'x']);
     std::fs::write(dir.join("repair-short-format.xls"),
         xls(false, &short_format, &[Sheet::worksheet("Data", number(0, 0, 42.0))])).unwrap();
-    for name in ["raw-biff2-layout", "raw-grid", "raw-biff2", "raw-biff2-inline", "raw-biff3", "raw-biff4", "cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "tab-color-biff8", "drawing-rgb-solid-fill", "drawing-solid-lines", "drawing-hidden-outline", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "drawing-rich-underline", "drawing-uniform-underline", "emf-checksum-valid", "emf-checksum-invalid", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
+    // A real BIFF8 refusal has a two-byte length followed directly by ASCII,
+    // without the Unicode option byte. Ask Excel about this shape separately
+    // from the truncated Unicode string above; this input is synthetic.
+    let mut format_without_option = u16s(&[164, 4]);
+    format_without_option.extend(b"0.00");
+    std::fs::write(dir.join("repair-format-no-option.xls"),
+        xls(false, &record(0x041e, &format_without_option),
+            &[Sheet::worksheet("Data", number(0, 0, 42.0))])).unwrap();
+    for name in ["raw-biff2-layout", "raw-grid", "raw-biff2", "raw-biff2-inline", "raw-biff3", "raw-biff4", "cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "tab-color-biff8", "drawing-rgb-solid-fill", "drawing-solid-lines", "drawing-hidden-outline", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "drawing-rich-underline", "drawing-uniform-underline", "emf-checksum-valid", "emf-checksum-invalid", "phonetic-zero-runs", "phonetic-explicit", "phonetic-continuation", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
         let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
         let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
         let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
@@ -516,12 +592,13 @@ fn write_legacy_excel_session_inputs() {
         std::fs::write(dir.join(format!("{name}.dnacalc.xlsx")), converted).unwrap();
     }
     let cases = serde_json::json!({
-        "files": ["raw-biff2-layout.xls", "raw-grid.xls", "raw-biff2.xls", "raw-biff2-inline.xls", "raw-biff3.xls", "raw-biff4.xls", "cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "tab-color-biff8.xls", "drawing-rgb-solid-fill.xls", "drawing-solid-lines.xls", "drawing-hidden-outline.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "drawing-uniform-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
+        "files": ["raw-biff2-layout.xls", "raw-grid.xls", "raw-biff2.xls", "raw-biff2-inline.xls", "raw-biff3.xls", "raw-biff4.xls", "cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "tab-color-biff8.xls", "drawing-rgb-solid-fill.xls", "drawing-solid-lines.xls", "drawing-hidden-outline.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "drawing-uniform-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "phonetic-zero-runs.xls", "phonetic-explicit.xls", "phonetic-continuation.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
         "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls",
             "repair-name-collisions.xls", "repair-long-collisions.xls",
-            "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls",
+            "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls", "repair-pivot-range-first.xls",
             "repair-elf-column.xls", "repair-elf-radical.xls", "repair-addin-cell.xls",
-            "repair-missing-fat.xls", "repair-missing-chain.xls", "repair-short-format.xls"],
+            "repair-missing-fat.xls", "repair-missing-chain.xls", "repair-short-format.xls", "repair-format-no-option.xls", "repair-phonetic-continue-flag.xls",
+            "repair-rich-unsplit.xls", "repair-rich-continue-flag.xls", "repair-rich-continue-no-flag.xls"],
         "create_pivot": true,
         "formulas": [
             ["rows_full_column", "=ROWS(A:A)"], ["columns_full_row", "=COLUMNS(1:1)"],
@@ -1105,6 +1182,17 @@ fn custom_blob_fixture_is_counted_as_unread() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn custom_property_with_unaligned_code_page_is_retained() {
+    let bytes = custom_property_fixture(true);
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let xml = String::from_utf8(document.package().read_part("docProps/custom.xml").unwrap()).unwrap();
+    assert!(xml.contains("name=\"cxBlob\"") && xml.contains("<vt:i4>42</vt:i4>"), "{xml}");
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert_eq!(report.unread_custom_property_sets, 0);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn ole_summary_properties_survive_conversion_and_save() {
     let mut properties = Vec::<(u32, Vec<u8>)>::new();
     properties.push((1, [2u32.to_le_bytes().as_slice(), 1252u16.to_le_bytes().as_slice(), &[0, 0]].concat()));
@@ -1379,6 +1467,20 @@ fn the_shared_string_table_split_across_continue_records() {
             vec!["A1 s:first string", "A2 s:second ✓ string", "A3 s:third", "A4 s:fourth"],
             "cut at {cut}"
         );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn shared_string_refuses_a_split_utf16_code_unit() {
+    // One UTF-16 character starts before CONTINUE but its second byte is missing.
+    // Previously the first byte was discarded and B was silently substituted for A.
+    let body = [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, b'A'];
+    let globals = [record(0x00fc, &body), record(0x003c, &[1, b'B', 0])].concat();
+    let bytes = xls(false, &globals, &[Sheet::worksheet("S", label_sst(0, 0, 0))]);
+    match calc_doc::open(source(&bytes), &OpenPolicy::default()).err().unwrap() {
+        OpenError::LegacyWorkbook { detail, .. } => assert!(detail.contains("shared string"), "{detail}"),
+        other => panic!("expected a legacy shared-string refusal: {other:?}"),
     }
 }
 
@@ -1674,22 +1776,28 @@ fn explicit_phonetic_string_runs_survive_conversion() {
     let mut body = Vec::new();
     body.extend(1u32.to_le_bytes()); body.extend(1u32.to_le_bytes());
     body.extend(2u16.to_le_bytes()); body.push(0x04);
-    body.extend((extension.len() as u32).to_le_bytes()); body.extend(b"AB"); body.extend(extension);
-    let bytes = xls(false, &record(0x00FC, &body), &[Sheet::worksheet("S", label_sst(0, 0, 0))]);
-    let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
-    let xml = String::from_utf8(doc.package().read_part("xl/sharedStrings.xml").unwrap()).unwrap();
-    assert!(xml.contains("<rPh sb=\"0\" eb=\"1\"><t>xy</t></rPh>"), "{xml}");
-    assert!(xml.contains("<rPh sb=\"1\" eb=\"2\"><t>z</t></rPh>"), "{xml}");
-    assert!(xml.contains("<phoneticPr fontId=\"0\" type=\"noConversion\" alignment=\"left\"/>"), "{xml}");
-    assert_eq!(sheet_cells(&bytes), vec!["A1 s:AB"]);
-    let plan = calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
-    let mut saved = Vec::new();
-    calc_doc::write(plan, &mut saved).unwrap();
-    let reopened = calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap();
-    let saved_xml = String::from_utf8(reopened.package().read_part("xl/sharedStrings.xml").unwrap()).unwrap();
-    assert!(saved_xml.contains("<rPh sb=\"0\" eb=\"1\"><t>xy</t></rPh>"), "{saved_xml}");
-    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
-    assert!(!report.unknown_records.contains_key(&0x00FC));
+    body.extend((extension.len() as u32).to_le_bytes()); body.extend(b"AB");
+    let boundary = body.len() + 10;
+    body.extend(extension);
+    for split in [false, true] {
+        let globals = if split { [record(0x00FC, &body[..boundary]), record(0x003C, &body[boundary..])].concat() }
+            else { record(0x00FC, &body) };
+        let bytes = xls(false, &globals, &[Sheet::worksheet("S", label_sst(0, 0, 0))]);
+        let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let xml = String::from_utf8(doc.package().read_part("xl/sharedStrings.xml").unwrap()).unwrap();
+        assert!(xml.contains("<rPh sb=\"0\" eb=\"1\"><t>xy</t></rPh>"), "{xml}");
+        assert!(xml.contains("<rPh sb=\"1\" eb=\"2\"><t>z</t></rPh>"), "{xml}");
+        assert!(xml.contains("<phoneticPr fontId=\"0\" type=\"noConversion\" alignment=\"left\"/>"), "{xml}");
+        assert_eq!(sheet_cells(&bytes), vec!["A1 s:AB"]);
+        let plan = calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+        let mut saved = Vec::new();
+        calc_doc::write(plan, &mut saved).unwrap();
+        let reopened = calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap();
+        let saved_xml = String::from_utf8(reopened.package().read_part("xl/sharedStrings.xml").unwrap()).unwrap();
+        assert!(saved_xml.contains("<rPh sb=\"0\" eb=\"1\"><t>xy</t></rPh>"), "{saved_xml}");
+        let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+        assert!(!report.unknown_records.contains_key(&0x00FC));
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

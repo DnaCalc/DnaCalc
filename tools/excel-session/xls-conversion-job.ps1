@@ -708,9 +708,10 @@ try {
         $path = Join-Path $inputDir $name
         $entry = [ordered]@{file=$name; sha256=(Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToLowerInvariant(); error=$null}
         try {
-            $missing = [Type]::Missing
-            $book = $app.Workbooks.Open($path, 0, $true, $missing, $missing, $missing, $missing,
-                $missing, $missing, $missing, $missing, $missing, $missing, $missing, 1)
+            # PowerShell's COM binder rejected Missing for this 15-argument call before
+            # Excel could open the file. Supply explicit values for the optional slots.
+            $book = $app.Workbooks.Open($path, 0, $true, 1, '', '', $true, 2, '',
+                $false, $false, 0, $false, $false, 1)
             $entry.opened = Snapshot $book
             $saved = Join-Path $outputDir ([IO.Path]::GetFileNameWithoutExtension($name) + '-repaired.xlsx')
             $book.SaveAs($saved, 51)
@@ -728,14 +729,14 @@ try {
             $data = $book.Worksheets.Item(1); $data.Name = 'Data'
             $out = $book.Worksheets.Add([Type]::Missing, $data); $out.Name = 'Pivot'
             # Repeated source values exercise shared cache items and their record indexes.
-            $values = [object[,]]::new(201,3)
-            $values[0,0]='Region'; $values[0,1]='Amount'; $values[0,2]='Time'
+            $data.Cells.Item(1,1).Value2 = 'Region'
+            $data.Cells.Item(1,2).Value2 = 'Amount'
+            $data.Cells.Item(1,3).Value2 = 'Time'
             for ($i = 1; $i -le 200; $i++) {
-                $values[$i,0] = if ($i % 2) {'North'} else {'South'}
-                $values[$i,1] = [double](2 + ($i % 3))
-                $values[$i,2] = [double](($i % 4) / 4.0)
+                $data.Cells.Item($i + 1,1).Value2 = if ($i % 2) {'North'} else {'South'}
+                $data.Cells.Item($i + 1,2).Value2 = [double](2 + ($i % 3))
+                $data.Cells.Item($i + 1,3).Value2 = [double](($i % 4) / 4.0)
             }
-            $data.Range('A1:C201').Value2 = $values
             $data.Range('C2:C201').NumberFormat = 'h:mm'
             $cache = $book.PivotCaches().Create(1, 'Data!R1C1:R201C3', 1)
             $table = $cache.CreatePivotTable($out.Range('A3'), 'LegacyPivot', $true, 1)
