@@ -691,3 +691,76 @@ Linux `cargo xtask check` passes: 919 passed, 0 failed, 3 ignored and 1 not run.
 GAMMALN stays 2,646/4,538 and GAMMALN.PRECISE stays 11,643/14,278 in the full bank.
 The four R2 evidence copies above contain 248 files / 80,788,373 bytes in total;
 checksum copies and one-way checks report zero differences.
+
+## ax1 continuation (2026-11-18): negative GAMMA and GAMMALN B1
+
+The negative recurrence below 10 is an ascending quotient accumulator, separate from
+the seed. Start `z = 1`, `t = x`; while `t < 1`, compute `z = st(z/t)` and
+`t = st(t+1)`. Finish with `st(z * seed(t))`. Each quotient is stored. For positive
+x below one this is the already identified stored reciprocal rule.
+
+The calculation agrees on **20,000/20,000** retained Fable-r4 random negative inputs,
+first with public seed leaves and then with the exact internal seed. The reverse
+quotient accumulator, an accumulator kept in the register, products of stored
+reciprocals, and the reciprocal of a product disagree. Separate retained controls
+agree on **144/144** pole neighbors and **133/133** historical inputs captured by ax1
+before this arrangement was identified. No coefficient is fitted to these answers.
+
+An application-route pole control exposed a separate admission bug: the old relative
+integer tolerance rejected adjacent doubles around negative integers. Pole detection
+now requires an exact non-positive integer. Tests keep the actual pole errors and
+assert the captured finite neighboring result. The older historical Excel observations
+remain unchanged; 48 separate calculated unit-test predictions advance.
+
+Independent predictions are frozen for 40,634 new random/seam inputs, plus 149 inputs
+that distinguish PC64-stored and plain binary64 argument increments and 128 controls.
+They are **not yet observed**: Touchstone stopped replying and its socket disappeared
+during the GAMMALN work. SHA256 hashes:
+
+- `frozen-negative-asc.json`: `6826ae64d53a282bd0b6477bc1157ebe4d0e7cda1a2edbd28d489ce655ece33c`
+- `frozen-negative-increments.json`: `27dda4278efdf012ab8bc58f9faa0044e0d9ee1d90ec09fba8f5c7646cd7cf57`
+
+Retained answers, predictions and the replay script are on R2 at
+`dnacalc-evidence/research/ax1-20261118/negative-stage/`. Windows and fresh-input work
+remain explicit in the lane's `RUN-ON-WINDOWS.txt`.
+
+For GAMMALN B1, the three retained million-point runs order six measured partial sums
+in each Horner chain. A degree-9 numerator over a degree-8 denominator satisfies those
+constraints (chi-square 0.062 and maximum relative smooth-function error 6.7e-19);
+8/8 misses the measured constraints by chi-square 4.1e6. This identifies a candidate
+shape, not the coefficient words or every final store.
+
+Before asking, the candidate's spectral line lists were frozen at eight new
+million-point windows. Six returned: 39, 30, 34, 40, 40 and 40 of the strongest 40
+observed lines coincide with the predictions within 2e-5; shifted controls give
+0, 1, 0, 0, 1 and 2. The last two windows remain pending. Frozen-file SHA256:
+`85c0451f8aa494bdc5b6a2b4cdac7be14c83a5942ee0455db425be3dec8992a1`.
+Offline global mean/phase updates do not settle the low coefficient words, so no B1
+kernel change is made. Continuation needs new near-one windows. B2/B3 and large
+negative reflection remain open. The B1 snapshot is
+`research/ax1-20261118/gammaln-b1-stage-1/`: 105 files / 19,907,626 bytes, checksum copy
+and one-way check with zero differences after recopying a diagnostic log that changed
+during the first copy.
+
+The negative correction improves the GAMMA full bank **12,357 -> 12,572/12,603**,
+215 gains and zero losses, with unchanged inputs, selections, answers and provenance.
+Negative inputs in (-10,0) improve 388 -> 603/604. The remaining reading there is
+GAMMA(-2.5), build20131: expected `bfee3ff812e32183`, calculated `...82`; it remains a
+failure pending a current recheck. Larger negatives stay 51/72, and positives stay
+11,918/11,927. Together with the seed commit, GAMMA advances 8,193 -> 12,572/12,603.
+The pinned set advances 118 -> 120/120 by refreshing two calculated predictions;
+all original readings and contexts remain unchanged.
+
+On pulled revision 9bd6eb0d, the oracle corpus is **77,638/78,264 before and after**
+the negative correction: 626 inclusive failures (539 mismatches, 73 external and
+14 circular), zero refused or missing. The increase of 47 since the seed-stage run
+comes from incoming lane changes, not this gamma work. Linux `cargo xtask check`
+passes 921 tests, zero failed, three ignored and one not run. Targeted tests pass
+14 kernel and 19 application cases; the negative application test also passes with
+`soft-x87`. The negative-stage R2 artifact contains 21 files / 21,421,065 bytes,
+with checksum copy and one-way check finding zero differences. Fresh Excel and
+Windows/browser checks are still outstanding.
+
+After pulling 80832179, the final Linux check passes 922 tests, zero failures.
+The complete comparison against the lane-start trace gives 4,380 gains and one loss;
+GAMMA(-2.5) is that remaining lost reading.

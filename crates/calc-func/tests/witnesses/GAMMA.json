@@ -121,9 +121,9 @@
     {"args":["0x40644ad78813c22e"],"expected_bits":"0x7ba656c1b70c389b","id":"oc4109","reading":"r0"},
     {"args":["0x4065022e277eb4e1"],"expected_bits":"0x7e497636b3fde9c0","id":"oc6123","reading":"r0"},
     {"args":["0xbf3359fa2e651517"],"expected_bits":"0xc0aa7662cc57d7d2","id":"oc11752","reading":"r0"},
-    {"args":["0xbf78ca944ea5b953"],"calc_func":"0xc064b9ac9261e2c4","expected_bits":"0xc064b9ac9261e2c3","id":"oc11858","reading":"r0"},
+    {"args":["0xbf78ca944ea5b953"],"expected_bits":"0xc064b9ac9261e2c3","id":"oc11858","reading":"r0"},
     {"args":["0xbfbfc2a71d6df141"],"expected_bits":"0xc0218d8335f7ea51","id":"oc11964","reading":"r0"},
-    {"args":["0xbff2f347cda47a1c"],"calc_func":"0x401502a90643d077","expected_bits":"0x401502a90643d078","id":"oc12068","reading":"r0"},
+    {"args":["0xbff2f347cda47a1c"],"expected_bits":"0x401502a90643d078","id":"oc12068","reading":"r0"},
     {"args":["0xbff88d5c2573fb88"],"expected_bits":"0x40028e76db380633","id":"oc12173","reading":"r0"},
     {"args":["0xbffe3518e960488c"],"expected_bits":"0x401428d958135518","id":"oc12279","reading":"r0"}
   ]

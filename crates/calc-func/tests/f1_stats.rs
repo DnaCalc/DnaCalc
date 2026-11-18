@@ -3106,6 +3106,36 @@ fn gamma_seed_and_reciprocal_match_frozen_excel_answers() {
     }
 }
 
+/// Excel20527, retained Fable-r4 random and pole controls (ax1, 2026-11-18).
+/// The reciprocal accumulator divides ascending factors before multiplying the seed.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gamma_negative_recurrence_matches_retained_excel_answers() {
+    for (input, answer) in [
+        (0xbfadae75a399b2e0_u64, 0xc031e33aed66d5f8_u64),
+        (0xbfdb145ed568be78_u64, 0xc00d34d72ede7227_u64),
+        (0xbff4eb932a80c670_u64, 0x400a111e82161810_u64),
+        (0xbff6ff7b54cbeebf_u64, 0x4004205e36955909_u64),
+        (0xc0074963128b4295_u64, 0xc000ed504b4d8639_u64),
+        (0xc00273d6e3aa66c9_u64, 0xbff6a988d8e9ede2_u64),
+        (0xc0082b70c297e992_u64, 0x401e9fd4cd6dab8e_u64),
+        (0xc00f81449cbdf8fd_u64, 0x3fe7ca7f3c81ec0f_u64),
+        (0xc01001c0c3bf20a0_u64, 0xc03846df5a016e5c_u64),
+        (0xc01130b63c56ccff_u64, 0xbfba5a92d4872572_u64),
+        (0xc01631141995ff3a_u64, 0x3f84bd55645acc3e_u64),
+        (0xc01512d0475ba878_u64, 0x3f96910f12daaa79_u64),
+        (0xbfeffffffffffffe_u64, 0xc330000000000000_u64),
+        (0xbfeffffffe000000_u64, 0xc1b00000006c3b98_u64),
+        (0xbfffffffffc00000_u64, 0x41c00000003b0ee7_u64),
+        (0xc007ffffffe00000_u64, 0xc1a5555555c085a5_u64),
+        (0xc00fffffffe00000_u64, 0x4185555555d5dafb_u64),
+        (0xc013ffffffe00000_u64, 0xc151111111fa0234_u64),
+        (0xc017ffffffc00000_u64, 0x4116c16c196b483e_u64),
+    ] {
+        exact(call("GAMMA", vec![n(f64::from_bits(input))]), f64::from_bits(answer));
+    }
+}
+
 /// Original GAMMA answers from both former fitting halves, with known gaps.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

@@ -442,12 +442,11 @@ fn product_times_seed(x: f64, seed: f64) -> f64 {
 /// Below 10, with `y` the fraction of `x`, `GAMMA(x)` is the product `(x-1)(x-2)...(1+y)`, formed
 /// from the top with every step stored, times the seed `Gamma(1+y)`, stored: 2,000 of 2,000 on
 /// the Excel 16.0.20527 answers at each of `x = 3+y ... 9+y`, given `GAMMA(1+y)`.
-/// On (0,1), multiply the seed at the PC64-stored `1+x` by the stored reciprocal of x.
-/// The negative-argument quotient chain remains an approximation to Excel's unidentified path.
+/// Below one, start a reciprocal accumulator at 1, divide by each ascending argument and store
+/// every quotient. Multiply the final accumulator by the seed at the stored reduced argument.
+/// This gives the (0,1) rule `st(seed(st(1+x)) * st(1/x))` and agrees on all 20,000 retained
+/// negative random inputs and 144 separate pole controls (ax1, 2026-11-18).
 pub(crate) fn gamma_excel(x: f64) -> f64 {
-    use super::soft87::ext_from_f64 as ext;
-    use super::{CW, Fpu, Native};
-
     if x >= 10.0 {
         return gamma_stirling(x);
     }
@@ -458,21 +457,17 @@ pub(crate) fn gamma_excel(x: f64) -> f64 {
     if x > 0.0 && x <= 1e-16 {
         return super::excel_x87_recip(x);
     }
-    let floor = x.floor();
-    let seed = gamma_seed(super::excel_x87_add(1.0, x - floor));
-    if x >= 1.0 {
-        return product_times_seed(x, seed);
+    if x < 1.0 {
+        let mut argument = x;
+        let mut reciprocal = 1.0;
+        while argument < 1.0 {
+            reciprocal = super::excel_x87_div(reciprocal, argument);
+            argument = super::excel_x87_add(argument, 1.0);
+        }
+        return super::excel_x87_mul(reciprocal, gamma_seed(argument));
     }
-    if x > 0.0 {
-        return super::excel_x87_mul(seed, super::excel_x87_recip(x));
-    }
-    let mut value = ext(seed);
-    let mut k = -floor;
-    while k >= 0.0 {
-        value = Native::div(&value, &ext(x + k), CW);
-        k -= 1.0;
-    }
-    Native::store(&value, CW)
+    let seed = gamma_seed(super::excel_x87_add(1.0, x - x.floor()));
+    product_times_seed(x, seed)
 }
 
 #[cfg(test)]

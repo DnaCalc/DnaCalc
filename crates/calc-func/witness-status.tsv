@@ -298,7 +298,7 @@ FV	full	20131,20228,20430,20527,?	6912	6911	1	last_bit	218dcceeef	0
 FV	pinned	20131,20228,20430	120	120	-	exact	7a3e51cd1b+changes	0
 FVSCHEDULE	full	20527	2857	2857	-	exact	218dcceeef	0
 GAMMA	full	20131,20527,?	12603	8193	5	numeric	218dcceeef	0
-GAMMA	pinned	20131	120	118	1	last_bit	63210e7082+changes	0
+GAMMA	pinned	20131	120	120	-	exact	9bd6eb0d38+changes	0
 GAMMA.DIST	full	20131,20430,20527,?	77975	77897	8	numeric	218dcceeef	0
 GAMMA.DIST	pinned	20131,20430	120	119	1	last_bit	bce9c5aa4d+changes	0
 GAMMA.INV	full	20131,20527,?	4484	3829	1731866076314	structural	af24bf9759+changes	0
