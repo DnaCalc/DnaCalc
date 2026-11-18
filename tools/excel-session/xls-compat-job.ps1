@@ -5,7 +5,8 @@ param($OwnedExcel, [string]$Cases, [string]$Result)
 $ErrorActionPreference = 'Stop'
 $app = $OwnedExcel
 $caseBytes = [IO.File]::ReadAllBytes([IO.Path]::GetFullPath($Cases))
-$cases = [Text.Encoding]::UTF8.GetString($caseBytes).TrimStart([char]0xfeff) | ConvertFrom-Json
+$manifest = [Text.Encoding]::UTF8.GetString($caseBytes).TrimStart([char]0xfeff) | ConvertFrom-Json
+if (-not $manifest.formulas -or -not $manifest.files -or -not $manifest.repair_cases) { throw 'Incomplete XLS session manifest' }
 $sha = [Security.Cryptography.SHA256]::Create()
 try { $casesHash = [BitConverter]::ToString($sha.ComputeHash($caseBytes)).Replace('-', '').ToLowerInvariant() }
 finally { $sha.Dispose() }
@@ -44,7 +45,7 @@ function AddFormula2Cases($workbook, [string]$prefix) {
     $dynamicSheet.Range('A1').Value2 = 1
     $dynamicSheet.Range('A65536').Value2 = 2
     $index = 0
-    foreach ($case in $cases.formulas) {
+    foreach ($case in $manifest.formulas) {
         # Separate anchors leave space for the small arrays in these controlled cases.
         $cell = $dynamicSheet.Cells.Item(1 + 32 * $index, 3)
         Probe ($prefix + [string]$case[0]) {
@@ -56,7 +57,7 @@ function AddFormula2Cases($workbook, [string]$prefix) {
 }
 function ReadFormula2Cases($workbook, [string]$prefix) {
     $index = 0
-    foreach ($case in $cases.formulas) {
+    foreach ($case in $manifest.formulas) {
         Probe ($prefix + [string]$case[0]) {
             $cell = $workbook.Worksheets.Item('Formula2').Cells.Item(1 + 32 * $index, 3)
             ReadCell $cell 'Formula2'
@@ -82,7 +83,7 @@ try {
         full_name=[string]$book.FullName; check_compatibility=$book.CheckCompatibility;
         rows=$sheet.Rows.Count; columns=$sheet.Columns.Count} }
     $row = 1
-    foreach ($case in $cases.formulas) {
+    foreach ($case in $manifest.formulas) {
         $id = [string]$case[0]; $formula = [string]$case[1]; $cell = $sheet.Cells.Item($row, 3)
         Probe ('formula/' + $id) { $cell.Formula = $formula; ReadCell $cell }
         $row++
@@ -135,12 +136,12 @@ try {
     $legacyBytes = [Convert]::ToBase64String([IO.File]::ReadAllBytes($path))
     $book = $app.Workbooks.Open($path, 0, $false); $sheet = $book.Worksheets.Item(1)
     $row = 1
-    foreach ($case in $cases.formulas) { $cell = $sheet.Cells.Item($row, 3); Probe ('reopened/' + [string]$case[0]) { ReadCell $cell }; $row++ }
+    foreach ($case in $manifest.formulas) { $cell = $sheet.Cells.Item($row, 3); Probe ('reopened/' + [string]$case[0]) { ReadCell $cell }; $row++ }
     ReadFormula2Cases $book 'reopened_formula2/'
     Probe 'palette_roundtrip_after' { $sheet.Range('D1').Interior.Color }
     Probe 'convert_xlsx' { $book.SaveAs($modern, 51); @{file_format=$book.FileFormat; compatibility_mode=$book.Excel8CompatibilityMode; used_range=[string]$sheet.UsedRange.Address($false,$false)} }
     $row = 1
-    foreach ($case in $cases.formulas) { $cell = $sheet.Cells.Item($row, 3); Probe ('converted/' + [string]$case[0]) { if ($book.FileFormat -ne 51) { throw 'Conversion to xlsx did not succeed' }; ReadCell $cell }; $row++ }
+    foreach ($case in $manifest.formulas) { $cell = $sheet.Cells.Item($row, 3); Probe ('converted/' + [string]$case[0]) { if ($book.FileFormat -ne 51) { throw 'Conversion to xlsx did not succeed' }; ReadCell $cell }; $row++ }
     if ($book.FileFormat -eq 51) { ReadFormula2Cases $book 'converted_formula2/' }
     $book.Close($false); $book = $null
     if (Test-Path -LiteralPath $modern) { $modernBytes = [Convert]::ToBase64String([IO.File]::ReadAllBytes($modern)) }
@@ -155,7 +156,7 @@ try {
             $baselineSheet.Range('A1').Value2 = 1
             $baselineSheet.Range('A65536').Value2 = 2
             $row = 1
-            foreach ($case in $cases.formulas) {
+            foreach ($case in $manifest.formulas) {
                 $cell = $baselineSheet.Cells.Item($row, 3)
                 Probe ('modern/' + [string]$case[0]) {
                     $cell.Formula = [string]$case[1]

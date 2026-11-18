@@ -4,7 +4,8 @@ param($OwnedExcel, [string]$Cases, [string]$Result)
 $ErrorActionPreference = 'Stop'
 $app = $OwnedExcel
 $casesPath = [IO.Path]::GetFullPath($Cases)
-$cases = Get-Content -LiteralPath $casesPath -Raw -Encoding utf8 | ConvertFrom-Json
+$manifest = Get-Content -LiteralPath $casesPath -Raw -Encoding utf8 | ConvertFrom-Json
+if (-not $manifest.formulas -or -not $manifest.files -or -not $manifest.repair_cases) { throw 'Incomplete XLS session manifest' }
 $inputDir = [IO.Path]::GetDirectoryName($casesPath)
 $outputDir = Join-Path ([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($Result))) ('xls-conversion-' + [guid]::NewGuid().ToString('N'))
 [IO.Directory]::CreateDirectory($outputDir) | Out-Null
@@ -92,7 +93,7 @@ function Snapshot($workbook) {
 }
 try {
     $app.DisplayAlerts = $false
-    foreach ($name in $cases.files) {
+    foreach ($name in $manifest.files) {
         $name = [string]$name
         if ([IO.Path]::GetFileName($name) -ne $name) { throw "Input must be a fixture basename: $name" }
         $input = Join-Path $inputDir $name
@@ -701,7 +702,7 @@ try {
     }
     # These inputs are constructed by the test, not taken from the real-file corpus.
     # xlRepairFile (1) asks Excel to repair each malformed fixture explicitly.
-    foreach ($name in $cases.repair_cases) {
+    foreach ($name in $manifest.repair_cases) {
         $name = [string]$name
         if ([IO.Path]::GetFileName($name) -ne $name) { throw "Input must be a fixture basename: $name" }
         $path = Join-Path $inputDir $name
@@ -720,7 +721,7 @@ try {
         finally { if ($book) { try {$book.Close($false)} catch {}; $book=$null } }
         $repairs.Add($entry)
     }
-    if ($cases.create_pivot) {
+    if ($manifest.create_pivot) {
         $pivot = [ordered]@{error=$null}
         try {
             $book = $app.Workbooks.Add(-4167)
