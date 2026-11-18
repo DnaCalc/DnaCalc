@@ -1765,22 +1765,28 @@ fn explicit_phonetic_string_runs_survive_conversion() {
     let mut body = Vec::new();
     body.extend(1u32.to_le_bytes()); body.extend(1u32.to_le_bytes());
     body.extend(2u16.to_le_bytes()); body.push(0x04);
-    body.extend((extension.len() as u32).to_le_bytes()); body.extend(b"AB"); body.extend(extension);
-    let bytes = xls(false, &record(0x00FC, &body), &[Sheet::worksheet("S", label_sst(0, 0, 0))]);
-    let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
-    let xml = String::from_utf8(doc.package().read_part("xl/sharedStrings.xml").unwrap()).unwrap();
-    assert!(xml.contains("<rPh sb=\"0\" eb=\"1\"><t>xy</t></rPh>"), "{xml}");
-    assert!(xml.contains("<rPh sb=\"1\" eb=\"2\"><t>z</t></rPh>"), "{xml}");
-    assert!(xml.contains("<phoneticPr fontId=\"0\" type=\"noConversion\" alignment=\"left\"/>"), "{xml}");
-    assert_eq!(sheet_cells(&bytes), vec!["A1 s:AB"]);
-    let plan = calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
-    let mut saved = Vec::new();
-    calc_doc::write(plan, &mut saved).unwrap();
-    let reopened = calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap();
-    let saved_xml = String::from_utf8(reopened.package().read_part("xl/sharedStrings.xml").unwrap()).unwrap();
-    assert!(saved_xml.contains("<rPh sb=\"0\" eb=\"1\"><t>xy</t></rPh>"), "{saved_xml}");
-    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
-    assert!(!report.unknown_records.contains_key(&0x00FC));
+    body.extend((extension.len() as u32).to_le_bytes()); body.extend(b"AB");
+    let boundary = body.len() + 10;
+    body.extend(extension);
+    for split in [false, true] {
+        let globals = if split { [record(0x00FC, &body[..boundary]), record(0x003C, &body[boundary..])].concat() }
+            else { record(0x00FC, &body) };
+        let bytes = xls(false, &globals, &[Sheet::worksheet("S", label_sst(0, 0, 0))]);
+        let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let xml = String::from_utf8(doc.package().read_part("xl/sharedStrings.xml").unwrap()).unwrap();
+        assert!(xml.contains("<rPh sb=\"0\" eb=\"1\"><t>xy</t></rPh>"), "{xml}");
+        assert!(xml.contains("<rPh sb=\"1\" eb=\"2\"><t>z</t></rPh>"), "{xml}");
+        assert!(xml.contains("<phoneticPr fontId=\"0\" type=\"noConversion\" alignment=\"left\"/>"), "{xml}");
+        assert_eq!(sheet_cells(&bytes), vec!["A1 s:AB"]);
+        let plan = calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+        let mut saved = Vec::new();
+        calc_doc::write(plan, &mut saved).unwrap();
+        let reopened = calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap();
+        let saved_xml = String::from_utf8(reopened.package().read_part("xl/sharedStrings.xml").unwrap()).unwrap();
+        assert!(saved_xml.contains("<rPh sb=\"0\" eb=\"1\"><t>xy</t></rPh>"), "{saved_xml}");
+        let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+        assert!(!report.unknown_records.contains_key(&0x00FC));
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
