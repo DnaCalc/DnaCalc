@@ -426,6 +426,16 @@ fn write_legacy_excel_session_inputs() {
     cleared[4 + 14] = 0x20;
     let error_checks = xls(false, &[], &[Sheet::worksheet("ErrorChecks", [ordinary, cleared].concat())]);
     std::fs::write(dir.join("formula-error-checks.xls"), error_checks).unwrap();
+    // Excel-authored arithmetic uses PtgRefV here; compare the three reference classes.
+    let mut ref_classes = number(0, 0, 42.5);
+    for (row, class) in [(1, 0x24), (2, 0x44), (3, 0x64)] {
+        let mut reference = ptg::cell(0, 0, 0);
+        reference[0] = class;
+        let tokens = ptg::join(&[reference, ptg::int(1), ptg::op(ptg::ADD)]);
+        ref_classes.extend(formula(row, 0, num_value(43.5), &tokens, &[]));
+    }
+    let ref_classes = xls(false, &[], &[Sheet::worksheet("RefClasses", ref_classes)]);
+    std::fs::write(dir.join("formula-ref-classes.xls"), ref_classes).unwrap();
     let rk_integer = |value: i32, divide: bool| ((value as u32) << 2) | 2 | u32::from(divide);
     let rk_double = |value: f64, divide: bool| ((value.to_bits() >> 32) as u32 & !3) | u32::from(divide);
     let mut rk_records = Vec::new();
@@ -615,7 +625,7 @@ fn write_legacy_excel_session_inputs() {
     std::fs::write(dir.join("repair-format-no-option.xls"),
         xls(false, &record(0x041e, &format_without_option),
             &[Sheet::worksheet("Data", number(0, 0, 42.0))])).unwrap();
-    for name in ["raw-biff2-layout", "raw-grid", "raw-biff2", "raw-biff2-inline", "raw-biff3", "raw-biff4", "cells-biff8", "cells-biff5", "formula-error-checks", "formula-structures", "rk-values", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "tab-color-biff8", "drawing-rgb-solid-fill", "drawing-solid-lines", "drawing-hidden-outline", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "drawing-rich-underline", "drawing-uniform-underline", "emf-checksum-valid", "emf-checksum-invalid", "phonetic-zero-runs", "phonetic-explicit", "phonetic-continuation", "row-guide-summary", "row-guide-range", "row-guide-range-no-summary", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
+    for name in ["raw-biff2-layout", "raw-grid", "raw-biff2", "raw-biff2-inline", "raw-biff3", "raw-biff4", "cells-biff8", "cells-biff5", "formula-error-checks", "formula-ref-classes", "formula-structures", "rk-values", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "tab-color-biff8", "drawing-rgb-solid-fill", "drawing-solid-lines", "drawing-hidden-outline", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "drawing-rich-underline", "drawing-uniform-underline", "emf-checksum-valid", "emf-checksum-invalid", "phonetic-zero-runs", "phonetic-explicit", "phonetic-continuation", "row-guide-summary", "row-guide-range", "row-guide-range-no-summary", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
         let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
         let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
         let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
@@ -624,7 +634,7 @@ fn write_legacy_excel_session_inputs() {
         std::fs::write(dir.join(format!("{name}.dnacalc.xlsx")), converted).unwrap();
     }
     let cases = serde_json::json!({
-        "files": ["raw-biff2-layout.xls", "raw-grid.xls", "raw-biff2.xls", "raw-biff2-inline.xls", "raw-biff3.xls", "raw-biff4.xls", "cells-biff8.xls", "cells-biff5.xls", "formula-error-checks.xls", "formula-structures.xls", "rk-values.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "tab-color-biff8.xls", "drawing-rgb-solid-fill.xls", "drawing-solid-lines.xls", "drawing-hidden-outline.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "drawing-uniform-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "phonetic-zero-runs.xls", "phonetic-explicit.xls", "phonetic-continuation.xls", "row-guide-summary.xls", "row-guide-range.xls", "row-guide-range-no-summary.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
+        "files": ["raw-biff2-layout.xls", "raw-grid.xls", "raw-biff2.xls", "raw-biff2-inline.xls", "raw-biff3.xls", "raw-biff4.xls", "cells-biff8.xls", "cells-biff5.xls", "formula-error-checks.xls", "formula-ref-classes.xls", "formula-structures.xls", "rk-values.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "tab-color-biff8.xls", "drawing-rgb-solid-fill.xls", "drawing-solid-lines.xls", "drawing-hidden-outline.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "drawing-uniform-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "phonetic-zero-runs.xls", "phonetic-explicit.xls", "phonetic-continuation.xls", "row-guide-summary.xls", "row-guide-range.xls", "row-guide-range-no-summary.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
         "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls",
             "repair-name-collisions.xls", "repair-long-collisions.xls",
             "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls", "repair-pivot-range-first.xls",
