@@ -823,3 +823,36 @@ The answers are in `dnacalc-evidence/research/ax1-20261118/`, under
 `run2-reflection-and-b2/` and `run2-tiny/`.
 The oracle corpus matches 77,641 of 78,264 before and after this change,
 with 536 mismatches, 73 external links and 14 circular cases.
+
+## ax1 run 2, the large GAMMA multiplier
+
+For non-half, non-integer `x >= 10`, Excel forms the Stirling multiplier
+directly in the stored reciprocal of `x`. Its degree-15 polynomial uses the
+binary64 coefficients of the formal exponential of the Bernoulli log series.
+They can be generated entirely with rational arithmetic. If `b[k]` is the
+coefficient of the log series, start with `a[0] = 1` and take
+`a[n] = sum(k * b[k] * a[n-k], k=1..n) / n`. Store each Horner product
+and each addition, including the final addition of one.
+
+On 32,000 exploratory worksheet probes the old exponential of the log
+series missed 45 even with Excel's LN, EXP and SQRT values supplied.
+Inverting the final multiply placed all 45 errors in the correction factor,
+one word on either side of a rounding midpoint. Degree 16 of the direct
+polynomial passed those probes. On 13,229 fresh inputs selected to distinguish
+the degrees it missed 150. Degree 15 matched all 13,229.
+
+On a second frozen set of 16,210, with worksheet elementary leaves, PC64
+followed by binary64 stores matched all 16,210. Keeping the reciprocal,
+Horner products or sums resident gave 16,108, 16,086 or 16,105 respectively.
+Direct binary64 arithmetic gave 16,207. The stored product alone did not
+distinguish direct binary64 from PC64 in this sample. The Rust worksheet call
+matches 13,229/13,229 on the degree set and 16,208/16,210 on the arithmetic set.
+
+Full-bank GAMMA moves from 12,594 to 12,602 of 12,603, eight gains and no
+losses. The remaining input is `4033d058ed7b607b`. Excel's fractional-power
+EXP leaf at `4005aadfaa83f048` gives `402e02f38db4e106` while the engine gives
+`402e02f38db4e107`. Using Excel's leaf reproduces both the historical reading
+and live Excel 20527, `436f1a8bb84835cd`. The frozen degree and arithmetic
+proofs are under `dnacalc-evidence/research/ax1-20261118/run2-quantization-and-star/`,
+with SHA256 `9bd42f9d8781f3ef6d6604898ebeb03cb6d566c2ed3dc87feea3286b5a65ff3b`
+and `eec53222e03e1624e001668a66003b29b79bd6aa4c5beac0ef9cb9f6ae28879a`.
