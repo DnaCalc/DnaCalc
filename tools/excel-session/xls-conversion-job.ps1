@@ -71,6 +71,9 @@ function Snapshot($workbook) {
             if ($null -ne $cell.Value2 -or $cell.HasFormula -or $cell.MergeCells -or $null -ne $cell.Comment) {
                 $cells.Add(@{address=[string]$cell.Address($false,$false); value=$(if ($null -eq $cell.Value2) {$null} else {[string]$cell.Value2});
                     formula=$(if ($cell.HasFormula) {[string]$cell.Formula} else {$null}); number_format=[string]$cell.NumberFormat;
+                    error_checks=$(if ([string]$sheet.Name -eq 'ErrorChecks') {
+                        @(1..9 | ForEach-Object { $index = $_; GetOrError { @{index=$index; value=[bool]$cell.Errors.Item($index).Value} } })
+                    } else {$null});
                     merge=$(if ($cell.MergeCells) {[string]$cell.MergeArea.Address($false,$false)} else {$null});
                     comment=$(if ($null -ne $cell.Comment) {[string]$cell.Comment.Text()} else {$null})})
             }
@@ -88,7 +91,12 @@ function Snapshot($workbook) {
             charts=(GetOrError {$sheet.ChartObjects().Count})})
     }
     $names = @($workbook.Names | ForEach-Object { @{name=[string]$_.Name; refers_to=[string]$_.RefersTo; visible=$_.Visible} })
+    $checkingOptions = if (@($workbook.Sheets | Where-Object { [string]$_.Name -eq 'ErrorChecks' }).Count) {
+        GetOrError { @{background=[bool]$app.ErrorCheckingOptions.BackgroundChecking;
+            evaluate_to_error=[bool]$app.ErrorCheckingOptions.EvaluateToError} }
+    } else { $null }
     return @{date1904=$workbook.Date1904; sheets=$sheets.ToArray(); names=$names; file_format=$workbook.FileFormat;
+        error_checking_options=$checkingOptions;
         calculation=@{operation='CalculateFullRebuild'; state=$calculationState}}
 }
 try {
