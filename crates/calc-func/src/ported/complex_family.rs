@@ -253,13 +253,15 @@ impl ParsedComplex {
                 None,
             ));
         }
-        let denom = crt_cos(2.0 * self.re) + crt_cosh(2.0 * self.im);
+        let (sin, cos) = complex_circular_parts(self.re);
+        // Use the same reduction of the real argument for both double angles.
+        let cos_double = 1.0 - 2.0 * sin * sin;
+        let denom = cos_double + crt_cosh(2.0 * self.im);
         if denom == 0.0 {
             return Err(WorksheetErrorCode::Num);
         }
         // Off-axis Excel 20527 controls retain the scalar SIN/COS reduction in
         // the double-angle numerator (eng19; jnt_parity_complex D389).
-        let (sin, cos) = complex_circular_parts(self.re);
         Ok(Self::new(
             (2.0 * sin * cos) / denom,
             crt_sinh(2.0 * self.im) / denom,
@@ -318,11 +320,12 @@ impl ParsedComplex {
             ));
         }
         crate::ported::real_policy::ExcelRealPolicy::CIRCULAR_TRIG.check_arg(self.re)?;
-        let denom = crt_cosh(2.0 * self.im) - crt_cos(2.0 * self.re);
+        let (sin, cos) = complex_circular_parts(self.re);
+        let cos_double = 2.0 * cos * cos - 1.0;
+        let denom = crt_cosh(2.0 * self.im) - cos_double;
         if denom == 0.0 {
             return Err(WorksheetErrorCode::Num);
         }
-        let (sin, cos) = complex_circular_parts(self.re);
         Ok(Self::new(
             (2.0 * sin * cos) / denom,
             -crt_sinh(2.0 * self.im) / denom,
