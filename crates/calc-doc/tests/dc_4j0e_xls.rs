@@ -2596,7 +2596,7 @@ fn continued_txo_text_is_read_for_notes_and_text_boxes() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn oversized_compound_project_is_refused_instead_of_omitted() {
+fn large_compound_project_is_retained() {
     for size in [4096, 7_200_000] {
         let workbook = workbook_stream(false, &[], &[Sheet::worksheet("S", number(0, 0, 1.0))]);
         let mut bytes = compound(&[("Workbook", workbook), ("_VBA_PROJECT_CUR", Vec::new()),
@@ -2606,14 +2606,8 @@ fn oversized_compound_project_is_refused_instead_of_omitted() {
         bytes[storage + 0x42] = 1;
         bytes[storage + 0x48..storage + 0x4c].copy_from_slice(&u32::MAX.to_le_bytes());
         bytes[storage + 0x4c..storage + 0x50].copy_from_slice(&3u32.to_le_bytes());
-        let result = calc_doc::open(source(&bytes), &OpenPolicy::default());
-        if size == 4096 {
-            let document = result.unwrap();
-            assert!(document.package().part("xl/vbaProject.bin").is_some());
-        } else {
-            let error = match result { Ok(_) => panic!("oversized storage was silently omitted"), Err(e) => e.to_string() };
-            assert!(error.contains("109 FAT-sector writer limit") && error.contains("dc-4j0e.1"), "{error}");
-        }
+        let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        assert!(document.package().part("xl/vbaProject.bin").is_some());
     }
 }
 

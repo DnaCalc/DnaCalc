@@ -15,6 +15,7 @@ pub(crate) enum Node {
 const SECTOR: usize = 512;
 const END: u32 = 0xFFFF_FFFE;
 const FAT_MARK: u32 = 0xFFFF_FFFD;
+const DIFAT_MARK: u32 = 0xFFFF_FFFC;
 const NONE: u32 = 0xFFFF_FFFF;
 
 struct Entry {
@@ -95,8 +96,7 @@ fn add(entries: &mut Vec<Entry>, mut children: Vec<(String, Node)>) -> u32 {
     root
 }
 
-/// The compound file holding `root`'s children, or `None` when it would need more than 109 FAT
-/// sectors (about 7 MB).
+/// The compound file holding `root`'s children, or `None` if its sector IDs cannot be represented.
 pub(crate) fn write(root: Vec<(String, Node)>) -> Option<Vec<u8>> {
     let mut entries = vec![Entry {
         name: "Root Entry".to_owned(),
@@ -136,17 +136,27 @@ pub(crate) fn write(root: Vec<(String, Node)>) -> Option<Vec<u8>> {
         .collect();
     let big_sectors: usize = big.iter().map(|k| entries[*k].data.len().div_ceil(SECTOR)).sum();
     let data_sectors = directory_sectors + mini_fat_sectors + mini_sectors + big_sectors;
+    // Each DIFAT sector holds 127 FAT sector IDs and the next DIFAT sector ID.
+    // Both FAT and DIFAT sectors themselves consume FAT entries, so size them together.
     let mut fat_sectors = 1usize;
-    while fat_sectors * 128 < data_sectors + fat_sectors {
-        fat_sectors += 1;
+    let mut difat_sectors = 0usize;
+    loop {
+        let needed_fat = data_sectors.checked_add(fat_sectors)?.checked_add(difat_sectors)?.div_ceil(128);
+        let needed_difat = needed_fat.saturating_sub(109).div_ceil(127);
+        if needed_fat == fat_sectors && needed_difat == difat_sectors { break; }
+        fat_sectors = needed_fat;
+        difat_sectors = needed_difat;
     }
-    if fat_sectors > 109 {
-        return None;
-    }
-    let mut fat = vec![NONE; fat_sectors * 128];
+    let total_sectors = data_sectors.checked_add(fat_sectors)?.checked_add(difat_sectors)?;
+    if total_sectors >= DIFAT_MARK as usize { return None; }
+    let mut fat = vec![NONE; fat_sectors.checked_mul(128)?];
     let mut next = 0usize;
     for _ in 0..fat_sectors {
         fat[next] = FAT_MARK;
+        next += 1;
+    }
+    for _ in 0..difat_sectors {
+        fat[next] = DIFAT_MARK;
         next += 1;
     }
     let chain = |fat: &mut Vec<u32>, count: usize, next: &mut usize| -> u32 {
@@ -181,13 +191,23 @@ pub(crate) fn write(root: Vec<(String, Node)>) -> Option<Vec<u8>> {
     out[0x38..0x3C].copy_from_slice(&4096u32.to_le_bytes());
     out[0x3C..0x40].copy_from_slice(&mini_fat_start.to_le_bytes());
     out[0x40..0x44].copy_from_slice(&(mini_fat_sectors as u32).to_le_bytes());
-    out[0x44..0x48].copy_from_slice(&END.to_le_bytes());
+    out[0x44..0x48].copy_from_slice(&(if difat_sectors == 0 { END } else { fat_sectors as u32 }).to_le_bytes());
+    out[0x48..0x4C].copy_from_slice(&(difat_sectors as u32).to_le_bytes());
     for k in 0..109 {
         let value = if k < fat_sectors { k as u32 } else { NONE };
         out[0x4C + 4 * k..0x50 + 4 * k].copy_from_slice(&value.to_le_bytes());
     }
     for value in &fat {
         out.extend_from_slice(&value.to_le_bytes());
+    }
+    for sector in 0..difat_sectors {
+        for slot in 0..127 {
+            let index = 109 + sector * 127 + slot;
+            let value = if index < fat_sectors { index as u32 } else { NONE };
+            out.extend_from_slice(&value.to_le_bytes());
+        }
+        let next_difat = if sector + 1 < difat_sectors { (fat_sectors + sector + 1) as u32 } else { END };
+        out.extend_from_slice(&next_difat.to_le_bytes());
     }
     let mut directory = Vec::with_capacity(entries.len() * 128);
     for entry in &entries {
@@ -216,12 +236,33 @@ pub(crate) fn write(root: Vec<(String, Node)>) -> Option<Vec<u8>> {
     for value in &mini_fat {
         out.extend_from_slice(&value.to_le_bytes());
     }
-    out.resize(SECTOR * (1 + fat_sectors + directory_sectors + mini_fat_sectors), 0xFF);
+    out.resize(SECTOR * (1 + fat_sectors + difat_sectors + directory_sectors + mini_fat_sectors), 0xFF);
     out.extend_from_slice(&mini);
-    out.resize(SECTOR * (1 + fat_sectors + directory_sectors + mini_fat_sectors + mini_sectors), 0);
+    out.resize(SECTOR * (1 + fat_sectors + difat_sectors + directory_sectors + mini_fat_sectors + mini_sectors), 0);
     for k in &big {
         out.extend_from_slice(&entries[*k].data);
         out.resize(out.len().div_ceil(SECTOR) * SECTOR, 0);
     }
     Some(out)
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::{write, Node};
+    use crate::xls::cfb::Compound;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn difat_chain_retains_streams() {
+        // Exercise zero, one, and two DIFAT sectors, with both mini and regular streams.
+        for size in [4096, 7_200_000, 16_000_000] {
+            let data: Vec<u8> = (0..size).map(|i| (i % 251) as u8).collect();
+            let bytes = write(vec![("large".into(), Node::Stream(data.clone())),
+                ("small".into(), Node::Stream(vec![1, 2, 3]))]).unwrap();
+            let compound = Compound::open(&bytes).unwrap();
+            assert_eq!(compound.read("large").unwrap().unwrap(), data);
+            assert_eq!(compound.read("small").unwrap().unwrap(), [1, 2, 3]);
+        }
+    }
 }
