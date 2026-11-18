@@ -450,6 +450,26 @@ fn write_legacy_excel_session_inputs() {
     std::fs::write(dir.join("drawing-rich-faces.xls"), rich_drawing_fixture("Courier", false, true, 2, 0x7fff, false, 400, 0, 0)).unwrap();
     std::fs::write(dir.join("emf-checksum-valid.xls"), emf_checksum_fixture(false)).unwrap();
     std::fs::write(dir.join("emf-checksum-invalid.xls"), emf_checksum_fixture(true)).unwrap();
+    // Controlled probes for the two unsupported shared-string phonetic forms.
+    // The paired explicit-run inputs differ only in their SST continuation boundary.
+    for (name, zero_runs, split) in [("phonetic-zero-runs", true, false),
+        ("phonetic-explicit", false, false), ("phonetic-continuation", false, true)] {
+        let mut extension = u16s(&[1, 0, 0, 7, if zero_runs { 0 } else { 2 }, 3, 3]);
+        extension.extend(u16s(&[b'x' as u16, b'y' as u16, b'z' as u16]));
+        if !zero_runs { extension.extend(u16s(&[0, 0, 1, 2, 1, 1])); }
+        let size = (extension.len() - 4) as u16;
+        extension[2..4].copy_from_slice(&size.to_le_bytes());
+        let mut body = Vec::new();
+        body.extend(1u32.to_le_bytes()); body.extend(1u32.to_le_bytes());
+        body.extend(2u16.to_le_bytes()); body.push(0x04);
+        body.extend((extension.len() as u32).to_le_bytes()); body.extend(b"AB");
+        let boundary = body.len() + 10;
+        body.extend(extension);
+        let globals = if split { [record(0x00FC, &body[..boundary]), record(0x003C, &body[boundary..])].concat() }
+            else { record(0x00FC, &body) };
+        let input = xls(false, &globals, &[Sheet::worksheet("Data", label_sst(0, 0, 0))]);
+        std::fs::write(dir.join(format!("{name}.xls")), input).unwrap();
+    }
     std::fs::write(dir.join("forms.xls"), include_bytes!("fixtures/dc_4j0e/FormsWorkbook.xls")).unwrap();
     let repair_cases = [
         ("repair-slash.xls", "Bad/Name"),
@@ -513,7 +533,7 @@ fn write_legacy_excel_session_inputs() {
     let short_format = record(0x041e, &[0xa4, 0x00, 0x02, 0x00, 0x00, b'x']);
     std::fs::write(dir.join("repair-short-format.xls"),
         xls(false, &short_format, &[Sheet::worksheet("Data", number(0, 0, 42.0))])).unwrap();
-    for name in ["raw-biff2-layout", "raw-grid", "raw-biff2", "raw-biff2-inline", "raw-biff3", "raw-biff4", "cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "tab-color-biff8", "drawing-rgb-solid-fill", "drawing-solid-lines", "drawing-hidden-outline", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "drawing-rich-underline", "drawing-uniform-underline", "emf-checksum-valid", "emf-checksum-invalid", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
+    for name in ["raw-biff2-layout", "raw-grid", "raw-biff2", "raw-biff2-inline", "raw-biff3", "raw-biff4", "cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "tab-color-biff8", "drawing-rgb-solid-fill", "drawing-solid-lines", "drawing-hidden-outline", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "drawing-rich-underline", "drawing-uniform-underline", "emf-checksum-valid", "emf-checksum-invalid", "phonetic-zero-runs", "phonetic-explicit", "phonetic-continuation", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
         let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
         let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
         let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
@@ -522,7 +542,7 @@ fn write_legacy_excel_session_inputs() {
         std::fs::write(dir.join(format!("{name}.dnacalc.xlsx")), converted).unwrap();
     }
     let cases = serde_json::json!({
-        "files": ["raw-biff2-layout.xls", "raw-grid.xls", "raw-biff2.xls", "raw-biff2-inline.xls", "raw-biff3.xls", "raw-biff4.xls", "cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "tab-color-biff8.xls", "drawing-rgb-solid-fill.xls", "drawing-solid-lines.xls", "drawing-hidden-outline.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "drawing-uniform-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
+        "files": ["raw-biff2-layout.xls", "raw-grid.xls", "raw-biff2.xls", "raw-biff2-inline.xls", "raw-biff3.xls", "raw-biff4.xls", "cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "tab-color-biff8.xls", "drawing-rgb-solid-fill.xls", "drawing-solid-lines.xls", "drawing-hidden-outline.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "drawing-uniform-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "phonetic-zero-runs.xls", "phonetic-explicit.xls", "phonetic-continuation.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
         "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls",
             "repair-name-collisions.xls", "repair-long-collisions.xls",
             "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls", "repair-pivot-range-first.xls",
