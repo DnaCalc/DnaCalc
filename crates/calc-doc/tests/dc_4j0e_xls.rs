@@ -439,6 +439,7 @@ fn write_legacy_excel_session_inputs() {
     rk_records.extend(mulrk(13, 0, &[rk_integer(1, false), rk_integer(-123, true), rk_double(1.5, true)]));
     let rk_input = xls(false, &[], &[Sheet::worksheet("RK", rk_records)]);
     std::fs::write(dir.join("rk-values.xls"), rk_input).unwrap();
+    std::fs::write(dir.join("formula-structures.xls"), formula_structures_fixture()).unwrap();
     std::fs::write(dir.join("cells-biff5.xls"), biff5).unwrap();
     std::fs::write(dir.join("precision-biff8.xls"), xls(false, &record(0x000E, &0u16.to_le_bytes()),
         &[Sheet::worksheet("Data", number(0, 0, 1.25))])).unwrap();
@@ -614,7 +615,7 @@ fn write_legacy_excel_session_inputs() {
     std::fs::write(dir.join("repair-format-no-option.xls"),
         xls(false, &record(0x041e, &format_without_option),
             &[Sheet::worksheet("Data", number(0, 0, 42.0))])).unwrap();
-    for name in ["raw-biff2-layout", "raw-grid", "raw-biff2", "raw-biff2-inline", "raw-biff3", "raw-biff4", "cells-biff8", "cells-biff5", "formula-error-checks", "rk-values", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "tab-color-biff8", "drawing-rgb-solid-fill", "drawing-solid-lines", "drawing-hidden-outline", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "drawing-rich-underline", "drawing-uniform-underline", "emf-checksum-valid", "emf-checksum-invalid", "phonetic-zero-runs", "phonetic-explicit", "phonetic-continuation", "row-guide-summary", "row-guide-range", "row-guide-range-no-summary", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
+    for name in ["raw-biff2-layout", "raw-grid", "raw-biff2", "raw-biff2-inline", "raw-biff3", "raw-biff4", "cells-biff8", "cells-biff5", "formula-error-checks", "formula-structures", "rk-values", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "tab-color-biff8", "drawing-rgb-solid-fill", "drawing-solid-lines", "drawing-hidden-outline", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "drawing-rich-underline", "drawing-uniform-underline", "emf-checksum-valid", "emf-checksum-invalid", "phonetic-zero-runs", "phonetic-explicit", "phonetic-continuation", "row-guide-summary", "row-guide-range", "row-guide-range-no-summary", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
         let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
         let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
         let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
@@ -623,7 +624,7 @@ fn write_legacy_excel_session_inputs() {
         std::fs::write(dir.join(format!("{name}.dnacalc.xlsx")), converted).unwrap();
     }
     let cases = serde_json::json!({
-        "files": ["raw-biff2-layout.xls", "raw-grid.xls", "raw-biff2.xls", "raw-biff2-inline.xls", "raw-biff3.xls", "raw-biff4.xls", "cells-biff8.xls", "cells-biff5.xls", "formula-error-checks.xls", "rk-values.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "tab-color-biff8.xls", "drawing-rgb-solid-fill.xls", "drawing-solid-lines.xls", "drawing-hidden-outline.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "drawing-uniform-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "phonetic-zero-runs.xls", "phonetic-explicit.xls", "phonetic-continuation.xls", "row-guide-summary.xls", "row-guide-range.xls", "row-guide-range-no-summary.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
+        "files": ["raw-biff2-layout.xls", "raw-grid.xls", "raw-biff2.xls", "raw-biff2-inline.xls", "raw-biff3.xls", "raw-biff4.xls", "cells-biff8.xls", "cells-biff5.xls", "formula-error-checks.xls", "formula-structures.xls", "rk-values.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "tab-color-biff8.xls", "drawing-rgb-solid-fill.xls", "drawing-solid-lines.xls", "drawing-hidden-outline.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "drawing-uniform-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "phonetic-zero-runs.xls", "phonetic-explicit.xls", "phonetic-continuation.xls", "row-guide-summary.xls", "row-guide-range.xls", "row-guide-range-no-summary.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
         "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls",
             "repair-name-collisions.xls", "repair-long-collisions.xls",
             "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls", "repair-pivot-range-first.xls",
@@ -1656,9 +1657,7 @@ fn formula_tokens_print_as_excel_writes_them_and_cached_results_are_kept() {
     assert!(cached(1, 9).contains("NA"), "{}", cached(1, 9));
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), test)]
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn shared_array_and_table_formulas() {
+fn formula_structures_fixture() -> Vec<u8> {
     use ptg::*;
     let mut r = Vec::new();
     // Shared B3:B5 = A3+1: PtgRefN offsets are applied at each member.
@@ -1679,7 +1678,13 @@ fn shared_array_and_table_formulas() {
     r.extend(table_record((10, 12), (2, 2), 0, (0, 0), (0, 0)));
     r.extend(formula(11, 2, num_value(2.0), &table(10, 2), &[]));
     r.extend(formula(12, 2, num_value(3.0), &table(10, 2), &[]));
-    let bytes = xls(false, &[], &[Sheet::worksheet("S", r)]);
+    xls(false, &[], &[Sheet::worksheet("S", r)])
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn shared_array_and_table_formulas() {
+    let bytes = formula_structures_fixture();
     assert_eq!(sheet_cells(&bytes), vec!["B3 f:A3+1", "B4 f:A4+1", "B5 f:A5+1", "A8 f:1+2"]);
     let loaded = load(&bytes);
     let definitions = loaded.model().definitions();
