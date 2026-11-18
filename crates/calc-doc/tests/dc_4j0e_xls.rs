@@ -470,6 +470,25 @@ fn write_legacy_excel_session_inputs() {
         let input = xls(false, &globals, &[Sheet::worksheet("Data", label_sst(0, 0, 0))]);
         std::fs::write(dir.join(format!("{name}.xls")), input).unwrap();
     }
+    // Continue starts within ExtRst and includes the continuation option byte.
+    // A second SST entry exposes any accidental consumption past the extension.
+    let mut extension = u16s(&[1, 0, 0, 7, 2, 3, 3]);
+    extension.extend(u16s(&[b'x' as u16, b'y' as u16, b'z' as u16, 0, 0, 1, 2, 1, 1]));
+    let size = (extension.len() - 4) as u16;
+    extension[2..4].copy_from_slice(&size.to_le_bytes());
+    let mut body = Vec::new();
+    body.extend(2u32.to_le_bytes()); body.extend(2u32.to_le_bytes());
+    body.extend(2u16.to_le_bytes()); body.push(0x04);
+    body.extend((extension.len() as u32).to_le_bytes()); body.extend(b"AB");
+    let boundary = body.len() + 10;
+    body.extend(extension);
+    body.extend(4u16.to_le_bytes()); body.push(0); body.extend(b"NEXT");
+    let mut continued = vec![0];
+    continued.extend_from_slice(&body[boundary..]);
+    let globals = [record(0x00FC, &body[..boundary]), record(0x003C, &continued)].concat();
+    let cells = [label_sst(0, 0, 0), label_sst(1, 0, 1)].concat();
+    std::fs::write(dir.join("repair-phonetic-continue-flag.xls"),
+        xls(false, &globals, &[Sheet::worksheet("Data", cells)])).unwrap();
     std::fs::write(dir.join("forms.xls"), include_bytes!("fixtures/dc_4j0e/FormsWorkbook.xls")).unwrap();
     let repair_cases = [
         ("repair-slash.xls", "Bad/Name"),
@@ -547,7 +566,7 @@ fn write_legacy_excel_session_inputs() {
             "repair-name-collisions.xls", "repair-long-collisions.xls",
             "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls", "repair-pivot-range-first.xls",
             "repair-elf-column.xls", "repair-elf-radical.xls", "repair-addin-cell.xls",
-            "repair-missing-fat.xls", "repair-missing-chain.xls", "repair-short-format.xls"],
+            "repair-missing-fat.xls", "repair-missing-chain.xls", "repair-short-format.xls", "repair-phonetic-continue-flag.xls"],
         "create_pivot": true,
         "formulas": [
             ["rows_full_column", "=ROWS(A:A)"], ["columns_full_row", "=COLUMNS(1:1)"],
