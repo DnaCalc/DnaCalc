@@ -124,6 +124,25 @@ fn complex_numbers() {
     error(call("IMSUM", vec![t("1+i"), t("1+j")]), Value);
 }
 
+/// Excel 20527 jnt_parity_complex D389, D407 and D408: the circular factors
+/// retain Excel's SIN reduction even away from the real axis.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn complex_tangent_and_cotangent_keep_the_excel_circular_factors() {
+    text(
+        call("IMTAN", vec![t("3.141592653589793+1e-100i")]),
+        "-3.2311393144413E-15+1E-100i",
+    );
+    text(
+        call("IMCOT", vec![t("1.5707963267948966-0.1i")]),
+        "6.65581526134877E-15+0.0996679946249558i",
+    );
+    text(
+        call("IMCOT", vec![t("-1.5707963267948966-0.1i")]),
+        "-6.65581526134877E-15+0.0996679946249558i",
+    );
+}
+
 /// Excel 20527 Value2 controls and independent literal and complex-zero controls.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

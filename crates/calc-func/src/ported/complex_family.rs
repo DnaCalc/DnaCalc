@@ -257,8 +257,11 @@ impl ParsedComplex {
         if denom == 0.0 {
             return Err(WorksheetErrorCode::Num);
         }
+        // Off-axis Excel 20527 controls retain the scalar SIN/COS reduction in
+        // the double-angle numerator (eng19; jnt_parity_complex D389).
+        let (sin, cos) = complex_circular_parts(self.re);
         Ok(Self::new(
-            crt_sin(2.0 * self.re) / denom,
+            (2.0 * sin * cos) / denom,
             crt_sinh(2.0 * self.im) / denom,
             None,
         ))
@@ -319,8 +322,9 @@ impl ParsedComplex {
         if denom == 0.0 {
             return Err(WorksheetErrorCode::Num);
         }
+        let (sin, cos) = complex_circular_parts(self.re);
         Ok(Self::new(
-            crt_sin(2.0 * self.re) / denom,
+            (2.0 * sin * cos) / denom,
             -crt_sinh(2.0 * self.im) / denom,
             None,
         ))
