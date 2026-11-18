@@ -1461,6 +1461,20 @@ fn the_shared_string_table_split_across_continue_records() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn shared_string_refuses_a_split_utf16_code_unit() {
+    // One UTF-16 character starts before CONTINUE but its second byte is missing.
+    // Previously the first byte was discarded and B was silently substituted for A.
+    let body = [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, b'A'];
+    let globals = [record(0x00fc, &body), record(0x003c, &[1, b'B', 0])].concat();
+    let bytes = xls(false, &globals, &[Sheet::worksheet("S", label_sst(0, 0, 0))]);
+    match calc_doc::open(source(&bytes), &OpenPolicy::default()).err().unwrap() {
+        OpenError::LegacyWorkbook { detail, .. } => assert!(detail.contains("shared string"), "{detail}"),
+        other => panic!("expected a legacy shared-string refusal: {other:?}"),
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn rows_and_columns_keep_height_hidden_and_outline() {
     let mut r = Vec::new();
     r.extend(colinfo(1, 2, 3072, 0x000A));

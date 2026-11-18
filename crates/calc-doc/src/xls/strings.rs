@@ -239,6 +239,11 @@ impl<'a> Pieces<'a> {
             let width = if utf16 { 2 } else { 1 };
             let left = self.pieces[self.piece].len().saturating_sub(self.at) / width;
             if left == 0 {
+                // BIFF requires a UTF-16 continuation to start between characters. Do not
+                // discard a trailing half-character and silently return a different string.
+                if utf16 && self.at < self.pieces[self.piece].len() {
+                    return Err(short(what));
+                }
                 if self.piece + 1 >= self.pieces.len() {
                     return Err(short(what));
                 }
