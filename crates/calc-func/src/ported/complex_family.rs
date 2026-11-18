@@ -244,7 +244,16 @@ impl ParsedComplex {
             None,
         )
     }
+    /// Excel 20527 takes the imaginary limit before reducing the real argument.
+    /// Probes on either side of each boundary distinguish the two strict limits.
+    fn tangent_imaginary_limit(self) -> Option<f64> {
+        (self.im > 354.5 || self.im < -354.0).then(|| self.im.signum())
+    }
+
     pub(crate) fn tan(self) -> Result<Self, WorksheetErrorCode> {
+        if let Some(im) = self.tangent_imaginary_limit() {
+            return Ok(Self::new(0.0, im, None));
+        }
         crate::ported::real_policy::ExcelRealPolicy::CIRCULAR_TRIG.check_arg(self.re)?;
         if self.im == 0.0 {
             return Ok(Self::new(
@@ -299,6 +308,9 @@ impl ParsedComplex {
         )
     }
     pub(crate) fn cot(self) -> Result<Self, WorksheetErrorCode> {
+        if let Some(im) = self.tangent_imaginary_limit() {
+            return Ok(Self::new(0.0, -im, None));
+        }
         if self.im == 0.0 {
             // The real-axis cotangent uses the scalar tangent and one reciprocal.
             // At the scalar domain boundary IMCOT publishes zero, while IMTAN is #NUM!.

@@ -95,8 +95,8 @@ fn sort_blank_arguments_and_scalar_source_errors() {
     );
 }
 
-/// Excel 20527 merges adjacent ascending runs in pairs, keeping the earlier
-/// row on equal keys. These cyclic comparisons distinguish the merge order.
+/// Excel 20527 merges adjacent ascending runs in pairs, taking the left row
+/// when the current keys compare equal. These cases distinguish the merge order.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn sort_merges_adjacent_ascending_runs_in_pairs() {
