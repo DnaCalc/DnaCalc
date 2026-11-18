@@ -90,8 +90,8 @@ pub(crate) fn days_in_month(year: i64, month: i64) -> i64 {
 
 // --- DATE and TIME (date_fn.rs, date_parts_family.rs) ------------------------------------------
 
-/// DATE in the 1900 system: the year capped and read as Excel's signed 16-bit year, years below
-/// 1900 offset by 1900, the month normalized into the year, and the day running on.
+/// DATE in the 1900 system: years below 1900 offset by 1900, the month normalized into the
+/// year, and the day running on. The input year must stay below 10000 and never wraps.
 pub(crate) fn date(
     raw_year: f64,
     raw_month: f64,
@@ -101,13 +101,15 @@ pub(crate) fn date(
     if !raw_year.is_finite() || !raw_month.is_finite() || !raw_day.is_finite() {
         return Err(W::Num);
     }
-    let original_year = date_integer_floor(raw_year).min(10_000.0);
-    let year_bits = if (-2_147_483_648.0..2_147_483_648.0).contains(&original_year) {
-        original_year as i64
-    } else {
-        0
-    };
-    let year = year_bits as i16 as i64;
+    let original_year = date_integer_floor(raw_year);
+    // Excel 20527 rejects 10000 even when a negative month would bring it back
+    // into range, and large negative years do not narrow to a valid year.
+    // Saturating a negative input to i64::MIN remains outside the serial range;
+    // the checked month arithmetic below handles it without overflow.
+    if original_year >= 10_000.0 {
+        return Err(W::Num);
+    }
+    let year = original_year as i64;
     let year = year + if year < 1900 { 1900 } else { 0 };
     let month = date_integer_floor(raw_month);
     if !(-32_767.0..32_767.0).contains(&month) {
