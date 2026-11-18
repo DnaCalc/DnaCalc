@@ -27,7 +27,6 @@ use crate::ported::dynamic_array_reshape_family::{
 use crate::value::{
     ArrayShape, CalcArray, CalcValue, CellKey, CoreRef, GridArea, ReferenceLike, WorksheetErrorCode,
 };
-use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
@@ -306,35 +305,65 @@ fn order(site: &Site<'_>, x: &CalcValue, y: &CalcValue) -> Step<Ordering> {
     }
 }
 
-/// The indices `0..len` stably sorted by `keys` (each a key per index and its direction); the
-/// first refused comparison refuses the call.
+/// Excel 20527 starts with ascending runs and merges adjacent pairs from
+/// left to right on each pass. The comparison order matters when collation
+/// has a cycle; equal keys retain their input order.
 fn sorted_indices(
     site: &Site<'_>,
     len: usize,
     keys: &[(Vec<CalcValue>, bool)],
 ) -> Step<Vec<usize>> {
-    let refused: RefCell<Option<Exit>> = RefCell::new(None);
-    let mut indices: Vec<usize> = (0..len).collect();
-    indices.sort_by(|&i, &j| {
-        if refused.borrow().is_some() {
-            return Ordering::Equal;
-        }
+    let compare = |i: usize, j: usize| {
         for (key, descending) in keys {
-            match order(site, &key[i], &key[j]) {
-                Ok(Ordering::Equal) => continue,
-                Ok(o) => return if *descending { o.reverse() } else { o },
-                Err(exit) => {
-                    *refused.borrow_mut() = Some(exit);
-                    return Ordering::Equal;
-                }
+            let ordering = order(site, &key[i], &key[j])?;
+            if ordering != Ordering::Equal {
+                return Ok(if *descending { ordering.reverse() } else { ordering });
             }
         }
-        Ordering::Equal
-    });
-    match refused.into_inner() {
-        Some(exit) => Err(exit),
-        None => Ok(indices),
+        Ok(Ordering::Equal)
+    };
+    let mut indices: Vec<usize> = (0..len).collect();
+    let mut run_ends = Vec::new();
+    for index in 1..len {
+        if compare(index, index - 1)? == Ordering::Less {
+            run_ends.push(index);
+        }
     }
+    if run_ends.is_empty() {
+        return Ok(indices);
+    }
+    run_ends.push(len);
+
+    let mut merged = Vec::with_capacity(len);
+    while run_ends.len() > 1 {
+        merged.clear();
+        let mut start = 0;
+        let run_count = run_ends.len().div_ceil(2);
+        for run in 0..run_count {
+            let middle = run_ends[2 * run];
+            let end = run_ends.get(2 * run + 1).copied().unwrap_or(middle);
+            let mut left = &indices[start..middle];
+            let mut right = &indices[middle..end];
+            while let (Some((&i, left_tail)), Some((&j, right_tail))) =
+                (left.split_first(), right.split_first())
+            {
+                if compare(j, i)? == Ordering::Less {
+                    merged.push(j);
+                    right = right_tail;
+                } else {
+                    merged.push(i);
+                    left = left_tail;
+                }
+            }
+            merged.extend_from_slice(left);
+            merged.extend_from_slice(right);
+            run_ends[run] = end;
+            start = end;
+        }
+        run_ends.truncate(run_count);
+        std::mem::swap(&mut indices, &mut merged);
+    }
+    Ok(indices)
 }
 
 /// `array`'s rows (or, `by_col`, its columns) in the order of `indices`.
