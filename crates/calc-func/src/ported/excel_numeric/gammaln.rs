@@ -402,28 +402,35 @@ fn gamma_stirling(x: f64) -> f64 {
     super::excel_x87_mul(body, super::excel_exp(super::excel_stirling_series(x)))
 }
 
-/// `GAMMA(-m)` for `m >= 10`: `pi / (GAMMA(m) z)` with `z = m sin(pi t)`, where `t` is the fraction of
-/// `m` folded to at most 1/2. `pi t`, the sine and `z` are stored; the double `pi` is divided by
-/// `GAMMA(m) z` in the registers. On 6,000 Excel 16.0.20527 answers from -170 to -10, 75% agree in
-/// every bit, where the seed chain this replaces was tens of units away; the misses are one unit,
-/// and the spectrum of Excel minus this form at -50.3 has no line standing out.
-fn gamma_reflected(m: f64) -> f64 {
-    use super::soft87::ext_from_f64 as ext;
-    use super::{CW, Fpu, Native};
+/// Excel stores pi / GAMMA(m) before dividing by the stored m * sine. With the
+/// worksheet leaves this gives all 24,171 frozen reflection observations (Excel 20527).
+pub(crate) fn gamma_from_reflection(m: f64, positive_gamma: f64, sine_product: f64) -> f64 {
+    let numerator = super::excel_x87_div(core::f64::consts::PI, positive_gamma);
+    let magnitude = super::excel_x87_div(numerator, sine_product);
+    if magnitude < f64::MIN_POSITIVE {
+        0.0
+    } else if m.floor() % 2.0 == 0.0 {
+        -magnitude
+    } else {
+        magnitude
+    }
+}
 
-    let whole = m.floor();
-    let fraction = m - whole;
+/// The sine argument uses the distance to the nearest integer.
+fn gamma_reflected(m: f64) -> f64 {
+    // The positive Gamma leaf has already overflowed throughout this range.
+    if m >= 172.0 {
+        return 0.0;
+    }
+    let fraction = m.fract();
     let folded = if fraction > 0.5 {
         1.0 - fraction
     } else {
         fraction
     };
-    let sine = super::crt_sin(super::excel_x87_mul(core::f64::consts::PI, folded));
+    let sine = super::excel_sin(super::excel_x87_mul(core::f64::consts::PI, folded));
     let z = super::excel_x87_mul(sine, m);
-    let g = gamma_stirling(m);
-    let product = Native::mul(&ext(g), &ext(z), CW);
-    let value = Native::store(&Native::div(&ext(core::f64::consts::PI), &product, CW), CW);
-    if whole % 2.0 == 0.0 { -value } else { value }
+    gamma_from_reflection(m, gamma_stirling(m), z)
 }
 
 /// `(x-1)(x-2)...(1+y) * seed`, the product from the top, every step stored.
@@ -454,9 +461,9 @@ pub(crate) fn gamma_excel(x: f64) -> f64 {
     if x <= -10.0 {
         return gamma_reflected(-x);
     }
-    // Recorded on the decade grid from 1e-307 and on the 27 doubles below 1e-16; 2e-16 misses.
-    if x > 0.0 && x <= 1e-16 {
-        return super::excel_x87_recip(x);
+    // At the pole Excel stores the reciprocal before the constant Laurent term.
+    if x.abs() <= f64::EPSILON {
+        return super::excel_x87_sub(super::excel_x87_recip(x), 1.0 - D2);
     }
     if x < 1.0 {
         let mut argument = x;

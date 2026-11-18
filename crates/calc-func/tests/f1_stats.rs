@@ -3136,6 +3136,40 @@ fn gamma_negative_recurrence_matches_retained_excel_answers() {
     }
 }
 
+/// Excel 20527. Signed neighbors of the Laurent cutoff, the worksheet half
+/// product, stored reflection quotients and the transition to worksheet zero.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gamma_pole_and_reflection_match_frozen_excel_answers() {
+    for (input, answer) in [
+        (0xbc91ec7adc44b277_u64, 0xc34c90c16b5764d1_u64),
+        (0x3ca0000000000003, 0x433ffffffffffff9),
+        (0x3cafffffffffffff, 0x432fffffffffffff),
+        (0x3cb0000000000000, 0x432fffffffffffff),
+        (0x3cb0000000000001, 0x432ffffffffffffd),
+        (0xbcafffffffffffff, 0xc330000000000001),
+        (0xbcb0000000000000, 0xc330000000000001),
+        (0xbcb0000000000001, 0xc330000000000000),
+        (0xbfe0000000000000, 0xc00c5bf891b4ef6a),
+        (0xc004000000000000, 0xbfee3ff812e32183),
+        (0xc01a000000000000, 0xbf5b81b0e66884ff),
+        (0xc025000000000000, 0xbe91b7b1db2e47f1),
+        (0xc05eb02f0ff27af5, 0x959858aa308d87a9),
+        (0xc03066d8c724fedb, 0xbd2ca0829c97a5b7),
+        (0xc060ac88a7c1650a, 0x10e8f754a8401db1),
+        (0xc055ebe41fc4d79c, 0x244e27a200748509),
+        (0xc065500000000000, 0x8017d2374dfcda78), // -170.5
+        (0xc065480000000000, 0x803e7334b3b3c7f3), // -170.25
+        (0xc065580000000000, 0), // -170.75
+        (0xc0655fffffffffff, 0x82928aa6e7526175),
+        (0xc065700000000000, 0), // -171.5
+        (0xc0657fffffffffff, 0), // nearest double above -172
+        (0xc065900000000000, 0), // -172.5
+    ] {
+        exact(call("GAMMA", vec![n(f64::from_bits(input))]), f64::from_bits(answer));
+    }
+}
+
 /// Original GAMMA answers from both former fitting halves, with known gaps.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
