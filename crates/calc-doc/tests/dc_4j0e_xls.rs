@@ -552,6 +552,14 @@ fn write_legacy_excel_session_inputs() {
     let short_format = record(0x041e, &[0xa4, 0x00, 0x02, 0x00, 0x00, b'x']);
     std::fs::write(dir.join("repair-short-format.xls"),
         xls(false, &short_format, &[Sheet::worksheet("Data", number(0, 0, 42.0))])).unwrap();
+    // A real BIFF8 refusal has a two-byte length followed directly by ASCII,
+    // without the Unicode option byte. Ask Excel about this shape separately
+    // from the truncated Unicode string above; this input is synthetic.
+    let mut format_without_option = u16s(&[164, 4]);
+    format_without_option.extend(b"0.00");
+    std::fs::write(dir.join("repair-format-no-option.xls"),
+        xls(false, &record(0x041e, &format_without_option),
+            &[Sheet::worksheet("Data", number(0, 0, 42.0))])).unwrap();
     for name in ["raw-biff2-layout", "raw-grid", "raw-biff2", "raw-biff2-inline", "raw-biff3", "raw-biff4", "cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "tab-color-biff8", "drawing-rgb-solid-fill", "drawing-solid-lines", "drawing-hidden-outline", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "drawing-rich-underline", "drawing-uniform-underline", "emf-checksum-valid", "emf-checksum-invalid", "phonetic-zero-runs", "phonetic-explicit", "phonetic-continuation", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
         let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
         let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
@@ -566,7 +574,7 @@ fn write_legacy_excel_session_inputs() {
             "repair-name-collisions.xls", "repair-long-collisions.xls",
             "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls", "repair-pivot-range-first.xls",
             "repair-elf-column.xls", "repair-elf-radical.xls", "repair-addin-cell.xls",
-            "repair-missing-fat.xls", "repair-missing-chain.xls", "repair-short-format.xls", "repair-phonetic-continue-flag.xls"],
+            "repair-missing-fat.xls", "repair-missing-chain.xls", "repair-short-format.xls", "repair-format-no-option.xls", "repair-phonetic-continue-flag.xls"],
         "create_pivot": true,
         "formulas": [
             ["rows_full_column", "=ROWS(A:A)"], ["columns_full_row", "=COLUMNS(1:1)"],
