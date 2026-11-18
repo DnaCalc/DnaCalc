@@ -485,6 +485,12 @@ fn write_legacy_excel_session_inputs() {
         let cell = formula(1, 0, num_value(0.0), &tokens, &[]);
         std::fs::write(dir.join(file), xls(false, &[], &[Sheet::worksheet("Data", cell)])).unwrap();
     }
+    // The real-file refusal has the range before the text, at B44. Keep it a
+    // controlled synthetic workbook while asking Excel how it interprets this token order.
+    let legacy_pivot = ptg::join(&[ptg::area((14, 15), (5, 9), 0xC000), ptg::text("John"), ptg::func(358)]);
+    let cells = formula(43, 1, num_value(0.0), &legacy_pivot, &[]);
+    std::fs::write(dir.join("repair-pivot-range-first.xls"),
+        xls(false, &[], &[Sheet::worksheet("Data", cells)])).unwrap();
     let mut elf_col = vec![0x18, 0x03];
     elf_col.extend(u16s(&[0, 0])); // PtgElfCol referring to the A1 label
     let mut elf_radical = vec![0x18, 0x0A];
@@ -519,7 +525,7 @@ fn write_legacy_excel_session_inputs() {
         "files": ["raw-biff2-layout.xls", "raw-grid.xls", "raw-biff2.xls", "raw-biff2-inline.xls", "raw-biff3.xls", "raw-biff4.xls", "cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "tab-color-biff8.xls", "drawing-rgb-solid-fill.xls", "drawing-solid-lines.xls", "drawing-hidden-outline.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "drawing-uniform-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
         "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls",
             "repair-name-collisions.xls", "repair-long-collisions.xls",
-            "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls",
+            "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls", "repair-pivot-range-first.xls",
             "repair-elf-column.xls", "repair-elf-radical.xls", "repair-addin-cell.xls",
             "repair-missing-fat.xls", "repair-missing-chain.xls", "repair-short-format.xls"],
         "create_pivot": true,
