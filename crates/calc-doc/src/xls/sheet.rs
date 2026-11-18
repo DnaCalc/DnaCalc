@@ -381,7 +381,10 @@ pub(crate) fn read(
                     attributes.push(("thickBot", "1".to_owned()));
                 }
                 if flags & (1 << 30) != 0 {
-                    attributes.push(("ph", "1".to_owned()));
+                    // BIFF says some cell in the row has a guide; OOXML row ph
+                    // instead makes the guide a default for the whole row. The
+                    // aggregate bit cannot identify which cells should show it.
+                    *unknown.entry(record.id).or_insert(0) += 1;
                 }
                 if flags & 0x80 != 0 {
                     let style = context.styles.cell_format(((flags >> 16) & 0x0FFF) as u16);

@@ -610,3 +610,157 @@ the same polish changes CHIINV +14, CHISQ.INV -6, CHISQ.INV.RT -2 rows against a
 mostly not the correctly rounded one. (That trial raised the shape by an integer m to a + m >= 10 and skipped
 shapes where a + m is inexact, so it covered integer and half-integer shapes only; GAMMA.INV's bank shapes were
 largely not exercised.)
+
+## ax1 (2026-11-18): the stored GAMMA seed table
+
+Role: implementer, GPT-6-Astra on dna-firehorse. Sources: tier 1, Excel 16.0.20527.20196
+through Touchstone (environment b3f20babadd4), and public arithmetic; tier 2, our existing
+kernel and the Fable-r4 emulation/phase tools. No external implementation was consulted.
+
+Fable-r4 identified `st(N(x) / st(q0 + st(x*D(x))))` on [1,2], where N has degree 7,
+D degree 6, and every Horner product and sum is stored. `st` is PC64 round-to-nearest
+followed by a binary64 store. Its table was incomplete. Sixteen million-point windows
+across [1,2), plus five near 1 for phase unwrapping, resolve the previously weak stages.
+Demodulation against the emulated rounding errors is corrected by the emulation's own
+phase. A global system retains strong-stage constraints across the full interval while
+using the weak near-one lines. Integer least squares uses a reduced lattice; the last
+search enumerates 1,419,857 integer combinations in five null directions and eliminates
+any candidate that contradicts an observed word. The full bank is not used in recovery.
+
+The recovered constants (lowest power first):
+
+```
+N: 400b5834abbea656 3ff514773450caef 3fe664795a0f149d 3fc36c636bf9ecf4
+   3fa5ff5a1f135517 3f7b983b93115194 3f4c11d5cf5a3d24 3f24aa356fc7bc7c
+D: 400b584ae6185b27 400a52694226b55e bfe8fd0726115c8e bfdd079cbb8d7055
+   3fc811c89b669325 bf99f2c6b22093da 3f53f2e03e390c8c
+q0 representative: bed0000000000000 (-2^-18)
+```
+
+The fitted q0 is `bed000000007534e`, 4.0664188325195e-16 below -2^-18. The store of
+q0 + xD cannot distinguish the two on this interval: xD stays above 4, so half its
+binary64 ULP is at least 2^-51, greater than that displacement even after PC64 rounding.
+This identifies an equivalent coefficient interval, not Excel's typed q0 literal.
+Both representatives give identical words on the 100,000 fresh inputs.
+
+Proof: all **21,000,000/21,000,000** retained adjacent inputs agree. Four remaining
+integer candidates were frozen together before a fresh random 100,000-input request;
+only the table above agrees on **100,000/100,000**, the others miss 95, 64 and 30.
+Frozen `frozen-seed-100k.npz` SHA256:
+`a1332c7a55efbb73a4445d4c9119b2413c2915b0e29794f94d1dfb6ad6798f19`.
+These are seed proofs, not claims that all worksheet GAMMA arguments are solved.
+
+Below one the graph is `st(seed(st(1+x)) * st(1/x))`. All three misses in Fable's
+20,000-row reciprocal proof reproduce with unchanged echo inputs. They came from the
+probe's plain binary64 `1+x`: PC64 addition then storage changes the seed argument by
+one ULP in those three cases, and the corrected graph matches all three. A fresh
+20,000-input proof then matches **20,000/20,000** using Excel's seed leaves; its frozen
+file SHA256 is `0206d08c7f9121ad1962a4f1fa6a5a294c7ba08839e87a35a7bbe7d5bbba3cf6`.
+
+There is a necessary distinction at a rounded argument of 1.5. The internal rational
+returns `3fec5bf891b4ef6a`, whereas worksheet GAMMA(1.5) takes its separate half-integer
+branch and returns `...6b`. Three non-half inputs next to 0.5 round to the internal
+argument 1.5 and use the rational's word. Frozen edge predictions distinguish the two:
+raw-seed composition **214/214**, public-half-seed substitution **211/214**. Existing
+worksheet integer and half-integer branches are retained. Edge file SHA256:
+`7fb2f3355f9f993701d1af0207cc602c8026d7489f025dad7a842e80913a9e9e`.
+
+The negative-argument recurrence and the remaining GAMMALN tables are still open.
+Raw measurements, frozen predictions and replay tools are retained under
+`dnacalc-evidence/research/ax1-20261118/` on R2; run counts and product before/after
+measurements are recorded with the implementation below.
+
+The application full-bank GAMMA run improves **8,193 -> 12,357 / 12,603** (4,221 gains,
+57 losses), with unchanged reading identities. All **6,720/6,720** positive rows below 10
+match: (0,1) 1,681 -> 4,268/4,268; [1,10) 1,050 -> 2,452/2,452. Positive x >= 10
+stays 5,198/5,207. Negative inputs improve 264 -> 439/676, with 232 gains and all 57
+losses; the unresolved recurrence still owns these failures. All lost rows are retained
+in `product-controls/gamma-lost-rows.json` on R2. The pinned negative loss `oc12068` is
+explicitly classified, and the witness refresh preserves every original Excel reading,
+input and source. The 263 historical GAMMA observations in the older unit test also stay
+unchanged; only calculated predictions advance. A current echo recheck at 0.25 gives
+`400d013fc47eeeec`, differing from the retained build-20326 reading `...eeea`.
+
+The oracle comparison remains **77,591/78,264**, with 673 inclusive failures: 586
+mismatches, 73 external links and 14 circular results. These are headline counts, not
+a claim that every calculated word stayed unchanged. Linux targeted tests pass 14
+kernel cases and 18 application cases, including 4,096 hardware/software x87 seed pairs.
+Windows and browser execution remain for the coordinator; no result is assumed.
+
+Linux `cargo xtask check` passes: 919 passed, 0 failed, 3 ignored and 1 not run.
+GAMMALN stays 2,646/4,538 and GAMMALN.PRECISE stays 11,643/14,278 in the full bank.
+The four R2 evidence copies above contain 248 files / 80,788,373 bytes in total;
+checksum copies and one-way checks report zero differences.
+
+## ax1 continuation (2026-11-18): negative GAMMA and GAMMALN B1
+
+The negative recurrence below 10 is an ascending quotient accumulator, separate from
+the seed. Start `z = 1`, `t = x`; while `t < 1`, compute `z = st(z/t)` and
+`t = st(t+1)`. Finish with `st(z * seed(t))`. Each quotient is stored. For positive
+x below one this is the already identified stored reciprocal rule.
+
+The calculation agrees on **20,000/20,000** retained Fable-r4 random negative inputs,
+first with public seed leaves and then with the exact internal seed. The reverse
+quotient accumulator, an accumulator kept in the register, products of stored
+reciprocals, and the reciprocal of a product disagree. Separate retained controls
+agree on **144/144** pole neighbors and **133/133** historical inputs captured by ax1
+before this arrangement was identified. No coefficient is fitted to these answers.
+
+An application-route pole control exposed a separate admission bug: the old relative
+integer tolerance rejected adjacent doubles around negative integers. Pole detection
+now requires an exact non-positive integer. Tests keep the actual pole errors and
+assert the captured finite neighboring result. The older historical Excel observations
+remain unchanged; 48 separate calculated unit-test predictions advance.
+
+Independent predictions are frozen for 40,634 new random/seam inputs, plus 149 inputs
+that distinguish PC64-stored and plain binary64 argument increments and 128 controls.
+They are **not yet observed**: Touchstone stopped replying and its socket disappeared
+during the GAMMALN work. SHA256 hashes:
+
+- `frozen-negative-asc.json`: `6826ae64d53a282bd0b6477bc1157ebe4d0e7cda1a2edbd28d489ce655ece33c`
+- `frozen-negative-increments.json`: `27dda4278efdf012ab8bc58f9faa0044e0d9ee1d90ec09fba8f5c7646cd7cf57`
+
+Retained answers, predictions and the replay script are on R2 at
+`dnacalc-evidence/research/ax1-20261118/negative-stage/`. Windows and fresh-input work
+remain explicit in the lane's `RUN-ON-WINDOWS.txt`.
+
+For GAMMALN B1, the three retained million-point runs order six measured partial sums
+in each Horner chain. A degree-9 numerator over a degree-8 denominator satisfies those
+constraints (chi-square 0.062 and maximum relative smooth-function error 6.7e-19);
+8/8 misses the measured constraints by chi-square 4.1e6. This identifies a candidate
+shape, not the coefficient words or every final store.
+
+Before asking, the candidate's spectral line lists were frozen at eight new
+million-point windows. Six returned: 39, 30, 34, 40, 40 and 40 of the strongest 40
+observed lines coincide with the predictions within 2e-5; shifted controls give
+0, 1, 0, 0, 1 and 2. The last two windows remain pending. Frozen-file SHA256:
+`85c0451f8aa494bdc5b6a2b4cdac7be14c83a5942ee0455db425be3dec8992a1`.
+Offline global mean/phase updates do not settle the low coefficient words, so no B1
+kernel change is made. Continuation needs new near-one windows. B2/B3 and large
+negative reflection remain open. The B1 snapshot is
+`research/ax1-20261118/gammaln-b1-stage-1/`: 105 files / 19,907,626 bytes, checksum copy
+and one-way check with zero differences after recopying a diagnostic log that changed
+during the first copy.
+
+The negative correction improves the GAMMA full bank **12,357 -> 12,572/12,603**,
+215 gains and zero losses, with unchanged inputs, selections, answers and provenance.
+Negative inputs in (-10,0) improve 388 -> 603/604. The remaining reading there is
+GAMMA(-2.5), build20131: expected `bfee3ff812e32183`, calculated `...82`; it remains a
+failure pending a current recheck. Larger negatives stay 51/72, and positives stay
+11,918/11,927. Together with the seed commit, GAMMA advances 8,193 -> 12,572/12,603.
+The pinned set advances 118 -> 120/120 by refreshing two calculated predictions;
+all original readings and contexts remain unchanged.
+
+On pulled revision 9bd6eb0d, the oracle corpus is **77,638/78,264 before and after**
+the negative correction: 626 inclusive failures (539 mismatches, 73 external and
+14 circular), zero refused or missing. The increase of 47 since the seed-stage run
+comes from incoming lane changes, not this gamma work. Linux `cargo xtask check`
+passes 921 tests, zero failed, three ignored and one not run. Targeted tests pass
+14 kernel and 19 application cases; the negative application test also passes with
+`soft-x87`. The negative-stage R2 artifact contains 21 files / 21,421,065 bytes,
+with checksum copy and one-way check finding zero differences. Fresh Excel and
+Windows/browser checks are still outstanding.
+
+After pulling 80832179, the final Linux check passes 922 tests, zero failures.
+The complete comparison against the lane-start trace gives 4,380 gains and one loss;
+GAMMA(-2.5) is that remaining lost reading.

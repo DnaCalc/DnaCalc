@@ -278,13 +278,14 @@ fn external_cache_fixture(invalid_link: bool) -> Vec<u8> {
     xls(false, &globals, &[Sheet::worksheet("S", cells)])
 }
 
-fn external_cache_biff5_fixture() -> Vec<u8> {
+fn external_cache_biff5_fixture(invalid_link: bool) -> Vec<u8> {
     let external = b"\x01\x01Ddata\x03[book.xls]Rates";
     let mut link = vec![external.len() as u8]; link.extend_from_slice(external);
     let mut crn = vec![2, 0, 2, 0, 1]; crn.extend(1.25_f64.to_le_bytes());
     crn.extend([2, 1, 0xE9]);
     crn.extend([4, 1, 0, 0, 0, 0, 0, 0, 0]);
-    let records = [record(0x0017, &link), record(0x0059, &u16s(&[1])), record(0x005A, &crn),
+    let count = if invalid_link { u16::MAX } else { 1 };
+    let records = [record(0x0017, &link), record(0x0059, &u16s(&[count])), record(0x005A, &crn),
         v5::formula(0, 0, 1.25, &v5::cell3d(-1, 0, 2, 0))].concat();
     v5::xls(1252, &[], &[v5::Sheet { name: b"S".to_vec(), records }])
 }
@@ -419,12 +420,48 @@ fn write_legacy_excel_session_inputs() {
     std::fs::write(dir.join("raw-biff3.xls"), raw_biff3_fixture()).unwrap();
     std::fs::write(dir.join("raw-biff4.xls"), raw_biff4_fixture()).unwrap();
     std::fs::write(dir.join("cells-biff8.xls"), biff8).unwrap();
+    // Paired error formulas isolate the FORMULA fClearErrors bit in Excel.
+    let error_tokens = ptg::join(&[ptg::int(1), ptg::int(0), ptg::op(0x06)]);
+    let ordinary = formula(0, 0, err_value(0x07), &error_tokens, &[]);
+    let mut cleared = formula(0, 1, err_value(0x07), &error_tokens, &[]);
+    cleared[4 + 14] = 0x20;
+    let error_checks = xls(false, &[], &[Sheet::worksheet("ErrorChecks", [ordinary, cleared].concat())]);
+    std::fs::write(dir.join("formula-error-checks.xls"), error_checks).unwrap();
+    // Excel-authored arithmetic uses PtgRefV here; compare the three reference classes.
+    let mut ref_classes = number(0, 0, 42.5);
+    for (row, class) in [(1, 0x24), (2, 0x44), (3, 0x64)] {
+        let mut reference = ptg::cell(0, 0, 0);
+        reference[0] = class;
+        let tokens = ptg::join(&[reference, ptg::int(1), ptg::op(ptg::ADD)]);
+        ref_classes.extend(formula(row, 0, num_value(43.5), &tokens, &[]));
+    }
+    let ref_classes = xls(false, &[], &[Sheet::worksheet("RefClasses", ref_classes)]);
+    std::fs::write(dir.join("formula-ref-classes.xls"), ref_classes).unwrap();
+    let rk_integer = |value: i32, divide: bool| ((value as u32) << 2) | 2 | u32::from(divide);
+    let rk_double = |value: f64, divide: bool| ((value.to_bits() >> 32) as u32 & !3) | u32::from(divide);
+    let mut rk_records = Vec::new();
+    for (row, value) in [rk_integer(0, false), rk_integer(1, false), rk_integer(-1, false),
+        rk_integer(536_870_911, false), rk_integer(-536_870_912, false),
+        rk_integer(123, true), rk_integer(-123, true), rk_integer(536_870_911, true),
+        rk_integer(-536_870_912, true), rk_double(1.5, false), rk_double(-1.5, false),
+        rk_double(1.5, true), rk_double(-1.5, true)].into_iter().enumerate() {
+        rk_records.extend(rk_cell(row as u16, 0, value));
+    }
+    rk_records.extend(mulrk(13, 0, &[rk_integer(1, false), rk_integer(-123, true), rk_double(1.5, true)]));
+    let rk_input = xls(false, &[], &[Sheet::worksheet("RK", rk_records)]);
+    std::fs::write(dir.join("rk-values.xls"), rk_input).unwrap();
+    std::fs::write(dir.join("formula-structures.xls"), formula_structures_fixture()).unwrap();
+    std::fs::write(dir.join("names-3d-addin.xls"), names_3d_addin_fixture()).unwrap();
+    std::fs::write(dir.join("cell-values.xls"), basic_values_fixture()).unwrap();
+    std::fs::write(dir.join("sst-continued-ascii.xls"), shared_string_fixture(13)).unwrap();
+    std::fs::write(dir.join("sst-continued-utf16.xls"), shared_string_fixture(32)).unwrap();
     std::fs::write(dir.join("cells-biff5.xls"), biff5).unwrap();
     std::fs::write(dir.join("precision-biff8.xls"), xls(false, &record(0x000E, &0u16.to_le_bytes()),
         &[Sheet::worksheet("Data", number(0, 0, 1.25))])).unwrap();
     std::fs::write(dir.join("external-cache-biff8.xls"), external_cache_fixture(false)).unwrap();
     std::fs::write(dir.join("external-cache-invalid-biff8.xls"), external_cache_fixture(true)).unwrap();
-    std::fs::write(dir.join("external-cache-biff5.xls"), external_cache_biff5_fixture()).unwrap();
+    std::fs::write(dir.join("external-cache-biff5.xls"), external_cache_biff5_fixture(false)).unwrap();
+    std::fs::write(dir.join("external-cache-invalid-biff5.xls"), external_cache_biff5_fixture(true)).unwrap();
     let mut biff8_gcw = u16s(&[32]); biff8_gcw.push(0b0000_0101); biff8_gcw.extend([0u8; 31]);
     let biff8_gcw_cells = [record(0x0055, &u16s(&[8])), colinfo(0, 1, 3072, 0x0002),
         record(0x0099, &u16s(&[2340])), record(0x00AB, &biff8_gcw), number(0, 0, 1.0)].concat();
@@ -464,7 +501,70 @@ fn write_legacy_excel_session_inputs() {
         body.extend(2u16.to_le_bytes()); body.push(0x04);
         body.extend((extension.len() as u32).to_le_bytes()); body.extend(b"AB");
         let boundary = body.len() + 10;
-        body.extend(extension);
+        body.extend(&extension);
+        let globals = if split { [record(0x00FC, &body[..boundary]), record(0x003C, &body[boundary..])].concat() }
+            else { record(0x00FC, &body) };
+        let input = xls(false, &globals, &[Sheet::worksheet("Data", label_sst(0, 0, 0))]);
+        std::fs::write(dir.join(format!("{name}.xls")), input).unwrap();
+        if name == "phonetic-zero-runs" {
+            for (fixture, tail) in [("phonetic-zero-runs-pad-zero", 0u16),
+                ("phonetic-zero-runs-pad-nonzero", 12u16)] {
+                let mut padded = extension.clone(); padded.extend(tail.to_le_bytes());
+                let size = (padded.len() - 4) as u16; padded[2..4].copy_from_slice(&size.to_le_bytes());
+                let mut sst = Vec::new();
+                sst.extend(1u32.to_le_bytes()); sst.extend(1u32.to_le_bytes());
+                sst.extend(2u16.to_le_bytes()); sst.push(0x04);
+                sst.extend((padded.len() as u32).to_le_bytes()); sst.extend(b"AB"); sst.extend(padded);
+                let input = xls(false, &record(0x00FC, &sst), &[Sheet::worksheet("Data", label_sst(0, 0, 0))]);
+                std::fs::write(dir.join(format!("{fixture}.xls")), input).unwrap();
+            }
+        }
+        if name == "phonetic-explicit" {
+            for (fixture, tail, cut) in [("phonetic-runs-pad-zero", 0u16, false),
+                ("phonetic-runs-pad-nonzero", 12u16, false), ("phonetic-runs-pad-split", 0u16, true)] {
+                let mut padded = extension.clone(); padded.extend(tail.to_le_bytes());
+                let size = (padded.len() - 4) as u16; padded[2..4].copy_from_slice(&size.to_le_bytes());
+                let mut sst = Vec::new();
+                sst.extend(1u32.to_le_bytes()); sst.extend(1u32.to_le_bytes());
+                sst.extend(2u16.to_le_bytes()); sst.push(0x04);
+                sst.extend((padded.len() as u32).to_le_bytes()); sst.extend(b"AB");
+                let boundary = sst.len() + 10; sst.extend(padded);
+                let globals = if cut { [record(0x00FC, &sst[..boundary]), record(0x003C, &sst[boundary..])].concat() }
+                    else { record(0x00FC, &sst) };
+                let input = xls(false, &globals, &[Sheet::worksheet("Data", label_sst(0, 0, 0))]);
+                std::fs::write(dir.join(format!("{fixture}.xls")), input).unwrap();
+            }
+            for (fixture, flag, range) in [("row-guide-summary", true, 0),
+                ("row-guide-range", true, 1), ("row-guide-range-no-summary", false, 1),
+                ("row-guide-range-blanks", true, 2)] {
+                let mut row_record = row(0, 255, 0);
+                if flag { let last = row_record.len() - 1; row_record[last] |= 0x40; }
+                let mut records = [row_record, label_sst(0, 0, 0), label_sst(0, 1, 0)].concat();
+                if range != 0 {
+                    let end_row = u16::from(range == 2);
+                    let end_col = if range == 2 { 2 } else { 0 };
+                    records.extend(record(0x00EF, &u16s(&[0, 7, 1, 0, end_row, 0, end_col])));
+                }
+                let input = xls(false, &globals, &[Sheet::worksheet("Data", records)]);
+                std::fs::write(dir.join(format!("{fixture}.xls")), input).unwrap();
+            }
+        }
+    }
+    // Zero-length phonetic text is common in real SSTs; the optional trailing
+    // two bytes may be zero or nonzero. Ask Excel about both and a continuation.
+    for (name, tail, split) in [("phonetic-empty", None, false),
+        ("phonetic-empty-pad-zero", Some(0u16), false),
+        ("phonetic-empty-pad-nonzero", Some(12u16), false),
+        ("phonetic-empty-pad-split", Some(0u16), true)] {
+        let mut extension = u16s(&[1, 0, 0, 7, 0, 0, 0]);
+        if let Some(value) = tail { extension.extend(value.to_le_bytes()); }
+        let size = (extension.len() - 4) as u16;
+        extension[2..4].copy_from_slice(&size.to_le_bytes());
+        let mut body = Vec::new();
+        body.extend(1u32.to_le_bytes()); body.extend(1u32.to_le_bytes());
+        body.extend(2u16.to_le_bytes()); body.push(0x04);
+        body.extend((extension.len() as u32).to_le_bytes()); body.extend(b"AB");
+        let boundary = body.len() + 10; body.extend(extension);
         let globals = if split { [record(0x00FC, &body[..boundary]), record(0x003C, &body[boundary..])].concat() }
             else { record(0x00FC, &body) };
         let input = xls(false, &globals, &[Sheet::worksheet("Data", label_sst(0, 0, 0))]);
@@ -583,7 +683,7 @@ fn write_legacy_excel_session_inputs() {
     std::fs::write(dir.join("repair-format-no-option.xls"),
         xls(false, &record(0x041e, &format_without_option),
             &[Sheet::worksheet("Data", number(0, 0, 42.0))])).unwrap();
-    for name in ["raw-biff2-layout", "raw-grid", "raw-biff2", "raw-biff2-inline", "raw-biff3", "raw-biff4", "cells-biff8", "cells-biff5", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "gcw-biff8", "tab-color-biff8", "drawing-rgb-solid-fill", "drawing-solid-lines", "drawing-hidden-outline", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "drawing-rich-underline", "drawing-uniform-underline", "emf-checksum-valid", "emf-checksum-invalid", "phonetic-zero-runs", "phonetic-explicit", "phonetic-continuation", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
+    for name in ["raw-biff2-layout", "raw-grid", "raw-biff2", "raw-biff2-inline", "raw-biff3", "raw-biff4", "cells-biff8", "cells-biff5", "cell-values", "sst-continued-ascii", "sst-continued-utf16", "formula-error-checks", "formula-ref-classes", "formula-structures", "names-3d-addin", "rk-values", "precision-biff8", "external-cache-biff8", "external-cache-invalid-biff8", "external-cache-biff5", "external-cache-invalid-biff5", "gcw-biff8", "tab-color-biff8", "drawing-rgb-solid-fill", "drawing-solid-lines", "drawing-hidden-outline", "drawing-obj-continuation", "drawing-txo-continuation", "drawing-text-anchor-conflict", "drawing-rich-text", "drawing-rich-faces", "drawing-rich-underline", "drawing-uniform-underline", "emf-checksum-valid", "emf-checksum-invalid", "phonetic-empty", "phonetic-empty-pad-zero", "phonetic-empty-pad-nonzero", "phonetic-empty-pad-split", "phonetic-runs-pad-zero", "phonetic-runs-pad-nonzero", "phonetic-runs-pad-split", "phonetic-zero-runs", "phonetic-zero-runs-pad-zero", "phonetic-zero-runs-pad-nonzero", "phonetic-explicit", "phonetic-continuation", "row-guide-summary", "row-guide-range", "row-guide-range-no-summary", "row-guide-range-blanks", "forms", "custom-blob", "custom-unaligned-page", "company-cp936", "company-cp949", "company-cp950"] {
         let original = std::fs::read(dir.join(format!("{name}.xls"))).unwrap();
         let document = calc_doc::open(source(&original), &OpenPolicy::default()).unwrap();
         let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
@@ -592,7 +692,7 @@ fn write_legacy_excel_session_inputs() {
         std::fs::write(dir.join(format!("{name}.dnacalc.xlsx")), converted).unwrap();
     }
     let cases = serde_json::json!({
-        "files": ["raw-biff2-layout.xls", "raw-grid.xls", "raw-biff2.xls", "raw-biff2-inline.xls", "raw-biff3.xls", "raw-biff4.xls", "cells-biff8.xls", "cells-biff5.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "gcw-biff8.xls", "tab-color-biff8.xls", "drawing-rgb-solid-fill.xls", "drawing-solid-lines.xls", "drawing-hidden-outline.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "drawing-uniform-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "phonetic-zero-runs.xls", "phonetic-explicit.xls", "phonetic-continuation.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
+        "files": ["raw-biff2-layout.xls", "raw-grid.xls", "raw-biff2.xls", "raw-biff2-inline.xls", "raw-biff3.xls", "raw-biff4.xls", "cells-biff8.xls", "cells-biff5.xls", "cell-values.xls", "sst-continued-ascii.xls", "sst-continued-utf16.xls", "formula-error-checks.xls", "formula-ref-classes.xls", "formula-structures.xls", "names-3d-addin.xls", "rk-values.xls", "precision-biff8.xls", "external-cache-biff8.xls", "external-cache-invalid-biff8.xls", "external-cache-biff5.xls", "external-cache-invalid-biff5.xls", "gcw-biff8.xls", "tab-color-biff8.xls", "drawing-rgb-solid-fill.xls", "drawing-solid-lines.xls", "drawing-hidden-outline.xls", "drawing-obj-continuation.xls", "drawing-txo-continuation.xls", "drawing-text-anchor-conflict.xls", "drawing-rich-text.xls", "drawing-rich-faces.xls", "drawing-rich-underline.xls", "drawing-uniform-underline.xls", "emf-checksum-valid.xls", "emf-checksum-invalid.xls", "phonetic-empty.xls", "phonetic-empty-pad-zero.xls", "phonetic-empty-pad-nonzero.xls", "phonetic-empty-pad-split.xls", "phonetic-runs-pad-zero.xls", "phonetic-runs-pad-nonzero.xls", "phonetic-runs-pad-split.xls", "phonetic-zero-runs.xls", "phonetic-zero-runs-pad-zero.xls", "phonetic-zero-runs-pad-nonzero.xls", "phonetic-explicit.xls", "phonetic-continuation.xls", "row-guide-summary.xls", "row-guide-range.xls", "row-guide-range-no-summary.xls", "row-guide-range-blanks.xls", "forms.xls", "custom-blob.xls", "custom-unaligned-page.xls", "company-cp936.xls", "company-cp949.xls", "company-cp950.xls"],
         "repair_cases": ["repair-slash.xls", "repair-stars.xls", "repair-empty.xls", "repair-long.xls",
             "repair-name-collisions.xls", "repair-long-collisions.xls",
             "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls", "repair-pivot-range-first.xls",
@@ -1407,9 +1507,7 @@ fn sheet_cells(bytes: &[u8]) -> Vec<String> {
     cells(load(bytes).model(), 0)
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), test)]
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn numbers_rk_forms_logicals_errors_and_strings() {
+fn basic_values_fixture() -> Vec<u8> {
     // RK: integer 512; 123 divided by 100; the double 1.5 in the high 30 bits; negative integer
     // -7; a divided double 0.25 stored as 25/100.
     let rk_int = |v: i32| ((v as u32) << 2) | 2;
@@ -1431,7 +1529,13 @@ fn numbers_rk_forms_logicals_errors_and_strings() {
     r.extend(label_sst(5, 1, 1));
     r.extend(label_sst(5, 2, 2));
     r.extend(label_sst(5, 3, 3));
-    let bytes = xls(false, &globals, &[Sheet::worksheet("S", r)]);
+    xls(false, &globals, &[Sheet::worksheet("S", r)])
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn numbers_rk_forms_logicals_errors_and_strings() {
+    let bytes = basic_values_fixture();
     assert_eq!(
         sheet_cells(&bytes),
         vec![
@@ -1442,26 +1546,31 @@ fn numbers_rk_forms_logicals_errors_and_strings() {
     );
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), test)]
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn the_shared_string_table_split_across_continue_records() {
-    // A cut inside the characters of a compressed string, and inside a UTF-16 one, each
-    // continuing with its own flag byte; and a cut between strings.
+fn shared_string_fixture(cut: usize) -> Vec<u8> {
     let strings: [(&str, &[(u16, u16)]); 4] = [
         ("first string", &[]),
         ("second ✓ string", &[(0, 1), (3, 2)]),
         ("third", &[]),
         ("fourth", &[]),
     ];
-    let probe = sst(&strings, None);
-    let body_len = probe.len() - 4;
-    for cut in [8 + 5, 8 + 2 + 1 + 12 + 5, body_len - 3, 8 + 2 + 1 + 12] {
-        let globals = sst(&strings, Some(cut));
-        let mut r = Vec::new();
-        for k in 0..4u16 {
-            r.extend(label_sst(k, 0, u32::from(k)));
-        }
-        let bytes = xls(false, &globals, &[Sheet::worksheet("S", r)]);
+    let globals = [font(200, 0, 0x7fff, 400, "Arial"), font(200, 0, 0x7fff, 700, "Arial"),
+        font(200, 2, 0x7fff, 400, "Arial"), sst(&strings, Some(cut))].concat();
+    let mut r = Vec::new();
+    for k in 0..4u16 {
+        r.extend(label_sst(k, 0, u32::from(k)));
+    }
+    xls(false, &globals, &[Sheet::worksheet("S", r)])
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn the_shared_string_table_split_across_continue_records() {
+    // Split compressed and UTF-16 characters, and between strings.
+    let strings: [(&str, &[(u16, u16)]); 4] = [("first string", &[]),
+        ("second ✓ string", &[(0, 1), (3, 2)]), ("third", &[]), ("fourth", &[])];
+    let body_len = sst(&strings, None).len() - 4;
+    for cut in [8 + 5, 8 + 2 + 1 + 12 + 5, 32, body_len - 3, 8 + 2 + 1 + 12] {
+        let bytes = shared_string_fixture(cut);
         assert_eq!(
             sheet_cells(&bytes),
             vec!["A1 s:first string", "A2 s:second ✓ string", "A3 s:third", "A4 s:fourth"],
@@ -1517,7 +1626,7 @@ fn rows_and_columns_keep_height_hidden_and_outline() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn row_border_and_phonetic_flags_survive_conversion_and_save() {
+fn row_border_flags_survive_without_turning_phonetic_summary_into_a_default() {
     let mut records = record(0x0225, &u16s(&[0x000C, 255]));
     let mut formatted = row(0, 255, 0);
     let last = formatted.len() - 1;
@@ -1531,14 +1640,15 @@ fn row_border_and_phonetic_flags_survive_conversion_and_save() {
         let defaults = xml.split("<sheetFormatPr ").nth(1).unwrap().split('>').next().unwrap();
         assert!(defaults.contains("thickTop=\"1\"") && defaults.contains("thickBottom=\"1\""));
         let row = xml.split("<row ").nth(1).unwrap().split('>').next().unwrap();
-        assert!(row.contains("thickTop=\"1\"") && row.contains("thickBot=\"1\"") && row.contains("ph=\"1\""));
+        assert!(row.contains("thickTop=\"1\"") && row.contains("thickBot=\"1\"") && !row.contains("ph=\"1\""));
     };
     check(&document);
     let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
     let mut saved = Vec::new();
     calc_doc::write(plan, &mut saved).unwrap();
     check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
-
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert_eq!(report.unknown_records.get(&0x0208), Some(&1));
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -1624,9 +1734,7 @@ fn formula_tokens_print_as_excel_writes_them_and_cached_results_are_kept() {
     assert!(cached(1, 9).contains("NA"), "{}", cached(1, 9));
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), test)]
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn shared_array_and_table_formulas() {
+fn formula_structures_fixture() -> Vec<u8> {
     use ptg::*;
     let mut r = Vec::new();
     // Shared B3:B5 = A3+1: PtgRefN offsets are applied at each member.
@@ -1647,7 +1755,13 @@ fn shared_array_and_table_formulas() {
     r.extend(table_record((10, 12), (2, 2), 0, (0, 0), (0, 0)));
     r.extend(formula(11, 2, num_value(2.0), &table(10, 2), &[]));
     r.extend(formula(12, 2, num_value(3.0), &table(10, 2), &[]));
-    let bytes = xls(false, &[], &[Sheet::worksheet("S", r)]);
+    xls(false, &[], &[Sheet::worksheet("S", r)])
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn shared_array_and_table_formulas() {
+    let bytes = formula_structures_fixture();
     assert_eq!(sheet_cells(&bytes), vec!["B3 f:A3+1", "B4 f:A4+1", "B5 f:A5+1", "A8 f:1+2"]);
     let loaded = load(&bytes);
     let definitions = loaded.model().definitions();
@@ -1940,9 +2054,7 @@ fn legacy_sheet_ids_follow_source_tabs_even_with_module() {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), test)]
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn names_3d_external_references_and_add_in_functions() {
+fn names_3d_addin_fixture() -> Vec<u8> {
     use ptg::*;
     let globals = [
         supbook_self(1),
@@ -1961,7 +2073,13 @@ fn names_3d_external_references_and_add_in_functions() {
     r.extend(formula(13, 0, num_value(1.0), &cell3d(1, 1, 1, 0), &[]));
     r.extend(formula(13, 1, num_value(1.0), &join(&[name_x(2, 1), int(5), func_var(2, 255)]), &[]));
     r.extend(formula(13, 2, num_value(1.0), &name(1), &[]));
-    let bytes = xls(false, &globals, &[Sheet::worksheet("S", r)]);
+    xls(false, &globals, &[Sheet::worksheet("S", r)])
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn names_3d_external_references_and_add_in_functions() {
+    let bytes = names_3d_addin_fixture();
     assert_eq!(sheet_cells(&bytes), vec!["A14 f:[1]Rates!$B$2", "B14 f:_xll.myfunc(5)", "C14 f:Rate"]);
     let names = defined_names(&bytes);
     assert_eq!(
@@ -2022,13 +2140,41 @@ fn ambiguous_external_cache_is_not_exposed_as_complete() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn invalid_external_link_cache_remains_unread() {
+fn invalid_external_link_cache_retains_values_and_refresh_error() {
     let bytes = external_cache_fixture(true);
-    let loaded = load(&bytes);
-    assert!(!loaded.model().definitions().external_book(1).unwrap().sheets[0].cached);
+    let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let check = |doc: &calc_doc::OpenedDocument| {
+        let loaded = calc_doc::load(doc, &mut IdAllocator::<SheetId>::new()).unwrap();
+        let sheet = &loaded.model().definitions().external_book(1).unwrap().sheets[0];
+        assert!(sheet.cached && sheet.refresh_error);
+        assert_eq!(sheet.cells.get(&(3, 1)), Some(&calc_doc::model::CachedValue::Number(calc_doc::model::FiniteNumber::new(1.25).unwrap())));
+    };
+    check(&doc);
+    let plan = calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+    let mut saved = Vec::new(); calc_doc::write(plan, &mut saved).unwrap();
+    check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
     let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
-    assert_eq!(report.unknown_records.get(&0x0059), Some(&1));
-    assert_eq!(report.unknown_records.get(&0x005A), Some(&1));
+    assert!(!report.unknown_records.contains_key(&0x0059));
+    assert!(!report.unknown_records.contains_key(&0x005A));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn negative_external_cache_count_marks_the_whole_book_invalid() {
+    let crn = |row: u16, value: f64| {
+        let mut body = vec![0, 0]; body.extend(row.to_le_bytes()); body.push(1);
+        body.extend(value.to_le_bytes()); record(0x005A, &body)
+    };
+    let globals = [supbook_external("book.xls", &["One", "Two"]),
+        record(0x0059, &u16s(&[(-2i16) as u16, 0])), crn(0, 1.0), crn(1, 2.0),
+        record(0x0059, &u16s(&[1, 1])), crn(0, 3.0)].concat();
+    let bytes = xls(false, &globals, &[Sheet::worksheet("S", Vec::new())]);
+    let loaded = load(&bytes);
+    let book = loaded.model().definitions().external_book(1).unwrap();
+    assert_eq!(book.sheets.len(), 2);
+    assert!(book.sheets.iter().all(|sheet| sheet.cached && sheet.refresh_error));
+    assert_eq!(book.sheets[0].cells.len(), 2);
+    assert_eq!(book.sheets[1].cells.len(), 1);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -2052,24 +2198,27 @@ fn external_caches_stay_with_their_own_workbooks() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn biff5_external_cache_uses_local_link_table_and_code_page() {
-    let bytes = external_cache_biff5_fixture();
-    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
-    let check = |doc: &calc_doc::OpenedDocument| {
-        let loaded = calc_doc::load(doc, &mut IdAllocator::<SheetId>::new()).unwrap();
-        let sheet = &loaded.model().definitions().external_book(1).unwrap().sheets[0];
-        assert!(sheet.cached);
-        assert_eq!(sheet.cells.get(&(3, 1)), Some(&calc_doc::model::CachedValue::Number(calc_doc::model::FiniteNumber::new(1.25).unwrap())));
-        let text = calc_doc::model::value::ExcelText::from_utf16_code_units(vec![0x00E9]);
-        assert_eq!(sheet.cells.get(&(3, 2)), Some(&calc_doc::model::CachedValue::Text(calc_doc::model::CellText::new(text).unwrap())));
-        assert_eq!(sheet.cells.get(&(3, 3)), Some(&calc_doc::model::CachedValue::Logical(true)));
-    };
-    check(&document);
-    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
-    assert!(!report.unknown_records.contains_key(&0x0059));
-    assert!(!report.unknown_records.contains_key(&0x005A));
-    let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
-    let mut saved = Vec::new(); calc_doc::write(plan, &mut saved).unwrap();
-    check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+    for invalid_link in [false, true] {
+        let bytes = external_cache_biff5_fixture(invalid_link);
+        let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+        let check = |doc: &calc_doc::OpenedDocument| {
+            let loaded = calc_doc::load(doc, &mut IdAllocator::<SheetId>::new()).unwrap();
+            let sheet = &loaded.model().definitions().external_book(1).unwrap().sheets[0];
+            assert!(sheet.cached);
+            assert_eq!(sheet.refresh_error, invalid_link);
+            assert_eq!(sheet.cells.get(&(3, 1)), Some(&calc_doc::model::CachedValue::Number(calc_doc::model::FiniteNumber::new(1.25).unwrap())));
+            let text = calc_doc::model::value::ExcelText::from_utf16_code_units(vec![0x00E9]);
+            assert_eq!(sheet.cells.get(&(3, 2)), Some(&calc_doc::model::CachedValue::Text(calc_doc::model::CellText::new(text).unwrap())));
+            assert_eq!(sheet.cells.get(&(3, 3)), Some(&calc_doc::model::CachedValue::Logical(true)));
+        };
+        check(&document);
+        let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+        assert!(!report.unknown_records.contains_key(&0x0059));
+        assert!(!report.unknown_records.contains_key(&0x005A));
+        let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+        let mut saved = Vec::new(); calc_doc::write(plan, &mut saved).unwrap();
+        check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

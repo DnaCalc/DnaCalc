@@ -59,6 +59,31 @@ fn dates_without_an_environment_are_refused() {
     refused(call("TEXT", vec![n(1.0), t("0.00")]));
 }
 
+/// Excel 20527: an invalid year cannot wrap to 1900 or be rescued from 10000 by a negative month.
+/// Negative years within the ordinary range still normalize with their month before the serial check.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn date_years_do_not_wrap_or_clip_before_month_normalization() {
+    for system in [DateSystem::System1900, DateSystem::System1904] {
+        let env = CalcEnvironment { date_system: system, ..host() };
+        for (year, month, day) in [
+            (10000.0, -1.0, -307.0),
+            (10000.0, -12.0, 1.0),
+            (65536.0, -12.0, 1.0),
+            (1e100, -12.0, 1.0),
+            (-65536.0, 1.0, 1.0),
+            (-65537.000001, 32766.0, 1.0),
+            (-2147481748.0, 1.0, 1.0),
+            (-8589934592.000002, 1.0, 1.0),
+            (-1e100, 1.0, 1.0),
+        ] {
+            error(c(&env, "DATE", vec![n(year), n(month), n(day)]), Num);
+        }
+    }
+    exact(c(&host(), "DATE", vec![n(-1.0), n(13.0), n(1.0)]), 1.0);
+    exact(c(&host(), "DATE", vec![n(9999.0), n(1.0), n(1.0)]), 2958101.0);
+}
+
 /// Excel 20527 distinguishes numeric text, empty text, blank cells, and date strings.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

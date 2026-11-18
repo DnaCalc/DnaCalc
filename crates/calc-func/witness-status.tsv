@@ -170,8 +170,8 @@ CUBEVALUE	full	20527	4246	4246	-	exact	218dcceeef	0
 CUMIPMT	full	20527	4393	4393	-	exact	218dcceeef	0
 CUMPRINC	full	20228,20527	3541	3541	-	exact	218dcceeef	0
 CUMPRINC	pinned	20228	120	52	4	last_bit	7a3e51cd1b+changes	0
-DATE	full	20430	22250	22250	-	exact	218dcceeef	0
-DATE	pinned	20430	120	120	-	exact	7a3e51cd1b+changes	0
+DATE	full	20430	22250	17208	-	structural	63210e7082+changes	0
+DATE	pinned	20430	120	98	-	structural	63210e7082+changes	0
 DATEDIF	full	20527	2914	2914	-	exact	218dcceeef	0
 DATEVALUE	full	20527	2263	2263	-	exact	218dcceeef	0
 DAVERAGE	full	20527	5674	5674	-	exact	218dcceeef	0
@@ -298,7 +298,7 @@ FV	full	20131,20228,20430,20527,?	6912	6911	1	last_bit	218dcceeef	0
 FV	pinned	20131,20228,20430	120	120	-	exact	7a3e51cd1b+changes	0
 FVSCHEDULE	full	20527	2857	2857	-	exact	218dcceeef	0
 GAMMA	full	20131,20527,?	12603	8193	5	numeric	218dcceeef	0
-GAMMA	pinned	20131	120	83	2	last_bit	7a3e51cd1b+changes	0
+GAMMA	pinned	20131	120	120	-	exact	9bd6eb0d38+changes	0
 GAMMA.DIST	full	20131,20430,20527,?	77975	77897	8	numeric	218dcceeef	0
 GAMMA.DIST	pinned	20131,20430	120	119	1	last_bit	bce9c5aa4d+changes	0
 GAMMA.INV	full	20131,20527,?	4484	3829	1731866076314	structural	af24bf9759+changes	0
