@@ -3219,6 +3219,26 @@ fn gamma_pole_and_reflection_match_frozen_excel_answers() {
     }
 }
 
+/// Excel 20527, frozen probes at which the degree-16 correction or a different
+/// reciprocal, sum or product precision changes the worksheet answer.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gamma_large_uses_the_stored_stirling_multiplier() {
+    for (input, answer) in [
+        (0x4024001bd235842b_u64, 0x411628b5ed96db1a_u64),
+        (0x402401cbd0ce97c7, 0x411652f8805c0b85),
+        (0x4024069260315a2f, 0x4116cc517aa6a374),
+        (0x4024366c594766e0, 0x411c279214704cb3),
+        (0x4024656a0cdb5655, 0x41215590f21f44e3),
+        (0x4024c5e17786d294, 0x412aa56294f215b8),
+        (0x403afbc606aba1fc, 0x4573c06ddd80a59d),
+        (0x403d036d387356be, 0x461019522321c998),
+        (0x405e2e88389dcf11, 0x691834e81866dea2),
+    ] {
+        exact(call("GAMMA", vec![n(f64::from_bits(input))]), f64::from_bits(answer));
+    }
+}
+
 /// Original GAMMA answers from both former fitting halves, with known gaps.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

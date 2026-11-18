@@ -327,24 +327,27 @@ const SEED_D: [u64; 7] = [
     0x3f53_f2e0_3e39_0c8c,
 ];
 
+fn stored_horner<F: super::Fpu>(x: f64, coefficients: &[u64]) -> f64 {
+    use super::soft87::{CW_PC64_RN as CW, ext_from_f64 as ext};
+
+    let mut value = f64::from_bits(coefficients[coefficients.len() - 1]);
+    for &bits in coefficients[..coefficients.len() - 1].iter().rev() {
+        let product = F::store(&F::mul(&ext(x), &ext(value), CW), CW);
+        value = F::store(&F::add(&ext(f64::from_bits(bits)), &ext(product), CW), CW);
+    }
+    value
+}
+
 /// The internal seed, including at 1.5; the worksheet's exact half-integer branch is separate.
 fn gamma_seed_with<F: super::Fpu>(x: f64) -> f64 {
     use super::soft87::{CW_PC64_RN as CW, ext_from_f64 as ext};
 
-    let chain = |coefficients: &[u64]| {
-        let mut value = f64::from_bits(coefficients[coefficients.len() - 1]);
-        for &bits in coefficients[..coefficients.len() - 1].iter().rev() {
-            let product = F::store(&F::mul(&ext(x), &ext(value), CW), CW);
-            value = F::store(&F::add(&ext(f64::from_bits(bits)), &ext(product), CW), CW);
-        }
-        value
-    };
-    let product = F::store(&F::mul(&ext(x), &ext(chain(&SEED_D)), CW), CW);
+    let product = F::store(&F::mul(&ext(x), &ext(stored_horner::<F>(x, &SEED_D)), CW), CW);
     // -2^-18 is a representative of the measured interval: the final denominator store
     // cannot distinguish it from the recovered -2^-18 - 4.066e-16 anywhere on [1,2].
     let q0 = f64::from_bits(0xbed0_0000_0000_0000);
     let denominator = F::store(&F::add(&ext(q0), &ext(product), CW), CW);
-    F::store(&F::div(&ext(chain(&SEED_N)), &ext(denominator), CW), CW)
+    F::store(&F::div(&ext(stored_horner::<F>(x, &SEED_N)), &ext(denominator), CW), CW)
 }
 
 fn gamma_seed(x: f64) -> f64 {
@@ -369,21 +372,29 @@ fn integer_power(x: f64, mut n: u32) -> f64 {
     product.unwrap_or(1.0)
 }
 
-/// `GAMMA(x)` for `x >= 10`: `sqrt(2 pi) * x^x * exp(-x) * sqrt(1/x) * exp(s(x))`, with `s` the Stirling
-/// error of the masses, the same ten terms stored once.
+// Coefficients of exp(B2*t/2 + B4*t^3/12 + ...), lowest power first,
+// rounded from the exact rationals. At t = st(1/x) Excel uses degrees 0..15.
+const STIRLING_MULTIPLIER: [u64; 16] = [
+    0x3ff0_0000_0000_0000, 0x3fb5_5555_5555_5555, 0x3f6c_71c7_1c71_c71c, 0xbf65_f726_8eda_b4c8,
+    0xbf2e_13ce_465f_a859, 0x3f49_b0ff_6874_f2c4, 0x3f12_4760_4839_c038, 0xbf43_6773_bdb9_7b48,
+    0xbf0b_1d75_d334_6711, 0x3f4b_8239_c670_e690, 0x3f12_e31f_9b79_13ea, 0xbf5f_5dbc_af75_6cde,
+    0xbf25_4d24_1144_693f, 0x3f7a_3a69_9f4a_401b, 0x3f41_b33b_019b_3e6f, 0xbf9e_3c8e_8bed_86bb,
+];
+
+/// `GAMMA(x)` for `x >= 10`: `sqrt(2 pi) * x^x * exp(-x) * sqrt(1/x)` times the Stirling multiplier.
 ///
 /// With `n = floor(x/2)` and `f = x/2 - n`, `v = x^(x/2)` is `x^n`, by binary powering with stored
 /// squares, times `exp(f * ln x)`, where `ln x`, their product and the exponential are stored, and
 /// `v` is stored. `1/x` and its square root are stored; so are their product with the stored
-/// `exp(-x)`, then that times `v`, and again times `v`, then the constant, then `EXP(s(x))`.
+/// `exp(-x)`, then that times `v`, and again times `v`, then the constant, then the multiplier.
 ///
 /// Read from Excel 16.0.20527 answers on windows of consecutive doubles from 10 to 170. Lines at
 /// `2m`, `8(m-1)`, `32(m-1)` (`m` the significand of `x`) with weights `x/2`, `x/4` and `x/8` are the
 /// stored `x^2`, `x^4`, `x^8`; a line at `1/x` in units of `ulp(ln x)`, weight `2f`, is the stored
 /// logarithm; the residual bias of +0.66 of 2^-53 is the constant. With those in, the lines left
 /// in the misses at 50.3 stood at the frequencies of `1/x` and `sqrt(1/x)`: 17,988 of 18,000 adjacent
-/// doubles there, 5,994 of 6,000 from 36 to 170. From 10 to 36 `s(x)` matters and `w` is its stored
-/// exponential: 5,970 of 6,000, where a truncated series left a slope of a unit near 11.
+/// doubles there, 5,994 of 6,000 from 36 to 170. With Excel's LN, EXP and SQRT leaves,
+/// the direct degree-15 multiplier matched all 13,229 fresh degree controls and 16,210 arithmetic controls.
 fn gamma_stirling(x: f64) -> f64 {
     use super::soft87::ext_from_f64 as ext;
     use super::{CW, Fpu, Native};
@@ -392,14 +403,14 @@ fn gamma_stirling(x: f64) -> f64 {
     let n = half.floor();
     let root = super::excel_exp(super::excel_x87_mul(half - n, super::excel_log(x)));
     let v = super::excel_x87_mul(integer_power(x, n as u32), root);
-    let root_of_reciprocal =
-        Native::store(&Native::sqrt(&ext(super::excel_x87_div(1.0, x)), CW), CW);
+    let reciprocal = super::excel_x87_recip(x);
+    let root_of_reciprocal = Native::store(&Native::sqrt(&ext(reciprocal), CW), CW);
     let scaled = super::excel_x87_mul(
         v,
         super::excel_x87_mul(super::excel_exp(-x), root_of_reciprocal),
     );
     let body = super::excel_x87_mul(super::excel_x87_mul(scaled, v), SQRT_2PI);
-    super::excel_x87_mul(body, super::excel_exp(super::excel_stirling_series(x)))
+    super::excel_x87_mul(body, stored_horner::<Native>(reciprocal, &STIRLING_MULTIPLIER))
 }
 
 /// Excel stores pi / GAMMA(m) before dividing by the stored m * sine. With the
