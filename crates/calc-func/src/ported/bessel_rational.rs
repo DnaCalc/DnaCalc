@@ -2,7 +2,7 @@
 //! Copyright (C) 2013-present SheetJS; Apache-2.0.
 //! Reference: bessel.js at 2e2331329891dc5c16bda3461db0b9fe590ff2e9.
 //! Changed for DNA Calc: Rust scalar helpers, existing worksheet elementary
-//! functions, and a fixed grouping of the Y0 logarithm term. R27's high-J
+//! functions, and Excel's stored arithmetic for the low seeds. R27's high-J
 //! amplitudes adapt one decimal digit transposition and one repeated term
 //! from the published tables, inferred from recorded phase-window outputs.
 //! The fixed backward program and Y high-region tables retain the published
@@ -13,7 +13,7 @@
 //! Their scalar operations use the existing RN53(RN64(operation)) helpers.
 use super::excel_numeric::{
     excel_cos, excel_exp, excel_log, excel_sin, excel_sqrt_staged, excel_x87_add, excel_x87_div,
-    excel_x87_mul,
+    excel_x87_mul, excel_x87_sub,
 };
 
 const J0_NUM: &[f64] = &[
@@ -101,26 +101,35 @@ fn polynomial_with(
     value
 }
 
+/// Excel 20527 stores each operation from x87 in the low rational seeds.
+/// Independent exact inputs distinguish the square, Horner products and
+/// sums, the order-one numerator multiplier, and the final quotient.
+fn stored_low_rational(x: f64, numerator_factor: f64, numerator: &[f64], denominator: &[f64]) -> f64 {
+    let square = excel_x87_mul(x, x);
+    let horner = |coefficients| polynomial_with(square, coefficients, excel_x87_mul, excel_x87_add);
+    let numerator = excel_x87_mul(numerator_factor, horner(numerator));
+    excel_x87_div(numerator, horner(denominator))
+}
+
 pub(super) fn j0(x: f64) -> f64 {
-    let square = x * x;
-    polynomial(square, J0_NUM) / polynomial(square, J0_DEN)
+    stored_low_rational(x, 1.0, J0_NUM, J0_DEN)
 }
 
 pub(super) fn j1(x: f64) -> f64 {
-    let square = x * x;
-    (x * polynomial(square, J1_NUM)) / polynomial(square, J1_DEN)
+    stored_low_rational(x, x, J1_NUM, J1_DEN)
 }
 
 pub(super) fn y0(x: f64) -> f64 {
-    let square = x * x;
-    let rational = polynomial(square, Y0_NUM) / polynomial(square, Y0_DEN);
-    rational + j0(x) * (W * excel_log(x))
+    let rational = stored_low_rational(x, 1.0, Y0_NUM, Y0_DEN);
+    let logarithmic = excel_x87_mul(j0(x), excel_log(x));
+    excel_x87_add(rational, excel_x87_mul(W, logarithmic))
 }
 
 pub(super) fn y1(x: f64) -> f64 {
-    let square = x * x;
-    let rational = (x * polynomial(square, Y1_NUM)) / polynomial(square, Y1_DEN);
-    rational + W * (j1(x) * excel_log(x) - 1.0 / x)
+    let rational = stored_low_rational(x, x, Y1_NUM, Y1_DEN);
+    let logarithmic = excel_x87_mul(j1(x), excel_log(x));
+    let correction = excel_x87_sub(logarithmic, excel_x87_div(1.0, x));
+    excel_x87_add(rational, excel_x87_mul(W, correction))
 }
 
 const AMP1: &[f64] = &[

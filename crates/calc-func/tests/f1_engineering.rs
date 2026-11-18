@@ -369,6 +369,44 @@ fn delta_gestep_and_convert() {
     error(call("CONVERT", vec![n(2.0), t("gal"), t("mi")]), NA);
 }
 
+/// Excel 20527's low Y0 seed just below eight and the order-two result at 1.5.
+/// The latter still uses the usual forward recurrence and truncates order 2.9.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn bessely_low_seed_staging_matches_the_remaining_corpus_examples() {
+    for (x, order, expected) in [
+        (f64::from_bits(0x401f_ffff_ffff_ffff), 0.0, 0x3fcc_9c5a_10ee_6a8c),
+        (1.5, 2.9, 0xbfed_d488_026d_9901),
+        (f64::from_bits(0x401f_8e4e_1a5a_4f81), 0.0, 0x3fca_2d24_05bb_0e91),
+    ] {
+        let result = call("BESSELY", vec![n(x), n(order)]).unwrap();
+        assert_eq!(result.as_number().unwrap().to_bits(), expected, "BESSELY({x}, {order})");
+    }
+}
+
+/// The low J0 seed is also consumed by Y0. This Excel 20527 input
+/// distinguishes the rounded Horner multiplications from binary64 alone.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn besselj_low_seed_staging_matches_excel() {
+    let x = f64::from_bits(0x401f_8e4e_1a5a_4f81);
+    let result = call("BESSELJ", vec![n(x), n(0.0)]).unwrap();
+    assert_eq!(result.as_number().unwrap().to_bits(), 0x3fc9_2fbc_1c0b_efbc);
+}
+
+/// The low order-one seeds use stored operations through the rational
+/// quotient and the logarithmic correction. Excel 20527, exact inputs.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn bessel_order_one_seed_staging_matches_excel() {
+    let x = f64::from_bits(0x401e_a32d_8a6b_7a56);
+    let actual = ["BESSELJ", "BESSELY"].map(|function| {
+        let result = call(function, vec![n(x), n(1.0)]).unwrap();
+        result.as_number().unwrap().to_bits()
+    });
+    assert_eq!(actual, [0x3fc6_16b4_a079_a19e, 0xbfcd_b4bd_82a6_e1f7]);
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn bessel_low_rational_seeds_match_recorded_excel_bits() {
