@@ -3,19 +3,19 @@
 //! Bands of `GAMMALN`, dispatching on the positive argument `x`:
 //!   * `x < 0.7`         `core(x+1) - ln(x)`, one double subtract.
 //!   * `0.7 <= x < 1.5`  B1: a stored degree-9/8 Horner quotient in raw `x`, times `x-1`.
-//!   * `1.5 <= x < 2`    B2: stands in SPECFUN's table in x87 continuous arithmetic.
+//!   * `1.5 <= x < 2`    B2: a raw degree-7/7 quotient with stored factors x, x-2 and x-1.
 //!   * `2 <= x <= 3`     B3: Excel's own form, read from its answers: see [`b3_with`].
 //!   * `3 < x < 8`       the recurrence from the `[2,3)` band, identified: see [`recurrence`].
 //!   * `x >= 8`          Stirling: ten Bernoulli terms, worksheet LN and stored stages.
 //!
 //! Excel's bands below 3 are rationals in `x` itself: noise reaches a full unit of the result at
 //! `x = 1 + 2^-52` and `2 + 2^-51`, where a polynomial in `x - 1` or `x - 2` could carry none, and the
-//! steps of the mean error mark Horner products stored before each coefficient is added. The table
-//! for `[1.5,2)` remains under study. The bands `[1.5,2)` and `[2,3]` are separate.
+//! steps of the mean error mark Horner products stored before each coefficient is added. The
+//! three bands use separate tables. See docs/research/gamma-family-2026-11-12.md for the frozen results.
 //!
 //! The x87 operations run on `super::x87::raw` on `x86_64`, and on `super::soft87` elsewhere.
 // ---- band anchors (correctly-rounded transcendentals) --------------------
-const D2: f64 = f64::from_bits(0x3FDB_0EE6_0720_93CE); // 1 - EulerGamma
+const ONE_MINUS_EULER_GAMMA: f64 = f64::from_bits(0x3FDB_0EE6_0720_93CE);
 const D4: f64 = f64::from_bits(0x3FFC_AB0B_FA2A_2002); // ln 6
 const LS2PI: f64 = f64::from_bits(0x3FED_67F1_C864_BEB5); // ln(2*pi)/2
 
@@ -35,28 +35,15 @@ const B1_D: [u64; 9] = [
     0x3f3e_bffd_da5d_d26d,
 ];
 
-// SPECFUN DLGAMA P2/Q2: https://netlib.org/specfun/algama.
-// Published coefficients in the original Horner order, with continuous x87
-// arithmetic. Exact Excel agreement for this band is not established.
-const P2: [f64; 8] = [
-    4.974607845568932035012064e0,
-    5.424138599891070494101986e2,
-    1.550693864978364947665077e4,
-    1.847932904445632425417223e5,
-    1.088204769468828767498470e6,
-    3.338152967987029735917223e6,
-    5.106661678927352456275255e6,
-    3.074109054850539556250927e6,
+// B2 on [1.5,2), measured at the stored denominator products and recovered
+// by inverting the worksheet outputs through the numerator. Lowest power first.
+const B2_N: [u64; 8] = [
+    0x3f63_8e8c_e02b_aa01, 0x3f97_7c14_8735_cbab, 0x3fab_cdc3_471f_69ec, 0x3fa5_9f05_33cb_deef,
+    0x3f86_c8e7_686b_eff4, 0x3f4a_f422_11d4_8214, 0x3ed6_a4e4_59cd_3e24, 0xbe68_12a8_3107_4da4,
 ];
-const Q2: [f64; 8] = [
-    1.830328399370592604055942e2,
-    7.765049321445005871323047e3,
-    1.331903827966074194402448e5,
-    1.136705821321969608938755e6,
-    5.267964117437946917577538e6,
-    1.346701454311101692290052e7,
-    1.782736530353274213975932e7,
-    9.533095591844353613395747e6,
+const B2_D: [u64; 8] = [
+    0xbee0_0000_0000_0000, 0x3f53_c4a8_7ae3_d410, 0x3f94_be7c_906f_f0ac, 0x3fb3_0aae_5374_6110,
+    0x3fb6_ef43_3dc4_82a1, 0x3fa4_687e_0abe_d9d9, 0x3f79_aaec_fc22_ba41, 0x3f31_3d5d_4770_ae5f,
 ];
 
 // B3 on [2,3], read from the stored Horner partials of Excel 20527. Lowest power first.
@@ -112,7 +99,7 @@ fn b1(x: f64) -> f64 {
     if x == 1.0 {
         return 0.0;
     }
-    stored_log_gamma_ratio::<super::Native>(x, 1.0, &B1_N, &B1_D)
+    scaled_horner_ratio::<super::Native>(x, x - 1.0, &B1_N, &B1_D)
 }
 
 /// STIRLING band `x >= 8`: worksheet LN, stored main expression, and the
@@ -136,11 +123,10 @@ fn stirl8(x: f64) -> f64 {
 }
 
 // -------------------------------------------------------------------------
-// B2 / B4 extended-precision bands.
+// Rational bands.
 // -------------------------------------------------------------------------
 
-/// B2 band `[1.5, 4.0)`: SPECFUN's `t*(D2 + t*(P/Q))`, `t = x-2`,
-/// with one final binary64 store after continuous extended arithmetic.
+/// B2 on `[1.5, 2)`. Each of the three factors is multiplied and stored in order.
 fn b2(x: f64) -> f64 {
     b2_with::<super::Native>(x)
 }
@@ -153,33 +139,24 @@ fn b3(x: f64) -> f64 {
 /// The fifth partial of each chain constrains the last four literals. Storing
 /// both final sums reproduces the 56 million consecutive B3 observations.
 fn b3_with<F: super::Fpu>(x: f64) -> f64 {
-    stored_log_gamma_ratio::<F>(x, 2.0, &B3_P, &B3_Q)
+    scaled_horner_ratio::<F>(x, x - 2.0, &B3_P, &B3_Q)
 }
 
-fn stored_log_gamma_ratio<F: super::Fpu>(x: f64, root: f64, numerator: &[u64], denominator: &[u64]) -> f64 {
+fn scaled_horner_ratio<F: super::Fpu>(x: f64, factor: f64, numerator: &[u64], denominator: &[u64]) -> f64 {
     use super::soft87::{CW_PC64_RN as CW, ext_from_f64 as ext};
 
     let n = stored_horner::<F>(x, numerator);
     let d = stored_horner::<F>(x, denominator);
     let r = F::store(&F::div(&ext(n), &ext(d), CW), CW);
-    F::store(&F::mul(&ext(x - root), &ext(r), CW), CW)
+    F::store(&F::mul(&ext(factor), &ext(r), CW), CW)
 }
 
 fn b2_with<F: super::Fpu>(x: f64) -> f64 {
-    use super::soft87::{CW_PC64_RN as CW, ext_from_f64};
+    use super::soft87::{CW_PC64_RN as CW, ext_from_f64 as ext};
 
-    let t = ext_from_f64(x - 2.0);
-    let mut xnum = ext_from_f64(0.0);
-    let mut xden = ext_from_f64(1.0);
-    for i in 0..8 {
-        xnum = F::add(&F::mul(&xnum, &t, CW), &ext_from_f64(P2[i]), CW);
-        xden = F::add(&F::mul(&xden, &t, CW), &ext_from_f64(Q2[i]), CW);
-    }
-    let r = F::div(&xnum, &xden, CW);
-    let t1 = F::mul(&t, &r, CW); // t * r
-    let t2 = F::add(&ext_from_f64(D2), &t1, CW); // D2 + t*r
-    let t3 = F::mul(&t, &t2, CW); // t * (D2 + t*r)
-    F::store(&t3, CW)
+    let first = scaled_horner_ratio::<F>(x, x, &B2_N, &B2_D);
+    let second = F::store(&F::mul(&ext(x - 2.0), &ext(first), CW), CW);
+    F::store(&F::mul(&ext(x - 1.0), &ext(second), CW), CW)
 }
 
 /// B4 band `[4.0, 8.0)`: `D4 + u*(XNUM/XDEN)`, `u = x-4`. Everything extended
@@ -255,8 +232,8 @@ pub(crate) fn gammaln_excel(x: f64) -> f64 {
         // R33 paired public calls below .7: the public upper-band result minus
         // worksheet LN matches all 1217 adjacent/exponent controls. Another
         // 257 primitive LN disagreements reject the runtime-log composition.
-        // The upper table remains approximate; subtraction precision was
-        // indistinguishable in those controls and is unchanged here.
+        // The recovered B1 and B2 tables supply the upper value. Both
+        // subtraction precisions gave the same words on those controls.
         inner - super::excel_log(x)
     } else if x < 8.0 {
         core(x)
@@ -443,7 +420,7 @@ pub(crate) fn gamma_excel(x: f64) -> f64 {
     }
     // At the pole Excel stores the reciprocal before the constant Laurent term.
     if x.abs() <= f64::EPSILON {
-        return super::excel_x87_sub(super::excel_x87_recip(x), 1.0 - D2);
+        return super::excel_x87_sub(super::excel_x87_recip(x), 1.0 - ONE_MINUS_EULER_GAMMA);
     }
     if x < 1.0 {
         let mut argument = x;
@@ -554,13 +531,13 @@ mod tests {
     fn matches_reference_across_bands() {
         close(gammaln_excel(0.5), 0.5723649429247001, 1e-12); // composed -> B2
         close(gammaln_excel(1.2), -0.0853740900033158, 1e-12); // B1 (negative)
-        close(gammaln_excel(3.0), 0.6931471805599453, 1e-12); // B2  (ln 2)
-        close(gammaln_excel(5.0), 3.1780538303479458, 1e-12); // B4  (ln 24)
+        close(gammaln_excel(3.0), 0.6931471805599453, 1e-12); // B3 (ln 2)
+        close(gammaln_excel(5.0), 3.1780538303479458, 1e-12); // recurrence (ln 24)
         close(gammaln_excel(10.0), 12.801827480081471, 1e-11); // Stirling (ln 362880)
         close(gammaln_excel(1e-300), 690.7755278982137, 1e-9); // composed, xp->1
     }
 
-    /// dc-8dg: the B2/B4 bands give the same bits on the software x87 as on the hardware.
+    /// dc-8dg: compare stored rational arithmetic on the software x87 and hardware.
     #[cfg(target_arch = "x86_64")]
     /// Native-only: it runs the x87 hardware, which only x86_64 has.
     #[test]
@@ -572,23 +549,21 @@ mod tests {
             s ^= s >> 7;
             s ^= s << 17;
             let unit = (s >> 11) as f64 / (1u64 << 53) as f64;
-            let x = if i % 2 == 0 {
-                1.5 + 2.5 * unit
-            } else {
-                4.0 + 4.0 * unit
-            };
-            if x < 4.0 {
+            if i % 2 == 0 {
+                let x = 1.5 + 0.5 * unit;
                 assert_eq!(
                     b2_with::<Hard>(x).to_bits(),
                     b2_with::<Soft>(x).to_bits(),
                     "B2 {x:e}"
                 );
+                let x = 2.0 + unit;
                 assert_eq!(
                     b3_with::<Hard>(x).to_bits(),
                     b3_with::<Soft>(x).to_bits(),
                     "B3 {x:e}"
                 );
             } else {
+                let x = 4.0 + 4.0 * unit;
                 assert_eq!(
                     b4_with::<Hard>(x).to_bits(),
                     b4_with::<Soft>(x).to_bits(),

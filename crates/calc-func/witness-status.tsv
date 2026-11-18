@@ -53,7 +53,7 @@ BESSELK	full	20430	1236	1236	-	exact	218dcceeef	0
 BESSELK	pinned	20430	120	120	-	exact	7a3e51cd1b+changes	0
 BESSELY	full	20527	2901	2847	64	numeric	218dcceeef	0
 BETA.DIST	full	20131,20430,?	2822	1695	76	numeric	218dcceeef	0
-BETA.DIST	pinned	20131	120	71	41	numeric	441ef81e11+changes	0
+BETA.DIST	pinned	20131	120	73	41	numeric	e04b96edc4+changes	0
 BETA.INV	full	20527	4346	4081	1188129402768354	structural	218dcceeef	0
 BETADIST	full	20131,20527,?	4639	4533	322	numeric	218dcceeef	0
 BETADIST	pinned	20131	120	88	30	numeric	950e156402+changes	0
@@ -307,9 +307,9 @@ GAMMADIST	full	20131,20527,?	2954	2854	94	numeric	218dcceeef	0
 GAMMADIST	pinned	20131	6	6	-	exact	7a3e51cd1b+changes	0
 GAMMAINV	full	20527	4289	3658	1788117888542	gross	218dcceeef	0
 GAMMALN	full	20131,20228,?	4538	2646	7	numeric	218dcceeef	0
-GAMMALN	pinned	20131,20228	120	98	3	last_bit	441ef81e11+changes	0
+GAMMALN	pinned	20131,20228	120	120	-	exact	e04b96edc4+changes	0
 GAMMALN.PRECISE	full	20131,20228,?	14278	11643	7	numeric	218dcceeef	0
-GAMMALN.PRECISE	pinned	20131	120	110	2	last_bit	950e156402+changes	0
+GAMMALN.PRECISE	pinned	20131	120	120	-	exact	e04b96edc4+changes	0
 GAUSS	full	20228,20430	9728	9728	-	exact	218dcceeef	0
 GAUSS	pinned	20228,20430	120	120	-	exact	7a3e51cd1b+changes	0
 GCD	full	20430	7966	7966	-	exact	218dcceeef	0

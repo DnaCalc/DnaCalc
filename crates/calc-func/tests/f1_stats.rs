@@ -3262,6 +3262,30 @@ fn gammaln_b1_uses_the_stored_raw_argument_table() {
     }
 }
 
+/// Inputs frozen before asking Excel 20527, including tail and factor-order discriminants.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gammaln_b2_stores_each_factor_in_order() {
+    let readings: [(u64, u64); 11] = [
+        (0x3ff8000000000000, 0xbfbeeb95b094c192),
+        (0x3ff8000000000001, 0xbfbeeb95b094c190),
+        (0x3ffac476c7b902ee, 0xbfb9e53944be7828),
+        (0x3ffae30d0f20274b, 0xbfb9884a1ce0bbbf),
+        (0x3ffb05e59074e324, 0xbfb91ad4b9c460c8),
+        (0x3ffb13429853a885, 0xbfb8efd8701be20e),
+        (0x3ffb4c4e8e262fc7, 0xbfb8321a3b8e2541),
+        (0x3ffbf8ccaad19457, 0xbfb5b7bece69bd0d),
+        (0x3ffddf1563ea291c, 0xbfa9ca7f35545075),
+        (0x3ffffffffffffffe, 0xbcab0ee6072093cc),
+        (0x3fffffffffffffff, 0xbc9b0ee6072093cc),
+    ];
+    for (input, answer) in readings {
+        for name in ["GAMMALN", "GAMMALN.PRECISE"] {
+            exact(call(name, vec![n(f64::from_bits(input))]), f64::from_bits(answer));
+        }
+    }
+}
+
 /// Frozen Excel 20527 boundary and denominator-store discriminants on [2,3].
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

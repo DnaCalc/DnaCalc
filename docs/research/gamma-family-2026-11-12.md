@@ -925,3 +925,46 @@ regressions both match their original Excel readings. GAMMA stayed at
 12,602/12,603. The oracle corpus on the step's baseline and after the edit
 gave 77,759 matches in 78,264 formula cells, with 418 mismatches, 73
 external links and 14 circular-rule cases.
+
+### GAMMALN from 1.5 up to 2 (ax1, Excel 20527)
+
+The middle band uses separate degree-seven polynomials in the raw argument.
+Both Horner chains store each product and sum to binary64 from PC64. Store
+their quotient, multiply it by `x`, then by `x-2`, then by `x-1`, storing
+after each multiplication. Of the six factor orders this was the only one
+with a binary64 quotient preimage on all 31,200 fresh inputs. Shifting each
+worksheet output by one word excluded 11,041 inputs with the same order.
+
+The rounding phase of the last denominator addition identified the highest
+coefficient. Continuing the phase towards two located the earlier partials.
+Inverting the stored multiplications and division with this denominator
+admitted a binary64 numerator on 502,716/502,716 sampled inputs. Moving
+each denominator output down or up one word excluded 15,243 and 16,212
+inputs respectively. Inverting the remaining numerator stages left five
+coefficient tables on 87,815 inputs. One table reproduced 178,344,064 of
+178,344,064 outputs in 181 retained windows. The four others missed 885
+to 1,610 outputs each.
+
+Predictions for the five tables and store alternatives were frozen before
+asking Excel for new inputs. The surviving table matched all 105,380
+GAMMALN and 15,055 GAMMALN.PRECISE answers. Keeping the last numerator sum
+or the quotient in PC64 missed 621 and 26,766 GAMMALN answers respectively.
+The recovered table adds exactly −2⁻¹⁷ to the final denominator product.
+Its resident and stored sums gave identical predictions on these inputs.
+The frozen predictions have SHA256
+`6506a28e66ee07f210d6063ec9c6fb6cd0d71ae4046a0a4e13c34cb2364ecc0f`
+under `dnacalc-evidence/research/ax1-20261118/run2-b2-solved/`.
+
+The native and software x87 worksheet implementations each reproduced all
+120,435 fresh readings. Before this change the application matched 28,759 of
+105,380 GAMMALN and 4,130 of 15,055 PRECISE readings on the same inputs.
+The full GAMMALN bank went from 3,663 to 4,538/4,538, with 869 gains in B2
+and six below 0.7. PRECISE went from 13,049 to 14,278/14,278, with 899 in
+B2 and 330 below 0.7. Neither lost a row. GAMMA stayed at 12,602/12,603.
+Of 45,261 pinned application witnesses, 34 changed, all to their original
+Excel outputs. Two of those gains are in BETA.DIST.
+
+On baseline `e04b96ed` and after the B2 change, the oracle corpus matched
+77,761 of 78,264 formula cells. The per-cell comparison across all 62
+workbooks found zero changed verdicts. The 503 failures comprised 416
+mismatches, 73 external links and 14 circular-rule cases.
