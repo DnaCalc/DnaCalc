@@ -136,6 +136,7 @@ pub(crate) fn read_biff5<'a>(
 ) -> (Caches, BTreeMap<u16, u32>) {
     let mut candidates: BTreeMap<(usize, u16), Option<(Cells, u32)>> = BTreeMap::new();
     let mut blocked_books = BTreeSet::new();
+    let mut invalid_books = BTreeSet::new();
     for (records, table) in tables {
         let mut next_target = 0usize;
         let mut target = None;
@@ -150,9 +151,11 @@ pub(crate) fn read_biff5<'a>(
                 if let Some((book, _)) = target { blocked_books.insert(book); }
             }
             if record.id == 0x0059 && record.body.len() == 2 && record.continues.is_empty() {
-                let count = u16::from_le_bytes([record.body[0], record.body[1]]) as usize;
+                let count = i16::from_le_bytes([record.body[0], record.body[1]]);
                 if let Some(key) = target {
-                    if candidates.contains_key(&key) || count > i16::MAX as usize || count > records.len().saturating_sub(i + 1) {
+                    if count < 0 { invalid_books.insert(key.0); }
+                    let count = usize::from(count.unsigned_abs());
+                    if candidates.contains_key(&key) || count > records.len().saturating_sub(i + 1) {
                         candidates.insert(key, None); i += 1; continue;
                     }
                     let mut cells = Cells::new();
@@ -178,7 +181,7 @@ pub(crate) fn read_biff5<'a>(
     for (key, candidate) in candidates {
         if blocked_books.contains(&key.0) { continue; }
         if let Some((cells, count)) = candidate {
-            out.insert(key, CachedSheet { cells, refresh_error: false });
+            out.insert(key, CachedSheet { cells, refresh_error: invalid_books.contains(&key.0) });
             *consumed.entry(0x0059).or_insert(0) += 1;
             *consumed.entry(0x005A).or_insert(0) += count;
         }
