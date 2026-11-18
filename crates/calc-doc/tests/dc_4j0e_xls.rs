@@ -1182,6 +1182,17 @@ fn custom_blob_fixture_is_counted_as_unread() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn custom_property_with_unaligned_code_page_is_retained() {
+    let bytes = custom_property_fixture(true);
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let xml = String::from_utf8(document.package().read_part("docProps/custom.xml").unwrap()).unwrap();
+    assert!(xml.contains("name=\"cxBlob\"") && xml.contains("<vt:i4>42</vt:i4>"), "{xml}");
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert_eq!(report.unread_custom_property_sets, 0);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn ole_summary_properties_survive_conversion_and_save() {
     let mut properties = Vec::<(u32, Vec<u8>)>::new();
     properties.push((1, [2u32.to_le_bytes().as_slice(), 1252u16.to_le_bytes().as_slice(), &[0, 0]].concat()));
