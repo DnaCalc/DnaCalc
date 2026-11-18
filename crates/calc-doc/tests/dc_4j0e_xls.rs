@@ -1517,7 +1517,7 @@ fn rows_and_columns_keep_height_hidden_and_outline() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn row_border_and_phonetic_flags_survive_conversion_and_save() {
+fn row_border_flags_survive_without_turning_phonetic_summary_into_a_default() {
     let mut records = record(0x0225, &u16s(&[0x000C, 255]));
     let mut formatted = row(0, 255, 0);
     let last = formatted.len() - 1;
@@ -1531,14 +1531,15 @@ fn row_border_and_phonetic_flags_survive_conversion_and_save() {
         let defaults = xml.split("<sheetFormatPr ").nth(1).unwrap().split('>').next().unwrap();
         assert!(defaults.contains("thickTop=\"1\"") && defaults.contains("thickBottom=\"1\""));
         let row = xml.split("<row ").nth(1).unwrap().split('>').next().unwrap();
-        assert!(row.contains("thickTop=\"1\"") && row.contains("thickBot=\"1\"") && row.contains("ph=\"1\""));
+        assert!(row.contains("thickTop=\"1\"") && row.contains("thickBot=\"1\"") && !row.contains("ph=\"1\""));
     };
     check(&document);
     let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
     let mut saved = Vec::new();
     calc_doc::write(plan, &mut saved).unwrap();
     check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
-
+    let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
+    assert_eq!(report.unknown_records.get(&0x0208), Some(&1));
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
