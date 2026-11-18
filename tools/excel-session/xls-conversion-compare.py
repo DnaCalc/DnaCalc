@@ -580,6 +580,10 @@ def compare(expected, actual):
                 diffs.append({'path': path + '/length', 'excel': len(a), 'dnacalc': len(b)})
             for i, (x, y) in enumerate(zip(a, b)):
                 walk(path + '/' + str(i), x, y)
+            for i in range(min(len(a), len(b)), max(len(a), len(b))):
+                diffs.append({'path': path + '/' + str(i),
+                              'excel': a[i] if i < len(a) else None,
+                              'dnacalc': b[i] if i < len(b) else None})
         elif a != b:
             diffs.append({'path': path, 'excel': a, 'dnacalc': b})
     walk('', expected, actual)
