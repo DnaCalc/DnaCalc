@@ -995,8 +995,10 @@ fn detrended(y: &[f64]) -> Vec<f64> {
 /// eng24 (Touchstone boundary probes of Excel 20527): a dominant-bin test on
 /// the tapered periodogram of the least-squares residuals (see the block
 /// below); from 17 points longer bin periods take their lag from the unbiased
-/// autocorrelation; without a dominant bin a fallback keeps some candidates of
-/// eng22's detector (strongest bin, its lag range, a competing lower bin).
+/// autocorrelation. A spectral outlier can supply a longer period when no
+/// autocorrelation candidate is accepted. Without a dominant bin the
+/// autocorrelation fallback keeps some candidates of eng22's detector
+/// (strongest bin, its lag range, a competing lower bin).
 /// Exact at n = 5..10 on every probe; the lag choice and the fallback are
 /// fitted, not Excel's identified rule.
 fn detect_period(y: &[f64]) -> usize {
@@ -1061,6 +1063,7 @@ fn detect_period(y: &[f64]) -> usize {
         }
     };
     let fallback: f64;
+    let outlier_period;
     {
         // The automatic period (eng24, Touchstone boundary probes of Excel
         // 20527): the strongest bin k of the residual periodogram gives the
@@ -1114,23 +1117,38 @@ fn detect_period(y: &[f64]) -> usize {
         }
         let second = (1..power.len()).filter(|&k| k != top).map(|k| power[k]).fold(0.0_f64, f64::max);
         let dominant = power[top] >= (2.0 - 3.0 / n as f64) * second;
+        let period = (n as f64 / top as f64 - 0.5 - 1e-12).ceil();
+        // Excel 20527's spectral outlier boundary for longer periods: the
+        // strongest non-DC bin is 2.5 standard deviations above the mean.
+        // Excel divides the squared-power sum by count - 1 and the power
+        // sum by count. Scale by the peak before squaring to avoid overflow.
+        outlier_period = if period >= 6.0 && period <= last_lag as f64 && power[top].is_finite() {
+            let count = (power.len() - 1) as f64;
+            let (total, squares) = power[1..].iter().fold((0.0, 0.0), |(sum, squares), bin| {
+                let normalized = bin / power[top];
+                (sum + normalized, squares + normalized * normalized)
+            });
+            let mean = total / count;
+            let deviation = (squares / (count - 1.0) - mean * mean).sqrt();
+            if 1.0 - mean >= 2.5 * deviation { period as usize } else { 0 }
+        } else {
+            0
+        };
         if dominant && n >= 17 && n as f64 / top as f64 > 5.25 {
             // From seventeen observations, a bin period above 5.25: the lag is the unbiased-autocorrelation maximum among
             // the lags strictly between n/(k+1) and n/(k-1), kept when that
             // autocorrelation is at least 0.45 (the value at the measured
-            // boundaries). The 5.25 split is fitted (eng24 hyb5.py, eval24.py):
+            // boundaries). The outlier period supplies the spectral fallback.
+            // The 5.25 split is fitted (eng24 hyb5.py, eval24.py):
             // random histories at n = 17, 20, 23 agree 97%, 96%, 96% (the
             // earlier rule 78-80%), sinusoid maps from 17 points 7,568 of
             // 8,476 (7,354), eng21 probes 1,143 of 1,337 (1,080).
             let chosen = lags_of(top);
             if chosen != 0 {
-                return if unbiased(chosen) >= 0.45 { chosen } else { 0 };
+                return if unbiased(chosen) >= 0.45 { chosen } else { outlier_period };
             }
-        } else {
-            let period = (n as f64 / top as f64 - 0.5 - 1e-12).ceil();
-            if dominant && period >= 2.0 && period <= last_lag as f64 {
-                return period as usize;
-            }
+        } else if dominant && period >= 2.0 && period <= last_lag as f64 {
+            return period as usize;
         }
         if n <= 10 {
             return 0;
@@ -1155,7 +1173,7 @@ fn detect_period(y: &[f64]) -> usize {
     }
     let second = if second_bin > 0 && second_power * 4.0 > power[top] { lags_of(second_bin) } else { 0 };
     let chosen = match (first, second) {
-        (0, 0) => return 0,
+        (0, 0) => return outlier_period,
         (0, p) | (p, 0) => p,
         (a, b) if a == b => a,
         (a, b) => {
@@ -1175,7 +1193,7 @@ fn detect_period(y: &[f64]) -> usize {
     // gains 2 corpus readings, 14 of 316 eng21 probes and 7 of 358 sinusoid
     // map readings, and is level on 40,000 random histories; eng24 fb5.py)
     // or >= 0.45 (from 17 points, hyb5.py).
-    if chosen >= 4 && unbiased(chosen) >= fallback { chosen } else { 0 }
+    if chosen >= 4 && unbiased(chosen) >= fallback { chosen } else { outlier_period }
 }
 
 /// The five candidates Excel 20527 selects among for period two on five to

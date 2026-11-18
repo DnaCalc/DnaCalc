@@ -753,6 +753,22 @@ fn ets_seasonality_from_twenty_points_tapers_the_ends() {
     }
 }
 
+/// Excel 20527 reports period 8 for dcj9k_r39_ets!D564, where the strongest
+/// spectral bin stands out from the full spectrum without dominating the second bin.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_seasonality_accepts_a_spectral_outlier() {
+    let mut history = [
+        -3.0, 13.375, -12.625, -5.5, -6.375, -12.625, -13.125, -5.625, -12.75, 3.875, 6.625,
+        1.125, -17.625, -10.25, -7.75, -5.375, -1.75, -0.625, -10.0, -22.625, -29.25, -31.0,
+        -29.0, -22.625,
+    ];
+    let timeline: Vec<f64> = (1..=history.len()).map(|value| value as f64).collect();
+    exact(call("FORECAST.ETS.SEASONALITY", vec![col(&history), col(&timeline)]), 8.0);
+    history[13] += 1.0;
+    exact(call("FORECAST.ETS.SEASONALITY", vec![col(&history), col(&timeline)]), 0.0);
+}
+
 /// Excel 20527 seasonal starting states below four cycles (oracle corpus dcj9k_r38_ets rows
 /// 1737-1738 and 2633-2634, period 4 on 8 and 12 points): the history is extended to
 /// ceil(3.5 p) points before the phase-mean chain, and the parameter search runs on the extension.
@@ -3367,6 +3383,23 @@ fn mod_reports_a_subnormal_remainder_as_num() {
         ),
         f64::from_bits(0x801f_0000_0000_0000),
     );
+}
+
+/// Excel 20527, ax1 frozen B1 product controls. A direct binary64 multiply
+/// by x-1 cannot produce these words for any binary64 quotient.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gammaln_stores_the_b1_product_from_pc64() {
+    for name in ["GAMMALN", "GAMMALN.PRECISE"] {
+        for (input, expected) in [
+            (0x3fe7_9a1a_b149_7cef, 0x3fcb_c630_3072_9c7c),
+            (0x3fed_f00c_3cf9_bf97, 0x3fa4_da54_9be8_b610),
+            (0x3ff0_97a5_d73f_e912, 0xbf94_bfce_ed53_bd7a),
+            (0x3ff7_aa42_af09_12fa, 0xbfbf_1023_221a_3ab2),
+        ] {
+            exact(call(name, vec![n(f64::from_bits(input))]), f64::from_bits(expected));
+        }
+    }
 }
 
 /// R33 Excel20527 Value2 logarithm discriminants, with both public aliases.

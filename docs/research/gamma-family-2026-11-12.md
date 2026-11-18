@@ -764,3 +764,26 @@ Windows/browser checks are still outstanding.
 After pulling 80832179, the final Linux check passes 922 tests, zero failures.
 The complete comparison against the lane-start trace gives 4,380 gains and one loss;
 GAMMA(-2.5) is that remaining lost reading.
+
+## ax1 run 2 (2026-11-18), the final GAMMALN B1 product
+
+Excel multiplies a binary64 quotient by `x-1` in PC64 and stores the result to
+binary64. For each of nine million Excel outputs on B1, divide by `x-1` and
+try the nearest binary64 quotient and its two neighbors. A PC64 product reaches
+every output. A direct binary64 multiplication cannot produce 972 of them.
+
+Before asking Excel, ax1 froze 2,048 fresh inputs where the two multiplies differ
+with the existing Cody-Hillstrom quotient. Excel 20527 gave the PC64 prediction
+666 times and the direct prediction 166 times. Both predictions missed 1,216
+times. The two worksheet names agreed on all 2,048 words. Four application
+controls use outputs that a direct multiplication cannot reach for any quotient.
+The stand-in quotient and the unidentified Excel table account for the remaining
+work on this band.
+
+On master a6fb3018 the final store alone takes GAMMALN.PRECISE from 11,643
+to 11,644 of 14,278. GAMMALN gives 2,646 of 4,538 before and after. GAMMA
+gives 12,572 of 12,603 before and after. The oracle corpus gives 77,641 of
+78,264 both times, with 536 mismatches, 73 external links and 14 circular cases.
+The frozen predictions, raw replies and measurements are in
+`dnacalc-evidence/research/ax1-20261118/run2-b1-store/`. The frozen file SHA256
+is `bc5d27ffa16a2908f73f14e1bf705f6a95194183234f9ccc555cdad879bc7c4c`.
