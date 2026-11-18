@@ -3262,6 +3262,26 @@ fn gammaln_b1_uses_the_stored_raw_argument_table() {
     }
 }
 
+/// Frozen Excel 20527 boundary and denominator-store discriminants on [2,3].
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gammaln_b3_stores_both_sums_before_dividing() {
+    for (input, answer) in [
+        (0x4000000000000000_u64, 0_u64),
+        (0x4000000000000001, 0x3cab0ee6072093d0),
+        (0x400248cc9b54d9db, 0x3fc2a227d6fe2f0c),
+        (0x400248f28658680a, 0x3fc2a38f1d00a5dd),
+        (0x4005ca7f7671901c, 0x3fdd0dde8b4a0801),
+        (0x4005ca9502ea2822, 0x3fdd0e69bbe6bfcf),
+        (0x4007ffffffffffff, 0x3fe62e42fefa39eb),
+        (0x4008000000000000, 0x3fe62e42fefa39f0),
+    ] {
+        for name in ["GAMMALN", "GAMMALN.PRECISE"] {
+            exact(call(name, vec![n(f64::from_bits(input))]), f64::from_bits(answer));
+        }
+    }
+}
+
 /// Original GAMMA answers from both former fitting halves, with known gaps.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

@@ -119,7 +119,7 @@
     {"args":["0x401032d0ab7d8d86","0x40003741d64fcf20","0x3ffa2bc5d3b56111","0x3ff0000000000000","0x3fec05541bb7c280","0x401269112960ef0c"],"calc_func":"0x3fec907c991682a2","expected_bits":"0x3fec907c991682a1","id":"oc2338","reading":"r0"},
     {"args":["0xbfa2428e3ec4b4c0","0x400090940bc84c7f","0x40154171e8cd0848","0x3ff0000000000000","0xc00580770ec2dbad","0x3ffca0b06284c3ba"],"expected_bits":"0x3feec9036c932546","id":"oc2555","reading":"r0"},
     {"args":["0xbfd07984a1b15562","0x400c5153877f4f73","0x3fe6e02ffe056f92","0x3ff0000000000000","0xbff3d94cbd5e6dd8","0x3febb1882cc014c0"],"expected_bits":"0x3fa4f30dcbb3a108","id":"oc2424","reading":"r0"},
-    {"args":["0xbfdcdd0f69bd8f6e","0x4008af7b948bf28f","0x3feaaf9bd2261085","0x3ff0000000000000","0xbfe8b34c53980dcc","0x4010a0e717a025ce"],"calc_func":"0x3f24c34186758a6b","expected_bits":"0x3f24c34186758a6c","id":"oc2608","reading":"r0"},
+    {"args":["0xbfdcdd0f69bd8f6e","0x4008af7b948bf28f","0x3feaaf9bd2261085","0x3ff0000000000000","0xbfe8b34c53980dcc","0x4010a0e717a025ce"],"expected_bits":"0x3f24c34186758a6c","id":"oc2608","reading":"r0"},
     {"args":["0xbfe7862c524255d2","0x3fffa8f54228a5da","0x400a12eb7b4e51f8","0x3ff0000000000000","0xbfec0d20bea557e8","0x3ff072322a813baa"],"expected_bits":"0x3fa23e7e94fffb46","id":"oc2234","reading":"r0"},
     {"args":["0xbff0161b5b829876","0x3ffa0b297f34c2ea","0x3ff6006ed014e6df","0x3ff0000000000000","0xc0021240d41c90dd","0xbfd2d02b048bb620"],"expected_bits":"0x3fe388899b0b2197","id":"oc2753","reading":"r0"},
     {"args":["0xbff42bb06cf56fd1","0x3fe87b54368686f9","0x40106c202a10f602","0x3ff0000000000000","0xc00262af299de986","0xbfe7f393853a4a44"],"expected_bits":"0x3fefc97e0e91c18a","id":"oc2603","reading":"r0"},

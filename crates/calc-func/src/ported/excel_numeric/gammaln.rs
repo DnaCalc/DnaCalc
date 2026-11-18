@@ -59,17 +59,17 @@ const Q2: [f64; 8] = [
     9.533095591844353613395747e6,
 ];
 
-// ---- B3 [2,3]: fitted to Excel's answers, lowest power first. See `b3_with`. ------------------
+// B3 on [2,3], read from the stored Horner partials of Excel 20527. Lowest power first.
 const B3_P: [u64; 9] = [
     0xC002_2260_ED97_8401,
     0xC03D_E852_AEE8_C149,
     0xC050_AE34_EB3C_BAD5,
     0xC000_8305_B479_9884,
     0x404F_0A8C_0539_86D7,
-    0x4040_9FD1_AD1D_8E4C,
-    0x4015_72BF_8684_2F87,
-    0x3FD0_EE2F_1188_4D48,
-    0x3F65_E5B7_3842_7958,
+    0x4040_9FD1_AD1D_8E61,
+    0x4015_72BF_8684_2EB2,
+    0x3FD0_EE2F_1188_52D6,
+    0x3F65_E5B7_3842_17A4,
 ];
 const B3_Q: [u64; 9] = [
     0x3FF0_0000_0000_0001,
@@ -77,10 +77,10 @@ const B3_Q: [u64; 9] = [
     0x405E_DDF2_040D_2BC2,
     0x4067_B39F_C919_4438,
     0x405C_5151_77EB_1641,
-    0x403B_B43B_464D_392A,
-    0x4005_3036_58EF_46BA,
-    0x3FB5_2FC9_914B_C0FA,
-    0x3F40_3CAD_F2CE_38F8,
+    0x403B_B43B_464D_3960,
+    0x4005_3036_58EF_44AB,
+    0x3FB5_2FC9_914B_DB8B,
+    0x3F40_3CAD_F2CC_735D,
 ];
 
 // ---- B4 [4.0,8.0): SPECFUN dlgama published P4/Q4 (ascending Horner order) --
@@ -112,9 +112,7 @@ fn b1(x: f64) -> f64 {
     if x == 1.0 {
         return 0.0;
     }
-    let n = stored_horner::<super::Native>(x, &B1_N);
-    let d = stored_horner::<super::Native>(x, &B1_D);
-    super::excel_x87_mul(x - 1.0, super::excel_x87_div(n, d))
+    stored_log_gamma_ratio::<super::Native>(x, 1.0, &B1_N, &B1_D)
 }
 
 /// STIRLING band `x >= 8`: worksheet LN, stored main expression, and the
@@ -152,36 +150,19 @@ fn b3(x: f64) -> f64 {
     b3_with::<super::Native>(x)
 }
 
-/// `y = (x-2) * R`, `R = P(x)/Q(x)`, both polynomials of degree 8 in `x` itself: the inferred
-/// G4 shape for Excel 16.0.20527 on the x87 at precision 64. Every Horner product and sum is
-/// stored to binary64 except the denominator's last sum, which stays in the register for the
-/// division; `R` is stored, and so is the answer (2026-11-12 research log).
-///
-/// Each stored stage leaves a line in the error of Excel's answers on windows of consecutive
-/// doubles. Their phases give stage values linked by `S(k-1) = x S(k) + c(k-1)`. The jumps where
-/// the numerator's last sum crosses a power of two distinguish its store from a resident sum.
-///
-/// The coefficient bits are fitted inside this shape using compensated coefficient moves,
-/// scored on a subsample of 258 windows. The table matches 94.1% of all 264,192 E1 inputs,
-/// at least 88% in each window, and gives Excel's answers at 2.5, 2.75 and 3 without point
-/// overrides. The remaining low coefficient bits are unresolved; E1b predictions are frozen
-/// for a held-out check. See `docs/research/gamma-family-2026-11-12.md`.
+/// The fifth partial of each chain constrains the last four literals. Storing
+/// both final sums reproduces the 56 million consecutive B3 observations.
 fn b3_with<F: super::Fpu>(x: f64) -> f64 {
+    stored_log_gamma_ratio::<F>(x, 2.0, &B3_P, &B3_Q)
+}
+
+fn stored_log_gamma_ratio<F: super::Fpu>(x: f64, root: f64, numerator: &[u64], denominator: &[u64]) -> f64 {
     use super::soft87::{CW_PC64_RN as CW, ext_from_f64 as ext};
 
-    let chain = |c: &[u64; 9]| {
-        let mut value = f64::from_bits(c[8]);
-        for &bits in c[1..8].iter().rev() {
-            let product = F::store(&F::mul(&ext(value), &ext(x), CW), CW);
-            value = F::store(&F::add(&ext(product), &ext(f64::from_bits(bits)), CW), CW);
-        }
-        let product = F::store(&F::mul(&ext(value), &ext(x), CW), CW);
-        F::add(&ext(product), &ext(f64::from_bits(c[0])), CW)
-    };
-    // The numerator's last sum is stored, the denominator's stays in the register (E1, 2026-11-12).
-    let (num, den) = (ext(F::store(&chain(&B3_P), CW)), chain(&B3_Q));
-    let r = F::store(&F::div(&num, &den, CW), CW);
-    F::store(&F::mul(&ext(r), &ext(x - 2.0), CW), CW)
+    let n = stored_horner::<F>(x, numerator);
+    let d = stored_horner::<F>(x, denominator);
+    let r = F::store(&F::div(&ext(n), &ext(d), CW), CW);
+    F::store(&F::mul(&ext(x - root), &ext(r), CW), CW)
 }
 
 fn b2_with<F: super::Fpu>(x: f64) -> f64 {
@@ -232,7 +213,7 @@ fn b4_with<F: super::Fpu>(x: f64) -> f64 {
 /// R49 independently confirms 1,348 more inputs in `(3,8)`, including adjacent integer
 /// boundaries. The endpoint `x=3` is excluded: its published answer is one ulp above
 /// `LN(2)`, and is handled by `b3`. This identity is conditional on the public lower
-/// answer; it does not identify the unresolved core table. The literal `0.7` join
+/// answer; the B3 table is verified separately. The literal `0.7` join
 /// and this reduction were already implemented before the R49 recheck.
 fn recurrence(x: f64) -> f64 {
     recurrence_from(x, b3(2.0 + (x - x.floor())))

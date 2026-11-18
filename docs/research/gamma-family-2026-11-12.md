@@ -891,3 +891,37 @@ external links and 14 circular-rule cases. One BETAINV pin, oc50, lost
 a previously compensating match. All three of its public log-gamma
 normalizers now agree with live Excel, including the corrected GAMMALN(0.8).
 Excel's inverse gives `3fe2a75ac7442df6` and the engine gives its predecessor.
+
+### GAMMALN from 2 through 3 (ax1, Excel 20527)
+
+The final denominator sum is stored to binary64. The earlier G4 table
+compensated for errors in the last four coefficients of each polynomial.
+
+Holding the first five literals of each chain fixed, every one of 180,096
+sampled worksheet outputs admitted a pair of fifth Horner partials within
+one word of the earlier G4 partials. Inverting the remaining stored
+operations bounded the possible literals. With the low powers numbered from
+zero, the surviving changes to powers five through eight, in units of the
+original literals' spacing, were (+21, −213, +1422, −25012) in the numerator
+and (+54, −527, +6801, −116123) in the denominator. The rounding phase of
+the penultimate addition independently located the numerator's final word.
+Two synthetic controls recovered the planted changes of +170 and −84 words.
+
+Both chains, the quotient and the final multiplication use PC64 followed by
+binary64 stores. This reproduced 56,000,000/56,000,000 retained outputs,
+including windows centered at changes of binade. The Rust worksheet call
+matched 105,706/105,706 fresh GAMMALN and 15,101/15,101 fresh PRECISE
+outputs. Keeping the final denominator sum resident missed 118 and 12
+respectively. Exact one and its successor for the denominator constant
+gave identical stored predictions. The frozen predictions have SHA256
+`80809f557c4b50a1c4f1ff7ea7b07c57b27a623ac6d1f7b29b2e3c927e6baaa3`
+under `dnacalc-evidence/research/ax1-20261118/run2-b3-solved/`.
+
+The full bank moved from 3,612 to 3,663 of 4,538 for GAMMALN and from
+12,945 to 13,049 of 14,278 for PRECISE, with no losses. All 700 and 1,116
+direct B3 rows and all 795 and 2,728 rows on the recurrence above 3 and
+below 8 now match. The previous BETA.DIST oc2608 and GAMMALN oc3531
+regressions both match their original Excel readings. GAMMA stayed at
+12,602/12,603. The oracle corpus on the step's baseline and after the edit
+gave 77,759 matches in 78,264 formula cells, with 418 mismatches, 73
+external links and 14 circular-rule cases.

@@ -1212,7 +1212,7 @@ mod tests {
             "GAMMALN(4.25)",
             gammaln_kernel(4.25).unwrap(),
             0x4000ea6864c19995,
-            0x4000ea6864c19994,
+            0x4000ea6864c19995,
         );
         assert_recorded_bits(
             "GAMMALN(5.25)",
