@@ -154,21 +154,24 @@ pub(super) fn jn(order: i32, x: f64) -> f64 {
     let magnitude = x.abs();
     let n = f64::from(order);
     let start = 2.0 * ((n + (40.0 * n).sqrt().floor()) / 2.0).floor();
-    let twice_over_x = 2.0 / magnitude;
+    // Excel 20527 distinguishes stores in the initial ratio, backward
+    // recurrence, rescaling products and final division.
+    let twice_over_x = excel_x87_div(2.0, magnitude);
     let mut result = 0.0;
     let mut current = 1.0;
     let mut next = 0.0;
     let mut total = 0.0;
     let mut add_to_total = false;
     for index in (1..=start as i32).rev() {
-        let previous = f64::from(index) * twice_over_x * current - next;
+        let scaled = excel_x87_mul(f64::from(index) * twice_over_x, current);
+        let previous = excel_x87_sub(scaled, next);
         next = current;
         current = previous;
         if current.abs() > 1E10 {
-            current *= 1E-10;
-            next *= 1E-10;
-            result *= 1E-10;
-            total *= 1E-10;
+            current = excel_x87_mul(current, 1E-10);
+            next = excel_x87_mul(next, 1E-10);
+            result = excel_x87_mul(result, 1E-10);
+            total = excel_x87_mul(total, 1E-10);
         }
         if add_to_total {
             total += current;
@@ -179,7 +182,7 @@ pub(super) fn jn(order: i32, x: f64) -> f64 {
         }
     }
     total = 2.0 * total - current;
-    result /= total;
+    result = excel_x87_div(result, total);
     if x < 0.0 && order % 2 != 0 {
         -result
     } else {
@@ -237,24 +240,31 @@ const PHASE_J0: &[f64] = &[
     -0.934935152e-7,
 ];
 
-fn j_large(x: f64, offset: f64, amplitude: &[f64], correction: &[f64]) -> f64 {
+fn j_large(
+    x: f64,
+    offset: f64,
+    amplitude: &[f64],
+    correction: &[f64],
+    multiply_leading: impl FnOnce(f64, f64) -> f64,
+) -> f64 {
     let square = x * x;
     let phase = x - offset;
     let reduction = 64.0 / square;
     let amplitude = polynomial(reduction, amplitude);
     let correction = polynomial(reduction, correction);
-    let leading = excel_cos(phase) * amplitude;
+    let leading = multiply_leading(excel_cos(phase), amplitude);
     let trailing = ((8.0 / x) * excel_sin(phase)) * correction;
     let scale = (W / x).sqrt();
     scale * (leading - trailing)
 }
 
 pub(super) fn j0_large(x: f64) -> f64 {
-    j_large(x.abs(), 0.785398164, AMP_J0, PHASE_J0)
+    // High order-zero probes distinguish the store from PC64 on this product.
+    j_large(x.abs(), 0.785398164, AMP_J0, PHASE_J0, excel_x87_mul)
 }
 
 pub(super) fn j1_large(x: f64) -> f64 {
-    let value = j_large(x.abs(), 2.356194491, AMP_J1, PHASE1);
+    let value = j_large(x.abs(), 2.356194491, AMP_J1, PHASE1, |a, b| a * b);
     if x < 0.0 { -value } else { value }
 }
 

@@ -4,6 +4,7 @@
 use crate::ported::complex_decimal;
 use crate::ported::excel_numeric::{
     crt_atan2, crt_cos, crt_cosh, crt_exp, crt_hypot, crt_log, crt_pow, crt_sin, crt_sinh,
+    excel_x87_div,
 };
 use crate::value::WorksheetErrorCode;
 
@@ -333,14 +334,32 @@ impl ParsedComplex {
         }
         crate::ported::real_policy::ExcelRealPolicy::CIRCULAR_TRIG.check_arg(self.re)?;
         let (sin, cos) = complex_circular_parts(self.re);
-        let cos_double = 2.0 * cos * cos - 1.0;
-        let denom = crt_cosh(2.0 * self.im) - cos_double;
+        // Excel 20527 uses separate small-argument bounds for the two
+        // hyperbolic factors. Beyond them the exponential retains y's sign.
+        let doubled = 2.0 * self.im;
+        let square = doubled * doubled;
+        let sinh_series = doubled + (doubled * square) * (1.0 / 6.0 + square / 120.0);
+        let (cosh_double, sinh_double) = if doubled.abs() <= 0.0001 {
+            (1.0 + square / 2.0, sinh_series)
+        } else {
+            let exponential = crate::ported::exp_fn::exp_kernel(doubled);
+            let reciprocal = 1.0 / exponential;
+            let sinh_double = if doubled.abs() <= 0.01 {
+                sinh_series
+            } else {
+                (exponential - reciprocal) / 2.0
+            };
+            ((exponential + reciprocal) / 2.0, sinh_double)
+        };
+        // Adding one before subtracting the circular term accounts for the
+        // observed even denominator steps near the imaginary axis.
+        let denom = (cosh_double + 1.0) - 2.0 * cos * cos;
         if denom == 0.0 {
             return Err(WorksheetErrorCode::Num);
         }
         Ok(Self::new(
-            (2.0 * sin * cos) / denom,
-            -crt_sinh(2.0 * self.im) / denom,
+            excel_x87_div(2.0 * sin * cos, denom),
+            excel_x87_div(-sinh_double, denom),
             None,
         ))
     }
