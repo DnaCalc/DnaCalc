@@ -84,6 +84,7 @@ pub(crate) fn collect_numeric_vector_from_eval(
 /// Excel 16.0 b20026, identical for array constants and ranges):
 /// numbers are included; text, logical, and blank/empty cells are **ignored**;
 /// and **any** error cell maps to `#VALUE!` (the specific code is not propagated).
+/// Excel 20527 also reads rectangular arrays and ranges in row-major order.
 /// A whole-argument scalar error still propagates as usual. This differs from the
 /// strict positional collector used by XNPV/XIRR, whose values must stay aligned
 /// with the parallel dates array.
@@ -95,9 +96,6 @@ pub(crate) fn collect_irr_values_from_eval(
         CoreRef::Error(code) => Err(CashflowRateEvalError::Domain(code)),
         CoreRef::Array(array) => {
             let shape = array.shape();
-            if shape.rows > 1 && shape.cols > 1 {
-                return Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Ref));
-            }
             let mut out = Vec::with_capacity(shape.rows * shape.cols);
             for cell in array.iter_row_major() {
                 match cell.core_ref() {

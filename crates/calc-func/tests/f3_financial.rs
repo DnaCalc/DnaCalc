@@ -1092,6 +1092,35 @@ fn fv_stores_the_growth_base_before_power() {
     }
 }
 
+/// Excel 20527 reads matrices row by row, including cells reached through a range.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn irr_reads_rectangular_cashflows_in_row_major_order() {
+    let numbers = arr(vec![vec![-16.0, 8.0, 16.0], vec![32.0, 32.0, 64.0]]);
+    exact(call("IRR", vec![numbers, n(1.0)]), 1.0);
+    let mixed = arr_values(vec![
+        vec![n(-16.0), t("skip"), n(8.0), b(true)],
+        vec![n(16.0), n(32.0), n(32.0), n(64.0)],
+    ]);
+    exact(call("IRR", vec![mixed, n(1.0)]), 1.0);
+    let with_error = arr_values(vec![
+        vec![n(-16.0), e(NA), n(8.0)],
+        vec![n(16.0), n(32.0), n(64.0)],
+    ]);
+    error(call("IRR", vec![with_error, n(1.0)]), Value);
+
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![n(-16.0), n(16.0)]);
+    sheet.column(2, 2, vec![n(32.0)]);
+    sheet.column(1, 3, vec![n(8.0), n(32.0)]);
+    sheet.column(2, 4, vec![n(64.0)]);
+    let range = sheet.area(1, 1, 2, 4);
+    exact(call_on(&mut sheet, "IRR", vec![range, n(1.0)]), 1.0);
+    sheet.column(1, 2, vec![e(NA)]);
+    let range = sheet.area(1, 1, 2, 4);
+    error(call_on(&mut sheet, "IRR", vec![range, n(1.0)]), Value);
+}
+
 /// Excel 16.0 build 20228, answers-irr-exact-graph-discovery-20260809.json,
 /// d16-root / d16-far_p010 and d11-root. These run through the application call path.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
