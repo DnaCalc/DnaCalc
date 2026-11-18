@@ -594,6 +594,8 @@ def main():
     parser.add_argument('--extract-pivot', type=Path, help='write the job-generated pivot twins here for dc-4j0e.13')
     parser.add_argument('--extract-excel-inputs', type=Path, help='extract Excel-created legacy inputs for product conversion')
     parser.add_argument('--excel-inputs', type=Path, help='compare Excel-created inputs after the product conversion test')
+    parser.add_argument('--extract-repair-inputs', type=Path, help='copy repair probes for product conversion')
+    parser.add_argument('--repair-inputs', type=Path, help='compare repair probes after the product conversion test')
     args = parser.parse_args()
     reading = json.loads(args.excel_result.read_text(encoding='utf-8-sig'))
     if reading.get('fatal'):
@@ -685,17 +687,47 @@ def main():
     repairs = reading.get('repairs', [])
     if sorted(cases.get('repair_cases', [])) != sorted(item['file'] for item in repairs):
         raise SystemExit('Excel result does not contain exactly the requested repair fixtures')
+    repair_names = [item['file'] for item in repairs]
+    if len(set(repair_names)) != len(repair_names) or any(Path(name).name != name or name in ('.', '..', 'cases.json', 'outcomes.json') for name in repair_names):
+        raise SystemExit('invalid or duplicate repair fixture name')
+    for item in repairs:
+        if hashlib.sha256((args.inputs / item['file']).read_bytes()).hexdigest() != item['sha256'].lower():
+            raise SystemExit('repair fixture hash mismatch: ' + item['file'])
+    if args.extract_repair_inputs:
+        directory = args.extract_repair_inputs
+        directory.mkdir(parents=True, exist_ok=True)
+        if any((directory / name).exists() for name in repair_names + ['cases.json']):
+            raise SystemExit('refusing to overwrite repair input')
+        for name in repair_names:
+            (directory / name).write_bytes((args.inputs / name).read_bytes())
+        (directory / 'cases.json').write_text(json.dumps(repair_names, indent=2) + '\n', encoding='utf-8')
+    repair_outcomes = None
+    if args.repair_inputs:
+        repair_outcomes = json.loads((args.repair_inputs / 'outcomes.json').read_text(encoding='utf-8'))
     repair_results = []
     for item in repairs:
         name = item['file']
-        if Path(name).name != name or hashlib.sha256((args.inputs / name).read_bytes()).hexdigest() != item['sha256'].lower():
-            raise SystemExit('repair fixture name or hash mismatch: ' + name)
         row = {key: item.get(key) for key in ('file', 'opened', 'saved', 'error')}
         if item.get('package_base64'):
             try:
                 row['excel_package'] = package(base64.b64decode(item['package_base64'], validate=True))
             except (ValueError, KeyError, ET.ParseError, zipfile.BadZipFile, OSError) as exc:
                 row['package_error'] = str(exc)
+        if repair_outcomes is not None:
+            if not (args.repair_inputs / name).is_file() or hashlib.sha256((args.repair_inputs / name).read_bytes()).hexdigest() != item['sha256'].lower():
+                row['comparison_error'] = 'repair product input hash mismatch or missing'
+            elif name not in repair_outcomes:
+                row['comparison_error'] = 'product conversion outcome missing'
+            elif repair_outcomes[name] is not None:
+                row['comparison_error'] = 'product conversion refused: ' + str(repair_outcomes[name])
+            elif 'excel_package' not in row:
+                row['comparison_error'] = 'Excel repair package missing or unreadable'
+            elif 'excel_package' in row:
+                try:
+                    ours = package((args.repair_inputs / (name + '.dnacalc.xlsx')).read_bytes())
+                    row['differences'] = compare(row['excel_package'], ours)
+                except (ValueError, KeyError, ET.ParseError, zipfile.BadZipFile, OSError) as exc:
+                    row['comparison_error'] = str(exc)
         repair_results.append(row)
     output = {'files': results, 'excel_generated': generated_results, 'repair_observations': repair_results,
               'not_compared': ['calculated provenance', 'drawing formatting',
@@ -704,7 +736,9 @@ def main():
     args.output.write_text(json.dumps(output, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     all_results = results + generated_results
     print(f"Compared {sum('differences' in r for r in all_results)}/{len(all_results)} files; {sum(len(r.get('differences', [])) for r in all_results)} differences; {sum('error' in r for r in all_results)} comparison errors. "
-          f"Repair observations: {len(repair_results)}, including {sum(bool(r.get('error') or r.get('package_error')) for r in repair_results)} errors. Not compared: {', '.join(output['not_compared'])}.")
+          f"Repair observations: {len(repair_results)}; compared {sum('differences' in r for r in repair_results)}, "
+          f"{sum(len(r.get('differences', [])) for r in repair_results)} differences, "
+          f"{sum(bool(r.get('error') or r.get('package_error') or r.get('comparison_error')) for r in repair_results)} errors. Not compared: {', '.join(output['not_compared'])}.")
 
 
 if __name__ == '__main__':
