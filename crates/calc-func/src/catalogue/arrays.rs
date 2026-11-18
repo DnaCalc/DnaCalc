@@ -306,8 +306,8 @@ fn order(site: &Site<'_>, x: &CalcValue, y: &CalcValue) -> Step<Ordering> {
 }
 
 /// Excel 20527 starts with ascending runs and merges adjacent pairs from
-/// left to right on each pass. The comparison order matters when collation
-/// has a cycle; equal keys retain their input order.
+/// left to right on each pass. When the two current keys compare equal, take
+/// the left row. The comparison order matters when collation has a cycle.
 fn sorted_indices(
     site: &Site<'_>,
     len: usize,

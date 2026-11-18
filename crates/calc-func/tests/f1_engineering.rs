@@ -157,6 +157,26 @@ fn complex_tangent_and_cotangent_reduce_the_denominator_at_the_real_argument() {
     );
 }
 
+/// Excel 20527 takes the signed imaginary limit before checking the circular
+/// argument. The positive and negative boundaries differ and are both strict.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn complex_tangent_and_cotangent_saturate_at_asymmetric_imaginary_limits() {
+    for (input, tangent, cotangent) in [
+        ("134217728+354.500000000001i", "i", "-i"),
+        ("134217728-354.000000000001i", "-i", "i"),
+        ("-1e275+1e280j", "j", "-j"),
+        ("1.34-1e265i", "-i", "i"),
+    ] {
+        text(call("IMTAN", vec![t(input)]), tangent);
+        text(call("IMCOT", vec![t(input)]), cotangent);
+    }
+    for input in ["134217728+354.5i", "134217728-354i"] {
+        error(call("IMTAN", vec![t(input)]), Num);
+        error(call("IMCOT", vec![t(input)]), Num);
+    }
+}
+
 /// Excel 20527 Value2 controls and independent literal and complex-zero controls.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
