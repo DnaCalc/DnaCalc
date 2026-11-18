@@ -2022,13 +2022,41 @@ fn ambiguous_external_cache_is_not_exposed_as_complete() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn invalid_external_link_cache_remains_unread() {
+fn invalid_external_link_cache_retains_values_and_refresh_error() {
     let bytes = external_cache_fixture(true);
-    let loaded = load(&bytes);
-    assert!(!loaded.model().definitions().external_book(1).unwrap().sheets[0].cached);
+    let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    let check = |doc: &calc_doc::OpenedDocument| {
+        let loaded = calc_doc::load(doc, &mut IdAllocator::<SheetId>::new()).unwrap();
+        let sheet = &loaded.model().definitions().external_book(1).unwrap().sheets[0];
+        assert!(sheet.cached && sheet.refresh_error);
+        assert_eq!(sheet.cells.get(&(3, 1)), Some(&calc_doc::model::CachedValue::Number(calc_doc::model::FiniteNumber::new(1.25).unwrap())));
+    };
+    check(&doc);
+    let plan = calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+    let mut saved = Vec::new(); calc_doc::write(plan, &mut saved).unwrap();
+    check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
     let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
-    assert_eq!(report.unknown_records.get(&0x0059), Some(&1));
-    assert_eq!(report.unknown_records.get(&0x005A), Some(&1));
+    assert!(!report.unknown_records.contains_key(&0x0059));
+    assert!(!report.unknown_records.contains_key(&0x005A));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn negative_external_cache_count_marks_the_whole_book_invalid() {
+    let crn = |row: u16, value: f64| {
+        let mut body = vec![0, 0]; body.extend(row.to_le_bytes()); body.push(1);
+        body.extend(value.to_le_bytes()); record(0x005A, &body)
+    };
+    let globals = [supbook_external("book.xls", &["One", "Two"]),
+        record(0x0059, &u16s(&[(-2i16) as u16, 0])), crn(0, 1.0), crn(1, 2.0),
+        record(0x0059, &u16s(&[1, 1])), crn(0, 3.0)].concat();
+    let bytes = xls(false, &globals, &[Sheet::worksheet("S", Vec::new())]);
+    let loaded = load(&bytes);
+    let book = loaded.model().definitions().external_book(1).unwrap();
+    assert_eq!(book.sheets.len(), 2);
+    assert!(book.sheets.iter().all(|sheet| sheet.cached && sheet.refresh_error));
+    assert_eq!(book.sheets[0].cells.len(), 2);
+    assert_eq!(book.sheets[1].cells.len(), 1);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

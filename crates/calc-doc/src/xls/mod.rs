@@ -630,10 +630,12 @@ fn convert_compound(
         let caches: Vec<_> = globals.external_cache.iter().filter(|((book, _), _)| *book == book_index).collect();
         if !caches.is_empty() {
             x.open("sheetDataSet", &[]);
-            for ((_, sheet_index), cells) in caches {
-                x.open("sheetData", &[("sheetId", sheet_index.to_string())]);
+            for ((_, sheet_index), cache) in caches {
+                let mut attributes = vec![("sheetId", sheet_index.to_string())];
+                if cache.refresh_error { attributes.push(("refreshError", "1".to_owned())); }
+                x.open("sheetData", &attributes);
                 let mut open_row = None;
-                for (&(row, column), value) in cells {
+                for (&(row, column), value) in &cache.cells {
                     if matches!(value, external_cache::Value::Empty) { continue; }
                     if open_row != Some(row) {
                         if open_row.is_some() { x.close("row"); }

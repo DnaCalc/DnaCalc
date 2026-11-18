@@ -299,44 +299,55 @@ pub(crate) fn gammaln_excel(x: f64) -> f64 {
 // Worksheet GAMMA.
 // -------------------------------------------------------------------------
 
-/// `2.5066...`: binary64 `sqrt(2 pi)`. Its rounding error, +0.66 of 2^-53, is the bias Excel's
-/// answers show on every band of GAMMA.
+/// `2.5066...`: binary64 `sqrt(2 pi)`, used by the large-argument Stirling path.
 const SQRT_2PI: f64 = f64::from_bits(0x4004_0D93_1FF6_2706);
 
-// SPECFUN GAMMA: `1 + N(y)/D(y)` for `Gamma(1+y)`, `0 <= y < 1`. W. J. Cody and L. Stoltz, latest
-// modification October 12, 1989, https://netlib.org/specfun/gamma; every digit below compared
-// with that page's double-precision DATA P and Q on 2026-11-04. Excel's own seed on
-// this interval is not identified: it is a chain of stored multiplications that starts from
-// `SQRT_2PI`, and this rational stands in for its value only.
-const SEED_P: [f64; 8] = [
-    -1.71618513886549492533811e0,
-    2.47656508055759199108314e1,
-    -3.79804256470945635097577e2,
-    6.29331155312818442661052e2,
-    8.66966202790413211295064e2,
-    -3.14512729688483675254357e4,
-    -3.61444134186911729807069e4,
-    6.64561438202405440627855e4,
+// Excel 16.0.20527's seed on [1,2], lowest power first. Own work: the stored-operation
+// graph and partial sums were read from spectral lines; integer phase constraints recover
+// the coefficient words. All 21,000,000 retained inputs and 100,000 fresh frozen inputs agree.
+// See docs/research/gamma-family-2026-11-12.md, ax1. This is a quotient in raw x, not x-1.
+const SEED_N: [u64; 8] = [
+    0x400b_5834_abbe_a656,
+    0x3ff5_1477_3450_caef,
+    0x3fe6_6479_5a0f_149d,
+    0x3fc3_6c63_6bf9_ecf4,
+    0x3fa5_ff5a_1f13_5517,
+    0x3f7b_983b_9311_5194,
+    0x3f4c_11d5_cf5a_3d24,
+    0x3f24_aa35_6fc7_bc7c,
 ];
-const SEED_Q: [f64; 8] = [
-    -3.08402300119738975254353e1,
-    3.15350626979604161529144e2,
-    -1.01515636749021914166146e3,
-    -3.10777167157231109440444e3,
-    2.25381184209801510330112e4,
-    4.75584627752788110767815e3,
-    -1.34659959864969306392456e5,
-    -1.15132259675553483497211e5,
+const SEED_D: [u64; 7] = [
+    0x400b_584a_e618_5b27,
+    0x400a_5269_4226_b55e,
+    0xbfe8_fd07_2611_5c8e,
+    0xbfdd_079c_bb8d_7055,
+    0x3fc8_11c8_9b66_9325,
+    0xbf99_f2c6_b220_93da,
+    0x3f53_f2e0_3e39_0c8c,
 ];
 
-/// `Gamma(1+y)` for `0 <= y < 1`: the value every band below 10 multiplies or divides.
-fn gamma_seed(y: f64) -> f64 {
-    let (mut num, mut den) = (0.0_f64, 1.0_f64);
-    for i in 0..8 {
-        num = (num + SEED_P[i]) * y;
-        den = den * y + SEED_Q[i];
-    }
-    num / den + 1.0
+/// The internal seed, including at 1.5; the worksheet's exact half-integer branch is separate.
+fn gamma_seed_with<F: super::Fpu>(x: f64) -> f64 {
+    use super::soft87::{CW_PC64_RN as CW, ext_from_f64 as ext};
+
+    let chain = |coefficients: &[u64]| {
+        let mut value = f64::from_bits(coefficients[coefficients.len() - 1]);
+        for &bits in coefficients[..coefficients.len() - 1].iter().rev() {
+            let product = F::store(&F::mul(&ext(x), &ext(value), CW), CW);
+            value = F::store(&F::add(&ext(f64::from_bits(bits)), &ext(product), CW), CW);
+        }
+        value
+    };
+    let product = F::store(&F::mul(&ext(x), &ext(chain(&SEED_D)), CW), CW);
+    // -2^-18 is a representative of the measured interval: the final denominator store
+    // cannot distinguish it from the recovered -2^-18 - 4.066e-16 anywhere on [1,2].
+    let q0 = f64::from_bits(0xbed0_0000_0000_0000);
+    let denominator = F::store(&F::add(&ext(q0), &ext(product), CW), CW);
+    F::store(&F::div(&ext(chain(&SEED_N)), &ext(denominator), CW), CW)
+}
+
+fn gamma_seed(x: f64) -> f64 {
+    gamma_seed_with::<super::Native>(x)
 }
 
 /// `x^n` from the low bit up. Each square and each partial product is stored to binary64.
@@ -430,8 +441,9 @@ fn product_times_seed(x: f64, seed: f64) -> f64 {
 ///
 /// Below 10, with `y` the fraction of `x`, `GAMMA(x)` is the product `(x-1)(x-2)...(1+y)`, formed
 /// from the top with every step stored, times the seed `Gamma(1+y)`, stored: 2,000 of 2,000 on
-/// the Excel 16.0.20527 answers at each of `x = 3+y ... 9+y`, given `GAMMA(1+y)`. Below 1 the seed
-/// is divided by `y`, then by each lower factor, in the registers.
+/// the Excel 16.0.20527 answers at each of `x = 3+y ... 9+y`, given `GAMMA(1+y)`.
+/// On (0,1), multiply the seed at the PC64-stored `1+x` by the stored reciprocal of x.
+/// The negative-argument quotient chain remains an approximation to Excel's unidentified path.
 pub(crate) fn gamma_excel(x: f64) -> f64 {
     use super::soft87::ext_from_f64 as ext;
     use super::{CW, Fpu, Native};
@@ -447,9 +459,12 @@ pub(crate) fn gamma_excel(x: f64) -> f64 {
         return super::excel_x87_recip(x);
     }
     let floor = x.floor();
-    let seed = gamma_seed(x - floor);
+    let seed = gamma_seed(super::excel_x87_add(1.0, x - floor));
     if x >= 1.0 {
         return product_times_seed(x, seed);
+    }
+    if x > 0.0 {
+        return super::excel_x87_mul(seed, super::excel_x87_recip(x));
     }
     let mut value = ext(seed);
     let mut k = -floor;
@@ -463,6 +478,26 @@ pub(crate) fn gamma_excel(x: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Native-only: compare the hardware x87 with the portable arithmetic on the same seed graph.
+    #[cfg(target_arch = "x86_64")]
+    #[test]
+    fn gamma_seed_agrees_on_hardware_and_software_x87() {
+        use super::super::{Hard, Soft};
+        let mut state = 0x0923_7401_86af_dc51_u64;
+        for _ in 0..4096 {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            let x = f64::from_bits(0x3ff0_0000_0000_0000 | (state >> 12));
+            assert_eq!(
+                gamma_seed_with::<Hard>(x).to_bits(),
+                gamma_seed_with::<Soft>(x).to_bits(),
+                "seed at {:016x}",
+                x.to_bits()
+            );
+        }
+    }
 
     /// The read table stays on the true function over the whole band.
     #[cfg_attr(not(target_arch = "wasm32"), test)]

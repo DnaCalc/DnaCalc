@@ -10,7 +10,12 @@ pub(crate) enum Value {
 }
 
 pub(crate) type Cells = BTreeMap<(u16, u8), Value>;
-pub(crate) type Caches = BTreeMap<(usize, u16), Cells>;
+#[derive(Debug)]
+pub(crate) struct CachedSheet {
+    pub(crate) cells: Cells,
+    pub(crate) refresh_error: bool,
+}
+pub(crate) type Caches = BTreeMap<(usize, u16), CachedSheet>;
 
 fn values(record: &Record<'_>, code_page: Option<u16>) -> Option<Cells> {
     if !record.continues.is_empty() { return None; }
@@ -70,6 +75,7 @@ fn consumed(unknown: &mut BTreeMap<u16, u32>, id: u16, n: u32) {
 pub(crate) fn read(records: &[Record<'_>], books: &[SupBookRecord], unknown: &mut BTreeMap<u16, u32>) -> Caches {
     let mut candidates: BTreeMap<(usize, u16), Option<(Cells, u32)>> = BTreeMap::new();
     let mut blocked_books = BTreeSet::new();
+    let mut invalid_books = BTreeSet::new();
     let mut book = None;
     let mut next_book = 0usize;
     let mut i = 0usize;
@@ -83,11 +89,12 @@ pub(crate) fn read(records: &[Record<'_>], books: &[SupBookRecord], unknown: &mu
             let count = i16::from_le_bytes([r.body[0], r.body[1]]);
             let sheet = u16::from_le_bytes([r.body[2], r.body[3]]);
             if let Some(book) = book {
+                if count < 0 { invalid_books.insert(book); }
                 let valid_book = matches!(books.get(book), Some(SupBookRecord::External { sheets, .. }) if usize::from(sheet) < sheets.len());
                 if valid_book {
                     let key = (book, sheet);
                     if candidates.contains_key(&key) { candidates.insert(key, None); i += 1; continue; }
-                    let Ok(count) = usize::try_from(count) else { candidates.insert(key, None); i += 1; continue; };
+                    let count = usize::from(count.unsigned_abs());
                     if count > records.len().saturating_sub(i + 1) { candidates.insert(key, None); i += 1; continue; }
                     let mut cells = Cells::new();
                     let mut valid = true;
@@ -113,7 +120,7 @@ pub(crate) fn read(records: &[Record<'_>], books: &[SupBookRecord], unknown: &mu
     for (key, candidate) in candidates {
         if blocked_books.contains(&key.0) { continue; }
         if let Some((cells, count)) = candidate {
-            out.insert(key, cells);
+            out.insert(key, CachedSheet { cells, refresh_error: invalid_books.contains(&key.0) });
             consumed(unknown, 0x0059, 1);
             consumed(unknown, 0x005A, count);
         }
@@ -171,7 +178,7 @@ pub(crate) fn read_biff5<'a>(
     for (key, candidate) in candidates {
         if blocked_books.contains(&key.0) { continue; }
         if let Some((cells, count)) = candidate {
-            out.insert(key, cells);
+            out.insert(key, CachedSheet { cells, refresh_error: false });
             *consumed.entry(0x0059).or_insert(0) += 1;
             *consumed.entry(0x005A).or_insert(0) += count;
         }
