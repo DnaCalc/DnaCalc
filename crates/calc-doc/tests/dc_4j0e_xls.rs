@@ -489,6 +489,27 @@ fn write_legacy_excel_session_inputs() {
     let cells = [label_sst(0, 0, 0), label_sst(1, 0, 1)].concat();
     std::fs::write(dir.join("repair-phonetic-continue-flag.xls"),
         xls(false, &globals, &[Sheet::worksheet("Data", cells)])).unwrap();
+    // Compare an unsplit rich string with cuts inside its second FormatRun.
+    // The following SST entry reveals whether a continuation byte was consumed.
+    for (name, split, flag) in [("repair-rich-unsplit.xls", false, false),
+        ("repair-rich-continue-flag.xls", true, true),
+        ("repair-rich-continue-no-flag.xls", true, false)] {
+        let mut body = Vec::new();
+        body.extend(2u32.to_le_bytes()); body.extend(2u32.to_le_bytes());
+        body.extend(2u16.to_le_bytes()); body.push(0x08);
+        body.extend(2u16.to_le_bytes()); body.extend(b"AB");
+        body.extend(u16s(&[0, 0, 1, 1]));
+        let boundary = body.len() - 2;
+        body.extend(4u16.to_le_bytes()); body.push(0); body.extend(b"NEXT");
+        let globals = if split {
+            let mut tail = Vec::new();
+            if flag { tail.push(0); }
+            tail.extend_from_slice(&body[boundary..]);
+            [record(0x00FC, &body[..boundary]), record(0x003C, &tail)].concat()
+        } else { record(0x00FC, &body) };
+        let cells = [label_sst(0, 0, 0), label_sst(1, 0, 1)].concat();
+        std::fs::write(dir.join(name), xls(false, &globals, &[Sheet::worksheet("Data", cells)])).unwrap();
+    }
     std::fs::write(dir.join("forms.xls"), include_bytes!("fixtures/dc_4j0e/FormsWorkbook.xls")).unwrap();
     let repair_cases = [
         ("repair-slash.xls", "Bad/Name"),
@@ -574,7 +595,8 @@ fn write_legacy_excel_session_inputs() {
             "repair-name-collisions.xls", "repair-long-collisions.xls",
             "repair-pivot-0.xls", "repair-pivot-2.xls", "repair-pivot-4.xls", "repair-pivot-range-first.xls",
             "repair-elf-column.xls", "repair-elf-radical.xls", "repair-addin-cell.xls",
-            "repair-missing-fat.xls", "repair-missing-chain.xls", "repair-short-format.xls", "repair-format-no-option.xls", "repair-phonetic-continue-flag.xls"],
+            "repair-missing-fat.xls", "repair-missing-chain.xls", "repair-short-format.xls", "repair-format-no-option.xls", "repair-phonetic-continue-flag.xls",
+            "repair-rich-unsplit.xls", "repair-rich-continue-flag.xls", "repair-rich-continue-no-flag.xls"],
         "create_pivot": true,
         "formulas": [
             ["rows_full_column", "=ROWS(A:A)"], ["columns_full_row", "=COLUMNS(1:1)"],
