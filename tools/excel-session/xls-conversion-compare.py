@@ -115,6 +115,7 @@ def string_item(element):
             return node.text or ''
         return ''.join(text_without_phonetics(child) for child in node)
     return {'text': text_without_phonetics(element),
+            'rich_runs': [tree(run) for run in element.findall(M + 'r')],
             'runs': [tree(run) for run in element.findall(M + 'rPh')],
             'properties': [tree(prop) for prop in element.findall(M + 'phoneticPr')]}
 
@@ -483,10 +484,11 @@ def package(data):
                 v = c.find(M + 'v')
                 val = None if v is None else v.text or ''
                 phonetic = None
+                rich_runs = None
                 if typ == 's' and val is not None:
-                    item = strings[int(val)]; val = item['text']; phonetic = {'runs': item['runs'], 'properties': item['properties']} if item['runs'] or item['properties'] else None; typ = 'str'
+                    item = strings[int(val)]; val = item['text']; rich_runs = item['rich_runs'] or None; phonetic = {'runs': item['runs'], 'properties': item['properties']} if item['runs'] or item['properties'] else None; typ = 'str'
                 elif typ == 'inlineStr':
-                    item = string_item(c.find(M + 'is')); val = item['text']; phonetic = {'runs': item['runs'], 'properties': item['properties']} if item['runs'] or item['properties'] else None; typ = 'str'
+                    item = string_item(c.find(M + 'is')); val = item['text']; rich_runs = item['rich_runs'] or None; phonetic = {'runs': item['runs'], 'properties': item['properties']} if item['runs'] or item['properties'] else None; typ = 'str'
                 elif typ in ('str', 's'):
                     typ = 'str'
                 elif typ == 'n' and val not in (None, ''):
@@ -497,7 +499,7 @@ def package(data):
                                      'formula_attributes': {} if f is None else dict(f.attrib),
                                      'number_format': formats[style] if style < len(formats) else f'unknown-style:{style}',
                                      'style_definition': styles[style] if style < len(styles) else f'unknown-style:{style}',
-                                     'phonetic_visible': c.get('ph', '0') in ('1', 'true'), 'phonetic': phonetic}
+                                     'rich_runs': rich_runs, 'phonetic_visible': c.get('ph', '0') in ('1', 'true'), 'phonetic': phonetic}
             merges = sorted(e.get('ref') for e in sh.findall(f'{M}mergeCells/{M}mergeCell'))
             links = []
             for link in sh.findall(f'{M}hyperlinks/{M}hyperlink'):
@@ -688,7 +690,13 @@ def main():
         name = item['file']
         if Path(name).name != name or hashlib.sha256((args.inputs / name).read_bytes()).hexdigest() != item['sha256'].lower():
             raise SystemExit('repair fixture name or hash mismatch: ' + name)
-        repair_results.append({key: item.get(key) for key in ('file', 'opened', 'saved', 'error')})
+        row = {key: item.get(key) for key in ('file', 'opened', 'saved', 'error')}
+        if item.get('package_base64'):
+            try:
+                row['excel_package'] = package(base64.b64decode(item['package_base64'], validate=True))
+            except (ValueError, KeyError, ET.ParseError, zipfile.BadZipFile, OSError) as exc:
+                row['package_error'] = str(exc)
+        repair_results.append(row)
     output = {'files': results, 'excel_generated': generated_results, 'repair_observations': repair_results,
               'not_compared': ['calculated provenance', 'drawing formatting',
               'chart formatting', 'conditional formatting style definitions', 'pivot refresh and external cache sources',
@@ -696,7 +704,7 @@ def main():
     args.output.write_text(json.dumps(output, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     all_results = results + generated_results
     print(f"Compared {sum('differences' in r for r in all_results)}/{len(all_results)} files; {sum(len(r.get('differences', [])) for r in all_results)} differences; {sum('error' in r for r in all_results)} comparison errors. "
-          f"Repair observations: {len(repair_results)}, including {sum(bool(r.get('error')) for r in repair_results)} errors. Not compared: {', '.join(output['not_compared'])}.")
+          f"Repair observations: {len(repair_results)}, including {sum(bool(r.get('error') or r.get('package_error')) for r in repair_results)} errors. Not compared: {', '.join(output['not_compared'])}.")
 
 
 if __name__ == '__main__':
