@@ -10,7 +10,7 @@ use super::{Events, LoadError, read_xml};
 use crate::opc::Package;
 use crate::xml::XmlEvent;
 use calc_doc_model::{
-    ChartAnchor, CustomGeometry, DrawingNode, DrawingPoint, GeometryCommand, GeometryPath, GeometryPoint, LineEnd, ShapePattern, ShapeStyle,
+    ChartAnchor, CustomGeometry, DrawingNode, DrawingPoint, FormControl, GeometryCommand, GeometryPath, GeometryPoint, LineEnd, ShapePattern, ShapeStyle,
     ShapeStyleRef, Shape, ShapeBody, ShapeColour, ShapeConnection, ShapeFill, ShapeShadow,
     PictureMedia, ShapeGradient, ShapeKind, ShapeLine, ShapePicture, ShapeTextRun, SheetShapes,
 };
@@ -117,7 +117,23 @@ pub(crate) fn read_shapes(package: &Package, sheet_part: &str) -> SheetShapes {
             read
         }
     };
-    read.shapes.extend(ole_objects(package, sheet_part));
+    let (ole, controls, active_x) = sheet_objects(package, sheet_part);
+    read.shapes.extend(ole);
+    read.shapes.extend(active_x);
+    // A form control's caption is the text of the hidden shape Excel writes for it in the drawing.
+    read.controls = controls
+        .into_iter()
+        .map(|mut control| {
+            control.caption = read
+                .shapes
+                .iter()
+                .find(|s| s.id == control.id && s.hidden)
+                .and_then(|s| s.text.as_ref())
+                .map(|p| p.join("\n"))
+                .filter(|t| !t.is_empty());
+            control
+        })
+        .collect();
     read
 }
 
@@ -157,33 +173,104 @@ fn diagram_shapes(package: &Package, relationships: Option<&crate::opc::Relation
     Some(tree.children.iter().filter_map(|child| object_shape(child, frame.anchor)).collect())
 }
 
-/// The sheet's OLE objects (dc-zjsg.9): each `oleObject` with an `objectPr` anchor, as a picture of the image Excel
-/// stores for it (its `objectPr r:id`, a relationship of the sheet), kept as stored.
-fn ole_objects(package: &Package, sheet_part: &str) -> Vec<Shape> {
+/// The sheet's objects stored outside its drawing: OLE objects (dc-zjsg.9) as pictures, legacy form controls
+/// (dc-zjsg.8), and ActiveX controls as pictures of the image Excel stores for them; all kept as stored.
+fn sheet_objects(package: &Package, sheet_part: &str) -> (Vec<Shape>, Vec<FormControl>, Vec<Shape>) {
     let relationships = package.relationships_of(Some(sheet_part));
-    if !relationships.is_some_and(|r| r.items().iter().any(|i| i.kind.ends_with("/oleObject") || i.kind.ends_with("/package"))) {
-        return Vec::new();
+    let none = || (Vec::new(), Vec::new(), Vec::new());
+    if !relationships.is_some_and(|r| {
+        r.items().iter().any(|i| {
+            i.kind.ends_with("/oleObject") || i.kind.ends_with("/package") || i.kind.ends_with("/ctrlProp") || i.kind.ends_with("/control")
+        })
+    }) {
+        return none();
     }
-    let Ok(xml) = read_xml(package, sheet_part) else { return Vec::new() };
+    let Ok(xml) = read_xml(package, sheet_part) else { return none() };
     let mut events = Events::new(&xml);
-    let mut objects = None;
+    let (mut objects, mut controls) = (None, None);
     while let Ok(Some(event)) = events.next() {
         if let XmlEvent::Start(element) = event {
             match element.name.local.as_str() {
                 "sheetData" => {
                     if events.skip().is_err() {
-                        return Vec::new();
+                        return none();
                     }
                 }
-                "oleObjects" => {
-                    objects = tree(&mut events, element).ok();
-                    break;
-                }
+                "oleObjects" => objects = tree(&mut events, element).ok(),
+                "controls" => controls = tree(&mut events, element).ok(),
                 _ => {}
             }
         }
     }
-    let Some(objects) = objects else { return Vec::new() };
+    let (form, active_x) = controls.map_or((Vec::new(), Vec::new()), |c| form_controls(package, relationships, &c));
+    (objects.map_or_else(Vec::new, |o| ole_objects(package, relationships, &o)), form, active_x)
+}
+
+/// The anchored `control`s of a worksheet's `controls`: a form control from its ctrlProp part, an ActiveX control
+/// (its relationship names an ActiveX part) as a kept picture of its `controlPr` image.
+fn form_controls(package: &Package, relationships: Option<&crate::opc::Relationships>, controls: &Node) -> (Vec<FormControl>, Vec<Shape>) {
+    let mut kept = std::collections::BTreeMap::new();
+    let (mut form, mut active_x) = (Vec::new(), Vec::new());
+    for item in &controls.children {
+        let control = match item.local.as_str() {
+            "AlternateContent" => item
+                .children
+                .iter()
+                .filter(|b| b.local == "Choice" || b.local == "Fallback")
+                .flat_map(|b| b.children.iter())
+                .find(|o| o.local == "control" && o.child("controlPr").is_some()),
+            "control" => Some(item),
+            _ => None,
+        };
+        let Some(control) = control else { continue };
+        let Some(properties) = control.child("controlPr") else { continue };
+        let Some(anchor) = properties.child("anchor") else { continue };
+        let Some(id) = control.number("shapeId").and_then(|v| u32::try_from(v).ok()) else { continue };
+        let position = ChartAnchor::TwoCell {
+            from: anchor.child("from").map(point).unwrap_or_default(),
+            to: anchor.child("to").map(point).unwrap_or_default(),
+        };
+        let name = control.attribute("name").unwrap_or_default().to_owned();
+        let relationship = relationships.and_then(|r| r.items().iter().find(|i| Some(i.id.as_str()) == control.attribute("r:id")));
+        if relationship.is_some_and(|r| r.kind.ends_with("/control")) {
+            let mut shape = Shape::new(id, name, ShapeKind::Picture, position);
+            shape.kept = Some("ActiveX control".into());
+            shape.picture = properties.attribute("r:id").map(str::to_owned);
+            shape.media = Some(ShapePicture::default());
+            resolve_media(package, relationships, &mut shape, &mut kept);
+            active_x.push(shape);
+            continue;
+        }
+        let Some(part) = relationship.filter(|r| r.kind.ends_with("/ctrlProp")).and_then(|r| r.resolved.clone()) else { continue };
+        let Some(pr) = part_tree(package, &part) else { continue };
+        let number = |name: &str| pr.number(name);
+        form.push(FormControl {
+            id,
+            name,
+            anchor: position,
+            kind: pr.attribute("objectType").unwrap_or("Button").to_owned(),
+            caption: None,
+            checked: pr.attribute("checked").map(str::to_owned),
+            link: pr.attribute("fmlaLink").map(str::to_owned),
+            range: pr.attribute("fmlaRange").map(str::to_owned),
+            value: number("val"),
+            min: number("min"),
+            max: number("max"),
+            increment: number("inc"),
+            page: number("page"),
+            selected: number("sel"),
+            drop_lines: number("dropLines"),
+            horizontal: pr.flag("horiz"),
+            flat: pr.flag("noThreeD"),
+            macro_name: properties.attribute("macro").map(str::to_owned),
+        });
+    }
+    (form, active_x)
+}
+
+/// The anchored `oleObject`s of a worksheet's `oleObjects` (dc-zjsg.9), each as a picture of the image Excel stores
+/// for it (its `objectPr r:id`, a relationship of the sheet), kept as stored.
+fn ole_objects(package: &Package, relationships: Option<&crate::opc::Relationships>, objects: &Node) -> Vec<Shape> {
     let mut kept = std::collections::BTreeMap::new();
     let mut out = Vec::new();
     for item in &objects.children {

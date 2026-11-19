@@ -81,3 +81,53 @@ impl HostState {
             .collect()
     }
 }
+
+/// A legacy form control with what it shows now (dc-zjsg.8): its linked cell and that cell's value, and the texts of
+/// its input range (a list or combo box's items).
+#[derive(Clone, Debug, PartialEq)]
+pub struct FormControlView {
+    pub control: calc_doc_model::FormControl,
+    pub link: Option<CellKey>,
+    pub linked: Option<calc_doc_model::value::CalcValue>,
+    pub items: Vec<String>,
+}
+
+impl HostState {
+    /// The sheet's form controls as the file states them, each with its linked cell's current value and its input
+    /// range's texts (references rewritten through the session's inserts and deletes).
+    pub fn form_controls(&self, sheet: SheetId) -> Vec<FormControlView> {
+        let Ok(origin) = CellKey::new(sheet, 1, 1) else { return Vec::new() };
+        let Some(loaded) = self.loaded.sheet(sheet) else { return Vec::new() };
+        loaded
+            .shapes()
+            .controls
+            .iter()
+            .map(|control| {
+                let link = control.link.as_deref().and_then(|text| {
+                    match self.resolve_reference_text(origin, &self.current_reference(text, sheet)) {
+                        crate::ReferenceTarget::Area(area) => Some(area.first()),
+                        _ => None,
+                    }
+                });
+                let linked = link.and_then(|at| crate::conditional::cell_value(self, at));
+                let items = control
+                    .range
+                    .as_deref()
+                    .and_then(|text| match self.resolve_reference_text(origin, &self.current_reference(text, sheet)) {
+                        crate::ReferenceTarget::Area(area) if area.cell_count() <= 10_000 => Some(area),
+                        _ => None,
+                    })
+                    .map(|area| {
+                        let (first, last) = (area.first(), area.last());
+                        (first.row()..=last.row())
+                            .flat_map(|row| (first.column()..=last.column()).map(move |column| (row, column)))
+                            .filter_map(|(row, column)| CellKey::new(sheet_of(area), row, column).ok())
+                            .map(|at| crate::conditional::cell_value(self, at).as_ref().map(crate::chart::text_of).unwrap_or_default())
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                FormControlView { control: control.clone(), link, linked, items }
+            })
+            .collect()
+    }
+}

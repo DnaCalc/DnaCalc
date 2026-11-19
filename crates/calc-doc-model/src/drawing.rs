@@ -402,6 +402,40 @@ impl Shape {
     }
 }
 
+/// A legacy form control (dc-zjsg.8): the worksheet's `control` with its `controlPr` anchor and its ctrlProp part's
+/// `formControlPr`, as the file states them; the caption is the text of the hidden drawing shape Excel writes beside
+/// it. Kept in the package as stored.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct FormControl {
+    /// `shapeId`.
+    pub id: u32,
+    pub name: String,
+    pub anchor: ChartAnchor,
+    /// `objectType`: `Button`, `CheckBox`, `Radio`, `List`, `Drop`, `Scroll`, `Spin`, `GBox`, `Label`, `EditBox`, `Dialog`.
+    pub kind: String,
+    pub caption: Option<String>,
+    /// `checked`: `Checked`, `Mixed` or `Unchecked` (absent).
+    pub checked: Option<String>,
+    /// `fmlaLink`: the linked cell, as the file writes it (`$B$2`).
+    pub link: Option<String>,
+    /// `fmlaRange`: the input range of a list or combo box.
+    pub range: Option<String>,
+    pub value: Option<i64>,
+    pub min: Option<i64>,
+    pub max: Option<i64>,
+    pub increment: Option<i64>,
+    pub page: Option<i64>,
+    /// `sel`: the selected item of a list or combo box, from 1.
+    pub selected: Option<i64>,
+    pub drop_lines: Option<i64>,
+    /// `horiz`: a horizontal scroll bar.
+    pub horizontal: bool,
+    /// `noThreeD`: drawn flat.
+    pub flat: bool,
+    /// The `controlPr macro` a button runs.
+    pub macro_name: Option<String>,
+}
+
 /// A sheet's drawing objects and how many the reading left alone.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct SheetShapes {
@@ -411,4 +445,6 @@ pub struct SheetShapes {
     /// The same anchors by what they hold: the object's element (`graphicFrame` with the kind of
     /// its data, `AlternateContent`, `contentPart`, a `sp` or `pic` too malformed to read, ...).
     pub unread_by: std::collections::BTreeMap<String, usize>,
+    /// The sheet's legacy form controls (dc-zjsg.8).
+    pub controls: Vec<FormControl>,
 }

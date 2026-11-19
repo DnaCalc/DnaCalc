@@ -998,6 +998,8 @@ pub enum Request {
     Shapes(Sheet),
     /// The sheet's sparklines with their values (dc-zjsg.7).
     Sparklines(Sheet),
+    /// The sheet's form controls with the state they show (dc-zjsg.8).
+    Controls(Sheet),
     PivotTables(Sheet),
     PivotSourceFields {
         area: Area,
@@ -1582,6 +1584,7 @@ pub enum Reply {
     Charts(Vec<Chart>),
     Shapes(Vec<crate::drawn_shapes::DrawnShape>),
     Sparklines(Vec<crate::sparklines::DrawnSparkline>),
+    Controls(Vec<crate::controls::DrawnControl>),
     PivotTables {
         tables: Vec<SavedPivot>,
         issues: Vec<String>,

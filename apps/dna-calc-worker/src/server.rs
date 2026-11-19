@@ -1413,6 +1413,7 @@ impl Server {
                 Request::Charts(sheet) => Ok(Reply::Charts(self.charts(sheet))),
                 Request::Shapes(sheet) => Ok(Reply::Shapes(self.drawn_shapes(sheet))),
                 Request::Sparklines(sheet) => Ok(Reply::Sparklines(self.drawn_sparklines(sheet))),
+                Request::Controls(sheet) => Ok(Reply::Controls(self.drawn_controls(sheet))),
                 Request::CellImage { .. } => Err("handle answers a cell image".into()),
                 Request::ShapePicture { .. } => Err("handle answers a shape picture".into()),
                 Request::AtlasRefusals { reason, page } => Ok(Reply::AtlasRefusals(
@@ -4460,22 +4461,92 @@ impl Server {
         host.shapes(sheet.id())
             .iter()
             .filter(|shape| keep(shape))
-            .filter_map(|shape| {
-                let place = match host.chart_place(sheet.id(), &shape.anchor)? {
-                    calc_host::ChartPlace::Cells { from, to } => ChartPlace::Cells {
-                        from: (Key::of(from.cell), from.dx, from.dy),
-                        to: (Key::of(to.cell), to.dx, to.dy),
+            .filter_map(|shape| crate::drawn::drawn_with(shape, self.place_of(sheet, &shape.anchor)?, theme, lines))
+            .collect()
+    }
+
+    /// Where an anchor lands on the grid, in the page's terms.
+    fn place_of(&self, sheet: Sheet, anchor: &calc_host::ChartAnchor) -> Option<ChartPlace> {
+        Some(match self.book.host().chart_place(sheet.id(), anchor)? {
+            calc_host::ChartPlace::Cells { from, to } => ChartPlace::Cells {
+                from: (Key::of(from.cell), from.dx, from.dy),
+                to: (Key::of(to.cell), to.dx, to.dy),
+            },
+            calc_host::ChartPlace::Sized { from, width, height } => ChartPlace::Sized {
+                from: (Key::of(from.cell), from.dx, from.dy),
+                width,
+                height,
+            },
+            calc_host::ChartPlace::Absolute { x, y, width, height } => ChartPlace::Absolute { x, y, width, height },
+        })
+    }
+
+    /// The sheet's form controls with the state each shows now (dc-zjsg.8): a check box from its linked cell (TRUE
+    /// checked, FALSE unchecked, an error mixed), else its stored state; the radio buttons of the sheet as one group
+    /// (their place by identity, the group's linked cell the first one names; a group box's own group not yet
+    /// modelled); a list or combo box's selection and a scroll bar's or spinner's value from the linked cell, else
+    /// as stored.
+    fn drawn_controls(&self, sheet: Sheet) -> Vec<dna_calc_model::controls::DrawnControl> {
+        use calc_host::FormControlView;
+        use calc_value::CalcValue;
+        let views = self.book.host().form_controls(sheet.id());
+        let number = |v: &Option<CalcValue>| match v.as_ref().map(|v| v.core_ref()) {
+            Some(calc_value::CoreRef::Number(n)) => Some(n),
+            Some(calc_value::CoreRef::Logical(b)) => Some(if b { 1.0 } else { 0.0 }),
+            _ => None,
+        };
+        let mut radios: Vec<&FormControlView> = views.iter().filter(|v| v.control.kind == "Radio").collect();
+        radios.sort_by_key(|v| v.control.id);
+        let group_link = radios.iter().find_map(|v| v.link);
+        let group_value = radios.iter().find(|v| v.link.is_some()).and_then(|v| number(&v.linked));
+        views
+            .iter()
+            .filter_map(|v| {
+                let c = &v.control;
+                let place = self.place_of(sheet, &c.anchor)?;
+                let (mut link, mut position) = (v.link, 0);
+                let checked = match c.kind.as_str() {
+                    "CheckBox" => match v.linked.as_ref().map(|x| x.core_ref()) {
+                        Some(calc_value::CoreRef::Logical(true)) => "Checked".to_owned(),
+                        Some(calc_value::CoreRef::Logical(false)) => "Unchecked".to_owned(),
+                        Some(calc_value::CoreRef::Error(_)) => "Mixed".to_owned(),
+                        Some(calc_value::CoreRef::Number(n)) => if n != 0.0 { "Checked" } else { "Unchecked" }.to_owned(),
+                        _ => c.checked.clone().unwrap_or_else(|| "Unchecked".into()),
                     },
-                    calc_host::ChartPlace::Sized { from, width, height } => ChartPlace::Sized {
-                        from: (Key::of(from.cell), from.dx, from.dy),
-                        width,
-                        height,
-                    },
-                    calc_host::ChartPlace::Absolute { x, y, width, height } => {
-                        ChartPlace::Absolute { x, y, width, height }
+                    "Radio" => {
+                        position = radios.iter().position(|r| r.control.id == c.id).map_or(1, |p| p + 1);
+                        link = group_link;
+                        match group_value {
+                            Some(n) => if n == position as f64 { "Checked" } else { "Unchecked" }.to_owned(),
+                            None => c.checked.clone().unwrap_or_else(|| "Unchecked".into()),
+                        }
                     }
+                    _ => "Unchecked".to_owned(),
                 };
-                crate::drawn::drawn_with(shape, place, theme, lines)
+                let stored = |value: Option<i64>| number(&v.linked).map(|n| n as i64).or(value);
+                let selected = match c.kind.as_str() {
+                    "List" | "Drop" => stored(c.selected).filter(|&n| n >= 1).map(|n| (n - 1) as usize),
+                    _ => None,
+                };
+                Some(dna_calc_model::controls::DrawnControl {
+                    id: c.id,
+                    name: c.name.clone(),
+                    kind: c.kind.clone(),
+                    place,
+                    caption: c.caption.clone(),
+                    checked,
+                    selected,
+                    value: stored(c.value).unwrap_or(0),
+                    min: c.min.unwrap_or(0),
+                    max: c.max.unwrap_or(100),
+                    increment: c.increment.unwrap_or(1),
+                    page: c.page.unwrap_or(10),
+                    items: v.items.clone(),
+                    horizontal: c.horizontal,
+                    link: link.map(Key::of),
+                    position,
+                    macro_name: c.macro_name.clone(),
+                })
             })
             .collect()
     }
@@ -5075,6 +5146,47 @@ mod outline_tests {
         assert!(first.shape.flip_horizontal);
         assert_eq!(mirrored.children[2].shape.rotation, -30.0);
         assert_eq!(by("Group rot 20").rotation, 20.0);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dc_zjsg_8__form_controls_show_their_linked_cells_and_clicks_write_them() {
+        let mut server = Server::new();
+        let data = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/form-controls.xlsx");
+        assert!(server.execute_current(Request::Open { name: "form-controls.xlsx".into() }, Some(data.to_vec())).reply.is_ok());
+        let sheet = Sheet::of(server.book.host().sheets()[0].id());
+        let controls = |server: &mut Server| {
+            let Reply::Controls(c) = server.execute_current(Request::Controls(sheet), None).reply.unwrap() else { panic!("controls") };
+            c
+        };
+        let drawn = controls(&mut server);
+        assert_eq!(drawn.len(), 10);
+        let by = |c: &[dna_calc_model::controls::DrawnControl], name: &str| c.iter().find(|x| x.name == name).unwrap().clone();
+        // B2 TRUE: checked; B3 2: the second option button; B4 3: the third item; B5 30; B6 5; B7 2: the second item.
+        assert_eq!(by(&drawn, "Check Box 2").checked, "Checked");
+        assert_eq!((by(&drawn, "Option Button 3").checked.as_str(), by(&drawn, "Option Button 4").checked.as_str()), ("Unchecked", "Checked"));
+        assert_eq!(by(&drawn, "Option Button 4").link, by(&drawn, "Option Button 3").link);
+        let list = by(&drawn, "List Box 5");
+        assert_eq!((list.items.clone(), list.selected), (vec!["North".to_owned(), "South".into(), "East".into(), "West".into()], Some(2)));
+        assert_eq!(by(&drawn, "Drop Down 8").selected, Some(1));
+        assert_eq!((by(&drawn, "Scroll Bar 6").value, by(&drawn, "Spinner 7").value), (30, 5));
+        // A click writes the linked cell through the ordinary edit; the next answer shows it.
+        use dna_calc_model::controls::{ControlAction, control_action};
+        let mut click = |server: &mut Server, control: &dna_calc_model::controls::DrawnControl, act: &str, index: Option<usize>| {
+            let Some(ControlAction::Write(at, text)) = control_action(control, act, index) else { panic!("a write") };
+            assert!(server.execute_current(Request::Intent(Intent::EnterCell { at, text }), None).reply.is_ok());
+        };
+        click(&mut server, &by(&drawn, "Check Box 2"), "toggle", None);
+        click(&mut server, &by(&drawn, "Option Button 3"), "toggle", None);
+        click(&mut server, &by(&drawn, "List Box 5"), "item", Some(0));
+        click(&mut server, &by(&drawn, "Spinner 7"), "inc", None);
+        let after = controls(&mut server);
+        assert_eq!(by(&after, "Check Box 2").checked, "Unchecked");
+        assert_eq!(by(&after, "Option Button 3").checked, "Checked");
+        assert_eq!(by(&after, "List Box 5").selected, Some(0));
+        assert_eq!(by(&after, "Spinner 7").value, 6);
+        assert!(matches!(control_action(&by(&after, "Button 1"), "run", None), Some(ControlAction::RunMacro(_))));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

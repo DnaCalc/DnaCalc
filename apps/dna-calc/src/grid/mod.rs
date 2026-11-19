@@ -329,6 +329,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
     let charts: RwSignal<Vec<wire::Chart>> = RwSignal::new(Vec::new());
     let shapes: RwSignal<Vec<wire::DrawnShape>> = RwSignal::new(Vec::new());
     let sparklines: RwSignal<Vec<wire::sparklines::DrawnSparkline>> = RwSignal::new(Vec::new());
+    let controls: RwSignal<Vec<wire::controls::DrawnControl>> = RwSignal::new(Vec::new());
     Effect::new(move |_| {
         controller.revision.track();
         let Some(sheet) = controller.sheet.get() else {
@@ -374,6 +375,16 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 && sparklines.try_get_untracked().is_some_and(|old| old != drawn)
             {
                 sparklines.try_set(drawn);
+            }
+        });
+        controller.ask(wire::Request::Controls(sheet), move |reply| {
+            if controller.sheet.get_untracked() != Some(sheet.id()) {
+                return;
+            }
+            if let wire::Reply::Controls(drawn) = reply
+                && controls.try_get_untracked().is_some_and(|old| old != drawn)
+            {
+                controls.try_set(drawn);
             }
         });
     });
@@ -2583,6 +2594,86 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
             })
             .collect_view()
     };
+    // The sheet's form controls (dc-zjsg.8), over the shapes: a click on a part writes the control's linked cell as
+    // Excel's control does (one undoable edit); a button's macro is not run here.
+    let act = move |control: &wire::controls::DrawnControl, act: &str, index: Option<usize>| {
+        match wire::controls::control_action(control, act, index) {
+            Some(wire::controls::ControlAction::Write(key, text)) => {
+                if let Some(cell) = key.cell() {
+                    controller.enter(cell, text, |_| {});
+                }
+            }
+            Some(wire::controls::ControlAction::RunMacro(name)) => {
+                controller.say(format!("Running the button's macro {name} is not modelled here (dc-euei)"), true);
+            }
+            None => {}
+        }
+    };
+    let controls_view = move || {
+        let m = metrics.get();
+        let v = viewport.get();
+        let z = zoom.get();
+        let p = panes.get();
+        let origin = cell_rect(&m, &v, 1, 1);
+        controls
+            .get()
+            .into_iter()
+            .filter_map(|control| {
+                let (x0, y0, x1, y1) = wire::drawn_shapes::frame(
+                    &control.place,
+                    |row, column| {
+                        let r = p.rect(&m, &v, row, column);
+                        Some((r.x, r.y, r.w, r.h))
+                    },
+                    (origin.x, origin.y),
+                    z,
+                )?;
+                if x1 <= x0 || y1 <= y0 || x1 < 0.0 || y1 < 0.0 || x0 > v.width || y0 > v.height {
+                    return None;
+                }
+                let (w, h) = (x1 - x0, y1 - y0);
+                let style = format!("left:{};top:{};width:{};height:{};position:absolute", px(x0), px(y0), px(w), px(h));
+                let shared = control.clone();
+                let on_click = move |ev: leptos::ev::MouseEvent| {
+                    use wasm_bindgen::JsCast;
+                    let Some(part) = ev
+                        .target()
+                        .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
+                        .and_then(|e| e.closest("[data-act]").ok().flatten())
+                    else {
+                        return;
+                    };
+                    let name = part.get_attribute("data-act").unwrap_or_default();
+                    let index = part.get_attribute("data-index").and_then(|i| i.parse().ok());
+                    act(&shared, &name, index);
+                };
+                if control.kind == "Drop" {
+                    // A combo box is the page's own select, its items the input range's.
+                    let shared = control.clone();
+                    let options = control
+                        .items
+                        .iter()
+                        .enumerate()
+                        .map(|(i, item)| view! { <option value=i.to_string() selected=control.selected == Some(i)>{item.clone()}</option> })
+                        .collect_view();
+                    return Some(view! {
+                        <select class="dc-control" data-dnacalc="form-control" data-control=control.name.clone() data-kind="Drop" use:css=format!("{style};font-size:{}px", 11.0 * z)
+                            on:change=move |ev| {
+                                let index = event_target_value(&ev).parse().ok();
+                                act(&shared, "item", index);
+                            }>
+                            {options}
+                        </select>
+                    }.into_any());
+                }
+                let markup = wire::controls::control_markup(&control, w, h, z);
+                Some(view! {
+                    <div class="dc-control" data-dnacalc="form-control" data-control=control.name.clone() data-kind=control.kind.clone()
+                        use:css=style on:click=on_click inner_html=markup></div>
+                }.into_any())
+            })
+            .collect_view()
+    };
     // The sheet's shapes and text boxes (dc-zjsg.2), over the cells like the charts: placed by their
     // anchors in the cells' own sizes (a hidden row or column has none), the ones in view only.
     let shapes_view = move || {
@@ -3303,6 +3394,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                         {sparklines_view}
                         {charts_view}
                         {shapes_view}
+                        {controls_view}
                         {markers_view}
                         {invalid_view}
                         {selection_view}

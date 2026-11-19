@@ -1283,3 +1283,46 @@ fn dc_zjsg_7__sparkline_groups_read_and_survive_save() {
     assert_eq!(part(&saved, "xl/worksheets/sheet1.xml"), part(SPARKLINES, "xl/worksheets/sheet1.xml"));
     assert_eq!(load(&saved).sheets()[0].sparklines(), groups);
 }
+
+// dc-zjsg.8: form-controls.xlsx (make-form-controls.py) holds the nine legacy form controls as Excel 2010+ stores
+// them. Each reads with its anchor, ctrlProp properties and the caption of its hidden drawing shape; an untouched save
+// keeps the sheet, the ctrlProp parts and the VML as stored.
+const FORM_CONTROLS: &[u8] = include_bytes!("fixtures/drawing/form-controls.xlsx");
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_8__form_controls_read_with_their_properties_and_captions() {
+    let loaded = load(FORM_CONTROLS);
+    let read = loaded.sheets()[0].shapes();
+    let kinds: Vec<_> = read.controls.iter().map(|c| (c.id, c.kind.as_str(), c.caption.as_deref())).collect();
+    assert_eq!(
+        kinds,
+        [
+            (1025, "Button", Some("Run")),
+            (1026, "CheckBox", Some("Include tax")),
+            (1027, "Radio", Some("Monthly")),
+            (1028, "Radio", Some("Yearly")),
+            (1029, "List", None),
+            (1030, "Scroll", None),
+            (1031, "Spin", None),
+            (1032, "Drop", None),
+            (1033, "GBox", Some("Options")),
+            (1034, "Label", Some("A label")),
+        ]
+    );
+    let check = &read.controls[1];
+    assert_eq!((check.checked.as_deref(), check.link.as_deref()), (Some("Checked"), Some("$B$2")));
+    assert_eq!(check.anchor, cells(at(6, 4), at(8, 5)));
+    assert_eq!(read.controls[0].macro_name.as_deref(), Some("[0]!Button1_Click"));
+    let list = &read.controls[4];
+    assert_eq!((list.range.as_deref(), list.selected), (Some("$D$2:$D$5"), Some(3)));
+    let scroll = &read.controls[5];
+    assert_eq!((scroll.value, scroll.max, scroll.page, scroll.horizontal), (Some(30), Some(100), Some(10), true));
+    // The hidden drawing shapes stay hidden objects of the drawing.
+    assert!(read.shapes.iter().all(|s| s.hidden));
+    let saved = save_untouched(FORM_CONTROLS);
+    for part_name in ["xl/worksheets/sheet1.xml", "xl/ctrlProps/ctrlProp2.xml", "xl/drawings/vmlDrawing1.vml", "xl/drawings/drawing1.xml"] {
+        assert_eq!(part(&saved, part_name), part(FORM_CONTROLS, part_name), "{part_name}");
+    }
+    assert_eq!(load(&saved).sheets()[0].shapes().controls, read.controls);
+}
