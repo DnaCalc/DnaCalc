@@ -302,6 +302,14 @@ pub fn f_pdf_kernel(x: f64, deg1: f64, deg2: f64) -> Result<f64, WorksheetErrorC
         if log_density < 2.0 * crt_log(f64::MIN_POSITIVE) {
             return Ok(0.0);
         }
+        // A finite density whose gamma products overflowed (a half degree of freedom past
+        // 171.6, as at 365 or 449): Excel gives the value, so take it from the logarithm.
+        // Approximate, not Excel's last bits: the 10 full-bank rows (Excel 16.0.20527, bank2
+        // F.DIST scalar and more) agree to 3e-12 relative.
+        let from_log = crt_exp(log_density);
+        if from_log.is_finite() {
+            return Ok(from_log);
+        }
     }
     Ok(density)
 }
@@ -970,6 +978,27 @@ mod tests {
         assert!((f_pdf_kernel(0.0, 2.0, 5.0).unwrap() - 1.0).abs() < 1e-15);
         // d1=3 at x=0 is 0.0.
         assert_eq!(f_pdf_kernel(0.0, 3.0, 5.0), Ok(0.0));
+    }
+
+    /// Native and browser: a density whose gamma products overflow (half a degree of freedom
+    /// past 171.6) is Excel's value, not #NUM!. Excel 16.0.20527 answers, full bank
+    /// (bank2-answers-f.dist-scalar and -more); approximate to 1e-11 relative.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn f_pdf_with_overflowing_gamma_products_is_excel_s_value() {
+        for (x, d1, d2, excel) in [
+            (0.5, 365.0, 99.99999999999999, 0.0001292901188392102),
+            (0.2013488237563844, 365.0, 95.9095690893189, 2.376064077949561e-26),
+            (0.8522290673604944, 365.0, 9297.0, 0.7309842359669733),
+            (6.112281326421112, 1.0, 449.4636342633071, 0.007696945090318107),
+            (25.36225418055301, 365.0, 1.7203751039703308, 0.0030601731998629957),
+            (515.6770269176984, 365.0, 88.00000000000001, 3.3021894813670246e-101),
+            (2343.0, 365.0, 75.99999999999999, 2.863476397231786e-112),
+            (1.0, 365.0, 947.0, 4.576463474759765),
+        ] {
+            let got = f_pdf_kernel(x, d1, d2).expect("a finite density");
+            assert!(((got - excel) / excel).abs() < 1e-11, "F.DIST({x},{d1},{d2},0) = {got}, Excel {excel}");
+        }
     }
 
     // BUG-FUNC-039 item 2: df exactly 1e10 must be admitted; df > 1e10 rejected.
