@@ -1463,7 +1463,14 @@ fn cfunc_m1_1__unknown_function() {
         }
     }
     unknown.extend([0, u32::MAX]);
-    unknown.retain(|raw| !admitted.contains(raw));
+    // An entry the catalogue declares without running it (REGISTER.ID beside RTD) is known.
+    unknown.retain(|raw| {
+        !admitted.contains(raw)
+            && !matches!(
+                catalogue.resolve(FunctionId::from_raw(*raw)),
+                Ok(t) if t.implementation() != calc_func::Implementation::Held
+            )
+    });
     for raw in &unknown {
         let id = FunctionId::from_raw(*raw);
         assert_eq!(catalogue.resolve(id), Err(RegistrationError::UnknownId(id)));

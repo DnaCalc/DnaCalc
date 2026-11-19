@@ -2227,7 +2227,7 @@ const FILE_PREFIXES: &[(&str, FilePrefix, bool)] = &[
     (
         file_spelling(FunctionId::from_raw(21299203)),
         FilePrefix::Bare,
-        false,
+        true,
     ),
     (
         file_spelling(FunctionId::from_raw(20381699)),
@@ -2834,7 +2834,7 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn old_declarations_match() {
         for (fixture, count) in [
-            (include_str!("../tests/fixtures/func-prefixes.tsv"), 515),
+            (include_str!("../tests/fixtures/func-prefixes.tsv"), 516),
             (include_str!("../tests/fixtures/doc-prefixes.tsv"), 517),
         ] {
             let mut previous = "";
