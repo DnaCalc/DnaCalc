@@ -495,13 +495,16 @@ fn irr_discount_secant(cashflows: &[f64], guess: f64) -> Option<f64> {
     }
     let mut current = add(before, 0.001f64.copysign(value_before));
     let mut value = npv(current)?;
+    let mut step = f64::INFINITY;
     for _ in 0..200 {
         let change = sub(value, value_before);
         if change == 0.0 {
-            return None;
+            // No secant step: the after-budget check decides (a flat balance far from zero is
+            // #NUM!; an iterate that stopped moving near the root is the answer).
+            break;
         }
         let next = sub(current, div(mul(value, sub(current, before)), change));
-        let step = sub(next, current).abs();
+        step = sub(next, current).abs();
         (before, value_before) = (current, value);
         current = next;
         value = npv(current)?;
@@ -509,7 +512,11 @@ fn irr_discount_secant(cashflows: &[f64], guess: f64) -> Option<f64> {
             return Some(sub(div(1.0, current), 1.0));
         }
     }
-    None
+    // After the budget or a flat secant, RATE's separate 1e-4 step and balance check
+    // (RATE_FINAL_TOLERANCE): cash flows of 7e10 cannot bring the balance under 1e-7, the iterate
+    // stops moving with the balance at 2.7e-5, and Excel 16.0.20527 answers that iterate for
+    // IRR({-70000,12000,15000,18000,21000,26000}*2^20) (dcztvv_r24 D3378); from 2^25 on #NUM!.
+    (step <= 1e-4 && value.abs() <= 1e-4).then(|| sub(div(1.0, current), 1.0))
 }
 
 pub(crate) fn irr_kernel(cashflows: &[f64], guess: Option<f64>) -> Result<f64, WorksheetErrorCode> {
@@ -846,6 +853,23 @@ mod tests {
 
         assert_bits(actual, excel_target);
         assert_ne!(actual.to_bits(), prior_local.to_bits());
+    }
+
+    /// Native and browser: flows too large for the 1e-7 balance test end on the after-budget
+    /// 1e-4 check. Excel 16.0.20527 through Touchstone: the flows scaled by 2^0, 2^10 and 2^20
+    /// answer these bits (2^20 is the corpus's dcztvv_r24 D3378); 2^25 and beyond are #NUM!.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn irr_of_large_flows_ends_on_the_after_budget_check() {
+        let flows = [-70000.0, 12000.0, 15000.0, 18000.0, 21000.0, 26000.0];
+        let scaled = |k: i32| flows.map(|f| f * 2f64.powi(k));
+        for (k, excel) in [(0, 0x3fb62d7220a36a20_u64), (10, 0x3fb62d7220a36cd0), (20, 0x3fb62d7220a36cc0)] {
+            let got = irr_kernel(&scaled(k), None).unwrap_or_else(|e| panic!("2^{k}: {e:?}"));
+            assert_eq!(got.to_bits(), excel, "2^{k}: {got}");
+        }
+        for k in [25, 30, 40, 60] {
+            assert_eq!(irr_kernel(&scaled(k), None), Err(WorksheetErrorCode::Num), "2^{k}");
+        }
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
