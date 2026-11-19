@@ -40,6 +40,9 @@ pub struct DrawnShape {
     /// A custom geometry's paths (`geometry` is `custom`), their points as fractions of the box.
     #[serde(default)]
     pub custom: Vec<DrawnPath>,
+    /// An equation drawn from its own markup (dc-zjsg.11), in place of its fallback picture and text.
+    #[serde(default)]
+    pub math: Option<DrawnMath>,
     /// What kind of kept object this is (`equation`, `ink`, `SmartArt`, `OLE object`, dc-zjsg.9): drawn from what
     /// Excel stores beside it, never edited.
     #[serde(default)]
@@ -183,6 +186,18 @@ pub fn turn_style_of(degrees: f64) -> String {
 /// The outline of an object (and its text) with no turn: what is drawn over a picture.
 pub fn outline_markup(shape: &DrawnShape, w: f64, h: f64, zoom: f64) -> Option<String> {
     inner_markup(shape, w, h, zoom, &gradient_id(&shape.name))
+}
+
+/// An equation as the page lays it out: MathML Core, one `math` element a line, placed in the shape's text rectangle
+/// with its insets and vertical anchor, justified `left`, `center` or `right`, at `size` pixels (100%) in `colour`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DrawnMath {
+    pub markup: String,
+    pub align: String,
+    pub size: f64,
+    pub colour: String,
+    pub inset: [f64; 4],
+    pub anchor: String,
 }
 
 /// A pattern fill (`a:pattFill`): the preset and its `#RRGGBB` (or `rgba(...)`) colours.
@@ -1420,6 +1435,35 @@ fn finish(shape: &DrawnShape, w: f64, h: f64, zoom: f64, id: &str, defs: String,
         }
         out.push_str("</div>");
     }
+    if let Some(math) = &shape.math {
+        let [l, t, r, b] = math.inset.map(|v| v * zoom);
+        let [rl, rt, rr, rb] = match shape.custom_text {
+            Some([fl, ft, fr, fb]) => [fl * w, ft * h, fr * w, fb * h],
+            None => text_rect(&shape.geometry, w, h, &shape.adjust),
+        };
+        let justify = match math.anchor.as_str() {
+            "ctr" => "center",
+            "b" => "flex-end",
+            _ => "flex-start",
+        };
+        // Each line's `math` is laid out inline in display style, so the block's justification places it.
+        let lines = math.markup.replace("<math>", "<math style=\"math-style:normal\">");
+        let _ = write!(
+            out,
+            "<div class=\"dc-shape-math\" style=\"position:absolute;left:{}px;top:{}px;width:{}px;height:{}px;box-sizing:border-box;padding:{}px {}px {}px {}px;display:flex;flex-direction:column;justify-content:{justify};text-align:{};font-family:'Cambria Math','STIX Two Math',math;font-size:{}px;color:{};white-space:nowrap;overflow:visible\">{lines}</div>",
+            number(rl),
+            number(rt),
+            number((rr - rl).max(0.0)),
+            number((rb - rt).max(0.0)),
+            number(t),
+            number(r),
+            number(b),
+            number(l),
+            math.align,
+            number(math.size * zoom),
+            math.colour,
+        );
+    }
     for (index, child) in shape.children.iter().enumerate() {
         let [rx, ry, rw, rh] = child.rel;
         let (cw, ch) = (w * rw, h * rh);
@@ -1590,6 +1634,7 @@ mod tests {
             custom: Vec::new(),
             custom_text: None,
             kept: None,
+            math: None,
             adjust: Vec::new(),
             children: Vec::new(),
             id: 0,

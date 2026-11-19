@@ -287,6 +287,9 @@ pub(crate) fn drawn_with(shape: &Shape, place: ChartPlace, theme: &[String], lin
         })
     };
     let body = &shape.body;
+    // An equation in the subset is drawn from its OMML; its fallback picture and text are not (dc-zjsg.11).
+    let equation = shape.math.as_ref().and_then(crate::omml::convert);
+    let picture = if equation.is_some() { None } else { picture };
     // Text whose runs are unfilled is not drawn (an equation's fallback carries it in its picture).
     let text = shape.text.as_ref().filter(|p| !body.text_hidden && p.iter().any(|t| !t.is_empty())).map(|paragraphs| {
         let inset = |value: Option<i64>, default: i64| value.unwrap_or(default) as f64 / EMU_PER_PIXEL;
@@ -366,6 +369,23 @@ pub(crate) fn drawn_with(shape: &Shape, place: ChartPlace, theme: &[String], lin
         custom,
         custom_text,
         kept: shape.kept.clone(),
+        math: equation.map(|e| dna_calc_model::drawn_shapes::DrawnMath {
+            markup: e.markup,
+            align: e.align.to_owned(),
+            // 11 pt, Excel's default, at 96 dots per inch.
+            size: e.size.or_else(|| body.size.map(|s| s as f64 / 100.0)).unwrap_or(11.0) * 96.0 / 72.0,
+            colour: style
+                .and_then(|s| s.font.as_ref())
+                .and_then(|c| css(c, theme))
+                .unwrap_or_else(|| shape_colour::css(Resolved { rgb: scheme("dk1", theme).unwrap_or(0), alpha: 1.0 })),
+            inset: [
+                body.left_inset.unwrap_or(91_440) as f64 / EMU_PER_PIXEL,
+                body.top_inset.unwrap_or(45_720) as f64 / EMU_PER_PIXEL,
+                body.right_inset.unwrap_or(91_440) as f64 / EMU_PER_PIXEL,
+                body.bottom_inset.unwrap_or(45_720) as f64 / EMU_PER_PIXEL,
+            ],
+            anchor: body.anchor.clone().unwrap_or_else(|| "t".into()),
+        }),
         adjust: shape.adjust.clone(),
         children,
         id: shape.id,

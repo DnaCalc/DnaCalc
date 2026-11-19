@@ -5043,13 +5043,17 @@ mod outline_tests {
                 ("Object 1", "picture", Some("OLE object")),
             ]
         );
-        // The equation: its fallback picture, no text drawn over it, its outline.
+        // The equation is in the subset: drawn from its OMML (dc-zjsg.11), not its fallback picture, no text, its outline.
         let equation = &shapes[0];
-        assert!(equation.picture.as_ref().is_some_and(|p| p.placeholder.is_none()));
-        assert!(equation.text.is_none() && equation.fill.is_none() && equation.line.is_some());
-        let markup = dna_calc_model::drawn_shapes::outline_markup(equation, 256.0, 80.0, 1.0).unwrap();
-        assert!(!markup.contains("dc-picture-placeholder") && markup.contains("<path"), "{markup}");
-        // The picture fill's bytes are answered by the shape's identity like a picture's.
+        assert!(equation.picture.is_none() && equation.text.is_none() && equation.fill.is_none() && equation.line.is_some());
+        let math = equation.math.as_ref().unwrap();
+        assert_eq!((math.align.as_str(), math.colour.as_str()), ("center", "#000000"));
+        for element in ["<mfrac>", "<msup>", "<msqrt>", "<munderover>", "<mtable>", "<mo fence=\"true\">(</mo>"] {
+            assert!(math.markup.contains(element), "{element}: {}", math.markup);
+        }
+        let markup = dna_calc_model::drawn_shapes::shape_markup(equation, 256.0, 80.0, 1.0).unwrap();
+        assert!(markup.contains("dc-shape-math") && markup.contains("math-style:normal"), "{markup}");
+        // The picture fill's bytes are still answered by the shape's identity like a picture's.
         let answer = server.handle(Request::ShapePicture { sheet: Sheet::of(sheet), id: equation.id }, None);
         assert!(answer.bytes.is_some());
         // SmartArt: five children, the boxes with their text in white.
