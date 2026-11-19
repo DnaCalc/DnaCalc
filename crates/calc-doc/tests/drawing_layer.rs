@@ -1187,3 +1187,70 @@ fn dc_zjsg_2__custom_geometry_patterns_and_style_references_read_and_survive_sav
     }
     assert_eq!(&load(&saved).sheets()[0].shapes().shapes, shapes);
 }
+
+// dc-zjsg.9: kept-objects.xlsx (make-kept-objects.py) holds an equation, ink, a SmartArt diagram and an OLE object as
+// Excel stores them. Each is read as what DNA Calc draws for it (the equation's and the ink's fallback pictures, the
+// diagram's cached shapes, the OLE object's picture), marked kept; an untouched save keeps every part as stored.
+const KEPT_OBJECTS: &[u8] = include_bytes!("fixtures/drawing/kept-objects.xlsx");
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_9__equations_ink_smartart_and_ole_objects_are_kept_and_drawn_from_their_fallbacks() {
+    let loaded = load(KEPT_OBJECTS);
+    let read = loaded.sheets()[0].shapes();
+    assert_eq!(read.unread, 0, "{:?}", read.unread_by);
+    let kinds: Vec<_> = read.shapes.iter().map(|s| (s.id, s.name.as_str(), s.kind, s.kept.as_deref(), s.hidden)).collect();
+    assert_eq!(
+        kinds,
+        [
+            (2, "TextBox 1", ShapeKind::TextBox, Some("equation"), false),
+            (3, "Ink 2", ShapeKind::Picture, Some("ink"), false),
+            (4, "Diagram 3", ShapeKind::Group, Some("SmartArt"), false),
+            (1025, "Object 1", ShapeKind::Shape, None, true),
+            (1025, "Object 1", ShapeKind::Picture, Some("OLE object"), false),
+        ]
+    );
+    // The equation: the Fallback's picture fill and unfilled text, the Choice's OMML.
+    let equation = &read.shapes[0];
+    assert_eq!(equation.fill, ShapeFill::Picture("rId1".into()));
+    assert!(equation.body.text_hidden);
+    let image = equation.media.as_ref().unwrap().image.as_ref().unwrap();
+    assert_eq!((image.part.as_str(), image.content_type.as_str()), ("xl/media/image1.png", "image/png"));
+    let math = equation.math.as_ref().unwrap();
+    assert_eq!(math.local, "oMathPara");
+    let omath = math.child("oMath").unwrap();
+    assert_eq!(omath.children.iter().map(|c| c.local.as_str()).collect::<Vec<_>>(), ["f", "r", "sSup", "r", "rad", "r", "nary", "d"]);
+    let nary = omath.child("nary").unwrap();
+    assert_eq!(nary.child("naryPr").unwrap().child("chr").unwrap().attribute("m:val"), Some("\u{2211}"));
+    // Ink: the Fallback picture.
+    assert_eq!(read.shapes[1].media.as_ref().unwrap().image.as_ref().unwrap().part, "xl/media/image2.png");
+    // SmartArt: the five shapes of the cached diagram drawing, in the frame's space.
+    let diagram = &read.shapes[2];
+    assert_eq!(diagram.child_extent, (512 * 9525, 160 * 9525));
+    let geometries: Vec<_> = diagram.children.iter().map(|c| c.geometry.as_deref().unwrap()).collect();
+    assert_eq!(geometries, ["roundRect", "rightArrow", "roundRect", "rightArrow", "roundRect"]);
+    assert_eq!(diagram.children[2].text.as_deref(), Some(&["Build".to_owned()][..]));
+    assert_eq!(diagram.children[2].offset, (192 * 9525, 30 * 9525));
+    // The OLE object: its picture from the sheet's relationship, its program as the description.
+    let ole = &read.shapes[4];
+    let media = ole.media.as_ref().unwrap();
+    assert_eq!((media.image.as_ref().unwrap().part.as_str(), media.description.as_deref()), ("xl/media/image3.png", Some("Package")));
+    assert_eq!(ole.anchor, cells(at(11, 8), at(13, 13)));
+    // An untouched save keeps every part as stored, and reads back the same objects.
+    let saved = save_untouched(KEPT_OBJECTS);
+    for part_name in [
+        "xl/worksheets/sheet1.xml",
+        "xl/drawings/drawing1.xml",
+        "xl/drawings/_rels/drawing1.xml.rels",
+        "xl/drawings/vmlDrawing1.vml",
+        "xl/ink/ink1.xml",
+        "xl/diagrams/data1.xml",
+        "xl/diagrams/drawing1.xml",
+        "xl/embeddings/Package1.bin",
+        "xl/media/image1.png",
+        "xl/media/image3.png",
+    ] {
+        assert_eq!(part(&saved, part_name), part(KEPT_OBJECTS, part_name), "{part_name}");
+    }
+    assert_eq!(&load(&saved).sheets()[0].shapes().shapes, &read.shapes);
+}

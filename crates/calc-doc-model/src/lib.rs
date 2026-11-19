@@ -60,7 +60,7 @@ pub use chart::{
 };
 mod drawing;
 pub use drawing::{
-    CustomGeometry, GeometryCommand, GeometryPath, GeometryPoint, LineEnd, PictureMedia, ShapePattern, ShapeStyle, ShapeStyleRef, Shape, ShapeBody, ShapeColour, ShapeConnection, ShapeFill, ShapeGradient, ShapeKind, ShapeLine, ShapeShadow, ShapePicture, ShapeTextRun, SheetShapes,
+    CustomGeometry, DrawingNode, GeometryCommand, GeometryPath, GeometryPoint, LineEnd, PictureMedia, ShapePattern, ShapeStyle, ShapeStyleRef, Shape, ShapeBody, ShapeColour, ShapeConnection, ShapeFill, ShapeGradient, ShapeKind, ShapeLine, ShapeShadow, ShapePicture, ShapeTextRun, SheetShapes,
 };
 mod cells;
 mod validation;

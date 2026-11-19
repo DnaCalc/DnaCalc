@@ -10,12 +10,15 @@ use super::{Events, LoadError, read_xml};
 use crate::opc::Package;
 use crate::xml::XmlEvent;
 use calc_doc_model::{
-    ChartAnchor, CustomGeometry, DrawingPoint, GeometryCommand, GeometryPath, GeometryPoint, LineEnd, ShapePattern, ShapeStyle,
+    ChartAnchor, CustomGeometry, DrawingNode, DrawingPoint, GeometryCommand, GeometryPath, GeometryPoint, LineEnd, ShapePattern, ShapeStyle,
     ShapeStyleRef, Shape, ShapeBody, ShapeColour, ShapeConnection, ShapeFill, ShapeShadow,
     PictureMedia, ShapeGradient, ShapeKind, ShapeLine, ShapePicture, ShapeTextRun, SheetShapes,
 };
 
 const DRAWING: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing";
+const RELATIONSHIPS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+const MATH: &str = "http://schemas.openxmlformats.org/officeDocument/2006/math";
+const DIAGRAM: &str = "http://schemas.openxmlformats.org/drawingml/2006/diagram";
 const SPREADSHEET_DRAWING: &str =
     "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing";
 
@@ -57,12 +60,16 @@ fn tree(events: &mut Events<'_>, start: crate::xml::XmlElement) -> Result<Node, 
         text: String::new(),
         children: Vec::new(),
     };
-    // The relationship id of a blip is the one namespaced attribute read.
+    // Namespaced attributes read: a blip's relationship id (`r:embed`), the other relationship ids (`r:id`,
+    // `r:dm`) and OMML's (`m:val`).
     for attribute in &start.attributes {
-        if attribute.name.namespace.is_some() && attribute.name.local == "embed" {
-            node.attributes
-                .push(("r:embed".to_owned(), attribute.value.clone()));
-        }
+        let prefix = match attribute.name.namespace.as_deref() {
+            _ if attribute.name.local == "embed" && attribute.name.namespace.is_some() => "r",
+            Some(RELATIONSHIPS) => "r",
+            Some(MATH) => "m",
+            _ => continue,
+        };
+        node.attributes.push((format!("{prefix}:{}", attribute.name.local), attribute.value.clone()));
     }
     loop {
         match events.next()? {
@@ -85,12 +92,23 @@ pub(crate) fn read_shapes(package: &Package, sheet_part: &str) -> SheetShapes {
     }) else {
         return read;
     };
-    match read_drawing(package, &drawing) {
+    let mut read = match read_drawing(package, &drawing) {
         Ok(mut shapes) => {
             let relationships = package.relationships_of(Some(&drawing));
             let mut kept = std::collections::BTreeMap::new();
             for shape in &mut shapes.shapes {
                 resolve_media(package, relationships, shape, &mut kept);
+                if shape.kept.as_deref() == Some("SmartArt") {
+                    shape.children = diagram_shapes(package, relationships, shape).unwrap_or_default();
+                }
+            }
+            // A SmartArt frame without the drawing Excel caches for it is kept in the package, not drawn.
+            let before = shapes.shapes.len();
+            shapes.shapes.retain(|s| s.kept.as_deref() != Some("SmartArt") || !s.children.is_empty());
+            let dropped = before - shapes.shapes.len();
+            if dropped > 0 {
+                shapes.unread += dropped;
+                *shapes.unread_by.entry("graphicFrame (diagram)".into()).or_default() += dropped;
             }
             shapes
         }
@@ -98,7 +116,103 @@ pub(crate) fn read_shapes(package: &Package, sheet_part: &str) -> SheetShapes {
             read.unread += 1;
             read
         }
+    };
+    read.shapes.extend(ole_objects(package, sheet_part));
+    read
+}
+
+/// The first element of the part `part` as a tree.
+fn part_tree(package: &Package, part: &str) -> Option<Node> {
+    let xml = read_xml(package, part).ok()?;
+    let mut events = Events::new(&xml);
+    loop {
+        match events.next().ok()?? {
+            XmlEvent::Start(element) => return tree(&mut events, element).ok(),
+            _ => continue,
+        }
     }
+}
+
+fn descendant<'a>(node: &'a Node, local: &str) -> Option<&'a Node> {
+    node.children.iter().find_map(|c| if c.local == local { Some(c) } else { descendant(c, local) })
+}
+
+fn resolved(relationships: Option<&crate::opc::Relationships>, id: Option<&str>) -> Option<String> {
+    relationships?
+        .items()
+        .iter()
+        .find(|r| Some(r.id.as_str()) == id && r.mode == crate::opc::TargetMode::Internal)?
+        .resolved
+        .clone()
+}
+
+/// The shapes of the drawing Excel caches for a SmartArt frame (dc-zjsg.9): its data part names the diagram
+/// drawing (`dsp:dataModelExt relId`, a relationship of the sheet's drawing), whose `dsp:spTree` holds ordinary
+/// DrawingML shapes placed in the frame's space.
+fn diagram_shapes(package: &Package, relationships: Option<&crate::opc::Relationships>, frame: &Shape) -> Option<Vec<Shape>> {
+    let data = part_tree(package, &resolved(relationships, frame.source_part.as_deref())?)?;
+    let id = descendant(&data, "dataModelExt")?.attribute("relId")?;
+    let drawing = part_tree(package, &resolved(relationships, Some(id))?)?;
+    let tree = descendant(&drawing, "spTree")?;
+    Some(tree.children.iter().filter_map(|child| object_shape(child, frame.anchor)).collect())
+}
+
+/// The sheet's OLE objects (dc-zjsg.9): each `oleObject` with an `objectPr` anchor, as a picture of the image Excel
+/// stores for it (its `objectPr r:id`, a relationship of the sheet), kept as stored.
+fn ole_objects(package: &Package, sheet_part: &str) -> Vec<Shape> {
+    let relationships = package.relationships_of(Some(sheet_part));
+    if !relationships.is_some_and(|r| r.items().iter().any(|i| i.kind.ends_with("/oleObject") || i.kind.ends_with("/package"))) {
+        return Vec::new();
+    }
+    let Ok(xml) = read_xml(package, sheet_part) else { return Vec::new() };
+    let mut events = Events::new(&xml);
+    let mut objects = None;
+    while let Ok(Some(event)) = events.next() {
+        if let XmlEvent::Start(element) = event {
+            match element.name.local.as_str() {
+                "sheetData" => {
+                    if events.skip().is_err() {
+                        return Vec::new();
+                    }
+                }
+                "oleObjects" => {
+                    objects = tree(&mut events, element).ok();
+                    break;
+                }
+                _ => {}
+            }
+        }
+    }
+    let Some(objects) = objects else { return Vec::new() };
+    let mut kept = std::collections::BTreeMap::new();
+    let mut out = Vec::new();
+    for item in &objects.children {
+        let object = match item.local.as_str() {
+            "AlternateContent" => item
+                .children
+                .iter()
+                .filter(|b| b.local == "Choice" || b.local == "Fallback")
+                .flat_map(|b| b.children.iter())
+                .find(|o| o.local == "oleObject" && o.child("objectPr").is_some()),
+            "oleObject" => Some(item),
+            _ => None,
+        };
+        let Some(object) = object else { continue };
+        let Some(properties) = object.child("objectPr") else { continue };
+        let Some(anchor) = properties.child("anchor") else { continue };
+        let Some(id) = object.number("shapeId").and_then(|v| u32::try_from(v).ok()) else { continue };
+        let position = ChartAnchor::TwoCell {
+            from: anchor.child("from").map(point).unwrap_or_default(),
+            to: anchor.child("to").map(point).unwrap_or_default(),
+        };
+        let mut shape = Shape::new(id, format!("Object {}", id.saturating_sub(1024)), ShapeKind::Picture, position);
+        shape.kept = Some("OLE object".into());
+        shape.picture = properties.attribute("r:id").map(str::to_owned);
+        shape.media = Some(ShapePicture { description: object.attribute("progId").map(str::to_owned), ..Default::default() });
+        resolve_media(package, relationships, &mut shape, &mut kept);
+        out.push(shape);
+    }
+    out
 }
 
 fn read_drawing(package: &Package, part: &str) -> Result<SheetShapes, LoadError> {
@@ -129,9 +243,26 @@ fn read_drawing(package: &Package, part: &str) -> Result<SheetShapes, LoadError>
                 // branch Excel reads gives the anchors, read as any other.
                 if let Some(branch) = alternate_content_branch(&block) {
                     if branch.children.iter().any(is_anchor) {
-                        for anchor in branch.children.iter().filter(|c| is_anchor(c)) {
+                        // An equation or ink is drawn from the Fallback Excel writes beside it, its picture; an
+                        // equation keeps its OMML too (dc-zjsg.9).
+                        let fallback = block.child("Fallback").filter(|f| f.children.iter().any(is_anchor));
+                        let (taken, kept) = match (kept_kind(branch), fallback) {
+                            (Some(kind), Some(fallback)) => (fallback, Some(kind)),
+                            _ => (branch, None),
+                        };
+                        let maths: Vec<Option<DrawingNode>> =
+                            branch.children.iter().filter(|c| is_anchor(c)).map(|a| find_math(a).map(drawing_node)).collect();
+                        for (index, anchor) in taken.children.iter().filter(|c| is_anchor(c)).enumerate() {
                             match anchor_shape(anchor) {
-                                Anchored::Shape(shape) => read.shapes.push(shape),
+                                Anchored::Shape(mut shape) => {
+                                    if let Some(kind) = kept {
+                                        shape.kept = Some(kind.to_owned());
+                                        if kind == "equation" {
+                                            shape.math = maths.get(index).cloned().flatten();
+                                        }
+                                    }
+                                    read.shapes.push(shape)
+                                }
                                 Anchored::Chart => {}
                                 Anchored::Unread(label) => {
                                     read.unread += 1;
@@ -223,6 +354,38 @@ fn resolve_media(
     media.svg = find(&shape.picture_svg);
 }
 
+/// What a block of alternatives holds that DNA Calc draws from its Fallback: `ink` for a content part, `equation`
+/// for a shape whose text holds OMML.
+fn kept_kind(branch: &Node) -> Option<&'static str> {
+    if descendant(branch, "contentPart").is_some() {
+        Some("ink")
+    } else if find_math(branch).is_some() {
+        Some("equation")
+    } else {
+        None
+    }
+}
+
+/// The OMML of an equation (`a14:m`'s first child) under `node`.
+fn find_math(node: &Node) -> Option<&Node> {
+    node.children.iter().find_map(|c| {
+        if c.local == "m" && c.children.iter().any(|m| matches!(m.local.as_str(), "oMathPara" | "oMath")) {
+            c.children.iter().find(|m| matches!(m.local.as_str(), "oMathPara" | "oMath"))
+        } else {
+            find_math(c)
+        }
+    })
+}
+
+fn drawing_node(node: &Node) -> DrawingNode {
+    DrawingNode {
+        local: node.local.clone(),
+        attributes: node.attributes.clone(),
+        text: node.text.clone(),
+        children: node.children.iter().map(drawing_node).collect(),
+    }
+}
+
 enum Anchored {
     Shape(Shape),
     Chart,
@@ -284,9 +447,38 @@ fn anchor_shape(anchor: &Node) -> Anchored {
     // A block with a fallback around the object (Excel writes a shape with an effect it adds
     // later, a slicer, a timeline, a chartex frame this way): read the branch Excel reads. The
     // saved part is never rewritten from what is read here, so an untouched save keeps the block.
-    let object = alternate_branch(object).unwrap_or(object);
+    let mut kept = None;
+    let object = match alternate_branch(object) {
+        // Ink inside an anchor: its Fallback picture (dc-zjsg.9).
+        Some(chosen) if chosen.local == "contentPart" => match object.child("Fallback").and_then(|f| f.children.first()) {
+            Some(fallback) => {
+                kept = Some("ink");
+                fallback
+            }
+            None => chosen,
+        },
+        Some(chosen) => chosen,
+        None => object,
+    };
     if object.local == "graphicFrame" && is_chart_frame(object) {
         return Anchored::Chart;
+    }
+    // A SmartArt frame: a group whose children are read from the drawing Excel caches for it (`read_shapes`).
+    if object.local == "graphicFrame"
+        && let Some(ids) = object.child("graphic").and_then(|g| g.child("graphicData")).filter(|d| d.attribute("uri") == Some(DIAGRAM)).and_then(|d| d.child("relIds"))
+        && let Some(identity) = object.child("nvGraphicFramePr").and_then(|n| n.child("cNvPr"))
+        && let Some(id) = identity.number("id").and_then(|v| u32::try_from(v).ok())
+    {
+        let mut shape = Shape::new(id, identity.attribute("name").unwrap_or_default().to_owned(), ShapeKind::Group, position);
+        shape.hidden = identity.flag("hidden");
+        if let Some(ext) = object.child("xfrm").and_then(|x| x.child("ext")) {
+            shape.extent = (ext.number("cx").unwrap_or(0), ext.number("cy").unwrap_or(0));
+            shape.child_extent = shape.extent;
+        }
+        shape.kept = Some("SmartArt".into());
+        shape.source_part = ids.attribute("r:dm").map(str::to_owned);
+        shape.edit_as = anchor.attribute("editAs").map(str::to_owned);
+        return Anchored::Shape(shape);
     }
     let Some(mut shape) = object_shape(object, position) else {
         let label = match object.local.as_str() {
@@ -320,6 +512,7 @@ fn anchor_shape(anchor: &Node) -> Anchored {
         return Anchored::Unread(label);
     };
     shape.edit_as = anchor.attribute("editAs").map(str::to_owned);
+    shape.kept = kept.map(str::to_owned);
     shape.prints = !anchor.child("clientData").is_some_and(|c| matches!(c.attribute("fPrintsWithSheet"), Some("0" | "false")));
     Anchored::Shape(shape)
 }
@@ -395,6 +588,18 @@ fn object_shape(node: &Node, anchor: ChartAnchor) -> Option<Shape> {
         shape_properties(&mut shape, properties);
     }
     shape.style = node.child("style").map(style);
+    // A shape filled with a picture holds its image as a picture does (dc-zjsg.9).
+    if let ShapeFill::Picture(embed) = &shape.fill
+        && kind != ShapeKind::Picture
+    {
+        let crop = node.child(properties).and_then(|p| p.child("blipFill")).and_then(|f| f.child("srcRect"));
+        shape.picture = Some(embed.clone());
+        shape.media = Some(ShapePicture {
+            crop: crop.map_or([0; 4], |r| ["l", "t", "r", "b"].map(|side| r.number(side).unwrap_or(0))),
+            description: identity.attribute("descr").map(str::to_owned),
+            ..Default::default()
+        });
+    }
     match kind {
         ShapeKind::Connector => {
             let connection = |name: &str| {
@@ -542,6 +747,7 @@ fn text_body(body: &Node) -> ShapeBody {
         read.italic = run.flag("i");
         read.underline = run.attribute("u") == Some("sng");
         read.colour = run.child("solidFill").and_then(colour);
+        read.text_hidden = run.child("noFill").is_some();
     }
     read
 }
@@ -711,7 +917,13 @@ fn shape_properties(shape: &mut Shape, properties: &Node) {
                     background: child.child("bgClr").and_then(colour),
                 })
             }
-            "blipFill" | "grpFill" => shape.fill = ShapeFill::Other,
+            "blipFill" => {
+                shape.fill = child
+                    .child("blip")
+                    .and_then(|b| b.attribute("r:embed"))
+                    .map_or(ShapeFill::Other, |embed| ShapeFill::Picture(embed.to_owned()))
+            }
+            "grpFill" => shape.fill = ShapeFill::Other,
             "custGeom" => shape.custom_geometry = Some(custom_geometry(child)),
             "ln" => {
                 let mut line = ShapeLine {

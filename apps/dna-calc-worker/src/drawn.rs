@@ -165,8 +165,19 @@ pub(crate) fn drawn_with(shape: &Shape, place: ChartPlace, theme: &[String], lin
         ShapeKind::Group => ("group", "", false),
         ShapeKind::Picture => ("picture", "rect", false),
     };
-    let custom_geometry = shape.custom_geometry.as_ref().filter(|_| shape.geometry.is_none() && kind != "group");
-    let mut geometry = if custom_geometry.is_some() { "custom" } else { shape.geometry.as_deref().unwrap_or(default_geometry) };
+    let mut geometry = shape.geometry.as_deref().unwrap_or(default_geometry);
+    // A custom geometry, or a preset the model's own paths do not draw, from its ECMA-376 definition (a picture
+    // keeps its rectangle).
+    let custom_geometry = match shape.custom_geometry.as_ref() {
+        Some(g) if shape.geometry.is_none() && kind != "group" => Some(g.clone()),
+        _ if kind != "group" && kind != "picture" && !dna_calc_model::drawn_shapes::drawn_geometry(geometry) => {
+            crate::custom_geometry::preset(geometry, &shape.adjust)
+        }
+        _ => None,
+    };
+    if custom_geometry.is_some() {
+        geometry = "custom";
+    }
     if kind == "picture" && !dna_calc_model::drawn_shapes::drawn_geometry(geometry) {
         // A picture cropped to a shape this module does not draw is drawn as a rectangle.
         geometry = "rect";
@@ -174,16 +185,34 @@ pub(crate) fn drawn_with(shape: &Shape, place: ChartPlace, theme: &[String], lin
     if kind != "group" && !dna_calc_model::drawn_shapes::drawn_geometry(geometry) {
         return None;
     }
-    let picture = shape.media.as_ref().filter(|_| kind == "picture").map(|media| DrawnPicture {
-        crop: media.crop.map(|v| v as f64 / 100_000.0),
-        placeholder: crate::picture::source(media).err(),
-        description: media.description.clone(),
-    });
+    // A picture's image, or the image a shape is filled with (an equation's fallback picture, dc-zjsg.9). A kept
+    // object the page cannot show names its kind in the placeholder.
+    let picture = shape
+        .media
+        .as_ref()
+        .filter(|_| kind == "picture" || matches!(shape.fill, ShapeFill::Picture(_)))
+        .map(|media| DrawnPicture {
+            crop: media.crop.map(|v| v as f64 / 100_000.0),
+            placeholder: crate::picture::source(media).err().map(|label| match &shape.kept {
+                Some(kept) => format!("{kept}: {label}"),
+                None => label,
+            }),
+            description: media.description.clone(),
+        });
     let degrees = shape.rotation as f64 / 60_000.0;
-    let (custom, custom_text) = custom_geometry.map_or((Vec::new(), None), |g| {
-        let (paths, text) = crate::custom_geometry::custom_paths(g, shape.extent.0 as f64, shape.extent.1 as f64);
-        (paths, Some(text))
-    });
+    let (custom, custom_text) = match custom_geometry.as_ref() {
+        Some(g) => {
+            let (paths, text) = crate::custom_geometry::custom_paths(g, shape.extent.0 as f64, shape.extent.1 as f64);
+            (paths, Some(text))
+        }
+        // A preset the model draws takes its text rectangle from the standard's definition too.
+        None if kind == "shape" || kind == "textbox" => (
+            Vec::new(),
+            crate::custom_geometry::preset(geometry, &shape.adjust)
+                .map(|g| crate::custom_geometry::custom_paths(&g, shape.extent.0 as f64, shape.extent.1 as f64).1),
+        ),
+        None => (Vec::new(), None),
+    };
     let mut children = Vec::new();
     if kind == "group" {
         // The children's boxes as fractions of the group's frame, through the group's child space; a group
@@ -225,7 +254,7 @@ pub(crate) fn drawn_with(shape: &Shape, place: ChartPlace, theme: &[String], lin
         ShapeFill::Solid(colour) => css(colour, theme),
         // A gradient and a pattern are drawn from their own fields; a picture fill is not drawn: a shape
         // with one draws as if it had none.
-        ShapeFill::Gradient(_) | ShapeFill::Pattern(_) | ShapeFill::Other => None,
+        ShapeFill::Gradient(_) | ShapeFill::Pattern(_) | ShapeFill::Picture(_) | ShapeFill::Other => None,
         ShapeFill::Style => match style {
             Some(style) if style.fill.index != 0 => style.fill.colour.as_ref().and_then(|c| css(c, theme)),
             Some(_) => None,
@@ -258,7 +287,8 @@ pub(crate) fn drawn_with(shape: &Shape, place: ChartPlace, theme: &[String], lin
         })
     };
     let body = &shape.body;
-    let text = shape.text.as_ref().filter(|p| p.iter().any(|t| !t.is_empty())).map(|paragraphs| {
+    // Text whose runs are unfilled is not drawn (an equation's fallback carries it in its picture).
+    let text = shape.text.as_ref().filter(|p| !body.text_hidden && p.iter().any(|t| !t.is_empty())).map(|paragraphs| {
         let inset = |value: Option<i64>, default: i64| value.unwrap_or(default) as f64 / EMU_PER_PIXEL;
         let rich_runs = body.rich_runs_for(paragraphs);
         let default_colour = || {
@@ -335,6 +365,7 @@ pub(crate) fn drawn_with(shape: &Shape, place: ChartPlace, theme: &[String], lin
         },
         custom,
         custom_text,
+        kept: shape.kept.clone(),
         adjust: shape.adjust.clone(),
         children,
         id: shape.id,
@@ -444,8 +475,13 @@ mod tests {
         let mut hidden = shape(ShapeKind::Shape);
         hidden.hidden = true;
         assert!(drawn(&hidden, place(), &[]).is_none());
+        // A preset the model's paths lack is drawn from its ECMA-376 definition; a name no standard defines is not.
         let mut star = shape(ShapeKind::Shape);
         star.geometry = Some("star5".into());
+        star.extent = (100, 100);
+        let d = drawn(&star, place(), &[]).unwrap();
+        assert_eq!((d.geometry.as_str(), d.custom.len()), ("custom", 1));
+        star.geometry = Some("noSuchShape".into());
         assert!(drawn(&star, place(), &[]).is_none());
         // A pattern or picture fill is not drawn, and the outline still is.
         let mut pattern = shape(ShapeKind::Shape);

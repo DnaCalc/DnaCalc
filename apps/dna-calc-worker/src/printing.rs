@@ -322,7 +322,7 @@ pub fn preview(
 fn pictures(shapes: &[calc_host::Shape]) -> Vec<(u32, String)> {
     fn walk(shapes: &[calc_host::Shape], out: &mut Vec<(u32, String)>) {
         for shape in shapes {
-            if shape.kind == calc_host::ShapeKind::Picture
+            if (shape.kind == calc_host::ShapeKind::Picture || matches!(shape.fill, calc_host::ShapeFill::Picture(_)))
                 && let Some((content_type, bytes)) = shape.media.as_ref().and_then(|m| crate::picture::source(m).ok())
             {
                 out.push((shape.id, dna_calc_model::drawn_shapes::data_url(content_type, &bytes)));

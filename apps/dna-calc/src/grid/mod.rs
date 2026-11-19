@@ -2585,7 +2585,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 }
                 // The anchor of a quarter-turned shape is its box turned: the shape is that box swapped about its centre.
                 let (x0, y0, x1, y1) = wire::drawn_shapes::unrotated((x0, y0, x1, y1), shape.rotation);
-                let picture = shape.picture.clone().filter(|_| shape.kind == "picture");
+                let picture = shape.picture.clone();
                 let (w, h) = (x1 - x0, y1 - y0);
                 // The images of pictures inside a group: each in the boxes of its ancestors, under the group's vector parts.
                 let inside = if shape.kind == "group" { wire::drawn_shapes::group_pictures(&shape, w, h) } else { Vec::new() };
@@ -2627,6 +2627,8 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                         data-dnacalc="shape"
                         data-shape=shape.name.clone()
                         data-kind=shape.kind.clone()
+                        data-kept=shape.kept.clone()
+                        aria-label=shape.kept.clone().map(|kept| format!("{kept} {}", shape.name))
                         use:css=style
                     >
                         {image}

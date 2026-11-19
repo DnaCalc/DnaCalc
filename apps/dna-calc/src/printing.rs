@@ -196,9 +196,9 @@ fn Region(
             }
             let (x0, y0, x1, y1) = wire::drawn_shapes::unrotated((x0, y0, x1, y1), shape.rotation);
             let (w, h) = (x1 - x0, y1 - y0);
-            let picture = shape.picture.as_ref().filter(|p| shape.kind == "picture" && p.placeholder.is_none());
+            let picture = shape.picture.as_ref().filter(|p| p.placeholder.is_none());
             let inside = if shape.kind == "group" { wire::drawn_shapes::group_pictures(shape, w, h) } else { Vec::new() };
-            let (markup, turn) = if shape.picture.is_some() && shape.kind == "picture" || !inside.is_empty() {
+            let (markup, turn) = if shape.picture.is_some() || !inside.is_empty() {
                 (wire::drawn_shapes::outline_markup(shape, w, h, 1.0)?, wire::drawn_shapes::turn_style(shape))
             } else {
                 (wire::drawn_shapes::shape_markup(shape, w, h, 1.0)?, String::new())

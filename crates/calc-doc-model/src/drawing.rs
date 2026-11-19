@@ -46,6 +46,8 @@ pub enum ShapeFill {
     Gradient(ShapeGradient),
     /// `a:pattFill` (dc-zjsg.2): a preset 8 by 8 pattern in its foreground and background colours.
     Pattern(ShapePattern),
+    /// `a:blipFill` with an image (dc-zjsg.9): its `a:blip r:embed`; the image itself is the shape's `media`.
+    Picture(String),
     /// A picture or group fill: kept in the source, not held here.
     Other,
 }
@@ -225,6 +227,8 @@ pub struct ShapeBody {
     pub colour: Option<ShapeColour>,
     /// Explicit, individually styled runs in paragraph order; empty when not represented.
     pub runs: Vec<Vec<ShapeTextRun>>,
+    /// The first run's `a:noFill`: the text is there but not drawn (an equation's fallback picture carries it).
+    pub text_hidden: bool,
 }
 
 /// A text run whose size, weight, italic state and optional colour are specified.
@@ -261,6 +265,25 @@ impl ShapeBody {
             || self.runs.iter().zip(paragraphs).any(|(runs, text)| runs.iter().map(|run| run.text.as_str()).collect::<String>() != *text)
         { return None; }
         Some(&self.runs)
+    }
+}
+
+/// An element of a part the drawing reader keeps as a tree (an equation's OMML, dc-zjsg.9): its local name, its
+/// attributes (a namespaced one as `m:val`, `r:id`), its text and its children.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct DrawingNode {
+    pub local: String,
+    pub attributes: Vec<(String, String)>,
+    pub text: String,
+    pub children: Vec<DrawingNode>,
+}
+
+impl DrawingNode {
+    pub fn attribute(&self, name: &str) -> Option<&str> {
+        self.attributes.iter().find(|(n, _)| n == name).map(|(_, v)| v.as_str())
+    }
+    pub fn child(&self, local: &str) -> Option<&DrawingNode> {
+        self.children.iter().find(|c| c.local == local)
     }
 }
 
@@ -325,6 +348,14 @@ pub struct Shape {
     pub end: Option<ShapeConnection>,
     /// A group's children, in drawing order.
     pub children: Vec<Shape>,
+    /// An object DNA Calc keeps as stored and draws from what Excel stores beside it (dc-zjsg.9): `equation`
+    /// (its fallback picture), `ink` (its fallback picture), `SmartArt` (the drawing Excel caches) or `OLE object`
+    /// (its picture). `None` for an ordinary object.
+    pub kept: Option<String>,
+    /// An equation's OMML (`a14:m`'s `m:oMathPara` or `m:oMath`), for drawing it from its own markup.
+    pub math: Option<DrawingNode>,
+    /// The relationship id of the part a kept object is drawn from (a SmartArt frame's data part, `r:dm`).
+    pub source_part: Option<String>,
     /// The language (`a:rPr lang`) of the text runs a shape this session made writes: Excel writes the
     /// machine's install/regional language on every run (dc-piw0.10 Q15); `None` writes `en-US`.
     pub lang: Option<String>,
@@ -363,6 +394,9 @@ impl Shape {
             begin: None,
             end: None,
             children: Vec::new(),
+            kept: None,
+            math: None,
+            source_part: None,
             lang: None,
         }
     }

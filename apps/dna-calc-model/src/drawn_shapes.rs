@@ -40,7 +40,12 @@ pub struct DrawnShape {
     /// A custom geometry's paths (`geometry` is `custom`), their points as fractions of the box.
     #[serde(default)]
     pub custom: Vec<DrawnPath>,
-    /// A custom geometry's text rectangle `[l, t, r, b]` as fractions of the box.
+    /// What kind of kept object this is (`equation`, `ink`, `SmartArt`, `OLE object`, dc-zjsg.9): drawn from what
+    /// Excel stores beside it, never edited.
+    #[serde(default)]
+    pub kept: Option<String>,
+    /// The geometry's text rectangle `[l, t, r, b]` as fractions of the box, from its custom or ECMA-376 preset
+    /// definition; `None` leaves it to [`text_rect`].
     #[serde(default)]
     pub custom_text: Option<[f64; 4]>,
     /// The preset's adjust values by name (`adj1`, ...), in 100000ths.
@@ -139,7 +144,7 @@ pub fn group_pictures(group: &DrawnShape, w: f64, h: f64) -> Vec<GroupPicture> {
             let (cw, ch) = (w * rw, h * rh);
             chain.push([w * rx, h * ry, cw, ch, child.shape.rotation]);
             match (&child.shape.picture, child.shape.kind.as_str()) {
-                (Some(picture), "picture") if picture.placeholder.is_none() => out.push(GroupPicture {
+                (Some(picture), _) if picture.placeholder.is_none() => out.push(GroupPicture {
                     id: child.shape.id,
                     crop: picture.crop,
                     description: picture.description.clone(),
@@ -1065,8 +1070,9 @@ fn inner_markup(shape: &DrawnShape, w: f64, h: f64, zoom: f64, id: &str) -> Opti
     if shape.kind == "group" {
         return Some(finish(shape, w, h, zoom, id, String::new(), ""));
     }
-    if let Some(picture) = shape.picture.as_ref().filter(|_| shape.kind == "picture") {
-        // The picture's image is the page's own element; markup draws its placeholder, then the outline.
+    if let Some(picture) = shape.picture.as_ref() {
+        // The image (of a picture, or a shape's picture fill) is the page's own element; markup draws its placeholder,
+        // then the outline and a shape's text.
         let label = picture.placeholder.clone().unwrap_or_else(|| "Picture".to_owned());
         let mut out = String::new();
         if picture.placeholder.is_some() {
@@ -1084,8 +1090,12 @@ fn inner_markup(shape: &DrawnShape, w: f64, h: f64, zoom: f64, id: &str) -> Opti
         frame.kind = "shape".into();
         frame.fill = None;
         frame.gradient = None;
-        frame.text = None;
-        if frame.line.is_some() {
+        if shape.kind == "picture" {
+            frame.text = None;
+        } else {
+            frame.kind = shape.kind.clone();
+        }
+        if frame.line.is_some() || frame.text.is_some() {
             if let Some(path) = inner_markup(&frame, w, h, zoom, id) {
                 out.push_str(&path);
             }
@@ -1193,14 +1203,33 @@ fn inner_markup(shape: &DrawnShape, w: f64, h: f64, zoom: f64, id: &str) -> Opti
             );
         }
     }
-    let body = match filled_part {
+    let (fill_path, stroke_path) = match &filled_part {
         // A custom geometry whose filled and stroked paths differ: the fill beneath, the strokes over it.
-        Some(fills) if fills != segments => {
-            let filled = path_data(&fills, w, h, flip_h, flip_v);
-            format!("<path d=\"{filled}\" fill=\"{fill}\" stroke=\"none\"/><path d=\"{d}\" fill=\"none\" {stroke}/>")
+        Some(fills) if *fills != segments => {
+            let filled = path_data(fills, w, h, flip_h, flip_v);
+            (format!("<path d=\"{filled}\" fill=\"{fill}\" stroke=\"none\"/>"), format!("<path d=\"{d}\" fill=\"none\" {stroke}/>"))
         }
-        _ => format!("<path d=\"{d}\" fill=\"{fill}\" {stroke}/>"),
+        _ => (format!("<path d=\"{d}\" fill=\"{fill}\" {stroke}/>"), String::new()),
     };
+    // A path filled `darken`, `darkenLess`, `lighten` or `lightenLess` shades the fill beneath it (the shades are
+    // assumed: black or white at 40% and 20% over the fill, until Excel's render decides).
+    let mut shade = String::new();
+    if custom && fill != "none" {
+        for path in &shape.custom {
+            let overlay = match path.fill.as_str() {
+                "darken" => "rgba(0,0,0,0.4)",
+                "darkenLess" => "rgba(0,0,0,0.2)",
+                "lighten" => "rgba(255,255,255,0.4)",
+                "lightenLess" => "rgba(255,255,255,0.2)",
+                _ => continue,
+            };
+            let one = DrawnShape { custom: vec![path.clone()], ..shape.clone() };
+            let d = path_data(&custom_segments(&one, w, h, |_| true), w, h, flip_h, flip_v);
+            let _ = write!(shade, "<path d=\"{d}\" fill=\"{overlay}\" stroke=\"none\"/>");
+        }
+    }
+    // The shades sit over the fill and under the strokes.
+    let body = format!("{fill_path}{shade}{stroke_path}");
     Some(finish(shape, w, h, zoom, id, defs, &format!("{shadow}{body}{heads}")))
 }
 
@@ -1344,7 +1373,8 @@ fn finish(shape: &DrawnShape, w: f64, h: f64, zoom: f64, id: &str, defs: String,
         };
         // A shape flipped vertically carries its text upside down, as Excel's does.
         let turn = if shape.flip_vertical { "transform:rotate(180deg);" } else { "" };
-        let [rl, rt, rr, rb] = match shape.custom_text.filter(|_| shape.geometry == "custom") {
+        // The text rectangle the worker worked out from the geometry's definition, else the model's own.
+        let [rl, rt, rr, rb] = match shape.custom_text {
             Some([l, t, r, b]) => [l * w, t * h, r * w, b * h],
             None => text_rect(&shape.geometry, w, h, &shape.adjust),
         };
@@ -1559,6 +1589,7 @@ mod tests {
             pattern: None,
             custom: Vec::new(),
             custom_text: None,
+            kept: None,
             adjust: Vec::new(),
             children: Vec::new(),
             id: 0,
