@@ -1394,6 +1394,7 @@ impl Server {
                         self.geometry(sheet),
                         self.charts(sheet),
                         self.drawn_shapes_where(sheet, |shape| shape.prints),
+                        self.drawn_sparklines(sheet),
                     )))
                 }
                 Request::PivotSourceFields { area, revision } => Ok(Reply::PivotSourceFields(
@@ -1411,6 +1412,7 @@ impl Server {
                 }
                 Request::Charts(sheet) => Ok(Reply::Charts(self.charts(sheet))),
                 Request::Shapes(sheet) => Ok(Reply::Shapes(self.drawn_shapes(sheet))),
+                Request::Sparklines(sheet) => Ok(Reply::Sparklines(self.drawn_sparklines(sheet))),
                 Request::CellImage { .. } => Err("handle answers a cell image".into()),
                 Request::ShapePicture { .. } => Err("handle answers a shape picture".into()),
                 Request::AtlasRefusals { reason, page } => Ok(Reply::AtlasRefusals(
@@ -4392,6 +4394,60 @@ impl Server {
     }
 
     /// The sheet's shapes and text boxes as the page draws them, in drawing order (dc-zjsg.2).
+    /// The sheet's sparklines with their axis ends worked out and colours resolved (dc-zjsg.7).
+    fn drawn_sparklines(&self, sheet: Sheet) -> Vec<dna_calc_model::sparklines::DrawnSparkline> {
+        let host = self.book.host();
+        let mut out = Vec::new();
+        for (group, lines) in host.sparklines(sheet.id()) {
+            let colour = |name: &str| {
+                group.colour(name).and_then(|c| match host.sparkline_colour(c) {
+                    Some(calc_host::LookColor::Rgb(rgb)) => Some(rgb.to_ascii_uppercase()),
+                    _ => None,
+                })
+            };
+            let finite = |values: &[Option<f64>]| values.iter().flatten().copied().filter(|v| v.is_finite()).collect::<Vec<_>>();
+            let group_values: Vec<f64> = lines.iter().flat_map(|l| finite(&l.values)).collect();
+            let extreme = |values: &[f64], max: bool| {
+                values.iter().copied().fold(None, |acc: Option<f64>, v| Some(acc.map_or(v, |a| if max { a.max(v) } else { a.min(v) })))
+            };
+            let weight = group.line_weight.as_deref().and_then(|w| w.parse::<f64>().ok()).unwrap_or(0.75) * 96.0 / 72.0;
+            for line in lines {
+                let own = finite(&line.values);
+                let end = |kind: Option<&str>, manual: Option<&str>, max: bool| match kind {
+                    Some("custom") => manual.and_then(|m| m.parse::<f64>().ok()),
+                    Some("group") => extreme(&group_values, max),
+                    _ => extreme(&own, max),
+                };
+                let (Some(min), Some(max)) = (
+                    end(group.min_axis.as_deref(), group.manual_min.as_deref(), false).or_else(|| extreme(&own, false)),
+                    end(group.max_axis.as_deref(), group.manual_max.as_deref(), true).or_else(|| extreme(&own, true)),
+                ) else {
+                    continue;
+                };
+                let flagged = |on: bool, name: &str| if on { colour(name) } else { None };
+                out.push(dna_calc_model::sparklines::DrawnSparkline {
+                    cell: Key::of(line.cell),
+                    kind: group.kind.clone().unwrap_or_else(|| "line".into()),
+                    values: line.values,
+                    min,
+                    max,
+                    empty: group.empty_cells.clone().unwrap_or_else(|| "zero".into()),
+                    weight,
+                    series: colour("colorSeries").unwrap_or_else(|| "#000000".into()),
+                    negative: flagged(group.negative, "colorNegative"),
+                    axis: flagged(group.axis, "colorAxis"),
+                    markers: flagged(group.markers, "colorMarkers"),
+                    first: flagged(group.first, "colorFirst"),
+                    last: flagged(group.last, "colorLast"),
+                    high: flagged(group.high, "colorHigh"),
+                    low: flagged(group.low, "colorLow"),
+                    right_to_left: group.right_to_left,
+                });
+            }
+        }
+        out
+    }
+
     fn drawn_shapes(&self, sheet: Sheet) -> Vec<wire::DrawnShape> {
         self.drawn_shapes_where(sheet, |_| true)
     }
@@ -5019,6 +5075,44 @@ mod outline_tests {
         assert!(first.shape.flip_horizontal);
         assert_eq!(mirrored.children[2].shape.rotation, -30.0);
         assert_eq!(by("Group rot 20").rotation, 20.0);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dc_zjsg_7__the_server_answers_sparklines_with_values_axes_and_colours() {
+        let mut server = Server::new();
+        let data = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/sparklines.xlsx");
+        assert!(server.execute_current(Request::Open { name: "sparklines.xlsx".into() }, Some(data.to_vec())).reply.is_ok());
+        let sheet = server.book.host().sheets()[0].id();
+        let Reply::Sparklines(lines) = server.execute_current(Request::Sparklines(Sheet::of(sheet)), None).reply.unwrap() else {
+            panic!("the sparklines reply")
+        };
+        assert_eq!(lines.len(), 6);
+        let at = |row: u32| lines.iter().find(|l| l.cell.2 == row).unwrap_or_else(|| panic!("row {row}"));
+        // F2: a line over A2:E2, its own axis, accent 1 tint -0.5 as a cell colour takes it (203764), markers, high and low.
+        let f2 = at(2);
+        assert_eq!((f2.kind.as_str(), f2.values.clone()), ("line", vec![Some(3.0), Some(5.0), Some(2.0), Some(8.0), Some(6.0)]));
+        assert_eq!((f2.min, f2.max), (2.0, 8.0));
+        assert_eq!(f2.series, "#203764");
+        assert_eq!((f2.high.as_deref(), f2.low.as_deref()), (Some("#00B050"), Some("#FF0000")));
+        assert!(f2.markers.is_some() && f2.negative.is_none());
+        // F3: an empty cell is an empty point, shown as a gap.
+        assert_eq!((at(3).values[1], at(3).empty.as_str()), (None, "gap"));
+        // F4 and F5 share the group's axis, -2 to 15.
+        assert_eq!((at(4).min, at(4).max, at(5).min, at(5).max), (-2.0, 15.0, -2.0, 15.0));
+        assert_eq!((at(4).kind.as_str(), at(4).negative.as_deref(), at(4).axis.as_deref()), ("column", Some("#ED7D31"), Some("#000000")));
+        assert_eq!(at(6).kind, "stacked");
+        // F7: the custom axis and the weight in pixels; empty cells spanned.
+        let f7 = at(7);
+        assert_eq!((f7.min, f7.max, f7.empty.as_str()), (0.0, 10.0, "span"));
+        assert!((f7.weight - 3.0).abs() < 1e-9);
+        // An edit to the data is in the next answer.
+        server.execute_current(Request::Intent(Intent::EnterCell { at: Key(Sheet::of(sheet).0, Sheet::of(sheet).1, 2, 1), text: "20".into() }), None);
+        let Reply::Sparklines(lines) = server.execute_current(Request::Sparklines(Sheet::of(sheet)), None).reply.unwrap() else { panic!() };
+        let f2 = lines.iter().find(|l| l.cell.2 == 2).unwrap();
+        assert_eq!((f2.values[0], f2.max), (Some(20.0), 20.0));
+        assert!(dna_calc_model::sparklines::sparkline_svg(f2, 64.0, 20.0, 1.0).contains("<circle"));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -1254,3 +1254,32 @@ fn dc_zjsg_9__equations_ink_smartart_and_ole_objects_are_kept_and_drawn_from_the
     }
     assert_eq!(&load(&saved).sheets()[0].shapes().shapes, &read.shapes);
 }
+
+// dc-zjsg.7: sparklines.xlsx (make-sparklines.py) holds four sparkline groups in the worksheet's x14 extension. Each
+// reads with its look and sparklines; an untouched save keeps the worksheet part as stored.
+const SPARKLINES: &[u8] = include_bytes!("fixtures/drawing/sparklines.xlsx");
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_7__sparkline_groups_read_and_survive_save() {
+    let loaded = load(SPARKLINES);
+    let groups = loaded.sheets()[0].sparklines();
+    assert_eq!(groups.len(), 4);
+    let kinds: Vec<_> = groups.iter().map(|g| (g.kind.as_deref(), g.sparklines.len())).collect();
+    assert_eq!(kinds, [(None, 2), (Some("column"), 2), (Some("stacked"), 1), (None, 1)]);
+    let line = &groups[0];
+    assert!(line.markers && line.high && line.low && !line.negative);
+    assert_eq!(line.empty_cells.as_deref(), Some("gap"));
+    assert_eq!((line.sparklines[1].data.as_str(), line.sparklines[1].cell.as_str()), ("Spark!A3:E3", "F3"));
+    let series = line.colour("colorSeries").unwrap();
+    assert_eq!((series.theme.as_deref(), series.tint.as_deref()), (Some("4"), Some("-0.499984740745262")));
+    assert_eq!(groups[1].min_axis.as_deref(), Some("group"));
+    assert!(groups[1].axis && groups[1].negative);
+    let custom = &groups[3];
+    assert_eq!((custom.manual_min.as_deref(), custom.manual_max.as_deref(), custom.line_weight.as_deref()), (Some("0"), Some("10"), Some("2.25")));
+    let sheet = first_sheet(&loaded);
+    assert_eq!(loaded.model().definitions().sparklines(sheet), groups);
+    let saved = save_untouched(SPARKLINES);
+    assert_eq!(part(&saved, "xl/worksheets/sheet1.xml"), part(SPARKLINES, "xl/worksheets/sheet1.xml"));
+    assert_eq!(load(&saved).sheets()[0].sparklines(), groups);
+}

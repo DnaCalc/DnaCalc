@@ -60,6 +60,7 @@ pub fn preview(
     geometry: wire::Geometry,
     charts: Vec<wire::Chart>,
     shapes: Vec<wire::DrawnShape>,
+    sparklines: Vec<dna_calc_model::sparklines::DrawnSparkline>,
 ) -> Result<PrintDocument, String> {
     if book.has_pending_calculation() {
         return Err("Calculation is still running; print preview will refresh when it finishes (dc-971p.57)".into());
@@ -313,6 +314,7 @@ pub fn preview(
         charts,
         pictures: pictures(&host.shapes(sheet.id()).iter().filter(|s| s.prints).cloned().collect::<Vec<_>>()),
         shapes,
+        sparklines,
         notices,
     })
 }

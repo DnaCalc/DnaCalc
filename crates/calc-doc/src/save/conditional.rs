@@ -254,7 +254,7 @@ fn parse(xml: &XmlPart) -> Result<Vec<load::ConditionalFormat>, String> {
                     load::conditional::read_block(&mut events, &e).map_err(|e| e.to_string())?,
                 );
             } else if e.name.is(MAIN_NAMESPACE, "extLst") {
-                load::conditional::read_extensions(&mut events, &mut extensions, &mut Vec::new())
+                load::conditional::read_extensions(&mut events, &mut extensions, &mut Vec::new(), &mut Vec::new())
                     .map_err(|e| e.to_string())?;
             }
         }

@@ -366,6 +366,7 @@ pub(crate) fn read_extensions(
     events: &mut Events<'_>,
     bars: &mut BTreeMap<String, DataBarExtension>,
     validations: &mut Vec<super::validation::Validation>,
+    sparklines: &mut Vec<calc_doc_model::SparklineGroup>,
 ) -> Result<(usize, bool, Option<Vec<(u32, u32, u32, u32)>>), LoadError> {
     let mut unread = 0usize;
     let mut conditional = false;
@@ -406,6 +407,9 @@ pub(crate) fn read_extensions(
                 unscoped |= held.is_some() || parsed.is_none();
                 *held = parsed;
                 unscoped |= scope.as_ref().is_some_and(|(at, _)| *at != depth);
+            }
+            Some(XmlEvent::Start(element)) if element.name.is(X14_NAMESPACE, "sparklineGroups") => {
+                sparklines.extend(super::sparkline::read_groups(events)?);
             }
             Some(XmlEvent::Start(element)) if element.name.is(X14_NAMESPACE, "dataValidation") => {
                 unscoped |= collection_depth.is_some();

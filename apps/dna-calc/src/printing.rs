@@ -185,6 +185,18 @@ fn Region(
         Some((x, y, metrics.col_start(column + 1) - metrics.col_start(column), metrics.row_start(row + 1) - metrics.row_start(row)))
     };
     let origin = (metrics.col_start(1) - viewport.scroll_x, metrics.row_start(1) - viewport.scroll_y);
+    let sparkline_views = document
+        .sparklines
+        .iter()
+        .filter_map(|s| {
+            let (x, y, w, h) = cell_rect(s.cell.2, s.cell.3)?;
+            if w <= 0. || h <= 0. || x + w < 0. || y + h < 0. || x > region.width || y > region.height {
+                return None;
+            }
+            let style = format!("position:absolute;left:{x}px;top:{y}px;width:{w}px;height:{h}px");
+            Some(view! { <div data-dnacalc="print-sparkline" use:css=style inner_html=wire::sparklines::sparkline_svg(s, w, h, 1.0)></div> })
+        })
+        .collect_view();
     let image_of = |id: u32| document.pictures.iter().find(|(p, _)| *p == id).map(|(_, url)| url.clone());
     let shape_views = document
         .shapes
@@ -246,6 +258,7 @@ fn Region(
                 )
                 use:css=format!("width:{}px;height:{}px", region.width, region.height)
             ></canvas>
+            {sparkline_views}
             {chart_views}
             {shape_views}
         </div>
@@ -1083,6 +1096,7 @@ mod tests {
             charts: Vec::new(),
             shapes: Vec::new(),
             pictures: Vec::new(),
+            sparklines: Vec::new(),
             notices: Vec::new(),
         };
         assert!(drawing_budget(&doc, 1.).is_ok());
