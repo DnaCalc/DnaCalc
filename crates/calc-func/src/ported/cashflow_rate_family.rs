@@ -530,7 +530,13 @@ pub(crate) fn irr_kernel(cashflows: &[f64], guess: Option<f64>) -> Result<f64, W
         return Err(WorksheetErrorCode::Value);
     }
     validate_cashflows(cashflows)?;
-    irr_discount_secant(cashflows, guess).ok_or(WorksheetErrorCode::Num)
+    // A search from the given guess that fails starts again from the default 0.1: Excel
+    // 16.0.20527 through Touchstone, IRR({-1000,0.001,0.01,0.1,1,10,100,1000},g) and
+    // IRR({-1000,1,1,1,1,1200},g) for g = 2, 3, 5, 10 and 100 answer the default guess's bits
+    // exactly, while 0.5, 1 and 1.5 converge to their own (full bank, build 20228 guess 2 rows).
+    irr_discount_secant(cashflows, guess)
+        .or_else(|| (guess != 0.1).then(|| irr_discount_secant(cashflows, 0.1)).flatten())
+        .ok_or(WorksheetErrorCode::Num)
 }
 
 /// Worksheet `XNPV` — bit-exact to 64-bit Excel on `x86_64` (W109 pilot,
@@ -869,6 +875,23 @@ mod tests {
         }
         for k in [25, 30, 40, 60] {
             assert_eq!(irr_kernel(&scaled(k), None), Err(WorksheetErrorCode::Num), "2^{k}");
+        }
+    }
+
+    /// Native and browser: a guess whose search fails starts again from 0.1. Excel 16.0.20527
+    /// through Touchstone: from guesses 2, 3, 5, 10 and 100 these flows answer the default
+    /// guess's bits.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn irr_from_a_failing_guess_is_the_default_guess_s_answer() {
+        for (flows, excel) in [
+            (&[-1000.0, 0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0][..], 0x3f8f91595cbb3a00_u64),
+            (&[-1000.0, 1.0, 1.0, 1.0, 1.0, 1200.0][..], 0x3fa3670ea5237340),
+        ] {
+            for guess in [None, Some(2.0), Some(3.0), Some(5.0), Some(10.0), Some(100.0)] {
+                let got = irr_kernel(flows, guess).expect("Excel answers");
+                assert_eq!(got.to_bits(), excel, "{flows:?} from {guess:?}: {got}");
+            }
         }
     }
 
