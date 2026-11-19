@@ -143,6 +143,18 @@ fn arrow(end: &Option<LineEnd>) -> Option<ShapeArrow> {
 /// The object as drawn; `None` for one this slice does not draw (a picture, a hidden object, a
 /// geometry that is not drawn). A group carries its children, each as a box inside the group's.
 pub(crate) fn drawn(shape: &Shape, place: ChartPlace, theme: &[String]) -> Option<DrawnShape> {
+    drawn_with(shape, place, theme, &[])
+}
+
+/// The line width of a style's `a:lnRef idx` (1, 2, 3) in the theme's line styles (`lines`, EMU), or the
+/// Office theme's (6350, 12700, 19050) where the workbook gives none.
+fn style_line_weight(index: i64, lines: &[i64]) -> Option<i64> {
+    let i = usize::try_from(index.checked_sub(1)?).ok()?;
+    lines.get(i).copied().filter(|&w| w > 0).or_else(|| [6_350, 12_700, 19_050].get(i).copied())
+}
+
+/// [`drawn`] with the theme's line style widths (`lines`, EMU) for a shape's `a:lnRef`.
+pub(crate) fn drawn_with(shape: &Shape, place: ChartPlace, theme: &[String], lines: &[i64]) -> Option<DrawnShape> {
     if shape.hidden {
         return None;
     }
@@ -153,7 +165,8 @@ pub(crate) fn drawn(shape: &Shape, place: ChartPlace, theme: &[String]) -> Optio
         ShapeKind::Group => ("group", "", false),
         ShapeKind::Picture => ("picture", "rect", false),
     };
-    let mut geometry = shape.geometry.as_deref().unwrap_or(default_geometry);
+    let custom_geometry = shape.custom_geometry.as_ref().filter(|_| shape.geometry.is_none() && kind != "group");
+    let mut geometry = if custom_geometry.is_some() { "custom" } else { shape.geometry.as_deref().unwrap_or(default_geometry) };
     if kind == "picture" && !dna_calc_model::drawn_shapes::drawn_geometry(geometry) {
         // A picture cropped to a shape this module does not draw is drawn as a rectangle.
         geometry = "rect";
@@ -167,11 +180,10 @@ pub(crate) fn drawn(shape: &Shape, place: ChartPlace, theme: &[String]) -> Optio
         description: media.description.clone(),
     });
     let degrees = shape.rotation as f64 / 60_000.0;
-    let extent = if degrees.rem_euclid(360.0) == 0.0 {
-        [1.0, 1.0]
-    } else {
-        dna_calc_model::drawn_shapes::extent_in_rotated_box(shape.extent.0 as f64, shape.extent.1 as f64, degrees)
-    };
+    let (custom, custom_text) = custom_geometry.map_or((Vec::new(), None), |g| {
+        let (paths, text) = crate::custom_geometry::custom_paths(g, shape.extent.0 as f64, shape.extent.1 as f64);
+        (paths, Some(text))
+    });
     let mut children = Vec::new();
     if kind == "group" {
         // The children's boxes as fractions of the group's frame, through the group's child space; a group
@@ -179,7 +191,7 @@ pub(crate) fn drawn(shape: &Shape, place: ChartPlace, theme: &[String]) -> Optio
         let (cx, cy) = (shape.child_offset.0 as f64, shape.child_offset.1 as f64);
         let (cw, ch) = (shape.child_extent.0 as f64, shape.child_extent.1 as f64);
         for child in &shape.children {
-            let Some(mut part) = drawn(child, ChartPlace::Absolute { x: 0.0, y: 0.0, width: 0.0, height: 0.0 }, theme) else {
+            let Some(mut part) = drawn_with(child, ChartPlace::Absolute { x: 0.0, y: 0.0, width: 0.0, height: 0.0 }, theme, lines) else {
                 continue;
             };
             let fraction = |value: f64, origin: f64, whole: f64| if whole > 0.0 { (value - origin) / whole } else { 0.0 };
@@ -200,27 +212,37 @@ pub(crate) fn drawn(shape: &Shape, place: ChartPlace, theme: &[String]) -> Optio
                 part.flip_vertical = !part.flip_vertical;
                 part.rotation = -part.rotation;
             }
-            part.extent = [1.0, 1.0];
             children.push(DrawnChild { rel, shape: part });
         }
     }
     let connector = shape.kind == ShapeKind::Connector;
+    // The file's `xdr:style` decides what the shape's own properties leave out: a reference of index 0 is
+    // none, another takes the reference's colour (the theme's fill styles are drawn as that colour, solid;
+    // its line styles give the width). Without one, what Excel's ribbon gives (see the module's head).
+    let style = shape.style.as_ref();
     let fill = match &shape.fill {
         ShapeFill::None => None,
         ShapeFill::Solid(colour) => css(colour, theme),
-        // A gradient is drawn from its own field; a pattern or picture is not drawn: a shape with one
-        // draws as if it had none.
-        ShapeFill::Gradient(_) | ShapeFill::Other => None,
-        ShapeFill::Style => styled.then(|| style_fill(theme)).filter(|_| !connector),
+        // A gradient and a pattern are drawn from their own fields; a picture fill is not drawn: a shape
+        // with one draws as if it had none.
+        ShapeFill::Gradient(_) | ShapeFill::Pattern(_) | ShapeFill::Other => None,
+        ShapeFill::Style => match style {
+            Some(style) if style.fill.index != 0 => style.fill.colour.as_ref().and_then(|c| css(c, theme)),
+            Some(_) => None,
+            None => styled.then(|| style_fill(theme)).filter(|_| !connector),
+        }
+        .filter(|_| !connector),
     };
     let line = if shape.line.hidden {
         None
     } else {
-        let colour = match &shape.line.colour {
-            Some(colour) => css(colour, theme),
-            None => styled.then(|| style_line(theme)),
+        let colour = match (&shape.line.colour, style) {
+            (Some(colour), _) => css(colour, theme),
+            (None, Some(style)) if style.line.index != 0 => style.line.colour.as_ref().and_then(|c| css(c, theme)),
+            (None, Some(_)) => None,
+            (None, None) => styled.then(|| style_line(theme)),
         };
-        let weight = shape.line.weight.unwrap_or(if connector {
+        let weight = shape.line.weight.or_else(|| style.and_then(|s| style_line_weight(s.line.index, lines))).unwrap_or(if connector {
             STYLE_CONNECTOR_WEIGHT
         } else {
             STYLE_LINE_WEIGHT
@@ -240,7 +262,10 @@ pub(crate) fn drawn(shape: &Shape, place: ChartPlace, theme: &[String]) -> Optio
         let inset = |value: Option<i64>, default: i64| value.unwrap_or(default) as f64 / EMU_PER_PIXEL;
         let rich_runs = body.rich_runs_for(paragraphs);
         let default_colour = || {
-            let name = if styled { "lt1" } else { "dk1" };
+            if let Some(colour) = style.and_then(|s| s.font.as_ref()).and_then(|c| css(c, theme)) {
+                return colour;
+            }
+            let name = if styled && style.is_none() { "lt1" } else { "dk1" };
             shape_colour::css(Resolved { rgb: scheme(name, theme).unwrap_or(0), alpha: 1.0 })
         };
         ShapeText {
@@ -300,7 +325,16 @@ pub(crate) fn drawn(shape: &Shape, place: ChartPlace, theme: &[String]) -> Optio
         line,
         text,
         rotation: degrees,
-        extent,
+        pattern: match &shape.fill {
+            ShapeFill::Pattern(p) => Some(dna_calc_model::drawn_shapes::ShapePattern {
+                preset: p.preset.clone(),
+                foreground: p.foreground.as_ref().and_then(|c| css(c, theme)).unwrap_or_else(|| "#000000".into()),
+                background: p.background.as_ref().and_then(|c| css(c, theme)).unwrap_or_else(|| "#FFFFFF".into()),
+            }),
+            _ => None,
+        },
+        custom,
+        custom_text,
         adjust: shape.adjust.clone(),
         children,
         id: shape.id,

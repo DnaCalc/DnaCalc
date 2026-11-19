@@ -153,6 +153,12 @@ pub struct PrintDocument {
     pub plan: PrintPlan,
     pub cells: Vec<Cell>,
     pub charts: Vec<Chart>,
+    /// The sheet's shapes, text boxes and pictures as the grid draws them (dc-zjsg.2).
+    #[serde(default)]
+    pub shapes: Vec<crate::drawn_shapes::DrawnShape>,
+    /// The images of its pictures by their identity, as `data:` URLs (dc-zjsg.3).
+    #[serde(default)]
+    pub pictures: Vec<(u32, String)>,
     pub notices: Vec<String>,
 }
 

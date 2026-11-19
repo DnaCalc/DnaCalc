@@ -137,7 +137,21 @@ fn fill(f: &ShapeFill, out: &mut Vec<u8>) -> Result<(), &'static str> {
             out.extend(b"</a:solidFill>");
         }
         ShapeFill::Gradient(g) => gradient(g, out)?,
-        ShapeFill::Other => return Err("Use no fill, a solid fill or a gradient"),
+        ShapeFill::Pattern(p) => {
+            if p.preset.is_empty() || !p.preset.chars().all(|c| c.is_ascii_alphanumeric()) {
+                return Err("Use a pattern preset such as pct50 or smCheck");
+            }
+            out.extend(format!("<a:pattFill prst=\"{}\">", p.preset).as_bytes());
+            for (tag, c) in [("fgClr", &p.foreground), ("bgClr", &p.background)] {
+                if let Some(c) = c {
+                    out.extend(format!("<a:{tag}>").as_bytes());
+                    colour(c, out)?;
+                    out.extend(format!("</a:{tag}>").as_bytes());
+                }
+            }
+            out.extend(b"</a:pattFill>");
+        }
+        ShapeFill::Other => return Err("Use no fill, a solid fill, a gradient or a pattern"),
     }
     Ok(())
 }

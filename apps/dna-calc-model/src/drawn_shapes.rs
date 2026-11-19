@@ -34,10 +34,15 @@ pub struct DrawnShape {
     /// Degrees clockwise.
     #[serde(default)]
     pub rotation: f64,
-    /// The unrotated shape's size as fractions of `place`'s frame: Excel stores the anchor of a rotated
-    /// shape as the box around it, so the shape itself is smaller by the rotated box's ratio.
-    #[serde(default = "whole")]
-    pub extent: [f64; 2],
+    /// A pattern fill; it takes the place of `fill`.
+    #[serde(default)]
+    pub pattern: Option<ShapePattern>,
+    /// A custom geometry's paths (`geometry` is `custom`), their points as fractions of the box.
+    #[serde(default)]
+    pub custom: Vec<DrawnPath>,
+    /// A custom geometry's text rectangle `[l, t, r, b]` as fractions of the box.
+    #[serde(default)]
+    pub custom_text: Option<[f64; 4]>,
     /// The preset's adjust values by name (`adj1`, ...), in 100000ths.
     #[serde(default)]
     pub adjust: Vec<(String, i64)>,
@@ -82,6 +87,23 @@ pub struct DrawnPicture {
     /// to keep): the typed label to draw in its box, with the picture's size when the file says it.
     pub placeholder: Option<String>,
     pub description: Option<String>,
+}
+
+/// A `data:` URL of `bytes` (base64): how a picture's image reaches an `img` without a network request.
+pub fn data_url(content_type: &str, bytes: &[u8]) -> String {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = format!("data:{content_type};base64,");
+    out.reserve(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let a = chunk[0];
+        let b = chunk.get(1).copied().unwrap_or(0);
+        let c = chunk.get(2).copied().unwrap_or(0);
+        out.push(TABLE[(a >> 2) as usize] as char);
+        out.push(TABLE[(((a & 3) << 4) | (b >> 4)) as usize] as char);
+        out.push(if chunk.len() > 1 { TABLE[(((b & 15) << 2) | (c >> 6)) as usize] as char } else { '=' });
+        out.push(if chunk.len() > 2 { TABLE[(c & 63) as usize] as char } else { '=' });
+    }
+    out
 }
 
 /// The CSS of an image `w` by `h` pixels inside a box cropped by `crop`: the visible part of the
@@ -158,8 +180,21 @@ pub fn outline_markup(shape: &DrawnShape, w: f64, h: f64, zoom: f64) -> Option<S
     inner_markup(shape, w, h, zoom, &gradient_id(&shape.name))
 }
 
-fn whole() -> [f64; 2] {
-    [1.0, 1.0]
+/// A pattern fill (`a:pattFill`): the preset and its `#RRGGBB` (or `rgba(...)`) colours.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ShapePattern {
+    pub preset: String,
+    pub foreground: String,
+    pub background: String,
+}
+
+/// One path of a custom geometry: its segments with points as fractions of the shape's box, whether it is
+/// filled (`norm`, `none`, `lighten`, `lightenLess`, `darken`, `darkenLess`) and whether it is stroked.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DrawnPath {
+    pub segments: Vec<Seg>,
+    pub fill: String,
+    pub stroke: bool,
 }
 
 /// A group's child: its own (unrotated) box inside the group's, `[x, y, width, height]` as fractions of it.
@@ -295,7 +330,7 @@ pub fn frame(
 }
 
 /// One drawing command of a path.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Seg {
     Move(f64, f64),
     Line(f64, f64),
@@ -347,7 +382,7 @@ const PRESETS: &[&str] = &[
 
 /// Whether the geometry is a preset this module draws.
 pub fn drawn_geometry(prst: &str) -> bool {
-    PRESETS.contains(&prst)
+    prst == "custom" || PRESETS.contains(&prst)
 }
 
 /// Whether the preset is an open path (a line): it has no fill.
@@ -1004,21 +1039,24 @@ fn gradient_defs(g: &ShapeGradient, id: &str, w: f64, h: f64, flip_h: bool, flip
     }
 }
 
-/// Where an object lands when its anchor frame `(left, top, right, bottom)` is the box around the
-/// shape rotated: the unrotated shape's box, about the same centre (`extent` are fractions of the frame).
-pub fn unrotated(frame: (f64, f64, f64, f64), extent: [f64; 2]) -> (f64, f64, f64, f64) {
-    let (cx, cy) = ((frame.0 + frame.2) / 2.0, (frame.1 + frame.3) / 2.0);
-    let (w, h) = ((frame.2 - frame.0) * extent[0], (frame.3 - frame.1) * extent[1]);
-    (cx - w / 2.0, cy - h / 2.0, cx + w / 2.0, cy + h / 2.0)
+/// Whether Excel stores the anchor of a shape turned by `degrees` as the shape's box turned a quarter:
+/// from 45 up to 135 degrees and from 225 up to 315. Otherwise the anchor is the unturned shape's box.
+pub fn quarter_turned(degrees: f64) -> bool {
+    let d = degrees.rem_euclid(180.0);
+    (45.0..135.0).contains(&d)
 }
 
-/// The size of a shape `cx` by `cy` rotated by `degrees`, as fractions of the box around the rotated shape.
-pub fn extent_in_rotated_box(cx: f64, cy: f64, degrees: f64) -> [f64; 2] {
-    let (sin, cos) = degrees.to_radians().sin_cos();
-    // A quarter turn's cosine or sine is zero, not 1e-16.
-    let (sin, cos) = (if sin.abs() < 1e-12 { 0.0 } else { sin }, if cos.abs() < 1e-12 { 0.0 } else { cos });
-    let (bw, bh) = (cx * cos.abs() + cy * sin.abs(), cx * sin.abs() + cy * cos.abs());
-    [if bw > 0.0 { cx / bw } else { 1.0 }, if bh > 0.0 { cy / bh } else { 1.0 }]
+/// Where an object turned by `degrees` lands, given its anchor frame `(left, top, right, bottom)`: the
+/// frame itself, or for a quarter-turned anchor ([`quarter_turned`]) the frame's width and height
+/// swapped about its centre. Excel draws a shape turned 30 degrees at its anchor's full size, turned
+/// about the anchor's centre (Excel 16.0.20527, pictures-paint.xlsx, 2026-11-16).
+pub fn unrotated(frame: (f64, f64, f64, f64), degrees: f64) -> (f64, f64, f64, f64) {
+    if !quarter_turned(degrees) {
+        return frame;
+    }
+    let (cx, cy) = ((frame.0 + frame.2) / 2.0, (frame.1 + frame.3) / 2.0);
+    let (w, h) = (frame.3 - frame.1, frame.2 - frame.0);
+    (cx - w / 2.0, cy - h / 2.0, cx + w / 2.0, cy + h / 2.0)
 }
 
 /// The inside of one object: its geometry as an SVG with the text over it as HTML, then a group's children
@@ -1054,8 +1092,13 @@ fn inner_markup(shape: &DrawnShape, w: f64, h: f64, zoom: f64, id: &str) -> Opti
         }
         return Some(out);
     }
-    let mut segments = geometry_path(&shape.geometry, w, h, &shape.adjust)?;
-    let open = open_geometry(&shape.geometry);
+    let custom = shape.geometry == "custom";
+    // A custom geometry strokes its stroked paths and fills its filled ones; one whose paths are all unfilled
+    // is a line, with arrowheads on its ends.
+    let mut segments =
+        if custom { custom_segments(shape, w, h, |p| p.stroke) } else { geometry_path(&shape.geometry, w, h, &shape.adjust)? };
+    let open = if custom { shape.custom.iter().all(|p| p.fill == "none") } else { open_geometry(&shape.geometry) };
+    let filled_part = (custom && !open).then(|| custom_segments(shape, w, h, |p| p.fill != "none"));
     let mut stroke = String::from("stroke=\"none\"");
     // The stroke's width and dashes, for the shadow to repeat in its own colour.
     let mut stroke_rest = String::new();
@@ -1102,12 +1145,15 @@ fn inner_markup(shape: &DrawnShape, w: f64, h: f64, zoom: f64, id: &str) -> Opti
     } else if let Some(gradient) = &shape.gradient {
         defs = gradient_defs(gradient, id, w, h, shape.flip_horizontal, shape.flip_vertical);
         format!("url(#{id})")
+    } else if let Some(pattern) = &shape.pattern {
+        defs = pattern_defs(pattern, id);
+        format!("url(#{id}p)")
     } else {
         shape.fill.clone().unwrap_or_else(|| "none".to_owned())
     };
     let mut shadow = String::new();
     if let Some(s) = &shape.shadow {
-        let filled = !open && (shape.gradient.is_some() || shape.fill.is_some());
+        let filled = !open && (shape.gradient.is_some() || shape.pattern.is_some() || shape.fill.is_some());
         let stroked = shape.line.is_some();
         if filled || stroked {
             let (anchor_x, anchor_y) = align_point(&s.align, w, h);
@@ -1147,7 +1193,135 @@ fn inner_markup(shape: &DrawnShape, w: f64, h: f64, zoom: f64, id: &str) -> Opti
             );
         }
     }
-    Some(finish(shape, w, h, zoom, id, defs, &format!("{shadow}<path d=\"{d}\" fill=\"{fill}\" {stroke}/>{heads}")))
+    let body = match filled_part {
+        // A custom geometry whose filled and stroked paths differ: the fill beneath, the strokes over it.
+        Some(fills) if fills != segments => {
+            let filled = path_data(&fills, w, h, flip_h, flip_v);
+            format!("<path d=\"{filled}\" fill=\"{fill}\" stroke=\"none\"/><path d=\"{d}\" fill=\"none\" {stroke}/>")
+        }
+        _ => format!("<path d=\"{d}\" fill=\"{fill}\" {stroke}/>"),
+    };
+    Some(finish(shape, w, h, zoom, id, defs, &format!("{shadow}{body}{heads}")))
+}
+
+/// The segments of a custom geometry's paths that `keep` picks, scaled to a `w` by `h` box.
+fn custom_segments(shape: &DrawnShape, w: f64, h: f64, keep: impl Fn(&DrawnPath) -> bool) -> Vec<Seg> {
+    let at = |(x, y): (f64, f64)| (x * w, y * h);
+    shape
+        .custom
+        .iter()
+        .filter(|p| keep(p))
+        .flat_map(|p| p.segments.iter())
+        .map(|segment| match *segment {
+            Seg::Move(x, y) => {
+                let (x, y) = at((x, y));
+                Seg::Move(x, y)
+            }
+            Seg::Line(x, y) => {
+                let (x, y) = at((x, y));
+                Seg::Line(x, y)
+            }
+            Seg::Cubic(a, b, c) => Seg::Cubic(at(a), at(b), at(c)),
+            Seg::Close => Seg::Close,
+        })
+        .collect()
+}
+
+/// The 8 by 8 cells of a preset pattern, one byte a row, the high bit leftmost: a set bit is the
+/// foreground. The percentage patterns are an ordered dither of their share; the others are drawn from
+/// their names (assumed until Excel's renders decide the exact cells).
+pub fn pattern_cells(preset: &str) -> [u8; 8] {
+    const BAYER: [[u8; 8]; 8] = [
+        [0, 32, 8, 40, 2, 34, 10, 42],
+        [48, 16, 56, 24, 50, 18, 58, 26],
+        [12, 44, 4, 36, 14, 46, 6, 38],
+        [60, 28, 52, 20, 62, 30, 54, 22],
+        [3, 35, 11, 43, 1, 33, 9, 41],
+        [51, 19, 59, 27, 49, 17, 57, 25],
+        [15, 47, 7, 39, 13, 45, 5, 37],
+        [63, 31, 55, 23, 61, 29, 53, 21],
+    ];
+    if let Some(share) = preset.strip_prefix("pct").and_then(|p| p.parse::<u32>().ok()) {
+        let set = (share.min(100) * 64 + 50) / 100;
+        let mut rows = [0u8; 8];
+        for (y, row) in rows.iter_mut().enumerate() {
+            for x in 0..8 {
+                if u32::from(BAYER[y][x]) < set {
+                    *row |= 0x80 >> x;
+                }
+            }
+        }
+        return rows;
+    }
+    let mirror = |rows: [u8; 8]| rows.map(u8::reverse_bits);
+    match preset {
+        "horz" => [0xFF, 0, 0, 0, 0, 0, 0, 0],
+        "ltHorz" => [0xFF, 0, 0, 0, 0xFF, 0, 0, 0],
+        "narHorz" => [0xFF, 0, 0xFF, 0, 0xFF, 0, 0xFF, 0],
+        "dkHorz" => [0xFF, 0xFF, 0, 0, 0xFF, 0xFF, 0, 0],
+        "dashHorz" => [0xF0, 0, 0, 0, 0x0F, 0, 0, 0],
+        "vert" => [0x80; 8],
+        "ltVert" => [0x88; 8],
+        "narVert" => [0xAA; 8],
+        "dkVert" => [0xCC; 8],
+        "dashVert" => [0x80, 0x80, 0x80, 0x80, 0x08, 0x08, 0x08, 0x08],
+        "dnDiag" => [0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01],
+        "ltDnDiag" => [0x88, 0x44, 0x22, 0x11, 0x88, 0x44, 0x22, 0x11],
+        "dkDnDiag" => [0xCC, 0x66, 0x33, 0x99, 0xCC, 0x66, 0x33, 0x99],
+        "wdDnDiag" => [0xC1, 0xE0, 0x70, 0x38, 0x1C, 0x0E, 0x07, 0x83],
+        "dashDnDiag" => [0x88, 0x44, 0, 0, 0x88, 0x44, 0, 0],
+        "upDiag" => mirror(pattern_cells("dnDiag")),
+        "ltUpDiag" => mirror(pattern_cells("ltDnDiag")),
+        "dkUpDiag" => mirror(pattern_cells("dkDnDiag")),
+        "wdUpDiag" => mirror(pattern_cells("wdDnDiag")),
+        "dashUpDiag" => mirror(pattern_cells("dashDnDiag")),
+        "cross" | "lgGrid" => [0xFF, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80],
+        "smGrid" => [0xFF, 0x88, 0x88, 0x88, 0xFF, 0x88, 0x88, 0x88],
+        "dotGrid" => [0xAA, 0, 0x80, 0, 0x80, 0, 0x80, 0],
+        "diagCross" => [0x81, 0x42, 0x24, 0x18, 0x18, 0x24, 0x42, 0x81],
+        "smCheck" => [0xCC, 0xCC, 0x33, 0x33, 0xCC, 0xCC, 0x33, 0x33],
+        "lgCheck" => [0xF0, 0xF0, 0xF0, 0xF0, 0x0F, 0x0F, 0x0F, 0x0F],
+        "solidDmnd" => [0x10, 0x38, 0x7C, 0xFE, 0x7C, 0x38, 0x10, 0],
+        "openDmnd" => [0x80, 0x41, 0x22, 0x14, 0x08, 0x14, 0x22, 0x41],
+        "dotDmnd" => [0x80, 0, 0x22, 0, 0x08, 0, 0x22, 0],
+        "horzBrick" => [0xFF, 0x80, 0x80, 0x80, 0xFF, 0x08, 0x08, 0x08],
+        "diagBrick" => [0x80, 0x40, 0x20, 0x10, 0x18, 0x24, 0x42, 0x81],
+        "zigZag" => [0x81, 0x42, 0x24, 0x18, 0x81, 0x42, 0x24, 0x18],
+        "wave" => [0, 0x18, 0xA4, 0x03, 0, 0x18, 0xA4, 0x03],
+        "trellis" => [0xFF, 0x66, 0xFF, 0x99, 0xFF, 0x66, 0xFF, 0x99],
+        "smConfetti" => [0x80, 0x08, 0x40, 0x02, 0x10, 0x01, 0x20, 0x04],
+        "lgConfetti" => [0xB1, 0x30, 0x03, 0x1B, 0xD8, 0xC0, 0x0C, 0x8D],
+        "weave" => [0x88, 0x54, 0x22, 0x45, 0x88, 0x14, 0x22, 0x51],
+        "plaid" => [0xAA, 0x55, 0xAA, 0x55, 0xF0, 0xF0, 0xF0, 0xF0],
+        "sphere" => [0x77, 0x98, 0xF8, 0xF8, 0x77, 0x89, 0x8F, 0x8F],
+        "divot" => [0, 0x20, 0x40, 0x20, 0, 0x04, 0x02, 0x04],
+        "shingle" => [0x03, 0x84, 0x48, 0x30, 0x0C, 0x02, 0x01, 0x01],
+        _ => pattern_cells("pct50"),
+    }
+}
+
+/// The `defs` of a pattern fill: its background with its foreground cells over it, repeating every 8 pixels.
+fn pattern_defs(p: &ShapePattern, id: &str) -> String {
+    let cells = pattern_cells(&p.preset);
+    let mut d = String::new();
+    for (y, row) in cells.iter().enumerate() {
+        let mut x = 0;
+        while x < 8 {
+            if row & (0x80 >> x) != 0 {
+                let start = x;
+                while x < 8 && row & (0x80 >> x) != 0 {
+                    x += 1;
+                }
+                let _ = write!(d, "M{start} {y}h{}v1h-{}z", x - start, x - start);
+            } else {
+                x += 1;
+            }
+        }
+    }
+    format!(
+        "<defs><pattern id=\"{id}p\" patternUnits=\"userSpaceOnUse\" width=\"8\" height=\"8\"><rect width=\"8\" height=\"8\" fill=\"{}\"/><path d=\"{d}\" fill=\"{}\"/></pattern></defs>",
+        p.background, p.foreground
+    )
 }
 
 /// The svg of `paths`, the text of `shape` over it and a group's children, after `out`.
@@ -1170,7 +1344,10 @@ fn finish(shape: &DrawnShape, w: f64, h: f64, zoom: f64, id: &str, defs: String,
         };
         // A shape flipped vertically carries its text upside down, as Excel's does.
         let turn = if shape.flip_vertical { "transform:rotate(180deg);" } else { "" };
-        let [rl, rt, rr, rb] = text_rect(&shape.geometry, w, h, &shape.adjust);
+        let [rl, rt, rr, rb] = match shape.custom_text.filter(|_| shape.geometry == "custom") {
+            Some([l, t, r, b]) => [l * w, t * h, r * w, b * h],
+            None => text_rect(&shape.geometry, w, h, &shape.adjust),
+        };
         let _ = write!(
             out,
             "<div class=\"dc-shape-text\" style=\"position:absolute;left:{}px;top:{}px;width:{}px;height:{}px;box-sizing:border-box;padding:{}px {}px {}px {}px;display:flex;flex-direction:column;justify-content:{justify};font-size:{}px;line-height:1.2;color:{};font-weight:{};font-style:{}{}{};white-space:{};overflow:visible;{turn}\">",
@@ -1379,7 +1556,9 @@ mod tests {
             fill: Some("#FF8000".into()),
             gradient: None,
             rotation: 0.0,
-            extent: [1.0, 1.0],
+            pattern: None,
+            custom: Vec::new(),
+            custom_text: None,
             adjust: Vec::new(),
             children: Vec::new(),
             id: 0,
@@ -1728,19 +1907,35 @@ mod tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn dc_zjsg_2__the_anchor_of_a_rotated_shape_is_the_box_around_it() {
-        // A 200 by 100 shape turned 90 degrees fills a 100 by 200 box: its own box is 2 by 0.5 of that.
-        let [ex, ey] = extent_in_rotated_box(200.0, 100.0, 90.0);
-        assert!((ex - 2.0).abs() < 1e-9 && (ey - 0.5).abs() < 1e-9, "{ex} {ey}");
-        let own = unrotated((0.0, 0.0, 100.0, 200.0), [ex, ey]);
-        assert!((own.0 + 50.0).abs() < 1e-9 && (own.1 - 50.0).abs() < 1e-9, "{own:?}");
-        assert!((own.2 - 150.0).abs() < 1e-9 && (own.3 - 150.0).abs() < 1e-9, "{own:?}");
-        // 45 degrees: the box around a square of side s is s * 1.4142 wide, so the square is 0.7071 of it.
-        let [ex, ey] = extent_in_rotated_box(100.0, 100.0, 45.0);
-        assert!((ex - 0.7071).abs() < 1e-4 && (ey - 0.7071).abs() < 1e-4);
-        // Not turned: the box is the shape.
-        assert_eq!(extent_in_rotated_box(100.0, 40.0, 0.0), [1.0, 1.0]);
-        assert_eq!(extent_in_rotated_box(100.0, 40.0, 180.0), [1.0, 1.0]);
+    fn dc_zjsg_2__pattern_cells_cover_their_share_and_mirror_their_diagonals() {
+        let ones = |rows: [u8; 8]| rows.iter().map(|r| r.count_ones()).sum::<u32>();
+        assert_eq!(ones(pattern_cells("pct50")), 32);
+        assert_eq!(ones(pattern_cells("pct25")), 16);
+        assert_eq!(ones(pattern_cells("pct90")), 58);
+        assert_eq!(pattern_cells("upDiag"), [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80]);
+        assert_eq!(pattern_cells("noSuchPattern"), pattern_cells("pct50"));
+        let mut shape = sample();
+        shape.fill = None;
+        shape.pattern = Some(ShapePattern { preset: "ltHorz".into(), foreground: "#4472C4".into(), background: "#FFFFFF".into() });
+        let markup = shape_markup(&shape, 80.0, 40.0, 1.0).unwrap();
+        assert!(markup.contains("<rect width=\"8\" height=\"8\" fill=\"#FFFFFF\"/><path d=\"M0 0h8v1h-8zM0 4h8v1h-8z\" fill=\"#4472C4\"/>"), "{markup}");
+        assert!(markup.contains("fill=\"url(#"), "{markup}");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_zjsg_2__a_turned_shape_keeps_its_anchor_box_unless_turned_a_quarter() {
+        // Turned 90 degrees: the 100 by 200 anchor holds a 200 by 100 shape about the same centre.
+        let own = unrotated((0.0, 0.0, 100.0, 200.0), 90.0);
+        assert_eq!(own, (-50.0, 50.0, 150.0, 150.0));
+        assert_eq!(unrotated((0.0, 0.0, 100.0, 200.0), 270.0), own);
+        assert_eq!(unrotated((0.0, 0.0, 100.0, 200.0), 45.0), own);
+        assert_eq!(unrotated((0.0, 0.0, 100.0, 200.0), -60.0), own);
+        // Turned 30, 135, 180 or 330 degrees: the anchor is the shape's own box (Excel draws a picture turned 30
+        // degrees at the anchor's full size).
+        for degrees in [0.0, 30.0, 44.9, 135.0, 180.0, 330.0] {
+            assert_eq!(unrotated((0.0, 0.0, 100.0, 200.0), degrees), (0.0, 0.0, 100.0, 200.0), "{degrees}");
+        }
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

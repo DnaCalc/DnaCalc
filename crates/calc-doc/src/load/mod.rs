@@ -438,6 +438,7 @@ pub struct LoadedWorkbook {
     cell_formats: u32,
     styles: Arc<StyleTable>,
     theme_colors: Arc<[String]>,
+    theme_line_widths: Arc<[i64]>,
     date_system: DateSystem,
     compatibility_version: u32,
     calc_mode: CalcMode,
@@ -1216,6 +1217,12 @@ impl LoadedWorkbook {
     /// lt2, accent1 to accent6, hlink, folHlink); empty without a theme part (dc-6yw).
     pub fn theme_colors(&self) -> &[String] {
         &self.theme_colors
+    }
+
+    /// The widths in EMU of the theme's line styles (`a:lnStyleLst`), what a shape's `a:lnRef idx`
+    /// 1, 2 and 3 draw with; empty without a theme part (dc-zjsg.2).
+    pub fn theme_line_widths(&self) -> &[i64] {
+        &self.theme_line_widths
     }
 
     /// The date system the workbook part names.
@@ -2097,9 +2104,9 @@ pub fn load_preserving_sheet_ids(
         None => StyleTable::default(),
     };
     let cell_formats = u32::try_from(styles.cell_formats.len()).unwrap_or(u32::MAX);
-    let theme_colors = match workbook_part_of(package, &workbook, THEME)? {
-        Some(part) => theme::read_theme(package, &part)?,
-        None => Vec::new(),
+    let (theme_colors, theme_line_widths) = match workbook_part_of(package, &workbook, THEME)? {
+        Some(part) => theme::read_theme_parts(package, &part)?,
+        None => (Vec::new(), Vec::new()),
     };
     let metadata = metadata::read(package, &workbook)?;
     let data_model = data_model::read(package, &workbook)?;
@@ -2472,6 +2479,7 @@ pub fn load_preserving_sheet_ids(
         cell_formats,
         styles,
         theme_colors: theme_colors.into(),
+        theme_line_widths: theme_line_widths.into(),
         date_system,
         compatibility_version,
         calc_mode,

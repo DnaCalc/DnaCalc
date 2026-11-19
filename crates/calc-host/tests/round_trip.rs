@@ -25586,7 +25586,7 @@ fn dc_971p_57__print_inspection_keeps_charts_and_refuses_unrendered_drawing_obje
             .loaded()
             .check_print_objects(sheet)
             .unwrap_err()
-            .contains("shapes")
+            .contains("charts in groups")
     );
     let mut notes = session(&calc_host::blank_package());
     let ns = notes.host().sheets()[0].id();
@@ -25609,15 +25609,10 @@ fn dc_971p_57__print_inspection_keeps_charts_and_refuses_unrendered_drawing_obje
     let notes = session(&saved);
     let ns = notes.host().sheets()[0].id();
     assert!(notes.host().loaded().check_print_objects(ns).is_ok());
+    // A sheet whose drawing holds a rectangle prints it as the grid draws it (dc-zjsg.2).
     let book = session(include_bytes!("fixtures/d2/structural-base.xlsx"));
     let sheet = self::sheet(book.host(), "S");
-    assert!(
-        book.host()
-            .loaded()
-            .check_print_objects(sheet)
-            .unwrap_err()
-            .contains("text boxes")
-    );
+    assert!(book.host().loaded().check_print_objects(sheet).is_ok());
     let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
         xml.replace(
             "</worksheet>",

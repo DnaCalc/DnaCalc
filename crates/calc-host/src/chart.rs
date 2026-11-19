@@ -131,6 +131,11 @@ impl HostState {
         self.loaded.theme_colors()
     }
 
+    /// The widths in EMU of the theme's line styles, for a shape's `a:lnRef` (dc-zjsg.2).
+    pub fn theme_line_widths(&self) -> &[i64] {
+        self.loaded.theme_line_widths()
+    }
+
     /// The workbook's accent1–accent6, with the same Office fallback for charts and tables.
     pub fn theme_accent(&self, index: usize) -> Option<String> {
         let fallback = OFFICE_ACCENTS.get(index)?;

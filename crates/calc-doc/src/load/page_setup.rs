@@ -98,7 +98,7 @@ impl super::LoadedWorkbook {
             return Ok(());
         };
         let fail = || {
-            "Pictures, shapes, text boxes or worksheet controls are preserved; their browser printing is not modelled (dc-971p.57)".to_owned()
+            "Diagrams, embedded objects, ink, worksheet controls, charts in groups or charts not printed with the sheet are preserved; their browser printing is not modelled (dc-971p.57)".to_owned()
         };
         let rels = self.package.relationships_of(Some(source.part().name()));
         let target = |e: &XmlElement, kind: &str| -> Result<String, String> {
@@ -136,10 +136,12 @@ impl super::LoadedWorkbook {
                 if e.name.is(MAIN_NAMESPACE, "drawing") {
                     drawings += 1;
                     let part = target(&e, "/drawing")?;
+                    // Charts, shapes, text boxes, connectors, groups and pictures print as the grid draws
+                    // them (dc-zjsg.2); an object the drawing reader does not hold (SmartArt, OLE, ink, a
+                    // control) is refused, and so is a chart frame in a group or not printed with the sheet.
                     if drawings > 1
-                        || super::chart::unprinted_objects(&self.package, &part)
-                            .map_err(|_| fail())?
-                            > 0
+                        || source.shapes().unread > 0
+                        || super::chart::unprinted_objects(&self.package, &part).map_err(|_| fail())? > 0
                     {
                         return Err(fail());
                     }

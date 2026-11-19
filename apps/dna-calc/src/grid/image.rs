@@ -62,27 +62,7 @@ fn dimension(value: Option<f64>, scale: f64) -> String {
 
 // Site and desktop policies allow data images. Encoding locally never makes a network request.
 pub(super) fn data_url(content_type: &str, bytes: &[u8]) -> String {
-    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = format!("data:{content_type};base64,");
-    out.reserve(bytes.len().div_ceil(3) * 4);
-    for chunk in bytes.chunks(3) {
-        let a = chunk[0];
-        let b = chunk.get(1).copied().unwrap_or(0);
-        let c = chunk.get(2).copied().unwrap_or(0);
-        out.push(TABLE[(a >> 2) as usize] as char);
-        out.push(TABLE[(((a & 3) << 4) | (b >> 4)) as usize] as char);
-        out.push(if chunk.len() > 1 {
-            TABLE[(((b & 15) << 2) | (c >> 6)) as usize] as char
-        } else {
-            '='
-        });
-        out.push(if chunk.len() > 2 {
-            TABLE[(c & 63) as usize] as char
-        } else {
-            '='
-        });
-    }
-    out
+    wire::drawn_shapes::data_url(content_type, bytes)
 }
 
 /// The image of the picture `id` of `sheet`, cropped to fill its box (dc-zjsg.3): asked of the server by the

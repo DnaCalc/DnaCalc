@@ -44,8 +44,75 @@ pub enum ShapeFill {
     Solid(ShapeColour),
     /// `a:gradFill` (dc-zjsg.2).
     Gradient(ShapeGradient),
-    /// A pattern or picture fill: kept in the source, not held here.
+    /// `a:pattFill` (dc-zjsg.2): a preset 8 by 8 pattern in its foreground and background colours.
+    Pattern(ShapePattern),
+    /// A picture or group fill: kept in the source, not held here.
     Other,
+}
+
+/// `a:pattFill`: the preset (`pct50`, `ltHorz`, `smCheck`, ...) and its colours (`a:fgClr`, `a:bgClr`);
+/// a colour the file leaves out is `None` (black foreground, white background).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct ShapePattern {
+    pub preset: String,
+    pub foreground: Option<ShapeColour>,
+    pub background: Option<ShapeColour>,
+}
+
+/// One reference of a shape's style (`xdr:style` `a:lnRef`, `a:fillRef`, `a:effectRef`): the index into
+/// the theme's style list (0 is none) and the colour that takes the list's placeholder colour.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct ShapeStyleRef {
+    pub index: i64,
+    pub colour: Option<ShapeColour>,
+}
+
+/// `xdr:style`: what a shape draws with where its own properties say nothing (dc-zjsg.2).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct ShapeStyle {
+    pub line: ShapeStyleRef,
+    pub fill: ShapeStyleRef,
+    pub effect: ShapeStyleRef,
+    /// `a:fontRef`'s colour: the text's colour where a run says none.
+    pub font: Option<ShapeColour>,
+}
+
+/// A point of a custom geometry path: each coordinate a number or a guide's name, as the file states it.
+pub type GeometryPoint = (String, String);
+
+/// One command of a custom geometry path (`a:moveTo`, `a:lnTo`, `a:arcTo`, `a:quadBezTo`, `a:cubicBezTo`,
+/// `a:close`).
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum GeometryCommand {
+    Move(GeometryPoint),
+    Line(GeometryPoint),
+    /// `wR`, `hR`, `stAng`, `swAng`.
+    Arc([String; 4]),
+    Quad([GeometryPoint; 2]),
+    Cubic([GeometryPoint; 3]),
+    Close,
+}
+
+/// One `a:path` of a custom geometry: its own coordinate space (`w`, `h`; the shape's when absent),
+/// whether it is filled (`fill`: `norm`, `none`, `lighten`, `lightenLess`, `darken`, `darkenLess`) and
+/// stroked, and its commands.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct GeometryPath {
+    pub width: Option<i64>,
+    pub height: Option<i64>,
+    pub fill: Option<String>,
+    pub stroke: bool,
+    pub commands: Vec<GeometryCommand>,
+}
+
+/// `a:custGeom` (dc-zjsg.2): its adjust values and guides (name, formula) in file order, its text
+/// rectangle (`l`, `t`, `r`, `b` as numbers or guide names) and its paths.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct CustomGeometry {
+    pub adjust: Vec<(String, String)>,
+    pub guides: Vec<(String, String)>,
+    pub text_rect: Option<[String; 4]>,
+    pub paths: Vec<GeometryPath>,
 }
 
 /// A gradient fill: `a:gsLst` stops with either a linear direction (`a:lin`) or a path (`a:path`).
@@ -219,6 +286,8 @@ pub struct Shape {
     pub edit_as: Option<String>,
     /// `cNvPr hidden`.
     pub hidden: bool,
+    /// The anchor's `xdr:clientData fPrintsWithSheet` (true when absent): printed with the sheet.
+    pub prints: bool,
     /// `a:prstGeom prst`, e.g. `rect`, `line`, `straightConnector1`; `None` for custom geometry.
     pub geometry: Option<String>,
     /// `a:xfrm`: offset and extent in EMU (inside a group: in the group's child space).
@@ -229,6 +298,10 @@ pub struct Shape {
     /// A group's child space (`a:chOff`, `a:chExt`): what its children's offsets are given in.
     pub child_offset: (i64, i64),
     pub child_extent: (i64, i64),
+    /// `a:custGeom`: a geometry drawn from its own paths (`geometry` is then `None`).
+    pub custom_geometry: Option<CustomGeometry>,
+    /// `xdr:style`: the theme references for what the shape's own properties leave out.
+    pub style: Option<ShapeStyle>,
     /// `a:prstGeom a:avLst a:gd`: the preset's adjust values by name (`adj`, `adj1`, ...), from `fmla="val N"`.
     pub adjust: Vec<(String, i64)>,
     pub flip_horizontal: bool,
@@ -267,7 +340,10 @@ impl Shape {
             anchor,
             edit_as: None,
             hidden: false,
+            prints: true,
             geometry: None,
+            custom_geometry: None,
+            style: None,
             offset: (0, 0),
             extent: (0, 0),
             rotation: 0,
