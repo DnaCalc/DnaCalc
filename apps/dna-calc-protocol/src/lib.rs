@@ -2,6 +2,7 @@
 pub mod tiles;
 pub use dna_calc_model::drawn_shapes;
 pub use dna_calc_model::sparklines;
+pub use dna_calc_model::controls;
 pub use dna_calc_model::projection::*;
 use serde::{Serialize, de::DeserializeOwned};
 pub use tiles::*;

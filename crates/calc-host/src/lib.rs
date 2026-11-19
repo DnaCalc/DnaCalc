@@ -190,9 +190,9 @@ mod tables;
 pub use tables::TableChange;
 mod shapes;
 mod sparklines;
-pub use sparklines::SparklineView;
+pub use sparklines::{FormControlView, SparklineView};
 pub use calc_doc_model::{
-    CustomGeometry, DrawingNode, Sparkline, SparklineGroup, GeometryCommand, GeometryPath, LineEnd, PictureMedia, ShapePattern, ShapeStyle, ShapeStyleRef, Shape, ShapeBody, ShapeColour, ShapeFill, ShapeGradient, ShapeKind, ShapeLine, ShapeShadow,
+    ChartAnchor, CustomGeometry, DrawingNode, FormControl, Sparkline, SparklineGroup, GeometryCommand, GeometryPath, LineEnd, PictureMedia, ShapePattern, ShapeStyle, ShapeStyleRef, Shape, ShapeBody, ShapeColour, ShapeFill, ShapeGradient, ShapeKind, ShapeLine, ShapeShadow,
     ShapePicture, ShapeTextRun,
 };
 pub use shapes::{Points, ShapeChange};
