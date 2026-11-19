@@ -3,9 +3,84 @@
 //! points as fractions of the shape's box. Arcs become cubic pieces of at most a quarter turn; quadratic
 //! curves become cubic ones.
 
-use calc_host::{CustomGeometry, GeometryCommand};
+use calc_host::{CustomGeometry, GeometryCommand, GeometryPath};
 use dna_calc_model::drawn_shapes::{DrawnPath, Seg};
 use std::collections::HashMap;
+use std::sync::OnceLock;
+
+/// The preset geometries of ECMA-376 Part 1 as `presets/make-presets.py` writes them from the standard's
+/// presetShapeDefinitions.xml.
+const PRESET_TABLE: &str = include_str!("presets/preset-shapes.txt");
+
+fn presets() -> &'static HashMap<&'static str, CustomGeometry> {
+    static TABLE: OnceLock<HashMap<&'static str, CustomGeometry>> = OnceLock::new();
+    TABLE.get_or_init(|| {
+        let mut table = HashMap::new();
+        let mut current: Option<(&str, CustomGeometry)> = None;
+        let pair = |a: Option<&str>, b: Option<&str>| (a.unwrap_or("0").to_owned(), b.unwrap_or("0").to_owned());
+        for line in PRESET_TABLE.lines().filter(|l| !l.starts_with('#') && !l.is_empty()) {
+            if let Some(name) = line.strip_prefix('@') {
+                if let Some((n, g)) = current.take() {
+                    table.insert(n, g);
+                }
+                current = Some((name, CustomGeometry::default()));
+                continue;
+            }
+            let Some((_, g)) = current.as_mut() else { continue };
+            let (tag, rest) = line.split_once(' ').unwrap_or((line, ""));
+            let mut words = rest.split_whitespace();
+            match tag {
+                "a" | "g" => {
+                    let (name, fmla) = rest.split_once(' ').unwrap_or((rest, "val 0"));
+                    let list = if tag == "a" { &mut g.adjust } else { &mut g.guides };
+                    list.push((name.to_owned(), fmla.to_owned()));
+                }
+                "r" => g.text_rect = Some([0, 1, 2, 3].map(|_| words.next().unwrap_or("0").to_owned())),
+                "p" => {
+                    fn field(w: Option<&str>) -> Option<&str> {
+                        w.filter(|w| *w != "-")
+                    }
+                    let (w, h, fill, stroke) = (field(words.next()), field(words.next()), field(words.next()), field(words.next()));
+                    g.paths.push(GeometryPath {
+                        width: w.and_then(|v| v.parse().ok()),
+                        height: h.and_then(|v| v.parse().ok()),
+                        fill: fill.map(str::to_owned),
+                        stroke: !matches!(stroke, Some("false" | "0")),
+                        commands: Vec::new(),
+                    });
+                }
+                _ => {
+                    let Some(path) = g.paths.last_mut() else { continue };
+                    let mut p = || pair(words.next(), words.next());
+                    path.commands.push(match tag {
+                        "M" => GeometryCommand::Move(p()),
+                        "L" => GeometryCommand::Line(p()),
+                        "A" => GeometryCommand::Arc([0, 1, 2, 3].map(|_| words.next().unwrap_or("0").to_owned())),
+                        "Q" => GeometryCommand::Quad([p(), p()]),
+                        "C" => GeometryCommand::Cubic([p(), p(), p()]),
+                        _ => GeometryCommand::Close,
+                    });
+                }
+            }
+        }
+        if let Some((n, g)) = current.take() {
+            table.insert(n, g);
+        }
+        table
+    })
+}
+
+/// The preset `name` as a custom geometry, its adjust values replaced by the shape's own (`adjust`, 100000ths);
+/// `None` for a name the standard does not define.
+pub(crate) fn preset(name: &str, adjust: &[(String, i64)]) -> Option<CustomGeometry> {
+    let mut geometry = presets().get(name)?.clone();
+    for (name, value) in adjust {
+        if let Some(slot) = geometry.adjust.iter_mut().find(|(n, _)| n == name) {
+            slot.1 = format!("val {value}");
+        }
+    }
+    Some(geometry)
+}
 
 /// 60,000ths of a degree, the unit of a guide's angle.
 const DEGREE: f64 = 60_000.0;
@@ -201,6 +276,32 @@ mod tests {
 
     fn pt(x: &str, y: &str) -> (String, String) {
         (x.into(), y.into())
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_zjsg_2__every_ecma_376_preset_is_in_the_table_and_draws() {
+        // 187 entries in the standard's file, upDownArrow twice.
+        assert_eq!(presets().len(), 186);
+        for (name, geometry) in presets() {
+            let (paths, text) = custom_paths(geometry, 100_000.0, 60_000.0);
+            assert!(!paths.is_empty() && paths.iter().all(|p| !p.segments.is_empty()), "{name}");
+            assert!(paths.iter().flat_map(|p| &p.segments).all(|s| match *s {
+                Seg::Move(x, y) | Seg::Line(x, y) => x.is_finite() && y.is_finite(),
+                Seg::Cubic(a, b, c) => [a, b, c].iter().all(|p| p.0.is_finite() && p.1.is_finite()),
+                Seg::Close => true,
+            }), "{name}");
+            assert!(text.iter().all(|v| v.is_finite()), "{name}");
+        }
+        // A five-pointed star: ten points, its top at the middle of the top edge.
+        let (paths, text) = custom_paths(&preset("star5", &[]).unwrap(), 100.0, 100.0);
+        assert_eq!(paths[0].segments.iter().filter(|s| matches!(s, Seg::Line(..))).count(), 9);
+        assert!(paths[0].segments.contains(&Seg::Line(0.5, 0.0)));
+        assert!(text[0] > 0.2 && text[2] < 0.8);
+        // The shape's own adjust value replaces the preset's.
+        let thin = preset("star5", &[("adj".into(), 10_000)]).unwrap();
+        assert_eq!(thin.adjust[0], ("adj".to_owned(), "val 10000".to_owned()));
+        assert!(preset("noSuchShape", &[]).is_none());
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
