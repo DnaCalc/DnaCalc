@@ -1536,7 +1536,8 @@ impl Server {
     fn shape_picture(&self, sheet: Sheet, id: u32) -> Answer {
         fn find(shapes: &[calc_host::Shape], id: u32) -> Option<&calc_host::Shape> {
             shapes.iter().find_map(|s| {
-                if s.id == id && s.kind == calc_host::ShapeKind::Picture {
+                // A picture, or a shape filled with a picture (dc-zjsg.9).
+                if s.id == id && (s.kind == calc_host::ShapeKind::Picture || matches!(s.fill, calc_host::ShapeFill::Picture(_))) {
                     Some(s)
                 } else {
                     find(&s.children, id)
@@ -5018,6 +5019,48 @@ mod outline_tests {
         assert!(first.shape.flip_horizontal);
         assert_eq!(mirrored.children[2].shape.rotation, -30.0);
         assert_eq!(by("Group rot 20").rotation, 20.0);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dc_zjsg_9__the_server_draws_kept_objects_from_their_fallbacks() {
+        let mut server = Server::new();
+        let data = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/kept-objects.xlsx");
+        assert!(server.execute_current(Request::Open { name: "kept-objects.xlsx".into() }, Some(data.to_vec())).reply.is_ok());
+        let sheet = server.book.host().sheets()[0].id();
+        let Reply::Shapes(shapes) = server.execute_current(Request::Shapes(Sheet::of(sheet)), None).reply.unwrap() else {
+            panic!("the shapes reply")
+        };
+        // The hidden shape Excel writes for the OLE object is not drawn; the four kept objects are.
+        let kept: Vec<_> = shapes.iter().map(|s| (s.name.as_str(), s.kind.as_str(), s.kept.as_deref())).collect();
+        assert_eq!(
+            kept,
+            [
+                ("TextBox 1", "textbox", Some("equation")),
+                ("Ink 2", "picture", Some("ink")),
+                ("Diagram 3", "group", Some("SmartArt")),
+                ("Object 1", "picture", Some("OLE object")),
+            ]
+        );
+        // The equation: its fallback picture, no text drawn over it, its outline.
+        let equation = &shapes[0];
+        assert!(equation.picture.as_ref().is_some_and(|p| p.placeholder.is_none()));
+        assert!(equation.text.is_none() && equation.fill.is_none() && equation.line.is_some());
+        let markup = dna_calc_model::drawn_shapes::outline_markup(equation, 256.0, 80.0, 1.0).unwrap();
+        assert!(!markup.contains("dc-picture-placeholder") && markup.contains("<path"), "{markup}");
+        // The picture fill's bytes are answered by the shape's identity like a picture's.
+        let answer = server.handle(Request::ShapePicture { sheet: Sheet::of(sheet), id: equation.id }, None);
+        assert!(answer.bytes.is_some());
+        // SmartArt: five children, the boxes with their text in white.
+        let diagram = &shapes[2];
+        assert_eq!(diagram.children.len(), 5);
+        let build = &diagram.children[2];
+        assert_eq!(build.shape.text.as_ref().unwrap().paragraphs[0].text, "Build");
+        assert!((build.rel[0] - 192.0 / 512.0).abs() < 1e-9 && (build.rel[2] - 0.25).abs() < 1e-9, "{:?}", build.rel);
+        // The OLE object's picture, its bytes by its shape id.
+        let answer = server.handle(Request::ShapePicture { sheet: Sheet::of(sheet), id: 1025 }, None);
+        assert!(matches!(answer.reply, Ok(Reply::ShapePicture(Some(ref t))) if t == "image/png"));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

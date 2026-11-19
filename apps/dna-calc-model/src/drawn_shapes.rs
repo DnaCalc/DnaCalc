@@ -40,6 +40,10 @@ pub struct DrawnShape {
     /// A custom geometry's paths (`geometry` is `custom`), their points as fractions of the box.
     #[serde(default)]
     pub custom: Vec<DrawnPath>,
+    /// What kind of kept object this is (`equation`, `ink`, `SmartArt`, `OLE object`, dc-zjsg.9): drawn from what
+    /// Excel stores beside it, never edited.
+    #[serde(default)]
+    pub kept: Option<String>,
     /// The geometry's text rectangle `[l, t, r, b]` as fractions of the box, from its custom or ECMA-376 preset
     /// definition; `None` leaves it to [`text_rect`].
     #[serde(default)]
@@ -140,7 +144,7 @@ pub fn group_pictures(group: &DrawnShape, w: f64, h: f64) -> Vec<GroupPicture> {
             let (cw, ch) = (w * rw, h * rh);
             chain.push([w * rx, h * ry, cw, ch, child.shape.rotation]);
             match (&child.shape.picture, child.shape.kind.as_str()) {
-                (Some(picture), "picture") if picture.placeholder.is_none() => out.push(GroupPicture {
+                (Some(picture), _) if picture.placeholder.is_none() => out.push(GroupPicture {
                     id: child.shape.id,
                     crop: picture.crop,
                     description: picture.description.clone(),
@@ -1066,8 +1070,9 @@ fn inner_markup(shape: &DrawnShape, w: f64, h: f64, zoom: f64, id: &str) -> Opti
     if shape.kind == "group" {
         return Some(finish(shape, w, h, zoom, id, String::new(), ""));
     }
-    if let Some(picture) = shape.picture.as_ref().filter(|_| shape.kind == "picture") {
-        // The picture's image is the page's own element; markup draws its placeholder, then the outline.
+    if let Some(picture) = shape.picture.as_ref() {
+        // The image (of a picture, or a shape's picture fill) is the page's own element; markup draws its placeholder,
+        // then the outline and a shape's text.
         let label = picture.placeholder.clone().unwrap_or_else(|| "Picture".to_owned());
         let mut out = String::new();
         if picture.placeholder.is_some() {
@@ -1085,8 +1090,12 @@ fn inner_markup(shape: &DrawnShape, w: f64, h: f64, zoom: f64, id: &str) -> Opti
         frame.kind = "shape".into();
         frame.fill = None;
         frame.gradient = None;
-        frame.text = None;
-        if frame.line.is_some() {
+        if shape.kind == "picture" {
+            frame.text = None;
+        } else {
+            frame.kind = shape.kind.clone();
+        }
+        if frame.line.is_some() || frame.text.is_some() {
             if let Some(path) = inner_markup(&frame, w, h, zoom, id) {
                 out.push_str(&path);
             }
@@ -1580,6 +1589,7 @@ mod tests {
             pattern: None,
             custom: Vec::new(),
             custom_text: None,
+            kept: None,
             adjust: Vec::new(),
             children: Vec::new(),
             id: 0,

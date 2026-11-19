@@ -185,11 +185,20 @@ pub(crate) fn drawn_with(shape: &Shape, place: ChartPlace, theme: &[String], lin
     if kind != "group" && !dna_calc_model::drawn_shapes::drawn_geometry(geometry) {
         return None;
     }
-    let picture = shape.media.as_ref().filter(|_| kind == "picture").map(|media| DrawnPicture {
-        crop: media.crop.map(|v| v as f64 / 100_000.0),
-        placeholder: crate::picture::source(media).err(),
-        description: media.description.clone(),
-    });
+    // A picture's image, or the image a shape is filled with (an equation's fallback picture, dc-zjsg.9). A kept
+    // object the page cannot show names its kind in the placeholder.
+    let picture = shape
+        .media
+        .as_ref()
+        .filter(|_| kind == "picture" || matches!(shape.fill, ShapeFill::Picture(_)))
+        .map(|media| DrawnPicture {
+            crop: media.crop.map(|v| v as f64 / 100_000.0),
+            placeholder: crate::picture::source(media).err().map(|label| match &shape.kept {
+                Some(kept) => format!("{kept}: {label}"),
+                None => label,
+            }),
+            description: media.description.clone(),
+        });
     let degrees = shape.rotation as f64 / 60_000.0;
     let (custom, custom_text) = match custom_geometry.as_ref() {
         Some(g) => {
@@ -245,7 +254,7 @@ pub(crate) fn drawn_with(shape: &Shape, place: ChartPlace, theme: &[String], lin
         ShapeFill::Solid(colour) => css(colour, theme),
         // A gradient and a pattern are drawn from their own fields; a picture fill is not drawn: a shape
         // with one draws as if it had none.
-        ShapeFill::Gradient(_) | ShapeFill::Pattern(_) | ShapeFill::Other => None,
+        ShapeFill::Gradient(_) | ShapeFill::Pattern(_) | ShapeFill::Picture(_) | ShapeFill::Other => None,
         ShapeFill::Style => match style {
             Some(style) if style.fill.index != 0 => style.fill.colour.as_ref().and_then(|c| css(c, theme)),
             Some(_) => None,
@@ -278,7 +287,8 @@ pub(crate) fn drawn_with(shape: &Shape, place: ChartPlace, theme: &[String], lin
         })
     };
     let body = &shape.body;
-    let text = shape.text.as_ref().filter(|p| p.iter().any(|t| !t.is_empty())).map(|paragraphs| {
+    // Text whose runs are unfilled is not drawn (an equation's fallback carries it in its picture).
+    let text = shape.text.as_ref().filter(|p| !body.text_hidden && p.iter().any(|t| !t.is_empty())).map(|paragraphs| {
         let inset = |value: Option<i64>, default: i64| value.unwrap_or(default) as f64 / EMU_PER_PIXEL;
         let rich_runs = body.rich_runs_for(paragraphs);
         let default_colour = || {
@@ -355,6 +365,7 @@ pub(crate) fn drawn_with(shape: &Shape, place: ChartPlace, theme: &[String], lin
         },
         custom,
         custom_text,
+        kept: shape.kept.clone(),
         adjust: shape.adjust.clone(),
         children,
         id: shape.id,

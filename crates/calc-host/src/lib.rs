@@ -190,7 +190,7 @@ mod tables;
 pub use tables::TableChange;
 mod shapes;
 pub use calc_doc_model::{
-    CustomGeometry, GeometryCommand, GeometryPath, LineEnd, PictureMedia, ShapePattern, ShapeStyle, ShapeStyleRef, Shape, ShapeBody, ShapeColour, ShapeFill, ShapeGradient, ShapeKind, ShapeLine, ShapeShadow,
+    CustomGeometry, DrawingNode, GeometryCommand, GeometryPath, LineEnd, PictureMedia, ShapePattern, ShapeStyle, ShapeStyleRef, Shape, ShapeBody, ShapeColour, ShapeFill, ShapeGradient, ShapeKind, ShapeLine, ShapeShadow,
     ShapePicture, ShapeTextRun,
 };
 pub use shapes::{Points, ShapeChange};

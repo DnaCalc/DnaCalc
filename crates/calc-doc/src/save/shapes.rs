@@ -151,7 +151,7 @@ fn fill(f: &ShapeFill, out: &mut Vec<u8>) -> Result<(), &'static str> {
             }
             out.extend(b"</a:pattFill>");
         }
-        ShapeFill::Other => return Err("Use no fill, a solid fill, a gradient or a pattern"),
+        ShapeFill::Picture(_) | ShapeFill::Other => return Err("Use no fill, a solid fill, a gradient or a pattern"),
     }
     Ok(())
 }
