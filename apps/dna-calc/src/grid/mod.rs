@@ -328,6 +328,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
     let used: RwSignal<Option<GridArea>> = RwSignal::new(None);
     let charts: RwSignal<Vec<wire::Chart>> = RwSignal::new(Vec::new());
     let shapes: RwSignal<Vec<wire::DrawnShape>> = RwSignal::new(Vec::new());
+    let sparklines: RwSignal<Vec<wire::sparklines::DrawnSparkline>> = RwSignal::new(Vec::new());
     Effect::new(move |_| {
         controller.revision.track();
         let Some(sheet) = controller.sheet.get() else {
@@ -363,6 +364,16 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 && shapes.try_get_untracked().is_some_and(|old| old != drawn)
             {
                 shapes.try_set(drawn);
+            }
+        });
+        controller.ask(wire::Request::Sparklines(sheet), move |reply| {
+            if controller.sheet.get_untracked() != Some(sheet.id()) {
+                return;
+            }
+            if let wire::Reply::Sparklines(drawn) = reply
+                && sparklines.try_get_untracked().is_some_and(|old| old != drawn)
+            {
+                sparklines.try_set(drawn);
             }
         });
     });
@@ -2552,6 +2563,26 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
             })
             .collect_view()
     };
+    // The sheet's sparklines (dc-zjsg.7), each drawn in its cell, the ones in view only.
+    let sparklines_view = move || {
+        let m = metrics.get();
+        let v = viewport.get();
+        let z = zoom.get();
+        let p = panes.get();
+        sparklines
+            .get()
+            .into_iter()
+            .filter_map(|s| {
+                let r = p.rect(&m, &v, s.cell.2, s.cell.3);
+                if r.w <= 0.0 || r.h <= 0.0 || r.x + r.w < 0.0 || r.y + r.h < 0.0 || r.x > v.width || r.y > v.height {
+                    return None;
+                }
+                let svg = wire::sparklines::sparkline_svg(&s, r.w, r.h, z);
+                let style = format!("position:absolute;left:{};top:{};width:{};height:{};pointer-events:none", px(r.x), px(r.y), px(r.w), px(r.h));
+                Some(view! { <div class="dc-sparkline" data-dnacalc="sparkline" use:css=style inner_html=svg></div> })
+            })
+            .collect_view()
+    };
     // The sheet's shapes and text boxes (dc-zjsg.2), over the cells like the charts: placed by their
     // anchors in the cells' own sizes (a hidden row or column has none), the ones in view only.
     let shapes_view = move || {
@@ -3269,6 +3300,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                         {move || image::cells(controller, &plan.get(), panes.get(), &metrics.get(), &viewport.get())}
                         {move || decorations_view(true)}
                         {canvas_icons}
+                        {sparklines_view}
                         {charts_view}
                         {shapes_view}
                         {markers_view}

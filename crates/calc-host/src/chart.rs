@@ -458,22 +458,28 @@ impl HostState {
         })
     }
 
+    /// A reference the file wrote on `sheet`, rewritten through the session's row and column inserts and deletes.
+    pub(crate) fn current_reference(&self, formula: &str, sheet: SheetId) -> String {
+        use calc_doc_model::{FormulaRewriter, NameScope, StructuralChange};
+        let mut current = formula.to_owned();
+        for edit in &self.axis_edits {
+            if let Some(next) = calc_engine::ReferenceRewriter.name(
+                self.loaded.model(),
+                &current,
+                NameScope::Sheet(sheet),
+                &StructuralChange::Axis(*edit),
+            ) {
+                current = next;
+            }
+        }
+        current
+    }
+
     /// A series' data as the workbook holds it now (its formula evaluated), else as the file
     /// cached it; and whether it is the cache.
     pub(crate) fn data_values(&self, data: &ChartData, origin: CellKey) -> (Vec<Option<CalcValue>>, bool) {
         if let Some(values) = data.formula.as_deref().and_then(|formula| {
-            use calc_doc_model::{FormulaRewriter, NameScope, StructuralChange};
-            let mut current = formula.to_owned();
-            for edit in &self.axis_edits {
-                if let Some(next) = calc_engine::ReferenceRewriter.name(
-                    self.loaded.model(),
-                    &current,
-                    NameScope::Sheet(origin.sheet()),
-                    &StructuralChange::Axis(*edit),
-                ) {
-                    current = next;
-                }
-            }
+            let current = self.current_reference(formula, origin.sheet());
             self.formula_values(&current, origin, origin)
         }) {
             return (values, false);

@@ -159,6 +159,9 @@ pub struct PrintDocument {
     /// The images of its pictures by their identity, as `data:` URLs (dc-zjsg.3).
     #[serde(default)]
     pub pictures: Vec<(u32, String)>,
+    /// The sheet's sparklines (dc-zjsg.7).
+    #[serde(default)]
+    pub sparklines: Vec<crate::sparklines::DrawnSparkline>,
     pub notices: Vec<String>,
 }
 

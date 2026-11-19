@@ -404,6 +404,7 @@ pub struct Definitions {
     page_setups: BTreeMap<SheetId, crate::PageSetup>,
     charts: BTreeMap<SheetId, std::sync::Arc<[crate::Chart]>>,
     shapes: BTreeMap<SheetId, std::sync::Arc<[crate::Shape]>>,
+    sparklines: BTreeMap<SheetId, std::sync::Arc<[crate::SparklineGroup]>>,
     pivots: std::sync::Arc<crate::pivot::PivotState>,
     data_model: Option<std::sync::Arc<DataModel>>,
     axis_layouts: crate::AxisLayouts,
@@ -508,6 +509,19 @@ impl Definitions {
             self.shapes.remove(&sheet);
         } else {
             self.shapes.insert(sheet, shapes.into());
+        }
+        self
+    }
+
+    /// The sparkline groups of `sheet` as the file states them (dc-zjsg.7).
+    pub fn sparklines(&self, sheet: SheetId) -> &[crate::SparklineGroup] {
+        self.sparklines.get(&sheet).map(|groups| groups.as_ref()).unwrap_or(&[])
+    }
+    pub fn with_sparklines(mut self, sheet: SheetId, groups: Vec<crate::SparklineGroup>) -> Self {
+        if groups.is_empty() {
+            self.sparklines.remove(&sheet);
+        } else {
+            self.sparklines.insert(sheet, groups.into());
         }
         self
     }
@@ -764,6 +778,7 @@ impl Definitions {
             links: BTreeMap::new(),
             charts: BTreeMap::new(),
             shapes: BTreeMap::new(),
+            sparklines: BTreeMap::new(),
             pivots: Default::default(),
             data_model: None,
             page_setups: BTreeMap::new(),
@@ -1018,6 +1033,7 @@ impl Definitions {
             && self.links.is_empty()
             && self.charts.is_empty()
             && self.shapes.is_empty()
+            && self.sparklines.is_empty()
             && self.pivots.tables().next().is_none()
             && self.pivots.caches.caches.is_empty()
             && self.page_setups.is_empty()
@@ -1149,6 +1165,7 @@ impl Definitions {
             .chain(self.text_sources.keys().map(|at| at.sheet()))
             .chain(self.charts.keys().copied())
             .chain(self.shapes.keys().copied())
+            .chain(self.sparklines.keys().copied())
             .chain(self.pivots.sheets.keys().copied())
             .chain(self.page_setups.keys().copied())
             .chain(self.axis_layouts.sheets())

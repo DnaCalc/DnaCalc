@@ -66,6 +66,8 @@ pub(super) struct SheetLoad {
     pub(super) conditional_formats: Vec<super::conditional::ConditionalFormat>,
     /// The sheet's data validations (dc-6yw).
     pub(super) validations: Vec<super::validation::Validation>,
+    /// The sheet's sparkline groups (dc-zjsg.7).
+    pub(super) sparklines: Vec<calc_doc_model::SparklineGroup>,
     /// The cells (row, column) whose plain formula lay inside an array formula's area and was
     /// dropped, as Excel repairs it ([`super::LoadRepair::FormulaInsideArray`]).
     pub(super) dropped_array_formulas: Vec<(u32, u32)>,
@@ -1063,6 +1065,7 @@ fn empty_load(source: Arc<SourcePart>) -> SheetLoad {
         view: super::geometry::SheetView::default(),
         conditional_formats: Vec::new(),
         validations: Vec::new(),
+        sparklines: Vec::new(),
         dropped_array_formulas: Vec::new(),
     }
 }
@@ -1129,6 +1132,7 @@ pub(super) fn load_sheet(
             view: super::geometry::SheetView::default(),
             conditional_formats: Vec::new(),
             validations: Vec::new(),
+            sparklines: Vec::new(),
             dropped_array_formulas: Vec::new(),
         },
         groups: BTreeMap::new(),
@@ -1158,6 +1162,7 @@ pub(super) fn load_sheet(
                     &mut events,
                     &mut bars,
                     &mut sheet.load.validations,
+                    &mut sheet.load.sparklines,
                 )?;
                 if conditional_extensions {
                     sheet.load.review.conditional_extension_areas =

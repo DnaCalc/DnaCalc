@@ -45,6 +45,7 @@ pub(crate) mod metadata;
 pub(crate) mod outline;
 pub(crate) mod sheet;
 mod shift;
+mod sparkline;
 pub(crate) mod strings;
 mod styles;
 pub(crate) mod tables;
@@ -135,6 +136,7 @@ pub struct LoadedSheet {
     protected: bool,
     merged_areas: Vec<GridArea>,
     validations: Arc<[Validation]>,
+    sparklines: Arc<[calc_doc_model::SparklineGroup]>,
     charts: Arc<SheetCharts>,
     pivots: Arc<pivot::SheetPivots>,
     shapes: Arc<SheetShapes>,
@@ -162,6 +164,7 @@ impl LoadedSheet {
             protected: false,
             merged_areas: Vec::new(),
             validations: Arc::from([]),
+            sparklines: Arc::from([]),
             charts: Arc::new(SheetCharts::default()),
             pivots: Arc::new(pivot::SheetPivots::default()),
             shapes: Arc::new(SheetShapes::default()),
@@ -196,6 +199,11 @@ impl LoadedSheet {
     /// The sheet's data validations as the file states them, in document order (dc-6yw).
     pub fn validations(&self) -> &[Validation] {
         &self.validations
+    }
+
+    /// The sheet's sparkline groups as the file states them (dc-zjsg.7).
+    pub fn sparklines(&self) -> &[calc_doc_model::SparklineGroup] {
+        &self.sparklines
     }
 
     /// The sheet's charts as the file states them, and how many could not be read (dc-6yw).
@@ -2228,6 +2236,7 @@ pub fn load_preserving_sheet_ids(
                     protected: loaded.protected,
                     merged_areas: loaded.merged_areas,
                     validations: loaded.validations.into(),
+                    sparklines: loaded.sparklines.into(),
                     charts: Arc::new(if declared.preserved.is_some() {
                         SheetCharts::default()
                     } else {
@@ -2448,7 +2457,8 @@ pub fn load_preserving_sheet_ids(
             .with_page_setup(sheet.id, sheet.page_setup.clone())
             .with_validations(sheet.id, sheet.validations.to_vec())
             .with_charts(sheet.id, sheet.charts.charts.clone())
-            .with_shapes(sheet.id, sheet.shapes.shapes.clone());
+            .with_shapes(sheet.id, sheet.shapes.shapes.clone())
+            .with_sparklines(sheet.id, sheet.sparklines.to_vec());
     }
     for (sheet, rules) in conditional_sources {
         definitions = definitions.with_conditional_rules(sheet, rules);

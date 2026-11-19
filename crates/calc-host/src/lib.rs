@@ -189,8 +189,10 @@ pub use calc_engine::contract::{AsyncDisposition, AsyncRejection, AsyncToken, Re
 mod tables;
 pub use tables::TableChange;
 mod shapes;
+mod sparklines;
+pub use sparklines::SparklineView;
 pub use calc_doc_model::{
-    CustomGeometry, DrawingNode, GeometryCommand, GeometryPath, LineEnd, PictureMedia, ShapePattern, ShapeStyle, ShapeStyleRef, Shape, ShapeBody, ShapeColour, ShapeFill, ShapeGradient, ShapeKind, ShapeLine, ShapeShadow,
+    CustomGeometry, DrawingNode, Sparkline, SparklineGroup, GeometryCommand, GeometryPath, LineEnd, PictureMedia, ShapePattern, ShapeStyle, ShapeStyleRef, Shape, ShapeBody, ShapeColour, ShapeFill, ShapeGradient, ShapeKind, ShapeLine, ShapeShadow,
     ShapePicture, ShapeTextRun,
 };
 pub use shapes::{Points, ShapeChange};

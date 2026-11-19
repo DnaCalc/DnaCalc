@@ -59,6 +59,8 @@ pub use chart::{
     SheetCharts,
 };
 mod drawing;
+pub mod sparkline;
+pub use sparkline::{Sparkline, SparklineGroup};
 pub use drawing::{
     CustomGeometry, DrawingNode, GeometryCommand, GeometryPath, GeometryPoint, LineEnd, PictureMedia, ShapePattern, ShapeStyle, ShapeStyleRef, Shape, ShapeBody, ShapeColour, ShapeConnection, ShapeFill, ShapeGradient, ShapeKind, ShapeLine, ShapeShadow, ShapePicture, ShapeTextRun, SheetShapes,
 };
