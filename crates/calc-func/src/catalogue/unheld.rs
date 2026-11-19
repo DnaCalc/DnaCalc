@@ -16,7 +16,10 @@ const fn attach(data: UnheldEntry) -> CatalogueEntry {
         Implementation::Binding => Kernel::Binding,
         Implementation::NotHeld { owner } => Kernel::NotHeld { owner },
         Implementation::Deferred { class } => Kernel::Deferred { class },
-        Implementation::Held => panic!("a held entry needs an attached kernel"),
+        Implementation::Held => match data.kind {
+            UnheldKind::Rtd { .. } => Kernel::Eager(rtd_without_connector),
+            _ => panic!("a held entry needs an attached kernel"),
+        },
     };
     CatalogueEntry {
         id: data.id,
@@ -32,6 +35,54 @@ const fn attach(data: UnheldEntry) -> CatalogueEntry {
         traits: data.traits,
         kernel,
     }
+}
+
+/// RTD where the evaluation has no owner connector (the browser, a host without COM, a judged
+/// call): no real-time-data server can be started there, and Excel's answer when no server can
+/// be started for the ProgID is #N/A (Excel 16.0.20527, dc-snz.23.4: an unknown, numeric or
+/// empty ProgID gives #N/A without a connection; 1,546 Touchstone calls over random ProgIDs,
+/// servers and topics answered #N/A, or an argument's error). An error argument is returned as
+/// that error, the first one in argument order, before any server is looked for; an array or a
+/// reference of more than one cell is refused as not modelled, as the connector route refuses
+/// it. A host with a connector registers CalcFml's provider RTD, which this kernel never sees.
+fn rtd_without_connector(
+    arguments: &[crate::value::CalcValue],
+    services: &mut crate::call::EvalServices<'_>,
+) -> Result<crate::value::CalcValue, crate::call::FunctionFault> {
+    use crate::kernel::Site;
+    use crate::value::{CalcValue, CoreRef, WorksheetErrorCode};
+    let site = Site::new(calc_catalogue::unheld::RTD_ID, services);
+    let step = (|| {
+        for (index, argument) in arguments.iter().enumerate() {
+            let value = match argument.core_ref() {
+                CoreRef::Reference(reference) => {
+                    let [area] = reference.areas() else {
+                        return Err(site.not_modelled(Some(index)));
+                    };
+                    if area.cell_count() != 1 {
+                        return Err(site.not_modelled(Some(index)));
+                    }
+                    let cells = super::aggregate::reader(&site, services, index)?;
+                    let mut held = CalcValue::empty();
+                    super::aggregate::read_reference(&site, cells, reference, index, &mut |_, _, value| {
+                        held = value.clone();
+                        Ok(())
+                    })?;
+                    held
+                }
+                _ => argument.clone(),
+            };
+            match value.core_ref() {
+                CoreRef::Error(code) => return Ok(CalcValue::error(code)),
+                CoreRef::Array(_) | CoreRef::Reference(_) => {
+                    return Err(site.not_modelled(Some(index)));
+                }
+                _ => {}
+            }
+        }
+        Ok(CalcValue::error(WorksheetErrorCode::NA))
+    })();
+    Site::finish(step)
 }
 
 const fn attach_all() -> [CatalogueEntry; 16] {

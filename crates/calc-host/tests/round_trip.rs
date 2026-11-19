@@ -9706,6 +9706,35 @@ mod async_contract {
             "only two topics: {seen:?}"
         );
     }
+    /// Without an owner connector no RTD server can be started: Excel's answer for a ProgID
+    /// with no server, #N/A, whatever the server and topics (Excel 16.0.20527: 1,546 Touchstone
+    /// calls over random ProgIDs, servers and topics); an error argument is that error.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p03_rtd_without_a_connector_is_excel_s_no_server_answer() {
+        use calc_host::value::WorksheetErrorCode as E;
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        for (cell, formula) in [
+            ("A1", "-1"),
+            ("A2", "=1/0"),
+            ("B1", "=RTD(\"Probe.Progid\",,\"t\")"),
+            ("B2", "=RTD(A1,\"remote\",2,3)"),
+            ("B3", "=RTD(\"Probe.Progid\",A2,\"t\")"),
+            ("B4", "=RTD(\"x\",,\"t\",#NUM!)"),
+            ("B5", "=RTD(\"x\",,{1,2})"),
+        ] {
+            enter(&mut book, at(s, cell), formula);
+        }
+        book.dispatch(SkinIntent::Recalculate);
+        drain(&mut book);
+        let shown = |address: &str| calculated(book.host(), at(s, address)).and_then(|v| v.as_error());
+        assert_eq!(shown("B1"), Some(E::NA));
+        assert_eq!(shown("B2"), Some(E::NA));
+        assert_eq!(shown("B3"), Some(E::Div0));
+        assert_eq!(shown("B4"), Some(E::Num));
+        assert_eq!(calculated(book.host(), at(s, "B5")), None, "an array argument is not modelled");
+    }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn contract_p03_an_rtd_update_dirties_only_the_cells_that_read_its_topic() {

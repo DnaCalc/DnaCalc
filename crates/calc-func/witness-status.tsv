@@ -620,7 +620,7 @@ ROWS	full	20527	3360	3360	-	exact	218dcceeef	0
 RRI	full	20228,?	5528	5528	-	exact	218dcceeef	0
 RRI	pinned	20228,?	120	120	-	exact	7a3e51cd1b+changes	0
 RSQ	full	20527	2852	2852	-	exact	218dcceeef	0
-RTD	full	20527	1546	0	-	structural	218dcceeef	0
+RTD	full	20527	1546	1546	-	exact	384005ce88+changes	0
 SEARCH	full	20527	2857	2857	-	exact	218dcceeef	0
 SEARCHB	full	20527	2861	2861	-	exact	218dcceeef	0
 SEC	full	20131,20430,?	2138	2138	-	exact	218dcceeef	0

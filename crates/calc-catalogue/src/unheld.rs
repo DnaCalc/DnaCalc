@@ -1,7 +1,8 @@
 //! Names whose execution belongs to another package or is deferred by owner policy.
 //! The service deferrals are dc-fetch-f0tp; the compatibility-version-3 list functions are
 //! dc-nk93. CALL and REGISTER.ID run only on a macro sheet in Excel and are refused at entry in a
-//! worksheet formula (dc-gh22); RTD is ordinary to-do work through the dc-snz.23.4 host route.
+//! worksheet formula (dc-gh22); RTD reads through the host's connector (dc-snz.23.4, CalcFml's provider function) and, where the
+//! evaluation has none, through CalcFunc's kernel: no server can be started, Excel's #N/A.
 use crate::{
     ArgumentDemand, Availability, BindingForm, Deferral, EntryTraits, FunctionId, Implementation,
     Notation, Parameter, ResultForm,
@@ -69,6 +70,8 @@ pub const CODE: u16 = 325;
 /// Stable IDs of the two reference operators with function-shaped file forms.
 pub const IMPLICIT_INTERSECTION_ID: FunctionId = FunctionId::new(CODE, 15);
 pub const SPILL_ID: FunctionId = FunctionId::new(CODE, 16);
+/// Stable ID of RTD.
+pub const RTD_ID: FunctionId = FunctionId::new(CODE, 3);
 
 /// The file spelling of a declared reference operator.
 pub fn operator_file_spelling(id: FunctionId) -> Option<&'static str> {
@@ -260,13 +263,13 @@ const fn rtd() -> UnheldEntry {
         3,
         255,
         RTD_ARGS,
-        Implementation::NotHeld {
-            owner: "dc-snz.23.4",
-        },
+        Implementation::Held,
     );
     result.kind = UnheldKind::Rtd {
         provider: RTD_PROVIDER,
     };
+    // A topic's value: RTD never gives a reference or a LAMBDA.
+    result.result = ResultForm::Value;
     result
 }
 const fn reference_operator(

@@ -218,18 +218,13 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn unheld_entries_do_not_claim_unmeasured_entry_rules() {
+        // RTD is held (its kernel answers an evaluation without a connector), so its arity is
+        // Excel's: a ProgID, a server and at least one topic.
         let rtd = target("RTD");
-        assert_eq!(
-            rtd.implementation(),
-            crate::Implementation::NotHeld {
-                owner: "dc-snz.23.4"
-            }
-        );
-        assert_eq!(rtd.result_form(), ResultForm::Unknown);
-        assert_eq!(rtd.parameter_class(0), None);
-        assert_eq!(rtd.entry_class(0), None);
-        assert_eq!(rtd.check_entry(&[]), Ok(()));
-        assert_eq!(rtd.check_called(), Ok(()));
+        assert_eq!(rtd.implementation(), crate::Implementation::Held);
+        assert_eq!(rtd.result_form(), ResultForm::Value);
+        assert_eq!(rtd.check_entry(&[]), Err(EntryRule::TooFewArguments));
+        assert_eq!(rtd.check_called(), Err(EntryRule::ResultNotCallable));
 
         let has = target("HAS");
         assert_eq!(has.availability(), crate::Availability::ListsInCellsBeta);

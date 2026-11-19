@@ -233,6 +233,7 @@ pub const SETS: &[(&str, &str)] = &[
     ("ROUNDDOWN.json", include_str!("ROUNDDOWN.json")),
     ("ROUNDUP.json", include_str!("ROUNDUP.json")),
     ("RRI.json", include_str!("RRI.json")),
+    ("RTD.json", include_str!("RTD.json")),
     ("SEC.json", include_str!("SEC.json")),
     ("SECH.json", include_str!("SECH.json")),
     ("SECOND.json", include_str!("SECOND.json")),
