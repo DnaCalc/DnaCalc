@@ -3,6 +3,7 @@ mod autofit;
 pub mod canvas;
 pub mod cells;
 mod chart;
+mod custom_geometry;
 mod drawn;
 mod picture;
 mod format;

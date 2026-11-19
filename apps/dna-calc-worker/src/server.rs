@@ -1393,6 +1393,7 @@ impl Server {
                         revision,
                         self.geometry(sheet),
                         self.charts(sheet),
+                        self.drawn_shapes_where(sheet, |shape| shape.prints),
                     )))
                 }
                 Request::PivotSourceFields { area, revision } => Ok(Reply::PivotSourceFields(
@@ -4391,10 +4392,17 @@ impl Server {
 
     /// The sheet's shapes and text boxes as the page draws them, in drawing order (dc-zjsg.2).
     fn drawn_shapes(&self, sheet: Sheet) -> Vec<wire::DrawnShape> {
+        self.drawn_shapes_where(sheet, |_| true)
+    }
+
+    /// The sheet's objects `keep` picks, drawn (the print route keeps the ones printed with the sheet).
+    fn drawn_shapes_where(&self, sheet: Sheet, keep: impl Fn(&calc_host::Shape) -> bool) -> Vec<wire::DrawnShape> {
         let host = self.book.host();
         let theme = host.theme_colours();
+        let lines = host.theme_line_widths();
         host.shapes(sheet.id())
             .iter()
+            .filter(|shape| keep(shape))
             .filter_map(|shape| {
                 let place = match host.chart_place(sheet.id(), &shape.anchor)? {
                     calc_host::ChartPlace::Cells { from, to } => ChartPlace::Cells {
@@ -4410,7 +4418,7 @@ impl Server {
                         ChartPlace::Absolute { x, y, width, height }
                     }
                 };
-                crate::drawn::drawn(shape, place, theme)
+                crate::drawn::drawn_with(shape, place, theme, lines)
             })
             .collect()
     }
@@ -4969,12 +4977,11 @@ mod outline_tests {
         };
         assert_eq!(shapes.len(), 4 + 4 + 12 + 8 + 3 + 28);
         let by = |name: &str| shapes.iter().find(|s| s.name == name).unwrap_or_else(|| panic!("{name}"));
-        // Rotation, in degrees, and the unrotated box as a share of the anchor's: 90 degrees swaps them.
+        // Rotation, in degrees: a quarter turn's anchor is the shape's box turned (the page swaps it back).
         let turned = by("Rot 90 roundRect");
         assert_eq!(turned.rotation, 90.0);
-        let [ex, ey] = turned.extent;
-        assert!((ex - 3.2).abs() < 1e-6 && (ey - 0.3125).abs() < 1e-6, "{:?}", turned.extent);
-        assert_eq!(by("Rot 180 rightArrow").extent, [1.0, 1.0]);
+        assert!(dna_calc_model::drawn_shapes::quarter_turned(turned.rotation));
+        assert!(!dna_calc_model::drawn_shapes::quarter_turned(by("Rot 180 rightArrow").rotation));
         let flip = by("FlipH rightArrow");
         assert!(flip.flip_horizontal && !flip.flip_vertical && flip.rotation == 0.0);
         assert_eq!(by("Rot 30 rect").rotation, 30.0);
@@ -5011,6 +5018,56 @@ mod outline_tests {
         assert!(first.shape.flip_horizontal);
         assert_eq!(mirrored.children[2].shape.rotation, -30.0);
         assert_eq!(by("Group rot 20").rotation, 20.0);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dc_zjsg_2__the_server_answers_custom_geometry_patterns_and_style_references() {
+        let mut server = Server::new();
+        let data = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/shapes-paint4.xlsx");
+        assert!(server.execute_current(Request::Open { name: "shapes-paint4.xlsx".into() }, Some(data.to_vec())).reply.is_ok());
+        let sheet = server.book.host().sheets()[0].id();
+        let Reply::Shapes(shapes) = server.execute_current(Request::Shapes(Sheet::of(sheet)), None).reply.unwrap() else {
+            panic!("the shapes reply")
+        };
+        // Every object is drawn, none left out.
+        assert_eq!(shapes.len(), 20);
+        let by = |name: &str| shapes.iter().find(|s| s.name == name).unwrap_or_else(|| panic!("{name}"));
+        use dna_calc_model::drawn_shapes::{Seg, shape_markup};
+        // A custom geometry: its path in fractions of the box, its stated fill, the style's 1 pt outline.
+        let triangle = by("Freeform triangle");
+        assert_eq!(triangle.geometry, "custom");
+        assert_eq!(triangle.custom[0].segments[..2], [Seg::Move(0.5, 0.0), Seg::Line(1.0, 1.0)]);
+        assert_eq!(triangle.fill.as_deref(), Some("#C00000"));
+        assert_eq!(triangle.line.as_ref().map(|l| l.width), Some(12_700.0 / 9_525.0));
+        assert_eq!(triangle.custom_text, Some([0.0, 0.0, 1.0, 1.0]));
+        assert!(shape_markup(triangle, 128.0, 100.0, 1.0).unwrap().contains("M64 0L128 100L0 100Z"));
+        // An unfilled custom path is a line with its arrowhead.
+        let open = by("Freeform open arrow");
+        let markup = shape_markup(open, 128.0, 100.0, 1.0).unwrap();
+        assert!(markup.contains("fill=\"none\"") && markup.contains("#7030A0"), "{markup}");
+        // The arc from guides: a half disc of two quarter curves.
+        assert_eq!(by("Freeform half disc from guides").custom[0].segments.len(), 4);
+        // Two paths, one unfilled: the fill beneath, the strokes over it.
+        let two = shape_markup(by("Freeform two paths, one unfilled"), 100.0, 100.0, 1.0).unwrap();
+        assert!(two.contains("stroke=\"none\"/><path"), "{two}");
+        // Patterns: preset and colours, drawn as an SVG pattern.
+        let pattern = by("Pattern dkUpDiag").pattern.as_ref().unwrap();
+        assert_eq!((pattern.preset.as_str(), pattern.foreground.as_str(), pattern.background.as_str()), ("dkUpDiag", "#C00000", "#FFFF00"));
+        assert!(shape_markup(by("Pattern dkUpDiag"), 128.0, 80.0, 1.0).unwrap().contains("<pattern "));
+        // Style references: accent 2 fill with the shaded outline, white text.
+        let accent2 = by("Style accent2");
+        assert_eq!(accent2.fill.as_deref(), Some("#ED7D31"));
+        assert_eq!(accent2.text.as_ref().unwrap().colour, "#FFFFFF");
+        // Line style 3 (the theme's 1.5 pt) in accent 6, no fill, dark text.
+        let line_only = by("Style accent6 line only");
+        assert_eq!(line_only.fill, None);
+        let line = line_only.line.as_ref().unwrap();
+        assert_eq!((line.colour.as_str(), line.width), ("#70AD47", 19_050.0 / 9_525.0));
+        assert_eq!(line_only.text.as_ref().unwrap().colour, "#000000");
+        // A fill reference's colour with its modifiers: accent 4 lighter 60%.
+        assert_eq!(by("Style accent4 dark text").fill.as_deref(), Some("#FFE699"));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -8375,6 +8432,29 @@ mod printing_tests {
         };
         p
     }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dc_zjsg_3__print_preview_carries_the_shapes_and_the_pictures_images() {
+        let mut s = Server::new();
+        // pictures-paint holds a bare EMF and WMF: printing it is refused, not printed without them.
+        let data = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/pictures-paint.xlsx");
+        assert!(s.execute_current(Request::Open { name: "pictures-paint.xlsx".into() }, Some(data.to_vec())).reply.is_ok());
+        let sheet = Sheet::of(s.book.host().sheets()[0].id());
+        assert!(preview(&mut s, sheet).unwrap_err().contains("EMF or WMF"));
+        let data = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/shapes-paint3.xlsx");
+        assert!(s.execute_current(Request::Open { name: "shapes-paint3.xlsx".into() }, Some(data.to_vec())).reply.is_ok());
+        let sheet = Sheet::of(s.book.host().sheets()[0].id());
+        let document = preview(&mut s, sheet).unwrap();
+        let Reply::Shapes(drawn) = s.execute_current(Request::Shapes(sheet), None).reply.unwrap() else { panic!("shapes") };
+        // The same objects the grid draws, and an image for every picture the page can decode (not the bare EMF/WMF).
+        assert_eq!(document.shapes, drawn);
+        let decodable = drawn.iter().filter(|d| d.picture.as_ref().is_some_and(|p| p.placeholder.is_none())).count();
+        // Pictures inside groups too.
+        assert!(decodable >= 1 && document.pictures.len() > decodable, "{decodable} {}", document.pictures.len());
+        assert!(document.pictures.iter().all(|(_, url)| url.starts_with("data:image/png;base64,iVBORw0KGgo")));
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn page_setup_and_print_preview_use_the_host_values_history_and_saved_document() {

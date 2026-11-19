@@ -10,7 +10,8 @@ use super::{Events, LoadError, read_xml};
 use crate::opc::Package;
 use crate::xml::XmlEvent;
 use calc_doc_model::{
-    ChartAnchor, DrawingPoint, LineEnd, Shape, ShapeBody, ShapeColour, ShapeConnection, ShapeFill, ShapeShadow,
+    ChartAnchor, CustomGeometry, DrawingPoint, GeometryCommand, GeometryPath, GeometryPoint, LineEnd, ShapePattern, ShapeStyle,
+    ShapeStyleRef, Shape, ShapeBody, ShapeColour, ShapeConnection, ShapeFill, ShapeShadow,
     PictureMedia, ShapeGradient, ShapeKind, ShapeLine, ShapePicture, ShapeTextRun, SheetShapes,
 };
 
@@ -319,6 +320,7 @@ fn anchor_shape(anchor: &Node) -> Anchored {
         return Anchored::Unread(label);
     };
     shape.edit_as = anchor.attribute("editAs").map(str::to_owned);
+    shape.prints = !anchor.child("clientData").is_some_and(|c| matches!(c.attribute("fPrintsWithSheet"), Some("0" | "false")));
     Anchored::Shape(shape)
 }
 
@@ -392,6 +394,7 @@ fn object_shape(node: &Node, anchor: ChartAnchor) -> Option<Shape> {
     if let Some(properties) = node.child(properties) {
         shape_properties(&mut shape, properties);
     }
+    shape.style = node.child("style").map(style);
     match kind {
         ShapeKind::Connector => {
             let connection = |name: &str| {
@@ -595,6 +598,73 @@ fn gradient(fill: &Node) -> Option<ShapeGradient> {
     Some(read)
 }
 
+/// `xdr:style`: its line, fill and effect references and the font reference's colour.
+fn style(node: &Node) -> ShapeStyle {
+    let reference = |name: &str| {
+        node.child(name).map_or_else(ShapeStyleRef::default, |r| ShapeStyleRef {
+            index: r.number("idx").unwrap_or(0),
+            colour: colour(r),
+        })
+    };
+    ShapeStyle {
+        line: reference("lnRef"),
+        fill: reference("fillRef"),
+        effect: reference("effectRef"),
+        font: node.child("fontRef").and_then(colour),
+    }
+}
+
+/// `a:custGeom`: its guides, text rectangle and paths as the file states them.
+fn custom_geometry(node: &Node) -> CustomGeometry {
+    let guides = |list: &str| {
+        node.child(list).map_or_else(Vec::new, |l| {
+            l.children
+                .iter()
+                .filter(|gd| gd.local == "gd")
+                .filter_map(|gd| Some((gd.attribute("name")?.to_owned(), gd.attribute("fmla")?.to_owned())))
+                .collect()
+        })
+    };
+    let point = |p: &Node| -> Option<GeometryPoint> { Some((p.attribute("x")?.to_owned(), p.attribute("y")?.to_owned())) };
+    let points = |c: &Node| c.children.iter().filter(|p| p.local == "pt").filter_map(point).collect::<Vec<_>>();
+    let paths = node.child("pathLst").map_or_else(Vec::new, |list| {
+        list.children
+            .iter()
+            .filter(|p| p.local == "path")
+            .map(|p| GeometryPath {
+                width: p.number("w"),
+                height: p.number("h"),
+                fill: p.attribute("fill").map(str::to_owned),
+                stroke: p.attribute("stroke").is_none_or(|v| matches!(v, "1" | "true")),
+                commands: p
+                    .children
+                    .iter()
+                    .filter_map(|c| {
+                        let pts = points(c);
+                        Some(match c.local.as_str() {
+                            "moveTo" => GeometryCommand::Move(pts.into_iter().next()?),
+                            "lnTo" => GeometryCommand::Line(pts.into_iter().next()?),
+                            "arcTo" => GeometryCommand::Arc(
+                                ["wR", "hR", "stAng", "swAng"].map(|a| c.attribute(a).unwrap_or("0").to_owned()),
+                            ),
+                            "quadBezTo" => GeometryCommand::Quad(<[GeometryPoint; 2]>::try_from(pts).ok()?),
+                            "cubicBezTo" => GeometryCommand::Cubic(<[GeometryPoint; 3]>::try_from(pts).ok()?),
+                            "close" => GeometryCommand::Close,
+                            _ => return None,
+                        })
+                    })
+                    .collect(),
+            })
+            .collect()
+    });
+    CustomGeometry {
+        adjust: guides("avLst"),
+        guides: guides("gdLst"),
+        text_rect: node.child("rect").map(|r| ["l", "t", "r", "b"].map(|a| r.attribute(a).unwrap_or("0").to_owned())),
+        paths,
+    }
+}
+
 fn shape_properties(shape: &mut Shape, properties: &Node) {
     if let Some(xfrm) = properties.child("xfrm") {
         shape.rotation = xfrm.number("rot").unwrap_or(0);
@@ -634,7 +704,15 @@ fn shape_properties(shape: &mut Shape, properties: &Node) {
             }
             "gradFill" => shape.fill = gradient(child).map_or(ShapeFill::Other, ShapeFill::Gradient),
             "effectLst" => shape.shadow = shadow(child),
-            "pattFill" | "blipFill" | "grpFill" => shape.fill = ShapeFill::Other,
+            "pattFill" => {
+                shape.fill = ShapeFill::Pattern(ShapePattern {
+                    preset: child.attribute("prst").unwrap_or("pct5").to_owned(),
+                    foreground: child.child("fgClr").and_then(colour),
+                    background: child.child("bgClr").and_then(colour),
+                })
+            }
+            "blipFill" | "grpFill" => shape.fill = ShapeFill::Other,
+            "custGeom" => shape.custom_geometry = Some(custom_geometry(child)),
             "ln" => {
                 let mut line = ShapeLine {
                     weight: child.number("w"),

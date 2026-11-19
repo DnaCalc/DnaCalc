@@ -2583,8 +2583,8 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 if x1 < 0.0 || y1 < 0.0 || x0 > v.width || y0 > v.height {
                     return None;
                 }
-                // The anchor of a turned shape is the box around it: the shape itself is the smaller box at its centre.
-                let (x0, y0, x1, y1) = wire::drawn_shapes::unrotated((x0, y0, x1, y1), shape.extent);
+                // The anchor of a quarter-turned shape is its box turned: the shape is that box swapped about its centre.
+                let (x0, y0, x1, y1) = wire::drawn_shapes::unrotated((x0, y0, x1, y1), shape.rotation);
                 let picture = shape.picture.clone().filter(|_| shape.kind == "picture");
                 let (w, h) = (x1 - x0, y1 - y0);
                 // The images of pictures inside a group: each in the boxes of its ancestors, under the group's vector parts.

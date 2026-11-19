@@ -16,11 +16,14 @@ const SCHEME: [&str; 12] = [
     "hlink", "folHlink",
 ];
 
-/// The colours of the theme part `part`, in [`SCHEME`]'s order; a colour the part does not give
-/// is empty.
-pub(crate) fn read_theme(package: &Package, part: &str) -> Result<Vec<String>, LoadError> {
+/// The colours of the theme part `part`, in [`SCHEME`]'s order (a colour the part does not give
+/// is empty), and the widths in EMU of the format scheme's line styles
+/// (`a:lnStyleLst` `a:ln w`, in order): what a shape's `a:lnRef idx` 1, 2 and 3 draw with (dc-zjsg.2).
+pub(crate) fn read_theme_parts(package: &Package, part: &str) -> Result<(Vec<String>, Vec<i64>), LoadError> {
     let xml = read_xml(package, part)?;
     let mut events = Events::new(&xml);
+    let mut line_widths = Vec::new();
+    let mut in_lines = false;
     let mut colors = vec![String::new(); SCHEME.len()];
     let mut current: Option<usize> = None;
     let mut in_scheme = false;
@@ -33,6 +36,10 @@ pub(crate) fn read_theme(package: &Package, part: &str) -> Result<Vec<String>, L
                 let drawing = element.name.namespace.as_deref() == Some(DRAWING_NAMESPACE);
                 if drawing && local == "clrScheme" {
                     in_scheme = true;
+                } else if drawing && local == "lnStyleLst" {
+                    in_lines = true;
+                } else if in_lines && drawing && local == "ln" {
+                    line_widths.push(element.attribute("w").and_then(|w| w.trim().parse().ok()).unwrap_or(0));
                 } else if in_scheme
                     && drawing
                     && let Some(index) = SCHEME.iter().position(|n| *n == local)
@@ -56,6 +63,8 @@ pub(crate) fn read_theme(package: &Package, part: &str) -> Result<Vec<String>, L
                 let drawing = name.namespace.as_deref() == Some(DRAWING_NAMESPACE);
                 if drawing && name.local == "clrScheme" {
                     in_scheme = false;
+                } else if drawing && name.local == "lnStyleLst" {
+                    in_lines = false;
                 } else if drawing && SCHEME.contains(&name.local.as_str()) {
                     current = None;
                 }
@@ -67,5 +76,5 @@ pub(crate) fn read_theme(package: &Package, part: &str) -> Result<Vec<String>, L
             None => break,
         }
     }
-    Ok(colors)
+    Ok((colors, line_widths))
 }

@@ -1136,3 +1136,54 @@ fn dc_8ari6__a_partial_guide_list_is_saved_complete() {
         "{part}"
     );
 }
+
+// dc-zjsg.2, fourth slice: shapes-paint4.xlsx (make-shapes-paint4.py, a drawing part written as Excel writes one)
+// holds custom geometries, pattern fills, style references in other colours and turned rectangles. Each reads
+// into the model, and an untouched save keeps the drawing and theme parts byte for byte and reads back the same.
+const SHAPES_PAINT4: &[u8] = include_bytes!("fixtures/drawing/shapes-paint4.xlsx");
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_2__custom_geometry_patterns_and_style_references_read_and_survive_save() {
+    use calc_doc::model::{GeometryCommand, ShapeFill};
+    let loaded = load(SHAPES_PAINT4);
+    let shapes = &loaded.sheets()[0].shapes().shapes;
+    assert_eq!(shapes.len(), 5 + 8 + 3 + 4);
+    let by = |name: &str| shapes.iter().find(|s| s.name == name).unwrap_or_else(|| panic!("{name}"));
+    // Custom geometry: no preset, its paths with their own spaces and commands.
+    let triangle = by("Freeform triangle");
+    assert_eq!(triangle.geometry, None);
+    let custom = triangle.custom_geometry.as_ref().unwrap();
+    assert_eq!((custom.paths.len(), custom.paths[0].width, custom.paths[0].height), (1, Some(1000), Some(1000)));
+    assert_eq!(custom.paths[0].commands.len(), 4);
+    assert_eq!(custom.paths[0].commands[0], GeometryCommand::Move(("500".into(), "0".into())));
+    assert_eq!(custom.text_rect, Some(["l".into(), "t".into(), "r".into(), "b".into()]));
+    let open = by("Freeform open arrow").custom_geometry.as_ref().unwrap();
+    assert_eq!(open.paths[0].fill.as_deref(), Some("none"));
+    let disc = by("Freeform half disc from guides").custom_geometry.as_ref().unwrap();
+    assert_eq!(disc.guides, [("unused".to_owned(), "*/ w 1 2".to_owned())]);
+    assert_eq!(disc.paths[0].commands[1], GeometryCommand::Arc(["hc".into(), "vc".into(), "0".into(), "cd2".into()]));
+    let curves = by("Freeform curves").custom_geometry.as_ref().unwrap();
+    assert!(matches!(curves.paths[0].commands[1], GeometryCommand::Quad(_)));
+    assert!(matches!(curves.paths[0].commands[2], GeometryCommand::Cubic(_)));
+    assert_eq!(by("Freeform two paths, one unfilled").custom_geometry.as_ref().unwrap().paths.len(), 2);
+    // Pattern fills with their colours.
+    let ShapeFill::Pattern(pattern) = &by("Pattern dkUpDiag").fill else { panic!("a pattern") };
+    assert_eq!(pattern.preset, "dkUpDiag");
+    assert_eq!(pattern.foreground, Some(ShapeColour::Rgb(0xC00000)));
+    assert_eq!(pattern.background, Some(ShapeColour::Rgb(0xFFFF00)));
+    // Style references: index and colour of each, the font reference's colour.
+    let style = by("Style accent6 line only").style.as_ref().unwrap();
+    assert_eq!((style.line.index, style.fill.index), (3, 0));
+    assert_eq!(style.line.colour, Some(ShapeColour::Scheme("accent6".into())));
+    assert_eq!(style.font, Some(ShapeColour::Scheme("dk1".into())));
+    assert_eq!(by("Rect rot 120").rotation, 120 * 60_000);
+    // The theme's line styles, for lnRef.
+    assert_eq!(loaded.theme_line_widths(), [6_350, 12_700, 19_050]);
+    // An untouched save keeps the parts as stored and reads back the same objects.
+    let saved = save_untouched(SHAPES_PAINT4);
+    for part_name in ["xl/drawings/drawing1.xml", "xl/theme/theme1.xml"] {
+        assert_eq!(part(&saved, part_name), part(SHAPES_PAINT4, part_name), "{part_name}");
+    }
+    assert_eq!(&load(&saved).sheets()[0].shapes().shapes, shapes);
+}

@@ -14532,7 +14532,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
         ],
     },
     Case {
-        name: "print preview: imported drawing objects are refused before printable content is omitted",
+        name: "print preview: imported shapes print as the grid draws them (dc-zjsg.2)",
         actions: &[
             Action::Click("print-close"),
             Action::Upload(
@@ -14542,15 +14542,9 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::DiscardReplacement,
             Action::Click("[data-dnacalc=sheet-tab][data-sheet=S]"),
             Action::Click("print-preview"),
-            Action::Wait(Check::TextContains(
-                "print-message",
-                "Pictures, shapes, text boxes",
-            )),
+            Action::Wait(Check::Count("[data-dnacalc=print-shape][data-shape='Rectangle 1']", 1)),
         ],
-        checks: &[
-            Check::Count("[data-dnacalc=print-page]", 0),
-            Check::Count("[data-dnacalc=print-browser]:disabled", 1),
-        ],
+        checks: &[Check::Text("print-message", "")],
     },
     Case {
         name: "chart formatting: series RGB colours use the authored command",

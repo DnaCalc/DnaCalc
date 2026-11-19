@@ -179,6 +179,57 @@ fn Region(
             })
         })
         .collect_view();
+    // The sheet's shapes and pictures (dc-zjsg.2, dc-zjsg.3), placed as the grid places them, over the cells.
+    let cell_rect = |row: u32, column: u32| {
+        let (x, y) = (metrics.col_start(column) - viewport.scroll_x, metrics.row_start(row) - viewport.scroll_y);
+        Some((x, y, metrics.col_start(column + 1) - metrics.col_start(column), metrics.row_start(row + 1) - metrics.row_start(row)))
+    };
+    let origin = (metrics.col_start(1) - viewport.scroll_x, metrics.row_start(1) - viewport.scroll_y);
+    let image_of = |id: u32| document.pictures.iter().find(|(p, _)| *p == id).map(|(_, url)| url.clone());
+    let shape_views = document
+        .shapes
+        .iter()
+        .filter_map(|shape| {
+            let (x0, y0, x1, y1) = wire::drawn_shapes::frame(&shape.place, cell_rect, origin, 1.0)?;
+            if x1 < 0. || y1 < 0. || x0 > region.width || y0 > region.height {
+                return None;
+            }
+            let (x0, y0, x1, y1) = wire::drawn_shapes::unrotated((x0, y0, x1, y1), shape.rotation);
+            let (w, h) = (x1 - x0, y1 - y0);
+            let picture = shape.picture.as_ref().filter(|p| shape.kind == "picture" && p.placeholder.is_none());
+            let inside = if shape.kind == "group" { wire::drawn_shapes::group_pictures(shape, w, h) } else { Vec::new() };
+            let (markup, turn) = if shape.picture.is_some() && shape.kind == "picture" || !inside.is_empty() {
+                (wire::drawn_shapes::outline_markup(shape, w, h, 1.0)?, wire::drawn_shapes::turn_style(shape))
+            } else {
+                (wire::drawn_shapes::shape_markup(shape, w, h, 1.0)?, String::new())
+            };
+            let image = |id: u32, crop: [f64; 4], flip: [bool; 2]| {
+                image_of(id).map(|src| {
+                    format!(
+                        "<div style=\"position:absolute;left:0;top:0;width:100%;height:100%;overflow:hidden;{}\"><img src=\"{src}\" alt=\"\" style=\"{}\"></div>",
+                        wire::drawn_shapes::flip_style(flip),
+                        wire::drawn_shapes::crop_style(crop)
+                    )
+                })
+            };
+            let mut images = picture
+                .and_then(|p| image(shape.id, p.crop, [shape.flip_horizontal, shape.flip_vertical]))
+                .unwrap_or_default();
+            for member in inside {
+                let Some(mut html) = image(member.id, member.crop, member.flip) else { continue };
+                for [left, top, width, height, degrees] in member.chain.iter().rev() {
+                    let turn = wire::drawn_shapes::turn_style_of(*degrees);
+                    html = format!("<div style=\"position:absolute;left:{left}px;top:{top}px;width:{width}px;height:{height}px;{turn}\">{html}</div>");
+                }
+                images.push_str(&html);
+            }
+            let style = format!("position:absolute;left:{x0}px;top:{y0}px;width:{w}px;height:{h}px;{turn}");
+            Some(view! {
+                <div data-dnacalc="print-shape" data-shape=shape.name.clone() use:css=style
+                    inner_html=format!("{images}<div style=\"position:absolute;left:0;top:0;width:100%;height:100%\">{markup}</div>")></div>
+            })
+        })
+        .collect_view();
     view! {
         <div
             class="dc-print-region"
@@ -196,6 +247,7 @@ fn Region(
                 use:css=format!("width:{}px;height:{}px", region.width, region.height)
             ></canvas>
             {chart_views}
+            {shape_views}
         </div>
     }
 }
@@ -1029,6 +1081,8 @@ mod tests {
             },
             cells: Vec::new(),
             charts: Vec::new(),
+            shapes: Vec::new(),
+            pictures: Vec::new(),
             notices: Vec::new(),
         };
         assert!(drawing_budget(&doc, 1.).is_ok());

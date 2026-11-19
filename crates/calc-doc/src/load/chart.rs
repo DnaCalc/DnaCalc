@@ -71,15 +71,18 @@ pub(crate) fn read_charts(package: &Package, sheet_part: &str) -> SheetCharts {
     read
 }
 
-pub(super) fn unprinted_objects(package: &Package, part: &str) -> Result<usize, LoadError> {
-    read_drawing(package, part).map(|(_, count)| count)
-}
-
 fn number(text: &str) -> i64 {
     text.trim().parse().unwrap_or(0)
 }
 
 /// The chart frames of a drawing part: each frame's name, anchor and chart relationship id.
+/// The anchors of a drawing part that do not print as the grid draws them: a chart frame inside a group or
+/// marked not to print with the sheet, or a content part. Shapes, pictures and the other objects the drawing
+/// reader holds are not counted here (dc-zjsg.2).
+pub(super) fn unprinted_objects(package: &Package, part: &str) -> Result<usize, LoadError> {
+    read_drawing(package, part).map(|(_, count)| count)
+}
+
 fn read_drawing(
     package: &Package,
     part: &str,
@@ -107,7 +110,7 @@ fn read_drawing(
                 "twoCellAnchor" | "oneCellAnchor" | "absoluteAnchor"
             )
         {
-            other_objects += 1;
+            // A block of alternatives around whole anchors: the drawing reader's (its unread count).
             events.skip()?;
             continue;
         }
@@ -119,22 +122,21 @@ fn read_drawing(
         let mut path: Vec<String> = Vec::new();
         let mut frame = false;
         let mut unsupported = false;
+        let mut no_print = false;
         loop {
             match events.next()? {
                 Some(XmlEvent::Start(child)) => {
                     let local = child.name.local.as_str().to_owned();
                     if child.name.namespace.as_deref() == Some(SPREADSHEET_DRAWING)
-                        && (matches!(
-                            local.as_str(),
-                            "grpSp" | "sp" | "pic" | "cxnSp" | "contentPart"
-                        ) || local == "graphicFrame" && !path.is_empty()
-                            || local == "clientData"
-                                && matches!(
-                                    child.attribute("fPrintsWithSheet"),
-                                    Some("0" | "false")
-                                ))
+                        && (local == "contentPart" || local == "graphicFrame" && !path.is_empty())
                     {
                         unsupported = true;
+                    }
+                    if child.name.namespace.as_deref() == Some(SPREADSHEET_DRAWING)
+                        && local == "clientData"
+                        && matches!(child.attribute("fPrintsWithSheet"), Some("0" | "false"))
+                    {
+                        no_print = true;
                     }
                     match local.as_str() {
                         "graphicFrame" => frame = true,
@@ -176,11 +178,12 @@ fn read_drawing(
                 None => return Err(events.invalid("the part ends inside an anchor")),
             }
         }
-        if unsupported {
+        // A chart frame not printed with the sheet is not modelled for printing; a shape's flag is the drawing
+        // reader's.
+        if unsupported || no_print && frame && chart.is_some() {
             other_objects += 1;
         }
         let Some(chart) = chart.filter(|_| frame) else {
-            other_objects += 1;
             continue;
         };
         let anchor = match kind.as_str() {

@@ -59,6 +59,7 @@ pub fn preview(
     revision: u64,
     geometry: wire::Geometry,
     charts: Vec<wire::Chart>,
+    shapes: Vec<wire::DrawnShape>,
 ) -> Result<PrintDocument, String> {
     if book.has_pending_calculation() {
         return Err("Calculation is still running; print preview will refresh when it finishes (dc-971p.57)".into());
@@ -83,6 +84,18 @@ pub fn preview(
         return Err(
             "A chart is preserved but its drawing is not modelled for printing (dc-971p.57)".into(),
         );
+    }
+    // Every shown object prints as the grid draws it: a geometry not drawn, or a picture shown by its placeholder
+    // (an EMF or WMF without a bitmap inside), is refused rather than left off the page.
+    let shown = host.shapes(sheet.id()).iter().filter(|s| !s.hidden && s.prints).count();
+    if shapes.len() != shown {
+        return Err("A shape's geometry is preserved but not drawn; printing it is not modelled (dc-zjsg.2)".into());
+    }
+    fn placeholder(shape: &wire::DrawnShape) -> bool {
+        shape.picture.as_ref().is_some_and(|p| p.placeholder.is_some()) || shape.children.iter().any(|c| placeholder(&c.shape))
+    }
+    if shapes.iter().any(placeholder) {
+        return Err("A picture's image (EMF or WMF) is preserved but not drawn; printing it is not modelled (dc-zjsg.3)".into());
     }
     let entry = host
         .model()
@@ -298,6 +311,26 @@ pub fn preview(
         plan,
         cells,
         charts,
+        pictures: pictures(&host.shapes(sheet.id()).iter().filter(|s| s.prints).cloned().collect::<Vec<_>>()),
+        shapes,
         notices,
     })
+}
+
+/// The images of a sheet's pictures, in groups too, as `data:` URLs by their identity: a picture whose image
+/// the page cannot decode keeps its placeholder (dc-zjsg.3).
+fn pictures(shapes: &[calc_host::Shape]) -> Vec<(u32, String)> {
+    fn walk(shapes: &[calc_host::Shape], out: &mut Vec<(u32, String)>) {
+        for shape in shapes {
+            if shape.kind == calc_host::ShapeKind::Picture
+                && let Some((content_type, bytes)) = shape.media.as_ref().and_then(|m| crate::picture::source(m).ok())
+            {
+                out.push((shape.id, dna_calc_model::drawn_shapes::data_url(content_type, &bytes)));
+            }
+            walk(&shape.children, out);
+        }
+    }
+    let mut out = Vec::new();
+    walk(shapes, &mut out);
+    out
 }
