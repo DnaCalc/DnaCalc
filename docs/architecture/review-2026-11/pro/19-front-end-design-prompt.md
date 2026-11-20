@@ -4,7 +4,7 @@ Brief for GPT-6 Pro and the other top models (2026-11-20). Each model answers on
 
 ## The deliverable
 
-A **design of about 20 pages**, with:
+A **design of about 20 pages**. Above all it should flesh out the **true user experience in detail**: what it is like, moment to moment, to use DNA Calc for real work. Give at least half the pages to that. The rest covers:
 - a design philosophy;
 - a conceptual model of the interface;
 - **detailed mockups** of every view and tool;
@@ -47,6 +47,28 @@ Order by milestones, never by calendar dates.
 ## What the design must cover
 
 **A. Design philosophy.** What "modern on the surface" means here. How familiarity, clarity, density and honesty (never misstating the model) are balanced. What all views share in look and behaviour.
+
+**A2. The user experience, walked through.** This is the heart of the document.
+- **Write storyboards.** Write end-to-end walkthroughs for each persona, step by step, with a mockup per key moment and the exact keys, clicks and what appears on screen. Include at least these:
+  - an Excel user opening a large inherited workbook for the first time, and finding their way around;
+  - an analyst turning a model into a notebook write-up;
+  - a reviewer tracing why one number is wrong;
+  - a modeller building a small systems model on the map;
+  - a manager using a finished model as an App;
+  - an add-in author testing their functions in the Formula Explorer;
+  - an agent and a person working on the same model together.
+- **For each walkthrough, cover the details that make or break the experience:**
+  - first run and empty states;
+  - how features are discovered;
+  - feedback while calculating or loading;
+  - the transitions between views (what stays put, what moves, how the user keeps their place);
+  - error, warning and refusal moments;
+  - undo and recovery;
+  - copy and paste between views and with other programs;
+  - small interactions such as hover, focus and selection feedback;
+  - how fast it feels;
+  - accessibility (screen readers, keyboard only, contrast, zoom);
+  - what an experienced Excel user notices as different, and why that difference is a win and not a surprise.
 
 **B. A catalogue of real spreadsheet models.** This is the grounding for everything else.
 - **Name the recurring patterns** of real spreadsheet models and of systems models. Examples:
