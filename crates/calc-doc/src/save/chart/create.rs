@@ -12,6 +12,7 @@ const REL: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relatio
 const DRAWING: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing";
 const IMAGE: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image";
 const CHART: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart";
+const CHARTEX: &str = "http://schemas.microsoft.com/office/2014/relationships/chartEx";
 
 fn invalid(part: &str, detail: &str) -> SaveRefusal {
     SaveRefusal::ChartNotModelled {
@@ -551,8 +552,13 @@ pub(super) fn finish(
             ));
         }
         let new = &charts[original.len()..];
+        let chart_anchors: Vec<(&Chart, &Chart)> = original
+            .iter()
+            .zip(charts)
+            .filter(|(old, now)| old.anchor != now.anchor)
+            .collect();
         let plan = super::stored::plan(before.definitions().shapes(sheet), after.definitions().shapes(sheet))?;
-        if new.is_empty() && plan.is_empty() {
+        if new.is_empty() && plan.is_empty() && chart_anchors.is_empty() {
             continue;
         }
         let source = sheets.iter().find(|s| s.id() == sheet).ok_or_else(|| {
@@ -563,7 +569,9 @@ pub(super) fn finish(
         })?;
         add_with(
             package,
+            before,
             source,
+            &chart_anchors,
             new,
             &plan.new,
             Some(&plan),
@@ -575,23 +583,12 @@ pub(super) fn finish(
     Ok(())
 }
 
-
-pub(crate) fn add(
-    package: &Package,
-    source: &LoadedSheet,
-    new: &[Chart],
-    new_shapes: &[calc_doc_model::Shape],
-    out: &mut Changes,
-    structural: Option<(&super::super::structural::StructuralEdits, &ModelRoot)>,
-    caches: Option<&cache::CacheSource<'_>>,
-) -> Result<(), SaveRefusal> {
-    add_with(package, source, new, new_shapes, None, out, structural, caches)
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn add_with(
     package: &Package,
+    base: &ModelRoot,
     source: &LoadedSheet,
+    chart_anchors: &[(&Chart, &Chart)],
     new: &[Chart],
     new_shapes: &[calc_doc_model::Shape],
     plan: Option<&super::stored::StoredPlan<'_>>,
@@ -614,6 +611,12 @@ pub(crate) fn add_with(
         return Err(invalid(
             sheet_part,
             "The worksheet has an unsupported drawing relationship",
+        ));
+    }
+    if drawings.is_empty() && !chart_anchors.is_empty() {
+        return Err(invalid(
+            sheet_part,
+            "Rewriting a chart anchor requires an existing drawing part",
         ));
     }
     let drawing = if let Some(r) = drawings.first() {
@@ -650,23 +653,48 @@ pub(crate) fn add_with(
             "A drawing shared by worksheets cannot acquire a chart",
         ));
     }
+    let mut chart_map: std::collections::BTreeMap<String, ChartAnchor> = Default::default();
+    if !chart_anchors.is_empty() {
+        let rels = package.relationships_of(Some(&drawing)).ok_or_else(|| {
+            invalid(&drawing, "The drawing has no relationships for the chart frame")
+        })?;
+        for &(old, now) in chart_anchors {
+            super::check_unique_chart_part(base, &old.part)?;
+            super::valid_anchor_change(old, now)?;
+            let mut matching = rels.items().iter().filter(|r| {
+                (r.kind == CHART || r.kind == CHARTEX)
+                    && r.mode == TargetMode::Internal
+                    && r.resolved.as_deref() == Some(old.part.as_str())
+            });
+            let (Some(first), None) = (matching.next(), matching.next()) else {
+                return Err(invalid(
+                    &old.part,
+                    "The chart frame relationship was not found uniquely in its drawing",
+                ));
+            };
+            chart_map.insert(first.id.clone(), now.anchor);
+        }
+    }
     let empty = format!("<xdr:wsDr xmlns:xdr=\"{XDR}\"/>");
     let mut xml = parts::current_part(package, out, &drawing, empty.as_bytes())?;
     let original_xml = xml.with_bytes(xml.bytes().to_vec());
-    if let Some(plan) = plan.filter(|p| !p.edits.is_empty()) {
+    let shape_edits = plan.map(|p| &p.edits);
+    if shape_edits.is_some_and(|e| !e.is_empty()) || !chart_map.is_empty() {
         // The model holds anchors as they were before the session's row and column edits, which the save moves the
         // stored part through. With such edits on this sheet the stored objects are edited in the part as the file
         // stores it, then the part goes through the same moves (as a new frame does, `finish_body`).
+        let empty_edits = std::collections::BTreeMap::new();
+        let edits = shape_edits.unwrap_or(&empty_edits);
         let moved = structural.filter(|(edits, _)| edits.edits().iter().any(|e| e.sheet() == source.id()));
         match moved {
             Some(_) => {
                 let stored = super::super::strings::read_part(package, &drawing)?;
-                let edited = super::stored::edit(&stored, &plan.edits)?;
+                let edited = super::stored::edit_with_charts(&stored, edits, &chart_map)?;
                 let body = moved_part(edited, &drawing, source, structural)?;
                 xml = xml.with_bytes(body);
             }
             None => {
-                let edited = super::stored::edit(&xml, &plan.edits)?;
+                let edited = super::stored::edit_with_charts(&xml, edits, &chart_map)?;
                 xml = xml.with_bytes(edited);
             }
         }
@@ -822,7 +850,9 @@ pub(crate) fn add_with(
         Some(layout) => xml = xml.with_bytes(super::stored::arrange(&xml, layout, &shape_frames, &frames)?),
         None => {
             frames.extend(shape_frames.concat());
-            xml = xml.with_bytes(parts::append_root(&xml, &frames)?);
+            if !frames.is_empty() {
+                xml = xml.with_bytes(parts::append_root(&xml, &frames)?);
+            }
         }
     }
     parts::put_part(package, out, &drawing, xml.bytes().to_vec());

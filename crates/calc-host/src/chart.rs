@@ -548,25 +548,43 @@ impl HostState {
         self.drawing_place(sheet, anchor, None)
     }
 
-    /// Where a chart frame is: by its anchor, except that a two-cell anchor whose `editAs` is `oneCell` (moves but does
-    /// not size) keeps the size the file's row heights and column widths gave it, and one that is `absolute` keeps its
-    /// place and size too, when rows or columns are resized or hidden (dc-zjsg.6). Only the display follows: the
-    /// stored anchor is saved as the file has it (Excel would rewrite it).
+    /// Where a chart frame is: by its anchor, with `editAs="oneCell"` (moves but does not size) reported as `Sized`
+    /// from its top-left corner and `editAs="absolute"` as `Absolute` using the current row heights and column widths
+    /// (`shapes::kept_sizes` rewrites the stored anchor on row/column format changes and Save writes it, dc-zjsg.14).
     pub fn frame_place(&self, sheet: SheetId, anchor: &ChartAnchor, edit_as: Option<&str>) -> Option<ChartPlace> {
-        use calc_doc_model::Axis;
         let (ChartAnchor::TwoCell { from, to }, Some("oneCell" | "absolute")) = (anchor, edit_as) else {
             return self.drawing_place(sheet, anchor, edit_as);
         };
-        let file = self.loaded().model().definitions().axis_layouts();
-        let column = |c: u32| self.column_points_of(sheet, file.get(sheet, Axis::Columns, c));
-        let row = |r: u32| self.row_points_of(sheet, file.get(sheet, Axis::Rows, r));
-        let x = |p: &DrawingPoint| (1..=p.column).map(column).sum::<f64>() + p.column_offset as f64 / 12_700.0;
-        let y = |p: &DrawingPoint| (1..=p.row).map(row).sum::<f64>() + p.row_offset as f64 / 12_700.0;
-        let (width, height) = ((x(to) - x(from)) * crate::facts::REFERENCE_DPI / 72.0, (y(to) - y(from)) * crate::facts::REFERENCE_DPI / 72.0);
+        let start = if edit_as == Some("absolute") {
+            ChartCorner {
+                cell: CellKey::new(sheet, from.row + 1, from.column + 1).ok()?,
+                dx: from.column_offset as f64 / EMU_PER_PIXEL,
+                dy: from.row_offset as f64 / EMU_PER_PIXEL,
+            }
+        } else {
+            self.chart_corner(sheet, from)?
+        };
+        let current_from = DrawingPoint {
+            column: start.cell.column() - 1,
+            column_offset: from.column_offset,
+            row: start.cell.row() - 1,
+            row_offset: from.row_offset,
+        };
+        let current_to = DrawingPoint {
+            column: current_from.column + to.column.saturating_sub(from.column),
+            column_offset: to.column_offset,
+            row: current_from.row + to.row.saturating_sub(from.row),
+            row_offset: to.row_offset,
+        };
+        let (left, top, width, height) = self.anchor_rectangle(
+            sheet,
+            &ChartAnchor::TwoCell { from: current_from, to: current_to },
+        );
+        let px = crate::facts::REFERENCE_DPI / 72.0;
         if edit_as == Some("absolute") {
-            return Some(ChartPlace::Absolute { x: x(from) * crate::facts::REFERENCE_DPI / 72.0, y: y(from) * crate::facts::REFERENCE_DPI / 72.0, width, height });
+            return Some(ChartPlace::Absolute { x: left * px, y: top * px, width: width * px, height: height * px });
         }
-        Some(ChartPlace::Sized { from: self.chart_corner(sheet, from)?, width, height })
+        Some(ChartPlace::Sized { from: start, width: width * px, height: height * px })
     }
 
     /// Where a drawing object's anchor puts it now, moved through the session's row and column inserts and deletes as

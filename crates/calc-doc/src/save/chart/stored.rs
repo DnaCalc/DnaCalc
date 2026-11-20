@@ -9,6 +9,9 @@ use calc_doc_model::{ChartAnchor, DrawingPoint, Shape, ShapeKind, ShapeLine};
 use std::collections::{BTreeMap, BTreeSet};
 
 const A: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
+const C: &str = "http://schemas.openxmlformats.org/drawingml/2006/chart";
+const CX: &str = "http://schemas.microsoft.com/office/drawing/2014/chartex";
+const REL: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 
 fn refuse(detail: &str) -> SaveRefusal {
     SaveRefusal::ChartNotModelled { part: "drawing".into(), detail: detail.into(), owner: "dc-zjsg.4" }
@@ -151,6 +154,8 @@ struct El {
     parent: Option<usize>,
     /// `id` of a `cNvPr`.
     id: Option<u32>,
+    /// `r:id` of a `c:chart` or `cx:chart` element.
+    chart_rel: Option<String>,
 }
 
 impl El {
@@ -186,7 +191,15 @@ fn index(xml: &XmlPart) -> Result<Index<'_>, SaveRefusal> {
             XmlEvent::Start(e) => {
                 let local = e.name.local.as_str().to_owned();
                 let id = (local == "cNvPr").then(|| e.attribute("id").and_then(|v| v.parse().ok())).flatten();
-                els.push(El { start: span.0, tag_end: span.1, end: span.1, local, name: qualified(span.0), parent: open.last().copied(), id });
+                let chart_rel = (e.name.is(C, "chart") || e.name.is(CX, "chart"))
+                    .then(|| {
+                        e.attributes
+                            .iter()
+                            .find(|a| a.name.is(REL, "id"))
+                            .map(|a| a.value.as_str().to_owned())
+                    })
+                    .flatten();
+                els.push(El { start: span.0, tag_end: span.1, end: span.1, local, name: qualified(span.0), parent: open.last().copied(), id, chart_rel });
                 open.push(els.len() - 1);
             }
             XmlEvent::End(_) => {
@@ -640,28 +653,85 @@ fn text_patches(ix: &Index<'_>, at: usize, obj: &El, now: &Shape, out: &mut Vec<
 /// The drawing part with the stored top-level objects `edits` names rewritten: a deleted one's anchor (or the block of
 /// alternatives around it) dropped; a changed one's anchor and its object element (in every alternative alike)
 /// written as it is now. Everything else stays byte for byte.
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn edit(xml: &XmlPart, edits: &BTreeMap<u32, StoredEdit<'_>>) -> Result<Vec<u8>, SaveRefusal> {
+    edit_with_charts(xml, edits, &BTreeMap::new())
+}
+
+/// Like [`edit`], also rewriting the anchors of chart frames whose `c:chart` / `cx:chart` relationship id appears in
+/// `chart_anchors` (dc-zjsg.14), preserving `editAs` and every other byte of the frame and any alternatives around it.
+pub(crate) fn edit_with_charts(
+    xml: &XmlPart,
+    edits: &BTreeMap<u32, StoredEdit<'_>>,
+    chart_anchors: &BTreeMap<String, ChartAnchor>,
+) -> Result<Vec<u8>, SaveRefusal> {
     let ix = index(xml)?;
     let mut patches = Vec::new();
+    let mut matched_charts: BTreeSet<String> = BTreeSet::new();
     for (child, id) in ix.top() {
-        let Some(edit) = id.and_then(|id| edits.get(&id)) else { continue };
         let c = &ix.els[child];
-        match edit {
-            StoredEdit::Deleted => patches.push(((c.start, c.end), Vec::new())),
-            StoredEdit::Changed(stored, now) => {
-                let inside = |i: usize| ix.els[i].start >= c.start && ix.els[i].end <= c.end;
-                if now.anchor != stored.anchor {
-                    for anchor in (child..ix.els.len()).take_while(|&i| ix.els[i].start < c.end) {
-                        if matches!(ix.els[anchor].local.as_str(), "twoCellAnchor" | "oneCellAnchor" | "absoluteAnchor") {
-                            anchor_patches(&ix, anchor, &now.anchor, &mut patches);
+        if let Some(edit) = id.and_then(|id| edits.get(&id)) {
+            match edit {
+                StoredEdit::Deleted => patches.push(((c.start, c.end), Vec::new())),
+                StoredEdit::Changed(stored, now) => {
+                    let inside = |i: usize| ix.els[i].start >= c.start && ix.els[i].end <= c.end;
+                    if now.anchor != stored.anchor {
+                        for anchor in (child..ix.els.len()).take_while(|&i| ix.els[i].start < c.end) {
+                            if matches!(ix.els[anchor].local.as_str(), "twoCellAnchor" | "oneCellAnchor" | "absoluteAnchor") {
+                                anchor_patches(&ix, anchor, &now.anchor, &mut patches);
+                            }
                         }
                     }
-                }
-                for object in ix.objects(now.id).into_iter().filter(|&o| inside(o)) {
-                    object_patches(&ix, object, stored, now, &mut patches)?;
+                    for object in ix.objects(now.id).into_iter().filter(|&o| inside(o)) {
+                        object_patches(&ix, object, stored, now, &mut patches)?;
+                    }
                 }
             }
+            continue;
         }
+        if chart_anchors.is_empty() {
+            continue;
+        }
+        let mut found: BTreeSet<&str> = BTreeSet::new();
+        for i in (child..ix.els.len()).take_while(|&i| ix.els[i].start < c.end) {
+            if let Some(rel) = ix.els[i].chart_rel.as_deref()
+                && chart_anchors.contains_key(rel)
+            {
+                found.insert(rel);
+            }
+        }
+        if found.is_empty() {
+            continue;
+        }
+        if found.len() > 1 {
+            return Err(refuse("Multiple chart anchors inside one drawing element are not modelled"));
+        }
+        let rel = *found.iter().next().unwrap();
+        let new_anchor = &chart_anchors[rel];
+        let mut patched_anchor = false;
+        for anchor in (child..ix.els.len()).take_while(|&i| ix.els[i].start < c.end) {
+            let local = ix.els[anchor].local.as_str();
+            if matches!(local, "twoCellAnchor" | "oneCellAnchor" | "absoluteAnchor") {
+                let kind_matches = matches!(
+                    (local, new_anchor),
+                    ("twoCellAnchor", ChartAnchor::TwoCell { .. })
+                        | ("oneCellAnchor", ChartAnchor::OneCell { .. })
+                        | ("absoluteAnchor", ChartAnchor::Absolute { .. })
+                );
+                if !kind_matches {
+                    return Err(refuse("Changing a chart anchor kind is not modelled"));
+                }
+                anchor_patches(&ix, anchor, new_anchor, &mut patches);
+                patched_anchor = true;
+            }
+        }
+        if !patched_anchor {
+            return Err(refuse("A chart anchor to rewrite has no supported anchor element"));
+        }
+        matched_charts.insert(rel.to_owned());
+    }
+    if matched_charts.len() != chart_anchors.len() {
+        return Err(refuse("A chart anchor to rewrite was not found in its drawing"));
     }
     Ok(apply(ix.source, (0, ix.source.len()), patches))
 }
@@ -745,5 +815,74 @@ mod tests {
         let tag = "<xdr:cNvPr descr='x id=\"3\"' id=\"4\"/>";
         assert_eq!(rename_tag(tag, "\"N\"", None).unwrap(), "<xdr:cNvPr descr='x id=\"3\"' id=\"4\" name=\"N\"/>");
         assert_eq!(rename_tag(tag, "\"N\"", Some(8)).unwrap(), "<xdr:cNvPr descr='x id=\"3\"' id=\"8\" name=\"N\"/>");
+    }
+
+    /// dc-zjsg.14: rewriting chart anchors updates `<xdr:from>`/`<xdr:to>` on both `c:chart` and `mc:AlternateContent`
+    /// `cx:chart` frames while keeping `editAs="oneCell"` and every other byte unchanged.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dw5_dc_zjsg_14__chart_anchor_rewrite_preserves_edit_as_and_alternatives() {
+        use super::{ChartAnchor, DrawingPoint, XmlPart, edit_with_charts};
+        use std::collections::BTreeMap;
+        let xdr = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing";
+        let a = "http://schemas.openxmlformats.org/drawingml/2006/main";
+        let c = "http://schemas.openxmlformats.org/drawingml/2006/chart";
+        let cx = "http://schemas.microsoft.com/office/drawing/2014/chartex";
+        let mc = "http://schemas.openxmlformats.org/markup-compatibility/2006";
+        let rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+        let xml = format!(
+            concat!(
+                "<xdr:wsDr xmlns:xdr=\"{xdr}\" xmlns:a=\"{a}\" xmlns:r=\"{rel}\" xmlns:mc=\"{mc}\">",
+                "<xdr:twoCellAnchor editAs=\"oneCell\">",
+                "<xdr:from><xdr:col>7</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>8</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>",
+                "<xdr:to><xdr:col>14</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>19</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>",
+                "<xdr:graphicFrame macro=\"\"><xdr:nvGraphicFramePr><xdr:cNvPr id=\"12\" name=\"Column sd\"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>",
+                "<xdr:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"0\" cy=\"0\"/></xdr:xfrm>",
+                "<a:graphic><a:graphicData uri=\"{c}\"><c:chart xmlns:c=\"{c}\" r:id=\"rId2\"/></a:graphicData></a:graphic></xdr:graphicFrame><xdr:clientData/>",
+                "</xdr:twoCellAnchor>",
+                "<xdr:twoCellAnchor editAs=\"oneCell\">",
+                "<xdr:from><xdr:col>0</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>19</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>",
+                "<xdr:to><xdr:col>7</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>30</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>",
+                "<mc:AlternateContent><mc:Choice Requires=\"cx1\" xmlns:cx1=\"http://schemas.microsoft.com/office/drawing/2015/9/8/chartex\">",
+                "<xdr:graphicFrame macro=\"\"><xdr:nvGraphicFramePr><xdr:cNvPr id=\"15\" name=\"Waterfall\"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>",
+                "<a:graphic><a:graphicData uri=\"{cx}\"><cx:chart xmlns:cx=\"{cx}\" r:id=\"rId3\"/></a:graphicData></a:graphic></xdr:graphicFrame>",
+                "</mc:Choice><mc:Fallback><xdr:sp/></mc:Fallback></mc:AlternateContent><xdr:clientData/>",
+                "</xdr:twoCellAnchor>",
+                "</xdr:wsDr>"
+            ),
+            xdr = xdr, a = a, c = c, cx = cx, mc = mc, rel = rel
+        );
+        let part = XmlPart::from_bytes("xl/drawings/drawing1.xml", xml.clone().into_bytes());
+        let anchors = BTreeMap::from([
+            (
+                "rId2".to_owned(),
+                ChartAnchor::TwoCell {
+                    from: DrawingPoint { column: 7, column_offset: 0, row: 8, row_offset: 0 },
+                    to: DrawingPoint { column: 14, column_offset: 0, row: 17, row_offset: 0 },
+                },
+            ),
+            (
+                "rId3".to_owned(),
+                ChartAnchor::TwoCell {
+                    from: DrawingPoint { column: 0, column_offset: 0, row: 19, row_offset: 0 },
+                    to: DrawingPoint { column: 7, column_offset: 0, row: 28, row_offset: 127000 },
+                },
+            ),
+        ]);
+        let out = String::from_utf8(edit_with_charts(&part, &BTreeMap::new(), &anchors).unwrap()).unwrap();
+        let expected = xml
+            .replace("<xdr:row>19</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>", "<xdr:row>17</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>")
+            .replace("<xdr:row>30</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>", "<xdr:row>28</xdr:row><xdr:rowOff>127000</xdr:rowOff></xdr:to>");
+        assert_eq!(out, expected);
+        // A missing relationship id is refused rather than silently skipped.
+        let missing = BTreeMap::from([(
+            "rId99".to_owned(),
+            ChartAnchor::TwoCell {
+                from: DrawingPoint::default(),
+                to: DrawingPoint::default(),
+            },
+        )]);
+        assert!(edit_with_charts(&part, &BTreeMap::new(), &missing).is_err());
     }
 }

@@ -569,7 +569,18 @@ impl LoadedWorkbook {
             .iter()
             .find(|old| old.part == chart.part)
         {
-            crate::save::chart::source(&self.package, &self.model, original, chart).map(|_| ())
+            if crate::save::chart::content_changed(original, chart) {
+                crate::save::chart::source(&self.package, &self.model, original, chart)?;
+            }
+            if original.anchor != chart.anchor {
+                let source = self.sheet(sheet).ok_or_else(|| crate::SaveRefusal::ChartNotModelled {
+                    part: chart.part.clone(),
+                    detail: "Save and reopen the new worksheet before moving a chart".into(),
+                    owner: "dc-zjsg.14",
+                })?;
+                crate::save::chart::check_frames(&self.package, &self.model, source, &[(original, chart)], &[])?;
+            }
+            Ok(())
         } else {
             crate::save::chart::render_new(chart).map(|_| ())
         }
@@ -594,15 +605,21 @@ impl LoadedWorkbook {
                 "Removing or reordering imported chart frames is not modelled",
             ));
         }
+        let mut anchor_edits = Vec::new();
         for (old, new) in original.iter().zip(charts).filter(|(old, new)| old != new) {
-            crate::save::chart::source(&self.package, &self.model, old, new)?;
+            if crate::save::chart::content_changed(old, new) {
+                crate::save::chart::source(&self.package, &self.model, old, new)?;
+            }
+            if old.anchor != new.anchor {
+                anchor_edits.push((old, new));
+            }
         }
         let new = &charts[original.len()..];
-        if !new.is_empty() {
+        if !anchor_edits.is_empty() || !new.is_empty() {
             let source = self
                 .sheet(sheet)
                 .ok_or_else(|| fail("Save and reopen the new worksheet before creating a chart"))?;
-            crate::save::chart::check_new_frames(&self.package, source, new)?;
+            crate::save::chart::check_frames(&self.package, &self.model, source, &anchor_edits, new)?;
         }
         Ok(())
     }
@@ -615,7 +632,7 @@ impl LoadedWorkbook {
         shapes: &[calc_doc_model::Shape],
     ) -> Result<(), crate::SaveRefusal> {
         let original = self.model.definitions().shapes(sheet);
-        crate::save::chart::check_shapes(&self.package, self.sheet(sheet), original, shapes)
+        crate::save::chart::check_shapes(&self.package, &self.model, self.sheet(sheet), original, shapes)
     }
 
     /// Preflight the same retained-element rewrite used by a sorted hyperlink save.

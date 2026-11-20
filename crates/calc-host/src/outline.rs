@@ -253,5 +253,6 @@ pub(crate) fn prepare(
             )?;
         }
     }
+    edits.extend(crate::shapes::kept_sizes(host, sheet, &edits));
     Ok(edits)
 }

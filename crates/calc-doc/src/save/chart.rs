@@ -18,18 +18,21 @@ mod colour;
 mod create;
 mod stored;
 mod font;
-pub(crate) fn check_new_frames(
+pub(crate) fn check_frames(
     package: &Package,
+    base: &ModelRoot,
     source: &crate::load::LoadedSheet,
+    chart_anchors: &[(&Chart, &Chart)],
     charts: &[Chart],
 ) -> Result<(), SaveRefusal> {
-    create::add(package, source, charts, &[], &mut Changes::default(), None, None)
+    create::add_with(package, base, source, chart_anchors, charts, &[], None, &mut Changes::default(), None, None)
 }
 
 /// Preflight a sheet's drawing objects after an edit (dc-zjsg.4): the stored ones moved, resized or deleted and the
 /// ones added, through the saver's own matching and writers.
 pub(crate) fn check_shapes(
     package: &Package,
+    base: &ModelRoot,
     source: Option<&crate::load::LoadedSheet>,
     original: &[calc_doc_model::Shape],
     shapes: &[calc_doc_model::Shape],
@@ -43,7 +46,58 @@ pub(crate) fn check_shapes(
         detail: "Save and reopen the new worksheet before adding a shape".into(),
         owner: "dc-zjsg.4",
     })?;
-    create::add_with(package, source, &[], &plan.new, Some(&plan), &mut Changes::default(), None, None)
+    create::add_with(package, base, source, &[], &[], &plan.new, Some(&plan), &mut Changes::default(), None, None)
+}
+
+pub(crate) fn check_unique_chart_part(base: &ModelRoot, part: &str) -> Result<(), SaveRefusal> {
+    if base
+        .definitions()
+        .all_charts()
+        .flat_map(|(_, charts)| charts)
+        .filter(|chart| chart.part == part)
+        .count()
+        != 1
+    {
+        return Err(SaveRefusal::ChartNotModelled {
+            part: part.to_owned(),
+            detail: "Editing chart parts shared by drawing frames is not modelled".into(),
+            owner: "dc-e5z5",
+        });
+    }
+    Ok(())
+}
+
+/// Whether anything on the chart other than its drawing anchor changed (dc-zjsg.14).
+pub(crate) fn content_changed(before: &Chart, after: &Chart) -> bool {
+    let mut same = after.clone();
+    same.anchor = before.anchor;
+    same != *before
+}
+
+/// Validates a chart anchor rewrite (dc-zjsg.14): same anchor variant and bounded worksheet coordinates.
+pub(crate) fn valid_anchor_change(before: &Chart, after: &Chart) -> Result<(), SaveRefusal> {
+    use calc_doc_model::{ChartAnchor, DrawingPoint};
+    let valid_point = |p: &DrawingPoint| {
+        p.column < 16384 && p.row < 1_048_576 && p.column_offset >= 0 && p.row_offset >= 0
+    };
+    let ok = match (&before.anchor, &after.anchor) {
+        (ChartAnchor::TwoCell { .. }, ChartAnchor::TwoCell { from, to }) => valid_point(from) && valid_point(to),
+        (ChartAnchor::OneCell { .. }, ChartAnchor::OneCell { from, width, height }) => {
+            valid_point(from) && (1..=100_000_000).contains(width) && (1..=100_000_000).contains(height)
+        }
+        (ChartAnchor::Absolute { .. }, ChartAnchor::Absolute { x, y, width, height }) => {
+            *x >= 0 && *y >= 0 && (1..=100_000_000).contains(width) && (1..=100_000_000).contains(height)
+        }
+        _ => false,
+    };
+    if !ok {
+        return Err(SaveRefusal::ChartNotModelled {
+            part: before.part.clone(),
+            detail: "The chart frame must keep its anchor kind and fit the worksheet".into(),
+            owner: "dc-zjsg.14",
+        });
+    }
+    Ok(())
 }
 pub(crate) use create::render as render_new;
 type Patch = ((usize, usize), Vec<u8>);
@@ -69,19 +123,9 @@ fn source_with_xml(
         detail: detail.into(),
         owner: "dc-e5z5",
     };
-    if base
-        .definitions()
-        .all_charts()
-        .flat_map(|(_, charts)| charts)
-        .filter(|chart| chart.part == before.part)
-        .count()
-        != 1
-    {
-        return Err(invalid(
-            "Editing chart parts shared by drawing frames is not modelled",
-        ));
-    }
+    check_unique_chart_part(base, &before.part)?;
     let mut retained = after.clone();
+    retained.anchor = before.anchor;
     retained.title = before.title.clone();
     retained.title_formula = before.title_formula.clone();
     retained.auto_title_deleted = before.auto_title_deleted;
@@ -620,7 +664,7 @@ pub(super) fn finish(
             });
         }
         for (old, new) in charts.iter().zip(next) {
-            if old != new {
+            if content_changed(old, new) {
                 // Author in the source coordinate basis, then use the existing structural
                 // pass for every formula, including newly added series.
                 let mut bytes = source(package, before, old, new)?;

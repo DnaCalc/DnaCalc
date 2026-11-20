@@ -59,9 +59,14 @@ fn pts(v: f64) -> Points {
     Points::new(v)
 }
 
-fn reopened(book: &mut HostSession) -> HostSession {
+fn save_bytes(book: &mut HostSession) -> Vec<u8> {
     let mut bytes = Vec::new();
     book.save(&SavePolicy::default(), &mut bytes).unwrap();
+    bytes
+}
+
+fn reopened(book: &mut HostSession) -> HostSession {
+    let bytes = save_bytes(book);
     if let Ok(path) = std::env::var("ENG1_DUMP") {
         std::fs::write(path, &bytes).unwrap();
     }
@@ -1756,4 +1761,230 @@ fn dw5_dc_rlkcm__aptos_narrow_default_column_width_matches_excel_48pt_and_elbow_
     assert_eq!(elbow.extent, (1_524_000, 1_219_200));
     assert_eq!(elbow.adjust, vec![("adj1".into(), 50_000)]);
     assert_eq!(reloaded.host().anchor_rectangle(sheet, &elbow.anchor), (150.0, 80.0, 96.0, 120.0));
+}
+
+/// dc-zjsg.14 (dw3 `editas/editas-after-row.xlsx`): resizing or hiding a row or column inside a
+/// chart with `editAs="oneCell"` (or above/inside `editAs="absolute"`) rewrites `<xdr:to>` (and
+/// `<xdr:from>` for `absolute`) in `xl/drawings/drawing1.xml` on Save while keeping `editAs`,
+/// leaving plain `twoCell` charts and chart XML parts untouched, and working for `chartEx` charts
+/// and Undo/Redo.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dw5_dc_zjsg_14__one_cell_and_absolute_chart_anchors_rewrite_on_save() {
+    let source_bytes = include_bytes!("../../calc-doc/tests/fixtures/drawing/chart-kinds.xlsx");
+    let mut book = open(source_bytes.to_vec());
+    let sheet = book.host().sheets()[0].id();
+    let chart_by_name = |b: &HostSession, name: &str| {
+        b.host()
+            .model()
+            .definitions()
+            .charts(sheet)
+            .iter()
+            .find(|c| c.name == name)
+            .unwrap()
+            .clone()
+    };
+    let sd_before = chart_by_name(&book, "Column sd");
+    let plain_before = chart_by_name(&book, "Column labels");
+    assert_eq!(sd_before.edit_as.as_deref(), Some("oneCell"));
+    assert_eq!(plain_before.edit_as, None);
+    let sd_rect_before = book.host().anchor_rectangle(sheet, &sd_before.anchor);
+    let plain_rect_before = book.host().anchor_rectangle(sheet, &plain_before.anchor);
+    let (sd_from, sd_to) = match sd_before.anchor {
+        calc_doc_model::ChartAnchor::TwoCell { from, to } => (from, to),
+        other => panic!("{other:?}"),
+    };
+    let (plain_from, plain_to) = match plain_before.anchor {
+        calc_doc_model::ChartAnchor::TwoCell { from, to } => (from, to),
+        other => panic!("{other:?}"),
+    };
+    // 1. Resize a row inside both charts from 15 pt to 45 pt (+30 pt = 2 default rows), as in
+    //    Excel's `dw3/windows-results/editas/editas-after-row.xlsx` (row 12: 15 -> 45 pt).
+    let sd_row = sd_from.row + 4;
+    command(&mut book, |_| WorkbookCommand::AxisFormat {
+        sheet,
+        rows: true,
+        first: sd_row,
+        count: 1,
+        size_bits: Some(45.0f64.to_bits()),
+        hidden: None,
+    });
+    if plain_from.row != sd_from.row {
+        command(&mut book, |_| WorkbookCommand::AxisFormat {
+            sheet,
+            rows: true,
+            first: plain_from.row + 4,
+            count: 1,
+            size_bits: Some(45.0f64.to_bits()),
+            hidden: None,
+        });
+    }
+    let saved = save_bytes(&mut book);
+    let reloaded = open(saved.clone());
+    let sd_after = chart_by_name(&reloaded, "Column sd");
+    let plain_after = chart_by_name(&reloaded, "Column labels");
+    assert_eq!(sd_after.edit_as.as_deref(), Some("oneCell"));
+    assert_eq!(
+        sd_after.anchor,
+        calc_doc_model::ChartAnchor::TwoCell {
+            from: sd_from,
+            to: calc_doc_model::DrawingPoint { row: sd_to.row - 2, row_offset: 0, ..sd_to },
+        }
+    );
+    let sd_rect_after = reloaded.host().anchor_rectangle(sheet, &sd_after.anchor);
+    assert!((sd_rect_after.3 - sd_rect_before.3).abs() < 1e-6, "{sd_rect_before:?} {sd_rect_after:?}");
+    // Plain chart keeps its stored `<xdr:to>` and grows by 30 pt.
+    assert_eq!(plain_after.anchor, calc_doc_model::ChartAnchor::TwoCell { from: plain_from, to: plain_to });
+    let plain_rect_after = reloaded.host().anchor_rectangle(sheet, &plain_after.anchor);
+    assert!((plain_rect_after.3 - (plain_rect_before.3 + 30.0)).abs() < 1e-6, "{plain_rect_before:?} {plain_rect_after:?}");
+    // The saved drawing keeps `editAs="oneCell"` and chart XML part is byte-identical.
+    let read_entry = |zip: &[u8], name: &str| -> Vec<u8> {
+        let archive = existing_wire_support::parse_zip(zip);
+        let entry = archive.entries.iter().find(|e| e.name == name).unwrap();
+        let payload = entry.payload(zip);
+        if entry.method == 0 {
+            payload.to_vec()
+        } else {
+            miniz_oxide::inflate::decompress_to_vec(payload).unwrap()
+        }
+    };
+    let replace_entry = |zip: &[u8], name: &str, replacement: &[u8]| -> Vec<u8> {
+        let archive = existing_wire_support::parse_zip(zip);
+        let entries = archive
+            .entries
+            .iter()
+            .map(|entry| {
+                if entry.name == name {
+                    existing_wire_support::RawEntry::stored(&entry.name, replacement)
+                } else {
+                    let payload = entry.payload(zip);
+                    if entry.method == 0 {
+                        existing_wire_support::RawEntry::stored(&entry.name, payload)
+                    } else {
+                        existing_wire_support::RawEntry::deflated(&entry.name, payload, entry.size, entry.crc32)
+                    }
+                }
+            })
+            .collect::<Vec<_>>();
+        existing_wire_support::build_zip(&entries)
+    };
+    assert_eq!(
+        read_entry(source_bytes, &sd_before.part),
+        read_entry(&saved, &sd_before.part),
+        "anchor-only edit must not rewrite the chart XML part"
+    );
+    let drawing_xml = String::from_utf8(read_entry(&saved, "xl/drawings/drawing1.xml")).unwrap();
+    assert!(drawing_xml.contains("<xdr:twoCellAnchor editAs=\"oneCell\">"), "{drawing_xml}");
+    // 2. Undo restores the original anchor, and Redo re-applies it.
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    if plain_from.row != sd_from.row {
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
+    }
+    assert_eq!(chart_by_name(&book, "Column sd").anchor, sd_before.anchor);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert_eq!(chart_by_name(&book, "Column sd").anchor, sd_after.anchor);
+    // 3. Fractional resize (15 -> 20 pt, +5 pt): `<xdr:to>` shrinks by 1 row with 10 pt (127000 EMU) offset.
+    let mut frac_book = open(source_bytes.to_vec());
+    command(&mut frac_book, |_| WorkbookCommand::AxisFormat {
+        sheet,
+        rows: true,
+        first: sd_row,
+        count: 1,
+        size_bits: Some(20.0f64.to_bits()),
+        hidden: None,
+    });
+    let frac_reloaded = reopened(&mut frac_book);
+    let sd_frac = chart_by_name(&frac_reloaded, "Column sd");
+    assert_eq!(
+        sd_frac.anchor,
+        calc_doc_model::ChartAnchor::TwoCell {
+            from: sd_from,
+            to: calc_doc_model::DrawingPoint { row: sd_to.row - 1, row_offset: 127_000, ..sd_to },
+        }
+    );
+    assert!((frac_reloaded.host().anchor_rectangle(sheet, &sd_frac.anchor).3 - sd_rect_before.3).abs() < 1e-6);
+    // 4. Hiding a row inside the span expands `<xdr:to>` by 1 row to preserve height; widening a column shrinks `to.col`.
+    let mut hide_book = open(source_bytes.to_vec());
+    command(&mut hide_book, |_| WorkbookCommand::AxisFormat {
+        sheet,
+        rows: true,
+        first: sd_row,
+        count: 1,
+        size_bits: None,
+        hidden: Some(true),
+    });
+    command(&mut hide_book, |_| WorkbookCommand::AxisFormat {
+        sheet,
+        rows: false,
+        first: sd_from.column + 2,
+        count: 1,
+        size_bits: Some(17.5703125_f64.to_bits()), // 2x 48 pt = 96 pt (+1 default col)
+        hidden: None,
+    });
+    let hide_reloaded = reopened(&mut hide_book);
+    let sd_hide = chart_by_name(&hide_reloaded, "Column sd");
+    let hide_rect = hide_reloaded.host().anchor_rectangle(sheet, &sd_hide.anchor);
+    assert!((hide_rect.3 - sd_rect_before.3).abs() < 1e-6 && (hide_rect.2 - sd_rect_before.2).abs() < 0.5, "{hide_rect:?} {sd_rect_before:?}");
+    assert_eq!(
+        match sd_hide.anchor {
+            calc_doc_model::ChartAnchor::TwoCell { to, .. } => to.row,
+            other => panic!("{other:?}"),
+        },
+        sd_to.row + 1
+    );
+    // 5. `editAs="oneCell"` on a `chartEx` (Waterfall) and `editAs="absolute"` on a regular chart both rewrite on Save.
+    let patched_zip = {
+        let mut drawing = String::from_utf8(read_entry(source_bytes, "xl/drawings/drawing1.xml")).unwrap();
+        let wf_at = drawing.find("name=\"Waterfall\"").unwrap();
+        let wf_anchor = drawing[..wf_at].rfind("<xdr:twoCellAnchor>").unwrap();
+        drawing.replace_range(wf_anchor..wf_anchor + "<xdr:twoCellAnchor>".len(), "<xdr:twoCellAnchor editAs=\"oneCell\">");
+        let lbl_at = drawing.find("name=\"Column labels\"").unwrap();
+        let lbl_anchor = drawing[..lbl_at].rfind("<xdr:twoCellAnchor>").unwrap();
+        drawing.replace_range(lbl_anchor..lbl_anchor + "<xdr:twoCellAnchor>".len(), "<xdr:twoCellAnchor editAs=\"absolute\">");
+        replace_entry(source_bytes, "xl/drawings/drawing1.xml", drawing.as_bytes())
+    };
+    let mut cx_book = open(patched_zip);
+    let wf_before = chart_by_name(&cx_book, "Waterfall");
+    let abs_before = chart_by_name(&cx_book, "Column labels");
+    assert_eq!(wf_before.edit_as.as_deref(), Some("oneCell"));
+    assert_eq!(abs_before.edit_as.as_deref(), Some("absolute"));
+    let wf_rect = cx_book.host().anchor_rectangle(sheet, &wf_before.anchor);
+    let abs_rect = cx_book.host().anchor_rectangle(sheet, &abs_before.anchor);
+    let wf_from_row = match wf_before.anchor {
+        calc_doc_model::ChartAnchor::TwoCell { from, .. } => from.row,
+        other => panic!("{other:?}"),
+    };
+    // Resize a row inside Waterfall and row 1 above `absolute` Column labels (+30 pt each).
+    command(&mut cx_book, |_| WorkbookCommand::AxisFormat {
+        sheet,
+        rows: true,
+        first: wf_from_row + 3,
+        count: 1,
+        size_bits: Some(45.0f64.to_bits()),
+        hidden: None,
+    });
+    command(&mut cx_book, |_| WorkbookCommand::AxisFormat {
+        sheet,
+        rows: true,
+        first: 1,
+        count: 1,
+        size_bits: Some(45.0f64.to_bits()),
+        hidden: None,
+    });
+    let cx_reloaded = reopened(&mut cx_book);
+    let wf_after = chart_by_name(&cx_reloaded, "Waterfall");
+    let abs_after = chart_by_name(&cx_reloaded, "Column labels");
+    assert_ne!(wf_after.anchor, wf_before.anchor);
+    assert_ne!(abs_after.anchor, abs_before.anchor);
+    let wf_rect_after = cx_reloaded.host().anchor_rectangle(sheet, &wf_after.anchor);
+    let abs_rect_after = cx_reloaded.host().anchor_rectangle(sheet, &abs_after.anchor);
+    assert!((wf_rect_after.3 - wf_rect.3).abs() < 1e-6, "{wf_rect:?} {wf_rect_after:?}");
+    assert!((abs_rect_after.1 - abs_rect.1).abs() < 1e-6 && (abs_rect_after.3 - abs_rect.3).abs() < 1e-6, "{abs_rect:?} {abs_rect_after:?}");
+    // 6. Non-anchor chart frame changes (e.g. renaming the frame) are still refused.
+    let mut bad = sd_before.clone();
+    bad.name = "Renamed frame".into();
+    assert!(
+        cx_reloaded.host().loaded().check_chart_properties(sheet, &bad).is_err(),
+        "non-anchor frame edits must remain refused"
+    );
 }

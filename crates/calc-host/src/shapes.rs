@@ -1360,10 +1360,11 @@ impl Frame {
 }
 
 
-/// The shapes of `sheet` after the row and column format edits `edits` (dc-zjsg.4), as Excel keeps them: a two-cell
-/// anchor whose editAs is `oneCell` (move but don't size) keeps its size from its top-left corner, one whose editAs is
-/// `absolute` (don't move or size) keeps its place and size; their anchors' corners are found anew in the new sizes.
-/// A plain two-cell anchor moves and sizes with its cells as it is. Empty when nothing changes.
+/// The shapes and charts of `sheet` after the row and column format edits `edits` (dc-zjsg.4, dc-zjsg.14), as Excel
+/// keeps them: a two-cell anchor whose editAs is `oneCell` (move but don't size) keeps its size from its top-left
+/// corner, one whose editAs is `absolute` (don't move or size) keeps its place and size; their anchors' corners are
+/// found anew in the new sizes. A plain two-cell anchor moves and sizes with its cells as it is. Empty when nothing
+/// changes.
 pub(crate) fn kept_sizes(host: &HostState, sheet: SheetId, edits: &[CellEdit]) -> Vec<CellEdit> {
     use calc_doc_model::Axis;
     let changed: std::collections::BTreeMap<(bool, u32), calc_doc_model::AxisFormat> = edits
@@ -1382,17 +1383,18 @@ pub(crate) fn kept_sizes(host: &HostState, sheet: SheetId, edits: &[CellEdit]) -
     let x_new = |p: &DrawingPoint| (1..=p.column).map(column_new).sum::<f64>() + p.column_offset as f64 / EMU_PER_POINT;
     let y_new = |p: &DrawingPoint| (1..=p.row).map(row_new).sum::<f64>() + p.row_offset as f64 / EMU_PER_POINT;
     let point_new = |x: f64, y: f64| -> DrawingPoint {
+        const EPS: f64 = 0.5 / EMU_PER_POINT;
         let (mut column, mut left) = (0u32, 0.0f64);
-        while column < 16383 && left + column_new(column + 1) <= x {
+        while column < 16383 && left + column_new(column + 1) <= x + EPS {
             left += column_new(column + 1);
             column += 1;
         }
         let (mut row, mut top) = (0u32, 0.0f64);
-        while row < 1_048_575 && top + row_new(row + 1) <= y {
+        while row < 1_048_575 && top + row_new(row + 1) <= y + EPS {
             top += row_new(row + 1);
             row += 1;
         }
-        let emu = |v: f64| (v * EMU_PER_POINT).round() as i64;
+        let emu = |v: f64| (v.max(0.0) * EMU_PER_POINT).round() as i64;
         DrawingPoint { column, column_offset: emu(x - left), row, row_offset: emu(y - top) }
     };
     // An anchor as the new sizes keep it, or `None` when it stays.
@@ -1427,6 +1429,32 @@ pub(crate) fn kept_sizes(host: &HostState, sheet: SheetId, edits: &[CellEdit]) -
         // A shape whose corner would lie in inserted cells has no place in the file's coordinates: left as it is.
         if let Ok(shapes) = frame.stored(host, host.shapes(sheet), shapes) {
             out.push(CellEdit::Shapes { sheet, shapes });
+        }
+    }
+    let before_charts = host.model().definitions().charts(sheet);
+    if !before_charts.is_empty() {
+        let mut charts = before_charts.to_vec();
+        let mut charts_any = false;
+        for (orig, c) in before_charts.iter().zip(&mut charts) {
+            if !matches!(c.edit_as.as_deref(), Some("oneCell" | "absolute")) {
+                continue;
+            }
+            let Some(current) = frame.map_anchor(&orig.anchor, orig.edit_as.as_deref(), false) else {
+                continue;
+            };
+            let Some(kept) = keep(&current, orig.edit_as.as_deref()) else {
+                continue;
+            };
+            let Some(stored) = frame.map_anchor(&kept, orig.edit_as.as_deref(), true) else {
+                continue;
+            };
+            if stored != orig.anchor {
+                c.anchor = stored;
+                charts_any = true;
+            }
+        }
+        if charts_any && host.loaded().check_chart_set(sheet, &charts).is_ok() {
+            out.push(CellEdit::Charts { sheet, charts });
         }
     }
     out
