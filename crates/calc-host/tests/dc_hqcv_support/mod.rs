@@ -2,7 +2,7 @@
 //! calc-doc code (the ZIP writer is the chost-m1.1 support module's), whose workbook part declares
 //! calculation settings other than the ones the host applies.
 
-use crate::chost_m1_1_support::stored_zip;
+use super::chost_m1_1_support::stored_zip;
 
 const MAIN: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 const RELATIONSHIPS: &str = "http://schemas.openxmlformats.org/package/2006/relationships";

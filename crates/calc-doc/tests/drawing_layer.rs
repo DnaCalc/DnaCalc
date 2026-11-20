@@ -416,7 +416,7 @@ fn dc_zjsg_1__alternate_content_shapes_read_the_branch_excel_reads() {
 
 // dc-zjsg.2: the workbook the paint comparison draws (cargo xtask app paint-compare calc). Its shapes are
 // added to shapes-base.xlsx by calc-doc's own save route; the committed shapes-paint.xlsx is that
-// save. Regenerate with DNACALC_WRITE_FIXTURE=1 cargo test -p calc-doc --test drawing_layer
+// save. Regenerate with DNACALC_WRITE_FIXTURE=1 cargo test -p calc-doc --test calc-doc-integration drawing_layer::
 // dc_zjsg_2__shapes_paint_workbook.
 const SHAPES_BASE: &[u8] = include_bytes!("fixtures/drawing/shapes-base.xlsx");
 const SHAPES_PAINT: &[u8] = include_bytes!("fixtures/drawing/shapes-paint.xlsx");
@@ -545,7 +545,7 @@ fn dc_zjsg_2__shapes_paint_workbook() {
 // dc-zjsg.2 second slice: rotation and flips, arrowheads, gradients, groups and the presets beyond the
 // first five, on the same base workbook. The shapes sit below row 12 on the default 64 by 20 pixel cells,
 // in slots 256 px wide (`slot`); a turned shape is anchored by the box around it, as Excel
-// anchors it. Regenerate with DNACALC_WRITE_FIXTURE=1 cargo test -p calc-doc --test drawing_layer
+// anchors it. Regenerate with DNACALC_WRITE_FIXTURE=1 cargo test -p calc-doc --test calc-doc-integration drawing_layer::
 // dc_zjsg_2__shapes_paint2_workbook.
 const SHAPES_PAINT2: &[u8] = include_bytes!("fixtures/drawing/shapes-paint2.xlsx");
 const CELL_W: i64 = 609_600;
@@ -782,7 +782,7 @@ fn dc_zjsg_2__shapes_paint2_workbook() {
 
 // dc-zjsg.3: the workbook the picture paint comparison draws, on the same base. Its pictures are the test card of
 // fixtures/drawing/pictures (make-pictures.py) in each format, added by calc-doc's save route. Regenerate with
-// DNACALC_WRITE_FIXTURE=1 cargo test -p calc-doc --test drawing_layer dc_zjsg_3__pictures_paint_workbook.
+// DNACALC_WRITE_FIXTURE=1 cargo test -p calc-doc --test calc-doc-integration drawing_layer::dc_zjsg_3__pictures_paint_workbook.
 const PICTURES_PAINT: &[u8] = include_bytes!("fixtures/drawing/pictures-paint.xlsx");
 const CARD_PNG: &[u8] = include_bytes!("fixtures/drawing/pictures/card.png");
 const CARD_JPG: &[u8] = include_bytes!("fixtures/drawing/pictures/card.jpg");
@@ -880,7 +880,7 @@ fn dc_zjsg_3__pictures_paint_workbook() {
 // dc-zjsg.2 / dc-zjsg.3, third slice: the workbook the third paint comparison draws, on the same base: colour
 // modifiers, outer shadows, the text rectangles of presets, bent and curved connectors with adjusts, flipped
 // pictures and pictures inside groups, in slots 256 px wide below row 12 (`slot`). Regenerate with
-// DNACALC_WRITE_FIXTURE=1 cargo test -p calc-doc --test drawing_layer dc_zjsg_2__shapes_paint3_workbook.
+// DNACALC_WRITE_FIXTURE=1 cargo test -p calc-doc --test calc-doc-integration drawing_layer::dc_zjsg_2__shapes_paint3_workbook.
 const SHAPES_PAINT3: &[u8] = include_bytes!("fixtures/drawing/shapes-paint3.xlsx");
 
 fn modified(base: ShapeColour, modifiers: &[(&str, i64)]) -> ShapeColour {

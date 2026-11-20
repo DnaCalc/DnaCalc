@@ -9,7 +9,7 @@
 //!
 //! `DNACALC_XLS_PASSWORD` (optional) is tried on every encrypted file.
 //!
-//! `DNACALC_XLS_SWEEP=/path/a:/path/b cargo test -p calc-doc --test dc_4j0e_xls_sweep -- --nocapture`
+//! `DNACALC_XLS_SWEEP=/path/a:/path/b cargo test -p calc-doc --test calc-doc-integration dc_4j0e_xls_sweep:: -- --nocapture`
 
 use calc_doc::model::value::{IdAllocator, SheetId};
 use calc_doc::{LegacyFormat, MemorySource, OpenError, OpenPolicy, PackageRead, legacy_workbook_report};

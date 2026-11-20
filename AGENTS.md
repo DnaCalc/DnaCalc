@@ -51,13 +51,8 @@ DnaTreeCalc, DnaOneCalc and the others) are read-only inputs: port from them, ne
    The message starts with the bead ID and names the legacy repository, commit and paths it
    ported from. Several commits per package is normal.
 
-   `cargo xtask check` is the light per-commit check:
-   `cargo check --locked --workspace --all-targets`, and tests of touched packages only.
-   Windows also checks touched packages and dependents for Linux when that target is installed
-   (otherwise it prints a note); touched portable packages get a wasm32 check.
-   `--dependents` builds the workspace and tests touched packages and their dependents; use it
-   for core contract changes. `--all` builds and tests every package. `--base <rev>` selects
-   the change baseline used by keepers. Run logs include ordered output and command timings.
+   `--base <rev>` selects the change baseline used by keepers. Run logs include ordered output
+   and command timings.
 
    Launchers export `DNACALC_AGENT_LOG` as `<host>:<path>`. Commit with
    `git commit --trailer "Agent-Log: $DNACALC_AGENT_LOG"`; the light check warns about
@@ -96,6 +91,16 @@ DnaTreeCalc, DnaOneCalc and the others) are read-only inputs: port from them, ne
 `cargo xtask accept --id <id> --platform <p>` still runs a bead's registered acceptance cases and
 writes a receipt under `target/accept/` and a copy under `target/accept-receipts/`; receipts are not committed. Use it where a package registers cases. It is not
 required for every commit.
+
+## How lanes build
+
+- While editing, use `cargo test -p <package>` for the touched crates. Run `cargo xtask check`
+  before pushing. It checks all enabled targets of touched packages and runs their default tests.
+  It also checks those packages for Linux on Windows if installed, and touched portable packages
+  for wasm32. Workspace Cargo and toolchain changes select all members.
+- For shared types and contracts, use `cargo xtask check --dependents`. It builds the workspace
+  and tests touched packages and their transitive dependents. `--all` builds the workspace and
+  runs every member's default tests. Each mode prunes superseded artifacts older than two hours.
 
 ## Extend, never duplicate
 

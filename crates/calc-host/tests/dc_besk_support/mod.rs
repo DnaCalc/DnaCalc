@@ -3,7 +3,7 @@
 //! functions as a file stores them: with Excel's `_xlfn.` prefix, and in the other spellings whose
 //! reading on load the case shows.
 
-use crate::chost_m1_1_support::stored_zip;
+use super::chost_m1_1_support::stored_zip;
 
 const MAIN: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 const RELATIONSHIPS: &str = "http://schemas.openxmlformats.org/package/2006/relationships";

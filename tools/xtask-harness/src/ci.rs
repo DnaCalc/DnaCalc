@@ -4,10 +4,11 @@
 //!
 //! - `windows`, `linux` (on a host of that system): the architecture checks (`arch.rs`), then every
 //!   workspace package's native tests: `cargo test --workspace --lib --bins --test <t>...` for every
-//!   integration test target except the acceptance targets, then `cargo test --workspace --doc`.
-//!   Each package's acceptance target holds the beads' cases, which `cargo xtask accept` runs per
-//!   bead: per-bead receipts distinguish cases that cannot run on this host. The shared
-//!   transcript reader also removes explicit `ACCEPT-NOT-RUN` cases from test pass counts. The manifest lists the target under `excluded_targets`. Then, for each bead ID in
+//!   integration target except dedicated acceptance targets, then `cargo test --workspace --doc`.
+//!   In shared integration targets, the regular suites skip the acceptance module.
+//!   `cargo xtask accept` runs cases per bead and records when a case cannot run on this host.
+//!   The shared transcript reader removes explicit `ACCEPT-NOT-RUN` cases from test pass counts.
+//!   The manifest lists dedicated acceptance targets under `excluded_targets`. Then, for each bead ID in
 //!   `DNACALC_CI_ACCEPT` that declares a case for the platform, `cargo xtask accept --id <id>
 //!   --platform <job> --require-all`, whose receipt the manifest names.
 //! - `wasm`: every portable package's wasm test targets (the same selection, for
@@ -685,11 +686,16 @@ fn role(ws: &Workspace, member: &Member) -> &'static str {
     }
 }
 
-/// The test target names `cargo xtask accept` owns: `acceptance` and every target an
-/// acceptance manifest names.
+/// Dedicated targets which only the acceptance runner executes.
 fn acceptance_targets(manifests: &Manifests) -> BTreeSet<String> {
     let mut names = BTreeSet::from([ACCEPTANCE_TARGET.to_owned()]);
-    names.extend(manifests.entries.iter().map(|entry| entry.test.clone()));
+    names.extend(
+        manifests
+            .entries
+            .iter()
+            .filter(|entry| !entry.shares_integration_target())
+            .map(|entry| entry.test.clone()),
+    );
     names
 }
 
@@ -763,7 +769,7 @@ fn browser_coverage(
     ran: &[(&str, Option<u64>)],
     problems: &mut Vec<String>,
 ) -> Value {
-    let tests = match rust_source::test_functions(&ws.root, &browser_roots(member, excluded)) {
+    let mut tests = match rust_source::test_functions(&ws.root, &browser_roots(member, excluded)) {
         Ok(tests) => tests,
         Err(e) => {
             problems.push(format!(
@@ -773,6 +779,7 @@ fn browser_coverage(
             return json!({ "summary": format!("its test sources cannot be read: {e}") });
         }
     };
+    tests.retain(|test| !test.name.contains(manifest::ACCEPTANCE_CASE_SCOPE));
     let marked = tests
         .iter()
         .filter(|test| test.route == TestRoute::Browser)
@@ -1356,6 +1363,7 @@ fn native_job(
     let mut args = vec!["--workspace".to_owned()];
     args.extend(target_selection(&members, &excluded));
     args.extend(SHOW_OUTPUT.map(str::to_owned));
+    args.extend(["--skip", manifest::ACCEPTANCE_CASE_SCOPE].map(str::to_owned));
     let tests = test_run(
         ws,
         "tests",
@@ -1510,6 +1518,7 @@ fn wasm_job(
     args.extend(["--target".to_owned(), WASM_TARGET.to_owned()]);
     args.extend(target_selection(&portable, &excluded));
     args.extend(NOCAPTURE.map(str::to_owned));
+    args.extend(["--skip", manifest::ACCEPTANCE_CASE_SCOPE].map(str::to_owned));
 
     let mut fixture_targets = vec!["--test".to_owned(), "probe".to_owned()];
     if inject {
