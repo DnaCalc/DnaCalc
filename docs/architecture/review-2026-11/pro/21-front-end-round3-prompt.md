@@ -18,6 +18,14 @@ Two things are needed: one large gap, and a set of smaller ones.
 
 ## A. The notebook as a place to compute (the main work)
 
+**A correction first.** Our earlier briefs mischaracterised the notebook. Pro 19 called it "text and formulas in reading order", and that wording invited a presentation layout. The owner's point: the defining attribute of Jupyter is that you **see the input cell and its result as a chain**:
+- an input (the formula, always visible as written);
+- directly beneath it, its result;
+- then the next input, which uses that result;
+- then its result, and so on down the page.
+
+The computation itself is what you read. It is not hidden behind a layout of finished values. Prose sits between the links of the chain, and presentation layouts (reading view, pipeline across the page) are secondary views of the same chain.
+
 Today's notebook scenes (F03, N01, N02) present existing sheets as a reading surface. The owner's notebook is also **Jupyter**: a place where an analyst computes, step by step, in reading order. Its outputs are live in the Pluto and Excel way: no run button, no stale cells. Design and draw that case at full fidelity, in about five to seven new scenes. Use the Sales fixture first, then Budget.
 
 1. **Cells and outputs.** An analyst writes a formula cell and its output appears beneath it, for example `=FILTER(Orders, Orders[Status]="Pending")` with the result as a typed data frame. The next cell builds on that output by name, with `GROUPBY` or `PIVOTBY` by region and month and `SORTBY`. A third cell turns that output into an inline chart. Show the editing moment (formula bar or in-cell editor, completion, signature help) and the result appearing.
