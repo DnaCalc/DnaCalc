@@ -15,7 +15,7 @@ use crate::locale::{
     DateSystem as WorkbookDateSystem, excel_serial_from_ymd, ymd_from_excel_serial,
 };
 use crate::ported::excel_numeric::{
-    crt_pow, excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_sub,
+    excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_sub,
 };
 use crate::value::{CalcValue, CoreValue, WorksheetErrorCode};
 
@@ -316,26 +316,12 @@ fn excel_bond_pow(base: f64, exp: f64) -> f64 {
         crate::ported::excel_numeric::excel_pow_chain(base, exp)
     }
 }
-fn pcomp(
-    rate: f64,
-    yld: f64,
-    red: f64,
-    c: Ctx,
-    p: Period,
-) -> Result<(f64, f64, f64, f64, f64), BondCoreEvalError> {
-    // `binexp = false` keeps the legacy `powf` discount path. Callers that need Excel's
-    // C-runtime integer-`pow` staging (PRICE) pass `true`; YIELD's solver and DURATION keep
-    // `false` until their own identifications land (the forward fix is coupled to the YIELD
-    // schedule — see the workset notes).
-    pcomp_disc(rate, yld, red, c, p, false)
-}
 fn pcomp_disc(
     rate: f64,
     yld: f64,
     red: f64,
     c: Ctx,
     p: Period,
-    binexp: bool,
 ) -> Result<(f64, f64, f64, f64, f64), BondCoreEvalError> {
     let coup = 100.0 * rate / c.frequency as f64;
     let e = dc(p.prev, p.next, c.basis, c.frequency)?;
@@ -352,13 +338,6 @@ fn pcomp_disc(
     if yld <= -(c.frequency as f64) {
         return Err(derr(WorksheetErrorCode::Num));
     }
-    let pw = |b: f64, ex: f64| {
-        if binexp {
-            excel_bond_pow(b, ex)
-        } else {
-            crt_pow(b, ex)
-        }
-    };
     let dirty = if p.n == 1 {
         let den = 1.0 + (yld / c.frequency as f64) * (dsc / e);
         if den <= 0.0 {
@@ -373,69 +352,14 @@ fn pcomp_disc(
         let off = dsc / e;
         let mut pv = 0.0;
         for k in 0..p.n {
-            pv += coup / pw(base, off + k as f64);
+            pv += coup / excel_bond_pow(base, off + k as f64);
         }
-        let redemption_discount = pw(base, off + (p.n - 1) as f64);
-        let redemption_value = if binexp {
-            excel_x87_div(red, redemption_discount)
-        } else {
-            red / redemption_discount
-        };
+        let redemption_discount = excel_bond_pow(base, off + (p.n - 1) as f64);
+        let redemption_value = excel_x87_div(red, redemption_discount);
         pv + redemption_value
     };
     let accr = coup * a / e;
     Ok((dirty - accr, dirty, coup, a, e))
-}
-fn solve(
-    target: f64,
-    f: i64,
-    fun: impl Fn(f64) -> Result<f64, BondCoreEvalError>,
-) -> Result<f64, BondCoreEvalError> {
-    let low = -(f as f64) + 1e-10;
-    // Price → +∞ as yield → -frequency, but the price kernel can overflow/reject
-    // that near-degenerate endpoint. Treat an un-evaluable low-yield endpoint as
-    // an effectively infinite price so the "is the target achievable" guard does
-    // not spuriously fail a well-posed bond (BUG-FUNC-031). The bisection below
-    // moves off `low` on its first step, so it never re-probes the endpoint.
-    let lowp = fun(low).unwrap_or(f64::INFINITY);
-    if target > lowp {
-        return Err(derr(WorksheetErrorCode::Num));
-    }
-    let mut hi = 1.0;
-    let mut hip = fun(hi)?;
-    let mut g = 0;
-    while hip > target && g < 80 {
-        hi *= 2.0;
-        hip = fun(hi)?;
-        g += 1;
-    }
-    if hip > target {
-        return Err(derr(WorksheetErrorCode::Num));
-    }
-    // Bisection to adjacent binary64 bounds (full convergence, dc-ifc: Excel's YIELD converges
-    // past the former 1e-15 price tolerance), then the bound with the smaller residual.
-    let mut lo = low;
-    let mut hh = hi;
-    for _ in 0..2200 {
-        let mid = (lo + hh) / 2.0;
-        if mid <= lo || mid >= hh {
-            break;
-        }
-        let mp = fun(mid)?;
-        if mp == target {
-            return Ok(mid);
-        }
-        if mp > target { lo = mid } else { hh = mid }
-    }
-    let (lo_res, hi_res) = (
-        fun(lo).map(|v| (v - target).abs()),
-        fun(hh).map(|v| (v - target).abs()),
-    );
-    Ok(match (lo_res, hi_res) {
-        (Ok(a), Ok(b)) if a < b => lo,
-        (Ok(_), Err(_)) => lo,
-        _ => hh,
-    })
 }
 
 pub fn accrintm_kernel(
@@ -574,47 +498,7 @@ pub fn price_kernel(
 ) -> Result<f64, BondCoreEvalError> {
     let c = ctx(settlement, maturity, frequency, basis_)?;
     let p = period(c)?;
-    // PRICE uses Excel's C-runtime integer-`pow` discount staging (binexp). YIELD's solver
-    // (below) still calls the legacy `pcomp` because its inversion schedule is not yet
-    // identified and swapping the price kernel under it would regress the current witnesses.
-    Ok(pcomp_disc(rate(rate_)?, rate(yld)?, pos(red)?, c, p, true)?.0)
-}
-/// The near-par closed-form YIELD seed `f * i_a`,
-/// `i_a = (n cp - (price - R)) / ((price - R) (n + 1) / 2 + n R)`, returned when the Newton step
-/// `(P(y_a) - price) / P'(y_a)` at it is below 1e-10 (on a coupon date, so every discount
-/// exponent is a whole number of periods).
-fn near_par_seed(
-    rate: f64,
-    price: f64,
-    red: f64,
-    c: Ctx,
-    p: Period,
-) -> Result<Option<f64>, BondCoreEvalError> {
-    let f = c.frequency as f64;
-    let n = p.n as f64;
-    let cp = 100.0 * rate / f;
-    let d = price - red;
-    // Y2 association (answer 11 B1/C1): the total coupon is formed as
-    // S(S(S(n * rate) * 100) / f) and the denominator is split, so each partial
-    // sum is stored before the next is added.
-    let total_coupon = (n * rate * 100.0) / f;
-    let denominator = (n * red + (d * n) / 2.0) + d / 2.0;
-    let seed = f * ((total_coupon - d) / denominator);
-    if !seed.is_finite() || seed <= -f {
-        return Ok(None);
-    }
-    let Ok((value, ..)) = pcomp(rate, seed, red, c, p) else {
-        return Ok(None);
-    };
-    let base = 1.0 + seed / f;
-    let mut slope = 0.0;
-    for k in 1..=p.n {
-        slope += k as f64 * cp / crt_pow(base, (k + 1) as f64);
-    }
-    slope += n * red / crt_pow(base, n + 1.0);
-    slope = -slope / f;
-    let step = (value - price) / slope;
-    Ok((step.abs() < 1e-10).then_some(seed))
+    Ok(pcomp_disc(rate(rate_)?, rate(yld)?, pos(red)?, c, p)?.0)
 }
 pub fn yield_kernel(
     settlement: f64,
@@ -674,24 +558,77 @@ pub fn yield_kernel(
         let annualization = excel_x87_div(excel_x87_mul(f, e), dsc);
         return Ok(excel_x87_mul(relative_gain, annualization));
     }
-    // Near par on a coupon date with redemption 100, Excel returns the closed-form seed of its
-    // Newton iteration when the first Newton step there is below 1e-10 (pro-9 solvers prompt,
-    // B.3: the largest step among rows returning the seed is 8.8e-11, the smallest among rows
-    // iterating on 1.17e-10; 68 bank rows). The seed approximates the annuity factor of n unit
-    // payments at i = y/f by n / (1 + i (n + 1) / 2). Other designs (redemption not 100, off
-    // a coupon date) carry a seed that is not identified yet and keep the solver below.
-    if p.n > 1 && c.settlement == p.prev && red == 100.0 {
-        if let Some(seed) = near_par_seed(rate_, price, red, c, p)? {
-            return Ok(seed);
+    // Multi-period solver (dc-iuwct.47 / cb4, Excel 16.0.20527):
+    // 1. Schedule-free par-100 seed `y_0` using years-to-maturity `T` and `tau = f * T`,
+    //    with `d = price - 100.0` hardcoded (never `red`).
+    // 2. Analytic Newton iteration on PRICE's `excel_bond_pow` discount curve for up to 100
+    //    iterations, stopping when `|step| <= 1e-10` and publishing the un-updated iterate `y`.
+    let f = c.frequency as f64;
+    let tau = match c.basis {
+        DayCountBasis::Us30_360 => f * (d360us(c.settlement, c.maturity)? / 360.0),
+        DayCountBasis::European30_360 => f * (d360eu(c.settlement, c.maturity)? / 360.0),
+        DayCountBasis::ActualActual | DayCountBasis::Actual360 | DayCountBasis::Actual365 => {
+            let (sy, sm, sd) =
+                ymd_from_excel_serial(WorkbookDateSystem::System1900, c.settlement as f64)
+                    .ok_or(derr(WorksheetErrorCode::Value))?;
+            let (ey, em, ed) =
+                ymd_from_excel_serial(WorkbookDateSystem::System1900, c.maturity as f64)
+                    .ok_or(derr(WorksheetErrorCode::Value))?;
+            let k = (ey - sy) - i64::from(em < sm || (em == sm && ed < sd));
+            let s_k = excel_serial_from_ymd(WorkbookDateSystem::System1900, sy + k, sm, 1)
+                .ok_or(derr(WorksheetErrorCode::Num))? as i64
+                + (sd - 1);
+            let year_days = match c.basis {
+                DayCountBasis::ActualActual => dyear(ey),
+                DayCountBasis::Actual360 => 360.0,
+                DayCountBasis::Actual365 => 365.0,
+                _ => unreachable!(),
+            };
+            f * (k as f64 + (c.maturity - s_k) as f64 / year_days)
         }
+    };
+    let d = price - 100.0;
+    let tc = (tau * rate_ * 100.0) / f;
+    let den = (tau * 100.0 + (d * tau) / 2.0) + (d * f) / 4.0;
+    let mut y = f * ((tc - d) / den);
+    if !y.is_finite() {
+        return Err(derr(WorksheetErrorCode::Num));
     }
-    // Solve over candidate yields with `pcomp` directly. `price_kernel` rejects
-    // `yld < 0` via `rate(yld)`, but the root-finder must probe negative candidate
-    // yields (its bracket runs down to `-frequency`); `pcomp`'s own guards
-    // (`yld <= -frequency`, `base <= 0`) keep the domain correct (BUG-FUNC-031).
-    solve(price, c.frequency, |cand| {
-        Ok(pcomp(rate_, cand, red, c, p)?.0)
-    })
+
+    let e = dc(p.prev, p.next, c.basis, c.frequency)?;
+    let a = dd(p.prev, c.settlement, c.basis)?;
+    let off = (e - a) / e;
+    let cp = (100.0 * rate_) / f;
+    let accr = (cp * a) / e;
+
+    for _ in 0..100 {
+        let base = 1.0 + y / f;
+        if !(base > 0.0) {
+            return Err(derr(WorksheetErrorCode::Num));
+        }
+        let (mut pv, mut slope) = (0.0_f64, 0.0_f64);
+        for k in 0..p.n {
+            let ex = off + k as f64;
+            pv += cp / excel_bond_pow(base, ex);
+            slope += (ex * cp) / excel_bond_pow(base, ex + 1.0);
+        }
+        let rex = off + (p.n - 1) as f64;
+        pv += excel_x87_div(red, excel_bond_pow(base, rex));
+        slope += (rex * red) / excel_bond_pow(base, rex + 1.0);
+        slope = -slope / f;
+        let step = ((pv - accr) - price) / slope;
+        if !step.is_finite() {
+            return Err(derr(WorksheetErrorCode::Num));
+        }
+        if step.abs() <= 1e-10 {
+            return Ok(y);
+        }
+        y -= step;
+    }
+    if !y.is_finite() {
+        return Err(derr(WorksheetErrorCode::Num));
+    }
+    Ok(y)
 }
 pub fn duration_kernel(
     settlement: f64,
@@ -1843,12 +1780,11 @@ mod tests {
         let cat = yield_kernel(44013.0, 44562.0, 0.05, 95.0, 100.0, 2.0, Some(0.0)).unwrap();
         assert_eq!(
             cat.to_bits(),
-            0x3fb61465bd6a9970,
-            "the nonpar catalogue row retains the existing solver"
+            0x3fb61465bd6a9983,
+            "the nonpar catalogue row matches Excel's analytic Newton solver"
         );
         // The recorded Excel par result is 0.05 itself. Bisection previously
-        // returned 0x3fa99999999999a1. The nonpar result above still differs
-        // from the recorded 0x3fb61465bd6a9983 and remains open.
+        // returned 0x3fa99999999999a1.
         let par = yield_kernel(44013.0, 44562.0, 0.05, 100.0, 100.0, 2.0, Some(0.0)).unwrap();
         assert_eq!(
             par.to_bits(),
