@@ -124,6 +124,8 @@ impl HostState {
             .iter()
             .map(|s| s.id)
             .chain(charts.iter().filter_map(|c| c.drawing_id))
+            // A deleted stored object's identity is not given again: the save matches stored objects by it.
+            .chain(self.loaded().model().definitions().shapes(sheet).iter().map(|s| s.id))
             .chain(2..2 + anonymous)
             .collect();
         match self.issued.drawing.get(&sheet) {
@@ -504,8 +506,13 @@ pub(crate) fn prepare(
             "Save and reopen before adding shapes after row or column insertion or deletion",
         ));
     }
-    let originals = host.loaded().model().definitions().shapes(sheet).len();
     let mut shapes = host.shapes(sheet).to_vec();
+    // The stored objects still here lead the list in their stored order (a deleted one leaves a gap, an added one
+    // goes after them): matched as the save matches them, so a second delete or an edit of an added object reads
+    // the right ones as stored.
+    let originals = host.loaded().model().definitions().shapes(sheet).iter().fold(0, |next, stored| {
+        if shapes.get(next).is_some_and(|now| now.id == stored.id && now.kind == stored.kind) { next + 1 } else { next }
+    });
     let find = |shapes: &[Shape], id: u32| -> Result<usize, String> {
         let index = shapes
             .iter()

@@ -682,8 +682,22 @@ fn edit_stored(xml: &crate::xml::XmlPart, edits: &std::collections::BTreeMap<u32
                             // Pieces arrive as their elements end; a replacement is written in source order.
                             let mut pieces = pieces;
                             pieces.sort_by_key(|p| p.0);
+                            // The alternatives (`mc:Choice`, `mc:Fallback`) each hold the object once: each one's
+                            // first transform is the object's own, so the count restarts in every alternative.
+                            let mut branches: Vec<(usize, usize)> = Vec::new();
+                            for p in pieces.iter().filter(|p| matches!(p.2.as_str(), "Choice" | "Fallback")) {
+                                if !branches.iter().any(|b| b.0 <= p.0 && p.1 <= b.1) {
+                                    branches.push((p.0, p.1));
+                                }
+                            }
+                            let mut branch = None;
                             let mut written_to = 0usize;
                             for (start, end, local, name, parent, tag_end) in pieces {
+                                let inside = branches.iter().position(|b| b.0 <= start && start < b.1);
+                                if inside != branch {
+                                    branch = inside;
+                                    (first_xfrm, first_tag) = (true, true);
+                                }
                                 if start < written_to {
                                     continue;
                                 }
@@ -1029,4 +1043,46 @@ fn finish_body(
         }
     }
     Ok(body)
+}
+
+#[cfg(test)]
+mod stored_edit_tests {
+    use super::*;
+    use calc_doc_model::{Shape, ShapeKind};
+
+    /// A moved object stored as `mc:AlternateContent` with two alternatives is moved in both: each alternative's
+    /// anchor corners and transform are rewritten alike, and nothing else changes.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn moved_object_rewrites_every_alternative() {
+        let point = |c: u32, r: u32| format!("<xdr:col>{c}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>{r}</xdr:row><xdr:rowOff>0</xdr:rowOff>");
+        let anchor = |tag: &str| {
+            format!(
+                "<xdr:twoCellAnchor><xdr:from>{}</xdr:from><xdr:to>{}</xdr:to><xdr:sp><xdr:nvSpPr><xdr:cNvPr id=\"2\" name=\"{tag}\"/><xdr:cNvSpPr/></xdr:nvSpPr><xdr:spPr><a:xfrm rot=\"60000\"><a:off x=\"1\" y=\"2\"/><a:ext cx=\"3\" cy=\"4\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></xdr:spPr></xdr:sp><xdr:clientData/></xdr:twoCellAnchor>",
+                point(1, 1),
+                point(3, 4)
+            )
+        };
+        let xml = format!(
+            "<xdr:wsDr xmlns:xdr=\"{XDR}\" xmlns:a=\"{A}\" xmlns:mc=\"{MC}\"><mc:AlternateContent><mc:Choice Requires=\"a14\">{}</mc:Choice><mc:Fallback>{}</mc:Fallback></mc:AlternateContent></xdr:wsDr>",
+            anchor("Choice"),
+            anchor("Fallback")
+        );
+        let part = crate::xml::XmlPart::from_bytes("xl/drawings/drawing1.xml", xml.clone().into_bytes());
+        let from = DrawingPoint { column: 5, column_offset: 0, row: 6, row_offset: 0 };
+        let to = DrawingPoint { column: 7, column_offset: 0, row: 9, row_offset: 0 };
+        let mut shape = Shape::new(2, "Choice".into(), ShapeKind::Shape, ChartAnchor::TwoCell { from, to });
+        (shape.offset, shape.extent, shape.rotation) = ((10, 20), (30, 40), 60000);
+        let edits = std::collections::BTreeMap::from([(2, StoredEdit::Moved(&shape))]);
+        let out = String::from_utf8(edit_stored(&part, &edits).unwrap()).unwrap();
+        let moved = |tag: &str| {
+            format!(
+                "<xdr:twoCellAnchor><xdr:from>{}</xdr:from><xdr:to>{}</xdr:to><xdr:sp><xdr:nvSpPr><xdr:cNvPr id=\"2\" name=\"{tag}\"/><xdr:cNvSpPr/></xdr:nvSpPr><xdr:spPr><a:xfrm rot=\"60000\"><a:off x=\"10\" y=\"20\"/><a:ext cx=\"30\" cy=\"40\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></xdr:spPr></xdr:sp><xdr:clientData/></xdr:twoCellAnchor>",
+                point(5, 6),
+                point(7, 9)
+            )
+        };
+        let expected = xml.replace(&anchor("Choice"), &moved("Choice")).replace(&anchor("Fallback"), &moved("Fallback"));
+        assert_eq!(out, expected);
+    }
 }
