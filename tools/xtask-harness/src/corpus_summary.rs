@@ -33,6 +33,7 @@
 //! sheet's name; a reason a workbook could not be compared is the tool's own message, which may
 //! name a sheet or a cell.
 
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -63,7 +64,7 @@ pub(crate) fn bucket(verdict: &str) -> Bucket {
 }
 
 /// The root cause a failing cell is counted under.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
 pub(crate) enum Cause {
     Refusal { owner: String, reason: String },
     Mismatch { function: String, shape: String },
@@ -71,7 +72,7 @@ pub(crate) enum Cause {
 }
 
 /// The cells of one cause: roots, cells reading a root, and cells failing with the whole run.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub(crate) struct CauseCount {
     pub(crate) roots: u64,
     pub(crate) downstream: u64,
@@ -91,7 +92,7 @@ impl CauseCount {
 }
 
 /// The cell counts of a compared workbook.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub(crate) struct Counts {
     /// A disjoint supplemental reference; these matches never enter `pass`.
     pub(crate) saved_excel: BTreeMap<String, u64>,
@@ -305,6 +306,41 @@ fn seconds(value: &Value) -> Option<f64> {
 
 /// The counts, causes and times of one workbook's `triage.json`, or why it cannot be read.
 pub(crate) fn read_triage(triage: &Value) -> Result<Compared, String> {
+    let mut compared = if triage["format"] == "dnacalc-lean-triage" {
+        if triage["version"] != 1 {
+            return Err("unsupported lean triage version".into());
+        }
+        let counts = Counts::deserialize(&triage["counts"]).map_err(|e| e.to_string())?;
+        let causes = Vec::<(Cause, CauseCount)>::deserialize(&triage["causes"])
+            .map_err(|e| e.to_string())?;
+        Compared {
+            counts,
+            causes: causes.into_iter().collect(),
+            ..Compared::default()
+        }
+    } else {
+        count_triage_cells(triage)?
+    };
+    let run = &triage["run"];
+    let wall = &run["wall_time_s"];
+    compared.times = Times {
+        open: seconds(&wall["open"]),
+        recalculation: seconds(&wall["step"]),
+        project: seconds(&wall["project"]),
+        judge: seconds(&wall["judge"]),
+        ..Times::default()
+    };
+    compared.workbook_failure = run["workbook_failure"].as_object().map(|failure| {
+        format!(
+            "{} {}",
+            failure.get("class").and_then(Value::as_str).unwrap_or("?"),
+            failure.get("key").and_then(Value::as_str).unwrap_or("?")
+        )
+    });
+    Ok(compared)
+}
+
+fn count_triage_cells(triage: &Value) -> Result<Compared, String> {
     let cells = triage["cells"]
         .as_array()
         .ok_or("triage.json has no cells")?;
@@ -446,22 +482,6 @@ pub(crate) fn read_triage(triage: &Value) -> Result<Compared, String> {
             _ => count.roots += 1,
         }
     }
-    let run = &triage["run"];
-    let wall = &run["wall_time_s"];
-    compared.times = Times {
-        open: seconds(&wall["open"]),
-        recalculation: seconds(&wall["step"]),
-        project: seconds(&wall["project"]),
-        judge: seconds(&wall["judge"]),
-        ..Times::default()
-    };
-    compared.workbook_failure = run["workbook_failure"].as_object().map(|failure| {
-        format!(
-            "{} {}",
-            failure.get("class").and_then(Value::as_str).unwrap_or("?"),
-            failure.get("key").and_then(Value::as_str).unwrap_or("?")
-        )
-    });
     Ok(compared)
 }
 

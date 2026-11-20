@@ -73,7 +73,7 @@ use calc_verdict::{
     FormulaKind, InstrumentRecord, InstrumentedEvaluation, JudgeError, MissingCapture, Observation,
     Provenance, ResultSet, RunIdentity, VerdictPolicy, judge, sha256_hex,
 };
-use serde_json::json;
+use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::ops::ControlFlow;
@@ -82,7 +82,7 @@ use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-pub const USAGE: &str = "usage: cargo xtask compare --fixture <xlsx> (--capture <capture.json> | --dna-only) --out <dir> [--saved-excel <provenance.json>] [--trusted-code <manifest.json>] [--minimize] [--exact-target <excel build>,<channel>,<compatibility>,<numeric environment>]";
+pub const USAGE: &str = "usage: cargo xtask compare --fixture <xlsx> (--capture <capture.json> | --dna-only) --out <dir> [--saved-excel <provenance.json>] [--trusted-code <manifest.json>] [--minimize] [--lean] [--exact-target <excel build>,<channel>,<compatibility>,<numeric environment>]";
 
 const EXIT_REFUSED: u8 = 1;
 const EXIT_USAGE: u8 = 2;
@@ -98,6 +98,7 @@ struct Request {
     trusted_code_sha256: Option<String>,
     minimize: bool,
     inventory_only: bool,
+    lean: bool,
     out: PathBuf,
     target: Option<NumericTargetId>,
 }
@@ -121,6 +122,7 @@ fn parse_args(args: &[String]) -> Result<Request, String> {
         (None, None, None, None, None);
     let (mut trusted_code, mut trusted_code_sha256) = (None, None);
     let (mut minimize, mut dna_only, mut inventory_only) = (false, false, false);
+    let mut lean = false;
     let mut rest = args.iter();
     while let Some(flag) = rest.next() {
         if flag == "--minimize" {
@@ -134,6 +136,10 @@ fn parse_args(args: &[String]) -> Result<Request, String> {
         if flag == "--inventory-only" {
             dna_only = true;
             inventory_only = true;
+            continue;
+        }
+        if flag == "--lean" {
+            lean = true;
             continue;
         }
         let value = rest.next().ok_or_else(|| format!("{flag} needs a value"))?;
@@ -168,6 +174,7 @@ fn parse_args(args: &[String]) -> Result<Request, String> {
         trusted_code_sha256,
         minimize,
         inventory_only,
+        lean,
         out: PathBuf::from(out.ok_or("--out is required")?),
         target: target.as_deref().map(parse_target).transpose()?,
     })
@@ -1475,10 +1482,6 @@ fn compare(request: &Request) -> Result<(), Failure> {
         run.declared.as_deref(),
     );
 
-    let evaluations = run
-        .record
-        .encode()
-        .map_err(|e| refused(format!("the evaluation record cannot be written: {e}")))?;
     let run_member = json!({
         "revision": run.revision,
         "context": run.context,
@@ -1500,16 +1503,22 @@ fn compare(request: &Request) -> Result<(), Failure> {
     });
     fs::create_dir_all(&request.out)
         .map_err(|e| refused(format!("cannot create {}: {e}", request.out.display())))?;
-    write(&request.out.join("report.json"), &report.encode())?;
-    write(&request.out.join("evaluations.json"), &evaluations)?;
-    write(
-        &request.out.join("linked-inputs.json"),
-        &serde_json::to_string_pretty(&run.linked_inputs).expect("input records serialize"),
-    )?;
-    write(
-        &request.out.join("source-caches.json"),
-        &serde_json::to_string_pretty(&run.source_caches).expect("source caches serialize"),
-    )?;
+    if !request.lean {
+        let evaluations = run
+            .record
+            .encode()
+            .map_err(|e| refused(format!("the evaluation record cannot be written: {e}")))?;
+        write(&request.out.join("report.json"), &report.encode())?;
+        write(&request.out.join("evaluations.json"), &evaluations)?;
+        write(
+            &request.out.join("linked-inputs.json"),
+            &serde_json::to_string_pretty(&run.linked_inputs).expect("input records serialize"),
+        )?;
+        write(
+            &request.out.join("source-caches.json"),
+            &serde_json::to_string_pretty(&run.source_caches).expect("source caches serialize"),
+        )?;
+    }
     let mut triage_json: serde_json::Value =
         serde_json::from_str(&triage.encode(&report, run_member))
             .map_err(|e| refused(format!("cannot encode triage: {e}")))?;
@@ -1548,6 +1557,11 @@ fn compare(request: &Request) -> Result<(), Failure> {
         .unwrap_or_else(|| json!({"route":"captured-policy-or-disabled-inventory"}));
     triage_json["saved_excel_provenance_sha256"] =
         json!(saved_provenance.as_ref().map(|(_, digest)| digest));
+    let is_offender = |verdict: &str| matches!(
+        crate::corpus_summary::bucket(verdict),
+        crate::corpus_summary::Bucket::Mismatched | crate::corpus_summary::Bucket::Refused
+    );
+    let mut saved_offenders = None;
     if request.saved_excel.is_some() {
         let mut saved_counts = json!({"reference_cells":0,"matched":0,"mismatched":0,"refused":0,"failed_or_missing":capture.formulas.len(),"external_links":0,"circular_rule":0});
         let fallback = {
@@ -1562,7 +1576,7 @@ fn compare(request: &Request) -> Result<(), Failure> {
         let (reference, info) = run.saved_reference.as_ref().unwrap_or(&fallback);
         let mut metadata = info.clone();
         {
-            let saved_report =
+            let mut saved_report =
                 judge(reference, &run.results, &run.record, &policy).map_err(judge_failure)?;
             let mut counts = BTreeMap::<String, u64>::new();
             let referenced: std::collections::BTreeSet<_> =
@@ -1595,14 +1609,21 @@ fn compare(request: &Request) -> Result<(), Failure> {
                 saved_counts[key] = json!(counts.get(key).copied().unwrap_or(0));
             }
             saved_counts["reference_cells"] = json!(reference.observations.len());
-            write(
-                &request.out.join("saved-excel.record.json"),
-                &reference.encode().map_err(|e| refused(e.to_string()))?,
-            )?;
-            write(
-                &request.out.join("saved-excel.report.json"),
-                &saved_report.encode(),
-            )?;
+            if request.lean {
+                saved_report.cells.retain(|cell| is_offender(cell.verdict.name()));
+                let mut saved: Value = serde_json::from_str(&saved_report.encode())
+                    .map_err(|e| refused(format!("cannot encode saved offenders: {e}")))?;
+                saved_offenders = Some(saved["cells"].take());
+            } else {
+                write(
+                    &request.out.join("saved-excel.record.json"),
+                    &reference.encode().map_err(|e| refused(e.to_string()))?,
+                )?;
+                write(
+                    &request.out.join("saved-excel.report.json"),
+                    &saved_report.encode(),
+                )?;
+            }
         }
         metadata["counts"] = saved_counts.clone();
         write(
@@ -1610,6 +1631,27 @@ fn compare(request: &Request) -> Result<(), Failure> {
             &serde_json::to_string_pretty(&metadata).expect("metadata serializes"),
         )?;
         triage_json["saved_excel_counts"] = saved_counts;
+    }
+    let compared = crate::corpus_summary::read_triage(&triage_json).map_err(refused)?;
+    if request.lean {
+        let mut full_cells = triage_json["cells"].take();
+        let cells = full_cells.as_array_mut().expect("triage has cells");
+        cells.retain(|cell| cell["verdict"].as_str().is_some_and(is_offender));
+        let offenders = json!({
+            "format": "dnacalc-comparison-offenders",
+            "version": 1,
+            "source": capture.source,
+            "cells": full_cells,
+            "saved_excel_cells": saved_offenders,
+        });
+        write(&request.out.join("offenders.json"), &offenders.to_string())?;
+        triage_json
+            .as_object_mut()
+            .expect("triage is an object")
+            .remove("cells");
+        triage_json["format"] = json!("dnacalc-lean-triage");
+        triage_json["counts"] = json!(compared.counts);
+        triage_json["causes"] = json!(compared.causes.iter().collect::<Vec<_>>());
     }
     write(
         &request.out.join("triage.json"),
@@ -1627,7 +1669,6 @@ fn compare(request: &Request) -> Result<(), Failure> {
         .map_err(refused)?;
     }
 
-    let compared = crate::corpus_summary::read_triage(&triage_json).map_err(refused)?;
     let summary = json!({"format":"dnacalc-comparison-summary","version":1,"source":capture.source,
         "rule":"pass requires a calculated value equal to live Excel; every other inventoried formula fails",
         "counts":compared.counts.json(),"evaluation_records":run.record.evaluations.len()});
@@ -1694,10 +1735,12 @@ fn compare(request: &Request) -> Result<(), Failure> {
         run.record.evaluations.len()
     );
     println!("xtask compare: verdict: {}", report.summary());
-    println!(
-        "xtask compare: wrote report.json, evaluations.json and triage.json to {}",
-        request.out.display()
-    );
+    let outputs = if request.lean {
+        "offenders.json and lean triage.json"
+    } else {
+        "report.json, evaluations.json and triage.json"
+    };
+    println!("xtask compare: wrote {outputs} to {}", request.out.display());
     Ok(())
 }
 
@@ -2118,6 +2161,7 @@ mod tests {
             trusted_code_sha256: Some(trusted.digest.clone()),
             minimize: false,
             inventory_only: false,
+            lean: false,
             out: dir.join("out"),
             target: None,
         })
@@ -2167,6 +2211,7 @@ mod tests {
             trusted_code_sha256: None,
             minimize: false,
             inventory_only: false,
+            lean: false,
             out: PathBuf::new(),
             target: None,
         };
@@ -2704,6 +2749,7 @@ mod tests {
             trusted_code_sha256: None,
             minimize: false,
             inventory_only: false,
+            lean: false,
             out: out.clone(),
             target: None,
         })
@@ -2729,6 +2775,45 @@ mod tests {
         let counts = crate::corpus_summary::read_triage(&triage).unwrap().counts;
         assert_eq!(counts.pass, 0);
         assert_eq!(counts.fail(), 112);
+    }
+
+    #[test]
+    fn lean_compare_keeps_counts_and_omits_full_cell_outputs() {
+        let dir = std::env::temp_dir().join(format!("xtask-lean-compare-{}", std::process::id()));
+        let fixture = dir.join("source.xlsx");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            &fixture,
+            include_bytes!("../../../crates/calc-engine/tests/fixtures/l3/oracle.xlsx"),
+        )
+        .unwrap();
+        let provenance = dir.join("provenance.json");
+        fs::write(&provenance, br#"{"format":"dnacalc-excel-saved-provenance","version":1,"packages":{}}"#).unwrap();
+        let run = |out: &Path, lean: bool| {
+            let mut args = vec![
+                "--fixture".into(), fixture.display().to_string(),
+                "--saved-excel".into(), provenance.display().to_string(),
+                "--dna-only".into(), "--out".into(), out.display().to_string(),
+            ];
+            if lean {
+                args.push("--lean".into());
+            }
+            compare(&parse_args(&args).unwrap()).unwrap();
+            let triage = serde_json::from_slice(&fs::read(out.join("triage.json")).unwrap()).unwrap();
+            crate::corpus_summary::read_triage(&triage).unwrap()
+        };
+        let full = run(&dir.join("full"), false);
+        let lean_out = dir.join("lean");
+        let lean = run(&lean_out, true);
+        assert_eq!(lean.counts, full.counts);
+        assert_eq!(lean.causes, full.causes);
+        assert_eq!(lean.counts.formula_cells, 112);
+        assert!(lean_out.join("offenders.json").is_file());
+        assert!(lean_out.join("saved-excel.json").is_file());
+        for omitted in ["report.json", "evaluations.json", "saved-excel.record.json", "saved-excel.report.json"] {
+            assert!(!lean_out.join(omitted).exists(), "{omitted}");
+        }
+        fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]
@@ -2792,6 +2877,7 @@ mod tests {
             trusted_code_sha256: None,
             minimize: false,
             inventory_only: false,
+            lean: false,
             out: out.clone(),
             target: None,
         })
@@ -2805,6 +2891,7 @@ mod tests {
             trusted_code_sha256: None,
             minimize: false,
             inventory_only: false,
+            lean: false,
             out: out.clone(),
             target: None,
         })

@@ -746,6 +746,37 @@ fn trim_records(dir: &Path, extension: &str, retain: usize) -> Result<(), String
     Ok(())
 }
 
+fn checker_changed(root: &Path, before: &str, after: &str) -> Result<bool, String> {
+    if before == after {
+        return Ok(false);
+    }
+    let paths = cargo::git(root, &["diff", "--no-renames", "--name-only", before, after])?;
+    Ok(paths.lines().any(|path| {
+        path.starts_with("tools/xtask/")
+            || path.starts_with("tools/xtask-harness/")
+            || path.starts_with(".cargo/")
+            || matches!(path, "Cargo.toml" | "Cargo.lock" | "rust-toolchain" | "rust-toolchain.toml")
+    }))
+}
+
+fn restart_after_pull(ws: &Workspace, sha: &str) -> Result<bool, String> {
+    println!("keeper: rebuilding xtask for pulled commit {sha}");
+    // Use the default workspace target and run a private copy so neither Windows executable
+    // locks the file that Cargo needs to rebuild.
+    let executable = crate::harness::build_runnable(ws, "xtask", "dev")?;
+    let _copy = crate::harness::CopyCleanup(executable.clone());
+    let status = Command::new(executable)
+        .args(["keep", "--once"])
+        .current_dir(&ws.root)
+        .status()
+        .map_err(|e| format!("cannot run rebuilt keeper: {e}"))?;
+    match status.code() {
+        Some(0) => Ok(true),
+        Some(1) => Ok(false),
+        _ => Err(format!("rebuilt keeper exited with {status}")),
+    }
+}
+
 fn once(ws: &Workspace) -> Result<bool, String> {
     let started = std::time::Instant::now();
     if cargo::git(&ws.root, &["branch", "--show-current"])?.trim() != "master" {
@@ -756,6 +787,7 @@ fn once(ws: &Workspace) -> Result<bool, String> {
         return Err("keeper requires a clean clone; preserve and inspect its local changes".into());
     }
     // Pending tracker commits from a prior network outage may be pushed, source commits may not.
+    let before = cargo::git(&ws.root, &["rev-parse", "HEAD"])?;
     validate_outgoing(&ws.root)?;
     let pending = cargo::git(&ws.root, &["log", "--format=%H", "origin/master..HEAD"])?;
     if !pending.trim().is_empty() {
@@ -764,14 +796,17 @@ fn once(ws: &Workspace) -> Result<bool, String> {
     // Bring br's database up to the pulled tracker; otherwise a later flush of a keeper bead is
     // refused ("Refusing to export stale database: JSONL contains issues absent from the database").
     refresh_tracker(&ws.root)?;
+    let head = cargo::git(&ws.root, &["rev-parse", "HEAD"])?;
+    let sha = head.trim();
+    if checker_changed(&ws.root, before.trim(), sha)? {
+        return restart_after_pull(ws, sha);
+    }
     let updated_ws = Workspace::load(&ws.root).unwrap_or_else(|_| Workspace {
         root: ws.root.clone(),
         members: Vec::new(),
     });
     let ws = &updated_ws;
-    let sha = cargo::git(&ws.root, &["rev-parse", "HEAD"])?
-        .trim()
-        .to_owned();
+    let sha = sha.to_owned();
     let dir = ws.root.join("target/keep");
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     trim_records(&ws.root.join("target/check"), "log", 64)?;
@@ -992,6 +1027,35 @@ pub fn run(raw: &[String]) -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn a_pull_that_changes_the_checker_requires_a_fresh_keeper() {
+        let root = std::env::temp_dir().join(format!("xtask-keeper-checker-{}", std::process::id()));
+        fs::create_dir_all(&root).unwrap();
+        let git = |args: &[&str]| cargo::git(&root, args).unwrap();
+        git(&["init", "--initial-branch=master"]);
+        git(&["config", "user.name", "Fixture"]);
+        git(&["config", "user.email", "fixture@example.invalid"]);
+        git(&["commit", "--allow-empty", "-m", "baseline"]);
+        let mut before = git(&["rev-parse", "HEAD"]);
+        for (file, refresh) in [
+            ("crates/calc-fml/src/lib.rs", false),
+            ("tools/xtask/src/check.rs", true),
+            ("tools/xtask-harness/src/main.rs", true),
+            ("Cargo.lock", true),
+        ] {
+            let path = root.join(file);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, "changed").unwrap();
+            git(&["add", "--", file]);
+            git(&["commit", "-m", file]);
+            let after = git(&["rev-parse", "HEAD"]);
+            assert_eq!(checker_changed(&root, before.trim(), after.trim()), Ok(refresh), "{file}");
+            assert_eq!(checker_changed(&root, after.trim(), after.trim()), Ok(false));
+            before = after;
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn full_checks_are_due_initially_after_twenty_commits_or_two_hours() {
         assert!(full_due(&json!({}), 0, 1));

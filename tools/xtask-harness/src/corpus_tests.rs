@@ -4,6 +4,13 @@
 use super::*;
 
 #[test]
+fn corpus_accepts_lean_output_on_a_resumable_shard() {
+    assert!(parse_args(&[
+        "workbooks".into(), "--lean".into(), "--shard".into(), "0/2".into(), "--resume".into(),
+    ]).is_ok());
+}
+
+#[test]
 fn independent_question_mappings_keep_separate_comparison_groups() {
     let mut first = CaptureRecord::decode(record("16.0.1", "plain").as_bytes()).unwrap();
     let original = section_group(&first);
@@ -273,6 +280,7 @@ fn arguments_have_their_defaults_and_refusals() {
             recursive: false,
             shard: None,
             resume: false,
+            lean: false,
             minimize: false,
             capture_only: false,
             dna_only: false,

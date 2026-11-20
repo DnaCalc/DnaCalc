@@ -286,6 +286,9 @@ pub(crate) fn merge_summaries(paths: &[PathBuf], out: &Path) -> Result<(), Strin
         if report["format"] != "dnacalc-corpus-summary" || report["version"] != 2 {
             return Err("--merge requires version 2 corpus summaries".into());
         }
+        if report["run"]["complete"] == false {
+            return Err(format!("{} is a partial checkpoint; resume the shard before merging", path.display()));
+        }
         let id = (
             report["run"]["corpus_inventory_sha256"]
                 .as_str()
@@ -502,6 +505,18 @@ const SAVED_OUTPUTS: &[&str] = &[
     "saved-excel.record.json",
     "saved-excel.report.json",
 ];
+const LEAN_OUTPUTS: &[&str] = &["offenders.json", "triage.json", "summary.json"];
+const LEAN_SAVED_OUTPUTS: &[&str] = &["saved-excel.json"];
+
+fn comparison_outputs(lean: bool, saved: bool) -> impl Iterator<Item = &'static str> {
+    let primary = if lean { LEAN_OUTPUTS } else { OUTPUTS };
+    let supplemental = match (lean, saved) {
+        (_, false) => &[],
+        (true, true) => LEAN_SAVED_OUTPUTS,
+        (false, true) => SAVED_OUTPUTS,
+    };
+    primary.iter().chain(supplemental).copied()
+}
 
 pub(crate) fn completed(out: &Path, key: &Value) -> Option<Value> {
     let marker: Value = serde_json::from_slice(&fs::read(out.join("complete.json")).ok()?).ok()?;
@@ -509,17 +524,12 @@ pub(crate) fn completed(out: &Path, key: &Value) -> Option<Value> {
         return None;
     }
     let payloads = marker.get("outputs")?.as_object()?;
-    if !OUTPUTS.iter().all(|name| payloads.contains_key(*name)) {
+    if !comparison_outputs(key["lean"] == true, !key["saved_excel"].is_null())
+        .all(|name| payloads.contains_key(name))
+    {
         return None;
     }
     if key["capture"].is_null() && !payloads.contains_key("inventory.record.json") {
-        return None;
-    }
-    if !key["saved_excel"].is_null()
-        && !SAVED_OUTPUTS
-            .iter()
-            .all(|name| payloads.contains_key(*name))
-    {
         return None;
     }
     for (name, hash) in payloads {
@@ -568,24 +578,13 @@ fn output_hashes(
 
 pub(crate) fn finish(out: &Path, key: &Value) -> Result<(), String> {
     let mut hashes = serde_json::Map::new();
-    for name in OUTPUTS {
+    for name in comparison_outputs(key["lean"] == true, !key["saved_excel"].is_null()) {
         let digest = file_digest(&out.join(name)).map_err(|e| format!("missing {name}: {e}"))?;
-        hashes.insert((*name).into(), json!(digest));
+        hashes.insert(name.into(), json!(digest));
     }
     if key["capture"].is_null() {
         let digest = file_digest(&out.join("inventory.record.json")).map_err(|e| e.to_string())?;
         hashes.insert("inventory.record.json".into(), json!(digest));
-    }
-    if !key["saved_excel"].is_null() {
-        for name in SAVED_OUTPUTS {
-            hashes.insert(
-                (*name).into(),
-                json!(
-                    file_digest(&out.join(name))
-                        .map_err(|e| format!("missing supplemental {name}: {e}"))?
-                ),
-            );
-        }
     }
     if key["minimize"] == true {
         output_hashes(out, &out.join("cases"), &mut hashes)?;
@@ -651,20 +650,10 @@ pub(crate) fn attempt_log(out: &Path) -> Result<PathBuf, String> {
 /// Promote a completed attempt only after its fresh payload has been checked.
 /// Partial attempts stay alongside their logs; old report files never prove a
 /// new process produced an answer.
-pub(crate) fn publish(attempt: &Path, out: &Path) -> Result<(), String> {
-    for name in OUTPUTS {
+pub(crate) fn publish(attempt: &Path, out: &Path, key: &Value) -> Result<(), String> {
+    for name in comparison_outputs(key["lean"] == true, !key["saved_excel"].is_null()) {
         if !attempt.join(name).is_file() {
             return Err(format!("new comparison did not write {name}"));
-        }
-    }
-    let triage: Value =
-        serde_json::from_slice(&fs::read(attempt.join("triage.json")).map_err(|e| e.to_string())?)
-            .map_err(|e| e.to_string())?;
-    if triage["saved_excel_counts"].is_object() {
-        for name in SAVED_OUTPUTS {
-            if !attempt.join(name).is_file() {
-                return Err(format!("new comparison did not write {name}"));
-            }
         }
     }
     fn copy(source: &Path, destination: &Path) -> Result<(), String> {
@@ -759,7 +748,7 @@ mod tests {
         }
         fs::write(attempt.join("triage.json"), br#"{"cells":[]}"#).unwrap();
         assert!(
-            publish(&attempt, &out)
+            publish(&attempt, &out, &json!({}))
                 .unwrap_err()
                 .contains("did not write")
         );
@@ -787,7 +776,7 @@ mod tests {
         }
         fs::write(attempt.join("saved-excel.json"), b"new counts").unwrap();
         assert!(
-            publish(&attempt, &out)
+            publish(&attempt, &out, &json!({"saved_excel":"digest"}))
                 .unwrap_err()
                 .contains("saved-excel.record.json")
         );
