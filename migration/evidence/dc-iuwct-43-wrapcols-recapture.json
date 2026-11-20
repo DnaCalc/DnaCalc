@@ -1,0 +1,405 @@
+{
+  "format": "dnacalc-wrapcols-range-recapture/1",
+  "bead": "dc-iuwct.43",
+  "function": "WRAPCOLS",
+  "original_source": "readings/excel-20527/admit3-answers-wrapcols-range-mixed.json",
+  "id": "admit3-range-mixed-WRAPCOLS-0924",
+  "original_witness": {
+    "id": "admit3-range-mixed-WRAPCOLS-0924",
+    "args": [
+      [
+        [
+          "0x4051c4ec4ec4ec4f",
+          "apple4",
+          "0x3ff0000000000000",
+          "apple4",
+          null,
+          "a*0",
+          "0x4051c4ec4ec4ec4f"
+        ]
+      ],
+      "0x4014000000000000",
+      "pad924"
+    ],
+    "expected_bits": "error:Spill",
+    "result_index": [
+      1,
+      1
+    ]
+  },
+  "cell_layout": "touchstone/1-range-single",
+  "captured_utc": "2026-11-20T18:42:01Z",
+  "sheet_case_single": {
+    "layout": {
+      "sheets": [
+        {
+          "name": "S",
+          "cells": {
+            "B1": {
+              "type": "number",
+              "bits": "4051c4ec4ec4ec4f"
+            },
+            "C1": {
+              "type": "text",
+              "value": "apple4"
+            },
+            "D1": {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            "E1": {
+              "type": "text",
+              "value": "apple4"
+            },
+            "G1": {
+              "type": "text",
+              "value": "a*0"
+            },
+            "H1": {
+              "type": "number",
+              "bits": "4051c4ec4ec4ec4f"
+            },
+            "I1": {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            "J1": {
+              "type": "text",
+              "value": "pad924"
+            }
+          },
+          "note": "F1 intentionally omitted (blank cell)"
+        },
+        {
+          "name": "A",
+          "cells": {}
+        },
+        {
+          "name": "Q",
+          "cells": {}
+        }
+      ],
+      "at": "S!A1",
+      "formula": "=INDEX(WRAPCOLS(B1:H1,I1,J1),1,1)"
+    },
+    "reply": {
+      "version": 1,
+      "id": "bf2f379ef6e84b3d85bbbfa07c388abc",
+      "ok": true,
+      "rows": [
+        {
+          "type": "sheet_case",
+          "probes": [
+            {
+              "value": {
+                "type": "number",
+                "bits": "4051c4ec4ec4ec4f"
+              },
+              "spill": null
+            }
+          ]
+        }
+      ],
+      "inputs": [
+        null
+      ],
+      "excel_version": "16.0",
+      "excel_build": "20527",
+      "excel_file_version": "16.0.20527.20196",
+      "excel_pid": null,
+      "calculation_settings": {
+        "calculation": -4135,
+        "compatibility_version": null,
+        "unavailable": [],
+        "PrecisionAsDisplayed": false,
+        "Date1904": false,
+        "CompatibilityVersion": 2,
+        "UseSystemSeparators": true,
+        "DecimalSeparator": ".",
+        "ThousandsSeparator": "\u00a0"
+      },
+      "automation_security_before": 1,
+      "automation_security_after": 1,
+      "env_id": "218a399794f8",
+      "machine": "GOVERT-OMEN",
+      "timestamp": "2026-11-20T18:41:57.393680+00:00",
+      "service_seconds": 2.41048746695742,
+      "request_sha256": null
+    }
+  },
+  "cell_range_spill": {
+    "reply": {
+      "version": 1,
+      "id": "466beb0d19434b45b8e15b524bc4c69e",
+      "ok": true,
+      "rows": [
+        {
+          "type": "array",
+          "rows": 5,
+          "cols": 2,
+          "values": [
+            [
+              {
+                "type": "number",
+                "bits": "4051c4ec4ec4ec4f"
+              },
+              {
+                "type": "text",
+                "value": "a*0"
+              }
+            ],
+            [
+              {
+                "type": "text",
+                "value": "apple4"
+              },
+              {
+                "type": "number",
+                "bits": "4051c4ec4ec4ec4f"
+              }
+            ],
+            [
+              {
+                "type": "number",
+                "bits": "3ff0000000000000"
+              },
+              {
+                "type": "text",
+                "value": "pad924"
+              }
+            ],
+            [
+              {
+                "type": "text",
+                "value": "apple4"
+              },
+              {
+                "type": "text",
+                "value": "pad924"
+              }
+            ],
+            [
+              {
+                "type": "number",
+                "bits": "0000000000000000"
+              },
+              {
+                "type": "text",
+                "value": "pad924"
+              }
+            ]
+          ]
+        }
+      ],
+      "inputs": [
+        [
+          {
+            "type": "range",
+            "values": [
+              [
+                {
+                  "type": "number",
+                  "bits": "4051c4ec4ec4ec4f"
+                },
+                {
+                  "type": "text",
+                  "value": "apple4"
+                },
+                {
+                  "type": "number",
+                  "bits": "3ff0000000000000"
+                },
+                {
+                  "type": "text",
+                  "value": "apple4"
+                },
+                {
+                  "type": "blank"
+                },
+                {
+                  "type": "text",
+                  "value": "a*0"
+                },
+                {
+                  "type": "number",
+                  "bits": "4051c4ec4ec4ec4f"
+                }
+              ]
+            ]
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "text",
+            "value": "pad924"
+          }
+        ]
+      ],
+      "excel_version": "16.0",
+      "excel_build": "20527",
+      "excel_file_version": "16.0.20527.20196",
+      "excel_pid": null,
+      "calculation_settings": {
+        "calculation": -4135,
+        "compatibility_version": null,
+        "unavailable": [],
+        "PrecisionAsDisplayed": false,
+        "Date1904": false,
+        "CompatibilityVersion": 2,
+        "UseSystemSeparators": true,
+        "DecimalSeparator": ".",
+        "ThousandsSeparator": "\u00a0"
+      },
+      "automation_security_before": 1,
+      "automation_security_after": 1,
+      "env_id": "218a399794f8",
+      "machine": "GOVERT-OMEN",
+      "timestamp": "2026-11-20T18:42:01.320041+00:00",
+      "service_seconds": 0.42194045009091496,
+      "request_sha256": null
+    }
+  },
+  "verification_probes": {
+    "formulas": [
+      {
+        "at": "S!A1",
+        "formula": "=INDEX(WRAPCOLS(B1:H1,I1,J1),1,1)"
+      },
+      {
+        "at": "S!A3",
+        "formula": "=WRAPCOLS(B1:H1,I1,J1)"
+      },
+      {
+        "at": "S!A10",
+        "formula": "=ISBLANK(F1)"
+      },
+      {
+        "at": "S!A11",
+        "formula": "=ISBLANK(INDEX(WRAPCOLS(B1:H1,I1,J1),5,1))"
+      }
+    ],
+    "reply": {
+      "version": 1,
+      "id": "b0e0ab485a6f4398b61ff1e848efcd13",
+      "ok": true,
+      "rows": [
+        {
+          "type": "sheet_case",
+          "probes": [
+            {
+              "value": {
+                "type": "number",
+                "bits": "4051c4ec4ec4ec4f"
+              },
+              "spill": null
+            },
+            {
+              "value": {
+                "type": "number",
+                "bits": "4051c4ec4ec4ec4f"
+              },
+              "spill": {
+                "type": "array",
+                "rows": 5,
+                "cols": 2,
+                "values": [
+                  [
+                    {
+                      "type": "number",
+                      "bits": "4051c4ec4ec4ec4f"
+                    },
+                    {
+                      "type": "text",
+                      "value": "a*0"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "text",
+                      "value": "apple4"
+                    },
+                    {
+                      "type": "number",
+                      "bits": "4051c4ec4ec4ec4f"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "number",
+                      "bits": "3ff0000000000000"
+                    },
+                    {
+                      "type": "text",
+                      "value": "pad924"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "text",
+                      "value": "apple4"
+                    },
+                    {
+                      "type": "text",
+                      "value": "pad924"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "number",
+                      "bits": "0000000000000000"
+                    },
+                    {
+                      "type": "text",
+                      "value": "pad924"
+                    }
+                  ]
+                ]
+              }
+            },
+            {
+              "value": {
+                "type": "boolean",
+                "value": true
+              },
+              "spill": null
+            },
+            {
+              "value": {
+                "type": "boolean",
+                "value": true
+              },
+              "spill": null
+            }
+          ]
+        }
+      ],
+      "inputs": [
+        null
+      ],
+      "excel_version": "16.0",
+      "excel_build": "20527",
+      "excel_file_version": "16.0.20527.20196",
+      "excel_pid": null,
+      "calculation_settings": {
+        "calculation": -4135,
+        "compatibility_version": null,
+        "unavailable": [],
+        "PrecisionAsDisplayed": false,
+        "Date1904": false,
+        "CompatibilityVersion": 2,
+        "UseSystemSeparators": true,
+        "DecimalSeparator": ".",
+        "ThousandsSeparator": "\u00a0"
+      },
+      "automation_security_before": 1,
+      "automation_security_after": 1,
+      "env_id": "218a399794f8",
+      "machine": "GOVERT-OMEN",
+      "timestamp": "2026-11-20T18:42:00.897742+00:00",
+      "service_seconds": 3.50081106799189,
+      "request_sha256": null
+    }
+  }
+}

@@ -433,6 +433,86 @@ pub fn serial_single(
         });
         evaluate(&case, locale, None)
     })();
+    format_single_result(built)
+}
+
+/// DNA Calc's answer for a bank call recaptured in a single-call sheet layout with real worksheet
+/// ranges (`touchstone/1-range-single`, dc-iuwct.43): sheets S, A and Q, each `{"range": [[...]]}`
+/// argument placed as a contiguous cell rectangle starting at S!B1 (leaving `null` cells blank,
+/// unlike CHOOSE) followed by scalar arguments, and `=F(B1:H1,I1,...)` in S!A1, wrapped in
+/// `INDEX(..., r, c)` when a cell is selected.
+pub fn range_single(
+    function: &str,
+    args: &[Value],
+    index: Option<(usize, usize)>,
+    context: Option<&calc_verdict::WitnessInvocation>,
+) -> String {
+    let locale = context.and_then(|c| {
+        let profile = calc_host::FormatProfile::for_culture(c.locale.as_deref()?)?;
+        profile.with_separators(c.decimal_separator.as_deref()?, c.thousands_separator.as_deref()?)
+    });
+    let built = (|| -> Result<Value, String> {
+        let mut cells = serde_json::Map::new();
+        let mut refs = Vec::new();
+        let mut column = 2u32;
+        for arg in args {
+            if let Some(range) = arg.get("range").and_then(Value::as_array) {
+                let rows: Vec<&Vec<Value>> = if range.iter().all(Value::is_array) {
+                    range.iter().filter_map(Value::as_array).collect()
+                } else {
+                    vec![range]
+                };
+                let height = rows.len();
+                let width = rows.first().map_or(0, |r| r.len());
+                if height == 0 || width == 0 || rows.iter().any(|r| r.len() != width) {
+                    return Err("range argument must be a non-empty rectangle".to_owned());
+                }
+                let start_col = column;
+                for (r, row) in rows.iter().enumerate() {
+                    for (c, cell) in row.iter().enumerate() {
+                        if let Some(content) = argument_cell(cell)? {
+                            let at = format!("{}{}", column_letters(start_col + c as u32), r + 1);
+                            cells.insert(at, Value::String(content));
+                        }
+                    }
+                }
+                let end_col = start_col + width as u32 - 1;
+                if height == 1 && width == 1 {
+                    refs.push(format!("{}1", column_letters(start_col)));
+                } else {
+                    refs.push(format!(
+                        "{}1:{}{}",
+                        column_letters(start_col),
+                        column_letters(end_col),
+                        height
+                    ));
+                }
+                column += width as u32;
+            } else {
+                let at = format!("{}1", column_letters(column));
+                column += 1;
+                if let Some(content) = argument_cell(arg)? {
+                    cells.insert(at.clone(), Value::String(content));
+                }
+                refs.push(at);
+            }
+        }
+        let mut formula = format!("{function}({})", refs.join(","));
+        if let Some((r, c)) = index {
+            formula = format!("INDEX({formula},{r},{c})");
+        }
+        let case = json!({
+            "sheets": [{"name": "S", "cells": cells}, {"name": "A"}, {"name": "Q"}],
+            "names": {},
+            "at": "S!A1",
+            "formula": format!("={formula}"),
+        });
+        evaluate(&case, locale, None)
+    })();
+    format_single_result(built)
+}
+
+fn format_single_result(built: Result<Value, String>) -> String {
     match built {
         Ok(answer) => match answer["value"].as_str() {
             // The worker reads Value2: a formula showing an empty cell reads as 0.
@@ -644,6 +724,60 @@ mod tests {
         assert_eq!(serial_single("SUM", &[json!([["0x4000000000000000", "0x4008000000000000"]])], None, None),
                    format!("0x{:016x}", 5f64.to_bits()));
         assert_eq!(serial_single("ROW", &[json!({"error": "NA"})], Some((1, 1)), None), one);
+    }
+
+    #[test]
+    fn a_range_single_call_preserves_blank_cells_in_a_worksheet_range() {
+        // Excel 16.0.20527 (dc-iuwct.43): admit3-range-mixed-WRAPCOLS-0924 with F1 genuinely blank.
+        let args = [
+            json!({"range": [[
+                "0x4051c4ec4ec4ec4f",
+                "apple4",
+                "0x3ff0000000000000",
+                "apple4",
+                null,
+                "a*0",
+                "0x4051c4ec4ec4ec4f"
+            ]]}),
+            json!("0x4014000000000000"),
+            json!("pad924"),
+        ];
+        assert_eq!(
+            range_single("WRAPCOLS", &args, Some((1, 1)), None),
+            "0x4051c4ec4ec4ec4f"
+        );
+        // Full 5x2 spill on the same layout matches Excel's 10 cells (including [5,1] = 0).
+        let spill_case = json!({
+            "sheets": [
+                {"name": "S", "cells": {
+                    "B1": "0x4051c4ec4ec4ec4f",
+                    "C1": "text:apple4",
+                    "D1": "0x3ff0000000000000",
+                    "E1": "text:apple4",
+                    "G1": "text:a*0",
+                    "H1": "0x4051c4ec4ec4ec4f",
+                    "I1": "0x4014000000000000",
+                    "J1": "text:pad924"
+                }},
+                {"name": "A"},
+                {"name": "Q"}
+            ],
+            "names": {},
+            "at": "S!A3",
+            "formula": "=WRAPCOLS(B1:H1,I1,J1)"
+        });
+        let answer = evaluate(&spill_case, None, None).unwrap();
+        assert_eq!(answer["value"], "0x4051c4ec4ec4ec4f");
+        assert_eq!(
+            answer["spill"],
+            json!([
+                ["0x4051c4ec4ec4ec4f", "text:a*0"],
+                ["text:apple4", "0x4051c4ec4ec4ec4f"],
+                ["0x3ff0000000000000", "text:pad924"],
+                ["text:apple4", "text:pad924"],
+                ["0x0000000000000000", "text:pad924"]
+            ])
+        );
     }
 
     /// Native-only: exercises the application's HostSession and workbook entry route.

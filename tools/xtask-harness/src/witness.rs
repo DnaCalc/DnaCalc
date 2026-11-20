@@ -98,6 +98,8 @@ const TEXTSPLIT_REPLAY: &str = "migration/evidence/dc-1943-textsplit-replay.json
 const MINVERSE_REPLAY: &str = "migration/evidence/dc-1943-minverse-replay.json.gz";
 const UNIQUE_RECAPTURE: &str = "migration/evidence/dc-ymjf-2-10-unique-recapture.json.gz";
 const UNIQUE_SCALAR_CAPTURE: &str = "readings/excel-20527/bank2-answers-unique-spill.json";
+const WRAPCOLS_RECAPTURE: &str = "migration/evidence/dc-iuwct-43-wrapcols-recapture.json";
+const WRAPCOLS_UNREAD_SOURCE: &str = "readings/excel-20527/admit3-answers-wrapcols-range-mixed.json";
 const BINOM_REPLAY: &str = "migration/evidence/dc-1943-binom-replay.json.gz";
 const LEDGER: &str = "function-lane/ledgers/EXCEL_PARITY_LEDGER.csv";
 const EDGE_ROWS: usize = 4;
@@ -1422,6 +1424,153 @@ fn unique_recaptures(doc: &Value) -> Result<BTreeMap<String, (Vec<Value>, String
     Ok(out)
 }
 
+/// Validated recapture of `admit3-range-mixed-WRAPCOLS-0924` (dc-iuwct.43): a single-call range
+/// sheet layout (`touchstone/1-range-single`) and a `cell_range` spill capture, both keeping the
+/// blank cell genuinely blank on Excel 16.0.20527.
+struct WrapcolsUnreadRecapture {
+    id: String,
+    original_args: Vec<Value>,
+    range_args: Vec<Value>,
+    index: (usize, usize),
+    expected: String,
+    env: ReadingSource,
+}
+
+fn typed_readback_matches_bank_arg(readback: &Value, bank: &Value) -> bool {
+    match bank {
+        Value::Null => readback["type"] == "blank",
+        Value::Bool(b) => readback["type"] == "boolean" && readback["value"].as_bool() == Some(*b),
+        Value::String(s) if s.len() == 18 && s.starts_with("0x") => {
+            readback["type"] == "number"
+                && readback["bits"]
+                    .as_str()
+                    .is_some_and(|bits| bits.eq_ignore_ascii_case(&s[2..]))
+        }
+        Value::String(s) => readback["type"] == "text" && readback["value"].as_str() == Some(s),
+        _ => false,
+    }
+}
+
+fn wrapcols_unread_recapture(doc: &Value) -> Result<WrapcolsUnreadRecapture, String> {
+    let fail = || "invalid WRAPCOLS range recapture".to_owned();
+    if doc["format"] != "dnacalc-wrapcols-range-recapture/1"
+        || doc["function"] != "WRAPCOLS"
+        || doc["original_source"] != WRAPCOLS_UNREAD_SOURCE
+        || doc["cell_layout"] != "touchstone/1-range-single"
+    {
+        return Err(fail());
+    }
+    let id = doc["id"].as_str().ok_or_else(fail)?;
+    let original = &doc["original_witness"];
+    if original["id"] != id
+        || original["expected_bits"] != "error:Spill"
+        || original["result_index"] != serde_json::json!([1, 1])
+    {
+        return Err(fail());
+    }
+    let original_args = original["args"].as_array().ok_or_else(fail)?;
+    if original_args.len() != 3 {
+        return Err(fail());
+    }
+    let vector_rows = original_args[0].as_array().ok_or_else(fail)?;
+    if vector_rows.len() != 1 {
+        return Err(fail());
+    }
+    let vector_cells = vector_rows[0].as_array().ok_or_else(fail)?;
+    if vector_cells.is_empty() || !vector_cells.iter().any(Value::is_null) {
+        return Err(fail());
+    }
+    // Check the single-call range sheet case reply.
+    let single = &doc["sheet_case_single"]["reply"];
+    if single["ok"] != true || single["excel_build"] != "20527" {
+        return Err(fail());
+    }
+    let single_row = single["rows"]
+        .as_array()
+        .and_then(|r| (r.len() == 1).then(|| &r[0]))
+        .ok_or_else(fail)?;
+    if single_row["type"] != "sheet_case" {
+        return Err(fail());
+    }
+    let probe_val = &single_row["probes"][0]["value"];
+    if probe_val["type"] != "number" {
+        return Err(fail());
+    }
+    let single_bits = probe_val["bits"]
+        .as_str()
+        .filter(|b| b.len() == 16 && b.bytes().all(|c| c.is_ascii_hexdigit()))
+        .ok_or_else(fail)?;
+    // Cross-check the cell_range spill capture with exact input readback (including blank).
+    let range_reply = &doc["cell_range_spill"]["reply"];
+    if range_reply["ok"] != true || range_reply["excel_build"] != "20527" {
+        return Err(fail());
+    }
+    let readback_args = range_reply["inputs"]
+        .as_array()
+        .and_then(|a| (a.len() == 1).then(|| &a[0]))
+        .and_then(Value::as_array)
+        .ok_or_else(fail)?;
+    if readback_args.len() != 3
+        || readback_args[0]["type"] != "range"
+        || !typed_readback_matches_bank_arg(&readback_args[1], &original_args[1])
+        || !typed_readback_matches_bank_arg(&readback_args[2], &original_args[2])
+    {
+        return Err(fail());
+    }
+    let rb_rows = readback_args[0]["values"].as_array().ok_or_else(fail)?;
+    if rb_rows.len() != 1 {
+        return Err(fail());
+    }
+    let rb_cells = rb_rows[0].as_array().ok_or_else(fail)?;
+    if rb_cells.len() != vector_cells.len()
+        || !rb_cells
+            .iter()
+            .zip(vector_cells)
+            .all(|(rb, orig)| typed_readback_matches_bank_arg(rb, orig))
+    {
+        return Err(fail());
+    }
+    let spill = &range_reply["rows"][0];
+    if spill["type"] != "array"
+        || spill["rows"] != 5
+        || spill["cols"] != 2
+        || spill["values"][0][0]["type"] != "number"
+        || spill["values"][0][0]["bits"].as_str() != Some(single_bits)
+    {
+        return Err(fail());
+    }
+    let env_id = single["env_id"].as_str().ok_or_else(fail)?;
+    let env_json = serde_json::json!({
+        "excel_build": single["excel_build"],
+        "platform": "Windows",
+        "excel_input_plumbing": "cell_value2_bulk",
+    });
+    let mut env = environment(
+        String::new(),
+        format!(
+            "DnaCalc {WRAPCOLS_RECAPTURE} env {env_id}; supersedes placement-dependent unread row {CHECKOUT} {WRAPCOLS_UNREAD_SOURCE}"
+        ),
+        Some(&env_json),
+        None,
+        single.get("calculation_settings"),
+    );
+    env.invocation.get_or_insert_with(Default::default).cell_layout =
+        Some("touchstone/1-range-single".to_owned());
+    let range_args = vec![
+        serde_json::json!({"range": original_args[0]}),
+        original_args[1].clone(),
+        original_args[2].clone(),
+    ];
+    Ok(WrapcolsUnreadRecapture {
+        id: id.to_owned(),
+        original_args: original_args.clone(),
+        range_args,
+        index: (1, 1),
+        expected: format!("0x{}", single_bits.to_ascii_lowercase()),
+        env,
+    })
+}
+
 fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>), String> {
     let mut banks = Banks {
         sources: Vec::new(),
@@ -1702,6 +1851,13 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
     } else {
         BTreeMap::new()
     };
+    let mut wrapcols_unread = if only.is_none_or(|f| f == "WRAPCOLS") {
+        Some(wrapcols_unread_recapture(&bank_json(include_bytes!(
+            "../../../migration/evidence/dc-iuwct-43-wrapcols-recapture.json"
+        ))?)?)
+    } else {
+        None
+    };
     // New readings (`cargo xtask witness read`), kept as plain WitnessSet files.
     for path in plain_readings(&checkout.join(READINGS)) {
         let rel = path
@@ -1738,7 +1894,40 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
         attest_touchstone_profile(&mut captured, doc.get("capture_provenance"));
         let mut source_of = BTreeMap::new();
         let mut recapture_source_of = BTreeMap::new();
-        record_unread_rows(&doc, &rel, &function, &mut banks, &mut unread)?;
+        if function == "WRAPCOLS"
+            && rel == WRAPCOLS_UNREAD_SOURCE
+            && let Some(recorded) = doc.get("unread").and_then(Value::as_array)
+            && let Some(recapture) = wrapcols_unread.as_ref()
+            && recorded.len() == 1
+            && recorded[0]["id"].as_str() == Some(recapture.id.as_str())
+        {
+            let recapture = wrapcols_unread.take().unwrap();
+            let orig = &recorded[0]["original_witness"];
+            if orig["args"].as_array() != Some(&recapture.original_args)
+                || orig["expected_bits"] != "error:Spill"
+                || orig["result_index"] != serde_json::json!([recapture.index.0, recapture.index.1])
+            {
+                return Err(format!(
+                    "{rel}: WRAPCOLS recapture identity differs for {}",
+                    recapture.id
+                ));
+            }
+            let source = banks.sources.len();
+            banks.sources.push(Source {
+                path: WRAPCOLS_RECAPTURE.to_owned(),
+                env: recapture.env,
+            });
+            banks.readings.push(Reading {
+                function: function.clone(),
+                id: recapture.id,
+                args: recapture.range_args,
+                index: Some(recapture.index),
+                expected: recapture.expected,
+                source,
+            });
+        } else {
+            record_unread_rows(&doc, &rel, &function, &mut banks, &mut unread)?;
+        }
         record_transport_audits(&doc, &rel, &mut banks)?;
         for (i, row) in rows.iter().enumerate() {
             let (Some(args), Some(expected)) =
@@ -1814,6 +2003,12 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
         return Err(format!(
             "{UNIQUE_RECAPTURE}: {} original rows not found",
             unique.len()
+        ));
+    }
+    if let Some(recapture) = wrapcols_unread {
+        return Err(format!(
+            "{WRAPCOLS_RECAPTURE}: original unread row {} not found",
+            recapture.id
         ));
     }
     if only.is_none_or(|f| f == "TEXTSPLIT") {
@@ -1961,9 +2156,13 @@ fn calculate_with_context(
         let nameless = apply && context.is_some_and(|c| c.defined_names.as_deref() == Some(""));
         let serial_single = apply
             && context.is_some_and(|c| c.cell_layout.as_deref() == Some("touchstone/1-serial-single"));
+        let range_single = apply
+            && context.is_some_and(|c| c.cell_layout.as_deref() == Some("touchstone/1-range-single"));
         if serial_single {
             // The recaptured call's whole sheet is known: judge it where Excel calculated it.
             crate::cell_context::serial_single(function, args, index, context)
+        } else if range_single {
+            crate::cell_context::range_single(function, args, index, context)
         } else if function.eq_ignore_ascii_case("INDIRECT") && nameless {
             let mut reference_text = NamelessReferenceText;
             witness_call::calculate_with_reference_text(
@@ -4342,6 +4541,36 @@ mod tests {
         assert_eq!(rows.len(), 1024);
         doc["replies"][0]["inputs"][0][0]["values"][0][0]["bits"] = "0000000000000000".into();
         assert!(super::unique_recaptures(&doc).is_err());
+    }
+
+    #[test]
+    fn wrapcols_range_recapture_requires_matching_blank_input_readback() {
+        let mut doc = super::bank_json(include_bytes!(
+            "../../../migration/evidence/dc-iuwct-43-wrapcols-recapture.json"
+        ))
+        .unwrap();
+        let recapture = super::wrapcols_unread_recapture(&doc).unwrap();
+        assert_eq!(recapture.id, "admit3-range-mixed-WRAPCOLS-0924");
+        assert_eq!(recapture.expected, "0x4051c4ec4ec4ec4f");
+        assert_eq!(
+            super::calculate_with_context(
+                "WRAPCOLS",
+                &recapture.range_args,
+                Some(recapture.index),
+                recapture.env.invocation.as_ref(),
+                true,
+            ),
+            recapture.expected
+        );
+        // Changing the blank cell read-back to 0 must fail validation.
+        let mut changed_blank = doc.clone();
+        changed_blank["cell_range_spill"]["reply"]["inputs"][0][0]["values"][0][4] =
+            serde_json::json!({"type": "number", "bits": "0000000000000000"});
+        assert!(super::wrapcols_unread_recapture(&changed_blank).is_err());
+        // Disagreement between the sheet-case and cell_range replies must fail validation.
+        doc["sheet_case_single"]["reply"]["rows"][0]["probes"][0]["value"]["bits"] =
+            "0000000000000000".into();
+        assert!(super::wrapcols_unread_recapture(&doc).is_err());
     }
 
     #[test]
