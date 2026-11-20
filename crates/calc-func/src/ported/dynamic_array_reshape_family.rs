@@ -1148,14 +1148,6 @@ impl SequenceWork {
     }
 }
 
-pub fn eval_sequence_prepared(
-    args: &[CalcValue],
-) -> Result<CalcValue, DynamicArrayReshapeEvalError> {
-    SequenceWork::new(args)?
-        .advance(usize::MAX)
-        .expect("unlimited sequence completes")
-}
-
 /// HSTACK (hstack.rs): the arguments side by side, each padded with #N/A below to the tallest.
 pub fn eval_hstack_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicArrayReshapeEvalError> {
     let sources: Vec<StackArgSource<'_>> = args.iter().map(StackArgSource::new).collect();

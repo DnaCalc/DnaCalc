@@ -50,11 +50,12 @@ kernels only (`:430-524`). `FunctionCallTarget` (`:530-710`) gives the metadata,
 calc-catalogue declaration by stable ID (`:21-115`); a generated kernel refuses an array in a value parameter and
 passes `Site::binary64` first (`:102-104`). Readers and publishers: `num`, `opt`, `text`, `grid`, `out` (`:118-433`).
 
-**Resumable kernels and LAMBDA callbacks.** `invoke_slice(.., elements) -> Result<Option<CalcValue>, _>`
-(`call.rs:576`) admits the arguments once, keeps a `KernelTask` in the scratch and advances it; `Ok(None)` is
-"not finished". Resumable: SEQUENCE (`cat/arrays.rs:632`), MAP, REDUCE, SCAN, BYROW, BYCOL, MAKEARRAY
-(`cat/lambda_helpers.rs:456-467`), GROUPBY, PIVOTBY (`cat/grouping.rs:910-911`). A helper calls its LAMBDA by
-`CallableInvoker::call_slice`: `Ok(None)` keeps the item, `CallAbandoned` ends in a fault (`call.rs:257-276`).
+**Resumable kernels and LAMBDA callbacks.** `invoke_slice` in `call.rs` admits the arguments once,
+keeps a `KernelTask` in the scratch and advances it. `Ok(None)` means the task is still running.
+SEQUENCE, MAP, REDUCE, SCAN, BYROW, BYCOL, MAKEARRAY, GROUPBY and PIVOTBY each attach one start
+kernel. A synchronous `invoke` advances the same task with an unbounded slice.
+`CallableInvoker::call_slice` keeps a waiting callback's activation with the caller, and
+`CallAbandoned` ends in a fault.
 
 **User functions** (`udf.rs`). `UserFunction` (`:194-247`): `call`, `call_with_context`, `begin_call`, and
 declarations such as `max_parallel_calls`, `cached_reads`. `UserFunctionInvocation::resume` (`:151-157`).
@@ -132,17 +133,15 @@ declarations such as `max_parallel_calls`, `cached_reads`. `UserFunctionInvocati
 - No bead id is named for `NumericMode::Exact` (`call.rs:445-447`) or localised names (FUNCTION_CATALOGUE.md:17).
 
 ## 8. Findings for the tracker
-1. `call.rs:564`: the `Kernel::Resumable { run, .. }` arm cannot run, because `invoke` returns at `:533-540` for
-   every resumable target; the `run` kernels and `Calls::Direct` (`cat/grouping.rs:315`) are dead code.
-2. `xn/x87.rs:9,19` name `super::nt_chains`; the module is `x87_chains` (`xn/mod.rs:80`).
-3. `xn/mod.rs:38-41` says no `f64::mul_add` anywhere; `xn/crt_pow.rs:11` and `cat/statistics/ets.rs:38` use it.
-4. `xn/mod.rs:61-64` says the entry points have no in-crate caller and allows dead code; 64 other files call them.
-5. `coerce.rs:27` names dc-6qki as owner of subnormal numbers; it is closed and the refusal remains
+1. `xn/x87.rs:9,19` name `super::nt_chains`; the module is `x87_chains` (`xn/mod.rs:80`).
+2. `xn/mod.rs:38-41` says no `f64::mul_add` anywhere; `xn/crt_pow.rs:11` and `cat/statistics/ets.rs:38` use it.
+3. `xn/mod.rs:61-64` says the entry points have no in-crate caller and allows dead code; 64 other files call them.
+4. `coerce.rs:27` names dc-6qki as owner of subnormal numbers; it is closed and the refusal remains
    (`kernel.rs:227`); `import.rs:779` (dc-z8c1) and `crates/calc-catalogue/src/unheld.rs:245,253` (dc-gh22) too.
-6. FUNCTION_CATALOGUE.md:9-11,27-28 puts each declaration in the calc-func family fragment; `catalogue.rs:4-5`
+5. FUNCTION_CATALOGUE.md:9-11,27-28 puts each declaration in the calc-func family fragment; `catalogue.rs:4-5`
    and `cat/kit.rs:5-6` put them in calc-catalogue, which AGENTS.md:20 and architecture.json do not list.
-7. `lib.rs:3` says formatting reaches the crate through a service contract; it holds `mod format` (`lib.rs:31`).
-8. `ported/acoth.rs:7-9` describes "the decimal literal below"; the constant is written with `f64::from_bits`.
+6. `lib.rs:3` says formatting reaches the crate through a service contract; it holds `mod format` (`lib.rs:31`).
+7. `ported/acoth.rs:7-9` describes "the decimal literal below"; the constant is written with `f64::from_bits`.
 
 Verified: every `path:line` above, read at `cb0b76a5` with `git show`/`git grep`; bead states from the tracker file.
 Inferred: that nothing else reaches a resumable entry's `run` kernel (grep of `Resumable` and three kernel names).

@@ -48,22 +48,17 @@ macro_rules! attach_eager_family {
 /// Attaches executable kernels to declarations owned by the shared data crate.
 macro_rules! ported_shared_family {
     (code: $code:expr; declarations: $decl:path; $(
-        $member:literal $fname:ident $(resume $resumer:ident => $resume:path;)?
-        |$s:ident, $a:ident, $sv:ident| $body:block
+        $member:literal $name:ident $(=> $resume:path;)? $(|$s:ident, $a:ident, $sv:ident| $body:block)?
     )*) => {
         const fn attach(data: calc_catalogue::WorksheetDeclaration) -> super::CatalogueEntry {
             let kernel = match data.id.raw() {
-                $(x if x == super::FunctionId::new($code, $member).raw() => super::Kernel::Eager($fname),)*
+                $(x if x == super::FunctionId::new($code, $member).raw() => ported_shared_family!(@kernel $name $(=> $resume)?),)*
                 _ => panic!("declaration has no attached kernel or refusal"),
             };
-            let entry = super::CatalogueEntry {
+            super::CatalogueEntry {
                 id: data.id, spelling: data.spelling, notation: data.notation, kind: data.kind,
                 availability: data.availability, arity: data.arity, groups: data.groups, parameters: data.parameters,
                 result: data.result, demand: data.demand, traits: data.traits, kernel,
-            };
-            match data.id.raw() {
-                $(x if x == super::FunctionId::new($code, $member).raw() => entry.with_continuation(ported_shared_family!(@resume $($resumer)?)),)*
-                _ => panic!("declaration has no attached kernel or refusal"),
             }
         }
         const ENTRIES: [super::CatalogueEntry; $decl.len()] = {
@@ -74,39 +69,42 @@ macro_rules! ported_shared_family {
             entries
         };
         pub(super) const FAMILY: super::Family = super::Family { code: $code, entries: &ENTRIES };
-        $(
-            $(fn $resumer(arguments: &[crate::value::CalcValue], services: &mut crate::call::EvalServices<'_>)
-                -> Result<Box<dyn crate::call::KernelTask>, crate::call::FunctionFault> {
-                let site = crate::kernel::Site::new(super::FunctionId::new($code, $member), services);
-                let outcome = (|| {
-                    let target = crate::catalogue::catalogue().resolve(super::FunctionId::new($code, $member)).expect("a declared entry");
-                    super::kit::scalars(&site, arguments, target.entry.parameters)?;
-                    site.binary64()?;
-                    $resume(&site, arguments, services)
-                })();
-                match outcome {
-                    Ok(task) => Ok(task),
-                    Err(crate::kernel::Exit::Error(code)) => Ok(Box::new(crate::call::ReadyTask(Some(crate::value::CalcValue::error(code))))),
-                    Err(crate::kernel::Exit::Fault(fault)) => Err(fault),
-                }
-            })?
-            fn $fname(arguments: &[crate::value::CalcValue], services: &mut crate::call::EvalServices<'_>)
-                -> Result<crate::value::CalcValue, crate::call::FunctionFault> {
-                #[allow(unused_variables)]
-                fn body($s: &crate::kernel::Site<'_>, $a: &[crate::value::CalcValue], $sv: &mut crate::call::EvalServices<'_>)
-                    -> crate::kernel::Step<crate::value::CalcValue> {
-                    const PARAMETERS: &[super::Parameter] = calc_catalogue::ported::find($decl, super::FunctionId::new($code, $member)).parameters;
-                    super::kit::scalars($s, $a, PARAMETERS)?;
-                    $s.binary64()?;
-                    $body
-                }
-                let site = crate::kernel::Site::new(super::FunctionId::new($code, $member), services);
-                crate::kernel::Site::finish(body(&site, arguments, services))
-            }
-        )*
+        $(ported_shared_family!(@define $decl, $code, $member, $name $(=> $resume)? $(|$s, $a, $sv| $body)?);)*
     };
-    (@resume) => { None };
-    (@resume $resumer:ident) => { Some($resumer) };
+    (@kernel $name:ident) => { super::Kernel::Eager($name) };
+    (@kernel $name:ident => $resume:path) => { super::Kernel::Resumable($name) };
+    (@define $decl:path, $code:expr, $member:literal, $name:ident => $resume:path) => {
+        fn $name(arguments: &[crate::value::CalcValue], services: &mut crate::call::EvalServices<'_>)
+            -> Result<Box<dyn crate::call::KernelTask>, crate::call::FunctionFault> {
+            let site = crate::kernel::Site::new(super::FunctionId::new($code, $member), services);
+            let outcome = (|| {
+                const PARAMETERS: &[super::Parameter] = calc_catalogue::ported::find($decl, super::FunctionId::new($code, $member)).parameters;
+                super::kit::scalars(&site, arguments, PARAMETERS)?;
+                site.binary64()?;
+                $resume(&site, arguments, services)
+            })();
+            match outcome {
+                Ok(task) => Ok(task),
+                Err(crate::kernel::Exit::Error(code)) => Ok(Box::new(crate::call::ReadyTask(Some(crate::value::CalcValue::error(code))))),
+                Err(crate::kernel::Exit::Fault(fault)) => Err(fault),
+            }
+        }
+    };
+    (@define $decl:path, $code:expr, $member:literal, $name:ident |$s:ident, $a:ident, $sv:ident| $body:block) => {
+        fn $name(arguments: &[crate::value::CalcValue], services: &mut crate::call::EvalServices<'_>)
+            -> Result<crate::value::CalcValue, crate::call::FunctionFault> {
+            #[allow(unused_variables)]
+            fn body($s: &crate::kernel::Site<'_>, $a: &[crate::value::CalcValue], $sv: &mut crate::call::EvalServices<'_>)
+                -> crate::kernel::Step<crate::value::CalcValue> {
+                const PARAMETERS: &[super::Parameter] = calc_catalogue::ported::find($decl, super::FunctionId::new($code, $member)).parameters;
+                super::kit::scalars($s, $a, PARAMETERS)?;
+                $s.binary64()?;
+                $body
+            }
+            let site = crate::kernel::Site::new(super::FunctionId::new($code, $member), services);
+            crate::kernel::Site::finish(body(&site, arguments, services))
+        }
+    };
     (@count $member:literal) => { () };
 }
 

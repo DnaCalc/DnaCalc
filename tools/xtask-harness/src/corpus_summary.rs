@@ -185,6 +185,7 @@ pub(crate) struct Compared {
     /// The class and key of a failure of the whole run (calc-doc refused the package, the
     /// recalculation failed).
     pub(crate) workbook_failure: Option<String>,
+    pub(crate) saved_excel_workbook_context: Option<String>,
 }
 
 impl Compared {
@@ -203,6 +204,9 @@ impl Compared {
         add_time(&mut self.times.capture, other.times.capture);
         if self.workbook_failure.is_none() {
             self.workbook_failure.clone_from(&other.workbook_failure);
+        }
+        if self.saved_excel_workbook_context.is_none() {
+            self.saved_excel_workbook_context.clone_from(&other.saved_excel_workbook_context);
         }
     }
 }
@@ -337,6 +341,9 @@ pub(crate) fn read_triage(triage: &Value) -> Result<Compared, String> {
             failure.get("key").and_then(Value::as_str).unwrap_or("?")
         )
     });
+    compared.saved_excel_workbook_context = triage["saved_excel_workbook_context"]
+        .as_str()
+        .map(str::to_owned);
     Ok(compared)
 }
 
@@ -495,6 +502,20 @@ pub(crate) fn rate(pass: u64, cells: u64) -> String {
     format!("{}.{:02}%", basis_points / 100, basis_points % 100)
 }
 
+pub(crate) fn saved_disagreement_summary(count: impl Fn(&str) -> Option<u64>) -> Option<String> {
+    let parts: Vec<_> = crate::compare_saved::WORKBOOK_CONTEXTS
+        .iter()
+        .filter_map(|(class, label)| {
+            let count = count(&format!("disagreements_{class}"))?;
+            Some(format!("{label} {count}"))
+        })
+        .collect();
+    (!parts.is_empty()).then(|| format!(
+        "Saved-cache disagreements by workbook context, including link-cache and held-value disagreements: {}.",
+        parts.join(", ")
+    ))
+}
+
 fn rate_json(pass: u64, cells: u64) -> Value {
     if cells == 0 {
         Value::Null
@@ -650,6 +671,9 @@ impl Summary {
                         entry["status"] = json!("compared");
                         entry["counts"] = counts_json(&compared.counts);
                         entry["whole_run_failure"] = json!(compared.workbook_failure);
+                        if let Some(context) = &compared.saved_excel_workbook_context {
+                            entry["saved_excel_workbook_context"] = json!(context);
+                        }
                         entry["wall_time_s"] = times_json(&times);
                     }
                     Err(not) => {
@@ -830,6 +854,9 @@ impl Summary {
                 &mut out,
                 &format!("- failed or missing by verdict: {}", parts.join(", ")),
             );
+        }
+        if let Some(saved) = saved_disagreement_summary(|key| c.saved_excel.get(key).copied()) {
+            line(&mut out, &format!("- {saved}"));
         }
         let t = &totals.times;
         line(

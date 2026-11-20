@@ -286,10 +286,10 @@ FLOOR.PRECISE	full	20430	1335	1335	-	exact	6e3d35aa62+changes	0	-	-	-	-	-	-
 FLOOR.PRECISE	pinned	20430	120	120	-	exact	ffb14981f5	0	120	0	0	0	0	0
 FORECAST	full	20131,20527	2984	2984	-	exact	6e3d35aa62+changes	0	-	-	-	-	-	-
 FORECAST	pinned	20131	70	70	-	exact	ffb14981f5	0	70	0	0	0	0	0
-FORECAST.ETS	full	20527	2959	2640	1440	gross	67e3a80634+changes	0	-	-	-	-	-	-
-FORECAST.ETS.CONFINT	full	20527	4355	4001	736	numeric	67e3a80634+changes	0	-	-	-	-	-	-
-FORECAST.ETS.SEASONALITY	full	20527	2958	2958	-	exact	67e3a80634+changes	0	-	-	-	-	-	-
-FORECAST.ETS.STAT	full	20527	2955	2955	-	exact	67e3a80634+changes	0	-	-	-	-	-	-
+FORECAST.ETS	full	20527	2959	2959	-	exact	78e5dd51bd+changes	0	2959	0	0	0	0	0
+FORECAST.ETS.CONFINT	full	20527	4355	4355	-	exact	78e5dd51bd+changes	0	4355	0	0	0	0	0
+FORECAST.ETS.SEASONALITY	full	20527	2958	2958	-	exact	78e5dd51bd+changes	0	2958	0	0	0	0	0
+FORECAST.ETS.STAT	full	20527	2955	2955	-	exact	78e5dd51bd+changes	0	2955	0	0	0	0	0
 FORECAST.LINEAR	full	20527	2910	2910	-	exact	6e3d35aa62+changes	0	-	-	-	-	-	-
 FORMULATEXT	full	20527	3100	3100	-	exact	6e3d35aa62+changes	0	-	-	-	-	-	-
 FREQUENCY	full	20527	1520	1520	-	exact	6e3d35aa62+changes	0	-	-	-	-	-	-
@@ -496,7 +496,7 @@ MONTH	full	20430	10153	10153	-	exact	6e3d35aa62+changes	0	-	-	-	-	-	-
 MONTH	pinned	20430	120	120	-	exact	ffb14981f5	0	120	0	0	0	0	0
 MROUND	full	20430	50782	50782	-	exact	6e3d35aa62+changes	0	-	-	-	-	-	-
 MROUND	pinned	20430	120	120	-	exact	ffb14981f5	0	120	0	0	0	0	0
-MULTINOMIAL	full	20527	2804	2804	-	exact	209aa59c1d+changes	0	-	-	-	-	-	-
+MULTINOMIAL	full	20527	2804	2804	-	exact	78e5dd51bd+changes	0	2804	0	0	0	0	0
 MUNIT	full	20527	1277	1277	-	exact	6e3d35aa62+changes	0	-	-	-	-	-	-
 N	full	20430	1227	1227	-	exact	6e3d35aa62+changes	0	-	-	-	-	-	-
 N	pinned	20430	120	120	-	exact	ffb14981f5	0	120	0	0	0	0	0
@@ -778,8 +778,8 @@ YEAR	full	20430,20527	10228	10228	-	exact	6e3d35aa62+changes	0	-	-	-	-	-	-
 YEAR	pinned	20430	120	120	-	exact	ffb14981f5	0	120	0	0	0	0	0
 YEARFRAC	full	20430	4506	4506	-	exact	6e3d35aa62+changes	0	-	-	-	-	-	-
 YEARFRAC	pinned	20430	120	120	-	exact	ffb14981f5	0	120	0	0	0	0	0
-YIELD	full	20228,20527	3489	3489	-	exact	67e3a80634+changes	0	-	-	-	-	-	-
-YIELD	pinned	20228,20527	120	120	-	exact	ffb14981f5	0	120	0	0	0	0	0
+YIELD	full	20228,20527	3489	3489	-	exact	78e5dd51bd	0	3489	0	0	0	0	0
+YIELD	pinned	20228,20527	120	120	-	exact	78e5dd51bd+changes	0	120	0	0	0	0	0
 YIELDDISC	full	20527	4340	4340	-	exact	6e3d35aa62+changes	0	-	-	-	-	-	-
 YIELDMAT	full	20131,?	1085	1085	-	exact	6e3d35aa62+changes	0	-	-	-	-	-	-
 YIELDMAT	pinned	20131	120	120	-	exact	ffb14981f5	0	120	0	0	0	0	0
