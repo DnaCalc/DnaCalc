@@ -56,20 +56,6 @@ fn beta_inverse(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     {
         return fail(WorksheetErrorCode::Num);
     }
-    // In the reflected search, a tiny second shape can make both the unit
-    // and the normal correction disappear from the initial chi proposal.
-    if p > 0.5 && p < 1.0 && alpha >= f64::MIN_POSITIVE && beta >= 1.0
-        && beta.is_finite() && beta + 1.0 > beta
-        && lower.is_finite() && upper.is_finite() && upper > lower && (upper - lower).is_finite()
-    {
-        let correction = 1.0 / (9.0 * alpha);
-        let root = correction.sqrt();
-        if correction.is_finite() && 1.0 + root == root
-            && nl::norm_s_inv_kernel(1.0 - p).is_ok_and(|z| correction - z * root == correction)
-        {
-            return fail(WorksheetErrorCode::Num);
-        }
-    }
     // In the upper-probability search, Excel rejects this measured region:
     // beta retains one but absorbs even twice alpha's excess over one.
     // Near the rounding midpoint, both numerical and NUM results occur.

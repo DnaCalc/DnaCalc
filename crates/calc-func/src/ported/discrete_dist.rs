@@ -146,7 +146,12 @@ pub(crate) fn beta_density_at(x: f64, y: f64, a: f64, b: f64) -> Option<f64> {
         ));
     }
     if a < 1.0 || b < 1.0 {
-        let ln_beta = crate::ported::special_math_common::excel_ln_beta_small(a, b)?;
+        // The half-shape power-series density shares its CDF's log beta.
+        let ln_beta = if a == 0.5 && b > 8.0 && x * b <= 0.49 {
+            crate::ported::special_math_common::half_shape_log_beta(b)
+        } else {
+            crate::ported::special_math_common::excel_ln_beta_small(a, b)?
+        };
         return Some(excel_exp_running(
             excel_x87_mul(a - 1.0, excel_log(x)),
             &[-excel_log1p_times(b - 1.0, -x), ln_beta],

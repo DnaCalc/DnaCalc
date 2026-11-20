@@ -58,7 +58,7 @@ BETA.INV	full	20527	4346	4088	1188129402768354	structural	d6422fb7da	0
 BETADIST	full	20131,20527,?	4639	4537	322	numeric	d6422fb7da	0
 BETADIST	pinned	20131	120	88	30	numeric	950e156402+changes	0
 BETAINV	full	20131,20527,?	4411	4163	764307040971430	structural	d6422fb7da	0
-BETAINV	pinned	20131	62	32	12	numeric	950e156402+changes	0
+BETAINV	pinned	20131	62	51	12	numeric	c99516dbbe+changes	0
 BIN2DEC	full	20430,20527	1347	1347	-	exact	218dcceeef	0
 BIN2DEC	pinned	20430	120	120	-	exact	7a3e51cd1b+changes	0
 BIN2HEX	full	20430,20527	2748	2748	-	exact	218dcceeef	0
@@ -271,7 +271,7 @@ FILTERXML	full	20527	4184	4184	-	exact	218dcceeef	0
 FIND	full	20527	2863	2863	-	exact	218dcceeef	0
 FINDB	full	20527	2861	2861	-	exact	218dcceeef	0
 FINV	full	20131,20527,?	4311	3973	1011046	gross	218dcceeef	0
-FINV	pinned	20131	32	4	41	numeric	7a3e51cd1b+changes	0
+FINV	pinned	20131	32	30	7	numeric	c99516dbbe+changes	0
 FISHER	full	20430	34166	34166	-	exact	218dcceeef	0
 FISHER	pinned	20430	120	120	-	exact	7a3e51cd1b+changes	0
 FISHERINV	full	20527	2087	2087	-	exact	218dcceeef	0
@@ -705,7 +705,7 @@ TBILLPRICE	pinned	20430	120	120	-	exact	7a3e51cd1b+changes	0
 TBILLYIELD	full	20430	2400	2400	-	exact	218dcceeef	0
 TBILLYIELD	pinned	20430	120	120	-	exact	7a3e51cd1b+changes	0
 TDIST	full	20131,20527,?	4363	4304	1687	gross	218dcceeef	0
-TDIST	pinned	20131	92	56	14	numeric	7a3e51cd1b+changes	0
+TDIST	pinned	20131	92	62	13	numeric	c99516dbbe+changes	0
 TEXT	full	20527	4632	4632	-	exact	218dcceeef	0
 TEXTAFTER	full	20527	4319	4319	-	exact	218dcceeef	0
 TEXTBEFORE	full	20527	4319	4319	-	exact	218dcceeef	0
@@ -715,7 +715,7 @@ TIME	full	20430	1296	1296	-	exact	218dcceeef	0
 TIME	pinned	20430	120	120	-	exact	7a3e51cd1b+changes	0
 TIMEVALUE	full	20527	2189	2189	-	exact	218dcceeef	0
 TINV	full	20131,20527,?	4220	4054	306433734	gross	218dcceeef	0
-TINV	pinned	20131	32	22	17	numeric	7a3e51cd1b+changes	0
+TINV	pinned	20131	32	25	12	numeric	c99516dbbe+changes	0
 TOCOL	full	20527	3000	3000	-	exact	218dcceeef	0
 TOROW	full	20527	3000	3000	-	exact	218dcceeef	0
 TRANSPOSE	full	20527	1277	1277	-	exact	d6422fb7da	0

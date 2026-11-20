@@ -1268,7 +1268,7 @@ fn bratio_gsumln(a: f64, b: f64) -> f64 {
 }
 
 /// betaln: evaluation of the logarithm of the beta function.
-fn bratio_betaln(a0: f64, b0: f64) -> f64 {
+pub(super) fn bratio_betaln(a0: f64, b0: f64) -> f64 {
     const E: f64 = 0.918938533204673e0;
     let mut a = a0.min(b0);
     let b = a0.max(b0);
@@ -1726,6 +1726,13 @@ fn excel_brcomp(a: f64, b: f64, x: f64, y: f64) -> Option<f64> {
     Some(excel_x87_mul(excel_x87_mul(x, y), density))
 }
 
+/// The log beta normalizer for the half-shape power series. Gamma's ratio
+/// avoids subtracting the logarithms of two nearly equal large gamma values.
+pub(super) fn half_shape_log_beta(b: f64) -> f64 {
+    use crate::ported::excel_numeric::{excel_x87_add, gammaln_excel};
+    excel_x87_add(gammaln_excel(0.5), bratio_algdiv(0.5, b))
+}
+
 /// bpser: power series expansion for Ix(a, b) when b <= 1 or b*x <= 0.7.
 fn bratio_bpser(a: f64, b: f64, x: f64, eps: f64) -> f64 {
     let mut bp = 0.0;
@@ -1734,6 +1741,9 @@ fn bratio_bpser(a: f64, b: f64, x: f64, eps: f64) -> f64 {
     }
     if let Some(ln_beta) = excel_ln_beta_small(a, b) {
         return crate::ported::excel_numeric::excel_beta_power_series(a, b, x, ln_beta);
+    }
+    if a == 0.5 && b > 8.0 {
+        return crate::ported::excel_numeric::excel_beta_power_series(a, b, x, half_shape_log_beta(b));
     }
     let a0 = a.min(b);
     if a0 >= 1.0 {
@@ -2078,7 +2088,11 @@ fn bratio_brcmp1(mu: i32, a: f64, b: f64, x: f64, y: f64) -> f64 {
 
 /// bfrac: continued fraction expansion for Ix(a, b) when a, b > 1.
 fn bratio_bfrac(a: f64, b: f64, x: f64, y: f64, lambda_: f64, eps: f64) -> f64 {
-    let bf = bratio_brcomp(a, b, x, y);
+    // The continued fraction uses the density at x and its stored complement.
+    // When the density normalizer overflows, retain the scaled beta prefactor.
+    let bf = excel_brcomp(a, b, x, 1.0 - x)
+        .filter(|value| value.is_finite())
+        .unwrap_or_else(|| bratio_brcomp(a, b, x, y));
     if bf == 0.0 {
         return bf;
     }
@@ -2135,7 +2149,11 @@ fn bratio_bgrat(a: f64, b: f64, x: f64, y: f64, w: f64, eps: f64) -> (f64, i32) 
     // values of b; with the rational below, the 90th percentile at (200, 0.3) is 59 units away,
     // with LN 5). It is not taken yet: the arm's other pieces are not read, the bank moves by one
     // row, and the three rows pinned below move from 3, 5, 3 to 9, 5, 3 units.
-    let lnx = if y > 0.375 {
+    // The half-shape Student tail switches to LN(x) strictly below 0.99.
+    // Its two adjacent x values can share the rounded complementary coordinate.
+    let lnx = if b == 0.5 && x < 0.99 {
+        crate::ported::excel_numeric::excel_log(x)
+    } else if y > 0.375 {
         crt_log(x)
     } else {
         bratio_alnrel(-y)

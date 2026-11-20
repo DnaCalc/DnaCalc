@@ -10,6 +10,51 @@ use calc_func::SubtotalExclusions;
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Ref, Value};
 use f1_support::*;
 
+/// Excel 20527 returns the final interior word on either side of an exhausted
+/// search in the upper tail. Both spellings also publish the overflowing
+/// cube's zero-density midpoint.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beta_inverse_trials_distinguish_an_error_from_a_rounded_endpoint() {
+    for name in ["BETA.INV", "BETAINV"] {
+        let eval = |b| call(name, vec![n(0.2345), n(1.0), n(b)]);
+        let last = f64::from_bits(1.0_f64.to_bits() - 1);
+        exact(eval(5.59091567993164e-8), last);
+        error(eval(3.9533743903218604e-8), Num);
+        exact(eval(2.79545783996582e-8), last);
+        exact(
+            call(name, vec![n(0.6214510800483708), n(1.2772934962614314e-104), n(8372.215410016592)]),
+            0.5,
+        );
+    }
+}
+
+/// The two F coordinates have different logarithms. Student t uses the
+/// stored reciprocal of its reflected beta coordinate. These public calls
+/// separate both transformations on the full Excel 20527 bank.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn f_and_t_inverse_publish_the_stored_beta_coordinate() {
+    for name in ["FINV", "F.INV.RT"] {
+        exact(
+            call(name, vec![n(0.05580357167072958), n(1.0), n(45000.0)]),
+            f64::from_bits(0x400d_43c9_e6bd_ccff),
+        );
+    }
+    exact(
+        call("F.INV", vec![n(0.031051988995025703), n(45000.0), n(1.015165749773542)]),
+        f64::from_bits(0x3fcb_864f_0c9f_094f),
+    );
+    for (probability, word) in [
+        (0.7441133420261704, 0x3fd4_e7f9_8213_f2d9),
+        (0.7803983538971425, 0x3fd1_db3b_535f_628a),
+    ] {
+        for name in ["TINV", "T.INV.2T"] {
+            exact(call(name, vec![n(probability), n(365.0)]), f64::from_bits(word));
+        }
+    }
+}
+
 /// Excel 20527 stores the half-shape beta inverse through LN and EXP.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
