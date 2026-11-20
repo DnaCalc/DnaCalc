@@ -1434,6 +1434,135 @@ fn dw3_dc_zjsg_4__editing_after_a_row_insert_in_the_same_session() {
     assert!((new.0 - 400.0).abs() < 0.5 && (new.1 - 200.0).abs() < 0.5, "{new:?}");
 }
 
+/// dc-zjsg.4 (dw4): a stored object edited after rows were deleted in the same session (both rows above the shape
+/// and rows overlapping its top), plus a new shape placed in the current sheet; the saved file holds each where
+/// the session shows it.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dw4_dc_zjsg_4__editing_after_a_row_delete_in_the_same_session() {
+    use calc_doc_model::{Axis, AxisChange, AxisEdit};
+    let bytes = include_bytes!("../../calc-doc/tests/fixtures/drawing/shapes-paint4.xlsx").to_vec();
+    let mut book = open(bytes);
+    let sheet = book.host().sheets()[0].id();
+    let triangle = book.host().shapes(sheet).iter().find(|s| s.name == "Freeform triangle").unwrap().clone();
+    let other = book.host().shapes(sheet).iter().find(|s| s.id != triangle.id).unwrap().clone();
+    let before = book.host().anchor_rectangle(sheet, &triangle.anchor);
+    let other_before = book.host().anchor_rectangle(sheet, &other.anchor);
+    // Delete two rows at row 1: every object starts below row 2, so each moves 30 pt up.
+    let edit = AxisEdit::new(sheet, Axis::Rows, AxisChange::Delete, 1, 2).unwrap();
+    assert!(book.dispatch(SkinIntent::EditAxis(edit)).accepted());
+    let top_now = before.1 - 30.0;
+    shape(&mut book, sheet, ShapeChange::Place { id: triangle.id, left: Some(pts(before.0 + 20.0)), top: Some(pts(top_now)), width: None, height: None });
+    shape(&mut book, sheet, add(ShapeKind::Shape, "rect", 400.0, 15.0, 40.0, 40.0));
+    let added = book.host().shapes(sheet).last().unwrap().id;
+    let reloaded = reopened(&mut book);
+    let rect = |b: &HostSession, id: u32| {
+        let s = b.host().shapes(sheet).iter().find(|s| s.id == id).unwrap().clone();
+        b.host().anchor_rectangle(sheet, &s.anchor)
+    };
+    let moved = rect(&reloaded, triangle.id);
+    assert!((moved.0 - before.0 - 20.0).abs() < 0.5 && (moved.1 - top_now).abs() < 0.5 && (moved.2 - before.2).abs() < 0.5, "{before:?} {moved:?}");
+    let untouched = rect(&reloaded, other.id);
+    assert!((untouched.1 - (other_before.1 - 30.0)).abs() < 0.5 && (untouched.0 - other_before.0).abs() < 0.5, "{other_before:?} {untouched:?}");
+    let new = rect(&reloaded, added);
+    assert!((new.0 - 400.0).abs() < 0.5 && (new.1 - 15.0).abs() < 0.5, "{new:?}");
+
+    // Deleting rows that overlap a stored shape's top edge, then moving it horizontally.
+    let mut book = open(calc_host::blank_package());
+    let sheet = book.host().sheets()[0].id();
+    shape(&mut book, sheet, add(ShapeKind::Shape, "rect", 40.0, 60.0, 80.0, 60.0));
+    let mut book = reopened(&mut book);
+    let id = book.host().shapes(sheet)[0].id;
+    // Rows 5..6 (0-based 4..5, 60..90 pt) overlap the shape's top (60..120 pt).
+    let del = AxisEdit::new(sheet, Axis::Rows, AxisChange::Delete, 5, 2).unwrap();
+    assert!(book.dispatch(SkinIntent::EditAxis(del)).accepted());
+    shape(&mut book, sheet, ShapeChange::Place { id, left: Some(pts(90.0)), top: None, width: None, height: None });
+    let reloaded = reopened(&mut book);
+    let r = reloaded.host().anchor_rectangle(sheet, &reloaded.host().shapes(sheet)[0].anchor);
+    assert!((r.0 - 90.0).abs() < 0.5 && (r.1 - 60.0).abs() < 0.5 && (r.2 - 80.0).abs() < 0.5 && (r.3 - 30.0).abs() < 0.5, "{r:?}");
+
+    // Deleting two columns opens two blank columns at the sheet's right edge (16383..16384): placing a shape
+    // there has no pre-image in the file's columns and must be refused rather than silently shifting left on save.
+    let mut book = open(calc_host::blank_package());
+    let sheet = book.host().sheets()[0].id();
+    let del_cols = AxisEdit::new(sheet, Axis::Columns, AxisChange::Delete, 1, 2).unwrap();
+    assert!(book.dispatch(SkinIntent::EditAxis(del_cols)).accepted());
+    let tail_left = book.host().column_left(sheet, 16382) + 1.0;
+    let revision = book.host().revision().get();
+    let refused = book.dispatch(SkinIntent::Command(WorkbookCommand::Shape {
+        sheet,
+        revision,
+        change: add(ShapeKind::Shape, "rect", tail_left, 15.0, 20.0, 20.0),
+    }));
+    assert!(!refused.accepted(), "placing in tail columns opened by a delete must be refused");
+}
+
+/// dc-zjsg.4 (dw4): editing stored and new shapes after a chain of axis edits (row insert, row delete, column
+/// insert) in the same session; placements into still-inserted rows or columns are refused, and the saved file
+/// holds every shape where the session shows it.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dw4_dc_zjsg_4__editing_after_an_axis_edit_chain_in_the_same_session() {
+    use calc_doc_model::{Axis, AxisChange, AxisEdit};
+    let bytes = include_bytes!("../../calc-doc/tests/fixtures/drawing/shapes-paint4.xlsx").to_vec();
+    let mut book = open(bytes);
+    let sheet = book.host().sheets()[0].id();
+    let col_w = book.host().column_left(sheet, 1);
+    let triangle = book.host().shapes(sheet).iter().find(|s| s.name == "Freeform triangle").unwrap().clone();
+    let nudged = book.host().shapes(sheet).iter().find(|s| s.id != triangle.id && s.kept.is_none()).unwrap().clone();
+    let untouched = book.host().shapes(sheet).iter().find(|s| s.id != triangle.id && s.id != nudged.id).unwrap().clone();
+    let tri_before = book.host().anchor_rectangle(sheet, &triangle.anchor);
+    let nudged_before = book.host().anchor_rectangle(sheet, &nudged.anchor);
+    let untouched_before = book.host().anchor_rectangle(sheet, &untouched.anchor);
+    // Add one shape before the axis chain so both pre-chain and post-chain session shapes are exercised.
+    shape(&mut book, sheet, add(ShapeKind::Shape, "rect", 200.0, 90.0, 50.0, 30.0));
+    let pre_added = book.host().shapes(sheet).last().unwrap().id;
+
+    // Chain: insert 3 rows at row 2, delete 1 row at row 3 (net +2 rows = +30 pt; rows 2..3 still inserted),
+    // insert 2 columns at column 1 (shift right by 2 * col_w; cols 1..2 inserted).
+    for edit in [
+        AxisEdit::new(sheet, Axis::Rows, AxisChange::Insert, 2, 3).unwrap(),
+        AxisEdit::new(sheet, Axis::Rows, AxisChange::Delete, 3, 1).unwrap(),
+        AxisEdit::new(sheet, Axis::Columns, AxisChange::Insert, 1, 2).unwrap(),
+    ] {
+        assert!(book.dispatch(SkinIntent::EditAxis(edit)).accepted());
+    }
+
+    // Move triangle (+20 pt right, +15 pt down from its shifted position), nudge `nudged` (+10, -15), add a shape.
+    let tri_target = (tri_before.0 + 2.0 * col_w + 20.0, tri_before.1 + 30.0 + 15.0);
+    shape(&mut book, sheet, ShapeChange::Place { id: triangle.id, left: Some(pts(tri_target.0)), top: Some(pts(tri_target.1)), width: None, height: None });
+    shape(&mut book, sheet, ShapeChange::Nudge { id: nudged.id, dx: pts(10.0), dy: pts(-15.0) });
+    shape(&mut book, sheet, add(ShapeKind::Shape, "rect", 400.0, 200.0, 40.0, 40.0));
+    let post_added = book.host().shapes(sheet).last().unwrap().id;
+
+    // Placing into a still-inserted row (row 2 -> 20 pt) or inserted column (col 1 -> 10 pt) is refused.
+    for (left, top) in [(None, Some(pts(20.0))), (Some(pts(10.0)), None)] {
+        let revision = book.host().revision().get();
+        let refused = book.dispatch(SkinIntent::Command(WorkbookCommand::Shape {
+            sheet,
+            revision,
+            change: ShapeChange::Place { id: post_added, left, top, width: None, height: None },
+        }));
+        assert!(!refused.accepted(), "expected refusal for ({left:?}, {top:?})");
+    }
+
+    let reloaded = reopened(&mut book);
+    let rect = |b: &HostSession, id: u32| {
+        let s = b.host().shapes(sheet).iter().find(|s| s.id == id).unwrap().clone();
+        b.host().anchor_rectangle(sheet, &s.anchor)
+    };
+    let tri_after = rect(&reloaded, triangle.id);
+    assert!((tri_after.0 - tri_target.0).abs() < 0.5 && (tri_after.1 - tri_target.1).abs() < 0.5 && (tri_after.2 - tri_before.2).abs() < 0.5, "{tri_before:?} {tri_after:?}");
+    let nudged_after = rect(&reloaded, nudged.id);
+    assert!((nudged_after.0 - (nudged_before.0 + 2.0 * col_w + 10.0)).abs() < 0.5 && (nudged_after.1 - (nudged_before.1 + 30.0 - 15.0)).abs() < 0.5, "{nudged_before:?} {nudged_after:?}");
+    let untouched_after = rect(&reloaded, untouched.id);
+    assert!((untouched_after.0 - (untouched_before.0 + 2.0 * col_w)).abs() < 0.5 && (untouched_after.1 - (untouched_before.1 + 30.0)).abs() < 0.5, "{untouched_before:?} {untouched_after:?}");
+    let pre_after = rect(&reloaded, pre_added);
+    assert!((pre_after.0 - (200.0 + 2.0 * col_w)).abs() < 0.5 && (pre_after.1 - 120.0).abs() < 0.5, "{pre_after:?}");
+    let post_after = rect(&reloaded, post_added);
+    assert!((post_after.0 - 400.0).abs() < 0.5 && (post_after.1 - 200.0).abs() < 0.5, "{post_after:?}");
+}
+
 /// dc-zjsg.6 (dw3): a chart whose anchor says `editAs="oneCell"` keeps its size when a row inside its span is made taller
 /// (as a shape does); one without keeps sizing with its cells.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
