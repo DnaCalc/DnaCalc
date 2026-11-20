@@ -383,8 +383,9 @@ impl CompiledPlan {
 
     /// Whether the formula itself carries Excel's volatile token: it calls RAND, RANDBETWEEN,
     /// RANDARRAY, NOW, TODAY, OFFSET, INDIRECT, CELL, INFO, SHEET, SHEETS or FORMULATEXT
-    /// (VOLATILITY.md P1). A call a lazy function may never ask for counts too, as it does in
-    /// Excel. A defined name's body gives the formula no token: running the name is an event
+    /// (VOLATILITY.md P1). The catalogue also sets this token for WEBSERVICE, pending an Excel
+    /// measurement. A syntactic call counts even if a lazy function never asks for it.
+    /// Running a volatile defined name supplies an event
     /// ([`CompiledPlan::name_body_volatile`]).
     pub fn volatile(&self) -> bool {
         self.volatile_calls_where(|owner| owner.is_none())
