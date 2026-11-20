@@ -1073,16 +1073,23 @@ impl Controller {
         self.paste_preview.set(None);
         self.selection.set(ViewMirror::default().into());
         self.subscribe(wire::Interest::Selection, self.selection);
-        if let Some(at) = self.active_key_untracked()
-            && let Ok(area) = GridArea::new(at, at)
-        {
-            self.dispatch(
-                Intent::Select {
-                    active: Key::of(at),
-                    areas: vec![Area::of(area)],
-                },
-                |_| {},
-            );
+        if let Some(at) = self.active_key_untracked() {
+            // The stored range itself, not the active cell alone: the reply resets the areas.
+            let areas: Vec<Area> = self
+                .areas
+                .get_untracked()
+                .iter()
+                .map(|area| Area::of(*area))
+                .collect();
+            if !areas.is_empty() {
+                self.dispatch(
+                    Intent::Select {
+                        active: Key::of(at),
+                        areas,
+                    },
+                    |_| {},
+                );
+            }
         }
         self.revision.update(|n| *n += 1);
         self.say(message, false);
@@ -4771,6 +4778,60 @@ mod projection_lifetime_tests {
                 &*seen.borrow(),
                 &(0..wire::MAX_PENDING_REQUESTS).collect::<Vec<_>>()
             );
+        });
+    }
+
+    /// dc-971p.43.2: a file's stored range selection opens as that range, through the open route (the
+    /// worker's reply to the opening Select must not reset it to the active cell alone).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn an_opened_workbook_keeps_its_stored_range_selection() {
+        let root = Owner::new();
+        root.with(|| {
+            let mut source = dna_calc_worker::server::Server::new();
+            let id = source.book_mut().host().sheets()[0].id();
+            let sheet = Sheet::of(id);
+            let geometry = source.geometry(sheet);
+            let revision = source.book_mut().host().revision().get();
+            let bytes = source
+                .execute_current(
+                    Request::SaveWithContext {
+                        calculate_before_save: Some(false),
+                        views: Some(wire::SaveWindow {
+                            revision,
+                            active_sheet: sheet,
+                            sheets: vec![wire::SheetWindow {
+                                geometry,
+                                sheet,
+                                active: (2, 2),
+                                selection: Some((2, 2, 4, 3)),
+                                active_pane: 0,
+                                panes: vec![wire::PaneWindow {
+                                    index: 0,
+                                    x: 0.,
+                                    y: 0.,
+                                    zoom: 1.,
+                                }],
+                            }],
+                        }),
+                    },
+                    None,
+                )
+                .bytes
+                .expect("a saved image");
+            let controller = Controller::with_transport(std::rc::Rc::new(
+                dna_calc_worker::transport::InProcessTransport::default(),
+            ));
+            controller.open("stored.xlsx", bytes, |opened| assert!(opened));
+            let first = controller.sheet.get_untracked().unwrap();
+            let want = GridArea::new(
+                CellKey::new(first, 2, 2).unwrap(),
+                CellKey::new(first, 4, 3).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(controller.active.get_untracked(), (2, 2));
+            assert_eq!(controller.corner.get_untracked(), (4, 3));
+            assert_eq!(controller.areas.get_untracked(), vec![want]);
         });
     }
 
