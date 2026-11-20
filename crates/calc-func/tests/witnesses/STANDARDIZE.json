@@ -3,16 +3,16 @@
   "function": "STANDARDIZE",
   "selection": "cargo xtask witness pin: of 10310 distinct readings in 3 bank files of OxFunc-Evidence, the first 4 rows of each bank and an evenly spaced sample of the rest, the budget of 120 rows shared by bank size; calc_func is the result calc-func calculated at pinning, on rows it did not match",
   "readings": [
-    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r0","platform":"Windows","source":"OxFunc-Evidence runs/w111-broad-20260929/answers/answers-standardize.json"},
-    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r1","platform":"Windows","source":"OxFunc-Evidence runs/w111-integer-publication-20260929/answers/answers-standardize.json"},
-    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r2","platform":"Windows","source":"OxFunc-Evidence runs/w111-numeric-publication-heldout-20260929/answers/answers-standardize.json"}
+    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r0","invocation":{"compatibility_version":"2","input_sheet_state":"visible-constant-inputs","input_transport":"cell_value2_bulk"},"platform":"Windows","source":"OxFunc-Evidence runs/w111-broad-20260929/answers/answers-standardize.json"},
+    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r1","invocation":{"compatibility_version":"2","input_sheet_state":"visible-constant-inputs","input_transport":"cell_value2_bulk"},"platform":"Windows","source":"OxFunc-Evidence runs/w111-integer-publication-20260929/answers/answers-standardize.json"},
+    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r2","invocation":{"compatibility_version":"2","input_sheet_state":"visible-constant-inputs","input_transport":"cell_value2_bulk"},"platform":"Windows","source":"OxFunc-Evidence runs/w111-numeric-publication-heldout-20260929/answers/answers-standardize.json"}
   ],
   "witnesses": [
     {"args":["0x0000000000000000","0x0000000000000000","0x0000000000000000"],"expected_bits":"error:Num","id":"w111broad-20260929-STANDARDIZE-00001","reading":"r0"},
     {"args":["0x0000000000000000","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"0x0000000000000000","id":"w111broad-20260929-STANDARDIZE-00002","reading":"r0"},
     {"args":["0x0000000000000000","0x0000000000000000","0x4000000000000000"],"expected_bits":"0x0000000000000000","id":"w111broad-20260929-STANDARDIZE-00003","reading":"r0"},
     {"args":["0x0000000000000000","0x0000000000000000","0xbff0000000000000"],"expected_bits":"error:Num","id":"w111broad-20260929-STANDARDIZE-00000","reading":"r0"},
-    {"args":["0x0000000000000001","0x0000000000000000","0x0000000000000000"],"calc_func":"fault:NotImplemented","expected_bits":"error:Num","id":"w111broad-20260929-STANDARDIZE-00009","reading":"r0"},
+    {"args":["0x0000000000000001","0x0000000000000000","0x0000000000000000"],"expected_bits":"error:Num","id":"w111broad-20260929-STANDARDIZE-00009","reading":"r0"},
     {"args":["0x40f501e19999999a","0xc1298d9c1111cf45","0x41438d9e3bab1b12"],"expected_bits":"0x3fd70ef2f0a16ff6","id":"w111broad-20260929-STANDARDIZE-01204","reading":"r0"},
     {"args":["0x412b186e33333333","0xc1198285827988dc","0x40a68a8364a18071"],"expected_bits":"0x407c4951aa17a881","id":"w111broad-20260929-STANDARDIZE-00424","reading":"r0"},
     {"args":["0x417c9c8814ec4e58","0x411bbbe8b3199ebc","0x4110fa44cc3c636c"],"expected_bits":"0x405a8e38165ab9d1","id":"w111broad-20260929-STANDARDIZE-00317","reading":"r0"},

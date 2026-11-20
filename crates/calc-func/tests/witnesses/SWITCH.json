@@ -3,7 +3,7 @@
   "function": "SWITCH",
   "selection": "cargo xtask witness pin: of 1227 distinct readings in 1 bank files of OxFunc-Evidence, the first 4 rows of each bank and an evenly spaced sample of the rest, the budget of 120 rows shared by bank size; calc_func is the result calc-func calculated at pinning, on rows it did not match",
   "readings": [
-    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r0","platform":"Windows","source":"OxFunc-Evidence runs/w111-broad-20260929/answers/answers-switch.json"}
+    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r0","invocation":{"compatibility_version":"2","input_sheet_state":"visible-constant-inputs","input_transport":"cell_value2_bulk"},"platform":"Windows","source":"OxFunc-Evidence runs/w111-broad-20260929/answers/answers-switch.json"}
   ],
   "witnesses": [
     {"args":["0x0000000000000000","0x0000000000000000","0x0293dcff1d74d589","0x3ff0000000000000","0x41144f7800000000","0xc1960c049c662742"],"expected_bits":"0x0293dcff1d74d589","id":"w111broad-20260929-SWITCH-01212","reading":"r0"},
@@ -40,7 +40,7 @@
     {"args":["0x0000000000000000","0x0000000000000000","0xc19401b00c540e9e","0x3ff0000000000000","0x417e236aea5ca4c0","0x3025189f3212004e"],"expected_bits":"0xc19401b00c540e9e","id":"w111broad-20260929-SWITCH-00985","reading":"r0"},
     {"args":["0x0000000000000000","0x0000000000000000","0xc196f8904e78f780","0x3ff0000000000000","0xd8323fcd59b37c50","0x4117e61066666666"],"expected_bits":"0xc196f8904e78f780","id":"w111broad-20260929-SWITCH-00471","reading":"r0"},
     {"args":["0x0000000000000000","0x0000000000000000","0xdb29875f06223bdb","0x3ff0000000000000","0x411d4a7c00000000","0xc19120ec7f20fe65"],"expected_bits":"0xdb29875f06223bdb","id":"w111broad-20260929-SWITCH-00802","reading":"r0"},
-    {"args":["0x0000000000000001","0x3ff0000000000000","0x4024000000000000","0xbff0000000000000","0x4034000000000000","0x403e000000000000"],"calc_func":"fault:NotImplemented","expected_bits":"0x403e000000000000","id":"w111broad-20260929-SWITCH-00002","reading":"r0"},
+    {"args":["0x0000000000000001","0x3ff0000000000000","0x4024000000000000","0xbff0000000000000","0x4034000000000000","0x403e000000000000"],"expected_bits":"0x403e000000000000","id":"w111broad-20260929-SWITCH-00002","reading":"r0"},
     {"args":["0x3fb999999999999a","0x0000000000000000","0x29cd148d6bea4f9a","0x3ff0000000000000","0x41289f3800000000","0xc145a27457761ae0"],"expected_bits":"0xc145a27457761ae0","id":"w111broad-20260929-SWITCH-00117","reading":"r0"},
     {"args":["0x3fb999999999999a","0x0000000000000000","0x41057ea000000000","0x3ff0000000000000","0x418ae0349d99babc","0x414ba4414cb5f9c0"],"expected_bits":"0x414ba4414cb5f9c0","id":"w111broad-20260929-SWITCH-00283","reading":"r0"},
     {"args":["0x3fb999999999999a","0x0000000000000000","0x411d6db400000000","0x3ff0000000000000","0x41937ef572b20d6e","0x4188ec4071512d4c"],"expected_bits":"0x4188ec4071512d4c","id":"w111broad-20260929-SWITCH-00358","reading":"r0"},
