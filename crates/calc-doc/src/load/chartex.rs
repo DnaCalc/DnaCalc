@@ -194,6 +194,11 @@ pub(super) fn read(package: &Package, part: &str, name: String, anchor: ChartAnc
         }
         plot.series.push(ChartSeries { index: index as u32, name, categories, values, outer_levels, ..ChartSeries::default() });
     }
+    plot.gap_width = chart_node
+        .child("plotArea")
+        .and_then(|a| a.children.iter().filter(|c| c.local == "axis").find_map(|a| a.child("catScaling")))
+        .and_then(|c| c.attribute("gapWidth"))
+        .map(str::to_owned);
     if plot.series.is_empty() {
         return None;
     }

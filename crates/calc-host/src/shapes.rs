@@ -713,6 +713,20 @@ const ELBOW_STANDOFF: f64 = 18.0;
 /// route must go round, a leg [`ELBOW_STANDOFF`] outside the box. `None` if nothing fits: the connector is left as it
 /// was. Excel's own choice of class and of adjust values for such a route is not measured (dc-zjsg.5).
 fn elbow_route(start: (f64, f64), end: (f64, f64), d1: (i32, i32), d2: (i32, i32), class: u32, rotation: i64, current: [f64; 3]) -> Option<(u32, i64, Option<[f64; 3]>)> {
+    let (class, rotation, adjust) = elbow_route_any(start, end, d1, d2, class, rotation, current)?;
+    // Excel stores a run that goes against the connector's own y as a flip of x and the turn half a turn on, never a
+    // flip of y (Excel: a bentConnector3 from a bottom to a top site, the lower shape moved right, went from rot 90 to
+    // rot 270 with flipH, dw2 Windows item 4): of the two turns that draw the same route, the one without a flip of y.
+    let used = adjust.unwrap_or(current);
+    let run = turned((end.0 - start.0, end.1 - start.1), -rotation);
+    let other = (rotation + 180 * 60_000).rem_euclid(360 * 60_000);
+    if run.1 < -0.01 && elbow_fits(start, end, d1, d2, class, other, used) {
+        return Some((class, other, adjust));
+    }
+    Some((class, rotation, adjust))
+}
+
+fn elbow_route_any(start: (f64, f64), end: (f64, f64), d1: (i32, i32), d2: (i32, i32), class: u32, rotation: i64, current: [f64; 3]) -> Option<(u32, i64, Option<[f64; 3]>)> {
     if elbow_fits(start, end, d1, d2, class, rotation, current) {
         return Some((class, rotation, None));
     }

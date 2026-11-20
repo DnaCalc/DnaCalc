@@ -32,7 +32,7 @@ fallback Excel writes for older readers), over F2:F6 (Change: 10, -3, 4, -2 and 
  20 "Pareto"       the same with a cx:paretoLine series (the cumulative share)
 Not yet opened by Excel (codex-runs/dw2/RUN-ON-WINDOWS.txt).
 Run: python3 -I make-chart-kinds.py shapes-paint4.xlsx chart-kinds.xlsx"""
-import sys, zipfile
+import os, sys, zipfile
 
 theme = zipfile.ZipFile(sys.argv[1]).read("xl/theme/theme1.xml")
 header = ["Day", "Low", "High", "Close", "Last", "Change"]
@@ -231,18 +231,20 @@ for k, (title, layout, col, layout_pr, (prefix, ns)) in enumerate(chartex):
     col_, row = 6 + (n % 2) * 8, (n // 2) * 15
     place = (f'<xdr:from><xdr:col>{col_}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>{row}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>'
              f'<xdr:to><xdr:col>{col_ + 7}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>{row + 14}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>')
+    # Excel requires the block of alternatives INSIDE the anchor, around the graphic frame, after `xdr:to`
+    # (dw2 Windows item 5: wrapping whole anchors makes Excel refuse the workbook).
     anchors.append(
-        f'<mc:AlternateContent xmlns:mc="{MC}"><mc:Choice xmlns:{prefix}="{ns}" Requires="{prefix}"><xdr:twoCellAnchor>{place}'
+        f'<xdr:twoCellAnchor>{place}<mc:AlternateContent xmlns:mc="{MC}"><mc:Choice xmlns:{prefix}="{ns}" Requires="{prefix}">'
         f'<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="{n + 2}" name="{title}"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>'
         '<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm>'
         f'<a:graphic><a:graphicData uri="{CX}"><cx:chart xmlns:cx="{CX}" r:id="rId{n + 1}"/></a:graphicData></a:graphic></xdr:graphicFrame>'
-        f'<xdr:clientData/></xdr:twoCellAnchor></mc:Choice><mc:Fallback><xdr:twoCellAnchor>{place}'
+        '</mc:Choice><mc:Fallback>'
         '<xdr:sp macro="" textlink=""><xdr:nvSpPr><xdr:cNvPr id="0" name=""/><xdr:cNvSpPr><a:spLocks noTextEdit="1"/></xdr:cNvSpPr></xdr:nvSpPr>'
         '<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="4572000" cy="2743200"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom>'
         '<a:solidFill><a:prstClr val="white"/></a:solidFill><a:ln w="1"><a:solidFill><a:prstClr val="green"/></a:solidFill></a:ln></xdr:spPr>'
         '<xdr:txBody><a:bodyPr vertOverflow="clip" horzOverflow="clip"/><a:lstStyle/><a:p><a:r><a:rPr lang="en-US" sz="1100"/>'
-        '<a:t>This chart isn\'t available in your version of Excel.</a:t></a:r></a:p></xdr:txBody></xdr:sp><xdr:clientData fLocksWithSheet="0"/>'
-        '</xdr:twoCellAnchor></mc:Fallback></mc:AlternateContent>')
+        '<a:t>This chart isn\'t available in your version of Excel.</a:t></a:r></a:p></xdr:txBody></xdr:sp>'
+        '</mc:Fallback></mc:AlternateContent><xdr:clientData/></xdr:twoCellAnchor>')
 drawing = (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<xdr:wsDr xmlns:xdr="{XDR}" xmlns:a="{A}" xmlns:r="{R}">' + "".join(anchors) + "</xdr:wsDr>")
 drawing_rels = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
                 + "".join(f'<Relationship Id="rId{n + 1}" Type="{R}/chart" Target="../charts/chart{n + 1}.xml"/>' for n in range(len(charts)))
@@ -263,7 +265,9 @@ files = {
         f'<Override PartName="/xl/theme/theme1.xml" ContentType="{CT}.theme+xml"/><Override PartName="/xl/styles.xml" ContentType="{CT}.spreadsheetml.styles+xml"/>'
         f'<Override PartName="/xl/drawings/drawing1.xml" ContentType="{CT}.drawing+xml"/>'
         + "".join(f'<Override PartName="/xl/charts/chart{n + 1}.xml" ContentType="{CT}.drawingml.chart+xml"/>' for n in range(len(charts)))
-        + "".join(f'<Override PartName="/xl/charts/chartEx{k + 1}.xml" ContentType="application/vnd.ms-office.chartex+xml"/>' for k in range(len(chartex))) + '</Types>',
+        + "".join(f'<Override PartName="/xl/charts/chartEx{k + 1}.xml" ContentType="application/vnd.ms-office.chartex+xml"/>'
+                  f'<Override PartName="/xl/charts/style{k + 1}.xml" ContentType="application/vnd.ms-office.chartstyle+xml"/>'
+                  f'<Override PartName="/xl/charts/colors{k + 1}.xml" ContentType="application/vnd.ms-office.chartcolorstyle+xml"/>' for k in range(len(chartex))) + '</Types>',
     "_rels/.rels": f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="{R}/officeDocument" Target="xl/workbook.xml"/></Relationships>',
     "xl/workbook.xml": f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="{R}"><sheets><sheet name="Kinds" sheetId="1" r:id="rId1"/></sheets></workbook>',
     "xl/_rels/workbook.xml.rels": f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="{R}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="{R}/theme" Target="theme/theme1.xml"/><Relationship Id="rId3" Type="{R}/styles" Target="styles.xml"/></Relationships>',
@@ -276,8 +280,19 @@ files = {
 }
 for n, (title, view, plot) in enumerate(charts):
     files[f"xl/charts/chart{n + 1}.xml"] = chart_xml(title, view, plot)
+# Each Excel 2016 chart part names a style part and a colour-style part (dw2 Windows item 5: Excel refuses the workbook
+# without them); these are the ones Excel wrote for a chart of its own (chartex-style/).
+here = os.path.dirname(os.path.abspath(__file__))
+style_xml = open(os.path.join(here, "chartex-style", "style.xml"), "rb").read()
+colors_xml = open(os.path.join(here, "chartex-style", "colors.xml"), "rb").read()
 for k, (title, layout, col, layout_pr, _) in enumerate(chartex):
     files[f"xl/charts/chartEx{k + 1}.xml"] = chartex_xml(title, layout, col, layout_pr)
+    files[f"xl/charts/style{k + 1}.xml"] = style_xml
+    files[f"xl/charts/colors{k + 1}.xml"] = colors_xml
+    files[f"xl/charts/_rels/chartEx{k + 1}.xml.rels"] = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        f'<Relationship Id="rId2" Type="http://schemas.microsoft.com/office/2011/relationships/chartColorStyle" Target="colors{k + 1}.xml"/>'
+        f'<Relationship Id="rId1" Type="http://schemas.microsoft.com/office/2011/relationships/chartStyle" Target="style{k + 1}.xml"/></Relationships>')
 with zipfile.ZipFile(sys.argv[2], "w", zipfile.ZIP_DEFLATED) as z:
     for name_, content in files.items():
         info = zipfile.ZipInfo(name_, date_time=(2026, 11, 20, 0, 0, 0))

@@ -150,6 +150,8 @@ pub struct PlotView {
     pub pareto: bool,
     /// A surface plot drawn as a wireframe.
     pub wireframe: bool,
+    /// An Excel 2016 chart's gap between bars as a share of a bar (`None`: the kind's default).
+    pub gap_width: Option<f64>,
     pub box_visibility: [bool; 4],
     pub up_down_bars: bool,
 }
@@ -281,6 +283,7 @@ impl HostState {
                         binning: plot.binning.clone(),
                         pareto: plot.pareto,
                         wireframe: plot.wireframe,
+                        gap_width: plot.gap_width.as_deref().and_then(|g| g.trim().parse().ok()).filter(|g: &f64| g.is_finite() && *g >= 0.0),
                         box_visibility: plot.box_visibility.unwrap_or([true, false, true, false]),
                         up_down_bars: plot.up_down_bars,
                         stacked: matches!(grouping, "stacked" | "percentStacked"),

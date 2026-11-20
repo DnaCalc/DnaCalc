@@ -174,6 +174,8 @@ pub struct ChartPlot {
     pub binning: Option<Binning>,
     /// A Pareto: the histogram's series is followed by a `paretoLine` series (the cumulative percentage).
     pub pareto: bool,
+    /// An Excel 2016 chart's `cx:catScaling gapWidth` (as a share of a bar), as written; `None` when absent.
+    pub gap_width: Option<String>,
     /// A surface plot's `c:wireframe` (dc-zjsg.6).
     pub wireframe: bool,
     pub up_down_bars: bool,

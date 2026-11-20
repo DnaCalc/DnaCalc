@@ -1304,7 +1304,10 @@ fn dc_zjsg_5__a_turned_elbow_connector_is_rerouted_between_its_sites() {
     // The lower rectangle moves right: its top site is at 250 pt, 260 pt.
     shape(&mut stored, sheet, ShapeChange::Place { id: 3, left: Some(pts(200.0)), top: None, width: None, height: None });
     let moved = ends(&stored);
-    assert_eq!((moved.0, moved.1, moved.2), ((70.0, 170.0), (250.0, 260.0), 90 * 60_000));
+    // Excel (dw2 Windows item 4): the lower shape moved right turns the connector from 90 to 270 degrees, flipped in x.
+    assert_eq!((moved.0, moved.1, moved.2), ((70.0, 170.0), (250.0, 260.0), 270 * 60_000));
+    let c = stored.host().shapes(sheet).iter().find(|s| s.id == 4).unwrap().clone();
+    assert!(c.flip_horizontal && !c.flip_vertical);
     // Anchored on the box from site to site.
     assert_eq!(moved.3, (70.0, 170.0, 180.0, 90.0));
     let again = reopened(&mut stored);

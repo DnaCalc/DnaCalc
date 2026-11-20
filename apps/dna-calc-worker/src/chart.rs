@@ -603,8 +603,7 @@ fn trendline_points(t: &calc_host::ChartTrendline, xy: &[(f64, f64)], low: f64, 
 
 /// Where a series' error bars reach at each point, in value units (`low`, `high`, and the value they are drawn
 /// about), as Excel computes them (dc-zjsg.6): a fixed amount, a percentage of the value, a number of standard
-/// deviations (n - 1) about the series' mean, or the standard error, sqrt(sum of y^2 / (n (n - 1))) as Excel's help
-/// gives it (ASSUMED until a side-by-side); plus, minus or both. A custom error amount is not drawn.
+/// deviations (n - 1) about the series' mean, or the standard error, sqrt(sum of (y - mean)^2 / (n (n - 1))) (Excel-measured); plus, minus or both. A custom error amount is not drawn.
 fn error_extents(e: &calc_host::ChartErrorBars, values: &[Option<f64>]) -> Vec<Option<(f64, f64, f64)>> {
     let amount = e.value.as_deref().and_then(|v| v.trim().parse::<f64>().ok()).filter(|v| v.is_finite()).unwrap_or(match e.value_type.as_deref() {
         Some("percentage") => 5.0,
@@ -615,7 +614,8 @@ fn error_extents(e: &calc_host::ChartErrorBars, values: &[Option<f64>]) -> Vec<O
     let n = present.len() as f64;
     let mean = present.iter().sum::<f64>() / n.max(1.0);
     let deviation = if n > 1.0 { (present.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0)).sqrt() } else { 0.0 };
-    let standard_error = if n > 1.0 { (present.iter().map(|v| v * v).sum::<f64>() / (n * (n - 1.0))).sqrt() } else { 0.0 };
+    // Measured in Excel (dw2 Windows item 8): the deviations from the mean, not the raw values.
+    let standard_error = if n > 1.0 { (present.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n * (n - 1.0))).sqrt() } else { 0.0 };
     values
         .iter()
         .map(|v| {
@@ -664,7 +664,7 @@ fn trendline_svg(svg: &mut String, series: usize, colour: &str, points: &[(f64, 
     }
     let _ = write!(
         svg,
-        "<path data-dnacalc=\"chart-trendline\" data-series=\"{series}\" d=\"{d}\" fill=\"none\" stroke=\"#{colour}\" stroke-width=\"2\" stroke-dasharray=\"2 3\" stroke-linecap=\"round\"/>"
+        "<path data-dnacalc=\"chart-trendline\" data-series=\"{series}\" d=\"{d}\" fill=\"none\" stroke=\"#{colour}\" stroke-width=\"2\" stroke-dasharray=\"0 4\" stroke-linecap=\"round\"/>"
     );
 }
 
@@ -986,7 +986,14 @@ fn category_marks(
                             let (x, anchor) = if v >= 0. { (to - 4., "end") } else { (to + 4., "start") };
                             let _ = write!(data_labels, "<text data-dnacalc=\"chart-value-label\" data-series=\"{}\" data-point=\"{j}\" x=\"{x:.1}\" y=\"{:.1}\" text-anchor=\"{anchor}\" fill=\"{AXIS}\">{}</text>", i + offset, y + h / 2. + 4., escape(label));
                         } else {
-                            let y = if v >= 0. { to + 12. } else { to - 4. };
+                            // A column's label sits past its end (outEnd) unless the file puts it inside (Excel's default,
+                            // dw2 Windows item 8), at the middle or at the base.
+                            let y = match series.labels.as_ref().and_then(|l| l.position.as_deref()).or(if plot.stacked { Some("ctr") } else { None }) {
+                                Some("inEnd") => if v >= 0. { to + 12. } else { to - 4. },
+                                Some("ctr") => (to + from) / 2. + 4.,
+                                Some("inBase") => if v >= 0. { from - 4. } else { from + 12. },
+                                _ => if v >= 0. { to - 4. } else { to + 12. },
+                            };
                             let _ = write!(data_labels, "<text data-dnacalc=\"chart-value-label\" data-series=\"{}\" data-point=\"{j}\" x=\"{:.1}\" y=\"{y:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">{}</text>", i + offset, x + w / 2., escape(label));
                         }
                     }
@@ -1072,7 +1079,7 @@ fn category_marks(
         ChartKind::Stock => {
             // Each category's high-low line from its lowest to its highest value; the open (with four series, the
             // first) as a tick to the left, the close (the last) as a tick to the right; with up/down bars, a box
-            // from open to close, white when the close is higher, black when lower.
+            // from open to close, white when the close is higher, grey (89, 89, 89: Excel's) when lower.
             let n = plot.series.len();
             let tick = (band / 6.0).clamp(2.0, 8.0);
             for j in 0..count {
@@ -1093,7 +1100,7 @@ fn category_marks(
                 match (open, close) {
                     (Some(o), Some(c)) if plot.up_down_bars => {
                         let (top, bottom) = (value_at(o.max(c)), value_at(o.min(c)));
-                        let fill = if c >= o { "#FFFFFF" } else { "#000000" };
+                        let fill = if c >= o { "#FFFFFF" } else { "#595959" };
                         let _ = write!(
                             svg,
                             "<rect data-dnacalc=\"chart-mark\" x=\"{:.1}\" y=\"{top:.1}\" width=\"{:.1}\" height=\"{:.1}\" fill=\"{fill}\" stroke=\"{AXIS}\" stroke-width=\"0.75\"",
@@ -1108,7 +1115,9 @@ fn category_marks(
                         for (value, left, series) in [(open, true, 0), (close, false, n.saturating_sub(1))] {
                             let Some(v) = value else { continue };
                             let y = value_at(v);
-                            let (from, to) = if left { (x - tick, x) } else { (x, x + tick) };
+                            // Excel's close mark of a high-low-close is a tiny tick, 3 px (dw2 Windows item 5); an open tick
+                            // to the left keeps the band's share.
+                            let (from, to) = if left { (x - tick, x) } else { (x, x + 3.0) };
                             let _ = write!(
                                 svg,
                                 "<line data-dnacalc=\"chart-mark\" x1=\"{from:.1}\" y1=\"{y:.1}\" x2=\"{to:.1}\" y2=\"{y:.1}\" stroke=\"#{}\" stroke-width=\"1.5\"",
@@ -1464,6 +1473,9 @@ fn waterfall_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: A
         let _ = write!(svg, "<line x1=\"{x0:.1}\" y1=\"{y:.1}\" x2=\"{x1:.1}\" y2=\"{y:.1}\" stroke=\"{GRID}\"/><text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"end\" fill=\"{AXIS}\">{}</text>", x0 - 4.0, y + 4.0, escape(&label(v, scale.step)));
     }
     let band = (x1 - x0) / count as f64;
+    // Excel (dw2 Windows item 8): a bar is the band over one plus the gap width (the file's, 0.5 without), and thin light-grey
+    // connector lines run from each bar's end to the next bar.
+    let bar = band / (1.0 + plot.gap_width.unwrap_or(0.5));
     let colours = [&chart.palette[0], &chart.palette[1 % chart.palette.len()], &chart.palette[2 % chart.palette.len()]];
     for (j, span) in spans.iter().enumerate() {
         let x = x0 + j as f64 * band;
@@ -1473,13 +1485,17 @@ fn waterfall_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: A
                 svg,
                 "<rect data-dnacalc=\"chart-mark\" data-kind=\"{}\" x=\"{:.1}\" y=\"{top:.1}\" width=\"{:.1}\" height=\"{:.1}\" fill=\"#{}\"",
                 ["increase", "decrease", "total"][*kind],
-                x + band * 0.25,
-                band * 0.5,
+                x + (band - bar) / 2.0,
+                bar,
                 (bottom - top).max(0.5),
                 colours[*kind]
             );
             mark(svg, 0, j, to - if *kind == 2 { 0.0 } else { *from });
             svg.push_str("/>");
+            if let Some(Some(_)) = spans.get(j + 1) {
+                let y = y_of(*to);
+                let _ = write!(svg, "<line data-dnacalc=\"chart-connector\" x1=\"{:.1}\" y1=\"{y:.1}\" x2=\"{:.1}\" y2=\"{y:.1}\" stroke=\"#A6A6A6\" stroke-width=\"0.75\"/>", x + (band + bar) / 2.0, x + band + (band - bar) / 2.0);
+            }
         }
         let text = series.categories.get(j).cloned().flatten().map(|v| text_of(&v)).unwrap_or_else(|| (j + 1).to_string());
         let _ = write!(svg, "<text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">{}</text>", x + band / 2.0, y1 + 13.0, escape(&text));
@@ -1628,24 +1644,27 @@ fn box_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: Area) {
 fn funnel_marks(svg: &mut String, plot: &PlotView, area: Area) {
     let Some(series) = plot.series.first() else { return };
     let count = series.values.len();
-    let widest = series.values.iter().flatten().copied().filter(|v| v.is_finite()).fold(0.0f64, |a, v| a.max(v.abs()));
+    let widest = series.values.iter().flatten().copied().filter(|v| v.is_finite()).fold(0.0f64, f64::max);
     if count == 0 || widest <= 0.0 {
         return;
     }
     let (x0, x1, y0, y1) = (area.left + 60.0, area.right, area.top, area.bottom);
     let (middle, band) = ((x0 + x1) / 2.0, (y1 - y0) / count as f64);
+    // A bar is the band over one plus the gap width (the file's; Excel's own funnel writes 0.06).
+    let bar = band / (1.0 + plot.gap_width.unwrap_or(0.06));
     for (j, v) in series.values.iter().enumerate() {
         let y = y0 + j as f64 * band;
         let text = series.categories.get(j).cloned().flatten().map(|v| text_of(&v)).unwrap_or_else(|| (j + 1).to_string());
         let _ = write!(svg, "<text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"end\" fill=\"{AXIS}\">{}</text>", x0 - 4.0, y + band / 2.0 + 4.0, escape(&text));
-        let Some(v) = v.filter(|v| v.is_finite()) else { continue };
-        let w = (x1 - x0) * v.abs() / widest;
+        // Excel draws no bar for a negative value (dw2 Windows item 8).
+        let Some(v) = v.filter(|v| v.is_finite() && *v >= 0.0) else { continue };
+        let w = (x1 - x0) * v / widest;
         let _ = write!(
             svg,
             "<rect data-dnacalc=\"chart-mark\" x=\"{:.1}\" y=\"{:.1}\" width=\"{w:.1}\" height=\"{:.1}\" fill=\"#{}\"",
             middle - w / 2.0,
-            y + band * 0.1,
-            band * 0.8,
+            y + (band - bar) / 2.0,
+            bar,
             series.color
         );
         mark(svg, 0, j, v);
@@ -1956,11 +1975,11 @@ fn scatter_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: Are
         x1 - x0,
         y1 - y0
     );
-    // A bubble plot's largest bubble is a quarter of the plot's smaller side across at a scale of 100% (ASSUMED until
-    // an Excel side-by-side), its others by area (or by width), negative and zero sizes not shown.
+    // A bubble plot's largest bubble is 29.5 % of the plot's smaller side across at a scale of 100% (Excel-measured), its others by area (or by width), negative and zero sizes not shown.
     let bubble = plot.kind == ChartKind::Bubble;
     let largest = series.iter().flat_map(|(_, s)| s.sizes.iter().flatten().copied()).filter(|v| v.is_finite() && *v > 0.).fold(0.0f64, f64::max);
-    let biggest_radius = (x1 - x0).min(y1 - y0) / 8.0 * plot.bubble_scale / 100.0;
+    // Excel (dw2 Windows item 5): the largest bubble is 29.5 % of the plot's smaller side across at 100 %.
+    let biggest_radius = (x1 - x0).min(y1 - y0) * 0.1475 * plot.bubble_scale / 100.0;
     for (i, (xs, s)) in series.iter().enumerate() {
         for (j, (x, y)) in xs.iter().zip(&s.values).enumerate() {
             if let (Some(x), Some(y)) = (x, y) {
@@ -2114,6 +2133,16 @@ mod tests {
         assert!(columns.contains(">Tue: 12</text>") && columns.contains(">Low; 11</text>") && !columns.contains(">Low; 9</text>"), "{columns}");
         // Excel 2016 charts (dc-zjsg.6): a waterfall of 10, -3, 4, -2 and the subtotal 9 steps 0-10, 10-7, 7-11, 11-9,
         // then stands 0-9; a funnel of five centred bars; a treemap kept, said not drawn.
+        // Excel's connector lines between waterfall bars (dw2 Windows item 8): four between five bars.
+        assert_eq!(count(&svg("Waterfall"), "chart-connector"), 4);
+        // Standard error from the deviations about the mean (Excel-measured: 0.86 for 10, 12, 9, 11, 14), standard
+        // deviation one bar about the mean.
+        let bars = |kind: &str| calc_host::ChartErrorBars { direction: None, kind: Some("both".into()), value_type: Some(kind.into()), value: None, end_cap: true };
+        let values = [Some(10.0), Some(12.0), Some(9.0), Some(11.0), Some(14.0)];
+        let (low, high, _) = error_extents(&bars("stdErr"), &values)[0].unwrap();
+        assert!(((high - low) / 2.0 - 0.8602).abs() < 0.001, "{low} {high}");
+        let (low, high, centre) = error_extents(&bars("stdDev"), &values)[3].unwrap();
+        assert!((centre - 11.2).abs() < 1e-9 && (low - 9.28).abs() < 0.01 && (high - 13.12).abs() < 0.01, "{low} {high}");
         let waterfall = charts.iter().find(|c| c.name == "Waterfall").unwrap();
         assert_eq!((waterfall.plots[0].kind.clone(), waterfall.plots[0].subtotals.clone()), (ChartKind::Waterfall, vec![4]));
         assert_eq!(waterfall.plots[0].series[0].values, vec![Some(10.0), Some(-3.0), Some(4.0), Some(-2.0), Some(9.0)]);
