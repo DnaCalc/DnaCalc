@@ -89,6 +89,11 @@ pub enum ShapeChange {
         id: u32,
         rotation: i64,
     },
+    /// Flip a shape left to right (`horizontal`) or top to bottom, as Excel's Flip Horizontal and Flip Vertical do.
+    Flip {
+        id: u32,
+        horizontal: bool,
+    },
     /// Move a shape in the drawing order (dc-zjsg.4).
     Order {
         id: u32,
@@ -803,6 +808,21 @@ pub(crate) fn prepare(
             set_place(host, sheet, s, stored, r);
             reroute_connectors(host, sheet, &mut shapes, id, originals);
         }
+        ShapeChange::Flip { id, horizontal } => {
+            let index = find_movable(&shapes, id, false)?;
+            if !matches!(shapes[index].kind, ShapeKind::Shape | ShapeKind::TextBox | ShapeKind::Picture | ShapeKind::Group) {
+                return Err(refusal("Flip a shape, text box, picture or group; a connector follows its ends"));
+            }
+            let s = &mut shapes[index];
+            // A flip mirrors the turned shape on the page: its own flip toggles and its turn reverses.
+            if horizontal {
+                s.flip_horizontal = !s.flip_horizontal;
+            } else {
+                s.flip_vertical = !s.flip_vertical;
+            }
+            s.rotation = (21_600_000 - s.rotation).rem_euclid(21_600_000);
+            reroute_connectors(host, sheet, &mut shapes, id, originals);
+        }
         ShapeChange::Order { id, order } => {
             let index = shapes.iter().position(|s| s.id == id).ok_or_else(|| refusal("The shape no longer exists"))?;
             let last = shapes.len() - 1;
@@ -873,10 +893,11 @@ pub(crate) fn prepare(
             if group.kind != ShapeKind::Group {
                 return Err(refusal("Only a group comes apart"));
             }
-            if group.rotation != 0 || group.flip_horizontal || group.flip_vertical {
-                return Err(refusal("Ungrouping a turned or flipped group is not modelled (dc-zjsg.4)"));
-            }
             let (gl, gt, gw, gh) = rectangle(host, sheet, &shapes, index, originals);
+            // A child keeps where the group showed it: its box mirrored within the group's box by the group's flips
+            // (its own flip toggled and its turn reversed), then turned with the group about the group's centre.
+            let centre = (gl + gw / 2.0, gt + gh / 2.0);
+            let full = 21_600_000i64;
             let scale = |extent: i64, space: i64| if space > 0 { extent as f64 / space as f64 } else { 1.0 };
             let (sx, sy) = (scale(emu_of(gw), group.child_extent.0), scale(emu_of(gh), group.child_extent.1));
             let mut children = group.children.clone();
@@ -884,6 +905,23 @@ pub(crate) fn prepare(
                 let l = gl + (child.offset.0 - group.child_offset.0) as f64 * sx / EMU_PER_POINT;
                 let t = gt + (child.offset.1 - group.child_offset.1) as f64 * sy / EMU_PER_POINT;
                 let (w, h) = (child.extent.0 as f64 * sx / EMU_PER_POINT, child.extent.1 as f64 * sy / EMU_PER_POINT);
+                let mut c = (l + w / 2.0, t + h / 2.0);
+                if group.flip_horizontal {
+                    c.0 = 2.0 * centre.0 - c.0;
+                    child.flip_horizontal = !child.flip_horizontal;
+                    child.rotation = (full - child.rotation).rem_euclid(full);
+                }
+                if group.flip_vertical {
+                    c.1 = 2.0 * centre.1 - c.1;
+                    child.flip_vertical = !child.flip_vertical;
+                    child.rotation = (full - child.rotation).rem_euclid(full);
+                }
+                if group.rotation != 0 {
+                    let v = turned((c.0 - centre.0, c.1 - centre.1), group.rotation);
+                    c = (centre.0 + v.0, centre.1 + v.1);
+                    child.rotation = (child.rotation + group.rotation).rem_euclid(full);
+                }
+                let (l, t) = (c.0 - w / 2.0, c.1 - h / 2.0);
                 let r = if quarter(child.rotation) { swapped((l, t, w, h)) } else { (l, t, w, h) };
                 child.anchor = ChartAnchor::TwoCell { from: host.point_at(sheet, r.0.max(0.0), r.1.max(0.0)), to: host.point_at(sheet, (r.0 + r.2).max(0.0), (r.1 + r.3).max(0.0)) };
                 // A stored object back at the top level keeps its own anchor's editAs.

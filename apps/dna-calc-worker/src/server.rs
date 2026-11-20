@@ -2546,6 +2546,11 @@ impl Server {
                 };
                 SkinIntent::Command(calc_host::WorkbookCommand::Shape { sheet: sheet.id(), revision, change: calc_host::ShapeChange::Order { id, order } })
             }
+            Intent::ShapeFlip { sheet, revision, id, horizontal } => SkinIntent::Command(calc_host::WorkbookCommand::Shape {
+                sheet: sheet.id(),
+                revision,
+                change: calc_host::ShapeChange::Flip { id, horizontal },
+            }),
             Intent::ShapeGroup { sheet, revision, ids } => SkinIntent::Command(calc_host::WorkbookCommand::Shape {
                 sheet: sheet.id(),
                 revision,

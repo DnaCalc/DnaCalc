@@ -152,6 +152,10 @@ pub fn controls(controller: Controller, shapes: RwSignal<Vec<wire::DrawnShape>>,
                     }>"Turn"</button>
                     <button type="button" data-dnacalc="shape-rotate-left" on:click=move |_| turn(((shape.rotation.round() as i64) - 90).rem_euclid(360))>"Left 90°"</button>
                     <button type="button" data-dnacalc="shape-rotate-right" on:click=move |_| turn(((shape.rotation.round() as i64) + 90).rem_euclid(360))>"Right 90°"</button>
+                    {(!line).then(|| view! {
+                        <button type="button" data-dnacalc="shape-flip-horizontal" on:click=move |_| with(&|sheet, revision, id| wire::Intent::ShapeFlip { sheet, revision, id, horizontal: true })>"Flip horizontal"</button>
+                        <button type="button" data-dnacalc="shape-flip-vertical" on:click=move |_| with(&|sheet, revision, id| wire::Intent::ShapeFlip { sheet, revision, id, horizontal: false })>"Flip vertical"</button>
+                    })}
                 </div>
                 <div class="dc-command-row">
                     <button type="button" data-dnacalc="shape-front" on:click=move |_| order("front")>"Bring to front"</button>

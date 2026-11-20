@@ -1118,6 +1118,43 @@ fn dc_zjsg_7__sparklines_are_added_changed_and_deleted_and_saved() {
     assert_eq!((groups.len(), groups[0].sparklines[0].data.as_str()), (1, "Sheet1!A1:A3"));
 }
 
+/// dc-zjsg.4: a turned or flipped group taken apart leaves each child where the group showed it: a group of two
+/// side-by-side boxes turned a quarter becomes two boxes one above the other, each turned a quarter; flipped, the
+/// left box goes right and is flipped itself.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_4__a_turned_or_flipped_group_comes_apart_where_it_showed_its_children() {
+    let mut book = open(calc_host::blank_package());
+    let sheet = book.host().sheets()[0].id();
+    // A at 100..140 x 100..120, B at 160..200 x 100..120: the group is 100..200 x 100..120, centred at 150, 110.
+    shape(&mut book, sheet, add(ShapeKind::Shape, "rect", 100.0, 100.0, 40.0, 20.0));
+    shape(&mut book, sheet, add(ShapeKind::Shape, "ellipse", 160.0, 100.0, 40.0, 20.0));
+    shape(&mut book, sheet, ShapeChange::Group { ids: vec![2, 3] });
+    let group = book.host().shapes(sheet)[0].id;
+    shape(&mut book, sheet, ShapeChange::Rotate { id: group, rotation: 90 * 60_000 });
+    let mut flipped = reopened(&mut book);
+    shape(&mut book, sheet, ShapeChange::Ungroup { id: group });
+    let centre = |b: &HostSession, id: u32| {
+        let s = b.host().shapes(sheet).iter().find(|s| s.id == id).unwrap().clone();
+        let p = |v: i64| v as f64 / 12_700.0;
+        ((p(s.offset.0) + p(s.extent.0) / 2.0).round(), (p(s.offset.1) + p(s.extent.1) / 2.0).round(), s.rotation, s.flip_horizontal)
+    };
+    // Turned a quarter clockwise about (150, 110): A's centre (120, 110) goes to (150, 80), B's (180, 110) to (150, 140).
+    assert_eq!(centre(&book, 2), (150.0, 80.0, 90 * 60_000, false));
+    assert_eq!(centre(&book, 3), (150.0, 140.0, 90 * 60_000, false));
+    let saved = reopened(&mut book);
+    assert_eq!((centre(&saved, 2), centre(&saved, 3)), (centre(&book, 2), centre(&book, 3)));
+    // The reopened group turned back and flipped left to right: A goes right, flipped; B left.
+    let stored_group = flipped.host().shapes(sheet)[0].id;
+    shape(&mut flipped, sheet, ShapeChange::Rotate { id: stored_group, rotation: 0 });
+    shape(&mut flipped, sheet, ShapeChange::Flip { id: stored_group, horizontal: true });
+    shape(&mut flipped, sheet, ShapeChange::Ungroup { id: stored_group });
+    assert_eq!(centre(&flipped, 2), (180.0, 110.0, 0, true));
+    assert_eq!(centre(&flipped, 3), (120.0, 110.0, 0, true));
+    let saved = reopened(&mut flipped);
+    assert_eq!(centre(&saved, 2), (180.0, 110.0, 0, true));
+}
+
 /// dc-zjsg.4: a kept object (an equation, ink, SmartArt, OLE) is not moved or deleted; it stays as the file stores it.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

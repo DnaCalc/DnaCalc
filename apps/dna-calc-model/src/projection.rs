@@ -445,6 +445,13 @@ pub enum Intent {
         id: u32,
         degrees: i64,
     },
+    /// Flip a shape left to right (`horizontal`) or top to bottom (dc-zjsg.4).
+    ShapeFlip {
+        sheet: Sheet,
+        revision: u64,
+        id: u32,
+        horizontal: bool,
+    },
     /// Move a shape in the drawing order: `forward`, `backward`, `front` or `back` (dc-zjsg.4).
     ShapeOrder {
         sheet: Sheet,
