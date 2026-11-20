@@ -189,3 +189,63 @@ Record only; nothing downloaded. Full report: `codex-runs/excel-sources-search-2
 - workbook-change-benchmark (MIT, tiny).
 - Trap4Phish 2025: 20,000 Excel files, half of them malicious, with VBA and XLM. No licence. It would need a decision on handling malware.
 - No benign macro corpus was found beyond what we hold, and no spreadsheet benchmark released since 2026-11-09.
+
+## Harv7 tips and tricks (2026-11-21, dc-ebb.3)
+
+
+### Microsoft VBA documentation
+
+[VBA-Docs](https://github.com/MicrosoftDocs/VBA-Docs/tree/cfee1b35b419270636defdbee0ac96e5ded071bb)
+yielded 3,907 VBA snippet occurrences on 3,118 pages and 3,199 unique payloads.
+The search covered the Excel object model, Excel concept pages and the VBA language
+reference, with the language and Office library concepts included. The companion
+[Office client docs](https://github.com/MicrosoftDocs/office-developer-client-docs/tree/eedbd61ca40689e7cfed5e1cfd9440a9dc3ab7a5)
+yielded nine examples in its Excel and shared developer docs. Both repositories put the
+code under MIT and the prose under CC BY 4.0. The harvested modules include source fragments
+and Immediate Window examples.
+
+### Stack Exchange
+
+Using the public API without a key, the pass selected 3,544 answers from Stack Overflow
+and Super User. It visited the requested tags and retained the accepted answer for each
+question where available, or the highest-score answer otherwise. Questions were sampled
+from vote-ranked pages and the chosen answers were ordered by answer score. The vba+excel
+Stack Overflow sample reached 20 question pages and the Super User formula sample reached
+eight. The API returned no answered questions for several literal tag/site pairs, including
+`excel-vba`. Only formula and VBA code blocks were retained. The 4,124 unique blocks
+represent 2,461 answers. For 112 snippets the API supplied no author link. The manifest
+uses the API's content licence when available and the contribution date otherwise.
+[Stack Overflow licensing](https://stackoverflow.com/help/licensing)
+
+### Creator downloads
+
+| Creator | New files | Result |
+|---|---:|---|
+| Chandoo | 9 | Public template and VBA tutorial links. Courses, signup and purchase offers were skipped. 25 linked pages read. |
+| Excel University | 9 | Public blog attachments. The Report Formula Challenge and course downloads require email or registration. 12 linked pages read. |
+| Spreadsheet Guru | 13 | Public sample data and Excel article links. Paid downloads were skipped. A template route returned HTTP 502. 89 linked pages read. |
+| Peltier | 8 | Public charting articles. Dropbox links disallowed by robots and non-workbook responses were skipped. 132 linked pages read, 2 download requests blocked. |
+| Exceljet | 0 | Existing files from harv6 remain indexed. The site's terms restrict reproduction and distribution, so this pass used article links as references for original examples. |
+| Excel Easy | 432 | Public examples and VBA tutorial workbook links. 455 linked pages read. |
+| wellsr | 0 | Reviewed Excel VBA tutorials and followed free file links. Three older public samples are already held. 212 linked pages read. |
+| Ron de Bruin | 0 | The robots request redirects to the history page. No files were fetched. |
+| Chip Pearson | 204 | Followed the author's public download and topic links through the Wayback Machine. Only spreadsheet and plain VBA payloads were kept. 279 linked pages read, 29 candidate downloads blocked or previously unavailable. |
+
+### GitHub
+
+The public repository search returned two pages each for Excel tips and VBA snippets
+and one each for Excel tricks, the formula-cheatsheet searches and the two LAMBDA
+searches. The set includes pinned workbooks, VBA and formula source from repositories
+whose licence files were checked. Gist searches accepted only a verifiable licence
+notice. The Vertex42 and Fiako LAMBDA libraries preserve their original attribution.
+Earlier hashes and licence-incompatible or unlicensed results were left out.
+
+### Capture examples
+
+[The capture list](../../tests/corpus-examples/capture-manifest.tsv) has 93 workbooks and
+89 VBA drivers. The formula cases combine Stack Exchange adaptations and original examples
+based on documented Excel behaviours. The VBA cases use pinned Microsoft reference pages.
+Selection used the existing interesting-example index and a check against 4,238 distinct
+repository cell-context formulas for identical formulas. The 182 new entries extend the
+local interesting-example index to 220. Feature counts and triage are in
+[corpus-classification.md](corpus-classification.md).
