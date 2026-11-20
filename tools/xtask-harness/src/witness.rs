@@ -2272,13 +2272,17 @@ fn group<'a>(banks: &'a Banks) -> (BTreeMap<String, Vec<Vec<&'a Reading>>>, Vec<
     (out, differences)
 }
 
-/// Preserve cross-context replay observations as explicit pairs. They do not enter the
-/// selection groups: the replay recorded a new workbook context, not the original one.
-fn replay_difference(
+const DATE_REPLAY: &str = "migration/evidence/dc-ymjf3-20527-date-differences.jsonl.gz";
+
+/// A dc-ymjf.3 paired replay: the original call (same arguments, invocation and result
+/// cell), read again on Excel 20527 with exact typed input readback. It stands as that
+/// key's build-20527 reading, so the latest-build rule judges the key on it and the
+/// original answer stays in the differences list.
+fn replay_reading(
     record: &Value,
     original: &Reading,
     source: &Source,
-) -> Result<Difference, String> {
+) -> Result<(ReadingSource, String), String> {
     let bank = &record["bank"];
     let fail = || format!("invalid replay pair for {} {}", source.path, original.id);
     if record["category"] != "different"
@@ -2317,6 +2321,14 @@ fn replay_difference(
     let result = oracle_outcome(&serde_json::json!({"kind": observed["type"], "code": observed["code"], "bits_hex": observed["bits"]}))
         .ok_or_else(fail)?;
     let env = &record["environment"];
+    let invocation = source.env.invocation.as_ref();
+    // The replay ran the original invocation: same date system and CompatibilityVersion.
+    let date_system = if env["date1904"].as_bool() == Some(true) {
+        "1904"
+    } else {
+        "1900"
+    };
+    let compatibility = env["compatibility_version"].as_u64().map(|v| v.to_string());
     if result == original.expected
         || env["engine"] != "excel"
         || env["build"] != "20527"
@@ -2325,72 +2337,39 @@ fn replay_difference(
             .is_some_and(|s| s.starts_with("Microsoft Windows"))
         || env["cpu"].as_str().is_none()
         || env["date1904"].as_bool().is_none()
-        || env["compatibility_version"].as_u64().is_none()
+        || compatibility.is_none()
+        || invocation.is_none_or(|i| {
+            i.compatibility_version.is_some() && i.compatibility_version != compatibility
+                || i.date_system.as_deref().is_some_and(|d| d != date_system)
+        })
     {
         return Err(fail());
     }
-    let current_context = serde_json::json!({
-        "input_transport": "cell_value2_bulk", "date1904": env["date1904"],
-        "compatibility_version": env["compatibility_version"],
-        "decimal_separator": env["decimal_separator"], "thousands_separator": env["thousands_separator"],
-    });
-    Ok(Difference {
-        function: original.function.clone(),
-        key: contextual_key(
-            &original.function,
-            &original.args,
-            original.index,
-            source.env.invocation.as_ref(),
-        ),
-        readings: vec![
-            (
-                original.expected.clone(),
-                source.env.environment(),
-                format!("{}#{}", source.path, original.id),
-            ),
-            (
-                result,
-                format!(
-                    "20527/Windows/?/{} context={current_context}",
-                    env["cpu"].as_str().unwrap()
-                ),
-                format!(
-                    "migration/evidence/dc-ymjf3-20527-date-differences.jsonl.gz#{}:{}",
-                    source.path, original.id
-                ),
-            ),
-        ],
-        across_environments: true,
-    })
+    let mut replay = source.env.clone();
+    replay.id = format!("{DATE_REPLAY}#{}", source.path);
+    replay.source = format!("DnaCalc {DATE_REPLAY}");
+    replay.excel_build = Some("20527".to_owned());
+    replay.platform = Some("Windows".to_owned());
+    // The replay records the machine, not Excel's bitness: that fact stays missing.
+    replay.bitness = None;
+    replay.cpu = env["cpu"].as_str().map(str::to_owned);
+    Ok((replay, result))
 }
 
-// A bank can retain several observations of one input and invocation. Keep each source
-// while reporting that input once in the existing difference index.
-fn coalesce_replay_differences(pairs: Vec<Difference>) -> Vec<Difference> {
-    let mut by_key: BTreeMap<String, Difference> = BTreeMap::new();
-    for mut pair in pairs {
-        match by_key.entry(pair.key.clone()) {
-            std::collections::btree_map::Entry::Vacant(slot) => {
-                slot.insert(pair);
-            }
-            std::collections::btree_map::Entry::Occupied(mut slot) => {
-                slot.get_mut().readings.append(&mut pair.readings);
-            }
-        }
-    }
-    by_key.into_values().collect()
-}
-
-fn replay_differences(banks: &Banks) -> Result<Vec<Difference>, String> {
+/// Add each DATE replay as a reading of its original key (one replay source per bank file).
+fn add_replay_readings(banks: &mut Banks) -> Result<(), String> {
     let bytes = gunzip(
         include_bytes!("../../../migration/evidence/dc-ymjf3-20527-date-differences.jsonl.gz"),
         None,
     )?;
     let mut originals = BTreeMap::new();
-    for reading in banks.readings.iter().filter(|r| r.function == "DATE") {
+    for (i, reading) in banks.readings.iter().enumerate() {
+        if reading.function != "DATE" {
+            continue;
+        }
         let source = &banks.sources[reading.source];
         if originals
-            .insert((source.path.as_str(), reading.id.as_str()), reading)
+            .insert((source.path.clone(), reading.id.clone()), i)
             .is_some()
         {
             return Err(format!(
@@ -2400,7 +2379,8 @@ fn replay_differences(banks: &Banks) -> Result<Vec<Difference>, String> {
         }
     }
     let mut seen = BTreeSet::new();
-    let mut out = Vec::new();
+    let mut replay_sources: BTreeMap<usize, usize> = BTreeMap::new();
+    let mut added = Vec::new();
     for line in bytes.split(|b| *b == b'\n').filter(|line| !line.is_empty()) {
         let row = bank_json(line)?;
         let source = row["bank"]["source"]
@@ -2410,16 +2390,38 @@ fn replay_differences(banks: &Banks) -> Result<Vec<Difference>, String> {
         if !seen.insert((source.to_owned(), id.to_owned())) {
             return Err(format!("duplicate replay {source} {id}"));
         }
-        let original = originals
-            .get(&(source, id))
+        let &index = originals
+            .get(&(source.to_owned(), id.to_owned()))
             .ok_or_else(|| format!("replay original missing: {source} {id}"))?;
-        out.push(replay_difference(
-            &row,
-            original,
-            &banks.sources[original.source],
-        )?);
+        let original = &banks.readings[index];
+        let (env, expected) = replay_reading(&row, original, &banks.sources[original.source])?;
+        let slot = match replay_sources.get(&original.source) {
+            Some(&slot) => {
+                if banks.sources[slot].env != env {
+                    return Err(format!("replay environment changed within {source}"));
+                }
+                slot
+            }
+            None => {
+                banks.sources.push(Source {
+                    path: format!("{DATE_REPLAY}#{source}"),
+                    env,
+                });
+                replay_sources.insert(original.source, banks.sources.len() - 1);
+                banks.sources.len() - 1
+            }
+        };
+        added.push(Reading {
+            function: original.function.clone(),
+            id: original.id.clone(),
+            args: original.args.clone(),
+            index: original.index,
+            expected,
+            source: slot,
+        });
     }
-    Ok(coalesce_replay_differences(out))
+    banks.readings.extend(added);
+    Ok(())
 }
 
 fn calc_func_commit(root: &Path) -> String {
@@ -3356,7 +3358,7 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
 
     // The readings of the bank asked for.
     let mut original_pins = None;
-    let (banks, unread) = match request.bank {
+    let (mut banks, unread) = match request.bank {
         Bank::Full => {
             if !checkout.join(MANIFESTS[0]).is_file() {
                 return Err(format!(
@@ -3480,10 +3482,10 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
             "xtask witness: CompatibilityVersion is retained in source identity and applied by the context-aware caller"
         );
     }
-    let (mut grouped, mut differences) = group(&banks);
     if request.bank == Bank::Full && only.is_none_or(|name| name == "DATE") {
-        differences.extend(replay_differences(&banks)?);
+        add_replay_readings(&mut banks)?;
     }
+    let (mut grouped, differences) = group(&banks);
     for function in banks.unread_rows.keys() {
         grouped.entry(function.clone()).or_default();
     }
@@ -4193,24 +4195,6 @@ mod tests {
     }
 
     #[test]
-    fn repeated_replay_observations_keep_each_source_on_one_input() {
-        let pair = |source: &str| super::Difference {
-            function: "DATE".into(),
-            key: "same input and invocation".into(),
-            readings: vec![
-                ("old".into(), "old environment".into(), source.into()),
-                ("new".into(), "new environment".into(), source.into()),
-            ],
-            across_environments: true,
-        };
-        let groups = super::coalesce_replay_differences(vec![pair("first"), pair("second")]);
-        assert_eq!(groups.len(), 1);
-        assert_eq!(groups[0].readings.len(), 4);
-        assert_eq!(groups[0].readings[0].2, "first");
-        assert_eq!(groups[0].readings[2].2, "second");
-    }
-
-    #[test]
     fn replay_pairs_require_original_identity_and_exact_input_readback() {
         let bytes = super::gunzip(
             include_bytes!("../../../migration/evidence/dc-ymjf3-20527-date-differences.jsonl.gz"),
@@ -4242,18 +4226,60 @@ mod tests {
             expected: bank["expected"].as_str().unwrap().into(),
             source: 0,
         };
-        let difference = super::replay_difference(&record, &original, &source).unwrap();
-        assert_eq!(difference.readings.len(), 2);
-        assert_ne!(difference.readings[0].0, difference.readings[1].0);
+        let (env, expected) = super::replay_reading(&record, &original, &source).unwrap();
+        assert_ne!(expected, original.expected);
+        assert_eq!(env.excel_build.as_deref(), Some("20527"));
+        assert_eq!(env.invocation, source.env.invocation);
         let mut changed = record.clone();
         changed["inputs"][0]["bits"] = serde_json::json!("0000000000000000");
-        assert!(super::replay_difference(&changed, &original, &source).is_err());
+        assert!(super::replay_reading(&changed, &original, &source).is_err());
         changed = record.clone();
         changed["bank"]["expected"] = serde_json::json!("error:Num");
-        assert!(super::replay_difference(&changed, &original, &source).is_err());
-        changed = record;
+        assert!(super::replay_reading(&changed, &original, &source).is_err());
+        changed = record.clone();
+        changed["environment"]["compatibility_version"] = serde_json::json!(1);
+        assert!(super::replay_reading(&changed, &original, &source).is_err());
+        changed = record.clone();
         changed["environment"]["build"] = serde_json::json!("20430");
-        assert!(super::replay_difference(&changed, &original, &source).is_err());
+        assert!(super::replay_reading(&changed, &original, &source).is_err());
+
+        // The replay joins the original's key as its latest-build reading: one row, judged on
+        // the 20527 answer, with both answers listed as a difference across builds.
+        let mut banks = super::Banks {
+            sources: vec![source],
+            readings: vec![original],
+            files_read: 1,
+            import_notes: Vec::new(),
+            unread_rows: std::collections::BTreeMap::new(),
+        };
+        let (env, replayed) =
+            super::replay_reading(&record, &banks.readings[0], &banks.sources[0]).unwrap();
+        banks.sources.push(super::Source {
+            path: "replay".into(),
+            env,
+        });
+        let first = &banks.readings[0];
+        let reading = super::Reading {
+            function: first.function.clone(),
+            id: first.id.clone(),
+            args: first.args.clone(),
+            index: first.index,
+            expected: replayed.clone(),
+            source: 1,
+        };
+        banks.readings.push(reading);
+        let (grouped, differences) = super::group(&banks);
+        let keys = &grouped["DATE"];
+        assert_eq!(keys.len(), 1);
+        assert_eq!(keys[0].len(), 2);
+        let chosen = keys[0]
+            .iter()
+            .max_by_key(|r| super::build_order(&banks.sources[r.source].env.excel_build))
+            .unwrap();
+        assert_eq!(chosen.expected, replayed);
+        assert_eq!(differences.len(), 1);
+        assert!(differences[0].across_environments);
+        assert_eq!(differences[0].readings.len(), 2);
     }
     use super::*;
 

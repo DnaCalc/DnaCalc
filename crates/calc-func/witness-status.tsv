@@ -170,7 +170,7 @@ CUBEVALUE	full	20527	4246	4246	-	exact	218dcceeef	0
 CUMIPMT	full	20527	4393	4393	-	exact	218dcceeef	0
 CUMPRINC	full	20228,20527	3541	3541	-	exact	218dcceeef	0
 CUMPRINC	pinned	20228	120	52	4	last_bit	7a3e51cd1b+changes	0
-DATE	full	20430	22250	17208	-	structural	63210e7082+changes	0
+DATE	full	20430,20527	22250	22250	-	exact	a9bf388613+changes	0
 DATE	pinned	20430	120	98	-	structural	63210e7082+changes	0
 DATEDIF	full	20527	2914	2914	-	exact	218dcceeef	0
 DATEVALUE	full	20527	2263	2263	-	exact	218dcceeef	0
