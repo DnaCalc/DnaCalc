@@ -366,6 +366,66 @@ pub enum Intent {
         revision: u64,
         id: u32,
     },
+    /// Insert a shape (`kind` `shape`, `textbox` or `connector`, `geometry` a preset name) with its top left at the
+    /// cell `at`, its size in hundredths of a point (dc-zjsg.4).
+    ShapeAdd {
+        sheet: Sheet,
+        revision: u64,
+        at: Key,
+        kind: String,
+        geometry: String,
+        width: i64,
+        height: i64,
+    },
+    /// A shape's or text box's text; paragraphs split at line breaks (dc-zjsg.4).
+    ShapeText {
+        sheet: Sheet,
+        revision: u64,
+        id: u32,
+        text: String,
+    },
+    /// A shape's fill: `#RRGGBB`, `none`, or empty for the style's (dc-zjsg.4).
+    ShapeFill {
+        sheet: Sheet,
+        revision: u64,
+        id: u32,
+        fill: String,
+    },
+    /// A shape's outline: `#RRGGBB`, `none`, or empty for the style's colour; its weight in hundredths of a point
+    /// (`None` the style's) (dc-zjsg.4).
+    ShapeLine {
+        sheet: Sheet,
+        revision: u64,
+        id: u32,
+        colour: String,
+        weight: Option<i64>,
+    },
+    /// Turn a shape to `degrees` clockwise (dc-zjsg.4).
+    ShapeRotate {
+        sheet: Sheet,
+        revision: u64,
+        id: u32,
+        degrees: i64,
+    },
+    /// Move a shape in the drawing order: `forward`, `backward`, `front` or `back` (dc-zjsg.4).
+    ShapeOrder {
+        sheet: Sheet,
+        revision: u64,
+        id: u32,
+        order: String,
+    },
+    /// Group shapes (dc-zjsg.4).
+    ShapeGroup {
+        sheet: Sheet,
+        revision: u64,
+        ids: Vec<u32>,
+    },
+    /// Take a group apart (dc-zjsg.4).
+    ShapeUngroup {
+        sheet: Sheet,
+        revision: u64,
+        id: u32,
+    },
     ChartLogAxis {
         sheet: Sheet,
         revision: u64,

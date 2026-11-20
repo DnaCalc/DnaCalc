@@ -16,6 +16,7 @@ const A: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
 pub(crate) mod cache;
 mod colour;
 mod create;
+mod stored;
 mod font;
 pub(crate) fn check_new_frames(
     package: &Package,
@@ -33,8 +34,8 @@ pub(crate) fn check_shapes(
     original: &[calc_doc_model::Shape],
     shapes: &[calc_doc_model::Shape],
 ) -> Result<(), SaveRefusal> {
-    let (stored, new) = create::stored_edits(original, shapes)?;
-    if stored.is_empty() && new.is_empty() {
+    let plan = stored::plan(original, shapes)?;
+    if plan.is_empty() {
         return Ok(());
     }
     let source = source.ok_or_else(|| SaveRefusal::ChartNotModelled {
@@ -42,7 +43,7 @@ pub(crate) fn check_shapes(
         detail: "Save and reopen the new worksheet before adding a shape".into(),
         owner: "dc-zjsg.4",
     })?;
-    create::add_with(package, source, &[], new, &stored, &mut Changes::default(), None, None)
+    create::add_with(package, source, &[], &plan.new, Some(&plan), &mut Changes::default(), None, None)
 }
 pub(crate) use create::render as render_new;
 type Patch = ((usize, usize), Vec<u8>);

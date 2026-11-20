@@ -23,7 +23,7 @@ fn refuse(shape: &Shape, detail: &str) -> SaveRefusal {
     }
 }
 
-fn valid_text(s: &str) -> bool {
+pub(super) fn valid_text(s: &str) -> bool {
     s.encode_utf16().count() <= 32767
         && !s.chars().any(|c| {
             (c < ' ' && !matches!(c, '\t' | '\n' | '\r' | '\u{b}'))
@@ -36,7 +36,7 @@ fn attribute_text(value: &str) -> String {
     value.chars().filter(char::is_ascii_alphanumeric).collect()
 }
 
-fn element_text(value: &str, out: &mut Vec<u8>) {
+pub(super) fn element_text(value: &str, out: &mut Vec<u8>) {
     for c in value.chars() {
         match c {
             '&' => out.extend_from_slice(b"&amp;"),
@@ -127,7 +127,7 @@ fn effects(shadow: &ShapeShadow, out: &mut Vec<u8>) -> Result<(), &'static str> 
     Ok(())
 }
 
-fn fill(f: &ShapeFill, out: &mut Vec<u8>) -> Result<(), &'static str> {
+pub(super) fn fill(f: &ShapeFill, out: &mut Vec<u8>) -> Result<(), &'static str> {
     match f {
         ShapeFill::Style => {}
         ShapeFill::None => out.extend(b"<a:noFill/>"),
@@ -212,7 +212,7 @@ fn line_end(tag: &str, end: &LineEnd, out: &mut Vec<u8>) -> Result<(), &'static 
     Ok(())
 }
 
-fn line(l: &ShapeLine, out: &mut Vec<u8>) -> Result<(), &'static str> {
+pub(super) fn line(l: &ShapeLine, out: &mut Vec<u8>) -> Result<(), &'static str> {
     if *l == ShapeLine::default() {
         return Ok(());
     }
@@ -309,14 +309,24 @@ fn check_tree(shape: &Shape) -> Result<(), SaveRefusal> {
 
 /// One authored object's anchor, as a child of `xdr:wsDr`. `remap` gives the id each authored
 /// shape is written with (the connectors' glued ids follow it).
-pub(crate) fn frame(shape: &Shape, remap: &BTreeMap<u32, u32>, media: &MediaRels) -> Result<Vec<u8>, SaveRefusal> {
+/// What a new object that is a stored one writes for its element (`None`: written from the model).
+pub(crate) type StoredElement<'a> = dyn Fn(&Shape) -> Option<Result<Vec<u8>, SaveRefusal>> + 'a;
+
+pub(crate) fn frame(shape: &Shape, remap: &BTreeMap<u32, u32>, media: &MediaRels, stored: &StoredElement<'_>) -> Result<Vec<u8>, SaveRefusal> {
     let fail = |detail: &str| refuse(shape, detail);
-    check(shape)?;
+    let element = stored(shape).transpose()?;
+    if element.is_none() {
+        check(shape)?;
+    }
     if shape.offset.0 < 0 || shape.offset.1 < 0 {
         return Err(fail("Use a non-negative position"));
     }
-    for child in &shape.children {
-        check_tree(child)?;
+    if element.is_none() {
+        for child in &shape.children {
+            if stored(child).is_none() {
+                check_tree(child)?;
+            }
+        }
     }
     let (edit_as, from_to) = match shape.anchor {
         ChartAnchor::TwoCell { from, to } if valid_point(&from) && valid_point(&to) => (
@@ -368,14 +378,21 @@ pub(crate) fn frame(shape: &Shape, remap: &BTreeMap<u32, u32>, media: &MediaRels
     }
     out.push(b'>');
     out.extend(from_to.as_bytes());
-    object(shape, remap, media, &mut out)?;
+    match element {
+        Some(element) => out.extend(element),
+        None => object(shape, remap, media, stored, &mut out)?,
+    }
     out.extend(b"<xdr:clientData/>");
     out.extend(format!("</xdr:{edit_as}>").as_bytes());
     Ok(out)
 }
 
 /// One object's element (`xdr:sp`, `xdr:cxnSp` or `xdr:grpSp`), a group's children inside it.
-fn object(shape: &Shape, remap: &BTreeMap<u32, u32>, media: &MediaRels, out: &mut Vec<u8>) -> Result<(), SaveRefusal> {
+fn object(shape: &Shape, remap: &BTreeMap<u32, u32>, media: &MediaRels, stored: &StoredElement<'_>, out: &mut Vec<u8>) -> Result<(), SaveRefusal> {
+    if let Some(element) = stored(shape) {
+        out.extend(element?);
+        return Ok(());
+    }
     let fail = |detail: &str| refuse(shape, detail);
     let id = remap.get(&shape.id).copied().unwrap_or(shape.id);
     let geometry = shape.geometry.as_deref().unwrap_or("rect");
@@ -412,7 +429,7 @@ fn object(shape: &Shape, remap: &BTreeMap<u32, u32>, media: &MediaRels, out: &mu
             .as_bytes(),
         );
         for child in &shape.children {
-            object(child, remap, media, out)?;
+            object(child, remap, media, stored, out)?;
         }
         out.extend(b"</xdr:grpSp>");
         return Ok(());

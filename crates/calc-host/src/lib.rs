@@ -196,7 +196,7 @@ pub use calc_doc_model::{
     ChartAnchor, CustomGeometry, DrawingNode, FormControl, Sparkline, SparklineGroup, GeometryCommand, GeometryPath, LineEnd, PictureMedia, ShapePattern, ShapeStyle, ShapeStyleRef, Shape, ShapeBody, ShapeColour, ShapeFill, ShapeGradient, ShapeKind, ShapeLine, ShapeShadow,
     ShapePicture, ShapeTextRun,
 };
-pub use shapes::{Points, ShapeChange};
+pub use shapes::{Points, ShapeChange, ShapeOrder};
 mod review;
 pub use calc_doc_model::NoteStylePatch;
 pub use review::ReviewAction;
