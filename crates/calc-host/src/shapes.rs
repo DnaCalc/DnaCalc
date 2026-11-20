@@ -331,21 +331,27 @@ impl HostState {
         format!("Table{}", (first..).find(|n| !taken(*n)).unwrap_or(first))
     }
 
-    /// The maximum digit width in pixels at 96 DPI of the workbook's default font (Aptos Narrow 11:
-    /// 8, Calibri 11: 7; a font the measure does not know falls back to Calibri 11's 7), which a
-    /// column width in characters counts in. The display reads it to draw columns as wide as Excel.
+    /// The maximum digit width in pixels at 96 DPI of the workbook's default font (Aptos Narrow 11
+    /// and Calibri 11: 7 px; an unmeasured font falls back to 7 px), which a column width in
+    /// characters counts in. The display reads it to draw columns as wide as Excel.
     pub fn default_digit_px(&self) -> f64 {
         crate::facts::maximum_digit_width_at(self.styles(), DPI).unwrap_or(7.0)
     }
 
-    /// The default row height in points of the workbook's default font (Aptos Narrow 11: 14.25,
-    /// otherwise 15) when the sheet gives none.
+    /// The workbook's default (Normal) font name, if known (used by print pagination to select
+    /// Calibri vs Aptos Narrow printer rates when both share a 7 px screen digit width).
+    pub fn default_font_name(&self) -> Option<&str> {
+        crate::facts::default_font_name(self.styles())
+    }
+
+    /// The default row height in points of the workbook's default font (15 pt for Calibri 11 and
+    /// Aptos Narrow 11) when the sheet gives none.
     pub fn default_font_row_points(&self) -> f64 {
         crate::facts::default_row_points(self.styles())
     }
 
     /// The width in points of a column: whole pixels of the workbook's default font's digit
-    /// width (Aptos Narrow 11: 8 px, Calibri 11: 7 px), converted at the pixel density.
+    /// width (Aptos Narrow 11 and Calibri 11: 7 px), converted at the pixel density.
     fn column_points(&self, sheet: SheetId, column: u32) -> f64 {
         let format = self.model().definitions().axis_layouts().get(sheet, calc_doc_model::Axis::Columns, column);
         self.column_points_of(sheet, format)
@@ -660,8 +666,8 @@ fn reroute(host: &HostState, sheet: SheetId, shapes: &mut [Shape], index: usize,
     let anchor = (anchor.0.max(0.0), anchor.1.max(0.0), anchor.2, anchor.3);
     let stored = originals.holds(&shapes[index]);
     let c = &mut shapes[index];
-    set_place(host, sheet, c, stored, anchor);
     c.rotation = rotation;
+    set_place(host, sheet, c, stored, anchor);
     if let Some((prefix, class, a)) = new_class {
         c.geometry = Some(format!("{prefix}{class}"));
         c.adjust = (1..class.saturating_sub(1)).map(|i| (format!("adj{i}"), (a[i as usize - 1] * 100_000.0).round() as i64)).collect();

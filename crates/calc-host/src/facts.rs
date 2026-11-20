@@ -101,26 +101,31 @@ fn default_font(styles: &StyleTable) -> Option<(&str, f64)> {
     }
 }
 
+/// The default font name of a workbook, if one is declared (or `"Calibri"` when the styles part
+/// has no font).
+pub(crate) fn default_font_name(styles: &StyleTable) -> Option<&str> {
+    default_font(styles).map(|(name, _)| name)
+}
+
 /// The maximum digit width, in pixels at 96 DPI, of a font Excel uses as a workbook's default
-/// font, which a column width in characters counts in. Measured in Excel (dc-piw0 Q9, build
-/// 20527): Calibri 11 is 7 pixels (a default column of 64 pixels, 48 pt, 8.43 characters) and
-/// Aptos Narrow 11 is 8 pixels (px = 8 * characters + 5; a default column of 72 pixels, 54 pt,
-/// file width 9, shown as 8.38).
+/// font, which a column width in characters counts in. Measured in normal-mode Excel (build
+/// 20527, 96 DPI; UI30, dw2 `om.json`, dw3 `dw3-spark-weights.xlsx`): both Calibri 11 and
+/// Aptos Narrow 11 are 7 pixels (px = 7 * characters + 5; a default column of 64 pixels, 48 pt,
+/// 8.43 characters). The earlier dc-piw0 Q9 reading of 8 px / 54 pt / 14.25 pt came from Safe
+/// Mode, which disables Office Cloud Fonts so Aptos Narrow fell back to Arial 11.
 fn digit_width_96(name: &str, size: f64) -> Option<f64> {
     match (name, size) {
-        ("Calibri", 11.0) => Some(7.0),
-        ("Aptos Narrow", 11.0) => Some(8.0),
+        ("Calibri" | "Aptos Narrow", 11.0) => Some(7.0),
         _ => None,
     }
 }
 
-/// The default row height in points of the default font (Q9: Aptos Narrow 11 is 14.25 pt, 19 px;
-/// Calibri 11 is 15 pt, 20 px). Row heights in points do not depend on the DPI.
+/// The default row height in points of the default font (normal-mode Excel build 20527: both
+/// Calibri 11 and Aptos Narrow 11 are 15 pt, 20 px; sheets that explicitly record
+/// `defaultRowHeight` in `sheetFormatPr` keep their stored value).
 pub(crate) fn default_row_points(styles: &StyleTable) -> f64 {
-    match default_font(styles) {
-        Some(("Aptos Narrow", 11.0)) => 14.25,
-        _ => 15.0,
-    }
+    let _ = styles;
+    15.0
 }
 
 /// The maximum digit width, in pixels at `dpi`, of the workbook's default font. The 96 DPI
@@ -585,10 +590,10 @@ impl HostState {
 mod tests {
     use super::{column_pixels, default_column_pixels, maximum_digit_width_at, shown_characters};
 
-    /// dc-zaj7 / Q9 (Excel build 20527, 96 DPI): Aptos Narrow 11 has a maximum digit width of
-    /// 8 px, and the recorded sweep of `ColumnWidth` gives px = 8 * characters + 5: 1 -> 13 px,
-    /// 2 -> 21, 5 -> 45, 10 -> 85, 20 -> 165, 50 -> 405, 100 -> 805, in points x 3/4. The default
-    /// column is 72 px (54 pt, file width 9, shown 8.38); Calibri 11 stays 7 px, 64 px, 8.43.
+    /// dc-rlkcm (normal-mode Excel build 20527, 96 DPI; UI30, dw2 `om.json`, dw3
+    /// `dw3-spark-weights.xlsx`): both Aptos Narrow 11 and Calibri 11 have a maximum digit width
+    /// of 7 px, px = 7 * characters + 5, default column 64 px (48 pt, file width 9.140625, shown
+    /// 8.43), and default row 15 pt (20 px).
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn q9_the_default_font_sets_the_digit_width() {
@@ -599,25 +604,28 @@ mod tests {
             ..Default::default()
         };
         styles.fonts.push(font("Aptos Narrow"));
-        assert_eq!(maximum_digit_width_at(&styles, 96.0), Some(8.0));
+        assert_eq!(maximum_digit_width_at(&styles, 96.0), Some(7.0));
         // The pixel measure scales with the density; points do not.
-        assert_eq!(maximum_digit_width_at(&styles, 192.0), Some(16.0));
+        assert_eq!(maximum_digit_width_at(&styles, 192.0), Some(14.0));
+        // UI30 measured screen pixels for Aptos Narrow 11 at 96 DPI (px = 7 * chars + 5).
         for (chars, pixels, points) in [
-            (1.0, 13.0, 9.75),
-            (2.0, 21.0, 15.75),
-            (5.0, 45.0, 33.75),
-            (10.0, 85.0, 63.75),
-            (20.0, 165.0, 123.75),
-            (50.0, 405.0, 303.75),
-            (100.0, 805.0, 603.75),
+            (1.0_f64, 12.0_f64, 9.0_f64),
+            (2.0, 19.0, 14.25),
+            (5.0, 40.0, 30.0),
+            (10.0, 75.0, 56.25),
+            (15.0, 110.0, 82.5),
+            (20.0, 145.0, 108.75),
+            (40.0, 285.0, 213.75),
+            (60.0, 425.0, 318.75),
         ] {
-            // The file stores the width in characters of 8 px with the padding: (px)/8.
-            let file_width = pixels / 8.0;
-            assert_eq!(column_pixels(file_width, 8.0), pixels, "{chars}");
+            let file_width = (pixels / 7.0 * 256.0).floor() / 256.0;
+            assert_eq!(column_pixels(file_width, 7.0), pixels, "{chars}");
+            assert_eq!(shown_characters(file_width, 7.0), chars, "{chars}");
             assert_eq!(pixels * 0.75, points, "{chars}");
         }
-        assert_eq!(default_column_pixels(8.0, 8.0), 72.0);
-        assert_eq!(shown_characters(9.0, 8.0), 8.38);
+        // dw3-spark-weights.xlsx (Aptos Narrow 11): ColumnWidth 24 saved as 24.7109375 (173 px).
+        assert_eq!(column_pixels(24.7109375, 7.0), 173.0);
+        assert_eq!(shown_characters(24.7109375, 7.0), 24.0);
         assert_eq!(default_column_pixels(8.0, 7.0), 64.0);
         assert_eq!(shown_characters(9.140625, 7.0), 8.43);
         styles.fonts[0] = font("Calibri");

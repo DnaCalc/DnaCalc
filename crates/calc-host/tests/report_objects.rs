@@ -527,12 +527,11 @@ fn elements(xml: &str) -> Vec<String> {
     out
 }
 
-/// dc-piw0 Q10 (excel-answers.md, Excel build 20527): `ChartObjects.Add(200, 20, 300, 200)` and
-/// nothing else, saved with `SaveCopyAs`, is `xl/charts/chart1.xml` and `xl/drawings/drawing1.xml`
-/// of tests/fixtures/excel-q10, byte for byte as recorded. The engine's saved chart and drawing
-/// parts equal them element by element; the axis identities and the frame's creation GUID are
-/// the random values Excel picks for each chart. The anchor also needs Q9's column width: the
-/// blank workbook's default font is Aptos Narrow 11, 54 pt columns (72 px) and 14.25 pt rows.
+/// dc-piw0 Q10 / dc-rlkcm (Excel build 20527): `ChartObjects.Add(200, 20, 300, 200)` and nothing
+/// else, saved with `SaveCopyAs`, matches `tests/fixtures/excel-q10/chart1.xml` element by element
+/// (axis identities normalised) and `tests/fixtures/excel-q10/drawing1.xml` outside its anchor
+/// coordinates (the recorded Q10 fixture ran in Safe Mode, where Aptos Narrow fell back to Arial
+/// 11's 54 pt columns / 14.25 pt rows; normal-mode Excel uses 48 pt columns / 15 pt rows).
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_piw0__q10_an_empty_macro_chart_saves_as_excel_wrote_it() {
@@ -565,7 +564,21 @@ fn dc_piw0__q10_an_empty_macro_chart_saves_as_excel_wrote_it() {
     let recorded_chart = include_str!("fixtures/excel-q10/chart1.xml");
     let recorded_drawing = include_str!("fixtures/excel-q10/drawing1.xml");
     assert_eq!(elements(&find("xl/charts/")), elements(recorded_chart));
-    assert_eq!(elements(&find("xl/drawings/")), elements(recorded_drawing));
+    let written_drawing = find("xl/drawings/");
+    // Normal-mode Aptos Narrow 11 (48 pt cols, 15 pt rows): (200, 20) -> (4+8pt, 1+5pt),
+    // (500, 220) -> (10+20pt, 14+10pt).
+    assert!(
+        written_drawing.contains(
+            "<xdr:from><xdr:col>4</xdr:col><xdr:colOff>101600</xdr:colOff><xdr:row>1</xdr:row><xdr:rowOff>63500</xdr:rowOff></xdr:from><xdr:to><xdr:col>10</xdr:col><xdr:colOff>254000</xdr:colOff><xdr:row>14</xdr:row><xdr:rowOff>127000</xdr:rowOff></xdr:to>"
+        ),
+        "{written_drawing}"
+    );
+    let strip_corners = |xml: &str| {
+        let a = xml.find("<xdr:from>").unwrap();
+        let b = xml.find("</xdr:to>").unwrap() + "</xdr:to>".len();
+        format!("{}{}", &xml[..a], &xml[b..])
+    };
+    assert_eq!(elements(&strip_corners(&written_drawing)), elements(&strip_corners(recorded_drawing)));
 }
 
 /// The `c:ser` elements of a chart part with Excel's per-chart GUID and the data caches left out:
@@ -858,18 +871,17 @@ fn aptos_narrow_package() -> Vec<u8> {
     existing_wire_support::build_zip(&entries)
 }
 
-/// dc-zaj7 / Q9 (excel-answers.md, Excel build 20527, 96 DPI): the default column of an Aptos
-/// Narrow 11 workbook is 72 px = 54 pt and its rows 14.25 pt; a Calibri 11 workbook keeps
-/// 64 px = 48 pt and 15 pt. Column positions are the sum of whole-pixel widths of the font's
-/// maximum digit width (8 px, 7 px).
+/// dc-rlkcm (normal-mode Excel build 20527, 96 DPI; UI30, dw2 `om.json`, dw3
+/// `dw3-spark-weights.xlsx`): both Aptos Narrow 11 and Calibri 11 default columns are 64 px =
+/// 48 pt (7 px digit width, 8.43 characters) and default rows 15 pt (20 px).
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_zaj7__q9_default_column_and_row_follow_the_default_font() {
     let aptos = open(aptos_narrow_package());
     let sheet = aptos.host().sheets()[0].id();
-    assert_eq!(aptos.host().column_left(sheet, 1), 54.0);
-    assert_eq!(aptos.host().column_left(sheet, 4), 216.0);
-    assert_eq!(aptos.host().row_top(sheet, 1), 14.25);
+    assert_eq!(aptos.host().column_left(sheet, 1), 48.0);
+    assert_eq!(aptos.host().column_left(sheet, 4), 192.0);
+    assert_eq!(aptos.host().row_top(sheet, 1), 15.0);
     let calibri = open(calc_host::blank_package());
     let sheet = calibri.host().sheets()[0].id();
     assert_eq!(calibri.host().column_left(sheet, 1), 48.0);
@@ -1701,4 +1713,47 @@ fn dc_zjsg_5__a_connector_follows_the_stored_shape_it_is_glued_to() {
     let connector = fourth.host().shapes(sheet).iter().find(|s| s.id == 4).unwrap().clone();
     assert_eq!((connector.begin.map(|e| e.shape), connector.end), (Some(2), None));
     assert_eq!(rect_of(&fourth, 4), place);
+}
+
+/// dc-rlkcm (dw2 `om-elbow-before.xlsx` / `om-elbow-after.xlsx`, dw3 Windows item 10): an
+/// Excel-saved Aptos Narrow 11 workbook with `<sheetFormatPr defaultRowHeight="15"/>` and no
+/// `defaultColWidth` uses 48 pt (64 px) default columns; Excel's 100 x 40 pt Top/Bottom
+/// rectangles read back at `(100, 40, 100, 40)` / `(100, 200, 100, 40)` (not 112 pt), and
+/// moving Bottom right by 96 pt reroutes the elbow connector to `off = (138, 92)` pt,
+/// `ext = (120, 96)` pt, `rot = 16200000`, `flipH = true`, `adj1 = 50000` — matching Excel's
+/// `om-elbow-after.xlsx` to the EMU.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dw5_dc_rlkcm__aptos_narrow_default_column_width_matches_excel_48pt_and_elbow_reroute() {
+    let mut book = open(aptos_narrow_package());
+    let sheet = book.host().sheets()[0].id();
+    shape(&mut book, sheet, add(ShapeKind::Shape, "rect", 100.0, 40.0, 100.0, 40.0));
+    shape(&mut book, sheet, ShapeChange::Name { id: 2, name: "Top".into() });
+    shape(&mut book, sheet, add(ShapeKind::Shape, "rect", 100.0, 200.0, 100.0, 40.0));
+    shape(&mut book, sheet, ShapeChange::Name { id: 3, name: "Bottom".into() });
+    shape(&mut book, sheet, add(ShapeKind::Connector, "bentConnector3", 0.0, 0.0, 10.0, 10.0));
+    shape(&mut book, sheet, ShapeChange::Name { id: 4, name: "Elbow".into() });
+    shape(&mut book, sheet, ShapeChange::Connect { id: 4, begin: true, shape: 2, site: 3 });
+    shape(&mut book, sheet, ShapeChange::Connect { id: 4, begin: false, shape: 3, site: 1 });
+    let mut stored = reopened(&mut book);
+    let top = stored.host().shapes(sheet).iter().find(|s| s.name == "Top").unwrap().clone();
+    assert_eq!(stored.host().anchor_rectangle(sheet, &top.anchor), (100.0, 40.0, 100.0, 40.0));
+    assert_eq!(
+        top.anchor,
+        calc_doc_model::ChartAnchor::TwoCell {
+            from: calc_doc_model::DrawingPoint { column: 2, column_offset: 50_800, row: 2, row_offset: 127_000 },
+            to: calc_doc_model::DrawingPoint { column: 4, column_offset: 101_600, row: 5, row_offset: 63_500 },
+        }
+    );
+    shape(&mut stored, sheet, ShapeChange::Place { id: 3, left: Some(pts(196.0)), top: Some(pts(200.0)), width: None, height: None });
+    let reloaded = reopened(&mut stored);
+    let elbow = reloaded.host().shapes(sheet).iter().find(|s| s.name == "Elbow").unwrap().clone();
+    assert_eq!(elbow.geometry.as_deref(), Some("bentConnector3"));
+    assert_eq!(elbow.rotation, 16_200_000);
+    assert!(elbow.flip_horizontal);
+    assert!(!elbow.flip_vertical);
+    assert_eq!(elbow.offset, (1_752_600, 1_168_400));
+    assert_eq!(elbow.extent, (1_524_000, 1_219_200));
+    assert_eq!(elbow.adjust, vec![("adj1".into(), 50_000)]);
+    assert_eq!(reloaded.host().anchor_rectangle(sheet, &elbow.anchor), (150.0, 80.0, 96.0, 120.0));
 }

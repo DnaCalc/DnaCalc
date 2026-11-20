@@ -1063,7 +1063,7 @@ mod paint_metric_tests {
 
 pub fn sheet_metrics(geometry: Option<&crate::projection::Geometry>) -> GridMetrics {
     // Stored OOXML widths already include the cell margins. The workbook's default font sets the
-    // digit width (Aptos Narrow 11: 8 px, Calibri 11: 7 px; the worker carries it, absent is 7);
+    // digit width (Aptos Narrow 11 and Calibri 11: 7 px; the worker carries it, absent is 7);
     // use the standard's truncation, including half-pixel cases.
     // https://learn.microsoft.com/dotnet/api/documentformat.openxml.spreadsheet.column
     let digit = geometry

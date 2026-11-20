@@ -68,8 +68,8 @@ fn columns_match_the_host(package: Vec<u8>, first_column: f64) {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_piw0_7__aptos_narrow_columns_draw_at_72_pixels() {
-    columns_match_the_host(aptos_narrow_package(), 72.0);
+fn dc_piw0_7__aptos_narrow_columns_draw_at_64_pixels() {
+    columns_match_the_host(aptos_narrow_package(), 64.0);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -1500,9 +1500,12 @@ pub struct Geometry {
     pub default_column_width: Option<f64>,
     pub base_column_width: Option<f64>,
     /// The maximum digit width in pixels (96 DPI) of the workbook's default font, which a column
-    /// width in characters counts in; `None` is Calibri 11's 7.
+    /// width in characters counts in; `None` is Calibri 11 / Aptos Narrow 11's 7.
     #[serde(default)]
     pub default_digit_px: Option<f64>,
+    /// The workbook's default (Normal) font name, for font-dependent print rates.
+    #[serde(default)]
+    pub default_font: Option<String>,
     /// Column spans: first, last, width in characters, hidden.
     pub columns: Vec<(u32, u32, Option<f64>, bool)>,
     /// Rows: row, height in points, hidden.

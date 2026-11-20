@@ -3790,6 +3790,7 @@ impl Server {
             .unwrap_or_default();
         // The default font sets the digit width columns are counted in and the default row height.
         geometry.default_digit_px = Some(self.book.host().default_digit_px());
+        geometry.default_font = self.book.host().default_font_name().map(str::to_owned);
         geometry.default_row_height.get_or_insert(self.book.host().default_font_row_points());
         let layouts = self.book.host().model().definitions().axis_layouts();
         geometry.outline = [calc_host::Axis::Rows, calc_host::Axis::Columns]

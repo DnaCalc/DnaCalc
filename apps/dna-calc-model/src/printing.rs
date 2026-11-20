@@ -215,7 +215,11 @@ struct Rates {
     column_padding: f64,
 }
 fn rates(geometry: &Geometry) -> Rates {
-    if geometry.default_digit_px == Some(7.) {
+    let calibri = match geometry.default_font.as_deref() {
+        Some(name) => name.eq_ignore_ascii_case("Calibri"),
+        None => geometry.default_digit_px == Some(7.),
+    };
+    if calibri {
         Rates { row_per_point: CALIBRI_ROW_DEVICE_PER_POINT, column_padding: CALIBRI_COLUMN_PADDING_DEVICE }
     } else {
         Rates { row_per_point: ROW_DEVICE_PER_POINT, column_padding: COLUMN_PADDING_DEVICE }
@@ -1233,6 +1237,21 @@ mod tests {
             paginate(&s, &Geometry::default(), &[area(1, 1, 200, 3)], None, None).unwrap().pages.len()
         };
         assert!(pages("5") <= pages("14") && pages("14") <= pages("1"));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dw5_dc_rlkcm__aptos_narrow_and_calibri_select_distinct_print_rates_at_7px_digit() {
+        let mut aptos = Geometry::default();
+        aptos.default_digit_px = Some(7.);
+        aptos.default_font = Some("Aptos Narrow".into());
+        let mut calibri = Geometry::default();
+        calibri.default_digit_px = Some(7.);
+        calibri.default_font = Some("Calibri".into());
+        assert_eq!(rates(&aptos).row_per_point, ROW_DEVICE_PER_POINT);
+        assert_eq!(rates(&aptos).column_padding, COLUMN_PADDING_DEVICE);
+        assert_eq!(rates(&calibri).row_per_point, CALIBRI_ROW_DEVICE_PER_POINT);
+        assert_eq!(rates(&calibri).column_padding, CALIBRI_COLUMN_PADDING_DEVICE);
     }
 }
 
