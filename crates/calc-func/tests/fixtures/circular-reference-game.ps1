@@ -50,6 +50,7 @@ _xlfn.LET(_xlpm.old,IF(LEN(U1)<23,"0000000P089|088|087|086",U1),_xlpm.tick,VALUE
         $sheet += '</row>'
     }
     $sheet += '</sheetData><conditionalFormatting sqref="B7:Q18"><cfRule type="expression" dxfId="0" priority="1"><formula>B7="o"</formula></cfRule><cfRule type="expression" dxfId="1" priority="2"><formula>ISNUMBER(B7)</formula></cfRule><cfRule type="expression" dxfId="2" priority="3"><formula>ISERROR(B7)</formula></cfRule></conditionalFormatting><dataValidations count="1"><dataValidation type="list" allowBlank="1" showErrorMessage="1" sqref="B2"><formula1>"L,R,U,D"</formula1></dataValidation></dataValidations></worksheet>'
-    $styles = (Get-Styles).Replace('</styleSheet>', '<dxfs count="3"><dxf><fill><patternFill patternType="solid"><fgColor rgb="FF64B85A"/></patternFill></fill></dxf><dxf><fill><patternFill patternType="solid"><fgColor rgb="FFFFD25A"/></patternFill></fill></dxf><dxf><fill><patternFill patternType="solid"><fgColor rgb="FFE86D75"/></patternFill></fill></dxf></dxfs></styleSheet>')
+    # Excel reads solid differential fills from bgColor.
+    $styles = (Get-Styles).Replace('</styleSheet>', '<dxfs count="3"><dxf><fill><patternFill patternType="solid"><bgColor rgb="FF64B85A"/></patternFill></fill></dxf><dxf><fill><patternFill patternType="solid"><bgColor rgb="FFFFD25A"/></patternFill></fill></dxf><dxf><fill><patternFill patternType="solid"><bgColor rgb="FFE86D75"/></patternFill></fill></dxf></dxfs></styleSheet>')
     Write-Workbook $Path @(, @('Circular Reference', $sheet)) -IterateOnce -Styles $styles
 }
