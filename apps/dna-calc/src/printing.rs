@@ -197,6 +197,30 @@ fn Region(
             Some(view! { <div data-dnacalc="print-sparkline" use:css=style inner_html=wire::sparklines::sparkline_svg(s, w, h, 1.0)></div> })
         })
         .collect_view();
+    // The sheet's form controls (dc-zjsg.8), drawn as the grid draws them, in their anchors.
+    let control_views = document
+        .controls
+        .iter()
+        .filter_map(|control| {
+            let (x, y, w, h) = match &control.place {
+                wire::ChartPlace::Cells { from, to } => {
+                    let x = metrics.col_start(from.0.3) + from.1;
+                    let y = metrics.row_start(from.0.2) + from.2;
+                    (x, y, metrics.col_start(to.0.3) + to.1 - x, metrics.row_start(to.0.2) + to.2 - y)
+                }
+                wire::ChartPlace::Sized { from, width, height } => {
+                    (metrics.col_start(from.0.3) + from.1, metrics.row_start(from.0.2) + from.2, *width, *height)
+                }
+                wire::ChartPlace::Absolute { x, y, width, height } => (*x, *y, *width, *height),
+            };
+            let (x, y) = (x - viewport.scroll_x, y - viewport.scroll_y);
+            if w <= 0. || h <= 0. || x + w <= 0. || y + h <= 0. || x >= region.width || y >= region.height {
+                return None;
+            }
+            let style = format!("position:absolute;left:{x}px;top:{y}px;width:{w}px;height:{h}px");
+            Some(view! { <div data-dnacalc="print-control" data-kind=control.kind.clone() use:css=style inner_html=wire::controls::control_markup(control, w, h, 1.0)></div> })
+        })
+        .collect_view();
     let image_of = |id: u32| document.pictures.iter().find(|(p, _)| *p == id).map(|(_, url)| url.clone());
     let shape_views = document
         .shapes
@@ -261,6 +285,7 @@ fn Region(
             {sparkline_views}
             {chart_views}
             {shape_views}
+            {control_views}
         </div>
     }
 }
@@ -1097,6 +1122,7 @@ mod tests {
             shapes: Vec::new(),
             pictures: Vec::new(),
             sparklines: Vec::new(),
+            controls: Vec::new(),
             notices: Vec::new(),
         };
         assert!(drawing_budget(&doc, 1.).is_ok());

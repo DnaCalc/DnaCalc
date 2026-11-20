@@ -1415,6 +1415,17 @@ impl Server {
                         self.charts(sheet),
                         self.drawn_shapes_where(sheet, |shape| shape.prints),
                         self.drawn_sparklines(sheet),
+                        {
+                            let printed: std::collections::BTreeSet<u32> = self
+                                .book
+                                .host()
+                                .form_controls(sheet.id())
+                                .iter()
+                                .filter(|v| v.control.prints)
+                                .map(|v| v.control.id)
+                                .collect();
+                            self.drawn_controls(sheet).into_iter().filter(|c| printed.contains(&c.id)).collect()
+                        },
                     )))
                 }
                 Request::PivotSourceFields { area, revision } => Ok(Reply::PivotSourceFields(
@@ -9094,6 +9105,21 @@ mod printing_tests {
         // Pictures inside groups too.
         assert!(decodable >= 1 && document.pictures.len() > decodable, "{decodable} {}", document.pictures.len());
         assert!(document.pictures.iter().all(|(_, url)| url.starts_with("data:image/png;base64,iVBORw0KGgo")));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dc_zjsg_8__a_sheet_with_form_controls_prints_them_as_the_grid_draws_them() {
+        let mut s = Server::new();
+        let data = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/form-controls.xlsx");
+        assert!(s.execute_current(Request::Open { name: "form-controls.xlsx".into() }, Some(data.to_vec())).reply.is_ok());
+        let sheet = Sheet::of(s.book.host().sheets()[0].id());
+        let document = preview(&mut s, sheet).unwrap();
+        let Reply::Controls(drawn) = s.execute_current(Request::Controls(sheet), None).reply.unwrap() else { panic!("controls") };
+        // Every control prints (none states print="0"), in the state the grid shows.
+        assert_eq!(document.controls, drawn);
+        assert_eq!(document.controls.len(), 12);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
