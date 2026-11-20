@@ -12,8 +12,8 @@ not been measured on, it says so; implementing SliceV1 is not evidence of Excel 
 1. **Two receipts.** `AdmissionReceipt(K)` precedes every value K causes; `CompletionReceipt(K)` follows every
    installation K requires. S's "the command receipt precedes its values" means the admission receipt.
 2. **Fixed admitted frontier.** A calculation command pins model revision and external-input cut at admission. An edit
-   creates a successor command (new pass, predecessor link); validated pure work carries over. Today a commit discards
-   the whole recalculation (`calc-host/src/command.rs:436-438`, `calc-engine/src/recalc.rs:634-642`).
+   creates a successor command on the next owner step, with a new pass and predecessor link.
+   Validated pure work carries over (`calc-host/src/recalc.rs::step`).
 3. **Semantic evaluation vs physical attempt.** `InvocationId` carries an evaluation ordinal. Yield and physical retry
    keep it; a new semantic evaluation needs a typed `ReevaluationReason` (2.3), including the documented XLL
    `xlretUncalced` unwind that A7 omits (A4 2.10).
@@ -149,9 +149,10 @@ before a later explicit range command; it must not inherit the Manual normalizat
 | Engine fault | `Failed`; never turned into a worksheet error |
 
 Terminal receipts are immutable and emitted once; a superseded or cancelled command is never upgraded to `Complete`.
-Resource draining may outlive the receipt. Today: `HostProgress` (`calc-host/src/recalc.rs:39-55`) has no admission,
-waiting or superseded states; `calculate_full` cancels running work (`recalc.rs:127-136`), which K1 replaces with
-supersession.
+Resource draining may outlive the receipt. `HostProgress::Waiting` reports that work has stopped
+for an input or an owner. Calculation events carry admission and supersession. A
+`calculate_full` request supersedes active work at the next owner step with a workbook-wide
+`ForceAll` calculation (`calc-host/src/recalc.rs`).
 
 ### 3.2 Pass
 
@@ -1529,7 +1530,7 @@ generations, views, draw material, effect outcomes and platform provenance; a se
 | Fence extent | A7: pinned root; A4: everything the callback may observe, other workbooks included | pin the `CalculationDomain` root |
 | Cached-read evidence | S/A7 cite a measured stale read | P01 (O, 20527 safe mode) confirms old dirty-formula cache for observer-only calculation; reversed-area re-entry sees Empty then the new value |
 | Range.Calculate end state | A7: target satisfied; fixture hints it stays dirty | P02 isolated Manual trials: `StillRequired`; clean unrelated counter did not run |
-| Edit during calculation | code: cancel all; A7: successor plus revalidated reuse | A7 (demo 4) |
+| Edit during calculation | A7: successor plus revalidated reuse | The owner step supersedes active work (A7, demo 4) |
 | Save(false) caches | code: drop stale; A7: preserve with flags | P06 selects preserve for ordinary Manual false; flags are not freshness proofs, and semiautomatic TABLE save can calculate despite false |
 | Iteration order | A4: do not promote sheet-name order; code: measured on 20430/20527 | keep measured rules (O) for the measured shapes; P14 for the rest |
 | Atomic SCC/table publication | S/A7 imply session units; A4: a strategy, observable boundary unmeasured | sessions may yield internally; external atomicity from P08/P14/P15 |

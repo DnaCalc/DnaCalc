@@ -296,8 +296,8 @@ pub fn calculate(host: &mut HostState) {
 /// Asks for a full recalculation, as Excel's `CalculateFull` (Ctrl+Alt+F9) does: every formula
 /// is made pending and the next [`step`] begins a recalculation that calculates every formula,
 /// whatever the calculation mode. The compiled plans and the dependency graph are kept, so
-/// nothing is compiled again. A recalculation in progress is cancelled, since it would clear the
-/// nodes it calculates from pending when it published; the full one replaces it.
+/// nothing is compiled again. The next owner step supersedes active work with a workbook-wide
+/// `ForceAll` calculation.
 pub fn calculate_full(host: &mut HostState) {
     host.calculation_cancelled = false;
     host.full_calculate_requested = true;

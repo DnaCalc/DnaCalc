@@ -83,6 +83,11 @@ Read at origin/master `cb0b76a5` of DnaCalc. Short paths (`recalc.rs:70`) are un
   recorded failure if it did not finish (`session.rs:1361-1392`). `WorksheetCalculate`: `events.rs:182-218`.
 - **Save.** BeforeSave edits commit before the pin; SaveCopyAs skips the handler; cancel keeps the edit and
   writes no image (`session.rs:736-753`). Writing consumes only the pinned plan (`save.rs:143-144`).
+  The low-level `prepare_save` defaults to preserving permitted scalar caches in Manual mode for
+  SpreadsheetML writes. The ordinary save route uses `ExcelSaveContext` to select that policy in
+  Manual mode or when sheets are disabled, then passes the chosen policy to the shared writer.
+  CalcDoc separately checks package-format eligibility, including the XLSB no-rewrite constraint.
+  See `save.rs::prepare_save` and `session.rs::normalize_save_context`.
 - **One owner thread** (inferred): `HostState` and `HostSession` hold `Rc` and `Cell` (`state.rs:117,125-135`).
 - **Trusted to the engine:** order, evaluation, publication, `stale()` as "no longer stands", reuse of validated
   results on supersession, boundary caches. Trusted to calc-doc: reference rewriting and what a save can move.
@@ -131,17 +136,9 @@ calculates data tables. Manual or a disabled sheet -> `PreservePermittedCaches` 
 
 ## 8. Findings for the tracker
 
-1. `command.rs:259-260` and RC:15-16 say a commit cancels the running recalculation; the code keeps it
-   (`command.rs:673`) and `step` supersedes it (`recalc.rs:84-121`). RC's line references are stale.
-2. `recalc.rs:284-285` and RC:153 say `calculate_full` cancels running work; `recalc.rs:286-291` cancels nothing,
-   95-104 supersedes. RC:152 says `HostProgress` has no waiting state; `recalc.rs:54` has one.
-3. `session.rs:166-167`: caches outside a `CalculateRange` are refused; `tests/round_trip.rs:4756` shows them read.
-4. `lib.rs:37-39` says save leaves every non-standing formula to Excel; `save.rs:199-206` keeps permitted caches.
-5. RC:674 names three `CachePolicy` variants; the code has two, differently named (`save.rs:84-87`).
-6. RC:684: `CalculateBeforeSave` "absent today", a domain setting; it is a per-save field (`save.rs:69`).
-7. Two rules pick the cache policy: `save.rs:200-206` (Manual and an XML or spreadsheet format) and
-   `session.rs:809-814` (Manual or a disabled sheet, no format test; a later format test was not looked for).
-8. Refusals name beads `.beads/issues.jsonl` lists as closed: dc-971p.40 (`command.rs:428,477`), dc-971p.8
+1. RC:674 names three `CachePolicy` variants; the code has two, differently named (`save.rs:84-87`).
+2. RC:684: `CalculateBeforeSave` "absent today", a domain setting; it is a per-save field (`save.rs:69`).
+3. Refusals name beads `.beads/issues.jsonl` lists as closed: dc-971p.40 (`command.rs:428,477`), dc-971p.8
    (`command.rs:523,528,550`), dc-971p.7 (`shift.rs:20`).
 
 Verified: each `path:line` above was read or grepped at origin/master `cb0b76a5`; bead status from the tracker file.

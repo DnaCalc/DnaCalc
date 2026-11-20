@@ -39,8 +39,8 @@
 //! recalculation. It is independent of any UI toolkit: a sink is any closure.
 //!
 //! [`save`] writes the current revision through calc-doc's save, with each standing calculated
-//! formula value as its cached value and every other formula cell left for Excel to calculate on
-//! open.
+//! formula value as its cached value. A Manual SpreadsheetML save may also retain permitted
+//! scalar caches, with dirty flags that distinguish them from current calculated values.
 //!
 //! [`HostState::used_area`] bounds what a skin shows of a sheet, and [`blank_package`] (calc-doc's)
 //! is the package of a new workbook, opened as any other.
