@@ -2439,29 +2439,30 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
             (0.5 + (0.5 - small), small)
         };
     }
-    // bgrat runs at `eps`, not TOMS 708's `15 * eps`: at 1.5e-14 its truncated positive series
-    // sat about 5 units low on average over the BETA.DIST bank (mean |ulp| 8.1, signed -5.3);
-    // at `eps` 3.9 and +0.3, with 31 rows gained and 8 lost (dc-ymjf.6).
-    // The unit-shape arms, read from single-bit-stepped public calls (Excel 16.0 b20527). With
-    // b = 1 and x <= 0.9 the answer is exp(a * log x), one rounding of each, on every x and shape
-    // asked; b = 1 +- 1 ulp leaves this arm, and just above 0.9 the answer is the complement of
-    // I_{1-x}(1, a). With a = 1 and x >= 0.1 it is that complement's own arm,
-    // 0.5 + (0.5 - exp(b * log y)); below 0.1 it is -expm1(b * log1p(-x)) with the
-    // product taken on the x87 chain (R43: 3,000 of 3,000 public calls, b from 0.3 to 1,000
-    // and x from 1e-9 to 0.0999; the spilled and internal EXPM1 graphs agree on all 20,000
-    // sampled arguments, so which of them Excel runs is undetermined).
-    if b == 1.0 && x <= 0.9 {
-        let w = crate::ported::excel_numeric::excel_exp(a * crt_log(x));
-        return (w, 0.5 + (0.5 - w));
-    }
-    if a == 1.0 && x >= 0.1 {
-        let w1 = crate::ported::excel_numeric::excel_exp(b * crt_log(y));
-        return (0.5 + (0.5 - w1), w1);
+    // At the remote end of each unit-shape arm Excel forms the small tail
+    // with the corrected exponential, then reflects around the stored half.
+    use crate::ported::excel_numeric::{
+        excel_exp, excel_expm1_spilled, excel_log, excel_log1p_times, excel_x87_add as add,
+        excel_x87_mul as mul, excel_x87_sub as sub,
+    };
+    if b == 1.0 {
+        // Both sides consume the same stored a * LN(x). At x > 0.9 the
+        // corrected exponential is published through the opposite tail.
+        let exponent = mul(a, excel_log(x));
+        if x <= 0.9 {
+            let w = excel_exp(exponent);
+            return (w, add(0.5, sub(0.5, w)));
+        }
+        let w1 = -excel_expm1_spilled(exponent);
+        return (add(0.5, sub(0.5, w1)), w1);
     }
     if a == 1.0 {
-        use crate::ported::excel_numeric::{excel_expm1_spilled, excel_log1p_times};
+        if x >= 0.1 {
+            let w1 = excel_exp(mul(b, excel_log(y)));
+            return (add(0.5, sub(0.5, w1)), w1);
+        }
         let w = -excel_expm1_spilled(excel_log1p_times(b, -x));
-        return (w, 0.5 + (0.5 - w));
+        return (w, add(0.5, sub(0.5, w)));
     }
     if a.max(b) < 1.0e-3 * eps {
         return (b / (a + b), a / (a + b));
