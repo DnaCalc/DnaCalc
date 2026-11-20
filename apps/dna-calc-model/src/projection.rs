@@ -445,6 +445,14 @@ pub enum Intent {
         id: u32,
         degrees: i64,
     },
+    /// Duplicate a shape (Ctrl+D), the copy offset by `dx`, `dy` hundredths of a point (dc-zjsg.4).
+    ShapeDuplicate {
+        sheet: Sheet,
+        revision: u64,
+        id: u32,
+        dx: i64,
+        dy: i64,
+    },
     /// Move a shape by `dx`, `dy` hundredths of a point (an arrow key) (dc-zjsg.4).
     ShapeNudge {
         sheet: Sheet,

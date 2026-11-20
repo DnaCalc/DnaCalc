@@ -89,6 +89,12 @@ pub enum ShapeChange {
         id: u32,
         rotation: i64,
     },
+    /// A copy of a shape (Excel's Duplicate, Ctrl+D) over it, offset by `dx`, `dy` points, in front of everything.
+    Duplicate {
+        id: u32,
+        dx: Points,
+        dy: Points,
+    },
     /// Move a shape by `dx`, `dy` points (an arrow key's step), kept on the worksheet.
     Nudge {
         id: u32,
@@ -811,6 +817,45 @@ pub(crate) fn prepare(
             }
             set_place(host, sheet, s, stored, r);
             reroute_connectors(host, sheet, &mut shapes, id, originals);
+        }
+        ShapeChange::Duplicate { id, dx, dy } => {
+            let index = find_movable(&shapes, id, false)?;
+            let source = shapes[index].clone();
+            let stored = originals.holds(&source);
+            if stored && source.kind == ShapeKind::Group {
+                return Err(refusal("Duplicating a group the file holds is not modelled (dc-zjsg.4)"));
+            }
+            let (dx, dy) = (dx.get(), dy.get());
+            if !finite(dx) || !finite(dy) {
+                return Err(refusal("Use a finite offset"));
+            }
+            let (l, t, w, h) = anchor_rect(host, sheet, &source, stored);
+            // Identities for the copy and, in a group, each of its children.
+            let mut next = next_id();
+            fn renumber(shape: &mut Shape, next: &mut u32) {
+                shape.id = *next;
+                *next += 1;
+                for child in &mut shape.children {
+                    renumber(child, next);
+                }
+            }
+            let mut copy = source.clone();
+            renumber(&mut copy, &mut next);
+            copy.copy_of = if stored { Some(source.id) } else { source.copy_of };
+            // A default name ("Rectangle 3") is renumbered from the copy's identity; one the user gave stays.
+            if let Some((base, number)) = source.name.rsplit_once(' ')
+                && number.parse::<u32>().ok() == Some(source.id.saturating_sub(1))
+            {
+                copy.name = format!("{base} {}", copy.id - 1);
+            }
+            copy.begin = None;
+            copy.end = None;
+            set_place(host, sheet, &mut copy, false, ((l + dx).max(0.0), (t + dy).max(0.0), w, h));
+            if !stored {
+                // The copy's anchor kind is a new object's (two-cell); its transform follows its anchor.
+                copy.edit_as = source.edit_as.clone();
+            }
+            shapes.push(copy);
         }
         ShapeChange::Nudge { id, dx, dy } => {
             let index = find_movable(&shapes, id, false)?;

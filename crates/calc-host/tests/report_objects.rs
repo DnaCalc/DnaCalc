@@ -1161,6 +1161,37 @@ fn dc_zjsg_4__a_turned_or_flipped_group_comes_apart_where_it_showed_its_children
     assert_eq!(centre(&saved, 2), (180.0, 110.0, 0, true));
 }
 
+/// dc-zjsg.4: a duplicate of the file's own object is written from its stored element (its custom geometry and fill
+/// kept), with its own identity and place; a duplicate of a new shape is renumbered and renamed from its identity.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_4__duplicates_of_stored_and_new_shapes_save_and_reopen() {
+    let mut book = open(include_bytes!("../../calc-doc/tests/fixtures/drawing/shapes-paint4.xlsx").to_vec());
+    let sheet = book.host().sheets()[0].id();
+    let triangle = book.host().shapes(sheet).iter().find(|s| s.name == "Freeform triangle").unwrap().clone();
+    shape(&mut book, sheet, ShapeChange::Duplicate { id: triangle.id, dx: pts(12.0), dy: pts(12.0) });
+    shape(&mut book, sheet, add(ShapeKind::Shape, "ellipse", 10.0, 10.0, 40.0, 30.0));
+    let oval = book.host().shapes(sheet).last().unwrap().clone();
+    shape(&mut book, sheet, ShapeChange::Duplicate { id: oval.id, dx: pts(12.0), dy: pts(12.0) });
+    let reloaded = reopened(&mut book);
+    let read = reloaded.host().shapes(sheet);
+    assert_eq!(read.len(), 23);
+    let copies: Vec<_> = read.iter().filter(|s| s.name == "Freeform triangle").collect();
+    assert_eq!(copies.len(), 2);
+    let copy = copies.iter().find(|s| s.id != triangle.id).unwrap();
+    assert_eq!((&copy.custom_geometry, &copy.fill, &copy.text), (&triangle.custom_geometry, &triangle.fill, &triangle.text));
+    let (l, t, w, h) = book.host().anchor_rectangle(sheet, &triangle.anchor);
+    let (l2, t2, w2, h2) = reloaded.host().anchor_rectangle(sheet, &copy.anchor);
+    assert!((l2 - l - 12.0).abs() < 0.01 && (t2 - t - 12.0).abs() < 0.01 && (w2 - w).abs() < 0.01 && (h2 - h).abs() < 0.01);
+    let oval_copy = read.last().unwrap();
+    assert_eq!((oval_copy.geometry.as_deref(), oval_copy.name.clone()), (Some("ellipse"), format!("Oval {}", oval_copy.id - 1)));
+    // Identities stay unique in the saved drawing.
+    let mut ids: Vec<u32> = read.iter().map(|s| s.id).collect();
+    ids.sort_unstable();
+    ids.dedup();
+    assert_eq!(ids.len(), 23);
+}
+
 /// dc-zjsg.4: a kept object (an equation, ink, SmartArt, OLE) is not moved or deleted; it stays as the file stores it.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

@@ -2684,6 +2684,17 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
     let selected_shape: RwSignal<Option<u32>> = RwSignal::new(None);
     // Shapes added to the selection by Shift+click, to group with the selected one.
     let also_shapes: RwSignal<Vec<u32>> = RwSignal::new(Vec::new());
+    // A shape's text being edited in place (a double-click on a shape or text box): its id and the text so far.
+    let editing_shape: RwSignal<Option<(u32, String)>> = RwSignal::new(None);
+    let commit_text = move || {
+        let Some((id, text)) = editing_shape.get_untracked() else { return };
+        editing_shape.set(None);
+        let Some(sheet) = controller.sheet.get_untracked() else { return };
+        controller.dispatch(
+            wire::Intent::ShapeText { sheet: wire::Sheet::of(sheet), revision: controller.summary.get_untracked().revision, id, text },
+            |_| {},
+        );
+    };
     let shape_drag: RwSignal<Option<ShapeDrag>> = RwSignal::new(None);
     let shape_delta: RwSignal<(f64, f64)> = RwSignal::new((0.0, 0.0));
     let shape_move = window_event_listener(leptos::ev::mousemove, move |ev| {
@@ -2717,11 +2728,24 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
         );
     });
     let shape_key = window_event_listener(leptos::ev::keydown, move |ev| {
+        // Keys typed into a shape's text are the text's.
+        if editing_shape.get_untracked().is_some() {
+            return;
+        }
         let Some(id) = selected_shape.get_untracked() else { return };
         match ev.key().as_str() {
             "Escape" => {
                 selected_shape.set(None);
                 also_shapes.set(Vec::new());
+            }
+            // Ctrl+D duplicates the selected shape, the copy 12 pt right and down (ASSUMED to be Excel's offset).
+            "d" | "D" if ev.ctrl_key() || ev.meta_key() => {
+                let Some(sheet) = controller.sheet.get_untracked() else { return };
+                ev.prevent_default();
+                controller.dispatch(
+                    wire::Intent::ShapeDuplicate { sheet: wire::Sheet::of(sheet), revision: controller.summary.get_untracked().revision, id, dx: 1200, dy: 1200 },
+                    |_| {},
+                );
             }
             // An arrow key moves the selected shape a screen pixel (ten with Shift); ASSUMED to be Excel's step.
             key @ ("ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown") => {
@@ -2869,6 +2893,8 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 };
                 let is_selected = selected == Some(id);
                 let is_also = also_shapes.get().contains(&id);
+                let holds_text = matches!(shape.kind.as_str(), "shape" | "textbox") && shape.kept.is_none() && shape.picture.is_none();
+                let current_text = shape.text.as_ref().map(|t| t.paragraphs.iter().map(|p| p.text.clone()).collect::<Vec<_>>().join("\n")).unwrap_or_default();
                 // The selected object's eight handles, on its frame (corners and edge midpoints), clockwise from the top left.
                 let handles = is_selected.then(|| {
                     let (w, h) = (x1 - x0, y1 - y0);
@@ -2894,11 +2920,37 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                         aria-label=shape.kept.clone().map(|kept| format!("{kept} {}", shape.name))
                         use:css=style
                         on:mousedown=move |ev| start(ev, 0)
+                        on:dblclick=move |ev| {
+                            if holds_text {
+                                ev.stop_propagation();
+                                editing_shape.set(Some((id, current_text.clone())));
+                            }
+                        }
                     >
                         {image}
                         {inside}
                         <div class="dc-shape-fill" use:styled=markup></div>
                         {handles}
+                        {move || (editing_shape.get().map(|(e, _)| e) == Some(id)).then(|| view! {
+                            <textarea
+                                class="dc-shape-editor"
+                                data-dnacalc="shape-text-editor"
+                                aria-label="Shape text"
+                                prop:value=move || editing_shape.get().map(|(_, t)| t).unwrap_or_default()
+                                on:input=move |ev| { let text = event_target_value(&ev); editing_shape.update(|e| if let Some((_, t)) = e { *t = text; }); }
+                                on:mousedown=move |ev| ev.stop_propagation()
+                                on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                                    ev.stop_propagation();
+                                    match ev.key().as_str() {
+                                        "Escape" => editing_shape.set(None),
+                                        "Enter" if ev.ctrl_key() => { ev.prevent_default(); commit_text(); }
+                                        _ => {}
+                                    }
+                                }
+                                on:blur=move |_| commit_text()
+                                autofocus=true
+                            ></textarea>
+                        })}
                     </div>
                 })
             })

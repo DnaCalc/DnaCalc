@@ -802,7 +802,14 @@ pub(crate) fn add_with(
     }
     // A new object that is (or holds) a stored one writes the stored element in its new place.
     let stored_element = |shape: &calc_doc_model::Shape| -> Option<Result<Vec<u8>, SaveRefusal>> {
-        let stored = plan?.originals.get(&shape.id)?;
+        let plan = plan?;
+        // A copy of a stored object is written from that object's element (a stored group's copy is refused by the
+        // host: its children's identities would repeat).
+        if let Some(source) = shape.copy_of.and_then(|id| plan.sources.get(&id)) {
+            return (source.kind == shape.kind && source.kind != calc_doc_model::ShapeKind::Group)
+                .then(|| super::stored::element(&original_xml, source, shape));
+        }
+        let stored = plan.originals.get(&shape.id)?;
         (stored.kind == shape.kind).then(|| super::stored::element(&original_xml, stored, shape))
     };
     // Authored charts come first, then shapes: the drawing's z-order is its document order.

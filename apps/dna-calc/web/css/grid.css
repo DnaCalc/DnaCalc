@@ -57,6 +57,7 @@
 .dc-shape svg{display:block;position:absolute;left:0;top:0}
 .dc-shape-text{font-family:Calibri,Carlito,'Segoe UI',sans-serif}
 .dc-shape-fill{position:absolute;left:0;top:0;width:100%;height:100%}
+.dc-shape-editor{position:absolute;left:0;top:0;width:100%;height:100%;box-sizing:border-box;margin:0;resize:none;border:1px solid #7f7f7f;background:rgba(255,255,255,.9);font:11pt Calibri,Carlito,'Segoe UI',sans-serif;pointer-events:auto;z-index:2}
 .dc-cell-editor{position:absolute;box-sizing:border-box;color:var(--dna-ink);margin:0;background:var(--dna-paper);z-index:4;min-width:200px}
 .dc-cell-editor .oc-editor{border:2px solid var(--dna-amber);border-radius:0;font:13px/20px ui-monospace,Consolas,monospace;min-height:20px}
 .dc-cell-editor .oc-editor pre,.dc-cell-editor .oc-editor textarea{padding:0 3px;min-height:20px;resize:none;white-space:pre}
