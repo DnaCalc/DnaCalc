@@ -530,6 +530,14 @@ impl ModelRoot {
         for (sheet, charts) in definitions.all_charts() {
             next = next.with_charts(sheet, charts.to_vec());
         }
+        // Drawing objects and sparklines keep their stored anchors and references: what the page shows moves them
+        // through the session's axis edits, and the save moves them in their parts (dc-zjsg.4, dc-zjsg.7).
+        for (sheet, shapes) in definitions.all_shapes() {
+            next = next.with_shapes(sheet, shapes.to_vec());
+        }
+        for (sheet, groups) in definitions.all_sparklines() {
+            next = next.with_sparklines(sheet, groups.to_vec());
+        }
         for (sheet, filter) in definitions.auto_filters() {
             let mut filter = filter.clone();
             if sheet == edit.sheet() {

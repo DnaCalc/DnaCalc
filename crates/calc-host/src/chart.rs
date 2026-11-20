@@ -429,7 +429,39 @@ impl HostState {
 
     /// Where a drawing object's anchor puts it: a chart's, a shape's.
     pub fn chart_place(&self, sheet: SheetId, anchor: &ChartAnchor) -> Option<ChartPlace> {
+        self.drawing_place(sheet, anchor, None)
+    }
+
+    /// Where a drawing object's anchor puts it now, moved through the session's row and column inserts and deletes as
+    /// Excel moves an object over inserted or deleted cells (the save's anchor pass does the same to the stored part):
+    /// a two-cell anchor's corners each to where their cell goes; a one-cell anchor, or a two-cell one whose `editAs`
+    /// is `oneCell`, by its top-left corner with its span kept; a two-cell anchor whose `editAs` is `absolute` not at all.
+    pub fn drawing_place(&self, sheet: SheetId, anchor: &ChartAnchor, edit_as: Option<&str>) -> Option<ChartPlace> {
         let px = |emu: i64| emu as f64 / EMU_PER_PIXEL;
+        if let ChartAnchor::TwoCell { from, to } = anchor
+            && matches!(edit_as, Some("oneCell" | "absolute"))
+        {
+            let start = if edit_as == Some("absolute") {
+                ChartCorner {
+                    cell: CellKey::new(sheet, from.row + 1, from.column + 1).ok()?,
+                    dx: px(from.column_offset),
+                    dy: px(from.row_offset),
+                }
+            } else {
+                self.chart_corner(sheet, from)?
+            };
+            let end = ChartCorner {
+                cell: CellKey::new(
+                    sheet,
+                    start.cell.row() + to.row.saturating_sub(from.row),
+                    start.cell.column() + to.column.saturating_sub(from.column),
+                )
+                .ok()?,
+                dx: px(to.column_offset),
+                dy: px(to.row_offset),
+            };
+            return Some(ChartPlace::Cells { from: start, to: end });
+        }
         Some(match anchor {
             ChartAnchor::TwoCell { from, to } => ChartPlace::Cells {
                 from: self.chart_corner(sheet, from)?,

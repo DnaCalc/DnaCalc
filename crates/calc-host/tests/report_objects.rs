@@ -932,3 +932,31 @@ fn dc_zjsg_4__kept_objects_are_not_edited() {
     }
     assert_eq!(book.host().shapes(sheet).len(), 5);
 }
+
+/// dc-zjsg.4: inserting rows keeps a sheet's drawing objects (the model carries them through the edit) and the save
+/// moves their stored anchors as Excel does; a session that also moved a stored object refuses to save rather than
+/// write stale anchors.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_4__drawings_survive_row_inserts_and_save_moved() {
+    use calc_doc_model::{Axis, AxisChange, AxisEdit, ChartAnchor};
+    let bytes = include_bytes!("../../calc-doc/tests/fixtures/drawing/shapes-paint4.xlsx").to_vec();
+    let mut book = open(bytes);
+    let sheet = book.host().sheets()[0].id();
+    let before = book.host().shapes(sheet).to_vec();
+    let edit = AxisEdit::new(sheet, Axis::Rows, AxisChange::Insert, 2, 2).unwrap();
+    assert!(book.dispatch(SkinIntent::EditAxis(edit)).accepted());
+    assert_eq!(book.host().shapes(sheet).len(), before.len());
+    let reloaded = reopened(&mut book);
+    let after = reloaded.host().shapes(sheet).to_vec();
+    assert_eq!(after.len(), before.len());
+    let rows = |a: &ChartAnchor| match a {
+        ChartAnchor::TwoCell { from, to } => (from.row, to.row),
+        other => panic!("{other:?}"),
+    };
+    // Every object starts at row 4 (0-based 3) or below, so each moves down two rows.
+    for (a, b) in after.iter().zip(&before) {
+        let ((af, at), (bf, bt)) = (rows(&a.anchor), rows(&b.anchor));
+        assert_eq!((af, at), (bf + 2, bt + 2), "{}", a.name);
+    }
+}

@@ -485,7 +485,6 @@ impl Definitions {
     pub fn with_charts(mut self, sheet: SheetId, charts: Vec<crate::Chart>) -> Self {
         if charts.is_empty() {
             self.charts.remove(&sheet);
-            self.shapes.remove(&sheet);
         } else {
             self.charts.insert(sheet, charts.into());
         }
@@ -516,6 +515,9 @@ impl Definitions {
     /// The sparkline groups of `sheet` as the file states them (dc-zjsg.7).
     pub fn sparklines(&self, sheet: SheetId) -> &[crate::SparklineGroup] {
         self.sparklines.get(&sheet).map(|groups| groups.as_ref()).unwrap_or(&[])
+    }
+    pub fn all_sparklines(&self) -> impl Iterator<Item = (SheetId, &[crate::SparklineGroup])> {
+        self.sparklines.iter().map(|(sheet, groups)| (*sheet, groups.as_ref()))
     }
     pub fn with_sparklines(mut self, sheet: SheetId, groups: Vec<crate::SparklineGroup>) -> Self {
         if groups.is_empty() {

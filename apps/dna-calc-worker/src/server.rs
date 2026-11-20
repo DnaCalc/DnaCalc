@@ -4474,13 +4474,18 @@ impl Server {
         host.shapes(sheet.id())
             .iter()
             .filter(|shape| keep(shape))
-            .filter_map(|shape| crate::drawn::drawn_with(shape, self.place_of(sheet, &shape.anchor)?, theme, lines))
+            .filter_map(|shape| crate::drawn::drawn_with(shape, self.place_as(sheet, &shape.anchor, shape.edit_as.as_deref())?, theme, lines))
             .collect()
     }
 
     /// Where an anchor lands on the grid, in the page's terms.
     fn place_of(&self, sheet: Sheet, anchor: &calc_host::ChartAnchor) -> Option<ChartPlace> {
-        Some(match self.book.host().chart_place(sheet.id(), anchor)? {
+        self.place_as(sheet, anchor, None)
+    }
+
+    /// [`Self::place_of`] for an object with an anchor's `editAs` (a two-cell anchor that moves as one cell).
+    fn place_as(&self, sheet: Sheet, anchor: &calc_host::ChartAnchor, edit_as: Option<&str>) -> Option<ChartPlace> {
+        Some(match self.book.host().drawing_place(sheet.id(), anchor, edit_as)? {
             calc_host::ChartPlace::Cells { from, to } => ChartPlace::Cells {
                 from: (Key::of(from.cell), from.dx, from.dy),
                 to: (Key::of(to.cell), to.dx, to.dy),
@@ -5159,6 +5164,31 @@ mod outline_tests {
         assert!(first.shape.flip_horizontal);
         assert_eq!(mirrored.children[2].shape.rotation, -30.0);
         assert_eq!(by("Group rot 20").rotation, 20.0);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dc_zjsg_4__drawings_follow_inserted_and_deleted_rows_on_screen() {
+        let mut server = Server::new();
+        let data = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/shapes-paint4.xlsx");
+        assert!(server.execute_current(Request::Open { name: "shapes-paint4.xlsx".into() }, Some(data.to_vec())).reply.is_ok());
+        let sheet = Sheet::of(server.book.host().sheets()[0].id());
+        let rows_of = |server: &mut Server, name: &str| {
+            let Reply::Shapes(drawn) = server.execute_current(Request::Shapes(sheet), None).reply.unwrap() else { panic!("shapes") };
+            match drawn.iter().find(|d| d.name == name).unwrap().place {
+                ChartPlace::Cells { from, to } => (from.0.2, to.0.2),
+                ref other => panic!("{other:?}"),
+            }
+        };
+        // "Freeform triangle" is anchored from row 4 to row 9 (1-based), editAs oneCell.
+        assert_eq!(rows_of(&mut server, "Freeform triangle"), (4, 9));
+        // Two rows inserted at row 2: it moves down two rows, its span kept.
+        assert!(server.execute_current(Request::Intent(Intent::EditAxis { sheet, rows: true, insert: true, start: 2, count: 2 }), None).reply.is_ok());
+        assert_eq!(rows_of(&mut server, "Freeform triangle"), (6, 11));
+        // Rows 1 to 3 deleted: it moves up three.
+        assert!(server.execute_current(Request::Intent(Intent::EditAxis { sheet, rows: true, insert: false, start: 1, count: 3 }), None).reply.is_ok());
+        assert_eq!(rows_of(&mut server, "Freeform triangle"), (3, 8));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
