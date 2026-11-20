@@ -158,6 +158,27 @@ fn complex_tangent_and_cotangent_reduce_the_denominator_at_the_real_argument() {
 }
 
 /// Excel 20527 distinguishes the stored leading product of the high J0 seed.
+/// dc-iuwct.6-.9, Excel 16.0.20527 (Touchstone, 2026-11-20): complex coefficients take fifteen
+/// digits through the nibble chain at every shift (decimal near-midpoints, where one rounded
+/// power of ten gives the other neighbour), and the real-axis IMCOSH and IMSINH (from |x| = 1)
+/// are the worksheet COSH and SINH.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn complex_text_uses_the_nibble_chain_and_real_axis_hyperbolics_the_scalar_kernels() {
+    for (bits, expected) in [
+        (0x08a6_aa36_71bf_27b3_u64, "5.49145631004733E-267"),
+        (0x5a7c_d1e9_e483_db23, "7.80354216159832E+127"),
+        (0x157f_51f6_4d9e_c62a, "3.90217732321279E-205"),
+        (0x1d1e_c47b_9e34_e502, "2.03814371988341E-168"),
+        (0x10e5_6189_4bbe_3363, "2.82046893450868E-227"),
+        (0x46bd_8fa6_beb2_0c93, "5.99571110793787E+32"),
+    ] {
+        text(call("COMPLEX", vec![n(f64::from_bits(bits)), n(0.0)]), expected);
+    }
+    text(call("IMCOSH", vec![n(f64::from_bits(0xc02e_4938_a826_0ece))]), "1885800.96126951");
+    text(call("IMSINH", vec![n(f64::from_bits(0xc00f_5b65_9282_4c40))]), "-25.1809084647036");
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn bessel_high_j0_stores_its_leading_product() {
