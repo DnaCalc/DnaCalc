@@ -2676,7 +2676,69 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
     };
     // The sheet's shapes and text boxes (dc-zjsg.2), over the cells like the charts: placed by their
     // anchors in the cells' own sizes (a hidden row or column has none), the ones in view only.
+    // A drawing object selected and dragged (dc-zjsg.4): a click on a shape selects it; dragging its body moves it,
+    // dragging one of its eight handles resizes it; the release sends the new rectangle as one undoable edit; Delete
+    // deletes it, Escape or a click elsewhere lets it go.
+    let selected_shape: RwSignal<Option<u32>> = RwSignal::new(None);
+    let shape_drag: RwSignal<Option<ShapeDrag>> = RwSignal::new(None);
+    let shape_delta: RwSignal<(f64, f64)> = RwSignal::new((0.0, 0.0));
+    let shape_move = window_event_listener(leptos::ev::mousemove, move |ev| {
+        if let Some(drag) = shape_drag.get_untracked() {
+            shape_delta.set((f64::from(ev.client_x()) - drag.start.0, f64::from(ev.client_y()) - drag.start.1));
+        }
+    });
+    let shape_up = window_event_listener(leptos::ev::mouseup, move |_| {
+        let Some(drag) = shape_drag.get_untracked() else { return };
+        shape_drag.set(None);
+        let delta = shape_delta.get_untracked();
+        shape_delta.set((0.0, 0.0));
+        if delta.0.abs() < 2.0 && delta.1.abs() < 2.0 {
+            return;
+        }
+        let (x, y, w, h) = drag.moved(delta);
+        // Pixels at the zoom to hundredths of a point (96 pixels an inch at 100%).
+        let hundredths = |v: f64| (v / drag.zoom * 75.0).round() as i64;
+        let Some(sheet) = controller.sheet.get_untracked() else { return };
+        controller.dispatch(
+            wire::Intent::ShapePlace {
+                sheet: wire::Sheet::of(sheet),
+                revision: controller.summary.get_untracked().revision,
+                id: drag.id,
+                left: hundredths(x).max(0),
+                top: hundredths(y).max(0),
+                width: hundredths(w).max(1),
+                height: hundredths(h).max(1),
+            },
+            |_| {},
+        );
+    });
+    let shape_key = window_event_listener(leptos::ev::keydown, move |ev| {
+        let Some(id) = selected_shape.get_untracked() else { return };
+        match ev.key().as_str() {
+            "Escape" => selected_shape.set(None),
+            "Delete" => {
+                let Some(sheet) = controller.sheet.get_untracked() else { return };
+                ev.prevent_default();
+                selected_shape.set(None);
+                controller.dispatch(
+                    wire::Intent::ShapeDelete { sheet: wire::Sheet::of(sheet), revision: controller.summary.get_untracked().revision, id },
+                    |_| {},
+                );
+            }
+            _ => {}
+        }
+    });
+    let shape_away = window_event_listener(leptos::ev::mousedown, move |_| selected_shape.set(None));
+    on_cleanup(move || {
+        shape_move.remove();
+        shape_up.remove();
+        shape_key.remove();
+        shape_away.remove();
+    });
     let shapes_view = move || {
+        let selected = selected_shape.get();
+        let dragging = shape_drag.get();
+        let delta = shape_delta.get();
         let m = metrics.get();
         let v = viewport.get();
         let z = zoom.get();
@@ -2705,6 +2767,16 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 if x1 < 0.0 || y1 < 0.0 || x0 > v.width || y0 > v.height {
                     return None;
                 }
+                // The anchor frame, relative to the sheet's top left, as a drag starts from it; while this shape is dragged,
+                // the frame the drag makes.
+                let anchor = (x0 - origin.x, y0 - origin.y, x1 - x0, y1 - y0);
+                let (x0, y0, x1, y1) = match dragging.filter(|d| d.id == shape.id) {
+                    Some(drag) => {
+                        let (x, y, w, h) = drag.moved(delta);
+                        (x + origin.x, y + origin.y, x + origin.x + w, y + origin.y + h)
+                    }
+                    None => (x0, y0, x1, y1),
+                };
                 // The anchor of a quarter-turned shape is its box turned: the shape is that box swapped about its centre.
                 let (x0, y0, x1, y1) = wire::drawn_shapes::unrotated((x0, y0, x1, y1), shape.rotation);
                 let picture = shape.picture.clone();
@@ -2743,6 +2815,32 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                         view
                     })
                     .collect_view();
+                let id = shape.id;
+                let start = move |ev: leptos::ev::MouseEvent, mode: u8| {
+                    if ev.button() != 0 {
+                        return;
+                    }
+                    ev.stop_propagation();
+                    ev.prevent_default();
+                    selected_shape.set(Some(id));
+                    shape_delta.set((0.0, 0.0));
+                    shape_drag.set(Some(ShapeDrag { id, mode, start: (f64::from(ev.client_x()), f64::from(ev.client_y())), frame: anchor, zoom: z }));
+                };
+                let is_selected = selected == Some(id);
+                // The selected object's eight handles, on its frame (corners and edge midpoints), clockwise from the top left.
+                let handles = is_selected.then(|| {
+                    let (w, h) = (x1 - x0, y1 - y0);
+                    [(0.0, 0.0), (0.5, 0.0), (1.0, 0.0), (1.0, 0.5), (1.0, 1.0), (0.5, 1.0), (0.0, 1.0), (0.0, 0.5)]
+                        .into_iter()
+                        .enumerate()
+                        .map(|(i, (fx, fy))| {
+                            let style = format!("position:absolute;left:{}px;top:{}px;width:7px;height:7px;box-sizing:border-box;border:1px solid #444;background:#fff;border-radius:50%;pointer-events:auto;cursor:{}",
+                                fx * w - 3.5, fy * h - 3.5, ["nwse-resize", "ns-resize", "nesw-resize", "ew-resize", "nwse-resize", "ns-resize", "nesw-resize", "ew-resize"][i]);
+                            view! { <div data-dnacalc="shape-handle" style=style on:mousedown=move |ev| start(ev, i as u8 + 1)></div> }
+                        })
+                        .collect_view()
+                });
+                let style = format!("{style};pointer-events:auto;cursor:move{}", if is_selected { ";outline:1px solid #7f7f7f" } else { "" });
                 Some(view! {
                     <div
                         class="dc-shape"
@@ -2750,12 +2848,15 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                         data-shape=shape.name.clone()
                         data-kind=shape.kind.clone()
                         data-kept=shape.kept.clone()
+                        data-selected=is_selected.then_some("true")
                         aria-label=shape.kept.clone().map(|kept| format!("{kept} {}", shape.name))
                         use:css=style
+                        on:mousedown=move |ev| start(ev, 0)
                     >
                         {image}
                         {inside}
                         <div style="position:absolute;left:0;top:0;width:100%;height:100%" inner_html=markup></div>
+                        {handles}
                     </div>
                 })
             })
@@ -3884,4 +3985,70 @@ pub(crate) fn paint_print(
     metrics: &geometry::GridMetrics,
 ) {
     painter::paint(canvas, plan, panes::Panes::default(), metrics);
+}
+
+/// A drawing object being dragged (dc-zjsg.4): its identity; `mode` 0 to move it, 1 to 8 for a handle clockwise from
+/// the top left; where the pointer went down; its anchor frame `(left, top, width, height)` in the view's pixels from
+/// the sheet's top left; and the zoom.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct ShapeDrag {
+    id: u32,
+    mode: u8,
+    start: (f64, f64),
+    frame: (f64, f64, f64, f64),
+    zoom: f64,
+}
+
+impl ShapeDrag {
+    /// The frame after the pointer moved by `delta`: moved whole, or the dragged handle's sides moved (at least a pixel).
+    fn moved(self, (dx, dy): (f64, f64)) -> (f64, f64, f64, f64) {
+        let (mut x, mut y, mut w, mut h) = self.frame;
+        let (left, right, top, bottom) = match self.mode {
+            0 => return (x + dx, y + dy, w, h),
+            1 => (true, false, true, false),
+            2 => (false, false, true, false),
+            3 => (false, true, true, false),
+            4 => (false, true, false, false),
+            5 => (false, true, false, true),
+            6 => (false, false, false, true),
+            7 => (true, false, false, true),
+            _ => (true, false, false, false),
+        };
+        if left {
+            let dx = dx.min(w - 1.0);
+            x += dx;
+            w -= dx;
+        }
+        if right {
+            w = (w + dx).max(1.0);
+        }
+        if top {
+            let dy = dy.min(h - 1.0);
+            y += dy;
+            h -= dy;
+        }
+        if bottom {
+            h = (h + dy).max(1.0);
+        }
+        (x, y, w, h)
+    }
+}
+
+#[cfg(test)]
+#[allow(non_snake_case)]
+mod shape_drag_tests {
+    use super::ShapeDrag;
+
+    #[test]
+    /// Native-only: the grid module is the browser page's; its drag geometry is plain arithmetic tested here.
+    fn dc_zjsg_4__a_drag_moves_the_frame_or_the_dragged_handles_sides() {
+        let drag = |mode| ShapeDrag { id: 2, mode, start: (0.0, 0.0), frame: (10.0, 20.0, 100.0, 50.0), zoom: 1.0 };
+        assert_eq!(drag(0).moved((5.0, -5.0)), (15.0, 15.0, 100.0, 50.0));
+        // The top-left handle moves the left and top sides; the bottom-right one the right and bottom.
+        assert_eq!(drag(1).moved((5.0, 5.0)), (15.0, 25.0, 95.0, 45.0));
+        assert_eq!(drag(5).moved((5.0, 5.0)), (10.0, 20.0, 105.0, 55.0));
+        // An edge handle moves its side only; a side never passes the other.
+        assert_eq!(drag(4).moved((5.0, 99.0)), (10.0, 20.0, 105.0, 50.0));
+        assert_eq!(drag(8).moved((500.0, 0.0)), (109.0, 20.0, 1.0, 50.0));
+    }
 }

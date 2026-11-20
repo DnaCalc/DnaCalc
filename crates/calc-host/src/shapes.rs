@@ -343,6 +343,19 @@ impl HostState {
     }
 
     /// A shape's rectangle in points: left, top, width, height.
+    /// An anchor's rectangle in points (left, top, width, height), from the sheet's column widths and row heights.
+    pub fn anchor_rectangle(&self, sheet: SheetId, anchor: &ChartAnchor) -> (f64, f64, f64, f64) {
+        let x = |p: &DrawingPoint| (1..=p.column).map(|c| self.column_points(sheet, c)).sum::<f64>() + p.column_offset as f64 / EMU_PER_POINT;
+        let y = |p: &DrawingPoint| (1..=p.row).map(|r| self.row_points(sheet, r)).sum::<f64>() + p.row_offset as f64 / EMU_PER_POINT;
+        match anchor {
+            ChartAnchor::TwoCell { from, to } => (x(from), y(from), x(to) - x(from), y(to) - y(from)),
+            ChartAnchor::OneCell { from, width, height } => (x(from), y(from), *width as f64 / EMU_PER_POINT, *height as f64 / EMU_PER_POINT),
+            ChartAnchor::Absolute { x, y, width, height } => {
+                (*x as f64 / EMU_PER_POINT, *y as f64 / EMU_PER_POINT, *width as f64 / EMU_PER_POINT, *height as f64 / EMU_PER_POINT)
+            }
+        }
+    }
+
     pub fn shape_rectangle(&self, sheet: SheetId, shape: &Shape) -> (f64, f64, f64, f64) {
         match shape.anchor {
             ChartAnchor::TwoCell { .. } | ChartAnchor::OneCell { .. } => (
@@ -449,6 +462,26 @@ pub(crate) fn prepare(
         }
         Ok(index)
     };
+    // A shape the file holds may be moved, resized or deleted (dc-zjsg.4): the save rewrites its stored anchor in
+    // place, or drops it. One Excel keeps for an object DNA Calc does not edit (an equation, ink, SmartArt, an OLE or
+    // ActiveX object) is not, nor a hidden one, nor one a stored connector is glued to (dc-zjsg.5).
+    let find_movable = |shapes: &[Shape], id: u32, deleting: bool| -> Result<usize, String> {
+        let index = shapes
+            .iter()
+            .position(|s| s.id == id && !s.hidden)
+            .ok_or_else(|| refusal("The shape no longer exists"))?;
+        if index >= originals {
+            return Ok(index);
+        }
+        let shape = &shapes[index];
+        if shape.kept.is_some() {
+            return Err(refusal("An equation, ink, SmartArt, OLE or ActiveX object is kept as the file stores it"));
+        }
+        if deleting && shapes[..originals].iter().any(|s| [s.begin, s.end].iter().any(|e| e.is_some_and(|e| e.shape == id))) {
+            return Err(refusal("A shape a stored connector is glued to cannot be deleted yet (dc-zjsg.5)"));
+        }
+        Ok(index)
+    };
     let next_id = || -> u32 { host.next_drawing_id(sheet) };
     let finite = |v: f64| v.is_finite() && (-1.0e7..=1.0e7).contains(&v);
     match change {
@@ -497,7 +530,7 @@ pub(crate) fn prepare(
             shapes.push(shape);
         }
         ShapeChange::Delete { id } => {
-            let index = find(&shapes, id)?;
+            let index = find_movable(&shapes, id, true)?;
             shapes.remove(index);
             // A connector glued to the deleted shape stays where it is, unglued (Excel).
             for s in &mut shapes {
@@ -522,8 +555,13 @@ pub(crate) fn prepare(
             width,
             height,
         } => {
-            let index = find(&shapes, id)?;
-            let (l, t, w, h) = host.shape_rectangle(sheet, &shapes[index]);
+            let index = find_movable(&shapes, id, false)?;
+            let stored = index < originals;
+            let (l, t, w, h) = if stored {
+                host.anchor_rectangle(sheet, &shapes[index].anchor)
+            } else {
+                host.shape_rectangle(sheet, &shapes[index])
+            };
             let (l, t, w, h) = (
                 left.map_or(l, Points::get),
                 top.map_or(t, Points::get),
@@ -534,9 +572,12 @@ pub(crate) fn prepare(
                 return Err(refusal("Use a position and size on the worksheet"));
             }
             let s = &mut shapes[index];
-            s.anchor = ChartAnchor::TwoCell {
-                from: host.point_at(sheet, l, t),
-                to: host.point_at(sheet, l + w, t + h),
+            let emu = |v: f64| (v * EMU_PER_POINT).round() as i64;
+            // A stored object keeps its anchor's kind (Excel moves a one-cell or absolute object as one).
+            s.anchor = match (stored, &s.anchor) {
+                (true, ChartAnchor::OneCell { .. }) => ChartAnchor::OneCell { from: host.point_at(sheet, l, t), width: emu(w), height: emu(h) },
+                (true, ChartAnchor::Absolute { .. }) => ChartAnchor::Absolute { x: emu(l), y: emu(t), width: emu(w), height: emu(h) },
+                _ => ChartAnchor::TwoCell { from: host.point_at(sheet, l, t), to: host.point_at(sheet, l + w, t + h) },
             };
             s.offset = (
                 (l * EMU_PER_POINT).round() as i64,

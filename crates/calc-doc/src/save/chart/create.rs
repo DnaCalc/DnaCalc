@@ -551,8 +551,8 @@ pub(super) fn finish(
             ));
         }
         let new = &charts[original.len()..];
-        let new_shapes = new_shapes(before, after, sheet)?;
-        if new.is_empty() && new_shapes.is_empty() {
+        let (stored, new_shapes) = stored_edits(before.definitions().shapes(sheet), after.definitions().shapes(sheet))?;
+        if new.is_empty() && new_shapes.is_empty() && stored.is_empty() {
             continue;
         }
         let source = sheets.iter().find(|s| s.id() == sheet).ok_or_else(|| {
@@ -561,11 +561,19 @@ pub(super) fn finish(
                 "Creating a chart or shape on a new unsaved sheet needs Save and reopen",
             )
         })?;
-        add(
+        if !stored.is_empty() && structural.is_some_and(|edits| edits.edits().iter().any(|e| e.sheet() == sheet)) {
+            return Err(SaveRefusal::ChartNotModelled {
+                part: "drawing".into(),
+                detail: "Moving or deleting a stored drawing object and inserting or deleting rows or columns of its sheet in one session is not modelled".into(),
+                owner: "dc-zjsg.4",
+            });
+        }
+        add_with(
             package,
             source,
             new,
             new_shapes,
+            &stored,
             out,
             structural.map(|edits| (edits, before)),
             caches,
@@ -574,24 +582,146 @@ pub(super) fn finish(
     Ok(())
 }
 
-/// The shapes `after` adds to `sheet`. A source object stays as the file stores it: editing,
-/// removing or reordering one is dc-zjsg.4's.
-pub(crate) fn new_shapes<'a>(
-    before: &ModelRoot,
-    after: &'a ModelRoot,
-    sheet: calc_doc_model::value::SheetId,
-) -> Result<&'a [calc_doc_model::Shape], SaveRefusal> {
-    let shapes = after.definitions().shapes(sheet);
-    let original = before.definitions().shapes(sheet);
-    if shapes.len() < original.len() || shapes[..original.len()] != *original {
-        return Err(SaveRefusal::ChartNotModelled {
-            part: "drawing".into(),
-            detail: "Editing, removing or reordering imported drawing objects is not modelled"
-                .into(),
-            owner: "dc-zjsg.4",
-        });
+
+/// What the session did to an object the drawing part stores (dc-zjsg.4): moved or resized it (the shape as it is
+/// now), or deleted it.
+pub(crate) enum StoredEdit<'a> {
+    Moved(&'a calc_doc_model::Shape),
+    Deleted,
+}
+
+/// The stored objects (`original`) the session moved, resized or deleted, by identity, and the shapes it added (all
+/// after the stored ones that remain, which keep their order). A stored object changed in anything but its anchor and its transform (`a:xfrm`
+/// offset and extent) is refused, as are edits of kept objects (they stay as stored).
+pub(crate) fn stored_edits<'a>(
+    original: &[calc_doc_model::Shape],
+    shapes: &'a [calc_doc_model::Shape],
+) -> Result<(std::collections::BTreeMap<u32, StoredEdit<'a>>, &'a [calc_doc_model::Shape]), SaveRefusal> {
+    let refuse = |detail: &str| SaveRefusal::ChartNotModelled { part: "drawing".into(), detail: detail.into(), owner: "dc-zjsg.4" };
+    let mut edits = std::collections::BTreeMap::new();
+    let mut next = 0;
+    for stored in original {
+        match shapes.get(next) {
+            Some(now) if now.id == stored.id && now.kind == stored.kind => {
+                next += 1;
+                if now == stored {
+                    continue;
+                }
+                let mut same = now.clone();
+                (same.anchor, same.offset, same.extent) = (stored.anchor, stored.offset, stored.extent);
+                if same != *stored || stored.kept.is_some() {
+                    return Err(refuse("Editing an imported drawing object other than moving, resizing or deleting it is not modelled"));
+                }
+                edits.insert(stored.id, StoredEdit::Moved(now));
+            }
+            // Not next in order: deleted. (A new object may reuse a stored one's identity; the writer gives it another.)
+            _ => {
+                if stored.kept.is_some() {
+                    return Err(refuse("Removing a kept drawing object is not modelled"));
+                }
+                edits.insert(stored.id, StoredEdit::Deleted);
+            }
+        }
     }
-    Ok(&shapes[original.len()..])
+    Ok((edits, &shapes[next..]))
+}
+
+/// The drawing part `xml` with the stored objects `edits` names rewritten: a deleted object's anchor (or the block of
+/// alternatives around it) dropped; a moved one's anchor corners, size or position and its transform's offset and
+/// extent written anew, every alternative of it alike. Everything else stays byte for byte.
+fn edit_stored(xml: &crate::xml::XmlPart, edits: &std::collections::BTreeMap<u32, StoredEdit<'_>>) -> Result<Vec<u8>, SaveRefusal> {
+    let source = xml.bytes();
+    let mut reader = Reader::new(xml);
+    let mut splice = super::super::text::Splice::new(source);
+    // Open elements: local name, qualified name, start offset.
+    let mut open: Vec<(String, String, usize)> = Vec::new();
+    // The top-level child being read: its start, the first identity in it, and its elements (start, end, local
+    // name, qualified name, parent's local name).
+    let mut child: Option<(usize, Option<u32>, Vec<(usize, usize, String, String, String)>)> = None;
+    let qualified = |at: usize| -> String {
+        let tail = &source[at + 1..];
+        let end = tail.iter().position(|b| matches!(b, b' ' | b'>' | b'/' | b'\t' | b'\r' | b'\n')).unwrap_or(tail.len());
+        String::from_utf8_lossy(&tail[..end]).into_owned()
+    };
+    while let Some((event, span)) = reader.next()? {
+        match event {
+            XmlEvent::Start(e) => {
+                let local = e.name.local.as_str().to_owned();
+                if open.len() == 1 {
+                    child = Some((span.0, None, Vec::new()));
+                }
+                if local == "cNvPr"
+                    && let Some((_, id @ None, _)) = child.as_mut()
+                {
+                    *id = e.attribute("id").and_then(|v| v.parse().ok());
+                }
+                // An empty element (`<a/>`) comes as its start tag spanning it whole, then an end tag spanning nothing.
+                open.push((local, qualified(span.0), span.0));
+            }
+            XmlEvent::End(_) => {
+                let Some((local, name, start)) = open.pop() else { break };
+                let parent = open.last().map(|o| o.0.clone()).unwrap_or_default();
+                let end = span.1.max(start);
+                if let Some((_, _, pieces)) = child.as_mut() {
+                    pieces.push((start, end, local, name, parent));
+                }
+                if open.len() == 1
+                    && let Some((begin, id, pieces)) = child.take()
+                {
+                    match id.and_then(|id| edits.get(&id)) {
+                        Some(StoredEdit::Deleted) => {
+                            splice.keep_to(begin);
+                            splice.skip_to(end.max(begin));
+                        }
+                        Some(StoredEdit::Moved(shape)) => {
+                            let mut first_xfrm = true;
+                            // Pieces arrive as their elements end; a replacement is written in source order.
+                            let mut pieces = pieces;
+                            pieces.sort_by_key(|p| p.0);
+                            let mut written_to = 0usize;
+                            for (start, end, local, name, parent) in pieces {
+                                if start < written_to {
+                                    continue;
+                                }
+                                let prefix = name.rsplit_once(':').map_or(String::new(), |(p, _)| format!("{p}:"));
+                                let anchor = matches!(parent.as_str(), "twoCellAnchor" | "oneCellAnchor" | "absoluteAnchor");
+                                let bytes = match (local.as_str(), anchor, &shape.anchor) {
+                                    ("from", true, ChartAnchor::TwoCell { from, .. } | ChartAnchor::OneCell { from, .. }) => Some(point_xml(&prefix, "from", from)),
+                                    ("to", true, ChartAnchor::TwoCell { to, .. }) => Some(point_xml(&prefix, "to", to)),
+                                    ("ext", true, ChartAnchor::OneCell { width, height, .. } | ChartAnchor::Absolute { width, height, .. }) => {
+                                        Some(format!("<{name} cx=\"{width}\" cy=\"{height}\"/>"))
+                                    }
+                                    ("pos", true, ChartAnchor::Absolute { x, y, .. }) => Some(format!("<{name} x=\"{x}\" y=\"{y}\"/>")),
+                                    ("off", false, _) if parent == "xfrm" && first_xfrm => {
+                                        Some(format!("<{name} x=\"{}\" y=\"{}\"/>", shape.offset.0, shape.offset.1))
+                                    }
+                                    ("ext", false, _) if parent == "xfrm" && first_xfrm => {
+                                        first_xfrm = false;
+                                        Some(format!("<{name} cx=\"{}\" cy=\"{}\"/>", shape.extent.0, shape.extent.1))
+                                    }
+                                    _ => None,
+                                };
+                                if let Some(bytes) = bytes {
+                                    splice.replace((start, end), bytes.as_bytes());
+                                    written_to = end;
+                                }
+                            }
+                        }
+                        None => {}
+                    }
+                }
+            }
+            XmlEvent::Text(_) => {}
+        }
+    }
+    Ok(splice.finish())
+}
+
+fn point_xml(prefix: &str, tag: &str, p: &calc_doc_model::DrawingPoint) -> String {
+    format!(
+        "<{prefix}{tag}><{prefix}col>{}</{prefix}col><{prefix}colOff>{}</{prefix}colOff><{prefix}row>{}</{prefix}row><{prefix}rowOff>{}</{prefix}rowOff></{prefix}{tag}>",
+        p.column, p.column_offset, p.row, p.row_offset
+    )
 }
 
 pub(crate) fn add(
@@ -599,6 +729,20 @@ pub(crate) fn add(
     source: &LoadedSheet,
     new: &[Chart],
     new_shapes: &[calc_doc_model::Shape],
+    out: &mut Changes,
+    structural: Option<(&super::super::structural::StructuralEdits, &ModelRoot)>,
+    caches: Option<&cache::CacheSource<'_>>,
+) -> Result<(), SaveRefusal> {
+    add_with(package, source, new, new_shapes, &Default::default(), out, structural, caches)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn add_with(
+    package: &Package,
+    source: &LoadedSheet,
+    new: &[Chart],
+    new_shapes: &[calc_doc_model::Shape],
+    stored: &std::collections::BTreeMap<u32, StoredEdit<'_>>,
     out: &mut Changes,
     structural: Option<(&super::super::structural::StructuralEdits, &ModelRoot)>,
     caches: Option<&cache::CacheSource<'_>>,
@@ -656,6 +800,10 @@ pub(crate) fn add(
     }
     let empty = format!("<xdr:wsDr xmlns:xdr=\"{XDR}\"/>");
     let mut xml = parts::current_part(package, out, &drawing, empty.as_bytes())?;
+    if !stored.is_empty() {
+        let edited = edit_stored(&xml, stored)?;
+        xml = xml.with_bytes(edited);
+    }
     let mut ids = BTreeSet::new();
     let mut reader = Reader::new(&xml);
     match reader.expect()? {

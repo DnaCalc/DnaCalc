@@ -350,6 +350,22 @@ pub enum Intent {
         part: String,
         position: String,
     },
+    /// Move or resize a drawing object (dc-zjsg.4): its rectangle in hundredths of a point.
+    ShapePlace {
+        sheet: Sheet,
+        revision: u64,
+        id: u32,
+        left: i64,
+        top: i64,
+        width: i64,
+        height: i64,
+    },
+    /// Delete a drawing object (dc-zjsg.4).
+    ShapeDelete {
+        sheet: Sheet,
+        revision: u64,
+        id: u32,
+    },
     ChartLogAxis {
         sheet: Sheet,
         revision: u64,

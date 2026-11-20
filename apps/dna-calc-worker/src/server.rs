@@ -2349,6 +2349,19 @@ impl Server {
                 revision,
                 change: crate::printing::change(change),
             }),
+            Intent::ShapePlace { sheet, revision, id, left, top, width, height } => {
+                let points = |v: i64| Some(calc_host::Points::new(v as f64 / 100.0));
+                SkinIntent::Command(calc_host::WorkbookCommand::Shape {
+                    sheet: sheet.id(),
+                    revision,
+                    change: calc_host::ShapeChange::Place { id, left: points(left), top: points(top), width: points(width), height: points(height) },
+                })
+            }
+            Intent::ShapeDelete { sheet, revision, id } => SkinIntent::Command(calc_host::WorkbookCommand::Shape {
+                sheet: sheet.id(),
+                revision,
+                change: calc_host::ShapeChange::Delete { id },
+            }),
             Intent::ChartLegend {
                 sheet,
                 revision,
@@ -5146,6 +5159,34 @@ mod outline_tests {
         assert!(first.shape.flip_horizontal);
         assert_eq!(mirrored.children[2].shape.rotation, -30.0);
         assert_eq!(by("Group rot 20").rotation, 20.0);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dc_zjsg_4__the_page_moves_resizes_and_deletes_a_stored_shape() {
+        let mut server = Server::new();
+        let data = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/shapes-paint4.xlsx");
+        assert!(server.execute_current(Request::Open { name: "shapes-paint4.xlsx".into() }, Some(data.to_vec())).reply.is_ok());
+        let sheet = Sheet::of(server.book.host().sheets()[0].id());
+        let id = |server: &Server, name: &str| server.book.host().shapes(sheet.id()).iter().find(|s| s.name == name).unwrap().id;
+        let (triangle, curves) = (id(&server, "Freeform triangle"), id(&server, "Freeform curves"));
+        let revision = server.book.host().revision().get();
+        // 96 pt by 30 pt, 60 pt by 45 pt, in hundredths of a point.
+        let moved = server.execute_current(
+            Request::Intent(Intent::ShapePlace { sheet, revision, id: triangle, left: 9_600, top: 3_000, width: 6_000, height: 4_500 }),
+            None,
+        );
+        assert!(moved.reply.is_ok());
+        let shape = server.book.host().shapes(sheet.id()).iter().find(|s| s.id == triangle).unwrap().clone();
+        assert_eq!(server.book.host().anchor_rectangle(sheet.id(), &shape.anchor), (96.0, 30.0, 60.0, 45.0));
+        let revision = server.book.host().revision().get();
+        assert!(server.execute_current(Request::Intent(Intent::ShapeDelete { sheet, revision, id: curves }), None).reply.is_ok());
+        let Reply::Shapes(drawn) = server.execute_current(Request::Shapes(sheet), None).reply.unwrap() else { panic!("shapes") };
+        assert_eq!(drawn.len(), 19);
+        // Undo brings the deleted shape back.
+        assert!(server.execute_current(Request::Intent(Intent::Undo), None).reply.is_ok());
+        assert_eq!(server.book.host().shapes(sheet.id()).len(), 20);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

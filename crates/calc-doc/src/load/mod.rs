@@ -606,32 +606,15 @@ impl LoadedWorkbook {
         Ok(())
     }
 
-    /// Validate the complete drawing-object set through the same frame writer as Save (dc-zjsg.1):
-    /// the file's own objects unchanged, then the new ones.
+    /// Validate the complete drawing-object set through the same writers as Save (dc-zjsg.1, dc-zjsg.4): the file's
+    /// own objects as stored, moved, resized or deleted, then the new ones.
     pub fn check_shape_set(
         &self,
         sheet: SheetId,
         shapes: &[calc_doc_model::Shape],
     ) -> Result<(), crate::SaveRefusal> {
-        let fail = |detail: &str| crate::SaveRefusal::ChartNotModelled {
-            part: "drawing".into(),
-            detail: detail.into(),
-            owner: "dc-zjsg.4",
-        };
         let original = self.model.definitions().shapes(sheet);
-        if shapes.len() < original.len() || shapes[..original.len()] != *original {
-            return Err(fail(
-                "Editing, removing or reordering imported drawing objects is not modelled",
-            ));
-        }
-        let new = &shapes[original.len()..];
-        if !new.is_empty() {
-            let source = self
-                .sheet(sheet)
-                .ok_or_else(|| fail("Save and reopen the new worksheet before adding a shape"))?;
-            crate::save::chart::check_new_shapes(&self.package, source, new)?;
-        }
-        Ok(())
+        crate::save::chart::check_shapes(&self.package, self.sheet(sheet), original, shapes)
     }
 
     /// Preflight the same retained-element rewrite used by a sorted hyperlink save.

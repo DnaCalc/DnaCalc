@@ -224,7 +224,7 @@ fn dc_piw0_3__shapes_and_a_connector_save_and_reload() {
     );
     // Delete: the glued connector stays, unglued.
     let mut reloaded = reloaded;
-    // Objects the file holds are not changed here (dc-zjsg.4): refused, nothing changes.
+    // A stored shape a stored connector is glued to is not deleted (dc-zjsg.5): refused, nothing changes.
     let revision = reloaded.host().revision().get();
     let receipt = reloaded.dispatch(SkinIntent::Command(WorkbookCommand::Shape {
         sheet,
@@ -232,7 +232,7 @@ fn dc_piw0_3__shapes_and_a_connector_save_and_reload() {
         change: ShapeChange::Delete { id: 2 },
     }));
     assert!(!receipt.accepted());
-    assert!(format!("{:?}", receipt.error.unwrap()).contains("dc-zjsg.4"));
+    assert!(format!("{:?}", receipt.error.unwrap()).contains("dc-zjsg.5"));
     assert_eq!(reloaded.host().shapes(sheet).len(), 4);
     // A shape added in the session can be deleted again, and undo restores it.
     shape(&mut book, sheet, ShapeChange::Delete { id: 2 });
@@ -878,4 +878,57 @@ fn dc_zaj7__q9_default_column_and_row_follow_the_default_font() {
     let sheet = calibri.host().sheets()[0].id();
     assert_eq!(calibri.host().column_left(sheet, 1), 48.0);
     assert_eq!(calibri.host().row_top(sheet, 1), 15.0);
+}
+
+/// dc-zjsg.4: objects the file holds are moved, resized and deleted; the save rewrites their stored anchors in place
+/// (a two-cell anchor's corners, a transform's offset and extent) or drops them, and keeps everything else as stored.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_4__stored_objects_move_resize_and_delete_and_save_as_stored() {
+    let bytes = include_bytes!("../../calc-doc/tests/fixtures/drawing/shapes-paint4.xlsx").to_vec();
+    let mut book = open(bytes.clone());
+    let sheet = book.host().sheets()[0].id();
+    let id = |book: &HostSession, name: &str| book.host().shapes(sheet).iter().find(|s| s.name == name).unwrap().id;
+    let star = id(&book, "Freeform triangle");
+    let gone = id(&book, "Freeform curves");
+    // Move the triangle to 96 pt, 30 pt (column C at 48 pt a column, row 3 at 15 pt a row) and make it 60 pt by 45.
+    shape(&mut book, sheet, ShapeChange::Place { id: star, left: Some(pts(96.0)), top: Some(pts(30.0)), width: Some(pts(60.0)), height: Some(pts(45.0)) });
+    shape(&mut book, sheet, ShapeChange::Delete { id: gone });
+    assert_eq!(book.host().shapes(sheet).len(), 19);
+    let mut reloaded = reopened(&mut book);
+    let read = reloaded.host().shapes(sheet).to_vec();
+    assert_eq!(read.len(), 19);
+    assert!(read.iter().all(|s| s.name != "Freeform curves"));
+    let moved = read.iter().find(|s| s.id == star).unwrap();
+    assert_eq!(reloaded.host().anchor_rectangle(sheet, &moved.anchor), (96.0, 30.0, 60.0, 45.0));
+    assert_eq!((moved.offset, moved.extent), ((96 * 12_700, 30 * 12_700), (60 * 12_700, 45 * 12_700)));
+    // Its geometry and every other object are as stored.
+    let original = open(bytes);
+    let before: Vec<_> = original.host().shapes(sheet).iter().filter(|s| s.id != gone).cloned().collect();
+    for (a, b) in read.iter().zip(&before) {
+        if a.id == star {
+            assert_eq!((&a.custom_geometry, &a.fill, &a.text), (&b.custom_geometry, &b.fill, &b.text));
+        } else {
+            assert_eq!(a, b, "{}", a.name);
+        }
+    }
+    // Undo after reopening is a fresh session; a second move of the reopened shape saves again.
+    shape(&mut reloaded, sheet, ShapeChange::Place { id: star, left: Some(pts(0.0)), top: None, width: None, height: None });
+    let again = reopened(&mut reloaded);
+    let moved = again.host().shapes(sheet).iter().find(|s| s.id == star).unwrap().clone();
+    assert_eq!(again.host().anchor_rectangle(sheet, &moved.anchor), (0.0, 30.0, 60.0, 45.0));
+}
+
+/// dc-zjsg.4: a kept object (an equation, ink, SmartArt, OLE) is not moved or deleted; it stays as the file stores it.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_4__kept_objects_are_not_edited() {
+    let mut book = open(include_bytes!("../../calc-doc/tests/fixtures/drawing/kept-objects.xlsx").to_vec());
+    let sheet = book.host().sheets()[0].id();
+    for id in [2, 3, 4] {
+        let revision = book.host().revision().get();
+        let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::Shape { sheet, revision, change: ShapeChange::Delete { id } }));
+        assert!(!receipt.accepted(), "{id}");
+    }
+    assert_eq!(book.host().shapes(sheet).len(), 5);
 }

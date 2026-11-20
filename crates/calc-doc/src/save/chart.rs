@@ -25,13 +25,24 @@ pub(crate) fn check_new_frames(
     create::add(package, source, charts, &[], &mut Changes::default(), None, None)
 }
 
-/// Preflight the shapes `shapes` adds, through the saver's own frame writer.
-pub(crate) fn check_new_shapes(
+/// Preflight a sheet's drawing objects after an edit (dc-zjsg.4): the stored ones moved, resized or deleted and the
+/// ones added, through the saver's own matching and writers.
+pub(crate) fn check_shapes(
     package: &Package,
-    source: &crate::load::LoadedSheet,
+    source: Option<&crate::load::LoadedSheet>,
+    original: &[calc_doc_model::Shape],
     shapes: &[calc_doc_model::Shape],
 ) -> Result<(), SaveRefusal> {
-    create::add(package, source, &[], shapes, &mut Changes::default(), None, None)
+    let (stored, new) = create::stored_edits(original, shapes)?;
+    if stored.is_empty() && new.is_empty() {
+        return Ok(());
+    }
+    let source = source.ok_or_else(|| SaveRefusal::ChartNotModelled {
+        part: "drawing".into(),
+        detail: "Save and reopen the new worksheet before adding a shape".into(),
+        owner: "dc-zjsg.4",
+    })?;
+    create::add_with(package, source, &[], new, &stored, &mut Changes::default(), None, None)
 }
 pub(crate) use create::render as render_new;
 type Patch = ((usize, usize), Vec<u8>);
