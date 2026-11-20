@@ -1,6 +1,6 @@
 # Front-end implementation: internal design, cleanup and refactoring (brief, 2026-11-20)
 
-**Purpose.** This is the brief for the implementation plan behind the new front end. The 20-page design from Pro 19 (`docs/architecture/review-2026-11/pro/19-front-end-design-prompt.md`, with its synthesis) is added to this brief as the requirements: its R-list (front end) and I-list (what the inner layers must provide). The plan turns those into code changes. It does not redesign the UI.
+**Purpose.** This is the brief for the implementation plan behind the new front end. The 20-page design from Pro 19 (`docs/architecture/review-2026-11/pro/19-front-end-design-prompt.md`, with its synthesis) is added to this brief as the requirements: its R-list (front-end requirements) and C-list (capabilities the design needs, stated as plain needs). The plan maps each C item onto the layers below and turns both lists into code changes. It does not redesign the UI. The design brief deliberately leaves out implementation detail; this brief carries it.
 
 **Ground rules.**
 - The engine does no more than Excel.
@@ -31,7 +31,7 @@
 2. **Controller split.** A small view-neutral core (session, commands, subscriptions, undo) plus a grid module. The other skins depend only on the core.
 3. **Projections on the page side.** The worker sends neutral data: values, formulas, regions, dependency summaries, chart series. Skins assemble their own projections and draw their own SVG.
 4. **The shell decoupled** from the protocol. The shell issues commands only, and one shell serves the browser and the desktop.
-5. **Inner-layer queries and events (from the I-list).** For example:
+5. **Inner-layer queries and events (from the C-list).** For example:
    - dependency queries at region and name level;
    - calc chain and order;
    - region and pattern detection (sheet-as-database, input blocks, time series and the rest);
