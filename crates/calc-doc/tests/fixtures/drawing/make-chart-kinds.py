@@ -14,15 +14,22 @@ Excel 2016 writes them (c:chartSpace with numRef/strRef caches), each in its own
  10 "Scatter exp"  scatterChart, x B2:B6, y C2:C6, an exponential trendline in red, x error bars of 0.5
  11 "Line drops"   lineChart with drop lines and high-low lines, series B with fixed error bars of 1 (both),
                    series C with 10% error bars (plus, no end caps)
- 12 "Column sd"    barChart clustered, series B with one standard deviation error bars
+ 12 "Column sd"    barChart clustered, series B with one standard deviation error bars; its anchor is editAs="oneCell"
  13 "Pie labels"   pieChart, series B, labels showing category and percentage (best fit)
- 14 "Column labels" barChart clustered, series B, labels showing series name and value, separator "; "
+ 14 "Column labels" barChart clustered, series B, labels showing series name and value, separator "; ";
+                   point 1 shows its category and value (separator ": "), point 2 has no label
+ (the surface chart is placed before the 3-D line so the numbers below shift by one in the sheet's layout)
+ "Surface"      surface3DChart over series B, C and D (filled, not a wireframe)
 Excel 2016 charts (cx:chartSpace parts, each frame in an mc:AlternateContent around whole anchors with the text-box
 fallback Excel writes for older readers), over F2:F6 (Change: 10, -3, 4, -2 and the subtotal 9):
  15 "Waterfall"    cx:waterfall, the last point a subtotal
  16 "Funnel"       cx:funnel over B2:B6
- 17 "Treemap"      cx:treemap (kept and not drawn)
+ 17 "Treemap"      cx:treemap over B2:B6 with two category levels (the days, and the parents Early: Mon-Tue, Late: Wed-Fri
+                   given at their first rows, the leaf formula covering A2:A6 only)
  18 "Box"          cx:boxWhisker over B2:B6 and C2:C6 as one series without categories (exclusive quartiles)
+ 19 "Histogram"    cx:clusteredColumn over C2:C6 binned by 3, closed on the right
+ 21 "Sunburst"     cx:sunburst over C2:C6 with the same levels
+ 20 "Pareto"       the same with a cx:paretoLine series (the cumulative share)
 Not yet opened by Excel (codex-runs/dw2/RUN-ON-WINDOWS.txt).
 Run: python3 -I make-chart-kinds.py shapes-paint4.xlsx chart-kinds.xlsx"""
 import sys, zipfile
@@ -82,11 +89,11 @@ value_axes = ('<c:valAx><c:axId val="1"/><c:scaling><c:orientation val="minMax"/
 ids = '<c:axId val="1"/><c:axId val="2"/>'
 
 
-def labels(value=0, category=0, series=0, percent=0, position=None, separator=None):
+def labels(value=0, category=0, series=0, percent=0, position=None, separator=None, points=''):
     """A series' c:dLbls as Excel 2016 writes one (its schema order: position, the show flags, the separator)."""
     pos = f'<c:dLblPos val="{position}"/>' if position else ''
     sep = f'<c:separator>{separator}</c:separator>' if separator else ''
-    return (f'<c:dLbls><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>{pos}<c:showLegendKey val="0"/><c:showVal val="{value}"/>'
+    return (f'<c:dLbls>{points}<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>{pos}<c:showLegendKey val="0"/><c:showVal val="{value}"/>'
             f'<c:showCatName val="{category}"/><c:showSerName val="{series}"/><c:showPercent val="{percent}"/><c:showBubbleSize val="0"/>'
             f'{sep}<c:showLeaderLines val="1"/></c:dLbls>')
 
@@ -138,7 +145,10 @@ charts = [
     ("Pie labels", "", f'<c:pieChart><c:varyColors val="1"/>{ser(0, "B", extra=labels(category=1, percent=1, position="bestFit"))}'
      '<c:firstSliceAng val="0"/></c:pieChart>'),
     ("Column labels", "", f'<c:barChart><c:barDir val="col"/><c:grouping val="clustered"/><c:varyColors val="0"/>'
-     f'{ser(0, "B", extra=labels(series=1, value=1, separator="; "))}<c:gapWidth val="150"/>{ids}</c:barChart>{cat_val_axes}'),
+     f'{ser(0, "B", extra=labels(series=1, value=1, separator="; ", points=('<c:dLbl><c:idx val="1"/><c:showLegendKey val="0"/><c:showVal val="1"/><c:showCatName val="1"/><c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/><c:separator>: </c:separator></c:dLbl><c:dLbl><c:idx val="2"/><c:delete val="1"/></c:dLbl>')))}<c:gapWidth val="150"/>{ids}</c:barChart>{cat_val_axes}'),
+    ("Surface", view3d, f'<c:surface3DChart><c:wireframe val="0"/>{ser(0, "B")}{ser(1, "C")}{ser(2, "D")}<c:bandFmts/>{ids}<c:axId val="3"/></c:surface3DChart>'
+     f'{cat_val_axes}<c:serAx><c:axId val="3"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="b"/>'
+     '<c:majorTickMark val="out"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/><c:crossAx val="2"/><c:crosses val="autoZero"/></c:serAx>'),
     ("3-D Line", view3d, f'<c:line3DChart><c:grouping val="standard"/><c:varyColors val="0"/>{ser(0, "B")}{ser(1, "C")}{ids}<c:axId val="3"/></c:line3DChart>'
      f'{cat_val_axes}<c:serAx><c:axId val="3"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="b"/>'
      '<c:majorTickMark val="out"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/><c:crossAx val="2"/><c:crosses val="autoZero"/></c:serAx>'),
@@ -158,7 +168,7 @@ anchors = []
 for n, (title, _, _) in enumerate(charts):
     col, row = 6 + (n % 2) * 8, (n // 2) * 15
     anchors.append(
-        f'<xdr:twoCellAnchor><xdr:from><xdr:col>{col}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>{row}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>'
+        f'<xdr:twoCellAnchor{" editAs=\"oneCell\"" if title == "Column sd" else ""}><xdr:from><xdr:col>{col}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>{row}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>'
         f'<xdr:to><xdr:col>{col + 7}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>{row + 14}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>'
         f'<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="{n + 2}" name="{title}"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>'
         '<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm>'
@@ -170,14 +180,30 @@ MC = "http://schemas.openxmlformats.org/markup-compatibility/2006"
 chartex = [
     ("Waterfall", "waterfall", "F", '<cx:layoutPr><cx:subtotals><cx:idx val="4"/></cx:subtotals></cx:layoutPr>', ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
     ("Funnel", "funnel", "B", "", ("cx2", "http://schemas.microsoft.com/office/drawing/2015/10/21/chartex")),
-    ("Treemap", "treemap", "B", '<cx:layoutPr><cx:parentLabelLayout val="overlapping"/></cx:layoutPr>', ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
+    ("Treemap", "treemap", "B^", '<cx:layoutPr><cx:parentLabelLayout val="overlapping"/></cx:layoutPr>', ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
+    ("Histogram", "clusteredColumn", "C!", '<cx:layoutPr><cx:binning intervalClosed="r"><cx:binSize val="3"/></cx:binning></cx:layoutPr>', ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
+    ("Sunburst", "sunburst", "C^", "", ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
+    ("Pareto", "clusteredColumn", "C!", '<cx:layoutPr><cx:binning intervalClosed="r"><cx:binSize val="3"/></cx:binning></cx:layoutPr></cx:series><cx:series layoutId="paretoLine" ownerIdx="0" uniqueId="{00000000-0000-4000-8000-0000000000A1}"><cx:axisId val="1"/>', ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
     ("Box", "boxWhisker", "B:C", '<cx:layoutPr><cx:visibility meanLine="0" meanMarker="1" nonoutliers="0" outliers="1"/><cx:statistics quartileMethod="exclusive"/></cx:layoutPr>', ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
 ]
 
 
 def chartex_xml(title, layout, col, layout_pr):
     pts = "".join(f'<cx:pt idx="{i}">{row[0]}</cx:pt>' for i, row in enumerate(data))
-    if ":" in col:
+    if col.endswith("^"):
+        # Two category levels: the days (leaves) and their parents, named at the first of their rows.
+        col = col[:-1]
+        vals = "".join(f'<cx:pt idx="{i}">{row[cols.index(col)]}</cx:pt>' for i, row in enumerate(data))
+        dims = (f'<cx:strDim type="cat"><cx:f>Kinds!$A$2:$A$6</cx:f><cx:lvl ptCount="5">{pts}</cx:lvl>'
+                '<cx:lvl ptCount="5"><cx:pt idx="0">Early</cx:pt><cx:pt idx="2">Late</cx:pt></cx:lvl></cx:strDim>'
+                f'<cx:numDim type="val"><cx:f>Kinds!${col}$2:${col}$6</cx:f><cx:lvl ptCount="5" formatCode="General">{vals}</cx:lvl></cx:numDim>')
+    elif col.endswith("!"):
+        # One column's values without categories (a histogram counts them).
+        col = col[:-1]
+        values = [row[cols.index(col)] for row in data]
+        vals = "".join(f'<cx:pt idx="{i}">{v}</cx:pt>' for i, v in enumerate(values))
+        dims = f'<cx:numDim type="val"><cx:f>Kinds!${col}$2:${col}$6</cx:f><cx:lvl ptCount="{len(values)}" formatCode="General">{vals}</cx:lvl></cx:numDim>'
+    elif ":" in col:
         # Two columns as one series without categories (a box and whisker over all their values).
         a, b = col.split(":")
         values = [row[cols.index(c)] for c in (a, b) for row in data]

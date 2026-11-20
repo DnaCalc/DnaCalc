@@ -1387,6 +1387,43 @@ fn dw3_dc_zjsg_4__editing_after_a_row_insert_in_the_same_session() {
     assert!((new.0 - 400.0).abs() < 0.5 && (new.1 - 200.0).abs() < 0.5, "{new:?}");
 }
 
+/// dc-zjsg.6 (dw3): a chart whose anchor says `editAs="oneCell"` keeps its size when a row inside its span is made taller
+/// (as a shape does); one without keeps sizing with its cells.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dw3_dc_zjsg_6__a_chart_with_edit_as_one_cell_keeps_its_size() {
+    let mut book = open(include_bytes!("../../calc-doc/tests/fixtures/drawing/chart-kinds.xlsx").to_vec());
+    let sheet = book.host().sheets()[0].id();
+    let rect = |b: &HostSession, name: &str| {
+        let (charts, _) = b.host().charts(sheet);
+        let part = charts.iter().find(|c| c.name == name).unwrap().part.clone();
+        let chart = b.host().model().definitions().charts(sheet).iter().find(|c| c.part == part).unwrap().clone();
+        (chart.edit_as.clone(), chart.anchor.clone(), b.host().anchor_rectangle(sheet, &chart.anchor))
+    };
+    let (edit_as, anchor, before) = rect(&book, "Column sd");
+    assert_eq!(edit_as.as_deref(), Some("oneCell"));
+    let (plain_as, plain_anchor, plain_before) = rect(&book, "Column labels");
+    assert_eq!(plain_as, None);
+    let row_of = |a: &calc_doc_model::ChartAnchor| match a {
+        calc_doc_model::ChartAnchor::TwoCell { from, .. } => from.row + 2,
+        other => panic!("{other:?}"),
+    };
+    for row in [row_of(&anchor), row_of(&plain_anchor)] {
+        command(&mut book, |_| WorkbookCommand::AxisFormat { sheet, rows: true, first: row, count: 1, size_bits: Some(45.0f64.to_bits()), hidden: None });
+    }
+    // The display: the one-cell chart is drawn at its file size from its corner; the plain one spans its cells.
+    let places = |b: &HostSession, name: &str| b.host().charts(sheet).0.iter().find(|c| c.name == name).unwrap().place;
+    match places(&book, "Column sd") {
+        calc_host::ChartPlace::Sized { width, height, .. } => {
+            let px = 96.0 / 72.0;
+            assert!((height - before.3 * px).abs() < 0.5 && (width - before.2 * px).abs() < 0.5, "{height} {width} {before:?}");
+        }
+        other => panic!("{other:?}"),
+    }
+    assert!(matches!(places(&book, "Column labels"), calc_host::ChartPlace::Cells { .. }));
+    let _ = plain_before;
+}
+
 /// dc-zjsg.4: a stored object moved and then rows inserted above it in the same session: the save writes it where
 /// the session left it (moved, then down with the rows), and every other object down with the rows.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

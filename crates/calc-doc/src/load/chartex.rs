@@ -34,7 +34,7 @@ fn anchor_of(node: &Node) -> Option<ChartAnchor> {
 }
 
 /// The chart frames of an anchor: its object, or the chosen alternative's.
-fn anchor_frame(anchor: &Node, out: &mut Vec<(String, ChartAnchor, String)>) {
+fn anchor_frame(anchor: &Node, out: &mut Vec<(String, ChartAnchor, String, Option<String>)>) {
     let Some(place) = anchor_of(anchor) else { return };
     for object in &anchor.children {
         let object = match object.local.as_str() {
@@ -52,14 +52,14 @@ fn anchor_frame(anchor: &Node, out: &mut Vec<(String, ChartAnchor, String)>) {
                 .and_then(|d| d.child("chart"))
                 .and_then(|c| c.attribute("r:id"));
             if let Some(id) = id {
-                out.push((name.to_owned(), place, id.to_owned()));
+                out.push((name.to_owned(), place, id.to_owned(), anchor.attribute("editAs").map(str::to_owned)));
             }
         }
     }
 }
 
 /// The Excel 2016 chart frames of the drawing part `part`, in its order: each frame's name, anchor and relationship.
-pub(super) fn frames(package: &Package, part: &str) -> Vec<(String, ChartAnchor, String)> {
+pub(super) fn frames(package: &Package, part: &str) -> Vec<(String, ChartAnchor, String, Option<String>)> {
     let Some(root) = part_tree(package, part) else { return Vec::new() };
     let mut out = Vec::new();
     for child in &root.children {
@@ -72,6 +72,24 @@ pub(super) fn frames(package: &Package, part: &str) -> Vec<(String, ChartAnchor,
                 }
             }
             _ => anchor_frame(child, &mut out),
+        }
+    }
+    out
+}
+
+/// The points of a dimension's level `level` (0 the first), by index.
+fn level_points(node: &Node, level: usize) -> Vec<Option<String>> {
+    let mut out = Vec::new();
+    if let Some(level) = node.children.iter().filter(|c| c.local == "lvl").nth(level) {
+        let count = level.number("ptCount").and_then(|n| usize::try_from(n).ok()).unwrap_or(0).min(1_000_000);
+        out = vec![None; count];
+        for pt in level.children.iter().filter(|c| c.local == "pt") {
+            if let Some(i) = pt.number("idx").and_then(|i| usize::try_from(i).ok()).filter(|i| *i < 1_000_000) {
+                if i >= out.len() {
+                    out.resize(i + 1, None);
+                }
+                out[i] = Some(pt.text.clone());
+            }
         }
     }
     out
@@ -114,15 +132,24 @@ pub(super) fn read(package: &Package, part: &str, name: String, anchor: ChartAnc
         return None;
     }
     let data = root.child("chartData")?;
-    let dimensions = |id: &str| -> Option<(Option<ChartData>, Option<ChartData>)> {
+    let dimensions = |id: &str| -> Option<(Option<ChartData>, Option<ChartData>, Vec<Vec<Option<String>>>)> {
         let set = data.children.iter().find(|d| d.local == "data" && d.attribute("id") == Some(id))?;
-        let categories = set.children.iter().find(|d| d.local == "strDim" || (d.local == "numDim" && d.attribute("type") == Some("cat"))).map(|d| dimension(d, d.local == "numDim"));
+        let category_node = set.children.iter().find(|d| d.local == "strDim" || (d.local == "numDim" && d.attribute("type") == Some("cat")));
+        let levels = category_node.map_or(0, |d| d.children.iter().filter(|c| c.local == "lvl").count());
+        let outer: Vec<Vec<Option<String>>> = (1..levels).filter_map(|l| category_node.map(|d| level_points(d, l))).collect();
+        let mut categories = category_node.map(|d| dimension(d, d.local == "numDim"));
+        if levels > 1 {
+            // The formula spans every level's cells: the leaves' points as the file cached them stand for them.
+            if let Some(c) = categories.as_mut() {
+                c.formula = None;
+            }
+        }
         let values = set
             .children
             .iter()
             .find(|d| d.local == "numDim" && matches!(d.attribute("type"), Some("val" | "size") | None))
             .map(|d| dimension(d, true));
-        Some((categories, values))
+        Some((categories, values, outer))
     };
     let chart_node = root.child("chart")?;
     let title = chart_node.child("title").map(text_of).map(|t| t.trim().to_owned()).filter(|t| !t.is_empty());
@@ -134,8 +161,12 @@ pub(super) fn read(package: &Package, part: &str, name: String, anchor: ChartAnc
         if plot.kind.is_empty() {
             plot.kind = format!("cx:{layout}");
         }
+        if layout == "paretoLine" {
+            plot.pareto = true;
+            continue;
+        }
         let id = series.child("dataId").and_then(|d| d.attribute("val")).unwrap_or("0");
-        let (categories, values) = dimensions(id)?;
+        let (categories, values, outer_levels) = dimensions(id)?;
         let name = series.child("tx").and_then(|t| t.child("txData")).map(|t| ChartData {
             formula: t.child("f").map(|f| f.text.trim().to_owned()),
             cache: vec![t.child("v").map(|v| v.text.clone())],
@@ -148,15 +179,26 @@ pub(super) fn read(package: &Package, part: &str, name: String, anchor: ChartAnc
             let on = |name: &str, default: bool| v.attribute(name).map_or(default, |a| matches!(a, "1" | "true"));
             plot.box_visibility = Some([on("meanMarker", true), on("meanLine", false), on("outliers", true), on("nonoutliers", false)]);
         }
+        if let Some(b) = series.child("layoutPr").and_then(|l| l.child("binning")) {
+            let val = |name: &str| b.child(name).and_then(|n| n.attribute("val")).map(str::to_owned);
+            plot.binning = Some(calc_doc_model::Binning {
+                size: val("binSize"),
+                count: val("binCount"),
+                closed_left: b.attribute("intervalClosed") == Some("l"),
+                underflow: val("underflow"),
+                overflow: val("overflow"),
+            });
+        }
         if let Some(subtotals) = series.child("layoutPr").and_then(|l| l.child("subtotals")) {
             plot.subtotals = subtotals.children.iter().filter_map(|i| i.number("val")).filter_map(|v| u32::try_from(v).ok()).collect();
         }
-        plot.series.push(ChartSeries { index: index as u32, name, categories, values, ..ChartSeries::default() });
+        plot.series.push(ChartSeries { index: index as u32, name, categories, values, outer_levels, ..ChartSeries::default() });
     }
     if plot.series.is_empty() {
         return None;
     }
     Some(Chart {
+        edit_as: None,
         part: part.to_owned(),
         name,
         anchor,

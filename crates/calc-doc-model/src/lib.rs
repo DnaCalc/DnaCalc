@@ -55,7 +55,7 @@ mod axis_layout;
 mod cache;
 mod chart;
 pub use chart::{
-    Chart, ChartAnchor, ChartAxis, ChartData, ChartPlot, ChartErrorBars, ChartLabels, ChartSeries, ChartTextStyle, ChartTrendline, DrawingPoint,
+    Binning, Chart, ChartAnchor, ChartAxis, ChartData, ChartPlot, ChartErrorBars, ChartLabels, ChartSeries, ChartTextStyle, ChartTrendline, DrawingPoint,
     SheetCharts,
 };
 mod drawing;
