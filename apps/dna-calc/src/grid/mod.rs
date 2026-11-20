@@ -35,6 +35,7 @@ mod painter;
 pub mod panes;
 pub mod render_plan;
 pub mod selection;
+mod shape_tools;
 mod structure;
 pub mod viewport;
 
@@ -2680,6 +2681,8 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
     // dragging one of its eight handles resizes it; the release sends the new rectangle as one undoable edit; Delete
     // deletes it, Escape or a click elsewhere lets it go.
     let selected_shape: RwSignal<Option<u32>> = RwSignal::new(None);
+    // Shapes added to the selection by Shift+click, to group with the selected one.
+    let also_shapes: RwSignal<Vec<u32>> = RwSignal::new(Vec::new());
     let shape_drag: RwSignal<Option<ShapeDrag>> = RwSignal::new(None);
     let shape_delta: RwSignal<(f64, f64)> = RwSignal::new((0.0, 0.0));
     let shape_move = window_event_listener(leptos::ev::mousemove, move |ev| {
@@ -2715,7 +2718,10 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
     let shape_key = window_event_listener(leptos::ev::keydown, move |ev| {
         let Some(id) = selected_shape.get_untracked() else { return };
         match ev.key().as_str() {
-            "Escape" => selected_shape.set(None),
+            "Escape" => {
+                selected_shape.set(None);
+                also_shapes.set(Vec::new());
+            }
             "Delete" => {
                 let Some(sheet) = controller.sheet.get_untracked() else { return };
                 ev.prevent_default();
@@ -2728,7 +2734,10 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
             _ => {}
         }
     });
-    let shape_away = window_event_listener(leptos::ev::mousedown, move |_| selected_shape.set(None));
+    let shape_away = window_event_listener(leptos::ev::mousedown, move |_| {
+        selected_shape.set(None);
+        also_shapes.set(Vec::new());
+    });
     on_cleanup(move || {
         shape_move.remove();
         shape_up.remove();
@@ -2822,11 +2831,27 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                     }
                     ev.stop_propagation();
                     ev.prevent_default();
+                    // Shift+click on another shape adds it to the selection to group (dc-zjsg.4).
+                    if mode == 0 && ev.shift_key() && selected_shape.get_untracked().is_some_and(|s| s != id) {
+                        also_shapes.update(|also| {
+                            match also.iter().position(|a| *a == id) {
+                                Some(at) => {
+                                    also.remove(at);
+                                }
+                                None => also.push(id),
+                            }
+                        });
+                        return;
+                    }
+                    if mode == 0 && selected_shape.get_untracked() != Some(id) {
+                        also_shapes.set(Vec::new());
+                    }
                     selected_shape.set(Some(id));
                     shape_delta.set((0.0, 0.0));
                     shape_drag.set(Some(ShapeDrag { id, mode, start: (f64::from(ev.client_x()), f64::from(ev.client_y())), frame: anchor, zoom: z }));
                 };
                 let is_selected = selected == Some(id);
+                let is_also = also_shapes.get().contains(&id);
                 // The selected object's eight handles, on its frame (corners and edge midpoints), clockwise from the top left.
                 let handles = is_selected.then(|| {
                     let (w, h) = (x1 - x0, y1 - y0);
@@ -2840,7 +2865,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                         })
                         .collect_view()
                 });
-                let style = format!("{style};pointer-events:auto;cursor:move{}", if is_selected { ";outline:1px solid #7f7f7f" } else { "" });
+                let style = format!("{style};pointer-events:auto;cursor:move{}", if is_selected { ";outline:1px solid #7f7f7f" } else if is_also { ";outline:1px dashed #7f7f7f" } else { "" });
                 Some(view! {
                     <div
                         class="dc-shape"
@@ -3567,6 +3592,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                     view! {
                         <>
                             {crate::clipboard::controls(controller)} {axis::controls(controller)}
+                            {shape_tools::controls(controller, shapes, selected_shape, also_shapes)}
                             {crate::tables::controls(controller)}
                             {crate::commands::sort_controls(controller)}
                             {crate::commands::filter_controls(controller)}

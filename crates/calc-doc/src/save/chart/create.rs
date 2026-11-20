@@ -551,8 +551,8 @@ pub(super) fn finish(
             ));
         }
         let new = &charts[original.len()..];
-        let (stored, new_shapes) = stored_edits(before.definitions().shapes(sheet), after.definitions().shapes(sheet))?;
-        if new.is_empty() && new_shapes.is_empty() && stored.is_empty() {
+        let plan = super::stored::plan(before.definitions().shapes(sheet), after.definitions().shapes(sheet))?;
+        if new.is_empty() && plan.is_empty() {
             continue;
         }
         let source = sheets.iter().find(|s| s.id() == sheet).ok_or_else(|| {
@@ -561,7 +561,7 @@ pub(super) fn finish(
                 "Creating a chart or shape on a new unsaved sheet needs Save and reopen",
             )
         })?;
-        if !stored.is_empty() && structural.is_some_and(|edits| edits.edits().iter().any(|e| e.sheet() == sheet)) {
+        if !plan.edits.is_empty() && structural.is_some_and(|edits| edits.edits().iter().any(|e| e.sheet() == sheet)) {
             return Err(SaveRefusal::ChartNotModelled {
                 part: "drawing".into(),
                 detail: "Moving or deleting a stored drawing object and inserting or deleting rows or columns of its sheet in one session is not modelled".into(),
@@ -572,8 +572,8 @@ pub(super) fn finish(
             package,
             source,
             new,
-            new_shapes,
-            &stored,
+            &plan.new,
+            Some(&plan),
             out,
             structural.map(|edits| (edits, before)),
             caches,
@@ -582,183 +582,6 @@ pub(super) fn finish(
     Ok(())
 }
 
-
-/// What the session did to an object the drawing part stores (dc-zjsg.4): moved or resized it (the shape as it is
-/// now), or deleted it.
-pub(crate) enum StoredEdit<'a> {
-    Moved(&'a calc_doc_model::Shape),
-    Deleted,
-}
-
-/// The stored objects (`original`) the session moved, resized or deleted, by identity, and the shapes it added (all
-/// after the stored ones that remain, which keep their order). A stored object changed in anything but its anchor and its transform (`a:xfrm`
-/// offset and extent) is refused, as are edits of kept objects (they stay as stored).
-pub(crate) fn stored_edits<'a>(
-    original: &[calc_doc_model::Shape],
-    shapes: &'a [calc_doc_model::Shape],
-) -> Result<(std::collections::BTreeMap<u32, StoredEdit<'a>>, &'a [calc_doc_model::Shape]), SaveRefusal> {
-    let refuse = |detail: &str| SaveRefusal::ChartNotModelled { part: "drawing".into(), detail: detail.into(), owner: "dc-zjsg.4" };
-    let mut edits = std::collections::BTreeMap::new();
-    let mut next = 0;
-    for stored in original {
-        match shapes.get(next) {
-            Some(now) if now.id == stored.id && now.kind == stored.kind => {
-                next += 1;
-                if now == stored {
-                    continue;
-                }
-                let mut same = now.clone();
-                (same.anchor, same.offset, same.extent) = (stored.anchor, stored.offset, stored.extent);
-                // A connector rerouted to the shapes it is glued to turns its flips too (dc-zjsg.5).
-                (same.flip_horizontal, same.flip_vertical) = (stored.flip_horizontal, stored.flip_vertical);
-                if same != *stored || stored.kept.is_some() {
-                    return Err(refuse("Editing an imported drawing object other than moving, resizing or deleting it is not modelled"));
-                }
-                edits.insert(stored.id, StoredEdit::Moved(now));
-            }
-            // Not next in order: deleted. (A new object may reuse a stored one's identity; the writer gives it another.)
-            _ => {
-                if stored.kept.is_some() {
-                    return Err(refuse("Removing a kept drawing object is not modelled"));
-                }
-                edits.insert(stored.id, StoredEdit::Deleted);
-            }
-        }
-    }
-    Ok((edits, &shapes[next..]))
-}
-
-/// The drawing part `xml` with the stored objects `edits` names rewritten: a deleted object's anchor (or the block of
-/// alternatives around it) dropped; a moved one's anchor corners, size or position and its transform's offset and
-/// extent written anew, every alternative of it alike. Everything else stays byte for byte.
-fn edit_stored(xml: &crate::xml::XmlPart, edits: &std::collections::BTreeMap<u32, StoredEdit<'_>>) -> Result<Vec<u8>, SaveRefusal> {
-    let source = xml.bytes();
-    let mut reader = Reader::new(xml);
-    let mut splice = super::super::text::Splice::new(source);
-    // Open elements: local name, qualified name, start offset, start tag's end.
-    let mut open: Vec<(String, String, usize, usize)> = Vec::new();
-    // The top-level child being read: its start, the first identity in it, and its elements (start, end, local
-    // name, qualified name, parent's local name, start tag's end).
-    type Piece = (usize, usize, String, String, String, usize);
-    let mut child: Option<(usize, Option<u32>, Vec<Piece>)> = None;
-    let qualified = |at: usize| -> String {
-        let tail = &source[at + 1..];
-        let end = tail.iter().position(|b| matches!(b, b' ' | b'>' | b'/' | b'\t' | b'\r' | b'\n')).unwrap_or(tail.len());
-        String::from_utf8_lossy(&tail[..end]).into_owned()
-    };
-    while let Some((event, span)) = reader.next()? {
-        match event {
-            XmlEvent::Start(e) => {
-                let local = e.name.local.as_str().to_owned();
-                if open.len() == 1 {
-                    child = Some((span.0, None, Vec::new()));
-                }
-                if local == "cNvPr"
-                    && let Some((_, id @ None, _)) = child.as_mut()
-                {
-                    *id = e.attribute("id").and_then(|v| v.parse().ok());
-                }
-                // An empty element (`<a/>`) comes as its start tag spanning it whole, then an end tag spanning nothing.
-                open.push((local, qualified(span.0), span.0, span.1));
-            }
-            XmlEvent::End(_) => {
-                let Some((local, name, start, tag_end)) = open.pop() else { break };
-                let parent = open.last().map(|o| o.0.clone()).unwrap_or_default();
-                let end = span.1.max(start);
-                if let Some((_, _, pieces)) = child.as_mut() {
-                    pieces.push((start, end, local, name, parent, tag_end));
-                }
-                if open.len() == 1
-                    && let Some((begin, id, pieces)) = child.take()
-                {
-                    match id.and_then(|id| edits.get(&id)) {
-                        Some(StoredEdit::Deleted) => {
-                            splice.keep_to(begin);
-                            splice.skip_to(end.max(begin));
-                        }
-                        Some(StoredEdit::Moved(shape)) => {
-                            let mut first_xfrm = true;
-                            let mut first_tag = true;
-                            // Pieces arrive as their elements end; a replacement is written in source order.
-                            let mut pieces = pieces;
-                            pieces.sort_by_key(|p| p.0);
-                            // The alternatives (`mc:Choice`, `mc:Fallback`) each hold the object once: each one's
-                            // first transform is the object's own, so the count restarts in every alternative.
-                            let mut branches: Vec<(usize, usize)> = Vec::new();
-                            for p in pieces.iter().filter(|p| matches!(p.2.as_str(), "Choice" | "Fallback")) {
-                                if !branches.iter().any(|b| b.0 <= p.0 && p.1 <= b.1) {
-                                    branches.push((p.0, p.1));
-                                }
-                            }
-                            let mut branch = None;
-                            let mut written_to = 0usize;
-                            for (start, end, local, name, parent, tag_end) in pieces {
-                                let inside = branches.iter().position(|b| b.0 <= start && start < b.1);
-                                if inside != branch {
-                                    branch = inside;
-                                    (first_xfrm, first_tag) = (true, true);
-                                }
-                                if start < written_to {
-                                    continue;
-                                }
-                                // The first transform's start tag carries the turn and the flips: written anew.
-                                if local == "xfrm" && first_tag && tag_end < end {
-                                    first_tag = false;
-                                    let mut tag = format!("<{name}");
-                                    if shape.rotation != 0 {
-                                        tag.push_str(&format!(" rot=\"{}\"", shape.rotation));
-                                    }
-                                    if shape.flip_horizontal {
-                                        tag.push_str(" flipH=\"1\"");
-                                    }
-                                    if shape.flip_vertical {
-                                        tag.push_str(" flipV=\"1\"");
-                                    }
-                                    tag.push('>');
-                                    splice.replace((start, tag_end), tag.as_bytes());
-                                    written_to = tag_end;
-                                    continue;
-                                }
-                                let prefix = name.rsplit_once(':').map_or(String::new(), |(p, _)| format!("{p}:"));
-                                let anchor = matches!(parent.as_str(), "twoCellAnchor" | "oneCellAnchor" | "absoluteAnchor");
-                                let bytes = match (local.as_str(), anchor, &shape.anchor) {
-                                    ("from", true, ChartAnchor::TwoCell { from, .. } | ChartAnchor::OneCell { from, .. }) => Some(point_xml(&prefix, "from", from)),
-                                    ("to", true, ChartAnchor::TwoCell { to, .. }) => Some(point_xml(&prefix, "to", to)),
-                                    ("ext", true, ChartAnchor::OneCell { width, height, .. } | ChartAnchor::Absolute { width, height, .. }) => {
-                                        Some(format!("<{name} cx=\"{width}\" cy=\"{height}\"/>"))
-                                    }
-                                    ("pos", true, ChartAnchor::Absolute { x, y, .. }) => Some(format!("<{name} x=\"{x}\" y=\"{y}\"/>")),
-                                    ("off", false, _) if parent == "xfrm" && first_xfrm => {
-                                        Some(format!("<{name} x=\"{}\" y=\"{}\"/>", shape.offset.0, shape.offset.1))
-                                    }
-                                    ("ext", false, _) if parent == "xfrm" && first_xfrm => {
-                                        first_xfrm = false;
-                                        Some(format!("<{name} cx=\"{}\" cy=\"{}\"/>", shape.extent.0, shape.extent.1))
-                                    }
-                                    _ => None,
-                                };
-                                if let Some(bytes) = bytes {
-                                    splice.replace((start, end), bytes.as_bytes());
-                                    written_to = end;
-                                }
-                            }
-                        }
-                        None => {}
-                    }
-                }
-            }
-            XmlEvent::Text(_) => {}
-        }
-    }
-    Ok(splice.finish())
-}
-
-fn point_xml(prefix: &str, tag: &str, p: &calc_doc_model::DrawingPoint) -> String {
-    format!(
-        "<{prefix}{tag}><{prefix}col>{}</{prefix}col><{prefix}colOff>{}</{prefix}colOff><{prefix}row>{}</{prefix}row><{prefix}rowOff>{}</{prefix}rowOff></{prefix}{tag}>",
-        p.column, p.column_offset, p.row, p.row_offset
-    )
-}
 
 pub(crate) fn add(
     package: &Package,
@@ -769,7 +592,7 @@ pub(crate) fn add(
     structural: Option<(&super::super::structural::StructuralEdits, &ModelRoot)>,
     caches: Option<&cache::CacheSource<'_>>,
 ) -> Result<(), SaveRefusal> {
-    add_with(package, source, new, new_shapes, &Default::default(), out, structural, caches)
+    add_with(package, source, new, new_shapes, None, out, structural, caches)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -778,7 +601,7 @@ pub(crate) fn add_with(
     source: &LoadedSheet,
     new: &[Chart],
     new_shapes: &[calc_doc_model::Shape],
-    stored: &std::collections::BTreeMap<u32, StoredEdit<'_>>,
+    plan: Option<&super::stored::StoredPlan<'_>>,
     out: &mut Changes,
     structural: Option<(&super::super::structural::StructuralEdits, &ModelRoot)>,
     caches: Option<&cache::CacheSource<'_>>,
@@ -836,8 +659,9 @@ pub(crate) fn add_with(
     }
     let empty = format!("<xdr:wsDr xmlns:xdr=\"{XDR}\"/>");
     let mut xml = parts::current_part(package, out, &drawing, empty.as_bytes())?;
-    if !stored.is_empty() {
-        let edited = edit_stored(&xml, stored)?;
+    let original_xml = xml.with_bytes(xml.bytes().to_vec());
+    if let Some(plan) = plan.filter(|p| !p.edits.is_empty()) {
+        let edited = super::stored::edit(&xml, &plan.edits)?;
         xml = xml.with_bytes(edited);
     }
     let mut ids = BTreeSet::new();
@@ -969,12 +793,24 @@ pub(crate) fn add_with(
         let id = remap.get(&shape.id).copied().unwrap_or(shape.id);
         media.insert(id, (first, svg));
     }
+    // A new object that is (or holds) a stored one writes the stored element in its new place.
+    let stored_element = |shape: &calc_doc_model::Shape| -> Option<Result<Vec<u8>, SaveRefusal>> {
+        let stored = plan?.originals.get(&shape.id)?;
+        (stored.kind == shape.kind).then(|| super::stored::element(&original_xml, stored, shape))
+    };
     // Authored charts come first, then shapes: the drawing's z-order is its document order.
+    let mut shape_frames = Vec::new();
     for shape in new_shapes {
-        let body = super::super::shapes::frame(shape, &remap, &media)?;
-        frames.extend(finish_body(body, &drawing, source, structural)?);
+        let body = super::super::shapes::frame(shape, &remap, &media, &stored_element)?;
+        shape_frames.push(finish_body(body, &drawing, source, structural)?);
     }
-    xml = xml.with_bytes(parts::append_root(&xml, &frames)?);
+    match plan.and_then(|p| p.layout.as_deref()) {
+        Some(layout) => xml = xml.with_bytes(super::stored::arrange(&xml, layout, &shape_frames, &frames)?),
+        None => {
+            frames.extend(shape_frames.concat());
+            xml = xml.with_bytes(parts::append_root(&xml, &frames)?);
+        }
+    }
     parts::put_part(package, out, &drawing, xml.bytes().to_vec());
     parts::ensure_content_type(
         package,
@@ -1073,8 +909,12 @@ mod stored_edit_tests {
         let to = DrawingPoint { column: 7, column_offset: 0, row: 9, row_offset: 0 };
         let mut shape = Shape::new(2, "Choice".into(), ShapeKind::Shape, ChartAnchor::TwoCell { from, to });
         (shape.offset, shape.extent, shape.rotation) = ((10, 20), (30, 40), 60000);
-        let edits = std::collections::BTreeMap::from([(2, StoredEdit::Moved(&shape))]);
-        let out = String::from_utf8(edit_stored(&part, &edits).unwrap()).unwrap();
+        let shape = shape;
+        let mut before = shape.clone();
+        before.anchor = ChartAnchor::TwoCell { from: DrawingPoint { column: 1, column_offset: 0, row: 1, row_offset: 0 }, to: DrawingPoint { column: 3, column_offset: 0, row: 4, row_offset: 0 } };
+        (before.offset, before.extent) = ((1, 2), (3, 4));
+        let edits = std::collections::BTreeMap::from([(2, super::super::stored::StoredEdit::Changed(&before, &shape))]);
+        let out = String::from_utf8(super::super::stored::edit(&part, &edits).unwrap()).unwrap();
         let moved = |tag: &str| {
             format!(
                 "<xdr:twoCellAnchor><xdr:from>{}</xdr:from><xdr:to>{}</xdr:to><xdr:sp><xdr:nvSpPr><xdr:cNvPr id=\"2\" name=\"{tag}\"/><xdr:cNvSpPr/></xdr:nvSpPr><xdr:spPr><a:xfrm rot=\"60000\"><a:off x=\"10\" y=\"20\"/><a:ext cx=\"30\" cy=\"40\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></xdr:spPr></xdr:sp><xdr:clientData/></xdr:twoCellAnchor>",

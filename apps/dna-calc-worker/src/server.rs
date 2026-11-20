@@ -2406,6 +2406,83 @@ impl Server {
                 revision,
                 change: calc_host::ShapeChange::Delete { id },
             }),
+            Intent::ShapeAdd { sheet, revision, at, kind, geometry, width, height } => {
+                let at = cell(at)?;
+                let kind = match kind.as_str() {
+                    "shape" => calc_host::ShapeKind::Shape,
+                    "textbox" => calc_host::ShapeKind::TextBox,
+                    "connector" => calc_host::ShapeKind::Connector,
+                    _ => return Err("Insert a shape, a text box or a line".into()),
+                };
+                let (left, top) = self.book.host().cell_corner(sheet.id(), at.row(), at.column());
+                let points = |v: f64| calc_host::Points::new(v);
+                SkinIntent::Command(calc_host::WorkbookCommand::Shape {
+                    sheet: sheet.id(),
+                    revision,
+                    change: calc_host::ShapeChange::Add {
+                        kind,
+                        geometry,
+                        left: points(left),
+                        top: points(top),
+                        width: points(width as f64 / 100.0),
+                        height: points(height as f64 / 100.0),
+                        flips: (false, false),
+                        name: None,
+                    },
+                })
+            }
+            Intent::ShapeText { sheet, revision, id, text } => SkinIntent::Command(calc_host::WorkbookCommand::Shape {
+                sheet: sheet.id(),
+                revision,
+                change: calc_host::ShapeChange::Text { id, text: text.replace("\r\n", "\r").replace('\n', "\r") },
+            }),
+            Intent::ShapeFill { sheet, revision, id, fill } => {
+                let fill = match shape_colour(&fill)? {
+                    Some(Some(colour)) => calc_host::ShapeFill::Solid(colour),
+                    Some(None) => calc_host::ShapeFill::None,
+                    None => calc_host::ShapeFill::Style,
+                };
+                SkinIntent::Command(calc_host::WorkbookCommand::Shape { sheet: sheet.id(), revision, change: calc_host::ShapeChange::Fill { id, fill } })
+            }
+            Intent::ShapeLine { sheet, revision, id, colour, weight } => {
+                let current = self.book.host().shapes(sheet.id()).iter().find(|s| s.id == id).map(|s| s.line.clone()).unwrap_or_default();
+                let mut line = current;
+                match shape_colour(&colour)? {
+                    Some(Some(c)) => (line.hidden, line.colour) = (false, Some(c)),
+                    Some(None) => (line.hidden, line.colour) = (true, None),
+                    None => (line.hidden, line.colour) = (false, None),
+                }
+                if weight.is_some_and(|w| !(0..=158_400).contains(&w)) {
+                    return Err("Use an outline weight from 0 to 1584 points".into());
+                }
+                line.weight = weight.map(|w| w * 127);
+                SkinIntent::Command(calc_host::WorkbookCommand::Shape { sheet: sheet.id(), revision, change: calc_host::ShapeChange::Line { id, line } })
+            }
+            Intent::ShapeRotate { sheet, revision, id, degrees } => SkinIntent::Command(calc_host::WorkbookCommand::Shape {
+                sheet: sheet.id(),
+                revision,
+                change: calc_host::ShapeChange::Rotate { id, rotation: degrees.rem_euclid(360) * 60_000 },
+            }),
+            Intent::ShapeOrder { sheet, revision, id, order } => {
+                let order = match order.as_str() {
+                    "forward" => calc_host::ShapeOrder::Forward,
+                    "backward" => calc_host::ShapeOrder::Backward,
+                    "front" => calc_host::ShapeOrder::Front,
+                    "back" => calc_host::ShapeOrder::Back,
+                    _ => return Err("Bring forward, send backward, bring to front or send to back".into()),
+                };
+                SkinIntent::Command(calc_host::WorkbookCommand::Shape { sheet: sheet.id(), revision, change: calc_host::ShapeChange::Order { id, order } })
+            }
+            Intent::ShapeGroup { sheet, revision, ids } => SkinIntent::Command(calc_host::WorkbookCommand::Shape {
+                sheet: sheet.id(),
+                revision,
+                change: calc_host::ShapeChange::Group { ids },
+            }),
+            Intent::ShapeUngroup { sheet, revision, id } => SkinIntent::Command(calc_host::WorkbookCommand::Shape {
+                sheet: sheet.id(),
+                revision,
+                change: calc_host::ShapeChange::Ungroup { id },
+            }),
             Intent::ChartLegend {
                 sheet,
                 revision,
@@ -4831,6 +4908,22 @@ impl Server {
     }
 }
 
+
+/// A colour the page sends: `#RRGGBB` (`Some(Some)`), `none` (`Some(None)`), or empty for the style's (`None`).
+fn shape_colour(text: &str) -> Result<Option<Option<calc_host::ShapeColour>>, String> {
+    match text.trim() {
+        "" => Ok(None),
+        "none" => Ok(Some(None)),
+        hex => {
+            let digits = hex.strip_prefix('#').unwrap_or(hex);
+            match u32::from_str_radix(digits, 16) {
+                Ok(v) if digits.len() == 6 => Ok(Some(Some(calc_host::ShapeColour::Rgb(v)))),
+                _ => Err("Use a colour as #RRGGBB".into()),
+            }
+        }
+    }
+}
+
 fn cell(at: Key) -> Result<CellKey, String> {
     at.cell().ok_or_else(|| "not a cell".to_owned())
 }
@@ -5266,6 +5359,49 @@ mod outline_tests {
         // Undo brings the deleted shape back.
         assert!(server.execute_current(Request::Intent(Intent::Undo), None).reply.is_ok());
         assert_eq!(server.book.host().shapes(sheet.id()).len(), 20);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dc_zjsg_4__the_page_inserts_edits_turns_orders_and_groups_shapes() {
+        let mut server = Server::new();
+        let data = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/shapes-paint4.xlsx");
+        assert!(server.execute_current(Request::Open { name: "shapes-paint4.xlsx".into() }, Some(data.to_vec())).reply.is_ok());
+        let sheet = Sheet::of(server.book.host().sheets()[0].id());
+        let revision = |server: &Server| server.book.host().revision().get();
+        let run = |server: &mut Server, make: &dyn Fn(u64) -> Intent| {
+            let revision = server.book.host().revision().get();
+            let reply = server.execute_current(Request::Intent(make(revision)), None).reply;
+            assert!(matches!(&reply, Ok(Reply::Done { outcome, .. }) if outcome.accepted), "{reply:?}");
+        };
+        // A rectangle at C3: one inch square at the cell's top left (column C at 48 pt a column, row 3 at 15 pt).
+        let at = Key::of(calc_value::CellKey::new(sheet.id(), 3, 3).unwrap());
+        run(&mut server, &|revision| Intent::ShapeAdd { sheet, revision, at, kind: "shape".into(), geometry: "ellipse".into(), width: 7_200, height: 7_200 });
+        let added = server.book.host().shapes(sheet.id()).last().unwrap().clone();
+        assert_eq!((added.name.as_str(), added.offset, added.extent), ("Oval 21", (96 * 12_700, 30 * 12_700), (72 * 12_700, 72 * 12_700)));
+        let id = added.id;
+        run(&mut server, &|revision| Intent::ShapeText { sheet, revision, id, text: "One\nTwo".into() });
+        run(&mut server, &|revision| Intent::ShapeFill { sheet, revision, id, fill: "#FF8000".into() });
+        run(&mut server, &|revision| Intent::ShapeLine { sheet, revision, id, colour: "#000080".into(), weight: Some(150) });
+        run(&mut server, &|revision| Intent::ShapeRotate { sheet, revision, id, degrees: 45 });
+        run(&mut server, &|revision| Intent::ShapeOrder { sheet, revision, id, order: "back".into() });
+        let shape = server.book.host().shapes(sheet.id())[0].clone();
+        assert_eq!(shape.id, id);
+        assert_eq!(shape.text, Some(vec!["One".to_owned(), "Two".to_owned()]));
+        assert_eq!(shape.fill, calc_host::ShapeFill::Solid(calc_host::ShapeColour::Rgb(0xFF8000)));
+        assert_eq!((shape.line.colour.clone(), shape.line.weight), (Some(calc_host::ShapeColour::Rgb(0x80)), Some(19_050)));
+        assert_eq!(shape.rotation, 45 * 60_000);
+        let stored = server.book.host().shapes(sheet.id())[1].id;
+        run(&mut server, &|revision| Intent::ShapeGroup { sheet, revision, ids: vec![id, stored] });
+        let group = server.book.host().shapes(sheet.id())[0].clone();
+        assert_eq!((group.kind, group.children.len()), (calc_host::ShapeKind::Group, 2));
+        let reply = server.execute_current(Request::Intent(Intent::ShapeUngroup { sheet, revision: revision(&server), id: group.id }), None).reply;
+        assert!(matches!(&reply, Ok(Reply::Done { outcome, .. }) if outcome.accepted), "{reply:?}");
+        assert_eq!(server.book.host().shapes(sheet.id())[0].id, id);
+        // A refused step names why and changes nothing.
+        let refused = server.execute_current(Request::Intent(Intent::ShapeOrder { sheet, revision: revision(&server), id, order: "back".into() }), None).reply;
+        assert!(matches!(&refused, Ok(Reply::Done { outcome, .. }) if !outcome.accepted && outcome.error.as_deref().is_some_and(|e| e.contains("already at the back"))), "{refused:?}");
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

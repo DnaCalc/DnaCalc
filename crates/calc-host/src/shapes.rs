@@ -72,6 +72,24 @@ pub enum ShapeChange {
         id: u32,
         line: ShapeLine,
     },
+    /// Turn a shape to `rotation` (60,000ths of a degree clockwise, 0 to 21,600,000) about its centre.
+    Rotate {
+        id: u32,
+        rotation: i64,
+    },
+    /// Move a shape in the drawing order (dc-zjsg.4).
+    Order {
+        id: u32,
+        order: ShapeOrder,
+    },
+    /// Group two or more top-level shapes into one group, in their drawing order, where the topmost was.
+    Group {
+        ids: Vec<u32>,
+    },
+    /// Take a group apart: its children become top-level shapes where it was.
+    Ungroup {
+        id: u32,
+    },
     /// Glue one end of a connector to a connection site (1-based as VBA counts) of a shape.
     Connect {
         id: u32,
@@ -79,6 +97,69 @@ pub enum ShapeChange {
         shape: u32,
         site: u32,
     },
+}
+
+/// A step in the drawing order: Excel's Bring Forward, Send Backward, Bring to Front, Send to Back.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ShapeOrder {
+    Forward,
+    Backward,
+    Front,
+    Back,
+}
+
+/// The file's own top-level objects (identity and kind).
+struct Stored(std::collections::BTreeMap<u32, ShapeKind>);
+
+impl Stored {
+    fn holds(&self, shape: &Shape) -> bool {
+        self.0.get(&shape.id) == Some(&shape.kind)
+    }
+}
+
+fn contains_kept(shape: &Shape) -> bool {
+    shape.children.iter().any(|c| c.kept.is_some() || contains_kept(c))
+}
+
+/// Whether Excel stores the anchor of a shape turned by `rotation` as the shape's box turned a quarter (from 45 up to
+/// 135 degrees, and from 225 up to 315).
+fn quarter(rotation: i64) -> bool {
+    (45.0..135.0).contains(&(rotation as f64 / 60_000.0).rem_euclid(180.0))
+}
+
+/// A rectangle's width and height swapped about its centre.
+fn swapped((l, t, w, h): (f64, f64, f64, f64)) -> (f64, f64, f64, f64) {
+    (l + w / 2.0 - h / 2.0, t + h / 2.0 - w / 2.0, h, w)
+}
+
+/// A top-level shape's anchor rectangle in points: a stored one's as its anchor states it, one this session made as
+/// Excel would anchor its transform.
+fn anchor_rect(host: &HostState, sheet: SheetId, shape: &Shape, stored: bool) -> (f64, f64, f64, f64) {
+    if stored {
+        host.anchor_rectangle(sheet, &shape.anchor)
+    } else {
+        let r = host.shape_rectangle(sheet, shape);
+        if quarter(shape.rotation) { swapped(r) } else { r }
+    }
+}
+
+/// A top-level shape put at the anchor rectangle `r` (points): its anchor (a stored one keeps its anchor's kind, as
+/// Excel moves a one-cell or absolute object as one) and its transform, the anchor's box unturned.
+fn set_place(host: &HostState, sheet: SheetId, s: &mut Shape, stored: bool, r: (f64, f64, f64, f64)) {
+    let (l, t, w, h) = r;
+    let emu = |v: f64| (v * EMU_PER_POINT).round() as i64;
+    s.anchor = match (stored, &s.anchor) {
+        (true, ChartAnchor::OneCell { .. }) => ChartAnchor::OneCell { from: host.point_at(sheet, l, t), width: emu(w), height: emu(h) },
+        (true, ChartAnchor::Absolute { .. }) => ChartAnchor::Absolute { x: emu(l), y: emu(t), width: emu(w), height: emu(h) },
+        _ => ChartAnchor::TwoCell { from: host.point_at(sheet, l, t), to: host.point_at(sheet, l + w, t + h) },
+    };
+    let (l, t, w, h) = if quarter(s.rotation) { swapped(r) } else { r };
+    s.offset = (emu(l), emu(t));
+    s.extent = (emu(w), emu(h));
+}
+
+fn emu_of(points: f64) -> i64 {
+    (points * EMU_PER_POINT).round() as i64
 }
 
 fn refusal(s: &str) -> String {
@@ -346,6 +427,13 @@ impl HostState {
 
     /// A shape's rectangle in points: left, top, width, height.
     /// An anchor's rectangle in points (left, top, width, height), from the sheet's column widths and row heights.
+    /// The top left of the cell at 1-based `row` and `column`, in points from the worksheet's top left.
+    pub fn cell_corner(&self, sheet: SheetId, row: u32, column: u32) -> (f64, f64) {
+        let x = (1..column).map(|c| self.column_points(sheet, c)).sum::<f64>();
+        let y = (1..row).map(|r| self.row_points(sheet, r)).sum::<f64>();
+        (x, y)
+    }
+
     pub fn anchor_rectangle(&self, sheet: SheetId, anchor: &ChartAnchor) -> (f64, f64, f64, f64) {
         let x = |p: &DrawingPoint| (1..=p.column).map(|c| self.column_points(sheet, c)).sum::<f64>() + p.column_offset as f64 / EMU_PER_POINT;
         let y = |p: &DrawingPoint| (1..=p.row).map(|r| self.row_points(sheet, r)).sum::<f64>() + p.row_offset as f64 / EMU_PER_POINT;
@@ -398,13 +486,11 @@ pub(crate) fn connection_site_count(geometry: &str) -> Option<usize> {
     calc_doc_model::preset_geometry::preset(geometry, &[]).map(|g| g.sites.len())
 }
 
-/// A shape's rectangle in points: a stored one's from its anchor, one this session made from its transform.
-fn rectangle(host: &HostState, sheet: SheetId, shapes: &[Shape], index: usize, originals: usize) -> (f64, f64, f64, f64) {
-    if index < originals {
-        host.anchor_rectangle(sheet, &shapes[index].anchor)
-    } else {
-        host.shape_rectangle(sheet, &shapes[index])
-    }
+/// A shape's box in points, unturned: a stored one's from its anchor, one this session made from its transform.
+fn rectangle(host: &HostState, sheet: SheetId, shapes: &[Shape], index: usize, stored: &Stored) -> (f64, f64, f64, f64) {
+    let shape = &shapes[index];
+    let r = anchor_rect(host, sheet, shape, stored.holds(shape));
+    if quarter(shape.rotation) { swapped(r) } else { r }
 }
 
 /// Where connection site `site` (counted from 0, as `stCxn idx`) of `shape` is, in points, its box `rect`: from its
@@ -436,50 +522,61 @@ fn site_point(shape: &Shape, rect: (f64, f64, f64, f64), site: u32) -> Option<(f
 }
 
 /// The connectors glued to the shape `id` (dc-zjsg.5), each rerouted ([`reroute`]). A turned connector is left as it is.
-fn reroute_connectors(host: &HostState, sheet: SheetId, shapes: &mut [Shape], id: u32, originals: usize) {
+fn reroute_connectors(host: &HostState, sheet: SheetId, shapes: &mut [Shape], id: u32, originals: &Stored) {
     let glued: Vec<usize> = (0..shapes.len())
-        .filter(|&i| shapes[i].rotation == 0 && [shapes[i].begin, shapes[i].end].iter().any(|e| e.is_some_and(|e| e.shape == id)))
+        .filter(|&i| [shapes[i].begin, shapes[i].end].iter().any(|e| e.is_some_and(|e| e.shape == id)))
         .collect();
     for index in glued {
         reroute(host, sheet, shapes, index, originals);
     }
 }
 
+/// `v` turned clockwise (on the page, y down) by `rotation` 60,000ths of a degree.
+fn turned(v: (f64, f64), rotation: i64) -> (f64, f64) {
+    let (sin, cos) = (rotation as f64 / 60_000.0).to_radians().sin_cos();
+    (v.0 * cos - v.1 * sin, v.0 * sin + v.1 * cos)
+}
+
 /// The connector at `index` redrawn between its ends as Excel reroutes one when a shape it joins moves or it is
-/// glued: a glued end at its site, a free end where it was; its box the ends' box, flipped to run from its start to
-/// its end.
-fn reroute(host: &HostState, sheet: SheetId, shapes: &mut [Shape], index: usize, originals: usize) {
-    {
-        let (l, t, w, h) = rectangle(host, sheet, shapes, index, originals);
-        let c = &shapes[index];
-        let mut start = (if c.flip_horizontal { l + w } else { l }, if c.flip_vertical { t + h } else { t });
-        let mut end = (if c.flip_horizontal { l } else { l + w }, if c.flip_vertical { t } else { t + h });
-        let end_point = |connection: Option<calc_doc_model::ShapeConnection>| {
-            let connection = connection?;
-            let target = shapes.iter().position(|s| s.id == connection.shape)?;
-            site_point(&shapes[target], rectangle(host, sheet, shapes, target, originals), connection.site)
-        };
-        if let Some(p) = end_point(c.begin) {
-            start = p;
-        }
-        if let Some(p) = end_point(c.end) {
-            end = p;
-        }
-        let (l, t) = (start.0.min(end.0).max(0.0), start.1.min(end.1).max(0.0));
-        let (w, h) = ((end.0 - start.0).abs(), (end.1 - start.1).abs());
-        let emu = |v: f64| (v * EMU_PER_POINT).round() as i64;
-        let stored = index < originals;
-        let c = &mut shapes[index];
-        c.anchor = match (stored, &c.anchor) {
-            (true, ChartAnchor::OneCell { .. }) => ChartAnchor::OneCell { from: host.point_at(sheet, l, t), width: emu(w), height: emu(h) },
-            (true, ChartAnchor::Absolute { .. }) => ChartAnchor::Absolute { x: emu(l), y: emu(t), width: emu(w), height: emu(h) },
-            _ => ChartAnchor::TwoCell { from: host.point_at(sheet, l, t), to: host.point_at(sheet, l + w, t + h) },
-        };
-        c.offset = (emu(l), emu(t));
-        c.extent = (emu(w), emu(h));
-        c.flip_horizontal = end.0 < start.0;
-        c.flip_vertical = end.1 < start.1;
+/// glued: a glued end at its site, a free end where it was. The connector keeps its geometry, its turn and its
+/// adjust values (an elbow's middle leg stays at its share of the box); its box is the one that, turned as the
+/// connector is, runs from the start to the end, and its flips say which corner it starts from. A connector turned a
+/// quarter (the usual elbow between a bottom and a top site) is anchored on that box turned, as Excel stores it.
+fn reroute(host: &HostState, sheet: SheetId, shapes: &mut [Shape], index: usize, originals: &Stored) {
+    let (l, t, w, h) = rectangle(host, sheet, shapes, index, originals);
+    let c = &shapes[index];
+    let rotation = c.rotation;
+    let centre = (l + w / 2.0, t + h / 2.0);
+    let corner = (if c.flip_horizontal { w / 2.0 } else { -w / 2.0 }, if c.flip_vertical { h / 2.0 } else { -h / 2.0 });
+    let at = |v: (f64, f64)| {
+        let v = turned(v, rotation);
+        (centre.0 + v.0, centre.1 + v.1)
+    };
+    let mut start = at(corner);
+    let mut end = at((-corner.0, -corner.1));
+    let end_point = |connection: Option<calc_doc_model::ShapeConnection>| {
+        let connection = connection?;
+        let target = shapes.iter().position(|s| s.id == connection.shape)?;
+        site_point(&shapes[target], rectangle(host, sheet, shapes, target, originals), connection.site)
+    };
+    if let Some(p) = end_point(c.begin) {
+        start = p;
     }
+    if let Some(p) = end_point(c.end) {
+        end = p;
+    }
+    // The run from start to end in the connector's own (unturned) frame.
+    let d = turned((end.0 - start.0, end.1 - start.1), -rotation);
+    let (w, h) = (d.0.abs(), d.1.abs());
+    let centre = ((start.0 + end.0) / 2.0, (start.1 + end.1) / 2.0);
+    let unturned = (centre.0 - w / 2.0, centre.1 - h / 2.0, w, h);
+    let anchor = if quarter(rotation) { swapped(unturned) } else { unturned };
+    let anchor = (anchor.0.max(0.0), anchor.1.max(0.0), anchor.2, anchor.3);
+    let stored = originals.holds(&shapes[index]);
+    let c = &mut shapes[index];
+    set_place(host, sheet, c, stored, anchor);
+    c.flip_horizontal = d.0 < 0.0;
+    c.flip_vertical = d.1 < 0.0;
 }
 
 pub(crate) fn prepare(
@@ -507,40 +604,39 @@ pub(crate) fn prepare(
         ));
     }
     let mut shapes = host.shapes(sheet).to_vec();
-    // The stored objects still here lead the list in their stored order (a deleted one leaves a gap, an added one
-    // goes after them): matched as the save matches them, so a second delete or an edit of an added object reads
-    // the right ones as stored.
-    let originals = host.loaded().model().definitions().shapes(sheet).iter().fold(0, |next, stored| {
-        if shapes.get(next).is_some_and(|now| now.id == stored.id && now.kind == stored.kind) { next + 1 } else { next }
-    });
+    // The file's own top-level objects, by identity (a deleted one's identity is never issued again, so one is
+    // stored while it is at the top level with its kind): a stored one's rectangle is its anchor's.
+    let originals = Stored(host.loaded().model().definitions().shapes(sheet).iter().map(|s| (s.id, s.kind)).collect());
+    let originals = &originals;
     let find = |shapes: &[Shape], id: u32| -> Result<usize, String> {
         let index = shapes
             .iter()
             .position(|s| s.id == id)
             .ok_or_else(|| refusal("The shape no longer exists"))?;
-        if index < originals {
+        if originals.holds(&shapes[index]) {
             return Err(refusal(
                 "A shape the file holds cannot be changed yet (dc-zjsg.4)",
             ));
         }
         Ok(index)
     };
-    // A shape the file holds may be moved, resized or deleted (dc-zjsg.4): the save rewrites its stored anchor in
-    // place, or drops it. One Excel keeps for an object DNA Calc does not edit (an equation, ink, SmartArt, an OLE or
-    // ActiveX object) is not, nor a hidden one, nor one a stored connector is glued to (dc-zjsg.5).
+    // A shape the file holds may be moved, resized, turned, given text, fill or outline, put in another place of the
+    // drawing order, grouped or deleted (dc-zjsg.4): the save rewrites its stored element in place, or drops it. One
+    // Excel keeps for an object DNA Calc does not edit (an equation, ink, SmartArt, an OLE or ActiveX object) is not,
+    // nor a hidden one, nor (deleting) one a stored connector is glued to (dc-zjsg.5).
     let find_movable = |shapes: &[Shape], id: u32, deleting: bool| -> Result<usize, String> {
         let index = shapes
             .iter()
             .position(|s| s.id == id && !s.hidden)
             .ok_or_else(|| refusal("The shape no longer exists"))?;
-        if index >= originals {
-            return Ok(index);
-        }
         let shape = &shapes[index];
-        if shape.kept.is_some() {
+        if shape.kept.is_some() || contains_kept(shape) {
             return Err(refusal("An equation, ink, SmartArt, OLE or ActiveX object is kept as the file stores it"));
         }
-        if deleting && shapes[..originals].iter().any(|s| [s.begin, s.end].iter().any(|e| e.is_some_and(|e| e.shape == id))) {
+        if !originals.holds(shape) {
+            return Ok(index);
+        }
+        if deleting && shapes.iter().filter(|s| originals.holds(s)).any(|s| [s.begin, s.end].iter().any(|e| e.is_some_and(|e| e.shape == id))) {
             return Err(refusal("A shape a stored connector is glued to cannot be deleted yet (dc-zjsg.5)"));
         }
         Ok(index)
@@ -619,12 +715,8 @@ pub(crate) fn prepare(
             height,
         } => {
             let index = find_movable(&shapes, id, false)?;
-            let stored = index < originals;
-            let (l, t, w, h) = if stored {
-                host.anchor_rectangle(sheet, &shapes[index].anchor)
-            } else {
-                host.shape_rectangle(sheet, &shapes[index])
-            };
+            let stored = originals.holds(&shapes[index]);
+            let (l, t, w, h) = anchor_rect(host, sheet, &shapes[index], stored);
             let (l, t, w, h) = (
                 left.map_or(l, Points::get),
                 top.map_or(t, Points::get),
@@ -634,28 +726,13 @@ pub(crate) fn prepare(
             if ![l, t, w, h].into_iter().all(finite) || l < 0.0 || t < 0.0 || w < 0.0 || h < 0.0 {
                 return Err(refusal("Use a position and size on the worksheet"));
             }
-            let s = &mut shapes[index];
-            let emu = |v: f64| (v * EMU_PER_POINT).round() as i64;
-            // A stored object keeps its anchor's kind (Excel moves a one-cell or absolute object as one).
-            s.anchor = match (stored, &s.anchor) {
-                (true, ChartAnchor::OneCell { .. }) => ChartAnchor::OneCell { from: host.point_at(sheet, l, t), width: emu(w), height: emu(h) },
-                (true, ChartAnchor::Absolute { .. }) => ChartAnchor::Absolute { x: emu(l), y: emu(t), width: emu(w), height: emu(h) },
-                _ => ChartAnchor::TwoCell { from: host.point_at(sheet, l, t), to: host.point_at(sheet, l + w, t + h) },
-            };
-            s.offset = (
-                (l * EMU_PER_POINT).round() as i64,
-                (t * EMU_PER_POINT).round() as i64,
-            );
-            s.extent = (
-                (w * EMU_PER_POINT).round() as i64,
-                (h * EMU_PER_POINT).round() as i64,
-            );
+            set_place(host, sheet, &mut shapes[index], stored, (l, t, w, h));
             reroute_connectors(host, sheet, &mut shapes, id, originals);
         }
         ShapeChange::Text { id, text } => {
-            let index = find(&shapes, id)?;
-            if shapes[index].kind == ShapeKind::Connector {
-                return Err(refusal("A connector has no text"));
+            let index = find_movable(&shapes, id, false)?;
+            if !matches!(shapes[index].kind, ShapeKind::Shape | ShapeKind::TextBox) {
+                return Err(refusal("Only a shape or text box holds text"));
             }
             // Excel (Q8): a carriage return or CR LF starts a paragraph; a bare line feed stays in
             // its paragraph.
@@ -666,12 +743,121 @@ pub(crate) fn prepare(
             }
         }
         ShapeChange::Fill { id, fill } => {
-            let index = find(&shapes, id)?;
+            let index = find_movable(&shapes, id, false)?;
             shapes[index].fill = fill;
         }
         ShapeChange::Line { id, line } => {
-            let index = find(&shapes, id)?;
+            let index = find_movable(&shapes, id, false)?;
             shapes[index].line = line;
+        }
+        ShapeChange::Rotate { id, rotation } => {
+            let index = find_movable(&shapes, id, false)?;
+            if !(0..21_600_000).contains(&rotation) {
+                return Err(refusal("Use a turn from 0 up to 360 degrees"));
+            }
+            let stored = originals.holds(&shapes[index]);
+            let unturned = rectangle(host, sheet, &shapes, index, originals);
+            let s = &mut shapes[index];
+            s.rotation = rotation;
+            let r = if quarter(rotation) { swapped(unturned) } else { unturned };
+            if r.0 < 0.0 || r.1 < 0.0 {
+                return Err(refusal("The turned shape would leave the worksheet"));
+            }
+            set_place(host, sheet, s, stored, r);
+            reroute_connectors(host, sheet, &mut shapes, id, originals);
+        }
+        ShapeChange::Order { id, order } => {
+            let index = shapes.iter().position(|s| s.id == id).ok_or_else(|| refusal("The shape no longer exists"))?;
+            let last = shapes.len() - 1;
+            let to = match order {
+                ShapeOrder::Forward => (index + 1).min(last),
+                ShapeOrder::Backward => index.saturating_sub(1),
+                ShapeOrder::Front => last,
+                ShapeOrder::Back => 0,
+            };
+            if to == index {
+                return Err(refusal(if matches!(order, ShapeOrder::Forward | ShapeOrder::Front) {
+                    "The shape is already in front"
+                } else {
+                    "The shape is already at the back"
+                }));
+            }
+            let shape = shapes.remove(index);
+            shapes.insert(to, shape);
+        }
+        ShapeChange::Group { ids } => {
+            let mut members = Vec::new();
+            for &id in &ids {
+                let index = find_movable(&shapes, id, false)?;
+                if members.contains(&index) {
+                    return Err(refusal("Name each shape once"));
+                }
+                members.push(index);
+            }
+            if members.len() < 2 {
+                return Err(refusal("Group two or more shapes"));
+            }
+            members.sort_unstable();
+            let emu = |v: f64| (v * EMU_PER_POINT).round() as i64;
+            // The group's box holds its members' anchors; each member is given in the group's child space, which is
+            // the worksheet's own (Excel's chOff and chExt equal the group's off and ext).
+            let (mut x0, mut y0, mut x1, mut y1) = (f64::MAX, f64::MAX, f64::MIN, f64::MIN);
+            let mut children = Vec::new();
+            for &index in &members {
+                let stored = originals.holds(&shapes[index]);
+                let a = anchor_rect(host, sheet, &shapes[index], stored);
+                (x0, y0, x1, y1) = (x0.min(a.0), y0.min(a.1), x1.max(a.0 + a.2), y1.max(a.1 + a.3));
+                let (l, t, w, h) = rectangle(host, sheet, &shapes, index, originals);
+                let mut child = shapes[index].clone();
+                child.offset = (emu(l), emu(t));
+                child.extent = (emu(w), emu(h));
+                children.push(child);
+            }
+            let id = next_id();
+            let anchor = ChartAnchor::TwoCell { from: host.point_at(sheet, x0, y0), to: host.point_at(sheet, x1, y1) };
+            for child in &mut children {
+                child.anchor = anchor;
+                child.edit_as = None;
+            }
+            let mut group = Shape::new(id, format!("Group {}", id - 1), ShapeKind::Group, anchor);
+            group.offset = (emu(x0), emu(y0));
+            group.extent = (emu(x1 - x0), emu(y1 - y0));
+            (group.child_offset, group.child_extent) = (group.offset, group.extent);
+            group.children = children;
+            let top = *members.last().expect("two or more");
+            for &index in members.iter().rev() {
+                shapes.remove(index);
+            }
+            shapes.insert(top + 1 - members.len(), group);
+        }
+        ShapeChange::Ungroup { id } => {
+            let index = find_movable(&shapes, id, false)?;
+            let group = shapes[index].clone();
+            if group.kind != ShapeKind::Group {
+                return Err(refusal("Only a group comes apart"));
+            }
+            if group.rotation != 0 || group.flip_horizontal || group.flip_vertical {
+                return Err(refusal("Ungrouping a turned or flipped group is not modelled (dc-zjsg.4)"));
+            }
+            let (gl, gt, gw, gh) = rectangle(host, sheet, &shapes, index, originals);
+            let scale = |extent: i64, space: i64| if space > 0 { extent as f64 / space as f64 } else { 1.0 };
+            let (sx, sy) = (scale(emu_of(gw), group.child_extent.0), scale(emu_of(gh), group.child_extent.1));
+            let mut children = group.children.clone();
+            for child in &mut children {
+                let l = gl + (child.offset.0 - group.child_offset.0) as f64 * sx / EMU_PER_POINT;
+                let t = gt + (child.offset.1 - group.child_offset.1) as f64 * sy / EMU_PER_POINT;
+                let (w, h) = (child.extent.0 as f64 * sx / EMU_PER_POINT, child.extent.1 as f64 * sy / EMU_PER_POINT);
+                let r = if quarter(child.rotation) { swapped((l, t, w, h)) } else { (l, t, w, h) };
+                child.anchor = ChartAnchor::TwoCell { from: host.point_at(sheet, r.0.max(0.0), r.1.max(0.0)), to: host.point_at(sheet, (r.0 + r.2).max(0.0), (r.1 + r.3).max(0.0)) };
+                // A stored object back at the top level keeps its own anchor's editAs.
+                child.edit_as = match host.loaded().model().definitions().shapes(sheet).iter().find(|s| s.id == child.id && s.kind == child.kind) {
+                    Some(stored) => stored.edit_as.clone(),
+                    None => group.edit_as.clone(),
+                };
+                child.offset = (emu_of(l), emu_of(t));
+                child.extent = (emu_of(w), emu_of(h));
+            }
+            shapes.splice(index..=index, children);
         }
         ShapeChange::Connect {
             id,

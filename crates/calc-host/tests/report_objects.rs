@@ -8,7 +8,7 @@
 use calc_doc_model::{ShapeColour, ShapeConnection, ShapeFill, ShapeKind, ShapeLine};
 use calc_host::value::{CellKey, GridArea, SheetId};
 use calc_host::{
-    HostOptions, HostSession, MemorySource, OpenPolicy, Points, SavePolicy, ShapeChange,
+    HostOptions, HostSession, MemorySource, OpenPolicy, Points, SavePolicy, ShapeChange, ShapeOrder,
     SkinIntent, TableChange, WorkbookCommand,
 };
 use std::sync::Arc;
@@ -943,6 +943,104 @@ fn dc_zjsg_4__second_stored_delete_and_a_new_shape_after_it() {
     assert_eq!(read.last().unwrap().text, Some(vec!["New".to_owned()]));
 }
 
+/// dc-zjsg.4: the file's own objects take new text, fill and outline, a turn, another place in the drawing order,
+/// and go into a group and come out of it; each saved in place (the rest of the drawing as stored) and reopened
+/// as edited.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_4__stored_objects_take_text_fill_outline_turns_order_and_groups() {
+    let bytes = include_bytes!("../../calc-doc/tests/fixtures/drawing/shapes-paint4.xlsx").to_vec();
+    let mut book = open(bytes.clone());
+    let sheet = book.host().sheets()[0].id();
+    let id = |book: &HostSession, name: &str| book.host().shapes(sheet).iter().find(|s| s.name == name).unwrap().id;
+    let get = |book: &HostSession, name: &str| book.host().shapes(sheet).iter().find(|s| s.name == name).unwrap().clone();
+    let original = open(bytes);
+    let before = |name: &str| get(&original, name);
+    let text = id(&book, "Style accent2");
+    shape(&mut book, sheet, ShapeChange::Text { id: text, text: "New text\rSecond & last".into() });
+    let filled = id(&book, "Style accent6 line only");
+    shape(&mut book, sheet, ShapeChange::Fill { id: filled, fill: ShapeFill::Solid(ShapeColour::Rgb(0xFF0000)) });
+    let lined = id(&book, "Style accent4 dark text");
+    let line = ShapeLine { weight: Some(25_400), colour: Some(ShapeColour::Rgb(0x0000FF)), ..ShapeLine::default() };
+    shape(&mut book, sheet, ShapeChange::Line { id: lined, line: line.clone() });
+    let turned = id(&book, "Rect rot 30");
+    let (l, t, w, h) = book.host().anchor_rectangle(sheet, &before("Rect rot 30").anchor);
+    shape(&mut book, sheet, ShapeChange::Rotate { id: turned, rotation: 90 * 60_000 });
+    let front = id(&book, "Freeform triangle");
+    shape(&mut book, sheet, ShapeChange::Order { id: front, order: ShapeOrder::Front });
+    let (a, b) = (id(&book, "Pattern pct50"), id(&book, "Pattern ltHorz"));
+    shape(&mut book, sheet, ShapeChange::Group { ids: vec![a, b] });
+    let count = book.host().shapes(sheet).len();
+    assert_eq!(count, 19);
+    let mut reloaded = reopened(&mut book);
+    if let Ok(path) = std::env::var("DW2_DUMP") {
+        let mut bytes = Vec::new();
+        book.save(&SavePolicy::default(), &mut bytes).unwrap();
+        std::fs::write(path, &bytes).unwrap();
+    }
+    let read = reloaded.host().shapes(sheet).to_vec();
+    assert_eq!(read.len(), 19);
+    let found = |name: &str| read.iter().find(|s| s.name == name).unwrap().clone();
+    assert_eq!(found("Style accent2").text, Some(vec!["New text".to_owned(), "Second & last".to_owned()]));
+    // The stored paragraph and run properties are kept: each paragraph centred, 11 pt.
+    let mut body = before("Style accent2").body;
+    body.alignment = vec![Some("ctr".into()); 2];
+    assert_eq!(found("Style accent2").body, body);
+    assert_eq!(found("Style accent6 line only").fill, ShapeFill::Solid(ShapeColour::Rgb(0xFF0000)));
+    assert_eq!(found("Style accent4 dark text").line, line);
+    let r = found("Rect rot 30");
+    assert_eq!(r.rotation, 90 * 60_000);
+    // A quarter turn stores the box turned: its anchor is the box's width and height swapped about its centre.
+    let (l2, t2, w2, h2) = reloaded.host().anchor_rectangle(sheet, &r.anchor);
+    assert!((w2 - h).abs() < 0.5 && (h2 - w).abs() < 0.5, "{w2} {h2} from {w} {h}");
+    assert!((l2 + w2 / 2.0 - (l + w / 2.0)).abs() < 0.5 && (t2 + h2 / 2.0 - (t + h / 2.0)).abs() < 0.5);
+    assert_eq!(read.last().unwrap().name, "Freeform triangle");
+    let group = read.iter().find(|s| s.kind == ShapeKind::Group).unwrap().clone();
+    let names: Vec<_> = group.children.iter().map(|c| c.name.as_str()).collect();
+    assert_eq!(names, ["Pattern pct50", "Pattern ltHorz"]);
+    assert_eq!(group.children[0].fill, before("Pattern pct50").fill);
+    // Untouched objects are as stored.
+    for name in ["Freeform curves", "Rect rot 60", "Pattern smCheck"] {
+        assert_eq!(found(name), before(name), "{name}");
+    }
+    // Ungrouped again: both patterns at the top level where the group was, at their own places.
+    shape(&mut reloaded, sheet, ShapeChange::Ungroup { id: group.id });
+    let again = reopened(&mut reloaded);
+    let read = again.host().shapes(sheet);
+    assert_eq!(read.len(), 20);
+    for name in ["Pattern pct50", "Pattern ltHorz"] {
+        let now = read.iter().find(|s| s.name == name).unwrap();
+        let (a, b) = (again.host().anchor_rectangle(sheet, &now.anchor), original.host().anchor_rectangle(sheet, &before(name).anchor));
+        assert!([a.0 - b.0, a.1 - b.1, a.2 - b.2, a.3 - b.3].iter().all(|d| d.abs() < 0.5), "{name}: {a:?} {b:?}");
+        assert_eq!(now.fill, before(name).fill);
+    }
+}
+
+/// dc-zjsg.4: a new shape turned, sent to the back behind the file's objects and grouped with one of them saves in
+/// that order and reopens so.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_4__a_new_shape_behind_stored_ones_and_grouped_with_one() {
+    let mut book = open(include_bytes!("../../calc-doc/tests/fixtures/drawing/shapes-paint4.xlsx").to_vec());
+    let sheet = book.host().sheets()[0].id();
+    shape(&mut book, sheet, add(ShapeKind::Shape, "ellipse", 20.0, 20.0, 40.0, 30.0));
+    let added = book.host().shapes(sheet).last().unwrap().id;
+    shape(&mut book, sheet, ShapeChange::Rotate { id: added, rotation: 30 * 60_000 });
+    shape(&mut book, sheet, ShapeChange::Order { id: added, order: ShapeOrder::Back });
+    let reloaded = reopened(&mut book);
+    let read = reloaded.host().shapes(sheet);
+    assert_eq!((read[0].geometry.as_deref(), read[0].rotation), (Some("ellipse"), 30 * 60_000));
+    assert_eq!(read[1].name, "Freeform triangle");
+    let mut book = reloaded;
+    let ids: Vec<u32> = book.host().shapes(sheet)[..2].iter().map(|s| s.id).collect();
+    shape(&mut book, sheet, ShapeChange::Group { ids });
+    let read = reopened(&mut book).host().shapes(sheet).to_vec();
+    assert_eq!(read[0].kind, ShapeKind::Group);
+    assert_eq!(read[0].children.len(), 2);
+    assert_eq!(read[0].children[1].name, "Freeform triangle");
+    assert!(read[0].children[1].custom_geometry.is_some());
+}
+
 /// dc-zjsg.4: a kept object (an equation, ink, SmartArt, OLE) is not moved or deleted; it stays as the file stores it.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -983,6 +1081,44 @@ fn dc_zjsg_4__drawings_survive_row_inserts_and_save_moved() {
         let ((af, at), (bf, bt)) = (rows(&a.anchor), rows(&b.anchor));
         assert_eq!((af, at), (bf + 2, bt + 2), "{}", a.name);
     }
+}
+
+/// dc-zjsg.5: a connector turned a quarter (an elbow from a bottom site to a top site, as Excel draws one between a
+/// shape and one below it) is rerouted when a glued shape moves: its turn and adjust values stay, its box and flips
+/// are recomputed so that, turned, it runs from site to site; its anchor is that box turned, and both survive a save.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_5__a_turned_elbow_connector_is_rerouted_between_its_sites() {
+    let mut book = open(calc_host::blank_package());
+    let sheet = book.host().sheets()[0].id();
+    shape(&mut book, sheet, add(ShapeKind::Shape, "rect", 20.0, 120.0, 100.0, 50.0));
+    shape(&mut book, sheet, add(ShapeKind::Shape, "rect", 20.0, 260.0, 100.0, 50.0));
+    shape(&mut book, sheet, add(ShapeKind::Connector, "bentConnector3", 10.0, 10.0, 10.0, 10.0));
+    shape(&mut book, sheet, ShapeChange::Rotate { id: 4, rotation: 90 * 60_000 });
+    // A rectangle's sites (1-based): top, left, bottom, right.
+    shape(&mut book, sheet, ShapeChange::Connect { id: 4, begin: true, shape: 2, site: 3 });
+    shape(&mut book, sheet, ShapeChange::Connect { id: 4, begin: false, shape: 3, site: 1 });
+    // Where the connector's path starts and ends on the sheet: its box's corners, flipped and turned about its centre.
+    let ends = |b: &HostSession| {
+        let c = b.host().shapes(sheet).iter().find(|s| s.id == 4).unwrap().clone();
+        let p = |v: i64| v as f64 / 12_700.0;
+        let (w, h) = (p(c.extent.0), p(c.extent.1));
+        let centre = (p(c.offset.0) + w / 2.0, p(c.offset.1) + h / 2.0);
+        let corner = (if c.flip_horizontal { w / 2.0 } else { -w / 2.0 }, if c.flip_vertical { h / 2.0 } else { -h / 2.0 });
+        let (sin, cos) = (c.rotation as f64 / 60_000.0).to_radians().sin_cos();
+        let at = |(x, y): (f64, f64)| ((centre.0 + x * cos - y * sin).round(), (centre.1 + x * sin + y * cos).round());
+        (at(corner), at((-corner.0, -corner.1)), c.rotation, b.host().anchor_rectangle(sheet, &c.anchor))
+    };
+    assert_eq!(ends(&book), ((70.0, 170.0), (70.0, 260.0), 90 * 60_000, (70.0, 170.0, 0.0, 90.0)));
+    let mut stored = reopened(&mut book);
+    // The lower rectangle moves right: its top site is at 250 pt, 260 pt.
+    shape(&mut stored, sheet, ShapeChange::Place { id: 3, left: Some(pts(200.0)), top: None, width: None, height: None });
+    let moved = ends(&stored);
+    assert_eq!((moved.0, moved.1, moved.2), ((70.0, 170.0), (250.0, 260.0), 90 * 60_000));
+    // Anchored on the box from site to site.
+    assert_eq!(moved.3, (70.0, 170.0, 180.0, 90.0));
+    let again = reopened(&mut stored);
+    assert_eq!(ends(&again), moved);
 }
 
 /// dc-zjsg.5: moving a stored shape reroutes the stored connector glued to it, as Excel does: the glued end at its
