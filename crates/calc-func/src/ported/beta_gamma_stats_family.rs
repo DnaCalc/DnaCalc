@@ -141,8 +141,8 @@ enum BetaStart {
 
 fn beta_inverse_start(p: f64, a: f64, b: f64) -> Option<BetaStart> {
     use crate::ported::excel_numeric::{
-        excel_exp, excel_log, excel_sqrt_staged, excel_x87_add, excel_x87_div, excel_x87_mul,
-        excel_x87_sub,
+        excel_exp, excel_log, excel_log1p_times, excel_sqrt_staged, excel_x87_add, excel_x87_div,
+        excel_x87_mul, excel_x87_sub,
     };
     let z = -crate::ported::normal_log_family::norm_s_inv_kernel(p).ok()?;
     if a > 1.0 && b > 1.0 {
@@ -155,6 +155,10 @@ fn beta_inverse_start(p: f64, a: f64, b: f64) -> Option<BetaStart> {
         let x = a / (a + b * excel_exp(2.0 * w));
         return if x == 1.0 && a + b == a {
             Some(BetaStart::Failed)
+        } else if x <= 0.0 {
+            Some(BetaStart::LowerEndpoint)
+        } else if x >= 1.0 {
+            Some(BetaStart::UpperEndpoint)
         } else {
             (x > 0.0 && x < 1.0).then_some(BetaStart::Interior(x))
         };
@@ -175,8 +179,14 @@ fn beta_inverse_start(p: f64, a: f64, b: f64) -> Option<BetaStart> {
                 BetaStart::Failed
             });
         }
-        let t = (crate::ported::excel_numeric::excel_log1p(-p) + (excel_log(b) + log_beta())) / b;
-        let x = 1.0 - excel_exp(t);
+        let t = excel_x87_div(
+            excel_x87_add(
+                excel_log1p_times(1.0, -p),
+                excel_x87_add(excel_log(b), log_beta()),
+            ),
+            b,
+        );
+        let x = excel_x87_sub(1.0, excel_exp(t));
         return if x == 1.0 {
             Some(BetaStart::UpperEndpoint)
         } else if x <= 0.0 {
@@ -187,36 +197,49 @@ fn beta_inverse_start(p: f64, a: f64, b: f64) -> Option<BetaStart> {
     }
     // Excel stores EXP(3 * LN(base)) here. Multiplying the three factors
     // gives a different seed even when the mathematical cube is finite.
-    let chi = excel_x87_mul(2.0 * b, excel_exp(3.0 * excel_log(base)));
+    let chi = excel_x87_mul(2.0 * b, excel_exp(excel_x87_mul(3.0, excel_log(base))));
     let numerator = excel_x87_sub(excel_x87_add(4.0 * a, 2.0 * b), 2.0);
     let ratio = excel_x87_div(numerator, chi);
     if ratio <= 1.0 {
-        let log_beta = if a == 0.5 && b > 8.0 {
-            crate::ported::special_math_common::half_shape_log_beta(b)
+        let x = if b == 1.0 {
+            excel_exp(excel_x87_div(excel_log(p), a))
         } else {
-            log_beta()
+            let log_beta = if a == 0.5 && b > 8.0 {
+                crate::ported::special_math_common::half_shape_log_beta(b)
+            } else {
+                log_beta()
+            };
+            excel_exp(excel_x87_div(
+                excel_x87_add(excel_log(p), excel_x87_add(excel_log(a), log_beta)),
+                a,
+            ))
         };
-        let x = excel_exp((excel_log(p) + (excel_log(a) + log_beta)) / a);
         return Some(if x < f64::MIN_POSITIVE {
             BetaStart::LowerEndpoint
+        } else if x >= 1.0 {
+            BetaStart::UpperEndpoint
         } else {
             BetaStart::LowerPower(x)
         });
     }
     if !ratio.is_finite() {
-        return None;
+        return Some(BetaStart::Failed);
     }
     let x = excel_x87_sub(1.0, excel_x87_div(2.0, excel_x87_add(ratio, 1.0)));
     if x == 1.0 {
         Some(BetaStart::UpperEndpoint)
+    } else if x <= 0.0 {
+        Some(BetaStart::LowerEndpoint)
     } else {
         (x > 0.0 && x < 1.0).then_some(BetaStart::Interior(x))
     }
 }
 
-/// Newton corrections on the lower beta coordinate. Divide an inadmissible
-/// correction by three until it stays inside the support. In the unrepresentable
-/// upper tail, Excel 20527 distinguishes success from exhaustion at 700 trials.
+/// AS 109 damped Newton corrections on the lower beta coordinate. On sign
+/// changes `step_limit` clamps subsequent steps; inadmissible corrections are
+/// divided by three, counting only step-limit-admitted trials against Excel
+/// 20527's 700-trial cap, and returning the iterate with strictly smallest
+/// `|I_x(a,b) - p|`.
 fn beta_newton_lower(p: f64, a: f64, b: f64) -> Result<Option<f64>, WorksheetErrorCode> {
     use crate::ported::excel_numeric::{excel_x87_div, excel_x87_mul, excel_x87_sub};
     const MAX_TRIALS: usize = 700;
@@ -236,16 +259,16 @@ fn beta_newton_lower(p: f64, a: f64, b: f64) -> Result<Option<f64>, WorksheetErr
     let exponent = (-13.0 - 5.0 / (a * a) - libm::pow(p, -0.2)).max(-150.0);
     let tolerance = libm::pow(10.0, exponent).min(f64::EPSILON);
     let outside_upper = upper_endpoint
-        && beta_dist_kernel(f64::from_bits(1.0f64.to_bits() - 1), a, b, true, 0.0, 1.0)
+        && beta_dist_kernel(f64::from_bits(1.0_f64.to_bits() - 1), a, b, true, 0.0, 1.0)
             .is_ok_and(|f| f < p);
     // If the shape sum absorbs a, b*x retains the gamma limit of I_x(a,b).
     // Its Newton correction is in units of b*x and must be divided by b.
     let gamma_limit = matches!(start, BetaStart::LowerPower(_)) && b + a == b;
-    let damped =
-        (a == 0.5 && b > 8.0 && x * b <= 0.49) || matches!(start, BetaStart::LowerEndpoint);
     let mut last_correction = 0.0;
     let mut last_adjustment: f64 = 1.0;
     let mut step_limit = f64::INFINITY;
+    let mut best_x = x;
+    let mut best_err = f64::INFINITY;
     let mut trials = 0;
     loop {
         let (cdf, density) = if gamma_limit {
@@ -256,49 +279,59 @@ fn beta_newton_lower(p: f64, a: f64, b: f64) -> Result<Option<f64>, WorksheetErr
             )
         } else {
             (
-                beta_dist_kernel(x, a, b, true, 0., 1.),
-                beta_dist_kernel(x, a, b, false, 0., 1.),
+                beta_dist_kernel(x, a, b, true, 0.0, 1.0),
+                beta_dist_kernel(x, a, b, false, 0.0, 1.0),
             )
         };
         let (Ok(cdf), Ok(density)) = (cdf, density) else {
             return if matches!(start, BetaStart::LowerEndpoint) {
                 Err(WorksheetErrorCode::Num)
             } else {
-                Ok(None)
+                Ok(Some(best_x))
             };
         };
-        if density == 0.0 {
-            return Ok(Some(x));
+        let df = excel_x87_sub(cdf, p);
+        let err_df = df.abs();
+        if err_df < best_err {
+            best_err = err_df;
+            best_x = x;
         }
-        let mut correction = excel_x87_div(excel_x87_sub(cdf, p), density);
+        if density == 0.0 || err_df == 0.0 {
+            return Ok(Some(best_x));
+        }
+        let mut correction = excel_x87_div(df, density);
         if gamma_limit {
             correction = excel_x87_div(correction, b);
         }
-        if !correction.is_finite() {
-            return Ok(None);
+        if !correction.is_finite() || correction.abs() <= tolerance {
+            return Ok(Some(best_x));
         }
-        if correction.abs() <= tolerance || (damped && correction.abs() <= 1e-15 * x) {
-            return Ok(Some(x));
-        }
-        if damped && correction * last_correction <= 0.0 {
+        if last_correction != 0.0 && correction * last_correction <= 0.0 {
             step_limit = last_adjustment.abs().max(1e-300);
         }
         last_correction = correction;
         let mut factor = 1.0;
         loop {
+            last_adjustment = excel_x87_mul(factor, correction);
+            if last_adjustment.abs() >= step_limit {
+                factor = excel_x87_div(factor, 3.0);
+                if factor == 0.0 {
+                    return Ok(Some(best_x));
+                }
+                continue;
+            }
             trials += 1;
             if trials >= MAX_TRIALS {
                 return if outside_upper || matches!(start, BetaStart::LowerEndpoint) {
                     Err(WorksheetErrorCode::Num)
                 } else {
-                    Ok(None)
+                    Ok(Some(best_x))
                 };
             }
-            last_adjustment = excel_x87_mul(factor, correction);
             let next = excel_x87_sub(x, last_adjustment);
-            if next > 0.0 && next < 1.0 && last_adjustment.abs() < step_limit {
+            if next > 0.0 && next < 1.0 {
                 if next == x {
-                    return Ok(Some(x));
+                    return Ok(Some(best_x));
                 }
                 x = next;
                 break;
@@ -322,16 +355,6 @@ pub(crate) fn beta_inv_kernel(
     // Both beta inverse names reject the support endpoints (Excel 20527).
     if probability <= 0.0 || probability >= 1.0 {
         return Err(WorksheetErrorCode::Num);
-    }
-    // In the measured lower tail with shapes one-half and one, Excel stores
-    // EXP(2*LN(p)); multiplying p by itself loses the observed last bits.
-    // Leave smaller probabilities and the unmeasured upper region on the
-    // existing inverse path.
-    if alpha == 0.5 && beta == 1.0 && lower == 0.0 && upper == 1.0
-        && (2.0_f64.powi(-20)..=1.0 / 16.0).contains(&probability)
-    {
-        use crate::ported::excel_numeric::{excel_exp, excel_log};
-        return Ok(excel_exp(2.0 * excel_log(probability)));
     }
     // Upper probabilities search the reflected beta coordinate. Fresh paired
     // controls identify this staging, including the tiny-shape root floor.
