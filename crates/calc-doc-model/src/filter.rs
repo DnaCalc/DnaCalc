@@ -25,6 +25,12 @@ pub enum FilterCriteria {
         dxf_id: u32,
         cell_color: bool,
     },
+    /// Above or below the average of the column's numbers. The saved average (`val`) is kept as
+    /// read; reapplying recalculates the rows from the current values.
+    Average {
+        above: bool,
+        val: Option<String>,
+    },
     Custom {
         and: bool,
         predicates: Vec<FilterPredicate>,
@@ -121,6 +127,9 @@ impl AutoFilter {
                         }
                     }
                     FilterCriteria::Color { .. } => true,
+                    FilterCriteria::Average { val, .. } => val
+                        .as_ref()
+                        .is_none_or(|v| v.parse::<f64>().is_ok_and(f64::is_finite)),
                     FilterCriteria::Custom { predicates, .. } => {
                         !predicates.is_empty()
                             && predicates.len() <= 2

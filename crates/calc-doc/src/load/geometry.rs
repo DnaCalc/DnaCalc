@@ -31,6 +31,9 @@ pub struct SheetView {
     pub zoom: Option<u16>,
     pub top_left: Option<(u32, u32)>,
     pub active_cell: Option<(u32, u32)>,
+    /// The stored `sqref` of the active pane's selection as (top, left, bottom, right), when it
+    /// is one area larger than a cell that has the active cell at a corner.
+    pub selection: Option<(u32, u32, u32, u32)>,
     pub frozen: Option<calc_doc_model::FrozenPanes>,
     /// The bottom-right pane's first visible cell, independent of the first pane's origin.
     pub pane_top_left: Option<(u32, u32)>,

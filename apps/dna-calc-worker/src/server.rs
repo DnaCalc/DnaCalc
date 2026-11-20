@@ -1303,6 +1303,12 @@ impl Server {
                                 percent: *percent,
                                 value: value.clone(),
                             },
+                            calc_host::FilterCriteria::Average { above, .. } => {
+                                wire::FilterChange::Average {
+                                    column,
+                                    above: *above,
+                                }
+                            }
                             calc_host::FilterCriteria::Color { dxf_id, cell_color } => {
                                 wire::FilterChange::ColorReference {
                                     column,
@@ -1814,6 +1820,26 @@ impl Server {
         Summary {
             workbook: self.workbook,
             session: self.clipboard_session.clone(),
+            initial_selection: self
+                .book
+                .host()
+                .loaded()
+                .active_sheet()
+                .filter(|id| {
+                    self.book.host().sheets().iter().any(|s| {
+                        s.id() == *id && s.visibility() == calc_host::SheetVisibility::Visible
+                    })
+                })
+                .or_else(|| {
+                    self.book
+                        .host()
+                        .sheets()
+                        .iter()
+                        .find(|s| s.visibility() == calc_host::SheetVisibility::Visible)
+                        .map(|s| s.id())
+                })
+                .and_then(|id| self.book.host().sheet_view(id))
+                .and_then(|v| v.selection),
             initial_cell: self
                 .book
                 .host()
@@ -2638,6 +2664,10 @@ impl Server {
                             percent,
                             value,
                         }),
+                    },
+                    W::Average { column, above } => H::Column {
+                        column,
+                        criteria: Some(FilterCriteria::Average { above, val: None }),
                     },
                     W::Color {
                         column,
@@ -3620,6 +3650,7 @@ impl Server {
             }
             v.zoom = zoom.or(v.zoom);
             v.active_cell = Some(saved.active);
+            v.selection = saved.selection;
             v.active_pane = if g.split_window {
                 saved.active_pane & mask
             } else {
@@ -8246,6 +8277,7 @@ mod window_tests {
                         geometry: geometry.clone(),
                         sheet,
                         active: (101, 12),
+                        selection: None,
                         active_pane: 0,
                         panes: vec![wire::PaneWindow {
                             index: 0,
@@ -8317,6 +8349,7 @@ mod window_tests {
                 geometry: old,
                 sheet,
                 active: (101, 12),
+                selection: None,
                 active_pane: 0,
                 panes: vec![wire::PaneWindow {
                     index: 0,

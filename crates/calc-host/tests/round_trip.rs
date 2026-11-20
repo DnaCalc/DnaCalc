@@ -13976,9 +13976,86 @@ fn dc_971p_37__custom_filters_use_shared_wildcards_comparisons_and_atomic_refusa
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_37__above_and_below_average_filter_rows_save_and_reopen() {
+    use calc_host::{FilterChange as F, FilterCriteria as C, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (address, input) in [
+        ("A1", "Header"),
+        ("A2", "1"),
+        ("A3", "2"),
+        ("A4", "text"),
+        ("A5", "3"),
+        ("A6", "10"),
+    ] {
+        assert!(enter(&mut book, at(s, address), input).accepted());
+    }
+    let mut run = |book: &mut HostSession, change| {
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change,
+        }))
+    };
+    let area = GridArea::new(at(s, "A1"), at(s, "A6")).unwrap();
+    assert!(run(&mut book, F::Enable { area }).accepted());
+    let hidden = |b: &HostSession| {
+        (2..=6)
+            .filter(|r| {
+                b.host()
+                    .sheet_geometry(s)
+                    .is_some_and(|g| g.rows.get(r).is_some_and(|row| row.hidden))
+            })
+            .collect::<Vec<u32>>()
+    };
+    // Average of 1, 2, 3 and 10 is 4: text is neither above nor below it.
+    let above = run(
+        &mut book,
+        F::Column {
+            column: 1,
+            criteria: Some(C::Average {
+                above: true,
+                val: None,
+            }),
+        },
+    );
+    assert!(above.accepted(), "{above:?}");
+    assert_eq!(hidden(&book), vec![2, 3, 4, 5]);
+    let below = run(
+        &mut book,
+        F::Column {
+            column: 1,
+            criteria: Some(C::Average {
+                above: false,
+                val: None,
+            }),
+        },
+    );
+    assert!(below.accepted(), "{below:?}");
+    assert_eq!(hidden(&book), vec![4, 6]);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let xml = part_text(&saved, "xl/worksheets/sheet1.xml");
+    assert!(xml.contains("<dynamicFilter type=\"belowAverage\""), "{xml}");
+    let book = session(&saved);
+    let filter = book.host().model().definitions().auto_filter(s).unwrap();
+    assert!(!filter.unsupported);
+    assert_eq!(
+        filter.columns.get(&1),
+        Some(&C::Average {
+            above: false,
+            val: None
+        })
+    );
+    assert_eq!(hidden(&book), vec![4, 6]);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_37__unknown_imported_filter_xml_survives_unrelated_edits() {
     use calc_host::{FilterChange as F, WorkbookCommand as W};
-    let raw = "<autoFilter ref=\"A1:B4\"><filterColumn colId=\"0\"><dynamicFilter type=\"aboveAverage\"/></filterColumn></autoFilter>";
+    let raw = "<autoFilter ref=\"A1:B4\"><filterColumn colId=\"0\"><dynamicFilter type=\"thisWeek\"/></filterColumn></autoFilter>";
     let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
         xml.replace("</worksheet>", &format!("{raw}</worksheet>"))
     });
@@ -14774,16 +14851,130 @@ fn dc_971p_38__shifted_source_formula_attributes_and_filter_ranges_refuse_atomic
         header: true,
         revision: before.get(),
     }));
-    assert!(!result.accepted(), "{result:?}");
-    assert!(
-        result
-            .error
-            .unwrap()
-            .to_string()
-            .contains("AutoFilter ranges")
+    // A drop-down filter with no criteria hides nothing: Excel sorts under it, and the filter stays.
+    assert!(result.accepted(), "{result:?}");
+    assert_eq!(book.host().model().cell(at(s, "A2")), Some(&number(1.)));
+    assert_eq!(book.host().model().cell(at(s, "A3")), Some(&number(2.)));
+    assert_eq!(
+        book.host().model().definitions().auto_filter(s).unwrap().area,
+        area
     );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    assert!(part_text(&saved, "xl/worksheets/sheet1.xml").contains("<autoFilter"));
+    // With criteria in force the rows are hidden or the filter is stateful: still atomic.
+    let revision = book.host().revision().get();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change: calc_host::FilterChange::Column {
+                column: 1,
+                criteria: Some(calc_doc_model::FilterCriteria::Values {
+                    values: vec!["1".into(), "2".into()],
+                    blank: false,
+                }),
+            }
+        }))
+        .accepted()
+    );
+    let before = book.host().revision();
+    let result = book.dispatch(SkinIntent::Command(W::SortRows {
+        area,
+        keys: vec![SortKey {
+            column: 1,
+            descending: true,
+        }],
+        header: true,
+        revision: before.get(),
+    }));
+    assert!(!result.accepted(), "{result:?}");
     assert_eq!(book.host().revision(), before);
-    assert_eq!(book.host().model().cell(at(s, "A2")), Some(&number(2.)));
+    assert_eq!(book.host().model().cell(at(s, "A2")), Some(&number(1.)));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_43_2__stored_range_selection_is_read_kept_and_saved() {
+    use calc_host::SaveViews;
+    let views = |sheet_views: &'static str| {
+        package_with_part("xl/worksheets/sheet1.xml", move |xml| {
+            let start = xml.find("<sheetViews").map_or_else(
+                || xml.find("<sheetData").unwrap(),
+                |i| i,
+            );
+            let end = xml
+                .find("</sheetViews>")
+                .map(|i| i + "</sheetViews>".len())
+                .or_else(|| xml.find("<sheetViews").and_then(|_| xml[start..].find("/>").map(|j| start + j + 2)))
+                .unwrap_or(start);
+            format!("{}{sheet_views}{}", &xml[..start], &xml[end..])
+        })
+    };
+    let wrap = |selection: &str| {
+        format!(
+            "<sheetViews><sheetView workbookViewId=\"0\">{selection}</sheetView></sheetViews>"
+        )
+    };
+    let leak = |text: String| -> &'static str { Box::leak(text.into_boxed_str()) };
+    // Active cell C2 at the top-left corner of C2:E4; the same range with E4 active; a range the
+    // active cell is not a corner of; several areas.
+    let cases = [
+        ("<selection activeCell=\"C2\" sqref=\"C2:E4\"/>", Some((2, 3, 4, 5))),
+        ("<selection activeCell=\"E4\" sqref=\"C2:E4\"/>", Some((2, 3, 4, 5))),
+        ("<selection activeCell=\"D3\" sqref=\"C2:E4\"/>", None),
+        ("<selection activeCell=\"C2\" sqref=\"C2:E4 G7\"/>", None),
+        ("<selection activeCell=\"C2\" sqref=\"C2\"/>", None),
+    ];
+    for (selection, expected) in cases {
+        let bytes = views(leak(wrap(selection)));
+        let mut book = session(&bytes);
+        let s = book.host().sheets()[0].id();
+        let view = book.host().sheet_view(s).unwrap();
+        assert_eq!(view.selection, expected, "{selection}");
+        // Saved without a view, the file's own selection element survives.
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        assert!(part_text(&saved, "xl/worksheets/sheet1.xml").contains(selection), "{selection}");
+    }
+    // A new range with the active cell at a corner is written and read back.
+    let bytes = views(leak(wrap("<selection activeCell=\"C2\" sqref=\"C2:E4\"/>")));
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    let mut view = book.host().sheet_view(s).unwrap();
+    view.active_cell = Some((9, 2));
+    view.selection = Some((6, 2, 9, 4));
+    let policy = SavePolicy {
+        views: Some(std::sync::Arc::new(SaveViews {
+            revision: book.host().revision().get(),
+            active_sheet: Some(s),
+            sheets: [(s, view)].into(),
+        })),
+        ..Default::default()
+    };
+    let mut saved = Vec::new();
+    book.save(&policy, &mut saved).unwrap();
+    assert!(part_text(&saved, "xl/worksheets/sheet1.xml").contains("sqref=\"B6:D9\""));
+    let reopened = session(&saved);
+    assert_eq!(reopened.host().sheet_view(s).unwrap().selection, Some((6, 2, 9, 4)));
+    assert_eq!(reopened.host().sheet_view(s).unwrap().active_cell, Some((9, 2)));
+    // Moving only the active cell writes a single-cell selection, not the old range.
+    let mut view = book.host().sheet_view(s).unwrap();
+    view.active_cell = Some((20, 20));
+    view.selection = None;
+    let policy = SavePolicy {
+        views: Some(std::sync::Arc::new(SaveViews {
+            revision: book.host().revision().get(),
+            active_sheet: Some(s),
+            sheets: [(s, view)].into(),
+        })),
+        ..Default::default()
+    };
+    let mut saved = Vec::new();
+    book.save(&policy, &mut saved).unwrap();
+    let xml = part_text(&saved, "xl/worksheets/sheet1.xml");
+    assert!(xml.contains("sqref=\"T20\""), "{xml}");
+    assert_eq!(session(&saved).host().sheet_view(s).unwrap().selection, None);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -14877,10 +15068,12 @@ fn dc_971p_16__save_window_is_pinned_without_an_undo_entry_and_preserves_other_v
     let mut v = book.host().sheet_view(sheet).unwrap();
     v.top_left = Some((44, 7));
     v.active_cell = Some((45, 8));
+    v.selection = None;
     v.zoom = Some(175);
     let mut v2 = book.host().sheet_view(second).unwrap();
     v2.top_left = Some((70, 9));
     v2.active_cell = Some((72, 11));
+    v2.selection = None;
     v2.zoom = Some(125);
     let policy = SavePolicy {
         views: Some(std::sync::Arc::new(SaveViews {

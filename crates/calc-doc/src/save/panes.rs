@@ -103,6 +103,8 @@ struct Child {
     pane: u8,
     active: Option<(u32, u32)>,
     frozen_split: bool,
+    /// The range its `sqref` states, as the loader reads it.
+    selection: Option<(u32, u32, u32, u32)>,
 }
 fn rewritten_child(xml: &XmlPart, c: &Child, attrs: &[(&str, Option<&str>)]) -> Vec<u8> {
     let raw = &xml.bytes()[c.start.0..c.start.1];
@@ -140,6 +142,11 @@ fn view(
                     active: e
                         .attribute("activeCell")
                         .and_then(crate::load::address::cell),
+                    selection: e
+                        .attribute("activeCell")
+                        .and_then(crate::load::address::cell)
+                        .zip(e.attribute("sqref"))
+                        .and_then(|(at, sqref)| crate::load::sheet::selection_of(Some(at), sqref)),
                 });
             }
             (XmlEvent::Text(_), _) => {}
@@ -212,14 +219,20 @@ fn view(
         .or_else(|| children.iter().position(|c| c.kind == 2));
     let active = v.active_cell.unwrap_or((1, 1));
     let active_text = address(active);
+    let sqref_text = match v.selection {
+        Some((r, c, b, d)) if (r == active.0 || b == active.0) && (c == active.1 || d == active.1) => {
+            format!("{}:{}", address((r, c)), address((b, d)))
+        }
+        _ => active_text.clone(),
+    };
     let mut wrote = false;
     for (i, c) in children.iter().enumerate().filter(|(_, c)| c.kind == 2) {
         if Some(i) == chosen {
             let mut attrs = vec![("pane", (available != 0).then_some(pane_name(active_pane)))];
-            if c.active != Some(active) {
+            if c.active != Some(active) || c.selection != v.selection {
                 attrs.extend([
                     ("activeCell", Some(active_text.as_str())),
-                    ("sqref", Some(active_text.as_str())),
+                    ("sqref", Some(sqref_text.as_str())),
                     ("activeCellId", None),
                 ]);
             }
@@ -232,7 +245,7 @@ fn view(
     if !wrote {
         out.extend_from_slice(
             format!(
-                "<{prefix}selection{} activeCell=\"{active_text}\" sqref=\"{active_text}\"/>",
+                "<{prefix}selection{} activeCell=\"{active_text}\" sqref=\"{sqref_text}\"/>",
                 if available != 0 {
                     format!(" pane=\"{}\"", pane_name(active_pane))
                 } else {

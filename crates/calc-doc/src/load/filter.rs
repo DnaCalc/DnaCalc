@@ -239,6 +239,26 @@ pub(super) fn read(
                                 .is_some_and(|v| !v.parse::<f64>().is_ok_and(f64::is_finite));
                             leaf(events, &mut filter.unsupported)?;
                         }
+                        Some(XmlEvent::Start(e))
+                            if e.name.is(MAIN_NAMESPACE, "dynamicFilter") =>
+                        {
+                            // Only the clock-free types are modelled; date periods stay unread.
+                            filter.unsupported |= !known(&e, &["type", "val"]);
+                            let above = match e.attribute("type") {
+                                Some("aboveAverage") => Some(true),
+                                Some("belowAverage") => Some(false),
+                                _ => None,
+                            };
+                            let val = e.attribute("val").map(str::to_owned);
+                            if let Some(above) = above {
+                                filter.unsupported |= criteria
+                                    .replace(FilterCriteria::Average { above, val })
+                                    .is_some();
+                            } else {
+                                filter.unsupported = true;
+                            }
+                            leaf(events, &mut filter.unsupported)?;
+                        }
                         Some(XmlEvent::Start(e)) if e.name.is(MAIN_NAMESPACE, "customFilters") => {
                             filter.unsupported |= !known(&e, &["and"]);
                             let and = boolean(&e, "and", false, &mut filter.unsupported);
