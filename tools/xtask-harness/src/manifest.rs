@@ -16,6 +16,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::PathBuf;
 
+/// Acceptance cases in a package's combined integration target live in this module.
+pub const ACCEPTANCE_CASE_SCOPE: &str = "acceptance_cases::";
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Platform {
     Windows,
@@ -105,6 +108,12 @@ fn is_bead_id(id: &str) -> bool {
         && id
             .chars()
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '.')
+}
+
+impl BeadEntry {
+    pub fn shares_integration_target(&self) -> bool {
+        self.test.strip_suffix("-integration") == Some(self.package.as_str())
+    }
 }
 
 /// Parses and checks one manifest. `has_test_target` says whether the package has a test target

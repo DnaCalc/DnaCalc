@@ -3,9 +3,9 @@
   "beads": [
     {
       "id": "chost-m1.1",
-      "test": "acceptance",
+      "test": "calc-host-integration",
       "commands": [
-        ["cargo", "test", "-p", "calc-host", "--test", "acceptance", "chost_m1_1", "--", "--nocapture"],
+        ["cargo", "test", "-p", "calc-host", "--test", "calc-host-integration", "chost_m1_1", "--", "--nocapture"],
         ["cargo", "xtask", "accept", "--id", "chost-m1.1", "--platform", "windows", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "chost-m1.1", "--platform", "linux", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "chost-m1.1", "--platform", "wasm", "--require-all"]
@@ -21,7 +21,7 @@
     },
     {
       "id": "dc-hqcv",
-      "test": "acceptance",
+      "test": "calc-host-integration",
       "commands": [
         ["cargo", "xtask", "accept", "--id", "dc-hqcv", "--platform", "windows", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "dc-hqcv", "--platform", "linux", "--require-all"],
@@ -36,7 +36,7 @@
     },
     {
       "id": "dc-besk",
-      "test": "acceptance",
+      "test": "calc-host-integration",
       "commands": [
         ["cargo", "test", "-p", "calc-fml", "--lib"],
         ["cargo", "xtask", "accept", "--id", "dc-besk", "--platform", "windows", "--require-all"],
@@ -52,7 +52,7 @@
     },
     {
       "id": "dc-xrxb",
-      "test": "acceptance",
+      "test": "calc-host-integration",
       "commands": [
         ["cargo", "test", "-p", "calc-fml", "--lib"],
         ["cargo", "xtask", "accept", "--id", "dc-xrxb", "--platform", "windows", "--require-all"],

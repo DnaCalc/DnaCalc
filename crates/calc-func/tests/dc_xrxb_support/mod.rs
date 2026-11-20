@@ -445,11 +445,11 @@ pub fn prefix_metadata_matches_excel() {
     // the generator of the earlier workbooks leaves every other workbook as committed.
     #[cfg(all(windows, not(target_arch = "wasm32")))]
     {
-        let generated = crate::generated_fixtures();
+        let generated = super::generated_fixtures();
         let names: Vec<&str> = generated.keys().map(String::as_str).collect();
         assert_eq!(
             names,
-            crate::GENERATED_WORKBOOKS,
+            super::GENERATED_WORKBOOKS,
             "the generator's workbooks"
         );
         assert!(

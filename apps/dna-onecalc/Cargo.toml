@@ -1,4 +1,5 @@
 [package]
+autotests = false
 name = "dna-onecalc"
 version.workspace = true
 edition.workspace = true
@@ -77,3 +78,7 @@ web-sys = { version = "=0.3.94", features = [
     "NodeList",
     "Window",
 ] }
+
+[[test]]
+name = "dna-onecalc-integration"
+path = "tests/integration.rs"

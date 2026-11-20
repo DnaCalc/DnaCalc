@@ -92,6 +92,26 @@ fn cargo_command(verb: &str) -> Command {
     command
 }
 
+fn build_command(options: &Options, touched: &BTreeSet<String>) -> Command {
+    if options.all || options.dependents {
+        let mut build = cargo_command("build");
+        build.arg("--workspace");
+        return build;
+    }
+
+    let mut check = cargo_command("check");
+    check.arg("--all-targets");
+    if touched.is_empty() {
+        // An unowned Rust source can be included by a workspace target.
+        check.arg("--workspace");
+    } else {
+        for package in touched {
+            check.args(["-p", package]);
+        }
+    }
+    check
+}
+
 pub fn tail(text: &str, lines: usize) -> String {
     let all: Vec<&str> = text.lines().collect();
     all[all.len().saturating_sub(lines)..].join("\n")
@@ -111,8 +131,13 @@ pub fn changed_paths(root: &Path, base: &str) -> Result<BTreeSet<String>, String
     Ok(paths)
 }
 
+fn workspace_build_file(path: &str) -> bool {
+    matches!(path, "Cargo.toml" | "Cargo.lock" | "rust-toolchain" | "rust-toolchain.toml")
+        || path.starts_with(".cargo/")
+}
+
 /// The packages a change to `paths` touches: the member whose directory holds each path (the
-/// deepest one), or every member for the workspace's own `Cargo.toml` and `Cargo.lock`.
+/// deepest one), or every member for workspace-wide Cargo and toolchain files.
 pub fn touched_packages(ws: &Workspace, paths: &BTreeSet<String>) -> BTreeSet<String> {
     let dirs: Vec<(String, &str)> = ws
         .members
@@ -121,7 +146,7 @@ pub fn touched_packages(ws: &Workspace, paths: &BTreeSet<String>) -> BTreeSet<St
         .collect();
     let mut touched = BTreeSet::new();
     for path in paths {
-        if path == "Cargo.toml" || path == "Cargo.lock" {
+        if workspace_build_file(path) {
             touched.extend(ws.members.iter().map(|member| member.name.clone()));
             continue;
         }
@@ -408,10 +433,7 @@ fn execute_checks(ws: &Workspace, options: &Options) -> Result<Report, String> {
     } else {
         touched.clone()
     };
-    let affects_build = |path: &String| {
-        path.starts_with(".cargo/") || path.starts_with("rust-toolchain") || path.ends_with(".rs")
-    };
-    if !options.all && touched.is_empty() && !paths.iter().any(affects_build) {
+    if !options.all && touched.is_empty() && !paths.iter().any(|path| path.ends_with(".rs")) {
         println!("CHECK note: no workspace package or build file changed; build and tests skipped");
         let report = Report {
             passed: errors.is_empty(),
@@ -429,15 +451,7 @@ fn execute_checks(ws: &Workspace, options: &Options) -> Result<Report, String> {
         );
         return Ok(report);
     }
-    let mut build = cargo_command(if options.all || options.dependents {
-        "build"
-    } else {
-        "check"
-    });
-    build.arg("--workspace");
-    if !options.all && !options.dependents {
-        build.arg("--all-targets");
-    }
+    let mut build = build_command(options, &touched);
     step(ws, &mut build, &log, "workspace", &mut errors)?;
     let mut found = Vec::new();
     let mut identified_test_failures = false;
@@ -503,14 +517,9 @@ fn execute_checks(ws: &Workspace, options: &Options) -> Result<Report, String> {
                     .lines()
                     .any(|l| l == "x86_64-unknown-linux-gnu")
             {
-                let linux = with_dependents(
-                    ws,
-                    &Resolved::load(ws, "x86_64-unknown-linux-gnu")?,
-                    &touched,
-                );
                 let mut command = cargo_command("check");
                 command.args(["--all-targets", "--target", "x86_64-unknown-linux-gnu"]);
-                for package in linux {
+                for package in &touched {
                     command.args(["-p", &package]);
                 }
                 step(ws, &mut command, &log, "Linux cross check", &mut errors)?;
@@ -631,6 +640,10 @@ mod tests {
         );
         assert_eq!(
             touched_packages(&ws, &paths(&["Cargo.lock"])),
+            touched_packages(&ws, &paths(&[".cargo/config.toml"]))
+        );
+        assert_eq!(
+            touched_packages(&ws, &paths(&["Cargo.lock"])),
             BTreeSet::from([
                 "calc-func".to_owned(),
                 "xtask".to_owned(),
@@ -638,6 +651,35 @@ mod tests {
             ])
         );
     }
+    #[test]
+    fn light_checks_only_touched_native_packages() {
+        let touched = BTreeSet::from(["calc-func".to_owned()]);
+        let args = |options| {
+            cargo::argv(&build_command(&options, &touched))
+                .into_iter()
+                .skip(1)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            args(Options::default()),
+            ["check", "--locked", "--all-targets", "-p", "calc-func"]
+        );
+        assert_eq!(
+            args(Options {
+                dependents: true,
+                ..Options::default()
+            }),
+            ["build", "--locked", "--workspace"]
+        );
+        assert_eq!(
+            args(Options {
+                all: true,
+                ..Options::default()
+            }),
+            ["build", "--locked", "--workspace"]
+        );
+    }
+
     #[test]
     fn modes_and_explicit_baselines_are_independent() {
         let parse =

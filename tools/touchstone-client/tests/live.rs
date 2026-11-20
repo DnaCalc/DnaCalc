@@ -1,5 +1,5 @@
 //! Native-only: needs the Windows broker running (`broker.py start`) and Excel under it.
-//! Run with `cargo test -p touchstone-client --test live -- --ignored`.
+//! Run with `cargo test -p touchstone-client --test touchstone-client-integration live:: -- --ignored`.
 use touchstone_client::{Answer, Arg, Client};
 
 #[test]
