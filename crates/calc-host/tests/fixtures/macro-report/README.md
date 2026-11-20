@@ -8,7 +8,7 @@ One macro builds a report; Excel's run is the answer, DNA Calc's run is compared
   glued Start site 3 to Finish site 1, the text box `Note`, the line `Rule`). Only descriptor-registered members.
 - `DumpReport.bas`: `DumpReport.Dump` lists cells, tables, charts, series and shapes as tab-separated records (format in
   its header) to a sheet `Listing` of a new workbook and to `ListingPath`.
-- DNA Calc side: `cargo test -p calc-host --test automation dc_piw0_4 -- --nocapture` runs the same steps through the
+- DNA Calc side: `cargo test -p calc-host --test calc-host-integration automation::dc_piw0_4 -- --nocapture` runs the same steps through the
   object-model handlers and prints the same records; `DNACALC_REPORT_LISTING=<file>` also writes them to a file.
   Diff that file with Excel's `report-listing.txt`.
 

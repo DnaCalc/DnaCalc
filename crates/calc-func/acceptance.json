@@ -3,9 +3,9 @@
   "beads": [
     {
       "id": "cfunc-m0.1",
-      "test": "acceptance",
+      "test": "calc-func-integration",
       "commands": [
-        ["cargo", "test", "-p", "calc-func", "--test", "acceptance", "cfunc_m0_1", "--", "--nocapture"],
+        ["cargo", "test", "-p", "calc-func", "--test", "calc-func-integration", "cfunc_m0_1", "--", "--nocapture"],
         ["cargo", "test", "-p", "calc-value", "--lib"],
         ["cargo", "xtask", "accept", "--id", "cfunc-m0.1", "--platform", "windows", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "cfunc-m0.1", "--platform", "linux", "--require-all"],
@@ -22,9 +22,9 @@
     },
     {
       "id": "cfunc-m1.1",
-      "test": "acceptance",
+      "test": "calc-func-integration",
       "commands": [
-        ["cargo", "test", "-p", "calc-func", "--test", "acceptance", "cfunc_m1_1", "--", "--nocapture"],
+        ["cargo", "test", "-p", "calc-func", "--test", "calc-func-integration", "cfunc_m1_1", "--", "--nocapture"],
         ["cargo", "test", "-p", "calc-func", "--lib"],
         ["cargo", "xtask", "accept", "--id", "cfunc-m1.1", "--platform", "windows", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "cfunc-m1.1", "--platform", "linux", "--require-all"],
@@ -41,9 +41,9 @@
     },
     {
       "id": "cfunc-m1.2",
-      "test": "acceptance",
+      "test": "calc-func-integration",
       "commands": [
-        ["cargo", "test", "-p", "calc-func", "--test", "acceptance", "cfunc_m1_2", "--", "--nocapture"],
+        ["cargo", "test", "-p", "calc-func", "--test", "calc-func-integration", "cfunc_m1_2", "--", "--nocapture"],
         ["cargo", "test", "-p", "calc-func", "--lib"],
         ["cargo", "xtask", "accept", "--id", "cfunc-m1.2", "--platform", "windows", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "cfunc-m1.2", "--platform", "linux", "--require-all"],
@@ -62,9 +62,9 @@
     },
     {
       "id": "cfunc-m3.2",
-      "test": "acceptance",
+      "test": "calc-func-integration",
       "commands": [
-        ["cargo", "test", "-p", "calc-func", "--test", "acceptance", "cfunc_m3_2", "--", "--nocapture"],
+        ["cargo", "test", "-p", "calc-func", "--test", "calc-func-integration", "cfunc_m3_2", "--", "--nocapture"],
         ["cargo", "test", "-p", "calc-func", "--lib"],
         ["cargo", "xtask", "accept", "--id", "cfunc-m3.2", "--platform", "windows", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "cfunc-m3.2", "--platform", "linux", "--require-all"],
@@ -81,9 +81,9 @@
     },
     {
       "id": "cfunc-m3.4",
-      "test": "acceptance",
+      "test": "calc-func-integration",
       "commands": [
-        ["cargo", "test", "-p", "calc-func", "--test", "acceptance", "cfunc_m3_4", "--", "--nocapture"],
+        ["cargo", "test", "-p", "calc-func", "--test", "calc-func-integration", "cfunc_m3_4", "--", "--nocapture"],
         ["cargo", "xtask", "accept", "--id", "cfunc-m3.4", "--platform", "windows", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "cfunc-m3.4", "--platform", "linux", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "cfunc-m3.4", "--platform", "wasm", "--require-all"]
@@ -99,9 +99,9 @@
     },
     {
       "id": "cfunc-m3.5",
-      "test": "acceptance",
+      "test": "calc-func-integration",
       "commands": [
-        ["cargo", "test", "-p", "calc-func", "--test", "acceptance", "cfunc_m3_5", "--", "--nocapture"],
+        ["cargo", "test", "-p", "calc-func", "--test", "calc-func-integration", "cfunc_m3_5", "--", "--nocapture"],
         ["cargo", "xtask", "accept", "--id", "cfunc-m3.5", "--platform", "windows", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "cfunc-m3.5", "--platform", "linux", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "cfunc-m3.5", "--platform", "wasm", "--require-all"]
@@ -119,9 +119,9 @@
     },
     {
       "id": "dc-q9rb",
-      "test": "acceptance",
+      "test": "calc-func-integration",
       "commands": [
-        ["cargo", "test", "-p", "calc-func", "--test", "acceptance", "dc_q9rb", "--", "--nocapture"],
+        ["cargo", "test", "-p", "calc-func", "--test", "calc-func-integration", "dc_q9rb", "--", "--nocapture"],
         ["cargo", "test", "-p", "calc-func", "--lib"],
         ["cargo", "xtask", "accept", "--id", "dc-q9rb", "--platform", "windows", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "dc-q9rb", "--platform", "linux", "--require-all"],
@@ -138,9 +138,9 @@
     },
     {
       "id": "cfunc-m3.6",
-      "test": "acceptance",
+      "test": "calc-func-integration",
       "commands": [
-        ["cargo", "test", "-p", "calc-func", "--test", "acceptance", "cfunc_m3_6", "--", "--nocapture"],
+        ["cargo", "test", "-p", "calc-func", "--test", "calc-func-integration", "cfunc_m3_6", "--", "--nocapture"],
         ["cargo", "xtask", "accept", "--id", "cfunc-m3.6", "--platform", "windows", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "cfunc-m3.6", "--platform", "linux", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "cfunc-m3.6", "--platform", "wasm", "--require-all"]
@@ -158,9 +158,9 @@
     },
     {
       "id": "dc-e00t",
-      "test": "acceptance",
+      "test": "calc-func-integration",
       "commands": [
-        ["cargo", "test", "-p", "calc-func", "--test", "acceptance", "dc_e00t", "--", "--nocapture"],
+        ["cargo", "test", "-p", "calc-func", "--test", "calc-func-integration", "dc_e00t", "--", "--nocapture"],
         ["cargo", "test", "-p", "calc-func", "--lib"],
         ["cargo", "xtask", "accept", "--id", "dc-e00t", "--platform", "windows", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "dc-e00t", "--platform", "linux", "--require-all"],
@@ -177,9 +177,9 @@
     },
     {
       "id": "dc-fwpz",
-      "test": "acceptance",
+      "test": "calc-func-integration",
       "commands": [
-        ["cargo", "test", "-p", "calc-func", "--test", "acceptance", "dc_fwpz", "--", "--nocapture"],
+        ["cargo", "test", "-p", "calc-func", "--test", "calc-func-integration", "dc_fwpz", "--", "--nocapture"],
         ["cargo", "test", "-p", "calc-func", "--lib"],
         ["cargo", "xtask", "accept", "--id", "dc-fwpz", "--platform", "windows", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "dc-fwpz", "--platform", "linux", "--require-all"],
@@ -196,9 +196,9 @@
     },
     {
       "id": "cdoc-jpha",
-      "test": "acceptance",
+      "test": "calc-func-integration",
       "commands": [
-        ["cargo", "test", "-p", "calc-func", "--test", "acceptance", "cdoc_jpha", "--", "--nocapture"],
+        ["cargo", "test", "-p", "calc-func", "--test", "calc-func-integration", "cdoc_jpha", "--", "--nocapture"],
         ["cargo", "test", "-p", "calc-func", "--lib"],
         ["cargo", "xtask", "accept", "--id", "cfunc-m1.2", "--platform", "windows", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "cdoc-jpha", "--platform", "windows", "--require-all"],
@@ -216,9 +216,9 @@
     },
     {
       "id": "dc-nzpw",
-      "test": "acceptance",
+      "test": "calc-func-integration",
       "commands": [
-        ["cargo", "test", "-p", "calc-func", "--test", "acceptance", "dc_nzpw", "--", "--nocapture"],
+        ["cargo", "test", "-p", "calc-func", "--test", "calc-func-integration", "dc_nzpw", "--", "--nocapture"],
         ["cargo", "xtask", "accept", "--id", "dc-nzpw", "--platform", "windows", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "dc-nzpw", "--platform", "linux", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "dc-nzpw", "--platform", "wasm", "--require-all"]
@@ -234,7 +234,7 @@
     },
     {
       "id": "dc-xrxb",
-      "test": "acceptance",
+      "test": "calc-func-integration",
       "commands": [
         ["cargo", "xtask", "accept", "--id", "dc-xrxb", "--platform", "windows", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "dc-xrxb", "--platform", "linux", "--require-all"],

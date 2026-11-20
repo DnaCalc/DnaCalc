@@ -349,10 +349,10 @@ fn classify(
 }
 
 /// The names libtest's `--list` prints, one `<name>: test` line each.
-fn listed_names(stdout: &str) -> Vec<String> {
+fn listed_names(stdout: &str, scope: &str) -> Vec<String> {
     stdout
         .lines()
-        .filter_map(|line| line.trim_end().strip_suffix(": test"))
+        .filter_map(|line| line.trim_end().strip_suffix(": test")?.strip_prefix(scope))
         .map(str::to_owned)
         .collect()
 }
@@ -455,6 +455,11 @@ fn run_listed(
     problems: &mut Vec<String>,
 ) -> Vec<CaseRun> {
     let (label, extra) = (route.label, route.extra);
+    let scope = if entry.shares_integration_target() {
+        manifest::ACCEPTANCE_CASE_SCOPE
+    } else {
+        ""
+    };
     let mut list = cargo_test(ws, entry, extra, &["--list"]);
     route.apply(&mut list);
     let list_log = out_dir.join(format!("{}-{}-list{label}.log", entry.package, entry.test));
@@ -464,7 +469,7 @@ fn run_listed(
             "listing {} --test {} exited with {:?}; see {}",
             entry.package, entry.test, ran.exit_code, ran.log
         )),
-        Ok(ran) => Ok((listed_names(&ran.stdout), ran)),
+        Ok(ran) => Ok((listed_names(&ran.stdout, scope), ran)),
     };
     let wasm = |banner: Option<(String, String)>| {
         route.browser.map(|browser| BrowserRun {
@@ -509,7 +514,7 @@ fn run_listed(
                 result_line: None,
                 outcome: Outcome::Missing,
                 reason: Some(format!(
-                    "{} --test {} lists no test named exactly {case}",
+                    "{} --test {} lists no test named exactly {scope}{case}",
                     entry.package, entry.test
                 )),
                 duration_s: 0.0,
@@ -521,7 +526,8 @@ fn run_listed(
             continue;
         }
         println!("ACCEPT running {case} (package {}){label}", entry.package);
-        let mut command = cargo_test(ws, entry, extra, &["--exact", case, "--nocapture"]);
+        let test = format!("{scope}{case}");
+        let mut command = cargo_test(ws, entry, extra, &["--exact", &test, "--nocapture"]);
         route.apply(&mut command);
         let log = out_dir.join(format!("{case}{label}.log"));
         match run_logged(ws, command, &log) {
@@ -1503,7 +1509,12 @@ mod tests {
     #[test]
     fn listing_lines_give_exact_names() {
         let listing = "a__one: test\na__two: test\nb: bench\n\n2 tests, 1 benchmark\n";
-        assert_eq!(listed_names(listing), ["a__one", "a__two"]);
+        assert_eq!(listed_names(listing, ""), ["a__one", "a__two"]);
+        let mixed = "a__other: test\nacceptance_cases::a__one: test\n";
+        assert_eq!(
+            listed_names(mixed, manifest::ACCEPTANCE_CASE_SCOPE),
+            ["a__one"]
+        );
     }
 
     #[test]

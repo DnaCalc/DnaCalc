@@ -1,4 +1,5 @@
 [package]
+autotests = false
 name = "touchstone-client"
 version.workspace = true
 edition.workspace = true
@@ -12,3 +13,7 @@ portability = "native-only"
 # serde_json reads and writes the frames' JSON; nothing else: no async runtime, std sockets and threads.
 [dependencies]
 serde_json = "=1.0.154"
+
+[[test]]
+name = "touchstone-client-integration"
+path = "tests/integration.rs"

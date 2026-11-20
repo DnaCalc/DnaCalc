@@ -17,7 +17,7 @@ try {
     $env:DNACALC_XLS_SESSION_INPUTS = $inputs
     Push-Location $root
     try {
-        & cargo test --locked -p calc-doc --test dc_4j0e_xls write_legacy_excel_session_inputs -- --exact
+        & cargo test --locked -p calc-doc --test calc-doc-integration dc_4j0e_xls::write_legacy_excel_session_inputs -- --exact
         if ($LASTEXITCODE -ne 0) { throw "Fixture generation failed: $LASTEXITCODE" }
     } finally { Pop-Location }
 } finally { $env:DNACALC_XLS_SESSION_INPUTS = $old }

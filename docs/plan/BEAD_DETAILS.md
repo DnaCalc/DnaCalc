@@ -309,7 +309,7 @@ OxFunc/crates/oxfunc_value_types/src/lib.rs: CalcValue, CoreValue, Shared, Refer
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m0_1 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m0_1 -- --nocapture
 cargo xtask accept --id cfunc-m0.1 --platform windows --require-all
 cargo xtask accept --id cfunc-m0.1 --platform linux --require-all
 cargo xtask accept --id cfunc-m0.1 --platform wasm --require-all
@@ -378,7 +378,7 @@ fresh; design these neutral types from this plan. OxDoc model names are not copi
 
 ### Acceptance
 ```text
-cargo test -p calc-doc --test acceptance cdoc_m0_1 -- --nocapture
+cargo test -p calc-doc --test calc-doc-integration cdoc_m0_1 -- --nocapture
 cargo xtask accept --id cdoc-m0.1 --platform windows --require-all
 cargo xtask accept --id cdoc-m0.1 --platform linux --require-all
 cargo xtask accept --id cdoc-m0.1 --platform wasm --require-all
@@ -593,7 +593,7 @@ OxFunc/crates/oxfunc_core/src/function.rs: FunctionMeta; crates/oxfunc_core/src/
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m1_1 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m1_1 -- --nocapture
 cargo xtask accept --id cfunc-m1.1 --platform windows --require-all
 cargo xtask accept --id cfunc-m1.1 --platform linux --require-all
 cargo xtask accept --id cfunc-m1.1 --platform wasm --require-all
@@ -632,7 +632,7 @@ OxFunc/crates/oxfunc_core/src/function.rs: FunctionMeta; crates/oxfunc_core/src/
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m1_2 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m1_2 -- --nocapture
 cargo xtask accept --id cfunc-m1.2 --platform windows --require-all
 cargo xtask accept --id cfunc-m1.2 --platform linux --require-all
 cargo xtask accept --id cfunc-m1.2 --platform wasm --require-all
@@ -956,7 +956,7 @@ OxDoc/crates/oxdoc-model/src/lib.rs (5,939 lines in one file: serde model types;
 
 ### Acceptance
 ```text
-cargo test -p calc-doc --test acceptance cdoc_m1_1 -- --nocapture
+cargo test -p calc-doc --test calc-doc-integration cdoc_m1_1 -- --nocapture
 cargo xtask accept --id cdoc-m1.1 --platform windows --require-all
 cargo xtask accept --id cdoc-m1.1 --platform linux --require-all
 cargo xtask accept --id cdoc-m1.1 --platform wasm --require-all
@@ -995,7 +995,7 @@ OxDoc/crates/oxdoc-model/src/lib.rs (5,939 lines in one file: serde model types;
 
 ### Acceptance
 ```text
-cargo test -p calc-doc --test acceptance cdoc_m1_2 -- --nocapture
+cargo test -p calc-doc --test calc-doc-integration cdoc_m1_2 -- --nocapture
 cargo xtask accept --id cdoc-m1.2 --platform windows --require-all
 cargo xtask accept --id cdoc-m1.2 --platform linux --require-all
 cargo xtask accept --id cdoc-m1.2 --platform wasm --require-all
@@ -1034,7 +1034,7 @@ OxDoc/crates/oxdoc-model/src/lib.rs (5,939 lines in one file: serde model types;
 
 ### Acceptance
 ```text
-cargo test -p calc-doc --test acceptance cdoc_m1_3 -- --nocapture
+cargo test -p calc-doc --test calc-doc-integration cdoc_m1_3 -- --nocapture
 cargo xtask accept --id cdoc-m1.3 --platform windows --require-all
 cargo xtask accept --id cdoc-m1.3 --platform linux --require-all
 cargo xtask accept --id cdoc-m1.3 --platform wasm --require-all
@@ -1103,7 +1103,7 @@ DnaTreeCalc/src/dnacalc-host-core/src/workbook.rs: WorkbookSession, XlsxSourceSt
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m1_1 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m1_1 -- --nocapture
 cargo xtask accept --id chost-m1.1 --platform windows --require-all
 cargo xtask accept --id chost-m1.1 --platform linux --require-all
 cargo xtask accept --id chost-m1.1 --platform wasm --require-all
@@ -1142,7 +1142,7 @@ DnaTreeCalc/src/dnacalc-host-core/src/workbook.rs: WorkbookSession, XlsxSourceSt
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m1_2 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m1_2 -- --nocapture
 cargo xtask accept --id chost-m1.2 --platform windows --require-all
 cargo xtask accept --id chost-m1.2 --platform linux --require-all
 cargo xtask accept --id chost-m1.2 --platform wasm --require-all
@@ -1211,7 +1211,7 @@ OxFml/crates/oxfml_core/src/eval/mod.rs: compiled expressions and evaluation; Ox
 
 ### Acceptance
 ```text
-cargo test -p dna-onecalc --test acceptance onecalc_m1_1 -- --nocapture
+cargo test -p dna-onecalc --test dna-onecalc-integration onecalc_m1_1 -- --nocapture
 cargo xtask accept --id onecalc-m1.1 --platform windows --require-all
 cargo xtask accept --id onecalc-m1.1 --platform linux --require-all
 cargo xtask accept --id onecalc-m1.1 --platform wasm --require-all
@@ -1682,7 +1682,7 @@ OxDoc/crates/oxdoc-model/src/lib.rs (5,939 lines in one file: serde model types;
 
 ### Acceptance
 ```text
-cargo test -p calc-doc --test acceptance cdoc_m2_1 -- --nocapture
+cargo test -p calc-doc --test calc-doc-integration cdoc_m2_1 -- --nocapture
 cargo xtask accept --id cdoc-m2.1 --platform windows --require-all
 cargo xtask accept --id cdoc-m2.1 --platform linux --require-all
 cargo xtask accept --id cdoc-m2.1 --platform wasm --require-all
@@ -1751,7 +1751,7 @@ DnaTreeCalc/src/dnacalc-skin-ir/ and DnaTreeCalc/src/dnacalc-shell/src/stage.rs:
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m2_1 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m2_1 -- --nocapture
 cargo xtask accept --id chost-m2.1 --platform windows --require-all
 cargo xtask accept --id chost-m2.1 --platform linux --require-all
 cargo xtask accept --id chost-m2.1 --platform wasm --require-all
@@ -1790,7 +1790,7 @@ DnaTreeCalc/src/dnacalc-host-core/src/workbook.rs: WorkbookSession, XlsxSourceSt
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m2_2 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m2_2 -- --nocapture
 cargo xtask accept --id chost-m2.2 --platform windows --require-all
 cargo xtask accept --id chost-m2.2 --platform linux --require-all
 cargo xtask accept --id chost-m2.2 --platform wasm --require-all
@@ -1829,7 +1829,7 @@ DnaTreeCalc/src/dnacalc-stage-notebook/ (partial implementation; source manifest
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m2_3 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m2_3 -- --nocapture
 cargo xtask accept --id chost-m2.3 --platform windows --require-all
 cargo xtask accept --id chost-m2.3 --platform linux --require-all
 cargo xtask accept --id chost-m2.3 --platform wasm --require-all
@@ -1868,7 +1868,7 @@ DnaTreeCalc/src/dnacalc-stage-notebook/ (partial implementation; source manifest
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m2_4 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m2_4 -- --nocapture
 cargo xtask accept --id chost-m2.4 --platform windows --require-all
 cargo xtask accept --id chost-m2.4 --platform linux --require-all
 cargo xtask accept --id chost-m2.4 --platform wasm --require-all
@@ -1937,7 +1937,7 @@ OxFml/crates/oxfml_core/src/eval/mod.rs: compiled expressions and evaluation; Ox
 
 ### Acceptance
 ```text
-cargo test -p dna-onecalc --test acceptance onecalc_m2_1 -- --nocapture
+cargo test -p dna-onecalc --test dna-onecalc-integration onecalc_m2_1 -- --nocapture
 cargo xtask accept --id onecalc-m2.1 --platform windows --require-all
 cargo xtask accept --id onecalc-m2.1 --platform linux --require-all
 cargo xtask accept --id onecalc-m2.1 --platform wasm --require-all
@@ -2602,7 +2602,7 @@ OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs: the catalogue entri
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m3_1 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m3_1 -- --nocapture
 cargo xtask accept --id cfunc-m3.1 --platform windows --require-all
 cargo xtask accept --id cfunc-m3.1 --platform linux --require-all
 cargo xtask accept --id cfunc-m3.1 --platform wasm --require-all
@@ -2641,7 +2641,7 @@ OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs: the catalogue entri
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m3_2 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m3_2 -- --nocapture
 cargo xtask accept --id cfunc-m3.2 --platform windows --require-all
 cargo xtask accept --id cfunc-m3.2 --platform linux --require-all
 cargo xtask accept --id cfunc-m3.2 --platform wasm --require-all
@@ -2680,7 +2680,7 @@ OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs: the catalogue entri
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m3_3 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m3_3 -- --nocapture
 cargo xtask accept --id cfunc-m3.3 --platform windows --require-all
 cargo xtask accept --id cfunc-m3.3 --platform linux --require-all
 cargo xtask accept --id cfunc-m3.3 --platform wasm --require-all
@@ -2719,7 +2719,7 @@ OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs: the catalogue entri
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m3_4 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m3_4 -- --nocapture
 cargo xtask accept --id cfunc-m3.4 --platform windows --require-all
 cargo xtask accept --id cfunc-m3.4 --platform linux --require-all
 cargo xtask accept --id cfunc-m3.4 --platform wasm --require-all
@@ -2758,7 +2758,7 @@ OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs: the catalogue entri
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m3_5 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m3_5 -- --nocapture
 cargo xtask accept --id cfunc-m3.5 --platform windows --require-all
 cargo xtask accept --id cfunc-m3.5 --platform linux --require-all
 cargo xtask accept --id cfunc-m3.5 --platform wasm --require-all
@@ -2797,7 +2797,7 @@ OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs: the catalogue entri
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m3_6 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m3_6 -- --nocapture
 cargo xtask accept --id cfunc-m3.6 --platform windows --require-all
 cargo xtask accept --id cfunc-m3.6 --platform linux --require-all
 cargo xtask accept --id cfunc-m3.6 --platform wasm --require-all
@@ -2836,7 +2836,7 @@ OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs: the catalogue entri
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m3_7 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m3_7 -- --nocapture
 cargo xtask accept --id cfunc-m3.7 --platform windows --require-all
 cargo xtask accept --id cfunc-m3.7 --platform linux --require-all
 cargo xtask accept --id cfunc-m3.7 --platform wasm --require-all
@@ -2875,7 +2875,7 @@ OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs: the catalogue entri
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m3_8 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m3_8 -- --nocapture
 cargo xtask accept --id cfunc-m3.8 --platform windows --require-all
 cargo xtask accept --id cfunc-m3.8 --platform linux --require-all
 cargo xtask accept --id cfunc-m3.8 --platform wasm --require-all
@@ -2914,7 +2914,7 @@ OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs: the catalogue entri
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m3_9 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m3_9 -- --nocapture
 cargo xtask accept --id cfunc-m3.9 --platform windows --require-all
 cargo xtask accept --id cfunc-m3.9 --platform linux --require-all
 cargo xtask accept --id cfunc-m3.9 --platform wasm --require-all
@@ -2953,7 +2953,7 @@ OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs: the catalogue entri
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m3_10 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m3_10 -- --nocapture
 cargo xtask accept --id cfunc-m3.10 --platform windows --require-all
 cargo xtask accept --id cfunc-m3.10 --platform linux --require-all
 cargo xtask accept --id cfunc-m3.10 --platform wasm --require-all
@@ -2992,7 +2992,7 @@ OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs: the catalogue entri
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m3_11 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m3_11 -- --nocapture
 cargo xtask accept --id cfunc-m3.11 --platform windows --require-all
 cargo xtask accept --id cfunc-m3.11 --platform linux --require-all
 cargo xtask accept --id cfunc-m3.11 --platform wasm --require-all
@@ -3031,7 +3031,7 @@ OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs: the catalogue entri
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m3_12 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m3_12 -- --nocapture
 cargo xtask accept --id cfunc-m3.12 --platform windows --require-all
 cargo xtask accept --id cfunc-m3.12 --platform linux --require-all
 cargo xtask accept --id cfunc-m3.12 --platform wasm --require-all
@@ -3070,7 +3070,7 @@ OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs: the catalogue entri
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m3_13 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m3_13 -- --nocapture
 cargo xtask accept --id cfunc-m3.13 --platform windows --require-all
 cargo xtask accept --id cfunc-m3.13 --platform linux --require-all
 cargo xtask accept --id cfunc-m3.13 --platform wasm --require-all
@@ -3109,7 +3109,7 @@ OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs: the catalogue entri
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m3_14 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m3_14 -- --nocapture
 cargo xtask accept --id cfunc-m3.14 --platform windows --require-all
 cargo xtask accept --id cfunc-m3.14 --platform linux --require-all
 cargo xtask accept --id cfunc-m3.14 --platform wasm --require-all
@@ -3148,7 +3148,7 @@ OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs: the catalogue entri
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m3_15 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m3_15 -- --nocapture
 cargo xtask accept --id cfunc-m3.15 --platform windows --require-all
 cargo xtask accept --id cfunc-m3.15 --platform linux --require-all
 cargo xtask accept --id cfunc-m3.15 --platform wasm --require-all
@@ -3187,7 +3187,7 @@ OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs: the catalogue entri
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m3_16 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m3_16 -- --nocapture
 cargo xtask accept --id cfunc-m3.16 --platform windows --require-all
 cargo xtask accept --id cfunc-m3.16 --platform linux --require-all
 cargo xtask accept --id cfunc-m3.16 --platform wasm --require-all
@@ -3226,7 +3226,7 @@ OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs: the catalogue entri
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m3_17 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m3_17 -- --nocapture
 cargo xtask accept --id cfunc-m3.17 --platform windows --require-all
 cargo xtask accept --id cfunc-m3.17 --platform linux --require-all
 cargo xtask accept --id cfunc-m3.17 --platform wasm --require-all
@@ -3265,7 +3265,7 @@ OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs: the catalogue entri
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m3_18 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m3_18 -- --nocapture
 cargo xtask accept --id cfunc-m3.18 --platform windows --require-all
 cargo xtask accept --id cfunc-m3.18 --platform linux --require-all
 cargo xtask accept --id cfunc-m3.18 --platform wasm --require-all
@@ -3304,7 +3304,7 @@ OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs: the catalogue entri
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m3_19 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m3_19 -- --nocapture
 cargo xtask accept --id cfunc-m3.19 --platform windows --require-all
 cargo xtask accept --id cfunc-m3.19 --platform linux --require-all
 cargo xtask accept --id cfunc-m3.19 --platform wasm --require-all
@@ -3343,7 +3343,7 @@ OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs: the catalogue entri
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m3_20 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m3_20 -- --nocapture
 cargo xtask accept --id cfunc-m3.20 --platform windows --require-all
 cargo xtask accept --id cfunc-m3.20 --platform linux --require-all
 cargo xtask accept --id cfunc-m3.20 --platform wasm --require-all
@@ -3382,7 +3382,7 @@ OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs: the catalogue entri
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m3_21 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m3_21 -- --nocapture
 cargo xtask accept --id cfunc-m3.21 --platform windows --require-all
 cargo xtask accept --id cfunc-m3.21 --platform linux --require-all
 cargo xtask accept --id cfunc-m3.21 --platform wasm --require-all
@@ -3421,7 +3421,7 @@ OxFunc/crates/oxfunc_core/src/function.rs: FunctionMeta; crates/oxfunc_core/src/
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m3_22 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m3_22 -- --nocapture
 cargo xtask accept --id cfunc-m3.22 --platform windows --require-all
 cargo xtask accept --id cfunc-m3.22 --platform linux --require-all
 cargo xtask accept --id cfunc-m3.22 --platform wasm --require-all
@@ -3460,7 +3460,7 @@ OxFunc/crates/oxfunc_core/src/excel_numeric/x87.rs: exp, pow_direct, atan and th
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m3_23 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m3_23 -- --nocapture
 cargo xtask accept --id cfunc-m3.23 --platform windows --require-all
 cargo xtask accept --id cfunc-m3.23 --platform linux --require-all
 cargo xtask accept --id cfunc-m3.23 --platform wasm --require-all
@@ -3499,7 +3499,7 @@ OxFunc/crates/oxfunc_core/src/excel_numeric/x87.rs: exp, pow_direct, atan and th
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m3_24 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m3_24 -- --nocapture
 cargo xtask accept --id cfunc-m3.24 --platform windows --require-all
 cargo xtask accept --id cfunc-m3.24 --platform linux --require-all
 cargo xtask accept --id cfunc-m3.24 --platform wasm --require-all
@@ -3538,7 +3538,7 @@ OxFunc/crates/oxfunc_core/src/function.rs: FunctionMeta; crates/oxfunc_core/src/
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m3_25 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m3_25 -- --nocapture
 cargo xtask accept --id cfunc-m3.25 --platform windows --require-all
 cargo xtask accept --id cfunc-m3.25 --platform linux --require-all
 cargo xtask accept --id cfunc-m3.25 --platform wasm --require-all
@@ -4213,7 +4213,7 @@ OxDoc/crates/oxdoc-model/src/lib.rs (5,939 lines in one file: serde model types;
 
 ### Acceptance
 ```text
-cargo test -p calc-doc --test acceptance cdoc_m3_1 -- --nocapture
+cargo test -p calc-doc --test calc-doc-integration cdoc_m3_1 -- --nocapture
 cargo xtask accept --id cdoc-m3.1 --platform windows --require-all
 cargo xtask accept --id cdoc-m3.1 --platform linux --require-all
 cargo xtask accept --id cdoc-m3.1 --platform wasm --require-all
@@ -4252,7 +4252,7 @@ OxDoc/crates/oxdoc-model/src/lib.rs (5,939 lines in one file: serde model types;
 
 ### Acceptance
 ```text
-cargo test -p calc-doc --test acceptance cdoc_m3_2 -- --nocapture
+cargo test -p calc-doc --test calc-doc-integration cdoc_m3_2 -- --nocapture
 cargo xtask accept --id cdoc-m3.2 --platform windows --require-all
 cargo xtask accept --id cdoc-m3.2 --platform linux --require-all
 cargo xtask accept --id cdoc-m3.2 --platform wasm --require-all
@@ -4291,7 +4291,7 @@ OxDoc/crates/oxdoc-model/src/lib.rs (5,939 lines in one file: serde model types;
 
 ### Acceptance
 ```text
-cargo test -p calc-doc --test acceptance cdoc_m3_3 -- --nocapture
+cargo test -p calc-doc --test calc-doc-integration cdoc_m3_3 -- --nocapture
 cargo xtask accept --id cdoc-m3.3 --platform windows --require-all
 cargo xtask accept --id cdoc-m3.3 --platform linux --require-all
 cargo xtask accept --id cdoc-m3.3 --platform wasm --require-all
@@ -4330,7 +4330,7 @@ OxDoc/crates/oxdoc-model/src/lib.rs (5,939 lines in one file: serde model types;
 
 ### Acceptance
 ```text
-cargo test -p calc-doc --test acceptance cdoc_m3_4 -- --nocapture
+cargo test -p calc-doc --test calc-doc-integration cdoc_m3_4 -- --nocapture
 cargo xtask accept --id cdoc-m3.4 --platform windows --require-all
 cargo xtask accept --id cdoc-m3.4 --platform linux --require-all
 cargo xtask accept --id cdoc-m3.4 --platform wasm --require-all
@@ -4369,7 +4369,7 @@ OxDoc/crates/oxdoc-model/src/lib.rs (5,939 lines in one file: serde model types;
 
 ### Acceptance
 ```text
-cargo test -p calc-doc --test acceptance cdoc_m3_5 -- --nocapture
+cargo test -p calc-doc --test calc-doc-integration cdoc_m3_5 -- --nocapture
 cargo xtask accept --id cdoc-m3.5 --platform windows --require-all
 cargo xtask accept --id cdoc-m3.5 --platform linux --require-all
 cargo xtask accept --id cdoc-m3.5 --platform wasm --require-all
@@ -4408,7 +4408,7 @@ OxDoc/crates/oxdoc-model/src/lib.rs (5,939 lines in one file: serde model types;
 
 ### Acceptance
 ```text
-cargo test -p calc-doc --test acceptance cdoc_m3_6 -- --nocapture
+cargo test -p calc-doc --test calc-doc-integration cdoc_m3_6 -- --nocapture
 cargo xtask accept --id cdoc-m3.6 --platform windows --require-all
 cargo xtask accept --id cdoc-m3.6 --platform linux --require-all
 cargo xtask accept --id cdoc-m3.6 --platform wasm --require-all
@@ -4477,7 +4477,7 @@ DnaTreeCalc/src/dnacalc-host-core/src/workbook.rs: WorkbookSession, XlsxSourceSt
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m3_1 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m3_1 -- --nocapture
 cargo xtask accept --id chost-m3.1 --platform windows --require-all
 cargo xtask accept --id chost-m3.1 --platform linux --require-all
 cargo xtask accept --id chost-m3.1 --platform wasm --require-all
@@ -4516,7 +4516,7 @@ DnaTreeCalc/src/dnacalc-host-core/src/workbook.rs: WorkbookSession, XlsxSourceSt
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m3_2 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m3_2 -- --nocapture
 cargo xtask accept --id chost-m3.2 --platform windows --require-all
 cargo xtask accept --id chost-m3.2 --platform linux --require-all
 cargo xtask accept --id chost-m3.2 --platform wasm --require-all
@@ -4555,7 +4555,7 @@ DnaTreeCalc/src/dnacalc-host-core/src/workbook.rs: WorkbookSession, XlsxSourceSt
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m3_3 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m3_3 -- --nocapture
 cargo xtask accept --id chost-m3.3 --platform windows --require-all
 cargo xtask accept --id chost-m3.3 --platform linux --require-all
 cargo xtask accept --id chost-m3.3 --platform wasm --require-all
@@ -4762,7 +4762,7 @@ OxFunc/docs/function-lane/OXFUNC_UDF_REGISTRATION_AND_REGISTRY_MUTATION_CONTRACT
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m4_1 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m4_1 -- --nocapture
 cargo xtask accept --id cfunc-m4.1 --platform windows --require-all
 cargo xtask accept --id cfunc-m4.1 --platform linux --require-all
 cargo xtask accept --id cfunc-m4.1 --platform wasm --require-all
@@ -5242,7 +5242,7 @@ OxDoc/crates/oxdoc-model/src/lib.rs (5,939 lines in one file: serde model types;
 
 ### Acceptance
 ```text
-cargo test -p calc-doc --test acceptance cdoc_m4_1 -- --nocapture
+cargo test -p calc-doc --test calc-doc-integration cdoc_m4_1 -- --nocapture
 cargo xtask accept --id cdoc-m4.1 --platform windows --require-all
 cargo xtask accept --id cdoc-m4.1 --platform linux --require-all
 cargo xtask accept --id cdoc-m4.1 --platform wasm --require-all
@@ -5281,7 +5281,7 @@ OxDoc/crates/oxdoc-model/src/lib.rs (5,939 lines in one file: serde model types;
 
 ### Acceptance
 ```text
-cargo test -p calc-doc --test acceptance cdoc_m4_2 -- --nocapture
+cargo test -p calc-doc --test calc-doc-integration cdoc_m4_2 -- --nocapture
 cargo xtask accept --id cdoc-m4.2 --platform windows --require-all
 cargo xtask accept --id cdoc-m4.2 --platform linux --require-all
 cargo xtask accept --id cdoc-m4.2 --platform wasm --require-all
@@ -5320,7 +5320,7 @@ OxDoc/crates/oxdoc-model/src/lib.rs (5,939 lines in one file: serde model types;
 
 ### Acceptance
 ```text
-cargo test -p calc-doc --test acceptance cdoc_m4_3 -- --nocapture
+cargo test -p calc-doc --test calc-doc-integration cdoc_m4_3 -- --nocapture
 cargo xtask accept --id cdoc-m4.3 --platform windows --require-all
 cargo xtask accept --id cdoc-m4.3 --platform linux --require-all
 cargo xtask accept --id cdoc-m4.3 --platform wasm --require-all
@@ -5389,7 +5389,7 @@ DnaTreeCalc/src/dnacalc-host-core/src/workbook.rs: WorkbookSession, XlsxSourceSt
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m4_1 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m4_1 -- --nocapture
 cargo xtask accept --id chost-m4.1 --platform windows --require-all
 cargo xtask accept --id chost-m4.1 --platform linux --require-all
 cargo xtask accept --id chost-m4.1 --platform wasm --require-all
@@ -5428,7 +5428,7 @@ DnaTreeCalc/src/dnacalc-host-core/src/workbook.rs: WorkbookSession, XlsxSourceSt
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m4_2 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m4_2 -- --nocapture
 cargo xtask accept --id chost-m4.2 --platform windows --require-all
 cargo xtask accept --id chost-m4.2 --platform linux --require-all
 cargo xtask accept --id chost-m4.2 --platform wasm --require-all
@@ -5467,7 +5467,7 @@ DnaTreeCalc/src/dnacalc-host-core/src/workbook.rs: WorkbookSession, XlsxSourceSt
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m4_3 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m4_3 -- --nocapture
 cargo xtask accept --id chost-m4.3 --platform windows --require-all
 cargo xtask accept --id chost-m4.3 --platform linux --require-all
 cargo xtask accept --id chost-m4.3 --platform wasm --require-all
@@ -5506,7 +5506,7 @@ DnaTreeCalc/src/dnacalc-host-core/src/workbook.rs: WorkbookSession, XlsxSourceSt
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m4_4 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m4_4 -- --nocapture
 cargo xtask accept --id chost-m4.4 --platform windows --require-all
 cargo xtask accept --id chost-m4.4 --platform linux --require-all
 cargo xtask accept --id chost-m4.4 --platform wasm --require-all
@@ -5545,7 +5545,7 @@ DnaTreeCalc/src/dnacalc-host-core/src/workbook.rs: WorkbookSession, XlsxSourceSt
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m4_5 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m4_5 -- --nocapture
 cargo xtask accept --id chost-m4.5 --platform windows --require-all
 cargo xtask accept --id chost-m4.5 --platform linux --require-all
 cargo xtask accept --id chost-m4.5 --platform wasm --require-all
@@ -5584,7 +5584,7 @@ DnaTreeCalc/src/dnacalc-host-core/src/workbook.rs: WorkbookSession, XlsxSourceSt
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m4_6 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m4_6 -- --nocapture
 cargo xtask accept --id chost-m4.6 --platform windows --require-all
 cargo xtask accept --id chost-m4.6 --platform linux --require-all
 cargo xtask accept --id chost-m4.6 --platform wasm --require-all
@@ -5623,7 +5623,7 @@ DnaTreeCalc/src/dnacalc-host-core/src/workbook.rs: WorkbookSession, XlsxSourceSt
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m4_7 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m4_7 -- --nocapture
 cargo xtask accept --id chost-m4.7 --platform windows --require-all
 cargo xtask accept --id chost-m4.7 --platform linux --require-all
 cargo xtask accept --id chost-m4.7 --platform wasm --require-all
@@ -5662,7 +5662,7 @@ DnaTreeCalc/src/dnacalc-host-core/src/workbook.rs: WorkbookSession, XlsxSourceSt
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m4_8 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m4_8 -- --nocapture
 cargo xtask accept --id chost-m4.8 --platform windows --require-all
 cargo xtask accept --id chost-m4.8 --platform linux --require-all
 cargo xtask accept --id chost-m4.8 --platform wasm --require-all
@@ -5701,7 +5701,7 @@ DnaTreeCalc/src/dnacalc-host-core/src/workbook.rs: WorkbookSession, XlsxSourceSt
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m4_9 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m4_9 -- --nocapture
 cargo xtask accept --id chost-m4.9 --platform windows --require-all
 cargo xtask accept --id chost-m4.9 --platform linux --require-all
 cargo xtask accept --id chost-m4.9 --platform wasm --require-all
@@ -5740,7 +5740,7 @@ DnaTreeCalc/src/dnacalc-host-core/src/workbook.rs: WorkbookSession, XlsxSourceSt
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m4_10 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m4_10 -- --nocapture
 cargo xtask accept --id chost-m4.10 --platform windows --require-all
 cargo xtask accept --id chost-m4.10 --platform linux --require-all
 cargo xtask accept --id chost-m4.10 --platform wasm --require-all
@@ -5779,7 +5779,7 @@ OxVba/crates/oxvba-host/src/engine.rs: host callback integration (owner-brief re
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m4_11 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m4_11 -- --nocapture
 cargo xtask accept --id chost-m4.11 --platform windows --require-all
 cargo xtask accept --id chost-m4.11 --platform linux --require-all
 cargo xtask accept --id chost-m4.11 --platform wasm --require-all
@@ -5818,7 +5818,7 @@ OxVba/crates/oxvba-host/src/engine.rs: host callback integration (owner-brief re
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m4_12 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m4_12 -- --nocapture
 cargo xtask accept --id chost-m4.12 --platform windows --require-all
 cargo xtask accept --id chost-m4.12 --platform linux --require-all
 cargo xtask accept --id chost-m4.12 --platform wasm --require-all
@@ -5857,7 +5857,7 @@ OxVba/crates/oxvba-host/src/engine.rs: host callback integration (owner-brief re
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m4_13 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m4_13 -- --nocapture
 cargo xtask accept --id chost-m4.13 --platform windows --require-all
 cargo xtask accept --id chost-m4.13 --platform linux --require-all
 cargo xtask accept --id chost-m4.13 --platform wasm --require-all
@@ -6523,7 +6523,7 @@ OxDoc/crates/oxdoc-model/src/lib.rs (5,939 lines in one file: serde model types;
 
 ### Acceptance
 ```text
-cargo test -p calc-doc --test acceptance cdoc_m5_1 -- --nocapture
+cargo test -p calc-doc --test calc-doc-integration cdoc_m5_1 -- --nocapture
 cargo xtask accept --id cdoc-m5.1 --platform windows --require-all
 cargo xtask accept --id cdoc-m5.1 --platform linux --require-all
 cargo xtask accept --id cdoc-m5.1 --platform wasm --require-all
@@ -6562,7 +6562,7 @@ OxDoc/crates/oxdoc-model/src/lib.rs (5,939 lines in one file: serde model types;
 
 ### Acceptance
 ```text
-cargo test -p calc-doc --test acceptance cdoc_m5_2 -- --nocapture
+cargo test -p calc-doc --test calc-doc-integration cdoc_m5_2 -- --nocapture
 cargo xtask accept --id cdoc-m5.2 --platform windows --require-all
 cargo xtask accept --id cdoc-m5.2 --platform linux --require-all
 cargo xtask accept --id cdoc-m5.2 --platform wasm --require-all
@@ -6601,7 +6601,7 @@ OxDoc/crates/oxdoc-model/src/lib.rs (5,939 lines in one file: serde model types;
 
 ### Acceptance
 ```text
-cargo test -p calc-doc --test acceptance cdoc_m5_3 -- --nocapture
+cargo test -p calc-doc --test calc-doc-integration cdoc_m5_3 -- --nocapture
 cargo xtask accept --id cdoc-m5.3 --platform windows --require-all
 cargo xtask accept --id cdoc-m5.3 --platform linux --require-all
 cargo xtask accept --id cdoc-m5.3 --platform wasm --require-all
@@ -6670,7 +6670,7 @@ DnaTreeCalc/src/dnacalc-host-core/src/workbook.rs: WorkbookSession, XlsxSourceSt
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m5_1 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m5_1 -- --nocapture
 cargo xtask accept --id chost-m5.1 --platform windows --require-all
 cargo xtask accept --id chost-m5.1 --platform linux --require-all
 cargo xtask accept --id chost-m5.1 --platform wasm --require-all
@@ -6709,7 +6709,7 @@ DnaTreeCalc/src/dnacalc-host-core/src/workbook.rs: WorkbookSession, XlsxSourceSt
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m5_2 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m5_2 -- --nocapture
 cargo xtask accept --id chost-m5.2 --platform windows --require-all
 cargo xtask accept --id chost-m5.2 --platform linux --require-all
 cargo xtask accept --id chost-m5.2 --platform wasm --require-all
@@ -6748,7 +6748,7 @@ DnaTreeCalc/src/dnacalc-host-core/src/workbook.rs: WorkbookSession, XlsxSourceSt
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m5_3 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m5_3 -- --nocapture
 cargo xtask accept --id chost-m5.3 --platform windows --require-all
 cargo xtask accept --id chost-m5.3 --platform linux --require-all
 cargo xtask accept --id chost-m5.3 --platform wasm --require-all
@@ -6994,7 +6994,7 @@ OxDoc/crates/oxdoc-model/src/lib.rs (5,939 lines in one file: serde model types;
 
 ### Acceptance
 ```text
-cargo test -p calc-doc --test acceptance cdoc_m6_1 -- --nocapture
+cargo test -p calc-doc --test calc-doc-integration cdoc_m6_1 -- --nocapture
 cargo xtask accept --id cdoc-m6.1 --platform windows --require-all
 cargo xtask accept --id cdoc-m6.1 --platform linux --require-all
 cargo xtask accept --id cdoc-m6.1 --platform wasm --require-all
@@ -7033,7 +7033,7 @@ OxDoc/crates/oxdoc-model/src/lib.rs (5,939 lines in one file: serde model types;
 
 ### Acceptance
 ```text
-cargo test -p calc-doc --test acceptance cdoc_m6_2 -- --nocapture
+cargo test -p calc-doc --test calc-doc-integration cdoc_m6_2 -- --nocapture
 cargo xtask accept --id cdoc-m6.2 --platform windows --require-all
 cargo xtask accept --id cdoc-m6.2 --platform linux --require-all
 cargo xtask accept --id cdoc-m6.2 --platform wasm --require-all
@@ -7072,7 +7072,7 @@ OxDoc/crates/oxdoc-model/src/lib.rs (5,939 lines in one file: serde model types;
 
 ### Acceptance
 ```text
-cargo test -p calc-doc --test acceptance cdoc_m6_3 -- --nocapture
+cargo test -p calc-doc --test calc-doc-integration cdoc_m6_3 -- --nocapture
 cargo xtask accept --id cdoc-m6.3 --platform windows --require-all
 cargo xtask accept --id cdoc-m6.3 --platform linux --require-all
 cargo xtask accept --id cdoc-m6.3 --platform wasm --require-all
@@ -7111,7 +7111,7 @@ OxDoc/crates/oxdoc-model/src/lib.rs (5,939 lines in one file: serde model types;
 
 ### Acceptance
 ```text
-cargo test -p calc-doc --test acceptance cdoc_m6_4 -- --nocapture
+cargo test -p calc-doc --test calc-doc-integration cdoc_m6_4 -- --nocapture
 cargo xtask accept --id cdoc-m6.4 --platform windows --require-all
 cargo xtask accept --id cdoc-m6.4 --platform linux --require-all
 cargo xtask accept --id cdoc-m6.4 --platform wasm --require-all
@@ -7150,7 +7150,7 @@ OxDoc/crates/oxdoc-model/src/lib.rs (5,939 lines in one file: serde model types;
 
 ### Acceptance
 ```text
-cargo test -p calc-doc --test acceptance cdoc_m6_5 -- --nocapture
+cargo test -p calc-doc --test calc-doc-integration cdoc_m6_5 -- --nocapture
 cargo xtask accept --id cdoc-m6.5 --platform windows --require-all
 cargo xtask accept --id cdoc-m6.5 --platform linux --require-all
 cargo xtask accept --id cdoc-m6.5 --platform wasm --require-all
@@ -7189,7 +7189,7 @@ OxDoc/crates/oxdoc-model/src/lib.rs (5,939 lines in one file: serde model types;
 
 ### Acceptance
 ```text
-cargo test -p calc-doc --test acceptance cdoc_m6_6 -- --nocapture
+cargo test -p calc-doc --test calc-doc-integration cdoc_m6_6 -- --nocapture
 cargo xtask accept --id cdoc-m6.6 --platform windows --require-all
 cargo xtask accept --id cdoc-m6.6 --platform linux --require-all
 cargo xtask accept --id cdoc-m6.6 --platform wasm --require-all
@@ -7228,7 +7228,7 @@ OxDoc/crates/oxdoc-model/src/lib.rs (5,939 lines in one file: serde model types;
 
 ### Acceptance
 ```text
-cargo test -p calc-doc --test acceptance cdoc_m6_7 -- --nocapture
+cargo test -p calc-doc --test calc-doc-integration cdoc_m6_7 -- --nocapture
 cargo xtask accept --id cdoc-m6.7 --platform windows --require-all
 cargo xtask accept --id cdoc-m6.7 --platform linux --require-all
 cargo xtask accept --id cdoc-m6.7 --platform wasm --require-all
@@ -7297,7 +7297,7 @@ DnaTreeCalc/src/dnacalc-host-core/src/workbook.rs: WorkbookSession, XlsxSourceSt
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m6_1 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m6_1 -- --nocapture
 cargo xtask accept --id chost-m6.1 --platform windows --require-all
 cargo xtask accept --id chost-m6.1 --platform linux --require-all
 cargo xtask accept --id chost-m6.1 --platform wasm --require-all
@@ -7336,7 +7336,7 @@ DnaTreeCalc/src/dnacalc-host-core/src/workbook.rs: WorkbookSession, XlsxSourceSt
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m6_2 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m6_2 -- --nocapture
 cargo xtask accept --id chost-m6.2 --platform windows --require-all
 cargo xtask accept --id chost-m6.2 --platform linux --require-all
 cargo xtask accept --id chost-m6.2 --platform wasm --require-all
@@ -7375,7 +7375,7 @@ DnaTreeCalc/src/dnacalc-host-core/src/workbook.rs: WorkbookSession, XlsxSourceSt
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m6_3 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m6_3 -- --nocapture
 cargo xtask accept --id chost-m6.3 --platform windows --require-all
 cargo xtask accept --id chost-m6.3 --platform linux --require-all
 cargo xtask accept --id chost-m6.3 --platform wasm --require-all
@@ -7414,7 +7414,7 @@ DnaTreeCalc/src/dnacalc-host-core/src/workbook.rs: WorkbookSession, XlsxSourceSt
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m6_4 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m6_4 -- --nocapture
 cargo xtask accept --id chost-m6.4 --platform windows --require-all
 cargo xtask accept --id chost-m6.4 --platform linux --require-all
 cargo xtask accept --id chost-m6.4 --platform wasm --require-all
@@ -7483,7 +7483,7 @@ OxFunc/crates/oxfunc_core/src/function.rs: FunctionMeta; crates/oxfunc_core/src/
 
 ### Acceptance
 ```text
-cargo test -p dna-onecalc --test acceptance onecalc_m6_1 -- --nocapture
+cargo test -p dna-onecalc --test dna-onecalc-integration onecalc_m6_1 -- --nocapture
 cargo xtask accept --id onecalc-m6.1 --platform windows --require-all
 cargo xtask accept --id onecalc-m6.1 --platform linux --require-all
 cargo xtask accept --id onecalc-m6.1 --platform wasm --require-all
@@ -8931,7 +8931,7 @@ OxFunc/crates/oxfunc_core/src/excel_numeric/x87.rs: exp, pow_direct, atan and th
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m7_1 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m7_1 -- --nocapture
 cargo xtask accept --id cfunc-m7.1 --platform windows --require-all
 cargo xtask accept --id cfunc-m7.1 --platform linux --require-all
 cargo xtask accept --id cfunc-m7.1 --platform wasm --require-all
@@ -8970,7 +8970,7 @@ OxFunc/crates/oxfunc_core/src/function.rs: FunctionMeta; crates/oxfunc_core/src/
 
 ### Acceptance
 ```text
-cargo test -p calc-func --test acceptance cfunc_m7_2 -- --nocapture
+cargo test -p calc-func --test calc-func-integration cfunc_m7_2 -- --nocapture
 cargo xtask accept --id cfunc-m7.2 --platform windows --require-all
 cargo xtask accept --id cfunc-m7.2 --platform linux --require-all
 cargo xtask accept --id cfunc-m7.2 --platform wasm --require-all
@@ -9212,7 +9212,7 @@ DnaTreeCalc/src/dnacalc-host-core/src/workbook.rs: WorkbookSession, XlsxSourceSt
 
 ### Acceptance
 ```text
-cargo test -p calc-host --test acceptance chost_m8_1 -- --nocapture
+cargo test -p calc-host --test calc-host-integration chost_m8_1 -- --nocapture
 cargo xtask accept --id chost-m8.1 --platform windows --require-all
 cargo xtask accept --id chost-m8.1 --platform linux --require-all
 cargo xtask accept --id chost-m8.1 --platform wasm --require-all
@@ -9281,7 +9281,7 @@ OxFml/crates/oxfml_core/src/eval/mod.rs: compiled expressions and evaluation; Ox
 
 ### Acceptance
 ```text
-cargo test -p dna-onecalc --test acceptance onecalc_m8_1 -- --nocapture
+cargo test -p dna-onecalc --test dna-onecalc-integration onecalc_m8_1 -- --nocapture
 cargo xtask accept --id onecalc-m8.1 --platform windows --require-all
 cargo xtask accept --id onecalc-m8.1 --platform linux --require-all
 cargo xtask accept --id onecalc-m8.1 --platform wasm --require-all
