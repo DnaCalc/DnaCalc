@@ -1090,9 +1090,8 @@ fn forecast_ets_confint_zero_probability_precedes_fractional_horizon() {
         Ok(_)
     ));
     // Touchstone (eng21): the default interval grows from zero across the first step
-    // as sqrt(fraction) times the one-step interval. Here that interval itself is one
-    // ULP below Excel's 0x3fd3_65bd_64d3_5b62; the quarter step is exactly half of it.
-    let one_step = f64::from_bits(0x3fd3_65bd_64d3_5b61);
+    // as sqrt(fraction) times the one-step interval, matching Excel's exact bits.
+    let one_step = f64::from_bits(0x3fd3_65bd_64d3_5b62);
     exact(call("FORECAST.ETS.CONFINT", vec![n(6.0), values.clone(), times.clone()]), one_step);
     // Excel: 5.25 -> 0.1515423528969349, half of its own one-step interval.
     exact(call("FORECAST.ETS.CONFINT", vec![n(5.25), values.clone(), times.clone()]), one_step * 0.5);
@@ -6093,5 +6092,45 @@ fn forecast_ets_cycle_initialisation_periods_four_and_six() {
             let got = call("FORECAST.ETS", vec![n(target), y.clone(), t.clone(), n(period)]).unwrap().as_number().unwrap();
             assert!(((got - expected) / expected).abs() < 1e-12, "{period} {target}: {got} vs {expected}");
         }
+    }
+}
+
+/// Excel 20527 bit-exact bank pins (dc-iuwct.47): 2p sliding-window moving-average
+/// seasonal initialisation, j=0 recurrence from L0 - T0, final seasonal centring,
+/// factored class-1 variance and fractional forecast-variance interpolation.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn forecast_ets_sliding_ma_j0_and_variance_interpolation() {
+    let t = col(&[1.0, 2.0, 3.0, 4.0, 5.0]);
+    for (target, y, season, expected) in [
+        // bank2-more-FORECAST.ETS-0881 (was 1440 ULP gross), explicit period 2
+        (0x3fd5_4484_ce20_92a8_u64, [0x3ff1_0909_3072_ae4e_u64, 0x4003_e130_871e_32b6, 0x400a_07d6_ba9d_79b9, 0x4013_711d_ed41_69d7, 0x4017_1e35_de2c_f1fb], Some(2.0), 0xbf96_d99e_d230_3900_u64),
+        // bank2-more-FORECAST.ETS-0320 (was 112 ULP)
+        (0x3fb9_db39_86de_0f40, [0x3ff3_4321_3208_f454, 0x4005_c24d_60ad_4cd0, 0x400c_2b3b_2d0e_1038, 0x4011_d122_b7a8_7d1c, 0x4017_78c4_8351_5163], None, 0x3fbf_9569_887b_d670),
+        // bank2-scalar-FORECAST.ETS-0700 (pre-history, distinguishes pre-centred L0 and j=0)
+        (0x3fee_5874_edf9_2fe8, [0x3ff8_da33_16ba_b8f9, 0x4000_33f1_64a8_2778, 0x400e_4f69_1990_af08, 0x4011_5d2a_c380_e560, 0x4014_9e92_6dd7_9ba4], None, 0x3ff8_020f_5018_480f),
+        // bank2-scalar-FORECAST.ETS-0573 (nonseasonal pre-history, distinguishes j=0 in Model::run)
+        (0x3fe0_6147_de31_d092, [0x3ffe_ea96_6f4a_1f2b, 0x4005_76e5_f23e_92e7, 0x400f_5206_74f4_dbb3, 0x4012_ecfd_211b_f844, 0x4015_9f67_cb01_908e], Some(100.0), 0x3ff7_f976_aef7_707a),
+    ] {
+        let mut args = vec![n(f64::from_bits(target)), col(&y.map(f64::from_bits)), t.clone()];
+        if let Some(s) = season {
+            args.push(n(s));
+        }
+        exact(call("FORECAST.ETS", args), f64::from_bits(expected));
+    }
+    for (target, y, expected) in [
+        // bank2-more-FORECAST.ETS.CONFINT-1395 (was 294 ULP without pre-centred L0 + j=0)
+        (0x40ed_1da0_0000_0000_u64, [0x3ffe_97ba_73dd_5e10_u64, 0x4000_bad7_6161_cd2e, 0x400e_d669_50cb_bf0b, 0x4010_282d_4e8b_7c6f, 0x4017_4bbc_95f8_209b], 0x405d_0641_641b_ae9a_u64),
+        // bank2-scalar-FORECAST.ETS.CONFINT-0780 (integer horizon, factored variance)
+        (0x40e3_f940_0000_0000, [0x3ff3_e726_d6c1_bbbc, 0x4002_f9c0_034c_2c79, 0x400d_b346_9592_6f91, 0x4010_47e9_e882_3f43, 0x4015_1fee_db02_76f4], 0x40a4_4090_6fc0_36fa),
+        // bank2-more-FORECAST.ETS.CONFINT-0600 (nonseasonal fractional horizon variance lerp)
+        (0x4074_183c_9600_fab0, [0x3ffc_7a54_f53a_a6b2, 0x4007_fc1f_06e0_833e, 0x4009_6eb9_65f6_b0a8, 0x4010_c304_cac5_25ac, 0x4017_0c42_d0ed_4483], 0x4001_8313_26c7_6297),
+        // bank2-more-FORECAST.ETS.CONFINT-0960 (seasonal fractional horizon variance lerp)
+        (0x4064_efd9_c96c_cf38, [0x3ff3_406e_e300_82d6, 0x4002_2cc2_01ec_9c98, 0x400d_3608_dfaf_7662, 0x4010_96a4_e72b_a88e, 0x4016_406e_b788_b284], 0x4007_85f1_0bca_27ce),
+    ] {
+        exact(
+            call("FORECAST.ETS.CONFINT", vec![n(f64::from_bits(target)), col(&y.map(f64::from_bits)), t.clone()]),
+            f64::from_bits(expected),
+        );
     }
 }

@@ -523,15 +523,15 @@ impl Model {
         initial: Initial,
     ) -> Self {
         let mut model = Self {
-            level: initial.level,
+            level: initial.level - initial.trend,
             trend: initial.trend,
             seasons: initial.seasons,
             period: initial.period,
-            errors: vec![0.0],
-            predictions: vec![y[0]],
-            trends: Vec::with_capacity(y.len() - 1),
+            errors: Vec::with_capacity(y.len()),
+            predictions: Vec::with_capacity(y.len()),
+            trends: Vec::with_capacity(y.len().saturating_sub(1)),
         };
-        for (j, &v) in y.iter().enumerate().skip(1) {
+        for (j, &v) in y.iter().enumerate() {
             let q = j % model.period;
             let prediction = (model.level + model.trend) + model.seasons[q];
             let error = v - prediction;
@@ -544,7 +544,9 @@ impl Model {
                 model.trend += beta * error;
                 model.seasons[q] += initial.gamma * error;
             }
-            model.trends.push(model.trend);
+            if j >= 1 {
+                model.trends.push(model.trend);
+            }
         }
         model
     }
@@ -846,15 +848,16 @@ fn nonseasonal_fit(
             // A target inside the history extrapolates the final state
             // backwards (Touchstone, eng21): the same formula with h < 0.
             let phase = season_phase(y.len(), horizon, 2);
-            if general {
-                return finite(site, model.level + horizon * model.trend + model.seasons[phase as usize]);
-            }
             // Fresh midpoint questions distinguish the final seasonal addition
             // at PC64 followed by a binary64 store from strict binary64 addition.
-            site.number(crate::ported::excel_numeric::excel_x87_add(
+            let value = crate::ported::excel_numeric::excel_x87_add(
                 model.level + horizon * model.trend,
-                model.seasons[phase as usize],
-            ))
+                model.seasons[phase],
+            );
+            if general {
+                return finite(site, value);
+            }
+            site.number(value)
         }
         Output::Statistic => site.number(match statistic as u8 {
             1 => alpha,
@@ -863,34 +866,17 @@ fn nonseasonal_fit(
             4..=7 => statistics[statistic as usize - 4],
             _ => unreachable!(),
         }),
-        Output::Confidence => {
-            let h = horizon;
-            let k = ((h - 1.0) / 2.0).floor();
-            let g = f64::EPSILON;
-            // Excel forms 2h-1 in signed 32-bit arithmetic. At and above
-            // 2^30+1 it wraps; a negative resulting variance publishes zero.
-            let twice_h_minus_one = (h as i32).wrapping_mul(2).wrapping_sub(1) as f64;
-            let variance = 1.0
-                + (h - 1.0)
-                    * ((h * alpha * beta + h * twice_h_minus_one * beta * beta / 6.0)
-                        + alpha * alpha);
-            let variance = (variance + g * k * ((2.0 * alpha + g) + 2.0 * beta * (k + 1.0))).max(0.0);
-            let probability = (1.0 + confidence) / 2.0;
-            // Valid confidence immediately below one rounds this probability
-            // to one. Sixteen fresh selections identify the internal fallback.
-            let z = if probability == 1.0 {
-                1.0
-            } else {
-                crate::ported::normal_log_family::norm_s_inv_kernel(probability)
-                    .map_err(Exit::Error)?
-            };
-            // R40 independently certified product-midpoint questions identify
-            // the same PC64-then-binary64 publication used by the forecast.
-            site.number(crate::ported::excel_numeric::excel_x87_mul(
-                z,
-                ((squared_errors / y.len() as f64) * variance).sqrt(),
-            ))
-        }
+        Output::Confidence => confidence_interval(
+            site,
+            squared_errors / y.len() as f64,
+            alpha,
+            beta,
+            f64::EPSILON,
+            2,
+            horizon,
+            confidence,
+            general,
+        ),
         Output::Seasonality => unreachable!(),
     }
 }
@@ -899,6 +885,65 @@ fn nonseasonal_fit(
 /// horizons (targets inside the history) count backwards.
 fn season_phase(n: usize, horizon: f64, period: usize) -> usize {
     ((n as i64 - 1) + horizon as i64).rem_euclid(period as i64) as usize
+}
+
+/// Excel's closed-form class-1 additive-error variance factor at integer
+/// horizon `h` (32-bit wrapped `2h-1`; negative wrap clamps to zero).
+fn horizon_variance(h: f64, alpha: f64, beta: f64, gamma: f64, period: usize) -> f64 {
+    let k = ((h - 1.0) / period as f64).floor();
+    let p = period as f64;
+    let twice_h_minus_one = (h as i32).wrapping_mul(2).wrapping_sub(1) as f64;
+    let variance = 1.0
+        + (h - 1.0)
+            * ((h * alpha * beta + h * twice_h_minus_one * beta * beta / 6.0) + alpha * alpha);
+    (variance + gamma * k * ((2.0 * alpha + gamma) + p * beta * (k + 1.0))).max(0.0)
+}
+
+/// Publish a FORECAST.ETS.CONFINT value at integer or fractional horizon `h`.
+/// Fractional horizons linearly interpolate the forecast error variance
+/// `mse * horizon_variance(...)` between floor(h) (zero at 0) and floor(h) + 1
+/// before taking sqrt and the PC64-stored product with `z`.
+#[allow(clippy::too_many_arguments)]
+fn confidence_interval(
+    site: &Site<'_>,
+    mse: f64,
+    alpha: f64,
+    beta: f64,
+    gamma: f64,
+    period: usize,
+    horizon: f64,
+    confidence: f64,
+    require_finite: bool,
+) -> Step<CalcValue> {
+    let forecast_variance = if horizon.fract() == 0.0 {
+        mse * horizon_variance(horizon, alpha, beta, gamma, period)
+    } else {
+        let lower = horizon.floor();
+        let fraction = horizon - lower;
+        let high = mse * horizon_variance(lower + 1.0, alpha, beta, gamma, period);
+        if lower == 0.0 {
+            high * fraction
+        } else {
+            let low = mse * horizon_variance(lower, alpha, beta, gamma, period);
+            low + (high - low) * fraction
+        }
+    };
+    let probability = (1.0 + confidence) / 2.0;
+    // Valid confidence immediately below one rounds this probability
+    // to one. Sixteen fresh selections identify the internal fallback.
+    let z = if probability == 1.0 {
+        1.0
+    } else {
+        crate::ported::normal_log_family::norm_s_inv_kernel(probability).map_err(Exit::Error)?
+    };
+    // R40 independently certified product-midpoint questions identify
+    // the same PC64-then-binary64 publication used by the forecast.
+    let value = crate::ported::excel_numeric::excel_x87_mul(z, forecast_variance.sqrt());
+    if require_finite {
+        finite(site, value)
+    } else {
+        site.number(value)
+    }
 }
 
 /// A calculated result; a non-finite one is Excel's overflow error.
@@ -1207,25 +1252,17 @@ const SHORT_TWO_PARAMETERS: &[(f64, f64, f64)] = &[
 ];
 
 /// Excel's seasonal initial states for any history of at least two cycles
-/// (eng23: identified exactly from 64 initial-state tables solved from
-/// Touchstone fitted values, p = 2..8, n = 2p..25; every table agrees to
-/// 1e-13, including the p = 7, 8 tables that took no part in finding it).
-/// eng21's four-cycle chain is the complete-cycle case of the same rule:
+/// (eng23 rational tables; cb4/nx3 bit-exact arithmetic):
 /// - a history shorter than N0 = ceil(3.5 p) is first extended to N0 points:
-///   e_j = y_(j mod p) + (j - j mod p) tau, tau the mean over the phases of
-///   each phase's least-squares slope against its positions;
-/// - the working length is m = min(len, 5p); its phase means A_q run over the
-///   m - 2p positions starting at the pivot c = p/2 - 1 (integer division);
-/// - tau_i, phase i's slope from its first two to its last two occurrences
-///   in the working length;
-/// - from s_c = 0 the chain runs c, c+1, ..., wrapping; step i (phase r to
-///   r+1) adds A_(r+1) - A_r - tau_i. Where the window ends inside a cycle the
-///   phase after the cut has one value fewer; that step also subtracts a
-///   cycle trend from the k = m / p last complete cycles, ending at the last
-///   working position: (C_0 - C_2)/4 for k = 3, (C_0 + 2C_1 - C_2 - 2C_3)/12
-///   for k = 4 (cycle means C);
-/// - level+index of phase zero is the first observation; the trend is the
-///   least-squares slope of the deseasonalised (extended) history.
+///   e_j = y_(j mod p) + (j - j mod p) tau, with tau the mean over the phases of
+///   each phase's 1-indexed raw-moment least-squares slope divided by p^2;
+/// - over the working length m = min(len, 5p), a subtract-first 2p-point
+///   sliding moving average T_t (t = 0..m-2p) detrends e_(t + pivot) where
+///   pivot = p/2 - 1; each phase's raw index is the mean of e_pos - T_t;
+/// - the raw indices are centred by their mean c, shifting initial level
+///   (y_0 - raw_0) + c and seasons_q = raw_q - c;
+/// - the initial trend is the least-squares slope of the deseasonalised
+///   (extended) history e_j - seasons_(j mod p).
 /// Returns the initial states and the (extended) history.
 fn excel_seasonal_initial(y: &[f64], period: usize) -> (Initial, Vec<f64>) {
     let p = period;
@@ -1235,71 +1272,48 @@ fn excel_seasonal_initial(y: &[f64], period: usize) -> (Initial, Vec<f64>) {
         let n = y.len();
         let mut tau = 0.0;
         for q in 0..p {
-            let positions: Vec<usize> = (q..n).step_by(p).collect();
-            let slope = if positions.len() <= 3 {
-                let last = *positions.last().unwrap();
-                (y[last] - y[q]) / (last - q) as f64
-            } else {
-                let center = positions.iter().sum::<usize>() as f64 / positions.len() as f64;
-                let (mut sxy, mut sxx) = (0.0, 0.0);
-                for &t in &positions {
-                    let dx = t as f64 - center;
-                    sxy += dx * y[t];
-                    sxx += dx * dx;
-                }
-                sxy / sxx
-            };
-            tau += slope;
+            let phase: Vec<f64> = (q..n).step_by(p).map(|i| y[i]).collect();
+            tau += regression_slope(&phase);
         }
-        tau /= p as f64;
+        tau /= (p * p) as f64;
         for j in n..start {
             e.push(y[j % p] + (j - j % p) as f64 * tau);
         }
     }
     let m = e.len().min(5 * p);
+    let w = 2 * p;
+    let len = m - w;
     let pivot = p / 2 - 1;
-    let window = pivot..pivot + m - 2 * p;
-    let mut means = vec![0.0; p];
-    let mut counts = vec![0usize; p];
+    let mut sum = 0.0;
+    for &v in &e[..w] {
+        sum += v;
+    }
+    let mut trend = Vec::with_capacity(len);
+    trend.push(sum / w as f64);
+    for t in 1..len {
+        sum = (sum - e[t - 1]) + e[t + w - 1];
+        trend.push(sum / w as f64);
+    }
+    let mut phase_sum = vec![0.0; p];
+    let mut phase_cnt = vec![0usize; p];
+    for (t, &tr) in trend.iter().enumerate() {
+        let pos = t + pivot;
+        let q = pos % p;
+        phase_sum[q] += e[pos] - tr;
+        phase_cnt[q] += 1;
+    }
+    let mut raw = Vec::with_capacity(p);
+    let mut center = 0.0;
     for q in 0..p {
-        let positions = window.clone().filter(|t| t % p == q);
-        let (mut total, mut count) = (0.0, 0);
-        for t in positions {
-            total += e[t];
-            count += 1;
-        }
-        means[q] = total / count as f64;
-        counts[q] = count;
+        let mean = phase_sum[q] / phase_cnt[q] as f64;
+        raw.push(mean);
+        center += mean;
     }
-    let slope = |q: usize| {
-        let occurrences = (m - q).div_ceil(p);
-        let late = e[q + (occurrences - 2) * p] + e[q + (occurrences - 1) * p];
-        let early = e[q] + e[p + q];
-        (late - early) / 2.0 / ((occurrences - 2) * p) as f64
-    };
-    let cycles = m / p;
-    let first = m - cycles * p;
-    let cycle = |k: usize| e[first + k * p..first + (k + 1) * p].iter().sum::<f64>() / p as f64;
-    let cut = match cycles {
-        3 => (cycle(0) - cycle(2)) / 4.0,
-        4 => (cycle(0) + 2.0 * cycle(1) - cycle(2) - 2.0 * cycle(3)) / 12.0,
-        _ => 0.0,
-    };
-    let mut chain = vec![0.0; p];
-    for i in 0..p - 1 {
-        let r = (pivot + i) % p;
-        let next = (r + 1) % p;
-        let step = if counts[next] == counts[r] { slope(i) } else { slope(i) + cut };
-        chain[next] = chain[r] + (means[next] - means[r]) - step;
-    }
-    let mut seasons: Vec<f64> = chain.iter().map(|v| v - chain[0]).collect();
-    if p == 2 && e.len() == 7 {
-        // The same index in the arithmetic that matches Excel's bits on the
-        // five-point bank rows (eng21: 6 FORECAST.ETS and 7 CONFINT rows more).
-        seasons[1] = -0.375 * e[0] + 0.875 * e[1] - 0.5 * e[2] - 0.125 * e[4] + 0.125 * e[5];
-    }
+    center /= p as f64;
+    let seasons: Vec<f64> = raw.iter().map(|&v| v - center).collect();
     let adjusted: Vec<f64> = e.iter().enumerate().map(|(j, &v)| v - seasons[j % p]).collect();
-    let initial = Initial { level: y[0], trend: regression_slope(&adjusted), seasons, period, gamma: 0.0 };
+    let level = (y[0] - raw[0]) + center;
+    let initial = Initial { level, trend: regression_slope(&adjusted), seasons, period, gamma: 0.0 };
     (initial, e)
 }
 
@@ -1351,6 +1365,11 @@ fn seasonal_general(
         model.trend = initial.trend;
         beta = 0.001;
     }
+    let center = model.seasons.iter().fold(0.0, |sum, &v| sum + v) / period as f64;
+    model.level += center;
+    for season in &mut model.seasons {
+        *season -= center;
+    }
     match output {
         Output::Statistic => {
             let statistics = model.statistics(y);
@@ -1364,29 +1383,25 @@ fn seasonal_general(
         }
         Output::Forecast => {
             let phase = season_phase(y.len(), horizon, period);
-            finite(site, model.level + horizon * model.trend + model.seasons[phase as usize])
+            finite(
+                site,
+                crate::ported::excel_numeric::excel_x87_add(
+                    model.level + horizon * model.trend,
+                    model.seasons[phase],
+                ),
+            )
         }
-        Output::Confidence => {
-            // Additive-error class-1 variance: one plus the squared sum of the
-            // smoothing weights carried to each intermediate horizon j < h.
-            let h = horizon;
-            let steps = (h - 1.0).max(0.0);
-            let cycles = (steps / period as f64).floor();
-            let p = period as f64;
-            let variance = 1.0
-                + steps * alpha * alpha
-                + 2.0 * alpha * beta * steps * h / 2.0
-                + beta * beta * steps * h * (2.0 * h - 1.0) / 6.0
-                + cycles * gamma * (gamma + 2.0 * alpha)
-                + 2.0 * gamma * beta * p * cycles * (cycles + 1.0) / 2.0;
-            let probability = (1.0 + confidence) / 2.0;
-            let z = if probability == 1.0 {
-                1.0
-            } else {
-                crate::ported::normal_log_family::norm_s_inv_kernel(probability).map_err(Exit::Error)?
-            };
-            finite(site, z * ((model.squared_errors() / y.len() as f64) * variance.max(0.0)).sqrt())
-        }
+        Output::Confidence => confidence_interval(
+            site,
+            model.squared_errors() / y.len() as f64,
+            alpha,
+            beta,
+            gamma,
+            period,
+            horizon,
+            confidence,
+            true,
+        ),
         Output::Seasonality => unreachable!(),
     }
 }
@@ -1642,29 +1657,30 @@ pub(super) fn evaluate(
     if matches!(output, Output::Forecast | Output::Confidence) && horizon.fract() != 0.0 {
         let lower_horizon = horizon.floor();
         let fraction = horizon - lower_horizon;
-        // The interval is NUM at the last timestamp itself, and its square
-        // grows from zero across the first step (Touchstone, eng21).
+        // The interval is NUM at the last timestamp itself, and its forecast
+        // variance grows linearly from zero across the first step.
         if output == Output::Confidence && lower_horizon == 0.0 {
             if fraction <= 0.001 {
                 return fail(WorksheetErrorCode::Num);
             }
-            if 1.0 - fraction > 0.001 {
-                let upper = match evaluate_fitted(site, &series, output, statistic, confidence, season, 1.0)?.core_ref() {
-                    CoreRef::Number(v) => v,
-                    _ => return Err(unfinished(site)),
-                };
-                return finite(site, upper * fraction.sqrt());
+            if 1.0 - fraction <= 0.001 {
+                return evaluate_fitted(site, &series, output, statistic, confidence, season, 1.0);
             }
+            return evaluate_fitted(site, &series, output, statistic, confidence, season, horizon);
         }
-        // Excel snaps targets within 0.001 of a timeline point; otherwise it
-        // interpolates the two fitted forecasts with stored x87 operations.
+        // Excel snaps targets within 0.001 of a timeline point; otherwise
+        // FORECAST.ETS interpolates the two fitted forecasts with stored x87
+        // operations and CONFINT interpolates the forecast error variance.
         if fraction <= 0.001 {
             return evaluate_fitted(site, &series, output, statistic, confidence, season, lower_horizon);
         }
         if 1.0 - fraction <= 0.001 {
             return evaluate_fitted(site, &series, output, statistic, confidence, season, lower_horizon + 1.0);
         }
-        if output == Output::Forecast && horizon < 0.0 {
+        if output == Output::Confidence {
+            return evaluate_fitted(site, &series, output, statistic, confidence, season, horizon);
+        }
+        if horizon < 0.0 {
             // Inside the history Excel anchors at the later timestamp and
             // uses the slope of the interval after it, in binary64, as it
             // does before the first timestamp (Touchstone, eng21).
@@ -1685,12 +1701,6 @@ pub(super) fn evaluate(
             (CoreRef::Number(lower), CoreRef::Number(upper)) => (lower, upper),
             _ => return Err(unfinished(site)),
         };
-        if output == Output::Confidence {
-            // Touchstone (eng21): the interval's square, the forecast
-            // variance, is interpolated linearly between the two horizons.
-            let (low, high) = (lower * lower, upper * upper);
-            return finite(site, (low + (high - low) * fraction).sqrt());
-        }
         use crate::ported::excel_numeric::{excel_x87_add, excel_x87_mul, excel_x87_sub};
         let difference = excel_x87_sub(upper, lower);
         let increment = excel_x87_mul(difference, fraction);
