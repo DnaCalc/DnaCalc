@@ -622,19 +622,20 @@ fn reroute(host: &HostState, sheet: SheetId, shapes: &mut [Shape], index: usize,
     if let Some(p) = end_point(c.end) {
         end = p;
     }
-    // An elbow glued at both ends keeps its route while that still leaves the start and reaches the end the way the
-    // sites face; otherwise it takes the class and turn that do (`elbow_route`).
+    // An elbow or curved connector glued at both ends keeps its route while that still leaves the start and reaches the
+    // end the way the sites face; otherwise it takes the class and turn that do (`elbow_route`). Curved connectors follow
+    // the same site/turn rule as bent connectors (ASSUMED until measured in Excel; dc-zjsg.5).
     let mut new_class = None;
     if let (Some(a), Some(b)) = (c.begin, c.end) {
         let exit = |connection: calc_doc_model::ShapeConnection| {
             let target = shapes.iter().position(|s| s.id == connection.shape)?;
             site_exit(&shapes[target], rectangle(host, sheet, shapes, target, originals), connection.site)
         };
-        if let (Some(d1), Some(d2), Some(class)) = (exit(a), exit(b), c.geometry.as_deref().and_then(elbow_class)) {
+        if let (Some(d1), Some(d2), Some((prefix, class))) = (exit(a), exit(b), c.geometry.as_deref().and_then(elbow_class)) {
             let adjust = |name: &str| c.adjust.iter().find(|(n, _)| n == name).map_or(0.5, |(_, v)| *v as f64 / 100_000.0);
             let current = [adjust("adj1"), adjust("adj2"), adjust("adj3")];
             if let Some((class, rot, changed)) = elbow_route(start, end, d1, d2, class, rotation, current) {
-                new_class = changed.map(|a| (class, a));
+                new_class = changed.map(|a| (prefix, class, a));
                 rotation = rot;
             }
         }
@@ -650,17 +651,22 @@ fn reroute(host: &HostState, sheet: SheetId, shapes: &mut [Shape], index: usize,
     let c = &mut shapes[index];
     set_place(host, sheet, c, stored, anchor);
     c.rotation = rotation;
-    if let Some((class, a)) = new_class {
-        c.geometry = Some(format!("bentConnector{class}"));
+    if let Some((prefix, class, a)) = new_class {
+        c.geometry = Some(format!("{prefix}{class}"));
         c.adjust = (1..class.saturating_sub(1)).map(|i| (format!("adj{i}"), (a[i as usize - 1] * 100_000.0).round() as i64)).collect();
     }
     c.flip_horizontal = d.0 < 0.0;
     c.flip_vertical = d.1 < 0.0;
 }
 
-/// The class (2 to 5) of an elbow connector's preset name.
-fn elbow_class(geometry: &str) -> Option<u32> {
-    geometry.strip_prefix("bentConnector")?.parse().ok().filter(|k| (2..=5).contains(k))
+/// The preset family (`"bentConnector"` or `"curvedConnector"`) and class (2 to 5) of a routed connector's preset name.
+fn elbow_class(geometry: &str) -> Option<(&'static str, u32)> {
+    for prefix in ["bentConnector", "curvedConnector"] {
+        if let Some(rest) = geometry.strip_prefix(prefix) {
+            return rest.parse().ok().filter(|k| (2..=5).contains(k)).map(|k| (prefix, k));
+        }
+    }
+    None
 }
 
 /// The path of an elbow connector of `class` in its own frame (start at the origin, end at (w, h)); `a` are its three

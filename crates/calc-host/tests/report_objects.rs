@@ -1347,6 +1347,50 @@ fn dw3_dc_zjsg_5__an_elbow_changes_class_when_the_route_needs_it() {
     assert_eq!((read.geometry, read.rotation, read.begin, read.end), (c.geometry, c.rotation, c.begin, c.end));
 }
 
+/// dc-zjsg.5 (dw4): curved connectors (curvedConnector2..5) follow the same route-class and turn rules as elbow
+/// connectors when glued shapes move (curved preset names kept; Excel's curved-connector detour values ASSUMED
+/// analogous to bentConnector until measured on Windows).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dw4_dc_zjsg_5__a_curved_connector_changes_class_and_turn_when_rerouted() {
+    let mut book = open(calc_host::blank_package());
+    let sheet = book.host().sheets()[0].id();
+    shape(&mut book, sheet, add(ShapeKind::Shape, "rect", 20.0, 20.0, 100.0, 50.0));
+    shape(&mut book, sheet, add(ShapeKind::Shape, "rect", 220.0, 160.0, 100.0, 50.0));
+    shape(&mut book, sheet, add(ShapeKind::Connector, "curvedConnector3", 10.0, 10.0, 10.0, 10.0));
+    // A rectangle's sites (1-based): top, left, bottom, right.
+    shape(&mut book, sheet, ShapeChange::Connect { id: 4, begin: true, shape: 2, site: 4 });
+    shape(&mut book, sheet, ShapeChange::Connect { id: 4, begin: false, shape: 3, site: 1 });
+    let connector = |b: &HostSession, id: u32| b.host().shapes(sheet).iter().find(|s| s.id == id).unwrap().clone();
+    let c = connector(&book, 4);
+    assert_eq!((c.geometry.as_deref(), c.rotation), (Some("curvedConnector2"), 0));
+    let (l, t, w, h) = book.host().anchor_rectangle(sheet, &c.anchor);
+    assert_eq!((l.round(), t.round(), w.round(), h.round()), (120.0, 45.0, 150.0, 115.0));
+    let mut book = reopened(&mut book);
+    shape(&mut book, sheet, ShapeChange::Place { id: 3, left: Some(pts(20.0)), top: None, width: None, height: None });
+    let c = connector(&book, 4);
+    assert_eq!((c.geometry.as_deref(), c.rotation), (Some("curvedConnector4"), 0));
+    assert_eq!(c.adjust.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>(), ["adj1", "adj2"]);
+    assert!(c.adjust[0].1 < 0 && c.adjust[1].1 == 50_000, "{:?}", c.adjust);
+    let again = reopened(&mut book);
+    let read = connector(&again, 4);
+    assert_eq!((read.geometry, read.rotation, read.adjust, read.begin, read.end), (c.geometry, c.rotation, c.adjust, c.begin, c.end));
+
+    // Turned curvedConnector3 (bottom -> top, rot 90): moving the lower shape right turns 90 -> 270 with flipH.
+    let mut book = open(calc_host::blank_package());
+    let sheet = book.host().sheets()[0].id();
+    shape(&mut book, sheet, add(ShapeKind::Shape, "rect", 20.0, 120.0, 100.0, 50.0));
+    shape(&mut book, sheet, add(ShapeKind::Shape, "rect", 20.0, 260.0, 100.0, 50.0));
+    shape(&mut book, sheet, add(ShapeKind::Connector, "curvedConnector3", 10.0, 10.0, 10.0, 10.0));
+    shape(&mut book, sheet, ShapeChange::Rotate { id: 4, rotation: 90 * 60_000 });
+    shape(&mut book, sheet, ShapeChange::Connect { id: 4, begin: true, shape: 2, site: 3 });
+    shape(&mut book, sheet, ShapeChange::Connect { id: 4, begin: false, shape: 3, site: 1 });
+    let mut stored = reopened(&mut book);
+    shape(&mut stored, sheet, ShapeChange::Place { id: 3, left: Some(pts(200.0)), top: None, width: None, height: None });
+    let c = connector(&stored, 4);
+    assert_eq!((c.geometry.as_deref(), c.rotation, c.flip_horizontal, c.flip_vertical), (Some("curvedConnector3"), 270 * 60_000, true, false));
+}
+
 /// dc-zjsg.4 (dw3): a stored object edited after rows were inserted in the same session: the edit is made where the
 /// object is now (rows down), a new shape is placed in the now-current sheet, and the saved file holds each where the
 /// session shows it.
