@@ -988,7 +988,7 @@ fn category_marks(
                         } else {
                             // A column's label sits past its end (outEnd) unless the file puts it inside (Excel's default,
                             // dw2 Windows item 8), at the middle or at the base.
-                            let y = match series.labels.as_ref().and_then(|l| l.position.as_deref()).or(if plot.stacked { Some("ctr") } else { None }) {
+                            let y = match label_position(series, j).or(if plot.stacked { Some("ctr") } else { None }) {
                                 Some("inEnd") => if v >= 0. { to + 12. } else { to - 4. },
                                 Some("ctr") => (to + from) / 2. + 4.,
                                 Some("inBase") => if v >= 0. { from - 4. } else { from + 12. },
@@ -1844,7 +1844,7 @@ fn pie_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: &Area) 
         svg.push_str("/>");
         // The slice's label (dc-zjsg.6): inside at its middle, or past its edge for `outEnd` (bestFit ASSUMED inside).
         if let Some(text) = label_text(series, j, v, Some(v / total), &series.name) {
-            let reach = match series.labels.as_ref().and_then(|l| l.position.as_deref()) {
+            let reach = match label_position(series, j) {
                 Some("outEnd") => r + 12.0,
                 Some("ctr") => (r + hole) / 2.0,
                 Some("inEnd") => r * 0.8,
@@ -1862,6 +1862,17 @@ fn pie_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: &Area) 
         angle += sweep;
     }
     svg.push_str(&labels);
+}
+
+/// The `dLblPos` for point `j` of `series`: the point's own `<c:dLbl><c:dLblPos>` when present, else the series'
+/// `<c:dLbls><c:dLblPos>` (dc-zjsg.6).
+fn label_position<'a>(series: &'a calc_host::chart::SeriesView, j: usize) -> Option<&'a str> {
+    let all = series.labels.as_ref()?;
+    all.points
+        .iter()
+        .find(|(idx, _)| *idx as usize == j)
+        .and_then(|(_, own)| own.position.as_deref())
+        .or(all.position.as_deref())
 }
 
 /// A point's data label as the series' `dLbls` composes it (dc-zjsg.6): its series name, category, value and (in a
@@ -2205,6 +2216,71 @@ mod tests {
         assert_eq!(count(&ohlc, "<rect data-dnacalc=\"chart-mark\""), 5);
         // Mon opens 10, closes 16: an up (white) box; Tue opens 12, closes 12 (equal: up).
         assert!(ohlc.contains("fill=\"#FFFFFF\""));
+    }
+
+    /// dc-zjsg.6 (dw4): a per-point `<c:dLbl>` uses its own `dLblPos` when present on both column and pie charts,
+    /// leaving other points on the series position.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dw4_dc_zjsg_6__per_point_dlbl_uses_own_dlbl_pos() {
+        use calc_host::{HostOptions, HostSession, MemorySource, OpenPolicy, PackageRead, SkinIntent};
+        use std::sync::Arc;
+        let bytes = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/chart-kinds.xlsx");
+        let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes.to_vec()));
+        let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+        assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        let (charts, _) = book.host().charts(book.host().sheets()[0].id());
+        let attr = |tag: &str, name: &str| -> f64 {
+            let needle = format!("{name}=\"");
+            tag.split(&needle).nth(1).unwrap().split('"').next().unwrap().parse().unwrap()
+        };
+        let label_tag = |svg: &str, kind: &str, point: usize| -> String {
+            let needle = format!("data-dnacalc=\"{kind}\"");
+            let pt = format!("data-point=\"{point}\"");
+            svg.split('<')
+                .find(|t| t.starts_with("text ") && t.contains(&needle) && t.contains(&pt))
+                .unwrap_or_else(|| panic!("missing {kind} point {point} in {svg}"))
+                .to_owned()
+        };
+
+        // Column: equal values, point 0 has its own dLblPos="inBase" while point 1 uses the series default outEnd.
+        let mut col = charts.iter().find(|c| c.name == "Column labels").unwrap().clone();
+        col.plots[0].series[0].values = vec![Some(10.0), Some(10.0)];
+        let mut series_labels = col.plots[0].series[0].labels.clone().unwrap();
+        series_labels.value = true;
+        series_labels.series = false;
+        series_labels.category = false;
+        series_labels.percent = false;
+        series_labels.position = None;
+        series_labels.points.clear();
+        let mut own = series_labels.clone();
+        own.position = Some("inBase".into());
+        series_labels.points.push((0, own));
+        col.plots[0].series[0].labels = Some(series_labels);
+        let col_svg = chart_svg(&col, 600., 350.);
+        let y0 = attr(&label_tag(&col_svg, "chart-value-label", 0), "y");
+        let y1 = attr(&label_tag(&col_svg, "chart-value-label", 1), "y");
+        assert!(y0 > y1 + 40.0, "expected point 0 (inBase) well below point 1 (outEnd): y0={y0}, y1={y1}");
+
+        // Pie: equal slices, point 0 has its own dLblPos="outEnd" while point 1 stays on series bestFit.
+        let mut pie = charts.iter().find(|c| c.name == "Pie labels").unwrap().clone();
+        pie.plots[0].series[0].values = vec![Some(10.0), Some(10.0)];
+        let mut pie_labels = pie.plots[0].series[0].labels.clone().unwrap();
+        pie_labels.value = true;
+        pie_labels.category = false;
+        pie_labels.percent = false;
+        pie_labels.position = Some("bestFit".into());
+        pie_labels.points.clear();
+        let mut pie_own = pie_labels.clone();
+        pie_own.position = Some("outEnd".into());
+        pie_labels.points.push((0, pie_own));
+        pie.plots[0].series[0].labels = Some(pie_labels);
+        let pie_svg = chart_svg(&pie, 600., 350.);
+        let t0 = label_tag(&pie_svg, "chart-data-label", 0);
+        let t1 = label_tag(&pie_svg, "chart-data-label", 1);
+        assert!(t0.contains("text-anchor=\"start\"") || t0.contains("text-anchor=\"end\""), "expected outEnd anchor on point 0: {t0}");
+        assert!(t1.contains("text-anchor=\"middle\""), "expected inside anchor on point 1: {t1}");
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
