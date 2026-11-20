@@ -5584,7 +5584,7 @@ mod outline_tests {
         assert_eq!((by(&drawn, "Scroll Bar 6").value, by(&drawn, "Spinner 7").value), (30, 5));
         // A click writes the linked cell through the ordinary edit; the next answer shows it.
         use dna_calc_model::controls::{ControlAction, control_action};
-        let mut click = |server: &mut Server, control: &dna_calc_model::controls::DrawnControl, act: &str, index: Option<usize>| {
+        let click = |server: &mut Server, control: &dna_calc_model::controls::DrawnControl, act: &str, index: Option<usize>| {
             let Some(ControlAction::Write(at, text)) = control_action(control, act, index) else { panic!("a write") };
             assert!(server.execute_current(Request::Intent(Intent::EnterCell { at, text }), None).reply.is_ok());
         };

@@ -43,6 +43,23 @@ pub struct ChartData {
     pub numeric: bool,
 }
 
+/// One `c:trendline` of a series (dc-zjsg.6), as the file states it.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct ChartTrendline {
+    /// `trendlineType`: `linear`, `exp`, `log`, `poly`, `power` or `movingAvg`.
+    pub kind: String,
+    /// `order` of a polynomial (2 to 6), `period` of a moving average.
+    pub order: Option<u32>,
+    pub period: Option<u32>,
+    /// `forward` and `backward`: how far past the data it is drawn, in x units; `intercept`: where it is held to
+    /// cross the value axis.
+    pub forward: Option<String>,
+    pub backward: Option<String>,
+    pub intercept: Option<String>,
+    /// Its line's `a:solidFill` colour (`RRGGBB` or a scheme colour's name).
+    pub colour: Option<String>,
+}
+
 /// One `c:ser`.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ChartSeries {
@@ -59,6 +76,8 @@ pub struct ChartSeries {
     pub values: Option<ChartData>,
     /// A bubble series' `c:bubbleSize` (dc-zjsg.6).
     pub bubble_sizes: Option<ChartData>,
+    /// The series' `c:trendline`s (dc-zjsg.6).
+    pub trendlines: Vec<ChartTrendline>,
     /// The series' fill (`c:spPr/a:solidFill`): `RRGGBB` (`a:srgbClr`) or a scheme colour's name
     /// (`a:schemeClr`, e.g. `accent2`).
     pub fill: Option<String>,
