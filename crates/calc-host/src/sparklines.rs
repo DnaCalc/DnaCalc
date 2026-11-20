@@ -1,8 +1,9 @@
 //! A sheet's sparklines with their values now (dc-zjsg.7): each group as the file states it, and each sparkline's
 //! cell and the numbers of its data range, read as a chart series reads its data (the reference rewritten through
 //! the session's row and column inserts and deletes, then evaluated). A value that is not a number (text, an
-//! error, a blank cell) is an empty point. Not modelled yet: a date axis's spacing (points are evenly spaced) and
-//! leaving out values in hidden rows and columns.
+//! error, a blank cell) is an empty point. A value in a hidden row or column is left out unless the group shows
+//! hidden cells (`displayHidden`), as Excel leaves out a chart's hidden points; on a date axis each point stands at
+//! its date (the group's own date range, read the same way), a point without a date left out.
 
 use crate::state::HostState;
 use calc_doc_model::value::{CellKey, CoreRef, SheetId};
@@ -17,6 +18,8 @@ fn sheet_of(area: calc_doc_model::value::GridArea) -> SheetId {
 pub struct SparklineView {
     pub cell: CellKey,
     pub values: Vec<Option<f64>>,
+    /// On a date axis, the date each value stands at (the same length as `values`); empty otherwise.
+    pub dates: Vec<Option<f64>>,
 }
 
 impl HostState {
@@ -49,16 +52,18 @@ impl HostState {
                         if let crate::ReferenceTarget::Area(data) = self.resolve_reference_text(cell, &data_text)
                             && data.cell_count() <= 10_000
                         {
-                            let (first, last) = (data.first(), data.last());
-                            let values = (first.row()..=last.row())
-                                .flat_map(|row| (first.column()..=last.column()).map(move |column| (row, column)))
-                                .filter_map(|(row, column)| CellKey::new(sheet_of(data), row, column).ok())
-                                .map(|at| match crate::conditional::cell_value(self, at).as_ref().map(|v| v.core_ref()) {
-                                    Some(CoreRef::Number(n)) => Some(n),
-                                    _ => None,
-                                })
-                                .collect();
-                            return Some(SparklineView { cell, values });
+                            let mut values = self.sparkline_numbers(data, group.hidden);
+                            let mut dates = Vec::new();
+                            if group.date_axis
+                                && let Some(text) = group.dates.as_deref()
+                                && let crate::ReferenceTarget::Area(range) = self.resolve_reference_text(cell, &self.current_reference(text, sheet))
+                                && range.cell_count() <= 10_000
+                            {
+                                dates = self.sparkline_numbers(range, group.hidden);
+                                dates.resize(values.len(), None);
+                                values.truncate(dates.len());
+                            }
+                            return Some(SparklineView { cell, values, dates });
                         }
                         let data = ChartData { formula: Some(line.data.clone()), cache: Vec::new(), numeric: true };
                         let (values, cached) = self.data_values(&data, cell);
@@ -73,10 +78,30 @@ impl HostState {
                                 })
                                 .collect()
                         };
-                        Some(SparklineView { cell, values })
+                        Some(SparklineView { cell, values, dates: Vec::new() })
                     })
                     .collect();
                 (group.clone(), views)
+            })
+            .collect()
+    }
+}
+
+impl HostState {
+    /// The numbers of `area` cell by cell in reading order (anything else an empty point), the cells of hidden rows
+    /// and columns left out unless `hidden` (the group's `displayHidden`).
+    fn sparkline_numbers(&self, area: calc_doc_model::value::GridArea, hidden: bool) -> Vec<Option<f64>> {
+        let sheet = sheet_of(area);
+        let layouts = self.model.definitions().axis_layouts();
+        let shown = |axis, index| hidden || !layouts.get(sheet, axis, index).hidden();
+        let (first, last) = (area.first(), area.last());
+        (first.row()..=last.row())
+            .filter(|&row| shown(calc_doc_model::Axis::Rows, row))
+            .flat_map(|row| (first.column()..=last.column()).filter(move |&c| shown(calc_doc_model::Axis::Columns, c)).map(move |column| (row, column)))
+            .filter_map(|(row, column)| CellKey::new(sheet, row, column).ok())
+            .map(|at| match crate::conditional::cell_value(self, at).as_ref().map(|v| v.core_ref()) {
+                Some(CoreRef::Number(n)) => Some(n),
+                _ => None,
             })
             .collect()
     }

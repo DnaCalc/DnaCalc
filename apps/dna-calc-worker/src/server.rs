@@ -4608,7 +4608,18 @@ impl Server {
                     continue;
                 };
                 let flagged = |on: bool, name: &str| if on { colour(name) } else { None };
+                // On a date axis, each point's share of the way from the earliest date to the latest.
+                let dated = finite(&line.dates);
+                let positions = match (extreme(&dated, false), extreme(&dated, true)) {
+                    (Some(first), Some(last)) => line
+                        .dates
+                        .iter()
+                        .map(|d| d.filter(|d| d.is_finite()).map(|d| if last > first { (d - first) / (last - first) } else { 0.5 }))
+                        .collect(),
+                    _ => Vec::new(),
+                };
                 out.push(dna_calc_model::sparklines::DrawnSparkline {
+                    positions,
                     cell: Key::of(line.cell),
                     kind: group.kind.clone().unwrap_or_else(|| "line".into()),
                     values: line.values,
@@ -5532,8 +5543,11 @@ mod outline_tests {
         let Reply::Sparklines(lines) = server.execute_current(Request::Sparklines(Sheet::of(sheet)), None).reply.unwrap() else {
             panic!("the sparklines reply")
         };
-        assert_eq!(lines.len(), 6);
+        assert_eq!(lines.len(), 7);
         let at = |row: u32| lines.iter().find(|l| l.cell.2 == row).unwrap_or_else(|| panic!("row {row}"));
+        // F8: on a date axis, each point at its date's share of 45000..45008 (dc-zjsg.7).
+        assert_eq!(at(8).positions, vec![Some(0.0), Some(0.125), Some(0.5), Some(0.625), Some(1.0)]);
+        assert!(at(2).positions.is_empty());
         // F2: a line over A2:E2, its own axis, accent 1 tint -0.5 as a cell colour takes it (203764), markers, high and low.
         let f2 = at(2);
         assert_eq!((f2.kind.as_str(), f2.values.clone()), ("line", vec![Some(3.0), Some(5.0), Some(2.0), Some(8.0), Some(6.0)]));
@@ -5557,6 +5571,14 @@ mod outline_tests {
         let f2 = lines.iter().find(|l| l.cell.2 == 2).unwrap();
         assert_eq!((f2.values[0], f2.max), (Some(20.0), 20.0));
         assert!(dna_calc_model::sparklines::sparkline_svg(f2, 64.0, 20.0, 1.0).contains("<circle"));
+        // Column B hidden: its value is left out of F2, as the group does not show hidden cells.
+        assert!(server.execute_current(Request::Intent(Intent::AxisFormat { sheet: Sheet::of(sheet), rows: false, first: 2, count: 1, size_bits: None, hidden: Some(true) }), None).reply.is_ok());
+        assert!(server.book.host().sparklines(sheet).iter().any(|(g, _)| !g.hidden));
+        let Reply::Sparklines(lines) = server.execute_current(Request::Sparklines(Sheet::of(sheet)), None).reply.unwrap() else { panic!() };
+        let f2 = lines.iter().find(|l| l.cell.2 == 2).unwrap();
+        assert_eq!(f2.values, vec![Some(20.0), Some(2.0), Some(8.0), Some(6.0)]);
+        let f8 = lines.iter().find(|l| l.cell.2 == 8).unwrap();
+        assert_eq!((f8.values.len(), f8.positions.len()), (4, 4));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -1255,7 +1255,7 @@ fn dc_zjsg_9__equations_ink_smartart_and_ole_objects_are_kept_and_drawn_from_the
     assert_eq!(&load(&saved).sheets()[0].shapes().shapes, &read.shapes);
 }
 
-// dc-zjsg.7: sparklines.xlsx (make-sparklines.py) holds four sparkline groups in the worksheet's x14 extension. Each
+// dc-zjsg.7: sparklines.xlsx (make-sparklines.py) holds five sparkline groups in the worksheet's x14 extension. Each
 // reads with its look and sparklines; an untouched save keeps the worksheet part as stored.
 const SPARKLINES: &[u8] = include_bytes!("fixtures/drawing/sparklines.xlsx");
 
@@ -1264,9 +1264,10 @@ const SPARKLINES: &[u8] = include_bytes!("fixtures/drawing/sparklines.xlsx");
 fn dc_zjsg_7__sparkline_groups_read_and_survive_save() {
     let loaded = load(SPARKLINES);
     let groups = loaded.sheets()[0].sparklines();
-    assert_eq!(groups.len(), 4);
+    assert_eq!(groups.len(), 5);
     let kinds: Vec<_> = groups.iter().map(|g| (g.kind.as_deref(), g.sparklines.len())).collect();
-    assert_eq!(kinds, [(None, 2), (Some("column"), 2), (Some("stacked"), 1), (None, 1)]);
+    assert_eq!(kinds, [(None, 2), (Some("column"), 2), (Some("stacked"), 1), (None, 1), (None, 1)]);
+    assert_eq!((groups[4].date_axis, groups[4].dates.as_deref()), (true, Some("Spark!A9:E9")));
     let line = &groups[0];
     assert!(line.markers && line.high && line.low && !line.negative);
     assert_eq!(line.empty_cells.as_deref(), Some("gap"));

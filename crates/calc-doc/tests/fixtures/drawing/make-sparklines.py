@@ -2,7 +2,8 @@
 """Writes sparklines.xlsx (own work, dc-zjsg.7): one sheet "Spark" with data in A2:E7 and four sparkline groups in the
 worksheet's x14 extension, written the way Excel writes them: a line group (markers, high and low points, an empty cell
 shown as a gap) over F2:F3, a column group with negative points and an axis over F4:F5 sharing a group axis, a
-win/loss group over F6, and a line group spanning empty cells with a custom axis 0..10 over F7. The theme part is the
+win/loss group over F6, a line group spanning empty cells with a custom axis 0..10 over F7, and (dw2) a line group on a
+date axis over F8, its values in A8:E8 and its dates in A9:E9 (the group's xm:f). The theme part is the
 Office 2013-2022 theme shapes-paint4.xlsx carries (read from it).
 Run: python3 -I make-sparklines.py shapes-paint4.xlsx sparklines.xlsx"""
 import sys, zipfile
@@ -15,6 +16,8 @@ data = {
     5: [10, 12, 8, 15, 9],
     6: [1, -1, 1, 0, -1],
     7: [2, None, None, 7, 4],
+    8: [1, 3, 2, 5, 4],
+    9: [45000, 45001, 45004, 45005, 45008],
 }
 rows = ['<row r="1"><c r="A1" t="inlineStr"><is><t>Data</t></is></c><c r="F1" t="inlineStr"><is><t>Spark</t></is></c></row>']
 for r, values in data.items():
@@ -34,6 +37,7 @@ groups = (
     '<x14:sparklineGroup type="column" displayEmptyCellsAs="gap" negative="1" displayXAxis="1" minAxisType="group" maxAxisType="group">' + colours('theme="5"') + lines(4, 5) + '</x14:sparklineGroup>'
     '<x14:sparklineGroup type="stacked" displayEmptyCellsAs="gap" negative="1">' + colours('rgb="FF376092"') + lines(6) + '</x14:sparklineGroup>'
     '<x14:sparklineGroup manualMin="0" manualMax="10" lineWeight="2.25" displayEmptyCellsAs="span" minAxisType="custom" maxAxisType="custom">' + colours('theme="9"') + lines(7) + '</x14:sparklineGroup>'
+    '<x14:sparklineGroup dateAxis="1" displayEmptyCellsAs="gap">' + colours('theme="4"') + '<xm:f>Spark!A9:E9</xm:f>' + lines(8) + '</x14:sparklineGroup>'
 )
 R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 sheet = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
