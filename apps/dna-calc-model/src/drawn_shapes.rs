@@ -1218,9 +1218,27 @@ fn inner_markup(shape: &DrawnShape, w: f64, h: f64, zoom: f64, id: &str) -> Opti
             );
         }
     }
-    let (fill_path, stroke_path) = match &filled_part {
+    // A plain rectangle's solid outline as Excel 16 draws it (dw1 Windows run, 2026-11-20, results.md 1b): whole
+    // pixels in the full line colour, just outside the frame (0.5 and 1 pt one pixel, 1.5 pt two), not antialiased on
+    // the edge.
+    let crisp = (!custom && shape.geometry == "rect" && shape.rotation == 0.0)
+        .then_some(shape.line.as_ref())
+        .flatten()
+        .filter(|line| dash_pattern(&line.dash).is_empty());
+    let (fill_path, stroke_path) = match (&filled_part, crisp) {
+        (_, Some(line)) => {
+            let width = (line.width * zoom).round().max(1.0);
+            let half = width / 2.0;
+            (
+                format!("<path d=\"{d}\" fill=\"{fill}\" stroke=\"none\"/>"),
+                format!(
+                    "<rect data-outline=\"crisp\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\" shape-rendering=\"crispEdges\"/>",
+                    number(-half), number(-half), number(w + width), number(h + width), line.colour, number(width)
+                ),
+            )
+        }
         // A custom geometry whose filled and stroked paths differ: the fill beneath, the strokes over it.
-        Some(fills) if *fills != segments => {
+        (Some(fills), None) if *fills != segments => {
             let filled = path_data(fills, w, h, flip_h, flip_v);
             (format!("<path d=\"{filled}\" fill=\"{fill}\" stroke=\"none\"/>"), format!("<path d=\"{d}\" fill=\"none\" {stroke}/>"))
         }
@@ -1272,9 +1290,14 @@ fn custom_segments(shape: &DrawnShape, w: f64, h: f64, keep: impl Fn(&DrawnPath)
 }
 
 /// The 8 by 8 cells of a preset pattern, one byte a row, the high bit leftmost: a set bit is the
-/// foreground. The percentage patterns are an ordered dither of their share; the others are drawn from
-/// their names (assumed until Excel's renders decide the exact cells).
+/// foreground. Measured against Excel 16 (dw1 Windows run, 2026-11-20, 800% crops): pct50, ltHorz, dkUpDiag,
+/// smCheck, lgGrid and horzBrick as below, pct20 Excel's 4 by 4 two-dot tile, diagCross with its half-tone
+/// cells ([`pattern_half_cells`]). The other percentages are an ordered dither of their share and the other
+/// presets are drawn from their names (assumed until Excel's renders decide the exact cells).
 pub fn pattern_cells(preset: &str) -> [u8; 8] {
+    if preset == "pct20" {
+        return [0, 0x44, 0, 0x11, 0, 0x44, 0, 0x11];
+    }
     const BAYER: [[u8; 8]; 8] = [
         [0, 32, 8, 40, 2, 34, 10, 42],
         [48, 16, 56, 24, 50, 18, 58, 26],
@@ -1322,7 +1345,7 @@ pub fn pattern_cells(preset: &str) -> [u8; 8] {
         "cross" | "lgGrid" => [0xFF, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80],
         "smGrid" => [0xFF, 0x88, 0x88, 0x88, 0xFF, 0x88, 0x88, 0x88],
         "dotGrid" => [0xAA, 0, 0x80, 0, 0x80, 0, 0x80, 0],
-        "diagCross" => [0x81, 0x42, 0x24, 0x18, 0x18, 0x24, 0x42, 0x81],
+        "diagCross" => [0x84, 0x48, 0x30, 0x30, 0x48, 0x84, 0x03, 0x03],
         "smCheck" => [0xCC, 0xCC, 0x33, 0x33, 0xCC, 0xCC, 0x33, 0x33],
         "lgCheck" => [0xF0, 0xF0, 0xF0, 0xF0, 0x0F, 0x0F, 0x0F, 0x0F],
         "solidDmnd" => [0x10, 0x38, 0x7C, 0xFE, 0x7C, 0x38, 0x10, 0],
@@ -1344,9 +1367,17 @@ pub fn pattern_cells(preset: &str) -> [u8; 8] {
     }
 }
 
-/// The `defs` of a pattern fill: its background with its foreground cells over it, repeating every 8 pixels.
-fn pattern_defs(p: &ShapePattern, id: &str) -> String {
-    let cells = pattern_cells(&p.preset);
+/// The cells of a preset pattern Excel draws half in its foreground, half in its background (as `pattern_cells`):
+/// diagCross's antialiased lines.
+pub fn pattern_half_cells(preset: &str) -> [u8; 8] {
+    match preset {
+        "diagCross" => [0x4B, 0xB4, 0x48, 0x48, 0xB4, 0x4B, 0x84, 0x84],
+        _ => [0; 8],
+    }
+}
+
+/// The path of the set cells of `cells` in an 8 by 8 tile.
+fn cells_path(cells: [u8; 8]) -> String {
     let mut d = String::new();
     for (y, row) in cells.iter().enumerate() {
         let mut x = 0;
@@ -1362,8 +1393,17 @@ fn pattern_defs(p: &ShapePattern, id: &str) -> String {
             }
         }
     }
+    d
+}
+
+/// The `defs` of a pattern fill: its background with its foreground cells over it (and its half-tone cells in the
+/// foreground at half strength), repeating every 8 pixels.
+fn pattern_defs(p: &ShapePattern, id: &str) -> String {
+    let d = cells_path(pattern_cells(&p.preset));
+    let half = cells_path(pattern_half_cells(&p.preset));
+    let half = if half.is_empty() { String::new() } else { format!("<path d=\"{half}\" fill=\"{}\" fill-opacity=\"0.5\"/>", p.foreground) };
     format!(
-        "<defs><pattern id=\"{id}p\" patternUnits=\"userSpaceOnUse\" width=\"8\" height=\"8\"><rect width=\"8\" height=\"8\" fill=\"{}\"/><path d=\"{d}\" fill=\"{}\"/></pattern></defs>",
+        "<defs><pattern id=\"{id}p\" patternUnits=\"userSpaceOnUse\" width=\"8\" height=\"8\"><rect width=\"8\" height=\"8\" fill=\"{}\"/><path d=\"{d}\" fill=\"{}\"/>{half}</pattern></defs>",
         p.background, p.foreground
     )
 }
@@ -2251,4 +2291,38 @@ mod tests {
         assert_eq!(flip_style([true, true]), "transform:scale(-1,-1);");
         assert_eq!(flip_style([false, false]), "");
     }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dc_zjsg_2__pct20_and_diagCross_cells_are_excels() {
+        // Excel's pct20: two dots in each 4 by 4 (12.5%), at (1, 1) and (3, 3).
+        let pct20 = pattern_cells("pct20");
+        assert_eq!(pct20.iter().map(|r| r.count_ones()).sum::<u32>(), 8);
+        assert_eq!((pct20[1], pct20[3]), (0b0100_0100, 0b0001_0001));
+        // diagCross: 25% full, 37.5% half-tone, no cell both.
+        let (full, half) = (pattern_cells("diagCross"), pattern_half_cells("diagCross"));
+        assert_eq!((full.iter().map(|r| r.count_ones()).sum::<u32>(), half.iter().map(|r| r.count_ones()).sum::<u32>()), (16, 24));
+        assert!(full.iter().zip(&half).all(|(f, h)| f & h == 0));
+        let defs = pattern_defs(&ShapePattern { preset: "diagCross".into(), foreground: "#7030A0".into(), background: "#FFFFFF".into() }, "s");
+        assert!(defs.contains("fill=\"#7030A0\" fill-opacity=\"0.5\""), "{defs}");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dc_zjsg_2__a_rectangles_thin_outline_is_whole_pixels_outside_its_frame() {
+        let mut shape = sample();
+        shape.text = None;
+        shape.line = Some(ShapeStroke { width: 1.33, colour: "#AE5A21".into(), dash: "solid".into(), head: None, tail: None });
+        let markup = shape_markup(&shape, 80.0, 40.0, 1.0).unwrap();
+        // 1 pt (1.33 px) is one pixel, centred half a pixel outside the frame.
+        assert!(markup.contains("<rect data-outline=\"crisp\" x=\"-0.5\" y=\"-0.5\" width=\"81\" height=\"41\" fill=\"none\" stroke=\"#AE5A21\" stroke-width=\"1\" shape-rendering=\"crispEdges\"/>"), "{markup}");
+        // 1.5 pt is two pixels; a dashed or turned rectangle keeps its stroke on the edge.
+        shape.line.as_mut().unwrap().width = 2.0;
+        assert!(shape_markup(&shape, 80.0, 40.0, 1.0).unwrap().contains("x=\"-1\" y=\"-1\" width=\"82\" height=\"42\""));
+        shape.rotation = 30.0;
+        assert!(!shape_markup(&shape, 80.0, 40.0, 1.0).unwrap().contains("data-outline"));
+    }
 }
+

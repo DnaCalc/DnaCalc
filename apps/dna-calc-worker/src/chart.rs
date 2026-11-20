@@ -461,8 +461,20 @@ pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
             }
             ChartKind::Scatter | ChartKind::Bubble => scatter_marks(&mut svg, chart, plot, area),
             ChartKind::Radar => radar_marks(&mut svg, chart, plot, area),
+            ChartKind::Waterfall => waterfall_marks(&mut svg, chart, plot, area),
+            ChartKind::Funnel => funnel_marks(&mut svg, plot, area),
+            ChartKind::BoxWhisker => box_marks(&mut svg, chart, plot, area),
             ChartKind::Column | ChartKind::Bar | ChartKind::Line | ChartKind::Area | ChartKind::Stock => {
                 category_marks(&mut svg, chart, plot, area, None);
+            }
+            ChartKind::Other(kind) if kind.starts_with("cx:") => {
+                let _ = write!(
+                    svg,
+                    "<text data-dnacalc=\"chart-notice\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">An Excel 2016 {} chart is preserved but not drawn here (dc-zjsg.6)</text>",
+                    width / 2.0,
+                    height / 2.0,
+                    escape(&kind[3..])
+                );
             }
             ChartKind::Other(kind) => {
                 let _ = write!(
@@ -964,7 +976,8 @@ fn category_marks(
                     );
                     mark(svg, i + offset, j, v);
                     svg.push_str("/>");
-                    if let Some(Some(label)) = series.value_labels.get(j) {
+                    let composed = if series.value_labels.is_empty() { label_text(series, j, v, None, &series.name) } else { None };
+                    if let Some(label) = composed.as_ref().or(series.value_labels.get(j).and_then(Option::as_ref)) {
                         if horizontal {
                             let (x, anchor) = if v >= 0. { (to - 4., "end") } else { (to + 4., "start") };
                             let _ = write!(data_labels, "<text data-dnacalc=\"chart-value-label\" data-series=\"{}\" data-point=\"{j}\" x=\"{x:.1}\" y=\"{:.1}\" text-anchor=\"{anchor}\" fill=\"{AXIS}\">{}</text>", i + offset, y + h / 2. + 4., escape(label));
@@ -1041,7 +1054,8 @@ fn category_marks(
                     );
                     mark(&mut shapes, i, j, v);
                     shapes.push_str("/>");
-                    if plot.kind == ChartKind::Line && let Some(Some(label)) = series.value_labels.get(j) {
+                    let composed = if series.value_labels.is_empty() { label_text(series, j, v, None, &series.name) } else { None };
+                    if plot.kind == ChartKind::Line && let Some(label) = composed.as_ref().or(series.value_labels.get(j).and_then(Option::as_ref)) {
                         let _ = write!(data_labels, "<text data-dnacalc=\"chart-value-label\" data-series=\"{i}\" data-point=\"{j}\" x=\"{x:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">{}</text>", y - 4., escape(label));
                     }
                     if plot.stacked {
@@ -1186,6 +1200,230 @@ fn category_marks(
     svg.push_str(&data_labels);
 }
 
+/// An Excel 2016 waterfall (dc-zjsg.6): over its categories each point a column from the running total to the total
+/// after it (up in accent 1, down in accent 2), a subtotal point a column from zero to its value in accent 3 that
+/// sets the running total; the value axis spans zero and every total. Gap and colours as Excel's defaults (ASSUMED
+/// until a side-by-side); no connector lines.
+fn waterfall_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: Area) {
+    let Some(series) = plot.series.first() else { return };
+    let count = series.values.len();
+    if count == 0 {
+        return;
+    }
+    let mut spans = Vec::with_capacity(count);
+    let mut total = 0.0f64;
+    for (j, v) in series.values.iter().enumerate() {
+        let Some(v) = v.filter(|v| v.is_finite()) else {
+            spans.push(None);
+            continue;
+        };
+        if plot.subtotals.contains(&(j as u32)) {
+            spans.push(Some((0.0, v, 2usize)));
+            total = v;
+        } else {
+            spans.push(Some((total, total + v, usize::from(v < 0.0))));
+            total += v;
+        }
+    }
+    let (low, high) = spans.iter().flatten().fold((0.0f64, 0.0f64), |(a, b), (f, t, _)| (a.min(f.min(*t)), b.max(f.max(*t))));
+    let Ok(scale) = calc_host::chart::chart_scale(low, high, None) else { return };
+    let (x0, x1, y0, y1) = (area.left + 40.0, area.right, area.top, area.bottom - 18.0);
+    let y_of = |v: f64| y1 - scale.position(v).unwrap_or(0.0) * (y1 - y0);
+    for v in scale.ticks() {
+        let y = y_of(v);
+        let _ = write!(svg, "<line x1=\"{x0:.1}\" y1=\"{y:.1}\" x2=\"{x1:.1}\" y2=\"{y:.1}\" stroke=\"{GRID}\"/><text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"end\" fill=\"{AXIS}\">{}</text>", x0 - 4.0, y + 4.0, escape(&label(v, scale.step)));
+    }
+    let band = (x1 - x0) / count as f64;
+    let colours = [&chart.palette[0], &chart.palette[1 % chart.palette.len()], &chart.palette[2 % chart.palette.len()]];
+    for (j, span) in spans.iter().enumerate() {
+        let x = x0 + j as f64 * band;
+        if let Some((from, to, kind)) = span {
+            let (top, bottom) = (y_of(from.max(*to)), y_of(from.min(*to)));
+            let _ = write!(
+                svg,
+                "<rect data-dnacalc=\"chart-mark\" data-kind=\"{}\" x=\"{:.1}\" y=\"{top:.1}\" width=\"{:.1}\" height=\"{:.1}\" fill=\"#{}\"",
+                ["increase", "decrease", "total"][*kind],
+                x + band * 0.25,
+                band * 0.5,
+                (bottom - top).max(0.5),
+                colours[*kind]
+            );
+            mark(svg, 0, j, to - if *kind == 2 { 0.0 } else { *from });
+            svg.push_str("/>");
+        }
+        let text = series.categories.get(j).cloned().flatten().map(|v| text_of(&v)).unwrap_or_else(|| (j + 1).to_string());
+        let _ = write!(svg, "<text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">{}</text>", x + band / 2.0, y1 + 13.0, escape(&text));
+    }
+    let zero = y_of(0.0);
+    let _ = write!(svg, "<line x1=\"{x0:.1}\" y1=\"{zero:.1}\" x2=\"{x1:.1}\" y2=\"{zero:.1}\" stroke=\"{AXIS}\"/>");
+}
+
+/// The `p`th quantile (0 to 1) of sorted `values` as Excel's box and whisker takes its quartiles: exclusive of the
+/// median (QUARTILE.EXC's rank (n + 1) p) or inclusive (QUARTILE.INC's rank (n - 1) p + 1), interpolated between
+/// neighbours and held to the ends.
+fn quantile(values: &[f64], p: f64, inclusive: bool) -> f64 {
+    let n = values.len();
+    if n == 1 {
+        return values[0];
+    }
+    let rank = if inclusive { (n as f64 - 1.0) * p + 1.0 } else { (n as f64 + 1.0) * p };
+    let rank = rank.clamp(1.0, n as f64);
+    let (low, frac) = (rank.floor() as usize, rank.fract());
+    let a = values[low - 1];
+    let b = values[low.min(n - 1)];
+    a + (b - a) * frac
+}
+
+/// One box of a box and whisker: its quartiles, its whiskers' ends (the last values within 1.5 times the
+/// interquartile range of the box), its mean and the values beyond the whiskers.
+#[derive(Debug, PartialEq)]
+struct BoxStats {
+    q1: f64,
+    median: f64,
+    q3: f64,
+    low: f64,
+    high: f64,
+    mean: f64,
+    outliers: Vec<f64>,
+}
+
+fn box_stats(values: &[f64], inclusive: bool) -> Option<BoxStats> {
+    let mut v: Vec<f64> = values.iter().copied().filter(|x| x.is_finite()).collect();
+    if v.is_empty() {
+        return None;
+    }
+    v.sort_by(f64::total_cmp);
+    let (q1, median, q3) = (quantile(&v, 0.25, inclusive), quantile(&v, 0.5, true), quantile(&v, 0.75, inclusive));
+    let reach = 1.5 * (q3 - q1);
+    let inside: Vec<f64> = v.iter().copied().filter(|x| *x >= q1 - reach && *x <= q3 + reach).collect();
+    Some(BoxStats {
+        q1,
+        median,
+        q3,
+        low: inside.first().copied().unwrap_or(q1).min(q1),
+        high: inside.last().copied().unwrap_or(q3).max(q3),
+        mean: v.iter().sum::<f64>() / v.len() as f64,
+        outliers: v.iter().copied().filter(|x| *x < q1 - reach || *x > q3 + reach).collect(),
+    })
+}
+
+/// An Excel 2016 box and whisker (dc-zjsg.6): the values grouped by their category (in the order categories first
+/// appear; one group when there are none), a box a group and series from the first to the third quartile with the
+/// median across it, whiskers to the last values within 1.5 interquartile ranges, outliers as circles and the mean
+/// as an x. Box width and the marks' sizes ASSUMED until a side-by-side.
+fn box_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: Area) {
+    let Some(first) = plot.series.first() else { return };
+    let mut groups: Vec<String> = Vec::new();
+    for c in first.categories.iter() {
+        let name = c.clone().map(|v| text_of(&v)).unwrap_or_default();
+        if !groups.contains(&name) {
+            groups.push(name);
+        }
+    }
+    if groups.is_empty() {
+        groups.push(String::new());
+    }
+    let stats: Vec<Vec<Option<BoxStats>>> = plot
+        .series
+        .iter()
+        .map(|s| {
+            groups
+                .iter()
+                .map(|g| {
+                    let values: Vec<f64> = s
+                        .values
+                        .iter()
+                        .enumerate()
+                        .filter(|(j, _)| first.categories.is_empty() || first.categories.get(*j).cloned().flatten().map(|v| text_of(&v)).unwrap_or_default() == *g)
+                        .filter_map(|(_, v)| *v)
+                        .collect();
+                    box_stats(&values, plot.box_inclusive)
+                })
+                .collect()
+        })
+        .collect();
+    let all = stats.iter().flatten().flatten().flat_map(|b| [b.low, b.high].into_iter().chain(b.outliers.iter().copied()));
+    let (low, high) = all.fold((f64::MAX, f64::MIN), |(a, b), v| (a.min(v), b.max(v)));
+    if low > high {
+        return;
+    }
+    let Ok(scale) = calc_host::chart::chart_scale(low.min(0.0), high, None) else { return };
+    let (x0, x1, y0, y1) = (area.left + 40.0, area.right, area.top, area.bottom - 18.0);
+    let y_of = |v: f64| y1 - scale.position(v).unwrap_or(0.0) * (y1 - y0);
+    for v in scale.ticks() {
+        let y = y_of(v);
+        let _ = write!(svg, "<line x1=\"{x0:.1}\" y1=\"{y:.1}\" x2=\"{x1:.1}\" y2=\"{y:.1}\" stroke=\"{GRID}\"/><text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"end\" fill=\"{AXIS}\">{}</text>", x0 - 4.0, y + 4.0, escape(&label(v, scale.step)));
+    }
+    let band = (x1 - x0) / groups.len() as f64;
+    let width = band * 0.6 / plot.series.len().max(1) as f64;
+    let [mean_marker, _, outliers, _] = plot.box_visibility;
+    for (g, name) in groups.iter().enumerate() {
+        let _ = write!(svg, "<text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">{}</text>", x0 + band * (g as f64 + 0.5), y1 + 13.0, escape(name));
+        for (i, series) in plot.series.iter().enumerate() {
+            let Some(b) = &stats[i][g] else { continue };
+            let left = x0 + band * g as f64 + band * 0.2 + i as f64 * width;
+            let middle = left + width / 2.0;
+            let colour = &series.color;
+            let _ = write!(
+                svg,
+                "<path data-dnacalc=\"chart-whisker\" d=\"M{middle:.1} {:.1}V{:.1}M{middle:.1} {:.1}V{:.1}M{:.1} {:.1}H{:.1}M{:.1} {:.1}H{:.1}\" stroke=\"{AXIS}\" fill=\"none\"/>",
+                y_of(b.q3), y_of(b.high), y_of(b.q1), y_of(b.low),
+                middle - width / 4.0, y_of(b.high), middle + width / 4.0,
+                middle - width / 4.0, y_of(b.low), middle + width / 4.0
+            );
+            let _ = write!(
+                svg,
+                "<rect data-dnacalc=\"chart-mark\" data-series=\"{i}\" data-point=\"{g}\" data-q1=\"{}\" data-median=\"{}\" data-q3=\"{}\" x=\"{left:.1}\" y=\"{:.1}\" width=\"{width:.1}\" height=\"{:.1}\" fill=\"#{colour}\" stroke=\"{AXIS}\"/>",
+                b.q1, b.median, b.q3,
+                y_of(b.q3),
+                (y_of(b.q1) - y_of(b.q3)).max(0.5)
+            );
+            let _ = write!(svg, "<line x1=\"{left:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{AXIS}\" stroke-width=\"1.5\"/>", y_of(b.median), left + width, y_of(b.median));
+            if mean_marker {
+                let (x, y) = (middle, y_of(b.mean));
+                let _ = write!(svg, "<path data-dnacalc=\"chart-mean\" d=\"M{:.1} {:.1}L{:.1} {:.1}M{:.1} {:.1}L{:.1} {:.1}\" stroke=\"{AXIS}\"/>", x - 3.0, y - 3.0, x + 3.0, y + 3.0, x - 3.0, y + 3.0, x + 3.0, y - 3.0);
+            }
+            if outliers {
+                for v in &b.outliers {
+                    let _ = write!(svg, "<circle data-dnacalc=\"chart-outlier\" cx=\"{middle:.1}\" cy=\"{:.1}\" r=\"2.5\" fill=\"none\" stroke=\"#{colour}\"/>", y_of(*v));
+                }
+            }
+        }
+    }
+    let _ = chart;
+}
+
+/// An Excel 2016 funnel (dc-zjsg.6): a bar a category, top to bottom, centred, as wide against the widest as its
+/// value, the category at its left and the value in it. Look ASSUMED until a side-by-side.
+fn funnel_marks(svg: &mut String, plot: &PlotView, area: Area) {
+    let Some(series) = plot.series.first() else { return };
+    let count = series.values.len();
+    let widest = series.values.iter().flatten().copied().filter(|v| v.is_finite()).fold(0.0f64, |a, v| a.max(v.abs()));
+    if count == 0 || widest <= 0.0 {
+        return;
+    }
+    let (x0, x1, y0, y1) = (area.left + 60.0, area.right, area.top, area.bottom);
+    let (middle, band) = ((x0 + x1) / 2.0, (y1 - y0) / count as f64);
+    for (j, v) in series.values.iter().enumerate() {
+        let y = y0 + j as f64 * band;
+        let text = series.categories.get(j).cloned().flatten().map(|v| text_of(&v)).unwrap_or_else(|| (j + 1).to_string());
+        let _ = write!(svg, "<text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"end\" fill=\"{AXIS}\">{}</text>", x0 - 4.0, y + band / 2.0 + 4.0, escape(&text));
+        let Some(v) = v.filter(|v| v.is_finite()) else { continue };
+        let w = (x1 - x0) * v.abs() / widest;
+        let _ = write!(
+            svg,
+            "<rect data-dnacalc=\"chart-mark\" x=\"{:.1}\" y=\"{:.1}\" width=\"{w:.1}\" height=\"{:.1}\" fill=\"#{}\"",
+            middle - w / 2.0,
+            y + band * 0.1,
+            band * 0.8,
+            series.color
+        );
+        mark(svg, 0, j, v);
+        svg.push_str("/>");
+        let _ = write!(svg, "<text data-dnacalc=\"chart-data-label\" x=\"{middle:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"#FFFFFF\">{}</text>", y + band / 2.0 + 4.0, escape(&label(v, 0.0)));
+    }
+}
+
 /// A radar's series over spokes, one spoke a category clockwise from twelve o'clock: its value axis as rings
 /// (polygons) at the scale's ticks, labelled up the first spoke; each series a closed line (`standard`), with markers
 /// (`marker`), or filled (`filled`). A gap breaks the line. Marker size and label offsets are ASSUMED until an Excel
@@ -1313,6 +1551,7 @@ fn pie_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: &Area) 
         (cx + radius * a.cos(), cy + radius * a.sin())
     };
     let mut angle = 0.0;
+    let mut labels = String::new();
     for (j, value) in series.values.iter().enumerate() {
         let Some(v) = value.filter(|v| *v > 0.0) else {
             continue;
@@ -1354,8 +1593,47 @@ fn pie_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: &Area) 
         );
         mark(svg, 0, j, v);
         svg.push_str("/>");
+        // The slice's label (dc-zjsg.6): inside at its middle, or past its edge for `outEnd` (bestFit ASSUMED inside).
+        if let Some(text) = label_text(series, j, v, Some(v / total), &series.name) {
+            let reach = match series.labels.as_ref().and_then(|l| l.position.as_deref()) {
+                Some("outEnd") => r + 12.0,
+                Some("ctr") => (r + hole) / 2.0,
+                Some("inEnd") => r * 0.8,
+                _ => hole + (r - hole) * 0.65,
+            };
+            let (x, y) = point(angle + sweep / 2.0, reach);
+            let anchor = if reach > r { if x >= cx { "start" } else { "end" } } else { "middle" };
+            let _ = write!(
+                labels,
+                "<text data-dnacalc=\"chart-data-label\" data-point=\"{j}\" x=\"{x:.1}\" y=\"{:.1}\" text-anchor=\"{anchor}\" fill=\"{AXIS}\">{}</text>",
+                y + 4.0,
+                escape(&text)
+            );
+        }
         angle += sweep;
     }
+    svg.push_str(&labels);
+}
+
+/// A point's data label as the series' `dLbls` composes it (dc-zjsg.6): its series name, category, value and (in a
+/// pie) percentage in Excel's order, joined by the separator (`, ` when the file states none, ASSUMED); the value as
+/// its cell shows it, else in General; the percentage rounded to a whole percent. `None` without labels.
+fn label_text(series: &calc_host::chart::SeriesView, j: usize, value: f64, share: Option<f64>, name: &str) -> Option<String> {
+    let labels = series.labels.as_ref()?;
+    let mut parts = Vec::new();
+    if labels.series {
+        parts.push(name.to_owned());
+    }
+    if labels.category {
+        parts.push(series.categories.get(j).cloned().flatten().map(|v| text_of(&v)).unwrap_or_else(|| (j + 1).to_string()));
+    }
+    if labels.value {
+        parts.push(series.label_values.get(j).cloned().flatten().unwrap_or_else(|| label(value, 0.0)));
+    }
+    if labels.percent && let Some(share) = share {
+        parts.push(format!("{}%", (share * 100.0).round()));
+    }
+    (!parts.is_empty()).then(|| parts.join(labels.separator.as_deref().unwrap_or(", ")))
 }
 
 /// A scatter plot's markers, on value axes for X and Y.
@@ -1520,6 +1798,23 @@ fn scatter_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: Are
 mod tests {
     use super::*;
 
+    /// dc-zjsg.6: a box and whisker's statistics as Excel's help defines them: QUARTILE.EXC's or QUARTILE.INC's
+    /// quartiles, whiskers to the last values within 1.5 interquartile ranges, the rest outliers.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dc_zjsg_6__box_and_whisker_quartiles_whiskers_and_outliers() {
+        let values = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 40.0];
+        // QUARTILE.EXC(1..9, 40; 1) = 2.75, (; 3) = 8.25; QUARTILE.INC = 3.25 and 7.75; the median 5.5.
+        let exclusive = box_stats(&values, false).unwrap();
+        assert_eq!((exclusive.q1, exclusive.median, exclusive.q3), (2.75, 5.5, 8.25));
+        // 1.5 x 5.5 = 8.25 past the box: 40 is an outlier, the upper whisker ends at 9.
+        assert_eq!((exclusive.low, exclusive.high, exclusive.outliers.clone()), (1.0, 9.0, vec![40.0]));
+        let inclusive = box_stats(&values, true).unwrap();
+        assert_eq!((inclusive.q1, inclusive.q3), (3.25, 7.75));
+        assert!((exclusive.mean - 8.5).abs() < 1e-12);
+    }
+
     /// dc-zjsg.6: 3-D column and pie charts are drawn flat; radar (marker, filled), bubble and stock (high-low-close,
     /// open-high-low-close with up/down bars) charts are drawn from their own plots.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -1533,10 +1828,10 @@ mod tests {
         let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
         assert!(book.dispatch(SkinIntent::Recalculate).accepted());
         let (charts, unread) = book.host().charts(book.host().sheets()[0].id());
-        assert_eq!((charts.len(), unread), (12, 0));
+        assert_eq!((charts.len(), unread), (18, 0));
         let svg = |name: &str| chart_svg(charts.iter().find(|c| c.name == name).unwrap(), 600., 350.);
         let count = |svg: &str, needle: &str| svg.matches(needle).count();
-        for name in ["3-D Column", "3-D Pie", "Radar marker", "Radar filled", "Bubble", "Stock HLC", "Stock OHLC", "3-D Line", "Line trends", "Scatter exp", "Line drops", "Column sd"] {
+        for name in ["3-D Column", "3-D Pie", "Radar marker", "Radar filled", "Bubble", "Stock HLC", "Stock OHLC", "3-D Line", "Line trends", "Scatter exp", "Line drops", "Column sd", "Pie labels", "Column labels", "Waterfall", "Funnel", "Box"] {
             let drawn = svg(name);
             assert!(!drawn.contains("is not drawn here") && !drawn.contains("chart-notice"), "{name}: {drawn}");
         }
@@ -1573,6 +1868,30 @@ mod tests {
         assert!((centre - 11.2).abs() < 1e-9 && (high - low - 2.0 * 3.7f64.sqrt()).abs() < 1e-9, "{sd:?}");
         assert_eq!(count(&svg("Column sd"), "chart-error-bar"), 5);
         assert_eq!(count(&svg("Scatter exp"), "chart-error-bar"), 5);
+        // Labels composed from the dLbls (dc-zjsg.6): category and whole percent on the pie (Mon is 10 of 56: 18%),
+        // series name and value with the stated separator on the columns.
+        let pie = svg("Pie labels");
+        assert_eq!(count(&pie, "chart-data-label"), 5);
+        assert!(pie.contains(">Mon, 18%</text>"), "{pie}");
+        let columns = svg("Column labels");
+        assert!(columns.contains(">Low; 10</text>"), "{columns}");
+        // Excel 2016 charts (dc-zjsg.6): a waterfall of 10, -3, 4, -2 and the subtotal 9 steps 0-10, 10-7, 7-11, 11-9,
+        // then stands 0-9; a funnel of five centred bars; a treemap kept, said not drawn.
+        let waterfall = charts.iter().find(|c| c.name == "Waterfall").unwrap();
+        assert_eq!((waterfall.plots[0].kind.clone(), waterfall.plots[0].subtotals.clone()), (ChartKind::Waterfall, vec![4]));
+        assert_eq!(waterfall.plots[0].series[0].values, vec![Some(10.0), Some(-3.0), Some(4.0), Some(-2.0), Some(9.0)]);
+        let drawn = svg("Waterfall");
+        assert_eq!((count(&drawn, "data-kind=\"increase\""), count(&drawn, "data-kind=\"decrease\""), count(&drawn, "data-kind=\"total\"")), (2, 2, 1));
+        assert_eq!(count(&svg("Funnel"), "<rect data-dnacalc=\"chart-mark\""), 5);
+        assert!(svg("Treemap").contains("An Excel 2016 treemap chart is preserved but not drawn here"));
+        // A box over B2:C6 (10, 12, 9, 11, 14, 18, 20, 15, 22, 19): QUARTILE.EXC 10.75 and 19.25, median 14.5.
+        let boxed = svg("Box");
+        assert!(boxed.contains("data-q1=\"10.75\" data-median=\"14.5\" data-q3=\"19.25\""), "{boxed}");
+        assert_eq!((count(&boxed, "chart-mean"), count(&boxed, "chart-outlier")), (1, 0));
+        // The drawing reader takes those frames for charts, not unread objects (their text-box fallbacks unread too).
+        let sheet = book.host().sheets()[0].id();
+        assert_eq!(book.host().loaded().sheet(sheet).unwrap().shapes().unread, 0);
+        assert!(book.host().shapes(sheet).is_empty());
         // Two series of five columns; five slices.
         assert_eq!(count(&svg("3-D Column"), "<rect data-dnacalc=\"chart-mark\""), 10);
         assert!(charts.iter().find(|c| c.name == "3-D Column").unwrap().plots[0].three_d);

@@ -40,6 +40,8 @@ pub(crate) struct StoredPlan<'a> {
     /// each one not still in place, found once among the new objects. A new object that only reuses a stored
     /// identity is written from the model.
     pub(crate) originals: BTreeMap<u32, &'a Shape>,
+    /// Every stored object at any depth, by identity, as the file stores it: what a copy is written from.
+    pub(crate) sources: BTreeMap<u32, &'a Shape>,
 }
 
 impl StoredPlan<'_> {
@@ -63,6 +65,7 @@ fn flatten<'a>(shapes: &'a [Shape], out: &mut BTreeMap<u32, &'a Shape>) {
 pub(crate) fn plan<'a>(original: &'a [Shape], shapes: &'a [Shape]) -> Result<StoredPlan<'a>, SaveRefusal> {
     let mut originals = BTreeMap::new();
     flatten(original, &mut originals);
+    let sources = originals.clone();
     let top: BTreeMap<u32, &Shape> = original.iter().map(|s| (s.id, s)).collect();
     let mut edits = BTreeMap::new();
     let mut new = Vec::new();
@@ -124,7 +127,7 @@ pub(crate) fn plan<'a>(original: &'a [Shape], shapes: &'a [Shape]) -> Result<Sto
     originals.retain(|id, stored| {
         !in_place.contains(id) && found.get(id) == Some(&1) && find_kind(&new, *id) == Some(stored.kind)
     });
-    Ok(StoredPlan { edits, new, layout, originals })
+    Ok(StoredPlan { edits, new, layout, originals, sources })
 }
 
 fn find_kind(shapes: &[Shape], id: u32) -> Option<ShapeKind> {
@@ -377,8 +380,8 @@ fn object_patches(ix: &Index<'_>, at: usize, stored: &Shape, now: &Shape, out: &
     if now.text != stored.text {
         text_patches(ix, at, obj, now, out)?;
     }
-    if now.name != stored.name {
-        name_patch(ix, at, &now.name, out)?;
+    if now.name != stored.name || now.id != stored.id {
+        name_patch(ix, at, &now.name, (now.id != stored.id).then_some(now.id), out)?;
     }
     if (now.begin, now.end) != (stored.begin, stored.end) {
         glue_patches(ix, at, now, out)?;
@@ -411,7 +414,7 @@ fn glue_patches(ix: &Index<'_>, at: usize, now: &Shape, out: &mut Vec<Patch>) ->
 }
 
 /// The object `at`'s `cNvPr` start tag with its `name` attribute set to `name`, everything else in it kept.
-fn name_patch(ix: &Index<'_>, at: usize, name: &str, out: &mut Vec<Patch>) -> Result<(), SaveRefusal> {
+fn name_patch(ix: &Index<'_>, at: usize, name: &str, copy_id: Option<u32>, out: &mut Vec<Patch>) -> Result<(), SaveRefusal> {
     if name.is_empty() || !shapes::valid_text(name) {
         return Err(refuse("Use a shape name of 1 to 255 characters"));
     }
@@ -437,6 +440,19 @@ fn name_patch(ix: &Index<'_>, at: usize, name: &str, out: &mut Vec<Patch>) -> Re
             let close = if tag.ends_with("/>") { tag.len() - 2 } else { tag.len() - 1 };
             format!("{} name={value}{}", &tag[..close], &tag[close..])
         }
+    };
+    // A copy's own identity in place of the stored one's.
+    let rewritten = match copy_id {
+        Some(id) => match rewritten.find(" id=") {
+            Some(at) => {
+                let quote = rewritten[at + 4..].chars().next().unwrap_or('"');
+                let rest = &rewritten[at + 5..];
+                let end = rest.find(quote).ok_or_else(|| refuse("The stored object's identity is not quoted"))?;
+                format!("{} id=\"{id}\"{}", &rewritten[..at], &rest[end + 1..])
+            }
+            None => return Err(refuse("The stored object has no identity to copy")),
+        },
+        None => rewritten,
     };
     out.push(((e.start, e.tag_end), rewritten.into_bytes()));
     Ok(())

@@ -23,24 +23,24 @@ const SPREADSHEET_DRAWING: &str =
     "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing";
 
 /// One element with its attributes (local names), text and children.
-struct Node {
-    local: String,
+pub(super) struct Node {
+    pub(super) local: String,
     attributes: Vec<(String, String)>,
-    text: String,
-    children: Vec<Node>,
+    pub(super) text: String,
+    pub(super) children: Vec<Node>,
 }
 
 impl Node {
-    fn attribute(&self, name: &str) -> Option<&str> {
+    pub(super) fn attribute(&self, name: &str) -> Option<&str> {
         self.attributes
             .iter()
             .find(|(n, _)| n == name)
             .map(|(_, v)| v.as_str())
     }
-    fn child(&self, local: &str) -> Option<&Node> {
+    pub(super) fn child(&self, local: &str) -> Option<&Node> {
         self.children.iter().find(|c| c.local == local)
     }
-    fn number(&self, name: &str) -> Option<i64> {
+    pub(super) fn number(&self, name: &str) -> Option<i64> {
         self.attribute(name).and_then(|v| v.trim().parse().ok())
     }
     fn flag(&self, name: &str) -> bool {
@@ -138,7 +138,7 @@ pub(crate) fn read_shapes(package: &Package, sheet_part: &str) -> SheetShapes {
 }
 
 /// The first element of the part `part` as a tree.
-fn part_tree(package: &Package, part: &str) -> Option<Node> {
+pub(super) fn part_tree(package: &Package, part: &str) -> Option<Node> {
     let xml = read_xml(package, part).ok()?;
     let mut events = Events::new(&xml);
     loop {
@@ -480,7 +480,7 @@ enum Anchored {
     Unread(String),
 }
 
-fn point(node: &Node) -> DrawingPoint {
+pub(super) fn point(node: &Node) -> DrawingPoint {
     let value = |name: &str| {
         node.child(name)
             .and_then(|c| c.text.trim().parse::<i64>().ok())
@@ -627,7 +627,7 @@ fn alternate_branch(object: &Node) -> Option<&Node> {
 }
 
 /// The branch of the `mc:AlternateContent` block `block` that Excel takes.
-fn alternate_content_branch(block: &Node) -> Option<&Node> {
+pub(super) fn alternate_content_branch(block: &Node) -> Option<&Node> {
     let choice = block.children.iter().find(|choice| {
         choice.local == "Choice"
             && choice
@@ -650,6 +650,7 @@ fn is_chart_frame(frame: &Node) -> bool {
         .and_then(|g| g.child("graphicData"))
         .and_then(|d| d.attribute("uri"))
         .is_some_and(|uri| uri == "http://schemas.openxmlformats.org/drawingml/2006/chart")
+        || super::chartex::is_chartex_frame(frame)
 }
 
 fn object_shape(node: &Node, anchor: ChartAnchor) -> Option<Shape> {

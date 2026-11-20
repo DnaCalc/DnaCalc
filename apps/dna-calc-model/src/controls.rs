@@ -45,6 +45,9 @@ fn escape(text: &str) -> String {
 }
 
 const FONT: &str = "font-family:'Segoe UI',Tahoma,sans-serif;color:#000;white-space:nowrap;overflow:hidden";
+/// Excel 16's raised control face (dw1 Windows run, 2026-11-20): flat (240, 240, 240) with a black bottom and right
+/// edge and a white top and left.
+const FACE: &str = "background:#F0F0F0;border-style:solid;border-width:1px;border-color:#FFFFFF #000000 #000000 #FFFFFF";
 
 /// The markup of `c` in a box `w` by `h` pixels at `zoom`. The parts a click acts on carry `data-act`: `toggle`, `item`
 /// (with `data-index`), `dec`, `inc`, `select` (a combo box's list), `run`.
@@ -54,7 +57,7 @@ pub fn control_markup(c: &DrawnControl, w: f64, h: f64, zoom: f64) -> String {
     let mut out = String::new();
     match c.kind.as_str() {
         "Button" => {
-            let _ = write!(out, "<div data-act=\"run\" style=\"position:absolute;inset:0;box-sizing:border-box;border:1px solid #ADADAD;background:#E1E1E1;display:flex;align-items:center;justify-content:center;font-size:{font}px;{FONT};cursor:pointer\">{caption}</div>");
+            let _ = write!(out, "<div data-act=\"run\" style=\"position:absolute;inset:0;box-sizing:border-box;{FACE};display:flex;align-items:center;justify-content:flex-start;padding:0 {}px;font-size:{font}px;{FONT};cursor:pointer\">{caption}</div>", 3.0 * zoom);
         }
         "CheckBox" | "Radio" => {
             let size = 13.0 * zoom;
@@ -70,7 +73,7 @@ pub fn control_markup(c: &DrawnControl, w: f64, h: f64, zoom: f64) -> String {
         }
         "List" => {
             let row = 15.0 * zoom;
-            let _ = write!(out, "<div style=\"position:absolute;inset:0;box-sizing:border-box;border:1px solid #828790;background:#fff;overflow:hidden;font-size:{font}px;{FONT}\">");
+            let _ = write!(out, "<div style=\"position:absolute;inset:0;box-sizing:border-box;border:{}px solid #000;background:#fff;overflow:hidden;font-size:{font}px;{FONT}\">", (2.0 * zoom).round().max(1.0));
             for (i, item) in c.items.iter().enumerate() {
                 let on = c.selected == Some(i);
                 let _ = write!(out, "<div data-act=\"item\" data-index=\"{i}\" style=\"height:{row}px;line-height:{row}px;padding:0 {}px;{}cursor:pointer\">{}</div>", 2.0 * zoom, if on { "background:#0078D7;color:#fff;" } else { "" }, escape(item));
@@ -79,15 +82,15 @@ pub fn control_markup(c: &DrawnControl, w: f64, h: f64, zoom: f64) -> String {
         }
         "Drop" => {
             let text = c.selected.and_then(|i| c.items.get(i)).map(|t| escape(t)).unwrap_or_default();
-            let arrow = h.min(17.0 * zoom);
-            let _ = write!(out, "<div style=\"position:absolute;inset:0;box-sizing:border-box;border:1px solid #ADADAD;background:#fff;display:flex;align-items:center;font-size:{font}px;{FONT}\"><span style=\"flex:1;padding:0 {}px;overflow:hidden\">{text}</span><span data-act=\"select\" style=\"flex:none;width:{arrow}px;height:100%;display:flex;align-items:center;justify-content:center;background:#E1E1E1;cursor:pointer\">&#9662;</span></div>", 2.0 * zoom);
+            let arrow = (19.0 * zoom).min(w / 2.0);
+            let _ = write!(out, "<div style=\"position:absolute;inset:0;box-sizing:border-box;border:1px solid #ADADAD;background:#fff;display:flex;align-items:center;font-size:{font}px;{FONT}\"><span style=\"flex:1;padding:0 {}px;overflow:hidden\">{text}</span><span data-act=\"select\" style=\"flex:none;width:{arrow}px;height:100%;box-sizing:border-box;{FACE};display:flex;align-items:center;justify-content:center;color:#000;cursor:pointer\">&#9660;</span></div>", 2.0 * zoom);
         }
         "Scroll" | "Spin" => {
             let horizontal = if c.kind == "Spin" { false } else { c.horizontal };
             let (less, more) = if horizontal { ("&#9664;", "&#9654;") } else { ("&#9650;", "&#9660;") };
             let button = if horizontal { h.min(w / 2.0) } else { w.min(h / 2.0) };
             let part = |act: &str, glyph: &str, style: &str| {
-                format!("<div data-act=\"{act}\" style=\"position:absolute;{style};box-sizing:border-box;border:1px solid #ADADAD;background:#E1E1E1;display:flex;align-items:center;justify-content:center;font-size:{}px;color:#606060;cursor:pointer\">{glyph}</div>", 8.0 * zoom)
+                format!("<div data-act=\"{act}\" style=\"position:absolute;{style};box-sizing:border-box;{FACE};display:flex;align-items:center;justify-content:center;font-size:{}px;color:#000;cursor:pointer\">{glyph}</div>", 8.0 * zoom)
             };
             let _ = write!(out, "<div style=\"position:absolute;inset:0;background:#F0F0F0\"></div>");
             // A spinner's up arrow raises its value; a scroll bar's first arrow lowers it.
@@ -114,7 +117,7 @@ pub fn control_markup(c: &DrawnControl, w: f64, h: f64, zoom: f64) -> String {
             }
         }
         "GBox" => {
-            let _ = write!(out, "<div style=\"position:absolute;left:0;right:0;bottom:0;top:{}px;border:1px solid #D5DFE5\"></div><span style=\"position:absolute;left:{}px;top:0;padding:0 {}px;background:#fff;font-size:{font}px;{FONT}\">{caption}</span>", font / 2.0, 6.0 * zoom, 2.0 * zoom);
+            let _ = write!(out, "<div style=\"position:absolute;left:0;right:0;bottom:0;top:{}px;border:1px solid #000\"></div><span style=\"position:absolute;left:{}px;top:0;padding:0 {}px;background:#fff;font-size:{font}px;{FONT}\">{caption}</span>", font / 2.0, 6.0 * zoom, 2.0 * zoom);
         }
         "Label" => {
             let _ = write!(out, "<div style=\"position:absolute;inset:0;font-size:{font}px;{FONT}\">{caption}</div>");

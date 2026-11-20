@@ -1003,6 +1003,12 @@ fn dc_zjsg_4__stored_objects_take_text_fill_outline_turns_order_and_groups() {
     for name in ["Freeform curves", "Rect rot 60", "Pattern smCheck"] {
         assert_eq!(found(name), before(name), "{name}");
     }
+    // An arrow-key step: the reopened (stored) "Style accent2" moves 3 pt right and 1.5 pt up.
+    let styled = reloaded.host().shapes(sheet).iter().find(|s| s.name == "Style accent2").unwrap().clone();
+    let (sl, st, sw, sh) = reloaded.host().anchor_rectangle(sheet, &styled.anchor);
+    shape(&mut reloaded, sheet, ShapeChange::Nudge { id: styled.id, dx: pts(3.0), dy: pts(-1.5) });
+    let nudged = reloaded.host().shapes(sheet).iter().find(|s| s.id == styled.id).unwrap().clone();
+    assert_eq!(reloaded.host().anchor_rectangle(sheet, &nudged.anchor), (sl + 3.0, st - 1.5, sw, sh));
     // Ungrouped again: both patterns at the top level where the group was, at their own places.
     shape(&mut reloaded, sheet, ShapeChange::Ungroup { id: group.id });
     let again = reopened(&mut reloaded);
@@ -1153,6 +1159,65 @@ fn dc_zjsg_4__a_turned_or_flipped_group_comes_apart_where_it_showed_its_children
     assert_eq!(centre(&flipped, 3), (120.0, 110.0, 0, true));
     let saved = reopened(&mut flipped);
     assert_eq!(centre(&saved, 2), (180.0, 110.0, 0, true));
+}
+
+/// dc-zjsg.4: a duplicate of the file's own object is written from its stored element (its custom geometry and fill
+/// kept), with its own identity and place; a duplicate of a new shape is renumbered and renamed from its identity.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_4__duplicates_of_stored_and_new_shapes_save_and_reopen() {
+    let mut book = open(include_bytes!("../../calc-doc/tests/fixtures/drawing/shapes-paint4.xlsx").to_vec());
+    let sheet = book.host().sheets()[0].id();
+    let triangle = book.host().shapes(sheet).iter().find(|s| s.name == "Freeform triangle").unwrap().clone();
+    shape(&mut book, sheet, ShapeChange::Duplicate { id: triangle.id, dx: pts(12.0), dy: pts(12.0) });
+    shape(&mut book, sheet, add(ShapeKind::Shape, "ellipse", 10.0, 10.0, 40.0, 30.0));
+    let oval = book.host().shapes(sheet).last().unwrap().clone();
+    shape(&mut book, sheet, ShapeChange::Duplicate { id: oval.id, dx: pts(12.0), dy: pts(12.0) });
+    let reloaded = reopened(&mut book);
+    let read = reloaded.host().shapes(sheet);
+    assert_eq!(read.len(), 23);
+    let copies: Vec<_> = read.iter().filter(|s| s.name == "Freeform triangle").collect();
+    assert_eq!(copies.len(), 2);
+    let copy = copies.iter().find(|s| s.id != triangle.id).unwrap();
+    assert_eq!((&copy.custom_geometry, &copy.fill, &copy.text), (&triangle.custom_geometry, &triangle.fill, &triangle.text));
+    let (l, t, w, h) = book.host().anchor_rectangle(sheet, &triangle.anchor);
+    let (l2, t2, w2, h2) = reloaded.host().anchor_rectangle(sheet, &copy.anchor);
+    assert!((l2 - l - 12.0).abs() < 0.01 && (t2 - t - 12.0).abs() < 0.01 && (w2 - w).abs() < 0.01 && (h2 - h).abs() < 0.01);
+    let oval_copy = read.last().unwrap();
+    assert_eq!((oval_copy.geometry.as_deref(), oval_copy.name.clone()), (Some("ellipse"), format!("Oval {}", oval_copy.id - 1)));
+    // Identities stay unique in the saved drawing.
+    let mut ids: Vec<u32> = read.iter().map(|s| s.id).collect();
+    ids.sort_unstable();
+    ids.dedup();
+    assert_eq!(ids.len(), 23);
+}
+
+/// dc-zjsg.4: a row inside an object's span made taller: an object that moves but doesn't size (editAs oneCell) keeps
+/// its size, its anchor's end found anew; an object that moves and sizes with its cells (a new one) grows; the stored
+/// anchor is rewritten on save, and hiding the row works the same way.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_4__objects_that_dont_size_with_cells_keep_their_size_when_a_row_grows() {
+    let mut book = open(include_bytes!("../../calc-doc/tests/fixtures/drawing/shapes-paint4.xlsx").to_vec());
+    let sheet = book.host().sheets()[0].id();
+    let triangle = book.host().shapes(sheet).iter().find(|s| s.name == "Freeform triangle").unwrap().clone();
+    assert_eq!(triangle.edit_as.as_deref(), Some("oneCell"));
+    let before = book.host().anchor_rectangle(sheet, &triangle.anchor);
+    // A new shape over the same rows (rows 5 to 8 at 15 pt), moving and sizing with its cells.
+    shape(&mut book, sheet, add(ShapeKind::Shape, "rect", 300.0, before.1, 40.0, 40.0));
+    let added = book.host().shapes(sheet).last().unwrap().clone();
+    let added_before = book.host().shape_rectangle(sheet, &added);
+    let row = (before.1 / 15.0).floor() as u32 + 2;
+    command(&mut book, |_| WorkbookCommand::AxisFormat { sheet, rows: true, first: row, count: 1, size_bits: Some(30.0f64.to_bits()), hidden: None });
+    let now = book.host().shapes(sheet).iter().find(|s| s.id == triangle.id).unwrap().clone();
+    let after = book.host().anchor_rectangle(sheet, &now.anchor);
+    assert!((after.2 - before.2).abs() < 0.01 && (after.3 - before.3).abs() < 0.01 && (after.0 - before.0).abs() < 0.01, "{before:?} {after:?}");
+    let grown = book.host().shapes(sheet).iter().find(|s| s.id == added.id).unwrap().clone();
+    assert!((book.host().anchor_rectangle(sheet, &grown.anchor).3 - added_before.3 - 15.0).abs() < 0.01);
+    let reloaded = reopened(&mut book);
+    let read = reloaded.host().shapes(sheet).iter().find(|s| s.id == triangle.id).unwrap().clone();
+    let reread = reloaded.host().anchor_rectangle(sheet, &read.anchor);
+    assert!((reread.3 - before.3).abs() < 0.01, "{reread:?}");
 }
 
 /// dc-zjsg.4: a kept object (an equation, ink, SmartArt, OLE) is not moved or deleted; it stays as the file stores it.

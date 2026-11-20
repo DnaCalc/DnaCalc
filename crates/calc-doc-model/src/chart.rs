@@ -60,6 +60,22 @@ pub struct ChartTrendline {
     pub colour: Option<String>,
 }
 
+/// What a `c:dLbls` shows (dc-zjsg.6), for drawing: the parts of each label, where it sits and what separates its
+/// parts. Per-point `c:dLbl` overrides and label text formatting are not held.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct ChartLabels {
+    pub value: bool,
+    pub category: bool,
+    pub series: bool,
+    pub percent: bool,
+    /// `dLblPos`: `bestFit`, `ctr`, `inEnd`, `inBase`, `outEnd`, `t`, `b`, `l`, `r`.
+    pub position: Option<String>,
+    /// `separator`.
+    pub separator: Option<String>,
+    /// `delete`: no labels at all.
+    pub deleted: bool,
+}
+
 /// One `c:errBars` of a series (dc-zjsg.6), as the file states it.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ChartErrorBars {
@@ -101,6 +117,8 @@ pub struct ChartSeries {
     pub trendlines: Vec<ChartTrendline>,
     /// The series' `c:errBars` (dc-zjsg.6).
     pub error_bars: Vec<ChartErrorBars>,
+    /// What the series' `c:dLbls` shows, for drawing (dc-zjsg.6).
+    pub labels: Option<ChartLabels>,
     /// The series' fill (`c:spPr/a:solidFill`): `RRGGBB` (`a:srgbClr`) or a scheme colour's name
     /// (`a:schemeClr`, e.g. `accent2`).
     pub fill: Option<String>,
@@ -138,6 +156,14 @@ pub struct ChartPlot {
     pub high_low_lines: bool,
     /// A line or area plot's `c:dropLines` (dc-zjsg.6).
     pub drop_lines: bool,
+    /// What the plot's `c:dLbls` shows, for drawing (dc-zjsg.6).
+    pub labels: Option<ChartLabels>,
+    /// An Excel 2016 waterfall's subtotal points (`cx:subtotals`), by index (dc-zjsg.6).
+    pub subtotals: Vec<u32>,
+    /// An Excel 2016 box and whisker's `cx:statistics quartileMethod="inclusive"` and `cx:visibility` (`meanMarker`,
+    /// `meanLine`, `outliers`, `nonoutliers`) as the file states them (dc-zjsg.6).
+    pub box_inclusive: bool,
+    pub box_visibility: Option<[bool; 4]>,
     pub up_down_bars: bool,
 }
 

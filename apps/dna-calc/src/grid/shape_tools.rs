@@ -158,6 +158,7 @@ pub fn controls(controller: Controller, shapes: RwSignal<Vec<wire::DrawnShape>>,
                     })}
                 </div>
                 <div class="dc-command-row">
+                    <button type="button" data-dnacalc="shape-duplicate" on:click=move |_| with(&|sheet, revision, id| wire::Intent::ShapeDuplicate { sheet, revision, id, dx: 1200, dy: 1200 })>"Duplicate"</button>
                     <button type="button" data-dnacalc="shape-front" on:click=move |_| order("front")>"Bring to front"</button>
                     <button type="button" data-dnacalc="shape-forward" on:click=move |_| order("forward")>"Bring forward"</button>
                     <button type="button" data-dnacalc="shape-backward" on:click=move |_| order("backward")>"Send backward"</button>

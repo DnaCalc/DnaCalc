@@ -361,6 +361,9 @@ pub struct Shape {
     /// The language (`a:rPr lang`) of the text runs a shape this session made writes: Excel writes the
     /// machine's install/regional language on every run (dc-piw0.10 Q15); `None` writes `en-US`.
     pub lang: Option<String>,
+    /// The stored object (`cNvPr id`) a copy the session made was taken from (dc-zjsg.4): the save writes the copy from
+    /// that object's element, with the copy's identity, name and place.
+    pub copy_of: Option<u32>,
 }
 
 impl Shape {
@@ -400,6 +403,7 @@ impl Shape {
             math: None,
             source_part: None,
             lang: None,
+            copy_of: None,
         }
     }
 }

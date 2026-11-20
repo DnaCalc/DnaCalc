@@ -71,6 +71,12 @@ pub enum ChartKind {
     Bubble,
     /// `stockChart`: high-low lines with open and close marks over categories (dc-zjsg.6).
     Stock,
+    /// An Excel 2016 waterfall (`cx:waterfall`): each point a step from the running total, subtotals from zero.
+    Waterfall,
+    /// An Excel 2016 funnel (`cx:funnel`): centred bars as wide as their values.
+    Funnel,
+    /// An Excel 2016 box and whisker (`cx:boxWhisker`): each category's values as quartiles, whiskers and outliers.
+    BoxWhisker,
     /// Another kind, by its element name (`surfaceChart`, `ofPieChart`, ...).
     Other(String),
 }
@@ -97,6 +103,10 @@ pub struct SeriesView {
     pub trendlines: Vec<(calc_doc_model::ChartTrendline, String)>,
     /// The series' error bars as the file states them.
     pub error_bars: Vec<calc_doc_model::ChartErrorBars>,
+    /// What the series' labels show (its own `dLbls`, else its plot's), and each value as its cell shows it when
+    /// they show values (empty when the cells' formats are not ones the session renders).
+    pub labels: Option<calc_doc_model::ChartLabels>,
+    pub label_values: Vec<Option<String>>,
 }
 
 /// One plot of a chart.
@@ -120,6 +130,12 @@ pub struct PlotView {
     /// A stock or line plot's high-low lines, a stock plot's up/down bars, a line or area plot's drop lines.
     pub high_low_lines: bool,
     pub drop_lines: bool,
+    /// A waterfall's subtotal points, by index.
+    pub subtotals: Vec<u32>,
+    /// A box and whisker's quartile method (inclusive or exclusive) and what it shows: mean markers, mean line,
+    /// outliers, inner points.
+    pub box_inclusive: bool,
+    pub box_visibility: [bool; 4],
     pub up_down_bars: bool,
 }
 
@@ -220,6 +236,9 @@ impl HostState {
                         "radarChart" => ChartKind::Radar,
                         "bubbleChart" => ChartKind::Bubble,
                         "stockChart" => ChartKind::Stock,
+                        "cx:waterfall" => ChartKind::Waterfall,
+                        "cx:funnel" => ChartKind::Funnel,
+                        "cx:boxWhisker" => ChartKind::BoxWhisker,
                         other => ChartKind::Other(other.to_owned()),
                     };
                     let grouping = plot.grouping.as_deref().unwrap_or_default();
@@ -238,6 +257,9 @@ impl HostState {
                         bubble_width: plot.bubble_width,
                         high_low_lines: plot.high_low_lines,
                         drop_lines: plot.drop_lines,
+                        subtotals: plot.subtotals.clone(),
+                        box_inclusive: plot.box_inclusive,
+                        box_visibility: plot.box_visibility.unwrap_or([true, false, true, false]),
                         up_down_bars: plot.up_down_bars,
                         stacked: matches!(grouping, "stacked" | "percentStacked"),
                         percent: grouping == "percentStacked",
@@ -301,7 +323,15 @@ impl HostState {
                                         (t.clone(), colour)
                                     })
                                     .collect();
+                                let labels = series.labels.clone().or_else(|| plot.labels.clone()).filter(|l| !l.deleted && (l.value || l.category || l.series || l.percent));
+                                let label_values = if labels.as_ref().is_some_and(|l| l.value) {
+                                    self.simple_value_labels(series.values.as_ref(), &values, cached, true, origin)
+                                } else {
+                                    Vec::new()
+                                };
                                 SeriesView {
+                                    labels,
+                                    label_values,
                                     error_bars: series.error_bars.clone(),
                                     trendlines,
                                     sizes,
@@ -1829,6 +1859,7 @@ fn make_series(
             bubble_sizes: None,
             trendlines: Vec::new(),
             error_bars: Vec::new(),
+            labels: None,
         });
     }
     Ok(series)
