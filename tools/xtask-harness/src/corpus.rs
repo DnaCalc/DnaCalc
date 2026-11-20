@@ -54,6 +54,11 @@
 //!    corpus. A workbook that could not be read, captured or compared is listed as not compared,
 //!    with the stage and the reason, and the run carries on.
 //!
+//! `--lean` keeps per-workbook counts, root causes and mismatched or refused cells in
+//! `offenders.json`. Saved-cache offenders are under `saved_excel_cells`. While a lean run is
+//! active, `summary.partial.json` checkpoints completed workbooks. After interruption,
+//! `--lean --resume` verifies and reuses completed results and writes the final shard summary.
+//!
 //! `--out` defaults to `target/corpus`. The summary of a corpus outside the repository belongs
 //! outside it too: it names workbooks, and a reason a workbook was not compared may quote a sheet.
 //! Paths are relative to the current directory.
@@ -75,7 +80,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use std::time::{Duration, Instant};
 
-pub const USAGE: &str = "usage: cargo xtask corpus [<dir>] [--recursive] [--oracle] [--release | --profile dev|release|perf] [--out <dir>] [--cache <dir>] [--import <capture.json>]... [--no-capture] [--dna-only] [--saved-excel <provenance.json>] [--trusted-code <manifest.json>] [--timeout <s>] [--shard <index/count>] [--resume] [--minimize] [--capture-only] | cargo xtask corpus --merge <summary.json>... --out <dir>";
+pub const USAGE: &str = "usage: cargo xtask corpus [<dir>] [--recursive] [--oracle] [--release | --profile dev|release|perf] [--out <dir>] [--cache <dir>] [--import <capture.json>]... [--no-capture] [--dna-only] [--saved-excel <provenance.json>] [--trusted-code <manifest.json>] [--timeout <s>] [--shard <index/count>] [--resume] [--lean] [--minimize] [--capture-only] | cargo xtask corpus --merge <summary.json>... --out <dir>";
 
 const EXIT_FAILED: u8 = 1;
 const EXIT_USAGE: u8 = 2;
@@ -99,6 +104,7 @@ pub(crate) struct Args {
     pub(crate) recursive: bool,
     pub(crate) shard: Option<(u64, u64)>,
     pub(crate) resume: bool,
+    pub(crate) lean: bool,
     pub(crate) minimize: bool,
     /// Stop after each workbook's capture is taken or found: the comparison runs elsewhere (dc-vq5b batch 1).
     pub(crate) capture_only: bool,
@@ -121,6 +127,7 @@ pub(crate) fn parse_args(args: &[String]) -> Result<Args, String> {
         recursive: false,
         shard: None,
         resume: false,
+        lean: false,
         minimize: false,
         capture_only: false,
         dna_only: false,
@@ -158,6 +165,7 @@ pub(crate) fn parse_args(args: &[String]) -> Result<Args, String> {
             "--no-capture" => parsed.no_capture = true,
             "--recursive" => parsed.recursive = true,
             "--resume" => parsed.resume = true,
+            "--lean" => parsed.lean = true,
             "--minimize" => parsed.minimize = true,
             "--capture-only" => parsed.capture_only = true,
             "--trusted-code" => {
@@ -776,6 +784,9 @@ fn compare_one(
         fs::create_dir_all(out).map_err(|e| format!("cannot create {}: {e}", out.display()))?;
         let mut key =
             crate::corpus_batch::key(&entry.path, capture, program_digest, args.minimize)?;
+        if args.lean {
+            key["lean"] = json!(true);
+        }
         if key["fixture"].as_str() != Some(snapshot) {
             return Err("workbook bytes changed after inventory admission".into());
         }
@@ -852,6 +863,9 @@ fn compare_one(
         if args.minimize {
             command.arg("--minimize");
         }
+        if args.lean {
+            command.arg("--lean");
+        }
         if let Some(path) = &args.saved_excel {
             command.arg("--saved-excel").arg(path);
         }
@@ -907,11 +921,40 @@ fn compare_one(
             return Err("comparison used different trusted code than the admitted manifest".into());
         }
         read_triage(&triage)?;
-        crate::corpus_batch::publish(&payload, out)?;
+        if (triage["format"] == "dnacalc-lean-triage") != args.lean {
+            return Err("comparison used a different output mode".into());
+        }
+        crate::corpus_batch::publish(&payload, out, &key)?;
         crate::corpus_batch::finish(out, &key)?;
         Ok(triage)
     };
     (attempt().map_err(not), started.elapsed().as_secs_f64())
+}
+
+fn update_summary_run(
+    summary: &mut Summary,
+    run: &Run<'_>,
+    started: Instant,
+    total: usize,
+    complete: bool,
+) {
+    let build = match &run.build {
+        Some(Ok(build)) => json!(build),
+        Some(Err(e)) => json!(format!("not known: {e}")),
+        None => json!("not read (no capture needed it)"),
+    };
+    summary.run["excel_build"] = build;
+    summary.run["wall_time_s"] = json!(started.elapsed().as_secs_f64());
+    summary.run["complete"] = json!(complete);
+    summary.run["workbooks_total"] = json!(total);
+    let date_field = if complete { "finished_utc" } else { "checkpoint_utc" };
+    if complete {
+        summary.run
+            .as_object_mut()
+            .expect("run is an object")
+            .remove("checkpoint_utc");
+    }
+    summary.run[date_field] = json!(crate::accept::utc_now());
 }
 
 /// Runs the corpus and writes its summary; the exit code.
@@ -1046,8 +1089,33 @@ fn run_corpus(args: &Args) -> u8 {
         build: None,
         program_digest,
     };
-    let mut workbooks = Vec::new();
     let total = entries.len();
+    let mut command = vec!["cargo xtask corpus".to_owned()];
+    command.extend(std::env::args().skip(2));
+    let mut summary = Summary {
+        run: json!({
+            "command": command.join(" "),
+            "repository": repository,
+            "compare_process": program_note,
+            "cache": run.cache.root.display().to_string(),
+            "listing_failures": listing_failures,
+            "shard": args.shard,
+            "inventory": "inventory.json",
+            "corpus_inventory_sha256": inventory["content_key"],
+            "resume": args.resume,
+            "lean": args.lean,
+            "dna_only_fallback": args.dna_only,
+            "saved_excel_provenance_sha256": run.saved_excel_digest,
+            "trusted_code_sha256": run.trusted_code_digest,
+            "execution_route": if args.trusted_code.is_some() {"trusted-evidence-code"} else {"captured-policy-or-disabled-inventory"},
+            "comparison_timeout_s": args.timeout.as_secs(),
+            "resumed_stage_times": "from the verified original comparison",
+            "executable_sha256": run.program_digest,
+
+        }),
+        workbooks: Vec::with_capacity(total),
+    };
+    let mut checkpoint = Instant::now();
     for (i, entry) in entries.iter().enumerate() {
         println!("xtask corpus: [{}/{total}] {}", i + 1, entry.name);
         let workbook = one_workbook(&mut run, &program, entry, &args.out);
@@ -1078,41 +1146,21 @@ fn run_corpus(args: &Args) -> u8 {
                 not.stage, not.reason
             ),
         }
-        workbooks.push(workbook);
+        summary.workbooks.push(workbook);
+        if args.lean && (i == 0 || checkpoint.elapsed() >= Duration::from_secs(15)) {
+            update_summary_run(&mut summary, &run, started, total, false);
+            let temp = args.out.join("summary.partial.tmp");
+            let path = args.out.join("summary.partial.json");
+            let bytes = serde_json::to_vec(&summary.json()).expect("summary serializes");
+            if let Err(e) = fs::write(&temp, bytes).and_then(|()| fs::rename(&temp, &path)) {
+                eprintln!("xtask corpus: cannot checkpoint {}: {e}", path.display());
+                return EXIT_FAILED;
+            }
+            checkpoint = Instant::now();
+        }
     }
 
-    let mut command = vec!["cargo xtask corpus".to_owned()];
-    command.extend(std::env::args().skip(2));
-    let build = match &run.build {
-        Some(Ok(build)) => json!(build),
-        Some(Err(e)) => json!(format!("not known: {e}")),
-        None => json!("not read (no capture needed it)"),
-    };
-    let summary = Summary {
-        run: json!({
-            "command": command.join(" "),
-            "finished_utc": crate::accept::utc_now(),
-            "repository": repository,
-            "compare_process": program_note,
-            "excel_build": build,
-            "cache": run.cache.root.display().to_string(),
-            "listing_failures": listing_failures,
-            "wall_time_s": started.elapsed().as_secs_f64(),
-            "shard": args.shard,
-            "inventory": "inventory.json",
-            "corpus_inventory_sha256": inventory["content_key"],
-            "resume": args.resume,
-            "dna_only_fallback": args.dna_only,
-            "saved_excel_provenance_sha256": run.saved_excel_digest,
-            "trusted_code_sha256": run.trusted_code_digest,
-            "execution_route": if args.trusted_code.is_some() {"trusted-evidence-code"} else {"captured-policy-or-disabled-inventory"},
-            "comparison_timeout_s": args.timeout.as_secs(),
-            "resumed_stage_times": "from the verified original comparison",
-            "executable_sha256": run.program_digest,
-
-        }),
-        workbooks,
-    };
+    update_summary_run(&mut summary, &run, started, total, true);
     let json_text = match serde_json::to_string_pretty(&summary.json()) {
         Ok(text) => text + "\n",
         Err(e) => {
@@ -1133,6 +1181,15 @@ fn run_corpus(args: &Args) -> u8 {
     if let Err(e) = crate::corpus_batch::write_problem_functions(&args.out, &summary.json()) {
         eprintln!("xtask corpus: {e}");
         return EXIT_FAILED;
+    }
+    if args.lean {
+        let checkpoint = args.out.join("summary.partial.json");
+        if let Err(e) = fs::remove_file(&checkpoint)
+            && e.kind() != std::io::ErrorKind::NotFound
+        {
+            eprintln!("xtask corpus: cannot remove {}: {e}", checkpoint.display());
+            return EXIT_FAILED;
+        }
     }
     let totals = summary.totals();
     let c = &totals.counts;

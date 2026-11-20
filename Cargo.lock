@@ -3484,6 +3484,7 @@ dependencies = [
  "calc-xll-host",
  "dna-strand",
  "miniz_oxide",
+ "serde",
  "serde_json",
  "syn 3.0.9",
  "tungstenite",
