@@ -1,7 +1,6 @@
 //! The complex-number engineering functions' arithmetic, parsing and text rendering, ported from
 //! OxFunc functions/complex_family.rs; the argument reading lives in the engineering family.
 
-use crate::ported::complex_decimal;
 use crate::ported::excel_numeric::{
     crt_atan2, crt_cos, crt_cosh, crt_exp, crt_hypot, crt_log, crt_pow, crt_sin, crt_sinh,
     excel_x87_div,
@@ -289,8 +288,17 @@ impl ParsedComplex {
     pub(crate) fn sinh(self) -> Self {
         // Preserve the finite real axis when the real primitive overflows:
         // its imaginary component is zero, without forming infinity * sin(0).
+        // On the real axis from |x| = 1 IMSINH is the worksheet SINH, the EXP difference
+        // (dc-iuwct.7, Excel 16.0.20527: 603 of 607 fresh controls there, against 594 for the
+        // runtime sinh). Below 1 Excel follows neither SINH's expm1 route (815 of 893) nor the EXP
+        // difference; the runtime sinh, kept there, holds 818.
         if self.im == 0.0 && self.re.is_finite() {
-            return Self::new(crt_sinh(self.re), 0.0, None);
+            let value = if self.re.abs() >= 1.0 {
+                crate::ported::sinh::sinh_kernel(self.re)
+            } else {
+                crt_sinh(self.re)
+            };
+            return Self::new(value, 0.0, None);
         }
         Self::new(
             crt_sinh(self.re) * crt_cos(self.im),
@@ -299,8 +307,10 @@ impl ParsedComplex {
         )
     }
     pub(crate) fn cosh(self) -> Self {
+        // On the real axis IMCOSH is the worksheet COSH, the stored EXP sum (dc-iuwct.9, Excel
+        // 16.0.20527: 1,493 of 1,500 fresh controls, against 1,483 for the runtime cosh).
         if self.im == 0.0 && self.re.is_finite() {
-            return Self::new(crt_cosh(self.re), 0.0, None);
+            return Self::new(crate::ported::cosh::cosh_kernel(self.re), 0.0, None);
         }
         Self::new(
             crt_cosh(self.re) * crt_cos(self.im),
@@ -370,9 +380,11 @@ impl ParsedComplex {
         self.sin().reciprocal()
     }
     pub(crate) fn sech(self) -> Result<Self, WorksheetErrorCode> {
+        // The reciprocal of IMCOSH (dc-iuwct.13), on the real axis 1 / COSH.
         self.cosh().reciprocal()
     }
     pub(crate) fn csch(self) -> Result<Self, WorksheetErrorCode> {
+        // The reciprocal of IMSINH (dc-iuwct.8).
         self.sinh().reciprocal()
     }
     pub(crate) fn power(self, exponent: f64) -> Result<Self, WorksheetErrorCode> {
@@ -419,7 +431,7 @@ pub(crate) fn normalize_zero(n: f64) -> f64 {
     if n == 0.0 { 0.0 } else { n }
 }
 /// Excel's complex coefficient rendering, observed on build 20430 through Value2 inputs:
-/// 15 significant decimal digits using the binary scaling model in `complex_decimal`, fixed
+/// 15 significant decimal digits using the scaling model of `decimal::complex_fifteen`, fixed
 /// notation while the unsigned result fits in 21 characters, otherwise scientific notation.
 /// No near-integer snapping is applied. See the retained W111 captures and failed hypotheses.
 pub(crate) fn number_to_excel_text(n: f64) -> Result<String, WorksheetErrorCode> {
@@ -433,7 +445,8 @@ pub(crate) fn number_to_excel_text(n: f64) -> Result<String, WorksheetErrorCode>
     }
 
     let sign = if n < 0.0 { "-" } else { "" };
-    let (mut significand, mut scale) = complex_decimal::decimal_pair(n);
+    let (mut significand, shift) = crate::decimal::complex_fifteen(n);
+    let mut scale = -shift;
     if significand == 1_000_000_000_000_000 {
         significand /= 10;
         scale += 1;
