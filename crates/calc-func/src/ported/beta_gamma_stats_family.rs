@@ -131,69 +131,185 @@ pub(crate) fn beta_dist_kernel(
     }
 }
 
-/// The measured zero-density arm of the large-first/small-second beta inverse.
-/// Own Tier1 derivation: A&S26.4.17, with the rational inverse of26.5.20.
-/// Excel20527 publishes this initial proposal when its density underflows;
-/// 128 calibration and256 frozen holdout controls qualify this stored program.
-fn beta_inverse_zero_density_seed(p: f64, a: f64, b: f64) -> Option<f64> {
+/// Lower-tail starting approximations from Abramowitz and Stegun 26.4.17 and
+/// 26.5.20. Keep the small-shape power proposal separate from a rounded upper
+/// endpoint: Excel's iteration treats them differently.
+#[derive(Clone, Copy)]
+enum BetaStart {
+    Interior(f64),
+    LowerPower(f64),
+    UpperEndpoint,
+    Failed,
+    LowerEndpoint,
+}
+
+fn beta_inverse_start(p: f64, a: f64, b: f64) -> Option<BetaStart> {
     use crate::ported::excel_numeric::{
-        excel_exp, excel_log, excel_sqrt_staged, excel_x87_add,
-        excel_x87_div, excel_x87_mul, excel_x87_sub,
+        excel_exp, excel_log, excel_sqrt_staged, excel_x87_add, excel_x87_div, excel_x87_mul,
+        excel_x87_sub,
     };
-    if a <= 1.0 || b > 1.0 {
-        return None;
-    }
     let z = -crate::ported::normal_log_family::norm_s_inv_kernel(p).ok()?;
+    if a > 1.0 && b > 1.0 {
+        // A&S 26.5.20, with both reciprocals and the final denominator stored.
+        let al = (z * z - 3.0) / 6.0;
+        let ra = 1.0 / (2.0 * a - 1.0);
+        let rb = 1.0 / (2.0 * b - 1.0);
+        let h = 2.0 / (ra + rb);
+        let w = z * excel_sqrt_staged(al + h) / h - (rb - ra) * (al + 5.0 / 6.0 - 2.0 / (3.0 * h));
+        let x = a / (a + b * excel_exp(2.0 * w));
+        return if x == 1.0 && a + b == a {
+            Some(BetaStart::Failed)
+        } else {
+            (x > 0.0 && x < 1.0).then_some(BetaStart::Interior(x))
+        };
+    }
     let correction = excel_x87_div(1.0, excel_x87_mul(9.0, b));
     let base = excel_x87_add(
         excel_x87_sub(1.0, correction),
         excel_x87_mul(z, excel_sqrt_staged(correction)),
     );
-    if base <= 0.0 || !base.is_finite() {
-        return None;
+    let log_beta = || crate::ported::special_math_common::bratio_betaln(a, b);
+    if base <= 0.0 {
+        // At an overflowing cube Excel starts at the midpoint. A zero
+        // midpoint density publishes 0.5. The finite-density controls return NUM.
+        if !(base * base * base).is_finite() {
+            return Some(if beta_dist_kernel(0.5, a, b, false, 0.0, 1.0) == Ok(0.0) {
+                BetaStart::Interior(0.5)
+            } else {
+                BetaStart::Failed
+            });
+        }
+        let t = (crate::ported::excel_numeric::excel_log1p(-p) + (excel_log(b) + log_beta())) / b;
+        let x = 1.0 - excel_exp(t);
+        return if x == 1.0 {
+            Some(BetaStart::UpperEndpoint)
+        } else if x <= 0.0 {
+            Some(BetaStart::LowerEndpoint)
+        } else {
+            (x > 0.0 && x < 1.0).then_some(BetaStart::Interior(x))
+        };
     }
-    // This cube is the stored EXP of stored 3*LN, not a multiplication cube
-    // or either existing POW primitive (separated by the fresh holdout).
-    let cube = excel_exp(3.0 * excel_log(base));
-    let twice_b = 2.0 * b;
-    let chi = excel_x87_mul(twice_b, cube);
-    let numerator = excel_x87_sub(excel_x87_add(4.0 * a, twice_b), 2.0);
+    // Excel stores EXP(3 * LN(base)) here. Multiplying the three factors
+    // gives a different seed even when the mathematical cube is finite.
+    let chi = excel_x87_mul(2.0 * b, excel_exp(3.0 * excel_log(base)));
+    let numerator = excel_x87_sub(excel_x87_add(4.0 * a, 2.0 * b), 2.0);
     let ratio = excel_x87_div(numerator, chi);
-    if ratio <= 1.0 || !ratio.is_finite() {
+    if ratio <= 1.0 {
+        let log_beta = if a == 0.5 && b > 8.0 {
+            crate::ported::special_math_common::half_shape_log_beta(b)
+        } else {
+            log_beta()
+        };
+        let x = excel_exp((excel_log(p) + (excel_log(a) + log_beta)) / a);
+        return Some(if x < f64::MIN_POSITIVE {
+            BetaStart::LowerEndpoint
+        } else {
+            BetaStart::LowerPower(x)
+        });
+    }
+    if !ratio.is_finite() {
         return None;
     }
-    let proposal = excel_x87_sub(1.0, excel_x87_div(2.0, excel_x87_add(ratio, 1.0)));
-    let proposal = if proposal == 1.0 { 1.0 - 1e-6 } else { proposal };
-    if proposal <= 0.0 || !proposal.is_finite() {
-        return None;
+    let x = excel_x87_sub(1.0, excel_x87_div(2.0, excel_x87_add(ratio, 1.0)));
+    if x == 1.0 {
+        Some(BetaStart::UpperEndpoint)
+    } else {
+        (x > 0.0 && x < 1.0).then_some(BetaStart::Interior(x))
     }
-    (beta_dist_kernel(proposal, a, b, false, 0.0, 1.0).ok()? == 0.0).then_some(proposal)
 }
 
-/// The initial A&S 26.4.17 proposal when both shapes exceed one. In this
-/// measured large-second-shape region Excel publishes the proposal. Keep
-/// ambiguous exponential and final-ratio rounding on the existing path.
-fn beta_inverse_large_second_seed(p: f64, a: f64, b: f64) -> Option<f64> {
-    if p <= 1.0 / 256.0 || p >= 1.0 / 64.0
-        || a <= 256.0 || a >= 512.0 || a.fract() != 0.0
-        || !(2.0_f64.powi(80)..2.0_f64.powi(300)).contains(&b)
-    {
-        return None;
+/// Newton corrections on the lower beta coordinate. Divide an inadmissible
+/// correction by three until it stays inside the support. In the unrepresentable
+/// upper tail, Excel 20527 distinguishes success from exhaustion at 700 trials.
+fn beta_newton_lower(p: f64, a: f64, b: f64) -> Result<Option<f64>, WorksheetErrorCode> {
+    use crate::ported::excel_numeric::{excel_x87_div, excel_x87_mul, excel_x87_sub};
+    const MAX_TRIALS: usize = 700;
+    let Some(start) = beta_inverse_start(p, a, b) else {
+        return Ok(None);
+    };
+    let (mut x, upper_endpoint) = match start {
+        BetaStart::Failed => return Err(WorksheetErrorCode::Num),
+        BetaStart::Interior(x) => (x, false),
+        BetaStart::LowerEndpoint => (1e-6, false),
+        BetaStart::LowerPower(x) if x > 0.0 && x < 1.0 => (x, false),
+        BetaStart::LowerPower(_) => return Ok(None),
+        BetaStart::UpperEndpoint => (1.0 - 1e-6, true),
+    };
+    // The 1,040 frozen boundary controls separate the unrounded exponent
+    // from its floor and truncation. Both tails use an absolute correction.
+    let exponent = (-13.0 - 5.0 / (a * a) - libm::pow(p, -0.2)).max(-150.0);
+    let tolerance = libm::pow(10.0, exponent).min(f64::EPSILON);
+    let outside_upper = upper_endpoint
+        && beta_dist_kernel(f64::from_bits(1.0f64.to_bits() - 1), a, b, true, 0.0, 1.0)
+            .is_ok_and(|f| f < p);
+    // If the shape sum absorbs a, b*x retains the gamma limit of I_x(a,b).
+    // Its Newton correction is in units of b*x and must be divided by b.
+    let gamma_limit = matches!(start, BetaStart::LowerPower(_)) && b + a == b;
+    let damped =
+        (a == 0.5 && b > 8.0 && x * b <= 0.49) || matches!(start, BetaStart::LowerEndpoint);
+    let mut last_correction = 0.0;
+    let mut last_adjustment: f64 = 1.0;
+    let mut step_limit = f64::INFINITY;
+    let mut trials = 0;
+    loop {
+        let (cdf, density) = if gamma_limit {
+            let u = excel_x87_mul(b, x);
+            (
+                gamma_dist_kernel(u, a, 1.0, true),
+                gamma_dist_kernel(u, a, 1.0, false),
+            )
+        } else {
+            (
+                beta_dist_kernel(x, a, b, true, 0., 1.),
+                beta_dist_kernel(x, a, b, false, 0., 1.),
+            )
+        };
+        let (Ok(cdf), Ok(density)) = (cdf, density) else {
+            return if matches!(start, BetaStart::LowerEndpoint) {
+                Err(WorksheetErrorCode::Num)
+            } else {
+                Ok(None)
+            };
+        };
+        if density == 0.0 {
+            return Ok(Some(x));
+        }
+        let mut correction = excel_x87_div(excel_x87_sub(cdf, p), density);
+        if gamma_limit {
+            correction = excel_x87_div(correction, b);
+        }
+        if !correction.is_finite() {
+            return Ok(None);
+        }
+        if correction.abs() <= tolerance || (damped && correction.abs() <= 1e-15 * x) {
+            return Ok(Some(x));
+        }
+        if damped && correction * last_correction <= 0.0 {
+            step_limit = last_adjustment.abs().max(1e-300);
+        }
+        last_correction = correction;
+        let mut factor = 1.0;
+        loop {
+            trials += 1;
+            if trials >= MAX_TRIALS {
+                return if outside_upper || matches!(start, BetaStart::LowerEndpoint) {
+                    Err(WorksheetErrorCode::Num)
+                } else {
+                    Ok(None)
+                };
+            }
+            last_adjustment = excel_x87_mul(factor, correction);
+            let next = excel_x87_sub(x, last_adjustment);
+            if next > 0.0 && next < 1.0 && last_adjustment.abs() < step_limit {
+                if next == x {
+                    return Ok(Some(x));
+                }
+                x = next;
+                break;
+            }
+            factor = excel_x87_div(factor, 3.0);
+        }
     }
-    let x = -crate::ported::normal_log_family::norm_s_inv_kernel(p).ok()?;
-    let al = (x * x - 3.0) / 6.0;
-    let h = 2.0 / (1.0 / (2.0 * a - 1.0) + 1.0 / (2.0 * b - 1.0));
-    let w = x * (al + h).sqrt() / h
-        - (1.0 / (2.0 * b - 1.0) - 1.0 / (2.0 * a - 1.0))
-            * (al + 5.0 / 6.0 - 2.0 / (3.0 * h));
-    let argument = 2.0 * w;
-    let exponential = crate::ported::excel_numeric::excel_exp(argument);
-    if exponential != libm::exp(argument) {
-        return None;
-    }
-    let proposal = a / (a + b * exponential);
-    let alternative = (a / b) / exponential;
-    (proposal.is_finite() && proposal > 0.0 && proposal == alternative).then_some(proposal)
 }
 
 pub(crate) fn beta_inv_kernel(
@@ -228,17 +344,19 @@ pub(crate) fn beta_inv_kernel(
     } else {
         (probability, alpha, beta, false)
     };
-    let z = if lower == 0.0 && upper == 1.0
-        && let Some(seed) = beta_inverse_large_second_seed(probability, alpha, beta)
-    {
-        seed
-    } else if let Some(seed) = beta_inverse_zero_density_seed(probability, alpha, beta) {
-        seed
-    } else {
+    use crate::ported::excel_numeric::{excel_x87_add, excel_x87_mul, excel_x87_sub};
+    let z = beta_newton_lower(probability, alpha, beta)?.unwrap_or_else(|| {
         bisect_inverse_closest(probability, 0.0, 1.0, |v| regularized_beta(v, alpha, beta))
+    });
+    let z = if reflected {
+        excel_x87_add(0.5, excel_x87_sub(0.5, z))
+    } else {
+        z
     };
-    let z = if reflected { 1.0 - z } else { z };
-    Ok(lower + z * (upper - lower))
+    Ok(excel_x87_add(
+        lower,
+        excel_x87_mul(z, excel_x87_sub(upper, lower)),
+    ))
 }
 
 /// Stored cube from Goldstein's chi-square approximation (Algorithm 451, 1973).

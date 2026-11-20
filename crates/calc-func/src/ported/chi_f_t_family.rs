@@ -270,10 +270,26 @@ pub fn f_pdf_kernel(x: f64, deg1: f64, deg2: f64) -> Result<f64, WorksheetErrorC
         if log_density < 2.0 * crt_log(f64::MIN_POSITIVE) {
             return Ok(0.0);
         }
-        // A finite density whose gamma products overflowed (a half degree of freedom past
-        // 171.6, as at 365 or 449): Excel gives the value, so take it from the logarithm.
-        // Approximate, not Excel's last bits: the 10 full-bank rows (Excel 16.0.20527, bank2
-        // F.DIST scalar and more) agree to 3e-12 relative.
+        // For overflowing gamma products, form the generalized binomial mass at
+        // the two separately divided beta coordinates, then multiply by ab/((a+b)x).
+        use crate::ported::excel_numeric::{excel_x87_add, excel_x87_div, excel_x87_mul};
+        let ratio = excel_x87_div(excel_x87_mul(d1, x), d2);
+        let denominator = excel_x87_add(1.0, ratio);
+        let z = excel_x87_div(ratio, denominator);
+        let y = excel_x87_div(1.0, denominator);
+        let shape_sum = half_d1 + half_d2;
+        if z > 0.0
+            && y > 0.0
+            && let Some(scaled_mass) =
+                crate::ported::discrete_dist::beta_density_at(z, y, half_d1 + 1.0, half_d2 + 1.0)
+        {
+            let mass = excel_x87_div(scaled_mass, shape_sum + 1.0);
+            let scale = excel_x87_div(excel_x87_mul(half_d1, half_d2), excel_x87_mul(shape_sum, x));
+            let from_mass = excel_x87_mul(mass, scale);
+            if from_mass.is_finite() {
+                return Ok(from_mass);
+            }
+        }
         let from_log = crt_exp(log_density);
         if from_log.is_finite() {
             return Ok(from_log);
@@ -350,6 +366,31 @@ pub fn f_dist_rt_kernel(x: f64, deg1: f64, deg2: f64) -> Result<f64, WorksheetEr
     Ok(if d1 != 2.0 && tail > 0.0 && tail.is_subnormal() { 0.0 } else { tail })
 }
 
+/// Both F quantiles use the lower-probability beta coordinate. The four
+/// logarithms are accumulated by the distribution exponential before publication.
+fn f_inverse_beta(p: f64, d1: f64, d2: f64, right: bool) -> Option<f64> {
+    use crate::ported::excel_numeric::{excel_exp_running, excel_log, excel_log1p_times};
+    let (q, right) = if p > 0.5 {
+        (1.0 - p, !right)
+    } else {
+        (p, right)
+    };
+    let (a, b) = if right {
+        (d2 / 2.0, d1 / 2.0)
+    } else {
+        (d1 / 2.0, d2 / 2.0)
+    };
+    let z = crate::ported::beta_gamma_stats_family::beta_inv_kernel(q, a, b, 0., 1.).ok()?;
+    if !(z > 0.0 && z < 1.0) {
+        return None;
+    }
+    let lz = excel_log(z);
+    let lc = excel_log1p_times(1.0, -z);
+    let (ln_num, ln_den) = if right { (lc, lz) } else { (lz, lc) };
+    let f = excel_exp_running(excel_log(d2), &[-ln_num, excel_log(d1), ln_den]);
+    f.is_finite().then_some(f)
+}
+
 pub fn f_inv_kernel(probability: f64, deg1: f64, deg2: f64) -> Result<f64, WorksheetErrorCode> {
     let p = if probability == 0.0 {
         0.0
@@ -360,6 +401,9 @@ pub fn f_inv_kernel(probability: f64, deg1: f64, deg2: f64) -> Result<f64, Works
     let d2 = truncate_positive_integer(deg2)?;
     if p == 0.0 {
         return Ok(0.0);
+    }
+    if let Some(f) = f_inverse_beta(p, d1, d2, false) {
+        return Ok(f);
     }
     let fwd = move |x: f64| f_tails(x, d1, d2).1;
     let hi = search_upper_bound(p, 1.0, fwd);
@@ -376,6 +420,9 @@ pub fn f_inv_rt_kernel(probability: f64, deg1: f64, deg2: f64) -> Result<f64, Wo
     let d2 = truncate_positive_integer(deg2)?;
     if p == 1.0 {
         return Ok(0.0);
+    }
+    if let Some(f) = f_inverse_beta(p, d1, d2, true) {
+        return Ok(f);
     }
     // Invert the published right-tail surface (f_dist_rt's accurate complement
     // form) directly at p, not the CDF at 1-p — same principle as CHIINV
@@ -558,9 +605,12 @@ pub fn t_inv_2t_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Worksh
     }
     // Excel 20527: the direct coordinate is used through p=0.9, the
     // complementary coordinate above it. The latter preserves tiny roots.
+    use crate::ported::excel_numeric::{
+        excel_sqrt_staged, excel_x87_div, excel_x87_mul, excel_x87_sub,
+    };
     let t = if p <= 0.9 {
         let z = crate::ported::beta_gamma_stats_family::beta_inv_kernel(p, v / 2.0, 0.5, 0.0, 1.0)?;
-        (v * (1.0 / z - 1.0)).sqrt()
+        excel_sqrt_staged(excel_x87_mul(v, excel_x87_sub(excel_x87_div(1.0, z), 1.0)))
     } else {
         let y = crate::ported::beta_gamma_stats_family::beta_inv_kernel(
             1.0 - p,
@@ -569,7 +619,7 @@ pub fn t_inv_2t_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Worksh
             0.0,
             1.0,
         )?;
-        (v * y / (1.0 - y)).sqrt()
+        excel_sqrt_staged(excel_x87_div(excel_x87_mul(v, y), excel_x87_sub(1.0, y)))
     };
     Ok(sign * t)
 }
