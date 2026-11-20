@@ -743,7 +743,7 @@ pub(crate) fn prepare(
             }
         }
         ShapeChange::Name { id, name } => {
-            let index = find(&shapes, id)?;
+            let index = find_movable(&shapes, id, false)?;
             if name.is_empty() || name.chars().count() > 255 {
                 return Err(refusal("Use a shape name of 1 to 255 characters"));
             }

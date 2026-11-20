@@ -968,6 +968,8 @@ fn dc_zjsg_4__stored_objects_take_text_fill_outline_turns_order_and_groups() {
     shape(&mut book, sheet, ShapeChange::Rotate { id: turned, rotation: 90 * 60_000 });
     let front = id(&book, "Freeform triangle");
     shape(&mut book, sheet, ShapeChange::Order { id: front, order: ShapeOrder::Front });
+    let renamed = id(&book, "Pattern lgGrid");
+    shape(&mut book, sheet, ShapeChange::Name { id: renamed, name: "Grid & lines".into() });
     let (a, b) = (id(&book, "Pattern pct50"), id(&book, "Pattern ltHorz"));
     shape(&mut book, sheet, ShapeChange::Group { ids: vec![a, b] });
     let count = book.host().shapes(sheet).len();
@@ -995,6 +997,8 @@ fn dc_zjsg_4__stored_objects_take_text_fill_outline_turns_order_and_groups() {
     assert!((w2 - h).abs() < 0.5 && (h2 - w).abs() < 0.5, "{w2} {h2} from {w} {h}");
     assert!((l2 + w2 / 2.0 - (l + w / 2.0)).abs() < 0.5 && (t2 + h2 / 2.0 - (t + h / 2.0)).abs() < 0.5);
     assert_eq!(read.last().unwrap().name, "Freeform triangle");
+    let grid = read.iter().find(|s| s.id == renamed).unwrap();
+    assert_eq!((grid.name.as_str(), &grid.fill), ("Grid & lines", &before("Pattern lgGrid").fill));
     let group = read.iter().find(|s| s.kind == ShapeKind::Group).unwrap().clone();
     let names: Vec<_> = group.children.iter().map(|c| c.name.as_str()).collect();
     assert_eq!(names, ["Pattern pct50", "Pattern ltHorz"]);

@@ -300,11 +300,18 @@ fn dc_zjsg_1__editing_a_stored_object_refuses_at_save() {
     let loaded = load(WORKBOOK);
     let sheet = first_sheet(&loaded);
     let mut shapes = loaded.model().definitions().shapes(sheet).to_vec();
-    shapes[0].name = "Renamed".into();
+    // A stored object's geometry is not rewritten (its name, place, turn, text, fill and outline are, dc-zjsg.4).
+    shapes[0].geometry = Some("ellipse".into());
     let model = edited(&loaded, vec![WorkbookOp::SetShapes { sheet, shapes }]);
     let plan = calc_doc::prepare_save(&loaded.snapshot(&model), &calc_doc::SavePolicy::default());
     let error = plan.err().expect("refused").to_string();
     assert!(error.contains("dc-zjsg.4"), "{error}");
+    // Renamed, it saves with the new name and everything else as stored.
+    let mut shapes = loaded.model().definitions().shapes(sheet).to_vec();
+    shapes[0].name = "Renamed".into();
+    let model = edited(&loaded, vec![WorkbookOp::SetShapes { sheet, shapes: shapes.clone() }]);
+    let (saved, _) = save_model(&loaded, &model);
+    assert_eq!(load(&saved).sheets()[0].shapes().shapes[0], shapes[0]);
     // The loaded document itself still checks its own shape set.
     let own = loaded.model().definitions().shapes(sheet).to_vec();
     assert!(loaded.check_shape_set(sheet, &own).is_ok());
