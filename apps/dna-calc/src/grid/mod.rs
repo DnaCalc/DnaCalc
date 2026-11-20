@@ -43,7 +43,7 @@ pub mod viewport;
 use crate::cells;
 use crate::controller::{Controller, EditOrigin};
 use crate::skin::{Skin, SkinContext, SkinId};
-use crate::style::css;
+use crate::style::{css, styled};
 use crate::wire;
 use calc_value::{CellKey, GridArea};
 use geometry::{GridMetrics, HitTarget, Viewport, cell_rect, visible_col_range, visible_row_range};
@@ -2671,7 +2671,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 let markup = wire::controls::control_markup(&control, w, h, z);
                 Some(view! {
                     <div class="dc-control" data-dnacalc="form-control" data-control=control.name.clone() data-kind=control.kind.clone()
-                        use:css=style on:click=on_click inner_html=markup></div>
+                        use:css=style on:click=on_click use:styled=markup></div>
                 }.into_any())
             })
             .collect_view()
@@ -2722,6 +2722,22 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
             "Escape" => {
                 selected_shape.set(None);
                 also_shapes.set(Vec::new());
+            }
+            // An arrow key moves the selected shape a screen pixel (ten with Shift); ASSUMED to be Excel's step.
+            key @ ("ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown") => {
+                let Some(sheet) = controller.sheet.get_untracked() else { return };
+                ev.prevent_default();
+                let step = (75.0 / zoom.get_untracked() * if ev.shift_key() { 10.0 } else { 1.0 }).round() as i64;
+                let (dx, dy) = match key {
+                    "ArrowLeft" => (-step, 0),
+                    "ArrowRight" => (step, 0),
+                    "ArrowUp" => (0, -step),
+                    _ => (0, step),
+                };
+                controller.dispatch(
+                    wire::Intent::ShapeNudge { sheet: wire::Sheet::of(sheet), revision: controller.summary.get_untracked().revision, id, dx, dy },
+                    |_| {},
+                );
             }
             "Delete" => {
                 let Some(sheet) = controller.sheet.get_untracked() else { return };
@@ -2820,7 +2836,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                             let style = format!(
                                 "position:absolute;left:{left}px;top:{top}px;width:{width}px;height:{height}px;{turn}"
                             );
-                            view = view! { <div style=style>{view}</div> }.into_any();
+                            view = view! { <div use:css=style>{view}</div> }.into_any();
                         }
                         view
                     })
@@ -2862,7 +2878,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                         .map(|(i, (fx, fy))| {
                             let style = format!("position:absolute;left:{}px;top:{}px;width:7px;height:7px;box-sizing:border-box;border:1px solid #444;background:#fff;border-radius:50%;pointer-events:auto;cursor:{}",
                                 fx * w - 3.5, fy * h - 3.5, ["nwse-resize", "ns-resize", "nesw-resize", "ew-resize", "nwse-resize", "ns-resize", "nesw-resize", "ew-resize"][i]);
-                            view! { <div data-dnacalc="shape-handle" style=style on:mousedown=move |ev| start(ev, i as u8 + 1)></div> }
+                            view! { <div data-dnacalc="shape-handle" use:css=style on:mousedown=move |ev| start(ev, i as u8 + 1)></div> }
                         })
                         .collect_view()
                 });
@@ -2881,7 +2897,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                     >
                         {image}
                         {inside}
-                        <div style="position:absolute;left:0;top:0;width:100%;height:100%" inner_html=markup></div>
+                        <div class="dc-shape-fill" use:styled=markup></div>
                         {handles}
                     </div>
                 })

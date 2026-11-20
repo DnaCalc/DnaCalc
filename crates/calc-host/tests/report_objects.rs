@@ -1003,6 +1003,12 @@ fn dc_zjsg_4__stored_objects_take_text_fill_outline_turns_order_and_groups() {
     for name in ["Freeform curves", "Rect rot 60", "Pattern smCheck"] {
         assert_eq!(found(name), before(name), "{name}");
     }
+    // An arrow-key step: the reopened (stored) "Style accent2" moves 3 pt right and 1.5 pt up.
+    let styled = reloaded.host().shapes(sheet).iter().find(|s| s.name == "Style accent2").unwrap().clone();
+    let (sl, st, sw, sh) = reloaded.host().anchor_rectangle(sheet, &styled.anchor);
+    shape(&mut reloaded, sheet, ShapeChange::Nudge { id: styled.id, dx: pts(3.0), dy: pts(-1.5) });
+    let nudged = reloaded.host().shapes(sheet).iter().find(|s| s.id == styled.id).unwrap().clone();
+    assert_eq!(reloaded.host().anchor_rectangle(sheet, &nudged.anchor), (sl + 3.0, st - 1.5, sw, sh));
     // Ungrouped again: both patterns at the top level where the group was, at their own places.
     shape(&mut reloaded, sheet, ShapeChange::Ungroup { id: group.id });
     let again = reopened(&mut reloaded);

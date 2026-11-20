@@ -90,7 +90,7 @@ pub(super) fn shape_picture(
     // A flipped picture is its box mirrored with the cropped image in it (a flip turns after the crop).
     let frame = format!("position:absolute;left:0;top:0;width:100%;height:100%;overflow:hidden;{}", wire::drawn_shapes::flip_style(flip));
     view! {
-        <div style=frame>
+        <div use:css=frame>
             {move || src.get().map(|src| view! { <img src=src alt=description.clone().unwrap_or_default() draggable="false" use:css=style.clone() /> })}
         </div>
     }

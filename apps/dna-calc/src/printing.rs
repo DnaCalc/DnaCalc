@@ -1,5 +1,5 @@
 //! The browser adapter renders one pagination plan with the existing grid plan and Canvas2D painter.
-use crate::{controller::Controller, style::css, wire};
+use crate::{controller::Controller, style::{css, styled}, wire};
 use dna_calc_model::{
     geometry::{Viewport, sheet_metrics},
     printing::*,
@@ -218,7 +218,7 @@ fn Region(
                 return None;
             }
             let style = format!("position:absolute;left:{x}px;top:{y}px;width:{w}px;height:{h}px");
-            Some(view! { <div data-dnacalc="print-control" data-kind=control.kind.clone() use:css=style inner_html=wire::controls::control_markup(control, w, h, 1.0)></div> })
+            Some(view! { <div data-dnacalc="print-control" data-kind=control.kind.clone() use:css=style use:styled=wire::controls::control_markup(control, w, h, 1.0)></div> })
         })
         .collect_view();
     let image_of = |id: u32| document.pictures.iter().find(|(p, _)| *p == id).map(|(_, url)| url.clone());
@@ -262,7 +262,7 @@ fn Region(
             let style = format!("position:absolute;left:{x0}px;top:{y0}px;width:{w}px;height:{h}px;{turn}");
             Some(view! {
                 <div data-dnacalc="print-shape" data-shape=shape.name.clone() use:css=style
-                    inner_html=format!("{images}<div style=\"position:absolute;left:0;top:0;width:100%;height:100%\">{markup}</div>")></div>
+                    use:styled=format!("{images}<div style=\"position:absolute;left:0;top:0;width:100%;height:100%\">{markup}</div>")></div>
             })
         })
         .collect_view();

@@ -89,6 +89,12 @@ pub enum ShapeChange {
         id: u32,
         rotation: i64,
     },
+    /// Move a shape by `dx`, `dy` points (an arrow key's step), kept on the worksheet.
+    Nudge {
+        id: u32,
+        dx: Points,
+        dy: Points,
+    },
     /// Flip a shape left to right (`horizontal`) or top to bottom, as Excel's Flip Horizontal and Flip Vertical do.
     Flip {
         id: u32,
@@ -804,6 +810,18 @@ pub(crate) fn prepare(
                 return Err(refusal("The turned shape would leave the worksheet"));
             }
             set_place(host, sheet, s, stored, r);
+            reroute_connectors(host, sheet, &mut shapes, id, originals);
+        }
+        ShapeChange::Nudge { id, dx, dy } => {
+            let index = find_movable(&shapes, id, false)?;
+            let stored = originals.holds(&shapes[index]);
+            let (l, t, w, h) = anchor_rect(host, sheet, &shapes[index], stored);
+            let (dx, dy) = (dx.get(), dy.get());
+            if !finite(dx) || !finite(dy) {
+                return Err(refusal("Use a finite step"));
+            }
+            let (l, t) = ((l + dx).max(0.0), (t + dy).max(0.0));
+            set_place(host, sheet, &mut shapes[index], stored, (l, t, w, h));
             reroute_connectors(host, sheet, &mut shapes, id, originals);
         }
         ShapeChange::Flip { id, horizontal } => {
