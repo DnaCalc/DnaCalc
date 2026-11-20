@@ -15,8 +15,9 @@
 //! Shared counts live in `common`; `windows` overrides only the routes that differ there.
 //!
 //! Capability policy (dc-10un): every project loads and runs under CalcVBA's capability policy,
-//! `Safe` unless `corpus/policy-approvals.json` approves that exact project (its id and module
-//! hashes) for `Full` after review of its triage. Under `Safe` a host-reaching operation (files,
+//! Guarded (CalcVBA's `PolicyMode::Safe` until the post-vx1 rename, dc-8ovd) unless
+//! `corpus/policy-approvals.json` approves that exact project (its id and module
+//! hashes) for `Full` after review of its triage. Under Guarded a host-reaching operation (files,
 //! processes, environment, settings, `Declare`, COM activation, `SendKeys`) raises a VBA error
 //! instead of running, and the audit log is drained per case: a case with any denied request is
 //! classed `refused (policy: <capability>)` and counts as refused, never as matched or
@@ -392,6 +393,7 @@ fn run_project(dir: &Path, route: Route) -> Option<Outcome> {
     let mode = if approved_full(&id, &manifest, route, &inputs) {
         PolicyMode::Full
     } else {
+        // CalcVBA keeps `PolicyMode::Safe` for DNA Calc's Guarded until the post-vx1 rename (dc-8ovd).
         PolicyMode::Safe
     };
     policy::set_thread_policy(Some(mode));

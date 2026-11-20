@@ -126,7 +126,7 @@ pub(crate) fn run_macro(cli: &Cli) -> Result<(Value, u8), Failure> {
         .ok_or_else(|| fail("run needs --macro <Module.Proc>"))?;
     if cli.level == calc_macro_security::MacroSecurity::Off {
         return Err(fail(format!(
-            "the macro level is off, so the file's VBA project does not run and {name} is not called; pass --macro-level safe or unguarded"
+            "the macro level is off, so the file's VBA project does not run and {name} is not called; pass --macro-level guarded or unguarded"
         )));
     }
     let mut book = session::open(cli)?;

@@ -58,7 +58,7 @@ fn version_is_the_workspace_version() {
 fn help_names_every_command_and_option() {
     let (_, code, text) = dnacalc(&["--help"]);
     assert_eq!(code, 0);
-    for word in ["recalc", "diff", "get", "set", "run", "--macro", "--macro-level", "--json", "--out"] {
+    for word in ["recalc", "diff", "get", "set", "run", "--macro", "--macro-level", "guarded", "--json", "--out"] {
         assert!(text.contains(word), "{word} in the help");
     }
 }
@@ -73,8 +73,10 @@ fn diff_reproduces_the_vba_corpus_baseline_for_dna_simple() {
     )
     .unwrap();
     let recorded = &baseline["common"]["dna-simple/xlsm"];
-    let (report, code, _) = dnacalc(&["diff", &inbook("dna-simple.xlsm"), "--macro-level", "safe", "--json"]);
+    let (report, code, _) = dnacalc(&["diff", &inbook("dna-simple.xlsm"), "--macro-level", "guarded", "--json"]);
     assert_eq!(code, 0, "{report}");
+    assert_eq!(report["macros"]["level"], "guarded");
+    assert_eq!(report["macros"]["policy"], "guarded");
     for key in ["matched", "mismatched", "refused", "missing"] {
         assert_eq!(count(&report, key), recorded[key].as_u64().unwrap(), "{key}");
     }
@@ -100,7 +102,7 @@ fn diff_with_macros_off_refuses_every_project_function_cell() {
 /// `ThisWorkbook.Name`, which Excel cached as the name the file had when it was saved.
 #[test]
 fn diff_reports_a_differing_cell_with_both_values() {
-    let (report, code, _) = dnacalc(&["diff", &inbook("dna-examples.xlsm"), "--macro-level", "safe", "--json"]);
+    let (report, code, _) = dnacalc(&["diff", &inbook("dna-examples.xlsm"), "--macro-level", "guarded", "--json"]);
     assert_eq!(code, 1);
     assert_eq!(count(&report, "mismatched"), 1);
     assert_eq!(count(&report, "matched") + count(&report, "mismatched"), count(&report, "formula_cells"));
@@ -118,10 +120,18 @@ fn diff_reports_a_differing_cell_with_both_values() {
 #[test]
 fn run_calls_a_project_function_under_each_macro_level() {
     let book = inbook("dna-simple.xlsm");
-    let (report, code, _) = dnacalc(&["run", &book, "--macro", "DnaSimple.SimpleNeg", "--arg", "4", "--macro-level", "safe", "--json"]);
+    let (report, code, _) = dnacalc(&["run", &book, "--macro", "DnaSimple.SimpleNeg", "--arg", "4", "--macro-level", "guarded", "--json"]);
     assert_eq!(code, 0, "{report}");
     assert_eq!(report["result"]["type"], "number");
     assert_eq!(report["result"]["value"], -4.0);
+    assert_eq!(report["macros"]["level"], "guarded");
+    assert_eq!(report["macros"]["policy"], "guarded");
+    // The former name `safe` remains accepted as an alias for `guarded` (dc-8ovd).
+    let (report, code, _) = dnacalc(&["run", &book, "--macro", "DnaSimple.SimpleNeg", "--arg", "4", "--macro-level", "safe", "--json"]);
+    assert_eq!(code, 0, "{report}");
+    assert_eq!(report["result"]["value"], -4.0);
+    assert_eq!(report["macros"]["level"], "guarded");
+    assert_eq!(report["macros"]["policy"], "guarded");
     let (report, code, _) = dnacalc(&["run", &book, "--macro", "DnaSimple.SimpleUpper", "--arg", "abc", "--macro-level", "unguarded", "--json"]);
     assert_eq!(code, 0, "{report}");
     assert_eq!(report["result"]["value"], "ABC");
@@ -131,7 +141,7 @@ fn run_calls_a_project_function_under_each_macro_level() {
     assert_eq!(code, 2);
     assert!(report["error"].as_str().unwrap().contains("macro level is off"));
     // A function the project does not have is refused, not invented.
-    let (report, code, _) = dnacalc(&["run", &book, "--macro", "DnaSimple.NoSuchProc", "--macro-level", "safe", "--json"]);
+    let (report, code, _) = dnacalc(&["run", &book, "--macro", "DnaSimple.NoSuchProc", "--macro-level", "guarded", "--json"]);
     assert_eq!(code, 2, "{report}");
 }
 
@@ -139,13 +149,13 @@ fn run_calls_a_project_function_under_each_macro_level() {
 fn set_recalculates_dependents_and_saves_a_file_diff_reads_back() {
     let book = inbook("dna-simple.xlsm");
     let out = temp("set.xlsx");
-    let (report, code, _) = dnacalc(&["set", &book, "A1", "=SimpleNeg(10)", "--macro-level", "safe", "--out", &out, "--json"]);
+    let (report, code, _) = dnacalc(&["set", &book, "A1", "=SimpleNeg(10)", "--macro-level", "guarded", "--out", &out, "--json"]);
     assert_eq!(code, 0, "{report}");
     assert_eq!(report["cells"][0]["value"]["value"], -10.0);
     assert_eq!(report["cells"][0]["formula"], "SimpleNeg(10)");
     assert!(report["saved"]["bytes"].as_u64().unwrap() > 0);
     // The saved file carries the edited formula and its calculated value as the cache.
-    let (read, code, _) = dnacalc(&["get", &out, "Sheet1!A1", "--macro-level", "safe", "--json"]);
+    let (read, code, _) = dnacalc(&["get", &out, "Sheet1!A1", "--macro-level", "guarded", "--json"]);
     assert_eq!(code, 0, "{read}");
     assert_eq!(read["cells"][0]["cached"]["value"], -10.0);
     assert_eq!(read["cells"][0]["value"]["value"], -10.0);
@@ -153,7 +163,7 @@ fn set_recalculates_dependents_and_saves_a_file_diff_reads_back() {
 
 #[test]
 fn get_gives_formula_cached_and_calculated_values() {
-    let (report, code, _) = dnacalc(&["get", &inbook("dna-simple.xlsm"), "A1", "Z99", "--macro-level", "safe", "--json"]);
+    let (report, code, _) = dnacalc(&["get", &inbook("dna-simple.xlsm"), "A1", "Z99", "--macro-level", "guarded", "--json"]);
     assert_eq!(code, 0);
     let a1 = &report["cells"][0];
     assert_eq!(a1["formula"], "SimpleNeg(2.5)");
@@ -166,7 +176,7 @@ fn get_gives_formula_cached_and_calculated_values() {
 #[test]
 fn recalc_counts_and_saves() {
     let out = temp("recalc.xlsx");
-    let (report, code, _) = dnacalc(&["recalc", &inbook("dna-simple.xlsm"), "--macro-level", "safe", "--out", &out, "--json"]);
+    let (report, code, _) = dnacalc(&["recalc", &inbook("dna-simple.xlsm"), "--macro-level", "guarded", "--out", &out, "--json"]);
     assert_eq!(code, 0, "{report}");
     assert_eq!(count(&report, "formula_cells"), 109);
     assert_eq!(count(&report, "calculated"), 109);
@@ -178,7 +188,7 @@ fn usage_errors_exit_two_and_text_mode_prints_lines() {
     assert_eq!(dnacalc(&["frobnicate", "x.xlsx"]).1, 2);
     assert_eq!(dnacalc(&["diff", "/nonexistent/book.xlsx"]).1, 2);
     assert_eq!(dnacalc(&["diff", &inbook("dna-simple.xlsm"), "--macro-level", "loud"]).1, 2);
-    let (_, code, text) = dnacalc(&["diff", &inbook("dna-simple.xlsm"), "--macro-level", "safe"]);
+    let (_, code, text) = dnacalc(&["diff", &inbook("dna-simple.xlsm"), "--macro-level", "guarded"]);
     assert_eq!(code, 0);
     assert!(text.contains("matched: 109"), "{text}");
 }

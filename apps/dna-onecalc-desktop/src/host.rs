@@ -1900,7 +1900,7 @@ mod tests {
     /// Native-only: the macro security level through the host (dc-15dk). A marked file is blocked
     /// for Enable macros and runs through Unblock and enable, with a notice; the person's level is
     /// handed to the host's store, a level the flag or the variable pins is not; Unguarded runs a
-    /// marked file as it opens, and so does Safe, under CalcVBA's Safe policy.
+    /// marked file as it opens, and so does Guarded, under CalcVBA's capability policy.
     #[test]
     fn the_macro_security_level_is_stored_and_unblocking_runs_a_marked_file() {
         use dna_onecalc::port::MacrosView;
@@ -1938,14 +1938,14 @@ mod tests {
         assert_eq!(running.macros, MacrosView::Enabled);
         assert!(running.notice.contains("macro security"), "{running:?}");
         host.handle(Request::SetMacroSecurity {
-            level: MacroSecurity::Safe,
+            level: MacroSecurity::Guarded,
         });
         assert_eq!(
             host.files.stored,
-            [MacroSecurity::Unguarded, MacroSecurity::Safe]
+            [MacroSecurity::Unguarded, MacroSecurity::Guarded]
         );
-        let safe = open(&mut host).project.unwrap();
-        assert_eq!(safe.macros, MacrosView::Enabled);
+        let guarded = open(&mut host).project.unwrap();
+        assert_eq!(guarded.macros, MacrosView::Enabled);
 
         host.session_mut().set_macro_policy(MacroPolicy::resolve(
             MacroSecurity::Off,

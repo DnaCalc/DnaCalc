@@ -37,8 +37,9 @@ WebKitGTK and WebGPU on WebKitGTK have not been measured on this host (see below
 - **COM and RTD: none.** `calc-com-host` is `native-only` and answers `WM_GETOBJECT` on the shell's
   window chain; `calc-addin-host` modules are `cfg(windows)` (`crates/calc-addin-host/src/lib.rs`).
 - **VBA works.** `calc-vba` and `calc-host-vba` are portable or build on Linux; the runner's `run`
-  and `--macro-level safe|unguarded` execute a file's project (tests in `apps/dnacalc/tests/cli.rs`).
-  `safe` refuses operating-system services; what `unguarded` should mean for `Shell`, `Environ` and
+  and `--macro-level guarded|unguarded` (`safe` accepted as an alias for `guarded`) execute a file's
+  project (tests in `apps/dnacalc/tests/cli.rs`). `guarded` refuses operating-system services; what
+  `unguarded` should mean for `Shell`, `Environ` and
   file paths on Linux is open (see Open questions).
 - So on Linux every shell option has the same add-in answer: VBA modules and VBA `.xlam` add-ins
   yes through the server, XLL and COM add-ins a typed refusal naming the platform.
@@ -99,7 +100,7 @@ The Linux answer for add-ins stays the typed refusal above, on every option.
 ## What a Linux user gets first
 
 `apt install ./dnacalc_<version>_amd64.deb` (or the tarball): open an `.xlsx`/`.xlsm`, recalculate,
-compare with Excel's cached values, read and write cells, run VBA at `safe` or `unguarded`, save.
+compare with Excel's cached values, read and write cells, run VBA at `guarded` or `unguarded`, save.
 Beside it, the web app in the browser with the wasm worker. No XLL, COM or RTD add-ins.
 
 `dnacalc serve` opens the workbook page over the native worker: visit the URL printed on the

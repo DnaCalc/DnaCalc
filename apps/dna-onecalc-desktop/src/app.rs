@@ -64,7 +64,8 @@ struct Options {
     open_files: Vec<PathBuf>,
     /// `--trust-macros`: pins the macro security level to Unguarded (dc-15dk).
     trust_macros: bool,
-    /// `--macros off|safe|unguarded`: pins the macro security level for this run.
+    /// `--macros off|guarded|unguarded`: pins the macro security level for this run (`safe` is
+    /// accepted as an alias for `guarded`).
     macros: Option<dna_onecalc::MacroSecurity>,
     /// `--transport surrogate` (or `DNACALC_ONECALC_TRANSPORT=surrogate`): the session and its
     /// add-ins run in a second process of this executable (docs/architecture/ADDIN_SURROGATE.md,
@@ -121,7 +122,7 @@ fn options(args: &[String]) -> Result<Options, String> {
                 let text = value()?;
                 o.macros = Some(
                     dna_onecalc::MacroSecurity::parse(&text)
-                        .ok_or(format!("--macros is off, safe or unguarded, not {text}"))?,
+                        .ok_or(format!("--macros is off, guarded or unguarded, not {text}"))?,
                 )
             }
             "--message-file" => o.message_file = Some(PathBuf::from(value()?)),
@@ -1157,7 +1158,7 @@ pub fn run_surrogate_role(args: &[String]) -> Result<(), String> {
                 let text = value()?;
                 macros = Some(
                     dna_onecalc::MacroSecurity::parse(&text)
-                        .ok_or(format!("--macros is off, safe or unguarded, not {text}"))?,
+                        .ok_or(format!("--macros is off, guarded or unguarded, not {text}"))?,
                 )
             }
             other => return Err(format!("unknown surrogate argument: {other}")),
@@ -1243,5 +1244,18 @@ mod tests {
         assert_eq!(o.open_files, vec![PathBuf::from("a.xlsm"), PathBuf::from("b.xlsx")]);
         assert!(o.scripted());
         assert!(options(&args(&["--app", "--url", "http://x/", "--open-file"])).is_err());
+        // `--macros guarded` is the canonical name; `--macros safe` remains an alias (dc-8ovd).
+        assert_eq!(
+            options(&args(&["--app", "--url", "http://x/", "--macros", "guarded"]))
+                .unwrap()
+                .macros,
+            Some(dna_onecalc::MacroSecurity::Guarded)
+        );
+        assert_eq!(
+            options(&args(&["--app", "--url", "http://x/", "--macros", "safe"]))
+                .unwrap()
+                .macros,
+            Some(dna_onecalc::MacroSecurity::Guarded)
+        );
     }
 }

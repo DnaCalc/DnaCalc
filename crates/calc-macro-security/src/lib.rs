@@ -4,13 +4,14 @@
 //! - [`MacroSecurity::Off`] (the default, Excel's): a macro workbook opens with its project held,
 //!   a bar offers Enable macros for this file, and a file with the Mark of the Web or from the
 //!   network offers Unblock and enable behind a short warning.
-//! - [`MacroSecurity::Safe`]: the project runs on open with dangerous operating-system services
-//!   refused (CalcVBA's `PolicyMode::Safe`, dc-10un).
+//! - [`MacroSecurity::Guarded`]: the project runs on open with dangerous operating-system services
+//!   refused (CalcVBA's `PolicyMode::Safe` until its post-vx1 rename, dc-10un, dc-8ovd).
 //! - [`MacroSecurity::Unguarded`]: the project runs on open with full access, Excel's enable
 //!   macros, no prompt; a file that would have been blocked runs too, with an information notice.
 //!
 //! A script, an agent or the test harness pins the level for one run with `--macros
-//! off|safe|unguarded`, or Unguarded with `--trust-macros` or `DNACALC_TRUST_ALL_MACROS=1`
+//! off|guarded|unguarded` (`safe` is accepted as an alias for `guarded`), or Unguarded with
+//! `--trust-macros` or `DNACALC_TRUST_ALL_MACROS=1`
 //! ([`MacroPolicy::pinned`]); a pinned level is shown, not stored, and the page cannot change it.
 //! The level is stored per user by the native hosts (`calc_platform_desktop::macro_security`).
 
@@ -28,7 +29,7 @@ pub const TRUST_ENV: &str = "DNACALC_TRUST_ALL_MACROS";
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum VbaPolicy {
     /// Dangerous operating-system services refused.
-    Safe,
+    Guarded,
     /// Full access.
     Full,
 }
@@ -40,19 +41,19 @@ pub enum MacroSecurity {
     #[default]
     Off,
     /// Runs on open with dangerous operating-system services refused.
-    Safe,
+    Guarded,
     /// Runs on open with full access, whatever the file's origin.
     Unguarded,
 }
 
 impl MacroSecurity {
-    pub const ALL: [Self; 3] = [Self::Off, Self::Safe, Self::Unguarded];
+    pub const ALL: [Self; 3] = [Self::Off, Self::Guarded, Self::Unguarded];
 
-    /// The stored and spoken form: `off`, `safe`, `unguarded`.
+    /// The stored and spoken form: `off`, `guarded`, `unguarded`.
     pub fn key(self) -> &'static str {
         match self {
             Self::Off => "off",
-            Self::Safe => "safe",
+            Self::Guarded => "guarded",
             Self::Unguarded => "unguarded",
         }
     }
@@ -61,14 +62,18 @@ impl MacroSecurity {
     pub fn label(self) -> &'static str {
         match self {
             Self::Off => "Off",
-            Self::Safe => "Safe",
+            Self::Guarded => "Guarded",
             Self::Unguarded => "Unguarded",
         }
     }
 
     /// The level a stored or typed key names (case and surrounding space ignored).
+    /// The former name `safe` is accepted as an alias for `guarded` (dc-8ovd).
     pub fn parse(text: &str) -> Option<Self> {
         let text = text.trim();
+        if text.eq_ignore_ascii_case("safe") {
+            return Some(Self::Guarded);
+        }
         Self::ALL
             .into_iter()
             .find(|level| level.key().eq_ignore_ascii_case(text))
@@ -79,7 +84,7 @@ impl MacroSecurity {
     pub fn vba_policy(self) -> Option<VbaPolicy> {
         match self {
             Self::Off => None,
-            Self::Safe => Some(VbaPolicy::Safe),
+            Self::Guarded => Some(VbaPolicy::Guarded),
             Self::Unguarded => Some(VbaPolicy::Full),
         }
     }
@@ -209,9 +214,17 @@ mod tests {
         for level in MacroSecurity::ALL {
             assert_eq!(MacroSecurity::parse(level.key()), Some(level));
         }
+        assert_eq!(MacroSecurity::Guarded.key(), "guarded");
+        assert_eq!(MacroSecurity::Guarded.label(), "Guarded");
         assert_eq!(
             MacroSecurity::parse(" UnGuarded\n"),
             Some(MacroSecurity::Unguarded)
+        );
+        // The former name `safe` remains an alias for `guarded` (dc-8ovd).
+        assert_eq!(MacroSecurity::parse("safe"), Some(MacroSecurity::Guarded));
+        assert_eq!(
+            MacroSecurity::parse(" Safe\n"),
+            Some(MacroSecurity::Guarded)
         );
         assert_eq!(MacroSecurity::parse("yes"), None);
     }
@@ -223,15 +236,15 @@ mod tests {
         assert_eq!(off.runs_on_open(), None);
         let all = MacroPolicy::stored(MacroSecurity::Unguarded);
         assert_eq!(all.runs_on_open(), Some(VbaPolicy::Full));
-        // Safe runs the project on open with the Safe policy; Unguarded with Full.
-        let safe = MacroPolicy::stored(MacroSecurity::Safe);
-        assert_eq!(safe.runs_on_open(), Some(VbaPolicy::Safe));
+        // Guarded runs the project on open with the Guarded policy; Unguarded with Full.
+        let guarded = MacroPolicy::stored(MacroSecurity::Guarded);
+        assert_eq!(guarded.runs_on_open(), Some(VbaPolicy::Guarded));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn the_flags_and_the_variable_pin_a_level_over_the_stored_one() {
-        let stored = MacroSecurity::Safe;
+        let stored = MacroSecurity::Guarded;
         let plain = MacroPolicy::resolve(stored, false, None, None);
         assert_eq!((plain.level(), plain.pinned()), (stored, None));
         assert_eq!(

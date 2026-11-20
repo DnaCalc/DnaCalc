@@ -5,8 +5,8 @@
 //! `Workbook_Open` included, runs until the person enables macros for that file. A file with the
 //! Mark of the Web (a `Zone.Identifier` stream whose ZoneId is 3, internet, or 4, restricted) or
 //! one opened from the network cannot be enabled by the plain Enable: the person unblocks it
-//! ([`ProjectGrant::person_unblocked`], behind a short warning), or the macro security level Enable
-//! all trusts it ([`ProjectGrant::trust_all`], dc-15dk).
+//! ([`ProjectGrant::person_unblocked`], behind a short warning), or the macro security level
+//! Guarded or Unguarded trusts it ([`ProjectGrant::trust_all`], dc-15dk, dc-8ovd).
 //!
 //! Every route here that compiles or runs a file's project ([`crate::prepare_file_project`] and
 //! the others) takes a [`ProjectGrant`], and a grant has these origins only: the person enabled
