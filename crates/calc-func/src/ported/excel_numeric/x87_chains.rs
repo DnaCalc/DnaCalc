@@ -24,7 +24,7 @@
 //!
 //! [`soft87`]: super::soft87
 
-use super::{CW, Ext80, Fpu, Native, ext_chs, ext_l2e, ext_lg2, ext_ln2, ext_one, load};
+use super::{CW, Ext80, Fpu, Native, ext_abs, ext_chs, ext_l2e, ext_lg2, ext_ln2, ext_one, load};
 
 /// The control word with rounding toward zero (RC = 11), precision 64, exceptions masked.
 const CW_RZ: u16 = CW | 0x0C00;
@@ -471,6 +471,10 @@ mod tests {
         );
         let exact = 4.0 * (4.0_f64 / 3.0).ln() + 3.0 - 4.0;
         assert!((deviance_series::<Soft>(4.0, 3.0) - exact).abs() < 1e-15);
+        assert_eq!(
+            beta_fraction::<Soft>(333.0, 668.0, 0.02, 0.98, 1.0).to_bits(),
+            excel_beta_fraction(333.0, 668.0, 0.02, 0.98, 1.0).to_bits()
+        );
     }
 }
 
@@ -513,4 +517,105 @@ fn beta_power_series<F: Fpu>(a: f64, b: f64, x: f64, ln_beta: f64) -> f64 {
     }
     let scaled = st(&F::mul(&load(exp_with::<F>(hi, CW)), &load(sum), CW));
     st(&F::mul(&load(scaled), &load(factor), CW))
+}
+
+/// Excel's continued fraction for the incomplete beta ratio `I_x(a, b)` when `a, b > 1` (TOMS 708
+/// `bfrac`, dc-j9k.54). Each statement evaluates in x87 PC64 and stores to binary64 per named
+/// local, using the direct `lam = |a - (a + b) x|` and convergence threshold `2^-52 r`.
+pub(crate) fn excel_beta_fraction(a: f64, b: f64, x: f64, y: f64, bf: f64) -> f64 {
+    beta_fraction::<Native>(a, b, x, y, bf)
+}
+
+fn beta_fraction<F: Fpu>(a: f64, b: f64, x: f64, y: f64, bf: f64) -> f64 {
+    let st = |e: &Ext80| F::store(e, CW);
+    let one = ext_one();
+    let la = load(a);
+    let lb = load(b);
+    let lx = load(x);
+    let ly = load(y);
+    let ab = st(&F::add(&la, &lb, CW));
+    let lam = st(&F::sub(&la, &load(st(&F::mul(&load(ab), &lx, CW))), CW)).abs();
+    let c = st(&F::add(&one, &load(lam), CW));
+    let c0 = st(&F::div(&lb, &la, CW));
+    let c1 = st(&F::add(&one, &F::div(&one, &la, CW), CW));
+    let yp1 = st(&F::add(&ly, &one, CW));
+    let lc = load(c);
+    let lc0 = load(c0);
+    let lc1 = load(c1);
+    let lyp1 = load(yp1);
+    let tol = load(f64::EPSILON);
+
+    let mut n = 0.0_f64;
+    let mut p = 1.0_f64;
+    let mut s = st(&F::add(&la, &one, CW));
+    let mut an = 0.0_f64;
+    let mut bn = 1.0_f64;
+    let mut anp1 = 1.0_f64;
+    let mut bnp1 = st(&F::div(&lc, &lc1, CW));
+    let mut r = st(&F::div(&lc1, &lc, CW));
+    let two = load(2.0);
+
+    for _ in 0..10_000 {
+        n += 1.0;
+        let ln = load(n);
+        let ls = load(s);
+        let t0 = st(&F::div(&ln, &la, CW));
+        let w = st(&F::mul(&F::mul(&ln, &F::sub(&lb, &ln, CW), CW), &lx, CW));
+        let e = st(&F::div(&la, &ls, CW));
+        let lp = load(p);
+        let le = load(e);
+        let lw = load(w);
+        let p_term = F::mul(&lp, &F::add(&lp, &lc0, CW), CW);
+        let alpha = st(&F::mul(
+            &F::mul(&F::mul(&p_term, &le, CW), &le, CW),
+            &F::mul(&lw, &lx, CW),
+            CW,
+        ));
+        let lt0 = load(t0);
+        let one_p_t0 = F::add(&one, &lt0, CW);
+        let e = st(&F::div(
+            &one_p_t0,
+            &F::add(&F::add(&lc1, &lt0, CW), &lt0, CW),
+            CW,
+        ));
+        let beta = st(&F::add(
+            &F::add(&ln, &F::div(&lw, &ls, CW), CW),
+            &F::mul(&load(e), &F::add(&lc, &F::mul(&ln, &lyp1, CW), CW), CW),
+            CW,
+        ));
+        p = st(&one_p_t0);
+        s = st(&F::add(&ls, &two, CW));
+        let lalpha = load(alpha);
+        let lbeta = load(beta);
+        let t_a = st(&F::add(
+            &F::mul(&lalpha, &load(an), CW),
+            &F::mul(&lbeta, &load(anp1), CW),
+            CW,
+        ));
+        an = anp1;
+        anp1 = t_a;
+        let t_b = st(&F::add(
+            &F::mul(&lalpha, &load(bn), CW),
+            &F::mul(&lbeta, &load(bnp1), CW),
+            CW,
+        ));
+        bn = bnp1;
+        bnp1 = t_b;
+        let r0 = r;
+        let lbnp1 = load(bnp1);
+        r = st(&F::div(&load(anp1), &lbnp1, CW));
+        let lr = load(r);
+        let diff = ext_abs(&F::sub(&lr, &load(r0), CW), CW);
+        let bound = F::mul(&tol, &lr, CW);
+        let gap = F::sub(&bound, &diff, CW);
+        let is_zero = gap.0[..8].iter().all(|&byte| byte == 0);
+        if is_zero || gap.0[9] & 0x80 == 0 {
+            break;
+        }
+        an = st(&F::div(&load(an), &lbnp1, CW));
+        bn = st(&F::div(&load(bn), &lbnp1, CW));
+        anp1 = r;
+        bnp1 = 1.0;
+    }
+    st(&F::mul(&load(bf), &load(r), CW))
 }

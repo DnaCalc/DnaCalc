@@ -2075,54 +2075,16 @@ fn bratio_brcmp1(mu: i32, a: f64, b: f64, x: f64, y: f64) -> f64 {
 }
 
 /// bfrac: continued fraction expansion for Ix(a, b) when a, b > 1.
-fn bratio_bfrac(a: f64, b: f64, x: f64, y: f64, lambda_: f64, eps: f64) -> f64 {
+fn bratio_bfrac(a: f64, b: f64, x: f64, y: f64) -> f64 {
     // The continued fraction uses the density at x and its stored complement.
     // When the density normalizer overflows, retain the scaled beta prefactor.
-    let bf = excel_brcomp(a, b, x, 1.0 - x)
+    let bf = excel_brcomp(a, b, x, crate::ported::excel_numeric::excel_x87_sub(1.0, x))
         .filter(|value| value.is_finite())
         .unwrap_or_else(|| bratio_brcomp(a, b, x, y));
     if bf == 0.0 {
         return bf;
     }
-    let c = 1.0 + lambda_;
-    let c0 = b / a;
-    let c1 = 1.0 + 1.0 / a;
-    let yp1 = y + 1.0;
-    let mut n = 0.0;
-    let mut p = 1.0;
-    let mut s = a + 1.0;
-    let mut an = 0.0;
-    let mut bn = 1.0;
-    let mut anp1 = 1.0;
-    let mut bnp1 = c / c1;
-    let mut r = c1 / c;
-    loop {
-        n += 1.0;
-        let t0 = n / a;
-        let w = n * (b - n) * x;
-        let mut e = a / s;
-        let alpha = (p * (p + c0) * e * e) * (w * x);
-        e = (1.0 + t0) / (c1 + t0 + t0);
-        let beta = n + w / s + e * (c + n * yp1);
-        p = 1.0 + t0;
-        s += 2.0;
-        let mut t = alpha * an + beta * anp1;
-        an = anp1;
-        anp1 = t;
-        t = alpha * bn + beta * bnp1;
-        bn = bnp1;
-        bnp1 = t;
-        let r0 = r;
-        r = anp1 / bnp1;
-        if (r - r0).abs() <= eps * r {
-            break;
-        }
-        an /= bnp1;
-        bn /= bnp1;
-        anp1 = r;
-        bnp1 = 1.0;
-    }
-    bf * r
+    crate::ported::excel_numeric::excel_beta_fraction(a, b, x, y, bf)
 }
 
 /// bgrat: asymptotic expansion for Ix(a, b) when a is larger than b. Adds the
@@ -2588,7 +2550,7 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
             w1 = 0.5 + (0.5 - w);
         }
         "bfrac" => {
-            w = bratio_bfrac(a0, b0, x0, y0, lambda_, 15.0 * eps);
+            w = bratio_bfrac(a0, b0, x0, y0);
             w1 = 0.5 + (0.5 - w);
         }
         "basym" => {

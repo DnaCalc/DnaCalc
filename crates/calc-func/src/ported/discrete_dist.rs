@@ -665,6 +665,8 @@ mod tests {
             (2.0, 5.0, 0.3, 0x3feac80c73abc947),
             (4.0, 9.0, 0.25, 0x3fee6f3000000000),
             (1.0, 6.0, 0.1, 0x3fec57f0ed3d859c),
+            // Large-shape bfrac witness (dc-j9k.54).
+            (667.0, 1000.0, 0.98, 0x024efd3fa03d6eaa),
         ];
         for (k, n, p, excel) in rows {
             let tail = binom_dist_kernel(k, n, p, true).unwrap();
