@@ -561,13 +561,6 @@ pub(super) fn finish(
                 "Creating a chart or shape on a new unsaved sheet needs Save and reopen",
             )
         })?;
-        if !plan.edits.is_empty() && structural.is_some_and(|edits| edits.edits().iter().any(|e| e.sheet() == sheet)) {
-            return Err(SaveRefusal::ChartNotModelled {
-                part: "drawing".into(),
-                detail: "Moving or deleting a stored drawing object and inserting or deleting rows or columns of its sheet in one session is not modelled".into(),
-                owner: "dc-zjsg.4",
-            });
-        }
         add_with(
             package,
             source,
@@ -661,8 +654,22 @@ pub(crate) fn add_with(
     let mut xml = parts::current_part(package, out, &drawing, empty.as_bytes())?;
     let original_xml = xml.with_bytes(xml.bytes().to_vec());
     if let Some(plan) = plan.filter(|p| !p.edits.is_empty()) {
-        let edited = super::stored::edit(&xml, &plan.edits)?;
-        xml = xml.with_bytes(edited);
+        // The model holds anchors as they were before the session's row and column edits, which the save moves the
+        // stored part through. With such edits on this sheet the stored objects are edited in the part as the file
+        // stores it, then the part goes through the same moves (as a new frame does, `finish_body`).
+        let moved = structural.filter(|(edits, _)| edits.edits().iter().any(|e| e.sheet() == source.id()));
+        match moved {
+            Some(_) => {
+                let stored = super::super::strings::read_part(package, &drawing)?;
+                let edited = super::stored::edit(&stored, &plan.edits)?;
+                let body = moved_part(edited, &drawing, source, structural)?;
+                xml = xml.with_bytes(body);
+            }
+            None => {
+                let edited = super::stored::edit(&xml, &plan.edits)?;
+                xml = xml.with_bytes(edited);
+            }
+        }
     }
     let mut ids = BTreeSet::new();
     let mut reader = Reader::new(&xml);
@@ -839,6 +846,27 @@ pub(crate) fn add_with(
     )?;
     parts::put_part(package, out, sheet_part, bytes);
     Ok(())
+}
+
+/// A whole drawing part's bytes moved by the structural edits of its sheet that the save also applies.
+fn moved_part(
+    mut bytes: Vec<u8>,
+    drawing: &str,
+    source: &LoadedSheet,
+    structural: Option<(&super::super::structural::StructuralEdits, &ModelRoot)>,
+) -> Result<Vec<u8>, SaveRefusal> {
+    if let Some((edits, before)) = structural {
+        for &edit in edits.edits().iter().filter(|e| e.sheet() == source.id()) {
+            let xml = crate::xml::XmlPart::new(drawing.to_owned(), bytes, crate::xml::XmlLimits::default());
+            let rewrite = super::super::structural::Rewrite {
+                root: before,
+                rewriter: edits.rewriter.as_ref(),
+                change: calc_doc_model::StructuralChange::Axis(edit),
+            };
+            bytes = super::super::structural::drawing_pass(&xml, edit, &rewrite)?.unwrap_or_else(|| xml.bytes().to_vec());
+        }
+    }
+    Ok(bytes)
 }
 
 /// One authored anchor's bytes, moved by the structural edits of its sheet that the save also applies.

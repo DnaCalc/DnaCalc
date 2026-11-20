@@ -1198,6 +1198,29 @@ fn dc_zjsg_5__a_turned_elbow_connector_is_rerouted_between_its_sites() {
     assert_eq!(ends(&again), moved);
 }
 
+/// dc-zjsg.4: a stored object moved and then rows inserted above it in the same session: the save writes it where
+/// the session left it (moved, then down with the rows), and every other object down with the rows.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_4__a_stored_object_moved_then_rows_inserted_saves_where_it_is() {
+    use calc_doc_model::{Axis, AxisChange, AxisEdit};
+    let bytes = include_bytes!("../../calc-doc/tests/fixtures/drawing/shapes-paint4.xlsx").to_vec();
+    let mut book = open(bytes);
+    let sheet = book.host().sheets()[0].id();
+    let triangle = book.host().shapes(sheet).iter().find(|s| s.name == "Freeform triangle").unwrap().id;
+    shape(&mut book, sheet, ShapeChange::Place { id: triangle, left: Some(pts(96.0)), top: Some(pts(60.0)), width: None, height: None });
+    let before: Vec<_> = book.host().shapes(sheet).iter().map(|s| (s.id, book.host().anchor_rectangle(sheet, &s.anchor))).collect();
+    let edit = AxisEdit::new(sheet, Axis::Rows, AxisChange::Insert, 2, 2).unwrap();
+    assert!(book.dispatch(SkinIntent::EditAxis(edit)).accepted());
+    let reloaded = reopened(&mut book);
+    for (id, (l, t, w, h)) in before {
+        let s = reloaded.host().shapes(sheet).iter().find(|s| s.id == id).unwrap();
+        let (l2, t2, w2, h2) = reloaded.host().anchor_rectangle(sheet, &s.anchor);
+        // Two rows of 15 pt above every object.
+        assert!((l2 - l).abs() < 0.01 && (t2 - t - 30.0).abs() < 0.01 && (w2 - w).abs() < 0.01 && (h2 - h).abs() < 0.01, "{}: {:?}", s.name, ((l, t, w, h), (l2, t2, w2, h2)));
+    }
+}
+
 /// dc-zjsg.5: moving a stored shape reroutes the stored connector glued to it, as Excel does: the glued end at its
 /// site, the box and flips from the ends; the save rewrites the connector's anchor and its transform's flips.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
