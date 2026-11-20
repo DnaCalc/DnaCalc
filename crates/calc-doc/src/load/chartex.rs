@@ -6,7 +6,7 @@
 
 use super::drawing::{Node, alternate_content_branch, part_tree, point};
 use crate::opc::Package;
-use calc_doc_model::{Chart, ChartAnchor, ChartData, ChartPlot, ChartSeries};
+use calc_doc_model::{Chart, ChartAnchor, ChartData, ChartLabels, ChartPlot, ChartSeries};
 
 pub(super) const CHARTEX: &str = "http://schemas.microsoft.com/office/2014/relationships/chartEx";
 const CHARTEX_URI: &str = "http://schemas.microsoft.com/office/drawing/2014/chartex";
@@ -125,9 +125,52 @@ fn text_of(node: &Node) -> String {
     out
 }
 
+/// A series' `<cx:dataLabels>` settings (dc-zjsg.15): position, `<cx:visibility>` flags, `<cx:separator>`,
+/// `<cx:dataLabelHidden>` deletions and `<cx:dataLabel>` per-point overrides.
+fn data_labels(node: &Node) -> ChartLabels {
+    let flag = |v: &Node, name: &str| v.attribute(name).is_some_and(|a| matches!(a, "1" | "true"));
+    let mut labels = ChartLabels {
+        position: node.attribute("pos").map(str::to_owned),
+        separator: node.child("separator").map(|s| s.text.clone()),
+        ..ChartLabels::default()
+    };
+    if let Some(v) = node.child("visibility") {
+        labels.series = flag(v, "seriesName");
+        labels.category = flag(v, "categoryName");
+        labels.value = flag(v, "value");
+    }
+    for hidden in node.children.iter().filter(|c| c.local == "dataLabelHidden") {
+        if let Some(idx) = hidden.number("idx").and_then(|v| u32::try_from(v).ok()) {
+            labels.points.push((idx, ChartLabels { deleted: true, ..ChartLabels::default() }));
+        }
+    }
+    for pt in node.children.iter().filter(|c| c.local == "dataLabel") {
+        let Some(idx) = pt.number("idx").and_then(|v| u32::try_from(v).ok()) else { continue };
+        let vis = pt.child("visibility");
+        let own = |name: &str, inherited: bool| {
+            vis.and_then(|v| v.attribute(name)).map_or(inherited, |a| matches!(a, "1" | "true"))
+        };
+        let resolved = ChartLabels {
+            value: own("value", labels.value),
+            category: own("categoryName", labels.category),
+            series: own("seriesName", labels.series),
+            percent: false,
+            position: pt.attribute("pos").map(str::to_owned).or_else(|| labels.position.clone()),
+            separator: pt.child("separator").map(|s| s.text.clone()).or_else(|| labels.separator.clone()),
+            deleted: false,
+            points: Vec::new(),
+        };
+        labels.points.push((idx, resolved));
+    }
+    labels
+}
+
 /// The `cx:chartSpace` part `part` as a chart.
 pub(super) fn read(package: &Package, part: &str, name: String, anchor: ChartAnchor) -> Option<Chart> {
-    let root = part_tree(package, part)?;
+    read_tree(&part_tree(package, part)?, part, name, anchor)
+}
+
+fn read_tree(root: &Node, part: &str, name: String, anchor: ChartAnchor) -> Option<Chart> {
     if root.local != "chartSpace" {
         return None;
     }
@@ -192,7 +235,8 @@ pub(super) fn read(package: &Package, part: &str, name: String, anchor: ChartAnc
         if let Some(subtotals) = series.child("layoutPr").and_then(|l| l.child("subtotals")) {
             plot.subtotals = subtotals.children.iter().filter_map(|i| i.number("val")).filter_map(|v| u32::try_from(v).ok()).collect();
         }
-        plot.series.push(ChartSeries { index: index as u32, name, categories, values, outer_levels, ..ChartSeries::default() });
+        let labels = series.child("dataLabels").map(data_labels);
+        plot.series.push(ChartSeries { index: index as u32, name, categories, values, outer_levels, labels, ..ChartSeries::default() });
     }
     plot.gap_width = chart_node
         .child("plotArea")
@@ -220,4 +264,69 @@ pub(super) fn read(package: &Package, part: &str, name: String, anchor: ChartAnc
         element_text: Default::default(),
         element_text_complex: Default::default(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::xml::{XmlLimits, XmlPart};
+
+    fn parse_funnel(labels_xml: &str) -> Chart {
+        let xml = format!(
+            concat!(
+                "<cx:chartSpace xmlns:cx=\"{CHARTEX_URI}\">",
+                "<cx:chartData><cx:data id=\"0\">",
+                "<cx:strDim type=\"cat\"><cx:lvl ptCount=\"3\"><cx:pt idx=\"0\">Mon</cx:pt><cx:pt idx=\"1\">Tue</cx:pt><cx:pt idx=\"2\">Wed</cx:pt></cx:lvl></cx:strDim>",
+                "<cx:numDim type=\"val\"><cx:lvl ptCount=\"3\"><cx:pt idx=\"0\">10</cx:pt><cx:pt idx=\"1\">12</cx:pt><cx:pt idx=\"2\">9</cx:pt></cx:lvl></cx:numDim>",
+                "</cx:data></cx:chartData>",
+                "<cx:chart><cx:plotArea><cx:plotAreaRegion>",
+                "<cx:series layoutId=\"funnel\">{labels_xml}<cx:dataId val=\"0\"/></cx:series>",
+                "</cx:plotAreaRegion></cx:plotArea></cx:chart></cx:chartSpace>"
+            ),
+            CHARTEX_URI = CHARTEX_URI,
+            labels_xml = labels_xml,
+        );
+        let part = XmlPart::new("xl/charts/chartEx2.xml".into(), xml.into_bytes(), XmlLimits::default());
+        let root = super::super::drawing::xml_tree(&part).unwrap();
+        read_tree(&root, "xl/charts/chartEx2.xml", "Funnel".into(), ChartAnchor::Absolute { x: 0, y: 0, width: 100, height: 100 }).unwrap()
+    }
+
+    /// dc-zjsg.15: `<cx:dataLabels>` on a chartEx series is read into `ChartSeries::labels`; absent stays `None`.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dw5_dc_zjsg_15__chartex_reads_data_labels_and_visibility_flags() {
+        let plain = parse_funnel("");
+        assert_eq!(plain.plots[0].series[0].labels, None);
+
+        // Excel's default funnel (`dw2/windows-results/chartex-excel.xlsx` `chartEx2.xml`).
+        let excel = parse_funnel(r#"<cx:dataLabels><cx:visibility seriesName="0" categoryName="0" value="1"/></cx:dataLabels>"#);
+        let labels = excel.plots[0].series[0].labels.as_ref().unwrap();
+        assert_eq!((labels.series, labels.category, labels.value, labels.deleted), (false, false, true, false));
+        assert_eq!((labels.position.as_deref(), labels.separator.as_deref()), (None, None));
+        assert!(labels.points.is_empty());
+
+        // Position, separator, hidden point and per-point override.
+        let custom = parse_funnel(concat!(
+            r#"<cx:dataLabels pos="ctr"><cx:visibility seriesName="1" categoryName="0" value="1"/><cx:separator>; </cx:separator>"#,
+            r#"<cx:dataLabelHidden idx="2"/>"#,
+            r#"<cx:dataLabel idx="1" pos="inEnd"><cx:visibility categoryName="1" seriesName="0"/><cx:separator>: </cx:separator></cx:dataLabel>"#,
+            r#"</cx:dataLabels>"#
+        ));
+        let labels = custom.plots[0].series[0].labels.as_ref().unwrap();
+        assert_eq!((labels.series, labels.category, labels.value), (true, false, true));
+        assert_eq!((labels.position.as_deref(), labels.separator.as_deref()), (Some("ctr"), Some("; ")));
+        assert_eq!(labels.points.len(), 2);
+        assert_eq!(labels.points[0].0, 2);
+        assert!(labels.points[0].1.deleted);
+        assert_eq!(labels.points[1].0, 1);
+        assert_eq!(
+            (labels.points[1].1.series, labels.points[1].1.category, labels.points[1].1.value),
+            (false, true, true)
+        );
+        assert_eq!(
+            (labels.points[1].1.position.as_deref(), labels.points[1].1.separator.as_deref()),
+            (Some("inEnd"), Some(": "))
+        );
+    }
 }

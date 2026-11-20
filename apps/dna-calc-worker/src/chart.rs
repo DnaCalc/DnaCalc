@@ -1645,8 +1645,10 @@ fn box_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: Area) {
     let _ = chart;
 }
 
-/// An Excel 2016 funnel (dc-zjsg.6): a bar a category, top to bottom, centred, as wide against the widest as its
-/// value, the category at its left and the value in it. Look ASSUMED until a side-by-side.
+/// An Excel 2016 funnel (dc-zjsg.6, dc-zjsg.15): a bar a category, top to bottom, centred, as wide against the widest
+/// as its value, the category at its left, and data labels drawn only when `<cx:dataLabels>` enables them (Excel draws
+/// none on an unstyled funnel, dw3-page2, and centred white values when `<cx:visibility value="1"/>` is set, dw2
+/// `chartex-excel.xlsx` / `Funnel.png`).
 fn funnel_marks(svg: &mut String, plot: &PlotView, area: Area) {
     let Some(series) = plot.series.first() else { return };
     let count = series.values.len();
@@ -1675,7 +1677,14 @@ fn funnel_marks(svg: &mut String, plot: &PlotView, area: Area) {
         );
         mark(svg, 0, j, v);
         svg.push_str("/>");
-        let _ = write!(svg, "<text data-dnacalc=\"chart-data-label\" x=\"{middle:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"#FFFFFF\">{}</text>", y + band / 2.0 + 4.0, escape(&label(v, 0.0)));
+        if let Some(text) = label_text(series, j, v, None, &series.name) {
+            let _ = write!(
+                svg,
+                "<text data-dnacalc=\"chart-data-label\" data-point=\"{j}\" x=\"{middle:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"#FFFFFF\">{}</text>",
+                y + band / 2.0 + 4.0,
+                escape(&text)
+            );
+        }
     }
 }
 
@@ -2066,6 +2075,11 @@ fn scatter_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: Are
 }
 
 #[cfg(test)]
+#[allow(dead_code)]
+#[path = "../../../crates/calc-doc/tests/cdoc_m1_1_support/mod.rs"]
+mod zip_support;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -2390,6 +2404,94 @@ mod tests {
         let (x0, w0, x1) = (attr(bars[0], "x"), attr(bars[0], "width"), attr(bars[1], "x"));
         assert!((x0 + w0 - x1).abs() < 0.2, "expected touching bars with gapWidth=0: x0={x0}, w0={w0}, x1={x1}");
         assert!(bars[0].contains("stroke=\"#FFFFFF\" stroke-width=\"1\""), "{}", bars[0]);
+    }
+
+    /// dc-zjsg.15 (dw3-page2-Kinds-excel-100.png & dw2 `chartex-excel.xlsx` / `Funnel.png`): an unstyled
+    /// funnel draws no data labels; one with `<cx:dataLabels><cx:visibility value="1"/></cx:dataLabels>`
+    /// draws centred white values on non-negative bars and obeys category/series/separator/hidden overrides.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dw5_dc_zjsg_15__funnel_labels_follow_cx_data_labels() {
+        use calc_host::{HostOptions, HostSession, MemorySource, OpenPolicy, PackageRead, SkinIntent};
+        use std::sync::Arc;
+
+        let base = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/chart-kinds.xlsx");
+        let open_funnel = |bytes: Vec<u8>| {
+            let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes));
+            let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+            assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+            let (charts, _) = book.host().charts(book.host().sheets()[0].id());
+            charts.into_iter().find(|c| c.name == "Funnel").unwrap()
+        };
+        let with_funnel_labels = |labels_xml: &str| -> Vec<u8> {
+            let archive = zip_support::parse_zip(base);
+            let entries: Vec<_> = archive
+                .entries
+                .iter()
+                .map(|entry| {
+                    let payload = entry.payload(base);
+                    if entry.name == "xl/charts/chartEx2.xml" {
+                        let raw = if entry.method == 0 {
+                            payload.to_vec()
+                        } else {
+                            miniz_oxide::inflate::decompress_to_vec(payload).unwrap()
+                        };
+                        let xml = String::from_utf8(raw)
+                            .unwrap()
+                            .replace("<cx:dataId val=\"0\"/>", &format!("{labels_xml}<cx:dataId val=\"0\"/>"));
+                        zip_support::RawEntry::stored(&entry.name, xml.as_bytes())
+                    } else if entry.method == 0 {
+                        zip_support::RawEntry::stored(&entry.name, payload)
+                    } else {
+                        zip_support::RawEntry::deflated(&entry.name, payload, entry.size, entry.crc32)
+                    }
+                })
+                .collect();
+            zip_support::build_zip(&entries)
+        };
+
+        // 1. Unstyled `chart-kinds.xlsx` Funnel (no `<cx:dataLabels>`): 5 bars, 0 data labels.
+        let plain = open_funnel(base.to_vec());
+        assert_eq!(plain.plots[0].series[0].labels, None);
+        let plain_svg = chart_svg(&plain, 600., 350.);
+        assert_eq!(plain_svg.matches("<rect data-dnacalc=\"chart-mark\"").count(), 5, "{plain_svg}");
+        assert_eq!(plain_svg.matches("data-dnacalc=\"chart-data-label\"").count(), 0, "{plain_svg}");
+
+        // 2. Explicit `<cx:dataLabels>` with all visibility flags 0: still 0 data labels.
+        let off = open_funnel(with_funnel_labels(r#"<cx:dataLabels><cx:visibility seriesName="0" categoryName="0" value="0"/></cx:dataLabels>"#));
+        let off_svg = chart_svg(&off, 600., 350.);
+        assert_eq!(off_svg.matches("data-dnacalc=\"chart-data-label\"").count(), 0, "{off_svg}");
+
+        // 3. Excel's `<cx:dataLabels><cx:visibility seriesName="0" categoryName="0" value="1"/></cx:dataLabels>`:
+        //    5 centred white value labels (10, 12, 9, 11, 14), and negative values omit both bar and label.
+        let mut valued = open_funnel(with_funnel_labels(r#"<cx:dataLabels><cx:visibility seriesName="0" categoryName="0" value="1"/></cx:dataLabels>"#));
+        let valued_svg = chart_svg(&valued, 600., 350.);
+        assert_eq!(valued_svg.matches("data-dnacalc=\"chart-data-label\"").count(), 5, "{valued_svg}");
+        for expected in ["10", "12", "9", "11", "14"] {
+            assert!(valued_svg.contains(&format!("fill=\"#FFFFFF\">{expected}</text>")), "missing {expected}: {valued_svg}");
+        }
+        valued.plots[0].series[0].values = vec![Some(10.0), Some(-3.0), Some(4.0), Some(-2.0), Some(9.0)];
+        valued.plots[0].series[0].label_values = vec![Some("10".into()), Some("-3".into()), Some("4".into()), Some("-2".into()), Some("9".into())];
+        let neg_svg = chart_svg(&valued, 600., 350.);
+        assert_eq!(neg_svg.matches("<rect data-dnacalc=\"chart-mark\"").count(), 3, "{neg_svg}");
+        assert_eq!(neg_svg.matches("data-dnacalc=\"chart-data-label\"").count(), 3, "{neg_svg}");
+        assert!(!neg_svg.contains(">-3</text>") && !neg_svg.contains(">-2</text>"), "{neg_svg}");
+
+        // 4. Category + value + custom separator + `<cx:dataLabelHidden idx="2"/>` + per-point override.
+        let custom = open_funnel(with_funnel_labels(concat!(
+            r#"<cx:dataLabels><cx:visibility seriesName="0" categoryName="1" value="1"/><cx:separator>: </cx:separator>"#,
+            r#"<cx:dataLabelHidden idx="2"/>"#,
+            r#"<cx:dataLabel idx="1"><cx:visibility seriesName="1" categoryName="0" value="1"/><cx:separator> - </cx:separator></cx:dataLabel>"#,
+            r#"</cx:dataLabels>"#
+        )));
+        let custom_svg = chart_svg(&custom, 600., 350.);
+        assert_eq!(custom_svg.matches("data-dnacalc=\"chart-data-label\"").count(), 4, "{custom_svg}");
+        assert!(custom_svg.contains(">Mon: 10</text>"), "{custom_svg}");
+        assert!(custom_svg.contains(">Low - 12</text>"), "{custom_svg}");
+        assert!(!custom_svg.contains(">Wed: 9</text>"), "{custom_svg}");
+        assert!(custom_svg.contains(">Thu: 11</text>"), "{custom_svg}");
+        assert!(custom_svg.contains(">Fri: 14</text>"), "{custom_svg}");
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -138,15 +138,19 @@ pub(crate) fn read_shapes(package: &Package, sheet_part: &str) -> SheetShapes {
 }
 
 /// The first element of the part `part` as a tree.
-pub(super) fn part_tree(package: &Package, part: &str) -> Option<Node> {
-    let xml = read_xml(package, part).ok()?;
-    let mut events = Events::new(&xml);
+pub(super) fn xml_tree(xml: &crate::xml::XmlPart) -> Option<Node> {
+    let mut events = Events::new(xml);
     loop {
         match events.next().ok()?? {
             XmlEvent::Start(element) => return tree(&mut events, element).ok(),
             _ => continue,
         }
     }
+}
+
+pub(super) fn part_tree(package: &Package, part: &str) -> Option<Node> {
+    let xml = read_xml(package, part).ok()?;
+    xml_tree(&xml)
 }
 
 fn descendant<'a>(node: &'a Node, local: &str) -> Option<&'a Node> {
