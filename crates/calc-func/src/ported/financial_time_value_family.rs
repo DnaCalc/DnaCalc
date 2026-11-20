@@ -702,7 +702,7 @@ fn period_components(
     log_growth: f64,
     quotient: f64,
 ) -> (f64, f64) {
-    let t = -(remaining * log_growth);
+    let t = -excel_x87_mul(remaining, log_growth);
     let em = crate::ported::excel_numeric::excel_expm1_spilled(t);
     let u = crate::ported::excel_numeric::excel_exp(t);
     // Retain h before adding fv. Forming (h+fv)*em-fv*u instead loses
@@ -723,26 +723,15 @@ fn end_payment_parts(
     quotient: f64,
     timing: PaymentTiming,
 ) -> (f64, f64) {
-    // The first period and its next float distinguish the two stored orders.
-    // Limit this order to the measured region where the two logarithm paths
-    // agree and the cash flows remain within the independently probed range.
-    let bounded_cashflow = |v: f64| {
-        v == 0.0 || (2.0_f64.powi(-110)..=2.0_f64.powi(110)).contains(&v.abs())
-    };
-    let remaining = if matches!(timing, PaymentTiming::EndOfPeriod)
-        && ((period_index == 1.0 + f64::EPSILON && periodic_rate < 0.375)
-            || (period_index == 1.0 && periodic_rate >= 0.375
-                && future_value.abs() <= present_value.abs()))
-        && (0.125..=0.5).contains(&periods)
-        && (2.0_f64.powi(-20)..2.0_f64.powi(20)).contains(&periodic_rate)
-        && bounded_cashflow(present_value)
-        && bounded_cashflow(future_value)
-        && crate::ported::excel_numeric::excel_log(excel_x87_add(1.0, periodic_rate)) == log_growth
-    {
-        (periods + 1.0) - period_index
-    } else {
-        (periods - period_index) + 1.0
-    };
+    // The periods still to run are formed as (nper + 1) - per, each step stored from PC64,
+    // and their product with the log growth is stored the same way. The order shows where
+    // nper + 1 rounds: IPMT(0.1446, 1, 1 - 2^-53, 0.70, 987.7) differs by 2,369 ulp from the
+    // (nper - per) + 1 order. Excel 16.0.20527 (dc-iuwct.33, Touchstone 2026-11-20): 7/7 nper
+    // sweeps, every full-bank IPMT, PPMT, CUMIPMT and CUMPRINC row, and 2,997/3,000 fresh IPMT
+    // and PPMT controls each with predictions frozen first (the region-limited rule it
+    // replaces held 2,409 and 2,869). Open: IPMT(0.2404, 1 + 2^-52, 1 - 2^-53, -486.8,
+    // 111969.3) still answers as the (nper - per) + 1 order (246 ulp).
+    let remaining = excel_x87_sub(excel_x87_add(periods, 1.0), period_index);
     let (interest, principal) = period_components(remaining, future_value, log_growth, quotient);
     let factor = if matches!(timing, PaymentTiming::BeginningOfPeriod) {
         due_coefficient(periodic_rate)

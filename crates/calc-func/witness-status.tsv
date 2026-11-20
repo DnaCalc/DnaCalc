@@ -167,8 +167,8 @@ CUBERANKEDMEMBER	full	20527	4287	4287	-	exact	218dcceeef	0
 CUBESET	full	20527	4319	4319	-	exact	218dcceeef	0
 CUBESETCOUNT	full	20527	3078	3078	-	exact	218dcceeef	0
 CUBEVALUE	full	20527	4246	4246	-	exact	218dcceeef	0
-CUMIPMT	full	20527	4393	4393	-	exact	218dcceeef	0
-CUMPRINC	full	20228,20527	3541	3541	-	exact	218dcceeef	0
+CUMIPMT	full	20527	4393	4393	-	exact	5e9dcf18e6+changes	0
+CUMPRINC	full	20228,20527	3541	3541	-	exact	5e9dcf18e6+changes	0
 CUMPRINC	pinned	20228	120	52	4	last_bit	7a3e51cd1b+changes	0
 DATE	full	20430,20527	22250	22250	-	exact	a9bf388613+changes	0
 DATE	pinned	20430	120	98	-	structural	63210e7082+changes	0
@@ -403,7 +403,7 @@ INTERCEPT	full	20131,20527	2856	2856	-	exact	218dcceeef	0
 INTERCEPT	pinned	20131	4	4	-	exact	7a3e51cd1b+changes	0
 INTRATE	full	20430	2400	2400	-	exact	218dcceeef	0
 INTRATE	pinned	20430	120	120	-	exact	7a3e51cd1b+changes	0
-IPMT	full	20131,20527,?	4408	4401	2369	gross	218dcceeef	0
+IPMT	full	20131,20527,?	4408	4408	-	exact	5e9dcf18e6+changes	0
 IPMT	pinned	20131,20527	191	191	-	exact	7a3e51cd1b+changes	0
 IRR	full	20131,20228,20527,?	3211	3028	1024	numeric	d6422fb7da	0
 IRR	pinned	20131,20228,?	120	87	1024	numeric	7a3e51cd1b+changes	0
@@ -572,7 +572,7 @@ POISSON.DIST	full	20131,20430,20527,?	49714	49162	7	structural	218dcceeef	0
 POISSON.DIST	pinned	20131,20430	120	118	2	last_bit	7a3e51cd1b+changes	0
 POWER	full	20131,20430,20527,?	62635	62635	-	exact	218dcceeef	0
 POWER	pinned	20131,20430	1204	1204	-	exact	7a3e51cd1b+changes	0
-PPMT	full	20131,20527,?	4384	4376	22	numeric	218dcceeef	0
+PPMT	full	20131,20527,?	4384	4384	-	exact	5e9dcf18e6+changes	0
 PPMT	pinned	20131,20527	16	16	-	exact	7a3e51cd1b+changes	0
 PRICE	full	20131,20228,?	9153	9103	1	last_bit	218dcceeef	0
 PRICE	pinned	20131,20228	120	120	-	exact	7a3e51cd1b+changes	0
@@ -596,7 +596,7 @@ RADIANS	pinned	20430	120	120	-	exact	7a3e51cd1b+changes	0
 RANK	full	20527	2810	2810	-	exact	218dcceeef	0
 RANK.AVG	full	20527	2812	2812	-	exact	218dcceeef	0
 RANK.EQ	full	20527	2811	2811	-	exact	218dcceeef	0
-RATE	full	20131,20228,20527,?	4724	4722	11	numeric	84a6f1e2da+changes	0
+RATE	full	20131,20228,20527,?	4724	4722	11	numeric	5e9dcf18e6+changes	0
 RATE	pinned	20131,20228	120	120	-	exact	7a3e51cd1b+changes	0
 RECEIVED	full	20430	2400	2400	-	exact	218dcceeef	0
 RECEIVED	pinned	20430	120	120	-	exact	7a3e51cd1b+changes	0
