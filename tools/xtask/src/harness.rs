@@ -26,14 +26,18 @@ fn executable(ws: &Workspace) -> Result<PathBuf, String> {
 /// Build into Cargo's standard profile directory and return a runnable copy. The caller owns
 /// the copy's directory until its subprocesses exit; workspace builds may replace the original.
 pub fn profile_executable(ws: &Workspace, profile: &str) -> Result<PathBuf, String> {
+    build_runnable(ws, "xtask-harness", profile)
+}
+
+pub(crate) fn build_runnable(ws: &Workspace, binary: &str, profile: &str) -> Result<PathBuf, String> {
     let mut build = Command::new(cargo::cargo_program());
     build.current_dir(&ws.root).args([
         "build",
         "--locked",
         "-p",
-        "xtask-harness",
+        binary,
         "--bin",
-        "xtask-harness",
+        binary,
         "--message-format=json",
         "--profile",
         profile,
@@ -52,10 +56,10 @@ pub fn profile_executable(ws: &Workspace, profile: &str) -> Result<PathBuf, Stri
         }
     }
     if !out.status.success() {
-        return Err(format!("building xtask-harness exited with {}", out.status));
+        return Err(format!("building {binary} exited with {}", out.status));
     }
-    let built = built_executable(&stdout)
-        .ok_or_else(|| "cargo built no xtask-harness executable".to_owned())?;
+    let built = built_executable(&stdout, binary)
+        .ok_or_else(|| format!("cargo built no {binary} executable"))?;
     runnable_copy(ws, &built, profile)
 }
 
@@ -78,13 +82,13 @@ fn runnable_copy(ws: &Workspace, built: &Path, profile: &str) -> Result<PathBuf,
 }
 
 /// Cargo reports the actual executable, including any configured target triple and suffix.
-fn built_executable(output: &str) -> Option<PathBuf> {
+fn built_executable(output: &str, binary: &str) -> Option<PathBuf> {
     output
         .lines()
         .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
         .find_map(|artifact| {
             if artifact["reason"] == "compiler-artifact"
-                && artifact["target"]["name"] == "xtask-harness"
+                && artifact["target"]["name"] == binary
             {
                 artifact["executable"].as_str().map(PathBuf::from)
             } else {
@@ -145,12 +149,12 @@ mod tests {
 {"reason":"compiler-artifact","target":{"name":"xtask-harness"},"executable":"C:\\build with spaces\\x86_64-pc-windows-msvc\\debug\\xtask-harness.exe"}
 {"reason":"build-finished","success":true}"#;
         assert_eq!(
-            built_executable(output),
+            built_executable(output, "xtask-harness"),
             Some(PathBuf::from(
                 r"C:\build with spaces\x86_64-pc-windows-msvc\debug\xtask-harness.exe"
             ))
         );
-        assert_eq!(built_executable("not a cargo artifact"), None);
+        assert_eq!(built_executable("not a cargo artifact", "xtask-harness"), None);
         let root = std::env::temp_dir().join(format!("xtask-copy-{}", std::process::id()));
         let ws = Workspace {
             root: root.clone(),
