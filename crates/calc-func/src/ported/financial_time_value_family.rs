@@ -521,13 +521,20 @@ fn rate_secant(
     for _ in 0..200 {
         let change = excel_x87_sub(value, value_before);
         if change == 0.0 {
-            // A balance that does not move between two rates has no secant step: the
-            // after-budget check decides, as in IRR's search. Flat far from zero it is #NUM!
-            // (Excel 16.0.20527, dcztvv_r23: RATE(0,-100,1000,0,0,0.5),
+            // A balance that does not move between two rates has no secant step. The search
+            // takes a fresh second point the starting offset away from the current rate and
+            // goes on (each restart one of the 200 steps): with a huge negative period and
+            // guess 0 the first step rounds back to 0.001, and Excel 16.0.20527 answers as the
+            // secant from 0.002 to 0.001 does (dc-iuwct.11: 8/8 frozen predictions; the
+            // offset re-signed from the current balance missed 1/8). A balance flat
+            // everywhere stays flat and the after-budget check decides, as in IRR's search:
+            // #NUM! far from zero (dcztvv_r23: RATE(0,-100,1000,0,0,0.5),
             // RATE(2^-1022,-100,1000,0,0,0.5) and RATE(FALSE,-200,8000)); an iterate that
             // stopped moving at a root of 1.2e10, where no step can be below 1e-7, is the
             // answer (full bank: RATE(0.12897432973391876,1235,-0.5,10) is 12232404830.799618).
-            break;
+            before = excel_x87_add(current, offset);
+            value_before = balance(before)?;
+            continue;
         }
         // The slope comparison precedes the division's DAZ input stage:
         // an exactly flat objective is NUM, a subnormal divisor is DIV/0.
@@ -537,16 +544,22 @@ fn rate_secant(
         }
         let numerator = excel_underflow_to_zero(excel_x87_mul(value, excel_x87_sub(current, before)));
         let next = excel_x87_sub(current, excel_x87_div(numerator, divisor));
-        // With negative periods and a cash-flow balance that tends to zero,
-        // Excel publishes the last finite secant iterate if the next one
-        // overflows positively. Other cash-flow shapes can return NUM instead.
-        if next == f64::INFINITY
-            && current > 0.0
-            && periods < 0.0
-            && future_value == 0.0
-            && (timing == PaymentTiming::EndOfPeriod || payment_value == 0.0)
-        {
-            return Ok(current);
+        // With negative periods the balance at a rate of +infinity is its limit: the
+        // growth (1 + rate)^periods is zero, the annuity term -1/rate is zero and the
+        // beginning-payment term is -payment. When the next secant iterate overflows
+        // positively and that limit is at most the 1e-7 tolerance, Excel publishes the
+        // last finite iterate; otherwise the search fails. Excel 16.0.20527 (dc-iuwct.11):
+        // a bisection puts the bound at |fv| <= 1e-7 exactly (end; the next double up is
+        // #NUM!), sweeps show |fv - pmt| at the beginning (pmt = fv = 2 converges); 2,966 of
+        // 3,000 fresh overflow controls, where the earlier fv = 0 rule held 2,335.
+        if next == f64::INFINITY && current > 0.0 && periods < 0.0 {
+            let limit = match timing {
+                PaymentTiming::EndOfPeriod => future_value,
+                PaymentTiming::BeginningOfPeriod => excel_x87_sub(future_value, payment_value),
+            };
+            if limit.abs() <= RATE_TOLERANCE {
+                return Ok(current);
+            }
         }
         step = excel_x87_sub(next, current).abs();
         (before, value_before) = (current, value);
@@ -689,7 +702,7 @@ fn period_components(
     log_growth: f64,
     quotient: f64,
 ) -> (f64, f64) {
-    let t = -(remaining * log_growth);
+    let t = -excel_x87_mul(remaining, log_growth);
     let em = crate::ported::excel_numeric::excel_expm1_spilled(t);
     let u = crate::ported::excel_numeric::excel_exp(t);
     // Retain h before adding fv. Forming (h+fv)*em-fv*u instead loses
@@ -710,26 +723,15 @@ fn end_payment_parts(
     quotient: f64,
     timing: PaymentTiming,
 ) -> (f64, f64) {
-    // The first period and its next float distinguish the two stored orders.
-    // Limit this order to the measured region where the two logarithm paths
-    // agree and the cash flows remain within the independently probed range.
-    let bounded_cashflow = |v: f64| {
-        v == 0.0 || (2.0_f64.powi(-110)..=2.0_f64.powi(110)).contains(&v.abs())
-    };
-    let remaining = if matches!(timing, PaymentTiming::EndOfPeriod)
-        && ((period_index == 1.0 + f64::EPSILON && periodic_rate < 0.375)
-            || (period_index == 1.0 && periodic_rate >= 0.375
-                && future_value.abs() <= present_value.abs()))
-        && (0.125..=0.5).contains(&periods)
-        && (2.0_f64.powi(-20)..2.0_f64.powi(20)).contains(&periodic_rate)
-        && bounded_cashflow(present_value)
-        && bounded_cashflow(future_value)
-        && crate::ported::excel_numeric::excel_log(excel_x87_add(1.0, periodic_rate)) == log_growth
-    {
-        (periods + 1.0) - period_index
-    } else {
-        (periods - period_index) + 1.0
-    };
+    // The periods still to run are formed as (nper + 1) - per, each step stored from PC64,
+    // and their product with the log growth is stored the same way. The order shows where
+    // nper + 1 rounds: IPMT(0.1446, 1, 1 - 2^-53, 0.70, 987.7) differs by 2,369 ulp from the
+    // (nper - per) + 1 order. Excel 16.0.20527 (dc-iuwct.33, Touchstone 2026-11-20): 7/7 nper
+    // sweeps, every full-bank IPMT, PPMT, CUMIPMT and CUMPRINC row, and 2,997/3,000 fresh IPMT
+    // and PPMT controls each with predictions frozen first (the region-limited rule it
+    // replaces held 2,409 and 2,869). Open: IPMT(0.2404, 1 + 2^-52, 1 - 2^-53, -486.8,
+    // 111969.3) still answers as the (nper - per) + 1 order (246 ulp).
+    let remaining = excel_x87_sub(excel_x87_add(periods, 1.0), period_index);
     let (interest, principal) = period_components(remaining, future_value, log_growth, quotient);
     let factor = if matches!(timing, PaymentTiming::BeginningOfPeriod) {
         due_coefficient(periodic_rate)
@@ -2388,4 +2390,3 @@ mod tests {
         );
     }
 }
-
