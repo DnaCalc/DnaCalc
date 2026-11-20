@@ -209,19 +209,26 @@ fn prune_profile(
     dry: bool,
     report: &mut Report,
 ) -> io::Result<bool> {
-    let lock_path = path.join(".cargo-lock");
-    if !metadata(&lock_path)?.is_some_and(|m| m.is_file()) {
-        return Ok(false);
-    }
-    // Age alone cannot tell us whether an active build is reusing an artifact.
-    let lock = OpenOptions::new().read(true).write(true).open(lock_path)?;
-    match lock.try_lock() {
-        Ok(()) => {}
-        Err(TryLockError::WouldBlock) => {
-            report.busy += 1;
-            return Ok(true);
+    // Cargo locks the intermediate directory separately from the final output directory.
+    // When both locks are here, also exclude older Cargo versions using .cargo-lock.
+    let mut locks = Vec::new();
+    for name in [".cargo-build-lock", ".cargo-lock"] {
+        let lock_path = path.join(name);
+        if !metadata(&lock_path)?.is_some_and(|m| m.is_file()) {
+            continue;
         }
-        Err(TryLockError::Error(error)) => return Err(error),
+        let lock = OpenOptions::new().read(true).write(true).open(lock_path)?;
+        match lock.try_lock() {
+            Ok(()) => locks.push(lock),
+            Err(TryLockError::WouldBlock) => {
+                report.busy += 1;
+                return Ok(true);
+            }
+            Err(TryLockError::Error(error)) => return Err(error),
+        }
+    }
+    if locks.is_empty() {
+        return Ok(false);
     }
     prune_artifacts(&path.join("deps"), false, cutoff, dry, report)?;
     prune_artifacts(&path.join("incremental"), true, cutoff, dry, report)?;
@@ -313,11 +320,12 @@ mod tests {
             fs::create_dir_all(dir).unwrap();
         }
         File::create(profile.join(".cargo-lock")).unwrap();
+        File::create(busy.join(".cargo-lock")).unwrap();
         let busy_lock = OpenOptions::new()
             .read(true)
             .write(true)
             .create_new(true)
-            .open(busy.join(".cargo-lock"))
+            .open(busy.join(".cargo-build-lock"))
             .unwrap();
         busy_lock.try_lock().unwrap();
 
@@ -413,7 +421,7 @@ mod tests {
             "[build]\ntarget-dir = \"output\"\nbuild-dir = \"intermediate\"\n",
         )
         .unwrap();
-        File::create(profile.join(".cargo-lock")).unwrap();
+        File::create(profile.join(".cargo-build-lock")).unwrap();
         let now = SystemTime::now();
         let stale = executable(
             &deps,
