@@ -191,7 +191,7 @@ pub use tables::TableChange;
 mod shapes;
 pub use calc_doc_model::preset_geometry;
 mod sparklines;
-pub use sparklines::{FormControlView, SparklineView};
+pub use sparklines::{FormControlView, SparklineChange, SparklineView};
 pub use calc_doc_model::{
     ChartAnchor, CustomGeometry, DrawingNode, FormControl, Sparkline, SparklineGroup, GeometryCommand, GeometryPath, LineEnd, PictureMedia, ShapePattern, ShapeStyle, ShapeStyleRef, Shape, ShapeBody, ShapeColour, ShapeFill, ShapeGradient, ShapeKind, ShapeLine, ShapeShadow,
     ShapePicture, ShapeTextRun,

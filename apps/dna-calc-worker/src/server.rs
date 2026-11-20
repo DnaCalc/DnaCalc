@@ -2456,6 +2456,33 @@ impl Server {
                     },
                 })
             }
+            Intent::SparklineAdd { sheet, revision, at, data, kind } => {
+                let at = cell(at)?;
+                let data = match self.book.host().resolve_reference_text(at, data.trim()) {
+                    calc_host::ReferenceTarget::Area(area) => area,
+                    _ => return Err("Give the sparkline's data as a range, such as A2:E2".into()),
+                };
+                SkinIntent::Command(calc_host::WorkbookCommand::Sparkline {
+                    sheet: sheet.id(),
+                    revision,
+                    change: calc_host::SparklineChange::Add { data, cell: at, kind: Some(kind).filter(|k| !k.is_empty()) },
+                })
+            }
+            Intent::SparklineKind { sheet, revision, at, kind } => SkinIntent::Command(calc_host::WorkbookCommand::Sparkline {
+                sheet: sheet.id(),
+                revision,
+                change: calc_host::SparklineChange::Kind { cell: cell(at)?, kind: Some(kind).filter(|k| !k.is_empty()) },
+            }),
+            Intent::SparklineShow { sheet, revision, at, point, on } => SkinIntent::Command(calc_host::WorkbookCommand::Sparkline {
+                sheet: sheet.id(),
+                revision,
+                change: calc_host::SparklineChange::Show { cell: cell(at)?, point, on },
+            }),
+            Intent::SparklineDelete { sheet, revision, at } => SkinIntent::Command(calc_host::WorkbookCommand::Sparkline {
+                sheet: sheet.id(),
+                revision,
+                change: calc_host::SparklineChange::Delete { cell: cell(at)? },
+            }),
             Intent::ShapePicture { sheet, revision, at, name } => {
                 let at = cell(at)?;
                 let bytes = self.intent_bytes.take().unwrap_or_default();
@@ -5571,6 +5598,30 @@ mod outline_tests {
         assert_eq!(by(&after, "List Box 5").selected, Some(0));
         assert_eq!(by(&after, "Spinner 7").value, 6);
         assert!(matches!(control_action(&by(&after, "Button 1"), "run", None), Some(ControlAction::RunMacro(_))));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dc_zjsg_7__the_page_inserts_changes_and_deletes_sparklines() {
+        let mut server = Server::new();
+        let data = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/sparklines.xlsx");
+        assert!(server.execute_current(Request::Open { name: "sparklines.xlsx".into() }, Some(data.to_vec())).reply.is_ok());
+        let sheet = Sheet::of(server.book.host().sheets()[0].id());
+        let at = |row, column| Key::of(calc_value::CellKey::new(sheet.id(), row, column).unwrap());
+        let run = |server: &mut Server, make: &dyn Fn(u64) -> Intent| {
+            let revision = server.book.host().revision().get();
+            let reply = server.execute_current(Request::Intent(make(revision)), None).reply;
+            assert!(matches!(&reply, Ok(Reply::Done { outcome, .. }) if outcome.accepted), "{reply:?}");
+        };
+        run(&mut server, &|revision| Intent::SparklineAdd { sheet, revision, at: at(3, 7), data: "A3:E3".into(), kind: "stacked".into() });
+        run(&mut server, &|revision| Intent::SparklineShow { sheet, revision, at: at(3, 7), point: "high".into(), on: true });
+        run(&mut server, &|revision| Intent::SparklineKind { sheet, revision, at: at(3, 7), kind: "column".into() });
+        let Reply::Sparklines(lines) = server.execute_current(Request::Sparklines(sheet), None).reply.unwrap() else { panic!() };
+        let g3 = lines.iter().find(|l| l.cell == at(3, 7)).unwrap();
+        assert_eq!((g3.kind.as_str(), g3.values.len(), g3.high.is_some()), ("column", 5, true));
+        run(&mut server, &|revision| Intent::SparklineDelete { sheet, revision, at: at(3, 7) });
+        assert_eq!(server.book.host().model().definitions().sparklines(sheet.id()).len(), 5);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

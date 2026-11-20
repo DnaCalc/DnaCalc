@@ -36,6 +36,7 @@ pub mod panes;
 pub mod render_plan;
 pub mod selection;
 mod shape_tools;
+mod sparkline_tools;
 mod structure;
 pub mod viewport;
 
@@ -3593,6 +3594,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                         <>
                             {crate::clipboard::controls(controller)} {axis::controls(controller)}
                             {shape_tools::controls(controller, shapes, selected_shape, also_shapes)}
+                            {sparkline_tools::controls(controller, sparklines)}
                             {crate::tables::controls(controller)}
                             {crate::commands::sort_controls(controller)}
                             {crate::commands::filter_controls(controller)}

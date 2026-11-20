@@ -380,6 +380,7 @@ pub fn prepare_edit<'s, 'r>(
             | WorkbookOp::SetValidations { sheet, .. }
             | WorkbookOp::SetCharts { sheet, .. }
             | WorkbookOp::SetShapes { sheet, .. }
+            | WorkbookOp::SetSparklines { sheet, .. }
             | WorkbookOp::SetReviewLinks { sheet, .. }
             | WorkbookOp::SetReviewNotes { sheet, .. }
             | WorkbookOp::SetConditionalRules { sheet, .. }
@@ -752,6 +753,7 @@ fn structural_moves(
                     charts: _
                 }
                 | WorkbookOp::SetShapes { .. }
+                | WorkbookOp::SetSparklines { .. }
                 | WorkbookOp::SetReviewLinks { .. }
                 | WorkbookOp::SetReviewNotes { .. }
                 | WorkbookOp::SetConditionalRules { .. }
@@ -791,6 +793,7 @@ fn structural_moves(
                 charts: _,
             }
             | WorkbookOp::SetShapes { .. }
+            | WorkbookOp::SetSparklines { .. }
             | WorkbookOp::SetReviewLinks { .. }
             | WorkbookOp::SetReviewNotes { .. }
             | WorkbookOp::SetConditionalRules { .. }

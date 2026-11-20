@@ -803,6 +803,7 @@ impl ModelRoot {
         let mut links = Vec::new();
         let mut charts = Vec::new();
         let mut shapes = Vec::new();
+        let mut sparklines = Vec::new();
         let mut pivots = None;
         let mut data_model = None;
         let mut page_setups = Vec::new();
@@ -849,6 +850,10 @@ impl ModelRoot {
                 } => {
                     self.position_of(operation, *sheet)?;
                     shapes.push((*sheet, values.clone()));
+                }
+                WorkbookOp::SetSparklines { sheet, groups } => {
+                    self.position_of(operation, *sheet)?;
+                    sparklines.push((*sheet, groups.clone()));
                 }
                 WorkbookOp::SetStyles(value) => styles = Some(Arc::clone(value)),
                 WorkbookOp::SetTables(value) => {
@@ -1050,6 +1055,7 @@ impl ModelRoot {
             || !links.is_empty()
             || !charts.is_empty()
             || !shapes.is_empty()
+            || !sparklines.is_empty()
             || !page_setups.is_empty()
             || !validations.is_empty()
             || !filters.is_empty()
@@ -1089,6 +1095,9 @@ impl ModelRoot {
             }
             for (sheet, values) in shapes {
                 next = next.with_shapes(sheet, values);
+            }
+            for (sheet, values) in sparklines {
+                next = next.with_sparklines(sheet, values);
             }
             for (sheet, values) in links {
                 next = next.with_review_links(sheet, values);

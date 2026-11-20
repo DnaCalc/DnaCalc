@@ -116,6 +116,7 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
             | CellEdit::Styles(_)
             | CellEdit::Charts { .. }
             | CellEdit::Shapes { .. }
+            | CellEdit::Sparklines { .. }
             | CellEdit::PageSetup { .. }
             | CellEdit::Layout(_)
             | CellEdit::ReviewLinks { .. }
@@ -297,6 +298,17 @@ pub(crate) fn inverse(
             inverse.push(CellEdit::Shapes {
                 sheet: *sheet,
                 shapes: definitions.shapes(*sheet).to_vec(),
+            });
+        }
+    }
+    let mut sparkline_sheets = BTreeSet::new();
+    for edit in edits {
+        if let CellEdit::Sparklines { sheet, .. } = edit
+            && sparkline_sheets.insert(*sheet)
+        {
+            inverse.push(CellEdit::Sparklines {
+                sheet: *sheet,
+                groups: definitions.sparklines(*sheet).to_vec(),
             });
         }
     }

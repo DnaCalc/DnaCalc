@@ -156,3 +156,149 @@ impl HostState {
             .collect()
     }
 }
+
+/// One change to a sheet's sparklines (dc-zjsg.7), each one undoable edit. A sparkline is found by its cell.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SparklineChange {
+    /// A new sparkline group of one sparkline in `cell` over `data` (one row or one column), `kind` `line` (the
+    /// default), `column` or `stacked` (win/loss), with the look Excel gives a sparkline it inserts.
+    Add {
+        data: calc_doc_model::value::GridArea,
+        cell: CellKey,
+        kind: Option<String>,
+    },
+    /// The type of the group holding the sparkline in `cell` (Excel changes the whole group).
+    Kind { cell: CellKey, kind: Option<String> },
+    /// Which points the group holding the sparkline in `cell` shows apart: `markers`, `high`, `low`, `first`,
+    /// `last` or `negative`.
+    Show { cell: CellKey, point: String, on: bool },
+    /// The sparkline in `cell` deleted (its group with it when it was the last).
+    Delete { cell: CellKey },
+}
+
+fn refusal(s: &str) -> String {
+    format!("{s} (dc-zjsg.7); nothing changed")
+}
+
+fn a1(at: CellKey) -> String {
+    let mut n = at.column();
+    let mut letters = String::new();
+    while n > 0 {
+        n -= 1;
+        letters.insert(0, (b'A' + (n % 26) as u8) as char);
+        n /= 26;
+    }
+    format!("{letters}{}", at.row())
+}
+
+/// Where the sparkline `line` of `sheet` is drawn, as `sparklines` resolves it.
+fn cell_of(host: &HostState, sheet: SheetId, line: &calc_doc_model::Sparkline) -> Option<CellKey> {
+    let origin = CellKey::new(sheet, 1, 1).ok()?;
+    match host.resolve_reference_text(origin, &host.current_reference(&line.cell, sheet)) {
+        crate::ReferenceTarget::Area(area) => Some(area.first()),
+        _ => None,
+    }
+}
+
+pub(crate) fn prepare(host: &HostState, sheet: SheetId, revision: u64, change: SparklineChange) -> Result<Vec<crate::CellEdit>, String> {
+    if revision != host.revision().get() {
+        return Err(refusal("The workbook changed; read the sparklines again"));
+    }
+    let source = host.loaded().sheet(sheet).ok_or_else(|| refusal("Save and reopen the new worksheet before adding sparklines"))?;
+    if source.protected() || source.is_macro_sheet() {
+        return Err(refusal("Sparklines need an editable worksheet"));
+    }
+    if host.loaded().workbook_part().ends_with(".bin") {
+        return Err(refusal("Save as XLSX and reopen before editing sparklines"));
+    }
+    if !host.axis_edits.is_empty() {
+        return Err(refusal("Save and reopen before editing sparklines after row or column insertion or deletion"));
+    }
+    let mut groups = host.model.definitions().sparklines(sheet).to_vec();
+    let find = |groups: &[SparklineGroup], cell: CellKey| -> Option<(usize, usize)> {
+        groups.iter().enumerate().find_map(|(g, group)| {
+            group.sparklines.iter().position(|line| cell_of(host, sheet, line) == Some(cell)).map(|l| (g, l))
+        })
+    };
+    let kind_of = |kind: Option<String>| -> Result<Option<String>, String> {
+        match kind.as_deref() {
+            None | Some("line") => Ok(None),
+            Some("column" | "stacked") => Ok(kind),
+            Some(_) => Err(refusal("Use a line, column or win/loss sparkline")),
+        }
+    };
+    match change {
+        SparklineChange::Add { data, cell, kind } => {
+            if cell.sheet() != sheet {
+                return Err(refusal("Put the sparkline on this sheet"));
+            }
+            if data.row_count() > 1 && data.column_count() > 1 {
+                return Err(refusal("A sparkline in one cell takes one row or one column of data"));
+            }
+            if find(&groups, cell).is_some() {
+                return Err(refusal("The cell already holds a sparkline"));
+            }
+            let name = host
+                .model()
+                .sheet_by_id(data.sheet())
+                .ok_or_else(|| refusal("The data's worksheet is unavailable"))?
+                .name()
+                .text()
+                .to_string_lossy()
+                .replace('\'', "''");
+            let range = if data.first() == data.last() { a1(data.first()) } else { format!("{}:{}", a1(data.first()), a1(data.last())) };
+            let colour = |theme: &str, tint: Option<&str>| calc_doc_model::StyleColor {
+                theme: Some(theme.into()),
+                tint: tint.map(str::to_owned),
+                ..Default::default()
+            };
+            let darker = Some("-0.499984740745262");
+            let lighter = Some("0.39997558519241921");
+            // Excel's look for a sparkline it inserts: the first accent darkened by half, negative points in the
+            // second accent, a black axis, first and last points lightened (excel-answers, sparklines.xlsx).
+            let group = SparklineGroup {
+                kind: kind_of(kind)?,
+                empty_cells: Some("gap".into()),
+                colours: vec![
+                    ("colorSeries".into(), colour("4", darker)),
+                    ("colorNegative".into(), colour("5", None)),
+                    ("colorAxis".into(), calc_doc_model::StyleColor { rgb: Some("FF000000".into()), ..Default::default() }),
+                    ("colorMarkers".into(), colour("4", darker)),
+                    ("colorFirst".into(), colour("4", lighter)),
+                    ("colorLast".into(), colour("4", lighter)),
+                    ("colorHigh".into(), colour("4", None)),
+                    ("colorLow".into(), colour("4", None)),
+                ],
+                sparklines: vec![calc_doc_model::Sparkline { data: crate::chart::excel_reference(&format!("'{name}'!{range}")), cell: a1(cell) }],
+                ..Default::default()
+            };
+            groups.push(group);
+        }
+        SparklineChange::Kind { cell, kind } => {
+            let (g, _) = find(&groups, cell).ok_or_else(|| refusal("The cell holds no sparkline"))?;
+            groups[g].kind = kind_of(kind)?;
+        }
+        SparklineChange::Show { cell, point, on } => {
+            let (g, _) = find(&groups, cell).ok_or_else(|| refusal("The cell holds no sparkline"))?;
+            let group = &mut groups[g];
+            let flag = match point.as_str() {
+                "markers" => &mut group.markers,
+                "high" => &mut group.high,
+                "low" => &mut group.low,
+                "first" => &mut group.first,
+                "last" => &mut group.last,
+                "negative" => &mut group.negative,
+                _ => return Err(refusal("Show markers, high, low, first, last or negative points")),
+            };
+            *flag = on;
+        }
+        SparklineChange::Delete { cell } => {
+            let (g, l) = find(&groups, cell).ok_or_else(|| refusal("The cell holds no sparkline"))?;
+            groups[g].sparklines.remove(l);
+            if groups[g].sparklines.is_empty() {
+                groups.remove(g);
+            }
+        }
+    }
+    Ok(vec![crate::CellEdit::Sparklines { sheet, groups }])
+}

@@ -377,6 +377,36 @@ pub enum Intent {
         width: i64,
         height: i64,
     },
+    /// A sparkline in the cell `at` over `data` (an A1 range on this sheet or `Sheet!A1:B2`), `kind` `line`,
+    /// `column` or `stacked` (win/loss) (dc-zjsg.7).
+    SparklineAdd {
+        sheet: Sheet,
+        revision: u64,
+        at: Key,
+        data: String,
+        kind: String,
+    },
+    /// The type of the group holding the sparkline in `at` (dc-zjsg.7).
+    SparklineKind {
+        sheet: Sheet,
+        revision: u64,
+        at: Key,
+        kind: String,
+    },
+    /// Show or hide one kind of point (`markers`, `high`, `low`, `first`, `last`, `negative`) (dc-zjsg.7).
+    SparklineShow {
+        sheet: Sheet,
+        revision: u64,
+        at: Key,
+        point: String,
+        on: bool,
+    },
+    /// Delete the sparkline in `at` (dc-zjsg.7).
+    SparklineDelete {
+        sheet: Sheet,
+        revision: u64,
+        at: Key,
+    },
     /// Insert the picture whose image travels beside the intent, at its own size (96 pixels to the inch), its top left
     /// at the cell `at`; `name` is the file's name, its alternative text (dc-zjsg.4).
     ShapePicture {

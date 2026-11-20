@@ -1067,6 +1067,57 @@ fn dc_zjsg_4__an_inserted_picture_saves_and_reopens() {
     assert_eq!(reloaded.host().anchor_rectangle(sheet, &picture.anchor), (48.0, 15.0, 120.0, 75.0));
 }
 
+/// dc-zjsg.7: sparklines added, changed and deleted; each save writes the worksheet's sparkline extension from the
+/// groups, and the file reopens with them (the other groups as they were).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_7__sparklines_are_added_changed_and_deleted_and_saved() {
+    use calc_host::SparklineChange;
+    let bytes = include_bytes!("../../calc-doc/tests/fixtures/drawing/sparklines.xlsx").to_vec();
+    let mut book = open(bytes.clone());
+    let sheet = book.host().sheets()[0].id();
+    let before = book.host().model().definitions().sparklines(sheet).to_vec();
+    let run = |book: &mut HostSession, change: SparklineChange| {
+        command(book, |b| WorkbookCommand::Sparkline { sheet, revision: b.host().revision().get(), change: change.clone() });
+    };
+    let area = GridArea::new(at(sheet, "A2"), at(sheet, "E2")).unwrap();
+    run(&mut book, SparklineChange::Add { data: area, cell: at(sheet, "G2"), kind: Some("column".into()) });
+    run(&mut book, SparklineChange::Show { cell: at(sheet, "F4"), point: "markers".into(), on: true });
+    run(&mut book, SparklineChange::Kind { cell: at(sheet, "F6"), kind: Some("line".into()) });
+    run(&mut book, SparklineChange::Delete { cell: at(sheet, "F7") });
+    let reloaded = reopened(&mut book);
+    let groups = reloaded.host().model().definitions().sparklines(sheet).to_vec();
+    assert_eq!(groups.len(), before.len());
+    // F7's group is gone; the new one is last, over Spark!A2:E2 in G2, a column group with Excel's look.
+    let new = groups.last().unwrap();
+    assert_eq!((new.kind.as_deref(), new.sparklines[0].data.as_str(), new.sparklines[0].cell.as_str()), (Some("column"), "Spark!A2:E2", "G2"));
+    assert_eq!(new.colour("colorSeries").and_then(|c| c.theme.as_deref()), Some("4"));
+    assert!(groups[1].markers && groups[2].kind.is_none());
+    assert_eq!((&groups[0], &groups[3]), (&before[0], &before[4]));
+    let views = reloaded.host().sparklines(sheet);
+    let g2 = views.iter().flat_map(|(_, v)| v).find(|v| v.cell == at(sheet, "G2")).unwrap();
+    assert_eq!(g2.values, vec![Some(3.0), Some(5.0), Some(2.0), Some(8.0), Some(6.0)]);
+    // A cell that holds one cannot take another; one without cannot be changed.
+    let revision = book.host().revision().get();
+    let taken = book.dispatch(SkinIntent::Command(WorkbookCommand::Sparkline { sheet, revision, change: SparklineChange::Add { data: area, cell: at(sheet, "F2"), kind: None } }));
+    assert!(!taken.accepted());
+    // Every group deleted: the extension goes, the file reopens without sparklines.
+    let mut empty = reloaded;
+    for cell in ["F2", "F3", "F4", "F5", "F6", "F8", "G2"] {
+        run(&mut empty, SparklineChange::Delete { cell: at(sheet, cell) });
+    }
+    let none = reopened(&mut empty);
+    assert!(none.host().model().definitions().sparklines(sheet).is_empty());
+    // A worksheet without an extension list gets one.
+    let mut blank = open(calc_host::blank_package());
+    let sheet = blank.host().sheets()[0].id();
+    let area = GridArea::new(at(sheet, "A1"), at(sheet, "A3")).unwrap();
+    command(&mut blank, |b| WorkbookCommand::Sparkline { sheet, revision: b.host().revision().get(), change: SparklineChange::Add { data: area, cell: at(sheet, "B1"), kind: None } });
+    let read = reopened(&mut blank);
+    let groups = read.host().model().definitions().sparklines(sheet);
+    assert_eq!((groups.len(), groups[0].sparklines[0].data.as_str()), (1, "Sheet1!A1:A3"));
+}
+
 /// dc-zjsg.4: a kept object (an equation, ink, SmartArt, OLE) is not moved or deleted; it stays as the file stores it.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

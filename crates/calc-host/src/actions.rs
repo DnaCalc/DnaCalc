@@ -116,6 +116,12 @@ pub enum WorkbookCommand {
         revision: u64,
         change: crate::ShapeChange,
     },
+    /// Add, change or delete a sparkline (dc-zjsg.7).
+    Sparkline {
+        sheet: SheetId,
+        revision: u64,
+        change: crate::SparklineChange,
+    },
     /// Name and place a chart this session made (`ChartObject.Name`, `.Left/.Top/.Width/.Height`);
     /// positions in points, `None` keeps the value (dc-piw0.2).
     ChartFrame {
@@ -432,6 +438,7 @@ pub(crate) fn prepare(
             revision,
             change,
         } => crate::shapes::prepare(host, sheet, revision, change),
+        WorkbookCommand::Sparkline { sheet, revision, change } => crate::sparklines::prepare(host, sheet, revision, change),
         WorkbookCommand::ChartFrame {
             sheet,
             revision,

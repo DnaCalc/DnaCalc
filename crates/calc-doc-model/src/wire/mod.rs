@@ -390,7 +390,7 @@ pub fn encode_batch(batch: &OpBatch, root: &ModelRoot) -> Result<Vec<u8>, Encode
         }
         if matches!(
             operation,
-            WorkbookOp::SetCharts { .. } | WorkbookOp::SetShapes { .. }
+            WorkbookOp::SetCharts { .. } | WorkbookOp::SetShapes { .. } | WorkbookOp::SetSparklines { .. }
         ) {
             return Err(EncodeError::Charts { operation: index });
         }
