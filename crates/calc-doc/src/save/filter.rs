@@ -148,6 +148,20 @@ pub(super) fn render(prefix: &str, filter: &AutoFilter, definitions: &Definition
                 xstring_attribute(&value.encode_utf16().collect::<Vec<_>>(), &mut out);
                 out.extend(b"/>");
             }
+            FilterCriteria::Average { above, val } => {
+                out.extend(
+                    format!(
+                        "<{prefix}dynamicFilter type=\"{}\"",
+                        if *above { "aboveAverage" } else { "belowAverage" }
+                    )
+                    .bytes(),
+                );
+                if let Some(val) = val {
+                    out.extend(b" val=");
+                    xstring_attribute(&val.encode_utf16().collect::<Vec<_>>(), &mut out);
+                }
+                out.extend(b"/>");
+            }
             FilterCriteria::Color { dxf_id, cell_color } => {
                 out.extend(
                     format!(

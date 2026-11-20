@@ -1303,6 +1303,12 @@ impl Server {
                                 percent: *percent,
                                 value: value.clone(),
                             },
+                            calc_host::FilterCriteria::Average { above, .. } => {
+                                wire::FilterChange::Average {
+                                    column,
+                                    above: *above,
+                                }
+                            }
                             calc_host::FilterCriteria::Color { dxf_id, cell_color } => {
                                 wire::FilterChange::ColorReference {
                                     column,
@@ -2561,6 +2567,10 @@ impl Server {
                             percent,
                             value,
                         }),
+                    },
+                    W::Average { column, above } => H::Column {
+                        column,
+                        criteria: Some(FilterCriteria::Average { above, val: None }),
                     },
                     W::Color {
                         column,

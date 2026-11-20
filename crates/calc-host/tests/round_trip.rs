@@ -13976,9 +13976,86 @@ fn dc_971p_37__custom_filters_use_shared_wildcards_comparisons_and_atomic_refusa
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_37__above_and_below_average_filter_rows_save_and_reopen() {
+    use calc_host::{FilterChange as F, FilterCriteria as C, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (address, input) in [
+        ("A1", "Header"),
+        ("A2", "1"),
+        ("A3", "2"),
+        ("A4", "text"),
+        ("A5", "3"),
+        ("A6", "10"),
+    ] {
+        assert!(enter(&mut book, at(s, address), input).accepted());
+    }
+    let mut run = |book: &mut HostSession, change| {
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change,
+        }))
+    };
+    let area = GridArea::new(at(s, "A1"), at(s, "A6")).unwrap();
+    assert!(run(&mut book, F::Enable { area }).accepted());
+    let hidden = |b: &HostSession| {
+        (2..=6)
+            .filter(|r| {
+                b.host()
+                    .sheet_geometry(s)
+                    .is_some_and(|g| g.rows.get(r).is_some_and(|row| row.hidden))
+            })
+            .collect::<Vec<u32>>()
+    };
+    // Average of 1, 2, 3 and 10 is 4: text is neither above nor below it.
+    let above = run(
+        &mut book,
+        F::Column {
+            column: 1,
+            criteria: Some(C::Average {
+                above: true,
+                val: None,
+            }),
+        },
+    );
+    assert!(above.accepted(), "{above:?}");
+    assert_eq!(hidden(&book), vec![2, 3, 4, 5]);
+    let below = run(
+        &mut book,
+        F::Column {
+            column: 1,
+            criteria: Some(C::Average {
+                above: false,
+                val: None,
+            }),
+        },
+    );
+    assert!(below.accepted(), "{below:?}");
+    assert_eq!(hidden(&book), vec![4, 6]);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let xml = part_text(&saved, "xl/worksheets/sheet1.xml");
+    assert!(xml.contains("<dynamicFilter type=\"belowAverage\""), "{xml}");
+    let book = session(&saved);
+    let filter = book.host().model().definitions().auto_filter(s).unwrap();
+    assert!(!filter.unsupported);
+    assert_eq!(
+        filter.columns.get(&1),
+        Some(&C::Average {
+            above: false,
+            val: None
+        })
+    );
+    assert_eq!(hidden(&book), vec![4, 6]);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_37__unknown_imported_filter_xml_survives_unrelated_edits() {
     use calc_host::{FilterChange as F, WorkbookCommand as W};
-    let raw = "<autoFilter ref=\"A1:B4\"><filterColumn colId=\"0\"><dynamicFilter type=\"aboveAverage\"/></filterColumn></autoFilter>";
+    let raw = "<autoFilter ref=\"A1:B4\"><filterColumn colId=\"0\"><dynamicFilter type=\"thisWeek\"/></filterColumn></autoFilter>";
     let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
         xml.replace("</worksheet>", &format!("{raw}</worksheet>"))
     });
@@ -14774,16 +14851,46 @@ fn dc_971p_38__shifted_source_formula_attributes_and_filter_ranges_refuse_atomic
         header: true,
         revision: before.get(),
     }));
-    assert!(!result.accepted(), "{result:?}");
-    assert!(
-        result
-            .error
-            .unwrap()
-            .to_string()
-            .contains("AutoFilter ranges")
+    // A drop-down filter with no criteria hides nothing: Excel sorts under it, and the filter stays.
+    assert!(result.accepted(), "{result:?}");
+    assert_eq!(book.host().model().cell(at(s, "A2")), Some(&number(1.)));
+    assert_eq!(book.host().model().cell(at(s, "A3")), Some(&number(2.)));
+    assert_eq!(
+        book.host().model().definitions().auto_filter(s).unwrap().area,
+        area
     );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    assert!(part_text(&saved, "xl/worksheets/sheet1.xml").contains("<autoFilter"));
+    // With criteria in force the rows are hidden or the filter is stateful: still atomic.
+    let revision = book.host().revision().get();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change: calc_host::FilterChange::Column {
+                column: 1,
+                criteria: Some(calc_doc_model::FilterCriteria::Values {
+                    values: vec!["1".into(), "2".into()],
+                    blank: false,
+                }),
+            }
+        }))
+        .accepted()
+    );
+    let before = book.host().revision();
+    let result = book.dispatch(SkinIntent::Command(W::SortRows {
+        area,
+        keys: vec![SortKey {
+            column: 1,
+            descending: true,
+        }],
+        header: true,
+        revision: before.get(),
+    }));
+    assert!(!result.accepted(), "{result:?}");
     assert_eq!(book.host().revision(), before);
-    assert_eq!(book.host().model().cell(at(s, "A2")), Some(&number(2.)));
+    assert_eq!(book.host().model().cell(at(s, "A2")), Some(&number(1.)));
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

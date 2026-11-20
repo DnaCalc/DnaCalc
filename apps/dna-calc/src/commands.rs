@@ -1406,6 +1406,20 @@ pub fn filter_controls(controller: Controller) -> AnyView {
                             "Apply top or bottom"
                         </button>
                     </div>
+                    <div class="dc-command-row">
+                        <button
+                            data-dnacalc="filter-above-average"
+                            on:click=move |_| controller.average_filter(true)
+                        >
+                            "Above average"
+                        </button>
+                        <button
+                            data-dnacalc="filter-below-average"
+                            on:click=move |_| controller.average_filter(false)
+                        >
+                            "Below average"
+                        </button>
+                    </div>
                     <p class="dc-muted">
                         "Uses numeric values in this filter range; ties at the cutoff are included. "
                         "Choose 1–255 whole items or a percentage greater than 0 and up to 100."

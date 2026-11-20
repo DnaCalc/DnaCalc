@@ -274,7 +274,9 @@ pub(crate) fn apply(
             FilterCriteria::Dates { groups, values, .. } => {
                 (groups.len() * 6 + values.len()).max(1)
             }
-            FilterCriteria::Top { .. } | FilterCriteria::Color { .. } => 1,
+            FilterCriteria::Top { .. }
+            | FilterCriteria::Color { .. }
+            | FilterCriteria::Average { .. } => 1,
             FilterCriteria::Custom { predicates, .. } => predicates.len(),
         })
         .sum::<usize>();
@@ -535,6 +537,14 @@ pub(crate) fn apply(
                     if *top { ">=" } else { "<=" }
                 )
             }
+            FilterCriteria::Average { above, .. } => {
+                let start = label(origin).trim_end_matches(char::is_numeric).to_owned();
+                let range = format!("${start}${first}:${start}${}", filter.area.last().row());
+                format!(
+                    "AND(ISNUMBER({cell}),IFERROR({cell}{}AVERAGE({range}),FALSE))",
+                    if *above { ">" } else { "<" }
+                )
+            }
             FilterCriteria::Color { .. } => unreachable!(),
             FilterCriteria::Custom { and, predicates } => {
                 let terms = predicates
@@ -691,6 +701,7 @@ pub fn filter_values_for(
         Some(
             FilterCriteria::Custom { .. }
             | FilterCriteria::Top { .. }
+            | FilterCriteria::Average { .. }
             | FilterCriteria::Color { .. },
         ) => false,
         None => true,

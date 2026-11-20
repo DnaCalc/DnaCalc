@@ -2916,6 +2916,25 @@ impl Controller {
             self.say("Choose a column within the filter range", true);
         }
     }
+    /// Above or below the average of the chosen filter column, through the same command.
+    pub fn average_filter(&self, above: bool) {
+        let Some(area) = self.filter_view().and_then(|f| f.area.area()) else {
+            return;
+        };
+        let Some(column) = self
+            .model
+            .with_untracked(|m| m.runtime.tools.filter.column.parse::<u32>().ok())
+            .filter(|c| *c > 0 && *c <= area.column_count())
+            .map(|c| area.first().column() + c - 1)
+        else {
+            self.say("Choose a column within the filter range", true);
+            return;
+        };
+        self.filter_command_revision(
+            wire::FilterChange::Average { column, above },
+            Some(self.summary.get_untracked().revision),
+        );
+    }
     pub fn special_filter(
         &self,
         date: Option<String>,

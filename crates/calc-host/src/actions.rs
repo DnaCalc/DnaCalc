@@ -1277,9 +1277,18 @@ fn sort_rows(
         .model()
         .definitions()
         .auto_filter(area.sheet())
-        .is_some_and(|filter| filter.area.intersection(data).is_some())
+        .is_some_and(|filter| {
+            // A drop-down filter with no criteria hides nothing, and Excel sorts under it
+            // as under any range; one with criteria or unread attributes still refuses.
+            filter.area.intersection(data).is_some()
+                && (filter.unsupported
+                    || !filter.columns.is_empty()
+                    || !filter.filtered_rows.is_empty())
+        })
     {
-        return Err(unavailable("AutoFilter ranges; remove the filter first"));
+        return Err(unavailable(
+            "AutoFilter ranges with criteria; clear the filter first",
+        ));
     }
     if !host.loaded.cell_sort_metadata_supported(area.sheet()) {
         return Err(unavailable("source cell decorations or worksheet objects"));

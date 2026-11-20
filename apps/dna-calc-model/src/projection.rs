@@ -729,6 +729,10 @@ pub enum FilterChange {
         cell_color: bool,
         color: String,
     },
+    Average {
+        column: u32,
+        above: bool,
+    },
     ColorReference {
         column: u32,
         dxf_id: u32,
