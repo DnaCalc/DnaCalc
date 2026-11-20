@@ -1011,6 +1011,26 @@ impl Controller {
             .filter(|at| Some(at.sheet()) == first)
             .map_or((1, 1), |at| (at.row(), at.column()));
         let initial_selection = summary.initial_selection;
+        // Other sheets open at the selection their file stored, the first time they are shown.
+        let stored: BTreeMap<SheetId, (CellKey, Vec<GridArea>)> = summary
+            .sheet_views
+            .iter()
+            .filter(|(sheet, ..)| Some(sheet.id()) != first)
+            .filter_map(|(sheet, active, selection)| {
+                let at = CellKey::new(sheet.id(), active.0, active.1).ok()?;
+                let far = selection
+                    .filter(|(r, c, b, d)| {
+                        (active.0 == *r || active.0 == *b) && (active.1 == *c || active.1 == *d)
+                    })
+                    .map_or(*active, |(r, c, b, d)| (r + b - active.0, c + d - active.1));
+                let area = GridArea::new(at, CellKey::new(sheet.id(), far.0, far.1).ok()?).ok()?;
+                Some((sheet.id(), (at, vec![area])))
+            })
+            .collect();
+        self.sheet_selections.update_value(|all| {
+            all.clear();
+            all.extend(stored);
+        });
         self.summary.set(summary.into());
         self.download_unconfirmed.set(false);
         self.assist.readonly.set(false);

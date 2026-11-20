@@ -1820,6 +1820,24 @@ impl Server {
         Summary {
             workbook: self.workbook,
             session: self.clipboard_session.clone(),
+            sheet_views: self
+                .book
+                .host()
+                .sheets()
+                .iter()
+                .filter(|s| s.visibility() == calc_host::SheetVisibility::Visible)
+                .filter_map(|s| {
+                    let view = self.book.host().sheet_view(s.id())?;
+                    let active = view.active_cell.filter(|at| *at != (1, 1));
+                    (active.is_some() || view.selection.is_some()).then(|| {
+                        (
+                            Sheet::of(s.id()),
+                            active.unwrap_or((1, 1)),
+                            view.selection,
+                        )
+                    })
+                })
+                .collect(),
             initial_selection: self
                 .book
                 .host()
@@ -8141,7 +8159,7 @@ mod window_tests {
                         geometry: geometry.clone(),
                         sheet,
                         active: (101, 12),
-                        selection: None,
+                        selection: Some((101, 12, 103, 14)),
                         active_pane: 0,
                         panes: vec![wire::PaneWindow {
                             index: 0,
@@ -8184,6 +8202,8 @@ mod window_tests {
             let view = reopened.book.host().sheet_view(s).unwrap();
             assert_eq!(view.top_left, Some((100, 10)));
             assert_eq!(view.active_cell, Some((101, 12)));
+            assert_eq!(view.selection, Some((101, 12, 103, 14)));
+            assert_eq!(reopened.summary().initial_selection, Some((101, 12, 103, 14)));
             assert_eq!(view.zoom, Some((zoom * 100.).round() as u16));
         }
     }

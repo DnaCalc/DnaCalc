@@ -1257,12 +1257,27 @@ fn sort_rows(
     {
         return Err(unavailable("outline groups or their summary rows"));
     }
+    // Rows an AutoFilter hides stay where they are while the visible rows sort among
+    // themselves, as in Excel. Rows hidden by hand, or by anything else, still refuse.
+    let filtered: BTreeSet<u32> = host
+        .model()
+        .definitions()
+        .auto_filter(area.sheet())
+        .filter(|f| !f.unsupported && f.area.intersection(data).is_some())
+        .map(|f| {
+            f.filtered_rows
+                .iter()
+                .copied()
+                .filter(|r| (first..=area.last().row()).contains(r))
+                .collect()
+        })
+        .unwrap_or_default();
     if host.sheet_geometry(area.sheet()).is_some_and(|g| {
         g.rows
             .range(first..=area.last().row())
-            .any(|(_, r)| r.hidden)
+            .any(|(row, r)| r.hidden && !filtered.contains(row))
     }) {
-        return Err(unavailable("hidden or filtered rows"));
+        return Err(unavailable("hidden rows that no AutoFilter explains"));
     }
     if host
         .model()
@@ -1277,18 +1292,9 @@ fn sort_rows(
         .model()
         .definitions()
         .auto_filter(area.sheet())
-        .is_some_and(|filter| {
-            // A drop-down filter with no criteria hides nothing, and Excel sorts under it
-            // as under any range; one with criteria or unread attributes still refuses.
-            filter.area.intersection(data).is_some()
-                && (filter.unsupported
-                    || !filter.columns.is_empty()
-                    || !filter.filtered_rows.is_empty())
-        })
+        .is_some_and(|filter| filter.area.intersection(data).is_some() && filter.unsupported)
     {
-        return Err(unavailable(
-            "AutoFilter ranges with criteria; clear the filter first",
-        ));
+        return Err(unavailable("AutoFilter ranges with unread settings"));
     }
     if !host.loaded.cell_sort_metadata_supported(area.sheet()) {
         return Err(unavailable("source cell decorations or worksheet objects"));
@@ -1452,6 +1458,9 @@ fn sort_rows(
     let mut seen = BTreeSet::new();
     let mut edits = Vec::new();
     let mut rows = BTreeMap::new();
+    // The order of the whole range, then only its visible rows: a stable sort of the whole
+    // restricted to a subset is the sort of that subset. Filtered rows map to themselves.
+    let mut order_rows = Vec::with_capacity(count as usize);
     for index in 0..count {
         let Some(calc_value::CoreRef::Number(number)) =
             order.get(index as usize, 0).map(|v| v.core_ref())
@@ -1465,8 +1474,19 @@ fn sort_rows(
         {
             return Err("Sort returned invalid row positions (dc-971p.38)".into());
         }
-        let source_row = first + number as u32 - 1;
-        let target_row = first + index;
+        order_rows.push(first + number as u32 - 1);
+    }
+    let targets: Vec<u32> = (first..=data.last().row())
+        .filter(|row| !filtered.contains(row))
+        .collect();
+    let sources: Vec<u32> = order_rows
+        .into_iter()
+        .filter(|row| !filtered.contains(row))
+        .collect();
+    for row in &filtered {
+        rows.insert(*row, *row);
+    }
+    for (source_row, target_row) in sources.into_iter().zip(targets) {
         rows.insert(source_row, target_row);
         if source_row == target_row {
             continue;
