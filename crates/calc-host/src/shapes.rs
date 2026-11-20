@@ -1209,7 +1209,8 @@ impl Frame {
         }) - 1
     }
 
-    /// The index before the edit of the (0-based) one `i` after it; `None` inside inserted cells.
+    /// The index before the edit of the (0-based) one `i` after it; `None` inside inserted cells or
+    /// tail cells shifted in by a delete (neither has a pre-image in the file's coordinates).
     fn backward_index(edit: calc_doc_model::AxisEdit, i: u32) -> Option<u32> {
         let x = i + 1;
         let before = match edit.change() {
@@ -1217,7 +1218,7 @@ impl Frame {
             calc_doc_model::AxisChange::Insert if x <= edit.last() => return None,
             calc_doc_model::AxisChange::Insert => x - edit.count(),
             calc_doc_model::AxisChange::Delete if x < edit.first() => x,
-            calc_doc_model::AxisChange::Delete => (x + edit.count()).min(edit.axis().size()),
+            calc_doc_model::AxisChange::Delete => x.checked_add(edit.count()).filter(|&b| b <= edit.axis().size())?,
         };
         Some(before - 1)
     }
