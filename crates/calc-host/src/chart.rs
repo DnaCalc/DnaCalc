@@ -77,6 +77,14 @@ pub enum ChartKind {
     Funnel,
     /// An Excel 2016 box and whisker (`cx:boxWhisker`): each category's values as quartiles, whiskers and outliers.
     BoxWhisker,
+    /// An Excel 2016 histogram (`cx:clusteredColumn`): the values counted into bins; a Pareto adds the cumulative line.
+    Histogram,
+    /// A surface (`surface3DChart`, or a top-down `surfaceChart` contour): the series as rows of a grid, the values heights.
+    Surface,
+    /// An Excel 2016 treemap (`cx:treemap`): nested rectangles sized by value.
+    Treemap,
+    /// An Excel 2016 sunburst (`cx:sunburst`): rings of arcs sized by value, one ring a level.
+    Sunburst,
     /// Another kind, by its element name (`surfaceChart`, `ofPieChart`, ...).
     Other(String),
 }
@@ -89,6 +97,8 @@ pub struct SeriesView {
     pub categories: Vec<Option<CalcValue>>,
     /// The values (a scatter's Y values); `None` is a gap.
     pub values: Vec<Option<f64>>,
+    /// A hierarchy chart's category levels above the leaves, nearest first (see `ChartSeries::outer_levels`).
+    pub outer_levels: Vec<Vec<Option<String>>>,
     /// Displayable live value labels, when the source format is supported.
     pub value_labels: Vec<Option<String>>,
     /// The series' colour, `RRGGBB`.
@@ -135,6 +145,13 @@ pub struct PlotView {
     /// A box and whisker's quartile method (inclusive or exclusive) and what it shows: mean markers, mean line,
     /// outliers, inner points.
     pub box_inclusive: bool,
+    /// A histogram's binning (`None`: automatic) and whether it is a Pareto.
+    pub binning: Option<calc_doc_model::Binning>,
+    pub pareto: bool,
+    /// A surface plot drawn as a wireframe.
+    pub wireframe: bool,
+    /// An Excel 2016 chart's gap between bars as a share of a bar (`None`: the kind's default).
+    pub gap_width: Option<f64>,
     pub box_visibility: [bool; 4],
     pub up_down_bars: bool,
 }
@@ -215,7 +232,7 @@ impl HostState {
         let mut views = Vec::new();
         let mut unread = read.unread;
         for chart in self.model().definitions().charts(sheet) {
-            let Some(place) = self.chart_place(sheet, &chart.anchor) else {
+            let Some(place) = self.frame_place(sheet, &chart.anchor, chart.edit_as.as_deref()) else {
                 // Its cells were deleted: Excel deletes the chart with them.
                 continue;
             };
@@ -239,6 +256,10 @@ impl HostState {
                         "cx:waterfall" => ChartKind::Waterfall,
                         "cx:funnel" => ChartKind::Funnel,
                         "cx:boxWhisker" => ChartKind::BoxWhisker,
+                        "cx:clusteredColumn" => ChartKind::Histogram,
+                        "surfaceChart" | "surface3DChart" => ChartKind::Surface,
+                        "cx:treemap" => ChartKind::Treemap,
+                        "cx:sunburst" => ChartKind::Sunburst,
                         other => ChartKind::Other(other.to_owned()),
                     };
                     let grouping = plot.grouping.as_deref().unwrap_or_default();
@@ -259,6 +280,10 @@ impl HostState {
                         drop_lines: plot.drop_lines,
                         subtotals: plot.subtotals.clone(),
                         box_inclusive: plot.box_inclusive,
+                        binning: plot.binning.clone(),
+                        pareto: plot.pareto,
+                        wireframe: plot.wireframe,
+                        gap_width: plot.gap_width.as_deref().and_then(|g| g.trim().parse().ok()).filter(|g: &f64| g.is_finite() && *g >= 0.0),
                         box_visibility: plot.box_visibility.unwrap_or([true, false, true, false]),
                         up_down_bars: plot.up_down_bars,
                         stacked: matches!(grouping, "stacked" | "percentStacked"),
@@ -323,8 +348,8 @@ impl HostState {
                                         (t.clone(), colour)
                                     })
                                     .collect();
-                                let labels = series.labels.clone().or_else(|| plot.labels.clone()).filter(|l| !l.deleted && (l.value || l.category || l.series || l.percent));
-                                let label_values = if labels.as_ref().is_some_and(|l| l.value) {
+                                let labels = series.labels.clone().or_else(|| plot.labels.clone()).filter(|l| !l.deleted && (l.value || l.category || l.series || l.percent || !l.points.is_empty()));
+                                let label_values = if labels.as_ref().is_some_and(|l| l.value || l.points.iter().any(|(_, p)| p.value)) {
                                     self.simple_value_labels(series.values.as_ref(), &values, cached, true, origin)
                                 } else {
                                     Vec::new()
@@ -338,6 +363,7 @@ impl HostState {
                                     name,
                                     categories,
                                     values,
+                                    outer_levels: series.outer_levels.clone(),
                                     value_labels,
                                     color,
                                     explicit_color: series.fill.is_some(),
@@ -520,6 +546,27 @@ impl HostState {
     /// Where a drawing object's anchor puts it: a chart's, a shape's.
     pub fn chart_place(&self, sheet: SheetId, anchor: &ChartAnchor) -> Option<ChartPlace> {
         self.drawing_place(sheet, anchor, None)
+    }
+
+    /// Where a chart frame is: by its anchor, except that a two-cell anchor whose `editAs` is `oneCell` (moves but does
+    /// not size) keeps the size the file's row heights and column widths gave it, and one that is `absolute` keeps its
+    /// place and size too, when rows or columns are resized or hidden (dc-zjsg.6). Only the display follows: the
+    /// stored anchor is saved as the file has it (Excel would rewrite it).
+    pub fn frame_place(&self, sheet: SheetId, anchor: &ChartAnchor, edit_as: Option<&str>) -> Option<ChartPlace> {
+        use calc_doc_model::Axis;
+        let (ChartAnchor::TwoCell { from, to }, Some("oneCell" | "absolute")) = (anchor, edit_as) else {
+            return self.drawing_place(sheet, anchor, edit_as);
+        };
+        let file = self.loaded().model().definitions().axis_layouts();
+        let column = |c: u32| self.column_points_of(sheet, file.get(sheet, Axis::Columns, c));
+        let row = |r: u32| self.row_points_of(sheet, file.get(sheet, Axis::Rows, r));
+        let x = |p: &DrawingPoint| (1..=p.column).map(column).sum::<f64>() + p.column_offset as f64 / 12_700.0;
+        let y = |p: &DrawingPoint| (1..=p.row).map(row).sum::<f64>() + p.row_offset as f64 / 12_700.0;
+        let (width, height) = ((x(to) - x(from)) * crate::facts::REFERENCE_DPI / 72.0, (y(to) - y(from)) * crate::facts::REFERENCE_DPI / 72.0);
+        if edit_as == Some("absolute") {
+            return Some(ChartPlace::Absolute { x: x(from) * crate::facts::REFERENCE_DPI / 72.0, y: y(from) * crate::facts::REFERENCE_DPI / 72.0, width, height });
+        }
+        Some(ChartPlace::Sized { from: self.chart_corner(sheet, from)?, width, height })
     }
 
     /// Where a drawing object's anchor puts it now, moved through the session's row and column inserts and deletes as
@@ -1850,6 +1897,7 @@ fn make_series(
         series.push(ChartSeries {
             index: i,
             show_values: None,
+            outer_levels: Vec::new(),
             value_labels_source_linked: false,
             name,
             categories: cats.clone(),
@@ -2189,6 +2237,7 @@ fn assemble(
             .unwrap(),
     };
     charts.push(Chart {
+        edit_as: None,
         part,
         name,
         anchor: new.anchor,
@@ -2466,4 +2515,112 @@ pub(crate) fn prepare_element_text_style(
         .check_chart_properties(sheet, chart)
         .map_err(|e| e.to_string())?;
     Ok(vec![crate::CellEdit::Charts { sheet, charts }])
+}
+
+/// One bin of a histogram: the values from `low` to `high` (closed on the right unless `closed_left`; the first bin
+/// closed at its low end too, the last of a left-closed set at its high end), or, for the underflow bin, at or below
+/// `high`, and for the overflow bin above `low`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Bin {
+    pub low: f64,
+    pub high: f64,
+    pub count: usize,
+    pub underflow: bool,
+    pub overflow: bool,
+}
+
+/// The bins Excel's histogram counts `values` into (dc-zjsg.6): bins of `cx:binSize`, or `cx:binCount` of them over
+/// the range, else Scott's normal reference rule (width 3.49 s / n^(1/3), s the sample standard deviation) from the
+/// smallest value; with an underflow value a first bin for the values at or below it (below it, left-closed) and
+/// with an overflow value a last bin for those above it (at or above). The rule's rounding and the bin edges Excel
+/// shows have not been measured (ASSUMED until an Excel side-by-side).
+pub fn histogram_bins(values: &[f64], binning: Option<&calc_doc_model::Binning>) -> Vec<Bin> {
+    let v: Vec<f64> = values.iter().copied().filter(|x| x.is_finite()).collect();
+    if v.is_empty() {
+        return Vec::new();
+    }
+    let number = |s: &Option<String>| s.as_deref().and_then(|t| t.trim().parse::<f64>().ok()).filter(|x| x.is_finite());
+    let default = calc_doc_model::Binning::default();
+    let binning = binning.unwrap_or(&default);
+    let left = binning.closed_left;
+    let (under, over) = (number(&binning.underflow), number(&binning.overflow));
+    let n = v.len() as f64;
+    let (min, max) = v.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), x| (a.min(*x), b.max(*x)));
+    let below = |x: f64, u: f64| if left { x < u } else { x <= u };
+    let above = |x: f64, o: f64| if left { x >= o } else { x > o };
+    let central: Vec<f64> = v.iter().copied().filter(|x| !under.is_some_and(|u| below(*x, u)) && !over.is_some_and(|o| above(*x, o))).collect();
+    let (lo, hi) = (under.unwrap_or(min), over.unwrap_or(max));
+    let width = number(&binning.size).filter(|w| *w > 0.0).or_else(|| {
+        let count = number(&binning.count).filter(|c| *c >= 1.0)?;
+        Some((hi - lo) / count.floor()).filter(|w| *w > 0.0)
+    });
+    let width = width.unwrap_or_else(|| {
+        let mean = v.iter().sum::<f64>() / n;
+        let s = if v.len() > 1 { (v.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / (n - 1.0)).sqrt() } else { 0.0 };
+        let w = 3.49 * s / n.cbrt();
+        if w > 0.0 { w } else { 1.0 }
+    });
+    let bins = match number(&binning.count).filter(|c| *c >= 1.0 && number(&binning.size).is_none()) {
+        Some(c) => c.floor() as usize,
+        None => (((hi - lo) / width) - 1e-9).ceil().max(1.0) as usize,
+    }
+    .min(100_000);
+    let mut out: Vec<Bin> = (0..bins)
+        .map(|k| Bin { low: lo + k as f64 * width, high: lo + (k + 1) as f64 * width, count: 0, underflow: false, overflow: false })
+        .collect();
+    for x in central {
+        let steps = (x - lo) / width;
+        let k = if left { (steps + 1e-9).floor() } else { (steps - 1e-9).ceil() - 1.0 };
+        out[(k.max(0.0) as usize).min(bins - 1)].count += 1;
+    }
+    if let Some(u) = under {
+        let count = v.iter().filter(|x| below(**x, u)).count();
+        out.insert(0, Bin { low: f64::NEG_INFINITY, high: u, count, underflow: true, overflow: false });
+    }
+    if let Some(o) = over {
+        let count = v.iter().filter(|x| above(**x, o)).count();
+        out.push(Bin { low: o, high: f64::INFINITY, count, underflow: false, overflow: true });
+    }
+    out
+}
+
+#[cfg(test)]
+mod histogram_tests {
+    use super::histogram_bins;
+    use calc_doc_model::Binning;
+
+    fn counts(values: &[f64], binning: Option<&Binning>) -> Vec<usize> {
+        histogram_bins(values, binning).iter().map(|b| b.count).collect()
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn bins_by_size_closed_right_or_left() {
+        let values = [1.0, 2.0, 2.0, 3.0, 3.0, 3.0, 4.0, 5.0];
+        let size = |left| Binning { size: Some("2".into()), closed_left: left, ..Binning::default() };
+        assert_eq!(counts(&values, Some(&size(false))), [6, 2]);
+        assert_eq!(counts(&values, Some(&size(true))), [3, 5]);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn bins_by_count_and_with_under_and_overflow() {
+        let values = [1.0, 2.0, 2.0, 3.0, 3.0, 3.0, 4.0, 5.0];
+        let count = Binning { count: Some("4".into()), ..Binning::default() };
+        assert_eq!(counts(&values, Some(&count)), [3, 3, 1, 1]);
+        let outer = Binning { size: Some("1".into()), underflow: Some("2".into()), overflow: Some("4".into()), ..Binning::default() };
+        let bins = histogram_bins(&values, Some(&outer));
+        assert_eq!(bins.iter().map(|b| b.count).collect::<Vec<_>>(), [3, 3, 1, 1]);
+        assert!(bins[0].underflow && bins[3].overflow);
+    }
+
+    /// Scott's rule on 1..=10: width 3.49 * 3.0277 / 10^(1/3) = 4.905, so two bins of five.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn automatic_bins_follow_scotts_rule() {
+        let values: Vec<f64> = (1..=10).map(f64::from).collect();
+        let bins = histogram_bins(&values, None);
+        assert_eq!(bins.iter().map(|b| b.count).collect::<Vec<_>>(), [5, 5]);
+        assert!((bins[0].high - bins[0].low - 4.905).abs() < 0.01);
+    }
 }

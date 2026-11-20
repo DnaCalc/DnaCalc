@@ -938,9 +938,8 @@ pub(crate) fn axis_format_edits(
         }
     }
     // Drawing objects that move but don't size, or neither, keep their size (dc-zjsg.4).
-    if let Some(shapes) = crate::shapes::kept_sizes(host, sheet, &edits) {
-        edits.push(shapes);
-    }
+    let kept = crate::shapes::kept_sizes(host, sheet, &edits);
+    edits.extend(kept);
     Ok(edits)
 }
 

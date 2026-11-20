@@ -61,7 +61,7 @@ pub struct ChartTrendline {
 }
 
 /// What a `c:dLbls` shows (dc-zjsg.6), for drawing: the parts of each label, where it sits and what separates its
-/// parts. Per-point `c:dLbl` overrides and label text formatting are not held.
+/// parts. Label text formatting is not held.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ChartLabels {
     pub value: bool,
@@ -74,6 +74,9 @@ pub struct ChartLabels {
     pub separator: Option<String>,
     /// `delete`: no labels at all.
     pub deleted: bool,
+    /// The `c:dLbl` overrides of single points, by `c:idx` (dc-zjsg.6): each with its own parts, position and separator
+    /// (its text and layout are not held).
+    pub points: Vec<(u32, ChartLabels)>,
 }
 
 /// One `c:errBars` of a series (dc-zjsg.6), as the file states it.
@@ -111,6 +114,9 @@ pub struct ChartSeries {
     pub categories: Option<ChartData>,
     /// `c:val`, or a scatter series' `c:yVal`.
     pub values: Option<ChartData>,
+    /// An Excel 2016 hierarchy chart's category levels above the leaves (`cx:strDim`'s later `cx:lvl`), nearest the
+    /// leaves first; a parent's name is given at its first point and holds until the next (dc-zjsg.6).
+    pub outer_levels: Vec<Vec<Option<String>>>,
     /// A bubble series' `c:bubbleSize` (dc-zjsg.6).
     pub bubble_sizes: Option<ChartData>,
     /// The series' `c:trendline`s (dc-zjsg.6).
@@ -164,12 +170,37 @@ pub struct ChartPlot {
     /// `meanLine`, `outliers`, `nonoutliers`) as the file states them (dc-zjsg.6).
     pub box_inclusive: bool,
     pub box_visibility: Option<[bool; 4]>,
+    /// An Excel 2016 histogram's `cx:binning` (dc-zjsg.6); `None` for the automatic one.
+    pub binning: Option<Binning>,
+    /// A Pareto: the histogram's series is followed by a `paretoLine` series (the cumulative percentage).
+    pub pareto: bool,
+    /// An Excel 2016 chart's `cx:catScaling gapWidth` (as a share of a bar), as written; `None` when absent.
+    pub gap_width: Option<String>,
+    /// A surface plot's `c:wireframe` (dc-zjsg.6).
+    pub wireframe: bool,
     pub up_down_bars: bool,
+}
+
+/// A histogram's `cx:binning` as the file states it: the numbers as written (the model is hashed, so no floats).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct Binning {
+    /// `cx:binSize val`: the width of a bin.
+    pub size: Option<String>,
+    /// `cx:binCount val`: the number of bins.
+    pub count: Option<String>,
+    /// `intervalClosed="l"`: bins closed on the left (the default is closed on the right).
+    pub closed_left: bool,
+    /// `cx:underflow val` / `cx:overflow val`: the value at or below (above) which values fall in one bin.
+    pub underflow: Option<String>,
+    pub overflow: Option<String>,
 }
 
 /// One chart on a sheet.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Chart {
+    /// The anchor's `editAs` (`oneCell`, `absolute`; `None` for the default `twoCell`): how the frame follows the cells
+    /// when rows or columns are resized or hidden.
+    pub edit_as: Option<String>,
     /// The chart part.
     pub part: String,
     /// The frame's name (`xdr:cNvPr name`, e.g. `Chart 1`).

@@ -20283,7 +20283,7 @@ fn dc_971p_41__chart_parts_and_unrendered_plot_xml_survive_ordinary_edits() {
     for unsupported in [false, true] {
         let bytes = if unsupported {
             package_with_part_from(bytes, "xl/charts/chart1.xml", |xml| {
-                xml.replace("barChart", "surfaceChart")
+                xml.replace("barChart", "ofPieChart")
             })
         } else {
             bytes.to_vec()

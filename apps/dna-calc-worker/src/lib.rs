@@ -8,6 +8,7 @@ mod drawn;
 mod omml;
 mod picture;
 mod format;
+mod hierarchy;
 pub mod ledger;
 mod names;
 mod parts;

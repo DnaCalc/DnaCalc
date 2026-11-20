@@ -14,18 +14,25 @@ Excel 2016 writes them (c:chartSpace with numRef/strRef caches), each in its own
  10 "Scatter exp"  scatterChart, x B2:B6, y C2:C6, an exponential trendline in red, x error bars of 0.5
  11 "Line drops"   lineChart with drop lines and high-low lines, series B with fixed error bars of 1 (both),
                    series C with 10% error bars (plus, no end caps)
- 12 "Column sd"    barChart clustered, series B with one standard deviation error bars
+ 12 "Column sd"    barChart clustered, series B with one standard deviation error bars; its anchor is editAs="oneCell"
  13 "Pie labels"   pieChart, series B, labels showing category and percentage (best fit)
- 14 "Column labels" barChart clustered, series B, labels showing series name and value, separator "; "
+ 14 "Column labels" barChart clustered, series B, labels showing series name and value, separator "; ";
+                   point 1 shows its category and value (separator ": "), point 2 has no label
+ (the surface chart is placed before the 3-D line so the numbers below shift by one in the sheet's layout)
+ "Surface"      surface3DChart over series B, C and D (filled, not a wireframe)
 Excel 2016 charts (cx:chartSpace parts, each frame in an mc:AlternateContent around whole anchors with the text-box
 fallback Excel writes for older readers), over F2:F6 (Change: 10, -3, 4, -2 and the subtotal 9):
  15 "Waterfall"    cx:waterfall, the last point a subtotal
  16 "Funnel"       cx:funnel over B2:B6
- 17 "Treemap"      cx:treemap (kept and not drawn)
+ 17 "Treemap"      cx:treemap over B2:B6 with two category levels (the days, and the parents Early: Mon-Tue, Late: Wed-Fri
+                   given at their first rows, the leaf formula covering A2:A6 only)
  18 "Box"          cx:boxWhisker over B2:B6 and C2:C6 as one series without categories (exclusive quartiles)
+ 19 "Histogram"    cx:clusteredColumn over C2:C6 binned by 3, closed on the right
+ 21 "Sunburst"     cx:sunburst over C2:C6 with the same levels
+ 20 "Pareto"       the same with a cx:paretoLine series (the cumulative share)
 Not yet opened by Excel (codex-runs/dw2/RUN-ON-WINDOWS.txt).
 Run: python3 -I make-chart-kinds.py shapes-paint4.xlsx chart-kinds.xlsx"""
-import sys, zipfile
+import os, sys, zipfile
 
 theme = zipfile.ZipFile(sys.argv[1]).read("xl/theme/theme1.xml")
 header = ["Day", "Low", "High", "Close", "Last", "Change"]
@@ -82,11 +89,11 @@ value_axes = ('<c:valAx><c:axId val="1"/><c:scaling><c:orientation val="minMax"/
 ids = '<c:axId val="1"/><c:axId val="2"/>'
 
 
-def labels(value=0, category=0, series=0, percent=0, position=None, separator=None):
+def labels(value=0, category=0, series=0, percent=0, position=None, separator=None, points=''):
     """A series' c:dLbls as Excel 2016 writes one (its schema order: position, the show flags, the separator)."""
     pos = f'<c:dLblPos val="{position}"/>' if position else ''
     sep = f'<c:separator>{separator}</c:separator>' if separator else ''
-    return (f'<c:dLbls><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>{pos}<c:showLegendKey val="0"/><c:showVal val="{value}"/>'
+    return (f'<c:dLbls>{points}<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>{pos}<c:showLegendKey val="0"/><c:showVal val="{value}"/>'
             f'<c:showCatName val="{category}"/><c:showSerName val="{series}"/><c:showPercent val="{percent}"/><c:showBubbleSize val="0"/>'
             f'{sep}<c:showLeaderLines val="1"/></c:dLbls>')
 
@@ -138,7 +145,10 @@ charts = [
     ("Pie labels", "", f'<c:pieChart><c:varyColors val="1"/>{ser(0, "B", extra=labels(category=1, percent=1, position="bestFit"))}'
      '<c:firstSliceAng val="0"/></c:pieChart>'),
     ("Column labels", "", f'<c:barChart><c:barDir val="col"/><c:grouping val="clustered"/><c:varyColors val="0"/>'
-     f'{ser(0, "B", extra=labels(series=1, value=1, separator="; "))}<c:gapWidth val="150"/>{ids}</c:barChart>{cat_val_axes}'),
+     f'{ser(0, "B", extra=labels(series=1, value=1, separator="; ", points=('<c:dLbl><c:idx val="1"/><c:showLegendKey val="0"/><c:showVal val="1"/><c:showCatName val="1"/><c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/><c:separator>: </c:separator></c:dLbl><c:dLbl><c:idx val="2"/><c:delete val="1"/></c:dLbl>')))}<c:gapWidth val="150"/>{ids}</c:barChart>{cat_val_axes}'),
+    ("Surface", view3d, f'<c:surface3DChart><c:wireframe val="0"/>{ser(0, "B")}{ser(1, "C")}{ser(2, "D")}<c:bandFmts/>{ids}<c:axId val="3"/></c:surface3DChart>'
+     f'{cat_val_axes}<c:serAx><c:axId val="3"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="b"/>'
+     '<c:majorTickMark val="out"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/><c:crossAx val="2"/><c:crosses val="autoZero"/></c:serAx>'),
     ("3-D Line", view3d, f'<c:line3DChart><c:grouping val="standard"/><c:varyColors val="0"/>{ser(0, "B")}{ser(1, "C")}{ids}<c:axId val="3"/></c:line3DChart>'
      f'{cat_val_axes}<c:serAx><c:axId val="3"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="b"/>'
      '<c:majorTickMark val="out"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/><c:crossAx val="2"/><c:crosses val="autoZero"/></c:serAx>'),
@@ -158,7 +168,7 @@ anchors = []
 for n, (title, _, _) in enumerate(charts):
     col, row = 6 + (n % 2) * 8, (n // 2) * 15
     anchors.append(
-        f'<xdr:twoCellAnchor><xdr:from><xdr:col>{col}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>{row}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>'
+        f'<xdr:twoCellAnchor{" editAs=\"oneCell\"" if title == "Column sd" else ""}><xdr:from><xdr:col>{col}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>{row}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>'
         f'<xdr:to><xdr:col>{col + 7}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>{row + 14}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>'
         f'<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="{n + 2}" name="{title}"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>'
         '<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm>'
@@ -170,14 +180,30 @@ MC = "http://schemas.openxmlformats.org/markup-compatibility/2006"
 chartex = [
     ("Waterfall", "waterfall", "F", '<cx:layoutPr><cx:subtotals><cx:idx val="4"/></cx:subtotals></cx:layoutPr>', ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
     ("Funnel", "funnel", "B", "", ("cx2", "http://schemas.microsoft.com/office/drawing/2015/10/21/chartex")),
-    ("Treemap", "treemap", "B", '<cx:layoutPr><cx:parentLabelLayout val="overlapping"/></cx:layoutPr>', ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
+    ("Treemap", "treemap", "B^", '<cx:layoutPr><cx:parentLabelLayout val="overlapping"/></cx:layoutPr>', ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
+    ("Histogram", "clusteredColumn", "C!", '<cx:layoutPr><cx:binning intervalClosed="r"><cx:binSize val="3"/></cx:binning></cx:layoutPr>', ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
+    ("Sunburst", "sunburst", "C^", "", ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
+    ("Pareto", "clusteredColumn", "C!", '<cx:layoutPr><cx:binning intervalClosed="r"><cx:binSize val="3"/></cx:binning></cx:layoutPr></cx:series><cx:series layoutId="paretoLine" ownerIdx="0" uniqueId="{00000000-0000-4000-8000-0000000000A1}"><cx:axisId val="1"/>', ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
     ("Box", "boxWhisker", "B:C", '<cx:layoutPr><cx:visibility meanLine="0" meanMarker="1" nonoutliers="0" outliers="1"/><cx:statistics quartileMethod="exclusive"/></cx:layoutPr>', ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
 ]
 
 
 def chartex_xml(title, layout, col, layout_pr):
     pts = "".join(f'<cx:pt idx="{i}">{row[0]}</cx:pt>' for i, row in enumerate(data))
-    if ":" in col:
+    if col.endswith("^"):
+        # Two category levels: the days (leaves) and their parents, named at the first of their rows.
+        col = col[:-1]
+        vals = "".join(f'<cx:pt idx="{i}">{row[cols.index(col)]}</cx:pt>' for i, row in enumerate(data))
+        dims = (f'<cx:strDim type="cat"><cx:f>Kinds!$A$2:$A$6</cx:f><cx:lvl ptCount="5">{pts}</cx:lvl>'
+                '<cx:lvl ptCount="5"><cx:pt idx="0">Early</cx:pt><cx:pt idx="2">Late</cx:pt></cx:lvl></cx:strDim>'
+                f'<cx:numDim type="val"><cx:f>Kinds!${col}$2:${col}$6</cx:f><cx:lvl ptCount="5" formatCode="General">{vals}</cx:lvl></cx:numDim>')
+    elif col.endswith("!"):
+        # One column's values without categories (a histogram counts them).
+        col = col[:-1]
+        values = [row[cols.index(col)] for row in data]
+        vals = "".join(f'<cx:pt idx="{i}">{v}</cx:pt>' for i, v in enumerate(values))
+        dims = f'<cx:numDim type="val"><cx:f>Kinds!${col}$2:${col}$6</cx:f><cx:lvl ptCount="{len(values)}" formatCode="General">{vals}</cx:lvl></cx:numDim>'
+    elif ":" in col:
         # Two columns as one series without categories (a box and whisker over all their values).
         a, b = col.split(":")
         values = [row[cols.index(c)] for c in (a, b) for row in data]
@@ -205,18 +231,20 @@ for k, (title, layout, col, layout_pr, (prefix, ns)) in enumerate(chartex):
     col_, row = 6 + (n % 2) * 8, (n // 2) * 15
     place = (f'<xdr:from><xdr:col>{col_}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>{row}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>'
              f'<xdr:to><xdr:col>{col_ + 7}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>{row + 14}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>')
+    # Excel requires the block of alternatives INSIDE the anchor, around the graphic frame, after `xdr:to`
+    # (dw2 Windows item 5: wrapping whole anchors makes Excel refuse the workbook).
     anchors.append(
-        f'<mc:AlternateContent xmlns:mc="{MC}"><mc:Choice xmlns:{prefix}="{ns}" Requires="{prefix}"><xdr:twoCellAnchor>{place}'
+        f'<xdr:twoCellAnchor>{place}<mc:AlternateContent xmlns:mc="{MC}"><mc:Choice xmlns:{prefix}="{ns}" Requires="{prefix}">'
         f'<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="{n + 2}" name="{title}"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>'
         '<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm>'
         f'<a:graphic><a:graphicData uri="{CX}"><cx:chart xmlns:cx="{CX}" r:id="rId{n + 1}"/></a:graphicData></a:graphic></xdr:graphicFrame>'
-        f'<xdr:clientData/></xdr:twoCellAnchor></mc:Choice><mc:Fallback><xdr:twoCellAnchor>{place}'
+        '</mc:Choice><mc:Fallback>'
         '<xdr:sp macro="" textlink=""><xdr:nvSpPr><xdr:cNvPr id="0" name=""/><xdr:cNvSpPr><a:spLocks noTextEdit="1"/></xdr:cNvSpPr></xdr:nvSpPr>'
         '<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="4572000" cy="2743200"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom>'
         '<a:solidFill><a:prstClr val="white"/></a:solidFill><a:ln w="1"><a:solidFill><a:prstClr val="green"/></a:solidFill></a:ln></xdr:spPr>'
         '<xdr:txBody><a:bodyPr vertOverflow="clip" horzOverflow="clip"/><a:lstStyle/><a:p><a:r><a:rPr lang="en-US" sz="1100"/>'
-        '<a:t>This chart isn\'t available in your version of Excel.</a:t></a:r></a:p></xdr:txBody></xdr:sp><xdr:clientData fLocksWithSheet="0"/>'
-        '</xdr:twoCellAnchor></mc:Fallback></mc:AlternateContent>')
+        '<a:t>This chart isn\'t available in your version of Excel.</a:t></a:r></a:p></xdr:txBody></xdr:sp>'
+        '</mc:Fallback></mc:AlternateContent><xdr:clientData/></xdr:twoCellAnchor>')
 drawing = (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<xdr:wsDr xmlns:xdr="{XDR}" xmlns:a="{A}" xmlns:r="{R}">' + "".join(anchors) + "</xdr:wsDr>")
 drawing_rels = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
                 + "".join(f'<Relationship Id="rId{n + 1}" Type="{R}/chart" Target="../charts/chart{n + 1}.xml"/>' for n in range(len(charts)))
@@ -237,7 +265,9 @@ files = {
         f'<Override PartName="/xl/theme/theme1.xml" ContentType="{CT}.theme+xml"/><Override PartName="/xl/styles.xml" ContentType="{CT}.spreadsheetml.styles+xml"/>'
         f'<Override PartName="/xl/drawings/drawing1.xml" ContentType="{CT}.drawing+xml"/>'
         + "".join(f'<Override PartName="/xl/charts/chart{n + 1}.xml" ContentType="{CT}.drawingml.chart+xml"/>' for n in range(len(charts)))
-        + "".join(f'<Override PartName="/xl/charts/chartEx{k + 1}.xml" ContentType="application/vnd.ms-office.chartex+xml"/>' for k in range(len(chartex))) + '</Types>',
+        + "".join(f'<Override PartName="/xl/charts/chartEx{k + 1}.xml" ContentType="application/vnd.ms-office.chartex+xml"/>'
+                  f'<Override PartName="/xl/charts/style{k + 1}.xml" ContentType="application/vnd.ms-office.chartstyle+xml"/>'
+                  f'<Override PartName="/xl/charts/colors{k + 1}.xml" ContentType="application/vnd.ms-office.chartcolorstyle+xml"/>' for k in range(len(chartex))) + '</Types>',
     "_rels/.rels": f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="{R}/officeDocument" Target="xl/workbook.xml"/></Relationships>',
     "xl/workbook.xml": f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="{R}"><sheets><sheet name="Kinds" sheetId="1" r:id="rId1"/></sheets></workbook>',
     "xl/_rels/workbook.xml.rels": f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="{R}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="{R}/theme" Target="theme/theme1.xml"/><Relationship Id="rId3" Type="{R}/styles" Target="styles.xml"/></Relationships>',
@@ -250,8 +280,19 @@ files = {
 }
 for n, (title, view, plot) in enumerate(charts):
     files[f"xl/charts/chart{n + 1}.xml"] = chart_xml(title, view, plot)
+# Each Excel 2016 chart part names a style part and a colour-style part (dw2 Windows item 5: Excel refuses the workbook
+# without them); these are the ones Excel wrote for a chart of its own (chartex-style/).
+here = os.path.dirname(os.path.abspath(__file__))
+style_xml = open(os.path.join(here, "chartex-style", "style.xml"), "rb").read()
+colors_xml = open(os.path.join(here, "chartex-style", "colors.xml"), "rb").read()
 for k, (title, layout, col, layout_pr, _) in enumerate(chartex):
     files[f"xl/charts/chartEx{k + 1}.xml"] = chartex_xml(title, layout, col, layout_pr)
+    files[f"xl/charts/style{k + 1}.xml"] = style_xml
+    files[f"xl/charts/colors{k + 1}.xml"] = colors_xml
+    files[f"xl/charts/_rels/chartEx{k + 1}.xml.rels"] = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        f'<Relationship Id="rId2" Type="http://schemas.microsoft.com/office/2011/relationships/chartColorStyle" Target="colors{k + 1}.xml"/>'
+        f'<Relationship Id="rId1" Type="http://schemas.microsoft.com/office/2011/relationships/chartStyle" Target="style{k + 1}.xml"/></Relationships>')
 with zipfile.ZipFile(sys.argv[2], "w", zipfile.ZIP_DEFLATED) as z:
     for name_, content in files.items():
         info = zipfile.ZipInfo(name_, date_time=(2026, 11, 20, 0, 0, 0))

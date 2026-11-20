@@ -352,7 +352,7 @@ impl HostState {
     }
 
     /// A column's width in points with the format `format`.
-    fn column_points_of(&self, sheet: SheetId, format: calc_doc_model::AxisFormat) -> f64 {
+    pub(crate) fn column_points_of(&self, sheet: SheetId, format: calc_doc_model::AxisFormat) -> f64 {
         // A font the measure does not know falls back to Calibri 11's 7 pixels.
         let mdw = crate::facts::maximum_digit_width_at(self.styles(), DPI).unwrap_or(7.0);
         if format.hidden() {
@@ -405,7 +405,7 @@ impl HostState {
     }
 
     /// A row's height in points with the format `format`.
-    fn row_points_of(&self, sheet: SheetId, format: calc_doc_model::AxisFormat) -> f64 {
+    pub(crate) fn row_points_of(&self, sheet: SheetId, format: calc_doc_model::AxisFormat) -> f64 {
         if format.hidden() {
             return 0.0;
         }
@@ -713,6 +713,20 @@ const ELBOW_STANDOFF: f64 = 18.0;
 /// route must go round, a leg [`ELBOW_STANDOFF`] outside the box. `None` if nothing fits: the connector is left as it
 /// was. Excel's own choice of class and of adjust values for such a route is not measured (dc-zjsg.5).
 fn elbow_route(start: (f64, f64), end: (f64, f64), d1: (i32, i32), d2: (i32, i32), class: u32, rotation: i64, current: [f64; 3]) -> Option<(u32, i64, Option<[f64; 3]>)> {
+    let (class, rotation, adjust) = elbow_route_any(start, end, d1, d2, class, rotation, current)?;
+    // Excel stores a run that goes against the connector's own y as a flip of x and the turn half a turn on, never a
+    // flip of y (Excel: a bentConnector3 from a bottom to a top site, the lower shape moved right, went from rot 90 to
+    // rot 270 with flipH, dw2 Windows item 4): of the two turns that draw the same route, the one without a flip of y.
+    let used = adjust.unwrap_or(current);
+    let run = turned((end.0 - start.0, end.1 - start.1), -rotation);
+    let other = (rotation + 180 * 60_000).rem_euclid(360 * 60_000);
+    if run.1 < -0.01 && elbow_fits(start, end, d1, d2, class, other, used) {
+        return Some((class, other, adjust));
+    }
+    Some((class, rotation, adjust))
+}
+
+fn elbow_route_any(start: (f64, f64), end: (f64, f64), d1: (i32, i32), d2: (i32, i32), class: u32, rotation: i64, current: [f64; 3]) -> Option<(u32, i64, Option<[f64; 3]>)> {
     if elbow_fits(start, end, d1, d2, class, rotation, current) {
         return Some((class, rotation, None));
     }
@@ -1284,8 +1298,8 @@ impl Frame {
 /// The shapes of `sheet` after the row and column format edits `edits` (dc-zjsg.4), as Excel keeps them: a two-cell
 /// anchor whose editAs is `oneCell` (move but don't size) keeps its size from its top-left corner, one whose editAs is
 /// `absolute` (don't move or size) keeps its place and size; their anchors' corners are found anew in the new sizes.
-/// A plain two-cell anchor moves and sizes with its cells as it is. `None` when no shape changes.
-pub(crate) fn kept_sizes(host: &HostState, sheet: SheetId, edits: &[CellEdit]) -> Option<CellEdit> {
+/// A plain two-cell anchor moves and sizes with its cells as it is. Empty when nothing changes.
+pub(crate) fn kept_sizes(host: &HostState, sheet: SheetId, edits: &[CellEdit]) -> Vec<CellEdit> {
     use calc_doc_model::Axis;
     let changed: std::collections::BTreeMap<(bool, u32), calc_doc_model::AxisFormat> = edits
         .iter()
@@ -1295,7 +1309,7 @@ pub(crate) fn kept_sizes(host: &HostState, sheet: SheetId, edits: &[CellEdit]) -
         })
         .collect();
     if changed.is_empty() {
-        return None;
+        return Vec::new();
     }
     let layouts = host.model().definitions().axis_layouts();
     let column_new = |c: u32| host.column_points_of(sheet, changed.get(&(false, c)).copied().unwrap_or_else(|| layouts.get(sheet, Axis::Columns, c)));
@@ -1316,6 +1330,20 @@ pub(crate) fn kept_sizes(host: &HostState, sheet: SheetId, edits: &[CellEdit]) -
         let emu = |v: f64| (v * EMU_PER_POINT).round() as i64;
         DrawingPoint { column, column_offset: emu(x - left), row, row_offset: emu(y - top) }
     };
+    // An anchor as the new sizes keep it, or `None` when it stays.
+    let keep = |anchor: &ChartAnchor, edit_as: Option<&str>| -> Option<ChartAnchor> {
+        let ChartAnchor::TwoCell { from, .. } = anchor else { return None };
+        let (l, t, w, h) = host.anchor_rectangle(sheet, anchor);
+        let kept = match edit_as {
+            Some("oneCell") => {
+                let (x, y) = (x_new(from), y_new(from));
+                ChartAnchor::TwoCell { from: from.clone(), to: point_new(x + w, y + h) }
+            }
+            Some("absolute") => ChartAnchor::TwoCell { from: point_new(l, t), to: point_new(l + w, t + h) },
+            _ => return None,
+        };
+        (kept != *anchor).then_some(kept)
+    };
     let frame = Frame::new(host, sheet);
     let mut shapes = frame.current(host, host.shapes(sheet));
     let mut any = false;
@@ -1324,25 +1352,17 @@ pub(crate) fn kept_sizes(host: &HostState, sheet: SheetId, edits: &[CellEdit]) -
         if s.kept.is_some() {
             continue;
         }
-        let ChartAnchor::TwoCell { from, .. } = s.anchor else { continue };
-        let (l, t, w, h) = host.anchor_rectangle(sheet, &s.anchor);
-        let anchor = match s.edit_as.as_deref() {
-            Some("oneCell") => {
-                let (x, y) = (x_new(&from), y_new(&from));
-                ChartAnchor::TwoCell { from, to: point_new(x + w, y + h) }
-            }
-            Some("absolute") => ChartAnchor::TwoCell { from: point_new(l, t), to: point_new(l + w, t + h) },
-            _ => continue,
-        };
-        if anchor != s.anchor {
+        if let Some(anchor) = keep(&s.anchor, s.edit_as.as_deref()) {
             s.anchor = anchor;
             any = true;
         }
     }
-    if !any {
-        return None;
+    let mut out = Vec::new();
+    if any {
+        // A shape whose corner would lie in inserted cells has no place in the file's coordinates: left as it is.
+        if let Ok(shapes) = frame.stored(host, host.shapes(sheet), shapes) {
+            out.push(CellEdit::Shapes { sheet, shapes });
+        }
     }
-    // A shape whose corner would lie in inserted cells has no place in the file's coordinates: left as it is.
-    let shapes = frame.stored(host, host.shapes(sheet), shapes).ok()?;
-    Some(CellEdit::Shapes { sheet, shapes })
+    out
 }

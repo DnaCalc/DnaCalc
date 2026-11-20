@@ -60,17 +60,27 @@ pub(crate) fn read_charts(package: &Package, sheet_part: &str) -> SheetCharts {
             return read;
         }
     };
-    for (name, anchor, id) in frames {
+    for (name, anchor, id, edit_as) in frames {
         let chart = related(package, &drawing, Some(&id), CHART)
-            .and_then(|part| read_chart(package, &part, name, anchor).ok());
+            .and_then(|part| read_chart(package, &part, name, anchor).ok())
+            .map(|mut chart| {
+                chart.edit_as = edit_as;
+                chart
+            });
         match chart {
             Some(chart) => read.charts.push(chart),
             None => read.unread += 1,
         }
     }
     // Excel 2016's charts, after the others (dc-zjsg.6).
-    for (name, anchor, id) in super::chartex::frames(package, &drawing) {
-        match related(package, &drawing, Some(&id), super::chartex::CHARTEX).and_then(|part| super::chartex::read(package, &part, name, anchor)) {
+    for (name, anchor, id, edit_as) in super::chartex::frames(package, &drawing) {
+        match related(package, &drawing, Some(&id), super::chartex::CHARTEX)
+            .and_then(|part| super::chartex::read(package, &part, name, anchor))
+            .map(|mut chart| {
+                chart.edit_as = edit_as;
+                chart
+            })
+        {
             Some(chart) => read.charts.push(chart),
             None => read.unread += 1,
         }
@@ -93,7 +103,7 @@ pub(super) fn unprinted_objects(package: &Package, part: &str) -> Result<usize, 
 fn read_drawing(
     package: &Package,
     part: &str,
-) -> Result<(Vec<(String, ChartAnchor, String)>, usize), LoadError> {
+) -> Result<(Vec<(String, ChartAnchor, String, Option<String>)>, usize), LoadError> {
     let xml = read_xml(package, part)?;
     let mut events = Events::new(&xml);
     events.root(
@@ -122,6 +132,7 @@ fn read_drawing(
             continue;
         }
         // One anchor: its points, its size, and a chart frame's name and relationship.
+        let edit_as = element.attribute("editAs").map(str::to_owned);
         let (mut from, mut to) = (DrawingPoint::default(), DrawingPoint::default());
         let (mut x, mut y, mut width, mut height) = (0i64, 0i64, 0i64, 0i64);
         let mut name = String::new();
@@ -207,7 +218,7 @@ fn read_drawing(
                 height,
             },
         };
-        frames.push((name, anchor, chart));
+        frames.push((name, anchor, chart, edit_as));
     }
     Ok((frames, other_objects))
 }
@@ -244,6 +255,7 @@ fn read_chart_xml(
         "the document element is not a chart",
     )?;
     let mut chart = Chart {
+        edit_as: None,
         part: part.to_owned(),
         name,
         anchor,
@@ -744,6 +756,11 @@ fn read_chart_xml(
                     plot.high_low_lines = true;
                 }
             }
+            (Some(p), "wireframe") if p.ends_with("Chart") => {
+                if let Some(plot) = plot {
+                    plot.wireframe = val.as_deref().is_none_or(|v| matches!(v, "1" | "true"));
+                }
+            }
             (Some(p), "upDownBars") if p.ends_with("Chart") => {
                 if let Some(plot) = plot {
                     plot.up_down_bars = true;
@@ -871,10 +888,29 @@ fn read_simple_value_labels(events: &mut Events<'_>) -> Result<(bool, bool, calc
     let mut valid = true;
     let mut linked = false;
     let mut formats = 0usize;
+    // The `c:dLbl` being read: its point and what it shows.
+    let mut point: Option<(u32, calc_doc_model::ChartLabels)> = None;
+    let mut in_point_separator = false;
     loop {
         match events.next()? {
             Some(XmlEvent::Start(element)) => {
                 depth += 1;
+                if depth == 1 && element.name.is(CHART_NAMESPACE, "dLbl") {
+                    point = Some((0, calc_doc_model::ChartLabels::default()));
+                } else if depth == 2 && element.name.namespace.as_deref() == Some(CHART_NAMESPACE) && let Some((idx, shown)) = point.as_mut() {
+                    let on = matches!(element.attribute("val"), Some("1" | "true") | None);
+                    match element.name.local.as_str() {
+                        "idx" => *idx = element.attribute("val").and_then(|v| v.parse().ok()).unwrap_or(0),
+                        "showVal" => shown.value = on,
+                        "showCatName" => shown.category = on,
+                        "showSerName" => shown.series = on,
+                        "showPercent" => shown.percent = on,
+                        "dLblPos" => shown.position = element.attribute("val").map(str::to_owned),
+                        "delete" => shown.deleted = on,
+                        "separator" => in_point_separator = true,
+                        _ => {}
+                    }
+                }
                 if depth == 1 && element.name.namespace.as_deref() == Some(CHART_NAMESPACE) {
                     let on = matches!(element.attribute("val"), Some("1" | "true") | None);
                     match element.name.local.as_str() {
@@ -900,12 +936,19 @@ fn read_simple_value_labels(events: &mut Events<'_>) -> Result<(bool, bool, calc
             }
             Some(XmlEvent::End(_)) if depth == 0 => break,
             Some(XmlEvent::End(_)) => {
+                if depth == 1 && let Some(p) = point.take() {
+                    shown.points.push(p);
+                }
                 depth -= 1;
                 in_separator = false;
+                in_point_separator = false;
             }
             Some(XmlEvent::Text(text)) => {
                 if in_separator && depth == 1 {
                     shown.separator = Some(text.to_string());
+                }
+                if in_point_separator && depth == 2 && let Some((_, p)) = point.as_mut() {
+                    p.separator = Some(text.to_string());
                 }
                 valid &= text.trim().is_empty();
             }
