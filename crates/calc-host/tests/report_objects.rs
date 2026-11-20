@@ -1083,6 +1083,44 @@ fn dc_zjsg_4__drawings_survive_row_inserts_and_save_moved() {
     }
 }
 
+/// dc-zjsg.5: a connector turned a quarter (an elbow from a bottom site to a top site, as Excel draws one between a
+/// shape and one below it) is rerouted when a glued shape moves: its turn and adjust values stay, its box and flips
+/// are recomputed so that, turned, it runs from site to site; its anchor is that box turned, and both survive a save.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_5__a_turned_elbow_connector_is_rerouted_between_its_sites() {
+    let mut book = open(calc_host::blank_package());
+    let sheet = book.host().sheets()[0].id();
+    shape(&mut book, sheet, add(ShapeKind::Shape, "rect", 20.0, 120.0, 100.0, 50.0));
+    shape(&mut book, sheet, add(ShapeKind::Shape, "rect", 20.0, 260.0, 100.0, 50.0));
+    shape(&mut book, sheet, add(ShapeKind::Connector, "bentConnector3", 10.0, 10.0, 10.0, 10.0));
+    shape(&mut book, sheet, ShapeChange::Rotate { id: 4, rotation: 90 * 60_000 });
+    // A rectangle's sites (1-based): top, left, bottom, right.
+    shape(&mut book, sheet, ShapeChange::Connect { id: 4, begin: true, shape: 2, site: 3 });
+    shape(&mut book, sheet, ShapeChange::Connect { id: 4, begin: false, shape: 3, site: 1 });
+    // Where the connector's path starts and ends on the sheet: its box's corners, flipped and turned about its centre.
+    let ends = |b: &HostSession| {
+        let c = b.host().shapes(sheet).iter().find(|s| s.id == 4).unwrap().clone();
+        let p = |v: i64| v as f64 / 12_700.0;
+        let (w, h) = (p(c.extent.0), p(c.extent.1));
+        let centre = (p(c.offset.0) + w / 2.0, p(c.offset.1) + h / 2.0);
+        let corner = (if c.flip_horizontal { w / 2.0 } else { -w / 2.0 }, if c.flip_vertical { h / 2.0 } else { -h / 2.0 });
+        let (sin, cos) = (c.rotation as f64 / 60_000.0).to_radians().sin_cos();
+        let at = |(x, y): (f64, f64)| ((centre.0 + x * cos - y * sin).round(), (centre.1 + x * sin + y * cos).round());
+        (at(corner), at((-corner.0, -corner.1)), c.rotation, b.host().anchor_rectangle(sheet, &c.anchor))
+    };
+    assert_eq!(ends(&book), ((70.0, 170.0), (70.0, 260.0), 90 * 60_000, (70.0, 170.0, 0.0, 90.0)));
+    let mut stored = reopened(&mut book);
+    // The lower rectangle moves right: its top site is at 250 pt, 260 pt.
+    shape(&mut stored, sheet, ShapeChange::Place { id: 3, left: Some(pts(200.0)), top: None, width: None, height: None });
+    let moved = ends(&stored);
+    assert_eq!((moved.0, moved.1, moved.2), ((70.0, 170.0), (250.0, 260.0), 90 * 60_000));
+    // Anchored on the box from site to site.
+    assert_eq!(moved.3, (70.0, 170.0, 180.0, 90.0));
+    let again = reopened(&mut stored);
+    assert_eq!(ends(&again), moved);
+}
+
 /// dc-zjsg.5: moving a stored shape reroutes the stored connector glued to it, as Excel does: the glued end at its
 /// site, the box and flips from the ends; the save rewrites the connector's anchor and its transform's flips.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

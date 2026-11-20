@@ -318,7 +318,8 @@ pub(crate) fn frame(shape: &Shape, remap: &BTreeMap<u32, u32>, media: &MediaRels
     if element.is_none() {
         check(shape)?;
     }
-    if shape.offset.0 < 0 || shape.offset.1 < 0 {
+    // A turned object's unturned box may reach past the sheet's edge while its anchor stays on it (a:off is signed).
+    if shape.rotation == 0 && (shape.offset.0 < 0 || shape.offset.1 < 0) {
         return Err(fail("Use a non-negative position"));
     }
     if element.is_none() {

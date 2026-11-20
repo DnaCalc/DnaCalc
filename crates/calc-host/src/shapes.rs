@@ -524,41 +524,59 @@ fn site_point(shape: &Shape, rect: (f64, f64, f64, f64), site: u32) -> Option<(f
 /// The connectors glued to the shape `id` (dc-zjsg.5), each rerouted ([`reroute`]). A turned connector is left as it is.
 fn reroute_connectors(host: &HostState, sheet: SheetId, shapes: &mut [Shape], id: u32, originals: &Stored) {
     let glued: Vec<usize> = (0..shapes.len())
-        .filter(|&i| shapes[i].rotation == 0 && [shapes[i].begin, shapes[i].end].iter().any(|e| e.is_some_and(|e| e.shape == id)))
+        .filter(|&i| [shapes[i].begin, shapes[i].end].iter().any(|e| e.is_some_and(|e| e.shape == id)))
         .collect();
     for index in glued {
         reroute(host, sheet, shapes, index, originals);
     }
 }
 
+/// `v` turned clockwise (on the page, y down) by `rotation` 60,000ths of a degree.
+fn turned(v: (f64, f64), rotation: i64) -> (f64, f64) {
+    let (sin, cos) = (rotation as f64 / 60_000.0).to_radians().sin_cos();
+    (v.0 * cos - v.1 * sin, v.0 * sin + v.1 * cos)
+}
+
 /// The connector at `index` redrawn between its ends as Excel reroutes one when a shape it joins moves or it is
-/// glued: a glued end at its site, a free end where it was; its box the ends' box, flipped to run from its start to
-/// its end.
+/// glued: a glued end at its site, a free end where it was. The connector keeps its geometry, its turn and its
+/// adjust values (an elbow's middle leg stays at its share of the box); its box is the one that, turned as the
+/// connector is, runs from the start to the end, and its flips say which corner it starts from. A connector turned a
+/// quarter (the usual elbow between a bottom and a top site) is anchored on that box turned, as Excel stores it.
 fn reroute(host: &HostState, sheet: SheetId, shapes: &mut [Shape], index: usize, originals: &Stored) {
-    {
-        let (l, t, w, h) = rectangle(host, sheet, shapes, index, originals);
-        let c = &shapes[index];
-        let mut start = (if c.flip_horizontal { l + w } else { l }, if c.flip_vertical { t + h } else { t });
-        let mut end = (if c.flip_horizontal { l } else { l + w }, if c.flip_vertical { t } else { t + h });
-        let end_point = |connection: Option<calc_doc_model::ShapeConnection>| {
-            let connection = connection?;
-            let target = shapes.iter().position(|s| s.id == connection.shape)?;
-            site_point(&shapes[target], rectangle(host, sheet, shapes, target, originals), connection.site)
-        };
-        if let Some(p) = end_point(c.begin) {
-            start = p;
-        }
-        if let Some(p) = end_point(c.end) {
-            end = p;
-        }
-        let (l, t) = (start.0.min(end.0).max(0.0), start.1.min(end.1).max(0.0));
-        let (w, h) = ((end.0 - start.0).abs(), (end.1 - start.1).abs());
-        let stored = originals.holds(&shapes[index]);
-        let c = &mut shapes[index];
-        set_place(host, sheet, c, stored, (l, t, w, h));
-        c.flip_horizontal = end.0 < start.0;
-        c.flip_vertical = end.1 < start.1;
+    let (l, t, w, h) = rectangle(host, sheet, shapes, index, originals);
+    let c = &shapes[index];
+    let rotation = c.rotation;
+    let centre = (l + w / 2.0, t + h / 2.0);
+    let corner = (if c.flip_horizontal { w / 2.0 } else { -w / 2.0 }, if c.flip_vertical { h / 2.0 } else { -h / 2.0 });
+    let at = |v: (f64, f64)| {
+        let v = turned(v, rotation);
+        (centre.0 + v.0, centre.1 + v.1)
+    };
+    let mut start = at(corner);
+    let mut end = at((-corner.0, -corner.1));
+    let end_point = |connection: Option<calc_doc_model::ShapeConnection>| {
+        let connection = connection?;
+        let target = shapes.iter().position(|s| s.id == connection.shape)?;
+        site_point(&shapes[target], rectangle(host, sheet, shapes, target, originals), connection.site)
+    };
+    if let Some(p) = end_point(c.begin) {
+        start = p;
     }
+    if let Some(p) = end_point(c.end) {
+        end = p;
+    }
+    // The run from start to end in the connector's own (unturned) frame.
+    let d = turned((end.0 - start.0, end.1 - start.1), -rotation);
+    let (w, h) = (d.0.abs(), d.1.abs());
+    let centre = ((start.0 + end.0) / 2.0, (start.1 + end.1) / 2.0);
+    let unturned = (centre.0 - w / 2.0, centre.1 - h / 2.0, w, h);
+    let anchor = if quarter(rotation) { swapped(unturned) } else { unturned };
+    let anchor = (anchor.0.max(0.0), anchor.1.max(0.0), anchor.2, anchor.3);
+    let stored = originals.holds(&shapes[index]);
+    let c = &mut shapes[index];
+    set_place(host, sheet, c, stored, anchor);
+    c.flip_horizontal = d.0 < 0.0;
+    c.flip_vertical = d.1 < 0.0;
 }
 
 pub(crate) fn prepare(
