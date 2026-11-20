@@ -4112,6 +4112,36 @@ fn beta_and_f_tails_keep_the_recorded_arithmetic_stores() {
             0x3ff0_0000_0000_0000,
             0x3fb5_abb8_53c1_0798,
         ),
+        (
+            0x3f6a_858e_3f4e_2c66,
+            0x3ffc_8e96_9dd8_88a2,
+            0x4040_e2a6_b682_f11f,
+            0x3f86_b6a2_b2e8_18ea,
+        ),
+        (
+            0x3fe5_b27c_fc02_551e,
+            0x4028_b2df_6ed7_2426,
+            0x4008_0000_0000_0000,
+            0x3fbc_881e_1534_6a2c,
+        ),
+        (
+            0x3fef_fdf9_2d18_019e,
+            0x40b3_06a4_52f7_417e,
+            0x3fe0_0000_0000_0000,
+            0x3fbe_dc99_0e8f_7fb2,
+        ),
+        (
+            0x3fe0_c5d6_fa63_045e,
+            0x4006_41c9_69df_5792,
+            0x4004_34bb_9a65_0d18,
+            0x3fdf_a29b_15f7_8034,
+        ),
+        (
+            0x3fd0_92d9_4596_770e,
+            0x4004_557d_657a_524c,
+            0x4005_9fed_68f7_a6e6,
+            0x3fc2_e699_592f_8f79,
+        ),
     ] {
         exact(
             call(
