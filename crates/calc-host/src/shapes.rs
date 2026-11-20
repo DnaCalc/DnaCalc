@@ -390,37 +390,93 @@ trait Pipe: Sized {
 }
 impl<T> Pipe for T {}
 
-/// The connection sites of a preset, as (x, y) fractions of its rectangle in Excel's order
-/// (the preset shape definitions' `cxnLst`): a rectangle's top, left, bottom, right; an
-/// ellipse's eight sites from the top, counter-clockwise.
-fn sites(geometry: &str) -> Option<&'static [(f64, f64)]> {
-    const RECT: [(f64, f64); 4] = [(0.5, 0.0), (0.0, 0.5), (0.5, 1.0), (1.0, 0.5)];
-    const S: f64 = 0.146_446_609_406_726_24; // (1 - cos 45°) / 2
-    const ELLIPSE: [(f64, f64); 8] = [
-        (0.5, 0.0),
-        (S, S),
-        (0.0, 0.5),
-        (S, 1.0 - S),
-        (0.5, 1.0),
-        (1.0 - S, 1.0 - S),
-        (1.0, 0.5),
-        (1.0 - S, S),
-    ];
-    match geometry {
-        "rect" | "roundRect" => Some(&RECT),
-        "ellipse" => Some(&ELLIPSE),
-        _ => None,
-    }
-}
-
 /// How many connection sites a preset has (Excel, dc-piw0 Q7): a rectangle, rounded rectangle,
 /// text box and diamond 4, an oval 8, an isosceles triangle 6, a line or connector 2.
 pub(crate) fn connection_site_count(geometry: &str) -> Option<usize> {
-    match geometry {
-        "diamond" => Some(4),
-        "triangle" => Some(6),
-        "line" | "straightConnector1" => Some(2),
-        other => sites(other).map(<[_]>::len),
+    calc_doc_model::preset_geometry::preset(geometry, &[]).map(|g| g.sites.len())
+}
+
+/// A shape's rectangle in points: a stored one's from its anchor, one this session made from its transform.
+fn rectangle(host: &HostState, sheet: SheetId, shapes: &[Shape], index: usize, originals: usize) -> (f64, f64, f64, f64) {
+    if index < originals {
+        host.anchor_rectangle(sheet, &shapes[index].anchor)
+    } else {
+        host.shape_rectangle(sheet, &shapes[index])
+    }
+}
+
+/// Where connection site `site` (counted from 0, as `stCxn idx`) of `shape` is, in points, its box `rect`: from its
+/// geometry's definition (a preset's from ECMA-376, a custom geometry's own `cxnLst`), flipped and turned about the
+/// box's centre as the shape is. `None` for a site the geometry does not have.
+fn site_point(shape: &Shape, rect: (f64, f64, f64, f64), site: u32) -> Option<(f64, f64)> {
+    let geometry = match (&shape.geometry, &shape.custom_geometry) {
+        (None, Some(custom)) => custom.clone(),
+        (Some(name), _) => calc_doc_model::preset_geometry::preset(name, &shape.adjust)?,
+        (None, None) => calc_doc_model::preset_geometry::preset("rect", &[])?,
+    };
+    let (w_emu, h_emu) = if shape.extent.0 > 0 && shape.extent.1 > 0 {
+        (shape.extent.0 as f64, shape.extent.1 as f64)
+    } else {
+        (rect.2 * EMU_PER_POINT, rect.3 * EMU_PER_POINT)
+    };
+    let (mut fx, mut fy) = *calc_doc_model::preset_geometry::connection_sites(&geometry, w_emu, h_emu).get(site as usize)?;
+    if shape.flip_horizontal {
+        fx = 1.0 - fx;
+    }
+    if shape.flip_vertical {
+        fy = 1.0 - fy;
+    }
+    let (l, t, w, h) = rect;
+    let (cx, cy) = (l + w / 2.0, t + h / 2.0);
+    let (x, y) = (l + fx * w - cx, t + fy * h - cy);
+    let (sin, cos) = (shape.rotation as f64 / 60_000.0).to_radians().sin_cos();
+    Some((cx + x * cos - y * sin, cy + x * sin + y * cos))
+}
+
+/// The connectors glued to the shape `id` (dc-zjsg.5), each rerouted ([`reroute`]). A turned connector is left as it is.
+fn reroute_connectors(host: &HostState, sheet: SheetId, shapes: &mut [Shape], id: u32, originals: usize) {
+    let glued: Vec<usize> = (0..shapes.len())
+        .filter(|&i| shapes[i].rotation == 0 && [shapes[i].begin, shapes[i].end].iter().any(|e| e.is_some_and(|e| e.shape == id)))
+        .collect();
+    for index in glued {
+        reroute(host, sheet, shapes, index, originals);
+    }
+}
+
+/// The connector at `index` redrawn between its ends as Excel reroutes one when a shape it joins moves or it is
+/// glued: a glued end at its site, a free end where it was; its box the ends' box, flipped to run from its start to
+/// its end.
+fn reroute(host: &HostState, sheet: SheetId, shapes: &mut [Shape], index: usize, originals: usize) {
+    {
+        let (l, t, w, h) = rectangle(host, sheet, shapes, index, originals);
+        let c = &shapes[index];
+        let mut start = (if c.flip_horizontal { l + w } else { l }, if c.flip_vertical { t + h } else { t });
+        let mut end = (if c.flip_horizontal { l } else { l + w }, if c.flip_vertical { t } else { t + h });
+        let end_point = |connection: Option<calc_doc_model::ShapeConnection>| {
+            let connection = connection?;
+            let target = shapes.iter().position(|s| s.id == connection.shape)?;
+            site_point(&shapes[target], rectangle(host, sheet, shapes, target, originals), connection.site)
+        };
+        if let Some(p) = end_point(c.begin) {
+            start = p;
+        }
+        if let Some(p) = end_point(c.end) {
+            end = p;
+        }
+        let (l, t) = (start.0.min(end.0).max(0.0), start.1.min(end.1).max(0.0));
+        let (w, h) = ((end.0 - start.0).abs(), (end.1 - start.1).abs());
+        let emu = |v: f64| (v * EMU_PER_POINT).round() as i64;
+        let stored = index < originals;
+        let c = &mut shapes[index];
+        c.anchor = match (stored, &c.anchor) {
+            (true, ChartAnchor::OneCell { .. }) => ChartAnchor::OneCell { from: host.point_at(sheet, l, t), width: emu(w), height: emu(h) },
+            (true, ChartAnchor::Absolute { .. }) => ChartAnchor::Absolute { x: emu(l), y: emu(t), width: emu(w), height: emu(h) },
+            _ => ChartAnchor::TwoCell { from: host.point_at(sheet, l, t), to: host.point_at(sheet, l + w, t + h) },
+        };
+        c.offset = (emu(l), emu(t));
+        c.extent = (emu(w), emu(h));
+        c.flip_horizontal = end.0 < start.0;
+        c.flip_vertical = end.1 < start.1;
     }
 }
 
@@ -587,6 +643,7 @@ pub(crate) fn prepare(
                 (w * EMU_PER_POINT).round() as i64,
                 (h * EMU_PER_POINT).round() as i64,
             );
+            reroute_connectors(host, sheet, &mut shapes, id, originals);
         }
         ShapeChange::Text { id, text } => {
             let index = find(&shapes, id)?;
@@ -623,14 +680,12 @@ pub(crate) fn prepare(
                 .iter()
                 .position(|s| s.id == target)
                 .ok_or_else(|| refusal("The shape to connect to no longer exists"))?;
-            let table = shapes[glued]
-                .geometry
-                .as_deref()
-                .and_then(sites)
-                .ok_or_else(|| {
-                    refusal("Connection sites of this shape are not modelled (dc-zjsg.5)")
-                })?;
-            if site == 0 || site as usize > table.len() {
+            let count = match (&shapes[glued].geometry, &shapes[glued].custom_geometry) {
+                (None, Some(custom)) => custom.sites.len(),
+                (geometry, _) => connection_site_count(geometry.as_deref().unwrap_or("rect"))
+                    .ok_or_else(|| refusal("Connection sites of this shape are not modelled (dc-zjsg.5)"))?,
+            };
+            if site == 0 || site as usize > count {
                 return Err(refusal("The connection site does not exist on that shape"));
             }
             let connection = ShapeConnection {
@@ -642,42 +697,7 @@ pub(crate) fn prepare(
             } else {
                 shapes[index].end = Some(connection);
             }
-            // The connector's rectangle follows its glued ends; an unglued end keeps its corner.
-            let point = |s: &Shape, c: ShapeConnection| -> Option<(f64, f64)> {
-                let g = shapes.iter().find(|g| g.id == c.shape)?;
-                let (l, t, w, h) = host.shape_rectangle(sheet, g);
-                let (fx, fy) = sites(g.geometry.as_deref()?)?.get(c.site as usize)?;
-                let _ = s;
-                Some((l + w * fx, t + h * fy))
-            };
-            let c = shapes[index].clone();
-            let (l, t, w, h) = host.shape_rectangle(sheet, &c);
-            // An unglued end keeps its corner of the rectangle, which the flips decide.
-            let start = c.begin.and_then(|e| point(&c, e)).unwrap_or((
-                if c.flip_horizontal { l + w } else { l },
-                if c.flip_vertical { t + h } else { t },
-            ));
-            let end = c.end.and_then(|e| point(&c, e)).unwrap_or((
-                if c.flip_horizontal { l } else { l + w },
-                if c.flip_vertical { t } else { t + h },
-            ));
-            let (x0, x1) = (start.0.min(end.0), start.0.max(end.0));
-            let (y0, y1) = (start.1.min(end.1), start.1.max(end.1));
-            let s = &mut shapes[index];
-            s.flip_horizontal = start.0 > end.0;
-            s.flip_vertical = start.1 > end.1;
-            s.anchor = ChartAnchor::TwoCell {
-                from: host.point_at(sheet, x0, y0),
-                to: host.point_at(sheet, x1, y1),
-            };
-            s.offset = (
-                (x0 * EMU_PER_POINT).round() as i64,
-                (y0 * EMU_PER_POINT).round() as i64,
-            );
-            s.extent = (
-                ((x1 - x0) * EMU_PER_POINT).round() as i64,
-                ((y1 - y0) * EMU_PER_POINT).round() as i64,
-            );
+            reroute(host, sheet, &mut shapes, index, originals);
         }
     }
     host.loaded()
@@ -685,3 +705,4 @@ pub(crate) fn prepare(
         .map_err(|e| e.to_string())?;
     Ok(vec![CellEdit::Shapes { sheet, shapes }])
 }
+

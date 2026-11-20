@@ -955,6 +955,13 @@ fn custom_geometry(node: &Node) -> CustomGeometry {
         guides: guides("gdLst"),
         text_rect: node.child("rect").map(|r| ["l", "t", "r", "b"].map(|a| r.attribute(a).unwrap_or("0").to_owned())),
         paths,
+        sites: node.child("cxnLst").map_or_else(Vec::new, |list| {
+            list.children
+                .iter()
+                .filter_map(|c| c.child("pos"))
+                .filter_map(|p| Some((p.attribute("x")?.to_owned(), p.attribute("y")?.to_owned())))
+                .collect()
+        }),
     }
 }
 

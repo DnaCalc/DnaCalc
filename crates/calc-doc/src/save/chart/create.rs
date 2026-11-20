@@ -609,6 +609,8 @@ pub(crate) fn stored_edits<'a>(
                 }
                 let mut same = now.clone();
                 (same.anchor, same.offset, same.extent) = (stored.anchor, stored.offset, stored.extent);
+                // A connector rerouted to the shapes it is glued to turns its flips too (dc-zjsg.5).
+                (same.flip_horizontal, same.flip_vertical) = (stored.flip_horizontal, stored.flip_vertical);
                 if same != *stored || stored.kept.is_some() {
                     return Err(refuse("Editing an imported drawing object other than moving, resizing or deleting it is not modelled"));
                 }
@@ -633,11 +635,12 @@ fn edit_stored(xml: &crate::xml::XmlPart, edits: &std::collections::BTreeMap<u32
     let source = xml.bytes();
     let mut reader = Reader::new(xml);
     let mut splice = super::super::text::Splice::new(source);
-    // Open elements: local name, qualified name, start offset.
-    let mut open: Vec<(String, String, usize)> = Vec::new();
+    // Open elements: local name, qualified name, start offset, start tag's end.
+    let mut open: Vec<(String, String, usize, usize)> = Vec::new();
     // The top-level child being read: its start, the first identity in it, and its elements (start, end, local
-    // name, qualified name, parent's local name).
-    let mut child: Option<(usize, Option<u32>, Vec<(usize, usize, String, String, String)>)> = None;
+    // name, qualified name, parent's local name, start tag's end).
+    type Piece = (usize, usize, String, String, String, usize);
+    let mut child: Option<(usize, Option<u32>, Vec<Piece>)> = None;
     let qualified = |at: usize| -> String {
         let tail = &source[at + 1..];
         let end = tail.iter().position(|b| matches!(b, b' ' | b'>' | b'/' | b'\t' | b'\r' | b'\n')).unwrap_or(tail.len());
@@ -656,14 +659,14 @@ fn edit_stored(xml: &crate::xml::XmlPart, edits: &std::collections::BTreeMap<u32
                     *id = e.attribute("id").and_then(|v| v.parse().ok());
                 }
                 // An empty element (`<a/>`) comes as its start tag spanning it whole, then an end tag spanning nothing.
-                open.push((local, qualified(span.0), span.0));
+                open.push((local, qualified(span.0), span.0, span.1));
             }
             XmlEvent::End(_) => {
-                let Some((local, name, start)) = open.pop() else { break };
+                let Some((local, name, start, tag_end)) = open.pop() else { break };
                 let parent = open.last().map(|o| o.0.clone()).unwrap_or_default();
                 let end = span.1.max(start);
                 if let Some((_, _, pieces)) = child.as_mut() {
-                    pieces.push((start, end, local, name, parent));
+                    pieces.push((start, end, local, name, parent, tag_end));
                 }
                 if open.len() == 1
                     && let Some((begin, id, pieces)) = child.take()
@@ -675,12 +678,31 @@ fn edit_stored(xml: &crate::xml::XmlPart, edits: &std::collections::BTreeMap<u32
                         }
                         Some(StoredEdit::Moved(shape)) => {
                             let mut first_xfrm = true;
+                            let mut first_tag = true;
                             // Pieces arrive as their elements end; a replacement is written in source order.
                             let mut pieces = pieces;
                             pieces.sort_by_key(|p| p.0);
                             let mut written_to = 0usize;
-                            for (start, end, local, name, parent) in pieces {
+                            for (start, end, local, name, parent, tag_end) in pieces {
                                 if start < written_to {
+                                    continue;
+                                }
+                                // The first transform's start tag carries the turn and the flips: written anew.
+                                if local == "xfrm" && first_tag && tag_end < end {
+                                    first_tag = false;
+                                    let mut tag = format!("<{name}");
+                                    if shape.rotation != 0 {
+                                        tag.push_str(&format!(" rot=\"{}\"", shape.rotation));
+                                    }
+                                    if shape.flip_horizontal {
+                                        tag.push_str(" flipH=\"1\"");
+                                    }
+                                    if shape.flip_vertical {
+                                        tag.push_str(" flipV=\"1\"");
+                                    }
+                                    tag.push('>');
+                                    splice.replace((start, tag_end), tag.as_bytes());
+                                    written_to = tag_end;
                                     continue;
                                 }
                                 let prefix = name.rsplit_once(':').map_or(String::new(), |(p, _)| format!("{p}:"));

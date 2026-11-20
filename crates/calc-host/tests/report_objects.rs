@@ -960,3 +960,34 @@ fn dc_zjsg_4__drawings_survive_row_inserts_and_save_moved() {
         assert_eq!((af, at), (bf + 2, bt + 2), "{}", a.name);
     }
 }
+
+/// dc-zjsg.5: moving a stored shape reroutes the stored connector glued to it, as Excel does: the glued end at its
+/// site, the box and flips from the ends; the save rewrites the connector's anchor and its transform's flips.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_5__a_connector_follows_the_stored_shape_it_is_glued_to() {
+    let mut book = open(calc_host::blank_package());
+    let sheet = book.host().sheets()[0].id();
+    shape(&mut book, sheet, add(ShapeKind::Shape, "rect", 20.0, 120.0, 100.0, 50.0));
+    shape(&mut book, sheet, add(ShapeKind::Shape, "ellipse", 20.0, 220.0, 100.0, 50.0));
+    shape(&mut book, sheet, add(ShapeKind::Connector, "straightConnector1", 10.0, 10.0, 10.0, 10.0));
+    shape(&mut book, sheet, ShapeChange::Connect { id: 4, begin: true, shape: 2, site: 3 });
+    shape(&mut book, sheet, ShapeChange::Connect { id: 4, begin: false, shape: 3, site: 1 });
+    let mut stored = reopened(&mut book);
+    let rect_of = |b: &HostSession, id: u32| {
+        let s = b.host().shapes(sheet).iter().find(|s| s.id == id).unwrap().clone();
+        (b.host().anchor_rectangle(sheet, &s.anchor), s.flip_horizontal, s.flip_vertical)
+    };
+    assert_eq!(rect_of(&stored, 4), ((70.0, 170.0, 0.0, 50.0), false, false));
+    // The oval moves to 200 pt, 300 pt: its top site is at 250 pt, 300 pt.
+    shape(&mut stored, sheet, ShapeChange::Place { id: 3, left: Some(pts(200.0)), top: Some(pts(300.0)), width: None, height: None });
+    assert_eq!(rect_of(&stored, 4), ((70.0, 170.0, 180.0, 130.0), false, false));
+    let mut again = reopened(&mut stored);
+    assert_eq!(rect_of(&again, 4), ((70.0, 170.0, 180.0, 130.0), false, false));
+    // Moved above and left of the rectangle's bottom: the connector runs up and left, flipped both ways.
+    shape(&mut again, sheet, ShapeChange::Place { id: 3, left: Some(pts(0.0)), top: Some(pts(0.0)), width: None, height: None });
+    let third = reopened(&mut again);
+    assert_eq!(rect_of(&third, 4), ((50.0, 0.0, 20.0, 170.0), true, true));
+    let connector = third.host().shapes(sheet).iter().find(|s| s.id == 4).unwrap().clone();
+    assert_eq!((connector.begin.unwrap().shape, connector.end.unwrap().shape), (2, 3));
+}

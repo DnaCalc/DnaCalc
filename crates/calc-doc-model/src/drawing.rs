@@ -115,6 +115,8 @@ pub struct CustomGeometry {
     pub guides: Vec<(String, String)>,
     pub text_rect: Option<[String; 4]>,
     pub paths: Vec<GeometryPath>,
+    /// `a:cxnLst`: each connection site's position (`a:pos x y`, numbers or guide names), in order.
+    pub sites: Vec<(String, String)>,
 }
 
 /// A gradient fill: `a:gsLst` stops with either a linear direction (`a:lin`) or a path (`a:path`).

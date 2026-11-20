@@ -60,6 +60,7 @@ pub use chart::{
 };
 mod drawing;
 pub mod sparkline;
+pub mod preset_geometry;
 pub use sparkline::{Sparkline, SparklineGroup};
 pub use drawing::{
     CustomGeometry, DrawingNode, FormControl, GeometryCommand, GeometryPath, GeometryPoint, LineEnd, PictureMedia, ShapePattern, ShapeStyle, ShapeStyleRef, Shape, ShapeBody, ShapeColour, ShapeConnection, ShapeFill, ShapeGradient, ShapeKind, ShapeLine, ShapeShadow, ShapePicture, ShapeTextRun, SheetShapes,

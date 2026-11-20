@@ -7,6 +7,7 @@ table keeps them line for line in a compact form the worker reads (custom_geomet
   @name                 a preset
   a NAME FORMULA        an adjust value (avLst gd)
   g NAME FORMULA        a guide (gdLst gd)
+  x X Y                 a connection site (cxnLst cxn pos), in order
   r L T R B             the text rectangle
   p W H FILL STROKE     a path (`-` where the file says nothing)
   M x y | L x y | A wR hR stAng swAng | Q x1 y1 x y | C x1 y1 x2 y2 x y | Z   its commands
@@ -34,6 +35,10 @@ for shape in root:
         if kind in ("avLst", "gdLst"):
             for gd in part:
                 out.append(f'{"a" if kind == "avLst" else "g"} {gd.get("name")} {" ".join(gd.get("fmla").split())}')
+        elif kind == "cxnLst":
+            for cxn in part:
+                pos = [p for p in cxn if local(p) == "pos"][0]
+                out.append(f'x {pos.get("x")} {pos.get("y")}')
         elif kind == "rect":
             out.append(f'r {part.get("l")} {part.get("t")} {part.get("r")} {part.get("b")}')
         elif kind == "pathLst":

@@ -142,6 +142,7 @@ fn arrow(end: &Option<LineEnd>) -> Option<ShapeArrow> {
 
 /// The object as drawn; `None` for one this slice does not draw (a picture, a hidden object, a
 /// geometry that is not drawn). A group carries its children, each as a box inside the group's.
+#[cfg(test)]
 pub(crate) fn drawn(shape: &Shape, place: ChartPlace, theme: &[String]) -> Option<DrawnShape> {
     drawn_with(shape, place, theme, &[])
 }

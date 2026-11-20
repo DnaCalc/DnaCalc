@@ -189,6 +189,7 @@ pub use calc_engine::contract::{AsyncDisposition, AsyncRejection, AsyncToken, Re
 mod tables;
 pub use tables::TableChange;
 mod shapes;
+pub use calc_doc_model::preset_geometry;
 mod sparklines;
 pub use sparklines::{FormControlView, SparklineView};
 pub use calc_doc_model::{
