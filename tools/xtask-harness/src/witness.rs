@@ -26,7 +26,7 @@
 //! recorded CompatibilityVersion alongside those facts. Each result is classed with calc-verdict's [`Severity`] (OxFunc's ODR-FN-005). A refusal or a function the
 //! catalogue does not hold is a structural miss: refused counts as failed. The command rewrites
 //! the rows of the bank it judged in `crates/calc-func/witness-status.tsv` (function, bank, Excel
-//! builds, rows, matched, worst ULP, class, calc-func commit). `--bank full` also compares each
+//! builds, rows, matched, worst ULP, class, calc-func commit, and counts by call class). `--bank full` also compares each
 //! function with OxFunc's last ledger (`function-lane/ledgers/EXCEL_PARITY_LEDGER.csv` of the
 //! evidence repository) and writes `target/witness/full-vs-oxfunc.tsv`.
 //! `judge --trace <path>` also writes the selected input, expected and calculated result of
@@ -2711,8 +2711,21 @@ fn calc_func_commit(root: &Path) -> String {
     }
 }
 
-const STATUS_HEADER: &str =
-    "function\tbank\texcel_builds\trows\tmatched\tworst_ulp\tclass\tcalc_func_commit\texcluded";
+const STATUS_HEADER: &str = concat!(
+    "function\tbank\texcel_builds\trows\tmatched\tworst_ulp\tclass\tcalc_func_commit\texcluded",
+    "\texact\tlast_bit\tnumeric\tgross\tstructural\trefused",
+);
+const LEGACY_STATUS_COLUMNS: usize = 9;
+const CALL_COUNT_COLUMNS: usize = 6;
+
+#[derive(Default)]
+struct CallCounts {
+    last_bit: usize,
+    numeric: usize,
+    gross: usize,
+    structural: usize,
+    refused: usize,
+}
 
 struct Status {
     function: String,
@@ -2722,6 +2735,7 @@ struct Status {
     excluded: usize,
     worst_ulp: Option<u64>,
     class: Severity,
+    counts: CallCounts,
 }
 
 fn status_class(status: &Status) -> &'static str {
@@ -2734,28 +2748,44 @@ fn status_class(status: &Status) -> &'static str {
 
 fn status_of(function: &str, rows: &[Row]) -> Status {
     let mut builds = BTreeSet::new();
+    let mut matched = 0;
+    let mut excluded = 0;
+    let mut class = Severity::Exact;
+    let mut counts = CallCounts::default();
     for r in rows {
         builds.extend(r.builds.iter().cloned());
+        if r.actual.starts_with("excluded:") {
+            excluded += 1;
+            continue;
+        }
+        class = class.max(r.severity);
+        // Shape differences and worker failures remain structural. A refusal means
+        // the call or its context could not be admitted for evaluation.
+        match (r.severity, r.actual.strip_prefix("fault:")) {
+            (_, Some(fault))
+                if !matches!(
+                    fault,
+                    "ResultShape" | "Panic" | "Timeout" | "WitnessWorker" | "Unreadable"
+                ) =>
+            {
+                counts.refused += 1;
+            }
+            (Severity::Exact, _) => matched += 1,
+            (Severity::LastBit, _) => counts.last_bit += 1,
+            (Severity::Numeric, _) => counts.numeric += 1,
+            (Severity::Gross, _) => counts.gross += 1,
+            (Severity::Structural, _) => counts.structural += 1,
+        }
     }
     Status {
         function: function.to_owned(),
         builds: builds.into_iter().collect::<Vec<_>>().join(","),
         rows: rows.len(),
-        matched: rows
-            .iter()
-            .filter(|r| r.severity == Severity::Exact)
-            .count(),
-        excluded: rows
-            .iter()
-            .filter(|r| r.actual.starts_with("excluded:"))
-            .count(),
+        matched,
+        excluded,
         worst_ulp: rows.iter().filter_map(|r| r.ulp).max(),
-        class: rows
-            .iter()
-            .filter(|r| !r.actual.starts_with("excluded:"))
-            .map(|r| r.severity)
-            .max()
-            .unwrap_or(Severity::Exact),
+        class,
+        counts,
     }
 }
 
@@ -2776,25 +2806,34 @@ fn write_status(
             };
             let replaced = b == bank && only.is_none_or(|o| o == f);
             if !replaced {
-                let line = if line.split('\t').count() == 8 {
-                    format!("{line}\t0")
-                } else {
-                    line.to_owned()
-                };
+                let mut line = line.to_owned();
+                let columns = line.split('\t').count();
+                if columns == LEGACY_STATUS_COLUMNS - 1 {
+                    line.push_str("\t0");
+                }
+                if columns <= LEGACY_STATUS_COLUMNS {
+                    line.push_str(&"\t-".repeat(CALL_COUNT_COLUMNS));
+                }
                 lines.insert((f.to_owned(), b.to_owned()), line);
             }
         }
     }
     for s in statuses {
         let line = format!(
-            "{}\t{bank}\t{}\t{}\t{}\t{}\t{}\t{commit}\t{}",
+            "{}\t{bank}\t{}\t{}\t{}\t{}\t{}\t{commit}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
             s.function,
             if s.builds.is_empty() { "?" } else { &s.builds },
             s.rows,
             s.matched,
             s.worst_ulp.map_or("-".to_owned(), |u| u.to_string()),
             status_class(s),
-            s.excluded
+            s.excluded,
+            s.matched,
+            s.counts.last_bit,
+            s.counts.numeric,
+            s.counts.gross,
+            s.counts.structural,
+            s.counts.refused,
         );
         lines.insert((s.function.clone(), bank.to_owned()), line);
     }
@@ -3893,6 +3932,7 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
         let excluded_unread = banks.excluded_unread.get(function).map_or(0, Vec::len);
         status.rows += unread + excluded_unread;
         status.excluded += excluded_unread;
+        status.counts.structural += unread;
         if unread > 0 {
             status.class = Severity::Structural;
             println!("xtask witness: {function}: {unread} unread recorded rows count as failures");
@@ -5777,6 +5817,77 @@ mod tests {
         );
         assert_eq!(status_class(&all_exact_plus_excluded), "excluded");
         assert_ne!(status_class(&all_exact_plus_excluded), "exact");
+    }
+
+    #[test]
+    fn witness_status_records_each_call_class() {
+        let root = std::env::temp_dir().join(format!("xtask-witness-status-{}", std::process::id()));
+        let path = root.join(STATUS);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(
+            &path,
+            "function\tbank\texcel_builds\trows\tmatched\tworst_ulp\tclass\tcalc_func_commit\texcluded\n\
+             ABS\tpinned\t20527\t3\t1\t7\tnumeric\told\t0\n",
+        )
+        .unwrap();
+        let reading = Reading {
+            function: "ABS".into(),
+            id: "r0".into(),
+            args: vec![],
+            index: None,
+            expected: "0x3ff0000000000000".into(),
+            source: 0,
+        };
+        let rows: Vec<_> = [
+            "0x3ff0000000000000",
+            "0x3ff0000000000001",
+            "0x3ff0000000000007",
+            "0x3ff0000000000401",
+            "error:Num",
+            "fault:ResultShape",
+            "fault:NotImplemented",
+            "excluded:reason",
+        ]
+        .into_iter()
+        .map(|actual| {
+            let (severity, ulp) = judge(&reading.expected, actual);
+            Row {
+                reading: &reading,
+                slow: false,
+                builds: BTreeSet::new(),
+                actual: actual.into(),
+                severity,
+                ulp,
+            }
+        })
+        .collect();
+        write_status(&root, "full", &[status_of("ABS", &rows)], Some("ABS")).unwrap();
+        let text = fs::read_to_string(&path).unwrap();
+        fs::remove_dir_all(root).unwrap();
+        let mut lines = text.lines();
+        let header: Vec<_> = lines.next().unwrap().split('\t').collect();
+        let full: BTreeMap<_, _> = header
+            .iter()
+            .copied()
+            .zip(lines.next().unwrap().split('\t'))
+            .collect();
+        for (name, count) in [
+            ("exact", "1"),
+            ("last_bit", "1"),
+            ("numeric", "1"),
+            ("gross", "1"),
+            ("structural", "2"),
+            ("refused", "1"),
+            ("excluded", "1"),
+        ] {
+            assert_eq!(full.get(name), Some(&count), "{name}");
+        }
+        assert_eq!(full["rows"], "8");
+        assert_eq!(full["class"], "structural");
+        assert_eq!(full["worst_ulp"], "1025");
+        let pinned: Vec<_> = lines.next().unwrap().split('\t').collect();
+        assert_eq!(pinned.len(), header.len());
+        assert!(pinned[9..].iter().all(|count| *count == "-"));
     }
 
     #[test]

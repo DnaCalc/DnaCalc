@@ -11,6 +11,7 @@ import argparse, collections, csv, datetime, io, json, os, re, subprocess, sys
 
 STATUS = 'crates/calc-func/witness-status.tsv'
 PAGE = 'docs/fun/function-bank.html'
+CALL_CLASSES = ('exact', 'last_bit', 'numeric', 'gross', 'structural', 'refused', 'excluded')
 
 
 def git(*args):
@@ -71,7 +72,9 @@ def main():
             notes = [[x.get('note_id'), x.get('title')] for x in (d.get('notes') or [])][:4]
         pat = re.compile(r'(?<![A-Z0-9_.])' + re.escape(n) + r'(?![A-Z0-9_.(]?[A-Z0-9_])')
         beads = [[i['id'], i['title'][:90]] for i in open_beads if pat.search(i.get('title', ''))][:4]
-        out.append([n, int(r['rows']), int(r['matched']), w, r['class'], cat, state, desc, notes, beads])
+        values = [r.get(c) or '' for c in CALL_CLASSES]
+        counts = [int(v) for v in values] if all(v.isdigit() for v in values) else None
+        out.append([n, int(r['rows']), int(r['matched']), w, r['class'], cat, state, desc, notes, beads, counts])
     lines = ('const BANK=' + json.dumps(out, ensure_ascii=False, separators=(',', ':')) + ';\n'
              + 'const HIST=' + json.dumps(hist, separators=(',', ':')) + ';\n'
              + 'const BANK_AT=' + json.dumps(head + ', ' + dates[-1]) + ';\n')
