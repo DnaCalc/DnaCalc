@@ -708,12 +708,13 @@ impl Session {
                 .err()
                 .unwrap_or_else(|| "the project did not read".to_owned()));
         };
-        // The project runs under the policy of what let it: the level Safe gives Safe, every other
-        // route (the level Unguarded or its pins, the person's click) Full.
+        // The project runs under the policy of what let it: the level Guarded gives Guarded, every
+        // other route (the level Unguarded or its pins, the person's click) Full.
         held.vba_mode = Some(match mode {
             MacroEnable::Trusted {
-                policy: calc_macro_security::VbaPolicy::Safe,
+                policy: calc_macro_security::VbaPolicy::Guarded,
                 ..
+                // CalcVBA keeps `PolicyMode::Safe` until the post-vx1 rename (dc-8ovd).
             } => calc_vba::policy::PolicyMode::Safe,
             _ => calc_vba::policy::PolicyMode::Full,
         });

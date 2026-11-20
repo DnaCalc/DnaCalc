@@ -10,6 +10,8 @@ Current documents (start with the summary):
 - `EXCEL_CALC_PROBES.md`: Excel calculation experiments that decide open points of the contract.
 - `XLL_COM_HOSTING.md`: hosting .xll add-ins and the COM object model.
 - `ADDIN_SURROGATE.md`: the process boundary for native add-ins (one surrogate per session, commit point, failure and unload rules).
+- `CODE_EXECUTION_POLICY.md`: the macro security levels (Off, Guarded, Unguarded) across VBA, native
+  add-ins and JavaScript, and the CalcVBA hosting interface (draft for the owner).
 - `FUNCTION_CATALOGUE.md`: what the function catalogue declares, the name space, entry checking and
   localised names.
 

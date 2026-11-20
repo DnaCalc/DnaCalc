@@ -449,8 +449,8 @@ End Function
 }
 
 /// The macro security level (dc-15dk), end to end through the server's wire: a marked file offers
-/// Unblock and enable under Ask; Unguarded runs every file on open (a marked one with a notice);
-/// Safe runs it on open like Unguarded, under CalcVBA's Safe policy; a pinned level cannot be changed.
+/// Unblock and enable under Off; Unguarded runs every file on open (a marked one with a notice);
+/// Guarded runs it on open like Unguarded, under CalcVBA's capability policy; a pinned level cannot be changed.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn the_macro_security_level_decides_what_runs_and_what_the_buttons_do() {
@@ -537,19 +537,19 @@ fn the_macro_security_level_decides_what_runs_and_what_the_buttons_do() {
         MacroStatus::Enabled
     );
 
-    // Safe (dc-10un) runs the project on open, a marked one too, under the Safe policy.
+    // Guarded (dc-10un, dc-8ovd) runs the project on open, a marked one too, under the Guarded policy.
     server
         .execute_current(
             Request::SetMacroSecurity {
-                level: MacroSecurity::Safe,
+                level: MacroSecurity::Guarded,
             },
             None,
         )
         .reply
         .unwrap();
-    let safe = open(&mut server, FileOrigin::Local);
-    assert_eq!(safe.macros, MacroStatus::Enabled);
-    assert_eq!(safe.macro_policy.level(), MacroSecurity::Safe);
+    let guarded = open(&mut server, FileOrigin::Local);
+    assert_eq!(guarded.macros, MacroStatus::Enabled);
+    assert_eq!(guarded.macro_policy.level(), MacroSecurity::Guarded);
     assert_eq!(
         open(&mut server, FileOrigin::Zone(3)).macros,
         MacroStatus::Enabled
@@ -557,7 +557,7 @@ fn the_macro_security_level_decides_what_runs_and_what_the_buttons_do() {
 
     // The flag, the variable or --macros pins a level: the page cannot choose another.
     let mut pinned = Server::new();
-    pinned.set_macro_policy(MacroPolicy::resolve(MacroSecurity::Safe, true, None, None));
+    pinned.set_macro_policy(MacroPolicy::resolve(MacroSecurity::Guarded, true, None, None));
     let marked = open(&mut pinned, FileOrigin::Zone(3));
     assert_eq!(marked.macros, MacroStatus::Enabled);
     assert_eq!(marked.macro_policy.pinned(), Some(Pin::Flag));

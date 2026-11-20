@@ -69,7 +69,8 @@ struct Options {
     open: Option<PathBuf>,
     /// `--trust-macros`: pins the macro security level to Unguarded (dc-15dk).
     trust_macros: bool,
-    /// `--macros off|safe|unguarded`: pins the macro security level for this run.
+    /// `--macros off|guarded|unguarded`: pins the macro security level for this run (`safe` is
+    /// accepted as an alias for `guarded`).
     macros: Option<calc_macro_security::MacroSecurity>,
 }
 
@@ -115,7 +116,7 @@ fn options(args: &[String]) -> Result<Options, String> {
                 let text = value()?;
                 o.macros = Some(
                     calc_macro_security::MacroSecurity::parse(&text)
-                        .ok_or(format!("--macros is off, safe or unguarded, not {text}"))?,
+                        .ok_or(format!("--macros is off, guarded or unguarded, not {text}"))?,
                 )
             }
             "--size" => {
@@ -1082,6 +1083,19 @@ mod tests {
         assert_eq!((o.size, o.xlls.len()), ((800, 600), 1));
         assert!(options(&args(&["--app", "--probe", "p.json"])).is_ok());
         assert!(options(&args(&["--app", "--bogus"])).is_err());
+        // `--macros guarded` is the canonical name; `--macros safe` remains an alias (dc-8ovd).
+        assert_eq!(
+            options(&args(&["--app", "--assets", "dist", "--macros", "guarded"]))
+                .unwrap()
+                .macros,
+            Some(calc_macro_security::MacroSecurity::Guarded)
+        );
+        assert_eq!(
+            options(&args(&["--app", "--assets", "dist", "--macros", "safe"]))
+                .unwrap()
+                .macros,
+            Some(calc_macro_security::MacroSecurity::Guarded)
+        );
     }
 
     /// Native-only: `--open FILE` and a file path as the first argument both name the workbook
@@ -1132,18 +1146,18 @@ mod tests {
             let settings =
                 std::env::temp_dir().join(format!("dna-calc-macro-level-{}", std::process::id()));
             let ask = MacroPolicy::stored(MacroSecurity::Off);
-            let none = MacroPolicy::stored(MacroSecurity::Safe);
+            let guarded = MacroPolicy::stored(MacroSecurity::Guarded);
             assert!(!persist_macro_policy(&settings, ask, ask).unwrap());
-            assert!(persist_macro_policy(&settings, ask, none).unwrap());
+            assert!(persist_macro_policy(&settings, ask, guarded).unwrap());
             assert_eq!(
                 calc_platform_desktop::macro_security::load(&settings),
-                MacroSecurity::Safe
+                MacroSecurity::Guarded
             );
             let pinned = MacroPolicy::resolve(MacroSecurity::Off, true, None, None);
-            assert!(!persist_macro_policy(&settings, none, pinned).unwrap());
+            assert!(!persist_macro_policy(&settings, guarded, pinned).unwrap());
             assert_eq!(
                 calc_platform_desktop::macro_security::load(&settings),
-                MacroSecurity::Safe
+                MacroSecurity::Guarded
             );
             std::fs::remove_dir_all(&settings).unwrap();
         }

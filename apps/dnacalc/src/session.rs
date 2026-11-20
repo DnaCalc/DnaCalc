@@ -77,7 +77,7 @@ pub(crate) fn open(cli: &Cli) -> Result<Book, Failure> {
             ) {
                 Ok(project) => (
                     json!({"level": cli.level.key(), "project": true, "ran": true,
-                           "policy": match policy { VbaPolicy::Safe => "safe", VbaPolicy::Full => "full" }}),
+                           "policy": match policy { VbaPolicy::Guarded => "guarded", VbaPolicy::Full => "full" }}),
                     project,
                 ),
                 Err(error) => (

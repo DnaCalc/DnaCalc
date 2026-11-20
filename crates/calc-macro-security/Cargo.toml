@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 license.workspace = true
-description = "The per-user macro security level both applications share (Ask, Enable all, Disable all) and what pins it from the command line or the environment (dc-15dk)."
+description = "The per-user macro security level both applications share (Off, Guarded, Unguarded) and what pins it from the command line or the environment (dc-15dk, dc-8ovd)."
 
 [package.metadata.dnacalc]
 portability = "portable"

@@ -419,7 +419,7 @@ remainder described in closed dc-1nbp.20.
 ### 8. Code-execution choices and native failure recovery are not uniform
 
 **What the user sees.** Trust decisions can differ by how a workbook is opened. A native XLL
-does not gain VBA's capability restrictions simply because the app offers “Safe”. Crashing or
+does not gain VBA's capability restrictions simply because the app offers “Guarded”. Crashing or
 unloading native code can affect the desktop process and unsaved work.
 
 **Evidence.** dc-2nn1 identifies missing origin information from the page's file input,

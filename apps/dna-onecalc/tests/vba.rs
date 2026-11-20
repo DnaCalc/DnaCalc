@@ -355,10 +355,11 @@ End Function
     }
 }
 
-/// Native Dictionary executes through the application in Safe without a COM activation.
+/// Native Dictionary executes through the application in Guarded without a COM activation.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn native_dictionary_is_available_in_safe_without_a_policy_request() {
+fn native_dictionary_is_available_in_guarded_without_a_policy_request() {
+    // CalcVBA keeps `PolicyMode::Safe` for DNA Calc's Guarded until the post-vx1 rename (dc-8ovd).
     let _policy = calc_vba::policy::PolicyScope::enter(calc_vba::policy::PolicyMode::Safe);
     let _ = calc_vba::policy::drain_audit();
     let mut s = session();
@@ -876,7 +877,7 @@ fn active_sheet_and_selection_are_the_users_as_excel_measured() {
 
 /// dc-15dk: the macro security level. Off offers Unblock and enable for a marked file (the plain
 /// Enable still refuses it); Unguarded runs every file on open, a marked one with a notice;
-/// Safe runs it on open too, under CalcVBA's Safe policy; a pinned level cannot be changed; the
+/// Guarded runs it on open too, under CalcVBA's capability policy; a pinned level cannot be changed; the
 /// level survives a new session and another file. (A project that cannot compile on this platform
 /// stays held and says why; the level's decisions are checked either way.)
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -950,24 +951,24 @@ fn the_macro_security_level_decides_what_runs_and_what_the_buttons_do() {
         };
         assert_eq!(fresh.macro_policy.level(), MacroSecurity::Unguarded);
 
-        // Safe (dc-10un): the project runs on open under the Safe policy, a marked file too.
+        // Guarded (dc-10un, dc-8ovd): the project runs on open under the Guarded policy, a marked file too.
         port.send(Request::SetMacroSecurity {
-            level: MacroSecurity::Safe,
+            level: MacroSecurity::Guarded,
         });
-        let safe = open(&mut port, None).project.unwrap();
-        let safe_marked = open(&mut port, Some(3)).project.unwrap();
+        let guarded = open(&mut port, None).project.unwrap();
+        let guarded_marked = open(&mut port, Some(3)).project.unwrap();
         if can_compile {
-            assert_eq!(safe.macros, MacrosView::Enabled, "{safe:?}");
-            assert_eq!(safe_marked.macros, MacrosView::Enabled, "{safe_marked:?}");
+            assert_eq!(guarded.macros, MacrosView::Enabled, "{guarded:?}");
+            assert_eq!(guarded_marked.macros, MacrosView::Enabled, "{guarded_marked:?}");
             assert_eq!(port.session().project().map(|p| p.is_running()), Some(true));
         } else {
-            assert_ne!(safe.macros, MacrosView::Enabled, "{safe:?}");
+            assert_ne!(guarded.macros, MacrosView::Enabled, "{guarded:?}");
         }
 
         // Pinned by the flag or the variable: Unguarded, and the page cannot choose another.
         let mut pinned = LocalPort::new(Session::new("Sheet1").unwrap());
         pinned.session_mut().set_macro_policy(MacroPolicy::resolve(
-            MacroSecurity::Safe,
+            MacroSecurity::Guarded,
             false,
             Some("1"),
             None,
