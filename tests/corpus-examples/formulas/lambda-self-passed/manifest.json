@@ -15,10 +15,10 @@
     "A1": 6
   },
   "formulas": {
-    "N2": "=LET(fact,LAMBDA(self,number,IF(number<2,1,number*self(self,number-1))),fact(fact,A1))"
+    "N2": "=LET(ownFactorial,LAMBDA(self,number,IF(number<2,1,number*self(self,number-1))),ownFactorial(ownFactorial,A1))"
   },
   "stored_formulas": {
-    "N2": "=_xlfn.LET(fact,_xlfn.LAMBDA(_xlpm.self,_xlpm.number,IF(_xlpm.number<2,1,_xlpm.number*_xlpm.self(_xlpm.self,_xlpm.number-1))),fact(fact,A1))"
+    "N2": "=_xlfn.LET(ownFactorial,_xlfn.LAMBDA(_xlpm.self,_xlpm.number,IF(_xlpm.number<2,1,_xlpm.number*_xlpm.self(_xlpm.self,_xlpm.number-1))),ownFactorial(ownFactorial,A1))"
   },
   "capture": [
     "Sheet1!N2"
