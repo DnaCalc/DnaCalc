@@ -4693,10 +4693,30 @@ impl Server {
             Some(calc_value::CoreRef::Logical(b)) => Some(if b { 1.0 } else { 0.0 }),
             _ => None,
         };
-        let mut radios: Vec<&FormControlView> = views.iter().filter(|v| v.control.kind == "Radio").collect();
-        radios.sort_by_key(|v| v.control.id);
-        let group_link = radios.iter().find_map(|v| v.link);
-        let group_value = radios.iter().find(|v| v.link.is_some()).and_then(|v| number(&v.linked));
+        // Option buttons go in groups: those inside one group box are a group, those inside none are the sheet's
+        // group. A button is inside the smallest group box its whole rectangle lies in (ASSUMED until Excel answers).
+        // Within a group the buttons count from 1 in the order they were made (their identities), and the group
+        // shares the first linked cell any of them states.
+        let host = self.book.host();
+        let rect = |v: &FormControlView| host.anchor_rectangle(sheet.id(), &v.control.anchor);
+        let boxes: Vec<(u32, (f64, f64, f64, f64))> = views.iter().filter(|v| v.control.kind == "GBox").map(|v| (v.control.id, rect(v))).collect();
+        let group_of = |v: &FormControlView| -> Option<u32> {
+            let (l, t, w, h) = rect(v);
+            boxes
+                .iter()
+                .filter(|(_, (bl, bt, bw, bh))| l >= *bl && t >= *bt && l + w <= bl + bw && t + h <= bt + bh)
+                .min_by(|a, b| (a.1.2 * a.1.3).total_cmp(&(b.1.2 * b.1.3)))
+                .map(|(id, _)| *id)
+        };
+        let mut radios: Vec<(&FormControlView, Option<u32>)> = views.iter().filter(|v| v.control.kind == "Radio").map(|v| (v, group_of(v))).collect();
+        radios.sort_by_key(|(v, _)| v.control.id);
+        let group = |id: u32| -> (Vec<&FormControlView>, Option<CellKey>, Option<f64>) {
+            let of = radios.iter().find(|(v, _)| v.control.id == id).and_then(|(_, g)| *g);
+            let members: Vec<&FormControlView> = radios.iter().filter(|(_, g)| *g == of).map(|(v, _)| *v).collect();
+            let link = members.iter().find_map(|v| v.link);
+            let value = members.iter().find(|v| v.link.is_some()).and_then(|v| number(&v.linked));
+            (members, link, value)
+        };
         views
             .iter()
             .filter_map(|v| {
@@ -4712,7 +4732,8 @@ impl Server {
                         _ => c.checked.clone().unwrap_or_else(|| "Unchecked".into()),
                     },
                     "Radio" => {
-                        position = radios.iter().position(|r| r.control.id == c.id).map_or(1, |p| p + 1);
+                        let (members, group_link, group_value) = group(c.id);
+                        position = members.iter().position(|r| r.control.id == c.id).map_or(1, |p| p + 1);
                         link = group_link;
                         match group_value {
                             Some(n) => if n == position as f64 { "Checked" } else { "Unchecked" }.to_owned(),
@@ -5504,12 +5525,16 @@ mod outline_tests {
             c
         };
         let drawn = controls(&mut server);
-        assert_eq!(drawn.len(), 10);
+        assert_eq!(drawn.len(), 12);
         let by = |c: &[dna_calc_model::controls::DrawnControl], name: &str| c.iter().find(|x| x.name == name).unwrap().clone();
         // B2 TRUE: checked; B3 2: the second option button; B4 3: the third item; B5 30; B6 5; B7 2: the second item.
         assert_eq!(by(&drawn, "Check Box 2").checked, "Checked");
         assert_eq!((by(&drawn, "Option Button 3").checked.as_str(), by(&drawn, "Option Button 4").checked.as_str()), ("Unchecked", "Checked"));
         assert_eq!(by(&drawn, "Option Button 4").link, by(&drawn, "Option Button 3").link);
+        // The two option buttons inside the group box are a group of their own: linked to B8 (2), numbered 1 and 2.
+        let (weekly, daily) = (by(&drawn, "Option Button 11"), by(&drawn, "Option Button 12"));
+        assert_eq!((weekly.position, daily.position, weekly.checked.as_str(), daily.checked.as_str()), (1, 2, "Unchecked", "Checked"));
+        assert_eq!((weekly.link, daily.link), (Some(Key(sheet.0, sheet.1, 8, 2)), Some(Key(sheet.0, sheet.1, 8, 2))));
         let list = by(&drawn, "List Box 5");
         assert_eq!((list.items.clone(), list.selected), (vec!["North".to_owned(), "South".into(), "East".into(), "West".into()], Some(2)));
         assert_eq!(by(&drawn, "Drop Down 8").selected, Some(1));
@@ -5527,6 +5552,11 @@ mod outline_tests {
         let after = controls(&mut server);
         assert_eq!(by(&after, "Check Box 2").checked, "Unchecked");
         assert_eq!(by(&after, "Option Button 3").checked, "Checked");
+        // Clicking an option button of the sheet's group leaves the group box's group as it was.
+        assert_eq!(by(&after, "Option Button 12").checked, "Checked");
+        click(&mut server, &by(&after, "Option Button 11"), "toggle", None);
+        let again = controls(&mut server);
+        assert_eq!((by(&again, "Option Button 11").checked.as_str(), by(&again, "Option Button 3").checked.as_str()), ("Checked", "Checked"));
         assert_eq!(by(&after, "List Box 5").selected, Some(0));
         assert_eq!(by(&after, "Spinner 7").value, 6);
         assert!(matches!(control_action(&by(&after, "Button 1"), "run", None), Some(ControlAction::RunMacro(_))));

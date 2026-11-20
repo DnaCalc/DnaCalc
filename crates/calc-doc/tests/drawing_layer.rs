@@ -1309,6 +1309,8 @@ fn dc_zjsg_8__form_controls_read_with_their_properties_and_captions() {
             (1032, "Drop", None),
             (1033, "GBox", Some("Options")),
             (1034, "Label", Some("A label")),
+            (1035, "Radio", Some("Weekly")),
+            (1036, "Radio", Some("Daily")),
         ]
     );
     let check = &read.controls[1];
