@@ -2251,10 +2251,10 @@ End Function
     }
 }
 
-/// A Safe grant must bind the project's host, survive policy restoration and keep its audit.
+/// A Guarded grant must bind the project's host, survive policy restoration and keep its audit.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn a_safe_grant_denies_native_com_under_an_ambient_full_policy() {
+fn a_guarded_grant_denies_native_com_under_an_ambient_full_policy() {
     use calc_vba::policy::{self, Capability, PolicyMode};
     let bytes = vba_project::replace_sources(
         LOCAL,
@@ -2270,13 +2270,13 @@ fn a_safe_grant_denies_native_com_under_an_ambient_full_policy() {
     );
     for backend in backends() {
         policy::set_thread_policy(Some(PolicyMode::Full));
-        let session = opened(&bytes, "safe.xlsm");
+        let session = opened(&bytes, "guarded.xlsm");
         let grant =
-            calc_host_vba::ProjectGrant::trust_all("test", calc_macro_security::VbaPolicy::Safe);
+            calc_host_vba::ProjectGrant::trust_all("test", calc_macro_security::VbaPolicy::Guarded);
         let owner = calc_host_vba::prepare_file_project_with_events(
             &grant,
             session.host(),
-            "safe.xlsm",
+            "guarded.xlsm",
             100_000,
             Some(backend),
             false,

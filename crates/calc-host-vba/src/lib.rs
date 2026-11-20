@@ -290,11 +290,12 @@ fn prepare_project(
         })
         .collect::<Result<Vec<_>, String>>()?;
     // The grant's policy wraps every host built for this load (CalcVBA's PolicyHost); a stricter
-    // policy the thread already holds (Safe) stays, and the thread's earlier policy is put back
+    // policy the thread already holds (Guarded) stays, and the thread's earlier policy is put back
     // after the load.
     let _policy = grant.as_ref().map(|grant| {
         calc_vba::policy::PolicyScope::enter(match grant.policy() {
-            calc_macro_security::VbaPolicy::Safe => calc_vba::policy::PolicyMode::Safe,
+            // CalcVBA keeps `PolicyMode::Safe` until the post-vx1 rename (dc-8ovd).
+            calc_macro_security::VbaPolicy::Guarded => calc_vba::policy::PolicyMode::Safe,
             calc_macro_security::VbaPolicy::Full => calc_vba::policy::PolicyMode::Full,
         })
     });

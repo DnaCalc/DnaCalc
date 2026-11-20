@@ -69,15 +69,16 @@ the person's rights, as in Excel. What the application does about that is small 
    in `%LOCALAPPDATA%\DnaCalc\macro-security.txt`, or `DNACALC_SETTINGS_DIR`, or OneCalc's
    `--data-dir`), is always shown on the page and changed there: Off (the default, as above: the
    bar and Enable macros; a marked or network file offers Unblock and enable behind a short
-   warning instead of a refusal), Safe (VBA runs with dangerous operating-system services
-   refused; the policy is CalcVBA's, dc-10un, and until it lands Safe behaves as Off and says so)
-   and Unguarded (full access, Excel's enable macros: the project runs on open, a marked or
-   network file too, with an information notice). `--trust-macros` (Unguarded) or
-   `--macros off|safe|unguarded` (both desktop executables, `--app` and `--engine`) or
+   warning instead of a refusal), Guarded (VBA runs with dangerous operating-system services
+   refused; CalcVBA's capability policy, dc-10un / dc-8ovd; an old stored `safe` still reads as
+   `guarded`) and Unguarded (full access, Excel's enable macros: the project runs on open, a marked
+   or network file too, with an information notice). `--trust-macros` (Unguarded) or
+   `--macros off|guarded|unguarded` (`safe` accepted as an alias for `guarded`; both desktop
+   executables, `--app` and `--engine`) or
    `DNACALC_TRUST_ALL_MACROS=1` (Unguarded; also read by `cargo xtask compare` and `corpus`) pin the
    level for a run, for scripts, agents and the harness; a pinned level is shown with what pins
    it, is never stored and the page cannot change it. The grant carries the single VBA host
-   policy choice (`ProjectGrant::policy`, Full until Safe exists). Under the variable a capture
+   policy choice (`ProjectGrant::policy`, `Guarded` or `Full`). Under the variable a capture
    whose Excel ran with macros disabled still compares with the project held. The trusted-code
    manifest stays as the other route for evidence runs.
 2. A session lists add-ins with the hash of each file when it was saved; reopening only offers.

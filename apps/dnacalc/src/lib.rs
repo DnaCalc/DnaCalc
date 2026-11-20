@@ -11,8 +11,9 @@
 //! ```
 //!
 //! Options on workbook commands: `--json` (one JSON document on stdout), `--macro-level
-//! off|safe|unguarded` (default `off`: the file's VBA project does not run; `safe` runs it with
-//! the operating-system services refused, `unguarded` with full access). `diff` takes `--cells`
+//! off|guarded|unguarded` (default `off`: the file's VBA project does not run; `guarded` runs it
+//! with the operating-system services refused — `safe` is accepted as an alias; `unguarded` with
+//! full access). `diff` takes `--cells`
 //! to list the per-cell rows in text mode (JSON always has them).
 //!
 //! Everything goes through the one session (`calc_host::HostSession`) the applications use, and
@@ -38,7 +39,7 @@ pub const USAGE: &str = "usage: dnacalc <command> [arguments] [options]
   get    <book> <cell>...                 a cell's formula, cached value and calculated value
   set    <book> <cell> <text> [<cell> <text>]... [--out <file>]   enter cells as typed, recalculate, save with --out
   run    <book> --macro <Module.Proc> [--arg <value>]... [--out <file>]   call a public VBA Function of the file's project
-workbook options: --json  one JSON document on stdout;  --macro-level off|safe|unguarded  (default off)
+workbook options: --json  one JSON document on stdout;  --macro-level off|guarded|unguarded  (default off)
          --locale <culture>  the regional settings TEXT, VALUE and ASC read (default en-US, DNA Calc's own; Excel's are not read)
          NOW and TODAY read this machine's clock (UTC)
 A cell is A1 or Sheet1!A1 (the first sheet when unqualified).
@@ -100,10 +101,10 @@ fn parse(args: &[String]) -> Result<Cli, Failure> {
             "--arg" => cli.macro_args.push(value("a value")?),
             "--locale" => cli.locale = value("a culture such as en-US")?,
             "--macro-level" => {
-                let text = value("off, safe or unguarded")?;
+                let text = value("off, guarded or unguarded")?;
                 cli.level = calc_macro_security::MacroSecurity::parse(&text).ok_or_else(|| {
                     fail(format!(
-                        "--macro-level {text:?}: expected off, safe or unguarded"
+                        "--macro-level {text:?}: expected off, guarded or unguarded"
                     ))
                 })?;
             }

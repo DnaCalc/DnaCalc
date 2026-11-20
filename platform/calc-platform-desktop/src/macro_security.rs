@@ -78,16 +78,33 @@ mod tests {
         let _ = std::fs::remove_dir_all(&folder);
     }
 
+    /// Native-only: an old stored "safe" reads as Guarded, and saving Guarded writes "guarded"
+    /// (dc-8ovd).
+    #[test]
+    fn old_stored_safe_reads_as_guarded_and_saves_as_guarded() {
+        let folder = folder("legacy-safe");
+        std::fs::create_dir_all(&folder).unwrap();
+        std::fs::write(folder.join(FILE), "safe\n").unwrap();
+        assert_eq!(load(&folder), MacroSecurity::Guarded);
+        save(&folder, MacroSecurity::Guarded).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(folder.join(FILE)).unwrap(),
+            "guarded\n"
+        );
+        assert_eq!(load(&folder), MacroSecurity::Guarded);
+        let _ = std::fs::remove_dir_all(&folder);
+    }
+
     /// Native-only: it writes the per-user file. The flag pins Unguarded over a stored level and
     /// leaves the stored level as it was.
     #[test]
     fn the_flag_pins_enable_all_without_touching_the_stored_level() {
         let folder = folder("flag");
-        save(&folder, MacroSecurity::Safe).unwrap();
+        save(&folder, MacroSecurity::Guarded).unwrap();
         let pinned = policy(&folder, true, None);
         assert_eq!(pinned.level(), MacroSecurity::Unguarded);
         assert!(pinned.pinned().is_some());
-        assert_eq!(load(&folder), MacroSecurity::Safe);
+        assert_eq!(load(&folder), MacroSecurity::Guarded);
         let _ = std::fs::remove_dir_all(&folder);
     }
 }

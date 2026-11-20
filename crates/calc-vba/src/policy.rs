@@ -1,7 +1,8 @@
 //! The capability policy a VBA project runs under (CalcVBA `PolicyHost`).
 //!
 //! The policy is per thread, because a project runs on the thread that loaded it: set it before
-//! loading a module or project, and every host built for that load is wrapped. `Safe` denies the
+//! loading a module or project, and every host built for that load is wrapped. Guarded (CalcVBA's
+//! `PolicyMode::Safe` until the post-vx1 rename, dc-8ovd) denies the
 //! eight capabilities (files, processes, environment, settings, `Declare`, COM activation,
 //! `SendKeys`/`AppActivate`) with the VBA errors 70, 53 and 429, `Full` lets them reach the host,
 //! and both write an audit log that [`drain_audit`] returns per case. With no policy set (the
@@ -13,6 +14,7 @@ use std::sync::Arc;
 
 pub use calcvba_lib::{Prediction, PredictionSource};
 use calcvba_hal::{AuditHandle, HostServices, PolicyHost};
+// CalcVBA keeps `PolicyMode::Safe` for DNA Calc's Guarded until the post-vx1 rename (dc-8ovd).
 pub use calcvba_hal::{
     AuditSnapshot, Capability, CapabilitySet, Decision, POLICY_DENIED_CODE, PolicyMode,
 };
@@ -37,13 +39,14 @@ pub fn set_thread_policy(mode: Option<PolicyMode>) {
     });
 }
 
-/// Temporarily select a project's policy, preserving the audit and any stricter outer Safe.
+/// Temporarily select a project's policy, preserving the audit and any stricter outer Guarded.
 /// The previous policy is restored even when compilation unwinds.
 pub struct PolicyScope(Option<Active>);
 impl PolicyScope {
     pub fn enter(mode: PolicyMode) -> Self {
         ACTIVE.with(|active| {
             let previous = active.borrow_mut().take();
+            // CalcVBA keeps `PolicyMode::Safe` for DNA Calc's Guarded until the post-vx1 rename (dc-8ovd).
             let mode = if previous
                 .as_ref()
                 .is_some_and(|p| p.mode == PolicyMode::Safe)
@@ -94,7 +97,7 @@ fn is_standard_library(reference: &calcvba_symbol::manifest::ProjectReference) -
 
 /// Apply the same policy while compiler resolution could load a native type library, except when
 /// every reference is a standard library ([`STANDARD_LIBRARIES`]): a Windows file lists them all
-/// the time, and denying their metadata made `Safe` refuse every case of every such workbook.
+/// the time, and denying their metadata made Guarded refuse every case of every such workbook.
 /// A reference to any other library, by name or by identity, is still denied and audited.
 pub(crate) fn compilation_scope(
     references: &[calcvba_symbol::manifest::ProjectReference],

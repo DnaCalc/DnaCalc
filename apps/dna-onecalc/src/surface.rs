@@ -1460,7 +1460,7 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                     }
                 >
                     <option value="off">"Off"</option>
-                    <option value="safe">"Safe"</option>
+                    <option value="guarded">"Guarded"</option>
                     <option value="unguarded">"Unguarded"</option>
                 </select>
             </p>

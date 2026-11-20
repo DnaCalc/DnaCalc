@@ -35,12 +35,13 @@ fn type_library(name: &str, guid: &str, import: &str) -> calcvba_symbol::manifes
     }
 }
 
-/// Compile a one-function file project against `compiler` under Safe and return what the policy
+/// Compile a one-function file project against `compiler` under Guarded and return what the policy
 /// audited, with whether the project loaded.
-fn safe_compile_audit(
+fn guarded_compile_audit(
     compiler: Vec<calcvba_symbol::manifest::ProjectReference>,
     backend: Backend,
 ) -> (bool, crate::policy::AuditSnapshot) {
+    // CalcVBA keeps `PolicyMode::Safe` for DNA Calc's Guarded until the post-vx1 rename (dc-8ovd).
     let _scope = crate::policy::PolicyScope::enter(crate::policy::PolicyMode::Safe);
     let _ = crate::policy::drain_audit();
     let libraries = vec!["stdole".into()];
@@ -65,28 +66,28 @@ fn safe_compile_audit(
 }
 
 // A Windows file lists OLE Automation, Office and Scripting even when its procedures use no COM.
-// Their compile-time metadata is a lookup of a standard library, so Safe neither denies nor audits
-// it: before this every case of such a workbook was refused (dc-tey4.1).
+// Their compile-time metadata is a lookup of a standard library, so Guarded neither denies nor
+// audits it: before this every case of such a workbook was refused (dc-tey4.1).
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn safe_file_compilation_allows_the_standard_libraries_a_file_lists() {
+fn guarded_file_compilation_allows_the_standard_libraries_a_file_lists() {
     for backend in backends() {
         let compiler = vec![
             type_library("stdole", crate::office::STDOLE_LIBRARY, "stdole2.tlb"),
             type_library("Office", "{2DF8D04C-5BFA-101B-BDE5-00AA0044DE52}", "MSO.DLL"),
         ];
-        let (loaded, audit) = safe_compile_audit(compiler, backend);
+        let (loaded, audit) = guarded_compile_audit(compiler, backend);
         assert!(loaded, "{backend:?}");
         assert!(audit.denied_set().is_empty(), "{backend:?}: {:?}", audit.records);
         assert!(!audit.records.iter().any(|r| r.op.starts_with("typelib.")));
     }
 }
 
-// Any other library is still a native metadata load: Safe audits and denies it, and a project that
-// lists one beside the standard libraries gets no exemption.
+// Any other library is still a native metadata load: Guarded audits and denies it, and a project
+// that lists one beside the standard libraries gets no exemption.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn safe_file_compilation_still_denies_a_library_that_is_not_standard() {
+fn guarded_file_compilation_still_denies_a_library_that_is_not_standard() {
     for backend in backends() {
         let compiler = vec![
             type_library("stdole", crate::office::STDOLE_LIBRARY, "stdole2.tlb"),
@@ -96,7 +97,7 @@ fn safe_file_compilation_still_denies_a_library_that_is_not_standard() {
                 "wshom.ocx",
             ),
         ];
-        let (_, audit) = safe_compile_audit(compiler, backend);
+        let (_, audit) = guarded_compile_audit(compiler, backend);
         assert!(
             audit.denied_set().contains(crate::policy::Capability::ComActivate),
             "{backend:?}: {:?}",

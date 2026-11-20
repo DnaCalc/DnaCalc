@@ -583,7 +583,8 @@ fn a_macro_workbook_runs_nothing_until_enabled_and_a_marked_one_never() {
 /// Native-only: the macro security level in the harness (dc-15dk), through the real executable and
 /// its per-user settings folder. A marked file is refused by `--enable-macros` and runs under
 /// `--trust-macros`, `--macros unguarded`, `DNACALC_TRUST_ALL_MACROS=1` and the stored level
-/// Unguarded and Safe (the project runs under CalcVBA's Safe policy); the flag and the
+/// Unguarded and Guarded (the project runs under CalcVBA's capability policy); `--macros safe`
+/// and a stored "safe" remain aliases for Guarded (dc-8ovd); the flag and the
 /// variable pin Unguarded over a stored level while `--macros off` pins Off over them all.
 /// `local.xlsm`'s Module1.MyFunc is x+100.
 #[test]
@@ -628,6 +629,8 @@ fn the_macro_security_level_decides_whether_a_marked_workbook_runs_in_the_harnes
     // The flags and the variable run it (and need no `--enable-macros`).
     assert!(runs(&run(&["--trust-macros"], None)));
     assert!(runs(&run(&["--macros", "unguarded"], None)));
+    assert!(runs(&run(&["--macros", "guarded"], None)));
+    assert!(runs(&run(&["--macros", "safe"], None)));
     assert!(runs(&run(&[], Some("1"))));
     assert!(!runs(&run(&[], Some("0"))));
     assert!(!runs(&run(&["--macros", "off"], Some("1"))));
@@ -638,9 +641,17 @@ fn the_macro_security_level_decides_whether_a_marked_workbook_runs_in_the_harnes
     };
     store("unguarded");
     assert!(runs(&run(&[], None)));
+    store("guarded");
+    assert!(
+        runs(&run(&[], None)),
+        "Guarded runs the project under the Guarded policy"
+    );
     store("safe");
-    assert!(runs(&run(&[], None)), "Safe runs the project under the Safe policy");
-    // The flag and the variable pin Unguarded over the stored Safe.
+    assert!(
+        runs(&run(&[], None)),
+        "an old stored safe reads as Guarded (dc-8ovd)"
+    );
+    // The flag and the variable pin Unguarded over the stored Guarded.
     assert!(runs(&run(&["--trust-macros"], None)));
     assert!(runs(&run(&[], Some("1"))));
 }

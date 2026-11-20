@@ -194,8 +194,8 @@ surrogate and loading into a new one, with the recorded difference from Excel ke
 ## 9. Authority and trust
 
 A surrogate contains failures. It is not a sandbox. It runs as the same user with the same file
-system and network access. Macro security levels (Off, Safe, Unguarded) keep their meaning and
-are not tied to which process code runs in. A Safe grant never loads native code, which already
+system and network access. Macro security levels (Off, Guarded, Unguarded) keep their meaning and
+are not tied to which process code runs in. A Guarded grant never loads native code, which already
 holds today. Code that shares a surrogate is one trust domain. A restricted OS process policy
 would be a separately specified capability and is not part of this design.
 

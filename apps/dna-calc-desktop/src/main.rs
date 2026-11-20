@@ -126,10 +126,12 @@ fn run() -> Result<(), String> {
             // environment variable DNACALC_TRUST_ALL_MACROS=1 does the same.
             "--trust-macros" => trust_macros = true,
             "--macros" => {
-                let text = args.next().ok_or("--macros needs off, safe or unguarded")?;
+                let text = args
+                    .next()
+                    .ok_or("--macros needs off, guarded or unguarded")?;
                 macros_level = Some(
                     calc_macro_security::MacroSecurity::parse(&text)
-                        .ok_or(format!("--macros is off, safe or unguarded, not {text}"))?,
+                        .ok_or(format!("--macros is off, guarded or unguarded, not {text}"))?,
                 )
             }
             "--ribbon-ui" => ribbon_ui = true,
@@ -148,7 +150,7 @@ fn run() -> Result<(), String> {
             }
             "--help" => {
                 println!(
-                    "dna-calc-desktop [FILE | --open FILE] --app (--assets DIR | --url URL | a `page` folder beside the executable) [--xll PATH ...] [--trust-macros | --macros off|safe|unguarded] | --engine --xll PATH [--xll PATH ...] (PATH an .xll or a VBA .xlam) [--workbook FILE [--enable-macros | --trust-macros]] [--formula TEXT | --cases PATH] [--sheet NAME] [--workbook-name NAME] [--early-execution NAME] [--command NAME ...] [--early-command NAME ...]"
+                    "dna-calc-desktop [FILE | --open FILE] --app (--assets DIR | --url URL | a `page` folder beside the executable) [--xll PATH ...] [--trust-macros | --macros off|guarded|unguarded] | --engine --xll PATH [--xll PATH ...] (PATH an .xll or a VBA .xlam) [--workbook FILE [--enable-macros | --trust-macros]] [--formula TEXT | --cases PATH] [--sheet NAME] [--workbook-name NAME] [--early-execution NAME] [--command NAME ...] [--early-command NAME ...]"
                 );
                 return Ok(());
             }
