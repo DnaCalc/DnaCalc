@@ -35,6 +35,11 @@ pub enum CellEdit {
         sheet: calc_value::SheetId,
         shapes: Vec<calc_doc_model::Shape>,
     },
+    /// The sheet's sparkline groups (dc-zjsg.7).
+    Sparklines {
+        sheet: calc_value::SheetId,
+        groups: Vec<calc_doc_model::SparklineGroup>,
+    },
     AutoFilter {
         sheet: calc_doc_model::value::SheetId,
         filter: Option<calc_doc_model::AutoFilter>,
@@ -135,6 +140,10 @@ impl CellEdit {
             CellEdit::Shapes { sheet, shapes } => WorkbookOp::SetShapes {
                 sheet: *sheet,
                 shapes: shapes.clone(),
+            },
+            CellEdit::Sparklines { sheet, groups } => WorkbookOp::SetSparklines {
+                sheet: *sheet,
+                groups: groups.clone(),
             },
             CellEdit::Styles(styles) => WorkbookOp::SetStyles(styles.clone()),
             CellEdit::AutoFilter { sheet, filter } => WorkbookOp::SetAutoFilter {

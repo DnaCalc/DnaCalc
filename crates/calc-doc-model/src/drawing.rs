@@ -436,6 +436,8 @@ pub struct FormControl {
     pub flat: bool,
     /// The `controlPr macro` a button runs.
     pub macro_name: Option<String>,
+    /// `controlPr print` (true when absent): printed with the sheet.
+    pub prints: bool,
 }
 
 /// A sheet's drawing objects and how many the reading left alone.

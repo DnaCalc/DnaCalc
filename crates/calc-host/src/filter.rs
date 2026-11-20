@@ -276,7 +276,8 @@ pub(crate) fn apply(
             }
             FilterCriteria::Top { .. }
             | FilterCriteria::Color { .. }
-            | FilterCriteria::Average { .. } => 1,
+            | FilterCriteria::Average { .. }
+            | FilterCriteria::Calendar { .. } => 1,
             FilterCriteria::Custom { predicates, .. } => predicates.len(),
         })
         .sum::<usize>();
@@ -537,12 +538,28 @@ pub(crate) fn apply(
                     if *top { ">=" } else { "<=" }
                 )
             }
+            FilterCriteria::Calendar { period, .. } => {
+                // The period test swallows errors, so a missing clock must refuse here. Q1-Q4 and
+                // M1-M12 compare the date's own quarter or month and need no clock.
+                if !is_clock_free_period(period) {
+                    let today = context
+                        .compile("TODAY()", origin, calc_fml::FormulaForm::Legacy)
+                        .map_err(|e| refusal(e))?
+                        .evaluate_in(&context, origin)
+                        .map_err(|e| refusal(e))?;
+                    if today.as_number().is_none_or(|n| !n.is_finite()) {
+                        return Err(refusal("needs the clock for a date period, and none is set"));
+                    }
+                }
+                calendar_formula(&cell, period)?
+            }
             FilterCriteria::Average { above, .. } => {
                 let start = label(origin).trim_end_matches(char::is_numeric).to_owned();
                 let range = format!("${start}${first}:${start}${}", filter.area.last().row());
                 format!(
-                    "AND(ISNUMBER({cell}),IFERROR({cell}{}AVERAGE({range}),FALSE))",
-                    if *above { ">" } else { "<" }
+                    "AND(ISNUMBER({cell}),IFERROR({cell}{}{}(1,6,{range}),FALSE))",
+                    if *above { ">" } else { "<" },
+                    file_call_name("AGGREGATE")
                 )
             }
             FilterCriteria::Color { .. } => unreachable!(),
@@ -702,6 +719,7 @@ pub fn filter_values_for(
             FilterCriteria::Custom { .. }
             | FilterCriteria::Top { .. }
             | FilterCriteria::Average { .. }
+            | FilterCriteria::Calendar { .. }
             | FilterCriteria::Color { .. },
         ) => false,
         None => true,
@@ -796,4 +814,79 @@ fn fill_color(
 /// A measured function's name as a file writes its call (`_xlfn.XMATCH`), from the catalogue.
 fn file_call_name(name: &str) -> String {
     calc_func::file_call_name(name).expect("a function with a measured file form")
+}
+
+/// Whether a period filter compares only the date's own month or quarter (no clock).
+fn is_clock_free_period(period: &str) -> bool {
+    let number = |rest: &str, high: u8| rest.parse::<u8>().is_ok_and(|n| (1..=high).contains(&n));
+    period.strip_prefix('Q').is_some_and(|r| number(r, 4))
+        || period.strip_prefix('M').is_some_and(|r| number(r, 12))
+}
+
+/// The row test of a `dynamicFilter` date period over `cell`, on the clock's TODAY. Weeks run
+/// Sunday to Saturday; a period test reads the whole-day part of the cell, so a time of day
+/// on the day matches. Text and errors never match.
+fn calendar_formula(cell: &str, period: &str) -> Result<String, String> {
+    let today = "TODAY()";
+    let day = format!("INT({cell})");
+    let between = |from: String, to: String| {
+        format!("AND({day}>={from},{day}<{to})")
+    };
+    let body = match period {
+        "today" => format!("{day}={today}"),
+        "yesterday" => format!("{day}={today}-1"),
+        "tomorrow" => format!("{day}={today}+1"),
+        "thisWeek" | "lastWeek" | "nextWeek" => {
+            let shift = match period {
+                "thisWeek" => 0,
+                "lastWeek" => -7,
+                _ => 7,
+            };
+            let start = format!("({today}-WEEKDAY({today})+1+({shift}))");
+            between(start.clone(), format!("({start}+7)"))
+        }
+        "thisMonth" | "lastMonth" | "nextMonth" => {
+            let k = match period {
+                "thisMonth" => 0,
+                "lastMonth" => -1,
+                _ => 1,
+            };
+            between(
+                format!("DATE(YEAR({today}),MONTH({today})+({k}),1)"),
+                format!("DATE(YEAR({today}),MONTH({today})+({k})+1,1)"),
+            )
+        }
+        "thisQuarter" | "lastQuarter" | "nextQuarter" => {
+            let k = match period {
+                "thisQuarter" => 0,
+                "lastQuarter" => -3,
+                _ => 3,
+            };
+            let start = format!("(3*INT((MONTH({today})-1)/3)+1+({k}))");
+            between(
+                format!("DATE(YEAR({today}),{start},1)"),
+                format!("DATE(YEAR({today}),{start}+3,1)"),
+            )
+        }
+        "thisYear" | "lastYear" | "nextYear" => {
+            let k = match period {
+                "thisYear" => 0,
+                "lastYear" => -1,
+                _ => 1,
+            };
+            between(
+                format!("DATE(YEAR({today})+({k}),1,1)"),
+                format!("DATE(YEAR({today})+({k})+1,1,1)"),
+            )
+        }
+        "yearToDate" => format!("AND({day}>=DATE(YEAR({today}),1,1),{day}<={today})"),
+        q if q.len() == 2 && q.starts_with('Q') && matches!(q.as_bytes()[1], b'1'..=b'4') => {
+            format!("INT((MONTH({cell})-1)/3)+1={}", &q[1..])
+        }
+        m if m.starts_with('M') && m[1..].parse::<u8>().is_ok_and(|n| (1..=12).contains(&n)) => {
+            format!("MONTH({cell})={}", &m[1..])
+        }
+        other => return Err(refusal(format!("does not know the date period {other:?}"))),
+    };
+    Ok(format!("IFERROR(AND(ISNUMBER({cell}),{body}),FALSE)"))
 }

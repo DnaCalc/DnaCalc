@@ -126,6 +126,8 @@ pub struct Server {
     open_origin: std::rc::Rc<std::cell::Cell<Option<crate::workbook::FileOrigin>>>,
     /// The macro security level in force (dc-15dk): Off unless the native host sets another.
     macro_policy: dna_calc_model::MacroPolicy,
+    /// The bytes beside the intent being carried out (a picture's image, dc-zjsg.4).
+    intent_bytes: Option<Vec<u8>>,
 }
 
 impl Default for Server {
@@ -331,6 +333,7 @@ impl Server {
             template_counters: BTreeMap::new(),
             open_origin: Default::default(),
             macro_policy: dna_calc_model::MacroPolicy::default(),
+            intent_bytes: None,
         }
     }
 
@@ -1127,7 +1130,12 @@ impl Server {
                     }
                     Ok(self.done(true, None, 0.0))
                 }
-                Request::Intent(intent) => self.intent(intent),
+                Request::Intent(intent) => {
+                    self.intent_bytes = bytes;
+                    let reply = self.intent(intent);
+                    self.intent_bytes = None;
+                    reply
+                }
                 Request::Subscribe {
                     workbook,
                     id,
@@ -1303,6 +1311,12 @@ impl Server {
                                 percent: *percent,
                                 value: value.clone(),
                             },
+                            calc_host::FilterCriteria::Calendar { period, .. } => {
+                                wire::FilterChange::Calendar {
+                                    column,
+                                    period: period.clone(),
+                                }
+                            }
                             calc_host::FilterCriteria::Average { above, .. } => {
                                 wire::FilterChange::Average {
                                     column,
@@ -1401,6 +1415,17 @@ impl Server {
                         self.charts(sheet),
                         self.drawn_shapes_where(sheet, |shape| shape.prints),
                         self.drawn_sparklines(sheet),
+                        {
+                            let printed: std::collections::BTreeSet<u32> = self
+                                .book
+                                .host()
+                                .form_controls(sheet.id())
+                                .iter()
+                                .filter(|v| v.control.prints)
+                                .map(|v| v.control.id)
+                                .collect();
+                            self.drawn_controls(sheet).into_iter().filter(|c| printed.contains(&c.id)).collect()
+                        },
                     )))
                 }
                 Request::PivotSourceFields { area, revision } => Ok(Reply::PivotSourceFields(
@@ -2431,6 +2456,54 @@ impl Server {
                     },
                 })
             }
+            Intent::SparklineAdd { sheet, revision, at, data, kind } => {
+                let at = cell(at)?;
+                let data = match self.book.host().resolve_reference_text(at, data.trim()) {
+                    calc_host::ReferenceTarget::Area(area) => area,
+                    _ => return Err("Give the sparkline's data as a range, such as A2:E2".into()),
+                };
+                SkinIntent::Command(calc_host::WorkbookCommand::Sparkline {
+                    sheet: sheet.id(),
+                    revision,
+                    change: calc_host::SparklineChange::Add { data, cell: at, kind: Some(kind).filter(|k| !k.is_empty()) },
+                })
+            }
+            Intent::SparklineKind { sheet, revision, at, kind } => SkinIntent::Command(calc_host::WorkbookCommand::Sparkline {
+                sheet: sheet.id(),
+                revision,
+                change: calc_host::SparklineChange::Kind { cell: cell(at)?, kind: Some(kind).filter(|k| !k.is_empty()) },
+            }),
+            Intent::SparklineShow { sheet, revision, at, point, on } => SkinIntent::Command(calc_host::WorkbookCommand::Sparkline {
+                sheet: sheet.id(),
+                revision,
+                change: calc_host::SparklineChange::Show { cell: cell(at)?, point, on },
+            }),
+            Intent::SparklineDelete { sheet, revision, at } => SkinIntent::Command(calc_host::WorkbookCommand::Sparkline {
+                sheet: sheet.id(),
+                revision,
+                change: calc_host::SparklineChange::Delete { cell: cell(at)? },
+            }),
+            Intent::ShapePicture { sheet, revision, at, name } => {
+                let at = cell(at)?;
+                let bytes = self.intent_bytes.take().unwrap_or_default();
+                let (content_type, (width, height)) = crate::picture::inserted(&bytes)?;
+                let (left, top) = self.book.host().cell_corner(sheet.id(), at.row(), at.column());
+                let points = |v: f64| calc_host::Points::new(v);
+                SkinIntent::Command(calc_host::WorkbookCommand::Shape {
+                    sheet: sheet.id(),
+                    revision,
+                    change: calc_host::ShapeChange::AddPicture {
+                        left: points(left),
+                        top: points(top),
+                        // Pixels at 96 to the inch.
+                        width: points(width * 0.75),
+                        height: points(height * 0.75),
+                        content_type: content_type.to_owned(),
+                        bytes: bytes.into(),
+                        description: (!name.is_empty()).then_some(name),
+                    },
+                })
+            }
             Intent::ShapeText { sheet, revision, id, text } => SkinIntent::Command(calc_host::WorkbookCommand::Shape {
                 sheet: sheet.id(),
                 revision,
@@ -2473,6 +2546,11 @@ impl Server {
                 };
                 SkinIntent::Command(calc_host::WorkbookCommand::Shape { sheet: sheet.id(), revision, change: calc_host::ShapeChange::Order { id, order } })
             }
+            Intent::ShapeFlip { sheet, revision, id, horizontal } => SkinIntent::Command(calc_host::WorkbookCommand::Shape {
+                sheet: sheet.id(),
+                revision,
+                change: calc_host::ShapeChange::Flip { id, horizontal },
+            }),
             Intent::ShapeGroup { sheet, revision, ids } => SkinIntent::Command(calc_host::WorkbookCommand::Shape {
                 sheet: sheet.id(),
                 revision,
@@ -2681,6 +2759,14 @@ impl Server {
                             top,
                             percent,
                             value,
+                        }),
+                    },
+                    W::Calendar { column, period } => H::Column {
+                        column,
+                        criteria: Some(FilterCriteria::Calendar {
+                            period,
+                            val: None,
+                            max_val: None,
                         }),
                     },
                     W::Average { column, above } => H::Column {
@@ -4565,7 +4651,18 @@ impl Server {
                     continue;
                 };
                 let flagged = |on: bool, name: &str| if on { colour(name) } else { None };
+                // On a date axis, each point's share of the way from the earliest date to the latest.
+                let dated = finite(&line.dates);
+                let positions = match (extreme(&dated, false), extreme(&dated, true)) {
+                    (Some(first), Some(last)) => line
+                        .dates
+                        .iter()
+                        .map(|d| d.filter(|d| d.is_finite()).map(|d| if last > first { (d - first) / (last - first) } else { 0.5 }))
+                        .collect(),
+                    _ => Vec::new(),
+                };
                 out.push(dna_calc_model::sparklines::DrawnSparkline {
+                    positions,
                     cell: Key::of(line.cell),
                     kind: group.kind.clone().unwrap_or_else(|| "line".into()),
                     values: line.values,
@@ -4639,10 +4736,30 @@ impl Server {
             Some(calc_value::CoreRef::Logical(b)) => Some(if b { 1.0 } else { 0.0 }),
             _ => None,
         };
-        let mut radios: Vec<&FormControlView> = views.iter().filter(|v| v.control.kind == "Radio").collect();
-        radios.sort_by_key(|v| v.control.id);
-        let group_link = radios.iter().find_map(|v| v.link);
-        let group_value = radios.iter().find(|v| v.link.is_some()).and_then(|v| number(&v.linked));
+        // Option buttons go in groups: those inside one group box are a group, those inside none are the sheet's
+        // group. A button is inside the smallest group box its whole rectangle lies in (ASSUMED until Excel answers).
+        // Within a group the buttons count from 1 in the order they were made (their identities), and the group
+        // shares the first linked cell any of them states.
+        let host = self.book.host();
+        let rect = |v: &FormControlView| host.anchor_rectangle(sheet.id(), &v.control.anchor);
+        let boxes: Vec<(u32, (f64, f64, f64, f64))> = views.iter().filter(|v| v.control.kind == "GBox").map(|v| (v.control.id, rect(v))).collect();
+        let group_of = |v: &FormControlView| -> Option<u32> {
+            let (l, t, w, h) = rect(v);
+            boxes
+                .iter()
+                .filter(|(_, (bl, bt, bw, bh))| l >= *bl && t >= *bt && l + w <= bl + bw && t + h <= bt + bh)
+                .min_by(|a, b| (a.1.2 * a.1.3).total_cmp(&(b.1.2 * b.1.3)))
+                .map(|(id, _)| *id)
+        };
+        let mut radios: Vec<(&FormControlView, Option<u32>)> = views.iter().filter(|v| v.control.kind == "Radio").map(|v| (v, group_of(v))).collect();
+        radios.sort_by_key(|(v, _)| v.control.id);
+        let group = |id: u32| -> (Vec<&FormControlView>, Option<CellKey>, Option<f64>) {
+            let of = radios.iter().find(|(v, _)| v.control.id == id).and_then(|(_, g)| *g);
+            let members: Vec<&FormControlView> = radios.iter().filter(|(_, g)| *g == of).map(|(v, _)| *v).collect();
+            let link = members.iter().find_map(|v| v.link);
+            let value = members.iter().find(|v| v.link.is_some()).and_then(|v| number(&v.linked));
+            (members, link, value)
+        };
         views
             .iter()
             .filter_map(|v| {
@@ -4658,7 +4775,8 @@ impl Server {
                         _ => c.checked.clone().unwrap_or_else(|| "Unchecked".into()),
                     },
                     "Radio" => {
-                        position = radios.iter().position(|r| r.control.id == c.id).map_or(1, |p| p + 1);
+                        let (members, group_link, group_value) = group(c.id);
+                        position = members.iter().position(|r| r.control.id == c.id).map_or(1, |p| p + 1);
                         link = group_link;
                         match group_value {
                             Some(n) => if n == position as f64 { "Checked" } else { "Unchecked" }.to_owned(),
@@ -5407,6 +5525,39 @@ mod outline_tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     #[allow(non_snake_case)]
+    fn dc_zjsg_4__the_page_inserts_a_picture_at_its_own_size() {
+        let mut server = Server::new();
+        let sheet = Sheet::of(server.book.host().sheets()[0].id());
+        let at = Key::of(calc_value::CellKey::new(sheet.id(), 2, 2).unwrap());
+        let pictures: [(&str, &[u8], &str); 4] = [
+            ("card.png", include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/pictures/card.png"), "image/png"),
+            ("card.gif", include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/pictures/card.gif"), "image/gif"),
+            ("card.bmp", include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/pictures/card.bmp"), "image/bmp"),
+            ("card.jpg", include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/pictures/card.jpg"), "image/jpeg"),
+        ];
+        for (name, bytes, content_type) in pictures {
+            let revision = server.book.host().revision().get();
+            let reply = server.execute_current(Request::Intent(Intent::ShapePicture { sheet, revision, at, name: name.into() }), Some(bytes.to_vec())).reply;
+            assert!(matches!(&reply, Ok(Reply::Done { outcome, .. }) if outcome.accepted), "{name}: {reply:?}");
+            let shape = server.book.host().shapes(sheet.id()).last().unwrap().clone();
+            // 160 by 100 pixels: 120 by 75 points at B2's top left (column A 48 pt, row 1 15 pt).
+            assert_eq!((shape.kind, shape.offset, shape.extent), (calc_host::ShapeKind::Picture, (48 * 12_700, 15 * 12_700), (120 * 12_700, 75 * 12_700)), "{name}");
+            let media = shape.media.unwrap().image.unwrap();
+            assert_eq!((media.content_type.as_str(), &*media.bytes), (content_type, bytes), "{name}");
+            let Answer { reply, bytes: shown } = server.handle(Request::ShapePicture { sheet, id: shape.id }, None);
+            assert!(matches!(reply, Ok(Reply::ShapePicture(Some(_)))) && shown.is_some(), "{name}");
+        }
+        assert_eq!(server.book.host().shapes(sheet.id())[0].name, "Picture 1");
+        // Without its image, or with bytes that are no picture, nothing is inserted.
+        let revision = server.book.host().revision().get();
+        let reply = server.execute_current(Request::Intent(Intent::ShapePicture { sheet, revision, at, name: "x.png".into() }), Some(b"not a picture".to_vec())).reply;
+        assert!(reply.is_err() || matches!(&reply, Ok(Reply::Done { outcome, .. }) if !outcome.accepted), "{reply:?}");
+        assert_eq!(server.book.host().shapes(sheet.id()).len(), 4);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
     fn dc_zjsg_8__form_controls_show_their_linked_cells_and_clicks_write_them() {
         let mut server = Server::new();
         let data = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/form-controls.xlsx");
@@ -5417,19 +5568,23 @@ mod outline_tests {
             c
         };
         let drawn = controls(&mut server);
-        assert_eq!(drawn.len(), 10);
+        assert_eq!(drawn.len(), 12);
         let by = |c: &[dna_calc_model::controls::DrawnControl], name: &str| c.iter().find(|x| x.name == name).unwrap().clone();
         // B2 TRUE: checked; B3 2: the second option button; B4 3: the third item; B5 30; B6 5; B7 2: the second item.
         assert_eq!(by(&drawn, "Check Box 2").checked, "Checked");
         assert_eq!((by(&drawn, "Option Button 3").checked.as_str(), by(&drawn, "Option Button 4").checked.as_str()), ("Unchecked", "Checked"));
         assert_eq!(by(&drawn, "Option Button 4").link, by(&drawn, "Option Button 3").link);
+        // The two option buttons inside the group box are a group of their own: linked to B8 (2), numbered 1 and 2.
+        let (weekly, daily) = (by(&drawn, "Option Button 11"), by(&drawn, "Option Button 12"));
+        assert_eq!((weekly.position, daily.position, weekly.checked.as_str(), daily.checked.as_str()), (1, 2, "Unchecked", "Checked"));
+        assert_eq!((weekly.link, daily.link), (Some(Key(sheet.0, sheet.1, 8, 2)), Some(Key(sheet.0, sheet.1, 8, 2))));
         let list = by(&drawn, "List Box 5");
         assert_eq!((list.items.clone(), list.selected), (vec!["North".to_owned(), "South".into(), "East".into(), "West".into()], Some(2)));
         assert_eq!(by(&drawn, "Drop Down 8").selected, Some(1));
         assert_eq!((by(&drawn, "Scroll Bar 6").value, by(&drawn, "Spinner 7").value), (30, 5));
         // A click writes the linked cell through the ordinary edit; the next answer shows it.
         use dna_calc_model::controls::{ControlAction, control_action};
-        let mut click = |server: &mut Server, control: &dna_calc_model::controls::DrawnControl, act: &str, index: Option<usize>| {
+        let click = |server: &mut Server, control: &dna_calc_model::controls::DrawnControl, act: &str, index: Option<usize>| {
             let Some(ControlAction::Write(at, text)) = control_action(control, act, index) else { panic!("a write") };
             assert!(server.execute_current(Request::Intent(Intent::EnterCell { at, text }), None).reply.is_ok());
         };
@@ -5440,9 +5595,52 @@ mod outline_tests {
         let after = controls(&mut server);
         assert_eq!(by(&after, "Check Box 2").checked, "Unchecked");
         assert_eq!(by(&after, "Option Button 3").checked, "Checked");
+        // Clicking an option button of the sheet's group leaves the group box's group as it was.
+        assert_eq!(by(&after, "Option Button 12").checked, "Checked");
+        click(&mut server, &by(&after, "Option Button 11"), "toggle", None);
+        let again = controls(&mut server);
+        assert_eq!((by(&again, "Option Button 11").checked.as_str(), by(&again, "Option Button 3").checked.as_str()), ("Checked", "Checked"));
         assert_eq!(by(&after, "List Box 5").selected, Some(0));
         assert_eq!(by(&after, "Spinner 7").value, 6);
         assert!(matches!(control_action(&by(&after, "Button 1"), "run", None), Some(ControlAction::RunMacro(_))));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dc_zjsg_6__a_chart_sheet_shows_its_chart() {
+        let mut server = Server::new();
+        let data = include_bytes!("../../../crates/calc-doc/tests/fixtures/preserved_sheets/chart-and-dialog-sheets.xlsx");
+        assert!(server.execute_current(Request::Open { name: "chart-and-dialog-sheets.xlsx".into() }, Some(data.to_vec())).reply.is_ok());
+        let chart_sheet = server.book.host().sheets()[1].id();
+        let Reply::Charts(charts) = server.execute_current(Request::Charts(Sheet::of(chart_sheet)), None).reply.unwrap() else { panic!("charts") };
+        assert_eq!(charts.len(), 1);
+        assert!(charts[0].svg.contains("data-point=\"0\""), "{}", charts[0].svg);
+        assert!(!charts[0].svg.contains("chart-notice"));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dc_zjsg_7__the_page_inserts_changes_and_deletes_sparklines() {
+        let mut server = Server::new();
+        let data = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/sparklines.xlsx");
+        assert!(server.execute_current(Request::Open { name: "sparklines.xlsx".into() }, Some(data.to_vec())).reply.is_ok());
+        let sheet = Sheet::of(server.book.host().sheets()[0].id());
+        let at = |row, column| Key::of(calc_value::CellKey::new(sheet.id(), row, column).unwrap());
+        let run = |server: &mut Server, make: &dyn Fn(u64) -> Intent| {
+            let revision = server.book.host().revision().get();
+            let reply = server.execute_current(Request::Intent(make(revision)), None).reply;
+            assert!(matches!(&reply, Ok(Reply::Done { outcome, .. }) if outcome.accepted), "{reply:?}");
+        };
+        run(&mut server, &|revision| Intent::SparklineAdd { sheet, revision, at: at(3, 7), data: "A3:E3".into(), kind: "stacked".into() });
+        run(&mut server, &|revision| Intent::SparklineShow { sheet, revision, at: at(3, 7), point: "high".into(), on: true });
+        run(&mut server, &|revision| Intent::SparklineKind { sheet, revision, at: at(3, 7), kind: "column".into() });
+        let Reply::Sparklines(lines) = server.execute_current(Request::Sparklines(sheet), None).reply.unwrap() else { panic!() };
+        let g3 = lines.iter().find(|l| l.cell == at(3, 7)).unwrap();
+        assert_eq!((g3.kind.as_str(), g3.values.len(), g3.high.is_some()), ("column", 5, true));
+        run(&mut server, &|revision| Intent::SparklineDelete { sheet, revision, at: at(3, 7) });
+        assert_eq!(server.book.host().model().definitions().sparklines(sheet.id()).len(), 5);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -5456,8 +5654,11 @@ mod outline_tests {
         let Reply::Sparklines(lines) = server.execute_current(Request::Sparklines(Sheet::of(sheet)), None).reply.unwrap() else {
             panic!("the sparklines reply")
         };
-        assert_eq!(lines.len(), 6);
+        assert_eq!(lines.len(), 7);
         let at = |row: u32| lines.iter().find(|l| l.cell.2 == row).unwrap_or_else(|| panic!("row {row}"));
+        // F8: on a date axis, each point at its date's share of 45000..45008 (dc-zjsg.7).
+        assert_eq!(at(8).positions, vec![Some(0.0), Some(0.125), Some(0.5), Some(0.625), Some(1.0)]);
+        assert!(at(2).positions.is_empty());
         // F2: a line over A2:E2, its own axis, accent 1 tint -0.5 as a cell colour takes it (203764), markers, high and low.
         let f2 = at(2);
         assert_eq!((f2.kind.as_str(), f2.values.clone()), ("line", vec![Some(3.0), Some(5.0), Some(2.0), Some(8.0), Some(6.0)]));
@@ -5481,6 +5682,14 @@ mod outline_tests {
         let f2 = lines.iter().find(|l| l.cell.2 == 2).unwrap();
         assert_eq!((f2.values[0], f2.max), (Some(20.0), 20.0));
         assert!(dna_calc_model::sparklines::sparkline_svg(f2, 64.0, 20.0, 1.0).contains("<circle"));
+        // Column B hidden: its value is left out of F2, as the group does not show hidden cells.
+        assert!(server.execute_current(Request::Intent(Intent::AxisFormat { sheet: Sheet::of(sheet), rows: false, first: 2, count: 1, size_bits: None, hidden: Some(true) }), None).reply.is_ok());
+        assert!(server.book.host().sparklines(sheet).iter().any(|(g, _)| !g.hidden));
+        let Reply::Sparklines(lines) = server.execute_current(Request::Sparklines(Sheet::of(sheet)), None).reply.unwrap() else { panic!() };
+        let f2 = lines.iter().find(|l| l.cell.2 == 2).unwrap();
+        assert_eq!(f2.values, vec![Some(20.0), Some(2.0), Some(8.0), Some(6.0)]);
+        let f8 = lines.iter().find(|l| l.cell.2 == 8).unwrap();
+        assert_eq!((f8.values.len(), f8.positions.len()), (4, 4));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -8966,6 +9175,21 @@ mod printing_tests {
         // Pictures inside groups too.
         assert!(decodable >= 1 && document.pictures.len() > decodable, "{decodable} {}", document.pictures.len());
         assert!(document.pictures.iter().all(|(_, url)| url.starts_with("data:image/png;base64,iVBORw0KGgo")));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dc_zjsg_8__a_sheet_with_form_controls_prints_them_as_the_grid_draws_them() {
+        let mut s = Server::new();
+        let data = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/form-controls.xlsx");
+        assert!(s.execute_current(Request::Open { name: "form-controls.xlsx".into() }, Some(data.to_vec())).reply.is_ok());
+        let sheet = Sheet::of(s.book.host().sheets()[0].id());
+        let document = preview(&mut s, sheet).unwrap();
+        let Reply::Controls(drawn) = s.execute_current(Request::Controls(sheet), None).reply.unwrap() else { panic!("controls") };
+        // Every control prints (none states print="0"), in the state the grid shows.
+        assert_eq!(document.controls, drawn);
+        assert_eq!(document.controls.len(), 12);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

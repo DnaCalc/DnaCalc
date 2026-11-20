@@ -4,7 +4,8 @@ Excel 2010 and later stores them: the worksheet's `controls` (each `control` wit
 mc:AlternateContent whose Fallback has no anchor), one ctrlProp part each (`formControlPr` with the control's type,
 linked cell, input range, value, limits), a hidden DrawingML shape each in the drawing part (`a14:compatExt`, the
 caption as its text), and the legacy VML shapes. Values: B2 TRUE (the check box), B3 2 (the second option button), B4 3
-(the list box), B5 30 (the scroll bar), B6 5 (the spinner), B7 2 (the combo box); D2:D5 the list items.
+(the list box), B5 30 (the scroll bar), B6 5 (the spinner), B7 2 (the combo box); D2:D5 the list items. Two more
+option buttons (dw2, dc-zjsg.8) sit inside the group box, a group of their own linked to B8 (2: the second).
 Run: python3 -I make-form-controls.py form-controls.xlsx"""
 import sys, zipfile
 
@@ -22,11 +23,13 @@ controls = [
     ("Drop Down 8", "Drop", (12, 4), (14, 5), 'dropLines="4" dropStyle="combo" fmlaLink="$B$7" fmlaRange="$D$2:$D$5" noThreeD="1" sel="2" val="0"', ""),
     ("Group Box 9", "GBox", (5, 10), (9, 15), 'noThreeD="1"', "Options"),
     ("Label 10", "Label", (10, 10), (12, 11), '', "A label"),
+    ("Option Button 11", "Radio", (6, 11), (8, 12), 'fmlaLink="$B$8" lockText="1" noThreeD="1"', "Weekly"),
+    ("Option Button 12", "Radio", (6, 12), (8, 13), 'checked="Checked" lockText="1" noThreeD="1"', "Daily"),
 ]
-cells = {2: ("B", "1", "b"), 3: ("B", "2", None), 4: ("B", "3", None), 5: ("B", "30", None), 6: ("B", "5", None), 7: ("B", "2", None)}
+cells = {2: ("B", "1", "b"), 3: ("B", "2", None), 4: ("B", "3", None), 5: ("B", "30", None), 6: ("B", "5", None), 7: ("B", "2", None), 8: ("B", "2", None)}
 items = {2: "North", 3: "South", 4: "East", 5: "West"}
 rows = []
-for r in range(1, 8):
+for r in range(1, 9):
     cs = ""
     if r in cells:
         col, v, t = cells[r]

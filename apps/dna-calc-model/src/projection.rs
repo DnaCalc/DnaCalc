@@ -377,6 +377,44 @@ pub enum Intent {
         width: i64,
         height: i64,
     },
+    /// A sparkline in the cell `at` over `data` (an A1 range on this sheet or `Sheet!A1:B2`), `kind` `line`,
+    /// `column` or `stacked` (win/loss) (dc-zjsg.7).
+    SparklineAdd {
+        sheet: Sheet,
+        revision: u64,
+        at: Key,
+        data: String,
+        kind: String,
+    },
+    /// The type of the group holding the sparkline in `at` (dc-zjsg.7).
+    SparklineKind {
+        sheet: Sheet,
+        revision: u64,
+        at: Key,
+        kind: String,
+    },
+    /// Show or hide one kind of point (`markers`, `high`, `low`, `first`, `last`, `negative`) (dc-zjsg.7).
+    SparklineShow {
+        sheet: Sheet,
+        revision: u64,
+        at: Key,
+        point: String,
+        on: bool,
+    },
+    /// Delete the sparkline in `at` (dc-zjsg.7).
+    SparklineDelete {
+        sheet: Sheet,
+        revision: u64,
+        at: Key,
+    },
+    /// Insert the picture whose image travels beside the intent, at its own size (96 pixels to the inch), its top left
+    /// at the cell `at`; `name` is the file's name, its alternative text (dc-zjsg.4).
+    ShapePicture {
+        sheet: Sheet,
+        revision: u64,
+        at: Key,
+        name: String,
+    },
     /// A shape's or text box's text; paragraphs split at line breaks (dc-zjsg.4).
     ShapeText {
         sheet: Sheet,
@@ -406,6 +444,13 @@ pub enum Intent {
         revision: u64,
         id: u32,
         degrees: i64,
+    },
+    /// Flip a shape left to right (`horizontal`) or top to bottom (dc-zjsg.4).
+    ShapeFlip {
+        sheet: Sheet,
+        revision: u64,
+        id: u32,
+        horizontal: bool,
     },
     /// Move a shape in the drawing order: `forward`, `backward`, `front` or `back` (dc-zjsg.4).
     ShapeOrder {
@@ -792,6 +837,10 @@ pub enum FilterChange {
     Average {
         column: u32,
         above: bool,
+    },
+    Calendar {
+        column: u32,
+        period: String,
     },
     ColorReference {
         column: u32,

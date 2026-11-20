@@ -129,9 +129,37 @@ impl super::LoadedWorkbook {
                     events.skip().map_err(|_| fail())?;
                     continue;
                 }
-                if e.name.is(MAIN_NAMESPACE, "controls") || e.name.is(MAIN_NAMESPACE, "oleObjects")
-                {
+                if e.name.is(MAIN_NAMESPACE, "oleObjects") {
                     return Err(fail());
+                }
+                // Legacy form controls print as the grid draws them (dc-zjsg.8); an ActiveX control does not.
+                if e.name.is(MAIN_NAMESPACE, "controls") {
+                    let mut depth = 1usize;
+                    let (mut count, mut fallback) = (0usize, 0usize);
+                    while depth > 0 {
+                        match events.next().map_err(|_| fail())?.ok_or_else(fail)? {
+                            XmlEvent::Start(c) => {
+                                depth += 1;
+                                if c.name.local == "Fallback" {
+                                    fallback = depth;
+                                }
+                                if c.name.is(MAIN_NAMESPACE, "control") && fallback == 0 {
+                                    count += 1;
+                                }
+                            }
+                            XmlEvent::End(_) => {
+                                if depth == fallback {
+                                    fallback = 0;
+                                }
+                                depth -= 1;
+                            }
+                            XmlEvent::Text(_) => {}
+                        }
+                    }
+                    if count != source.shapes().controls.len() {
+                        return Err(fail());
+                    }
+                    continue;
                 }
                 if e.name.is(MAIN_NAMESPACE, "drawing") {
                     drawings += 1;
@@ -149,9 +177,17 @@ impl super::LoadedWorkbook {
                 if e.name.is(MAIN_NAMESPACE, "legacyDrawing") {
                     let part = target(&e, "/vmlDrawing")?;
                     let xml = self.package.read_xml(&part).map_err(|_| fail())?;
-                    let notes = self.model().definitions().review_notes(sheet);
-                    crate::save::review::check_note_shapes(&xml, notes, notes)
-                        .map_err(|_| fail())?;
+                    let controls = source.shapes().controls.len();
+                    if controls > 0 {
+                        // The VML beside form controls holds their legacy shapes (and notes, which do not print).
+                        if vml_controls(&xml).map_err(|_| fail())? != controls {
+                            return Err(fail());
+                        }
+                    } else {
+                        let notes = self.model().definitions().review_notes(sheet);
+                        crate::save::review::check_note_shapes(&xml, notes, notes)
+                            .map_err(|_| fail())?;
+                    }
                 }
             }
         }
@@ -166,4 +202,23 @@ impl super::LoadedWorkbook {
         }
         Ok(())
     }
+}
+
+/// The number of form-control shapes in a legacy VML drawing (`x:ClientData ObjectType` one of the form controls);
+/// an error for a shape of any other client data than a note or a form control.
+fn vml_controls(xml: &crate::xml::XmlPart) -> Result<usize, String> {
+    let mut events = Events::new(xml);
+    let mut count = 0;
+    while let Some(event) = events.next().map_err(|e| e.to_string())? {
+        if let XmlEvent::Start(e) = event
+            && e.name.is("urn:schemas-microsoft-com:office:excel", "ClientData")
+        {
+            match e.attribute("ObjectType") {
+                Some("Note") => {}
+                Some("Button" | "Checkbox" | "Radio" | "List" | "Drop" | "Scroll" | "Spin" | "GBox" | "Label") => count += 1,
+                _ => return Err("A legacy drawing shape is not a note or a form control".into()),
+            }
+        }
+    }
+    Ok(count)
 }

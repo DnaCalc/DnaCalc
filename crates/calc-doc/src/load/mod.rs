@@ -2220,7 +2220,9 @@ pub fn load_preserving_sheet_ids(
                     merged_areas: loaded.merged_areas,
                     validations: loaded.validations.into(),
                     sparklines: loaded.sparklines.into(),
-                    charts: Arc::new(if declared.preserved.is_some() {
+                    // A chart sheet's chart is read from its drawing as a worksheet's are (dc-zjsg.6); the sheet
+                    // itself stays preserved.
+                    charts: Arc::new(if declared.preserved.is_some_and(|kind| kind != "chart sheet") {
                         SheetCharts::default()
                     } else {
                         chart::read_charts(package, &declared.part)

@@ -263,6 +263,7 @@ fn form_controls(package: &Package, relationships: Option<&crate::opc::Relations
             horizontal: pr.flag("horiz"),
             flat: pr.flag("noThreeD"),
             macro_name: properties.attribute("macro").map(str::to_owned),
+            prints: !matches!(properties.attribute("print"), Some("0" | "false")),
         });
     }
     (form, active_x)

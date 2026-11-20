@@ -54,6 +54,11 @@ pub enum WorkbookOp {
         sheet: SheetId,
         shapes: Vec<crate::Shape>,
     },
+    /// The sheet's sparkline groups (dc-zjsg.7).
+    SetSparklines {
+        sheet: SheetId,
+        groups: Vec<crate::SparklineGroup>,
+    },
     SetPivots(std::sync::Arc<crate::pivot::PivotState>),
     /// Replace the data model snapshot after an explicit refresh.
     SetDataModel(std::sync::Arc<crate::DataModel>),

@@ -162,6 +162,9 @@ pub struct PrintDocument {
     /// The sheet's sparklines (dc-zjsg.7).
     #[serde(default)]
     pub sparklines: Vec<crate::sparklines::DrawnSparkline>,
+    /// The sheet's legacy form controls printed with it (dc-zjsg.8).
+    #[serde(default)]
+    pub controls: Vec<crate::controls::DrawnControl>,
     pub notices: Vec<String>,
 }
 

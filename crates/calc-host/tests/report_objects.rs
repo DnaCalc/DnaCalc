@@ -224,16 +224,12 @@ fn dc_piw0_3__shapes_and_a_connector_save_and_reload() {
     );
     // Delete: the glued connector stays, unglued.
     let mut reloaded = reloaded;
-    // A stored shape a stored connector is glued to is not deleted (dc-zjsg.5): refused, nothing changes.
-    let revision = reloaded.host().revision().get();
-    let receipt = reloaded.dispatch(SkinIntent::Command(WorkbookCommand::Shape {
-        sheet,
-        revision,
-        change: ShapeChange::Delete { id: 2 },
-    }));
-    assert!(!receipt.accepted());
-    assert!(format!("{:?}", receipt.error.unwrap()).contains("dc-zjsg.5"));
-    assert_eq!(reloaded.host().shapes(sheet).len(), 4);
+    // A stored shape a stored connector is glued to is deleted and the connector stays, unglued (dc-zjsg.5).
+    shape(&mut reloaded, sheet, ShapeChange::Delete { id: 2 });
+    assert_eq!(reloaded.host().shapes(sheet).len(), 3);
+    let again = reopened(&mut reloaded);
+    let connector = again.host().shapes(sheet).iter().find(|s| s.kind == ShapeKind::Connector).unwrap().clone();
+    assert_eq!((connector.begin, connector.end), (None, Some(ShapeConnection { shape: 3, site: 0 })));
     // A shape added in the session can be deleted again, and undo restores it.
     shape(&mut book, sheet, ShapeChange::Delete { id: 2 });
     assert_eq!(book.host().shapes(sheet).len(), 3);
@@ -968,6 +964,8 @@ fn dc_zjsg_4__stored_objects_take_text_fill_outline_turns_order_and_groups() {
     shape(&mut book, sheet, ShapeChange::Rotate { id: turned, rotation: 90 * 60_000 });
     let front = id(&book, "Freeform triangle");
     shape(&mut book, sheet, ShapeChange::Order { id: front, order: ShapeOrder::Front });
+    let renamed = id(&book, "Pattern lgGrid");
+    shape(&mut book, sheet, ShapeChange::Name { id: renamed, name: "Grid & lines".into() });
     let (a, b) = (id(&book, "Pattern pct50"), id(&book, "Pattern ltHorz"));
     shape(&mut book, sheet, ShapeChange::Group { ids: vec![a, b] });
     let count = book.host().shapes(sheet).len();
@@ -995,6 +993,8 @@ fn dc_zjsg_4__stored_objects_take_text_fill_outline_turns_order_and_groups() {
     assert!((w2 - h).abs() < 0.5 && (h2 - w).abs() < 0.5, "{w2} {h2} from {w} {h}");
     assert!((l2 + w2 / 2.0 - (l + w / 2.0)).abs() < 0.5 && (t2 + h2 / 2.0 - (t + h / 2.0)).abs() < 0.5);
     assert_eq!(read.last().unwrap().name, "Freeform triangle");
+    let grid = read.iter().find(|s| s.id == renamed).unwrap();
+    assert_eq!((grid.name.as_str(), &grid.fill), ("Grid & lines", &before("Pattern lgGrid").fill));
     let group = read.iter().find(|s| s.kind == ShapeKind::Group).unwrap().clone();
     let names: Vec<_> = group.children.iter().map(|c| c.name.as_str()).collect();
     assert_eq!(names, ["Pattern pct50", "Pattern ltHorz"]);
@@ -1039,6 +1039,120 @@ fn dc_zjsg_4__a_new_shape_behind_stored_ones_and_grouped_with_one() {
     assert_eq!(read[0].children.len(), 2);
     assert_eq!(read[0].children[1].name, "Freeform triangle");
     assert!(read[0].children[1].custom_geometry.is_some());
+}
+
+/// dc-zjsg.4: a picture inserted from a file saves its image as a media part and reopens as the same picture.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_4__an_inserted_picture_saves_and_reopens() {
+    let png = include_bytes!("../../calc-doc/tests/fixtures/drawing/pictures/card.png");
+    let mut book = open(include_bytes!("../../calc-doc/tests/fixtures/drawing/shapes-paint4.xlsx").to_vec());
+    let sheet = book.host().sheets()[0].id();
+    shape(&mut book, sheet, ShapeChange::AddPicture {
+        left: pts(48.0),
+        top: pts(15.0),
+        width: pts(120.0),
+        height: pts(75.0),
+        content_type: "image/png".into(),
+        bytes: png.to_vec().into(),
+        description: Some("card.png".into()),
+    });
+    let reloaded = reopened(&mut book);
+    let read = reloaded.host().shapes(sheet);
+    assert_eq!(read.len(), 21);
+    let picture = read.last().unwrap();
+    assert_eq!((picture.kind, picture.name.as_str(), picture.edit_as.as_deref()), (ShapeKind::Picture, "Picture 21", Some("oneCell")));
+    let media = picture.media.as_ref().unwrap();
+    assert_eq!((&*media.image.as_ref().unwrap().bytes, media.description.as_deref()), (&png[..], Some("card.png")));
+    assert_eq!(reloaded.host().anchor_rectangle(sheet, &picture.anchor), (48.0, 15.0, 120.0, 75.0));
+}
+
+/// dc-zjsg.7: sparklines added, changed and deleted; each save writes the worksheet's sparkline extension from the
+/// groups, and the file reopens with them (the other groups as they were).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_7__sparklines_are_added_changed_and_deleted_and_saved() {
+    use calc_host::SparklineChange;
+    let bytes = include_bytes!("../../calc-doc/tests/fixtures/drawing/sparklines.xlsx").to_vec();
+    let mut book = open(bytes.clone());
+    let sheet = book.host().sheets()[0].id();
+    let before = book.host().model().definitions().sparklines(sheet).to_vec();
+    let run = |book: &mut HostSession, change: SparklineChange| {
+        command(book, |b| WorkbookCommand::Sparkline { sheet, revision: b.host().revision().get(), change: change.clone() });
+    };
+    let area = GridArea::new(at(sheet, "A2"), at(sheet, "E2")).unwrap();
+    run(&mut book, SparklineChange::Add { data: area, cell: at(sheet, "G2"), kind: Some("column".into()) });
+    run(&mut book, SparklineChange::Show { cell: at(sheet, "F4"), point: "markers".into(), on: true });
+    run(&mut book, SparklineChange::Kind { cell: at(sheet, "F6"), kind: Some("line".into()) });
+    run(&mut book, SparklineChange::Delete { cell: at(sheet, "F7") });
+    let reloaded = reopened(&mut book);
+    let groups = reloaded.host().model().definitions().sparklines(sheet).to_vec();
+    assert_eq!(groups.len(), before.len());
+    // F7's group is gone; the new one is last, over Spark!A2:E2 in G2, a column group with Excel's look.
+    let new = groups.last().unwrap();
+    assert_eq!((new.kind.as_deref(), new.sparklines[0].data.as_str(), new.sparklines[0].cell.as_str()), (Some("column"), "Spark!A2:E2", "G2"));
+    assert_eq!(new.colour("colorSeries").and_then(|c| c.theme.as_deref()), Some("4"));
+    assert!(groups[1].markers && groups[2].kind.is_none());
+    assert_eq!((&groups[0], &groups[3]), (&before[0], &before[4]));
+    let views = reloaded.host().sparklines(sheet);
+    let g2 = views.iter().flat_map(|(_, v)| v).find(|v| v.cell == at(sheet, "G2")).unwrap();
+    assert_eq!(g2.values, vec![Some(3.0), Some(5.0), Some(2.0), Some(8.0), Some(6.0)]);
+    // A cell that holds one cannot take another; one without cannot be changed.
+    let revision = book.host().revision().get();
+    let taken = book.dispatch(SkinIntent::Command(WorkbookCommand::Sparkline { sheet, revision, change: SparklineChange::Add { data: area, cell: at(sheet, "F2"), kind: None } }));
+    assert!(!taken.accepted());
+    // Every group deleted: the extension goes, the file reopens without sparklines.
+    let mut empty = reloaded;
+    for cell in ["F2", "F3", "F4", "F5", "F6", "F8", "G2"] {
+        run(&mut empty, SparklineChange::Delete { cell: at(sheet, cell) });
+    }
+    let none = reopened(&mut empty);
+    assert!(none.host().model().definitions().sparklines(sheet).is_empty());
+    // A worksheet without an extension list gets one.
+    let mut blank = open(calc_host::blank_package());
+    let sheet = blank.host().sheets()[0].id();
+    let area = GridArea::new(at(sheet, "A1"), at(sheet, "A3")).unwrap();
+    command(&mut blank, |b| WorkbookCommand::Sparkline { sheet, revision: b.host().revision().get(), change: SparklineChange::Add { data: area, cell: at(sheet, "B1"), kind: None } });
+    let read = reopened(&mut blank);
+    let groups = read.host().model().definitions().sparklines(sheet);
+    assert_eq!((groups.len(), groups[0].sparklines[0].data.as_str()), (1, "Sheet1!A1:A3"));
+}
+
+/// dc-zjsg.4: a turned or flipped group taken apart leaves each child where the group showed it: a group of two
+/// side-by-side boxes turned a quarter becomes two boxes one above the other, each turned a quarter; flipped, the
+/// left box goes right and is flipped itself.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_4__a_turned_or_flipped_group_comes_apart_where_it_showed_its_children() {
+    let mut book = open(calc_host::blank_package());
+    let sheet = book.host().sheets()[0].id();
+    // A at 100..140 x 100..120, B at 160..200 x 100..120: the group is 100..200 x 100..120, centred at 150, 110.
+    shape(&mut book, sheet, add(ShapeKind::Shape, "rect", 100.0, 100.0, 40.0, 20.0));
+    shape(&mut book, sheet, add(ShapeKind::Shape, "ellipse", 160.0, 100.0, 40.0, 20.0));
+    shape(&mut book, sheet, ShapeChange::Group { ids: vec![2, 3] });
+    let group = book.host().shapes(sheet)[0].id;
+    shape(&mut book, sheet, ShapeChange::Rotate { id: group, rotation: 90 * 60_000 });
+    let mut flipped = reopened(&mut book);
+    shape(&mut book, sheet, ShapeChange::Ungroup { id: group });
+    let centre = |b: &HostSession, id: u32| {
+        let s = b.host().shapes(sheet).iter().find(|s| s.id == id).unwrap().clone();
+        let p = |v: i64| v as f64 / 12_700.0;
+        ((p(s.offset.0) + p(s.extent.0) / 2.0).round(), (p(s.offset.1) + p(s.extent.1) / 2.0).round(), s.rotation, s.flip_horizontal)
+    };
+    // Turned a quarter clockwise about (150, 110): A's centre (120, 110) goes to (150, 80), B's (180, 110) to (150, 140).
+    assert_eq!(centre(&book, 2), (150.0, 80.0, 90 * 60_000, false));
+    assert_eq!(centre(&book, 3), (150.0, 140.0, 90 * 60_000, false));
+    let saved = reopened(&mut book);
+    assert_eq!((centre(&saved, 2), centre(&saved, 3)), (centre(&book, 2), centre(&book, 3)));
+    // The reopened group turned back and flipped left to right: A goes right, flipped; B left.
+    let stored_group = flipped.host().shapes(sheet)[0].id;
+    shape(&mut flipped, sheet, ShapeChange::Rotate { id: stored_group, rotation: 0 });
+    shape(&mut flipped, sheet, ShapeChange::Flip { id: stored_group, horizontal: true });
+    shape(&mut flipped, sheet, ShapeChange::Ungroup { id: stored_group });
+    assert_eq!(centre(&flipped, 2), (180.0, 110.0, 0, true));
+    assert_eq!(centre(&flipped, 3), (120.0, 110.0, 0, true));
+    let saved = reopened(&mut flipped);
+    assert_eq!(centre(&saved, 2), (180.0, 110.0, 0, true));
 }
 
 /// dc-zjsg.4: a kept object (an equation, ink, SmartArt, OLE) is not moved or deleted; it stays as the file stores it.
@@ -1121,6 +1235,29 @@ fn dc_zjsg_5__a_turned_elbow_connector_is_rerouted_between_its_sites() {
     assert_eq!(ends(&again), moved);
 }
 
+/// dc-zjsg.4: a stored object moved and then rows inserted above it in the same session: the save writes it where
+/// the session left it (moved, then down with the rows), and every other object down with the rows.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_4__a_stored_object_moved_then_rows_inserted_saves_where_it_is() {
+    use calc_doc_model::{Axis, AxisChange, AxisEdit};
+    let bytes = include_bytes!("../../calc-doc/tests/fixtures/drawing/shapes-paint4.xlsx").to_vec();
+    let mut book = open(bytes);
+    let sheet = book.host().sheets()[0].id();
+    let triangle = book.host().shapes(sheet).iter().find(|s| s.name == "Freeform triangle").unwrap().id;
+    shape(&mut book, sheet, ShapeChange::Place { id: triangle, left: Some(pts(96.0)), top: Some(pts(60.0)), width: None, height: None });
+    let before: Vec<_> = book.host().shapes(sheet).iter().map(|s| (s.id, book.host().anchor_rectangle(sheet, &s.anchor))).collect();
+    let edit = AxisEdit::new(sheet, Axis::Rows, AxisChange::Insert, 2, 2).unwrap();
+    assert!(book.dispatch(SkinIntent::EditAxis(edit)).accepted());
+    let reloaded = reopened(&mut book);
+    for (id, (l, t, w, h)) in before {
+        let s = reloaded.host().shapes(sheet).iter().find(|s| s.id == id).unwrap();
+        let (l2, t2, w2, h2) = reloaded.host().anchor_rectangle(sheet, &s.anchor);
+        // Two rows of 15 pt above every object.
+        assert!((l2 - l).abs() < 0.01 && (t2 - t - 30.0).abs() < 0.01 && (w2 - w).abs() < 0.01 && (h2 - h).abs() < 0.01, "{}: {:?}", s.name, ((l, t, w, h), (l2, t2, w2, h2)));
+    }
+}
+
 /// dc-zjsg.5: moving a stored shape reroutes the stored connector glued to it, as Excel does: the glued end at its
 /// site, the box and flips from the ends; the save rewrites the connector's anchor and its transform's flips.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -1150,4 +1287,12 @@ fn dc_zjsg_5__a_connector_follows_the_stored_shape_it_is_glued_to() {
     assert_eq!(rect_of(&third, 4), ((50.0, 0.0, 20.0, 170.0), true, true));
     let connector = third.host().shapes(sheet).iter().find(|s| s.id == 4).unwrap().clone();
     assert_eq!((connector.begin.unwrap().shape, connector.end.unwrap().shape), (2, 3));
+    // The stored oval deleted: the stored connector stays where it is, its end unglued, and saves so.
+    let mut deleted = third;
+    let place = rect_of(&deleted, 4);
+    shape(&mut deleted, sheet, ShapeChange::Delete { id: 3 });
+    let fourth = reopened(&mut deleted);
+    let connector = fourth.host().shapes(sheet).iter().find(|s| s.id == 4).unwrap().clone();
+    assert_eq!((connector.begin.map(|e| e.shape), connector.end), (Some(2), None));
+    assert_eq!(rect_of(&fourth, 4), place);
 }

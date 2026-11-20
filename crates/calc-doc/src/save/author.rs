@@ -553,6 +553,10 @@ pub(super) fn plan(
         .all_shapes()
         .ne(model.definitions().all_shapes());
     let charts_changed = charts_changed || shapes_changed;
+    let sparklines_changed = base
+        .definitions()
+        .all_sparklines()
+        .ne(model.definitions().all_sparklines());
     let pivots_changed = base.definitions().pivots() != model.definitions().pivots();
     let links_changed = base
         .definitions()
@@ -593,6 +597,7 @@ pub(super) fn plan(
         && !charts_changed
         && !pivots_changed
         && !page_setup_changed
+        && !sparklines_changed
         && !links_changed
         && !validation_changed
         && views.is_none()
@@ -1591,6 +1596,35 @@ pub(super) fn plan(
                 sheet.part().name().into(),
                 super::page_setup::rewrite(current, &natural, &after)?,
             );
+        }
+    }
+    if sparklines_changed {
+        for sheet in sheets
+            .iter()
+            .filter(|s| model.sheet_by_id(s.id()).is_some())
+        {
+            let before = base.definitions().sparklines(sheet.id());
+            let after = model.definitions().sparklines(sheet.id());
+            if before == after {
+                continue;
+            }
+            if sheet.is_macro_sheet() {
+                return Err(SaveRefusal::MacroSheetChanged { part: sheet.part().name().into() });
+            }
+            if let Some(kind) = sheet.preserved_kind() {
+                return Err(SaveRefusal::PreservedSheetChanged { part: sheet.part().name().into(), kind });
+            }
+            if structural.as_ref().is_some_and(|edits| edits.edits().iter().any(|e| e.sheet() == sheet.id())) {
+                return Err(SaveRefusal::ChartNotModelled {
+                    part: sheet.part().name().into(),
+                    detail: "Editing sparklines and inserting or deleting rows or columns of their sheet in one session is not modelled".into(),
+                    owner: "dc-zjsg.7",
+                });
+            }
+            let original = super::sheets::read_sheet(package, sheet.part().name())?;
+            let current = out.rewritten.remove(sheet.part().name()).map(|b| original.with_bytes(b));
+            let current = current.as_ref().unwrap_or(&original);
+            out.rewritten.insert(sheet.part().name().into(), super::sparkline::rewrite(current, after)?);
         }
     }
     if pivots_changed {

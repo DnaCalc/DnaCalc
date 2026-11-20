@@ -2,6 +2,13 @@
 use crate::value::GridArea;
 use std::collections::{BTreeMap, BTreeSet};
 
+/// The `dynamicFilter` periods that read the clock or the calendar.
+pub const CALENDAR_PERIODS: [&str; 32] = [
+    "today", "yesterday", "tomorrow", "thisWeek", "lastWeek", "nextWeek", "thisMonth",
+    "lastMonth", "nextMonth", "thisQuarter", "lastQuarter", "nextQuarter", "thisYear",
+    "lastYear", "nextYear", "yearToDate", "Q1", "Q2", "Q3", "Q4", "M1", "M2", "M3", "M4", "M5",
+    "M6", "M7", "M8", "M9", "M10", "M11", "M12",
+];
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum FilterCriteria {
     /// SpreadsheetML filter values, before display clipping; an empty value is distinct from blank.
@@ -30,6 +37,13 @@ pub enum FilterCriteria {
     Average {
         above: bool,
         val: Option<String>,
+    },
+    /// A date period relative to the clock (`today`, `thisMonth`, `Q2`, ...), one of
+    /// [`CALENDAR_PERIODS`]. `val` and `max_val` are the serials Excel saved for the period.
+    Calendar {
+        period: String,
+        val: Option<String>,
+        max_val: Option<String>,
     },
     Custom {
         and: bool,
@@ -127,6 +141,17 @@ impl AutoFilter {
                         }
                     }
                     FilterCriteria::Color { .. } => true,
+                    FilterCriteria::Calendar {
+                        period,
+                        val,
+                        max_val,
+                    } => {
+                        CALENDAR_PERIODS.contains(&period.as_str())
+                            && [val, max_val].into_iter().all(|v| {
+                                v.as_ref()
+                                    .is_none_or(|v| v.parse::<f64>().is_ok_and(f64::is_finite))
+                            })
+                    }
                     FilterCriteria::Average { val, .. } => val
                         .as_ref()
                         .is_none_or(|v| v.parse::<f64>().is_ok_and(f64::is_finite)),

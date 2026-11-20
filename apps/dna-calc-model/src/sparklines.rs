@@ -31,6 +31,10 @@ pub struct DrawnSparkline {
     pub high: Option<String>,
     pub low: Option<String>,
     pub right_to_left: bool,
+    /// On a date axis, where each value stands across the cell (0 the earliest date, 1 the latest); empty for evenly
+    /// spaced points.
+    #[serde(default)]
+    pub positions: Vec<Option<f64>>,
 }
 
 const PAD: f64 = 2.0;
@@ -44,8 +48,20 @@ fn number(value: f64) -> String {
 /// The SVG of `s` in a cell `w` by `h` pixels at `zoom`; empty when it has no values to draw.
 pub fn sparkline_svg(s: &DrawnSparkline, w: f64, h: f64, zoom: f64) -> String {
     let mut values: Vec<Option<f64>> = s.values.clone();
+    // On a date axis a point stands at its date; one without a date is not drawn.
+    let mut positions: Vec<Option<f64>> = if s.positions.is_empty() { Vec::new() } else { s.positions.clone() };
+    if !positions.is_empty() {
+        positions.resize(values.len(), None);
+        for (v, p) in values.iter_mut().zip(&positions) {
+            if p.is_none() {
+                *v = None;
+            }
+        }
+    }
     if s.right_to_left {
         values.reverse();
+        positions.reverse();
+        positions.iter_mut().flatten().for_each(|p| *p = 1.0 - *p);
     }
     if s.empty == "zero" {
         values.iter_mut().filter(|v| v.is_none()).for_each(|v| *v = Some(0.0));
@@ -91,7 +107,11 @@ pub fn sparkline_svg(s: &DrawnSparkline, w: f64, h: f64, zoom: f64) -> String {
                 axis_at(&mut out, base);
             }
             for &(i, v) in &present {
-                let x = x0 + slot * i as f64 + (slot - bar) / 2.0;
+                let x = match positions.get(i).copied().flatten() {
+                    // By date: the slot's middle across the cell less a slot.
+                    Some(p) => x0 + slot / 2.0 + (x1 - x0 - slot) * p - bar / 2.0,
+                    None => x0 + slot * i as f64 + (slot - bar) / 2.0,
+                };
                 let y = if s.kind == "stacked" {
                     if v > 0.0 { top } else if v < 0.0 { bottom } else { continue }
                 } else {
@@ -110,7 +130,11 @@ pub fn sparkline_svg(s: &DrawnSparkline, w: f64, h: f64, zoom: f64) -> String {
             }
         }
         _ => {
-            let x_of = |i: usize| if n > 1 { x0 + (x1 - x0) * i as f64 / (n - 1) as f64 } else { (x0 + x1) / 2.0 };
+            let x_of = |i: usize| match positions.get(i).copied().flatten() {
+                Some(p) => x0 + (x1 - x0) * p,
+                None if n > 1 => x0 + (x1 - x0) * i as f64 / (n - 1) as f64,
+                None => (x0 + x1) / 2.0,
+            };
             if s.axis.is_some() && lo < 0.0 && hi > 0.0 {
                 axis_at(&mut out, y_of(0.0));
             }
@@ -169,6 +193,7 @@ mod tests {
             high: None,
             low: None,
             right_to_left: false,
+            positions: Vec::new(),
         }
     }
 
@@ -210,5 +235,18 @@ mod tests {
         // A gain fills the upper half, a loss the lower, nothing for zero.
         assert!(svg.contains("y=\"2\" width=\"16\" height=\"8\"") && svg.contains("y=\"10\" width=\"16\" height=\"8\""), "{svg}");
         assert_eq!(svg.matches("<rect").count(), 2);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_zjsg_7__on_a_date_axis_points_stand_at_their_dates() {
+        // Dates 0, 1 and 4 of 0..4: x at 2, 17 and 62 across a 64 px cell (2 px each side).
+        let mut s = line(&[Some(0.0), Some(4.0), Some(2.0)]);
+        s.positions = vec![Some(0.0), Some(0.25), Some(1.0)];
+        assert!(sparkline_svg(&s, 64.0, 20.0, 1.0).contains("d=\"M2 18L17 2L62 10\""));
+        // A point without a date is not drawn.
+        s.positions = vec![Some(0.0), None, Some(1.0)];
+        s.empty = "gap".into();
+        assert!(sparkline_svg(&s, 64.0, 20.0, 1.0).contains("d=\"M2 18M62 10\""));
     }
 }

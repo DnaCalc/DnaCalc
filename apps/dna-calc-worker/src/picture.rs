@@ -73,6 +73,54 @@ pub(crate) fn sniff(bytes: &[u8]) -> Option<Kind> {
     }
 }
 
+/// What a picture inserted from a file is: its content type and its size in pixels at 96 to the inch, from its
+/// signature and header (the name it came with is not trusted).
+pub(crate) fn inserted(bytes: &[u8]) -> Result<(&'static str, (f64, f64)), String> {
+    let kind = sniff(bytes).ok_or("Insert a PNG, JPEG, GIF, BMP, EMF or WMF picture")?;
+    let u16be = |at: usize| bytes.get(at..at + 2).map(|b| u16::from_be_bytes([b[0], b[1]]) as f64);
+    let u32be = |at: usize| bytes.get(at..at + 4).map(|b| u32::from_be_bytes(b.try_into().unwrap()) as f64);
+    let u16le = |at: usize| bytes.get(at..at + 2).map(|b| u16::from_le_bytes([b[0], b[1]]) as f64);
+    let i32le = |at: usize| bytes.get(at..at + 4).map(|b| i32::from_le_bytes(b.try_into().unwrap()) as f64);
+    let size = match kind {
+        Kind::Png => u32be(16).zip(u32be(20)),
+        Kind::Gif => u16le(6).zip(u16le(8)),
+        Kind::Bmp => i32le(18).zip(i32le(22)).map(|(w, h)| (w, h.abs())),
+        Kind::Jpeg => {
+            // The first start-of-frame marker (SOF0 to SOF15 but DHT, JPG and DAC) holds the height then the width.
+            let mut at = 2;
+            let mut found = None;
+            while at + 9 < bytes.len() && bytes[at] == 0xFF {
+                let marker = bytes[at + 1];
+                let length = u16be(at + 2).unwrap_or(0.0) as usize;
+                if (0xC0..=0xCF).contains(&marker) && !matches!(marker, 0xC4 | 0xC8 | 0xCC) {
+                    found = u16be(at + 7).zip(u16be(at + 5));
+                    break;
+                }
+                if length < 2 {
+                    break;
+                }
+                at += 2 + length;
+            }
+            found
+        }
+        Kind::Emf | Kind::Wmf => metafile_size(kind, bytes),
+        Kind::Svg | Kind::Tiff => None,
+    };
+    let content_type = match kind {
+        Kind::Png => "image/png",
+        Kind::Jpeg => "image/jpeg",
+        Kind::Gif => "image/gif",
+        Kind::Bmp => "image/bmp",
+        Kind::Emf => "image/x-emf",
+        Kind::Wmf => "image/x-wmf",
+        Kind::Svg | Kind::Tiff => return Err("Inserting an SVG or TIFF picture is not modelled (dc-zjsg.4)".into()),
+    };
+    match size {
+        Some((w, h)) if w >= 1.0 && h >= 1.0 && w <= 100_000.0 && h <= 100_000.0 => Ok((content_type, (w, h))),
+        _ => Err("The picture does not state its size".into()),
+    }
+}
+
 /// The first PNG inside `bytes` (a metafile carrying its bitmap as PNG), up to its `IEND` chunk.
 pub(crate) fn embedded_png(bytes: &[u8]) -> Option<&[u8]> {
     let mut from = 0;

@@ -14053,9 +14053,205 @@ fn dc_971p_37__above_and_below_average_filter_rows_save_and_reopen() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_37__date_period_filters_follow_the_clock_save_and_reopen() {
+    use calc_host::{FilterChange as F, FilterCriteria as C, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    // 2026-11-18 is a Wednesday (serial 46344). Rows: header, a text, then dates around it.
+    let today = 46344.0;
+    let rows = [
+        ("A1", "Date"),
+        ("A2", "text"),
+        ("A3", "46344.5"), // today, afternoon
+        ("A4", "46343"),   // yesterday
+        ("A5", "46345"),   // tomorrow
+        ("A6", "46340"),   // Saturday of the week before (2026-11-14)
+        ("A7", "46342"),   // Monday 2026-11-16, this week
+        ("A8", "46375"),   // 2026-12-19, next month
+        ("A9", "45900"),   // 2025-08-27
+    ];
+    for (address, input) in rows {
+        assert!(enter(&mut book, at(s, address), input).accepted());
+    }
+    let mut run = |book: &mut HostSession, change| {
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change,
+        }))
+    };
+    let area = GridArea::new(at(s, "A1"), at(s, "A9")).unwrap();
+    assert!(run(&mut book, F::Enable { area }).accepted());
+    let calendar = |period: &str| F::Column {
+        column: 1,
+        criteria: Some(C::Calendar {
+            period: period.into(),
+            val: None,
+            max_val: None,
+        }),
+    };
+    // Without a clock the period refuses and nothing changes.
+    let before = book.host().revision();
+    let refused = run(&mut book, calendar("today"));
+    assert!(!refused.accepted(), "{refused:?}");
+    assert_eq!(book.host().revision(), before);
+    book.set_clock(Some(today + 0.25));
+    let shown = |b: &HostSession| {
+        (2..=9)
+            .filter(|r| {
+                !b.host()
+                    .sheet_geometry(s)
+                    .is_some_and(|g| g.rows.get(r).is_some_and(|row| row.hidden))
+            })
+            .collect::<Vec<u32>>()
+    };
+    for (period, visible) in [
+        ("today", vec![3]),
+        ("yesterday", vec![4]),
+        ("tomorrow", vec![5]),
+        ("thisWeek", vec![3, 4, 5, 7]),
+        ("lastWeek", vec![6]),
+        ("thisMonth", vec![3, 4, 5, 6, 7]),
+        ("nextMonth", vec![8]),
+        ("thisYear", vec![3, 4, 5, 6, 7, 8]),
+        ("lastYear", vec![9]),
+        ("yearToDate", vec![3, 4, 6, 7]),
+        ("Q4", vec![3, 4, 5, 6, 7, 8]),
+        ("M11", vec![3, 4, 5, 6, 7]),
+        ("M8", vec![9]),
+    ] {
+        let result = run(&mut book, calendar(period));
+        assert!(result.accepted(), "{period}: {result:?}");
+        assert_eq!(shown(&book), visible, "{period}");
+    }
+    // Saved as dynamicFilter and read back unchanged.
+    let result = run(&mut book, calendar("thisWeek"));
+    assert!(result.accepted());
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    assert!(part_text(&saved, "xl/worksheets/sheet1.xml").contains("<dynamicFilter type=\"thisWeek\""));
+    let reopened = session(&saved);
+    let filter = reopened.host().model().definitions().auto_filter(s).unwrap();
+    assert!(!filter.unsupported);
+    assert_eq!(
+        filter.columns.get(&1),
+        Some(&C::Calendar {
+            period: "thisWeek".into(),
+            val: None,
+            max_val: None
+        })
+    );
+}
+
+/// gr2: Q1-Q4 and M1-M12 need no clock; the number 0 is 1900-01-00 in the engine's calendar (MONTH(0)
+/// is 1, as in Excel), so M1 and Q1 take it and no other month or quarter does; Average skips errors.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gr2__clock_free_periods_serial_zero_and_average_over_an_error_cell() {
+    use calc_host::{FilterChange as F, FilterCriteria as C, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (address, input) in [
+        ("A1", "Date"),
+        ("A2", "0"),
+        ("A3", "46344"), // 2026-11-18
+        ("A4", "45900"), // 2025-08-27
+        ("A5", "=1/0"),
+        ("A6", "text"),
+    ] {
+        assert!(enter(&mut book, at(s, address), input).accepted());
+    }
+    let mut run = |book: &mut HostSession, change| {
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change,
+        }))
+    };
+    let area = GridArea::new(at(s, "A1"), at(s, "A6")).unwrap();
+    assert!(run(&mut book, F::Enable { area }).accepted());
+    let shown = |b: &HostSession| {
+        (2..=6)
+            .filter(|r| {
+                !b.host()
+                    .sheet_geometry(s)
+                    .is_some_and(|g| g.rows.get(r).is_some_and(|row| row.hidden))
+            })
+            .collect::<Vec<u32>>()
+    };
+    let calendar = |period: &str| F::Column {
+        column: 1,
+        criteria: Some(C::Calendar {
+            period: period.into(),
+            val: None,
+            max_val: None,
+        }),
+    };
+    // No clock is set here.
+    for (period, visible) in [
+        ("Q4", vec![3]),
+        ("M11", vec![3]),
+        ("M1", vec![2]),
+        ("Q1", vec![2]),
+        ("M8", vec![4]),
+        ("Q3", vec![4]),
+    ] {
+        let result = run(&mut book, calendar(period));
+        assert!(result.accepted(), "{period}: {result:?}");
+        assert_eq!(shown(&book), visible, "{period}");
+    }
+    // A period that reads the clock still refuses without one.
+    assert!(!run(&mut book, calendar("today")).accepted());
+    // The error in A5 does not hide every row: the average of 0, 46344 and 45900 is 30748.
+    let above = F::Column {
+        column: 1,
+        criteria: Some(C::Average {
+            above: true,
+            val: None,
+        }),
+    };
+    let result = run(&mut book, above);
+    assert!(result.accepted(), "{result:?}");
+    assert_eq!(shown(&book), vec![3, 4]);
+}
+
+/// gr2: a sort whose range meets an AutoFilter with unread settings refuses and changes nothing.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gr2__sort_under_an_autofilter_with_unread_settings_refuses() {
+    use calc_host::WorkbookCommand as W;
+    let raw = "<autoFilter ref=\"A1:B4\"><filterColumn colId=\"0\"><dynamicFilter type=\"unknownKind\"/></filterColumn></autoFilter>";
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        xml.replace("</worksheet>", &format!("{raw}</worksheet>"))
+    });
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    assert!(book.host().model().definitions().auto_filter(s).unwrap().unsupported);
+    for (address, input) in [("A1", "h"), ("A2", "3"), ("A3", "1"), ("A4", "2")] {
+        assert!(enter(&mut book, at(s, address), input).accepted());
+    }
+    let revision = book.host().revision().get();
+    let result = book.dispatch(SkinIntent::Command(W::SortRows {
+        area: GridArea::new(at(s, "A1"), at(s, "A4")).unwrap(),
+        keys: vec![calc_host::SortKey {
+            column: 1,
+            descending: false,
+        }],
+        header: true,
+        revision,
+    }));
+    assert!(!result.accepted(), "{result:?}");
+    assert_eq!(book.host().revision().get(), revision);
+    assert_eq!(book.host().model().cell(at(s, "A2")), Some(&number(3.)));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_37__unknown_imported_filter_xml_survives_unrelated_edits() {
     use calc_host::{FilterChange as F, WorkbookCommand as W};
-    let raw = "<autoFilter ref=\"A1:B4\"><filterColumn colId=\"0\"><dynamicFilter type=\"thisWeek\"/></filterColumn></autoFilter>";
+    let raw = "<autoFilter ref=\"A1:B4\"><filterColumn colId=\"0\"><dynamicFilter type=\"thisWeek\" valIso=\"2026-11-15T00:00:00\"/></filterColumn></autoFilter>";
     let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
         xml.replace("</worksheet>", &format!("{raw}</worksheet>"))
     });
