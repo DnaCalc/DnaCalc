@@ -39,7 +39,6 @@ pub(crate) mod chi_f_t_family;
 pub(crate) mod combin;
 pub(crate) mod combina;
 pub(crate) mod combinatorics_common;
-pub(crate) mod complex_decimal;
 pub(crate) mod complex_family;
 pub(crate) mod confidence_test_family;
 pub(crate) mod cos;
