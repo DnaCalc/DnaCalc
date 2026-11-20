@@ -574,6 +574,19 @@ pub fn gamma_inv_kernel(
     ) {
         unit = root;
     }
+    // From a shape of about 2e10, Excel's unit result is the quantile times the same stored
+    // factor as the very-large-shape region (large_shape_inverse_unit), 1.000265823551: Excel
+    // 16.0.20527 through Touchstone at p = 0.5 over shapes 3.2e10 to 5.6e29 (a quarter decade
+    // apart, 76 calls) and at p from 1e-10 to 0.999 at 1e12 and 1e14, ratio to the quantile
+    // constant to 1e-12. Below, a #NUM! window whose edges move with p (at p = 0.5 from
+    // 5.70e9 to 1.97e10; at p = 1e-10 the upper edge is 2.70e10) is not modelled, so the
+    // factor applies from 2.7e10, above every measured edge. Approximate, not Excel's bits.
+    if (2.7e10..2.0_f64.powi(95)).contains(&alpha) && probability >= 1e-10 {
+        unit = crate::ported::excel_numeric::excel_x87_mul(
+            unit,
+            f64::from_bits(0x3ff0_0116_bc77_4cb6),
+        );
+    }
     let x = crate::ported::excel_numeric::excel_x87_mul(beta, unit);
     Ok(if x.is_subnormal() { 0.0 } else { x })
 }
@@ -605,6 +618,36 @@ mod tests {
             (v - 5.348_).abs() < 0.01,
             "GAMMA.INV(0.5,3,2) ~ 5.348, got {v}"
         );
+    }
+
+    /// Native and browser: from a shape of 2.7e10 GAMMA.INV is the quantile times Excel's stored
+    /// factor 1.000265823551. Excel 16.0.20527 answers through Touchstone (2026-11-20) and four
+    /// full-bank rows (bank2 gamma.inv scalar, admit2 gammainv enrich, bank2 gammainv more);
+    /// approximate to 1e-9 relative.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn gamma_inv_at_huge_shapes_carries_excel_s_factor() {
+        for (p, a, b, excel) in [
+            (0.5, 1e11, 1.0, 100026582354.72188),
+            (0.5, 1e13, 1.0, 10002658235505.422),
+            (0.1, 1e14, 1.0, 100026569537554.47),
+            (0.9, 1e14, 1.0, 100026595172561.05),
+            (0.5, 1e14, 3.0, 300079747065171.6),
+            (0.01, 1e12, 1.0, 1000263496843.359),
+            (0.999, 1e12, 1.0, 1000268914265.0203),
+            (1e-10, 1e12, 1.0, 1000259461236.2035),
+            (0.6378628363375689, 1628774109488000.0, 2.0, 3258414180486943.5),
+            (0.3848162801459085, 1.2087509178025512e16, 0.5, 6045361145215179.0),
+            (0.3980664124178507, 8.816833097759955e20, 1.0, 8.819176819562106e20),
+            (0.7601870723963965, 118312400027.68289, 1.1755857128890748, 139123625450.94748),
+        ] {
+            let got = gamma_inv_kernel(p, a, b).expect("Excel answers");
+            assert!(((got - excel) / excel).abs() < 1e-9, "GAMMA.INV({p},{a},{b}) = {got}, Excel {excel}");
+        }
+        // Below the factor's region the quantile stands: GAMMA.INV(0.5, 4e9, 1) is
+        // 3999999999.6666665 in Excel.
+        let got = gamma_inv_kernel(0.5, 4e9, 1.0).unwrap();
+        assert!((got / 3999999999.6666665 - 1.0).abs() < 1e-12, "{got}");
     }
 
     /// BETA.DIST(x, a, b, TRUE) answers read from Excel 16.0 build 20527 (the question service,

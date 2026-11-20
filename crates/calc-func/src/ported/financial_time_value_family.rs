@@ -521,10 +521,13 @@ fn rate_secant(
     for _ in 0..200 {
         let change = excel_x87_sub(value, value_before);
         if change == 0.0 {
-            // A balance that does not move between two rates has no secant step: #NUM!, as in
-            // IRR's search (Excel 16.0.20527, dcztvv_r23: RATE(0,-100,1000,0,0,0.5),
-            // RATE(2^-1022,-100,1000,0,0,0.5) and RATE(FALSE,-200,8000) are #NUM!).
-            return Err(FinancialError::Num);
+            // A balance that does not move between two rates has no secant step: the
+            // after-budget check decides, as in IRR's search. Flat far from zero it is #NUM!
+            // (Excel 16.0.20527, dcztvv_r23: RATE(0,-100,1000,0,0,0.5),
+            // RATE(2^-1022,-100,1000,0,0,0.5) and RATE(FALSE,-200,8000)); an iterate that
+            // stopped moving at a root of 1.2e10, where no step can be below 1e-7, is the
+            // answer (full bank: RATE(0.12897432973391876,1235,-0.5,10) is 12232404830.799618).
+            break;
         }
         // The slope comparison precedes the division's DAZ input stage:
         // an exactly flat objective is NUM, a subnormal divisor is DIV/0.
@@ -1532,6 +1535,23 @@ mod tests {
         }
     }
 
+    /// Native and browser: a root past 1e9, where no secant step can be below 1e-7, is the
+    /// iterate that stopped moving. Excel 16.0.20527, full bank (bank2-answers-rate-more and
+    /// -scalar); within 1e-14 relative.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn rate_at_a_huge_root_is_the_iterate_that_stopped_moving() {
+        use PaymentTiming::{BeginningOfPeriod as Begin, EndOfPeriod as End};
+        for (periods, payment, present, future, timing, guess, excel) in [
+            (0.12897432973391876, 1235.0, -0.5, 10.0, End, None, 12232404830.799618),
+            (0.1391623113305186, 10.0, -438.10866310194024, 8205.0, Begin, Some(1.0000000000000002), 1630151639.0138218),
+            (0.29857658183127744, -2.0, 0.9999999999999999, 958.8025113570343, Begin, None, 9761381152.492899),
+        ] {
+            let got = rate(periods, payment, present, future, timing, guess).expect("Excel answers");
+            assert!(((got - excel) / excel).abs() < 1e-14, "{got} vs Excel {excel}");
+        }
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn rate_exactness_witness_matches_excel() {
@@ -2368,3 +2388,4 @@ mod tests {
         );
     }
 }
+

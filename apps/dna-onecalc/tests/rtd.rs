@@ -123,11 +123,16 @@ fn a_formula_that_stops_reading_a_topic_leaves_its_lease_to_be_disconnected() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn without_a_connector_rtd_is_a_typed_refusal_and_a_part_of_the_formula_changes_no_state() {
+fn without_a_connector_rtd_is_excel_s_no_server_answer_and_a_part_of_the_formula_changes_no_state() {
+    // No connector, no server can be started: Excel's #N/A (dc-snz.23.4.1).
     let mut bare = Session::new("Sheet1").unwrap();
     bare.set_formula("=RTD(\"P.Server\",,\"a\")");
     let outcome = bare.calculate();
-    assert!(outcome.result.is_none(), "{outcome:?}");
+    assert_eq!(
+        outcome.result.as_ref().and_then(CalcValue::as_error),
+        Some(calc_func::value::WorksheetErrorCode::NA),
+        "{outcome:?}"
+    );
     // F9 on a part evaluates with the inputs but leaves the session's connection state alone.
     let (mut session, _server) = session();
     assert_eq!(number(&mut session, "=RTD(\"P.Server\",,\"a\")+1"), 2.0);
