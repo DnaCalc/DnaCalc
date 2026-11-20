@@ -160,6 +160,10 @@ pub struct ChartPlot {
     pub labels: Option<ChartLabels>,
     /// An Excel 2016 waterfall's subtotal points (`cx:subtotals`), by index (dc-zjsg.6).
     pub subtotals: Vec<u32>,
+    /// An Excel 2016 box and whisker's `cx:statistics quartileMethod="inclusive"` and `cx:visibility` (`meanMarker`,
+    /// `meanLine`, `outliers`, `nonoutliers`) as the file states them (dc-zjsg.6).
+    pub box_inclusive: bool,
+    pub box_visibility: Option<[bool; 4]>,
     pub up_down_bars: bool,
 }
 

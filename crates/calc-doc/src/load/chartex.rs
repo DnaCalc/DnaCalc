@@ -141,6 +141,13 @@ pub(super) fn read(package: &Package, part: &str, name: String, anchor: ChartAnc
             cache: vec![t.child("v").map(|v| v.text.clone())],
             numeric: false,
         });
+        if let Some(statistics) = series.child("layoutPr").and_then(|l| l.child("statistics")) {
+            plot.box_inclusive = statistics.attribute("quartileMethod") == Some("inclusive");
+        }
+        if let Some(v) = series.child("layoutPr").and_then(|l| l.child("visibility")) {
+            let on = |name: &str, default: bool| v.attribute(name).map_or(default, |a| matches!(a, "1" | "true"));
+            plot.box_visibility = Some([on("meanMarker", true), on("meanLine", false), on("outliers", true), on("nonoutliers", false)]);
+        }
         if let Some(subtotals) = series.child("layoutPr").and_then(|l| l.child("subtotals")) {
             plot.subtotals = subtotals.children.iter().filter_map(|i| i.number("val")).filter_map(|v| u32::try_from(v).ok()).collect();
         }

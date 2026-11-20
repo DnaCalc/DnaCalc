@@ -1192,6 +1192,34 @@ fn dc_zjsg_4__duplicates_of_stored_and_new_shapes_save_and_reopen() {
     assert_eq!(ids.len(), 23);
 }
 
+/// dc-zjsg.4: a row inside an object's span made taller: an object that moves but doesn't size (editAs oneCell) keeps
+/// its size, its anchor's end found anew; an object that moves and sizes with its cells (a new one) grows; the stored
+/// anchor is rewritten on save, and hiding the row works the same way.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_4__objects_that_dont_size_with_cells_keep_their_size_when_a_row_grows() {
+    let mut book = open(include_bytes!("../../calc-doc/tests/fixtures/drawing/shapes-paint4.xlsx").to_vec());
+    let sheet = book.host().sheets()[0].id();
+    let triangle = book.host().shapes(sheet).iter().find(|s| s.name == "Freeform triangle").unwrap().clone();
+    assert_eq!(triangle.edit_as.as_deref(), Some("oneCell"));
+    let before = book.host().anchor_rectangle(sheet, &triangle.anchor);
+    // A new shape over the same rows (rows 5 to 8 at 15 pt), moving and sizing with its cells.
+    shape(&mut book, sheet, add(ShapeKind::Shape, "rect", 300.0, before.1, 40.0, 40.0));
+    let added = book.host().shapes(sheet).last().unwrap().clone();
+    let added_before = book.host().shape_rectangle(sheet, &added);
+    let row = (before.1 / 15.0).floor() as u32 + 2;
+    command(&mut book, |_| WorkbookCommand::AxisFormat { sheet, rows: true, first: row, count: 1, size_bits: Some(30.0f64.to_bits()), hidden: None });
+    let now = book.host().shapes(sheet).iter().find(|s| s.id == triangle.id).unwrap().clone();
+    let after = book.host().anchor_rectangle(sheet, &now.anchor);
+    assert!((after.2 - before.2).abs() < 0.01 && (after.3 - before.3).abs() < 0.01 && (after.0 - before.0).abs() < 0.01, "{before:?} {after:?}");
+    let grown = book.host().shapes(sheet).iter().find(|s| s.id == added.id).unwrap().clone();
+    assert!((book.host().anchor_rectangle(sheet, &grown.anchor).3 - added_before.3 - 15.0).abs() < 0.01);
+    let reloaded = reopened(&mut book);
+    let read = reloaded.host().shapes(sheet).iter().find(|s| s.id == triangle.id).unwrap().clone();
+    let reread = reloaded.host().anchor_rectangle(sheet, &read.anchor);
+    assert!((reread.3 - before.3).abs() < 0.01, "{reread:?}");
+}
+
 /// dc-zjsg.4: a kept object (an equation, ink, SmartArt, OLE) is not moved or deleted; it stays as the file stores it.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

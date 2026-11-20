@@ -75,6 +75,8 @@ pub enum ChartKind {
     Waterfall,
     /// An Excel 2016 funnel (`cx:funnel`): centred bars as wide as their values.
     Funnel,
+    /// An Excel 2016 box and whisker (`cx:boxWhisker`): each category's values as quartiles, whiskers and outliers.
+    BoxWhisker,
     /// Another kind, by its element name (`surfaceChart`, `ofPieChart`, ...).
     Other(String),
 }
@@ -130,6 +132,10 @@ pub struct PlotView {
     pub drop_lines: bool,
     /// A waterfall's subtotal points, by index.
     pub subtotals: Vec<u32>,
+    /// A box and whisker's quartile method (inclusive or exclusive) and what it shows: mean markers, mean line,
+    /// outliers, inner points.
+    pub box_inclusive: bool,
+    pub box_visibility: [bool; 4],
     pub up_down_bars: bool,
 }
 
@@ -232,6 +238,7 @@ impl HostState {
                         "stockChart" => ChartKind::Stock,
                         "cx:waterfall" => ChartKind::Waterfall,
                         "cx:funnel" => ChartKind::Funnel,
+                        "cx:boxWhisker" => ChartKind::BoxWhisker,
                         other => ChartKind::Other(other.to_owned()),
                     };
                     let grouping = plot.grouping.as_deref().unwrap_or_default();
@@ -251,6 +258,8 @@ impl HostState {
                         high_low_lines: plot.high_low_lines,
                         drop_lines: plot.drop_lines,
                         subtotals: plot.subtotals.clone(),
+                        box_inclusive: plot.box_inclusive,
+                        box_visibility: plot.box_visibility.unwrap_or([true, false, true, false]),
                         up_down_bars: plot.up_down_bars,
                         stacked: matches!(grouping, "stacked" | "percentStacked"),
                         percent: grouping == "percentStacked",

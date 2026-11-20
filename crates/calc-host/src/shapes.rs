@@ -347,13 +347,14 @@ impl HostState {
     /// The width in points of a column: whole pixels of the workbook's default font's digit
     /// width (Aptos Narrow 11: 8 px, Calibri 11: 7 px), converted at the pixel density.
     fn column_points(&self, sheet: SheetId, column: u32) -> f64 {
+        let format = self.model().definitions().axis_layouts().get(sheet, calc_doc_model::Axis::Columns, column);
+        self.column_points_of(sheet, format)
+    }
+
+    /// A column's width in points with the format `format`.
+    fn column_points_of(&self, sheet: SheetId, format: calc_doc_model::AxisFormat) -> f64 {
         // A font the measure does not know falls back to Calibri 11's 7 pixels.
         let mdw = crate::facts::maximum_digit_width_at(self.styles(), DPI).unwrap_or(7.0);
-        let format = self.model().definitions().axis_layouts().get(
-            sheet,
-            calc_doc_model::Axis::Columns,
-            column,
-        );
         if format.hidden() {
             return 0.0;
         }
@@ -399,11 +400,12 @@ impl HostState {
     }
 
     fn row_points(&self, sheet: SheetId, row: u32) -> f64 {
-        let format =
-            self.model()
-                .definitions()
-                .axis_layouts()
-                .get(sheet, calc_doc_model::Axis::Rows, row);
+        let format = self.model().definitions().axis_layouts().get(sheet, calc_doc_model::Axis::Rows, row);
+        self.row_points_of(sheet, format)
+    }
+
+    /// A row's height in points with the format `format`.
+    fn row_points_of(&self, sheet: SheetId, format: calc_doc_model::AxisFormat) -> f64 {
         if format.hidden() {
             return 0.0;
         }
@@ -1035,3 +1037,59 @@ pub(crate) fn prepare(
     Ok(vec![CellEdit::Shapes { sheet, shapes }])
 }
 
+
+/// The shapes of `sheet` after the row and column format edits `edits` (dc-zjsg.4), as Excel keeps them: a two-cell
+/// anchor whose editAs is `oneCell` (move but don't size) keeps its size from its top-left corner, one whose editAs is
+/// `absolute` (don't move or size) keeps its place and size; their anchors' corners are found anew in the new sizes.
+/// A plain two-cell anchor moves and sizes with its cells as it is. `None` when no shape changes.
+pub(crate) fn kept_sizes(host: &HostState, sheet: SheetId, edits: &[CellEdit]) -> Option<CellEdit> {
+    use calc_doc_model::Axis;
+    let changed: std::collections::BTreeMap<(bool, u32), calc_doc_model::AxisFormat> = edits
+        .iter()
+        .filter_map(|e| match e {
+            CellEdit::AxisFormat(edit) if edit.sheet() == sheet => Some(((edit.axis() == Axis::Rows, edit.index()), edit.format())),
+            _ => None,
+        })
+        .collect();
+    if changed.is_empty() {
+        return None;
+    }
+    let layouts = host.model().definitions().axis_layouts();
+    let column_new = |c: u32| host.column_points_of(sheet, changed.get(&(false, c)).copied().unwrap_or_else(|| layouts.get(sheet, Axis::Columns, c)));
+    let row_new = |r: u32| host.row_points_of(sheet, changed.get(&(true, r)).copied().unwrap_or_else(|| layouts.get(sheet, Axis::Rows, r)));
+    let x_new = |p: &DrawingPoint| (1..=p.column).map(column_new).sum::<f64>() + p.column_offset as f64 / EMU_PER_POINT;
+    let y_new = |p: &DrawingPoint| (1..=p.row).map(row_new).sum::<f64>() + p.row_offset as f64 / EMU_PER_POINT;
+    let point_new = |x: f64, y: f64| -> DrawingPoint {
+        let (mut column, mut left) = (0u32, 0.0f64);
+        while column < 16383 && left + column_new(column + 1) <= x {
+            left += column_new(column + 1);
+            column += 1;
+        }
+        let (mut row, mut top) = (0u32, 0.0f64);
+        while row < 1_048_575 && top + row_new(row + 1) <= y {
+            top += row_new(row + 1);
+            row += 1;
+        }
+        let emu = |v: f64| (v * EMU_PER_POINT).round() as i64;
+        DrawingPoint { column, column_offset: emu(x - left), row, row_offset: emu(y - top) }
+    };
+    let mut shapes = host.shapes(sheet).to_vec();
+    let mut any = false;
+    for s in &mut shapes {
+        let ChartAnchor::TwoCell { from, .. } = s.anchor else { continue };
+        let (l, t, w, h) = host.anchor_rectangle(sheet, &s.anchor);
+        let anchor = match s.edit_as.as_deref() {
+            Some("oneCell") => {
+                let (x, y) = (x_new(&from), y_new(&from));
+                ChartAnchor::TwoCell { from, to: point_new(x + w, y + h) }
+            }
+            Some("absolute") => ChartAnchor::TwoCell { from: point_new(l, t), to: point_new(l + w, t + h) },
+            _ => continue,
+        };
+        if anchor != s.anchor {
+            s.anchor = anchor;
+            any = true;
+        }
+    }
+    any.then_some(CellEdit::Shapes { sheet, shapes })
+}
