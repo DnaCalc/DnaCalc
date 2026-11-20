@@ -1,12 +1,11 @@
 //! The normal, lognormal and related inverse kernels.
 //!
 //! The inverse follows Excel's route: the AS241 tails and, between them, stored x87 products of
-//! an inverse-erf ratio: Excel's stored rational for t^2 <= 1/2, a correctly rounded ratio beyond.
+//! three rational approximations to the inverse error function.
 
-use crate::ported::double_double::Dd;
 use crate::ported::excel_numeric::crt_log;
 use crate::ported::normal_dist_common::{
-    FRAC_1_SQRT_2_BITS, GAUSS_TINY_MAX_BITS, erf_approx, phi_kernel, stored_normal_z,
+    FRAC_1_SQRT_2_BITS, GAUSS_TINY_MAX_BITS, erf_approx, stored_normal_z,
 };
 use crate::ported::special_dist_family::erfc_precise_kernel;
 use crate::value::WorksheetErrorCode;
@@ -163,94 +162,13 @@ fn inverse_standard_normal_as241_tail(p: f64) -> f64 {
     if q < 0.0 { -x } else { x }
 }
 
-fn inverse_standard_normal_acklam_refined(p: f64) -> f64 {
-    const A: [f64; 6] = [
-        -3.969_683_028_665_376e1,
-        2.209_460_984_245_205e2,
-        -2.759_285_104_469_687e2,
-        1.383_577_518_672_69e2,
-        -3.066_479_806_614_716e1,
-        2.506_628_277_459_239,
-    ];
-    const B: [f64; 5] = [
-        -5.447_609_879_822_406e1,
-        1.615_858_368_580_409e2,
-        -1.556_989_798_598_866e2,
-        6.680_131_188_771_972e1,
-        -1.328_068_155_288_572e1,
-    ];
-    const C: [f64; 6] = [
-        -7.784_894_002_430_293e-3,
-        -3.223_964_580_411_365e-1,
-        -2.400_758_277_161_838,
-        -2.549_732_539_343_734,
-        4.374_664_141_464_968,
-        2.938_163_982_698_783,
-    ];
-    const D: [f64; 4] = [
-        7.784_695_709_041_462e-3,
-        3.224_671_290_700_398e-1,
-        2.445_134_137_142_996,
-        3.754_408_661_907_416,
-    ];
-    const P_LOW: f64 = 0.02425;
-    const P_HIGH: f64 = 1.0 - P_LOW;
-
-    let x = if p < P_LOW {
-        let q = (-2.0 * crt_log(p)).sqrt();
-        (((((C[0] * q + C[1]) * q + C[2]) * q + C[3]) * q + C[4]) * q + C[5])
-            / ((((D[0] * q + D[1]) * q + D[2]) * q + D[3]) * q + 1.0)
-    } else if p <= P_HIGH {
-        let q = p - 0.5;
-        let r = q * q;
-        (((((A[0] * r + A[1]) * r + A[2]) * r + A[3]) * r + A[4]) * r + A[5]) * q
-            / (((((B[0] * r + B[1]) * r + B[2]) * r + B[3]) * r + B[4]) * r + 1.0)
-    } else {
-        let q = (-2.0 * crt_log(1.0 - p)).sqrt();
-        -(((((C[0] * q + C[1]) * q + C[2]) * q + C[3]) * q + C[4]) * q + C[5])
-            / ((((D[0] * q + D[1]) * q + D[2]) * q + D[3]) * q + 1.0)
-    };
-
-    // Form the lower tail directly. Subtracting erf from 1 loses it entirely
-    // for small probabilities; at positive x compute the complementary error
-    // before subtracting, so the Newton residual does not round through 1.
-    let tail = 0.5 * libm::erfc(x.abs() / std::f64::consts::SQRT_2);
-    let err = if x < 0.0 { tail - p } else { (1.0 - p) - tail };
-    let density = phi_kernel(x);
-    if density == 0.0 { x } else { x - err / density }
-}
-
-/// `erf(y) - t` in double-double for `|y| <= 1.2`, from the Maclaurin series
-/// `2/sqrt(pi) * sum (-1)^n y^(2n+1) / (n! (2n+1))`.
-fn erf_minus_dd(y: Dd, t: f64) -> f64 {
-    const TWO_OVER_SQRT_PI: Dd = Dd(1.1283791670955126, 1.533545961316588e-17);
-    let y2 = y.mul(y);
-    let minus_y2 = y2.neg();
-    let mut term = y;
-    let mut sum = y;
-    for n in 1..48 {
-        term = term.mul(minus_y2).div_f64(n as f64);
-        sum = sum.add(term.div_f64((2 * n + 1) as f64));
-        if term.0.abs() < 1e-36 {
-            break;
-        }
-    }
-    let erf = TWO_OVER_SQRT_PI.mul(sum);
-    erf.sub(Dd::from(t)).0
-}
-
-/// The ratio `erfinv(t) / t` for `0 < |t| <= 0.875`, rounded once to binary64 from a
-/// double-double inverse (three Newton steps on the series erf from the Acklam start).
-fn inverse_erf_ratio(t: f64) -> f64 {
-    let start = inverse_standard_normal_acklam_refined(0.5 + 0.5 * t) * std::f64::consts::FRAC_1_SQRT_2;
-    let mut y = Dd::from(start);
-    for _ in 0..3 {
-        let residual = erf_minus_dd(y, t);
-        // erf'(y) = 2/sqrt(pi) exp(-y^2)
-        let delta = residual * 0.886_226_925_452_758 * libm::exp(y.0 * y.0);
-        y = y.add(Dd::from(-delta));
-    }
-    y.div_f64(t).to_f64()
+/// Horner evaluation with a binary64 store after each x87 product and sum.
+fn stored_horner(x: f64, coefficients: &[u64]) -> f64 {
+    use crate::ported::excel_numeric::{excel_x87_add, excel_x87_mul};
+    let (leading, rest) = coefficients.split_last().expect("nonempty polynomial");
+    rest.iter().rev().fold(f64::from_bits(*leading), |value, &bits| {
+        excel_x87_add(excel_x87_mul(value, x), f64::from_bits(bits))
+    })
 }
 
 /// Excel's `erfinv(t) / t` for `s = RN(t * t) <= 1/2` (dc-j9k.47, fn7): `RN(P(s) / Q(s))`, P and Q
@@ -261,7 +179,7 @@ fn inverse_erf_ratio(t: f64) -> f64 {
 /// 656,542 of 656,542 retained Excel answers and 44,739 of 44,739 fresh ones
 /// (docs/research/normal-inverse-central-2026-11-17.md).
 fn central_inverse_erf_ratio(s: f64) -> f64 {
-    use crate::ported::excel_numeric::{excel_x87_add, excel_x87_div, excel_x87_mul};
+    use crate::ported::excel_numeric::excel_x87_div;
     const P: [u64; 8] = [
         0x3fec_5bf8_91b4_ef6b,
         0xc00b_0359_9ad6_a33a,
@@ -282,13 +200,7 @@ fn central_inverse_erf_ratio(s: f64) -> f64 {
         0x3fb3_8664_c121_c0db,
         0xbf65_ae11_dcad_f003,
     ];
-    let horner = |c: &[u64; 8]| {
-        c[..7]
-            .iter()
-            .rev()
-            .fold(f64::from_bits(c[7]), |v, &a| excel_x87_add(excel_x87_mul(v, s), f64::from_bits(a)))
-    };
-    excel_x87_div(horner(&P), horner(&Q))
+    excel_x87_div(stored_horner(s, &P), stored_horner(s, &Q))
 }
 
 /// Excel's ratio for piece B of the central inverse (dc-j9k.47, fn9 after the fable-r2 review):
@@ -297,7 +209,7 @@ fn central_inverse_erf_ratio(s: f64) -> f64 {
 /// interpolant of `erfinv(sqrt s) / sqrt(-ln(1 - sqrt s))` at the 13 zeros of T13 on [0.5, 0.73],
 /// rounded to binary64; the caller multiplies it by `sqrt(-ln(1 - |t|))`.
 fn piece_b_inverse_erf_ratio(s: f64) -> f64 {
-    use crate::ported::excel_numeric::{excel_x87_add, excel_x87_div, excel_x87_mul};
+    use crate::ported::excel_numeric::excel_x87_div;
     const P: [u64; 8] = [
         0x3fd1_99fb_95ef_4e09,
         0x401f_f5f6_0cbe_8bba,
@@ -316,13 +228,39 @@ fn piece_b_inverse_erf_ratio(s: f64) -> f64 {
         0x4047_ea3a_c1d3_95ff,
         0xc02a_d7d1_c366_79b0,
     ];
-    let horner = |c: &[u64]| {
-        let (last, rest) = c.split_last().expect("coefficients");
-        rest.iter()
-            .rev()
-            .fold(f64::from_bits(*last), |v, &a| excel_x87_add(excel_x87_mul(v, s), f64::from_bits(a)))
-    };
-    excel_x87_div(horner(&P), horner(&Q))
+    excel_x87_div(stored_horner(s, &P), stored_horner(s, &Q))
+}
+
+/// Carbon (dc-j9k.47): the (9,9) Padé approximant of erfinv(t)/sqrt(-ln(1-t))
+/// expanded at t = 225/256. The coefficients are listed in ascending degree.
+fn piece_c_inverse_erf_ratio(t: f64) -> f64 {
+    use crate::ported::excel_numeric::excel_x87_div;
+    const P: [u64; 10] = [
+        0x3fe8_2425_56d3_68b6,
+        0xc036_abfe_9390_c9e6,
+        0x4070_a97c_7664_c331,
+        0xc097_b1a5_e1d9_a10c,
+        0x40af_255c_31ac_92e5,
+        0xc0a2_c8f8_55be_2320,
+        0xc0bc_cdd3_c313_1b29,
+        0x40be_d8c7_2b7a_0424,
+        0x40ad_a1d6_9743_02b0,
+        0xc0a1_b8ef_95ab_8b0e,
+    ];
+    const Q: [u64; 10] = [
+        0x3ff0_0000_0000_0000,
+        0xc03e_c8f6_36f7_0044,
+        0x4077_6d84_2df4_b9aa,
+        0xc0a1_a2a2_7132_af74,
+        0x40ba_1d6d_c9f4_d349,
+        0xc0bb_b914_1a0c_b063,
+        0xc0b5_df83_d4e2_7971,
+        0x40c7_5b4b_f097_172e,
+        0x4089_f372_995a_fd52,
+        0xc0a2_2d35_0f18_1b5e,
+    ];
+    let z = t - 225.0 / 256.0;
+    excel_x87_div(stored_horner(z, &P), stored_horner(z, &Q))
 }
 
 fn inverse_standard_normal(p: f64) -> Result<f64, WorksheetErrorCode> {
@@ -335,11 +273,7 @@ fn inverse_standard_normal(p: f64) -> Result<f64, WorksheetErrorCode> {
     if p > 15.0 / 16.0 || q < -0.425 {
         return Ok(inverse_standard_normal_as241_tail(p));
     }
-    // Between them Excel publishes sqrt(2) * erfinv(t), t = 2q exact, as two stored x87
-    // products: y = t * R, then y * RN(sqrt 2) (fix4 near one half, where R = RN(sqrt(pi)/2)).
-    // For s = RN(t * t) <= 1/2 (edge probed bit for bit, fn7) R is Excel's stored rational.
-    // In piece C (0.85 < t, p <= 15/16, not yet identified) R is the correctly rounded
-    // erfinv(t)/t, which differs from Excel's by a few ulp.
+    // Piece A uses the stored square to select its rational at the boundary.
     use crate::ported::excel_numeric::excel_x87_mul;
     let t = 2.0 * q;
     let s = excel_x87_mul(t, t);
@@ -350,14 +284,15 @@ fn inverse_standard_normal(p: f64) -> Result<f64, WorksheetErrorCode> {
     // Piece B (fn9): y = st(sqrt(-ln(1 - |t|)) * R(s)) for |t| <= 0.85. On the lower side that is
     // AS241's bound q >= -0.425; on the upper the last input is the double below p = 0.925
     // (p = 0.925 itself, t = 0.85 + 1 ulp, is piece C in Excel).
-    if t.abs() <= 0.85 {
-        let a = x87_sqrt_of_minus_log(1.0 - t.abs());
-        let y = excel_x87_mul(a, piece_b_inverse_erf_ratio(s));
-        let x = excel_x87_mul(y, std::f64::consts::SQRT_2);
-        return Ok(if t < 0.0 { -x } else { x });
-    }
-    let y = excel_x87_mul(t, inverse_erf_ratio(t));
-    Ok(excel_x87_mul(y, std::f64::consts::SQRT_2))
+    let ratio = if t.abs() <= 0.85 {
+        piece_b_inverse_erf_ratio(s)
+    } else {
+        piece_c_inverse_erf_ratio(t)
+    };
+    let a = x87_sqrt_of_minus_log(1.0 - t.abs());
+    let y = excel_x87_mul(a, ratio);
+    let x = excel_x87_mul(y, std::f64::consts::SQRT_2);
+    Ok(if t < 0.0 { -x } else { x })
 }
 
 pub fn norm_s_dist_kernel(z: f64, cumulative: bool) -> Result<f64, WorksheetErrorCode> {
@@ -726,6 +661,23 @@ mod tests {
             let p = f64::from_bits(p);
             assert_bits(norm_s_inv_kernel(p).unwrap(), excel_bits);
             assert_bits(norm_inv_kernel(p, 0.0, 1.0).unwrap(), excel_bits);
+        }
+    }
+
+    /// Carbon's Excel 20527 controls at both edges of C and two frozen inputs
+    /// distinguishing the Q[8] coefficient and x87 product/sum staging.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn norm_inv_piece_c_edges_and_stores() {
+        for (p, expected) in [
+            (0x3fed_9999_9999_9999, 0x3ff7_0852_26d3_e527),
+            (0x3fed_9999_9999_999a, 0x3ff7_0852_26d3_e526),
+            (0x3fed_999b_c5f0_efd8, 0x3ff7_0859_d3f0_2e4d),
+            (0x3fed_c0d1_b820_8c5d, 0x3ff7_965d_7782_f57e),
+            (0x3fee_0000_0000_0000, 0x3ff8_8bc1_fbe1_dabf),
+            (0x3fee_0000_0000_0001, 0x3ff8_8bc1_fbe1_dac1),
+        ] {
+            assert_bits(norm_s_inv_kernel(f64::from_bits(p)).unwrap(), expected);
         }
     }
 

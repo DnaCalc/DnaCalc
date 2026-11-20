@@ -1,7 +1,6 @@
 # The last bit: finding Excel's NORMSINV
 
-*Work in progress, started 2026-11-17. This article is finished when every piece of Excel's normal
-inverse is known. Status at the end.*
+*Started 2026-11-17 and completed 2026-11-20.*
 
 DNA Calc aims to give the same answer as Excel, down to the last bit of every double. For most
 functions that is plain engineering. For some it is detective work: the function is a piece of
@@ -28,9 +27,9 @@ answers, compared against a high-precision true value. The shape of Excel's erro
 split the input range into regions:
 
 - **p < 0.075:** a smooth sawtooth error, and an answer that depends on p itself.
-- **0.075 <= p <= 0.925:** the answer depends only on the stored value q = p - 1/2, and the left and
+- **0.075 <= p < 0.925:** the answer depends only on the stored value q = p - 1/2, and the left and
   right halves are exact mirror images. A different program.
-- **0.925 < p <= 15/16:** a third error shape.
+- **0.925 <= p <= 15/16:** a third error shape.
 - **p > 15/16:** the first shape again, applied to 1 - p.
 
 The two outer regions are Wichura's AS241 algorithm, the standard published normal inverse. The
@@ -47,7 +46,7 @@ everywhere below: it is the fingerprint of the arithmetic Excel's code uses.
 
 With the store-each-step arithmetic, AS241's tail formula matched 1,999 of 2,000 fresh answers
 asked *after* the predictions were frozen, and 393,140 of 393,216 retained ones. That landed. The
-76 retained answers it still misses look like a detail of the logarithm, and are open.
+76 retained misses looked like a detail of the logarithm. We came back to those in the last round.
 
 ## Step 3: the middle resists
 
@@ -138,22 +137,7 @@ That residue is itself a clue. The logarithm inside the kernel is not the worksh
 library's log, nor a correctly rounded one, and its miss rate equals that of the AS241 tails (76 of
 393,216). Both pieces very likely share one internal log, and each miss is a direct reading of it.
 
-## Where we stand (2026-11-17, midday)
-
-| Region of t = 2p - 1 | Program | Status |
-|---|---|---|
-| \|t\| <= 1/sqrt 2 (piece A) | degree-7 rational in s = t^2, Chebyshev interpolation on [0, 0.73], perturbed solve | exact, in DNA Calc |
-| 1/sqrt 2 < \|t\| <= 0.85 (piece B) | sqrt(-ln(1-\|t\|)) times a (7,5) rational at 13 Chebyshev zeros on s in [0.5, 0.73] | identified, not yet in DNA Calc |
-| 0.85 < t <= 0.875 (piece C, upper only) | last operation the same as B; the ratio has two sharp noise steps that suggest a centred, scaled variable on a much wider interval | open |
-| tails (AS241) | stored-step AS241 | exact except 76 of 393,216, shared internal log |
-
-Piece C exists only on the upper side, and it is probably not a small piece in its own right but a
-window onto erfinv's outer piece, built for a range far wider than the sliver NORMSINV uses before
-handing p > 15/16 to the AS241 tail.
-
-*To be continued.*
-
-## What this taught us so far
+## What we took into the last search
 
 - Map the shape of the error before guessing a formula; region edges and symmetries are free facts.
 - Read structure at the edges where only one term matters, one coefficient at a time.
@@ -166,3 +150,52 @@ handing p > 15/16 to the AS241 tail.
 - Rank candidate families by their error curve before checking bits; a family that scores below a
   correctly rounded stand-in has the wrong target function.
 - Freeze predictions before asking. A claim is what survives fresh answers.
+
+
+## Step 7: the two steps in the last piece (Gemini Carbon)
+
+First fn9 settled the shared logarithm. The x87 computes the logarithm with FYL2X, stores it to a
+double, then takes the square root with FSQRT and stores that too. With those two stores, all
+393,216 retained lower-tail answers matched. Piece B went into the same kernel. That left a narrow
+window on the upper side, from p = 0.925 through 15/16 inclusive.
+
+Gemini Carbon started with the two places in that window where the scatter suddenly halves.
+If Excel switched formulas there, what would happen to the repeating patterns in the low bits?
+Carbon followed two such patterns through consecutive doubles. At the first step one pattern
+doubled in frequency while the other went straight through. At the second step they traded roles.
+One rational could do that. Each time a stored polynomial falls below a power of two, the spacing
+of the doubles it can land on halves.
+
+The frequencies tell us how fast those polynomials move. Counting cycles across neighbouring
+windows and requiring their ratio to follow erfinv(t) / sqrt(-ln(1-t)) pinned down their slopes.
+The denominator passed through 2 near t = 0.854685 and the numerator through 1 near t = 0.869236.
+Following the denominator to the point where it would equal 1 gave 0.878906250, just outside the
+window. In binary that number has a short name, 225/256. The centre was measured before a table
+of coefficients was tried.
+
+Expand the ratio at that centre as a degree-nine numerator over a degree-nine denominator, a Padé
+approximant. Round its coefficients to doubles and use Horner's rule in t - 225/256, storing every
+product and sum. Multiply the stored quotient by the same log-root as piece B, store, then multiply
+by the stored square root of two. That program even explains the slight upward drift that had
+sent us looking for a poorer approximation. Rounding the numerator's constant term contributes
+almost half a unit in its last place. Dividing that fixed error by a falling denominator makes it
+look like a changing approximation error.
+
+The precision used to make the table left one more test. Solving at 80 and at 96 bits of working
+precision gave adjacent doubles for the eighth-degree denominator coefficient. Carbon found an input,
+p = `0x3fed999bc5f0efd8` as binary64 bits, where that one bit changes the final answer. Excel picked
+the 96-bit table. Some last bits of the highest-degree terms have no direct discriminator yet.
+The Padé construction specifies those terms too.
+
+Carbon froze the predictions and their SHA-256 before asking Excel. The 32,452 new probabilities
+included three runs of consecutive doubles, inputs spread across the window, and inputs chosen
+to distinguish coefficient bits or x87 stores. Excel build 20527 returned **32,452 of 32,452**
+predicted words under NORM.S.INV and **32,452 of 32,452** under NORMSINV. The input immediately
+below 0.925 belongs to B. At exactly 15/16 Excel still uses C, and one double above it uses AS241.
+On the lower side B goes straight to AS241. That accounts for the last piece.
+
+In DNA Calc the old kernel matched 16,910 of the 32,452 frozen inputs under each name. The new
+one matched all of them, then all 1,230,456 distinct inputs from the earlier piece C sweeps.
+The full bank moved from 2,197 to 2,210 of 2,210 for NORMSINV and from 2,195 to 2,206 of 2,206
+for NORM.S.INV. Across those two names, NORMINV, NORM.INV, LOGINV, LOGNORM.INV, CONFIDENCE and
+CONFIDENCE.NORM, that makes 21,849 to **21,898 of 21,898**, including the rows where Excel returns an error.
