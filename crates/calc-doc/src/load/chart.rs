@@ -409,8 +409,15 @@ fn read_chart_xml(
             let series_scope = matches!(names.as_slice(), ["chart", "plotArea", kind, "ser"] if kind.ends_with("Chart"));
             let plot_scope = matches!(names.as_slice(), ["chart", "plotArea", kind] if kind.ends_with("Chart"));
             if series_scope || plot_scope {
-                let (simple, linked) = read_simple_value_labels(&mut events)?;
+                let (simple, linked, shown) = read_simple_value_labels(&mut events)?;
                 if let Some(plot) = chart.plots.last_mut() {
+                    if series_scope {
+                        if let Some(series) = plot.series.last_mut() {
+                            series.labels = Some(shown);
+                        }
+                    } else {
+                        plot.labels = Some(shown);
+                    }
                     let setting = if series_scope {
                         plot.series.last_mut().map(|series| (&mut series.show_values, &mut series.value_labels_source_linked))
                     } else { Some((&mut plot.show_values, &mut plot.value_labels_source_linked)) };
@@ -849,7 +856,9 @@ fn data_of(plots: &mut [ChartPlot], slot: Option<Slot>) -> Option<&mut ChartData
 }
 
 /// Only a single showVal flag is safe without modelling per-point and formatting overrides.
-fn read_simple_value_labels(events: &mut Events<'_>) -> Result<(bool, bool), LoadError> {
+fn read_simple_value_labels(events: &mut Events<'_>) -> Result<(bool, bool, calc_doc_model::ChartLabels), LoadError> {
+    let mut shown = calc_doc_model::ChartLabels::default();
+    let mut in_separator = false;
     let mut depth = 0usize;
     let mut count = 0usize;
     let mut valid = true;
@@ -859,6 +868,19 @@ fn read_simple_value_labels(events: &mut Events<'_>) -> Result<(bool, bool), Loa
         match events.next()? {
             Some(XmlEvent::Start(element)) => {
                 depth += 1;
+                if depth == 1 && element.name.namespace.as_deref() == Some(CHART_NAMESPACE) {
+                    let on = matches!(element.attribute("val"), Some("1" | "true") | None);
+                    match element.name.local.as_str() {
+                        "showVal" => shown.value = on,
+                        "showCatName" => shown.category = on,
+                        "showSerName" => shown.series = on,
+                        "showPercent" => shown.percent = on,
+                        "dLblPos" => shown.position = element.attribute("val").map(str::to_owned),
+                        "delete" => shown.deleted = on,
+                        "separator" => in_separator = true,
+                        _ => {}
+                    }
+                }
                 if depth == 1 && element.name.is(CHART_NAMESPACE, "showVal") {
                     count += 1;
                     valid &= matches!(element.attribute("val"), Some("1" | "true"));
@@ -870,12 +892,20 @@ fn read_simple_value_labels(events: &mut Events<'_>) -> Result<(bool, bool), Loa
                 } else { valid = false; }
             }
             Some(XmlEvent::End(_)) if depth == 0 => break,
-            Some(XmlEvent::End(_)) => depth -= 1,
-            Some(XmlEvent::Text(text)) => valid &= text.trim().is_empty(),
+            Some(XmlEvent::End(_)) => {
+                depth -= 1;
+                in_separator = false;
+            }
+            Some(XmlEvent::Text(text)) => {
+                if in_separator && depth == 1 {
+                    shown.separator = Some(text.to_string());
+                }
+                valid &= text.trim().is_empty();
+            }
             None => return Err(events.invalid("the part ends inside chart data labels")),
         }
     }
-    Ok((valid && count == 1, linked))
+    Ok((valid && count == 1, linked, shown))
 }
 
 #[cfg(test)]

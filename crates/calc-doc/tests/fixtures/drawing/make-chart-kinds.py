@@ -15,6 +15,8 @@ Excel 2016 writes them (c:chartSpace with numRef/strRef caches), each in its own
  11 "Line drops"   lineChart with drop lines and high-low lines, series B with fixed error bars of 1 (both),
                    series C with 10% error bars (plus, no end caps)
  12 "Column sd"    barChart clustered, series B with one standard deviation error bars
+ 13 "Pie labels"   pieChart, series B, labels showing category and percentage (best fit)
+ 14 "Column labels" barChart clustered, series B, labels showing series name and value, separator "; "
 Not yet opened by Excel (codex-runs/dw2/RUN-ON-WINDOWS.txt).
 Run: python3 -I make-chart-kinds.py shapes-paint4.xlsx chart-kinds.xlsx"""
 import sys, zipfile
@@ -74,6 +76,15 @@ value_axes = ('<c:valAx><c:axId val="1"/><c:scaling><c:orientation val="minMax"/
 ids = '<c:axId val="1"/><c:axId val="2"/>'
 
 
+def labels(value=0, category=0, series=0, percent=0, position=None, separator=None):
+    """A series' c:dLbls as Excel 2016 writes one (its schema order: position, the show flags, the separator)."""
+    pos = f'<c:dLblPos val="{position}"/>' if position else ''
+    sep = f'<c:separator>{separator}</c:separator>' if separator else ''
+    return (f'<c:dLbls><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>{pos}<c:showLegendKey val="0"/><c:showVal val="{value}"/>'
+            f'<c:showCatName val="{category}"/><c:showSerName val="{series}"/><c:showPercent val="{percent}"/><c:showBubbleSize val="0"/>'
+            f'{sep}<c:showLeaderLines val="1"/></c:dLbls>')
+
+
 def errbars(kind, value, bar="both", direction=None, cap=True):
     """A c:errBars as Excel 2016 writes one."""
     d = f'<c:errDir val="{direction}"/>' if direction else ''
@@ -118,6 +129,10 @@ charts = [
      f'<c:dropLines/><c:hiLowLines/><c:marker val="1"/>{ids}</c:lineChart>{cat_val_axes}'),
     ("Column sd", "", f'<c:barChart><c:barDir val="col"/><c:grouping val="clustered"/><c:varyColors val="0"/>'
      f'{ser(0, "B", extra=errbars("stdDev", 1))}{ser(1, "C")}<c:gapWidth val="150"/>{ids}</c:barChart>{cat_val_axes}'),
+    ("Pie labels", "", f'<c:pieChart><c:varyColors val="1"/>{ser(0, "B", extra=labels(category=1, percent=1, position="bestFit"))}'
+     '<c:firstSliceAng val="0"/></c:pieChart>'),
+    ("Column labels", "", f'<c:barChart><c:barDir val="col"/><c:grouping val="clustered"/><c:varyColors val="0"/>'
+     f'{ser(0, "B", extra=labels(series=1, value=1, separator="; "))}<c:gapWidth val="150"/>{ids}</c:barChart>{cat_val_axes}'),
     ("3-D Line", view3d, f'<c:line3DChart><c:grouping val="standard"/><c:varyColors val="0"/>{ser(0, "B")}{ser(1, "C")}{ids}<c:axId val="3"/></c:line3DChart>'
      f'{cat_val_axes}<c:serAx><c:axId val="3"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="b"/>'
      '<c:majorTickMark val="out"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/><c:crossAx val="2"/><c:crosses val="autoZero"/></c:serAx>'),

@@ -97,6 +97,10 @@ pub struct SeriesView {
     pub trendlines: Vec<(calc_doc_model::ChartTrendline, String)>,
     /// The series' error bars as the file states them.
     pub error_bars: Vec<calc_doc_model::ChartErrorBars>,
+    /// What the series' labels show (its own `dLbls`, else its plot's), and each value as its cell shows it when
+    /// they show values (empty when the cells' formats are not ones the session renders).
+    pub labels: Option<calc_doc_model::ChartLabels>,
+    pub label_values: Vec<Option<String>>,
 }
 
 /// One plot of a chart.
@@ -301,7 +305,15 @@ impl HostState {
                                         (t.clone(), colour)
                                     })
                                     .collect();
+                                let labels = series.labels.clone().or_else(|| plot.labels.clone()).filter(|l| !l.deleted && (l.value || l.category || l.series || l.percent));
+                                let label_values = if labels.as_ref().is_some_and(|l| l.value) {
+                                    self.simple_value_labels(series.values.as_ref(), &values, cached, true, origin)
+                                } else {
+                                    Vec::new()
+                                };
                                 SeriesView {
+                                    labels,
+                                    label_values,
                                     error_bars: series.error_bars.clone(),
                                     trendlines,
                                     sizes,
@@ -1829,6 +1841,7 @@ fn make_series(
             bubble_sizes: None,
             trendlines: Vec::new(),
             error_bars: Vec::new(),
+            labels: None,
         });
     }
     Ok(series)

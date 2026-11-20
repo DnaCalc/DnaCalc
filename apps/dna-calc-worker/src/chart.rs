@@ -964,7 +964,8 @@ fn category_marks(
                     );
                     mark(svg, i + offset, j, v);
                     svg.push_str("/>");
-                    if let Some(Some(label)) = series.value_labels.get(j) {
+                    let composed = if series.value_labels.is_empty() { label_text(series, j, v, None, &series.name) } else { None };
+                    if let Some(label) = composed.as_ref().or(series.value_labels.get(j).and_then(Option::as_ref)) {
                         if horizontal {
                             let (x, anchor) = if v >= 0. { (to - 4., "end") } else { (to + 4., "start") };
                             let _ = write!(data_labels, "<text data-dnacalc=\"chart-value-label\" data-series=\"{}\" data-point=\"{j}\" x=\"{x:.1}\" y=\"{:.1}\" text-anchor=\"{anchor}\" fill=\"{AXIS}\">{}</text>", i + offset, y + h / 2. + 4., escape(label));
@@ -1041,7 +1042,8 @@ fn category_marks(
                     );
                     mark(&mut shapes, i, j, v);
                     shapes.push_str("/>");
-                    if plot.kind == ChartKind::Line && let Some(Some(label)) = series.value_labels.get(j) {
+                    let composed = if series.value_labels.is_empty() { label_text(series, j, v, None, &series.name) } else { None };
+                    if plot.kind == ChartKind::Line && let Some(label) = composed.as_ref().or(series.value_labels.get(j).and_then(Option::as_ref)) {
                         let _ = write!(data_labels, "<text data-dnacalc=\"chart-value-label\" data-series=\"{i}\" data-point=\"{j}\" x=\"{x:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">{}</text>", y - 4., escape(label));
                     }
                     if plot.stacked {
@@ -1313,6 +1315,7 @@ fn pie_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: &Area) 
         (cx + radius * a.cos(), cy + radius * a.sin())
     };
     let mut angle = 0.0;
+    let mut labels = String::new();
     for (j, value) in series.values.iter().enumerate() {
         let Some(v) = value.filter(|v| *v > 0.0) else {
             continue;
@@ -1354,8 +1357,47 @@ fn pie_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: &Area) 
         );
         mark(svg, 0, j, v);
         svg.push_str("/>");
+        // The slice's label (dc-zjsg.6): inside at its middle, or past its edge for `outEnd` (bestFit ASSUMED inside).
+        if let Some(text) = label_text(series, j, v, Some(v / total), &series.name) {
+            let reach = match series.labels.as_ref().and_then(|l| l.position.as_deref()) {
+                Some("outEnd") => r + 12.0,
+                Some("ctr") => (r + hole) / 2.0,
+                Some("inEnd") => r * 0.8,
+                _ => hole + (r - hole) * 0.65,
+            };
+            let (x, y) = point(angle + sweep / 2.0, reach);
+            let anchor = if reach > r { if x >= cx { "start" } else { "end" } } else { "middle" };
+            let _ = write!(
+                labels,
+                "<text data-dnacalc=\"chart-data-label\" data-point=\"{j}\" x=\"{x:.1}\" y=\"{:.1}\" text-anchor=\"{anchor}\" fill=\"{AXIS}\">{}</text>",
+                y + 4.0,
+                escape(&text)
+            );
+        }
         angle += sweep;
     }
+    svg.push_str(&labels);
+}
+
+/// A point's data label as the series' `dLbls` composes it (dc-zjsg.6): its series name, category, value and (in a
+/// pie) percentage in Excel's order, joined by the separator (`, ` when the file states none, ASSUMED); the value as
+/// its cell shows it, else in General; the percentage rounded to a whole percent. `None` without labels.
+fn label_text(series: &calc_host::chart::SeriesView, j: usize, value: f64, share: Option<f64>, name: &str) -> Option<String> {
+    let labels = series.labels.as_ref()?;
+    let mut parts = Vec::new();
+    if labels.series {
+        parts.push(name.to_owned());
+    }
+    if labels.category {
+        parts.push(series.categories.get(j).cloned().flatten().map(|v| text_of(&v)).unwrap_or_else(|| (j + 1).to_string()));
+    }
+    if labels.value {
+        parts.push(series.label_values.get(j).cloned().flatten().unwrap_or_else(|| label(value, 0.0)));
+    }
+    if labels.percent && let Some(share) = share {
+        parts.push(format!("{}%", (share * 100.0).round()));
+    }
+    (!parts.is_empty()).then(|| parts.join(labels.separator.as_deref().unwrap_or(", ")))
 }
 
 /// A scatter plot's markers, on value axes for X and Y.
@@ -1533,10 +1575,10 @@ mod tests {
         let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
         assert!(book.dispatch(SkinIntent::Recalculate).accepted());
         let (charts, unread) = book.host().charts(book.host().sheets()[0].id());
-        assert_eq!((charts.len(), unread), (12, 0));
+        assert_eq!((charts.len(), unread), (14, 0));
         let svg = |name: &str| chart_svg(charts.iter().find(|c| c.name == name).unwrap(), 600., 350.);
         let count = |svg: &str, needle: &str| svg.matches(needle).count();
-        for name in ["3-D Column", "3-D Pie", "Radar marker", "Radar filled", "Bubble", "Stock HLC", "Stock OHLC", "3-D Line", "Line trends", "Scatter exp", "Line drops", "Column sd"] {
+        for name in ["3-D Column", "3-D Pie", "Radar marker", "Radar filled", "Bubble", "Stock HLC", "Stock OHLC", "3-D Line", "Line trends", "Scatter exp", "Line drops", "Column sd", "Pie labels", "Column labels"] {
             let drawn = svg(name);
             assert!(!drawn.contains("is not drawn here") && !drawn.contains("chart-notice"), "{name}: {drawn}");
         }
@@ -1573,6 +1615,13 @@ mod tests {
         assert!((centre - 11.2).abs() < 1e-9 && (high - low - 2.0 * 3.7f64.sqrt()).abs() < 1e-9, "{sd:?}");
         assert_eq!(count(&svg("Column sd"), "chart-error-bar"), 5);
         assert_eq!(count(&svg("Scatter exp"), "chart-error-bar"), 5);
+        // Labels composed from the dLbls (dc-zjsg.6): category and whole percent on the pie (Mon is 10 of 56: 18%),
+        // series name and value with the stated separator on the columns.
+        let pie = svg("Pie labels");
+        assert_eq!(count(&pie, "chart-data-label"), 5);
+        assert!(pie.contains(">Mon, 18%</text>"), "{pie}");
+        let columns = svg("Column labels");
+        assert!(columns.contains(">Low; 10</text>"), "{columns}");
         // Two series of five columns; five slices.
         assert_eq!(count(&svg("3-D Column"), "<rect data-dnacalc=\"chart-mark\""), 10);
         assert!(charts.iter().find(|c| c.name == "3-D Column").unwrap().plots[0].three_d);
