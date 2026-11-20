@@ -585,6 +585,61 @@ fn trendline_points(t: &calc_host::ChartTrendline, xy: &[(f64, f64)], low: f64, 
     }
 }
 
+/// Where a series' error bars reach at each point, in value units (`low`, `high`, and the value they are drawn
+/// about), as Excel computes them (dc-zjsg.6): a fixed amount, a percentage of the value, a number of standard
+/// deviations (n - 1) about the series' mean, or the standard error, sqrt(sum of y^2 / (n (n - 1))) as Excel's help
+/// gives it (ASSUMED until a side-by-side); plus, minus or both. A custom error amount is not drawn.
+fn error_extents(e: &calc_host::ChartErrorBars, values: &[Option<f64>]) -> Vec<Option<(f64, f64, f64)>> {
+    let amount = e.value.as_deref().and_then(|v| v.trim().parse::<f64>().ok()).filter(|v| v.is_finite()).unwrap_or(match e.value_type.as_deref() {
+        Some("percentage") => 5.0,
+        Some("stdDev") => 1.0,
+        _ => 1.0,
+    });
+    let present: Vec<f64> = values.iter().flatten().copied().filter(|v| v.is_finite()).collect();
+    let n = present.len() as f64;
+    let mean = present.iter().sum::<f64>() / n.max(1.0);
+    let deviation = if n > 1.0 { (present.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0)).sqrt() } else { 0.0 };
+    let standard_error = if n > 1.0 { (present.iter().map(|v| v * v).sum::<f64>() / (n * (n - 1.0))).sqrt() } else { 0.0 };
+    values
+        .iter()
+        .map(|v| {
+            let v = (*v).filter(|v| v.is_finite())?;
+            let (centre, reach) = match e.value_type.as_deref() {
+                Some("cust") => return None,
+                Some("percentage") => (v, v.abs() * amount / 100.0),
+                Some("stdDev") => (mean, deviation * amount),
+                Some("stdErr") => (v, standard_error),
+                _ => (v, amount),
+            };
+            Some(match e.kind.as_deref() {
+                Some("plus") => (centre, centre + reach, centre),
+                Some("minus") => (centre - reach, centre, centre),
+                _ => (centre - reach, centre + reach, centre),
+            })
+        })
+        .collect()
+}
+
+/// One error bar from `from` to `to` (pixels), along x when `across`, with end caps of `cap` pixels.
+fn error_bar_svg(svg: &mut String, series: usize, point: usize, from: (f64, f64), to: (f64, f64), cap: Option<f64>) {
+    let _ = write!(
+        svg,
+        "<path data-dnacalc=\"chart-error-bar\" data-series=\"{series}\" data-point=\"{point}\" d=\"M{:.1} {:.1}L{:.1} {:.1}",
+        from.0, from.1, to.0, to.1
+    );
+    if let Some(cap) = cap {
+        let across = (from.1 - to.1).abs() < 1e-9;
+        for (x, y) in [from, to] {
+            if across {
+                let _ = write!(svg, "M{x:.1} {:.1}L{x:.1} {:.1}", y - cap, y + cap);
+            } else {
+                let _ = write!(svg, "M{:.1} {y:.1}L{:.1} {y:.1}", x - cap, x + cap);
+            }
+        }
+    }
+    let _ = write!(svg, "\" fill=\"none\" stroke=\"{AXIS}\" stroke-width=\"1\"/>");
+}
+
 /// A trendline's path in the plot: Excel's default look, a dotted line 1.5 points wide in the series' colour.
 fn trendline_svg(svg: &mut String, series: usize, colour: &str, points: &[(f64, f64)]) {
     let mut d = String::new();
@@ -1050,6 +1105,46 @@ fn category_marks(
         }
         _ => {}
     }
+    // A line plot's high-low lines from each category's lowest to its highest value, a line or area plot's drop
+    // lines from each point down to the category axis, and error bars (dc-zjsg.6). Error bars on columns stand at
+    // each column's middle; a stacked plot's are not drawn.
+    if matches!(plot.kind, ChartKind::Line | ChartKind::Area) && !horizontal {
+        for j in 0..count {
+            let values: Vec<f64> = plot.series.iter().filter_map(|s| s.values.get(j).copied().flatten()).filter(|v| scale.position(*v).is_some()).collect();
+            let x = middle_of(j);
+            if plot.high_low_lines && plot.kind == ChartKind::Line && values.len() >= 2 {
+                let (low, high) = values.iter().fold((f64::MAX, f64::MIN), |(a, b), v| (a.min(*v), b.max(*v)));
+                let _ = write!(svg, "<line data-dnacalc=\"chart-high-low\" data-point=\"{j}\" x1=\"{x:.1}\" y1=\"{:.1}\" x2=\"{x:.1}\" y2=\"{:.1}\" stroke=\"{AXIS}\" stroke-width=\"0.75\"/>", value_at(low), value_at(high));
+            }
+            if plot.drop_lines {
+                for v in &values {
+                    let _ = write!(svg, "<line data-dnacalc=\"chart-drop-line\" data-point=\"{j}\" x1=\"{x:.1}\" y1=\"{:.1}\" x2=\"{x:.1}\" y2=\"{zero:.1}\" stroke=\"{AXIS}\" stroke-width=\"0.75\"/>", value_at(*v));
+                }
+            }
+        }
+    }
+    if !plot.stacked && matches!(plot.kind, ChartKind::Column | ChartKind::Bar | ChartKind::Line | ChartKind::Area) {
+        let group = band / 2.5;
+        let width = group / plot.series.len().max(1) as f64;
+        for (i, series) in plot.series.iter().enumerate() {
+            for bars in series.error_bars.iter().filter(|b| b.direction.as_deref() != Some("x")) {
+                for (j, extent) in error_extents(bars, &series.values).into_iter().enumerate() {
+                    let Some((low, high, _)) = extent else { continue };
+                    let along = if matches!(plot.kind, ChartKind::Column | ChartKind::Bar) {
+                        band_start(j) + (band - group) / 2.0 + i as f64 * width + width / 2.0
+                    } else {
+                        middle_of(j)
+                    };
+                    let cap = bars.end_cap.then_some(4.0);
+                    if horizontal {
+                        error_bar_svg(svg, i + offset, j, (value_at(low), along), (value_at(high), along), cap);
+                    } else {
+                        error_bar_svg(svg, i + offset, j, (along, value_at(low)), (along, value_at(high)), cap);
+                    }
+                }
+            }
+        }
+    }
     // Trendlines over the categories, numbered from 1 as Excel fits them (dc-zjsg.6).
     if matches!(plot.kind, ChartKind::Column | ChartKind::Bar | ChartKind::Line | ChartKind::Area) && count > 0 {
         let step = if count > 1 { middle_of(1) - middle_of(0) } else { 0.0 };
@@ -1390,6 +1485,22 @@ fn scatter_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: Are
             }
         }
     }
+    // Error bars along y (about the value) and along x (about the x value) (dc-zjsg.6).
+    for (i, (xs, s)) in series.iter().enumerate() {
+        for bars in &s.error_bars {
+            let across = bars.direction.as_deref() == Some("x");
+            let along: Vec<Option<f64>> = if across { xs.clone() } else { s.values.clone() };
+            for (j, extent) in error_extents(bars, &along).into_iter().enumerate() {
+                let (Some((low, high, _)), Some(Some(x)), Some(Some(y))) = (extent, xs.get(j), s.values.get(j)) else { continue };
+                let cap = bars.end_cap.then_some(4.0);
+                if across {
+                    error_bar_svg(svg, i, j, (px(low), py(*y)), (px(high), py(*y)), cap);
+                } else {
+                    error_bar_svg(svg, i, j, (px(*x), py(low)), (px(*x), py(high)), cap);
+                }
+            }
+        }
+    }
     // Trendlines over the x values (dc-zjsg.6).
     for (i, (xs, s)) in series.iter().enumerate() {
         let xy: Vec<(f64, f64)> = xs.iter().zip(&s.values).filter_map(|(x, y)| Some(((*x)?, (*y)?))).collect();
@@ -1422,10 +1533,10 @@ mod tests {
         let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
         assert!(book.dispatch(SkinIntent::Recalculate).accepted());
         let (charts, unread) = book.host().charts(book.host().sheets()[0].id());
-        assert_eq!((charts.len(), unread), (10, 0));
+        assert_eq!((charts.len(), unread), (12, 0));
         let svg = |name: &str| chart_svg(charts.iter().find(|c| c.name == name).unwrap(), 600., 350.);
         let count = |svg: &str, needle: &str| svg.matches(needle).count();
-        for name in ["3-D Column", "3-D Pie", "Radar marker", "Radar filled", "Bubble", "Stock HLC", "Stock OHLC", "3-D Line", "Line trends", "Scatter exp"] {
+        for name in ["3-D Column", "3-D Pie", "Radar marker", "Radar filled", "Bubble", "Stock HLC", "Stock OHLC", "3-D Line", "Line trends", "Scatter exp", "Line drops", "Column sd"] {
             let drawn = svg(name);
             assert!(!drawn.contains("is not drawn here") && !drawn.contains("chart-notice"), "{name}: {drawn}");
         }
@@ -1446,6 +1557,22 @@ mod tests {
         let scatter = svg("Scatter exp");
         assert_eq!(count(&scatter, "data-dnacalc=\"chart-trendline\""), 1);
         assert!(scatter.contains("stroke=\"#FF0000\" stroke-width=\"2\" stroke-dasharray"), "{scatter}");
+        // Drop lines (ten points), high-low lines (five days) and error bars (dc-zjsg.6).
+        let drops = svg("Line drops");
+        assert_eq!((count(&drops, "chart-drop-line"), count(&drops, "chart-high-low"), count(&drops, "chart-error-bar")), (10, 5, 10));
+        let line = charts.iter().find(|c| c.name == "Line drops").unwrap();
+        let fixed = error_extents(&line.plots[0].series[0].error_bars[0], &[Some(10.0), None]);
+        assert_eq!(fixed, vec![Some((9.0, 11.0, 10.0)), None]);
+        let percent = &line.plots[0].series[1].error_bars[0];
+        assert!(!percent.end_cap);
+        assert_eq!(error_extents(percent, &[Some(20.0)]), vec![Some((20.0, 22.0, 20.0))]);
+        // One standard deviation (n - 1) about the mean of 10, 12, 9, 11, 14: 11.2 +- 1.9235...
+        let column = charts.iter().find(|c| c.name == "Column sd").unwrap();
+        let sd = error_extents(&column.plots[0].series[0].error_bars[0], &column.plots[0].series[0].values);
+        let (low, high, centre) = sd[0].unwrap();
+        assert!((centre - 11.2).abs() < 1e-9 && (high - low - 2.0 * 3.7f64.sqrt()).abs() < 1e-9, "{sd:?}");
+        assert_eq!(count(&svg("Column sd"), "chart-error-bar"), 5);
+        assert_eq!(count(&svg("Scatter exp"), "chart-error-bar"), 5);
         // Two series of five columns; five slices.
         assert_eq!(count(&svg("3-D Column"), "<rect data-dnacalc=\"chart-mark\""), 10);
         assert!(charts.iter().find(|c| c.name == "3-D Column").unwrap().plots[0].three_d);

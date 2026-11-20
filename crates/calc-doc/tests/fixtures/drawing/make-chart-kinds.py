@@ -11,7 +11,10 @@ Excel 2016 writes them (c:chartSpace with numRef/strRef caches), each in its own
   8 "3-D Line"     line3DChart, grouping standard, two series (B, C), with its series (depth) axis c:serAx id 3
   9 "Line trends"  lineChart, series B with a linear trendline (forward 1) and series C with a polynomial (order 2)
                    and a moving average (period 2) trendline
- 10 "Scatter exp"  scatterChart, x B2:B6, y C2:C6, an exponential trendline in red
+ 10 "Scatter exp"  scatterChart, x B2:B6, y C2:C6, an exponential trendline in red, x error bars of 0.5
+ 11 "Line drops"   lineChart with drop lines and high-low lines, series B with fixed error bars of 1 (both),
+                   series C with 10% error bars (plus, no end caps)
+ 12 "Column sd"    barChart clustered, series B with one standard deviation error bars
 Not yet opened by Excel (codex-runs/dw2/RUN-ON-WINDOWS.txt).
 Run: python3 -I make-chart-kinds.py shapes-paint4.xlsx chart-kinds.xlsx"""
 import sys, zipfile
@@ -71,6 +74,13 @@ value_axes = ('<c:valAx><c:axId val="1"/><c:scaling><c:orientation val="minMax"/
 ids = '<c:axId val="1"/><c:axId val="2"/>'
 
 
+def errbars(kind, value, bar="both", direction=None, cap=True):
+    """A c:errBars as Excel 2016 writes one."""
+    d = f'<c:errDir val="{direction}"/>' if direction else ''
+    return (f'<c:errBars>{d}<c:errBarType val="{bar}"/><c:errValType val="{kind}"/><c:noEndCap val="{0 if cap else 1}"/>'
+            f'<c:val val="{value}"/></c:errBars>')
+
+
 def trend(kind, order=None, period=None, forward=None, colour=None):
     """A c:trendline as Excel 2016 writes one (its dotted line in the series' or the stated colour)."""
     fill = f'<a:solidFill><a:srgbClr val="{colour}"/></a:solidFill>' if colour else '<a:solidFill><a:schemeClr val="accent1"/></a:solidFill>'
@@ -101,8 +111,13 @@ charts = [
      f'<c:marker val="1"/>{ids}</c:lineChart>{cat_val_axes}'),
     ("Scatter exp", "", f'<c:scatterChart><c:scatterStyle val="lineMarker"/><c:varyColors val="0"/>'
      f'<c:ser><c:idx val="0"/><c:order val="0"/>{name("C")}<c:spPr><a:ln w="19050"><a:noFill/></a:ln></c:spPr>'
-     f'{trend("exp", colour="FF0000")}<c:xVal>{num_ref("B")}</c:xVal><c:yVal>{num_ref("C")}</c:yVal><c:smooth val="0"/></c:ser>'
+     f'{trend("exp", colour="FF0000")}{errbars("fixedVal", 0.5, direction="x")}<c:xVal>{num_ref("B")}</c:xVal><c:yVal>{num_ref("C")}</c:yVal><c:smooth val="0"/></c:ser>'
      f'{ids}</c:scatterChart>{value_axes}'),
+    ("Line drops", "", f'<c:lineChart><c:grouping val="standard"/><c:varyColors val="0"/>'
+     f'{ser(0, "B", extra=errbars("fixedVal", 1))}{ser(1, "C", extra=errbars("percentage", 10, bar="plus", cap=False))}'
+     f'<c:dropLines/><c:hiLowLines/><c:marker val="1"/>{ids}</c:lineChart>{cat_val_axes}'),
+    ("Column sd", "", f'<c:barChart><c:barDir val="col"/><c:grouping val="clustered"/><c:varyColors val="0"/>'
+     f'{ser(0, "B", extra=errbars("stdDev", 1))}{ser(1, "C")}<c:gapWidth val="150"/>{ids}</c:barChart>{cat_val_axes}'),
     ("3-D Line", view3d, f'<c:line3DChart><c:grouping val="standard"/><c:varyColors val="0"/>{ser(0, "B")}{ser(1, "C")}{ids}<c:axId val="3"/></c:line3DChart>'
      f'{cat_val_axes}<c:serAx><c:axId val="3"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="b"/>'
      '<c:majorTickMark val="out"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/><c:crossAx val="2"/><c:crosses val="autoZero"/></c:serAx>'),

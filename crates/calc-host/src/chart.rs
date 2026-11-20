@@ -95,6 +95,8 @@ pub struct SeriesView {
     pub sizes: Vec<Option<f64>>,
     /// The series' trendlines as the file states them, the colour resolved to `RRGGBB` (the series' when unstated).
     pub trendlines: Vec<(calc_doc_model::ChartTrendline, String)>,
+    /// The series' error bars as the file states them.
+    pub error_bars: Vec<calc_doc_model::ChartErrorBars>,
 }
 
 /// One plot of a chart.
@@ -115,8 +117,9 @@ pub struct PlotView {
     /// A bubble plot's scale (percent of the default size) and whether size is the bubble's width, not its area.
     pub bubble_scale: f64,
     pub bubble_width: bool,
-    /// A stock plot's high-low lines and up/down bars.
+    /// A stock or line plot's high-low lines, a stock plot's up/down bars, a line or area plot's drop lines.
     pub high_low_lines: bool,
+    pub drop_lines: bool,
     pub up_down_bars: bool,
 }
 
@@ -234,6 +237,7 @@ impl HostState {
                         bubble_scale: f64::from(plot.bubble_scale.unwrap_or(100).min(300)),
                         bubble_width: plot.bubble_width,
                         high_low_lines: plot.high_low_lines,
+                        drop_lines: plot.drop_lines,
                         up_down_bars: plot.up_down_bars,
                         stacked: matches!(grouping, "stacked" | "percentStacked"),
                         percent: grouping == "percentStacked",
@@ -298,6 +302,7 @@ impl HostState {
                                     })
                                     .collect();
                                 SeriesView {
+                                    error_bars: series.error_bars.clone(),
                                     trendlines,
                                     sizes,
                                     name,
@@ -1823,6 +1828,7 @@ fn make_series(
             unique_id: None,
             bubble_sizes: None,
             trendlines: Vec::new(),
+            error_bars: Vec::new(),
         });
     }
     Ok(series)
