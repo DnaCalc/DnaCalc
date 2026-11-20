@@ -1,6 +1,12 @@
 # Pro 19: DNA Calc front-end design: the user experience, views, interaction and mockups
 
-Brief for GPT-6 Pro and the other top models (2026-11-20). Each model answers on its own, from this text alone. We then compare the answers and merge the best of them into one design. That design becomes the requirements for a separate implementation plan. This brief is about the experience and the design, not the code.
+Brief for GPT-6 Pro and the other top models (2026-11-20). Each model answers on its own, from this text and the attachments below. We then compare the answers and merge the best of them into one design. That design becomes the requirements for a separate implementation plan. This brief is about the experience and the design, not the code.
+
+## Attachments
+
+- **`STRAND.md`, our design language** (v0.1): palette, type and temperament. Base your visual design on it. You may refine it; say where and why.
+- **`LINKED_BOXES_SKIN.md`**: an idea note for the model map, where boxes and wires are defined names in the file.
+- **`names-in-motion.html` and `watershed.html`**: two static previews of the model-map look, including feedback and delays. They are sketches to react to, not specifications.
 
 ## What DNA Calc is
 
