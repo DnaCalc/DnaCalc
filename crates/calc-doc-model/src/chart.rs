@@ -60,6 +60,27 @@ pub struct ChartTrendline {
     pub colour: Option<String>,
 }
 
+/// One `c:errBars` of a series (dc-zjsg.6), as the file states it.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ChartErrorBars {
+    /// `errDir`: `x` or `y` (`None`: the value direction).
+    pub direction: Option<String>,
+    /// `errBarType`: `both`, `plus` or `minus`.
+    pub kind: Option<String>,
+    /// `errValType`: `fixedVal`, `percentage`, `stdDev`, `stdErr` or `cust`.
+    pub value_type: Option<String>,
+    /// `val`: the amount, percent or number of standard deviations.
+    pub value: Option<String>,
+    /// Drawn with end caps (`noEndCap` absent or 0).
+    pub end_cap: bool,
+}
+
+impl Default for ChartErrorBars {
+    fn default() -> Self {
+        ChartErrorBars { direction: None, kind: None, value_type: None, value: None, end_cap: true }
+    }
+}
+
 /// One `c:ser`.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ChartSeries {
@@ -78,6 +99,8 @@ pub struct ChartSeries {
     pub bubble_sizes: Option<ChartData>,
     /// The series' `c:trendline`s (dc-zjsg.6).
     pub trendlines: Vec<ChartTrendline>,
+    /// The series' `c:errBars` (dc-zjsg.6).
+    pub error_bars: Vec<ChartErrorBars>,
     /// The series' fill (`c:spPr/a:solidFill`): `RRGGBB` (`a:srgbClr`) or a scheme colour's name
     /// (`a:schemeClr`, e.g. `accent2`).
     pub fill: Option<String>,
@@ -111,8 +134,10 @@ pub struct ChartPlot {
     /// A bubble plot's `c:bubbleScale` (percent, 100 when absent) and `c:sizeRepresents` (`area` or `w`).
     pub bubble_scale: Option<u32>,
     pub bubble_width: bool,
-    /// A stock plot's `c:hiLowLines` and `c:upDownBars` (dc-zjsg.6).
+    /// A stock or line plot's `c:hiLowLines` and a stock plot's `c:upDownBars` (dc-zjsg.6).
     pub high_low_lines: bool,
+    /// A line or area plot's `c:dropLines` (dc-zjsg.6).
+    pub drop_lines: bool,
     pub up_down_bars: bool,
 }
 

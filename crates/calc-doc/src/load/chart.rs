@@ -648,6 +648,29 @@ fn read_chart_xml(
                     plot.series.push(ChartSeries::default());
                 }
             }
+            (Some("ser"), "errBars") => {
+                if let Some(series) = plot.and_then(|plot| plot.series.last_mut()) {
+                    series.error_bars.push(calc_doc_model::ChartErrorBars::default());
+                }
+            }
+            (Some("errBars"), "errDir" | "errBarType" | "errValType" | "noEndCap" | "val")
+                if path.len() >= 2 && path[path.len() - 2] == "ser" =>
+            {
+                if let Some(bars) = plot.and_then(|plot| plot.series.last_mut()).and_then(|s| s.error_bars.last_mut()) {
+                    match local.as_str() {
+                        "errDir" => bars.direction = val,
+                        "errBarType" => bars.kind = val,
+                        "errValType" => bars.value_type = val,
+                        "noEndCap" => bars.end_cap = !matches!(val.as_deref(), Some("1" | "true") | None),
+                        _ => bars.value = val,
+                    }
+                }
+            }
+            (Some(p), "dropLines") if p.ends_with("Chart") => {
+                if let Some(plot) = plot {
+                    plot.drop_lines = true;
+                }
+            }
             (Some("ser"), "trendline") => {
                 if let Some(series) = plot.and_then(|plot| plot.series.last_mut()) {
                     series.trendlines.push(calc_doc_model::ChartTrendline::default());
