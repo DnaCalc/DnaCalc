@@ -1,191 +1,132 @@
-# Pro 19: DNA Calc front-end design: views, interaction, the conceptual UI model and the skin API
+# Pro 19: DNA Calc front-end design: philosophy, views, interaction and mockups
 
-Brief for GPT-6 Pro and the other top models (2026-11-20). Each model answers on its own. A synthesis follows, and its result becomes the requirements for the internal implementation plan (the separate one-page brief, `docs/plan/FRONT_END_IMPLEMENTATION_BRIEF.md`).
+Brief for GPT-6 Pro and the other top models (2026-11-20). Each model answers on its own; a synthesis follows. The internal implementation plan is separate (`docs/plan/FRONT_END_IMPLEMENTATION_BRIEF.md`) and takes this design as its requirements. This brief is about the design, not the code.
 
-## Your role and the deliverable
+## The deliverable
 
-You are the lead designer of the DNA Calc front end. Write a **design of about 20 pages**. It should cover:
-- the conceptual model of the user interface;
-- each view's interaction design;
-- the skin API and its intermediate representation (the "Skin IR");
-- what the inner implementation must provide to make all this work.
+A **design of about 20 pages**, with:
+- a design philosophy;
+- a conceptual model of the interface;
+- **detailed mockups** of every view and tool;
+- the interaction design.
 
-Use plain language and numbered sections. Mark every assumption as an assumption. End with two numbered lists that implementation planning can take over directly:
-- **R-1 ...**: front-end requirements, each one testable;
-- **I-1 ...**: what the engine, document and host layers must provide, such as queries, events and budgets.
+Draw the mockups as annotated wireframes (SVG or HTML, or careful ASCII where that is clearer). Show real content, not lorem ipsum: a budget, a sales table used as a database, a loan schedule, a small systems model.
 
-Sequence any plan by milestones, never by calendar dates or effort estimates.
+Use plain language. Mark assumptions as assumptions. End with two numbered lists:
+- **R-1 ...**: the front-end requirements, each one testable;
+- **C-1 ...**: the capabilities the design needs from the system underneath. State them as plain needs, for example "know which cells a formula depends on, by region", or "be told which cells changed after a recalculation". Leave out how they are built.
+
+Order by milestones, never by calendar dates.
 
 ## What DNA Calc is
 
-- **An Excel-compatible spreadsheet system in Rust.** The engine aims to match Excel bit for bit, including its oddities. The file format is Excel's, and every workbook must still open and work in Excel.
-- **The engine does no more than Excel.** Views may use only what Excel itself exposes (precedents, the calc chain, calc events, RTD), plus presentation of their own.
-- **The aim: "super Excel-compatible in the engine, modern in the presentation."** A person or an agent building an Excel model can present it far better than a grid, and the file is still plain Excel.
-- **Apps:**
-  - the DNA Calc desktop app (a WebView2 skin today, a native UI later);
-  - the web app (wasm, dnacalc.com);
-  - OneCalc, a small values-only host for functions and add-ins.
+- **DNA Calc is a new spreadsheet application** that calculates exactly as Excel does. It uses Excel's files, and any workbook it saves opens and works in Excel.
+- **The aim is "Excel under the hood, modern on the surface."** Someone, or an AI agent, who builds an Excel model can present it far better than a grid, and the file is still plain Excel.
+- **It runs** as a desktop app and in the browser. It also runs macros and add-ins.
 
-  VBA, XLL and COM add-ins are supported.
+## The direction so far (settled; build on it)
 
-## What exists today (status review, 2026-11-20)
-
-**The contract has two tiers.**
-- **Host side.** `HostSession` and `SkinIntent`: enter a cell, edit, select, calculate, subscribe.
-- **Page side.**
-  - A skin plugs in through `Skin` and a `Controller`.
-  - They talk over a neutral wire protocol: 70 intents, 74 requests, 49 replies, events, streamed tile batches of grid cells, and a semantic RenderPlan for the grid.
-  - A build rule stops page code from reaching engine or document code.
-
-**Six skins use it:** grid (DOM and Canvas2D painters), notebook, ledger, atlas, tree and canvas.
-
-**The leaks:**
-- The shared Controller is shaped for the grid (5,400 lines).
-- Skins build raw protocol messages rather than shared commands. A neutral `Target` type exists, but nothing uses it.
-- Each skin's projection, the chart SVG and the canvas wire drawing are made in the worker, behind the boundary.
-- Only one view can show at a time.
-- The desktop shell decodes some protocol messages itself.
-- OneCalc has a separate message set and shares only the formula editor.
-
-**Not built:**
-- a formula presenter or interpreter;
-- name-backed blocks;
-- the model map (two static HTML previews exist);
-- simultaneous views;
-- UI automation (VBA has the workbook object model, but no Selection, ActiveCell or ActiveWindow);
-- a skin manifest or SDK.
-
-**Persistence.** A view manifest exists as CustomXML (`urn:dnacalc:view-manifest`), but only the notebook writes it. Whether Excel keeps it on a re-save is unproven.
-
-**Corpus for testing views.** These workbook sets exist:
-- the Enron spreadsheets: 15,929 files, 1.9 GB, 20.7 million formula cells, 13.6 million of them shared-formula members;
-- EUSES (4,652 files, not yet readable);
-- seven library test sets (3,331 files);
-- about 5,100 fixtures of our own.
-
-Enron's files hold 436 names that call functions (OFFSET in 366 of them), 723 embedded OLE objects, 1,178 form controls and 230 ActiveX controls. A view design has to cope with this real material, not only with tidy examples.
-
-## The owner's direction (settled; build on it)
-
-1. **Five views by persona:**
-   - **Classic:** Excel-familiar, with our own visual design, and a strong focus on keyboard and mouse gestures as an explicit conformance list.
-   - **Inspector:** diagnostic, in the manner of Phyphox. It exposes precedents, the calc chain, traces, dirty and volatile state, errors and their origins, add-in and RTD activity, and timings.
-   - **Notebook:** Jupyter-like layout with live recalculation in the style of Pluto and Excel. Dynamic arrays and tables serve as data frames, with inline charts and shapes, RTD, small control panels, horizontal and multi-sheet pipeline layouts, and a live tree as an extension.
+1. **Views.** One workbook can be shown as several views, each for a kind of person:
+   - **Classic:** Excel-familiar in structure and gestures, with its own visual design. Keyboard and mouse gestures matter a great deal.
+   - **Inspector:** diagnostic, in the spirit of the Phyphox app. It shows what depends on what, calculation order and state, errors and where they come from, and live data.
+   - **Notebook:** text and formulas in reading order, recalculating live (in the manner of Pluto and of Excel, not run-once like Jupyter). Tables and arrays act as data frames, with inline charts and controls. Layouts run down the page or across it as a pipeline.
    - **Model map:** blocks and lines, hierarchical, with optional sheet pages.
-   - **App** (proposed): the model as an application for people who use a model but don't build it.
+   - **App** (proposed): the model as an application for the people who use it.
 
-   **Thin formula rewriting** is a lens any view can switch on: names, LET and lambda structure, with exactly the same meaning.
-2. **Shell and files:**
-   - All views share one shell: files, print and page setup, add-ins, settings, macro security, the command palette and undo history.
-   - Views are skins on one engine, and are views of an Excel model.
-   - Extra view details live in CustomXML.
-   - A file names its preferred and supported views, and views can be mixed per sheet.
-3. **Agentic customization.** The front end is a customization surface where users and agents change display and behaviour without affecting the engine. A skin is mostly declarative: theme tokens, layout regions, keymap, commands and panels. Code is used only for new components. A skin holds no engine handle.
-4. **A DNA Calc views COM library for VBA** is possible later.
-5. **A layered host contract.**
-   - **Level 0, the formula host,** goes only to the formula and function layers and never to the engine. It covers formulas, functions and their help, value display, number formatting, conditional formatting, and add-in UDFs.
-   - **Level 1, the workbook host,** is built on level 0.
-   - **Skins declare a level.**
-   - **The Formula Explorer is a tool on level 0 only, not a workbook view.** It exposes and tests functions, formatting, conditional formatting and add-ins. DNA Calc hosts it as a tool, opened on a cell, with the precedents' values passed in as a snapshot. "DNA Calc - Formula Explorer" (formerly DNA OneCalc) is a stripped build of DNA Calc with access to skin 0 only.
-   - **Enforcing honest layering** is a requirement of the design, not only a property of one app.
-   - **Open: calc-host's part in this.** Level 0 may live inside calc-host as a formula tier, or the higher layer may avoid calc-host when it needs only level 0. Recommend one, with the reasons.
+   **Formula lens.** Any view can switch on a lens that shows formulas in a more readable form (names, LET and lambda structure) with the same meaning.
+2. **Tools as well as views.** The first is the **Formula Explorer**: explore and test one formula, its functions, number formatting, conditional formatting and add-in functions.
+   - Opened from a cell, it starts from that cell's inputs.
+   - It also ships on its own, as a stripped build called "DNA Calc - Formula Explorer", with no workbook at all.
+3. **One shell for every view.** Files, printing, add-ins, settings, macro security, a command palette and undo.
+   - A file can name the views it prefers and supports.
+   - Views can differ per sheet.
+   - View settings travel inside the file in a part Excel ignores and keeps.
+4. **Customisable by users and agents.** People and AI agents change how things look and behave, never what the model calculates. A skin is mostly a declaration: theme, layout, keymap, commands and panels. Code is used only for new components.
+5. **No more than Excel.** A view may change only what a user could change in Excel. Everything else is presentation.
 
-## Topics the design must cover
+## What the design must cover
 
-**A. A reified catalogue of spreadsheet models.** This is the grounding for everything else.
-- **Name the recurring patterns** of real spreadsheet models, and of systems models built in spreadsheets. Examples:
-  - sheet-as-database: a table of records used from elsewhere through lookups, SUMIFS and FILTER;
-  - an assumptions or inputs sheet;
+**A. Design philosophy.** What "modern on the surface" means here. How familiarity, clarity, density and honesty (never misstating the model) are balanced. What all views share in look and behaviour.
+
+**B. A catalogue of real spreadsheet models.** This is the grounding for everything else.
+- **Name the recurring patterns** of real spreadsheet models and of systems models. Examples:
+  - sheet-as-database, used from elsewhere through lookups and filters;
+  - an inputs or assumptions sheet;
   - calculation blocks;
-  - period-across time series;
-  - scenario and sensitivity tables (data tables, the scenario manager);
-  - reference and lookup tables;
+  - time series with periods across the columns;
+  - scenarios and sensitivity tables;
+  - reference tables;
   - staged pipelines across sheets;
-  - accumulators and state (iteration, deliberate circular references, running balances);
-  - simulation (random and volatile functions);
+  - running balances and deliberate circular references;
+  - simulations;
   - control panels built from form controls;
   - pivots;
-  - external data and RTD;
-  - VBA-driven models;
+  - live external data;
+  - macro-driven models;
   - reports and dashboards;
-  - stocks and flows, feedback and delays;
-  - units.
+  - stocks, flows, feedback and delays.
 
-  Add the patterns we have missed.
+  Add what is missing.
 - **For each pattern, say:**
-  - how to recognise it from the file: names, tables, shared-formula runs, the shape of the dependency graph, formatting;
-  - with what confidence;
-  - how a user or agent confirms or corrects that reading;
-  - where the reading is stored (CustomXML, anchored by defined names);
-  - how each of the five views presents and edits it.
+  - how a person would recognise it;
+  - how the program could recognise it, and how sure it can be;
+  - how the user or an agent confirms or corrects that reading;
+  - how each view presents it, with mockups for the important ones.
 
-**B. The conceptual UI model.** Cover:
-- targets: cell, range, region, name, table, object and view item;
-- selection and navigation that carry across views;
-- what an edit means in a view that is not a grid, and how every edit maps back to Excel operations only;
+**C. The conceptual model of the interface.** Cover:
+- what a user points at: cell, range, block, name, table, object, view item;
+- selection and navigation that carry from one view to another;
+- what an edit means in a view that is not a grid;
 - undo across views;
-- errors, volatility, and calc state as first-class things a user can see.
+- errors, calculation state and live data as things a user can see.
 
-**C. The interaction design of each view.** Cover:
-- the Classic keyboard and gesture conformance list in full: key tips, navigation, F2, F4 and F9, Ctrl+Enter, fill handle, drag-move, picking ranges while typing a formula, and the rest you would add;
-- for each other view: its gestures, its keyboard model, and how it is entered and left.
+**D. Each view and the Formula Explorer in detail.** Give each:
+- its mockups;
+- its gestures and keyboard model;
+- how a user enters and leaves it.
 
-**D. Large workbooks and busy sheets.** For each view, decide when to **show everything**, **simplify** and **refuse**:
-- show everything: Classic must virtualise Excel's full grid of 1,048,576 rows and 16,384 columns;
-- simplify: regions as blocks, a shared-formula run as one item, level of detail, lazy expansion, sampling with a visible notice;
-- refuse: a plain explanation and a way out.
+For Classic, write the full keyboard and mouse conformance list:
+- key tips;
+- navigation;
+- F2, F4 and F9;
+- Ctrl+Enter;
+- the fill handle;
+- drag-move;
+- picking ranges while typing a formula;
+- whatever else you would add.
 
-Give the rules and thresholds as a policy, with the budgets each view must meet (open, first paint, interaction, memory). Also say what is never acceptable: a hang, silent truncation, or a view that quietly misstates the model.
+Give the Formula Explorer in both of its forms, inside a workbook and standalone.
 
-**E. The skin API and IR.** Cover:
-- the view contract: targets, one command vocabulary (Excel's commands plus view-layout commands), projections built from neutral data, subscriptions, view state, multi-view and ViewId;
-- the manifest schema;
-- the component library, theming tokens and keymaps;
-- the boundary for extension code;
-- versioning;
-- how an agent writes, tests and ships a skin.
+**E. Big and busy workbooks.** Real files are large and dense. The test collection holds about 16,000 real business workbooks (the Enron set), with 20 million formulas in all; some sheets are packed edge to edge. For each view, decide:
+- when it shows everything;
+- when it simplifies: blocks instead of cells, a run of similar formulas as one item, levels of detail, expanding on demand, sampling with a visible notice;
+- when it declines, with a plain explanation and a way forward.
 
-Show the IR concretely: types and a few message or manifest examples. Say which parts of today's contract to keep, change or drop.
+Say what is never acceptable: a hang, silently dropped content, or a picture that misstates the model. Give the experience budgets each view must meet: open, first paint, response to input.
 
-Also design the contract levels:
-- what belongs to level 0 and what to level 1;
-- how a level-1 skin uses level-0 services without duplicating them;
-- how the Formula Explorer looks and behaves:
-  - standalone (DNA Calc - Formula Explorer), with no workbook: inputs, a scratch area of constants, conditional formatting previews, and add-in browsing;
-  - as a tool inside DNA Calc: opened on a cell, values passed in, a formula written back through a level-1 command.
-- the general idea of tools (panels built like skins) next to views.
+**F. Customisation.** Cover:
+- what a skin can declare;
+- how a user or an agent makes one, tries it and shares it;
+- what stays fixed, so that no skin can change a calculation.
 
-**F. What the inner implementation must provide (the I-list).** Examples:
-- dependency queries at region and name level;
-- the calc chain and order;
-- region and pattern detection;
-- change events with scope;
-- incremental projections;
-- paging;
-- performance budgets;
-- persistence of view data through an Excel round trip, including how stale view data is reconciled after someone edits the file in Excel.
+Give two worked examples:
+- an agent restyling Classic;
+- an agent building an App view from a short brief.
 
-**G. Shell, printing and automation.** Cover:
-- what each view prints;
-- page setup;
-- the shell commands;
-- the missing UI members of the VBA object model;
-- the outline of the views COM library.
+**G. Printing and automation.** What each view prints. How macros can switch views or select things in them.
 
-**H. Testing.** Design a harness that opens corpus workbooks in every view. It checks:
-- no crash or hang;
-- the budgets are met;
+**H. Testing the design.** How we check that:
+- every view opens every workbook in the collection without failing;
+- the budgets hold;
 - no view ever changes a value;
-- the file round-trips;
-- the gesture list.
+- the Classic gesture list behaves.
 
-It also gives screenshots for review and a large-workbook tier. Say how this scales across the Enron set.
+Say what screenshots a reviewer should see.
 
-**I. Risks, open questions and a milestone order.**
+**I. Risks and open questions**, then a milestone order.
 
 ## Constraints
 
 - No Microsoft icons, fonts, ribbon artwork or styling. The structure may be familiar, but the visual design is our own.
-- The engine does no more than Excel.
-- Nothing may require a file that Excel cannot open.
-- Prefer what can be inferred from the file to anything the user must declare, but always allow correction.
+- Nothing may need a file Excel cannot open.
+- Prefer what the program can work out from the file to anything the user must declare, and always allow correction.
