@@ -765,12 +765,8 @@ pub(crate) fn prepare(
     if host.loaded().workbook_part().ends_with(".bin") {
         return Err(refusal("Save as XLSX and reopen before adding shapes"));
     }
-    if !host.axis_edits.is_empty() {
-        return Err(refusal(
-            "Save and reopen before adding shapes after row or column insertion or deletion",
-        ));
-    }
-    let mut shapes = host.shapes(sheet).to_vec();
+    let frame = Frame::new(host, sheet);
+    let mut shapes = frame.current(host, host.shapes(sheet));
     // The file's own top-level objects, by identity (a deleted one's identity is never issued again, so one is
     // stored while it is at the top level with its kind): a stored one's rectangle is its anchor's.
     let originals = Stored(host.loaded().model().definitions().shapes(sheet).iter().map(|s| (s.id, s.kind)).collect());
@@ -1167,10 +1163,121 @@ pub(crate) fn prepare(
             reroute(host, sheet, &mut shapes, index, originals);
         }
     }
+    let shapes = frame.stored(host, host.shapes(sheet), shapes)?;
     host.loaded()
         .check_shape_set(sheet, &shapes)
         .map_err(|e| e.to_string())?;
     Ok(vec![CellEdit::Shapes { sheet, shapes }])
+}
+
+/// The session's row and column inserts and deletes on one sheet. The model holds a drawing object's anchor as the
+/// file states it and the save moves the stored part through these edits, so an edit of an object works on its anchor
+/// moved through them (where it is now: [`Frame::current`]) and writes the result back through them undone
+/// ([`Frame::stored`]); an object the edit leaves where it is keeps its anchor exactly.
+struct Frame(Vec<calc_doc_model::AxisEdit>);
+
+impl Frame {
+    fn new(host: &HostState, sheet: SheetId) -> Frame {
+        Frame(host.axis_edits.iter().filter(|e| e.sheet() == sheet).copied().collect())
+    }
+
+    /// Index (0-based) `i` after the edit, a deleted one's corner at the band's end.
+    fn forward_index(edit: calc_doc_model::AxisEdit, i: u32) -> u32 {
+        calc_doc_model::moved_position(edit, i + 1).unwrap_or_else(|| match edit.change() {
+            calc_doc_model::AxisChange::Delete => edit.first().min(edit.axis().size()),
+            calc_doc_model::AxisChange::Insert => edit.axis().size(),
+        }) - 1
+    }
+
+    /// The index before the edit of the (0-based) one `i` after it; `None` inside inserted cells.
+    fn backward_index(edit: calc_doc_model::AxisEdit, i: u32) -> Option<u32> {
+        let x = i + 1;
+        let before = match edit.change() {
+            calc_doc_model::AxisChange::Insert if x < edit.first() => x,
+            calc_doc_model::AxisChange::Insert if x <= edit.last() => return None,
+            calc_doc_model::AxisChange::Insert => x - edit.count(),
+            calc_doc_model::AxisChange::Delete if x < edit.first() => x,
+            calc_doc_model::AxisChange::Delete => (x + edit.count()).min(edit.axis().size()),
+        };
+        Some(before - 1)
+    }
+
+    fn map_point(&self, p: &DrawingPoint, back: bool) -> Option<DrawingPoint> {
+        let mut p = p.clone();
+        let edits: Vec<_> = if back { self.0.iter().rev().copied().collect() } else { self.0.clone() };
+        for edit in edits {
+            let rows = edit.axis() == calc_doc_model::Axis::Rows;
+            let i = if rows { p.row } else { p.column };
+            let j = if back { Self::backward_index(edit, i)? } else { Self::forward_index(edit, i) };
+            if rows { p.row = j } else { p.column = j }
+        }
+        Some(p)
+    }
+
+    /// `anchor` moved through the edits (`back`: undone), by the rules the save's anchor pass moves a stored one:
+    /// corners each, or the top left with the span kept for a one-cell anchor and an `editAs="oneCell"` one, or not
+    /// at all for an absolute one. `None` where an object's corner would lie in inserted cells.
+    fn map_anchor(&self, anchor: &ChartAnchor, edit_as: Option<&str>, back: bool) -> Option<ChartAnchor> {
+        Some(match anchor {
+            ChartAnchor::Absolute { .. } => anchor.clone(),
+            ChartAnchor::OneCell { from, width, height } => ChartAnchor::OneCell { from: self.map_point(from, back)?, width: *width, height: *height },
+            ChartAnchor::TwoCell { from, to } if edit_as == Some("absolute") => ChartAnchor::TwoCell { from: from.clone(), to: to.clone() },
+            ChartAnchor::TwoCell { from, to } if edit_as == Some("oneCell") => {
+                let start = self.map_point(from, back)?;
+                let (rows, columns) = (to.row.saturating_sub(from.row), to.column.saturating_sub(from.column));
+                ChartAnchor::TwoCell {
+                    to: DrawingPoint { row: start.row + rows, column: start.column + columns, ..to.clone() },
+                    from: start,
+                }
+            }
+            ChartAnchor::TwoCell { from, to } => ChartAnchor::TwoCell { from: self.map_point(from, back)?, to: self.map_point(to, back)? },
+        })
+    }
+
+    /// The objects as they are now: anchors moved, and a shape of this session (not the file's) has its transform
+    /// from where its anchor puts it.
+    fn current(&self, host: &HostState, shapes: &[Shape]) -> Vec<Shape> {
+        let mut shapes = shapes.to_vec();
+        if self.0.is_empty() {
+            return shapes;
+        }
+        let sheet = self.0[0].sheet();
+        let stored = Stored(host.loaded().model().definitions().shapes(sheet).iter().map(|s| (s.id, s.kind)).collect());
+        for s in &mut shapes {
+            let Some(anchor) = self.map_anchor(&s.anchor, s.edit_as.as_deref(), false) else { continue };
+            s.anchor = anchor;
+            if !stored.holds(s) {
+                let r = host.anchor_rectangle(sheet, &s.anchor);
+                let (l, t, w, h) = if quarter(s.rotation) { swapped(r) } else { r };
+                if matches!(s.anchor, ChartAnchor::TwoCell { .. } | ChartAnchor::OneCell { .. }) {
+                    (s.offset, s.extent) = ((emu_of(l), emu_of(t)), (emu_of(w), emu_of(h)));
+                }
+            }
+        }
+        shapes
+    }
+
+    /// The objects `now` (worked on from [`Frame::current`] of `before`) with their anchors as the model holds them:
+    /// one at the place it was keeps its anchor as it was, the others have the edits undone. A refusal where an
+    /// object's corner lies in cells the session inserted (it has no place in the file's coordinates).
+    fn stored(&self, _host: &HostState, before: &[Shape], mut now: Vec<Shape>) -> Result<Vec<Shape>, String> {
+        if self.0.is_empty() {
+            return Ok(now);
+        }
+        for s in &mut now {
+            let original = before.iter().find(|b| b.id == s.id && b.kind == s.kind);
+            if let Some(b) = original
+                && self.map_anchor(&b.anchor, b.edit_as.as_deref(), false).as_ref() == Some(&s.anchor)
+            {
+                s.anchor = b.anchor.clone();
+                continue;
+            }
+            s.anchor = self
+                .map_anchor(&s.anchor, s.edit_as.as_deref(), true)
+                .ok_or_else(|| refusal("Save and reopen before placing a shape in rows or columns inserted since the file was opened"))?;
+        }
+        Ok(now)
+    }
 }
 
 
@@ -1209,7 +1316,8 @@ pub(crate) fn kept_sizes(host: &HostState, sheet: SheetId, edits: &[CellEdit]) -
         let emu = |v: f64| (v * EMU_PER_POINT).round() as i64;
         DrawingPoint { column, column_offset: emu(x - left), row, row_offset: emu(y - top) }
     };
-    let mut shapes = host.shapes(sheet).to_vec();
+    let frame = Frame::new(host, sheet);
+    let mut shapes = frame.current(host, host.shapes(sheet));
     let mut any = false;
     for s in &mut shapes {
         // A kept object stays as the file stores it (its save refuses an edit).
@@ -1231,5 +1339,10 @@ pub(crate) fn kept_sizes(host: &HostState, sheet: SheetId, edits: &[CellEdit]) -
             any = true;
         }
     }
-    any.then_some(CellEdit::Shapes { sheet, shapes })
+    if !any {
+        return None;
+    }
+    // A shape whose corner would lie in inserted cells has no place in the file's coordinates: left as it is.
+    let shapes = frame.stored(host, host.shapes(sheet), shapes).ok()?;
+    Some(CellEdit::Shapes { sheet, shapes })
 }

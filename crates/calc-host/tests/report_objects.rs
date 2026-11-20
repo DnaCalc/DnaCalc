@@ -1344,6 +1344,49 @@ fn dw3_dc_zjsg_5__an_elbow_changes_class_when_the_route_needs_it() {
     assert_eq!((read.geometry, read.rotation, read.begin, read.end), (c.geometry, c.rotation, c.begin, c.end));
 }
 
+/// dc-zjsg.4 (dw3): a stored object edited after rows were inserted in the same session: the edit is made where the
+/// object is now (rows down), a new shape is placed in the now-current sheet, and the saved file holds each where the
+/// session shows it.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dw3_dc_zjsg_4__editing_after_a_row_insert_in_the_same_session() {
+    use calc_doc_model::{Axis, AxisChange, AxisEdit};
+    let bytes = include_bytes!("../../calc-doc/tests/fixtures/drawing/shapes-paint4.xlsx").to_vec();
+    let mut book = open(bytes);
+    let sheet = book.host().sheets()[0].id();
+    let triangle = book.host().shapes(sheet).iter().find(|s| s.name == "Freeform triangle").unwrap().clone();
+    let other = book.host().shapes(sheet).iter().find(|s| s.id != triangle.id).unwrap().clone();
+    let before = book.host().anchor_rectangle(sheet, &triangle.anchor);
+    let other_before = book.host().anchor_rectangle(sheet, &other.anchor);
+    // Two rows inserted at row 2: every object starts below row 3, so each is 30 pt lower now.
+    let edit = AxisEdit::new(sheet, Axis::Rows, AxisChange::Insert, 2, 2).unwrap();
+    assert!(book.dispatch(SkinIntent::EditAxis(edit)).accepted());
+    // Move the triangle 20 pt to the right (its top as it is shown now) and add a shape at a place on the new sheet.
+    let top_now = before.1 + 30.0;
+    shape(&mut book, sheet, ShapeChange::Place { id: triangle.id, left: Some(pts(before.0 + 20.0)), top: Some(pts(top_now)), width: None, height: None });
+    shape(&mut book, sheet, add(ShapeKind::Shape, "rect", 400.0, 200.0, 40.0, 40.0));
+    let added = book.host().shapes(sheet).last().unwrap().id;
+    // A place inside the rows inserted this session has no place in the file's rows yet: refused, nothing changed.
+    let revision = book.host().revision().get();
+    let refused = book.dispatch(SkinIntent::Command(WorkbookCommand::Shape {
+        sheet,
+        revision,
+        change: ShapeChange::Place { id: added, left: None, top: Some(pts(20.0)), width: None, height: None },
+    }));
+    assert!(!refused.accepted());
+    let reloaded = reopened(&mut book);
+    let rect = |b: &HostSession, id: u32| {
+        let s = b.host().shapes(sheet).iter().find(|s| s.id == id).unwrap().clone();
+        b.host().anchor_rectangle(sheet, &s.anchor)
+    };
+    let moved = rect(&reloaded, triangle.id);
+    assert!((moved.0 - before.0 - 20.0).abs() < 0.5 && (moved.1 - top_now).abs() < 0.5 && (moved.2 - before.2).abs() < 0.5, "{before:?} {moved:?}");
+    let untouched = rect(&reloaded, other.id);
+    assert!((untouched.1 - other_before.1 - 30.0).abs() < 0.5 && (untouched.0 - other_before.0).abs() < 0.5, "{other_before:?} {untouched:?}");
+    let new = rect(&reloaded, added);
+    assert!((new.0 - 400.0).abs() < 0.5 && (new.1 - 200.0).abs() < 0.5, "{new:?}");
+}
+
 /// dc-zjsg.4: a stored object moved and then rows inserted above it in the same session: the save writes it where
 /// the session left it (moved, then down with the rows), and every other object down with the rows.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
