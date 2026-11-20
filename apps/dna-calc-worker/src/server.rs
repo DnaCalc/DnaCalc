@@ -5686,7 +5686,7 @@ mod outline_tests {
         let Reply::Sparklines(lines) = server.execute_current(Request::Sparklines(Sheet::of(sheet)), None).reply.unwrap() else { panic!() };
         let f2 = lines.iter().find(|l| l.cell.2 == 2).unwrap();
         assert_eq!((f2.values[0], f2.max), (Some(20.0), 20.0));
-        assert!(dna_calc_model::sparklines::sparkline_svg(f2, 64.0, 20.0, 1.0).contains("<circle"));
+        assert!(dna_calc_model::sparklines::sparkline_svg(f2, 64.0, 20.0, 1.0).contains("data-marker"));
         // Column B hidden: its value is left out of F2, as the group does not show hidden cells.
         assert!(server.execute_current(Request::Intent(Intent::AxisFormat { sheet: Sheet::of(sheet), rows: false, first: 2, count: 1, size_bits: None, hidden: Some(true) }), None).reply.is_ok());
         assert!(server.book.host().sparklines(sheet).iter().any(|(g, _)| !g.hidden));

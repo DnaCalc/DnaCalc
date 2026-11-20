@@ -1,9 +1,11 @@
 //! Sparklines as the grid draws them (dc-zjsg.7): the wire form the workbook server sends (a cell, its values and
 //! its group's look with colours resolved) and the SVG of one sparkline in its cell. Line sparklines are a
 //! polyline with optional markers; column sparklines are bars from the axis; win/loss (`stacked`) sparklines
-//! are equal bars up for a gain and down for a loss. Assumed until Excel's renders decide: the cell padding
-//! (2 px each side), a column's width (80% of its slot), the marker's radius (1.5 line widths, at least 2 px),
-//! and a column sparkline whose values are all of one sign standing on zero.
+//! are equal bars up for a gain and down for a loss. As Excel 16 draws them (dw1 Windows run, 2026-11-20, 64 x 20 px
+//! cells at 100% and 200%): 4 px above and below the plot; columns 2 px in from the cell's sides and 72% of their
+//! slot; a line's first and last points about 7 px in; markers diamonds; the axis a solid line over the bars. Still
+//! assumed: the marker's size (1.5 line widths, at least 2 px, to its corners) and a column sparkline whose values
+//! are all of one sign standing on zero.
 
 use crate::projection::Key;
 use serde::{Deserialize, Serialize};
@@ -37,7 +39,10 @@ pub struct DrawnSparkline {
     pub positions: Vec<Option<f64>>,
 }
 
-const PAD: f64 = 2.0;
+/// Above and below every sparkline; beside columns; beside a line's end points (px at 100%).
+const PAD_Y: f64 = 4.0;
+const PAD_COLUMNS: f64 = 2.0;
+const PAD_LINE: f64 = 7.0;
 
 fn number(value: f64) -> String {
     let text = format!("{value:.2}");
@@ -70,8 +75,9 @@ pub fn sparkline_svg(s: &DrawnSparkline, w: f64, h: f64, zoom: f64) -> String {
     if n == 0 || values.iter().all(Option::is_none) {
         return String::new();
     }
-    let pad = PAD * zoom;
-    let (x0, x1, y0, y1) = (pad, (w - pad).max(pad), pad, (h - pad).max(pad));
+    let pad = if s.kind == "line" || !matches!(s.kind.as_str(), "column" | "stacked") { PAD_LINE } else { PAD_COLUMNS } * zoom;
+    let pad_y = PAD_Y * zoom;
+    let (x0, x1, y0, y1) = (pad.min(w / 2.0), (w - pad).max(w / 2.0), pad_y.min(h / 2.0), (h - pad_y).max(h / 2.0));
     let (lo, hi) = (s.min, s.max);
     let y_of = |v: f64| if hi > lo { y1 - (v - lo) / (hi - lo) * (y1 - y0) } else { (y0 + y1) / 2.0 };
     let present: Vec<(usize, f64)> = values.iter().enumerate().filter_map(|(i, v)| v.map(|v| (i, v))).collect();
@@ -87,15 +93,19 @@ pub fn sparkline_svg(s: &DrawnSparkline, w: f64, h: f64, zoom: f64) -> String {
             .or_else(|| (v < 0.0).then_some(s.negative.as_ref()).flatten())
     };
     let mut out = format!("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\">", number(w), number(h));
+    // The axis, drawn last over the marks as a crisp line of whole pixels, from the cell's padding to its padding.
+    let mut axis = String::new();
     let axis_at = |out: &mut String, y: f64| {
         if let Some(colour) = &s.axis {
-            let _ = write!(out, "<path d=\"M{} {}H{}\" stroke=\"{colour}\" stroke-width=\"{}\"/>", number(x0), number(y), number(x1), number(zoom));
+            let width = zoom.round().max(1.0);
+            let y = if width as i64 % 2 == 1 { y.floor() + 0.5 } else { y.round() };
+            let _ = write!(out, "<path d=\"M{} {}H{}\" stroke=\"{colour}\" stroke-width=\"{}\"/>", number(x0.min(PAD_COLUMNS * zoom)), number(y), number(x1.max(w - PAD_COLUMNS * zoom)), number(width));
         }
     };
     match s.kind.as_str() {
         "column" | "stacked" => {
             let slot = (x1 - x0) / n as f64;
-            let bar = slot * 0.8;
+            let bar = slot * 0.72;
             let (base, top, bottom) = if s.kind == "stacked" {
                 let mid = (y0 + y1) / 2.0;
                 (mid, y0, y1)
@@ -104,7 +114,7 @@ pub fn sparkline_svg(s: &DrawnSparkline, w: f64, h: f64, zoom: f64) -> String {
             };
             let base = base.clamp(top, bottom);
             if s.kind == "stacked" || lo < 0.0 && hi > 0.0 {
-                axis_at(&mut out, base);
+                axis_at(&mut axis, base);
             }
             for &(i, v) in &present {
                 let x = match positions.get(i).copied().flatten() {
@@ -136,7 +146,7 @@ pub fn sparkline_svg(s: &DrawnSparkline, w: f64, h: f64, zoom: f64) -> String {
                 None => (x0 + x1) / 2.0,
             };
             if s.axis.is_some() && lo < 0.0 && hi > 0.0 {
-                axis_at(&mut out, y_of(0.0));
+                axis_at(&mut axis, y_of(0.0));
             }
             let mut d = String::new();
             let mut pen = false;
@@ -161,11 +171,18 @@ pub fn sparkline_svg(s: &DrawnSparkline, w: f64, h: f64, zoom: f64) -> String {
             for &(i, v) in &present {
                 let colour = special(i, v).or(s.markers.as_ref());
                 if let Some(colour) = colour {
-                    let _ = write!(out, "<circle cx=\"{}\" cy=\"{}\" r=\"{}\" fill=\"{colour}\"/>", number(x_of(i)), number(y_of(v)), number(radius));
+                    // A diamond, as Excel draws a sparkline's marker.
+                    let (x, y) = (x_of(i), y_of(v));
+                    let _ = write!(
+                        out,
+                        "<path data-marker=\"{i}\" d=\"M{} {}L{} {}L{} {}L{} {}Z\" fill=\"{colour}\"/>",
+                        number(x), number(y - radius), number(x + radius), number(y), number(x), number(y + radius), number(x - radius), number(y)
+                    );
                 }
             }
         }
     }
+    out.push_str(&axis);
     out.push_str("</svg>");
     out
 }
@@ -200,15 +217,15 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dc_zjsg_7__a_line_spans_the_cell_and_a_gap_lifts_the_pen() {
-        // A 64 by 20 cell: x from 2 to 62, y from 18 (the minimum) to 2 (the maximum).
+        // A 64 by 20 cell: x from 7 to 57, y from 16 (the minimum) to 4 (the maximum), as Excel insets a line.
         let svg = sparkline_svg(&line(&[Some(0.0), Some(4.0), None, Some(2.0)]), 64.0, 20.0, 1.0);
-        assert!(svg.contains("d=\"M2 18L22 2M62 10\""), "{svg}");
+        assert!(svg.contains("d=\"M7 16L23.67 4M57 10\""), "{svg}");
         let mut span = line(&[Some(0.0), Some(4.0), None, Some(2.0)]);
         span.empty = "span".into();
-        assert!(sparkline_svg(&span, 64.0, 20.0, 1.0).contains("d=\"M2 18L22 2L62 10\""));
+        assert!(sparkline_svg(&span, 64.0, 20.0, 1.0).contains("d=\"M7 16L23.67 4L57 10\""));
         let mut zero = span.clone();
         zero.empty = "zero".into();
-        assert!(sparkline_svg(&zero, 64.0, 20.0, 1.0).contains("L42 18L62 10"));
+        assert!(sparkline_svg(&zero, 64.0, 20.0, 1.0).contains("L40.33 16L57 10"));
         assert_eq!(sparkline_svg(&line(&[None, None]), 64.0, 20.0, 1.0), "");
     }
 
@@ -219,8 +236,9 @@ mod tests {
         s.markers = Some("#000000".into());
         s.high = Some("#00B050".into());
         let svg = sparkline_svg(&s, 64.0, 20.0, 1.0);
-        assert_eq!(svg.matches("<circle").count(), 3);
-        assert!(svg.contains("cx=\"32\" cy=\"2\" r=\"2\" fill=\"#00B050\""), "{svg}");
+        assert_eq!(svg.matches("data-marker").count(), 3);
+        // The high point a diamond of 2 px to its corners at x 32, y 4.
+        assert!(svg.contains("d=\"M32 2L34 4L32 6L30 4Z\" fill=\"#00B050\""), "{svg}");
         let mut col = line(&[Some(-2.0), Some(4.0)]);
         col.kind = "column".into();
         col.min = -2.0;
@@ -232,21 +250,21 @@ mod tests {
         let mut wl = line(&[Some(3.0), Some(-1.0), Some(0.0)]);
         wl.kind = "stacked".into();
         let svg = sparkline_svg(&wl, 64.0, 20.0, 1.0);
-        // A gain fills the upper half, a loss the lower, nothing for zero.
-        assert!(svg.contains("y=\"2\" width=\"16\" height=\"8\"") && svg.contains("y=\"10\" width=\"16\" height=\"8\""), "{svg}");
+        // A gain fills the upper half, a loss the lower, nothing for zero: 6 px each, 72% of a 20 px slot wide.
+        assert!(svg.contains("y=\"4\" width=\"14.4\" height=\"6\"") && svg.contains("y=\"10\" width=\"14.4\" height=\"6\""), "{svg}");
         assert_eq!(svg.matches("<rect").count(), 2);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dc_zjsg_7__on_a_date_axis_points_stand_at_their_dates() {
-        // Dates 0, 1 and 4 of 0..4: x at 2, 17 and 62 across a 64 px cell (2 px each side).
+        // Dates 0, 1 and 4 of 0..4: x at 7, 19.5 and 57 across a 64 px cell (7 px each side).
         let mut s = line(&[Some(0.0), Some(4.0), Some(2.0)]);
         s.positions = vec![Some(0.0), Some(0.25), Some(1.0)];
-        assert!(sparkline_svg(&s, 64.0, 20.0, 1.0).contains("d=\"M2 18L17 2L62 10\""));
+        assert!(sparkline_svg(&s, 64.0, 20.0, 1.0).contains("d=\"M7 16L19.5 4L57 10\""));
         // A point without a date is not drawn.
         s.positions = vec![Some(0.0), None, Some(1.0)];
         s.empty = "gap".into();
-        assert!(sparkline_svg(&s, 64.0, 20.0, 1.0).contains("d=\"M2 18M62 10\""));
+        assert!(sparkline_svg(&s, 64.0, 20.0, 1.0).contains("d=\"M7 16M57 10\""));
     }
 }
