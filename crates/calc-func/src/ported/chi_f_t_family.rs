@@ -129,41 +129,6 @@ pub fn chisq_inv_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Works
     )
 }
 
-/// Excel's right-tail chi-square inverse at large degrees (dc-6332.18, fn9): R. B. Goldstein's
-/// chi-square quantile approximation (Comm. ACM 16(8), 1973, Algorithm 451) without refinement,
-/// `x = n c^3` with `n` the truncated degrees and `c` a polynomial in the upper-tail normal
-/// deviate `z`, Horner in `z`, whose coefficients are polynomials in `f = 1/n`:
-/// `c = (1.0000886 - 0.2237368 f) + z (0.4713941 sqrt f + z 1.348028e-4 f)`. These are
-/// Goldstein's published coefficients (no code read); Excel's answers select them (the `f` terms
-/// read off at n = 1e11 are -0.223732 and 0.000135 z^2) and their staging (every product and sum
-/// stored from x87 precision 64; the `f`-free constant rounded with its `f` term first). His
-/// terms in higher powers of `sqrt f` stay below the last place for `|z| <= 4` from n = 2^40 and
-/// `|z| <= 2.75` from n = 5e10.
-/// Between 1e10 and about 4.5e10 Excel returns #NUM! for a band of answers (not modelled: the
-/// route starts above it).
-fn goldstein_large_degree_root(p: f64, deg_freedom: f64) -> Option<f64> {
-    use crate::ported::excel_numeric::{excel_sqrt_staged, excel_x87_add, excel_x87_div, excel_x87_mul};
-    let n = deg_freedom.trunc();
-    if !(5e10..f64::from_bits(0x7e70_0000_0000_0000)).contains(&n) {
-        // [5e10, 2^1000)
-        return None;
-    }
-    let z = crate::ported::normal_log_family::norm_s_inv_kernel(1.0 - p).ok()?;
-    // Goldstein's terms in z^3 f^(3/2) and beyond reach the last place for larger |z| at the
-    // smaller degrees (fresh Excel answers: misses only at |z| >= 2.98 with n <= 2.6e11).
-    let z_bound = if n >= f64::from_bits(0x4270_0000_0000_0000) { 4.0 } else { 2.75 }; // 2^40
-    if !(z.abs() <= z_bound) {
-        return None;
-    }
-    let f = excel_x87_div(1.0, n);
-    let f1 = excel_sqrt_staged(f);
-    let a0 = excel_x87_add(1.0000886, excel_x87_mul(-0.2237368, f));
-    let a1 = excel_x87_mul(0.4713941, f1);
-    let a2 = excel_x87_mul(1.348028e-4, f);
-    let c = excel_x87_add(excel_x87_mul(excel_x87_add(excel_x87_mul(a2, z), a1), z), a0);
-    Some(excel_x87_mul(n, excel_x87_mul(excel_x87_mul(c, c), c)))
-}
-
 pub fn chisq_inv_rt_kernel(probability: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorCode> {
     let p = if probability == 1.0 {
         1.0
@@ -178,8 +143,11 @@ pub fn chisq_inv_rt_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Wo
             Err(WorksheetErrorCode::Num)
         };
     }
-    if let Some(x) = goldstein_large_degree_root(p, deg_freedom) {
-        return Ok(x);
+    let n = deg_freedom.trunc();
+    if let Some(factor) =
+        crate::ported::beta_gamma_stats_family::goldstein_large_degree_factor(1.0 - p, n)
+    {
+        return Ok(crate::ported::excel_numeric::excel_x87_mul(n, factor));
     }
     if let Some(factor) = crate::ported::beta_gamma_stats_family::large_shape_inverse_factor(
         1.0 - p, deg_freedom / 2.0,

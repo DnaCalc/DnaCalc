@@ -241,6 +241,34 @@ pub(crate) fn beta_inv_kernel(
     Ok(lower + z * (upper - lower))
 }
 
+/// Stored cube from Goldstein's chi-square approximation (Algorithm 451, 1973).
+/// At large n the cubic's base is Horner in the normal deviate, with coefficients in 1/n.
+/// Goldstein's published coefficients and the stored PC64 stages were identified on
+/// chi-square (dc-6332.18), including the separately rounded constant term. ax2's
+/// 1,410 gamma controls per alias use n = 2*shape, retaining fractional degrees.
+/// The higher powers can still shift a few low bits near the lower limit of this arm.
+pub(super) fn goldstein_large_degree_factor(probability: f64, n: f64) -> Option<f64> {
+    use crate::ported::excel_numeric::{excel_sqrt_staged, excel_x87_add, excel_x87_div, excel_x87_mul};
+    if !(5e10..f64::from_bits(0x7e70_0000_0000_0000)).contains(&n) {
+        // [5e10, 2^1000)
+        return None;
+    }
+    let z = crate::ported::normal_log_family::norm_s_inv_kernel(probability).ok()?;
+    // Goldstein's terms in z^3 f^(3/2) and beyond reach the last place for larger |z| at the
+    // smaller degrees (fresh Excel answers: misses only at |z| >= 2.98 with n <= 2.6e11).
+    let z_bound = if n >= f64::from_bits(0x4270_0000_0000_0000) { 4.0 } else { 2.75 }; // 2^40
+    if !(z.abs() <= z_bound) {
+        return None;
+    }
+    let f = excel_x87_div(1.0, n);
+    let f1 = excel_sqrt_staged(f);
+    let a0 = excel_x87_add(1.0000886, excel_x87_mul(-0.2237368, f));
+    let a1 = excel_x87_mul(0.4713941, f1);
+    let a2 = excel_x87_mul(1.348028e-4, f);
+    let c = excel_x87_add(excel_x87_mul(excel_x87_add(excel_x87_mul(a2, z), a1), z), a0);
+    Some(excel_x87_mul(excel_x87_mul(c, c), c))
+}
+
 /// Excel 20527's stored unit result in the measured very-large-shape region.
 pub(crate) fn large_shape_inverse_unit(shape: f64) -> f64 {
     crate::ported::excel_numeric::excel_x87_mul(shape, f64::from_bits(0x3ff0_0116_bc77_4cb6))
@@ -461,6 +489,38 @@ pub(crate) fn gamma_unit_root_polished(
     (root.is_finite() && root > 0.0).then_some(root)
 }
 
+/// A nonpositive Wilson-Hilferty start or first Halley proposal makes Excel's
+/// small-shape inverse return #NUM! before it applies the scale. Best and Roberts'
+/// AS 91 boundary selects the power start on the other side. Excel 20527 confirmed
+/// the boundary at 420 fresh shapes and the outcome at all 4,705 random controls.
+fn gamma_inverse_start_fails(p: f64, a: f64) -> bool {
+    use crate::ported::excel_numeric::{
+        excel_log, excel_sqrt_staged, excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_sub,
+    };
+    if 2.0 * a < excel_x87_mul(-1.24, excel_log(p)) {
+        return false;
+    }
+    let v = excel_x87_div(1.0, excel_x87_mul(9.0, a));
+    let Ok(z) = crate::ported::normal_log_family::norm_s_inv_kernel(p) else {
+        return false;
+    };
+    let c = excel_x87_add(excel_x87_sub(1.0, v), excel_x87_mul(z, excel_sqrt_staged(v)));
+    if c <= 0.0 {
+        return true;
+    }
+    let x = excel_x87_mul(a, excel_x87_mul(c, excel_x87_mul(c, c)));
+    let (Ok(cdf), Ok(density)) = (gamma_dist_kernel(x, a, 1.0, true), gamma_dist_kernel(x, a, 1.0, false)) else {
+        return false;
+    };
+    if density == 0.0 {
+        return false;
+    }
+    let residual = excel_x87_sub(cdf, p);
+    let log_slope = excel_x87_sub(excel_x87_div(a - 1.0, x), 1.0);
+    let denominator = excel_x87_sub(2.0 * density, excel_x87_mul(residual, log_slope));
+    excel_x87_sub(x, excel_x87_div(2.0 * residual, denominator)) <= 0.0
+}
+
 pub fn gamma_inv_kernel(
     probability: f64,
     alpha: f64,
@@ -478,6 +538,16 @@ pub fn gamma_inv_kernel(
     }
     if probability == 0.0 {
         return Ok(0.0);
+    }
+    if let Some(factor) = goldstein_large_degree_factor(probability, 2.0 * alpha) {
+        use crate::ported::excel_numeric::excel_x87_mul;
+        let unit = excel_x87_mul(alpha, factor);
+        let result = excel_x87_mul(beta, unit);
+        return if result.is_finite() {
+            Ok(if result.is_subnormal() { 0.0 } else { result })
+        } else {
+            Err(WorksheetErrorCode::Num)
+        };
     }
     // Shared with the right-tail chi-square inverse. Scale only after the
     // independently measured unit result has been stored.
@@ -532,6 +602,9 @@ pub fn gamma_inv_kernel(
         }
         if seed.is_subnormal() {
             return Err(WorksheetErrorCode::Div0);
+        }
+        if gamma_inverse_start_fails(probability, alpha) {
+            return Err(WorksheetErrorCode::Num);
         }
     }
     // design/fable52-last-bit.md section 5 (Claude Fable 5.2), measured 300/300 on Excel:
@@ -648,6 +721,25 @@ mod tests {
         // 3999999999.6666665 in Excel.
         let got = gamma_inv_kernel(0.5, 4e9, 1.0).unwrap();
         assert!((got / 3999999999.6666665 - 1.0).abs() < 1e-12, "{got}");
+    }
+
+    /// Excel 20527. Fractional degrees separate gamma from the integer chi-square
+    /// wrapper. The small-shape error occurs on the first proposal at unit scale.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn gamma_inverse_matches_large_fractional_shapes_and_failed_start() {
+        for (p, shape, scale, expected) in [
+            (0.7601870723963965, 118312400027.68289, 1.1755857128890748, 0x4240_3235_06f5_7947),
+            (0.3848162801459085, 1.2087509178025512e16, 0.5, 0x4335_7a39_5399_78cb),
+            (0.6378628363375689, 1628774109488000.0, 2.0, 0x4327_2705_5784_9e3f),
+        ] {
+            assert_eq!(gamma_inv_kernel(p, shape, scale).unwrap().to_bits(), expected);
+        }
+        let shape = 0.019414129356634446;
+        for scale in [0.25, 0.5, 1.0, 11.0] {
+            assert_eq!(gamma_inv_kernel(0.9956675931736523, shape, scale), Err(WorksheetErrorCode::Num));
+            assert!(gamma_inv_kernel(0.9980675931736522, shape, scale).is_ok());
+        }
     }
 
     /// BETA.DIST(x, a, b, TRUE) answers read from Excel 16.0 build 20527 (the question service,
