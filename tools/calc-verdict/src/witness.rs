@@ -284,6 +284,10 @@ pub struct WitnessInvocation {
     /// The serial date and time Excel's calculation read (NOW() asked in the capture's
     /// session), as binary64 bits in hex; a two-part date such as 15/3 takes its year.
     pub calculation_clock: Option<String>,
+    /// The capture's attested calendar date (`YYYY-MM-DD`, e.g. from the capture response
+    /// timestamp), supplying the year for year-less date text when no `calculation_clock` was
+    /// recorded.
+    pub capture_date: Option<String>,
     /// The add-in files open in the capture's Excel session, comma-separated ("" for none),
     /// as the environment record attests; a library-qualified add-in call needs its file open.
     pub addins_open: Option<String>,
@@ -313,6 +317,7 @@ impl WitnessInvocation {
                 "date_system" => &mut result.date_system,
                 "compatibility_version" => &mut result.compatibility_version,
                 "calculation_clock" => &mut result.calculation_clock,
+                "capture_date" => &mut result.capture_date,
                 "addins_open" => &mut result.addins_open,
                 "defined_names" => &mut result.defined_names,
                 "cell_layout" => &mut result.cell_layout,
@@ -343,6 +348,7 @@ impl WitnessInvocation {
             ("date_system", &self.date_system),
             ("compatibility_version", &self.compatibility_version),
             ("calculation_clock", &self.calculation_clock),
+            ("capture_date", &self.capture_date),
             ("addins_open", &self.addins_open),
             ("defined_names", &self.defined_names),
             ("cell_layout", &self.cell_layout),
@@ -353,6 +359,70 @@ impl WitnessInvocation {
         }
         Value::Object(node)
     }
+
+    /// The calculation clock as a 1900-system serial date: `calculation_clock` (explicit NOW()
+    /// bits) when present, otherwise `capture_date` (`YYYY-MM-DD`) converted to its 1900 serial.
+    pub fn clock_serial(&self) -> Result<Option<f64>, &'static str> {
+        if let Some(clock) = &self.calculation_clock {
+            let bits = u64::from_str_radix(clock, 16).map_err(|_| "fault:WitnessClock")?;
+            let now = f64::from_bits(bits);
+            return if now.is_finite() {
+                Ok(Some(now))
+            } else {
+                Err("fault:WitnessClock")
+            };
+        }
+        if let Some(date) = &self.capture_date {
+            return parse_capture_date_serial_1900(date)
+                .map(Some)
+                .ok_or("fault:WitnessClock");
+        }
+        Ok(None)
+    }
+}
+
+/// Converts a strict ISO calendar date `YYYY-MM-DD` (1900..=9999) to its Excel 1900 serial date.
+pub fn parse_capture_date_serial_1900(date: &str) -> Option<f64> {
+    let bytes = date.as_bytes();
+    if bytes.len() != 10 || bytes[4] != b'-' || bytes[7] != b'-' {
+        return None;
+    }
+    let year: i64 = date[0..4].parse().ok()?;
+    let month: i64 = date[5..7].parse().ok()?;
+    let day: i64 = date[8..10].parse().ok()?;
+    if !(1900..=9999).contains(&year) || !(1..=12).contains(&month) || day < 1 {
+        return None;
+    }
+    let leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+    let max_day = match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 => {
+            if leap || year == 1900 {
+                29
+            } else {
+                28
+            }
+        }
+        _ => return None,
+    };
+    if day > max_day {
+        return None;
+    }
+    if year == 1900 && month <= 2 {
+        return Some((if month == 1 { day } else { 31 + day }) as f64);
+    }
+    // Days from civil date (Howard Hinnant's Gregorian algorithm), offset from 1899-12-30.
+    let days_from_civil = |y: i64, m: i64, d: i64| -> i64 {
+        let y = y - i64::from(m <= 2);
+        let era = y.div_euclid(400);
+        let yoe = y - era * 400;
+        let doy = (153 * (m + if m > 2 { -3 } else { 9 }) + 2) / 5 + d - 1;
+        let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+        era * 146_097 + doe - 719_468
+    };
+    let serial = days_from_civil(year, month, day) - days_from_civil(1899, 12, 30);
+    Some(serial as f64)
 }
 
 /// Where a set's rows were read: one capture or bank, and the environment it recorded.
@@ -562,6 +632,39 @@ mod tests {
         assert!(json.get("decimal_separator").is_none());
         assert!(WitnessInvocation::decode(&json!({"locale": 1033}), "context").is_err());
         assert!(WitnessInvocation::decode(&json!({"invented": "en-US"}), "context").is_err());
+
+        // dc-iuwct.44: capture_date round-trips and converts to its 1900 serial date; explicit
+        // calculation_clock takes precedence when both are present.
+        let dated = WitnessInvocation {
+            capture_date: Some("2026-11-06".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            WitnessInvocation::decode(&dated.to_json(), "context").unwrap(),
+            dated
+        );
+        assert_eq!(dated.clock_serial(), Ok(Some(46332.0)));
+        assert_eq!(parse_capture_date_serial_1900("1900-01-01"), Some(1.0));
+        assert_eq!(parse_capture_date_serial_1900("1900-02-28"), Some(59.0));
+        assert_eq!(parse_capture_date_serial_1900("1900-02-29"), Some(60.0));
+        assert_eq!(parse_capture_date_serial_1900("1900-03-01"), Some(61.0));
+        assert_eq!(parse_capture_date_serial_1900("2024-02-29"), Some(45351.0));
+        assert_eq!(parse_capture_date_serial_1900("2026-01-03"), Some(46025.0));
+        assert_eq!(parse_capture_date_serial_1900("2026-11-20"), Some(46346.0));
+        assert_eq!(parse_capture_date_serial_1900("2026-02-29"), None);
+        assert_eq!(parse_capture_date_serial_1900("1899-12-31"), None);
+        assert_eq!(parse_capture_date_serial_1900("not-a-date"), None);
+        let both = WitnessInvocation {
+            calculation_clock: Some(format!("{:016x}", 46346.5_f64.to_bits())),
+            capture_date: Some("2026-11-06".into()),
+            ..Default::default()
+        };
+        assert_eq!(both.clock_serial(), Ok(Some(46346.5)));
+        let bad_date = WitnessInvocation {
+            capture_date: Some("2026-02-29".into()),
+            ..Default::default()
+        };
+        assert_eq!(bad_date.clock_serial(), Err("fault:WitnessClock"));
     }
 
     fn n(bits: u64) -> CalcValue {

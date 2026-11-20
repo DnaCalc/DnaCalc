@@ -707,10 +707,12 @@ fn numbervalue(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
             }
         })
         .collect();
-    // Slash/colon forms have no new service evidence; keep their prior route.
-    if compact.contains(['/', ':']) {
-        return out_number(site, result);
-    }
+    // Live Excel 16.0.20527 en-ZA (dc-iuwct.44, 17/17 frozen predictions): NUMBERVALUE strips
+    // ASCII spaces and trailing percents before falling back to the VALUE grammar, including
+    // slash dates ("1/3" -> 46025, "1 1/2" -> "11/2" = 46328, "2024/01/05" -> 45296,
+    // "1e/3" with group "e" -> 46025) and colon times ("12:30" -> 0.520833..., "12:30%" ->
+    // 0.00520833...); space-separated date+time or AM/PM ("1-3 12:00", "12:30 pm") become
+    // #VALUE! because spaces were already removed.
     let base = compact.trim_end_matches('%');
     let percent_count = (compact.len() - base.len()) as u32;
     let value = super::kit::text_value(base);

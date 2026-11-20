@@ -539,6 +539,7 @@ fn environment(
             .or_else(|| field("workbook_compatibility")),
         // Recorded only by a capture that asked Excel's NOW() in its session.
         calculation_clock: setting("calculation_clock"),
+        capture_date: None,
         addins_open: None,
         defined_names: None,
         cell_layout: None,

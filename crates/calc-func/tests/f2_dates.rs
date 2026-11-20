@@ -505,6 +505,177 @@ fn value_datevalue_timevalue() {
     refused(invoke(dollar, &mut Given(vec![n(1.0), n(2.0)]), &mut services, &mut FunctionCallScratch::new()));
 }
 
+/// dc-iuwct.44 (Excel 16.0.20527 en-ZA, 52/53 + 17/17 + 10/10 frozen predictions):
+/// year-less date text resolves against the calculation clock's year (same clock source as
+/// TODAY/NOW) in VALUE, DATEVALUE, NUMBERVALUE, date functions, and arithmetic coercion,
+/// without making any of those functions volatile.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn yearless_date_text_uses_today_clock_across_functions_and_arithmetic() {
+    use calc_func::value::NumericMode;
+    use calc_func::{EvalServices, FunctionCallScratch, Notation, catalogue, invoke};
+
+    let call_op = |env: &CalcEnvironment, notation: Notation, op: &str, args: Vec<CalcValue>| {
+        let target = catalogue().resolve_surface(notation, op).unwrap();
+        let mode = NumericMode::Fast;
+        let mut services = EvalServices::new(&mode).with_environment(env);
+        invoke(
+            target,
+            &mut Given(args),
+            &mut services,
+            &mut FunctionCallScratch::new(),
+        )
+    };
+
+    // 2026-11-20 (serial 46346, non-leap year): matches Excel 16.0.20527 live session.
+    let e2026 = CalcEnvironment {
+        now: Some(46346.5),
+        ..host()
+    };
+    exact(c(&e2026, "TODAY", vec![]), 46346.0);
+    for (input, value_expected, datevalue_expected) in [
+        ("1-3", 46025.0, 46025.0),
+        ("1/3", 46025.0, 46025.0),
+        ("3/4", 46085.0, 46085.0),
+        ("1 jan", 46023.0, 46023.0),
+        ("jan 3", 46025.0, 46025.0),
+        ("13-1", 46035.0, 46035.0),
+        ("1-13", 46035.0, 46035.0),
+        ("29-2", 47150.0, 47150.0),
+        ("1-3 12:00", 46025.5, 46025.0),
+    ] {
+        exact(c(&e2026, "VALUE", vec![t(input)]), value_expected);
+        exact(c(&e2026, "DATEVALUE", vec![t(input)]), datevalue_expected);
+        exact(
+            call_op(&e2026, Notation::Infix, "+", vec![t(input), n(0.0)]),
+            value_expected,
+        );
+    }
+    error(c(&e2026, "VALUE", vec![t("2-29")]), Value);
+    error(c(&e2026, "DATEVALUE", vec![t("2-29")]), Value);
+    error(
+        call_op(&e2026, Notation::Infix, "+", vec![t("2-29"), n(0.0)]),
+        Value,
+    );
+
+    // Unary `+` keeps text untouched; double unary `-` coerces through the same date grammar.
+    text(call_op(&e2026, Notation::Prefix, "+", vec![t("1-3")]), "1-3");
+    let neg = call_op(&e2026, Notation::Prefix, "-", vec![t("1-3")]).unwrap();
+    exact(call_op(&e2026, Notation::Prefix, "-", vec![neg]), 46025.0);
+
+    // Date and aggregate functions share the same coercion and clock.
+    exact(c(&e2026, "SUM", vec![t("1-3"), n(0.0)]), 46025.0);
+    exact(c(&e2026, "YEAR", vec![t("1-3")]), 2026.0);
+    exact(c(&e2026, "MONTH", vec![t("1-3")]), 1.0);
+    exact(c(&e2026, "DAY", vec![t("1-3")]), 3.0);
+    exact(c(&e2026, "EDATE", vec![t("1-3"), n(1.0)]), 46056.0);
+    exact(c(&e2026, "DAYS", vec![t("1-10"), t("1-3")]), 7.0);
+    exact(c(&e2026, "TIMEVALUE", vec![t("1-3 12:00")]), 0.5);
+
+    // NUMBERVALUE strips ASCII spaces and trailing percents before falling back to VALUE.
+    for (input, dec, grp, expected) in [
+        ("1e-3", ".", "e", 46025.0),
+        ("1e-3%", ".", "e", 460.25),
+        ("1e/3", ".", "e", 46025.0),
+        ("1-3", ".", ",", 46025.0),
+        ("1-3", ",", ".", 46025.0),
+        ("1/3", ".", ",", 46025.0),
+        ("3/4", ".", ",", 46085.0),
+        ("1/2", ".", ",", 46024.0),
+        ("1/2%", ".", ",", 460.24),
+        ("1 1/2", ".", ",", 46328.0),
+        ("1 jan", ".", ",", 46023.0),
+        ("jan 3", ".", ",", 46025.0),
+        ("13-1", ".", ",", 46035.0),
+        ("1-13", ".", ",", 46035.0),
+        ("29-2", ".", ",", 47150.0),
+        ("2024/01/05", ".", ",", 45296.0),
+        ("2024-01-05", ".", ",", 45296.0),
+        ("1 jan 2020", ".", ",", 43831.0),
+        ("1-jan-2020", ".", ",", 43831.0),
+        ("12:00", ".", ",", 0.5),
+        ("12:30", ".", ",", 0.5208333333333334),
+        ("12:30:15", ".", ",", 0.5210069444444444),
+        ("12:30%", ".", ",", 0.005208333333333334),
+        ("1/2", "/", ",", 1.2),
+        ("1/2", ".", "/", 12.0),
+        ("1:3", ":", ",", 1.3),
+        ("1-3", "-", ",", 1.3),
+        ("1-3", ".", "-", 13.0),
+    ] {
+        exact(
+            c(&e2026, "NUMBERVALUE", vec![t(input), t(dec), t(grp)]),
+            expected,
+        );
+    }
+    for input in ["2-29", "1-3 12:00", "2024/01/05 12:30", "12:30 pm"] {
+        error(
+            c(&e2026, "NUMBERVALUE", vec![t(input), t("."), t(",")]),
+            Value,
+        );
+    }
+
+    // Moving the shared clock to a leap year (2024-06-15, serial 45458) shifts all of them
+    // together and makes "2-29" valid (2024-02-29 = 45351).
+    let e2024 = CalcEnvironment {
+        now: Some(45458.5),
+        ..host()
+    };
+    exact(c(&e2024, "TODAY", vec![]), 45458.0);
+    exact(c(&e2024, "VALUE", vec![t("1-3")]), 45294.0);
+    exact(c(&e2024, "DATEVALUE", vec![t("1-3")]), 45294.0);
+    exact(c(&e2024, "NUMBERVALUE", vec![t("1e-3"), t("."), t("e")]), 45294.0);
+    exact(c(&e2024, "NUMBERVALUE", vec![t("1/3"), t("."), t(",")]), 45294.0);
+    exact(call_op(&e2024, Notation::Infix, "+", vec![t("1-3"), n(0.0)]), 45294.0);
+    exact(c(&e2024, "VALUE", vec![t("2-29")]), 45351.0);
+    exact(c(&e2024, "DATEVALUE", vec![t("2-29")]), 45351.0);
+    exact(c(&e2024, "NUMBERVALUE", vec![t("2-29"), t("."), t(",")]), 45351.0);
+    exact(call_op(&e2024, Notation::Infix, "+", vec![t("2-29"), n(0.0)]), 45351.0);
+
+    // Without a calculation clock, year-less date text is refused instead of guessing a year,
+    // whereas an explicit-year date still evaluates.
+    let no_clock = CalcEnvironment {
+        now: None,
+        ..host()
+    };
+    refused(c(&no_clock, "VALUE", vec![t("1-3")]));
+    refused(c(&no_clock, "DATEVALUE", vec![t("1-3")]));
+    refused(c(&no_clock, "NUMBERVALUE", vec![t("1e-3"), t("."), t("e")]));
+    refused(call_op(&no_clock, Notation::Infix, "+", vec![t("1-3"), n(0.0)]));
+    exact(c(&no_clock, "VALUE", vec![t("2024-01-05")]), 45296.0);
+    exact(c(&no_clock, "NUMBERVALUE", vec![t("2024/01/05"), t("."), t(",")]), 45296.0);
+
+    // Volatility (Excel 16.0.20527 WEEKNUM probe, 10/10): none of these functions are volatile,
+    // unlike TODAY and NOW.
+    for name in ["VALUE", "DATEVALUE", "NUMBERVALUE", "YEAR"] {
+        assert!(
+            !catalogue()
+                .resolve_surface(Notation::Call, name)
+                .unwrap()
+                .traits()
+                .volatile,
+            "{name} must not be volatile"
+        );
+    }
+    assert!(
+        !catalogue()
+            .resolve_surface(Notation::Infix, "+")
+            .unwrap()
+            .traits()
+            .volatile
+    );
+    for name in ["TODAY", "NOW"] {
+        assert!(
+            catalogue()
+                .resolve_surface(Notation::Call, name)
+                .unwrap()
+                .traits()
+                .volatile,
+            "{name} must be volatile"
+        );
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn text_fixed_dollar() {

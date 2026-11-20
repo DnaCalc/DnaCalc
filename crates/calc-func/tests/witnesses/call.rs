@@ -177,13 +177,7 @@ fn environment(context: Option<&WitnessInvocation>) -> Result<CalcEnvironment, &
             return Err("fault:WitnessLocale");
         }
     }
-    if let Some(clock) = &context.calculation_clock {
-        let bits = u64::from_str_radix(clock, 16).map_err(|_| "fault:WitnessClock")?;
-        environment.now = Some(f64::from_bits(bits)).filter(|now| now.is_finite());
-        if environment.now.is_none() {
-            return Err("fault:WitnessClock");
-        }
-    }
+    environment.now = context.clock_serial()?;
     // A separator alone does not identify a complete locale profile. In particular the
     // legacy FIXED bank records neither its profile nor its separators; no guess is made.
     Ok(environment)
@@ -936,11 +930,21 @@ mod tests {
             calculation_clock: Some(format!("{:016x}", 46346.5_f64.to_bits())),
             ..context.clone()
         };
+        let captured = WitnessInvocation {
+            capture_date: Some("2026-11-06".into()),
+            ..context.clone()
+        };
+        let leap_year = WitnessInvocation {
+            capture_date: Some("2024-06-15".into()),
+            ..context.clone()
+        };
         for args in [
             ["1e-3", ".", "e"],
             ["1q-3", ".", "q"],
             ["1-3", ".", "q"],
             ["1-3", ".", ","],
+            ["1/3", ".", ","],
+            ["1e/3", ".", "e"],
         ] {
             let args: Vec<Value> = args.iter().map(|a| Value::String((*a).into())).collect();
             assert_eq!(
@@ -948,6 +952,30 @@ mod tests {
                 n(46025.0),
                 "{args:?}"
             );
+            assert_eq!(
+                calculate("NUMBERVALUE", &args, None, Some(&captured), true),
+                n(46025.0),
+                "{args:?}"
+            );
+            // Moving the capture date to 2024 shifts the completed year to 2024-01-03 (45294).
+            assert_eq!(
+                calculate("NUMBERVALUE", &args, None, Some(&leap_year), true),
+                n(45294.0),
+                "{args:?}"
+            );
         }
+        // Leap-day year-less date: #VALUE! in non-leap 2026, 45351 (2024-02-29) in leap year 2024.
+        let feb29: Vec<Value> = ["2-29", ".", ","]
+            .iter()
+            .map(|a| Value::String((*a).into()))
+            .collect();
+        assert_eq!(
+            calculate("NUMBERVALUE", &feb29, None, Some(&captured), true),
+            "error:Value"
+        );
+        assert_eq!(
+            calculate("NUMBERVALUE", &feb29, None, Some(&leap_year), true),
+            n(45351.0)
+        );
     }
 }
