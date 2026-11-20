@@ -333,8 +333,8 @@ impl std::error::Error for CommandError {}
 ///    dirty set is reserved.
 /// 6. Both are committed: the engine's change ([`calc_engine::commit_edit`], which returns no
 ///    error) and the adoption of the prepared revision. From here on nothing returns an error or
-///    grows a host buffer past what step 5 reserved. A recalculation in progress, which was
-///    calculating the revision before, is cancelled. When the batch changed a cell's input or
+///    grows a host buffer past what step 5 reserved. The next owner step supersedes a running
+///    recalculation from the previous revision. When the batch changed a cell's input or
 ///    formula (the engine staged a seed or a node change), the host records that the inputs
 ///    changed since the workbook was opened, which [`crate::project`] reads for file caches.
 ///

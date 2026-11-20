@@ -167,8 +167,8 @@ pub enum SkinIntent {
     /// Active cell work blocks admission. A retained name handle expires when
     /// this command resets binding authority, before it can enter more user code.
     Rebuild,
-    /// Explicit exact-area calculation. Formula caches outside the areas are a bounded P02
-    /// refusal until boundary-cache qualifications are implemented.
+    /// Explicit exact-area calculation. An eligible formula cache outside the areas can supply
+    /// a P02 boundary read, with cache provenance and separate coverage.
     CalculateRange { areas: Vec<GridArea> },
     /// Explicit SliceV1 scope and selection. Manual range calculation normalizes to ForceAll
     /// through `CalculateRange`; this request preserves the supplied selection.
