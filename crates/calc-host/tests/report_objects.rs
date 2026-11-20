@@ -224,16 +224,12 @@ fn dc_piw0_3__shapes_and_a_connector_save_and_reload() {
     );
     // Delete: the glued connector stays, unglued.
     let mut reloaded = reloaded;
-    // A stored shape a stored connector is glued to is not deleted (dc-zjsg.5): refused, nothing changes.
-    let revision = reloaded.host().revision().get();
-    let receipt = reloaded.dispatch(SkinIntent::Command(WorkbookCommand::Shape {
-        sheet,
-        revision,
-        change: ShapeChange::Delete { id: 2 },
-    }));
-    assert!(!receipt.accepted());
-    assert!(format!("{:?}", receipt.error.unwrap()).contains("dc-zjsg.5"));
-    assert_eq!(reloaded.host().shapes(sheet).len(), 4);
+    // A stored shape a stored connector is glued to is deleted and the connector stays, unglued (dc-zjsg.5).
+    shape(&mut reloaded, sheet, ShapeChange::Delete { id: 2 });
+    assert_eq!(reloaded.host().shapes(sheet).len(), 3);
+    let again = reopened(&mut reloaded);
+    let connector = again.host().shapes(sheet).iter().find(|s| s.kind == ShapeKind::Connector).unwrap().clone();
+    assert_eq!((connector.begin, connector.end), (None, Some(ShapeConnection { shape: 3, site: 0 })));
     // A shape added in the session can be deleted again, and undo restores it.
     shape(&mut book, sheet, ShapeChange::Delete { id: 2 });
     assert_eq!(book.host().shapes(sheet).len(), 3);
@@ -1291,4 +1287,12 @@ fn dc_zjsg_5__a_connector_follows_the_stored_shape_it_is_glued_to() {
     assert_eq!(rect_of(&third, 4), ((50.0, 0.0, 20.0, 170.0), true, true));
     let connector = third.host().shapes(sheet).iter().find(|s| s.id == 4).unwrap().clone();
     assert_eq!((connector.begin.unwrap().shape, connector.end.unwrap().shape), (2, 3));
+    // The stored oval deleted: the stored connector stays where it is, its end unglued, and saves so.
+    let mut deleted = third;
+    let place = rect_of(&deleted, 4);
+    shape(&mut deleted, sheet, ShapeChange::Delete { id: 3 });
+    let fourth = reopened(&mut deleted);
+    let connector = fourth.host().shapes(sheet).iter().find(|s| s.id == 4).unwrap().clone();
+    assert_eq!((connector.begin.map(|e| e.shape), connector.end), (Some(2), None));
+    assert_eq!(rect_of(&fourth, 4), place);
 }

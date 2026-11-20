@@ -81,6 +81,8 @@ pub(crate) fn plan<'a>(original: &'a [Shape], shapes: &'a [Shape]) -> Result<Sto
                 (same.flip_horizontal, same.flip_vertical) = (stored.flip_horizontal, stored.flip_vertical);
                 (same.fill, same.line, same.text) = (stored.fill.clone(), stored.line.clone(), stored.text.clone());
                 same.name = stored.name.clone();
+                // A connector unglued (its shape deleted) or glued anew.
+                (same.begin, same.end) = (stored.begin, stored.end);
                 if same != **stored || stored.kept.is_some() {
                     return Err(refuse("Editing an imported drawing object other than placing, turning, flipping or naming it, or its text, fill or outline, is not modelled"));
                 }
@@ -378,6 +380,33 @@ fn object_patches(ix: &Index<'_>, at: usize, stored: &Shape, now: &Shape, out: &
     if now.name != stored.name {
         name_patch(ix, at, &now.name, out)?;
     }
+    if (now.begin, now.end) != (stored.begin, stored.end) {
+        glue_patches(ix, at, now, out)?;
+    }
+    Ok(())
+}
+
+/// A connector's ends (`a:stCxn`, `a:endCxn` in its `xdr:cNvCxnSpPr`) written as `now` states them: an end it no
+/// longer has removed, one glued anew written, the locks beside them kept.
+fn glue_patches(ix: &Index<'_>, at: usize, now: &Shape, out: &mut Vec<Patch>) -> Result<(), SaveRefusal> {
+    let properties = ix
+        .child(at, "nvCxnSpPr")
+        .and_then(|nv| ix.child(nv, "cNvCxnSpPr"))
+        .ok_or_else(|| refuse("Only a connector has ends to glue"))?;
+    let p = &ix.els[properties];
+    let mut ends = String::new();
+    for (tag, end) in [("stCxn", now.begin), ("endCxn", now.end)] {
+        if let Some(end) = end {
+            ends.push_str(&format!("<a:{tag} id=\"{}\" idx=\"{}\"/>", end.shape, end.site));
+        }
+    }
+    let locks: Vec<u8> = ix.children(properties).filter(|&c| ix.els[c].local == "cxnSpLocks").flat_map(|c| ix.bytes(c).to_vec()).collect();
+    let mut body = format!("<{}>", p.name).into_bytes();
+    body.extend(locks);
+    body.extend(ends.as_bytes());
+    body.extend(ix.children(properties).filter(|&c| ix.els[c].local == "extLst").flat_map(|c| ix.bytes(c).to_vec()));
+    body.extend(format!("</{}>", p.name).as_bytes());
+    out.push(((p.start, p.end), body));
     Ok(())
 }
 

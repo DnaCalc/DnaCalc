@@ -640,7 +640,7 @@ pub(crate) fn prepare(
     // A shape the file holds may be moved, resized, turned, given text, fill or outline, put in another place of the
     // drawing order, grouped or deleted (dc-zjsg.4): the save rewrites its stored element in place, or drops it. One
     // Excel keeps for an object DNA Calc does not edit (an equation, ink, SmartArt, an OLE or ActiveX object) is not,
-    // nor a hidden one, nor (deleting) one a stored connector is glued to (dc-zjsg.5).
+    // nor a hidden one. Deleting one a connector is glued to leaves the connector where it is, unglued (Excel).
     let find_movable = |shapes: &[Shape], id: u32, deleting: bool| -> Result<usize, String> {
         let index = shapes
             .iter()
@@ -653,9 +653,7 @@ pub(crate) fn prepare(
         if !originals.holds(shape) {
             return Ok(index);
         }
-        if deleting && shapes.iter().filter(|s| originals.holds(s)).any(|s| [s.begin, s.end].iter().any(|e| e.is_some_and(|e| e.shape == id))) {
-            return Err(refusal("A shape a stored connector is glued to cannot be deleted yet (dc-zjsg.5)"));
-        }
+        let _ = deleting;
         Ok(index)
     };
     let next_id = || -> u32 { host.next_drawing_id(sheet) };
