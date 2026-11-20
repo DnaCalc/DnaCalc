@@ -740,9 +740,7 @@ fn sequence_task(
 ported_shared_family! {
     code: CODE;
     declarations: DECLARATIONS;
-    1 sequence_fn resume sequence_resume => sequence_task; |s, a, sv| {
-        result(s, k::eval_sequence_prepared(a))
-    }
+    1 sequence_resume => sequence_task;
     2 filter_fn |s, a, sv| {
         source_error(a)?;
         run(s, a, sv, k::eval_filter_prepared)

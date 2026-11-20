@@ -153,10 +153,7 @@ pub(crate) struct CatalogueEntry {
 pub(crate) enum Kernel {
     /// Receives every argument evaluated and admitted.
     Eager(EagerKernel),
-    Resumable {
-        run: EagerKernel,
-        start: StartKernel,
-    },
+    Resumable(StartKernel),
     /// Asks for the arguments it selects, so an argument it does not select is never evaluated.
     Lazy(LazyKernel),
     Binding,
@@ -178,7 +175,7 @@ const fn attachment_matches(entry: &CatalogueEntry) -> bool {
         (data.implementation(), entry.kernel),
         (
             Implementation::Held,
-            Kernel::Eager(_) | Kernel::Resumable { .. } | Kernel::Lazy(_)
+            Kernel::Eager(_) | Kernel::Resumable(_) | Kernel::Lazy(_)
         ) | (Implementation::Binding, Kernel::Binding)
             | (Implementation::NotHeld { .. }, Kernel::NotHeld { .. })
             | (Implementation::Deferred { .. }, Kernel::Deferred { .. })
@@ -206,17 +203,6 @@ const fn check_attachments(families: &[&Family]) {
 const _: () = check_attachments(&FAMILIES);
 
 impl CatalogueEntry {
-    pub(crate) const fn with_continuation(mut self, start: Option<StartKernel>) -> Self {
-        if let Some(start) = start {
-            if let Kernel::Eager(run) = self.kernel {
-                self.kernel = Kernel::Resumable { run, start };
-            } else {
-                panic!("only eager entries carry kernel continuations");
-            }
-        }
-        self
-    }
-
     /// The class of argument `index`, which the arity admits.
     pub(crate) fn parameter_class(&self, index: usize) -> ParameterClass {
         let last = self.parameters.len().saturating_sub(1);
@@ -368,14 +354,14 @@ const fn check_declaration(family: u16, entry: &CatalogueEntry) {
         panic!("a lazy entry's discriminator is not a required argument");
     }
     match entry.kernel {
-        Kernel::Eager(_) | Kernel::Resumable { .. } if entry.demand.is_lazy() => panic!(
+        Kernel::Eager(_) | Kernel::Resumable(_) if entry.demand.is_lazy() => panic!(
             "a lazy entry has an eager kernel, which would receive its held-back arguments evaluated"
         ),
         Kernel::Lazy(_) if !entry.demand.is_lazy() => {
             panic!("an eager entry has a lazy kernel, against its declared argument demand")
         }
         Kernel::Eager(_)
-        | Kernel::Resumable { .. }
+        | Kernel::Resumable(_)
         | Kernel::Lazy(_)
         | Kernel::Binding
         | Kernel::NotHeld { .. }
@@ -553,7 +539,7 @@ impl Catalogue {
                     && entry.availability != Availability::AbsentOnWindows
                     && matches!(
                         entry.kernel,
-                        Kernel::Eager(_) | Kernel::Resumable { .. } | Kernel::Lazy(_)
+                        Kernel::Eager(_) | Kernel::Resumable(_) | Kernel::Lazy(_)
                     )
             })
             .map(|entry| FunctionCallTarget { entry })
@@ -570,7 +556,7 @@ impl Catalogue {
                     && entry.availability != Availability::AbsentOnWindows
                     && matches!(
                         entry.kernel,
-                        Kernel::Eager(_) | Kernel::Resumable { .. } | Kernel::Lazy(_)
+                        Kernel::Eager(_) | Kernel::Resumable(_) | Kernel::Lazy(_)
                     )
             })
             .map(|entry| FunctionCallTarget { entry })
@@ -620,7 +606,7 @@ pub struct HelpParameter {
 
 impl<'c> FunctionCallTarget<'c> {
     pub fn is_resumable(self) -> bool {
-        matches!(self.entry.kernel, Kernel::Resumable { .. })
+        matches!(self.entry.kernel, Kernel::Resumable(_))
     }
     pub fn id(self) -> FunctionId {
         self.entry.id
