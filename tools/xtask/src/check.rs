@@ -400,7 +400,7 @@ fn warn_logs(root: &Path) {
 
 pub fn execute(ws: &Workspace, options: &Options) -> Result<Report, String> {
     let result = execute_checks(ws, options);
-    crate::prune::after_check(&ws.target_dir());
+    crate::prune::after_check(&ws.root);
     result
 }
 

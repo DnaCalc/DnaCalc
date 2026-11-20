@@ -1,4 +1,4 @@
-use crate::cargo::Workspace;
+use crate::cargo;
 use std::collections::BTreeMap;
 use std::fs::{self, File, Metadata, OpenOptions, TryLockError};
 use std::io::{self, BufRead, BufReader};
@@ -242,13 +242,16 @@ fn prune(target: &Path, now: SystemTime, dry: bool) -> io::Result<Report> {
     Ok(report)
 }
 
-pub fn after_check(target: &Path) {
-    match prune(target, SystemTime::now(), false) {
+fn prune_cargo_build_dir(cwd: &Path, dry: bool) -> Result<Report, String> {
+    let build_dir = cargo::build_dir(cwd)?;
+    prune(&build_dir, SystemTime::now(), dry)
+        .map_err(|error| format!("could not prune {}: {error}", build_dir.display()))
+}
+
+pub fn after_check(workspace_root: &Path) {
+    match prune_cargo_build_dir(workspace_root, false) {
         Ok(report) => report.print(false),
-        Err(error) => eprintln!(
-            "CHECK warning: could not prune {}: {error}",
-            target.display()
-        ),
+        Err(error) => eprintln!("CHECK prune warning: {error}"),
     }
 }
 
@@ -263,8 +266,7 @@ pub fn run(args: &[String]) -> ExitCode {
     };
     let result = std::env::current_dir()
         .map_err(|error| error.to_string())
-        .and_then(|cwd| Workspace::load(&cwd))
-        .and_then(|ws| prune(&ws.target_dir(), SystemTime::now(), dry).map_err(|e| e.to_string()));
+        .and_then(|cwd| prune_cargo_build_dir(&cwd, dry));
     match result {
         Ok(report) => {
             report.print(dry);
@@ -385,6 +387,49 @@ mod tests {
             assert!(kept.exists(), "removed {}", kept.display());
         }
         drop(busy_lock);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn prunes_the_cargo_configured_build_directory() {
+        // A caller's explicit override takes precedence over this fixture's Cargo config.
+        if std::env::var_os("CARGO_BUILD_BUILD_DIR").is_some() {
+            return;
+        }
+        let root = std::env::temp_dir().join(format!("xtask-prune-config-{}", std::process::id()));
+        let profile = root.join("intermediate/debug");
+        let deps = profile.join("deps");
+        for dir in [root.join(".cargo"), root.join("src"), deps.clone()] {
+            fs::create_dir_all(dir).unwrap();
+        }
+        fs::write(
+            root.join("Cargo.toml"),
+            "[package]\nname = \"fixture\"\nversion = \"0.1.0\"\n[workspace]\n",
+        )
+        .unwrap();
+        fs::write(root.join("src/lib.rs"), "").unwrap();
+        fs::write(
+            root.join(".cargo/config.toml"),
+            "[build]\ntarget-dir = \"output\"\nbuild-dir = \"intermediate\"\n",
+        )
+        .unwrap();
+        File::create(profile.join(".cargo-lock")).unwrap();
+        let now = SystemTime::now();
+        let stale = executable(
+            &deps,
+            "fixture-0000000000000001",
+            now - MIN_AGE - Duration::from_secs(60),
+        );
+        let newest = executable(&deps, "fixture-0000000000000002", now);
+
+        let build_dir = cargo::build_dir(&root).unwrap();
+        assert_eq!(
+            fs::canonicalize(&build_dir).unwrap(),
+            fs::canonicalize(root.join("intermediate")).unwrap()
+        );
+        let report = prune(&build_dir, now, false).unwrap();
+        assert_eq!(report.files, 1);
+        assert!(!stale.exists() && newest.exists());
         fs::remove_dir_all(root).unwrap();
     }
 }

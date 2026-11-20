@@ -6,10 +6,6 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-/// The default workspace target directory, shared with cargo run by hand. Only the lightweight
-/// launcher has its own build directory (`target/xtask`).
-pub const TARGET_DIR: &str = "target";
-
 pub const WASM_TARGET: &str = "wasm32-unknown-unknown";
 
 /// The target triples the workspace ships for (plan section 10.4: Windows, Linux and wasm). The
@@ -140,23 +136,37 @@ fn string_field(value: &Value, field: &str, what: &str) -> Result<String, String
         .ok_or_else(|| format!("{what} has no string {field}"))
 }
 
+fn workspace_metadata(cwd: &Path) -> Result<Value, String> {
+    let mut command = Command::new(cargo_program());
+    command
+        .args(["metadata", "--no-deps", "--format-version", "1", "--locked"])
+        .current_dir(cwd);
+    let out = output(&mut command)?;
+    if !out.status.success() {
+        return Err(format!(
+            "{:?} exited with {:?}:\n{}",
+            argv(&command),
+            out.status.code(),
+            tail(&out.stderr, 20)
+        ));
+    }
+    serde_json::from_slice(&out.stdout).map_err(|e| format!("cargo metadata printed no JSON: {e}"))
+}
+
+/// Where Cargo stores intermediate artifacts from commands started in `cwd`.
+pub fn build_dir(cwd: &Path) -> Result<PathBuf, String> {
+    let metadata = workspace_metadata(cwd)?;
+    let field = if metadata.get("build_directory").is_some() {
+        "build_directory"
+    } else {
+        "target_directory"
+    };
+    string_field(&metadata, field, "cargo metadata").map(PathBuf::from)
+}
+
 impl Workspace {
     pub fn load(cwd: &Path) -> Result<Workspace, String> {
-        let mut command = Command::new(cargo_program());
-        command
-            .args(["metadata", "--no-deps", "--format-version", "1", "--locked"])
-            .current_dir(cwd);
-        let out = output(&mut command)?;
-        if !out.status.success() {
-            return Err(format!(
-                "{:?} exited with {:?}:\n{}",
-                argv(&command),
-                out.status.code(),
-                tail(&out.stderr, 20)
-            ));
-        }
-        let metadata: Value = serde_json::from_slice(&out.stdout)
-            .map_err(|e| format!("cargo metadata printed no JSON: {e}"))?;
+        let metadata = workspace_metadata(cwd)?;
         let root = PathBuf::from(string_field(&metadata, "workspace_root", "cargo metadata")?);
         let packages = metadata["packages"]
             .as_array()
@@ -222,10 +232,6 @@ impl Workspace {
             .unwrap_or(path)
             .to_string_lossy()
             .replace('\\', "/")
-    }
-
-    pub fn target_dir(&self) -> PathBuf {
-        self.root.join(TARGET_DIR)
     }
 }
 
