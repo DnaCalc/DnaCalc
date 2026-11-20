@@ -676,13 +676,13 @@ pub fn invoke(
             };
             admit_return(entry.id, kernel(&mut selectable, services)?)
         }
-        Kernel::Eager(kernel) | Kernel::Resumable { run: kernel, .. } => {
+        Kernel::Eager(kernel) => {
             scratch.arguments.clear();
             let result = run_eager(entry, kernel, arguments, services, &mut scratch.arguments);
             scratch.arguments.clear();
             result
         }
-        Kernel::Binding | Kernel::NotHeld { .. } | Kernel::Deferred { .. } => {
+        Kernel::Binding | Kernel::NotHeld { .. } | Kernel::Deferred { .. } | Kernel::Resumable(_) => {
             unreachable!("handled before admission")
         }
     }
@@ -697,7 +697,7 @@ pub fn invoke_slice(
     scratch: &mut FunctionCallScratch,
     elements: usize,
 ) -> Result<Option<CalcValue>, FunctionFault> {
-    let Kernel::Resumable { start, .. } = target.entry.kernel else {
+    let Kernel::Resumable(start) = target.entry.kernel else {
         return invoke(target, arguments, services, scratch).map(Some);
     };
     if let Some(expected) = scratch.task_target.filter(|id| *id != target.entry.id) {
@@ -928,6 +928,21 @@ mod tests {
         }
         assert_eq!(call(&reference_only, a_reference()), Ok(CalcValue::empty()));
     }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn resumable_entries_attach_a_single_start_kernel() {
+        let catalogue = crate::catalogue();
+        for name in [
+            "SEQUENCE", "MAP", "REDUCE", "SCAN", "BYROW", "BYCOL", "MAKEARRAY", "GROUPBY", "PIVOTBY",
+        ] {
+            let target = catalogue.resolve_surface(Notation::Call, name).unwrap();
+            assert!(target.is_resumable(), "{name}");
+            let Kernel::Resumable(_start) = target.entry.kernel else {
+                panic!("{name} must attach one continuation");
+            };
+        }
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn a_kernel_continuation_keeps_its_arguments_and_cannot_be_repurposed() {

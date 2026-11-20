@@ -295,21 +295,11 @@ fn group(
     Ok(groups)
 }
 
-/// How the kernel's calls of its function run.
-enum Calls {
-    /// Each call runs to its value through the invoker, which refuses a call that has to wait.
-    Direct,
-    /// The retained run (dc-hsa5.19, D2): the kernel's pass over the arguments is pure apart from
-    /// its calls, so a pass runs again from its start, taking the value of each call already made
-    /// from `done` and asking the invoker only for the next call, which it advances
-    /// ([`crate::call::CallableInvoker::call_slice`]) until it has a value. No call is made twice,
-    /// and a call that has to wait keeps its activation with the caller.
-    Replay {
-        done: Vec<CalcValue>,
-        next: usize,
-        /// The invoker kept the call in progress: the pass stops, and resumes at the same call.
-        stopped: bool,
-    },
+/// Replay completed callback values before asking the invoker for the next callback.
+struct Calls {
+    done: Vec<CalcValue>,
+    next: usize,
+    stopped: bool,
 }
 
 /// Calls `f`, through the services' invoker.
@@ -323,33 +313,22 @@ fn call(
     let Some(invoker) = sv.callables() else {
         return Err(site.not_modelled(None));
     };
-    match calls {
-        Calls::Direct => invoker
-            .call(f, args)
-            .map_err(|CallAbandoned| site.not_modelled(None)),
-        Calls::Replay {
-            done,
-            next,
-            stopped,
-        } => {
-            if let Some(value) = done.get(*next) {
-                *next += 1;
-                return Ok(value.clone());
-            }
-            match invoker.call_slice(f, args) {
-                Ok(Some(value)) => {
-                    done.push(value.clone());
-                    *next += 1;
-                    Ok(value)
-                }
-                Ok(None) => {
-                    *stopped = true;
-                    // The pass ends here; the marker is never a result (see `GroupingTask`).
-                    Err(Exit::Error(W::Calc))
-                }
-                Err(CallAbandoned) => Err(site.not_modelled(None)),
-            }
+    if let Some(value) = calls.done.get(calls.next) {
+        calls.next += 1;
+        return Ok(value.clone());
+    }
+    match invoker.call_slice(f, args) {
+        Ok(Some(value)) => {
+            calls.done.push(value.clone());
+            calls.next += 1;
+            Ok(value)
         }
+        Ok(None) => {
+            calls.stopped = true;
+            // The pass ends here; the marker is never a result (see `GroupingTask`).
+            Err(Exit::Error(W::Calc))
+        }
+        Err(CallAbandoned) => Err(site.not_modelled(None)),
     }
 }
 
@@ -371,7 +350,7 @@ impl KernelTask for GroupingTask {
         sv: &mut EvalServices<'_>,
     ) -> Result<Option<CalcValue>, FunctionFault> {
         let site = Site::new(self.id, sv);
-        let mut calls = Calls::Replay {
+        let mut calls = Calls {
             done: std::mem::take(&mut self.done),
             next: 0,
             stopped: false,
@@ -381,9 +360,7 @@ impl KernelTask for GroupingTask {
         } else {
             groupby(&site, &self.arguments, sv, &mut calls)
         };
-        let Calls::Replay { done, stopped, .. } = calls else {
-            unreachable!("the retained run keeps its calls");
-        };
+        let Calls { done, stopped, .. } = calls;
         self.done = done;
         match outcome {
             Err(Exit::Error(_)) if stopped => Ok(None),
@@ -1022,6 +999,6 @@ ported_shared_family! {
     code: CODE;
     declarations: DECLARATIONS;
     // dc-h9u: ROWS(GROUPBY(...)) and ROWS(PIVOTBY(...)) lift field and filter expressions.
-    1 groupby_fn resume groupby_resume => groupby_task; |s, a, sv| { groupby(s, a, sv, &mut Calls::Direct) }
-    2 pivotby_fn resume pivotby_resume => pivotby_task; |s, a, sv| { pivotby(s, a, sv, &mut Calls::Direct) }
+    1 groupby_resume => groupby_task;
+    2 pivotby_resume => pivotby_task;
 }
