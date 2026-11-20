@@ -1265,6 +1265,11 @@ fn histogram_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: A
         let _ = write!(svg, "<line x1=\"{x0:.1}\" y1=\"{y:.1}\" x2=\"{x1:.1}\" y2=\"{y:.1}\" stroke=\"{GRID}\"/><text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"end\" fill=\"{AXIS}\">{}</text>", x0 - 4.0, y + 4.0, escape(&label(v, scale.step)));
     }
     let band = (x1 - x0) / bars.len() as f64;
+    // Excel's own histograms/Pareto write gapWidth="0" (touching bars with a 1 px white border, dw3 Windows item 6);
+    // otherwise bar width is band / (1 + gapWidth).
+    let gap = plot.gap_width.unwrap_or(0.0).max(0.0);
+    let bar = band / (1.0 + gap);
+    let border = if gap <= 1e-6 { " stroke=\"#FFFFFF\" stroke-width=\"1\"" } else { "" };
     let mut running = 0usize;
     let mut line = String::new();
     for (j, (text, count)) in bars.iter().enumerate() {
@@ -1272,9 +1277,8 @@ fn histogram_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: A
         let (top, bottom) = (y_of(*count as f64), y_of(0.0));
         let _ = write!(
             svg,
-            "<rect data-dnacalc=\"chart-mark\" x=\"{:.1}\" y=\"{top:.1}\" width=\"{:.1}\" height=\"{:.1}\" fill=\"#{}\"",
-            x + band * 0.025,
-            band * 0.95,
+            "<rect data-dnacalc=\"chart-mark\" x=\"{:.1}\" y=\"{top:.1}\" width=\"{bar:.1}\" height=\"{:.1}\" fill=\"#{}\"{border}",
+            x + (band - bar) / 2.0,
             (bottom - top).max(0.0),
             series.color
         );
@@ -1373,7 +1377,7 @@ fn treemap_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: Are
             let fade = (depth as f64 * 0.18).min(0.6);
             match tile.point {
                 Some(j) => {
-                    let _ = write!(svg, "<rect data-dnacalc=\"chart-mark\" x=\"{x:.1}\" y=\"{y:.1}\" width=\"{w:.1}\" height=\"{h:.1}\" fill=\"#{colour}\" fill-opacity=\"{:.2}\" stroke=\"#FFFFFF\"", 1.0 - fade);
+                    let _ = write!(svg, "<rect data-dnacalc=\"chart-mark\" x=\"{x:.1}\" y=\"{y:.1}\" width=\"{w:.1}\" height=\"{h:.1}\" fill=\"#{colour}\" fill-opacity=\"{:.2}\" stroke=\"#FFFFFF\" stroke-width=\"2\"", 1.0 - fade);
                     mark(svg, 0, j, tile.value);
                     svg.push_str("/>");
                     if w > 28.0 && h > 14.0 {
@@ -1398,7 +1402,8 @@ fn treemap_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: Are
 }
 
 /// An Excel 2016 sunburst (dc-zjsg.6): the series' hierarchy as rings of arcs from twelve o'clock clockwise, the
-/// innermost ring the top level, each arc in its top-level branch's palette colour. Ring widths ASSUMED.
+/// innermost ring the top level, each arc in its top-level branch's palette colour. Equal ring bands with the centre
+/// hole counting as one band and 2 px white outlines (Excel-measured: dw3 Windows item 7).
 fn sunburst_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: Area) {
     use crate::hierarchy::{arcs, hierarchy};
     let Some(series) = plot.series.first() else { return };
@@ -1410,13 +1415,14 @@ fn sunburst_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: Ar
     }
     let (cx, cy) = ((area.left + area.right) / 2.0, (area.top + area.bottom) / 2.0);
     let radius = ((area.right - area.left).min(area.bottom - area.top) / 2.0 - 4.0).max(10.0);
-    let step = radius / rings as f64;
+    // Excel (dw3 Windows item 7): centre hole counts as one equal band beside the hierarchy rings.
+    let step = radius / (rings + 1) as f64;
     let point = |r: f64, turn: f64| {
         let angle = turn * std::f64::consts::TAU;
         (cx + r * angle.sin(), cy - r * angle.cos())
     };
     for arc in &all {
-        let (inner, outer) = (arc.ring as f64 * step, (arc.ring as f64 + 1.0) * step);
+        let (inner, outer) = ((arc.ring + 1) as f64 * step, (arc.ring + 2) as f64 * step);
         let colour = &chart.palette[arc.root % chart.palette.len()];
         let large = i32::from(arc.to - arc.from > 0.5);
         let full = arc.to - arc.from >= 0.9999;
@@ -1424,7 +1430,7 @@ fn sunburst_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: Ar
         let ((x0, y0), (x1, y1), (x2, y2), (x3, y3)) = (point(outer, arc.from), point(outer, to), point(inner, to), point(inner, arc.from));
         let _ = write!(
             svg,
-            "<path data-dnacalc=\"chart-mark\" d=\"M{x0:.1} {y0:.1}A{outer:.1} {outer:.1} 0 {large} 1 {x1:.1} {y1:.1}L{x2:.1} {y2:.1}A{inner:.1} {inner:.1} 0 {large} 0 {x3:.1} {y3:.1}Z\" fill=\"#{colour}\" fill-opacity=\"{:.2}\" stroke=\"#FFFFFF\"",
+            "<path data-dnacalc=\"chart-mark\" d=\"M{x0:.1} {y0:.1}A{outer:.1} {outer:.1} 0 {large} 1 {x1:.1} {y1:.1}L{x2:.1} {y2:.1}A{inner:.1} {inner:.1} 0 {large} 0 {x3:.1} {y3:.1}Z\" fill=\"#{colour}\" fill-opacity=\"{:.2}\" stroke=\"#FFFFFF\" stroke-width=\"2\"",
             1.0 - (arc.ring as f64 * 0.15).min(0.5)
         );
         match arc.tile.point {
@@ -2343,6 +2349,47 @@ mod tests {
         let lbl0 = col_svg.split('<').find(|t| t.starts_with("text data-dnacalc=\"chart-value-label\"") && t.contains("data-point=\"0\"")).unwrap();
         let (bar_y, lbl_y) = (attr(bar0, "y"), attr(lbl0, "y"));
         assert!(lbl_y < bar_y && (bar_y - lbl_y - 4.0).abs() < 0.2, "expected outEnd above bar top: bar_y={bar_y}, lbl_y={lbl_y}");
+    }
+
+    /// dc-zjsg.6 (dw4): Excel-measured sunburst and histogram layout from dw3 Windows items 6 & 7:
+    /// sunburst orders parents/children descending while keeping data-order parent colours, leaves a
+    /// one-band hole (`radius / (rings + 1)`), and uses 2 px white strokes; histogram honours `gapWidth="0"`
+    /// with touching bars and 1 px white borders.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dw4_dc_zjsg_6__sunburst_and_histogram_match_excel_dw3_measurements() {
+        use calc_host::{HostOptions, HostSession, MemorySource, OpenPolicy, PackageRead, SkinIntent};
+        use std::sync::Arc;
+        let bytes = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/chart-kinds.xlsx");
+        let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes.to_vec()));
+        let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+        assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        let (charts, _) = book.host().charts(book.host().sheets()[0].id());
+        let chart = |name: &str| charts.iter().find(|c| c.name == name).unwrap();
+
+        // Sunburst: Late (56) precedes Early (38) clockwise from 12 o'clock, keeping accent2 for Late and accent1
+        // for Early; inner ring has a non-zero hole radius equal to one band and 2 px white stroke.
+        let sb_chart = chart("Sunburst");
+        let roots = crate::hierarchy::hierarchy(&sb_chart.plots[0].series[0]);
+        let arcs = crate::hierarchy::arcs(&roots);
+        assert_eq!((arcs[0].tile.name.as_str(), arcs[0].root), ("Late", 1));
+        assert_eq!(arcs[1].tile.name.as_str(), "Thu"); // largest leaf in Late (22 > 19 > 15)
+        let sb_svg = chart_svg(sb_chart, 600., 350.);
+        assert!(sb_svg.contains("stroke=\"#FFFFFF\" stroke-width=\"2\""), "{sb_svg}");
+        assert!(!sb_svg.contains("A0.0 0.0 "), "sunburst inner ring must leave a centre hole: {sb_svg}");
+
+        // Histogram with gapWidth="0": adjacent bars touch (next x == prev x + width) with 1 px white stroke.
+        let hist_svg = chart_svg(chart("Histogram"), 600., 350.);
+        let attr = |tag: &str, name: &str| -> f64 {
+            let needle = format!("{name}=\"");
+            tag.split(&needle).nth(1).unwrap().split('"').next().unwrap().parse().unwrap()
+        };
+        let bars: Vec<_> = hist_svg.split('<').filter(|t| t.starts_with("rect data-dnacalc=\"chart-mark\"")).collect();
+        assert_eq!(bars.len(), 3, "{hist_svg}");
+        let (x0, w0, x1) = (attr(bars[0], "x"), attr(bars[0], "width"), attr(bars[1], "x"));
+        assert!((x0 + w0 - x1).abs() < 0.2, "expected touching bars with gapWidth=0: x0={x0}, w0={w0}, x1={x1}");
+        assert!(bars[0].contains("stroke=\"#FFFFFF\" stroke-width=\"1\""), "{}", bars[0]);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -161,11 +161,18 @@ pub fn sparkline_svg(s: &DrawnSparkline, w: f64, h: f64, zoom: f64) -> String {
                     None => {}
                 }
             }
+            // Excel (dw3 Windows item 3): snaps line weights >= 0.75 pt to whole pixels (round-half-up, min 1 px);
+            // thinner weights (< 1 px at 100%) draw as a 1 px hairline scaling with zoom.
+            let stroke_width = if s.weight < 1.0 {
+                zoom.max(1.0)
+            } else {
+                (s.weight * zoom).round().max(1.0)
+            };
             let _ = write!(
                 out,
                 "<path d=\"{d}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\" stroke-linejoin=\"round\" stroke-linecap=\"round\"/>",
                 s.series,
-                number(s.weight * zoom)
+                number(stroke_width)
             );
             let radius = (s.weight * 1.5).max(2.0) * zoom;
             for &(i, v) in &present {
@@ -266,5 +273,27 @@ mod tests {
         s.positions = vec![Some(0.0), None, Some(1.0)];
         s.empty = "gap".into();
         assert!(sparkline_svg(&s, 64.0, 20.0, 1.0).contains("d=\"M7 16M57 10\""));
+    }
+
+    /// dc-zjsg.7 (dw4): Excel-measured sparkline line weights across zooms (dw3 Windows item 3):
+    /// round-half-up to whole pixels (min 1 px), with <0.75 pt as a 1 px hairline scaling with zoom.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dw4_dc_zjsg_7__line_weight_snaps_to_excel_pixels_at_each_zoom() {
+        for (pt, expected) in [
+            (0.5, [(1.0, "1"), (1.5, "1.5"), (2.0, "2")]),
+            (0.75, [(1.0, "1"), (1.5, "2"), (2.0, "2")]),
+            (1.0, [(1.0, "1"), (1.5, "2"), (2.0, "3")]),
+            (2.25, [(1.0, "3"), (1.5, "5"), (2.0, "6")]),
+            (4.5, [(1.0, "6"), (1.5, "9"), (2.0, "12")]),
+        ] {
+            let mut s = line(&[Some(1.0), Some(3.0)]);
+            s.weight = pt * 96.0 / 72.0;
+            for (zoom, want) in expected {
+                let svg = sparkline_svg(&s, 64.0 * zoom, 20.0 * zoom, zoom);
+                let needle = format!("stroke-width=\"{want}\"");
+                assert!(svg.contains(&needle), "pt={pt} zoom={zoom}: expected {needle} in {svg}");
+            }
+        }
     }
 }

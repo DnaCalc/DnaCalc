@@ -1341,7 +1341,8 @@ fn dw3_dc_zjsg_5__an_elbow_changes_class_when_the_route_needs_it() {
     // Right out of the box, down, back left past the lower shape's top site, down into it: four legs.
     assert_eq!((c.geometry.as_deref(), c.rotation), (Some("bentConnector4"), 0));
     assert_eq!(c.adjust.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>(), ["adj1", "adj2"]);
-    assert!(c.adjust[0].1 < 0 && c.adjust[1].1 == 50_000, "{:?}", c.adjust);
+    // Mid-gap y = (70 + 160)/2 = 115 -> (115 - 45) / 115 = 60870 (Excel-measured: dw3 Windows item 4).
+    assert!(c.adjust[0].1 < 0 && (c.adjust[1].1 - 60_870).abs() <= 2, "{:?}", c.adjust);
     let again = reopened(&mut book);
     let read = again.host().shapes(sheet).iter().find(|s| s.id == 4).unwrap().clone();
     assert_eq!((read.geometry, read.rotation, read.begin, read.end), (c.geometry, c.rotation, c.begin, c.end));
@@ -1371,7 +1372,8 @@ fn dw4_dc_zjsg_5__a_curved_connector_changes_class_and_turn_when_rerouted() {
     let c = connector(&book, 4);
     assert_eq!((c.geometry.as_deref(), c.rotation), (Some("curvedConnector4"), 0));
     assert_eq!(c.adjust.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>(), ["adj1", "adj2"]);
-    assert!(c.adjust[0].1 < 0 && c.adjust[1].1 == 50_000, "{:?}", c.adjust);
+    // Mid-gap y = (70 + 160)/2 = 115 -> (115 - 45) / 115 = 60870 (Excel-measured: dw3 Windows item 4).
+    assert!(c.adjust[0].1 < 0 && (c.adjust[1].1 - 60_870).abs() <= 2, "{:?}", c.adjust);
     let again = reopened(&mut book);
     let read = connector(&again, 4);
     assert_eq!((read.geometry, read.rotation, read.adjust, read.begin, read.end), (c.geometry, c.rotation, c.adjust, c.begin, c.end));
@@ -1389,6 +1391,45 @@ fn dw4_dc_zjsg_5__a_curved_connector_changes_class_and_turn_when_rerouted() {
     shape(&mut stored, sheet, ShapeChange::Place { id: 3, left: Some(pts(200.0)), top: None, width: None, height: None });
     let c = connector(&stored, 4);
     assert_eq!((c.geometry.as_deref(), c.rotation, c.flip_horizontal, c.flip_vertical), (Some("curvedConnector3"), 270 * 60_000, true, false));
+}
+
+/// dc-zjsg.5 (dw4): Excel-measured elbow connector routes from dw3 Windows item 4 (c2, c3, c4, c8):
+/// 18 pt detour standoff, middle leg at the midpoint of the gap between the two shapes' boxes, and unturned
+/// horizontal-start connectors keeping rot 0 (flipV in c4, never rotating to 180).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dw4_dc_zjsg_5__elbow_reroute_matches_excel_measured_cases_c2_c3_c4_c8() {
+    let route = |a: (f64, f64, f64, f64), s1: u32, b: (f64, f64, f64, f64), s2: u32| {
+        let mut book = open(calc_host::blank_package());
+        let sheet = book.host().sheets()[0].id();
+        shape(&mut book, sheet, add(ShapeKind::Shape, "rect", a.0, a.1, a.2, a.3));
+        shape(&mut book, sheet, add(ShapeKind::Shape, "rect", b.0, b.1, b.2, b.3));
+        shape(&mut book, sheet, add(ShapeKind::Connector, "bentConnector3", 10.0, 10.0, 10.0, 10.0));
+        shape(&mut book, sheet, ShapeChange::Connect { id: 4, begin: true, shape: 2, site: s1 });
+        shape(&mut book, sheet, ShapeChange::Connect { id: 4, begin: false, shape: 3, site: s2 });
+        book.host().shapes(sheet).iter().find(|s| s.id == 4).unwrap().clone()
+    };
+    let approx = |actual: i64, expected: i64| (actual - expected).abs() <= 2;
+
+    // c2: right -> top, B lower left (A 100,40; B 20,150, both 100x40).
+    let c2 = route((100.0, 40.0, 100.0, 40.0), 4, (20.0, 150.0, 100.0, 40.0), 1);
+    assert_eq!((c2.geometry.as_deref(), c2.rotation, c2.flip_horizontal, c2.flip_vertical), (Some("bentConnector4"), 0, true, false));
+    assert!(approx(c2.adjust[0].1, -13_846) && approx(c2.adjust[1].1, 61_111), "c2: {:?}", c2.adjust);
+
+    // c3: right -> top, B straight below (A 100,40; B 100,150).
+    let c3 = route((100.0, 40.0, 100.0, 40.0), 4, (100.0, 150.0, 100.0, 40.0), 1);
+    assert_eq!((c3.geometry.as_deref(), c3.rotation, c3.flip_horizontal, c3.flip_vertical), (Some("bentConnector4"), 0, true, false));
+    assert!(approx(c3.adjust[0].1, -36_000) && approx(c3.adjust[1].1, 61_111), "c3: {:?}", c3.adjust);
+
+    // c4: right -> top, B upper right (A 100,150; B 300,40).
+    let c4 = route((100.0, 150.0, 100.0, 40.0), 4, (300.0, 40.0, 100.0, 40.0), 1);
+    assert_eq!((c4.geometry.as_deref(), c4.rotation, c4.flip_horizontal, c4.flip_vertical), (Some("bentConnector4"), 0, false, true));
+    assert!(approx(c4.adjust[0].1, 33_333) && approx(c4.adjust[1].1, 113_846), "c4: {:?}", c4.adjust);
+
+    // c8: right -> left, B lower left (A 200,40; B 20,150).
+    let c8 = route((200.0, 40.0, 100.0, 40.0), 4, (20.0, 150.0, 100.0, 40.0), 2);
+    assert_eq!((c8.geometry.as_deref(), c8.rotation, c8.flip_horizontal, c8.flip_vertical), (Some("bentConnector5"), 0, true, false));
+    assert!(approx(c8.adjust[0].1, -6_429) && approx(c8.adjust[1].1, 50_000) && approx(c8.adjust[2].1, 106_429), "c8: {:?}", c8.adjust);
 }
 
 /// dc-zjsg.4 (dw3): a stored object edited after rows were inserted in the same session: the edit is made where the
