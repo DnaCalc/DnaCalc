@@ -68,6 +68,13 @@ pub(crate) fn read_charts(package: &Package, sheet_part: &str) -> SheetCharts {
             None => read.unread += 1,
         }
     }
+    // Excel 2016's charts, after the others (dc-zjsg.6).
+    for (name, anchor, id) in super::chartex::frames(package, &drawing) {
+        match related(package, &drawing, Some(&id), super::chartex::CHARTEX).and_then(|part| super::chartex::read(package, &part, name, anchor)) {
+            Some(chart) => read.charts.push(chart),
+            None => read.unread += 1,
+        }
+    }
     read
 }
 

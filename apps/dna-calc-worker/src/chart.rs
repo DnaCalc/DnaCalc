@@ -461,8 +461,19 @@ pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
             }
             ChartKind::Scatter | ChartKind::Bubble => scatter_marks(&mut svg, chart, plot, area),
             ChartKind::Radar => radar_marks(&mut svg, chart, plot, area),
+            ChartKind::Waterfall => waterfall_marks(&mut svg, chart, plot, area),
+            ChartKind::Funnel => funnel_marks(&mut svg, plot, area),
             ChartKind::Column | ChartKind::Bar | ChartKind::Line | ChartKind::Area | ChartKind::Stock => {
                 category_marks(&mut svg, chart, plot, area, None);
+            }
+            ChartKind::Other(kind) if kind.starts_with("cx:") => {
+                let _ = write!(
+                    svg,
+                    "<text data-dnacalc=\"chart-notice\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">An Excel 2016 {} chart is preserved but not drawn here (dc-zjsg.6)</text>",
+                    width / 2.0,
+                    height / 2.0,
+                    escape(&kind[3..])
+                );
             }
             ChartKind::Other(kind) => {
                 let _ = write!(
@@ -1188,6 +1199,95 @@ fn category_marks(
     svg.push_str(&data_labels);
 }
 
+/// An Excel 2016 waterfall (dc-zjsg.6): over its categories each point a column from the running total to the total
+/// after it (up in accent 1, down in accent 2), a subtotal point a column from zero to its value in accent 3 that
+/// sets the running total; the value axis spans zero and every total. Gap and colours as Excel's defaults (ASSUMED
+/// until a side-by-side); no connector lines.
+fn waterfall_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: Area) {
+    let Some(series) = plot.series.first() else { return };
+    let count = series.values.len();
+    if count == 0 {
+        return;
+    }
+    let mut spans = Vec::with_capacity(count);
+    let mut total = 0.0f64;
+    for (j, v) in series.values.iter().enumerate() {
+        let Some(v) = v.filter(|v| v.is_finite()) else {
+            spans.push(None);
+            continue;
+        };
+        if plot.subtotals.contains(&(j as u32)) {
+            spans.push(Some((0.0, v, 2usize)));
+            total = v;
+        } else {
+            spans.push(Some((total, total + v, usize::from(v < 0.0))));
+            total += v;
+        }
+    }
+    let (low, high) = spans.iter().flatten().fold((0.0f64, 0.0f64), |(a, b), (f, t, _)| (a.min(f.min(*t)), b.max(f.max(*t))));
+    let Ok(scale) = calc_host::chart::chart_scale(low, high, None) else { return };
+    let (x0, x1, y0, y1) = (area.left + 40.0, area.right, area.top, area.bottom - 18.0);
+    let y_of = |v: f64| y1 - scale.position(v).unwrap_or(0.0) * (y1 - y0);
+    for v in scale.ticks() {
+        let y = y_of(v);
+        let _ = write!(svg, "<line x1=\"{x0:.1}\" y1=\"{y:.1}\" x2=\"{x1:.1}\" y2=\"{y:.1}\" stroke=\"{GRID}\"/><text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"end\" fill=\"{AXIS}\">{}</text>", x0 - 4.0, y + 4.0, escape(&label(v, scale.step)));
+    }
+    let band = (x1 - x0) / count as f64;
+    let colours = [&chart.palette[0], &chart.palette[1 % chart.palette.len()], &chart.palette[2 % chart.palette.len()]];
+    for (j, span) in spans.iter().enumerate() {
+        let x = x0 + j as f64 * band;
+        if let Some((from, to, kind)) = span {
+            let (top, bottom) = (y_of(from.max(*to)), y_of(from.min(*to)));
+            let _ = write!(
+                svg,
+                "<rect data-dnacalc=\"chart-mark\" data-kind=\"{}\" x=\"{:.1}\" y=\"{top:.1}\" width=\"{:.1}\" height=\"{:.1}\" fill=\"#{}\"",
+                ["increase", "decrease", "total"][*kind],
+                x + band * 0.25,
+                band * 0.5,
+                (bottom - top).max(0.5),
+                colours[*kind]
+            );
+            mark(svg, 0, j, to - if *kind == 2 { 0.0 } else { *from });
+            svg.push_str("/>");
+        }
+        let text = series.categories.get(j).cloned().flatten().map(|v| text_of(&v)).unwrap_or_else(|| (j + 1).to_string());
+        let _ = write!(svg, "<text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">{}</text>", x + band / 2.0, y1 + 13.0, escape(&text));
+    }
+    let zero = y_of(0.0);
+    let _ = write!(svg, "<line x1=\"{x0:.1}\" y1=\"{zero:.1}\" x2=\"{x1:.1}\" y2=\"{zero:.1}\" stroke=\"{AXIS}\"/>");
+}
+
+/// An Excel 2016 funnel (dc-zjsg.6): a bar a category, top to bottom, centred, as wide against the widest as its
+/// value, the category at its left and the value in it. Look ASSUMED until a side-by-side.
+fn funnel_marks(svg: &mut String, plot: &PlotView, area: Area) {
+    let Some(series) = plot.series.first() else { return };
+    let count = series.values.len();
+    let widest = series.values.iter().flatten().copied().filter(|v| v.is_finite()).fold(0.0f64, |a, v| a.max(v.abs()));
+    if count == 0 || widest <= 0.0 {
+        return;
+    }
+    let (x0, x1, y0, y1) = (area.left + 60.0, area.right, area.top, area.bottom);
+    let (middle, band) = ((x0 + x1) / 2.0, (y1 - y0) / count as f64);
+    for (j, v) in series.values.iter().enumerate() {
+        let y = y0 + j as f64 * band;
+        let text = series.categories.get(j).cloned().flatten().map(|v| text_of(&v)).unwrap_or_else(|| (j + 1).to_string());
+        let _ = write!(svg, "<text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"end\" fill=\"{AXIS}\">{}</text>", x0 - 4.0, y + band / 2.0 + 4.0, escape(&text));
+        let Some(v) = v.filter(|v| v.is_finite()) else { continue };
+        let w = (x1 - x0) * v.abs() / widest;
+        let _ = write!(
+            svg,
+            "<rect data-dnacalc=\"chart-mark\" x=\"{:.1}\" y=\"{:.1}\" width=\"{w:.1}\" height=\"{:.1}\" fill=\"#{}\"",
+            middle - w / 2.0,
+            y + band * 0.1,
+            band * 0.8,
+            series.color
+        );
+        mark(svg, 0, j, v);
+        svg.push_str("/>");
+        let _ = write!(svg, "<text data-dnacalc=\"chart-data-label\" x=\"{middle:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"#FFFFFF\">{}</text>", y + band / 2.0 + 4.0, escape(&label(v, 0.0)));
+    }
+}
+
 /// A radar's series over spokes, one spoke a category clockwise from twelve o'clock: its value axis as rings
 /// (polygons) at the scale's ticks, labelled up the first spoke; each series a closed line (`standard`), with markers
 /// (`marker`), or filled (`filled`). A gap breaks the line. Marker size and label offsets are ASSUMED until an Excel
@@ -1575,10 +1675,10 @@ mod tests {
         let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
         assert!(book.dispatch(SkinIntent::Recalculate).accepted());
         let (charts, unread) = book.host().charts(book.host().sheets()[0].id());
-        assert_eq!((charts.len(), unread), (14, 0));
+        assert_eq!((charts.len(), unread), (17, 0));
         let svg = |name: &str| chart_svg(charts.iter().find(|c| c.name == name).unwrap(), 600., 350.);
         let count = |svg: &str, needle: &str| svg.matches(needle).count();
-        for name in ["3-D Column", "3-D Pie", "Radar marker", "Radar filled", "Bubble", "Stock HLC", "Stock OHLC", "3-D Line", "Line trends", "Scatter exp", "Line drops", "Column sd", "Pie labels", "Column labels"] {
+        for name in ["3-D Column", "3-D Pie", "Radar marker", "Radar filled", "Bubble", "Stock HLC", "Stock OHLC", "3-D Line", "Line trends", "Scatter exp", "Line drops", "Column sd", "Pie labels", "Column labels", "Waterfall", "Funnel"] {
             let drawn = svg(name);
             assert!(!drawn.contains("is not drawn here") && !drawn.contains("chart-notice"), "{name}: {drawn}");
         }
@@ -1622,6 +1722,19 @@ mod tests {
         assert!(pie.contains(">Mon, 18%</text>"), "{pie}");
         let columns = svg("Column labels");
         assert!(columns.contains(">Low; 10</text>"), "{columns}");
+        // Excel 2016 charts (dc-zjsg.6): a waterfall of 10, -3, 4, -2 and the subtotal 9 steps 0-10, 10-7, 7-11, 11-9,
+        // then stands 0-9; a funnel of five centred bars; a treemap kept, said not drawn.
+        let waterfall = charts.iter().find(|c| c.name == "Waterfall").unwrap();
+        assert_eq!((waterfall.plots[0].kind.clone(), waterfall.plots[0].subtotals.clone()), (ChartKind::Waterfall, vec![4]));
+        assert_eq!(waterfall.plots[0].series[0].values, vec![Some(10.0), Some(-3.0), Some(4.0), Some(-2.0), Some(9.0)]);
+        let drawn = svg("Waterfall");
+        assert_eq!((count(&drawn, "data-kind=\"increase\""), count(&drawn, "data-kind=\"decrease\""), count(&drawn, "data-kind=\"total\"")), (2, 2, 1));
+        assert_eq!(count(&svg("Funnel"), "<rect data-dnacalc=\"chart-mark\""), 5);
+        assert!(svg("Treemap").contains("An Excel 2016 treemap chart is preserved but not drawn here"));
+        // The drawing reader takes those frames for charts, not unread objects (their text-box fallbacks unread too).
+        let sheet = book.host().sheets()[0].id();
+        assert_eq!(book.host().loaded().sheet(sheet).unwrap().shapes().unread, 0);
+        assert!(book.host().shapes(sheet).is_empty());
         // Two series of five columns; five slices.
         assert_eq!(count(&svg("3-D Column"), "<rect data-dnacalc=\"chart-mark\""), 10);
         assert!(charts.iter().find(|c| c.name == "3-D Column").unwrap().plots[0].three_d);

@@ -17,20 +17,25 @@ Excel 2016 writes them (c:chartSpace with numRef/strRef caches), each in its own
  12 "Column sd"    barChart clustered, series B with one standard deviation error bars
  13 "Pie labels"   pieChart, series B, labels showing category and percentage (best fit)
  14 "Column labels" barChart clustered, series B, labels showing series name and value, separator "; "
+Excel 2016 charts (cx:chartSpace parts, each frame in an mc:AlternateContent around whole anchors with the text-box
+fallback Excel writes for older readers), over F2:F6 (Change: 10, -3, 4, -2 and the subtotal 9):
+ 15 "Waterfall"    cx:waterfall, the last point a subtotal
+ 16 "Funnel"       cx:funnel over B2:B6
+ 17 "Treemap"      cx:treemap (kept and not drawn)
 Not yet opened by Excel (codex-runs/dw2/RUN-ON-WINDOWS.txt).
 Run: python3 -I make-chart-kinds.py shapes-paint4.xlsx chart-kinds.xlsx"""
 import sys, zipfile
 
 theme = zipfile.ZipFile(sys.argv[1]).read("xl/theme/theme1.xml")
-header = ["Day", "Low", "High", "Close", "Last"]
+header = ["Day", "Low", "High", "Close", "Last", "Change"]
 data = [
-    ["Mon", 10, 18, 14, 16],
-    ["Tue", 12, 20, 13, 12],
-    ["Wed", 9, 15, 11, 14],
-    ["Thu", 11, 22, 21, 19],
-    ["Fri", 14, 19, 15, 17],
+    ["Mon", 10, 18, 14, 16, 10],
+    ["Tue", 12, 20, 13, 12, -3],
+    ["Wed", 9, 15, 11, 14, 4],
+    ["Thu", 11, 22, 21, 19, -2],
+    ["Fri", 14, 19, 15, 17, 9],
 ]
-cols = "ABCDE"
+cols = "ABCDEF"
 rows = ['<row r="1">' + "".join(f'<c r="{cols[i]}1" t="inlineStr"><is><t>{h}</t></is></c>' for i, h in enumerate(header)) + "</row>"]
 for r, values in enumerate(data, start=2):
     cells = f'<c r="A{r}" t="inlineStr"><is><t>{values[0]}</t></is></c>' + "".join(f'<c r="{cols[i]}{r}"><v>{v}</v></c>' for i, v in enumerate(values) if i)
@@ -157,9 +162,55 @@ for n, (title, _, _) in enumerate(charts):
         f'<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="{n + 2}" name="{title}"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>'
         '<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm>'
         f'<a:graphic><a:graphicData uri="{C}"><c:chart xmlns:c="{C}" r:id="rId{n + 1}"/></a:graphicData></a:graphic></xdr:graphicFrame><xdr:clientData/></xdr:twoCellAnchor>')
+CX = "http://schemas.microsoft.com/office/drawing/2014/chartex"
+CX_REL = "http://schemas.microsoft.com/office/2014/relationships/chartEx"
+MC = "http://schemas.openxmlformats.org/markup-compatibility/2006"
+# (title, layoutId, values column, extra layout properties, the cx namespace version Excel requires for it)
+chartex = [
+    ("Waterfall", "waterfall", "F", '<cx:layoutPr><cx:subtotals><cx:idx val="4"/></cx:subtotals></cx:layoutPr>', ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
+    ("Funnel", "funnel", "B", "", ("cx2", "http://schemas.microsoft.com/office/drawing/2015/10/21/chartex")),
+    ("Treemap", "treemap", "B", '<cx:layoutPr><cx:parentLabelLayout val="overlapping"/></cx:layoutPr>', ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
+]
+
+
+def chartex_xml(title, layout, col, layout_pr):
+    pts = "".join(f'<cx:pt idx="{i}">{row[0]}</cx:pt>' for i, row in enumerate(data))
+    vals = "".join(f'<cx:pt idx="{i}">{row[cols.index(col)]}</cx:pt>' for i, row in enumerate(data))
+    return ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+            f'<cx:chartSpace xmlns:a="{A}" xmlns:r="{R}" xmlns:cx="{CX}"><cx:chartData><cx:data id="0">'
+            f'<cx:strDim type="cat"><cx:f>Kinds!$A$2:$A$6</cx:f><cx:lvl ptCount="5">{pts}</cx:lvl></cx:strDim>'
+            f'<cx:numDim type="val"><cx:f>Kinds!${col}$2:${col}$6</cx:f><cx:lvl ptCount="5" formatCode="General">{vals}</cx:lvl></cx:numDim>'
+            '</cx:data></cx:chartData><cx:chart>'
+            f'<cx:title pos="t" align="ctr" overlay="0"><cx:tx><cx:txData><cx:v>{title}</cx:v></cx:txData></cx:tx></cx:title>'
+            f'<cx:plotArea><cx:plotAreaRegion><cx:series layoutId="{layout}" uniqueId="{{00000000-0000-4000-8000-00000000000{len(title) % 10}}}">'
+            f'<cx:tx><cx:txData><cx:f>Kinds!${col}$1</cx:f><cx:v>{header[cols.index(col)]}</cx:v></cx:txData></cx:tx>'
+            f'<cx:dataId val="0"/>{layout_pr}</cx:series></cx:plotAreaRegion></cx:plotArea>'
+            '<cx:legend pos="t" align="ctr" overlay="0"/></cx:chart></cx:chartSpace>')
+
+
+base = len(charts)
+for k, (title, layout, col, layout_pr, (prefix, ns)) in enumerate(chartex):
+    n = base + k
+    col_, row = 6 + (n % 2) * 8, (n // 2) * 15
+    place = (f'<xdr:from><xdr:col>{col_}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>{row}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>'
+             f'<xdr:to><xdr:col>{col_ + 7}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>{row + 14}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>')
+    anchors.append(
+        f'<mc:AlternateContent xmlns:mc="{MC}"><mc:Choice xmlns:{prefix}="{ns}" Requires="{prefix}"><xdr:twoCellAnchor>{place}'
+        f'<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="{n + 2}" name="{title}"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>'
+        '<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm>'
+        f'<a:graphic><a:graphicData uri="{CX}"><cx:chart xmlns:cx="{CX}" r:id="rId{n + 1}"/></a:graphicData></a:graphic></xdr:graphicFrame>'
+        f'<xdr:clientData/></xdr:twoCellAnchor></mc:Choice><mc:Fallback><xdr:twoCellAnchor>{place}'
+        '<xdr:sp macro="" textlink=""><xdr:nvSpPr><xdr:cNvPr id="0" name=""/><xdr:cNvSpPr><a:spLocks noTextEdit="1"/></xdr:cNvSpPr></xdr:nvSpPr>'
+        '<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="4572000" cy="2743200"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom>'
+        '<a:solidFill><a:prstClr val="white"/></a:solidFill><a:ln w="1"><a:solidFill><a:prstClr val="green"/></a:solidFill></a:ln></xdr:spPr>'
+        '<xdr:txBody><a:bodyPr vertOverflow="clip" horzOverflow="clip"/><a:lstStyle/><a:p><a:r><a:rPr lang="en-US" sz="1100"/>'
+        '<a:t>This chart isn\'t available in your version of Excel.</a:t></a:r></a:p></xdr:txBody></xdr:sp><xdr:clientData fLocksWithSheet="0"/>'
+        '</xdr:twoCellAnchor></mc:Fallback></mc:AlternateContent>')
 drawing = (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<xdr:wsDr xmlns:xdr="{XDR}" xmlns:a="{A}" xmlns:r="{R}">' + "".join(anchors) + "</xdr:wsDr>")
 drawing_rels = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-                + "".join(f'<Relationship Id="rId{n + 1}" Type="{R}/chart" Target="../charts/chart{n + 1}.xml"/>' for n in range(len(charts))) + "</Relationships>")
+                + "".join(f'<Relationship Id="rId{n + 1}" Type="{R}/chart" Target="../charts/chart{n + 1}.xml"/>' for n in range(len(charts)))
+                + "".join(f'<Relationship Id="rId{base + k + 1}" Type="{CX_REL}" Target="../charts/chartEx{k + 1}.xml"/>' for k in range(len(chartex)))
+                + "</Relationships>")
 sheet = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
          f'xmlns:r="{R}"><sheetFormatPr defaultRowHeight="15"/><sheetData>' + "".join(rows) + '</sheetData>'
          '<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/><drawing r:id="rId1"/></worksheet>')
@@ -174,7 +225,8 @@ files = {
         f'<Override PartName="/xl/workbook.xml" ContentType="{CT}.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="{CT}.spreadsheetml.worksheet+xml"/>'
         f'<Override PartName="/xl/theme/theme1.xml" ContentType="{CT}.theme+xml"/><Override PartName="/xl/styles.xml" ContentType="{CT}.spreadsheetml.styles+xml"/>'
         f'<Override PartName="/xl/drawings/drawing1.xml" ContentType="{CT}.drawing+xml"/>'
-        + "".join(f'<Override PartName="/xl/charts/chart{n + 1}.xml" ContentType="{CT}.drawingml.chart+xml"/>' for n in range(len(charts))) + '</Types>',
+        + "".join(f'<Override PartName="/xl/charts/chart{n + 1}.xml" ContentType="{CT}.drawingml.chart+xml"/>' for n in range(len(charts)))
+        + "".join(f'<Override PartName="/xl/charts/chartEx{k + 1}.xml" ContentType="application/vnd.ms-office.chartex+xml"/>' for k in range(len(chartex))) + '</Types>',
     "_rels/.rels": f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="{R}/officeDocument" Target="xl/workbook.xml"/></Relationships>',
     "xl/workbook.xml": f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="{R}"><sheets><sheet name="Kinds" sheetId="1" r:id="rId1"/></sheets></workbook>',
     "xl/_rels/workbook.xml.rels": f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="{R}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="{R}/theme" Target="theme/theme1.xml"/><Relationship Id="rId3" Type="{R}/styles" Target="styles.xml"/></Relationships>',
@@ -187,6 +239,8 @@ files = {
 }
 for n, (title, view, plot) in enumerate(charts):
     files[f"xl/charts/chart{n + 1}.xml"] = chart_xml(title, view, plot)
+for k, (title, layout, col, layout_pr, _) in enumerate(chartex):
+    files[f"xl/charts/chartEx{k + 1}.xml"] = chartex_xml(title, layout, col, layout_pr)
 with zipfile.ZipFile(sys.argv[2], "w", zipfile.ZIP_DEFLATED) as z:
     for name_, content in files.items():
         info = zipfile.ZipInfo(name_, date_time=(2026, 11, 20, 0, 0, 0))

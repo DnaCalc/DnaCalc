@@ -29,6 +29,7 @@
 
 pub(crate) mod address;
 mod chart;
+mod chartex;
 mod drawing;
 pub(crate) mod conditional;
 mod data_model;

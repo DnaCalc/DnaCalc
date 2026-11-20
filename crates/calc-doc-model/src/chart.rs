@@ -158,6 +158,8 @@ pub struct ChartPlot {
     pub drop_lines: bool,
     /// What the plot's `c:dLbls` shows, for drawing (dc-zjsg.6).
     pub labels: Option<ChartLabels>,
+    /// An Excel 2016 waterfall's subtotal points (`cx:subtotals`), by index (dc-zjsg.6).
+    pub subtotals: Vec<u32>,
     pub up_down_bars: bool,
 }
 

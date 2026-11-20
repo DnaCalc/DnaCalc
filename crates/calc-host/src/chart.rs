@@ -71,6 +71,10 @@ pub enum ChartKind {
     Bubble,
     /// `stockChart`: high-low lines with open and close marks over categories (dc-zjsg.6).
     Stock,
+    /// An Excel 2016 waterfall (`cx:waterfall`): each point a step from the running total, subtotals from zero.
+    Waterfall,
+    /// An Excel 2016 funnel (`cx:funnel`): centred bars as wide as their values.
+    Funnel,
     /// Another kind, by its element name (`surfaceChart`, `ofPieChart`, ...).
     Other(String),
 }
@@ -124,6 +128,8 @@ pub struct PlotView {
     /// A stock or line plot's high-low lines, a stock plot's up/down bars, a line or area plot's drop lines.
     pub high_low_lines: bool,
     pub drop_lines: bool,
+    /// A waterfall's subtotal points, by index.
+    pub subtotals: Vec<u32>,
     pub up_down_bars: bool,
 }
 
@@ -224,6 +230,8 @@ impl HostState {
                         "radarChart" => ChartKind::Radar,
                         "bubbleChart" => ChartKind::Bubble,
                         "stockChart" => ChartKind::Stock,
+                        "cx:waterfall" => ChartKind::Waterfall,
+                        "cx:funnel" => ChartKind::Funnel,
                         other => ChartKind::Other(other.to_owned()),
                     };
                     let grouping = plot.grouping.as_deref().unwrap_or_default();
@@ -242,6 +250,7 @@ impl HostState {
                         bubble_width: plot.bubble_width,
                         high_low_lines: plot.high_low_lines,
                         drop_lines: plot.drop_lines,
+                        subtotals: plot.subtotals.clone(),
                         up_down_bars: plot.up_down_bars,
                         stacked: matches!(grouping, "stacked" | "percentStacked"),
                         percent: grouping == "percentStacked",
