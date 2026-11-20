@@ -14895,6 +14895,90 @@ fn dc_971p_38__shifted_source_formula_attributes_and_filter_ranges_refuse_atomic
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_43_2__stored_range_selection_is_read_kept_and_saved() {
+    use calc_host::SaveViews;
+    let views = |sheet_views: &'static str| {
+        package_with_part("xl/worksheets/sheet1.xml", move |xml| {
+            let start = xml.find("<sheetViews").map_or_else(
+                || xml.find("<sheetData").unwrap(),
+                |i| i,
+            );
+            let end = xml
+                .find("</sheetViews>")
+                .map(|i| i + "</sheetViews>".len())
+                .or_else(|| xml.find("<sheetViews").and_then(|_| xml[start..].find("/>").map(|j| start + j + 2)))
+                .unwrap_or(start);
+            format!("{}{sheet_views}{}", &xml[..start], &xml[end..])
+        })
+    };
+    let wrap = |selection: &str| {
+        format!(
+            "<sheetViews><sheetView workbookViewId=\"0\">{selection}</sheetView></sheetViews>"
+        )
+    };
+    let leak = |text: String| -> &'static str { Box::leak(text.into_boxed_str()) };
+    // Active cell C2 at the top-left corner of C2:E4; the same range with E4 active; a range the
+    // active cell is not a corner of; several areas.
+    let cases = [
+        ("<selection activeCell=\"C2\" sqref=\"C2:E4\"/>", Some((2, 3, 4, 5))),
+        ("<selection activeCell=\"E4\" sqref=\"C2:E4\"/>", Some((2, 3, 4, 5))),
+        ("<selection activeCell=\"D3\" sqref=\"C2:E4\"/>", None),
+        ("<selection activeCell=\"C2\" sqref=\"C2:E4 G7\"/>", None),
+        ("<selection activeCell=\"C2\" sqref=\"C2\"/>", None),
+    ];
+    for (selection, expected) in cases {
+        let bytes = views(leak(wrap(selection)));
+        let mut book = session(&bytes);
+        let s = book.host().sheets()[0].id();
+        let view = book.host().sheet_view(s).unwrap();
+        assert_eq!(view.selection, expected, "{selection}");
+        // Saved without a view, the file's own selection element survives.
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        assert!(part_text(&saved, "xl/worksheets/sheet1.xml").contains(selection), "{selection}");
+    }
+    // A new range with the active cell at a corner is written and read back.
+    let bytes = views(leak(wrap("<selection activeCell=\"C2\" sqref=\"C2:E4\"/>")));
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    let mut view = book.host().sheet_view(s).unwrap();
+    view.active_cell = Some((9, 2));
+    view.selection = Some((6, 2, 9, 4));
+    let policy = SavePolicy {
+        views: Some(std::sync::Arc::new(SaveViews {
+            revision: book.host().revision().get(),
+            active_sheet: Some(s),
+            sheets: [(s, view)].into(),
+        })),
+        ..Default::default()
+    };
+    let mut saved = Vec::new();
+    book.save(&policy, &mut saved).unwrap();
+    assert!(part_text(&saved, "xl/worksheets/sheet1.xml").contains("sqref=\"B6:D9\""));
+    let reopened = session(&saved);
+    assert_eq!(reopened.host().sheet_view(s).unwrap().selection, Some((6, 2, 9, 4)));
+    assert_eq!(reopened.host().sheet_view(s).unwrap().active_cell, Some((9, 2)));
+    // Moving only the active cell writes a single-cell selection, not the old range.
+    let mut view = book.host().sheet_view(s).unwrap();
+    view.active_cell = Some((20, 20));
+    view.selection = None;
+    let policy = SavePolicy {
+        views: Some(std::sync::Arc::new(SaveViews {
+            revision: book.host().revision().get(),
+            active_sheet: Some(s),
+            sheets: [(s, view)].into(),
+        })),
+        ..Default::default()
+    };
+    let mut saved = Vec::new();
+    book.save(&policy, &mut saved).unwrap();
+    let xml = part_text(&saved, "xl/worksheets/sheet1.xml");
+    assert!(xml.contains("sqref=\"T20\""), "{xml}");
+    assert_eq!(session(&saved).host().sheet_view(s).unwrap().selection, None);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_16__split_layout_history_replay_and_xlsx_round_trip() {
     use calc_host::{PaneLayout, WorkbookCommand as C};
     let bytes = calc_host::blank_package();
@@ -14984,10 +15068,12 @@ fn dc_971p_16__save_window_is_pinned_without_an_undo_entry_and_preserves_other_v
     let mut v = book.host().sheet_view(sheet).unwrap();
     v.top_left = Some((44, 7));
     v.active_cell = Some((45, 8));
+    v.selection = None;
     v.zoom = Some(175);
     let mut v2 = book.host().sheet_view(second).unwrap();
     v2.top_left = Some((70, 9));
     v2.active_cell = Some((72, 11));
+    v2.selection = None;
     v2.zoom = Some(125);
     let policy = SavePolicy {
         views: Some(std::sync::Arc::new(SaveViews {

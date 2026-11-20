@@ -1168,6 +1168,10 @@ pub struct Summary {
     pub session: String,
     #[serde(default)]
     pub initial_cell: Option<Key>,
+    /// The stored range selection of the opening sheet (top, left, bottom, right), with
+    /// `initial_cell` at one corner; `None` for a single cell.
+    #[serde(default)]
+    pub initial_selection: Option<(u32, u32, u32, u32)>,
     pub workbook: u64,
     pub name: String,
     pub changed: bool,
@@ -1288,6 +1292,9 @@ pub struct SheetWindow {
     pub geometry: Geometry,
     pub sheet: Sheet,
     pub active: (u32, u32),
+    /// The selected range (top, left, bottom, right) when it is one area with `active` at a corner.
+    #[serde(default)]
+    pub selection: Option<(u32, u32, u32, u32)>,
     pub active_pane: u8,
     pub panes: Vec<PaneWindow>,
 }

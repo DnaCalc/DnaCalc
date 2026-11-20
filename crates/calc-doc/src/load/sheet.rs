@@ -1350,6 +1350,21 @@ pub(crate) fn view_from_xml(
     Ok(Default::default())
 }
 
+/// The one area an `sqref` states when it is larger than a cell and the active cell is at one of
+/// its corners; anything else (several areas, a single cell) is not kept as a range.
+pub(crate) fn selection_of(
+    active: Option<(u32, u32)>,
+    sqref: &str,
+) -> Option<(u32, u32, u32, u32)> {
+    let (r, c, b, d) = address::area(sqref.trim())?;
+    let (row, column) = active?;
+    ((r, c) != (b, d) && (row == r || row == b) && (column == c || column == d))
+        .then_some((r, c, b, d))
+}
+
+/// A `<selection>`: its pane, `activeCell` and `sqref`.
+type SelectionRecord = (String, Option<(u32, u32)>, Option<String>);
+
 fn read_view(events: &mut Events<'_>) -> Result<super::geometry::SheetView, LoadError> {
     let mut view = super::geometry::SheetView::default();
     let mut first = true;
@@ -1365,7 +1380,7 @@ fn read_view(events: &mut Events<'_>) -> Result<super::geometry::SheetView, Load
                     .filter(|n| (10..=400).contains(n));
                 view.top_left = element.attribute("topLeftCell").and_then(address::cell);
                 let mut active_pane = "topLeft".to_owned();
-                let mut selections: Vec<(String, Option<(u32, u32)>)> = Vec::new();
+                let mut selections: Vec<SelectionRecord> = Vec::new();
                 loop {
                     match events.next()? {
                         Some(XmlEvent::Start(child)) if child.name.is(MAIN_NAMESPACE, "pane") => {
@@ -1414,6 +1429,7 @@ fn read_view(events: &mut Events<'_>) -> Result<super::geometry::SheetView, Load
                             selections.push((
                                 pane,
                                 child.attribute("activeCell").and_then(address::cell),
+                                child.attribute("sqref").map(str::to_owned),
                             ));
                             events.skip()?;
                         }
@@ -1429,10 +1445,10 @@ fn read_view(events: &mut Events<'_>) -> Result<super::geometry::SheetView, Load
                     "bottomRight" => 3,
                     _ => 0,
                 };
-                view.active_cell = selections
-                    .iter()
-                    .find(|(pane, _)| *pane == active_pane)
-                    .and_then(|(_, cell)| *cell);
+                let chosen = selections.iter().find(|(pane, ..)| *pane == active_pane);
+                view.active_cell = chosen.and_then(|(_, cell, _)| *cell);
+                view.selection =
+                    chosen.and_then(|(_, cell, sqref)| selection_of(*cell, sqref.as_deref()?));
             }
             Some(XmlEvent::Start(_)) => events.skip()?,
             Some(XmlEvent::Text(_)) => {}

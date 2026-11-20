@@ -1010,6 +1010,7 @@ impl Controller {
             .and_then(Key::cell)
             .filter(|at| Some(at.sheet()) == first)
             .map_or((1, 1), |at| (at.row(), at.column()));
+        let initial_selection = summary.initial_selection;
         self.summary.set(summary.into());
         self.download_unconfirmed.set(false);
         self.assist.readonly.set(false);
@@ -1020,13 +1021,25 @@ impl Controller {
             callback.take();
         });
         self.validation_outcome.set_value(None);
+        // A stored range selection (with the active cell at a corner) opens as that range.
+        let corner = initial_selection
+            .filter(|(r, c, b, d)| {
+                (initial.0 == *r || initial.0 == *b) && (initial.1 == *c || initial.1 == *d)
+            })
+            .map(|(r, c, b, d)| (r + b - initial.0, c + d - initial.1));
         self.sheet.set(first);
         self.active.set(initial);
-        self.corner.set(initial);
+        self.corner.set(corner.unwrap_or(initial));
         self.areas.set(
             first
-                .and_then(|sheet| CellKey::new(sheet, initial.0, initial.1).ok())
-                .map(GridArea::cell)
+                .and_then(|sheet| {
+                    let far = corner.unwrap_or(initial);
+                    GridArea::new(
+                        CellKey::new(sheet, initial.0, initial.1).ok()?,
+                        CellKey::new(sheet, far.0, far.1).ok()?,
+                    )
+                    .ok()
+                })
                 .into_iter()
                 .collect(),
         );
@@ -4252,17 +4265,32 @@ impl Controller {
                         .with_untracked(|all| all.sheets.iter().any(|(s, _)| s.id() == *sheet))
                 })
                 .filter_map(|(sheet, panes)| {
-                    let active = if sheet == active_sheet {
-                        self.active.get_untracked()
+                    let (active, areas) = if sheet == active_sheet {
+                        (self.active.get_untracked(), self.areas.get_untracked())
                     } else {
                         self.sheet_selections
-                            .with_value(|a| a.get(&sheet).map(|(at, _)| (at.row(), at.column())))
-                            .unwrap_or((1, 1))
+                            .with_value(|a| {
+                                a.get(&sheet)
+                                    .map(|(at, areas)| ((at.row(), at.column()), areas.clone()))
+                            })
+                            .unwrap_or(((1, 1), Vec::new()))
+                    };
+                    // One area larger than a cell with the active cell at a corner is stored
+                    // as the sheet's selection; several areas keep only the active cell.
+                    let selection = match areas.as_slice() {
+                        [area] if area.row_count() * area.column_count() > 1 => {
+                            let (r, c) = (area.first().row(), area.first().column());
+                            let (b, d) = (area.last().row(), area.last().column());
+                            ((active.0 == r || active.0 == b) && (active.1 == c || active.1 == d))
+                                .then_some((r, c, b, d))
+                        }
+                        _ => None,
                     };
                     Some(wire::SheetWindow {
                         geometry: self.grid_geometry(sheet)?,
                         sheet: wire::Sheet::of(sheet),
                         active,
+                        selection,
                         active_pane: self.active_grid_pane(sheet).unwrap_or(0),
                         panes,
                     })
