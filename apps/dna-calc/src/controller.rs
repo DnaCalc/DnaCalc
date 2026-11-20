@@ -2986,6 +2986,25 @@ impl Controller {
             Some(self.summary.get_untracked().revision),
         );
     }
+    /// A date period relative to today (or a quarter or month of any year) on the chosen column.
+    pub fn calendar_filter(&self, period: String) {
+        let Some(area) = self.filter_view().and_then(|f| f.area.area()) else {
+            return;
+        };
+        let Some(column) = self
+            .model
+            .with_untracked(|m| m.runtime.tools.filter.column.parse::<u32>().ok())
+            .filter(|c| *c > 0 && *c <= area.column_count())
+            .map(|c| area.first().column() + c - 1)
+        else {
+            self.say("Choose a column within the filter range", true);
+            return;
+        };
+        self.filter_command_revision(
+            wire::FilterChange::Calendar { column, period },
+            Some(self.summary.get_untracked().revision),
+        );
+    }
     pub fn special_filter(
         &self,
         date: Option<String>,

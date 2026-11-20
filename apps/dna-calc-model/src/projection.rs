@@ -801,6 +801,10 @@ pub enum FilterChange {
         column: u32,
         above: bool,
     },
+    Calendar {
+        column: u32,
+        period: String,
+    },
     ColorReference {
         column: u32,
         dxf_id: u32,

@@ -243,17 +243,29 @@ pub(super) fn read(
                             if e.name.is(MAIN_NAMESPACE, "dynamicFilter") =>
                         {
                             // Only the clock-free types are modelled; date periods stay unread.
-                            filter.unsupported |= !known(&e, &["type", "val"]);
-                            let above = match e.attribute("type") {
-                                Some("aboveAverage") => Some(true),
-                                Some("belowAverage") => Some(false),
+                            filter.unsupported |= !known(&e, &["type", "val", "maxVal"]);
+                            let val = e.attribute("val").map(str::to_owned);
+                            let max_val = e.attribute("maxVal").map(str::to_owned);
+                            let kind = e.attribute("type").unwrap_or_default();
+                            let parsed = match kind {
+                                "aboveAverage" | "belowAverage" => Some(FilterCriteria::Average {
+                                    above: kind == "aboveAverage",
+                                    val: val.clone(),
+                                }),
+                                _ if calc_doc_model::CALENDAR_PERIODS.contains(&kind) => {
+                                    Some(FilterCriteria::Calendar {
+                                        period: kind.to_owned(),
+                                        val: val.clone(),
+                                        max_val: max_val.clone(),
+                                    })
+                                }
                                 _ => None,
                             };
-                            let val = e.attribute("val").map(str::to_owned);
-                            if let Some(above) = above {
-                                filter.unsupported |= criteria
-                                    .replace(FilterCriteria::Average { above, val })
-                                    .is_some();
+                            // The average types state no `maxVal`.
+                            filter.unsupported |= matches!(kind, "aboveAverage" | "belowAverage")
+                                && max_val.is_some();
+                            if let Some(parsed) = parsed {
+                                filter.unsupported |= criteria.replace(parsed).is_some();
                             } else {
                                 filter.unsupported = true;
                             }
