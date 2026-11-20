@@ -374,6 +374,12 @@ fn warn_logs(root: &Path) {
 }
 
 pub fn execute(ws: &Workspace, options: &Options) -> Result<Report, String> {
+    let result = execute_checks(ws, options);
+    crate::prune::after_check(&ws.target_dir());
+    result
+}
+
+fn execute_checks(ws: &Workspace, options: &Options) -> Result<Report, String> {
     let started = Instant::now();
     let dir = ws.root.join("target/check");
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
