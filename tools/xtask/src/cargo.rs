@@ -6,6 +6,9 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
+/// The workspace-relative target directory used by the bundle and packaging commands.
+pub const TARGET_DIR: &str = "target";
+
 pub const WASM_TARGET: &str = "wasm32-unknown-unknown";
 
 /// The target triples the workspace ships for (plan section 10.4: Windows, Linux and wasm). The
@@ -232,6 +235,10 @@ impl Workspace {
             .unwrap_or(path)
             .to_string_lossy()
             .replace('\\', "/")
+    }
+
+    pub fn target_dir(&self) -> PathBuf {
+        self.root.join(TARGET_DIR)
     }
 }
 
