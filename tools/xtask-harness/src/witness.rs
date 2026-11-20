@@ -292,12 +292,53 @@ struct Source {
     env: ReadingSource,
 }
 
+/// An explicitly recorded unread row whose recorded capture fact excludes it from judgment
+/// (e.g. Excel changed an input on entry through Value2). Still retained in the failure denominator.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ExcludedUnread {
+    source: String,
+    id: Option<String>,
+    reason: &'static str,
+    detail: String,
+}
+
 struct Banks {
     sources: Vec<Source>,
     readings: Vec<Reading>,
     files_read: usize,
     import_notes: Vec<String>,
     unread_rows: BTreeMap<String, usize>,
+    excluded_unread: BTreeMap<String, Vec<ExcludedUnread>>,
+}
+
+/// Whether a recorded unread reason attests that Excel changed an input on entry (input read-back
+/// failed: e.g. a subnormal number flushed to zero through Value2).
+fn is_input_changed_reason(reason: &str) -> bool {
+    reason.contains("Excel changed an input")
+        || reason.contains("Excel did not keep the arguments as written")
+        || reason == "input-changed"
+        || reason.ends_with(": input-changed")
+}
+
+/// Classifies an explicit `unread` record when the bank's own capture fact shows an excluded
+/// capture artefact rather than an unexplained unread failure.
+fn unread_exclusion_reason(row: &Value) -> Option<(&'static str, Option<String>, String)> {
+    if let Some(obj) = row.as_object() {
+        let reason = obj.get("reason").and_then(Value::as_str)?;
+        if is_input_changed_reason(reason) {
+            let id = obj.get("id").and_then(Value::as_str).map(str::to_owned);
+            return Some(("input-changed", id, reason.to_owned()));
+        }
+    } else if let Some(text) = row.as_str()
+        && is_input_changed_reason(text)
+    {
+        let (id, detail) = match text.split_once(": ") {
+            Some((id, rest)) => (Some(id.to_owned()), rest.to_owned()),
+            None => (None, text.to_owned()),
+        };
+        return Some(("input-changed", id, detail));
+    }
+    None
 }
 
 fn record_unread_rows(
@@ -312,6 +353,19 @@ fn record_unread_rows(
             .as_array()
             .ok_or_else(|| format!("{source}: unread must be an array of recorded failures"))?;
         for (i, row) in rows.iter().enumerate() {
+            if let Some((reason, id, detail)) = unread_exclusion_reason(row) {
+                banks
+                    .excluded_unread
+                    .entry(function.to_owned())
+                    .or_default()
+                    .push(ExcludedUnread {
+                        source: source.to_owned(),
+                        id,
+                        reason,
+                        detail,
+                    });
+                continue;
+            }
             let detail = row
                 .as_str()
                 .map(str::to_owned)
@@ -1375,6 +1429,7 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
         files_read: 0,
         import_notes: Vec::new(),
         unread_rows: BTreeMap::new(),
+        excluded_unread: BTreeMap::new(),
     };
     let mut positioned = position_recaptures(checkout, only)?;
     let mut recapture_source_of = BTreeMap::new();
@@ -2117,6 +2172,15 @@ struct Row<'a> {
     ulp: Option<u64>,
 }
 
+fn exclusion_evidence(function: &str) -> &'static str {
+    match function {
+        "WEEKNUM" => WEEKNUM_EXCLUSION,
+        "TEXTSPLIT" => TEXTSPLIT_REPLAY,
+        "MINVERSE" => MINVERSE_REPLAY,
+        _ => "",
+    }
+}
+
 fn write_trace_row(writer: &mut impl Write, row: &Row<'_>, source: &Source) -> Result<(), String> {
     let r = row.reading;
     let mut value = serde_json::json!({
@@ -2138,13 +2202,10 @@ fn write_trace_row(writer: &mut impl Write, row: &Row<'_>, source: &Source) -> R
         value["reading"]["invocation"] = context.to_json();
     }
     if let Some(reason) = row.actual.strip_prefix("excluded:") {
-        let evidence = match r.function.as_str() {
-            "WEEKNUM" => WEEKNUM_EXCLUSION,
-            "TEXTSPLIT" => TEXTSPLIT_REPLAY,
-            "MINVERSE" => MINVERSE_REPLAY,
-            _ => "",
-        };
-        value["exclusion"] = serde_json::json!({"reason": reason, "evidence": evidence});
+        value["exclusion"] = serde_json::json!({
+            "reason": reason,
+            "evidence": exclusion_evidence(&r.function),
+        });
     }
     serde_json::to_writer(&mut *writer, &value).map_err(|e| format!("witness trace: {e}"))?;
     writer
@@ -2491,6 +2552,7 @@ fn status_of(function: &str, rows: &[Row]) -> Status {
         worst_ulp: rows.iter().filter_map(|r| r.ulp).max(),
         class: rows
             .iter()
+            .filter(|r| !r.actual.starts_with("excluded:"))
             .map(|r| r.severity)
             .max()
             .unwrap_or(Severity::Exact),
@@ -3414,6 +3476,7 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
                 files_read: 0,
                 import_notes: Vec::new(),
                 unread_rows: BTreeMap::new(),
+                excluded_unread: BTreeMap::new(),
             };
             let mut sets = pinned_sets(&ws.root, only)?;
             if request.refresh_context {
@@ -3496,6 +3559,21 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
     if unread.len() > 20 {
         println!("xtask witness: unread: ... {} in all", unread.len());
     }
+    for (function, items) in &banks.excluded_unread {
+        for item in items.iter().take(20) {
+            let id = item.id.as_deref().unwrap_or("?");
+            println!(
+                "xtask witness: excluded: {function} {} {id} ({}): {}",
+                item.source, item.reason, item.detail
+            );
+        }
+        if items.len() > 20 {
+            println!(
+                "xtask witness: excluded: {function} ... {} in all",
+                items.len()
+            );
+        }
+    }
 
     let unread_rows: usize = banks.unread_rows.values().sum();
     let unread_files = unread.len().saturating_sub(unread_rows);
@@ -3525,7 +3603,11 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
         add_replay_readings(&mut banks)?;
     }
     let (mut grouped, differences) = group(&banks);
-    for function in banks.unread_rows.keys() {
+    for function in banks
+        .unread_rows
+        .keys()
+        .chain(banks.excluded_unread.keys())
+    {
         grouped.entry(function.clone()).or_default();
     }
     let mut judged: BTreeMap<String, Vec<Row>> = BTreeMap::new();
@@ -3608,14 +3690,16 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
         }
         let mut status = status_of(function, &rows);
         let unread = banks.unread_rows.get(function).copied().unwrap_or(0);
-        status.rows += unread;
+        let excluded_unread = banks.excluded_unread.get(function).map_or(0, Vec::len);
+        status.rows += unread + excluded_unread;
+        status.excluded += excluded_unread;
         if unread > 0 {
             status.class = Severity::Structural;
             println!("xtask witness: {function}: {unread} unread recorded rows count as failures");
         }
         if status.excluded > 0 {
             println!(
-                "xtask witness: {function}: {} rows excluded from judgment, retained as failures; the trace names their evidence",
+                "xtask witness: {function}: {} rows excluded from judgment, retained as failures; the trace and report name their evidence",
                 status.excluded
             );
         }
@@ -3632,7 +3716,7 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
     }
     let exact = statuses
         .iter()
-        .filter(|s| s.class == Severity::Exact)
+        .filter(|s| status_class(s) == "exact")
         .count();
     if let Some(writer) = trace.as_mut() {
         writer.flush().map_err(|e| format!("witness trace: {e}"))?;
@@ -3684,11 +3768,37 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
             "function": s.function, "rows": s.rows, "matched": s.matched,
             "failed": s.rows - s.matched, "excluded": s.excluded, "worst_ulp": s.worst_ulp, "class": status_class(s),
         })).collect();
+        let mut excluded_rows: Vec<Value> = Vec::new();
+        for (function, rows) in &judged {
+            for row in rows {
+                if let Some(reason) = row.actual.strip_prefix("excluded:") {
+                    excluded_rows.push(serde_json::json!({
+                        "function": function,
+                        "id": row.reading.id,
+                        "source": banks.sources[row.reading.source].path,
+                        "reason": reason,
+                        "evidence": exclusion_evidence(function),
+                    }));
+                }
+            }
+            if let Some(items) = banks.excluded_unread.get(function) {
+                for item in items {
+                    excluded_rows.push(serde_json::json!({
+                        "function": function,
+                        "id": item.id,
+                        "source": item.source,
+                        "reason": item.reason,
+                        "detail": item.detail,
+                    }));
+                }
+            }
+        }
         let summary = serde_json::json!({
             "format": "dnacalc-witness-summary", "bank": bank,
             "totals": {"functions": statuses.len(), "exact": exact, "rows": rows,
                 "matched": matched, "failed": rows - matched, "unread": unread_rows, "excluded": excluded},
             "functions": functions,
+            "excluded_rows": excluded_rows,
         });
         fs::write(path, serde_json::to_vec_pretty(&summary).unwrap())
             .map_err(|e| format!("{}: {e}", path.display()))?;
@@ -3828,7 +3938,8 @@ fn predict_inputs(
         if !unread_files.is_empty() {
             return Err("cannot establish novelty: some bank records could not be read".into());
         }
-        let unread = banks.unread_rows.get(function).copied().unwrap_or(0);
+        let unread = banks.unread_rows.get(function).copied().unwrap_or(0)
+            + banks.excluded_unread.get(function).map_or(0, Vec::len);
         if unread > 0 {
             return Err(format!(
                 "cannot establish novelty: {unread} unread bank rows"
@@ -4290,6 +4401,7 @@ mod tests {
             files_read: 1,
             import_notes: Vec::new(),
             unread_rows: std::collections::BTreeMap::new(),
+            excluded_unread: std::collections::BTreeMap::new(),
         };
         let (env, replayed) =
             super::replay_reading(&record, &banks.readings[0], &banks.sources[0]).unwrap();
@@ -4338,6 +4450,7 @@ mod tests {
             files_read: 0,
             import_notes: Vec::new(),
             unread_rows: BTreeMap::new(),
+            excluded_unread: BTreeMap::new(),
         };
         for function in ["BINOM.INV", "CRITBINOM"] {
             add_binomial_replay(&mut banks, function, &doc).unwrap();
@@ -4357,6 +4470,7 @@ mod tests {
             files_read: 0,
             import_notes: Vec::new(),
             unread_rows: BTreeMap::new(),
+            excluded_unread: BTreeMap::new(),
         };
         for (function, path, bytes, count) in [
             (
@@ -4781,6 +4895,7 @@ mod tests {
             files_read: 1,
             import_notes: vec![],
             unread_rows: BTreeMap::new(),
+            excluded_unread: BTreeMap::new(),
         };
         let mut witnesses = Vec::new();
         for (id, transport, expected) in [
@@ -4869,6 +4984,7 @@ mod tests {
             files_read: 1,
             import_notes: vec![],
             unread_rows: BTreeMap::new(),
+            excluded_unread: BTreeMap::new(),
         };
         // The bank recovered two cells of one call; only the first has the pin's answer.
         for (index, expected) in [((1, 2), "0x3ff0000000000000"), ((1, 1), "0x4000000000000000")] {
@@ -5294,13 +5410,20 @@ mod tests {
         let (banks, unread) = load_full(&root, Some("POISSON.DIST")).unwrap();
         assert_eq!(banks.files_read, 1);
         assert_eq!(banks.readings.len(), 1);
-        assert_eq!(banks.unread_rows.get("POISSON.DIST"), Some(&2));
+        assert_eq!(banks.unread_rows.get("POISSON.DIST"), Some(&1));
+        let excluded = &banks.excluded_unread["POISSON.DIST"];
+        assert_eq!(excluded.len(), 1);
+        assert_eq!(excluded[0].id.as_deref(), Some("changed-input"));
+        assert_eq!(excluded[0].reason, "input-changed");
+        assert!(excluded[0].detail.contains("Excel changed an input through Value2"));
         assert_eq!(
-            banks.readings.len() + banks.unread_rows.values().sum::<usize>(),
+            banks.readings.len()
+                + banks.unread_rows.values().sum::<usize>()
+                + banks.excluded_unread.values().map(Vec::len).sum::<usize>(),
             3
         );
-        assert_eq!(unread.len(), 2);
-        assert!(unread[0].contains("changed-input"));
+        assert_eq!(unread.len(), 1);
+        assert!(unread[0].contains("no result: worker did not return a value"));
         assert!(
             banks
                 .import_notes
@@ -5314,7 +5437,11 @@ mod tests {
                 .any(|r| r.id == "literal" || r.id == "changed-literal")
         );
         let (other, _) = load_full(&root, Some("GAMMA")).unwrap();
-        assert!(other.readings.is_empty() && other.unread_rows.is_empty());
+        assert!(
+            other.readings.is_empty()
+                && other.unread_rows.is_empty()
+                && other.excluded_unread.is_empty()
+        );
         doc["unread"] = json!("unrecognized capture summary");
         fs::write(&path, serde_json::to_vec(&doc).unwrap()).unwrap();
         let Err(error) = load_full(&root, Some("POISSON.DIST")) else {
@@ -5331,6 +5458,95 @@ mod tests {
                 .contains("malformed transport audit")
         );
         fs::remove_dir_all(root).unwrap();
+    }
+
+    /// dc-iuwct.42: bank unread rows whose recorded read-back shows Excel changed an input on
+    /// entry are classed as excluded (retained in the failure denominator, never counted as exact,
+    /// and not forcing a numeric or last-bit function into structural).
+    #[test]
+    fn input_changed_unread_rows_are_excluded_without_forcing_structural() {
+        assert_eq!(
+            unread_exclusion_reason(&json!({
+                "id": "round3-tiny-publication--4",
+                "reason": "Excel changed an input through Value2; raw result is not an answer to the requested tuple"
+            })),
+            Some((
+                "input-changed",
+                Some("round3-tiny-publication--4".into()),
+                "Excel changed an input through Value2; raw result is not an answer to the requested tuple".into(),
+            ))
+        );
+        assert_eq!(
+            unread_exclusion_reason(&json!("r1: Excel did not keep the arguments as written")),
+            Some((
+                "input-changed",
+                Some("r1".into()),
+                "Excel did not keep the arguments as written".into(),
+            ))
+        );
+        assert_eq!(
+            unread_exclusion_reason(&json!({"id": "r2", "reason": "input-changed"})),
+            Some(("input-changed", Some("r2".into()), "input-changed".into()))
+        );
+        assert_eq!(
+            unread_exclusion_reason(&json!("no result: worker did not return a value")),
+            None
+        );
+        assert_eq!(
+            unread_exclusion_reason(&json!({
+                "id": "spill-row",
+                "reason": "Original selected answer depended on unrecorded scratch-sheet spill placement."
+            })),
+            None
+        );
+
+        let reading = Reading {
+            function: "POISSON.DIST".into(),
+            id: "r0".into(),
+            args: vec![json!("0x3ff0000000000000")],
+            index: None,
+            expected: "0x3ff0000000000000".into(),
+            source: 0,
+        };
+        let make_exact = || Row {
+            reading: &reading,
+            slow: false,
+            builds: BTreeSet::from(["20527".into()]),
+            actual: "0x3ff0000000000000".into(),
+            severity: Severity::Exact,
+            ulp: None,
+        };
+        let numeric_row = Row {
+            reading: &reading,
+            slow: false,
+            builds: BTreeSet::from(["20527".into()]),
+            actual: "0x3ff0000000000007".into(),
+            severity: Severity::Numeric,
+            ulp: Some(7),
+        };
+        // Numeric function + 4 excluded input-changed rows -> stays numeric (not structural),
+        // denominator includes the 4 excluded rows, match count unchanged.
+        let mut status = status_of("POISSON.DIST", &[make_exact(), numeric_row]);
+        status.rows += 4;
+        status.excluded += 4;
+        assert_eq!((status.rows, status.matched, status.excluded), (6, 1, 4));
+        assert_eq!(status.worst_ulp, Some(7));
+        assert_eq!(status_class(&status), "numeric");
+
+        // Exact decoded rows + excluded input-changed rows -> class "excluded", not "exact".
+        let mut all_exact_plus_excluded = status_of("POISSON.DIST", &[make_exact()]);
+        all_exact_plus_excluded.rows += 4;
+        all_exact_plus_excluded.excluded += 4;
+        assert_eq!(
+            (
+                all_exact_plus_excluded.rows,
+                all_exact_plus_excluded.matched,
+                all_exact_plus_excluded.excluded
+            ),
+            (5, 1, 4)
+        );
+        assert_eq!(status_class(&all_exact_plus_excluded), "excluded");
+        assert_ne!(status_class(&all_exact_plus_excluded), "exact");
     }
 
     #[test]
