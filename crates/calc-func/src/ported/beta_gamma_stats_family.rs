@@ -73,7 +73,9 @@ pub(crate) fn beta_dist_kernel(
     if x < lower || x > upper {
         return Err(WorksheetErrorCode::Num);
     }
-    let z = (x - lower) / (upper - lower);
+    use crate::ported::excel_numeric::{excel_x87_div, excel_x87_sub};
+    let width = excel_x87_sub(upper, lower);
+    let z = excel_x87_div(excel_x87_sub(x, lower), width);
     if cumulative {
         // In the measured tiny-second-shape continued-fraction region, the
         // gamma tail's 1e-30 floor survives the twenty-step recurrence. Only
@@ -104,14 +106,8 @@ pub(crate) fn beta_dist_kernel(
         // shapes through the identified BRATIO.
         return Ok(regularized_beta(z, alpha, beta));
     }
-    // Excel normalises from the lower endpoint, then divides its unit density
-    // by the width, with each operation stored through PC64 (dc-bc1o,
-    // statistical-density-scaling-2026-11-12.md). The CDF keeps its own route.
-    use crate::ported::excel_numeric::{excel_x87_div, excel_x87_sub};
-    let width = excel_x87_sub(upper, lower);
-    let unit_x = excel_x87_div(excel_x87_sub(x, lower), width);
-    if unit_x > 0.0 && unit_x < 1.0 {
-        if let Some(pdf) = crate::ported::discrete_dist::beta_density(unit_x, alpha, beta) {
+    if z > 0.0 && z < 1.0 {
+        if let Some(pdf) = crate::ported::discrete_dist::beta_density(z, alpha, beta) {
             let pdf = excel_x87_div(pdf, width);
             return if pdf.is_finite() {
                 Ok(pdf)

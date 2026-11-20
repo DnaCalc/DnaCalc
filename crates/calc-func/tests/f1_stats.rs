@@ -4082,7 +4082,8 @@ fn erf_complements_keep_the_recorded_pc64_store() {
     }
 }
 
-/// Recorded beta rows oc1582/oc640 and adjacent FDIST refinement inputs.
+/// Recorded beta and FDIST rows, including the unit-tail logarithm and bounded
+/// coordinate separators measured on Excel build 20527 (dc-iuwct.41).
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn beta_and_f_tails_keep_the_recorded_arithmetic_stores() {
@@ -4099,6 +4100,18 @@ fn beta_and_f_tails_keep_the_recorded_arithmetic_stores() {
             0x3fa9_9999_9999_999a,
             0x3f93_d7f8_5447_ca8d,
         ),
+        (
+            0x3fef_fcda_842a_00c6,
+            0x40a1_8507_7a06_c65a,
+            0x3ff0_0000_0000_0000,
+            0x3fdb_0ad4_466c_c3da,
+        ),
+        (
+            0x3fef_c6cd_008b_b0e5,
+            0x4076_066c_9b2b_bd55,
+            0x3ff0_0000_0000_0000,
+            0x3fb5_abb8_53c1_0798,
+        ),
     ] {
         exact(
             call(
@@ -4113,6 +4126,20 @@ fn beta_and_f_tails_keep_the_recorded_arithmetic_stores() {
             f64::from_bits(expected),
         );
     }
+    exact(
+        call(
+            "BETA.DIST",
+            vec![
+                n(f64::from_bits(0xc028_f880_83dc_b299)),
+                n(f64::from_bits(0x3fec_3a86_7f8c_872d)),
+                n(f64::from_bits(0x3fff_670f_114f_88bd)),
+                b(true),
+                n(f64::from_bits(0xc041_2c6b_19df_5413)),
+                n(f64::from_bits(0xc007_114f_effa_9c58)),
+            ],
+        ),
+        f64::from_bits(0x3fed_567f_b8c2_2e69),
+    );
     for x in [0x3ff3_72a3_6987_efc6, 0x3ff3_72a3_6987_efc7] {
         exact(
             call("FDIST", vec![n(f64::from_bits(x)), n(5.0), n(6.0)]),
