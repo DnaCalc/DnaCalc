@@ -30,6 +30,8 @@
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
 
+#[path = "cdoc_m1_1_support/allocation.rs"]
+mod allocation;
 mod cdoc_m1_1_support;
 
 use calc_doc::model::value::{
@@ -4645,9 +4647,9 @@ struct CountedRead {
 /// and recording what it read.
 fn counted_read(document: &OpenedDocument, source: &RecordingSource, name: &str) -> CountedRead {
     let reads_before = source.reads().len();
-    let before = cdoc_m1_1_support::allocated();
+    let before = allocation::allocated();
     let result = document.package().read_part(name);
-    let allocated = cdoc_m1_1_support::allocated() - before;
+    let allocated = allocation::allocated() - before;
     let reads = source.reads()[reads_before..].to_vec();
     CountedRead {
         result,
@@ -5067,9 +5069,9 @@ fn cdoc_m1_1__malformed_zip() {
         })
         .collect();
     let rels_source = memory(&build_zip(&rels_entries));
-    let before = cdoc_m1_1_support::allocated();
+    let before = allocation::allocated();
     let error = refused(rels_source, &default);
-    let rels_allocated = cdoc_m1_1_support::allocated() - before;
+    let rels_allocated = allocation::allocated() - before;
     expect(
         "_rels/.rels padded to over 4 MB",
         error,
@@ -5153,9 +5155,9 @@ fn cdoc_m1_1__malformed_zip() {
     let grown_source = Arc::new(RecordingSource::new(grown_bytes));
     let source: Arc<dyn PackageRead> = grown_source.clone();
     let document = opened(source, &default);
-    cdoc_m1_1_support::reset_largest();
+    allocation::reset_largest();
     let grown = document.package().read_part("xl/media/grown.bin");
-    let grown_largest = cdoc_m1_1_support::largest();
+    let grown_largest = allocation::largest();
     let grown = grown.expect("a part of exactly its declared size and CRC reads");
     assert_eq!(grown.len(), grown_size);
     assert!(grown.iter().all(|&byte| byte == 0));
@@ -6641,9 +6643,9 @@ fn cdoc_m1_2__sparse_extent() {
     let measured = |bytes: &[u8]| -> (LoadedWorkbook, u64) {
         let document = opened(memory(bytes), &OpenPolicy::default());
         let mut ids: IdAllocator<SheetId> = IdAllocator::new();
-        let before = cdoc_m1_1_support::allocated();
+        let before = allocation::allocated();
         let loaded = calc_doc::load(&document, &mut ids);
-        let used = cdoc_m1_1_support::allocated() - before;
+        let used = allocation::allocated() - before;
         match loaded {
             Ok(loaded) => (loaded, used),
             Err(error) => panic!("the package loads, but: {error}"),

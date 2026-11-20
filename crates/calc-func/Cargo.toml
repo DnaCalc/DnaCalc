@@ -1,4 +1,5 @@
 [package]
+autotests = false
 name = "calc-func"
 version.workspace = true
 edition.workspace = true
@@ -39,3 +40,7 @@ miniz_oxide = "=0.8.9"
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen = "=0.2.117"
 wasm-bindgen-test = "=0.3.67"
+
+[[test]]
+name = "calc-func-integration"
+path = "tests/integration.rs"

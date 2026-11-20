@@ -3,9 +3,9 @@
   "beads": [
     {
       "id": "onecalc-m1.1",
-      "test": "acceptance",
+      "test": "dna-onecalc-integration",
       "commands": [
-        ["cargo", "test", "-p", "dna-onecalc", "--test", "acceptance", "onecalc_m1_1", "--", "--nocapture"],
+        ["cargo", "test", "-p", "dna-onecalc", "--test", "dna-onecalc-integration", "onecalc_m1_1", "--", "--nocapture"],
         ["cargo", "xtask", "accept", "--id", "onecalc-m1.1", "--platform", "windows", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "onecalc-m1.1", "--platform", "linux", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "onecalc-m1.1", "--platform", "wasm", "--require-all"]
@@ -21,7 +21,7 @@
     },
     {
       "id": "dc-snz.3",
-      "test": "acceptance",
+      "test": "dna-onecalc-integration",
       "commands": [
         [
           "cargo",

@@ -72,7 +72,7 @@ Not done: conversion into `dnacalc-capture-record` entries and a `dnacalc-truste
 ## 3. The Linux runner
 
 `apps/dna-onecalc/tests/vba_corpus.rs`:
-`cargo test -p dna-onecalc --test vba_corpus -- --nocapture` (on firehorse, no Excel, no Windows). Per project it runs:
+`cargo test -p dna-onecalc --test dna-onecalc-integration vba_corpus:: -- --nocapture` (on firehorse, no Excel, no Windows). Per project it runs:
 
 - **module route**: OneCalc's "VBA functions" route (`Session::load_vba_module` equivalent), once per explicit backend,
   interpreter and JIT (`calc_vba::load_module_with_backend`; a JIT decline is a refusal, no fallback);
