@@ -10,8 +10,27 @@ edit, each stored the way Excel stores it, so their fallbacks can be drawn and a
 - an OLE object: the sheet's oleObjects with an objectPr anchor and its picture (EMF in Excel's files, a PNG here), the
   embedding part, and the hidden drawing shape Excel writes for it.
 Pictures are small PNGs drawn here (Pillow). Run: python3 -I make-kept-objects.py kept-objects.xlsx"""
-import io, sys, zipfile
+import io, struct, sys, zipfile
 from PIL import Image, ImageDraw
+
+
+def minimal_ole_cfb():
+    """Minimal valid MS-CFB (OLE2 compound file, 3 x 512 bytes): header, 1 FAT sector, 1 Root Entry directory sector."""
+    hdr = bytearray(512)
+    hdr[0:8] = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"  # CFBF signature
+    struct.pack_into("<HHHHHH", hdr, 24, 0x003E, 0x0003, 0xFFFE, 9, 6, 0)  # v3, little-endian, 512B/64B sectors
+    struct.pack_into("<IIIIIIII", hdr, 44, 1, 1, 0, 4096, 0xFFFFFFFE, 0, 0xFFFFFFFE, 0)  # 1 FAT, dir at sec 1
+    struct.pack_into("<I", hdr, 76, 0)  # DIFAT[0] = sector 0 (FAT)
+    for i in range(1, 109):
+        struct.pack_into("<I", hdr, 76 + i * 4, 0xFFFFFFFF)
+    fat = bytearray(b"\xff" * 512)
+    struct.pack_into("<II", fat, 0, 0xFFFFFFFD, 0xFFFFFFFE)  # sec 0 = FATSECT, sec 1 = ENDOFCHAIN (dir)
+    root = bytearray(512)
+    name = "Root Entry\0".encode("utf-16le")
+    root[0:len(name)] = name
+    struct.pack_into("<HBBIII", root, 64, len(name), 5, 1, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF)  # Root Storage, black
+    struct.pack_into("<IQ", root, 116, 0xFFFFFFFE, 0)  # ENDOFCHAIN, size 0
+    return bytes(hdr + fat + root)
 
 EMU = 9525
 
@@ -159,7 +178,7 @@ sheet = (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet x
 sheet_rels = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
     f'<Relationship Id="rId1" Type="{R}/drawing" Target="../drawings/drawing1.xml"/>'
     f'<Relationship Id="rId2" Type="{R}/vmlDrawing" Target="../drawings/vmlDrawing1.vml"/>'
-    f'<Relationship Id="rId3" Type="{R}/package" Target="../embeddings/Package1.bin"/>'
+    f'<Relationship Id="rId3" Type="{R}/oleObject" Target="../embeddings/Package1.bin"/>'
     f'<Relationship Id="rId4" Type="{R}/image" Target="../media/image3.png"/></Relationships>')
 vml = ('<xml xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">\r\n'
        ' <o:shapelayout v:ext="edit"><o:idmap v:ext="edit" data="1"/></o:shapelayout><v:shapetype id="_x0000_t75" coordsize="21600,21600" o:spt="75" o:preferrelative="t" path="m@4@5l@4@11@9@11@9@5xe" filled="f" stroked="f">'
@@ -203,7 +222,7 @@ files = {
  "xl/diagrams/quickStyle1.xml": quick,
  "xl/diagrams/colors1.xml": colors,
  "xl/diagrams/drawing1.xml": diagram_drawing,
- "xl/embeddings/Package1.bin": b"DNA Calc kept-objects test embedding (not an OLE compound file)\n",
+ "xl/embeddings/Package1.bin": minimal_ole_cfb(),
  "xl/media/image1.png": EQUATION_PNG,
  "xl/media/image2.png": INK_PNG,
  "xl/media/image3.png": OLE_PNG,

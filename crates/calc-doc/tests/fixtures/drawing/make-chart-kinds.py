@@ -35,18 +35,21 @@ Run: python3 -I make-chart-kinds.py shapes-paint4.xlsx chart-kinds.xlsx"""
 import os, sys, zipfile
 
 theme = zipfile.ZipFile(sys.argv[1]).read("xl/theme/theme1.xml")
-header = ["Day", "Low", "High", "Close", "Last", "Change"]
+header = ["Day", "Low", "High", "Close", "Last", "Change", "Period", "Item"]
 data = [
-    ["Mon", 10, 18, 14, 16, 10],
-    ["Tue", 12, 20, 13, 12, -3],
-    ["Wed", 9, 15, 11, 14, 4],
-    ["Thu", 11, 22, 21, 19, -2],
-    ["Fri", 14, 19, 15, 17, 9],
+    ["Mon", 10, 18, 14, 16, 10, "Early", "Mon"],
+    ["Tue", 12, 20, 13, 12, -3, "Early", "Tue"],
+    ["Wed", 9, 15, 11, 14, 4, "Late", "Wed"],
+    ["Thu", 11, 22, 21, 19, -2, "Late", "Thu"],
+    ["Fri", 14, 19, 15, 17, 9, "Late", "Fri"],
 ]
-cols = "ABCDEF"
+cols = "ABCDEFGH"
 rows = ['<row r="1">' + "".join(f'<c r="{cols[i]}1" t="inlineStr"><is><t>{h}</t></is></c>' for i, h in enumerate(header)) + "</row>"]
 for r, values in enumerate(data, start=2):
-    cells = f'<c r="A{r}" t="inlineStr"><is><t>{values[0]}</t></is></c>' + "".join(f'<c r="{cols[i]}{r}"><v>{v}</v></c>' for i, v in enumerate(values) if i)
+    cells = "".join(
+        f'<c r="{cols[i]}{r}" t="inlineStr"><is><t>{v}</t></is></c>' if isinstance(v, str) else f'<c r="{cols[i]}{r}"><v>{v}</v></c>'
+        for i, v in enumerate(values)
+    )
     rows.append(f'<row r="{r}">{cells}</row>')
 
 C = "http://schemas.openxmlformats.org/drawingml/2006/chart"
@@ -166,7 +169,7 @@ def chart_xml(title, view, plot):
 XDR = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
 anchors = []
 for n, (title, _, _) in enumerate(charts):
-    col, row = 6 + (n % 2) * 8, (n // 2) * 15
+    col, row = 9 + (n % 2) * 8, (n // 2) * 15
     anchors.append(
         f'<xdr:twoCellAnchor{" editAs=\"oneCell\"" if title == "Column sd" else ""}><xdr:from><xdr:col>{col}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>{row}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>'
         f'<xdr:to><xdr:col>{col + 7}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>{row + 14}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>'
@@ -176,27 +179,36 @@ for n, (title, _, _) in enumerate(charts):
 CX = "http://schemas.microsoft.com/office/drawing/2014/chartex"
 CX_REL = "http://schemas.microsoft.com/office/2014/relationships/chartEx"
 MC = "http://schemas.openxmlformats.org/markup-compatibility/2006"
-# (title, layoutId, values column, extra layout properties, the cx namespace version Excel requires for it)
+HIST_AXES = (
+    '<cx:axis id="0"><cx:catScaling gapWidth="0"/><cx:tickLabels/></cx:axis>'
+    '<cx:axis id="1"><cx:valScaling/><cx:majorGridlines/><cx:tickLabels/></cx:axis>'
+)
+PARETO_AXES = (
+    HIST_AXES
+    + '<cx:axis id="2"><cx:valScaling max="1" min="0"/><cx:units unit="percentage"/><cx:tickLabels/></cx:axis>'
+)
+# (title, layoutId, values column, extra layout properties, axes after plotAreaRegion, the cx namespace version Excel requires for it)
 chartex = [
-    ("Waterfall", "waterfall", "F", '<cx:layoutPr><cx:subtotals><cx:idx val="4"/></cx:subtotals></cx:layoutPr>', ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
-    ("Funnel", "funnel", "B", "", ("cx2", "http://schemas.microsoft.com/office/drawing/2015/10/21/chartex")),
-    ("Treemap", "treemap", "B^", '<cx:layoutPr><cx:parentLabelLayout val="overlapping"/></cx:layoutPr>', ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
-    ("Histogram", "clusteredColumn", "C!", '<cx:layoutPr><cx:binning intervalClosed="r"><cx:binSize val="3"/></cx:binning></cx:layoutPr>', ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
-    ("Sunburst", "sunburst", "C^", "", ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
-    ("Pareto", "clusteredColumn", "C!", '<cx:layoutPr><cx:binning intervalClosed="r"><cx:binSize val="3"/></cx:binning></cx:layoutPr></cx:series><cx:series layoutId="paretoLine" ownerIdx="0" uniqueId="{00000000-0000-4000-8000-0000000000A1}"><cx:axisId val="1"/>', ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
-    ("Box", "boxWhisker", "B:C", '<cx:layoutPr><cx:visibility meanLine="0" meanMarker="1" nonoutliers="0" outliers="1"/><cx:statistics quartileMethod="exclusive"/></cx:layoutPr>', ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
+    ("Waterfall", "waterfall", "F", '<cx:layoutPr><cx:subtotals><cx:idx val="4"/></cx:subtotals></cx:layoutPr>', "", ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
+    ("Funnel", "funnel", "B", "", "", ("cx2", "http://schemas.microsoft.com/office/drawing/2015/10/21/chartex")),
+    ("Treemap", "treemap", "B^", '<cx:layoutPr><cx:parentLabelLayout val="overlapping"/></cx:layoutPr>', "", ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
+    ("Histogram", "clusteredColumn", "C!", '<cx:layoutPr><cx:binning intervalClosed="r"><cx:binSize val="3"/></cx:binning></cx:layoutPr><cx:axisId val="1"/>', HIST_AXES, ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
+    ("Sunburst", "sunburst", "C^", "", "", ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
+    ("Pareto", "clusteredColumn", "C!", '<cx:layoutPr><cx:binning intervalClosed="r"><cx:binSize val="3"/></cx:binning></cx:layoutPr><cx:axisId val="1"/></cx:series><cx:series layoutId="paretoLine" ownerIdx="0" uniqueId="{00000000-0000-4000-8000-0000000000A1}"><cx:axisId val="2"/>', PARETO_AXES, ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
+    ("Box", "boxWhisker", "B:C", '<cx:layoutPr><cx:visibility meanLine="0" meanMarker="1" nonoutliers="0" outliers="1"/><cx:statistics quartileMethod="exclusive"/></cx:layoutPr>', "", ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
 ]
 
 
-def chartex_xml(title, layout, col, layout_pr):
+def chartex_xml(title, layout, col, layout_pr, axes):
     pts = "".join(f'<cx:pt idx="{i}">{row[0]}</cx:pt>' for i, row in enumerate(data))
     if col.endswith("^"):
-        # Two category levels: the days (leaves) and their parents, named at the first of their rows.
+        # Two category levels as Excel requires (dw3 Windows item 5b): two-column cx:f (parent left of leaf) and
+        # cx:numDim type="size".
         col = col[:-1]
         vals = "".join(f'<cx:pt idx="{i}">{row[cols.index(col)]}</cx:pt>' for i, row in enumerate(data))
-        dims = (f'<cx:strDim type="cat"><cx:f>Kinds!$A$2:$A$6</cx:f><cx:lvl ptCount="5">{pts}</cx:lvl>'
+        dims = (f'<cx:strDim type="cat"><cx:f>Kinds!$G$2:$H$6</cx:f><cx:lvl ptCount="5">{pts}</cx:lvl>'
                 '<cx:lvl ptCount="5"><cx:pt idx="0">Early</cx:pt><cx:pt idx="2">Late</cx:pt></cx:lvl></cx:strDim>'
-                f'<cx:numDim type="val"><cx:f>Kinds!${col}$2:${col}$6</cx:f><cx:lvl ptCount="5" formatCode="General">{vals}</cx:lvl></cx:numDim>')
+                f'<cx:numDim type="size"><cx:f>Kinds!${col}$2:${col}$6</cx:f><cx:lvl ptCount="5" formatCode="General">{vals}</cx:lvl></cx:numDim>')
     elif col.endswith("!"):
         # One column's values without categories (a histogram counts them).
         col = col[:-1]
@@ -221,14 +233,14 @@ def chartex_xml(title, layout, col, layout_pr):
             f'<cx:title pos="t" align="ctr" overlay="0"><cx:tx><cx:txData><cx:v>{title}</cx:v></cx:txData></cx:tx></cx:title>'
             f'<cx:plotArea><cx:plotAreaRegion><cx:series layoutId="{layout}" uniqueId="{{00000000-0000-4000-8000-00000000000{len(title) % 10}}}">'
             f'<cx:tx><cx:txData><cx:f>Kinds!${col}$1</cx:f><cx:v>{header[cols.index(col)]}</cx:v></cx:txData></cx:tx>'
-            f'<cx:dataId val="0"/>{layout_pr}</cx:series></cx:plotAreaRegion></cx:plotArea>'
+            f'<cx:dataId val="0"/>{layout_pr}</cx:series></cx:plotAreaRegion>{axes}</cx:plotArea>'
             '<cx:legend pos="t" align="ctr" overlay="0"/></cx:chart></cx:chartSpace>')
 
 
 base = len(charts)
-for k, (title, layout, col, layout_pr, (prefix, ns)) in enumerate(chartex):
+for k, (title, layout, col, layout_pr, _, (prefix, ns)) in enumerate(chartex):
     n = base + k
-    col_, row = 6 + (n % 2) * 8, (n // 2) * 15
+    col_, row = 9 + (n % 2) * 8, (n // 2) * 15
     place = (f'<xdr:from><xdr:col>{col_}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>{row}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>'
              f'<xdr:to><xdr:col>{col_ + 7}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>{row + 14}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>')
     # Excel requires the block of alternatives INSIDE the anchor, around the graphic frame, after `xdr:to`
@@ -285,8 +297,8 @@ for n, (title, view, plot) in enumerate(charts):
 here = os.path.dirname(os.path.abspath(__file__))
 style_xml = open(os.path.join(here, "chartex-style", "style.xml"), "rb").read()
 colors_xml = open(os.path.join(here, "chartex-style", "colors.xml"), "rb").read()
-for k, (title, layout, col, layout_pr, _) in enumerate(chartex):
-    files[f"xl/charts/chartEx{k + 1}.xml"] = chartex_xml(title, layout, col, layout_pr)
+for k, (title, layout, col, layout_pr, axes, _) in enumerate(chartex):
+    files[f"xl/charts/chartEx{k + 1}.xml"] = chartex_xml(title, layout, col, layout_pr, axes)
     files[f"xl/charts/style{k + 1}.xml"] = style_xml
     files[f"xl/charts/colors{k + 1}.xml"] = colors_xml
     files[f"xl/charts/_rels/chartEx{k + 1}.xml.rels"] = (

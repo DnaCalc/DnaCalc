@@ -1260,6 +1260,11 @@ fn dc_zjsg_9__equations_ink_smartart_and_ole_objects_are_kept_and_drawn_from_the
         assert_eq!(part(&saved, part_name), part(KEPT_OBJECTS, part_name), "{part_name}");
     }
     assert_eq!(&load(&saved).sheets()[0].shapes().shapes, &read.shapes);
+    // dw3 Windows item 1: Excel requires the oleObject relationship type and a valid CFBF compound file.
+    let sheet_rels = String::from_utf8(part(KEPT_OBJECTS, "xl/worksheets/_rels/sheet1.xml.rels").unwrap()).unwrap();
+    assert!(sheet_rels.contains("/relationships/oleObject\" Target=\"../embeddings/Package1.bin\""), "{sheet_rels}");
+    let ole_bin = part(KEPT_OBJECTS, "xl/embeddings/Package1.bin").unwrap();
+    assert!(ole_bin.starts_with(&[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]), "not CFBF: {:?}", &ole_bin[..ole_bin.len().min(8)]);
 }
 
 // dc-zjsg.7: sparklines.xlsx (make-sparklines.py) holds five sparkline groups in the worksheet's x14 extension. Each

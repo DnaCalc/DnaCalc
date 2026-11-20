@@ -1,0 +1,2238 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="cockpit-light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DNA Calc Front-End Design — Interactive Mockup Atlas (M-01 to M-18)</title>
+<style>
+/* ==========================================================================
+   STRAND DESIGN LANGUAGE (v0.2 refined for Pro 19)
+   Self-contained inline CSS · Zero external fonts or scripts · WCAG AA tested
+   ========================================================================== */
+:root, :root[data-theme="cockpit-light"] {
+  --dna-petrol-800: #193F49;
+  --dna-petrol-900: #12303A;
+  --dna-petrol-950: #0C1C22;
+  --dna-chrome-ink: #EDF1F2;
+  --dna-chrome-muted: #A9C0C7;
+  --dna-chrome-line: #275663;
+
+  --dna-paper: #FFFFFF;
+  --dna-paper-2: #EDF1F2;
+  --dna-paper-3: #E2E9EB;
+  --dna-border: #C5D2D6;
+  --dna-border-strong: #8FA5AD;
+
+  --dna-ink: #172226;
+  --dna-ink-2: #35474E;
+  --dna-ink-3: #5B717B;
+
+  /* Surface semantic hues */
+  --dna-teal-600: #318995;
+  --dna-teal-400: #3DB6CF;
+  --dna-teal-tint: #E4F2F4;
+  --dna-amber: #FFB301;
+  --dna-amber-tint: #FFF5D6;
+  --dna-amber-ink: #7A5200;
+  --dna-green-500: #3F8B76;
+  --dna-green-tint: #E4F3EE;
+  --dna-sage-400: #71A08A;
+  --dna-sage-tint: #EBF3EF;
+  --dna-signal: #FF8001;
+  --dna-signal-tint: #FFF0E0;
+  --dna-red: #D02A23;
+  --dna-red-tint: #FBE9E8;
+
+  /* Sanctioned WCAG AA -ink variants (>= 4.5:1 on paper) */
+  --dna-teal-ink: #1B5F6B;
+  --dna-green-ink: #2E6E5B;
+  --dna-prov-const: #2D6A8A;
+  --dna-prov-ext: #A35400;
+  --dna-red-ink: #D02A23;
+
+  /* Fonts (local system fallbacks only — zero network calls) */
+  --dna-sans: "Segoe UI Variable", "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --dna-mono: "Cascadia Code", "Consolas", "SFMono-Regular", ui-monospace, monospace;
+  --dna-serif: "Charter", "Source Serif 4", "Georgia", Cambria, serif;
+}
+
+:root[data-theme="cockpit-dark"] {
+  --dna-petrol-800: #0F272E;
+  --dna-petrol-900: #0A1B20;
+  --dna-petrol-950: #061114;
+  --dna-chrome-ink: #EDF1F2;
+  --dna-chrome-muted: #8FA9B2;
+  --dna-chrome-line: #1E424D;
+
+  --dna-paper: #1A262B;
+  --dna-paper-2: #223138;
+  --dna-paper-3: #2B3D45;
+  --dna-border: #354C56;
+  --dna-border-strong: #537380;
+
+  --dna-ink: #EDF1F2;
+  --dna-ink-2: #C2D2D8;
+  --dna-ink-3: #7D97A0;
+
+  --dna-teal-tint: #173840;
+  --dna-amber-tint: #3D3010;
+  --dna-amber-ink: #FFD166;
+  --dna-green-tint: #183830;
+  --dna-sage-tint: #1E362E;
+  --dna-signal-tint: #3B2610;
+  --dna-red-tint: #3D1A19;
+
+  --dna-teal-ink: #4FC0D8;
+  --dna-green-ink: #74C7AB;
+  --dna-prov-const: #7DB8D8;
+  --dna-prov-ext: #F0A35C;
+  --dna-red-ink: #E4625C;
+  color-scheme: dark;
+}
+
+:root[data-theme="high-contrast"] {
+  --dna-petrol-800: #000000;
+  --dna-petrol-900: #000000;
+  --dna-petrol-950: #000000;
+  --dna-chrome-ink: #FFFFFF;
+  --dna-chrome-muted: #E0E0E0;
+  --dna-chrome-line: #FFFFFF;
+
+  --dna-paper: #000000;
+  --dna-paper-2: #0D0D0D;
+  --dna-paper-3: #1A1A1A;
+  --dna-border: #ADADAD;
+  --dna-border-strong: #FFFFFF;
+
+  --dna-ink: #FFFFFF;
+  --dna-ink-2: #F0F0F0;
+  --dna-ink-3: #D4D4D4;
+
+  --dna-teal-600: #3FE0F5;
+  --dna-teal-tint: #002B33;
+  --dna-amber: #FFD000;
+  --dna-amber-tint: #332900;
+  --dna-amber-ink: #FFD000;
+  --dna-green-tint: #002E20;
+  --dna-sage-tint: #0F2B20;
+  --dna-signal-tint: #331A00;
+  --dna-red-tint: #380000;
+
+  --dna-teal-ink: #5CE8FA;
+  --dna-green-ink: #6FF7C8;
+  --dna-prov-const: #8CD4FF;
+  --dna-prov-ext: #FFB366;
+  --dna-red-ink: #FF807A;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--dna-paper-2);
+  color: var(--dna-ink);
+  font: 450 13.5px/1.5 var(--dna-sans);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Atlas Top Navigation Header */
+.atlas-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--dna-petrol-900);
+  color: var(--dna-chrome-ink);
+  border-bottom: 1px solid var(--dna-chrome-line);
+  padding: 10px 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  align-items: center;
+  justify-content: space-between;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.bp-twin, .bp-dotlong {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+.bp-twin i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--dna-teal-400);
+}
+.bp-twin i:last-child { background: #64A8B5; }
+.bp-dotlong i:first-child {
+  display: inline-block;
+  width: 6px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--dna-teal-400);
+}
+.bp-dotlong i:last-child {
+  display: inline-block;
+  width: 14px;
+  height: 10px;
+  border-radius: 3px;
+  background: #64A8B5;
+}
+.brand-title { font-weight: 650; font-size: 15px; letter-spacing: -0.01em; }
+.brand-sub { font-family: var(--dna-mono); font-size: 11.5px; color: var(--dna-chrome-muted); }
+
+.atlas-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.seg-group {
+  display: inline-flex;
+  background: var(--dna-petrol-950);
+  border: 1px solid var(--dna-chrome-line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.seg-group button {
+  background: transparent;
+  color: var(--dna-chrome-muted);
+  border: 0;
+  padding: 5px 10px;
+  font: 560 12px var(--dna-sans);
+  cursor: pointer;
+}
+.seg-group button + button { border-left: 1px solid var(--dna-chrome-line); }
+.seg-group button[aria-pressed="true"] {
+  background: var(--dna-teal-600);
+  color: #FFFFFF;
+}
+:root[data-theme="high-contrast"] .seg-group button[aria-pressed="true"] {
+  background: var(--dna-amber);
+  color: #000000;
+}
+button:focus-visible, select:focus-visible, a:focus-visible {
+  outline: 2px solid var(--dna-amber);
+  outline-offset: 1px;
+}
+
+.jump-nav {
+  background: var(--dna-petrol-800);
+  border-bottom: 1px solid var(--dna-chrome-line);
+  padding: 7px 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.jump-nav a {
+  color: var(--dna-chrome-ink);
+  text-decoration: none;
+  font: 500 11.5px var(--dna-mono);
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid transparent;
+}
+.jump-nav a:hover { border-color: var(--dna-amber); }
+
+.container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 22px 20px 64px;
+  display: grid;
+  gap: 28px;
+}
+.section-banner {
+  border-left: 4px solid var(--dna-teal-600);
+  padding: 4px 14px;
+  background: var(--dna-paper);
+  border-radius: 0 9px 9px 0;
+  border-top: 1px solid var(--dna-border);
+  border-right: 1px solid var(--dna-border);
+  border-bottom: 1px solid var(--dna-border);
+}
+.section-banner h2 { margin: 4px 0 2px; font-size: 18px; font-weight: 650; }
+.section-banner p { margin: 0 0 4px; color: var(--dna-ink-3); font-size: 12.5px; }
+
+/* Mockup Showcase Card */
+.mockup-card {
+  background: var(--dna-paper);
+  border: 1px solid var(--dna-border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(12, 28, 34, 0.06);
+}
+.mockup-meta {
+  padding: 12px 18px;
+  background: var(--dna-paper-2);
+  border-bottom: 1px solid var(--dna-border);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.mockup-meta h3 { margin: 0; font-size: 15.5px; font-weight: 650; }
+.mockup-id {
+  font: 650 11.5px var(--dna-mono);
+  color: var(--dna-teal-ink);
+  background: var(--dna-teal-tint);
+  padding: 2px 7px;
+  border-radius: 5px;
+  margin-right: 8px;
+}
+.mockup-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  font: 550 11px var(--dna-mono);
+}
+.tag {
+  padding: 2px 7px;
+  border-radius: 5px;
+  border: 1px solid var(--dna-border);
+  color: var(--dna-ink-2);
+  background: var(--dna-paper);
+}
+
+/* Simulated DNA Calc Flight-Deck Window */
+.dna-window {
+  margin: 14px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1.5px solid var(--dna-petrol-800);
+  background: var(--dna-petrol-800);
+}
+.dna-mast {
+  background: var(--dna-petrol-800);
+  color: var(--dna-chrome-ink);
+  padding: 7px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  font-size: 12px;
+}
+.dna-file { font-weight: 650; display: inline-flex; align-items: center; gap: 7px; }
+.dna-views {
+  display: inline-flex;
+  background: var(--dna-petrol-900);
+  border: 1px solid var(--dna-chrome-line);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+  margin-left: auto;
+}
+.dna-views span {
+  padding: 3px 8px;
+  border-radius: 4px;
+  color: var(--dna-chrome-muted);
+  font-size: 11.5px;
+  font-weight: 560;
+}
+.dna-views span.active {
+  background: var(--dna-paper);
+  color: var(--dna-ink);
+  border-bottom: 2px solid var(--dna-amber);
+}
+.dna-cmd {
+  font: 550 11px var(--dna-mono);
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: var(--dna-petrol-900);
+  border: 1px solid var(--dna-chrome-line);
+  color: var(--dna-chrome-muted);
+}
+
+/* Quarantine / Alert / Director Banners */
+.dna-banner {
+  padding: 6px 12px;
+  font-size: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  background: var(--dna-signal-tint);
+  color: var(--dna-prov-ext);
+  border-bottom: 1px solid var(--dna-border);
+}
+.dna-banner.amber {
+  background: var(--dna-amber-tint);
+  color: var(--dna-amber-ink);
+}
+.dna-banner.agent {
+  background: var(--dna-sage-tint);
+  color: var(--dna-green-ink);
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: 600 11px var(--dna-mono);
+  padding: 2px 7px;
+  border-radius: 5px;
+  border: 1px solid currentColor;
+}
+.pill.err { background: var(--dna-red-tint); color: var(--dna-red-ink); border-color: var(--dna-red); }
+.pill.sig { background: var(--dna-signal-tint); color: var(--dna-prov-ext); border-color: var(--dna-signal); }
+.pill.amb { background: var(--dna-amber-tint); color: var(--dna-amber-ink); border-color: var(--dna-amber); }
+.pill.ok  { background: var(--dna-green-tint); color: var(--dna-green-ink); border-color: var(--dna-green-500); }
+.pill.tl  { background: var(--dna-teal-tint); color: var(--dna-teal-ink); border-color: var(--dna-teal-600); }
+
+/* Bridge: Address + Formula Bar */
+.dna-bridge {
+  background: var(--dna-paper-2);
+  border-bottom: 1px solid var(--dna-border);
+  display: grid;
+  grid-template-columns: 165px minmax(0, 1fr) auto;
+  align-items: center;
+  font-family: var(--dna-mono);
+  font-size: 12px;
+}
+.dna-addr {
+  padding: 6px 10px;
+  border-right: 1px solid var(--dna-border);
+  font-weight: 650;
+  color: var(--dna-ink);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.dna-fx {
+  padding: 6px 10px;
+  color: var(--dna-ink);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.dna-fx .sub {
+  display: block;
+  font-size: 11px;
+  color: var(--dna-ink-3);
+  margin-top: 2px;
+}
+.dna-fx .sub.err { color: var(--dna-red-ink); font-weight: 600; }
+
+/* Stage surface */
+.dna-stage {
+  background: var(--dna-paper);
+  color: var(--dna-ink);
+  border-radius: 10px 10px 0 0;
+  overflow: hidden;
+}
+
+/* Classic Grid Table */
+.grid-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.grid-table th {
+  background: var(--dna-paper-2);
+  color: var(--dna-ink-3);
+  font: 600 11px var(--dna-mono);
+  border: 1px solid var(--dna-border);
+  padding: 4px 8px;
+  text-align: center;
+}
+.grid-table td {
+  border: 1px solid var(--dna-border);
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+.grid-table td.rn {
+  background: var(--dna-paper-2);
+  color: var(--dna-ink-3);
+  font: 500 11px var(--dna-mono);
+  text-align: right;
+  width: 38px;
+}
+.grid-table td.num { text-align: right; font-family: var(--dna-mono); }
+.grid-table td.const { color: var(--dna-prov-const); text-align: right; font-family: var(--dna-mono); }
+.grid-table td.ext { color: var(--dna-prov-ext); text-align: right; font-family: var(--dna-mono); }
+.grid-table td.err {
+  background: var(--dna-red-tint);
+  color: var(--dna-red-ink);
+  font: 650 12px var(--dna-mono);
+  text-align: center;
+}
+.grid-table td.sel {
+  outline: 2.5px solid var(--dna-amber);
+  outline-offset: -2.5px;
+  background: var(--dna-amber-tint);
+}
+.grid-table td.ref1 { outline: 2px solid var(--dna-teal-600); outline-offset: -2px; background: var(--dna-teal-tint); }
+.grid-table td.ref2 { outline: 2px dashed var(--dna-green-500); outline-offset: -2px; background: var(--dna-green-tint); }
+.grid-table td.ghost {
+  background: repeating-linear-gradient(-45deg, var(--dna-sage-tint), var(--dna-sage-tint) 6px, var(--dna-paper) 6px, var(--dna-paper) 12px);
+  font-style: italic;
+}
+
+/* Split Panes for Inspector / Explorer / App */
+.split-2 { display: grid; grid-template-columns: 1fr 1.25fr; min-height: 230px; }
+.split-3 { display: grid; grid-template-columns: 230px 1fr 270px; min-height: 240px; }
+@media (max-width: 900px) { .split-2, .split-3 { grid-template-columns: 1fr; } }
+.pane { padding: 12px 14px; border-right: 1px solid var(--dna-border); }
+.pane:last-child { border-right: 0; }
+.pane-h {
+  font: 650 11px var(--dna-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--dna-ink-3);
+  margin: 0 0 8px;
+}
+
+/* Notebook Surface */
+.nb-wrap {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 18px 22px;
+  display: grid;
+  gap: 14px;
+}
+.nb-prose {
+  font: 400 15.5px/1.65 var(--dna-serif);
+  max-width: 68ch;
+  border-left: 3px solid var(--dna-amber);
+  padding-left: 12px;
+}
+.nb-chip {
+  font: 600 12.5px var(--dna-mono);
+  background: var(--dna-teal-tint);
+  color: var(--dna-teal-ink);
+  padding: 1px 6px;
+  border-radius: 5px;
+  border: 1px solid var(--dna-teal-600);
+}
+
+/* Sheet Tabs & Instrument Strip */
+.dna-tabs {
+  background: var(--dna-paper-2);
+  border-top: 1px solid var(--dna-border);
+  padding: 4px 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 11.5px;
+}
+.dna-tabs span {
+  padding: 2px 9px;
+  border-radius: 5px;
+  color: var(--dna-ink-2);
+}
+.dna-tabs span.on {
+  background: var(--dna-paper);
+  color: var(--dna-ink);
+  font-weight: 650;
+  border: 1px solid var(--dna-border-strong);
+}
+.dna-strip {
+  background: var(--dna-petrol-900);
+  color: var(--dna-chrome-ink);
+  padding: 5px 12px;
+  font: 500 11px var(--dna-mono);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* Callouts & ASCII Wireframe Drawer */
+.callouts {
+  padding: 10px 18px 14px;
+  border-top: 1px solid var(--dna-border);
+  background: var(--dna-paper);
+  font-size: 12.5px;
+}
+.callouts ol {
+  margin: 6px 0 0;
+  padding-left: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 4px 20px;
+}
+.callouts b { color: var(--dna-teal-ink); }
+.callout-num {
+  display: inline-block;
+  font: 700 10.5px var(--dna-mono);
+  background: var(--dna-amber);
+  color: #172226;
+  padding: 0 5px;
+  border-radius: 4px;
+  margin-left: 4px;
+}
+.ascii-block {
+  display: none;
+  margin: 0 14px 14px;
+  padding: 12px;
+  background: var(--dna-petrol-950);
+  color: #E6F1F5;
+  font: 400 11.5px/1.35 var(--dna-mono);
+  border-radius: 9px;
+  overflow-x: auto;
+}
+body.show-ascii .ascii-block { display: block; }
+body.only-ascii .dna-window { display: none; }
+body.only-ascii .ascii-block { display: block; margin-top: 14px; }
+
+/* SVG Actors on Model Map */
+.map-svg { width: 100%; height: auto; display: block; background: var(--dna-paper-2); }
+</style>
+</head>
+<body>
+
+<header class="atlas-header">
+  <div class="brand">
+    <span class="bp-twin" aria-hidden="true"><i></i><i></i></span>
+    <div>
+      <div class="brand-title">DNA Calc — Pro 19 Front-End Mockup Atlas</div>
+      <div class="brand-sub">Strand Design System · All 18 Storyboard &amp; View Reference Mockups (M-01 – M-18)</div>
+    </div>
+  </div>
+  <div class="atlas-controls">
+    <div class="seg-group" role="group" aria-label="Strand Theme">
+      <button type="button" data-set-theme="cockpit-light" aria-pressed="true">Cockpit Light</button>
+      <button type="button" data-set-theme="cockpit-dark" aria-pressed="false">Cockpit Dark</button>
+      <button type="button" data-set-theme="high-contrast" aria-pressed="false">High Contrast</button>
+    </div>
+    <div class="seg-group" role="group" aria-label="Display Mode">
+      <button type="button" data-set-mode="ui" aria-pressed="true">Strand UI</button>
+      <button type="button" data-set-mode="both" aria-pressed="false">UI + Monospace</button>
+      <button type="button" data-set-mode="ascii" aria-pressed="false">Monospace Only</button>
+    </div>
+  </div>
+</header>
+
+<nav class="jump-nav" aria-label="Mockup index">
+  <a href="#m01">M-01 Inherited Open</a>
+  <a href="#m02">M-02 Inherited Inspector</a>
+  <a href="#m03">M-03 Budget Notebook</a>
+  <a href="#m04">M-04 Sales Discrepancy</a>
+  <a href="#m05">M-05 Stock Map</a>
+  <a href="#m06">M-06 Stock Classic</a>
+  <a href="#m07">M-07 Loan App+Print</a>
+  <a href="#m08">M-08 Explorer Standalone</a>
+  <a href="#m09">M-09 Budget Add-in</a>
+  <a href="#m10">M-10 Agent Diff</a>
+  <a href="#m11">M-11 Partial Undo</a>
+  <a href="#m12">M-12 Classic Ref</a>
+  <a href="#m13">M-13 Inspector Ref</a>
+  <a href="#m14">M-14 Notebook Ref</a>
+  <a href="#m15">M-15 Model Map Ref</a>
+  <a href="#m16">M-16 App Ref</a>
+  <a href="#m17">M-17 Explorer In-Book</a>
+  <a href="#m18">M-18 Explorer Solo Ref</a>
+</nav>
+
+<main class="container">
+
+  <div class="section-banner">
+    <h2>Section 2 — Storyboard Key Moments (M-01 to M-11)</h2>
+    <p>Active states across Inherited.xlsm, Budget.xlsx, Sales.xlsx, Stock.xlsx, and Loan.xlsx: mid-index triage, root-error folding, live Notebook chips, table-clipping audit, [z⁻¹] iterative wiring, App protection, XLL testing, and partial agent review.</p>
+  </div>
+
+  <!-- ==================== M-01 ==================== -->
+  <article class="mockup-card" id="m01">
+    <div class="mockup-meta">
+      <h3><span class="mockup-id">M-01</span>First Open of <code>Inherited.xlsm</code> — Non-Blocking Quarantine &amp; Progressive Triage (190 ms)</h3>
+      <div class="mockup-tags"><span class="tag">Storyboard 2.1</span><span class="tag">Maria</span><span class="tag">Mid-Index 74%</span></div>
+    </div>
+    <div class="dna-window">
+      <div class="dna-mast">
+        <span class="dna-file"><span class="bp-twin"><i></i><i></i></span> Inherited.xlsm <span class="pill tl">Read-Safe</span> <span class="callout-num">1</span></span>
+        <div class="dna-views"><span class="active">1 Classic</span><span>2 Inspector</span><span>3 Notebook</span><span>4 Model map</span><span>5 App</span></div>
+        <span class="dna-cmd">Ctrl+K Command</span>
+      </div>
+      <div class="dna-banner">
+        <strong>QUARANTINE [Alt+Q]:</strong>
+        <span class="pill sig">Macros Blocked: Module1 (3 subs)</span>
+        <span class="pill sig">◈ 2 Missing Links Held: Using Cached Values</span>
+        <span class="callout-num">2</span>
+        <span style="margin-left:auto"><strong>TRIAGE:</strong> 40 sheets (9 hidden) · 304,812 fmls · <span class="pill err">[!] 417 errors (3 roots)</span> <strong>[Open Inspector Ctrl+2 →]</strong> <span class="callout-num">3</span></span>
+      </div>
+      <div class="dna-bridge">
+        <div class="dna-addr"><span>Summary_P&amp;L!F19</span><span class="pill err">!</span></div>
+        <div class="dna-fx">=SUM(Gas_Daily_2001!AT12:AT2850) - Transport_West!H90
+          <span class="sub err">└─ [! #DIV/0! originates 2 hops upstream at Gas_Daily_2001!AT142] <span class="callout-num">4</span></span>
+        </div>
+        <div style="padding:0 10px"><span class="pill tl">Alt+L Lens</span></div>
+      </div>
+      <div class="dna-stage">
+        <table class="grid-table">
+          <thead><tr><th></th><th>B (Book / Desk)</th><th>C (Prompt)</th><th>D (Basis)</th><th>E (Storage)</th><th>F (Desk Total)</th></tr></thead>
+          <tbody>
+            <tr><td class="rn">16</td><td>Henry Hub Physical</td><td class="num">$14,820,400</td><td class="ext">◈ $412,900 <span class="callout-num">5</span></td><td class="num">($185,000)</td><td class="num">$15,048,300</td></tr>
+            <tr><td class="rn">17</td><td>Permian Basin Swing</td><td class="num">$6,104,250</td><td class="num">$198,400</td><td class="num">$0</td><td class="num">$6,302,650</td></tr>
+            <tr><td class="rn">18</td><td>SoCal Border Index</td><td class="num">$9,440,000</td><td class="err">[! #N/A]</td><td class="num">($92,400)</td><td class="err">[! #N/A]</td></tr>
+            <tr><td class="rn">19</td><td><strong>Desk Net VaR (95%)</strong></td><td class="num">$30,364,650</td><td class="err">[! #N/A]</td><td class="num">($277,400)</td><td class="err sel">[! #DIV/0!] <span class="callout-num">6</span></td></tr>
+            <tr><td class="rn">20</td><td>Prior Day Settle (Ext)</td><td class="ext">◈ $29,880,100</td><td class="ext">◈ $590,200</td><td class="num">($277,400)</td><td class="ext">◈ $30,192,900</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="dna-tabs">
+        <span>[≡ 40 Sheets]</span><span class="on">Summary_P&amp;L*</span><span>Gas_Daily_2001 [248k]</span><span>Transport_West [!]</span><span>···</span><span class="pill tl">+9 Hidden (2 VeryHidden)</span><span class="callout-num">7</span>
+      </div>
+      <div class="dna-strip">
+        <span>AUTO · Indexing deps 74% [███████░░░] <span class="callout-num">8</span></span>
+        <span>[!] 417 Err (3 roots) · ◈ 6 OFFSET volatile · Zoom 100%</span>
+      </div>
+    </div>
+    <div class="callouts">
+      <ol>
+        <li><b>Flight-deck Mast:</b> Twin base-pair mark, zero Ribbon bloat, 5-view switcher.</li>
+        <li><b>Non-blocking Quarantine:</b> VBA &amp; broken external `.xls` links held safely without startup modal popups.</li>
+        <li><b>Auto Triage Strip:</b> Summarises 304,812 formulas and collapses 417 errors to 3 roots.</li>
+        <li><b>Inline Root Pointer:</b> Names `Gas_Daily_2001!AT142` directly beneath the Formula Bar.</li>
+        <li><b>External Provenance (`◈`):</b> Signal-orange `-ink` marks cached external-link values.</li>
+        <li><b>Amber Selection + Red Error:</b> Dual shape+color pairing (`[! #DIV/0!]`).</li>
+        <li><b>40-Sheet Drawer:</b> Exposes `[248k]` dense sheet and `+9 Hidden` (`VeryHidden` included).</li>
+        <li><b>Streaming Strip:</b> Cached sheet interactive at 190 ms while dep graph indexes in background.</li>
+      </ol>
+    </div>
+  </article>
+
+  <!-- ==================== M-02 ==================== -->
+  <article class="mockup-card" id="m02">
+    <div class="mockup-meta">
+      <h3><span class="mockup-id">M-02</span><code>Inherited.xlsm</code> in Inspector — Root-Error Folding, Hidden Sheets &amp; <code>OFFSET</code> Blast Radius</h3>
+      <div class="mockup-tags"><span class="tag">Storyboard 2.1</span><span class="tag">Inspector View</span><span class="tag">3 Roots → 417 Errors</span></div>
+    </div>
+    <div class="dna-window">
+      <div class="dna-mast">
+        <span class="dna-file"><span class="bp-twin"><i></i><i></i></span> Inherited.xlsm</span>
+        <div class="dna-views"><span>1 Classic</span><span class="active">2 Inspector</span><span>3 Notebook</span><span>4 Model map</span><span>5 App</span></div>
+        <span class="dna-cmd">Ctrl+K</span>
+      </div>
+      <div class="dna-bridge">
+        <div class="dna-addr"><span>Summary_P&amp;L!F19</span><span class="pill err">!</span></div>
+        <div class="dna-fx">=SUM(Gas_Daily_2001!AT12:AT2850) - Transport_West!H90 <span class="sub">Trace: 3 hops · Desk Net VaR (95%) → Root: Gas_Daily_2001!AT142</span></div>
+        <div style="padding:0 10px"><span class="pill amb">Active Trace</span></div>
+      </div>
+      <div class="dna-stage split-2">
+        <div class="pane">
+          <div class="pane-h">Root Errors (3 origins → 417 broken cells) <span class="callout-num">1</span></div>
+          <div style="display:grid;gap:8px;font-size:12px">
+            <div style="padding:8px;border:1px solid var(--dna-red);background:var(--dna-red-tint);border-radius:7px">
+              <strong>▼ [!] #DIV/0! · Gas_Daily_2001!AT142</strong> <span class="pill err">390 cells</span>
+              <div style="font-family:var(--dna-mono);margin-top:4px">=AR142 / AS142 &nbsp;(AS142 Physical_Vol = 0)</div>
+              <div style="font-family:var(--dna-mono);color:var(--dna-ink-2);margin-top:3px">└─► AT2851 ─► <strong>Summary_P&amp;L!F19 [Selected]</strong></div>
+            </div>
+            <div style="padding:7px;border:1px solid var(--dna-border);border-radius:7px">
+              <strong>▸ [!] #REF! · Transport_West!H88</strong> <span class="pill err">25 cells</span>
+              <div style="font-family:var(--dna-mono);font-size:11.5px;color:var(--dna-ink-3)">=G88 * #REF!B12 (Deleted tariff sheet)</div>
+            </div>
+            <div style="padding:7px;border:1px solid var(--dna-border);border-radius:7px">
+              <strong>▸ [!] #N/A · Summary_P&amp;L!D31</strong> <span class="pill err">5 cells</span>
+              <div style="font-family:var(--dna-mono);font-size:11.5px;color:var(--dna-ink-3)">VLOOKUP("SOCAL_BORDER ", Ref_Hubs!A2:E40, 4, 0) — trailing space!</div>
+            </div>
+            <div class="pane-h" style="margin-top:6px">Hidden &amp; Dormant Sheets (9 of 40) <span class="callout-num">5</span></div>
+            <div style="font-family:var(--dna-mono);font-size:11.5px;color:var(--dna-ink-2)">
+              • [Hidden] Old_Calc_Backup (14k fmls · 0 downstream dependents)<br>
+              • [VeryHidden] Sys_AuthTable · Legacy_Map
+            </div>
+          </div>
+        </div>
+        <div class="pane">
+          <div class="pane-h">Workbook Dependency &amp; Volatility Map</div>
+          <svg class="map-svg" viewBox="0 0 540 220" role="img" aria-label="Inherited dependency map">
+            <rect x="16" y="14" width="190" height="36" rx="6" fill="var(--dna-signal-tint)" stroke="var(--dna-signal)" stroke-width="1.5"/>
+            <text x="26" y="36" font-family="monospace" font-size="11" fill="var(--dna-prov-ext)">◈ NYMEX_Settle.xls (Missing) (2)</text>
+            <rect x="20" y="76" width="235" height="54" rx="9" fill="var(--dna-paper)" stroke="var(--dna-border-strong)" stroke-width="1.8"/>
+            <text x="32" y="97" font-family="monospace" font-weight="bold" font-size="12" fill="var(--dna-ink)">Gas_Daily_2001 [248k] (3)</text>
+            <text x="32" y="116" font-family="monospace" font-size="11" fill="var(--dna-red-ink)">[! Root: AT142 #DIV/0!]</text>
+            <rect x="20" y="156" width="235" height="50" rx="9" fill="var(--dna-amber-tint)" stroke="var(--dna-amber)" stroke-width="2.5"/>
+            <text x="32" y="177" font-family="monospace" font-weight="bold" font-size="12" fill="var(--dna-ink)">Summary_P&amp;L [Focus]</text>
+            <text x="32" y="195" font-family="monospace" font-size="11" fill="var(--dna-red-ink)">F19 [! #DIV/0!] ◄═ Selected</text>
+            <path d="M110,50 L110,76" stroke="var(--dna-signal)" stroke-width="1.8"/>
+            <path d="M135,130 L135,156" stroke="var(--dna-red)" stroke-width="2.2"/>
+            <path d="M255,180 C345,180 345,100 255,100" fill="none" stroke="var(--dna-signal)" stroke-width="2" stroke-dasharray="5 3"/>
+            <text x="315" y="136" font-family="monospace" font-size="11" fill="var(--dna-prov-ext)">◈ 6 OFFSET names (4)</text>
+            <text x="315" y="152" font-family="monospace" font-size="11" fill="var(--dna-ink-3)">(184k dirty/recalc)</text>
+            <rect x="310" y="20" width="210" height="58" rx="8" fill="none" stroke="var(--dna-border-strong)" stroke-dasharray="5 4"/>
+            <text x="322" y="42" font-family="monospace" font-size="11" fill="var(--dna-ink-3)">Sys_AuthTable [VeryHidden]</text>
+            <text x="322" y="60" font-family="monospace" font-size="11" fill="var(--dna-ink-3)">Legacy_Map    [VeryHidden]</text>
+          </svg>
+        </div>
+      </div>
+      <div class="dna-strip">
+        <span>AUTO · Full recalc est. 412 ms (OFFSET fan-out) <span class="callout-num">6</span></span>
+        <span>[!] 3 Roots → 417 Err · ◈ 2 Missing Links · 6 Volatile Names</span>
+      </div>
+    </div>
+    <div class="callouts">
+      <ol>
+        <li><b>Root-Error Folding:</b> Collapses 417 errors into 3 actionable roots with exact blast counts.</li>
+        <li><b>Broken Link Node (`◈`):</b> Visualises missing `.xls` inputs explicitly on the boundary.</li>
+        <li><b>Block Simplification:</b> `Gas_Daily_2001` (248k formulas) shown as one honest summary district.</li>
+        <li><b>Volatility Diagnostic:</b> Explains why edits feel slow (`6 OFFSET` names dirtying 184k cells).</li>
+        <li><b>Hidden/`VeryHidden` Audit:</b> Surfaces all 9 hidden sheets and flags dead calculation weight.</li>
+        <li><b>Strip Telemetry:</b> Estimates recalc duration honestly from topological fan-out.</li>
+      </ol>
+    </div>
+  </article>
+
+  <!-- ==================== M-03 ==================== -->
+  <article class="mockup-card" id="m03">
+    <div class="mockup-meta">
+      <h3><span class="mockup-id">M-03</span><code>Budget.xlsx</code> in Notebook View — Live Reactive Prose, Inline Chips &amp; Monthly Data Frame</h3>
+      <div class="mockup-tags"><span class="tag">Storyboard 2.2</span><span class="tag">Notebook View</span><span class="tag">Formula Lens ON</span></div>
+    </div>
+    <div class="dna-window">
+      <div class="dna-mast">
+        <span class="dna-file"><span class="bp-twin"><i></i><i></i></span> Budget.xlsx</span>
+        <div class="dna-views"><span>1 Classic</span><span>2 Inspector</span><span class="active">3 Notebook</span><span>4 Model map</span><span>5 App</span></div>
+        <span class="dna-cmd">Alt+L Lens: ON</span>
+      </div>
+      <div class="dna-bridge">
+        <div class="dna-addr"><span>Summary!C8</span><span class="pill ok">$146,952</span></div>
+        <div class="dna-fx">Lens: Gross_Profit[FY27] − SUM(OpEx_Blocks[FY27]) <span class="callout-num">1</span>
+          <span class="sub">Excel: =Monthly!O14 - SUM(Monthly!O16:O19)</span>
+        </div>
+        <div style="padding:0 10px"><span class="pill tl">Flow: ↓ Page | → Pipe</span></div>
+      </div>
+      <div class="dna-stage">
+        <div class="nb-wrap">
+          <div style="display:flex;justify-content:space-between;align-items:baseline">
+            <h4 style="margin:0;font-size:19px">FY27 Operating Plan — Finance Director Brief <span class="callout-num">2</span></h4>
+            <span class="pill tl">Reading Density · Source Serif 4</span>
+          </div>
+          <div class="nb-prose">
+            Under the <span class="nb-chip">Base Case ▾</span> plan, FY27 revenue reaches <span class="nb-chip">$6,946,800</span> with Operating EBITDA of <span class="nb-chip">$146,952</span> (<span class="nb-chip">2.1%</span> margin), absorbing the Q3 <span class="nb-chip">4.0%</span> wage step while keeping cloud COGS at <span class="nb-chip">18.0%</span> of revenue. <span class="callout-num">3</span>
+          </div>
+          <div style="border:1px solid var(--dna-border);border-radius:9px;overflow:hidden">
+            <div style="padding:6px 12px;background:var(--dna-paper-2);font:650 11.5px var(--dna-mono);display:flex;justify-content:space-between">
+              <span>1. KEY SCENARIO DRIVERS (Inputs!B5:D16 · 3 of 12 shown) <span class="callout-num">4</span></span>
+              <span>Active Scenario: <strong>[• Base Case]</strong> [Downside]</span>
+            </div>
+            <table class="grid-table">
+              <thead><tr><th>Assumption</th><th>Base Case (Live)</th><th>Downside</th><th>Provenance</th></tr></thead>
+              <tbody>
+                <tr><td>Monthly Logo Growth</td><td class="const">3.5%</td><td class="const">1.5%</td><td>Constant (Inputs!C6)</td></tr>
+                <tr><td>Monthly Churn</td><td class="const">1.2%</td><td class="const">2.4%</td><td>Constant (Inputs!C7)</td></tr>
+                <tr><td>ARPU ($/mo)</td><td class="const">$420</td><td class="const">$380</td><td>Constant (Inputs!C8)</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="border:1px solid var(--dna-border);border-radius:9px;overflow:hidden">
+            <div style="padding:6px 12px;background:var(--dna-paper-2);font:650 11.5px var(--dna-mono)">2. MONTHLY P&amp;L DATA FRAME (Monthly!B9:O20 · 12 periods across) <span class="callout-num">5</span></div>
+            <table class="grid-table">
+              <thead><tr><th>Line Item</th><th>Jan-27</th><th>Feb-27</th><th>···</th><th>Dec-27</th><th>FY27 Total</th><th>Lens Rule</th></tr></thead>
+              <tbody>
+                <tr><td>Total Revenue</td><td class="num">$515,760</td><td class="num">$527,520</td><td class="num">···</td><td class="num">$647,640</td><td class="num">$6,946,800</td><td><code>Ending_Cust × ARPU</code></td></tr>
+                <tr><td>Gross Profit (82%)</td><td class="num">$422,923</td><td class="num">$432,566</td><td class="num">···</td><td class="num">$531,065</td><td class="num">$5,696,376</td><td><code>Revenue − Cloud_COGS</code></td></tr>
+                <tr><td><strong>Operating EBITDA</strong></td><td class="num">($4,210)</td><td class="num">$1,840</td><td class="num">···</td><td class="num">$34,910</td><td class="num sel"><strong>$146,952</strong> <span class="callout-num">6</span></td><td><code>Gross_Profit − ΣOpEx</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="dna-strip">
+        <span>AUTO · Recalc 4 ms (fresh) · Prose saved in customXml (Excel-safe) <span class="callout-num">7</span></span>
+        <span>0 Errors · Summary* [Notebook preferred]</span>
+      </div>
+    </div>
+    <div class="callouts">
+      <ol>
+        <li><b>Dual Lens Bar:</b> Displays readable header/name expression above true Excel syntax.</li>
+        <li><b>Source Serif 4 Voice:</b> Reading-density prose clearly distinguished from cell tables.</li>
+        <li><b>Live Inline Chips:</b> `@Summary!C8` (`$146,952`) updates in 6 ms whenever scenario flips.</li>
+        <li><b>Honest Folding:</b> Notes `3 of 12 shown` with 1-click expand—never silent hiding.</li>
+        <li><b>Data Frame:</b> Sticky row labels + sticky `FY27 Total` + Lens column summary.</li>
+        <li><b>Selection Continuity:</b> `Summary!C8` keeps focus across Classic ↔ Notebook.</li>
+        <li><b>100% Excel Round-Trip:</b> Narrative lives in `xl/customXml/dnaCalcViews.xml`.</li>
+      </ol>
+    </div>
+  </article>
+
+  <!-- ==================== M-04 ==================== -->
+  <article class="mockup-card" id="m04">
+    <div class="mockup-meta">
+      <h3><span class="mockup-id">M-04</span><code>Sales.xlsx</code> in Inspector — Range Truncation &amp; Trailing-Space Discrepancy Waterfall</h3>
+      <div class="mockup-tags"><span class="tag">Storyboard 2.3</span><span class="tag">Sam (Auditor)</span><span class="tag">Δ -$235,450 Explained</span></div>
+    </div>
+    <div class="dna-window">
+      <div class="dna-mast">
+        <span class="dna-file"><span class="bp-twin"><i></i><i></i></span> Sales.xlsx</span>
+        <div class="dna-views"><span>1 Classic</span><span class="active">2 Inspector</span><span>3 Notebook</span><span>4 Model map</span><span>5 App</span></div>
+        <span class="dna-cmd">Ctrl+Shift+E Explorer</span>
+      </div>
+      <div class="dna-bridge">
+        <div class="dna-addr"><span>Compare (2)</span><span class="pill amb">Δ -$235k</span></div>
+        <div class="dna-fx">Report!C7 ($1,412,800 · SUMIFS) vs Report!N8 ($1,648,250 · Pivot_RegionSKU) <span class="callout-num">1</span></div>
+        <div style="padding:0 10px"><span class="pill ok">28 ms audit</span></div>
+      </div>
+      <div class="dna-stage split-2">
+        <div class="pane">
+          <div class="pane-h">Upstream Coverage on Table <code>Orders</code> (25,000 rows)</div>
+          <div style="border:1.5px solid var(--dna-teal-600);border-radius:8px;overflow:hidden;font-family:var(--dna-mono);font-size:12px">
+            <div style="padding:12px;background:var(--dna-teal-tint);color:var(--dna-teal-ink)">
+              <strong>Rows 2 .. 22,000 (88.0% · 21,999 rows)</strong><br>
+              Read by <code>Report!C7</code>: <code>Orders!$I$2:$I$22000</code>
+            </div>
+            <div style="padding:4px 12px;background:var(--dna-amber);color:#172226;font-weight:700">
+              ══ CLIP SEAM AT ROW 22,000! <span class="callout-num">2</span> ══
+            </div>
+            <div style="padding:12px;background:var(--dna-red-tint);color:var(--dna-red-ink)">
+              <strong>Rows 22,001 .. 25,001 (12.0% · 3,001 rows SKIPPED)</strong><br>
+              Included in <code>Pivot_RegionSKU</code> (reads full <code>Orders</code>)
+            </div>
+          </div>
+        </div>
+        <div class="pane">
+          <div class="pane-h">Discrepancy Waterfall (-$235,450 → $0 Unexplained)</div>
+          <table class="grid-table">
+            <tbody>
+              <tr><td><code>Report!C7</code> (Current SUMIFS)</td><td class="num">$1,412,800</td></tr>
+              <tr><td><strong>[1] 412 'West' Q4 rows in 22001:25001</strong> <span class="callout-num">3</span><br><small style="color:var(--dna-teal-ink)">[Preview Fix: Rewrite C5:C8 → Orders[NetAmount]]</small></td><td class="num" style="color:var(--dna-prov-ext)">+$198,450</td></tr>
+              <tr><td><strong>[2] Trailing space in <code>Orders!C23804</code> (<code>"West␣"</code>)</strong> <span class="callout-num">4</span><br><small style="color:var(--dna-teal-ink)">[Jump to Orders!C23804 →]</small></td><td class="num" style="color:var(--dna-prov-ext)">+$37,000</td></tr>
+              <tr style="font-weight:700"><td>Reconciled Pivot Total (<code>Report!N8</code>) <span class="callout-num">5</span></td><td class="num">$1,648,250</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="dna-strip">
+        <span>AUTO · 0 #Errors · [⚠ 4 Clipped Table Ranges on Report!C5:C8] <span class="callout-num">6</span></span>
+        <span>Orders (25,000 rows) · Report*</span>
+      </div>
+    </div>
+    <div class="callouts">
+      <ol>
+        <li><b>Dual-Cell Diff:</b> `Ctrl+Click` any two summary numbers to reconcile their upstream paths.</li>
+        <li><b>Proportional Clip Seam:</b> Immediately exposes `$I$2:$I$22000` stopping short of row `25,001`.</li>
+        <li><b>Quantified Impact + Preview Fix:</b> Computes `+$198,450` from skipped rows before editing.</li>
+        <li><b>Dirty-String Detection:</b> Flags `"West␣"` with visible whitespace glyph (`+$37,000`).</li>
+        <li><b>Exact Tie-Out:</b> `$1,412,800 + $198,450 + $37,000 = $1,648,250`.</li>
+        <li><b>Silent-Bug Surfacing:</b> Catches high-severity range bugs where Excel shows zero `#` errors.</li>
+      </ol>
+    </div>
+  </article>
+
+  <!-- ==================== M-05 ==================== -->
+  <article class="mockup-card" id="m05">
+    <div class="mockup-meta">
+      <h3><span class="mockup-id">M-05</span><code>Stock.xlsx</code> on Model Map — <code>Ticks</code> Director, <code>[z⁻¹]</code> Feedback Delay &amp; Form-Control Slider</h3>
+      <div class="mockup-tags"><span class="tag">Storyboard 2.4</span><span class="tag">Lee (Systems)</span><span class="tag">Mid-Step t=14</span></div>
+    </div>
+    <div class="dna-window">
+      <div class="dna-mast">
+        <span class="dna-file"><span class="bp-twin"><i></i><i></i></span> Stock.xlsx</span>
+        <div class="dna-views"><span>1 Classic</span><span>2 Inspector</span><span>3 Notebook</span><span class="active">4 Model map</span><span>5 App</span></div>
+        <span class="dna-cmd">Alt+L Lens: ON</span>
+      </div>
+      <div class="dna-banner amber">
+        <span><strong>Director: Ticks</strong> (Excel Iterative Calc: Max=1, Δ=0.001) <span class="callout-num">1</span></span>
+        <span class="pill tl">▶ Run</span><span class="pill amb">Step (F9) · t = 14</span><span class="pill tl">Reset</span>
+        <span style="margin-left:auto;font-family:var(--dna-mono)">Stock.OnHand = OnHand⁻ + Inflow − Outflow</span>
+      </div>
+      <div class="dna-stage">
+        <svg class="map-svg" viewBox="0 0 880 260" role="img" aria-label="Stock systems model map">
+          <!-- Demand -->
+          <rect x="20" y="34" width="165" height="58" rx="9" fill="var(--dna-paper)" stroke="var(--dna-border-strong)" stroke-width="1.5"/>
+          <text x="32" y="55" font-family="monospace" font-size="11.5" fill="var(--dna-ink-3)">Demand.Rate</text>
+          <text x="32" y="78" font-family="monospace" font-weight="bold" font-size="16" fill="var(--dna-prov-const)">120</text>
+          <!-- OnHand with z^-1 loop -->
+          <path d="M405,62 C435,62 435,12 315,12 C205,12 205,52 230,52" fill="none" stroke="var(--dna-teal-600)" stroke-width="2" stroke-dasharray="4 3"/>
+          <rect x="295" y="3" width="44" height="18" rx="4" fill="var(--dna-teal-tint)" stroke="var(--dna-teal-600)"/>
+          <text x="317" y="16" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="11" fill="var(--dna-teal-ink)">z⁻¹ (2)</text>
+          <rect x="230" y="34" width="175" height="64" rx="9" fill="var(--dna-amber-tint)" stroke="var(--dna-amber)" stroke-width="2.5"/>
+          <text x="242" y="54" font-family="monospace" font-weight="bold" font-size="12" fill="var(--dna-ink)">Stock.OnHand (3)</text>
+          <text x="242" y="76" font-family="monospace" font-weight="bold" font-size="17" fill="var(--dna-ink)">340 units</text>
+          <text x="242" y="91" font-family="monospace" font-size="10.5" fill="var(--dna-ink-3)">OnHand⁻ + Inflow − Outflow</text>
+          <!-- Outflow -->
+          <rect x="230" y="122" width="175" height="52" rx="9" fill="var(--dna-paper)" stroke="var(--dna-border-strong)" stroke-width="1.5"/>
+          <text x="242" y="142" font-family="monospace" font-size="11.5" fill="var(--dna-ink)">Stock.Outflow · <strong>120</strong></text>
+          <text x="242" y="161" font-family="monospace" font-size="10.5" fill="var(--dna-ink-3)">min(Demand.Rate, OnHand⁻)</text>
+          <!-- DelayPipe -->
+          <rect x="20" y="185" width="250" height="60" rx="9" fill="var(--dna-paper)" stroke="var(--dna-teal-600)" stroke-width="1.8"/>
+          <text x="32" y="205" font-family="monospace" font-weight="bold" font-size="12" fill="var(--dna-ink)">Supply.DelayPipe [z⁻¹] (5)</text>
+          <text x="32" y="226" font-family="monospace" font-weight="bold" font-size="14" fill="var(--dna-teal-ink)">{0, 0, 400} → Inflow: 0</text>
+          <text x="32" y="240" font-family="monospace" font-size="10" fill="var(--dna-ink-3)">3-tick HSTACK(DROP(...)) pipeline</text>
+          <!-- OrderPlaced (Amber fired) -->
+          <rect x="500" y="34" width="350" height="68" rx="9" fill="var(--dna-amber-tint)" stroke="var(--dna-amber)" stroke-width="2.5"/>
+          <text x="514" y="55" font-family="monospace" font-weight="bold" font-size="12" fill="var(--dna-ink)">Policy.OrderPlaced · FIRED: 400</text>
+          <text x="514" y="75" font-family="monospace" font-size="11" fill="var(--dna-ink-2)">OnHand + ΣDelayPipe &lt; ReorderPoint ? 400 : 0</text>
+          <!-- ReorderPoint with Form Slider -->
+          <rect x="500" y="128" width="350" height="68" rx="9" fill="var(--dna-paper)" stroke="var(--dna-border-strong)" stroke-width="1.5"/>
+          <text x="514" y="149" font-family="monospace" font-weight="bold" font-size="12" fill="var(--dna-ink)">Policy.ReorderPoint (Form Slider) (4)</text>
+          <text x="790" y="149" font-family="monospace" font-weight="bold" font-size="14" fill="var(--dna-prov-const)">280</text>
+          <line x1="516" y1="174" x2="830" y2="174" stroke="var(--dna-border-strong)" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="662" cy="174" r="8" fill="var(--dna-teal-600)"/>
+          <!-- Wires -->
+          <path d="M185,63 L230,63" stroke="var(--dna-border-strong)" stroke-width="1.6"/>
+          <path d="M405,65 L500,65" stroke="var(--dna-amber)" stroke-width="2.4"/>
+          <path d="M675,128 L675,102" stroke="var(--dna-border-strong)" stroke-width="1.6"/>
+          <path d="M675,102 C675,235 390,235 270,220" fill="none" stroke="var(--dna-amber)" stroke-width="2.4" stroke-dasharray="6 4"/>
+          <path d="M145,185 L255,98" stroke="var(--dna-teal-600)" stroke-width="1.8"/>
+        </svg>
+      </div>
+      <div class="dna-strip">
+        <span>ITER (Max 1 · Δ 0.001) · Step 2.1 ms · [↻ 2 deliberate z⁻¹ loops] <span class="callout-num">6</span></span>
+        <span>Inventory_Model* (9 named cells · 1 Form Control)</span>
+      </div>
+    </div>
+    <div class="callouts">
+      <ol>
+        <li><b>Director Pill:</b> Surfaces Excel's Iterative Calculation settings (`Max=1`) as a playable `Ticks` bar.</li>
+        <li><b>`[z⁻¹]` Delay Arc:</b> Makes self-referencing inventory memory explicit instead of alarming.</li>
+        <li><b>Amber Firing Order:</b> Highlights blocks that changed this tick along topological order.</li>
+        <li><b>Embedded Form Control:</b> Native Excel ScrollBar rendered directly inside `Policy.ReorderPoint`.</li>
+        <li><b>Spill Delay Pipeline:</b> Displays live dynamic array `{0, 0, 400}` inside the block.</li>
+        <li><b>Honest Loop Telemetry:</b> Distinguishes intentional `[↻ z⁻¹]` state from accidental cycles.</li>
+      </ol>
+    </div>
+  </article>
+
+  <!-- ==================== M-06 ==================== -->
+  <article class="mockup-card" id="m06">
+    <div class="mockup-meta">
+      <h3><span class="mockup-id">M-06</span><code>Stock.xlsx</code> Checked in Classic — Clean Backing Grid &amp; Synchronised Form Control</h3>
+      <div class="mockup-tags"><span class="tag">Storyboard 2.4</span><span class="tag">Classic View</span><span class="tag">100% Excel Compatible</span></div>
+    </div>
+    <div class="dna-window">
+      <div class="dna-mast">
+        <span class="dna-file"><span class="bp-twin"><i></i><i></i></span> Stock.xlsx</span>
+        <div class="dna-views"><span class="active">1 Classic</span><span>2 Inspector</span><span>3 Notebook</span><span>4 Model map</span><span>5 App</span></div>
+        <span class="dna-cmd">Ctrl+4 Back to Map</span>
+      </div>
+      <div class="dna-bridge">
+        <div class="dna-addr"><span>Policy.ReorderPoint</span><span class="pill tl">C5</span></div>
+        <div class="dna-fx">310 <span class="sub">Constant · Linked Form Control: ScrollBar1 (0..600, step 10) · Read by: Policy.OrderPlaced <span class="callout-num">1</span></span></div>
+        <div style="padding:0 10px"><span class="pill tl">Provenance ON</span></div>
+      </div>
+      <div class="dna-stage">
+        <table class="grid-table">
+          <thead><tr><th></th><th>B (Block / Defined Name)</th><th>C (Value)</th><th>D (Control / Spill)</th><th>E (Spill)</th><th>F (Stored Excel Formula)</th></tr></thead>
+          <tbody>
+            <tr><td class="rn">4</td><td>Demand.Rate</td><td class="const">120</td><td></td><td></td><td><code>120</code></td></tr>
+            <tr><td class="rn">5</td><td><strong>Policy.ReorderPoint</strong></td><td class="const sel">310 <span class="callout-num">2</span></td><td colspan="2">[◄─────●──────►] Form ScrollBar1</td><td><code>310</code></td></tr>
+            <tr><td class="rn">6</td><td>Policy.OrderQty</td><td class="const">400</td><td></td><td></td><td><code>400</code></td></tr>
+            <tr><td class="rn">7</td><td>Policy.OrderPlaced</td><td class="num">0</td><td></td><td></td><td><code>=IF(C8+SUM(C11#)&lt;C5,C6,0)</code></td></tr>
+            <tr><td class="rn">8</td><td>Stock.OnHand <span class="pill tl">↻</span> <span class="callout-num">3</span></td><td class="num">340</td><td></td><td></td><td><code>=IF(C3,500,C8+C9-C10)</code></td></tr>
+            <tr><td class="rn">9</td><td>Stock.Inflow</td><td class="num">0</td><td></td><td></td><td><code>=INDEX(C11#,1)</code></td></tr>
+            <tr><td class="rn">10</td><td>Stock.Outflow</td><td class="num">120</td><td></td><td></td><td><code>=MIN(C4,C8)</code></td></tr>
+            <tr><td class="rn">11</td><td>Supply.DelayPipe <span class="pill tl">↻</span></td><td class="num ref1">0</td><td class="num ref1">0</td><td class="num ref1">400 <span class="callout-num">4</span></td><td><code>=IF(C3,SEQUENCE(1,3,0,0),HSTACK(...))</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="dna-strip">
+        <span>ITER (Max 1 · Δ 0.001) · F9 = Step +1 tick</span>
+        <span>[↻ Iterative cells: C8, C11] · Opens unchanged in Excel</span>
+      </div>
+    </div>
+    <div class="callouts">
+      <ol>
+        <li><b>Cell-Backed Defined Names:</b> Every block built on Model Map gets a clean row on `Inventory_Model` so Excel users see a structured sheet, not a blank grid.</li>
+        <li><b>Live Slider Sync:</b> Dragging `ScrollBar1` updates `C5` (`310`) across Classic and Model Map at 120 fps.</li>
+        <li><b>Iterative `[↻]` Tag:</b> Clearly marks deliberate circular state cells right in the grid.</li>
+        <li><b>Dynamic Spill Outline:</b> `C11:E11` shows a `teal-600` spill border around `{0, 0, 400}`.</li>
+      </ol>
+    </div>
+  </article>
+
+  <!-- ==================== M-07 ==================== -->
+  <article class="mockup-card" id="m07">
+    <div class="mockup-meta">
+      <h3><span class="mockup-id">M-07</span><code>Loan.xlsx</code> in App View — Baseline vs. Scenario Delta &amp; 2-Page Executive Print Preview</h3>
+      <div class="mockup-tags"><span class="tag">Storyboard 2.5</span><span class="tag">Jo (Manager)</span><span class="tag">Print Drawer Open</span></div>
+    </div>
+    <div class="dna-window">
+      <div class="dna-mast">
+        <span class="dna-file"><span class="bp-twin"><i></i><i></i></span> Loan.xlsx</span>
+        <div class="dna-views"><span>1 Classic</span><span>2 Inspector</span><span>3 Notebook</span><span>4 Model map</span><span class="active">5 App</span></div>
+        <span class="dna-cmd">Ctrl+P Print Preview*</span>
+      </div>
+      <div class="dna-stage split-2">
+        <div class="pane">
+          <div class="pane-h">Loan Amortisation App · Baseline Pinned ($0 Extra) <span class="callout-num">1</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1.2fr;gap:10px">
+            <div style="border:1px solid var(--dna-border);border-radius:9px;padding:10px;display:grid;gap:8px;font-size:12px">
+              <div><strong>Loan Principal</strong><br><code style="color:var(--dna-prov-const);font-size:14px">$450,000</code></div>
+              <div><strong>Annual Rate</strong><br><code style="color:var(--dna-prov-const);font-size:14px">6.25%</code></div>
+              <div><strong>Term</strong><br>[15y] [20y] <strong>[•30y]</strong></div>
+              <div style="padding:6px;border:2px solid var(--dna-amber);background:var(--dna-amber-tint);border-radius:6px">
+                <strong>Extra Monthly ($B$7)</strong><br>
+                <code style="font-size:14px;font-weight:700">$300 / mo</code> [───●──────]
+              </div>
+            </div>
+            <div style="display:grid;gap:8px">
+              <div style="border:1px solid var(--dna-border);border-radius:9px;padding:8px 10px">
+                <div style="font-size:11px;color:var(--dna-ink-3)">Scheduled PMT [Protected] <span class="callout-num">2</span></div>
+                <div style="font:700 16px var(--dna-mono)">$2,770.74 <small style="color:var(--dna-ink-3)">(+$300 extra)</small></div>
+              </div>
+              <div style="border:1px solid var(--dna-green-500);background:var(--dna-green-tint);border-radius:9px;padding:8px 10px">
+                <div style="font-size:11px;color:var(--dna-green-ink)">Total Interest vs Baseline</div>
+                <div style="font:700 16px var(--dna-mono);color:var(--dna-green-ink)">$392,814.12 <span class="pill ok">▼ -$154,652!</span></div>
+              </div>
+              <div style="border:1px solid var(--dna-green-500);background:var(--dna-green-tint);border-radius:9px;padding:8px 10px">
+                <div style="font-size:11px;color:var(--dna-green-ink)">Actual Payoff Horizon</div>
+                <div style="font:700 16px var(--dna-mono);color:var(--dna-green-ink)">22 yrs 5 mos <span class="pill ok">▼ -91 mos</span></div>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top:8px;font-size:11.5px;color:var(--dna-ink-3)">
+            [▸ Schedule: Annual Rollup (23 yrs) · Toggle All 360 Months] <span class="callout-num">5</span>
+          </div>
+        </div>
+        <div class="pane" style="background:var(--dna-paper-2)">
+          <div class="pane-h">Print Preview · 2 Pages (A4 Vector · Cockpit-Light Paper) <span class="callout-num">3</span></div>
+          <div style="background:#FFFFFF;color:#172226;border:1px solid #8FA5AD;border-radius:6px;padding:10px 12px;font-size:11.5px;margin-bottom:8px">
+            <strong>Page 1 of 2 — Loan Scenario Brief</strong><br>
+            Principal: $450,000 @ 6.25% (30-Yr) · Extra Payment: $300/mo<br>
+            Interest Saved: <strong>$154,652.46</strong> · Payoff: Month 269 (Jul 2049)<br>
+            <span style="color:#5B717B">[Vector Balance &amp; Cumulative Interest Chart + Page 2 Annual Table]</span>
+          </div>
+          <div style="font-size:12px;display:flex;flex-wrap:wrap;gap:10px">
+            <span>[x] Include Baseline Delta</span>
+            <span>[ ] Append all 360 monthly rows (+6 pages) <span class="callout-num">4</span></span>
+          </div>
+        </div>
+      </div>
+      <div class="dna-strip">
+        <span>AUTO · 360 rows in 3 ms · Formulas Write-Protected in App View</span>
+        <span>Print: 2 pages ready · Reading Density</span>
+      </div>
+    </div>
+    <div class="callouts">
+      <ol>
+        <li><b>Zero-Hazard Consumer Stage:</b> Hides raw formula syntax while keeping `[1 Classic]` one keystroke away.</li>
+        <li><b>Formula-Clobber Refusal:</b> Typing on a calculated KPI card offers Goal Seek instead of destroying `-PMT(...)`.</li>
+        <li><b>Daylight Paper Print Preview:</b> Forces high-contrast light paper vector output even in dark theme.</li>
+        <li><b>Explicit Schedule Pagination:</b> Defaults to crisp 2-page brief; 360-row dump is opt-in.</li>
+        <li><b>Non-Destructive Rollup:</b> Summarises `A11:H371` annually without altering Excel rows.</li>
+      </ol>
+    </div>
+  </article>
+
+  <!-- ==================== M-08 ==================== -->
+  <article class="mockup-card" id="m08">
+    <div class="mockup-meta">
+      <h3><span class="mockup-id">M-08</span>Standalone <code>DNA Calc - Formula Explorer</code> — Testing <code>FinKit.xll</code> with Boundary Sweep</h3>
+      <div class="mockup-tags"><span class="tag">Storyboard 2.6a</span><span class="tag">Ade (Add-in Dev)</span><span class="tag">Workbookless Build</span></div>
+    </div>
+    <div class="dna-window">
+      <div class="dna-mast">
+        <span class="dna-file"><span class="bp-dotlong"><i></i><i></i></span> DNA Calc - Formula Explorer <span class="pill tl">No Workbook</span> <span class="callout-num">1</span></span>
+        <span class="pill sig" style="margin-left:auto">◈ FinKit.xll (8 UDFs · Shadow-Loaded ↻)</span>
+        <span class="dna-cmd">Ctrl+Shift+R Hot-Reload</span>
+      </div>
+      <div class="dna-bridge">
+        <div class="dna-addr"><span>Result</span><span class="pill ok">$17,118</span></div>
+        <div class="dna-fx">=IFERROR(FK.SAAS_LTV(arpu, gross_margin, monthly_churn, discount_rate_yr), 0)
+          <span class="sub">Raw IEEE-754: 17118.448129 · 0.04 ms · Thread-Safe XLL · Saved as _xll.FK.SAAS_LTV <span class="callout-num">2</span></span>
+        </div>
+        <div style="padding:0 10px"><span class="pill tl">Copy Formula</span></div>
+      </div>
+      <div class="dna-stage split-3">
+        <div class="pane">
+          <div class="pane-h">Synthetic Inputs</div>
+          <div style="display:grid;gap:6px;font:500 12px var(--dna-mono)">
+            <div>arpu: <strong style="color:var(--dna-prov-const)">$420</strong></div>
+            <div>gross_margin: <strong style="color:var(--dna-prov-const)">82.0%</strong></div>
+            <div>monthly_churn: <strong style="color:var(--dna-prov-const)">1.2%</strong></div>
+            <div>discount_rate: <strong style="color:var(--dna-prov-const)">10.0%</strong></div>
+          </div>
+          <div class="pane-h" style="margin-top:12px">FinKit.xll Exports</div>
+          <div style="font:500 11.5px var(--dna-mono);color:var(--dna-teal-ink)">
+            • <strong>FK.SAAS_LTV</strong><br>• FK.COHORT_IRR<br>• FK.NDR_WATERFALL
+          </div>
+        </div>
+        <div class="pane">
+          <div class="pane-h">Live AST &amp; Sub-Expression Tree</div>
+          <pre style="margin:0;font:500 12px/1.55 var(--dna-mono);color:var(--dna-ink)">▼ IFERROR( ... , 0 ) ──► 17,118.45
+  ├─▼ ◈ FK.SAAS_LTV(...) ──► 17,118.45
+  │   ├─ arpu          = 420
+  │   ├─ gross_margin  = 0.82
+  │   ├─ monthly_churn = 0.012
+  │   └─ discount_rate = 0.10
+  └─ value_if_error    = 0</pre>
+        </div>
+        <div class="pane">
+          <div class="pane-h">Format, Cond-Fmt &amp; Sweep</div>
+          <div style="font-size:12px;display:grid;gap:6px">
+            <div>Fmt <code>"$#,##0"</code> → <strong>$17,118</strong> <span class="callout-num">3</span></div>
+            <div>Rule <code>&lt; 11700 (3×CAC)</code> → <span class="pill ok">False (4.4×)</span> <span class="callout-num">4</span></div>
+            <div style="padding:6px;border:1.5px solid var(--dna-amber);background:var(--dna-amber-tint);border-radius:6px;font-family:var(--dna-mono);font-size:11.5px">
+              <strong>Auto Boundary Probe:</strong> <span class="callout-num">5</span><br>
+              ✓ Base → $17,118<br>
+              ! churn=0 (raw) → #NUM!<br>
+              ✓ IFERROR wrapped → $0
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="dna-strip">
+        <span>STANDALONE · 35 ms cold start · DLL Shadow-Copy unlocked for C++/Rust rebuilds</span>
+        <span>1 Add-in Loaded (FinKit.xll v1.4.2)</span>
+      </div>
+    </div>
+    <div class="callouts">
+      <ol>
+        <li><b>`dot-long` Identity Badge:</b> Unmistakably marks the workbookless standalone binary.</li>
+        <li><b>Precision + Portability Readout:</b> Shows raw float, microseconds, and `.xlsx` `_xll.` prefix mapping.</li>
+        <li><b>Number Format Previewer:</b> Tests format strings live without needing a worksheet cell.</li>
+        <li><b>Conditional Format Tester:</b> Verifies threshold rules directly against UDF output.</li>
+        <li><b>Auto Boundary Probe:</b> Sweeps `0`, negative, array, and `NA()` inputs to catch edge bugs before deployment.</li>
+      </ol>
+    </div>
+  </article>
+
+  <!-- ==================== M-09 ==================== -->
+  <article class="mockup-card" id="m09">
+    <div class="mockup-meta">
+      <h3><span class="mockup-id">M-09</span>Using <code>FK.SAAS_LTV</code> in <code>Budget.xlsx</code> (<code>Summary!C11</code>) — Notched Reference Tokens</h3>
+      <div class="mockup-tags"><span class="tag">Storyboard 2.6b</span><span class="tag">F2 Point Mode</span><span class="tag">Notched Tokens ①②③</span></div>
+    </div>
+    <div class="dna-window">
+      <div class="dna-mast">
+        <span class="dna-file"><span class="bp-twin"><i></i><i></i></span> Budget.xlsx</span>
+        <div class="dna-views"><span class="active">1 Classic</span><span>2 Inspector</span><span>3 Notebook</span><span>4 Model map</span><span>5 App</span></div>
+        <span class="pill sig">◈ FinKit.xll</span>
+      </div>
+      <div class="dna-bridge">
+        <div class="dna-addr"><span>Summary!C11</span><span class="pill amb">F2 Edit</span></div>
+        <div class="dna-fx">=FK.SAAS_LTV(<span class="pill tl">① Inputs!C8</span>, <span class="pill ok">② C6</span>, <span class="pill tl">③ Inputs!C7</span>, 0.10)█ <span class="callout-num">1</span>
+          <span class="sub">◈ Preview: $17,118.45 → "$#,##0" = $17,118 · Cached value travels safely if opened without FinKit.xll <span class="callout-num">2</span></span>
+        </div>
+        <div style="padding:0 10px"><span class="pill ok">Valid</span></div>
+      </div>
+      <div class="dna-stage">
+        <table class="grid-table">
+          <thead><tr><th></th><th>B (KPI Metric)</th><th>C (Base FY27)</th><th>D (Downside)</th><th>E (Notes)</th></tr></thead>
+          <tbody>
+            <tr><td class="rn">6</td><td>Gross Margin (%)</td><td class="num ref2">② 82.0% <span class="callout-num">3</span></td><td class="num">79.5%</td><td>Target &gt; 78%</td></tr>
+            <tr><td class="rn">8</td><td>Operating EBITDA</td><td class="num">$146,952</td><td class="num">($612,400)</td><td>+2.1% margin</td></tr>
+            <tr><td class="rn">9</td><td>Blended CAC</td><td class="num">$3,900</td><td class="num">$4,250</td><td>S&amp;M / New Logos</td></tr>
+            <tr><td class="rn">11</td><td><strong>Cohort LTV (10% disc)</strong></td><td class="ext sel">◈ $17,118 <span class="callout-num">4</span></td><td class="ext">◈ $11,042</td><td>LTV:CAC = 4.4×</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="dna-tabs">
+        <span class="pill tl">Inputs [① $420 · ③ 1.2%]</span><span>Monthly</span><span class="on">Summary* [②]</span><span class="callout-num">5</span>
+      </div>
+      <div class="dna-strip">
+        <span>POINT/EDIT (F2 cycles) · Live Preview: $17,118</span>
+        <span>◈ 1 Add-in UDF · Portable cached value stored</span>
+      </div>
+    </div>
+    <div class="callouts">
+      <ol>
+        <li><b>Notched Reference Pills (`①②③`):</b> Pairs formula tokens to cells via cool tones + numbered shapes.</li>
+        <li><b>Pre-Commit Preview Seam:</b> Shows evaluated `$17,118` and `.xlsx` portability note before hitting `Enter`.</li>
+        <li><b>Matching Sheet Highlight (`②`):</b> Dashed outline on `C6` matches token `②`.</li>
+        <li><b>Add-in Provenance (`◈`):</b> Flags `C11` as external XLL-backed.</li>
+        <li><b>Sheet-Tab Precedent Peek:</b> Shows off-sheet values `[① $420 · ③ 1.2%]` directly on the `Inputs` tab!</li>
+      </ol>
+    </div>
+  </article>
+
+  <!-- ==================== M-10 ==================== -->
+  <article class="mockup-card" id="m10">
+    <div class="mockup-meta">
+      <h3><span class="mockup-id">M-10</span>Agent Proposes 3-Hunk Change-Set on <code>Budget.xlsx</code> — Catching Side-Effect Before Commit</h3>
+      <div class="mockup-tags"><span class="tag">Storyboard 2.7a</span><span class="tag">Maria + AI Agent</span><span class="tag">Staged Overlay</span></div>
+    </div>
+    <div class="dna-window">
+      <div class="dna-mast">
+        <span class="dna-file"><span class="bp-twin"><i></i><i></i></span> Budget.xlsx <span class="pill ok">Δ Agent #4: 3 Hunks</span></span>
+        <div class="dna-views"><span class="active">1 Classic</span><span>2 Inspector</span><span>3 Notebook</span><span>4 Model map</span><span>5 App</span></div>
+        <span class="dna-cmd">Ctrl+J Agent</span>
+      </div>
+      <div class="dna-banner agent">
+        <strong>Δ PROPOSAL #4:</strong> "Downside Q3 R&amp;D freeze, 2.8% churn &amp; $140k S&amp;M cap"
+        <span class="pill amb">⚠ Base EBITDA: $146,952 → $412,056 (+$265k unintended!)</span>
+        <span class="pill ok">Downside: ($612k) → ($389k)</span> <span class="callout-num">1</span>
+      </div>
+      <div class="dna-stage split-2">
+        <div class="pane">
+          <div class="pane-h">Staged Diff on Monthly!I16:O20 (Hatched = Uncommitted Ghost)</div>
+          <table class="grid-table">
+            <thead><tr><th>Row</th><th>Line Item</th><th>Jul-27 (I)</th><th>Aug-27 (J)</th><th>FY27 (O)</th></tr></thead>
+            <tbody>
+              <tr><td class="rn">17</td><td>R&amp;D Payroll (Hunk 1)</td><td class="num ghost">$171,360</td><td class="num ghost">$171,360</td><td class="num">$2,056,320</td></tr>
+              <tr><td class="rn">18</td><td><strong>S&amp;M Spend (Hunk 3)</strong></td><td class="num ghost sel">$140,000</td><td class="num ghost">$140,000</td><td class="num ghost">$1,680,000</td></tr>
+              <tr><td class="rn">20</td><td>Operating EBITDA</td><td class="num ghost">$38,132</td><td class="num ghost">$42,795</td><td class="num ghost">$412,056</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pane">
+          <div class="pane-h">Hunk Review Rail (J/K navigate · A accept · R reject)</div>
+          <div style="display:grid;gap:8px;font-size:12px">
+            <div style="padding:7px;border:1px solid var(--dna-green-500);background:var(--dna-green-tint);border-radius:7px">
+              <strong>[✓ Accepted] Hunk 1 · Monthly!I17:N17 (6 R1C1 cells)</strong> <span class="callout-num">2</span><br>
+              <code>=IF(Inputs!$C$2="Downside", H17, ...)</code>
+            </div>
+            <div style="padding:7px;border:1px solid var(--dna-green-500);background:var(--dna-green-tint);border-radius:7px">
+              <strong>[✓ Accepted] Hunk 2 · Inputs!D7 (1 cell)</strong><br>
+              Downside Monthly Churn: <code>2.4% → 2.8%</code>
+            </div>
+            <div style="padding:8px;border:2px solid var(--dna-amber);background:var(--dna-amber-tint);border-radius:7px">
+              <strong>[✗ Reject*] Hunk 3 · Monthly!C18:N18 (12 R1C1 cells)</strong> <span class="callout-num">3</span><br>
+              <code>=MIN(140000, C11*Inputs!C14)</code> — <em>unconditional cap shifts Base Case!</em><br>
+              <span class="pill ok">A: Accept</span> <span class="pill err">R: Reject*</span> <span class="callout-num">4</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="dna-strip">
+        <span>REVIEW SEAM · Workbook untouched until committed <span class="callout-num">5</span></span>
+        <span>[Enter: Commit 2 Accepted &amp; Drop 1] · [Esc: Discard All]</span>
+      </div>
+    </div>
+    <div class="callouts">
+      <ol>
+        <li><b>Automatic KPI Impact Diff:</b> Immediately flags that `Base EBITDA` moved `+$265k` before commit.</li>
+        <li><b>R1C1 Formula-Run Hunks:</b> Collapses 6 identical column edits (`I17:N17`) into 1 reviewable hunk.</li>
+        <li><b>Bug Attribution:</b> Pinpoints Hunk 3's unconditional `MIN(140000,...)` as the culprit.</li>
+        <li><b>Single-Key Triage (`A`/`R`):</b> Fast keyboard review without touching the mouse.</li>
+        <li><b>Copy-on-Write Isolation:</b> Live sheet is clean until Maria commits.</li>
+      </ol>
+    </div>
+  </article>
+
+  <!-- ==================== M-11 ==================== -->
+  <article class="mockup-card" id="m11">
+    <div class="mockup-meta">
+      <h3><span class="mockup-id">M-11</span>Granular Hunk Undo &amp; Provenance Stack on <code>Budget.xlsx</code> After Partial Revert</h3>
+      <div class="mockup-tags"><span class="tag">Storyboard 2.7b</span><span class="tag">Ctrl+Z Granularity</span><span class="tag">Audit Trail</span></div>
+    </div>
+    <div class="dna-window">
+      <div class="dna-mast">
+        <span class="dna-file"><span class="bp-twin"><i></i><i></i></span> Budget.xlsx</span>
+        <div class="dna-views"><span class="active">1 Classic</span><span>2 Inspector</span><span>3 Notebook</span><span>4 Model map</span><span>5 App</span></div>
+        <span class="pill tl">↺ Undo History Open</span>
+      </div>
+      <div class="dna-stage split-2">
+        <div class="pane">
+          <div class="pane-h">Inputs!B6:D9 (After Single Ctrl+Z Reverted Hunk 2)</div>
+          <table class="grid-table">
+            <thead><tr><th>Row</th><th>Assumption</th><th>C (Base)</th><th>D (Downside)</th></tr></thead>
+            <tbody>
+              <tr><td class="rn">6</td><td>Monthly Logo Growth</td><td class="const">3.5%</td><td class="const">1.5%</td></tr>
+              <tr><td class="rn">7</td><td><strong>Monthly Churn</strong></td><td class="const">1.2%</td><td class="const sel">2.4%</td></tr>
+              <tr><td class="rn">8</td><td>ARPU ($/mo)</td><td class="const">$420</td><td class="const">$380</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pane">
+          <div class="pane-h">Workbook Undo &amp; Provenance Stack (Ctrl+Shift+Z)</div>
+          <div style="font:500 12px/1.5 var(--dna-mono);display:grid;gap:6px">
+            <div style="color:var(--dna-ink-3)">↷ [Redo Ctrl+Y] [M] Agent #4 · Hunk 2: Inputs!D7 (2.4%→2.8%) <span class="callout-num">1</span></div>
+            <div style="padding:6px;background:var(--dna-teal-tint);border-left:3px solid var(--dna-teal-600)">
+              ● <strong>[Current] [M] Agent #4 · Hunk 1 (Kept)</strong> <span class="callout-num">2</span><br>
+              Monthly!I17:N17 (6 cells): Downside Q3 R&amp;D freeze<br>
+              <small>Prompt: "In Downside, freeze R&amp;D hiring..." (1 hunk rejected)</small> <span class="callout-num">3</span>
+            </div>
+            <div>○ [V] Maria · Summary!C8 Notebook prose block</div>
+            <div>○ [M] Ade · Summary!C11 =FK.SAAS_LTV(...)</div>
+          </div>
+        </div>
+      </div>
+      <div class="dna-strip">
+        <span>AUTO · 3 ms · Base EBITDA: $146,952 · Downside: ($464,120)</span>
+        <span>[M] Model &amp; [V] View actions unified</span>
+      </div>
+    </div>
+    <div class="callouts">
+      <ol>
+        <li><b>Hunk-Atomic Undo:</b> One `Ctrl+Z` reverts Hunk 2 (`Inputs!D7`) while preserving Hunk 1; `Ctrl+Y` redoes it.</li>
+        <li><b>Kept Agent Edit:</b> Hunk 1 remains live and marked with `[M]` model tag.</li>
+        <li><b>Permanent Session Trace:</b> Logs prompt context and rejected-hunk count without touching Excel cells.</li>
+      </ol>
+    </div>
+  </article>
+
+  <div class="section-banner">
+    <h2>Section 4 — Full-Screen View &amp; Tool Reference Mockups (M-12 to M-18)</h2>
+    <p>Canonical reference screens for Classic, Inspector, Notebook, Model Map, App, Docked Formula Explorer, and Standalone DNA Calc - Formula Explorer.</p>
+  </div>
+
+  <!-- ==================== M-12 ==================== -->
+  <article class="mockup-card" id="m12">
+    <div class="mockup-meta">
+      <h3><span class="mockup-id">M-12</span>Classic View Reference — <code>Budget.xlsx</code> Mid-Formula Cross-Sheet Range Picking</h3>
+      <div class="mockup-tags"><span class="tag">Section 4.1</span><span class="tag">Ctrl+1</span><span class="tag">100% Excel Muscle Memory</span></div>
+    </div>
+    <div class="dna-window">
+      <div class="dna-mast">
+        <span class="dna-file"><span class="bp-twin"><i></i><i></i></span> Budget.xlsx <span class="callout-num">1</span></span>
+        <div class="dna-views"><span class="active">1 Classic</span><span>2 Inspector</span><span>3 Notebook</span><span>4 Model map</span><span>5 App</span></div>
+        <span class="dna-cmd">Ctrl+K</span>
+      </div>
+      <div class="dna-banner" style="background:var(--dna-paper-3);color:var(--dna-ink)">
+        <span><strong>[Alt]</strong> File · Home · Insert · Format · Data · Audit <span class="callout-num">2</span></span>
+        <span style="margin-left:auto"><span class="pill tl">$#,##0</span> <span class="pill tl">%</span> <span class="pill ok">Provenance Tints: ON</span></span>
+      </div>
+      <div class="dna-bridge">
+        <div class="dna-addr"><span>Monthly!C11</span><span class="pill amb">Point F2</span></div>
+        <div class="dna-fx">=<span class="pill tl">① C7</span> * <span class="pill ok">② Inputs!$C$8</span>█ <span class="callout-num">3</span>
+          <span class="sub">Lens: Ending_Customers[Jan-27] × ARPU ──► Preview: $515,760</span>
+        </div>
+        <div style="padding:0 10px"><span class="pill tl">Alt+L Lens</span></div>
+      </div>
+      <div class="dna-stage">
+        <table class="grid-table">
+          <thead><tr><th></th><th>B (Cohort &amp; Revenue)</th><th>C (Jan-27)</th><th>D (Feb-27)</th><th>E (Mar-27)</th><th>O (FY27 Total)</th></tr></thead>
+          <tbody>
+            <tr><td class="rn">4</td><td>Opening Customers</td><td class="const">c 1,200 <span class="callout-num">4</span></td><td class="num">1,228</td><td class="num">1,256</td><td class="num">1,200</td></tr>
+            <tr><td class="rn">7</td><td>Ending Customers</td><td class="num ref1">① 1,228 <span class="callout-num">5</span></td><td class="num">1,256</td><td class="num">1,285</td><td class="num">1,542</td></tr>
+            <tr><td class="rn">11</td><td><strong>Subscription Revenue</strong></td><td class="num sel">$515,760 <span class="callout-num">6</span></td><td class="num">$527,520</td><td class="num">$539,700</td><td class="num">$6,946,800</td></tr>
+            <tr><td class="rn">13</td><td>Cloud COGS (18.0%)</td><td class="num">$92,837</td><td class="num">$94,954</td><td class="num">$97,146</td><td class="num">$1,250,424</td></tr>
+            <tr><td class="rn">14</td><td>Gross Profit</td><td class="num">$422,923</td><td class="num">$432,566</td><td class="num">$442,554</td><td class="num">$5,696,376</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="dna-tabs">
+        <span class="pill ok">Inputs [② $420]</span><span class="on">Monthly* [①]</span><span>Summary</span><span class="callout-num">7</span>
+      </div>
+      <div class="dna-strip">
+        <span>POINT (F2→Edit · F4→$ lock) · Preview: $515,760 <span class="callout-num">8</span></span>
+        <span>Working Density · Zoom 100%</span>
+      </div>
+    </div>
+    <div class="callouts">
+      <ol>
+        <li><b>Consistent Flight-Deck Mast:</b> Zero visual jump when switching views.</li>
+        <li><b>30px Command Strip:</b> Replaces tall Ribbon; supports `Alt` key-tips + classic Excel chords.</li>
+        <li><b>Live Point-Mode Preview:</b> Evaluates `$515,760` while picking ranges.</li>
+        <li><b>Constant Provenance (`c`):</b> Distinguishes seed constant `C4` from formula `D4:E4`.</li>
+        <li><b>Notched Range Frame (`①`):</b> Matches `[① C7]` in the Formula Bar.</li>
+        <li><b>Fill-Handle Ready:</b> `Ctrl+Enter` or double-click fills across `C11:N11`.</li>
+        <li><b>Off-Sheet Value Peek:</b> Displays `[② $420]` directly on the `Inputs` tab.</li>
+        <li><b>Sub-Mode Clarity:</b> Explicitly announces `POINT` vs `EDIT` vs `ENTER`.</li>
+      </ol>
+    </div>
+  </article>
+
+  <!-- ==================== M-13 ==================== -->
+  <article class="mockup-card" id="m13">
+    <div class="mockup-meta">
+      <h3><span class="mockup-id">M-13</span>Inspector View Reference — <code>Inherited.xlsm</code> Phyphox-Style Multi-Probe Diagnostic Bench</h3>
+      <div class="mockup-tags"><span class="tag">Section 4.2</span><span class="tag">Ctrl+2</span><span class="tag">304,812 Formulas Profiled</span></div>
+    </div>
+    <div class="dna-window">
+      <div class="dna-mast">
+        <span class="dna-file"><span class="bp-twin"><i></i><i></i></span> Inherited.xlsm</span>
+        <div class="dna-views"><span>1 Classic</span><span class="active">2 Inspector</span><span>3 Notebook</span><span>4 Model map</span><span>5 App</span></div>
+        <span class="dna-cmd">Ctrl+K</span>
+      </div>
+      <div class="dna-bridge">
+        <div class="dna-addr"><span>Gas_Daily_2001!AT142</span><span class="pill err">Root #1</span></div>
+        <div class="dna-fx">=AR142 / AS142 ──► [! #DIV/0!] (Cascades to 390 downstream cells incl. Summary_P&amp;L!F19) <span class="callout-num">1</span></div>
+        <div style="padding:0 10px"><span class="pill tl">Enter → Classic</span></div>
+      </div>
+      <div class="dna-stage split-2">
+        <div class="pane">
+          <div class="pane-h">1. Topological Calc Chain &amp; Stage Cost (412 ms) <span class="callout-num">2</span></div>
+          <div style="font:500 12px/1.6 var(--dna-mono)">
+            Stage 0 · Inputs &amp; 2 Held Ext Links: <strong>0.4 ms</strong><br>
+            Stage 1 · Ref_Hubs + 6 OFFSET names ◈: <strong style="color:var(--dna-prov-ext)">18.6 ms</strong><br>
+            Stage 2 · Gas_Daily_2001 (248k fmls): <strong style="color:var(--dna-amber-ink)">364.0 ms (88%)</strong><br>
+            Stage 3 · Transport_West (19k fmls): <strong>21.2 ms</strong><br>
+            Stage 4 · Summary_P&amp;L (4.1k fmls): <strong>7.8 ms</strong>
+          </div>
+          <div class="pane-h" style="margin-top:10px">3. External, Volatile &amp; Macro Inventory</div>
+          <div style="font:500 11.5px/1.5 var(--dna-mono);color:var(--dna-prov-ext)">
+            ◈ NYMEX_Settle_2001_10.xls [Missing · Cached Held]<br>
+            ◈ BasisAdj_v4_FINAL2.xls [Missing · Cached Held]<br>
+            ⚙ VBA Module1 (3 subs) [Quarantined]
+          </div>
+        </div>
+        <div class="pane">
+          <div class="pane-h">2. Root-Cause &amp; Hygiene Radar <span class="callout-num">3</span></div>
+          <div style="font-size:12px;display:grid;gap:6px">
+            <div style="padding:6px 8px;background:var(--dna-red-tint);color:var(--dna-red-ink);border-radius:6px;font-family:var(--dna-mono)">
+              • <strong>Gas_Daily_2001!AT142 (#DIV/0!)</strong> → 390 cells<br>
+              • Transport_West!H88 (#REF!) → 25 cells<br>
+              • Summary_P&amp;L!D31 (#N/A) → 5 cells
+            </div>
+            <div style="padding:6px 8px;background:var(--dna-amber-tint);color:var(--dna-amber-ink);border-radius:6px;font-family:var(--dna-mono)">
+              ⚠ 47 hardcoded overrides inside formula columns (AW412, AW419…)<br>
+              ⚠ 6 volatile OFFSET names dirty 184,220 cells/recalc<br>
+              ⚠ 9 Hidden sheets (2 xlSheetVeryHidden)
+            </div>
+          </div>
+          <div class="pane-h" style="margin-top:10px">4. Zero-Switch Inline Cell Peek (Row 142) <span class="callout-num">4</span></div>
+          <div style="font:500 12px var(--dna-mono);padding:6px;border:1px solid var(--dna-border);border-radius:6px">
+            AR142 = $184,200 │ <span style="color:var(--dna-prov-const)">AS142 = 0 (Const!)</span> │ <span style="color:var(--dna-red-ink);font-weight:700">AT142 = [! #DIV/0!]</span>
+          </div>
+        </div>
+      </div>
+      <div class="dna-strip">
+        <span>AUTO · Profiled 304,812 fmls (412 ms)</span>
+        <span>[!] 3 Roots · 47 Formula Overrides · 9 Hidden Sheets</span>
+      </div>
+    </div>
+    <div class="callouts">
+      <ol>
+        <li><b>Root-Cause Header:</b> Pinpoints `AT142` and quantifies its 390-cell blast radius.</li>
+        <li><b>Stage Timing Profiler:</b> Shows `Gas_Daily_2001` consumes 88% of calc time due to upstream `OFFSET`.</li>
+        <li><b>Hygiene Scanner:</b> Spots hardcoded overrides inside uniform formula runs alongside `VeryHidden` sheets.</li>
+        <li><b>Inline Neighborhood Peek:</b> Confirms `AS142 = 0` without leaving Inspector.</li>
+      </ol>
+    </div>
+  </article>
+
+  <!-- ==================== M-14 ==================== -->
+  <article class="mockup-card" id="m14">
+    <div class="mockup-meta">
+      <h3><span class="mockup-id">M-14</span>Notebook View Reference — <code>Budget.xlsx</code> in Horizontal Pipeline Flow (<code>→ Pipeline</code>)</h3>
+      <div class="mockup-tags"><span class="tag">Section 4.3</span><span class="tag">Ctrl+3</span><span class="tag">Pluto-Style Live Reactivity</span></div>
+    </div>
+    <div class="dna-window">
+      <div class="dna-mast">
+        <span class="dna-file"><span class="bp-twin"><i></i><i></i></span> Budget.xlsx</span>
+        <div class="dna-views"><span>1 Classic</span><span>2 Inspector</span><span class="active">3 Notebook</span><span>4 Model map</span><span>5 App</span></div>
+        <span class="dna-cmd">Flow: → Pipeline* <span class="callout-num">1</span></span>
+      </div>
+      <div class="dna-stage" style="padding:14px">
+        <div class="nb-prose" style="margin-bottom:12px">
+          <strong>FY27 Revenue-to-EBITDA Pipeline:</strong> Customer base compounds at <span class="nb-chip">3.5%/mo</span> net of <span class="nb-chip">1.2%</span> churn, crossing monthly breakeven in May. <span class="callout-num">2</span>
+        </div>
+        <div class="split-3" style="min-height:170px;border:1px solid var(--dna-border);border-radius:9px">
+          <div class="pane">
+            <div class="pane-h">Stage 1: Inputs ──► <span class="callout-num">3</span></div>
+            <div style="font:500 12px/1.6 var(--dna-mono)">
+              Scenario: <strong>[Base Case ▾]</strong><br>
+              Start Cust: <span style="color:var(--dna-prov-const)">1,200</span><br>
+              Logo Growth: <span style="color:var(--dna-prov-const)">3.5%</span><br>
+              Churn: <span style="color:var(--dna-prov-const)">1.2%</span><br>
+              ARPU: <span style="color:var(--dna-prov-const)">$420</span>
+            </div>
+          </div>
+          <div class="pane">
+            <div class="pane-h">Stage 2: Monthly Engine (C:N) ──►</div>
+            <table class="grid-table">
+              <thead><tr><th>Line</th><th>Jan-27</th><th>Dec-27</th></tr></thead>
+              <tbody>
+                <tr><td>End Cust</td><td class="num">1,228</td><td class="num">1,542</td></tr>
+                <tr><td>Revenue</td><td class="num">$515.8k</td><td class="num">$647.6k</td></tr>
+                <tr><td>EBITDA</td><td class="num">($4.2k)</td><td class="num">$34.9k</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="pane">
+            <div class="pane-h">Stage 3: FY27 Summary KPIs</div>
+            <div style="font:600 12.5px/1.6 var(--dna-mono)">
+              <span style="background:var(--dna-amber-tint);padding:2px 5px;border:1.5px solid var(--dna-amber);border-radius:4px">FY27 Rev: $6,946,800</span><br>
+              Gross Margin: 82.0%<br>
+              Oper. EBITDA: $146,952<br>
+              <span style="color:var(--dna-prov-ext)">◈ Cohort LTV: $17,118</span> <span class="callout-num">4</span><br>
+              <span style="color:var(--dna-teal-ink)">[▁▂▃▄▅▆▇█ Inline Chart]</span> <span class="callout-num">5</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="dna-strip">
+        <span>AUTO · Live reactivity (4 ms) · 3 Pipeline Stages</span>
+        <span>Inputs ──► Monthly* ──► Summary</span>
+      </div>
+    </div>
+    <div class="callouts">
+      <ol>
+        <li><b>Pipeline Mode (`→`):</b> Lays out cross-sheet flows left-to-right instead of burying them under tabs.</li>
+        <li><b>Live Narrative Header:</b> Prose `@chips` update immediately on any assumption edit.</li>
+        <li><b>Real Precedent Connectors:</b> Stages link along actual workbook dependency edges.</li>
+        <li><b>UDF Continuity:</b> Displays Ade's `◈ Cohort LTV` (`$17,118`) seamlessly.</li>
+        <li><b>Inline Native Chart:</b> Embeds the workbook's `Revenue vs EBITDA` chart inside Stage 3.</li>
+      </ol>
+    </div>
+  </article>
+
+  <!-- ==================== M-15 ==================== -->
+  <article class="mockup-card" id="m15">
+    <div class="mockup-meta">
+      <h3><span class="mockup-id">M-15</span>Model Map View Reference — <code>Stock.xlsx</code> with <code>IFS</code> Modal States &amp; History Strip</h3>
+      <div class="mockup-tags"><span class="tag">Section 4.4</span><span class="tag">Ctrl+4</span><span class="tag">Directors + Modal IFS</span></div>
+    </div>
+    <div class="dna-window">
+      <div class="dna-mast">
+        <span class="dna-file"><span class="bp-twin"><i></i><i></i></span> Stock.xlsx</span>
+        <div class="dna-views"><span>1 Classic</span><span>2 Inspector</span><span>3 Notebook</span><span class="active">4 Model map</span><span>5 App</span></div>
+        <span class="dna-cmd">Crumb: Stock › Inventory_Model <span class="callout-num">2</span></span>
+      </div>
+      <div class="dna-bridge">
+        <div class="dna-addr"><span>Store.Mode</span><span class="pill amb">"Reorder"</span></div>
+        <div class="dna-fx">Lens: Lost &gt; 0 ? "Stockout" : (OrderPlaced &gt; 0 ? "Reorder" : "Normal") <span class="callout-num">1</span>
+          <span class="sub">Excel: =IFS(Stock.Lost&gt;0,"Stockout", Policy.OrderPlaced&gt;0,"Reorder", TRUE,"Normal")</span>
+        </div>
+        <div style="padding:0 10px"><span class="pill tl">Director: Ticks</span></div>
+      </div>
+      <div class="dna-stage">
+        <svg class="map-svg" viewBox="0 0 880 215" role="img" aria-label="Model map reference with IFS state machine">
+          <rect x="20" y="24" width="210" height="72" rx="9" fill="var(--dna-paper)" stroke="var(--dna-teal-600)" stroke-width="1.8"/>
+          <text x="32" y="45" font-family="monospace" font-weight="bold" font-size="12" fill="var(--dna-ink)">Stock.OnHand [z⁻¹]</text>
+          <text x="32" y="68" font-family="monospace" font-weight="bold" font-size="16" fill="var(--dna-ink)">340 units</text>
+          <text x="32" y="85" font-family="monospace" font-size="10.5" fill="var(--dna-ink-3)">OnHand⁻ + Inflow − Outflow</text>
+
+          <rect x="280" y="24" width="250" height="72" rx="9" fill="var(--dna-paper)" stroke="var(--dna-border-strong)" stroke-width="1.5"/>
+          <text x="292" y="45" font-family="monospace" font-weight="bold" font-size="12" fill="var(--dna-ink)">Policy.ReorderPoint (4)</text>
+          <text x="480" y="45" font-family="monospace" font-weight="bold" font-size="13" fill="var(--dna-prov-const)">280</text>
+          <line x1="294" y1="68" x2="510" y2="68" stroke="var(--dna-border-strong)" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="395" cy="68" r="7" fill="var(--dna-teal-600)"/>
+
+          <rect x="575" y="20" width="285" height="92" rx="9" fill="var(--dna-amber-tint)" stroke="var(--dna-amber)" stroke-width="2.4"/>
+          <text x="588" y="40" font-family="monospace" font-weight="bold" font-size="12" fill="var(--dna-ink)">Store.Mode (Modal IFS) (3)</text>
+          <circle cx="625" cy="72" r="14" fill="var(--dna-paper)" stroke="var(--dna-border-strong)" stroke-width="1.5"/>
+          <text x="625" y="98" text-anchor="middle" font-family="monospace" font-size="10" fill="var(--dna-ink-3)">Normal</text>
+          <circle cx="715" cy="72" r="15" fill="var(--dna-amber)" stroke="var(--dna-ink)" stroke-width="2"/>
+          <text x="715" y="98" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="10.5" fill="var(--dna-ink)">•Reorder*</text>
+          <circle cx="805" cy="72" r="14" fill="var(--dna-paper)" stroke="var(--dna-red)" stroke-width="1.5"/>
+          <text x="805" y="98" text-anchor="middle" font-family="monospace" font-size="10" fill="var(--dna-red-ink)">Stockout</text>
+          <path d="M640,70 L698,70" stroke="var(--dna-ink)" stroke-width="1.4"/>
+          <path d="M731,70 L790,70" stroke="var(--dna-ink)" stroke-width="1.4"/>
+
+          <!-- History Strip inside SVG -->
+          <rect x="20" y="132" width="840" height="64" rx="8" fill="var(--dna-paper)" stroke="var(--dna-border)"/>
+          <text x="34" y="152" font-family="monospace" font-weight="bold" font-size="11" fill="var(--dna-ink-3)">TRANSIENT TICK HISTORY (Last 20 Ticks · OnHand ─── · Order ●) (5)</text>
+          <path d="M40,182 L120,160 L200,175 L280,185 L360,152 L440,165 L520,178 L600,188 L680,154 L760,168 L830,176" fill="none" stroke="var(--dna-teal-600)" stroke-width="2.2"/>
+          <circle cx="280" cy="185" r="4" fill="var(--dna-amber)"/>
+          <circle cx="600" cy="188" r="4" fill="var(--dna-amber)"/>
+        </svg>
+      </div>
+      <div class="dna-strip">
+        <span>ITER (Max 1 · Δ 0.001) · 2 [z⁻¹] delays · 1 Modal IFS</span>
+        <span>Semantic Zoom: 100% (Actor LOD)</span>
+      </div>
+    </div>
+    <div class="callouts">
+      <ol>
+        <li><b>Short-Name Boolean Lens:</b> Presents `=IFS(...)` cleanly while preserving exact Excel syntax.</li>
+        <li><b>Hierarchy Crumb + Director:</b> Scales cleanly from multi-sheet districts down to actors.</li>
+        <li><b>`IFS` Modal Diagram:</b> Automatically visualises discrete mode strings (`Normal` / `Reorder` / `Stockout`) from the AST.</li>
+        <li><b>Form Control Port:</b> Interactive slider directly inside `Policy.ReorderPoint`.</li>
+        <li><b>Transient Tick Plotter:</b> Visualises observed recalculation history without polluting workbook cells.</li>
+      </ol>
+    </div>
+  </article>
+
+  <!-- ==================== M-16 ==================== -->
+  <article class="mockup-card" id="m16">
+    <div class="mockup-meta">
+      <h3><span class="mockup-id">M-16</span>App View Reference — <code>Loan.xlsx</code> Published Borrower Application</h3>
+      <div class="mockup-tags"><span class="tag">Section 4.5</span><span class="tag">Ctrl+5</span><span class="tag">Protected Consumer UI</span></div>
+    </div>
+    <div class="dna-window">
+      <div class="dna-mast">
+        <span class="dna-file"><span class="bp-twin"><i></i><i></i></span> Loan.xlsx</span>
+        <div class="dna-views"><span>1 Classic</span><span>2 Inspector</span><span>3 Notebook</span><span>4 Model map</span><span class="active">5 App</span></div>
+        <span class="dna-cmd">Baseline Pinned · Share <span class="callout-num">1</span></span>
+      </div>
+      <div class="dna-stage split-2">
+        <div class="pane">
+          <div class="pane-h">Borrower Assumptions (4 Editable Inputs)</div>
+          <div style="display:grid;gap:9px;font-size:12.5px">
+            <div>Loan Principal (<code>$B$4</code>): <strong style="color:var(--dna-prov-const)">$450,000</strong> [────●────────]</div>
+            <div>Annual Rate (<code>$B$5</code>): <strong style="color:var(--dna-prov-const)">6.25%</strong> [-][+]</div>
+            <div>Term (<code>$B$6</code>): [15 yr] [20 yr] <strong>[• 30 yr]</strong></div>
+            <div style="padding:7px;border:2px solid var(--dna-amber);background:var(--dna-amber-tint);border-radius:7px">
+              <strong>Extra Monthly Payment (<code>$B$7</code>): $300</strong> [───●──────────]
+            </div>
+          </div>
+        </div>
+        <div class="pane">
+          <div class="pane-h">Protected Outcomes &amp; Dual-Curve Chart <span class="callout-num">2</span></div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;font-family:var(--dna-mono);font-size:12px">
+            <div style="padding:7px;border:1px solid var(--dna-border);border-radius:7px">Outflow<br><strong>$3,070.74</strong><br><small>▲ +$300/mo</small></div>
+            <div style="padding:7px;border:1px solid var(--dna-green-500);background:var(--dna-green-tint);border-radius:7px;color:var(--dna-green-ink)">Total Interest<br><strong>$392,814</strong><br><small>▼ -$154,652 ✓</small></div>
+            <div style="padding:7px;border:1px solid var(--dna-green-500);background:var(--dna-green-tint);border-radius:7px;color:var(--dna-green-ink)">Payoff<br><strong>22y 5m</strong><br><small>▼ -91 mos ✓</small></div>
+          </div>
+          <svg class="map-svg" viewBox="0 0 460 86" style="border-radius:7px;border:1px solid var(--dna-border);margin-bottom:8px">
+            <path d="M20,14 Q230,36 440,76" fill="none" stroke="var(--dna-ink-3)" stroke-width="1.6" stroke-dasharray="4 4"/>
+            <path d="M20,14 Q175,34 335,76" fill="none" stroke="var(--dna-teal-600)" stroke-width="2.5"/>
+            <text x="275" y="26" font-family="monospace" font-size="10.5" fill="var(--dna-ink-3)">Dotted: Base 360m (3)</text>
+            <text x="195" y="68" font-family="monospace" font-weight="bold" font-size="10.5" fill="var(--dna-teal-ink)">Solid: +$300 Extra (269m)</text>
+          </svg>
+          <div style="font:500 11.5px var(--dna-mono);color:var(--dna-ink-2)">
+            Schedule [Annual Rollup* | All 360 Months]: Yr 1 End Bal $441,066 · Yr 2 $431,557… <span class="callout-num">4</span>
+          </div>
+        </div>
+      </div>
+      <div class="dna-strip">
+        <span>AUTO · 3 ms · Formulas Write-Protected</span>
+        <span>Reading Density · Preferred View: App</span>
+      </div>
+    </div>
+    <div class="callouts">
+      <ol>
+        <li><b>Zero-Grid Header:</b> Clean consumer chrome with instant `[Reset Inputs]` and `[Pin Baseline]`.</li>
+        <li><b>Non-Color Delta Arrows (`▼ ✓`):</b> Accessibility-safe positive/negative indicators.</li>
+        <li><b>Baseline Curve Overlay:</b> Compares `360m` vs `269m` payoff visually.</li>
+        <li><b>Annual Rollup Default:</b> Keeps 360 rows manageable without deleting monthly detail.</li>
+      </ol>
+    </div>
+  </article>
+
+  <!-- ==================== M-17 ==================== -->
+  <article class="mockup-card" id="m17">
+    <div class="mockup-meta">
+      <h3><span class="mockup-id">M-17</span>Formula Explorer (Docked In-Workbook Tool) — Inspecting <code>Sales.xlsx</code> <code>Report!B14#</code></h3>
+      <div class="mockup-tags"><span class="tag">Section 4.6a</span><span class="tag">Ctrl+Shift+E</span><span class="tag">Sandbox What-If</span></div>
+    </div>
+    <div class="dna-window">
+      <div class="dna-mast">
+        <span class="dna-file"><span class="bp-twin"><i></i><i></i></span> Sales.xlsx</span>
+        <div class="dna-views"><span class="active">1 Classic</span><span>2 Inspector</span><span>3 Notebook</span><span>4 Model map</span><span>5 App</span></div>
+        <span class="pill amb">Explorer Open*</span>
+      </div>
+      <div class="dna-stage">
+        <table class="grid-table">
+          <tbody>
+            <tr><td class="rn">14</td><td><strong>Top Enterprise Deals (&gt;=$50k)</strong></td><td class="num sel">ORD-24819</td><td>West</td><td class="num">$84,200 (Spill B14:E21 · 8 rows)</td></tr>
+          </tbody>
+        </table>
+        <div style="border-top:2.5px solid var(--dna-petrol-800);background:var(--dna-paper-2);padding:6px 12px;font:650 11.5px var(--dna-mono);display:flex;justify-content:space-between">
+          <span>FORMULA EXPLORER — Seeded from Report!B14 (Sandbox: Sheet Untouched) <span class="callout-num">1</span></span>
+          <span>[Apply Ctrl+Enter] [Esc Close]</span>
+        </div>
+        <div class="split-3" style="min-height:175px">
+          <div class="pane">
+            <div class="pane-h">Seeded Workbook Inputs</div>
+            <div style="font:500 11.5px/1.55 var(--dna-mono)">
+              Orders[[OrderID]:[NetAmt]]<br>└─ 25,000 × 9 rows<br><br>
+              F12 (Min_Threshold): $50,000<br>
+              <span class="pill amb">Sandbox Try: $75,000</span> <span class="callout-num">2</span>
+            </div>
+          </div>
+          <div class="pane">
+            <div class="pane-h">Live AST Sub-Expression Values</div>
+            <pre style="margin:0;font:500 11.5px/1.5 var(--dna-mono)">▼ SORT( FILTER(...), 9, -1 ) ──► [8 × 9]
+  ├─▼ FILTER(...) ──► [8 × 9]
+  │   ├─ Orders[Net]&gt;=F12 → 8 TRUE
+  │   │  (Sandbox $75k → 2 TRUE!)
+  │   └─ if_empty: "None"
+  └─ sort_order: -1 (Desc)</pre>
+          </div>
+          <div class="pane">
+            <div class="pane-h">Number &amp; Conditional Format</div>
+            <div style="font-size:12px;display:grid;gap:6px">
+              <div>Fmt: <code>"$#,##0;($#,##0)"</code> <span class="callout-num">3</span><br>Sample: <strong>$84,200</strong></div>
+              <div>Cond-Fmt on <code>B14#</code>: <span class="callout-num">4</span><br><code>=$E14&gt;=75000</code> → <strong>Matches 2 of 8</strong></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="dna-strip">
+        <span>SANDBOX OVERLAY · Eval 1.8 ms over 25,000 rows</span>
+        <span>Sheet untouched until Ctrl+Enter</span>
+      </div>
+    </div>
+    <div class="callouts">
+      <ol>
+        <li><b>Docked Context:</b> Keeps `Report!B14#` visible while dissecting nested array functions.</li>
+        <li><b>Sandbox Override:</b> Tests `$75,000` (`8 TRUE → 2 TRUE`) without mutating `Report!F12`.</li>
+        <li><b>Format Preview:</b> Shows exact positive/negative/zero formatting.</li>
+        <li><b>Spill-Aware Rule Test:</b> Counts conditional-format hits across the dynamic spill range.</li>
+      </ol>
+    </div>
+  </article>
+
+  <!-- ==================== M-18 ==================== -->
+  <article class="mockup-card" id="m18">
+    <div class="mockup-meta">
+      <h3><span class="mockup-id">M-18</span>Standalone <code>DNA Calc - Formula Explorer</code> Reference — Multi-Line <code>LET</code> &amp; Amortisation Check</h3>
+      <div class="mockup-tags"><span class="tag">Section 4.6b</span><span class="tag">Standalone Binary</span><span class="tag">Zero Workbook</span></div>
+    </div>
+    <div class="dna-window">
+      <div class="dna-mast">
+        <span class="dna-file"><span class="bp-dotlong"><i></i><i></i></span> DNA Calc - Formula Explorer <span class="callout-num">1</span></span>
+        <span class="dna-cmd" style="margin-left:auto">Load Add-in (.xll) · Export .xlsx</span>
+      </div>
+      <div class="dna-stage">
+        <div style="padding:10px 14px;background:var(--dna-paper-2);border-bottom:1px solid var(--dna-border);font:500 12px/1.45 var(--dna-mono)">
+          1 │ =LET( r_mo, annual_rate / 12,<br>
+          2 │ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;pmt, &nbsp;-PMT(r_mo, term_yr * 12, principal),<br>
+          3 │ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ipmt1,-IPMT(r_mo, 1, term_yr * 12, principal),<br>
+          4 │ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;HSTACK(pmt, ipmt1, pmt - ipmt1) ) <span class="callout-num">2</span>
+        </div>
+        <div class="split-3" style="min-height:170px">
+          <div class="pane">
+            <div class="pane-h">Fixture Bindings (No File)</div>
+            <div style="font:500 12px/1.6 var(--dna-mono)">
+              principal: <strong style="color:var(--dna-prov-const)">$450,000</strong><br>
+              annual_rate: <strong style="color:var(--dna-prov-const)">6.25%</strong><br>
+              term_yr: <strong style="color:var(--dna-prov-const)">30</strong>
+            </div>
+          </div>
+          <div class="pane">
+            <div class="pane-h">Step-by-Step LET Trace</div>
+            <div style="font:500 12px/1.6 var(--dna-mono)">
+              • r_mo = 0.0052083333<br>
+              • pmt = 2,770.7405<br>
+              • ipmt1 = 2,343.7500<br>
+              • pmt − ipmt1 = 426.9905
+            </div>
+          </div>
+          <div class="pane">
+            <div class="pane-h">Spill Result [1 × 3] &amp; Rules</div>
+            <table class="grid-table" style="margin-bottom:8px">
+              <tbody><tr><td class="num"><strong>$2,770.74</strong></td><td class="num">$2,343.75</td><td class="num">$426.99 <span class="callout-num">3</span></td></tr></tbody>
+            </table>
+            <div style="font-size:11.5px">Cond-Fmt <code>ipmt1/pmt &gt; 0.80</code> → <span class="pill amb">TRUE (84.6% m1 interest)</span> <span class="callout-num">4</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="dna-strip">
+        <span>STANDALONE ENGINE · 512 Built-in Excel Functions · 0 Add-ins Loaded <span class="callout-num">5</span></span>
+        <span>Eval: 0.02 ms · 18 MB footprint</span>
+      </div>
+    </div>
+    <div class="callouts">
+      <ol>
+        <li><b>Workbookless Utility (`[•━]`):</b> Ships on its own as a zero-ceremony Excel expression IDE.</li>
+        <li><b>Structured `LET` Formatter:</b> Multi-line auto-indented editing (`Shift+Alt+F`).</li>
+        <li><b>Live `HSTACK` Array Preview:</b> Shows month-1 PMT, IPMT, and PPMT side by side.</li>
+        <li><b>Rule Verification:</b> Confirms conditional alert triggers when interest exceeds 80% of payment.</li>
+        <li><b>Lightweight Engine Strip:</b> Reports pure standalone evaluation latency (`0.02 ms`).</li>
+      </ol>
+    </div>
+  </article>
+
+</main>
+
+<script>
+(function () {
+  // Populate concise ASCII wireframes on cards that don't already have an inline <pre>
+  var wireframes = {"m01": "┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ [==] Inherited.xlsm [Read-Safe]  [1 Classic*] [2 Inspector] [3 Note] [4 Map] [5 App] [Ctrl+K]│ (1)
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ QUARANTINE [Alt+Q]: [Macros Blocked: Module1 (3 subs)] [◈ 2 Missing Links: Using Cached]     │ (2)
+│ TRIAGE: 40 sheets (9 hidden) · 304,812 fmls · [!] 417 errors (3 roots)  [Open Inspector ──►] │ (3)
+├──────────────┬───────────────────────────────────────────────────────────────────────────────┤
+│ Summary_P&L! │ fx =SUM(Gas_Daily_2001!AT12:AT2850) - Transport_West!H90           [Alt+L Lens]│
+│ F19     [!]  │    └─[! #DIV/0! from Gas_Daily_2001!AT142]                                    │ (4)
+├────┬─────────┴──────────────┬──────────────┬──────────────┬─────────────────┬────────────────┤
+│    │ B                      │ C (Prompt)   │ D (Basis)    │ E (Storage)     │ F (Desk Total) │
+├────┼────────────────────────┼──────────────┼──────────────┼─────────────────┼────────────────┤
+│ 16 │ Henry Hub Physical     │   $14,820,400│  ◈  $412,900 │      ($185,000) │    $15,048,300 │ (5)
+│ 17 │ Permian Basin Swing    │    $6,104,250│     $198,400 │              $0 │     $6,302,650 │
+│ 18 │ SoCal Border Index     │    $9,440,000│  [! #N/A]    │       ($92,400) │     [! #N/A]   │
+│ 19 │║Desk Net VaR (95%)    ║│   $30,364,650│  [! #N/A]    │      ($277,400) │╔══[! #DIV/0!]═╗│ (6)
+│ 20 │ Prior Day Settle (Ext) │ ◈ $29,880,100│ ◈   $590,200 │      ($277,400) │◈   $30,192,900 │
+├────┴────────────────────────┴──────────────┴──────────────┴─────────────────┴────────────────┤
+│ [≡ 40 Sheets] Summary_P&L* │ Gas_Daily_2001 [248k] │ Transport_West [!] │ ··· [+9 Hidden]    │ (7)
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ AUTO · Indexing deps 74% [███████░░░] │ [!] 417 Err (3 roots) │ ◈ 6 OFFSET volatile │ 100%   │ (8)
+└──────────────────────────────────────────────────────────────────────────────────────────────┘", "m02": "┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ [==] Inherited.xlsm [Read-Safe]   [1 Classic] [2 Inspector*] [3 Note] [4 Map] [5 App] [Ctrl+K]│
+├──────────────┬───────────────────────────────────────────────────────────────────────────────┤
+│ Summary_P&L! │ fx =SUM(Gas_Daily_2001!AT12:AT2850) - Transport_West!H90      [Trace: 3 hops] │
+│ F19     [!]  │ Target: Desk Net VaR (95%) -> [! #DIV/0!] · Root: Gas_Daily_2001!AT142        │
+├──────────────┴───────────────────────────────┬───────────────────────────────────────────────┤
+│ ROOT ERRORS (3 origins -> 417 broken cells)  │ DEPENDENCY & VOLATILITY X-RAY (40 Sheets)     │ (1)
+│                                              │                                               │
+│ ► [!] #DIV/0!  Gas_Daily_2001!AT142    (390) │  [NYMEX..xls (Missing)]◈──┐                   │ (2)
+│   fx: =AR142 / AS142   (AS142 = 0 MMBtu)     │                           ▼                   │
+│   ├─► Gas_Daily_2001!AT2851 (Col Sum)        │  ┌──────────────────────────────┐             │
+│   └─►║Summary_P&L!F19 (Desk Net VaR)║ [Here] │  │ Gas_Daily_2001 [Dense: 248k] │◄─┐          │ (3)
+│                                              │  │ • AT142 [! #DIV/0! Root]     │  │          │
+│ ▸ [!] #REF!    Transport_West!H88       (25) │  └──────────────┬───────────────┘  │◈ Volatile│
+│   fx: =G88 * #REF!B12  (Deleted sheet)       │                 │ 390 err          │  OFFSET  │
+│                                              │                 ▼                  │ (184k    │
+│ ▸ [!] #N/A     Summary_P&L!D31           (5) │  ╔══════════════════════════════╗  │  dirty/  │ (4)
+│   fx: =VLOOKUP(\"SOCAL_BORDER \", Ref_Hubs...) │  ║ Summary_P&L [Active Focus]   ║──┘  recalc) │
+│   Hint: Trailing space; \"SOCAL_BORDER\" A14   │  ║ • F19 [! #DIV/0!] ◄══ Selected║             │
+├──────────────────────────────────────────────┤  └──────────────────────────────┘             │
+│ HIDDEN & DORMANT SHEETS (9 of 40)            │  ┌─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐             │
+│ [Hidden] Old_Calc_Backup (14k fmls, 0 deps)  │  ┆ Sys_AuthTable [VeryHidden]   ┆ (0 live     │ (5)
+│ [Hidden] Rates_Archive (0 fmls · 2 refs in)  │  ┆ Legacy_Map    [VeryHidden]   ┆  dependents)│
+│ [VeryHidden] Sys_AuthTable · Legacy_Map      │  └─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘             │
+├──────────────────────────────────────────────┴───────────────────────────────────────────────┤
+│ AUTO · Index ready (412 ms recalc est.) │ [!] 3 Roots -> 417 Err │ ◈ 2 Ext · 6 OFFSET │ 100% │ (6)
+└──────────────────────────────────────────────────────────────────────────────────────────────┘", "m03": "┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ [==] Budget.xlsx [Saved]      [1 Classic] [2 Inspector] [3 Notebook*] [4 Map] [5 App] [Alt+L]│
+├──────────────┬───────────────────────────────────────────────────────────────────────────────┤
+│ Summary!C8   │ Lens: Gross_Profit[FY27] - SUM(OpEx_Blocks[FY27])  │ [Flow: ↓ Page | → Pipe] │ (1)
+│ $146,952     │ Excel: =Monthly!O14 - SUM(Monthly!O16:O19)         │ [+ Prose] [+ Slice]     │
+├──────────────┴───────────────────────────────────────────────────────────────────────────────┤
+│   FY27 Operating Plan — Finance Director Brief                                [Reading Mode] │ (2)
+│                                                                                              │
+│   ║ Under the [Base Case ▾] plan, FY27 revenue reaches [$6,946,800] with Operating         ║ │ (3)
+│   ║ EBITDA of [$146,952] ([2.1%] margin), absorbing the Q3 [4.0%] wage step while keeping  ║ │
+│   ║ cloud infrastructure at [18.0%] of revenue._                                           ║ │
+│                                                                                              │
+│   ┌─ 1. KEY SCENARIO DRIVERS (Inputs!B5:D16) ────────────── Active: (• Base Case) (Downside)┐│ (4)
+│   │ Assumption                 │ Base Case (Live) │ Downside  │ Formula / Provenance        ││
+│   │ Monthly Logo Growth        │            3.5%  │     1.5%  │ Constant (Inputs!C6)        ││
+│   │ Monthly Churn              │            1.2%  │     2.4%  │ Constant (Inputs!C7)        ││
+│   │ ARPU ($/mo)                │            $420  │     $380  │ Constant (Inputs!C8)        ││
+│   │ [▸ Show remaining 9 assumptions...]                                                     ││
+│   └─────────────────────────────────────────────────────────────────────────────────────────┘│
+│   ┌─ 2. MONTHLY P&L DATA FRAME (Monthly!B9:O20 · 12 periods across) ──────── [Lens: ON] ────┐│ (5)
+│   │ Line Item          │  Jan-27 │  Feb-27 │ ··· │  Dec-27 │  FY27 Total │ Spark / Rule     ││
+│   │ Total Revenue      │ $515.8k │ $527.5k │ ··· │ $647.6k │  $6,946,800 │ ▁▂▃▄▅▆▇█ Cust×ARP││
+│   │ Gross Profit (82%) │ $422.9k │ $432.6k │ ··· │ $531.1k │  $5,696,376 │ ▁▂▃▄▅▆▇█ Rev-COGS││
+│   │╔Operating EBITDA  ╗│  ($4.2k)│   $1.8k │ ··· │  $34.9k │╔═  $146,952╗│ ▃▃▄▅▅▆▇█ GP-OpEx ││ (6)
+│   └─────────────────────────────────────────────────────────────────────────────────────────┘│
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ [≡ 3 Sheets] Inputs │ Monthly │ Summary* [Notebook preferred]                                │
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ AUTO · Recalc 4 ms (fresh) │ 0 Errors │ Prose stored in customXml (Excel-safe) │ Read · 100% │ (7)
+└──────────────────────────────────────────────────────────────────────────────────────────────┘", "m04": "┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ [==] Sales.xlsx               [1 Classic] [2 Inspector*] [3 Note] [4 Map] [5 App]   [Ctrl+K] │
+├──────────────┬───────────────────────────────────────────────────────────────────────────────┤
+│ Compare 2    │ C7 ($1,412,800) vs N8 ($1,648,250) · Discrepancy: -$235,450  [Explore Ctrl+E] │ (1)
+├──────────────┴───────────────────────────────┬───────────────────────────────────────────────┤
+│ UPSTREAM COVERAGE ON TABLE 'Orders' (25,000) │ DISCREPANCY WATERFALL (-$235,450 explained)   │
+│                                              │                                               │
+│  Orders[A2:I25001]                           │  Report!C7 (Formula)             $1,412,800   │
+│  ┌──────────────────────────┐                │                                               │
+│  │ Rows 2 .. 22,000         │ ◄─ C7 SUMIFS   │  [1] Skipped rows 22001:25001     +$198,450   │ (2)
+│  │ (21,999 rows · 88.0%)    │    reads ONLY  │      412 'West' Q4 rows outside               │
+│  │                          │    this slice  │      hardcoded $I$2:$I$22000                  │
+│  ├══════════════════════════╡ ◄─ CLIP SEAM!  │      [Fix C5:C8 -> Orders[Col] (Preview)]     │ (3)
+│  │▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒│                │                                               │
+│  │▒ Rows 22,001 .. 25,001  ▒│ ◄─ Pivot N8    │  [2] Criteria mismatch (1 row)     +$37,000   │ (4)
+│  │▒ (3,001 rows SKIPPED!)  ▒│    reads ALL   │      Orders!C23804 = \"West␣\"                  │
+│  └──────────────────────────┘    25,000 rows │      (trailing space; Pivot grouped/trimmed   │
+│                                              │       via Report!N9 'West ' subtotal)         │
+│  C7 Formula:                                 │      [Jump to Orders!C23804 ──►]              │
+│  =SUMIFS(Orders!$I$2:$I$22000,               │  ───────────────────────────────────────────  │
+│          Orders!$C$2:$C$22000, B7,           │  Reconciled Total                $1,648,250   │ (5)
+│          Orders!$B$2:$B$22000, \">=\"&$C$2)    │  Remaining Unexplained                   $0   │
+├──────────────────────────────────────────────┴───────────────────────────────────────────────┤
+│ [≡ 2 Sheets] Orders [Table: 25,000 rows] │ Report* [SUMIFS · XLOOKUP · FILTER · Pivot]       │
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ AUTO · Audit 28 ms │ 0 #Err · [⚠ 4 Clipped Ranges on Report!C5:C8] │ Δ -$235,450 │ 100%      │ (6)
+└──────────────────────────────────────────────────────────────────────────────────────────────┘", "m05": "┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ [==] Stock.xlsx               [1 Classic] [2 Inspector] [3 Note] [4 Model map*] [5 App]      │
+├──────────────┬───────────────────────────────────────────────────────────────────────────────┤
+│ Stock.OnHand │ Lens: OnHand⁻ + Inflow - Outflow                              [Alt+L Lens: ON]│
+│ 340 units    │ Excel: =IF(Sim.Reset, 500, Stock.OnHand + Stock.Inflow - Stock.Outflow)       │
+├──────────────┴───────────────────────────────────────────────────────────────────────────────┤
+│ Crumb: Stock.xlsx › All Blocks  │ [Director: Ticks (Iter=1)] [▶ Run] [Step F9] [Reset] t=14 │ (1)
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│                        ┌───[z⁻¹]───┐                                                         │ (2)
+│  ┌─ Demand. ────────┐  │           ▼                                                         │
+│  │ Rate         120 │──┼──────►╔═══════════════════╗       ┌─ Policy. ─────────────────────┐ │
+│  └──────────────────┘  │       ║ Stock.OnHand  340 ║──────►│ OrderPlaced               400 │ │ (3)
+│                        │  ┌───►║ OnHand⁻+In-Out    ║  ┌───►│ OnHand+ΣPipe < ReorderPt ? Q  │ │
+│                        │  │    ╚═════════╤═════════╝  │    └───────────────┬───────────────┘ │
+│                        │  │              │            │                    │                 │
+│                        │  │    ┌─────────▼─────────┐  │    ┌───────────────┴───────────────┐ │
+│                        └──┼────│ Stock.Outflow 120 │  │    │ Policy.ReorderPoint       280 │ │ (4)
+│                           │    │ min(Rate,OnHand⁻) │  │    │ [──────●─────────] (0 .. 600) │ │
+│  ┌─ Supply. ──────────────┼────┴───────────────────┘  │    └───────────────────────────────┘ │
+│  │ DelayPipe  {0, 0, 400} │───────────────────────────┘                    │                 │
+│  │ shift(Pipe⁻) ◄─ Order  │◄══[z⁻¹]════════════════════════════════════════┘                 │ (5)
+│  │           │            │    (Amber pulse: OrderPlaced just fired 400 into DelayPipe[3])   │
+│  │           ▼            │                                                                  │
+│  │ Inflow               0 │──► (feeds Stock.OnHand next tick; 3-tick reorder delay)          │
+│  └────────────────────────┘                                                                  │
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ [≡ 1 Sheet] Inventory_Model* [Map preferred · 9 named cells · 1 Form Control]                │
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ITER (Max 1 · Δ 0.001) · Step 2.1 ms │ 0 Errors │ [↻ 2 deliberate z⁻¹ loops] │ Work · 100%  │ (6)
+└──────────────────────────────────────────────────────────────────────────────────────────────┘", "m06": "┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ [==] Stock.xlsx               [1 Classic*] [2 Inspector] [3 Note] [4 Model map] [5 App]      │
+├──────────────┬───────────────────────────────────────────────────────────────────────────────┤
+│ Policy.      │ fx 310                                            [Linked Control: ScrollBar1]│
+│ ReorderPoint │ Cell: Inventory_Model!C5 · Constant · Read by: Policy.OrderPlaced (C7)        │ (1)
+├────┬─────────┴──────────────┬──────────────┬──────────────┬─────────────────┬────────────────┤
+│    │ B (Block / Parameter)  │ C (Value)    │ D (Spill/Ctl)│ E (Spill/Ctl)   │ F (Formula/NT) │
+├────┼────────────────────────┼──────────────┼──────────────┼─────────────────┼────────────────┤
+│  4 │ Demand.Rate            │          120 │              │                 │ units / tick   │
+│  5 │ Policy.ReorderPoint    │╔════════ 310╗│ [◄───●────►] │ (0..600, stp 10)│ Form ScrollBar │ (2)
+│  6 │ Policy.OrderQty        │          400 │              │                 │ lot size       │
+│  7 │ Policy.OrderPlaced     │            0 │              │                 │ =IF(C8+SUM...) │
+│  8 │ Stock.OnHand       [↻] │          340 │              │                 │ =IF(C3,500,...)│ (3)
+│  9 │ Stock.Inflow           │            0 │              │                 │ =INDEX(C11#,1) │
+│ 10 │ Stock.Outflow          │          120 │              │                 │ =MIN(C4,C8)    │
+│ 11 │ Supply.DelayPipe   [↻] │┌────────── 0 │            0 │             400┐│ =IF(C3,SEQ...) │ (4)
+├────┴────────────────────────┴┴─────────────┴──────────────┴────────────────┴┴────────────────┤
+│ [≡ 1 Sheet] Inventory_Model* [Map preferred]                                                 │
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ITER (Max 1 · Δ 0.001) · F9 = Step +1 │ 0 Errors │ [↻ Iterative cells: C8, C11] │ 100%      │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘", "m07": "┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ [==] Loan.xlsx                [1 Classic] [2 Inspector] [3 Note] [4 Map] [5 App*]  [Ctrl+P*] │
+├─────────────────────────────────────────────────────────────┬────────────────────────────────┤
+│ LOAN AMORTISATION CALCULATOR     [Pinned: Base ($0 Extra)]  │ PRINT PREVIEW (2 Pages · A4)   │ (1)
+│                                                             │ ┌────────────────────────────┐ │
+│ ┌─ BORROWER INPUTS ────────┐ ┌─ OUTCOMES vs BASELINE ─────┐ │ │ Page 1 of 2   [cockpit-lt] │ │
+│ │ Loan Principal           │ │ Scheduled Base PMT  [Lock] │ │ │ LOAN SCENARIO SUMMARY      │ │ (2)
+│ │ [$450,000          ]     │ │ $2,770.74/mo  (+ $300 ext) │ │ │ Principal: $450k @ 6.25%   │ │
+│ │                          │ ├────────────────────────────┤ │ │ Base: $2,770.74 · 30.0 yrs │ │
+│ │ Annual Rate              │ │ Total Interest Paid        │ │ │ +$300: $3,070.74 · 22.4 yr │ │
+│ │ [6.25%     ] [─●───────] │ │ $392,814.12  ▼ -$154,652!  │ │ │ Interest Saved: $154,652   │ │
+│ │                          │ ├────────────────────────────┤ │ │ [Balance Curve Vector SVG] │ │
+│ │ Term (Years)             │ │ Actual Payoff Horizon      │ │ └────────────────────────────┘ │
+│ │ (15 yr) (20 yr) (•30 yr) │ │ 22 yrs 5 mos ▼ -91 months  │ │ ┌────────────────────────────┐ │
+│ │                          │ └────────────────────────────┘ │ │ Page 2: Annual Rollup (30) │ │ (3)
+│ │╔Extra Monthly Principal═╗│ ┌─ BALANCE CURVE (360 mos) ──┐ │ │ Yr 1..23 Ending Balances   │ │
+│ │║[$300              ]    ║│ │ $450k ╲.. (dashed = Base)  │ │ └────────────────────────────┘ │
+│ │║[────●─────────] $0..1k ║│ │ $225k   ╲  ...             │ │ [x] Show Scenario Delta        │
+│ │╚════════════════════════╝│ │    $0 ────╲______ (m269)   │ │ [ ] Full 360-row table (+6p)   │ (4)
+│ └──────────────────────────┘ └────────────────────────────┘ │ [ ] Formula Audit Appendix     │
+│ [▸ Schedule: Showing Annual Rollup (23 active yrs) · Toggle All 360 Months (PMT/IPMT/PPMT)]  │ (5)
+│   Need grid edits? Switch to [Classic (Ctrl+1)] — all changes sync to Loan!B4:H371.          │
+├─────────────────────────────────────────────────────────────┴────────────────────────────────┤
+│ AUTO · 360 rows in 3 ms │ 0 Errors │ Formulas Protected in App View │ Print: 2 pp · 100%     │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘", "m08": "┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ [•━] DNA Calc - Formula Explorer (No Workbook)           [Add-ins: FinKit.xll ↻]    [Ctrl+K] │ (1)
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ fx =IFERROR(FK.SAAS_LTV(arpu, gross_margin, monthly_churn, discount_rate_yr), 0)             │
+│    Result: $17,118  (raw: 17118.448129 · eval: 0.04 ms · Thread-Safe XLL · Non-volatile)     │ (2)
+├──────────────────────────┬───────────────────────────────────┬───────────────────────────────┤
+│ SYNTHETIC INPUTS         │ LIVE AST & SUB-EXPRESSION TREE    │ FORMAT, COND-FMT & SWEEP      │
+│                          │                                   │                               │
+│ arpu           [   $420] │ ▼ IFERROR( ... , 0 )  ->  17118.4 │ Number Format:                │
+│ gross_margin   [  82.0%] │   ├─▼ ◈ FK.SAAS_LTV(...) -> 17118 │ [\"$#,##0\"        ] ──► $17,118│ (3)
+│ monthly_churn  [   1.2%] │   │   ├─ arpu          = 420      │ [\"$#,##0.00;($#)\"] ──► ...    │
+│ discount_rate  [  10.0%] │   │   ├─ gross_margin  = 0.82     │                               │
+│                          │   │   ├─ monthly_churn = 0.012    │ Cond-Fmt Rule Preview:        │
+│ [+ Add Scalar / Array]   │   │   └─ discount_rate = 0.10     │ [Value < 11700] -> False (OK) │ (4)
+├──────────────────────────┤   └─ fallback          = 0        ├───────────────────────────────┤
+│ FINKIT.XLL (8 functions) │                                   │ AUTO BOUNDARY PROBE (6 cases) │
+│ • FK.SAAS_LTV  [Selected]│ Signature & Portability:          │ ✓ Base inputs      -> $17,118 │
+│ • FK.COHORT_IRR          │ (arpu:Num, gm:Num, churn:Num,     │ ✓ Array arpu {380,420}->Spill │
+│ • FK.NDR_WATERFALL       │  [disc=0.08]:Num) -> Num          │╔! churn = 0 (raw)  -> #NUM!  ╗│ (5)
+│ [Ctrl+Shift+R Hot-Reload]│ Saved in .xlsx as _xll.FK.SAAS_LTV│ ✓ IFERROR wrapped  ->      $0 │
+└──────────────────────────┴───────────────────────────────────┴───────────────────────────────┘", "m09": "┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ [==] Budget.xlsx              [1 Classic*] [2 Inspector] [3 Note] [4 Map] [5 App] [Add-in: 1]│
+├──────────────┬───────────────────────────────────────────────────────────────────────────────┤
+│ Summary!C11  │ fx =FK.SAAS_LTV([①Inputs!C8], [②C6], [③Inputs!C7], 0.10)█                     │ (1)
+│ Editing [F2] │    ┌─ ◈ FK.SAAS_LTV(arpu, gross_margin, monthly_churn, [discount_rate_yr]) ──┐│
+│              │    │  Preview: $17,118.45 -> \"$#,##0\" = $17,118  │ FinKit.xll (Portable cache││ (2)
+├────┬─────────┴────┴─────────┬──────────────┬──────────────┬────┴────────────┬───────────────┘
+│    │ B (KPI Metric)         │ C (Base FY27)│ D (Downside) │ E (Notes / Bench│ F              │
+├────┼────────────────────────┼──────────────┼──────────────┼─────────────────┼────────────────┤
+│  6 │ ┌②Gross Margin (%)────┐│        82.0% │        79.5% │ SaaS target >78%│                │ (3)
+│  7 │ └─────────────────────┘│              │              │                 │                │
+│  8 │ Operating EBITDA       │     $146,952 │    ($612,400)│ +2.1% margin    │                │
+│  9 │ Blended CAC            │       $3,900 │       $4,250 │ S&M / New Logos │                │
+│ 10 │ Payback Period (mos)   │         11.3 │         14.1 │                 │                │
+│ 11 │║Cohort LTV (10% disc) ║│╔◈ $17,118═══╗│     $11,042  │ LTV:CAC = 4.4x  │                │ (4)
+├────┴────────────────────────┴┴─────────────┴──────────────┴─────────────────┴────────────────┤
+│ [≡ 3 Sheets] Inputs [①③] │ Monthly │ Summary* [②]                                            │ (5)
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ EDIT (Point: F2 cycles) │ Live Preview: $17,118 │ ◈ 1 Add-in (FinKit.xll) · Excel-safe cache │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘", "m10": "┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ [==] Budget.xlsx [Δ Agent: 3 Hunks]  [1 Classic*] [2 Inspector] [3 Note] [4 Map] [Ctrl+J Agt]│
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Δ AGENT PROPOSAL #4: \"Downside Q3 R&D freeze, 2.8% churn & $140k S&M cap\"    [Accept All]    │
+│ KPI IMPACT: Base EBITDA $146,952 ──► $412,056 [⚠ +$265k!] │ Downside ($612k) ──► ($389k)     │ (1)
+├───────────────────────────────────────────────────────────┬──────────────────────────────────┤
+│ STAGED DIFF ON SHEET (Monthly!C16:N20 · Hatched = Ghost)  │ HUNK REVIEW RAIL (J/K, A/R)      │
+│                                                           │                                  │
+│ Row │ Line Item      │ Jul-27 (I) │ Aug-27 (J) │ FY27 (O) │ [✓] Hunk 1 · Monthly!I17:N17 (6) │ (2)
+│  16 │ Support Cost   │    $64,000 │    $64,000 │ $768,000 │     R&D Q3 freeze in Downside    │
+│  17 │ R&D Payroll    │▒▒ $171,360▒│▒▒ $171,360▒│$2,056.3k │     [A: Accepted] [Undo]         │
+│     │ └─ Δ Hunk 1    │ =IF(Inputs!$C$2=\"Downside\",H17,..) │                                  │
+│  18 │╔S&M Spend     ╗│▒▒ $140,000▒│▒▒ $140,000▒│$1,680.0k │ [✓] Hunk 2 · Inputs!D7 (1 cell)  │
+│     │║was:          ║│   $164,892 │   $168,655 │$1,945.1k │     Downside Churn: 2.4% -> 2.8% │
+│     │╚═► Δ Hunk 3 ══╝│ =MIN(140000, C11*Inputs!C14)       │     [A: Accepted] [Undo]         │
+│  20 │ Oper. EBITDA   │▒▒  $38,132▒│▒▒  $42,795▒│ $412,056 │                                  │
+│                      │ (Base shifted by Hunk 3!)          │╔[?] Hunk 3 · Monthly!C18:N18(12)╗│ (3)
+│                                                           │║    Unconditional MIN(140000,..)║│
+│                                                           │║    ⚠ Alters Base Case (+$265k) ║│
+│                                                           │║    [A: Accept] [R: Reject*]    ║│ (4)
+│                                                           │╚════════════════════════════════╝│
+├───────────────────────────────────────────────────────────┴──────────────────────────────────┤
+│ REVIEW SEAM ·Workbook untouched until committed │ [Commit 2 Accepted & Drop 1 (Enter)] [Esc] │ (5)
+└──────────────────────────────────────────────────────────────────────────────────────────────┘", "m11": "┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ [==] Budget.xlsx              [1 Classic*] [2 Inspector] [3 Note] [4 Map] [5 App] [↺ History]│
+├──────────────┬───────────────────────────────────────────────────────────────────────────────┤
+│ Inputs!D7    │ fx 2.4%                      │ UNDO / PROVENANCE STACK [Ctrl+Shift+Z]         │
+│ Reverted     │ Constant · Downside Churn    │ ────────────────────────────────────────────── │
+├────┬─────────┴──────────────┬───────────────┤ ↷ [Redone if Ctrl+Y] Agent #4 · Hunk 2         │ (1)
+│    │ B (Assumption)         │ C (Base)│D(Dn)│   Inputs!D7: 2.4% -> 2.8% (Reverted via Ctrl+Z)│
+├────┼────────────────────────┼─────────┼─────┤ ● [Current State]    Agent #4 · Hunk 1 [Kept]  │ (2)
+│  6 │ Monthly Logo Growth    │    3.5% │1.5% │   Monthly!I17:N17 (6 cells): R&D Q3 freeze     │
+│  7 │║Monthly Churn         ║│    1.2% │╔2.4%╗   Prompt: \"In Downside, freeze R&D hiring...\"  │ (3)
+│  8 │ ARPU ($/mo)            │    $420 │$380 │ ○ [14:08] Maria · Summary!C8 Notebook prose    │
+│  9 │ Cloud COGS (% Rev)     │   18.0% │20.5%│ ○ [14:02] Ade   · Summary!C11 =FK.SAAS_LTV(..) │
+├────┴────────────────────────┴─────────┴─────┴────────────────────────────────────────────────┤
+│ AUTO · Recalc 3 ms │ Base EBITDA: $146,952 · Downside: ($464,120) │ Undo ready (Ctrl+Z)      │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘", "m12": "┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ [==] Budget.xlsx              [1 Classic*] [2 Inspector] [3 Note] [4 Map] [5 App]   [Ctrl+K] │ (1)
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ [Alt] File · Home · Insert · Format · Data · Audit │ [$#,##0] [%] [.00] │ [Provenance: ON]   │ (2)
+├──────────────┬───────────────────────────────────────────────────────────────────────────────┤
+│ Monthly!C11  │ fx =[①C7] * [②Inputs!$C$8]█                                      [Alt+L Lens] │ (3)
+│ Point [F2]   │    Lens preview: Ending_Customers[Jan-27] * ARPU  ──►  $515,760               │
+├────┬─────────┴──────────────┬──────────────┬──────────────┬─────────────────┬────────────────┤
+│    │ B (Cohort & Revenue)   │ C (Jan-27)   │ D (Feb-27)   │ E (Mar-27)      │ O (FY27 Total) │
+├────┼────────────────────────┼──────────────┼──────────────┼─────────────────┼────────────────┤
+│  4 │ Opening Customers      │ c      1,200 │        1,228 │           1,256 │          1,200 │ (4)
+│  5 │ (+) New Logos          │           42 │           43 │              44 │            579 │
+│  6 │ (-) Churned Logos      │          (14)│          (15)│             (15)│           (237)│
+│  7 │ Ending Customers       │┌①──────1,228┐│        1,256 │           1,285 │          1,542 │ (5)
+│  8 │                        │└────────────┘│              │                 │                │
+│ 10 │ REVENUE ($ USD)        │              │              │                 │                │
+│ 11 │║Subscription Revenue  ║│╔═$515,760═══╗│     $527,520 │        $539,700 │     $6,946,800 │ (6)
+│ 13 │ Cloud COGS (18.0%)     │      $92,837 │      $94,954 │         $97,146 │     $1,250,424 │
+│ 14 │ Gross Profit           │     $422,923 │     $432,566 │        $442,554 │     $5,696,376 │
+├────┴────────────────────────┴──────────────┴──────────────┴─────────────────┴────────────────┤
+│ [≡ 3 Sheets] Inputs [② $420] │ Monthly* [①] │ Summary                        [Frozen: Col B] │ (7)
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ POINT (F2->Edit · F4->$ lock) │ Preview: $515,760 │ Sum: $515,760 · 0 Errors │ Work · 100%   │ (8)
+└──────────────────────────────────────────────────────────────────────────────────────────────┘", "m13": "┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ [==] Inherited.xlsm           [1 Classic] [2 Inspector*] [3 Note] [4 Map] [5 App]   [Ctrl+K] │
+├──────────────┬───────────────────────────────────────────────────────────────────────────────┤
+│ Probe Target │ Gas_Daily_2001!AT142  │ fx =AR142 / AS142  ──► [! #DIV/0!] (Root #1 of 3)     │ (1)
+├──────────────┴───────────────────────┴───────┬───────────────────────────────────────────────┤
+│ 1. CALCULATION CHAIN & COST (Total: 412 ms)  │ 2. ROOT-CAUSE & ANOMALY RADAR                 │
+│                                              │                                               │
+│ Stage 0 Inputs & 2 Held Ext Links     0.4 ms │ [!] 3 Error Roots ──► 417 Broken Cells        │ (2)
+│ Stage 1 Ref_Hubs + 6 OFFSET names ◈  18.6 ms │  •║Gas_Daily_2001!AT142 (#DIV/0!) ──► 390   ║ │
+│ Stage 2 Gas_Daily_2001 (248k fmls)  364.0 ms │  • Transport_West!H88   (#REF!)   ──►  25     │
+│         ██████████████████████████░░  (88%!) │  • Summary_P&L!D31      (#N/A)    ──►   5     │
+│ Stage 3 Transport_West (19k fmls)    21.2 ms │                                               │
+│ Stage 4 Summary_P&L (4.1k fmls)       7.8 ms │ [⚠] Structural & Hygiene Warnings             │ (3)
+├──────────────────────────────────────────────┤  • 6 volatile OFFSET names dirty 184,220 cells│
+│ 3. LIVE / EXTERNAL / MACRO INVENTORY         │  • 47 hardcoded overrides inside formula cols │
+│ ◈ NYMEX_Settle_2001_10.xls  [Missing · Held] │    on Gas_Daily_2001 (e.g. AW412, AW419)      │
+│ ◈ BasisAdj_v4_FINAL2.xls    [Missing · Held] │  • 9 Hidden sheets (2 xlSheetVeryHidden)      │
+│ ⚙ VBA Module1 (3 procedures)[Quarantined]    │                                               │
+├──────────────────────────────────────────────┴───────────────────────────────────────────────┤
+│ 4. INLINE CELL PEEK (Gas_Daily_2001!AR140:AU144)                         [Jump Classic Enter]│ (4)
+│  Row 142: AR142 = $184,200 │ AS142 = 0 (Constant!) │╔AT142 = [! #DIV/0!]╗│ AU142 = [! #DIV/0]│
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ AUTO · Profiled 304,812 fmls (412 ms) │ [!] 3 Roots │ ◈ 2 Missing Ext · 6 OFFSET │ 100%      │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘", "m14": "┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ [==] Budget.xlsx              [1 Classic] [2 Inspector] [3 Notebook*] [4 Map] [5 App] [Alt+L]│
+├──────────────┬───────────────────────────────────────────────────────────────────────────────┤
+│ Monthly!O11  │ Lens: SUM(Subscription_Rev[Jan..Dec])       │ [Flow: → Pipeline*] [+ Block /] │ (1)
+│ $6,946,800   │ Excel: =SUM(Monthly!C11:N11)                │ Density: Reading                │
+├──────────────┴───────────────────────────────────────────────────────────────────────────────┤
+│  FY27 SaaS Revenue-to-EBITDA Pipeline                                                        │
+│  Prose: Growth compounds at [3.5%/mo] net of [1.2%] churn, crossing cash breakeven in May.   │ (2)
+│                                                                                              │
+│  ┌─ STAGE 1: INPUTS ─────┐   ┌─ STAGE 2: MONTHLY ENGINE (C:N) ───┐   ┌─ STAGE 3: FY27 KPIs ─┐│ (3)
+│  │ Scenario: [Base Case▾]│   │ Metric     │ Jan-27 │ ··· │ Dec-27│   │╔FY27 Revenue        ╗││
+│  │                       │──►│ End Cust   │  1,228 │ ··· │  1,542│──►│║$6,946,800          ║││
+│  │ Start Cust:     1,200 │   │ Subscript. │$515.8k │ ··· │$647.6k│   │╚════════════════════╝││
+│  │ Logo Growth:     3.5% │   │ Cloud COGS │ $92.8k │ ··· │$116.6k│   │ Gross Margin   82.0% ││
+│  │ Churn Rate:      1.2% │   │ Tot OpEx   │$427.1k │ ··· │$496.2k│   │ Oper. EBITDA $147.0k ││
+│  │ ARPU ($/mo):     $420 │   │ EBITDA     │ ($4.2k)│ ··· │ $34.9k│   │ Cohort LTV   $17,118 ││ (4)
+│  │ [▸ +8 assumptions]    │   │ Lens: Cust * ARPU - COGS - OpEx   │   │ ┌─ Rev vs EBITDA ──┐ ││
+│  └───────────────────────┘   └───────────────────────────────────┘   │ │ ▁▂▃▄▅▆▇█ (Chart) │ ││ (5)
+│                                                                      │ └──────────────────┘ ││
+│                                                                      └──────────────────────┘│
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ [≡ 3 Sheets] Inputs ──► Monthly* ──► Summary [Pipeline linked]                               │
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ AUTO · Live Pluto-style reactivity (4 ms) │ 0 Errors │ 3 Pipeline Stages │ Reading · 100%    │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘", "m15": "┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ [==] Stock.xlsx               [1 Classic] [2 Inspector] [3 Note] [4 Model map*] [5 App]      │
+├──────────────┬───────────────────────────────────────────────────────────────────────────────┤
+│ Store.Mode   │ Lens: Lost > 0 ? \"Stockout\" : (OrderPlaced > 0 ? \"Reorder\" : \"Normal\")        │
+│ \"Reorder\"    │ Excel: =IFS(Stock.Lost>0,\"Stockout\", Policy.OrderPlaced>0,\"Reorder\", 1,\"Norm\")│ (1)
+├──────────────┴───────────────────────────────────────────────────────────────────────────────┤
+│ Crumb: Stock.xlsx › Inventory_Model │ [Director: Ticks (Iter=1)] [▶ Run] [Step F9]   Tick 14 │ (2)
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│  ┌─ Demand. ───────┐        ┌──[z⁻¹]──┐           ┌─ Store.Mode (Modal IFS) ───────────────┐ │
+│  │ Rate        120 │───┐    │         ▼           │╔(Normal)══►(•Reorder*)──►(Stockout)   ╗│ │ (3)
+│  └─────────────────┘   ├───►│ Stock.OnHand    340 │║ Guards: Order>0 │ Lost>0             ║│ │
+│                        │    │ OnHand⁻ + In - Out  │╚══════════════════════════════════════╝│ │
+│  ┌─ Supply. ───────────┼─┐  └────┬───────────┬────┘                    ▲                   │ │
+│  │ LeadTime          3 │ │       │           │                         │                   │ │
+│  │ DelayPipe {0,0,400} │ │       ▼           ▼                         │                   │ │
+│  │ [z⁻¹] ──► Inflow  0 ├─┘  ┌─────────┐ ┌──────────┐   ┌─ Policy. ─────┴─────────────────┐ │ │
+│  └─────────────────────┘    │Out: 120 │ │Lost:   0 │   │ ReorderPt: 280 [───●─────]      │ │ │ (4)
+│         ▲                   └─────────┘ └──────────┘   │ OrderQty:  400 ──► Order:   400 ├──┘ │
+│         └══════════════════════[Wire: Policy.OrderPlaced]───────────────────────────────┘    │
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ HISTORY STRIP (Last 20 Ticks · OnHand ─── · Order ●)   500 ╲___╱‾‾╲___●  (live spark-trace) │ (5)
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ITER (Max 1 · Δ 0.001) │ 0 Errors · 2 [z⁻¹] delays · 1 Modal IFS │ Zoom: 100% (Actor LOD)    │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘", "m16": "┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ [==] Loan.xlsx                [1 Classic] [2 Inspector] [3 Note] [4 Map] [5 App*]   [Ctrl+P] │
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ MORTGAGE & LOAN SCENARIO APP          [Baseline: $450k · 6.25% · 30y] [Reset Inputs] [Share] │ (1)
+├──────────────────────────────┬───────────────────────────────────────────────────────────────┤
+│ ASSUMPTIONS (4 Inputs)       │ KEY OUTCOMES (Protected Formulas · Live Delta vs Baseline)    │
+│                              │ ┌──────────────────┐ ┌──────────────────┐ ┌─────────────────┐ │
+│ Loan Principal ($B$4)        │ │ Monthly Outflow  │ │ Total Interest   │ │ Payoff Horizon  │ │ (2)
+│ [$450,000             ]      │ │ $3,070.74        │ │ $392,814.12      │ │ 22 yrs 5 mos    │ │
+│ [──────●──────────────]      │ │ ▲ +$300/mo extra │ │ ▼ -$154,652.46 ✓ │ │ ▼ -91 months ✓  │ │
+│                              │ └──────────────────┘ └──────────────────┘ └─────────────────┘ │
+│ Annual Interest Rate ($B$5)  │ ┌─ REMAINING BALANCE & CUMULATIVE INTEREST (Months 1..360) ──┐│
+│ [6.25%      ] [ - ] [ + ]    │ │ $450k ╲· · · · · (dotted: Baseline 360m)                   ││ (3)
+│                              │ │ $225k   ╲_____   (solid:  Current  269m)                   ││
+│ Loan Term ($B$6)             │ │    $0 ────────╲___________________________                 ││
+│ (15 yr) (20 yr) (• 30 yr)    │ └────────────────────────────────────────────────────────────┘│
+│                              │ ┌─ AMORTISATION SCHEDULE (Annual Rollup* │ All 360 Months) ──┐│ (4)
+│ Extra Monthly Payment ($B$7) │ │ Year │ Beg Balance │ Scheduled │ Extra  │ Interest│ End Bal││
+│╔[$300                 ]═════╗│ │ Yr 1 │   $450,000  │  $33,249  │ $3,600 │ $27,915 │$441,066││
+│║[────●────────────────]     ║│ │ Yr 2 │   $441,066  │  $33,249  │ $3,600 │ $27,340 │$431,557││
+│╚════════════════════════════╝│ └────────────────────────────────────────────────────────────┘│
+├──────────────────────────────┴───────────────────────────────────────────────────────────────┤
+│ AUTO · 3 ms recalc │ 0 Errors │ Formulas Write-Protected │ Reading Density · 100%            │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘", "m17": "┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ [==] Sales.xlsx               [1 Classic*] [2 Inspector] [3 Note] [4 Map] [5 App] [Explorer*]│
+├────┬─────────────────────────┬──────────────┬──────────────┬─────────────────────────────────┤
+│ 14 │║Top Enterprise Deals   ║│╔ORD-24819═══╗│ West         │ $84,200 (Spill B14:E21 · 8 rows)│
+├════╧═════════════════════════╧══════════════╧══════════════╧═════════════════════════════════┤
+│ FORMULA EXPLORER — Seeded from Report!B14 (Sandbox: Sheet Untouched)   [Apply Ctrl+Enter] [X]│ (1)
+│ fx =SORT(FILTER(Orders[[OrderID]:[NetAmount]], Orders[NetAmount]>=F12, \"None\"), 9, -1)       │
+├───────────────────────────┬──────────────────────────────────┬───────────────────────────────┤
+│ SEEDED WORKBOOK INPUTS    │ LIVE AST SUB-EXPRESSION VALUES   │ NUMBER & CONDITIONAL FORMAT   │
+│                           │                                  │                               │
+│ Orders[[OrderID]:[NetAmt]]│ ▼ SORT( ..., 9, -1 )             │ Col 9 Number Format:          │
+│ └─ Table: 25,000 × 9      │   ──► Array [8 × 9] ($84.2k..51k)│ [\"$#,##0;($#,##0);\\"-\\"\"]     │ (3)
+│                           │   ├─▼╔FILTER( ... ) ──► [8 × 9]╗ │ Sample: $84,200 │ ($84,200)   │
+│ F12 (Min_Deal_Threshold)  │   │  ├─ include: Orders[Net]>=50k│                               │
+│ └─ Live: $50,000          │   │  │  ──► Bool[25000] (8 TRUE) │ Conditional Format on B14#:   │ (4)
+│    Sandbox Try: [$75,000] │   │  │  (Sandbox $75k -> 2 TRUE!)│ Rule 1: =$E14>=75000          │
+│    [Reset to Sheet]       │   │  └─ if_empty: \"None\"         │ ──► Matches 2 of 8 spill rows │
+│                           │   ├─ sort_index: 9 (NetAmount)   │     Style: Teal-Tint + Bold   │
+│ Eval time: 1.8 ms         │   └─ sort_order: -1 (Descending) │                               │
+└───────────────────────────┴──────────────────────────────────┴───────────────────────────────┘", "m18": "┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ [•━] DNA Calc - Formula Explorer                              [Load Add-in .xll] [Share] [?] │ (1)
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ SCRATCHPAD EXPRESSION (Recursive Mono · Multi-line LET / LAMBDA formatter: Shift+Alt+F)      │
+│  1 │ =LET(                                                                                   │
+│  2 │    r_mo,  annual_rate / 12,                                                             │
+│  3 │    pmt,   -PMT(r_mo, term_yr * 12, principal),                                          │
+│  4 │    ipmt1, -IPMT(r_mo, 1, term_yr * 12, principal),                                      │
+│  5 │    HSTACK(pmt, ipmt1, pmt - ipmt1) )                                                    │ (2)
+├───────────────────────────┬──────────────────────────────────┬───────────────────────────────┤
+│ FIXTURE BINDINGS (No File)│ STEP-BY-STEP LET / AST TRACE     │ FORMAT, COND-FMT & FUNCTIONS  │
+│                           │                                  │                               │
+│ principal    [  $450,000] │ • r_mo   = 0.0052083333 (0.521%) │ Result Array [1 × 3]:         │
+│ annual_rate  [     6.25%] │ • pmt    = 2,770.7405            │ ┌─────────┬─────────┬────────┐│
+│ term_yr      [        30] │ • ipmt1  = 2,343.7500            │ │$2,770.74│$2,343.75│ $426.99││ (3)
+│                           │ • pmt - ipmt1 = 426.9905         │ └─────────┴─────────┴────────┘│
+│ Presets:                  │                                  │ Number Format: \"$#,##0.00\"    │
+│ [SaaS LTV (FinKit.xll)]   │ Function Reference: IPMT         │ Cond-Fmt: [ipmt1/pmt > 0.80]  │
+│ [Amortisation Check*]     │ IPMT(rate, per, nper, pv, [fv],  │ ──► TRUE (84.6% interest m1!) │ (4)
+│ [Dynamic Array Lookup]    │      [type]) -> Excel-exact parity│                               │
+├───────────────────────────┴──────────────────────────────────┴───────────────────────────────┤
+│ STANDALONE ENGINE · 512 Built-in Excel Functions · 0 Add-ins Loaded │ Eval: 0.02 ms · 100%   │ (5)
+└──────────────────────────────────────────────────────────────────────────────────────────────┘"};
+  Object.keys(wireframes).forEach(function (id) {
+    var card = document.getElementById(id);
+    if (card) {
+      var pre = document.createElement("pre");
+      pre.className = "ascii-block";
+      pre.textContent = wireframes[id];
+      card.insertBefore(pre, card.querySelector(".callouts"));
+    }
+  });
+
+  document.querySelectorAll('[data-set-theme]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.documentElement.setAttribute('data-theme', btn.getAttribute('data-set-theme'));
+      document.querySelectorAll('[data-set-theme]').forEach(function (b) {
+        b.setAttribute('aria-pressed', String(b === btn));
+      });
+    });
+  });
+
+  document.querySelectorAll('[data-set-mode]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var m = btn.getAttribute('data-set-mode');
+      document.body.classList.toggle('show-ascii', m === 'both');
+      document.body.classList.toggle('only-ascii', m === 'ascii');
+      document.querySelectorAll('[data-set-mode]').forEach(function (b) {
+        b.setAttribute('aria-pressed', String(b === btn));
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>

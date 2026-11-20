@@ -881,6 +881,17 @@ fn data_of(plots: &mut [ChartPlot], slot: Option<Slot>) -> Option<&mut ChartData
 
 /// Only a single showVal flag is safe without modelling per-point and formatting overrides.
 fn read_simple_value_labels(events: &mut Events<'_>) -> Result<(bool, bool, calc_doc_model::ChartLabels), LoadError> {
+    #[derive(Default)]
+    struct PointOverride {
+        idx: u32,
+        value: Option<bool>,
+        category: Option<bool>,
+        series: Option<bool>,
+        percent: Option<bool>,
+        position: Option<String>,
+        separator: Option<String>,
+        deleted: Option<bool>,
+    }
     let mut shown = calc_doc_model::ChartLabels::default();
     let mut in_separator = false;
     let mut depth = 0usize;
@@ -888,25 +899,27 @@ fn read_simple_value_labels(events: &mut Events<'_>) -> Result<(bool, bool, calc
     let mut valid = true;
     let mut linked = false;
     let mut formats = 0usize;
-    // The `c:dLbl` being read: its point and what it shows.
-    let mut point: Option<(u32, calc_doc_model::ChartLabels)> = None;
+    // The `c:dLbl` overrides being read (resolved against the series `c:dLbls` once all series flags are read,
+    // because OOXML places `<c:dLbl>` before the series-level flags).
+    let mut point: Option<PointOverride> = None;
+    let mut overrides: Vec<PointOverride> = Vec::new();
     let mut in_point_separator = false;
     loop {
         match events.next()? {
             Some(XmlEvent::Start(element)) => {
                 depth += 1;
                 if depth == 1 && element.name.is(CHART_NAMESPACE, "dLbl") {
-                    point = Some((0, calc_doc_model::ChartLabels::default()));
-                } else if depth == 2 && element.name.namespace.as_deref() == Some(CHART_NAMESPACE) && let Some((idx, shown)) = point.as_mut() {
+                    point = Some(PointOverride::default());
+                } else if depth == 2 && element.name.namespace.as_deref() == Some(CHART_NAMESPACE) && let Some(p) = point.as_mut() {
                     let on = matches!(element.attribute("val"), Some("1" | "true") | None);
                     match element.name.local.as_str() {
-                        "idx" => *idx = element.attribute("val").and_then(|v| v.parse().ok()).unwrap_or(0),
-                        "showVal" => shown.value = on,
-                        "showCatName" => shown.category = on,
-                        "showSerName" => shown.series = on,
-                        "showPercent" => shown.percent = on,
-                        "dLblPos" => shown.position = element.attribute("val").map(str::to_owned),
-                        "delete" => shown.deleted = on,
+                        "idx" => p.idx = element.attribute("val").and_then(|v| v.parse().ok()).unwrap_or(0),
+                        "showVal" => p.value = Some(on),
+                        "showCatName" => p.category = Some(on),
+                        "showSerName" => p.series = Some(on),
+                        "showPercent" => p.percent = Some(on),
+                        "dLblPos" => p.position = element.attribute("val").map(str::to_owned),
+                        "delete" => p.deleted = Some(on),
                         "separator" => in_point_separator = true,
                         _ => {}
                     }
@@ -937,7 +950,7 @@ fn read_simple_value_labels(events: &mut Events<'_>) -> Result<(bool, bool, calc
             Some(XmlEvent::End(_)) if depth == 0 => break,
             Some(XmlEvent::End(_)) => {
                 if depth == 1 && let Some(p) = point.take() {
-                    shown.points.push(p);
+                    overrides.push(p);
                 }
                 depth -= 1;
                 in_separator = false;
@@ -947,13 +960,26 @@ fn read_simple_value_labels(events: &mut Events<'_>) -> Result<(bool, bool, calc
                 if in_separator && depth == 1 {
                     shown.separator = Some(text.to_string());
                 }
-                if in_point_separator && depth == 2 && let Some((_, p)) = point.as_mut() {
+                if in_point_separator && depth == 2 && let Some(p) = point.as_mut() {
                     p.separator = Some(text.to_string());
                 }
                 valid &= text.trim().is_empty();
             }
             None => return Err(events.invalid("the part ends inside chart data labels")),
         }
+    }
+    for p in overrides {
+        let resolved = calc_doc_model::ChartLabels {
+            value: p.value.unwrap_or(shown.value),
+            category: p.category.unwrap_or(shown.category),
+            series: p.series.unwrap_or(shown.series),
+            percent: p.percent.unwrap_or(shown.percent),
+            position: p.position.or_else(|| shown.position.clone()),
+            separator: p.separator.or_else(|| shown.separator.clone()),
+            deleted: p.deleted.unwrap_or(shown.deleted),
+            points: Vec::new(),
+        };
+        shown.points.push((p.idx, resolved));
     }
     Ok((valid && count == 1, linked, shown))
 }
@@ -1096,6 +1122,24 @@ mod tests {
             assert_eq!(chart.plots[0].series[0].show_values, expected);
             assert_eq!(chart.plots[0].series[0].value_labels_source_linked, linked);
         }
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dw4_dc_zjsg_6__per_point_dlbl_inherits_series_flags_and_overrides_explicit_fields() {
+        let text = format!(
+            r#"<c:chartSpace xmlns:c="{CHART_NAMESPACE}"><c:chart><c:plotArea><c:barChart><c:ser><c:idx val="0"/><c:dLbls><c:dLbl><c:idx val="0"/><c:dLblPos val="inBase"/></c:dLbl><c:dLbl><c:idx val="1"/><c:showCatName val="1"/><c:showVal val="0"/></c:dLbl><c:dLblPos val="outEnd"/><c:showVal val="1"/><c:showSerName val="1"/><c:separator>; </c:separator></c:dLbls></c:ser></c:barChart></c:plotArea></c:chart></c:chartSpace>"#
+        );
+        let xml = XmlPart::new("chart.xml".into(), text.into_bytes(), crate::xml::XmlLimits::default());
+        let chart = read_chart_xml(&xml, "chart.xml", "Chart".into(), ChartAnchor::Absolute {
+            x: 0, y: 0, width: 100, height: 100,
+        }).unwrap();
+        let labels = chart.plots[0].series[0].labels.as_ref().unwrap();
+        assert_eq!((labels.value, labels.series, labels.category, labels.position.as_deref(), labels.separator.as_deref()), (true, true, false, Some("outEnd"), Some("; ")));
+        let p0 = &labels.points.iter().find(|(i, _)| *i == 0).unwrap().1;
+        assert_eq!((p0.value, p0.series, p0.category, p0.position.as_deref(), p0.separator.as_deref()), (true, true, false, Some("inBase"), Some("; ")));
+        let p1 = &labels.points.iter().find(|(i, _)| *i == 1).unwrap().1;
+        assert_eq!((p1.value, p1.series, p1.category, p1.position.as_deref(), p1.separator.as_deref()), (false, true, true, Some("outEnd"), Some("; ")));
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

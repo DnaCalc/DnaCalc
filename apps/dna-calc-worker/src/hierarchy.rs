@@ -119,15 +119,18 @@ pub struct Arc<'a> {
     pub root: usize,
 }
 
-/// The sunburst arcs of `roots`: each tile's arc as wide as its total, its children inside it on the next ring.
+/// The sunburst arcs of `roots`: each tile's arc as wide as its total, parents and children ordered descending by
+/// total (Excel-measured: dw3 Windows item 7), while each parent keeps its data-order `root` colour index.
 pub fn arcs(roots: &[Tile]) -> Vec<Arc<'_>> {
     fn walk<'a>(tiles: &'a [Tile], ring: usize, from: f64, to: f64, root: Option<usize>, out: &mut Vec<Arc<'a>>) {
         let total: f64 = tiles.iter().map(Tile::total).sum();
         if total <= 0.0 {
             return;
         }
+        let mut order: Vec<(usize, &Tile)> = tiles.iter().enumerate().collect();
+        order.sort_by(|a, b| b.1.total().total_cmp(&a.1.total()));
         let mut at = from;
-        for (i, t) in tiles.iter().enumerate() {
+        for (i, t) in order {
             let span = (to - from) * t.total() / total;
             let root = root.unwrap_or(i);
             out.push(Arc { ring, from: at, to: at + span, tile: t, root });
@@ -175,6 +178,7 @@ mod tests {
         ];
         let arcs = arcs(&roots);
         let spans: Vec<(usize, f64, f64, usize)> = arcs.iter().map(|a| (a.ring, a.from, a.to, a.root)).collect();
-        assert_eq!(spans, [(0, 0.0, 0.5, 0), (1, 0.0, 1.0 / 6.0, 0), (1, 1.0 / 6.0, 0.5, 0), (0, 0.5, 1.0, 1), (1, 0.5, 1.0, 1)]);
+        // A and B tie at total 3 (data order kept); inside A, a2 (2) precedes a1 (1).
+        assert_eq!(spans, [(0, 0.0, 0.5, 0), (1, 0.0, 1.0 / 3.0, 0), (1, 1.0 / 3.0, 0.5, 0), (0, 0.5, 1.0, 1), (1, 0.5, 1.0, 1)]);
     }
 }

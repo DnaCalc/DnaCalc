@@ -1,0 +1,998 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DNA Calc front end: mockups (Pro 19)</title>
+<style>
+/* Strand tokens (cockpit-light). Hues are surface tones; text uses the -ink variants (Strand 2.1). */
+:root {
+  --petrol-800: #193F49; --petrol-900: #12303A; --petrol-950: #0C1C22;
+  --teal-600: #318995; --teal-400: #3DB6CF; --amber: #FFB301; --green-500: #3F8B76;
+  --signal: #FF8001; --red: #D02A23; --charcoal: #353938; --mist: #EDF1F2;
+  --paper: #FFFFFF; --paper-2: #F6F8F9; --rule: #D5DDE0;
+  --teal-ink: #1B5F6B; --green-ink: #2E6E5B; --ink-3: #5B717B; --prov-const: #2D6A8A;
+  --prov-ext: #A35400; --red-ink: #D02A23;
+  /* inks scoped to petrol chrome (added: Strand gives them for dark paper, not for petrol-800) */
+  --c-ink: #EDF1F2; --c-meta: #A9C0C7; --c-teal: #4FC0D8; --c-green: #74C7AB;
+  --c-ext: #F0A35C; --c-red: #FF9C96; --c-const: #7DB8D8;
+  --ui: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "Cascadia Mono", "Cascadia Code", Consolas, "DejaVu Sans Mono", Menlo, "Liberation Mono", monospace;
+  --serif: Charter, "Source Serif 4", Georgia, serif;
+}
+* { box-sizing: border-box }
+html { scroll-behavior: smooth }
+body { margin: 0; background: var(--mist); color: var(--charcoal); font: 400 15px/1.5 var(--ui) }
+header.mast { background: var(--petrol-800); color: var(--c-ink); padding: 20px 28px 16px }
+header.mast h1 { margin: 0 0 4px; font: 650 22px/1.2 var(--ui); letter-spacing: 0 }
+header.mast p { margin: 0; color: var(--c-meta); max-width: 78ch }
+header.mast .badge { display: inline-flex; gap: 2px; vertical-align: middle; margin-right: 10px }
+header.mast .badge i { display: inline-block; width: 12px; height: 12px; border-radius: 3px }
+nav { background: var(--petrol-900); color: var(--c-meta); padding: 9px 28px; font-size: 13.5px; position: sticky; top: 0; z-index: 2; overflow-x: auto; white-space: nowrap }
+nav a { color: var(--c-teal); text-decoration: none }
+nav a:hover, nav a:focus-visible { text-decoration: underline }
+a:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px }
+main { max-width: 1040px; margin: 0 auto; padding: 22px 20px 60px }
+section { margin: 0 0 34px }
+h2 { font: 650 18px/1.3 var(--ui); margin: 28px 0 10px; color: var(--petrol-800) }
+h3 { font: 650 12.5px/1.3 var(--ui); letter-spacing: .12em; text-transform: uppercase; color: var(--teal-ink); margin: 18px 0 8px }
+p { max-width: 80ch; margin: 6px 0 }
+.card { background: var(--paper); border: 1px solid var(--rule); border-radius: 9px; padding: 14px 16px; overflow-x: auto }
+table.key { border-collapse: collapse; width: 100%; font-size: 14px }
+table.key th { text-align: left; font: 650 11px/1.3 var(--ui); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); padding: 6px 10px 6px 0; border-bottom: 1px solid var(--rule) }
+table.key td { padding: 6px 10px 6px 0; border-bottom: 1px solid var(--rule); vertical-align: top }
+table.key code, .callouts code, figcaption code, p code { font: 400 12.5px var(--mono); background: var(--paper-2); padding: 1px 4px; border-radius: 3px }
+.sw { display: inline-block; width: 44px; height: 20px; border-radius: 5px; vertical-align: middle; border: 1px solid rgba(0,0,0,.12) }
+figure { margin: 0 0 26px }
+figcaption { font: 400 14px/1.4 var(--ui); margin: 0 0 6px; color: var(--charcoal) }
+figcaption b { font-weight: 650; color: var(--teal-ink); margin-right: 6px }
+pre.wf { margin: 0; padding: 10px 12px; background: var(--paper); color: var(--charcoal); border: 1px solid var(--rule); border-radius: 9px;
+  font: 400 12.5px/1.22 var(--mono); overflow-x: auto; white-space: pre; tab-size: 4; font-variant-ligatures: none }
+pre.wf .pc { background: var(--petrol-800); color: var(--c-ink) }
+/* signal tags: on paper they use the -ink variants; on chrome the scoped inks */
+pre.wf .a { background: rgba(255,179,1,.30); box-shadow: 0 0 0 1px var(--amber) }
+pre.wf .r { color: var(--red-ink); font-weight: 650 }
+pre.wf .s { color: var(--prov-ext) }
+pre.wf .g { color: var(--green-ink); font-weight: 650 }
+pre.wf .t { color: var(--teal-ink) }
+pre.wf .k { color: var(--prov-const) }
+pre.wf .m { color: var(--ink-3) }
+pre.wf .b { font-weight: 650 }
+pre.wf .h { color: var(--teal-ink); font-style: italic }
+pre.wf .pc .a { background: none; box-shadow: none; color: var(--amber); font-weight: 650 }
+pre.wf .pc .r { color: var(--c-red) }
+pre.wf .pc .s { color: var(--c-ext) }
+pre.wf .pc .g { color: var(--c-green) }
+pre.wf .pc .t { color: var(--c-teal) }
+pre.wf .pc .k { color: var(--c-const) }
+pre.wf .pc .m { color: var(--c-meta) }
+pre.wf .pc .h { color: var(--c-teal) }
+pre.wf .co { background: var(--charcoal); color: #fff; border-radius: 3px; font-weight: 400 }
+pre.wf .pc .co { background: var(--mist); color: var(--petrol-950) }
+ol.callouts { margin: 8px 0 0; padding-left: 0; list-style: none; font-size: 14px; max-width: 92ch }
+ol.callouts li { margin: 3px 0; padding-left: 36px; position: relative }
+ol.callouts li::before { content: "(" attr(value) ")"; position: absolute; left: 0; font: 400 12.5px var(--mono); background: var(--charcoal); color: #fff; border-radius: 3px; padding: 0 2px; top: 2px }
+/* the small dressed components */
+.demo { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px }
+.demo .card { padding: 12px 14px }
+.grid { border-collapse: collapse; font: 400 13px/1 var(--ui); font-variant-numeric: tabular-nums }
+.grid td, .grid th { border: 1px solid var(--rule); padding: 6px 9px; text-align: right; min-width: 78px; height: 27px; position: relative; background: var(--paper) }
+.grid th { background: var(--paper-2); color: var(--ink-3); font-weight: 560; text-align: center }
+.grid td.l { text-align: left }
+.grid td.sel { outline: 2px solid var(--amber); outline-offset: -1px; z-index: 1 }
+.grid td.sel::after { content: ""; position: absolute; right: -4px; bottom: -4px; width: 7px; height: 7px; background: var(--amber); border: 1px solid var(--paper); border-radius: 1px }
+.grid td.err { color: var(--red-ink); border-left: 3px solid var(--red) }
+.grid td.fresh span { border-bottom: 2px solid var(--green-500) }
+.grid td.ext { color: var(--prov-ext) }
+.grid td.ext::before { content: "◊ "; }
+.grid td.const { color: var(--prov-const) }
+.grid td.saved { background-image: repeating-linear-gradient(135deg, transparent 0 5px, rgba(91,113,123,.18) 5px 6px) }
+.grid td.ghost { outline: 1.5px dotted var(--teal-600); outline-offset: -2px; color: var(--teal-ink); font-style: italic }
+.chips { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; font: 400 13px/1 var(--mono) }
+.chip { padding: 5px 8px; border-radius: 5px; border: 1.5px solid var(--teal-600); color: var(--teal-ink); background: var(--paper) }
+.chip.inf { border-style: dashed }
+.chip.gho { border-style: dotted; font-style: italic }
+.chip.now { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber); color: var(--charcoal) }
+.strip { background: var(--petrol-800); color: var(--c-ink); border-radius: 0 0 9px 9px; padding: 7px 12px; font: 400 12.5px/1.3 var(--ui); display: flex; flex-wrap: wrap; gap: 4px 14px }
+.strip b { font-weight: 650 }
+.strip .amber { color: var(--amber) } .strip .red { color: var(--c-red) } .strip .ext { color: var(--c-ext) } .strip .meta { color: var(--c-meta); margin-left: auto }
+.note { color: var(--ink-3); font-size: 13.5px }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto } }
+@media print { nav { position: static } pre.wf { font-size: 8.5px; break-inside: avoid } figure { break-inside: avoid } body { background: #fff } }
+</style>
+</head>
+<body>
+<header class="mast">
+  <h1><span class="badge" aria-hidden="true"><i style="background:#318995"></i><i style="background:#0C1C22;outline:1px solid #4FC0D8"></i></span>DNA Calc front end: the mockups</h1>
+  <p>Companion to <code style="color:#EDF1F2">answer.md</code> (Pro 19). The same wireframes, character for character, with Strand's signal colours applied: petrol chrome, paper stage, amber for now, red for errors, signal orange for outside data, green for fresh values, teal for structure. One static file: inline styles, system fonts, no scripts.</p>
+</header>
+<nav aria-label="Sections"><a href="#key">Key</a> · <a href="#dress">Signals, dressed</a> · <a href="#g0">M0 · The shell</a> · <a href="#g1">M1 · Maria opens Inherited</a> · <a href="#g2">M2 · Budget as a notebook</a> · <a href="#g3">M3 · Sam traces a number</a> · <a href="#g4">M4 · Lee builds Stock on the map</a> · <a href="#g5">M5 · Jo runs Loan as an App</a> · <a href="#g6">M6 · Ade and the add-in</a> · <a href="#g7">M7 · The agent proposes</a> · <a href="#g8">M8 · The views and the Formula Explorer</a> · <a href="#g9">M9 · A reading</a></nav>
+<main>
+
+<section id="key">
+<h2>How to read the wireframes</h2>
+<div class="card">
+<table class="key">
+<thead><tr><th>In a wireframe</th><th>Means</th><th>In colour</th></tr></thead>
+<tbody>
+<tr><td><code>▐ … ▌</code></td><td>the selection; "now"</td><td><span class="sw" style="background:#FFB301"></span> amber outline. The only saturated attention channel.</td></tr>
+<tr><td>a solid line, a plain name</td><td>stated in the file</td><td><span class="sw" style="background:#353938"></span> ink, and <span class="sw" style="background:#318995"></span> teal for structure</td></tr>
+<tr><td><code>‹label›</code>, <code>- - -</code>, <code>¦</code></td><td><b>inferred</b> by the program, not in the file</td><td>dashed teal</td></tr>
+<tr><td><code>· · ·</code>, <code>:</code></td><td>a <b>ghost</b>: proposed or previewed, not yet in the file</td><td>dotted teal, slanted text</td></tr>
+<tr><td><code>▌</code> before an error value</td><td>an error</td><td><span class="sw" style="background:#D02A23"></span> red tick on the cell's left edge. Red means nothing else.</td></tr>
+<tr><td><code>◊</code></td><td>fed from outside, or volatile: a link, RTD, an add-in, NOW</td><td><span class="sw" style="background:#FF8001"></span> signal orange (text in <span style="color:#A35400;font-weight:600">#A35400</span>)</td></tr>
+<tr><td><code>•</code> after a value</td><td>fresh: changed in the last recalculation</td><td><span class="sw" style="background:#3F8B76"></span> green underline that fades</td></tr>
+<tr><td><code>[!]</code></td><td>a warning</td><td>bold ink and a hollow triangle. Warnings have no colour of their own.</td></tr>
+<tr><td><code>(1)</code></td><td>a callout, explained under the mockup</td><td>not part of the screen</td></tr>
+<tr><td>a dark band or pane</td><td>chrome and instrument panels: Mast, Deck, Bridge, Strip, docked panels</td><td><span class="sw" style="background:#193F49"></span> petrol-800 with mist ink</td></tr>
+</tbody>
+</table>
+</div>
+<p class="note">Mockup numbers match <code>answer.md</code>: M0 is the shell, M1 to M7 the seven storyboards, M8 one full screen per view and the Formula Explorer in both forms, M9 the reading chip.</p>
+</section>
+
+<section id="dress">
+<h2>The same signals, dressed</h2>
+<p>Three small renders in real styles, to show the grammar the wireframes can only describe. They are illustrations of the signal system, not additional screens.</p>
+<div class="demo">
+  <div class="card">
+    <h3>Cell states on paper</h3>
+    <table class="grid" aria-label="Cell states">
+      <tr><th></th><th>G</th><th>H</th><th>I</th></tr>
+      <tr><th>12</th><td class="const">20</td><td class="const">20</td><td class="const">22</td></tr>
+      <tr><th>13</th><td>128,000</td><td class="sel">137,000</td><td class="fresh"><span>140,800</span></td></tr>
+      <tr><th>14</th><td class="err">#REF!</td><td class="ext">28,627</td><td class="saved">30,572</td></tr>
+      <tr><th>15</th><td class="ghost">250,103→241,103</td><td></td><td></td></tr>
+    </table>
+    <p class="note">Row 12: typed constants in the constant ink (provenance overlay). H13 selected, with the fill handle. I13 fresh. G14 an error: Excel's text, red tick. H14 fed from outside. I14 as saved, hatched. G15 a ghost: a proposed value.</p>
+  </div>
+  <div class="card">
+    <h3>Line style is a truth channel</h3>
+    <div class="chips">
+      <span class="chip">ServicesShare</span>
+      <span class="chip inf">‹Monthly churn›</span>
+      <span class="chip gho">Supply.Arrivals</span>
+      <span class="chip now">Store.Stock</span>
+    </div>
+    <p class="note">Solid: a defined name, stated in the file. Dashed: a label the program read from the sheet. Dotted: a ghost, here a reference being typed. Amber: the one under the caret.</p>
+    <h3>The Strip</h3>
+    <div class="strip"><b class="amber">Edit</b><span>Calculating 38% · Esc stops</span><span class="red">▌4,226 errors, 3 roots</span><span class="ext">◊ 2 links missing</span><span>Macros off</span><span class="meta">Sum 137,000 · 100%</span></div>
+    <p class="note">Mode word, calculation instrument, errors by root, outside data, macro state, selection statistics. Present in every view and under every skin.</p>
+  </div>
+</div>
+</section>
+
+<section id="g0"><h2>M0 · The shell</h2>
+<figure id="M0.1"><figcaption><b>M0.1</b> The shell every view shares (Classic shown; Budget, <code>Monthly!H13</code> selected)</figcaption>
+<pre class="wf">┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│<span class="pc"> ▪▪ Budget.xlsx · edited      <span class="a">▐Classic▌</span>  Inspector  Notebook  Map  App      Ask or run…  Alt+Q <b class="co">(1)</b></span>│
+│<span class="pc"> File  Home  Insert  Layout  Formulas  Data  Review  View │ Paste▼  Fill▼  B I U  %  ,   More▼ <b class="co">(2)</b></span>│
+│<span class="pc"> Monthly!H13     ▼ │ fx │ =H12*Inputs!$E$14+9000                                     lens off  <b class="co">(3)</b></span>│
+├──────────────────────────────────────────────────────────────────────┬───────────────────────────┤
+│    │ A                │       G │         H │       I │       J │ <b class="co">(4)</b>│<span class="pc"> <span class="b">DETAILS</span>                <b class="co">(5)</b></span>│
+│  4 │                  │     May │       Jun │     Jul │     Aug │    │<span class="pc"> <span class="t">Monthly!H13</span>               </span>│
+│ 11 │ Cost of sales    │  68,063 │    69,977 │  74,730 │  76,650 │    │<span class="pc"> People · Jun              </span>│
+│ 12 │ Headcount        │      20 │        20 │      22 │      22 │    │<span class="pc"> <span class="b">137,000</span>              #,##0</span>│
+│ 13 │ People           │ 128,000 │<span class="a">▐  137,000▌</span>│ 140,800 │ 140,800 │    │<span class="pc"> =H12*Inputs!$E$14+9000    </span>│
+│ 14 │ Marketing        │  27,844 │    28,627 │  30,572 │  31,357 │    │<span class="pc"> reads 2 · read by 3 cells </span>│
+│ 15 │ Rent and other   │  14,500 │    14,500 │  14,500 │  14,500 │    │<span class="pc"> in a run of 12: 11 alike, </span>│
+│ 16 │ Total costs      │ 238,406 │   250,103 │ 260,602 │ 263,307 │    │<span class="pc"> <span class="b">[!] this one differs</span>      </span>│
+│ <span class="m">Inputs</span> │ <span class="b">Monthly</span> │ <span class="m">Summary</span> │ +                                    <b class="co">(6)</b>│<span class="pc"> Trace  Explore  Show in▼  </span>│
+├──────────────────────────────────────────────────────────────────────┴───────────────────────────┤
+│<span class="pc">  Ready · Calculated · No errors · 1 exception noted · Agent idle          Sum 137,000   100%  <b class="co">(7)</b></span>│
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘</pre>
+<ol class="callouts">
+<li value="1"><b>Mast.</b> The file and its state, the five views, and one field for commands, addresses and requests to the agent.</li>
+<li value="2"><b>Deck.</b> One row. Tab names and key-tip letters are Excel&#x27;s; the look is ours.</li>
+<li value="3"><b>Bridge.</b> Address field and formula bar, in every view; folded away by default only in App.</li>
+<li value="4"><b>Stage.</b> The view, on paper, with the workbook&#x27;s one selection.</li>
+<li value="5"><b>Panel.</b> Docks right or below; the same panels in every view. Details is the peek card, pinned.</li>
+<li value="6"><b>Sheet tabs</b> in Classic; sections, pages or levels elsewhere.</li>
+<li value="7"><b>Strip.</b> Mode, calculation, errors, outside data, macros, agent, statistics. Never hidden.</li>
+</ol>
+</figure>
+</section>
+<section id="g1"><h2>M1 · Maria opens Inherited</h2>
+<figure id="M1.1"><figcaption><b>M1.1</b> First run: the start page</figcaption>
+<pre class="wf">┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│<span class="pc"> ▪▪ DNA Calc                                                                    Ask or run…  Alt+Q</span>│
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│     <span class="b">Open a workbook</span>         Ctrl+O         or drop a file anywhere on this window          <b class="co">(1)</b>   │
+│     <span class="b">New workbook</span>            Ctrl+N                                                               │
+│     <span class="b">Formula Explorer</span>        Alt+Shift+E    try one formula, no workbook needed                   │
+│                                                                                                  │
+│     <span class="m">Recent</span>                  <span class="m">nothing yet. Workbooks you open are listed here.</span>                     │
+│                                                                                                  │
+│     Your file stays an Excel file. Nothing is added that Excel cannot open.                 <b class="co">(2)</b>  │
+│     Everything you know from Excel works in Classic. What is new is on Alt+Shift and Alt+Q.  <b class="co">(3)</b> │
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│<span class="pc"> Ready · no workbook open                                                                         </span>│
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘</pre>
+<ol class="callouts">
+<li value="1">Three verbs with their keys. A dropped file opens as Ctrl+O would.</li>
+<li value="2">The promise, once, where a cautious Excel user looks first.</li>
+<li value="3">The rule for finding what is new. It is repeated when Alt is pressed (M1.3).</li>
+</ol>
+</figure>
+<figure id="M1.2"><figcaption><b>M1.2</b> Inherited at first paint: values as saved, still loading, nothing blocking</figcaption>
+<pre class="wf">┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│<span class="pc"> ▪▪ Inherited.xls · unchanged      <span class="a">▐Classic▌</span>  Inspector  Notebook  Map  App     Ask or run…  Alt+Q</span>│
+│<span class="pc"> File  Home  Insert  Layout  Formulas  Data  Review  View │ Paste▼  Fill▼  B I U  %  ,       More▼</span>│
+│<span class="pc"> Summary!A1      ▼ │ fx │ Desk P&amp;L                                                        lens off</span>│
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  <span class="b">[!] 3 things to know:</span> 2 linked files missing · macros off · calculation manual   Overview ►  <b class="co">(1)</b>│
+├──────────────────────────────────────────────────────────────┬───────────────────────────────────┤
+│ ░░ as saved 14 Nov 2001 · not recalculated here · F9 ░░ <b class="co">(3)</b>  │<span class="pc"> <span class="b">OVERVIEW</span>                       <b class="co">(2)</b></span>│
+│    │ A          │        B │         C │        D │       E  │<span class="pc"> Inherited.xls · Excel 97-2003     </span>│
+│  1 │<span class="a">▐Desk P&amp;L  ▌</span>│          │ 14-Nov-01 │          │          │<span class="pc"> 9.4 MB · saved 14 Nov 2001        </span>│
+│  3 │ Desk       │ Position │       MTM │  P&amp;L day │ P&amp;L MTD  │<span class="pc"> ────────────────────────────────  </span>│
+│  4 │ Gas - East │   12,450 │ 1,204,880 │   <span class="r">▌#REF!</span> │  <span class="r">▌#REF!</span>  │<span class="pc"> Sheets   40: 31 shown, 8 hidden,  </span>│
+│  5 │ Gas - West │    8,300 │   911,402 │   <span class="r">▌#REF!</span> │  <span class="r">▌#REF!</span>  │<span class="pc">          1 very hidden           ►</span>│
+│  6 │ Power      │   -3,150 │  -402,117 │   <span class="r">▌#REF!</span> │  <span class="r">▌#REF!</span>  │<span class="pc"> Formulas <span class="m">88,210 so far…</span>           </span>│
+│  7 │ Crude      │    1,900 │   233,640 │    <span class="r">▌#N/A</span> │   <span class="r">▌#N/A</span>  │<span class="pc"> Errors   <span class="r">▌1,926 so far…</span>           </span>│
+│  8 │ Total      │   19,500 │ 1,947,805 │   <span class="r">▌#REF!</span> │  <span class="r">▌#REF!</span>  │<span class="pc"> Links    5 files · <span class="s">◊2 missing</span>    ►</span>│
+│  9 │ Margin %   │          │           │ <span class="r">▌#DIV/0!</span> │     <b class="co">(4)</b>  │<span class="pc"> Names    61 · 4 use OFFSET       ►</span>│
+│ 10 │            │          │           │          │          │<span class="pc"> Macros   Module1, 2 procedures,   </span>│
+│ 11 │  [ Refresh ]   [ Print reports ]   <b class="co">(5)</b>                  │<span class="pc">          off for this file       ►</span>│
+│ 12 │            │          │           │          │          │<span class="pc"> Calc     manual · as saved       ►</span>│
+│ <span class="b">Summary</span> │ Positions │ Curves │ Deals │ ◄ 27 more ►           │<span class="pc"> ↑↓ move · Enter go · Alt+← back   </span>│
+├──────────────────────────────────────────────────────────────┴───────────────────────────────────┤
+│<span class="pc">  Ready · Reading sheets 9 of 40 ▓▓░░░░░░ · Manual: as saved · <span class="s">◊2 links missing</span> · Macros off   <b class="co">(6)</b></span>│
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘</pre>
+<ol class="callouts">
+<li value="1">One notice line where Excel raises three dialogs. It blocks nothing; Enter opens the Overview.</li>
+<li value="2">The Overview opens by itself for a file with notices. Every line is a link; counts fill in and say &quot;so far&quot;.</li>
+<li value="3">The hatched band: values saved in the file, not recalculated here.</li>
+<li value="4">Errors keep Excel&#x27;s text and gain a red tick. The cell&#x27;s own format is untouched.</li>
+<li value="5">The file&#x27;s buttons are drawn; with macros off they explain themselves (S1.6).</li>
+<li value="6">Progress is in the Strip. The grid is already usable.</li>
+</ol>
+</figure>
+<figure id="M1.3"><figcaption><b>M1.3</b> Pressing Alt: Excel&#x27;s key tips, and the one new layer taught in place</figcaption>
+<pre class="wf">┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│<span class="pc"> ▪▪ Inherited.xls       Classic<span class="a">[1]</span> Inspector<span class="a">[2]</span> Notebook<span class="a">[3]</span> Map<span class="a">[4]</span> App<span class="a">[5]</span>      Ask or run <span class="a">[Q]</span>  <b class="co">(2)</b></span>│
+│<span class="pc"> <span class="a">[F]</span>File <span class="a">[H]</span>Home <span class="a">[N]</span>Insert <span class="a">[P]</span>Layout <span class="a">[M]</span>Formulas <span class="a">[A]</span>Data <span class="a">[R]</span>Review <span class="a">[W]</span>View                     <b class="co">(1)</b></span>│
+│<span class="pc"> Excel&#x27;s letters after Alt.  Alt+Shift: 1-5 views · 0 grid · L lens · E explore · T trace      <b class="co">(3)</b></span>│
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘</pre>
+<ol class="callouts">
+<li value="1">Excel&#x27;s letters. A path typed from memory runs without waiting for the tips.</li>
+<li value="2">The digits on the view names go with Alt+Shift. Q is Excel&#x27;s search key and opens the palette.</li>
+<li value="3">One line teaches the new layer, on the first five uses of Alt.</li>
+</ol>
+</figure>
+<figure id="M1.4"><figcaption><b>M1.4</b> Model map at sheet zoom (Alt+Shift+4): how forty sheets hang together</figcaption>
+<pre class="wf">┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│<span class="pc"> ▪▪ Inherited.xls · unchanged      Classic  Inspector  Notebook  <span class="a">▐Map▌</span>  App     Ask or run…  Alt+Q</span>│
+│<span class="pc"> Summary (sheet) ▼ │ fx │ 212 formulas · reads P&amp;L by Desk, Jan…Dec · read by nothing     lens off</span>│
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  <span class="b">Inherited.xls</span> ► all sheets                   zoom:  <span class="b">sheets</span> · blocks · cells                  <b class="co">(1)</b>│
+│  ┌──────────────────────────────┐                                                                │
+│  │ <span class="s">◊ Forward Curves 2001.xls</span>    │   ┌────────────────────────────┐                               │
+│  │ <span class="s">◊ Rates.xls</span>                  │   │ <span class="s">◊ Q3 Positions.xls</span> <span class="b">MISSING</span> │  <b class="co">(2)</b>                          │
+│  │ <span class="s">◊ GasDaily Index.xls</span> <span class="b">MISSING</span> │   └────────────────────────────┘                               │
+│  └──────────────────────────────┘         ¦                                                      │
+│                    │ 2 found · 1 missing  ¦ 310 · values as saved                                │
+│                    ▼                      ▼                                                      │
+│             ┌─────────────┐ 8,412  ┌─────────────┐ 1,204  ┌───────────────┐ 96   ┌─────────────┐ │
+│             │ Curves      │───────►│ Positions   │───────►│ P&amp;L by Desk   │─────►│<span class="a">▐ Summary   ▌</span>│ │
+│             │ 229,245 fx  │        │ 31,880 fx   │        │ 9,604 fx      │      │ 212 fx      │ │
+│             │ packed   <b class="co">(3)</b>│        │             │        │ <span class="r">▌1,912 #REF!</span>  │      │ <span class="r">▌14 #DIV/0!</span> │ │
+│             └─────────────┘        └─────────────┘        └───────────────┘      └─────────────┘ │
+│                                           ▲                                             ▲        │
+│                                           │ 4,180                                       │ 144    │
+│             ┌─────────────┐  23    ┌─────────────┐                              ┌────────────┐┐┐ │
+│             │ Lookup      │───────►│ Deals       │                              │ Jan … Dec  │││ │
+│             │ 40 fx       │        │ 18,912 fx   │                              │ 12 alike   │││ │
+│             └─────────────┘        │ <span class="r">▌2,300 #N/A</span> │                              └────────────┘┘┘ │
+│                    ▲               └─────────────┘                                 <b class="co">(4)</b>           │
+│            <span class="s">◊ Desk Map.xls</span>                                                                        │
+│                                                                                                  │
+│  ┌- - - - - - - - - - - -┐  ┌- - - - - - - - - - -┐  ┌─────────────────────────────┐             │
+│  ¦ 8 hidden sheets      ►¦  ¦ 1 very hidden     ► ¦  │ 12 sheets nothing reads    ►│  <b class="co">(5)</b>        │
+│  └- - - - - - - - - - - -┘  └- - - - - - - - - - -┘  └─────────────────────────────┘             │
+│  40 of 40 sheets accounted for · 62 links in 9 bundles · cells are not drawn at this zoom     <b class="co">(6)</b>│
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│<span class="pc"> Ready · Manual: as saved · <span class="r">▌4,226 errors, 3 roots</span> · <span class="s">◊2 links missing</span> · Macros off        Map 100%</span>│
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘</pre>
+<ol class="callouts">
+<li value="1">Breadcrumb and semantic zoom. Enter looks inside a box; Esc steps out. Text never shrinks.</li>
+<li value="2">A missing file: signal orange, a dashed wire, and the fact that saved values are in use.</li>
+<li value="3">Standing facts on each box: formulas, &quot;packed&quot;, errors.</li>
+<li value="4">Twelve sheets whose formulas match cell for cell are one stack.</li>
+<li value="5">Hidden sheets and sheets nothing reads are counted, never left out.</li>
+<li value="6">The count that keeps the picture honest.</li>
+</ol>
+</figure>
+</section>
+<section id="g2"><h2>M2 · Budget as a notebook</h2>
+<figure id="M2.1"><figcaption><b>M2.1</b> Notebook, first visit: the empty state is an offer drawn from the file</figcaption>
+<pre class="wf">┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│<span class="pc"> ▪▪ Budget.xlsx · saved         Classic  Inspector  <span class="a">▐Notebook▌</span>  Map  App        Ask or run…  Alt+Q</span>│
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│     <span class="b">Budget has no notebook yet.</span>  Draft one from the workbook?                            <b class="co">(1)</b>     │
+│                                                                                                  │
+│     <span class="a">▐ ● By sheet, in order   ▌</span>   Inputs → Monthly → Summary         3 sections · 9 items         │
+│        ○ Conclusions first       Summary, then what feeds it        3 sections · 9 items         │
+│        ○ Blank page              start with text; add items with Alt, N                          │
+│                                                                                                  │
+│     Read from the file: 1 inputs block (12 assumptions × 2 scenarios) · 2 calculation blocks,    │
+│     12 periods across · 1 summary · 1 chart · no tables.       <span class="t">Why these? ►</span>               <b class="co">(2)</b>    │
+│                                                                                                  │
+│     Drafting changes nothing in the workbook.     Enter drafts · ↑↓ choose · Esc stays blank <b class="co">(3)</b> │
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│<span class="pc"> Ready · Calculated · No errors          Monthly!C9 will be shown in Revenue › Total revenue › Jan</span>│
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘</pre>
+<ol class="callouts">
+<li value="1">A first visit is an offer built from what the program read, never a blank page (P4).</li>
+<li value="2">The reading in plain words, with its evidence one step away.</li>
+<li value="3">The seam, stated: drafting is presentation. The Strip already says where the selection will land.</li>
+</ol>
+</figure>
+<figure id="M2.2"><figcaption><b>M2.2</b> Notebook mid-edit: one formula for a run of twelve, lens on, the seam open</figcaption>
+<pre class="wf">┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│<span class="pc"> ▪▪ Budget.xlsx · saved, layout edited    Classic Inspector <span class="a">▐Notebook▌</span> Map App   Ask or run… Alt+Q</span>│
+│<span class="pc"> File Home Insert Layout … View │ Text  Value  Frame  Chart  Control │ <span class="b">Page</span> · Across │ Reading    </span>│
+│<span class="pc"> Monthly!C8:N8   ▼ │ fx │ =MAX(C7*ServicesShare,2500                                       <span class="a">lens on</span></span>│
+├────────────────────┬─────────────────────────────────────────────────────────────────────────────┤
+│<span class="pc">  <span class="b">OUTLINE</span>        <b class="co">(6)</b></span>│  <span class="b">Budget 2027: where the plan stands</span>                                         │
+│<span class="pc">  Summary           </span>│                                                                             │
+│<span class="pc">    Result          </span>│  We plan operating profit of <span class="t">923,215</span> on revenue of <span class="t">3,940,602</span>, a margin      │
+│<span class="pc">    Chart           </span>│  of <span class="t">23.4%</span>. In the Downside case profit is <span class="t">565,813</span>.  <b class="co">(1)</b>                     │
+│<span class="pc">  Monthly           </span>│                                                                             │
+│<span class="pc">  <span class="a">▐ Revenue        ▌</span></span>│  <span class="b">Revenue</span>                                   <span class="m">Monthly!B5:O9 · 12 periods across</span>│
+│<span class="pc">    Costs           </span>│   Customers      = Customers[prev] × (1 − ‹Monthly churn›) + ‹New customers›│
+│<span class="pc">    Operating profit</span>│   Price          = ‹Price› × IF(MONTH(‹month›) &gt;= 7, 1 + ‹Price rise›, 1)   │
+│<span class="pc">  Inputs            </span>│   Subscriptions  = Customers × Price                                        │
+│<span class="pc">    Assumptions     </span>│  <span class="a">▐Services       = MAX(Subscriptions × ServicesShare, 2500|            ▌</span> <b class="co">(2)</b>│
+│<span class="pc">                    </span>│    <span class="h">· · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · ·</span>    │
+│<span class="pc">                    </span>│    <span class="h">:</span> Writes 12 cells, <span class="b">Monthly!C8:N8</span>: one formula, filled across.  <b class="co">(3)</b>     <span class="h">:</span><span class="m"> </span>│
+│<span class="pc">                    </span>│    <span class="h">:</span> Stores as  =MAX(C7*ServicesShare,2500)  in C8                        <span class="h">:</span><span class="m"> </span>│
+│<span class="pc">                    </span>│    <span class="h">:</span> Result     Jan 29,245 … Dec 40,904 · no value changes                <span class="h">:</span><span class="m"> </span>│
+│<span class="pc">                    </span>│    <span class="h">:</span> Enter writes · Esc reverts exactly                                   <span class="h">:</span><span class="m"> </span>│
+│<span class="pc">                    </span>│    <span class="h">· · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · ·</span>    │
+│<span class="pc">                    </span>│   Total revenue  = Subscriptions + Services                                 │
+│<span class="pc">                    </span>│                                                                             │
+│<span class="pc">                    </span>│                │     Jan │     Feb │ <span class="t">◄ Mar–Nov ►</span> │     Dec │        FY │ <b class="co">(4)</b>│
+│<span class="pc">                    </span>│  Subscriptions │ 243,706 │ 252,060 │             │ 340,864 │ 3,518,394 │    │
+│<span class="pc">                    </span>│  Services      │  29,245 │  30,247 │             │  40,904 │   422,207 │    │
+│<span class="pc">                    </span>│  Total revenue │ 272,951 │ 282,307 │             │ 381,767 │ 3,940,602 │    │
+│<span class="pc">                    </span>│                                                                             │
+│<span class="pc">                    </span>│  <span class="b">Costs</span> ► 5 rows, folded           <span class="b">[!] People: 11 alike, 1 differs (Jun)</span>  <b class="co">(5)</b>│
+├────────────────────┴─────────────────────────────────────────────────────────────────────────────┤
+│<span class="pc">  <span class="a">Edit</span> · Calculated · No errors                                  Notebook · Working density · 100%</span>│
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘</pre>
+<ol class="callouts">
+<li value="1">Prose in the reading face. The teal figures quote cells and recalculate with them.</li>
+<li value="2">One item for the run <code>C8:N8</code>, in edit. <code>ServicesShare</code> is plain, a defined name; <code>‹Monthly churn›</code> is a label read from the sheet.</li>
+<li value="3">The seam: what Enter will write, in Excel&#x27;s text, and its effect on the results.</li>
+<li value="4">Folded columns are named by a control, not dropped.</li>
+<li value="5">A folded section still reports its exception (P1).</li>
+<li value="6">The Outline, successor of the experimental tree. Alt+↑ and Alt+↓ move an item.</li>
+</ol>
+</figure>
+</section>
+<section id="g3"><h2>M3 · Sam traces a number</h2>
+<figure id="M3.1"><figcaption><b>M3.1</b> Classic with the Trace panel below: a conditional sum explained as a ladder of rows</figcaption>
+<pre class="wf">┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│<span class="pc"> ▪▪ Sales.xlsx · saved         <span class="a">▐Classic▌</span>  Inspector  Notebook  Map  App         Ask or run…  Alt+Q</span>│
+│<span class="pc"> Report!D9       ▼ │ fx │ =SUMIFS(Orders[Amount],Orders[Region],$A9,                              </span>│
+│<span class="pc">                           Orders[Date],&quot;&gt;=&quot;&amp;D$3,Orders[Date],&quot;&lt;=&quot;&amp;D$4)                   lens off</span>│
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│    │ A           │             B │             C │             D │             E │               │
+│  5 │ Region      │            Q1 │            Q2 │            Q3 │    Q4 to date │               │
+│  8 │ East        │  1,301,774.35 │  1,288,460.00 │  1,342,918.65 │    701,336.20 │               │
+│  9 │ West        │  1,187,092.40 │  1,229,645.15 │<span class="a">▐ 1,204,318.50▌</span>│    648,907.85 │  <b class="co">(1)</b>          │
+│ 10 │ Total       │  4,449,384.45 │  4,596,375.85 │  4,516,998.85 │  2,418,249.10 │               │
+│  ══ split ══ PivotTable1: Sum of Amount by Region and Quarter ════════════════════════           │
+│ 17 │ West        │  1,201,355.90 │  1,243,880.65 │<span class="a">▐ 1,251,907.25▌</span>│    648,907.85 │  <b class="co">(2)</b>          │
+│ 18 │ Grand Total │  4,600,624.75 │  4,756,999.10 │  4,684,065.45 │  2,418,249.10 │               │
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│<span class="pc">  <span class="b">TRACE</span>  Report!D9 = 1,204,318.50     beside D17 (PivotTable1) 1,251,907.25 · difference <span class="b">47,588.75</span></span>│
+│<span class="pc">  ────────────────────────────────────────────────────────────────────────────────────────────────</span>│
+│<span class="pc">    sum     Orders[Amount]                           25,000 rows · all numbers                    </span>│
+│<span class="pc">    test 1  Orders[Region] = &quot;West&quot;        ($A9)      6,212 pass           0 fail only this    <b class="co">(3)</b></span>│
+│<span class="pc">    test 2  Orders[Date] &gt;= 1-Jul-26       (D$3)      2,155 left           0 fail only this       </span>│
+│<span class="pc">  <span class="a">▐ test 3  Orders[Date] &lt;= 30-Sep-26      (D$4)      2,114 left          41 fail only this  ▌</span> <b class="co">(4)</b></span>│
+│<span class="pc">    result  sum of 2,114 amounts                     1,204,318.50                                 </span>│
+│<span class="pc">  ────────────────────────────────────────────────────────────────────────────────────────────────</span>│
+│<span class="pc">    <span class="b">[!] Hint, likely:</span> the 41 rows carry a time of day; &quot;&lt;=30-Sep-26&quot; stops at 00:00.   <b class="co">(5)</b>        </span>│
+│<span class="pc">    Same formula in 16 cells, B6:E9: 412 rows fail only the end-date test, worth 478,930.15.   <b class="co">(6)</b></span>│
+│<span class="pc">    ↑↓ move · Enter show the rows · Alt+Shift+E explore · Alt+Shift+2 full Inspector · Esc close  </span>│
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│<span class="pc">  Ready · Calculated · No errors           Sum 2,456,225.75 · Count 2 · Difference 47,588.75   <b class="co">(7)</b></span>│
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘</pre>
+<ol class="callouts">
+<li value="1">The active cell. <code>D17</code>, the pivot&#x27;s figure for the same region and quarter, is selected with it.</li>
+<li value="2">The PivotTable&#x27;s figure, which the ledger agrees with.</li>
+<li value="3">The ladder: rows left after each test, and rows that fail only that test. Wrong totals hide in the second number.</li>
+<li value="4">The selected node. Enter opens its 41 rows (M3.2).</li>
+<li value="5">A hint is the program&#x27;s inference, graded, never stated as fact.</li>
+<li value="6">The same formula runs over 16 cells, so the flaw is counted across all.</li>
+<li value="7">Two numbers selected: the Strip adds their difference.</li>
+</ol>
+</figure>
+<figure id="M3.2"><figcaption><b>M3.2</b> The 41 rows, as a view filter that Excel&#x27;s own filter never sees</figcaption>
+<pre class="wf">┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│<span class="pc"> ▪▪ Sales.xlsx · saved         <span class="a">▐Classic▌</span>  Inspector  Notebook  Map  App         Ask or run…  Alt+Q</span>│
+│<span class="pc"> Orders!B18842   ▼ │ fx │ 46295.3416666667                                                lens off</span>│
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  <span class="b">View filter from Trace</span> · <span class="b">41 of 25,000 rows</span> · not Excel&#x27;s AutoFilter · Esc clears             <b class="co">(1)</b>│
+├────────────────────────────────────────────────────────────────────┬─────────────────────────────┤
+│        │ A OrderID │ B Date    │ C Region │ D Rep     │  J Amount ││<span class="pc"> <span class="b">DETAILS</span>                     </span>│
+│ <span class="t">18,842</span> │ SO-118841 │<span class="a">▐30-Sep-26▌</span>│ West     │ Okafor    │  1,240.00 ││<span class="pc"> <span class="t">Orders!B18842</span>               </span>│
+│ <span class="t">18,847</span> │ SO-118846 │ 30-Sep-26 │ West     │ Lindqvist │    310.50 ││<span class="pc"> Orders[@Date]               </span>│
+│ <span class="t">18,851</span> │ SO-118850 │ 30-Sep-26 │ West     │ Okafor    │  2,975.00 ││<span class="pc"> shown   <span class="b">30-Sep-26</span> d-mmm-yy  </span>│
+│ <span class="t">18,853</span> │ SO-118852 │ 30-Sep-26 │ West     │ Haddad    │     88.25 ││<span class="pc"> value   <span class="b">46295.341667</span>  <b class="co">(2)</b>   </span>│
+│ <span class="t">18,860</span> │ SO-118859 │ 30-Sep-26 │ West     │ Marais    │  4,410.00 ││<span class="pc">         = 30-Sep-26 08:12   </span>│
+│ <span class="t">18,866</span> │ SO-118865 │ 30-Sep-26 │ West     │ Haddad    │    695.75 ││<span class="pc"> a typed constant            </span>│
+│      <span class="t">…</span> │ <span class="m">35 more</span>   │ <b class="co">(3)</b>       │          │           │           ││<span class="pc"> read by 16 formulas         </span>│
+├────────────────────────────────────────────────────────────────────┴─────────────────────────────┤
+│<span class="pc">  Ready · Calculated · View filter on                     41 shown · Sum 47,588.75 · Count 41  <b class="co">(4)</b></span>│
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘</pre>
+<ol class="callouts">
+<li value="1">The band says what is shown and what it is not. Excel&#x27;s AutoFilter, and so every SUBTOTAL, is untouched (P3).</li>
+<li value="2">Shown against stored. The time of day was always there; the number format hid it.</li>
+<li value="3">Row numbers under a view filter are teal and gapped, and the rows not shown are counted.</li>
+<li value="4">The 41 amounts sum to the difference Sam started with.</li>
+</ol>
+</figure>
+</section>
+<section id="g4"><h2>M4 · Lee builds Stock on the map</h2>
+<figure id="M4.1"><figcaption><b>M4.1</b> The empty map: the first box is typed, and the seam says where it will live</figcaption>
+<pre class="wf">┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│<span class="pc"> ▪▪ Book1 · new             Classic  Inspector  Notebook  <span class="a">▐Map▌</span>  App            Ask or run…  Alt+Q</span>│
+│<span class="pc"> (new box)       ▼ │ fx │ Store.Initial = 400                                              <span class="a">lens on</span></span>│
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  <span class="b">Book1</span> ► Sheet1                                                    zoom:  sheets · blocks · <span class="b">cells</span>│
+│       <span class="m">Nothing to map yet. Type a name and a formula, for example</span>  Demand = 100           <b class="co">(1)</b>     │
+│       <span class="m">A box is a named cell on a sheet. Excel will see every one of them.</span>                        │
+│                                                                                                  │
+│            <span class="a">▐ Store.Initial = 400|                                      ▌</span>              <b class="co">(2)</b>        │
+│            <span class="h">· · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · ·</span>                     │
+│            <span class="h">:</span> Writes   Sheet1!A2   Initial        (the label)            <span class="h">:</span>          <b class="co">(3)</b>           │
+│            <span class="h">:</span>          Sheet1!B2   400                                   <span class="h">:</span>                        │
+│            <span class="h">:</span> Names    Store.Initial   =Sheet1!$B$2                      <span class="h">:</span>                        │
+│            <span class="h">:</span> Group    Store, from the name&#x27;s prefix                     <span class="h">:</span>                        │
+│            <span class="h">:</span> Enter writes · Esc reverts · <span class="t">place it elsewhere…</span>           <span class="h">:</span>                        │
+│            <span class="h">· · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · ·</span>                     │
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│<span class="pc"> <span class="a">Enter</span> · Calculated · No errors                                                 Map · cells · 100%</span>│
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘</pre>
+<ol class="callouts">
+<li value="1">One gesture and one fact: boxes are named cells, not a private format.</li>
+<li value="2">Typing on empty paper starts a box, as typing on a cell starts an entry. <code>name = formula</code> is the whole grammar.</li>
+<li value="3">The placement rule at work: a label cell, a value cell and a name, on a sheet he can see, changeable before commit.</li>
+</ol>
+</figure>
+<figure id="M4.2"><figcaption><b>M4.2</b> Pointing closes a loop: ghost wires, and the choice Excel hides in a dialog</figcaption>
+<pre class="wf">┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│<span class="pc"> ▪▪ Book1 · edited           Classic  Inspector  Notebook  <span class="a">▐Map▌</span>  App           Ask or run…  Alt+Q</span>│
+│<span class="pc"> Store.Stock     ▼ │ fx │ = Stock + Supply.Arrivals - Sales                                <span class="a">lens on</span></span>│
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  <span class="b">Book1</span> ► Sheet1                                                    zoom:  sheets · blocks · <span class="b">cells</span>│
+│                                      ┌- - - - - - - - - - - - - - - - - - - - - - - - - - - - -┐ │
+│   ┌────────────────┐                 ¦ <span class="m">Store</span>                   ┌─────────────────────────────┐ ¦ │
+│   │ Demand         │──────────────────────────────────────────►│ Sales                     0 │ ¦ │
+│   │ <span class="k">100</span>            │                 ¦                         │ = MIN(Demand, Stock +       │ ¦ │
+│   └────────────────┘               ┌──────────────────────────►│ Supply.Arrivals)            │ ¦ │
+│                                    │ ¦                         └─────────────────────────────┘ ¦ │
+│                                    │ ¦                             :             ▲             ¦ │
+│  ┌- - - - - - - - - - - - - - - -┐ │ ¦    <span class="h">· · [z-1] · ·</span>  <b class="co">(3)</b>       : <b class="co">(2)</b>     <b class="co">(1)</b> │             ¦ │
+│  ¦ <span class="m">Supply</span>                        ¦ │ ¦    <span class="h">▼</span>           <span class="h">:</span>            ▼             │             ¦ │
+│  ¦ ┌───────────────────────────┐ ¦ │ ¦  ┌──────────────────────────────────────────┐           ¦ │
+│  ¦ │ ReorderPoint        <span class="k">260</span>   │ ¦ │ ¦  │<span class="a">▐Stock = Stock + Supply.Arrivals - Sales|▌</span>│           ¦ │
+│  ¦ │ 0 ├──────■────────┤ 600   │ ¦ │ ¦  └──────────────────────────────────────────┘           ¦ │
+│  ¦ └───────────────────────────┘ ¦ │ ¦           ▲                                             ¦ │
+│  ¦ ┌────────────┐ ┌────────────┐ ¦ │ ¦           :             ┌────────────────┐              ¦ │
+│  ¦ │ OrderQty   │ │ Arrivals   │· ·│· · · · · · ·              │ Initial        │              ¦ │
+│  ¦ │ <span class="k">420</span>        │ │ <span class="m">(empty)</span>    │───┘ ¦                         │ <span class="k">400</span>            │              ¦ │
+│  ¦ └────────────┘ └────────────┘ ¦   ¦                         └────────────────┘              ¦ │
+│  ¦                               ¦   ¦                                                         ¦ │
+│  └- - - - - - - - - - - - - - - -┘   └- - - - - - - - - - - - - - - - - - - - - - - - - - - - -┘ │
+│     ┌──────────────────────────────────────────────────────────────────────────────────────┐     │
+│     │ <span class="b">[!] This makes a loop:</span> Stock reads itself; Stock and Sales read each other.  <b class="co">(4)</b>     │<span class="m">     </span>│
+│     │ Excel calculates a loop only with iterative calculation on.                          │<span class="m">     </span>│
+│     │ <span class="a">▐ Turn on iteration, 1 pass per recalculation ▌</span> Enter   Iterative on · Max 1 · 0.001 │<span class="m">     </span>│
+│     │   Keep without iteration: 0 and a circular warning       (Excel: Options › Formulas) │<span class="m">     </span>│
+│     │   Back to editing   Esc                                                              │<span class="m">     </span>│
+│     └──────────────────────────────────────────────────────────────────────────────────────┘     │
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│<span class="pc"> <span class="a">Point</span> · Calculated · <span class="b">[!] would be circular</span>                                     Map · cells · 100%</span>│
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘</pre>
+<ol class="callouts">
+<li value="1">A solid wire: <code>Sales</code> already reads <code>Stock</code>. Wires are drawn from formulas and from nothing else.</li>
+<li value="2">Ghost wires show the formula being typed. Both references were inserted by clicking boxes.</li>
+<li value="3">A cell that reads itself reads its previous value, so this delay mark is certain.</li>
+<li value="4">The loop is named before commit. All three answers are things Excel can do, and the first states the settings it writes.</li>
+</ol>
+</figure>
+<figure id="M4.3"><figcaption><b>M4.3</b> Alt+Shift+0: the grid alongside the map, one selection in both</figcaption>
+<pre class="wf">┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│<span class="pc"> ▪▪ Stock.xlsx · saved      Classic  Inspector  Notebook  <span class="a">▐Map▌</span> + grid  App     Ask or run…  Alt+Q</span>│
+│<span class="pc"> Model!B11       ▼ │ fx │ =IF(Shop.Reset,Store.Initial,Store.Stock+Supply.Arrivals-Store.Sales)   </span>│
+├─────────────────────────────────────────┬────────────────────────────────────────────────────────┤
+│  <span class="b">Stock.xlsx</span> ► Model ► <span class="b">Store</span>             │    │ A              │       B │ C                      │
+│  ┌─────────────────┐                    │  2 │ Demand         │     <span class="k">100</span> │                        │
+│  │ Sales        100│◄── Demand          │  3 │ Reorder point  │     <span class="k">260</span> │ 0 ├───■────┤ 600 <b class="co">(3)</b>   │
+│  └─────────────────┘                    │  4 │ Order quantity │     <span class="k">420</span> │                        │
+│        ▲    │                           │  5 │ Opening stock  │     <span class="k">400</span> │                        │
+│        │    ▼                           │  6 │ Reset          │   <span class="k">FALSE</span> │                        │
+│  ┌─────────────────┐◄─[z-1]─┐  <b class="co">(1)</b>      │  7 │ Tick           │      25 │                        │
+│  │<span class="a">▐Stock       420▌</span>│────────┘           │  8 │ Arrivals       │     420 │                        │
+│  └─────────────────┘◄── Arrivals 420    │  9 │ In transit     │       0 │                        │
+│          │                              │ 10 │ Sales          │     100 │                        │
+│          ▼                              │ 11 │ Stock          │<span class="a">▐    420▌</span>│ <b class="co">(4)</b>                    │
+│  ┌─────────────────┐                    │ 12 │ Order          │       0 │                        │
+│  │ Order          0│──► In transit      │    │                │         │                        │
+│  └─────────────────┘                    │ <span class="b">Model</span> │ +                                              │
+│  <span class="m">iterates · 1 pass · tick 25</span>  <b class="co">(2)</b>       │                                                        │
+├─────────────────────────────────────────┴────────────────────────────────────────────────────────┤
+│<span class="pc">  Ready · Iterates, 1 pass · tick 25 · F9 steps · No errors                 Map + grid · 100%  <b class="co">(5)</b></span>│
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘</pre>
+<ol class="callouts">
+<li value="1">The delay mark is solid now: the formula is in the file and iteration is on.</li>
+<li value="2">The frame&#x27;s chip states how this part calculates, in Excel&#x27;s terms.</li>
+<li value="3">The slider is an Excel form control on the sheet, linked to <code>B3</code>.</li>
+<li value="4">One selection: the box and the cell are the same thing, and typing in either edits the same formula.</li>
+<li value="5">The Strip states the calculation mode all the time. Excel shows only &quot;Calculate&quot;.</li>
+</ol>
+</figure>
+</section>
+<section id="g5"><h2>M5 · Jo runs Loan as an App</h2>
+<figure id="M5.1"><figcaption><b>M5.1</b> Loan as an App: one input changed, one refused in place</figcaption>
+<pre class="wf">┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│<span class="pc"> ▪▪ Loan.xlsx · edited          <span class="a">▐App▌</span>   View as ▼         Print  Ctrl+P    Ask or run…  Alt+Q  <b class="co">(1)</b></span>│
+│<span class="pc"> Scenario: <span class="b">Base, edited</span>  15 years  Rate +1 pt │ Compare with: none ▼ │ Reset  Save as scenario…   </span>│
+├─────────────────────────────────────┬────────────────────────────────────────────────────────────┤
+│  <span class="b">YOUR LOAN</span>                       <b class="co">(2)</b>│  <span class="m">MONTHLY PAYMENT</span>       <span class="m">TOTAL INTEREST</span>        <span class="m">PAID OFF</span>      │
+│                                     │  <span class="b">1,896.20</span><span class="g">•</span>             <span class="b">382,633.47</span><span class="g">•</span>           <span class="b">Dec 2056</span>   <b class="co">(4)</b>│
+│  Loan amount   [    300,000.00 ]<span class="g">•</span>   │  <span class="m">was 1,580.17</span>          <span class="m">was 318,861.22</span>                      │
+│  Annual rate  <span class="a">▐[ 65|           ]▌</span>   │                                                            │
+│   ┌──────────────────────────────┐  │  <span class="b">Balance over time</span>       <span class="m">chart &quot;Balance&quot;, from the workbook</span>│
+│   │ <span class="b">The rate must be between</span>     │  │  300k ┤ █                                                  │
+│   │ <span class="b">0% and 25%.</span> You typed 65.    │  │  240k ┤ █    ▄                                             │
+│   │ Tab  use 6.5%                │  │  180k ┤ █    █    █    ▄                                   │
+│   │ Esc  keep 6.50%          <b class="co">(3)</b> │  │  120k ┤ █    █    █    █    █                              │
+│   └──────────────────────────────┘  │   60k ┤ █    █    █    █    █    ▄                         │
+│  Term (years)  [            30 ]    │     0 ┼─█────█────█────█────█────█────_──                  │
+│  Start date    [      1-Jan-27 ]    │         2027 2032 2037 2042 2047 2052 2057                 │
+│                                     │                                                            │
+│  <span class="m">White fields are yours to</span>          │  <span class="b">Schedule</span>             360 payments · showing 3 · <span class="t">all ►</span>  <b class="co">(5)</b>│
+│  <span class="m">change. Everything else is</span>         │   #   Date        Payment   Interest Principal     Balance │
+│  <span class="m">worked out. Nothing is saved</span>       │   1   1-Jan-27   1,896.20   1,625.00    271.20  299,728.80<span class="g">•</span>│
+│  <span class="m">until you save.</span>                    │   2   1-Feb-27   1,896.20   1,623.53    272.67  299,456.12<span class="g">•</span>│
+│                                     │   3   1-Mar-27   1,896.20   1,622.05    274.15  299,181.97<span class="g">•</span>│
+├─────────────────────────────────────┴────────────────────────────────────────────────────────────┤
+│<span class="pc">  <span class="a">Edit</span> · Up to date · No errors · 1 input changed since opening         App · Reading density  <b class="co">(6)</b></span>│
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘</pre>
+<ol class="callouts">
+<li value="1">App&#x27;s Mast: file, view, &quot;View as&quot; to every other view, Print, Ask. F6 or Alt brings back the Deck and Bridge.</li>
+<li value="2">Inputs are found, not declared: the workbook&#x27;s unlocked cells with their labels.</li>
+<li value="3">A refusal in place, from the workbook&#x27;s own rule and message: what was typed, the likely fix on Tab, the exact revert on Esc.</li>
+<li value="4">The fresh mark shows what moved; &quot;was&quot; keeps the opening value in view.</li>
+<li value="5">A frame: 3 of 360 rows, the count stated.</li>
+<li value="6">The Strip is still there, in plain words.</li>
+</ol>
+</figure>
+<figure id="M5.2"><figcaption><b>M5.2</b> Scenarios are Excel&#x27;s own: compare with Base, then save the variation</figcaption>
+<pre class="wf">┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│<span class="pc"> Scenario: Base  <span class="a">▐15 years, edited▌</span>  Rate +1 pt │ Compare with: <span class="b">Base</span> ▼ │ Reset  <span class="b">Save as scenario…</span> </span>│
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│    <span class="m">MONTHLY PAYMENT</span>              <span class="m">TOTAL INTEREST</span>                <span class="m">PAID OFF</span>                           │
+│    <span class="b">2,143.56</span>                     <span class="b">135,840.29</span>                    <span class="b">Dec 2041</span>                           │
+│    Base 1,580.17 · <span class="b">+563.39</span>      Base 318,861.22 · <span class="b">−183,020.93</span>   Base Dec 2056 · <span class="b">15 y sooner</span> <b class="co">(1)</b>  │
+│                                                                                                  │
+│    <span class="h">· · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · ·</span>           │
+│    <span class="h">:</span> Name  <span class="a">▐[ 15 years at 6.25%|          ]▌</span>                                          <span class="h">:</span><span class="m">          </span>│
+│    <span class="h">:</span> Saves an Excel scenario on sheet Loan. Changing cells: C4 6.25%, C5 15.  <b class="co">(2)</b>     <span class="h">:</span><span class="m">          </span>│
+│    <span class="h">:</span> Excel lists it under Data › What-If Analysis › Scenario Manager.                 <span class="h">:</span><span class="m">          </span>│
+│    <span class="h">:</span> Enter saves · Esc cancels                                                        <span class="h">:</span><span class="m">          </span>│
+│    <span class="h">· · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · ·</span>           │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘</pre>
+<ol class="callouts">
+<li value="1">Each output beside the same output under another scenario. It is Excel&#x27;s scenario summary, shown in place.</li>
+<li value="2">The seam for someone who did not build the model: what is stored, where, and how Excel will show it.</li>
+</ol>
+</figure>
+<figure id="M5.3"><figcaption><b>M5.3</b> Ctrl+P in App: a one-page answer, the schedule optional</figcaption>
+<pre class="wf">┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│<span class="pc"> ▪▪ Loan.xlsx · edited                           Print preview                          Esc closes</span>│
+├────────────────────────────────┬─────────────────────────────────────────────────────────────────┤
+│<span class="pc">  <span class="b">PRINT</span>                         </span>│   ┌──────────────────────────────────────────────────────────┐  │
+│<span class="pc">  What     <span class="b">App page</span> ▼           </span>│   │ <span class="b">Loan · 15 years at 6.25%</span>                                 │<span class="m">  </span>│
+│<span class="pc">  Paper    A4 portrait          </span>│   │ Loan amount 250,000.00 · Annual rate 6.25%               │<span class="m">  </span>│
+│<span class="pc">  Schedule <b class="co">(1)</b>                  </span>│   │ Term 15 years · Start 1-Jan-27                           │<span class="m">  </span>│
+│<span class="pc">   ( ) all 180 payments, 4 pp   </span>│   │                                                          │<span class="m">  </span>│
+│<span class="pc">   (•) first year               </span>│   │ <span class="b">Monthly payment   2,143.56</span>     Base 1,580.17  +563.39    │<span class="m">  </span>│
+│<span class="pc">   ( ) none                     </span>│   │ <span class="b">Total interest  135,840.29</span>     Base 318,861.22           │<span class="m">  </span>│
+│<span class="pc">  Compare  [x] with Base        </span>│   │ <span class="b">Paid off          Dec 2041</span>     Base Dec 2056             │<span class="m">  </span>│
+│<span class="pc">  Footer   file · scenario ·    </span>│   │                                                          │<span class="m">  </span>│
+│<span class="pc">           time of values       </span>│   │ [ chart: Balance over time ]                             │<span class="m">  </span>│
+│<span class="pc">                                </span>│   │ <span class="m">Loan.xlsx · 15 years at 6.25% · 20 Nov 2026 15:40</span> <b class="co">(2)</b>    │<span class="m">  </span>│
+│<span class="pc">  <span class="a">▐ Print ▌</span>   Save as PDF       </span>│   └──────────────────────────────────────────────────────────┘  │
+├────────────────────────────────┴─────────────────────────────────────────────────────────────────┤
+│<span class="pc">  Ready · Up to date · No errors                                                 page 1 of 2 · ◄ ►</span>│
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘</pre>
+<ol class="callouts">
+<li value="1">The schedule&#x27;s 180 rows are a choice with its page count stated.</li>
+<li value="2">The footer ties the paper to a file, a scenario and a time.</li>
+</ol>
+</figure>
+</section>
+<section id="g6"><h2>M6 · Ade and the add-in</h2>
+<figure id="M6.2"><figcaption><b>M6.2</b> Edge cases in one command, and an add-in failure that stays inside the add-in</figcaption>
+<pre class="wf">┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│<span class="pc"> ▪● DNA Calc · Formula Explorer                                                 Ask or run…  Alt+Q</span>│
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  <span class="b">SEASONAL.SPREAD</span>(annual_total, profile, [periods])    <span class="s">◊ Seasonal.xll</span> · not volatile · thread-safe│
+│   <span class="b">Edge case</span>            │ <span class="b">Call</span>                            │ <span class="b">Result</span>                │    <span class="b">Time</span> │  <b class="co">(1)</b>│
+│   as typed             │ (1200000, &quot;retail&quot;)             │ 1 × 12 numbers        │  0.4 ms │     │
+│   profile misspelt     │ (1200000, &quot;retial&quot;)             │ <span class="r">▌#VALUE!</span>              │  0.1 ms │     │
+│   annual_total = text  │ (&quot;abc&quot;, &quot;retail&quot;)               │ <span class="r">▌#VALUE!</span>              │  0.1 ms │     │
+│   annual_total empty   │ ( , &quot;retail&quot;)                   │ 1 × 12 zeros          │  0.3 ms │     │
+│   annual_total = error │ (#N/A, &quot;retail&quot;)                │ <span class="r">▌#N/A</span>                 │  0.0 ms │  <b class="co">(2)</b>│
+│   periods = 0          │ (1200000, &quot;retail&quot;, 0)          │ <span class="b">[!] add-in stopped</span>    │         │  <b class="co">(3)</b>│
+│   periods = 13         │ (1200000, &quot;retail&quot;, 13)         │ 1 × 13 numbers        │  0.4 ms │     │
+│   a range for a number │ (A1:A3, &quot;retail&quot;)               │ <span class="r">▌#VALUE!</span>              │  0.1 ms │     │
+│                                                                                                  │
+│  <span class="b">[!] Seasonal.xll stopped</span> in SEASONAL.SPREAD(1200000,&quot;retail&quot;,0): division by zero, not handled. │
+│      The Explorer is unaffected. Your formulas and inputs are intact.                            │
+│      <span class="a">▐ Reload add-in ▌</span>    Show the call    Copy as a test case                               <b class="co">(4)</b> │
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│<span class="pc"> Ready · <span class="b">[!] 1 add-in stopped</span>                                       9 calls · 1.4 ms in the add-in</span>│
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘</pre>
+<ol class="callouts">
+<li value="1">&quot;Edge cases&quot; calls the function with the awkward values each argument invites.</li>
+<li value="2">Errors passed in come back out, as with Excel&#x27;s own functions.</li>
+<li value="3">A stopped add-in is a warning, not a calculation error, so it is not red.</li>
+<li value="4">Recovery is one key, and the failing call can be copied out as a test case.</li>
+</ol>
+</figure>
+<figure id="M6.3"><figcaption><b>M6.3</b> The same function in a cell in Budget: a blocked spill, explained at the cell</figcaption>
+<pre class="wf">┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│<span class="pc"> ▪▪ Budget.xlsx · edited        <span class="a">▐Classic▌</span>  Inspector  Notebook  Map  App        Ask or run…  Alt+Q</span>│
+│<span class="pc"> Monthly!C20     ▼ │ fx │ =SEASONAL.SPREAD(O14,&quot;retail&quot;)                                  lens off</span>│
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│    │ A                    │         C │       D │  …  │       M │                N │       O │   │
+│  4 │                      │       Jan │     Feb │  …  │     Nov │              Dec │      FY │   │
+│ 14 │ Marketing            │    24,566 │  25,408 │  …  │  33,629 │           34,359 │ <span class="t">354,654</span> │<b class="co">(1)</b>│
+│ 20 │ Marketing, re-phased │<span class="a">▐ ▌#SPILL!▌</span>│ <span class="h">·  ·  ·</span> │ <span class="h">· ·</span> │ <span class="h">·  ·  ·</span> │ check with Maria │         │<b class="co">(2)</b>│
+│ 21 │                      │           │         │     │         │                  │         │   │
+│    ┌──────────────────────────────────────────────────────────────────────────────────────────┐  │
+│    │ <span class="r">▌#SPILL!</span>  The result needs C20:N20, 1 × 12. <span class="b">N20 is not empty:</span> &quot;check with Maria&quot;. <b class="co">(3)</b>    │<span class="m">  </span>│
+│    │ Go to N20     Clear N20     Move the formula down one row                                │<span class="m">  </span>│
+│    │ <span class="s">◊ Uses the add-in Seasonal.xll.</span> Excel shows #NAME? where it is not installed. <b class="co">(4)</b>        │<span class="m">  </span>│
+│    └──────────────────────────────────────────────────────────────────────────────────────────┘  │
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│<span class="pc"> Ready · Calculated · <span class="r">▌1 error</span> · <span class="s">◊ 1 add-in in use</span>                                            100%</span>│
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘</pre>
+<ol class="callouts">
+<li value="1"><code>O14</code>, pointed at while typing.</li>
+<li value="2">The cells the result would fill are a ghost; the cell in the way keeps its content.</li>
+<li value="3">The range needed, the blocker by name, and three ways out. Excel&#x27;s error text is kept.</li>
+<li value="4">The honest note about the file: what Excel will show without the add-in.</li>
+</ol>
+</figure>
+</section>
+<section id="g7"><h2>M7 · The agent proposes</h2>
+<figure id="M7.1"><figcaption><b>M7.1</b> A proposal from the agent: nothing applied, three parts, each with its effect</figcaption>
+<pre class="wf">┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│<span class="pc"> ▪▪ Budget.xlsx · saved    <span class="a">▐Classic▌</span> Inspector Notebook Map App   <span class="t">▫▫ Agent: 1 proposal</span>  Ask… Alt+Q</span>│
+│<span class="pc"> Monthly!H13     ▼ │ fx │ =H12*Inputs!$E$14+9000                                          lens off</span>│
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  <span class="a">PREVIEW of part C · not applied · Esc leaves the preview</span>                                     <b class="co">(5)</b>│
+├───────────────────────────────────────────────────────────────┬──────────────────────────────────┤
+│    │ A                │               H │                   O │<span class="pc"> <span class="b">CHANGES</span> · Proposal 1, Agent <b class="co">(1)</b>  </span>│
+│  4 │                  │             Jun │                  FY │<span class="pc"> <span class="m">&quot;make the price-rise month an</span>    </span>│
+│  5 │ Customers        │           5,796 │               6,689 │<span class="pc"> <span class="m">input; tidy inconsistencies&quot;</span>     </span>│
+│  6 │ Price            │       <span class="h">: 49.00 :</span> │           <span class="h">: 49.98 :</span> │<span class="pc"> 3 parts · 18 cells · none applied</span>│
+│  7 │ Subscriptions    │         283,996 │           3,518,394 │<span class="pc"> ───────────────────────────────  </span>│
+│  8 │ Services         │          34,080 │             422,207 │<span class="pc"> [x] <span class="b">A  Add input</span> &quot;Price rise     </span>│
+│  9 │ Total revenue    │         318,076 │           3,940,602 │<span class="pc">        month&quot;  Inputs!A17:E17    </span>│
+│ 11 │ Cost of sales    │          69,977 │             866,932 │<span class="pc">        5 cells · no value changes</span>│
+│ 12 │ Headcount        │              20 │                  24 │<span class="pc"> [x] <span class="b">B  Use it in Price</span>           </span>│
+│ 13 │ People           │<span class="a">▐137,000→128,000▌</span>│ <span class="h">1,621,800→1,612,800</span> │<span class="pc">        Monthly!C6:N6, 12 alike   </span>│
+│ 14 │ Marketing        │          28,627 │             354,654 │<span class="pc">        &gt;=7 becomes &gt;=Inputs!$E$17</span>│
+│ 15 │ Rent and other   │          14,500 │             174,000 │<span class="pc">        no value changes    <b class="co">(2)</b>   </span>│
+│ 16 │ Total costs      │ <span class="h">250,103→241,103</span> │ <span class="h">3,017,387→3,008,387</span> │<span class="pc"><span class="a">▐[ ] C  Make People consistent▌</span>   </span>│
+│ 18 │ Operating profit │   <span class="h">67,972→76,972</span> │     <span class="h">923,215→932,215</span> │<span class="pc">        Monthly!H13, 1 cell       </span>│
+│ 19 │ Margin           │     <span class="h">21.4%→24.2%</span> │         <span class="h">23.4%→23.7%</span> │<span class="pc">        − =H12*Inputs!$E$14+9000  </span>│
+│                                                               │<span class="pc">        + =H12*Inputs!$E$14       </span>│
+│  <span class="h">: … :</span> proposed, same value  <span class="h">a→b</span> proposed, value changes <b class="co">(4)</b>  │<span class="pc">        8 results change      <b class="co">(3)</b> </span>│
+│  <span class="t">▫▫</span> the agent&#x27;s mark: teal, dotted, never amber               │<span class="pc"> ───────────────────────────────  </span>│
+│                                                               │<span class="pc"> <span class="m">Not proposed: turn Monthly into</span>  </span>│
+│                                                               │<span class="pc"> <span class="m">a table (would rewrite 214 refs)</span> </span>│
+│ <span class="m">Inputs</span> │ <span class="b">Monthly</span> │ <span class="m">Summary</span> │ +                                │<span class="pc"> Space tick · P preview · R reject</span>│
+├───────────────────────────────────────────────────────────────┴──────────────────────────────────┤
+│<span class="pc">  Ready · <span class="a">Preview</span> · Calculated · <span class="t">▫▫ 1 proposal, 2 of 3 parts ticked</span>    Ctrl+Enter accepts A, B <b class="co">(6)</b></span>│
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘</pre>
+<ol class="callouts">
+<li value="1">The proposal quotes its request. Nothing is written: the Mast still says &quot;saved&quot;.</li>
+<li value="2">A and B change formulas and no values. The program worked that out before asking.</li>
+<li value="3">Part C: the formula before (−) and after (+), and how many results move. Signs and words, never red and green.</li>
+<li value="4">Ghosts on the grid: dotted sides for a new formula with the same value, <code>a→b</code> for a changed value.</li>
+<li value="5">The band names the one temporary state and how to leave it.</li>
+<li value="6">What is ticked, and the key that accepts it.</li>
+</ol>
+</figure>
+<figure id="M7.2"><figcaption><b>M7.2</b> After the undo: one history that says who and what kind, and a cell that remembers</figcaption>
+<pre class="wf">┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│<span class="pc"> ▪▪ Budget.xlsx · edited           <span class="a">▐Classic▌</span> Inspector Notebook Map App          Ask or run… Alt+Q</span>│
+├────────────────────────────────────────────────┬─────────────────────────────────────────────────┤
+│<span class="pc">  <span class="b">UNDO HISTORY</span>                               <b class="co">(1)</b></span>│<span class="pc"> <span class="b">DETAILS · History</span>                            <b class="co">(3)</b></span>│
+│<span class="pc">  <span class="m">● 14:10 Agent C  Monthly!H13, 1 cell  (undone)</span></span>│<span class="pc"> <span class="t">Monthly!E6</span> · Price, Mar                         </span>│
+│<span class="pc">  <span class="a">▐● 14:07 Agent B  Monthly!C6:N6, 12 cells   ▌</span> </span>│<span class="pc"> <span class="b">20 Nov 2026 14:07</span>                               </span>│
+│<span class="pc">  ● 14:07 Agent A  Inputs!A17:E17, 5 cells      </span>│<span class="pc"> Agent · Proposal 1, part B                      </span>│
+│<span class="pc">  ○ 13:58 You      Notebook: moved Summary      </span>│<span class="pc"> accepted by Maria                               </span>│
+│<span class="pc">  ● 13:52 You      Monthly!C8:N8, 12 cells      </span>│<span class="pc"> − …IF(MONTH(E$4)&gt;=7,1+Inputs!$E$9,1)            </span>│
+│<span class="pc">  ────────────────────────────────────────────  </span>│<span class="pc"> + …IF(MONTH(E$4)&gt;=Inputs!$E$17,1+Inputs!$E$9,1) </span>│
+│<span class="pc">  ● the workbook   ○ layout or text only   <b class="co">(2)</b>  </span>│<span class="pc"> value 49.00, unchanged                          </span>│
+│<span class="pc">  Ctrl+Z undoes the top · Ctrl+Y redoes C       </span>│<span class="pc"> Show the proposal · Revert this change          </span>│
+│<span class="pc">  Revert… undoes an older step by itself        </span>│<span class="pc"> <span class="m">12 Mar 2026 09:31  Maria · typed</span>                </span>│
+├────────────────────────────────────────────────┴─────────────────────────────────────────────────┤
+│<span class="pc">  Ready · Calculated · <span class="b">Undid: Agent, part C (Monthly!H13). Pending again in Changes.</span>           <b class="co">(4)</b></span>│
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘</pre>
+<ol class="callouts">
+<li value="1">One history for the workbook, newest first: who, where, how many cells.</li>
+<li value="2">Filled steps changed the workbook; hollow ones changed only layout or text.</li>
+<li value="3">Any cell can show its own history. Revert writes a new step, and refuses if the cell was edited since.</li>
+<li value="4">The undone part is pending again, not lost.</li>
+</ol>
+</figure>
+</section>
+<section id="g8"><h2>M8 · The views and the Formula Explorer</h2>
+<figure id="M8.1"><figcaption><b>M8.1</b> Classic. Loan: a formula being typed, a cell being pointed at</figcaption>
+<pre class="wf">┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│<span class="pc"> ▪▪ Loan.xlsx · edited         <span class="a">▐Classic▌</span>  Inspector  Notebook  Map  App         Ask or run…  Alt+Q</span>│
+│<span class="pc"> File  Home  Insert  Layout  Formulas  Data  Review  View │ Paste▼  Fill▼  B I U  %  ,       More▼</span>│
+│<span class="pc"> Loan!D12        ▼ │ × √ fx │ =IPMT(<span class="t">¹$C$4</span>/12,<span class="t">²A12</span>,<span class="t">³$C$5</span>*12,-<span class="a">▐$C$3▌</span>|                  lens off  <b class="co">(1)</b></span>│
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│    │       A │ B                │            C │ D                                │       E │    │
+│  3 │         │ Loan amount      │<span class="a">▐  250,000.00▌</span>│ <b class="co">(3)</b>                              │         │    │
+│  4 │         │ Annual rate      │      <span class="t">¹</span> 6.50% │                                  │         │    │
+│  5 │         │ Term (years)     │         <span class="t">³</span> 30 │                                  │         │    │
+│  6 │         │ Start date       │     1-Jan-27 │                                  │         │    │
+│  8 │         │ Monthly payment  │     1,580.17 │                                  │         │    │
+│ 11 │  Period │ Date             │      Payment │ Interest                         │  Princ. │    │
+│ 12 │     <span class="t">²</span> 1 │ 1-Jan-27         │     1,580.17 │ <span class="a">=IPMT($C$4/12,A12,$C$5*12,-$C$3|</span> │         │ <b class="co">(2)</b>│
+│                                                ┌──────────────────────────────────────────────┐  │
+│                                                │ IPMT(rate, per, nper, <span class="b">pv</span>, [fv], [type])  <b class="co">(4)</b> │  │
+│                                                │ pv: the present value, what the loan is worth│  │
+│                                                └──────────────────────────────────────────────┘  │
+│ 13 │       2 │ 1-Feb-27         │     1,580.17 │                                  │         │    │
+│ 14 │       3 │ 1-Mar-27         │     1,580.17 │                                  │         │    │
+│ <span class="b">Loan</span> │ +                                                                                         │
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│<span class="pc"> <span class="a">Point</span> · Calculated · No errors                                                          100%  <b class="co">(5)</b></span>│
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘</pre>
+<ol class="callouts">
+<li value="1">Each reference has a number and a teal tone; the one at the caret is amber. No rainbow, no red: it works without colour vision.</li>
+<li value="2">The cell in edit shows the same text, with the caret.</li>
+<li value="3">The cell being pointed at. Arrows move the pointing; F4 has just made it <code>$C$3</code>.</li>
+<li value="4">The function tip: the current argument in bold, with its description.</li>
+<li value="5">&quot;Point&quot; is Excel&#x27;s mode word. After Enter, a double-click on the fill handle fills 360 rows.</li>
+</ol>
+</figure>
+<figure id="M8.2"><figcaption><b>M8.2</b> Inspector. Stock: the Calc instrument, recording one recalculation per tick</figcaption>
+<pre class="wf">┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│<span class="pc"> ▪▪ Stock.xlsx · saved         Classic  <span class="a">▐Inspector▌</span>  Notebook  Map  App         Ask or run…  Alt+Q</span>│
+│<span class="pc"> Model!B11       ▼ │ fx │ =IF(Shop.Reset,Store.Initial,Store.Stock+Supply.Arrivals-Store.Sales)   </span>│
+├──────────────────────┬───────────────────────────────────────────────────────────────────────────┤
+│<span class="pc">  <span class="b">INSPECTOR</span>        <b class="co">(5)</b></span>│ <span class="b">CALCULATION</span>  ● recording · 25 runs           <span class="a">▐ Pause ▌</span> Step F9  Export <b class="co">(1)</b>│
+│<span class="pc">  Overview            </span>│ automatic · iterative: 1 pass, max change 0.001 · 6 formulas · 0.4 ms <b class="co">(2)</b> │
+│<span class="pc">  Trace               </span>│                                                                           │
+│<span class="pc">  <span class="a">▐Calc         ● rec▌</span></span>│ <span class="b">This recalculation (tick 25), in evaluation order</span>           cause: F9  <b class="co">(3)</b>│
+│<span class="pc">  Errors            0 </span>│  1  Shop.Tick         B7       24 → 25<span class="g">•</span>                                   │
+│<span class="pc">  Live              0 </span>│  2  Supply.Arrivals   B8        0 → 420<span class="g">•</span>    reads last pass: InTransit    │
+│<span class="pc">  Watch             1 </span>│  3  Supply.InTransit  B9      420 → 0<span class="g">•</span>      reads last pass: Order        │
+│<span class="pc">  Links             0 </span>│  4  Store.Sales       B10     100            reads last pass: Stock       │
+│<span class="pc">  Names            11 </span>│  5  Store.Stock       B11     100 → 420<span class="g">•</span>    reads last pass: itself       │
+│<span class="pc">  ────────────────────</span>│  6  Supply.Order      B12       0                                         │
+│<span class="pc">  Subject             </span>│                                                                           │
+│<span class="pc">  <span class="t">Store.Stock</span>         </span>│ <span class="b">Watch: Store.Stock</span>, last 24 recalculations                <span class="t">pin another…</span> <b class="co">(4)</b>│
+│<span class="pc">  Model!B11           </span>│  460 ┤     ▄       █       █         ▄       ▄       ▄                    │
+│<span class="pc">  420                 </span>│  345 ┤     █ █     █ █     █ █ ▄     █ ▄     █ ▄     █                    │
+│<span class="pc">                      </span>│  230 ┤ ▄   █ █ █   █ █ █   █ █ █ ▄   █ █ ▄   █ █ ▄   █                    │
+│<span class="pc">                      </span>│  115 ┤ █ █ █ █ █ █ █ █ █ █ █ █ █ █ ▄ █ █ █ ▄ █ █ █ █ █                    │
+│<span class="pc">                      </span>│    0 ┼─────────────────────────────────────────────────                   │
+│<span class="pc">                      </span>│       2       6       10      14      18      22    25                    │
+├──────────────────────┴───────────────────────────────────────────────────────────────────────────┤
+│<span class="pc">  Ready · Iterates, 1 pass · tick 25 · No errors                      recording: 25 frames, 1.2 KB</span>│
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘</pre>
+<ol class="callouts">
+<li value="1">An instrument: start, watch, pause, step, export. Recording stores nothing in the workbook.</li>
+<li value="2">The standing facts of this workbook&#x27;s calculation, in Excel&#x27;s terms.</li>
+<li value="3">The last recalculation as it ran: order, values before and after, and which reads saw the previous pass. The map&#x27;s delay marks come from here.</li>
+<li value="4">A watched value over time: a readout, not a chart in the file.</li>
+<li value="5">Instruments with live counts. The same ones dock as panels in every view.</li>
+</ol>
+</figure>
+<figure id="M8.3"><figcaption><b>M8.3</b> Notebook. Sales laid across the page as a pipeline, recalculating after a paste</figcaption>
+<pre class="wf">┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│<span class="pc"> ▪▪ Sales.xlsx · edited         Classic  Inspector  <span class="a">▐Notebook▌</span>  Map  App        Ask or run…  Alt+Q</span>│
+│<span class="pc"> File Home Insert Layout … View │ Text  Value  Frame  Chart  Control │ Page · <span class="b">Across</span> │ Reading    </span>│
+│<span class="pc"> Report!B6:E9    ▼ │ fx │ =SUMIFS(Orders[Amount],Orders[Region],$A6,Orders[Date],…         <span class="a">lens on</span></span>│
+├──────────────────────────────┬────────────────────────────────────┬──────────────────────────────┤
+│  <span class="b">1  Orders</span>                ──►│ <span class="b">2  Report</span>                       ──►│ <span class="b">3  PivotTable1</span>               │
+│  table <span class="b">25,500</span> × 10 <span class="g">+500•</span> <b class="co">(1)</b> │ <span class="a">▐Sales by region and quarter      ▌</span>│ Sum of Amount                │
+│  OrderID   text              │ = SUMIFS(Orders[Amount],           │ by Region × Quarter          │
+│  Date      date and time     │    Orders[Region], ‹Region›,       │                              │
+│  Region    text, 4 values    │    Orders[Date], &quot;&gt;=&quot; &amp; ‹start›,   │ <span class="b">[!] Source changed after</span>     │
+│  Rep       text, 38 values   │    Orders[Date], &quot;&lt;=&quot; &amp; ‹end›)     │ <span class="b">the last refresh</span> (19 Nov     │
+│  Amount    number            │ 16 cells, one formula  <b class="co">(2)</b>         │ 16:02). Figures may be       │
+│  <span class="m">… 5 more columns</span>            │                                    │ out of date.     <b class="co">(4)</b>         │
+│  ─────────────────────────   │         Q1     Q2     Q3     Q4    │ <span class="t">Refresh  Alt+F5</span>              │
+│  rows 25,001–25,003 <span class="g">•</span>        │  North ░░░░░  1.18m  1.09m  0.61m  │                              │
+│  SO-125001 19-Nov West       │  South ░░░░░  0.90m  0.88m  0.46m  │        Q3                    │
+│  SO-125002 19-Nov East       │  East  ░░░░░  1.29m  1.34m  0.70m  │  North 1,131,672.20          │
+│  SO-125003 19-Nov East       │  West  ░░░░░  1.23m  1.20m  0.65m  │  South   905,665.00          │
+│  <span class="m">view filter: none</span>           │ <span class="a">calculating 12 of 16 · Esc</span>  <b class="co">(3)</b>    │  East  1,394,821.00          │
+│                              │                                    │  West  1,251,907.25          │
+│  <span class="m">reads: nothing</span>              │ <span class="m">reads: Orders, 3 columns</span>           │ <span class="m">reads: Orders (cache)</span>        │
+├──────────────────────────────┴────────────────────────────────────┴──────────────────────────────┤
+│<span class="pc">  Ready · <span class="a">Calculating 75% · Esc stops</span> · <span class="b">[!] 1 pivot older than its source</span>        Notebook · Across</span>│
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘</pre>
+<ol class="callouts">
+<li value="1">A table is a frame: size, columns with types, a window of rows. The 500 rows just pasted carry the fresh mark.</li>
+<li value="2">Sixteen cells with one formula are one item. With the lens on, the header cells it reads appear as marked labels.</li>
+<li value="3">Live recalculation, shown truthfully: four results are pending and hatched, the rest are done.</li>
+<li value="4">A PivotTable is a snapshot, and the notebook says when it is older than its source.</li>
+</ol>
+</figure>
+<figure id="M8.4"><figcaption><b>M8.4</b> Model map. Budget, sheet Monthly at block zoom: an ordinary workbook with no names</figcaption>
+<pre class="wf">┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│<span class="pc"> ▪▪ Budget.xlsx · saved         Classic  Inspector  Notebook  <span class="a">▐Map▌</span>  App        Ask or run…  Alt+Q</span>│
+│<span class="pc"> Monthly!C9:N9   ▼ │ fx │ =SUM(C7:C8)                                                     lens off</span>│
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  <span class="b">Budget.xlsx</span> ► <span class="b">Monthly</span>                     zoom:  sheets · <span class="b">blocks</span> · cells                     <b class="co">(1)</b>│
+│                              ┌- - - - - - - - - - - - - - - - - - ┐                              │
+│                              ¦ ‹Revenue›  B5:O9 · 12 periods <b class="co">(2)</b>  ¦                              │
+│                              ¦ Customers        [t-1]  <b class="co">(3)</b>        ¦                              │
+│                              ¦ Price                              ¦       ┌- - - - - - - - - - ┐ │
+│                              ¦ Subscriptions                      ¦       ¦ ‹Result›  B18:O19  ¦ │
+│  ┌────────────────────┐ 5    ¦ Services                           ¦──────►¦ Operating profit   ¦ │
+│  │ Inputs (sheet)     │─────►¦<span class="a">▐Total revenue                     ▌</span>¦   ┌──►¦ Margin             ¦ │
+│  │ 12 assumptions     │      └- - - - - - - - - - - - - - - - - - ┘   │   └- - - - - - - - - - ┘ │
+│  │ 2 scenarios        │                        │ Total revenue <b class="co">(4)</b>    │              │           │
+│  │ <span class="k">in use: Base</span> <b class="co">(6)</b>   │──┐                     ▼                      │              │ 8         │
+│  └────────────────────┘  │   ┌- - - - - - - - - - - - - - - - - - ┐   │              │           │
+│                          │   ¦ ‹Costs›  B11:O16 · 12 periods      ¦   │              ▼           │
+│                       7  │   ¦ Cost of sales                      ¦   │   ┌────────────────────┐ │
+│                          └──►¦ Headcount        [t-1]             ¦───┘   │ Summary (sheet)    │ │
+│                              ¦ <span class="b">[!]</span> People  11 alike, 1 differs <b class="co">(5)</b>¦       │ 6 formulas         │ │
+│                              ¦ Marketing · Rent and other         ¦       │ 1 chart            │ │
+│                              ¦ Total costs                        ¦       └────────────────────┘ │
+│                              └- - - - - - - - - - - - - - - - - - ┘                              │
+│                                                                                                  │
+│  13 rows in 3 blocks, all drawn · 4 bundles of references · [t-1] reads the previous period      │
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│<span class="pc"> Ready · Calculated · No errors · <span class="b">[!] 1 exception noted</span>                        Map · blocks · 100%</span>│
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘</pre>
+<ol class="callouts">
+<li value="1">Breadcrumb and semantic zoom. Enter on a row goes to its twelve cells.</li>
+<li value="2">A block is a reading: dashed, label in guillemets. The sheets either side are facts: solid.</li>
+<li value="3"><code>[t-1]</code>: a row that reads its own previous period. Deliberately not the iteration mark <code>[z-1]</code>.</li>
+<li value="4">Wires between blocks are bundles, labelled with what flows or a count.</li>
+<li value="5">An exception inside a run shows at every zoom.</li>
+<li value="6">The scenario switch: one input that selects a column.</li>
+</ol>
+</figure>
+<figure id="M8.5"><figcaption><b>M8.5</b> App. Budget, drafted from the file: Downside beside Base</figcaption>
+<pre class="wf">┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│<span class="pc"> ▪▪ Budget.xlsx · saved            <span class="a">▐App▌</span>   View as ▼           Print  Ctrl+P    Ask or run…  Alt+Q</span>│
+│<span class="pc"> Scenario: Base <span class="a">▐Downside▌</span> │ Compare with: <span class="b">Base</span> ▼ │ Reset   <span class="m">drafted from the file ·</span> <span class="t">Edit page…</span> <b class="co">(1)</b></span>│
+├─────────────────────────────────────┬────────────────────────────────────────────────────────────┤
+│  <span class="b">ASSUMPTIONS</span> · Downside          <b class="co">(2)</b>│ <span class="m">REVENUE FY</span>     <span class="m">COSTS FY</span>       <span class="m">OPERATING PROFIT</span>  <span class="m">MARGIN</span> <b class="co">(3)</b> │
+│  Opening customers  [    4,800 ]    │ <span class="b">3,255,671</span>      <span class="b">2,689,858</span>      <span class="b">565,813</span>           <span class="b">17.4%</span>      │
+│  New customers / mo [      180 ]    │ Base 3,940,602 Base 3,017,387 Base 923,215      Base 23.4% │
+│  Monthly churn      [     2.6% ]    │ <span class="b">−684,931</span>       <span class="b">−327,529</span>       <span class="b">−357,402</span>          <span class="b">−6.0 pts</span>   │
+│  Price per customer [    49.00 ]    │                                                            │
+│  Price rise in July [     0.0% ]    │  <span class="b">Operating profit by month</span>              █ Base   ▓ Downside│
+│  Services share     [     8.0% ]    │   100k ┤                      ▄  ▄  ▄  ▄  █                │
+│  <span class="t">6 more ▼</span>                           │    75k ┤ ▄  ▄  █  ▄  █  ▄  █  █  █  █  █  █                │
+│                                     │    50k ┤ █▓ █▓ █▓ █▓ █▓ █░ █▓ █▓ █▓ █▓ █▓ █▓               │
+│  <span class="m">These are the Downside column</span>      │    25k ┤ █▓ █▓ █▓ █▓ █▓ █▓ █▓ █▓ █▓ █▓ █▓ █▓               │
+│  <span class="m">of Inputs. The Base column is</span>      │      0 ┼─────────────────────────────────────              │
+│  <span class="m">shown when Base is in use.</span>         │          J  F  M  A  M  J  J  A  S  O  N  D     <b class="co">(4)</b>        │
+├─────────────────────────────────────┴────────────────────────────────────────────────────────────┤
+│<span class="pc">  Ready · Up to date · No errors                                             App · Reading density</span>│
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘</pre>
+<ol class="callouts">
+<li value="1">The page was drafted from the program&#x27;s reading of the file, and says so. &quot;Edit page…&quot; opens its declaration (section 7).</li>
+<li value="2">The inputs are the unlocked cells of the scenario in use, labelled from column A of Inputs.</li>
+<li value="3">Each output beside the same output under Base, with the difference.</li>
+<li value="4">A chart of the workbook&#x27;s own series. The two differ in texture as well as tone.</li>
+</ol>
+</figure>
+<figure id="M8.6"><figcaption><b>M8.6</b> Formula Explorer inside a workbook: opened on <code>Report!D9</code>, a fix being tried</figcaption>
+<pre class="wf">┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│<span class="pc"> ▪▪ Sales.xlsx · saved         <span class="a">▐Classic▌</span>  Inspector  Notebook  Map  App         Ask or run…  Alt+Q</span>│
+│<span class="pc"> Report!D9       ▼ │ fx │ =SUMIFS(Orders[Amount],Orders[Region],$A9,Orders[Date],&quot;&gt;=&quot;&amp;D$3,…       </span>│
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  9 │ West        │  1,187,092.40 │  1,229,645.15 │<span class="a">▐ 1,204,318.50▌</span>│    648,907.85 │               │
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│<span class="pc">  <span class="b">FORMULA EXPLORER</span> · D9       <span class="b">Steps</span> │ Functions │ Number format │ Conditional format │ Add-ins <b class="co">(1)</b></span>│
+│<span class="pc">  ────────────────────────────────────────────────────────────────────────────────────────────────</span>│
+│<span class="pc">  In the cell  …,Orders[Date],&quot;&gt;=&quot;&amp;D$3,Orders[Date],<span class="b">&quot;&lt;=&quot;&amp;D$4</span>)                         1,204,318.50</span>│
+│<span class="pc">  <span class="a">▐Trying      …,Orders[Date],&quot;&gt;=&quot;&amp;D$3,Orders[Date],&quot;&lt;&quot;&amp;E$3|)                 ▌</span> <span class="b">1,251,907.25</span> <b class="co">(2)</b>  </span>│
+│<span class="pc">  <span class="b">Trying. Workbook unchanged.</span>  +47,588.75            Apply to cell  Ctrl+Enter · Copy · Reset  <b class="co">(3)</b></span>│
+│<span class="pc">  ────────────────────────────────────────────────────────────────────────────────────────────────</span>│
+│<span class="pc">  <span class="b">INPUTS</span>, from the cell       in the workbook                     try                       <b class="co">(4)</b>   </span>│
+│<span class="pc">   D$3  Report                 1-Jul-26     stored 46204           [               ]              </span>│
+│<span class="pc">   D$4  Report                 30-Sep-26    stored 46295           [               ]              </span>│
+│<span class="pc">   E$3  Report                 1-Oct-26     stored 46296           <span class="m">added by the trial</span>             </span>│
+│<span class="pc">   Orders[Amount]              25,000 numbers · Σ 16,459,938.40                                   </span>│
+│<span class="pc">  <span class="b">STEPS</span>, for the trial                                                                         <b class="co">(5)</b></span>│
+│<span class="pc">   &quot;&gt;=&quot;&amp;D$3                    &quot;&gt;=46204&quot;                                                          </span>│
+│<span class="pc">   &quot;&lt;&quot;&amp;E$3                     &quot;&lt;46296&quot;                                                           </span>│
+│<span class="pc">   SUMIFS                      25,000 → 6,212 → 2,155 → <span class="b">2,155 rows</span> (was 2,114) → 1,251,907.25     </span>│
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│<span class="pc">  Ready · Calculated · No errors                                        Explorer: trying, 1 change</span>│
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘</pre>
+<ol class="callouts">
+<li value="1">Five facets: steps, functions, number format, conditional formats, add-in functions.</li>
+<li value="2">The trial line is an editable copy. The cell is untouched until &quot;Apply to cell&quot;.</li>
+<li value="3">The state is named and the way out is plain.</li>
+<li value="4">It starts from the cell&#x27;s inputs, each with its shown and stored value; any can be overridden under <i>try</i>.</li>
+<li value="5">Every sub-expression with its value; for row functions, the ladder.</li>
+</ol>
+</figure>
+<figure id="M8.7"><figcaption><b>M8.7</b> Formula Explorer on its own: no workbook, an add-in loaded, a result named and reused</figcaption>
+<pre class="wf">┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│<span class="pc"> ▪● DNA Calc · Formula Explorer                                            Ask or run…  Alt+Q  <b class="co">(6)</b></span>│
+├────────────────────────────┬─────────────────────────────────────────────────────────────────────┤
+│<span class="pc">  <span class="b">FUNCTIONS</span>   [ seas     ]  </span>│  <span class="m">1</span>  spread = SEASONAL.SPREAD(1200000, &quot;retail&quot;)           0.4 ms <b class="co">(1)</b>│
+│<span class="pc">  <span class="s">◊</span> SEASONAL.INDEX          </span>│       1 × 12 numbers                                                │
+│<span class="pc">  <span class="s">◊</span> SEASONAL.PROFILE        </span>│        78,000   72,000   84,000   90,000   90,000   90,000    <b class="co">(3)</b>   │
+│<span class="pc">  <span class="a">▐◊ SEASONAL.SPREAD  ▌</span> <b class="co">(2)</b> </span>│        84,000   90,000   96,000  108,000  144,000  174,000          │
+│<span class="pc">  ───────────────────────── </span>│  <span class="m">2</span> <span class="a">▐= SUM(spread)|                             ▌</span>  <span class="b">1,200,000</span>         │
+│<span class="pc">  <span class="b">SEASONAL.SPREAD</span>           </span>│  <span class="m">3</span>  <span class="m">type a formula. The = is optional.</span>                              │
+│<span class="pc">  (annual_total, profile,   </span>│  ──────────────────────────────────────────────────────────────     │
+│<span class="pc">   [periods])               </span>│ <span class="b">Steps</span> │ Functions │ Number format │ Conditional format │ Add-ins <b class="co">(4)</b>│
+│<span class="pc">  Spreads an annual amount  </span>│  <span class="b">STEPS</span>, line 2                                                      │
+│<span class="pc">  over periods by a named   </span>│   spread         {78000, 72000, 84000, …, 174000}   from line 1     │
+│<span class="pc">  profile.                  </span>│   SUM(spread)    1200000                                            │
+│<span class="pc">  annual_total   a number   </span>│  <span class="b">INPUTS</span>   none yet. Name a value to reuse it:  rate = 6.5%          │
+│<span class="pc">  profile   &quot;flat&quot;, &quot;retail&quot;</span>│  <span class="b">CONTEXT</span>  as if in cell A1 of an empty sheet · <span class="t">change…</span>   <b class="co">(5)</b>        │
+│<span class="pc">            or &quot;4-4-5&quot;      </span>│                                                                     │
+│<span class="pc">  periods   optional, 12    </span>│                                                                     │
+├────────────────────────────┴─────────────────────────────────────────────────────────────────────┤
+│<span class="pc">  Ready · 2 lines · <span class="s">◊ Seasonal.xll: 3 functions, 1 remark</span>                        Save as workbook…</span>│
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘</pre>
+<ol class="callouts">
+<li value="1">No sheets, no tabs, no file: numbered lines, each a formula, optionally named and usable below.</li>
+<li value="2">Excel&#x27;s functions and those of loaded add-ins, marked <code>◊</code>, with the help the add-in registered.</li>
+<li value="3">An array result is a small frame, shape first.</li>
+<li value="4">The same five facets as inside a workbook.</li>
+<li value="5">The context a formula is assumed to sit in, stated, because ROW and CELL depend on it.</li>
+<li value="6">Its own identity badge (Strand&#x27;s dot-long pair, assuming this is the product Strand calls OneCalc). &quot;Save as workbook…&quot; writes a plain <code>.xlsx</code>.</li>
+</ol>
+</figure>
+</section>
+<section id="g9"><h2>M9 · A reading</h2>
+<figure id="M9.1"><figcaption><b>M9.1</b> A reading, opened: what the program thinks this is, why, how sure, and how to correct it</figcaption>
+<pre class="wf">┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│  <span class="t">‹Revenue›</span>   calculation block · time series, 12 periods across                   <span class="b">likely</span>  <b class="co">(1)</b>│
+│  Monthly!B5:O9                                                                               │
+│  ────────────────────────────────────────────────────────────────────────────────────────────│
+│  <span class="b">Why</span>     row 4 holds 12 dates, one month apart                                   certain  <b class="co">(2)</b>│
+│          rows 5 to 9: each row is one formula filled across C:N                       certain│
+│          column O: totals C:N in 3 rows, takes the last in 1, averages in 1            likely│
+│          the label &quot;Revenue&quot; is the bold cell A4 above the block                        guess│
+│  <span class="b">Not</span>     a table: no table object covers this range                                          │
+│  ────────────────────────────────────────────────────────────────────────────────────────────│
+│  <span class="b">Correct</span> Rename    Change kind ▼    Extend or shrink    Split    Merge    Not a pattern   <b class="co">(3)</b>│
+│          <span class="t">Pin with a name…</span>   defines Revenue = Monthly!$B$5:$O$9 in the workbook           <b class="co">(4)</b>│
+└──────────────────────────────────────────────────────────────────────────────────────────────┘</pre>
+<ol class="callouts">
+<li value="1">Kind, label and grade. The grade shown is that of the weakest evidence the reading rests on.</li>
+<li value="2">The evidence, line by line, each with its own grade. &quot;Not&quot; names the nearest reading that was ruled out.</li>
+<li value="3">A correction is one gesture, is kept with the file, and is open to an agent through the same commands.</li>
+<li value="4">The one correction that changes the workbook says so.</li>
+</ol>
+</figure>
+</section>
+<p class="note">Wireframes are at most 100 columns wide and use only box-drawing, block and Latin characters that common monospace faces carry, so they align in any of them. Colours follow STRAND.md v0.1; where a hue is used as text it is the "-ink" variant for its ground, and the inks used on petrol chrome are an addition noted in the stylesheet.</p>
+</main>
+</body>
+</html>

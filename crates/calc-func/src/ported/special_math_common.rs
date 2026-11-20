@@ -1734,85 +1734,38 @@ pub(super) fn half_shape_log_beta(b: f64) -> f64 {
 }
 
 /// bpser: power series expansion for Ix(a, b) when b <= 1 or b*x <= 0.7.
-fn bratio_bpser(a: f64, b: f64, x: f64, eps: f64) -> f64 {
-    let mut bp = 0.0;
+fn bratio_bpser(a: f64, b: f64, x: f64) -> f64 {
+    use crate::ported::excel_numeric::{
+        excel_beta_power_series, excel_log, excel_x87_add, excel_x87_mul, excel_x87_sub,
+    };
     if x == 0.0 {
-        return bp;
+        return 0.0;
     }
-    if let Some(ln_beta) = excel_ln_beta_small(a, b) {
-        return crate::ported::excel_numeric::excel_beta_power_series(a, b, x, ln_beta);
-    }
-    if a == 0.5 && b > 8.0 {
-        return crate::ported::excel_numeric::excel_beta_power_series(a, b, x, half_shape_log_beta(b));
-    }
-    let a0 = a.min(b);
-    if a0 >= 1.0 {
-        let z = a * crt_log(x) - bratio_betaln(a, b);
-        bp = crate::ported::excel_numeric::excel_exp(z) / a;
-    } else {
-        let b0 = a.max(b);
-        if b0 >= 8.0 {
-            let u = bratio_gamln1(a0) + bratio_algdiv(a0, b0);
-            let z = a * crt_log(x) - u;
-            bp = (a0 / a) * crate::ported::excel_numeric::excel_exp(z);
-        } else if b0 > 1.0 {
-            let mut u = bratio_gamln1(a0);
-            let m = bratio_ftoi(b0 - 1.0);
-            let mut b0m = b0;
-            if m >= 1 {
-                let mut c = 1.0;
-                for _ in 0..m {
-                    b0m -= 1.0;
-                    c *= b0m / (a0 + b0m);
-                }
-                u = crt_log(c) + u;
-            }
-            let z = a * crt_log(x) - u;
-            b0m -= 1.0;
-            let apb = a0 + b0m;
-            let t;
-            if apb > 1.0 {
-                let uu = a0 + b0m - 1.0;
-                t = (1.0 + bratio_gam1(uu)) / apb;
-            } else {
-                t = 1.0 + bratio_gam1(apb);
-            }
-            bp = crate::ported::excel_numeric::excel_exp(z) * (a0 / a) * (1.0 + bratio_gam1(b0m))
-                / t;
+    let (small, large) = (a.min(b), a.max(b));
+    let ln_beta = if let Some(value) = excel_ln_beta_small(a, b) {
+        value
+    } else if small == 1.0 {
+        -excel_log(large)
+    } else if small == 0.5 {
+        half_shape_log_beta(large)
+    } else if small < 8.0 && small.fract() == 0.0 {
+        // B(k, b) = (k-1)! / (b (b+1) ... (b+k-1)). The two logarithms
+        // round separately. Fall back to the log ratio if the product overflows.
+        let mut numerator = 1.0;
+        let mut denominator = large;
+        for k in 1..small as u32 {
+            numerator *= k as f64;
+            denominator = excel_x87_mul(denominator, excel_x87_add(large, k as f64));
+        }
+        if denominator.is_finite() {
+            excel_x87_sub(excel_log(numerator), excel_log(denominator))
         } else {
-            bp = crt_pow(x, a);
-            if bp == 0.0 {
-                return bp;
-            }
-            let apb = a + b;
-            let z;
-            if apb > 1.0 {
-                let u = a + b - 1.0;
-                z = (1.0 + bratio_gam1(u)) / apb;
-            } else {
-                z = 1.0 + bratio_gam1(apb);
-            }
-            let c = (1.0 + bratio_gam1(a)) * (1.0 + bratio_gam1(b)) / z;
-            bp = bp * c * (b / apb);
+            bratio_betaln(a, b)
         }
-    }
-    if bp == 0.0 || a <= 0.1 * eps {
-        return bp;
-    }
-    let mut summ = 0.0;
-    let mut n = 0.0;
-    let mut c = 1.0;
-    let tol = eps / a;
-    loop {
-        n += 1.0;
-        c = c * (0.5 + (0.5 - b / n)) * x;
-        let w = c / (a + n);
-        summ += w;
-        if w.abs() <= tol {
-            break;
-        }
-    }
-    bp * (1.0 + a * summ)
+    } else {
+        bratio_betaln(a, b)
+    };
+    excel_beta_power_series(a, b, x, ln_beta)
 }
 
 /// bup: Ix(a, b) - Ix(a+n, b) evaluated for n a positive integer.
@@ -1842,7 +1795,28 @@ fn bratio_bup(a: f64, b: f64, x: f64, y: f64, n: i32, eps: f64, excel_form: bool
             if h.is_subnormal() {
                 return 0.0;
             }
-            crate::ported::excel_numeric::excel_x87_div(h, a)
+            use crate::ported::excel_numeric::{
+                excel_exp, excel_log, excel_x87_add, excel_x87_div,
+            };
+            let first = excel_x87_div(h, a);
+            // The finite reduction's linear and quadratic sums have separately
+            // stored powers. The fourth term is the first unresolved store.
+            if (2..=3).contains(&n) && first != 0.0 {
+                let log_x = excel_log(x);
+                let ab = excel_x87_add(a, b);
+                let a1 = excel_x87_add(a, 1.0);
+                let mut coefficient = 1.0;
+                let mut sum = 1.0;
+                for m in 1..n {
+                    let k = (m - 1) as f64;
+                    let ratio = excel_x87_div(excel_x87_add(ab, k), excel_x87_add(a1, k));
+                    coefficient = excel_x87_mul(coefficient, ratio);
+                    let power = excel_exp(excel_x87_mul(m as f64, log_x));
+                    sum = excel_x87_add(sum, excel_x87_mul(coefficient, power));
+                }
+                return excel_x87_mul(first, sum);
+            }
+            first
         }
         None => bratio_brcmp1(mu, a, b, x, y) / a,
     };
@@ -2144,15 +2118,14 @@ fn bratio_bgrat(a: f64, b: f64, x: f64, y: f64, w: f64, eps: f64) -> (f64, i32) 
     let mut d = [0.0f64; 31];
     let bm1 = (b - 0.5) - 0.5;
     let nu = a + 0.5 * bm1;
-    // Excel's `z` is the stored `nu * LN(x)` at every x (dc-6332.8: at a = 200 its answers sit
-    // within 4 units, one sigma, of the true value carried through that stored product, at ten
-    // values of b; with the rational below, the 90th percentile at (200, 0.3) is 59 units away,
-    // with LN 5). It is not taken yet: the arm's other pieces are not read, the bank moves by one
-    // row, and the three rows pinned below move from 3, 5, 3 to 9, 5, 3 units.
-    // The half-shape Student tail switches to LN(x) strictly below 0.99.
-    // Its two adjacent x values can share the rounded complementary coordinate.
-    let lnx = if b == 0.5 && x < 0.99 {
-        crate::ported::excel_numeric::excel_log(x)
+    // The half-shape tail receives both coordinates from Student and F. Its
+    // logarithm switches at the stored x, even if its companion rounds to 1-x.
+    let lnx = if b == 0.5 {
+        if x < 0.99 {
+            crate::ported::excel_numeric::excel_log(x)
+        } else {
+            crate::ported::excel_numeric::excel_log1p_times(1.0, -y)
+        }
     } else if y > 0.375 {
         crt_log(x)
     } else {
@@ -2183,7 +2156,19 @@ fn bratio_bgrat(a: f64, b: f64, x: f64, y: f64, w: f64, eps: f64) -> (f64, i32) 
     if u == 0.0 {
         return (w, 1);
     }
-    let (_p, q) = bratio_grat1(b, z, r, eps);
+    // In the direct half-shape expansion Q(1/2,z) uses the same
+    // complementary error function as the normal family. The expansion
+    // seeded by a finite recurrence still has unresolved rounding.
+    let q = if b == 0.5 && w == 0.0 {
+        let root = crate::ported::excel_numeric::excel_sqrt_staged(z);
+        if root <= 0.5 {
+            0.5 + (0.5 - crate::ported::normal_dist_common::erf_approx(root))
+        } else {
+            crate::ported::normal_dist_common::erfc_upper(root)
+        }
+    } else {
+        bratio_grat1(b, z, r, eps).1
+    };
     let v = 0.25 * crt_pow(1.0 / nu, 2.0);
     let t2 = 0.25 * lnx * lnx;
     let l = w / u;
@@ -2439,29 +2424,30 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
             (0.5 + (0.5 - small), small)
         };
     }
-    // bgrat runs at `eps`, not TOMS 708's `15 * eps`: at 1.5e-14 its truncated positive series
-    // sat about 5 units low on average over the BETA.DIST bank (mean |ulp| 8.1, signed -5.3);
-    // at `eps` 3.9 and +0.3, with 31 rows gained and 8 lost (dc-ymjf.6).
-    // The unit-shape arms, read from single-bit-stepped public calls (Excel 16.0 b20527). With
-    // b = 1 and x <= 0.9 the answer is exp(a * log x), one rounding of each, on every x and shape
-    // asked; b = 1 +- 1 ulp leaves this arm, and just above 0.9 the answer is the complement of
-    // I_{1-x}(1, a). With a = 1 and x >= 0.1 it is that complement's own arm,
-    // 0.5 + (0.5 - exp(b * log y)); below 0.1 it is -expm1(b * log1p(-x)) with the
-    // product taken on the x87 chain (R43: 3,000 of 3,000 public calls, b from 0.3 to 1,000
-    // and x from 1e-9 to 0.0999; the spilled and internal EXPM1 graphs agree on all 20,000
-    // sampled arguments, so which of them Excel runs is undetermined).
-    if b == 1.0 && x <= 0.9 {
-        let w = crate::ported::excel_numeric::excel_exp(a * crt_log(x));
-        return (w, 0.5 + (0.5 - w));
-    }
-    if a == 1.0 && x >= 0.1 {
-        let w1 = crate::ported::excel_numeric::excel_exp(b * crt_log(y));
-        return (0.5 + (0.5 - w1), w1);
+    // At the remote end of each unit-shape arm Excel forms the small tail
+    // with the corrected exponential, then reflects around the stored half.
+    use crate::ported::excel_numeric::{
+        excel_exp, excel_expm1_spilled, excel_log, excel_log1p_times, excel_x87_add as add,
+        excel_x87_mul as mul, excel_x87_sub as sub,
+    };
+    if b == 1.0 {
+        // Both sides consume the same stored a * LN(x). At x > 0.9 the
+        // corrected exponential is published through the opposite tail.
+        let exponent = mul(a, excel_log(x));
+        if x <= 0.9 {
+            let w = excel_exp(exponent);
+            return (w, add(0.5, sub(0.5, w)));
+        }
+        let w1 = -excel_expm1_spilled(exponent);
+        return (add(0.5, sub(0.5, w1)), w1);
     }
     if a == 1.0 {
-        use crate::ported::excel_numeric::{excel_expm1_spilled, excel_log1p_times};
+        if x >= 0.1 {
+            let w1 = excel_exp(mul(b, excel_log(y)));
+            return (add(0.5, sub(0.5, w1)), w1);
+        }
         let w = -excel_expm1_spilled(excel_log1p_times(b, -x));
-        return (w, 0.5 + (0.5 - w));
+        return (w, add(0.5, sub(0.5, w)));
     }
     if a.max(b) < 1.0e-3 * eps {
         return (b / (a + b), a / (a + b));
@@ -2518,11 +2504,11 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
                 w = 0.5 + (0.5 - w1);
             }
             "bpser" => {
-                w = bratio_bpser(a0, b0, x0, eps);
+                w = bratio_bpser(a0, b0, x0);
                 w1 = 0.5 + (0.5 - w);
             }
             "bpser_sym" => {
-                w1 = bratio_bpser(b0, a0, y0, eps);
+                w1 = bratio_bpser(b0, a0, y0);
                 w = 0.5 + (0.5 - w1);
             }
             "bup_140" => {
@@ -2546,11 +2532,12 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
         return (w, w1);
     }
 
-    // procedure for a0 > 1 and b0 > 1
+    // Both shapes exceed one. The stored PC64 products decide the side at
+    // the mean and the power-series boundary at b*x = 0.7.
     let mut lambda_ = if a > b {
-        (a + b) * y - b
+        sub(mul(add(a, b), y), b)
     } else {
-        a - (a + b) * x
+        sub(a, mul(add(a, b), x))
     };
     if lambda_ < 0.0 {
         ind = 1;
@@ -2561,7 +2548,7 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
         lambda_ = lambda_.abs();
     }
     let branch: &str;
-    if b0 < 40.0 && b0 * x0 <= 0.7 {
+    if b0 < 40.0 && mul(b0, x0) <= 0.7 {
         branch = "bpser";
     } else if b0 < 40.0 {
         branch = "bup_160";
@@ -2583,7 +2570,7 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
 
     match branch {
         "bpser" => {
-            w = bratio_bpser(a0, b0, x0, eps);
+            w = bratio_bpser(a0, b0, x0);
             w1 = 0.5 + (0.5 - w);
         }
         "bfrac" => {
@@ -2603,7 +2590,7 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
             }
             w = bratio_bup(b0, a0, y0, x0, n, eps, true);
             if x0 <= 0.7 {
-                w += bratio_bpser(a0, b0, x0, eps);
+                w += bratio_bpser(a0, b0, x0);
                 // The series term can be subnormal and still contribute to a
                 // normal recurrence. Excel flushes only the final stored sum.
                 if w.is_subnormal() {

@@ -1,0 +1,1941 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="cockpit-light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DNA Calc — Front-End UX Mockups (M-01 to M-17 · Strand v0.2)</title>
+<style>
+/* ==========================================================================
+   STRAND v0.2 DESIGN TOKENS — self-contained, zero external fonts/scripts
+   ========================================================================== */
+:root, [data-theme="cockpit-light"] {
+  --petrol-950: #0C1C22;
+  --petrol-900: #12303A;
+  --petrol-800: #193F49;
+  --petrol-700: #235360;
+  --chrome-ink: #EDF1F2;
+  --chrome-muted: #9CB6BE;
+  --chrome-border: #275663;
+
+  --page-bg: #DCE4E6;
+  --paper: #FFFFFF;
+  --paper-2: #F4F7F8;
+  --paper-3: #E7EEF0;
+  --grid-line: #D6E0E3;
+  --border: #C3D2D6;
+
+  --ink: #1C2629;
+  --ink-2: #3A4D53;
+  --ink-3: #5B717B;
+
+  --teal: #318995;
+  --teal-400: #3DB6CF;
+  --teal-ink: #1B5F6B;
+  --teal-tint: #E6F4F6;
+
+  --amber: #FFB301;
+  --amber-ink: #8A5A00;
+  --amber-tint: #FFF6DC;
+
+  --green: #3F8B76;
+  --green-ink: #2E6E5B;
+  --green-tint: #E6F4EE;
+
+  --signal: #FF8001;
+  --prov-ext: #A35400;
+  --signal-tint: #FFF2E5;
+
+  --prov-const: #2D6A8A;
+  --red: #D02A23;
+  --red-ink: #D02A23;
+  --red-tint: #FCECEB;
+
+  /* Formula Reference Palette (6 WCAG AA structural accents, never error red) */
+  --ref-1: #1B5F6B; --ref-1-bg: rgba(27,95,107,.10);
+  --ref-2: #2D6A8A; --ref-2-bg: rgba(45,106,138,.10);
+  --ref-3: #2E6E5B; --ref-3-bg: rgba(46,110,91,.10);
+  --ref-4: #8A5A00; --ref-4-bg: rgba(138,90,0,.10);
+
+  /* Preview Seam (Agent & speculative edits — zero new hue) */
+  --proposal-bg: repeating-linear-gradient(
+    -45deg,
+    rgba(49,137,149,.09), rgba(49,137,149,.09) 4px,
+    rgba(49,137,149,.02) 4px, rgba(49,137,149,.02) 8px
+  );
+
+  --focus-shadow: 0 0 0 1px #193F49, 0 0 0 3px #FFB301;
+  --ui-font: "Recursive", "Segoe UI Variable", system-ui, -apple-system, sans-serif;
+  --mono-font: "Recursive Mono", "Cascadia Code", ui-monospace, Consolas, monospace;
+  --serif-font: "Source Serif 4", Charter, Georgia, serif;
+}
+
+[data-theme="cockpit-dark"] {
+  --petrol-950: #061014;
+  --petrol-900: #0C1C22;
+  --petrol-800: #122C34;
+  --petrol-700: #1D434F;
+  --chrome-ink: #EDF1F2;
+  --chrome-muted: #93B0B8;
+  --chrome-border: #234955;
+
+  --page-bg: #0A1519;
+  --paper: #1A262B;
+  --paper-2: #203037;
+  --paper-3: #273B43;
+  --grid-line: #2B424B;
+  --border: #35515C;
+
+  --ink: #E8F0F2;
+  --ink-2: #C2D4DA;
+  --ink-3: #8CA5AE;
+
+  --teal: #3DB6CF;
+  --teal-400: #55C9E0;
+  --teal-ink: #5CD0E6;
+  --teal-tint: rgba(61,182,207,.14);
+
+  --amber: #FFB301;
+  --amber-ink: #FFD04D;
+  --amber-tint: rgba(255,179,1,.14);
+
+  --green: #4DA58C;
+  --green-ink: #74C7AB;
+  --green-tint: rgba(77,165,140,.16);
+
+  --signal: #FF8001;
+  --prov-ext: #F0A35C;
+  --signal-tint: rgba(255,128,1,.15);
+
+  --prov-const: #7DB8D8;
+  --red: #E4625C;
+  --red-ink: #F27C77;
+  --red-tint: rgba(228,98,92,.16);
+
+  --ref-1: #5CD0E6; --ref-1-bg: rgba(92,208,230,.14);
+  --ref-2: #7DB8D8; --ref-2-bg: rgba(125,184,216,.14);
+  --ref-3: #74C7AB; --ref-3-bg: rgba(116,199,171,.14);
+  --ref-4: #FFD04D; --ref-4-bg: rgba(255,208,77,.14);
+
+  --proposal-bg: repeating-linear-gradient(
+    -45deg,
+    rgba(61,182,207,.16), rgba(61,182,207,.16) 4px,
+    rgba(61,182,207,.04) 4px, rgba(61,182,207,.04) 8px
+  );
+  --focus-shadow: 0 0 0 1px #0C1C22, 0 0 0 3px #FFB301;
+}
+
+[data-theme="high-contrast"] {
+  --petrol-950: #000000;
+  --petrol-900: #000000;
+  --petrol-800: #081A20;
+  --petrol-700: #143642;
+  --chrome-ink: #FFFFFF;
+  --chrome-muted: #E0F2F5;
+  --chrome-border: #FFFFFF;
+
+  --page-bg: #000000;
+  --paper: #FFFFFF;
+  --paper-2: #F0F5F6;
+  --paper-3: #DFE9EC;
+  --grid-line: #445B63;
+  --border: #000000;
+
+  --ink: #000000;
+  --ink-2: #111111;
+  --ink-3: #222222;
+
+  --teal: #005666;
+  --teal-400: #00778C;
+  --teal-ink: #004A57;
+  --teal-tint: #D7F2F7;
+
+  --amber: #FFB301;
+  --amber-ink: #664200;
+  --amber-tint: #FFF0BF;
+
+  --green: #0F5C44;
+  --green-ink: #0B4A37;
+  --green-tint: #D8F5E9;
+
+  --signal: #C25A00;
+  --prov-ext: #803B00;
+  --signal-tint: #FFE6CC;
+
+  --prov-const: #004775;
+  --red: #B00000;
+  --red-ink: #A30000;
+  --red-tint: #FFD9D9;
+
+  --focus-shadow: 0 0 0 2px #000000, 0 0 0 5px #FFB301;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--page-bg);
+  color: var(--ink);
+  font: 480 13.5px/1.45 var(--ui-font);
+  font-variant-numeric: tabular-nums;
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* Gallery Header */
+.gal-header {
+  position: sticky; top: 0; z-index: 40;
+  background: var(--petrol-950); color: var(--chrome-ink);
+  border-bottom: 1px solid var(--chrome-border);
+  padding: 10px 20px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px;
+}
+.gal-brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 14px; letter-spacing: .01em; }
+.bp-mark { display: inline-flex; gap: 3px; align-items: center; }
+.bp-mark span { display: inline-block; height: 10px; border-radius: 3px; }
+.bp-twin .a { width: 14px; background: var(--teal-400); }
+.bp-twin .b { width: 14px; background: var(--amber); }
+.bp-dotlong .a { width: 8px; background: var(--teal-400); }
+.bp-dotlong .b { width: 18px; background: var(--teal); }
+.gal-filters { display: flex; flex-wrap: wrap; gap: 5px; }
+.gal-btn {
+  background: var(--petrol-800); color: var(--chrome-ink);
+  border: 1px solid var(--chrome-border); border-radius: 5px;
+  padding: 4px 9px; font: 560 11.5px var(--ui-font); cursor: pointer;
+}
+.gal-btn:hover { background: var(--petrol-700); }
+.gal-btn.active { background: var(--amber); color: #122126; border-color: var(--amber); font-weight: 650; }
+.gal-themes { margin-left: auto; display: inline-flex; border: 1px solid var(--chrome-border); border-radius: 6px; overflow: hidden; }
+.gal-themes button {
+  background: var(--petrol-900); color: var(--chrome-muted); border: 0;
+  padding: 4px 10px; font: 560 11.5px var(--ui-font); cursor: pointer;
+}
+.gal-themes button + button { border-left: 1px solid var(--chrome-border); }
+.gal-themes button.active { background: var(--teal); color: #FFFFFF; }
+
+/* Quick Jump Index */
+.gal-index {
+  max-width: 1240px; margin: 14px auto 0; padding: 0 18px;
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.gal-index a {
+  text-decoration: none; font: 560 11.5px var(--mono-font);
+  background: var(--paper); color: var(--teal-ink);
+  border: 1px solid var(--border); border-radius: 5px; padding: 3px 8px;
+}
+.gal-index a:hover { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber); }
+
+/* Mockup Card Container */
+.gallery { max-width: 1240px; margin: 16px auto 56px; padding: 0 18px; display: grid; gap: 28px; }
+.mockup-section { display: grid; gap: 10px; scroll-margin-top: 66px; }
+.mockup-section.hidden { display: none; }
+.mockup-meta { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+.mockup-meta h2 { margin: 0; font: 650 17px/1.2 var(--ui-font); color: var(--ink); display: flex; align-items: center; gap: 8px; }
+.m-id {
+  font: 650 11px var(--mono-font); letter-spacing: .06em;
+  background: var(--petrol-800); color: var(--amber);
+  padding: 2px 7px; border-radius: 4px;
+}
+.m-tags { display: flex; gap: 6px; font: 560 11px var(--mono-font); color: var(--ink-3); }
+.m-tags span { background: var(--paper); border: 1px solid var(--border); padding: 1px 7px; border-radius: 99px; }
+
+/* ==========================================================================
+   STRAND APP SHELL (Mast / Bridge / Stage / Strip)
+   ========================================================================== */
+.app-frame {
+  background: var(--petrol-800);
+  border: 1.5px solid var(--petrol-950);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 10px 28px rgba(12,28,34,.18);
+}
+.mast {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+  background: var(--petrol-800); color: var(--chrome-ink);
+  padding: 6px 12px; min-height: 36px; font-size: 12px;
+  border-bottom: 1px solid var(--chrome-border);
+}
+.mast-file { display: flex; align-items: center; gap: 7px; font-weight: 650; }
+.view-seg {
+  display: inline-flex; background: var(--petrol-950);
+  border: 1px solid var(--chrome-border); border-radius: 6px; padding: 2px; gap: 2px;
+}
+.view-seg span {
+  padding: 2px 9px; border-radius: 4px; color: var(--chrome-muted); font-weight: 560; font-size: 11.5px;
+}
+.view-seg span.on { background: var(--teal); color: #FFFFFF; font-weight: 650; }
+.mast-pill {
+  padding: 2px 8px; border-radius: 5px; font: 560 11px var(--mono-font);
+  border: 1px solid var(--chrome-border); background: var(--petrol-900); color: var(--chrome-ink);
+}
+.mast-pill.on { background: var(--amber); color: #122126; border-color: var(--amber); font-weight: 650; }
+.mast-pill.signal { border-color: var(--signal); color: #FFD1A3; background: rgba(255,128,1,.18); }
+.mast-right { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+
+.bridge {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  background: var(--petrol-900); color: var(--chrome-ink);
+  padding: 5px 12px; min-height: 34px; font-size: 12px;
+  border-bottom: 1px solid var(--chrome-border);
+}
+.addr-box {
+  background: var(--petrol-950); color: var(--chrome-ink);
+  border: 1px solid var(--chrome-border); border-radius: 5px;
+  padding: 3px 9px; font: 600 12px var(--mono-font); min-width: 148px;
+}
+.fx-bar {
+  flex: 1; min-width: 220px; display: flex; align-items: center; gap: 7px;
+  background: var(--petrol-950); border: 1px solid var(--chrome-border); border-radius: 5px;
+  padding: 3px 9px; font: 480 12px var(--mono-font); color: var(--chrome-ink); overflow-x: auto; white-space: nowrap;
+}
+.fx-badge { color: var(--teal-400); font-weight: 650; }
+.bridge-tabs { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.b-tab {
+  padding: 3px 9px; border-radius: 5px; font: 560 11.5px var(--ui-font);
+  color: var(--chrome-muted); border: 1px solid transparent;
+}
+.b-tab.on { background: var(--petrol-700); color: #FFFFFF; border-color: var(--teal-400); }
+.b-btn {
+  padding: 3px 8px; border-radius: 5px; font: 560 11.5px var(--ui-font);
+  background: var(--petrol-800); color: var(--chrome-ink); border: 1px solid var(--chrome-border);
+}
+.b-btn.primary { background: var(--teal); color: #FFFFFF; border-color: var(--teal-400); }
+
+.action-band {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  background: var(--petrol-800); color: var(--chrome-ink);
+  padding: 4px 12px; font-size: 11.5px; border-bottom: 1px solid var(--chrome-border);
+}
+.ab-tab { padding: 2px 7px; border-radius: 4px; color: var(--chrome-muted); font-weight: 560; }
+.ab-tab.on { background: var(--petrol-950); color: var(--amber); }
+.ab-sep { width: 1px; height: 14px; background: var(--chrome-border); }
+.ab-tool { font: 560 11.5px var(--mono-font); padding: 1px 6px; border-radius: 4px; background: var(--petrol-900); }
+
+/* Stage (Daylight Paper inside Petrol Cockpit) */
+.stage-wrap { padding: 6px 6px 0; background: var(--petrol-800); }
+.stage {
+  background: var(--paper); color: var(--ink);
+  border-radius: 11px 11px 0 0; overflow: hidden;
+  border: 1px solid var(--border); border-bottom: 0;
+}
+
+/* Banners */
+.banner {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+  padding: 7px 12px; font-size: 12px; border-bottom: 1px solid var(--border);
+}
+.banner.warn { background: var(--amber-tint); color: var(--ink); border-bottom-color: var(--amber); }
+.banner.info { background: var(--teal-tint); color: var(--ink); border-bottom-color: var(--teal); }
+.banner.signal { background: var(--signal-tint); color: var(--ink); border-bottom-color: var(--signal); }
+.banner-actions { margin-left: auto; display: flex; flex-wrap: wrap; gap: 6px; }
+.chip-btn {
+  padding: 2px 8px; border-radius: 5px; font: 600 11.5px var(--ui-font);
+  border: 1px solid var(--border); background: var(--paper); color: var(--ink);
+}
+.chip-btn.teal { background: var(--teal-ink); color: #FFFFFF; border-color: var(--teal-ink); }
+.chip-btn.amber { background: var(--amber); color: #122126; border-color: var(--amber-ink); }
+
+/* Strip (Bottom Status Bar) */
+.strip {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
+  background: var(--petrol-800); color: var(--chrome-ink);
+  padding: 4px 12px; min-height: 28px; font-size: 11.5px;
+  border-top: 1px solid var(--chrome-border);
+}
+.sheet-tabs { display: flex; flex-wrap: wrap; gap: 3px; }
+.s-tab {
+  padding: 2px 8px; border-radius: 4px; font: 560 11px var(--mono-font);
+  background: var(--petrol-900); color: var(--chrome-muted);
+}
+.s-tab.on { background: var(--paper); color: var(--ink); font-weight: 650; }
+.s-tab.hidden-pill { border: 1px dashed var(--chrome-muted); color: var(--amber); background: transparent; }
+.strip-telemetry { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font: 560 11px var(--mono-font); }
+.pill-err { background: var(--red); color: #FFFFFF; padding: 1px 7px; border-radius: 99px; font-weight: 650; }
+.pill-ok { color: #8AE0C5; }
+.pill-amber { color: var(--amber); }
+.pill-sig { color: #FFB46E; }
+
+/* Grid Table (Classic View) */
+.grid-scroll { overflow-x: auto; }
+table.xl-grid {
+  width: 100%; border-collapse: collapse; font: 480 12.5px var(--ui-font);
+  background: var(--paper);
+}
+table.xl-grid th {
+  background: var(--paper-2); color: var(--ink-3);
+  border: 1px solid var(--grid-line); padding: 3px 8px;
+  font: 600 11px var(--mono-font); text-align: center;
+}
+table.xl-grid td {
+  border: 1px solid var(--grid-line); padding: 4px 8px; position: relative; white-space: nowrap;
+}
+table.xl-grid td.rn {
+  background: var(--paper-2); color: var(--ink-3);
+  font: 600 11px var(--mono-font); text-align: right; width: 34px;
+}
+table.xl-grid td.num { text-align: right; font-family: var(--mono-font); }
+table.xl-grid td.hdr { font-weight: 650; background: var(--paper-2); color: var(--ink); }
+table.xl-grid td.tot { font-weight: 650; border-top: 1.5px solid var(--ink-2); border-bottom: 3px double var(--ink-2); }
+table.xl-grid td.focus {
+  box-shadow: inset 0 0 0 1px var(--petrol-800), inset 0 0 0 3px var(--amber);
+  background: var(--amber-tint); font-weight: 650;
+}
+table.xl-grid td.err { color: var(--red-ink); background: var(--red-tint); border-left: 3px solid var(--red); font-family: var(--mono-font); font-weight: 650; }
+table.xl-grid td.ext::before {
+  content: ""; position: absolute; top: 0; left: 0;
+  border-top: 7px solid var(--signal); border-right: 7px solid transparent;
+}
+table.xl-grid td.const { color: var(--prov-const); }
+table.xl-grid td.proposal {
+  background: var(--proposal-bg);
+  outline: 1.5px dashed var(--teal); outline-offset: -2px;
+}
+table.xl-grid td.spill { background: var(--teal-tint); border-top: 2px solid var(--teal); border-bottom: 2px solid var(--teal); }
+table.xl-grid td.spill-l { border-left: 2px solid var(--teal); }
+table.xl-grid td.spill-r { border-right: 2px solid var(--teal); }
+table.xl-grid td.ref1 { background: var(--ref-1-bg); outline: 2px solid var(--ref-1); outline-offset: -2px; }
+table.xl-grid td.ref2 { background: var(--ref-2-bg); outline: 2px solid var(--ref-2); outline-offset: -2px; }
+table.xl-grid td.ref3 { background: var(--ref-3-bg); outline: 2px solid var(--ref-3); outline-offset: -2px; }
+
+/* Callout Pins & Legends */
+.pin {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 17px; height: 17px; border-radius: 50%;
+  background: var(--amber); color: #122126; border: 1.5px solid #193F49;
+  font: 700 10.5px/1 var(--mono-font); vertical-align: middle; flex-shrink: 0;
+}
+.callouts {
+  background: var(--paper); border: 1px solid var(--border); border-radius: 9px;
+  padding: 10px 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 7px 16px;
+  font-size: 12.5px; color: var(--ink-2);
+}
+.callouts .co { display: flex; align-items: baseline; gap: 7px; }
+.callouts b { color: var(--ink); }
+
+/* Split Layouts, Cards & Panels */
+.split-2 { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
+.split-rail { display: grid; grid-template-columns: minmax(0, 1fr) 310px; }
+.split-left { display: grid; grid-template-columns: 280px minmax(0, 1fr); }
+.split-eq { display: grid; grid-template-columns: 1fr 1fr; }
+@media (max-width: 880px) { .split-2, .split-rail, .split-left, .split-eq { grid-template-columns: 1fr; } }
+
+.pane { padding: 14px; min-width: 0; }
+.pane + .pane { border-left: 1px solid var(--border); }
+.pane-muted { background: var(--paper-2); }
+.kicker {
+  font: 650 10.5px var(--mono-font); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--teal-ink); margin: 0 0 8px; display: flex; align-items: center; gap: 6px;
+}
+.card {
+  background: var(--paper); border: 1px solid var(--border); border-radius: 9px;
+  padding: 10px 12px; margin-bottom: 10px;
+}
+.card.warn { border-color: var(--amber-ink); background: var(--amber-tint); }
+.card.err { border-color: var(--red); background: var(--red-tint); }
+.card.proposal { border: 1.5px dashed var(--teal); background: var(--proposal-bg); }
+.card.focus { box-shadow: var(--focus-shadow); }
+
+.code-box {
+  font: 480 12px/1.5 var(--mono-font); background: var(--paper-2);
+  border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px;
+  color: var(--ink); overflow-x: auto; white-space: pre-wrap;
+}
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font: 600 10.5px var(--mono-font); padding: 1px 7px; border-radius: 5px;
+  border: 1px solid var(--border); background: var(--paper-2); color: var(--ink-2);
+}
+.badge.teal { background: var(--teal-tint); border-color: var(--teal); color: var(--teal-ink); }
+.badge.green { background: var(--green-tint); border-color: var(--green); color: var(--green-ink); }
+.badge.amber { background: var(--amber-tint); border-color: var(--amber-ink); color: var(--amber-ink); }
+.badge.signal { background: var(--signal-tint); border-color: var(--signal); color: var(--prov-ext); }
+.badge.red { background: var(--red-tint); border-color: var(--red); color: var(--red-ink); }
+
+/* Notebook Prose & Chips */
+.nb-page { max-width: 760px; margin: 0 auto; padding: 20px 24px; }
+.nb-h1 { font: 650 22px/1.2 var(--serif-font); margin: 0 0 10px; color: var(--ink); }
+.nb-prose { font: 400 15px/1.68 var(--serif-font); color: var(--ink); margin: 10px 0 16px; }
+.live-chip {
+  font: 600 13px var(--mono-font); color: var(--green-ink);
+  background: var(--green-tint); border-bottom: 2px solid var(--green);
+  padding: 0 5px; border-radius: 4px; white-space: nowrap;
+}
+.live-chip.prop { color: var(--teal-ink); background: var(--proposal-bg); border-bottom: 2px dashed var(--teal); }
+.kpi-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+.kpi-card {
+  background: var(--paper-2); border: 1px solid var(--border); border-radius: 9px; padding: 10px 12px;
+}
+.kpi-card .lbl { font: 600 10.5px var(--mono-font); text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); }
+.kpi-card .val { font: 650 21px/1.2 var(--mono-font); color: var(--ink); margin-top: 3px; }
+.kpi-card .sub { font: 600 11.5px var(--mono-font); color: var(--green-ink); margin-top: 2px; }
+.slider-track {
+  height: 6px; background: var(--paper-3); border-radius: 99px; position: relative; margin: 7px 0 2px;
+}
+.slider-fill { height: 100%; background: var(--teal); border-radius: 99px; }
+.slider-thumb {
+  width: 14px; height: 14px; border-radius: 50%; background: var(--amber);
+  border: 2px solid var(--petrol-800); position: absolute; top: -4px; transform: translateX(-50%);
+}
+.mini-tbl { width: 100%; border-collapse: collapse; font: 480 12px var(--mono-font); }
+.mini-tbl th { text-align: left; font-size: 10.5px; text-transform: uppercase; color: var(--ink-3); border-bottom: 1.5px solid var(--border); padding: 4px 6px; }
+.mini-tbl td { border-bottom: 1px solid var(--grid-line); padding: 4px 6px; }
+.mini-tbl td.r, .mini-tbl th.r { text-align: right; }
+
+/* SVG diagrams inside mockups */
+.diag-svg { display: block; width: 100%; height: auto; background: var(--paper-2); border-radius: 8px; border: 1px solid var(--grid-line); }
+</style>
+</head>
+<body>
+
+<header class="gal-header">
+  <div class="gal-brand">
+    <span class="bp-mark bp-twin" aria-hidden="true"><span class="a"></span><span class="b"></span></span>
+    <span>DNA Calc UX Mockups (M-01 – M-17)</span>
+  </div>
+  <div class="gal-filters" id="filters" role="group" aria-label="Filter mockups">
+    <button class="gal-btn active" data-f="all">All (17)</button>
+    <button class="gal-btn" data-f="story">Storyboards (M-01..11)</button>
+    <button class="gal-btn" data-f="views">Full Views (M-12..17)</button>
+    <button class="gal-btn" data-f="inherited">Inherited</button>
+    <button class="gal-btn" data-f="budget">Budget</button>
+    <button class="gal-btn" data-f="sales">Sales</button>
+    <button class="gal-btn" data-f="stock">Stock</button>
+    <button class="gal-btn" data-f="loan">Loan</button>
+    <button class="gal-btn" data-f="explorer">Formula Explorer</button>
+  </div>
+  <div class="gal-themes" id="themes" role="group" aria-label="Strand theme">
+    <button class="active" data-t="cockpit-light">Cockpit Light</button>
+    <button data-t="cockpit-dark">Cockpit Dark</button>
+    <button data-t="high-contrast">High Contrast</button>
+  </div>
+</header>
+
+<nav class="gal-index" aria-label="Jump to mockup">
+  <a href="#M-01">M-01 Inherited Open</a>
+  <a href="#M-02">M-02 Inherited Inspector</a>
+  <a href="#M-03">M-03 Dispatch Refusal</a>
+  <a href="#M-04">M-04 Budget Notebook</a>
+  <a href="#M-05">M-05 Sales Coverage Probe</a>
+  <a href="#M-06">M-06 Stock Circular Seam</a>
+  <a href="#M-07">M-07 Stock Classic Parity</a>
+  <a href="#M-08">M-08 Loan App Scenarios</a>
+  <a href="#M-09">M-09 Standalone Explorer</a>
+  <a href="#M-10">M-10 Embedded Explorer</a>
+  <a href="#M-11">M-11 Agent Proposal Batch</a>
+  <a href="#M-12">M-12 Full Classic Edit</a>
+  <a href="#M-13">M-13 Full Inspector</a>
+  <a href="#M-14">M-14 Full Notebook Pipeline</a>
+  <a href="#M-15">M-15 Full Model Map</a>
+  <a href="#M-16">M-16 Full App</a>
+  <a href="#M-17">M-17 Explorer Dual Forms</a>
+</nav>
+
+<main class="gallery">
+
+<!-- ==================== M-01 ==================== -->
+<section class="mockup-section" id="M-01" data-tags="story inherited">
+  <div class="mockup-meta">
+    <h2><span class="m-id">M-01</span> Inherited.xlsx — First Paint in Classic (Mid-Index, Non-Modal Triage Banner)</h2>
+    <div class="m-tags"><span>Storyboard 2.1</span><span>Maria</span><span>Classic</span><span>304k formulas</span></div>
+  </div>
+  <div class="app-frame">
+    <div class="mast">
+      <div class="mast-file"><span class="bp-mark bp-twin"><span class="a"></span><span class="b"></span></span> Inherited.xlsx</div>
+      <div class="view-seg"><span class="on">Classic</span><span>Inspector</span><span>Notebook</span><span>Model Map</span><span>App</span></div>
+      <span class="mast-pill">Lens Alt+L</span> <span class="pin">1</span>
+      <div class="mast-right"><span class="mast-pill">fx</span><span class="mast-pill">Agent</span><span class="mast-pill">Ctrl+K</span><span class="mast-pill">Print</span></div>
+    </div>
+    <div class="bridge">
+      <div class="addr-box">Exec_Summary!D9</div>
+      <div class="fx-bar"><span class="fx-badge">fx</span> =INDEX(Curve_Lookup!$C$2:$C$500, MATCH(A9, Curve_Lookup!$A$2:$A$500, 0))</div>
+    </div>
+    <div class="stage-wrap"><div class="stage">
+      <div class="banner warn">
+        <span class="pin">2</span>
+        <span><strong>Triage:</strong> 47 errors (4 root causes) · 3 missing external links · 1 macro blocked (<code>modRollForward</code>) · 9 volatile <code>OFFSET</code> names</span>
+        <div class="banner-actions">
+          <span class="chip-btn teal">Open Inspector Ctrl+Alt+2</span>
+          <span class="chip-btn">Inspect Macro</span>
+          <span class="chip-btn">Manage Links</span>
+        </div>
+      </div>
+      <div class="grid-scroll">
+        <table class="xl-grid">
+          <thead><tr><th></th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th></tr></thead>
+          <tbody>
+            <tr><td class="rn">4</td><td class="hdr">Region / Hub</td><td class="hdr">Fwd Curve</td><td class="hdr">Vol (MWh)</td><td class="hdr">Gross Margin</td><td class="hdr">Var vs Plan</td><td class="hdr">Status</td></tr>
+            <tr><td class="rn">5</td><td>SP15_Peak</td><td class="num ext">$68.40</td><td class="num">1,420,500</td><td class="num">$14,820,100</td><td class="num" style="color:var(--green-ink)">+$412,000</td><td><span class="badge green">Fresh</span></td></tr>
+            <tr><td class="rn">6</td><td>SP15_OffPeak</td><td class="num ext">$41.15 <span class="pin">3</span></td><td class="num">1,108,200</td><td class="num">$7,210,450</td><td class="num">-$108,200</td><td><span class="badge green">Fresh</span></td></tr>
+            <tr><td class="rn">7</td><td>PaloVerde</td><td class="num ext">$59.80</td><td class="num">982,000</td><td class="num">$9,105,300</td><td class="num" style="color:var(--green-ink)">+$225,100</td><td><span class="badge green">Fresh</span></td></tr>
+            <tr><td class="rn">8</td><td>ERCOT_North</td><td class="num">$54.20</td><td class="num">1,840,000</td><td class="err">⊘ #REF!</td><td class="err">⊘ #REF!</td><td><span class="badge red">Broken</span></td></tr>
+            <tr><td class="rn">9</td><td>NP15_Peak</td><td class="num">$71.10</td><td class="num">1,265,400</td><td class="err focus">⊗ #N/A <span class="pin">4</span></td><td class="err">⊘ #N/A</td><td><span class="badge red">Root Err</span></td></tr>
+            <tr><td class="rn">10</td><td>NP15_OffPeak</td><td class="num">$43.80</td><td class="num">940,100</td><td class="err">⊗ #N/A</td><td class="err">⊘ #N/A</td><td><span class="badge red">Root Err</span></td></tr>
+            <tr><td class="rn">11</td><td>MidC_Peak</td><td class="num">$62.05</td><td class="num">810,600</td><td class="num">$6,442,800</td><td class="num" style="color:var(--green-ink)">+$189,400</td><td><span class="badge green">Fresh</span></td></tr>
+            <tr><td class="rn">12</td><td>Dispatch_Sum</td><td class="ext" style="color:var(--prov-ext);font-family:var(--mono-font)">▸ volatile</td><td class="num">8,366,800</td><td class="err">⊘ #DIV/0!</td><td class="err">⊘ #DIV/0!</td><td><span class="badge red">Broken</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div></div>
+    <div class="strip">
+      <div class="sheet-tabs"><span class="pin">5</span><span class="s-tab on">Exec_Summary</span><span class="s-tab">Region_West</span><span class="s-tab">Region_ERCOT</span><span class="s-tab">Dispatch_Hourly</span><span class="s-tab">Curve_Lookup</span><span class="s-tab hidden-pill">+6 hidden ▾</span></div>
+      <div class="strip-telemetry"><span class="pin">6</span><span class="pill-amber">◐ Indexing 64% (195k/304k) · Cached</span><span class="pill-err">⊗ 47 errors (4 roots)</span><span>Working 100%</span></div>
+    </div>
+  </div>
+  <div class="callouts">
+    <div class="co"><span class="pin">1</span><span><b>Unified Mast:</b> Excel-strict base-pair mark, View Switcher, Formula Lens, Formula Explorer, Agent, Command Palette.</span></div>
+    <div class="co"><span class="pin">2</span><span><b>Non-Modal Triage Banner:</b> Replaces Excel's blocking link/macro popup cascade; macros remain safely quarantined.</span></div>
+    <div class="co"><span class="pin">3</span><span><b>External/Volatile Signal Tick:</b> <code>#FF8001</code> top-left triangle flags cached values from missing <code>FY24_ForwardCurves.xlsx</code>.</span></div>
+    <div class="co"><span class="pin">4</span><span><b>Dual-Stroke Amber Focus + Error Glyph:</b> Root error <code>⊗</code> vs propagated <code>⊘</code> legible even in monochrome.</span></div>
+    <div class="co"><span class="pin">5</span><span><b>Hidden Sheets Indicator:</b> Exposes 4 hidden + 2 very-hidden tabs without mutating workbook visibility.</span></div>
+    <div class="co"><span class="pin">6</span><span><b>Non-Blocking Indexing Telemetry:</b> Interactive cached first paint in 180 ms while graph builds off-thread.</span></div>
+  </div>
+</section>
+
+<!-- ==================== M-02 ==================== -->
+<section class="mockup-section" id="M-02" data-tags="story inherited">
+  <div class="mockup-meta">
+    <h2><span class="m-id">M-02</span> Inherited.xlsx — Inspector (40-Sheet Atlas &amp; 47 Errors Collapsed to 4 Root Causes)</h2>
+    <div class="m-tags"><span>Storyboard 2.1</span><span>Maria</span><span>Inspector</span><span>L0 Atlas</span></div>
+  </div>
+  <div class="app-frame">
+    <div class="mast">
+      <div class="mast-file"><span class="bp-mark bp-twin"><span class="a"></span><span class="b"></span></span> Inherited.xlsx</div>
+      <div class="view-seg"><span>Classic</span><span class="on">Inspector</span><span>Notebook</span><span>Model Map</span><span>App</span></div>
+      <span class="mast-pill">Lens</span>
+      <div class="mast-right"><span class="mast-pill">fx</span><span class="mast-pill">Agent</span><span class="mast-pill">Ctrl+K</span></div>
+    </div>
+    <div class="bridge">
+      <div class="addr-box">Exec_Summary!D9</div>
+      <div class="bridge-tabs"><span class="b-tab on">Health &amp; Atlas</span><span class="b-tab">Trace Selected</span><span class="b-tab">Calc Order</span><span class="b-tab">Live / External</span></div>
+    </div>
+    <div class="stage-wrap"><div class="stage split-2">
+      <div class="pane">
+        <div class="kicker"><span class="pin">1</span> Workbook Atlas · 40 Sheets · 304,218 Formulas (L0)</div>
+        <svg class="diag-svg" viewBox="0 0 540 330" role="img" aria-label="40-sheet dependency atlas">
+          <defs><marker id="arr1" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L7,4 L0,7 Z" fill="var(--teal)"/></marker></defs>
+          <!-- Tier 0: External -->
+          <rect x="16" y="14" width="508" height="62" rx="8" fill="var(--signal-tint)" stroke="var(--signal)" stroke-width="1.5"/>
+          <text x="28" y="34" font-family="var(--mono-font)" font-size="11.5" font-weight="700" fill="var(--prov-ext)">▸ EXTERNAL LINKS (3 MISSING · CACHED VALUES)</text>
+          <text x="28" y="54" font-family="var(--mono-font)" font-size="11" fill="var(--ink)">FY24_ForwardCurves.xlsx (142) · HR_Rates_2023.xlsx (18) · Q2_Actuals_Lock.xlsx (9)</text>
+          <line x1="270" y1="76" x2="270" y2="96" stroke="var(--teal)" stroke-width="1.8" marker-end="url(#arr1)"/>
+          <!-- Tier 1: Curves & Tariffs -->
+          <rect x="16" y="98" width="508" height="62" rx="8" fill="var(--paper)" stroke="var(--teal)" stroke-width="1.4"/>
+          <text x="28" y="118" font-family="var(--mono-font)" font-size="11" font-weight="700" fill="var(--teal-ink)">CURVES &amp; TARIFFS (8 SHEETS · 1 VERY-HIDDEN)</text>
+          <rect x="28" y="126" width="142" height="24" rx="5" fill="var(--paper-2)" stroke="var(--border)"/><text x="38" y="142" font-family="var(--mono-font)" font-size="11" fill="var(--ink)">Curve_Lookup (4k)</text>
+          <rect x="180" y="126" width="122" height="24" rx="5" fill="var(--red-tint)" stroke="var(--red)"/><text x="190" y="142" font-family="var(--mono-font)" font-size="11" fill="var(--red-ink)">Tariffs ⊗#REF</text>
+          <rect x="312" y="126" width="198" height="24" rx="5" fill="none" stroke="var(--ink-3)" stroke-dasharray="4 3"/><text x="322" y="142" font-family="var(--mono-font)" font-size="10.5" fill="var(--ink-3)">_FX_Legacy [veryHidden]</text>
+          <line x1="270" y1="160" x2="270" y2="180" stroke="var(--teal)" stroke-width="1.8" marker-end="url(#arr1)"/>
+          <!-- Tier 2: Hourly Engine -->
+          <rect x="16" y="182" width="508" height="54" rx="8" fill="var(--paper)" stroke="var(--teal)" stroke-width="1.4"/>
+          <text x="28" y="202" font-family="var(--mono-font)" font-size="11" font-weight="700" fill="var(--teal-ink)">HOURLY ENGINE (1 SHEET · 182,400 FORMULAS)</text>
+          <text x="28" y="222" font-family="var(--mono-font)" font-size="11.5" fill="var(--ink)">Dispatch_Hourly (A1:CZ8760 · folded into 12 R1C1 runs) · ⊗ 5 #DIV/0!</text>
+          <line x1="270" y1="236" x2="270" y2="256" stroke="var(--teal)" stroke-width="1.8" marker-end="url(#arr1)"/>
+          <!-- Tier 3: Outputs -->
+          <rect x="16" y="258" width="508" height="58" rx="8" fill="var(--paper)" stroke="var(--border)"/>
+          <text x="28" y="276" font-family="var(--mono-font)" font-size="11" font-weight="700" fill="var(--ink-3)">OUTPUTS &amp; REGIONAL CONSOLIDATION (12 SHEETS)</text>
+          <rect x="28" y="284" width="150" height="24" rx="5" fill="var(--amber-tint)" stroke="var(--amber)" stroke-width="2.5"/><text x="38" y="300" font-family="var(--mono-font)" font-size="11" font-weight="700" fill="var(--ink)">Exec_Summary ⊗11</text>
+          <rect x="188" y="284" width="144" height="24" rx="5" fill="var(--red-tint)" stroke="var(--red)"/><text x="198" y="300" font-family="var(--mono-font)" font-size="11" fill="var(--red-ink)">Region_ERCOT ⊗29</text>
+          <rect x="342" y="284" width="168" height="24" rx="5" fill="var(--paper-2)" stroke="var(--border)"/><text x="352" y="300" font-family="var(--mono-font)" font-size="11" fill="var(--ink)">Region_West ⊗5 · +9</text>
+        </svg>
+      </div>
+      <div class="pane pane-muted">
+        <div class="kicker"><span class="pin">2</span> Root-Cause Errors (47 cells → 4 roots)</div>
+        <div class="card focus" style="border-left:4px solid var(--red)">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <strong style="color:var(--red-ink)">[1] ⊗ #N/A · 11 affected cells</strong>
+            <span class="badge amber">Active Focus</span>
+          </div>
+          <div style="font:500 12px var(--mono-font);margin:5px 0">Origin: Exec_Summary!D9 (MATCH miss)</div>
+          <div style="font-size:12px;color:var(--ink-2)">Key <code>"NP15_Peak"</code> not found in <code>Curve_Lookup!A2:A500</code>.<br><span class="pin">3</span> Closest key: <code>"NP15_PK"</code> (row 412)</div>
+          <div style="margin-top:8px;display:flex;gap:6px"><span class="chip-btn teal">Jump Curve_Lookup!A412</span><span class="chip-btn">Formula Explorer</span></div>
+        </div>
+        <div class="card"><strong>[2] ⊗ #REF! · 29 affected</strong> — <code>Region_ERCOT!F14:F42</code> deleted col in <code>Tariffs</code></div>
+        <div class="card"><strong>[3] ⊗ #DIV/0! · 5 affected</strong> — <code>Dispatch_Hourly!Z4410</code> zero Plant #4 hours</div>
+        <div class="card"><strong>[4] ⊗ #NAME? · 2 affected</strong> — <code>Legacy_Adj!C11</code> unknown UDF <code>CURVE_INTERP</code></div>
+        <div class="kicker" style="margin-top:12px"><span class="pin">4</span> Volatile &amp; Macros</div>
+        <div class="card" style="border-left:4px solid var(--signal)">
+          <div><span class="badge signal">▸ 9 OFFSET names</span> Drive <strong>142,000</strong> downstream recalcs on every edit (<code>Dyn_Curve</code>, <code>Rolling_12M</code>…)</div>
+          <div style="margin-top:5px"><span class="badge">⚑ VBA Blocked</span> <code>modRollForward</code> (214 lines · unsigned)</div>
+        </div>
+      </div>
+    </div></div>
+    <div class="strip">
+      <div class="sheet-tabs"><span class="s-tab on">Exec_Summary</span><span class="s-tab">Region_West</span><span class="s-tab">Region_ERCOT</span><span class="s-tab">Dispatch_Hourly</span><span class="s-tab hidden-pill">+6 hidden ▾</span></div>
+      <div class="strip-telemetry"><span class="pill-ok">✓ Indexed 304,218 fmls (1.4s)</span><span class="pill-err">⊗ 47 errors (4 roots)</span><span>Working L0 Atlas</span></div>
+    </div>
+  </div>
+  <div class="callouts">
+    <div class="co"><span class="pin">1</span><span><b>40-Sheet Workbook Atlas:</b> Compresses 40 sheets into 4 topological dependency tiers; hidden sheets outlined dashed.</span></div>
+    <div class="co"><span class="pin">2</span><span><b>Root-Cause Collapse:</b> Reduces 47 error cells to 4 distinct origins while preserving Continuity Halo on <code>Exec_Summary!D9</code>.</span></div>
+    <div class="co"><span class="pin">3</span><span><b>Read-Only Fuzzy Key Hint:</b> Points directly to <code>"NP15_PK"</code> on row 412 without altering the workbook.</span></div>
+    <div class="co"><span class="pin">4</span><span><b>Volatile Bottleneck &amp; VBA Inventory:</b> Exposes 9 <code>OFFSET</code> names driving 142k recalcs and quarantined VBA module.</span></div>
+  </div>
+</section>
+
+<!-- ==================== M-03 ==================== -->
+<section class="mockup-section" id="M-03" data-tags="story inherited">
+  <div class="mockup-meta">
+    <h2><span class="m-id">M-03</span> Inherited.xlsx — Model Map Honest Refusal &amp; 12-Run Block Summary on Dispatch_Hourly</h2>
+    <div class="m-tags"><span>Storyboard 2.1</span><span>Maria</span><span>Model Map</span><span>Scale Refusal</span></div>
+  </div>
+  <div class="app-frame">
+    <div class="mast">
+      <div class="mast-file"><span class="bp-mark bp-twin"><span class="a"></span><span class="b"></span></span> Inherited.xlsx</div>
+      <div class="view-seg"><span>Classic</span><span>Inspector</span><span>Notebook</span><span class="on">Model Map</span><span>App</span></div>
+      <span class="mast-pill">Lens</span>
+      <div class="mast-right"><span class="mast-pill">fx</span><span class="mast-pill">Agent</span><span class="mast-pill">Ctrl+K</span></div>
+    </div>
+    <div class="bridge">
+      <div class="addr-box">Dispatch_Hourly!Z4410</div>
+      <span style="font-family:var(--mono-font)">Inherited › <strong>Dispatch_Hourly</strong></span>
+      <span class="b-tab on">Director: Recalc</span>
+      <span class="b-tab" style="margin-left:auto">LOD: L2 Formula Runs</span>
+    </div>
+    <div class="stage-wrap"><div class="stage">
+      <div class="banner info">
+        <span class="pin">1</span>
+        <span><strong>Cell-level map declined for Dispatch_Hourly</strong> (182,400 formulas across 8,760 rows). Showing all <strong>12 exact R1C1 formula-pattern runs</strong> (100% coverage · 0 cells omitted).</span>
+        <div class="banner-actions"><span class="chip-btn teal">Open in Classic Ctrl+Alt+1</span></div>
+      </div>
+      <div class="pane">
+        <svg class="diag-svg" viewBox="0 0 1120 265" role="img" aria-label="12 folded formula runs for Dispatch_Hourly">
+          <defs><marker id="arr2" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L7,4 L0,7 Z" fill="var(--teal)"/></marker></defs>
+          <!-- Wire connections -->
+          <path d="M290,82 C345,82 345,82 390,82" fill="none" stroke="var(--teal)" stroke-width="2" marker-end="url(#arr2)"/>
+          <path d="M290,108 C340,108 330,192 390,192" fill="none" stroke="var(--teal)" stroke-width="2" marker-end="url(#arr2)"/>
+          <path d="M690,82 C740,82 740,82 790,82" fill="none" stroke="var(--teal)" stroke-width="2" marker-end="url(#arr2)"/>
+          <path d="M690,192 C745,192 745,112 790,112" fill="none" stroke="var(--signal)" stroke-width="2" stroke-dasharray="5 3" marker-end="url(#arr2)"/>
+          <!-- Box 1: Input Run -->
+          <rect x="24" y="34" width="266" height="106" rx="9" fill="var(--paper)" stroke="var(--prov-const)" stroke-width="1.8"/>
+          <text x="38" y="56" font-family="var(--mono-font)" font-size="11" font-weight="700" fill="var(--prov-const)">② INPUT RUN · A2:E8761</text>
+          <text x="38" y="77" font-family="var(--mono-font)" font-size="13" font-weight="700" fill="var(--ink)">8,760 rows × 5 cols (43,800 cells)</text>
+          <text x="38" y="98" font-family="var(--mono-font)" font-size="11.5" fill="var(--ink-2)">Hour, Plant, Load_MW, HeatRate, Fuel</text>
+          <text x="38" y="122" font-family="var(--mono-font)" font-size="11" fill="var(--ink-3)">Sample Row 2: 412.5 MW · 0 blanks</text>
+          <!-- Box 2: Formula Run -->
+          <rect x="392" y="34" width="298" height="106" rx="9" fill="var(--paper)" stroke="var(--teal)" stroke-width="1.8"/>
+          <text x="406" y="56" font-family="var(--mono-font)" font-size="11" font-weight="700" fill="var(--teal-ink)">FORMULA RUN · F2:K8761 (6 cols)</text>
+          <text x="406" y="77" font-family="var(--mono-font)" font-size="13" font-weight="700" fill="var(--ink)">52,560 identical R1C1 formulas</text>
+          <text x="406" y="98" font-family="var(--mono-font)" font-size="11.5" fill="var(--ink-2)">=Load * HeatRate * FuelCost</text>
+          <text x="406" y="122" font-family="var(--mono-font)" font-size="11" fill="var(--green-ink)">Σ $284.6M (exact across all 8,760 rows)</text>
+          <!-- Box 3: Error Run -->
+          <rect x="792" y="34" width="304" height="114" rx="9" fill="var(--red-tint)" stroke="var(--red)" stroke-width="2"/>
+          <text x="806" y="56" font-family="var(--mono-font)" font-size="11" font-weight="700" fill="var(--red-ink)">③ FORMULA RUN · Z2:Z8761 · ⊗5 #DIV/0!</text>
+          <text x="806" y="77" font-family="var(--mono-font)" font-size="13" font-weight="700" fill="var(--ink)">8,760 formulas · 5 outlier errors</text>
+          <text x="806" y="98" font-family="var(--mono-font)" font-size="11.5" fill="var(--ink-2)">=Rev_Hr / Gen_Hrs  (Plant #4 = 0 hrs)</text>
+          <rect x="806" y="112" width="184" height="24" rx="5" fill="var(--petrol-800)"/><text x="818" y="128" font-family="var(--mono-font)" font-size="11" font-weight="600" fill="#FFFFFF">Jump Row 4410 in Classic ↗</text>
+          <!-- Box 4: Volatile Lookup Run -->
+          <rect x="392" y="156" width="298" height="84" rx="9" fill="var(--signal-tint)" stroke="var(--signal)" stroke-width="1.8"/>
+          <text x="406" y="178" font-family="var(--mono-font)" font-size="11" font-weight="700" fill="var(--prov-ext)">④ LOOKUP RUN · L2:N8761 · ▸ VOLATILE</text>
+          <text x="406" y="199" font-family="var(--mono-font)" font-size="12.5" font-weight="700" fill="var(--ink)">26,280 formulas · Reads Dyn_Curve</text>
+          <text x="406" y="220" font-family="var(--mono-font)" font-size="11" fill="var(--prov-ext)">OFFSET dependency triggers full sheet recalc</text>
+        </svg>
+      </div>
+    </div></div>
+    <div class="strip">
+      <div class="sheet-tabs"><span class="s-tab">Exec_Summary</span><span class="s-tab on">Dispatch_Hourly</span><span class="s-tab">Curve_Lookup</span><span class="s-tab hidden-pill">+6 hidden ▾</span></div>
+      <div class="strip-telemetry"><span class="pill-ok">✓ 12/12 formula runs shown (182,400 fmls)</span><span class="pill-err">⊗ 5 on sheet</span><span>Working 65% L2</span></div>
+    </div>
+  </div>
+  <div class="callouts">
+    <div class="co"><span class="pin">1</span><span><b>Honest Scale Refusal:</b> Explains why cell-level wiring was declined and guarantees 100% formula coverage via R1C1 folding.</span></div>
+    <div class="co"><span class="pin">2</span><span><b>Exact Bounds &amp; Aggregates:</b> Every folded block displays its exact A1 span, sample row, and unsampled sum.</span></div>
+    <div class="co"><span class="pin">3</span><span><b>Outliers Never Averaged Away:</b> The 5 <code>#DIV/0!</code> cells surface directly on <code>Z2:Z8761</code> with a 1-click jump to row 4410.</span></div>
+    <div class="co"><span class="pin">4</span><span><b>Volatile Boundary:</b> <code>OFFSET</code>-backed <code>Dyn_Curve</code> reads carry <code>signal</code> framing and dashed wire styling.</span></div>
+  </div>
+</section>
+
+<!-- ==================== M-04 ==================== -->
+<section class="mockup-section" id="M-04" data-tags="story budget">
+  <div class="mockup-meta">
+    <h2><span class="m-id">M-04</span> Budget.xlsx — Notebook Write-Up (Live Prose Chips, Scenario Toggle, Linked Data Frame)</h2>
+    <div class="m-tags"><span>Storyboard 2.2</span><span>Maria</span><span>Notebook</span><span>Reading Density</span></div>
+  </div>
+  <div class="app-frame">
+    <div class="mast">
+      <div class="mast-file"><span class="bp-mark bp-twin"><span class="a"></span><span class="b"></span></span> Budget.xlsx</div>
+      <div class="view-seg"><span>Classic</span><span>Inspector</span><span class="on">Notebook</span><span>Model Map</span><span>App</span></div>
+      <span class="mast-pill">Lens</span>
+      <div class="mast-right"><span class="mast-pill">fx</span><span class="mast-pill">Agent</span><span class="mast-pill">Ctrl+K</span><span class="mast-pill">Print</span></div>
+    </div>
+    <div class="bridge">
+      <div class="addr-box">Summary!B12</div>
+      <div class="bridge-tabs"><span class="b-btn">+ Prose</span><span class="b-btn">+ Formula</span><span class="b-btn">+ Link Range</span><span class="b-btn">+ Chart</span></div>
+      <div class="bridge-tabs" style="margin-left:auto"><span class="pin">2</span><span class="b-tab on">Vertical</span><span class="b-tab">Pipeline Alt+P</span></div>
+    </div>
+    <div class="stage-wrap"><div class="stage">
+      <div class="nb-page">
+        <div class="nb-h1">FY2027 Operating Plan — Executive Brief</div>
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--paper-2);border:1px solid var(--border);border-radius:8px;margin-bottom:14px">
+          <span class="pin">1</span>
+          <span style="font:600 12px var(--mono-font)">Active Scenario (Inputs!C2):</span>
+          <span class="badge teal">● Base</span><span class="badge">○ Stretch</span>
+          <span style="margin-left:auto;font-size:11.5px;color:var(--ink-3)">Live workbook cell · recalculates in 4 ms</span>
+        </div>
+        <p class="nb-prose">
+          Under the <span class="live-chip">Base</span> scenario, FY2027 revenue reaches <span class="pin">3</span> <span class="live-chip">$2,889,851</span> (MRR exits Dec at <span class="live-chip">$248,017</span>, up from <span class="live-chip">$185,000</span> in Jan). Gross margin holds steady at <span class="live-chip">78.0%</span>, yielding EBITDA of <span class="live-chip">$290,311</span> (<span class="live-chip">10.0%</span> margin) and Net Income of <span class="live-chip">$229,346</span> after <span class="live-chip">21.0%</span> tax. Switching to Stretch adds <span class="live-chip">+$496,517</span> top line while holding EBITDA margin at <span class="live-chip">9.5%</span>.
+        </p>
+        <div class="card">
+          <div class="kicker"><span class="pin">4</span> Key Assumptions (Linked: Inputs!B4:E15 · 6 of 12 pinned) <span style="margin-left:auto" class="chip-btn">Show all 12</span></div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font:560 12px var(--mono-font)">
+            <div>Opening_MRR: <strong style="color:var(--prov-const)">$185,000</strong></div>
+            <div>Monthly_Growth: <span class="badge teal">4.5%</span></div>
+            <div>Logo_Churn: <span class="badge teal">1.8%</span></div>
+            <div>COGS_Pct: <span class="badge teal">22.0%</span></div>
+            <div>Headcount_Start: <span class="badge teal">10</span></div>
+            <div>Marketing_Pct: <span class="badge teal">18.0%</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="kicker"><span class="pin">5</span> Monthly Trajectory (Linked: Monthly!A4:N15 · Data Frame + Spark) <span style="margin-left:auto" class="chip-btn">Classic ↗</span></div>
+          <table class="mini-tbl">
+            <thead><tr><th>Metric</th><th class="r">Jan</th><th class="r">Feb</th><th class="r">Mar</th><th class="r">Dec</th><th class="r">FY Total</th><th class="r">12-Mo Trend</th></tr></thead>
+            <tbody>
+              <tr><td>Total Revenue</td><td class="r">$207,200</td><td class="r">$212,794</td><td class="r">$218,540</td><td class="r">$277,779</td><td class="r"><strong>$2,889,851</strong></td><td class="r" style="color:var(--teal-ink)">▁▂▃▃▄▅▆▇█</td></tr>
+              <tr><td>Gross Profit</td><td class="r">$161,616</td><td class="r">$165,979</td><td class="r">$170,461</td><td class="r">$216,668</td><td class="r"><strong>$2,254,084</strong></td><td class="r" style="color:var(--teal-ink)">▁▂▃▃▄▅▆▇█</td></tr>
+              <tr><td>EBITDA</td><td class="r">$19,320</td><td class="r">$20,641</td><td class="r">$22,008</td><td class="r">$31,412</td><td class="r" style="color:var(--green-ink)"><strong>$290,311</strong></td><td class="r" style="color:var(--green-ink)">▂▃▃▄▅▅▆▇█</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card" style="border-left:4px solid var(--teal)">
+          <div style="display:flex;justify-content:space-between;align-items:center;font:600 12px var(--mono-font)">
+            <span><span class="pin">6</span> Cash_Runway_Gain <span class="badge">Backed: Summary!B19</span></span>
+            <span class="badge green">= 3.51 months</span>
+          </div>
+          <div class="code-box" style="margin-top:6px">=(Summary!C12 - Summary!B12) / Inputs!E11</div>
+        </div>
+      </div>
+    </div></div>
+    <div class="strip">
+      <div class="sheet-tabs"><span class="s-tab">Inputs</span><span class="s-tab">Monthly</span><span class="s-tab on">Summary (Notebook)</span></div>
+      <div class="strip-telemetry"><span class="pill-ok">✓ Clean · 142 fmls · 4 ms</span><span>Reading 100%</span></div>
+    </div>
+  </div>
+  <div class="callouts">
+    <div class="co"><span class="pin">1</span><span><b>Live Scenario Control:</b> Directly edits <code>Inputs!C2</code>; toggling Base ↔ Stretch updates all chips and charts in &lt; 12 ms.</span></div>
+    <div class="co"><span class="pin">2</span><span><b>Layout Switcher:</b> Flip between Vertical reading brief (<code>M-04</code>) and Horizontal Pipeline (<code>M-14</code>) via <code>Alt+P</code>.</span></div>
+    <div class="co"><span class="pin">3</span><span><b>Live Prose Chips:</b> Source Serif 4 prose holds live Excel values; never stale screenshots.</span></div>
+    <div class="co"><span class="pin">4</span><span><b>Editable Assumption Strip:</b> Direct 1:1 bindings to <code>Inputs!C4:C15</code>.</span></div>
+    <div class="co"><span class="pin">5</span><span><b>Smart-Pasted Data Frame:</b> Copying from Classic pastes as a live table with inline sparklines.</span></div>
+    <div class="co"><span class="pin">6</span><span><b>Honest Excel Backing:</b> New Notebook formula explicitly shows its allocated cell (<code>Summary!B19</code>).</span></div>
+  </div>
+</section>
+
+<!-- ==================== M-05 ==================== -->
+<section class="mockup-section" id="M-05" data-tags="story sales">
+  <div class="mockup-meta">
+    <h2><span class="m-id">M-05</span> Sales.xlsx — Inspector Diagnosing Report!D8 (Structural Coverage Probe &amp; Formula Lens)</h2>
+    <div class="m-tags"><span>Storyboard 2.3</span><span>Sam</span><span>Inspector</span><span>Formula Lens ON</span></div>
+  </div>
+  <div class="app-frame">
+    <div class="mast">
+      <div class="mast-file"><span class="bp-mark bp-twin"><span class="a"></span><span class="b"></span></span> Sales.xlsx</div>
+      <div class="view-seg"><span>Classic</span><span class="on">Inspector</span><span>Notebook</span><span>Model Map</span><span>App</span></div>
+      <span class="mast-pill on">Lens ON · Alt+L</span> <span class="pin">1</span>
+      <div class="mast-right"><span class="mast-pill">fx</span><span class="mast-pill">Agent</span><span class="mast-pill">Ctrl+K</span></div>
+    </div>
+    <div class="bridge">
+      <div class="addr-box">Report!D8</div>
+      <div class="bridge-tabs"><span class="b-tab">Health</span><span class="b-tab on">Trace Selected</span><span class="b-tab">Calc Order</span><span class="b-tab">Live / External</span></div>
+      <span class="b-btn primary" style="margin-left:auto">Open in Formula Explorer (Ctrl+E)</span>
+    </div>
+    <div class="stage-wrap"><div class="stage">
+      <div class="pane" style="border-bottom:1px solid var(--border);background:var(--paper-2)">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:6px">
+          <span class="pin">2</span>
+          <strong>Active Target: <code>Report!D8</code> (Q3 EMEA Revenue)</strong>
+          <span class="badge">$412,680</span>
+          <span class="badge green">Calc: 1.8 ms · Clean</span>
+          <span class="badge amber" style="margin-left:auto">Readable Lens · Hover for Raw Excel</span>
+        </div>
+        <div class="code-box">LET( amounts = Orders!$K$2:$K$20000  <span class="badge amber">⚠ 19,999 / 25,000 table rows</span>
+     regions = Orders!$D$2:$D$20000  <span class="badge amber">⚠ 19,999 / 25,000 table rows</span>
+     qtrs    = Orders!$C$2:$C$20000  <span class="badge amber">⚠ 19,999 / 25,000 table rows</span>
+     SUMIFS(amounts, regions, $A8 <span class="badge teal">"EMEA"</span>, qtrs, D$4 <span class="badge teal">"Q3"</span>) )</div>
+      </div>
+      <div class="split-left" style="grid-template-columns:360px minmax(0,1fr)">
+        <div class="pane pane-muted">
+          <div class="kicker"><span class="pin">3</span> Structural Anomaly Probe</div>
+          <div class="card warn">
+            <strong style="color:var(--amber-ink)">⚠ PARTIAL TABLE COVERAGE</strong>
+            <p style="margin:6px 0;font-size:12px">Hardcoded reference stops at row <code>20,000</code>, while Table <code>Orders</code> ends at row <code>25,001</code>.</p>
+            <ul style="margin:4px 0 8px 18px;padding:0;font:560 12px var(--mono-font)">
+              <li>5,001 trailing rows excluded</li>
+              <li>493 match <code>EMEA</code> + <code>Q3</code></li>
+              <li>Excluded Sum: <strong>+$118,420.00</strong></li>
+              <li>Matches <code>D14</code> Pivot diff exactly!</li>
+            </ul>
+            <span class="chip-btn">Inspect Excluded 493 Rows ↗</span>
+          </div>
+          <div class="card proposal">
+            <div class="kicker"><span class="pin">5</span> Preview Fix (Uncommitted)</div>
+            <div style="font:560 11.5px var(--mono-font);margin-bottom:6px">=SUMIFS(Orders[Amount], Orders[Region], $A8, Orders[Quarter], D$4)</div>
+            <div style="font:600 12px var(--mono-font);color:var(--green-ink)">D8: $412,680 → $531,100 · D14: -$118,420 → $0</div>
+            <div style="margin-top:8px;display:flex;gap:6px"><span class="chip-btn teal">Apply Fix</span><span class="chip-btn">Test in Explorer</span></div>
+          </div>
+        </div>
+        <div class="pane">
+          <div class="kicker"><span class="pin">4</span> Causal Graph (Precedents → Report!D8 → Downstream Impact)</div>
+          <svg class="diag-svg" viewBox="0 0 640 270" role="img" aria-label="Causal trace of Report!D8">
+            <defs><marker id="arr3" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L7,4 L0,7 Z" fill="var(--teal)"/></marker></defs>
+            <!-- Wires -->
+            <path d="M210,44 C248,44 248,96 286,96" fill="none" stroke="var(--amber-ink)" stroke-width="2" stroke-dasharray="4 3" marker-end="url(#arr3)"/>
+            <path d="M210,104 L286,104" fill="none" stroke="var(--teal)" stroke-width="1.6" marker-end="url(#arr3)"/>
+            <path d="M210,156 C248,156 248,114 286,114" fill="none" stroke="var(--teal)" stroke-width="1.6" marker-end="url(#arr3)"/>
+            <path d="M430,96 C460,96 460,44 486,44" fill="none" stroke="var(--teal)" stroke-width="1.8" marker-end="url(#arr3)"/>
+            <path d="M430,106 L486,112" fill="none" stroke="var(--teal)" stroke-width="1.8" marker-end="url(#arr3)"/>
+            <path d="M555,146 L555,188" fill="none" stroke="var(--teal)" stroke-width="1.8" marker-end="url(#arr3)"/>
+            <!-- Precedents -->
+            <rect x="14" y="18" width="196" height="52" rx="7" fill="var(--amber-tint)" stroke="var(--amber-ink)" stroke-width="1.6"/>
+            <text x="24" y="38" font-family="var(--mono-font)" font-size="11" font-weight="700" fill="var(--amber-ink)">Orders!$K$2:$K$20000</text>
+            <text x="24" y="56" font-family="var(--mono-font)" font-size="10.5" fill="var(--ink)">⚠ 5,001 rows missed</text>
+            <rect x="14" y="82" width="196" height="44" rx="7" fill="var(--paper)" stroke="var(--border)"/>
+            <text x="24" y="102" font-family="var(--mono-font)" font-size="11" font-weight="600" fill="var(--ink)">Report!$A8 = "EMEA"</text>
+            <text x="24" y="117" font-family="var(--mono-font)" font-size="10" fill="var(--ink-3)">Constant region key</text>
+            <rect x="14" y="136" width="196" height="44" rx="7" fill="var(--paper)" stroke="var(--border)"/>
+            <text x="24" y="156" font-family="var(--mono-font)" font-size="11" font-weight="600" fill="var(--ink)">Report!D$4 = "Q3"</text>
+            <text x="24" y="171" font-family="var(--mono-font)" font-size="10" fill="var(--ink-3)">Constant quarter key</text>
+            <!-- Target -->
+            <rect x="288" y="72" width="142" height="68" rx="8" fill="var(--amber-tint)" stroke="var(--amber)" stroke-width="3"/>
+            <text x="300" y="94" font-family="var(--mono-font)" font-size="12" font-weight="700" fill="var(--ink)">Report!D8</text>
+            <text x="300" y="116" font-family="var(--mono-font)" font-size="16" font-weight="700" fill="var(--ink)">$412,680</text>
+            <text x="300" y="132" font-family="var(--mono-font)" font-size="10" fill="var(--amber-ink)">Q3 EMEA Revenue</text>
+            <!-- Dependents -->
+            <rect x="488" y="18" width="140" height="54" rx="7" fill="var(--amber-tint)" stroke="var(--amber-ink)"/>
+            <text x="498" y="38" font-family="var(--mono-font)" font-size="11" font-weight="700" fill="var(--ink)">Report!D14 Check</text>
+            <text x="498" y="57" font-family="var(--mono-font)" font-size="12.5" font-weight="700" fill="var(--amber-ink)">-$118,420 diff</text>
+            <rect x="488" y="88" width="140" height="58" rx="7" fill="var(--paper)" stroke="var(--teal)"/>
+            <text x="498" y="108" font-family="var(--mono-font)" font-size="11" font-weight="700" fill="var(--ink)">Report!F8 Tier</text>
+            <text x="498" y="126" font-family="var(--mono-font)" font-size="12" fill="var(--ink)">"Tier 2" (2%)</text>
+            <text x="498" y="140" font-family="var(--mono-font)" font-size="9.5" fill="var(--ink-3)">Should be Tier 3 (4%)</text>
+            <rect x="488" y="190" width="140" height="60" rx="7" fill="var(--paper)" stroke="var(--teal)"/>
+            <text x="498" y="210" font-family="var(--mono-font)" font-size="11" font-weight="700" fill="var(--ink)">Report!G8 Rebate</text>
+            <text x="498" y="229" font-family="var(--mono-font)" font-size="12" font-weight="700" fill="var(--ink)">$8,254</text>
+            <text x="498" y="244" font-family="var(--mono-font)" font-size="9.5" fill="var(--green-ink)">→ $21,244 if fixed</text>
+          </svg>
+        </div>
+      </div>
+    </div></div>
+    <div class="strip">
+      <div class="sheet-tabs"><span class="s-tab">Orders (25,000 rows)</span><span class="s-tab on">Report</span></div>
+      <div class="strip-telemetry"><span class="pill-ok">✓ Clean · 18 ms recalc</span><span class="pill-amber">⚠ 1 structural anomaly</span><span>Working 100%</span></div>
+    </div>
+  </div>
+  <div class="callouts">
+    <div class="co"><span class="pin">1</span><span><b>Formula Lens Active:</b> Rewrites raw formula into readable <code>LET</code> structure with live argument chips without mutating the file.</span></div>
+    <div class="co"><span class="pin">2</span><span><b>Active Target Header:</b> Exact cell value, 1.8 ms recalc timing, and instant toggle to raw Excel text.</span></div>
+    <div class="co"><span class="pin">3</span><span><b>Structural Coverage Probe:</b> Catches Excel-silent row-20,000 truncation and sums the exact 493 excluded EMEA/Q3 rows.</span></div>
+    <div class="co"><span class="pin">4</span><span><b>Downstream Blast Radius:</b> Exposes silent secondary corruption on Rebate Tier (<code>F8</code>) and Partner Rebate (<code>G8</code>).</span></div>
+    <div class="co"><span class="pin">5</span><span><b>Preview Fix:</b> Speculates structured-reference rewrite across the Preview Seam before Sam commits.</span></div>
+  </div>
+</section>
+
+<!-- ==================== M-06 ==================== -->
+<section class="mockup-section" id="M-06" data-tags="story stock">
+  <div class="mockup-meta">
+    <h2><span class="m-id">M-06</span> Stock.xlsx — Model Map Mid-Wire Preview Seam (Circular Reference Refusal → z⁻¹ Delay)</h2>
+    <div class="m-tags"><span>Storyboard 2.4</span><span>Lee</span><span>Model Map</span><span>Circular Preview Seam</span></div>
+  </div>
+  <div class="app-frame">
+    <div class="mast">
+      <div class="mast-file"><span class="bp-mark bp-twin"><span class="a"></span><span class="b"></span></span> Stock.xlsx</div>
+      <div class="view-seg"><span>Classic</span><span>Inspector</span><span>Notebook</span><span class="on">Model Map</span><span>App</span></div>
+      <span class="mast-pill">Lens</span>
+      <div class="mast-right"><span class="mast-pill">fx</span><span class="mast-pill">Agent</span><span class="mast-pill">Ctrl+K</span></div>
+    </div>
+    <div class="bridge">
+      <div class="addr-box">Inv.OnHand</div>
+      <span style="font-family:var(--mono-font)">Stock › Top</span>
+      <span class="pin">1</span>
+      <span class="b-tab on">Ticks · 1 iter/step</span>
+      <span class="b-btn primary">▶ Run</span><span class="b-btn">Step (F9)</span><span class="b-btn">Reset</span>
+      <span class="b-tab on" style="margin-left:auto">Presented</span><span class="b-tab">Excel</span>
+    </div>
+    <div class="stage-wrap"><div class="stage split-rail">
+      <div class="pane">
+        <svg class="diag-svg" viewBox="0 0 760 390" role="img" aria-label="Stock model map with circular preview seam">
+          <defs><marker id="arr4" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L7,4 L0,7 Z" fill="var(--teal)"/></marker></defs>
+          <!-- Group frames -->
+          <rect x="16" y="18" width="188" height="92" rx="9" fill="none" stroke="var(--border)" stroke-dasharray="6 4"/>
+          <text x="26" y="34" font-family="var(--mono-font)" font-size="10.5" font-weight="700" fill="var(--ink-3)">DEMAND</text>
+          <rect x="16" y="132" width="320" height="240" rx="9" fill="none" stroke="var(--border)" stroke-dasharray="6 4"/>
+          <text x="26" y="148" font-family="var(--mono-font)" font-size="10.5" font-weight="700" fill="var(--ink-3)">SUPPLY</text>
+          <rect x="378" y="18" width="366" height="354" rx="9" fill="none" stroke="var(--teal)" stroke-dasharray="6 4"/>
+          <text x="390" y="34" font-family="var(--mono-font)" font-size="10.5" font-weight="700" fill="var(--teal-ink)">INV (STATE &amp; FEEDBACK)</text>
+          <!-- Wires -->
+          <path d="M186,74 C280,74 300,110 394,110" fill="none" stroke="var(--teal)" stroke-width="1.8" marker-end="url(#arr4)"/>
+          <path d="M316,326 C355,326 355,126 394,126" fill="none" stroke="var(--teal)" stroke-width="1.8" marker-end="url(#arr4)"/>
+          <path d="M532,118 L568,118" fill="none" stroke="var(--teal)" stroke-width="1.8" marker-end="url(#arr4)"/>
+          <!-- Circular feedback loop over Inv.OnHand -->
+          <path d="M722,118 C754,118 754,54 646,54 C548,54 548,104 568,104" fill="none" stroke="var(--red)" stroke-width="2.2" stroke-dasharray="5 3" marker-end="url(#arr4)"/>
+          <rect x="616" y="42" width="58" height="22" rx="5" fill="var(--paper)" stroke="var(--red)" stroke-width="1.5"/>
+          <text x="645" y="57" text-anchor="middle" font-family="var(--mono-font)" font-size="11.5" font-weight="700" fill="var(--red-ink)">③ z⁻¹</text>
+          <!-- Boxes -->
+          <rect x="30" y="46" width="156" height="52" rx="7" fill="var(--paper)" stroke="var(--prov-const)" stroke-width="1.6"/>
+          <text x="40" y="65" font-family="var(--mono-font)" font-size="11" font-weight="700" fill="var(--prov-const)">Demand.Rate</text>
+          <text x="40" y="87" font-family="var(--mono-font)" font-size="15" font-weight="700" fill="var(--ink)">85 /day</text>
+
+          <rect x="30" y="160" width="136" height="52" rx="7" fill="var(--paper)" stroke="var(--prov-const)" stroke-width="1.6"/>
+          <text x="40" y="179" font-family="var(--mono-font)" font-size="10.5" font-weight="700" fill="var(--prov-const)">ReorderPoint</text>
+          <text x="40" y="200" font-family="var(--mono-font)" font-size="14" font-weight="700" fill="var(--ink)">260 (slider)</text>
+          <rect x="182" y="160" width="136" height="52" rx="7" fill="var(--paper)" stroke="var(--prov-const)" stroke-width="1.6"/>
+          <text x="192" y="179" font-family="var(--mono-font)" font-size="10.5" font-weight="700" fill="var(--prov-const)">OrderQty</text>
+          <text x="192" y="200" font-family="var(--mono-font)" font-size="14" font-weight="700" fill="var(--ink)">400</text>
+          <rect x="30" y="232" width="288" height="46" rx="7" fill="var(--paper)" stroke="var(--teal)" stroke-width="1.5"/>
+          <text x="40" y="251" font-family="var(--mono-font)" font-size="11" font-weight="700" fill="var(--ink)">Supply.Order → Pipeline {0, 0, 400}</text>
+          <text x="40" y="268" font-family="var(--mono-font)" font-size="10" fill="var(--ink-3)">shift(Pipeline⁻) ⟵ Order⁻  (LeadTime = 3)</text>
+          <rect x="30" y="298" width="288" height="54" rx="7" fill="var(--paper)" stroke="var(--teal)" stroke-width="1.5"/>
+          <text x="40" y="319" font-family="var(--mono-font)" font-size="11" font-weight="700" fill="var(--ink)">Supply.Inflow = 0</text>
+          <text x="40" y="339" font-family="var(--mono-font)" font-size="10.5" fill="var(--ink-3)">INDEX(Supply.Pipeline, 1)</text>
+
+          <rect x="396" y="82" width="136" height="72" rx="7" fill="var(--paper)" stroke="var(--teal)" stroke-width="1.6"/>
+          <text x="406" y="102" font-family="var(--mono-font)" font-size="11" font-weight="700" fill="var(--ink)">Inv.Outflow</text>
+          <text x="406" y="125" font-family="var(--mono-font)" font-size="15" font-weight="700" fill="var(--ink)">85</text>
+          <text x="406" y="143" font-family="var(--mono-font)" font-size="9.5" fill="var(--ink-3)">min(Rate, OH⁻+In)</text>
+
+          <rect x="570" y="82" width="152" height="72" rx="7" fill="var(--amber-tint)" stroke="var(--amber)" stroke-width="3"/>
+          <text x="580" y="102" font-family="var(--mono-font)" font-size="11.5" font-weight="700" fill="var(--ink)">Inv.OnHand</text>
+          <text x="580" y="125" font-family="var(--mono-font)" font-size="16" font-weight="700" fill="var(--ink)">265</text>
+          <text x="580" y="143" font-family="var(--mono-font)" font-size="9.5" fill="var(--amber-ink)">OH⁻ + In − Out</text>
+
+          <!-- Preview Seam Popover -->
+          <rect x="398" y="182" width="328" height="168" rx="9" fill="var(--paper)" stroke="var(--red)" stroke-width="2" stroke-dasharray="5 3"/>
+          <text x="414" y="206" font-family="var(--mono-font)" font-size="12" font-weight="700" fill="var(--red-ink)">② ↻ Circular Reference on Inv.OnHand</text>
+          <text x="414" y="228" font-family="var(--ui-font)" font-size="12" fill="var(--ink)">Excel Iterative Calculation is currently OFF.</text>
+          <text x="414" y="246" font-family="var(--ui-font)" font-size="12" fill="var(--ink-2)">Without it, this loop evaluates to 0 with a warning.</text>
+          <rect x="414" y="264" width="296" height="30" rx="6" fill="var(--teal)"/>
+          <text x="562" y="283" text-anchor="middle" font-family="var(--ui-font)" font-size="12" font-weight="700" fill="#FFFFFF">Enable Iteration: 1 pass/tick (Ticks Director)</text>
+          <rect x="414" y="304" width="150" height="28" rx="6" fill="var(--paper-2)" stroke="var(--border)"/>
+          <text x="489" y="322" text-anchor="middle" font-family="var(--ui-font)" font-size="11.5" font-weight="600" fill="var(--ink)">Custom Settings…</text>
+          <rect x="574" y="304" width="136" height="28" rx="6" fill="var(--paper-2)" stroke="var(--border)"/>
+          <text x="642" y="322" text-anchor="middle" font-family="var(--ui-font)" font-size="11.5" font-weight="600" fill="var(--ink)">Esc: Cancel Wire</text>
+        </svg>
+      </div>
+      <div class="pane pane-muted">
+        <div class="kicker"><span class="pin">4</span> Parameter Rail (Excel Form Controls)</div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;font:600 12px var(--mono-font)"><span>Supply.ReorderPoint</span><strong style="color:var(--teal-ink)">260 ($B$8)</strong></div>
+          <div class="slider-track"><div class="slider-fill" style="width:40%"></div><div class="slider-thumb" style="left:40%"></div></div>
+          <div style="display:flex;justify-content:space-between;font:480 10.5px var(--mono-font);color:var(--ink-3)"><span>100</span><span>Excel Form Slider</span><span>500</span></div>
+        </div>
+        <div class="kicker">Selected Actor</div>
+        <div class="card">
+          <strong style="font-family:var(--mono-font);font-size:14px">Inv.OnHand</strong>
+          <div style="font-size:11.5px;color:var(--ink-3);margin:3px 0 8px">State (z⁻¹) · Backed: <code>StockModel!B18</code></div>
+          <div class="code-box">=IF(Sim.Reset, Inv.Initial,
+ Inv.OnHand + Supply.Inflow
+ - Inv.Outflow)</div>
+          <div style="font-size:11.5px;margin-top:8px;color:var(--ink-2)"><strong>Reads:</strong> Sim.Reset, Inv.Initial, Inflow, Outflow, OnHand⁻</div>
+        </div>
+      </div>
+    </div></div>
+    <div class="strip">
+      <div class="sheet-tabs"><span class="s-tab on">StockModel (Map)</span></div>
+      <div class="strip-telemetry"><span class="pill-amber">↻ Circular preview · Iteration pending</span><span>Working 100% L3</span></div>
+    </div>
+  </div>
+  <div class="callouts">
+    <div class="co"><span class="pin">1</span><span><b>Excel-Backed Ticks Director:</b> Maps directly to Excel's Iterative Calculation settings (`MaxIter = 1`); Step invokes <code>F9</code>.</span></div>
+    <div class="co"><span class="pin">2</span><span><b>Circular-Reference Preview Seam:</b> Intercepts self-loops while Iteration is OFF and offers one-click enable or Esc cancel.</span></div>
+    <div class="co"><span class="pin">3</span><span><b><code>z⁻¹</code> Delay Chip:</b> Marks previous-tick self-reference clearly in Strand geometry without introducing extra colors.</span></div>
+    <div class="co"><span class="pin">4</span><span><b>Live Form Control Slider:</b> Synchronized 1:1 with the standard OOXML Form Control slider on <code>StockModel!$B$8</code>.</span></div>
+  </div>
+</section>
+
+<!-- ==================== M-07 ==================== -->
+<section class="mockup-section" id="M-07" data-tags="story stock">
+  <div class="mockup-meta">
+    <h2><span class="m-id">M-07</span> Stock.xlsx — Switched to Classic (Ctrl+Alt+1): Exact Excel Backing Sheet &amp; Form Slider</h2>
+    <div class="m-tags"><span>Storyboard 2.4</span><span>Lee</span><span>Classic</span><span>Continuity Halo</span></div>
+  </div>
+  <div class="app-frame">
+    <div class="mast">
+      <div class="mast-file"><span class="bp-mark bp-twin"><span class="a"></span><span class="b"></span></span> Stock.xlsx</div>
+      <div class="view-seg"><span class="on">Classic</span><span>Inspector</span><span>Notebook</span><span>Model Map</span><span>App</span></div>
+      <span class="mast-pill">Lens</span>
+      <div class="mast-right"><span class="mast-pill">fx</span><span class="mast-pill">Agent</span><span class="mast-pill">Ctrl+K</span></div>
+    </div>
+    <div class="bridge">
+      <div class="addr-box">Inv.OnHand (B18)</div>
+      <div class="fx-bar"><span class="fx-badge">fx</span> =IF(Sim.Reset, Inv.Initial, Inv.OnHand + Supply.Inflow - Inv.Outflow) <span class="pin">1</span></div>
+    </div>
+    <div class="stage-wrap"><div class="stage"><div class="grid-scroll">
+      <table class="xl-grid">
+        <thead><tr><th></th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th></tr></thead>
+        <tbody>
+          <tr><td class="rn">2</td><td>Sim.Reset</td><td class="const" style="font-family:var(--mono-font)">FALSE</td><td></td><td></td><td></td><td></td></tr>
+          <tr><td class="rn">3</td><td>Sim.Tick</td><td class="num">12</td><td></td><td></td><td></td><td></td></tr>
+          <tr><td class="rn">4</td><td>Demand.Rate</td><td class="num const">85</td><td style="color:var(--ink-3)">units/day</td><td></td><td></td><td></td></tr>
+          <tr><td class="rn">8</td><td>Supply.ReorderPoint</td><td class="num const">260</td><td style="color:var(--ink-3)">units</td><td colspan="3" style="background:var(--paper-2)"><span class="pin">2</span> <span style="font:600 11px var(--mono-font);color:var(--teal-ink)">Form Slider ($B$8):</span> <span style="display:inline-block;width:130px;vertical-align:middle"><div class="slider-track" style="margin:0"><div class="slider-fill" style="width:40%"></div><div class="slider-thumb" style="left:40%"></div></div></span></td></tr>
+          <tr><td class="rn">9</td><td>Supply.OrderQty</td><td class="num const">400</td><td style="color:var(--ink-3)">units</td><td></td><td></td><td></td></tr>
+          <tr><td class="rn">10</td><td>Supply.Pipeline</td><td class="num spill spill-l">0</td><td class="num spill">0</td><td class="num spill spill-r">400</td><td colspan="2" style="color:var(--teal-ink);font-size:11.5px"><span class="pin">3</span> Dynamic array spill (B10:D10)</td></tr>
+          <tr><td class="rn">11</td><td>Supply.Inflow</td><td class="num">0</td><td></td><td></td><td></td><td></td></tr>
+          <tr><td class="rn">12</td><td>Supply.Position</td><td class="num">665</td><td></td><td></td><td></td><td></td></tr>
+          <tr><td class="rn">17</td><td>Inv.Outflow</td><td class="num">85</td><td></td><td></td><td></td><td></td></tr>
+          <tr><td class="rn">18</td><td><strong>Inv.OnHand</strong></td><td class="num focus">265 <span class="pin">4</span></td><td><span class="badge teal">↻ Iter (z⁻¹)</span></td><td colspan="3" style="color:var(--ink-3);font-size:11.5px">Continuity Halo settled from Model Map</td></tr>
+          <tr><td class="rn">19</td><td>Inv.Shortage</td><td class="num">0</td><td></td><td></td><td></td><td></td></tr>
+        </tbody>
+      </table>
+    </div></div></div>
+    <div class="strip">
+      <div class="sheet-tabs"><span class="s-tab on">StockModel (Map pref)</span></div>
+      <div class="strip-telemetry"><span class="pill-ok">✓ Converged · Iterative (1 max, Δ 0.001)</span><span>Working 100%</span></div>
+    </div>
+  </div>
+  <div class="callouts">
+    <div class="co"><span class="pin">1</span><span><b>Exact Plain-Excel Formula:</b> Model Map wiring wrote standard Excel syntax backed by workbook-scoped defined names.</span></div>
+    <div class="co"><span class="pin">2</span><span><b>Native Excel Form Slider:</b> Anchored over <code>D8:F8</code> and linked to <code>$B$8</code>; opens and works unchanged in Excel.</span></div>
+    <div class="co"><span class="pin">3</span><span><b>Dynamic Array Spill Frame:</b> <code>Supply.Pipeline</code> spills across <code>B10:D10</code> with Strand's teal spill border.</span></div>
+    <div class="co"><span class="pin">4</span><span><b>Continuity Halo:</b> Switching from Model Map keeps focus anchored directly on <code>StockModel!B18</code> (<code>Inv.OnHand</code>).</span></div>
+  </div>
+</section>
+
+<!-- ==================== M-08 ==================== -->
+<section class="mockup-section" id="M-08" data-tags="story loan">
+  <div class="mockup-meta">
+    <h2><span class="m-id">M-08</span> Loan.xlsx — App View (Scenario Comparison, Inline Validation Refusal, Annual Schedule)</h2>
+    <div class="m-tags"><span>Storyboard 2.5</span><span>Jo</span><span>App</span><span>Validation Refusal</span></div>
+  </div>
+  <div class="app-frame">
+    <div class="mast">
+      <div class="mast-file"><span class="bp-mark bp-twin"><span class="a"></span><span class="b"></span></span> Loan.xlsx — Mortgage Explorer</div>
+      <span class="mast-pill on">View: App ▾</span> <span class="pin">1</span>
+      <div class="mast-right"><span class="mast-pill">Undo</span><span class="mast-pill">Reset</span><span class="mast-pill">Copy Summary</span><span class="mast-pill on">Print / PDF</span></div>
+    </div>
+    <div class="bridge">
+      <span style="font-weight:600">Scenarios:</span>
+      <div class="bridge-tabs"><span class="b-tab">Base 6.25%</span><span class="b-tab on">+$300/mo Extra</span><span class="b-tab">Refi 5.50%</span><span class="b-btn">+ Compare</span></div>
+      <span style="margin-left:auto;font:560 11px var(--mono-font);color:var(--chrome-muted)">Active → Loan!C3:C7</span>
+    </div>
+    <div class="stage-wrap"><div class="stage split-left" style="grid-template-columns:300px minmax(0,1fr)">
+      <div class="pane pane-muted">
+        <div class="kicker"><span class="pin">2</span> Loan Inputs (Bound to Loan!C3:C7)</div>
+        <div class="card">
+          <div style="font:600 11.5px var(--mono-font)">Principal <span style="float:right;color:var(--ink-3)">C3</span></div>
+          <div class="code-box" style="margin-top:4px;font-weight:700">$420,000</div>
+        </div>
+        <div class="card err">
+          <div style="font:600 11.5px var(--mono-font)">Annual Interest Rate <span style="float:right;color:var(--red-ink)">C4</span></div>
+          <div class="code-box" style="margin-top:4px;border-color:var(--red);color:var(--red-ink);font-weight:700">-2%</div>
+          <div style="font-size:11.5px;color:var(--red-ink);margin-top:5px"><span class="pin">5</span> <strong>⊗ Must be 0.01%–25.00%</strong> (Excel validation rule on <code>Loan!C4</code>). Kept previous: <code>6.25%</code>.</div>
+        </div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;font:600 11.5px var(--mono-font)"><span>Term (Years)</span><strong>30 yrs</strong></div>
+          <div style="display:flex;gap:4px;margin-top:6px"><span class="badge">15 yr</span><span class="badge">20 yr</span><span class="badge teal">● 30 yr</span></div>
+        </div>
+        <div class="card focus">
+          <div style="display:flex;justify-content:space-between;font:600 11.5px var(--mono-font)"><span>Extra Monthly Payment</span><strong style="color:var(--teal-ink)">$300</strong></div>
+          <div class="slider-track"><div class="slider-fill" style="width:30%"></div><div class="slider-thumb" style="left:30%"></div></div>
+          <div style="display:flex;justify-content:space-between;font:480 10.5px var(--mono-font);color:var(--ink-3)"><span>$0</span><span>C6</span><span>$1,000</span></div>
+        </div>
+      </div>
+      <div class="pane">
+        <div class="kicker"><span class="pin">3</span> Key Outcomes (+$300/mo Extra vs Base)</div>
+        <div class="kpi-row">
+          <div class="kpi-card"><div class="lbl">Monthly Outlay</div><div class="val">$2,886.01</div><div class="sub" style="color:var(--ink-3)">+$300.00 vs Base</div></div>
+          <div class="kpi-card"><div class="lbl">Total Interest</div><div class="val">$368,169</div><div class="sub">▼ -$142,795 saved</div></div>
+          <div class="kpi-card"><div class="lbl">Payoff Horizon</div><div class="val">22y 10m</div><div class="sub">▼ 7 yr 2 mo faster</div></div>
+        </div>
+        <div class="kicker"><span class="pin">4</span> Remaining Balance vs Cumulative Interest (Loan!Chart1)</div>
+        <svg class="diag-svg" viewBox="0 0 680 145" style="margin-bottom:12px" role="img" aria-label="Mortgage balance comparison chart">
+          <line x1="48" y1="20" x2="660" y2="20" stroke="var(--grid-line)"/><line x1="48" y1="68" x2="660" y2="68" stroke="var(--grid-line)"/><line x1="48" y1="116" x2="660" y2="116" stroke="var(--border)"/>
+          <text x="42" y="24" text-anchor="end" font-family="var(--mono-font)" font-size="10" fill="var(--ink-3)">$500k</text>
+          <text x="42" y="72" text-anchor="end" font-family="var(--mono-font)" font-size="10" fill="var(--ink-3)">$250k</text>
+          <text x="42" y="120" text-anchor="end" font-family="var(--mono-font)" font-size="10" fill="var(--ink-3)">$0</text>
+          <!-- Base Balance dashed -->
+          <path d="M48,35 Q360,55 645,116" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-dasharray="5 3"/>
+          <!-- +$300 Extra Balance solid teal -->
+          <path d="M48,35 Q290,54 495,116" fill="none" stroke="var(--teal)" stroke-width="3"/>
+          <!-- Cumulative interest -->
+          <path d="M48,116 Q320,65 645,18" fill="none" stroke="var(--amber-ink)" stroke-width="1.6" stroke-dasharray="3 3"/>
+          <path d="M48,116 Q260,72 495,46" fill="none" stroke="var(--green)" stroke-width="2"/>
+          <circle cx="495" cy="116" r="4.5" fill="var(--teal)"/>
+          <text x="495" y="133" text-anchor="middle" font-family="var(--mono-font)" font-size="10.5" font-weight="700" fill="var(--teal-ink)">Yr 23 Paid!</text>
+          <text x="54" y="133" font-family="var(--mono-font)" font-size="10" fill="var(--ink-3)">Yr 1</text>
+          <text x="645" y="133" text-anchor="end" font-family="var(--mono-font)" font-size="10" fill="var(--ink-3)">Yr 30</text>
+          <text x="490" y="34" font-family="var(--mono-font)" font-size="10" fill="var(--green-ink)">Int +$300 ($368k)</text>
+          <text x="530" y="15" font-family="var(--mono-font)" font-size="10" fill="var(--amber-ink)">Int Base ($511k)</text>
+        </svg>
+        <div class="kicker"><span class="pin">6</span> Scenario Comparison &amp; Annual Schedule (360 rows grouped by Year)</div>
+        <table class="mini-tbl">
+          <thead><tr><th>Scenario</th><th class="r">Monthly</th><th class="r">Total Interest</th><th class="r">Interest Saved</th><th class="r">Payoff</th></tr></thead>
+          <tbody>
+            <tr><td>Base 6.25%</td><td class="r">$2,586.01</td><td class="r">$510,964</td><td class="r">—</td><td class="r">30y 00m</td></tr>
+            <tr style="background:var(--teal-tint)"><td><strong>+$300/mo Extra ★</strong></td><td class="r"><strong>$2,886.01</strong></td><td class="r"><strong>$368,169</strong></td><td class="r" style="color:var(--green-ink)"><strong>$142,795</strong></td><td class="r"><strong>22y 10m</strong></td></tr>
+            <tr><td>Refi 5.50%</td><td class="r">$2,384.71</td><td class="r">$438,496</td><td class="r" style="color:var(--green-ink)">$72,468</td><td class="r">30y 00m</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div></div>
+    <div class="strip">
+      <div class="sheet-tabs"><span class="s-tab on">App View (Loan.xlsx)</span></div>
+      <div class="strip-telemetry"><span class="pill-ok">✓ Clean · 360 rows · 7 ms</span><span>Reading 100%</span></div>
+    </div>
+  </div>
+  <div class="callouts">
+    <div class="co"><span class="pin">1</span><span><b>Consumer Mast + Escape Hatch:</b> Minimal controls for Jo while keeping <code>[View: App ▾]</code> open for auditing.</span></div>
+    <div class="co"><span class="pin">2</span><span><b>Direct Cell-Bound Inputs:</b> Every input writes directly to <code>Loan!C3:C7</code> with zero custom code.</span></div>
+    <div class="co"><span class="pin">3</span><span><b>Tabular KPI Strip:</b> Savings flagged with <code>green-ink</code> plus downward arrow <code>▼</code> (color-blind safe).</span></div>
+    <div class="co"><span class="pin">4</span><span><b>Live Baseline Chart Overlay:</b> Real Excel chart overlays Base dashed curve against active scenario curve.</span></div>
+    <div class="co"><span class="pin">5</span><span><b>Inline Excel Validation Refusal:</b> Refuses <code>-2%</code> cleanly inline without a modal dialog or beep.</span></div>
+    <div class="co"><span class="pin">6</span><span><b>Side-by-Side Scenarios:</b> Compares Base, Extra Payment, and Refi instantaneously.</span></div>
+  </div>
+</section>
+
+<!-- ==================== M-09 ==================== -->
+<section class="mockup-section" id="M-09" data-tags="story explorer">
+  <div class="mockup-meta">
+    <h2><span class="m-id">M-09</span> Standalone "DNA Calc — Formula Explorer" Testing TaxPack.xll (No Workbook)</h2>
+    <div class="m-tags"><span>Storyboard 2.6</span><span>Ade</span><span>Standalone Build</span><span>Add-in Sandbox</span></div>
+  </div>
+  <div class="app-frame">
+    <div class="mast">
+      <div class="mast-file"><span class="bp-mark bp-dotlong"><span class="a"></span><span class="b"></span></span> DNA Calc — Formula Explorer <span class="badge" style="background:var(--petrol-950);color:var(--chrome-muted);border-color:var(--chrome-border)">Standalone · No Workbook</span></div>
+      <div class="mast-right"><span class="mast-pill signal">Load Add-in (.xll/.js)</span><span class="mast-pill">Settings</span></div>
+    </div>
+    <div class="banner signal">
+      <span><strong>▸ Add-in Loaded:</strong> <code>TaxPack.xll</code> (Dev Sandbox · unsigned local build) · 3 functions registered: <code>TAX.EFFRATE</code>, <code>TAX.BRACKET</code>, <code>TAX.CREDIT</code></span>
+      <div class="banner-actions"><span class="chip-btn">Hot-Reload .xll</span></div>
+    </div>
+    <div class="stage-wrap"><div class="stage split-left">
+      <div class="pane pane-muted">
+        <div class="kicker"><span class="pin">1</span> Local Test Inputs</div>
+        <table class="mini-tbl" style="margin-bottom:10px">
+          <thead><tr><th>Name</th><th class="r">Value</th><th>Type</th></tr></thead>
+          <tbody>
+            <tr><td><code>ebitda</code></td><td class="r">290311</td><td><span class="badge">Num</span></td></tr>
+            <tr style="background:var(--red-tint)"><td><code>juris</code></td><td class="r" style="color:var(--red-ink)"><strong>"CA"</strong></td><td><span class="badge red">Text</span></td></tr>
+            <tr><td><code>corp</code></td><td class="r">TRUE</td><td><span class="badge">Bool</span></td></tr>
+          </tbody>
+        </table>
+        <span class="chip-btn">+ Add Scalar / Array Input</span>
+        <div class="kicker" style="margin-top:14px">Loaded Add-in Functions</div>
+        <div class="card" style="border-left:3px solid var(--signal);font:560 11.5px var(--mono-font)">
+          <div style="color:var(--prov-ext)">▸ TAX.EFFRATE(inc, rg, c)</div>
+          <div style="color:var(--ink-2);margin-top:4px">TAX.BRACKET(inc, rg)</div>
+          <div style="color:var(--ink-2);margin-top:4px">TAX.CREDIT(inc, rd)</div>
+        </div>
+      </div>
+      <div class="pane">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div class="kicker" style="margin:0"><span class="pin">2</span> Formula Editor &amp; Live Eval Tree</div>
+          <span class="chip-btn">Copy Excel Formula (Ctrl+Shift+C)</span>
+        </div>
+        <div class="code-box" style="font-size:14px;font-weight:600;border-color:var(--amber);box-shadow:var(--focus-shadow)">=TAX.EFFRATE( ebitda, <span style="background:var(--red-tint);color:var(--red-ink);padding:0 3px;border-radius:3px">juris</span>, corp )</div>
+        <div style="display:flex;align-items:center;gap:10px;margin:10px 0">
+          <span class="badge red" style="font-size:13px;padding:3px 10px">⊗ #VALUE!</span>
+          <span style="font:560 12px var(--mono-font);color:var(--ink-3)">2.1 ms · Add-in call · Volatile: No</span>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:10px">
+          <span class="badge teal">Eval Tree</span><span class="badge">Number Format</span><span class="badge">Cond. Format</span><span class="badge">Add-in &amp; Types</span>
+        </div>
+        <div class="code-box">▼ TAX.EFFRATE(ebitda, juris, corp)   ⇒  <strong style="color:var(--red-ink)">⊗ #VALUE!</strong>
+  ├─ arg 1  ebitda  →  290311 (Number)          <span style="color:var(--green-ink)">✓ ok</span>
+  ├─ arg 2  juris   →  "CA"   (Text)            <strong style="color:var(--red-ink)">⊗ ERR</strong>
+  │    └─ Add-in diagnostic: Expected ISO-3166-2 region e.g. "US-CA", got "CA"
+  └─ arg 3  corp    →  TRUE   (Logical)         <span style="color:var(--green-ink)">✓ ok</span></div>
+        <div class="card" style="margin-top:10px;background:var(--paper-2)">
+          <div class="kicker"><span class="pin">3</span> Quick Format &amp; CF Check (after fixing juris → "US-CA" ⇒ 0.2798412)</div>
+          <div style="display:flex;flex-wrap:wrap;gap:12px;font:560 12px var(--mono-font)">
+            <span>Code: <code>0.00%;(0.00%);"—"</code> → <strong style="color:var(--green-ink)">27.98%</strong></span>
+            <span>CF Rule <code>&gt; 0.25</code>: <span class="badge amber">Triggered: YES</span></span>
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <div class="strip">
+      <div class="sheet-tabs"><span class="s-tab on">Standalone Sandbox · No file open</span></div>
+      <div class="strip-telemetry"><span class="pill-sig">▸ Add-in: TaxPack.xll</span><span>Working 100%</span></div>
+    </div>
+  </div>
+  <div class="callouts">
+    <div class="co"><span class="pin">1</span><span><b>Zero-Workbook Local Inputs:</b> Supports scalars, arrays, and errors for rapid function &amp; add-in iteration.</span></div>
+    <div class="co"><span class="pin">2</span><span><b>Live Argument Eval Tree:</b> Surfaces per-argument Excel types and add-in diagnostics without modal dialogs.</span></div>
+    <div class="co"><span class="pin">3</span><span><b>Integrated Format &amp; CF Lab:</b> Tests custom number formats and Conditional Formatting rules alongside formulas.</span></div>
+  </div>
+</section>
+
+<!-- ==================== M-10 ==================== -->
+<section class="mockup-section" id="M-10" data-tags="story budget explorer">
+  <div class="mockup-meta">
+    <h2><span class="m-id">M-10</span> Budget.xlsx — Embedded Formula Explorer Drawer on Summary!B13 (Preview Seam)</h2>
+    <div class="m-tags"><span>Storyboard 2.6</span><span>Ade</span><span>Classic + Explorer</span><span>Speculative Impact</span></div>
+  </div>
+  <div class="app-frame">
+    <div class="mast">
+      <div class="mast-file"><span class="bp-mark bp-twin"><span class="a"></span><span class="b"></span></span> Budget.xlsx</div>
+      <div class="view-seg"><span class="on">Classic</span><span>Inspector</span><span>Notebook</span><span>Model Map</span><span>App</span></div>
+      <span class="mast-pill">Lens</span>
+      <div class="mast-right"><span class="mast-pill on">fx Explorer</span><span class="mast-pill">Agent</span><span class="mast-pill">Ctrl+K</span></div>
+    </div>
+    <div class="bridge">
+      <div class="addr-box">Summary!B13</div>
+      <div class="fx-bar"><span class="fx-badge">fx</span> =Inputs!E15  <span style="color:var(--amber);margin-left:8px">(Previewing Formula Explorer edit — uncommitted)</span></div>
+    </div>
+    <div class="stage-wrap"><div class="stage split-eq">
+      <div class="grid-scroll">
+        <table class="xl-grid">
+          <thead><tr><th></th><th>A</th><th>B (Base)</th></tr></thead>
+          <tbody>
+            <tr><td class="rn">6</td><td>Total Revenue</td><td class="num">$2,889,851</td></tr>
+            <tr><td class="rn">8</td><td>Gross Profit</td><td class="num">$2,254,084</td></tr>
+            <tr><td class="rn">11</td><td>Total OpEx</td><td class="num">$1,963,773</td></tr>
+            <tr><td class="rn">12</td><td>EBITDA</td><td class="num tot">$290,311</td></tr>
+            <tr><td class="rn">13</td><td><strong>Effective Tax Rate</strong></td><td class="num ext proposal focus"><span class="pin">1</span> 27.98% <span style="font-size:10.5px;color:var(--ink-3)">(was 21.00%)</span></td></tr>
+            <tr><td class="rn">14</td><td>Net Income</td><td class="num proposal">$209,070 <span style="font-size:10.5px;color:var(--ink-3)">(was $229,346)</span></td></tr>
+            <tr><td class="rn">15</td><td>Net Margin</td><td class="num proposal">7.2% <span style="font-size:10.5px;color:var(--ink-3)">(was 7.9%)</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="pane pane-muted" style="border-left:2px solid var(--petrol-800)">
+        <div class="kicker"><span class="pin">2</span> Formula Explorer · Summary!B13 <span style="margin-left:auto" class="chip-btn">Pop out ⤢</span></div>
+        <div class="code-box" style="font-weight:600">=TAX.EFFRATE(Summary!B12, "US-CA", TRUE)</div>
+        <div style="margin:8px 0;display:flex;align-items:center;gap:8px;font:600 12px var(--mono-font)">
+          <span class="badge green">Live Preview: 27.98%</span>
+          <span style="color:var(--ink-3)">was 21.00% · 1.9 ms</span>
+        </div>
+        <div class="code-box" style="margin-bottom:8px">▼ TAX.EFFRATE(Summary!B12, "US-CA", TRUE)
+  ├─ Summary!B12 → 290,311 (EBITDA)    <span style="color:var(--green-ink)">✓ ok</span>
+  ├─ "US-CA"     → Text                <span style="color:var(--green-ink)">✓ ok</span>
+  └─ TRUE        → Logical             <span style="color:var(--green-ink)">✓ ok</span></div>
+        <div class="card" style="font:560 11.5px var(--mono-font)">
+          <div><strong>Downstream impact (2 cells):</strong></div>
+          <div>• Summary!B14 Net Income: <span style="color:var(--red-ink)">-$20,276</span></div>
+          <div>• Summary!B15 Net Margin: -0.7 pts</div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <span class="chip-btn">Esc Discard</span>
+          <span class="chip-btn teal">Commit to B13 (Ctrl+Enter)</span>
+        </div>
+      </div>
+    </div></div>
+    <div class="strip">
+      <div class="sheet-tabs"><span class="s-tab">Inputs</span><span class="s-tab">Monthly</span><span class="s-tab on">Summary</span></div>
+      <div class="strip-telemetry"><span class="pill-amber">Preview seam active (uncommitted)</span><span class="pill-sig">▸ Add-in: TaxPack.xll</span></div>
+    </div>
+  </div>
+  <div class="callouts">
+    <div class="co"><span class="pin">1</span><span><b>Speculative Preview Seam:</b> Both <code>B13</code> and downstream dependents (<code>B14</code>, <code>B15</code>) preview live deltas before committing.</span></div>
+    <div class="co"><span class="pin">2</span><span><b>Embedded Formula Explorer:</b> Identical workbench to standalone <code>M-09</code>, pre-wired to <code>Summary!B13</code>'s workbook context.</span></div>
+  </div>
+</section>
+
+<!-- ==================== M-11 ==================== -->
+<section class="mockup-section" id="M-11" data-tags="story budget">
+  <div class="mockup-meta">
+    <h2><span class="m-id">M-11</span> Budget.xlsx — AI Agent Staged Proposal Batch (Preview Seam &amp; Selective Hunk Accept/Undo)</h2>
+    <div class="m-tags"><span>Storyboard 2.7</span><span>Maria + Agent</span><span>Preview Seam</span><span>Audit Log</span></div>
+  </div>
+  <div class="app-frame">
+    <div class="mast">
+      <div class="mast-file"><span class="bp-mark bp-twin"><span class="a"></span><span class="b"></span></span> Budget.xlsx</div>
+      <div class="view-seg"><span class="on">Classic</span><span>Inspector</span><span>Notebook</span><span>Model Map</span><span>App</span></div>
+      <span class="mast-pill">Lens</span>
+      <div class="mast-right"><span class="mast-pill">fx</span><span class="mast-pill on">⇄ Agent (1 staged)</span><span class="mast-pill">Ctrl+K</span></div>
+    </div>
+    <div class="bridge">
+      <div class="addr-box">Summary!B14</div>
+      <div class="fx-bar"><span class="fx-badge">⇄</span> Agent Batch: 1 Hunk Accepted · 1 Hunk Staged (uncommitted) · 0 errors introduced</div>
+    </div>
+    <div class="stage-wrap"><div class="stage split-eq">
+      <div class="grid-scroll">
+        <table class="xl-grid">
+          <thead><tr><th></th><th>A</th><th>B (Base)</th><th>Δ vs Prior</th></tr></thead>
+          <tbody>
+            <tr><td class="rn">6</td><td>Total Revenue</td><td class="num">$2,964,360</td><td class="num" style="color:var(--green-ink)">+$74,509 ✓</td></tr>
+            <tr><td class="rn">8</td><td>Gross Profit</td><td class="num">$2,312,201</td><td class="num" style="color:var(--green-ink)">+$58,117 ✓</td></tr>
+            <tr><td class="rn">10</td><td>Payroll</td><td class="num">$1,269,600</td><td class="num" style="color:var(--ink-3)">$0</td></tr>
+            <tr><td class="rn">11</td><td>Cloud Base</td><td class="num">$174,000</td><td class="num" style="color:var(--ink-3)">$0</td></tr>
+            <tr><td class="rn">12</td><td>Marketing <span class="pin">1</span></td><td class="num proposal">$444,654 <span style="font-size:10px;color:var(--ink-3)">(was $534k)</span></td><td class="num proposal" style="color:var(--teal-ink)">-$88,931 ⇄</td></tr>
+            <tr><td class="rn">14</td><td><strong>EBITDA</strong></td><td class="num proposal focus">$437,359 <span style="font-size:10px;color:var(--ink-3)">(now $348k)</span></td><td class="num proposal" style="color:var(--teal-ink)">+$147,048 ⇄</td></tr>
+            <tr><td class="rn">15</td><td>EBITDA Margin</td><td class="num proposal">14.8% <span style="font-size:10px;color:var(--ink-3)">(now 11.8%)</span></td><td class="num proposal">+4.8 pts ⇄</td></tr>
+            <tr><td class="rn">16</td><td>Net Income</td><td class="num proposal">$345,514 <span style="font-size:10px;color:var(--ink-3)">(now $275k)</span></td><td class="num proposal">+$70,256 ⇄</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="pane pane-muted" style="border-left:2px solid var(--petrol-800)">
+        <div class="kicker"><span class="pin">2</span> Agent Review Drawer</div>
+        <div style="font-size:12px;color:var(--ink-2);margin-bottom:8px"><em>"Model +5% Q3 seat price and trim Marketing from 18% to 15% to see EBITDA lift."</em></div>
+        <div class="card" style="border-left:4px solid var(--green)">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <strong style="color:var(--green-ink)">✓ HUNK 1: Q3 Seat-Price Uplift (+5%)</strong>
+            <span class="badge green">Accepted</span>
+          </div>
+          <div style="font:500 11.5px var(--mono-font);margin:4px 0">7 cells (Inputs!B16:E16, Monthly!H5:M5) · EBITDA +$58,117</div>
+          <span class="chip-btn">Undo Hunk 1 (Ctrl+Z)</span>
+        </div>
+        <div class="card proposal">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <strong style="color:var(--teal-ink)">⇄ HUNK 2: Trim Marketing (18% → 15%)</strong>
+            <span class="badge teal">Staged</span>
+          </div>
+          <div style="font:500 11.5px var(--mono-font);margin:4px 0">1 cell: Inputs!C14 (18.0% → 15.0%) · 0 errors · EBITDA +$88,931</div>
+          <div style="display:flex;gap:6px;margin-top:6px"><span class="chip-btn teal">Accept Hunk 2 (Alt+A)</span><span class="chip-btn">Reject (Del)</span><span class="chip-btn">Jump C14</span></div>
+        </div>
+        <div class="kicker" style="margin-top:10px"><span class="pin">3</span> Session Audit Log</div>
+        <div class="code-box" style="font-size:11px">16:14  ✓ Hunk 1 committed (7 cells · Maria · Undo #14)
+16:15  ⇄ Hunk 2 pending review (Preview Seam active)</div>
+      </div>
+    </div></div>
+    <div class="strip">
+      <div class="sheet-tabs"><span class="s-tab">Inputs</span><span class="s-tab">Monthly</span><span class="s-tab on">Summary</span></div>
+      <div class="strip-telemetry"><span class="pill-amber">⇄ 1 Agent hunk staged · 0 errors</span><span>Working 100%</span></div>
+    </div>
+  </div>
+  <div class="callouts">
+    <div class="co"><span class="pin">1</span><span><b>Preview Seam Hatch:</b> Dashed teal + 45° petrol hatch distinguishes speculative AI changes without adding a new hue.</span></div>
+    <div class="co"><span class="pin">2</span><span><b>Semantic Hunk Review:</b> Groups mutations into reviewable business units with live deltas and selective accept/reject/undo.</span></div>
+    <div class="co"><span class="pin">3</span><span><b>Transparent Audit Log:</b> Records exact committed and undone agent actions as clean session history.</span></div>
+  </div>
+</section>
+
+<!-- ==================== M-12 ==================== -->
+<section class="mockup-section" id="M-12" data-tags="views budget">
+  <div class="mockup-meta">
+    <h2><span class="m-id">M-12</span> Full View: Classic on Budget.xlsx (Monthly, Mid-Edit Picking Ranges with Numbered Tokens)</h2>
+    <div class="m-tags"><span>Section 4.1</span><span>Classic View</span><span>EDITING (Point)</span><span>6-Tone Ref Palette</span></div>
+  </div>
+  <div class="app-frame">
+    <div class="mast">
+      <div class="mast-file"><span class="bp-mark bp-twin"><span class="a"></span><span class="b"></span></span> Budget.xlsx</div>
+      <div class="view-seg"><span class="on">Classic</span><span>Inspector</span><span>Notebook</span><span>Model Map</span><span>App</span></div>
+      <span class="mast-pill">Lens</span>
+      <div class="mast-right"><span class="mast-pill">fx</span><span class="mast-pill">Agent</span><span class="mast-pill">Ctrl+K</span><span class="mast-pill">Print</span></div>
+    </div>
+    <div class="action-band">
+      <span class="pin">1</span>
+      <span class="ab-tab on">Home</span><span class="ab-tab">Insert</span><span class="ab-tab">Formulas</span><span class="ab-tab">Data</span><span class="ab-tab">Review</span><span class="ab-tab">View</span>
+      <span class="ab-sep"></span>
+      <span class="ab-tool">B</span><span class="ab-tool">I</span><span class="ab-tool">U</span>
+      <span class="ab-sep"></span>
+      <span class="ab-tool">$</span><span class="ab-tool">%</span><span class="ab-tool">,</span><span class="ab-tool">.00</span>
+      <span class="ab-sep"></span>
+      <span class="ab-tool">Borders ▾</span><span class="ab-tool">AutoSum Alt+=</span>
+      <span class="ab-tool" style="margin-left:auto">Alt Key Tips Ready</span>
+    </div>
+    <div class="bridge">
+      <div class="addr-box">Monthly!H15</div>
+      <div class="fx-bar"><span class="fx-badge">fx</span> =SUM(<span style="color:#7DE5F7;font-weight:700">①H5:H6</span>) - <span style="color:#9FD3F0;font-weight:700">②H10</span> - SUM(<span style="color:#8CE0C3;font-weight:700">③H12:H14</span>)</div>
+    </div>
+    <div class="stage-wrap"><div class="stage"><div class="grid-scroll">
+      <table class="xl-grid">
+        <thead><tr><th></th><th>A</th><th>F (May)</th><th>G (Jun)</th><th>H (Jul)</th><th>I (Aug)</th><th>J (Sep)</th><th>N (FY Total)</th></tr></thead>
+        <tbody>
+          <tr><td class="rn">5</td><td>MRR</td><td class="num">$205,803</td><td class="num">$211,360</td><td class="num ref1"><strong style="color:var(--ref-1);float:left">①</strong>$217,067</td><td class="num">$222,927</td><td class="num">$228,946</td><td class="num tot">$2,580,224</td></tr>
+          <tr><td class="rn">6</td><td>Services Rev</td><td class="num">$24,696</td><td class="num">$25,363</td><td class="num ref1">$26,048</td><td class="num">$26,751</td><td class="num">$27,474</td><td class="num tot">$309,627</td></tr>
+          <tr><td class="rn">7</td><td><strong>Total Revenue</strong></td><td class="num">$230,499</td><td class="num">$236,723</td><td class="num">$243,115</td><td class="num">$249,678</td><td class="num">$256,420</td><td class="num tot">$2,889,851</td></tr>
+          <tr><td class="rn">10</td><td>COGS (22%)</td><td class="num">$50,710</td><td class="num">$52,079</td><td class="num ref2"><strong style="color:var(--ref-2);float:left">②</strong>$53,485</td><td class="num">$54,929</td><td class="num">$56,412</td><td class="num">$635,767</td></tr>
+          <tr><td class="rn">11</td><td><strong>Gross Profit</strong></td><td class="num">$179,789</td><td class="num">$184,644</td><td class="num">$189,630</td><td class="num">$194,749</td><td class="num">$200,008</td><td class="num tot">$2,254,084</td></tr>
+          <tr><td class="rn">12</td><td>Payroll</td><td class="num">$101,200</td><td class="num">$101,200</td><td class="num ref3"><strong style="color:var(--ref-3);float:left">③</strong>$110,400</td><td class="num">$110,400</td><td class="num">$110,400</td><td class="num">$1,269,600</td></tr>
+          <tr><td class="rn">13</td><td>Cloud Base</td><td class="num">$14,500</td><td class="num">$14,500</td><td class="num ref3">$14,500</td><td class="num">$14,500</td><td class="num">$14,500</td><td class="num">$174,000</td></tr>
+          <tr><td class="rn">14</td><td>Marketing</td><td class="num">$41,490</td><td class="num">$42,610</td><td class="num ref3">$43,761</td><td class="num">$44,942</td><td class="num">$46,156</td><td class="num">$520,173</td></tr>
+          <tr><td class="rn">15</td><td><strong>EBITDA</strong></td><td class="num">$22,599</td><td class="num">$26,334</td><td class="focus" colspan="3" style="font-family:var(--mono-font)"><span class="pin">2</span> =SUM(H5:H6)-H10-SUM(H12:H14)|</td><td class="num tot">$290,311</td></tr>
+        </tbody>
+      </table>
+      <div style="margin:6px 12px 10px 360px;max-width:390px;padding:7px 10px;border-radius:7px;background:var(--petrol-900);color:var(--chrome-ink);font:560 11.5px var(--mono-font);display:flex;align-items:center;gap:8px">
+        <span class="pin">3</span>
+        <span>Live Preview: <strong style="color:#8AE0C5">$20,969</strong> · <code>SUM(number1, [number2], …)</code> · <code>F9</code> inline eval</span>
+      </div>
+    </div></div></div>
+    <div class="strip">
+      <div class="sheet-tabs"><span class="s-tab">Inputs</span><span class="s-tab on">Monthly</span><span class="s-tab">Summary</span></div>
+      <div class="strip-telemetry"><span class="pin">4</span><span class="pill-amber">EDITING (Point) · F2 toggles Edit</span><span class="pill-ok">✓ Clean · 4 ms</span><span>Working 100%</span></div>
+    </div>
+  </div>
+  <div class="callouts">
+    <div class="co"><span class="pin">1</span><span><b>Strand Action Band:</b> Collapsible single-row toolbar with full <code>Alt</code> Key Tips and zero Microsoft ribbon artwork.</span></div>
+    <div class="co"><span class="pin">2</span><span><b>Numbered 6-Tone Reference Picking:</b> <code>① ② ③</code> corner badges match Formula Bar tokens (never using error red).</span></div>
+    <div class="co"><span class="pin">3</span><span><b>Inline Live Preview Tooltip:</b> Shows evaluated result before <code>Enter</code> and supports inline <code>F9</code> sub-expression eval.</span></div>
+    <div class="co"><span class="pin">4</span><span><b>1-Bit State Readout:</b> Clearly distinguishes <code>EDITING (Point)</code> vs <code>EDITING (Edit)</code> toggled via <code>F2</code>.</span></div>
+  </div>
+</section>
+
+<!-- ==================== M-13 ==================== -->
+<section class="mockup-section" id="M-13" data-tags="views sales">
+  <div class="mockup-meta">
+    <h2><span class="m-id">M-13</span> Full View: Inspector on Sales.xlsx (Diagnostic Ledger, Calc Order Waves &amp; Live Probes)</h2>
+    <div class="m-tags"><span>Section 4.2</span><span>Inspector View</span><span>Phyphox Instrument</span></div>
+  </div>
+  <div class="app-frame">
+    <div class="mast">
+      <div class="mast-file"><span class="bp-mark bp-twin"><span class="a"></span><span class="b"></span></span> Sales.xlsx</div>
+      <div class="view-seg"><span>Classic</span><span class="on">Inspector</span><span>Notebook</span><span>Model Map</span><span>App</span></div>
+      <span class="mast-pill">Lens</span>
+      <div class="mast-right"><span class="mast-pill">fx</span><span class="mast-pill">Agent</span><span class="mast-pill">Ctrl+K</span><span class="mast-pill">Export Md</span></div>
+    </div>
+    <div class="bridge">
+      <div class="addr-box">Report!D8</div>
+      <div class="bridge-tabs"><span class="b-tab">Health</span><span class="b-tab on">Trace Selected</span><span class="b-tab">Calc Order</span><span class="b-tab">Live &amp; Volatile</span></div>
+    </div>
+    <div class="stage-wrap"><div class="stage split-2">
+      <div class="pane pane-muted">
+        <div class="kicker"><span class="pin">1</span> Workbook Diagnostic Summary</div>
+        <div class="card">
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+            <span class="badge">2 Sheets</span><span class="badge">1 Table (Orders · 25k)</span><span class="badge">418 Formulas</span><span class="badge">1 PivotTable</span>
+          </div>
+          <div style="font:560 12px var(--mono-font)">
+            <div style="color:var(--green-ink)">⊗ Formula Errors: 0</div>
+            <div style="color:var(--amber-ink);margin-top:4px">⚠ Structural Anomalies: 2</div>
+            <div style="padding-left:14px;font-size:11.5px;color:var(--ink)">• Partial Table Coverage (<code>Report!D6:D9</code>) <strong>← active</strong><br>• Hardcoded constant inside Total row (<code>G12</code>)</div>
+          </div>
+        </div>
+        <div class="kicker"><span class="pin">3</span> Topological Calculation Order (Waves)</div>
+        <div class="card" style="font:500 11.5px var(--mono-font)">
+          <div><strong>Wave 0:</strong> Orders[A2:K25001] (constants)</div>
+          <div style="color:var(--amber-ink)"><strong>Wave 1:</strong> Report!B6:E9 (SUMIFS · <strong>11.4 ms · 63%</strong>)</div>
+          <div><strong>Wave 2:</strong> Report!F6:F9 (XLOOKUP · 0.6 ms)</div>
+          <div><strong>Wave 3:</strong> Report!G6:G9 (Rebates · 0.3 ms)</div>
+          <div><strong>Wave 4:</strong> Report!D14 (Pivot check · 0.2 ms)</div>
+          <div><strong>Wave 5:</strong> Pivot1 Cache refresh (5.5 ms)</div>
+        </div>
+        <div class="kicker"><span class="pin">4</span> Live Data &amp; Performance Probe</div>
+        <div class="card" style="font:500 11.5px var(--mono-font)">
+          <div>Last Recalc: <strong>18.0 ms</strong> (Automatic) · RTD Feeds: None</div>
+          <div style="margin-top:6px"><span class="chip-btn">Re-profile Full Recalc (Ctrl+Alt+F9)</span></div>
+        </div>
+      </div>
+      <div class="pane">
+        <div class="kicker"><span class="pin">2</span> Active Trace · Report!D8 ($412,680 · Depth 2)</div>
+        <div class="card focus" style="margin-bottom:12px">
+          <div style="font:600 12px var(--mono-font);margin-bottom:6px">Precedents (3) → <code>Report!D8</code> → Dependents (4)</div>
+          <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;font:560 11.5px var(--mono-font)">
+            <div class="card warn" style="margin:0">Orders!$K$2:$K$20000<br><span style="color:var(--amber-ink)">⚠ 5,001 rows missed</span></div>
+            <div style="font-size:18px;color:var(--teal)">→</div>
+            <div class="card" style="margin:0;border-color:var(--teal)"><strong>D14</strong>: -$118,420<br><strong>F8</strong>: "Tier 2" → <strong>G8</strong>: $8,254</div>
+          </div>
+        </div>
+        <div class="kicker"><span class="pin">5</span> Selected Probe Action</div>
+        <div class="card proposal">
+          <div style="font-size:12.5px;margin-bottom:8px">Replace hardcoded <code>$20000</code> bounds across <code>Report!D6:D9</code> with structured table references (<code>Orders[Amount]</code>, <code>Orders[Region]</code>, <code>Orders[Quarter]</code>).</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px"><span class="chip-btn teal">Apply Fix to D6:D9</span><span class="chip-btn">Test in Formula Explorer</span><span class="chip-btn">Inspect 493 Excluded Rows ↗</span></div>
+        </div>
+      </div>
+    </div></div>
+    <div class="strip">
+      <div class="sheet-tabs"><span class="s-tab">Orders (25,000 rows)</span><span class="s-tab on">Report</span></div>
+      <div class="strip-telemetry"><span class="pill-ok">✓ Clean · 18.0 ms</span><span class="pill-amber">⚠ 2 structural anomalies</span><span>Working 100%</span></div>
+    </div>
+  </div>
+  <div class="callouts">
+    <div class="co"><span class="pin">1</span><span><b>Diagnostic Ledger:</b> Aggregates formula errors, non-error structural anomalies, and volatile counts in one glance.</span></div>
+    <div class="co"><span class="pin">2</span><span><b>Active Causal Trace:</b> Keyboard-navigable (<code>←/→</code> upstream/downstream) with live values on every node.</span></div>
+    <div class="co"><span class="pin">3</span><span><b>Evaluation Waves:</b> Shows exact topological calc order and millisecond timing hotspots.</span></div>
+    <div class="co"><span class="pin">4</span><span><b>Live &amp; Perf Probe:</b> Tracks recalc duration, RTD frequency, and full re-profile controls.</span></div>
+    <div class="co"><span class="pin">5</span><span><b>Non-Destructive Verification:</b> Inspect excluded rows or preview fixes before mutating a single cell.</span></div>
+  </div>
+</section>
+
+<!-- ==================== M-14 ==================== -->
+<section class="mockup-section" id="M-14" data-tags="views budget">
+  <div class="mockup-meta">
+    <h2><span class="m-id">M-14</span> Full View: Notebook on Budget.xlsx in Horizontal Pipeline Mode (Alt+P)</h2>
+    <div class="m-tags"><span>Section 4.3</span><span>Notebook View</span><span>Horizontal Pipeline</span></div>
+  </div>
+  <div class="app-frame">
+    <div class="mast">
+      <div class="mast-file"><span class="bp-mark bp-twin"><span class="a"></span><span class="b"></span></span> Budget.xlsx</div>
+      <div class="view-seg"><span>Classic</span><span>Inspector</span><span class="on">Notebook</span><span>Model Map</span><span>App</span></div>
+      <span class="mast-pill">Lens</span>
+      <div class="mast-right"><span class="mast-pill">fx</span><span class="mast-pill">Agent</span><span class="mast-pill">Ctrl+K</span><span class="mast-pill">Print</span></div>
+    </div>
+    <div class="bridge">
+      <div class="addr-box">Monthly!N15</div>
+      <div class="bridge-tabs"><span class="b-btn">+ Prose</span><span class="b-btn">+ Formula</span><span class="b-btn">+ Link Range</span><span class="b-btn">+ Chart</span></div>
+      <div class="bridge-tabs" style="margin-left:auto"><span class="pin">1</span><span class="b-tab">Vertical</span><span class="b-tab on">Pipeline ★</span></div>
+    </div>
+    <div class="stage-wrap"><div class="stage pane" style="overflow-x:auto">
+      <div style="display:grid;grid-template-columns:270px 32px minmax(360px,1fr) 32px 260px;align-items:stretch;min-width:960px">
+        <!-- Stage 1 -->
+        <div class="card" style="margin:0;border-top:3px solid var(--prov-const)">
+          <div class="kicker">Stage 1 · Assumptions</div>
+          <div style="font:560 11px var(--mono-font);color:var(--ink-3);margin-bottom:8px">Linked: Inputs!B4:E15 · Scenario: <strong style="color:var(--teal-ink)">● Base</strong></div>
+          <table class="mini-tbl">
+            <tbody>
+              <tr><td>Opening_MRR</td><td class="r" style="color:var(--prov-const)">$185,000</td></tr>
+              <tr style="background:var(--amber-tint)"><td><strong>Monthly_Growth</strong></td><td class="r"><strong>4.5%</strong></td></tr>
+              <tr><td>Logo_Churn</td><td class="r">1.8%</td></tr>
+              <tr><td>Services_Attach</td><td class="r">12.0%</td></tr>
+              <tr><td>COGS_Pct</td><td class="r">22.0%</td></tr>
+              <tr><td>Headcount_Start</td><td class="r">10 (+1/qtr)</td></tr>
+              <tr><td>Marketing_Pct</td><td class="r">18.0%</td></tr>
+              <tr><td>Tax_Rate</td><td class="r">21.0%</td></tr>
+            </tbody>
+          </table>
+          <p style="font:italic 12.5px/1.45 var(--serif-font);color:var(--ink-2);margin:10px 0 0">"Base assumes 1 hire/quarter and flat $14.5k/mo cloud infra."</p>
+        </div>
+        <!-- Rail 1 -->
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px">
+          <span class="pin">2</span>
+          <div style="font:700 20px var(--mono-font);color:var(--teal)">⇒</div>
+        </div>
+        <!-- Stage 2 -->
+        <div class="card" style="margin:0;border-top:3px solid var(--teal)">
+          <div class="kicker">Stage 2 · Monthly Engine (Monthly!A4:N15)</div>
+          <table class="mini-tbl">
+            <thead><tr><th>Line Item</th><th class="r">Jan</th><th class="r">Dec</th><th class="r">FY Total</th></tr></thead>
+            <tbody>
+              <tr style="background:var(--amber-tint)"><td>MRR</td><td class="r">$185k</td><td class="r">$248k</td><td class="r">$2,580,224</td></tr>
+              <tr><td>Services Rev</td><td class="r">$22k</td><td class="r">$30k</td><td class="r">$309,627</td></tr>
+              <tr><td><strong>Total Revenue</strong></td><td class="r"><strong>$207k</strong></td><td class="r"><strong>$278k</strong></td><td class="r"><strong>$2,889,851</strong></td></tr>
+              <tr><td>COGS (22%)</td><td class="r">-$46k</td><td class="r">-$61k</td><td class="r">-$635,767</td></tr>
+              <tr><td>Payroll</td><td class="r">-$92k</td><td class="r">-$120k</td><td class="r">-$1,269,600</td></tr>
+              <tr><td>Cloud + Mktg</td><td class="r">-$52k</td><td class="r">-$65k</td><td class="r">-$694,173</td></tr>
+              <tr style="background:var(--green-tint)"><td><strong>EBITDA</strong></td><td class="r"><strong>$19k</strong></td><td class="r"><strong>$31k</strong></td><td class="r" style="color:var(--green-ink)"><strong>$290,311</strong></td></tr>
+            </tbody>
+          </table>
+          <div style="margin-top:8px;font:600 11.5px var(--mono-font);color:var(--teal-ink)">Rev: ▁▂▃▃▄▅▆▇█ &nbsp;·&nbsp; <span style="color:var(--green-ink)">EBITDA: ▂▃▃▄▅▅▆▇█</span></div>
+        </div>
+        <!-- Rail 2 -->
+        <div style="display:flex;align-items:center;justify-content:center;font:700 20px var(--mono-font);color:var(--teal)">⇒</div>
+        <!-- Stage 3 -->
+        <div class="card focus" style="margin:0;border-top:3px solid var(--green)">
+          <div class="kicker">Stage 3 · Summary Rollup</div>
+          <div style="font:560 11px var(--mono-font);color:var(--ink-3);margin-bottom:10px">Summary!A4:C16 · Live Chips</div>
+          <div style="display:grid;gap:10px">
+            <div><div style="font-size:11px;color:var(--ink-3)">FY2027 Revenue</div><span class="live-chip" style="font-size:16px">$2,889,851</span></div>
+            <div><div style="font-size:11px;color:var(--ink-3)">Gross Margin</div><span class="live-chip" style="font-size:16px">78.0%</span></div>
+            <div><div style="font-size:11px;color:var(--ink-3)"><strong>EBITDA (Focus)</strong></div><span class="live-chip" style="font-size:18px">$290,311</span> <span style="font:600 11px var(--mono-font);color:var(--green-ink)">(10.0%)</span></div>
+            <div><div style="font-size:11px;color:var(--ink-3)">Net Income</div><span class="live-chip" style="font-size:16px">$229,346</span></div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <div class="strip">
+      <div class="sheet-tabs"><span class="s-tab">Inputs</span><span class="s-tab">Monthly</span><span class="s-tab on">Summary (Pipeline)</span></div>
+      <div class="strip-telemetry"><span class="pill-ok">✓ Clean · Live reactive · 4 ms</span><span>Reading 100%</span></div>
+    </div>
+  </div>
+  <div class="callouts">
+    <div class="co"><span class="pin">1</span><span><b>Vertical ↔ Pipeline Toggle (<code>Alt+P</code>):</b> Switches the same Notebook smoothly between board-memo reading and left-to-right data flow.</span></div>
+    <div class="co"><span class="pin">2</span><span><b>Cross-Stage Dependency Rails:</b> Hovering <code>Monthly_Growth</code> highlights every downstream line it drives across Stages 2 and 3.</span></div>
+  </div>
+</section>
+
+<!-- ==================== M-15 ==================== -->
+<section class="mockup-section" id="M-15" data-tags="views stock">
+  <div class="mockup-meta">
+    <h2><span class="m-id">M-15</span> Full View: Model Map on Stock.xlsx (Composites, Ticks Director, Live Recalc Ripple &amp; Plotter)</h2>
+    <div class="m-tags"><span>Section 4.4</span><span>Model Map View</span><span>Strand Harmonized</span><span>Live Ripple</span></div>
+  </div>
+  <div class="app-frame">
+    <div class="mast">
+      <div class="mast-file"><span class="bp-mark bp-twin"><span class="a"></span><span class="b"></span></span> Stock.xlsx</div>
+      <div class="view-seg"><span>Classic</span><span>Inspector</span><span>Notebook</span><span class="on">Model Map</span><span>App</span></div>
+      <span class="mast-pill">Lens</span>
+      <div class="mast-right"><span class="mast-pill">fx</span><span class="mast-pill">Agent</span><span class="mast-pill">Ctrl+K</span><span class="mast-pill">Print</span></div>
+    </div>
+    <div class="bridge">
+      <div class="addr-box">Supply.Order</div>
+      <span class="pin">1</span>
+      <span style="font-family:var(--mono-font)">Stock › <strong>Top</strong></span>
+      <span class="b-tab on">Ticks · 1 iter/tick</span>
+      <span class="b-btn primary">▶ Run</span><span class="b-btn">Step (F9)</span><span class="b-btn">Reset</span>
+      <span class="b-tab on" style="margin-left:auto">Presented</span><span class="b-tab">Excel</span>
+    </div>
+    <div class="stage-wrap"><div class="stage">
+      <div class="split-rail">
+        <div class="pane">
+          <div class="kicker"><span class="pin">2</span> Hierarchical Composites &amp; Live Recalc Ripple (Tick 18)</div>
+          <svg class="diag-svg" viewBox="0 0 760 325" role="img" aria-label="Full Model Map schematic for Stock.xlsx">
+            <defs>
+              <marker id="arr5" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L7,4 L0,7 Z" fill="var(--teal)"/></marker>
+              <marker id="arrHot" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L7,4 L0,7 Z" fill="var(--amber)"/></marker>
+            </defs>
+            <!-- Sim box -->
+            <rect x="16" y="18" width="146" height="58" rx="8" fill="var(--paper)" stroke="var(--teal)" stroke-width="1.5"/>
+            <text x="26" y="37" font-family="var(--mono-font)" font-size="11" font-weight="700" fill="var(--teal-ink)">Sim.Tick (z⁻¹)</text>
+            <text x="26" y="61" font-family="var(--mono-font)" font-size="16" font-weight="700" fill="var(--ink)">Tick 18</text>
+            <!-- Demand box -->
+            <rect x="16" y="106" width="146" height="66" rx="8" fill="var(--paper)" stroke="var(--prov-const)" stroke-width="1.6"/>
+            <text x="26" y="126" font-family="var(--mono-font)" font-size="11" font-weight="700" fill="var(--prov-const)">Demand.Rate</text>
+            <text x="26" y="152" font-family="var(--mono-font)" font-size="16" font-weight="700" fill="var(--ink)">85 /day</text>
+            <!-- Supply Composite (double border) -->
+            <rect x="206" y="14" width="538" height="170" rx="11" fill="var(--paper)" stroke="var(--petrol-800)" stroke-width="1.8"/>
+            <rect x="210" y="18" width="530" height="162" rx="8" fill="none" stroke="var(--teal)" stroke-width="1"/>
+            <text x="222" y="36" font-family="var(--mono-font)" font-size="11" font-weight="700" fill="var(--teal-ink)">SUPPLY (COMPOSITE · 7 ACTORS)</text>
+            <text x="728" y="36" text-anchor="end" font-family="var(--mono-font)" font-size="11" font-weight="700" fill="var(--teal-ink)">Click to drill in ⤵</text>
+            <!-- Active firing actor: Supply.Order -->
+            <rect x="224" y="54" width="152" height="58" rx="7" fill="var(--amber-tint)" stroke="var(--amber)" stroke-width="3"/>
+            <text x="234" y="73" font-family="var(--mono-font)" font-size="11" font-weight="700" fill="var(--ink)">Supply.Order</text>
+            <text x="234" y="96" font-family="var(--mono-font)" font-size="16" font-weight="700" fill="var(--ink)">400</text>
+            <text x="366" y="96" text-anchor="end" font-family="var(--mono-font)" font-size="10" font-weight="700" fill="var(--amber-ink)">FIRING</text>
+            <!-- Live amber ripple wire with z^-1 -->
+            <path d="M376,83 L472,83" fill="none" stroke="var(--amber)" stroke-width="3.2" stroke-dasharray="6 4" marker-end="url(#arrHot)"/>
+            <rect x="406" y="71" width="38" height="22" rx="4" fill="var(--paper)" stroke="var(--amber-ink)" stroke-width="1.5"/>
+            <text x="425" y="86" text-anchor="middle" font-family="var(--mono-font)" font-size="11" font-weight="700" fill="var(--amber-ink)">z⁻¹</text>
+            <!-- Supply.Pipeline -->
+            <rect x="476" y="54" width="144" height="58" rx="7" fill="var(--paper-2)" stroke="var(--teal)" stroke-width="1.6"/>
+            <text x="486" y="73" font-family="var(--mono-font)" font-size="11" font-weight="700" fill="var(--ink)">Pipeline</text>
+            <text x="486" y="96" font-family="var(--mono-font)" font-size="14" font-weight="700" fill="var(--teal-ink)">{0, 400, 0}</text>
+            <!-- Supply.Inflow -->
+            <rect x="638" y="54" width="90" height="58" rx="7" fill="var(--paper-2)" stroke="var(--teal)" stroke-width="1.5"/>
+            <text x="646" y="73" font-family="var(--mono-font)" font-size="10.5" font-weight="700" fill="var(--ink)">Inflow</text>
+            <text x="646" y="96" font-family="var(--mono-font)" font-size="15" font-weight="700" fill="var(--ink)">0</text>
+            <!-- Position -->
+            <rect x="224" y="124" width="220" height="44" rx="7" fill="var(--paper-2)" stroke="var(--border)"/>
+            <text x="234" y="143" font-family="var(--mono-font)" font-size="11" font-weight="700" fill="var(--ink)">Position: 235  (RP = 260)</text>
+            <text x="234" y="159" font-family="var(--mono-font)" font-size="10" fill="var(--ink-3)">Inv.OnHand + SUM(Pipeline)</text>
+            <!-- Inv Composite -->
+            <rect x="206" y="206" width="538" height="104" rx="11" fill="var(--paper)" stroke="var(--teal)" stroke-width="1.5"/>
+            <text x="222" y="226" font-family="var(--mono-font)" font-size="11" font-weight="700" fill="var(--teal-ink)">INV (STATE ACCUMULATOR)</text>
+            <rect x="224" y="238" width="146" height="56" rx="7" fill="var(--paper-2)" stroke="var(--teal)"/>
+            <text x="234" y="257" font-family="var(--mono-font)" font-size="11" font-weight="700" fill="var(--ink)">Outflow: 85</text>
+            <text x="234" y="278" font-family="var(--mono-font)" font-size="10" fill="var(--ink-3)">min(Rate, In+OH⁻)</text>
+            <rect x="412" y="238" width="166" height="56" rx="7" fill="var(--teal-tint)" stroke="var(--teal)" stroke-width="2"/>
+            <text x="422" y="257" font-family="var(--mono-font)" font-size="11.5" font-weight="700" fill="var(--teal-ink)">OnHand: 235 (z⁻¹)</text>
+            <text x="422" y="278" font-family="var(--mono-font)" font-size="10.5" fill="var(--ink)">OH⁻ + In − Out</text>
+            <rect x="614" y="238" width="114" height="56" rx="7" fill="var(--paper-2)" stroke="var(--border)"/>
+            <text x="624" y="257" font-family="var(--mono-font)" font-size="11" font-weight="700" fill="var(--ink)">Shortage: 0</text>
+            <text x="624" y="278" font-family="var(--mono-font)" font-size="10" fill="var(--green-ink)">0 unserved</text>
+            <!-- Connecting wires -->
+            <path d="M162,140 C190,140 185,266 222,266" fill="none" stroke="var(--teal)" stroke-width="1.8" marker-end="url(#arr5)"/>
+            <path d="M370,266 L410,266" fill="none" stroke="var(--teal)" stroke-width="1.8" marker-end="url(#arr5)"/>
+            <path d="M683,112 L683,196 L495,196 L495,236" fill="none" stroke="var(--teal)" stroke-width="1.8" marker-end="url(#arr5)"/>
+            <path d="M495,238 L495,196 L334,196 L334,170" fill="none" stroke="var(--teal)" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#arr5)"/>
+          </svg>
+        </div>
+        <div class="pane pane-muted">
+          <div class="kicker"><span class="pin">4</span> Parameter Rail</div>
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;font:600 11.5px var(--mono-font)"><span>ReorderPoint</span><strong style="color:var(--teal-ink)">260 ($B$8)</strong></div>
+            <div class="slider-track"><div class="slider-fill" style="width:40%"></div><div class="slider-thumb" style="left:40%"></div></div>
+            <div style="display:flex;justify-content:space-between;font:600 11.5px var(--mono-font);margin-top:10px"><span>Demand.Rate</span><strong style="color:var(--teal-ink)">85 ($B$4)</strong></div>
+            <div class="slider-track"><div class="slider-fill" style="width:45%"></div><div class="slider-thumb" style="left:45%"></div></div>
+          </div>
+          <div class="kicker"><span class="pin">5</span> Inspector Mini-Card</div>
+          <div class="card">
+            <strong style="font-family:var(--mono-font)">Supply.Order</strong> <span class="badge">StockModel!B13</span>
+            <div class="code-box" style="margin:6px 0;font-size:11px">Position &lt; ReorderPoint ? OrderQty : 0</div>
+            <div class="code-box" style="font-size:10.5px;color:var(--ink-2)">=IF(Supply.Position&lt;Supply.ReorderPoint, Supply.OrderQty, 0)</div>
+            <div style="display:flex;gap:6px;margin-top:8px"><span class="chip-btn teal">Classic Ctrl+Alt+1</span><span class="chip-btn">Explorer fx</span></div>
+          </div>
+        </div>
+      </div>
+      <!-- Bottom Live Plotter -->
+      <div style="border-top:1px solid var(--border);padding:10px 14px;background:var(--paper)">
+        <div class="kicker"><span class="pin">3</span> Live Plotter · Ticks 1–18 (OnHand ── · ReorderPoint ┄ · ● Order Placed)</div>
+        <svg class="diag-svg" viewBox="0 0 1120 92" role="img" aria-label="Stock history over 18 ticks">
+          <line x1="42" y1="44" x2="1100" y2="44" stroke="var(--amber-ink)" stroke-dasharray="5 4"/>
+          <text x="36" y="48" text-anchor="end" font-family="var(--mono-font)" font-size="10" fill="var(--amber-ink)">260</text>
+          <text x="36" y="18" text-anchor="end" font-family="var(--mono-font)" font-size="10" fill="var(--ink-3)">500</text>
+          <text x="36" y="82" text-anchor="end" font-family="var(--mono-font)" font-size="10" fill="var(--ink-3)">0</text>
+          <polyline fill="none" stroke="var(--teal)" stroke-width="2.5" points="48,30 110,44 172,58 234,72 296,20 358,34 420,48 482,62 544,76 606,24 668,38 730,52 792,66 854,18 916,32 978,46 1040,56"/>
+          <circle cx="234" cy="72" r="4.5" fill="var(--amber)" stroke="var(--petrol-800)" stroke-width="1.5"/>
+          <circle cx="544" cy="76" r="4.5" fill="var(--amber)" stroke="var(--petrol-800)" stroke-width="1.5"/>
+          <circle cx="1040" cy="56" r="5.5" fill="var(--amber)" stroke="var(--petrol-800)" stroke-width="2"/>
+          <text x="1040" y="76" text-anchor="middle" font-family="var(--mono-font)" font-size="10" font-weight="700" fill="var(--amber-ink)">Tick 18 (+400)</text>
+        </svg>
+      </div>
+    </div></div>
+    <div class="strip">
+      <div class="sheet-tabs"><span class="s-tab on">Top Map</span><span class="s-tab">Sheet: StockModel</span></div>
+      <div class="strip-telemetry"><span class="pill-amber">◐ Ripple: Order → Pipeline (Tick 18)</span><span>Working 100% L3</span></div>
+    </div>
+  </div>
+  <div class="callouts">
+    <div class="co"><span class="pin">1</span><span><b>Breadcrumbs &amp; Director:</b> Ptolemy-style hierarchy and Ticks director harmonized strictly into Strand petrol/teal/amber.</span></div>
+    <div class="co"><span class="pin">2</span><span><b>Topological Recalc Ripple:</b> 140 ms amber flow follows real causal propagation (zero decorative animations).</span></div>
+    <div class="co"><span class="pin">3</span><span><b>Live Plotter:</b> Tracks tick-by-tick inventory history and reorder triggers as pure view telemetry.</span></div>
+    <div class="co"><span class="pin">4</span><span><b>Parameter Rail:</b> Mirrors Excel Form Controls live during playback.</span></div>
+    <div class="co"><span class="pin">5</span><span><b>Dual Formula Card:</b> Shows both AST-presented syntax and exact backing Excel formula.</span></div>
+  </div>
+</section>
+
+<!-- ==================== M-16 ==================== -->
+<section class="mockup-section" id="M-16" data-tags="views loan">
+  <div class="mockup-meta">
+    <h2><span class="m-id">M-16</span> Full View: App on Loan.xlsx (Clean Consumer State, Executive KPIs &amp; Grouped Schedule)</h2>
+    <div class="m-tags"><span>Section 4.5</span><span>App View</span><span>Loan Planner Skin</span><span>Reading Density</span></div>
+  </div>
+  <div class="app-frame">
+    <div class="mast">
+      <div class="mast-file"><span class="bp-mark bp-twin"><span class="a"></span><span class="b"></span></span> Loan.xlsx — Home Mortgage Planner</div>
+      <span class="mast-pill on">View: App ▾</span>
+      <div class="mast-right"><span class="mast-pill">Undo</span><span class="mast-pill">Reset</span><span class="mast-pill">Copy</span><span class="mast-pill on">Print <span class="pin">1</span></span></div>
+    </div>
+    <div class="bridge">
+      <span style="font-weight:600">Scenarios:</span>
+      <div class="bridge-tabs"><span class="b-tab on">Base 6.25%</span><span class="b-tab">+$300/mo Extra</span><span class="b-tab">Refi 5.50%</span><span class="b-btn">+ New Scenario</span></div>
+      <span style="margin-left:auto;font:560 11px var(--mono-font);color:var(--chrome-muted)">Bound: Loan!C3:C7</span>
+    </div>
+    <div class="stage-wrap"><div class="stage split-left" style="grid-template-columns:290px minmax(0,1fr)">
+      <div class="pane pane-muted">
+        <div class="kicker"><span class="pin">2</span> Assumptions</div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;font:600 12px var(--mono-font)"><span>Principal</span><strong>$420,000</strong></div>
+          <div class="slider-track"><div class="slider-fill" style="width:36%"></div><div class="slider-thumb" style="left:36%"></div></div>
+        </div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;font:600 12px var(--mono-font)"><span>Annual Rate</span><strong>6.25%</strong></div>
+          <div class="slider-track"><div class="slider-fill" style="width:42%"></div><div class="slider-thumb" style="left:42%"></div></div>
+        </div>
+        <div class="card">
+          <div style="font:600 12px var(--mono-font);margin-bottom:6px">Term (Years)</div>
+          <div style="display:flex;gap:5px"><span class="badge">15 yr</span><span class="badge">20 yr</span><span class="badge teal">● 30 yr</span></div>
+        </div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;font:600 12px var(--mono-font)"><span>Extra Monthly</span><strong>$0</strong></div>
+          <div class="slider-track"><div class="slider-fill" style="width:2%"></div><div class="slider-thumb" style="left:2%"></div></div>
+        </div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;font:600 12px var(--mono-font)"><span>Start Date</span><strong>2027-01-01</strong></div>
+        </div>
+      </div>
+      <div class="pane">
+        <div class="kicker"><span class="pin">3</span> Summary Outcomes (Base 6.25%)</div>
+        <div class="kpi-row">
+          <div class="kpi-card"><div class="lbl">Monthly Payment</div><div class="val">$2,586.01</div><div class="sub" style="color:var(--ink-3)">Loan!C9 (PMT)</div></div>
+          <div class="kpi-card"><div class="lbl">Total Interest</div><div class="val">$510,964</div><div class="sub" style="color:var(--ink-3)">360-month sum</div></div>
+          <div class="kpi-card"><div class="lbl">Payoff Horizon</div><div class="val">Dec 2056</div><div class="sub" style="color:var(--ink-3)">30 yr 0 mo</div></div>
+        </div>
+        <div class="kicker"><span class="pin">4</span> Amortisation Trajectory (Live Excel Chart · Loan!Chart1)</div>
+        <svg class="diag-svg" viewBox="0 0 680 128" style="margin-bottom:12px" role="img" aria-label="Base 30-year mortgage trajectory">
+          <line x1="48" y1="18" x2="660" y2="18" stroke="var(--grid-line)"/><line x1="48" y1="60" x2="660" y2="60" stroke="var(--grid-line)"/><line x1="48" y1="102" x2="660" y2="102" stroke="var(--border)"/>
+          <text x="42" y="22" text-anchor="end" font-family="var(--mono-font)" font-size="10" fill="var(--ink-3)">$550k</text>
+          <text x="42" y="64" text-anchor="end" font-family="var(--mono-font)" font-size="10" fill="var(--ink-3)">$275k</text>
+          <text x="42" y="106" text-anchor="end" font-family="var(--mono-font)" font-size="10" fill="var(--ink-3)">$0</text>
+          <path d="M48,34 Q390,46 645,102" fill="none" stroke="var(--teal)" stroke-width="2.8"/>
+          <path d="M48,102 Q330,52 645,22" fill="none" stroke="var(--amber-ink)" stroke-width="2" stroke-dasharray="4 3"/>
+          <text x="58" y="27" font-family="var(--mono-font)" font-size="10" font-weight="700" fill="var(--teal-ink)">Remaining Balance ($420k → $0)</text>
+          <text x="640" y="15" text-anchor="end" font-family="var(--mono-font)" font-size="10" fill="var(--amber-ink)">Cumulative Interest ($511k)</text>
+        </svg>
+        <div class="kicker"><span class="pin">5</span> Annual Schedule (360 monthly rows grouped into 30 years) <span style="margin-left:auto" class="chip-btn">Expand All 360 Months</span></div>
+        <table class="mini-tbl">
+          <thead><tr><th>Year</th><th class="r">Payments</th><th class="r">Principal</th><th class="r">Interest</th><th class="r">Ending Balance</th></tr></thead>
+          <tbody>
+            <tr><td>▶ 2027 (12 mos)</td><td class="r">$31,032</td><td class="r">$4,922</td><td class="r">$26,110</td><td class="r">$415,078</td></tr>
+            <tr><td>▶ 2028 (12 mos)</td><td class="r">$31,032</td><td class="r">$5,239</td><td class="r">$25,793</td><td class="r">$409,839</td></tr>
+            <tr><td>▶ 2029 (12 mos)</td><td class="r">$31,032</td><td class="r">$5,576</td><td class="r">$25,456</td><td class="r">$404,263</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div></div>
+    <div class="strip">
+      <div class="sheet-tabs"><span class="s-tab on">App View · Skin: "Loan Planner"</span></div>
+      <div class="strip-telemetry"><span class="pill-ok">✓ Clean · 7 ms</span><span class="pill-amber">Formulas Ctrl+Alt+1</span><span>Reading 100%</span></div>
+    </div>
+  </div>
+  <div class="callouts">
+    <div class="co"><span class="pin">1</span><span><b>2-Page Executive Print:</b> Prints KPIs, chart, scenario comparison, and 30-row annual summary cleanly.</span></div>
+    <div class="co"><span class="pin">2</span><span><b>Zero-Code Validated Inputs:</b> Declarative YAML skin binds sliders/segmented buttons directly to Excel cells.</span></div>
+    <div class="co"><span class="pin">3</span><span><b>Tabular KPI Strip:</b> Alt+Hover peeks underlying Excel formula (<code>=-PMT(...)</code>) without risking accidental edits.</span></div>
+    <div class="co"><span class="pin">4</span><span><b>Live Excel Chart:</b> Vector rendering of <code>Loan!Chart1</code> restyled cleanly in Strand tokens.</span></div>
+    <div class="co"><span class="pin">5</span><span><b>Auto-Grouped 360-Row Schedule:</b> Collapses cleanly into 30 expandable annual rows with transparent count disclosure.</span></div>
+  </div>
+</section>
+
+<!-- ==================== M-17 ==================== -->
+<section class="mockup-section" id="M-17" data-tags="views budget explorer">
+  <div class="mockup-meta">
+    <h2><span class="m-id">M-17</span> Formula Explorer in Both Forms: Standalone (Number Format Lab) &amp; Embedded (CF Simulator)</h2>
+    <div class="m-tags"><span>Section 4.6</span><span>Standalone + Embedded</span><span>Format &amp; CF Labs</span></div>
+  </div>
+  <div class="split-eq" style="gap:16px">
+    <!-- FORM A: STANDALONE -->
+    <div class="app-frame">
+      <div class="mast">
+        <div class="mast-file"><span class="bp-mark bp-dotlong"><span class="a"></span><span class="b"></span></span> Form A: Standalone (No Workbook)</div>
+        <div class="mast-right"><span class="mast-pill signal">TaxPack.xll</span></div>
+      </div>
+      <div class="stage-wrap"><div class="stage pane">
+        <div style="display:grid;grid-template-columns:155px minmax(0,1fr);gap:12px">
+          <div>
+            <div class="kicker"><span class="pin">1</span> Local Inputs</div>
+            <div class="code-box" style="font-size:11px">ebitda = 290311
+juris  = "US-CA"
+corp   = TRUE</div>
+            <div style="margin-top:8px"><span class="chip-btn">+ Array / Err</span></div>
+          </div>
+          <div>
+            <div class="kicker"><span class="pin">2</span> Formula &amp; Result</div>
+            <div class="code-box" style="font-weight:600">=TAX.EFFRATE(ebitda, juris, corp)</div>
+            <div style="margin:6px 0"><span class="badge green">⇒ 0.2798412 (2.0 ms)</span></div>
+            <div style="display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap">
+              <span class="badge">Eval</span><span class="badge teal">Number Format ★</span><span class="badge">CF</span><span class="badge">Types</span>
+            </div>
+            <div class="card" style="margin:0;background:var(--paper-2)">
+              <div class="kicker"><span class="pin">3</span> Number Format Lab (en-US)</div>
+              <div class="code-box" style="margin-bottom:6px;background:var(--paper)">0.00%;(0.00%);"—"</div>
+              <table class="mini-tbl">
+                <tbody>
+                  <tr><td>0.27984</td><td class="r" style="color:var(--green-ink)"><strong>27.98%</strong></td></tr>
+                  <tr><td>-0.04500</td><td class="r">(4.50%)</td></tr>
+                  <tr><td>0.00000</td><td class="r">—</td></tr>
+                  <tr><td>#VALUE!</td><td class="r" style="color:var(--red-ink)">⊗ #VALUE!</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div></div>
+      <div class="strip"><span>Standalone · Zero workbook</span><span class="strip-telemetry"><span class="pill-sig">▸ TaxPack.xll</span></span></div>
+    </div>
+    <!-- FORM B: EMBEDDED -->
+    <div class="app-frame">
+      <div class="mast">
+        <div class="mast-file"><span class="bp-mark bp-twin"><span class="a"></span><span class="b"></span></span> Form B: Embedded Drawer (Budget.xlsx)</div>
+        <div class="mast-right"><span class="mast-pill on">Summary!B13</span></div>
+      </div>
+      <div class="stage-wrap"><div class="stage pane">
+        <div class="kicker"><span class="pin">4</span> Workbook Cell: Summary!B13 (Auto-Bound Precedents)</div>
+        <div class="code-box" style="font-weight:600">=TAX.EFFRATE(Summary!B12, "US-CA", TRUE)</div>
+        <div style="margin:6px 0;display:flex;gap:6px;flex-wrap:wrap">
+          <span class="badge green">Preview: 27.98% (was 21.00%)</span>
+          <span class="badge amber">Δ Net Income: -$20,276</span>
+        </div>
+        <div style="display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap">
+          <span class="badge">Eval</span><span class="badge">Number Format</span><span class="badge teal">Cond. Format ★</span><span class="badge">Add-in</span>
+        </div>
+        <div class="card" style="background:var(--paper-2);margin-bottom:10px">
+          <div class="kicker"><span class="pin">5</span> Conditional Formatting Simulator</div>
+          <div style="font:560 11.5px var(--mono-font);display:grid;gap:6px">
+            <div style="padding:5px 8px;border-radius:5px;background:var(--amber-tint);border-left:3px solid var(--amber-ink)"><strong>[✓ ACTIVE]</strong> Rule 1: Value &gt; 0.25 → amber-ink bold</div>
+            <div style="padding:5px 8px;border-radius:5px;background:var(--paper);border-left:3px solid var(--border);color:var(--ink-3)">[ idle ] Rule 2: Value &gt; 0.35 → red-ink bold (Stop If True)</div>
+            <div>Sandbox test override: <span class="badge teal">0.38</span> → <span class="badge red">Rule 2 Triggers</span> (cell untouched)</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <span class="chip-btn">Esc Discard</span><span class="chip-btn teal">Commit to B13 (Ctrl+Enter)</span>
+        </div>
+      </div></div>
+      <div class="strip"><span>Docked over Classic</span><span class="strip-telemetry"><span class="pill-amber">Preview Seam Active</span></span></div>
+    </div>
+  </div>
+  <div class="callouts">
+    <div class="co"><span class="pin">1</span><span><b>Local Inputs Sandbox:</b> Zero-workbook standalone build replaces cell refs with typed scalars/arrays/errors.</span></div>
+    <div class="co"><span class="pin">2</span><span><b>Shared Workbench Core:</b> Identical editor, evaluation tree, format lab, and CF tester in both forms.</span></div>
+    <div class="co"><span class="pin">3</span><span><b>Number Format Lab:</b> Previews 4-section Excel format codes across positive, negative, zero, and error cases.</span></div>
+    <div class="co"><span class="pin">4</span><span><b>Workbook Pre-Binding:</b> Embedded drawer reads live precedents and feeds deltas straight to the Preview Seam.</span></div>
+    <div class="co"><span class="pin">5</span><span><b>CF Rule Simulator:</b> Tests threshold overrides safely without altering workbook values.</span></div>
+  </div>
+</section>
+
+</main>
+
+<script>
+(function () {
+  var themeBtns = document.querySelectorAll('#themes button');
+  themeBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.documentElement.setAttribute('data-theme', btn.dataset.t);
+      themeBtns.forEach(function (b) { b.classList.toggle('active', b === btn); });
+    });
+  });
+
+  var filterBtns = document.querySelectorAll('#filters button');
+  var sections = document.querySelectorAll('.mockup-section');
+  filterBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var f = btn.dataset.f;
+      filterBtns.forEach(function (b) { b.classList.toggle('active', b === btn); });
+      sections.forEach(function (sec) {
+        var tags = (sec.dataset.tags || '').split(/\s+/);
+        sec.classList.toggle('hidden', f !== 'all' && tags.indexOf(f) === -1);
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>

@@ -627,14 +627,25 @@ fn reroute(host: &HostState, sheet: SheetId, shapes: &mut [Shape], index: usize,
     // the same site/turn rule as bent connectors (ASSUMED until measured in Excel; dc-zjsg.5).
     let mut new_class = None;
     if let (Some(a), Some(b)) = (c.begin, c.end) {
-        let exit = |connection: calc_doc_model::ShapeConnection| {
+        let info = |connection: calc_doc_model::ShapeConnection| {
             let target = shapes.iter().position(|s| s.id == connection.shape)?;
-            site_exit(&shapes[target], rectangle(host, sheet, shapes, target, originals), connection.site)
+            let rect = rectangle(host, sheet, shapes, target, originals);
+            Some((site_exit(&shapes[target], rect, connection.site)?, rect))
         };
-        if let (Some(d1), Some(d2), Some((prefix, class))) = (exit(a), exit(b), c.geometry.as_deref().and_then(elbow_class)) {
+        if let (Some((d1, ra)), Some((d2, rb)), Some((prefix, class))) = (info(a), info(b), c.geometry.as_deref().and_then(elbow_class)) {
             let adjust = |name: &str| c.adjust.iter().find(|(n, _)| n == name).map_or(0.5, |(_, v)| *v as f64 / 100_000.0);
             let current = [adjust("adj1"), adjust("adj2"), adjust("adj3")];
-            if let Some((class, rot, changed)) = elbow_route(start, end, d1, d2, class, rotation, current) {
+            let gap = |(a0, a1): (f64, f64), (b0, b1): (f64, f64)| -> Option<f64> {
+                if a1 < b0 - 0.01 {
+                    Some((a1 + b0) / 2.0)
+                } else if b1 < a0 - 0.01 {
+                    Some((b1 + a0) / 2.0)
+                } else {
+                    None
+                }
+            };
+            let gap_mid = (gap((ra.0, ra.0 + ra.2), (rb.0, rb.0 + rb.2)), gap((ra.1, ra.1 + ra.3), (rb.1, rb.1 + rb.3)));
+            if let Some((class, rot, changed)) = elbow_route(start, end, d1, d2, class, rotation, current, gap_mid) {
                 new_class = changed.map(|a| (prefix, class, a));
                 rotation = rot;
             }
@@ -709,55 +720,96 @@ fn elbow_fits(start: (f64, f64), end: (f64, f64), d1: (i32, i32), d2: (i32, i32)
     first == d1 && last == (-d2.0, -d2.1) && !doubles_back
 }
 
-/// How far past a shape's edge an elbow goes to turn round it, in points (assumed: not measured in Excel).
+/// How far past a shape's edge an elbow goes to turn round it, in points (Excel-measured: dw3 Windows item 4).
 const ELBOW_STANDOFF: f64 = 18.0;
 
 /// How an elbow connector of `class`, turned `rotation` with adjust shares `current`, is to run from `start` to `end`
 /// when its ends leave by `d1` and face `d2`: `(class, turn, None)` if the same class and turn with its adjust
 /// values still fit (kept as Excel keeps them), else the first of the classes 2 to 5, and quarter turns starting from
-/// the current one, that fits, with the adjust values (shares) that do: the middle legs at half way, or, where the
-/// route must go round, a leg [`ELBOW_STANDOFF`] outside the box. `None` if nothing fits: the connector is left as it
-/// was. Excel's own choice of class and of adjust values for such a route is not measured (dc-zjsg.5).
-fn elbow_route(start: (f64, f64), end: (f64, f64), d1: (i32, i32), d2: (i32, i32), class: u32, rotation: i64, current: [f64; 3]) -> Option<(u32, i64, Option<[f64; 3]>)> {
-    let (class, rotation, adjust) = elbow_route_any(start, end, d1, d2, class, rotation, current)?;
-    // Excel stores a run that goes against the connector's own y as a flip of x and the turn half a turn on, never a
-    // flip of y (Excel: a bentConnector3 from a bottom to a top site, the lower shape moved right, went from rot 90 to
-    // rot 270 with flipH, dw2 Windows item 4): of the two turns that draw the same route, the one without a flip of y.
+/// the current one, that fits, with the adjust values (shares) that do: the middle leg at the midpoint of the gap
+/// between the two shapes' boxes (`gap_mid`, else half way), or, where the route must go round, a leg
+/// [`ELBOW_STANDOFF`] outside the box (Excel-measured: dw3 Windows item 4). `None` if nothing fits: the connector is
+/// left as it was.
+fn elbow_route(
+    start: (f64, f64),
+    end: (f64, f64),
+    d1: (i32, i32),
+    d2: (i32, i32),
+    class: u32,
+    rotation: i64,
+    current: [f64; 3],
+    gap_mid: (Option<f64>, Option<f64>),
+) -> Option<(u32, i64, Option<[f64; 3]>)> {
+    let (class, rotation, adjust) = elbow_route_any(start, end, d1, d2, class, rotation, current, gap_mid)?;
+    // Excel stores a quarter-turned run against the connector's y as flipH and the turn half a turn on (rot 90 -> 270
+    // with flipH, dw2 Windows item 4); an unturned horizontal-start connector keeps rot 0 with flipV (dw3 item 4 c4).
     let used = adjust.unwrap_or(current);
     let run = turned((end.0 - start.0, end.1 - start.1), -rotation);
     let other = (rotation + 180 * 60_000).rem_euclid(360 * 60_000);
-    if run.1 < -0.01 && elbow_fits(start, end, d1, d2, class, other, used) {
+    if quarter(rotation) && run.1 < -0.01 && elbow_fits(start, end, d1, d2, class, other, used) {
         return Some((class, other, adjust));
     }
     Some((class, rotation, adjust))
 }
 
-fn elbow_route_any(start: (f64, f64), end: (f64, f64), d1: (i32, i32), d2: (i32, i32), class: u32, rotation: i64, current: [f64; 3]) -> Option<(u32, i64, Option<[f64; 3]>)> {
+fn elbow_route_any(
+    start: (f64, f64),
+    end: (f64, f64),
+    d1: (i32, i32),
+    d2: (i32, i32),
+    class: u32,
+    rotation: i64,
+    current: [f64; 3],
+    gap_mid: (Option<f64>, Option<f64>),
+) -> Option<(u32, i64, Option<[f64; 3]>)> {
     if elbow_fits(start, end, d1, d2, class, rotation, current) {
         return Some((class, rotation, None));
     }
-    let quarter = 90 * 60_000;
+    let quarter_turn = 90 * 60_000;
+    let share = |mid: Option<f64>, a: f64, b: f64| -> f64 {
+        let Some(m) = mid else { return 0.5 };
+        if (b - a).abs() > 0.5 {
+            let s = (m - a) / (b - a);
+            if s > 0.01 && s < 0.99 {
+                return s;
+            }
+        }
+        0.5
+    };
     for k in 2..=5u32 {
         for step in 0..4 {
-            let r = (rotation + step * quarter).rem_euclid(4 * quarter);
+            let r = (rotation + step * quarter_turn).rem_euclid(4 * quarter_turn);
             let run = turned((end.0 - start.0, end.1 - start.1), -r);
             let (w, h) = (run.0.abs(), run.1.abs());
-            // Each adjust value: half way, below the start's side of the box, or past the far side. Fewest detours first.
-            let options = |size: f64| if size > 0.5 { vec![0.5, -ELBOW_STANDOFF / size, 1.0 + ELBOW_STANDOFF / size] } else { vec![0.5] };
-            let (ox, oy) = (options(w), options(h));
-            let mut combos: Vec<[f64; 3]> = Vec::new();
-            for &x1 in &ox {
-                for &y2 in &oy {
-                    for &x3 in &ox {
-                        combos.push([x1, y2, x3]);
+            let (mid_x, mid_y) = if quarter(r) {
+                (share(gap_mid.1, start.1, end.1), share(gap_mid.0, start.0, end.0))
+            } else {
+                (share(gap_mid.0, start.0, end.0), share(gap_mid.1, start.1, end.1))
+            };
+            // Each adjust value: mid-gap (or half way), below the start's side of the box, or past the far side. Fewest detours first.
+            let options = |mid: f64, size: f64| if size > 0.5 { vec![mid, -ELBOW_STANDOFF / size, 1.0 + ELBOW_STANDOFF / size] } else { vec![mid] };
+            let (ox, oy) = (options(mid_x, w), options(mid_y, h));
+            let mut combos: Vec<([f64; 3], usize)> = Vec::new();
+            for (ix1, &x1) in ox.iter().enumerate() {
+                for (iy2, &y2) in oy.iter().enumerate() {
+                    for (ix3, &x3) in ox.iter().enumerate() {
+                        // Unused adjust slots stay at their default (index 0) so duplicates are not tried.
+                        let unused_ok = match k {
+                            2 => ix1 == 0 && iy2 == 0 && ix3 == 0,
+                            3 => iy2 == 0 && ix3 == 0,
+                            4 => ix3 == 0,
+                            _ => true,
+                        };
+                        if unused_ok {
+                            let detours = usize::from(ix1 != 0) + usize::from(iy2 != 0) + usize::from(ix3 != 0);
+                            combos.push(([x1, y2, x3], detours));
+                        }
                     }
                 }
             }
-            combos.sort_by_key(|c| c.iter().filter(|v| **v != 0.5).count());
-            for a in combos {
-                // A class uses only its own adjust values: the others stay at half so duplicates are not tried.
-                let used = a.iter().skip(k as usize - 2).all(|v| *v == 0.5);
-                if used && elbow_fits(start, end, d1, d2, k, r, a) {
+            combos.sort_by_key(|(_, detours)| *detours);
+            for (a, _) in combos {
+                if elbow_fits(start, end, d1, d2, k, r, a) {
                     return Some((k, r, Some(a)));
                 }
             }
@@ -1209,7 +1261,8 @@ impl Frame {
         }) - 1
     }
 
-    /// The index before the edit of the (0-based) one `i` after it; `None` inside inserted cells.
+    /// The index before the edit of the (0-based) one `i` after it; `None` inside inserted cells or
+    /// tail cells shifted in by a delete (neither has a pre-image in the file's coordinates).
     fn backward_index(edit: calc_doc_model::AxisEdit, i: u32) -> Option<u32> {
         let x = i + 1;
         let before = match edit.change() {
@@ -1217,7 +1270,7 @@ impl Frame {
             calc_doc_model::AxisChange::Insert if x <= edit.last() => return None,
             calc_doc_model::AxisChange::Insert => x - edit.count(),
             calc_doc_model::AxisChange::Delete if x < edit.first() => x,
-            calc_doc_model::AxisChange::Delete => (x + edit.count()).min(edit.axis().size()),
+            calc_doc_model::AxisChange::Delete => x.checked_add(edit.count()).filter(|&b| b <= edit.axis().size())?,
         };
         Some(before - 1)
     }
