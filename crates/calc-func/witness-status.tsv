@@ -496,7 +496,7 @@ MONTH	full	20430	10153	10153	-	exact	6e3d35aa62+changes	0
 MONTH	pinned	20430	120	120	-	exact	6e3d35aa62	0
 MROUND	full	20430	50782	50782	-	exact	6e3d35aa62+changes	0
 MROUND	pinned	20430	120	120	-	exact	6e3d35aa62	0
-MULTINOMIAL	full	20527	2804	2569	4672	gross	67e3a80634+changes	0
+MULTINOMIAL	full	20527	2804	2804	-	exact	209aa59c1d+changes	0
 MUNIT	full	20527	1277	1277	-	exact	6e3d35aa62+changes	0
 N	full	20430	1227	1227	-	exact	6e3d35aa62+changes	0
 N	pinned	20430	120	120	-	exact	6e3d35aa62	0
