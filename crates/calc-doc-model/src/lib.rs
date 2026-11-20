@@ -77,7 +77,7 @@ mod conditional;
 mod definitions;
 mod filter;
 pub use conditional::ConditionalRuleSource;
-pub use filter::{AutoFilter, FilterCriteria, FilterOperator, FilterPredicate};
+pub use filter::{AutoFilter, CALENDAR_PERIODS, FilterCriteria, FilterOperator, FilterPredicate};
 mod formula_block;
 mod input;
 pub use calc_syntax::{FormulaForm, SemanticTemplateKey, TemplatePlacement};

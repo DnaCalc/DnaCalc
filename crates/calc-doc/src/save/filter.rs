@@ -148,6 +148,20 @@ pub(super) fn render(prefix: &str, filter: &AutoFilter, definitions: &Definition
                 xstring_attribute(&value.encode_utf16().collect::<Vec<_>>(), &mut out);
                 out.extend(b"/>");
             }
+            FilterCriteria::Calendar {
+                period,
+                val,
+                max_val,
+            } => {
+                out.extend(format!("<{prefix}dynamicFilter type=\"{period}\"").bytes());
+                for (name, value) in [("val", val), ("maxVal", max_val)] {
+                    if let Some(value) = value {
+                        out.extend(format!(" {name}=").bytes());
+                        xstring_attribute(&value.encode_utf16().collect::<Vec<_>>(), &mut out);
+                    }
+                }
+                out.extend(b"/>");
+            }
             FilterCriteria::Average { above, val } => {
                 out.extend(
                     format!(

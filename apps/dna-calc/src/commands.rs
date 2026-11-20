@@ -1069,6 +1069,7 @@ pub fn filter_controls(controller: Controller) -> AnyView {
     let date_groups = RwSignal::new(String::new());
     let date_blank = RwSignal::new(false);
     let top_direction = RwSignal::new(true);
+    let calendar_period = RwSignal::new("today".to_owned());
     let top_percent = RwSignal::new(false);
     let top_count = RwSignal::new("10".to_owned());
     let current = move || controller.filter_view();
@@ -1350,6 +1351,69 @@ pub fn filter_controls(controller: Controller) -> AnyView {
                             "Apply date groups"
                         </button>
                     </div>
+                </details>
+                <details data-dnacalc="filter-calendar-tools">
+                    <summary>"Date period"</summary>
+                    <div class="dc-command-row">
+                        <label>
+                            "Dates in "
+                            <select
+                                data-dnacalc="filter-calendar-period"
+                                on:change=move |ev| calendar_period.set(event_target_value(&ev))
+                            >
+                                {[
+                                    ("today", "Today"),
+                                    ("yesterday", "Yesterday"),
+                                    ("tomorrow", "Tomorrow"),
+                                    ("thisWeek", "This week"),
+                                    ("lastWeek", "Last week"),
+                                    ("nextWeek", "Next week"),
+                                    ("thisMonth", "This month"),
+                                    ("lastMonth", "Last month"),
+                                    ("nextMonth", "Next month"),
+                                    ("thisQuarter", "This quarter"),
+                                    ("lastQuarter", "Last quarter"),
+                                    ("nextQuarter", "Next quarter"),
+                                    ("thisYear", "This year"),
+                                    ("lastYear", "Last year"),
+                                    ("nextYear", "Next year"),
+                                    ("yearToDate", "Year to date"),
+                                    ("Q1", "Quarter 1"),
+                                    ("Q2", "Quarter 2"),
+                                    ("Q3", "Quarter 3"),
+                                    ("Q4", "Quarter 4"),
+                                    ("M1", "January"),
+                                    ("M2", "February"),
+                                    ("M3", "March"),
+                                    ("M4", "April"),
+                                    ("M5", "May"),
+                                    ("M6", "June"),
+                                    ("M7", "July"),
+                                    ("M8", "August"),
+                                    ("M9", "September"),
+                                    ("M10", "October"),
+                                    ("M11", "November"),
+                                    ("M12", "December"),
+                                ]
+                                    .into_iter()
+                                    .map(|(value, label)| {
+                                        view! { <option value=value>{label}</option> }
+                                    })
+                                    .collect_view()}
+                            </select>
+                        </label>
+                        <button
+                            data-dnacalc="filter-calendar-apply"
+                            on:click=move |_| {
+                                controller.calendar_filter(calendar_period.get_untracked())
+                            }
+                        >
+                            "Apply date period"
+                        </button>
+                    </div>
+                    <p class="dc-muted">
+                        "Uses the current date; weeks run Sunday to Saturday. Dates are matched by day."
+                    </p>
                 </details>
                 <details data-dnacalc="filter-top-tools">
                     <summary>"Top or bottom numbers"</summary>

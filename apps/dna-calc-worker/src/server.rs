@@ -1303,6 +1303,12 @@ impl Server {
                                 percent: *percent,
                                 value: value.clone(),
                             },
+                            calc_host::FilterCriteria::Calendar { period, .. } => {
+                                wire::FilterChange::Calendar {
+                                    column,
+                                    period: period.clone(),
+                                }
+                            }
                             calc_host::FilterCriteria::Average { above, .. } => {
                                 wire::FilterChange::Average {
                                     column,
@@ -2681,6 +2687,14 @@ impl Server {
                             top,
                             percent,
                             value,
+                        }),
+                    },
+                    W::Calendar { column, period } => H::Column {
+                        column,
+                        criteria: Some(FilterCriteria::Calendar {
+                            period,
+                            val: None,
+                            max_val: None,
                         }),
                     },
                     W::Average { column, above } => H::Column {
