@@ -11,7 +11,7 @@
 use crate::locale::{
     DateSystem as WorkbookDateSystem, excel_serial_from_ymd, ymd_from_excel_serial,
 };
-use crate::ported::excel_numeric::crt_pow;
+use crate::ported::excel_numeric::{excel_pow_chain, excel_x87_div};
 use crate::value::CalcValue;
 use crate::value::WorksheetErrorCode;
 
@@ -160,6 +160,39 @@ fn days360_eu(start: i64, end: i64) -> Result<f64, OddBondEvalError> {
         ed = 30;
     }
     Ok(((ey - sy) * 360 + (em - sm) * 30 + (ed - sd)) as f64)
+}
+
+fn days360_us_accrued(start: i64, end: i64) -> Result<f64, OddBondEvalError> {
+    let (sy, sm, mut sd) = ymd(start)?;
+    let (mut ey, mut em, mut ed) = ymd(end)?;
+    let feb_end = |y: i64, m: i64| if y == 1900 { 29 } else { days_in_month(y, m) };
+    let start_last_feb = sm == 2 && sd == feb_end(sy, sm);
+    let end_last_feb = em == 2 && ed == feb_end(ey, em);
+    if ed == 31 {
+        if sd < 30 {
+            (ey, em) = if em == 12 { (ey + 1, 1) } else { (ey, em + 1) };
+            ed = 1;
+        } else {
+            ed = 30;
+        }
+    }
+    if sd == 31 || start_last_feb {
+        sd = 30;
+    }
+    if start_last_feb && end_last_feb {
+        ed = 30;
+    }
+    Ok(((ey - sy) * 360 + (em - sm) * 30 + (ed - sd)) as f64)
+}
+
+fn day_count_accrued(start: i64, end: i64, basis: DayCountBasis) -> Result<f64, OddBondEvalError> {
+    match basis {
+        DayCountBasis::Us30_360 => days360_us_accrued(start, end),
+        DayCountBasis::ActualActual | DayCountBasis::Actual360 | DayCountBasis::Actual365 => {
+            Ok((end - start) as f64)
+        }
+        DayCountBasis::European30_360 => days360_eu(start, end),
+    }
 }
 
 fn day_count(start: i64, end: i64, basis: DayCountBasis) -> Result<f64, OddBondEvalError> {
@@ -347,63 +380,28 @@ fn validate_positive_inputs(values: &[f64]) -> Result<(), OddBondEvalError> {
 }
 
 /// Excel's bond discount factor uses the C-runtime `pow` integer special case: binary
-/// exponentiation for non-negative integer exponents, `powf` otherwise. Identical to
-/// `bond_core_family::excel_bond_pow` (W109, held-out validated 25/25 on PRICE). For
-/// fractional exponents this equals `base.powf(exp)`, so only integer-exponent (e.g.
-/// on-coupon / whole-quasi-period) odd bonds change.
+/// exponentiation (`binexp_positive`) for non-negative integer exponents, `excel_pow_chain`
+/// otherwise. Identical to `bond_core_family::excel_bond_pow`.
 fn excel_bond_pow(base: f64, exp: f64) -> f64 {
     if exp >= 0.0 && exp < 1024.0 && exp.fract() == 0.0 {
-        let mut n = exp as u64;
-        let mut r = 1.0_f64;
-        let mut b = base;
-        while n > 0 {
-            if n & 1 == 1 {
-                r *= b;
-            }
-            n >>= 1;
-            if n > 0 {
-                b *= b;
-            }
-        }
-        r
+        crate::ported::power_fn::binexp_positive(base, exp as u64)
     } else {
-        crt_pow(base, exp)
+        excel_pow_chain(base, exp)
     }
 }
-pub fn oddfprice_kernel(
-    settlement: f64,
-    maturity: f64,
-    issue: f64,
-    first_coupon: f64,
+
+#[allow(clippy::too_many_arguments)]
+fn oddfprice_inner(
+    settlement: i64,
+    maturity: i64,
+    issue: i64,
+    first_coupon: i64,
     rate: f64,
     yld: f64,
     redemption: f64,
-    frequency: f64,
-    basis: Option<f64>,
+    frequency: i64,
+    basis: DayCountBasis,
 ) -> Result<f64, OddBondEvalError> {
-    validate_positive_inputs(&[
-        settlement,
-        maturity,
-        issue,
-        first_coupon,
-        rate,
-        yld,
-        redemption,
-        frequency,
-    ])?;
-    if rate < 0.0 || yld < 0.0 || redemption <= 0.0 {
-        return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
-    }
-    let settlement = parse_date_serial(settlement)?;
-    let maturity = parse_date_serial(maturity)?;
-    let issue = parse_date_serial(issue)?;
-    let first_coupon = parse_date_serial(first_coupon)?;
-    let frequency = parse_frequency(frequency)?;
-    let basis = parse_basis(basis.unwrap_or(0.0))?;
-    if !(issue < settlement && settlement < first_coupon && first_coupon <= maturity) {
-        return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
-    }
-
     // Faithful port of ExcelFinancialFunctions `oddFPrice` (oddbonds.fs), which is
     // bit-exact with live Excel across every day-count basis (verified by the G6
     // three-way ledger). Two branches: a short odd first coupon (DFC < E) and a
@@ -419,7 +417,7 @@ pub fn oddfprice_kernel(
     }
     let dfc = day_count_non_negative(issue, first_coupon, basis)?;
     let x = yld / m + 1.0;
-    if x <= 0.0 {
+    if !(x > 0.0) || !x.is_finite() {
         return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
     }
 
@@ -429,7 +427,7 @@ pub fn oddfprice_kernel(
         let dsc = day_count_non_negative(settlement, first_coupon, basis)?;
         let a = day_count_non_negative(issue, settlement, basis)?;
         let y = dsc / e;
-        let term1 = redemption / excel_bond_pow(x, n - 1.0 + y);
+        let term1 = excel_x87_div(redemption, excel_bond_pow(x, n - 1.0 + y));
         let term2 = 100.0 * rate / m * dfc / e / excel_bond_pow(x, y);
         let mut term3 = 0.0;
         for index in aggr_indices(2, n as i64) {
@@ -480,7 +478,7 @@ pub fn oddfprice_kernel(
         let nq = whole_coupon_count(first_coupon, settlement, months_per_coupon)?;
         let n = number_of_coupons(first_coupon, maturity, frequency)?;
         let y = dsc / e;
-        let term1 = redemption / excel_bond_pow(x, y + nq + n);
+        let term1 = excel_x87_div(redemption, excel_bond_pow(x, y + nq + n));
         let term2 = 100.0 * rate / m * dcnl / excel_bond_pow(x, nq + y);
         let mut term3 = 0.0;
         for index in aggr_indices(1, n as i64) {
@@ -495,6 +493,52 @@ pub fn oddfprice_kernel(
     } else {
         Err(OddBondEvalError::Domain(WorksheetErrorCode::Num))
     }
+}
+
+pub fn oddfprice_kernel(
+    settlement: f64,
+    maturity: f64,
+    issue: f64,
+    first_coupon: f64,
+    rate: f64,
+    yld: f64,
+    redemption: f64,
+    frequency: f64,
+    basis: Option<f64>,
+) -> Result<f64, OddBondEvalError> {
+    validate_positive_inputs(&[
+        settlement,
+        maturity,
+        issue,
+        first_coupon,
+        rate,
+        yld,
+        redemption,
+        frequency,
+    ])?;
+    if rate < 0.0 || yld < 0.0 || redemption <= 0.0 {
+        return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
+    }
+    let settlement = parse_date_serial(settlement)?;
+    let maturity = parse_date_serial(maturity)?;
+    let issue = parse_date_serial(issue)?;
+    let first_coupon = parse_date_serial(first_coupon)?;
+    let frequency = parse_frequency(frequency)?;
+    let basis = parse_basis(basis.unwrap_or(0.0))?;
+    if !(issue < settlement && settlement < first_coupon && first_coupon <= maturity) {
+        return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
+    }
+    oddfprice_inner(
+        settlement,
+        maturity,
+        issue,
+        first_coupon,
+        rate,
+        yld,
+        redemption,
+        frequency,
+        basis,
+    )
 }
 
 pub fn oddlprice_kernel(
@@ -585,56 +629,26 @@ pub fn oddlprice_kernel(
     }
 }
 
-fn solve_yield_bisection(
-    target_price: f64,
-    price_at_yield: impl Fn(f64) -> Result<f64, OddBondEvalError>,
+fn oddfyield_years_to_maturity(
+    settlement: i64,
+    maturity: i64,
+    basis: DayCountBasis,
 ) -> Result<f64, OddBondEvalError> {
-    if target_price <= 0.0 || !target_price.is_finite() {
-        return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
-    }
-    let low = 0.0;
-    let price_low = price_at_yield(low)?;
-    if target_price > price_low {
-        return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
-    }
-    let mut hi = 0.1;
-    let mut price_hi = price_at_yield(hi)?;
-    for _ in 0..32 {
-        if price_hi <= target_price {
-            break;
-        }
-        hi *= 2.0;
-        price_hi = price_at_yield(hi)?;
-    }
-    if price_hi > target_price {
-        return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
-    }
-
-    // Bisection to adjacent binary64 bounds (full convergence, dc-ifc: Excel's ODDFYIELD
-    // converges past the former 1e-12 price tolerance), then the bound with the smaller residual.
-    let mut lo = low;
-    let mut hi_mut = hi;
-    for _ in 0..2200 {
-        let mid = (lo + hi_mut) / 2.0;
-        if mid <= lo || mid >= hi_mut {
-            break;
-        }
-        let price_mid = price_at_yield(mid)?;
-        if price_mid == target_price {
-            return Ok(mid);
-        }
-        if price_mid > target_price {
-            lo = mid;
-        } else {
-            hi_mut = mid;
-        }
-    }
-    let residual = |y: f64| price_at_yield(y).map(|p| (p - target_price).abs());
-    Ok(match (residual(lo), residual(hi_mut)) {
-        (Ok(a), Ok(b)) if a < b => lo,
-        (Ok(_), Err(_)) => lo,
-        _ => hi_mut,
-    })
+    let (sy, sm, sd) = ymd(settlement)?;
+    let (my, mm, md) = ymd(maturity)?;
+    let whole_years = (my - sy) - i64::from(mm < sm || (mm == sm && md < sd));
+    let shifted_start =
+        excel_serial_from_ymd(WorkbookDateSystem::System1900, sy + whole_years, sm, 1)
+            .ok_or(OddBondEvalError::Domain(WorksheetErrorCode::Num))? as i64
+            + (sd - 1);
+    let frac = match basis {
+        DayCountBasis::Us30_360 => days360_us_accrued(shifted_start, maturity)? / 360.0,
+        DayCountBasis::ActualActual => (maturity - shifted_start) as f64 / days_in_year(my),
+        DayCountBasis::Actual360 => (maturity - shifted_start) as f64 / 360.0,
+        DayCountBasis::Actual365 => (maturity - shifted_start) as f64 / 365.0,
+        DayCountBasis::European30_360 => days360_eu(shifted_start, maturity)? / 360.0,
+    };
+    Ok(whole_years as f64 + frac)
 }
 
 pub fn oddfyield_kernel(
@@ -649,38 +663,105 @@ pub fn oddfyield_kernel(
     basis: Option<f64>,
 ) -> Result<f64, OddBondEvalError> {
     // Numeric date admission belongs to ODDFYIELD before price inversion.
-    // Excel20527 gives NUM for zero serials, and requires first_coupon to be
-    // on maturity's schedule. All820 independent date-grid calls agree with
+    // Excel 20527 gives #NUM! for zero serials, and requires first_coupon to be
+    // on maturity's schedule. All 820 independent date-grid calls agree with
     // the public COUPPCD test, including clamped and month-end dates.
     let date = |value| {
         parse_date_serial(value).map_err(|_| OddBondEvalError::Domain(WorksheetErrorCode::Num))
     };
-    let settlement = date(settlement)? as f64;
-    let maturity = date(maturity)? as f64;
-    let issue = date(issue)? as f64;
-    let first_coupon = date(first_coupon)? as f64;
-    if !(issue < settlement && settlement < first_coupon && first_coupon < maturity) {
+    let settlement_serial = date(settlement)?;
+    let maturity_serial = date(maturity)?;
+    let issue_serial = date(issue)?;
+    let first_coupon_serial = date(first_coupon)?;
+    if !(issue_serial < settlement_serial
+        && settlement_serial < first_coupon_serial
+        && first_coupon_serial < maturity_serial)
+    {
         return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
     }
-    let previous =
-        crate::ported::coupon_family::couppcd_kernel(first_coupon, maturity, frequency, basis)
-            .map_err(OddBondEvalError::Domain)?;
-    if previous != first_coupon {
+    let previous = crate::ported::coupon_family::couppcd_kernel(
+        first_coupon_serial as f64,
+        maturity_serial as f64,
+        frequency,
+        basis,
+    )
+    .map_err(OddBondEvalError::Domain)?;
+    if previous != first_coupon_serial as f64 {
         return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
     }
-    solve_yield_bisection(pr, |y| {
-        oddfprice_kernel(
-            settlement,
-            maturity,
-            issue,
-            first_coupon,
+    if pr <= 0.0 || !pr.is_finite() {
+        return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
+    }
+    validate_positive_inputs(&[rate, redemption, frequency])?;
+    if rate < 0.0 || redemption <= 0.0 {
+        return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
+    }
+    let freq = parse_frequency(frequency)?;
+    let basis_enum = parse_basis(basis.unwrap_or(0.0))?;
+
+    // Excel's ODDFYIELD solver (dc-j9k.40, measured on Excel 16.0.20527):
+    // 1. Par-100 seed `y_0` from schedule-free years-to-maturity `T` (`whole_years + frac(S_shifted, M)`
+    //    with `DATE(sy + whole_years, sm, sd)` rollover and `d = pr - 100.0` hardcoded).
+    // 2. Analytic Newton iteration on ODDFPRICE for up to 100 iterations using the regular-coupon
+    //    derivative (`n_s = COUPNUM(S, M, freq)`, `off = day_count_accrued(S, F, basis) / E`,
+    //    omitting the first-period `DFC/E` or `DCNL` factor), stopping when `|step| <= 1e-10`
+    //    and publishing the un-updated iterate `y` (or `y_100` after 100 iterations).
+    let f = freq as f64;
+    let tau = f * oddfyield_years_to_maturity(settlement_serial, maturity_serial, basis_enum)?;
+    let d = pr - 100.0;
+    let tc = (tau * rate * 100.0) / f;
+    let den = (tau * 100.0 + (d * tau) / 2.0) + (d * f) / 4.0;
+    let mut y = f * ((tc - d) / den);
+    if !y.is_finite() {
+        return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
+    }
+
+    let e = coup_days(settlement_serial, first_coupon_serial, freq, basis_enum)?;
+    if e <= 0.0 {
+        return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
+    }
+    let n_s = number_of_coupons(settlement_serial, maturity_serial, freq)? as i64;
+    let dsc_dir = day_count_accrued(settlement_serial, first_coupon_serial, basis_enum)?;
+    let off = dsc_dir / e;
+    let cp = (100.0 * rate) / f;
+
+    for _ in 0..100 {
+        let base = 1.0 + y / f;
+        if !(base > 0.0) || !base.is_finite() {
+            return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
+        }
+        let price = oddfprice_inner(
+            settlement_serial,
+            maturity_serial,
+            issue_serial,
+            first_coupon_serial,
             rate,
             y,
             redemption,
-            frequency,
-            basis,
-        )
-    })
+            freq,
+            basis_enum,
+        )?;
+        let mut slope = 0.0_f64;
+        for k in 0..n_s {
+            let ex = off + k as f64;
+            slope += (ex * cp) / excel_bond_pow(base, ex + 1.0);
+        }
+        let rex = off + (n_s - 1) as f64;
+        slope += (rex * redemption) / excel_bond_pow(base, rex + 1.0);
+        slope = -slope / f;
+        let step = (price - pr) / slope;
+        if !step.is_finite() {
+            return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
+        }
+        if step.abs() <= 1e-10 {
+            return Ok(y);
+        }
+        y -= step;
+    }
+    if !y.is_finite() {
+        return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
+    }
+    Ok(y)
 }
 
 pub fn oddlyield_kernel(
@@ -959,6 +1040,116 @@ mod tests {
                 got.to_bits(),
                 exp,
                 "ODDFPRICE yld={yld}: {:#018x} != {exp:#018x}",
+                got.to_bits()
+            );
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn oddfyield_corpus_bonds_match_excel_bits() {
+        // Live Excel 16.0.20527 oracle corpus pins (dc-j9k.40):
+        // Base bond: settle=39763 (2008-11-11), mat=44256 (2021-03-01),
+        // issue=39736 (2008-10-15), first_coupon=39873 (2009-03-01), pr=84.5, red=100, freq=2, basis=0.
+        let cases: [(&str, f64, f64, f64, u64); 6] = [
+            ("base r=0.0575", 39763.0, 39736.0, 0.0575, 0x3fb3c65d22ec15b6),
+            ("r23!D658 S-1", 39762.0, 39736.0, 0.0575, 0x3fb3c62fc291504a),
+            ("r23!D708 I-1", 39763.0, 39735.0, 0.0575, 0x3fb3c6546aed9963),
+            (
+                "r24!D3474 r+1ulp",
+                39763.0,
+                39736.0,
+                f64::from_bits(0x3fad70a3d70a3d72),
+                0x3fb3c65d22ec15b9,
+            ),
+            ("r24!D3475 r=0", 39763.0, 39736.0, 0.0, 0x3f8c20381118fdf7),
+            ("r24!D3477 r=1", 39763.0, 39736.0, 1.0, 0x3ff301bf41778b14),
+        ];
+        for (label, s, i, rate, expected_bits) in cases {
+            let got = oddfyield_kernel(s, 44256.0, i, 39873.0, rate, 84.5, 100.0, 2.0, Some(0.0))
+                .expect("oddfyield should succeed");
+            assert_eq!(
+                got.to_bits(),
+                expected_bits,
+                "ODDFYIELD {label}: got {:#018x} ({got}), expected {expected_bits:#018x} ({})",
+                got.to_bits(),
+                f64::from_bits(expected_bits)
+            );
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn oddfyield_negative_yield_and_iteration_budget() {
+        // Excel 16.0.20527 allows negative yields (pr above ODDFPRICE(0)) down to y > -freq,
+        // and publishes y_100 when the 100-iteration budget finishes without |step| <= 1e-10.
+        let neg = oddfyield_kernel(
+            serial(2020, 3, 1),
+            serial(2025, 7, 1),
+            serial(2020, 2, 1),
+            serial(2020, 7, 1),
+            0.06,
+            500.0,
+            100.0,
+            2.0,
+            Some(0.0),
+        )
+        .expect("negative yield should succeed");
+        assert_close(neg, -0.253_060_006_882_943_1, 1.0e-15);
+
+        // Long odd-first bond (Nq=19, nF=1, rate=2.0) that hits the 100-iteration budget:
+        let pr = oddfprice_kernel(
+            serial(2010, 2, 1),
+            serial(2020, 7, 1),
+            serial(2010, 1, 1),
+            serial(2020, 1, 1),
+            2.0,
+            0.1,
+            100.0,
+            2.0,
+            Some(0.0),
+        )
+        .expect("oddfprice should succeed");
+        let y100 = oddfyield_kernel(
+            serial(2010, 2, 1),
+            serial(2020, 7, 1),
+            serial(2010, 1, 1),
+            serial(2020, 1, 1),
+            2.0,
+            pr,
+            100.0,
+            2.0,
+            Some(0.0),
+        )
+        .expect("100-iteration budget publishes y_100");
+        assert_close(y100, -0.708_592_655_210_270_3, 1.0e-14);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn oddfyield_diverse_short_long_bases_match_excel_bits() {
+        // Subset of the 250/250 exact frozen-prediction holdout against Excel 16.0.20527
+        // (short & long odd first periods, all 5 bases, frequencies 1/2/4, varied redemptions
+        // and rates, positive and negative yields).
+        let cases: [(&str, f64, f64, f64, f64, f64, f64, f64, f64, f64, u64); 10] = [
+            ("short_b0_f4", 49024.0, 49796.0, 48993.0, 49065.0, 0.085, 162.3938, 125.0, 4.0, 0.0, 0xbfb03576e27923fc),
+            ("long_b0_f4", 49423.0, 50190.0, 49308.0, 49551.0, 0.085, 126.5634, 100.0, 4.0, 0.0, 0xbfa271348aefd4bf),
+            ("short_b1_f4", 46613.0, 47635.0, 46612.0, 46631.0, 0.015, 74.7736, 100.0, 4.0, 1.0, 0x3fbf7548b227ac60),
+            ("long_b1_f1", 44334.0, 48790.0, 43411.0, 44407.0, 0.0, 79.9908, 100.0, 1.0, 1.0, 0x3f92e95e0964692b),
+            ("short_b2_f4", 47391.0, 48791.0, 47357.0, 47422.0, 0.085, 47.2902, 80.0, 4.0, 2.0, 0x3fd23b53825dc9e1),
+            ("long_b2_f1", 44096.0, 45288.0, 43553.0, 44558.0, 0.015, 31.1121, 80.0, 1.0, 2.0, 0x3fd709f3e4d5a6a8),
+            ("short_b3_f1", 44321.0, 45458.0, 44234.0, 44362.0, 0.015, 35.2708, 100.0, 1.0, 3.0, 0x3fdb764e8beedcaf),
+            ("long_b3_f1", 47488.0, 47967.0, 47181.0, 47602.0, 0.015, 104.0951, 100.0, 1.0, 3.0, 0xbf8ffa815997cf46),
+            ("short_b4_f2", 43293.0, 46218.0, 43230.0, 43296.0, 0.0, 237.339, 200.0, 2.0, 4.0, 0xbf95c54c2a8a489f),
+            ("long_b4_f2", 47635.0, 49337.0, 47545.0, 48057.0, 0.015, 103.2134, 100.0, 2.0, 4.0, 0x3f80442c6f749823),
+        ];
+        for (label, s, m, i, f, r, pr, red, freq, basis, expected_bits) in cases {
+            let got = oddfyield_kernel(s, m, i, f, r, pr, red, freq, Some(basis))
+                .expect("oddfyield should succeed");
+            assert_eq!(
+                got.to_bits(),
+                expected_bits,
+                "ODDFYIELD {label}: got {:#018x}, expected {expected_bits:#018x}",
                 got.to_bits()
             );
         }
