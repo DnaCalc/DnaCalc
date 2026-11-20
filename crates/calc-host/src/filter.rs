@@ -539,14 +539,17 @@ pub(crate) fn apply(
                 )
             }
             FilterCriteria::Calendar { period, .. } => {
-                // The period test swallows errors, so a missing clock must refuse here.
-                let today = context
-                    .compile("TODAY()", origin, calc_fml::FormulaForm::Legacy)
-                    .map_err(|e| refusal(e))?
-                    .evaluate_in(&context, origin)
-                    .map_err(|e| refusal(e))?;
-                if today.as_number().is_none_or(|n| !n.is_finite()) {
-                    return Err(refusal("needs the clock for a date period, and none is set"));
+                // The period test swallows errors, so a missing clock must refuse here. Q1-Q4 and
+                // M1-M12 compare the date's own quarter or month and need no clock.
+                if !is_clock_free_period(period) {
+                    let today = context
+                        .compile("TODAY()", origin, calc_fml::FormulaForm::Legacy)
+                        .map_err(|e| refusal(e))?
+                        .evaluate_in(&context, origin)
+                        .map_err(|e| refusal(e))?;
+                    if today.as_number().is_none_or(|n| !n.is_finite()) {
+                        return Err(refusal("needs the clock for a date period, and none is set"));
+                    }
                 }
                 calendar_formula(&cell, period)?
             }
@@ -554,8 +557,9 @@ pub(crate) fn apply(
                 let start = label(origin).trim_end_matches(char::is_numeric).to_owned();
                 let range = format!("${start}${first}:${start}${}", filter.area.last().row());
                 format!(
-                    "AND(ISNUMBER({cell}),IFERROR({cell}{}AVERAGE({range}),FALSE))",
-                    if *above { ">" } else { "<" }
+                    "AND(ISNUMBER({cell}),IFERROR({cell}{}{}(1,6,{range}),FALSE))",
+                    if *above { ">" } else { "<" },
+                    file_call_name("AGGREGATE")
                 )
             }
             FilterCriteria::Color { .. } => unreachable!(),
@@ -810,6 +814,13 @@ fn fill_color(
 /// A measured function's name as a file writes its call (`_xlfn.XMATCH`), from the catalogue.
 fn file_call_name(name: &str) -> String {
     calc_func::file_call_name(name).expect("a function with a measured file form")
+}
+
+/// Whether a period filter compares only the date's own month or quarter (no clock).
+fn is_clock_free_period(period: &str) -> bool {
+    let number = |rest: &str, high: u8| rest.parse::<u8>().is_ok_and(|n| (1..=high).contains(&n));
+    period.strip_prefix('Q').is_some_and(|r| number(r, 4))
+        || period.strip_prefix('M').is_some_and(|r| number(r, 12))
 }
 
 /// The row test of a `dynamicFilter` date period over `cell`, on the clock's TODAY. Weeks run
