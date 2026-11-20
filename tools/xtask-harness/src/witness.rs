@@ -2788,6 +2788,15 @@ fn restore_pinned_context(
             candidates.get_mut(&key(&row.function, &source.source, &row.args, row.index))
         {
             list.push(row);
+        } else if row.index.is_some() {
+            // A pin taken before the bank recovered its result selection from the batch probes
+            // (LOGEST's G3-04 files, dc-iuwct.34) names no cell; it may take the bank's cell
+            // below, when exactly one reading of the same source and arguments has its answer.
+            if let Some(list) =
+                candidates.get_mut(&key(&row.function, &source.source, &row.args, None))
+            {
+                list.push(row);
+            }
         }
     }
     let mut restored = 0;
@@ -2812,9 +2821,14 @@ fn restore_pinned_context(
                 r.id == row.id && banks.sources[r.source].env.environment() == source.environment()
             });
             let mut contexts = BTreeMap::new();
+            let mut cells = BTreeSet::new();
             for candidate in list.iter().filter(|r| !same_id || r.id == row.id) {
                 let recorded = &banks.sources[candidate.source].env;
                 if recorded.environment() != source.environment() {
+                    continue;
+                }
+                if candidate.index != row.result_index && candidate.expected != row.expected {
+                    // Another cell of the same call: not this pin's reading.
                     continue;
                 }
                 if candidate.expected != row.expected {
@@ -2823,6 +2837,7 @@ fn restore_pinned_context(
                         set.function, row.id
                     ));
                 }
+                cells.insert(candidate.index);
                 contexts.insert(
                     recorded
                         .invocation
@@ -2832,6 +2847,17 @@ fn restore_pinned_context(
                     recorded.invocation.clone(),
                 );
             }
+            if cells.len() != 1 {
+                return Err(format!(
+                    "{} {}: {} possible result cells",
+                    set.function,
+                    row.id,
+                    cells.len()
+                ));
+            }
+            let cell = cells.into_iter().next().unwrap();
+            let cell_restored = cell != row.result_index;
+            row.result_index = cell;
             if contexts.len() != 1 {
                 return Err(format!(
                     "{} {}: {} possible source contexts",
@@ -2841,7 +2867,7 @@ fn restore_pinned_context(
                 ));
             }
             let (encoded, context) = contexts.into_iter().next().unwrap();
-            restored += usize::from(context != source.invocation);
+            restored += usize::from(context != source.invocation || cell_restored);
             let assigned_key = (source.id.clone(), encoded);
             if let Some(id) = assigned.get(&assigned_key) {
                 row.reading = id.clone();
@@ -2988,6 +3014,19 @@ fn refresh_pinned(
         if context_refresh {
             before = without_context_and_prediction(before)?;
             after = without_context_and_prediction(after)?;
+            // A restored result cell fills only a pin that named none.
+            for (b, a) in before["witnesses"]
+                .as_array_mut()
+                .ok_or("missing witnesses")?
+                .iter_mut()
+                .zip(after["witnesses"].as_array_mut().ok_or("missing witnesses")?)
+            {
+                if b.get("result_index").is_none() {
+                    a.as_object_mut()
+                        .ok_or("a witness is not an object")?
+                        .remove("result_index");
+                }
+            }
         } else {
             for value in [&mut before, &mut after] {
                 for row in value["witnesses"]
@@ -4809,6 +4848,76 @@ mod tests {
             without_context_and_prediction(changed_source).unwrap()
         );
         assert_eq!(restore_pinned_context(&mut sets, &banks).unwrap(), 0);
+    }
+
+    #[test]
+    fn context_refresh_takes_the_one_recovered_result_cell_of_an_unselected_pin() {
+        let args = vec![json!([["0x3ff0000000000000", "0x4000000000000000"]])];
+        let base = environment("r0".into(), "OxFunc-Evidence bank".into(), None, None, None);
+        let mut env = base.clone();
+        env.source = format!("{CHECKOUT} bank");
+        env.invocation = Some(calc_verdict::WitnessInvocation {
+            input_transport: Some("cell_value2_matrix".into()),
+            ..Default::default()
+        });
+        let mut banks = Banks {
+            sources: vec![Source {
+                path: "bank".into(),
+                env,
+            }],
+            readings: vec![],
+            files_read: 1,
+            import_notes: vec![],
+            unread_rows: BTreeMap::new(),
+        };
+        // The bank recovered two cells of one call; only the first has the pin's answer.
+        for (index, expected) in [((1, 2), "0x3ff0000000000000"), ((1, 1), "0x4000000000000000")] {
+            banks.readings.push(Reading {
+                function: "LOGEST".into(),
+                id: "call".into(),
+                args: args.clone(),
+                index: Some(index),
+                expected: expected.into(),
+                source: 0,
+            });
+        }
+        let pin = |expected: &str| WitnessSet {
+            function: "LOGEST".into(),
+            selection: "original sample".into(),
+            readings: vec![base.clone()],
+            witnesses: vec![WitnessRow {
+                id: "call".into(),
+                args: args.clone(),
+                result_index: None,
+                expected: expected.into(),
+                reading: "r0".into(),
+                calc_func: Some("fault:ResultShape".into()),
+            }],
+        };
+        let set = pin("0x3ff0000000000000");
+        let original: Value = serde_json::from_str(&set.encode()).unwrap();
+        let mut sets = vec![(PathBuf::from("LOGEST.json"), set)];
+        assert_eq!(restore_pinned_context(&mut sets, &banks).unwrap(), 1);
+        let updated = &sets[0].1;
+        assert_eq!(updated.witnesses[0].result_index, Some((1, 2)));
+        let reading = &updated.readings[0];
+        assert_eq!(
+            reading.invocation.as_ref().unwrap().input_transport.as_deref(),
+            Some("cell_value2_matrix")
+        );
+        // The comparison refresh makes ignores only a cell the pin did not name.
+        let mut enriched: Value = serde_json::from_str(&updated.encode()).unwrap();
+        enriched["witnesses"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("result_index");
+        assert_eq!(
+            without_context_and_prediction(original).unwrap(),
+            without_context_and_prediction(enriched).unwrap()
+        );
+        // No recovered cell has the pin's answer: refused.
+        let mut sets = vec![(PathBuf::from("LOGEST.json"), pin("0x4008000000000000"))];
+        assert!(restore_pinned_context(&mut sets, &banks).is_err());
     }
 
     #[test]
