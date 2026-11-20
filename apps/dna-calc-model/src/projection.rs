@@ -1240,6 +1240,10 @@ pub struct Summary {
     /// `initial_cell` at one corner; `None` for a single cell.
     #[serde(default)]
     pub initial_selection: Option<(u32, u32, u32, u32)>,
+    /// The other visible sheets' stored active cell and range selection, for sheets whose file
+    /// view is not just A1: the page opens each at that selection the first time it shows it.
+    #[serde(default)]
+    pub sheet_views: Vec<(Sheet, (u32, u32), Option<(u32, u32, u32, u32)>)>,
     pub workbook: u64,
     pub name: String,
     pub changed: bool,

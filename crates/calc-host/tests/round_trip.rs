@@ -13307,7 +13307,7 @@ fn dc_971p__numeric_sort_refusals_preserve_inputs_styles_and_revision() {
         r.error
             .unwrap()
             .to_string()
-            .contains("hidden or filtered rows")
+            .contains("hidden rows that no AutoFilter explains")
     );
     assert!(book.dispatch(SkinIntent::Undo).accepted());
     assert!(enter(&mut book, at(s, "A1"), "=SEQUENCE(2,2)").accepted());
@@ -14862,7 +14862,26 @@ fn dc_971p_38__shifted_source_formula_attributes_and_filter_ranges_refuse_atomic
     let mut saved = Vec::new();
     book.save(&SavePolicy::default(), &mut saved).unwrap();
     assert!(part_text(&saved, "xl/worksheets/sheet1.xml").contains("<autoFilter"));
-    // With criteria in force the rows are hidden or the filter is stateful: still atomic.
+    // Under criteria the hidden rows stay where they are and the visible rows sort among
+    // themselves, as in Excel.
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (row, input) in [(1, "Header"), (2, "5"), (3, "3"), (4, "9"), (5, "1"), (6, "7")] {
+        assert!(enter(&mut book, at(s, &format!("A{row}")), input).accepted());
+        if row > 1 {
+            assert!(enter(&mut book, at(s, &format!("B{row}")), &format!("=A{row}*10")).accepted());
+        }
+    }
+    let area = GridArea::new(at(s, "A1"), at(s, "B6")).unwrap();
+    let revision = book.host().revision().get();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change: calc_host::FilterChange::Enable { area }
+        }))
+        .accepted()
+    );
     let revision = book.host().revision().get();
     assert!(
         book.dispatch(SkinIntent::Command(W::AutoFilter {
@@ -14871,26 +14890,94 @@ fn dc_971p_38__shifted_source_formula_attributes_and_filter_ranges_refuse_atomic
             change: calc_host::FilterChange::Column {
                 column: 1,
                 criteria: Some(calc_doc_model::FilterCriteria::Values {
-                    values: vec!["1".into(), "2".into()],
+                    values: vec!["3".into(), "9".into(), "1".into()],
                     blank: false,
                 }),
             }
         }))
         .accepted()
     );
+    let hidden_rows = |b: &HostSession| {
+        b.host()
+            .model()
+            .definitions()
+            .auto_filter(s)
+            .unwrap()
+            .filtered_rows
+            .iter()
+            .copied()
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(hidden_rows(&book), vec![2, 6]);
+    let sort = |book: &mut HostSession, descending: bool| {
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(W::SortRows {
+            area,
+            keys: vec![SortKey {
+                column: 1,
+                descending,
+            }],
+            header: true,
+            revision,
+        }))
+    };
+    let result = sort(&mut book, false);
+    assert!(result.accepted(), "{result:?}");
+    let column = |book: &mut HostSession| {
+        (2..=6)
+            .map(|r| book.host().model().cell(at(s, &format!("A{r}"))).cloned())
+            .collect::<Vec<_>>()
+    };
+    let expected = |values: [f64; 5]| values.map(|v| Some(number(v))).to_vec();
+    assert_eq!(column(&mut book), expected([5., 1., 3., 9., 7.]));
+    assert_eq!(hidden_rows(&book), vec![2, 6]);
+    // The formulas moved with their rows, and recalculate to the rows' own values.
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    for row in 2..=6 {
+        let Some(calc_host::CellInput::Formula(f)) =
+            book.host().model().cell(at(s, &format!("B{row}")))
+        else {
+            panic!("B{row} lost its formula");
+        };
+        assert_eq!(f.text().to_string_lossy(), format!("A{row}*10"));
+    }
+    let result = sort(&mut book, true);
+    assert!(result.accepted(), "{result:?}");
+    assert_eq!(column(&mut book), expected([5., 9., 3., 1., 7.]));
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(column(&mut book), expected([5., 1., 3., 9., 7.]));
+    assert_eq!(hidden_rows(&book), vec![2, 6]);
+    // A row hidden by hand under no filter is still refused atomically.
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (row, input) in [(1, "Header"), (2, "2"), (3, "1")] {
+        assert!(enter(&mut book, at(s, &format!("A{row}")), input).accepted());
+    }
+    let revision = book.host().revision().get();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::AxisFormat {
+            sheet: s,
+            rows: true,
+            first: 2,
+            count: 1,
+            size_bits: None,
+            hidden: Some(true)
+        }))
+        .accepted()
+    );
+    let _ = revision;
     let before = book.host().revision();
     let result = book.dispatch(SkinIntent::Command(W::SortRows {
-        area,
+        area: GridArea::new(at(s, "A1"), at(s, "A3")).unwrap(),
         keys: vec![SortKey {
             column: 1,
-            descending: true,
+            descending: false,
         }],
         header: true,
         revision: before.get(),
     }));
     assert!(!result.accepted(), "{result:?}");
     assert_eq!(book.host().revision(), before);
-    assert_eq!(book.host().model().cell(at(s, "A2")), Some(&number(1.)));
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
