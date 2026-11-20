@@ -93,6 +93,8 @@ pub struct SeriesView {
     pub cached: bool,
     /// A bubble series' sizes, one per point.
     pub sizes: Vec<Option<f64>>,
+    /// The series' trendlines as the file states them, the colour resolved to `RRGGBB` (the series' when unstated).
+    pub trendlines: Vec<(calc_doc_model::ChartTrendline, String)>,
 }
 
 /// One plot of a chart.
@@ -283,7 +285,20 @@ impl HostState {
                                     .as_ref()
                                     .map(|data| self.series_values(Some(data), origin).0)
                                     .unwrap_or_default();
+                                let trendlines = series
+                                    .trendlines
+                                    .iter()
+                                    .map(|t| {
+                                        let colour = t
+                                            .colour
+                                            .as_deref()
+                                            .and_then(|c| if c.len() == 6 && c.chars().all(|c| c.is_ascii_hexdigit()) { Some(c.to_ascii_uppercase()) } else { scheme(c) })
+                                            .unwrap_or_else(|| color.clone());
+                                        (t.clone(), colour)
+                                    })
+                                    .collect();
                                 SeriesView {
+                                    trendlines,
                                     sizes,
                                     name,
                                     categories,
@@ -1807,6 +1822,7 @@ fn make_series(
             fill: None,
             unique_id: None,
             bubble_sizes: None,
+            trendlines: Vec::new(),
         });
     }
     Ok(series)

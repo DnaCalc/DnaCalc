@@ -9,6 +9,9 @@ Excel 2016 writes them (c:chartSpace with numRef/strRef caches), each in its own
   6 "Stock HLC"    stockChart, three series high (C), low (B), close (D) over A2:A6, hiLowLines
   7 "Stock OHLC"   stockChart, four series open (B), high (C), low (D), close (E), hiLowLines and upDownBars
   8 "3-D Line"     line3DChart, grouping standard, two series (B, C), with its series (depth) axis c:serAx id 3
+  9 "Line trends"  lineChart, series B with a linear trendline (forward 1) and series C with a polynomial (order 2)
+                   and a moving average (period 2) trendline
+ 10 "Scatter exp"  scatterChart, x B2:B6, y C2:C6, an exponential trendline in red
 Not yet opened by Excel (codex-runs/dw2/RUN-ON-WINDOWS.txt).
 Run: python3 -I make-chart-kinds.py shapes-paint4.xlsx chart-kinds.xlsx"""
 import sys, zipfile
@@ -49,7 +52,8 @@ def name(col):
 
 def ser(i, col, extra="", line=False):
     sp = '<c:spPr><a:ln w="28575" cap="rnd"><a:noFill/><a:round/></a:ln></c:spPr><c:marker><c:symbol val="none"/></c:marker>' if line else ""
-    return f'<c:ser><c:idx val="{i}"/><c:order val="{i}"/>{name(col)}{sp}<c:cat>{str_ref()}</c:cat><c:val>{num_ref(col)}</c:val>{extra}</c:ser>'
+    # `extra` (trendlines) goes where the schema puts it, before the categories.
+    return f'<c:ser><c:idx val="{i}"/><c:order val="{i}"/>{name(col)}{sp}{extra}<c:cat>{str_ref()}</c:cat><c:val>{num_ref(col)}</c:val></c:ser>'
 
 
 cat_val_axes = ('<c:catAx><c:axId val="1"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="b"/>'
@@ -65,6 +69,19 @@ value_axes = ('<c:valAx><c:axId val="1"/><c:scaling><c:orientation val="minMax"/
               '<c:numFmt formatCode="General" sourceLinked="1"/><c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>'
               '<c:crossAx val="1"/><c:crosses val="autoZero"/><c:crossBetween val="midCat"/></c:valAx>')
 ids = '<c:axId val="1"/><c:axId val="2"/>'
+
+
+def trend(kind, order=None, period=None, forward=None, colour=None):
+    """A c:trendline as Excel 2016 writes one (its dotted line in the series' or the stated colour)."""
+    fill = f'<a:solidFill><a:srgbClr val="{colour}"/></a:solidFill>' if colour else '<a:solidFill><a:schemeClr val="accent1"/></a:solidFill>'
+    out = f'<c:trendline><c:spPr><a:ln w="19050" cap="rnd">{fill}<a:prstDash val="sysDot"/></a:ln></c:spPr><c:trendlineType val="{kind}"/>'
+    if order:
+        out += f'<c:order val="{order}"/>'
+    if period:
+        out += f'<c:period val="{period}"/>'
+    if forward:
+        out += f'<c:forward val="{forward}"/>'
+    return out + '<c:dispRSqr val="0"/><c:dispEq val="0"/></c:trendline>'
 view3d = '<c:view3D><c:rotX val="15"/><c:rotY val="20"/><c:depthPercent val="100"/><c:rAngAx val="1"/></c:view3D>'
 bubble_ser = (f'<c:ser><c:idx val="0"/><c:order val="0"/>{name("D")}<c:invertIfNegative val="0"/><c:xVal>{num_ref("B")}</c:xVal>'
               f'<c:yVal>{num_ref("C")}</c:yVal><c:bubbleSize>{num_ref("D")}</c:bubbleSize><c:bubble3D val="0"/></c:ser>')
@@ -79,6 +96,13 @@ charts = [
      f'<c:hiLowLines/>{ids}</c:stockChart>{cat_val_axes}'),
     ("Stock OHLC", "", f'<c:stockChart>{ser(0, "B", line=True)}{ser(1, "C", line=True)}{ser(2, "D", line=True)}{ser(3, "E", line=True)}'
      f'<c:hiLowLines/><c:upDownBars><c:gapWidth val="150"/><c:upBars/><c:downBars/></c:upDownBars>{ids}</c:stockChart>{cat_val_axes}'),
+    ("Line trends", "", f'<c:lineChart><c:grouping val="standard"/><c:varyColors val="0"/>'
+     f'{ser(0, "B", extra=trend("linear", forward=1))}{ser(1, "C", extra=trend("poly", order=2) + trend("movingAvg", period=2))}'
+     f'<c:marker val="1"/>{ids}</c:lineChart>{cat_val_axes}'),
+    ("Scatter exp", "", f'<c:scatterChart><c:scatterStyle val="lineMarker"/><c:varyColors val="0"/>'
+     f'<c:ser><c:idx val="0"/><c:order val="0"/>{name("C")}<c:spPr><a:ln w="19050"><a:noFill/></a:ln></c:spPr>'
+     f'{trend("exp", colour="FF0000")}<c:xVal>{num_ref("B")}</c:xVal><c:yVal>{num_ref("C")}</c:yVal><c:smooth val="0"/></c:ser>'
+     f'{ids}</c:scatterChart>{value_axes}'),
     ("3-D Line", view3d, f'<c:line3DChart><c:grouping val="standard"/><c:varyColors val="0"/>{ser(0, "B")}{ser(1, "C")}{ids}<c:axId val="3"/></c:line3DChart>'
      f'{cat_val_axes}<c:serAx><c:axId val="3"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="b"/>'
      '<c:majorTickMark val="out"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/><c:crossAx val="2"/><c:crosses val="autoZero"/></c:serAx>'),

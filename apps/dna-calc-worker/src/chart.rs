@@ -487,6 +487,116 @@ struct Area {
     bottom: f64,
 }
 
+/// The points (in data units) of a series' trendline over its points `xy`, from `low` to `high` along x: a least-squares
+/// fit of its kind (linear, exponential, logarithmic, power, a polynomial of its order) or a moving average of its
+/// period, as Excel draws one (dc-zjsg.6). `None` when the data does not admit the fit (too few points, or zero or
+/// negative values a logarithm needs).
+fn trendline_points(t: &calc_host::ChartTrendline, xy: &[(f64, f64)], low: f64, high: f64) -> Option<Vec<(f64, f64)>> {
+    let number = |v: &Option<String>| v.as_deref().and_then(|v| v.trim().parse::<f64>().ok()).filter(|v| v.is_finite());
+    let (low, high) = (low - number(&t.backward).unwrap_or(0.0), high + number(&t.forward).unwrap_or(0.0));
+    let samples = |f: &dyn Fn(f64) -> f64, from: f64| -> Vec<(f64, f64)> {
+        (0..=64).map(|i| from + (high - from) * i as f64 / 64.0).map(|x| (x, f(x))).filter(|p| p.1.is_finite()).collect()
+    };
+    // Least squares of y on the columns `basis` gives, with an intercept unless one is held.
+    let fit = |xs: &[f64], ys: &[f64], degree: usize, held: Option<f64>| -> Option<Vec<f64>> {
+        let n = xs.len();
+        if n < degree + if held.is_some() { 0 } else { 1 } {
+            return None;
+        }
+        let first = usize::from(held.is_some());
+        let size = degree + 1 - first;
+        let mut a = vec![vec![0.0f64; size + 1]; size];
+        for (&x, &y) in xs.iter().zip(ys) {
+            let y = y - held.unwrap_or(0.0);
+            let powers: Vec<f64> = (first..=degree).map(|k| x.powi(k as i32)).collect();
+            for r in 0..size {
+                for c in 0..size {
+                    a[r][c] += powers[r] * powers[c];
+                }
+                a[r][size] += powers[r] * y;
+            }
+        }
+        // Gaussian elimination with partial pivoting.
+        for col in 0..size {
+            let pivot = (col..size).max_by(|&i, &j| a[i][col].abs().total_cmp(&a[j][col].abs()))?;
+            if a[pivot][col].abs() < 1e-300 {
+                return None;
+            }
+            a.swap(col, pivot);
+            for row in 0..size {
+                if row != col {
+                    let f = a[row][col] / a[col][col];
+                    for k in col..=size {
+                        a[row][k] -= f * a[col][k];
+                    }
+                }
+            }
+        }
+        let mut out: Vec<f64> = (0..size).map(|i| a[i][size] / a[i][i]).collect();
+        if let Some(h) = held {
+            out.insert(0, h);
+        }
+        Some(out)
+    };
+    let (xs, ys): (Vec<f64>, Vec<f64>) = xy.iter().copied().filter(|(x, y)| x.is_finite() && y.is_finite()).unzip();
+    let held = number(&t.intercept);
+    match t.kind.as_str() {
+        "linear" | "" => {
+            let c = fit(&xs, &ys, 1, held)?;
+            Some(vec![(low, c[0] + c[1] * low), (high, c[0] + c[1] * high)])
+        }
+        "poly" => {
+            let degree = t.order.unwrap_or(2).clamp(2, 6) as usize;
+            let c = fit(&xs, &ys, degree, held)?;
+            Some(samples(&|x| c.iter().enumerate().map(|(k, c)| c * x.powi(k as i32)).sum(), low))
+        }
+        "exp" => {
+            if ys.iter().any(|y| *y <= 0.0) {
+                return None;
+            }
+            let ln: Vec<f64> = ys.iter().map(|y| y.ln()).collect();
+            let c = fit(&xs, &ln, 1, held.filter(|h| *h > 0.0).map(f64::ln))?;
+            Some(samples(&|x| (c[0] + c[1] * x).exp(), low))
+        }
+        "log" => {
+            if xs.iter().any(|x| *x <= 0.0) {
+                return None;
+            }
+            let ln: Vec<f64> = xs.iter().map(|x| x.ln()).collect();
+            let c = fit(&ln, &ys, 1, None)?;
+            Some(samples(&|x| c[0] + c[1] * x.ln(), low.max(f64::MIN_POSITIVE)))
+        }
+        "power" => {
+            if xs.iter().chain(&ys).any(|v| *v <= 0.0) {
+                return None;
+            }
+            let (lx, ly): (Vec<f64>, Vec<f64>) = xs.iter().zip(&ys).map(|(x, y)| (x.ln(), y.ln())).unzip();
+            let c = fit(&lx, &ly, 1, None)?;
+            Some(samples(&|x| (c[0] + c[1] * x.ln()).exp(), low.max(f64::MIN_POSITIVE)))
+        }
+        "movingAvg" => {
+            let period = t.period.unwrap_or(2).max(2) as usize;
+            if xy.len() < period {
+                return None;
+            }
+            Some((period - 1..xy.len()).map(|i| (xy[i].0, xy[i + 1 - period..=i].iter().map(|p| p.1).sum::<f64>() / period as f64)).collect())
+        }
+        _ => None,
+    }
+}
+
+/// A trendline's path in the plot: Excel's default look, a dotted line 1.5 points wide in the series' colour.
+fn trendline_svg(svg: &mut String, series: usize, colour: &str, points: &[(f64, f64)]) {
+    let mut d = String::new();
+    for (k, (x, y)) in points.iter().enumerate() {
+        let _ = write!(d, "{}{x:.1} {y:.1} ", if k == 0 { "M" } else { "L" });
+    }
+    let _ = write!(
+        svg,
+        "<path data-dnacalc=\"chart-trendline\" data-series=\"{series}\" d=\"{d}\" fill=\"none\" stroke=\"#{colour}\" stroke-width=\"2\" stroke-dasharray=\"2 3\" stroke-linecap=\"round\"/>"
+    );
+}
+
 fn mark(svg: &mut String, series: usize, point: usize, value: f64) {
     let _ = write!(
         svg,
@@ -940,6 +1050,22 @@ fn category_marks(
         }
         _ => {}
     }
+    // Trendlines over the categories, numbered from 1 as Excel fits them (dc-zjsg.6).
+    if matches!(plot.kind, ChartKind::Column | ChartKind::Bar | ChartKind::Line | ChartKind::Area) && count > 0 {
+        let step = if count > 1 { middle_of(1) - middle_of(0) } else { 0.0 };
+        let at_x = |x: f64| middle_of(0) + (x - 1.0) * step;
+        for (i, series) in plot.series.iter().enumerate() {
+            let xy: Vec<(f64, f64)> = series.values.iter().enumerate().filter_map(|(j, v)| v.map(|v| ((j + 1) as f64, v))).collect();
+            for (t, colour) in &series.trendlines {
+                let Some(points) = trendline_points(t, &xy, 1.0, count as f64) else { continue };
+                let drawn: Vec<(f64, f64)> = points
+                    .into_iter()
+                    .map(|(x, y)| if horizontal { (value_at(y), y1 - (at_x(x) - x0)) } else { (at_x(x), value_at(y)) })
+                    .collect();
+                trendline_svg(svg, i + offset, colour, &drawn);
+            }
+        }
+    }
     // The category axis line, at zero.
     let axis_color = chart.axes.iter().find(|axis| axis.id == category_axis)
         .and_then(|axis| axis.line_color.as_deref())
@@ -1264,6 +1390,18 @@ fn scatter_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: Are
             }
         }
     }
+    // Trendlines over the x values (dc-zjsg.6).
+    for (i, (xs, s)) in series.iter().enumerate() {
+        let xy: Vec<(f64, f64)> = xs.iter().zip(&s.values).filter_map(|(x, y)| Some(((*x)?, (*y)?))).collect();
+        let (low, high) = xy.iter().fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.0), b.max(p.0)));
+        for (t, colour) in &s.trendlines {
+            let mut xy = xy.clone();
+            xy.sort_by(|a, b| a.0.total_cmp(&b.0));
+            let Some(points) = trendline_points(t, &xy, low, high) else { continue };
+            let drawn: Vec<(f64, f64)> = points.into_iter().filter(|(x, y)| xscale.position(*x).is_some() || yscale.position(*y).is_some()).map(|(x, y)| (px(x), py(y))).collect();
+            trendline_svg(svg, i, colour, &drawn);
+        }
+    }
     svg.push_str("</svg>");
 }
 
@@ -1284,13 +1422,30 @@ mod tests {
         let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
         assert!(book.dispatch(SkinIntent::Recalculate).accepted());
         let (charts, unread) = book.host().charts(book.host().sheets()[0].id());
-        assert_eq!((charts.len(), unread), (8, 0));
+        assert_eq!((charts.len(), unread), (10, 0));
         let svg = |name: &str| chart_svg(charts.iter().find(|c| c.name == name).unwrap(), 600., 350.);
         let count = |svg: &str, needle: &str| svg.matches(needle).count();
-        for name in ["3-D Column", "3-D Pie", "Radar marker", "Radar filled", "Bubble", "Stock HLC", "Stock OHLC", "3-D Line"] {
+        for name in ["3-D Column", "3-D Pie", "Radar marker", "Radar filled", "Bubble", "Stock HLC", "Stock OHLC", "3-D Line", "Line trends", "Scatter exp"] {
             let drawn = svg(name);
             assert!(!drawn.contains("is not drawn here") && !drawn.contains("chart-notice"), "{name}: {drawn}");
         }
+        // Trendlines (dc-zjsg.6): B's linear fit over Mon..Fri (10, 12, 9, 11, 14: y = 9.1 + 0.7x) drawn from category 1
+        // to 6 (forward 1); C's polynomial and moving average; the scatter's exponential in red.
+        let line = charts.iter().find(|c| c.name == "Line trends").unwrap();
+        let (t, _) = &line.plots[0].series[0].trendlines[0];
+        assert_eq!((t.kind.as_str(), t.forward.as_deref()), ("linear", Some("1")));
+        let points = trendline_points(t, &[(1., 10.), (2., 12.), (3., 9.), (4., 11.), (5., 14.)], 1.0, 5.0).unwrap();
+        assert_eq!(points.len(), 2);
+        assert!((points[0].1 - 9.8).abs() < 1e-9 && (points[1].0 - 6.0).abs() < 1e-12 && (points[1].1 - 13.3).abs() < 1e-9, "{points:?}");
+        let moving = &line.plots[0].series[1].trendlines[1].0;
+        assert_eq!(trendline_points(moving, &[(1., 18.), (2., 20.), (3., 15.)], 1.0, 3.0).unwrap(), vec![(2.0, 19.0), (3.0, 17.5)]);
+        let quad = &line.plots[0].series[1].trendlines[0].0;
+        let fitted = trendline_points(quad, &[(1., 1.), (2., 4.), (3., 9.), (4., 16.)], 1.0, 4.0).unwrap();
+        assert!(fitted.iter().all(|(x, y)| (y - x * x).abs() < 1e-9), "{fitted:?}");
+        assert_eq!(count(&svg("Line trends"), "data-dnacalc=\"chart-trendline\""), 3);
+        let scatter = svg("Scatter exp");
+        assert_eq!(count(&scatter, "data-dnacalc=\"chart-trendline\""), 1);
+        assert!(scatter.contains("stroke=\"#FF0000\" stroke-width=\"2\" stroke-dasharray"), "{scatter}");
         // Two series of five columns; five slices.
         assert_eq!(count(&svg("3-D Column"), "<rect data-dnacalc=\"chart-mark\""), 10);
         assert!(charts.iter().find(|c| c.name == "3-D Column").unwrap().plots[0].three_d);

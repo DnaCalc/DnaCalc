@@ -80,8 +80,9 @@ pub(crate) fn plan<'a>(original: &'a [Shape], shapes: &'a [Shape]) -> Result<Sto
                 (same.anchor, same.offset, same.extent, same.rotation) = (stored.anchor, stored.offset, stored.extent, stored.rotation);
                 (same.flip_horizontal, same.flip_vertical) = (stored.flip_horizontal, stored.flip_vertical);
                 (same.fill, same.line, same.text) = (stored.fill.clone(), stored.line.clone(), stored.text.clone());
+                same.name = stored.name.clone();
                 if same != **stored || stored.kept.is_some() {
-                    return Err(refuse("Editing an imported drawing object other than placing, turning, flipping it, or its text, fill or outline, is not modelled"));
+                    return Err(refuse("Editing an imported drawing object other than placing, turning, flipping or naming it, or its text, fill or outline, is not modelled"));
                 }
                 edits.insert(stored.id, StoredEdit::Changed(stored, now));
             }
@@ -374,6 +375,41 @@ fn object_patches(ix: &Index<'_>, at: usize, stored: &Shape, now: &Shape, out: &
     if now.text != stored.text {
         text_patches(ix, at, obj, now, out)?;
     }
+    if now.name != stored.name {
+        name_patch(ix, at, &now.name, out)?;
+    }
+    Ok(())
+}
+
+/// The object `at`'s `cNvPr` start tag with its `name` attribute set to `name`, everything else in it kept.
+fn name_patch(ix: &Index<'_>, at: usize, name: &str, out: &mut Vec<Patch>) -> Result<(), SaveRefusal> {
+    if name.is_empty() || !shapes::valid_text(name) {
+        return Err(refuse("Use a shape name of 1 to 255 characters"));
+    }
+    let id = ix
+        .children(at)
+        .find(|&c| ix.els[c].local.starts_with("nv"))
+        .and_then(|nv| ix.child(nv, "cNvPr"))
+        .ok_or_else(|| refuse("The stored object has no name to change"))?;
+    let e = &ix.els[id];
+    let tag = String::from_utf8_lossy(&ix.source[e.start..e.tag_end]).into_owned();
+    let mut value = Vec::new();
+    super::super::text::attribute_value(name, &mut value);
+    let value = String::from_utf8(value).expect("names are UTF-8");
+    // The tag's attributes, the `name` one found by its leading space so `descr` or `title` are not taken for it.
+    let rewritten = match tag.find(" name=") {
+        Some(at) => {
+            let quote = tag[at + 6..].chars().next().unwrap_or('"');
+            let rest = &tag[at + 7..];
+            let end = rest.find(quote).ok_or_else(|| refuse("The stored object's name is not quoted"))?;
+            format!("{} name={value}{}", &tag[..at], &rest[end + 1..])
+        }
+        None => {
+            let close = if tag.ends_with("/>") { tag.len() - 2 } else { tag.len() - 1 };
+            format!("{} name={value}{}", &tag[..close], &tag[close..])
+        }
+    };
+    out.push(((e.start, e.tag_end), rewritten.into_bytes()));
     Ok(())
 }
 

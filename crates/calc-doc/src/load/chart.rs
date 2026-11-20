@@ -648,6 +648,32 @@ fn read_chart_xml(
                     plot.series.push(ChartSeries::default());
                 }
             }
+            (Some("ser"), "trendline") => {
+                if let Some(series) = plot.and_then(|plot| plot.series.last_mut()) {
+                    series.trendlines.push(calc_doc_model::ChartTrendline::default());
+                }
+            }
+            (Some("trendline"), "trendlineType" | "order" | "period" | "forward" | "backward" | "intercept")
+                if path.len() >= 2 && path[path.len() - 2] == "ser" =>
+            {
+                if let Some(line) = plot.and_then(|plot| plot.series.last_mut()).and_then(|s| s.trendlines.last_mut()) {
+                    match local.as_str() {
+                        "trendlineType" => line.kind = val.unwrap_or_else(|| "linear".into()),
+                        "order" => line.order = val.and_then(|v| v.trim().parse().ok()),
+                        "period" => line.period = val.and_then(|v| v.trim().parse().ok()),
+                        "forward" => line.forward = val,
+                        "backward" => line.backward = val,
+                        _ => line.intercept = val,
+                    }
+                }
+            }
+            (Some("solidFill"), "srgbClr" | "schemeClr")
+                if path.len() >= 4 && path[path.len() - 4..] == ["trendline", "spPr", "ln", "solidFill"] =>
+            {
+                if let Some(line) = plot.and_then(|plot| plot.series.last_mut()).and_then(|s| s.trendlines.last_mut()) {
+                    line.colour = val;
+                }
+            }
             (Some("ser"), "idx") => {
                 if let Some(series) = plot.and_then(|plot| plot.series.last_mut()) {
                     series.index = val.and_then(|v| v.trim().parse().ok()).unwrap_or(0);
