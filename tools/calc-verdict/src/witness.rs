@@ -20,8 +20,9 @@
 //!
 //! [`Severity`] is OxFunc's ODR-FN-005 classing of one row: exact, last bit (1 to 4 units in the
 //! last place, or +0 against -0), numeric (5 to 1024), gross (opposite signs, a non-finite value, or
-//! more than 1024) and structural (a different kind of value, or a different error or text). A
-//! function takes the class of its worst row. The distance is [`crate::compare`]'s.
+//! more than 1024) and structural (a different kind of value, or a different error or text). A text
+//! that differs only in the digits of the numbers it embeds takes the class of the farthest pair of
+//! those numbers (COMPLEX and CONCATENATE of a number). A function takes the class of its worst row. The distance is [`crate::compare`]'s.
 
 use crate::typed::{MismatchClass, compare};
 use crate::value::{CalcArray, CalcValue, CoreValue, ExcelText, WorksheetErrorCode};
@@ -64,18 +65,91 @@ impl Severity {
                     actual.as_number().unwrap_or(0.0),
                 );
                 let opposite = e != 0.0 && a != 0.0 && e.is_sign_negative() != a.is_sign_negative();
-                let class = if opposite || ulp > 1024 {
-                    Severity::Gross
-                } else if ulp > 4 {
-                    Severity::Numeric
-                } else {
-                    Severity::LastBit
-                };
-                (class, Some(ulp))
+                (Self::of_numbers(ulp, opposite), Some(ulp))
             }
+            Some(MismatchClass::Text) => match (expected.as_text(), actual.as_text()) {
+                (Some(e), Some(a)) => {
+                    text_number_distance(&e.to_string_lossy(), &a.to_string_lossy())
+                        .map_or((Severity::Structural, None), |ulp| {
+                            (Self::of_numbers(ulp, false), Some(ulp))
+                        })
+                }
+                _ => (Severity::Structural, None),
+            },
             Some(_) => (Severity::Structural, None),
         }
     }
+
+    fn of_numbers(ulp: u64, opposite: bool) -> Severity {
+        if opposite || ulp > 1024 {
+            Severity::Gross
+        } else if ulp > 4 {
+            Severity::Numeric
+        } else {
+            Severity::LastBit
+        }
+    }
+}
+
+/// A text split into decimal numbers (digits, an optional fraction and an optional exponent) and
+/// the text between them.
+fn split_numbers(text: &str) -> (Vec<&str>, Vec<f64>) {
+    let bytes = text.as_bytes();
+    let (mut between, mut numbers) = (Vec::new(), Vec::new());
+    let (mut start, mut i) = (0, 0);
+    while i < bytes.len() {
+        if !bytes[i].is_ascii_digit() {
+            i += 1;
+            continue;
+        }
+        let begin = i;
+        while i < bytes.len() && bytes[i].is_ascii_digit() {
+            i += 1;
+        }
+        if i + 1 < bytes.len() && bytes[i] == b'.' && bytes[i + 1].is_ascii_digit() {
+            i += 1;
+            while i < bytes.len() && bytes[i].is_ascii_digit() {
+                i += 1;
+            }
+        }
+        if i < bytes.len() && (bytes[i] == b'E' || bytes[i] == b'e') {
+            let mut j = i + 1;
+            if j < bytes.len() && (bytes[j] == b'+' || bytes[j] == b'-') {
+                j += 1;
+            }
+            if j < bytes.len() && bytes[j].is_ascii_digit() {
+                while j < bytes.len() && bytes[j].is_ascii_digit() {
+                    j += 1;
+                }
+                i = j;
+            }
+        }
+        between.push(&text[start..begin]);
+        numbers.push(text[begin..i].parse().unwrap_or(f64::NAN));
+        start = i;
+    }
+    between.push(&text[start..]);
+    (between, numbers)
+}
+
+/// The largest ULP distance between the numbers embedded in two texts that differ only in those
+/// numbers' digits (COMPLEX's `"1.23456789012345+2i"`, CONCATENATE of a number), or `None` when
+/// the texts differ anywhere else: in the text between the numbers, in how many numbers they hold,
+/// or only in how one value is written.
+fn text_number_distance(expected: &str, actual: &str) -> Option<u64> {
+    let (e_between, e_numbers) = split_numbers(expected);
+    let (a_between, a_numbers) = split_numbers(actual);
+    if e_between != a_between || e_numbers.len() != a_numbers.len() {
+        return None;
+    }
+    let worst = e_numbers
+        .iter()
+        .zip(&a_numbers)
+        .map(|(e, a)| crate::typed::ulp_distance(*e, *a))
+        .collect::<Option<Vec<u64>>>()?
+        .into_iter()
+        .max()?;
+    (worst > 0).then_some(worst)
 }
 
 fn bits(text: &str) -> Option<u64> {
@@ -522,6 +596,35 @@ mod tests {
         assert_eq!(Severity::of(&num, &n(one)).0, Severity::Structural);
         assert_eq!(
             Severity::of(&num, &CalcValue::error(WorksheetErrorCode::Value)).0,
+            Severity::Structural
+        );
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_text_differing_only_in_an_embedded_number_takes_that_numbers_class() {
+        let t = |s: &str| CalcValue::text(ExcelText::from_interop_assignment(s));
+        // The last of 15 digits near 9.9: 1e-14 is about 5.6 ULP; the two parsed values are 5 apart.
+        assert_eq!(
+            Severity::of(&t("9.99999999999999+2i"), &t("9.99999999999998+2i")),
+            (Severity::Numeric, Some(5))
+        );
+        // One ULP apart, in an exponent form.
+        let (a, b) = (1.25e-7_f64, f64::from_bits(1.25e-7_f64.to_bits() + 1));
+        assert_eq!(
+            Severity::of(&t(&format!("x{a:e}i")), &t(&format!("x{b:e}i"))),
+            (Severity::LastBit, Some(1))
+        );
+        assert_eq!(Severity::of(&t("ab 3"), &t("ab 4")).0, Severity::Gross);
+        // A different kind of answer stays structural: other text between the numbers, another
+        // count of numbers, a sign, or only another way of writing one value.
+        assert_eq!(Severity::of(&t("1+2i"), &t("1-2i")).0, Severity::Structural);
+        assert_eq!(Severity::of(&t("1+2i"), &t("1+2j")).0, Severity::Structural);
+        assert_eq!(Severity::of(&t("1+2i"), &t("1")).0, Severity::Structural);
+        assert_eq!(Severity::of(&t("1.5"), &t("1.50")).0, Severity::Structural);
+        assert_eq!(Severity::of(&t("1A"), &t("1B")).0, Severity::Structural);
+        assert_eq!(
+            Severity::of(&t("1"), &n(0x3ff0000000000000)).0,
             Severity::Structural
         );
     }
