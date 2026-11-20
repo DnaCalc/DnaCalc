@@ -67,6 +67,42 @@ fn rate_retains_last_finite_iterate_at_zero_asymptote() {
     error(call("RATE", vec![n(-9.269189098231718e-6), n(0.0), n(-46.717097843305744), n(-0.00013582248485746642), n(0.0), n(10.0)]), Num);
 }
 
+/// dc-iuwct.11, Excel 16.0.20527 (Touchstone, 2026-11-20): when the next secant iterate
+/// overflows, the last finite iterate stands if the balance's limit at +infinity (fv at the end
+/// of the period, fv - pmt at its beginning) is under 1e-7; and a secant step that rounds back
+/// onto its own rate restarts the starting offset away (huge negative periods, guess 0).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn rate_overflow_limit_and_flat_secant_restart() {
+    let (periods, present, guess) = (-1.4867918317684912e-6, 756.0998653987143, -0.7653117015609525);
+    for (payment, future, expected) in [
+        (1e-7, 0.0, Some(0x7f97_46e1_da88_a3bb_u64)),
+        (-1e-7, 0.0, Some(0x7f97_46e1_e07e_45e9)),
+        (1e-6, 0.0, None),
+        (2.0, 2.0, Some(0x7f97_5393_aa53_dde3)),
+        (2.0, 1.0, None),
+    ] {
+        let result = call("RATE", vec![n(periods), n(payment), n(present), n(future), n(1.0), n(guess)]);
+        match expected {
+            Some(bits) => exact(result, f64::from_bits(bits)),
+            None => error(result, Num),
+        }
+    }
+    for (periods, payment, present, future, timing, expected) in [
+        (-1e20, 1.0, 0.0, 1500.0, 1.0, Some(0x3f45_dc22_d6d3_3262_u64)),
+        (-1e20, 1.0, 0.0, 1500.0, 0.0, None),
+        (-1e30, 2.0, 0.0, 500.0, 0.0, Some(0x3f70_624d_d2ef_c49d)),
+        (-1e25, 1.0, 7.0, 100.0, 1.0, Some(0x3f84_afd6_a026_3516)),
+        (-4.055907082257342e68, 1.0, 0.0, 365.0, 1.0, Some(0x3f66_8168_1681_15c4)),
+    ] {
+        let result = call("RATE", vec![n(periods), n(payment), n(present), n(future), n(timing), n(0.0)]);
+        match expected {
+            Some(bits) => exact(result, f64::from_bits(bits)),
+            None => error(result, Num),
+        }
+    }
+}
+
 /// Excel 20527 validates the odd-bond coupon frequency before the optional basis.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

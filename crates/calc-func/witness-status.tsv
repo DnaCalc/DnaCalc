@@ -596,7 +596,7 @@ RADIANS	pinned	20430	120	120	-	exact	7a3e51cd1b+changes	0
 RANK	full	20527	2810	2810	-	exact	218dcceeef	0
 RANK.AVG	full	20527	2812	2812	-	exact	218dcceeef	0
 RANK.EQ	full	20527	2811	2811	-	exact	218dcceeef	0
-RATE	full	20131,20228,20527,?	4724	4718	10	structural	d6422fb7da	0
+RATE	full	20131,20228,20527,?	4724	4722	11	numeric	84a6f1e2da+changes	0
 RATE	pinned	20131,20228	120	120	-	exact	7a3e51cd1b+changes	0
 RECEIVED	full	20430	2400	2400	-	exact	218dcceeef	0
 RECEIVED	pinned	20430	120	120	-	exact	7a3e51cd1b+changes	0

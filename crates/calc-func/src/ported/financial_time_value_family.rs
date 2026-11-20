@@ -521,13 +521,20 @@ fn rate_secant(
     for _ in 0..200 {
         let change = excel_x87_sub(value, value_before);
         if change == 0.0 {
-            // A balance that does not move between two rates has no secant step: the
-            // after-budget check decides, as in IRR's search. Flat far from zero it is #NUM!
-            // (Excel 16.0.20527, dcztvv_r23: RATE(0,-100,1000,0,0,0.5),
+            // A balance that does not move between two rates has no secant step. The search
+            // takes a fresh second point the starting offset away from the current rate and
+            // goes on (each restart one of the 200 steps): with a huge negative period and
+            // guess 0 the first step rounds back to 0.001, and Excel 16.0.20527 answers as the
+            // secant from 0.002 to 0.001 does (dc-iuwct.11: 8/8 frozen predictions; the
+            // offset re-signed from the current balance missed 1/8). A balance flat
+            // everywhere stays flat and the after-budget check decides, as in IRR's search:
+            // #NUM! far from zero (dcztvv_r23: RATE(0,-100,1000,0,0,0.5),
             // RATE(2^-1022,-100,1000,0,0,0.5) and RATE(FALSE,-200,8000)); an iterate that
             // stopped moving at a root of 1.2e10, where no step can be below 1e-7, is the
             // answer (full bank: RATE(0.12897432973391876,1235,-0.5,10) is 12232404830.799618).
-            break;
+            before = excel_x87_add(current, offset);
+            value_before = balance(before)?;
+            continue;
         }
         // The slope comparison precedes the division's DAZ input stage:
         // an exactly flat objective is NUM, a subnormal divisor is DIV/0.
@@ -537,16 +544,22 @@ fn rate_secant(
         }
         let numerator = excel_underflow_to_zero(excel_x87_mul(value, excel_x87_sub(current, before)));
         let next = excel_x87_sub(current, excel_x87_div(numerator, divisor));
-        // With negative periods and a cash-flow balance that tends to zero,
-        // Excel publishes the last finite secant iterate if the next one
-        // overflows positively. Other cash-flow shapes can return NUM instead.
-        if next == f64::INFINITY
-            && current > 0.0
-            && periods < 0.0
-            && future_value == 0.0
-            && (timing == PaymentTiming::EndOfPeriod || payment_value == 0.0)
-        {
-            return Ok(current);
+        // With negative periods the balance at a rate of +infinity is its limit: the
+        // growth (1 + rate)^periods is zero, the annuity term -1/rate is zero and the
+        // beginning-payment term is -payment. When the next secant iterate overflows
+        // positively and that limit is at most the 1e-7 tolerance, Excel publishes the
+        // last finite iterate; otherwise the search fails. Excel 16.0.20527 (dc-iuwct.11):
+        // a bisection puts the bound at |fv| <= 1e-7 exactly (end; the next double up is
+        // #NUM!), sweeps show |fv - pmt| at the beginning (pmt = fv = 2 converges); 2,966 of
+        // 3,000 fresh overflow controls, where the earlier fv = 0 rule held 2,335.
+        if next == f64::INFINITY && current > 0.0 && periods < 0.0 {
+            let limit = match timing {
+                PaymentTiming::EndOfPeriod => future_value,
+                PaymentTiming::BeginningOfPeriod => excel_x87_sub(future_value, payment_value),
+            };
+            if limit.abs() <= RATE_TOLERANCE {
+                return Ok(current);
+            }
         }
         step = excel_x87_sub(next, current).abs();
         (before, value_before) = (current, value);
@@ -2388,4 +2401,3 @@ mod tests {
         );
     }
 }
-
