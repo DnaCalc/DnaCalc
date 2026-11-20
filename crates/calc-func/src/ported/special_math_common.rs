@@ -1696,25 +1696,73 @@ fn bratio_apser(a: f64, b: f64, x: f64, eps: f64) -> f64 {
     -a * (c + s)
 }
 
-/// `ln B(a, b)` as Excel forms it when neither shape is above 8: three public GAMMALN values, the
-/// larger shape's less the sum's first, each step stored (dc-6332.8: every row of 24 tiny-x
-/// BETA.DIST calls at each of 300 shape pairs from 0.25 to 8, Excel 16.0.20527). With a shape of
-/// 1, which only the recurrence arm asks for, it is `-LN` of the other shape (879 of 880 calls at
-/// b = 2). Above 8 Excel's form is not read (it is within about a unit of the true value, which a
-/// difference of GAMMALN values is not): `None`.
-pub(crate) fn excel_ln_beta_small(a: f64, b: f64) -> Option<f64> {
-    use crate::ported::excel_numeric::{excel_log, excel_x87_add, excel_x87_sub, gammaln_excel};
+/// `ln B(a, b)` as Excel 16.0.20527 forms it across all shape pairs (dc-6332.8, dc-j9k.54):
+///
+/// - `small == 1`: `-LN(large)`.
+/// - `large <= 8`: `(GAMMALN(large) - GAMMALN(a + b)) + GAMMALN(small)`, each step stored.
+/// - `small < 8, large > 8`: `(a + b)`-factored six-term stored PC64 form:
+///   `(((GAMMALN(a) + (s(b) - s(a + b))) + 0.5 ln(1 + a/b)) + a) - a LN(a + b) - b ln(1 + a/b)`
+///   (30/30 fresh Touchstone PDFs, 1,033/1,033 half-shape series rows, 23/30 integer 2..7 CDFs vs
+///   16/30 Pochhammer).
+/// - `small >= 8, large >= 8`: `(((-a ln(1 + b/a) - b ln(1 + a/b)) + ln sqrt(2 pi))
+///   + 0.5 LN((a + b)/(a * b))) + (s(a) + s(b) - s(a + b))` (30/40 fresh Touchstone `ge8_bpser` vs
+///   19/40 TOMS `betaln`).
+///
+/// Falls back to [`bratio_betaln`] only if the direct form overflows to non-finite.
+pub(crate) fn excel_ln_beta(a: f64, b: f64) -> f64 {
+    use crate::ported::discrete_dist::stirling_error;
+    use crate::ported::excel_numeric::{
+        excel_log, excel_log1p_times, excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_sub,
+        gammaln_excel,
+    };
+    const LN_SQRT_2PI: f64 = 0.918_938_533_204_672_8;
     let (small, large) = if a <= b { (a, b) } else { (b, a) };
-    if large > 8.0 {
-        return None;
-    }
     if small == 1.0 {
-        return Some(-excel_log(large));
+        return -excel_log(large);
     }
-    Some(excel_x87_add(
-        excel_x87_sub(gammaln_excel(large), gammaln_excel(a + b)),
-        gammaln_excel(small),
-    ))
+    if large <= 8.0 {
+        return excel_x87_add(
+            excel_x87_sub(gammaln_excel(large), gammaln_excel(excel_x87_add(a, b))),
+            gammaln_excel(small),
+        );
+    }
+    let ab = excel_x87_add(small, large);
+    if small < 8.0 {
+        let h = excel_x87_div(small, large);
+        let ds = excel_x87_sub(stirling_error(large), stirling_error(ab));
+        let s = excel_x87_add(gammaln_excel(small), ds);
+        let s = excel_x87_add(s, excel_log1p_times(0.5, h));
+        let s = excel_x87_add(s, small);
+        let s = excel_x87_sub(s, excel_x87_mul(small, excel_log(ab)));
+        let s = excel_x87_sub(s, excel_log1p_times(large, h));
+        return if s.is_finite() {
+            s
+        } else {
+            bratio_betaln(a, b)
+        };
+    }
+    let s3 = excel_x87_sub(
+        excel_x87_add(stirling_error(small), stirling_error(large)),
+        stirling_error(ab),
+    );
+    let alp = excel_log1p_times(small, excel_x87_div(large, small));
+    let blp = excel_log1p_times(large, excel_x87_div(small, large));
+    let norm = excel_x87_mul(
+        0.5,
+        excel_log(excel_x87_div(ab, excel_x87_mul(small, large))),
+    );
+    let s = excel_x87_add(
+        excel_x87_add(
+            excel_x87_add(excel_x87_sub(-alp, blp), LN_SQRT_2PI),
+            norm,
+        ),
+        s3,
+    );
+    if s.is_finite() {
+        s
+    } else {
+        bratio_betaln(a, b)
+    }
 }
 
 /// `x^a y^b / B(a, b)` as Excel's recurrence arm forms it: the stored `x y` times the beta density
@@ -1726,46 +1774,12 @@ fn excel_brcomp(a: f64, b: f64, x: f64, y: f64) -> Option<f64> {
     Some(excel_x87_mul(excel_x87_mul(x, y), density))
 }
 
-/// The log beta normalizer for the half-shape power series. Gamma's ratio
-/// avoids subtracting the logarithms of two nearly equal large gamma values.
-pub(super) fn half_shape_log_beta(b: f64) -> f64 {
-    use crate::ported::excel_numeric::{excel_x87_add, gammaln_excel};
-    excel_x87_add(gammaln_excel(0.5), bratio_algdiv(0.5, b))
-}
-
 /// bpser: power series expansion for Ix(a, b) when b <= 1 or b*x <= 0.7.
 fn bratio_bpser(a: f64, b: f64, x: f64) -> f64 {
-    use crate::ported::excel_numeric::{
-        excel_beta_power_series, excel_log, excel_x87_add, excel_x87_mul, excel_x87_sub,
-    };
     if x == 0.0 {
         return 0.0;
     }
-    let (small, large) = (a.min(b), a.max(b));
-    let ln_beta = if let Some(value) = excel_ln_beta_small(a, b) {
-        value
-    } else if small == 1.0 {
-        -excel_log(large)
-    } else if small == 0.5 {
-        half_shape_log_beta(large)
-    } else if small < 8.0 && small.fract() == 0.0 {
-        // B(k, b) = (k-1)! / (b (b+1) ... (b+k-1)). The two logarithms
-        // round separately. Fall back to the log ratio if the product overflows.
-        let mut numerator = 1.0;
-        let mut denominator = large;
-        for k in 1..small as u32 {
-            numerator *= k as f64;
-            denominator = excel_x87_mul(denominator, excel_x87_add(large, k as f64));
-        }
-        if denominator.is_finite() {
-            excel_x87_sub(excel_log(numerator), excel_log(denominator))
-        } else {
-            bratio_betaln(a, b)
-        }
-    } else {
-        bratio_betaln(a, b)
-    };
-    excel_beta_power_series(a, b, x, ln_beta)
+    crate::ported::excel_numeric::excel_beta_power_series(a, b, x, excel_ln_beta(a, b))
 }
 
 /// bup: Ix(a, b) - Ix(a+n, b) evaluated for n a positive integer.

@@ -168,7 +168,7 @@ fn beta_inverse_start(p: f64, a: f64, b: f64) -> Option<BetaStart> {
         excel_x87_sub(1.0, correction),
         excel_x87_mul(z, excel_sqrt_staged(correction)),
     );
-    let log_beta = || crate::ported::special_math_common::bratio_betaln(a, b);
+    let log_beta = || crate::ported::special_math_common::excel_ln_beta(a, b);
     if base <= 0.0 {
         // At an overflowing cube Excel starts at the midpoint. A zero
         // midpoint density publishes 0.5. The finite-density controls return NUM.
@@ -204,13 +204,8 @@ fn beta_inverse_start(p: f64, a: f64, b: f64) -> Option<BetaStart> {
         let x = if b == 1.0 {
             excel_exp(excel_x87_div(excel_log(p), a))
         } else {
-            let log_beta = if a == 0.5 && b > 8.0 {
-                crate::ported::special_math_common::half_shape_log_beta(b)
-            } else {
-                log_beta()
-            };
             excel_exp(excel_x87_div(
-                excel_x87_add(excel_log(p), excel_x87_add(excel_log(a), log_beta)),
+                excel_x87_add(excel_log(p), excel_x87_add(excel_log(a), log_beta())),
                 a,
             ))
         };

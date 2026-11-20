@@ -53,10 +53,10 @@ BESSELK	full	20430	1236	1236	-	exact	6e3d35aa62+changes	0
 BESSELK	pinned	20430	120	120	-	exact	6e3d35aa62	0
 BESSELY	full	20527	2901	2901	-	exact	6e3d35aa62+changes	0
 BETA.DIST	full	20131,20430,?	2822	1778	70	numeric	6e3d35aa62+changes	0
-BETA.DIST	pinned	20131	120	75	30	numeric	6e3d35aa62	0
+BETA.DIST	pinned	20131	120	75	30	numeric	d24cdccb05+changes	0
 BETA.INV	full	20527	4346	4212	324	numeric	6e3d35aa62+changes	0
 BETADIST	full	20131,20527,?	4639	4552	57	numeric	6e3d35aa62+changes	0
-BETADIST	pinned	20131	120	92	23	numeric	6e3d35aa62	0
+BETADIST	pinned	20131	120	102	23	numeric	d24cdccb05+changes	0
 BETAINV	full	20131,20527,?	4411	4291	314	numeric	6e3d35aa62+changes	0
 BETAINV	pinned	20131	62	58	13	numeric	5b0c2bb920+changes	0
 BIN2DEC	full	20430,20527	1347	1347	-	exact	6e3d35aa62+changes	0
@@ -503,7 +503,7 @@ N	pinned	20430	120	120	-	exact	6e3d35aa62	0
 NA	full	20430,20527	2	2	-	exact	6e3d35aa62+changes	0
 NA	pinned	20430	1	1	-	exact	6e3d35aa62	0
 NEGBINOM.DIST	full	20430,20527	3448	3345	44	numeric	6e3d35aa62+changes	0
-NEGBINOM.DIST	pinned	20430	120	119	6	numeric	6e3d35aa62	0
+NEGBINOM.DIST	pinned	20430	120	120	-	exact	d24cdccb05+changes	0
 NEGBINOMDIST	full	20131,?	1804	1801	2	last_bit	6e3d35aa62+changes	0
 NEGBINOMDIST	pinned	20131	120	120	-	exact	6e3d35aa62	0
 NETWORKDAYS	full	20430	3600	3600	-	exact	6e3d35aa62+changes	0
@@ -706,7 +706,7 @@ TBILLPRICE	pinned	20430	120	120	-	exact	6e3d35aa62	0
 TBILLYIELD	full	20430	2400	2400	-	exact	6e3d35aa62+changes	0
 TBILLYIELD	pinned	20430	120	120	-	exact	6e3d35aa62	0
 TDIST	full	20131,20527,?	4363	4322	13	numeric	6e3d35aa62+changes	0
-TDIST	pinned	20131	92	68	13	numeric	6e3d35aa62	0
+TDIST	pinned	20131	92	74	13	numeric	d24cdccb05+changes	0
 TEXT	full	20527	4632	4632	-	exact	6e3d35aa62+changes	0
 TEXTAFTER	full	20527	4319	4319	-	exact	6e3d35aa62+changes	0
 TEXTBEFORE	full	20527	4319	4319	-	exact	6e3d35aa62+changes	0
@@ -716,7 +716,7 @@ TIME	full	20430	1296	1296	-	exact	6e3d35aa62+changes	0
 TIME	pinned	20430	120	120	-	exact	6e3d35aa62	0
 TIMEVALUE	full	20527	2189	2189	-	exact	6e3d35aa62+changes	0
 TINV	full	20131,20527,?	4220	4164	20	numeric	6e3d35aa62+changes	0
-TINV	pinned	20131	32	27	12	numeric	5b0c2bb920+changes	0
+TINV	pinned	20131	32	28	12	numeric	d24cdccb05+changes	0
 TOCOL	full	20527	3000	3000	-	exact	6e3d35aa62+changes	0
 TOROW	full	20527	3000	3000	-	exact	6e3d35aa62+changes	0
 TRANSPOSE	full	20527	1277	1277	-	exact	6e3d35aa62+changes	0

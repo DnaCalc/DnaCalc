@@ -123,8 +123,7 @@ fn binom_mass(x: f64, n: f64, p: f64, q: f64) -> f64 {
 /// - A shape of 1: the mass's end forms, `(b - 1) ln(1 - x)` by the internal logarithm or the
 ///   stored `(a - 1) LN(x)`, with the running term `-LN(b)` or `-LN(a)`: all rows at 18 shapes.
 /// - A shape below 1: `exp((a - 1) LN(x) + (b - 1) ln(1 - x) - ln B)`, the first product stored,
-///   the second by the internal logarithm, `ln B` from GAMMALN, as running terms: all rows at 12
-///   pairs with the larger shape at most 8. Above 8 the form of `ln B` is not read: `None`.
+///   the second by the internal logarithm, `ln B` from [`excel_ln_beta`], as running terms.
 pub(crate) fn beta_density(x: f64, a: f64, b: f64) -> Option<f64> {
     beta_density_at(x, excel_x87_sub(1.0, x), a, b)
 }
@@ -146,12 +145,7 @@ pub(crate) fn beta_density_at(x: f64, y: f64, a: f64, b: f64) -> Option<f64> {
         ));
     }
     if a < 1.0 || b < 1.0 {
-        // The half-shape power-series density shares its CDF's log beta.
-        let ln_beta = if a == 0.5 && b > 8.0 && x * b <= 0.49 {
-            crate::ported::special_math_common::half_shape_log_beta(b)
-        } else {
-            crate::ported::special_math_common::excel_ln_beta_small(a, b)?
-        };
+        let ln_beta = crate::ported::special_math_common::excel_ln_beta(a, b);
         return Some(excel_exp_running(
             excel_x87_mul(a - 1.0, excel_log(x)),
             &[-excel_log1p_times(b - 1.0, -x), ln_beta],
@@ -648,12 +642,16 @@ mod tests {
             (0.3, 1.0, 6.0, 0x3ff0227d028a1dfb),
             (0.7, 5.5, 1.0, 0x3ff1ad78a8d85149),
             (0.4, 0.5, 2.5, 0x3fe3f5d22a359e32),
+            // Larger shape above 8 (Excel 16.0.20527 via Touchstone, dc-j9k.54).
+            (0.5, 0.5, 9.0, 0x3f82e29f2428ba01),
+            (0.68, 0.5, 9.5, 0x3f20f78e21fc4018),
+            (0.25, 0.5, 15.3, 0x3fb25150313da3ba),
+            (0.25, 0.5, 20.45, 0x3f934ae2696443d9),
         ];
         for (x, a, b, excel) in rows {
             let density = beta_density(x, a, b).unwrap();
             assert_eq!(density.to_bits(), excel, "BETA.DIST({x}, {a}, {b}, FALSE)");
         }
-        assert!(beta_density(0.5, 0.5, 9.0).is_none());
     }
 
     /// The binomial's lower tail is the beta's complement output at (p, q): Excel 16.0.20527
