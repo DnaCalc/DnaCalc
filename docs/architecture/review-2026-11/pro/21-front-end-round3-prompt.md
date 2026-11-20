@@ -53,7 +53,12 @@ Today's notebook scenes (F03, N01, N02) present existing sheets as a reading sur
    - an App button that runs a VBA macro in Guarded mode, with the trust notice;
    - a macro that switches view and selects a block through the views library;
    - a refused action and how the refusal reads.
-7. **Fixes in the existing package.**
+7. **The standalone Formula Explorer, fuller.** It ships on its own as "DNA Calc - Formula Explorer", a stripped build with no workbook. F07, S12 and S13 cover add-in tests and caller refusal. Add two or three scenes:
+   - **A function browser.** The catalogue by family, with search, signature, argument help and examples. Each function shows its DNA Calc match status against recorded Excel calls, for example "4,252 / 4,311 calls match Excel; worst 63 ulp". A refused function names why.
+   - **A formatting playground.** Number formats, locales and conditional-format rules applied to a spilled array result. The value and its formatted text are kept visibly apart.
+   - **An add-in library view.** A loaded .xll and .xlam with their functions, categories and argument descriptions, with what this host can and cannot run.
+   - **The live tree (A7)** opened on a single formula.
+8. **Fixes in the existing package.**
    - M02's breadcrumb stays "Tick 0" after stepping; it should follow the clock.
    - Its chart says "Captured 1 states" after three ticks; it should count every tick.
    - Look for the same kind of slip elsewhere, and list what you fixed.
@@ -78,6 +83,6 @@ For new computing cells, check every shown output against the formula and the fi
 Priority if you cannot finish everything at full standard:
 1. A1–A6.
 2. B1, B2, B3.
-3. The rest.
+3. The rest (B7, the standalone Formula Explorer, after B1-B3).
 
 Finished scenes are better than many sketches. Say plainly at the end what is complete, and what you checked and could not check.
