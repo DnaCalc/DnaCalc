@@ -22,6 +22,7 @@ fallback Excel writes for older readers), over F2:F6 (Change: 10, -3, 4, -2 and 
  15 "Waterfall"    cx:waterfall, the last point a subtotal
  16 "Funnel"       cx:funnel over B2:B6
  17 "Treemap"      cx:treemap (kept and not drawn)
+ 18 "Box"          cx:boxWhisker over B2:B6 and C2:C6 as one series without categories (exclusive quartiles)
 Not yet opened by Excel (codex-runs/dw2/RUN-ON-WINDOWS.txt).
 Run: python3 -I make-chart-kinds.py shapes-paint4.xlsx chart-kinds.xlsx"""
 import sys, zipfile
@@ -170,16 +171,26 @@ chartex = [
     ("Waterfall", "waterfall", "F", '<cx:layoutPr><cx:subtotals><cx:idx val="4"/></cx:subtotals></cx:layoutPr>', ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
     ("Funnel", "funnel", "B", "", ("cx2", "http://schemas.microsoft.com/office/drawing/2015/10/21/chartex")),
     ("Treemap", "treemap", "B", '<cx:layoutPr><cx:parentLabelLayout val="overlapping"/></cx:layoutPr>', ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
+    ("Box", "boxWhisker", "B:C", '<cx:layoutPr><cx:visibility meanLine="0" meanMarker="1" nonoutliers="0" outliers="1"/><cx:statistics quartileMethod="exclusive"/></cx:layoutPr>', ("cx1", "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex")),
 ]
 
 
 def chartex_xml(title, layout, col, layout_pr):
     pts = "".join(f'<cx:pt idx="{i}">{row[0]}</cx:pt>' for i, row in enumerate(data))
-    vals = "".join(f'<cx:pt idx="{i}">{row[cols.index(col)]}</cx:pt>' for i, row in enumerate(data))
+    if ":" in col:
+        # Two columns as one series without categories (a box and whisker over all their values).
+        a, b = col.split(":")
+        values = [row[cols.index(c)] for c in (a, b) for row in data]
+        vals = "".join(f'<cx:pt idx="{i}">{v}</cx:pt>' for i, v in enumerate(values))
+        dims = f'<cx:numDim type="val"><cx:f>Kinds!${a}$2:${b}$6</cx:f><cx:lvl ptCount="{len(values)}" formatCode="General">{vals}</cx:lvl></cx:numDim>'
+        col = a
+    else:
+        vals = "".join(f'<cx:pt idx="{i}">{row[cols.index(col)]}</cx:pt>' for i, row in enumerate(data))
+        dims = (f'<cx:strDim type="cat"><cx:f>Kinds!$A$2:$A$6</cx:f><cx:lvl ptCount="5">{pts}</cx:lvl></cx:strDim>'
+                f'<cx:numDim type="val"><cx:f>Kinds!${col}$2:${col}$6</cx:f><cx:lvl ptCount="5" formatCode="General">{vals}</cx:lvl></cx:numDim>')
     return ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             f'<cx:chartSpace xmlns:a="{A}" xmlns:r="{R}" xmlns:cx="{CX}"><cx:chartData><cx:data id="0">'
-            f'<cx:strDim type="cat"><cx:f>Kinds!$A$2:$A$6</cx:f><cx:lvl ptCount="5">{pts}</cx:lvl></cx:strDim>'
-            f'<cx:numDim type="val"><cx:f>Kinds!${col}$2:${col}$6</cx:f><cx:lvl ptCount="5" formatCode="General">{vals}</cx:lvl></cx:numDim>'
+            f'{dims}'
             '</cx:data></cx:chartData><cx:chart>'
             f'<cx:title pos="t" align="ctr" overlay="0"><cx:tx><cx:txData><cx:v>{title}</cx:v></cx:txData></cx:tx></cx:title>'
             f'<cx:plotArea><cx:plotAreaRegion><cx:series layoutId="{layout}" uniqueId="{{00000000-0000-4000-8000-00000000000{len(title) % 10}}}">'
