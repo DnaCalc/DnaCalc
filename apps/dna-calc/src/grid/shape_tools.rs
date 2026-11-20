@@ -191,6 +191,15 @@ pub fn controls(controller: Controller, shapes: RwSignal<Vec<wire::DrawnShape>>,
                         .collect_view()}
                 </select>
                 <button type="button" data-dnacalc="shape-insert" on:click=insert>"Insert"</button>
+                <label class="dc-command-button">"Picture… "
+                    <input type="file" data-dnacalc="shape-picture-file" accept=".png,.jpg,.jpeg,.gif,.bmp,.emf,.wmf,image/png,image/jpeg,image/gif,image/bmp"
+                        on:change=move |ev| {
+                            use wasm_bindgen::JsCast;
+                            if let Some(input) = ev.target().and_then(|t| t.dyn_into::<web_sys::HtmlInputElement>().ok()) {
+                                insert_picture(controller, input);
+                            }
+                        }/>
+                </label>
             </fieldset>
             {selected_view}
             <p class="dc-note">"Click a shape to select it; Shift+click adds shapes to group. Drag a shape to move it, its handles to resize it; Delete removes it."</p>
@@ -198,3 +207,26 @@ pub fn controls(controller: Controller, shapes: RwSignal<Vec<wire::DrawnShape>>,
     }
     .into_any()
 }
+
+/// Reads the image file an input chose and inserts it as a picture at the active cell, at its own size.
+fn insert_picture(controller: Controller, input: web_sys::HtmlInputElement) {
+    dna_formula_ui::web::read_chosen(input, None, move |result| match result {
+        Ok((name, bytes)) => {
+            let Some(sheet) = controller.sheet.get_untracked() else { return };
+            let (row, column) = controller.active.get_untracked();
+            let Ok(cell) = calc_value::CellKey::new(sheet, row, column) else { return };
+            controller.dispatch_bytes(
+                wire::Intent::ShapePicture {
+                    sheet: wire::Sheet::of(sheet),
+                    revision: controller.summary.get_untracked().revision,
+                    at: wire::Key::of(cell),
+                    name,
+                },
+                bytes,
+                |_| {},
+            );
+        }
+        Err(error) => controller.status.set(crate::controller::Status { text: error, refused: true }),
+    });
+}
+

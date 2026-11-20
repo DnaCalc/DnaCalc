@@ -126,6 +126,8 @@ pub struct Server {
     open_origin: std::rc::Rc<std::cell::Cell<Option<crate::workbook::FileOrigin>>>,
     /// The macro security level in force (dc-15dk): Off unless the native host sets another.
     macro_policy: dna_calc_model::MacroPolicy,
+    /// The bytes beside the intent being carried out (a picture's image, dc-zjsg.4).
+    intent_bytes: Option<Vec<u8>>,
 }
 
 impl Default for Server {
@@ -331,6 +333,7 @@ impl Server {
             template_counters: BTreeMap::new(),
             open_origin: Default::default(),
             macro_policy: dna_calc_model::MacroPolicy::default(),
+            intent_bytes: None,
         }
     }
 
@@ -1127,7 +1130,12 @@ impl Server {
                     }
                     Ok(self.done(true, None, 0.0))
                 }
-                Request::Intent(intent) => self.intent(intent),
+                Request::Intent(intent) => {
+                    self.intent_bytes = bytes;
+                    let reply = self.intent(intent);
+                    self.intent_bytes = None;
+                    reply
+                }
                 Request::Subscribe {
                     workbook,
                     id,
@@ -2410,6 +2418,27 @@ impl Server {
                         height: points(height as f64 / 100.0),
                         flips: (false, false),
                         name: None,
+                    },
+                })
+            }
+            Intent::ShapePicture { sheet, revision, at, name } => {
+                let at = cell(at)?;
+                let bytes = self.intent_bytes.take().unwrap_or_default();
+                let (content_type, (width, height)) = crate::picture::inserted(&bytes)?;
+                let (left, top) = self.book.host().cell_corner(sheet.id(), at.row(), at.column());
+                let points = |v: f64| calc_host::Points::new(v);
+                SkinIntent::Command(calc_host::WorkbookCommand::Shape {
+                    sheet: sheet.id(),
+                    revision,
+                    change: calc_host::ShapeChange::AddPicture {
+                        left: points(left),
+                        top: points(top),
+                        // Pixels at 96 to the inch.
+                        width: points(width * 0.75),
+                        height: points(height * 0.75),
+                        content_type: content_type.to_owned(),
+                        bytes: bytes.into(),
+                        description: (!name.is_empty()).then_some(name),
                     },
                 })
             }
@@ -5384,6 +5413,39 @@ mod outline_tests {
         // A refused step names why and changes nothing.
         let refused = server.execute_current(Request::Intent(Intent::ShapeOrder { sheet, revision: revision(&server), id, order: "back".into() }), None).reply;
         assert!(matches!(&refused, Ok(Reply::Done { outcome, .. }) if !outcome.accepted && outcome.error.as_deref().is_some_and(|e| e.contains("already at the back"))), "{refused:?}");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dc_zjsg_4__the_page_inserts_a_picture_at_its_own_size() {
+        let mut server = Server::new();
+        let sheet = Sheet::of(server.book.host().sheets()[0].id());
+        let at = Key::of(calc_value::CellKey::new(sheet.id(), 2, 2).unwrap());
+        let pictures: [(&str, &[u8], &str); 4] = [
+            ("card.png", include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/pictures/card.png"), "image/png"),
+            ("card.gif", include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/pictures/card.gif"), "image/gif"),
+            ("card.bmp", include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/pictures/card.bmp"), "image/bmp"),
+            ("card.jpg", include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/pictures/card.jpg"), "image/jpeg"),
+        ];
+        for (name, bytes, content_type) in pictures {
+            let revision = server.book.host().revision().get();
+            let reply = server.execute_current(Request::Intent(Intent::ShapePicture { sheet, revision, at, name: name.into() }), Some(bytes.to_vec())).reply;
+            assert!(matches!(&reply, Ok(Reply::Done { outcome, .. }) if outcome.accepted), "{name}: {reply:?}");
+            let shape = server.book.host().shapes(sheet.id()).last().unwrap().clone();
+            // 160 by 100 pixels: 120 by 75 points at B2's top left (column A 48 pt, row 1 15 pt).
+            assert_eq!((shape.kind, shape.offset, shape.extent), (calc_host::ShapeKind::Picture, (48 * 12_700, 15 * 12_700), (120 * 12_700, 75 * 12_700)), "{name}");
+            let media = shape.media.unwrap().image.unwrap();
+            assert_eq!((media.content_type.as_str(), &*media.bytes), (content_type, bytes), "{name}");
+            let Answer { reply, bytes: shown } = server.handle(Request::ShapePicture { sheet, id: shape.id }, None);
+            assert!(matches!(reply, Ok(Reply::ShapePicture(Some(_)))) && shown.is_some(), "{name}");
+        }
+        assert_eq!(server.book.host().shapes(sheet.id())[0].name, "Picture 1");
+        // Without its image, or with bytes that are no picture, nothing is inserted.
+        let revision = server.book.host().revision().get();
+        let reply = server.execute_current(Request::Intent(Intent::ShapePicture { sheet, revision, at, name: "x.png".into() }), Some(b"not a picture".to_vec())).reply;
+        assert!(reply.is_err() || matches!(&reply, Ok(Reply::Done { outcome, .. }) if !outcome.accepted), "{reply:?}");
+        assert_eq!(server.book.host().shapes(sheet.id()).len(), 4);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

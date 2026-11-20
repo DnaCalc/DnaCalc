@@ -1041,6 +1041,32 @@ fn dc_zjsg_4__a_new_shape_behind_stored_ones_and_grouped_with_one() {
     assert!(read[0].children[1].custom_geometry.is_some());
 }
 
+/// dc-zjsg.4: a picture inserted from a file saves its image as a media part and reopens as the same picture.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_4__an_inserted_picture_saves_and_reopens() {
+    let png = include_bytes!("../../calc-doc/tests/fixtures/drawing/pictures/card.png");
+    let mut book = open(include_bytes!("../../calc-doc/tests/fixtures/drawing/shapes-paint4.xlsx").to_vec());
+    let sheet = book.host().sheets()[0].id();
+    shape(&mut book, sheet, ShapeChange::AddPicture {
+        left: pts(48.0),
+        top: pts(15.0),
+        width: pts(120.0),
+        height: pts(75.0),
+        content_type: "image/png".into(),
+        bytes: png.to_vec().into(),
+        description: Some("card.png".into()),
+    });
+    let reloaded = reopened(&mut book);
+    let read = reloaded.host().shapes(sheet);
+    assert_eq!(read.len(), 21);
+    let picture = read.last().unwrap();
+    assert_eq!((picture.kind, picture.name.as_str(), picture.edit_as.as_deref()), (ShapeKind::Picture, "Picture 21", Some("oneCell")));
+    let media = picture.media.as_ref().unwrap();
+    assert_eq!((&*media.image.as_ref().unwrap().bytes, media.description.as_deref()), (&png[..], Some("card.png")));
+    assert_eq!(reloaded.host().anchor_rectangle(sheet, &picture.anchor), (48.0, 15.0, 120.0, 75.0));
+}
+
 /// dc-zjsg.4: a kept object (an equation, ink, SmartArt, OLE) is not moved or deleted; it stays as the file stores it.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

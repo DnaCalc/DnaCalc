@@ -377,6 +377,14 @@ pub enum Intent {
         width: i64,
         height: i64,
     },
+    /// Insert the picture whose image travels beside the intent, at its own size (96 pixels to the inch), its top left
+    /// at the cell `at`; `name` is the file's name, its alternative text (dc-zjsg.4).
+    ShapePicture {
+        sheet: Sheet,
+        revision: u64,
+        at: Key,
+        name: String,
+    },
     /// A shape's or text box's text; paragraphs split at line breaks (dc-zjsg.4).
     ShapeText {
         sheet: Sheet,

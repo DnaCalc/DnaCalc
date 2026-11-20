@@ -44,6 +44,18 @@ pub enum ShapeChange {
         /// `None`: Excel's default name for the kind.
         name: Option<String>,
     },
+    /// A new picture of the image `bytes` (`content_type` `image/png`, `image/jpeg`, ...), its rectangle in points
+    /// (dc-zjsg.4).
+    AddPicture {
+        left: Points,
+        top: Points,
+        width: Points,
+        height: Points,
+        content_type: String,
+        bytes: std::sync::Arc<[u8]>,
+        /// `cNvPr descr`: the picture's alternative text (Excel writes the file's name).
+        description: Option<String>,
+    },
     Delete {
         id: u32,
     },
@@ -686,6 +698,31 @@ pub(crate) fn prepare(
                 (height * EMU_PER_POINT).round() as i64,
             );
             (shape.flip_horizontal, shape.flip_vertical) = flips;
+            shapes.push(shape);
+        }
+        ShapeChange::AddPicture { left, top, width, height, content_type, bytes, description } => {
+            let (left, top, width, height) = (left.get(), top.get(), width.get(), height.get());
+            if ![left, top, width, height].into_iter().all(finite) || left < 0.0 || top < 0.0 || width <= 0.0 || height <= 0.0 {
+                return Err(refusal("Use a position and size on the worksheet"));
+            }
+            if !matches!(content_type.as_str(), "image/png" | "image/jpeg" | "image/gif" | "image/bmp" | "image/tiff" | "image/x-emf" | "image/x-wmf") || bytes.is_empty() {
+                return Err(refusal("Insert a PNG, JPEG, GIF, BMP, TIFF, EMF or WMF picture"));
+            }
+            let id = next_id();
+            let from = host.point_at(sheet, left, top);
+            let to = host.point_at(sheet, left + width, top + height);
+            let mut shape = Shape::new(id, format!("Picture {}", id - 1), ShapeKind::Picture, ChartAnchor::TwoCell { from, to });
+            // Excel anchors an inserted picture to move with its cells without sizing with them.
+            shape.edit_as = Some("oneCell".into());
+            shape.geometry = Some("rect".into());
+            shape.offset = (emu_of(left), emu_of(top));
+            shape.extent = (emu_of(width), emu_of(height));
+            shape.media = Some(calc_doc_model::ShapePicture {
+                image: Some(calc_doc_model::PictureMedia { part: String::new(), content_type, size: bytes.len() as u64, bytes }),
+                svg: None,
+                crop: [0; 4],
+                description,
+            });
             shapes.push(shape);
         }
         ShapeChange::Delete { id } => {

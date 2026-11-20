@@ -1280,9 +1280,27 @@ impl Controller {
         });
     }
 
+    /// Carries out an intent that takes bytes beside it (a picture's image, dc-zjsg.4).
+    pub fn dispatch_bytes(&self, intent: Intent, bytes: Vec<u8>, then: impl FnOnce(&Outcome) + 'static) {
+        self.dispatch_result_with(intent, Some(bytes), move |result| {
+            if let Ok(outcome) = result {
+                then(&outcome);
+            }
+        });
+    }
+
     fn dispatch_result(
         &self,
         intent: Intent,
+        then: impl FnOnce(Result<Outcome, String>) + 'static,
+    ) {
+        self.dispatch_result_with(intent, None, then);
+    }
+
+    fn dispatch_result_with(
+        &self,
+        intent: Intent,
+        bytes: Option<Vec<u8>>,
         then: impl FnOnce(Result<Outcome, String>) + 'static,
     ) {
         let controller = *self;
@@ -1302,7 +1320,7 @@ impl Controller {
             self.pending_changes.update(|n| *n += 1);
         }
         self.pending_actions.update(|n| *n += 1);
-        self.send_command(Request::Intent(intent), None, move |reply, _| {
+        self.send_command(Request::Intent(intent), bytes, move |reply, _| {
             if changes {
                 controller
                     .pending_changes
