@@ -1,14 +1,18 @@
 # The generator of the oracle workbook of dc-ylr (external workbook references) under
 # crates/calc-host/tests/fixtures/dc_ylr/:
 #
-#   powershell -NoProfile -ExecutionPolicy Bypass -File make-dc-ylr-oracle.ps1 -WorkDir <directory>
-#       -OutDir <directory>
+#   pwsh -NoProfile -File crates/calc-host/tests/fixtures/dc_ylr/make-dc-ylr-oracle.ps1
+#       -WorkDir <directory> -OutDir <directory>
 #
-# It drives an Excel instance of its own through COM and stops only that instance. In <WorkDir> it
-# saves the source book ylr-source.xlsx (sheet Sheet1: 1, 2, 3 in A1:A3, "x", TRUE and =NA() in
-# B1:B3, =A1*10 in D1; sheet "My Sheet": 10 in A1), closes it, and builds the linking book: every
-# formula below entered with Range.Formula2 on sheet Main, typed with the source's full path
-# ('<WorkDir>\[ylr-source.xlsx]Sheet1'!A1), and four defined names holding references to the
+# It runs inside the repository's owned Excel session (tools/excel-session/submit.ps1), which
+# launches an isolated `EXCEL.EXE /x` process and binds through that exact PID's native window.
+# It never calls `New-Object -ComObject Excel.Application` (which would attach to a Touchstone
+# broker worker) and never mutates Excel's session baseline settings or quits the shared session.
+#
+# In <WorkDir> it saves the source book ylr-source.xlsx (sheet Sheet1: 1, 2, 3 in A1:A3, "x", TRUE
+# and =NA() in B1:B3, =A1*10 in D1; sheet "My Sheet": 10 in A1), closes it, and builds the linking
+# book: every formula below entered with Range.Formula2 on sheet Main, typed with the source's full
+# path ('<WorkDir>\[ylr-source.xlsx]Sheet1'!A1), and three defined names holding references to the
 # source. Excel reads the closed source when the formulas are entered and saves what it read as
 # the link's cache (xl/externalLinks/externalLink1.xml): the cells the formulas name that hold a
 # value, so C1 (empty) is not cached. It saves the linking book as <OutDir>/oracle.xlsx and the
@@ -22,8 +26,8 @@
 # With -SourceOnly only that source is built and copied, and oracle.xlsx, oracle.xlsb and their
 # capture stay as they are:
 #
-#   powershell -NoProfile -ExecutionPolicy Bypass -File make-dc-ylr-oracle.ps1 -WorkDir <directory>
-#       -OutDir crates/calc-host/tests/fixtures/dc_ylr -SourceOnly
+#   pwsh -NoProfile -File crates/calc-host/tests/fixtures/dc_ylr/make-dc-ylr-oracle.ps1
+#       -WorkDir <directory> -OutDir crates/calc-host/tests/fixtures/dc_ylr -SourceOnly
 #
 #   cargo xtask capture --fixture crates/calc-host/tests/fixtures/dc_ylr/oracle.xlsx \
 #       --out crates/calc-host/tests/captures/dc_ylr/oracle.capture.json --work-dir <short dir>
@@ -36,17 +40,50 @@
 param(
     [Parameter(Mandatory = $true)][string]$WorkDir,
     [Parameter(Mandatory = $true)][string]$OutDir,
-    [switch]$SourceOnly
+    [switch]$SourceOnly,
+    $OwnedExcel = $null,
+    [string]$SessionDirectory = $env:DNACALC_EXCEL_SESSION
 )
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 if (-not [System.IO.Path]::IsPathRooted($WorkDir)) { $WorkDir = Join-Path (Get-Location).Path $WorkDir }
 if (-not [System.IO.Path]::IsPathRooted($OutDir)) { $OutDir = Join-Path (Get-Location).Path $OutDir }
+$WorkDir = [System.IO.Path]::GetFullPath($WorkDir)
+$OutDir = [System.IO.Path]::GetFullPath($OutDir)
 New-Item -ItemType Directory -Force $WorkDir, $OutDir | Out-Null
-Add-Type -Namespace P -Name W -MemberDefinition '[DllImport("user32.dll")] public static extern int GetWindowThreadProcessId(System.IntPtr h, out int pid);'
 
-# Excel is shared on this machine: a call it rejects while busy is retried.
+# Direct invocation routes itself through the owned Excel session host (EXCEL.EXE /x, verified PID)
+# rather than calling New-Object -ComObject Excel.Application.
+if ($null -eq $OwnedExcel) {
+    $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../../..'))
+    $submitPath = (Resolve-Path -LiteralPath (Join-Path $repoRoot 'tools/excel-session/submit.ps1')).Path
+    $jobParams = [ordered]@{
+        WorkDir    = $WorkDir
+        OutDir     = $OutDir
+        SourceOnly = [bool]$SourceOnly
+    }
+    $submitArgs = @{
+        Script           = $PSCommandPath
+        Parameters       = ($jobParams | ConvertTo-Json -Compress)
+        WorkingDirectory = $repoRoot
+        TimeoutSeconds   = 900
+        FreshRequired    = $true
+    }
+    if ($SessionDirectory) { $submitArgs.SessionDirectory = $SessionDirectory }
+    & $submitPath @submitArgs
+    $expected = @(Join-Path $OutDir 'ylr-source.xlsx')
+    if (-not $SourceOnly) {
+        $expected += (Join-Path $OutDir 'oracle.xlsx')
+        $expected += (Join-Path $OutDir 'oracle.xlsb')
+    }
+    foreach ($path in $expected) {
+        if (-not (Test-Path -LiteralPath $path)) { throw "Owned Excel job did not produce $path" }
+    }
+    return
+}
+
+# Retry transient COM busy rejections from the owned Excel instance.
 function Retry([scriptblock]$Block) {
     for ($i = 0; $i -lt 120; $i++) {
         try { return & $Block } catch {
@@ -83,23 +120,27 @@ $source = Join-Path $WorkDir 'ylr-source.xlsx'
 $sourceCopy = Join-Path $OutDir 'ylr-source.xlsx'
 Remove-Item -ErrorAction SilentlyContinue $source, $sourceCopy
 if (-not $SourceOnly) { Remove-Item -ErrorAction SilentlyContinue (Join-Path $OutDir 'oracle.xlsx'), (Join-Path $OutDir 'oracle.xlsb') }
-$excel = New-Object -ComObject Excel.Application
-$excelPid = 0
-[void][P.W]::GetWindowThreadProcessId([System.IntPtr]$excel.Hwnd, [ref]$excelPid)
+
+$prevAskToUpdateLinks = Retry { $OwnedExcel.AskToUpdateLinks }
+$book = $null
 try {
-    Retry { $excel.Visible = $false; $excel.DisplayAlerts = $false; $excel.ScreenUpdating = $false; $excel.AskToUpdateLinks = $false } | Out-Null
-    $book = Retry { $excel.Workbooks.Add() }
+    Retry { $OwnedExcel.AskToUpdateLinks = $false } | Out-Null
+    $book = Retry { $OwnedExcel.Workbooks.Add() }
     $sheet = $book.Worksheets.Item(1); $sheet.Name = 'Sheet1'
     $sheet.Range('A1').Value2 = 1; $sheet.Range('A2').Value2 = 2; $sheet.Range('A3').Value2 = 3
     $sheet.Range('B1').Value2 = 'x'; $sheet.Range('B2').Value2 = $true; $sheet.Range('B3').Formula = '=NA()'
     $sheet.Range('D1').Formula = '=A1*10'
     $other = $book.Worksheets.Add([Type]::Missing, $sheet); $other.Name = 'My Sheet'; $other.Range('A1').Value2 = 10
+    # The owned session runs in manual calculation mode (-4135); calculate before saving so
+    # ylr-source.xlsx stores Excel's calculated caches for B3 (=NA()) and D1 (=A1*10).
+    Retry { $OwnedExcel.CalculateFull() } | Out-Null
     Retry { $book.SaveAs($source, 51) } | Out-Null
     Retry { $book.Close($false) } | Out-Null
-    Copy-Item -LiteralPath $source -Destination $sourceCopy
+    $book = $null
+    Copy-Item -LiteralPath $source -Destination $sourceCopy -Force
     if ($SourceOnly) { return }
 
-    $book = Retry { $excel.Workbooks.Add() }
+    $book = Retry { $OwnedExcel.Workbooks.Add() }
     $main = $book.Worksheets.Item(1); $main.Name = 'Main'
     $x = "'" + $WorkDir + '\[ylr-source.xlsx]Sheet1' + "'!"
     $y = "'" + $WorkDir + '\[ylr-source.xlsx]My Sheet' + "'!"
@@ -116,12 +157,14 @@ try {
         $text = $spills[$at].Replace('X!', $x).Replace('Y!', $y)
         Retry { $main.Range($at).Formula2 = $text } | Out-Null
     }
-    Retry { $excel.CalculateFull() } | Out-Null
+    Retry { $OwnedExcel.CalculateFull() } | Out-Null
     Retry { $book.SaveAs((Join-Path $OutDir 'oracle.xlsx'), 51) } | Out-Null
     Retry { $book.SaveAs((Join-Path $OutDir 'oracle.xlsb'), 50) } | Out-Null
     Retry { $book.Close($false) } | Out-Null
+    $book = $null
 } finally {
-    try { $excel.Quit() } catch {}
-    [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($excel)
-    if ($excelPid -ne 0) { Start-Sleep -Milliseconds 500; try { Stop-Process -Id $excelPid -Force -ErrorAction Stop } catch {} }
+    if ($null -ne $book) {
+        try { Retry { $book.Close($false) } | Out-Null } catch {}
+    }
+    try { Retry { $OwnedExcel.AskToUpdateLinks = $prevAskToUpdateLinks } | Out-Null } catch {}
 }
