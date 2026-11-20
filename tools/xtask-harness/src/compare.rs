@@ -1581,8 +1581,15 @@ fn compare(request: &Request) -> Result<(), Failure> {
             let mut counts = BTreeMap::<String, u64>::new();
             let referenced: std::collections::BTreeSet<_> =
                 reference.observations.iter().map(|o| &o.cell).collect();
+            let mut disagreements = 0;
             for cell in &saved_report.cells {
-                let bucket = if !referenced.contains(&cell.formula.cell) {
+                let has_reference = referenced.contains(&cell.formula.cell);
+                if has_reference
+                    && matches!(cell.verdict, calc_verdict::Verdict::Mismatched { .. })
+                {
+                    disagreements += 1;
+                }
+                let bucket = if !has_reference {
                     "failed_or_missing"
                 } else if cell.circular_rule {
                     "circular_rule"
@@ -1609,6 +1616,21 @@ fn compare(request: &Request) -> Result<(), Failure> {
                 saved_counts[key] = json!(counts.get(key).copied().unwrap_or(0));
             }
             saved_counts["reference_cells"] = json!(reference.observations.len());
+            let context = match info["workbook_context"].as_str() {
+                Some("unqualified") if saved_report.cells.iter().any(|cell| cell.external_links) => {
+                    "external_links"
+                }
+                Some(context) => context,
+                None => "unknown",
+            };
+            metadata["workbook_context"] = json!(context);
+            triage_json["saved_excel_workbook_context"] = json!(context);
+            for (class, _) in crate::compare_saved::WORKBOOK_CONTEXTS {
+                // The disjoint verdict buckets above keep their previous meaning. This
+                // breakdown also counts disagreements in the external-link or held-value bucket.
+                let count = if class == context { disagreements } else { 0 };
+                saved_counts[format!("disagreements_{class}")] = json!(count);
+            }
             if request.lean {
                 saved_report.cells.retain(|cell| is_offender(cell.verdict.name()));
                 let mut saved: Value = serde_json::from_str(&saved_report.encode())
@@ -2812,6 +2834,59 @@ mod tests {
         assert!(lean_out.join("saved-excel.json").is_file());
         for omitted in ["report.json", "evaluations.json", "saved-excel.record.json", "saved-excel.report.json"] {
             assert!(!lean_out.join(omitted).exists(), "{omitted}");
+        }
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn saved_disagreements_use_the_authored_workbook_context() {
+        let base = include_bytes!("../../../crates/calc-engine/tests/fixtures/l3/oracle.xlsx");
+        let linked = include_bytes!("../../../crates/calc-host/tests/fixtures/dc_ylr/oracle.xlsx");
+        let sheet = br#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>
+            <row r="1"><c r="A1"><f>1+1</f><v>999</v></c></row>
+            </sheetData></worksheet>"#;
+        let dir = std::env::temp_dir().join(format!("xtask-saved-context-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let fixture = dir.join("source.xlsx");
+        let provenance = dir.join("provenance.json");
+        for (context, calc_pr, source, build) in [
+            ("manual_calculation", r#"<calcPr calcMode="manual" iterate="1""#, &base[..], "30430"),
+            ("iterative_calculation", r#"<calcPr iterate="1""#, &base[..], "30430"),
+            ("unqualified", "<calcPr", &base[..], "30430"),
+            ("external_links", "<calcPr", &linked[..], "30527"),
+        ] {
+            let parts = crate::oracle_cases::package_parts(source).unwrap();
+            let workbook = std::str::from_utf8(&parts["xl/workbook.xml"]).unwrap();
+            let bytes = crate::oracle_cases::replace_package_parts(
+                source,
+                &BTreeMap::from([
+                    ("xl/workbook.xml".into(), workbook.replace("<calcPr", calc_pr).into_bytes()),
+                    ("xl/worksheets/sheet1.xml".into(), sheet.to_vec()),
+                ]),
+            ).unwrap();
+            let origin = json!({
+                "application":"Microsoft Excel", "app_version":"16.0300",
+                "file_version":{"appName":"xl","lastEdited":"7","lowestEdited":"7","rupBuild":build},
+                "evidence":{"control":"authored saved-cache test"},
+            });
+            fs::write(&fixture, &bytes).unwrap();
+            fs::write(&provenance, json!({
+                "format":"dnacalc-excel-saved-provenance",
+                "version":1, "packages":{(sha256_hex(&bytes)):origin},
+            }).to_string()).unwrap();
+            let out = dir.join(context);
+            compare(&Request {
+                fixture: fixture.clone(), capture: None, saved_excel: Some(provenance.clone()),
+                trusted_code: None, trusted_code_sha256: None, minimize: false,
+                inventory_only: false, lean: true, out: out.clone(), target: None,
+            }).unwrap();
+            let saved: Value = serde_json::from_slice(&fs::read(out.join("saved-excel.json")).unwrap()).unwrap();
+            let summary: Value = serde_json::from_slice(&fs::read(out.join("summary.json")).unwrap()).unwrap();
+            let counts = &summary["counts"]["saved_excel_oracle"];
+            assert!(counts["mismatched"].as_u64().unwrap() > 0, "{context}: {counts}");
+            assert_eq!(saved["workbook_context"], context);
+            assert_eq!(counts[format!("disagreements_{context}")], counts["mismatched"]);
+            assert_eq!(summary["counts"]["pass"], 0);
         }
         fs::remove_dir_all(dir).unwrap();
     }

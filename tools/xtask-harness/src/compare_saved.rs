@@ -12,6 +12,28 @@ use std::{
     sync::Arc,
 };
 
+pub(crate) const WORKBOOK_CONTEXTS: [(&str, &str); 5] = [
+    ("manual_calculation", "manual calculation"),
+    ("iterative_calculation", "iterative calculation"),
+    ("external_links", "external workbook links"),
+    ("unqualified", "no workbook qualification"),
+    ("unknown", "workbook context unavailable"),
+];
+
+fn workbook_context(host: &HostState) -> &'static str {
+    let source = host.loaded();
+    let definitions = source.model().definitions();
+    if source.calc_mode() == calc_doc::CalcMode::Manual {
+        "manual_calculation"
+    } else if definitions.iteration().enabled() {
+        "iterative_calculation"
+    } else if definitions.external_books().next().is_some() {
+        "external_links"
+    } else {
+        "unqualified"
+    }
+}
+
 pub(crate) fn unavailable(capture: &CaptureRecord, reason: &str) -> (CaptureRecord, Value) {
     let mut record = capture.clone();
     record.acquisition = Acquisition::FileCacheReplay;
@@ -37,7 +59,8 @@ pub(crate) fn reference(
         session.reopened.clear();
     }
     let mut info = json!({"rule":"supplemental Excel-saved oracle, only without a live answer; exact package provenance and Excel metadata required; volatile formulas and their readers excluded; saved decimals are not live binary64 observations",
-        "source":capture.source,"origin":origin,"excluded":{}});
+        "source":capture.source,"origin":origin,"excluded":{},
+        "workbook_context": workbook_context(host)});
     let Some(origin) = origin else {
         info["unavailable"] = json!("no attested Excel-save lineage for these package bytes");
         return Ok((record, info));

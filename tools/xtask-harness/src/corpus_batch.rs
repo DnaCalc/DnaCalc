@@ -449,7 +449,7 @@ pub(crate) fn merge_summaries(paths: &[PathBuf], out: &Path) -> Result<(), Strin
         serde_json::to_vec_pretty(&summary).map_err(|e| e.to_string())?,
     )
     .map_err(|e| e.to_string())?;
-    let markdown = format!(
+    let mut markdown = format!(
         "# Corpus summary\n\nMerged {} shard reports; complete: {}. Missing shards: {}.\n\nFormula cells: {cells}; matched: {pass}; fail: {}; pass rate: {}. Unknown inventories: {}.\n\nFull per-file results and root causes are in summary.json; each workbook links its original shard summary.\n",
         paths.len(),
         summary["run"]["shards_complete"],
@@ -458,6 +458,12 @@ pub(crate) fn merge_summaries(paths: &[PathBuf], out: &Path) -> Result<(), Strin
         super::corpus_summary::rate(pass, cells),
         totals["unknown_inventory_workbooks"]
     );
+    let saved_counts = &totals["counts"]["saved_excel_oracle"];
+    if let Some(saved) = super::corpus_summary::saved_disagreement_summary(|key| {
+        saved_counts[key].as_u64()
+    }) {
+        markdown.push_str(&format!("\n{saved}\n"));
+    }
     fs::write(out.join("summary.md"), markdown).map_err(|e| e.to_string())?;
     write_problem_functions(out, &summary)?;
     println!(

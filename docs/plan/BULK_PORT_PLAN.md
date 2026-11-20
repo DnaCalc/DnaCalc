@@ -231,6 +231,11 @@ Excel's saved decimals, which can be stale and can lose binary64 digits, not a
 fresh Excel recalculation. Refusals, held values and external caches never match
 in these supplemental counts. The provenance manifest and all supplemental
 outputs participate in content-verified resume and shard merging.
+The saved-cache disagreement breakdown assigns each workbook its first applicable
+context in this order: manual calculation, iterative calculation, external
+workbook links. The remaining disagreements appear under no workbook qualification.
+Context describes the risk of stale or history-dependent values and leaves the
+original verdict counts intact.
 Every attempt keeps its own log and payload. Resume verifies workbook, capture, executable and
 result hashes; a partial, timed-out or changed result is recalculated. `--timeout` covers the source census, optional capture and comparison of one file.
 Package admission and census run in an owned child process too. Use `cargo xtask corpus --merge
