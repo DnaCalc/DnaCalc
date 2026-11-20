@@ -2283,6 +2283,68 @@ mod tests {
         assert!(t1.contains("text-anchor=\"middle\""), "expected inside anchor on point 1: {t1}");
     }
 
+    /// dc-zjsg.6 (dw4): assertions for the Excel-measured chart details landed in acbfa9d4 (dw2 Windows results):
+    /// funnel omits negative values, stock close tick is 3 px, down bars are #595959, largest bubble is 29.5% of
+    /// plot height, sysDot trendline dash is `0 4`, and column data labels default to `outEnd`.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dw4_dc_zjsg_6__excel_measured_chart_details_from_acbfa9d4() {
+        use calc_host::{HostOptions, HostSession, MemorySource, OpenPolicy, PackageRead, SkinIntent};
+        use std::sync::Arc;
+        let bytes = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/chart-kinds.xlsx");
+        let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes.to_vec()));
+        let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+        assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        let (charts, _) = book.host().charts(book.host().sheets()[0].id());
+        let chart = |name: &str| charts.iter().find(|c| c.name == name).unwrap();
+        let attr = |tag: &str, name: &str| -> f64 {
+            let needle = format!("{name}=\"");
+            tag.split(&needle).nth(1).unwrap().split('"').next().unwrap().parse().unwrap()
+        };
+
+        // 1. Funnel omits negative values (only the 3 non-negative values produce bars).
+        let mut funnel_neg = chart("Funnel").clone();
+        funnel_neg.plots[0].series[0].values = vec![Some(10.0), Some(-3.0), Some(4.0), Some(-2.0), Some(9.0)];
+        let funnel_svg = chart_svg(&funnel_neg, 600., 350.);
+        assert_eq!(funnel_svg.matches("<rect data-dnacalc=\"chart-mark\"").count(), 3, "{funnel_svg}");
+
+        // 2. Stock HLC close tick is 3 px wide.
+        let hlc_svg = chart_svg(chart("Stock HLC"), 600., 350.);
+        let close_ticks: Vec<_> = hlc_svg.split('<').filter(|t| t.starts_with("line data-dnacalc=\"chart-mark\"")).collect();
+        assert_eq!(close_ticks.len(), 5, "{hlc_svg}");
+        for tick in close_ticks {
+            let width = attr(tick, "x2") - attr(tick, "x1");
+            assert!((width - 3.0).abs() < 0.05, "expected 3 px stock close tick, got {width}: {tick}");
+        }
+
+        // 3. Stock OHLC down bars use #595959 fill (close < open on Mon: 8 < 10).
+        let mut ohlc_down = chart("Stock OHLC").clone();
+        ohlc_down.plots[0].series[3].values[0] = Some(8.0);
+        let ohlc_svg = chart_svg(&ohlc_down, 600., 350.);
+        assert!(ohlc_svg.contains("fill=\"#595959\""), "{ohlc_svg}");
+        assert!(ohlc_svg.contains("fill=\"#FFFFFF\""), "{ohlc_svg}");
+
+        // 4. Bubble largest diameter is 29.5% of the plot's smaller side (height at 600x350).
+        let bubble_svg = chart_svg(chart("Bubble"), 600., 350.);
+        let plot_tag = bubble_svg.split('<').find(|t| t.starts_with("svg data-dnacalc=\"chart-plot\"")).unwrap();
+        let plot_height = attr(plot_tag, "height");
+        let big_tag = bubble_svg.split('<').find(|t| t.starts_with("circle data-dnacalc=\"chart-mark\"") && t.contains("data-size=\"21\"")).unwrap();
+        let diameter = 2.0 * attr(big_tag, "r");
+        assert!((diameter / plot_height - 0.295).abs() < 0.005, "diameter={diameter} plot_height={plot_height}");
+
+        // 5. sysDot trendline dash is `0 4` with round caps.
+        let scatter_svg = chart_svg(chart("Scatter exp"), 600., 350.);
+        assert!(scatter_svg.contains("stroke-dasharray=\"0 4\" stroke-linecap=\"round\""), "{scatter_svg}");
+
+        // 6. Column data labels default to outEnd (sits 4 px above the positive column top).
+        let col_svg = chart_svg(chart("Column labels"), 600., 350.);
+        let bar0 = col_svg.split('<').find(|t| t.starts_with("rect data-dnacalc=\"chart-mark\"") && t.contains("data-point=\"0\"")).unwrap();
+        let lbl0 = col_svg.split('<').find(|t| t.starts_with("text data-dnacalc=\"chart-value-label\"") && t.contains("data-point=\"0\"")).unwrap();
+        let (bar_y, lbl_y) = (attr(bar0, "y"), attr(lbl0, "y"));
+        assert!(lbl_y < bar_y && (bar_y - lbl_y - 4.0).abs() < 0.2, "expected outEnd above bar top: bar_y={bar_y}, lbl_y={lbl_y}");
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn imported_plot_marks_and_saved_value_notices_use_the_host_projection() {
