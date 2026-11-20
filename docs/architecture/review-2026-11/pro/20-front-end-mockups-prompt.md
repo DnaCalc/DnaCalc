@@ -44,6 +44,20 @@ Brief for GPT-6 Pro (2026-11-20). It follows your Pro 19 design, which the owner
    - motion when values change.
 
    Label any motion "dependency explanation". Draw the Stock reserve loop as an iteration enclosure, and the three-day lag as a period-labelled delay. Values may animate along wires after an input changes, as long as the labelling stays truthful.
+7. **Ticked simulation: an RTD clock makes a real delay.** The owner agrees that a circular reference is not, by itself, a delay. But we planned to drive time-stepped models with an RTD clock instead (owner bead, 2026-11-12):
+   - The clock is a small RTD server, for example `=RTD("DnaCalc.Clock",,"Stock","tick")`. Excel loads it too.
+   - Its controls are run/pause, step, rate (ticks per second) and reset-at (a tick number or a condition cell).
+   - Each tick triggers one recalculation, in which self-referencing state cells advance exactly once (iterative calculation, one iteration).
+   - In that model, a state cell's previous value is a true per-tick delay (z⁻¹), so drawing it as one is honest.
+
+   Add a fixture sheet, **Stock (ticked)**: the same inventory with state cells for stock on hand, the on-order pipeline and the day counter, advanced by the clock instead of laid out as 30 period rows.
+
+   Show it in three places:
+   - **Model map:** the clock as a source block with its controls; state cells drawn as delays labelled "per tick (RTD clock)"; the within-calculation reserve loop as an iteration enclosure beside them. The difference between a delay and an iteration should be clear at a glance, and stated in the callouts.
+   - **Inspector Live panel:** stock on hand plotted per tick while it runs, with pause, step and reset.
+   - **App:** run, pause, step and a rate slider for Jo.
+
+   Say how the map tells a ticked model from a solved cycle using only what the file shows: the clock's RTD topic, the iteration settings and the self-reference pattern. When it cannot tell, it labels the cycle as unknown.
 6. **Keyboard and mouse made visible.** In Classic, show:
    - the Alt key-tip overlay over the command bands;
    - range picking while typing a formula, with coloured reference outlines;
@@ -80,10 +94,10 @@ Files, in priority order:
    - focus, hover and selection.
 3. `classic.html`: F01 plus the change-6 gestures, as clickable states, on Budget and Inherited.
 4. `storyboards.html`, or one file per storyboard (2.1–2.7). Every S screen is full fidelity, in storyboard order, with step-forward and step-back controls (buttons and arrow keys) and a one-line caption per step. Apply change 1 everywhere.
-5. `inspector.html`: F02 plus the Live panel (change 3).
+5. `inspector.html`: F02 plus the Live panel (changes 3 and 7).
 6. `notebook.html`: F03 plus change 4, including the pipeline screen.
-7. `model-map.html`: F04 plus change 5. It must be interactive: select, open a group, step back through breadcrumbs, change the reorder-point slider and watch values move.
-8. `app.html`: F05 live (change 2), and the batched variant.
+7. `model-map.html`: F04 plus changes 5 and 7. It must be interactive: select, open a group, step back through breadcrumbs, change the reorder-point slider and watch values move, and run, pause and step the ticked Stock model.
+8. `app.html`: F05 live (change 2), the batched variant, and the ticked Stock controls (change 7).
 9. `formula-explorer.html`: F06 (docked from a cell) and F07 (standalone), plus S12 and S13.
 10. `agent.html`: S14–S16 as a working review flow. You can tick units, preview, apply, undo one unit, and meet the stale conflict.
 
