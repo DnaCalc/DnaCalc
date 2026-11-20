@@ -86,6 +86,12 @@ fn preserved_sheets__a_workbook_with_chart_and_dialog_sheets_opens() {
         let id = sheet(&loaded, name);
         assert_eq!(model.sheet_cells(id).into_iter().flatten().count(), 0, "{name}");
     }
+    // The chart sheet's chart is read from its drawing (dc-zjsg.6): one column chart over Data, anchored absolutely.
+    let charts = model.definitions().charts(sheet(&loaded, "Chart1"));
+    assert_eq!(charts.len(), 1);
+    assert_eq!((charts[0].part.as_str(), charts[0].plots[0].kind.as_str()), ("xl/charts/chart1.xml", "barChart"));
+    assert!(matches!(charts[0].anchor, calc_doc_model::ChartAnchor::Absolute { x: 0, y: 0, width: 9293678, height: 6000000 }));
+    assert!(model.definitions().charts(sheet(&loaded, "Dialog1")).is_empty());
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

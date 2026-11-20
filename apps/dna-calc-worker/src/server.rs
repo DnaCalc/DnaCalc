@@ -5603,6 +5603,20 @@ mod outline_tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     #[allow(non_snake_case)]
+    fn dc_zjsg_6__a_chart_sheet_shows_its_chart() {
+        let mut server = Server::new();
+        let data = include_bytes!("../../../crates/calc-doc/tests/fixtures/preserved_sheets/chart-and-dialog-sheets.xlsx");
+        assert!(server.execute_current(Request::Open { name: "chart-and-dialog-sheets.xlsx".into() }, Some(data.to_vec())).reply.is_ok());
+        let chart_sheet = server.book.host().sheets()[1].id();
+        let Reply::Charts(charts) = server.execute_current(Request::Charts(Sheet::of(chart_sheet)), None).reply.unwrap() else { panic!("charts") };
+        assert_eq!(charts.len(), 1);
+        assert!(charts[0].svg.contains("data-point=\"0\""), "{}", charts[0].svg);
+        assert!(!charts[0].svg.contains("chart-notice"));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
     fn dc_zjsg_7__the_page_inserts_changes_and_deletes_sparklines() {
         let mut server = Server::new();
         let data = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/sparklines.xlsx");
