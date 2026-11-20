@@ -459,8 +459,9 @@ pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
             ChartKind::Pie | ChartKind::Doughnut => {
                 pie_marks(&mut svg, chart, plot, &area);
             }
-            ChartKind::Scatter => scatter_marks(&mut svg, chart, plot, area),
-            ChartKind::Column | ChartKind::Bar | ChartKind::Line | ChartKind::Area => {
+            ChartKind::Scatter | ChartKind::Bubble => scatter_marks(&mut svg, chart, plot, area),
+            ChartKind::Radar => radar_marks(&mut svg, chart, plot, area),
+            ChartKind::Column | ChartKind::Bar | ChartKind::Line | ChartKind::Area | ChartKind::Stock => {
                 category_marks(&mut svg, chart, plot, area, None);
             }
             ChartKind::Other(kind) => {
@@ -885,6 +886,58 @@ fn category_marks(
             }
             svg.push_str(&shapes);
         }
+        ChartKind::Stock => {
+            // Each category's high-low line from its lowest to its highest value; the open (with four series, the
+            // first) as a tick to the left, the close (the last) as a tick to the right; with up/down bars, a box
+            // from open to close, white when the close is higher, black when lower.
+            let n = plot.series.len();
+            let tick = (band / 6.0).clamp(2.0, 8.0);
+            for j in 0..count {
+                let values: Vec<f64> = plot.series.iter().filter_map(|s| s.values.get(j).copied().flatten()).filter(|v| scale.position(*v).is_some()).collect();
+                let x = middle_of(j);
+                if values.len() >= 2 && (plot.high_low_lines || !plot.up_down_bars) {
+                    let (low, high) = values.iter().fold((f64::MAX, f64::MIN), |(a, b), v| (a.min(*v), b.max(*v)));
+                    let _ = write!(
+                        svg,
+                        "<line data-dnacalc=\"chart-high-low\" data-point=\"{j}\" x1=\"{x:.1}\" y1=\"{:.1}\" x2=\"{x:.1}\" y2=\"{:.1}\" stroke=\"{AXIS}\" stroke-width=\"0.75\"/>",
+                        value_at(low),
+                        value_at(high)
+                    );
+                }
+                let at = |i: usize| plot.series.get(i).and_then(|s| s.values.get(j).copied().flatten()).filter(|v| scale.position(*v).is_some());
+                let open = if n >= 4 { at(0) } else { None };
+                let close = if n >= 3 { at(n - 1) } else { None };
+                match (open, close) {
+                    (Some(o), Some(c)) if plot.up_down_bars => {
+                        let (top, bottom) = (value_at(o.max(c)), value_at(o.min(c)));
+                        let fill = if c >= o { "#FFFFFF" } else { "#000000" };
+                        let _ = write!(
+                            svg,
+                            "<rect data-dnacalc=\"chart-mark\" x=\"{:.1}\" y=\"{top:.1}\" width=\"{:.1}\" height=\"{:.1}\" fill=\"{fill}\" stroke=\"{AXIS}\" stroke-width=\"0.75\"",
+                            x - tick,
+                            2.0 * tick,
+                            (bottom - top).max(0.75)
+                        );
+                        mark(svg, n - 1 + offset, j, c);
+                        svg.push_str("/>");
+                    }
+                    _ => {
+                        for (value, left, series) in [(open, true, 0), (close, false, n.saturating_sub(1))] {
+                            let Some(v) = value else { continue };
+                            let y = value_at(v);
+                            let (from, to) = if left { (x - tick, x) } else { (x, x + tick) };
+                            let _ = write!(
+                                svg,
+                                "<line data-dnacalc=\"chart-mark\" x1=\"{from:.1}\" y1=\"{y:.1}\" x2=\"{to:.1}\" y2=\"{y:.1}\" stroke=\"#{}\" stroke-width=\"1.5\"",
+                                plot.series[series].color
+                            );
+                            mark(svg, series + offset, j, v);
+                            svg.push_str("/>");
+                        }
+                    }
+                }
+            }
+        }
         _ => {}
     }
     // The category axis line, at zero.
@@ -910,6 +963,109 @@ fn category_marks(
     }
     svg.push_str("</svg>");
     svg.push_str(&data_labels);
+}
+
+/// A radar's series over spokes, one spoke a category clockwise from twelve o'clock: its value axis as rings
+/// (polygons) at the scale's ticks, labelled up the first spoke; each series a closed line (`standard`), with markers
+/// (`marker`), or filled (`filled`). A gap breaks the line. Marker size and label offsets are ASSUMED until an Excel
+/// side-by-side.
+fn radar_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: Area) {
+    let scale = match calc_host::chart::category_scale(chart, plot) {
+        Ok(scale) => scale,
+        Err(message) => {
+            axis_notice(svg, &area, &message);
+            return;
+        }
+    };
+    let Ok(axes) = calc_host::chart::value_axes(&chart.axes, &plot.axis_ids, false) else {
+        return;
+    };
+    let value_axis = axes[0].id;
+    let grid = gridline_color(chart, value_axis);
+    let count = plot.series.iter().map(|s| s.values.len()).max().unwrap_or(0);
+    if count == 0 {
+        return;
+    }
+    let (cx, cy) = ((area.left + area.right) / 2.0, (area.top + area.bottom) / 2.0);
+    let radius = ((area.right - area.left).min(area.bottom - area.top) / 2.0 - 18.0).max(4.0);
+    let angle = |j: usize| (-90.0 + 360.0 * j as f64 / count as f64).to_radians();
+    let at = |t: f64, j: usize| (cx + radius * t * angle(j).cos(), cy + radius * t * angle(j).sin());
+    let fraction = |v: f64| scale.position(v);
+    // Rings and spokes.
+    for v in scale.ticks() {
+        let Some(t) = fraction(v) else { continue };
+        let mut d = String::new();
+        for j in 0..count {
+            let (x, y) = at(t, j);
+            let _ = write!(d, "{}{x:.1} {y:.1} ", if j == 0 { "M" } else { "L" });
+        }
+        let _ = write!(svg, "<path data-dnacalc=\"chart-radar-ring\" d=\"{d}Z\" fill=\"none\" stroke=\"{grid}\"/>");
+        let (x, y) = at(t, 0);
+        let _ = write!(
+            svg,
+            "<text data-chart-text=\"axis:{value_axis}\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"end\" fill=\"{AXIS}\">{}</text>",
+            x - 3.0,
+            y + 4.0,
+            escape(&axis_label(chart, value_axis, v, scale.step))
+        );
+    }
+    let categories = plot.series.iter().find(|s| !s.categories.is_empty()).map(|s| s.categories.clone()).unwrap_or_default();
+    let category_axis = chart.axes.iter().find(|a| plot.axis_ids.contains(&a.id) && a.id != value_axis).map_or(0, |a| a.id);
+    for j in 0..count {
+        let (x, y) = at(1.0, j);
+        let _ = write!(svg, "<line x1=\"{cx:.1}\" y1=\"{cy:.1}\" x2=\"{x:.1}\" y2=\"{y:.1}\" stroke=\"{grid}\"/>");
+        let (lx, ly) = (cx + (radius + 10.0) * angle(j).cos(), cy + (radius + 10.0) * angle(j).sin());
+        let anchor = if (lx - cx).abs() < 1.0 { "middle" } else if lx > cx { "start" } else { "end" };
+        let text = categories.get(j).cloned().flatten().map(|v| text_of(&v)).unwrap_or_else(|| (j + 1).to_string());
+        let _ = write!(
+            svg,
+            "<text data-chart-text=\"axis:{category_axis}\" x=\"{lx:.1}\" y=\"{:.1}\" text-anchor=\"{anchor}\" fill=\"{AXIS}\">{}</text>",
+            ly + 4.0,
+            escape(&text)
+        );
+    }
+    let filled = plot.style.as_deref() == Some("filled");
+    let markers = plot.style.as_deref() == Some("marker");
+    for (i, series) in plot.series.iter().enumerate() {
+        let points: Vec<Option<(f64, f64, f64)>> = (0..count)
+            .map(|j| series.values.get(j).copied().flatten().and_then(|v| fraction(v).map(|t| (at(t, j), v))).map(|((x, y), v)| (x, y, v)))
+            .collect();
+        let whole = points.iter().all(Option::is_some);
+        let mut d = String::new();
+        let mut joined = false;
+        for p in &points {
+            match p {
+                Some((x, y, _)) => {
+                    let _ = write!(d, "{}{x:.1} {y:.1} ", if joined { "L" } else { "M" });
+                    joined = true;
+                }
+                None => joined = false,
+            }
+        }
+        if whole {
+            d.push('Z');
+        }
+        if filled {
+            let _ = write!(svg, "<path d=\"{d}\" fill=\"#{}\" data-series=\"{i}\"/>", series.color);
+        } else {
+            let _ = write!(
+                svg,
+                "<path d=\"{d}\" fill=\"none\" stroke=\"#{}\" stroke-width=\"2.25\" stroke-linejoin=\"round\" data-series=\"{i}\"/>",
+                series.color
+            );
+        }
+        for (j, p) in points.iter().enumerate() {
+            let Some((x, y, v)) = p else { continue };
+            let _ = write!(
+                svg,
+                "<circle data-dnacalc=\"chart-mark\" cx=\"{x:.1}\" cy=\"{y:.1}\" r=\"{}\" fill=\"#{}\"",
+                if markers { 3.0 } else { 0.0 },
+                series.color
+            );
+            mark(svg, i, j, *v);
+            svg.push_str("/>");
+        }
+    }
 }
 
 /// A pie's or doughnut's slices: the first series' positive values, clockwise from twelve.
@@ -1066,10 +1222,32 @@ fn scatter_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: Are
         x1 - x0,
         y1 - y0
     );
+    // A bubble plot's largest bubble is a quarter of the plot's smaller side across at a scale of 100% (ASSUMED until
+    // an Excel side-by-side), its others by area (or by width), negative and zero sizes not shown.
+    let bubble = plot.kind == ChartKind::Bubble;
+    let largest = series.iter().flat_map(|(_, s)| s.sizes.iter().flatten().copied()).filter(|v| v.is_finite() && *v > 0.).fold(0.0f64, f64::max);
+    let biggest_radius = (x1 - x0).min(y1 - y0) / 8.0 * plot.bubble_scale / 100.0;
     for (i, (xs, s)) in series.iter().enumerate() {
         for (j, (x, y)) in xs.iter().zip(&s.values).enumerate() {
             if let (Some(x), Some(y)) = (x, y) {
                 if xscale.position(*x).is_none() || yscale.position(*y).is_none() {
+                    continue;
+                }
+                if bubble {
+                    let Some(size) = s.sizes.get(j).copied().flatten().filter(|v| v.is_finite() && *v > 0. && largest > 0.) else { continue };
+                    let share = size / largest;
+                    let r = biggest_radius * if plot.bubble_width { share } else { share.sqrt() };
+                    let _ = write!(
+                        svg,
+                        "<circle data-dnacalc=\"chart-mark\" cx=\"{:.1}\" cy=\"{:.1}\" r=\"{r:.1}\" fill=\"#{}\" fill-opacity=\"0.75\" stroke=\"#{}\"",
+                        px(*x),
+                        py(*y),
+                        s.color,
+                        s.color
+                    );
+                    mark(svg, i, j, *y);
+                    let _ = write!(svg, " data-x=\"{x}\" data-size=\"{size}\"");
+                    svg.push_str("/>");
                     continue;
                 }
                 let _ = write!(
@@ -1092,6 +1270,60 @@ fn scatter_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: Are
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// dc-zjsg.6: 3-D column and pie charts are drawn flat; radar (marker, filled), bubble and stock (high-low-close,
+    /// open-high-low-close with up/down bars) charts are drawn from their own plots.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dc_zjsg_6__three_d_radar_bubble_and_stock_charts_draw() {
+        use calc_host::{HostOptions, HostSession, MemorySource, OpenPolicy, PackageRead, SkinIntent};
+        use std::sync::Arc;
+        let bytes = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/chart-kinds.xlsx");
+        let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes.to_vec()));
+        let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+        assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        let (charts, unread) = book.host().charts(book.host().sheets()[0].id());
+        assert_eq!((charts.len(), unread), (8, 0));
+        let svg = |name: &str| chart_svg(charts.iter().find(|c| c.name == name).unwrap(), 600., 350.);
+        let count = |svg: &str, needle: &str| svg.matches(needle).count();
+        for name in ["3-D Column", "3-D Pie", "Radar marker", "Radar filled", "Bubble", "Stock HLC", "Stock OHLC", "3-D Line"] {
+            let drawn = svg(name);
+            assert!(!drawn.contains("is not drawn here") && !drawn.contains("chart-notice"), "{name}: {drawn}");
+        }
+        // Two series of five columns; five slices.
+        assert_eq!(count(&svg("3-D Column"), "<rect data-dnacalc=\"chart-mark\""), 10);
+        assert!(charts.iter().find(|c| c.name == "3-D Column").unwrap().plots[0].three_d);
+        assert_eq!(count(&svg("3-D Pie"), "data-dnacalc=\"chart-mark\""), 5);
+        // A 3-D line with its depth axis: two lines of five points, the depth axis left out.
+        assert_eq!(count(&svg("3-D Line"), "<circle data-dnacalc=\"chart-mark\""), 10);
+        // A radar: a ring per tick, two series with visible markers; the filled one a filled path.
+        let radar = svg("Radar marker");
+        assert!(count(&radar, "chart-radar-ring") >= 3, "{radar}");
+        assert_eq!(count(&radar, "<circle data-dnacalc=\"chart-mark\""), 10);
+        assert!(radar.contains("r=\"3\""));
+        assert!(svg("Radar filled").contains("Z\" fill=\"#"));
+        // Bubbles sized by area: the largest (21 at Thu) has twice the radius of a size a quarter of it would.
+        let bubble = svg("Bubble");
+        assert_eq!(count(&bubble, "<circle data-dnacalc=\"chart-mark\""), 5);
+        let radius = |size: &str| {
+            let at = bubble.find(&format!("data-size=\"{size}\"")).unwrap();
+            let tag = &bubble[bubble[..at].rfind("<circle").unwrap()..at];
+            let r = tag.split(" r=\"").nth(1).unwrap().split('"').next().unwrap();
+            r.parse::<f64>().unwrap()
+        };
+        let (big, small) = (radius("21"), radius("11"));
+        assert!((small / big - (11.0f64 / 21.0).sqrt()).abs() < 0.02, "{big} {small}");
+        // Stock: a high-low line per day; HLC closes as ticks, OHLC as up/down boxes.
+        let hlc = svg("Stock HLC");
+        assert_eq!(count(&hlc, "chart-high-low"), 5);
+        assert_eq!(count(&hlc, "<line data-dnacalc=\"chart-mark\""), 5);
+        let ohlc = svg("Stock OHLC");
+        assert_eq!(count(&ohlc, "chart-high-low"), 5);
+        assert_eq!(count(&ohlc, "<rect data-dnacalc=\"chart-mark\""), 5);
+        // Mon opens 10, closes 16: an up (white) box; Tue opens 12, closes 12 (equal: up).
+        assert!(ohlc.contains("fill=\"#FFFFFF\""));
+    }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

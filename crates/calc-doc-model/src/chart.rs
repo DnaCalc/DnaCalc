@@ -57,6 +57,8 @@ pub struct ChartSeries {
     pub categories: Option<ChartData>,
     /// `c:val`, or a scatter series' `c:yVal`.
     pub values: Option<ChartData>,
+    /// A bubble series' `c:bubbleSize` (dc-zjsg.6).
+    pub bubble_sizes: Option<ChartData>,
     /// The series' fill (`c:spPr/a:solidFill`): `RRGGBB` (`a:srgbClr`) or a scheme colour's name
     /// (`a:schemeClr`, e.g. `accent2`).
     pub fill: Option<String>,
@@ -85,6 +87,14 @@ pub struct ChartPlot {
     pub series: Vec<ChartSeries>,
     /// The axes this plot actually references, in stored order.
     pub axis_ids: Vec<u32>,
+    /// A radar plot's `c:radarStyle` (`standard`, `marker`, `filled`) (dc-zjsg.6).
+    pub style: Option<String>,
+    /// A bubble plot's `c:bubbleScale` (percent, 100 when absent) and `c:sizeRepresents` (`area` or `w`).
+    pub bubble_scale: Option<u32>,
+    pub bubble_width: bool,
+    /// A stock plot's `c:hiLowLines` and `c:upDownBars` (dc-zjsg.6).
+    pub high_low_lines: bool,
+    pub up_down_bars: bool,
 }
 
 /// One chart on a sheet.

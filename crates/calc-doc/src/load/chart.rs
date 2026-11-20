@@ -211,6 +211,7 @@ enum Slot {
     Name,
     Categories,
     Values,
+    BubbleSizes,
 }
 
 fn read_chart(
@@ -295,7 +296,7 @@ fn read_chart_xml(
                 }
                 match path.pop().as_deref() {
                     None => break,
-                    Some("tx" | "cat" | "val" | "xVal" | "yVal")
+                    Some("tx" | "cat" | "val" | "xVal" | "yVal" | "bubbleSize")
                         if path.last().is_some_and(|p| p == "ser") =>
                     {
                         slot = None;
@@ -652,12 +653,38 @@ fn read_chart_xml(
                     series.index = val.and_then(|v| v.trim().parse().ok()).unwrap_or(0);
                 }
             }
-            (Some("ser"), "tx" | "cat" | "val" | "xVal" | "yVal") => {
+            (Some("ser"), "tx" | "cat" | "val" | "xVal" | "yVal" | "bubbleSize") => {
                 slot = Some(match local.as_str() {
                     "tx" => Slot::Name,
                     "cat" | "xVal" => Slot::Categories,
+                    "bubbleSize" => Slot::BubbleSizes,
                     _ => Slot::Values,
                 });
+            }
+            (Some(p), "radarStyle") if p.ends_with("Chart") => {
+                if let Some(plot) = plot {
+                    plot.style = val;
+                }
+            }
+            (Some(p), "bubbleScale") if p.ends_with("Chart") => {
+                if let Some(plot) = plot {
+                    plot.bubble_scale = val.and_then(|v| v.trim().parse().ok());
+                }
+            }
+            (Some(p), "sizeRepresents") if p.ends_with("Chart") => {
+                if let Some(plot) = plot {
+                    plot.bubble_width = val.as_deref() == Some("w");
+                }
+            }
+            (Some(p), "hiLowLines") if p.ends_with("Chart") => {
+                if let Some(plot) = plot {
+                    plot.high_low_lines = true;
+                }
+            }
+            (Some(p), "upDownBars") if p.ends_with("Chart") => {
+                if let Some(plot) = plot {
+                    plot.up_down_bars = true;
+                }
             }
             (Some("solidFill"), "srgbClr" | "schemeClr")
                 if path.len() >= 3
@@ -767,6 +794,7 @@ fn data_of(plots: &mut [ChartPlot], slot: Option<Slot>) -> Option<&mut ChartData
         Slot::Name => &mut series.name,
         Slot::Categories => &mut series.categories,
         Slot::Values => &mut series.values,
+        Slot::BubbleSizes => &mut series.bubble_sizes,
     };
     Some(data.get_or_insert_with(ChartData::default))
 }

@@ -65,7 +65,13 @@ pub enum ChartKind {
     Pie,
     Doughnut,
     Scatter,
-    /// Another kind, by its element name (`radarChart`, `bubbleChart`, `stockChart`, ...).
+    /// `radarChart` (dc-zjsg.6).
+    Radar,
+    /// `bubbleChart`: a scatter whose points are sized (dc-zjsg.6).
+    Bubble,
+    /// `stockChart`: high-low lines with open and close marks over categories (dc-zjsg.6).
+    Stock,
+    /// Another kind, by its element name (`surfaceChart`, `ofPieChart`, ...).
     Other(String),
 }
 
@@ -85,6 +91,8 @@ pub struct SeriesView {
     pub explicit_color: bool,
     /// Whether any values, categories/X coordinates or series name use the file's saved data.
     pub cached: bool,
+    /// A bubble series' sizes, one per point.
+    pub sizes: Vec<Option<f64>>,
 }
 
 /// One plot of a chart.
@@ -98,6 +106,16 @@ pub struct PlotView {
     pub vary_colors: bool,
     pub series: Vec<SeriesView>,
     pub axis_ids: Vec<u32>,
+    /// Drawn flat from a 3-D plot (`bar3DChart`, `line3DChart`, `area3DChart`, `pie3DChart`).
+    pub three_d: bool,
+    /// A radar's style: `standard`, `marker` or `filled`.
+    pub style: Option<String>,
+    /// A bubble plot's scale (percent of the default size) and whether size is the bubble's width, not its area.
+    pub bubble_scale: f64,
+    pub bubble_width: bool,
+    /// A stock plot's high-low lines and up/down bars.
+    pub high_low_lines: bool,
+    pub up_down_bars: bool,
 }
 
 /// One chart as a skin draws it.
@@ -185,21 +203,36 @@ impl HostState {
                 .iter()
                 .map(|plot| {
                     let kind = match plot.kind.as_str() {
-                        "barChart" if plot.bar_direction.as_deref() == Some("bar") => {
+                        "barChart" | "bar3DChart" if plot.bar_direction.as_deref() == Some("bar") => {
                             ChartKind::Bar
                         }
-                        "barChart" => ChartKind::Column,
-                        "lineChart" => ChartKind::Line,
-                        "areaChart" => ChartKind::Area,
-                        "pieChart" => ChartKind::Pie,
+                        "barChart" | "bar3DChart" => ChartKind::Column,
+                        "lineChart" | "line3DChart" => ChartKind::Line,
+                        "areaChart" | "area3DChart" => ChartKind::Area,
+                        "pieChart" | "pie3DChart" => ChartKind::Pie,
                         "doughnutChart" => ChartKind::Doughnut,
                         "scatterChart" => ChartKind::Scatter,
+                        "radarChart" => ChartKind::Radar,
+                        "bubbleChart" => ChartKind::Bubble,
+                        "stockChart" => ChartKind::Stock,
                         other => ChartKind::Other(other.to_owned()),
                     };
                     let grouping = plot.grouping.as_deref().unwrap_or_default();
                     PlotView {
-                        axis_ids: plot.axis_ids.clone(),
+                        // A 3-D plot drawn flat leaves out its series axis, and the id 0 a clustered 3-D column names
+                        // for the series axis it does not have.
+                        axis_ids: if plot.kind.contains("3D") {
+                            plot.axis_ids.iter().copied().filter(|id| chart.axes.iter().any(|a| a.id == *id && a.kind != "serAx")).collect()
+                        } else {
+                            plot.axis_ids.clone()
+                        },
                         kind,
+                        three_d: plot.kind.contains("3D"),
+                        style: plot.style.clone(),
+                        bubble_scale: f64::from(plot.bubble_scale.unwrap_or(100).min(300)),
+                        bubble_width: plot.bubble_width,
+                        high_low_lines: plot.high_low_lines,
+                        up_down_bars: plot.up_down_bars,
                         stacked: matches!(grouping, "stacked" | "percentStacked"),
                         percent: grouping == "percentStacked",
                         vary_colors: plot.vary_colors,
@@ -245,7 +278,13 @@ impl HostState {
                                         }
                                     })
                                     .unwrap_or_else(|| palette[series.index as usize % 6].clone());
+                                let sizes = series
+                                    .bubble_sizes
+                                    .as_ref()
+                                    .map(|data| self.series_values(Some(data), origin).0)
+                                    .unwrap_or_default();
                                 SeriesView {
+                                    sizes,
                                     name,
                                     categories,
                                     values,
@@ -306,7 +345,8 @@ impl HostState {
                     });
                     style
                 },
-                axes: chart.axes.clone(),
+                // A 3-D chart drawn flat has no series (depth) axis.
+                axes: chart.axes.iter().filter(|a| !(a.kind == "serAx" && chart.plots.iter().any(|p| p.kind.contains("3D")))).cloned().collect(),
                 format_profile: self.entry_environment().profile.unwrap_or_else(|| calc_func::locale::format_profile(calc_func::locale::LocaleId::EnUs)),
                 date_system: if self.declared_date1904() { calc_func::locale::DateSystem::System1904 } else { calc_func::locale::DateSystem::System1900 },
             });
@@ -1766,6 +1806,7 @@ fn make_series(
             values: Some(data(cell(headers, minor), cell(length - 1, minor), true)?),
             fill: None,
             unique_id: None,
+            bubble_sizes: None,
         });
     }
     Ok(series)
@@ -2022,6 +2063,7 @@ fn assemble(
         value_labels_source_linked: false,
         series,
         axis_ids: if pie { Vec::new() } else { vec![1, 2] },
+        ..ChartPlot::default()
     }];
     if kind == "combo-three" {
         let area = plots[0].series.pop().unwrap();
