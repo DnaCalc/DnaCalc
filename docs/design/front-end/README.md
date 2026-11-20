@@ -24,7 +24,7 @@ Owner, 2026-11-20 evening: "gather everything (the designs work, brief, skin dis
 **The answers**
 - GPT-6 Pro, Pro 19: `docs/architecture/review-2026-11/pro/19-front-end-design-answer.md`. It includes 34 C-needs, 68 R-requirements, five push-backs and five owner questions.
 - GPT-6 Pro, Pro 20: `docs/architecture/review-2026-11/pro/20-front-end-mockups.zip`, 43 interactive scenes.
-- GPT-6 Pro, Pro 21: still to come; it goes beside Pro 20.
+- GPT-6 Pro, Pro 21: `docs/architecture/review-2026-11/pro/21-front-end-round3.zip`, 73 scenes (the 43 from Pro 20 plus 30 new): the computation notebook NC01–NC07, patterns and mixed views W01–W05, customisation U01–U05, file and print O01–O04, map at scale M03–M05, Guarded macros G01–G03, Formula Explorer E01–E03. It supersedes the Pro 20 package. To view locally, use the `pro20-mockups` server under `p21/`.
 - Fable 5.2, Pro 19: [sources/pro19-fable/](sources/pro19-fable/), answer and colour-coded wireframes.
 - Gemini 4 Carbon, Pro 19: [sources/pro19-carbon/](sources/pro19-carbon/), answer and 18 rendered scenes.
 - Gemini 4 Neon, Pro 19: [sources/pro19-neon/](sources/pro19-neon/), answer (R-1…R-48, C-1…C-32) and 17 rendered scenes.
