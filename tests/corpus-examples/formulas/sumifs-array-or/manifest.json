@@ -1,0 +1,35 @@
+{
+  "id": "sumifs-array-or",
+  "kind": "formula",
+  "feature": "reference and coercion",
+  "trick": "A literal criteria array returns one subtotal per condition in a single expression.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/sumifs-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": "North",
+    "B1": 8,
+    "A2": "South",
+    "B2": 4,
+    "A3": "North",
+    "B3": 6,
+    "A4": "East",
+    "B4": 3
+  },
+  "formulas": {
+    "N2": "=SUMIFS(B1:B4,A1:A4,{\"North\",\"East\",\"Missing\"})"
+  },
+  "stored_formulas": {
+    "N2": "=SUMIFS(B1:B4,A1:A4,{\"North\",\"East\",\"Missing\"})"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

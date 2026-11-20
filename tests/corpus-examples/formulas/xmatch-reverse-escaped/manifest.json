@@ -1,0 +1,30 @@
+{
+  "id": "xmatch-reverse-escaped",
+  "kind": "formula",
+  "feature": "lookup",
+  "trick": "A tilde makes a literal wildcard eligible for reverse lookup.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/xmatch-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": "a?",
+    "A2": "ax",
+    "A3": "a?",
+    "A4": "ay"
+  },
+  "formulas": {
+    "N2": "=XMATCH(\"a~?\",A1:A4,2,-1)"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.XMATCH(\"a~?\",A1:A4,2,-1)"
+  },
+  "capture": [
+    "Sheet1!N2"
+  ],
+  "expected_answer": null
+}

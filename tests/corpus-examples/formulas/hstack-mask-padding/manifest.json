@@ -1,0 +1,33 @@
+{
+  "id": "hstack-mask-padding",
+  "kind": "formula",
+  "feature": "dynamic arrays",
+  "trick": "IFNA on an uneven HSTACK also masks incoming #N/A values.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/hstack-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": "A",
+    "A2": {
+      "error": "#N/A"
+    },
+    "A3": "C",
+    "B1": 4
+  },
+  "formulas": {
+    "N2": "=IFNA(HSTACK(A1:A3,B1),\"missing\")"
+  },
+  "stored_formulas": {
+    "N2": "=IFNA(_xlfn.HSTACK(A1:A3,B1),\"missing\")"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

@@ -1,0 +1,39 @@
+{
+  "id": "noncontiguous-filter",
+  "kind": "formula",
+  "feature": "dynamic arrays",
+  "trick": "CHOOSE builds a two-column result from nonadjacent inputs before row filtering.",
+  "licence": "CC BY-SA 4.0",
+  "source": {
+    "url": "https://stackoverflow.com/a/69577256",
+    "author": "Rory",
+    "author_url": "https://stackoverflow.com/users/3611989/rory",
+    "licence": "CC BY-SA 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "source_path": "answers/69577256/code/2",
+    "sha256": "c06c1e0043022d6669096f17be2c5c564531aaf252de4948be9572a1637b3621",
+    "changes": "Synthetic inputs and OOXML formula encoding."
+  },
+  "inputs": {
+    "B1": "a",
+    "D1": 10,
+    "K1": 1,
+    "B2": "b",
+    "D2": 20,
+    "K2": 0,
+    "B3": "c",
+    "D3": 30,
+    "K3": 1
+  },
+  "formulas": {
+    "N2": "=FILTER(CHOOSE({1,2},B1:B7,D1:D7),$K$1:$K$7=$K$1)"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn._xlws.FILTER(CHOOSE({1,2},B1:B7,D1:D7),$K$1:$K$7=$K$1)"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

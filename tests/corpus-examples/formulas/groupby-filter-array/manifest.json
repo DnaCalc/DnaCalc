@@ -1,0 +1,39 @@
+{
+  "id": "groupby-filter-array",
+  "kind": "formula",
+  "feature": "GROUPBY and PIVOTBY",
+  "trick": "The filter array can remove a group before totals are calculated.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/groupby-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": "north",
+    "B1": 7,
+    "C1": true,
+    "A2": "east",
+    "B2": 11,
+    "C2": false,
+    "A3": "north",
+    "B3": 13,
+    "C3": false,
+    "A4": "west",
+    "B4": 17,
+    "C4": true
+  },
+  "formulas": {
+    "N2": "=GROUPBY(A1:A4,B1:B4,_xleta.SUM,0,1,,C1:C4)"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.GROUPBY(A1:A4,B1:B4,_xleta.SUM,0,1,,C1:C4)"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

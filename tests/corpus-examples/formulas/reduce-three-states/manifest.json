@@ -1,0 +1,29 @@
+{
+  "id": "reduce-three-states",
+  "kind": "formula",
+  "feature": "LAMBDA and LET",
+  "trick": "An accumulator combines three arithmetic updates in one REDUCE pass.",
+  "licence": "CC BY-SA 4.0",
+  "source": {
+    "url": "https://stackoverflow.com/a/73148756",
+    "author": "JvdV",
+    "author_url": "https://stackoverflow.com/users/9758194/jvdv",
+    "licence": "CC BY-SA 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "source_path": "answers/73148756/code/5",
+    "sha256": "1068717e19b7b95aeeaedf4294d5fe4e9bded31834aae8e0f46458e17e2c9f16",
+    "changes": "Synthetic inputs and OOXML formula encoding."
+  },
+  "inputs": {},
+  "formulas": {
+    "N2": "=REDUCE({0,1,100},SEQUENCE(5),LAMBDA(a,b,CHOOSE({1,2,3},a+b,a*b,a/b)))"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.REDUCE({0,1,100},_xlfn.SEQUENCE(5),_xlfn.LAMBDA(_xlpm.a,_xlpm.b,CHOOSE({1,2,3},_xlpm.a+_xlpm.b,_xlpm.a*_xlpm.b,_xlpm.a/_xlpm.b)))"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

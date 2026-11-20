@@ -1,0 +1,30 @@
+{
+  "id": "regex-count-boundary",
+  "kind": "formula",
+  "feature": "REGEX",
+  "trick": "A negative lookahead prevents counting a word embedded in a longer identifier.",
+  "licence": "CC BY-SA 4.0",
+  "source": {
+    "url": "https://superuser.com/a/1351526",
+    "author": "M&#225;t&#233; Juh&#225;sz",
+    "author_url": "https://superuser.com/users/427317/m%c3%a1t%c3%a9-juh%c3%a1sz",
+    "licence": "CC BY-SA 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "source_path": "answers/1351526/code/2",
+    "sha256": "4c789560d965dc4ec31ebce386019eec28c30443c56a6c9f2d5ae5fc15cc3d60",
+    "changes": "Synthetic inputs and OOXML formula encoding."
+  },
+  "inputs": {
+    "A1": "doc docs doc. doct"
+  },
+  "formulas": {
+    "N2": "=(LEN(A1)-LEN(RegExReplace(A1,\"(\\W?)doc(?!\\w)\",\"$1\")))/LEN(\"doc\")"
+  },
+  "stored_formulas": {
+    "N2": "=(LEN(A1)-LEN(_xlfn.REGEXREPLACE(A1,\"(\\W?)doc(?!\\w)\",\"$1\")))/LEN(\"doc\")"
+  },
+  "capture": [
+    "Sheet1!N2"
+  ],
+  "expected_answer": null
+}

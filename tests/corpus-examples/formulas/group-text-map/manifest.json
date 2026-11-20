@@ -1,0 +1,40 @@
+{
+  "id": "group-text-map",
+  "kind": "formula",
+  "feature": "LAMBDA and LET",
+  "trick": "MAP runs a FILTER and TEXTJOIN for each key, including a key that may have no matches.",
+  "licence": "CC BY-SA 4.0",
+  "source": {
+    "url": "https://superuser.com/a/1934259",
+    "author": "Mayukh Bhattacharya",
+    "author_url": "https://superuser.com/users/1247873/mayukh-bhattacharya",
+    "licence": "CC BY-SA 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "source_path": "answers/1934259/code/7",
+    "sha256": "51760cdc224e579d530605ec3142313875beec5f0d62565f441a40cb1a566731",
+    "changes": "Synthetic inputs and OOXML formula encoding."
+  },
+  "inputs": {
+    "A2": "n",
+    "B2": "a",
+    "A3": "s",
+    "B3": "b",
+    "A4": "n",
+    "B4": "c",
+    "A5": "s",
+    "B5": "d",
+    "D2": "n",
+    "D3": "w"
+  },
+  "formulas": {
+    "N2": "=MAP(D2:D3, LAMBDA(x, TEXTJOIN(\"; \", 1, FILTER(B2:B5, x = A2:A5, \"\"))))"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.MAP(D2:D3, _xlfn.LAMBDA(_xlpm.x,_xlfn.TEXTJOIN(\"; \", 1, _xlfn._xlws.FILTER(B2:B5, _xlpm.x = A2:A5, \"\"))))"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

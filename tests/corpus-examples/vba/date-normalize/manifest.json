@@ -1,0 +1,22 @@
+{
+  "id": "date-normalize",
+  "kind": "vba",
+  "feature": "date and time",
+  "trick": "DateSerial normalizes day zero and month thirteen across boundaries.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://github.com/MicrosoftDocs/VBA-Docs/blob/cfee1b35b419270636defdbee0ac96e5ded071bb/Language/Reference/User-Interface-Help/dateserial-function.md",
+    "source_path": "Language/Reference/User-Interface-Help/dateserial-function.md",
+    "commit": "cfee1b35b419270636defdbee0ac96e5ded071bb",
+    "author": "Microsoft Corporation",
+    "licence": "MIT",
+    "licence_url": "https://github.com/MicrosoftDocs/VBA-Docs/blob/cfee1b35b419270636defdbee0ac96e5ded071bb/LICENSE-CODE",
+    "changes": "Minimal driver and synthetic arguments exercise the documented behavior."
+  },
+  "entry_point": "DcExample",
+  "requires_blank_worksheet": false,
+  "capture": [
+    "DcExample"
+  ],
+  "expected_answer": null
+}

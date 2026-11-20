@@ -1,0 +1,32 @@
+{
+  "id": "wrapcols-custom-fill",
+  "kind": "formula",
+  "feature": "dynamic arrays",
+  "trick": "The final wrapped column uses an explicit padding string.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/wrapcols-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": 4,
+    "B1": 5,
+    "C1": 6,
+    "D1": 7,
+    "E1": 8
+  },
+  "formulas": {
+    "N2": "=WRAPCOLS(A1:E1,3,\"pad\")"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.WRAPCOLS(A1:E1,3,\"pad\")"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

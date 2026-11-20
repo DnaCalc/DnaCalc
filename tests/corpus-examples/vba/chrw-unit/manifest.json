@@ -1,0 +1,22 @@
+{
+  "id": "chrw-unit",
+  "kind": "vba",
+  "feature": "strings and comparison",
+  "trick": "ChrW and AscW expose the same UTF-16 code unit with signed Integer semantics.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://github.com/MicrosoftDocs/VBA-Docs/blob/cfee1b35b419270636defdbee0ac96e5ded071bb/Language/Reference/User-Interface-Help/chr-function.md",
+    "source_path": "Language/Reference/User-Interface-Help/chr-function.md",
+    "commit": "cfee1b35b419270636defdbee0ac96e5ded071bb",
+    "author": "Microsoft Corporation",
+    "licence": "MIT",
+    "licence_url": "https://github.com/MicrosoftDocs/VBA-Docs/blob/cfee1b35b419270636defdbee0ac96e5ded071bb/LICENSE-CODE",
+    "changes": "Minimal driver and synthetic arguments exercise the documented behavior."
+  },
+  "entry_point": "DcExample",
+  "requires_blank_worksheet": false,
+  "capture": [
+    "DcExample"
+  ],
+  "expected_answer": null
+}

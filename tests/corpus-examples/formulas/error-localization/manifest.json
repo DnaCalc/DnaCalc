@@ -1,0 +1,30 @@
+{
+  "id": "error-localization",
+  "kind": "formula",
+  "feature": "reference and coercion",
+  "trick": "IFERROR over an array can replace a single failing calculation without collapsing the other cells.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/iferror-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": 10,
+    "A2": 0,
+    "A3": 2
+  },
+  "formulas": {
+    "N2": "=IFERROR(20/A1:A3,\"zero\")"
+  },
+  "stored_formulas": {
+    "N2": "=IFERROR(20/A1:A3,\"zero\")"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

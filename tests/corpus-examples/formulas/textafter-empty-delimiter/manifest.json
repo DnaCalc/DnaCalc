@@ -1,0 +1,27 @@
+{
+  "id": "textafter-empty-delimiter",
+  "kind": "formula",
+  "feature": "text arrays",
+  "trick": "An empty delimiter at a negative occurrence can match the end immediately.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/textafter-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": "moss"
+  },
+  "formulas": {
+    "N2": "=TEXTAFTER(A1,\"\",-1)"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.TEXTAFTER(A1,\"\",-1)"
+  },
+  "capture": [
+    "Sheet1!N2"
+  ],
+  "expected_answer": null
+}

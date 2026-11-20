@@ -1,0 +1,31 @@
+{
+  "id": "countif-literal-wildcard",
+  "kind": "formula",
+  "feature": "reference and coercion",
+  "trick": "Escaping the question mark counts literal punctuation separately from wildcard matches.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/countif-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": "p?",
+    "A2": "px",
+    "A3": "p",
+    "A4": "p??"
+  },
+  "formulas": {
+    "N2": "=CHOOSE({1,2},COUNTIF(A1:A4,\"p~?\"),COUNTIF(A1:A4,\"p?\"))"
+  },
+  "stored_formulas": {
+    "N2": "=CHOOSE({1,2},COUNTIF(A1:A4,\"p~?\"),COUNTIF(A1:A4,\"p?\"))"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

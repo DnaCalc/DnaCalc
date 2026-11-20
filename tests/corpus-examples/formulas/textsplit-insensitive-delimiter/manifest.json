@@ -1,0 +1,28 @@
+{
+  "id": "textsplit-insensitive-delimiter",
+  "kind": "formula",
+  "feature": "text arrays",
+  "trick": "Case-insensitive mode recognizes differently cased multi-character separators.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/textsplit-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": "aXXbxxC"
+  },
+  "formulas": {
+    "N2": "=TEXTSPLIT(A1,\"xx\",,FALSE,1)"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.TEXTSPLIT(A1,\"xx\",,FALSE,1)"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

@@ -1,0 +1,28 @@
+{
+  "id": "let-function-alias",
+  "kind": "formula",
+  "feature": "LAMBDA and LET",
+  "trick": "LET can bind a callable and invoke it twice on different inputs.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/let-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": -3,
+    "A2": 7
+  },
+  "formulas": {
+    "N2": "=LET(twice,LAMBDA(value,value*2),twice(A1)+twice(A2))"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.LET(twice,_xlfn.LAMBDA(_xlpm.value,_xlpm.value*2),twice(A1)+twice(A2))"
+  },
+  "capture": [
+    "Sheet1!N2"
+  ],
+  "expected_answer": null
+}

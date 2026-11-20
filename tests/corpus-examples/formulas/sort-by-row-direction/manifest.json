@@ -1,0 +1,33 @@
+{
+  "id": "sort-by-row-direction",
+  "kind": "formula",
+  "feature": "dynamic arrays",
+  "trick": "Column sorting can be driven by a row index.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/sort-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": "a",
+    "B1": "b",
+    "C1": "c",
+    "A2": 7,
+    "B2": 1,
+    "C2": 3
+  },
+  "formulas": {
+    "N2": "=SORT(A1:C2,2,1,TRUE)"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn._xlws.SORT(A1:C2,2,1,TRUE)"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

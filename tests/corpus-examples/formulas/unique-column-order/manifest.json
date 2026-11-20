@@ -1,0 +1,38 @@
+{
+  "id": "unique-column-order",
+  "kind": "formula",
+  "feature": "dynamic arrays",
+  "trick": "Column-major flattening ignores blanks and errors before stable deduplication.",
+  "licence": "CC BY-SA 4.0",
+  "source": {
+    "url": "https://stackoverflow.com/a/66368713",
+    "author": "JvdV",
+    "author_url": "https://stackoverflow.com/users/9758194/jvdv",
+    "licence": "CC BY-SA 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "source_path": "answers/66368713/code/1",
+    "sha256": "d41017ecd356db1bb35243832823913f9d99a2bf3565455722dd635a314f3f67",
+    "changes": "Synthetic inputs and OOXML formula encoding."
+  },
+  "inputs": {
+    "A2": "red",
+    "A3": "blue",
+    "B2": "green",
+    "B3": "red",
+    "C2": {
+      "error": "#N/A"
+    },
+    "C3": "gold"
+  },
+  "formulas": {
+    "N2": "=UNIQUE(TOCOL(A2:C7,3,1))"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.UNIQUE(_xlfn.TOCOL(A2:C7,3,1))"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

@@ -1,0 +1,22 @@
+{
+  "id": "object-end-blank",
+  "kind": "vba",
+  "feature": "Excel range model",
+  "trick": "End moves along contiguous filled cells until the gap.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://github.com/MicrosoftDocs/VBA-Docs/blob/cfee1b35b419270636defdbee0ac96e5ded071bb/api/Excel.Range.End.md",
+    "source_path": "api/Excel.Range.End.md",
+    "commit": "cfee1b35b419270636defdbee0ac96e5ded071bb",
+    "author": "Microsoft Corporation",
+    "licence": "MIT",
+    "licence_url": "https://github.com/MicrosoftDocs/VBA-Docs/blob/cfee1b35b419270636defdbee0ac96e5ded071bb/LICENSE-CODE",
+    "changes": "Minimal driver and synthetic arguments exercise the documented behavior."
+  },
+  "entry_point": "DcExample",
+  "requires_blank_worksheet": true,
+  "capture": [
+    "DcExample"
+  ],
+  "expected_answer": null
+}

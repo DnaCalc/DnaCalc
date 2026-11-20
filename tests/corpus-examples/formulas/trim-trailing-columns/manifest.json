@@ -1,0 +1,30 @@
+{
+  "id": "trim-trailing-columns",
+  "kind": "formula",
+  "feature": "TRIMRANGE",
+  "trick": "Independent row and column controls trim trailing columns while preserving all rows.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/trimrange-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A2": "mark",
+    "B4": 0,
+    "C3": 5
+  },
+  "formulas": {
+    "N2": "=TRIMRANGE(A1:E5,0,2)"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.TRIMRANGE(A1:E5,0,2)"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

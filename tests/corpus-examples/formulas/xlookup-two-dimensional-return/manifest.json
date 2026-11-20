@@ -1,0 +1,33 @@
+{
+  "id": "xlookup-two-dimensional-return",
+  "kind": "formula",
+  "feature": "lookup",
+  "trick": "A scalar lookup can return an entire row from a two-column result range.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/xlookup-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": "elk",
+    "B1": 3,
+    "C1": 5,
+    "A2": "lynx",
+    "B2": 7,
+    "C2": 11
+  },
+  "formulas": {
+    "N2": "=XLOOKUP(\"lynx\",A1:A2,B1:C2)"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.XLOOKUP(\"lynx\",A1:A2,B1:C2)"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

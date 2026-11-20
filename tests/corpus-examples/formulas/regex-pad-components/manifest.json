@@ -1,0 +1,30 @@
+{
+  "id": "regex-pad-components",
+  "kind": "formula",
+  "feature": "REGEX",
+  "trick": "Nested replacements use capture references to pad one-digit fields.",
+  "licence": "CC BY-SA 4.0",
+  "source": {
+    "url": "https://superuser.com/a/1325185",
+    "author": "M&#225;t&#233; Juh&#225;sz",
+    "author_url": "https://superuser.com/users/427317/m%c3%a1t%c3%a9-juh%c3%a1sz",
+    "licence": "CC BY-SA 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "source_path": "answers/1325185/code/1",
+    "sha256": "bef77a0c53b6026a4bb5990d725517249e6e46c96734c987fec5c47021d08880",
+    "changes": "Synthetic inputs and OOXML formula encoding."
+  },
+  "inputs": {
+    "A1": "part-U3-S12-P7"
+  },
+  "formulas": {
+    "N2": "=RegExReplace(RegExReplace(A1,\".*U([0-9]+)-S([0-9]+)-P([0-9]+)\",\"0$1-0$2-0$3\"),\"0([0-9]{2})\",\"$1\")"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.REGEXREPLACE(_xlfn.REGEXREPLACE(A1,\".*U([0-9]+)-S([0-9]+)-P([0-9]+)\",\"0$1-0$2-0$3\"),\"0([0-9]{2})\",\"$1\")"
+  },
+  "capture": [
+    "Sheet1!N2"
+  ],
+  "expected_answer": null
+}

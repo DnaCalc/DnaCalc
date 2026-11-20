@@ -1,0 +1,27 @@
+{
+  "id": "regex-replace-second-from-last",
+  "kind": "formula",
+  "feature": "REGEX",
+  "trick": "A negative occurrence modifies only the requested match counted from the end.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/regexreplace-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": "p1 p2 p3"
+  },
+  "formulas": {
+    "N2": "=REGEXREPLACE(A1,\"\\d+\",\"X\",-2)"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.REGEXREPLACE(A1,\"\\d+\",\"X\",-2)"
+  },
+  "capture": [
+    "Sheet1!N2"
+  ],
+  "expected_answer": null
+}

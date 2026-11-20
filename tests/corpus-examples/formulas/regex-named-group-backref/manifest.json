@@ -1,0 +1,29 @@
+{
+  "id": "regex-named-group-backref",
+  "kind": "formula",
+  "feature": "REGEX",
+  "trick": "A backreference requires both halves of the token to match the same text.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/regextest-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": "cove:cove",
+    "A2": "cove:dune"
+  },
+  "formulas": {
+    "N2": "=REGEXTEST(A1:A2,\"^(?<label>[a-z]+):\\k<label>$\")"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.REGEXTEST(A1:A2,\"^(?<label>[a-z]+):\\k<label>$\")"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

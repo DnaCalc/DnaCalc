@@ -1,0 +1,31 @@
+{
+  "id": "split-selective-number",
+  "kind": "formula",
+  "feature": "text arrays",
+  "trick": "Apply numeric coercion only to numeric fields of a split text record.",
+  "licence": "CC BY-SA 4.0",
+  "source": {
+    "url": "https://stackoverflow.com/a/76575138",
+    "author": "Rory",
+    "author_url": "https://stackoverflow.com/users/3611989/rory",
+    "licence": "CC BY-SA 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "source_path": "answers/76575138/code/1",
+    "sha256": "2847bb5a4b87ac5470d0111f97bde56a7abdf1e4079edc7769f067d272254556",
+    "changes": "Synthetic inputs and OOXML formula encoding."
+  },
+  "inputs": {
+    "A1": "7-moss-005-3.25"
+  },
+  "formulas": {
+    "N2": "=LET(d,TEXTSPLIT(A1,\"-\"),IFERROR(d+0,d))"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.LET(d,_xlfn.TEXTSPLIT(A1,\"-\"),IFERROR(d+0,d))"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

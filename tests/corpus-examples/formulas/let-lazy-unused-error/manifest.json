@@ -1,0 +1,27 @@
+{
+  "id": "let-lazy-unused-error",
+  "kind": "formula",
+  "feature": "LAMBDA and LET",
+  "trick": "An unused binding raises a question about whether LET evaluates the unused expression.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/let-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": 12
+  },
+  "formulas": {
+    "N2": "=LET(bad,1/0,used,A1,used+1)"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.LET(bad,1/0,used,A1,used+1)"
+  },
+  "capture": [
+    "Sheet1!N2"
+  ],
+  "expected_answer": null
+}

@@ -1,0 +1,32 @@
+{
+  "id": "index-reference-endpoints",
+  "kind": "formula",
+  "feature": "reference and coercion",
+  "trick": "INDEX can produce both endpoints of a range consumed by SUM.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/index-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": 7,
+    "A2": 4,
+    "A3": 9,
+    "A4": 2,
+    "B1": 2,
+    "B2": 3
+  },
+  "formulas": {
+    "N2": "=SUM(INDEX(A1:A4,B1):INDEX(A1:A4,B2))"
+  },
+  "stored_formulas": {
+    "N2": "=SUM(INDEX(A1:A4,B1):INDEX(A1:A4,B2))"
+  },
+  "capture": [
+    "Sheet1!N2"
+  ],
+  "expected_answer": null
+}

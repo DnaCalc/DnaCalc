@@ -1,0 +1,29 @@
+{
+  "id": "trim-leading-only",
+  "kind": "formula",
+  "feature": "TRIMRANGE",
+  "trick": "A leading-only trim leaves trailing empty boundaries in place.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/trimrange-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "C3": "mark",
+    "D4": 9
+  },
+  "formulas": {
+    "N2": "=TRIMRANGE(A1:D6,1,1)"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.TRIMRANGE(A1:D6,1,1)"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

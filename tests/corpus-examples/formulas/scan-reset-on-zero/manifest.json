@@ -1,0 +1,32 @@
+{
+  "id": "scan-reset-on-zero",
+  "kind": "formula",
+  "feature": "LAMBDA and LET",
+  "trick": "A running accumulation can reset on a sentinel in the source stream.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/scan-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": 3,
+    "A2": 5,
+    "A3": 0,
+    "A4": 2,
+    "A5": 4
+  },
+  "formulas": {
+    "N2": "=SCAN(0,A1:A5,LAMBDA(total,item,IF(item=0,0,total+item)))"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.SCAN(0,A1:A5,_xlfn.LAMBDA(_xlpm.total,_xlpm.item,IF(_xlpm.item=0,0,_xlpm.total+_xlpm.item)))"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

@@ -1,0 +1,33 @@
+{
+  "id": "choosecols-negative-repeat",
+  "kind": "formula",
+  "feature": "dynamic arrays",
+  "trick": "Negative CHOOSECOLS indices count from the end and can be repeated.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/choosecols-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": 1,
+    "B1": 2,
+    "C1": 3,
+    "A2": 4,
+    "B2": 5,
+    "C2": 6
+  },
+  "formulas": {
+    "N2": "=CHOOSECOLS(A1:C2,-1,1,-1)"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.CHOOSECOLS(A1:C2,-1,1,-1)"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

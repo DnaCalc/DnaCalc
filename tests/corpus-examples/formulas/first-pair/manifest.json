@@ -1,0 +1,33 @@
+{
+  "id": "first-pair",
+  "kind": "formula",
+  "feature": "reference and coercion",
+  "trick": "Count matches from the first row so a previously seen pair returns a different flag.",
+  "licence": "CC BY-SA 3.0",
+  "source": {
+    "url": "https://stackoverflow.com/a/11876301",
+    "author": "Siddharth Rout",
+    "author_url": "https://stackoverflow.com/users/1140579/siddharth-rout",
+    "licence": "CC BY-SA 3.0",
+    "licence_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+    "source_path": "answers/11876301/code/2",
+    "sha256": "06a16e33425ac248222762c1f3ef84a35b0af4e30ba4032c1a43759fae7522e2",
+    "changes": "Adapted formula, synthetic inputs and OOXML formula encoding."
+  },
+  "inputs": {
+    "A2": "East",
+    "B2": "red",
+    "A3": "East",
+    "B3": "red"
+  },
+  "formulas": {
+    "N2": "=IF(SUMPRODUCT(($A$2:$A3=A3)*($B$2:$B3=B3))>1,0,1)"
+  },
+  "stored_formulas": {
+    "N2": "=IF(SUMPRODUCT(($A$2:$A3=A3)*($B$2:$B3=B3))>1,0,1)"
+  },
+  "capture": [
+    "Sheet1!N2"
+  ],
+  "expected_answer": null
+}

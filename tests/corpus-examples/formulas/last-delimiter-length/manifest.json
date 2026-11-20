@@ -1,0 +1,31 @@
+{
+  "id": "last-delimiter-length",
+  "kind": "formula",
+  "feature": "text arrays",
+  "trick": "Find the start of the final delimiter using negative instance numbering.",
+  "licence": "CC BY-SA 4.0",
+  "source": {
+    "url": "https://stackoverflow.com/a/62439299",
+    "author": "JvdV",
+    "author_url": "https://stackoverflow.com/users/9758194/jvdv",
+    "licence": "CC BY-SA 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "source_path": "answers/62439299/code/2",
+    "sha256": "ebc4a90e96bc866a514da49b509681afa9d777f2b2bf50a2881ea23fb364d2e0",
+    "changes": "Synthetic inputs and OOXML formula encoding."
+  },
+  "inputs": {
+    "A2": "x::yz::q",
+    "B2": "::"
+  },
+  "formulas": {
+    "N2": "=LEN(TEXTBEFORE(A2,B2,-1))+1"
+  },
+  "stored_formulas": {
+    "N2": "=LEN(_xlfn.TEXTBEFORE(A2,B2,-1))+1"
+  },
+  "capture": [
+    "Sheet1!N2"
+  ],
+  "expected_answer": null
+}

@@ -1,0 +1,31 @@
+{
+  "id": "sumproduct-text-vs-operator",
+  "kind": "formula",
+  "feature": "reference and coercion",
+  "trick": "The separate-array and multiply-first SUMPRODUCT forms handle nonnumeric text differently.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/sumproduct-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": 2,
+    "A2": "x",
+    "B1": 5,
+    "B2": 7
+  },
+  "formulas": {
+    "N2": "=CHOOSE({1,2},SUMPRODUCT(A1:A2,B1:B2),SUMPRODUCT(A1:A2*B1:B2))"
+  },
+  "stored_formulas": {
+    "N2": "=CHOOSE({1,2},SUMPRODUCT(A1:A2,B1:B2),SUMPRODUCT(A1:A2*B1:B2))"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

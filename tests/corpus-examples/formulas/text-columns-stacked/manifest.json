@@ -1,0 +1,33 @@
+{
+  "id": "text-columns-stacked",
+  "kind": "formula",
+  "feature": "text arrays",
+  "trick": "Extract the two sides of the first delimiter and stack the two resulting columns.",
+  "licence": "CC BY-SA 4.0",
+  "source": {
+    "url": "https://stackoverflow.com/a/74682342",
+    "author": "Ron Rosenfeld",
+    "author_url": "https://stackoverflow.com/users/2872922/ron-rosenfeld",
+    "licence": "CC BY-SA 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "source_path": "answers/74682342/code/3",
+    "sha256": "755acbecc1c5831de281bb05642e3971189a262a9285f1a9e83a059385a3f903",
+    "changes": "Synthetic inputs and OOXML formula encoding."
+  },
+  "inputs": {
+    "F2": "oak north",
+    "F3": "elm east ridge",
+    "F4": "fir west"
+  },
+  "formulas": {
+    "N2": "=HSTACK(TEXTBEFORE(F2:F4,\" \"),TEXTAFTER(F2:F4,\" \"))"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.HSTACK(_xlfn.TEXTBEFORE(F2:F4,\" \"),_xlfn.TEXTAFTER(F2:F4,\" \"))"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

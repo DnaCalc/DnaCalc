@@ -1,0 +1,40 @@
+{
+  "id": "lookup-last-row-per-key",
+  "kind": "formula",
+  "feature": "lookup",
+  "trick": "UNIQUE keeps original key order while reverse XLOOKUP finds the latest matching entry.",
+  "licence": "CC BY-SA 4.0",
+  "source": {
+    "url": "https://stackoverflow.com/a/78388168",
+    "author": "Mayukh Bhattacharya",
+    "author_url": "https://stackoverflow.com/users/8162520/mayukh-bhattacharya",
+    "licence": "CC BY-SA 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "source_path": "answers/78388168/code/2",
+    "sha256": "623086ab1d912aa3c912fd32297d4c9c3ab68f64c29bbf6af8856926bd1e2d88",
+    "changes": "Adapted formula, synthetic inputs and OOXML formula encoding."
+  },
+  "inputs": {
+    "A1": "plum",
+    "B1": 2,
+    "A2": "pear",
+    "B2": 3,
+    "A3": "plum",
+    "B3": 5,
+    "A4": "lime",
+    "B4": 7,
+    "A5": "pear",
+    "B5": 11
+  },
+  "formulas": {
+    "N2": "=LET(keys,A1:A5,labels,UNIQUE(keys),HSTACK(labels,XLOOKUP(labels,keys,B1:B5,,,-1)))"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.LET(keys,A1:A5,labels,_xlfn.UNIQUE(keys),_xlfn.HSTACK(labels,_xlfn.XLOOKUP(labels,keys,B1:B5,,,-1)))"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

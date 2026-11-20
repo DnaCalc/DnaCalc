@@ -1,0 +1,30 @@
+{
+  "id": "last-overlapping-pair",
+  "kind": "formula",
+  "feature": "lookup",
+  "trick": "Searching width-two slices tests an overlapping final occurrence.",
+  "licence": "CC BY-SA 4.0",
+  "source": {
+    "url": "https://stackoverflow.com/a/62439299",
+    "author": "JvdV",
+    "author_url": "https://stackoverflow.com/users/9758194/jvdv",
+    "licence": "CC BY-SA 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "source_path": "answers/62439299/code/4",
+    "sha256": "7610b14318069fd6f01fa7ba2de5566015664f47414972b33cbd9f225c8597e5",
+    "changes": "Synthetic inputs and OOXML formula encoding."
+  },
+  "inputs": {
+    "A1": "aYYYbYY"
+  },
+  "formulas": {
+    "N2": "=MATCH(2,1/(MID(A1,SEQUENCE(LEN(A1)),2)=\"YY\"))"
+  },
+  "stored_formulas": {
+    "N2": "=MATCH(2,1/(MID(A1,_xlfn.SEQUENCE(LEN(A1)),2)=\"YY\"))"
+  },
+  "capture": [
+    "Sheet1!N2"
+  ],
+  "expected_answer": null
+}

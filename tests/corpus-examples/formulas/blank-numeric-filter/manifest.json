@@ -1,0 +1,32 @@
+{
+  "id": "blank-numeric-filter",
+  "kind": "formula",
+  "feature": "reference and coercion",
+  "trick": "ISBLANK-based selection distinguishes a blank from a literal zero.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/filter-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": "a",
+    "B1": 0,
+    "A2": "b",
+    "A3": "c",
+    "B3": 1
+  },
+  "formulas": {
+    "N2": "=FILTER(A1:A3,NOT(ISBLANK(B1:B3)))"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn._xlws.FILTER(A1:A3,NOT(ISBLANK(B1:B3)))"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

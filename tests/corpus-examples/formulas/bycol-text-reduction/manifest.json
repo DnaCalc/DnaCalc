@@ -1,0 +1,30 @@
+{
+  "id": "bycol-text-reduction",
+  "kind": "formula",
+  "feature": "LAMBDA and LET",
+  "trick": "BYCOL runs a text reducer on columns containing blank positions.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/bycol-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": "x",
+    "A3": "y",
+    "B2": "z"
+  },
+  "formulas": {
+    "N2": "=BYCOL(A1:B3,LAMBDA(columnValues,TEXTJOIN(\":\",TRUE,columnValues)))"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.BYCOL(A1:B3,_xlfn.LAMBDA(_xlpm.columnValues,_xlfn.TEXTJOIN(\":\",TRUE,_xlpm.columnValues)))"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

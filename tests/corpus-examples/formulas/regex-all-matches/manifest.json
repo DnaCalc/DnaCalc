@@ -1,0 +1,28 @@
+{
+  "id": "regex-all-matches",
+  "kind": "formula",
+  "feature": "REGEX",
+  "trick": "Return mode 1 emits all nonoverlapping matches.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/regexextract-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": "a12 b003 c7"
+  },
+  "formulas": {
+    "N2": "=REGEXEXTRACT(A1,\"[0-9]+\",1)"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.REGEXEXTRACT(A1,\"[0-9]+\",1)"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

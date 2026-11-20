@@ -1,0 +1,29 @@
+{
+  "id": "trim-reference-rows",
+  "kind": "formula",
+  "feature": "TRIMRANGE",
+  "trick": "Use trim-reference operators inside ROWS to compare directionality.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/trimrange-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A3": "first",
+    "A6": "last"
+  },
+  "formulas": {
+    "N2": "=CHOOSE({1,2,3},ROWS(A1.:A8),ROWS(A1:.A8),ROWS(A1.:.A8))"
+  },
+  "stored_formulas": {
+    "N2": "=CHOOSE({1,2,3},ROWS(A1.:A8),ROWS(A1:.A8),ROWS(A1.:.A8))"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}
