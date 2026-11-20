@@ -1234,6 +1234,17 @@ fn dc_zjsg_4__kept_objects_are_not_edited() {
     assert_eq!(book.host().shapes(sheet).len(), 5);
 }
 
+/// dw3 review (a): a row resized on a sheet with kept objects (oneCell anchors) leaves them as stored; the save works.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dw3__a_row_resize_with_kept_objects_still_saves() {
+    let mut book = open(include_bytes!("../../calc-doc/tests/fixtures/drawing/kept-objects.xlsx").to_vec());
+    let sheet = book.host().sheets()[0].id();
+    command(&mut book, |_| WorkbookCommand::AxisFormat { sheet, rows: true, first: 2, count: 3, size_bits: Some(40.0f64.to_bits()), hidden: None });
+    let reloaded = reopened(&mut book);
+    assert_eq!(reloaded.host().shapes(sheet).len(), 5);
+}
+
 /// dc-zjsg.4: inserting rows keeps a sheet's drawing objects (the model carries them through the edit) and the save
 /// moves their stored anchors as Excel does; a session that also moved a stored object refuses to save rather than
 /// write stale anchors.
@@ -1298,6 +1309,39 @@ fn dc_zjsg_5__a_turned_elbow_connector_is_rerouted_between_its_sites() {
     assert_eq!(moved.3, (70.0, 170.0, 180.0, 90.0));
     let again = reopened(&mut stored);
     assert_eq!(ends(&again), moved);
+}
+
+/// dc-zjsg.5 (dw3): an elbow glued from a right site to a top site is a two-leg elbow (right, then down); when the
+/// lower shape moves to a place the route needs another class (its top site is now left of the start), the connector
+/// takes the class and turn that leave and arrive the way the sites face. Excel's own choice is not measured.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dw3_dc_zjsg_5__an_elbow_changes_class_when_the_route_needs_it() {
+    let mut book = open(calc_host::blank_package());
+    let sheet = book.host().sheets()[0].id();
+    shape(&mut book, sheet, add(ShapeKind::Shape, "rect", 20.0, 20.0, 100.0, 50.0));
+    shape(&mut book, sheet, add(ShapeKind::Shape, "rect", 220.0, 160.0, 100.0, 50.0));
+    shape(&mut book, sheet, add(ShapeKind::Connector, "bentConnector3", 10.0, 10.0, 10.0, 10.0));
+    // A rectangle's sites (1-based): top, left, bottom, right.
+    shape(&mut book, sheet, ShapeChange::Connect { id: 4, begin: true, shape: 2, site: 4 });
+    shape(&mut book, sheet, ShapeChange::Connect { id: 4, begin: false, shape: 3, site: 1 });
+    let connector = |b: &HostSession| b.host().shapes(sheet).iter().find(|s| s.id == 4).unwrap().clone();
+    let c = connector(&book);
+    assert_eq!((c.geometry.as_deref(), c.rotation), (Some("bentConnector2"), 0));
+    let (l, t, w, h) = book.host().anchor_rectangle(sheet, &c.anchor);
+    assert_eq!((l.round(), t.round(), w.round(), h.round()), (120.0, 45.0, 150.0, 115.0));
+    // The same edit on a stored connector: the save rewrites its geometry and adjust values.
+    let mut book = reopened(&mut book);
+    // The lower shape moves under the first one: right of the start is no longer the way to its top site.
+    shape(&mut book, sheet, ShapeChange::Place { id: 3, left: Some(pts(20.0)), top: None, width: None, height: None });
+    let c = connector(&book);
+    // Right out of the box, down, back left past the lower shape's top site, down into it: four legs.
+    assert_eq!((c.geometry.as_deref(), c.rotation), (Some("bentConnector4"), 0));
+    assert_eq!(c.adjust.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>(), ["adj1", "adj2"]);
+    assert!(c.adjust[0].1 < 0 && c.adjust[1].1 == 50_000, "{:?}", c.adjust);
+    let again = reopened(&mut book);
+    let read = again.host().shapes(sheet).iter().find(|s| s.id == 4).unwrap().clone();
+    assert_eq!((read.geometry, read.rotation, read.begin, read.end), (c.geometry, c.rotation, c.begin, c.end));
 }
 
 /// dc-zjsg.4: a stored object moved and then rows inserted above it in the same session: the save writes it where

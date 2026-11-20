@@ -1486,8 +1486,9 @@ fn finish(shape: &DrawnShape, w: f64, h: f64, zoom: f64, id: &str, defs: String,
             "b" => "flex-end",
             _ => "flex-start",
         };
-        // Each line's `math` is laid out inline in display style, so the block's justification places it.
-        let lines = math.markup.replace("<math>", "<math style=\"math-style:normal\">");
+        // Each line's `math` is laid out inline in display style (the `.dc-shape-math math` rule in grid.css: an inline
+        // style on a MathML element would not survive the page's CSP), so the block's justification places it.
+        let lines = &math.markup;
         let _ = write!(
             out,
             "<div class=\"dc-shape-math\" style=\"position:absolute;left:{}px;top:{}px;width:{}px;height:{}px;box-sizing:border-box;padding:{}px {}px {}px {}px;display:flex;flex-direction:column;justify-content:{justify};text-align:{};font-family:'Cambria Math','STIX Two Math',math;font-size:{}px;color:{};white-space:nowrap;overflow:visible\">{lines}</div>",

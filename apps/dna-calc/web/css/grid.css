@@ -130,3 +130,8 @@
 
 /* Keep the whole element-font form within the scrollable phone panel. */
 @media(max-width:600px){[data-dnacalc=chart-tools][open]{max-height:min(70dvh,calc(100dvh - 8rem))}}
+
+/* Equations drawn from OMML are laid out in display style (an inline style on a MathML element is refused by the CSP). */
+.dc-shape-math math {
+  math-style: normal;
+}

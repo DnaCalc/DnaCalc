@@ -5733,7 +5733,8 @@ mod outline_tests {
             assert!(math.markup.contains(element), "{element}: {}", math.markup);
         }
         let markup = dna_calc_model::drawn_shapes::shape_markup(equation, 256.0, 80.0, 1.0).unwrap();
-        assert!(markup.contains("dc-shape-math") && markup.contains("math-style:normal"), "{markup}");
+        assert!(markup.contains("dc-shape-math") && !markup.contains("math-style"), "{markup}");
+        assert!(markup.contains("<math>"), "{markup}");
         // The picture fill's bytes are still answered by the shape's identity like a picture's.
         let answer = server.handle(Request::ShapePicture { sheet: Sheet::of(sheet), id: equation.id }, None);
         assert!(answer.bytes.is_some());

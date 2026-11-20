@@ -528,6 +528,16 @@ fn rectangle(host: &HostState, sheet: SheetId, shapes: &[Shape], index: usize, s
 /// geometry's definition (a preset's from ECMA-376, a custom geometry's own `cxnLst`), flipped and turned about the
 /// box's centre as the shape is. `None` for a site the geometry does not have.
 fn site_point(shape: &Shape, rect: (f64, f64, f64, f64), site: u32) -> Option<(f64, f64)> {
+    let (fx, fy) = site_unit(shape, rect, site)?;
+    let (l, t, w, h) = rect;
+    let (cx, cy) = (l + w / 2.0, t + h / 2.0);
+    let (x, y) = (l + fx * w - cx, t + fy * h - cy);
+    let (sin, cos) = (shape.rotation as f64 / 60_000.0).to_radians().sin_cos();
+    Some((cx + x * cos - y * sin, cy + x * sin + y * cos))
+}
+
+/// Connection site `site` of `shape` as a share of its (unturned) box, flipped as the shape is.
+fn site_unit(shape: &Shape, rect: (f64, f64, f64, f64), site: u32) -> Option<(f64, f64)> {
     let geometry = match (&shape.geometry, &shape.custom_geometry) {
         (None, Some(custom)) => custom.clone(),
         (Some(name), _) => calc_doc_model::preset_geometry::preset(name, &shape.adjust)?,
@@ -545,11 +555,27 @@ fn site_point(shape: &Shape, rect: (f64, f64, f64, f64), site: u32) -> Option<(f
     if shape.flip_vertical {
         fy = 1.0 - fy;
     }
-    let (l, t, w, h) = rect;
-    let (cx, cy) = (l + w / 2.0, t + h / 2.0);
-    let (x, y) = (l + fx * w - cx, t + fy * h - cy);
-    let (sin, cos) = (shape.rotation as f64 / 60_000.0).to_radians().sin_cos();
-    Some((cx + x * cos - y * sin, cy + x * sin + y * cos))
+    Some((fx, fy))
+}
+
+/// The direction (an axis unit vector on the page, y down) a connector leaves `shape` by its site `site`: out of the
+/// box edge the site is on, turned as the shape is. `None` for a site not on an edge or a shape not turned a quarter
+/// multiple (the direction would be a guess).
+fn site_exit(shape: &Shape, rect: (f64, f64, f64, f64), site: u32) -> Option<(i32, i32)> {
+    if shape.rotation % (90 * 60_000) != 0 {
+        return None;
+    }
+    let (fx, fy) = site_unit(shape, rect, site)?;
+    let near = |v: f64, to: f64| (v - to).abs() < 1e-6;
+    let local = match (fx, fy) {
+        (x, y) if near(x, 0.0) && !near(y, 0.0) && !near(y, 1.0) => (-1.0, 0.0),
+        (x, y) if near(x, 1.0) && !near(y, 0.0) && !near(y, 1.0) => (1.0, 0.0),
+        (x, y) if near(y, 0.0) && !near(x, 0.0) && !near(x, 1.0) => (0.0, -1.0),
+        (x, y) if near(y, 1.0) && !near(x, 0.0) && !near(x, 1.0) => (0.0, 1.0),
+        _ => return None,
+    };
+    let v = turned(local, shape.rotation);
+    Some((v.0.round() as i32, v.1.round() as i32))
 }
 
 /// The connectors glued to the shape `id` (dc-zjsg.5), each rerouted ([`reroute`]). A turned connector is left as it is.
@@ -576,7 +602,7 @@ fn turned(v: (f64, f64), rotation: i64) -> (f64, f64) {
 fn reroute(host: &HostState, sheet: SheetId, shapes: &mut [Shape], index: usize, originals: &Stored) {
     let (l, t, w, h) = rectangle(host, sheet, shapes, index, originals);
     let c = &shapes[index];
-    let rotation = c.rotation;
+    let mut rotation = c.rotation;
     let centre = (l + w / 2.0, t + h / 2.0);
     let corner = (if c.flip_horizontal { w / 2.0 } else { -w / 2.0 }, if c.flip_vertical { h / 2.0 } else { -h / 2.0 });
     let at = |v: (f64, f64)| {
@@ -596,6 +622,23 @@ fn reroute(host: &HostState, sheet: SheetId, shapes: &mut [Shape], index: usize,
     if let Some(p) = end_point(c.end) {
         end = p;
     }
+    // An elbow glued at both ends keeps its route while that still leaves the start and reaches the end the way the
+    // sites face; otherwise it takes the class and turn that do (`elbow_route`).
+    let mut new_class = None;
+    if let (Some(a), Some(b)) = (c.begin, c.end) {
+        let exit = |connection: calc_doc_model::ShapeConnection| {
+            let target = shapes.iter().position(|s| s.id == connection.shape)?;
+            site_exit(&shapes[target], rectangle(host, sheet, shapes, target, originals), connection.site)
+        };
+        if let (Some(d1), Some(d2), Some(class)) = (exit(a), exit(b), c.geometry.as_deref().and_then(elbow_class)) {
+            let adjust = |name: &str| c.adjust.iter().find(|(n, _)| n == name).map_or(0.5, |(_, v)| *v as f64 / 100_000.0);
+            let current = [adjust("adj1"), adjust("adj2"), adjust("adj3")];
+            if let Some((class, rot, changed)) = elbow_route(start, end, d1, d2, class, rotation, current) {
+                new_class = changed.map(|a| (class, a));
+                rotation = rot;
+            }
+        }
+    }
     // The run from start to end in the connector's own (unturned) frame.
     let d = turned((end.0 - start.0, end.1 - start.1), -rotation);
     let (w, h) = (d.0.abs(), d.1.abs());
@@ -606,8 +649,101 @@ fn reroute(host: &HostState, sheet: SheetId, shapes: &mut [Shape], index: usize,
     let stored = originals.holds(&shapes[index]);
     let c = &mut shapes[index];
     set_place(host, sheet, c, stored, anchor);
+    c.rotation = rotation;
+    if let Some((class, a)) = new_class {
+        c.geometry = Some(format!("bentConnector{class}"));
+        c.adjust = (1..class.saturating_sub(1)).map(|i| (format!("adj{i}"), (a[i as usize - 1] * 100_000.0).round() as i64)).collect();
+    }
     c.flip_horizontal = d.0 < 0.0;
     c.flip_vertical = d.1 < 0.0;
+}
+
+/// The class (2 to 5) of an elbow connector's preset name.
+fn elbow_class(geometry: &str) -> Option<u32> {
+    geometry.strip_prefix("bentConnector")?.parse().ok().filter(|k| (2..=5).contains(k))
+}
+
+/// The path of an elbow connector of `class` in its own frame (start at the origin, end at (w, h)); `a` are its three
+/// adjust values as shares.
+fn elbow_path(class: u32, (w, h): (f64, f64), a: [f64; 3]) -> Vec<(f64, f64)> {
+    match class {
+        2 => vec![(0.0, 0.0), (w, 0.0), (w, h)],
+        3 => vec![(0.0, 0.0), (a[0] * w, 0.0), (a[0] * w, h), (w, h)],
+        4 => vec![(0.0, 0.0), (a[0] * w, 0.0), (a[0] * w, a[1] * h), (w, a[1] * h), (w, h)],
+        _ => vec![(0.0, 0.0), (a[0] * w, 0.0), (a[0] * w, a[1] * h), (a[2] * w, a[1] * h), (a[2] * w, h), (w, h)],
+    }
+}
+
+/// Whether an elbow of `class`, turned `rotation`, drawn from `start` to `end` (flipped as the run needs), leaves the
+/// start in direction `d1`, arrives against `d2` (the direction the end's site faces out) and never doubles back.
+fn elbow_fits(start: (f64, f64), end: (f64, f64), d1: (i32, i32), d2: (i32, i32), class: u32, rotation: i64, a: [f64; 3]) -> bool {
+    let run = turned((end.0 - start.0, end.1 - start.1), -rotation);
+    let (w, h) = (run.0.abs(), run.1.abs());
+    let flip = (if run.0 < 0.0 { -1.0 } else { 1.0 }, if run.1 < 0.0 { -1.0 } else { 1.0 });
+    let page: Vec<(f64, f64)> = elbow_path(class, (w, h), a)
+        .into_iter()
+        .map(|(x, y)| {
+            let v = turned(((x - w / 2.0) * flip.0, (y - h / 2.0) * flip.1), rotation);
+            (v.0 + (start.0 + end.0) / 2.0, v.1 + (start.1 + end.1) / 2.0)
+        })
+        .collect();
+    let mut directions: Vec<(i32, i32)> = Vec::new();
+    for pair in page.windows(2) {
+        let (dx, dy) = (pair[1].0 - pair[0].0, pair[1].1 - pair[0].1);
+        if dx.abs() < 0.01 && dy.abs() < 0.01 {
+            continue;
+        }
+        if dx.abs() > 0.01 && dy.abs() > 0.01 {
+            return false;
+        }
+        directions.push((if dx.abs() > 0.01 { dx.signum() as i32 } else { 0 }, if dy.abs() > 0.01 { dy.signum() as i32 } else { 0 }));
+    }
+    let (Some(&first), Some(&last)) = (directions.first(), directions.last()) else { return false };
+    let doubles_back = directions.windows(2).any(|p| p[0].0 == -p[1].0 && p[0].1 == -p[1].1 && (p[0].0 != 0 || p[0].1 != 0));
+    first == d1 && last == (-d2.0, -d2.1) && !doubles_back
+}
+
+/// How far past a shape's edge an elbow goes to turn round it, in points (assumed: not measured in Excel).
+const ELBOW_STANDOFF: f64 = 18.0;
+
+/// How an elbow connector of `class`, turned `rotation` with adjust shares `current`, is to run from `start` to `end`
+/// when its ends leave by `d1` and face `d2`: `(class, turn, None)` if the same class and turn with its adjust
+/// values still fit (kept as Excel keeps them), else the first of the classes 2 to 5, and quarter turns starting from
+/// the current one, that fits, with the adjust values (shares) that do: the middle legs at half way, or, where the
+/// route must go round, a leg [`ELBOW_STANDOFF`] outside the box. `None` if nothing fits: the connector is left as it
+/// was. Excel's own choice of class and of adjust values for such a route is not measured (dc-zjsg.5).
+fn elbow_route(start: (f64, f64), end: (f64, f64), d1: (i32, i32), d2: (i32, i32), class: u32, rotation: i64, current: [f64; 3]) -> Option<(u32, i64, Option<[f64; 3]>)> {
+    if elbow_fits(start, end, d1, d2, class, rotation, current) {
+        return Some((class, rotation, None));
+    }
+    let quarter = 90 * 60_000;
+    for k in 2..=5u32 {
+        for step in 0..4 {
+            let r = (rotation + step * quarter).rem_euclid(4 * quarter);
+            let run = turned((end.0 - start.0, end.1 - start.1), -r);
+            let (w, h) = (run.0.abs(), run.1.abs());
+            // Each adjust value: half way, below the start's side of the box, or past the far side. Fewest detours first.
+            let options = |size: f64| if size > 0.5 { vec![0.5, -ELBOW_STANDOFF / size, 1.0 + ELBOW_STANDOFF / size] } else { vec![0.5] };
+            let (ox, oy) = (options(w), options(h));
+            let mut combos: Vec<[f64; 3]> = Vec::new();
+            for &x1 in &ox {
+                for &y2 in &oy {
+                    for &x3 in &ox {
+                        combos.push([x1, y2, x3]);
+                    }
+                }
+            }
+            combos.sort_by_key(|c| c.iter().filter(|v| **v != 0.5).count());
+            for a in combos {
+                // A class uses only its own adjust values: the others stay at half so duplicates are not tried.
+                let used = a.iter().skip(k as usize - 2).all(|v| *v == 0.5);
+                if used && elbow_fits(start, end, d1, d2, k, r, a) {
+                    return Some((k, r, Some(a)));
+                }
+            }
+        }
+    }
+    None
 }
 
 pub(crate) fn prepare(
@@ -1076,6 +1212,10 @@ pub(crate) fn kept_sizes(host: &HostState, sheet: SheetId, edits: &[CellEdit]) -
     let mut shapes = host.shapes(sheet).to_vec();
     let mut any = false;
     for s in &mut shapes {
+        // A kept object stays as the file stores it (its save refuses an edit).
+        if s.kept.is_some() {
+            continue;
+        }
         let ChartAnchor::TwoCell { from, .. } = s.anchor else { continue };
         let (l, t, w, h) = host.anchor_rectangle(sheet, &s.anchor);
         let anchor = match s.edit_as.as_deref() {

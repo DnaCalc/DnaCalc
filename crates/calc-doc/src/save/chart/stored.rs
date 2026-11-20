@@ -86,6 +86,10 @@ pub(crate) fn plan<'a>(original: &'a [Shape], shapes: &'a [Shape]) -> Result<Sto
                 same.name = stored.name.clone();
                 // A connector unglued (its shape deleted) or glued anew.
                 (same.begin, same.end) = (stored.begin, stored.end);
+                // An elbow rerouted to another class takes other adjust values with it.
+                if stored.kind == ShapeKind::Connector {
+                    (same.geometry, same.adjust) = (stored.geometry.clone(), stored.adjust.clone());
+                }
                 if same != **stored || stored.kept.is_some() {
                     return Err(refuse("Editing an imported drawing object other than placing, turning, flipping or naming it, or its text, fill or outline, is not modelled"));
                 }
@@ -377,6 +381,17 @@ fn object_patches(ix: &Index<'_>, at: usize, stored: &Shape, now: &Shape, out: &
             out.push(((after, after), inserts));
         }
     }
+    if (&now.geometry, &now.adjust) != (&stored.geometry, &stored.adjust) {
+        let (Some(name), Some(g)) = (&now.geometry, ix.child(props, "prstGeom")) else {
+            return Err(refuse("A connector's geometry is rewritten only where the file states a preset"));
+        };
+        let mut element = format!("<a:prstGeom prst=\"{name}\"><a:avLst>");
+        for (guide, value) in &now.adjust {
+            element.push_str(&format!("<a:gd name=\"{guide}\" fmla=\"val {value}\"/>"));
+        }
+        element.push_str("</a:avLst></a:prstGeom>");
+        out.push(((ix.els[g].start, ix.els[g].end), element.into_bytes()));
+    }
     if now.text != stored.text {
         text_patches(ix, at, obj, now, out)?;
     }
@@ -428,34 +443,71 @@ fn name_patch(ix: &Index<'_>, at: usize, name: &str, copy_id: Option<u32>, out: 
     let mut value = Vec::new();
     super::super::text::attribute_value(name, &mut value);
     let value = String::from_utf8(value).expect("names are UTF-8");
-    // The tag's attributes, the `name` one found by its leading space so `descr` or `title` are not taken for it.
-    let rewritten = match tag.find(" name=") {
-        Some(at) => {
-            let quote = tag[at + 6..].chars().next().unwrap_or('"');
-            let rest = &tag[at + 7..];
-            let end = rest.find(quote).ok_or_else(|| refuse("The stored object's name is not quoted"))?;
-            format!("{} name={value}{}", &tag[..at], &rest[end + 1..])
-        }
-        None => {
-            let close = if tag.ends_with("/>") { tag.len() - 2 } else { tag.len() - 1 };
-            format!("{} name={value}{}", &tag[..close], &tag[close..])
-        }
-    };
-    // A copy's own identity in place of the stored one's.
-    let rewritten = match copy_id {
-        Some(id) => match rewritten.find(" id=") {
-            Some(at) => {
-                let quote = rewritten[at + 4..].chars().next().unwrap_or('"');
-                let rest = &rewritten[at + 5..];
-                let end = rest.find(quote).ok_or_else(|| refuse("The stored object's identity is not quoted"))?;
-                format!("{} id=\"{id}\"{}", &rewritten[..at], &rest[end + 1..])
-            }
-            None => return Err(refuse("The stored object has no identity to copy")),
-        },
-        None => rewritten,
-    };
+    let rewritten = rename_tag(&tag, &value, copy_id)?;
     out.push(((e.start, e.tag_end), rewritten.into_bytes()));
     Ok(())
+}
+
+/// Each attribute of a start tag as (name, the span of its quoted value including the quotes), read by the XML
+/// attribute grammar (any whitespace between attributes, either quote) so a value containing ` id="` is not taken
+/// for an attribute.
+fn tag_attributes(tag: &str) -> Vec<(&str, std::ops::Range<usize>)> {
+    let bytes = tag.as_bytes();
+    let mut at = 1;
+    while at < bytes.len() && !bytes[at].is_ascii_whitespace() && bytes[at] != b'>' && bytes[at] != b'/' {
+        at += 1;
+    }
+    let mut found = Vec::new();
+    while at < bytes.len() {
+        while at < bytes.len() && (bytes[at].is_ascii_whitespace() || bytes[at] == b'/') {
+            at += 1;
+        }
+        let start = at;
+        while at < bytes.len() && !bytes[at].is_ascii_whitespace() && !matches!(bytes[at], b'=' | b'>' | b'/') {
+            at += 1;
+        }
+        let name = &tag[start..at];
+        while at < bytes.len() && bytes[at].is_ascii_whitespace() {
+            at += 1;
+        }
+        if name.is_empty() || at >= bytes.len() || bytes[at] != b'=' {
+            break;
+        }
+        at += 1;
+        while at < bytes.len() && bytes[at].is_ascii_whitespace() {
+            at += 1;
+        }
+        let Some(&quote) = bytes.get(at).filter(|q| matches!(q, b'"' | b'\'')) else { break };
+        let Some(len) = tag[at + 1..].find(quote as char) else { break };
+        found.push((name, at..at + len + 2));
+        at += len + 2;
+    }
+    found
+}
+
+/// The start tag `tag` with its `name` attribute's value set to `quoted_name` (quotes included) and, for a copy, its
+/// `id` to `copy_id`, everything else kept as written.
+fn rename_tag(tag: &str, quoted_name: &str, copy_id: Option<u32>) -> Result<String, SaveRefusal> {
+    let attributes = tag_attributes(tag);
+    let span = |wanted: &str| attributes.iter().find(|(n, _)| *n == wanted).map(|(_, r)| r.clone());
+    let mut edits: Vec<(std::ops::Range<usize>, String)> = Vec::new();
+    match span("name") {
+        Some(range) => edits.push((range, quoted_name.to_string())),
+        None => {
+            let close = if tag.ends_with("/>") { tag.len() - 2 } else { tag.len() - 1 };
+            edits.push((close..close, format!(" name={quoted_name}")));
+        }
+    }
+    if let Some(id) = copy_id {
+        let range = span("id").ok_or_else(|| refuse("The stored object has no identity to copy"))?;
+        edits.push((range, format!("\"{id}\"")));
+    }
+    edits.sort_by_key(|(r, _)| std::cmp::Reverse(r.start));
+    let mut out = tag.to_string();
+    for (range, text) in edits {
+        out.replace_range(range, &text);
+    }
+    Ok(out)
 }
 
 /// The outline `line` as an `a:ln` element, keeping what the stored one states that the model does not hold (its
@@ -674,4 +726,24 @@ pub(crate) fn arrange(xml: &XmlPart, layout: &[Slot], new: &[Vec<u8>], tail: &[u
     }
     patches.push(((root.close(), root.close()), rest));
     Ok(apply(ix.source, (0, ix.source.len()), patches))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::rename_tag;
+
+    /// dw3 review (c): the attributes are read, not searched for: tabs or newlines between them, and a `descr` or
+    /// `title` that holds ` id="` or ` name="`, do not mislead the rename.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn rename_tag_reads_attributes_not_substrings() {
+        let tag = "<xdr:cNvPr\tid=\"5\"\nname=\"Old\" descr='a id=\"9\" name=\"x\"' title='t id=\"7\"'/>";
+        let quoted = "\"New &amp; name\"";
+        let renamed = rename_tag(tag, quoted, Some(12)).unwrap();
+        assert_eq!(renamed, "<xdr:cNvPr\tid=\"12\"\nname=\"New &amp; name\" descr='a id=\"9\" name=\"x\"' title='t id=\"7\"'/>");
+        // An id inside a description is not the identity, and a missing name is added.
+        let tag = "<xdr:cNvPr descr='x id=\"3\"' id=\"4\"/>";
+        assert_eq!(rename_tag(tag, "\"N\"", None).unwrap(), "<xdr:cNvPr descr='x id=\"3\"' id=\"4\" name=\"N\"/>");
+        assert_eq!(rename_tag(tag, "\"N\"", Some(8)).unwrap(), "<xdr:cNvPr descr='x id=\"3\"' id=\"8\" name=\"N\"/>");
+    }
 }

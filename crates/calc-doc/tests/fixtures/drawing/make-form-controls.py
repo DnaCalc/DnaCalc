@@ -7,7 +7,7 @@ caption as its text), and the legacy VML shapes. Values: B2 TRUE (the check box)
 (the list box), B5 30 (the scroll bar), B6 5 (the spinner), B7 2 (the combo box); D2:D5 the list items. Two more
 option buttons (dw2, dc-zjsg.8) sit inside the group box, a group of their own linked to B8 (2: the second).
 Run: python3 -I make-form-controls.py form-controls.xlsx"""
-import sys, zipfile
+import re, sys, zipfile
 
 R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 EMU = 9525
@@ -41,6 +41,29 @@ for r in range(1, 9):
 def point(col, row):
     return f"<xdr:col>{col}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>{row}</xdr:row><xdr:rowOff>0</xdr:rowOff>"
 
+def legacy_state(attrs):
+    """The control's state as Excel also writes it into the legacy drawing's ClientData (FmlaLink, FmlaRange, Sel, ...),
+    in the order Excel writes them; the dw1 Excel run reported no linked cell for the list box whose VML lacked them."""
+    a = dict(re.findall(r'(\w+)="([^"]*)"', attrs))
+    out = ""
+    if a.get("checked") == "Checked":
+        out += "<x:Checked>1</x:Checked>"
+    for key, tag in (("fmlaLink", "FmlaLink"), ("fmlaRange", "FmlaRange"), ("sel", "Sel")):
+        if key in a:
+            out += f"<x:{tag}>{a[key]}</x:{tag}>"
+            if key == "sel":
+                out += "<x:SelType>Single</x:SelType>"
+    for key, tag in (("val", "Val"), ("min", "Min"), ("max", "Max"), ("page", "Page")):
+        if key in a and (key != "val" or "fmlaRange" not in a):
+            out += f"<x:{tag}>{a[key]}</x:{tag}>"
+    if "horiz" in a:
+        out += "<x:Horiz/>"
+    if "dropStyle" in a:
+        out += f"<x:DropStyle>Combo</x:DropStyle>"
+    if "dropLines" in a:
+        out += f"<x:DropLines>{a['dropLines']}</x:DropLines>"
+    return out
+
 sheet_controls = []
 drawing = []
 vml = []
@@ -73,7 +96,7 @@ for i, (name, kind, f, t, attrs, caption) in enumerate(controls):
                 "Drop": "Drop", "GBox": "GBox", "Label": "Label"}[kind]
     vml.append(
         f'<v:shape id="_x0000_s{shape_id}" type="#_x0000_t201" style="position:absolute;z-index:{i + 1}" filled="f" stroked="f" o:insetmode="auto">'
-        f'<x:ClientData ObjectType="{vml_kind}"><x:Anchor>{f[0]}, 0, {f[1]}, 0, {t[0]}, 0, {t[1]}, 0</x:Anchor><x:AutoFill>False</x:AutoFill></x:ClientData></v:shape>')
+        f'<x:ClientData ObjectType="{vml_kind}"><x:Anchor>{f[0]}, 0, {f[1]}, 0, {t[0]}, 0, {t[1]}, 0</x:Anchor><x:AutoFill>False</x:AutoFill>{legacy_state(attrs)}</x:ClientData></v:shape>')
 
 sheet = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
          f'xmlns:r="{R}" xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main" '

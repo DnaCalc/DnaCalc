@@ -72,8 +72,8 @@ equation = (f'<mc:AlternateContent xmlns:mc="{MC}"><mc:Choice xmlns:a14="{A14}" 
             f'<mc:Fallback>{two(1, 1, 5, 5, equation_sp(True))}</mc:Fallback></mc:AlternateContent>')
 
 ink = (f'<mc:AlternateContent xmlns:mc="{MC}"><mc:Choice xmlns:xdr14="{XDR14}" Requires="xdr14">'
-       + two(7, 1, 10, 6, f'<xdr14:contentPart xmlns:r="{R}" r:id="rId2"><xdr14:nvContentPartPr><xdr14:cNvPr id="3" name="Ink 2"/><xdr14:cNvContentPartPr/></xdr14:nvContentPartPr>'
-             f'<xdr14:nvPr macro=""/><xdr14:xfrm><a:off x="{448 * EMU}" y="{20 * EMU}"/><a:ext cx="{192 * EMU}" cy="{100 * EMU}"/></xdr14:xfrm></xdr14:contentPart>', ' editAs="oneCell"')
+       + two(7, 1, 10, 6, f'<xdr:contentPart xmlns:r="{R}" r:id="rId2"><xdr14:nvContentPartPr><xdr14:cNvPr id="3" name="Ink 2"/><xdr14:cNvContentPartPr><a14:cpLocks xmlns:a14="{A14}" noRot="1" noChangeAspect="1"/></xdr14:cNvContentPartPr></xdr14:nvContentPartPr>'
+             f'<xdr14:nvPr macro=""/><xdr14:xfrm><a:off x="{448 * EMU}" y="{20 * EMU}"/><a:ext cx="{192 * EMU}" cy="{100 * EMU}"/></xdr14:xfrm></xdr:contentPart>', ' editAs="oneCell"')
        + '</mc:Choice><mc:Fallback>'
        + two(7, 1, 10, 6, '<xdr:pic macro=""><xdr:nvPicPr><xdr:cNvPr id="3" name="Ink 2"/><xdr:cNvPicPr/></xdr:nvPicPr><xdr:blipFill><a:blip r:embed="rId3"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>'
              f'<xdr:spPr><a:xfrm><a:off x="{448 * EMU}" y="{20 * EMU}"/><a:ext cx="{192 * EMU}" cy="{100 * EMU}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic>', ' editAs="oneCell"')
@@ -93,7 +93,7 @@ drawing = (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<xdr:wsDr 
            + equation + ink + smartart + ole + '</xdr:wsDr>')
 drawing_rels = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
     f'<Relationship Id="rId1" Type="{R}/image" Target="../media/image1.png"/>'
-    '<Relationship Id="rId2" Type="http://schemas.microsoft.com/office/2011/relationships/customXml" Target="../ink/ink1.xml"/>'
+    '<Relationship Id="rId2" Type="http://schemas.microsoft.com/office/2007/relationships/ink" Target="../ink/ink1.xml"/>'
     f'<Relationship Id="rId3" Type="{R}/image" Target="../media/image2.png"/>'
     f'<Relationship Id="rId4" Type="{R}/diagramData" Target="../diagrams/data1.xml"/>'
     f'<Relationship Id="rId5" Type="{R}/diagramLayout" Target="../diagrams/layout1.xml"/>'
@@ -103,7 +103,16 @@ drawing_rels = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relat
     '</Relationships>')
 
 ink_xml = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<inkml:ink xmlns:inkml="http://www.w3.org/2003/InkML">'
-           '<inkml:trace>0 0, 100 50, 200 0, 300 50</inkml:trace></inkml:ink>')
+           '<inkml:definitions><inkml:context xml:id="ctx0"><inkml:inkSource xml:id="inkSrc0"><inkml:traceFormat>'
+           '<inkml:channel name="X" type="integer" max="19200" units="cm"/><inkml:channel name="Y" type="integer" max="10800" units="cm"/>'
+           '<inkml:channel name="F" type="integer" max="32767" units="dev"/></inkml:traceFormat>'
+           '<inkml:channelProperties><inkml:channelProperty channel="X" name="resolution" value="1000" units="1/cm"/>'
+           '<inkml:channelProperty channel="Y" name="resolution" value="1000" units="1/cm"/>'
+           '<inkml:channelProperty channel="F" name="resolution" value="0" units="1/dev"/></inkml:channelProperties></inkml:inkSource>'
+           '<inkml:timestamp xml:id="ts0" timeString="2026-11-19T00:00:00"/></inkml:context>'
+           '<inkml:brush xml:id="br0"><inkml:brushProperty name="width" value="0.05" units="cm"/><inkml:brushProperty name="height" value="0.05" units="cm"/>'
+           '<inkml:brushProperty name="color" value="#E71224"/><inkml:brushProperty name="ignorePressure" value="1"/></inkml:brush></inkml:definitions>'
+           '<inkml:trace contextRef="#ctx0" brushRef="#br0">0 0 0, 100 50 0, 200 0 0, 300 50 0</inkml:trace></inkml:ink>')
 
 DSP = "http://schemas.microsoft.com/office/drawing/2008/diagram"
 points = ["{11111111-1111-1111-1111-111111111111}", "{22222222-2222-2222-2222-222222222222}", "{33333333-3333-3333-3333-333333333333}"]
@@ -143,7 +152,7 @@ sheet = (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet x
          '<sheetFormatPr defaultRowHeight="15" x14ac:dyDescent="0.25"/><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>Kept objects</t></is></c></row></sheetData>'
          '<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/>'
          '<drawing r:id="rId1"/><legacyDrawing r:id="rId2"/>'
-         f'<oleObjects><mc:AlternateContent><mc:Choice Requires="x14"><oleObject progId="Package" shapeId="1025" r:id="rId3">'
+         f'<oleObjects><mc:AlternateContent><mc:Choice xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main" Requires="x14"><oleObject progId="Package" shapeId="1025" r:id="rId3">'
          '<objectPr defaultSize="0" autoPict="0" r:id="rId4"><anchor moveWithCells="1"><from><xdr:col>11</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>8</xdr:row><xdr:rowOff>0</xdr:rowOff></from>'
          '<to><xdr:col>13</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>13</xdr:row><xdr:rowOff>0</xdr:rowOff></to></anchor></objectPr></oleObject></mc:Choice>'
          '<mc:Fallback><oleObject progId="Package" shapeId="1025" r:id="rId3"/></mc:Fallback></mc:AlternateContent></oleObjects></worksheet>')
