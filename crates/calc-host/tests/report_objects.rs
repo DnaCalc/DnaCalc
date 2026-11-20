@@ -919,6 +919,30 @@ fn dc_zjsg_4__stored_objects_move_resize_and_delete_and_save_as_stored() {
     assert_eq!(again.host().anchor_rectangle(sheet, &moved.anchor), (0.0, 30.0, 60.0, 45.0));
 }
 
+/// dc-zjsg.4: two stored objects deleted one after the other, then a new one added and edited: the second delete
+/// reads the remaining stored objects (it panicked indexing past them), the new one is not taken for a stored one,
+/// it does not take a deleted one's identity, and the save keeps it all.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zjsg_4__second_stored_delete_and_a_new_shape_after_it() {
+    let mut book = open(include_bytes!("../../calc-doc/tests/fixtures/drawing/shapes-paint4.xlsx").to_vec());
+    let sheet = book.host().sheets()[0].id();
+    let id = |book: &HostSession, name: &str| book.host().shapes(sheet).iter().find(|s| s.name == name).unwrap().id;
+    let (first, second) = (id(&book, "Freeform curves"), id(&book, "Freeform triangle"));
+    shape(&mut book, sheet, ShapeChange::Delete { id: first });
+    shape(&mut book, sheet, ShapeChange::Delete { id: second });
+    shape(&mut book, sheet, add(ShapeKind::Shape, "rect", 10.0, 10.0, 40.0, 20.0));
+    let added = book.host().shapes(sheet).last().unwrap().id;
+    assert!(added != first && added != second);
+    shape(&mut book, sheet, ShapeChange::Text { id: added, text: "New".into() });
+    assert_eq!(book.host().shapes(sheet).len(), 19);
+    let reloaded = reopened(&mut book);
+    let read = reloaded.host().shapes(sheet);
+    assert_eq!(read.len(), 19);
+    assert!(read.iter().all(|s| s.name != "Freeform curves" && s.name != "Freeform triangle"));
+    assert_eq!(read.last().unwrap().text, Some(vec!["New".to_owned()]));
+}
+
 /// dc-zjsg.4: a kept object (an equation, ink, SmartArt, OLE) is not moved or deleted; it stays as the file stores it.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
