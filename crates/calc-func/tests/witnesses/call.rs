@@ -870,4 +870,84 @@ mod tests {
             DateSystem::System1904
         );
     }
+
+    /// Excel 20527 en-ZA answers of 2026-11-20 (dc-iuwct.35, 33 fresh Touchstone answers, the pinned
+    /// rows' invocation): with a separator outside "." "," " " U+00A0, text NUMBERVALUE's own
+    /// reader refuses is read by the VALUE grammar after the group separator is removed before the
+    /// first decimal separator and each decimal separator becomes the host's.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn numbervalue_letter_separators_fall_back_to_the_value_grammar() {
+        let context = WitnessInvocation {
+            compatibility_version: Some("2".into()),
+            decimal_separator: Some(".".into()),
+            input_sheet_state: Some("visible-constant-inputs".into()),
+            input_transport: Some("cell_value2_bulk".into()),
+            locale: Some("en-ZA".into()),
+            thousands_separator: Some(" ".into()),
+            ..Default::default()
+        };
+        let call = |function: &str, args: &[&str]| {
+            let args: Vec<Value> = args.iter().map(|a| Value::String((*a).into())).collect();
+            calculate(function, &args, None, Some(&context), true)
+        };
+        let n = |x: f64| format!("0x{:016x}", x.to_bits());
+        for (args, excel) in [
+            (["%1e3", ".", "e"], n(0.13)),
+            (["%1e3", "e", ","], n(0.013)),
+            (["1e-3", "e", ","], "error:Value".to_owned()),
+            (["1x5", ".", "x"], n(15.0)),
+            (["%25", ".", ","], n(0.25)),
+            (["%1x5", ".", "x"], n(0.15)),
+            (["$1q5", ".", "q"], "error:Value".to_owned()),
+            (["(1q5)", ".", "q"], n(-15.0)),
+            (["1q5%", ".", "q"], n(0.15)),
+            (["%1q5", "q", ","], n(0.015)),
+            (["1q-3", "q", ","], "error:Value".to_owned()),
+            (["1e3q", ".", "q"], n(1000.0)),
+            (["%%1x5", ".", "x"], "error:Value".to_owned()),
+            (["-%1x5", ".", "x"], n(-0.15)),
+            (["1x5e2", ".", "x"], n(1500.0)),
+            (["1x5", ".", "xyz"], n(15.0)),
+            (["2q2026-3", ".", "q"], "error:Value".to_owned()),
+            (["%1e3", ".", "e%"], n(0.13)),
+            (["1e3,0", "e", ","], "error:Value".to_owned()),
+            (["1,2e3", "e", ","], n(12.3)),
+            (["1q2.5", ".", "q"], n(12.5)),
+            (["1.5q2", ".", "q"], "error:Value".to_owned()),
+            (["%1.5q2", ".", "q"], "error:Value".to_owned()),
+            (["%1q2.5", ".", "q"], n(0.125)),
+            (["1q2e3", ".", "q"], n(12000.0)),
+            (["%1,2e3", "e", ","], n(0.123)),
+            (["(1,2e3)", "e", ","], n(-12.3)),
+            (["1e3.0", "e", ","], "error:Value".to_owned()),
+            (["1e1e2", "e", ","], "error:Value".to_owned()),
+        ] {
+            assert_eq!(call("NUMBERVALUE", &args), excel, "{args:?}");
+        }
+        // "1-3" is 3 January of the calculation's year: 46025 in Excel's answers of 2026-11-20
+        // (serial 46346), through both separator routes. Without an attested clock the year is
+        // unknown and the call is refused.
+        assert_eq!(
+            call("NUMBERVALUE", &["1q-3", ".", "q"]),
+            "fault:NotImplemented"
+        );
+        let clocked = WitnessInvocation {
+            calculation_clock: Some(format!("{:016x}", 46346.5_f64.to_bits())),
+            ..context.clone()
+        };
+        for args in [
+            ["1e-3", ".", "e"],
+            ["1q-3", ".", "q"],
+            ["1-3", ".", "q"],
+            ["1-3", ".", ","],
+        ] {
+            let args: Vec<Value> = args.iter().map(|a| Value::String((*a).into())).collect();
+            assert_eq!(
+                calculate("NUMBERVALUE", &args, None, Some(&clocked), true),
+                n(46025.0),
+                "{args:?}"
+            );
+        }
+    }
 }

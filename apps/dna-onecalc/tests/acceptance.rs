@@ -5091,6 +5091,7 @@ fn recorded_numbervalue_scientific_grammar_uses_the_kernel() {
     ))
     .unwrap();
     let mut rows = 0;
+    let mut refused = 0;
     let mut failures = Vec::new();
     for row in &set.witnesses {
         assert_eq!(row.args.len(), 3);
@@ -5100,6 +5101,20 @@ fn recorded_numbervalue_scientific_grammar_uses_the_kernel() {
                 .unwrap();
         }
         let pinned = row.calc_func.as_deref().unwrap_or(&row.expected);
+        if pinned.starts_with("fault:") {
+            // A pinned refusal (the date "1-3", whose year needs a calculation clock the reading
+            // does not attest, dc-iuwct.35) is a refusal on the application route too.
+            let result = session.calculate();
+            rows += 1;
+            refused += 1;
+            if result.diagnostics.is_empty() {
+                failures.push(format!(
+                    "{}: Excel {}, pinned {pinned}, calculated {:?} without a refusal",
+                    row.id, row.expected, result.result
+                ));
+            }
+            continue;
+        }
         let expected = calc_verdict::decode_result(pinned).unwrap();
         let result = session.calculate();
         rows += 1;
@@ -5114,6 +5129,7 @@ fn recorded_numbervalue_scientific_grammar_uses_the_kernel() {
         rows, 366,
         "every selected NUMBERVALUE service answer must run"
     );
+    assert_eq!(refused, 1, "one pinned refusal");
     assert!(
         failures.is_empty(),
         "{} of {rows} application pins differ:\n{}",

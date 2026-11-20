@@ -652,17 +652,20 @@ fn numbervalue(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     // Excel 20527 en-ZA (dc-7ofm locale answers): whatever separators the call names, a
     // measured non-ASCII space other than the named group separator is #VALUE!, and text the
     // separators cannot read falls back to the host's VALUE grammar (R12 is 12, (12) is -12).
-    // Only the measured separators "." "," " " and U+00A0 have it: a digit or a letter has
-    // none (NUMBERVALUE("12.34", 25569) and NUMBERVALUE("1e-3", "e", ",") are #VALUE!).
-    let host_profile = site
+    // With the separators "." "," " " and U+00A0 the host reads the text as given. With any
+    // other separator (a letter or a digit) it reads the text with the group separator removed
+    // before the first decimal separator and each decimal separator as the host's (dc-iuwct.35,
+    // fresh answers: 19 of 21 then 11 of 11 frozen predictions; ("%1e3", ".", "e") is 0.13 as
+    // "%13", ("1e-3", ".", "e") the date "1-3", ("1e-3", "e", ",") #VALUE! as "1.-3",
+    // ("1e3,0", "e", ",") #VALUE! as "1.3,0", ("12.34", 25569) #VALUE! as "1..34").
+    let host_reader = site
         .environment()
         .and_then(|environment| environment.profile.as_ref())
-        .filter(|profile| {
-            value_text::measured_host_reader(profile)
-                && [decimal, group]
-                    .iter()
-                    .all(|c| matches!(c, Some('.' | ',' | ' ' | '\u{a0}')))
-        });
+        .filter(|profile| value_text::measured_host_reader(profile));
+    let measured_separators = [decimal, group]
+        .iter()
+        .all(|c| matches!(c, Some('.' | ',' | ' ' | '\u{a0}')));
+    let host_profile = host_reader.filter(|_| measured_separators);
     if host_profile.is_some_and(|profile| {
         text.to_string_lossy()
             .chars()
@@ -676,16 +679,33 @@ fn numbervalue(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
         Err(k::NumberValueError::Range) => return fail(WorksheetErrorCode::Value),
         result => result.map_err(|_| WorksheetErrorCode::Value),
     };
-    if result.is_ok() || host_profile.is_none() || !matches!(a[0].core_ref(), CoreRef::Text(_)) {
+    let Some(profile) = host_reader else {
+        return out_number(site, result);
+    };
+    if result.is_ok() || !matches!(a[0].core_ref(), CoreRef::Text(_)) {
         return out_number(site, result);
     }
+    let host_decimal = profile.decimal_separator.chars().next().unwrap_or('.');
     // The measured host admits the same currency, digit and date grammar as
     // VALUE after ASCII spaces and trailing percents are removed. Keep the
     // existing numeric parser and its percent arithmetic for its prior forms.
+    let mut after_decimal = false;
     let compact: String = text
         .to_string_lossy()
         .chars()
         .filter(|&ch| ch != ' ')
+        .filter_map(|ch| {
+            if measured_separators {
+                Some(ch)
+            } else if Some(ch) == decimal {
+                after_decimal = true;
+                Some(host_decimal)
+            } else if Some(ch) == group && !after_decimal {
+                None
+            } else {
+                Some(ch)
+            }
+        })
         .collect();
     // Slash/colon forms have no new service evidence; keep their prior route.
     if compact.contains(['/', ':']) {
