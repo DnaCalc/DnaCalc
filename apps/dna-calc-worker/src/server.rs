@@ -9374,6 +9374,37 @@ mod printing_tests {
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn print_preview_refuses_circular_held_values_until_they_are_recalculated() {
+        let mut s = Server::new();
+        let sheet = Sheet::of(s.book.host().sheets()[0].id());
+        let at = Key(sheet.0, sheet.1, 1, 1);
+        let enter = |s: &mut Server, text: &str| {
+            s.execute_current(
+                Request::Intent(Intent::EnterCell {
+                    at,
+                    text: text.into(),
+                }),
+                None,
+            )
+            .reply
+            .unwrap();
+        };
+        enter(&mut s, "=6*7");
+        assert_eq!(preview(&mut s, sheet).unwrap().cells[0].text, "42");
+        enter(&mut s, "=A1+1");
+        let projected = s.book.project(vec![at.cell().unwrap()]);
+        assert!(matches!(
+            projected[0].value(),
+            calc_host::ProjectedValue::Calculated { calculation, .. }
+                if calculation.held_by_circular_rule()
+        ));
+        assert!(preview(&mut s, sheet).unwrap_err().contains("circular reference"));
+        enter(&mut s, "=6*8");
+        assert_eq!(preview(&mut s, sheet).unwrap().cells[0].text, "48");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn print_preview_accepts_an_unsaved_added_sheet_and_waits_for_calculation() {
         let mut s = Server::new();
         let reply = s

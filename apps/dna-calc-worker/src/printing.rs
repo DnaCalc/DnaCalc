@@ -1,5 +1,6 @@
 //! Print projections from the application's ordinary host, styles, calculated values and chart route.
 use crate::{wire, workbook::Workbook};
+use calc_host::ProjectedValue;
 use calc_host::value::{CellKey, GridArea};
 use dna_calc_model::printing::*;
 use std::collections::BTreeSet;
@@ -278,13 +279,32 @@ pub fn preview(
     let mut cells = Vec::new();
     let mut retained = 0usize;
     for p in projected {
-        let shown = book.shown(&p);
-        if matches!(
-            shown.provenance,
-            wire::Provenance::FileCache | wire::Provenance::Refused | wire::Provenance::Stale
-        ) {
-            return Err("Print preview contains uncalculated, refused or stale formulas; calculate or resolve them first (dc-971p.57)".into());
+        match p.value() {
+            ProjectedValue::FileCached(_)
+            | ProjectedValue::NotModeled { .. }
+            | ProjectedValue::Stale(_) => {
+                return Err("Print preview contains uncalculated, refused or stale formulas. \
+                            Calculate or resolve them first (dc-971p.57)".into());
+            }
+            ProjectedValue::Calculated { calculation, .. } => {
+                if calculation.held_by_circular_rule() {
+                    return Err("Print preview contains values held by a circular reference. \
+                                Resolve it before printing (dc-971p.57)".into());
+                }
+                if calculation.reads_external_links()
+                    || calculation.stamp().is_some_and(|stamp| {
+                        stamp.reads.external_cache
+                            || stamp.reads.uses_boundary_cache
+                            || stamp.reads.uses_imported_cache
+                    })
+                {
+                    return Err("Print preview contains formulas calculated from cached inputs. \
+                                Refresh the inputs and recalculate before printing (dc-971p.57)".into());
+                }
+            }
+            ProjectedValue::Empty | ProjectedValue::Literal(_) => {}
         }
+        let shown = book.shown(&p);
         if shown.style.unsupported.is_some() || shown.format == wire::FormatShown::NotModelled {
             return Err(
                 "A cell's formatting is preserved but not modelled for printing (dc-971p.57)"
