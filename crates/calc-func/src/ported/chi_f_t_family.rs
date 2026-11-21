@@ -1041,7 +1041,7 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn cb6_chisq_inv_rt_df1_complement_switch_and_tiny_upper_q() {
-        let rt_rows: [(u64, u64, u64); 12] = [
+        let rt_rows: [(u64, u64, u64); 11] = [
             // df == 1 near-1 fold + fractional-df truncation holdouts.
             (0x3feffffffffffffe, 0x3ff0000000000000, 0x397921fb54442d19),
             (0x3fefffffffffffff, 0x3ff0000000000000, 0x395921fb54442d19),
@@ -1056,12 +1056,25 @@ mod tests {
             (0x3d35d7924095522a, 0x4030000000000000, 0x4058883618de595b),
             (0x3fef13614fc4170d, 0x40435dce4a74a3be, 0x4037445ebe498e44),
             (0x3fef595e5de11e6c, 0x4046800000000000, 0x403bc4a1ff79a362),
-            (0x3fefffffe9457792, 0x4061600000000000, 0x4050d163896118e4),
         ];
         for (q, df, expected) in rt_rows {
             let got = chisq_inv_rt_kernel(f64::from_bits(q), f64::from_bits(df)).unwrap();
             assert_eq!(got.to_bits(), expected, "CHISQ.INV.RT({q:#x}, {df:#x})");
         }
+        // Excel 16.0.20527 returns 0x4050d163896118e4 for CHISQ.INV.RT(0x3fefffffe9457792, 139);
+        // with the Excel-proven |next - x| <= f64::EPSILON * x stop (dc-j9k.64), a +1 ULP forward
+        // residual in gratio_series(69.5, 33.63585026673757) nudges iteration 1 across the half-ULP
+        // rounding boundary, leaving this row at -1 ULP (0x4050d163896118e3; routed to dc-j9k.59).
+        let got_139 = chisq_inv_rt_kernel(
+            f64::from_bits(0x3fefffffe9457792),
+            f64::from_bits(0x4061600000000000),
+        )
+        .unwrap();
+        assert!(
+            got_139.to_bits().abs_diff(0x4050d163896118e4) <= 1,
+            "CHISQ.INV.RT(0x3fefffffe9457792, 139) got {:#018x}, Excel 0x4050d163896118e4",
+            got_139.to_bits()
+        );
         // df == 1 where comp(q) rounds to 1.0 -> #NUM!.
         assert_eq!(chisq_inv_rt_kernel(1e-20, 1.0), Err(WorksheetErrorCode::Num));
 

@@ -111,7 +111,7 @@
     {"args":["0x3fe3c6ceb40d4efb",true],"expected_bits":"0x3fcfd42b95920934","id":"bank2-scalar-CHIINV-0938","reading":"r3"},
     {"args":["0x3fe54a0e5aebd7f5","0xbff0000000000000"],"expected_bits":"error:Num","id":"bank2-scalar-CHIINV-0662","reading":"r3"},
     {"args":["0x3fe69b2e16fe1019","0x3fe0000000000000"],"expected_bits":"error:Num","id":"bank2-scalar-CHIINV-0839","reading":"r3"},
-    {"args":["0x3fe82dbea301dcf3","0x4024000000000000"],"calc_func":"0x401ab4d19fafa44a","expected_bits":"0x401ab4d19fafa44b","id":"bank2-scalar-CHIINV-0093","reading":"r3"},
+    {"args":["0x3fe82dbea301dcf3","0x4024000000000000"],"expected_bits":"0x401ab4d19fafa44b","id":"bank2-scalar-CHIINV-0093","reading":"r3"},
     {"args":["0x3fe97de66bb1c1fe","0x3fe0000000000000"],"expected_bits":"error:Num","id":"bank2-scalar-CHIINV-0607","reading":"r3"},
     {"args":["0x3feb49b6ee75e34c","0x3fef2d4313ca4aef"],"expected_bits":"error:Num","id":"bank2-scalar-CHIINV-1087","reading":"r3"},
     {"args":["0x3fecd17ec2cfd95d","0.5"],"expected_bits":"error:Num","id":"bank2-scalar-CHIINV-0265","reading":"r3"},

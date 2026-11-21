@@ -197,21 +197,21 @@ fn binom_normalizer(x: f64, n: f64) -> [f64; 4] {
 /// mass times the stored `a/y`. At `a = 2` the error of GAMMA.DIST jumps at `y = 1.1` (5,000 live
 /// answers around it), and with this route the bank's failures fall from 29,872 to 594.
 ///
-/// Two routes, split at `lambda = 1.1` (bisected on live answers at `x = 2, 3, 7`) with `x <= 1`
-/// always on the first:
+/// Two routes, split at `<= 1.1` (bisected on live Excel 16.0.20527 across `0x3ff199999999999a`
+/// vs `0x3ff199999999999b` in both `x` and `lambda`, dc-j9k.64):
 ///
-/// - `exp(x ln lambda - lambda - GAMMALN(x + 1))`.
+/// - `x <= 1.1 || lambda <= 1.1`: `exp(x ln lambda - lambda - GAMMALN(x + 1))`.
 ///   `ln lambda` is stored (the answers sit on its grid) and so is the product with `x`; the stored
 ///   GAMMALN is why the bank's constants carry its low bits (+1 unit at `x = 2, 8`). The two
 ///   subtractions are compensated (`excel_exp_compensated`).
-/// - Loader's saddle point `exp(-stirling_error(x) - deviance(x, lambda)) / sqrt(2 pi x)`, with the
-///   exponent and the exponential each stored: the answers sit on the exponent's binary64 grid
-///   once the normalizer is removed, from `lambda` near 4 to 1000 and `x` up to 100.
+/// - Otherwise: Loader's saddle point `exp(-stirling_error(x) - deviance(x, lambda)) / sqrt(2 pi x)`,
+///   with the exponent and the exponential each stored: the answers sit on the exponent's binary64
+///   grid once the normalizer is removed, from `lambda` near 4 to 1000 and `x` up to 100.
 pub(crate) fn poisson_mass(x: f64, lambda: f64) -> f64 {
     if x == 0.0 {
         return excel_exp(-lambda);
     }
-    if x <= 1.0 || lambda < 1.1 {
+    if x <= 1.1 || lambda <= 1.1 {
         let t = excel_x87_mul(x, excel_log(lambda));
         return excel_exp_compensated(t, &[lambda, gammaln_excel(x + 1.0)]);
     }
@@ -227,7 +227,7 @@ pub(crate) fn poisson_mass(x: f64, lambda: f64) -> f64 {
 pub(crate) fn poisson_compensation_error(x: f64, lambda: f64) -> bool {
     // Below 2^40, even the logarithm of the smallest positive binary64
     // keeps both subtractions below 2^50, where their lost part is under one.
-    if !(x >= 1_099_511_627_776.0 && x.is_finite() && lambda > 0.0 && lambda < 1.1) {
+    if !(x >= 1_099_511_627_776.0 && x.is_finite() && lambda > 0.0 && lambda <= 1.1) {
         return false;
     }
     let start = excel_x87_mul(x, excel_log(lambda));
@@ -734,6 +734,46 @@ mod tests {
         // The series arm against the definition's value at 8 and 100.
         assert!((stirling_error(8.0) - 0.010411265261972096).abs() < 1e-16);
         assert!((stirling_error(100.0) - 0.0008333305556349147).abs() < 1e-17);
+    }
+
+    /// Excel 16.0.20527 (dc-j9k.64, frozen proof SHA-256 e727a10f): `poisson_mass` and
+    /// `poisson_compensation_error` use the compensated `exp` route for `x <= 1.1 || lambda <= 1.1`
+    /// (inclusive at `0x3ff199999999999a`, switching to Loader at `0x3ff199999999999b`).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn poisson_mass_threshold_is_inclusive_one_point_one() {
+        use crate::ported::beta_gamma_stats_family::gamma_dist_kernel;
+        let rows: [(u64, u64, bool, u64); 9] = [
+            // 1.0 < alpha <= 1.1 interior PDF and CDF (x > 1.1).
+            (0x402c_d737_0130_3c56, 0x3ff1_09f6_d142_f97f, false, 0x3ea6_8cd0_3470_4d10),
+            (0x3ff5_8d95_3d77_8a94, 0x3ff0_0696_2231_3be7, true, 0x3fe7_a967_fe48_a288),
+            (0x4020_98a1_2697_b948, 0x3ff0_4ec2_c768_47d2, false, 0x3f31_2e0a_25ce_1a08),
+            // Exact alpha == 1.1 vs next_up(1.1) switch.
+            (0x4011_c116_f0d0_c789, 0x3ff1_9999_9999_999a, false, 0x3f8d_844e_a734_fe8c),
+            (0x4011_c116_f0d0_c789, 0x3ff1_9999_9999_999b, false, 0x3f8d_844e_a734_fe95),
+            // Exact x == 1.1 vs next_up(1.1) switch (PDF and CDF).
+            (0x3ff1_9999_9999_999a, 0x4010_92d7_4810_cc80, false, 0x3faf_eae6_ae86_5147),
+            (0x3ff1_9999_9999_999b, 0x4010_92d7_4810_cc80, false, 0x3faf_eae6_ae86_514a),
+            (0x3ff1_9999_9999_999a, 0x4018_6529_3948_3a7e, true, 0x3f4a_85ed_ce9d_ded6),
+            (0x3ff1_9999_9999_999b, 0x4018_6529_3948_3a7e, true, 0x3f4a_85ed_ce9d_dedc),
+        ];
+        for (x_bits, a_bits, cum, expected) in rows {
+            let got = gamma_dist_kernel(f64::from_bits(x_bits), f64::from_bits(a_bits), 1.0, cum)
+                .unwrap()
+                .to_bits();
+            assert_eq!(
+                got, expected,
+                "GAMMA.DIST({x_bits:#018x}, {a_bits:#018x}, 1, {cum})"
+            );
+        }
+        // Compensation error boundary at lambda == 1.1 vs next_up(1.1): #NUM! at 1.1, 0.0 above.
+        let one_point_one = f64::from_bits(0x3ff1_9999_9999_999a);
+        let above_one_point_one = f64::from_bits(0x3ff1_9999_9999_999b);
+        assert!(poisson_compensation_error(2.0_f64.powi(60), one_point_one));
+        assert!(!poisson_compensation_error(
+            2.0_f64.powi(60),
+            above_one_point_one
+        ));
     }
 
     /// A large-population cumulative takes bounded work: HYPGEOM.DIST(N/2, N-1, N, 2N, TRUE) at

@@ -578,9 +578,12 @@ pub fn gamma_dist_kernel(
 ///   `a > 1.0`, and Wilson-Hilferty start for `a < 1.0` (with `z = -NORM.S.INV(q)` for
 ///   right-tail chi-square callers so tiny `q` survives without `1 - q` cancellation);
 /// - complement residual switch strictly above `0.9999` (`0x3fefff2e48e8a71e`);
+/// - `a < 1.0` Wilson-Hilferty cube `a * exp(3 * ln(c))` (dc-j9k.64, 57/60 vs 1/60 on frozen
+///   live Excel 16.0.20527 holdouts);
 /// - unfactored Halley step `2*df / (2*pdf - df*((a-1)/x - 1))` with AS 109 sign-change
-///   thirding damping, `106`-trial cap, `1e-15` relative step stop (evaluating the final
-///   candidate), and strict-minimum residual `best_x` publication.
+///   thirding damping (stopping at `best_x` when damping triggers without residual improvement),
+///   `106`-trial cap, `|next - x| <= f64::EPSILON * x` relative-step stop returning `best_x`
+///   without evaluating `next`, and strict-minimum residual `best_x` publication.
 pub(super) fn gamma_halley_unit(
     prob: f64,
     a: f64,
@@ -591,7 +594,6 @@ pub(super) fn gamma_halley_unit(
         excel_x87_sub, gammaln_excel,
     };
     const MAX_TRIALS: usize = 106;
-    const REL_X_TOL: f64 = 1e-15;
 
     let mut x = if !is_upper_q {
         // The lower-tail power estimate is exact at the underflow scale.
@@ -638,7 +640,7 @@ pub(super) fn gamma_halley_unit(
             if !(c > 0.0) {
                 return Err(WorksheetErrorCode::Num);
             }
-            excel_x87_mul(a, excel_x87_mul(c, excel_x87_mul(c, c)))
+            excel_x87_mul(a, excel_exp(excel_x87_mul(3.0, excel_log(c))))
         }
     } else {
         let p_comp = excel_x87_add(0.5, excel_x87_sub(0.5, prob));
@@ -697,7 +699,8 @@ pub(super) fn gamma_halley_unit(
     loop {
         let df = eval_df(x)?;
         let err_df = df.abs();
-        if err_df < best_err {
+        let improved = err_df < best_err;
+        if improved {
             best_err = err_df;
             best_x = x;
         }
@@ -721,19 +724,6 @@ pub(super) fn gamma_halley_unit(
             return Ok(best_x);
         }
 
-        if trials > 0 && corr.abs() <= REL_X_TOL * x {
-            let x_cand = excel_x87_sub(x, corr);
-            if x_cand > 0.0
-                && x_cand.is_finite()
-                && corr.abs() < step_limit
-                && let Ok(df_cand) = eval_df(x_cand)
-                && df_cand.abs() < best_err
-            {
-                best_x = x_cand;
-            }
-            return Ok(best_x);
-        }
-
         if last_corr != 0.0 && corr * last_corr <= 0.0 {
             step_limit = last_adj.abs();
         }
@@ -743,6 +733,9 @@ pub(super) fn gamma_halley_unit(
         loop {
             last_adj = excel_x87_mul(factor, corr);
             if last_adj.abs() >= step_limit {
+                if !improved {
+                    return Ok(best_x);
+                }
                 factor = excel_x87_div(factor, 3.0);
                 if factor == 0.0 || excel_x87_sub(x, last_adj) == x {
                     return Ok(best_x);
@@ -752,6 +745,9 @@ pub(super) fn gamma_halley_unit(
             let next = excel_x87_sub(x, last_adj);
             if !(next > 0.0 && next.is_finite()) {
                 return Err(WorksheetErrorCode::Num);
+            }
+            if excel_x87_sub(next, x).abs() <= f64::EPSILON * x {
+                return Ok(best_x);
             }
             trials += 1;
             if trials > MAX_TRIALS {
@@ -1173,6 +1169,63 @@ mod tests {
             )
             .unwrap();
             assert_eq!(got.to_bits(), expected, "CHIINV({q:#x}, {df:#x})");
+        }
+    }
+
+    /// Excel 16.0.20527 (dc-j9k.64): `a < 1.0` Wilson-Hilferty cube `a * exp(3 * ln(c))`
+    /// (frozen proof SHA-256 fb2f7609), `poisson_mass <= 1.1` inverse consistency, and
+    /// Halley stopping (`|next - x| <= f64::EPSILON * x`, damping-without-improvement stop,
+    /// frozen proof SHA-256 e727a10f).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_j9k_64_cb8_halley_and_small_shape_start_match_excel_bits() {
+        let gamma_rows: [(u64, u64, u64, u64); 11] = [
+            // a < 1.0 Wilson-Hilferty cube a * exp(3 * ln(c)) (Proof 1).
+            (0x3fee_9691_352d_12ea, 0x3fe9_eda4_0e40_d6d1, 0x3ff0_0000_0000_0000, 0x4005_e147_17bd_5ec3),
+            (0x3fed_0ee9_06e2_ef5a, 0x3fe7_00f7_d30d_76c2, 0x3ff0_0000_0000_0000, 0x3ffd_e73b_affa_5e2c),
+            // 1.0 < a <= 1.1 poisson_mass <= 1.1 inverse holdouts (Proof 2 Bucket B).
+            (0x3fe7_5229_a68b_7652, 0x3ff0_0000_0000_0004, 0x4009_f866_57b7_6ba0, 0x4010_f17e_9577_24bc),
+            (0x3fe5_8e6f_9ac9_7738, 0x3ff0_0000_0000_0003, 0x4008_7d38_dc07_c006, 0x400b_6bef_21b1_d7ae),
+            (0x3fec_a532_66a5_0e92, 0x3ff0_0000_0000_0003, 0x3ffa_a15e_cd54_821c, 0x400e_07db_d282_7fc8),
+            // Damping-without-improvement stop (Proof 2 Buckets D and E).
+            (0x3fed_bdc5_0d17_005b, 0x3fd8_687b_7b12_9cf7, 0x3ff4_b714_4760_7aa3, 0x3ffb_dc4e_0488_6909),
+            (0x3fef_9063_f6b7_39bb, 0x3fe7_6167_6eb0_e9ce, 0x401f_3b00_0000_c02e, 0x403c_9913_89c5_2349),
+            (0x3fed_9ab8_b8da_f6a4, 0x3fdc_5598_b6e8_873a, 0x3feb_3e8d_56ab_50b4, 0x3ff3_c844_0bae_e674),
+            (0x3feb_0119_ab30_bef8, 0x3fed_db36_bbd9_6c2b, 0x4003_3abf_fbaf_82d9, 0x4010_d4dc_252b_bf46),
+            (0x3fea_7287_8996_325e, 0x3fe6_7c1f_b0b0_ad47, 0x401f_475c_24b3_280f, 0x4023_f9ae_a6a2_cc29),
+            (0x3fe9_ecf6_728d_31c8, 0x3fe6_43fc_b549_4ea3, 0x401b_3bb2_1d70_c8b0, 0x4020_2f55_d986_1460),
+        ];
+        for (p, a, b, expected) in gamma_rows {
+            let got = gamma_inv_kernel(f64::from_bits(p), f64::from_bits(a), f64::from_bits(b))
+                .unwrap();
+            assert_eq!(got.to_bits(), expected, "GAMMA.INV({p:#x}, {a:#x}, {b:#x})");
+        }
+        // |next - x| <= f64::EPSILON * x without x_cand eval (Proof 2 Buckets C1 and C2).
+        let chi_rt_rows: [(u64, u64, u64); 4] = [
+            (0x3fe4_c850_bdb3_2700, 0x4045_8000_0000_0000, 0x4043_73e0_1b0b_a871),
+            (0x3fea_9f20_3b37_4a96, 0x403e_0000_0000_0000, 0x4036_95c9_8946_a5dd),
+            (0x3fec_3b5b_51b2_61af, 0x4035_0000_0000_0000, 0x402b_6508_8ae4_d4d7),
+            (0x3fed_5652_4e51_6c1c, 0x403b_0000_0000_0000, 0x4031_8bbe_46b5_20ca),
+        ];
+        for (q, df, expected) in chi_rt_rows {
+            let got = crate::ported::chi_f_t_family::chisq_inv_rt_kernel(
+                f64::from_bits(q),
+                f64::from_bits(df),
+            )
+            .unwrap();
+            assert_eq!(got.to_bits(), expected, "CHISQ.INV.RT({q:#x}, {df:#x})");
+        }
+        let chi_inv_rows: [(u64, u64, u64); 2] = [
+            (0x3fc3_3374_1214_842c, 0x401c_0000_0000_0000, 0x400a_ddeb_bdfe_a876),
+            (0x3fdc_b55c_ccdb_25bd, 0x4024_0000_0000_0000, 0x4021_9848_5306_f46d),
+        ];
+        for (p, df, expected) in chi_inv_rows {
+            let got = crate::ported::chi_f_t_family::chisq_inv_kernel(
+                f64::from_bits(p),
+                f64::from_bits(df),
+            )
+            .unwrap();
+            assert_eq!(got.to_bits(), expected, "CHISQ.INV({p:#x}, {df:#x})");
         }
     }
 }

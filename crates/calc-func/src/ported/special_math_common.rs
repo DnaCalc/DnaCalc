@@ -576,14 +576,12 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
             let ans = w * g * (0.5 + (0.5 - j));
             return (ans, 0.5 + (0.5 - ans));
         }
-        // a < 1, x >= 1.1
-        let t1 = a * crt_log(x) - x;
-        let u = a * crate::ported::excel_numeric::excel_exp(t1);
-        if u == 0.0 {
+        // a < 1, x >= 1.1 (cb8 / dc-j9k.64): unified poisson_mass + Modified-Lentz gratio_cf.
+        let pm = poisson_mass(a, x);
+        if crate::ported::excel_numeric::excel_x87_mul(pm, a) == 0.0 {
             return (1.0, 0.0);
         }
-        let r = u * (1.0 + gratio_gam1(a));
-        return gratio_cf(a, x, r, e, acc);
+        return gratio_cf(a, x, pm);
     }
 
     // Unified finite-sum domain for integer and half-integer shapes: 1 < a <= 20, a < x <= 30.0
@@ -613,7 +611,7 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
         if x <= a {
             return gratio_series(a, x, pm);
         }
-        return gratio_cf(a, x, r, e, acc);
+        return gratio_cf(a, x, pm);
     }
 
     // a > 20.0 (bisected on live Excel 16.0.20527: Temme runs strictly for 0.7 < l < 1.3).
@@ -672,12 +670,45 @@ fn gratio_series(a: f64, x: f64, r_series: f64) -> (f64, f64) {
     (p, 0.5 + (0.5 - p))
 }
 
-/// The upper tail's continued fraction, in place of Morris's statement 250. In the registers and
-/// stored once, 4,366 of 6,000 adjacent answers at (5.3, 2.3), where every stage stored takes 3,906
-/// and Morris's fewer. The last stages are not read: the misses are one unit.
-fn gratio_cf(a: f64, x: f64, r: f64, _e: f64, _acc: f64) -> (f64, f64) {
-    use crate::ported::excel_numeric::{excel_gamma_fraction, excel_x87_mul};
-    let qans = excel_x87_mul(r, excel_gamma_fraction(a, x));
+/// Upper incomplete gamma continued fraction for all `a <= 20` upper-tail calls
+/// (`1 < a <= 20, x > a` outside the `a < x <= 30.0` finite sums, and `a < 1, x >= 1.1`,
+/// cb8 / dc-j9k.64): Thompson-Barnett Modified Lentz from `b_0 = 0` with `TINY = 1e-30`
+/// on the uncontracted Legendre CF (`a_0 = a, b_1 = x, a_{2m-1} = m - a, b_{2m} = 1,
+/// a_{2m} = m, b_{2m+1} = x`), every arithmetic step stored to binary64 at x87 PC64,
+/// stopping at `k > 0 && del == 1.0`, and multiplying `pm * f` directly.
+fn gratio_cf(a: f64, x: f64, pm: f64) -> (f64, f64) {
+    use crate::ported::excel_numeric::{
+        excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_sub,
+    };
+    const TINY: f64 = 1.0e-30; // 0x39b08b2a2c280291
+    let mut f = TINY;
+    let mut c = TINY;
+    let mut d = 0.0_f64;
+    for k in 0..=10_000usize {
+        let ak = if k == 0 {
+            a
+        } else if (k & 1) == 1 {
+            excel_x87_sub(((k + 1) / 2) as f64, a)
+        } else {
+            (k / 2) as f64
+        };
+        let bk = if (k & 1) == 1 { 1.0 } else { x };
+        d = excel_x87_add(bk, excel_x87_mul(ak, d));
+        if d.abs() < TINY {
+            d = TINY;
+        }
+        c = excel_x87_add(bk, excel_x87_div(ak, c));
+        if c.abs() < TINY {
+            c = TINY;
+        }
+        d = excel_x87_div(1.0, d);
+        let del = excel_x87_mul(c, d);
+        f = excel_x87_mul(f, del);
+        if k > 0 && del == 1.0 {
+            break;
+        }
+    }
+    let qans = excel_x87_mul(pm, f);
     (0.5 + (0.5 - qans), qans)
 }
 
@@ -2724,6 +2755,55 @@ mod tests {
                 actual,
                 expected,
                 "Q({a_bits:#018x}, {x_bits:#018x}): got {actual:#018x}, expected {expected:#018x}"
+            );
+        }
+    }
+
+    /// Excel 16.0.20527 (cb8 / dc-j9k.64): unified Thompson-Barnett Modified-Lentz `gratio_cf`
+    /// across all `a <= 20` upper-tail calls (`1 < a <= 20, x > a` outside the `a < x <= 30.0`
+    /// finite sums, and `a < 1, x >= 1.1`), verified on Carbon's frozen cb8 holdouts.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn cb8_gratio_cf_unified_matches_excel_bits() {
+        // Upper tail Q(a, x): POISSON.DIST(k, x, TRUE) = Q(k + 1, x) and CHIDIST(x, df) = Q(df/2, x/2).
+        let q_cases: &[(u64, u64, u64)] = &[
+            // dyadic_pois_k5_9: POISSON.DIST(1, 32 + 1u/3u, TRUE) -> Q(2, x)
+            (0x4000_0000_0000_0000, 0x4040_0000_0000_0001, 0x3d5d_6888_1f1c_6f57),
+            (0x4000_0000_0000_0000, 0x4040_0000_0000_0003, 0x3d5d_6888_1f1c_6ede),
+            // pois_cf_general_a_le_20: k = 18 (a = 19) and k = 2 (a = 3) with x > 30
+            (0x4033_0000_0000_0000, 0x403e_e4fc_21b0_8a53, 0x3f81_c96f_3e33_ccff),
+            (0x4008_0000_0000_0000, 0x403e_c677_29b8_7d8e, 0x3db7_f279_6108_d23e),
+            // chi_and_gamma_cf_1_to_20: CHIDIST(x, 24) -> Q(12, x/2) and CHIDIST(x, 4) -> Q(2, x/2)
+            (0x4028_0000_0000_0000, 0x403e_22f4_2b5c_e4b9, 0x3f0e_a464_814b_b970),
+            (0x4000_0000_0000_0000, 0x403e_96c4_9fac_7117, 0x3d7c_db56_58e4_5eb9),
+        ];
+        for &(a_bits, x_bits, expected) in q_cases {
+            let actual = gratio(f64::from_bits(a_bits), f64::from_bits(x_bits))
+                .1
+                .to_bits();
+            assert_eq!(
+                actual,
+                expected,
+                "cb8 Q({a_bits:#018x}, {x_bits:#018x}): got {actual:#018x}, expected {expected:#018x}"
+            );
+        }
+        // alt1_cf_x_ge_1p1: GAMMA.DIST(x, a, beta, TRUE) with a < 1 and x/beta >= 1.1.
+        let p_cases: &[(u64, u64, u64, u64)] = &[
+            (0x400f_15f1_f172_f422, 0x3fd7_3c49_dd27_9384, 0x400b_3a5d_dccf_779a, 0x3fed_3632_e959_7e9a),
+            (0x3f9a_d9cf_49f0_a809, 0x3fc1_daff_f1d5_ace0, 0x3f97_7f3d_3dc6_7f5f, 0x3fef_1b32_d9da_beb6),
+        ];
+        for &(x_bits, a_bits, b_bits, expected) in p_cases {
+            let got = crate::ported::beta_gamma_stats_family::gamma_dist_kernel(
+                f64::from_bits(x_bits),
+                f64::from_bits(a_bits),
+                f64::from_bits(b_bits),
+                true,
+            )
+            .unwrap()
+            .to_bits();
+            assert_eq!(
+                got, expected,
+                "cb8 GAMMA.DIST({x_bits:#018x}, {a_bits:#018x}, {b_bits:#018x}, TRUE)"
             );
         }
     }
