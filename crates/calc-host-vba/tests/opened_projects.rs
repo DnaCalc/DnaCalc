@@ -1776,6 +1776,53 @@ fn events_off_file_range_arguments_keep_the_shared_projection_tokens() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn file_project_discovers_described_procedures_in_xml_and_binary() {
+    for (bytes, name, description, category) in [
+        (
+            include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/metadata-vba.xlsm").as_slice(),
+            "metadata-vba.xlsm",
+            "VBA-set description",
+            "3",
+        ),
+        (
+            include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/metadata-custom-vba.xlsb")
+                .as_slice(),
+            "metadata-custom-vba.xlsb",
+            "Custom category description",
+            "20",
+        ),
+    ] {
+        let mut session = opened(bytes, name);
+        session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
+        session.set_workbook_events_enabled(false);
+        let project = calc_host_vba::open_file_project(
+            &grant(),
+            &mut session,
+            name,
+            100_000,
+            Some(calc_vba::Backend::Interpreter),
+        )
+        .unwrap()
+        .unwrap();
+        let functions = project.functions();
+        for spelling in ["MetaFunc", "Module1.MetaFunc"] {
+            let described = functions.descriptor(None, spelling).unwrap();
+            assert_eq!(described.name, spelling);
+            assert_eq!(described.origin, "VBA module Module1");
+            assert_eq!(described.description, description);
+            assert_eq!(described.category, category);
+            assert_eq!(described.signature(), format!("{spelling}(x)"));
+        }
+        assert!(functions.bind(None, "SetMetadataViaVba").is_none());
+        enter(&mut session, 1, 4, "=Module1.MetaFunc(2)");
+        full(&mut session);
+        assert_eq!(value(&session, 1, 2).as_number(), Some(4002.0));
+        assert_eq!(value(&session, 1, 4).as_number(), Some(4002.0));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn file_project_sources_compile_with_their_exported_attributes() {
     for (bytes, name) in [
         (

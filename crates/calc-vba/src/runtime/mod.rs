@@ -1,5 +1,6 @@
 //! DNA-owned value adapter and runtime composition. Ported from OxVba 325257ea
 //! adapters/spreadsheet-compat/src/lib.rs; compiler, code and state stay in OxVba.
+use calc_func::value::fold_workbook_name;
 use calcvba_bundle::coreir::CoreConst;
 use calcvba_oxir::OxTy;
 use calcvba_runtime::{
@@ -7,7 +8,7 @@ use calcvba_runtime::{
     safe_array::{SafeArray, SafeArrayBound},
 };
 use calcvba_symbol::manifest as sym;
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 mod cache;
 pub(crate) use cache::neutral::adapter_error;
 mod late_binding;
@@ -49,9 +50,12 @@ pub struct Parameter {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Function {
     pub name: String,
+    pub module: String,
     pub qualified_name: String,
     pub parameters: Vec<Parameter>,
     pub return_type: String,
+    pub description: String,
+    pub category_number: Option<u16>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -151,7 +155,7 @@ impl Module {
                         sym::ModuleKind::Procedural
                     },
                     attributes,
-                    source: exported_source(&module.source),
+                    source: module.source.clone(),
                 }
             })
             .collect();
@@ -167,7 +171,7 @@ impl Module {
     }
     #[allow(clippy::too_many_arguments)]
     fn load_modules(
-        modules: Vec<sym::ModuleUnit>,
+        mut modules: Vec<sym::ModuleUnit>,
         references: &crate::events::ProjectReferences,
         spreadsheet_objects: bool,
         events: bool,
@@ -176,6 +180,14 @@ impl Module {
         workbook_events: bool,
     ) -> Result<Self, Error> {
         let _policy = crate::policy::compilation_scope(&references.compiler);
+        let mut member_metadata = BTreeMap::new();
+        if events {
+            for module in &mut modules {
+                let (source, metadata) = exported_source(&module.source);
+                module.source = source;
+                member_metadata.insert(fold_workbook_name(&module.module_name), metadata);
+            }
+        }
         let procedural: std::collections::HashSet<_> = modules
             .iter()
             .filter(|m| m.module_kind == sym::ModuleKind::Procedural)
@@ -303,9 +315,13 @@ impl Module {
                 // the generated procedure's real session-owned handle.
                 entry.parameters = original.parameters.clone();
                 entry.return_type = original.return_type.clone();
+                let metadata = member_metadata
+                    .get(&fold_workbook_name(&original.module))
+                    .and_then(|members| members.get(&fold_workbook_name(&original.name)));
                 (
                     Function {
                         name: original.name.clone(),
+                        module: original.module.clone(),
                         qualified_name: format!("{}.{}", original.module, original.name),
                         parameters: original
                             .parameters
@@ -323,6 +339,8 @@ impl Module {
                             .as_ref()
                             .map(type_name)
                             .unwrap_or_default(),
+                        description: metadata.map_or_else(String::new, |m| m.description.clone()),
+                        category_number: metadata.and_then(|m| m.category_number),
                     },
                     entry,
                 )
@@ -440,14 +458,21 @@ fn validate_project_modules(
     }
     Ok(())
 }
+#[derive(Default)]
+struct MemberMetadata {
+    description: String,
+    category_number: Option<u16>,
+}
+
 /// Excel exports these descriptive member attributes inside the procedure. The
 /// pinned frontend accepts them at module level. Relocate only complete, parsed
-/// metadata statements; preserve all executable text and every other attribute.
-fn exported_source(source: &str) -> String {
+/// metadata statements and retain their values for the matching compiler-discovered member.
+fn exported_source(source: &str) -> (String, BTreeMap<String, MemberMetadata>) {
     use calcvba_syntax::{SyntaxKind as K, lexer::tokenize};
     let tokens = tokenize(source);
     let mut body = String::with_capacity(source.len());
     let mut attributes = String::new();
+    let mut members = BTreeMap::<String, MemberMetadata>::new();
     let mut start = 0;
     for end in (0..tokens.len())
         .filter(|&i| tokens[i].0 == K::Newline)
@@ -485,6 +510,16 @@ fn exported_source(source: &str) -> String {
             });
         let text: String = statement.iter().map(|(_, text)| *text).collect();
         if metadata && calcvba_syntax::parse(&text).errors().is_empty() {
+            let literal = significant.last().expect("parsed attribute value").1;
+            let value = &literal[1..literal.len() - 1];
+            let member = members
+                .entry(fold_workbook_name(significant[1].1))
+                .or_default();
+            if description {
+                member.description = value.replace("\"\"", "\"");
+            } else if let Some((_, number)) = value.rsplit_once("\\n") {
+                member.category_number = number.parse().ok();
+            }
             attributes.push_str(&text);
             attributes.push('\n');
             for ch in text.chars() {
@@ -498,7 +533,7 @@ fn exported_source(source: &str) -> String {
         body.push('\n');
         body.push_str(&attributes);
     }
-    body
+    (body, members)
 }
 
 #[cfg(test)]
@@ -516,12 +551,18 @@ mod exported_tests {
             "Attribute F.VB_Description = \"unterminated\n",
             "Attribute F.VB_Description = \"unterminated\"\"\n",
         ] {
-            assert_eq!(exported_source(source), source);
+            let (adjusted, metadata) = exported_source(source);
+            assert_eq!(adjusted, source);
+            assert!(metadata.is_empty());
         }
         let source = "Public Function F() As Long\r\nAttribute F.VB_Description = \"text\"\r\n F = 7\r\nEnd Function\r\n";
-        let adjusted = exported_source(source);
+        let (adjusted, metadata) = exported_source(source);
         assert!(adjusted.contains(" F = 7\r\nEnd Function\r\n"));
         assert!(adjusted.ends_with("Attribute F.VB_Description = \"text\"\r\n\n"));
+        assert_eq!(
+            metadata[&calc_func::value::fold_workbook_name("F")].description,
+            "text"
+        );
     }
 }
 
