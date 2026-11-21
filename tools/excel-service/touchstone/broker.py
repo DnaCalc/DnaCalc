@@ -482,6 +482,10 @@ class Broker:
             req.client = body.get("c", req.client)
             for frame in existing.frames:
                 self.send_answer(conn, self.tag(dict(frame), req.client), existing)
+            if existing.fail is not None:
+                code, detail = existing.fail
+                conn.send(protocol.ERROR, self.tag({"id": rid, "seq": seq, "code": code, "detail": detail},
+                                                   req.client), True)
             if req.done_sent and body.get("last"):
                 conn.send(protocol.DONE, self.tag({"id": rid, "calls": req.calls, "envs": sorted(req.envs), "seconds": 0.0,
                                                    "replayed": True}, req.client), req.priority == "interactive")
@@ -1005,6 +1009,7 @@ class Broker:
                 self.finish_piece(piece)
 
     def fail_batch(self, batch, code, detail):
+        detail = str(detail)[:400]
         seen = set()
         for sl in batch.slices:
             piece = sl.item.piece
@@ -1014,7 +1019,7 @@ class Broker:
             piece.fail = (code, detail)
             piece.remaining = 0
             req = self.requests.get((piece.origin, piece.rid))
-            piece.conn.send(protocol.ERROR, self.tag({"id": piece.rid, "seq": piece.seq, "code": code, "detail": str(detail)[:400]},
+            piece.conn.send(protocol.ERROR, self.tag({"id": piece.rid, "seq": piece.seq, "code": code, "detail": detail},
                                                      req.client if req else None), piece.priority == "interactive")
             self.finish_piece(piece)
             self.counters["errors"] += 1

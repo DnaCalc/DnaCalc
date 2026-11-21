@@ -166,8 +166,29 @@ fn prepare_project(
             index,
             max_steps,
         });
-        functions.register(&metadata.name, function.clone())?;
-        functions.register(&metadata.qualified_name, function)?;
+        let descriptor = calc_fml::CallableDescriptor {
+            name: metadata.name.clone(),
+            origin: format!("VBA module {}", metadata.module),
+            category: metadata
+                .category_number
+                .map_or_else(String::new, |id| id.to_string()),
+            description: metadata.description,
+            parameters: metadata
+                .parameters
+                .into_iter()
+                .map(|parameter| calc_fml::CallableParameter {
+                    name: parameter.name,
+                    description: String::new(),
+                })
+                .collect(),
+            ..Default::default()
+        };
+        let qualified = calc_fml::CallableDescriptor {
+            name: metadata.qualified_name.clone(),
+            ..descriptor.clone()
+        };
+        functions.register_described(None, &metadata.name, function.clone(), descriptor)?;
+        functions.register_described(None, &metadata.qualified_name, function, qualified)?;
     }
     for (name, qualified, reason) in refusals {
         let function = Rc::new(RefusedVbaFunction {

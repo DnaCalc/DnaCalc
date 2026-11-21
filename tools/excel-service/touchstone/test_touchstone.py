@@ -36,6 +36,21 @@ TWO = "4000000000000000"
 
 
 class ProtocolTests(unittest.TestCase):
+    def test_a_cached_refusal_is_replayed_with_its_original_code_and_detail(self):
+        from broker import Broker
+
+        with tempfile.TemporaryDirectory() as directory:
+            broker = Broker(SimpleNamespace(state=Path(directory), admission=None))
+            broker.prepare()
+            first, replayed = [], []
+            submit = {"id": "r" * 32, "seq": 0, "last": True,
+                      "groups": [{"f": "ID", "k": "n", "n": 2, "v": [ONE]}]}
+            broker.on_submit(SimpleNamespace(origin="same-client", send=lambda *args: first.append(args)), submit)
+            broker.on_submit(SimpleNamespace(origin="same-client", send=lambda *args: replayed.append(args)), submit)
+            self.assertEqual(first[0][0], protocol.ERROR)
+            self.assertEqual(replayed[0][:2], first[0][:2])
+            self.assertEqual(broker.counters["refused"], 1)
+
     def test_range_and_file_round_trip_through_stand_in_worker(self):
         cells = [[number(ONE), {"type": "text", "value": "a", "mode": "cell"}],
                  [{"type": "boolean", "value": True, "mode": "cell"}, {"type": "blank"}],
