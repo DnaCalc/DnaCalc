@@ -192,12 +192,12 @@ Enron: 1,199 distinct pairs (78 sensitive). The repository's own fixtures: 3,112
 The supplied classifier was run from the repository on the unpacked sets with
 `~/bin/xtask-harness classify <dir> --recursive --out <dir> --jobs 2`. Its SHA-256
 starts `3a925a96d894f2c2`. Each run wrote a command, per-file JSONL and a summary
-under `~/codex-runs/harv7/profile/`. The profile covers 60 current set profiles with 1 earlier or incomplete profiles (sheetpedia-xlsx).
+under `~/codex-runs/harv7/profile/`. The profile covers 61 current set profiles.
 Temporary hard links with standard Excel suffixes admitted existing add-ins and
 templates to the classifier's filename filter. The FUSE VBA hard-link mirror is
 counted with the original set. GovDocs1, source archives and R2-only workbooks
 remain part of the cross-corpus internals census on `dc-ztvv.18`.
-
+The profile copy at `runs/kode-fi/20261121-harv7-profile/` in `dnacalc-corpus` passed a one-way check (373 objects and 68,489,192 bytes).
 
 Macro detection read package directory entries or OLE storage and BIFF sheet
 types. VBA and XLM targets were triaged with `~/vbawork/triage.py` and the
@@ -251,7 +251,7 @@ establish what is present inside that container.
 | `new-github` | current | 2,858 | 2,699 | 831 | 182 | 28 | 1 | 4 | 323 | 151 | 3 | 200 | 205 | 24 | 66 | 755 | 0 | 270 | 486 | 2 |
 | `new-zenodo` | current | 137 | 113 | 85 | 29 | 0 | 0 | 0 | 22 | 10 | 0 | 3 | 48 | 2 | 15 | 115 | 0 | 70 | 45 | 0 |
 | `sestoft-finance2-20261114` | current | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `sheetpedia-xlsx` | earlier | 211,323 | 206,242 | 73,260 | 7,363 | 4,482 | 59 | 2 | 10,226 | 5,292 | 57 | 3,503 | 3,566 | 0 | 3,607 | 0 | 0 | 0 | 0 | 0 |
+| `sheetpedia-xlsx` | current | 211,323 | 206,242 | 73,260 | 7,363 | 4,482 | 59 | 2 | 10,226 | 5,292 | 57 | 3,503 | 3,566 | 0 | 3,607 | 0 | 0 | 0 | 0 | 0 |
 | `spreadsheetbench-v2-20261114` | current | 472 | 463 | 362 | 18 | 6 | 0 | 0 | 3 | 1 | 48 | 2 | 143 | 1 | 56 | 0 | 0 | 0 | 0 | 0 |
 | `stackexchange-tips-20261121` | current | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 2,585 | 2,274 | 311 | 0 |
 | `vba-projects` | current | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 9 | 9 | 0 | 0 |
