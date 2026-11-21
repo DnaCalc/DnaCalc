@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "settle_ms": 1000,
+  "scenarios": [
+    {"id":"S1-empty", "workbook":"empty", "action":"startup"},
+    {"id":"S1-W2", "workbook":"W2", "action":"startup"},
+    {"id":"S2", "workbook":"W1", "action":"wheel", "axis":"rows", "counts":[2000,-2000], "units_per_event":10, "interval_ms":16},
+    {"id":"S3", "workbook":"W1", "action":"keys", "keys":[{"key":"PageDown","count":200}], "interval_ms":16},
+    {"id":"S4", "workbook":"W1", "action":"jump", "addresses":["XFD1048576","A1"], "interval_ms":250},
+    {"id":"S5", "workbook":"W1", "action":"wheel", "axis":"columns", "counts":[200], "units_per_event":2, "interval_ms":16},
+    {"id":"S6", "workbook":"W1", "action":"keys", "keys":[{"key":"ArrowDown","count":499,"shift":true},{"key":"ArrowRight","count":49,"shift":true}], "interval_ms":16},
+    {"id":"S7", "workbook":"W1", "action":"typing", "address":"A1", "text":"abcdefghijklmnopqrstuvwxyz0123456789", "count":200, "interval_ms":33},
+    {"id":"S8", "workbook":"W1", "action":"recalc", "address":"A1", "text":"2", "dependent_range":"B2:U501", "dependent_count":10000},
+    {"id":"S9", "workbook":"W1", "action":"resize_zoom", "resize_scales":[1,0.75,0.5,0.75,1], "zoom_percents":[100,75,50,75,100,125,150,175,200,100], "interval_ms":125},
+    {"id":"S10", "workbook":"W1", "action":"idle", "duration_ms":60000}
+  ]
+}
