@@ -2790,6 +2790,8 @@ fn dc_8wp_12__all_captured_stages_report_number_format_codes() {
         "row height",
     ];
     let mut property_matches = [0usize; 16];
+    let mut dark_matches = [0usize; 16];
+    let mut dark_cells = 0;
     let mut unavailable = [0usize; 16];
     let mut value_matches = 0;
     let mut text_matches = 0;
@@ -3015,6 +3017,12 @@ fn dc_8wp_12__all_captured_stages_report_number_format_codes() {
                 assert_eq!(stage_properties[i], cells.len(), "{stage}: {}", names[i]);
             }
         }
+        if stage.ends_with("PivotStyleDark6") || stage.ends_with("PivotStyleDark11") {
+            dark_cells += cells.len();
+            for (total, matched) in dark_matches.iter_mut().zip(stage_properties) {
+                *total += matched;
+            }
+        }
         matches += stage_matches;
         if !differences.is_empty() {
             println!(
@@ -3059,6 +3067,16 @@ fn dc_8wp_12__all_captured_stages_report_number_format_codes() {
             property_matches[i], unavailable[i]
         );
     }
+    assert_eq!(dark_cells, 190);
+    for i in [3, 5, 6, 7] {
+        println!(
+            "Dark6 and Dark11 {}: {}/{} match",
+            names[i], dark_matches[i], dark_cells
+        );
+    }
+    for i in [3, 5, 6, 7] {
+        assert_eq!(dark_matches[i], dark_cells, "Dark6 and Dark11 {}", names[i]);
+    }
 }
 
 /// A changed neutral theme cannot silently reuse the captured Office grayscale palette.
@@ -3067,14 +3085,21 @@ fn dc_8wp_12__all_captured_stages_report_number_format_codes() {
 fn dc_8wp_12__unmeasured_neutral_themes_do_not_reuse_office_pivot_colors() {
     use existing_wire_support::{RawEntry, build_zip, parse_zip};
     let bytes = include_bytes!("fixtures/pivot/m2-formatting/built.xlsx");
-    for (needle, replacement) in [
+    for (needle, replacement, pivot_name) in [
         (
             "val=\"window\" lastClr=\"FFFFFF\"",
             "val=\"window\" lastClr=\"E0E0E0\"",
+            "pvt_style_rows_PivotStyleDark1",
         ),
         (
             "val=\"windowText\" lastClr=\"000000\"",
             "val=\"windowText\" lastClr=\"101010\"",
+            "pvt_style_rows_PivotStyleDark1",
+        ),
+        (
+            "val=\"196B24\"",
+            "val=\"006B24\"",
+            "pvt_style_rows_PivotStyleDark11",
         ),
     ] {
         let entries: Vec<_> = parse_zip(bytes)
@@ -3107,7 +3132,7 @@ fn dc_8wp_12__unmeasured_neutral_themes_do_not_reuse_office_pivot_colors() {
             .definitions()
             .pivots()
             .tables()
-            .find(|table| table.name == "pvt_style_rows_PivotStyleDark1")
+            .find(|table| table.name == pivot_name)
             .unwrap();
         assert!(book.host().pivot_style_look(table.area.first()).is_none());
     }

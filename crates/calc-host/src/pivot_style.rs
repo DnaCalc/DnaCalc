@@ -25,6 +25,8 @@ enum Preset {
     Medium9,
     Medium14,
     Dark1,
+    Dark6,
+    Dark11,
 }
 
 fn theme(index: u32, tint: &str) -> StyleColor {
@@ -366,13 +368,15 @@ impl HostState {
             "PivotStyleMedium9" => Preset::Medium9,
             "PivotStyleMedium14" => Preset::Medium14,
             "PivotStyleDark1" => Preset::Dark1,
+            "PivotStyleDark6" => Preset::Dark6,
+            "PivotStyleDark11" => Preset::Dark11,
             _ => return None,
         };
         let light = matches!(
             preset,
             Preset::Light1 | Preset::Light8 | Preset::Light16 | Preset::Light21
         );
-        let dark = matches!(preset, Preset::Dark1);
+        let dark = matches!(preset, Preset::Dark1 | Preset::Dark6 | Preset::Dark11);
         let header = flag(style, "showColHeaders")?;
         let row_headers = flag(style, "showRowHeaders")?;
         let rows = flag(style, "showRowStripes")?;
@@ -387,12 +391,12 @@ impl HostState {
         if dark && (!header || !row_headers) {
             return None;
         }
-        // The captured neutral stripe colours are established for a white light-background
-        // theme. A differently coloured background needs its own measured tint behaviour.
-        if (matches!(
+        // The fixed neutral colours below are measured with a white background and black text.
+        let neutral = matches!(
             preset,
-            Preset::Light1 | Preset::Light8 | Preset::Medium1 | Preset::Dark1
-        ) || preset == Preset::Light16 && (rows || columns))
+            Preset::Light1 | Preset::Light8 | Preset::Medium1 | Preset::Dark1 | Preset::Dark11
+        );
+        if (neutral || preset == Preset::Light16 && (rows || columns))
             && self
                 .resolved_style_color(&StyleColor {
                     theme: Some("0".into()),
@@ -402,15 +406,21 @@ impl HostState {
         {
             return None;
         }
-        if matches!(
-            preset,
-            Preset::Light1 | Preset::Light8 | Preset::Medium1 | Preset::Dark1
-        ) && self
-            .resolved_style_color(&StyleColor {
-                theme: Some("1".into()),
-                ..Default::default()
-            })
-            .is_none_or(|color| !color.eq_ignore_ascii_case("#000000"))
+        if neutral
+            && self
+                .resolved_style_color(&StyleColor {
+                    theme: Some("1".into()),
+                    ..Default::default()
+                })
+                .is_none_or(|color| !color.eq_ignore_ascii_case("#000000"))
+        {
+            return None;
+        }
+        // The measured Dark11 subtotal tint differs from the shared conversion.
+        if preset == Preset::Dark11
+            && self
+                .resolved_style_color(&theme(6, "0"))
+                .is_none_or(|color| !color.eq_ignore_ascii_case("#196b24"))
         {
             return None;
         }
@@ -522,6 +532,25 @@ impl HostState {
                 } else {
                     "FFBFBFBF"
                 }));
+            } else if preset == Preset::Dark6 {
+                look.fill = Some(theme(
+                    8,
+                    if is_header || is_total {
+                        "-0.499984740745262"
+                    } else if is_subtotal {
+                        "0.7999816888943144"
+                    } else {
+                        "0.5999938962981048"
+                    },
+                ));
+            } else if preset == Preset::Dark11 {
+                look.fill = Some(if is_header || is_total {
+                    rgb("FF404040")
+                } else if is_subtotal {
+                    rgb("FF83E28E")
+                } else {
+                    theme(6, "0.7999816888943144")
+                });
             } else if preset == Preset::Medium1 && is_header {
                 look.fill = Some(rgb("FF808080"));
             } else if preset == Preset::Medium1 && is_subtotal {

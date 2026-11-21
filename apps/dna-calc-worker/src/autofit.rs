@@ -111,7 +111,10 @@ pub fn text_style_for(
         }
         out.bold = font.bold;
         out.italic = font.italic;
-        out.underline = matches!(font.underline.as_deref(), Some("single" | "double" | "singleAccounting" | "doubleAccounting"));
+        out.underline = matches!(
+            font.underline.as_deref(),
+            Some("single" | "double" | "singleAccounting" | "doubleAccounting")
+        );
         out.underline_style = font.underline.clone();
         out.strike = font.strike;
         out.outline = font.outline;
@@ -123,11 +126,16 @@ pub fn text_style_for(
         // `charset` names the font's code page, not an effect: nothing to paint. An unrecognised
         // `vertAlign` value is preserved but not painted.
         if font.other_children.iter().any(|name| name != "charset")
-            || font.vert_align.as_deref().is_some_and(|v| !matches!(v, "superscript" | "subscript"))
             || font
-                .underline
+                .vert_align
                 .as_deref()
-                .is_some_and(|v| !matches!(v, "none" | "single" | "double" | "singleAccounting" | "doubleAccounting"))
+                .is_some_and(|v| !matches!(v, "superscript" | "subscript"))
+            || font.underline.as_deref().is_some_and(|v| {
+                !matches!(
+                    v,
+                    "none" | "single" | "double" | "singleAccounting" | "doubleAccounting"
+                )
+            })
         {
             out.unsupported = Some(
                 "Additional font effects or underline variants are preserved but not painted"
@@ -565,44 +573,47 @@ mod tests {
                 "{name}"
             );
         }
-        let dark = book
-            .host()
-            .model()
-            .definitions()
-            .pivots()
-            .tables()
-            .find(|table| table.name == "pvt_style_rows_PivotStyleDark1")
-            .unwrap()
-            .area
-            .first()
-            .sheet();
-        let dark11 = book
-            .host()
-            .model()
-            .definitions()
-            .pivots()
-            .tables()
-            .find(|table| table.name == "pvt_style_rows_PivotStyleDark11")
-            .unwrap();
-        assert!(
-            book.host().pivot_style_look(dark11.area.first()).is_none(),
-            "the Dark11 tint is not modelled"
-        );
-        assert!(
-            text_style(book.host(), dark11.area.first(), 64.)
-                .unsupported
-                .as_deref()
-                .is_some_and(|note| note.contains("dc-8wp.12"))
-        );
-        let dark_header = text_style(book.host(), CellKey::new(dark, 3, 1).unwrap(), 64.);
-        assert_eq!(dark_header.font_color.as_deref(), Some("#ffffff"));
-        assert_eq!(dark_header.fill.as_deref(), Some("#808080"));
-        let dark_subtotal = text_style(book.host(), CellKey::new(dark, 4, 2).unwrap(), 64.);
-        assert!(dark_subtotal.bold);
-        assert_eq!(dark_subtotal.fill.as_deref(), Some("#d9d9d9"));
-        let dark_body = text_style(book.host(), CellKey::new(dark, 5, 2).unwrap(), 64.);
-        assert!(!dark_body.bold);
-        assert_eq!(dark_body.fill.as_deref(), Some("#bfbfbf"));
+        for (name, header_fill, subtotal_fill, body_fill) in [
+            (
+                "pvt_style_rows_PivotStyleDark1",
+                "#808080",
+                "#d9d9d9",
+                "#bfbfbf",
+            ),
+            (
+                "pvt_style_rows_PivotStyleDark6",
+                "#51154a",
+                "#f2ceef",
+                "#e49edd",
+            ),
+            (
+                "pvt_style_rows_PivotStyleDark11",
+                "#404040",
+                "#83e28e",
+                "#c1f0c8",
+            ),
+        ] {
+            let dark = book
+                .host()
+                .model()
+                .definitions()
+                .pivots()
+                .tables()
+                .find(|table| table.name == name)
+                .unwrap()
+                .area
+                .first()
+                .sheet();
+            let dark_header = text_style(book.host(), CellKey::new(dark, 3, 1).unwrap(), 64.);
+            assert_eq!(dark_header.font_color.as_deref(), Some("#ffffff"), "{name}");
+            assert_eq!(dark_header.fill.as_deref(), Some(header_fill), "{name}");
+            let dark_subtotal = text_style(book.host(), CellKey::new(dark, 4, 2).unwrap(), 64.);
+            assert!(dark_subtotal.bold, "{name}");
+            assert_eq!(dark_subtotal.fill.as_deref(), Some(subtotal_fill), "{name}");
+            let dark_body = text_style(book.host(), CellKey::new(dark, 5, 2).unwrap(), 64.);
+            assert!(!dark_body.bold, "{name}");
+            assert_eq!(dark_body.fill.as_deref(), Some(body_fill), "{name}");
+        }
         for (name, fill) in [
             ("pvt_style_rows_PivotStyleMedium1", Some("#a6a6a6")),
             ("pvt_style_rows_PivotStyleMedium2", None),
@@ -709,14 +720,26 @@ mod tests {
         let sheet = book.host().sheets()[0].id();
         let cell = calc_host::value::CellKey::new(sheet, 1, 1).unwrap();
         let mut styles = (**book.host().styles()).clone();
-        let index = calc_host::patched_style(&mut styles, 0, &calc_host::FormatPatch { bold: Some(true), ..Default::default() }).unwrap();
+        let index = calc_host::patched_style(
+            &mut styles,
+            0,
+            &calc_host::FormatPatch {
+                bold: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
         let font = styles.cell_formats[index as usize].font_id.unwrap() as usize;
-        let project = |styles: &calc_host::StyleTable| text_style_for(book.host(), cell, 64., styles, index);
+        let project =
+            |styles: &calc_host::StyleTable| text_style_for(book.host(), cell, 64., styles, index);
         assert_eq!(project(&styles).script, None);
         assert_eq!(project(&styles).unsupported, None);
         styles.fonts[font].vert_align = Some("superscript".into());
         let up = project(&styles);
-        assert_eq!((up.script.as_deref(), up.unsupported), (Some("superscript"), None));
+        assert_eq!(
+            (up.script.as_deref(), up.unsupported),
+            (Some("superscript"), None)
+        );
         styles.fonts[font].vert_align = Some("subscript".into());
         assert_eq!(project(&styles).script.as_deref(), Some("subscript"));
         // A charset is a code page, not an effect: it paints as it is and raises no diagnostic.
