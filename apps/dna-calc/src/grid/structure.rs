@@ -1,7 +1,7 @@
 //! Explicit structural choices for a rectangular selection.
-use crate::controller::Controller;
+use crate::controller::grid::GridController;
 use leptos::prelude::*;
-pub fn controls(controller: Controller) -> impl IntoView {
+pub fn controls(controller: GridController) -> impl IntoView {
     let dialog = NodeRef::<leptos::html::Dialog>::new();
     Effect::new(move |_| {
         if let Some(dialog) = dialog.get() {

@@ -2,7 +2,7 @@
 use crate::workbook_command::{FindCommandOptions, WorkbookCommand, projected_cell};
 use dna_calc_model::Target;
 use crate::{
-    controller::Controller,
+    controller::{Controller, grid::GridController},
     wire::{self, Reply, Request},
 };
 use dna_calc_model::{Command, FindMode};
@@ -888,7 +888,7 @@ mod browser_tests {
 }
 
 /// Range sorting shares the model's command route with every grid gesture.
-pub fn sort_controls(controller: Controller) -> AnyView {
+pub fn sort_controls(controller: GridController) -> AnyView {
     let header = controller.tool_field(|s| &s.sort_header, |s| &mut s.sort_header);
     let column = controller.tool_field(|s| &s.sort_column, |s| &mut s.sort_column);
     let levels = controller.tool_field(|s| &s.sort_levels, |s| &mut s.sort_levels);
@@ -1058,7 +1058,7 @@ pub fn sort_controls(controller: Controller) -> AnyView {
 }
 
 /// AutoFilter drafts and choices use the same command/history path as other worksheet edits.
-pub fn filter_controls(controller: Controller) -> AnyView {
+pub fn filter_controls(controller: GridController) -> AnyView {
     let column = controller.tool_field(|s| &s.filter.column, |s| &mut s.filter.column);
     let search = controller.tool_field(|s| &s.filter.search, |s| &mut s.filter.search);
     let values = controller.tool_field(|s| &s.filter.values, |s| &mut s.filter.values);

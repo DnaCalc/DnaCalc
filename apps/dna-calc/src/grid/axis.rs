@@ -1,10 +1,10 @@
 //! Axis commands share the worker's physical-dimension path; viewport zoom stays independent.
-use crate::controller::Controller;
+use crate::controller::grid::GridController;
 use leptos::prelude::*;
 
 pub use calc_value::stored_axis_size as stored_size;
 
-pub fn controls(controller: Controller) -> impl IntoView {
+pub fn controls(controller: GridController) -> impl IntoView {
     let column = RwSignal::new("8.43".to_owned());
     let row = RwSignal::new("15".to_owned());
     view! {
@@ -116,7 +116,7 @@ pub fn controls(controller: Controller) -> impl IntoView {
     }
 }
 
-fn outline_controls(controller: Controller) -> impl IntoView {
+fn outline_controls(controller: GridController) -> impl IntoView {
     let rows = RwSignal::new(true);
     let geometry = move || controller.outline_geometry();
     view! {

@@ -1,14 +1,14 @@
 //! Table controls submit the same revision-bound workbook commands as the grid.
 use crate::workbook_command::{TableCommand, WorkbookCommand, area_target, target_area};
 use crate::{
-    controller::Controller,
+    controller::grid::GridController,
     wire,
 };
 use leptos::prelude::*;
-fn current(controller: Controller) -> Option<wire::TableView> {
+fn current(controller: GridController) -> Option<wire::TableView> {
     controller.table_view()
 }
-fn submit(controller: Controller, change: TableCommand) {
+fn submit(controller: GridController, change: TableCommand) {
     let generation = controller.generation.get_untracked();
     let sheet = controller.sheet.get_untracked();
     let expected = controller.summary.get_untracked().revision;
@@ -76,7 +76,7 @@ fn submit(controller: Controller, change: TableCommand) {
         });
     });
 }
-fn options(controller: Controller, field: &str, value: String) {
+fn options(controller: GridController, field: &str, value: String) {
     let Some(mut t) = current(controller) else {
         return;
     };
@@ -104,7 +104,7 @@ fn options(controller: Controller, field: &str, value: String) {
         },
     );
 }
-pub fn controls(controller: Controller) -> AnyView {
+pub fn controls(controller: GridController) -> AnyView {
     let name = controller.tool_field(|s| &s.table.name, |s| &mut s.table.name);
     let rows = controller.tool_field(|s| &s.table.rows, |s| &mut s.table.rows);
     let columns = controller.tool_field(|s| &s.table.columns, |s| &mut s.table.columns);

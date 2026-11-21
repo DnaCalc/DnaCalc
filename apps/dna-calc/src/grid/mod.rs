@@ -43,7 +43,7 @@ pub mod viewport;
 use dna_calc_model::Target;
 use crate::workbook_command::WorkbookCommand;
 use crate::cells;
-use crate::controller::{Controller, EditOrigin};
+use crate::controller::{Controller, EditOrigin, grid::GridController};
 use crate::skin::{Skin, SkinContext, SkinId};
 use crate::style::{css, styled};
 use crate::wire;
@@ -155,7 +155,7 @@ impl PaneContext {
     fn split(self) -> bool {
         self.layout.get_untracked().split_window && self.layout.get_untracked().split.is_some()
     }
-    fn ready(self, controller: Controller) -> bool {
+    fn ready(self, controller: GridController) -> bool {
         self.loaded.get_untracked()
             && self.source.get_untracked()
                 == controller
@@ -163,7 +163,7 @@ impl PaneContext {
                     .get_untracked()
                     .map(|s| (controller.generation.get_untracked(), s))
     }
-    fn activate(self, controller: Controller) {
+    fn activate(self, controller: GridController) {
         if self.active.get_untracked() != self.index {
             controller.carry_edit_to_bar();
             self.active.set(self.index);
@@ -173,7 +173,8 @@ impl PaneContext {
         }
     }
 }
-pub(crate) fn grid_workspace(controller: Controller) -> impl IntoView {
+pub(crate) fn grid_workspace(core: Controller) -> impl IntoView {
+    let controller = GridController::new(core);
     let canvas = RwSignal::new(painter::initial_canvas());
     let layout = RwSignal::new(wire::Geometry::default());
     let loaded = RwSignal::new(false);
@@ -287,7 +288,7 @@ pub(crate) fn grid_workspace(controller: Controller) -> impl IntoView {
     }
 }
 
-fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
+fn grid_pane(controller: GridController, ctx: PaneContext) -> impl IntoView {
     let initial = controller
         .sheet
         .get_untracked()
@@ -587,7 +588,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
         }
         plan
     });
-    inspect::register(plan, ctx, controller);
+    inspect::register(plan, ctx, controller.core());
     let canvas_node = NodeRef::<leptos::html::Canvas>::new();
     let colors = painter::watch_colors();
     Effect::new(move |_| {
@@ -2865,12 +2866,12 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 let flip = [shape.flip_horizontal, shape.flip_vertical];
                 let sheet_ref = wire::Sheet::of(sheet_id);
                 let image = picture.filter(|p| p.placeholder.is_none()).map(|p| {
-                    image::shape_picture(controller, sheet_ref, shape.id, p.crop, p.description, flip)
+                    image::shape_picture(controller.core(), sheet_ref, shape.id, p.crop, p.description, flip)
                 });
                 let inside = inside
                     .into_iter()
                     .map(|member| {
-                        let mut view = image::shape_picture(controller, sheet_ref, member.id, member.crop, member.description, member.flip).into_any();
+                        let mut view = image::shape_picture(controller.core(), sheet_ref, member.id, member.crop, member.description, member.flip).into_any();
                         for [left, top, width, height, degrees] in member.chain.iter().rev() {
                             let turn = wire::drawn_shapes::turn_style_of(*degrees);
                             let style = format!(
@@ -3599,7 +3600,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                         }}
                         {move || decorations_view(false)}
                         {cells_view}
-                        {move || image::cells(controller, &plan.get(), panes.get(), &metrics.get(), &viewport.get())}
+                        {move || image::cells(controller.core(), &plan.get(), panes.get(), &metrics.get(), &viewport.get())}
                         {move || decorations_view(true)}
                         {canvas_icons}
                         {sparklines_view}
@@ -3676,9 +3677,9 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 .then(move || {
                     view! {
                         <>
-                            {crate::clipboard::controls(controller)} {axis::controls(controller)}
-                            {shape_tools::controls(controller, shapes, selected_shape, also_shapes)}
-                            {sparkline_tools::controls(controller, sparklines)}
+                            {crate::clipboard::controls(controller.core())} {axis::controls(controller)}
+                            {shape_tools::controls(controller.core(), shapes, selected_shape, also_shapes)}
+                            {sparkline_tools::controls(controller.core(), sparklines)}
                             {crate::tables::controls(controller)}
                             {crate::commands::sort_controls(controller)}
                             {crate::commands::filter_controls(controller)}
@@ -3899,8 +3900,8 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                                         "+"
                                     </button>
                                 </span>
-                            </div> {crate::charts::controls(controller)}
-                            {crate::pivots::controls(controller)}
+                            </div> {crate::charts::controls(controller.core())}
+                            {crate::pivots::controls(controller.core())}
                         </>
                     }
                 })}

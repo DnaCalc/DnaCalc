@@ -245,3 +245,43 @@ mod tests {
         });
     }
 }
+
+#[cfg(test)]
+mod dependencies {
+    use super::*;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn non_grid_skins_use_the_shared_controller() {
+        let _: fn(SkinContext) -> Controller = |context| context.controller;
+        for (name, source) in [
+            ("atlas", include_str!("atlas.rs")),
+            ("canvas", include_str!("canvas.rs")),
+            ("ledger", include_str!("ledger.rs")),
+            ("notebook", include_str!("notebook.rs")),
+            ("tree", include_str!("tree.rs")),
+        ] {
+            assert!(
+                !source.contains("GridController"),
+                "{name} uses the grid controller"
+            );
+            assert!(!source.contains("crate::grid"), "{name} uses the grid skin");
+        }
+
+        for source in [
+            include_str!("controller.rs")
+                .split("#[cfg(test)]")
+                .next()
+                .unwrap(),
+            include_str!("controller/editing.rs"),
+            include_str!("controller/clipboard.rs"),
+            include_str!("controller/files.rs"),
+        ] {
+            assert!(!source.contains("crate::grid"), "core uses the grid skin");
+            assert!(
+                !source.contains("GridController"),
+                "core uses the grid controller"
+            );
+        }
+    }
+}
