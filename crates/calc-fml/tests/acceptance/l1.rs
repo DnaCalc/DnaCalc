@@ -1594,3 +1594,36 @@ fn database_field_reference_errors() {
     assert_eq!(book.dynamic("=DSUM(A1:B2,1/0,NA())"), e(W::Div0));
     assert_eq!(book.dynamic("=DSUM(A1:B2,2,NA())"), e(W::NA));
 }
+
+/// Excel 20527 lifts over criteria arrays and validates each element as a criteria argument.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn database_criteria_arrays_and_references() {
+    let mut book = Book::new();
+    book.set("A1", t("Key"))
+        .set("B1", t("Value"))
+        .number("A2", 1.0)
+        .number("B2", 7.0)
+        .set("D1", t("Key"))
+        .number("D2", 1.0);
+    let invalid = rows(&[&[e(W::Value)], &[e(W::Value)]]);
+    for (name, valid) in [("DCOUNT", 1.0), ("DGET", 7.0), ("DSUM", 7.0), ("DAVERAGE", 7.0)] {
+        for (criteria, expected) in [
+            ("{\"Key\";1}", invalid.clone()),
+            ("VSTACK(\"Key\",1)", invalid.clone()),
+            ("TRANSPOSE({\"Key\",1})", invalid.clone()),
+            ("{#N/A;1}", rows(&[&[e(W::NA)], &[e(W::Value)]])),
+            ("D1:D2", n(valid)),
+            ("IF(TRUE,D1:D2)", n(valid)),
+            ("INDEX(D1:D2,0)", n(valid)),
+            ("NA()", e(W::NA)),
+        ] {
+            let formula = format!("={name}(A1:B2,\"Value\",{criteria})");
+            assert_eq!(book.dynamic(&formula), expected, "{formula}");
+        }
+    }
+    assert_eq!(
+        book.dynamic("=DSUM(A1:B2,1/0,VSTACK(\"Key\",1))"),
+        rows(&[&[e(W::Div0)], &[e(W::Div0)]])
+    );
+}

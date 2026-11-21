@@ -2571,7 +2571,13 @@ fn is_lifted(target: Target, form: FormulaForm, index: usize, value: &CalcValue)
     ((target.0.parameter_class(index) == Some(ParameterClass::Value)
         // COUNTBLANK consumes a reference whole but a computed array cell by cell (the
         // W111 count-family readings and w089-axis-reference-vs-array-variant).
-        || target.0.traits().lift_computed_array)
+        || target.0.traits().lift_computed_array
+        // Excel 20527 evaluates a database call at each value of a dynamic criteria array.
+        // The kernel then checks whether that element supplies a criteria reference.
+        || (form == FormulaForm::Dynamic
+            && index == 2
+            && target.0.id().family() == calc_catalogue::ported::database::CODE
+            && !reference_array(value)))
         && lifted_array(value).is_some())
         || (reference_array(value)
             && lifts_over_references(target, form)

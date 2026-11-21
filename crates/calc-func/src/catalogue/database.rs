@@ -244,7 +244,7 @@ fn database(
     }
     let optional = matches!(kind, Kind::Count | Kind::CountA);
     let column = field(site, a, &headers, optional)?;
-    if !matches!(a[2].core_ref(), CoreRef::Reference(_) | CoreRef::Array(_)) {
+    if !matches!(a[2].core_ref(), CoreRef::Reference(_)) {
         return match a[2].core_ref() {
             CoreRef::Error(code) => fail(code),
             _ => fail(W::Value),
