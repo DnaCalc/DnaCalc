@@ -766,6 +766,88 @@ fn unassigned_hangul_block_units_are_ignorable() {
     assert_eq!((exact, through_soft_hyphen), (3125, 7));
 }
 
+/// Excel 16.0.20527 under en-ZA, Touchstone environment 218a399794f8. The
+/// ASCII pass can leave U+30A0 at the start of the weighted text.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn double_hyphen_without_a_preceding_weight() {
+    use calc_func::value::NumericMode;
+    use calc_func::{EvalServices, FunctionCallScratch, Notation, catalogue, invoke};
+    use std::cmp::Ordering;
+    use std::cmp::Ordering::{Equal, Greater, Less};
+    let cases = [
+        ("゠", "ー", Equal),
+        ("゠", "々", Equal),
+        ("゠", "ゝ", Equal),
+        ("゠", "〻", Equal),
+        ("゠", "ヽ", Equal),
+        ("゠", "ヾ", Equal),
+        ("゠", "ゞ", Equal),
+        ("゠", "ｰ", Equal),
+        ("゠", "a", Greater),
+        ("゠", "é", Greater),
+        ("゠", "α", Greater),
+        ("゠", "か", Greater),
+        ("゠", "中", Greater),
+        ("゠", "가", Greater),
+        ("゠", "😀", Greater),
+        ("゠", "💥", Greater),
+        ("゠", "Ａ", Greater),
+        ("゠", "-", Greater),
+        ("゠", "／", Greater),
+        ("゠", "\u{00ad}", Greater),
+        ("゠", "\u{0301}", Greater),
+        ("゠", "\u{e000}", Greater),
+        ("a゠", "aー", Equal),
+        ("A゠", "a々", Equal),
+        ("ab゠", "abゝ", Equal),
+        ("a゠", "aa", Greater),
+        ("x゠", "xb", Greater),
+        ("゠a", "ーa", Equal),
+        ("゠é", "々é", Equal),
+        ("゠か", "ゝか", Equal),
+        ("゠あ", "゠い", Less),
+        ("゠a", "゠b", Less),
+        ("゠", "ーa", Less),
+        ("a゠b", "aーb", Equal),
+        ("a゠b", "aーa", Greater),
+        ("゠\u{00ad}", "ー", Equal),
+        ("゠\u{0301}", "ー", Greater),
+        ("゠-", "ー", Greater),
+        ("゠゠", "ーー", Equal),
+        ("゠゠", "ー゠", Equal),
+        ("゠ー", "ーー", Equal),
+        ("゠々", "ーー", Equal),
+        ("゠か々", "ーか々", Equal),
+        ("゠a\u{0301}", "ーá", Equal),
+        ("ー", "゠", Equal),
+        ("é", "゠", Less),
+        ("-", "゠", Less),
+        ("a々", "A゠", Equal),
+        ("ーa", "゠a", Equal),
+        ("゠い", "゠あ", Greater),
+    ];
+    for (operator, holds) in [
+        ("=", Ordering::is_eq as fn(Ordering) -> bool),
+        ("<", Ordering::is_lt),
+    ] {
+        let target = catalogue().resolve_surface(Notation::Infix, operator).unwrap();
+        for (left, right, expected) in cases {
+            let result = invoke(
+                target,
+                &mut Given(vec![t(left), t(right)]),
+                &mut EvalServices::new(&NumericMode::Fast),
+                &mut FunctionCallScratch::new(),
+            );
+            assert_eq!(
+                result.unwrap(),
+                b(holds(expected)),
+                "{left:?} {operator} {right:?}"
+            );
+        }
+    }
+}
+
 /// dc-zsn.4: month and weekday names under an explicit locale tag are Excel's for that tag's LCID
 /// (de-AT writes Jänner, es-ES ene., zh-TW 一月), 6528 dates read from Excel 16.0.20527
 /// (tests/fixtures/fn5_tagged_names, held-out formats included).
