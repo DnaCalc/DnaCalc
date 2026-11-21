@@ -500,7 +500,7 @@ async function main() {
   try {
     if (args["webview-exe"]) {
       const launchArgs = ["--app", "--macros", "off"];
-      if (args.width && args.height) launchArgs.push("--size", args.width, args.height);
+      if (args.width && args.height) launchArgs.push("--size", `${args.width}x${args.height}`);
       if (args.workbook) launchArgs.push("--open", resolve(args.workbook));
       const profile = args["webview-data"];
       if (!profile) throw new Error("--webview-exe requires a dedicated --webview-data directory");
