@@ -17617,7 +17617,6 @@ fn dc_971p_38__other_qualified_classes_and_invalid_fixed_cells_refuse_atomically
     for formula in [
         "Rates!A1",
         "Rates!$A1",
-        "Rates!A$1",
         "Sheet1!$A$1",
         "Missing!$A$1",
         "'[Other.xlsx]Rates'!$A$1",
@@ -23989,7 +23988,7 @@ fn dc_971p_38__unread_or_excessive_hyperlinks_refuse_without_mutation() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_38__independent_local_ranges_and_fixed_qualified_scalars_sort_together() {
+fn dc_971p_38__independent_local_ranges_and_row_fixed_qualified_scalars_sort_together() {
     use calc_host::{SheetChange, SortKey, WorkbookCommand as W};
     let mut book = session(&calc_host::blank_package());
     let s = book.host().sheets()[0].id();
@@ -24024,7 +24023,7 @@ fn dc_971p_38__independent_local_ranges_and_fixed_qualified_scalars_sort_togethe
     let formulas = |row| {
         [
             ("C", format!("=SUM(B{row}:B{row})+'Tax rates'!$A$1")),
-            ("D", format!("=SUM(B{row}:B{row},'Tax rates'!$A$1)")),
+            ("D", format!("=SUM(B{row}:B{row},'Tax rates'!A$1)")),
             ("E", format!("=SUM(B{row}:B{row})*'Tax rates'!$A$1")),
         ]
     };

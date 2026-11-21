@@ -1358,7 +1358,7 @@ fn sort_rows(
         for col in area.first().column()..=area.last().column() {
             let at = CellKey::new(area.sheet(), row, col).unwrap();
             if let Some(crate::CellInput::Formula(formula)) = host.model().cell(at) {
-                if !sort_formula_references_supported(host, formula, at) {
+                if !sort_formula_references_supported(host, formula, at, false) {
                     return Err(unavailable("qualified or unsupported formula references"));
                 }
             }
@@ -1546,13 +1546,15 @@ fn check_sorted_merges(host: &HostState, data: GridArea, keys: &[SortKey]) -> Re
     Ok(())
 }
 
-// Qualified relative references have distinct Excel sort behaviour. The only newly
-// admitted qualifier is one valid, fully fixed cell on a different worksheet. Check
-// its identity with the canonical binder and its invariance with the copy relocator.
+// An admitted qualifier identifies one cell on another worksheet. The reference must
+// stay fixed on every axis where the formula can be relocated. Row sorting moves cells
+// vertically, while rebasing conditional-format fragments can also move their origin
+// horizontally. Use the canonical binder and copy relocator for the check.
 pub(crate) fn sort_formula_references_supported(
     host: &HostState,
     formula: &crate::FormulaText,
     at: CellKey,
+    columns_may_move: bool,
 ) -> bool {
     use calc_fml::syntax::{SyntaxChild, SyntaxKind};
     let tree = calc_fml::parse_formula(&format!("={}", formula.text().to_string_lossy()));
@@ -1569,7 +1571,11 @@ pub(crate) fn sort_formula_references_supported(
     let probe = CellKey::new(
         at.sheet(),
         step(at.row(), crate::value::MAX_ROWS),
-        step(at.column(), crate::value::MAX_COLUMNS),
+        if columns_may_move {
+            step(at.column(), crate::value::MAX_COLUMNS)
+        } else {
+            at.column()
+        },
     )
     .unwrap();
     let mut nodes = vec![(tree.root(), false)];
@@ -1588,9 +1594,9 @@ pub(crate) fn sort_formula_references_supported(
                 let Some((_, target)) = calc_fml::reference::qualified_name(node) else {
                     return false;
                 };
-                // Excel names cannot start with '$'. Positive binding below still rejects
-                // invalid dollar-prefixed cells, rather than treating unchanged text as proof.
-                if !target.text().starts_with('$') {
+                // '$' distinguishes fixed-axis references from defined names. Binding
+                // must also resolve the text to a valid cell.
+                if !target.text().contains('$') {
                     return false;
                 }
                 let source = node.text();

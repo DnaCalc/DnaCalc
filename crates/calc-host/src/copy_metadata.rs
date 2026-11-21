@@ -1001,7 +1001,7 @@ pub(crate) fn conditional_sort_supported(host: &HostState, sheet: calc_value::Sh
             )) else {
                 return false;
             };
-            if !crate::actions::sort_formula_references_supported(host, &formula, origin)
+            if !crate::actions::sort_formula_references_supported(host, &formula, origin, true)
                 || calc_engine::relocate_formula_losslessly(host.model(), &formula, origin, origin)
                     .is_none()
             {
