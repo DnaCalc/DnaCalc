@@ -5,7 +5,7 @@
 //! [`crate::port`] by messages ([`crate::wire`], dc-p96): the controller sends a request and
 //! applies the reply when it comes, so nothing here waits for the server.
 //!
-//! - Changes go through [`Controller::dispatch`] (a [`wire::Intent`]): when the outcome comes,
+//! - Changes go through [`Controller::dispatch`] (a [`WorkbookCommand`]): when the outcome comes,
 //!   the summary (sheets, name, calculation mode) is updated, the revision advances on a commit
 //!   or a recalculation, the active cell follows the session's selection, and a refused intent's
 //!   reason goes to the status line. The server pushes the cells of the page's subscriptions as
@@ -24,9 +24,11 @@
 //! `src/dnacalc-skin-leptos/src/state_handles.rs` (shared state behind one handle), onto calc-host's
 //! session.
 
+use dna_calc_model::Target;
+use crate::workbook_command::{WorkbookCommand, area_target, cell_target, target_cell};
 use crate::model_adapter::{Field, ModelField};
 use crate::port;
-use crate::wire::{self, Area, Event, Intent, Key, Outcome, Reply, Request, Sheet, Summary};
+use crate::wire::{self, Area, Event, Key, Outcome, Reply, Request, Sheet, Summary};
 use dna_calc_model::Snapshot;
 use dna_calc_model::projection::SheetTab;
 use dna_calc_model::selection::{GridExtent, NavAction, next_active, opposite};
@@ -1081,17 +1083,12 @@ impl Controller {
         self.subscribe(wire::Interest::Selection, self.selection);
         if let Some(at) = self.active_key_untracked() {
             // The stored range itself, not the active cell alone: the reply resets the areas.
-            let areas: Vec<Area> = self
-                .areas
-                .get_untracked()
-                .iter()
-                .map(|area| Area::of(*area))
-                .collect();
+            let areas = self.areas.get_untracked();
             if !areas.is_empty() {
                 self.dispatch(
-                    Intent::Select {
-                        active: Key::of(at),
-                        areas,
+                    WorkbookCommand::Select {
+                        active: cell_target(at),
+                        areas: Target::Cells(areas),
                     },
                     |_| {},
                 );
@@ -1305,7 +1302,7 @@ impl Controller {
 
     /// Carries out an intent; when its outcome comes, applies it (the summary, the revision, the
     /// selection, the status line) and hands it to `then`.
-    pub fn dispatch(&self, intent: Intent, then: impl FnOnce(&Outcome) + 'static) {
+    pub fn dispatch(&self, intent: WorkbookCommand, then: impl FnOnce(&Outcome) + 'static) {
         self.dispatch_result(intent, move |result| {
             if let Ok(outcome) = result {
                 then(&outcome);
@@ -1314,7 +1311,7 @@ impl Controller {
     }
 
     /// Carries out an intent that takes bytes beside it (a picture's image, dc-zjsg.4).
-    pub fn dispatch_bytes(&self, intent: Intent, bytes: Vec<u8>, then: impl FnOnce(&Outcome) + 'static) {
+    pub fn dispatch_bytes(&self, intent: WorkbookCommand, bytes: Vec<u8>, then: impl FnOnce(&Outcome) + 'static) {
         self.dispatch_result_with(intent, Some(bytes), move |result| {
             if let Ok(outcome) = result {
                 then(&outcome);
@@ -1324,7 +1321,7 @@ impl Controller {
 
     fn dispatch_result(
         &self,
-        intent: Intent,
+        intent: WorkbookCommand,
         then: impl FnOnce(Result<Outcome, String>) + 'static,
     ) {
         self.dispatch_result_with(intent, None, then);
@@ -1332,15 +1329,21 @@ impl Controller {
 
     fn dispatch_result_with(
         &self,
-        intent: Intent,
+        intent: WorkbookCommand,
         bytes: Option<Vec<u8>>,
         then: impl FnOnce(Result<Outcome, String>) + 'static,
     ) {
         let controller = *self;
-        let selects = matches!(
-            intent,
-            Intent::Select { .. } | Intent::Navigate { .. } | Intent::Undo | Intent::Redo
-        );
+        let selects = intent.moves_selection();
+        let changes = intent.edits_workbook();
+        let request = match intent.request() {
+            Ok(request) => request,
+            Err(message) => {
+                self.say(message, true);
+                self.perform(move || then(Err(message.to_owned())));
+                return;
+            }
+        };
         if selects {
             let ticket = self.focus_snapshot();
             self.model
@@ -1348,12 +1351,11 @@ impl Controller {
             self.selection_epoch.update_value(|v| *v += 1);
         }
         let epoch = self.selection_epoch.get_value();
-        let changes = !matches!(intent, Intent::Select { .. } | Intent::Navigate { .. });
         if changes {
             self.pending_changes.update(|n| *n += 1);
         }
         self.pending_actions.update(|n| *n += 1);
-        self.send_command(Request::Intent(intent), bytes, move |reply, _| {
+        self.send_command(request, bytes, move |reply, _| {
             if changes {
                 controller
                     .pending_changes
@@ -1408,7 +1410,7 @@ impl Controller {
         if choice == "keep" && decision.style != "Stop" {
             if let Some(callback) = callback {
                 self.dispatch_result(
-                    Intent::AcceptValidation {
+                    WorkbookCommand::AcceptValidation {
                         token: decision.token,
                     },
                     callback,
@@ -1537,9 +1539,9 @@ impl Controller {
             (self.active_key_untracked(), self.selected_area_untracked())
         {
             self.dispatch(
-                Intent::Select {
-                    active: Key::of(at),
-                    areas: vec![Area::of(area)],
+                WorkbookCommand::Select {
+                    active: cell_target(at),
+                    areas: area_target(area),
                 },
                 |_| {},
             );
@@ -1582,7 +1584,7 @@ impl Controller {
         then: impl FnOnce(&Outcome) + 'static,
     ) {
         self.dispatch(
-            Intent::Navigate {
+            WorkbookCommand::Navigate {
                 nav,
                 extend,
                 page_height,
@@ -1599,9 +1601,9 @@ impl Controller {
         }
         self.model.update(|m| m.selection.select(at, areas.clone()));
         self.dispatch(
-            Intent::Select {
-                active: Key::of(at),
-                areas: areas.into_iter().map(Area::of).collect(),
+            WorkbookCommand::Select {
+                active: cell_target(at),
+                areas: Target::Cells(areas),
             },
             |_| {},
         );
@@ -2060,7 +2062,7 @@ impl Controller {
         self.paste_preview.set(None);
         let controller = *self;
         let cut = self.paste_cut.get_value();
-        self.dispatch(Intent::ApplyPaste { id, select_target }, move |outcome| {
+        self.dispatch(WorkbookCommand::ApplyPaste { id, select_target }, move |outcome| {
             if outcome.accepted && cut {
                 controller.clipboard.set(None);
                 controller.copied.set(None);
@@ -2185,9 +2187,9 @@ impl Controller {
         };
         match fill_parts(area, down) {
             Some((from, to)) => self.dispatch(
-                Intent::Copy {
-                    from: Area::of(from),
-                    to: Area::of(to),
+                WorkbookCommand::Copy {
+                    from: area_target(from),
+                    to: area_target(to),
                     cut: false,
                 },
                 |_| {},
@@ -2322,8 +2324,8 @@ impl Controller {
         };
         let controller = *self;
         self.dispatch_result(
-            Intent::EditSheet {
-                sheet: sheet.map(Sheet::of),
+            WorkbookCommand::EditSheet {
+                sheet: sheet.map(Target::Sheet),
                 change,
             },
             move |result| {
@@ -2463,8 +2465,8 @@ impl Controller {
                 return;
             };
             controller.dispatch(
-                Intent::Outline {
-                    sheet: wire::Sheet::of(sheet),
+                WorkbookCommand::Outline {
+                    sheet: Target::Sheet(sheet),
                     rows,
                     revision: controller.summary.get_untracked().revision,
                     change,
@@ -2557,8 +2559,8 @@ impl Controller {
     ) {
         let controller = *self;
         self.dispatch(
-            Intent::AxisFormat {
-                sheet: wire::Sheet::of(sheet),
+            WorkbookCommand::AxisFormat {
+                sheet: Target::Sheet(sheet),
                 rows,
                 first,
                 count,
@@ -2706,8 +2708,8 @@ impl Controller {
                                 controller.say("No visible nonempty contents to fit", false)
                             }
                             Ok(sizes) => controller.dispatch(
-                                Intent::FitContents {
-                                    sheet: Sheet::of(area.sheet()),
+                                WorkbookCommand::FitContents {
+                                    sheet: Target::Sheet(area.sheet()),
                                     rows,
                                     revision,
                                     sizes,
@@ -2779,8 +2781,8 @@ impl Controller {
                 return;
             }
             controller.dispatch(
-                Intent::AutoFilter {
-                    sheet: Sheet::of(sheet),
+                WorkbookCommand::AutoFilter {
+                    sheet: Target::Sheet(sheet),
                     revision,
                     table,
                     change,
@@ -3155,8 +3157,8 @@ impl Controller {
             let revision = controller.summary.get_untracked().revision;
             let custom_sort = !custom_order.is_empty();
             let intent = if case_sensitive || !custom_order.is_empty() {
-                Intent::SortRowsWithOptions {
-                    area: Area::of(area),
+                WorkbookCommand::SortRowsWithOptions {
+                    area: area_target(area),
                     keys,
                     header,
                     revision,
@@ -3164,8 +3166,8 @@ impl Controller {
                     custom_order,
                 }
             } else {
-                Intent::SortRows {
-                    area: Area::of(area),
+                WorkbookCommand::SortRows {
+                    area: area_target(area),
                     keys,
                     header,
                     revision,
@@ -3211,8 +3213,8 @@ impl Controller {
             };
             let (row, column) = controller.active.get_untracked();
             controller.dispatch(
-                Intent::SplitPanes {
-                    sheet: wire::Sheet::of(sheet),
+                WorkbookCommand::SplitPanes {
+                    sheet: Target::Sheet(sheet),
                     revision: controller.summary.get_untracked().revision,
                     x: (x * 20.).to_bits(),
                     y: (y * 20.).to_bits(),
@@ -3279,8 +3281,8 @@ impl Controller {
                 _ => (0, 0),
             };
             controller.dispatch(
-                Intent::FreezePanes {
-                    sheet: wire::Sheet::of(sheet),
+                WorkbookCommand::FreezePanes {
+                    sheet: Target::Sheet(sheet),
                     rows,
                     columns,
                 },
@@ -3870,10 +3872,10 @@ impl Controller {
         let controller = *self;
         self.dispatch_result(
             if fill_selection {
-                Intent::EnterSelection { text }
+                WorkbookCommand::EnterSelection { text }
             } else {
-                Intent::EnterCell {
-                    at: Key::of(at),
+                WorkbookCommand::EnterCell {
+                    at: cell_target(at),
                     text,
                 }
             },
@@ -3893,8 +3895,8 @@ impl Controller {
     /// `then` gets the outcome.
     pub fn enter(&self, at: CellKey, text: String, then: impl FnOnce(&Outcome) + 'static) {
         self.dispatch(
-            Intent::EnterCell {
-                at: Key::of(at),
+            WorkbookCommand::EnterCell {
+                at: cell_target(at),
                 text,
             },
             then,
@@ -3937,8 +3939,8 @@ impl Controller {
             return;
         };
         self.dispatch(
-            Intent::EditAxis {
-                sheet: Sheet::of(area.sheet()),
+            WorkbookCommand::EditAxis {
+                sheet: Target::Sheet(area.sheet()),
                 rows,
                 insert,
                 start,
@@ -3964,13 +3966,13 @@ impl Controller {
             return;
         }
         let intent = match mode {
-            "down" | "right" => Intent::ShiftCells {
-                area: Area::of(area),
+            "down" | "right" => WorkbookCommand::ShiftCells {
+                area: area_target(area),
                 down: mode == "down",
                 insert,
             },
-            "rows" | "columns" => Intent::EditAxis {
-                sheet: Sheet::of(area.sheet()),
+            "rows" | "columns" => WorkbookCommand::EditAxis {
+                sheet: Target::Sheet(area.sheet()),
                 rows: mode == "rows",
                 insert,
                 start: if mode == "rows" {
@@ -4004,13 +4006,8 @@ impl Controller {
         }
         if self.selected_area_untracked().is_some() {
             self.dispatch(
-                Intent::Clear {
-                    areas: self
-                        .areas
-                        .get_untracked()
-                        .into_iter()
-                        .map(Area::of)
-                        .collect(),
+                WorkbookCommand::Clear {
+                    areas: Target::Cells(self.areas.get_untracked()),
                 },
                 |_| {},
             );
@@ -4047,7 +4044,7 @@ impl Controller {
     /// Sets the workbook's iterative-calculation settings, one undo step (dc-y2o.2).
     pub fn set_iteration(&self, enabled: bool, max_iterations: u32, max_change: f64) {
         self.dispatch(
-            Intent::SetIteration {
+            WorkbookCommand::SetIteration {
                 enabled,
                 max_iterations,
                 max_change_bits: max_change.to_bits(),
@@ -4156,7 +4153,7 @@ impl Controller {
 
     pub fn set_calc_mode(&self, manual: bool) {
         let controller = *self;
-        self.dispatch(Intent::SetCalcMode { manual }, move |_| {
+        self.dispatch(WorkbookCommand::SetCalcMode { manual }, move |_| {
             // Manual mode recalculates nothing, but the mode itself changed.
             controller.revision.update(|n| *n += 1);
         });
@@ -4679,12 +4676,12 @@ impl Controller {
                     self.pointed.set(None);
                     self.edit_field.get_value().undo(redo);
                 } else {
-                    self.dispatch(if redo { Intent::Redo } else { Intent::Undo }, |_| {});
+                    self.dispatch(if redo { WorkbookCommand::Redo } else { WorkbookCommand::Undo }, |_| {});
                 }
             }
             Ok(CommandEffect::PasteSpecial) => crate::clipboard::open_paste_special(),
             Ok(CommandEffect::FlashFill) => self.flash_fill(),
-            Ok(CommandEffect::Recalculate) => self.dispatch(Intent::Recalculate, |_| {}),
+            Ok(CommandEffect::Recalculate) => self.dispatch(WorkbookCommand::Recalculate, |_| {}),
             Ok(CommandEffect::Dialog) => self.focus_command_dialog(),
             Ok(
                 CommandEffect::PageSetup
@@ -4723,7 +4720,11 @@ impl Controller {
         }
     }
 
-    pub fn reveal(&self, at: CellKey, skin: SkinId) {
+    pub fn reveal(&self, target: Target, skin: SkinId) {
+        let Some(at) = target_cell(&target) else {
+            self.say("Reveal needs one source cell", true);
+            return;
+        };
         self.command(Command::Reveal {
             target: RevealTarget::Cell(at),
             skin,
@@ -5267,7 +5268,7 @@ mod template_lifecycle_tests {
             if self.hold.get()
                 || query
                 || (self.hold_paste.get()
-                    && matches!(inner, Request::Intent(Intent::ApplyPaste { .. })))
+                    && matches!(inner, Request::Intent(wire::Intent::ApplyPaste { .. })))
             {
                 self.pending.borrow_mut().push((r, b, a));
             } else {
@@ -5358,8 +5359,8 @@ mod template_lifecycle_tests {
                 let source = controller.active_key_untracked().unwrap();
                 let destination = CellKey::new(source.sheet(), 3, 4).unwrap();
                 controller.dispatch(
-                    Intent::EnterCell {
-                        at: Key::of(source),
+                    WorkbookCommand::EnterCell {
+                        at: cell_target(source),
                         text: "5".into(),
                     },
                     |outcome| assert!(outcome.accepted),
@@ -5415,8 +5416,8 @@ mod template_lifecycle_tests {
                 let source = controller.active_key_untracked().unwrap();
                 let destination = CellKey::new(source.sheet(), 3, 4).unwrap();
                 controller.dispatch(
-                    Intent::EnterCell {
-                        at: Key::of(source),
+                    WorkbookCommand::EnterCell {
+                        at: cell_target(source),
                         text: "5".into(),
                     },
                     |outcome| assert!(outcome.accepted),
@@ -5457,12 +5458,12 @@ mod template_lifecycle_tests {
                         controller.selected_area_untracked(),
                         Some(GridArea::cell(destination))
                     );
-                    controller.dispatch(Intent::Undo, |outcome| assert!(outcome.accepted));
+                    controller.dispatch(WorkbookCommand::Undo, |outcome| assert!(outcome.accepted));
                     assert_eq!(
                         controller.selected_area_untracked(),
                         Some(GridArea::cell(source))
                     );
-                    controller.dispatch(Intent::Redo, |outcome| assert!(outcome.accepted));
+                    controller.dispatch(WorkbookCommand::Redo, |outcome| assert!(outcome.accepted));
                     assert_eq!(
                         controller.selected_area_untracked(),
                         Some(GridArea::cell(destination))

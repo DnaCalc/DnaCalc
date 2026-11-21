@@ -1,7 +1,9 @@
 //! Name Manager keeps definitions separate from explicitly requested evaluations.
+use crate::workbook_command::WorkbookCommand;
+use dna_calc_model::Target;
 use crate::{
     controller::Controller,
-    wire::{self, Intent, Reply, Request},
+    wire::{self, Reply, Request},
 };
 use dna_calc_model::{Command, names::NameRecord};
 use leptos::prelude::*;
@@ -151,11 +153,11 @@ pub fn controls(controller: Controller) -> impl IntoView {
         });
         let generation = controller.generation.get_untracked();
         controller.dispatch(
-            Intent::EditName {
-                id: row.as_ref().map(|r| r.id),
+            WorkbookCommand::EditName {
+                id: row.as_ref().map(|r| Target::Name(calc_value::NameId::from_parts(r.id.0, r.id.1))),
                 version: row.as_ref().map(|r| r.version),
                 name: name.get_untracked(),
-                scope: parse_sheet(&scope.get_untracked()),
+                scope: parse_sheet(&scope.get_untracked()).map(|sheet| Target::Sheet(sheet.id())),
                 formula: (!delete).then(|| formula.get_untracked()),
             },
             move |outcome| {

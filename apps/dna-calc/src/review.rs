@@ -1,8 +1,10 @@
 //! Conditional rules, review details and explicit validation decisions through worker messages.
+use dna_calc_model::Target;
+use crate::workbook_command::{WorkbookCommand, projected_cell};
 use crate::style::css;
 use crate::{
     controller::Controller,
-    wire::{self, ConditionalChange, Intent, Reply, Request, Sheet},
+    wire::{self, ConditionalChange, Reply, Request, Sheet},
 };
 use leptos::prelude::*;
 
@@ -282,8 +284,8 @@ pub fn controls(controller: Controller) -> impl IntoView {
             return;
         }
         controller.dispatch(
-            Intent::EditConditional {
-                sheet: Sheet::of(sheet),
+            WorkbookCommand::EditConditional {
+                sheet: Target::Sheet(sheet),
                 revision: data.revision,
                 index: selected.get_untracked(),
                 change,
@@ -373,8 +375,8 @@ pub fn controls(controller: Controller) -> impl IntoView {
         }
         let generation = controller.generation.get_untracked();
         controller.dispatch(
-            Intent::FormatReview {
-                at: draft.at,
+            WorkbookCommand::FormatReview {
+                at: projected_cell(draft.at),
                 revision: draft.revision,
                 index: draft.index,
                 text: draft.text.clone(),
@@ -507,8 +509,8 @@ pub fn controls(controller: Controller) -> impl IntoView {
                                             if let Some(at) = at {
                                                 controller
                                                     .dispatch(
-                                                        Intent::ResolveReview {
-                                                            at,
+                                                        WorkbookCommand::ResolveReview {
+                                                            at: projected_cell(at),
                                                             revision,
                                                             index,
                                                             resolved: !n.resolved,
@@ -675,8 +677,8 @@ pub fn controls(controller: Controller) -> impl IntoView {
                             }
                             let generation = controller.generation.get_untracked();
                             let intent = if let Some(c) = &draft.creation {
-                                Intent::CreateReview {
-                                    at: draft.at,
+                                WorkbookCommand::CreateReview {
+                                    at: projected_cell(draft.at),
                                     revision: draft.revision,
                                     parent: c.parent,
                                     threaded: draft.threaded,
@@ -685,8 +687,8 @@ pub fn controls(controller: Controller) -> impl IntoView {
                                     timestamp: c.timestamp.clone(),
                                 }
                             } else {
-                                Intent::EditReview {
-                                    at: draft.at,
+                                WorkbookCommand::EditReview {
+                                    at: projected_cell(draft.at),
                                     revision: draft.revision,
                                     index: draft.index,
                                     text: draft.text.clone(),

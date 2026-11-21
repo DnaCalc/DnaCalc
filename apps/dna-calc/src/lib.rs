@@ -32,5 +32,6 @@ mod tables;
 pub mod tree;
 pub mod web;
 pub mod wire;
+pub mod workbook_command;
 
 mod files;

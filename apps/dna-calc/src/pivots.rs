@@ -1,4 +1,6 @@
 //! Pivot refresh and saved definitions over the worksheet's existing grid presentation.
+use dna_calc_model::Target;
+use crate::workbook_command::{WorkbookCommand, projected_area};
 use crate::{controller::Controller, wire};
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
@@ -123,9 +125,9 @@ pub fn controls(controller: Controller) -> AnyView {
                 return;
             }
             controller.dispatch(
-                wire::Intent::PivotCreate {
+                WorkbookCommand::PivotCreate {
                     revision,
-                    source: area,
+                    source: projected_area(area),
                     destination,
                     row,
                     value,
@@ -186,7 +188,7 @@ pub fn controls(controller: Controller) -> AnyView {
                                 let revision = controller.summary.get_untracked().revision;
                                 controller
                                     .dispatch(
-                                        wire::Intent::RefreshAll {
+                                        WorkbookCommand::RefreshAll {
                                             revision,
                                         },
                                         move |outcome| {
@@ -375,8 +377,8 @@ pub fn controls(controller: Controller) -> AnyView {
                                                 if let Some(sheet) = sheet {
                                                     controller
                                                         .dispatch(
-                                                            wire::Intent::PivotRefresh {
-                                                                sheet: wire::Sheet::of(sheet),
+                                                            WorkbookCommand::PivotRefresh {
+                                                                sheet: Target::Sheet(sheet),
                                                                 revision,
                                                                 part: refresh_part.clone(),
                                                             },

@@ -25,6 +25,7 @@
 //! `node_management.rs` (duplicate, add, rename, move and reorder nodes), which have no Excel
 //! form here; rows and columns are inserted and deleted in the grid.
 
+use crate::workbook_command::cell_target;
 use crate::cells::{self, Provenance};
 use crate::controller::Controller;
 use crate::skin::{Skin, SkinContext, SkinId};
@@ -358,7 +359,7 @@ fn tree_view(controller: Controller) -> impl IntoView {
             shown_rows.update(|s| *s.entry(*sheet).or_insert(ROW_PAGE) += ROW_PAGE)
         }
         TreeRow::MoreCells { first, .. } => {
-            controller.reveal(*first, SkinId::Grid);
+            controller.reveal(cell_target(*first), SkinId::Grid);
         }
         _ => {}
     };
@@ -676,7 +677,7 @@ fn tree_view(controller: Controller) -> impl IntoView {
                                                     data-dnacalc="tree-open-grid"
                                                     on:click=move |_| {
                                                         if let Some(at) = cell.at.cell() {
-                                                            controller.reveal(at, SkinId::Grid);
+                                                            controller.reveal(cell_target(at), SkinId::Grid);
                                                         }
                                                     }
                                                 >

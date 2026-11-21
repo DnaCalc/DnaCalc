@@ -1,22 +1,23 @@
 //! Table controls submit the same revision-bound workbook commands as the grid.
+use crate::workbook_command::{TableCommand, WorkbookCommand, area_target, target_area};
 use crate::{
     controller::Controller,
-    wire::{self, Intent},
+    wire,
 };
 use leptos::prelude::*;
 fn current(controller: Controller) -> Option<wire::TableView> {
     controller.table_view()
 }
-fn submit(controller: Controller, change: wire::TableChange) {
+fn submit(controller: Controller, change: TableCommand) {
     let generation = controller.generation.get_untracked();
     let sheet = controller.sheet.get_untracked();
     let expected = controller.summary.get_untracked().revision;
     let active = controller.active_key_untracked();
     let retained = match &change {
-        wire::TableChange::Resize { area, .. } | wire::TableChange::Create { area, .. } => {
-            area.area()
+        TableCommand::Resize { area, .. } | TableCommand::Create { area, .. } => {
+            target_area(area)
         }
-        wire::TableChange::Options {
+        TableCommand::Options {
             headers, totals, ..
         } => current(controller).and_then(|t| {
             let a = t.area.area()?;
@@ -54,7 +55,7 @@ fn submit(controller: Controller, change: wire::TableChange) {
             controller.say("The workbook changed; retry the table control", true);
             return;
         }
-        controller.dispatch(Intent::Table { revision, change }, move |outcome| {
+        controller.dispatch(WorkbookCommand::Table { revision, change }, move |outcome| {
             if outcome.accepted {
                 if controller.generation.get_untracked() == generation
                     && controller.sheet.get_untracked() == sheet
@@ -91,7 +92,7 @@ fn options(controller: Controller, field: &str, value: String) {
     };
     submit(
         controller,
-        wire::TableChange::Options {
+        TableCommand::Options {
             part: t.part,
             headers: t.headers,
             totals: t.totals,
@@ -162,8 +163,8 @@ pub fn controls(controller: Controller) -> AnyView {
         };
         submit(
             controller,
-            wire::TableChange::Create {
-                area: wire::Area::of(*area),
+            TableCommand::Create {
+                area: area_target(*area),
                 name: name.get_untracked(),
             },
         );
@@ -204,9 +205,9 @@ pub fn controls(controller: Controller) -> AnyView {
         };
         submit(
             controller,
-            wire::TableChange::Resize {
+            TableCommand::Resize {
                 part: t.part,
-                area: wire::Area::of(area),
+                area: area_target(area),
             },
         );
     };
@@ -415,7 +416,7 @@ pub fn controls(controller: Controller) -> AnyView {
                             if let Some((t, column)) = selected() {
                                 submit(
                                     controller,
-                                    wire::TableChange::RenameColumn {
+                                    TableCommand::RenameColumn {
                                         part: t.part,
                                         column,
                                         name: column_name.get_untracked(),
@@ -447,7 +448,7 @@ pub fn controls(controller: Controller) -> AnyView {
                             if let Some((t, column)) = selected() {
                                 submit(
                                     controller,
-                                    wire::TableChange::CalculatedColumn {
+                                    TableCommand::CalculatedColumn {
                                         part: t.part,
                                         column,
                                         formula: Some(formula.get_untracked()),
@@ -464,7 +465,7 @@ pub fn controls(controller: Controller) -> AnyView {
                             if let Some((t, column)) = selected() {
                                 submit(
                                     controller,
-                                    wire::TableChange::CalculatedColumn {
+                                    TableCommand::CalculatedColumn {
                                         part: t.part,
                                         column,
                                         formula: None,
@@ -524,7 +525,7 @@ pub fn controls(controller: Controller) -> AnyView {
                                 };
                                 submit(
                                     controller,
-                                    wire::TableChange::Total {
+                                    TableCommand::Total {
                                         part: t.part,
                                         column: a.first().column() + c - 1,
                                         function: function.get_untracked(),

@@ -1,4 +1,6 @@
 //! Page Setup drafts live in the portable tool state; Apply uses the host command transaction.
+use dna_calc_model::Target;
+use crate::workbook_command::WorkbookCommand;
 use crate::{controller::Controller, wire};
 use dna_calc_model::printing::{PageBreak, PageSetupChange, PageSetupState};
 use leptos::prelude::*;
@@ -465,8 +467,8 @@ pub fn controls(controller: Controller) -> AnyView {
                 return;
             }
             controller.dispatch(
-                wire::Intent::PageSetup {
-                    sheet,
+                WorkbookCommand::PageSetup {
+                    sheet: Target::Sheet(sheet.id()),
                     revision: state.revision,
                     change,
                 },

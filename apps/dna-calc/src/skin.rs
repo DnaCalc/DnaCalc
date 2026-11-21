@@ -10,7 +10,7 @@
 //!   intact. Mounted views release and renew their subscriptions.
 //! - **A skin reaches the workbook only through its [`SkinContext`]**: the controller, whose every
 //!   read is a neutral cell projection or a subscription's delta and whose every change is a
-//!   [`crate::wire::Intent`].
+//!   [`crate::workbook_command::WorkbookCommand`].
 //! - **A skin that cannot be shown says so**: [`resolve_active_skin`] gives
 //!   [`SkinResolution::Unavailable`] for an identity the registry does not hold, which the
 //!   application shows as a card naming it, never a blank or another skin.

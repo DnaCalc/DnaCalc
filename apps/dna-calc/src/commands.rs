@@ -1,7 +1,9 @@
 //! Local workbook commands; searches and arithmetic are answered by the calculation worker.
+use crate::workbook_command::{FindCommandOptions, WorkbookCommand, projected_cell};
+use dna_calc_model::Target;
 use crate::{
     controller::Controller,
-    wire::{self, Intent, Reply, Request},
+    wire::{self, Reply, Request},
 };
 use dna_calc_model::{Command, FindMode};
 use leptos::prelude::*;
@@ -175,9 +177,15 @@ pub fn controls(controller: Controller) -> AnyView {
         controller.focus_active_skin();
     };
     let options = move || {
-        anchor.get_value().map(|at| wire::FindOptions {
-            sheet: wire::Sheet(at.0, at.1),
-            areas: areas.get_value(),
+        let at = anchor.get_value()?;
+        let areas = areas
+            .get_value()
+            .into_iter()
+            .map(|area| area.area())
+            .collect::<Option<_>>()?;
+        Some(FindCommandOptions {
+            sheet: Target::Sheet(wire::Sheet(at.0, at.1).id()),
+            areas: Target::Cells(areas),
             text: query.get_untracked(),
             case_sensitive: case.get_untracked(),
             whole: whole.get_untracked(),
@@ -191,17 +199,17 @@ pub fn controls(controller: Controller) -> AnyView {
         })
     };
     let run = move || {
-        let Some(options) = options() else {
+        let Some(request) = options().and_then(|options| options.find().ok()) else {
             return;
         };
         epoch.update_value(|n| *n += 1);
-        let request = epoch.get_value();
+        let request_epoch = epoch.get_value();
         let generation = controller.generation.get_untracked();
         let revision = controller.revision.get_untracked();
         message.set("Searching…".into());
         found.set(None);
-        controller.ask(Request::Find(options), move |reply| {
-            if epoch.get_value() != request
+        controller.ask(request, move |reply| {
+            if epoch.get_value() != request_epoch
                 || controller.generation.get_untracked() != generation
             {
                 return;
@@ -275,11 +283,11 @@ pub fn controls(controller: Controller) -> AnyView {
         let context = epoch.get_value();
         let generation = controller.generation.get_untracked();
         controller.dispatch(
-            Intent::Replace {
+            WorkbookCommand::Replace {
                 options,
                 replacement: replacement.get_untracked(),
                 revision: found.revision,
-                only: at,
+                only: at.map(projected_cell),
             },
             move |outcome| {
                 if context != epoch.get_value()

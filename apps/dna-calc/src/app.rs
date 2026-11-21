@@ -15,6 +15,7 @@
 //! that holds the formula editor, the strip). Left behind: the desktop file bridge, the command
 //! deck, the inspector and registry rails, and the profile badge.
 
+use crate::workbook_command::cell_target;
 use crate::atlas::AtlasSkin;
 use crate::canvas::CanvasSkin;
 use crate::cells;
@@ -1147,7 +1148,7 @@ pub fn app_with_transport(
                                                     <button
                                                         type="button"
                                                         data-dnacalc="array-owner"
-                                                        on:click=move |_| controller.reveal(owner, SkinId::Grid)
+                                                        on:click=move |_| controller.reveal(cell_target(owner), SkinId::Grid)
                                                     >
                                                         "Open array anchor"
                                                     </button>
@@ -1172,7 +1173,7 @@ pub fn app_with_transport(
                                                         type="button"
                                                         data-dnacalc="array-blocker"
                                                         on:click=move |_| {
-                                                            controller.reveal(area.first(), SkinId::Grid)
+                                                            controller.reveal(cell_target(area.first()), SkinId::Grid)
                                                         }
                                                     >
                                                         {format!("Open blocker {label}")}

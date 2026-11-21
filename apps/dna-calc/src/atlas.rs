@@ -13,6 +13,7 @@
 //! blank), over calc-host's projections (the worker census), asked of the
 //! workbook's server after every change (dc-p96). The defined-name catalogue is not listed.
 
+use crate::workbook_command::cell_target;
 use crate::controller::Controller;
 use crate::skin::{Skin, SkinContext, SkinId};
 use crate::wire;
@@ -149,7 +150,7 @@ fn atlas_view(controller: Controller) -> impl IntoView {
             },
         );
     });
-    let jump = move |at, skin| controller.reveal(at, skin);
+    let jump = move |at, skin| controller.reveal(cell_target(at), skin);
     let sheets = move || {
         census.with(|c| {
             c.sheets
