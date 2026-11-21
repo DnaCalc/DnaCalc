@@ -814,6 +814,97 @@ fn ets_seasonality_accepts_a_spectral_outlier() {
     exact(call("FORECAST.ETS.SEASONALITY", vec![col(&history), col(&timeline)]), 0.0);
 }
 
+/// Excel 20527 AUTOPERIOD seasonality detector (dc-iuwct.56): two-segment
+/// piecewise-linear ACF hills compared against flanking slope, short-period tail
+/// slope checks (p = 3, 4, 5), and raw-series fundamental tie-breaking across
+/// sx1 discrepancy cases and oracle corpus dcj9k_r39_ets!D630.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_seasonality_autoperiod_hills_and_tie_break() {
+    let cases: [(f64, &[u64]); 6] = [
+        // sx1/run3-ets-acf-raw.jsonl batches[10][116] (n=21, Excel=4)
+        (
+            4.0,
+            &[
+                0x3f6bc8a8bf3f7ce0, 0xbfd28f6ed63a07d0, 0xbff4b6c1fd72d04a, 0xbfff3962065d774f,
+                0x3fb3321784c8d86a, 0x3ff01592cfd65474, 0xbff715dcb8f52696, 0xc0027f9e7d14289b,
+                0x3fcb1c592a68f29f, 0xbfcd5170361491ce, 0x3fe6026f4e35f596, 0xbff2510ad5c2090d,
+                0x3fee2ef3eae27a04, 0xbfcac3e1a82c2c44, 0x3fbfed24d32fc918, 0xbfd1b38c60f103e9,
+                0x40007330946176d5, 0xbfca310914589c05, 0xbff1b15ded06c3d6, 0x3fe74c4198d6f4ae,
+                0x3ff96e5359080fe1,
+            ],
+        ),
+        // sx1/run2-ets-boundary-raw.jsonl batches[5][162] (n=18, Excel=0)
+        (
+            0.0,
+            &[
+                0x3fb1f1323bb84580, 0x4014b282c1844fc4, 0xc02ebf148451e2b7, 0x401ec5edd192a688,
+                0xc01f000000000003, 0x3fedd091736acbc0, 0xc01d01d6f75c3a8e, 0x3fe26be9f3dd81b8,
+                0xc02ea3e26477708a, 0xc0058f8991ddc228, 0x4019cd7d3e7bb037, 0x400bfc5211478ae5,
+                0xc034b17b7464a9a2, 0xc020400000000001, 0x4033317b7464a9a2, 0xc0213f148451e2b7,
+                0xc032f35f4f9eec0f, 0x4024e3e26477708b,
+            ],
+        ),
+        // sx1/run2-ets-outlier-raw.jsonl batches[12][9] (n=26, Excel=0)
+        (
+            0.0,
+            &[
+                0x3f128867effff800, 0xc007eee6d9d92fa9, 0xc0034af4366dfa6c, 0x3fcd48d49a0ba12a,
+                0xbffd071d4a3ea545, 0xbfe08567b12fd981, 0x3fec0e1b97fec966, 0x4002b84b1621add7,
+                0x3ffc337def16df09, 0x3ff28d852cce0dbc, 0x40009686739a8896, 0xbffb110bd2b13c6b,
+                0xc000a2f375f60fd9, 0xbff495e03d1c0418, 0xbffe5443da879c68, 0xbff2780302d93edd,
+                0xbfbcb32f5bd74b64, 0xbff06a250a9e7540, 0x4005d0abc53a2d8a, 0x4008ad69a8d7124b,
+                0x4002b91c809f4048, 0x3ff405c8a8d4a63e, 0x3fe7d04c36153a9d, 0x3ff5bab70e6884f8,
+                0x3fe4565a89751e9b, 0xbfb1f513b296d5d4,
+            ],
+        ),
+        // sx1/run4-ets-phase-replies.jsonl $[1].rows[136] (n=14, Excel=4)
+        (
+            4.0,
+            &[
+                0x3f5c79e5d7e23f80, 0xbfe116b105a328a9, 0xbfe66549e5e806ab, 0x3fdb0a1c289cf581,
+                0x3ffb25a87cde5cf1, 0x3fd404eb904c2d9f, 0xbff6b3eeab166bf9, 0xbf898f3132fddc8c,
+                0x3fea33220e860f51, 0xbfc45d09c941b47a, 0xbfdc221b00580415, 0xbf99ecefd5b5d520,
+                0x3f788ef8a1b3aec0, 0x3f9f8f55d8ed295c,
+            ],
+        ),
+        // sx1/run2-ets-outlier-raw.jsonl batches[3][170] (n=21, Excel=4, zero-left-flank + [A..B] peak)
+        (
+            4.0,
+            &[
+                0x3fe3f9d30e82a61b, 0xbfc34659335b12f8, 0xbfb80eb112768f98, 0xbfead97616c3b579,
+                0x3f8940bf91b28000, 0x400159b234512a30, 0x3ff360731819c264, 0xc000877f160280b0,
+                0xc002a9b8533a07b6, 0x3fd0fb71a649f918, 0x400a3ad33ea4fe88, 0xbfeed0dde71332cb,
+                0xc00339b7fa3c6524, 0xbfec8d08542251d8, 0x400b1f29d38d2187, 0x3ffb299c65f0bee2,
+                0xc00367fd1ee6ecad, 0xc0003655fc479974, 0x3ff19a1af4315d79, 0x4009f41f1ea5368d,
+                0x400199b5cf57576a,
+            ],
+        ),
+        // sx1/run3-ets-acf-raw.jsonl batches[6][60] (n=16, Excel=3, short-window p=3)
+        (
+            3.0,
+            &[
+                0x3fef66fe15e23878, 0x3ff0c048fe453a7a, 0xc00a2a164e0c9972, 0x3fef5aa81e882ade,
+                0x3ffee99756430f53, 0xbfe9efad647a1e28, 0xbfed2e522c10648d, 0x3ff4b400bce1f14f,
+                0x3ff10d4e16e4ff18, 0xbffacd0f4aa00cb5, 0x3fb46cc30c2ec43c, 0x3ffa8bb78efe44a1,
+                0xbff9c86e7de715a5, 0xbff698c149813666, 0x3ff31d6ec9515500, 0x3fecd17e72bcb1b7,
+            ],
+        ),
+    ];
+    for (expected, bits) in cases {
+        let history: Vec<f64> = bits.iter().map(|&b| f64::from_bits(b)).collect();
+        let timeline: Vec<f64> = (1..=history.len()).map(|v| v as f64).collect();
+        exact(call("FORECAST.ETS.SEASONALITY", vec![col(&history), col(&timeline)]), expected);
+    }
+    // Oracle corpus dcj9k_r39_ets!D630 (n=18, Excel=0; u[5] <= u[6] rejects lag 4).
+    let d630 = [
+        -4.625, 11.5, -12.875, 0.5, -7.75, 8.125, -9.75, -5.75, -10.625, 2.0, 0.125, 1.0, -13.5,
+        -8.125, 12.0, -6.125, -12.625, 5.75,
+    ];
+    let timeline: Vec<f64> = (1..=d630.len()).map(|v| v as f64).collect();
+    exact(call("FORECAST.ETS.SEASONALITY", vec![col(&d630), col(&timeline)]), 0.0);
+}
+
 /// Excel 20527 seasonal starting states below four cycles (oracle corpus dcj9k_r38_ets rows
 /// 1737-1738 and 2633-2634, period 4 on 8 and 12 points): the history is extended to
 /// ceil(3.5 p) points before the phase-mean chain, and the parameter search runs on the extension.

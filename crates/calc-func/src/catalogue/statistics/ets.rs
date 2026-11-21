@@ -1036,16 +1036,97 @@ fn detrended(y: &[f64]) -> Vec<f64> {
         .collect()
 }
 
+/// Ordinary least-squares MSE and slope for evenly spaced samples `vals`.
+fn ols_mse_and_slope(vals: &[f64]) -> (f64, f64) {
+    let m = vals.len();
+    if m < 2 {
+        return (0.0, 0.0);
+    }
+    let mf = m as f64;
+    let xm = 0.5 * (mf - 1.0);
+    let ym = vals.iter().sum::<f64>() / mf;
+    let sxx = mf * (mf * mf - 1.0) / 12.0;
+    let mut sxy = 0.0;
+    for (i, &v) in vals.iter().enumerate() {
+        sxy += (i as f64 - xm) * (v - ym);
+    }
+    let slope = sxy / sxx;
+    let mut sse = 0.0;
+    for (i, &v) in vals.iter().enumerate() {
+        let res = (v - ym) - slope * (i as f64 - xm);
+        sse += res * res;
+    }
+    (sse / mf, slope)
+}
+
+/// Ordinary least-squares slope of `u[idx]` against integer positions `idx`.
+fn ols_slope_indexed(u: &[f64], indices: &[usize]) -> f64 {
+    if indices.len() < 2 {
+        return 0.0;
+    }
+    let mf = indices.len() as f64;
+    let mx = indices.iter().map(|&i| i as f64).sum::<f64>() / mf;
+    let my = indices.iter().map(|&i| u[i]).sum::<f64>() / mf;
+    let (mut sxx, mut sxy) = (0.0, 0.0);
+    for &i in indices {
+        let dx = i as f64 - mx;
+        sxx += dx * dx;
+        sxy += dx * (u[i] - my);
+    }
+    if sxx == 0.0 { 0.0 } else { sxy / sxx }
+}
+
+/// Fundamental harmonic power on the trailing whole cycles of the raw series `y`,
+/// used by Excel 20527 to break ties among validated AUTOPERIOD candidates.
+fn fundamental_power(y: &[f64], period: usize) -> f64 {
+    let m = (y.len() / period) * period;
+    let seg = &y[y.len() - m..];
+    let (mut re, mut im) = (0.0, 0.0);
+    for (t, &v) in seg.iter().enumerate() {
+        let angle = 2.0 * std::f64::consts::PI * (t % period) as f64 / period as f64;
+        re += v * angle.cos();
+        im += v * angle.sin();
+    }
+    let mf = m as f64;
+    re /= mf;
+    im /= mf;
+    re * re + im * im
+}
+
+fn argmax_slice(u: &[f64], lo: usize, hi: usize) -> usize {
+    let mut best_i = lo;
+    let mut best_v = u[lo];
+    for (offset, &v) in u[lo + 1..=hi].iter().enumerate() {
+        if v > best_v {
+            best_v = v;
+            best_i = lo + 1 + offset;
+        }
+    }
+    best_i
+}
+
+fn push_unique(cands: &mut Vec<usize>, p: usize) {
+    if !cands.contains(&p) {
+        cands.push(p);
+    }
+}
+
 /// The automatic period of FORECAST.ETS.SEASONALITY and seasonality 1.
-/// eng24 (Touchstone boundary probes of Excel 20527): a dominant-bin test on
-/// the tapered periodogram of the least-squares residuals (see the block
-/// below); from 17 points longer bin periods take their lag from the unbiased
-/// autocorrelation. A spectral outlier can supply a longer period when no
-/// autocorrelation candidate is accepted. Without a dominant bin the
-/// autocorrelation fallback keeps some candidates of eng22's detector
-/// (strongest bin, its lag range, a competing lower bin).
-/// Exact at n = 5..10 on every probe; the lag choice and the fallback are
-/// fitted, not Excel's identified rule.
+/// Measured on Excel 20527 (eng24 boundary probes, ig1 AUTOPERIOD recovery):
+/// - n = 5..10: dominant-bin ratio `>= 2 - 3/n` on the cosine-tapered residual
+///   periodogram (no taper below 10; `floor(n/10)` end points from 10).
+/// - n >= 11: AUTOPERIOD (Vlachos, Yu & Castelli 2005) over above-mean bins
+///   `k >= 2` with rounded period `p_bin in 2..=floor(2n/5)`. Each bin maps to
+///   ACF core `[lo-1, hi-1]` and hill window `[max(1, lo-1), min(n-1, hi+1)]`,
+///   validated by a 2-segment piecewise-linear hill (minimizing sum of segment
+///   MSEs) whose left/right slopes bracket the flanking slope (0 when the left
+///   flank is empty), peak unbiased ACF `>= 0.45`, and short-period tail checks
+///   (`p = 3`: `u[3] > u[2] && u[4] > u[5] && u[4] > u[6]` in short windows;
+///   `p = 4`: `u[5] > u[6]`; `p = 5`: `slope(u[6..=9]) < 0`).
+/// - Spectral 2.5-sigma outlier (`p_top >= 6`) enters the candidate set;
+///   multiple candidates break ties by fundamental power on trailing whole
+///   cycles of raw `y`. When no candidate survives, a dominant bin (`p <= 5`)
+///   falls back to `p_top`.
 fn detect_period(y: &[f64]) -> usize {
     let n = y.len();
     let last_lag = 2 * n / 5;
@@ -1073,172 +1154,176 @@ fn detect_period(y: &[f64]) -> usize {
         let p2 = 1.0 + 2.0 * c1 * w2 + 2.0 * c2 * w1;
         return if p2 > 1.4 * p1 { 2 } else { 0 };
     }
-    let unbiased = |k: usize| r(k) * n as f64 / (n - k) as f64;
-    let power: Vec<f64> = (0..=n / 2)
-        .map(|k| {
-            let (mut re, mut im) = (0.0, 0.0);
-            for (t, &v) in e.iter().enumerate() {
-                let angle = -2.0 * std::f64::consts::PI * ((k * t) % n) as f64 / n as f64;
-                re += v * angle.cos();
-                im += v * angle.sin();
-            }
-            re * re + im * im
-        })
-        .collect();
-    let lags_of = |bin: usize| -> usize {
-        let low = n as f64 / (bin + 1) as f64;
-        let high = if bin > 1 { n as f64 / (bin - 1) as f64 } else { f64::INFINITY };
-        let mut chosen = 0;
-        let mut best = f64::NEG_INFINITY;
-        for p in 2..=last_lag {
-            let lag = p as f64;
-            if low < lag && lag < high {
-                let value = unbiased(p);
-                if value > best {
-                    best = value;
-                    chosen = p;
-                }
-            }
-        }
-        if chosen == 0 {
-            let nearest = (n as f64 / bin as f64 - 0.5 - 1e-12).ceil();
-            if nearest >= 2.0 && nearest <= last_lag as f64 { nearest as usize } else { 0 }
-        } else {
-            chosen
-        }
-    };
-    let fallback: f64;
-    let outlier_period;
-    {
-        // The automatic period (eng24, Touchstone boundary probes of Excel
-        // 20527): the strongest bin k of the residual periodogram gives the
-        // period n/k rounded half down, refused above floor(n/2.5); it is
-        // accepted exactly when that bin's power is at least 2 - 3/n times
-        // the next strongest bin's. The periodogram tapers floor(n/10) points
-        // at each end by 0.5 (1 - cos(pi (j + 1/2) / L)) (none below ten
-        // points; 1/2 for ten to nineteen; 0.146447, 0.853553 from twenty),
-        // recovered from the quadric decision boundaries at n = 10 and 20
-        // (fit 5e-13, 1e-12); the boundary sets at n = 6..12, 17..20, 24, 36,
-        // 48 sit at that ratio to 1e-6 where no autocorrelation choice is
-        // involved. Random histories agree 40,000 of 40,000 at n = 6, 7 and
-        // 10, 96-99% at n = 11..17, 96% at n = 20 and 23. eng21's five-point
-        // rule above is the same test (2 - 3/5 = 1.4).
-        let weighted: Vec<f64>;
-        let ends = n / 10;
-        let taper: Vec<f64> = (0..n)
+
+    let mut u = Vec::with_capacity(n);
+    u.push(1.0);
+    for k in 1..n {
+        u.push(r(k) * n as f64 / (n - k) as f64);
+    }
+
+    let ends = n / 10;
+    let mut te: Vec<f64> = if n >= 10 {
+        (0..n)
             .map(|t| {
                 let j = t.min(n - 1 - t);
-                if j >= ends {
+                let w = if j >= ends {
                     1.0
                 } else if ends == 1 {
                     0.5
                 } else {
                     0.5 * (1.0 - (std::f64::consts::PI * (j as f64 + 0.5) / ends as f64).cos())
-                }
+                };
+                e[t] * w
             })
-            .collect();
-        let power = if n >= 10 {
-            weighted = (0..=n / 2)
-                .map(|k| {
-                    let (mut re, mut im) = (0.0, 0.0);
-                    for (t, &v) in e.iter().enumerate() {
-                        let w = v * taper[t];
-                        let angle = -2.0 * std::f64::consts::PI * ((k * t) % n) as f64 / n as f64;
-                        re += w * angle.cos();
-                        im += w * angle.sin();
-                    }
-                    re * re + im * im
-                })
-                .collect();
-            &weighted
-        } else {
-            &power
-        };
-        let mut top = 1;
-        for k in 2..power.len() {
-            if power[k] > power[top] {
-                top = k;
-            }
-        }
-        let second = (1..power.len()).filter(|&k| k != top).map(|k| power[k]).fold(0.0_f64, f64::max);
-        let dominant = power[top] >= (2.0 - 3.0 / n as f64) * second;
-        let period = (n as f64 / top as f64 - 0.5 - 1e-12).ceil();
-        // Excel 20527's spectral outlier boundary for longer periods: the
-        // strongest non-DC bin is 2.5 standard deviations above the mean.
-        // Excel divides the squared-power sum by count - 1 and the power
-        // sum by count. Scale by the peak before squaring to avoid overflow.
-        outlier_period = if period >= 6.0 && period <= last_lag as f64 && power[top].is_finite() {
-            let count = (power.len() - 1) as f64;
-            let (total, squares) = power[1..].iter().fold((0.0, 0.0), |(sum, squares), bin| {
-                let normalized = bin / power[top];
-                (sum + normalized, squares + normalized * normalized)
-            });
-            let mean = total / count;
-            let deviation = (squares / (count - 1.0) - mean * mean).sqrt();
-            if 1.0 - mean >= 2.5 * deviation { period as usize } else { 0 }
-        } else {
-            0
-        };
-        if dominant && n >= 17 && n as f64 / top as f64 > 5.25 {
-            // From seventeen observations, a bin period above 5.25: the lag is the unbiased-autocorrelation maximum among
-            // the lags strictly between n/(k+1) and n/(k-1), kept when that
-            // autocorrelation is at least 0.45 (the value at the measured
-            // boundaries). The outlier period supplies the spectral fallback.
-            // The 5.25 split is fitted (eng24 hyb5.py, eval24.py):
-            // random histories at n = 17, 20, 23 agree 97%, 96%, 96% (the
-            // earlier rule 78-80%), sinusoid maps from 17 points 7,568 of
-            // 8,476 (7,354), eng21 probes 1,143 of 1,337 (1,080).
-            let chosen = lags_of(top);
-            if chosen != 0 {
-                return if unbiased(chosen) >= 0.45 { chosen } else { outlier_period };
-            }
-        } else if dominant && period >= 2.0 && period <= last_lag as f64 {
-            return period as usize;
-        }
-        if n <= 10 {
-            return 0;
-        }
-        fallback = if n <= 16 { 0.6 } else { 0.45 };
+            .collect()
+    } else {
+        e
+    };
+    let te_mean = te.iter().sum::<f64>() / n as f64;
+    for v in &mut te {
+        *v -= te_mean;
     }
+
+    let half = n / 2;
+    let mut power = vec![0.0_f64; half + 1];
+    for (k, slot) in power.iter_mut().enumerate().skip(1) {
+        let (mut re, mut im) = (0.0, 0.0);
+        for (t, &v) in te.iter().enumerate() {
+            let angle = -2.0 * std::f64::consts::PI * ((k * t) % n) as f64 / n as f64;
+            re += v * angle.cos();
+            im += v * angle.sin();
+        }
+        *slot = re * re + im * im;
+    }
+
     let mut top = 1;
-    for k in 2..power.len() {
+    for k in 2..=half {
         if power[k] > power[top] {
             top = k;
         }
     }
-    let first = lags_of(top);
-    let mut second_bin = 0;
-    let mut second_power = -1.0;
-    for f in 1..top.saturating_sub(1) {
-        let right = power.get(f + 1).copied().unwrap_or(-1.0);
-        if power[f] >= power[f - 1] && power[f] >= right && power[f] > second_power {
-            second_power = power[f];
-            second_bin = f;
-        }
+    let second = (1..=half).filter(|&k| k != top).map(|k| power[k]).fold(0.0_f64, f64::max);
+    let dominant = power[top] >= (2.0 - 3.0 / n as f64) * second;
+    let p_top = (n as f64 / top as f64 - 0.5 - 1e-12).ceil() as usize;
+    let dominant_period = if dominant && p_top >= 2 && p_top <= last_lag.min(5) { p_top } else { 0 };
+    if n <= 10 {
+        return dominant_period;
     }
-    let second = if second_bin > 0 && second_power * 4.0 > power[top] { lags_of(second_bin) } else { 0 };
-    let chosen = match (first, second) {
-        (0, 0) => return outlier_period,
-        (0, p) | (p, 0) => p,
-        (a, b) if a == b => a,
-        (a, b) => {
-            if unbiased(b) > unbiased(a) {
-                b
-            } else {
-                a
-            }
+
+    let outlier_period = if half >= 2 && p_top >= 6 && p_top <= last_lag && power[top] > 0.0 && power[top].is_finite() {
+        let count = half as f64;
+        let (total, squares) = power[1..].iter().fold((0.0, 0.0), |(sum, squares), &bin| {
+            let normalized = bin / power[top];
+            (sum + normalized, squares + normalized * normalized)
+        });
+        let mean_norm = total / count;
+        let variance = (squares / (count - 1.0) - mean_norm * mean_norm).max(0.0);
+        if 1.0 - mean_norm >= 2.5 * variance.sqrt() { p_top } else { 0 }
+    } else {
+        0
+    };
+
+    let mean_power = power[1..].iter().sum::<f64>() / half as f64;
+    let tail_ok = |pk: usize| -> bool {
+        if pk == 4 {
+            6 < n && u[5] > u[6]
+        } else if pk == 5 {
+            9 < n && ols_mse_and_slope(&u[6..=9]).1 < 0.0
+        } else {
+            true
         }
     };
-    // Eleven or more observations without a dominant bin: Excel still
-    // accepts some periods of four or more with a high autocorrelation
-    // (boundary probes put the unbiased autocorrelation at 0.45 where it
-    // decides, but the candidate it is applied to is not identified). This
-    // keeps the candidate above when it is at least 4 with unbiased
-    // autocorrelation >= 0.6 (n <= 16, a fitted value: against 'never' it
-    // gains 2 corpus readings, 14 of 316 eng21 probes and 7 of 358 sinusoid
-    // map readings, and is level on 40,000 random histories; eng24 fb5.py)
-    // or >= 0.45 (from 17 points, hyb5.py).
-    if chosen >= 4 && unbiased(chosen) >= fallback { chosen } else { outlier_period }
+
+    let mut candidates = Vec::new();
+    let mut flank = Vec::with_capacity(6);
+    for k in 2..=half {
+        if power[k] <= mean_power {
+            continue;
+        }
+        let p_bin = (n as f64 / k as f64 + 0.5).floor() as usize;
+        if p_bin < 2 || p_bin > last_lag {
+            continue;
+        }
+        let inv_p = 1.0 / p_bin as f64;
+        let inv_n = 1.0 / n as f64;
+        let lo = (1.0 / (inv_p + inv_n) + 0.5).floor() as usize;
+        let hi = (1.0 / (inv_p - inv_n) + 0.5).floor() as usize;
+        let a = lo.saturating_sub(1);
+        let b = hi.saturating_sub(1);
+        let left = a.max(1);
+        let right = (b + 2).min(n - 1);
+
+        if right < left + 4 {
+            if p_bin == 3
+                && 3 <= last_lag
+                && u[3] >= 0.45
+                && u[3] > u[2]
+                && 6 < n
+                && u[4] > u[5]
+                && u[4] > u[6]
+            {
+                push_unique(&mut candidates, 3);
+                continue;
+            }
+            let pk = argmax_slice(&u, left, right);
+            if pk >= 4 && pk <= last_lag && u[pk] >= 0.45 && tail_ok(pk) {
+                push_unique(&mut candidates, pk);
+            }
+            continue;
+        }
+
+        let mut best_err = f64::INFINITY;
+        let mut best_sl = 0.0;
+        let mut best_sr = 0.0;
+        for t in (left + 2)..=(right - 2) {
+            let (mse_l, sl) = ols_mse_and_slope(&u[left..=t]);
+            let (mse_r, sr) = ols_mse_and_slope(&u[t..=right]);
+            let err = mse_l + mse_r;
+            if err < best_err {
+                best_err = err;
+                best_sl = sl;
+                best_sr = sr;
+            }
+        }
+
+        let left_flank_start = a.saturating_sub(3).max(2);
+        let bf = if left_flank_start >= a {
+            0.0
+        } else {
+            flank.clear();
+            flank.extend(left_flank_start..a);
+            flank.extend((b + 1)..(b + 4).min(n));
+            ols_slope_indexed(&u, &flank)
+        };
+
+        if best_sl > bf && best_sr < bf {
+            let (pk_lo, pk_hi) = if p_bin == 4 { (a.max(1), b.min(n - 1)) } else { (left, right) };
+            let pk = argmax_slice(&u, pk_lo, pk_hi);
+            if pk >= 4 && pk <= last_lag && u[pk] >= 0.45 && tail_ok(pk) {
+                push_unique(&mut candidates, pk);
+            }
+        }
+    }
+
+    if outlier_period != 0 {
+        push_unique(&mut candidates, outlier_period);
+    }
+    if candidates.is_empty() {
+        return dominant_period;
+    }
+    if candidates.len() == 1 {
+        return candidates[0];
+    }
+    let mut best_p = candidates[0];
+    let mut best_score = fundamental_power(y, best_p);
+    for &p in &candidates[1..] {
+        let s = fundamental_power(y, p);
+        if s > best_score {
+            best_score = s;
+            best_p = p;
+        }
+    }
+    best_p
 }
 
 /// The five candidates Excel 20527 selects among for period two on five to
