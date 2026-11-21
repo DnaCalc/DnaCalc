@@ -896,7 +896,71 @@ fn weekday_a_runs_and_tagged_designators() {
         text(text_of(x, code), expected);
     }
     error(text_of(-1.0, "aaa"), Value);
-    assert!(text_of(44927.0, "0 aaa").is_err(), "Excel: #VALUE!; not modelled here");
+    error(text_of(44927.0, "0 aaa"), Value);
+}
+
+/// Excel 16.0.20527, en-ZA, Touchstone environment 218a399794f8.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn text_distinguishes_date_names_and_numeric_placeholders() {
+    use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
+    let env = CalcEnvironment {
+        profile: Some(format_profile(LocaleId::CurrentExcelHost)),
+        compatibility_version: 2,
+        ..CalcEnvironment::dates(DateSystem::System1900)
+    };
+    let cases = [
+        ("0 aaa", None),
+        ("aaa 0", None),
+        ("0 AAAA", None),
+        ("# aaa", None),
+        ("? aaa", None),
+        ("[$-407]0 aaa", None),
+        ("[$-411]aaaa 0", None),
+        ("0 mmm", None),
+        ("0 \"aaa\"", Some("45aaa")),
+        ("0 Aaa", Some("45Aaa")),
+        ("aaa \"0\"", Some("Sun 0")),
+        ("[$-411]aaa ss.00", Some("日 00.00")),
+        ("[$-407]0;aaa", Some("44928")),
+        ("aaa_0", Some("Sun ")),
+        ("aaa*0", Some("Sun")),
+        ("aaa\\0", Some("Sun0")),
+        ("0;0 aaa", None),
+        ("0;aaa 0", None),
+        ("aaa \"?\"", Some("Sun ?")),
+        ("ddd 0", None),
+        ("[$-407]mmmm #", None),
+        ("hh:mm.0", Some("18:00.0")),
+        ("aaa 1", None),
+        ("aaa 0E+00", None),
+        ("0;0;0;0 aaa", None),
+        ("0;0;0;aaa \"0\"", None),
+        ("aaa \"1\"", Some("Sun 1")),
+        ("aaa 2024", None),
+        ("aaa 0.00", None),
+        ("aaa m.0", Some("Sun 0.0")),
+        ("aaa ss.01", None),
+        ("aaa ss.0", Some("Sun 00.0")),
+        ("0 aaa;0", None),
+        ("[$-407]mmm 1", None),
+        ("ddd 1", None),
+    ];
+    let mut mismatches = Vec::new();
+    for (code, expected) in cases {
+        let expected = expected.map_or_else(|| e(Value), t);
+        match call_in(&env, None, None, "TEXT", vec![n(44927.75), t(code)]) {
+            Ok(got) if got == expected => {}
+            got => mismatches.push(format!("{code}: expected {expected:?}, got {got:?}")),
+        }
+    }
+    assert!(
+        mismatches.is_empty(),
+        "{} of {} mismatched:\n{}",
+        mismatches.len(),
+        cases.len(),
+        mismatches.join("\n")
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

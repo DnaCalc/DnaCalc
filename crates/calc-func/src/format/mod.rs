@@ -157,7 +157,10 @@ pub(crate) fn plain_datetime_code(code: &str, decimal: &str, group: &str) -> boo
             && !decimal.contains(c)
             && !group.contains(c)
     }) && code.chars().any(|c| "ymdhs".contains(c.to_ascii_lowercase()))
-        && datetime::looks_like_datetime_format(code, '.')
+        && matches!(
+            datetime::classify_datetime_format(code, '.'),
+            datetime::DateTimeFormat::DateTime | datetime::DateTimeFormat::NamedDateTime
+        )
 }
 
 /// A scientific code with literal digits instead of mantissa placeholders.
@@ -1950,13 +1953,47 @@ fn localized_code_profile(profile: &FormatProfile) -> FormatProfile {
     }
 }
 
+fn has_calendar_prefix(section: &str) -> bool {
+    // A b run followed by a digit may be a calendar prefix (B1, B2).
+    section
+        .chars()
+        .zip(section.chars().skip(1))
+        .any(|(b, next)| matches!(b, 'b' | 'B') && next.is_ascii_digit())
+}
+
 fn render_text(profile: &FormatProfile, system: DateSystem, value: f64, code: &str) -> Rendered {
+    use datetime::DateTimeFormat::{DateTime, MixedNameAndNumber, NamedDateTime};
     if !value.is_finite() {
         return Err(Failure::Value);
     }
     let sections = sections(code);
     let (section, signed_section) = choose(&sections, value)?;
     let (stripped, name_locale, name_lcid, locale_declared) = strip_tokens(&section)?;
+    let code_decimal = profile
+        .format_code_decimal_token
+        .chars()
+        .next()
+        .unwrap_or('.');
+    let date_format = datetime::classify_datetime_format(&stripped, code_decimal);
+    // Excel 20527 en-ZA validates date names even in sections the current value does not use.
+    if measured_host(profile) {
+        if date_format == MixedNameAndNumber && !has_calendar_prefix(&stripped) {
+            return Err(Failure::Value);
+        }
+        for (index, other) in sections.iter().enumerate() {
+            if index < 3 && *other == section {
+                continue;
+            }
+            if let Ok((other, _, _, _)) = strip_tokens(other) {
+                let kind = datetime::classify_datetime_format(&other, code_decimal);
+                if (kind == MixedNameAndNumber || (index == 3 && kind == NamedDateTime))
+                    && !has_calendar_prefix(&other)
+                {
+                    return Err(Failure::Value);
+                }
+            }
+        }
+    }
     if stripped.trim().eq_ignore_ascii_case("general") {
         let shown = general(profile, if signed_section { value.abs() } else { value });
         return Ok(shown);
@@ -1965,12 +2002,7 @@ fn render_text(profile: &FormatProfile, system: DateSystem, value: f64, code: &s
     if !locale_declared && measured_host(profile) && datetime::has_invalid_exponent(&stripped) {
         return Err(Failure::Value);
     }
-    let code_decimal = profile
-        .format_code_decimal_token
-        .chars()
-        .next()
-        .unwrap_or('.');
-    if datetime::looks_like_datetime_format(&stripped, code_decimal) {
+    if matches!(date_format, DateTime | NamedDateTime) {
         // Excel 20527 en-ZA: a code that is one elapsed token alone (`[h]`, `[mm]`, `[ss]`)
         // writes negative and large values (`TEXT(-0.25,"[ss]")` is `-21600`); with any other
         // token (`[h]:mm:ss`, `[s].00`) they are #VALUE!.
@@ -2000,16 +2032,10 @@ fn render_text(profile: &FormatProfile, system: DateSystem, value: f64, code: &s
         {
             return Err(Failure::Value);
         }
-        let plain = datetime::without_subseconds(&stripped, code_decimal);
         let untagged_host = !locale_declared && measured_host(profile);
-        // A b run followed by a digit may be a calendar prefix (B1, B2): not measured.
-        let calendar_prefix = plain
-            .chars()
-            .zip(plain.chars().skip(1))
-            .any(|(b, next)| matches!(b, 'b' | 'B') && next.is_ascii_digit());
-        if calendar_prefix
-            || plain.chars().any(|c| {
-                matches!(c, 'B' | '0')
+        if has_calendar_prefix(&stripped)
+            || stripped.chars().any(|c| {
+                c == 'B'
                     || (c == 'b' && !untagged_host)
                     || (matches!(c, 'e' | 'g' | 'G')
                         && name_locale != Some(crate::locale::LocaleId::JaJp)
