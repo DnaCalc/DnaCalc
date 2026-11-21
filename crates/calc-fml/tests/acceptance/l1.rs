@@ -1530,3 +1530,100 @@ fn bare_function_names_are_function_values() {
         numbers(&[&[1.0, 2.0, 3.0]])
     );
 }
+
+/// Excel 20527 rejects logical SUBSTITUTE instances from literals and cells.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn substitute_rejects_logical_instances() {
+    let mut book = Book::new();
+    book.set("A1", b(true)).set("A2", b(false)).set("A3", t("1"));
+    for (instance, expected) in [
+        ("TRUE", e(W::Value)),
+        ("FALSE", e(W::Value)),
+        ("A1", e(W::Value)),
+        ("A2", e(W::Value)),
+        ("A3", t("Xaaa")),
+        ("\"1\"", t("Xaaa")),
+        ("1", t("Xaaa")),
+        ("1/0", e(W::Div0)),
+    ] {
+        let formula = format!("=SUBSTITUTE(\"aaaa\",\"a\",\"X\",{instance})");
+        assert_eq!(book.dynamic(&formula), expected, "{formula}");
+    }
+    assert_eq!(book.dynamic("=SUBSTITUTE(NA(),\"a\",\"X\",TRUE)"), e(W::NA));
+    assert_eq!(book.dynamic("=SUBSTITUTE(NA(),\"a\",\"X\",1/0)"), e(W::NA));
+}
+
+/// Excel 20527 maps field-cell errors to #VALUE! and propagates formed field errors.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn database_field_reference_errors() {
+    let mut book = Book::new();
+    book.set("A1", t("Key"))
+        .set("B1", t("Value"))
+        .number("A2", 1.0)
+        .number("B2", 7.0)
+        .set("D1", t("Key"))
+        .number("D2", 1.0)
+        .set("E1", e(W::Div0))
+        .number("E2", 2.0)
+        .set("E3", e(W::Ref));
+    for (name, control) in [("DCOUNT", 1.0), ("DGET", 7.0), ("DSUM", 7.0), ("DAVERAGE", 7.0)] {
+        for (field, expected) in [
+            ("E1", e(W::Value)),
+            ("E3", e(W::Value)),
+            ("E2", n(control)),
+            ("1/0", e(W::Div0)),
+            ("NA()", e(W::NA)),
+        ] {
+            let formula = format!("={name}(A1:B2,{field},D1:D2)");
+            assert_eq!(book.dynamic(&formula), expected, "{formula}");
+        }
+    }
+    for (field, expected) in [
+        ("INDEX(E1:E2,1)", e(W::Value)),
+        ("IF(TRUE,E1)", e(W::Value)),
+        ("@E1", e(W::Value)),
+        ("E1:E2", e(W::Value)),
+        ("+E1", e(W::Div0)),
+        ("+E1:E2", rows(&[&[e(W::Div0)], &[n(7.0)]])),
+    ] {
+        let formula = format!("=DSUM(A1:B2,{field},D1:D2)");
+        assert_eq!(book.dynamic(&formula), expected, "{formula}");
+    }
+    assert_eq!(book.dynamic("=DSUM(A1:B2,1/0,NA())"), e(W::Div0));
+    assert_eq!(book.dynamic("=DSUM(A1:B2,2,NA())"), e(W::NA));
+}
+
+/// Excel 20527 lifts over criteria arrays and validates each element as a criteria argument.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn database_criteria_arrays_and_references() {
+    let mut book = Book::new();
+    book.set("A1", t("Key"))
+        .set("B1", t("Value"))
+        .number("A2", 1.0)
+        .number("B2", 7.0)
+        .set("D1", t("Key"))
+        .number("D2", 1.0);
+    let invalid = rows(&[&[e(W::Value)], &[e(W::Value)]]);
+    for (name, valid) in [("DCOUNT", 1.0), ("DGET", 7.0), ("DSUM", 7.0), ("DAVERAGE", 7.0)] {
+        for (criteria, expected) in [
+            ("{\"Key\";1}", invalid.clone()),
+            ("VSTACK(\"Key\",1)", invalid.clone()),
+            ("TRANSPOSE({\"Key\",1})", invalid.clone()),
+            ("{#N/A;1}", rows(&[&[e(W::NA)], &[e(W::Value)]])),
+            ("D1:D2", n(valid)),
+            ("IF(TRUE,D1:D2)", n(valid)),
+            ("INDEX(D1:D2,0)", n(valid)),
+            ("NA()", e(W::NA)),
+        ] {
+            let formula = format!("={name}(A1:B2,\"Value\",{criteria})");
+            assert_eq!(book.dynamic(&formula), expected, "{formula}");
+        }
+    }
+    assert_eq!(
+        book.dynamic("=DSUM(A1:B2,1/0,VSTACK(\"Key\",1))"),
+        rows(&[&[e(W::Div0)], &[e(W::Div0)]])
+    );
+}

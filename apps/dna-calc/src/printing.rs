@@ -974,7 +974,7 @@ fn break_map(document: Arc<PrintDocument>, fonts: u64, error: RwSignal<String>) 
 }
 #[inline(never)]
 pub fn toolbar(controller: Controller) -> AnyView {
-    let mode = controller.tool_field(|s| &s.page.view, |s| &mut s.page.view);
+    let modes = controller.tool_field(|s| &s.page.views, |s| &mut s.page.views);
     view! {
         <div class="dc-page-toolbar">
             <button
@@ -998,14 +998,22 @@ pub fn toolbar(controller: Controller) -> AnyView {
                 <select
                     data-dnacalc="page-view"
                     prop:value=move || {
-                        let m = mode.get();
-                        if m.is_empty() { "normal".into() } else { m }
+                        match controller.sheet.get().and_then(|sheet| modes.with(|m| m.get(&sheet).copied())) {
+                            Some(wire::SheetViewMode::PageBreakPreview) => "breaks",
+                            Some(wire::SheetViewMode::PageLayout) => "layout",
+                            _ => "normal",
+                        }
                     }
                     on:change=move |ev| {
-                        let next = event_target_value(&ev);
+                        let Some(sheet) = controller.sheet.get_untracked() else { return };
+                        let next = match event_target_value(&ev).as_str() {
+                            "breaks" => wire::SheetViewMode::PageBreakPreview,
+                            "layout" => wire::SheetViewMode::PageLayout,
+                            _ => wire::SheetViewMode::Normal,
+                        };
                         controller
                             .after_input(move || {
-                                mode.set(next);
+                                modes.update(|m| { m.insert(sheet, next); });
                                 controller
                                     .command(
                                         dna_calc_model::Command::SwitchSkin(
@@ -1026,14 +1034,24 @@ pub fn toolbar(controller: Controller) -> AnyView {
 }
 #[inline(never)]
 pub fn grid_workspace(controller: Controller) -> AnyView {
-    let mode = controller.tool_field(|s| &s.page.view, |s| &mut s.page.view);
+    let modes = controller.tool_field(|s| &s.page.views, |s| &mut s.page.views);
+    let mode = Memo::new(move |_| {
+        controller
+            .sheet
+            .get()
+            .and_then(|sheet| modes.with(|m| m.get(&sheet).copied()))
+            .unwrap_or_default()
+    });
     view! {
         {move || {
-            let mode = mode.get();
-            if mode.is_empty() || mode == "normal" {
-                crate::grid::grid_workspace(controller).into_any()
-            } else {
-                view! { <Preview controller=controller breaks=mode == "breaks" /> }.into_any()
+            match mode.get() {
+                wire::SheetViewMode::PageBreakPreview => {
+                    view! { <Preview controller=controller breaks=true /> }.into_any()
+                }
+                wire::SheetViewMode::PageLayout => {
+                    view! { <Preview controller=controller breaks=false /> }.into_any()
+                }
+                wire::SheetViewMode::Normal => crate::grid::grid_workspace(controller).into_any(),
             }
         }}
     }

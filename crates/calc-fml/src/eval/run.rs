@@ -1342,6 +1342,22 @@ impl Run<'_, '_> {
         if target.0.parameter_class(index) != Some(ParameterClass::Value) {
             return Ok(value);
         }
+        // Excel 20527 database fields accept one referenced cell. A held error there is an
+        // invalid field, while a formed error or a computed array keeps its value and shape.
+        if index == 1
+            && target.0.id().family() == calc_catalogue::ported::database::CODE
+            && let CoreRef::Reference(reference) = value.core_ref()
+        {
+            if let [area] = reference.areas()
+                && area.cell_count() == 1
+            {
+                let field = self.reader.value_of(reference)?;
+                if !matches!(field.core_ref(), CoreRef::Error(_)) {
+                    return Ok(field);
+                }
+            }
+            return Ok(CalcValue::error(WorksheetErrorCode::Value));
+        }
         // The W111 MROUND/QUOTIENT reference controls distinguish a true multi-cell
         // reference from an array materialized by unary plus. The retained fn2
         // Legacy controls confirm the first argument, including beneath
@@ -2555,7 +2571,13 @@ fn is_lifted(target: Target, form: FormulaForm, index: usize, value: &CalcValue)
     ((target.0.parameter_class(index) == Some(ParameterClass::Value)
         // COUNTBLANK consumes a reference whole but a computed array cell by cell (the
         // W111 count-family readings and w089-axis-reference-vs-array-variant).
-        || target.0.traits().lift_computed_array)
+        || target.0.traits().lift_computed_array
+        // Excel 20527 evaluates a database call at each value of a dynamic criteria array.
+        // The kernel then checks whether that element supplies a criteria reference.
+        || (form == FormulaForm::Dynamic
+            && index == 2
+            && target.0.id().family() == calc_catalogue::ported::database::CODE
+            && !reference_array(value)))
         && lifted_array(value).is_some())
         || (reference_array(value)
             && lifts_over_references(target, form)

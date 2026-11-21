@@ -410,19 +410,29 @@ impl ExactDecimal {
     /// powers of ten, taking the low four exponent bits first. Each table
     /// operand and multiplication has a 64-bit binary significand.
     pub(crate) fn scaled_pc64(&self) -> ExactDecimal {
+        self.clone().normalized().scaled_pc64_at_exponent()
+    }
+
+    /// Like [`ExactDecimal::scaled_pc64`], but keeps `self.exponent` without
+    /// stripping trailing decimal zeros from `self.coefficient`. Directed
+    /// truncation (ROUNDDOWN, TRUNC and ROUNDUP's lower base) scales the
+    /// truncated integer directly at `-num_digits` (dc-m53ln: Excel 16.0.20527,
+    /// 24/24 fresh frozen discriminators each for ROUNDDOWN, TRUNC and ROUNDUP,
+    /// vs 0/24 for ROUND which normalizes first; fixes ROUNDDOWN/ROUNDUP on
+    /// ±2.1000001390671165e-302 at 307 places).
+    pub(crate) fn scaled_pc64_at_exponent(&self) -> ExactDecimal {
         if self.coefficient.is_zero() {
             return self.clone();
         }
-        let decimal = self.clone().normalized();
-        let mut magnitude = decimal.exponent.unsigned_abs();
+        let mut magnitude = self.exponent.unsigned_abs();
         let mut shift = 0;
         let (mut kept, mut power) =
-            round_to_64_bits(&decimal.coefficient, 0, &Natural::from_u64(1));
+            round_to_64_bits(&self.coefficient, 0, &Natural::from_u64(1));
         while magnitude != 0 {
             let part = (magnitude & 15) << shift;
             if part != 0 {
                 let exponent = i32::try_from(part).expect("a decimal exponent");
-                let factor = Self::unit(if decimal.exponent < 0 {
+                let factor = Self::unit(if self.exponent < 0 {
                     -exponent
                 } else {
                     exponent
@@ -437,7 +447,7 @@ impl ExactDecimal {
             magnitude >>= 4;
             shift += 4;
         }
-        Self::from_binary_parts(decimal.negative, kept, power)
+        Self::from_binary_parts(self.negative, kept, power)
     }
 
     /// The decimal exponent of a non-zero decimal: the e with 10^e <= |self| < 10^(e+1).
@@ -447,20 +457,24 @@ impl ExactDecimal {
     }
 
     /// How ROUND (`ties_up` false) and ROUNDUP, ROUNDDOWN and TRUNC (`ties_up` true) read a
-    /// finite non-zero number to fifteen significant digits, where the scaling is exact on the
-    /// x87 unit: |x| scaled by 10^n, n = 14 - e for the decimal exponent e of |x|, is rounded
-    /// once to 64 significant bits (the x87 unit at 64-bit precision; 10^|n| is exact there for
-    /// |n| <= 27), and that value is rounded to an integer, a half up for the directed functions
-    /// and down for ROUND. So ROUND(1594628480062905,14) is 1594628480062900 and
-    /// ROUNDDOWN(283025097725723.5,0) is 283025097725724, as Excel gives them, and
-    /// ROUNDDOWN(53311.02038735315,10), whose 10^10 multiple lies 0.2 * 2^-64 below a half,
-    /// reads the half. For |n| > 27 the scaling is the nibble chain of design/fable-2-last-bit.md section 2: low
-    /// chunk of |n| first, each factor the 64-bit RN64(10^+-c), each product rounded to 64 bits, a
-    /// multiplication for n < 0 as well, for the directed functions; ROUND keeps its one 64-bit
-    /// constant, the nearest to 10^|n|, and one rounded product or quotient. The two tie rules
-    /// are unchanged.
+    /// finite non-zero number to fifteen significant digits.
+    ///
+    /// ROUND scales `|x|` by `10^n` (`n = 14 - e`, `e` the exact decimal exponent) — exact in 64
+    /// bits for `|n| <= 27`, or one 64-bit `RN64(10^|n|)` product/quotient beyond — and rounds to
+    /// an integer with a half down.
+    ///
+    /// The directed functions (`ties_up` true; dc-m53ln, Excel 16.0.20527 Touchstone probes with
+    /// frozen predictions) estimate the decimal exponent from the IEEE `frexp` exponent
+    /// `k = floor(log2(|x|)) + 1` as `e_est = floor(k / 3.3219)` (every constant in the Farey
+    /// interval `(146/485, 233/774)` produces the same integer for all binary64 exponents,
+    /// confirmed at `k = ±485, -970, +970, +774` and 29/29 critical exponents), scale `|x|` by
+    /// `s1 = 14 - e_est` using the low-nibble-first 64-bit chain `V = RN64(V * RN64(10^+-c))` at
+    /// every shift (including `|s1| <= 27`, 8/8 fresh discriminators), multiply by 10 while below
+    /// `10^14`, and round to an integer with a half up. In the rare sliver where `e_est < e`
+    /// (`k = -485` and `k = -970` with `|x| >= 10^-146` or `10^-292`), `V >= 10^15` rounds to a
+    /// 16-digit integer `M`, publishes `M * 10^-s1` via the nibble chain to binary64 `y`, and
+    /// re-scales `y` by `s1 - 1` (150/150 at `k = -485`).
     pub(crate) fn fifteen_x87(x: f64, ties_up: bool) -> Option<ExactDecimal> {
-        let shift = 14 - ExactDecimal::binary(x).magnitude();
         let bits = x.abs().to_bits();
         let biased = i32::try_from((bits >> 52) & 0x7FF).expect("an 11-bit exponent");
         let fraction_bits = bits & ((1u64 << 52) - 1);
@@ -469,6 +483,10 @@ impl ExactDecimal {
         } else {
             (fraction_bits | (1u64 << 52), biased - 1075)
         };
+        if ties_up {
+            return Some(directed_fifteen_x87(x < 0.0, mantissa, exponent));
+        }
+        let shift = 14 - ExactDecimal::binary(x).magnitude();
         let mut numerator = Natural::from_u64(mantissa);
         let mut denominator = Natural::from_u64(1);
         if shift >= 0 {
@@ -479,7 +497,7 @@ impl ExactDecimal {
         // The scaled value rounded to 64 bits: kept * 2^power.
         let (kept, power) = if shift.abs() <= 27 {
             round_to_64_bits(&numerator, exponent, &denominator)
-        } else if !ties_up {
+        } else {
             // ROUND keeps the one-constant construction: the chain moves ROUND-00970
             // (0x02d6c92600015d5b, 309 digits) away from Excel, and the note proved only the
             // directed functions.
@@ -493,31 +511,8 @@ impl ExactDecimal {
             } else {
                 round_to_64_bits(&start, exponent - scale_power, &scale)
             }
-        } else {
-            // |n| > 27 (design/fable-2-last-bit.md section 2, Claude Fable 5.1): the nibble chain,
-            // low chunk first, V = RN64(V * RN64(10^+-c)) for each non-zero part c of |n| (a
-            // multiplication for n < 0 too), starting from x's exact binary value.
-            nibble_chain(mantissa, exponent, shift)
         };
-        let whole = if power >= 0 {
-            let mut whole = Natural::from_u128(kept);
-            whole.times_pow2(power.unsigned_abs());
-            whole
-        } else {
-            let drop = power.unsigned_abs();
-            let (whole, rest) = if drop >= 128 {
-                (0, kept)
-            } else {
-                (kept >> drop, kept - ((kept >> drop) << drop))
-            };
-            let half = if drop > 128 {
-                u128::MAX
-            } else {
-                1u128 << (drop - 1)
-            };
-            let up = rest > half || (rest == half && ties_up);
-            Natural::from_u128(whole + u128::from(up))
-        };
+        let whole = round_64_to_natural(kept, power, false);
         Some(
             ExactDecimal {
                 negative: x < 0.0,
@@ -626,6 +621,100 @@ impl ExactDecimal {
             exponent: position,
         })
     }
+}
+
+/// Round the positive 64-bit value `kept * 2^power` to an integer `Natural`,
+/// breaking exact halves up when `ties_up` is true and down when false.
+fn round_64_to_natural(kept: u128, power: i32, ties_up: bool) -> Natural {
+    if power >= 0 {
+        let mut whole = Natural::from_u128(kept);
+        whole.times_pow2(power.unsigned_abs());
+        whole
+    } else {
+        let drop = power.unsigned_abs();
+        let (whole, rest) = if drop >= 128 {
+            (0, kept)
+        } else {
+            (kept >> drop, kept - ((kept >> drop) << drop))
+        };
+        let half = if drop > 128 {
+            u128::MAX
+        } else {
+            1u128 << (drop - 1)
+        };
+        let up = rest > half || (rest == half && ties_up);
+        Natural::from_u128(whole + u128::from(up))
+    }
+}
+
+/// Whether `kept * 2^power >= bound` for positive `kept < 2^64` and `bound < 2^64`.
+fn ge_int_64(kept: u128, power: i32, bound: u128) -> bool {
+    if power >= 0 {
+        let shift = power.unsigned_abs();
+        shift >= 64 || kept.checked_shl(shift).is_none_or(|value| value >= bound)
+    } else {
+        let drop = power.unsigned_abs();
+        drop < 128 && (kept >> drop) >= bound
+    }
+}
+
+/// Multiply a positive 64-bit value `(kept, power)` by `10` with 64-bit RN-even rounding.
+fn mul_ten_64(kept: u128, power: i32) -> (u128, i32) {
+    let one = Natural::from_u64(1);
+    round_to_64_bits(&Natural::from_u128(kept * 10), power, &one)
+}
+
+/// Directed-function 15-digit initial reading (dc-m53ln): estimate the decimal exponent from
+/// `frexp`'s exponent `k = floor(log2(|x|)) + 1` as `floor(k / 3.3219)`, scale `|x|` by
+/// `14 - e_est` via the low-nibble-first 64-bit chain, multiply by 10 while below `10^14`,
+/// and if the scaled value reaches `10^15` (the `0.1%` sliver at `k = -485, -970`) round to
+/// 16 digits, publish back to binary64 via the nibble chain and re-scale by `shift - 1`.
+fn directed_fifteen_x87(negative: bool, mantissa: u64, exponent: i32) -> ExactDecimal {
+    const TEN_14: u128 = 100_000_000_000_000;
+    const TEN_15: u128 = 1_000_000_000_000_000;
+
+    let frexp_exp = exponent + i32::try_from(64 - mantissa.leading_zeros()).expect("u64 bit len");
+    let e_est = (frexp_exp * 10_000).div_euclid(33_219);
+    let mut shift = 14 - e_est;
+    let (mut kept, mut power) = nibble_chain(mantissa, exponent, shift);
+    while !ge_int_64(kept, power, TEN_14) {
+        (kept, power) = mul_ten_64(kept, power);
+        shift += 1;
+    }
+    if ge_int_64(kept, power, TEN_15) {
+        let wide = ExactDecimal {
+            negative: false,
+            coefficient: round_64_to_natural(kept, power, true),
+            exponent: -shift,
+        };
+        if let Ok(published) = wide.scaled_pc64_at_exponent().text().parse::<f64>()
+            && published.is_finite()
+            && published != 0.0
+        {
+            let bits = published.to_bits();
+            let biased = i32::try_from((bits >> 52) & 0x7FF).expect("an 11-bit exponent");
+            let frac = bits & ((1u64 << 52) - 1);
+            let (m2, e2) = if biased == 0 {
+                (frac, -1074)
+            } else {
+                (frac | (1u64 << 52), biased - 1075)
+            };
+            shift -= 1;
+            let (k2, p2) = nibble_chain(m2, e2, shift);
+            return ExactDecimal {
+                negative,
+                coefficient: round_64_to_natural(k2, p2, false),
+                exponent: -shift,
+            }
+            .normalized();
+        }
+    }
+    ExactDecimal {
+        negative,
+        coefficient: round_64_to_natural(kept, power, true),
+        exponent: -shift,
+    }
+    .normalized()
 }
 
 /// numerator * 2^exponent / denominator rounded to 64 significant bits, to the nearest and a
@@ -832,5 +921,38 @@ mod tests {
             assert_eq!(floor(x).to_bits(), f64::to_bits(f), "floor {x}");
             assert_eq!(ceil(x).to_bits(), f64::to_bits(c), "ceil {x}");
         }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn directed_fifteen_uses_frexp_estimate_and_unnormalized_publication() {
+        // Bank rows where frexp exponent estimate e_est = floor((e2+1)/3.3219) exceeds exact e10
+        // by 1, so the initial nibble-chain scale is 13 - e10 followed by * 10 (dc-m53ln).
+        for (bits, expected_text) in [
+            (0x5e33_4e95_8ab2_6e0eu64, "602715035061692e131"), // e2=484, k=485 (Farey boundary)
+            (0x2873_8c74_d9ee_a6f1u64, "79381371240304e-127"), // shift=+128 -> 127 then *10
+            (0x7f73_5621_d584_db16u64, "848657475319565e291"), // shift=-291 -> -292 then *10
+            (0x1982_d0b8_aadc_242bu64, "864856875179571e-200"), // shift=+200 -> 199 then *10
+            // v0 >= 10^15 rescan sliver at e2=-486 (k=-485, e_est=-147 < e10=-146):
+            (0x219f_f77a_4c10_c994u64, "100000014705586e-160"),
+            (0x219f_f77a_4c10_c9e6u64, "100000014705588e-160"),
+        ] {
+            let x = f64::from_bits(bits);
+            let reading = ExactDecimal::fifteen_x87(x, true).expect("directed reading");
+            assert_eq!(reading.text(), expected_text, "bits=0x{bits:016x}");
+        }
+
+        // Unnormalized publication for directed truncation vs normalized for ROUND:
+        // ROUNDDOWN(2.1000001390671165e-302, 307) keeps 210000 * 10^-307 -> 0x014ccd59caa6a750,
+        // while ROUND normalizes to 21 * 10^-303 -> 0x014ccd59caa6a751.
+        let down = ExactDecimal {
+            negative: false,
+            coefficient: Natural::from_u64(210_000),
+            exponent: -307,
+        };
+        let unnorm: f64 = down.scaled_pc64_at_exponent().text().parse().unwrap();
+        let norm: f64 = down.scaled_pc64().text().parse().unwrap();
+        assert_eq!(unnorm.to_bits(), 0x014c_cd59_caa6_a750);
+        assert_eq!(norm.to_bits(), 0x014c_cd59_caa6_a751);
     }
 }

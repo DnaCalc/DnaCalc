@@ -987,6 +987,12 @@ impl Controller {
         let prior_focus = self.model.with_untracked(|m| m.runtime.callback_focus);
         self.model.update(|m| {
             m.reset_workbook();
+            m.runtime.tools.page.views.extend(
+                summary
+                    .sheet_view_modes
+                    .iter()
+                    .map(|&(sheet, mode)| (sheet.id(), mode)),
+            );
             m.runtime.active_calculation = None;
             m.runtime.calculation_frontier = summary.revision;
         });
@@ -4365,6 +4371,19 @@ impl Controller {
             revision: self.summary.get_untracked().revision,
             active_sheet: wire::Sheet::of(active_sheet),
             sheets: views,
+            sheet_view_modes: self.model.with_untracked(|m| {
+                m.runtime
+                    .tools
+                    .page
+                    .views
+                    .iter()
+                    .filter(|(sheet, _)| {
+                        self.summary
+                            .with_untracked(|s| s.sheets.iter().any(|(s, _)| s.id() == **sheet))
+                    })
+                    .map(|(&sheet, &mode)| (wire::Sheet::of(sheet), mode))
+                    .collect()
+            }),
         });
         // Applying the worker reply updates Summary before this callback runs. Keep the
         // download's original protection here, including saves which finish asynchronously.
@@ -4800,6 +4819,7 @@ mod projection_lifetime_tests {
                         views: Some(wire::SaveWindow {
                             revision,
                             active_sheet: sheet,
+                            sheet_view_modes: vec![(sheet, wire::SheetViewMode::PageBreakPreview)],
                             sheets: vec![wire::SheetWindow {
                                 geometry,
                                 sheet,
@@ -4832,6 +4852,18 @@ mod projection_lifetime_tests {
             assert_eq!(controller.active.get_untracked(), (2, 2));
             assert_eq!(controller.corner.get_untracked(), (4, 3));
             assert_eq!(controller.areas.get_untracked(), vec![want]);
+            let modes = controller.tool_field(|s| &s.page.views, |s| &mut s.page.views);
+            assert_eq!(modes.get_untracked()[&first], wire::SheetViewMode::PageBreakPreview);
+            modes.update(|values| {
+                values.insert(first, wire::SheetViewMode::PageLayout);
+            });
+            let image = std::rc::Rc::new(std::cell::RefCell::new(None));
+            let target = image.clone();
+            controller.save(move |_, bytes| *target.borrow_mut() = Some(bytes));
+            let bytes = image.borrow_mut().take().expect("the controller saved a package");
+            controller.open("layout.xlsx", bytes, |opened| assert!(opened));
+            let first = controller.sheet.get_untracked().unwrap();
+            assert_eq!(modes.get_untracked()[&first], wire::SheetViewMode::PageLayout);
         });
     }
 

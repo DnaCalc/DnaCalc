@@ -59,7 +59,7 @@ pub use conditional::{
     ColorScale, ConditionalFormat, ConditionalRule, DataBar, IconSet, Threshold,
 };
 pub use error::{CellError, LoadError};
-pub use geometry::{ColumnSpan, RowFormat, SheetGeometry, SheetView};
+pub use geometry::{ColumnSpan, RowFormat, SheetGeometry, SheetView, SheetViewMode};
 pub use manifest::LayoutWarning;
 pub use validation::Validation;
 

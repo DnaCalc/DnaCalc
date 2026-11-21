@@ -30,6 +30,29 @@ fn lambda_source_errors_precede_invalid_callables() {
     }
 }
 
+/// Excel 20527 coerces SEQUENCE's arguments in order before validating dimensions.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn sequence_argument_coercion_order() {
+    let mut book = Book::new();
+    book.set("A1", t("bad")).set("A2", e(W::NA));
+    for (args, error) in [
+        ("0,\"bad\",NA(),2", W::Value),
+        ("0,1,\"bad\",2", W::Value),
+        ("0,A1,A2,2", W::Value),
+        ("1,1,\"bad\",NA()", W::Value),
+        ("A2,A1,1,2", W::NA),
+        ("-1,1,NA(),2", W::NA),
+        ("0,-1,NA(),2", W::NA),
+        ("0,-1,1,2", W::Value),
+        ("-1,0,1,2", W::Value),
+        ("0,1,1,2", W::Calc),
+    ] {
+        let formula = format!("=SEQUENCE({args})");
+        assert_eq!(book.dynamic(&formula), e(error), "{formula}");
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn sequence_filter_sort_unique() {

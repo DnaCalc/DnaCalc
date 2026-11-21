@@ -1301,6 +1301,8 @@ pub struct Summary {
     /// view is not just A1: the page opens each at that selection the first time it shows it.
     #[serde(default)]
     pub sheet_views: Vec<(Sheet, (u32, u32), Option<(u32, u32, u32, u32)>)>,
+    #[serde(default)]
+    pub sheet_view_modes: Vec<(Sheet, SheetViewMode)>,
     pub workbook: u64,
     pub name: String,
     pub changed: bool,
@@ -1415,6 +1417,15 @@ pub struct SaveWindow {
     pub revision: u64,
     pub active_sheet: Sheet,
     pub sheets: Vec<SheetWindow>,
+    #[serde(default)]
+    pub sheet_view_modes: Vec<(Sheet, SheetViewMode)>,
+}
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SheetViewMode {
+    #[default]
+    Normal,
+    PageBreakPreview,
+    PageLayout,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SheetWindow {

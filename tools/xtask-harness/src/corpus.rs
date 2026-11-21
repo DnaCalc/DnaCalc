@@ -80,6 +80,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use std::time::{Duration, Instant};
 
+#[path = "handbook_coverage.rs"]
+pub(crate) mod coverage;
+
 pub const USAGE: &str = "usage: cargo xtask corpus [<dir>] [--recursive] [--oracle] [--release | --profile dev|release|perf] [--out <dir>] [--cache <dir>] [--import <capture.json>]... [--no-capture] [--dna-only] [--saved-excel <provenance.json>] [--trusted-code <manifest.json>] [--timeout <s>] [--shard <index/count>] [--resume] [--lean] [--minimize] [--capture-only] | cargo xtask corpus --merge <summary.json>... --out <dir>";
 
 const EXIT_FAILED: u8 = 1;
@@ -1361,6 +1364,7 @@ fn one_workbook(run: &mut Run<'_>, program: &Path, entry: &Entry, out: &Path) ->
                 &run.program_digest,
                 run.saved_excel_digest.as_deref(),
                 run.trusted_code_digest.as_deref(),
+                |_| {},
             );
             return workbook;
         }
@@ -1559,6 +1563,7 @@ fn sectioned_workbook(
     program_digest: &str,
     saved_excel_digest: Option<&str>,
     trusted_code_digest: Option<&str>,
+    mut record_group: impl FnMut(Value),
 ) {
     let file_started = Instant::now();
     let states = match section_states(case, bytes) {
@@ -1643,10 +1648,12 @@ fn sectioned_workbook(
         );
         compare_seconds += seconds;
         match triage.and_then(|triage| {
-            read_triage(&triage).map_err(|reason| NotCompared {
+            let compared = read_triage(&triage).map_err(|reason| NotCompared {
                 stage: "summary".to_owned(),
                 reason,
-            })
+            })?;
+            record_group(triage);
+            Ok(compared)
         }) {
             Ok(part) => compared.add(&part),
             Err(not) => {

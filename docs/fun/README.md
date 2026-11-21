@@ -14,3 +14,10 @@ Start at `index.html`, which links every page below (the start of the home-page 
 - `dna-calc-brochure.html`: a one-page brochure laid out as a sheet, with the 2026-11-12 measurements and a binary64 bit explorer.
 
 Both pages load fonts from Google Fonts and need no other files.
+
+For a machine-readable handbook coverage snapshot, run
+`cargo xtask handbook-coverage --handbook <build>/api/functions --out target/handbook-coverage`.
+The command writes `function-coverage.json` and compares the catalogue oracle through the
+corpus path using committed section captures. The workbook totals count every formula cell.
+Each named function counts a cell once, even when it occurs more than once in the formula.
+A formula with several different functions contributes to each of their rows.

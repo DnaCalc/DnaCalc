@@ -1216,3 +1216,15 @@ fn database_one_row_is_not_a_database() {
     let large = sheet.area(1, 3, 1_048_576, 7);
     exact(call_on(&mut sheet, "DSUM", vec![large, n(1.0), criteria]), 0.0);
 }
+
+/// The single-call surface requires a criteria reference independently of formula lifting.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn database_requires_criteria_reference() {
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![t("Key"), n(1.0)]);
+    sheet.column(1, 2, vec![t("Value"), n(7.0)]);
+    let database = sheet.area(1, 1, 2, 2);
+    let criteria = arr_values(vec![vec![t("Key")], vec![n(1.0)]]);
+    error(call_on(&mut sheet, "DSUM", vec![database, n(2.0), criteria]), Value);
+}

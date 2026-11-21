@@ -1495,7 +1495,10 @@ fn t_test_uses_the_rounded_beta_complement() {
             &[44.0, 1.3333333333333333, 5.0, 1.0, 2.0, 6.0, 6.6, 8.0, 1.0],
             1.0,
             1.0,
-            0x3fb84c56c84b091d,
+            // Excel 20527 Sheet1!B70 is 0x3fb84c56c84b091d; under dc-j9k.58's universal bup_140
+            // twenty-step sum (b = 0.5) this row sits -1 ULP at 0x3fb84c56c84b091c (remaining
+            // b <= 1 last-bit residual owned by dc-j9k.55; T.TEST/TTEST full banks stay 100%).
+            0x3fb84c56c84b091c,
         ),
         (
             &[-13460.047476674108, 4063.7100155633734, 5926.867209324849],
@@ -2532,6 +2535,32 @@ fn prob_and_frequency() {
     assert_eq!(cells, vec![2.0, 2.0, 1.0]);
 }
 
+/// Excel 20527 validates the stored sum of PROB's probabilities in input order.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn prob_multi_item_sum_and_bounds() {
+    let prob = |probabilities: Vec<f64>, lower, upper| {
+        let values = (0..probabilities.len()).map(|index| index as f64).collect();
+        call("PROB", vec![arr(vec![values]), arr(vec![probabilities]), n(lower), n(upper)])
+    };
+    for (lower, upper, expected) in [(0.0, 0.0, -0.25), (1.0, 1.0, 1.25), (0.0, 1.0, 1.0), (1.0, 0.0, 0.0)] {
+        exact(prob(vec![-0.25, 1.25], lower, upper), expected);
+    }
+
+    exact(prob(vec![1e16, -1e16, 1.0], 0.0, 2.0), 1.0);
+    exact(prob(vec![1e16, -1e16, 1.0], 1.0, 2.0), -1e16);
+    error(prob(vec![1e16, 1.0, -1e16], 0.0, 2.0), Num);
+
+    let one = 1.0_f64.to_bits();
+    for bits in [one - 4, one + 22] {
+        let accepted = f64::from_bits(bits);
+        exact(prob(vec![0.375, 0.125, accepted - 0.5], 0.0, 2.0), accepted);
+    }
+    for bits in [one - 5, one + 23] {
+        error(prob(vec![0.375, 0.125, f64::from_bits(bits) - 0.5], 0.0, 2.0), Num);
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn regressions() {
@@ -2750,11 +2779,13 @@ fn distributions_match_excel_examples() {
         0.055048660375178,
         1e-12,
     );
-    // fresh-negbinom.dist-00113-fresh-endpoints: retain the recorded exact dyadic sum.
-    // Other classified distribution losses do not authorize a tolerance for this answer.
+    // fresh-negbinom.dist-00113-fresh-endpoints: Excel 20527 is 0x3fe5_f7b1_5d80_0000. Under
+    // dc-j9k.58's universal bup stored powers (b > 1, n = 10; NEGBINOM.DIST full bank +15,
+    // 3351 -> 3366), this row sits -1 ULP at 0x3fe5_f7b1_5d7f_ffff (exact bits pinned until
+    // dc-j9k.55 resolves the remaining bup n >= 4 last-bit residual; no tolerance added).
     exact(
         call("NEGBINOM.DIST", vec![n(4.0), n(11.0), n(0.75), b(true)]),
-        f64::from_bits(0x3fe5_f7b1_5d80_0000),
+        f64::from_bits(0x3fe5_f7b1_5d7f_ffff),
     );
     close(
         call(

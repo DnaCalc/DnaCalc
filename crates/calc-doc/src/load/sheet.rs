@@ -1374,6 +1374,9 @@ fn read_view(events: &mut Events<'_>) -> Result<super::geometry::SheetView, Load
                 if first && element.name.is(MAIN_NAMESPACE, "sheetView") =>
             {
                 first = false;
+                view.mode = element
+                    .attribute("view")
+                    .and_then(super::geometry::SheetViewMode::from_xml);
                 view.zoom = element
                     .attribute("zoomScale")
                     .and_then(|s| s.parse::<u16>().ok())

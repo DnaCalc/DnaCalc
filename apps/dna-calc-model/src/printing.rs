@@ -534,7 +534,7 @@ pub fn paginate(
             cross_first = cross_first.min(first);
             cross_last = cross_last.max(last);
         }
-        let mut out = BTreeSet::new();
+        let mut spans = BTreeMap::<u32, Vec<(u32, u32)>>::new();
         for b in if rows {
             &settings.row_breaks
         } else {
@@ -543,20 +543,31 @@ pub fn paginate(
             if !b.manual {
                 continue;
             }
-            if b.pivot || b.min > b.max {
-                return Err(fail(
-                    "Pivot or invalid page-break spans need Excel pagination measurements",
-                ));
+            if b.min > b.max {
+                return Err(fail("Invalid page-break span"));
             }
             if b.id < first || b.id > last || b.max < cross_first || b.min > cross_last {
                 continue;
             }
-            if b.min > cross_first || b.max < cross_last {
+            spans.entry(b.id).or_default().push((b.min, b.max));
+        }
+        let mut out = BTreeSet::new();
+        // Several stored spans can describe one cut. The pivot flag records its origin.
+        for (id, mut spans) in spans {
+            spans.sort_unstable();
+            let mut next = cross_first;
+            for (first, last) in spans {
+                if first > next {
+                    break;
+                }
+                next = next.max(last.saturating_add(1));
+            }
+            if next <= cross_last {
                 return Err(fail(
                     "A page break crossing only part of a print area needs Excel pagination measurements",
                 ));
             }
-            out.insert(b.id);
+            out.insert(id);
         }
         Ok(out)
     };
@@ -1050,6 +1061,17 @@ mod tests {
                 .unwrap_err()
                 .contains("part of a print area")
         );
+        s.row_breaks.push(PageBreak {
+            id: 20,
+            min: 8,
+            max: 15,
+            manual: true,
+            pivot: true,
+        });
+        let combined =
+            paginate(&s, &Geometry::default(), &[area(1, 1, 120, 16)], None, None).unwrap();
+        assert_eq!(combined.pages[0].body, area(1, 1, 20, 4));
+        assert!(combined.pages[0].manual_bottom && combined.pages[0].manual_right);
         set(&mut s, "pageSetUpPr", "fitToPage", "1");
         set(&mut s, "pageSetup", "fitToWidth", "1");
         set(&mut s, "pageSetup", "fitToHeight", "1");

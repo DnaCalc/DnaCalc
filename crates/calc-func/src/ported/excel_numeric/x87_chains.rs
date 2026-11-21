@@ -475,6 +475,14 @@ mod tests {
             beta_fraction::<Soft>(333.0, 668.0, 0.02, 0.98, 1.0).to_bits(),
             excel_beta_fraction(333.0, 668.0, 0.02, 0.98, 1.0).to_bits()
         );
+        assert_eq!(
+            beta_up_sum_small_b::<Soft>(3.5, 0.5, 0.875, 20).to_bits(),
+            excel_beta_up_sum_small_b(3.5, 0.5, 0.875, 20).to_bits()
+        );
+        assert_eq!(
+            beta_up_sum_small_b::<Soft>(7.25, 0.24, 0.79, 20).to_bits(),
+            excel_beta_up_sum_small_b(7.25, 0.24, 0.79, 20).to_bits()
+        );
     }
 }
 
@@ -618,4 +626,32 @@ fn beta_fraction<F: Fpu>(a: f64, b: f64, x: f64, y: f64, bf: f64) -> f64 {
         bnp1 = 1.0;
     }
     st(&F::mul(&load(bf), &load(r), CW))
+}
+
+/// The finite `a`-shift sum `1 + sum_{m=1}^{n-1} c_m x^m` for `bratio_bup` when `b <= 1.0`
+/// (the twenty-step shift before `bgrat`), with stored binary64 coefficients `c_m` and
+/// extended-precision `x^m` and sum, returning the stored binary64 sum (dc-j9k.58).
+pub(crate) fn excel_beta_up_sum_small_b(a: f64, b: f64, x: f64, n: i32) -> f64 {
+    beta_up_sum_small_b::<Native>(a, b, x, n)
+}
+
+fn beta_up_sum_small_b<F: Fpu>(a: f64, b: f64, x: f64, n: i32) -> f64 {
+    let st = |e: &Ext80| F::store(e, CW);
+    let ab = st(&F::add(&load(a), &load(b), CW));
+    let a1 = st(&F::add(&load(a), &ext_one(), CW));
+    let lx = load(x);
+    let mut coeff = 1.0_f64;
+    let mut power = ext_one();
+    let mut sum = ext_one();
+    for m in 1..n {
+        let k = (m - 1) as f64;
+        let num = st(&F::add(&load(ab), &load(k), CW));
+        let den = st(&F::add(&load(a1), &load(k), CW));
+        let ratio = st(&F::div(&load(num), &load(den), CW));
+        coeff = st(&F::mul(&load(coeff), &load(ratio), CW));
+        power = F::mul(&power, &lx, CW);
+        let term = F::mul(&load(coeff), &power, CW);
+        sum = F::add(&sum, &term, CW);
+    }
+    st(&sum)
 }

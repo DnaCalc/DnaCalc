@@ -128,9 +128,10 @@ pub(crate) fn beta_density(x: f64, a: f64, b: f64) -> Option<f64> {
     beta_density_at(x, excel_x87_sub(1.0, x), a, b)
 }
 
-/// [`beta_density`] at the pair `(x, y)` the incomplete beta holds. Only the form for both shapes
-/// above 1 takes `y`; the others form `ln(1 - x)` from `x` (in the recurrence arm BETA.DIST's
-/// answers on adjacent `x` with one stored `1 - x` change with the series term alone).
+/// [`beta_density`] at the pair `(x, y)` the incomplete beta holds. Both shapes above 1 take `y`;
+/// the `a == 1` and `b == 1` forms use `x` alone; for `a < 1 || b < 1` the complement term uses
+/// `excel_log1p_times(b - 1, -x)` up to `0.99` and `y` directly above `0.99` (matching Excel's
+/// `0.99` complement switch so tiny `y` does not cancel in `1 - x`).
 pub(crate) fn beta_density_at(x: f64, y: f64, a: f64, b: f64) -> Option<f64> {
     if a == 1.0 {
         return Some(excel_exp_running(
@@ -146,9 +147,14 @@ pub(crate) fn beta_density_at(x: f64, y: f64, a: f64, b: f64) -> Option<f64> {
     }
     if a < 1.0 || b < 1.0 {
         let ln_beta = crate::ported::special_math_common::excel_ln_beta(a, b);
+        let log_y_term = if x > 0.99 {
+            excel_x87_mul(b - 1.0, excel_log(y))
+        } else {
+            excel_log1p_times(b - 1.0, -x)
+        };
         return Some(excel_exp_running(
             excel_x87_mul(a - 1.0, excel_log(x)),
-            &[-excel_log1p_times(b - 1.0, -x), ln_beta],
+            &[-log_y_term, ln_beta],
         ));
     }
     let (k, n) = (a - 1.0, a + b - 2.0);

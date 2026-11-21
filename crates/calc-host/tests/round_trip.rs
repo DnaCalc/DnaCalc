@@ -25851,6 +25851,69 @@ fn dc_971p_51__shared_axis_combination_edit_and_saved_reopening() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_65__printing_view_and_partial_pivot_breaks_round_trip() {
+    let part = "xl/worksheets/sheet1.xml";
+    let fixture = package_with_part(part, |xml| {
+        xml.replace(
+            "<sheetData",
+            r#"<sheetViews><sheetView workbookViewId="0" view="pageBreakPreview"/></sheetViews><sheetData"#,
+        )
+        .replace(
+            "</worksheet>",
+            concat!(
+                r#"<rowBreaks xmlns:z="urn:test" count="2" manualBreakCount="2">"#,
+                r#"<brk id="20" min="0" max="3" man="1" z:span="partial"/>"#,
+                r#"<brk id="20" min="4" max="7" man="1" pt="1" z:span="pivot"/>"#,
+                r#"</rowBreaks><colBreaks count="1" manualBreakCount="1">"#,
+                r#"<brk id="4" min="2" max="19" man="1" pt="1"/></colBreaks></worksheet>"#,
+            ),
+        )
+    });
+    let mut book = session(&fixture);
+    let sheet = book.host().sheets()[0].id();
+    let mut setup = book.host().model().definitions().page_setup(sheet);
+    assert_eq!(setup.row_breaks.len(), 2);
+    assert_eq!((setup.row_breaks[0].min, setup.row_breaks[0].max), (0, 3));
+    assert!(setup.row_breaks[1].pivot && setup.column_breaks[0].pivot);
+    setup.row_breaks.push(calc_doc_model::PageBreak {
+        id: 40,
+        min: 0,
+        max: 16_383,
+        manual: true,
+        pivot: false,
+    });
+    let receipt = book.dispatch(SkinIntent::Edit {
+        edits: vec![CellEdit::PageSetup {
+            sheet,
+            setup: setup.clone(),
+        }],
+    });
+    assert!(receipt.accepted(), "{receipt:?}");
+    let mode = calc_host::SheetViewMode::PageLayout;
+    let mut view = book.host().sheet_view(sheet).unwrap();
+    assert_eq!(view.mode, Some(calc_host::SheetViewMode::PageBreakPreview));
+    view.mode = Some(mode);
+    let policy = SavePolicy {
+        views: Some(std::sync::Arc::new(calc_host::SaveViews {
+            revision: book.host().revision().get(),
+            active_sheet: Some(sheet),
+            sheets: [(sheet, view)].into(),
+        })),
+        ..SavePolicy::default()
+    };
+    let mut saved = Vec::new();
+    book.save(&policy, &mut saved).unwrap();
+    let xml = part_text(&saved, part);
+    assert_eq!(xml.matches(r#"z:span="partial""#).count(), 1, "{xml}");
+    assert_eq!(xml.matches(r#"z:span="pivot""#).count(), 1, "{xml}");
+    assert!(xml.contains(r#"view="pageLayout""#), "{xml}");
+    let reopened = session(&saved);
+    assert_eq!(reopened.host().sheet_view(sheet).unwrap().mode, Some(mode));
+    assert_eq!(reopened.host().model().definitions().page_setup(sheet), setup);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_56__page_setup_is_authored_undoable_and_survives_xlsx() {
     let mut book = session(&calc_host::blank_package());
     let sheet = book.host().sheets()[0].id();
