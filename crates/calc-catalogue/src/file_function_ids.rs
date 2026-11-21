@@ -485,3 +485,13 @@ pub const EXCEL_FUNCTION_IDS: &[(u16, &str, i8)] = &[
     (483, file_spelling(FunctionId::from_raw(458757)), -1),
     (484, file_spelling(FunctionId::from_raw(458758)), -1),
 ];
+/// The invariant spelling and fixed arity at an Ftab index. A negative arity denotes PtgFuncVar.
+pub fn binary_function(index: u16) -> Option<(&'static str, i8)> {
+    EXCEL_FUNCTION_IDS
+        .binary_search_by_key(&index, |(index, _, _)| *index)
+        .ok()
+        .map(|at| {
+            let (_, spelling, arity) = EXCEL_FUNCTION_IDS[at];
+            (spelling, arity)
+        })
+}

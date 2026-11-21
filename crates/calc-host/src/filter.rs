@@ -474,7 +474,12 @@ pub(crate) fn apply(
                 values,
                 blank,
             } => {
-                let functions = ["YEAR", "MONTH", "DAY", "HOUR", "MINUTE", "SECOND"];
+                use calc_catalogue::ported::dates::{DAY, HOUR, MINUTE, MONTH, SECOND, YEAR};
+                let functions = [YEAR, MONTH, DAY, HOUR, MINUTE, SECOND].map(|id| {
+                    calc_catalogue::declaration(id)
+                        .expect("date part function declaration")
+                        .spelling()
+                });
                 let mut terms = groups
                     .iter()
                     .map(|g| {

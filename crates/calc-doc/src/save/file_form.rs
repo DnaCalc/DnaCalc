@@ -42,13 +42,6 @@ fn function(name: &str) -> Option<&'static FunctionFileForm> {
     calc_catalogue::file_form(&name.to_ascii_uppercase())
 }
 
-/// The name a call of the function `name` is written with in a formula's file form: with the
-/// prefix Excel writes before it (`_xlfn.XLOOKUP`, `_xlfn._xlws.FILTER`, `ISO.CEILING`), or `None`
-/// for a name that is not one of the functions measured.
-pub(crate) fn function_file_name(name: &str) -> Option<String> {
-    calc_catalogue::file_call_name(&name.to_ascii_uppercase())
-}
-
 /// A formula in file form.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FileForm {

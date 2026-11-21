@@ -281,7 +281,7 @@ impl Bindings {
             Binding::Placed(instance, _) => instance
                 .plan()
                 .calls()
-                .any(|target| calc_catalogue::ported::dates::PASS_WEEK_STATE.contains(&target.id())),
+                .any(|target| target.uses_context(calc_catalogue::ContextFacility::WeekState)),
             Binding::DataTable(_) => true,
             Binding::Refused(_) => false,
         };

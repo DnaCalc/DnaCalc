@@ -59,7 +59,7 @@ mod help;
 pub use help::{FunctionHelp, HELP, description_of, description_of_id, help_of, help_of_id};
 
 mod file_function_ids;
-pub use file_function_ids::EXCEL_FUNCTION_IDS;
+pub use file_function_ids::{EXCEL_FUNCTION_IDS, binary_function};
 
 pub mod admission;
 pub mod aggregate;
@@ -80,8 +80,10 @@ pub mod unheld;
 
 mod file_call;
 pub use file_call::{
-    CallOrigin, FIELD_ACCESS_FILE_NAME, FIELD_ACCESS_ID, FileCallIdentity, field_access_name,
-    file_call_identity, file_unprefixed, strip_ascii_prefix,
+    CallOrigin, FIELD_ACCESS_FILE_NAME, FIELD_ACCESS_ID, FileCallIdentity,
+    binary_named_call_spelling, field_access_name, file_call_identity, file_unprefixed,
+    invariant_call_spelling, missing_file_prefix,
+    strip_ascii_prefix,
 };
 
 mod registry;

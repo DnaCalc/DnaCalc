@@ -54,6 +54,49 @@ pub fn file_unprefixed(spelling: &str) -> &str {
     }
 }
 
+/// Translate a formula call's file spelling into the invariant name used for binding.
+pub fn invariant_call_spelling(spelling: &str) -> &str {
+    if spelling.eq_ignore_ascii_case(FIELD_ACCESS_FILE_NAME) {
+        field_access_name()
+    } else {
+        file_unprefixed(spelling)
+    }
+}
+
+/// Whether loading this already-resolved call requires a prefix missing from its spelling.
+pub fn missing_file_prefix(spelling: &str, id: FunctionId) -> bool {
+    !spelling.eq_ignore_ascii_case(FIELD_ACCESS_FILE_NAME)
+        && strip_ascii_prefix(spelling, crate::FUTURE_FUNCTION_PREFIX).is_none()
+        && matches!(
+            crate::declaration(id).and_then(crate::DeclarationRef::file_prefix),
+            Some(FilePrefix::Xlfn | FilePrefix::XlfnXlws)
+        )
+}
+
+/// The SpreadsheetML spelling used when converting a binary PtgFuncVar name operand.
+/// The result is a rendering. The binary name record is still needed to bind the original call.
+pub fn binary_named_call_spelling(name: &str) -> String {
+    if let Some(base) = name.strip_prefix(crate::FUTURE_FUNCTION_PREFIX) {
+        let base = base
+            .strip_prefix(crate::WORKSHEET_FUNCTION_PREFIX)
+            .unwrap_or(base);
+        if base.eq_ignore_ascii_case(FIELD_ACCESS_FILE_NAME) {
+            return base.to_owned();
+        }
+        return crate::file_call_name(&base.to_ascii_uppercase()).unwrap_or_else(|| name.to_owned());
+    }
+    let uppercase = name.to_ascii_uppercase();
+    let is_built_in = crate::EXCEL_FUNCTION_IDS
+        .iter()
+        .any(|(_, known, _)| *known == uppercase)
+        || (crate::file_form(&uppercase).is_some()
+            && matches!(crate::file_prefix(&uppercase), Some(FilePrefix::Xlfn | FilePrefix::XlfnXlws)));
+    if !name.contains(['!', '[']) && is_built_in {
+        return format!("{}{name}", crate::USER_DEFINED_FUNCTION_PREFIX);
+    }
+    name.to_owned()
+}
+
 /// Classify the observed spelling without turning an unrecognised name into a built-in.
 /// A loaded future function lacking its measured file prefix remains an ordinary name.
 pub fn file_call_identity(spelling: &str, origin: CallOrigin) -> FileCallIdentity<'_> {
@@ -85,13 +128,7 @@ pub fn file_call_identity(spelling: &str, origin: CallOrigin) -> FileCallIdentit
     }) else {
         return other();
     };
-    if origin == CallOrigin::LoadedFile
-        && prefix == FilePrefix::Bare
-        && matches!(
-            entry.file_prefix(),
-            Some(FilePrefix::Xlfn | FilePrefix::XlfnXlws)
-        )
-    {
+    if origin == CallOrigin::LoadedFile && missing_file_prefix(spelling, entry.id()) {
         return other();
     }
     FileCallIdentity::BuiltIn {

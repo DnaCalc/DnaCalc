@@ -311,6 +311,7 @@ dependencies = [
 name = "calc-host"
 version = "0.1.0"
 dependencies = [
+ "calc-catalogue",
  "calc-doc",
  "calc-doc-model",
  "calc-engine",

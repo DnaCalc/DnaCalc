@@ -42,7 +42,6 @@ use crate::reference::{
     qualified_name, qualified_sheet_call,
 };
 use crate::syntax::{SyntaxChild, SyntaxKind, SyntaxNode, SyntaxTree, TextSpan, Token, TokenKind};
-use calc_catalogue::{FIELD_ACCESS_FILE_NAME as FIELD_ACCESS, FilePrefix};
 use calc_func::value::{CellKey, ExcelText, SheetId, WorksheetErrorCode};
 use calc_func::{Notation, ParameterClass, catalogue};
 use std::collections::HashMap;
@@ -2273,22 +2272,12 @@ fn call_target(name: &Token) -> Result<Target, CompileError> {
 /// one. A spelling with `_xlfn.` names the function whatever prefix a file stores it with
 /// ([`file_unprefixed`]). An entry whose file prefix is not known is read by its plain name.
 pub(super) fn unknown_on_load(spelling: &str, target: Target) -> bool {
-    !spelling.eq_ignore_ascii_case(FIELD_ACCESS)
-        && without_prefix(spelling, calc_catalogue::FUTURE_FUNCTION_PREFIX).is_none()
-        && match target.0.file_prefix() {
-            Some(FilePrefix::Xlfn | FilePrefix::XlfnXlws) => true,
-            Some(FilePrefix::Bare) | None => false,
-        }
+    calc_catalogue::missing_file_prefix(spelling, target.0.id())
 }
 
-/// The catalogue spelling a file's call written `spelling` names: FIELDVALUE for a field access
-/// ([`FIELD_ACCESS`]), otherwise the spelling without its file prefixes ([`file_unprefixed`]).
+/// The invariant catalogue spelling for the way a file writes the call.
 pub(super) fn file_function(spelling: &str) -> &str {
-    if spelling.eq_ignore_ascii_case(FIELD_ACCESS) {
-        calc_catalogue::field_access_name()
-    } else {
-        file_unprefixed(spelling)
-    }
+    calc_catalogue::invariant_call_spelling(spelling)
 }
 
 pub(crate) enum BindingCall {

@@ -719,8 +719,10 @@ pub enum ContextFacility {
     Random,
     ReferenceText,
     Environment,
+    NumberSeparators,
     Host,
     Callables,
+    WeekState,
 }
 
 /// Data for a worksheet function whose executable kernel is attached by the caller.

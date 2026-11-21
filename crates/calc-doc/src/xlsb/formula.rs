@@ -11,8 +11,7 @@
 
 use super::commands::COMMANDS;
 use super::records::{Cursor, Malformed, Read, text};
-use crate::save::file_form::function_file_name;
-use calc_catalogue::EXCEL_FUNCTION_IDS as FUNCTIONS;
+use calc_catalogue::{binary_function, binary_named_call_spelling};
 use std::collections::BTreeMap;
 
 /// One XTI (2.5.173): a supporting workbook and a range of its sheets.
@@ -493,10 +492,8 @@ pub(crate) fn print(
                 let (mut command, mut prompt) = (false, false);
                 let (count, number) = if base == 0x21 {
                     let number = if layout == Layout::Biff3 { u16::from(cursor.u8("PtgFunc")?) } else { cursor.u16("PtgFunc")? };
-                    let fixed = FUNCTIONS
-                        .iter()
-                        .find(|(n, _, _)| *n == number)
-                        .map(|(_, _, arity)| *arity)
+                    let fixed = binary_function(number)
+                        .map(|(_, arity)| arity)
                         .filter(|arity| *arity >= 0)
                         .ok_or_else(|| bad(format!("the fixed-arity function number {number}")))?;
                     (fixed as usize, number)
@@ -528,12 +525,10 @@ pub(crate) fn print(
                     if arguments.is_empty() {
                         return Err(bad("a call of function 255 without its name"));
                     }
-                    call_name(arguments.remove(0).trim_start())
+                    binary_named_call_spelling(arguments.remove(0).trim_start())
                 } else {
-                    let name = FUNCTIONS
-                        .iter()
-                        .find(|(n, _, _)| *n == number)
-                        .map(|(_, name, _)| *name)
+                    let name = binary_function(number)
+                        .map(|(name, _)| name)
                         .ok_or_else(|| bad(format!("the function number {number}")))?;
                     name.to_owned()
                 };
@@ -971,35 +966,6 @@ fn external_name(ixti: u16, index: u32, context: &Context<'_>) -> Read<String> {
         }
         None => Err(bad(format!("the supporting workbook {}", xti.supbook))),
     }
-}
-
-/// The name a call of function 255 is written with, from the defined name the binary form calls:
-/// a future function (`_xlfn.` and its name) with the prefix Excel writes before it in
-/// SpreadsheetML, which for some is none (`ISO.CEILING`, and the field accessor `_FV`, measured in
-/// Excel-saved twins); a user-defined function whose name is now a built-in function's with
-/// `_xludf.` before it; any other name as it is.
-fn call_name(name: &str) -> String {
-    if let Some(base) = name.strip_prefix(calc_catalogue::FUTURE_FUNCTION_PREFIX) {
-        let base = base
-            .strip_prefix(calc_catalogue::WORKSHEET_FUNCTION_PREFIX)
-            .unwrap_or(base);
-        if base.eq_ignore_ascii_case(calc_catalogue::FIELD_ACCESS_FILE_NAME) {
-            return base.to_owned();
-        }
-        return function_file_name(base).unwrap_or_else(|| name.to_owned());
-    }
-    // A function Excel knows: one of the binary function table, or one written with `_xlfn.`
-    // (ACOT is written `_xludf.ACOT`; COPILOT, which Excel 16.0.20430 does not know and writes
-    // without a prefix, stays `COPILOT`).
-    let known = FUNCTIONS
-        .iter()
-        .any(|(_, known, _)| known.eq_ignore_ascii_case(name))
-        || function_file_name(name)
-            .is_some_and(|written| written.starts_with(calc_catalogue::FUTURE_FUNCTION_PREFIX));
-    if !name.contains(['!', '[']) && known {
-        return format!("{}{name}", calc_catalogue::USER_DEFINED_FUNCTION_PREFIX);
-    }
-    name.to_owned()
 }
 
 /// An array constant (PtgExtraArray): `{1,2;"a",TRUE}`.

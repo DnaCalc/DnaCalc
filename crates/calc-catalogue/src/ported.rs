@@ -1,7 +1,8 @@
 //! Function declaration fragments moved from CalcFunc. The executable kernels stay there.
 use crate::{
-    ArgumentDemand, ArgumentGroups, Availability, EntryClass, EntryTraits, FunctionId, LegacyPlace,
-    Notation, Parameter, ParameterClass, ResultForm, ThreeD, WorksheetDeclaration,
+    ArgumentDemand, ArgumentGroups, Availability, ContextFacility, EntryClass, EntryTraits,
+    FunctionId, LegacyPlace, Notation, Parameter, ParameterClass, ResultForm, ThreeD,
+    WorksheetDeclaration,
 };
 
 macro_rules! data_family {
@@ -13,7 +14,8 @@ macro_rules! data_family {
         $(traits $($traits:ident),+;)? $(volatile $volatility:literal;)?
         $(host_route ($provider:expr, $fetch_kind:expr);)?
         $(import_route ($iprovider:expr, $import_kind:expr);)?
-        $(three_d ($take:expr, $value:expr, $reference:expr);)? ;
+        $(three_d ($take:expr, $value:expr, $reference:expr);)?
+        $(context [$($facility:ident),*];)? ;
     )*) => {
         pub const ENTRIES: &[WorksheetDeclaration] = &[$({
             #[allow(unused_mut)]
@@ -32,6 +34,7 @@ macro_rules! data_family {
             $(item.kind = crate::EntryKind::HostRoute { provider: $provider, route: crate::HostRouteKind::Fetch($fetch_kind) };)?
             $(item.kind = crate::EntryKind::HostRoute { provider: $iprovider, route: crate::HostRouteKind::Import($import_kind) };)?
             $(item.traits.three_d = ThreeD::new($take, $value, $reference);)?
+            $(item.context_facilities = Some(&[$(ContextFacility::$facility),*]);)?
             item
         }),*];
     };
@@ -141,32 +144,32 @@ pub mod bonds {
     pub const CODE: u16 = 301;
     data_family! {
         code: CODE;
-    1 "PRICE" (6, 7) [V "settlement", V "maturity", V "rate", V "yld", V "redemption", V "frequency", V "basis"] three_d (None, Some(&[]), None); ;
-    2 "YIELD" (6, 7) [V "settlement", V "maturity", V "rate", V "pr", V "redemption", V "frequency", V "basis"] three_d (None, Some(&[]), None); ;
-    3 "DURATION" (5, 6) [V "settlement", V "maturity", V "coupon", V "yld", V "frequency", V "basis"] three_d (None, Some(&[]), None); ;
-    4 "MDURATION" (5, 6) [V "settlement", V "maturity", V "coupon", V "yld", V "frequency", V "basis"] three_d (None, Some(&[]), None); ;
-    5 "PRICEMAT" (5, 6) [V "settlement", V "maturity", V "issue", V "rate", V "yld", V "basis"] three_d (None, Some(&[]), None); ;
-    6 "YIELDMAT" (5, 6) [V "settlement", V "maturity", V "issue", V "rate", V "pr", V "basis"] three_d (None, Some(&[]), None); ;
-    7 "YIELDDISC" (4, 5) [V "settlement", V "maturity", V "pr", V "redemption", V "basis"] three_d (None, Some(&[]), None); ;
-    8 "ACCRINT" (6, 8) [V "issue", V "first_interest", V "settlement", V "rate", V "par", V "frequency", V "basis", V "calc_method"] three_d (None, Some(&[]), None); ;
-    9 "ACCRINTM" (4, 5) [V "issue", V "settlement", V "rate", V "par", V "basis"] three_d (None, Some(&[]), None); ;
-    10 "COUPDAYBS" (3, 4) [V "settlement", V "maturity", V "frequency", V "basis"] three_d (None, Some(&[0, 1]), Some(&[2, 3])); ;
-    11 "COUPDAYS" (3, 4) [V "settlement", V "maturity", V "frequency", V "basis"] three_d (None, Some(&[0, 1]), Some(&[2, 3])); ;
-    12 "COUPDAYSNC" (3, 4) [V "settlement", V "maturity", V "frequency", V "basis"] three_d (None, Some(&[0, 1]), Some(&[2, 3])); ;
-    13 "COUPNCD" (3, 4) [V "settlement", V "maturity", V "frequency", V "basis"] three_d (None, Some(&[0, 1]), Some(&[2, 3])); ;
-    14 "COUPNUM" (3, 4) [V "settlement", V "maturity", V "frequency", V "basis"] three_d (None, Some(&[0, 1]), Some(&[2, 3])); ;
-    15 "COUPPCD" (3, 4) [V "settlement", V "maturity", V "frequency", V "basis"] three_d (None, Some(&[0, 1]), Some(&[2, 3])); ;
-    16 "DISC" (4, 5) [V "settlement", V "maturity", V "pr", V "redemption", V "basis"] three_d (None, Some(&[]), None); ;
-    17 "INTRATE" (4, 5) [V "settlement", V "maturity", V "investment", V "redemption", V "basis"] three_d (None, Some(&[]), None); ;
-    18 "RECEIVED" (4, 5) [V "settlement", V "maturity", V "investment", V "discount", V "basis"] three_d (None, Some(&[]), None); ;
-    19 "PRICEDISC" (4, 5) [V "settlement", V "maturity", V "discount", V "redemption", V "basis"] three_d (None, Some(&[]), None); ;
-    20 "TBILLEQ" (3, 3) [V "settlement", V "maturity", V "discount"] three_d (None, Some(&[]), None); ;
-    21 "TBILLPRICE" (3, 3) [V "settlement", V "maturity", V "discount"] three_d (None, Some(&[]), None); ;
-    22 "TBILLYIELD" (3, 3) [V "settlement", V "maturity", V "pr"] three_d (None, Some(&[]), None); ;
-    23 "ODDFPRICE" (8, 9) [V "settlement", V "maturity", V "issue", V "first_coupon", V "rate", V "yld", V "redemption", V "frequency", V "basis"] three_d (None, Some(&[]), None); ;
-    24 "ODDFYIELD" (8, 9) [V "settlement", V "maturity", V "issue", V "first_coupon", V "rate", V "pr", V "redemption", V "frequency", V "basis"] three_d (None, Some(&[]), None); ;
-    25 "ODDLPRICE" (7, 8) [V "settlement", V "maturity", V "last_interest", V "rate", V "yld", V "redemption", V "frequency", V "basis"] three_d (None, Some(&[]), None); ;
-    26 "ODDLYIELD" (7, 8) [V "settlement", V "maturity", V "last_interest", V "rate", V "pr", V "redemption", V "frequency", V "basis"] three_d (None, Some(&[]), None); ;
+    1 "PRICE" (6, 7) [V "settlement", V "maturity", V "rate", V "yld", V "redemption", V "frequency", V "basis"] three_d (None, Some(&[]), None); context [NumericMode, Environment]; ;
+    2 "YIELD" (6, 7) [V "settlement", V "maturity", V "rate", V "pr", V "redemption", V "frequency", V "basis"] three_d (None, Some(&[]), None); context [NumericMode, Environment]; ;
+    3 "DURATION" (5, 6) [V "settlement", V "maturity", V "coupon", V "yld", V "frequency", V "basis"] three_d (None, Some(&[]), None); context [NumericMode, Environment]; ;
+    4 "MDURATION" (5, 6) [V "settlement", V "maturity", V "coupon", V "yld", V "frequency", V "basis"] three_d (None, Some(&[]), None); context [NumericMode, Environment]; ;
+    5 "PRICEMAT" (5, 6) [V "settlement", V "maturity", V "issue", V "rate", V "yld", V "basis"] three_d (None, Some(&[]), None); context [NumericMode, Environment]; ;
+    6 "YIELDMAT" (5, 6) [V "settlement", V "maturity", V "issue", V "rate", V "pr", V "basis"] three_d (None, Some(&[]), None); context [NumericMode, Environment]; ;
+    7 "YIELDDISC" (4, 5) [V "settlement", V "maturity", V "pr", V "redemption", V "basis"] three_d (None, Some(&[]), None); context [NumericMode, Environment]; ;
+    8 "ACCRINT" (6, 8) [V "issue", V "first_interest", V "settlement", V "rate", V "par", V "frequency", V "basis", V "calc_method"] three_d (None, Some(&[]), None); context [NumericMode, Environment]; ;
+    9 "ACCRINTM" (4, 5) [V "issue", V "settlement", V "rate", V "par", V "basis"] three_d (None, Some(&[]), None); context [NumericMode, Environment]; ;
+    10 "COUPDAYBS" (3, 4) [V "settlement", V "maturity", V "frequency", V "basis"] three_d (None, Some(&[0, 1]), Some(&[2, 3])); context [NumericMode, Environment]; ;
+    11 "COUPDAYS" (3, 4) [V "settlement", V "maturity", V "frequency", V "basis"] three_d (None, Some(&[0, 1]), Some(&[2, 3])); context [NumericMode, Environment]; ;
+    12 "COUPDAYSNC" (3, 4) [V "settlement", V "maturity", V "frequency", V "basis"] three_d (None, Some(&[0, 1]), Some(&[2, 3])); context [NumericMode, Environment]; ;
+    13 "COUPNCD" (3, 4) [V "settlement", V "maturity", V "frequency", V "basis"] three_d (None, Some(&[0, 1]), Some(&[2, 3])); context [NumericMode, Environment]; ;
+    14 "COUPNUM" (3, 4) [V "settlement", V "maturity", V "frequency", V "basis"] three_d (None, Some(&[0, 1]), Some(&[2, 3])); context [NumericMode, Environment]; ;
+    15 "COUPPCD" (3, 4) [V "settlement", V "maturity", V "frequency", V "basis"] three_d (None, Some(&[0, 1]), Some(&[2, 3])); context [NumericMode, Environment]; ;
+    16 "DISC" (4, 5) [V "settlement", V "maturity", V "pr", V "redemption", V "basis"] three_d (None, Some(&[]), None); context [NumericMode, Environment]; ;
+    17 "INTRATE" (4, 5) [V "settlement", V "maturity", V "investment", V "redemption", V "basis"] three_d (None, Some(&[]), None); context [NumericMode, Environment]; ;
+    18 "RECEIVED" (4, 5) [V "settlement", V "maturity", V "investment", V "discount", V "basis"] three_d (None, Some(&[]), None); context [NumericMode, Environment]; ;
+    19 "PRICEDISC" (4, 5) [V "settlement", V "maturity", V "discount", V "redemption", V "basis"] three_d (None, Some(&[]), None); context [NumericMode, Environment]; ;
+    20 "TBILLEQ" (3, 3) [V "settlement", V "maturity", V "discount"] three_d (None, Some(&[]), None); context [NumericMode, Environment]; ;
+    21 "TBILLPRICE" (3, 3) [V "settlement", V "maturity", V "discount"] three_d (None, Some(&[]), None); context [NumericMode, Environment]; ;
+    22 "TBILLYIELD" (3, 3) [V "settlement", V "maturity", V "pr"] three_d (None, Some(&[]), None); context [NumericMode, Environment]; ;
+    23 "ODDFPRICE" (8, 9) [V "settlement", V "maturity", V "issue", V "first_coupon", V "rate", V "yld", V "redemption", V "frequency", V "basis"] three_d (None, Some(&[]), None); context [NumericMode, Environment]; ;
+    24 "ODDFYIELD" (8, 9) [V "settlement", V "maturity", V "issue", V "first_coupon", V "rate", V "pr", V "redemption", V "frequency", V "basis"] three_d (None, Some(&[]), None); context [NumericMode, Environment]; ;
+    25 "ODDLPRICE" (7, 8) [V "settlement", V "maturity", V "last_interest", V "rate", V "yld", V "redemption", V "frequency", V "basis"] three_d (None, Some(&[]), None); context [NumericMode, Environment]; ;
+    26 "ODDLYIELD" (7, 8) [V "settlement", V "maturity", V "last_interest", V "rate", V "pr", V "redemption", V "frequency", V "basis"] three_d (None, Some(&[]), None); context [NumericMode, Environment]; ;
     }
 }
 
@@ -331,14 +334,14 @@ pub mod host_facts {
     pub const CODE: u16 = 204;
     data_family! {
         code: CODE;
-    1 "CELL" (1, 2) [V "info_type", F "reference" @Reference] traits lift_dynamic_references; volatile true; three_d (None, Some(&[1]), Some(&[0])); ;
-    2 "INFO" (1, 1) [V "type_text"] volatile true; three_d (None, None, Some(&[])); ;
-    3 "SHEET" (0, 1) [R "value" ~ AggregateAtRoot] traits value_error_references; volatile true; three_d (Some(&[0]), None, None); ;
-    4 "SHEETS" (0, 1) [R "reference" ~ ArrayAtRoot] traits value_error_references; volatile true; three_d (Some(&[0]), None, None); ;
-    5 "FORMULATEXT" (1, 1) [F "reference" @Reference] traits lift_dynamic_references; volatile true; three_d (None, Some(&[]), None); ;
-    6 "ADDRESS" (2, 5) [V "row_num", V "column_num", V "abs_num", V "a1", V "sheet_text"] three_d (None, None, Some(&[])); ;
-    7 "GETPIVOTDATA" (2, 254) [R "data_field", R "pivot_table", V "field1", V "item1"] ;
-    8 "TRANSPOSE" (1, 1) [R "array" ~ AggregateAlwaysIntersectReference] traits value_error_references; three_d (None, None, Some(&[])); ;
+    1 "CELL" (1, 2) [V "info_type", F "reference" @Reference] traits lift_dynamic_references; volatile true; three_d (None, Some(&[1]), Some(&[0])); context [NumericMode, Host, Environment]; ;
+    2 "INFO" (1, 1) [V "type_text"] volatile true; three_d (None, None, Some(&[])); context [NumericMode, Host]; ;
+    3 "SHEET" (0, 1) [R "value" ~ AggregateAtRoot] traits value_error_references; volatile true; three_d (Some(&[0]), None, None); context [NumericMode, Host]; ;
+    4 "SHEETS" (0, 1) [R "reference" ~ ArrayAtRoot] traits value_error_references; volatile true; three_d (Some(&[0]), None, None); context [NumericMode, Host]; ;
+    5 "FORMULATEXT" (1, 1) [F "reference" @Reference] traits lift_dynamic_references; volatile true; three_d (None, Some(&[]), None); context [Host]; ;
+    6 "ADDRESS" (2, 5) [V "row_num", V "column_num", V "abs_num", V "a1", V "sheet_text"] three_d (None, None, Some(&[])); context [NumericMode]; ;
+    7 "GETPIVOTDATA" (2, 254) [R "data_field", R "pivot_table", V "field1", V "item1"] context [NumericMode, Host]; ;
+    8 "TRANSPOSE" (1, 1) [R "array" ~ AggregateAlwaysIntersectReference] traits value_error_references; three_d (None, None, Some(&[])); context [Cells]; ;
     9 "FIELDVALUE" (2, 2) [V "value" ~ SingleValue, V "field_name" ~ SingleValue] ;
     }
 }
@@ -366,15 +369,15 @@ pub mod financial {
     16 "CUMIPMT" (6, 6) [V "rate", V "nper", V "pv", V "start_period", V "end_period", V "type"] three_d (None, Some(&[]), None); ;
     17 "CUMPRINC" (6, 6) [V "rate", V "nper", V "pv", V "start_period", V "end_period", V "type"] three_d (None, Some(&[]), None); ;
     18 "IRR" (1, 2) [R "values" ~ ArrayAtRoot, V "guess"] three_d (None, Some(&[0]), Some(&[1])); ;
-    19 "XNPV" (3, 3) [V "rate", R "values" ~ AggregateAtRoot, R "dates" ~ AggregateAtRoot] three_d (None, Some(&[]), None); ;
-    20 "XIRR" (2, 3) [R "values" ~ AggregateAtRoot, R "dates" ~ AggregateAtRoot, V "guess"] three_d (None, Some(&[]), None); ;
+    19 "XNPV" (3, 3) [V "rate", R "values" ~ AggregateAtRoot, R "dates" ~ AggregateAtRoot] three_d (None, Some(&[]), None); context [NumericMode, Environment, Cells]; ;
+    20 "XIRR" (2, 3) [R "values" ~ AggregateAtRoot, R "dates" ~ AggregateAtRoot, V "guess"] three_d (None, Some(&[]), None); context [NumericMode, Environment, Cells]; ;
     21 "SLN" (3, 3) [V "cost", V "salvage", V "life"] three_d (None, None, Some(&[])); ;
     22 "SYD" (4, 4) [V "cost", V "salvage", V "life", V "per"] three_d (None, None, Some(&[])); ;
     23 "DB" (4, 5) [V "cost", V "salvage", V "life", V "period", V "month"] three_d (None, None, Some(&[])); ;
     24 "DDB" (4, 5) [V "cost", V "salvage", V "life", V "period", V "factor"] three_d (None, None, Some(&[])); ;
     25 "VDB" (5, 7) [V "cost", V "salvage", V "life", V "start_period", V "end_period", V "factor", V "no_switch"] three_d (None, None, Some(&[])); ;
-    26 "AMORLINC" (6, 7) [V "cost", V "date_purchased", V "first_period", V "salvage", V "period", V "rate", V "basis"] three_d (None, Some(&[]), None); ;
-    27 "AMORDEGRC" (6, 7) [V "cost", V "date_purchased", V "first_period", V "salvage", V "period", V "rate", V "basis"] three_d (None, Some(&[]), None); ;
+    26 "AMORLINC" (6, 7) [V "cost", V "date_purchased", V "first_period", V "salvage", V "period", V "rate", V "basis"] three_d (None, Some(&[]), None); context [NumericMode, Environment]; ;
+    27 "AMORDEGRC" (6, 7) [V "cost", V "date_purchased", V "first_period", V "salvage", V "period", V "rate", V "basis"] three_d (None, Some(&[]), None); context [NumericMode, Environment]; ;
     28 "DOLLARDE" (2, 2) [V "fractional_dollar", V "fraction"] three_d (None, Some(&[]), None); ;
     29 "DOLLARFR" (2, 2) [V "decimal_dollar", V "fraction"] three_d (None, Some(&[]), None); ;
     }
@@ -385,36 +388,39 @@ pub mod dates {
     pub const CODE: u16 = 203;
     pub const WEEKNUM: FunctionId = FunctionId::new(CODE, 17);
     pub const ISOWEEKNUM: FunctionId = FunctionId::new(CODE, 18);
-    /// The functions that read and set a recalculation pass's WEEKNUM week start
-    /// (`WeekState`, dc-amhpx): a cell calling one holds the pass-wide state.
-    pub const PASS_WEEK_STATE: &[FunctionId] = &[WEEKNUM, ISOWEEKNUM];
+    pub const YEAR: FunctionId = FunctionId::new(CODE, 3);
+    pub const MONTH: FunctionId = FunctionId::new(CODE, 4);
+    pub const DAY: FunctionId = FunctionId::new(CODE, 5);
+    pub const HOUR: FunctionId = FunctionId::new(CODE, 6);
+    pub const MINUTE: FunctionId = FunctionId::new(CODE, 7);
+    pub const SECOND: FunctionId = FunctionId::new(CODE, 8);
     data_family! {
         code: CODE;
-    1 "DATE" (3, 3) [V "year", V "month", V "day"] three_d (None, None, Some(&[])); ;
-    2 "TIME" (3, 3) [V "hour", V "minute", V "second"] three_d (None, None, Some(&[])); ;
-    3 "YEAR" (1, 1) [V "serial_number"] three_d (None, None, Some(&[])); ;
-    4 "MONTH" (1, 1) [V "serial_number"] three_d (None, None, Some(&[])); ;
-    5 "DAY" (1, 1) [V "serial_number"] three_d (None, None, Some(&[])); ;
-    6 "HOUR" (1, 1) [V "serial_number"] three_d (None, None, Some(&[])); ;
-    7 "MINUTE" (1, 1) [V "serial_number"] three_d (None, None, Some(&[])); ;
-    8 "SECOND" (1, 1) [V "serial_number"] three_d (None, None, Some(&[])); ;
-    9 "DAYS" (2, 2) [V "end_date", V "start_date"] three_d (None, None, Some(&[])); ;
-    10 "DAYS360" (2, 3) [V "start_date", V "end_date", V "method"] three_d (None, None, Some(&[])); ;
-    11 "DATEDIF" (3, 3) [V "start_date", V "end_date", V "unit"] three_d (None, None, Some(&[])); ;
-    12 "DATEVALUE" (1, 1) [V "date_text"] three_d (None, None, Some(&[])); ;
-    13 "TIMEVALUE" (1, 1) [V "time_text"] three_d (None, None, Some(&[])); ;
-    14 "EDATE" (2, 2) [V "start_date", V "months"] three_d (None, Some(&[]), None); ;
-    15 "EOMONTH" (2, 2) [V "start_date", V "months"] three_d (None, Some(&[]), None); ;
-    16 "WEEKDAY" (1, 2) [V "serial_number", V "return_type"] three_d (None, None, Some(&[])); ;
-    17 "WEEKNUM" (1, 2) [V "serial_number", V "return_type"] three_d (None, Some(&[]), None); ;
-    18 "ISOWEEKNUM" (1, 1) [V "date"] three_d (None, None, Some(&[])); ;
-    19 "WORKDAY" (2, 3) [V "start_date", V "days", R "holidays" ~ AggregateAtRoot] three_d (None, Some(&[]), None); ;
-    20 "WORKDAY.INTL" (2, 4) [V "start_date", V "days", V "weekend", R "holidays"] three_d (None, Some(&[0, 1, 3]), Some(&[2])); ;
-    21 "NETWORKDAYS" (2, 3) [V "start_date", V "end_date", R "holidays" ~ AggregateAtRoot] three_d (None, Some(&[]), None); ;
-    22 "NETWORKDAYS.INTL" (2, 4) [V "start_date", V "end_date", V "weekend", R "holidays"] three_d (None, Some(&[0, 1, 3]), Some(&[2])); ;
-    23 "YEARFRAC" (2, 3) [V "start_date", V "end_date", V "basis"] three_d (None, Some(&[]), None); ;
-    24 "NOW" (0, 0) [] volatile true; ;
-    25 "TODAY" (0, 0) [] volatile true; ;
+    1 "DATE" (3, 3) [V "year", V "month", V "day"] three_d (None, None, Some(&[])); context [NumericMode, Environment]; ;
+    2 "TIME" (3, 3) [V "hour", V "minute", V "second"] three_d (None, None, Some(&[])); context [NumericMode]; ;
+    3 "YEAR" (1, 1) [V "serial_number"] three_d (None, None, Some(&[])); context [NumericMode, Environment]; ;
+    4 "MONTH" (1, 1) [V "serial_number"] three_d (None, None, Some(&[])); context [NumericMode, Environment]; ;
+    5 "DAY" (1, 1) [V "serial_number"] three_d (None, None, Some(&[])); context [NumericMode, Environment]; ;
+    6 "HOUR" (1, 1) [V "serial_number"] three_d (None, None, Some(&[])); context [NumericMode, Environment]; ;
+    7 "MINUTE" (1, 1) [V "serial_number"] three_d (None, None, Some(&[])); context [NumericMode, Environment]; ;
+    8 "SECOND" (1, 1) [V "serial_number"] three_d (None, None, Some(&[])); context [NumericMode, Environment]; ;
+    9 "DAYS" (2, 2) [V "end_date", V "start_date"] three_d (None, None, Some(&[])); context [NumericMode, Environment]; ;
+    10 "DAYS360" (2, 3) [V "start_date", V "end_date", V "method"] three_d (None, None, Some(&[])); context [NumericMode, Environment]; ;
+    11 "DATEDIF" (3, 3) [V "start_date", V "end_date", V "unit"] three_d (None, None, Some(&[])); context [NumericMode, Environment]; ;
+    12 "DATEVALUE" (1, 1) [V "date_text"] three_d (None, None, Some(&[])); context [NumericMode, Environment, NumberSeparators]; ;
+    13 "TIMEVALUE" (1, 1) [V "time_text"] three_d (None, None, Some(&[])); context [NumericMode, Environment, NumberSeparators]; ;
+    14 "EDATE" (2, 2) [V "start_date", V "months"] three_d (None, Some(&[]), None); context [NumericMode, Environment]; ;
+    15 "EOMONTH" (2, 2) [V "start_date", V "months"] three_d (None, Some(&[]), None); context [NumericMode, Environment]; ;
+    16 "WEEKDAY" (1, 2) [V "serial_number", V "return_type"] three_d (None, None, Some(&[])); context [NumericMode, Environment]; ;
+    17 "WEEKNUM" (1, 2) [V "serial_number", V "return_type"] three_d (None, Some(&[]), None); context [NumericMode, Environment, WeekState]; ;
+    18 "ISOWEEKNUM" (1, 1) [V "date"] three_d (None, None, Some(&[])); context [NumericMode, Environment, WeekState]; ;
+    19 "WORKDAY" (2, 3) [V "start_date", V "days", R "holidays" ~ AggregateAtRoot] three_d (None, Some(&[]), None); context [NumericMode, Environment, Cells]; ;
+    20 "WORKDAY.INTL" (2, 4) [V "start_date", V "days", V "weekend", R "holidays"] three_d (None, Some(&[0, 1, 3]), Some(&[2])); context [NumericMode, Environment, Cells]; ;
+    21 "NETWORKDAYS" (2, 3) [V "start_date", V "end_date", R "holidays" ~ AggregateAtRoot] three_d (None, Some(&[]), None); context [NumericMode, Environment, Cells]; ;
+    22 "NETWORKDAYS.INTL" (2, 4) [V "start_date", V "end_date", V "weekend", R "holidays"] three_d (None, Some(&[0, 1, 3]), Some(&[2])); context [NumericMode, Environment, Cells]; ;
+    23 "YEARFRAC" (2, 3) [V "start_date", V "end_date", V "basis"] three_d (None, Some(&[]), None); context [NumericMode, Environment]; ;
+    24 "NOW" (0, 0) [] volatile true; context [NumericMode, Environment]; ;
+    25 "TODAY" (0, 0) [] volatile true; context [NumericMode, Environment]; ;
     }
 }
 
@@ -538,8 +544,8 @@ pub mod subtotal {
     pub const CODE: u16 = 102;
     data_family! {
         code: CODE;
-    1 "SUBTOTAL" (2, 255) [V "function_num", F "ref1" @Reference ~ ArrayAlwaysLiftReferences, F "ref2" @Reference ~ ArrayAlwaysLiftReferencesRepeated] traits skip_nested_subtotals, lift_dynamic_references; three_d (None, Some(&[1, usize::MAX]), Some(&[0])); ;
-    2 "AGGREGATE" (3, 253) [V "function_num", V "options", R "ref1" ~ ArrayAtRoot, R "ref2" ~ AggregateAtRoot, R "ref3" @Reference] traits skip_nested_subtotals, value_error_references, lift_references_after_ref1; three_d (None, Some(&[2, usize::MAX]), Some(&[0, 1])); ;
+    1 "SUBTOTAL" (2, 255) [V "function_num", F "ref1" @Reference ~ ArrayAlwaysLiftReferences, F "ref2" @Reference ~ ArrayAlwaysLiftReferencesRepeated] traits skip_nested_subtotals, lift_dynamic_references; three_d (None, Some(&[1, usize::MAX]), Some(&[0])); context [NumericMode, Cells]; ;
+    2 "AGGREGATE" (3, 253) [V "function_num", V "options", R "ref1" ~ ArrayAtRoot, R "ref2" ~ AggregateAtRoot, R "ref3" @Reference] traits skip_nested_subtotals, value_error_references, lift_references_after_ref1; three_d (None, Some(&[2, usize::MAX]), Some(&[0, 1])); context [NumericMode, Cells]; ;
     }
 }
 
@@ -548,18 +554,18 @@ pub mod text_format {
     pub const CODE: u16 = 202;
     data_family! {
         code: CODE;
-    1 "VALUE" (1, 1) [V "text"] three_d (None, None, Some(&[])); ;
-    2 "TEXT" (2, 2) [V "value", V "format_text"] three_d (None, None, Some(&[])); ;
-    3 "FIXED" (1, 3) [V "number", V "decimals", V "no_commas"] three_d (None, None, Some(&[])); ;
-    4 "DOLLAR" (1, 2) [V "number", V "decimals"] three_d (None, None, Some(&[])); ;
-    5 "NUMBERVALUE" (1, 3) [V "text", V "decimal_separator", V "group_separator"] three_d (None, None, Some(&[])); ;
+    1 "VALUE" (1, 1) [V "text"] three_d (None, None, Some(&[])); context [NumericMode, Environment, NumberSeparators]; ;
+    2 "TEXT" (2, 2) [V "value", V "format_text"] three_d (None, None, Some(&[])); context [NumericMode, Environment, NumberSeparators]; ;
+    3 "FIXED" (1, 3) [V "number", V "decimals", V "no_commas"] three_d (None, None, Some(&[])); context [NumericMode, Environment, NumberSeparators]; ;
+    4 "DOLLAR" (1, 2) [V "number", V "decimals"] three_d (None, None, Some(&[])); context [NumericMode, Environment, NumberSeparators]; ;
+    5 "NUMBERVALUE" (1, 3) [V "text", V "decimal_separator", V "group_separator"] three_d (None, None, Some(&[])); context [NumericMode, Environment, NumberSeparators]; ;
     6 "VALUETOTEXT" (1, 2) [V "value", V "format"] three_d (None, None, Some(&[])); ;
     7 "ARRAYTOTEXT" (1, 2) [R "array" ~ ArrayAtRoot, V "format"] traits take_reference_array; three_d (None, None, Some(&[])); ;
     8 "BAHTTEXT" (1, 1) [V "number"] three_d (None, None, Some(&[])); ;
     9 "ASC" (1, 1) [V "text"] three_d (None, None, Some(&[])); ;
     10 "DBCS" (1, 1) [V "text"] three_d (None, None, Some(&[])); ;
     100 "JIS" (1, 1) [V "text"] availability AbsentOnWindows; ;
-    12 "PHONETIC" (1, 1) [F "reference" @Reference] three_d (None, Some(&[]), None); ;
+    12 "PHONETIC" (1, 1) [F "reference" @Reference] three_d (None, Some(&[]), None); context [Cells]; ;
     13 "TEXTBEFORE" (2, 6) [V "text", R "delimiter" ~ AggregateAtRoot, V "instance_num", V "match_mode", V "match_end", V "if_not_found"] three_d (None, None, Some(&[])); ;
     14 "TEXTAFTER" (2, 6) [V "text", R "delimiter" ~ AggregateAtRoot, V "instance_num", V "match_mode", V "match_end", V "if_not_found"] three_d (None, None, Some(&[])); ;
     15 "TEXTSPLIT" (2, 6) [V "text", R "col_delimiter" ~ AggregateAtRoot, R "row_delimiter" ~ AggregateAtRoot, V "ignore_empty", V "match_mode", V "pad_with"] three_d (None, None, Some(&[])); ;
@@ -615,9 +621,9 @@ pub mod random {
     pub const CODE: u16 = 106;
     data_family! {
         code: CODE;
-    1 "RAND" (0, 0) [] volatile true; ;
-    2 "RANDBETWEEN" (2, 2) [V "bottom", V "top"] volatile true; three_d (None, Some(&[]), None); ;
-    3 "RANDARRAY" (0, 5) [V "rows", V "columns", V "min", V "max", V "whole_number"] volatile true; ;
+    1 "RAND" (0, 0) [] volatile true; context [NumericMode, Random]; ;
+    2 "RANDBETWEEN" (2, 2) [V "bottom", V "top"] volatile true; three_d (None, Some(&[]), None); context [NumericMode, Random]; ;
+    3 "RANDARRAY" (0, 5) [V "rows", V "columns", V "min", V "max", V "whole_number"] volatile true; context [NumericMode, Random]; ;
     }
 }
 

@@ -704,6 +704,11 @@ impl<'c> FunctionCallTarget<'c> {
         self.entry.traits
     }
 
+    /// Whether the catalogue declares that this function uses the specified evaluation facility.
+    pub fn uses_context(self, facility: calc_catalogue::ContextFacility) -> bool {
+        calc_catalogue::declaration(self.id()).is_some_and(|entry| entry.uses_context(facility))
+    }
+
     /// How a 3-D reference is handled at `index` of a call of `argc` arguments.
     pub fn three_d_place(self, index: usize, argc: usize) -> ThreeDPlace {
         self.entry.traits.three_d.at(index, argc)

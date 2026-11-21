@@ -8,7 +8,7 @@ pub const INDIRECT: FunctionId = FunctionId::new(CODE, 1);
 // 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
 pub const ENTRIES: &[WorksheetDeclaration] = &[WorksheetDeclaration {
     localized_names: None,
-    context_facilities: None,
+    context_facilities: Some(&[crate::ContextFacility::NumericMode, crate::ContextFacility::ReferenceText]),
     id: INDIRECT,
     spelling: "INDIRECT",
     notation: Notation::Call,

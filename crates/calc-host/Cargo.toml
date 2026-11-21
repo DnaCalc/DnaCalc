@@ -15,6 +15,7 @@ portability = "portable"
 # graph and calculates (HOST to ENG); calc-fml supplies the cell runs a read observer passed to
 # step is shown (HOST to FML).
 [dependencies]
+calc-catalogue = { path = "../calc-catalogue" }
 calc-value = { path = "../calc-value" }
 # Share the existing Excel colour palette with painters and colour filters.
 calc-func = { path = "../calc-func" }

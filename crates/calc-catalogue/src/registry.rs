@@ -153,6 +153,10 @@ impl DeclarationRef {
             Self::Other(x) => x.context_facilities,
         }
     }
+    pub fn uses_context(self, facility: crate::ContextFacility) -> bool {
+        self.context_facilities()
+            .is_some_and(|facilities| facilities.contains(&facility))
+    }
     pub const fn implementation(self) -> Implementation {
         match self {
             Self::Worksheet(_) => Implementation::Held,
@@ -277,9 +281,9 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn pass_week_state_names_the_week_functions() {
-        let names: Vec<_> = crate::ported::dates::PASS_WEEK_STATE
-            .iter()
-            .map(|id| super::declaration(*id).unwrap().spelling())
+        let names: Vec<_> = super::declarations()
+            .filter(|entry| entry.uses_context(crate::ContextFacility::WeekState))
+            .map(super::DeclarationRef::spelling)
             .collect();
         assert_eq!(names, ["WEEKNUM", "ISOWEEKNUM"]);
     }
