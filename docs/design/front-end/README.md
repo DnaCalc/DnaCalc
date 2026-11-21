@@ -12,6 +12,7 @@ Owner, 2026-11-20 evening: "gather everything (the designs work, brief, skin dis
 ## The sources
 
 **Our own framing**
+- [Legacy design and evidence](../LEGACY_DESIGN_REFERENCES.md) collects the pinned Strand, shell, Flow, parity and OneCalc sources for review.
 - [docs/plan/FRONT_END_SCOPE.md](../../plan/FRONT_END_SCOPE.md): the one-page scope (layers, five views by persona, views in a workbook, agent customisation) and the skin status review of 2026-11-20 (section 5).
 - [docs/plan/FRONT_END_IMPLEMENTATION_BRIEF.md](../../plan/FRONT_END_IMPLEMENTATION_BRIEF.md): the internal design brief, with the level-0 formula host, the Formula Explorer as skin 0, and calc-host's role still open.
 - [SKIN_DISCUSSION.md](SKIN_DISCUSSION.md): the owner's direction from the 2026-11-20 UI thread, in order.
