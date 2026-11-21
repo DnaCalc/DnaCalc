@@ -6,6 +6,29 @@ DSUM, DCOUNT, DAVERAGE, DMIN, DMAX, DPRODUCT, REGEXTEST, REGEXEXTRACT, REGEXREPL
 IMTAN. This file lists every failing corpus cell behind those entries, groups them by cause, and
 says what was fixed and what stays open. Bead: dc-vdma.
 
+## Master recheck, 2026-11-21
+
+The Linux run at `8b23b567` used the committed Excel captures with
+`cargo xtask corpus --oracle --no-capture`. All 17 entries recovered on their
+original 35 cells. The 18 entry refusals below agree with Excel's refusals, and
+the other 17 cells match their observed values. The 10 off-axis complex cells
+now pass following `76f55040`, `86929992`, `d80beb02` and `f481083a`.
+
+| Original cause | Functions | Matching values | Agreed entry refusals | Remaining failures |
+|---|---|---:|---:|---:|
+| A, formula entry and capture origin | SUM, SUBTOTAL, AGGREGATE, DSUM, DCOUNT, DAVERAGE, DMIN, DMAX, DPRODUCT, ROW, COLUMN, XMATCH | 3 | 18 | 0 |
+| B, regex pattern engine | REGEXTEST, REGEXEXTRACT, REGEXREPLACE | 4 | 0 | 0 |
+| C, off-axis complex functions | IMTAN, IMCOT | 10 | 0 | 0 |
+
+The jnt workbook passed 17,936 of 17,968 cells, with 32 mismatches outside
+the original set. Across 63 workbooks the corpus passed 78,098 of 78,296
+cells (99.74%). The 198 failures comprise 105 mismatches, 1 refusal,
+5 failed or missing results, 73 external-link holds and 14 circular holds.
+The reported calls in the remaining failures name none of the 17 functions.
+
+Further off-axis numerical controls belong to dc-j9k. The sections below keep
+the original failure analysis and acquisition history.
+
 ## How the cells were found
 
 `cargo xtask corpus --oracle` on dna-koderbot (Linux, x86_64) at 4a3f5896 (b8738ae6 plus one
