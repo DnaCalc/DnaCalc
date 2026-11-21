@@ -1023,6 +1023,15 @@ fn run_workbook_with_code(
     let mut projected = page.cells().iter();
     let mut results = Vec::with_capacity(capture.formulas.len());
     let mut dna = Vec::with_capacity(capture.formulas.len());
+    let repaired: HashMap<_, _> = host
+        .loaded()
+        .repairs()
+        .iter()
+        .filter_map(|repair| match repair {
+            calc_host::LoadRepair::RejectedFormulaValue { at, rule } => Some((*at, rule)),
+            _ => None,
+        })
+        .collect();
     for (formula, key) in capture.formulas.iter().zip(&keys) {
         let cell = formula.cell.clone();
         if key.is_none() {
@@ -1042,14 +1051,18 @@ fn run_workbook_with_code(
         let projected = projected
             .next()
             .expect("the projection returns one cell per requested cell");
-        // A formula Excel's entry refuses, which the loader left without input (dc-mx3x): the
-        // run's claim that Excel refuses it, judged against Excel's entry.
-        if let Some(calc_host::UnloadedCell::RejectedFormula { rule, .. }) =
-            key.and_then(|at| host.model().definitions().unloaded(at).cloned())
-        {
+        // A rejected stored formula retains rejection provenance even when its saved scalar
+        // became a constant in the repaired workbook.
+        let rejected = key.and_then(|at| {
+            repaired.get(&at).copied().or_else(|| match host.model().definitions().unloaded(at) {
+                Some(calc_host::UnloadedCell::RejectedFormula { rule, .. }) => Some(rule),
+                _ => None,
+            })
+        });
+        if let Some(rule) = rejected {
             results.push(CellResult {
                 cell,
-                provenance: Provenance::Rejected { rule },
+                provenance: Provenance::Rejected { rule: rule.clone() },
                 value: None,
             });
             dna.push(Dna::Rejected);

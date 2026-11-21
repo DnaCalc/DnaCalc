@@ -68,9 +68,7 @@ pub(super) struct SheetLoad {
     pub(super) validations: Vec<super::validation::Validation>,
     /// The sheet's sparkline groups (dc-zjsg.7).
     pub(super) sparklines: Vec<calc_doc_model::SparklineGroup>,
-    /// The cells (row, column) whose plain formula lay inside an array formula's area and was
-    /// dropped, as Excel repairs it ([`super::LoadRepair::FormulaInsideArray`]).
-    pub(super) dropped_array_formulas: Vec<(u32, u32)>,
+    pub(super) repairs: Vec<super::LoadRepair>,
 }
 
 /// An area some of whose cells are still to be read, whose cells are not inputs: what an array
@@ -350,9 +348,9 @@ impl Sheet<'_> {
 
     /// Whether Excel's formula entry refuses `text`, the formula of the cell at `row` and
     /// `column` as the file stores it, by a measured rule ([`calc_fml::check_entry`]; a parser
-    /// diagnostic, which may be syntax this parser does not hold, is left to the compiler). Such
-    /// a cell is recorded as unloaded ([`calc_doc_model::UnloadedCell::RejectedFormula`]), with
-    /// what the file cached for it, and given no input.
+    /// diagnostic, which may be syntax this parser does not hold, is left to the compiler).
+    /// Excel's repair keeps a cached scalar as a constant. A blank or a cache the input
+    /// model cannot represent is recorded as unloaded.
     fn rejected(
         &mut self,
         row: u32,
@@ -368,6 +366,21 @@ impl Sheet<'_> {
             return false;
         }
         let key = self.key(row, column);
+        let constant = match cache {
+            Some(CachedValue::Number(value)) => Some(CellInput::Number(*value)),
+            Some(CachedValue::Text(value)) => Some(CellInput::Text(value.clone())),
+            Some(CachedValue::Logical(value)) => Some(CellInput::Logical(*value)),
+            Some(CachedValue::Error(value)) => Some(CellInput::Error(*value)),
+            Some(CachedValue::Image(_)) | None => None,
+        };
+        let rule = rejection.rule.to_string();
+        if let Some(input) = constant {
+            self.load.inputs.push((key, input));
+            self.load
+                .repairs
+                .push(super::LoadRepair::RejectedFormulaValue { at: key, rule });
+            return true;
+        }
         if let Some(cached) = cache {
             let cached = FileCached::new(cached.clone(), Arc::clone(&self.part));
             self.load.value_caches.insert((row, column), cached);
@@ -375,7 +388,7 @@ impl Sheet<'_> {
         self.load.unloaded.push((
             key,
             calc_doc_model::UnloadedCell::RejectedFormula {
-                rule: rejection.rule.to_string(),
+                rule,
                 cached: cache.is_some(),
             },
         ));
@@ -556,7 +569,11 @@ impl Sheet<'_> {
                     .as_ref()
                     .is_some_and(|f| !f.text.is_empty() && plain(f));
             if dropped {
-                self.load.dropped_array_formulas.push((row, column));
+                self.load.repairs.push(super::LoadRepair::FormulaInsideArray {
+                    sheet: self.id,
+                    row,
+                    column,
+                });
             } else if formula.is_some() && !cache_marker {
                 return Err(fail(CellError::Malformed {
                     detail: "a formula inside the area an array formula or data table fills",
@@ -1066,7 +1083,7 @@ fn empty_load(source: Arc<SourcePart>) -> SheetLoad {
         conditional_formats: Vec::new(),
         validations: Vec::new(),
         sparklines: Vec::new(),
-        dropped_array_formulas: Vec::new(),
+        repairs: Vec::new(),
     }
 }
 
@@ -1133,7 +1150,7 @@ pub(super) fn load_sheet(
             conditional_formats: Vec::new(),
             validations: Vec::new(),
             sparklines: Vec::new(),
-            dropped_array_formulas: Vec::new(),
+            repairs: Vec::new(),
         },
         groups: BTreeMap::new(),
         members: Vec::new(),

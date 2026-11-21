@@ -437,6 +437,7 @@ impl HostState {
                     "sheet_relationship_missing"
                 }
                 calc_doc::LoadRepair::FormulaInsideArray { .. } => "formula_inside_array",
+                calc_doc::LoadRepair::RejectedFormulaValue { .. } => "rejected_formula_value",
                 calc_doc::LoadRepair::DuplicateSheetId { .. } => "duplicate_sheet_id",
             };
             *repair_counts.entry(kind).or_default() += 1;

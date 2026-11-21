@@ -429,6 +429,8 @@ pub enum LoadRepair {
         row: u32,
         column: u32,
     },
+    /// Excel removed a rejected stored formula and kept its cached scalar as a constant.
+    RejectedFormulaValue { at: CellKey, rule: String },
     /// A later sheet repeats an earlier sheet's `sheetId` (`id`): Excel keeps both sheets and gives
     /// the later one a new id (`now`), the next above the highest the workbook part declares.
     DuplicateSheetId { sheet: SheetId, id: u32, now: u32 },
@@ -2192,13 +2194,7 @@ pub fn load_preserving_sheet_ids(
                     conditional_sources.push((id, loaded.conditional_sources));
                 }
                 cells.extend(loaded.inputs);
-                repairs.extend(loaded.dropped_array_formulas.iter().map(|&(row, column)| {
-                    LoadRepair::FormulaInsideArray {
-                        sheet: id,
-                        row,
-                        column,
-                    }
-                }));
+                repairs.extend(loaded.repairs);
                 arrays.extend(loaded.arrays);
                 data_tables.extend(loaded.data_tables.iter().copied());
                 hidden_rows.extend(

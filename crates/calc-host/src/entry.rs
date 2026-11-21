@@ -105,10 +105,9 @@ pub fn interpret_entry_in(
             formula.encode_utf16().collect(),
         ))
         .map_err(|_| EntryRefusal::EmptyFormula)?;
-        // The text is stored as typed, and read as a file stores it (calc_fml::compile_loaded),
-        // so it is checked as that. A parser diagnostic may be syntax this parser does not hold:
-        // the compiler reports it.
-        if let Err(rejection) = calc_fml::check_entry(&calc_fml::parse_formula(text), true)
+        // Apply Excel's formula-entry rules to the typed text. A parser diagnostic may be
+        // syntax this parser does not hold. The compiler reports it.
+        if let Err(rejection) = calc_fml::check_entry(&calc_fml::parse_formula(text), false)
             && rejection.rule.is_measured()
         {
             return Err(EntryRefusal::Rejected {
@@ -326,6 +325,7 @@ mod tests {
         for refused in [
             "=IRR()",
             "=COUNTBLANK(2)",
+            "=_xlfn.ANCHORARRAY(B1)",
             "=LET(xx,1,XX,2,xx)",
             "=LAMBDA(xx,XX,xx)(1,2)",
             "=IFERROR(#N/A,LAMBDA(xx,xx))(3)",

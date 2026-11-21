@@ -10836,6 +10836,49 @@ fn shared_block_package() -> Vec<u8> {
     })
 }
 
+/// Excel 16.0.20527 repairs rejected IRR() and COUNTBLANK(2) file formulas to their saved numbers.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_mx3x_1__rejected_cached_scalar_formulas_become_literals() {
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        xml.replace(
+            "<sheetData/>",
+            concat!(
+                r#"<sheetData><row r="1"><c r="A1"><f>IRR()</f><v>5</v></c>"#,
+                r#"<c r="B1"><f>A1</f></c></row>"#,
+                r#"<row r="2"><c r="A2"><f>COUNTBLANK(2)</f><v>5</v></c>"#,
+                r#"<c r="B2"><f>A2</f></c></row></sheetData>"#,
+            ),
+        )
+    });
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    let five = CalcValue::number(5.0);
+    for address in ["A1", "A2"] {
+        assert_eq!(
+            value(book.host(), at(s, address)),
+            ProjectedValue::Literal(five.clone())
+        );
+    }
+    assert_eq!(book.host().open_report().repairs.len(), 2);
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    for address in ["B1", "B2"] {
+        assert_eq!(calculated(book.host(), at(s, address)), Some(five.clone()));
+    }
+    assert!(enter(&mut book, at(s, "C1"), "7").accepted());
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = open(&saved);
+    let s = reopened.sheets()[0].id();
+    assert!(reopened.open_report().repairs.is_empty());
+    for address in ["A1", "A2"] {
+        assert_eq!(
+            value(&reopened, at(s, address)),
+            ProjectedValue::Literal(five.clone())
+        );
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_hsa5_8__sparse_result_columns_compact_without_recalculation() {

@@ -1998,6 +1998,11 @@ impl Server {
                     calc_host::LoadRepair::FormulaInsideArray { row, column, .. } => {
                         format!("formula inside an array dropped at row {row}, column {column}")
                     }
+                    calc_host::LoadRepair::RejectedFormulaValue { at, .. } => format!(
+                        "kept the saved value of a rejected formula at row {}, column {}",
+                        at.row(),
+                        at.column()
+                    ),
                     calc_host::LoadRepair::DuplicateSheetId { id, now, .. } => {
                         format!("sheet id {id} repeated; the later sheet is now {now}")
                     }

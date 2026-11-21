@@ -246,7 +246,7 @@ fn differential(bytes: &[u8], name: &str, spill: bool, threads: usize) {
         if spill {
             setup.push(set(
                 at(r, 'O'),
-                &format!("=SUM(_xlfn.ANCHORARRAY(H{R0}))+M{r}"),
+                &format!("=SUM(H{R0}#)+M{r}"),
             ));
         } else {
             setup.push(set(at(r, 'H'), &format!("{}", (r - R0) * 10)));
