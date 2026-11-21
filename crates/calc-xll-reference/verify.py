@@ -1676,14 +1676,20 @@ def verify_workbook_pool(excel, excel_control, host, host_control, cases_path, p
     expected_entries = {"MyOverlap":4, "MyOverlapMax":2, "MyOverlapReset":1, "MyWorkerCallbacks":2, "MyWorkerReference":2, "MyWorkerOwned":2, "MyFreeCount":2}
     if not all(counts == expected_entries for counts in entry_counts): failures.append("Entry and calculation occurrences missing or repeated")
     if not all(o["owned_returns"] == o["free_calls"] == 2 for o in ownership): failures.append("Owned result/free counts differ")
-    require(worker_calls[0] == worker_calls[1], "Calculation-phase barrier calls differ")
-    require(not failures, "; ".join(failures))
-    # C.1: each native invocation (required equal above) is an ordered boundary row; frees and each
-    # host's teardown are lifecycle rows.
-    lanes = (pass_rows("value_cases", len(cases)) + pass_rows("ordered_boundary_cases", sum(entry_counts[0].values()))
-             + pass_rows("lifecycle_ownership_cases", ownership[0]["free_calls"] + 2))
-    return {"status":"verified within-workbook legacy scalar pool", "formula_cases":len(cases),
-            "counts": four_counts(lanes), "manifest": comparison_manifest(envs[0], jsonl(excel / "controller.jsonl"), cases, envs[2:]), "native_invocations_each_host":sum(entry_counts[0].values()),
+    if worker_calls[0] != worker_calls[1]: failures.append("Calculation-phase barrier calls differ")
+    profile = {
+        "counts": workbook_pool_counts(outcomes, records, ownership),
+        "manifest": comparison_manifest(envs[0], jsonl(excel / "controller.jsonl"), cases, envs[2:]),
+    }
+    if failures:
+        return {"status": "failed verification", "error": "; ".join(failures), "error_type": "AssertionError",
+                **profile, "formula_outcomes": outcomes, "overlap_excel_and_host": overlaps,
+                "calculation_phase_calls_excel_and_host": worker_calls, "native_invocations_excel_and_host": records,
+                "native_entry_counts_excel_and_host": entry_counts, "ownership_excel_and_host": ownership,
+                "source_bindings_checked": source_bindings_checked, "compatibility_failures": failures,
+                "scope": "Strict workbook pool comparison failed. Counts retain the individual formula, boundary and ownership observations."}
+    return {"status":"verified within-workbook legacy scalar pool", "formula_cases":len(cases), **profile,
+            "native_invocations_each_host":sum(entry_counts[0].values()),
             "native_records":records[0], "overlap_excel_and_host":overlaps,"ownership_excel_and_host":ownership,"host_results":outputs,
             "source_bindings_checked":sum(len(e["source_files"])+2 for e in envs),
             "scope":"Two independent explicitly legacy scalar cells in one workbook, distinct worker entries, owner-serviced callbacks, exact P07 activations and same-thread frees. Dynamic spill formulas stay ordered; volatile plans and additional dynamic callback prerequisites are outside this concurrent route."}
@@ -1757,7 +1763,12 @@ def verify_permissions(excel, control, hosts, cases_path, publication_path):
     require(len({env["shim_sha256"] for env in environments[2:]}) == 1, "Permission companion binary changed during the batch")
     verify_sources(environments, publication_path)
     matched = sum(r["matched_formula"] for r in rows)
+    lanes = [{"lane": "ordered_boundary_cases",
+              "outcome": "pass" if row["matched_formula"] else "mismatched" if row["host_calculated"] else "refused"}
+             for row in rows]
     return {"status": "measured permission matrix; refusals remain failures", "requests": len(rows), "pass": matched, "fail": len(rows) - matched, "pass_rate_all_requests": matched / len(rows), "callback_codes_matched": sum(r["callback_code_match"] for r in rows), "rows": rows,
+            "counts": four_counts(lanes),
+            "manifest": comparison_manifest(environments[0], jsonl(excel / "controller.jsonl"), cases, environments[2:]),
             "source_bindings_checked": sum(len(e["source_files"]) + 2 for e in environments),
             "scope": "13 callback requests across normal, # and $ registrations. Excel boundaries are traced and controlled; each host request uses an independent real executable and records its actual callback return code. The two successful EVALUATE result types and numeric bits are also compared. Broader expressions remain outside these requests; message state is checked, UI painting is unmeasured."}
 
@@ -1807,6 +1818,26 @@ def pair_rows(lane, pairs):
     """C.1 rows from ordered {"excel", "host", "matched"} pairs: one-sided is missing, unequal is mismatched."""
     return [{"lane": lane, "outcome": "pass" if p["matched"] else "missing" if p["excel"] is None or p["host"] is None else "mismatched"}
             for p in pairs]
+
+
+def workbook_pool_counts(outcomes, records, ownership):
+    # Both Excel runs must agree with the host's verified value for a case to match.
+    n = len(outcomes) // 2
+    rows = [{"lane": "value_cases", "outcome": "pass" if traced["matched"] and control["matched"] else "mismatched"}
+            for traced, control in zip(outcomes[:n], outcomes[n:], strict=True)]
+    for name, excel_calls in records[0].items():
+        rows.extend(pair_rows("ordered_boundary_cases",
+            ({"excel": excel, "host": host, "matched": excel == host}
+             for excel, host in zip_longest(excel_calls, records[1][name]))))
+    # Count validated free relationships by owning module, plus both verified host teardowns.
+    excel_frees, host_frees = (item["by_module"] for item in ownership)
+    rows.extend(pass_rows("lifecycle_ownership_cases", 2))
+    for module in excel_frees.keys() | host_frees.keys():
+        excel, host = excel_frees.get(module, 0), host_frees.get(module, 0)
+        rows.extend(pass_rows("lifecycle_ownership_cases", min(excel, host)))
+        rows.extend({"lane": "lifecycle_ownership_cases", "outcome": "missing"}
+                    for _ in range(abs(excel - host)))
+    return four_counts(rows)
 
 
 def verify_boundary(excel, hosts, cases_path, repeat=None):

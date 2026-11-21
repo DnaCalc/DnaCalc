@@ -119,6 +119,21 @@ class FourCountTests(unittest.TestCase):
         self.assertEqual((lane["pass"], lane["mismatched"], lane["missing"], lane["fail"]), (1, 1, 2, 3))
         self.assertEqual(counts["value_cases"]["pass_rate"], 1.0)
 
+    def test_pool_counts_keep_disagreeing_controls_and_missing_calls(self):
+        traced = [{"matched": True}, {"matched": True}]
+        control = [{"matched": True}, {"matched": False}]
+        records = [{"MyPool": [{"result": 1}, {"result": 2}, {"result": 3}]},
+                   {"MyPool": [{"result": 1}, {"result": 4}]}]
+        ownership = [{"by_module": {"Pool.xll": 2}}, {"by_module": {"Pool.xll": 1}}]
+        counts = verify.workbook_pool_counts(traced + control, records, ownership)
+        self.assertEqual(counts["value_cases"]["pass"], 1)
+        self.assertEqual(counts["value_cases"]["mismatched"], 1)
+        self.assertEqual(counts["ordered_boundary_cases"]["pass"], 1)
+        self.assertEqual(counts["ordered_boundary_cases"]["mismatched"], 1)
+        self.assertEqual(counts["ordered_boundary_cases"]["missing"], 1)
+        self.assertEqual(counts["lifecycle_ownership_cases"]["pass"], 3)
+        self.assertEqual(counts["lifecycle_ownership_cases"]["missing"], 1)
+
     def test_manifest_tolerates_rows_without_operation(self):
         manifest = verify.comparison_manifest({}, [{"event": "x"}, {"operation": "RegisterXLL a", "value": 1}], [], [])
         self.assertEqual(manifest["load_order"], ["RegisterXLL a"])
