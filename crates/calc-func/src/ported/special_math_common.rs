@@ -307,27 +307,10 @@ fn gratio_exparg(l: i32) -> f64 {
     }
 }
 
-/// rexp.f: evaluation of exp(x) - 1.
-fn gratio_rexp(x: f64) -> f64 {
-    const P1: f64 = 0.914041914819518e-09;
-    const P2: f64 = 0.238082361044469e-01;
-    const Q1: f64 = -0.499999999085958e+00;
-    const Q2: f64 = 0.107141568980644e+00;
-    const Q3: f64 = -0.119041179760821e-01;
-    const Q4: f64 = 0.595130811860248e-03;
-    if x.abs() <= 0.15 {
-        return x * (((P2 * x + P1) * x + 1.0) / ((((Q4 * x + Q3) * x + Q2) * x + Q1) * x + 1.0));
-    }
-    let w = crate::ported::excel_numeric::excel_exp(x);
-    if x <= 0.0 {
-        (w - 0.5) - 0.5
-    } else {
-        w * (0.5 + (0.5 - 1.0 / w))
-    }
-}
-
-/// gam1.f: computation of 1/gamma(a+1) - 1 for -0.5 <= a <= 1.5.
+/// gam1.f: computation of 1/gamma(a+1) - 1 for -0.5 <= a <= 1.5, with stored PC64
+/// `excel_x87_*` Horner and rational ops (cb11 / dc-j9k.67).
 fn gratio_gam1(a: f64) -> f64 {
+    use crate::ported::excel_numeric::{excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_sub};
     const P: [f64; 7] = [
         0.577215664901533e+00,
         -0.409078193005776e+00,
@@ -358,35 +341,45 @@ fn gratio_gam1(a: f64) -> f64 {
     const S1: f64 = 0.273076135303957e+00;
     const S2: f64 = 0.559398236957378e-01;
     let mut t = a;
-    let d = a - 0.5;
+    let d = excel_x87_sub(a, 0.5);
     if d > 0.0 {
-        t = d - 0.5;
+        t = excel_x87_sub(d, 0.5);
     }
     if t == 0.0 {
         return 0.0;
     }
     if t > 0.0 {
-        let top = (((((P[6] * t + P[5]) * t + P[4]) * t + P[3]) * t + P[2]) * t + P[1]) * t + P[0];
-        let bot = (((Q[4] * t + Q[3]) * t + Q[2]) * t + Q[1]) * t + 1.0;
-        let w = top / bot;
+        let mut top = P[6];
+        for &coeff in P[..6].iter().rev() {
+            top = excel_x87_add(excel_x87_mul(top, t), coeff);
+        }
+        let mut bot = Q[4];
+        for &coeff in Q[..4].iter().rev() {
+            bot = excel_x87_add(excel_x87_mul(bot, t), coeff);
+        }
+        let w = excel_x87_div(top, bot);
         if d > 0.0 {
-            (t / a) * ((w - 0.5) - 0.5)
+            excel_x87_mul(
+                excel_x87_div(t, a),
+                excel_x87_sub(excel_x87_sub(w, 0.5), 0.5),
+            )
         } else {
-            a * w
+            excel_x87_mul(a, w)
         }
     } else {
-        let top = (((((((R[8] * t + R[7]) * t + R[6]) * t + R[5]) * t + R[4]) * t + R[3]) * t
-            + R[2])
-            * t
-            + R[1])
-            * t
-            + R[0];
-        let bot = (S2 * t + S1) * t + 1.0;
-        let w = top / bot;
+        let mut top = R[8];
+        for &coeff in R[..8].iter().rev() {
+            top = excel_x87_add(excel_x87_mul(top, t), coeff);
+        }
+        let bot = excel_x87_add(
+            excel_x87_mul(excel_x87_add(excel_x87_mul(S2, t), S1), t),
+            1.0,
+        );
+        let w = excel_x87_div(top, bot);
         if d > 0.0 {
-            t * w / a
+            excel_x87_div(excel_x87_mul(t, w), a)
         } else {
-            a * ((w + 0.5) + 0.5)
+            excel_x87_mul(a, excel_x87_add(excel_x87_add(w, 0.5), 0.5))
         }
     }
 }
@@ -542,38 +535,65 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
         // DEVIATION 1: no a == 0.5 special dispatch; 0.5 flows into these
         // general a < 1 branches.
         if x < 1.1 {
-            // statement 160: Taylor series for small a.
-            let mut an = 3.0;
+            // statement 160: Taylor series for small a, with TOMS 654 iop = 1 double-precision
+            // st200 branch thresholds (cb11 / dc-j9k.67), PC64 excel_x87_* + excel_log(x) staging,
+            // and Excel's internal Kahan expm1 (excel_expm1_internal) in st200.
+            use crate::ported::excel_numeric::{
+                excel_exp, excel_expm1_internal, excel_log, excel_x87_add, excel_x87_div,
+                excel_x87_mul, excel_x87_sub,
+            };
+            const NEG_LN2: f64 = f64::from_bits(0xbfe6_2e42_fefa_39ef); // -ln(2)
+            let mut an = 3.0_f64;
             let mut c = x;
-            let mut summ = x / (a + 3.0);
-            let tol = 3.0 * acc / (a + 1.0);
+            let mut summ = excel_x87_div(x, excel_x87_add(a, 3.0));
+            let tol = excel_x87_div(3.0 * acc, excel_x87_add(a, 1.0));
             loop {
                 an += 1.0;
-                c = -c * (x / an);
-                let t = c / (a + an);
-                summ += t;
+                c = -excel_x87_mul(c, excel_x87_div(x, an));
+                let t = excel_x87_div(c, excel_x87_add(a, an));
+                summ = excel_x87_add(summ, t);
                 if t.abs() <= tol {
                     break;
                 }
             }
-            let j = a * x * ((summ / 6.0 - 0.5 / (a + 2.0)) * x + 1.0 / (a + 1.0));
-            let z = a * crt_log(x);
+            let inner = excel_x87_add(
+                excel_x87_mul(
+                    excel_x87_sub(
+                        excel_x87_div(summ, 6.0),
+                        excel_x87_div(0.5, excel_x87_add(a, 2.0)),
+                    ),
+                    x,
+                ),
+                excel_x87_div(1.0, excel_x87_add(a, 1.0)),
+            );
+            let j = excel_x87_mul(excel_x87_mul(a, x), inner);
+            let z = excel_x87_mul(a, excel_log(x));
             let h = gratio_gam1(a);
-            let g = 1.0 + h;
-            let go200 = if x < 0.25 { z > -0.13394 } else { a < x / 2.59 };
+            let g = excel_x87_add(1.0, h);
+            let go200 = if x <= 0.5 {
+                z >= NEG_LN2
+            } else {
+                excel_x87_sub(a, x) < 0.25
+            };
             if go200 {
                 // statement 200
-                let l = gratio_rexp(z);
-                let w = 0.5 + (0.5 + l);
-                let qans = (w * j - l) * g - h;
+                let l = excel_expm1_internal(z);
+                let w = excel_x87_add(0.5, excel_x87_add(0.5, l));
+                let qans = excel_x87_sub(
+                    excel_x87_mul(excel_x87_sub(excel_x87_mul(w, j), l), g),
+                    h,
+                );
                 if qans < 0.0 {
                     return (1.0, 0.0);
                 }
-                return (0.5 + (0.5 - qans), qans);
+                return (excel_x87_add(0.5, excel_x87_sub(0.5, qans)), qans);
             }
             // statement 190
-            let w = crate::ported::excel_numeric::excel_exp(z);
-            let ans = w * g * (0.5 + (0.5 - j));
+            let w = excel_exp(z);
+            let ans = excel_x87_mul(
+                excel_x87_mul(w, g),
+                excel_x87_add(0.5, excel_x87_sub(0.5, j)),
+            );
             return (ans, 0.5 + (0.5 - ans));
         }
         // a < 1, x >= 1.1 (cb8 / dc-j9k.64): unified poisson_mass + Modified-Lentz gratio_cf.
@@ -2804,6 +2824,42 @@ mod tests {
             assert_eq!(
                 got, expected,
                 "cb8 GAMMA.DIST({x_bits:#018x}, {a_bits:#018x}, {b_bits:#018x}, TRUE)"
+            );
+        }
+    }
+
+    /// Excel 16.0.20527 (cb11 / dc-j9k.67): TOMS 654 `iop = 1` double-precision `st200` branch
+    /// (`if x <= 0.5 { z >= -LN2 } else { a - x < 0.25 }`), PC64 `excel_x87_*` + `excel_log(x)`
+    /// staging, and `excel_expm1_internal(z)` in `st200` (replacing NSWC `gratio_rexp`).
+    /// Verified against Carbon cb11 probe3 straddles and nx9 frozen probe1
+    /// (`SHA-256 016793aefa18576c87dd5ac5807d36aebfec845bd138a977b0b51a64aab940ea`).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn cb11_gratio_alt1_iop1_st200_and_expm1_match_excel_bits() {
+        let p_cases: &[(&str, u64, u64, u64)] = &[
+            // cb11 P3_go200_x05_seam (a = 0.8125): x <= 0.5 stays in st200 with excel_expm1_internal
+            ("x05_seam_m5", 0x3fea_0000_0000_0000, 0x3fdf_ffff_ffff_fffb, 0x3fdf_7f43_b8ba_f0bc),
+            ("x05_seam_0", 0x3fea_0000_0000_0000, 0x3fe0_0000_0000_0000, 0x3fdf_7f43_b8ba_f0bc),
+            // cb11 P3_go200_a075_zln2_bit (a = 0.75): exact -2u Kahan expm1 step at z = -ln(2)+1u
+            ("zln2_kahan_step", 0x3fe8_0000_0000_0000, 0x3fd9_65fe_a53d_6e3e, 0x3fdd_93aa_2ee8_b43a),
+            ("zln2_next", 0x3fe8_0000_0000_0000, 0x3fd9_65fe_a53d_6e3f, 0x3fdd_93aa_2ee8_b43e),
+            // cb11 P3_go200_a0875_slope (a = 0.875, x = 0.6255 -> a - x < 0.25 -> st200)
+            ("a0875_slope", 0x3fec_0000_0000_0000, 0x3fe4_0418_9374_bc6a, 0x3fe0_e820_2515_38fc),
+            // nx9 probe1 A_rexp_3way_gt015: excel_expm1_internal vs gratio_rexp and CR expm1
+            ("nx9_gt015_a0875", 0x3fec_0000_0000_0000, 0x3fdd_16c9_b22d_9ec9, 0x3fdb_7a43_42d0_744a),
+            ("nx9_gt015_a075", 0x3fe8_0000_0000_0000, 0x3fd9_81bf_5eb9_8f50, 0x3fdd_a6d3_6550_5484),
+            // nx9 probe1 B_rexp_poly_vs_expm1_le015: |z| <= 0.15 uses excel_expm1_internal
+            ("nx9_le015_a0875_1", 0x3fec_0000_0000_0000, 0x3fea_ff59_0668_f14f, 0x3fe4_1c79_1532_cf68),
+            ("nx9_le015_a0875_2", 0x3fec_0000_0000_0000, 0x3feb_0af6_6509_62a9, 0x3fe4_2127_0576_1661),
+            ("nx9_le015_a075", 0x3fe8_0000_0000_0000, 0x3fea_3c8b_59cd_8561, 0x3fe5_bc5d_d1ae_7f9d),
+        ];
+        for &(label, a_bits, x_bits, expected) in p_cases {
+            let actual = gratio(f64::from_bits(a_bits), f64::from_bits(x_bits))
+                .0
+                .to_bits();
+            assert_eq!(
+                actual, expected,
+                "cb11 {label} P({a_bits:#018x}, {x_bits:#018x}): got {actual:#018x}, expected {expected:#018x}"
             );
         }
     }
