@@ -117,6 +117,20 @@ fn substitute_instance_number_boundaries() {
     error(call("SUBSTITUTE", args(n(2_147_483_647.0))), Value);
 }
 
+/// Excel 20527's numeric cutoff is 20 binary64 steps below the signed 32-bit upper limit.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn substitute_upper_instance_boundary() {
+    let args = |instance| vec![t("aaaa"), t("a"), t("X"), instance];
+    let upper = 2_147_483_647.0_f64.to_bits();
+    text(call("SUBSTITUTE", args(n(f64::from_bits(upper - 21)))), "aaaa");
+    for offset in [20, 4, 2, 0] {
+        error(call("SUBSTITUTE", args(n(f64::from_bits(upper - offset)))), Value);
+    }
+    text(call("SUBSTITUTE", args(t("2147483646.9999999"))), "aaaa");
+    error(call("SUBSTITUTE", args(t("2147483647"))), Value);
+}
+
 /// Excel 20527 start-position controls around two integer boundaries.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

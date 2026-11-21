@@ -371,12 +371,12 @@ ported_shared_family! {
             Some(value) if value.is_missing() => None,
             Some(_) => {
                 let n = num_without_logical(s, a, 3)?;
-                if n >= 2_147_483_647.0 {
+                // Excel rejects the 20 binary64 predecessors of i32::MAX as well as the limit.
+                const FIRST_INVALID_INSTANCE: f64 = f64::from_bits((i32::MAX as f64).to_bits() - 20);
+                if n >= FIRST_INVALID_INSTANCE {
                     return fail(WorksheetErrorCode::Value);
                 }
-                // The transition immediately below the upper bound remains under investigation.
-                let rounded = if n < 2_147_483_646.0 { k::date_integer_floor(n) } else { n };
-                Some(k::positive(rounded).map_err(Exit::Error)?)
+                Some(k::positive(k::date_integer_floor(n)).map_err(Exit::Error)?)
             }
         };
         capped(k::substitute(&text, &old, &new, instance), WorksheetErrorCode::Value)
