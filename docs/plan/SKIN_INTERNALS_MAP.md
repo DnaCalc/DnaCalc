@@ -1,4 +1,25 @@
-# Skin internals at the end of dc-xfrhg.1
+# Skin internals
+
+## Current implementation
+
+| Bead | Code | Observed change |
+|---|---|---|
+| dc-xfrhg.2 | `apps/dna-calc/src/workbook_command.rs:35,499` | Mutations use typed workbook commands over `Target` and the existing command queue. Production page references to named protocol intent variants fell from 82 to zero. |
+| dc-xfrhg.3 | `apps/dna-calc/src/controller.rs:99`, `apps/dna-calc/src/controller/grid.rs:7` | The shared controller owns the session, subscriptions and commands. Grid owns its pane and gesture adapter. The dependency test at `apps/dna-calc/src/skin.rs:255` covers all five non-grid skins. |
+| dc-xfrhg.4 | `apps/dna-calc-worker/src/message.rs:6,111` | Browser and WebView2 share request decoding and event encoding. Native file selection and add-in operations run through the desktop's platform services. |
+| dc-xfrhg.5 | `apps/dna-calc-worker/src/workbook.rs:796`, `apps/dna-calc-worker/tests/support/projection_wire.rs:100` | Six projection paths share cell assembly. The notebook and chart fixtures produced 12 identical replies totalling 164,559 bytes before and after the change. |
+| dc-xfrhg.6 | `crates/calc-doc/src/vba.rs:69`, `crates/calc-vba/src/office.rs:92` | CalcDoc locates and preserves the project part. CalcVBA reads its compound storage and module sources. Commit `bf5efa42` already removed CalcDoc's internal project parser. |
+
+The VBA comparison ran the legacy source from the parent of `bf5efa42` and CalcVBA
+`b33e0784` over the same tracked workbook set. Both read 4,311 projects and 16,978
+modules across 4,426 files. Both found no project in 115 files. The comparable
+fields agreed across all projects (code page, module order and names, stream names,
+source offsets, privacy, module kind and decoded source text). The legacy kind
+groups document modules with designers. The comparator used that grouping.
+Per-file evidence is in `~/codex-runs/sk1/vba-compare/outcomes.tsv` on dna-koderbot.
+The pin update belongs to dc-yqq0 and dc-g4mj3.
+
+## Protocol inventory at the end of dc-xfrhg.1
 
 The page imports the model's message definitions through `dna-calc-protocol`. DNA Calc
 uses the same page in the browser and WebView2. The Formula Explorer has its own
