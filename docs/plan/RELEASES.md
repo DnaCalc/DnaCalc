@@ -1,7 +1,13 @@
 # Releases: one version, three streams (dc-ysl.11)
 
-Draft for the owner, 2026-11-13. Nothing here is built yet. The `cargo xtask release` command is a
-follow-up bead. The owner signs and publishes every release; agents never handle keys.
+Draft for owner review, updated 2026-11-21. Recommend a common `0.MINOR.PATCH` version and source
+commit for both web apps, both Windows installers and the Linux runner. Use that version for the
+first published crates, then allow crate-level SemVer at their public API boundaries.
+
+Keep dev web builds local by default. Cut a preview from one checked master commit and archive its
+manifests and artefacts together. Promote the very same checked artefacts to stable once the owner
+approves them. The release-notes generator is available now and the coordinator command remains a
+follow-up. The owner signs and publishes releases.
 
 ## 1. What ships
 
@@ -9,8 +15,8 @@ follow-up bead. The owner signs and publishes every release; agents never handle
 |---|---|---|
 | DNA Calc web | dnacalc.com | `cargo xtask site pack calc` (tools/xtask-harness/src/site.rs) |
 | DNA OneCalc web | onecalc.dnacalc.com | `cargo xtask site pack onecalc` |
-| DNA OneCalc desktop | zip now, MSI next (docs/plan/WINDOWS_INSTALLERS.md) | `cargo xtask package onecalc` (apps/PACKAGING.md) |
-| DNA Calc desktop | zip now, MSI next | the same command, `DNA-Calc/` folder |
+| DNA OneCalc desktop | Windows zip and per-user MSI candidate | `cargo xtask package onecalc` and `cargo xtask package installer` |
+| DNA Calc desktop | Windows zip and per-user MSI candidate | The same commands, `DNA-Calc/` folder |
 | Linux runner `dnacalc` | tarball and .deb | `deploy/linux/package.sh` (dc-icq4.2, commit f7d95fa3) |
 | Engine crates | not published (`publish = false`, Cargo.toml:46) | dc-qm0h |
 | Handbook | handbook.dnacalc.com | its own repository; versioned by its commit |
@@ -66,16 +72,17 @@ is 578 commits past the live calc site and 618 past the live onecalc site (`git 
 
 | Stream | What | When | Where | Approval |
 |---|---|---|---|---|
-| dev | web apps only, labelled "dev build" with the commit | daily from master, or on request | a dev host name, for example dev.dnacalc.com (needs the owner's DNS and Caddy step) | owner's yes for the host once; each dev publish needs a terminal on dna-koderbot today (`site publish --local`) |
-| preview | both web apps, both desktop MSIs and zips, the Linux tarball and deb, release notes | per milestone, at most weekly; first on Thu 2026-11-19 | dnacalc.com, onecalc.dnacalc.com, a downloads page (dc-fk66.4) | owner reads the notes, signs, publishes |
-| stable | the same set | later: a preview that has run a week with no new P0 or P1 defect | the same | owner |
+| dev | web apps only, labelled "dev build" with the commit | any master build used for review | local smoke and preview | owner approves any future public dev host |
+| preview | both web apps, both desktop MSIs and zips, the Linux tarball and deb, release notes | per milestone, at most weekly, once checks and the clean-machine install test pass | dnacalc.com, onecalc.dnacalc.com and the downloads page | owner reviews the evidence, signs and publishes |
+| stable | the same bytes and artifact hashes as the promoted preview | later, after at least a week without new P0 or P1 defects | the same | owner approves promotion |
 
-Open questions for the owner:
-1. Does the dev stream get its own host, or does it stay local smoke only?
-2. May a dev publish run without a terminal (an owner-signed tag pulled by the host, form C of
-   docs/plan/PUBLISHING_PLAN.md section 3), or stay terminal only?
-3. Where do downloads live: on the site host under `dnacalc.com/download/<version>/`, or as GitHub
-   release assets? The site host keeps one publish route and one set of headers; I recommend it.
+Recommend serving approved downloads under versioned paths on the content site. Each filename
+belongs to one release record with its source commit and final SHA-256. Retain versioned downloads
+so the owner can roll back the current link and explain a withdrawn release.
+
+Owner decisions remain on a public dev hostname, an attended or signed-tag publish route for
+that host, the downloads origin, and whether to test the Windows version-resource change from
+section 3 in the first preview. Keep the proposed dev workflow local until those decisions.
 
 ## 5. What a release must pass
 
@@ -113,9 +120,13 @@ to make a figure hold.
 
 ## 6. Release notes
 
-Made by `cargo xtask release notes --since v0.2.0` (follow-up), drafted by an agent, edited by the
-owner. Sources: beads closed since the previous tag (`br list --status closed`, filtered by close
-date), and commits since the tag (bead ids at the start of each message). Sections:
+The installer release-notes generator takes the installer manifest and a Markdown draft. The
+draft's user changes and known gaps cite their tracker beads. Run `cargo xtask release notes
+--manifest <installer-manifest.json> --draft <notes.md> --out <dir>` to build a local download
+page and its release notes. The owner supplies the final digests and signer after signing.
+
+A future coordinator can collect candidate changes from tracker entries closed since the previous
+tag and commits carrying those bead IDs. The owner edits and approves the draft. Sections:
 
 1. What you can do now (plain words, one line per user-visible change, bead id at the end).
 2. The figures of section 5, this release and the previous.
@@ -158,7 +169,8 @@ Agents again:
 ## 9. What changes in the code (follow-up bead)
 
 1. `cargo xtask release prepare <version>`: set the workspace version, check every place of section 2
-   agrees, write the candidate folder. `release notes`: section 6.
+   agrees, write the candidate folder and pass the installer manifest to the existing notes
+   generator. Add a tag-range summary for the rest of the notes.
 2. Commit in `--version`: the packaging commands set `DNACALC_BUILD_COMMIT`; `build.rs` reads it, so
    builds stay reproducible; without it the text is `+unknown`.
 3. `build.json` and `package-manifest.json` gain `"stream": "dev" | "preview" | "stable"`.
