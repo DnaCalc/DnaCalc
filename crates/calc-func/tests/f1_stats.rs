@@ -128,6 +128,24 @@ fn chi_square_right_inverse_keeps_large_degree_tail_probability() {
     }
 }
 
+/// Excel 20527 checks the stored products at two different overflow boundaries.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chi_square_right_inverse_checks_near_maximum_degree_products() {
+    for name in ["CHIINV", "CHISQ.INV.RT"] {
+        for p in [f64::MIN_POSITIVE, 0.5] {
+            let eval = |degree| call(name, vec![n(p), n(f64::from_bits(degree))]);
+            exact(eval(0x7e70_0000_0000_0000), f64::from_bits(0x7e70_0116_bc77_4cb6));
+            exact(eval(0x7fcf_ffff_ffff_ffff), f64::from_bits(0x7fd0_0116_bc77_4cb6));
+            exact(eval(0x7fd4_5f30_6dc9_c882), f64::from_bits(0x7fd4_6093_53a9_9ac2));
+            error(eval(0x7fd4_5f30_6dc9_c883), Div0);
+            error(eval(0x7fed_154b_28e7_6972), Div0);
+            error(eval(0x7fed_154b_28e7_6973), Num);
+        }
+        exact(call(name, vec![n(1.0), n(f64::MAX)]), 0.0);
+    }
+}
+
 /// Excel 20527: a tiny confidence uses the normal inverse near one half.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

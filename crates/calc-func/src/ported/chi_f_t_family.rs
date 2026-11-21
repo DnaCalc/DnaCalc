@@ -142,11 +142,26 @@ pub fn chisq_inv_rt_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Wo
         };
     }
     let n = deg_freedom.trunc();
-    use crate::ported::beta_gamma_stats_family::{flush_subnormal, goldstein_initial_unit};
+    use crate::ported::beta_gamma_stats_family::{
+        flush_subnormal, goldstein_initial_unit, large_shape_inverse_unit,
+    };
     // At large degrees Excel publishes Goldstein's starting value. The right
     // tail negates the normal deviate of p itself, preserving small tails that
     // would round away in 1 - p. The cubic uses the truncated degree.
-    if (2.0_f64.powi(40)..2.0_f64.powi(1000)).contains(&n) && p >= f64::MIN_POSITIVE {
+    if n >= 2.0_f64.powi(40) && p >= f64::MIN_POSITIVE {
+        if n >= 2.0_f64.powi(1000) {
+            use crate::ported::excel_numeric::excel_x87_mul;
+            let result = large_shape_inverse_unit(n);
+            // The overflow check at 1.1 times the stored starting value takes
+            // precedence over overflow in the density normalizer.
+            if !excel_x87_mul(1.1, result).is_finite() {
+                return Err(WorksheetErrorCode::Num);
+            }
+            if !excel_x87_mul(std::f64::consts::PI, n).is_finite() {
+                return Err(WorksheetErrorCode::Div0);
+            }
+            return Ok(result);
+        }
         let z = -crate::ported::normal_log_family::norm_s_inv_kernel(p)?;
         return goldstein_initial_unit(z, n * 0.5)
             .map(|unit| unit * 2.0)
