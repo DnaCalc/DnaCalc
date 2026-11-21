@@ -205,11 +205,11 @@ pub fn autofit_cells(
     if host.model().sheet_by_id(target.sheet()).is_none() {
         return Err("The sheet is unavailable".to_owned());
     }
-    let sheet = host
+    if host
         .loaded()
         .sheet(target.sheet())
-        .ok_or("The sheet is unavailable")?;
-    if sheet.protected() {
+        .is_some_and(|s| s.protected())
+    {
         return Err("Fitting a protected sheet is unavailable here".to_owned());
     }
     if host.merged_areas(target.sheet()).iter().any(|merge| {

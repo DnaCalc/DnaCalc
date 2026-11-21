@@ -5100,6 +5100,104 @@ mod fit_tests {
     use super::*;
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn fitted_contents_on_an_added_sheet_survive_history_and_save() {
+        let mut server = Server::new();
+        let reply = server
+            .execute_current(
+                Request::Intent(Intent::EditSheet {
+                    sheet: None,
+                    change: wire::SheetChange::Add {
+                        name: "Fit me".into(),
+                    },
+                }),
+                None,
+            )
+            .reply
+            .unwrap();
+        assert!(matches!(
+            reply,
+            Reply::Done {
+                outcome: Outcome { accepted: true, .. },
+                ..
+            }
+        ));
+        let sheet = server.book.host().sheets().last().unwrap().id();
+        let at = CellKey::new(sheet, 1, 1).unwrap();
+        server
+            .execute_current(
+                Request::Intent(Intent::EnterCell {
+                    at: Key::of(at),
+                    text: "fit me".into(),
+                }),
+                None,
+            )
+            .reply
+            .unwrap();
+        let Reply::FitContents { revision, cells } = server
+            .execute_current(
+                Request::FitContents {
+                    area: Area::of(GridArea::cell(at)),
+                },
+                None,
+            )
+            .reply
+            .unwrap()
+        else {
+            panic!("the content reply")
+        };
+        assert_eq!(cells.len(), 1);
+        assert_eq!(cells[0].text, "fit me");
+        let reply = server
+            .execute_current(
+                Request::Intent(Intent::FitContents {
+                    sheet: Sheet::of(sheet),
+                    rows: false,
+                    revision,
+                    sizes: vec![(1, 20f64.to_bits())],
+                }),
+                None,
+            )
+            .reply
+            .unwrap();
+        assert!(matches!(
+            reply,
+            Reply::Done {
+                outcome: Outcome { accepted: true, .. },
+                ..
+            }
+        ));
+        let width = |server: &Server| server.geometry(Sheet::of(sheet)).columns.first().copied();
+        let fitted = width(&server).expect("a fitted column");
+        assert_eq!(fitted, (1, 1, Some(5302. / 256.), false));
+        server
+            .execute_current(Request::Intent(Intent::Undo), None)
+            .reply
+            .unwrap();
+        assert_eq!(width(&server), None);
+        server
+            .execute_current(Request::Intent(Intent::Redo), None)
+            .reply
+            .unwrap();
+        assert_eq!(width(&server), Some(fitted));
+        let bytes = server.execute_current(Request::Save, None).bytes.unwrap();
+        server
+            .execute_current(
+                Request::Open {
+                    name: "fit.xlsx".into(),
+                },
+                Some(bytes),
+            )
+            .reply
+            .unwrap();
+        let reopened = server.book.host().sheets().last().unwrap().id();
+        assert_eq!(
+            server.geometry(Sheet::of(reopened)).columns.first(),
+            Some(&fitted)
+        );
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn fitted_contents_come_from_projection_and_a_stale_measurement_cannot_edit() {
         let mut server = Server::new();
         let sheet = server.book.host().sheets()[0].id();

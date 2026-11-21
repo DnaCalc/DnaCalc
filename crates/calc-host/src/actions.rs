@@ -842,14 +842,14 @@ pub(crate) fn axis_format_edits(
     size_bits: Option<u64>,
     hidden: Option<bool>,
 ) -> Result<Vec<CellEdit>, String> {
-    let loaded = host
-        .loaded()
-        .sheet(sheet)
-        .ok_or("The sheet is unavailable")?;
-    if loaded.geometry().outline_unsupported {
+    if host.model().sheet_by_id(sheet).is_none() {
+        return Err("The sheet is unavailable".into());
+    }
+    let loaded = host.loaded().sheet(sheet);
+    if loaded.is_some_and(|s| s.geometry().outline_unsupported) {
         return Err("Imported outline metadata is not modelled for dimension edits (dc-971p.39); nothing changed".into());
     }
-    if loaded.protected() {
+    if loaded.is_some_and(|s| s.protected()) {
         return Err("Dimensions on a protected sheet are not available here".to_owned());
     }
     let axis = if rows {
