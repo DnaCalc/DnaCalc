@@ -15,7 +15,7 @@
 //! CONCATENATE and TEXTJOIN (OxFunc's rule). The casing functions (UPPER, LOWER, PROPER) read
 //! characters, and text that is not well-formed UTF-16 is refused there as not modelled.
 
-use super::kit::{Grid, fail, grid, num, out, out_text, text_arg};
+use super::kit::{Grid, fail, grid, num, num_without_logical, out, out_text, text_arg};
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
 use crate::locale::LocaleId;
@@ -370,7 +370,7 @@ ported_shared_family! {
             None => None,
             Some(value) if value.is_missing() => None,
             Some(_) => {
-                let n = num(s, a, 3)?;
+                let n = num_without_logical(s, a, 3)?;
                 if n >= 2_147_483_647.0 {
                     return fail(WorksheetErrorCode::Value);
                 }

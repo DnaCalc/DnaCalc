@@ -1530,3 +1530,26 @@ fn bare_function_names_are_function_values() {
         numbers(&[&[1.0, 2.0, 3.0]])
     );
 }
+
+/// Excel 20527 rejects logical SUBSTITUTE instances from literals and cells.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn substitute_rejects_logical_instances() {
+    let mut book = Book::new();
+    book.set("A1", b(true)).set("A2", b(false)).set("A3", t("1"));
+    for (instance, expected) in [
+        ("TRUE", e(W::Value)),
+        ("FALSE", e(W::Value)),
+        ("A1", e(W::Value)),
+        ("A2", e(W::Value)),
+        ("A3", t("Xaaa")),
+        ("\"1\"", t("Xaaa")),
+        ("1", t("Xaaa")),
+        ("1/0", e(W::Div0)),
+    ] {
+        let formula = format!("=SUBSTITUTE(\"aaaa\",\"a\",\"X\",{instance})");
+        assert_eq!(book.dynamic(&formula), expected, "{formula}");
+    }
+    assert_eq!(book.dynamic("=SUBSTITUTE(NA(),\"a\",\"X\",TRUE)"), e(W::NA));
+    assert_eq!(book.dynamic("=SUBSTITUTE(NA(),\"a\",\"X\",1/0)"), e(W::NA));
+}
