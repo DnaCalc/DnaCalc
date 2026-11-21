@@ -100,8 +100,8 @@ fn handle(event: web_sys::MessageEvent) {
         let (reply, out) = crate::server::answer_text(server, &text, bytes);
         (reply, out, server.take_events())
     });
-    // The events first, as the in-process transport delivers them: a reply finds its
-    // subscriptions' cells already applied.
+    // Post events available to send before the reply, as the in-process transport does.
+    // A subscription with an outstanding flight may publish the change after its TileAck.
     for event in events {
         if !post_event(event) {
             return;

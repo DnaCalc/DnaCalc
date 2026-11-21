@@ -405,7 +405,7 @@ fn grid_pane(controller: GridController, ctx: PaneContext) -> impl IntoView {
         }
         split_window.set(g.split_window);
     });
-    let mirror = controller.new_mirror();
+    let mirror = controller.new_grid_mirror();
     // A value/style publication carries its own geometry. The query snapshot is only the
     // initial layout while this subscription has no committed publication for the sheet.
     let published_geometry = Memo::new(move |_| {

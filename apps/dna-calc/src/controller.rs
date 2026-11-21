@@ -10,8 +10,9 @@
 //!   or a recalculation, the active cell follows the session's selection, and a refused intent's
 //!   reason goes to the status line. The server pushes the cells of the page's subscriptions as
 //!   they change; [`Controller::subscribe`] registers a [`ViewMirror`] for one.
-//! - The application's own subscription follows the session's selection: the formula bar and the
-//!   status line show the active cell from it.
+//! - The formula bar and status line use the grid's committed root wherever its coverage includes
+//!   the active cell. The application's selection subscription follows the session's selection
+//!   for other cells and skins.
 //! - A skin reads what it shows with [`Controller::ask`], asking again when
 //!   [`Controller::revision`] advances.
 //!
@@ -114,6 +115,7 @@ pub struct Controller {
     pub structural_choice: ModelField<Option<bool>>,
     sheet_selections: ModelField<BTreeMap<SheetId, (CellKey, Vec<GridArea>)>>,
     mirrors: StoredValue<BTreeMap<u64, MirrorHandle>, LocalStorage>,
+    grid_mirror: RwSignal<Option<(u64, MirrorHandle)>>,
     next_subscription: ModelField<u64>,
     /// The workbook as the shell shows it: name, sheets, calculation mode, revision.
     pub summary: ModelField<Snapshot<Summary>>,
@@ -320,6 +322,7 @@ impl Controller {
                 |m| &mut m.selection.remembered,
             ),
             mirrors: StoredValue::new_local(BTreeMap::new()),
+            grid_mirror: RwSignal::new(None),
             next_subscription: Field::new(
                 model,
                 |m| &m.runtime.next_subscription,
@@ -691,10 +694,31 @@ impl Controller {
         CellKey::new(sheet, row, column).ok()
     }
 
-    /// The active cell as the selection subscription holds it; `None` when it is empty.
+    /// The active cell as displayed by the committed projection; `None` when it is empty.
     pub fn active_cell(&self) -> Option<wire::Cell> {
         let at = self.active_key()?;
-        self.selection.with(|mirror| mirror.cell(at).cloned())
+        self.with_active_cell_mirror(at, |mirror| mirror.cell(at).cloned())
+    }
+
+    fn with_active_cell_mirror<R>(&self, at: CellKey, read: impl Fn(&ViewMirror) -> R) -> R {
+        if let Some((_, grid)) = self.grid_mirror.get() {
+            let workbook = self.summary.with_untracked(|summary| summary.workbook);
+            let covered = grid.try_with(|mirror| {
+                let current = mirror.stamp().is_some_and(|stamp| stamp.workbook == workbook);
+                let covered = mirror.geometry(at.sheet()).is_some_and(|geometry| {
+                    geometry
+                        .coverage
+                        .iter()
+                        .filter_map(|area| area.area())
+                        .any(|area| area.contains(at))
+                });
+                (current && covered).then(|| read(mirror))
+            });
+            if let Some(result) = covered.flatten() {
+                return result;
+            }
+        }
+        self.selection.with(|mirror| read(mirror))
     }
 
     pub(crate) fn say(&self, text: impl Into<String>, refused: bool) {
@@ -1912,6 +1936,26 @@ impl Controller {
     }
 
     pub fn new_mirror(&self) -> MirrorHandle {
+        self.allocate_mirror().1
+    }
+
+    pub(crate) fn new_grid_mirror(&self) -> MirrorHandle {
+        let (id, field) = self.allocate_mirror();
+        let grid_mirror = self.grid_mirror;
+        grid_mirror.set(Some((id, field)));
+        on_cleanup(move || {
+            grid_mirror.try_maybe_update(|mounted| {
+                let current = mounted.is_some_and(|(current, _)| current == id);
+                if current {
+                    *mounted = None;
+                }
+                (current, ())
+            });
+        });
+        field
+    }
+
+    fn allocate_mirror(&self) -> (u64, MirrorHandle) {
         let mut id = 0;
         self.model.update(|model| {
             id = model.runtime.next_projection;
@@ -1938,7 +1982,7 @@ impl Controller {
                 model.runtime.projected_views.remove(&id);
             });
         });
-        field
+        (id, field)
     }
 
     /// Registers a subscription whose cells go to `mirror`; its number for later changes.
@@ -2717,6 +2761,7 @@ mod template_lifecycle_tests {
     struct HeldTransport {
         inner: dna_calc_worker::transport::InProcessTransport,
         hold: std::cell::Cell<bool>,
+        hold_tile_ack: std::cell::Cell<Option<u64>>,
         hold_paste: std::cell::Cell<bool>,
         hold_drag_query: std::cell::Cell<u8>,
         pending:
@@ -2743,6 +2788,8 @@ mod template_lifecycle_tests {
             );
             if self.hold.get()
                 || query
+                || matches!(inner, Request::TileAck(barrier)
+                    if self.hold_tile_ack.get() == Some(barrier.id))
                 || (self.hold_paste.get()
                     && matches!(inner, Request::Intent(wire::Intent::ApplyPaste { .. })))
             {
@@ -2751,6 +2798,83 @@ mod template_lifecycle_tests {
                 self.inner.call(r, b, a);
             }
         }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn edit_reply_can_precede_its_grid_publication() {
+        let root = Owner::new();
+        root.with(|| {
+            let transport = std::rc::Rc::new(HeldTransport::default());
+            let controller = Controller::with_transport(transport.clone());
+            let at = controller.active_key_untracked().unwrap();
+            controller.enter(at, "1".into(), |outcome| assert!(outcome.accepted));
+            let grid = controller.new_grid_mirror();
+            transport.hold_tile_ack.set(Some(controller.next_subscription.get_value()));
+            controller.subscribe(
+                wire::Interest::Areas(vec![wire::Area::of(GridArea::cell(at))]),
+                grid,
+            );
+
+            let observed = std::rc::Rc::new(std::cell::RefCell::new(None));
+            let in_reply = observed.clone();
+            controller.enter(at, "2".into(), move |outcome| {
+                assert!(outcome.accepted);
+                assert_eq!(
+                    grid.with_untracked(|mirror| mirror.cell(at).unwrap().text.clone()),
+                    "1"
+                );
+                *in_reply.borrow_mut() = untrack(|| controller.active_cell().map(|cell| cell.input));
+            });
+            assert_eq!(observed.borrow().as_deref(), Some("1"));
+            transport.hold_tile_ack.set(None);
+            let pending = transport.pending.take();
+            assert_eq!(pending.len(), 1);
+            for (request, bytes, answer) in pending {
+                transport.inner.call(request, bytes, answer);
+            }
+            assert_eq!(untrack(|| controller.active_cell()).unwrap().input, "2");
+        });
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn edit_and_undo_receipts_arrive_while_the_grid_ack_is_held() {
+        let root = Owner::new();
+        root.with(|| {
+            let transport = std::rc::Rc::new(HeldTransport::default());
+            let controller = Controller::with_transport(transport.clone());
+            let at = controller.active_key_untracked().unwrap();
+            let grid = controller.new_grid_mirror();
+            transport.hold_tile_ack.set(Some(controller.next_subscription.get_value()));
+            controller.subscribe(
+                wire::Interest::Areas(vec![wire::Area::of(GridArea::cell(at))]),
+                grid,
+            );
+
+            let observed = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+            let in_edit = observed.clone();
+            controller.enter(at, "42".into(), move |outcome| {
+                assert!(outcome.accepted);
+                let source = untrack(|| controller.active_cell().map(|cell| cell.input));
+                in_edit.borrow_mut().push(("edit", source));
+            });
+            let in_undo = observed.clone();
+            controller.dispatch(WorkbookCommand::Undo, move |outcome| {
+                assert!(outcome.accepted);
+                let source = untrack(|| controller.active_cell().map(|cell| cell.input));
+                in_undo.borrow_mut().push(("undo", source));
+            });
+            assert_eq!(*observed.borrow(), [("edit", None), ("undo", None)]);
+            transport.hold_tile_ack.set(None);
+            let pending = transport.pending.take();
+            assert_eq!(pending.len(), 1);
+            for (request, bytes, answer) in pending {
+                transport.inner.call(request, bytes, answer);
+            }
+            assert!(grid.with_untracked(|mirror| mirror.cell(at).is_none()));
+            assert!(untrack(|| controller.active_cell()).is_none());
+        });
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

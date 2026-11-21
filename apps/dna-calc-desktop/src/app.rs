@@ -359,8 +359,8 @@ impl App {
             let opened = match page.desktop_command(has_startup_file) {
                 Some(DesktopCommand::Addin(command)) => {
                     let result = self.run_addin_command(command);
-                    self.post(&page.addins(result), None);
                     self.flush_events();
+                    self.post(&page.addins(result), None);
                     return;
                 }
                 Some(DesktopCommand::OpenStartupFile) => self.opening.borrow_mut().take(),
