@@ -42,10 +42,12 @@ prefixes (`crates/calc-engine/src/recalc.rs:3011`, `read.rs:1967`); calc-doc rea
 - **ArgumentDemand** (`declarations.rs:273-309`): `Eager`, `BranchOnCondition`, `FallbackOnError`; `is_lazy()`,
   `discriminator()` (argument 0 for both lazy kinds), `holds_back(index)`. Lazy, and no others: IF `logical.rs:83`,
   CHOOSE `lookup.rs:149` (`BranchOnCondition`); IFERROR `error_fallback.rs:26`, IFNA `:41` (`FallbackOnError`).
-- **LegacyPlace** (`declarations.rs:323-364`), 20 variants: `Default`, `IntersectReference`,
+- **LegacyPlace** (`declarations.rs`), 20 variants: `Default`, `IntersectReference`,
   `IntersectReferenceAlways`, `SingleValue`, `ArrayAlways`, `ArrayAlwaysLiftReferences`, `ArrayAtRoot`,
   `AggregateAtRoot`, `AggregateUnderArray` (these five also `...Repeated`), `AggregateAtRootTwice`, `LiftReferences`,
   `AggregateRootArrayNested` (also `...LiftReferences`), `AggregateIntersectReference`, `AggregateAlwaysIntersectReference`.
+  Four have no worksheet parameter declaration: `IntersectReference`, `IntersectReferenceAlways`,
+  `ArrayAlwaysRepeated`, and `AggregateRootArrayNested`. CalcFml still handles these public enum values.
 - **Lookup.** `declaration(id) -> Option<DeclarationRef>`, a `const fn` (`registry.rs:138-192`); `named(spelling)`,
   invariant spelling, calls only, a linear scan (`:201-203`); `declarations()` (`:195-198`); `DECLARATION_COUNT`
   (`:57`). `DeclarationRef` has an accessor per field, plus `implementation()` and the file forms (`:61-135`).
@@ -81,10 +83,11 @@ prefixes (`crates/calc-engine/src/recalc.rs:3011`, `read.rs:1967`); calc-doc rea
 - State as measured what was not, or regenerate a `*-before.tsv` snapshot to make a test pass (honesty rule 3).
 
 ## 5. Excel behaviours it owns as declarations
-- **Volatile, unconditionally** (10): CELL `ported.rs:324`, INFO `:325`, NOW `:401`, TODAY `:402`, RAND `:603`,
-  RANDBETWEEN `:604`, RANDARRAY `:605`, WEBSERVICE `:635`, OFFSET `offset.rs:37`, INDIRECT `reference_text.rs:24`.
-  No declaration cites a measurement; the cited source is Microsoft's "Excel Recalculation" page
-  (`crates/calc-fml/src/eval/mod.rs:360-362`). SUMIF is not volatile (`conditional.rs:107`).
+- **Syntactic volatility** (13 declarations). Excel P1 measured CELL, INFO, SHEET, SHEETS, FORMULATEXT,
+  NOW, TODAY, RAND, RANDBETWEEN, RANDARRAY, OFFSET, and INDIRECT. The catalogue also marks WEBSERVICE
+  volatile, pending measurement. See [VOLATILITY.md](../../docs/architecture/VOLATILITY.md).
+  SUMIF and AVERAGEIF have no syntactic token. Their measured range-shape event is owned by dc-1nbp.9,
+  and the named volatility policy is owned by dc-hsa5.20.2.
 - **The lazy four**: IF, CHOOSE, IFERROR, IFNA (section 2); no comment cites a measurement of the laziness itself
   (probe P18). IFS and SWITCH are `Eager`, with `PairedResult::Odd` + `WholeResultPolicy::Conditions` and
   `EvenAfterSelector` + `Selector` (`logical_more.rs:29-30,53-54`).
@@ -132,17 +135,11 @@ prefixes (`crates/calc-engine/src/recalc.rs:3011`, `read.rs:1967`); calc-doc rea
 
 ## 8. Findings for the tracker
 1. `crates/calc-fml/src/eval/mod.rs:18-20` lists the lazy entries without CHOOSE (`lookup.rs:149`).
-2. `crates/calc-fml/src/eval/mod.rs:360-362` lists nine volatile functions; WEBSERVICE is a tenth (`ported.rs:635`).
-3. CELL and INFO are volatile for every argument (`ported.rs:324-325`) and SUMIF never (`conditional.rs:107`);
-   Microsoft's page makes all three argument-dependent (review `:206-208`). Unmeasured until P17.
-4. Candidate (a) does not hold: `crates/calc-func/src/catalogue/reference_text.rs:9-14` now says INDIRECT is
+2. Candidate (a) does not hold: `crates/calc-func/src/catalogue/reference_text.rs:9-14` now says INDIRECT is
    declared volatile; the review's section 1.10 and D1 (`:200-202,320-322`) describe the earlier comment.
-5. The review counts 21 `LegacyPlace` variants (`:103,283`); the enum has 20 (`declarations.rs:323-364`).
-6. On no parameter: `IntersectReference`, `IntersectReferenceAlways`, `ArrayAlwaysRepeated`, `AggregateRootArrayNested`
-   (`declarations.rs:327,329,335,355`); still matched in `crates/calc-fml/src/eval/legacy.rs:94-95,155-156`.
-7. `docs/architecture/FUNCTION_CATALOGUE.md:9-11` puts each declaration in calc-func's family file, and
+3. `docs/architecture/FUNCTION_CATALOGUE.md:9-11` puts each declaration in calc-func's family file, and
    `crates/calc-func/src/catalogue.rs:4-5` says unmoved families keep theirs; all are in calc-catalogue (`:178`).
-8. `tools/xtask/architecture.json` has no rule for calc-catalogue: a new dependency there fails no layering check.
+4. `tools/xtask/architecture.json` has no rule for calc-catalogue: a new dependency there fails no layering check.
 
 Verified: every `path:line` above, read at `cb0b76a5` with `git show` / `git grep`; trait and legacy-place lists by grep.
 Inferred: the layering bound in section 1; that no entry sets `context_facilities` (grep for `Some`, not a build).

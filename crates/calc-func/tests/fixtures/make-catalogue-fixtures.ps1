@@ -633,3 +633,20 @@ foreach ($name in $JntSheets) {
     $jnt += , @($name, (New-OracleSheet $expanded.Inputs $expanded.Formulas @() '' 'D' $refusedHere))
 }
 Write-Workbook (Join-Path $OutDir 'jnt/oracle.xlsx') $jnt
+
+# dc-hjd: the legacy OxFml entry and evaluation facts require workbook names.
+# Keep this section's names apart from the already captured jnt workbook.
+$hjd = Expand-SectionLines (Get-SectionLines 'sheet-hjd_oxfml.txt')
+$hjdRefused = @('1 : 3', 'SUM (A1)', '@SUM (A1)', 'LAMBDA(x,x+1) (2)', 'SUM(A1) (A1)')
+$hjdNames = @(
+    @('ErrName', '#N/A'),
+    @('NumName', '5'),
+    @('Aether', '99'),
+    @('Oeuvre', '21'),
+    @('Ijssel', '21'),
+    @('File', '21'),
+    @('Oeresund', '21'),
+    @('Wide', '21')
+)
+$hjdSheet = New-OracleSheet $hjd.Inputs $hjd.Formulas @() '' 'D' $hjdRefused
+Write-Workbook (Join-Path $OutDir 'hjd/oracle.xlsx') @(, @('hjd_oxfml', $hjdSheet)) -Names $hjdNames

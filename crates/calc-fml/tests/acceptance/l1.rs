@@ -1283,6 +1283,30 @@ mod lambda {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn let_omitted_binding_is_blank_in_body() {
+        // Touchstone Formula2, Excel 16.0.20527: the binding is blank within the body.
+        let mut book = Book::new();
+        assert_eq!(book.dynamic("=LET(x,,x+1)"), n(1.0));
+        assert_eq!(book.dynamic("=LET(x,,x)"), n(0.0));
+        assert_eq!(book.dynamic("=LET(x,,ISBLANK(x))"), CalcValue::logical(true));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn invoking_an_error_value_preserves_the_error() {
+        // Formula2 observations from Excel 16.0.20527 through Touchstone.
+        let mut book = Book::new();
+        book.name("ErrName", "=#N/A").name("NumName", "=5");
+        assert_eq!(book.dynamic("=ErrName(1)"), e(W::NA));
+        assert_eq!(book.dynamic("=IFERROR(ErrName(1),7)"), n(7.0));
+        assert_eq!(book.dynamic("=NumName(1)"), e(W::Value));
+        assert_eq!(book.dynamic("=LET(x,#N/A,x(1))"), e(W::NA));
+        assert_eq!(book.dynamic("=LET(x,1/0,x(1))"), e(W::Div0));
+        assert_eq!(book.dynamic("=LAMBDA(f,f(1))(NA())"), e(W::NA));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     fn lambdas_are_called_where_they_are_written_or_bound() {
         let mut book = Book::new();
         assert_eq!(book.dynamic("=LAMBDA(x,x+1)(2)"), n(3.0));
