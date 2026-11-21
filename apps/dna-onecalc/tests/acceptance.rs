@@ -4132,6 +4132,42 @@ async fn onecalc_m1_1__reference_without_engine() {
     );
 }
 
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen_test]
+async fn dc_6q2k_5__embedded_explorer_keeps_the_host_title() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let original = document.title();
+    let host_title = "Excel workbooks on Windows | DNA Calc";
+    document.set_title(host_title);
+
+    let page = browser::Page::mount();
+    browser::settle().await;
+    let mounted_title = document.title();
+    page.type_into("formula", "=1+2");
+    browser::settle().await;
+    let edited_title = document.title();
+    drop(page);
+    let body = document.body().unwrap();
+    body.set_attribute("data-onecalc-standalone", "").unwrap();
+    let standalone = browser::Page::mount();
+    browser::settle().await;
+    let standalone_title = document.title();
+    standalone.type_into("formula", "=1+2");
+    browser::settle().await;
+    let standalone_edited_title = document.title();
+    drop(standalone);
+    body.remove_attribute("data-onecalc-standalone").unwrap();
+    document.set_title(&original);
+
+    assert_eq!(mounted_title, host_title);
+    assert_eq!(edited_title, host_title);
+    assert_eq!(standalone_title, "Untitled - DNA Calc - Formula Explorer");
+    assert_eq!(
+        standalone_edited_title,
+        "Untitled* - DNA Calc - Formula Explorer"
+    );
+}
+
 // ---------------------------------------------------------------------------------------------
 // The dependency case.
 

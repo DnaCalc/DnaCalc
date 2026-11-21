@@ -86,8 +86,13 @@ pub fn mount(parent: HtmlElement) -> Mounted {
 
 /// Mounts a new surface over `link`.
 pub fn mount_over(parent: HtmlElement, link: Rc<dyn Link>) -> Mounted {
+    let title_document = parent.owner_document().filter(|document| {
+        document
+            .body()
+            .is_some_and(|body| body.has_attribute("data-onecalc-standalone"))
+    });
     Mounted {
-        _handle: Box::new(mount_to(parent, move || surface(link))),
+        _handle: Box::new(mount_to(parent, move || surface(link, title_document))),
     }
 }
 
@@ -106,7 +111,7 @@ enum Pending {
     Example(Box<Authored>),
 }
 
-fn surface(link: Rc<dyn Link>) -> impl IntoView {
+fn surface(link: Rc<dyn Link>, title_document: Option<web_sys::Document>) -> impl IntoView {
     let native = link.native_files();
     let link = StoredValue::new_local(link);
     let call = move |request: Request, done: Box<dyn FnOnce(Reply)>| {
@@ -372,22 +377,17 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
             }
         }),
     );
-    // The window says the session's name and whether it has unsaved changes; the host is told too,
-    // so that closing the window can ask first.
+    // The standalone page shows the session name and dirty state. The native host also needs
+    // that state so closing the window can ask before discarding changes.
     Effect::new(move |_| {
         let name = file_name.get();
         let changed = dirty();
-        let shown_name = if name.is_empty() {
-            "Untitled".to_owned()
-        } else {
-            name.clone()
-        };
-        let title = format!(
-            "{shown_name}{} - DNA Calc - Formula Explorer",
-            if changed { "*" } else { "" }
-        );
-        if let Some(document) = web_sys::window().and_then(|window| window.document()) {
-            document.set_title(&title);
+        if let Some(document) = &title_document {
+            let shown_name = if name.is_empty() { "Untitled" } else { &name };
+            document.set_title(&format!(
+                "{shown_name}{} - DNA Calc - Formula Explorer",
+                if changed { "*" } else { "" }
+            ));
         }
         if native {
             call(
