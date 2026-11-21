@@ -1000,9 +1000,6 @@ impl Workbook {
     ) -> calc_host::CalculatedSaveProgress {
         save.advance(&mut self.session, budget)
     }
-    pub fn cancel_ordinary_save(&mut self, mut save: calc_host::OrdinarySave) {
-        save.cancel(&mut self.session);
-    }
     pub fn finish_ordinary_save(
         &mut self,
         save: calc_host::OrdinarySave,
@@ -1035,17 +1032,6 @@ impl Workbook {
         }
         Ok((bytes, receipt))
     }
-    pub fn cancel_calculated_save(
-        &mut self,
-        mut save: calc_host::CalculatingSave,
-    ) -> Result<(), String> {
-        save.cancel();
-        match self.session.finish_calculated_save(save) {
-            Ok(_) | Err(calc_host::CalculatedSaveError::Cancelled) => Ok(()),
-            Err(error) => Err(error.to_string()),
-        }
-    }
-
     /// Saves the current revision as a package's bytes; the workbook is unchanged since.
     pub fn save(&mut self) -> Result<(Vec<u8>, SaveReceipt), String> {
         let mut bytes = Vec::new();

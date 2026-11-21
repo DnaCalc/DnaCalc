@@ -822,7 +822,7 @@ waited for rather than copied or entered again; replacement, incomplete coverage
 refuses the image. A private save keeps its original model through live edits, holds the callable
 state lane while unfinished, and resumes an accepted async return only on a later budgeted step.
 Its completed return tombstones pass back to the workbook owner. Reload/close/provider replacement
-revokes unfinished work. The worker exposes `SaveCalculated`, `PollSave` and `CancelSave` through
+revokes unfinished work. The worker exposes `SaveCalculated` and `PollSave` through
 the existing command journal; successful bytes name the saved model revision, so an older image
 does not clear later live edits. Ordinary application Save remains Save(false).
 

@@ -19,7 +19,7 @@ use crate::display;
 use crate::grid;
 use crate::session::{AddinRef, InputValue, ProjectReport, Session};
 use crate::shown::{Authored, Shown};
-use calc_fml::{CalcEnvironment, DateSystem, FormatProfile, FormulaForm};
+use calc_fml::{CalcEnvironment, DateSystem, FormatProfile};
 use serde::{Deserialize, Serialize};
 
 /// Bytes as base64 text in a message, so a file crosses the bridge as one JSON string.
@@ -82,20 +82,12 @@ pub enum Request {
     SetFormulaCell {
         address: String,
     },
-    /// Dynamic-array entry (`false`, as Excel 365) or legacy entry (`true`).
-    SetForm {
-        legacy: bool,
-    },
     /// One input: the cell, the kind of entry and the entry text.
     SetInput {
         address: String,
         kind: String,
         entry: String,
     },
-    RemoveInput {
-        address: String,
-    },
-    ClearInputs,
     /// The locale profile (a culture name) and the clock (a serial date number) the date, time and
     /// number-format functions read. The clock comes from the owner of the page: a session has none,
     /// and without one those functions are refused.
@@ -552,14 +544,6 @@ impl SessionPort for LocalPort {
                 },
                 Err(error) => refused(display::input_error(session, &error)),
             },
-            Request::SetForm { legacy } => {
-                session.set_form(if legacy {
-                    FormulaForm::Legacy
-                } else {
-                    FormulaForm::Dynamic
-                });
-                Reply::Accepted
-            }
             Request::SetInput {
                 address,
                 kind,
@@ -575,14 +559,6 @@ impl SessionPort for LocalPort {
                     },
                     Err(error) => refused(display::input_error(session, &error)),
                 }
-            }
-            Request::RemoveInput { address } => match session.remove_input(&address) {
-                Ok(_) => Reply::Accepted,
-                Err(error) => refused(display::input_error(session, &error)),
-            },
-            Request::ClearInputs => {
-                session.clear_inputs();
-                Reply::Accepted
             }
             Request::SetEnvironment { culture, now } => {
                 session.set_environment(Some(environment(

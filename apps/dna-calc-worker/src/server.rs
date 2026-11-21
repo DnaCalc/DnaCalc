@@ -1114,22 +1114,6 @@ impl Server {
                         }),
                     }
                 }
-                Request::CancelSave { token } => {
-                    if self
-                        .pending_save
-                        .as_ref()
-                        .is_none_or(|(current, _)| *current != token)
-                    {
-                        return Err("This calculated save is no longer pending".into());
-                    }
-                    self.save_as_target = None;
-                    let (_, save) = self.pending_save.take().expect("checked save");
-                    match save {
-                        PendingSave::Calculated(save) => self.book.cancel_calculated_save(save)?,
-                        PendingSave::Ordinary(save) => self.book.cancel_ordinary_save(save),
-                    }
-                    Ok(self.done(true, None, 0.0))
-                }
                 Request::Intent(intent) => {
                     self.intent_bytes = bytes;
                     let reply = self.intent(intent);

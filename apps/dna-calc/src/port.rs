@@ -5,7 +5,9 @@
 //!
 //! Follows DnaTreeCalc bf6dfd7 `src/dnatreecalc-web/src/worker_client.rs`.
 
-use crate::wire::{self, Event, FromServer, Reply, Request, ToServer};
+#[cfg(target_arch = "wasm32")]
+use crate::wire::FromServer;
+use crate::wire::{self, Event, Reply, Request, ToServer};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
@@ -222,12 +224,7 @@ pub fn call(
             };
         if port.answers.len() >= limit {
             return Some((
-                vec![wire::encode(&FromServer::Failed {
-                    id: None,
-                    message: "The workbook request queue is full; wait for the current operation"
-                        .into(),
-                })],
-                None,
+                "The workbook request queue is full; wait for the current operation".to_owned(),
                 answer,
             ));
         }
@@ -264,49 +261,18 @@ pub fn call(
                 }
                 None
             }
-            Some(Transport::Failed(message)) => Some((
-                vec![wire::encode(&FromServer::Failed {
-                    id: Some(id),
-                    message: message.clone(),
-                })],
-                None,
-                answer,
-            )),
-            None => Some((Vec::new(), None, answer)),
+            Some(Transport::Failed(message)) => Some((message.clone(), answer)),
+            None => Some(("the server is not running".to_owned(), answer)),
         }
     });
     notify_health(None);
-    if let Some((messages, bytes, answer)) = served {
-        let mut answer = Some(answer);
-        let mut bytes = bytes;
-        for text in messages {
-            match wire::decode::<FromServer>(&text) {
-                Ok(FromServer::Event(event)) => deliver(event),
-                Ok(FromServer::Reply { reply, .. }) => {
-                    if let Some(answer) = answer.take() {
-                        answer(Ok(reply), bytes.take());
-                    }
-                }
-                Ok(FromServer::Failed { message, .. }) => {
-                    if let Some(answer) = answer.take() {
-                        answer(Err(message), None);
-                    }
-                }
-                Ok(FromServer::Started) => {}
-                Err(message) => {
-                    if let Some(answer) = answer.take() {
-                        answer(Err(message), None);
-                    }
-                }
-            }
-        }
-        if let Some(answer) = answer {
-            answer(Err("the server is not running".to_owned()), None);
-        }
+    if let Some((message, answer)) = served {
+        answer(Err(message), None);
     }
 }
 
 /// Hands an event to the handler, with the port released.
+#[cfg(target_arch = "wasm32")]
 fn deliver(event: Event) {
     let handler = PORT.with(|port| port.borrow().events.clone());
     if let Some(handler) = handler {

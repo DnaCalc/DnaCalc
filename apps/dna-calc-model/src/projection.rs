@@ -1204,9 +1204,6 @@ pub enum Request {
     PollSave {
         token: u64,
     },
-    CancelSave {
-        token: u64,
-    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1240,7 +1237,6 @@ impl Request {
                 | Self::SaveWithContext { .. }
                 | Self::SaveCalculated
                 | Self::PollSave { .. }
-                | Self::CancelSave { .. }
                 | Self::Intent(_)
                 | Self::LoadVbaModule { .. }
                 | Self::LoadVbaProject { .. }
