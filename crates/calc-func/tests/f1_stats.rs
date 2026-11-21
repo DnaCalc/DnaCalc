@@ -87,6 +87,27 @@ fn beta_inverse_absorbed_large_second_shape_reports_num() {
     }
 }
 
+/// Excel 20527 reports NUM in the lower tail for very large second shapes.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beta_inverse_lower_tail_rejects_extreme_second_shape() {
+    for name in ["BETA.INV", "BETAINV"] {
+        error(call(name, vec![n(0.125), n(365.0), n(2.0_f64.powi(520))]), Num);
+        exact(
+            call(name, vec![n(0.125), n(365.0), n(2.0_f64.powi(513))]),
+            f64::from_bits(0x2065_7233_8c22_f2b9),
+        );
+        exact(
+            call(name, vec![n(0.125), n(1.0), n(2.0_f64.powi(520))]),
+            f64::from_bits(0x1f3f_ffff_ffff_ffb2),
+        );
+    }
+    error(
+        call("BETAINV", vec![n(0.39), n(3.0), n(2.0_f64.powi(520)), n(-4.0), n(7.0)]),
+        Num,
+    );
+}
+
 /// Excel 20527: a tiny confidence uses the normal inverse near one half.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
