@@ -181,9 +181,16 @@ struct PublicationUnit; struct CompletionReceipt;          // receipt per comman
 
 - `calc-sched` with our serial stepping executor (reference twin, browser driver). DNA Calc owns command demand and
   ordering, ready queues and interest priority, effect admission, checkpoints inside kernels, invocation identity
-  and stale-return rejection, publication, freshness and replay (RT). Parallel levels accept a finite budget;
-  native pool and block scheduling come after the contract works, without changing read, invocation or publication
-  semantics.
+  and stale-return rejection, publication, freshness and replay (RT). Native parallel levels require an
+  unlimited evaluation budget and are used by tests and benchmarks. The desktop and browser products retain
+  the engine's default of one thread for that route and advance in 64-evaluation slices. On the desktop,
+  eligible native add-in calls use the pool's concurrent scheduler within those finite slices.
+  [Level dispatcher](../../crates/calc-engine/src/recalc.rs#L1967) ·
+  [Engine default](../../crates/calc-engine/src/state.rs#L817) ·
+  [Thread controls](../../crates/calc-host/tests/threads.rs#L34) ·
+  [Desktop driver](../../apps/dna-calc-desktop/src/app.rs#L711) ·
+  [Browser worker](../../apps/dna-calc-worker/src/worker.rs#L96) ·
+  [Pool admission](../../crates/calc-engine/src/recalc.rs#L1521).
 - Owner-lane mailbox with **invocation-aware reentry**: engine waits on VBA, VBA calls the host, the host request
   queues behind the waiting activation: a deadlock with no lock held (RT 7). Cached reads, WorksheetFunction
   callbacks, COM STA reentry and macro operations go through the invocation's frame, not the general inbox.

@@ -61,9 +61,11 @@ Checked worker view of services and concurrent callables; shared immutable name 
 from per-use evaluation identity; certified name-result reuse only later and only for eligible bodies.
 
 ## Open semantic item
-Effect-count parity on the first calculation after entry: Excel restarts a formula on an uncalculated read
-(static references too) and redraws RAND; DNA resumes in place. Values never differ. Decide after R2/R3 whether
-to model Excel's restart (and its calc-chain order) as a named mode or keep it as a documented difference.
+On the first calculation after entry, Excel can restart a formula after an uncalculated read, including
+a static reference. DNA resumes at the read. In the measured restart cases, Excel re-entered prefix UDFs
+and used new RAND draws in the result, so both effect counts and returned values can differ. The restart
+and calculation-chain work is tracked in dc-hsa5.20.10.
+[Excel restart measurements](../EVALUATOR_SUSPENSION.md#2-what-excel-does-measured).
 
 ## Later, bold (not scheduled)
 Certified trace segments; a portable semantic execution format; GPU execution of proven pure regions. Each needs
