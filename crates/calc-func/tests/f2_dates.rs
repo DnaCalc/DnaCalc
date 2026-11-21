@@ -534,6 +534,27 @@ fn value_datevalue_timevalue() {
     refused(invoke(dollar, &mut Given(vec![n(1.0), n(2.0)]), &mut services, &mut FunctionCallScratch::new()));
 }
 
+/// Touchstone Excel 16.0.20527 confirmed the Batch 1 time text and nearby controls.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn unmarked_time_text_admits_one_extended_component() {
+    let env = host();
+    for (input, bits) in [
+        ("0:240", 0x3fc5_5555_5555_5555),
+        ("0:0240", 0x3fc5_5555_5555_5555),
+        ("0:1441", 0x3f46_c16c_16c1_7000),
+        ("0:0:9999", 0x3fbd_a06d_3a06_d3a0),
+        ("0:240:59.", 0x3fc5_6bb5_aa49_9388),
+    ] {
+        exact(c(&env, "TIMEVALUE", vec![t(input)]), f64::from_bits(bits));
+    }
+    for input in ["0:001", "0:10000", "0:240:60", "0:60:240", "001:240", "0:240 PM"] {
+        error(c(&env, "TIMEVALUE", vec![t(input)]), Value);
+    }
+    exact(c(&env, "VALUE", vec![t("0:240")]), f64::from_bits(0x3fc5_5555_5555_5555));
+    exact(c(&env, "DATEVALUE", vec![t("0:240")]), 0.0);
+}
+
 /// dc-iuwct.44 (Excel 16.0.20527 en-ZA, 52/53 + 17/17 + 10/10 frozen predictions):
 /// year-less date text resolves against the calculation clock's year (same clock source as
 /// TODAY/NOW) in VALUE, DATEVALUE, NUMBERVALUE, date functions, and arithmetic coercion,

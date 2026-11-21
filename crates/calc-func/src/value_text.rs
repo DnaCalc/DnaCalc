@@ -22,8 +22,9 @@
 //!   day and a year (`1 jan 2020`, `1-jan-2020`, `1jan5`, `1 january, 2020`), with a day alone,
 //!   or with a number that is a day of that month when it can be and a year otherwise (`jan 20`,
 //!   `jan 2020`, `jan 32`). A date without a year is in the year of the calculation's clock.
-//! - Times: `h:m`, `h:m:s` or `h:m:s.f` (minutes and seconds up to two digits, hours below
-//!   10000, a trailing `:` allowed), or an hour alone with an AM/PM marker; the marker (`a`, `p`,
+//! - Times: `h:m`, `h:m:s` or `h:m:s.f` (hours below 10000, a trailing `:` allowed).
+//!   A standalone time admits one extended minute or second field from 100 to 9999, with
+//!   ordinary values in the other fields. An hour alone takes an AM/PM marker; the marker (`a`, `p`,
 //!   `am`, `pm`, any case) follows a space and needs an hour from 0 to 12. A time may come
 //!   before or after a date.
 //!
@@ -540,34 +541,49 @@ fn time_at(tokens: &[Token], from: usize) -> Option<(f64, usize)> {
     let mut minute = 0i64;
     let mut second = 0f64;
     let mut colon = false;
+    let mut extended = false;
     if tokens.get(at) == Some(&Token::Sep(':')) {
         colon = true;
         at += 1;
         if let Some(Token::Number(m, len)) = tokens.get(at) {
-            if *len > 2 {
+            if !time_field(*m, *len) {
                 return None;
             }
+            extended = *len > 2;
             minute = *m;
             at += 1;
             if tokens.get(at) == Some(&Token::Sep(':')) {
                 at += 1;
                 if let Some(Token::Number(s, len)) = tokens.get(at) {
-                    if *len > 2 {
+                    if !time_field(*s, *len) {
                         return None;
                     }
+                    extended |= *len > 2;
                     second = *s as f64;
                     at += 1;
-                    if tokens.get(at) == Some(&Token::Sep('.'))
-                        && let Some(Token::Number(f, len)) = tokens.get(at + 1)
-                    {
-                        second += *f as f64 / 10f64.powi(*len as i32);
-                        at += 2;
+                    if tokens.get(at) == Some(&Token::Sep('.')) {
+                        if let Some(Token::Number(f, len)) = tokens.get(at + 1) {
+                            second += *f as f64 / 10f64.powi(*len as i32);
+                            at += 2;
+                        } else if extended && at + 1 == tokens.len() {
+                            at += 1;
+                        }
                     }
                 }
             }
         }
     }
     if hour_len > 4 {
+        return None;
+    }
+    // Excel 20527, dc-4oy5: extended standalone times overflow only one component.
+    if extended
+        && (from != 0
+            || at != tokens.len()
+            || hour_len > 2
+            || hour >= 24
+            || (minute >= 60 && second >= 60.0))
+    {
         return None;
     }
     // An AM/PM marker after a space.
@@ -594,6 +610,10 @@ fn time_at(tokens: &[Token], from: usize) -> Option<(f64, usize)> {
     }
     let seconds = (hour * 3600 + minute * 60) as f64 + second;
     Some((seconds / 86_400.0, at - from))
+}
+
+fn time_field(value: i64, digits: usize) -> bool {
+    digits <= 2 || (digits <= 4 && value >= 100)
 }
 
 /// A two-digit year as Excel reads it: below 30 in the 2000s, else in the 1900s.
