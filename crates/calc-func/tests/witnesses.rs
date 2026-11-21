@@ -17,6 +17,19 @@ mod witness_call;
 
 use calc_verdict::WitnessSet;
 
+/// Excel 16.0.20527, ax2/f-density-masses-answers.jsonl row 63.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn f_dist_flushes_subnormal_density() {
+    let args = serde_json::json!([
+        "0x40368acbfa739b28", "0x4058000000000000", "0x40b6cd0000000000", false
+    ]);
+    assert_eq!(
+        witness_call::calculate("F.DIST", args.as_array().unwrap(), None, None, true),
+        "0x0000000000000000"
+    );
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn every_pinned_witness_row_calculates_as_pinned() {
