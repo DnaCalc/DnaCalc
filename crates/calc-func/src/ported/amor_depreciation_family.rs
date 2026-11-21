@@ -1,8 +1,10 @@
+use crate::decimal::{Direction, ExactDecimal};
 use crate::locale::{
     DateSystem as WorkbookDateSystem, excel_serial_from_ymd, ymd_from_excel_serial,
 };
 use crate::value::{CalcValue, CoreValue, WorksheetErrorCode};
 const EPSILON: f64 = 1.0e-12;
+pub(crate) const AMORDEGRC_RATE_LIMIT: f64 = 0.5_f64.next_down();
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum AmorDepreciationEvalError {
@@ -173,7 +175,7 @@ fn round_half_away_from_zero(value: f64) -> f64 {
 }
 
 fn amordegrc_coefficient(rate: f64) -> Result<f64, AmorDepreciationEvalError> {
-    if !rate.is_finite() || rate <= 0.0 || rate >= 0.5 {
+    if !rate.is_finite() || rate <= 0.0 || rate >= AMORDEGRC_RATE_LIMIT {
         return Err(AmorDepreciationEvalError::Domain(WorksheetErrorCode::Num));
     }
     let life = 1.0 / rate;
@@ -186,6 +188,48 @@ fn amordegrc_coefficient(rate: f64) -> Result<f64, AmorDepreciationEvalError> {
     } else {
         Ok(2.5)
     }
+}
+
+/// The high-rate charge uses ROUND's 15-digit input reading before rounding to whole units.
+fn high_rate_charge(value: f64) -> f64 {
+    if value == 0.0 {
+        return 0.0;
+    }
+    let reading = ExactDecimal::fifteen_x87(value, false).expect("a finite depreciation charge");
+    let whole = reading.round_at(0, Direction::Nearest).unwrap_or(reading);
+    whole.text().parse().expect("a decimal depreciation charge")
+}
+
+fn amordegrc_high_rate(
+    cost: f64,
+    salvage: f64,
+    period: i64,
+    adjusted_rate: f64,
+    first_charge: f64,
+    equal_dates: bool,
+) -> f64 {
+    if cost == salvage || period > if equal_dates { 3 } else { 2 } {
+        return 0.0;
+    }
+    let first = high_rate_charge(first_charge.min(cost - salvage));
+    if period == 0 {
+        return first;
+    }
+    let mut balance = cost - first;
+    if balance < salvage || balance <= 0.0 {
+        return 0.0;
+    }
+    if !equal_dates {
+        let half = high_rate_charge(balance * 0.5);
+        return if period == 2 && balance - half < salvage { 0.0 } else { half };
+    }
+    for _ in 1..period {
+        balance -= balance * adjusted_rate;
+        if balance < salvage || balance <= 0.0 {
+            return 0.0;
+        }
+    }
+    high_rate_charge(balance * adjusted_rate)
 }
 
 pub fn amorlinc_kernel(
@@ -268,8 +312,17 @@ pub fn amordegrc_kernel(
         return Ok(0.0);
     }
     let coefficient = amordegrc_coefficient(rate)?;
-    let depreciation_rate = rate * coefficient;
     let initial_fraction = first_period_fraction(purchase, first, basis)?;
+    if rate >= 1.0 / 3.0 {
+        let adjusted_rate = rate * 1.5;
+        let first_charge = cost * adjusted_rate * initial_fraction;
+        if first_charge.is_finite() {
+            return Ok(amordegrc_high_rate(
+                cost, salvage, normalized_period, adjusted_rate, first_charge, purchase == first,
+            ));
+        }
+    }
+    let depreciation_rate = rate * coefficient;
     // Excel 20527 caps the finite initial charge at the rounded depreciable
     // amount. Its overflow path is different and is not yet identified.
     let first_depreciation = round_half_away_from_zero(cost * depreciation_rate * initial_fraction);
