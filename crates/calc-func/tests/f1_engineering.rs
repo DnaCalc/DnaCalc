@@ -236,6 +236,32 @@ fn complex_cotangent_uses_signed_hyperbolic_factors() {
     }
 }
 
+/// Excel 20527 omits a subnormal real quotient and retains a normal quotient near underflow.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn complex_cotangent_flushes_subnormal_real_quotients() {
+    for (input, expected) in [
+        ("0.1+354.0i", "-i"),
+        ("3.141592653589793+340.0i", "-i"),
+        ("0.7853981633974483+354.0i", "6.61510600727682E-308-i"),
+    ] {
+        text(call("IMCOT", vec![t(input)]), expected);
+    }
+}
+
+/// At imaginary part 19, Excel 20527 rounds the denominator near the midpoint.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn complex_cotangent_preserves_explicit_unit_coefficient_after_rounding() {
+    for (input, expected) in [
+        ("0.5+19.0i", "5.28297832393483E-17-i"),
+        ("0.7853981633974483+19.0i", "6.27826558409606E-17-1i"),
+        ("1+19.0i", "5.70881074054678E-17-1i"),
+    ] {
+        text(call("IMCOT", vec![t(input)]), expected);
+    }
+}
+
 /// Excel 20527 takes the signed imaginary limit before checking the circular
 /// argument. The positive and negative boundaries differ and are both strict.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
