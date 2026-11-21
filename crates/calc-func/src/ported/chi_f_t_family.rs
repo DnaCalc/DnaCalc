@@ -142,7 +142,16 @@ pub fn chisq_inv_rt_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Wo
         };
     }
     let n = deg_freedom.trunc();
-    use crate::ported::beta_gamma_stats_family::flush_subnormal;
+    use crate::ported::beta_gamma_stats_family::{flush_subnormal, goldstein_initial_unit};
+    // At large degrees Excel publishes Goldstein's starting value. The right
+    // tail negates the normal deviate of p itself, preserving small tails that
+    // would round away in 1 - p. The cubic uses the truncated degree.
+    if (2.0_f64.powi(40)..2.0_f64.powi(1000)).contains(&n) && p >= f64::MIN_POSITIVE {
+        let z = -crate::ported::normal_log_family::norm_s_inv_kernel(p)?;
+        return goldstein_initial_unit(z, n * 0.5)
+            .map(|unit| unit * 2.0)
+            .ok_or(WorksheetErrorCode::Num);
+    }
     if let Some(factor) =
         crate::ported::beta_gamma_stats_family::goldstein_large_degree_factor(1.0 - p, n)
     {
@@ -152,39 +161,6 @@ pub fn chisq_inv_rt_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Wo
         } else {
             Err(WorksheetErrorCode::Num)
         };
-    }
-    if let Some(factor) = crate::ported::beta_gamma_stats_family::large_shape_inverse_factor(
-        1.0 - p,
-        deg_freedom / 2.0,
-    ) {
-        let res = crate::ported::excel_numeric::excel_x87_mul(deg_freedom, factor);
-        return if res.is_finite() {
-            Ok(flush_subnormal(res))
-        } else {
-            Err(WorksheetErrorCode::Num)
-        };
-    }
-    // Excel 20527's right-tail inverse admits these large degrees even though
-    // the other chi-square routes enforce the 1e10 limit. Its asymptotic
-    // result matches a single x87 multiplication; splitting the correction and
-    // addition changes constructed halfway results. A narrower probability
-    // interval admits lower degrees, with controls on both sides of it. At
-    // still smaller degrees the plateau boundary depends on the normal
-    // quantile; the conservative bound below stays inside the measured region.
-    let lower_degree_plateau = deg_freedom >= 2.0_f64.powi(105)
-        && (0.5..=63.0 / 64.0).contains(&p)
-        && crate::ported::normal_log_family::norm_s_inv_kernel(1.0 - p)
-            .is_ok_and(|z| deg_freedom.sqrt() >= z.abs() * (63.0 * 2.0_f64.powi(46)));
-    if p >= f64::MIN_POSITIVE
-        && (deg_freedom >= f64::from_bits(0x4720_0000_0000_0000) // 2^115
-            || (deg_freedom >= f64::from_bits(0x46a0_0000_0000_0000) // 2^107
-                && (0.01..=0.99).contains(&p))
-            || lower_degree_plateau)
-        && deg_freedom < f64::from_bits(0x7e70_0000_0000_0000) // 2^1000
-    {
-        return Ok(flush_subnormal(
-            crate::ported::beta_gamma_stats_family::large_shape_inverse_unit(deg_freedom),
-        ));
     }
     let k = truncate_positive_integer(deg_freedom)?;
     if k == 1.0 {
