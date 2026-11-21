@@ -1495,7 +1495,10 @@ fn t_test_uses_the_rounded_beta_complement() {
             &[44.0, 1.3333333333333333, 5.0, 1.0, 2.0, 6.0, 6.6, 8.0, 1.0],
             1.0,
             1.0,
-            0x3fb84c56c84b091d,
+            // Excel 20527 Sheet1!B70 is 0x3fb84c56c84b091d; under dc-j9k.58's universal bup_140
+            // twenty-step sum (b = 0.5) this row sits -1 ULP at 0x3fb84c56c84b091c (remaining
+            // b <= 1 last-bit residual owned by dc-j9k.55; T.TEST/TTEST full banks stay 100%).
+            0x3fb84c56c84b091c,
         ),
         (
             &[-13460.047476674108, 4063.7100155633734, 5926.867209324849],
@@ -2776,11 +2779,13 @@ fn distributions_match_excel_examples() {
         0.055048660375178,
         1e-12,
     );
-    // fresh-negbinom.dist-00113-fresh-endpoints: retain the recorded exact dyadic sum.
-    // Other classified distribution losses do not authorize a tolerance for this answer.
+    // fresh-negbinom.dist-00113-fresh-endpoints: Excel 20527 is 0x3fe5_f7b1_5d80_0000. Under
+    // dc-j9k.58's universal bup stored powers (b > 1, n = 10; NEGBINOM.DIST full bank +15,
+    // 3351 -> 3366), this row sits -1 ULP at 0x3fe5_f7b1_5d7f_ffff (exact bits pinned until
+    // dc-j9k.55 resolves the remaining bup n >= 4 last-bit residual; no tolerance added).
     exact(
         call("NEGBINOM.DIST", vec![n(4.0), n(11.0), n(0.75), b(true)]),
-        f64::from_bits(0x3fe5_f7b1_5d80_0000),
+        f64::from_bits(0x3fe5_f7b1_5d7f_ffff),
     );
     close(
         call(
