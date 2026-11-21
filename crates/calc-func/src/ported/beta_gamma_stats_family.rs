@@ -372,7 +372,7 @@ pub(crate) fn beta_inv_kernel(
     ))
 }
 
-pub(super) fn flush_subnormal(value: f64) -> f64 {
+pub(crate) fn flush_subnormal(value: f64) -> f64 {
     if value.is_subnormal() { 0.0 } else { value }
 }
 

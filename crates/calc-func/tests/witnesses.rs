@@ -30,6 +30,36 @@ fn f_dist_flushes_subnormal_density() {
     );
 }
 
+/// Excel 16.0.20527 from ax2, nx2 and cb5's retained discrepancy sets.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beta_dist_flushes_subnormal_results() {
+    for args in [
+        serde_json::json!(["0x0010000000000000", "0x3fefffffffffffff", "0x3da8089f6e924e68", true]),
+        serde_json::json!(["0x3f8f709c24b9fa3c", "0x4068ab5b2480b046", "0x4041ab5fe7a9160a", true]),
+        serde_json::json!(["0x3e923126e978d4fe", "0x404ad9999999999a", "0x4047a66666666666", false]),
+    ] {
+        assert_eq!(
+            witness_call::calculate("BETA.DIST", args.as_array().unwrap(), None, None, true),
+            "0x0000000000000000",
+            "{args}"
+        );
+    }
+}
+
+/// Excel 16.0.20527, ax2/beta-inverse-boundary-cdf-answers.jsonl row 262.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beta_dist_cdf_at_minimum_normal_coordinate() {
+    let args = serde_json::json!([
+        "0x0010000000000000", "0x3e33fc282eeff1bc", "0x4000000000000000", true
+    ]);
+    assert_eq!(
+        witness_call::calculate("BETA.DIST", args.as_array().unwrap(), None, None, true),
+        "0x3feffff91f729bc4"
+    );
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn every_pinned_witness_row_calculates_as_pinned() {

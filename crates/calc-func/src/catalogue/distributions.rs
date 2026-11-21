@@ -247,13 +247,15 @@ ported_shared_family! {
         let cumulative = flag(s, a, 3)?;
         let lower = if given(a, 4) { num(s, a, 4)? } else { 0.0 };
         let upper = if given(a, 5) { num(s, a, 5)? } else { 1.0 };
-        out(s, bg::beta_dist_kernel(x, alpha, beta, cumulative, lower, upper))
+        let result = bg::beta_dist_kernel(x, alpha, beta, cumulative, lower, upper);
+        out(s, result.map(bg::flush_subnormal))
     }
     51 betadist |s, a, sv| {
         let [x, alpha, beta] = nums::<3>(s, a)?;
         let lower = if given(a, 3) { num(s, a, 3)? } else { 0.0 };
         let upper = if given(a, 4) { num(s, a, 4)? } else { 1.0 };
-        out(s, bg::beta_dist_kernel(x, alpha, beta, true, lower, upper))
+        let result = bg::beta_dist_kernel(x, alpha, beta, true, lower, upper);
+        out(s, result.map(bg::flush_subnormal))
     }
     52 beta_inv |s, a, sv| {
         beta_inverse(s, a)
