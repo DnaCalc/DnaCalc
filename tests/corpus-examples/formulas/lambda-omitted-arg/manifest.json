@@ -1,0 +1,27 @@
+{
+  "id": "lambda-omitted-arg",
+  "kind": "formula",
+  "feature": "LAMBDA and LET",
+  "trick": "ISOMITTED distinguishes a syntactically omitted lambda argument from zero.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/isomitted-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": 0
+  },
+  "formulas": {
+    "N2": "=LAMBDA(first,second,IF(ISOMITTED(second),first+9,first+second))(A1,)"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.LAMBDA(_xlpm.first,_xlpm.second,IF(_xlfn.ISOMITTED(_xlpm.second),_xlpm.first+9,_xlpm.first+_xlpm.second))(A1,)"
+  },
+  "capture": [
+    "Sheet1!N2"
+  ],
+  "expected_answer": null
+}

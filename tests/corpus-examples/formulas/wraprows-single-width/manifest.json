@@ -1,0 +1,30 @@
+{
+  "id": "wraprows-single-width",
+  "kind": "formula",
+  "feature": "dynamic arrays",
+  "trick": "A wrap count of one turns a source row into a column.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/wraprows-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": "x",
+    "B1": "y",
+    "C1": "z"
+  },
+  "formulas": {
+    "N2": "=WRAPROWS(A1:C1,1)"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.WRAPROWS(A1:C1,1)"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

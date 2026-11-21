@@ -5,7 +5,7 @@
 
 mod f1_support;
 
-use calc_func::value::WorksheetErrorCode::{Calc, NA, Value};
+use calc_func::value::WorksheetErrorCode::{Calc, NA, Num, Value};
 use f1_support::*;
 
 /// Excel 20527 floors positive fractional dimensions and advances each result by one addition.
@@ -34,10 +34,7 @@ fn sequence_fractional_dimensions_and_accumulation() {
     assert_eq!(array(call("SEQUENCE", vec![n(2.1), n(1.0), blank.clone(), n(2.0)])), (2, 1, vec![0.0, 2.0]));
     assert_eq!(array(call("SEQUENCE", vec![n(2.1), n(1.0), n(4.0), blank])), (2, 1, vec![4.0, 4.0]));
     assert_eq!(array(call("SEQUENCE", vec![n(2.1), n(1.0), missing(), missing()])), (2, 1, vec![1.0, 2.0]));
-    refused(call("SEQUENCE", vec![n(2.1), n(2.1), n(1e308), n(1e308)]));
-
-    // A yielded application call must resume the same accumulation, and overflow must retain
-    // its typed refusal in the resumable route.
+    // A yielded application call must resume the same accumulation and retain its overflow cells.
     use calc_func::{catalogue, invoke_slice, EvalServices, FunctionCallScratch, Notation};
     use calc_func::value::NumericMode;
     let target = catalogue().resolve_surface(Notation::Call, "SEQUENCE").unwrap();
@@ -49,11 +46,57 @@ fn sequence_fractional_dimensions_and_accumulation() {
     let resumed = invoke_slice(target, &mut arguments, &mut services, &mut scratch, 100)
         .unwrap().unwrap();
     assert_eq!(resumed.as_array().unwrap().get(1, 0).unwrap().as_number().unwrap().to_bits(), 0xc1aa_4ab2_239d_f152);
-    let mut overflow = Given(vec![n(2.1), n(2.1), n(1e308), n(1e308)]);
+    let overflow_args = vec![n(2.1), n(3.1), n(1e308), n(1e308)];
+    let expected = arr_values(vec![
+        vec![n(1e308), e(Num), e(Num)],
+        vec![e(Num), e(Num), e(Num)],
+    ]);
+    assert_eq!(call("SEQUENCE", overflow_args.clone()), Ok(expected.clone()));
+    let mut overflow = Given(overflow_args);
     let mut scratch = FunctionCallScratch::new();
     assert_eq!(invoke_slice(target, &mut overflow, &mut services, &mut scratch, 1), Ok(None));
-    refused(invoke_slice(target, &mut overflow, &mut services, &mut scratch, 1)
-        .map(|v| v.unwrap_or_else(|| panic!("expected a refusal"))));
+    assert_eq!(
+        invoke_slice(target, &mut overflow, &mut services, &mut scratch, 5),
+        Ok(Some(expected))
+    );
+}
+
+/// Excel 20527 stores each SEQUENCE step, including across rows and resumption.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn sequence_integer_dimensions_accumulate_in_spill_order() {
+    use calc_func::value::NumericMode;
+    use calc_func::{EvalServices, FunctionCallScratch, Notation, catalogue, invoke_slice};
+
+    let args = vec![
+        n(7.0),
+        n(5.0),
+        n(f64::from_bits(0xc16d_e79b_284c_2c68)),
+        n(f64::from_bits(0xc18e_44bb_1fe3_3456)),
+    ];
+    let (rows, cols, cells) = array(call("SEQUENCE", args));
+    assert_eq!((rows, cols), (7, 5));
+    assert_eq!(cells[5].to_bits(), 0xc1b3_da31_cd30_621a);
+
+    let target = catalogue().resolve_surface(Notation::Call, "SEQUENCE").unwrap();
+    let mut services = EvalServices::new(&NumericMode::Fast);
+    let mut scratch = FunctionCallScratch::new();
+    let mut overflow = Given(vec![n(2.0), n(3.0), n(-1e308), n(1e308)]);
+    assert_eq!(invoke_slice(target, &mut overflow, &mut services, &mut scratch, 2), Ok(None));
+    assert_eq!(
+        invoke_slice(target, &mut overflow, &mut services, &mut scratch, 4),
+        Ok(Some(arr_values(vec![
+            vec![n(-1e308), n(0.0), n(1e308)],
+            vec![e(Num), e(Num), e(Num)],
+        ])))
+    );
+
+    let minimum = f64::MIN_POSITIVE;
+    let next_normal = f64::from_bits(minimum.to_bits() + 1);
+    let (_, _, cells) = array(call("SEQUENCE", vec![n(2.0), n(3.0), n(next_normal), n(-minimum)]));
+    assert_eq!(cells[1].to_bits(), 1);
+    assert_eq!(cells[2].to_bits(), 0x800f_ffff_ffff_ffff);
+    assert_eq!(array(call("SEQUENCE", vec![n(1.0), n(1.0), n(1e308), n(1e308)])), (1, 1, vec![1e308]));
 }
 
 /// Excel 16.0.20527 distinguishes blank optional cells from omitted SORT

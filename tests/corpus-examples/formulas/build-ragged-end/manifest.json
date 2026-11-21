@@ -1,0 +1,32 @@
+{
+  "id": "build-ragged-end",
+  "kind": "formula",
+  "feature": "LAMBDA and LET",
+  "trick": "MAKEARRAY pads entries beyond the requested count in its final row.",
+  "licence": "CC BY-SA 4.0",
+  "source": {
+    "url": "https://stackoverflow.com/a/73789334",
+    "author": "Scott Craner",
+    "author_url": "https://stackoverflow.com/users/4851590/scott-craner",
+    "licence": "CC BY-SA 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "source_path": "answers/73789334/code/1",
+    "sha256": "74df84ff26aa901d95612d7b4d6499238f8f89d5f2af895d572468c9e5fb2931",
+    "changes": "Synthetic inputs and OOXML formula encoding."
+  },
+  "inputs": {
+    "B2": 13,
+    "B3": 10
+  },
+  "formulas": {
+    "N2": "=MAKEARRAY(ROUNDUP(B2/B3,0),B3,LAMBDA(rw,clm,IF(10*(rw-1)+clm>B2,\"\",\"O\")))"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.MAKEARRAY(ROUNDUP(B2/B3,0),B3,_xlfn.LAMBDA(_xlpm.rw,_xlpm.clm,IF(10*(_xlpm.rw-1)+_xlpm.clm>B2,\"\",\"O\")))"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

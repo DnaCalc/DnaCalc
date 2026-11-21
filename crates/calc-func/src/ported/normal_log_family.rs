@@ -93,13 +93,9 @@ fn x87_sqrt_of_minus_log(v: f64) -> f64 {
     excel_sqrt_staged(-excel_log(v))
 }
 
-/// The tail of the inverse standard normal by the rational approximations of
-/// M. J. Wichura, "Algorithm AS 241: The Percentage Points of the Normal Distribution",
-/// Applied Statistics 37(3), 1988, pp. 477-484 (PPND16): the published coefficients of its
-/// tail approximations evaluated in `sqrt(-ln p)`. Every Horner product and sum and the final
-/// quotient is stored to binary64 from precision 64 (R42: the lower windows near 6.4e-82 and
-/// 1.8e-26 separate it from strict binary64; the R39 upper answers agree with both).
-fn inverse_standard_normal_as241_tail(p: f64) -> f64 {
+/// Magnitude of the AS 241 tail deviate for upper/lower tail probability `tail_p` in `(0, 0.5]`.
+/// Shared by `NORM.S.INV` and the `alpha == 0.5` (`df == 1`) gamma/chi-square inverse.
+fn as241_tail_magnitude(tail_p: f64) -> f64 {
     use crate::ported::excel_numeric::{excel_x87_add, excel_x87_div, excel_x87_mul};
     let horner = |c: &[f64; 8], r: f64| {
         c[..7]
@@ -148,17 +144,26 @@ fn inverse_standard_normal_as241_tail(p: f64) -> f64 {
         2.0442631033899397e-15,
     ];
 
-    let q = p - 0.5;
-    let tail_p = if q < 0.0 { p } else { 1.0 - p };
     let mut r = x87_sqrt_of_minus_log(tail_p);
-    let x = if r <= 5.0 {
+    if r <= 5.0 {
         r -= 1.6;
         excel_x87_div(horner(&C, r), horner(&D, r))
     } else {
         r -= 5.0;
         excel_x87_div(horner(&E, r), horner(&F, r))
-    };
+    }
+}
 
+/// The tail of the inverse standard normal by the rational approximations of
+/// M. J. Wichura, "Algorithm AS 241: The Percentage Points of the Normal Distribution",
+/// Applied Statistics 37(3), 1988, pp. 477-484 (PPND16): the published coefficients of its
+/// tail approximations evaluated in `sqrt(-ln p)`. Every Horner product and sum and the final
+/// quotient is stored to binary64 from precision 64 (R42: the lower windows near 6.4e-82 and
+/// 1.8e-26 separate it from strict binary64; the R39 upper answers agree with both).
+fn inverse_standard_normal_as241_tail(p: f64) -> f64 {
+    let q = p - 0.5;
+    let tail_p = if q < 0.0 { p } else { 1.0 - p };
+    let x = as241_tail_magnitude(tail_p);
     if q < 0.0 { -x } else { x }
 }
 
@@ -293,6 +298,34 @@ fn inverse_standard_normal(p: f64) -> Result<f64, WorksheetErrorCode> {
     let y = excel_x87_mul(a, ratio);
     let x = excel_x87_mul(y, std::f64::consts::SQRT_2);
     Ok(if t < 0.0 { -x } else { x })
+}
+
+/// Excel's closed-form unit-scale gamma inverse at `alpha == 0.5` (`df == 1`):
+/// `erfinv(p)^2`, sharing the four `NORM.S.INV` rational/AS 241 pieces without
+/// the outer `sqrt(2)` factor on pieces A-C and scaling the AS 241 tail by
+/// `1/sqrt(2)` (cb6, dc-j9k.60). Subnormal `y^2` flushes to `0.0` before the
+/// caller applies the outer scale.
+pub(crate) fn gamma_inv_half_unit(p: f64) -> f64 {
+    use crate::ported::excel_numeric::{excel_x87_add, excel_x87_mul, excel_x87_sub};
+    let q1 = excel_x87_add(0.5, excel_x87_sub(0.5, p));
+    let y = if p > 15.0 / 16.0 {
+        let z = as241_tail_magnitude(0.5 * q1);
+        excel_x87_mul(z, f64::from_bits(FRAC_1_SQRT_2_BITS))
+    } else {
+        let s = excel_x87_mul(p, p);
+        if s <= 0.5 {
+            excel_x87_mul(p, central_inverse_erf_ratio(s))
+        } else {
+            let ratio = if p <= 0.85 {
+                piece_b_inverse_erf_ratio(s)
+            } else {
+                piece_c_inverse_erf_ratio(p)
+            };
+            let a = x87_sqrt_of_minus_log(q1);
+            excel_x87_mul(a, ratio)
+        }
+    };
+    flush_subnormal(excel_x87_mul(y, y))
 }
 
 pub fn norm_s_dist_kernel(z: f64, cumulative: bool) -> Result<f64, WorksheetErrorCode> {

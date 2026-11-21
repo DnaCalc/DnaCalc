@@ -1,0 +1,31 @@
+{
+  "id": "extract-json-pair",
+  "kind": "formula",
+  "feature": "REGEX",
+  "trick": "A cell-supplied key becomes part of the pattern for extracting a field fragment.",
+  "licence": "CC BY-SA 4.0",
+  "source": {
+    "url": "https://stackoverflow.com/a/59899848",
+    "author": "IMTheNachoMan",
+    "author_url": "https://stackoverflow.com/users/3383907/imthenachoman",
+    "licence": "CC BY-SA 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "source_path": "answers/59899848/code/5",
+    "sha256": "0ed3820f96baf79ab19f15d50c09a89069bdc10c61262e916ee827ae809d6789",
+    "changes": "Synthetic inputs and OOXML formula encoding."
+  },
+  "inputs": {
+    "A1": "{\"size\": 42, \"tone\": \"red\"}",
+    "B1": "size"
+  },
+  "formulas": {
+    "N2": "=REGEXEXTRACT(A1, \"\"\"\" & B1 & \"\"\" *: *(.*?),\")"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.REGEXEXTRACT(A1, \"\"\"\" & B1 & \"\"\" *: *(.*?),\")"
+  },
+  "capture": [
+    "Sheet1!N2"
+  ],
+  "expected_answer": null
+}

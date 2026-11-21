@@ -197,3 +197,29 @@ Every Excel-family file in `sources/` (46 sets, all but `_pointers/`) is in one 
 **Extensions.** 479,580 occurrences have no extension, nearly all FUSE binaries. 1,327 `.xls` files are really text.
 
 The internals catalogue (dc-ztvv.18) reads from the unique store. Run folder on dna-firehorse: `~/codex-runs/xl-dedup-20261116/`.
+
+## Harv7 tips and tricks (2026-11-21, dc-ebb.3)
+
+
+The figures are for payload files. R2 object counts include source manifests, occurrence lists
+and licence notices. The private prefixes are `sources/<set>/20261121/`. For each copied
+set, `rclone copy --checksum` and `rclone check --one-way` were used. Creator downloads
+remain test material for local use. Their verified R2 copies are private, with no
+redistribution licence.
+
+| Set | Licence class | Licences and files | Payload files | Payload bytes | R2 check, objects and bytes |
+|---|---|---|---:|---:|---|
+| [creator-tips-local-20261121](corpus-manifests/creator-tips-local-20261121.tsv) | creator-download | creator-download (675) | 675 | 19,882,153 | 676 / 20,170,499 |
+| [github-gist-tips-20261121](corpus-manifests/github-gist-tips-20261121.tsv) | open | MIT (2) | 2 | 28,088 | 3 / 29,517 |
+| [github-licensed-tips-20261121](corpus-manifests/github-licensed-tips-20261121.tsv) | open | MIT (317), Apache-2.0 (119), GPL-3.0 (9), Unlicense (1) | 446 | 65,825,087 | 465 / 66,304,777 |
+| [microsoft-office-client-docs-20261121](corpus-manifests/microsoft-office-client-docs-20261121.tsv) | open | MIT (9) | 9 | 2,415 | 13 / 33,777 |
+| [microsoft-vba-docs-20261121](corpus-manifests/microsoft-vba-docs-20261121.tsv) | open | MIT (3,199) | 3,199 | 656,924 | 3,203 / 4,174,639 |
+| [stackexchange-tips-20261121](corpus-manifests/stackexchange-tips-20261121.tsv) | open | CC BY-SA 4.0 (1,350), CC BY-SA 3.0 (2,558), CC BY-SA 2.5 (216) | 4,124 | 1,409,139 | 4,125 / 2,912,495 |
+
+Per-file provenance and licence evidence are in `~/corpora/<set>/sources.tsv` on kode-fi
+and with the matching R2 set. The Microsoft occurrence lists also preserve source locations
+for byte-identical examples and excerpts of results stated by their pages. The Microsoft
+code licence is MIT. The documentation text and extracted result excerpts carry CC BY 4.0.
+The new files were hashed against `all-files.kode-fi.v5.jsonl` and one another. The v6 index
+preserves the v5 records and appends the new files. Two matches appeared in older standalone
+manifests outside v5, one Stack Exchange snippet and one Excel Easy workbook.

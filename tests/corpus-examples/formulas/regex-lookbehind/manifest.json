@@ -1,0 +1,27 @@
+{
+  "id": "regex-lookbehind",
+  "kind": "formula",
+  "feature": "REGEX",
+  "trick": "Lookbehind finds a token after a literal marker without including that marker.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/regexextract-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": "other=11; units=12; id=8"
+  },
+  "formulas": {
+    "N2": "=REGEXEXTRACT(A1,\"(?<=units=)\\d+\")"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.REGEXEXTRACT(A1,\"(?<=units=)\\d+\")"
+  },
+  "capture": [
+    "Sheet1!N2"
+  ],
+  "expected_answer": null
+}

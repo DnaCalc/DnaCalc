@@ -1,0 +1,40 @@
+{
+  "id": "subtotal-group-text",
+  "kind": "formula",
+  "feature": "GROUPBY and PIVOTBY",
+  "trick": "GROUPBY can aggregate text with a function argument and suppress grand totals.",
+  "licence": "CC BY-SA 4.0",
+  "source": {
+    "url": "https://superuser.com/a/1934259",
+    "author": "Mayukh Bhattacharya",
+    "author_url": "https://superuser.com/users/1247873/mayukh-bhattacharya",
+    "licence": "CC BY-SA 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "source_path": "answers/1934259/code/2",
+    "sha256": "6402af3af10b9555e406b7e1db9296e9f4bb1330381beb23131a22d865888458",
+    "changes": "Adapted formula, synthetic inputs and OOXML formula encoding."
+  },
+  "inputs": {
+    "A1": "key",
+    "B1": "note",
+    "A2": "north",
+    "B2": "a",
+    "A3": "south",
+    "B3": "b",
+    "A4": "north",
+    "B4": "c",
+    "A5": "south",
+    "B5": "d"
+  },
+  "formulas": {
+    "N2": "=_xlfn.GROUPBY(A1:A5,B1:B5,_xleta.ARRAYTOTEXT,3,0,-1)"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.GROUPBY(A1:A5,B1:B5,_xleta.ARRAYTOTEXT,3,0,-1)"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

@@ -1,0 +1,30 @@
+{
+  "id": "remove-char-set",
+  "kind": "formula",
+  "feature": "text arrays",
+  "trick": "A delimiter array lets CONCAT rejoin the tokens after deleting several punctuation characters.",
+  "licence": "CC BY-SA 4.0",
+  "source": {
+    "url": "https://stackoverflow.com/a/65364905",
+    "author": "JvdV",
+    "author_url": "https://stackoverflow.com/users/9758194/jvdv",
+    "licence": "CC BY-SA 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "source_path": "answers/65364905/code/1",
+    "sha256": "54a69c1a8694b251af35ec9db7a9b6b68a13197c6ac58b6ee9cbece515f77650",
+    "changes": "Synthetic inputs and OOXML formula encoding."
+  },
+  "inputs": {
+    "A1": "A+1#B*2!C"
+  },
+  "formulas": {
+    "N2": "=CONCAT(TEXTSPLIT(A1,{\"+\",\"#\",\"%\",\"*\",\"(\",\")\",\"!\"}))"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.CONCAT(_xlfn.TEXTSPLIT(A1,{\"+\",\"#\",\"%\",\"*\",\"(\",\")\",\"!\"}))"
+  },
+  "capture": [
+    "Sheet1!N2"
+  ],
+  "expected_answer": null
+}

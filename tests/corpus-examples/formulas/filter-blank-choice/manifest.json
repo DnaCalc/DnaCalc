@@ -1,0 +1,31 @@
+{
+  "id": "filter-blank-choice",
+  "kind": "formula",
+  "feature": "dynamic arrays",
+  "trick": "Changing the empty-result argument produces either an explicit marker or the default error.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/filter-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": "pear",
+    "A2": "kiwi",
+    "B1": 1,
+    "B2": 2
+  },
+  "formulas": {
+    "N2": "=FILTER(A1:A2,B1:B2>9,\"∅\")"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn._xlws.FILTER(A1:A2,B1:B2>9,\"∅\")"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

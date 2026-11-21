@@ -1,0 +1,36 @@
+{
+  "id": "agg-small-ignore-errors",
+  "kind": "formula",
+  "feature": "reference and coercion",
+  "trick": "AGGREGATE ignores division errors while enumerating row numbers of nonempty cells.",
+  "licence": "CC BY-SA 4.0",
+  "source": {
+    "url": "https://superuser.com/a/1842916",
+    "author": "Mayukh Bhattacharya",
+    "author_url": "https://superuser.com/users/1247873/mayukh-bhattacharya",
+    "licence": "CC BY-SA 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "source_path": "answers/1842916/code/5",
+    "sha256": "cf3e51f881de37d51d6dbd0888b0f6f21acbec28c4411990fbfe6a8d86e87a17",
+    "changes": "Synthetic inputs and OOXML formula encoding."
+  },
+  "inputs": {
+    "A2": "first",
+    "A3": "second",
+    "A4": "third",
+    "A5": "fourth",
+    "A6": "fifth",
+    "B3": "hit",
+    "D5": "hit"
+  },
+  "formulas": {
+    "N2": "=INDEX($A$2:$A$6,AGGREGATE(15,7,(ROW($B$2:$D$6)-ROW($B$2)+1)/($B$2:$D$6<>\"\"),ROWS(F$7:F7)))"
+  },
+  "stored_formulas": {
+    "N2": "=INDEX($A$2:$A$6,_xlfn.AGGREGATE(15,7,(ROW($B$2:$D$6)-ROW($B$2)+1)/($B$2:$D$6<>\"\"),ROWS(F$7:F7)))"
+  },
+  "capture": [
+    "Sheet1!N2"
+  ],
+  "expected_answer": null
+}

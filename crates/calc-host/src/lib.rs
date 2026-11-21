@@ -143,7 +143,7 @@ pub use calc_doc::{
     SaveReceipt, SaveRefusal, SaveViews, SpreadsheetFormat, VbaProjectPart, VbaReadError,
     VbaReadPolicy, WriteError,
 };
-pub use calc_doc::{ColumnSpan, LoadedSheet, LoadedWorkbook, RowFormat, SheetGeometry, SheetView};
+pub use calc_doc::{ColumnSpan, LoadedSheet, LoadedWorkbook, RowFormat, SheetGeometry, SheetView, SheetViewMode};
 /// An add-in file's (`.xlam`) VBA project part, for a desktop host that loads VBA add-ins.
 pub use calc_doc::{SessionVba, read_vba_file};
 pub use calc_doc::{

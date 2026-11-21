@@ -1,0 +1,35 @@
+{
+  "id": "unique-columns-once",
+  "kind": "formula",
+  "feature": "dynamic arrays",
+  "trick": "UNIQUE can count duplicate columns and return only columns that occur exactly once.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/unique-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": 1,
+    "A2": "a",
+    "B1": 1,
+    "B2": "a",
+    "C1": 1,
+    "C2": "b",
+    "D1": 2,
+    "D2": "a"
+  },
+  "formulas": {
+    "N2": "=UNIQUE(A1:D2,TRUE,TRUE)"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.UNIQUE(A1:D2,TRUE,TRUE)"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

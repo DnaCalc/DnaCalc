@@ -10836,6 +10836,49 @@ fn shared_block_package() -> Vec<u8> {
     })
 }
 
+/// Excel 16.0.20527 repairs rejected IRR() and COUNTBLANK(2) file formulas to their saved numbers.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_mx3x_1__rejected_cached_scalar_formulas_become_literals() {
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        xml.replace(
+            "<sheetData/>",
+            concat!(
+                r#"<sheetData><row r="1"><c r="A1"><f>IRR()</f><v>5</v></c>"#,
+                r#"<c r="B1"><f>A1</f></c></row>"#,
+                r#"<row r="2"><c r="A2"><f>COUNTBLANK(2)</f><v>5</v></c>"#,
+                r#"<c r="B2"><f>A2</f></c></row></sheetData>"#,
+            ),
+        )
+    });
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    let five = CalcValue::number(5.0);
+    for address in ["A1", "A2"] {
+        assert_eq!(
+            value(book.host(), at(s, address)),
+            ProjectedValue::Literal(five.clone())
+        );
+    }
+    assert_eq!(book.host().open_report().repairs.len(), 2);
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    for address in ["B1", "B2"] {
+        assert_eq!(calculated(book.host(), at(s, address)), Some(five.clone()));
+    }
+    assert!(enter(&mut book, at(s, "C1"), "7").accepted());
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = open(&saved);
+    let s = reopened.sheets()[0].id();
+    assert!(reopened.open_report().repairs.is_empty());
+    for address in ["A1", "A2"] {
+        assert_eq!(
+            value(&reopened, at(s, address)),
+            ProjectedValue::Literal(five.clone())
+        );
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_hsa5_8__sparse_result_columns_compact_without_recalculation() {
@@ -13236,6 +13279,66 @@ fn dc_971p__numeric_row_sort_is_stable_moves_formats_and_round_trips_one_history
         twin.host().cell_style(at(p, "A2")),
         book.host().cell_style(at(s, "A2"))
     );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_64__sorts_a_range_tiled_by_uniform_horizontal_merges() {
+    use calc_host::{SortKey, WorkbookCommand};
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        xml.replace(
+            "</worksheet>",
+            concat!(
+                r#"<mergeCells count="4"><mergeCell ref="A1:B1"/><mergeCell ref="C1:D1"/>"#,
+                r#"<mergeCell ref="A2:B2"/><mergeCell ref="C2:D2"/></mergeCells></worksheet>"#,
+            ),
+        )
+    });
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    for (address, input) in [("A1", "=C1+10"), ("C1", "2"), ("A2", "=C2+20"), ("C2", "1")] {
+        assert!(enter(&mut book, at(s, address), input).accepted());
+    }
+    let merges = book.host().merged_areas(s);
+    assert_eq!(merges.len(), 4);
+    let sort = |book: &mut HostSession, first, last, column| {
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows {
+            area: GridArea::new(at(s, first), at(s, last)).unwrap(),
+            keys: vec![SortKey {
+                column,
+                descending: false,
+            }],
+            header: false,
+            revision,
+        }))
+    };
+    let revision = book.host().revision();
+    for (first, last, column, reason) in [
+        ("B1", "D2", 3, "identically sized"),
+        ("A1", "C2", 3, "identically sized"),
+        ("A1", "E2", 3, "identically sized"),
+        ("A1", "D2", 4, "covered column"),
+    ] {
+        let refused = sort(&mut book, first, last, column);
+        assert!(refused.error.unwrap().to_string().contains(reason));
+        assert_eq!(book.host().revision(), revision);
+    }
+    let sorted = sort(&mut book, "A1", "D2", 3);
+    assert!(sorted.accepted(), "{sorted:?}");
+    let moved = calc_host::interpret_entry("=C1+20").unwrap();
+    assert_eq!(book.host().model().cell(at(s, "A1")), moved.as_ref());
+    assert_eq!(book.host().merged_areas(s), merges);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    let original = calc_host::interpret_entry("=C1+10").unwrap();
+    assert_eq!(book.host().model().cell(at(s, "A1")), original.as_ref());
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = open(&saved);
+    let s = reopened.sheets()[0].id();
+    assert_eq!(reopened.model().cell(at(s, "A1")), moved.as_ref());
+    assert_eq!(reopened.merged_areas(s).len(), 4);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -25847,6 +25950,69 @@ fn dc_971p_51__shared_axis_combination_edit_and_saved_reopening() {
     assert_eq!(xml.matches("<c:lineChart>").count(), 1);
     assert_eq!(xml.matches("<c:catAx>").count(), 1);
     assert_eq!(xml.matches("<c:valAx>").count(), 1);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_65__printing_view_and_partial_pivot_breaks_round_trip() {
+    let part = "xl/worksheets/sheet1.xml";
+    let fixture = package_with_part(part, |xml| {
+        xml.replace(
+            "<sheetData",
+            r#"<sheetViews><sheetView workbookViewId="0" view="pageBreakPreview"/></sheetViews><sheetData"#,
+        )
+        .replace(
+            "</worksheet>",
+            concat!(
+                r#"<rowBreaks xmlns:z="urn:test" count="2" manualBreakCount="2">"#,
+                r#"<brk id="20" min="0" max="3" man="1" z:span="partial"/>"#,
+                r#"<brk id="20" min="4" max="7" man="1" pt="1" z:span="pivot"/>"#,
+                r#"</rowBreaks><colBreaks count="1" manualBreakCount="1">"#,
+                r#"<brk id="4" min="2" max="19" man="1" pt="1"/></colBreaks></worksheet>"#,
+            ),
+        )
+    });
+    let mut book = session(&fixture);
+    let sheet = book.host().sheets()[0].id();
+    let mut setup = book.host().model().definitions().page_setup(sheet);
+    assert_eq!(setup.row_breaks.len(), 2);
+    assert_eq!((setup.row_breaks[0].min, setup.row_breaks[0].max), (0, 3));
+    assert!(setup.row_breaks[1].pivot && setup.column_breaks[0].pivot);
+    setup.row_breaks.push(calc_doc_model::PageBreak {
+        id: 40,
+        min: 0,
+        max: 16_383,
+        manual: true,
+        pivot: false,
+    });
+    let receipt = book.dispatch(SkinIntent::Edit {
+        edits: vec![CellEdit::PageSetup {
+            sheet,
+            setup: setup.clone(),
+        }],
+    });
+    assert!(receipt.accepted(), "{receipt:?}");
+    let mode = calc_host::SheetViewMode::PageLayout;
+    let mut view = book.host().sheet_view(sheet).unwrap();
+    assert_eq!(view.mode, Some(calc_host::SheetViewMode::PageBreakPreview));
+    view.mode = Some(mode);
+    let policy = SavePolicy {
+        views: Some(std::sync::Arc::new(calc_host::SaveViews {
+            revision: book.host().revision().get(),
+            active_sheet: Some(sheet),
+            sheets: [(sheet, view)].into(),
+        })),
+        ..SavePolicy::default()
+    };
+    let mut saved = Vec::new();
+    book.save(&policy, &mut saved).unwrap();
+    let xml = part_text(&saved, part);
+    assert_eq!(xml.matches(r#"z:span="partial""#).count(), 1, "{xml}");
+    assert_eq!(xml.matches(r#"z:span="pivot""#).count(), 1, "{xml}");
+    assert!(xml.contains(r#"view="pageLayout""#), "{xml}");
+    let reopened = session(&saved);
+    assert_eq!(reopened.host().sheet_view(sheet).unwrap().mode, Some(mode));
+    assert_eq!(reopened.host().model().definitions().page_setup(sheet), setup);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -1,0 +1,46 @@
+{
+  "id": "filter-conditional-unique-row",
+  "kind": "formula",
+  "feature": "dynamic arrays",
+  "trick": "COUNTIF, COUNTIFS and XMATCH combine to keep differing keys plus their first appearance.",
+  "licence": "CC BY-SA 4.0",
+  "source": {
+    "url": "https://superuser.com/a/1925024",
+    "author": "P.b",
+    "author_url": "https://superuser.com/users/1856315/p-b",
+    "licence": "CC BY-SA 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "source_path": "answers/1925024/code/1",
+    "sha256": "0e40f8f86ed0921afbf78766d4a76c19a7e3836a7a1ee3f7bdf1668cc143addc",
+    "changes": "Synthetic inputs and OOXML formula encoding."
+  },
+  "inputs": {
+    "B1": "p",
+    "F1": "red",
+    "B2": "p",
+    "F2": "red",
+    "B3": "q",
+    "F3": "blue",
+    "B4": "q",
+    "F4": "green",
+    "B5": "p",
+    "F5": "yellow",
+    "B6": "r",
+    "F6": "pink",
+    "B7": "r",
+    "F7": "pink",
+    "B8": "s",
+    "F8": "lilac"
+  },
+  "formulas": {
+    "N2": "=LET(b,B1:B8,f,F1:F8,x,FILTER(b:f,COUNTIF(b,b)-COUNTIFS(b,b,f,f)+(SEQUENCE(ROWS(b))=XMATCH(b,b))),IF(x=\"\",\"\",x))"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.LET(b,B1:B8,f,F1:F8,x,_xlfn._xlws.FILTER(b:f,COUNTIF(b,b)-COUNTIFS(b,b,f,f)+(_xlfn.SEQUENCE(ROWS(b))=_xlfn.XMATCH(b,b))),IF(x=\"\",\"\",x))"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

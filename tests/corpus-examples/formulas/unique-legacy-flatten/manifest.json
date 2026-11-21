@@ -1,0 +1,35 @@
+{
+  "id": "unique-legacy-flatten",
+  "kind": "formula",
+  "feature": "dynamic arrays",
+  "trick": "INDEX coordinates enumerate a rectangular grid vertically before filtering unique values.",
+  "licence": "CC BY-SA 4.0",
+  "source": {
+    "url": "https://stackoverflow.com/a/66368713",
+    "author": "JvdV",
+    "author_url": "https://stackoverflow.com/users/9758194/jvdv",
+    "licence": "CC BY-SA 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "source_path": "answers/66368713/code/5",
+    "sha256": "e1e9c5b30eca1e756d0cd4f6d3926d223007a5a51da10467c1385446b18fa825",
+    "changes": "Adapted formula, synthetic inputs and OOXML formula encoding."
+  },
+  "inputs": {
+    "A2": "red",
+    "A3": "blue",
+    "B2": "green",
+    "B3": "red",
+    "C3": "gold"
+  },
+  "formulas": {
+    "N2": "=LET(grid,A2:C7,numRows,ROWS(grid),pos,SEQUENCE(numRows*COLUMNS(grid)),flat,INDEX(IF(grid=\"\",\"\",grid),1+MOD(pos,numRows),ROUNDUP(pos/numRows,0)),SORT(UNIQUE(FILTER(flat,flat<>\"\"))))"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.LET(grid,A2:C7,numRows,ROWS(grid),pos,_xlfn.SEQUENCE(numRows*COLUMNS(grid)),flat,INDEX(IF(grid=\"\",\"\",grid),1+MOD(pos,numRows),ROUNDUP(pos/numRows,0)),_xlfn._xlws.SORT(_xlfn.UNIQUE(_xlfn._xlws.FILTER(flat,flat<>\"\"))))"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

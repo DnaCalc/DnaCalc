@@ -1,0 +1,27 @@
+{
+  "id": "textafter-second-from-end",
+  "kind": "formula",
+  "feature": "text arrays",
+  "trick": "A negative instance number searches from the end, even with an empty final field.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/textafter-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": "north/east/"
+  },
+  "formulas": {
+    "N2": "=TEXTAFTER(A1,\"/\",-2,0,0,\"missing\")"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.TEXTAFTER(A1,\"/\",-2,0,0,\"missing\")"
+  },
+  "capture": [
+    "Sheet1!N2"
+  ],
+  "expected_answer": null
+}

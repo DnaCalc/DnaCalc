@@ -357,8 +357,20 @@ fn whole_reading_with(
 /// them (627 of 627 such bank rows). Excel shows such a value as 2E+308, ISNUMBER is TRUE, and
 /// arithmetic on it is #NUM!. A decimal of 2^1025 or more, which no reading reaches, is #NUM!.
 fn stored(site: &Site<'_>, decimal: &ExactDecimal) -> Step<f64> {
+    stored_with(site, decimal, ExactDecimal::scaled_pc64)
+}
+
+fn stored_at_exponent(site: &Site<'_>, decimal: &ExactDecimal) -> Step<f64> {
+    stored_with(site, decimal, ExactDecimal::scaled_pc64_at_exponent)
+}
+
+fn stored_with(
+    site: &Site<'_>,
+    decimal: &ExactDecimal,
+    scale: fn(&ExactDecimal) -> ExactDecimal,
+) -> Step<f64> {
     if site.nearest(decimal)?.is_normal() {
-        site.nearest(&decimal.scaled_pc64())
+        site.nearest(&scale(decimal))
     } else {
         stored_nearest(site, decimal)
     }
@@ -431,7 +443,7 @@ fn directed(site: &Site<'_>, number: f64, places: f64, direction: Direction) -> 
             Ok(whole)
         };
     };
-    let lower = stored(site, &down)?;
+    let lower = stored_at_exponent(site, &down)?;
     let dropped = direction == Direction::AwayFromZero
         && reading
             .round_at(position, Direction::AwayFromZero)

@@ -1,0 +1,36 @@
+{
+  "id": "take-negative-corner",
+  "kind": "formula",
+  "feature": "dynamic arrays",
+  "trick": "Negative TAKE counts select a lower-right corner of a rectangle.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/take-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": 1,
+    "B1": 2,
+    "C1": 3,
+    "A2": 4,
+    "B2": 5,
+    "C2": 6,
+    "A3": 7,
+    "B3": 8,
+    "C3": 9
+  },
+  "formulas": {
+    "N2": "=TAKE(A1:C3,-2,-2)"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.TAKE(A1:C3,-2,-2)"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

@@ -699,7 +699,7 @@ fn unique(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<C
 }
 
 #[derive(Debug)]
-struct SequenceTask(k::SequenceWork, crate::FunctionId);
+struct SequenceTask(k::SequenceWork);
 impl crate::call::KernelTask for SequenceTask {
     fn advance(
         &mut self,
@@ -709,12 +709,6 @@ impl crate::call::KernelTask for SequenceTask {
         match self.0.advance(elements) {
             None => Ok(None),
             Some(Ok(value)) => Ok(Some(value)),
-            Some(Err(E::Preparation(CoercionError::NotModelled))) => {
-                Err(crate::call::FunctionFault::NotImplemented {
-                    id: self.1,
-                    argument: None,
-                })
-            }
             Some(Err(error)) => Ok(Some(CalcValue::error(
                 k::map_dynamic_array_reshape_error_to_ws(&error),
             ))),
@@ -730,10 +724,7 @@ fn sequence_task(
     args: &[CalcValue],
     _: &mut EvalServices<'_>,
 ) -> Step<Box<dyn crate::call::KernelTask>> {
-    Ok(Box::new(SequenceTask(
-        result(site, k::SequenceWork::new(args))?,
-        site.id(),
-    )))
+    Ok(Box::new(SequenceTask(result(site, k::SequenceWork::new(args))?)))
 }
 
 // 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.

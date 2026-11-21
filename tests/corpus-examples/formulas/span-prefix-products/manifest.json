@@ -1,0 +1,29 @@
+{
+  "id": "span-prefix-products",
+  "kind": "formula",
+  "feature": "LAMBDA and LET",
+  "trick": "SCAN returns every intermediate multiplication instead of only the final product.",
+  "licence": "CC BY-SA 4.0",
+  "source": {
+    "url": "https://stackoverflow.com/a/69403991",
+    "author": "JvdV",
+    "author_url": "https://stackoverflow.com/users/9758194/jvdv",
+    "licence": "CC BY-SA 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "source_path": "answers/69403991/code/3",
+    "sha256": "49f3cf667a068c03e88fbaf0bc15d40436659b6b0e4f26d1ff79316ec8ceae69",
+    "changes": "Synthetic inputs and OOXML formula encoding."
+  },
+  "inputs": {},
+  "formulas": {
+    "N2": "=SCAN(1,{10,8,3,4,5},LAMBDA(a,b,a*b))"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.SCAN(1,{10,8,3,4,5},_xlfn.LAMBDA(_xlpm.a,_xlpm.b,_xlpm.a*_xlpm.b))"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

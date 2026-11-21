@@ -1,0 +1,36 @@
+{
+  "id": "sortby-two-orders",
+  "kind": "formula",
+  "feature": "dynamic arrays",
+  "trick": "Rows use descending primary keys and ascending secondary keys within ties.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/sortby-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": "ram",
+    "B1": 3,
+    "C1": 7,
+    "A2": "elk",
+    "B2": 5,
+    "C2": 3,
+    "A3": "emu",
+    "B3": 5,
+    "C3": 1
+  },
+  "formulas": {
+    "N2": "=SORTBY(A1:C3,B1:B3,-1,C1:C3,1)"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.SORTBY(A1:C3,B1:B3,-1,C1:C3,1)"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

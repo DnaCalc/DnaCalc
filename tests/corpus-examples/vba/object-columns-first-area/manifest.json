@@ -1,0 +1,22 @@
+{
+  "id": "object-columns-first-area",
+  "kind": "vba",
+  "feature": "Excel range model",
+  "trick": "Columns on a discontiguous range starts from the first area.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://github.com/MicrosoftDocs/VBA-Docs/blob/cfee1b35b419270636defdbee0ac96e5ded071bb/api/Excel.Range.Columns.md",
+    "source_path": "api/Excel.Range.Columns.md",
+    "commit": "cfee1b35b419270636defdbee0ac96e5ded071bb",
+    "author": "Microsoft Corporation",
+    "licence": "MIT",
+    "licence_url": "https://github.com/MicrosoftDocs/VBA-Docs/blob/cfee1b35b419270636defdbee0ac96e5ded071bb/LICENSE-CODE",
+    "changes": "Minimal driver and synthetic arguments exercise the documented behavior."
+  },
+  "entry_point": "DcExample",
+  "requires_blank_worksheet": true,
+  "capture": [
+    "DcExample"
+  ],
+  "expected_answer": null
+}

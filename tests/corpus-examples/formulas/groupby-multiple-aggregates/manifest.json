@@ -1,0 +1,35 @@
+{
+  "id": "groupby-multiple-aggregates",
+  "kind": "formula",
+  "feature": "GROUPBY and PIVOTBY",
+  "trick": "A row array of aggregation functions creates separate measure columns.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/groupby-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": "Region",
+    "B1": "Q",
+    "A2": "North",
+    "B2": 2,
+    "A3": "West",
+    "B3": 5,
+    "A4": "North",
+    "B4": 4
+  },
+  "formulas": {
+    "N2": "=GROUPBY(A1:A4,B1:B4,HSTACK(_xleta.SUM,_xleta.MAX),3,0)"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.GROUPBY(A1:A4,B1:B4,_xlfn.HSTACK(_xleta.SUM,_xleta.MAX),3,0)"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

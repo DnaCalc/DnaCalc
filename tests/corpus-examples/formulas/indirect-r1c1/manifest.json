@@ -1,0 +1,28 @@
+{
+  "id": "indirect-r1c1",
+  "kind": "formula",
+  "feature": "reference and coercion",
+  "trick": "The second argument interprets the reference text in R1C1 notation.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/indirect-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": "R3C2",
+    "B3": "target"
+  },
+  "formulas": {
+    "N2": "=INDIRECT(A1,FALSE)"
+  },
+  "stored_formulas": {
+    "N2": "=INDIRECT(A1,FALSE)"
+  },
+  "capture": [
+    "Sheet1!N2"
+  ],
+  "expected_answer": null
+}

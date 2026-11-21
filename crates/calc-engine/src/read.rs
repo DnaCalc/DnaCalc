@@ -190,6 +190,12 @@ use std::ops::ControlFlow;
 /// [`crate::RecalcFailure::ReadFailed`] and publishes nothing. `called` and `evaluated` record
 /// nothing unless an observer implements them.
 pub trait ReadObserver {
+    /// Whether one completed observation suffices for identical reads within a call.
+    /// Observers that count reads or may stop on a repeated visit keep the default.
+    fn can_reuse_reads(&self) -> bool {
+        false
+    }
+
     /// Whether the observer observes nothing at all (dc-2m0): none of its methods records or
     /// stops anything, so a recalculation may evaluate formulas on several threads and show it
     /// nothing in order. The default is `false`.
@@ -1763,6 +1769,10 @@ fn scope_denial() -> calc_fml::ReadDenial {
 }
 
 impl ReferenceReader for WorkbookReader<'_> {
+    fn can_reuse_reads(&self) -> bool {
+        true
+    }
+
     fn pending_producer(&self, at: CellKey) -> bool {
         self.uncomputed.get().is_some_and(|(cell, node)| {
             cell == at

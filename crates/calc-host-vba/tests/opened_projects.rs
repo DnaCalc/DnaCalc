@@ -113,6 +113,81 @@ fn opened(bytes: &[u8], name: &str) -> HostSession {
     .unwrap()
 }
 
+/// Excel's retained local workbook fixture calls MyFunc through its own workbook index.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn local_workbook_qualified_formulas_use_the_installed_vba_project() {
+    for bytes in [
+        LOCAL,
+        include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/local.xlsb").as_slice(),
+    ] {
+        let mut session = opened(bytes, "local.xlsm");
+        session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
+        session.set_workbook_events_enabled(false);
+        calc_host_vba::activate_file_project(
+            &grant(),
+            &mut session,
+            "local.xlsm",
+            100_000,
+            Some(calc_vba::Backend::Interpreter),
+        )
+        .unwrap();
+        full(&mut session);
+        for row in [1, 2, 3, 4] {
+            assert_eq!(value(&session, row, 2).as_number(), Some(102.0), "B{row}");
+        }
+    }
+}
+
+/// An already admitted provider can be bound under the consumer's retained link target.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn linked_workbook_qualified_formulas_use_exact_provider_registrations() {
+    let provider = opened(
+        include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/provider.xlsm"),
+        "provider.xlsm",
+    );
+    let project = calc_host_vba::prepare_file_project_with_events(
+        &grant(),
+        provider.host(),
+        "provider.xlsm",
+        100_000,
+        Some(calc_vba::Backend::Interpreter),
+        false,
+    )
+    .unwrap()
+    .unwrap();
+    let exports = project.functions();
+    for bytes in [
+        include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/consumer.xlsx").as_slice(),
+        include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/consumer.xlsb").as_slice(),
+    ] {
+        let mut consumer = opened(bytes, "consumer.xlsx");
+        consumer.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
+        let path = consumer
+            .host()
+            .model()
+            .definitions()
+            .external_book(1)
+            .unwrap()
+            .absolute_target
+            .as_deref()
+            .unwrap();
+        let mut registry = calc_host::CallableTable::new();
+        for procedure in ["OtherFunc", "Module1.OtherFunc", "HiddenOther", "PrivateOther"] {
+            let function = exports.resolve(exports.bind(None, procedure).unwrap()).unwrap();
+            registry
+                .register_for(Some(path), procedure, function.clone())
+                .unwrap();
+        }
+        consumer.set_user_functions(registry);
+        full(&mut consumer);
+        for (row, expected) in [(1, 2002.0), (2, 2002.0), (4, 2102.0), (5, 2202.0)] {
+            assert_eq!(value(&consumer, row, 2).as_number(), Some(expected), "B{row}");
+        }
+    }
+}
+
 fn mutable_owner(
     session: &mut HostSession,
     sheet_source: &str,

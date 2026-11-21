@@ -1,0 +1,35 @@
+{
+  "id": "filter-xor-mask",
+  "kind": "formula",
+  "feature": "dynamic arrays",
+  "trick": "Treat two independent criteria as an exclusive-or row mask.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/filter-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": "red",
+    "A2": "red",
+    "A3": "blue",
+    "A4": "blue",
+    "B1": 2,
+    "B2": 5,
+    "B3": 2,
+    "B4": 5
+  },
+  "formulas": {
+    "N2": "=FILTER(A1:B4,(A1:A4=\"red\")<>(B1:B4>3))"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn._xlws.FILTER(A1:B4,(A1:A4=\"red\")<>(B1:B4>3))"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

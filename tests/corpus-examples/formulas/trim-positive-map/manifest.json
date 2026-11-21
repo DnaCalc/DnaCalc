@@ -1,0 +1,33 @@
+{
+  "id": "trim-positive-map",
+  "kind": "formula",
+  "feature": "TRIMRANGE",
+  "trick": "Trim a column before applying a lambda to each populated or interior blank row.",
+  "licence": "CC BY-SA 4.0",
+  "source": {
+    "url": "https://superuser.com/a/1906586",
+    "author": "MGonet",
+    "author_url": "https://superuser.com/users/1832622/mgonet",
+    "licence": "CC BY-SA 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "source_path": "answers/1906586/code/2",
+    "sha256": "bfaa7823c8218c6619d49119a2dbd7b488478e8d1e1323e667bd1d780f1c35d0",
+    "changes": "Adapted formula, synthetic inputs and OOXML formula encoding."
+  },
+  "inputs": {
+    "A3": -4,
+    "A5": 5,
+    "A6": -2
+  },
+  "formulas": {
+    "N2": "=MAP(A1.:.A10,LAMBDA(item,MAX(item,0)))"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.MAP(A1.:.A10,_xlfn.LAMBDA(_xlpm.item,MAX(_xlpm.item,0)))"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

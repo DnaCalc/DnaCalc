@@ -1,0 +1,39 @@
+{
+  "id": "pivotby-percent-of-parent",
+  "kind": "formula",
+  "feature": "GROUPBY and PIVOTBY",
+  "trick": "A two-argument aggregation lambda divides a group sum by its row total.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/pivotby-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": "A",
+    "B1": "east",
+    "C1": 4,
+    "A2": "A",
+    "B2": "west",
+    "C2": 6,
+    "A3": "B",
+    "B3": "east",
+    "C3": 8,
+    "A4": "B",
+    "B4": "west",
+    "C4": 12
+  },
+  "formulas": {
+    "N2": "=PIVOTBY(A1:A4,B1:B4,C1:C4,LAMBDA(items,total,SUM(items)/SUM(total)),0,0,,0,,,1)"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.PIVOTBY(A1:A4,B1:B4,C1:C4,_xlfn.LAMBDA(_xlpm.items,_xlpm.total,SUM(_xlpm.items)/SUM(_xlpm.total)),0,0,,0,,,1)"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

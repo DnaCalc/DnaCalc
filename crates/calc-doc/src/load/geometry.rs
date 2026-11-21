@@ -23,11 +23,39 @@ pub struct ColumnSpan {
     pub collapsed: bool,
 }
 
+/// The worksheet window's display mode.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SheetViewMode {
+    Normal,
+    PageBreakPreview,
+    PageLayout,
+}
+impl SheetViewMode {
+    pub(crate) fn from_xml(value: &str) -> Option<Self> {
+        match value {
+            "normal" => Some(Self::Normal),
+            "pageBreakPreview" => Some(Self::PageBreakPreview),
+            "pageLayout" => Some(Self::PageLayout),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn as_xml(self) -> &'static str {
+        match self {
+            Self::Normal => "normal",
+            Self::PageBreakPreview => "pageBreakPreview",
+            Self::PageLayout => "pageLayout",
+        }
+    }
+}
+
 /// What a worksheet's first window (`<sheetView>`) shows as the file states it (dc-uar): its top
 /// left cell (`topLeftCell`) and its active cell (the `activeCell` of the selection in the active
 /// pane), each as (row, column). INFO("origin") and CELL without a reference read them.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SheetView {
+    /// The first window's stored mode. An absent or unknown mode leaves the source attribute alone.
+    pub mode: Option<SheetViewMode>,
     pub zoom: Option<u16>,
     pub top_left: Option<(u32, u32)>,
     pub active_cell: Option<(u32, u32)>,

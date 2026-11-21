@@ -987,6 +987,12 @@ impl Controller {
         let prior_focus = self.model.with_untracked(|m| m.runtime.callback_focus);
         self.model.update(|m| {
             m.reset_workbook();
+            m.runtime.tools.page.views.extend(
+                summary
+                    .sheet_view_modes
+                    .iter()
+                    .map(|&(sheet, mode)| (sheet.id(), mode)),
+            );
             m.runtime.active_calculation = None;
             m.runtime.calculation_frontier = summary.revision;
         });
@@ -4365,6 +4371,19 @@ impl Controller {
             revision: self.summary.get_untracked().revision,
             active_sheet: wire::Sheet::of(active_sheet),
             sheets: views,
+            sheet_view_modes: self.model.with_untracked(|m| {
+                m.runtime
+                    .tools
+                    .page
+                    .views
+                    .iter()
+                    .filter(|(sheet, _)| {
+                        self.summary
+                            .with_untracked(|s| s.sheets.iter().any(|(s, _)| s.id() == **sheet))
+                    })
+                    .map(|(&sheet, &mode)| (wire::Sheet::of(sheet), mode))
+                    .collect()
+            }),
         });
         // Applying the worker reply updates Summary before this callback runs. Keep the
         // download's original protection here, including saves which finish asynchronously.
@@ -4800,6 +4819,7 @@ mod projection_lifetime_tests {
                         views: Some(wire::SaveWindow {
                             revision,
                             active_sheet: sheet,
+                            sheet_view_modes: vec![(sheet, wire::SheetViewMode::PageBreakPreview)],
                             sheets: vec![wire::SheetWindow {
                                 geometry,
                                 sheet,
@@ -4832,6 +4852,18 @@ mod projection_lifetime_tests {
             assert_eq!(controller.active.get_untracked(), (2, 2));
             assert_eq!(controller.corner.get_untracked(), (4, 3));
             assert_eq!(controller.areas.get_untracked(), vec![want]);
+            let modes = controller.tool_field(|s| &s.page.views, |s| &mut s.page.views);
+            assert_eq!(modes.get_untracked()[&first], wire::SheetViewMode::PageBreakPreview);
+            modes.update(|values| {
+                values.insert(first, wire::SheetViewMode::PageLayout);
+            });
+            let image = std::rc::Rc::new(std::cell::RefCell::new(None));
+            let target = image.clone();
+            controller.save(move |_, bytes| *target.borrow_mut() = Some(bytes));
+            let bytes = image.borrow_mut().take().expect("the controller saved a package");
+            controller.open("layout.xlsx", bytes, |opened| assert!(opened));
+            let first = controller.sheet.get_untracked().unwrap();
+            assert_eq!(modes.get_untracked()[&first], wire::SheetViewMode::PageLayout);
         });
     }
 
@@ -5243,6 +5275,77 @@ mod template_lifecycle_tests {
             }
         }
     }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn renderer_entry_uses_the_resolved_cell_and_sheet() {
+        use std::rc::Rc;
+        let root = Owner::new();
+        root.with(|| {
+            let transport = Rc::new(HeldTransport::default());
+            let controller = Controller::with_transport(transport.clone());
+            let original = controller.active_key_untracked().unwrap();
+            controller.enter(original, "original".into(), |result| assert!(result.accepted));
+            controller.sheet_command(
+                None,
+                wire::SheetChange::Add {
+                    name: "Other sheet".into(),
+                },
+                |ok| assert!(ok),
+            );
+            let other = controller.active_key_untracked().unwrap().sheet();
+            assert_ne!(other, original.sheet());
+            controller.show_sheet(original.sheet());
+
+            let local = CellKey::new(original.sheet(), 2, 2).unwrap();
+            let remote = CellKey::new(other, 12, 27).unwrap();
+            for (reference, target, input) in [
+                ("B2", local, "local"),
+                ("'Other sheet'!AA12", remote, "=20+22"),
+            ] {
+                transport.hold.set(true);
+                controller.go_to_text(reference.into(), move |arrived| assert!(arrived));
+                // Grid typing can arrive while the worker is resolving the reference.
+                controller.begin_edit(EditOrigin::Cell, Some(input.into()));
+                assert!(controller.editing.get_untracked().is_none());
+                assert_eq!(transport.pending.borrow().len(), 1);
+                transport.hold.set(false);
+                for (request, bytes, answer) in transport.pending.take() {
+                    transport.inner.call(request, bytes, answer);
+                }
+                while let Some(action) = controller
+                    .deferred
+                    .try_update_value(|queue| queue.pop_front())
+                    .flatten()
+                {
+                    controller.perform(action);
+                }
+                assert_eq!(controller.active_key_untracked(), Some(target));
+                assert_eq!(controller.edit_target.get_untracked(), Some(target));
+                controller.commit_edit(|accepted| assert!(accepted));
+            }
+
+            for (at, expected) in [
+                (original, "original"),
+                (local, "local"),
+                (remote, "42"),
+                (CellKey::new(original.sheet(), 12, 27).unwrap(), ""),
+            ] {
+                controller.call(
+                    Request::Capture {
+                        area: Area::of(GridArea::cell(at)),
+                        keep: None,
+                    },
+                    None,
+                    move |reply, _| match reply.unwrap() {
+                        Reply::Clipboard(captured) => assert_eq!(captured.text, expected),
+                        other => panic!("expected a clipboard reply, got {other:?}"),
+                    },
+                );
+            }
+        });
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dc_q327__navigation_during_drag_preparation_cancels_the_stale_drag() {

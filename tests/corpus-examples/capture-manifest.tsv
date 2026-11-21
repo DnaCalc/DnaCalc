@@ -1,0 +1,183 @@
+id	kind	path	capture	note
+agg-small-ignore-errors	formula	formulas/agg-small-ignore-errors/example.xlsx	Sheet1!N2	AGGREGATE ignores division errors while enumerating row numbers of nonempty cells.
+average-category-codes	formula	formulas/average-category-codes/example.xlsx	Sheet1!N2	XLOOKUP maps a vector of text categories inside an aggregate.
+blank-numeric-filter	formula	formulas/blank-numeric-filter/example.xlsx	Sheet1!N2;Sheet1!N2#	ISBLANK-based selection distinguishes a blank from a literal zero.
+build-ragged-end	formula	formulas/build-ragged-end/example.xlsx	Sheet1!N2;Sheet1!N2#	MAKEARRAY pads entries beyond the requested count in its final row.
+bycol-text-reduction	formula	formulas/bycol-text-reduction/example.xlsx	Sheet1!N2;Sheet1!N2#	BYCOL runs a text reducer on columns containing blank positions.
+choosecols-negative-repeat	formula	formulas/choosecols-negative-repeat/example.xlsx	Sheet1!N2;Sheet1!N2#	Negative CHOOSECOLS indices count from the end and can be repeated.
+collate-text-digits	formula	formulas/collate-text-digits/example.xlsx	Sheet1!N2	TOROW can discard the errors produced while converting a string's nonnumeric characters.
+countif-literal-wildcard	formula	formulas/countif-literal-wildcard/example.xlsx	Sheet1!N2;Sheet1!N2#	Escaping the question mark counts literal punctuation separately from wildcard matches.
+double-lookup-rounding	formula	formulas/double-lookup-rounding/example.xlsx	Sheet1!N2	A mean of category scores is rounded before a second lookup maps it back to text.
+drop-zero-axis	formula	formulas/drop-zero-axis/example.xlsx	Sheet1!N2;Sheet1!N2#	An omitted row count and negative column count remove only the final column.
+error-localization	formula	formulas/error-localization/example.xlsx	Sheet1!N2;Sheet1!N2#	IFERROR over an array can replace a single failing calculation without collapsing the other cells.
+expand-declared-size	formula	formulas/expand-declared-size/example.xlsx	Sheet1!N2;Sheet1!N2#	EXPAND broadcasts padding where one original row and column are insufficient.
+extract-json-pair	formula	formulas/extract-json-pair/example.xlsx	Sheet1!N2	A cell-supplied key becomes part of the pattern for extracting a field fragment.
+filter-blank-choice	formula	formulas/filter-blank-choice/example.xlsx	Sheet1!N2;Sheet1!N2#	Changing the empty-result argument produces either an explicit marker or the default error.
+filter-conditional-unique-row	formula	formulas/filter-conditional-unique-row/example.xlsx	Sheet1!N2;Sheet1!N2#	COUNTIF, COUNTIFS and XMATCH combine to keep differing keys plus their first appearance.
+filter-mask-error	formula	formulas/filter-mask-error/example.xlsx	Sheet1!N2;Sheet1!N2#	An error in the include array surfaces even when other rows are eligible.
+filter-xor-mask	formula	formulas/filter-xor-mask/example.xlsx	Sheet1!N2;Sheet1!N2#	Treat two independent criteria as an exclusive-or row mask.
+first-pair	formula	formulas/first-pair/example.xlsx	Sheet1!N2	Count matches from the first row so a previously seen pair returns a different flag.
+group-text-map	formula	formulas/group-text-map/example.xlsx	Sheet1!N2;Sheet1!N2#	MAP runs a FILTER and TEXTJOIN for each key, including a key that may have no matches.
+groupby-filter-array	formula	formulas/groupby-filter-array/example.xlsx	Sheet1!N2;Sheet1!N2#	The filter array can remove a group before totals are calculated.
+groupby-multiple-aggregates	formula	formulas/groupby-multiple-aggregates/example.xlsx	Sheet1!N2;Sheet1!N2#	A row array of aggregation functions creates separate measure columns.
+groupby-two-levels	formula	formulas/groupby-two-levels/example.xlsx	Sheet1!N2;Sheet1!N2#	Two group key columns produce hierarchical subtotal rows.
+hstack-mask-padding	formula	formulas/hstack-mask-padding/example.xlsx	Sheet1!N2;Sheet1!N2#	IFNA on an uneven HSTACK also masks incoming #N/A values.
+index-reference-endpoints	formula	formulas/index-reference-endpoints/example.xlsx	Sheet1!N2	INDEX can produce both endpoints of a range consumed by SUM.
+indirect-r1c1	formula	formulas/indirect-r1c1/example.xlsx	Sheet1!N2	The second argument interprets the reference text in R1C1 notation.
+join-visible-matches	formula	formulas/join-visible-matches/example.xlsx	Sheet1!N2	FILTER selects matching rows before TEXTJOIN folds the selected labels.
+lambda-closure-shadow	formula	formulas/lambda-closure-shadow/example.xlsx	Sheet1!N2;Sheet1!N2#	A lambda binds its own parameter while closing over a separately named LET value.
+lambda-omitted-arg	formula	formulas/lambda-omitted-arg/example.xlsx	Sheet1!N2	ISOMITTED distinguishes a syntactically omitted lambda argument from zero.
+lambda-self-passed	formula	formulas/lambda-self-passed/example.xlsx	Sheet1!N2	An inline lambda can recurse by passing itself as an explicit argument.
+last-delimiter-length	formula	formulas/last-delimiter-length/example.xlsx	Sheet1!N2	Find the start of the final delimiter using negative instance numbering.
+last-letter-position	formula	formulas/last-letter-position/example.xlsx	Sheet1!N2	A lookup through reciprocal Boolean errors returns the final matching character position.
+last-overlapping-pair	formula	formulas/last-overlapping-pair/example.xlsx	Sheet1!N2	Searching width-two slices tests an overlapping final occurrence.
+let-function-alias	formula	formulas/let-function-alias/example.xlsx	Sheet1!N2	LET can bind a callable and invoke it twice on different inputs.
+let-lazy-unused-error	formula	formulas/let-lazy-unused-error/example.xlsx	Sheet1!N2	An unused binding raises a question about whether LET evaluates the unused expression.
+lookup-last-row-per-key	formula	formulas/lookup-last-row-per-key/example.xlsx	Sheet1!N2;Sheet1!N2#	UNIQUE keeps original key order while reverse XLOOKUP finds the latest matching entry.
+map-nested-array-error	formula	formulas/map-nested-array-error/example.xlsx	Sheet1!N2;Sheet1!N2#	A MAP callback attempts to return an array in each result element.
+noncontiguous-filter	formula	formulas/noncontiguous-filter/example.xlsx	Sheet1!N2;Sheet1!N2#	CHOOSE builds a two-column result from nonadjacent inputs before row filtering.
+pivotby-independent-totals	formula	formulas/pivotby-independent-totals/example.xlsx	Sheet1!N2;Sheet1!N2#	A grand total may appear for only one of the two pivot axes.
+pivotby-missing-combination	formula	formulas/pivotby-missing-combination/example.xlsx	Sheet1!N2;Sheet1!N2#	The two-axis grid has category pairs with no contributing rows.
+pivotby-percent-of-parent	formula	formulas/pivotby-percent-of-parent/example.xlsx	Sheet1!N2;Sheet1!N2#	A two-argument aggregation lambda divides a group sum by its row total.
+reduce-expand-pairs	formula	formulas/reduce-expand-pairs/example.xlsx	Sheet1!N2;Sheet1!N2#	A multiline split feeds REDUCE and stacks each set of regex capture groups.
+reduce-interval-expansion	formula	formulas/reduce-interval-expansion/example.xlsx	Sheet1!N2;Sheet1!N2#	Reductions can append a variable number of rows for each textual interval.
+reduce-three-states	formula	formulas/reduce-three-states/example.xlsx	Sheet1!N2;Sheet1!N2#	An accumulator combines three arithmetic updates in one REDUCE pass.
+reduce-vector-state	formula	formulas/reduce-vector-state/example.xlsx	Sheet1!N2;Sheet1!N2#	REDUCE maintains a multi-column accumulator for two operations.
+regex-all-matches	formula	formulas/regex-all-matches/example.xlsx	Sheet1!N2;Sheet1!N2#	Return mode 1 emits all nonoverlapping matches.
+regex-count-boundary	formula	formulas/regex-count-boundary/example.xlsx	Sheet1!N2	A negative lookahead prevents counting a word embedded in a longer identifier.
+regex-groups-optional	formula	formulas/regex-groups-optional/example.xlsx	Sheet1!N2;Sheet1!N2#	Return mode 2 exposes groups when one of them was optional in the match.
+regex-lookbehind	formula	formulas/regex-lookbehind/example.xlsx	Sheet1!N2	Lookbehind finds a token after a literal marker without including that marker.
+regex-named-group-backref	formula	formulas/regex-named-group-backref/example.xlsx	Sheet1!N2;Sheet1!N2#	A backreference requires both halves of the token to match the same text.
+regex-pad-components	formula	formulas/regex-pad-components/example.xlsx	Sheet1!N2	Nested replacements use capture references to pad one-digit fields.
+regex-replace-group-order	formula	formulas/regex-replace-group-order/example.xlsx	Sheet1!N2	Replacement groups can reverse the order of fields without altering surrounding text.
+regex-replace-second-from-last	formula	formulas/regex-replace-second-from-last/example.xlsx	Sheet1!N2	A negative occurrence modifies only the requested match counted from the end.
+remove-char-set	formula	formulas/remove-char-set/example.xlsx	Sheet1!N2	A delimiter array lets CONCAT rejoin the tokens after deleting several punctuation characters.
+scan-reset-on-zero	formula	formulas/scan-reset-on-zero/example.xlsx	Sheet1!N2;Sheet1!N2#	A running accumulation can reset on a sentinel in the source stream.
+select-cross-product	formula	formulas/select-cross-product/example.xlsx	Sheet1!N2;Sheet1!N2#	Chaining CHOOSEROWS and CHOOSECOLS selects a noncontiguous rectangle.
+sequence-negative-step	formula	formulas/sequence-negative-step/example.xlsx	Sheet1!N2;Sheet1!N2#	A fractional step continues across columns and then across rows.
+sort-by-row-direction	formula	formulas/sort-by-row-direction/example.xlsx	Sheet1!N2;Sheet1!N2#	Column sorting can be driven by a row index.
+sortby-two-orders	formula	formulas/sortby-two-orders/example.xlsx	Sheet1!N2;Sheet1!N2#	Rows use descending primary keys and ascending secondary keys within ties.
+span-prefix-products	formula	formulas/span-prefix-products/example.xlsx	Sheet1!N2;Sheet1!N2#	SCAN returns every intermediate multiplication instead of only the final product.
+spill-anchor-index	formula	formulas/spill-anchor-index/example.xlsx	Sheet1!E2;Sheet1!E2#;Sheet1!N2	An INDEX over the current spill uses its full materialized dimensions.
+spill-blocked	formula	formulas/spill-blocked/example.xlsx	Sheet1!E2	A value inside a potential spill rectangle makes the anchor report a placement error.
+split-selective-number	formula	formulas/split-selective-number/example.xlsx	Sheet1!N2;Sheet1!N2#	Apply numeric coercion only to numeric fields of a split text record.
+subtotal-group-text	formula	formulas/subtotal-group-text/example.xlsx	Sheet1!N2;Sheet1!N2#	GROUPBY can aggregate text with a function argument and suppress grand totals.
+sumifs-array-or	formula	formulas/sumifs-array-or/example.xlsx	Sheet1!N2;Sheet1!N2#	A literal criteria array returns one subtotal per condition in a single expression.
+sumproduct-text-vs-operator	formula	formulas/sumproduct-text-vs-operator/example.xlsx	Sheet1!N2;Sheet1!N2#	The separate-array and multiply-first SUMPRODUCT forms handle nonnumeric text differently.
+take-negative-corner	formula	formulas/take-negative-corner/example.xlsx	Sheet1!N2;Sheet1!N2#	Negative TAKE counts select a lower-right corner of a rectangle.
+text-columns-stacked	formula	formulas/text-columns-stacked/example.xlsx	Sheet1!N2;Sheet1!N2#	Extract the two sides of the first delimiter and stack the two resulting columns.
+textafter-empty-delimiter	formula	formulas/textafter-empty-delimiter/example.xlsx	Sheet1!N2	An empty delimiter at a negative occurrence can match the end immediately.
+textafter-second-from-end	formula	formulas/textafter-second-from-end/example.xlsx	Sheet1!N2	A negative instance number searches from the end, even with an empty final field.
+textbefore-end-as-delimiter	formula	formulas/textbefore-end-as-delimiter/example.xlsx	Sheet1!N2	The match_end switch treats end of input as a virtual delimiter.
+textjoin-keep-blanks	formula	formulas/textjoin-keep-blanks/example.xlsx	Sheet1!N2;Sheet1!N2#	The empty switch controls whether consecutive delimiters appear for a blank cell.
+textsplit-ignore-empty	formula	formulas/textsplit-ignore-empty/example.xlsx	Sheet1!N2;Sheet1!N2#	Adjacent delimiters are removed only when ignore_empty is enabled.
+textsplit-insensitive-delimiter	formula	formulas/textsplit-insensitive-delimiter/example.xlsx	Sheet1!N2;Sheet1!N2#	Case-insensitive mode recognizes differently cased multi-character separators.
+textsplit-two-delimiters	formula	formulas/textsplit-two-delimiters/example.xlsx	Sheet1!N2;Sheet1!N2#	Separate row and column delimiters create a ragged grid with custom padding.
+tocol-scan-different	formula	formulas/tocol-scan-different/example.xlsx	Sheet1!N2;Sheet1!N2#	Scan by column while suppressing errors and retaining empty-cell coercion.
+torow-ignore-blank	formula	formulas/torow-ignore-blank/example.xlsx	Sheet1!N2;Sheet1!N2#	TOROW can omit empty cells and retain errors in row-major order.
+trim-and-coerce	formula	formulas/trim-and-coerce/example.xlsx	Sheet1!N2;Sheet1!N2#	Trim trailing blank rows and columns, then compare blank coercion with explicit zeros.
+trim-blank-interior	formula	formulas/trim-blank-interior/example.xlsx	Sheet1!N2;Sheet1!N2#	Trimming both ends preserves holes between populated corners.
+trim-leading-only	formula	formulas/trim-leading-only/example.xlsx	Sheet1!N2;Sheet1!N2#	A leading-only trim leaves trailing empty boundaries in place.
+trim-positive-map	formula	formulas/trim-positive-map/example.xlsx	Sheet1!N2;Sheet1!N2#	Trim a column before applying a lambda to each populated or interior blank row.
+trim-reference-rows	formula	formulas/trim-reference-rows/example.xlsx	Sheet1!N2;Sheet1!N2#	Use trim-reference operators inside ROWS to compare directionality.
+trim-trailing-columns	formula	formulas/trim-trailing-columns/example.xlsx	Sheet1!N2;Sheet1!N2#	Independent row and column controls trim trailing columns while preserving all rows.
+unique-column-order	formula	formulas/unique-column-order/example.xlsx	Sheet1!N2;Sheet1!N2#	Column-major flattening ignores blanks and errors before stable deduplication.
+unique-columns-once	formula	formulas/unique-columns-once/example.xlsx	Sheet1!N2;Sheet1!N2#	UNIQUE can count duplicate columns and return only columns that occur exactly once.
+unique-explicit-empty	formula	formulas/unique-explicit-empty/example.xlsx	Sheet1!N2;Sheet1!N2#	Compare empty cells and explicit zeros during row uniqueness.
+unique-legacy-flatten	formula	formulas/unique-legacy-flatten/example.xlsx	Sheet1!N2;Sheet1!N2#	INDEX coordinates enumerate a rectangular grid vertically before filtering unique values.
+vstack-missing-columns	formula	formulas/vstack-missing-columns/example.xlsx	Sheet1!N2;Sheet1!N2#	Combining rows of unequal width exposes VSTACK's padding errors.
+wrapcols-custom-fill	formula	formulas/wrapcols-custom-fill/example.xlsx	Sheet1!N2;Sheet1!N2#	The final wrapped column uses an explicit padding string.
+wraprows-single-width	formula	formulas/wraprows-single-width/example.xlsx	Sheet1!N2;Sheet1!N2#	A wrap count of one turns a source row into a column.
+xlookup-reverse-wildcard	formula	formulas/xlookup-reverse-wildcard/example.xlsx	Sheet1!N2	Reverse search finds the last match for a single-character wildcard.
+xlookup-two-dimensional-return	formula	formulas/xlookup-two-dimensional-return/example.xlsx	Sheet1!N2;Sheet1!N2#	A scalar lookup can return an entire row from a two-column result range.
+xmatch-approximate-descending	formula	formulas/xmatch-approximate-descending/example.xlsx	Sheet1!N2	Descending binary search finds the next smaller candidate for a missing key.
+xmatch-reverse-escaped	formula	formulas/xmatch-reverse-escaped/example.xlsx	Sheet1!N2	A tilde makes a literal wildcard eligible for reverse lookup.
+abs-null	vba	vba/abs-null/module.bas	DcExample	Abs propagates a Null Variant.
+array-option-base	vba	vba/array-option-base/module.bas	DcExample	VBA.Array bypasses Option Base while the unqualified form can use it.
+bitwise-eqv	vba	vba/bitwise-eqv/module.bas	DcExample	Eqv on numeric operands applies equivalence to individual bits.
+bitwise-imp	vba	vba/bitwise-imp/module.bas	DcExample	Imp on integer operands yields a bitwise implication mask.
+bounds-rank	vba	vba/bounds-rank/module.bas	DcExample	Explicit nonzero and negative bounds can differ across dimensions.
+cbyte-overflow	vba	vba/cbyte-overflow/module.bas	DcExample	A Byte conversion that rounds past its upper bound raises a trappable error.
+ccur-scale	vba	vba/ccur-scale/module.bas	DcExample	Currency conversion rounds inputs to its fixed four-decimal scale.
+choose-eager	vba	vba/choose-eager/module.bas	DcExample	Choose evaluates every choice even when the first is selected.
+choose-round	vba	vba/choose-round/module.bas	DcExample	A noninteger Choose index is rounded before selection.
+chrw-unit	vba	vba/chrw-unit/module.bas	DcExample	ChrW and AscW expose the same UTF-16 code unit with signed Integer semantics.
+cint-ties	vba	vba/cint-ties/module.bas	DcExample	Integer conversion rounds half values, including ties on both sides of zero.
+collection-before	vba	vba/collection-before/module.bas	DcExample	A Collection can insert relative to an existing string key.
+collection-duplicate	vba	vba/collection-duplicate/module.bas	DcExample	Collection keys cannot be duplicated.
+collection-remove	vba	vba/collection-remove/module.bas	DcExample	Removing by key shifts the Collection's numeric index.
+compare-null	vba	vba/compare-null/module.bas	DcExample	StrComp returns Null for a Null operand and different results by compare mode.
+date-add-month	vba	vba/date-add-month/module.bas	DcExample	Adding one month clamps a month-end day to February's last day.
+date-diff-week	vba	vba/date-diff-week/module.bas	DcExample	DateDiff uses interval boundaries, with an explicit first day for calendar weeks.
+date-normalize	vba	vba/date-normalize/module.bas	DcExample	DateSerial normalizes day zero and month thirteen across boundaries.
+date-part-week	vba	vba/date-part-week/module.bas	DcExample	First-week rules change the week number for the same early-January date.
+decimal-variant	vba	vba/decimal-variant/module.bas	DcExample	CDec creates a Decimal subtype inside a Variant.
+do-posttest	vba	vba/do-posttest/module.bas	DcExample	A post-test Do Until executes its body once with an already true condition.
+empty-context	vba	vba/empty-context/module.bas	DcExample	An unassigned Variant becomes zero in arithmetic and empty text in concatenation.
+erase-dynamic	vba	vba/erase-dynamic/module.bas	DcExample	Erase deallocates a dynamic array and makes its bounds unavailable.
+erase-fixed	vba	vba/erase-fixed/module.bas	DcExample	Erase resets elements of a fixed array while retaining bounds.
+err-clear	vba	vba/err-clear/module.bas	DcExample	Err.Clear resets the error number without ending the error handler.
+error-variant	vba	vba/error-variant/module.bas	DcExample	CVErr creates a Variant of Error type that IsError can inspect.
+exchange-bitwise	vba	vba/exchange-bitwise/module.bas	DcExample	Xor on numeric operands acts bitwise instead of coercing to Boolean.
+filter-empty	vba	vba/filter-empty/module.bas	DcExample	Filter's include switch can select the complement and can yield an empty array.
+for-each-empty	vba	vba/for-each-empty/module.bas	DcExample	For Each skips its body for an empty Collection.
+for-evaluated-once	vba	vba/for-evaluated-once/module.bas	DcExample	For captures its limit before the body changes the limit variable.
+for-negative-step	vba	vba/for-negative-step/module.bas	DcExample	A descending For loop includes its endpoint and advances once before exiting.
+format-sections	vba	vba/format-sections/module.bas	DcExample	A four-section number format can supply separate zero and Null literals.
+iif-eager	vba	vba/iif-eager/module.bas	DcExample	IIf evaluates an expression even when the other branch is selected.
+instr-compare	vba	vba/instr-compare/module.bas	DcExample	Explicit comparison mode controls case matching for the same needle.
+instr-empty	vba	vba/instr-empty/module.bas	DcExample	InStr of an empty needle returns the supplied start position.
+instrrev-start	vba	vba/instrrev-start/module.bas	DcExample	The start position limits a right-to-left search.
+int-negative	vba	vba/int-negative/module.bas	DcExample	Int floors a negative input while Fix truncates it toward zero.
+integer-division	vba	vba/integer-division/module.bas	DcExample	Integer division rounds its operands before dividing and drops the fractional quotient.
+join-delimiter	vba	vba/join-delimiter/module.bas	DcExample	Join accepts both an empty delimiter and a repeated multi-character one.
+left-zero	vba	vba/left-zero/module.bas	DcExample	Zero length and length beyond the string produce different slices.
+len-lenb	vba	vba/len-lenb/module.bas	DcExample	Len counts characters and LenB counts bytes of a UTF-16 VBA string.
+like-class	vba	vba/like-class/module.bas	DcExample	Like distinguishes a digit wildcard and a negated character class.
+like-literal	vba	vba/like-literal/module.bas	DcExample	Bracket escaping makes wildcard characters literal in Like patterns.
+mid-length	vba	vba/mid-length/module.bas	DcExample	Mid reading past the end truncates to the available suffix.
+mid-write	vba	vba/mid-write/module.bas	DcExample	The Mid statement overwrites characters in place without extending the string.
+mod-round	vba	vba/mod-round/module.bas	DcExample	Mod rounds fractional operands before finding the remainder.
+null-comparison	vba	vba/null-comparison/module.bas	DcExample	Equality to Null yields Null, whereas IsNull yields a Boolean.
+null-concatenation	vba	vba/null-concatenation/module.bas	DcExample	Concatenation treats one Null operand as empty and propagates two Null operands.
+null-logic	vba	vba/null-logic/module.bas	DcExample	Boolean And can settle to False even with a Null operand.
+null-or	vba	vba/null-or/module.bas	DcExample	Boolean Or can settle to True even with a Null operand.
+object-address-r1c1	vba	vba/object-address-r1c1/module.bas	DcExample	Relative R1C1 addressing depends on the supplied reference cell.
+object-cells-relative	vba	vba/object-cells-relative/module.bas	DcExample	Range.Cells may address a coordinate outside the original range using a relative index.
+object-columns-first-area	vba	vba/object-columns-first-area/module.bas	DcExample	Columns on a discontiguous range starts from the first area.
+object-current-region	vba	vba/object-current-region/module.bas	DcExample	CurrentRegion stops at the blank column between two blocks.
+object-end-blank	vba	vba/object-end-blank/module.bas	DcExample	End moves along contiguous filled cells until the gap.
+object-find-after	vba	vba/object-find-after/module.bas	DcExample	Find starts after the specified cell and wraps at the end of the range.
+object-formula-array	vba	vba/object-formula-array/module.bas	DcExample	A mixed formula and value range returns both in its Formula array.
+object-intersect-empty	vba	vba/object-intersect-empty/module.bas	DcExample	Intersect returns Nothing for two ranges with no overlap.
+object-offset	vba	vba/object-offset/module.bas	DcExample	A negative offset changes the column while preserving the multi-cell shape.
+object-range-relative	vba	vba/object-range-relative/module.bas	DcExample	Range.Range interprets its arguments relative to the parent range.
+object-resize-omit	vba	vba/object-resize-omit/module.bas	DcExample	Omitting one Resize dimension keeps that dimension unchanged.
+object-rows-outside	vba	vba/object-rows-outside/module.bas	DcExample	Range.Rows can refer to a row beyond the original range height.
+object-special-constants	vba	vba/object-special-constants/module.bas	DcExample	SpecialCells filters constants by cell value type.
+object-value-array	vba	vba/object-value-array/module.bas	DcExample	A multicell Value read returns a one-based two-dimensional Variant array.
+object-value-date	vba	vba/object-value-date/module.bas	DcExample	Value2 reads a date-formatted cell as a number while Value can return a Date subtype.
+power-negation	vba	vba/power-negation/module.bas	DcExample	Parentheses change which value is negated in exponentiation.
+redim-preserve	vba	vba/redim-preserve/module.bas	DcExample	ReDim Preserve can widen the last dimension of a two-dimensional array.
+redim-reset	vba	vba/redim-reset/module.bas	DcExample	ReDim without Preserve reinitializes previously assigned entries.
+replace-count	vba	vba/replace-count/module.bas	DcExample	A replacement count differs from the number of potential matches.
+replace-start	vba	vba/replace-start/module.bas	DcExample	Replace's start argument drops the prefix from its returned string.
+right-null	vba	vba/right-null/module.bas	DcExample	Right preserves Null in its Variant form.
+round-even	vba	vba/round-even/module.bas	DcExample	VBA rounds exact ties to the even neighbour in either direction.
+round-worksheet	vba	vba/round-worksheet/module.bas	DcExample	Compare VBA tie rounding with the worksheet function on the same input.
+select-order	vba	vba/select-order/module.bas	DcExample	Select Case takes the first matching overlapping interval.
+sgn-signed	vba	vba/sgn-signed/module.bas	DcExample	Sgn collapses negative, zero and positive values to their signs.
+split-compare	vba	vba/split-compare/module.bas	DcExample	Text comparison allows a delimiter to match across case.
+split-empty	vba	vba/split-empty/module.bas	DcExample	An empty expression and an empty delimiter have distinct array bounds.
+split-limit	vba	vba/split-limit/module.bas	DcExample	With a split limit, the final element contains the unsplit tail.
+str-sign	vba	vba/str-sign/module.bas	DcExample	Str reserves a leading character for the sign on nonnegative numbers.
+string-char	vba	vba/string-char/module.bas	DcExample	String repeats the first character of a text argument or uses a numeric character code.
+switch-eager	vba	vba/switch-eager/module.bas	DcExample	Switch evaluates the conditions beyond the first true condition.
+time-normalize	vba	vba/time-normalize/module.bas	DcExample	Unusual hour and minute arguments normalize across the day.
+trim-ascii	vba	vba/trim-ascii/module.bas	DcExample	VBA Trim strips spaces at the ends and preserves an inner run and a leading tab.
+typename-nothing	vba	vba/typename-nothing/module.bas	DcExample	TypeName distinguishes Nothing, Empty and Null.
+val-radix	vba	vba/val-radix/module.bas	DcExample	Val reads a hexadecimal prefix and stops at a nonnumeric suffix.
+val-type-suffix	vba	vba/val-type-suffix/module.bas	DcExample	Val interprets percent as a type suffix and can raise Type mismatch.
+vartype-array	vba	vba/vartype-array/module.bas	DcExample	An array VarType combines an array flag and an element subtype.
+weekday-origin	vba	vba/weekday-origin/module.bas	DcExample	Weekday numbering moves with the explicit first day of the week.
+with-object	vba	vba/with-object/module.bas	DcExample	Inside With, dotted members stay bound to the original object reference.

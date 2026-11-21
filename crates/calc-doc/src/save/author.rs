@@ -433,6 +433,25 @@ pub(super) fn plan(
             None => sheet_changes(base, model, sheet.id()),
         })
         .collect();
+    if model.revision() != base.revision() {
+        for repair in repairs {
+            let crate::LoadRepair::RejectedFormulaValue { at, .. } = repair else {
+                continue;
+            };
+            let Some(index) = sheets.iter().position(|sheet| sheet.id() == at.sheet()) else {
+                continue;
+            };
+            let position = (at.row(), at.column());
+            let position = match &moves[index] {
+                Some(moves) => moves.forward(position),
+                None => Some(position),
+            };
+            if let Some((row, column)) = position {
+                let placed = CellKey::new(at.sheet(), row, column).expect("a placed repaired cell");
+                changes[index].insert((row, column), model.cell(placed).cloned());
+            }
+        }
+    }
     for ((sheet, moves), changes) in sheets.iter().zip(&moves).zip(&mut changes) {
         if let Some(moves) = moves {
             let old: BTreeMap<_, _> = base

@@ -1,8 +1,7 @@
 use crate::ported::excel_numeric::crt_exp;
 use crate::ported::excel_numeric::crt_log;
 use crate::ported::special_math_common::{
-    bisect_inverse, bisect_inverse_closest, ln_gamma, regularized_beta, regularized_gamma_p,
-    regularized_gamma_q,
+    bisect_inverse_closest, gratio, ln_gamma, regularized_beta, regularized_gamma_p,
 };
 use crate::value::WorksheetErrorCode;
 
@@ -373,6 +372,23 @@ pub(crate) fn beta_inv_kernel(
     ))
 }
 
+pub(super) fn flush_subnormal(value: f64) -> f64 {
+    if value.is_subnormal() { 0.0 } else { value }
+}
+
+fn goldstein_cube_from_z(z: f64, n: f64) -> f64 {
+    use crate::ported::excel_numeric::{
+        excel_sqrt_staged, excel_x87_add, excel_x87_div, excel_x87_mul,
+    };
+    let f = excel_x87_div(1.0, n);
+    let f1 = excel_sqrt_staged(f);
+    let a0 = excel_x87_add(1.0000886, excel_x87_mul(-0.2237368, f));
+    let a1 = excel_x87_mul(0.4713941, f1);
+    let a2 = excel_x87_mul(1.348028e-4, f);
+    let c = excel_x87_add(excel_x87_mul(excel_x87_add(excel_x87_mul(a2, z), a1), z), a0);
+    excel_x87_mul(excel_x87_mul(c, c), c)
+}
+
 /// Stored cube from Goldstein's chi-square approximation (Algorithm 451, 1973).
 /// At large n the cubic's base is Horner in the normal deviate, with coefficients in 1/n.
 /// Goldstein's published coefficients and the stored PC64 stages were identified on
@@ -380,7 +396,6 @@ pub(crate) fn beta_inv_kernel(
 /// 1,410 gamma controls per alias use n = 2*shape, retaining fractional degrees.
 /// The higher powers can still shift a few low bits near the lower limit of this arm.
 pub(super) fn goldstein_large_degree_factor(probability: f64, n: f64) -> Option<f64> {
-    use crate::ported::excel_numeric::{excel_sqrt_staged, excel_x87_add, excel_x87_div, excel_x87_mul};
     if !(5e10..f64::from_bits(0x7e70_0000_0000_0000)).contains(&n) {
         // [5e10, 2^1000)
         return None;
@@ -388,17 +403,15 @@ pub(super) fn goldstein_large_degree_factor(probability: f64, n: f64) -> Option<
     let z = crate::ported::normal_log_family::norm_s_inv_kernel(probability).ok()?;
     // Goldstein's terms in z^3 f^(3/2) and beyond reach the last place for larger |z| at the
     // smaller degrees (fresh Excel answers: misses only at |z| >= 2.98 with n <= 2.6e11).
-    let z_bound = if n >= f64::from_bits(0x4270_0000_0000_0000) { 4.0 } else { 2.75 }; // 2^40
+    let z_bound = if n >= f64::from_bits(0x4270_0000_0000_0000) {
+        4.0
+    } else {
+        2.75
+    }; // 2^40
     if !(z.abs() <= z_bound) {
         return None;
     }
-    let f = excel_x87_div(1.0, n);
-    let f1 = excel_sqrt_staged(f);
-    let a0 = excel_x87_add(1.0000886, excel_x87_mul(-0.2237368, f));
-    let a1 = excel_x87_mul(0.4713941, f1);
-    let a2 = excel_x87_mul(1.348028e-4, f);
-    let c = excel_x87_add(excel_x87_mul(excel_x87_add(excel_x87_mul(a2, z), a1), z), a0);
-    Some(excel_x87_mul(excel_x87_mul(c, c), c))
+    Some(goldstein_cube_from_z(z, n))
 }
 
 /// Excel 20527's stored unit result in the measured very-large-shape region.
@@ -511,146 +524,201 @@ pub fn gamma_dist_kernel(
     }
 }
 
-/// The Stirling series `S(a) = ln Gamma(a + 1) - (a + 1/2) ln a + a - ln(2 pi) / 2`, to B24,
-/// in double-double for `a >= 10`.
-fn stirling_series_dd(a: f64) -> crate::ported::double_double::Dd {
-    use crate::ported::double_double::Dd;
-    // B_2k / (2k (2k - 1)) for k = 1..12.
-    const STIRLING: [(f64, f64); 12] = [
-        (1.0, 12.0),
-        (-1.0, 360.0),
-        (1.0, 1260.0),
-        (-1.0, 1680.0),
-        (1.0, 1188.0),
-        (-691.0, 360360.0),
-        (1.0, 156.0),
-        (-3617.0, 122400.0),
-        (43867.0, 244188.0),
-        (-174611.0, 125400.0),
-        (77683.0, 5796.0),
-        (-236364091.0, 1506960.0),
-    ];
-    let inv = Dd::from(1.0).div_f64(a);
-    let inv2 = inv.mul(inv);
-    let mut series = Dd::from(0.0);
-    for &(num, den) in STIRLING.iter().rev() {
-        series = series.mul(inv2).add(Dd::from(num).div_f64(den));
-    }
-    series.mul(inv)
-}
-
-const HALF_LN_2PI: crate::ported::double_double::Dd =
-    crate::ported::double_double::Dd(0.9189385332046728, -3.8782941580672414e-17);
-
-/// `ln D(a, x)`, `D = x^a e^-x / Gamma(a + 1)`, in double-double.
-/// For `a >= 10` and `u = (x - a) / a` in (-0.75, 3) it is `a (ln(1 + u) - u) - ln(2 pi a) / 2 - S(a)`
-/// with `ln(1 + u) = 2 atanh(u / (2 + u))`.
-fn gamma_log_prefactor_dd(
+/// Excel's iterative unit-scale gamma inverse solver (cb6, dc-j9k.60):
+/// - AS 91 `-1.24 * ln(p)` power / Wilson-Hilferty start (with `z = -NORM.S.INV(q)` for
+///   right-tail chi-square callers so tiny `q` survives without `1 - q` cancellation);
+/// - complement residual switch strictly above `0.9999` (`0x3fefff2e48e8a71e`);
+/// - unfactored Halley step `2*df / (2*pdf - df*((a-1)/x - 1))` with AS 109 sign-change
+///   thirding damping, `106`-trial cap, `1e-15` relative step stop (evaluating the final
+///   candidate), and strict-minimum residual `best_x` publication.
+pub(super) fn gamma_halley_unit(
+    prob: f64,
     a: f64,
-    x: crate::ported::double_double::Dd,
-) -> Option<crate::ported::double_double::Dd> {
-    use crate::ported::double_double::{Dd, ln};
-    if a < 10.0 {
-        return None;
-    }
-    let u = x.sub(Dd::from(a)).div_f64(a);
-    if !(u.0 > -0.75 && u.0 < 3.0) {
-        return None;
-    }
-    let w = u.div(Dd::from(2.0).add(u));
-    let w2 = w.mul(w);
-    let mut term = w;
-    let mut sum = w;
-    for k in 1..200 {
-        term = term.mul(w2);
-        let add = term.div_f64((2 * k + 1) as f64);
-        sum = sum.add(add);
-        if add.0.abs() <= sum.0.abs() * 1e-34 {
-            break;
-        }
-    }
-    let log_ratio = sum.add(sum).sub(u);
-    let half_ln_a = ln(Dd::from(a)).div_f64(2.0);
-    Some(log_ratio.mul_f64(a).sub(half_ln_a).sub(HALF_LN_2PI).sub(stirling_series_dd(a)))
-}
-
-/// The smallest shape whose inverse is polished. Measured on the full bank (fn6): polishing
-/// integer and half-integer shapes from a = 1 changes CHIINV +14, CHISQ.INV -6, CHISQ.INV.RT -2
-/// rows against a = 10; below 10 Excel's root is mostly not the correctly rounded one.
-const GAMMA_POLISH_MIN_SHAPE: f64 = 10.0;
-
-/// The root of `P(a, x) = target` (lower regularized gamma, unit scale) rounded once to binary64,
-/// polished by Newton steps on a double-double `P = D(a, x) sum x^n / ((a + 1)...(a + n))` from a
-/// root `x0` the lattice search already found. Excel 20527 publishes the correctly rounded root at
-/// these shapes, where the binary64 forward is too coarse for the search to resolve it (fn6).
-pub(crate) fn gamma_unit_root_polished(
-    a: f64,
-    target: crate::ported::double_double::Dd,
-    x0: f64,
-) -> Option<f64> {
-    use crate::ported::double_double::{Dd, exp};
-    if !(GAMMA_POLISH_MIN_SHAPE..=1.0e7).contains(&a) || !(target.0 > 0.0 && target.0 < 1.0) || !(x0 > 0.0) {
-        return None;
-    }
-    let mut x = Dd::from(x0);
-    for _ in 0..4 {
-        let d = exp(gamma_log_prefactor_dd(a, x)?);
-        let mut term = Dd::from(1.0);
-        let mut sum = Dd::from(1.0);
-        let mut n = 1.0;
-        loop {
-            term = term.mul(x).div(Dd::from(a).add(Dd::from(n)));
-            sum = sum.add(term);
-            if term.0 <= sum.0 * 1e-34 {
-                break;
-            }
-            n += 1.0;
-            if n > 200_000.0 {
-                return None;
-            }
-        }
-        let p = d.mul(sum);
-        let density = d.mul_f64(a).div(x);
-        let step = p.sub(target).div(density);
-        x = x.sub(step);
-        if step.0.abs() <= x.0 * 1e-32 {
-            break;
-        }
-    }
-    let root = x.to_f64();
-    (root.is_finite() && root > 0.0).then_some(root)
-}
-
-/// A nonpositive Wilson-Hilferty start or first Halley proposal makes Excel's
-/// small-shape inverse return #NUM! before it applies the scale. Best and Roberts'
-/// AS 91 boundary selects the power start on the other side. Excel 20527 confirmed
-/// the boundary at 420 fresh shapes and the outcome at all 4,705 random controls.
-fn gamma_inverse_start_fails(p: f64, a: f64) -> bool {
+    is_upper_q: bool,
+) -> Result<f64, WorksheetErrorCode> {
     use crate::ported::excel_numeric::{
-        excel_log, excel_sqrt_staged, excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_sub,
+        excel_exp, excel_log, excel_sqrt_staged, excel_x87_add, excel_x87_div, excel_x87_mul,
+        excel_x87_sub, gammaln_excel,
     };
-    if 2.0 * a < excel_x87_mul(-1.24, excel_log(p)) {
-        return false;
-    }
-    let v = excel_x87_div(1.0, excel_x87_mul(9.0, a));
-    let Ok(z) = crate::ported::normal_log_family::norm_s_inv_kernel(p) else {
-        return false;
+    const MAX_TRIALS: usize = 106;
+    const REL_X_TOL: f64 = 1e-15;
+
+    let mut x = if !is_upper_q {
+        // The lower-tail power estimate is exact at the underflow scale.
+        // Excel 20527: 56 controls separate an estimate rounded to zero
+        // from a nonzero subnormal, which fails with #DIV/0! before scale is applied.
+        let power_seed = || {
+            let log_seed = excel_x87_div(
+                excel_x87_add(excel_log(prob), gammaln_excel(1.0 + a)),
+                a,
+            );
+            excel_exp(log_seed)
+        };
+        let small_shape_seed = if a < 1.0 {
+            let seed = power_seed();
+            if seed == 0.0 {
+                return Ok(0.0);
+            }
+            if seed.is_subnormal() {
+                return Err(WorksheetErrorCode::Div0);
+            }
+            Some(seed)
+        } else {
+            None
+        };
+        if 2.0 * a < excel_x87_mul(-1.24, excel_log(prob)) {
+            let seed = small_shape_seed.unwrap_or_else(power_seed);
+            if seed == 0.0 {
+                return Ok(0.0);
+            }
+            if seed.is_subnormal() {
+                return Err(WorksheetErrorCode::Div0);
+            }
+            seed
+        } else {
+            let v = excel_x87_div(1.0, excel_x87_mul(9.0, a));
+            let z = crate::ported::normal_log_family::norm_s_inv_kernel(prob)?;
+            let c = excel_x87_add(
+                excel_x87_sub(1.0, v),
+                excel_x87_mul(z, excel_sqrt_staged(v)),
+            );
+            if !(c > 0.0) {
+                return Err(WorksheetErrorCode::Num);
+            }
+            excel_x87_mul(a, excel_x87_mul(c, excel_x87_mul(c, c)))
+        }
+    } else {
+        let p_comp = excel_x87_add(0.5, excel_x87_sub(0.5, prob));
+        if p_comp < 1.0 && 2.0 * a < excel_x87_mul(-1.24, excel_log(p_comp)) {
+            let log_seed = excel_x87_div(
+                excel_x87_add(excel_log(p_comp), gammaln_excel(1.0 + a)),
+                a,
+            );
+            let seed = excel_exp(log_seed);
+            if seed == 0.0 || seed.is_subnormal() {
+                return Ok(0.0);
+            }
+            seed
+        } else {
+            let v = excel_x87_div(1.0, excel_x87_mul(9.0, a));
+            let z = -crate::ported::normal_log_family::norm_s_inv_kernel(prob)?;
+            let c = excel_x87_add(
+                excel_x87_sub(1.0, v),
+                excel_x87_mul(z, excel_sqrt_staged(v)),
+            );
+            if !(c > 0.0) {
+                return Err(WorksheetErrorCode::Num);
+            }
+            excel_x87_mul(a, excel_x87_mul(c, excel_x87_mul(c, c)))
+        }
     };
-    let c = excel_x87_add(excel_x87_sub(1.0, v), excel_x87_mul(z, excel_sqrt_staged(v)));
-    if c <= 0.0 {
-        return true;
+
+    if x == 0.0 {
+        return Ok(0.0);
     }
-    let x = excel_x87_mul(a, excel_x87_mul(c, excel_x87_mul(c, c)));
-    let (Ok(cdf), Ok(density)) = (gamma_dist_kernel(x, a, 1.0, true), gamma_dist_kernel(x, a, 1.0, false)) else {
-        return false;
+    if !(x > 0.0 && x.is_finite()) {
+        return Err(WorksheetErrorCode::Num);
+    }
+
+    // Complement residual switch strictly above 0.9999 (0x3fefff2e48e8a71e).
+    let comp_prob = excel_x87_add(0.5, excel_x87_sub(0.5, prob));
+    let switch_comp = prob > 0.9999;
+    let eval_df = |x_val: f64| -> Result<f64, WorksheetErrorCode> {
+        if !is_upper_q && !switch_comp {
+            let cdf = gamma_dist_kernel(x_val, a, 1.0, true)?;
+            Ok(excel_x87_sub(cdf, prob))
+        } else {
+            let (p_val, q_val) = gratio(a, x_val);
+            if !p_val.is_finite() || p_val > 1.5 {
+                return Err(WorksheetErrorCode::Num);
+            }
+            if !is_upper_q {
+                Ok(excel_x87_sub(comp_prob, flush_subnormal(q_val)))
+            } else if !switch_comp {
+                Ok(excel_x87_sub(prob, flush_subnormal(q_val)))
+            } else {
+                Ok(excel_x87_sub(flush_subnormal(p_val), comp_prob))
+            }
+        }
     };
-    if density == 0.0 {
-        return false;
+
+    let mut best_x = x;
+    let mut best_err = f64::INFINITY;
+    let mut last_corr = 0.0_f64;
+    let mut last_adj = 1.0_f64;
+    let mut step_limit = f64::INFINITY;
+    let mut trials = 0usize;
+
+    loop {
+        let df = eval_df(x)?;
+        let err_df = df.abs();
+        if err_df < best_err {
+            best_err = err_df;
+            best_x = x;
+        }
+        if err_df == 0.0 {
+            return Ok(best_x);
+        }
+
+        let pdf = gamma_dist_kernel(x, a, 1.0, false)?;
+        if pdf == 0.0 {
+            return Ok(best_x);
+        }
+
+        let log_slope = excel_x87_sub(excel_x87_div(a - 1.0, x), 1.0);
+        let denom = excel_x87_sub(2.0 * pdf, excel_x87_mul(df, log_slope));
+        let corr = if denom == 0.0 || !denom.is_finite() {
+            excel_x87_div(df, pdf)
+        } else {
+            excel_x87_div(2.0 * df, denom)
+        };
+        if !corr.is_finite() {
+            return Ok(best_x);
+        }
+
+        if trials > 0 && corr.abs() <= REL_X_TOL * x {
+            let x_cand = excel_x87_sub(x, corr);
+            if x_cand > 0.0
+                && x_cand.is_finite()
+                && corr.abs() < step_limit
+                && let Ok(df_cand) = eval_df(x_cand)
+                && df_cand.abs() < best_err
+            {
+                best_x = x_cand;
+            }
+            return Ok(best_x);
+        }
+
+        if last_corr != 0.0 && corr * last_corr <= 0.0 {
+            step_limit = last_adj.abs();
+        }
+        last_corr = corr;
+
+        let mut factor = 1.0_f64;
+        loop {
+            last_adj = excel_x87_mul(factor, corr);
+            if last_adj.abs() >= step_limit {
+                factor = excel_x87_div(factor, 3.0);
+                if factor == 0.0 || excel_x87_sub(x, last_adj) == x {
+                    return Ok(best_x);
+                }
+                continue;
+            }
+            let next = excel_x87_sub(x, last_adj);
+            if !(next > 0.0 && next.is_finite()) {
+                return Err(WorksheetErrorCode::Num);
+            }
+            trials += 1;
+            if trials > MAX_TRIALS {
+                return Err(WorksheetErrorCode::Num);
+            }
+            if next == x {
+                return Ok(best_x);
+            }
+            x = next;
+            break;
+        }
     }
-    let residual = excel_x87_sub(cdf, p);
-    let log_slope = excel_x87_sub(excel_x87_div(a - 1.0, x), 1.0);
-    let denominator = excel_x87_sub(2.0 * density, excel_x87_mul(residual, log_slope));
-    excel_x87_sub(x, excel_x87_div(2.0 * residual, denominator)) <= 0.0
 }
 
 pub fn gamma_inv_kernel(
@@ -671,12 +739,12 @@ pub fn gamma_inv_kernel(
     if probability == 0.0 {
         return Ok(0.0);
     }
+    use crate::ported::excel_numeric::excel_x87_mul;
     if let Some(factor) = goldstein_large_degree_factor(probability, 2.0 * alpha) {
-        use crate::ported::excel_numeric::excel_x87_mul;
         let unit = excel_x87_mul(alpha, factor);
         let result = excel_x87_mul(beta, unit);
         return if result.is_finite() {
-            Ok(if result.is_subnormal() { 0.0 } else { result })
+            Ok(flush_subnormal(result))
         } else {
             Err(WorksheetErrorCode::Num)
         };
@@ -686,26 +754,41 @@ pub fn gamma_inv_kernel(
     if (2.0_f64.powi(-40)..2.0_f64.powi(40)).contains(&beta)
         && let Some(factor) = large_shape_inverse_factor(probability, alpha)
     {
-        let unit = crate::ported::excel_numeric::excel_x87_mul(alpha, factor);
-        return Ok(crate::ported::excel_numeric::excel_x87_mul(beta, unit));
+        let unit = excel_x87_mul(alpha, factor);
+        let result = excel_x87_mul(beta, unit);
+        return if result.is_finite() {
+            Ok(flush_subnormal(result))
+        } else {
+            Err(WorksheetErrorCode::Num)
+        };
     }
     // At these large shapes Excel's unit search saturates to the same stored
     // x87 factor as the right-tail chi-square inverse. The scale is
-    // applied in its own stored multiplication. Keep unmeasured overflow and
-    // underflow ranges on the existing solver.
+    // applied in its own stored multiplication.
     if probability >= f64::MIN_POSITIVE
         && alpha >= f64::from_bits(0x4720_0000_0000_0000) // 2^115
         && alpha < f64::from_bits(0x6570_0000_0000_0000) // 2^600
         && beta >= f64::from_bits(0x26f0_0000_0000_0000) // 2^-400
         && beta < f64::from_bits(0x58f0_0000_0000_0000) // 2^400
     {
-        return Ok(crate::ported::excel_numeric::excel_x87_mul(
-            beta,
-            large_shape_inverse_unit(alpha),
-        ));
+        let result = excel_x87_mul(beta, large_shape_inverse_unit(alpha));
+        return if result.is_finite() {
+            Ok(flush_subnormal(result))
+        } else {
+            Err(WorksheetErrorCode::Num)
+        };
+    }
+    if alpha == 0.5 {
+        let unit = crate::ported::normal_log_family::gamma_inv_half_unit(probability);
+        let result = excel_x87_mul(beta, unit);
+        return if result.is_finite() {
+            Ok(flush_subnormal(result))
+        } else {
+            Err(WorksheetErrorCode::Num)
+        };
     }
     if alpha == 1.0 {
-        use crate::ported::excel_numeric::{excel_log, excel_log1p_times, excel_x87_mul};
+        use crate::ported::excel_numeric::{excel_log, excel_log1p_times};
         // Exponential inverse: the distribution logarithm keeps the small
         // probability before the final stored scale. Fresh Excel20527: 698/698
         // after final subnormal publication is flushed, plus 48 scaling controls.
@@ -714,86 +797,34 @@ pub fn gamma_inv_kernel(
         } else {
             -excel_log(1.0 - probability)
         };
-        let x = excel_x87_mul(beta, unit);
-        return Ok(if x.is_subnormal() { 0.0 } else { x });
-    }
-    if alpha < 1.0 {
-        use crate::ported::excel_numeric::{
-            excel_exp, excel_log, excel_x87_add, excel_x87_div, gammaln_excel,
-        };
-        // The lower-tail power estimate is exact at the underflow scale.
-        // Excel 20527: 56 controls separate an estimate rounded to zero
-        // from a nonzero subnormal, which fails before scale is applied.
-        let log_seed = excel_x87_div(
-            excel_x87_add(excel_log(probability), gammaln_excel(1.0 + alpha)),
-            alpha,
-        );
-        let seed = excel_exp(log_seed);
-        if seed == 0.0 {
-            return Ok(0.0);
-        }
-        if seed.is_subnormal() {
-            return Err(WorksheetErrorCode::Div0);
-        }
-        if gamma_inverse_start_fails(probability, alpha) {
-            return Err(WorksheetErrorCode::Num);
-        }
-    }
-    // design/fable52-last-bit.md section 5 (Claude Fable 5.2), measured 300/300 on Excel:
-    // GAMMA.INV(p,a,b) = st(b * GAMMA.INV(p,a,1)), CHISQ.INV(p,2a) = GAMMA.INV(p,a,2): a
-    // unit-scale search followed by one stored multiply.
-    // Preserve the smaller upper tail: the stored P=1-Q has wide plateaus
-    // near one. Fresh Excel20527 controls gain139 exact words, lose four
-    // one-ULP words, and reduce worst error from 8.7e13 to76 ULP.
-    let upper = probability > 0.5;
-    let target = if upper {
-        -(1.0 - probability)
-    } else {
-        probability
-    };
-    let forward = |x| {
-        if upper {
-            -regularized_gamma_q(alpha, x)
+        let result = excel_x87_mul(beta, unit);
+        return if result.is_finite() {
+            Ok(flush_subnormal(result))
         } else {
-            regularized_gamma_p(alpha, x)
-        }
-    };
-    let mut hi = (alpha + 10.0 * alpha.sqrt() + 10.0).max(1.0);
-    for _ in 0..200 {
-        if forward(hi) >= target || hi == f64::INFINITY {
-            break;
-        }
-        hi *= 2.0;
+            Err(WorksheetErrorCode::Num)
+        };
     }
-    let mut unit = if upper {
-        bisect_inverse_closest(target, 0.0, hi, forward)
+    // High-shape [2.5e10, 2^95) fallback where |z| exceeded z_bound in
+    // goldstein_large_degree_factor: evaluate the same stored Goldstein cube.
+    if (2.5e10..2.0_f64.powi(95)).contains(&alpha)
+        && let Ok(z) = crate::ported::normal_log_family::norm_s_inv_kernel(probability)
+    {
+        let factor = goldstein_cube_from_z(z, 2.0 * alpha);
+        let unit = excel_x87_mul(alpha, factor);
+        let result = excel_x87_mul(beta, unit);
+        return if result.is_finite() {
+            Ok(flush_subnormal(result))
+        } else {
+            Err(WorksheetErrorCode::Num)
+        };
+    }
+    let unit = flush_subnormal(gamma_halley_unit(probability, alpha, false)?);
+    let result = excel_x87_mul(beta, unit);
+    if result.is_finite() {
+        Ok(flush_subnormal(result))
     } else {
-        bisect_inverse(target, 0.0, hi, forward)
-    };
-    if upper && 1.0 - probability < 1e-12 {
-        // The double-double lower tail cannot resolve so small an upper tail.
-    } else if let Some(root) = gamma_unit_root_polished(
-        alpha,
-        crate::ported::double_double::Dd::from(probability),
-        unit,
-    ) {
-        unit = root;
+        Err(WorksheetErrorCode::Num)
     }
-    // From a shape of about 2e10, Excel's unit result is the quantile times the same stored
-    // factor as the very-large-shape region (large_shape_inverse_unit), 1.000265823551: Excel
-    // 16.0.20527 through Touchstone at p = 0.5 over shapes 3.2e10 to 5.6e29 (a quarter decade
-    // apart, 76 calls) and at p from 1e-10 to 0.999 at 1e12 and 1e14, ratio to the quantile
-    // constant to 1e-12. Below, a #NUM! window whose edges move with p (at p = 0.5 from
-    // 5.70e9 to 1.97e10; at p = 1e-10 the upper edge is 2.70e10) is not modelled, so the
-    // factor applies from 2.7e10, above every measured edge. Approximate, not Excel's bits.
-    if (2.7e10..2.0_f64.powi(95)).contains(&alpha) && probability >= 1e-10 {
-        unit = crate::ported::excel_numeric::excel_x87_mul(
-            unit,
-            f64::from_bits(0x3ff0_0116_bc77_4cb6),
-        );
-    }
-    let x = crate::ported::excel_numeric::excel_x87_mul(beta, unit);
-    Ok(if x.is_subnormal() { 0.0 } else { x })
 }
 
 #[cfg(test)]
@@ -990,5 +1021,72 @@ mod tests {
                 crate::ported::discrete_dist::expon_dist_kernel(x / beta, 1.0, true).unwrap();
             assert_eq!(got.to_bits(), expect.to_bits(), "shape1 x={x} beta={beta}");
         }
+    }
+
+    /// Excel 16.0.20527 (cb6, dc-j9k.60): alpha == 0.5 closed-form `erfinv(p)^2` across
+    /// pieces A/B/C/AS 241 tail, piece boundaries (`sqrt(0.5)`, `15/16`), and unit-level
+    /// subnormal flush before outer `beta = 2^100` scaling.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn cb6_gamma_inv_half_shape_boundaries_and_subnormal_flush() {
+        let rows: [(u64, u64, u64, u64); 14] = [
+            // Piece A/B boundary triple around sqrt(0.5).
+            (0x3fe6a09e667f3bcc, 0x3fe0000000000000, 0x3ff0000000000000, 0x3fe1b34cec5057e4),
+            (0x3fe6a09e667f3bcd, 0x3fe0000000000000, 0x3ff0000000000000, 0x3fe1b34cec5057e1),
+            (0x3fe6a09e667f3bce, 0x3fe0000000000000, 0x3ff0000000000000, 0x3fe1b34cec5057e1),
+            // Piece C / AS 241 tail boundary triple around 15/16.
+            (0x3fedffffffffffff, 0x3fe0000000000000, 0x3ff0000000000000, 0x3ffbc216c7699397),
+            (0x3fee000000000000, 0x3fe0000000000000, 0x3ff0000000000000, 0x3ffbc216c76993a9),
+            (0x3fee000000000001, 0x3fe0000000000000, 0x3ff0000000000000, 0x3ffbc216c76993b4),
+            // Frozen holdouts across pieces A, B, C, and tail.
+            (0x3fe57325d4e00884, 0x3fe0000000000000, 0x40a7f8bbd0d50b5e, 0x4096c6828a21e7fd),
+            (0x3fead7729b622ade, 0x3fe0000000000000, 0x407d6aa848a0c7f1, 0x407cdf1445a28768),
+            (0x3fedeeb5d436bb05, 0x3fe0000000000000, 0x40a39dcc01097bb8, 0x40b0bf39dc86442c),
+            (0x3fefffe5c57c55a5, 0x3fe0000000000000, 0x4072fcf1519ab284, 0x40a6a5fd55aae6b5),
+            // Unit subnormal flush before outer beta = 2^100 multiply.
+            (0x202ad0cc33744e4b, 0x3fe0000000000000, 0x3ff0000000000000, 0x0061a6187ba5ce19),
+            (0x202ad0cc33744e4b, 0x3fe0000000000000, 0x4630000000000000, 0x06a1a6187ba5ce19),
+            (0x1ff573d68f903ea2, 0x3fe0000000000000, 0x3ff0000000000000, 0x0000000000000000),
+            (0x1ff573d68f903ea2, 0x3fe0000000000000, 0x4630000000000000, 0x0000000000000000),
+        ];
+        for (p, a, b, expected) in rows {
+            let got = gamma_inv_kernel(f64::from_bits(p), f64::from_bits(a), f64::from_bits(b))
+                .unwrap();
+            assert_eq!(got.to_bits(), expected, "GAMMA.INV({p:#x}, {a:#x}, {b:#x})");
+        }
+    }
+
+    /// Excel 16.0.20527 (cb6, dc-j9k.60): damped Halley solver, strict `prob > 0.9999`
+    /// complement switch (both below and inside Temme), and `[2.5e10, 2^95)` Goldstein
+    /// when `|z| > z_bound`.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn cb6_gamma_inv_halley_complement_switch_and_goldstein() {
+        let rows: [(u64, u64, u64, u64); 7] = [
+            // Strictly above 0.9999 (0x3fefff2e48e8a71e -> 0x3fefff2e48e8a71f):
+            // complement residual switches to comp(p) - Q, both at a = 2.5 and inside Temme (a = 1000).
+            (0x3fefff2e48e8a71f, 0x4004000000000000, 0x3ff0000000000000, 0x4029bead4ea92c1f),
+            (0x3fefff2e48e8a71f, 0x408f400000000000, 0x3ff0000000000000, 0x4091879de0b4c4bd),
+            // High-shape [2.5e10, 2^95) Goldstein at p = 0.999 (|z| > 2.75).
+            (0x3feff7ced916872b, 0x42174876e8000000, 0x3ff0000000000000, 0x42174a2a59101a34),
+            // Frozen holdouts across small, mid, large, and extreme-upper regimes.
+            (0x3aa38dfb8f935b70, 0x3fe79ac9e4a2e18c, 0x40345ca531b3bf9f, 0x39043831c141a704),
+            (0x3fc4db2992fab098, 0x402d6c641b472c29, 0x3fc49fb9f745f0b2, 0x3ffc4b612a9b924b),
+            (0x3fee58b3562fcd69, 0x403cf6bc76597762, 0x3fb733a3d8ed3a48, 0x400bba86c24eb332),
+            (0x3fefffffe1cb8b1e, 0x40587f06ef3445e4, 0x3fc502a9de9266f8, 0x403a3c50587838ba),
+        ];
+        for (p, a, b, expected) in rows {
+            let got = gamma_inv_kernel(f64::from_bits(p), f64::from_bits(a), f64::from_bits(b))
+                .unwrap();
+            assert_eq!(got.to_bits(), expected, "GAMMA.INV({p:#x}, {a:#x}, {b:#x})");
+        }
+        // At exactly 0.9999 (0x3fefff2e48e8a71e), the solver stays on the P - p branch
+        // and lands on the binary64 CDF plateau (GAMMA.DIST == p).
+        let p_eq = f64::from_bits(0x3fefff2e48e8a71e);
+        let x_eq = gamma_inv_kernel(p_eq, 2.5, 1.0).unwrap();
+        assert_eq!(
+            gamma_dist_kernel(x_eq, 2.5, 1.0, true).unwrap().to_bits(),
+            p_eq.to_bits()
+        );
     }
 }

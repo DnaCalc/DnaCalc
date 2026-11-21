@@ -1,0 +1,30 @@
+{
+  "id": "textjoin-keep-blanks",
+  "kind": "formula",
+  "feature": "text arrays",
+  "trick": "The empty switch controls whether consecutive delimiters appear for a blank cell.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/textjoin-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": "oak",
+    "A3": "elm",
+    "A4": "ash"
+  },
+  "formulas": {
+    "N2": "=CHOOSE({1,2},TEXTJOIN(\"-\",TRUE,A1:A4),TEXTJOIN(\"-\",FALSE,A1:A4))"
+  },
+  "stored_formulas": {
+    "N2": "=CHOOSE({1,2},_xlfn.TEXTJOIN(\"-\",TRUE,A1:A4),_xlfn.TEXTJOIN(\"-\",FALSE,A1:A4))"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

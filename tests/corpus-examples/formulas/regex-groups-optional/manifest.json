@@ -1,0 +1,28 @@
+{
+  "id": "regex-groups-optional",
+  "kind": "formula",
+  "feature": "REGEX",
+  "trick": "Return mode 2 exposes groups when one of them was optional in the match.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/regexextract-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": "id-132"
+  },
+  "formulas": {
+    "N2": "=REGEXEXTRACT(A1,\"([a-z]+)-(\\d+)(?:\\.([a-z]+))?\",2)"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.REGEXEXTRACT(A1,\"([a-z]+)-(\\d+)(?:\\.([a-z]+))?\",2)"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

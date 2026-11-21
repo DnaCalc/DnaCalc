@@ -1,0 +1,33 @@
+{
+  "id": "tocol-scan-different",
+  "kind": "formula",
+  "feature": "dynamic arrays",
+  "trick": "Scan by column while suppressing errors and retaining empty-cell coercion.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/tocol-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": 1,
+    "A2": {
+      "error": "#N/A"
+    },
+    "B1": 2,
+    "B2": 3
+  },
+  "formulas": {
+    "N2": "=TOCOL(A1:C2,2,TRUE)"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.TOCOL(A1:C2,2,TRUE)"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

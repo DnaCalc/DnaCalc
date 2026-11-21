@@ -1,0 +1,33 @@
+{
+  "id": "drop-zero-axis",
+  "kind": "formula",
+  "feature": "dynamic arrays",
+  "trick": "An omitted row count and negative column count remove only the final column.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/drop-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": 1,
+    "B1": 2,
+    "C1": 3,
+    "A2": 4,
+    "B2": 5,
+    "C2": 6
+  },
+  "formulas": {
+    "N2": "=DROP(A1:C2,,-1)"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.DROP(A1:C2,,-1)"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

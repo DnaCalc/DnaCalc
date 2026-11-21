@@ -1,0 +1,29 @@
+{
+  "id": "lambda-closure-shadow",
+  "kind": "formula",
+  "feature": "LAMBDA and LET",
+  "trick": "A lambda binds its own parameter while closing over a separately named LET value.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/lambda-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": 4,
+    "A2": 6
+  },
+  "formulas": {
+    "N2": "=LET(value,A1,outer,value+1,fn,LAMBDA(value,value+outer),CHOOSE({1,2},fn(A2),value))"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.LET(value,A1,outer,value+1,fn,_xlfn.LAMBDA(_xlpm.value,_xlpm.value+outer),CHOOSE({1,2},fn(A2),value))"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

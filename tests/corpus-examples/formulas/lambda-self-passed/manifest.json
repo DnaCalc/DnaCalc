@@ -1,0 +1,27 @@
+{
+  "id": "lambda-self-passed",
+  "kind": "formula",
+  "feature": "LAMBDA and LET",
+  "trick": "An inline lambda can recurse by passing itself as an explicit argument.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/lambda-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": 6
+  },
+  "formulas": {
+    "N2": "=LET(ownFactorial,LAMBDA(self,number,IF(number<2,1,number*self(self,number-1))),ownFactorial(ownFactorial,A1))"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.LET(ownFactorial,_xlfn.LAMBDA(_xlpm.self,_xlpm.number,IF(_xlpm.number<2,1,_xlpm.number*_xlpm.self(_xlpm.self,_xlpm.number-1))),ownFactorial(ownFactorial,A1))"
+  },
+  "capture": [
+    "Sheet1!N2"
+  ],
+  "expected_answer": null
+}

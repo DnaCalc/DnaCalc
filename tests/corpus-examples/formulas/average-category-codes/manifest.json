@@ -1,0 +1,34 @@
+{
+  "id": "average-category-codes",
+  "kind": "formula",
+  "feature": "lookup",
+  "trick": "XLOOKUP maps a vector of text categories inside an aggregate.",
+  "licence": "CC BY-SA 4.0",
+  "source": {
+    "url": "https://superuser.com/a/1561505",
+    "author": "FlexYourData",
+    "author_url": "https://superuser.com/users/1125935/flexyourdata",
+    "licence": "CC BY-SA 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "source_path": "answers/1561505/code/1",
+    "sha256": "1aa941c677bd2e3fc12e8e98d891b4d6ee92444ca32852c5c3be02261e6c91e1",
+    "changes": "Synthetic inputs and OOXML formula encoding."
+  },
+  "inputs": {
+    "B2": "R",
+    "B3": "A",
+    "B4": "G",
+    "B5": "R",
+    "B6": "A"
+  },
+  "formulas": {
+    "N2": "=AVERAGE(XLOOKUP(B2:B6,{\"R\",\"A\",\"G\"},{1,2,3}))"
+  },
+  "stored_formulas": {
+    "N2": "=AVERAGE(_xlfn.XLOOKUP(B2:B6,{\"R\",\"A\",\"G\"},{1,2,3}))"
+  },
+  "capture": [
+    "Sheet1!N2"
+  ],
+  "expected_answer": null
+}

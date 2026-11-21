@@ -1,0 +1,36 @@
+{
+  "id": "join-visible-matches",
+  "kind": "formula",
+  "feature": "dynamic arrays",
+  "trick": "FILTER selects matching rows before TEXTJOIN folds the selected labels.",
+  "licence": "CC BY-SA 4.0",
+  "source": {
+    "url": "https://superuser.com/a/1580359",
+    "author": "FlexYourData",
+    "author_url": "https://superuser.com/users/1125935/flexyourdata",
+    "licence": "CC BY-SA 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "source_path": "answers/1580359/code/1",
+    "sha256": "f59f4210ad37842f73eae0bf365b5b3fc72c309afececd3223ac6f080c27c61e",
+    "changes": "Synthetic inputs and OOXML formula encoding."
+  },
+  "inputs": {
+    "B2": "red",
+    "C2": "a",
+    "B3": "blue",
+    "C3": "b",
+    "B4": "green",
+    "C4": "a",
+    "E2": "a"
+  },
+  "formulas": {
+    "N2": "=TEXTJOIN(\", \",TRUE,FILTER($B$2:$B$7,$C$2:$C$7=$E2))"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.TEXTJOIN(\", \",TRUE,_xlfn._xlws.FILTER($B$2:$B$7,$C$2:$C$7=$E2))"
+  },
+  "capture": [
+    "Sheet1!N2"
+  ],
+  "expected_answer": null
+}

@@ -1,0 +1,39 @@
+{
+  "id": "pivotby-independent-totals",
+  "kind": "formula",
+  "feature": "GROUPBY and PIVOTBY",
+  "trick": "A grand total may appear for only one of the two pivot axes.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/pivotby-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": "A",
+    "B1": "east",
+    "C1": 3,
+    "A2": "A",
+    "B2": "west",
+    "C2": 9,
+    "A3": "B",
+    "B3": "east",
+    "C3": 4,
+    "A4": "B",
+    "B4": "west",
+    "C4": 11
+  },
+  "formulas": {
+    "N2": "=PIVOTBY(A1:A4,B1:B4,C1:C4,_xleta.SUM,0,0,,1)"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.PIVOTBY(A1:A4,B1:B4,C1:C4,_xleta.SUM,0,0,,1)"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

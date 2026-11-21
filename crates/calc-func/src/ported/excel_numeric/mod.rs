@@ -79,10 +79,11 @@ mod soft87;
 /// describe: written clean-room under dc-96l.3 from Intel's documented instruction set.
 mod x87_chains;
 pub(crate) use x87_chains::{
-    excel_beta_fraction, excel_beta_power_series, excel_deviance_in_series, excel_deviance_series,
-    excel_exp, excel_exp_compensated, excel_exp_of_sum, excel_exp_running, excel_exp_rz,
-    excel_exp_second_dropped, excel_gamma_fraction, excel_log, excel_log1p_times, excel_log10,
-    excel_pow_x87_direct, excel_root_x87, excel_stirling_series, excel_stirling_step,
+    excel_beta_fraction, excel_beta_power_series, excel_beta_up_sum_small_b,
+    excel_deviance_in_series, excel_deviance_series, excel_exp, excel_exp_compensated,
+    excel_exp_of_sum, excel_exp_running, excel_exp_rz, excel_exp_second_dropped,
+    excel_gamma_fraction, excel_log, excel_log1p_times, excel_log10, excel_pow_x87_direct,
+    excel_root_x87, excel_stirling_series, excel_stirling_step,
 };
 
 /// The Microsoft runtime's `pow` in portable Rust (dc-sbo).

@@ -1,0 +1,33 @@
+{
+  "id": "filter-mask-error",
+  "kind": "formula",
+  "feature": "dynamic arrays",
+  "trick": "An error in the include array surfaces even when other rows are eligible.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/filter-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": "red",
+    "A2": "green",
+    "B1": 1,
+    "B2": {
+      "error": "#N/A"
+    }
+  },
+  "formulas": {
+    "N2": "=FILTER(A1:A2,B1:B2>0,\"none\")"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn._xlws.FILTER(A1:A2,B1:B2>0,\"none\")"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

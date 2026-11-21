@@ -1,0 +1,29 @@
+{
+  "id": "expand-declared-size",
+  "kind": "formula",
+  "feature": "dynamic arrays",
+  "trick": "EXPAND broadcasts padding where one original row and column are insufficient.",
+  "licence": "MIT",
+  "source": {
+    "url": "https://exceljet.net/functions/expand-function",
+    "author": "Exceljet",
+    "licence": "Creator-download (source reference)",
+    "licence_url": "https://exceljet.net/terms",
+    "changes": "Original minimal formula and synthetic inputs illustrating the documented behavior."
+  },
+  "inputs": {
+    "A1": "x",
+    "B1": "y"
+  },
+  "formulas": {
+    "N2": "=EXPAND(A1:B1,3,4,-7)"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.EXPAND(A1:B1,3,4,-7)"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

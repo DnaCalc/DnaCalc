@@ -1,0 +1,30 @@
+{
+  "id": "last-letter-position",
+  "kind": "formula",
+  "feature": "lookup",
+  "trick": "A lookup through reciprocal Boolean errors returns the final matching character position.",
+  "licence": "CC BY-SA 4.0",
+  "source": {
+    "url": "https://stackoverflow.com/a/62439299",
+    "author": "JvdV",
+    "author_url": "https://stackoverflow.com/users/9758194/jvdv",
+    "licence": "CC BY-SA 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "source_path": "answers/62439299/code/3",
+    "sha256": "e35f3a393c0b994f959ac140a0dcef3693368e998b4cd8732f939c5dbb6c577f",
+    "changes": "Synthetic inputs and OOXML formula encoding."
+  },
+  "inputs": {
+    "A1": "aYbYYc"
+  },
+  "formulas": {
+    "N2": "=MATCH(2,1/(MID(A1,SEQUENCE(LEN(A1)),1)=\"Y\"))"
+  },
+  "stored_formulas": {
+    "N2": "=MATCH(2,1/(MID(A1,_xlfn.SEQUENCE(LEN(A1)),1)=\"Y\"))"
+  },
+  "capture": [
+    "Sheet1!N2"
+  ],
+  "expected_answer": null
+}

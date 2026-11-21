@@ -1,0 +1,29 @@
+{
+  "id": "reduce-interval-expansion",
+  "kind": "formula",
+  "feature": "LAMBDA and LET",
+  "trick": "Reductions can append a variable number of rows for each textual interval.",
+  "licence": "CC BY-SA 4.0",
+  "source": {
+    "url": "https://stackoverflow.com/a/77666388",
+    "author": "JvdV",
+    "author_url": "https://stackoverflow.com/users/9758194/jvdv",
+    "licence": "CC BY-SA 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "source_path": "answers/77666388/code/3",
+    "sha256": "e4b84e1b5b70995d265de7b0e7696fe1e1cb707a09d5ab44d83eca4a4222e4f4",
+    "changes": "Synthetic inputs and OOXML formula encoding."
+  },
+  "inputs": {},
+  "formulas": {
+    "N2": "=DROP(REDUCE(0,{\"1:3\";\"5:7\";\"9:10\"},LAMBDA(x,y,VSTACK(x,LET(z,--TEXTBEFORE(y,\":\"),SEQUENCE(TEXTAFTER(y,\":\")-z+1,,z))))),1)"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.DROP(_xlfn.REDUCE(0,{\"1:3\";\"5:7\";\"9:10\"},_xlfn.LAMBDA(_xlpm.x,_xlpm.y,_xlfn.VSTACK(_xlpm.x,_xlfn.LET(z,--_xlfn.TEXTBEFORE(_xlpm.y,\":\"),_xlfn.SEQUENCE(_xlfn.TEXTAFTER(_xlpm.y,\":\")-z+1,,z))))),1)"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

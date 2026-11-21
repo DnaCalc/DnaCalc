@@ -1,0 +1,31 @@
+{
+  "id": "reduce-expand-pairs",
+  "kind": "formula",
+  "feature": "REGEX",
+  "trick": "A multiline split feeds REDUCE and stacks each set of regex capture groups.",
+  "licence": "CC BY-SA 4.0",
+  "source": {
+    "url": "https://superuser.com/a/1869764",
+    "author": "FlexYourData",
+    "author_url": "https://superuser.com/users/1125935/flexyourdata",
+    "licence": "CC BY-SA 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "source_path": "answers/1869764/code/3",
+    "sha256": "071f4f6d5661e0662b872cfdc0601df99202c73134bef324746694f0480667ed",
+    "changes": "Adapted formula, synthetic inputs and OOXML formula encoding."
+  },
+  "inputs": {
+    "B3": "item 12.7\nitem 8.30\nitem 1.24"
+  },
+  "formulas": {
+    "N2": "=DROP(REDUCE(0,TEXTSPLIT(B3,,CHAR(10)),LAMBDA(acc,line,VSTACK(acc,REGEXEXTRACT(line,\"(\\d+)\\.(\\d+)\",2,1)))),1)"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.DROP(_xlfn.REDUCE(0,_xlfn.TEXTSPLIT(B3,,CHAR(10)),_xlfn.LAMBDA(_xlpm.acc,_xlpm.line,_xlfn.VSTACK(_xlpm.acc,_xlfn.REGEXEXTRACT(_xlpm.line,\"(\\d+)\\.(\\d+)\",2,1)))),1)"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

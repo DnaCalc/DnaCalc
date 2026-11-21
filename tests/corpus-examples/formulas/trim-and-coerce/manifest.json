@@ -1,0 +1,35 @@
+{
+  "id": "trim-and-coerce",
+  "kind": "formula",
+  "feature": "TRIMRANGE",
+  "trick": "Trim trailing blank rows and columns, then compare blank coercion with explicit zeros.",
+  "licence": "CC BY-SA 4.0",
+  "source": {
+    "url": "https://stackoverflow.com/a/79471158",
+    "author": "Mayukh Bhattacharya",
+    "author_url": "https://stackoverflow.com/users/8162520/mayukh-bhattacharya",
+    "licence": "CC BY-SA 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "source_path": "answers/79471158/code/3",
+    "sha256": "530e43ebb9f2e6af9d3be9aec58db5dbe998ea34e2b490f8ed8a2107eabd9fae",
+    "changes": "Synthetic inputs and OOXML formula encoding."
+  },
+  "inputs": {
+    "B4": "x",
+    "C4": 0,
+    "E4": "y",
+    "B6": 2,
+    "E6": 5
+  },
+  "formulas": {
+    "N2": "=LET(a, TRIMRANGE(B4:E100,2), IF(a=0,\"\",a))"
+  },
+  "stored_formulas": {
+    "N2": "=_xlfn.LET(a, _xlfn.TRIMRANGE(B4:E100,2), IF(a=0,\"\",a))"
+  },
+  "capture": [
+    "Sheet1!N2",
+    "Sheet1!N2#"
+  ],
+  "expected_answer": null
+}

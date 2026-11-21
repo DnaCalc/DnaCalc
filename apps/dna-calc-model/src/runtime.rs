@@ -171,7 +171,7 @@ pub struct ChartTools {
 pub struct PageTools {
     pub open: bool,
     pub preview: bool,
-    pub view: String,
+    pub views: BTreeMap<SheetId, wire::SheetViewMode>,
     pub draft: std::collections::BTreeMap<String, String>,
     pub base: std::collections::BTreeMap<String, String>,
     pub source: Option<crate::printing::PageSetupState>,

@@ -525,9 +525,9 @@ pub(crate) fn regex_matches(
 ) -> Result<(Vec<char>, Vec<(usize, usize)>), PatternError> {
     let haystack: Vec<char> = text.chars().collect();
     let tokens = parse_regex_pattern(pattern)?;
-    // Empty matches in Excel are located in UTF-16. CRLF, supplementary characters and
-    // one leading-LF boundary differ from the ordinary scalar-position mapping below.
-    // First matches are at the start even for those inputs; leave the remaining cases open.
+    // Empty REGEXEXTRACT matches at CRLF, supplementary characters and the leading-LF
+    // boundary need an array-shape model. A first match is still at the start.
+    // REGEXREPLACE has a separate measured scan for an empty pattern.
     if tokens.is_empty()
         && !first_only
         && (haystack.iter().any(|ch| u32::from(*ch) > 0xffff)
