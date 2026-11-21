@@ -1,0 +1,224 @@
+batch	stage	model_or_source	foundation_rev	dnacalc_rev	manifest_rows	unique_paths	bytes_total	fd2_reviewed	fc1_reviewed	validation
+b001	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	3	3	44303	3	0	valid
+b002	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	118007	1	0	valid
+b003	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	10	10	73902	10	0	valid
+b004	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	83921	1	0	valid
+b005	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	9	9	101477	9	0	valid
+b006	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	8	8	94681	8	0	valid
+b007	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	6	6	81064	6	0	valid
+b008	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b009	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b010	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b011	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b012	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b013	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	88729	0	1	valid
+b014	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b015	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	3	3	42207	0	3	valid
+b016	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	17	17	91112	16	1	valid
+b017	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	17	17	112776	14	3	valid
+b018	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	6	6	48407	6	0	valid
+b019	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	13	13	101048	2	11	valid
+b020	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	7	7	80361	2	5	valid
+b021	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	13	13	115449	5	8	valid
+b022	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	7	7	72990	7	0	valid
+b023	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	7	7	61878	4	3	valid
+b024	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	6	6	112850	1	5	valid
+b025	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	5	5	75290	5	0	valid
+b026	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	2	2	45664	2	0	valid
+b027	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	14	14	116747	6	8	valid
+b028	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	6	6	64239	6	0	valid
+b029	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	660	1	0	valid
+b030	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	14	14	90724	9	5	valid
+b031	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	13	13	111202	8	5	valid
+b032	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	17	17	113806	4	13	valid
+b033	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	11	11	99820	3	8	valid
+b034	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	2	2	95456	2	0	valid
+b035	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	2	2	100461	2	0	valid
+b036	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	13	13	68222	7	6	valid
+b037	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	3	3	87978	0	3	valid
+b038	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b039	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b040	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b041	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b042	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b043	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b044	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	49747	0	1	valid
+b045	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b046	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b047	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	3636	0	1	valid
+b048	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b049	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b050	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b051	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	5	5	67331	2	3	valid
+b052	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	3	3	105142	3	0	valid
+b053	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	5	5	54461	5	0	valid
+b054	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	7	7	40110	2	5	valid
+b055	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b056	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b057	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b058	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	2	2	19459	0	2	valid
+b059	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b060	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b061	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b062	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b063	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b064	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b065	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b066	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b067	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	4	4	115697	3	1	valid
+b068	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	1	0	valid
+b069	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	1	0	valid
+b070	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	1	0	valid
+b071	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	2	2	19459	2	0	valid
+b072	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	1	0	valid
+b073	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	1	0	valid
+b074	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	1	0	valid
+b075	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	1	0	valid
+b076	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	1	0	valid
+b077	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	1	0	valid
+b078	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	1	0	valid
+b079	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	1	0	valid
+b080	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	83694	1	0	valid
+b081	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	4	4	10962	4	0	valid
+b082	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b083	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b084	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b085	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b086	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b087	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b088	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	30668	0	1	valid
+b089	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b090	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b091	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	44742	0	1	valid
+b092	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b093	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b094	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	4	4	23812	3	1	valid
+b095	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	4	4	12467	4	0	valid
+b096	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b097	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b098	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b099	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b100	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b101	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b102	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	56788	0	1	valid
+b103	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b104	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b105	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b106	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b107	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b108	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	96265	0	1	valid
+b109	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b110	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b111	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b112	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b113	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b114	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b115	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	4	4	20028	3	1	valid
+b116	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	1540	1	0	valid
+b117	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	18	18	119081	18	0	valid
+b118	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	34	34	119860	34	0	valid
+b119	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b120	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b121	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	2	2	109277	1	1	valid
+b122	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	393	1	0	valid
+b123	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	395	1	0	valid
+b124	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	348	1	0	valid
+b125	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	5	5	3035	2	3	valid
+b126	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	4	4	1189	1	3	valid
+b127	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	394	1	0	valid
+b128	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	8	8	7455	2	6	valid
+b129	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	9	9	9594	3	6	valid
+b130	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	5	5	11302	3	2	valid
+b131	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	2	2	34036	1	1	valid
+b132	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	3	3	8757	2	1	valid
+b133	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	639	1	0	valid
+b134	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b135	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b136	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	5	5	73621	1	4	valid
+b137	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	603	1	0	valid
+b138	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b139	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b140	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	5	5	73630	1	4	valid
+b141	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	584	1	0	valid
+b142	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	3146	0	1	valid
+b143	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	2	2	4546	2	0	valid
+b144	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	6	6	68840	3	3	valid
+b145	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	6	6	33379	3	3	valid
+b146	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	8	8	24279	5	3	valid
+b147	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	9	9	16239	6	3	valid
+b148	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	11	11	27310	6	5	valid
+b149	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	12	12	27546	9	3	valid
+b150	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	40	40	79724	29	11	valid
+b151	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	15	15	32275	15	0	valid
+b152	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	1	0	valid
+b153	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	46032	1	0	valid
+b154	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	107090	1	0	valid
+b155	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	8	8	87505	8	0	valid
+b156	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	3	3	100022	3	0	valid
+b157	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	3	3	41156	3	0	valid
+b158	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	19	19	106834	12	7	valid
+b159	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	40	40	119823	12	28	valid
+b160	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	40	40	80604	8	32	valid
+b161	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	24	24	106865	12	12	valid
+b162	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	10	10	31328	5	5	valid
+b163	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	6	6	20904	6	0	valid
+b164	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	14	14	54292	9	5	valid
+b165	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	11	11	24698	8	3	valid
+b166	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	11	11	21406	10	1	valid
+b167	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	15	15	91549	14	1	valid
+b168	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	5	5	70582	5	0	valid
+b169	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	3	3	4988	3	0	valid
+b170	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	14	14	112719	12	2	valid
+b171	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	11	11	96511	11	0	valid
+b172	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	7	7	26821	5	2	valid
+b173	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	8	8	42609	6	2	valid
+b174	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	2	2	3929	2	0	valid
+b175	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b176	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b177	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b178	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	6	6	43637	4	2	valid
+b179	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	2	2	54776	1	1	valid
+b180	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b181	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	19466	0	1	valid
+b182	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b183	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b184	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	42939	0	1	valid
+b185	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b186	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b187	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b188	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b189	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b190	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b191	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b192	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	2	2	62480	0	2	valid
+b193	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b194	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b195	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	120000	0	1	valid
+b196	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	4	4	109658	1	3	valid
+b197	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	4	4	23342	4	0	valid
+b198	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	5	5	34154	4	1	valid
+b199	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	5	5	25269	5	0	valid
+b200	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	6	6	44877	2	4	valid
+b201	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	2933	1	0	valid
+b202	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	7	7	15413	2	5	valid
+b203	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	7	7	23548	2	5	valid
+b204	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	7	7	16467	2	5	valid
+b205	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	8	8	115166	4	4	valid
+b206	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	3	3	19204	2	1	valid
+b207	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	10	10	117291	6	4	valid
+b208	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	3	3	9178	2	1	valid
+b209	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	12	12	80299	0	12	valid
+b210	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	20	20	112883	2	18	valid
+b211	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	17	17	52764	11	6	valid
+b212	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	12	12	54817	7	5	valid
+b213	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	9	9	18213	4	5	valid
+b214	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	9	9	20295	4	5	valid
+b215	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	16	16	22826	5	11	valid
+b216	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	11	11	19058	3	8	valid
+b217	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	7	7	5022	2	5	valid
+b218	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	4	4	557	0	4	valid
+b219	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	22	22	118297	21	1	valid
+b220	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	5	5	106927	4	1	valid
+b221	dc-zuwqx.2	Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	1	1	108123	0	1	valid
+b222	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2); Gemini 4 Hydrogen (fc1)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	10	10	68469	4	6	valid
+b223	dc-zuwqx.2	Gemini 4 Neon + Opus 5.5 spot-check (fd1/fd2)	4736b348a2f88864e17364de44a430095cce9f5e	5e2382e9	2	2	57541	2	0	valid
