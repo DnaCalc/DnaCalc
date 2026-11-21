@@ -1624,12 +1624,20 @@ impl<'c> Lowering<'c> {
                 block,
                 name: name.0,
             });
-            tasks.push(Task::Lower {
-                node: arguments[2 * pair + 1],
-                tail: false,
-                block,
-                place: inner,
-            });
+            let value = arguments[2 * pair + 1];
+            if value.kind() == SyntaxKind::OmittedArgExpr {
+                tasks.push(Task::Emit {
+                    block,
+                    instruction: Instruction::Literal(Literal::Empty),
+                });
+            } else {
+                tasks.push(Task::Lower {
+                    node: value,
+                    tail: false,
+                    block,
+                    place: inner,
+                });
+            }
         }
         Ok(())
     }

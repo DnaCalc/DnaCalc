@@ -723,11 +723,13 @@ enum Literal {
         cols: usize,
         cells: Box<[Literal]>,
     },
+    Empty,
 }
 
 impl Literal {
     fn value(&self) -> CalcValue {
         match self {
+            Literal::Empty => CalcValue::empty(),
             Literal::Number(bits) => CalcValue::number(f64::from_bits(*bits)),
             Literal::Text(text) => CalcValue::text(text.clone()),
             Literal::Logical(b) => CalcValue::logical(*b),

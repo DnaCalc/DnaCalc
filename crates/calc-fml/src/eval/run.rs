@@ -2422,6 +2422,7 @@ impl Run<'_, '_> {
         let Some(closure) = Closure::of(callee) else {
             return Ok(ClosureCall::Value(match callee.core_ref() {
                 CoreRef::Reference(_) => CalcValue::error(WorksheetErrorCode::Ref),
+                CoreRef::Error(_) => callee.clone(),
                 _ => CalcValue::error(WorksheetErrorCode::Value),
             }));
         };
