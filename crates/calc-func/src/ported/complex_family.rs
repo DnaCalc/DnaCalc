@@ -263,16 +263,16 @@ impl ParsedComplex {
             ));
         }
         let (sin, cos) = complex_circular_parts(self.re);
-        // Use the same reduction of the real argument for both double angles.
-        let cos_double = 1.0 - 2.0 * sin * sin;
-        let denom = cos_double + crt_cosh(2.0 * self.im);
+        // Store the hyperbolic sum before the circular subtraction, as in cotangent.
+        let denom = excel_x87_sub(crt_cosh(2.0 * self.im) + 1.0, 2.0 * sin * sin);
         if denom == 0.0 {
             return Err(WorksheetErrorCode::Num);
         }
         // Off-axis Excel 20527 controls retain the scalar SIN/COS reduction in
         // the double-angle numerator (eng19; jnt_parity_complex D389).
+        let re = (2.0 * sin * cos) / denom;
         Ok(Self::new(
-            (2.0 * sin * cos) / denom,
+            if re.is_subnormal() { 0.0 } else { re },
             crt_sinh(2.0 * self.im) / denom,
             None,
         ))
