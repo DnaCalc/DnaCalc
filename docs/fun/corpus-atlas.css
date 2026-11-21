@@ -1,0 +1,59 @@
+/* Layout: a census report. A masthead of counts, then the usage-by-exactness map as the centrepiece with a priority list
+   beside it, then the long tail, the features real files use, the shapes of their calls and the size of the files. */
+:root {
+  --paper: #fbf8f2; --card: #ffffff; --ink: #1e2228; --muted: #5f6670; --faint: #8f959e; --rule: #e6e0d4; --rule2: #d6cdbd;
+  --teal: #157a7a; --coral: #d4553a; --gold: #c99a2e; --violet: #6b4fb3; --exact: #2f8f5b; --mid: #e0b23c; --bad: #d4553a;
+  --enron: #157a7a; --libs: #6b4fb3; --github: #d4553a; --zenodo: #c99a2e;
+  --display: "Fraunces", Georgia, serif; --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #14161a; --card: #1b1e23; --ink: #ecebe6; --muted: #a8adb5; --faint: #767c85; --rule: #2b2f36; --rule2: #3a3f48;
+  --teal: #4fc1c1; --coral: #ff8466; --gold: #e8c060; --violet: #ab93f0; --exact: #5ccf8f; --mid: #f0c75a; --bad: #ff8466;
+  --enron: #4fc1c1; --libs: #ab93f0; --github: #ff8466; --zenodo: #e8c060; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #14161a; --card: #1b1e23; --ink: #ecebe6; --muted: #a8adb5; --faint: #767c85; --rule: #2b2f36; --rule2: #3a3f48;
+  --teal: #4fc1c1; --coral: #ff8466; --gold: #e8c060; --violet: #ab93f0; --exact: #5ccf8f; --mid: #f0c75a; --bad: #ff8466;
+  --enron: #4fc1c1; --libs: #ab93f0; --github: #ff8466; --zenodo: #e8c060; color-scheme: dark }
+* { box-sizing: border-box }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 15.5px/1.6 var(--body) }
+.page { max-width: 1240px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 30px 60px; display: grid; grid-template-columns:minmax(0, 1fr); gap: 26px }
+.mast { border-bottom: 2px solid var(--ink); padding-bottom: 18px }
+.eyebrow { font: 600 12px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--teal) }
+h1 { margin: 10px 0 0; font: 800 clamp(44px, 8vw, 96px)/.92 var(--display); letter-spacing: -.02em }
+.lede { margin: 12px 0 0; max-width: 70ch; color: var(--muted); font-size: 17px }
+.counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0; margin-top: 20px; border-top: 1px solid var(--rule2) }
+.counts div { padding: 12px 14px 4px 0; border-right: 1px solid var(--rule) }
+.counts b { display: block; font: 800 clamp(26px, 3.4vw, 38px)/1.05 var(--display); font-variant-numeric: tabular-nums }
+.counts span { font: 600 11px/1.4 var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--faint) }
+section h2 { margin: 0; font: 800 clamp(26px, 3.6vw, 40px)/1.05 var(--display) }
+section .kick { font: 600 12px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--coral); margin-bottom: 8px }
+section p.note { margin: 8px 0 14px; max-width: 76ch; color: var(--muted) }
+.duo { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; align-items: start }
+@media (max-width: 980px) { .duo { grid-template-columns: minmax(0, 1fr) } }
+.panel { background: var(--card); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; min-width: 0 }
+.panel svg { display: block; width: 100%; height: auto }
+.wide { overflow-x: auto }
+.wide svg { min-width: 720px }
+.ctl { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 8px; font-size: 13px; color: var(--muted) }
+.ctl button { font: 600 12.5px var(--body); padding: 5px 11px; border-radius: 999px; border: 1px solid var(--rule2); background: transparent; color: var(--muted); cursor: pointer }
+.ctl button[aria-pressed="true"] { background: var(--ink); color: var(--card); border-color: var(--ink) }
+button:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px }
+.prio { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px }
+.prio li { display: grid; grid-template-columns: 28px 1fr auto; gap: 8px; align-items: baseline; padding: 6px 4px; border-bottom: 1px solid var(--rule); cursor: pointer }
+.prio li:hover { background: rgba(21,122,122,.06) }
+.prio li i { font: 600 12px var(--mono); color: var(--faint); font-style: normal }
+.prio li b { font: 600 14px var(--mono) }
+.prio li span { font: 400 12.5px var(--mono); color: var(--muted); text-align: right }
+.prio li small { grid-column: 2 / -1; font-size: 12.5px; color: var(--muted) }
+.cols3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 18px }
+.bars { display: grid; gap: 7px }
+.bar { display: grid; grid-template-columns: minmax(130px, 38%) 1fr auto; gap: 10px; align-items: center; font-size: 13.5px }
+.bar .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.bar .track { height: 12px; background: var(--rule); border-radius: 2px; overflow: hidden }
+.bar .fill { height: 100%; border-radius: 2px }
+.bar .n { font: 600 12.5px var(--mono); font-variant-numeric: tabular-nums; color: var(--muted); min-width: 64px; text-align: right }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font: 400 12px var(--mono); color: var(--muted) }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px }
+.tip { position: fixed; pointer-events: none; background: var(--card); border: 1px solid var(--rule2); border-radius: 6px; padding: 8px 10px; font: 400 12.5px var(--mono); color: var(--ink); box-shadow: 0 10px 28px rgba(0,0,0,.18); z-index: 20; max-width: 300px }
+.tip b { font: 800 16px var(--display) }
+footer { font: 400 12px var(--mono); color: var(--faint); border-top: 1px solid var(--rule2); padding-top: 12px; line-height: 1.6 }

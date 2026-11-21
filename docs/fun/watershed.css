@@ -1,0 +1,122 @@
+/* Layout: a control room. Event queue strip across the top (the Events director), the live model diagram with
+   look-inside zoom (or the same workbook as a sheet), a rail with RTD clock controls and the inspector, then history
+   and outlook charts, then the spec. Committed dark look: water blues, amber events, green directors. */
+:root {
+  --bg: #071419; --deck: #0c1f27; --panel: #10282f; --panel2: #15333c; --line: #1f434d; --line2: #2c5a66;
+  --ink: #e6f3f5; --muted: #9dbac0; --faint: #64868d;
+  --water: #3fa7d6; --water2: #1d6f99; --event: #ffb547; --price: #f2c94c; --director: #5fd08a; --dirTint: rgba(95,208,138,.12);
+  --drought: #e0a15a; --normal: #5fd08a; --flood: #6fb7ff; --hot: #ff7a45; --hotTint: rgba(255,122,69,.18); --cycle: #d68cff;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 15px/1.55 var(--body);
+  background-image: radial-gradient(1100px 600px at 80% -20%, #12404d 0%, transparent 60%), radial-gradient(800px 500px at 0% 110%, #0f3340 0%, transparent 60%) }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--event); outline-offset: 2px }
+.page { max-width: 1360px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 22px 56px; display: grid; gap: 14px }
+.mast { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 24px; align-items: end }
+@media (max-width: 880px) { .mast { grid-template-columns: 1fr } }
+.eyebrow { font: 600 12px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--director) }
+h1 { margin: 8px 0 0; font: 800 clamp(46px, 8vw, 100px)/.88 var(--display); letter-spacing: -.035em }
+h1 span { color: var(--water) }
+.lede { margin: 10px 0 0; max-width: 74ch; color: var(--muted) }
+.badges { display: flex; flex-wrap: wrap; gap: 6px; max-width: 420px; justify-content: flex-end }
+.badge { font: 600 11px var(--mono); padding: 4px 9px; border-radius: 999px; border: 1px solid var(--director); color: var(--director); background: var(--dirTint) }
+.badge.e { border-color: var(--event); color: var(--event); background: rgba(255,181,71,.1) }
+.badge.c { border-color: var(--cycle); color: var(--cycle); background: rgba(214,140,255,.1) }
+.queue { background: var(--deck); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px 6px }
+.queue .h { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: baseline; justify-content: space-between }
+.queue .h b { font: 800 16px var(--display) }
+.queue .h span { font: 400 12px var(--mono); color: var(--muted) }
+.queue svg { display: block; width: 100%; height: 76px }
+.console { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; align-items: start }
+@media (max-width: 1080px) { .console { grid-template-columns: 1fr } }
+.stage { background: var(--deck); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; min-width: 0 }
+.stagebar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 9px 12px; border-bottom: 1px solid var(--line); background: rgba(7,20,25,.6) }
+.crumbs { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font: 600 13px var(--mono) }
+.crumbs button { font: 600 13px var(--mono); background: none; border: 0; color: var(--water); cursor: pointer; padding: 2px 4px }
+.crumbs span { color: var(--faint) }
+.crumbs b { color: var(--ink) }
+.dirtag { font: 600 11px var(--mono); padding: 3px 9px; border-radius: 4px; border: 1px solid var(--director); color: var(--director); background: var(--dirTint) }
+.seg { display: inline-flex; border: 1px solid var(--line2); border-radius: 6px; overflow: hidden; margin-left: auto }
+.seg button { font: 600 12.5px var(--body); padding: 6px 12px; background: transparent; color: var(--muted); border: 0; cursor: pointer }
+.seg button + button { border-left: 1px solid var(--line2) }
+.seg button[aria-pressed="true"] { background: var(--panel2); color: var(--ink) }
+.diagram { overflow-x: auto }
+.diagram svg { display: block; width: 100%; min-width: 960px; height: auto }
+.sheet { overflow-x: auto; max-height: 620px; overflow-y: auto }
+.sheet table { width: 100%; border-collapse: collapse; min-width: 860px; font: 400 13px var(--mono) }
+.sheet th { position: sticky; top: 0; background: var(--panel2); color: var(--muted); font: 600 11px var(--mono); text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line2); z-index: 1 }
+.sheet td { padding: 5px 10px; border-bottom: 1px solid var(--line); vertical-align: top; white-space: nowrap }
+.sheet td.v { text-align: right; color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums }
+.sheet td.f { color: var(--muted); white-space: normal; min-width: 360px }
+.sheet tr.grp td { background: var(--panel); color: var(--director); font-weight: 600 }
+.sheet tr.flash td { background: var(--hotTint) }
+.sheet tr.flashp td { background: rgba(242,201,76,.16) }
+.rail { display: grid; gap: 12px; min-width: 0 }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; min-width: 0 }
+.card h2 { margin: 0 0 8px; font: 600 11px/1.3 var(--body); letter-spacing: .1em; text-transform: uppercase; color: var(--faint) }
+.rtd { font: 400 12px/1.5 var(--mono); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; color: var(--price); overflow-x: auto; white-space: nowrap }
+.ctl { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px }
+.ctl button { font: 600 13px var(--body); padding: 7px 12px; border-radius: 6px; border: 1px solid var(--line2); background: var(--panel2); color: var(--ink); cursor: pointer }
+.ctl button.go { background: var(--director); border-color: var(--director); color: #062015 }
+.field { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; margin-top: 10px; font: 600 12.5px var(--mono) }
+.field output { color: var(--event) }
+.field input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--event) }
+.field select, .field input[type=number] { font: 400 13px var(--mono); background: var(--bg); color: var(--ink); border: 1px solid var(--line2); border-radius: 4px; padding: 3px 6px; width: 120px }
+.insp .n { font: 800 24px/1.1 var(--display) }
+.insp .k { font: 400 12px var(--mono); color: var(--muted); margin: 4px 0 8px }
+.insp .f { font: 400 12.5px/1.5 var(--mono); background: var(--bg); border: 1px solid var(--line); padding: 8px 10px; border-radius: 6px; white-space: pre-wrap; word-break: break-word }
+.insp p { margin: 8px 0 0; font-size: 13.5px; color: var(--muted) }
+.charts { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 14px }
+@media (max-width: 980px) { .charts { grid-template-columns: 1fr } }
+.chart { background: var(--deck); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px 6px; min-width: 0 }
+.chart .h { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; align-items: baseline }
+.chart .h b { font: 800 18px var(--display) }
+.chart .key { display: flex; flex-wrap: wrap; gap: 10px; font: 400 11.5px var(--mono); color: var(--muted) }
+.chart .key i { display: inline-block; width: 16px; height: 3px; vertical-align: middle; margin-right: 5px; border-radius: 2px }
+.chart svg { display: block; width: 100%; height: auto }
+.spec { background: var(--deck); border: 1px solid var(--line); border-radius: 10px; padding: 20px; display: grid; gap: 18px }
+.spec h2 { margin: 0; font: 800 clamp(26px, 3.6vw, 40px)/1.05 var(--display) }
+.spec h3 { margin: 0; font: 600 12px/1.3 var(--body); letter-spacing: .1em; text-transform: uppercase; color: var(--director) }
+.spec p { margin: 6px 0 0; max-width: 80ch; color: var(--muted) }
+.spec p b, .spec li b { color: var(--ink) }
+.spec code { font: 400 12.5px var(--mono); color: var(--price) }
+.grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px }
+.tile { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px }
+.tile b { font: 800 17px var(--display); display: block }
+.tile span { font: 400 12px var(--mono); color: var(--director); display: block; margin: 2px 0 6px }
+.tile p { margin: 0; font-size: 13.5px }
+.spec ul { margin: 6px 0 0; padding-left: 20px; color: var(--muted) }
+footer { font: 400 12px var(--mono); color: var(--faint) }
+/* svg */
+.box { cursor: pointer }
+.box .b { fill: var(--panel); stroke: var(--line2); stroke-width: 1.4 }
+.box.comp .b { fill: var(--panel2); stroke: var(--ink); stroke-width: 1.6 }
+.box.comp .b2 { fill: none; stroke: var(--line2); stroke-width: 1 }
+.box.rtd .b { fill: #2b2412; stroke: var(--event); stroke-width: 1.6 }
+.box.state .b { stroke: var(--water) }
+.box.input .b { fill: #1b2a22; stroke: #4a7a5d }
+.box.cycle .b { stroke: var(--cycle); stroke-width: 2 }
+.box .t { font: 600 13px var(--mono); fill: var(--ink) }
+.box .v { font: 600 17px var(--mono); fill: var(--ink) }
+.box .s { font: 400 11px var(--mono); fill: var(--muted) }
+.box .d { font: 600 10px var(--mono); fill: var(--director) }
+.box.fired .b { stroke: var(--hot); stroke-width: 3 }
+.box.firedp .b { stroke: var(--price); stroke-width: 3 }
+.box.sel .b { stroke-dasharray: 6 3 }
+.w { fill: none; stroke: var(--line2); stroke-width: 1.6 }
+.w.hot { stroke: var(--hot); stroke-width: 2.6; stroke-dasharray: 7 6; animation: flow .5s linear infinite }
+.w.hotp { stroke: var(--price); stroke-width: 2.6; stroke-dasharray: 7 6; animation: flow .5s linear infinite }
+.w.cyc { stroke: var(--cycle); stroke-width: 2 }
+.w.loop { stroke-dasharray: 2 3 }
+@keyframes flow { to { stroke-dashoffset: -13 } }
+.arrow { fill: var(--line2) }
+.zd rect { fill: var(--bg); stroke: var(--ink); stroke-width: 1 }
+.zd text { font: 600 10.5px var(--mono); fill: var(--ink) }
+@media (prefers-reduced-motion: reduce) { .w.hot, .w.hotp { animation: none } .blade { animation: none !important } }
+.outlook-median { background:var(--water);  }
+.outlook-middle { background:rgba(63,167,214,.35); height:8px }
+.outlook-all { background:rgba(63,167,214,.15); height:8px }

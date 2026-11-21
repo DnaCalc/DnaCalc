@@ -38,7 +38,7 @@ import tarfile
 import tempfile
 
 ROOT = os.environ.get("DNACALC_SITE_ROOT", "/srv/dnacalc-site")
-SITES = ("onecalc", "calc")
+SITES = ("onecalc", "calc", "content")
 RELEASE = re.compile(r"^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}$")
 ASSET_ID = re.compile(r"^[0-9a-f]{16}$")
 BUILD_FORMAT = "dnacalc-site-build/1"
@@ -55,6 +55,14 @@ def sha256(path):
         for block in iter(lambda: handle.read(1 << 20), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def file_paths(folder):
+    return {
+        os.path.relpath(os.path.join(top, name), folder).replace(os.sep, "/")
+        for top, _, names in os.walk(folder)
+        for name in names
+    }
 
 
 def site_dir(site):
@@ -149,11 +157,7 @@ def publish(site, stream):
             if build.get("site") != site or build.get("release") != release:
                 raise Refused("build.json names another site or release")
             files = build.get("files") or {}
-            present = set()
-            for top, _, names in os.walk(folder):
-                for name in names:
-                    present.add(os.path.relpath(os.path.join(top, name), folder).replace(os.sep, "/"))
-            present.discard("build.json")
+            present = file_paths(folder) - {"build.json"}
             if present != set(files):
                 raise Refused(f"the tar's files are not build.json's: {sorted(present ^ set(files))}")
             for name, record in files.items():
@@ -167,9 +171,12 @@ def publish(site, stream):
                 raise Refused("the release's assets hold another folder than build.json's")
             shared = os.path.join(base, "assets", asset_id)
             if os.path.isdir(shared):
-                for name in os.listdir(source):
-                    if sha256(os.path.join(source, name)) != sha256(os.path.join(shared, name)):
-                        raise Refused(f"the host's asset folder {asset_id} differs from the release's")
+                source_paths = file_paths(source)
+                if source_paths != file_paths(shared) or any(
+                    sha256(os.path.join(source, name)) != sha256(os.path.join(shared, name))
+                    for name in source_paths
+                ):
+                    raise Refused(f"the host's asset folder {asset_id} differs from the release's")
                 shutil.rmtree(source)
             else:
                 for top, dirs, names in os.walk(source):

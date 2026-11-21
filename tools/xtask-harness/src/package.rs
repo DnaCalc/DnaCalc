@@ -40,6 +40,10 @@ pub const CALC_EXE: &str = "dna-calc-desktop.exe";
 /// DNA Calc's own folder (`--without-calc` leaves it out): the same executable on its own, with its README.
 pub const CALC_FOLDER: &str = "DNA-Calc";
 
+pub(crate) fn windows_package_name(folder: &str, version: &str, extension: &str) -> String {
+    format!("{folder}-{version}-win-x64.{extension}")
+}
+
 const CALC_README: &str = "DNA Calc\r\n\r\nThe Excel workbook application on your desktop. Run dna-calc-desktop.exe.\r\n\r\nWhat you can do:\r\n  - open an Excel workbook: start dna-calc-desktop.exe FILE (or --open FILE) and its sheets,\r\n    cells, formulas, formats and charts show in the window;\r\n  - edit cells and formulas, which recalculate through the same function library as DNA Calc - Formula Explorer;\r\n  - export and print from the page (downloads go through WebView2's own save prompt);\r\n  - load Excel add-ins from the command line: dna-calc-desktop.exe --xll PATH.\r\n\r\nThis folder is the whole program:\r\n  dna-calc-desktop.exe  the application; its page is inside it\r\n  XLCALL32.DLL          lets Excel add-ins (.xll) find the application, as they find Excel\r\n  LICENSE               MIT licence\r\n\r\nIt needs the Microsoft Edge WebView2 Runtime (the Evergreen runtime, already part of Windows 11 and\r\nof current Microsoft Edge installations). If it is missing the application says so and gives the\r\ndownload page: https://developer.microsoft.com/microsoft-edge/webview2/\r\n\r\ndna-calc-desktop.exe --version prints the version. The browser profile is kept under\r\n%LOCALAPPDATA%\\DNA Calc\\webview2. Delete that folder to forget it.\r\n";
 
 const README: &str = "DNA Calc - Formula Explorer\r\n\r\nOne Excel formula at a time, with the inputs it needs, on your desktop. Run dna-onecalc-desktop.exe.\r\n\r\nWhat you can do:\r\n  - type an Excel formula, see its result, its parts and a step-by-step trace; format the result;\r\n  - open and save a session file (Ctrl+O, Ctrl+S, Ctrl+Shift+S; recent files are remembered);\r\n  - load Excel add-ins (.xll, .xlam) and use their functions; open an .xlsm session with its macros;\r\n  - the window title shows the session name, with * for unsaved changes, and asks before closing it;\r\n  - dna-onecalc-desktop.exe --version prints the version.\r\n\r\nThis folder is the whole program:\r\n  dna-onecalc-desktop.exe  the application; its page is inside it\r\n  dna-calc-desktop.exe     DNA Calc, the workbook application; its page is inside it\r\n  XLCALL32.DLL             lets Excel add-ins (.xll) find the application, as they find Excel\r\n  LICENSE                  MIT licence\r\n\r\nIt needs the Microsoft Edge WebView2 Runtime (the Evergreen runtime, already part of Windows 11 and\r\nof current Microsoft Edge installations). If it is missing the application says so and gives the\r\ndownload page: https://developer.microsoft.com/microsoft-edge/webview2/\r\n\r\nExcel add-ins (.xll, .xlam) load from the Add-ins panel. A file Formula Explorer cannot open as a session can\r\nbe opened in DNA Calc when dna-calc-desktop.exe is in this folder.\r\n\r\nThe application keeps its settings (window place, recent files) and its browser profile under\r\n%LOCALAPPDATA%\\DNA OneCalc. Delete that folder to forget them.\r\n";
@@ -247,7 +251,7 @@ fn package(ws: &Workspace, out: &Path, zip: bool, calc: bool) -> Result<Value, S
         }
         println!("ONECALC PACKAGE calc folder {} bytes", bytes_total);
         if zip {
-            let name = format!("{CALC_FOLDER}-{}-win-x64.zip", workspace_version(&ws.root)?);
+            let name = windows_package_name(CALC_FOLDER, &workspace_version(&ws.root)?, "zip");
             let zipped: Vec<(String, Vec<u8>)> = entries
                 .iter()
                 .map(|(n, b)| (format!("{CALC_FOLDER}/{n}"), b.clone()))
@@ -285,7 +289,7 @@ fn package(ws: &Workspace, out: &Path, zip: bool, calc: bool) -> Result<Value, S
     let folder_bytes: usize = files.iter().map(|(_, b)| b.len()).sum();
     manifest["folder_bytes"] = json!(folder_bytes);
     if zip {
-        let name = format!("{FOLDER}-{version}-win-x64.zip");
+        let name = windows_package_name(FOLDER, &version, "zip");
         let entries: Vec<(String, Vec<u8>)> = files
             .iter()
             .map(|(n, b)| (format!("{FOLDER}/{n}"), b.clone()))

@@ -1,16 +1,17 @@
-"""Refresh the data embedded in docs/fun/function-bank.html.
+"""Refresh the data used by docs/fun/function-bank.html.
 
 Reads crates/calc-func/witness-status.tsv (full bank) and its git history (last commit of each day),
 the Excel Functions Handbook build's per-function JSON (families, descriptions, verdicts, notes) and
 open beads in .beads/issues.jsonl whose title names a function, then rewrites the three `const`
-lines (BANK, HIST, BANK_AT) in the page. Run from the repository root:
+lines (BANK, HIST, BANK_AT) in the data asset. Run from the repository root:
 
     py -3 docs/fun/tools/refresh_function_bank.py --handbook ../handbook-preview/site/build/api/functions
 """
 import argparse, collections, csv, datetime, io, json, os, re, subprocess, sys
 
 STATUS = 'crates/calc-func/witness-status.tsv'
-PAGE = 'docs/fun/function-bank.html'
+DATA = 'docs/fun/function-bank-data.js'
+LANDSCAPES = 'docs/fun/function-bank-landscapes.js'
 CALL_CLASSES = ('exact', 'last_bit', 'numeric', 'gross', 'structural', 'refused', 'excluded')
 
 
@@ -36,12 +37,19 @@ def first_sentence(md):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--handbook', required=True, help='folder with FUNC.<NAME>.json files from the handbook build')
+    ap.add_argument('--handbook', help='folder with FUNC.<NAME>.json files from the handbook build; omit to retain existing handbook metadata')
     ap.add_argument('--working-status', action='store_true', help='use the current witness-status.tsv for the latest snapshot')
     ap.add_argument('--land', help='landscape.json from function_bank_landscape.py (optional; keeps the embedded one otherwise)')
     ap.add_argument('--land-note', default='', help='where the landscape rows came from, shown in the footer')
     a = ap.parse_args()
-    head = git('rev-parse', '--short', 'HEAD').strip()
+    if a.handbook and not os.path.isdir(a.handbook):
+        ap.error('--handbook must name an existing directory')
+    if a.land and not a.handbook:
+        ap.error('--land needs --handbook for function signatures')
+    page = open(DATA, encoding='utf-8').read()
+    previous_rows = json.loads(page.splitlines()[0].removeprefix('const BANK=').removesuffix(';'))
+    previous = {r[0]: r for r in previous_rows}
+    head = git('log', '-1', '--format=%h', '--', STATUS).strip()
     cur = ([r for r in csv.DictReader(open(STATUS, encoding='utf-8'), delimiter='\t') if r.get('bank') == 'full']
            if a.working_status else status_at('HEAD'))
     byday = collections.OrderedDict()
@@ -62,9 +70,9 @@ def main():
     for r in cur:
         n = r['function']
         w = None if r['worst_ulp'] in ('-', '') else float(r['worst_ulp'])
-        p = os.path.join(a.handbook, f'FUNC.{n}.json')
-        cat, state, desc, notes = None, '', '', []
-        if os.path.exists(p):
+        p = os.path.join(a.handbook, f'FUNC.{n}.json') if a.handbook else None
+        cat, state, desc, notes = previous[n][5:9] if n in previous else (None, '', '', [])
+        if p and os.path.exists(p):
             d = json.load(open(p, encoding='utf-8'))
             cat = (d.get('category') or '').replace(' functions', '').replace('and', '&') or None
             state = (d.get('implementation_state') or {}).get('state_label', '')
@@ -78,10 +86,9 @@ def main():
     lines = ('const BANK=' + json.dumps(out, ensure_ascii=False, separators=(',', ':')) + ';\n'
              + 'const HIST=' + json.dumps(hist, separators=(',', ':')) + ';\n'
              + 'const BANK_AT=' + json.dumps(head + ', ' + dates[-1]) + ';\n')
-    page = open(PAGE, encoding='utf-8').read()
     new, k = re.subn(r'const BANK=.*?\nconst HIST=.*?\nconst BANK_AT=.*?;\n', lambda m: lines, page, count=1, flags=re.S)
     if k != 1:
-        sys.exit('data block not found in ' + PAGE)
+        sys.exit('data block not found in ' + DATA)
     if a.land:
         sig = {}
         for fn in os.listdir(a.handbook):
@@ -97,11 +104,14 @@ def main():
         block = ('const LAND=' + json.dumps(land, separators=(',', ':')) + ';\n'
                  + 'const SIG=' + json.dumps(sig, ensure_ascii=False, separators=(',', ':')) + ';\n'
                  + 'const LAND_AT=' + json.dumps(a.land_note or ('full bank rows at ' + head)) + ';\n')
-        new, k = re.subn(r'const LAND=.*?\nconst SIG=.*?\nconst LAND_AT=.*?;\n', lambda m: block, new, count=1, flags=re.S)
+        landscapes = open(LANDSCAPES, encoding='utf-8').read()
+        landscapes, k = re.subn(r'const LAND=.*?\nconst SIG=.*?\nconst LAND_AT=.*?;\n', lambda m: block, landscapes, count=1, flags=re.S)
         if k != 1:
-            sys.exit('landscape block not found in ' + PAGE)
+            sys.exit('landscape block not found in ' + LANDSCAPES)
+        open(LANDSCAPES, 'w', encoding='utf-8', newline='\n').write(landscapes)
         print(f'landscapes for {len(land)} functions, {len(sig)} signatures')
-    open(PAGE, 'w', encoding='utf-8', newline='\n').write(new)
+    open(DATA, 'w', encoding='utf-8', newline='\n').write(new)
+    print(f'{sum(r[2] for r in out):,} of {sum(r[1] for r in out):,} Excel answers matched')
     print(f'{len(out)} functions, {len(dates)} days ({dates[0]} to {dates[-1]}), at {head}')
 
 

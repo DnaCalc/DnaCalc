@@ -1,0 +1,58 @@
+/* Layout: one worksheet window. Ribbon strip, formula bar, the grid as the playfield, sheet tabs and a status bar below. */
+:root {
+  --paper: #ffffff; --ink: #1d2733; --muted: #66727f; --grid: #e1e5ea; --head: #f3f5f7; --headink: #5f6b78;
+  --select: #1e7b4b; --snake: #c9ecd6; --snakeink: #12623a; --food: #fff3b0; --pi: #ffd65c; --err: #fbd5d5; --errink: #b4232a;
+  --ribbon: #1e7b4b; --ribbonink: #ffffff; --dialog: #ffffff; --shade: rgba(20, 30, 40, .35);
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #161c22; --ink: #e6ebf0; --muted: #98a4b0; --grid: #2a333c; --head: #1d252d; --headink: #9aa6b2;
+  --select: #4cc887; --snake: #1f4a33; --snakeink: #8fe3b4; --food: #4a4318; --pi: #6b5512; --err: #4b2124; --errink: #ff8e93;
+  --ribbon: #17633c; --ribbonink: #eafff3; --dialog: #1f272f; --shade: rgba(0, 0, 0, .55); color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #161c22; --ink: #e6ebf0; --muted: #98a4b0; --grid: #2a333c; --head: #1d252d; --headink: #9aa6b2;
+  --select: #4cc887; --snake: #1f4a33; --snakeink: #8fe3b4; --food: #4a4318; --pi: #6b5512; --err: #4b2124; --errink: #ff8e93;
+  --ribbon: #17633c; --ribbonink: #eafff3; --dialog: #1f272f; --shade: rgba(0, 0, 0, .55); color-scheme: dark }
+
+* { box-sizing: border-box }
+html, body { height: 100% }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 14px/1.4 var(--body); }
+.win { max-width: 980px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 14px 24px; display: grid; gap: 8px }
+.ribbon { background: var(--ribbon); color: var(--ribbonink); display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; padding: 10px 14px; border-radius: 4px 4px 0 0 }
+.ribbon h1 { margin: 0; font: 800 clamp(22px, 4vw, 30px)/1 var(--display); letter-spacing: -.01em }
+.ribbon .tabs { display: flex; gap: 14px; font-size: 13px; opacity: .9 }
+.ribbon .tabs b { border-bottom: 2px solid var(--ribbonink) }
+.fx { display: grid; grid-template-columns: 74px 34px minmax(0, 1fr); border: 1px solid var(--grid); font: 400 14px/30px var(--mono) }
+.fx > div { padding: 0 10px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis }
+.fx .name { background: var(--head); border-right: 1px solid var(--grid); color: var(--headink) }
+.fx .f { border-right: 1px solid var(--grid); color: var(--select); font-style: italic; font-weight: 600; text-align: center; padding: 0 }
+.board { position: relative; border: 1px solid var(--grid); touch-action: none; user-select: none }
+canvas { display: block; width: 100%; height: auto }
+.below { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; font: 400 13px var(--mono); color: var(--muted) }
+.sheets { display: flex; gap: 2px }
+.sheets span { padding: 3px 12px; background: var(--head); border: 1px solid var(--grid); border-top: 0 }
+.sheets span.on { background: var(--paper); color: var(--select); font-weight: 600; border-bottom: 2px solid var(--select) }
+.status b { color: var(--ink); font-weight: 600 }
+.pad { display: none; grid-template-columns: repeat(3, 56px); grid-template-rows: repeat(2, 48px); gap: 6px; justify-content: center; margin-top: 4px }
+.pad button { font: 600 20px var(--mono); background: var(--head); color: var(--ink); border: 1px solid var(--grid); border-radius: 6px }
+.pad .up { grid-column: 2 }
+@media (pointer: coarse) { .pad { display: grid } }
+.help { font-size: 13px; color: var(--muted); max-width: 70ch; margin: 2px 0 0 }
+.help kbd { font: 600 12px var(--mono); padding: 1px 5px; border: 1px solid var(--grid); border-bottom-width: 2px; border-radius: 3px; background: var(--head); color: var(--ink) }
+
+.overlay { position: absolute; inset: 0; display: grid; place-items: center; background: var(--shade); padding: 16px }
+.dialog { background: var(--dialog); color: var(--ink); width: min(440px, 100%); border: 1px solid var(--grid); box-shadow: 0 12px 40px rgba(0,0,0,.25); border-radius: 6px; overflow: hidden }
+.dialog .bar { padding: 8px 14px; font: 600 13px var(--body); background: var(--head); border-bottom: 1px solid var(--grid); display: flex; justify-content: space-between }
+.dialog .body { padding: 16px 18px 18px; display: grid; gap: 10px }
+.dialog h2 { margin: 0; font: 800 26px/1.05 var(--display) }
+.dialog p { margin: 0 }
+.dialog .bits { font: 400 12px/1.5 var(--mono); color: var(--muted); overflow-wrap: anywhere }
+.dialog .row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end }
+.dialog button { font: 600 14px var(--body); padding: 8px 16px; border-radius: 4px; border: 1px solid var(--grid); background: var(--head); color: var(--ink); cursor: pointer }
+.dialog button.go { background: var(--select); border-color: var(--select); color: var(--paper) }
+button:focus-visible { outline: 2px solid var(--select); outline-offset: 2px }
+.icon { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font: 800 20px var(--display); background: var(--err); color: var(--errink) }
+.icon.ok { background: var(--snake); color: var(--snakeink) }
+.head-row { display: flex; gap: 12px; align-items: center }

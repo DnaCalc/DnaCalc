@@ -1,0 +1,16 @@
+/* Utility classes shared by the Playground exhibits. */
+.fun-return { display:block; margin:12px auto; padding:0 16px; max-width:1240px; color:inherit; font:600 .8rem system-ui,sans-serif }
+.month-label, th.numeric { text-align:right }
+.formula-preview { margin-top:6px }
+.chart-mono { font-family:var(--mono) }
+.chart-teal { color:var(--teal) }
+.chart-ink { color:var(--ink) }
+.chart-muted { color:var(--muted) }
+.chart-beads { font:400 12px var(--mono); color:var(--muted) }
+.chart-subheading { margin-top:14px }
+.conf-key { margin:4px 0 12px }
+.conf-controls { margin-bottom:10px }
+.conf-standing { display:inline-flex; gap:6px; align-items:center }
+.conf-marker { width:9px; height:9px; border-radius:50% }
+.plotter .key .stockout-key { background:var(--hotTint); height:10px }
+.key .watershed-mode { height:6px }

@@ -1,0 +1,45 @@
+/* Layout: a worksheet with hidden cells; the formula bar explains the selected cell; Excel's green error triangle marks flags. */
+:root {
+  --paper: #fbfcfd; --ink: #1d2733; --muted: #66727f; --grid: #dfe4e9; --head: #f2f4f7; --cell: #ffffff; --hidden: #e9edf1; --hiddenhi: #f4f6f8;
+  --select: #1e7b4b; --flag: #1e7b4b; --err: #b4232a; --errtint: #fde4e4; --boom: #f8696b; --shade: rgba(20,30,40,.35);
+  --n1: #2a6fdb; --n2: #2f8a3e; --n3: #c0392b; --n4: #6c3fb5; --n5: #9a4b12; --n6: #12808a; --n7: #333; --n8: #777;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #13191f; --ink: #e6ebf0; --muted: #98a4b0; --grid: #29323b; --head: #1b232b; --cell: #171e25; --hidden: #26303a; --hiddenhi: #2e3944;
+  --select: #4cc887; --flag: #4cc887; --err: #ff8e93; --errtint: #3a2224; --shade: rgba(0,0,0,.55);
+  --n1: #7fb0ff; --n2: #7fd68c; --n3: #ff8f84; --n4: #c4a5ff; --n5: #f0b27a; --n6: #6fd6de; --n7: #ddd; --n8: #aaa; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #13191f; --ink: #e6ebf0; --muted: #98a4b0; --grid: #29323b; --head: #1b232b; --cell: #171e25; --hidden: #26303a; --hiddenhi: #2e3944;
+  --select: #4cc887; --flag: #4cc887; --err: #ff8e93; --errtint: #3a2224; --shade: rgba(0,0,0,.55);
+  --n1: #7fb0ff; --n2: #7fd68c; --n3: #ff8f84; --n4: #c4a5ff; --n5: #f0b27a; --n6: #6fd6de; --n7: #ddd; --n8: #aaa; color-scheme: dark }
+* { box-sizing: border-box }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 14px/1.45 var(--body) }
+.win { max-width: 900px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 16px 28px; display: grid; gap: 10px }
+.top { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 8px 16px }
+h1 { margin: 0; font: 800 clamp(30px, 6vw, 48px)/1 var(--display); letter-spacing: -.02em }
+h1 span { color: var(--err) }
+.tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
+.tools button, .tools select { font: 600 13px var(--body); padding: 7px 12px; border-radius: 4px; border: 1px solid var(--grid); background: var(--head); color: var(--ink); cursor: pointer }
+.tools button[aria-pressed="true"] { background: var(--select); border-color: var(--select); color: var(--cell) }
+button:focus-visible, select:focus-visible { outline: 2px solid var(--select); outline-offset: 2px }
+.fx { display: grid; grid-template-columns: 64px 34px minmax(0, 1fr); border: 1px solid var(--grid); background: var(--cell); font: 400 14px/32px var(--mono) }
+.fx > div { padding: 0 10px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis }
+.fx .name { background: var(--head); border-right: 1px solid var(--grid); color: var(--muted) }
+.fx .f { border-right: 1px solid var(--grid); color: var(--select); font-style: italic; font-weight: 600; text-align: center; padding: 0 }
+.sheet { position: relative; border: 1px solid var(--grid); background: var(--cell); user-select: none; -webkit-user-select: none; touch-action: manipulation; overflow: hidden }
+canvas { display: block; width: 100%; height: auto; cursor: cell }
+.status { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; font: 400 13px var(--mono); color: var(--muted) }
+.status b { color: var(--ink) }
+.help { margin: 0; font-size: 13px; color: var(--muted) }
+.overlay { position: absolute; inset: 0; display: grid; place-items: center; background: var(--shade); padding: 14px }
+.dialog { background: var(--cell); width: min(400px, 100%); border: 1px solid var(--grid); border-radius: 6px; box-shadow: 0 12px 40px rgba(0,0,0,.25); overflow: hidden }
+.dialog .bar { padding: 7px 12px; font: 600 12px var(--body); background: var(--head); border-bottom: 1px solid var(--grid) }
+.dialog .body { padding: 14px 16px 16px; display: grid; gap: 10px }
+.dialog h2 { margin: 0; font: 800 28px/1.05 var(--display) }
+.dialog h2.bad { color: var(--err) }
+.dialog p { margin: 0 }
+.dialog .meta { font: 400 12px/1.5 var(--mono); color: var(--muted) }
+.dialog button { justify-self: end; font: 600 14px var(--body); padding: 8px 16px; border-radius: 4px; border: 0; background: var(--select); color: var(--cell); cursor: pointer }

@@ -1,0 +1,11 @@
+<article>
+  <p class="site-kicker"><a href="/developers/">Developers</a> / Engine and runner</p>
+  <h1>Check a workbook without Excel</h1>
+  <p class="site-lede">The Linux x86-64 runner recalculates Excel workbooks, reads and edits cells, and reports the result from a script.</p>
+  <p><code>dnacalc diff book.xlsx</code> compares every formula cell with the workbook's saved value. <code>--json</code> writes a machine-readable result.</p>
+  {{runner}}
+  <p>For <code>diff</code>, exit status 0 means every formula cell matched. Status 1 means there were differing or refused cells. Status 2 means a usage error or a typed refusal.</p>
+  <h2>Engine crates</h2>
+  <p>The Rust workspace includes the function library, formula language, workbook engine and document layer. The crates are unpublished.</p>
+  <p><a href="/download/">See the Linux package names</a></p>
+</article>

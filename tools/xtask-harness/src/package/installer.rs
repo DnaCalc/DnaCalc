@@ -55,7 +55,7 @@ fn execute(raw: &[String]) -> Result<(), String> {
     let mut artifacts = Vec::new();
     let mut products = Vec::new();
     for (folder, source, _) in PRODUCTS {
-        let name = format!("{folder}-{version}-win-x64.msi");
+        let name = super::windows_package_name(folder, &version, "msi");
         let code = product_code(folder, &version);
         let built = cargo::output(
             Command::new(&wixl)

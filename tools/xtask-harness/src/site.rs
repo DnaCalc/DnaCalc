@@ -1,5 +1,5 @@
 //! `cargo xtask site ...`: the published form of DNA OneCalc (`onecalc`, for onecalc.dnacalc.com)
-//! and DNA Calc (`calc`, for the apex dnacalc.com), and the owner's tools to publish it
+//! and DNA Calc (`calc`), the project website (`content`) and the owner's tools to publish them
 //! (dc-ysl; docs/plan/PUBLISHING_PLAN.md, deploy/OWNER_STEPS.md). Everything runs on the site host,
 //! dna-koderbot, in a fresh clone of the pushed master. Agents pack, serve, smoke, verify and
 //! dry-run; only the owner publishes or rolls back.
@@ -46,6 +46,7 @@
 mod blog;
 mod content;
 pub(crate) mod downloads;
+mod marketing;
 
 use crate::accept::utc_now;
 use crate::app::{self, APPS, App, SmokeTarget};
@@ -59,7 +60,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 use std::sync::Arc;
 
-pub const USAGE: &str = "usage: cargo xtask site blog calc --out <dir> [--include-drafts]\n       cargo xtask site pack onecalc|calc [--allow-dirty]\n       cargo xtask site serve onecalc|calc [--release <dir>] [--port <n>]\n       cargo xtask site smoke onecalc|calc [--release <dir>] [--browser chromium|firefox]\n       cargo xtask site verify onecalc|calc --url <base> [--release <dir>]\n       cargo xtask site publish onecalc|calc --release <dir> (--dry-run [--live <url|build.json>] | --local)\n       cargo xtask site status onecalc|calc\n       cargo xtask site rollback onecalc|calc --local --release <release>\n       (publish without --dry-run, status and rollback run on the site host, dna-koderbot)";
+pub const USAGE: &str = "usage: cargo xtask site blog calc --out <dir> [--include-drafts]\n       cargo xtask site pack onecalc|calc|content [--allow-dirty] [--include-drafts]\n       cargo xtask site serve onecalc|calc|content [--release <dir>] [--port <n>]\n       cargo xtask site smoke onecalc|calc|content [--release <dir>] [--browser chromium|firefox]\n       cargo xtask site verify onecalc|calc|content --url <base> [--release <dir>]\n       cargo xtask site publish onecalc|calc|content --release <dir> (--dry-run [--live <url|build.json>] | --local)\n       cargo xtask site status onecalc|calc|content\n       cargo xtask site rollback onecalc|calc|content --local --release <release>\n       (publish without --dry-run, status and rollback run on the site host, dna-koderbot)";
 
 /// The site snippet every host imports and the local serve reads.
 pub const HEADERS_FILE: &str = "deploy/caddy/headers.caddy";
@@ -116,6 +117,11 @@ fn site(key: &str) -> Option<Site> {
         }),
         "calc" => Some(Site {
             key: "calc",
+            app: &APPS[1],
+            host: "dnacalc.com",
+        }),
+        "content" => Some(Site {
+            key: "content",
             app: &APPS[1],
             host: "dnacalc.com",
         }),
@@ -258,12 +264,14 @@ pub fn run(raw: &[String]) -> ExitCode {
             "--allow-dirty" | "--dry-run" | "--local" | "--include-drafts" => {
                 flags.insert(arg.clone());
             }
-            "--release" | "--port" | "--browser" | "--url" | "--live" | "--out" => match args.next() {
-                Some(value) => {
-                    options.insert(arg.clone(), value.clone());
+            "--release" | "--port" | "--browser" | "--url" | "--live" | "--out" => {
+                match args.next() {
+                    Some(value) => {
+                        options.insert(arg.clone(), value.clone());
+                    }
+                    None => return usage(raw),
                 }
-                None => return usage(raw),
-            },
+            }
             _ => return usage(raw),
         }
     }
@@ -274,11 +282,23 @@ pub fn run(raw: &[String]) -> ExitCode {
     };
     let result = match command {
         "blog" if key.key == "calc" => match option("--out") {
-            Some(dir) => blog::build(&ws.root, Path::new(&dir), key.host, flags.contains("--include-drafts"))
-                .map(|count| println!("SITE BLOG {count} posts in {dir}")),
+            Some(dir) => blog::build(
+                &ws.root,
+                Path::new(&dir),
+                key.host,
+                flags.contains("--include-drafts"),
+                None,
+            )
+            .map(|count| println!("SITE BLOG {count} posts in {dir}")),
             None => return usage(raw),
         },
-        "pack" => pack(&ws, &key, flags.contains("--allow-dirty")).map(|_| ()),
+        "pack" => pack(
+            &ws,
+            &key,
+            flags.contains("--allow-dirty"),
+            flags.contains("--include-drafts"),
+        )
+        .map(|_| ()),
         "serve" => {
             let port = match option("--port").map(|p| p.parse::<u16>()) {
                 Some(Ok(port)) => port,
@@ -299,7 +319,7 @@ pub fn run(raw: &[String]) -> ExitCode {
         "verify" => match option("--url") {
             Some(url) => {
                 let release = option("--release").map(PathBuf::from);
-                verify(&ws, &url, release.as_deref()).and_then(|failures| {
+                verify(&ws, &key, &url, release.as_deref()).and_then(|failures| {
                     if failures.is_empty() {
                         Ok(())
                     } else {
@@ -414,7 +434,15 @@ fn files_under(dir: &Path) -> Result<Vec<String>, String> {
 }
 
 /// Packs `site` and returns its release folder.
-fn pack(ws: &Workspace, site: &Site, allow_dirty: bool) -> Result<PathBuf, String> {
+fn pack(
+    ws: &Workspace,
+    site: &Site,
+    allow_dirty: bool,
+    include_drafts: bool,
+) -> Result<PathBuf, String> {
+    if include_drafts && site.key != "content" {
+        return Err("--include-drafts is for the content site's local preview".to_owned());
+    }
     let status = cargo::git(&ws.root, &["status", "--porcelain"])?;
     let dirty = !status.trim().is_empty();
     if !allow_dirty {
@@ -440,52 +468,65 @@ fn pack(ws: &Workspace, site: &Site, allow_dirty: bool) -> Result<PathBuf, Strin
         "{}-{}{}",
         compact_utc(&built),
         &commit[..12],
-        if dirty { "-dirty" } else { "" }
+        match (dirty, include_drafts) {
+            (true, _) => "-dirty",
+            (false, true) => "-preview",
+            (false, false) => "",
+        }
     );
     let base = site_dir(ws, site);
     let staging = base.join(".staging");
     let _ = fs::remove_dir_all(&staging);
-    app::bundle(ws, site.app, &staging)?;
-
-    // The assets and their folder.
-    // Every file of the bundle but the page: the stylesheet, the start module, the glue, the wasm.
-    let assets: Vec<String> = files_under(&staging)?
-        .into_iter()
-        .filter(|name| name != "index.html")
-        .collect();
-    let mut listing = String::new();
-    for name in &assets {
-        let bytes = read(&staging.join(name))?;
-        listing.push_str(&format!("{name}\0{}\n", sha256_hex(&bytes)));
-    }
-    let id = sha256_hex(listing.as_bytes())[..16].to_owned();
+    let staged_assets = staging.join("assets");
+    let entries = if site.key == "content" {
+        let explorer = stage_app(ws, &APPS[0], &staged_assets.join("explorer"))?;
+        let calc = stage_app(ws, site.app, &staged_assets.join("calc"))?;
+        marketing::stage_assets(&ws.root, &staged_assets)?;
+        (calc, Some(explorer))
+    } else {
+        (stage_app(ws, site.app, &staged_assets)?, None)
+    };
     let dir = base.join(&release);
     let _ = fs::remove_dir_all(&dir);
-    let asset_dir = dir.join("assets").join(&id);
-    fs::create_dir_all(&asset_dir)
-        .map_err(|e| format!("cannot create {}: {e}", asset_dir.display()))?;
-    for name in &assets {
-        write(&asset_dir.join(name), &read(&staging.join(name))?)?;
-    }
-    let page = String::from_utf8(read(&staging.join("index.html"))?)
-        .map_err(|_| "the page is not UTF-8".to_owned())?;
-    let mut page = page;
-    for (attribute, name) in [("src", "boot.js"), ("href", "app.css")] {
-        let from = format!("{attribute}=\"{name}\"");
-        if page.matches(&from).count() != 1 {
-            return Err(format!("the page does not load {name} once ({from})"));
+    let id = copy_assets(&staged_assets, &dir)?;
+    let prefix = format!("/assets/{id}");
+    let version = workspace_version(ws)?;
+
+    let apps: &[&App] = if site.key == "content" {
+        &[site.app, &APPS[0]]
+    } else {
+        &[site.app]
+    };
+    let mut notices = notices(ws, apps)?;
+    if let (calc, Some(explorer)) = entries {
+        marketing::build(
+            ws,
+            &dir,
+            &prefix,
+            &calc,
+            &explorer,
+            &commit,
+            &version,
+            &built,
+            include_drafts,
+        )?;
+        notices.push_str("\nPlayground visualizations: D3 7.8.5\n\n");
+        notices.push_str(
+            &fs::read_to_string(ws.root.join("docs/fun/vendor/d3.LICENSE.txt"))
+                .map_err(|e| e.to_string())?,
+        );
+    } else {
+        write(
+            &dir.join("index.html"),
+            app_page(entries.0, &prefix)?.as_bytes(),
+        )?;
+        if site.key == "calc" {
+            blog::build(&ws.root, &dir, site.host, false, None)?;
         }
-        page = page.replace(&from, &format!("{attribute}=\"assets/{id}/{name}\""));
     }
-    write(&dir.join("index.html"), page.as_bytes())?;
     write(&dir.join("LICENSE"), &read(&ws.root.join("LICENSE"))?)?;
-    let notices = notices(ws, site.app)?;
     write(&dir.join("THIRD-PARTY-NOTICES.txt"), notices.as_bytes())?;
     let _ = fs::remove_dir_all(&staging);
-
-    if site.key == "calc" {
-        blog::build(&ws.root, &dir, site.host, false)?;
-    }
 
     // build.json: every other file's size and hash.
     let mut files = Map::new();
@@ -507,7 +548,7 @@ fn pack(ws: &Workspace, site: &Site, allow_dirty: bool) -> Result<PathBuf, Strin
         "site": site.key,
         "release": release,
         "commit": commit,
-        "version": workspace_version(ws)?,
+        "version": version,
         "built_utc": built,
         "rustc": rustc,
         "wasm_bindgen": WASM_BINDGEN,
@@ -551,6 +592,7 @@ fn pack(ws: &Workspace, site: &Site, allow_dirty: bool) -> Result<PathBuf, Strin
         "release": release,
         "commit": commit,
         "dirty": dirty,
+        "include_drafts": include_drafts,
         "built_utc": built,
         "tar": { "file": format!("{release}.tar"), "bytes": tar.len(), "sha256": sha256_hex(&tar) },
         "build_json_sha256": sha256_hex(&build_bytes),
@@ -576,9 +618,56 @@ fn pack(ws: &Workspace, site: &Site, allow_dirty: bool) -> Result<PathBuf, Strin
     Ok(dir)
 }
 
+/// Bundle through the regular app command and keep its page outside the asset hash.
+fn stage_app(ws: &Workspace, app: &App, out: &Path) -> Result<String, String> {
+    app::bundle(ws, app, out)?;
+    let entry = out.join("index.html");
+    let page = fs::read_to_string(&entry).map_err(|e| format!("{}: {e}", entry.display()))?;
+    fs::remove_file(&entry).map_err(|e| format!("{}: {e}", entry.display()))?;
+    Ok(page)
+}
+
+fn copy_assets(staged: &Path, release: &Path) -> Result<String, String> {
+    let assets = files_under(staged)?;
+    let mut listing = String::new();
+    for name in &assets {
+        let bytes = read(&staged.join(name))?;
+        listing.push_str(&format!("{name}\0{}\n", sha256_hex(&bytes)));
+    }
+    let id = sha256_hex(listing.as_bytes())[..16].to_owned();
+    let dir = release.join("assets").join(&id);
+    for name in &assets {
+        write_nested(&dir.join(name), &read(&staged.join(name))?)?;
+    }
+    Ok(id)
+}
+
+fn write_nested(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    let folder = path
+        .parent()
+        .ok_or("output file needs a parent directory")?;
+    fs::create_dir_all(folder).map_err(|e| format!("{}: {e}", folder.display()))?;
+    write(path, bytes)
+}
+
+fn app_page(mut page: String, prefix: &str) -> Result<String, String> {
+    for (attribute, name) in [("src", "boot.js"), ("href", "app.css")] {
+        let from = format!("{attribute}=\"{name}\"");
+        if page.matches(&from).count() != 1 {
+            return Err(format!("the page does not load {name} once ({from})"));
+        }
+        page = page.replace(&from, &format!("{attribute}=\"{prefix}/{name}\""));
+    }
+    Ok(page)
+}
+
 /// The workspace's version (`[workspace.package] version`).
 fn workspace_version(ws: &Workspace) -> Result<String, String> {
     let manifest = fs::read_to_string(ws.root.join("Cargo.toml")).map_err(|e| e.to_string())?;
+    version_from_manifest(&manifest)
+}
+
+fn version_from_manifest(manifest: &str) -> Result<String, String> {
     let mut in_package = false;
     for line in manifest.lines() {
         let line = line.trim();
@@ -678,11 +767,11 @@ fn notice_packages(
     Ok(seen)
 }
 
-/// THIRD-PARTY-NOTICES.txt for `app`: the ported-code notices, then the licence texts of every
-/// crate compiled into its wasm (cargo metadata for wasm32: the app's normal dependencies, not
+/// THIRD-PARTY-NOTICES.txt: the ported-code notices, then the licence texts of every
+/// crate compiled into the apps' wasm (cargo metadata for wasm32: the app's normal dependencies, not
 /// build scripts or procedural macros, which run at build time), each text once with the crates
 /// that carry it.
-fn notices(ws: &Workspace, app: &App) -> Result<String, String> {
+fn notices(ws: &Workspace, apps: &[&App]) -> Result<String, String> {
     let mut command = Command::new(cargo::cargo_program());
     command
         .args([
@@ -729,8 +818,10 @@ fn notices(ws: &Workspace, app: &App) -> Result<String, String> {
             "never",
         ])
         .current_dir(&ws.root);
-    for root in std::iter::once(app.package).chain(app.worker.map(|(package, _)| package)) {
-        command.args(["--package", root]);
+    for app in apps {
+        for root in std::iter::once(app.package).chain(app.worker.map(|(package, _)| package)) {
+            command.args(["--package", root]);
+        }
     }
     let out = cargo::output(&mut command)?;
     if !out.status.success() {
@@ -843,7 +934,10 @@ fn notices(ws: &Workspace, app: &App) -> Result<String, String> {
     let rule = "=".repeat(78);
     let mut out = format!(
         "Third-party notices for {} (dnacalc.com).\n\nDNA Calc's own code is under the MIT licence in LICENSE. The release also carries\ncode ported from third parties into DNA Calc's crates, and the crates below, compiled\ninto its WebAssembly modules. Their notices follow.\n\n{rule}\nPart 1. Code ported into DNA Calc's crates\n{rule}\n\n{}\n\n{rule}\nPart 2. Crates compiled into the modules ({} crates)\n{rule}\n\n",
-        app.package,
+        apps.iter()
+            .map(|app| app.package)
+            .collect::<Vec<_>>()
+            .join(", "),
         ported.trim_end(),
         crates.len()
     );
@@ -891,15 +985,24 @@ fn site_smoke(ws: &Workspace, site: &Site, dir: &Path, browser: Option<&str>) ->
     };
     let base = format!("http://127.0.0.1:{port}/");
     println!("SITE serving {} at {base}", dir.display());
-    let verified = match verify(ws, &base, Some(dir)) {
+    let verified = match verify(ws, site, &base, Some(dir)) {
         Ok(failures) => failures,
         Err(e) => vec![e],
     };
     for failure in &verified {
         println!("SITE verify failed: {failure}");
     }
-    let smoked = app::smoke(ws, site.app, SmokeTarget::Url(base), browser, None);
-    let passed = verified.is_empty() && smoked == ExitCode::SUCCESS;
+    let fronts: &[(&App, &str)] = if site.key == "content" {
+        &[(&APPS[0], "onecalc/"), (&APPS[1], "app/")]
+    } else {
+        &[(site.app, "")]
+    };
+    let mut smoked = true;
+    for (app, route) in fronts {
+        let target = SmokeTarget::Url(format!("{base}{route}"));
+        smoked &= app::smoke(ws, app, target, browser, None) == ExitCode::SUCCESS;
+    }
+    let passed = verified.is_empty() && smoked;
     // The result goes into the release's pack.json.
     let pack_path = dir.with_extension("pack.json");
     if let Ok(bytes) = fs::read(&pack_path)
@@ -925,11 +1028,7 @@ fn site_smoke(ws: &Workspace, site: &Site, dir: &Path, browser: Option<&str>) ->
         } else {
             "failed"
         },
-        if smoked == ExitCode::SUCCESS {
-            "passed"
-        } else {
-            "failed"
-        }
+        if smoked { "passed" } else { "failed" }
     );
     if passed {
         ExitCode::SUCCESS
@@ -994,7 +1093,12 @@ fn fetch(url: &str) -> Result<Fetched, String> {
 /// Checks the site served at `base` against its own `/build.json` (and, with `release`, that this
 /// is the release's): every file's bytes, the content types and the snippet's headers. The
 /// failures, empty when it passed.
-fn verify(ws: &Workspace, base: &str, release: Option<&Path>) -> Result<Vec<String>, String> {
+fn verify(
+    ws: &Workspace,
+    site: &Site,
+    base: &str,
+    release: Option<&Path>,
+) -> Result<Vec<String>, String> {
     let headers = SiteHeaders::load(ws)?;
     let base = base.trim_end_matches('/');
     let mut failures = Vec::new();
@@ -1013,13 +1117,28 @@ fn verify(ws: &Workspace, base: &str, release: Option<&Path>) -> Result<Vec<Stri
     if record["format"] != BUILD_FORMAT {
         failures.push(format!("build.json's format is {}", record["format"]));
     }
+    if record["site"].as_str() != Some(site.key) {
+        failures.push(format!(
+            "build.json names site {}, expected {}",
+            record["site"], site.key
+        ));
+    }
     let mut checked = 0;
-    let files = record["files"].as_object().cloned().unwrap_or_default();
-    let mut paths: Vec<(String, String)> = files
-        .keys()
-        .map(|name| (format!("/{name}"), name.clone()))
-        .collect();
-    paths.push(("/".to_owned(), "index.html".to_owned()));
+    let files = record["files"]
+        .as_object()
+        .ok_or("build.json has no files map")?;
+    if !files.contains_key("index.html") {
+        failures.push("build.json omits index.html".to_owned());
+    }
+    let mut paths = Vec::new();
+    for name in files.keys() {
+        paths.push((format!("/{name}"), name.clone()));
+        if let Some(directory) = name.strip_suffix("index.html")
+            && (directory.is_empty() || directory.ends_with('/'))
+        {
+            paths.push((format!("/{directory}"), name.clone()));
+        }
+    }
     paths.push(("/build.json".to_owned(), "build.json".to_owned()));
     for (path, name) in paths {
         let got = match fetch(&format!("{base}{path}")) {
@@ -1147,6 +1266,9 @@ fn refusals(pack: &Value) -> Vec<String> {
     let mut out = Vec::new();
     if pack["dirty"] != json!(false) {
         out.push("the release was packed from a tree with changes".to_owned());
+    }
+    if pack["include_drafts"] == json!(true) {
+        out.push("it includes local blog drafts".to_owned());
     }
     if pack["smoke"]["passed"] != json!(true) {
         out.push("its smoke has not passed (cargo xtask site smoke)".to_owned());

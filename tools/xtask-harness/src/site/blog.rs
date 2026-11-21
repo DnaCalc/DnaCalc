@@ -1,4 +1,5 @@
 use super::content::{create_directory, escape, markdown, write_page};
+use super::marketing::Layout;
 use std::fmt::Write;
 use std::fs;
 use std::path::Path;
@@ -112,21 +113,25 @@ fn valid_date(date: &str) -> bool {
 
 fn feed(posts: &[Post<'_>], host: &str) -> String {
     let base = format!("https://{host}/blog");
-    let updated = posts[0].date;
+    let updated = posts
+        .first()
+        .map(|post| format!("{}T00:00:00Z", post.date))
+        .unwrap_or_else(crate::accept::utc_now);
     let mut out = format!(
         "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<feed xmlns=\"http://www.w3.org/2005/Atom\">\n\
          <title>DNA Calc Blog</title><id>{base}/</id><author><name>DNA Calc</name></author>\n\
-         <link rel=\"self\" href=\"{base}/feed.atom\"/><link href=\"{base}/index.html\"/>\n\
-         <updated>{updated}T00:00:00Z</updated>\n"
+         <link rel=\"self\" href=\"feed.atom\"/><link href=\"index.html\"/>\n\
+         <updated>{updated}</updated>\n"
     );
     for post in posts {
-        let url = format!("{base}/{}", post.filename());
+        let filename = post.filename();
+        let url = format!("{base}/{filename}");
         let title = escape(post.title);
         let date = post.date;
         let content = escape(&post.body);
         let _ = writeln!(
             out,
-            "<entry><title>{title}</title><id>{url}</id><link href=\"{url}\"/>\n\
+            "<entry><title>{title}</title><id>{url}</id><link href=\"{filename}\"/>\n\
              <published>{date}T00:00:00Z</published><updated>{date}T00:00:00Z</updated>"
         );
         for tag in &post.tags {
@@ -143,6 +148,7 @@ pub(super) fn build(
     output: &Path,
     host: &str,
     include_drafts: bool,
+    layout: Option<&Layout<'_>>,
 ) -> Result<usize, String> {
     let sources = root.join("docs/site/blog");
     let mut files = Vec::new();
@@ -165,14 +171,30 @@ pub(super) fn build(
             posts.push(post);
         }
     }
-    if posts.is_empty() {
+    if posts.is_empty() && layout.is_none() {
         return Ok(0);
     }
     posts.sort_unstable_by_key(|post| std::cmp::Reverse((post.date, post.slug)));
     let directory = output.join("blog");
-    create_directory(&directory)?;
+    let page = |filename: &str, title: &str, contents: &str| {
+        if let Some(layout) = layout {
+            super::write_nested(
+                &directory.join(filename),
+                layout.page("/blog/", title, FEED, contents).as_bytes(),
+            )
+        } else {
+            write_page(&directory, filename, title, FEED, contents)
+        }
+    };
+    if layout.is_none() {
+        create_directory(&directory)?;
+    }
     let mut index =
-        String::from("<h1>DNA Calc Blog</h1><p><a href=\"feed.atom\">Atom feed</a></p><ul>");
+        String::from("<article><h1>DNA Calc Blog</h1><p><a href=\"feed.atom\">Atom feed</a></p>");
+    if posts.is_empty() {
+        index.push_str("<p>Posts appear here after editorial review.</p>");
+    }
+    index.push_str("<ul>");
     for post in &posts {
         let title = escape(post.title);
         let description = post.description();
@@ -185,10 +207,10 @@ pub(super) fn build(
         let contents = format!(
             "<nav><a href=\"index.html\">Blog</a></nav><article><h1>{title}</h1><p>{description}</p>{body}</article>"
         );
-        write_page(&directory, &filename, post.title, FEED, &contents)?;
+        page(&filename, post.title, &contents)?;
     }
-    index.push_str("</ul>");
-    write_page(&directory, "index.html", "Blog", FEED, &index)?;
+    index.push_str("</ul></article>");
+    page("index.html", "Blog", &index)?;
     super::write(&directory.join("feed.atom"), feed(&posts, host).as_bytes())?;
     Ok(posts.len())
 }

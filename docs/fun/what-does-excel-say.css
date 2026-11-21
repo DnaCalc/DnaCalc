@@ -1,0 +1,47 @@
+/* Layout: a single formula card in the middle of a sheet; answers as cells you click; a score strip as a status bar. */
+:root {
+  --paper: #fbfcfd; --ink: #1d2733; --muted: #65717e; --grid: #e2e6eb; --cell: #ffffff; --select: #1e7b4b;
+  --right: #63be7b; --right-tint: #e3f4e8; --wrong: #f8696b; --wrong-tint: #fde4e4; --gold: #ffd65c;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #13191f; --ink: #e6ebf0; --muted: #98a4b0; --grid: #2a333c; --cell: #1a2128; --select: #4cc887;
+  --right-tint: #1d3326; --wrong-tint: #3a2224; color-scheme: dark } }
+:root[data-theme="dark"] { --paper: #13191f; --ink: #e6ebf0; --muted: #98a4b0; --grid: #2a333c; --cell: #1a2128; --select: #4cc887;
+  --right-tint: #1d3326; --wrong-tint: #3a2224; color-scheme: dark }
+* { box-sizing: border-box }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 16px/1.55 var(--body);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 100% 30px, 100px 100% }
+.wrap { max-width: 760px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 40px; display: grid; gap: 16px }
+header h1 { margin: 0; font: 800 clamp(34px, 7vw, 60px)/.95 var(--display); letter-spacing: -.02em }
+header p { margin: 8px 0 0; color: var(--muted); max-width: 60ch }
+.card { background: var(--cell); border: 1px solid var(--grid); border-radius: 6px; overflow: hidden; box-shadow: 0 6px 24px rgba(0,0,0,.06) }
+.fx { display: grid; grid-template-columns: 54px 34px minmax(0, 1fr); border-bottom: 1px solid var(--grid); font: 400 15px/40px var(--mono) }
+.fx > div { padding: 0 10px; min-width: 0; overflow-x: auto; white-space: nowrap }
+.fx .name { color: var(--muted); border-right: 1px solid var(--grid) }
+.fx .f { color: var(--select); font-style: italic; font-weight: 600; text-align: center; border-right: 1px solid var(--grid); padding: 0 }
+.fx .formula { font-size: clamp(15px, 2.6vw, 20px); font-weight: 600 }
+.q { padding: 18px 20px 20px; display: grid; gap: 14px }
+.q .setup { color: var(--muted); font-size: 15px; margin: 0 }
+.opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px }
+.opts button { font: 600 17px var(--mono); padding: 14px 12px; text-align: center; border: 1px solid var(--grid); background: var(--paper); color: var(--ink); border-radius: 4px; cursor: pointer; overflow-wrap: anywhere }
+.opts button:hover:not(:disabled) { border-color: var(--select) }
+.opts button:focus-visible { outline: 2px solid var(--select); outline-offset: 2px }
+.opts button.right { background: var(--right-tint); border-color: var(--right) }
+.opts button.wrong { background: var(--wrong-tint); border-color: var(--wrong) }
+.opts button:disabled { cursor: default }
+.why { border-left: 5px solid var(--right); padding: 4px 0 4px 14px; margin: 0 }
+.why.miss { border-color: var(--wrong) }
+.why b { display: block; font-size: 15px }
+.why span { color: var(--muted); font-size: 15px }
+.next { justify-self: end; font: 600 15px var(--body); padding: 10px 18px; border-radius: 4px; border: 0; background: var(--select); color: var(--cell); cursor: pointer }
+.next:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px }
+.status { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; font: 400 13px var(--mono); color: var(--muted) }
+.pips { display: flex; gap: 4px }
+.pips i { width: 14px; height: 14px; border: 1px solid var(--grid); background: var(--cell); border-radius: 2px }
+.pips i.r { background: var(--right); border-color: var(--right) } .pips i.w { background: var(--wrong); border-color: var(--wrong) } .pips i.now { border: 2px solid var(--select) }
+.end h2 { margin: 0; font: 800 34px/1 var(--display) }
+.end p { margin: 0 }
+.foot { font-size: 13px; color: var(--muted) }

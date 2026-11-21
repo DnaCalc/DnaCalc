@@ -1,5 +1,6 @@
-use super::content::{create_directory, markdown, write_page};
-use crate::package::{CALC_FOLDER, FOLDER};
+use super::content::{create_directory, escape, markdown, write_page};
+use super::marketing::Layout;
+use crate::package::{CALC_FOLDER, FOLDER, windows_package_name};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::fmt::Write;
@@ -37,52 +38,43 @@ struct Artifact {
 
 impl Manifest {
     fn installers(&self) -> Result<Vec<(&'static str, &Artifact)>, String> {
-        let mut version = self.version.split('.');
-        if !(0..3).all(|_| {
-            version
-                .next()
-                .is_some_and(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()))
-        }) || version.next().is_some()
-            || self.commit.len() != 40
-            || !self.commit.bytes().all(|b| b.is_ascii_hexdigit())
-        {
-            return Err(
-                "the installer manifest needs a numeric version and full Git commit".into(),
-            );
-        }
+        release_identity(&self.version, &self.commit)?;
         if self.products.len() != 2 {
             return Err("the manifest must list the two Windows products".into());
         }
-        [(CALC_FOLDER, "DNA Calc"), (FOLDER, "DNA Calc - Formula Explorer")]
-            .into_iter()
-            .map(|(folder, title)| {
-                let mut products = self.products.iter().filter(|p| p.folder == folder);
-                let product = products
-                    .next()
-                    .ok_or_else(|| format!("missing product {folder}"))?;
-                if products.next().is_some()
-                    || !product.msi.ends_with(".msi")
-                    || !product
-                        .msi
-                        .bytes()
-                        .all(|b| b.is_ascii_alphanumeric() || b".-_".contains(&b))
-                    || !product
-                        .msi
-                        .strip_prefix(folder)
-                        .is_some_and(|suffix| suffix.starts_with('-'))
-                {
-                    return Err(format!("invalid installer record for {folder}"));
-                }
-                let mut artifacts = self.artifacts.iter().filter(|a| a.name == product.msi);
-                let artifact = artifacts
-                    .next()
-                    .ok_or_else(|| format!("missing artifact {}", product.msi))?;
-                if artifacts.next().is_some() {
-                    return Err(format!("duplicate artifact {}", product.msi));
-                }
-                Ok((title, artifact))
-            })
-            .collect()
+        [
+            (CALC_FOLDER, "DNA Calc"),
+            (FOLDER, "DNA Calc - Formula Explorer"),
+        ]
+        .into_iter()
+        .map(|(folder, title)| {
+            let mut products = self.products.iter().filter(|p| p.folder == folder);
+            let product = products
+                .next()
+                .ok_or_else(|| format!("missing product {folder}"))?;
+            if products.next().is_some()
+                || !product.msi.ends_with(".msi")
+                || !product
+                    .msi
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b".-_".contains(&b))
+                || !product
+                    .msi
+                    .strip_prefix(folder)
+                    .is_some_and(|suffix| suffix.starts_with('-'))
+            {
+                return Err(format!("invalid installer record for {folder}"));
+            }
+            let mut artifacts = self.artifacts.iter().filter(|a| a.name == product.msi);
+            let artifact = artifacts
+                .next()
+                .ok_or_else(|| format!("missing artifact {}", product.msi))?;
+            if artifacts.next().is_some() {
+                return Err(format!("duplicate artifact {}", product.msi));
+            }
+            Ok((title, artifact))
+        })
+        .collect()
     }
 }
 
@@ -99,17 +91,106 @@ impl Artifact {
     }
 }
 
+fn release_identity(version: &str, commit: &str) -> Result<(), String> {
+    let parts: Vec<_> = version.split('.').collect();
+    if parts.len() != 3
+        || !parts
+            .iter()
+            .all(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()))
+        || commit.len() != 40
+        || !commit.bytes().all(|b| b.is_ascii_hexdigit())
+    {
+        return Err("the release needs a numeric version and full Git commit".into());
+    }
+    Ok(())
+}
+
+fn notes_heading(version: &str, commit: &str, draft: &str) -> String {
+    format!(
+        "# DNA Calc {version} Windows installers\n\nSource commit `{commit}`\n\n{}\n\n## Downloads\n\n",
+        draft.trim()
+    )
+}
+
+fn install_notes(notes: &mut String) {
+    let _ = writeln!(
+        notes,
+        "\n## Installing and uninstalling\n\n{WEBVIEW2}\n\nTo uninstall, open Windows Settings, go to Apps, find the application under Installed apps and select Uninstall."
+    );
+}
+
+pub(super) fn preview(
+    root: &Path,
+    output: &Path,
+    layout: &Layout<'_>,
+    version: &str,
+    commit: &str,
+) -> Result<String, String> {
+    release_identity(version, commit)?;
+    let draft = fs::read_to_string(root.join("docs/releases/first-preview.md"))
+        .map_err(|e| format!("first-preview.md: {e}"))?;
+    let mut notes = notes_heading(version, commit, &draft);
+    let _ = writeln!(notes, "{PENDING}");
+    let packages = [
+        (
+            "DNA Calc for Windows · MSI",
+            windows_package_name(CALC_FOLDER, version, "msi"),
+        ),
+        (
+            "DNA Calc for Windows · ZIP",
+            windows_package_name(CALC_FOLDER, version, "zip"),
+        ),
+        (
+            "Formula Explorer for Windows · MSI",
+            windows_package_name(FOLDER, version, "msi"),
+        ),
+        (
+            "Formula Explorer for Windows · ZIP",
+            windows_package_name(FOLDER, version, "zip"),
+        ),
+        (
+            "Linux x86-64 · tarball",
+            format!("dnacalc-{version}-linux-x64.tar.gz"),
+        ),
+        (
+            "Linux x86-64 · Debian package",
+            format!("dnacalc_{version}_amd64.deb"),
+        ),
+    ];
+    let mut table = String::from(
+        r#"<div class="site-table"><table><thead><tr><th>Package</th><th>Expected filename</th><th>Availability</th></tr></thead><tbody>"#,
+    );
+    for (product, filename) in packages {
+        let _ = writeln!(notes, "- [{product}](/download/#{filename})");
+        let _ = write!(
+            table,
+            r#"<tr id="{filename}"><th scope="row">{}</th><td><code>{filename}</code></td><td>Not yet published</td></tr>"#,
+            escape(product)
+        );
+    }
+    table.push_str("</tbody></table></div>");
+    install_notes(&mut notes);
+    let page = format!(
+        "<article><p><a href=\"/download/\">← Download</a></p>{}<p><a href=\"/download/release-notes.md\">Release notes in Markdown</a></p></article>",
+        markdown(&notes)
+    );
+    super::write_nested(
+        &output.join("download/release-notes/index.html"),
+        layout
+            .page("/download/", "Draft release notes", "", &page)
+            .as_bytes(),
+    )?;
+    super::write_nested(&output.join("download/release-notes.md"), notes.as_bytes())?;
+    Ok(table)
+}
+
 fn build(manifest_path: &Path, draft: &Path, output: &Path) -> Result<usize, String> {
     let manifest: Manifest = serde_json::from_slice(&super::read(manifest_path)?)
         .map_err(|e| format!("{}: {e}", manifest_path.display()))?;
     let installers = manifest.installers()?;
     let draft = fs::read_to_string(draft).map_err(|e| format!("{}: {e}", draft.display()))?;
     let heading = format!("DNA Calc {} Windows installers", manifest.version);
-    let mut notes = format!(
-        "# {heading}\n\nSource commit `{}`\n\n{}\n\n## Downloads\n\n",
-        manifest.commit,
-        draft.trim()
-    );
+    let mut notes = notes_heading(&manifest.version, &manifest.commit, &draft);
     let mut files = Vec::new();
     if manifest.signed {
         let signer = manifest
@@ -137,10 +218,7 @@ fn build(manifest_path: &Path, draft: &Path, output: &Path) -> Result<usize, Str
     } else {
         let _ = writeln!(notes, "{PENDING}");
     }
-    let _ = writeln!(
-        notes,
-        "\n## Installing and uninstalling\n\n{WEBVIEW2}\n\nTo uninstall, open Windows Settings, go to Apps, find the application under Installed apps and select Uninstall."
-    );
+    install_notes(&mut notes);
     let directory = output.join("download");
     create_directory(&directory)?;
     for (name, bytes) in &files {

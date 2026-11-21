@@ -666,6 +666,9 @@ pub(crate) fn content_type(name: &str) -> &'static str {
     match Path::new(name).extension().and_then(|e| e.to_str()) {
         Some("html") => "text/html; charset=utf-8",
         Some("atom") => "application/atom+xml",
+        Some("ico") => "image/vnd.microsoft.icon",
+        Some("md") => "text/markdown; charset=utf-8",
+        Some("xlsx") => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         Some("js") => "text/javascript; charset=utf-8",
         Some("wasm") => "application/wasm",
         Some("json") => "application/json",
@@ -717,7 +720,25 @@ fn answer(
     }
     let line = String::from_utf8_lossy(&request);
     let path = line.split_whitespace().nth(1).unwrap_or("/").to_owned();
-    let name = served_name(&path);
+    let request_path = path.split('?').next().unwrap_or("/");
+    let stem = request_path
+        .strip_suffix('/')
+        .filter(|stem| !stem.ends_with('/'))
+        .unwrap_or(request_path);
+    let mut name = served_name(stem);
+    if let Some(file) = &mut name {
+        if request_path.ends_with('/') && request_path != "/" {
+            file.push_str("/index.html");
+        } else if dir.join(&file).is_dir() {
+            // Caddy's file server canonicalizes directory URLs with a trailing slash.
+            let query = path.strip_prefix(request_path).unwrap_or_default();
+            write!(
+                stream,
+                "HTTP/1.1 308 Permanent Redirect\r\nLocation: /{file}/{query}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            )?;
+            return stream.flush();
+        }
+    }
     let body = if worker_fault && name.as_deref() == Some("worker.js") {
         // Tool-only network fault: exercise the actual Worker error path with no product hook.
         thread::sleep(Duration::from_secs(3));
