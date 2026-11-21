@@ -458,84 +458,133 @@ where
     Ok(rate)
 }
 
-/// IRR: the secant method in the discount factor `v = 1 / (1 + rate)`.
+#[inline]
+fn irr_daz(value: f64) -> f64 {
+    if value.abs() < f64::MIN_POSITIVE {
+        0.0_f64.copysign(value)
+    } else {
+        value
+    }
+}
+
+/// IRR: the secant method in `u = rate / (1 + rate) = 1 - 1 / (1 + rate)`.
 ///
-/// Read from the bank, not ported. Over guesses a dyadic distance `d` from the root, the error of
-/// the answer is `K d` with `K / C^2 = 1.000e-6` over 15 sets of flows, `C` being `P''/2P'` of the
-/// polynomial in `v`, where in `1 + rate` the same ratio spreads by ten times. That is two secant
-/// steps from the guess and a second point 0.001 away, on the side of the sign of the NPV at the
-/// guess: the factor `(|d| + 0.001)^2` shows as the growth of `K` with `|d|`, both signs alike. Two
-/// flows are linear in `v`, which is why their error does not depend on `d`.
+/// The coordinate `u` is an affine shift of the discount factor `v = 1 - u = 1 / (1 + rate)`,
+/// preserving polynomial curvature and two-flow linearity while retaining full binary64 precision
+/// near `rate = 0` (`u ≈ rate`) and quantizing large rates to `u ∈ [0.5, 1)` (`ulp = 2^-53`,
+/// matching live Excel 16.0.20527 on `IRR({-1, M}, M - 1)` for `M = 2..=20` and `g = -15 * 2^-60`).
 ///
-/// The stop is RATE's (`rate_secant`): `v` moved by less than 1e-7 and the NPV at the new `v` is
-/// under 1e-7, both at once, 200 steps. The NPV test is why flows of 1e153 are #NUM!: their
-/// NPV has no value that small to land on. The NPV divides by POWER of the stored `1 / v`.
-fn irr_discount_secant(cashflows: &[f64], guess: f64) -> Option<f64> {
+/// NPV is accumulated with `base = 1 / (1 - u)` and sequential stored products `power *= base`
+/// (`discounted_cashflows` staging, not binary exponentiation). The search takes `u1 = u0 ± 0.001`
+/// against the sign of `y0` with no early zero exit (`IRR({-1, 2^-46}, -1 + 2^-46)` is `#NUM!`
+/// because `u0 + 0.001 == u0`). On `y1 == y0`, `u0` steps by `±0.001` in the sign of `u1 > u0`
+/// and proceeds in the same iteration when `y1 != y0`. Up to 200 iterations, stopping when
+/// `|u2 - u1| < 1e-7` and `|y2| < 1e-7`, with an after-budget `<= 1e-4` check. Intermediate
+/// iterates may cross `1 - u < 0`, while publication requires `1 - u > 0` and `1 / (1 - u) - 1 > -1`.
+fn irr_u_secant(cashflows: &[f64], u_start: f64) -> Option<f64> {
     use crate::ported::excel_numeric::{
         excel_x87_add as add, excel_x87_div as div, excel_x87_mul as mul, excel_x87_sub as sub,
     };
-    use crate::ported::power_fn::power_kernel;
-    let npv = |v: f64| {
-        let base = div(1.0, v);
-        cashflows
-            .iter()
-            .enumerate()
-            .try_fold(0.0, |sum, (k, &flow)| {
-                power_kernel(base, k as f64)
-                    .ok()
-                    .map(|power| add(sum, div(flow, power)))
-            })
-    };
-    let mut before = div(1.0, add(1.0, guess));
-    let mut value_before = npv(before)?;
-    // A zero at the first point returns the stored v converted back, not the
-    // guess: guesses that store the same v give the same answer (harvest 11).
-    if value_before == 0.0 {
-        return Some(sub(div(1.0, before), 1.0));
+    if !u_start.is_finite() {
+        return None;
     }
-    let mut current = add(before, 0.001f64.copysign(value_before));
+    let npv = |u: f64| {
+        let v = sub(1.0, u);
+        if v == 0.0 {
+            return None;
+        }
+        let base = div(1.0, v);
+        if !base.is_finite() || base == 0.0 {
+            return None;
+        }
+        let mut total = 0.0;
+        let mut power = 1.0;
+        for (k, &flow) in cashflows.iter().enumerate() {
+            if k > 0 {
+                power = mul(power, base);
+            }
+            let divisor = irr_daz(power);
+            if !divisor.is_finite() || divisor == 0.0 {
+                return None;
+            }
+            let term = irr_daz(div(flow, divisor));
+            if !term.is_finite() {
+                return None;
+            }
+            total = add(total, term);
+        }
+        total.is_finite().then_some(total)
+    };
+    let publish = |u: f64| {
+        let v = sub(1.0, u);
+        if v <= 0.0 {
+            return None;
+        }
+        let rate = sub(div(1.0, v), 1.0);
+        (rate.is_finite() && rate > -1.0).then_some(rate)
+    };
+
+    let mut before = u_start;
+    let mut value_before = npv(before)?;
+    let offset = if value_before > 0.0 { -0.001 } else { 0.001 };
+    let mut current = add(before, offset);
     let mut value = npv(current)?;
     let mut step = f64::INFINITY;
     for _ in 0..200 {
-        let change = sub(value, value_before);
+        let mut change = sub(value, value_before);
         if change == 0.0 {
-            // No secant step: the after-budget check decides (a flat balance far from zero is
-            // #NUM!; an iterate that stopped moving near the root is the answer).
-            break;
+            let nudge = if current > before { 0.001 } else { -0.001 };
+            before = add(before, nudge);
+            value_before = npv(before)?;
+            change = sub(value, value_before);
+            if change == 0.0 {
+                continue;
+            }
         }
-        let next = sub(current, div(mul(value, sub(current, before)), change));
+        let divisor = irr_daz(change);
+        if divisor == 0.0 {
+            return None;
+        }
+        let numerator = irr_daz(mul(value, sub(current, before)));
+        let next = sub(current, div(numerator, divisor));
+        if !next.is_finite() {
+            return None;
+        }
         step = sub(next, current).abs();
         (before, value_before) = (current, value);
         current = next;
         value = npv(current)?;
         if step < 1e-7 && value.abs() < 1e-7 {
-            return Some(sub(div(1.0, current), 1.0));
+            return publish(current);
         }
     }
-    // After the budget or a flat secant, RATE's separate 1e-4 step and balance check
-    // (RATE_FINAL_TOLERANCE): cash flows of 7e10 cannot bring the balance under 1e-7, the iterate
-    // stops moving with the balance at 2.7e-5, and Excel 16.0.20527 answers that iterate for
-    // IRR({-70000,12000,15000,18000,21000,26000}*2^20) (dcztvv_r24 D3378); from 2^25 on #NUM!.
-    (step <= 1e-4 && value.abs() <= 1e-4).then(|| sub(div(1.0, current), 1.0))
+    // After the budget, RATE's separate 1e-4 step and balance check (RATE_FINAL_TOLERANCE):
+    // cash flows of 7e10 cannot bring the balance under 1e-7, and Excel 16.0.20527 answers
+    // the iterate at budget for IRR({-70000,12000,15000,18000,21000,26000}*2^20) (dcztvv_r24
+    // D3378); from 2^25 on #NUM!.
+    (step <= 1e-4 && value.abs() <= 1e-4)
+        .then(|| publish(current))
+        .flatten()
 }
 
 pub(crate) fn irr_kernel(cashflows: &[f64], guess: Option<f64>) -> Result<f64, WorksheetErrorCode> {
+    use crate::ported::excel_numeric::{excel_x87_add as add, excel_x87_div as div};
     let guess = guess.unwrap_or(0.1);
     // The initial growth factor must be positive and retain its unit
     // increment. At 2^53 adjacent guesses alternate between VALUE and NUM;
     // a magnitude cutoff would erase that stored-addition boundary.
-    if guess.is_finite()
-        && (guess <= -1.0 || crate::ported::excel_numeric::excel_x87_add(1.0, guess) == guess)
-    {
+    if guess.is_finite() && (guess <= -1.0 || add(1.0, guess) == guess) {
         return Err(WorksheetErrorCode::Value);
     }
     validate_cashflows(cashflows)?;
-    // A search from the given guess that fails starts again from the default 0.1: Excel
-    // 16.0.20527 through Touchstone, IRR({-1000,0.001,0.01,0.1,1,10,100,1000},g) and
-    // IRR({-1000,1,1,1,1,1200},g) for g = 2, 3, 5, 10 and 100 answer the default guess's bits
-    // exactly, while 0.5, 1 and 1.5 converge to their own (full bank, build 20228 guess 2 rows).
-    irr_discount_secant(cashflows, guess)
-        .or_else(|| (guess != 0.1).then(|| irr_discount_secant(cashflows, 0.1)).flatten())
+    // When the search from the given guess fails, Excel 16.0.20527 retries from the default
+    // guess 0.1 (`u = 0.1 / 1.1`), then `u = -0.1`, then `u = 2.0 / 3.0` (`guess = 2.0`),
+    // before returning `#NUM!`.
+    let u_guess = div(guess, add(1.0, guess));
+    irr_u_secant(cashflows, u_guess)
+        .or_else(|| (guess != 0.1).then(|| irr_u_secant(cashflows, div(0.1, add(1.0, 0.1)))).flatten())
+        .or_else(|| irr_u_secant(cashflows, -0.1))
+        .or_else(|| irr_u_secant(cashflows, div(2.0, 3.0)))
         .ok_or(WorksheetErrorCode::Num)
 }
 
@@ -893,6 +942,101 @@ mod tests {
                 assert_eq!(got.to_bits(), excel, "{flows:?} from {guess:?}: {got}");
             }
         }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn irr_u_coordinate_sequential_discount_and_retry_match_excel() {
+        // Live Excel 16.0.20527 through Touchstone:
+        // 1) u = r / (1 + r) quantization at large exact roots IRR([-1, M], M - 1):
+        for (m, excel_bits) in [
+            (3.0, 0x3fff_ffff_ffff_fffe_u64),
+            (5.0, 0x4010_0000_0000_0001),
+            (7.0, 0x4017_ffff_ffff_fffd),
+            (13.0, 0x4028_0000_0000_0005),
+            (19.0, 0x4031_ffff_ffff_fffb),
+        ] {
+            let got = irr_kernel(&[-1.0, m], Some(m - 1.0)).expect("exact-root M");
+            assert_eq!(got.to_bits(), excel_bits, "M={m}: {got}");
+        }
+        // 2) Precision near rate = 0: u0 = g / (1 + g) distinguishes g = -15 * 2^-60 from -14 * 2^-60
+        //    and single-ULP guesses around 0.21 that share the same binary64 (1 + g).
+        assert_eq!(
+            irr_kernel(&[1000.0, -1210.0], Some(-15.0 * 2f64.powi(-60)))
+                .unwrap()
+                .to_bits(),
+            0x3fca_e147_ae14_7ad8
+        );
+        assert_eq!(
+            irr_kernel(&[1000.0, -1210.0], Some(-14.0 * 2f64.powi(-60)))
+                .unwrap()
+                .to_bits(),
+            0x3fca_e147_ae14_7ae0
+        );
+        assert_eq!(
+            irr_kernel(&[-1000.0, 1210.0], Some(f64::from_bits(0x3fca_e147_ae14_7ade)))
+                .unwrap()
+                .to_bits(),
+            0x3fca_e147_ae14_7ae8
+        );
+        // 3) No early zero exit: at k = 46, y0 == 0 yet u0 + 0.001 == u0 stalls to #NUM!.
+        assert_eq!(
+            irr_kernel(&[-1.0, 2f64.powi(-45)], Some(-1.0 + 2f64.powi(-45)))
+                .unwrap()
+                .to_bits(),
+            0xbfefffff_ffffff00_u64
+        );
+        assert_eq!(
+            irr_kernel(&[-1.0, 2f64.powi(-46)], Some(-1.0 + 2f64.powi(-46))),
+            Err(WorksheetErrorCode::Num)
+        );
+        // 4) Flat-secant (y1 == y0) nudge in sign(u1 > u0) and retry ladder (u = -0.1, u = 2/3):
+        assert_eq!(
+            irr_kernel(
+                &[-1000.0 * 1_048_576.0, 1210.0 * 1_048_576.0],
+                Some(f64::from_bits(0x3fca_e147_ae14_7ade))
+            )
+            .unwrap()
+            .to_bits(),
+            0x3fca_e147_ae14_7ae0
+        );
+        assert_eq!(
+            irr_kernel(&[-0.125 * 1e10, 0.75 * 1e10, -1.5 * 1e10, 1e10], Some(0.1))
+                .unwrap()
+                .to_bits(),
+            0x3fef_ffea_e148_f0ba
+        );
+        assert_eq!(
+            irr_kernel(&[0.25 * 1e12, -1e12, 1e12], Some(0.1))
+                .unwrap()
+                .to_bits(),
+            0x3fef_ffff_f381_d24e
+        );
+        assert_eq!(
+            irr_kernel(&[0.25 * 1e14, -1e14, 1e14], Some(0.1))
+                .unwrap()
+                .to_bits(),
+            0x3fef_ffff_fd46_4a10
+        );
+        assert_eq!(
+            irr_kernel(&[0.25 * 3e14, -3e14, 3e14], Some(0.1))
+                .unwrap()
+                .to_bits(),
+            0x3fef_ffff_f64c_a29a
+        );
+        // 5) Transient 1 - u < 0 allowed, final rate <= -1 rejected (retries default 0.1):
+        assert_eq!(
+            irr_kernel(&[-85.0, -192.0, 170.0, 128.0], Some(2.0))
+                .unwrap()
+                .to_bits(),
+            0x3fa6_0407_53c3_6000
+        );
+        assert_eq!(
+            irr_kernel(&[-281.0, -185.0, 981.0], Some(10.0))
+                .unwrap()
+                .to_bits(),
+            0x3fe2_2d6a_1a67_87a4
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

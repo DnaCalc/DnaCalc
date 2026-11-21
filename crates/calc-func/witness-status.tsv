@@ -406,7 +406,7 @@ INTRATE	pinned	20430	120	120	-	exact	ffb14981f5	0	120	0	0	0	0	0
 IPMT	full	20131,20527,?	4408	4408	-	exact	6e3d35aa62+changes	0	-	-	-	-	-	-
 IPMT	pinned	20131,20527	191	191	-	exact	ffb14981f5	0	191	0	0	0	0	0
 IRR	full	20131,20228,20527,?	3211	3028	1024	numeric	6e3d35aa62+changes	0	-	-	-	-	-	-
-IRR	pinned	20131,20228,?	120	87	1024	numeric	ffb14981f5	0	87	1	32	0	0	0
+IRR	pinned	20131,20228,?	120	120	-	exact	712fee0020+changes	0	120	0	0	0	0	0
 ISBLANK	full	20430	1227	1227	-	exact	6e3d35aa62+changes	0	-	-	-	-	-	-
 ISBLANK	pinned	20430	120	120	-	exact	ffb14981f5	0	120	0	0	0	0	0
 ISERR	full	20430	1227	1227	-	exact	6e3d35aa62+changes	0	-	-	-	-	-	-
