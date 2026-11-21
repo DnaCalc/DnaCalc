@@ -572,16 +572,18 @@ pub fn gamma_dist_kernel(
 }
 
 /// Excel's iterative unit-scale gamma inverse solver (cb6, dc-j9k.60; Goldstein 451 start dc-j9k.63):
-/// - AS 91 `-1.24 * ln(p)` power seed, Goldstein (1973) Algorithm 451 full 7-term start for
-///   `a > 1.0`, and Wilson-Hilferty start for `a < 1.0` (with `z = -NORM.S.INV(q)` for
-///   right-tail chi-square callers so tiny `q` survives without `1 - q` cancellation);
+/// - AS 91 `-1.24 * ln(p)` power seed `exp(((ln(p) + gammaln(a)) + ln(a)) / a)` (dc-iuwct.58),
+///   Goldstein (1973) Algorithm 451 full 7-term start for `a > 1.0`, and Wilson-Hilferty start
+///   for `a < 1.0` (with `z = -NORM.S.INV(q)` for right-tail chi-square callers so tiny `q`
+///   survives without `1 - q` cancellation);
 /// - complement residual switch strictly above `0.9999` (`0x3fefff2e48e8a71e`);
 /// - `a < 1.0` Wilson-Hilferty cube `a * exp(3 * ln(c))` (dc-j9k.64, 57/60 vs 1/60 on frozen
 ///   live Excel 16.0.20527 holdouts);
 /// - unfactored Halley step `2*df / (2*pdf - df*((a-1)/x - 1))` with AS 109 sign-change
 ///   thirding damping (stopping at `best_x` when damping triggers without residual improvement),
-///   `106`-trial cap, `|next - x| <= f64::EPSILON * x` relative-step stop returning `best_x`
-///   without evaluating `next`, and strict-minimum residual `best_x` publication.
+///   `105`-step cap returning `best_x` iff `best_err <= 1e-12 * target` else `#NUM!` (dc-iuwct.58),
+///   `|next - x| <= f64::EPSILON * x` relative-step stop returning `best_x` without evaluating
+///   `next`, and strict-minimum residual `best_x` publication.
 pub(super) fn gamma_halley_unit(
     prob: f64,
     a: f64,
@@ -591,15 +593,20 @@ pub(super) fn gamma_halley_unit(
         excel_exp, excel_log, excel_sqrt_staged, excel_x87_add, excel_x87_div, excel_x87_mul,
         excel_x87_sub, gammaln_excel,
     };
-    const MAX_TRIALS: usize = 106;
+    const MAX_TRIALS: usize = 105;
 
     let mut x = if !is_upper_q {
         // The lower-tail power estimate is exact at the underflow scale.
         // Excel 20527: 56 controls separate an estimate rounded to zero
         // from a nonzero subnormal, which fails with #DIV/0! before scale is applied.
+        // AS 91 `exp(((ln(p) + gammaln(a)) + ln(a)) / a)` avoids `1 + a` absorption at
+        // small `a` and matches live Excel's addition order on `a ~ exp(-8)` probes (dc-iuwct.58).
         let power_seed = || {
             let log_seed = excel_x87_div(
-                excel_x87_add(excel_log(prob), gammaln_excel(1.0 + a)),
+                excel_x87_add(
+                    excel_x87_add(excel_log(prob), gammaln_excel(a)),
+                    excel_log(a),
+                ),
                 a,
             );
             excel_exp(log_seed)
@@ -668,6 +675,7 @@ pub(super) fn gamma_halley_unit(
     // Complement residual switch strictly above 0.9999 (0x3fefff2e48e8a71e).
     let comp_prob = excel_x87_add(0.5, excel_x87_sub(0.5, prob));
     let switch_comp = prob > 0.9999;
+    let target = if switch_comp { comp_prob } else { prob };
     let eval_df = |x_val: f64| -> Result<f64, WorksheetErrorCode> {
         if !is_upper_q && !switch_comp {
             let cdf = gamma_dist_kernel(x_val, a, 1.0, true)?;
@@ -704,6 +712,12 @@ pub(super) fn gamma_halley_unit(
         }
         if err_df == 0.0 {
             return Ok(best_x);
+        }
+        if trials >= MAX_TRIALS {
+            if best_err <= excel_x87_mul(1e-12, target) {
+                return Ok(best_x);
+            }
+            return Err(WorksheetErrorCode::Num);
         }
 
         let pdf = gamma_dist_kernel(x, a, 1.0, false)?;
@@ -748,9 +762,6 @@ pub(super) fn gamma_halley_unit(
                 return Ok(best_x);
             }
             trials += 1;
-            if trials > MAX_TRIALS {
-                return Err(WorksheetErrorCode::Num);
-            }
             if next == x {
                 return Ok(best_x);
             }
@@ -1376,5 +1387,108 @@ mod tests {
             ),
             Ok(0.0),
         );
+    }
+
+    /// Excel 16.0.20527 (dc-iuwct.58): GAMMA.INV 105-trial exhaustion tolerance
+    /// (`best_err <= 1e-12 * target`, both `prob` and `comp_prob` arms) and AS 91
+    /// `power_seed` sum order `((ln(p) + gammaln(a)) + ln(a)) / a`.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_iuwct_58_gamma_inv_structural_and_gross_boundaries() {
+        // 1. Five live Touchstone single-bit bisected MAX_TRIALS = 105 edges
+        //    (p_err -> #NUM!, p_ok -> x_105 where best_err <= 1e-12 * target).
+        //    Edges 3..5 carry a <=3 ULP forward gratio st200 residual (dc-j9k.59) at x_0 < 1.1;
+        //    all five single-bit #NUM! -> finite transitions match live Excel bit-for-bit.
+        let edges: [(u64, u64, u64, u64, u64); 5] = [
+            // a = 0.0252 (!switch_comp)
+            (0x3f99ce075f6fd220, 0x3fefa4e3873b90a2, 0x3fefa4e3873b90a3, 0x3fe3eeb2ef1e000f, 0),
+            // a = 0.02055 (!switch_comp)
+            (0x3f950b0f27bb2fec, 0x3fefdb099876b81d, 0x3fefdb099876b81e, 0x3ff03121a2dfde85, 0),
+            // a = 0.019 (!switch_comp)
+            (0x3f9374bc6a7ef9db, 0x3fefe649f3cec807, 0x3fefe649f3cec808, 0x3ff2fedd97d00a21, 2),
+            // a = 0.0128 (!switch_comp)
+            (0x3f8a36e2eb1c432d, 0x3feffca516ac6df6, 0x3feffca516ac6df7, 0x40029f26191448a4, 4),
+            // a = 0.0097 (p > 0.9999, switch_comp = true, target = comp_prob)
+            (0x3f83dd97f62b6ae8, 0x3fefff6c4cbc26a1, 0x3fefff6c4cbc26a2, 0x400bdcc7b0943823, 4),
+        ];
+        for (a_bits, p_err, p_ok, x_ok, max_ulp) in edges {
+            let a = f64::from_bits(a_bits);
+            assert_eq!(
+                gamma_inv_kernel(f64::from_bits(p_err), a, 1.0),
+                Err(WorksheetErrorCode::Num),
+                "expected #NUM! at p={p_err:#x}, a={a_bits:#x}",
+            );
+            let got = gamma_inv_kernel(f64::from_bits(p_ok), a, 1.0)
+                .expect("expected finite at p_ok")
+                .to_bits();
+            assert!(
+                got.abs_diff(x_ok) <= max_ulp,
+                "expected {x_ok:#x} +/- {max_ulp}u at p={p_ok:#x}, a={a_bits:#x}, got {got:#x}",
+            );
+        }
+
+        // 2. Bank structural rows (Group A #NUM!, Group B finite) and 105-step gross rows.
+        for (p_bits, a_bits) in [
+            (0x3fefa4e36c3bdd1e_u64, 0x3f99ce075f6fd220_u64), // halley[5010]
+            (0x3fefe649e3539e41_u64, 0x3f9374bc6a7ef9db_u64), // halley[4903]
+            (0x3fefff6c4c8c49c4_u64, 0x3f83dd97f62b6ae8_u64), // cb6[237]
+        ] {
+            assert_eq!(
+                gamma_inv_kernel(f64::from_bits(p_bits), f64::from_bits(a_bits), 1.0),
+                Err(WorksheetErrorCode::Num),
+            );
+        }
+        // Group B finite recoveries (halley[5008] and cb6[244] carry 1-ULP forward gratio st200
+        // residuals -> +46u / +3u at x_105, owned by dc-j9k.59; halley[4829] is bit-exact).
+        let got_5008 = gamma_inv_kernel(
+            f64::from_bits(0x3fefa4e3c3261e13),
+            f64::from_bits(0x3f99ce075f6fd220),
+            1.0,
+        )
+        .expect("halley[5008] must be finite")
+        .to_bits();
+        assert!(got_5008.abs_diff(0x3fe3eebdb25852fa) <= 46, "halley[5008]={got_5008:#x}");
+        let got_cb6_244 = gamma_inv_kernel(
+            f64::from_bits(0x3fefff6c4cdc47e3),
+            f64::from_bits(0x3f83dd97f62b6ae8),
+            1.0,
+        )
+        .expect("cb6[244] must be finite")
+        .to_bits();
+        assert!(got_cb6_244.abs_diff(0x400bdcc918e32713) <= 3, "cb6[244]={got_cb6_244:#x}");
+
+        for (p_bits, a_bits, expected) in [
+            (0x3fefef942c5c3563_u64, 0x3f91b71758e21965_u64, 0x3ff6aa4ac43db371_u64), // halley[4829]
+            (0x3fefe649f7ff93f5_u64, 0x3f9374bc6a7ef9db_u64, 0x3ff2fedf3efed5cf_u64), // halley[4902]
+            (0x3fefeb923ac27462_u64, 0x3f9288ce703afb7f_u64, 0x3ff4d9bbff0238ef_u64), // halley[4866]
+            (0x3fefa4e39778f829_u64, 0x3f99ce075f6fd220_u64, 0x3fe3eeb5d9e16df9_u64), // halley[5009]
+        ] {
+            assert_eq!(
+                gamma_inv_kernel(f64::from_bits(p_bits), f64::from_bits(a_bits), 1.0)
+                    .unwrap()
+                    .to_bits(),
+                expected,
+                "GAMMA.INV({p_bits:#x}, {a_bits:#x}, 1)",
+            );
+        }
+
+        // 3. AS 91 power_seed `((ln(p) + gammaln(a)) + ln(a)) / a`: small-shape plateau gross
+        //    rows and live Touchstone `a ~ exp(-8)` sum-order separating probes (0 ULP exact).
+        for (p_bits, a_bits, expected) in [
+            (0x3feffdad4b376a31_u64, 0x3f04062c83ec6f53_u64, 0x3f35ec85ab6bab65_u64), // halley[3955]
+            (0x3feffeac9d2f16ed_u64, 0x3ef818990fed1d12_u64, 0x3f40148394102a50_u64), // halley[2604]
+            (0x3feffecf145b62b3_u64, 0x3ef7f09ba7583970_u64, 0x3f4f909edec4f7e7_u64), // halley[1868]
+            (0x3fefff034d91b21e_u64, 0x3ef63c60040f69a2_u64, 0x3f5f61c9e1d5b3ea_u64), // halley[982]
+            (0.9985_f64.to_bits(), 0.0003354_f64.to_bits(), 0x3f7a5a9ce89bedd5_u64), // live (lp+ga)+la vs (lp+la)+ga
+            (0.9975_f64.to_bits(), 0.0003355_f64.to_bits(), 0x3f352ceb5a248ca1_u64), // live (lp+ga)+la vs (lp+la)+ga
+        ] {
+            assert_eq!(
+                gamma_inv_kernel(f64::from_bits(p_bits), f64::from_bits(a_bits), 1.0)
+                    .unwrap()
+                    .to_bits(),
+                expected,
+                "GAMMA.INV({p_bits:#x}, {a_bits:#x}, 1)",
+            );
+        }
     }
 }
