@@ -1342,6 +1342,22 @@ impl Run<'_, '_> {
         if target.0.parameter_class(index) != Some(ParameterClass::Value) {
             return Ok(value);
         }
+        // Excel 20527 database fields accept one referenced cell. A held error there is an
+        // invalid field, while a formed error or a computed array keeps its value and shape.
+        if index == 1
+            && target.0.id().family() == calc_catalogue::ported::database::CODE
+            && let CoreRef::Reference(reference) = value.core_ref()
+        {
+            if let [area] = reference.areas()
+                && area.cell_count() == 1
+            {
+                let field = self.reader.value_of(reference)?;
+                if !matches!(field.core_ref(), CoreRef::Error(_)) {
+                    return Ok(field);
+                }
+            }
+            return Ok(CalcValue::error(WorksheetErrorCode::Value));
+        }
         // The W111 MROUND/QUOTIENT reference controls distinguish a true multi-cell
         // reference from an array materialized by unary plus. The retained fn2
         // Legacy controls confirm the first argument, including beneath
