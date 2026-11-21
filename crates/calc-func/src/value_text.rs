@@ -23,7 +23,7 @@
 //!   or with a number that is a day of that month when it can be and a year otherwise (`jan 20`,
 //!   `jan 2020`, `jan 32`). A date without a year is in the year of the calculation's clock.
 //! - Times: `h:m`, `h:m:s` or `h:m:s.f` (hours below 10000, a trailing `:` allowed).
-//!   A standalone time admits one extended minute or second field from 100 to 9999, with
+//!   An unmarked time admits one extended minute or second field from 100 to 9999, with
 //!   ordinary values in the other fields. An hour alone takes an AM/PM marker; the marker (`a`, `p`,
 //!   `am`, `pm`, any case) follows a space and needs an hour from 0 to 12. A time may come
 //!   before or after a date.
@@ -576,12 +576,11 @@ fn time_at(tokens: &[Token], from: usize) -> Option<(f64, usize)> {
     if hour_len > 4 {
         return None;
     }
-    // Excel 20527, dc-4oy5: extended standalone times overflow only one component.
+    // Excel 20527, dc-4oy5: extended times overflow only one component.
     if extended
-        && (from != 0
-            || at != tokens.len()
-            || hour_len > 2
+        && (hour_len > 2
             || hour >= 24
+            || (at < tokens.len() && tokens[at - 1] == Token::Sep(':'))
             || (minute >= 60 && second >= 60.0))
     {
         return None;
@@ -592,7 +591,7 @@ fn time_at(tokens: &[Token], from: usize) -> Option<(f64, usize)> {
         && let Some(Token::Word(word)) = tokens.get(at + 1)
         && matches!(word.as_str(), "a" | "am" | "p" | "pm")
     {
-        if hour > 12 {
+        if extended || hour > 12 {
             return None;
         }
         let pm = word.starts_with('p');

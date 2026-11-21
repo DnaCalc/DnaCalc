@@ -555,6 +555,52 @@ fn unmarked_time_text_admits_one_extended_component() {
     exact(c(&env, "DATEVALUE", vec![t("0:240")]), 0.0);
 }
 
+/// Touchstone Excel 16.0.20527, with the date serial stored before the date or time is extracted.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn date_qualified_time_text_admits_one_extended_component() {
+    let env = host();
+    for (input, value, day, time) in [
+        (
+            "2020/01/02 0:240",
+            0x40e5_6705_5555_5555,
+            0x40e5_6700_0000_0000,
+            0x3fc5_5555_5554_0000,
+        ),
+        (
+            "0:240 1 jan 2020",
+            0x40e5_66e5_5555_5555,
+            0x40e5_66e0_0000_0000,
+            0x3fc5_5555_5554_0000,
+        ),
+        (
+            "2020-01-02 0:0:240.5",
+            0x40e5_6700_16cd_8efb,
+            0x40e5_6700_0000_0000,
+            0x3f66_cd8e_fb00_0000,
+        ),
+        (
+            "2020-01-02 01:9999",
+            0x40e5_67df_8888_8889,
+            0x40e5_67c0_0000_0000,
+            0x3fef_8888_8889_0000,
+        ),
+    ] {
+        for (function, bits) in [("VALUE", value), ("DATEVALUE", day), ("TIMEVALUE", time)] {
+            exact(c(&env, function, vec![t(input)]), f64::from_bits(bits));
+        }
+    }
+    for input in [
+        "2020/01/02 0:240:60",
+        "2020/01/02 0:240 AM",
+        "0:240: 2020/01/02",
+        "0:240 1/02/2020",
+        "2020/01/32 0:240",
+    ] {
+        error(c(&env, "TIMEVALUE", vec![t(input)]), Value);
+    }
+}
+
 /// dc-iuwct.44 (Excel 16.0.20527 en-ZA, 52/53 + 17/17 + 10/10 frozen predictions):
 /// year-less date text resolves against the calculation clock's year (same clock source as
 /// TODAY/NOW) in VALUE, DATEVALUE, NUMBERVALUE, date functions, and arithmetic coercion,
