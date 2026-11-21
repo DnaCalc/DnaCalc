@@ -16,3 +16,6 @@ Bootstrap. `infra-m0.1` created the Cargo workspace; none of its packages has a 
 ## Legacy sources
 
 The previous implementation (OxFunc, OxFml, OxCalc, OxDoc, DnaTreeCalc and related repositories under the `DnaCalc` organization) is the port source for this one. Those repositories are read-only inputs; `infra-m0.4` pins the exact commits and files each bead ports from.
+
+[Foundation history](docs/history/foundation/README.md) traces the earlier designs,
+Excel evidence, and decisions that led to the reimplementation.
