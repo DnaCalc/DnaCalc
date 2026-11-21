@@ -376,6 +376,55 @@ pub(super) fn flush_subnormal(value: f64) -> f64 {
     if value.is_subnormal() { 0.0 } else { value }
 }
 
+/// Full 7-term Goldstein (1973, ACM Algorithm 451) unit-scale starting approximation
+/// `a * ((c * c) * c)` for `a > 1.0`, with `f = 1 / (2*a)`, `u = z * sqrt(f)`, and
+/// stored Horner `c = sum_{k=0..6} (A[k] + f * (B[k] + f * C[k])) * u^k`.
+fn goldstein_initial_unit(z: f64, a: f64) -> Option<f64> {
+    use crate::ported::excel_numeric::{
+        excel_sqrt_staged, excel_x87_add, excel_x87_div, excel_x87_mul,
+    };
+    const A: [f64; 7] = [
+        1.0000886,
+        0.4713941,
+        0.0001348028,
+        -0.008553069,
+        0.003125580,
+        -0.0008426812,
+        0.00009780499,
+    ];
+    const B: [f64; 7] = [
+        -0.2237368,
+        0.02607083,
+        0.01128186,
+        -0.01153761,
+        0.005169654,
+        0.002530010,
+        -0.001450117,
+    ];
+    const C: [f64; 7] = [
+        -0.01513904,
+        -0.008986007,
+        0.02277679,
+        -0.01323293,
+        -0.006950356,
+        0.001060438,
+        0.001565326,
+    ];
+    let n = excel_x87_mul(2.0, a);
+    let f = excel_x87_div(1.0, n);
+    let f1 = excel_sqrt_staged(f);
+    let u = excel_x87_mul(z, f1);
+    let mut c = excel_x87_add(A[6], excel_x87_mul(f, excel_x87_add(B[6], excel_x87_mul(C[6], f))));
+    for k in (0..6).rev() {
+        let ck = excel_x87_add(A[k], excel_x87_mul(f, excel_x87_add(B[k], excel_x87_mul(C[k], f))));
+        c = excel_x87_add(excel_x87_mul(c, u), ck);
+    }
+    if !(c > 0.0) {
+        return None;
+    }
+    Some(excel_x87_mul(a, excel_x87_mul(excel_x87_mul(c, c), c)))
+}
+
 fn goldstein_cube_from_z(z: f64, n: f64) -> f64 {
     use crate::ported::excel_numeric::{
         excel_sqrt_staged, excel_x87_add, excel_x87_div, excel_x87_mul,
@@ -524,8 +573,9 @@ pub fn gamma_dist_kernel(
     }
 }
 
-/// Excel's iterative unit-scale gamma inverse solver (cb6, dc-j9k.60):
-/// - AS 91 `-1.24 * ln(p)` power / Wilson-Hilferty start (with `z = -NORM.S.INV(q)` for
+/// Excel's iterative unit-scale gamma inverse solver (cb6, dc-j9k.60; Goldstein 451 start dc-j9k.63):
+/// - AS 91 `-1.24 * ln(p)` power seed, Goldstein (1973) Algorithm 451 full 7-term start for
+///   `a > 1.0`, and Wilson-Hilferty start for `a < 1.0` (with `z = -NORM.S.INV(q)` for
 ///   right-tail chi-square callers so tiny `q` survives without `1 - q` cancellation);
 /// - complement residual switch strictly above `0.9999` (`0x3fefff2e48e8a71e`);
 /// - unfactored Halley step `2*df / (2*pdf - df*((a-1)/x - 1))` with AS 109 sign-change
@@ -575,6 +625,9 @@ pub(super) fn gamma_halley_unit(
                 return Err(WorksheetErrorCode::Div0);
             }
             seed
+        } else if a > 1.0 {
+            let z = crate::ported::normal_log_family::norm_s_inv_kernel(prob)?;
+            goldstein_initial_unit(z, a).ok_or(WorksheetErrorCode::Num)?
         } else {
             let v = excel_x87_div(1.0, excel_x87_mul(9.0, a));
             let z = crate::ported::normal_log_family::norm_s_inv_kernel(prob)?;
@@ -600,16 +653,8 @@ pub(super) fn gamma_halley_unit(
             }
             seed
         } else {
-            let v = excel_x87_div(1.0, excel_x87_mul(9.0, a));
             let z = -crate::ported::normal_log_family::norm_s_inv_kernel(prob)?;
-            let c = excel_x87_add(
-                excel_x87_sub(1.0, v),
-                excel_x87_mul(z, excel_sqrt_staged(v)),
-            );
-            if !(c > 0.0) {
-                return Err(WorksheetErrorCode::Num);
-            }
-            excel_x87_mul(a, excel_x87_mul(c, excel_x87_mul(c, c)))
+            goldstein_initial_unit(z, a).ok_or(WorksheetErrorCode::Num)?
         }
     };
 
@@ -1069,10 +1114,12 @@ mod tests {
             (0x3fefff2e48e8a71f, 0x408f400000000000, 0x3ff0000000000000, 0x4091879de0b4c4bd),
             // High-shape [2.5e10, 2^95) Goldstein at p = 0.999 (|z| > 2.75).
             (0x3feff7ced916872b, 0x42174876e8000000, 0x3ff0000000000000, 0x42174a2a59101a34),
-            // Frozen holdouts across small, mid, large, and extreme-upper regimes.
+            // Frozen holdouts across small, mid, large (cb6-holdout-071; cb6-holdout-076 now hits
+            // exact 0-ULP forward GAMMA.DIST on br=10 at x-1u while Excel GAMMA.INV returns x),
+            // and extreme-upper regimes.
             (0x3aa38dfb8f935b70, 0x3fe79ac9e4a2e18c, 0x40345ca531b3bf9f, 0x39043831c141a704),
             (0x3fc4db2992fab098, 0x402d6c641b472c29, 0x3fc49fb9f745f0b2, 0x3ffc4b612a9b924b),
-            (0x3fee58b3562fcd69, 0x403cf6bc76597762, 0x3fb733a3d8ed3a48, 0x400bba86c24eb332),
+            (0x3febc083e32ecd56, 0x4071050a6a4203c1, 0x40205d169e84b527, 0x40a295dee771b057),
             (0x3fefffffe1cb8b1e, 0x40587f06ef3445e4, 0x3fc502a9de9266f8, 0x403a3c50587838ba),
         ];
         for (p, a, b, expected) in rows {
@@ -1088,5 +1135,44 @@ mod tests {
             gamma_dist_kernel(x_eq, 2.5, 1.0, true).unwrap().to_bits(),
             p_eq.to_bits()
         );
+    }
+
+    /// Excel 16.0.20527 (dc-j9k.63): Goldstein (1973, Algorithm 451) 7-term starting proposal
+    /// for `a > 1.0` combined with cb7 half-integer Horner across GAMMA.INV and right-tail
+    /// chi-square inverse frozen holdouts and plateau witnesses (`oc59`, `oc76`, `oc70`).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_j9k_63_goldstein_451_start_matches_excel_bits() {
+        let gamma_rows: [(u64, u64, u64, u64); 6] = [
+            (0x3fcbb825ab49ca4b, 0x40638cf8e9c2c35f, 0x4008819e805f3445, 0x407c0b9b88dde21a),
+            (0x3febcf9c683e8b05, 0x4077ec0f12e42733, 0x3fed30e1434e4b74, 0x4077140364228a54),
+            (0x3fef2a22de855414, 0x4058b2ba8da2e53a, 0x3ff4e0f36eea7c0a, 0x406368de69acf270),
+            (0x3fbb4b41901b6438, 0x4015c0930a0ace1e, 0x3ffc51cc65d2be9f, 0x4013d08a9a5eda89),
+            (0x3fb670d8fae51f3c, 0x4015fea0e6caf30f, 0x40057acb7446d72a, 0x401cc96e31473339),
+            (0x3fc8322556a2f9c9, 0x3ff33e0b087d0945, 0x3ff4ef4cb3cee98e, 0x3fda1fc1add81c2f),
+        ];
+        for (p, a, b, expected) in gamma_rows {
+            let got = gamma_inv_kernel(f64::from_bits(p), f64::from_bits(a), f64::from_bits(b))
+                .unwrap();
+            assert_eq!(got.to_bits(), expected, "GAMMA.INV({p:#x}, {a:#x}, {b:#x})");
+        }
+        let chi_rt_rows: [(u64, u64, u64); 6] = [
+            // oc59 (df=10, q=0.99), oc76 (df=7, q=0.97), oc70 (df=7, q=0.02)
+            (0x3fefae147ae147ae, 0x4024000000000000, 0x40047737efe1de5b),
+            (0x3fef0a3d70a3d70a, 0x401c000000000000, 0x3ffcd374fa538aea),
+            (0x3f947ae147ae147b, 0x401c000000000000, 0x40309f570a2cbc80),
+            // nx6 unseen frozen CHIINV / CHISQ.INV.RT holdouts
+            (0x3f93b18667327922, 0x4031000000000000, 0x403f227a3644eb3d),
+            (0x3fefdf3d1412a6d7, 0x403a000000000000, 0x4025b62a489a4e3a),
+            (0x3faefaca4493affa, 0x403b000000000000, 0x40439c1394f3bed0),
+        ];
+        for (q, df, expected) in chi_rt_rows {
+            let got = crate::ported::chi_f_t_family::chisq_inv_rt_kernel(
+                f64::from_bits(q),
+                f64::from_bits(df),
+            )
+            .unwrap();
+            assert_eq!(got.to_bits(), expected, "CHIINV({q:#x}, {df:#x})");
+        }
     }
 }

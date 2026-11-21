@@ -12,7 +12,7 @@
   "witnesses": [
     {"args":["0x3f50624dd2f1a9fc","0x3ff0000000000000"],"expected_bits":"0x4025a7b6c0cc8b77","id":"oc1","reading":"r0"},
     {"args":["0x3f50624dd2f1a9fc","0x4000000000000000"],"expected_bits":"0x402ba18a998fffa0","id":"oc2","reading":"r0"},
-    {"args":["0x3f50624dd2f1a9fc","0x4008000000000000"],"calc_func":"0x403044280e2bdaae","expected_bits":"0x403044280e2bdaad","id":"oc3","reading":"r0"},
+    {"args":["0x3f50624dd2f1a9fc","0x4008000000000000"],"expected_bits":"0x403044280e2bdaad","id":"oc3","reading":"r0"},
     {"args":[" abc ","0x4059000000000000"],"expected_bits":"error:Value","id":"admit2-enrich-CHIINV-0065","reading":"r1"},
     {"args":[" abc ","0x40d8f84000000000"],"expected_bits":"error:Value","id":"admit2-enrich-CHIINV-1169","reading":"r1"},
     {"args":[" abc ","0x54b249ad2594c37d"],"expected_bits":"error:Value","id":"admit2-enrich-CHIINV-0785","reading":"r1"},
