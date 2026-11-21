@@ -319,9 +319,8 @@ impl CallableTable {
         Ok(())
     }
 
-    /// Registers every function of `other` here at its own provider target, as one table of a
-    /// host's native add-ins and a VBA project's functions is composed. A name both tables
-    /// register is refused ([`Self::register_for`]); nothing of `other` is registered then.
+    /// Registers every function of `other` with its descriptor at its own provider target.
+    /// A name both tables register is refused ([`Self::register_for`]), and the table remains as it was.
     pub fn add_from(&mut self, other: &CallableTable) -> Result<(), String> {
         let mut functions = Vec::new();
         for (provider, name) in other.registrations() {
@@ -338,6 +337,7 @@ impl CallableTable {
         for (provider, name, function) in functions {
             self.register_for(provider.as_deref(), &name, function)?;
         }
+        self.descriptors.extend(other.descriptors.clone());
         Ok(())
     }
 
@@ -628,6 +628,39 @@ mod tests {
                 _ => Err("one argument required".into()),
             }
         }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn merging_callables_preserves_descriptors_and_table_identity() {
+        let mut destination = CallableTable::new();
+        destination.register("Existing", Rc::new(Twice)).unwrap();
+        let existing = destination.bind(None, "Existing").unwrap();
+        let mut provider = CallableTable::new();
+        let descriptor = CallableDescriptor {
+            name: "Twice".into(),
+            origin: "provider".into(),
+            ..CallableDescriptor::default()
+        };
+        provider
+            .register_described(Some("Provider.xll"), "Twice", Rc::new(Twice), descriptor.clone())
+            .unwrap();
+        let foreign = provider.bind(Some("Provider.xll"), "Twice").unwrap();
+
+        destination.add_from(&provider).unwrap();
+
+        assert_eq!(
+            destination.descriptor(Some("Provider.xll"), "Twice"),
+            Some(&descriptor)
+        );
+        assert_eq!(destination.bind(None, "Existing"), Some(existing));
+        assert!(destination.resolve(foreign).is_none());
+        assert!(destination.bind(Some("Provider.xll"), "Twice").is_some());
+        assert!(destination.add_from(&provider).is_err());
+        assert_eq!(
+            destination.descriptor(Some("Provider.xll"), "Twice"),
+            Some(&descriptor)
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -440,7 +440,7 @@ pub(crate) fn environment(culture: &str, now: Option<f64>, date_1904: bool) -> C
 /// they are a VBA module's, which a new session does not carry: the module is unloaded with the
 /// session it was loaded into.
 fn carry_functions(old: &mut Session, new: &mut Session) {
-    if !old.has_vba_module() {
+    if !old.has_published_vba_module() {
         new.set_user_functions(old.published_functions().clone());
     }
     // The macro security level is the person's, not the file's.
@@ -619,7 +619,7 @@ impl SessionPort for LocalPort {
                 names: session.user_function_names(),
             },
             Request::UnloadVba => {
-                session.clear_user_functions();
+                session.unload_vba_module();
                 Reply::Accepted
             }
             Request::Evaluate(authored) => {

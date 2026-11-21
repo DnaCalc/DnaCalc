@@ -8,8 +8,8 @@ CalcFml owns Excel formula syntax, binding, evaluation and formatting. Hosts sup
 - `compile` and `compile_loaded` use the caller's `PlanCache`; `instantiate` places a shared plan at an
   anchor. Run the instance through `evaluate` or through `EvalContinuation` when the owner can resume
   suspended work. The caller owns scratch and services (`src/eval/compile.rs:156`, `src/eval/run.rs:325`).
-- `CallableTable` composes provider registrations and binds callable identities (`src/callable.rs:285`,
-  `src/callable.rs:325`). `RtdLedger` and `admit` track externally supplied RTD updates
+- `CallableTable` composes provider registrations with their descriptors and binds callable identities
+  (`src/callable.rs:285`, `src/callable.rs:324`). `RtdLedger` and `admit` track externally supplied RTD updates
   (`src/rtd.rs:48`, `src/rtd.rs:87`).
 - `tests/acceptance.rs` exercises the formula route. The engine and formula explorer both use this crate.
 

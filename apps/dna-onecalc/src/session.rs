@@ -215,15 +215,17 @@ pub struct Session {
     /// result, kept in the session file as ordinary cell formats and conditional formats
     /// (dc-0f1k.20).
     look: (crate::cf::CellStyle, Vec<crate::cf::CfRuleSpec>),
-    /// Whether a VBA standard module typed into the session is loaded (beside any project).
-    vba_loaded: bool,
+    /// Whether the owner's published table includes a typed VBA module.
+    published_vba_loaded: bool,
+    /// The typed module owned by a local session.
+    vba_module: Option<calc_fml::CallableTable>,
     /// The VBA project the session's file carries (an .xlsm session), compiled.
     project: Option<SessionProject>,
     /// The macro security level in force (dc-15dk): the host sets what the person stored, or Enable
     /// all pinned by `--trust-macros` or `DNACALC_TRUST_ALL_MACROS=1`; a replacement session keeps it.
     macro_policy: calc_macro_security::MacroPolicy,
-    /// The table of functions the session's owner published (add-ins, typed modules); the
-    /// session's callable table is this one with the project's functions added.
+    /// The table of functions the session's owner published. Local VBA functions are composed
+    /// with this table in the session's callable registry.
     published: calc_fml::CallableTable,
     /// The owner that delivers asynchronous returns; with one, evaluation runs as a continuation.
     returns: Option<Box<dyn ExternalReturns>>,
@@ -271,7 +273,8 @@ impl Session {
             options: SessionOptions::default(),
             look: Default::default(),
             addins: Vec::new(),
-            vba_loaded: false,
+            published_vba_loaded: false,
+            vba_module: None,
             project: None,
             macro_policy: calc_macro_security::MacroPolicy::default(),
             published: calc_fml::CallableTable::new(),
@@ -400,12 +403,16 @@ impl Session {
     /// Records whether a VBA module is loaded, for a host that keeps the module beside its
     /// add-ins and publishes the one table of functions itself.
     pub fn set_vba_loaded(&mut self, loaded: bool) {
-        self.vba_loaded = loaded;
+        self.published_vba_loaded = loaded;
     }
 
     /// Whether a VBA module is loaded.
     pub fn has_vba_module(&self) -> bool {
-        self.vba_loaded
+        self.published_vba_loaded || self.vba_module.is_some()
+    }
+
+    pub(crate) fn has_published_vba_module(&self) -> bool {
+        self.published_vba_loaded
     }
 
     /// Adds a sheet named `name`.
@@ -567,8 +574,8 @@ impl Session {
             .map(|(cell, value)| (*cell, value))
     }
 
-    /// Publish a complete replacement. Plans retain no engine objects or old registrations. The
-    /// functions of the session's own VBA project stay callable beside them.
+    /// Publish a complete replacement. Plans retain no engine objects or old registrations.
+    /// Local VBA stays callable beside the owner registrations when there is no name collision.
     pub fn set_user_functions(&mut self, functions: calc_fml::CallableTable) {
         self.published = functions;
         if self.rtd.has_connector() {
@@ -577,14 +584,17 @@ impl Session {
         self.republish();
     }
 
-    /// The table the owner published, without the session's project: what a session that
-    /// replaces this one takes over.
+    /// The owner's registrations before adding the session's own VBA functions.
     pub fn published_functions(&self) -> &calc_fml::CallableTable {
         &self.published
     }
 
     fn republish(&mut self) {
         let mut table = self.published.clone();
+        if let Some(module) = &self.vba_module {
+            // If the owner takes one of its names, retain the owner's complete table.
+            let _ = table.add_from(module);
+        }
         if let Some(load) = self.project.as_ref().and_then(|p| p.load.as_ref()) {
             let functions = load.project.functions();
             for (provider, name) in functions.registrations() {
@@ -867,7 +877,8 @@ impl Session {
         self.functions_version
     }
 
-    /// Load a VBA standard module. Failed compilation preserves the previous registrations.
+    /// Reload the local VBA standard module beside the owner's published functions.
+    /// Failed compilation or a duplicate registration preserves the previous registrations.
     pub fn load_vba_module(
         &mut self,
         name: &str,
@@ -880,13 +891,25 @@ impl Session {
             max_steps,
             calc_vba::Profile::ValuesOnly,
         )?;
+        if let Some((_, name)) = functions
+            .registrations()
+            .find(|(provider, name)| self.published.contains_for(*provider, name))
+        {
+            return Err(format!("duplicate or empty user function: {name}"));
+        }
         let names = functions.names().map(str::to_owned).collect();
-        self.set_user_functions(functions);
-        self.vba_loaded = true;
+        self.vba_module = Some(functions);
+        self.republish();
         Ok(names)
     }
 
-    /// The callable user functions, which a new session over the same add-ins takes over.
+    pub(crate) fn unload_vba_module(&mut self) {
+        if self.vba_module.take().is_some() {
+            self.republish();
+        }
+    }
+
+    /// The callable user functions available to the current session.
     pub fn user_functions(&self) -> &calc_fml::CallableTable {
         &self.functions
     }
@@ -902,7 +925,8 @@ impl Session {
     }
 
     pub fn clear_user_functions(&mut self) {
-        self.vba_loaded = false;
+        self.published_vba_loaded = false;
+        self.vba_module = None;
         self.set_user_functions(calc_fml::CallableTable::new());
     }
 }

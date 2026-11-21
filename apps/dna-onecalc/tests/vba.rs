@@ -1,6 +1,16 @@
 //! dc-snz.3: use the application's controller, also compiled and run in the browsers.
 use calc_func::value::{CalcValue, WorksheetErrorCode};
+use dna_onecalc::port::{LocalPort, Reply, Request, SessionPort};
 use dna_onecalc::{InputValue, Session};
+
+#[derive(Debug)]
+struct ProviderValue(f64);
+
+impl calc_func::UserFunction for ProviderValue {
+    fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+        Ok(CalcValue::number(self.0))
+    }
+}
 
 fn session() -> Session {
     let mut session = Session::new("Sheet1").unwrap();
@@ -17,6 +27,54 @@ fn result(session: &mut Session, formula: &str) -> CalcValue {
     calculation
         .result
         .unwrap_or_else(|| panic!("{formula}: {:?}", calculation.diagnostics))
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn typed_vba_load_and_unload_preserve_other_callable_providers() {
+    let provider = |number| {
+        let mut functions = calc_fml::CallableTable::new();
+        functions
+            .register("ProviderValue", std::rc::Rc::new(ProviderValue(number)))
+            .unwrap();
+        functions
+    };
+    let mut port = LocalPort::new(session());
+    port.session_mut().set_user_functions(provider(7.0));
+    assert!(matches!(
+        port.send(Request::LoadVba {
+            name: "Math".into(),
+            source: calc_vba::EXAMPLE_MODULE.into(),
+        }),
+        Reply::Functions { .. }
+    ));
+    let combined = "=ProviderValue()+Math.Add2(A1,2)";
+    assert_eq!(result(port.session_mut(), combined), CalcValue::number(49.0));
+    port.session_mut().set_user_functions(provider(8.0));
+    assert_eq!(result(port.session_mut(), combined), CalcValue::number(50.0));
+    assert!(matches!(port.send(Request::UnloadVba), Reply::Accepted));
+    assert_eq!(
+        result(port.session_mut(), "=ProviderValue()"),
+        CalcValue::number(8.0)
+    );
+    assert_eq!(
+        result(port.session_mut(), "=Math.Add2(A1,2)"),
+        CalcValue::error(WorksheetErrorCode::Name)
+    );
+
+    assert!(matches!(
+        port.send(Request::LoadVba {
+            name: "Math".into(),
+            source: calc_vba::EXAMPLE_MODULE.into(),
+        }),
+        Reply::Functions { .. }
+    ));
+    assert!(matches!(port.send(Request::New), Reply::Opened(_)));
+    assert_eq!(
+        result(port.session_mut(), "=ProviderValue()"),
+        CalcValue::number(8.0)
+    );
+    assert!(!port.session().has_vba_module());
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
