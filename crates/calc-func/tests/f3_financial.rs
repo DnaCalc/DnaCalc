@@ -263,6 +263,37 @@ fn amordegrc_orders_errors_and_refuses_unrecorded_fractional_state() {
     }
 }
 
+/// Excel 20527's finite high-rate charge and its equal-date and unequal-date schedules.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn amordegrc_high_rate_schedule() {
+    let amort = |args: [f64; 7]| dated("AMORDEGRC", args.into_iter().map(n).collect());
+    for (first, charges) in [
+        (40000.0, [60000.0, 24000.0, 9600.0, 3840.0]),
+        (40365.0, [60000.0, 20000.0, 20000.0, 0.0]),
+    ] {
+        for (period, expected) in charges.into_iter().enumerate() {
+            exact(amort([100000.0, 40000.0, first, 0.0, period as f64, 0.4, 3.0]), expected);
+        }
+    }
+    exact(amort([100000.0, 40000.0, 40000.0, 100000.0, 1.0, 0.49, 3.0]), 0.0);
+    exact(
+        amort([3493318265540402.5, 56744.0, 57621.0, 870902108818567.8, 1.0, 0.3734001522762987, 3.0]),
+        435451054409286.0,
+    );
+    exact(
+        amort([1894639042260419.8, 28600.0, 28600.0, 293766214503728.6, 2.0, 0.3758576726665039, 3.0]),
+        203254115488653.0,
+    );
+    exact(
+        amort([3154856221485094.0, 45261.0, 45261.0, 2839370599336584.5, 0.0, 0.492650281092632, 3.0]),
+        315485622148509.0,
+    );
+    let limit = 0.5_f64.to_bits();
+    error(amort([100000.0, 40000.0, 40000.0, 0.0, 2.0, f64::from_bits(limit - 1), 3.0]), Num);
+    exact(amort([100000.0, 40000.0, 40000.0, 0.0, 2.0, f64::from_bits(limit - 2), 3.0]), 4688.0);
+}
+
 /// Excel 20527 validates YIELD's basis before the date and scalar slots.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

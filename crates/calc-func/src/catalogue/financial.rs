@@ -395,7 +395,7 @@ ported_shared_family! {
     }
     27 amordegrc_fn |s, a, sv| {
         let [cost, purchased, first, salvage, period, rate, basis] = amor_arguments(s, a, sv)?;
-        if rate >= 0.5 || basis < 0.0 || !matches!(basis.trunc() as i64, 0 | 1 | 3 | 4) {
+        if rate >= amor::AMORDEGRC_RATE_LIMIT || basis < 0.0 || !matches!(basis.trunc() as i64, 0 | 1 | 3 | 4) {
             return fail(W::Num);
         }
         if period > 0.0 && period < 1.0 {
