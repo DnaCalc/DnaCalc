@@ -5121,24 +5121,7 @@ pub fn answer_text(
     text: &str,
     bytes: Option<Vec<u8>>,
 ) -> (String, Option<Vec<u8>>) {
-    use wire::{FromServer, ToServer};
-    match wire::decode::<ToServer>(text) {
-        Ok(ToServer { id, request }) => {
-            let answer = server.handle(request, bytes);
-            let message = match answer.reply {
-                Ok(reply) => FromServer::Reply { id, reply },
-                Err(message) => FromServer::Failed {
-                    id: Some(id),
-                    message,
-                },
-            };
-            (wire::encode(&message), answer.bytes)
-        }
-        Err(message) => (
-            wire::encode(&FromServer::Failed { id: None, message }),
-            None,
-        ),
-    }
+    crate::message::answer(server, crate::message::PageMessage::decode(text, bytes))
 }
 
 #[cfg(test)]

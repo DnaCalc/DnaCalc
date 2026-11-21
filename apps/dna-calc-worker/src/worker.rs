@@ -4,7 +4,7 @@
 //! Follows DnaTreeCalc bf6dfd7 `src/dnatreecalc-web/src/worker_runtime.rs`.
 
 #[cfg(target_arch = "wasm32")]
-use crate::wire::{self, FromServer};
+use crate::{message, wire::Event};
 
 /// Whether this wasm instance runs in a dedicated worker rather than a page.
 pub fn in_worker() -> bool {
@@ -28,36 +28,35 @@ fn scope() -> web_sys::DedicatedWorkerGlobalScope {
 }
 
 #[cfg(target_arch = "wasm32")]
-fn post(message: &FromServer) {
-    let _ = scope().post_message(&wasm_bindgen::JsValue::from_str(&wire::encode(message)));
+fn post(text: &str) {
+    let _ = scope().post_message(&wasm_bindgen::JsValue::from_str(text));
 }
 
 #[cfg(target_arch = "wasm32")]
-fn post_event(event: wire::Event) -> bool {
-    if let wire::Event::Tiles(batch) = event {
-        match wire::encode_tiles(&batch) {
-            Ok(bytes) => {
-                let array = js_sys::Uint8Array::from(bytes.as_slice());
-                let buffer = array.buffer();
-                let pair = js_sys::Array::of2(&wire::TILE_TAG.into(), &buffer);
-                if scope()
-                    .post_message_with_transfer(&pair, &js_sys::Array::of1(&buffer))
-                    .is_err()
-                {
-                    post(&FromServer::Failed {
-                        id: None,
-                        message: "Could not transfer tile fragment".into(),
-                    });
-                    return false;
-                }
-            }
-            Err(message) => {
-                post(&FromServer::Failed { id: None, message });
+fn transfer(text: &str, bytes: &[u8]) -> Result<(), wasm_bindgen::JsValue> {
+    let array = js_sys::Uint8Array::from(bytes);
+    let buffer = array.buffer();
+    let pair = js_sys::Array::of2(&text.into(), &buffer);
+    scope().post_message_with_transfer(&pair, &js_sys::Array::of1(&buffer))
+}
+
+#[cfg(target_arch = "wasm32")]
+fn post_event(event: Event) -> bool {
+    match message::event(event) {
+        Ok((text, None)) => post(&text),
+        Ok((text, Some(bytes))) => {
+            if transfer(&text, &bytes).is_err() {
+                post(&message::failure(
+                    None,
+                    "Could not transfer tile fragment".into(),
+                ));
                 return false;
             }
         }
-    } else {
-        post(&FromServer::Event(event));
+        Err(reason) => {
+            post(&message::failure(None, reason));
+            return false;
+        }
     }
     true
 }
@@ -69,25 +68,25 @@ pub fn start() {
         use wasm_bindgen::JsCast;
         use wasm_bindgen::prelude::Closure;
         std::panic::set_hook(Box::new(|info| {
-            post(&FromServer::Failed {
-                id: None,
-                message: format!("the worker panicked: {info}"),
-            });
+            post(&message::failure(
+                None,
+                format!("the worker panicked: {info}"),
+            ));
         }));
         let on_message = Closure::<dyn FnMut(web_sys::MessageEvent)>::new(handle);
         scope().set_onmessage(Some(on_message.as_ref().unchecked_ref()));
         on_message.forget();
-        post(&FromServer::Started);
+        post(&message::started());
     }
 }
 
 #[cfg(target_arch = "wasm32")]
 fn handle(event: web_sys::MessageEvent) {
     let Some((text, bytes)) = dna_calc_protocol::unpack(event.data()) else {
-        post(&FromServer::Failed {
-            id: None,
-            message: "a message that is not text".to_owned(),
-        });
+        post(&message::failure(
+            None,
+            "a message that is not text".to_owned(),
+        ));
         return;
     };
     let (reply, out, events) = SERVER.with(|server| {
@@ -108,17 +107,11 @@ fn handle(event: web_sys::MessageEvent) {
             return;
         }
     }
-    let message = wasm_bindgen::JsValue::from_str(&reply);
     match out {
-        None => {
-            let _ = scope().post_message(&message);
-        }
+        None => post(&reply),
         Some(bytes) => {
             // A saved package travels beside the reply, its buffer transferred.
-            let array = js_sys::Uint8Array::from(bytes.as_slice());
-            let buffer = array.buffer();
-            let pair = js_sys::Array::of2(&message, &buffer);
-            let _ = scope().post_message_with_transfer(&pair, &js_sys::Array::of1(&buffer));
+            let _ = transfer(&reply, &bytes);
         }
     }
     schedule_calculation();
