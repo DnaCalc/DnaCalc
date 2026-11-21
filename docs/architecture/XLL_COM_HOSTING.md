@@ -201,9 +201,14 @@ points are resolved by name from the host exe [V xlcall.cpp]. For an **unmodifie
 Excel's rules [V MTR page]: one main thread runs xlAutoOpen, XLL and VBA commands, VBA UDFs, XLL functions not marked
 `$`, macro-sheet-equivalent `#` functions, COM add-in calls, CF formulas and **functions inside name definitions**;
 other threads run only thread-safe cells. Thread-safe XLL functions may call `xlCoerce` (not on uncalculated cells),
-`xlFree`, `xlStack`, `xlSheetId`, `xlSheetNm`, `xlAbort`, `xlGetInst`, `xlGetHwnd`, binary names; XLM information
-functions fail `xlretFailed`, `xlfSetName`/unsafe `xlUDF`/unsafe `xlfEvaluate` fail `xlretNotThreadSafe`; no worksheet
-function may call commands. A non-`#` function that coerces an uncalculated cell gets `xlretUncalced` and **is called
+`xlFree`, `xlStack`, `xlSheetId`, `xlSheetNm`, `xlAbort`, `xlGetHwnd` and binary names. The MTR documentation
+lists `xlretFailed` for XLM information functions and `xlretNotThreadSafe` for unsafe `xlfEvaluate` [V MTR page].
+Callback permissions depend on the entry context. In x13, `xlGetInst` returned 32 in ordinary, `#`, `$`
+and `xlAutoOpen` contexts, and `xlUDF` returned 32 from a `$` entry. `xlfSetName` returned 2 from ordinary
+and `$` entries and 0 from `#`. The ECHO command returned 2 from an ordinary entry, 128 from `$` and 0
+with FALSE from `#`. [x13 boundary measurements](#28-boundary-batch-x13-xlfree-failed-callback-writes-xlgetinst-xlstack-auto-free-dc-633210).
+
+A non-`#` function that coerces an uncalculated cell gets `xlretUncalced` and **is called
 again** once the cell is calculated; a `#` function reads the old value [V xlfRegister page]. Async: only
 `xlAsyncReturn` may be called from non-calculation threads during recalculation; arguments must be deep-copied [V].
 
@@ -211,8 +216,12 @@ Implications for DNA Calc (connects to SYNTHESIS 1.3-1.4):
 - **One application main lane**: VBA's owner lane, the XLL main thread, the COM STA and the thread owning `XLMAIN` must
   be the same OS thread (Excel-DNA caches `_mainNativeThreadId` and enumerates that thread's windows). It runs non-`$`
   XLL UDFs, `#` UDFs, name-definition evaluation that calls them, commands, RTD server calls, events, ribbon callbacks.
-- `$` XLL UDFs run on engine pool threads; each pool thread carries the per-thread XLL context and the permitted
-  callback set. Return values are copied before the next call into the module on that thread (xlw's pool).
+- Eligible `$` XLL UDFs can run on engine pool threads. Each thread carries its XLL context and permitted
+  callbacks, and the host copies return values before the next call into that module on that thread.
+  Excel's placement depends on the command. x13 observed worker execution at formula entry, and x17
+  observed both the initial `QU$` attempt and its retry on the main thread during `Range.Calculate`.
+  [Formula entry](#28-boundary-batch-x13-xlfree-failed-callback-writes-xlgetinst-xlstack-auto-free-dc-633210) ·
+  [Range.Calculate](#30-status-64-batch-x17-xlretuncalced-discarded-attempts--and-value-arguments-dc-633211).
 - **Uncalced retry is Excel semantics**: a non-`#` UDF that reads an uncalculated cell through `xlCoerce` aborts and is
   re-invoked later. Under SYNTHESIS 1.3 that is a **new `InvocationId`** in the same pass, not a scheduler retry, and
   its side effects can happen twice, as in Excel. It discovers a dependency at run time; the engine records it as a
