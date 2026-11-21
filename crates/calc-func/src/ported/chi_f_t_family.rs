@@ -345,7 +345,7 @@ pub fn f_dist_kernel(
         }
         Ok(f_tails(x, d1, d2).1)
     } else {
-        f_pdf_kernel(x, d1, d2)
+        f_pdf_kernel(x, d1, d2).map(crate::ported::beta_gamma_stats_family::flush_subnormal)
     }
 }
 

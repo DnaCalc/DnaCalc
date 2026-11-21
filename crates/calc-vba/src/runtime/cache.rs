@@ -10,7 +10,7 @@ pub struct OwnedSession {
     event_project: bool,
     /// Per function of a document project: why it runs on the dynamic runtime, as a worksheet
     /// function of an add-in or a module does, instead of its owning typed entry: a signature the
-    /// owning value carriers do not hold (ParamArray, Date, Currency, Range, arrays), or a body the
+    /// owning value carriers do not hold (Date, Currency, Range, arrays), or a body the
     /// typed route cannot link (a VBA library function it has no owning builtin for, a class
     /// created with `New`). `None`: the owning typed entry runs it (dc-hsa5.12).
     dynamic: Vec<Option<String>>,
@@ -40,7 +40,8 @@ impl OwnedSession {
                         OxTy::Long | OxTy::Double | OxTy::Bool | OxTy::Str | OxTy::Variant
                     )
                 };
-                if !(procedure.parameters.iter().all(|p| carried(&p.ty))
+                let fixed = procedure.parameters.iter().take_while(|p| !p.param_array);
+                if !(fixed.clone().all(|p| carried(&p.ty))
                     && procedure.return_type.as_ref().is_some_and(carried))
                 {
                     dynamic[index] =
@@ -49,11 +50,7 @@ impl OwnedSession {
                 }
                 let linked = inner.bind_values(
                     neutral::handle(bound).map_err(neutral::adapter_error)?,
-                    &procedure
-                        .parameters
-                        .iter()
-                        .map(|p| owning_type(&p.ty))
-                        .collect::<Vec<_>>(),
+                    &fixed.map(|p| owning_type(&p.ty)).collect::<Vec<_>>(),
                     owning_type(procedure.return_type.as_ref().expect("function result")),
                 );
                 match linked {
@@ -106,19 +103,29 @@ impl OwnedSession {
             self.spreadsheet.as_deref(),
             index,
             args,
-            |index, values| {
+            |mut values, tail| {
                 if self.event_project && self.dynamic(index).is_none() {
                     // The owning typed route checks the whole reachable call graph before any
                     // body effect. A callee it cannot link (a class created with `New`, a
                     // typed Raise, a logical Or) refuses with UnsupportedSignature before
                     // anything ran, so the function runs on the dynamic runtime instead, as
                     // a function the signature check already sent there does (dc-tey4.3).
-                    match self.call_owning(index, values, max_steps) {
+                    match self.call_owning(
+                        index,
+                        &values,
+                        tail.as_deref().unwrap_or_default(),
+                        max_steps,
+                    ) {
                         Err(Error::UnsupportedSignature(_)) => {}
                         other => return other,
                     }
                 }
-                calcvba_host_api::Session::call_bound(self, &self.bound[index], values, max_steps)
+                // The dynamic entry takes the packed carrier. The owning API packs its
+                // own tail from the individual worksheet arguments.
+                if let Some(tail) = tail {
+                    values.push(Variant::from_safearray(SafeArray::from_variants(tail)));
+                }
+                calcvba_host_api::Session::call_bound(self, &self.bound[index], &values, max_steps)
                     .map_err(neutral::adapter_error)
             },
         )
@@ -201,6 +208,7 @@ impl OwnedSession {
         &self,
         index: usize,
         values: &[Variant],
+        tail: &[Variant],
         max_steps: u64,
     ) -> Result<Variant, Error> {
         use calcvba_host_api as api;
@@ -236,13 +244,14 @@ impl OwnedSession {
                 })
             })
             .collect::<Result<Vec<_>, Error>>()?;
-        let slots = values
+        let mut slots = values
             .iter()
             .map(|v| {
                 v.borrow_slot()
                     .ok_or_else(|| Error::ValueConversion("event-project argument carrier".into()))
             })
             .collect::<Result<Vec<_>, _>>()?;
+        slots.extend(tail.iter().map(api::ValueSlot::Variant));
         let handle = neutral::handle(&self.bound[index]).map_err(neutral::adapter_error)?;
         let call =
             |context: &mut api::TypedContext| self.inner.call_values(handle, &slots, context);

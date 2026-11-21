@@ -1096,6 +1096,40 @@ fn mutable_owner_calculate_reenters_the_same_project_and_preserves_the_outer_tar
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn document_event_calculates_paramarray_functions_on_its_owning_session() {
+    let examples = include_str!("../../calc-xll-reference/fixture/vba/DnaExamples.bas");
+    let start = examples.find("Public Function DnaArgs(").unwrap();
+    let end = examples.find("Public Function DnaCounted(").unwrap();
+    let functions = &examples[start..end];
+    for backend in backends() {
+        let mut session = opened(&calc_host::blank_package(), "owner.xlsx");
+        session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
+        enter(&mut session, 1, 2, "=DnaArgs(1,,\"x\")");
+        mutable_owner(
+            &mut session,
+            "Private Sub Worksheet_Change(ByVal Target As Excel.Range)\n Application.Calculate\nEnd Sub\n",
+            functions,
+            10000,
+            backend,
+        );
+        enter(&mut session, 1, 1, "9");
+        assert!(
+            session.workbook_event_failures().failures.is_empty(),
+            "{backend:?}: {:?}",
+            session.workbook_event_failures()
+        );
+        assert!(!session.has_pending_calculation());
+        // Recorded in excel-reopen-dnaexamples-xlsm.json.
+        assert_eq!(
+            value(&session, 1, 2).as_text().unwrap().to_string_lossy(),
+            "3:Double:missing:String",
+            "{backend:?}"
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn original_recalculation_probe_project_is_admitted_without_source_removal() {
     let bytes = include_bytes!(
         "../../calc-engine/tests/fixtures/excel-calc-probes/P04/plain-settles-full-01.xlsm"
