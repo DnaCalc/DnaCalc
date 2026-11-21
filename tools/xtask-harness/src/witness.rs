@@ -86,9 +86,11 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
-pub const USAGE: &str = "cargo xtask witness judge [--func <F>] [--bank pinned|full] [--release | --profile dev|release|perf] [--report <json>] [--trace <path>] [--values-only] | cargo xtask witness compare --before <trace> --after <trace> | cargo xtask witness refresh [--func <F>] [--context] [--classified-losses <tsv>] | cargo xtask witness pin [--func <F>] [--rows <N>] | cargo xtask witness read --func <F>[,<F>...] [--timeout <s>] [--inputs <json> [--new-only] [--repeat-calls]] | cargo xtask witness export --report <jsonl> [--func <F>]";
+pub const USAGE: &str = "cargo xtask witness judge [--func <F>] [--bank pinned|full] [--release | --profile dev|release|perf] [--report <json>] [--trace <path>] [--values-only] [--study-cpu intel] | cargo xtask witness compare --before <trace> --after <trace> | cargo xtask witness refresh [--func <F>] [--context] [--classified-losses <tsv>] | cargo xtask witness pin [--func <F>] [--rows <N>] | cargo xtask witness read --func <F>[,<F>...] [--timeout <s>] [--inputs <json> [--new-only] [--repeat-calls]] | cargo xtask witness export --report <jsonl> [--func <F>]";
 
 use crate::evidence::CHECKOUT;
+const STUDIES: &str = "studies-manifest.tsv";
+const STUDIES_DIR: &str = "readings/excel-20527/studies/";
 const MANIFESTS: [&str; 2] = ["manifest.tsv", "w109-manifest.tsv"];
 const PINNED_DIR: &str = "crates/calc-func/tests/witnesses";
 const STATUS: &str = "crates/calc-func/witness-status.tsv";
@@ -139,6 +141,7 @@ struct Request {
     classified_losses: Option<PathBuf>,
     report: Option<PathBuf>,
     profile: Option<String>,
+    intel_studies: bool,
 }
 
 fn parse_args(raw: &[String]) -> Result<Request, String> {
@@ -173,6 +176,7 @@ fn parse_args(raw: &[String]) -> Result<Request, String> {
         classified_losses: None,
         report: None,
         profile: None,
+        intel_studies: false,
     };
     let mut it = rest.iter();
     while let Some(arg) = it.next() {
@@ -204,6 +208,12 @@ fn parse_args(raw: &[String]) -> Result<Request, String> {
                 request.profile = Some(profile);
             }
             "--values-only" if verb == Verb::Judge => request.values_only = true,
+            "--study-cpu" if verb == Verb::Judge && !request.intel_studies => {
+                if value()? != "intel" {
+                    return Err("--study-cpu needs intel".into());
+                }
+                request.intel_studies = true;
+            }
             "--trace" if verb == Verb::Judge => request.trace = Some(PathBuf::from(value()?)),
             "--bank" if verb == Verb::Judge => {
                 request.bank = match value()?.as_str() {
@@ -224,6 +234,9 @@ fn parse_args(raw: &[String]) -> Result<Request, String> {
             }
             other => return Err(format!("unknown argument {other}")),
         }
+    }
+    if request.intel_studies && (request.bank != Bank::Full || request.report.is_none()) {
+        return Err("--study-cpu intel requires --bank full and --report <json>".into());
     }
     if verb == Verb::Export && request.report.is_none() {
         return Err("export needs --report <jsonl>".into());
@@ -304,6 +317,7 @@ struct ExcludedUnread {
     detail: String,
 }
 
+#[derive(Default)]
 struct Banks {
     sources: Vec<Source>,
     readings: Vec<Reading>,
@@ -1573,14 +1587,7 @@ fn wrapcols_unread_recapture(doc: &Value) -> Result<WrapcolsUnreadRecapture, Str
 }
 
 fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>), String> {
-    let mut banks = Banks {
-        sources: Vec::new(),
-        readings: Vec::new(),
-        files_read: 0,
-        import_notes: Vec::new(),
-        unread_rows: BTreeMap::new(),
-        excluded_unread: BTreeMap::new(),
-    };
+    let mut banks = Banks::default();
     let mut positioned = position_recaptures(checkout, only)?;
     let mut recapture_source_of = BTreeMap::new();
     let inverse_replay = if only.is_none_or(|f| f == "MINVERSE") {
@@ -2031,7 +2038,152 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
             add_binomial_replay(&mut banks, function, &doc)?;
         }
     }
+    load_studies(checkout, only, false, &mut banks)?;
     Ok((banks, unread))
+}
+
+#[derive(serde::Deserialize)]
+struct StudyBank {
+    format: String,
+    lane: String,
+    rows: Vec<StudyReading>,
+}
+
+#[derive(serde::Deserialize)]
+struct StudyReading {
+    function: String,
+    args: Vec<Value>,
+    expected_bits: String,
+    result_index: Option<(usize, usize)>,
+    source: String,
+    locator: String,
+    excel_build: String,
+    cpu: String,
+    platform: Option<String>,
+    bitness: Option<String>,
+    timestamp: Option<Value>,
+    invocation: Option<Value>,
+}
+
+fn native_intel() -> bool {
+    #[cfg(target_arch = "x86_64")]
+    {
+        // SAFETY: every x86-64 CPU supports CPUID leaf zero.
+        let vendor = unsafe { std::arch::x86_64::__cpuid(0) };
+        (vendor.ebx, vendor.edx, vendor.ecx) == (0x756e6547, 0x49656e69, 0x6c65746e)
+    }
+    #[cfg(not(target_arch = "x86_64"))]
+    false
+}
+
+fn load_studies(
+    checkout: &Path,
+    only: Option<&str>,
+    intel: bool,
+    banks: &mut Banks,
+) -> Result<(), String> {
+    if !checkout.join(STUDIES).is_file() {
+        if checkout.join(STUDIES_DIR).is_dir() {
+            return Err(format!("missing {}", checkout.join(STUDIES).display()));
+        }
+        return Ok(());
+    }
+    let (mut retained, mut other_cpu) = (0, 0);
+    for rel in manifest_paths(checkout, STUDIES)? {
+        let lane = rel
+            .strip_prefix(STUDIES_DIR)
+            .and_then(|file| file.strip_suffix(".json"))
+            .filter(|lane| {
+                !lane.is_empty()
+                    && lane
+                        .bytes()
+                        .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+            })
+            .ok_or_else(|| format!("{STUDIES}: invalid path {rel}"))?;
+        let bytes = gunzip(&blob_bytes(checkout, &rel)?, None)?;
+        let doc: StudyBank = serde_json::from_slice(&bytes).map_err(|e| format!("{rel}: {e}"))?;
+        if doc.format != "dnacalc-study-bank/1" || doc.lane != lane {
+            return Err(format!("{rel}: wrong studies format or lane"));
+        }
+        let mut sources = BTreeMap::new();
+        for row in doc.rows {
+            if only.is_some_and(|name| name != row.function) {
+                continue;
+            }
+            let cpu = row.cpu.to_ascii_lowercase();
+            let is_intel = cpu.starts_with("intel") || cpu.starts_with("genuineintel");
+            let is_amd = cpu.starts_with("amd ") || cpu == "authenticamd";
+            if !is_intel && !is_amd {
+                return Err(format!("{rel}: unsupported CPU {}", row.cpu));
+            }
+            if is_intel != intel {
+                other_cpu += 1;
+                continue;
+            }
+            if row.excel_build.is_empty()
+                || !row.source.starts_with(&format!("{lane}/"))
+                || row.locator.is_empty()
+                || row.result_index.is_some_and(|(r, c)| r == 0 || c == 0)
+            {
+                return Err(format!(
+                    "{rel}: invalid reading at {} {}",
+                    row.source, row.locator
+                ));
+            }
+            let id = format!("{} {}", row.source, row.locator);
+            for arg in &row.args {
+                calc_verdict::decode_argument(arg, &id)?;
+            }
+            calc_verdict::decode_result(&row.expected_bits).map_err(|e| format!("{id}: {e}"))?;
+            let invocation = row
+                .invocation
+                .as_ref()
+                .map(|value| calc_verdict::WitnessInvocation::decode(value, &id))
+                .transpose()?;
+            let source_key = (
+                row.source.clone(),
+                row.excel_build.clone(),
+                row.cpu.clone(),
+                row.platform.clone(),
+                row.bitness.clone(),
+                row.invocation.as_ref().map(Value::to_string),
+                row.timestamp.as_ref().map(Value::to_string),
+            );
+            let source = *sources.entry(source_key).or_insert_with(|| {
+                let timestamp = row
+                    .timestamp
+                    .as_ref()
+                    .map_or_else(String::new, |ts| format!(" ({ts})"));
+                banks.sources.push(Source {
+                    path: format!("{rel} [{}]", row.source),
+                    env: ReadingSource {
+                        id: String::new(),
+                        source: format!("{CHECKOUT} {rel} [{}{timestamp}]", row.source),
+                        excel_build: Some(row.excel_build),
+                        platform: row.platform,
+                        bitness: row.bitness,
+                        cpu: Some(row.cpu),
+                        invocation,
+                    },
+                });
+                banks.sources.len() - 1
+            });
+            banks.readings.push(Reading {
+                function: row.function,
+                id,
+                args: row.args,
+                index: row.result_index,
+                expected: row.expected_bits,
+                source,
+            });
+            retained += 1;
+        }
+        banks.files_read += usize::from(!sources.is_empty());
+    }
+    banks.import_notes.push(format!(
+        "studies: {retained} readings for this CPU set; {other_cpu} for the other CPU set"
+    ));
+    Ok(())
 }
 
 /// Every `.json` file under `dir`, sorted.
@@ -2420,8 +2572,18 @@ struct Difference {
     across_environments: bool,
 }
 
-fn build_order(build: &Option<String>) -> u64 {
-    build.as_deref().and_then(|b| b.parse().ok()).unwrap_or(0)
+fn build_order(build: &Option<String>) -> (u64, u64) {
+    let build = build.as_deref().unwrap_or_default();
+    if let Ok(number) = build.parse() {
+        return (number, 0);
+    }
+    let mut parts = build.split('.');
+    if (parts.next(), parts.next()) == (Some("16"), Some("0")) {
+        let number = parts.next().and_then(|p| p.parse().ok()).unwrap_or(0);
+        let revision = parts.next().and_then(|p| p.parse().ok()).unwrap_or(0);
+        return (number, revision);
+    }
+    (0, 0)
 }
 
 /// Q3's serial calls show that these return types depend on a preceding WEEKNUM call.
@@ -3699,6 +3861,17 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
     // The readings of the bank asked for.
     let mut original_pins = None;
     let (mut banks, unread) = match request.bank {
+        Bank::Full if request.intel_studies => {
+            if !native_intel() {
+                return Err("Intel study judgment requires a native Intel x86-64 host".into());
+            }
+            let mut banks = Banks::default();
+            load_studies(&checkout, only, true, &mut banks)?;
+            if banks.readings.is_empty() {
+                return Err("no Intel study readings for this selection".into());
+            }
+            (banks, Vec::new())
+        }
         Bank::Full => {
             if !checkout.join(MANIFESTS[0]).is_file() {
                 return Err(format!(
@@ -3838,7 +4011,10 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
             "xtask witness: CompatibilityVersion is retained in source identity and applied by the context-aware caller"
         );
     }
-    if request.bank == Bank::Full && only.is_none_or(|name| name == "DATE") {
+    if request.bank == Bank::Full
+        && !request.intel_studies
+        && only.is_none_or(|name| name == "DATE")
+    {
         add_replay_readings(&mut banks)?;
     }
     let (mut grouped, differences) = group(&banks);
@@ -4001,6 +4177,7 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
     }
     let bank = match request.bank {
         Bank::Pinned => "pinned",
+        Bank::Full if request.intel_studies => "studies-intel",
         Bank::Full => "full",
     };
     if let Some(path) = &request.report {
@@ -4052,7 +4229,7 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
             println!("xtask witness: wrote {DIFFERENCES}");
         }
     }
-    if request.bank == Bank::Full {
+    if request.bank == Bank::Full && !request.intel_studies {
         compare_with_ledger(&checkout, &ws.root, &statuses)?;
     }
     Ok(ExitCode::SUCCESS)
@@ -5536,6 +5713,46 @@ mod tests {
         assert_eq!(value["actual"], "fault:ResultShape");
         assert_eq!(value["source"], source.path);
         assert!(value["reading"]["cpu"].is_null());
+    }
+
+    #[test]
+    fn studies_keep_intel_readings_out_of_the_default_bank() {
+        assert!(build_order(&Some("16.0.20527.20196".into())) > build_order(&Some("20527".into())));
+        assert!(build_order(&Some("16.0.20527.20195".into())) > build_order(&Some("20430".into())));
+        let root =
+            std::env::temp_dir().join(format!("xtask-witness-studies-{}", std::process::id()));
+        let folder = root.join(STUDIES_DIR);
+        fs::create_dir_all(&folder).unwrap();
+        let rel = format!("{STUDIES_DIR}test-lane.json");
+        let make_row = |cpu| serde_json::json!({
+            "function": "SIN", "args": ["0x3ff0000000000000"],
+            "expected_bits": "0x3feaed548f090cee",
+            "source": "test-lane/answers.jsonl", "locator": "$[0]",
+            "excel_build": "16.0.20527.20196", "cpu": cpu,
+        });
+        let doc = serde_json::json!({
+            "format": "dnacalc-study-bank/1", "lane": "test-lane",
+            "rows": [make_row("AMD Ryzen"), make_row("GenuineIntel Haswell")],
+        });
+        fs::write(root.join(STUDIES), format!("path\n{rel}\n")).unwrap();
+        // The shared inflater reads the raw DEFLATE member between this header and trailer.
+        let mut gz = vec![0x1f, 0x8b, 8, 0, 0, 0, 0, 0, 0, 255];
+        gz.extend(miniz_oxide::deflate::compress_to_vec(doc.to_string().as_bytes(), 1));
+        gz.extend([0; 8]);
+        fs::write(root.join(format!("{rel}.gz")), gz).unwrap();
+
+        for (intel, cpu) in [(false, "AMD Ryzen"), (true, "GenuineIntel Haswell")] {
+            let mut banks = Banks::default();
+            load_studies(&root, Some("SIN"), intel, &mut banks).unwrap();
+            assert_eq!(banks.readings.len(), 1);
+            let row = &banks.readings[0];
+            assert_eq!(row.id, "test-lane/answers.jsonl $[0]");
+            assert_eq!(banks.sources[row.source].env.cpu.as_deref(), Some(cpu));
+        }
+        let mut banks = Banks::default();
+        load_studies(&root, Some("COS"), false, &mut banks).unwrap();
+        assert!(banks.readings.is_empty());
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
