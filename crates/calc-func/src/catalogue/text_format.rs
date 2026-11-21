@@ -839,7 +839,17 @@ fn regexreplace(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
         0.0
     };
     let sensitive = case_sensitive(site, a, 4)?;
-    let (chars, found) = regex(site, &text, &pattern, sensitive, false)?;
+    let (chars, found) = if pattern.utf16_code_units().is_empty() {
+        if !tk::is_well_formed(&text) {
+            return Err(site.not_modelled(None));
+        }
+        let chars: Vec<char> = text.to_string_lossy().chars().collect();
+        let limit = (occurrence > 0.0).then_some(occurrence as usize);
+        let found = empty_regex_replace_matches(&chars, text.utf16_code_units().len(), limit)?;
+        (chars, found)
+    } else {
+        regex(site, &text, &pattern, sensitive, false)?
+    };
     let selected: Vec<(usize, usize)> = if occurrence == 0.0 {
         found
     } else if occurrence > 0.0 {
@@ -866,6 +876,34 @@ fn regexreplace(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     }
     out.extend(chars[cursor..].iter());
     Ok(crate::catalogue::kit::text_value(&out))
+}
+
+fn empty_regex_replace_matches(
+    chars: &[char],
+    utf16_len: usize,
+    limit: Option<usize>,
+) -> Step<Vec<(usize, usize)>> {
+    let skip_leading_lf = utf16_len == 13 && chars.first() == Some(&'\n');
+    let mut matches = vec![(0, 0)];
+    for (index, &ch) in chars.iter().enumerate() {
+        if limit == Some(matches.len()) {
+            break;
+        }
+        // Excel's next UTF-16 offset lands inside the surrogate pair. A positive
+        // occurrence can finish before the scan reaches that offset.
+        if ch.len_utf16() == 2 {
+            return fail(WorksheetErrorCode::Value);
+        }
+        let boundary = index + 1;
+        // Excel visits the boundary inside CRLF, skips the one after LF in the
+        // interior of the text, and visits the end of the text even after CRLF.
+        let after_internal_crlf =
+            ch == '\n' && index > 0 && chars[index - 1] == '\r' && boundary < chars.len();
+        if !after_internal_crlf && !(skip_leading_lf && index == 0) {
+            matches.push((boundary, boundary));
+        }
+    }
+    Ok(matches)
 }
 
 /// ASC and DBCS change character widths only under a double-byte language; under every other

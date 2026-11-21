@@ -131,9 +131,6 @@ fn empty_and_invalid_regex_patterns() {
     for (occurrence, expected) in [(0.0, "XaXbX"), (2.0, "aXb"), (-1.0, "abX")] {
         text(call("REGEXREPLACE", vec![t("ab"), t(""), t("X"), n(occurrence)]), expected);
     }
-    for input in ["a😀b", "a\r\nb", "\naaaaaaaaaaaa"] {
-        refused(call("REGEXREPLACE", vec![t(input), t(""), t("X")]));
-    }
     for pattern in ["*", "+abc", "?a"] {
         error(call("REGEXTEST", vec![t("abc"), t(pattern)]), Value);
         error(call("REGEXEXTRACT", vec![t("abc"), t(pattern)]), Value);
@@ -141,6 +138,38 @@ fn empty_and_invalid_regex_patterns() {
     }
     assert_eq!(call("REGEXTEST", vec![t("aaa"), t("a*")]).unwrap().as_logical(), Some(true));
     refused(call("REGEXTEST", vec![t("aaa"), t("a??")]));
+}
+
+/// Excel 20527 empty-pattern replacement positions at CRLF, UTF-16 and leading LF boundaries.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn empty_regex_replace_boundaries() {
+    let cases = [
+        ("a\r\nb", "X", 0.0, "XaX\rX\nbX"),
+        ("\r\n", "X", -1.0, "\r\nX"),
+        ("\r\n\r\n", "X", -2.0, "\r\n\rX\n"),
+        ("\r\nA", "X", 3.0, "\r\nAX"),
+        ("\r\nA", "X", 4.0, "\r\nA"),
+        ("a😀b", "X", 1.0, "Xa😀b"),
+        ("a😀b", "X", 2.0, "aX😀b"),
+        ("\n😀", "X", 2.0, "\nX😀"),
+        ("\n\tA0中中ñ0中 0中+", "X", 3.0, "\n\tAX0中中ñ0中 0中+"),
+        ("\n中 bb\t中éb\n0\t中", "_", 3.0, "\n中 _bb\t中éb\n0\t中"),
+        ("\nñ\n0中b0\nAAbé ", "X", 3.0, "\nñ\nX0中b0\nAAbé "),
+        ("\n\n中 \n\t 中éñ0\n中", "_", 0.0, "_\n\n_中_ _\n_\t_ _中_é_ñ_0_\n_中_"),
+        ("\n\t+bé中\tA中é 中\t", "X", 3.0, "\n\t+Xbé中\tA中é 中\t"),
+        ("\naaaaaaaaaaa", "X", 2.0, "\nXaaaaaaaaaaa"),
+        ("\naaaaaaaaaaaaa", "X", 2.0, "\nXaaaaaaaaaaaaa"),
+    ];
+    let replace = |input, replacement, occurrence| {
+        call("REGEXREPLACE", vec![t(input), t(""), t(replacement), n(occurrence)])
+    };
+    for (input, replacement, occurrence, expected) in cases {
+        text(replace(input, replacement, occurrence), expected);
+    }
+    for occurrence in [0.0, 3.0, 4.0, -1.0, -3.0] {
+        error(replace("a😀b", "X", occurrence), Value);
+    }
 }
 
 /// Excel 20527 checks REPT's sign before truncation and bounds empty-text counts separately.
