@@ -223,3 +223,16 @@ code licence is MIT. The documentation text and extracted result excerpts carry 
 The new files were hashed against `all-files.kode-fi.v5.jsonl` and one another. The v6 index
 preserves the v5 records and appends the new files. Two matches appeared in older standalone
 manifests outside v5, one Stack Exchange snippet and one Excel Easy workbook.
+
+## Foundation external corpora index (2026-03)
+
+Migrated from [Foundation `EXTERNAL_CORPORA_INDEX.csv`](https://github.com/DnaCalc/Foundation/blob/4736b348a2f88864e17364de44a430095cce9f5e/reference/test-corpus/EXTERNAL_CORPORA_INDEX.csv).
+HyperFormula (`EXT-TC-001`), Apache POI (`EXT-TC-002`), LibreOffice (`EXT-TC-003`), Gnumeric
+(`EXT-TC-005`), and Calamine (`EXT-TC-006`) are already indexed in the main sets above; the
+remaining pointers from that index are:
+
+| ID | Name / author | URL | Licence status | Focus |
+| --- | --- | --- | --- | --- |
+| `EXT-TC-004` | `formulas.info` examples | https://www.formulas.info/ | `reference_only` (not for verbatim extraction) | Educational Excel formula shapes |
+| `EXT-TC-007` | `pbartxl` gists (Peter Bartholomew) | https://gist.github.com/pbartxl | `public_gist` (check per-gist terms before copying) | 6 gists, ~30+ named LAMBDA definitions (thunks, data dictionaries, combinatorics, FIFO, array-of-arrays) |
+| `EXT-TC-008` | `pbartxl` Lambda functions repo | https://github.com/pbartxl/PBart-s-Lambda-functions | `public` (PR #1; no repo licence verified here) | Cooley-Tukey `FFTλ`/`IFFTλ`/`Convolveλ` in pure Excel LAMBDA; Foundation adapted self-contained `LET` variants in `tools/gen_corpus_fft.py` |
