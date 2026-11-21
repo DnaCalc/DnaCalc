@@ -21,12 +21,11 @@
 //! does that at an arithmetic site, under the call's numeric mode, and the scale's #VALUE! comes
 //! from there.
 //!
-//! A number read as text takes its text from [`number_text`]. A subnormal number reads as text as
-//! 0, since Excel holds none and reads a cell written as one back as +0; read as a number
+//! A number read as text takes its text from [`number_text`], which implements Excel's two-branch
+//! `Q0.64` fixed-point 15-digit conversion (dc-b1l.25). A subnormal number reads as text as 0,
+//! since Excel holds none and reads a cell written as one back as +0; read as a number
 //! ([`operand`]) a subnormal is refused as not modelled, since Excel's arithmetic on one is not
-//! (dc-j9k owns subnormal numbers and makes the two readings agree). Near a tie at the 16th
-//! significant digit, [`number_text`] produces text under its documented rule, with measured
-//! mismatches still open under dc-b1l.25; these are calculated mismatches, not typed refusals.
+//! (dc-j9k owns subnormal numbers and makes the two readings agree).
 
 use crate::number_text;
 use crate::number_words;

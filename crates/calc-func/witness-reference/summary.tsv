@@ -73,11 +73,9 @@ IMCSCH	8	0	0	0	0	text15:excel-quirk=7;text15:ours-wrong=1	0.000	0.000
 PPMT	8	0	1	2	5		8578140908088936.000	8578140908088936.000
 IMCOSH	7	0	0	0	0	text15:excel-quirk=3;text15:ours-wrong=4	0.000	0.000
 IPMT	7	1	1	2	2	reference-failed:ZeroDivisionError=1	2285.893	83.107
-CONCATENATE	6	0	0	0	0	structural:text/text=6	0.000	0.000
 GROWTH	6	0	0	0	0	no-reference=6	0.000	0.000
 NORM.S.DIST	6	0	2	3	1		71.961	72.961
 RATE	6	0	0	0	0	structural:number/error:Num=6	0.000	0.000
-CONCAT	5	0	0	0	0	structural:text/text=5	0.000	0.000
 WRAPCOLS	5	0	0	0	0	structural:error:Spill/number=5	0.000	0.000
 AGGREGATE	4	0	0	0	0	structural:error:Num/refused=4	0.000	0.000
 HYPGEOMDIST	4	0	1	3	0		12.495	15.505

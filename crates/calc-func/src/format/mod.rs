@@ -262,8 +262,7 @@ pub(crate) fn digits(x: f64, places: i32) -> (String, String) {
     split(&rounded, places.max(0) as usize)
 }
 
-/// FIXED/TEXT and concatenation share their first15-digit conversion. Reuse
-/// its existing near-tie behavior, including the open dc-b1l.25 departures.
+/// FIXED/TEXT and concatenation share their first 15-digit conversion (`number_text::decimal`).
 fn fifteen(x: f64) -> ExactDecimal {
     crate::number_text::decimal(x)
 }

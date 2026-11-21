@@ -1,15 +1,29 @@
 //! A number's text when the & operator reads the number as text, as Excel gives it with `.` as
-//! the decimal separator and no column width. Its first15-digit rounding is also used by
-//! FIXED/TEXT (fn8 midpoint controls); their formatting after that step remains separate.
+//! the decimal separator and no column width. Its first 15-digit rounding is also used by
+//! FIXED/DOLLAR/TEXT and general formatting; their formatting after that step remains separate.
 //!
-//! The rule, as measured in Excel 16.0 (build 20430) under the Windows locale en-ZA, whose decimal
-//! separator `.` is en-US's (en-US itself was not measured); the text holds no thousands
-//! separator:
+//! The rule, as measured in Excel 16.0 (builds 20430 and 20527) under the Windows locale en-ZA,
+//! whose decimal separator `.` is en-US's (en-US itself was not measured); the text holds no
+//! thousands separator:
 //!
 //! - Zero of either sign is `0`. A subnormal number is `0` too: Excel holds none, and a cell
 //!   written as one reads back as +0.
-//! - The magnitude's exact value is rounded to 15 significant digits and trailing zeros are
-//!   dropped.
+//! - The magnitude is converted to 15 significant digits by Excel's two-branch `Q0.64` fixed-point
+//!   pre-addition program (dc-b1l.25), and trailing zeros are dropped:
+//!   - **Branch 1 (`1.0 <= |x| < 65536.0 = 2^16`, i.e. `0 <= exp2 < 16`):** exact `Q16.64` split
+//!     into integer `w = m53 >> (52 - exp2)` (`d` digits in `1..=5`) and exact `Q0.64` fraction
+//!     `f = m53 << (12 + exp2)`, pre-adding the truncated half-ulp table entry
+//!     `Q64_HALF_POW10[15 - d] = floor(2^63 / 10^(15 - d))` (with `u64` carry incrementing `w` and
+//!     updating `d` if `w` crosses a power of 10), then extracting `15 - d` fractional digits via
+//!     `(u128::from(f) * 10) >> 64`.
+//!   - **Branch 2 (`|x| < 1.0` or `|x| >= 65536.0`):** from `frexp_k = exp2 + 1`, computes
+//!     `p = ceil(frexp_k / 3.3219)` (`0` at `frexp_k == 0`, matching `decimal.rs`), scales `|x|`
+//!     by `10^-p` via the low-nibble-first x87 PC=64 RN-even chain (`scale_nibble_pc64`), steps
+//!     once by `10^-1` (`p += 1`) when `ev = pow + 63 >= 0` (the `0.1%` slivers `[1e-146, 2^-485)`
+//!     and `[1e-292, 2^-970)`), truncates right-shifted into `Q0.64` (`f = sig >> (-1 - ev)`),
+//!     selects `k` (`15`, `16` for one leading zero, `17` for two leading zeros in `exp2 in
+//!     {484, 969}`), pre-adds `Q64_HALF_POW10[k]`, handles `u64` carry (`10^14`, `e_out = p`),
+//!     skips leading zero digits, and extracts 15 digits.
 //! - When those digits written without an exponent take at most 20 characters, the sign aside,
 //!   that is the text: `1000000000000000`, `99999999999999900000`, `0.000123456789012345`,
 //!   `0.000000000000000001`.
@@ -21,28 +35,8 @@
 //!   (9.99999999999995E-99 gives `1E-98`).
 //! - A negative number's text is `-` and its magnitude's text.
 //!
-//! Excel's own first rounding departs from the exact one near a tie at the 16th significant
-//! digit, and every departure measured lies within a relative 2^-60 of the tie. Within a relative
-//! 2^-60 of a tie (an exact tie included) the text here takes the 15 digits below the tie,
-//! except that values strictly above the tie with magnitude from 10 through less than 1000
-//! round up (2,048 independent Excel 20527 near-midpoint controls in each decade).
-//! From 1 through less than 10, they also round up when the product by 10^14, rounded to a
-//! 64-bit significand, lies strictly above the midpoint (7,847 independent controls).
-//! From 0.5 through less than 1, they round up when the product by 10^15 lies at least two
-//! 64-bit-significand units above the midpoint (7,016 independent controls).
-//! In dc-uar, of 131 measured tie cases Excel 16.0.20527 wrote (the catalogue oracle's dch9u_functions
-//! rows, built by arithmetic, and dc_q9rb's), 126 went down (`7200547821627.375` gives
-//! `7200547821627.37`, `999999999999999.5` gives `999999999999999`, `1234567890123455` gives
-//! `1234567890123450`), as did `4037429.935952025`, whose exact value lies 6E-21 above its tie.
-//! Five went up, and no rule found tells them apart (scalings by powers of ten in binary64,
-//! x87 extended and 96-bit precision, truncated or rounded, each break more readings than they
-//! fix): `5758361573115.375` (`.38`), `521310271410497.5`, `-6278515587045.875`,
-//! `543212677140.0625` and `5.248519552626765E-06`. Those five mismatch Excel here.
-//! The W111 held-out EXACT readings 03436/03453/03454 round upward outside that band:
-//! their magnitude is a relative 1.61E-18 above its decimal midpoint.
-//!
-//! Every step is exact decimal arithmetic on the number's exact value, so the text does not
-//! depend on the numeric mode or the platform.
+//! Every step uses portable integer (`u64`/`u128`) arithmetic reproducing x87 PC=64 rounding bit
+//! for bit, so the text does not depend on the numeric mode or the target platform.
 
 use crate::decimal::{ExactDecimal, Natural};
 
@@ -52,8 +46,97 @@ const SIGNIFICANT_DIGITS: usize = 15;
 /// The longest text without an exponent, the sign aside.
 const WIDTH: usize = 20;
 
-/// A number within a relative 2^-NEAR_TIE_BITS of a 16th-digit tie is near it.
-const NEAR_TIE_BITS: u32 = 60;
+/// 64-bit RN-even `(significand, pow2)` for `10^1..=10^15`, `10^16..=10^240` (step 16), `10^256`.
+const POS_POW10: [(u64, i16); 31] = [
+    (0xa000_0000_0000_0000, -60),
+    (0xc800_0000_0000_0000, -57),
+    (0xfa00_0000_0000_0000, -54),
+    (0x9c40_0000_0000_0000, -50),
+    (0xc350_0000_0000_0000, -47),
+    (0xf424_0000_0000_0000, -44),
+    (0x9896_8000_0000_0000, -40),
+    (0xbebc_2000_0000_0000, -37),
+    (0xee6b_2800_0000_0000, -34),
+    (0x9502_f900_0000_0000, -30),
+    (0xba43_b740_0000_0000, -27),
+    (0xe8d4_a510_0000_0000, -24),
+    (0x9184_e72a_0000_0000, -20),
+    (0xb5e6_20f4_8000_0000, -17),
+    (0xe35f_a931_a000_0000, -14),
+    (0x8e1b_c9bf_0400_0000, -10),
+    (0x9dc5_ada8_2b70_b59e, 43),
+    (0xaf29_8d05_0e43_95d7, 96),
+    (0xc278_1f49_ffcf_a6d5, 149),
+    (0xd7e7_7a8f_87da_f7fc, 202),
+    (0xefb3_ab16_c59b_14a3, 255),
+    (0x850f_adc0_9923_329e, 309),
+    (0x93ba_47c9_80e9_8ce0, 362),
+    (0xa402_b9c5_a8d3_a6e7, 415),
+    (0xb616_a12b_7fe6_17aa, 468),
+    (0xca28_a291_859b_bf93, 521),
+    (0xe070_f78d_3927_556b, 574),
+    (0xf92e_0c35_3782_6146, 627),
+    (0x8a52_96ff_e33c_c930, 681),
+    (0x9991_a6f3_d6bf_1766, 734),
+    (0xaa7e_ebfb_9df9_de8e, 787),
+];
+
+/// 64-bit RN-even `(significand, pow2)` for `10^-1..=10^-15`, `10^-16..=10^-240`, `10^-256`.
+const NEG_POW10: [(u64, i16); 31] = [
+    (0xcccc_cccc_cccc_cccd, -67),
+    (0xa3d7_0a3d_70a3_d70a, -70),
+    (0x8312_6e97_8d4f_df3b, -73),
+    (0xd1b7_1758_e219_652c, -77),
+    (0xa7c5_ac47_1b47_8423, -80),
+    (0x8637_bd05_af6c_69b6, -83),
+    (0xd6bf_94d5_e57a_42bc, -87),
+    (0xabcc_7711_8461_cefd, -90),
+    (0x8970_5f41_36b4_a597, -93),
+    (0xdbe6_fece_bded_d5bf, -97),
+    (0xafeb_ff0b_cb24_aaff, -100),
+    (0x8cbc_cc09_6f50_88cc, -103),
+    (0xe12e_1342_4bb4_0e13, -107),
+    (0xb424_dc35_095c_d80f, -110),
+    (0x901d_7cf7_3ab0_acd9, -113),
+    (0xe695_94be_c44d_e15b, -117),
+    (0xcfb1_1ead_4539_94ba, -170),
+    (0xbb12_7c53_b17e_c159, -223),
+    (0xa87f_ea27_a539_e9a5, -276),
+    (0x97c5_60ba_6b09_19a6, -329),
+    (0x88b4_02f7_fd75_539b, -382),
+    (0xf643_35bc_f065_d37d, -436),
+    (0xddd0_467c_64bc_e4a1, -489),
+    (0xc7ca_ba6e_7c53_82c9, -542),
+    (0xb3f4_e093_db73_a093, -595),
+    (0xa217_27db_38cb_0030, -648),
+    (0x91ff_8377_5423_cc06, -701),
+    (0x8380_dea9_3da4_bc60, -754),
+    (0xece5_3cec_4a31_4ebe, -808),
+    (0xd560_5fcd_cf32_e1d7, -861),
+    (0xc031_4325_637a_193a, -914),
+];
+
+/// `floor(2^63 / 10^k)` for `k = 10..=17` (`0.5 * 10^-k` truncated to Q0.64).
+const Q64_HALF_POW10: [u64; 18] = [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    922_337_203,
+    92_233_720,
+    9_223_372,
+    922_337,
+    92_233,
+    9_223,
+    922,
+    92,
+];
 
 /// The text of a finite number, as ASCII (see the module documentation). It is always `Some`;
 /// the option is kept for the callers that refuse a number without a text.
@@ -67,8 +150,8 @@ pub(crate) fn text(x: f64) -> Option<String> {
     Some(shaped(x < 0.0, first_precision(x.abs())))
 }
 
-/// The shared first15 significant digits. The unresolved near-tie departures
-/// documented above apply to formatting as well as concatenation (dc-b1l.25).
+/// The shared first 15 significant digits (also used by FIXED, DOLLAR, TEXT and general
+/// formatting).
 pub(crate) fn decimal(x: f64) -> ExactDecimal {
     if x == 0.0 || x.is_subnormal() {
         return ExactDecimal::read(0.0);
@@ -76,90 +159,153 @@ pub(crate) fn decimal(x: f64) -> ExactDecimal {
     let (digits, exponent) = first_precision(x.abs());
     ExactDecimal {
         negative: x < 0.0,
-        coefficient: Natural::from_u64(ascii(&digits).parse().expect("at most15 digits")),
+        coefficient: Natural::from_u64(ascii(&digits).parse().expect("at most 15 digits")),
         exponent: exponent - digits.len() as i32 + 1,
     }
 }
 
-fn first_precision(x: f64) -> (Vec<u8>, i32) {
-    let exact = ExactDecimal::binary(x);
-    let all = exact.coefficient.digits();
-    let length = i32::try_from(all.len()).expect("a digit count");
-    let exponent = length - 1 + exact.exponent;
-    let above_tie = all.as_bytes().get(SIGNIFICANT_DIGITS) == Some(&b'5')
-        && all.as_bytes()[SIGNIFICANT_DIGITS + 1..].iter().any(|&digit| digit != b'0');
-    let near = near_tie(&exact.coefficient, &all);
-    let measured_above_tie = above_tie && (matches!(exponent, 1 | 2)
-        || (exponent == 0 && near && scaled_x87_above_midpoint(x, false))
-        || (exponent == -1 && x >= 0.5 && near && scaled_x87_above_midpoint(x, true)));
-    let up = (!near || measured_above_tie)
-        && all
-            .as_bytes()
-            .get(SIGNIFICANT_DIGITS)
-            .is_some_and(|&d| d >= b'5');
-    first_rounding(all.as_bytes(), exponent, up)
-}
-
-/// Whether the scaled product, rounded to a 64-bit significand, clears the measured
-/// midpoint. Only called for 0.5 <= x < 10; the exact product fits in u128.
-fn scaled_x87_above_midpoint(x: f64, two_units: bool) -> bool {
-    let bits = x.to_bits();
-    let significand = (bits & ((1_u64 << 52) - 1)) | (1_u64 << 52);
-    let input_exponent = ((bits >> 52) & 0x7ff) as i32 - 1023;
-    let denominator = 1_u128 << (52 - input_exponent);
-    let scale = if two_units { 1_000_000_000_000_000_u128 } else { 100_000_000_000_000_u128 };
-    let numerator = u128::from(significand) * scale;
-    let integer = numerator / denominator;
-    let remainder = numerator % denominator;
-    if 2 * remainder <= denominator {
-        return false;
-    }
-    let scaled_exponent = 127 - integer.leading_zeros();
-    let distance = (2 * remainder - denominator) << (63 - scaled_exponent);
-    // The midpoint and the value two units above it have even final bits.
-    // Their respective halfway cases therefore round to those even values.
-    if two_units { distance >= 3 * denominator } else { distance > denominator }
-}
-
-/// Whether the exact value `coefficient` (whose decimal digits are `digits`) lies within a
-/// relative 2^-NEAR_TIE_BITS of a tie at its 16th significant digit, or on it.
-fn near_tie(coefficient: &Natural, digits: &str) -> bool {
-    let dropped = digits.len().saturating_sub(SIGNIFICANT_DIGITS);
-    if dropped == 0 {
-        return false;
-    }
-    // The band is narrower than 2^-60 * 10^15 < 0.001 of the last kept digit, so a number near a
-    // tie has dropped digits that begin 49 or 50 (a single dropped 5 is the tie itself).
-    let tail = &digits.as_bytes()[SIGNIFICANT_DIGITS..];
-    let lead = (tail[0], tail.get(1).copied().unwrap_or(b'0'));
-    if lead != (b'4', b'9') && lead != (b'5', b'0') {
-        return false;
-    }
-    // With the dropped part r of the m dropped digits, the distance to the tie is |r - 10^m / 2|
-    // in units of the last digit, and the number is near it when
-    // |2r - 10^m| * 2^NEAR_TIE_BITS < 2 * coefficient.
-    let power = Natural::pow10(u32::try_from(dropped).expect("a digit count"));
-    let (_, remainder) = coefficient.div_rem(&power);
-    let mut twice = remainder.clone();
-    twice.add(&remainder);
-    let distance = if twice >= power {
-        twice.subtract(&power);
-        twice
+/// 64-bit significand RN-even multiply reproducing x87 PC=64 (`CW = 0x133F`).
+#[inline]
+fn mul_pc64(a_sig: u64, a_pow: i32, b_sig: u64, b_pow: i32) -> (u64, i32) {
+    let prod = u128::from(a_sig) * u128::from(b_sig);
+    let shift: u32 = if (prod >> 127) != 0 { 64 } else { 63 };
+    let top = (prod >> shift) as u64;
+    let rem = prod & ((1u128 << shift) - 1);
+    let half = 1u128 << (shift - 1);
+    if rem > half || (rem == half && (top & 1) == 1) {
+        let (inc, overflow) = top.overflowing_add(1);
+        if overflow {
+            return (1u64 << 63, a_pow + b_pow + shift as i32 + 1);
+        }
+        (inc, a_pow + b_pow + shift as i32)
     } else {
-        let mut gap = power.clone();
-        gap.subtract(&twice);
-        gap
-    };
-    let scaled = distance.times(&Natural::from_u64(1u64 << (NEAR_TIE_BITS - 1)));
-    scaled < *coefficient
+        (top, a_pow + b_pow + shift as i32)
+    }
 }
 
-/// The first SIGNIFICANT_DIGITS of `digits` (ASCII, the first not zero; the value
-/// d1.d2d3... * 10^exponent), one added to the last when `up`, with trailing zeros dropped, and the
-/// exponent of the result's leading digit.
-fn first_rounding(digits: &[u8], exponent: i32, up: bool) -> (Vec<u8>, i32) {
-    let dropped = digits.len() > SIGNIFICANT_DIGITS;
-    rounded(digits, exponent, SIGNIFICANT_DIGITS, dropped && up)
+/// Low-nibble-first x87 PC=64 scaling by `10^shift10` (`|shift10| <= 309`).
+#[inline]
+fn scale_nibble_pc64(mut sig: u64, mut pow: i32, shift10: i32) -> (u64, i32) {
+    let tab = if shift10 < 0 { &NEG_POW10 } else { &POS_POW10 };
+    let mag = shift10.unsigned_abs();
+    let d0 = (mag & 0xf) as usize;
+    if d0 != 0 {
+        let (fs, fp) = tab[d0 - 1];
+        (sig, pow) = mul_pc64(sig, pow, fs, i32::from(fp));
+    }
+    let d1 = ((mag >> 4) & 0xf) as usize;
+    if d1 != 0 {
+        let (fs, fp) = tab[14 + d1];
+        (sig, pow) = mul_pc64(sig, pow, fs, i32::from(fp));
+    }
+    if (mag >> 8) != 0 {
+        let (fs, fp) = tab[30];
+        (sig, pow) = mul_pc64(sig, pow, fs, i32::from(fp));
+    }
+    (sig, pow)
+}
+
+fn first_precision(x: f64) -> (Vec<u8>, i32) {
+    debug_assert!(x.is_finite() && x > 0.0 && !x.is_subnormal());
+    let bits = x.to_bits();
+    let exp2 = (((bits >> 52) & 0x7ff) as i32) - 1023;
+    let m53 = (bits & ((1u64 << 52) - 1)) | (1u64 << 52);
+    let (mut val, e_out) = if (0..16).contains(&exp2) {
+        let mut w = (m53 >> (52 - exp2)) as u32;
+        let mut f = m53.wrapping_shl((12 + exp2) as u32);
+        let digits_u32 = |n: u32| {
+            if n >= 100_000 {
+                6
+            } else if n >= 10_000 {
+                5
+            } else if n >= 1_000 {
+                4
+            } else if n >= 100 {
+                3
+            } else if n >= 10 {
+                2
+            } else {
+                1
+            }
+        };
+        let mut d = digits_u32(w);
+        let mut k = SIGNIFICANT_DIGITS - d;
+        let (sum, carry) = f.overflowing_add(Q64_HALF_POW10[k]);
+        f = sum;
+        if carry {
+            w += 1;
+            d = digits_u32(w);
+            k = SIGNIFICANT_DIGITS - d;
+        }
+        let mut acc = u64::from(w);
+        for _ in 0..k {
+            let prod = u128::from(f) * 10;
+            acc = acc * 10 + (prod >> 64) as u64;
+            f = prod as u64;
+        }
+        (acc, d as i32 - 1)
+    } else {
+        let frexp_k = exp2 + 1;
+        // Exact integer form of ceil(frexp_k / 3.3219), 0 at frexp_k == 0.
+        // Confirmed 32/32 against Excel 16.0.20527 on exp2 in {-971, -486, +484, +969}.
+        let mut p = -((-frexp_k * 10_000).div_euclid(33_219));
+        let (mut sig, mut pow) = scale_nibble_pc64(m53 << 11, exp2 - 63, -p);
+        if pow + 63 >= 0 {
+            let (fs, fp) = NEG_POW10[0];
+            (sig, pow) = mul_pc64(sig, pow, fs, i32::from(fp));
+            p += 1;
+        }
+        let shr = -1 - (pow + 63);
+        let mut f = if shr <= 0 {
+            sig
+        } else if shr >= 64 {
+            0
+        } else {
+            sig >> (shr as u32)
+        };
+        let lz1 = ((u128::from(f) * 10) >> 64) == 0;
+        let lz2 = lz1 && ((u128::from(f) * 100) >> 64) == 0;
+        let k = if lz2 {
+            17
+        } else if lz1 {
+            16
+        } else {
+            15
+        };
+        let (sum, carry) = f.overflowing_add(Q64_HALF_POW10[k]);
+        if carry {
+            (100_000_000_000_000_u64, p)
+        } else {
+            f = sum;
+            let (mut acc, mut z) = (0_u64, 0_i32);
+            while z < 3 {
+                let pt = u128::from(f) * 10;
+                let dt = (pt >> 64) as u64;
+                f = pt as u64;
+                if dt != 0 {
+                    acc = dt;
+                    break;
+                }
+                z += 1;
+            }
+            for _ in 0..14 {
+                let prod = u128::from(f) * 10;
+                acc = acc * 10 + (prod >> 64) as u64;
+                f = prod as u64;
+            }
+            (acc, p - 1 - z)
+        }
+    };
+    let mut buf = [0u8; SIGNIFICANT_DIGITS];
+    for i in (0..SIGNIFICANT_DIGITS).rev() {
+        buf[i] = b'0' + (val % 10) as u8;
+        val /= 10;
+    }
+    let mut len = SIGNIFICANT_DIGITS;
+    while len > 1 && buf[len - 1] == b'0' {
+        len -= 1;
+    }
+    (buf[..len].to_vec(), e_out)
 }
 
 /// The text of the rounded digits `(digits, exponent)` of a magnitude, `-` first when `negative`.
@@ -241,4 +387,53 @@ fn without_exponent(digits: &[u8], exponent: i32) -> String {
 
 fn ascii(digits: &[u8]) -> &str {
     std::str::from_utf8(digits).expect("ASCII digits")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::text;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn q64_two_branch_matches_excel_tie_and_binade_controls() {
+        // Corpus and bank tie/near-tie cases previously departing (Excel 16.0.20527).
+        let cases: &[(u64, &str)] = &[
+            (0x42fd_a210_18b9_1418, "521310271410498"),
+            (0x4294_f2e4_625b_ed80, "5758361573115.38"),
+            (0xc296_d752_c3df_9780, "-6278515587045.88"),
+            (0x425f_9e7f_ea05_0400, "543212677140.063"),
+            (0x3ed6_038e_11b5_d39f, "5.24851955262677E-06"),
+            (0x3fd6_1c45_da98_b974, "0.345475638840888"),
+            // Downward controls preserved.
+            (0x429a_3208_6160_ed80, "7200547821627.37"),
+            (0x414e_cd9a_f7cd_46a5, "4037429.93595202"),
+            // Sealed holdout controls (Excel 16.0.20527.20196).
+            (0x411e_9928_5100_0000, "501322.079101563"),
+            (0x3fe4_9494_8ece_a23c, "0.643137244148484"),
+            // All 4 binade-4 discriminators confirming ceil(k / 3.3219).
+            (0x8346_b63b_e47a_d061, "-7.1122459292295E-293"),
+            (0xa191_6c8a_93e3_7090, "-5.4506679506426E-147"),
+            (0x5e38_5176_e7fd_3ec7, "7.5915369950346E+145"),
+            (0x7c89_2187_8a20_ddde, "7.837095588212E+291"),
+            // 0.1% ev >= 0 slivers at exp2 = -486 and exp2 = -971.
+            (0x219f_fda6_6804_cb9d, "1.0007543865916E-146"),
+            (0x034f_fb13_4f69_8bc3, "1.0014817833731E-292"),
+            // Extremes and zero/subnormal.
+            (f64::MAX.to_bits(), "1.7976931348623E+308"),
+            (f64::MIN_POSITIVE.to_bits(), "2.2250738585072E-308"),
+            (0x0000_0000_0000_0000, "0"),
+            (0x8000_0000_0000_0000, "0"),
+            (0x0000_0000_0000_0001, "0"),
+        ];
+        for &(bits, expected) in cases {
+            assert_eq!(
+                text(f64::from_bits(bits)).as_deref(),
+                Some(expected),
+                "bits=0x{bits:016x}"
+            );
+        }
+        assert_eq!(text(f64::NAN), None);
+        assert_eq!(text(f64::INFINITY), None);
+        assert_eq!(text(f64::NEG_INFINITY), None);
+    }
 }

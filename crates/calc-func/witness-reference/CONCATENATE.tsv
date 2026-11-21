@@ -1,7 +1,0 @@
-id	args	excel	ours	reference	excel_ulp	ours_ulp	class
-r11-struct-concatenate-04	["0x3ed6038e11b5d39f"]	text:5.24851955262677E-06	text:5.24851955262676E-06				structural:text/text
-bank2-more-CONCATENATE-0304	["0x3fd61c45da98b974"]	text:0.345475638840888	text:0.345475638840887				structural:text/text
-r11-struct-concatenate-03	["0x425f9e7fea050400"]	text:543212677140.063	text:543212677140.062				structural:text/text
-r11-struct-concatenate-00	["0x4294f2e4625bed80"]	text:5758361573115.38	text:5758361573115.37				structural:text/text
-r11-struct-concatenate-01	["0x42fda21018b91418"]	text:521310271410498	text:521310271410497				structural:text/text
-r11-struct-concatenate-02	["0xc296d752c3df9780"]	text:-6278515587045.88	text:-6278515587045.87				structural:text/text

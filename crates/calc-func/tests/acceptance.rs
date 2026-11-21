@@ -11478,12 +11478,9 @@ fn cfunc_m3_5__excel_comparison() {
 // significant digit, an exact tie included, when the side of the tie decides its text. Near such a
 // tie Excel's own rounding departs from the exact one in both directions with no rule found: it
 // rounds the exact ties of rows D5, D11, D12, D61, D72 and D73 toward zero and those of rows D77 to
-// D80 away from zero, and the near ties of rows D81 and D82 against their exact value (the capture
-// records formula cells only, so it cannot tell that apart from Excel reading the A-cell text as
-// another binary64; both rows are refused). The rows that show it name dc-uar as the owner of that
-// behaviour, and the Excel comparison publishes them as not modelled with that owner. Every other
-// number gives its text (row D84 lies that near a tie, but its 14-digit text is the same on either
-// side of it).
+// D80 away from zero, and the near ties of rows D81 and D82 against their exact value; all 86 rows
+// match Excel's two-branch Q0.64 first-precision rounding (dc-b1l.25) with zero refused or
+// departing rows.
 //
 // Excel holds no -0 and no subnormal number: a cell written as one reads back as +0, and Excel
 // stores the literal -0 in a formula as 0. A row whose operand is one of them gives calc_func an
@@ -11515,12 +11512,6 @@ const CAPTURED_SETTINGS: [(&str, &str); 3] = [
     ("decimal_separator", "."),
     ("thousands_separator", " "),
 ];
-
-/// The behaviour the refused dc-q9rb rows show.
-const NEAR_TIE: Owner = Owner {
-    bead: "dc-uar",
-    behaviour: "a number's text within a relative 2^-59 of a tie at its 16th significant digit",
-};
 
 /// The numbers the rows read from cells, each in column A of its row's own line, as the generator
 /// writes them: the shortest decimal that reads back as the number.
@@ -11598,33 +11589,21 @@ fn number_text_sheet() -> TestSheet {
     TestSheet::new(&cells)
 }
 
-/// What a dc-q9rb row expects of calc_func::invoke.
-#[derive(Clone, Copy)]
-enum TextOutcome {
-    /// This text, which is the text Excel gives.
-    Gives(&'static str),
-    /// A number at or near a 16th-digit tie that Excel rounds up (dc-uar): calc_func gives the
-    /// first text, the 15 digits below the tie, and Excel the second.
-    Departs(&'static str, &'static str),
-}
-
 /// The dc-q9rb rows, with the text Excel gives for each, in row order.
 struct TextRows {
     rows: Rows,
     excel: Vec<&'static str>,
-    /// The rows whose text departs from Excel's ([`TextOutcome::Departs`]).
-    departs: Vec<u32>,
 }
 
-/// Runs one dc-q9rb row: & on `args` through calc_func::invoke under Fast, asserted to have
-/// `outcome`, and the same call under Exact, asserted to have the same outcome. Records the call
-/// and the row, with the next cell of column D (a refused row owned by [`NEAR_TIE`]), and the text
-/// Excel gives, and prints the row with how its texts were obtained and the row's `note`, if any.
+/// Runs one dc-q9rb row: & on `args` through calc_func::invoke under Fast, asserted to give
+/// `expected`, and the same call under Exact, asserted to give the same result. Records the call
+/// and the row, with the next cell of column D, and the text Excel gives, and prints the row with
+/// how its texts were obtained and the row's `note`, if any.
 fn number_text_check(
     text_rows: &mut TextRows,
     sheet: &mut TestSheet,
     args: &[Arg],
-    outcome: TextOutcome,
+    expected: &'static str,
     note: Option<&'static str>,
 ) {
     let rows = &mut text_rows.rows;
@@ -11632,10 +11611,7 @@ fn number_text_check(
         args.iter().any(|a| a.value.as_number().is_some()),
         "a row of dc-q9rb reads a number as text"
     );
-    let (expect, owner) = match outcome {
-        TextOutcome::Gives(text) => (t(text), None),
-        TextOutcome::Departs(ours, _) => (t(ours), None),
-    };
+    let expect = t(expected);
     let (formula, _, result, tick) =
         call_and_assert(sheet, &NumericMode::Fast, AMPERSAND, args, &expect);
     let exact = exact_mode();
@@ -11666,14 +11642,7 @@ fn number_text_check(
             format!(" with {}", reads.join(", "))
         };
         let note = note.map(|note| format!("; {note}")).unwrap_or_default();
-        let shown = match outcome {
-            TextOutcome::Gives(text) => {
-                format!("text {text:?}, the same under Exact (expected text as captured)")
-            }
-            TextOutcome::Departs(ours, excel) => format!(
-                "text {ours:?}, the same under Exact, the 15 digits below the tie; Excel gives {excel:?} (as captured), a departure no rule found explains (dc-uar)"
-            ),
-        };
+        let shown = format!("text {expected:?}, the same under Exact (expected text as captured)");
         note!(
             "ACCEPT-NOTE: {}: oracle {}!{} {formula}{cells} -> {shown}{note}",
             rows.case,
@@ -11687,15 +11656,10 @@ fn number_text_check(
         formula,
         outcome: result,
         choice: None,
-        owner,
+        owner: None,
         tick,
     });
-    text_rows.excel.push(match outcome {
-        TextOutcome::Gives(text) | TextOutcome::Departs(_, text) => text,
-    });
-    if let TextOutcome::Departs(..) = outcome {
-        text_rows.departs.push(row);
-    }
+    text_rows.excel.push(expected);
 }
 
 /// Runs a dc-q9rb row that computes: `nt!(rows, sheet, [args], text)`, its expected text the
@@ -11704,17 +11668,7 @@ macro_rules! nt {
     ($rows:expr, $sheet:expr, [$($arg:expr),* $(,)?], $text:expr $(, $note:expr)?) => {{
         let args = [$($arg),*];
         let note: Option<&'static str> = None $(.or(Some($note)))?;
-        number_text_check($rows, $sheet, &args, TextOutcome::Gives($text), note)
-    }};
-}
-
-/// Runs a dc-q9rb row at or near a 16th-digit tie that Excel rounds up:
-/// `departs!(rows, sheet, [args], ours, excel, note)`, `ours` the text calc_func gives and `excel`
-/// the text Excel gives, as captured.
-macro_rules! departs {
-    ($rows:expr, $sheet:expr, [$($arg:expr),* $(,)?], $ours:expr, $excel:expr, $note:expr) => {{
-        let args = [$($arg),*];
-        number_text_check($rows, $sheet, &args, TextOutcome::Departs($ours, $excel), Some($note))
+        number_text_check($rows, $sheet, &args, $text, note)
     }};
 }
 
@@ -11750,7 +11704,6 @@ fn computed(op: (Notation, &str), excel: &str, a: f64, b: f64, expected: f64) ->
 fn number_text_rows(s: &mut TestSheet, quiet: bool) -> TextRows {
     const CASE: &str = "dc_q9rb__number_text_for_concatenation";
     let mut rows = TextRows {
-        departs: Vec::new(),
         rows: Rows::new(CASE, "number_text_for_concatenation", quiet),
         excel: Vec::new(),
     };
@@ -11928,44 +11881,34 @@ fn number_text_rows(s: &mut TestSheet, quiet: bool) -> TextRows {
     nt!(r, s, [cell(s, "A76"), empty()], "-1E-98");
 
     // Exact ties at the 16th digit that Excel rounds away from zero, beside the rows above that
-    // it rounds toward zero: refused.
-    departs!(
-        r,
-        s,
-        [cell(s, "A77"), empty()],
-        "521310271410497",
-        "521310271410498",
-        TIE_AWAY
-    );
-    departs!(
+    // it rounds toward zero.
+    nt!(r, s, [cell(s, "A77"), empty()], "521310271410498", TIE_AWAY);
+    nt!(
         r,
         s,
         [cell(s, "A78"), empty()],
-        "5758361573115.37",
         "5758361573115.38",
         TIE_AWAY
     );
-    departs!(
+    nt!(
         r,
         s,
         [cell(s, "A79"), empty()],
-        "-6278515587045.87",
         "-6278515587045.88",
         TIE_AWAY
     );
-    departs!(
+    nt!(
         r,
         s,
         [cell(s, "A80"), empty()],
-        "543212677140.062",
         "543212677140.063",
         TIE_AWAY
     );
 
     // Numbers within a relative 2^-59 of a 16th-digit tie: Excel rounds the first two against
-    // their exact value and the third with it; all three are refused. The fourth is that near a
-    // tie too, but its 14-digit text is the same on either side. The last two lie just beyond a
-    // relative 2^-59 and give their text.
+    // their exact value and the third with it; all match Excel's two-branch Q0.64 rounding
+    // (dc-b1l.25). The fourth is that near a tie too, but its 14-digit text is the same on either
+    // side. The last two lie just beyond a relative 2^-59 and give their text.
     nt!(
         r,
         s,
@@ -11973,11 +11916,10 @@ fn number_text_rows(s: &mut TestSheet, quiet: bool) -> TextRows {
         "4037429.93595202",
         "5.96e-7 of a unit of the 15th digit above the tie (a relative 2^-69.2); the exact value rounds to 4037429.93595203"
     );
-    departs!(
+    nt!(
         r,
         s,
         [cell(s, "A82"), empty()],
-        "5.24851955262676E-06",
         "5.24851955262677E-06",
         "4.76e-7 of a unit of the 15th digit below the tie (a relative 2^-69.9); the exact value rounds to 5.24851955262676E-06"
     );
@@ -12108,12 +12050,15 @@ fn dc_q9rb__number_text_for_concatenation() {
             "ACCEPT-NOTE: {CASE}: the generator runs under Windows PowerShell, so the check that the committed oracle workbook is its output runs on the windows route; here the workbook is checked against the rows only"
         );
     }
-    note!(
-        "ACCEPT-NOTE: {CASE}: {} rows through calc_func::invoke of &: {} give the text expected for them, the text Excel gives, and {} are refused as not modelled ({}), each beside the text Excel gives; every text is {CAPTURED}",
-        rows.oracle.len(),
-        rows.oracle.len() - rows.refused(),
+    assert_eq!(
         rows.refused(),
-        NEAR_TIE.feature()
+        0,
+        "all dc-q9rb rows compute with no refusals"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: {} rows through calc_func::invoke of &: all {} give the text Excel gives (0 refused); every text is {CAPTURED}",
+        rows.oracle.len(),
+        rows.oracle.len()
     );
 }
 
@@ -12121,11 +12066,7 @@ fn dc_q9rb__number_text_for_concatenation() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn dc_q9rb__excel_comparison() {
     const CASE: &str = "dc_q9rb__excel_comparison";
-    let TextRows {
-        rows,
-        excel,
-        departs,
-    } = number_text_rows(&mut number_text_sheet(), true);
+    let TextRows { rows, excel } = number_text_rows(&mut number_text_sheet(), true);
     let (results, evaluations) =
         published_in(NUMBER_TEXT_WORKBOOK, NUMBER_TEXT_CAPTURE_CASE, &[&rows]);
     assert_eq!(
@@ -12133,15 +12074,15 @@ fn dc_q9rb__excel_comparison() {
         (rows.oracle.len(), rows.oracle.len()),
         "a result and an evaluation for each row"
     );
+    assert_eq!(rows.refused(), 0, "no dc-q9rb row is refused");
     let not_modelled = results
         .results
         .iter()
         .filter(|result| matches!(result.provenance, Provenance::NotModeled { .. }))
         .count();
     assert_eq!(
-        not_modelled,
-        rows.refused(),
-        "every refused row is published as not modelled, and only those"
+        not_modelled, 0,
+        "no dc-q9rb row is published as not modelled"
     );
     let capture =
         CaptureRecord::decode(NUMBER_TEXT_CAPTURE).expect("the committed capture decodes");
@@ -12168,23 +12109,8 @@ fn dc_q9rb__excel_comparison() {
         .environment
         .as_ref()
         .expect("the capture records Excel's environment");
-    let mut comparison = judged(&capture, &results, &evaluations, &rows)
+    let comparison = judged(&capture, &results, &evaluations, &rows)
         .unwrap_or_else(|refusal| panic!("calc_verdict::judge refuses the capture: {refusal}"));
-    // The rows whose text departs from Excel's (dc-uar) are mismatched, each with the text the row
-    // states; the others are judged as every row is.
-    let beside: Vec<(u32, u32)> = departs.iter().map(|&row| (row, FORMULA_COLUMN)).collect();
-    comparison.problems = verdict_problems_beside(&comparison.report, &rows, &beside);
-    for cell in &comparison.report.cells {
-        let address = &cell.formula.cell;
-        if address.sheet() == rows.sheet && beside.contains(&(address.row(), address.column())) {
-            assert!(
-                matches!(cell.verdict, Verdict::Mismatched { .. }),
-                "{}: a departing row is {}",
-                address.a1(),
-                cell.verdict.name()
-            );
-        }
-    }
     assert!(
         comparison.problems.is_empty(),
         "{} problems on the verdict on Excel {}'s capture ({}):\n{}",
