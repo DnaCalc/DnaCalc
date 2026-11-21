@@ -1044,62 +1044,25 @@ pub(crate) struct SequenceWork {
 
 impl SequenceWork {
     pub(crate) fn new(args: &[CalcValue]) -> Result<Self, DynamicArrayReshapeEvalError> {
-        // Fn2 roots164/165: formed argument errors keep their order before a
-        // dimension-derived error. Arrays and callable values keep their own route.
-        for value in args {
-            if value.callable_value().is_none()
-                && let CoreRef::Error(code) = value.core_ref()
-            {
-                return Err(DynamicArrayReshapeEvalError::Preparation(
-                    CoercionError::WorksheetError(code),
-                ));
-            }
-        }
-        // For direct numeric and logical dimensions a negative value takes precedence over an
-        // empty dimension (Excel 20527, dc-ymjf.2.69). Other coercion and error ordering stays on
-        // its existing route.
-        let direct_dimension = |arg: Option<&CalcValue>| match arg.map(CalcValue::core_ref) {
-            Some(CoreRef::Number(n)) => Some(n),
-            Some(CoreRef::Logical(b)) => Some(if b { 1.0 } else { 0.0 }),
-            None | Some(CoreRef::Missing) => Some(1.0),
-            Some(CoreRef::Empty) => Some(0.0),
-            _ => None,
-        };
-        if let (Some(rows), Some(cols)) = (direct_dimension(args.first()), direct_dimension(args.get(1)))
-            && (rows < 0.0 || cols < 0.0)
-        {
-            return Err(DynamicArrayReshapeEvalError::InvalidCount);
-        }
-        fn dimension(arg: Option<&CalcValue>) -> Result<(usize, bool), DynamicArrayReshapeEvalError> {
-            let raw = match arg {
-                None => return Ok((1, false)),
-                Some(value) if matches!(value.core_ref(), CoreRef::Missing) => {
-                    return Ok((1, false));
-                }
-                Some(value) => coerce_prepared_to_number(value)
-                    .map_err(DynamicArrayReshapeEvalError::Preparation)?,
-            };
-            if !raw.is_finite() || raw < 0.0 {
-                return Err(DynamicArrayReshapeEvalError::InvalidCount);
-            }
-            let count = super::text_kernels::date_integer_floor(raw);
-            Ok((count as usize, raw.fract() != 0.0))
-        }
         fn scalar(arg: Option<&CalcValue>) -> Result<f64, DynamicArrayReshapeEvalError> {
             match arg {
                 None => Ok(1.0),
-                Some(value) if matches!(value.core_ref(), CoreRef::Missing) => {
-                    Ok(1.0)
-                }
+                Some(value) if value.is_missing() => Ok(1.0),
                 Some(value) => coerce_prepared_to_number(value)
                     .map_err(DynamicArrayReshapeEvalError::Preparation),
             }
         }
-        let (rows, fractional_rows) = dimension(args.first())?;
-        let (cols, fractional_cols) = dimension(args.get(1))?;
+
+        // Excel coerces each argument in order, then checks the dimensions.
+        let raw_rows = scalar(args.first())?;
+        let raw_cols = scalar(args.get(1))?;
         let start = scalar(args.get(2))?;
         let step = scalar(args.get(3))?;
-        // Excel validates the other numeric arguments before returning an empty-array error.
+        if !raw_rows.is_finite() || !raw_cols.is_finite() || raw_rows < 0.0 || raw_cols < 0.0 {
+            return Err(DynamicArrayReshapeEvalError::InvalidCount);
+        }
+        let rows = super::text_kernels::date_integer_floor(raw_rows) as usize;
+        let cols = super::text_kernels::date_integer_floor(raw_cols) as usize;
         if rows == 0 || cols == 0 {
             return Err(DynamicArrayReshapeEvalError::EmptyArrayResult);
         }
@@ -1113,7 +1076,7 @@ impl SequenceWork {
             step,
             count,
             cells: Vec::new(),
-            fractional_dimensions: fractional_rows || fractional_cols,
+            fractional_dimensions: raw_rows.fract() != 0.0 || raw_cols.fract() != 0.0,
             next: start,
         })
     }
