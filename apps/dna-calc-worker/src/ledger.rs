@@ -17,11 +17,7 @@ pub fn entry(cell: &ProjectedCell, label: String) -> Entry {
         at: cell.at(),
         label,
         formula: cells::display_input(cell.input()),
-        value: if shown.provenance == Provenance::Refused {
-            "refused".to_owned()
-        } else {
-            shown.text
-        },
+        value: cells::value_or_refused(shown.provenance, shown.text),
         number: match core {
             Some(CoreValue::Number(number)) => Some(number),
             _ => None,

@@ -793,6 +793,15 @@ impl Workbook {
         }
     }
 
+    pub(crate) fn wire_cell(&self, projected: &ProjectedCell, shown: &cells::CellShown) -> crate::wire::Cell {
+        crate::wire::cell_of(
+            shown,
+            cells::input_text(projected.input()),
+            cells::provenance_text(self.host(), projected),
+            projected,
+        )
+    }
+
     /// A projected cell as a skin shows it, in its number format and with what its sheet's
     /// conditional formats give it (dc-6yw): a rule's number format in place of the cell's, its
     /// fill, font, data bar and icon.

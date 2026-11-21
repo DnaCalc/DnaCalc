@@ -291,12 +291,7 @@ pub fn preview(
                     .into(),
             );
         }
-        let cell = wire::cell_of(
-            &shown,
-            crate::cells::input_text(p.input()),
-            crate::cells::provenance_text(host, &p),
-            &p,
-        );
+        let cell = book.wire_cell(&p, &shown);
         retained = retained.saturating_add(cell.retained_bytes());
         if retained > wire::MAX_PUBLICATION_BYTES / 2 {
             return Err("Print preview exceeds the retained display budget; reduce the print area (dc-971p.57)".into());

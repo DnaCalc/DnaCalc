@@ -169,6 +169,14 @@ pub fn shown(
 /// otherwise read it as something else), `TRUE`/`FALSE`, an error by its spelling.
 pub use calc_host::search::entry_text as input_text;
 
+pub(crate) fn value_or_refused(provenance: Provenance, text: String) -> String {
+    if provenance == Provenance::Refused {
+        "refused".to_owned()
+    } else {
+        text
+    }
+}
+
 /// Presentation source only. Clipboard, search and saved inputs retain canonical text.
 pub fn display_input(input: Option<&calc_host::CellInput>) -> String {
     let text = input_text(input);

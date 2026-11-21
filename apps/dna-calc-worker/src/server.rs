@@ -2044,12 +2044,7 @@ impl Server {
             if let Some(reason) = &shown.style.unsupported {
                 return Err(reason.clone());
             }
-            cells.push(wire::cell_of(
-                &shown,
-                cells::input_text(p.input()),
-                cells::provenance_text(host, p),
-                p,
-            ));
+            cells.push(self.book.wire_cell(p, &shown));
         }
         Ok(Reply::FitContents {
             revision: host.revision().get(),
@@ -4094,12 +4089,7 @@ impl Server {
                     removed.push(Key::of(projected.at()));
                     continue;
                 }
-                let cell = wire::cell_of(
-                    &shown,
-                    cells::input_text(projected.input()),
-                    cells::provenance_text(self.book.host(), projected),
-                    projected,
-                );
+                let cell = self.book.wire_cell(projected, &shown);
                 retained = retained.saturating_add(cell.retained_bytes());
                 if cells.len() >= wire::MAX_TILE_CELLS
                     || retained > wire::MAX_PUBLICATION_BYTES - wire::MAX_TILE_BYTES
@@ -4277,14 +4267,9 @@ impl Server {
             .skip(page * wire::NOTEBOOK_PAGE)
             .take(wire::NOTEBOOK_PAGE)
             .map(|(placement, anchor, prose)| {
-                let cell = anchor.and_then(|a| self.book.cell(a.first())).map(|p| {
-                    wire::cell_of(
-                        &self.book.shown(&p),
-                        cells::input_text(p.input()),
-                        cells::provenance_text(host, &p),
-                        &p,
-                    )
-                });
+                let cell = anchor
+                    .and_then(|a| self.book.cell(a.first()))
+                    .map(|p| self.book.wire_cell(&p, &self.book.shown(&p)));
                 wire::NotebookBlock {
                     placement,
                     anchor: anchor.map(Area::of),
@@ -4338,14 +4323,7 @@ impl Server {
             .book
             .project(keys)
             .iter()
-            .map(|p| {
-                wire::cell_of(
-                    &self.book.shown(p),
-                    cells::input_text(p.input()),
-                    cells::provenance_text(host, p),
-                    p,
-                )
-            })
+            .map(|p| self.book.wire_cell(p, &self.book.shown(p)))
             .collect::<Vec<_>>();
         let label = cells::area_label(host, area);
         let summary = if blocked.is_some() {
@@ -4476,14 +4454,7 @@ impl Server {
             .book
             .project(wanted)
             .iter()
-            .map(|projected| {
-                wire::cell_of(
-                    &self.book.shown(projected),
-                    cells::input_text(projected.input()),
-                    cells::provenance_text(host, projected),
-                    projected,
-                )
-            })
+            .map(|p| self.book.wire_cell(p, &self.book.shown(p)))
             .collect();
         wire::Outline {
             omitted: omitted as u64,

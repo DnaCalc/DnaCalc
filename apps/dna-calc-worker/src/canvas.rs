@@ -32,11 +32,7 @@ pub fn view_model(book: &Workbook, center: CellKey, back: u8, forward: u8) -> wi
                     let (input, value, provenance) = match book.cell(at) {
                         Some(cell) => {
                             let shown = cells::shown(&cell, profile.as_ref(), book.cell_format(at));
-                            let value = if shown.provenance == Provenance::Refused {
-                                "refused".to_owned()
-                            } else {
-                                shown.text
-                            };
+                            let value = cells::value_or_refused(shown.provenance, shown.text);
                             (cells::display_input(cell.input()), value, shown.provenance)
                         }
                         None => (String::new(), String::new(), Provenance::Empty),

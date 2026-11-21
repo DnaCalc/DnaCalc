@@ -5,3 +5,6 @@ mod default_font_columns;
 
 #[path = "opened_vba.rs"]
 mod opened_vba;
+
+#[path = "support/projection_wire.rs"]
+mod projection_wire;
