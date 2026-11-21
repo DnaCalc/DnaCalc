@@ -129,3 +129,28 @@ becoming current requirements. Avoid executing documents, workbook content or sc
    by each correction. Report final class counts and the number covered by rules,
    exact matches, content review and unresolved items. The final path set must match
    the inventory exactly.
+
+## Preliminary triage
+
+[Triage](triage.tsv) has one row for every inventory path. It combines the sample
+above, exact matches against DnaCalc at `37333c548ab37f007d5e31e1eb21e16fe10e8e73`,
+and conservative path rules. The latter retain original mirrors, binary attachments,
+known extraction products, and known empirical scenario and capture families as
+pointers. Only empty placeholders qualify as `data-drop` in the path rules.
+
+| Disposition | Paths |
+| --- | ---: |
+| Data pointers to retain | 2,001 |
+| Exact DnaCalc duplicates | 12 |
+| History pointers | 11 |
+| Obsolete | 3 |
+| Data placeholders | 2 |
+| Pending content review | 1,002 |
+
+The [pending batch manifest](pending-batches.tsv) queues 1,002 paths, including 599
+Markdown files, across 223 batches. Byte intervals index the pinned blobs. If a
+boundary splits a UTF-8 character or line, align the read to a complete character
+or line and keep the adjacent context. Model execution and reconciliation with
+the earlier spot-check corrections belong to dc-zuwqx.2. That spot-check reported
+641 classified rows in dc-zuwqx.3 and named the corrected TSV in the fd2 run
+directory. The files themselves were unavailable in fd1.
