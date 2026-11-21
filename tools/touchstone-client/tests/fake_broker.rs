@@ -3,7 +3,9 @@
 use serde_json::{Value, json};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::path::PathBuf;
 use std::thread;
+use std::time::Duration;
 use touchstone_client::{Answer, Arg, Client, Error, Request};
 
 fn read_frame(stream: &mut TcpStream) -> Option<(u8, Value)> {
@@ -79,7 +81,7 @@ fn serve(listener: TcpListener) {
     }
 }
 
-fn client_for(listener: &TcpListener) -> Client {
+fn endpoint_for(listener: &TcpListener) -> PathBuf {
     let port = listener.local_addr().unwrap().port();
     let path = std::env::temp_dir().join(format!("touchstone-endpoint-{port}.json"));
     std::fs::write(
@@ -87,9 +89,75 @@ fn client_for(listener: &TcpListener) -> Client {
         json!({"host": "127.0.0.1", "port": port, "token": "secret"}).to_string(),
     )
     .unwrap();
+    path
+}
+
+fn client_for(listener: &TcpListener) -> Client {
+    let path = endpoint_for(listener);
     let client = Client::connect_endpoint(&path);
     let _ = std::fs::remove_file(&path);
     client.expect("connect to the stand-in broker")
+}
+
+#[test]
+fn a_dropped_link_replays_the_same_pieces_and_completes_the_original_handle() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let path = endpoint_for(&listener);
+    let server = thread::spawn(move || {
+        let (mut first, _) = listener.accept().unwrap();
+        let hello = read_frame(&mut first).unwrap();
+        assert_eq!(hello.0, b'H');
+        let reply = json!({"v": "touchstone/1", "envs": {"e1": {"build": "7"}}});
+        write_frame(&mut first, b'H', &reply);
+        let (kind, piece) = read_frame(&mut first).unwrap();
+        assert_eq!(kind, b'S');
+        assert_eq!(piece["last"], false);
+        let id = piece["id"].clone();
+        let group = &piece["groups"][0];
+        let first_answer = json!({
+            "id": id, "seq": 0, "env": "e1",
+            "g": [{"o": 0, "ty": "n".repeat(group["n"].as_u64().unwrap() as usize), "v": group["v"]}],
+        });
+        write_frame(&mut first, b'A', &first_answer);
+        let (kind, tail) = read_frame(&mut first).unwrap();
+        assert_eq!(kind, b'S');
+        assert_eq!(tail["id"], id);
+        assert_eq!(tail["seq"], 1);
+        assert_eq!(tail["last"], true);
+        drop(first);
+
+        let (mut reconnected, _) = listener.accept().unwrap();
+        assert_eq!(read_frame(&mut reconnected).unwrap(), hello);
+        write_frame(&mut reconnected, b'H', &reply);
+        assert_eq!(read_frame(&mut reconnected).unwrap(), (b'S', piece));
+        // The live broker replays cached answers for pieces it already evaluated.
+        write_frame(&mut reconnected, b'A', &first_answer);
+        assert_eq!(read_frame(&mut reconnected).unwrap(), (b'S', tail.clone()));
+        let group = &tail["groups"][0];
+        write_frame(
+            &mut reconnected,
+            b'A',
+            &json!({
+                "id": id, "seq": 1, "env": "e1",
+                "g": [{"o": group["o"], "ty": "n".repeat(group["n"].as_u64().unwrap() as usize), "v": group["v"]}],
+            }),
+        );
+        write_frame(&mut reconnected, b'D', &json!({"id": id}));
+    });
+    let client = Client::connect_endpoint(&path).unwrap();
+    let bits = 0x3ff0000000000000..0x3ff0000000000000 + 3000;
+    let request = Request::new(
+        "ID",
+        bits.clone().map(|n| vec![Arg::number_bits(n)]).collect(),
+    );
+    let reply = client
+        .submit(request)
+        .and_then(|handle| handle.wait_timeout(Duration::from_secs(5)));
+    std::fs::remove_file(path).unwrap();
+    let reply = reply.expect("the original handle survived the disconnect");
+    assert_eq!(reply.rows, bits.map(Answer::Number).collect::<Vec<_>>());
+    assert_eq!(reply.env.as_ref().unwrap()["build"], "7");
+    server.join().unwrap();
 }
 
 #[test]

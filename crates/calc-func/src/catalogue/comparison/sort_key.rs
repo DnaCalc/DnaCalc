@@ -36,8 +36,8 @@
 //! An ignorable unit adds no weight, and so does a supplementary variation selector (U+E0100 to
 //! U+E01EF, a surrogate pair). The Hangul syllables, compatibility jamo and conjoining jamo weigh
 //! on one scale of Windows primaries, and a run of conjoining jamo is weighed as Windows' keys write
-//! it ([`jamo_cluster`], dc-8wp). A text has incomplete weights here when it holds U+0000, U+30A0 (which
-//! `CompareStringEx` orders otherwise than its key), an isolated or medial form of Arabic marks
+//! it ([`jamo_cluster`], dc-8wp). A text has incomplete weights here when it holds U+0000, U+30A0
+//! outside a leading run of iteration marks, an isolated or medial form of Arabic marks
 //! (U+FC5E to U+FC63, U+FE71 and the like, into which the walk's runs are not modelled), or an
 //! iteration mark after a special outside fn7's three adjacent forms and four punctuation units.
 //! After Han, the measured REPEAT primary is used instead of the character's own primary;
@@ -1035,8 +1035,18 @@ pub(super) fn parts(text: &[u16]) -> Result<Parts, Unfinished> {
     let mut before = Before::Nothing;
     let mut starts: Vec<u32> = Vec::with_capacity(text.len() + 1);
     let mut at = 0;
+    let mut leading_iterations = true;
     while at < text.len() {
-        let code = text[at];
+        let mut code = text[at];
+        if leading_iterations {
+            // On this part of the text Excel has no preceding weight to repeat.
+            // U+30A0 shares the prolonged sound mark's weight in a leading
+            // iteration run (Excel 20527 en-ZA, dc-zsn.2).
+            if code == 0x30A0 {
+                code = 0x30FC;
+            }
+            leading_iterations = matches!(table.weights[usize::from(code)], Weight::Iteration(_));
+        }
         gathered.at = at as u32;
         starts.push(gathered.steps.len() as u32);
         if (0xD800..=0xDBFF).contains(&code)
@@ -1378,7 +1388,7 @@ mod tests {
             assert_eq!(order(a, b), Some(expected), "{a:?} against {b:?}");
         }
         assert!(parts(&units("\u{1100}\u{1161}")).is_ok(), "conjoining jamo");
-        assert!(parts(&units("\u{30a0}")).is_err(), "the double hyphen");
+        assert!(parts(&units("é\u{30a0}")).is_err(), "the contextual double hyphen");
         // Excel fn1 D2, unlike a repetition of the Han character's own primary.
         assert_eq!(order("時々", "時時"), Some(Ordering::Less));
         assert!(

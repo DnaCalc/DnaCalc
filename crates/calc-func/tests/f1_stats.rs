@@ -87,6 +87,65 @@ fn beta_inverse_absorbed_large_second_shape_reports_num() {
     }
 }
 
+/// Excel 20527 reports NUM in the lower tail for very large second shapes.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beta_inverse_lower_tail_rejects_extreme_second_shape() {
+    for name in ["BETA.INV", "BETAINV"] {
+        error(call(name, vec![n(0.125), n(365.0), n(2.0_f64.powi(520))]), Num);
+        exact(
+            call(name, vec![n(0.125), n(365.0), n(2.0_f64.powi(513))]),
+            f64::from_bits(0x2065_7233_8c22_f2b9),
+        );
+        exact(
+            call(name, vec![n(0.125), n(1.0), n(2.0_f64.powi(520))]),
+            f64::from_bits(0x1f3f_ffff_ffff_ffb2),
+        );
+    }
+    error(
+        call("BETAINV", vec![n(0.39), n(3.0), n(2.0_f64.powi(520)), n(-4.0), n(7.0)]),
+        Num,
+    );
+}
+
+/// Excel 20527 preserves the right-tail probability in the large-degree start.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chi_square_right_inverse_keeps_large_degree_tail_probability() {
+    for name in ["CHIINV", "CHISQ.INV.RT"] {
+        for (p, degree, expected) in [
+            (1e-10, 2.0_f64.powi(40), 0x4270_011f_bbe1_8ca4),
+            (2.0_f64.powi(-55), 2.0_f64.powi(50), 0x4310_0117_1b39_e2af),
+            (1.0_f64.next_down(), 2.0_f64.powi(40), 0x4270_010b_1fd8_a609),
+            (
+                f64::from_bits(0x3fef_fffd_eb25_854b),
+                f64::from_bits(0x4273_9e7b_6c90_a96a),
+                0x4273_9fc9_c2bf_46d9,
+            ),
+        ] {
+            exact(call(name, vec![n(p), n(degree)]), f64::from_bits(expected));
+        }
+    }
+}
+
+/// Excel 20527 checks the stored products at two different overflow boundaries.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chi_square_right_inverse_checks_near_maximum_degree_products() {
+    for name in ["CHIINV", "CHISQ.INV.RT"] {
+        for p in [f64::MIN_POSITIVE, 0.5] {
+            let eval = |degree| call(name, vec![n(p), n(f64::from_bits(degree))]);
+            exact(eval(0x7e70_0000_0000_0000), f64::from_bits(0x7e70_0116_bc77_4cb6));
+            exact(eval(0x7fcf_ffff_ffff_ffff), f64::from_bits(0x7fd0_0116_bc77_4cb6));
+            exact(eval(0x7fd4_5f30_6dc9_c882), f64::from_bits(0x7fd4_6093_53a9_9ac2));
+            error(eval(0x7fd4_5f30_6dc9_c883), Div0);
+            error(eval(0x7fed_154b_28e7_6972), Div0);
+            error(eval(0x7fed_154b_28e7_6973), Num);
+        }
+        exact(call(name, vec![n(1.0), n(f64::MAX)]), 0.0);
+    }
+}
+
 /// Excel 20527: a tiny confidence uses the normal inverse near one half.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -6255,5 +6314,45 @@ fn forecast_ets_sliding_ma_j0_and_variance_interpolation() {
             call("FORECAST.ETS.CONFINT", vec![n(f64::from_bits(target)), col(&y.map(f64::from_bits)), t.clone()]),
             f64::from_bits(expected),
         );
+    }
+}
+
+/// Excel 16.0.20527 (dc-iuwct.59): GAMMAINV shares GAMMA.INV's 105-trial tolerance cap
+/// and AS 91 power_seed sum order, eliminating all 16 structural and 148 of 150 gross rows.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_iuwct_59_gammainv_structural_and_gross_alias_parity() {
+    for name in ["GAMMAINV", "GAMMA.INV"] {
+        // ax2/gamma-halley-answers.jsonl $[10075] (structural -> #NUM!)
+        assert_eq!(
+            call(
+                name,
+                vec![
+                    n(f64::from_bits(0x3fefa4e36c3bdd1e)),
+                    n(f64::from_bits(0x3f99ce075f6fd220)),
+                    n(1.0),
+                ],
+            ),
+            Ok(CalcValue::error(calc_value::WorksheetErrorCode::Num)),
+        );
+        // ax2/gamma-halley-answers.jsonl $[9894] (structural -> finite, bit-exact),
+        // $[9967] (58,578 ULP -> 0 ULP), ax2/gamma-round2 $[794] (3,975 ULP -> 0 ULP).
+        for (p_bits, a_bits, expected) in [
+            (0x3fefef942c5c3563_u64, 0x3f91b71758e21965_u64, 0x3ff6aa4ac43db371_u64),
+            (0x3fefe649f7ff93f5_u64, 0x3f9374bc6a7ef9db_u64, 0x3ff2fedf3efed5cf_u64),
+            (0x3feffec79e1d4427_u64, 0x3f18361fa517d270_u64, 0x3fc031781eeafa73_u64),
+        ] {
+            exact(
+                call(
+                    name,
+                    vec![
+                        n(f64::from_bits(p_bits)),
+                        n(f64::from_bits(a_bits)),
+                        n(1.0),
+                    ],
+                ),
+                f64::from_bits(expected),
+            );
+        }
     }
 }

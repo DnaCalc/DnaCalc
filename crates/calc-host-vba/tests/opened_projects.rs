@@ -1096,6 +1096,40 @@ fn mutable_owner_calculate_reenters_the_same_project_and_preserves_the_outer_tar
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn document_event_calculates_paramarray_functions_on_its_owning_session() {
+    let examples = include_str!("../../calc-xll-reference/fixture/vba/DnaExamples.bas");
+    let start = examples.find("Public Function DnaArgs(").unwrap();
+    let end = examples.find("Public Function DnaCounted(").unwrap();
+    let functions = &examples[start..end];
+    for backend in backends() {
+        let mut session = opened(&calc_host::blank_package(), "owner.xlsx");
+        session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
+        enter(&mut session, 1, 2, "=DnaArgs(1,,\"x\")");
+        mutable_owner(
+            &mut session,
+            "Private Sub Worksheet_Change(ByVal Target As Excel.Range)\n Application.Calculate\nEnd Sub\n",
+            functions,
+            10000,
+            backend,
+        );
+        enter(&mut session, 1, 1, "9");
+        assert!(
+            session.workbook_event_failures().failures.is_empty(),
+            "{backend:?}: {:?}",
+            session.workbook_event_failures()
+        );
+        assert!(!session.has_pending_calculation());
+        // Recorded in excel-reopen-dnaexamples-xlsm.json.
+        assert_eq!(
+            value(&session, 1, 2).as_text().unwrap().to_string_lossy(),
+            "3:Double:missing:String",
+            "{backend:?}"
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn original_recalculation_probe_project_is_admitted_without_source_removal() {
     let bytes = include_bytes!(
         "../../calc-engine/tests/fixtures/excel-calc-probes/P04/plain-settles-full-01.xlsm"
@@ -1771,6 +1805,53 @@ fn events_off_file_range_arguments_keep_the_shared_projection_tokens() {
             value(&session, 1, 4).as_text().unwrap().to_string_lossy(),
             "4:1:1:$A$1:$B$2"
         );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn file_project_discovers_described_procedures_in_xml_and_binary() {
+    for (bytes, name, description, category) in [
+        (
+            include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/metadata-vba.xlsm").as_slice(),
+            "metadata-vba.xlsm",
+            "VBA-set description",
+            "3",
+        ),
+        (
+            include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/metadata-custom-vba.xlsb")
+                .as_slice(),
+            "metadata-custom-vba.xlsb",
+            "Custom category description",
+            "20",
+        ),
+    ] {
+        let mut session = opened(bytes, name);
+        session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
+        session.set_workbook_events_enabled(false);
+        let project = calc_host_vba::open_file_project(
+            &grant(),
+            &mut session,
+            name,
+            100_000,
+            Some(calc_vba::Backend::Interpreter),
+        )
+        .unwrap()
+        .unwrap();
+        let functions = project.functions();
+        for spelling in ["MetaFunc", "Module1.MetaFunc"] {
+            let described = functions.descriptor(None, spelling).unwrap();
+            assert_eq!(described.name, spelling);
+            assert_eq!(described.origin, "VBA module Module1");
+            assert_eq!(described.description, description);
+            assert_eq!(described.category, category);
+            assert_eq!(described.signature(), format!("{spelling}(x)"));
+        }
+        assert!(functions.bind(None, "SetMetadataViaVba").is_none());
+        enter(&mut session, 1, 4, "=Module1.MetaFunc(2)");
+        full(&mut session);
+        assert_eq!(value(&session, 1, 2).as_number(), Some(4002.0));
+        assert_eq!(value(&session, 1, 4).as_number(), Some(4002.0));
     }
 }
 

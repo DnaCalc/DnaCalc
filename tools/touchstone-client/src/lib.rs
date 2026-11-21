@@ -14,9 +14,9 @@
 //! # Ok::<(), touchstone_client::Error>(())
 //! ```
 //!
-//! Native only: it refuses to compile for wasm32.  A dropped connection fails the requests in flight
-//! with [`Error::Connection`]; the Python client resends them, this one reports (retry is the caller's
-//! choice, and the broker answers a resent id from its cache without evaluating it again).
+//! Native only: it refuses to compile for wasm32. After a connection drop the client resends
+//! unfinished requests with their original IDs and piece numbers. A running broker can replay
+//! those pieces from its answer cache. A broker restart loses that cache and can recalculate them.
 
 #[cfg(target_arch = "wasm32")]
 compile_error!("touchstone-client is native-only and must not be built for wasm32");
@@ -25,18 +25,21 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::fmt;
 use std::io::{self, Read, Write};
-use std::net::TcpStream;
+use std::net::{Shutdown, TcpStream};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 #[cfg(unix)]
 use std::os::unix::net::UnixStream;
 
 pub const VERSION: &str = "touchstone/1";
 const FRAME_BUDGET: usize = 40 * 1024;
+const MAX_FRAME: usize = 64 * 1024 * 1024;
+const SOCKET_TIMEOUT: Duration = Duration::from_secs(10);
+const RECONNECT_WINDOW: Duration = Duration::from_secs(90);
 
 /// One typed argument of a call.
 #[derive(Clone, Debug, PartialEq)]
@@ -211,7 +214,7 @@ fn take_frames(buffer: &mut Vec<u8>) -> Result<Vec<(u8, Value)>, Error> {
     let mut at = 0;
     while buffer.len() - at >= 4 {
         let size = u32::from_be_bytes(buffer[at..at + 4].try_into().unwrap()) as usize;
-        if size == 0 || size > 64 * 1024 * 1024 {
+        if size == 0 || size > MAX_FRAME {
             return Err(Error::Protocol(format!("frame of {size} bytes")));
         }
         if buffer.len() - at - 4 < size {
@@ -245,6 +248,28 @@ impl Stream {
             #[cfg(unix)]
             Stream::Unix(s) => Stream::Unix(s.try_clone()?),
         })
+    }
+
+    fn set_timeouts(&self, read: Option<Duration>, write: Option<Duration>) -> io::Result<()> {
+        match self {
+            Stream::Tcp(s) => {
+                s.set_read_timeout(read)?;
+                s.set_write_timeout(write)
+            }
+            #[cfg(unix)]
+            Stream::Unix(s) => {
+                s.set_read_timeout(read)?;
+                s.set_write_timeout(write)
+            }
+        }
+    }
+
+    fn shutdown(&self) {
+        let _ = match self {
+            Stream::Tcp(s) => s.shutdown(Shutdown::Both),
+            #[cfg(unix)]
+            Stream::Unix(s) => s.shutdown(Shutdown::Both),
+        };
     }
 }
 
@@ -399,6 +424,7 @@ fn answer_from(letter: char, value: &Value) -> Answer {
 // ---- connection -------------------------------------------------------------------------------
 
 struct Slot {
+    frames: Arc<[Vec<u8>]>,
     answers: Vec<Option<Answer>>,
     inputs: Option<Vec<Option<Vec<Answer>>>>,
     env_id: Option<String>,
@@ -408,16 +434,164 @@ struct Slot {
 }
 
 struct Shared {
+    // None while reconnecting; Err once the client is closed.
+    writer: Mutex<Result<Option<Stream>, String>>,
     slots: Mutex<HashMap<String, Slot>>,
     envs: Mutex<HashMap<String, Value>>,
-    alive: Mutex<Result<(), String>>,
 }
 
 pub struct Client {
-    writer: Mutex<Stream>,
     shared: Arc<Shared>,
     next: Mutex<u64>,
-    name: String,
+}
+
+enum Connector {
+    Endpoint(PathBuf),
+    #[cfg(unix)]
+    Unix(PathBuf),
+}
+
+impl Connector {
+    fn open(&self, name: &str, shared: &Shared) -> Result<Stream, Error> {
+        let (mut stream, token) = match self {
+            #[cfg(unix)]
+            Self::Unix(path) => (Stream::Unix(UnixStream::connect(path)?), None),
+            Self::Endpoint(path) => {
+                let text = std::fs::read_to_string(path)?;
+                let info: Value =
+                    serde_json::from_str(&text).map_err(|e| Error::Protocol(e.to_string()))?;
+                let host = info["host"].as_str().unwrap_or("127.0.0.1");
+                let port = info["port"]
+                    .as_u64()
+                    .and_then(|port| u16::try_from(port).ok())
+                    .ok_or_else(|| Error::Protocol("endpoint has no valid port".into()))?;
+                let stream = TcpStream::connect((host, port))?;
+                stream.set_nodelay(true)?;
+                (
+                    Stream::Tcp(stream),
+                    info["token"].as_str().map(str::to_string),
+                )
+            }
+        };
+        stream.set_timeouts(Some(SOCKET_TIMEOUT), Some(SOCKET_TIMEOUT))?;
+        stream.write_all(&pack(
+            b'H',
+            &json!({"v": VERSION, "name": name, "token": token}),
+        ))?;
+        loop {
+            let mut header = [0; 4];
+            stream.read_exact(&mut header)?;
+            let size = u32::from_be_bytes(header) as usize;
+            if !(1..=MAX_FRAME).contains(&size) {
+                return Err(Error::Protocol(format!("frame of {size} bytes")));
+            }
+            let mut frame = header.to_vec();
+            frame.resize(4 + size, 0);
+            stream.read_exact(&mut frame[4..])?;
+            let (kind, body) = take_frames(&mut frame)?.pop().expect("one complete frame");
+            if kind == b'H' && body["v"] == VERSION {
+                if let Some(envs) = body["envs"].as_object() {
+                    shared.envs.lock().unwrap().extend(envs.clone());
+                }
+                stream.set_timeouts(None, Some(SOCKET_TIMEOUT))?;
+                return Ok(stream);
+            }
+            if kind != b'E' {
+                return Err(Error::Protocol("expected hello from the service".into()));
+            }
+            route(shared, kind, body);
+        }
+    }
+}
+
+impl Shared {
+    fn close(&self, reason: String) {
+        let mut writer = self.writer.lock().unwrap();
+        if let Ok(Some(stream)) = std::mem::replace(&mut *writer, Err(reason.clone())) {
+            stream.shutdown();
+        }
+        for (_, slot) in self.slots.lock().unwrap().drain() {
+            let _ = slot.sender.send(Err(Error::Connection(reason.clone())));
+        }
+    }
+
+    fn replay(&self, mut stream: Stream) {
+        let mut writer = self.writer.lock().unwrap();
+        let Ok(connection) = &mut *writer else {
+            stream.shutdown();
+            return;
+        };
+        let pending: Vec<_> = self
+            .slots
+            .lock()
+            .unwrap()
+            .values_mut()
+            .map(|slot| {
+                // The new stream supplies the entire reply, from cache or a restarted broker.
+                slot.answers.fill(None);
+                if let Some(inputs) = &mut slot.inputs {
+                    inputs.fill(None);
+                }
+                slot.env_id = None;
+                Arc::clone(&slot.frames)
+            })
+            .collect();
+        if write_pieces(&mut stream, pending.iter().flat_map(|pieces| pieces.iter())).is_ok() {
+            *connection = Some(stream);
+        }
+    }
+
+    fn reconnect(&self, connector: &Connector, name: &str) -> Result<Stream, String> {
+        let started = Instant::now();
+        let mut delay = Duration::from_millis(50);
+        loop {
+            thread::sleep(delay);
+            if self.writer.lock().unwrap().is_err() {
+                return Err("the client was dropped".into());
+            }
+            match connector.open(name, self) {
+                Ok(stream) => return Ok(stream),
+                Err(error) if started.elapsed() >= RECONNECT_WINDOW => {
+                    return Err(error.to_string());
+                }
+                Err(_) => delay = (delay * 2).min(Duration::from_secs(2)),
+            }
+        }
+    }
+
+    fn read(&self, stream: &mut Stream) -> Result<(), Error> {
+        let mut buffer = Vec::new();
+        let mut chunk = vec![0; 1 << 16];
+        loop {
+            let n = stream.read(&mut chunk)?;
+            if n == 0 {
+                return Ok(());
+            }
+            buffer.extend_from_slice(&chunk[..n]);
+            for (kind, body) in take_frames(&mut buffer)? {
+                route(self, kind, body);
+            }
+        }
+    }
+}
+
+fn write_pieces<'a>(
+    stream: &mut Stream,
+    pieces: impl IntoIterator<Item = &'a Vec<u8>>,
+) -> io::Result<()> {
+    for piece in pieces {
+        if let Err(error) = stream.write_all(piece) {
+            stream.shutdown();
+            return Err(error);
+        }
+    }
+    Ok(())
+}
+
+impl Drop for Client {
+    fn drop(&mut self) {
+        self.shared.close("the client was dropped".into());
+    }
 }
 
 /// A request in flight.
@@ -466,83 +640,70 @@ impl Client {
 
     #[cfg(unix)]
     pub fn connect_unix(path: &Path) -> Result<Client, Error> {
-        let stream = UnixStream::connect(path)?;
-        Client::start(Stream::Unix(stream), None)
+        Client::start(Connector::Unix(std::path::absolute(path)?))
     }
 
     /// The broker's local endpoint file: `{"host", "port", "token"}`.
     pub fn connect_endpoint(path: &Path) -> Result<Client, Error> {
-        let text = std::fs::read_to_string(path)?;
-        let info: Value =
-            serde_json::from_str(&text).map_err(|e| Error::Protocol(e.to_string()))?;
-        let host = info["host"].as_str().unwrap_or("127.0.0.1").to_string();
-        let port = info["port"]
-            .as_u64()
-            .ok_or_else(|| Error::Protocol("endpoint has no port".into()))?
-            as u16;
-        let stream = TcpStream::connect((host.as_str(), port))?;
-        stream.set_nodelay(true)?;
-        Client::start(
-            Stream::Tcp(stream),
-            info["token"].as_str().map(str::to_string),
-        )
+        Client::start(Connector::Endpoint(std::path::absolute(path)?))
     }
 
-    fn start(stream: Stream, token: Option<String>) -> Result<Client, Error> {
-        let mut reader = stream.try_clone()?;
+    fn start(connector: Connector) -> Result<Client, Error> {
         let shared = Arc::new(Shared {
+            writer: Mutex::new(Ok(None)),
             slots: Mutex::new(HashMap::new()),
             envs: Mutex::new(HashMap::new()),
-            alive: Mutex::new(Ok(())),
         });
         let name = format!("rust-{}", std::process::id());
-        let mut writer = stream;
-        writer.write_all(&pack(
-            b'H',
-            &json!({"v": VERSION, "name": name, "token": token}),
-        ))?;
-        let (hello_tx, hello_rx) = channel::<()>();
+        let mut reader = connector.open(&name, &shared)?;
+        *shared.writer.lock().unwrap() = Ok(Some(reader.try_clone()?));
         let reader_shared = Arc::clone(&shared);
         thread::spawn(move || {
-            let mut buffer: Vec<u8> = Vec::new();
-            let mut chunk = vec![0u8; 1 << 16];
-            let reason = loop {
-                match reader.read(&mut chunk) {
-                    Ok(0) => break "closed by the service".to_string(),
-                    Ok(n) => buffer.extend_from_slice(&chunk[..n]),
-                    Err(e) => break e.to_string(),
+            let mut result = reader_shared.read(&mut reader);
+            loop {
+                if let Err(Error::Protocol(error)) = result {
+                    reader_shared.close(error);
+                    break;
                 }
-                match take_frames(&mut buffer) {
-                    Ok(frames) => {
-                        for (kind, body) in frames {
-                            route(&reader_shared, kind, body, &hello_tx);
-                        }
+                {
+                    let mut writer = reader_shared.writer.lock().unwrap();
+                    let Ok(connection) = &mut *writer else {
+                        break;
+                    };
+                    if let Some(stream) = connection.take() {
+                        stream.shutdown();
                     }
-                    Err(e) => break e.to_string(),
                 }
-            };
-            *reader_shared.alive.lock().unwrap() = Err(reason.clone());
-            let slots = std::mem::take(&mut *reader_shared.slots.lock().unwrap());
-            for (_, slot) in slots {
-                let _ = slot.sender.send(Err(Error::Connection(reason.clone())));
+                let stream = reader_shared
+                    .reconnect(&connector, &name)
+                    .and_then(|stream| {
+                        reader = stream.try_clone().map_err(|error| error.to_string())?;
+                        Ok(stream)
+                    });
+                let stream = match stream {
+                    Ok(stream) => stream,
+                    Err(reason) => {
+                        reader_shared.close(reason);
+                        break;
+                    }
+                };
+                // A large replay can fill both socket buffers. Read replies while sending it.
+                result = thread::scope(|scope| {
+                    scope.spawn(|| reader_shared.replay(stream));
+                    let result = reader_shared.read(&mut reader);
+                    reader.shutdown();
+                    result
+                });
             }
         });
-        hello_rx
-            .recv_timeout(Duration::from_secs(10))
-            .map_err(|_| Error::Connection("no hello from the service".into()))?;
         Ok(Client {
-            writer: Mutex::new(writer),
             shared,
             next: Mutex::new(0),
-            name,
         })
     }
 
     /// Sends a request and returns at once.
     pub fn submit(&self, request: Request) -> Result<Handle, Error> {
-        if let Err(reason) = &*self.shared.alive.lock().unwrap() {
-            return Err(Error::Connection(reason.clone()));
-        }
         let id = {
             let mut next = self.next.lock().unwrap();
             *next += 1;
@@ -553,11 +714,20 @@ impl Client {
                 *next as u32
             )
         };
+        let frames: Arc<[Vec<u8>]> = submit_frames(&id, &request)
+            .iter()
+            .map(|frame| pack(b'S', frame))
+            .collect();
         let (sender, receiver) = channel();
         let calls = request.rows.len();
+        let mut writer = self.shared.writer.lock().unwrap();
+        let connection = writer
+            .as_mut()
+            .map_err(|reason| Error::Connection(reason.clone()))?;
         self.shared.slots.lock().unwrap().insert(
-            id.clone(),
+            id,
             Slot {
+                frames: Arc::clone(&frames),
                 answers: vec![None; calls],
                 inputs: if request.echo_inputs {
                     Some(vec![None; calls])
@@ -566,16 +736,14 @@ impl Client {
                 },
                 env_id: None,
                 sender,
-                started: std::time::Instant::now(),
+                started: Instant::now(),
                 echo: request.echo_inputs,
             },
         );
-        let mut writer = self.writer.lock().unwrap();
-        for frame in submit_frames(&id, &request) {
-            if let Err(e) = writer.write_all(&pack(b'S', &frame)) {
-                self.shared.slots.lock().unwrap().remove(&id);
-                return Err(Error::Io(e));
-            }
+        if let Some(stream) = connection
+            && write_pieces(stream, frames.iter()).is_err()
+        {
+            *connection = None;
         }
         Ok(Handle { receiver })
     }
@@ -608,17 +776,8 @@ fn nanos() -> u128 {
         .unwrap_or(0)
 }
 
-fn route(shared: &Shared, kind: u8, body: Value, hello: &Sender<()>) {
+fn route(shared: &Shared, kind: u8, body: Value) {
     match kind {
-        b'H' => {
-            if let Some(envs) = body["envs"].as_object() {
-                let mut known = shared.envs.lock().unwrap();
-                for (k, v) in envs {
-                    known.insert(k.clone(), v.clone());
-                }
-            }
-            let _ = hello.send(());
-        }
         b'E' => {
             if let Some(id) = body["env_id"].as_str() {
                 shared

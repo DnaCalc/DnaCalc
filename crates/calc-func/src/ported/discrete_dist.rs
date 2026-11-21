@@ -157,7 +157,11 @@ pub(crate) fn beta_density_at(x: f64, y: f64, a: f64, b: f64) -> Option<f64> {
             &[-log_y_term, ln_beta],
         ));
     }
-    let (k, n) = (a - 1.0, a + b - 2.0);
+    let k = excel_x87_sub(a, 1.0);
+    let n = excel_x87_sub(excel_x87_add(a, b), 2.0);
+    if !(n > k) {
+        return Some(f64::NAN);
+    }
     let exponent = binom_exponent(k, n, x, y);
     let normalizer = binom_normalizer(k, n);
     Some(excel_exp_running(

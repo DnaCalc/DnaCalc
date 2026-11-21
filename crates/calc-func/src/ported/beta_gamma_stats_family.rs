@@ -103,7 +103,12 @@ pub(crate) fn beta_dist_kernel(
         // fractional (344/768 vs the binomial-sum shortcut's 254/768, and
         // the shortcut loses the disagreement rows 177:87). Route all
         // shapes through the identified BRATIO.
-        return Ok(regularized_beta(z, alpha, beta));
+        let cdf = regularized_beta(z, alpha, beta);
+        return if cdf.is_finite() {
+            Ok(cdf)
+        } else {
+            Err(WorksheetErrorCode::Num)
+        };
     }
     if z > 0.0 && z < 1.0 {
         if let Some(pdf) = crate::ported::discrete_dist::beta_density(z, alpha, beta) {
@@ -151,7 +156,7 @@ fn beta_inverse_start(p: f64, a: f64, b: f64) -> Option<BetaStart> {
         let rb = 1.0 / (2.0 * b - 1.0);
         let h = 2.0 / (ra + rb);
         let w = z * excel_sqrt_staged(al + h) / h - (rb - ra) * (al + 5.0 / 6.0 - 2.0 / (3.0 * h));
-        let x = a / (a + b * excel_exp(2.0 * w));
+        let x = excel_x87_div(a, excel_x87_add(a, excel_x87_mul(b, excel_exp(2.0 * w))));
         return if x == 1.0 && a + b == a {
             Some(BetaStart::Failed)
         } else if x <= 0.0 {
@@ -208,7 +213,7 @@ fn beta_inverse_start(p: f64, a: f64, b: f64) -> Option<BetaStart> {
                 a,
             ))
         };
-        return Some(if x < f64::MIN_POSITIVE {
+        return Some(if x <= 0.0 {
             BetaStart::LowerEndpoint
         } else if x >= 1.0 {
             BetaStart::UpperEndpoint
@@ -240,21 +245,18 @@ fn beta_newton_lower(p: f64, a: f64, b: f64) -> Result<Option<f64>, WorksheetErr
     let Some(start) = beta_inverse_start(p, a, b) else {
         return Ok(None);
     };
-    let (mut x, upper_endpoint) = match start {
+    let mut x = match start {
         BetaStart::Failed => return Err(WorksheetErrorCode::Num),
-        BetaStart::Interior(x) => (x, false),
-        BetaStart::LowerEndpoint => (1e-6, false),
-        BetaStart::LowerPower(x) if x > 0.0 && x < 1.0 => (x, false),
+        BetaStart::Interior(x) => x,
+        BetaStart::LowerEndpoint => 1e-6,
+        BetaStart::LowerPower(x) if x > 0.0 && x < 1.0 => x,
         BetaStart::LowerPower(_) => return Ok(None),
-        BetaStart::UpperEndpoint => (1.0 - 1e-6, true),
+        BetaStart::UpperEndpoint => 1.0 - 1e-6,
     };
     // The 1,040 frozen boundary controls separate the unrounded exponent
     // from its floor and truncation. Both tails use an absolute correction.
     let exponent = (-13.0 - 5.0 / (a * a) - libm::pow(p, -0.2)).max(-150.0);
     let tolerance = libm::pow(10.0, exponent).min(f64::EPSILON);
-    let outside_upper = upper_endpoint
-        && beta_dist_kernel(f64::from_bits(1.0_f64.to_bits() - 1), a, b, true, 0.0, 1.0)
-            .is_ok_and(|f| f < p);
     // If the shape sum absorbs a, b*x retains the gamma limit of I_x(a,b).
     // Its Newton correction is in units of b*x and must be divided by b.
     let gamma_limit = matches!(start, BetaStart::LowerPower(_)) && b + a == b;
@@ -267,10 +269,14 @@ fn beta_newton_lower(p: f64, a: f64, b: f64) -> Result<Option<f64>, WorksheetErr
     loop {
         let (cdf, density) = if gamma_limit {
             let u = excel_x87_mul(b, x);
-            (
-                gamma_dist_kernel(u, a, 1.0, true),
-                gamma_dist_kernel(u, a, 1.0, false),
-            )
+            let dens = gamma_dist_kernel(u, a, 1.0, false).and_then(|d| {
+                if excel_x87_mul(b, d).is_finite() {
+                    Ok(d)
+                } else {
+                    Err(WorksheetErrorCode::Num)
+                }
+            });
+            (gamma_dist_kernel(u, a, 1.0, true), dens)
         } else {
             (
                 beta_dist_kernel(x, a, b, true, 0.0, 1.0),
@@ -278,11 +284,7 @@ fn beta_newton_lower(p: f64, a: f64, b: f64) -> Result<Option<f64>, WorksheetErr
             )
         };
         let (Ok(cdf), Ok(density)) = (cdf, density) else {
-            return if matches!(start, BetaStart::LowerEndpoint) {
-                Err(WorksheetErrorCode::Num)
-            } else {
-                Ok(Some(best_x))
-            };
+            return Err(WorksheetErrorCode::Num);
         };
         let df = excel_x87_sub(cdf, p);
         let err_df = df.abs();
@@ -316,11 +318,7 @@ fn beta_newton_lower(p: f64, a: f64, b: f64) -> Result<Option<f64>, WorksheetErr
             }
             trials += 1;
             if trials >= MAX_TRIALS {
-                return if outside_upper || matches!(start, BetaStart::LowerEndpoint) {
-                    Err(WorksheetErrorCode::Num)
-                } else {
-                    Ok(Some(best_x))
-                };
+                return Err(WorksheetErrorCode::Num);
             }
             let next = excel_x87_sub(x, last_adjustment);
             if next > 0.0 && next < 1.0 {
@@ -358,28 +356,28 @@ pub(crate) fn beta_inv_kernel(
         (probability, alpha, beta, false)
     };
     use crate::ported::excel_numeric::{excel_x87_add, excel_x87_mul, excel_x87_sub};
-    let z = beta_newton_lower(probability, alpha, beta)?.unwrap_or_else(|| {
+    let z = flush_subnormal(beta_newton_lower(probability, alpha, beta)?.unwrap_or_else(|| {
         bisect_inverse_closest(probability, 0.0, 1.0, |v| regularized_beta(v, alpha, beta))
-    });
+    }));
     let z = if reflected {
         excel_x87_add(0.5, excel_x87_sub(0.5, z))
     } else {
         z
     };
-    Ok(excel_x87_add(
+    Ok(flush_subnormal(excel_x87_add(
         lower,
         excel_x87_mul(z, excel_x87_sub(upper, lower)),
-    ))
+    )))
 }
 
-pub(super) fn flush_subnormal(value: f64) -> f64 {
+pub(crate) fn flush_subnormal(value: f64) -> f64 {
     if value.is_subnormal() { 0.0 } else { value }
 }
 
 /// Full 7-term Goldstein (1973, ACM Algorithm 451) unit-scale starting approximation
 /// `a * ((c * c) * c)` for `a > 1.0`, with `f = 1 / (2*a)`, `u = z * sqrt(f)`, and
 /// stored Horner `c = sum_{k=0..6} (A[k] + f * (B[k] + f * C[k])) * u^k`.
-fn goldstein_initial_unit(z: f64, a: f64) -> Option<f64> {
+pub(super) fn goldstein_initial_unit(z: f64, a: f64) -> Option<f64> {
     use crate::ported::excel_numeric::{
         excel_sqrt_staged, excel_x87_add, excel_x87_div, excel_x87_mul,
     };
@@ -574,16 +572,18 @@ pub fn gamma_dist_kernel(
 }
 
 /// Excel's iterative unit-scale gamma inverse solver (cb6, dc-j9k.60; Goldstein 451 start dc-j9k.63):
-/// - AS 91 `-1.24 * ln(p)` power seed, Goldstein (1973) Algorithm 451 full 7-term start for
-///   `a > 1.0`, and Wilson-Hilferty start for `a < 1.0` (with `z = -NORM.S.INV(q)` for
-///   right-tail chi-square callers so tiny `q` survives without `1 - q` cancellation);
+/// - AS 91 `-1.24 * ln(p)` power seed `exp(((ln(p) + gammaln(a)) + ln(a)) / a)` (dc-iuwct.58),
+///   Goldstein (1973) Algorithm 451 full 7-term start for `a > 1.0`, and Wilson-Hilferty start
+///   for `a < 1.0` (with `z = -NORM.S.INV(q)` for right-tail chi-square callers so tiny `q`
+///   survives without `1 - q` cancellation);
 /// - complement residual switch strictly above `0.9999` (`0x3fefff2e48e8a71e`);
 /// - `a < 1.0` Wilson-Hilferty cube `a * exp(3 * ln(c))` (dc-j9k.64, 57/60 vs 1/60 on frozen
 ///   live Excel 16.0.20527 holdouts);
 /// - unfactored Halley step `2*df / (2*pdf - df*((a-1)/x - 1))` with AS 109 sign-change
 ///   thirding damping (stopping at `best_x` when damping triggers without residual improvement),
-///   `106`-trial cap, `|next - x| <= f64::EPSILON * x` relative-step stop returning `best_x`
-///   without evaluating `next`, and strict-minimum residual `best_x` publication.
+///   `105`-step cap returning `best_x` iff `best_err <= 1e-12 * target` else `#NUM!` (dc-iuwct.58),
+///   `|next - x| <= f64::EPSILON * x` relative-step stop returning `best_x` without evaluating
+///   `next`, and strict-minimum residual `best_x` publication.
 pub(super) fn gamma_halley_unit(
     prob: f64,
     a: f64,
@@ -593,15 +593,20 @@ pub(super) fn gamma_halley_unit(
         excel_exp, excel_log, excel_sqrt_staged, excel_x87_add, excel_x87_div, excel_x87_mul,
         excel_x87_sub, gammaln_excel,
     };
-    const MAX_TRIALS: usize = 106;
+    const MAX_TRIALS: usize = 105;
 
     let mut x = if !is_upper_q {
         // The lower-tail power estimate is exact at the underflow scale.
         // Excel 20527: 56 controls separate an estimate rounded to zero
         // from a nonzero subnormal, which fails with #DIV/0! before scale is applied.
+        // AS 91 `exp(((ln(p) + gammaln(a)) + ln(a)) / a)` avoids `1 + a` absorption at
+        // small `a` and matches live Excel's addition order on `a ~ exp(-8)` probes (dc-iuwct.58).
         let power_seed = || {
             let log_seed = excel_x87_div(
-                excel_x87_add(excel_log(prob), gammaln_excel(1.0 + a)),
+                excel_x87_add(
+                    excel_x87_add(excel_log(prob), gammaln_excel(a)),
+                    excel_log(a),
+                ),
                 a,
             );
             excel_exp(log_seed)
@@ -670,6 +675,7 @@ pub(super) fn gamma_halley_unit(
     // Complement residual switch strictly above 0.9999 (0x3fefff2e48e8a71e).
     let comp_prob = excel_x87_add(0.5, excel_x87_sub(0.5, prob));
     let switch_comp = prob > 0.9999;
+    let target = if switch_comp { comp_prob } else { prob };
     let eval_df = |x_val: f64| -> Result<f64, WorksheetErrorCode> {
         if !is_upper_q && !switch_comp {
             let cdf = gamma_dist_kernel(x_val, a, 1.0, true)?;
@@ -706,6 +712,12 @@ pub(super) fn gamma_halley_unit(
         }
         if err_df == 0.0 {
             return Ok(best_x);
+        }
+        if trials >= MAX_TRIALS {
+            if best_err <= excel_x87_mul(1e-12, target) {
+                return Ok(best_x);
+            }
+            return Err(WorksheetErrorCode::Num);
         }
 
         let pdf = gamma_dist_kernel(x, a, 1.0, false)?;
@@ -750,9 +762,6 @@ pub(super) fn gamma_halley_unit(
                 return Ok(best_x);
             }
             trials += 1;
-            if trials > MAX_TRIALS {
-                return Err(WorksheetErrorCode::Num);
-            }
             if next == x {
                 return Ok(best_x);
             }
@@ -790,8 +799,7 @@ pub fn gamma_inv_kernel(
             Err(WorksheetErrorCode::Num)
         };
     }
-    // Shared with the right-tail chi-square inverse. Scale only after the
-    // independently measured unit result has been stored.
+    // Scale only after the independently measured unit result has been stored.
     if (2.0_f64.powi(-40)..2.0_f64.powi(40)).contains(&beta)
         && let Some(factor) = large_shape_inverse_factor(probability, alpha)
     {
@@ -1226,6 +1234,260 @@ mod tests {
             )
             .unwrap();
             assert_eq!(got.to_bits(), expected, "CHISQ.INV({p:#x}, {df:#x})");
+        }
+    }
+
+    /// Excel 16.0.20527 (dc-iuwct.50): BETA.INV structural and billion-ULP gross rows
+    /// surfaced by the discrepancies bank (`ax2`), plus live Touchstone boundary edges.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_iuwct_50_beta_inv_structural_and_gross_boundaries() {
+        // 1. bfrac overflow at b >= 2^512 * (a + 2n - 1) / sqrt(n * (a + n - 1))
+        //    (ax2/beta-seed-exponents, 800 structural rows + live Touchstone bisected edges).
+        assert_eq!(
+            beta_inv_kernel(
+                f64::from_bits(0x3f789374bc6a7efa),
+                f64::from_bits(0x3ff0000000000001),
+                f64::from_bits(0x5fffffffffffffff),
+                0.0,
+                1.0,
+            )
+            .unwrap()
+            .to_bits(),
+            0x1f52121a985ffcca,
+        );
+        assert_eq!(
+            beta_inv_kernel(
+                f64::from_bits(0x3f789374bc6a7efa),
+                f64::from_bits(0x3ff0000000000001),
+                f64::from_bits(0x6000000000000000),
+                0.0,
+                1.0,
+            ),
+            Err(WorksheetErrorCode::Num),
+        );
+        // ax2/beta-seed-exponents $[1684]
+        assert_eq!(
+            beta_inv_kernel(0.006, 1.0000000000000002, 3.432398830065305e156, 0.0, 1.0),
+            Err(WorksheetErrorCode::Num),
+        );
+        // ax2/beta-seed-exponents $[65] and live Touchstone PDF-overflow edge (0x7d72f8939aa27197/8)
+        assert_eq!(
+            beta_inv_kernel(0.006, 0.15, f64::from_bits(0x7d72f8939aa27197), 0.0, 1.0),
+            Ok(0.0),
+        );
+        assert_eq!(
+            beta_inv_kernel(0.006, 0.15, f64::from_bits(0x7d72f8939aa27198), 0.0, 1.0),
+            Err(WorksheetErrorCode::Num),
+        );
+        assert_eq!(
+            beta_inv_kernel(
+                f64::from_bits(0x3f789374bc6a7efa),
+                f64::from_bits(0x3fc3333333333333),
+                f64::from_bits(0x7d80000000000000),
+                0.0,
+                1.0,
+            ),
+            Err(WorksheetErrorCode::Num),
+        );
+
+        // 2. beta_density n - k <= 0 error propagation (ax2/beta-absorbed-inverse 58 rows,
+        //    ax2/beta-prior-controls 23 rows).
+        for (p, a, b) in [
+            (0x3f76b2492e99b060_u64, 0x42f7b6254d824baa_u64, 0x3ff0000000000001_u64), // absorbed $[327]
+            (0x3f9dda0d451cf9d9_u64, 0x434ddb2cb42a218e_u64, 0x4000000000000000_u64), // absorbed $[785]
+            (0x3fe15e8d0e79251f_u64, 0x3ff0000000000003_u64, 0x434f1b7924d5db6a_u64), // prior $[561]
+        ] {
+            assert_eq!(
+                beta_inv_kernel(f64::from_bits(p), f64::from_bits(a), f64::from_bits(b), 0.0, 1.0),
+                Err(WorksheetErrorCode::Num),
+                "expected #NUM! for ({p:#x}, {a:#x}, {b:#x})",
+            );
+        }
+
+        // 3. ax2/beta-prior-controls $[3] (Ext80 a/(a+b*exp(2w))) and $[4] (Ext80 n = st(a+b-2)).
+        assert_eq!(
+            beta_inv_kernel(
+                f64::from_bits(0x3fe0000000000001),
+                f64::from_bits(0x3ff000001dc7b303),
+                f64::from_bits(0x434805f26460ed59),
+                1.0,
+                100.0,
+            )
+            .unwrap()
+            .to_bits(),
+            0x3ff0000000000032,
+        );
+        assert_eq!(
+            beta_inv_kernel(
+                f64::from_bits(0x3fe00a4b00f095ec),
+                f64::from_bits(0x3ff0000001ffffbd),
+                f64::from_bits(0x419799a9a3392c51),
+                1.0,
+                100.0,
+            )
+            .unwrap()
+            .to_bits(),
+            0x3ff00000bac41696,
+        );
+        // Live Touchstone exact x87 double-rounding edges for beta_density n = st(a + b - 2):
+        assert_eq!(
+            beta_dist_kernel(
+                f64::from_bits(0x3feffffffa8e2da7),
+                f64::from_bits(0x419799a9a3392c51),
+                f64::from_bits(0x3ff0000001ffbfff),
+                false,
+                0.0,
+                1.0,
+            ),
+            Err(WorksheetErrorCode::Num),
+        );
+        assert!(
+            beta_dist_kernel(
+                f64::from_bits(0x3feffffffa8e2da7),
+                f64::from_bits(0x419799a9a3392c51),
+                f64::from_bits(0x3ff0000001ffc000),
+                false,
+                0.0,
+                1.0,
+            )
+            .is_ok(),
+        );
+
+        // 4. ax2/beta-lower-probability $[231] (700-trial exhaustion -> #NUM!).
+        assert_eq!(
+            beta_inv_kernel(1.1078772577623568e-31, 292.24366148288243, 1.428573466563099, 0.0, 1.0),
+            Err(WorksheetErrorCode::Num),
+        );
+
+        // 5. ax2/beta-power-starts $[381] (subnormal LowerPower kept, flushed at publication;
+        //    PDF overflow edge at 0x3fc4b54e1a4059d6/7).
+        assert_eq!(
+            beta_inv_kernel(0.1653057172940107, 0.002537240689259808, 0.8278454102205709, 0.0, 1.0),
+            Ok(0.0),
+        );
+        assert_eq!(
+            beta_inv_kernel(
+                f64::from_bits(0x3fc4b54e1a4059d6),
+                0.002537240689259808,
+                0.8278454102205709,
+                0.0,
+                1.0,
+            ),
+            Err(WorksheetErrorCode::Num),
+        );
+        assert_eq!(
+            beta_inv_kernel(
+                f64::from_bits(0x3fc4b54e1a4059d7),
+                0.002537240689259808,
+                0.8278454102205709,
+                0.0,
+                1.0,
+            ),
+            Ok(0.0),
+        );
+    }
+
+    /// Excel 16.0.20527 (dc-iuwct.58): GAMMA.INV 105-trial exhaustion tolerance
+    /// (`best_err <= 1e-12 * target`, both `prob` and `comp_prob` arms) and AS 91
+    /// `power_seed` sum order `((ln(p) + gammaln(a)) + ln(a)) / a`.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_iuwct_58_gamma_inv_structural_and_gross_boundaries() {
+        // 1. Five live Touchstone single-bit bisected MAX_TRIALS = 105 edges
+        //    (p_err -> #NUM!, p_ok -> x_105 where best_err <= 1e-12 * target).
+        //    Edges 3..5 carry a <=3 ULP forward gratio st200 residual (dc-j9k.59) at x_0 < 1.1;
+        //    all five single-bit #NUM! -> finite transitions match live Excel bit-for-bit.
+        let edges: [(u64, u64, u64, u64, u64); 5] = [
+            // a = 0.0252 (!switch_comp)
+            (0x3f99ce075f6fd220, 0x3fefa4e3873b90a2, 0x3fefa4e3873b90a3, 0x3fe3eeb2ef1e000f, 0),
+            // a = 0.02055 (!switch_comp)
+            (0x3f950b0f27bb2fec, 0x3fefdb099876b81d, 0x3fefdb099876b81e, 0x3ff03121a2dfde85, 0),
+            // a = 0.019 (!switch_comp)
+            (0x3f9374bc6a7ef9db, 0x3fefe649f3cec807, 0x3fefe649f3cec808, 0x3ff2fedd97d00a21, 2),
+            // a = 0.0128 (!switch_comp)
+            (0x3f8a36e2eb1c432d, 0x3feffca516ac6df6, 0x3feffca516ac6df7, 0x40029f26191448a4, 4),
+            // a = 0.0097 (p > 0.9999, switch_comp = true, target = comp_prob)
+            (0x3f83dd97f62b6ae8, 0x3fefff6c4cbc26a1, 0x3fefff6c4cbc26a2, 0x400bdcc7b0943823, 4),
+        ];
+        for (a_bits, p_err, p_ok, x_ok, max_ulp) in edges {
+            let a = f64::from_bits(a_bits);
+            assert_eq!(
+                gamma_inv_kernel(f64::from_bits(p_err), a, 1.0),
+                Err(WorksheetErrorCode::Num),
+                "expected #NUM! at p={p_err:#x}, a={a_bits:#x}",
+            );
+            let got = gamma_inv_kernel(f64::from_bits(p_ok), a, 1.0)
+                .expect("expected finite at p_ok")
+                .to_bits();
+            assert!(
+                got.abs_diff(x_ok) <= max_ulp,
+                "expected {x_ok:#x} +/- {max_ulp}u at p={p_ok:#x}, a={a_bits:#x}, got {got:#x}",
+            );
+        }
+
+        // 2. Bank structural rows (Group A #NUM!, Group B finite) and 105-step gross rows.
+        for (p_bits, a_bits) in [
+            (0x3fefa4e36c3bdd1e_u64, 0x3f99ce075f6fd220_u64), // halley[5010]
+            (0x3fefe649e3539e41_u64, 0x3f9374bc6a7ef9db_u64), // halley[4903]
+            (0x3fefff6c4c8c49c4_u64, 0x3f83dd97f62b6ae8_u64), // cb6[237]
+        ] {
+            assert_eq!(
+                gamma_inv_kernel(f64::from_bits(p_bits), f64::from_bits(a_bits), 1.0),
+                Err(WorksheetErrorCode::Num),
+            );
+        }
+        // Group B finite recoveries (halley[5008] and cb6[244] carry 1-ULP forward gratio st200
+        // residuals -> +46u / +3u at x_105, owned by dc-j9k.59; halley[4829] is bit-exact).
+        let got_5008 = gamma_inv_kernel(
+            f64::from_bits(0x3fefa4e3c3261e13),
+            f64::from_bits(0x3f99ce075f6fd220),
+            1.0,
+        )
+        .expect("halley[5008] must be finite")
+        .to_bits();
+        assert!(got_5008.abs_diff(0x3fe3eebdb25852fa) <= 46, "halley[5008]={got_5008:#x}");
+        let got_cb6_244 = gamma_inv_kernel(
+            f64::from_bits(0x3fefff6c4cdc47e3),
+            f64::from_bits(0x3f83dd97f62b6ae8),
+            1.0,
+        )
+        .expect("cb6[244] must be finite")
+        .to_bits();
+        assert!(got_cb6_244.abs_diff(0x400bdcc918e32713) <= 3, "cb6[244]={got_cb6_244:#x}");
+
+        for (p_bits, a_bits, expected) in [
+            (0x3fefef942c5c3563_u64, 0x3f91b71758e21965_u64, 0x3ff6aa4ac43db371_u64), // halley[4829]
+            (0x3fefe649f7ff93f5_u64, 0x3f9374bc6a7ef9db_u64, 0x3ff2fedf3efed5cf_u64), // halley[4902]
+            (0x3fefeb923ac27462_u64, 0x3f9288ce703afb7f_u64, 0x3ff4d9bbff0238ef_u64), // halley[4866]
+            (0x3fefa4e39778f829_u64, 0x3f99ce075f6fd220_u64, 0x3fe3eeb5d9e16df9_u64), // halley[5009]
+        ] {
+            assert_eq!(
+                gamma_inv_kernel(f64::from_bits(p_bits), f64::from_bits(a_bits), 1.0)
+                    .unwrap()
+                    .to_bits(),
+                expected,
+                "GAMMA.INV({p_bits:#x}, {a_bits:#x}, 1)",
+            );
+        }
+
+        // 3. AS 91 power_seed `((ln(p) + gammaln(a)) + ln(a)) / a`: small-shape plateau gross
+        //    rows and live Touchstone `a ~ exp(-8)` sum-order separating probes (0 ULP exact).
+        for (p_bits, a_bits, expected) in [
+            (0x3feffdad4b376a31_u64, 0x3f04062c83ec6f53_u64, 0x3f35ec85ab6bab65_u64), // halley[3955]
+            (0x3feffeac9d2f16ed_u64, 0x3ef818990fed1d12_u64, 0x3f40148394102a50_u64), // halley[2604]
+            (0x3feffecf145b62b3_u64, 0x3ef7f09ba7583970_u64, 0x3f4f909edec4f7e7_u64), // halley[1868]
+            (0x3fefff034d91b21e_u64, 0x3ef63c60040f69a2_u64, 0x3f5f61c9e1d5b3ea_u64), // halley[982]
+            (0.9985_f64.to_bits(), 0.0003354_f64.to_bits(), 0x3f7a5a9ce89bedd5_u64), // live (lp+ga)+la vs (lp+la)+ga
+            (0.9975_f64.to_bits(), 0.0003355_f64.to_bits(), 0x3f352ceb5a248ca1_u64), // live (lp+ga)+la vs (lp+la)+ga
+        ] {
+            assert_eq!(
+                gamma_inv_kernel(f64::from_bits(p_bits), f64::from_bits(a_bits), 1.0)
+                    .unwrap()
+                    .to_bits(),
+                expected,
+                "GAMMA.INV({p_bits:#x}, {a_bits:#x}, 1)",
+            );
         }
     }
 }

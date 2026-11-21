@@ -1710,7 +1710,13 @@ fn bratio_bup(a: f64, b: f64, x: f64, y: f64, n: i32, eps: f64) -> f64 {
             if h.is_subnormal() {
                 return 0.0;
             }
-            let first = excel_x87_mul(excel_x87_div(xy, a), density);
+            // The division store also flushes before the density multiplier.
+            // At the minimum normal coordinate it leaves the bgrat seed zero.
+            let scale = excel_x87_div(xy, a);
+            if scale.is_subnormal() {
+                return 0.0;
+            }
+            let first = excel_x87_mul(scale, density);
             // Universal finite-recurrence sum (dc-j9k.58):
             // - For b <= 1 (the 20-step shift before bgrat), coefficients are stored binary64
             //   while x^m and the sum accumulate in extended precision.
@@ -1992,9 +1998,6 @@ fn bratio_bfrac(a: f64, b: f64, x: f64, y: f64) -> f64 {
     }
     .filter(|value| value.is_finite())
     .unwrap_or_else(|| bratio_brcomp(a, b, x, y));
-    if bf == 0.0 {
-        return bf;
-    }
     crate::ported::excel_numeric::excel_beta_fraction(a, b, x, y, bf)
 }
 

@@ -562,11 +562,25 @@ fn beta_fraction<F: Fpu>(a: f64, b: f64, x: f64, y: f64, bf: f64) -> f64 {
     let mut bnp1 = st(&F::div(&lc, &lc1, CW));
     let mut r = st(&F::div(&lc1, &lc, CW));
     let two = load(2.0);
+    let mut s_ext = F::add(&la, &one, CW);
 
     for _ in 0..10_000 {
         n += 1.0;
         let ln = load(n);
         let ls = load(s);
+        // Excel's bfrac evaluates the non-x factor of alpha in binary64 before multiplying by
+        // x^2, overflowing to #NUM! when b >= 2^512 * (a + 2n - 1) / sqrt(n * (a + n - 1))
+        // (verified on 24/25 live Touchstone edges across a in [1+2^-52, 1000], n in {1,2,3}).
+        let a_plus_nm1 = F::add(&la, &F::sub(&ln, &one, CW), CW);
+        let ab_plus_nm1 = F::add(&F::add(&la, &lb, CW), &F::sub(&ln, &one, CW), CW);
+        let f1 = st(&F::div(&a_plus_nm1, &s_ext, CW));
+        let f2 = st(&F::div(&ab_plus_nm1, &s_ext, CW));
+        let f12 = st(&F::mul(&load(f1), &load(f2), CW));
+        let f3 = st(&F::mul(&ln, &F::sub(&lb, &ln, CW), CW));
+        let alpha_no_x = st(&F::mul(&load(f12), &load(f3), CW));
+        if !alpha_no_x.is_finite() {
+            return f64::NAN;
+        }
         let t0 = st(&F::div(&ln, &la, CW));
         let w = st(&F::mul(&F::mul(&ln, &F::sub(&lb, &ln, CW), CW), &lx, CW));
         let e = st(&F::div(&la, &ls, CW));
@@ -593,6 +607,7 @@ fn beta_fraction<F: Fpu>(a: f64, b: f64, x: f64, y: f64, bf: f64) -> f64 {
         ));
         p = st(&one_p_t0);
         s = st(&F::add(&ls, &two, CW));
+        s_ext = F::add(&s_ext, &two, CW);
         let lalpha = load(alpha);
         let lbeta = load(beta);
         let t_a = st(&F::add(
