@@ -42,54 +42,64 @@ enum DateTimePart {
     },
 }
 
+#[derive(PartialEq, Eq)]
+pub(crate) enum DateTimeFormat {
+    DateTime,
+    NamedDateTime,
+    MixedNameAndNumber,
+    Other,
+}
+
+struct DateTimeParts {
+    parts: Vec<DateTimePart>,
+    has_placeholder: bool,
+    has_literal_digit: bool,
+}
+
 pub(crate) fn has_invalid_exponent(section: &str) -> bool {
     section.contains('E')
-        && tokenize_datetime_format(section, None).iter().any(|part| {
-            matches!(
-                part,
-                DateTimePart::Token {
-                    kind: DateTimeTokenKind::UpperExponent,
-                    ..
-                }
-            )
-        })
+        && tokenize_datetime_format(section, None, '.')
+            .parts
+            .iter()
+            .any(|part| {
+                matches!(
+                    part,
+                    DateTimePart::Token {
+                        kind: DateTimeTokenKind::UpperExponent,
+                        ..
+                    }
+                )
+            })
 }
 
-pub(crate) fn looks_like_datetime_format(section: &str, decimal: char) -> bool {
-    let parts = tokenize_datetime_format(section, None);
-    let has_datetime_token = parts.iter().any(|part| match part {
-        DateTimePart::Token { .. } => true,
-        DateTimePart::Literal(_) => false,
-    });
-    has_datetime_token
-        && !section.contains('#')
-        && !without_subseconds(section, decimal).contains('0')
-        && !section.contains('?')
-}
-
-/// The section with the decimal places of a seconds token (`s.0`, `ss.00`, `[ss].000`) removed:
-/// the zeros left over belong to no date or time token.
-pub(crate) fn without_subseconds(section: &str, decimal: char) -> String {
-    let chars: Vec<char> = section.chars().collect();
-    let mut out = String::new();
-    let mut index = 0;
-    while index < chars.len() {
-        out.push(chars[index]);
-        let after_second = matches!(chars[index], 's' | 'S' | ']')
-            && (chars[index] != ']' || out.to_ascii_lowercase().ends_with("s]"));
-        if after_second
-            && matches!(chars.get(index + 1), Some(&c) if c == '.' || c == decimal)
-            && chars.get(index + 2) == Some(&'0')
-        {
-            index += 2;
-            while chars.get(index) == Some(&'0') {
-                index += 1;
+pub(crate) fn classify_datetime_format(section: &str, decimal: char) -> DateTimeFormat {
+    let parsed = tokenize_datetime_format(section, None, decimal);
+    let has_date_name = parsed.parts.iter().any(|part| {
+        matches!(
+            part,
+            DateTimePart::Token {
+                kind: DateTimeTokenKind::Day | DateTimeTokenKind::Month,
+                width: 3..,
             }
-            continue;
-        }
-        index += 1;
+        )
+    });
+    if has_date_name {
+        return if parsed.has_placeholder || parsed.has_literal_digit {
+            DateTimeFormat::MixedNameAndNumber
+        } else {
+            DateTimeFormat::NamedDateTime
+        };
     }
-    out
+    if !parsed.has_placeholder
+        && parsed
+            .parts
+            .iter()
+            .any(|part| matches!(part, DateTimePart::Token { .. }))
+    {
+        DateTimeFormat::DateTime
+    } else {
+        DateTimeFormat::Other
+    }
 }
 
 pub(crate) fn render_with_datetime_tokens(
@@ -105,7 +115,10 @@ pub(crate) fn render_with_datetime_tokens(
         return None;
     }
 
-    let parts = classify_minute_tokens(tokenize_datetime_format(section, Some(profile)));
+    let decimal = profile.format_code_decimal_token.chars().next().unwrap_or('.');
+    let parts = classify_minute_tokens(
+        tokenize_datetime_format(section, Some(profile), decimal).parts
+    );
     if !parts
         .iter()
         .any(|part| matches!(part, DateTimePart::Token { .. }))
@@ -348,7 +361,11 @@ pub(crate) fn render_with_datetime_tokens(
     Some(rendered)
 }
 
-fn tokenize_datetime_format(section: &str, profile: Option<&FormatProfile>) -> Vec<DateTimePart> {
+fn tokenize_datetime_format(
+    section: &str,
+    profile: Option<&FormatProfile>,
+    decimal: char,
+) -> DateTimeParts {
     let chars: Vec<char> = section.chars().collect();
     let mut parts = Vec::new();
     let mut literal = String::new();
@@ -356,10 +373,8 @@ fn tokenize_datetime_format(section: &str, profile: Option<&FormatProfile>) -> V
     let mut in_quotes = false;
     let mut quoted_literal = String::new();
     let mut quoted_escape = false;
-    // The character a code writes the decimal point as: `.`, or the host's in a localized code.
-    let decimal = profile
-        .and_then(|p| p.format_code_decimal_token.chars().next())
-        .unwrap_or('.');
+    let mut has_placeholder = false;
+    let mut has_literal_digit = false;
 
     while index < chars.len() {
         let ch = chars[index];
@@ -399,6 +414,15 @@ fn tokenize_datetime_format(section: &str, profile: Option<&FormatProfile>) -> V
             continue;
         }
 
+        // A padding or fill control consumes its following character.
+        if matches!(ch, '_' | '*') && index + 1 < chars.len() {
+            if ch == '_' {
+                literal.push(' ');
+            }
+            index += 2;
+            continue;
+        }
+
         if let Some((kind, width, consumed)) = elapsed_token_at(&chars, index) {
             push_literal(&mut parts, &mut literal);
             parts.push(DateTimePart::Token { kind, width });
@@ -423,6 +447,25 @@ fn tokenize_datetime_format(section: &str, profile: Option<&FormatProfile>) -> V
                 width,
             });
             index += 1 + width;
+            continue;
+        }
+
+        // A minute token followed by a decimal zero writes that suffix literally.
+        // Excel 20527 en-ZA: `aaa m.0` is `Sun 0.0`, `hh:mm.0` is `18:00.0`.
+        if ch == '.'
+            && decimal == '.'
+            && chars.get(index + 1) == Some(&'0')
+            && literal.is_empty()
+            && let Some(DateTimePart::Token { kind, width: 1 | 2 }) = parts.last_mut()
+            && *kind == DateTimeTokenKind::Month
+        {
+            *kind = DateTimeTokenKind::Minute;
+            literal.push(ch);
+            index += 1;
+            while chars.get(index) == Some(&'0') {
+                literal.push('0');
+                index += 1;
+            }
             continue;
         }
 
@@ -455,6 +498,8 @@ fn tokenize_datetime_format(section: &str, profile: Option<&FormatProfile>) -> V
         }
 
         let lower = ch.to_ascii_lowercase();
+        has_placeholder |= matches!(ch, '0' | '#' | '?');
+        has_literal_digit |= matches!(ch, '1'..='9');
         let kind = match lower {
             'y' => Some(DateTimeTokenKind::Year),
             'm' => Some(DateTimeTokenKind::Month),
@@ -498,7 +543,7 @@ fn tokenize_datetime_format(section: &str, profile: Option<&FormatProfile>) -> V
     // Preserve the previous treatment of an unfinished quote.
     literal.push_str(&quoted_literal);
     push_literal(&mut parts, &mut literal);
-    parts
+    DateTimeParts { parts, has_placeholder, has_literal_digit }
 }
 
 fn elapsed_token_at(chars: &[char], index: usize) -> Option<(DateTimeTokenKind, usize, usize)> {
