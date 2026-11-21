@@ -541,7 +541,7 @@ fn call_function(
     spreadsheet: Option<&spreadsheet::SpreadsheetHost>,
     index: usize,
     args: &[Value],
-    call: impl FnOnce(usize, &[Variant]) -> Result<Variant, Error>,
+    call: impl FnOnce(Vec<Variant>, Option<Vec<Variant>>) -> Result<Variant, Error>,
 ) -> Result<Value, Error> {
     let (metadata, procedure) = functions
         .get(index)
@@ -601,15 +601,15 @@ fn call_function(
             converted => values.push(converted?),
         }
     }
-    if variadic {
-        values.push(Variant::from_safearray(SafeArray::from_variants(
+    let tail = variadic
+        .then(|| {
             args.iter()
                 .skip(fixed)
                 .map(argument)
-                .collect::<Result<Vec<_>, _>>()?,
-        )));
-    }
-    let result = call(index, &values)?;
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .transpose()?;
+    let result = call(values, tail)?;
     match spreadsheet {
         Some(host) => host.result(&result),
         None => from_variant(&result, false),
