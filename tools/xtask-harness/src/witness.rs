@@ -10,6 +10,9 @@
 //!   and every WitnessSet file (`{"function", "witnesses": [{"id", "args", "expected_bits"}]}`) of
 //!   `manifest.tsv` and `w109-manifest.tsv` named `answers*.json` (the runners' answer files;
 //!   predictions, synthetic answers and research files of the same shape hold no Excel reading).
+//!   It also includes the retained study discrepancies for the host's judgment set. The full
+//!   study archive is read only by `witness discrepancies`, which compares each observation
+//!   individually and exports failures for the evidence harvester.
 //!
 //! Each reading keeps its recorded build, platform, bitness, CPU and optional invocation facts:
 //! argument transport, input-sheet state, locale/separators, date system and CompatibilityVersion.
@@ -86,11 +89,14 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
-pub const USAGE: &str = "cargo xtask witness judge [--func <F>] [--bank pinned|full] [--release | --profile dev|release|perf] [--report <json>] [--trace <path>] [--values-only] [--study-cpu intel] | cargo xtask witness compare --before <trace> --after <trace> | cargo xtask witness refresh [--func <F>] [--context] [--classified-losses <tsv>] | cargo xtask witness pin [--func <F>] [--rows <N>] | cargo xtask witness read --func <F>[,<F>...] [--timeout <s>] [--inputs <json> [--new-only] [--repeat-calls]] | cargo xtask witness export --report <jsonl> [--func <F>]";
+pub const USAGE: &str = "cargo xtask witness judge [--func <F>] [--bank pinned|full] [--release | --profile dev|release|perf] [--report <json>] [--trace <path>] [--values-only] [--study-cpu intel] | cargo xtask witness compare --before <trace> --after <trace> | cargo xtask witness refresh [--func <F>] [--context] [--classified-losses <tsv>] | cargo xtask witness pin [--func <F>] [--rows <N>] | cargo xtask witness read --func <F>[,<F>...] [--timeout <s>] [--inputs <json> [--new-only] [--repeat-calls]] | cargo xtask witness export --report <jsonl> [--func <F>] | cargo xtask witness discrepancies --report <jsonl> [--inputs <study-bank.json[.gz]>] [--func <F>] [--study-cpu intel]";
 
 use crate::evidence::CHECKOUT;
 const STUDIES: &str = "studies-manifest.tsv";
 const STUDIES_DIR: &str = "readings/excel-20527/studies/";
+const DISCREPANCIES: &str = "discrepancies-manifest.tsv";
+const DISCREPANCIES_DIR: &str = "readings/excel-20527/discrepancies/";
+const STUDY_FORMAT: &str = "dnacalc-study-bank/1";
 const MANIFESTS: [&str; 2] = ["manifest.tsv", "w109-manifest.tsv"];
 const PINNED_DIR: &str = "crates/calc-func/tests/witnesses";
 const STATUS: &str = "crates/calc-func/witness-status.tsv";
@@ -122,6 +128,7 @@ enum Verb {
     Pin,
     Read,
     Export,
+    Discrepancies,
 }
 
 struct Request {
@@ -153,6 +160,7 @@ fn parse_args(raw: &[String]) -> Result<Request, String> {
         "pin" => Verb::Pin,
         "read" => Verb::Read,
         "export" => Verb::Export,
+        "discrepancies" => Verb::Discrepancies,
         other => return Err(format!("unknown subcommand {other}")),
     };
     let mut request = Request {
@@ -187,14 +195,16 @@ fn parse_args(raw: &[String]) -> Result<Request, String> {
             }
             "--before" if verb == Verb::Compare => request.before = Some(PathBuf::from(value()?)),
             "--after" if verb == Verb::Compare => request.after = Some(PathBuf::from(value()?)),
-            "--inputs" if verb == Verb::Read => request.inputs = Some(PathBuf::from(value()?)),
+            "--inputs" if matches!(verb, Verb::Read | Verb::Discrepancies) => {
+                request.inputs = Some(PathBuf::from(value()?))
+            }
             "--new-only" if verb == Verb::Read => request.new_only = true,
             "--repeat-calls" if verb == Verb::Read => request.repeat_calls = true,
             "--context" if verb == Verb::Refresh => request.refresh_context = true,
             "--classified-losses" if verb == Verb::Refresh => {
                 request.classified_losses = Some(PathBuf::from(value()?))
             }
-            "--report" if matches!(verb, Verb::Judge | Verb::Export) => {
+            "--report" if matches!(verb, Verb::Judge | Verb::Export | Verb::Discrepancies) => {
                 request.report = Some(PathBuf::from(value()?))
             }
             "--release" if verb == Verb::Judge && request.profile.is_none() => {
@@ -208,7 +218,7 @@ fn parse_args(raw: &[String]) -> Result<Request, String> {
                 request.profile = Some(profile);
             }
             "--values-only" if verb == Verb::Judge => request.values_only = true,
-            "--study-cpu" if verb == Verb::Judge && !request.intel_studies => {
+            "--study-cpu" if matches!(verb, Verb::Judge | Verb::Discrepancies) && !request.intel_studies => {
                 if value()? != "intel" {
                     return Err("--study-cpu needs intel".into());
                 }
@@ -235,11 +245,16 @@ fn parse_args(raw: &[String]) -> Result<Request, String> {
             other => return Err(format!("unknown argument {other}")),
         }
     }
-    if request.intel_studies && (request.bank != Bank::Full || request.report.is_none()) {
+    if request.intel_studies && verb == Verb::Judge
+        && (request.bank != Bank::Full || request.report.is_none())
+    {
         return Err("--study-cpu intel requires --bank full and --report <json>".into());
     }
     if verb == Verb::Export && request.report.is_none() {
         return Err("export needs --report <jsonl>".into());
+    }
+    if verb == Verb::Discrepancies && request.report.is_none() {
+        return Err("discrepancies needs --report <jsonl>".into());
     }
     if verb == Verb::Read && request.function.is_none() {
         return Err("read needs --func".to_owned());
@@ -2038,7 +2053,7 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
             add_binomial_replay(&mut banks, function, &doc)?;
         }
     }
-    load_studies(checkout, only, false, &mut banks)?;
+    load_discrepancies(checkout, only, false, &mut banks)?;
     Ok((banks, unread))
 }
 
@@ -2049,7 +2064,7 @@ struct StudyBank {
     rows: Vec<StudyReading>,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, serde::Serialize)]
 struct StudyReading {
     function: String,
     args: Vec<Value>,
@@ -2063,83 +2078,112 @@ struct StudyReading {
     bitness: Option<String>,
     timestamp: Option<Value>,
     invocation: Option<Value>,
+    #[serde(flatten)]
+    provenance: BTreeMap<String, Value>,
 }
 
-fn native_intel() -> bool {
+impl StudyReading {
+    fn intel(&self) -> Result<bool, String> {
+        let cpu = self.cpu.to_ascii_lowercase();
+        if cpu.starts_with("intel") || cpu.starts_with("genuineintel") {
+            Ok(true)
+        } else if cpu.starts_with("amd ") || cpu == "authenticamd" {
+            Ok(false)
+        } else {
+            Err(format!("{}: unsupported CPU {}", self.source, self.cpu))
+        }
+    }
+
+    fn decode_invocation(&self, lane: &str) -> Result<Option<calc_verdict::WitnessInvocation>, String> {
+        let id = format!("{} {}", self.source, self.locator);
+        if self.excel_build.is_empty()
+            || self.source.split_once('/').is_none_or(|(owner, _)| owner != lane)
+            || self.locator.is_empty()
+            || self.result_index.is_some_and(|(r, c)| r == 0 || c == 0)
+        {
+            return Err(format!("invalid study reading at {id}"));
+        }
+        calc_verdict::decode_result(&self.expected_bits).map_err(|e| format!("{id}: {e}"))?;
+        self.invocation
+            .as_ref()
+            .map(|value| calc_verdict::WitnessInvocation::decode(value, &id))
+            .transpose()
+    }
+}
+
+fn native_study_cpu() -> Option<bool> {
     #[cfg(target_arch = "x86_64")]
     {
         // SAFETY: every x86-64 CPU supports CPUID leaf zero.
         let vendor = unsafe { std::arch::x86_64::__cpuid(0) };
-        (vendor.ebx, vendor.edx, vendor.ecx) == (0x756e6547, 0x49656e69, 0x6c65746e)
+        match (vendor.ebx, vendor.edx, vendor.ecx) {
+            (0x756e6547, 0x49656e69, 0x6c65746e) => Some(true),
+            (0x68747541, 0x69746e65, 0x444d4163) => Some(false),
+            _ => None,
+        }
     }
     #[cfg(not(target_arch = "x86_64"))]
-    false
+    None
 }
 
-fn load_studies(
+fn study_banks<'a>(
+    checkout: &'a Path,
+    manifest: &'a str,
+    directory: &'a str,
+) -> Result<impl Iterator<Item = Result<(String, StudyBank), String>> + 'a, String> {
+    Ok(manifest_paths(checkout, manifest)?.into_iter().map(move |rel| {
+        let lane = rel
+            .strip_prefix(directory)
+            .and_then(|file| file.strip_suffix(".json"))
+            .filter(|lane| !lane.is_empty()
+                && lane.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_'))
+            .ok_or_else(|| format!("{manifest}: invalid path {rel}"))?;
+        let bytes = gunzip(&blob_bytes(checkout, &rel)?, None)?;
+        let doc = decode_study_bank(&bytes, &rel)?;
+        if doc.lane != lane {
+            return Err(format!("{rel}: wrong study bank lane"));
+        }
+        Ok((rel, doc))
+    }))
+}
+
+fn decode_study_bank(bytes: &[u8], name: &str) -> Result<StudyBank, String> {
+    let doc: StudyBank = serde_json::from_slice(bytes).map_err(|e| format!("{name}: {e}"))?;
+    if doc.format != STUDY_FORMAT || doc.lane.is_empty() {
+        return Err(format!("{name}: wrong study bank format or missing lane"));
+    }
+    Ok(doc)
+}
+
+fn load_discrepancies(
     checkout: &Path,
     only: Option<&str>,
     intel: bool,
     banks: &mut Banks,
 ) -> Result<(), String> {
-    if !checkout.join(STUDIES).is_file() {
-        if checkout.join(STUDIES_DIR).is_dir() {
-            return Err(format!("missing {}", checkout.join(STUDIES).display()));
+    if !checkout.join(DISCREPANCIES).is_file() {
+        if checkout.join(DISCREPANCIES_DIR).is_dir() || checkout.join(STUDIES).is_file() {
+            return Err(format!("missing {}; update {CHECKOUT}", checkout.join(DISCREPANCIES).display()));
         }
         return Ok(());
     }
     let (mut retained, mut other_cpu) = (0, 0);
-    for rel in manifest_paths(checkout, STUDIES)? {
-        let lane = rel
-            .strip_prefix(STUDIES_DIR)
-            .and_then(|file| file.strip_suffix(".json"))
-            .filter(|lane| {
-                !lane.is_empty()
-                    && lane
-                        .bytes()
-                        .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
-            })
-            .ok_or_else(|| format!("{STUDIES}: invalid path {rel}"))?;
-        let bytes = gunzip(&blob_bytes(checkout, &rel)?, None)?;
-        let doc: StudyBank = serde_json::from_slice(&bytes).map_err(|e| format!("{rel}: {e}"))?;
-        if doc.format != "dnacalc-study-bank/1" || doc.lane != lane {
-            return Err(format!("{rel}: wrong studies format or lane"));
-        }
+    for bank in study_banks(checkout, DISCREPANCIES, DISCREPANCIES_DIR)? {
+        let (rel, doc) = bank?;
         let mut sources = BTreeMap::new();
         for row in doc.rows {
             if only.is_some_and(|name| name != row.function) {
                 continue;
             }
-            let cpu = row.cpu.to_ascii_lowercase();
-            let is_intel = cpu.starts_with("intel") || cpu.starts_with("genuineintel");
-            let is_amd = cpu.starts_with("amd ") || cpu == "authenticamd";
-            if !is_intel && !is_amd {
-                return Err(format!("{rel}: unsupported CPU {}", row.cpu));
-            }
-            if is_intel != intel {
+            if row.intel()? != intel {
                 other_cpu += 1;
                 continue;
             }
-            if row.excel_build.is_empty()
-                || !row.source.starts_with(&format!("{lane}/"))
-                || row.locator.is_empty()
-                || row.result_index.is_some_and(|(r, c)| r == 0 || c == 0)
-            {
-                return Err(format!(
-                    "{rel}: invalid reading at {} {}",
-                    row.source, row.locator
-                ));
-            }
             let id = format!("{} {}", row.source, row.locator);
+            let invocation = row.decode_invocation(&doc.lane)?;
             for arg in &row.args {
                 calc_verdict::decode_argument(arg, &id)?;
             }
-            calc_verdict::decode_result(&row.expected_bits).map_err(|e| format!("{id}: {e}"))?;
-            let invocation = row
-                .invocation
-                .as_ref()
-                .map(|value| calc_verdict::WitnessInvocation::decode(value, &id))
-                .transpose()?;
             let source_key = (
                 row.source.clone(),
                 row.excel_build.clone(),
@@ -2181,9 +2225,88 @@ fn load_studies(
         banks.files_read += usize::from(!sources.is_empty());
     }
     banks.import_notes.push(format!(
-        "studies: {retained} readings for this CPU set; {other_cpu} for the other CPU set"
+        "study discrepancies: {retained} readings for this CPU set; {other_cpu} for the other CPU set"
     ));
     Ok(())
+}
+
+fn study_discrepancies(checkout: &Path, request: &Request) -> Result<ExitCode, String> {
+    if native_study_cpu() != Some(request.intel_studies) {
+        let cpu = if request.intel_studies { "Intel" } else { "AMD" };
+        return Err(format!("{cpu} study judgment requires a native {cpu} x86-64 host"));
+    }
+    let path = request.report.as_ref().expect("validated discrepancies path");
+    let mut output =
+        BufWriter::new(fs::File::create(path).map_err(|e| format!("{}: {e}", path.display()))?);
+    let only = request.function.as_deref();
+    let mut totals = (0, 0, 0);
+    let mut examine = |mut doc: StudyBank| -> Result<(), String> {
+        let (mut compared, mut failed, mut other_cpu) = (0, 0, 0);
+        doc.rows.sort_by(|a, b| a.function.cmp(&b.function));
+        for rows in doc.rows.chunk_by(|a, b| a.function == b.function) {
+            let function = &rows[0].function;
+            if only.is_some_and(|name| name != function) {
+                continue;
+            }
+            for batch in rows.chunks(8192) {
+                let mut selected = Vec::new();
+                let mut jobs = Vec::new();
+                for row in batch {
+                    if row.intel()? != request.intel_studies {
+                        other_cpu += 1;
+                        continue;
+                    }
+                    selected.push(row);
+                    jobs.push((
+                        row.args.clone(),
+                        row.result_index,
+                        row.decode_invocation(&doc.lane)?.map(std::sync::Arc::new),
+                    ));
+                }
+                let actuals = calculate_all(function, &jobs, true);
+                compared += selected.len();
+                for (row, actual) in selected.into_iter().zip(actuals) {
+                    let actual = actual.strip_prefix(SLOW).unwrap_or(&actual);
+                    if judge(&row.expected_bits, actual).0 != Severity::Exact {
+                        serde_json::to_writer(
+                            &mut output,
+                            &serde_json::json!({"row": row, "actual": actual}),
+                        )
+                        .map_err(|e| format!("{}: {e}", path.display()))?;
+                        output.write_all(b"\n").map_err(|e| format!("{}: {e}", path.display()))?;
+                        failed += 1;
+                    }
+                }
+            }
+        }
+        println!(
+            "xtask witness discrepancies: {}: {compared} compared, {failed} failed, {other_cpu} for the other CPU set",
+            doc.lane
+        );
+        totals.0 += compared;
+        totals.1 += failed;
+        totals.2 += other_cpu;
+        Ok(())
+    };
+    if let Some(input) = &request.inputs {
+        let bytes = fs::read(input).map_err(|e| format!("{}: {e}", input.display()))?;
+        let bytes = if input.extension().is_some_and(|ext| ext == "gz") {
+            gunzip(&bytes, None)?
+        } else {
+            bytes
+        };
+        examine(decode_study_bank(&bytes, &input.display().to_string())?)?;
+    } else {
+        for bank in study_banks(checkout, STUDIES, STUDIES_DIR)? {
+            examine(bank?.1)?;
+        }
+    }
+    output.flush().map_err(|e| format!("{}: {e}", path.display()))?;
+    println!(
+        "xtask witness discrepancies: {} compared, {} failed, {} for the other CPU set",
+        totals.0, totals.1, totals.2
+    );
+    Ok(ExitCode::SUCCESS)
 }
 
 /// Every `.json` file under `dir`, sorted.
@@ -3857,18 +3980,21 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
     if request.verb == Verb::Read {
         return run_read(&ws.root, &checkout, request);
     }
+    if request.verb == Verb::Discrepancies {
+        return study_discrepancies(&checkout, request);
+    }
 
     // The readings of the bank asked for.
     let mut original_pins = None;
     let (mut banks, unread) = match request.bank {
         Bank::Full if request.intel_studies => {
-            if !native_intel() {
+            if native_study_cpu() != Some(true) {
                 return Err("Intel study judgment requires a native Intel x86-64 host".into());
             }
             let mut banks = Banks::default();
-            load_studies(&checkout, only, true, &mut banks)?;
+            load_discrepancies(&checkout, only, true, &mut banks)?;
             if banks.readings.is_empty() {
-                return Err("no Intel study readings for this selection".into());
+                return Err("no Intel study discrepancies for this selection".into());
             }
             (banks, Vec::new())
         }
@@ -5317,6 +5443,14 @@ mod tests {
         assert!(parse_args(&args("export")).is_err());
         let export = parse_args(&args("export --report rows.jsonl")).unwrap();
         assert!(export.verb == Verb::Export && export.bank == Bank::Full);
+        let discrepancies = parse_args(&args(
+            "discrepancies --study-cpu intel --report rows.jsonl --inputs study.json.gz",
+        ))
+        .unwrap();
+        assert_eq!(discrepancies.verb, Verb::Discrepancies);
+        assert!(discrepancies.intel_studies);
+        assert_eq!(discrepancies.inputs, Some(PathBuf::from("study.json.gz")));
+        assert!(parse_args(&args("discrepancies")).is_err());
         assert!(parse_args(&args("race")).is_err());
         let r = parse_args(&args("compare --before old.jsonl --after new.jsonl")).unwrap();
         assert_eq!(r.verb, Verb::Compare);
@@ -5716,14 +5850,14 @@ mod tests {
     }
 
     #[test]
-    fn studies_keep_intel_readings_out_of_the_default_bank() {
+    fn discrepancy_bank_keeps_intel_and_archived_studies_out_of_the_default_bank() {
         assert!(build_order(&Some("16.0.20527.20196".into())) > build_order(&Some("20527".into())));
         assert!(build_order(&Some("16.0.20527.20195".into())) > build_order(&Some("20430".into())));
         let root =
             std::env::temp_dir().join(format!("xtask-witness-studies-{}", std::process::id()));
-        let folder = root.join(STUDIES_DIR);
+        let folder = root.join(DISCREPANCIES_DIR);
         fs::create_dir_all(&folder).unwrap();
-        let rel = format!("{STUDIES_DIR}test-lane.json");
+        let rel = format!("{DISCREPANCIES_DIR}test-lane.json");
         let make_row = |cpu| serde_json::json!({
             "function": "SIN", "args": ["0x3ff0000000000000"],
             "expected_bits": "0x3feaed548f090cee",
@@ -5734,7 +5868,9 @@ mod tests {
             "format": "dnacalc-study-bank/1", "lane": "test-lane",
             "rows": [make_row("AMD Ryzen"), make_row("GenuineIntel Haswell")],
         });
-        fs::write(root.join(STUDIES), format!("path\n{rel}\n")).unwrap();
+        fs::write(root.join(DISCREPANCIES), format!("path\n{rel}\n")).unwrap();
+        // A missing study blob must have no effect on judgment of the discrepancy bank.
+        fs::write(root.join(STUDIES), format!("path\n{STUDIES_DIR}missing.json\n")).unwrap();
         // The shared inflater reads the raw DEFLATE member between this header and trailer.
         let mut gz = vec![0x1f, 0x8b, 8, 0, 0, 0, 0, 0, 0, 255];
         gz.extend(miniz_oxide::deflate::compress_to_vec(doc.to_string().as_bytes(), 1));
@@ -5743,14 +5879,14 @@ mod tests {
 
         for (intel, cpu) in [(false, "AMD Ryzen"), (true, "GenuineIntel Haswell")] {
             let mut banks = Banks::default();
-            load_studies(&root, Some("SIN"), intel, &mut banks).unwrap();
+            load_discrepancies(&root, Some("SIN"), intel, &mut banks).unwrap();
             assert_eq!(banks.readings.len(), 1);
             let row = &banks.readings[0];
             assert_eq!(row.id, "test-lane/answers.jsonl $[0]");
             assert_eq!(banks.sources[row.source].env.cpu.as_deref(), Some(cpu));
         }
         let mut banks = Banks::default();
-        load_studies(&root, Some("COS"), false, &mut banks).unwrap();
+        load_discrepancies(&root, Some("COS"), false, &mut banks).unwrap();
         assert!(banks.readings.is_empty());
         fs::remove_dir_all(root).unwrap();
     }
