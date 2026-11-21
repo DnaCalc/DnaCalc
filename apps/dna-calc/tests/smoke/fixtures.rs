@@ -515,7 +515,7 @@ pub(crate) fn alignment(bytes: &[u8]) -> Result<Vec<u8>, String> {
     // Font/orientation witnesses extend this same synthetic workbook.
     let fonts = record_count(&styles, "fonts")?;
     let formats = record_count(&styles, "cellXfs")?;
-    let added_fonts = r#"<font><sz val="14"/><name val="monospace"/><u val="double"/></font><font><sz val="14"/><name val="monospace"/></font><font><sz val="14"/><name val="monospace"/><u val="singleAccounting"/></font>"#;
+    let added_fonts = r#"<font><sz val="14"/><name val="monospace"/><u val="double"/></font><font><sz val="14"/><name val="monospace"/></font><font><sz val="14"/><name val="monospace"/><u val="singleAccounting"/><outline/><shadow/></font>"#;
     let added_formats = format!(
         r#"<xf fontId="{fonts}" applyFont="1"/><xf fontId="{}" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center" textRotation="255"/></xf><xf fontId="{}" applyFont="1"/><xf fontId="{}" applyFont="1" applyAlignment="1"><alignment textRotation="255" wrapText="1"/></xf>"#,
         fonts + 1,

@@ -91,7 +91,7 @@ pub fn layout(
     };
     let top = if vertical == "top" { inset } else { 0. };
     let bottom = if vertical == "bottom" {
-        inset + cell.baseline_inset
+        inset + cell.baseline_inset + 2. * f64::from(autofit::accounting_lines(style, conditional)) * zoom
     } else {
         0.
     };

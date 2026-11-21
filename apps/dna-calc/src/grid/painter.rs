@@ -357,11 +357,13 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
     } else {
         0.
     };
+    let accounting = autofit::accounting_lines(s, &c);
+    let accounting_inset = 2. * f64::from(accounting) * scale;
     let top = match vertical {
         "top" => cell.rect.y + inset,
         "justify" => cell.rect.y,
         "center" => cell.rect.y + (cell.rect.h - height) / 2.,
-        "bottom" => cell.rect.y + cell.rect.h - height - inset - cell.baseline_inset,
+        "bottom" => cell.rect.y + cell.rect.h - height - inset - cell.baseline_inset - accounting_inset,
         _ => cell.rect.y + cell.rect.h - height,
     };
     ctx.set_text_align("left");
@@ -393,6 +395,24 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
         0.
     };
     let double = autofit::double_underline(s, Some(&c));
+    let underlined = c.underline || (s.underline && accounting == 0);
+    let draw = |text: &str, x: f64, y: f64| {
+        if s.shadow {
+            ctx.save();
+            ctx.set_shadow_color("rgba(0,0,0,0.4)");
+            ctx.set_shadow_offset_x(scale);
+            ctx.set_shadow_offset_y(scale);
+        }
+        if s.outline {
+            ctx.set_line_width(scale);
+            let _ = ctx.stroke_text(text, x, y);
+        } else {
+            let _ = ctx.fill_text(text, x, y);
+        }
+        if s.shadow {
+            ctx.restore();
+        }
+    };
     let integer = autofit::integer_text(&cell.shown, &shown);
     let advance = |line: &str| -> f64 {
         if integer {
@@ -407,8 +427,7 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
         }
     };
     let decorate = |x: f64, y: f64, advance: f64| {
-        if c.underline || c.strike || s.underline || s.strike {
-            ctx.set_line_width(scale);
+        if underlined || c.strike || s.strike {
             let stroke = if double {
                 autofit::underline_width(s.pixels, scale)
             } else {
@@ -417,7 +436,7 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
             ctx.set_line_width(stroke);
             let under = baseline + stroke;
             for offset in [
-                (c.underline || s.underline).then_some(under),
+                underlined.then_some(under),
                 double.then_some(under + 2. * stroke),
                 (c.strike || s.strike).then_some(line_height / 2.),
             ]
@@ -486,7 +505,7 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
             let _ = ctx.rotate(f64::from(s.rotation).to_radians());
             let decoration_x = -block_width / 2.;
             let decoration_y = -height / 2. + i as f64 * line_height;
-            let _ = ctx.fill_text(line, decoration_x, decoration_y + baseline);
+            draw(line, decoration_x, decoration_y + baseline);
             decorate(decoration_x, decoration_y, w);
         } else if !stacked
             && (horizontal == "distributed" || (horizontal == "justify" && i + 1 < lines.len()))
@@ -511,7 +530,7 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
             };
             for part in parts {
                 let advance = width(ctx, &part);
-                let _ = ctx.fill_text(&part, px, y + baseline);
+                draw(&part, px, y + baseline);
                 if horizontal == "distributed" {
                     // DOM distributes separate grapheme spans. Their decorations stay
                     // beneath each span, including a single centred grapheme.
@@ -532,16 +551,26 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
             };
             let mut pen = x;
             for part in alignment::graphemes(line) {
-                let _ = ctx.fill_text(&part, pen, paint_y + baseline);
+                draw(&part, pen, paint_y + baseline);
                 pen +=
                     autofit::integer_advance(s, Some(&c), italic, scale, &part, width(ctx, &part));
             }
             decorate(x, paint_y, w);
         } else {
-            let _ = ctx.fill_text(line, x, y + baseline);
+            draw(line, x, y + baseline);
             decorate(x, y, w);
         }
         ctx.restore();
+    }
+    if accounting > 0 && !shown.is_empty() {
+        ctx.set_line_width(scale);
+        for i in 0..accounting {
+            let y = cell.anchor.y + cell.anchor.h - (1.5 + 2. * f64::from(i)) * scale;
+            ctx.begin_path();
+            ctx.move_to(cell.anchor.x, y);
+            ctx.line_to(cell.anchor.x + cell.anchor.w, y);
+            ctx.stroke();
+        }
     }
 }
 

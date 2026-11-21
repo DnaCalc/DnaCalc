@@ -68,6 +68,32 @@ pub(crate) fn double_underline(
         && style.underline_style.as_deref() == Some("double")
         && !conditional.is_some_and(|c| c.underline)
 }
+/// The accounting underline is drawn across the cell, independently of the glyphs.
+pub(super) fn accounting_lines(
+    style: &TextStyle,
+    conditional: &crate::cells::ConditionalShown,
+) -> u8 {
+    if conditional.underline {
+        return 0;
+    }
+    match style.underline_style.as_deref() {
+        Some("singleAccounting") => 1,
+        Some("doubleAccounting") => 2,
+        _ => 0,
+    }
+}
+
+pub(super) fn font_effect_css(style: &TextStyle, zoom: f64) -> String {
+    let mut css = String::new();
+    if style.outline {
+        css.push_str(&format!(";-webkit-text-stroke:{zoom}px currentColor;-webkit-text-fill-color:transparent"));
+    }
+    if style.shadow {
+        css.push_str(&format!(";text-shadow:{zoom}px {zoom}px rgba(0,0,0,0.4)"));
+    }
+    css
+}
+
 pub(super) fn underline_width(pixels: f64, zoom: f64) -> f64 {
     zoom.min(pixels * zoom / 5.)
 }
@@ -344,7 +370,7 @@ pub(super) fn segmented_decoration(
     zoom: f64,
 ) -> String {
     let (underline, strike) = (
-        style.underline || conditional.underline,
+        (style.underline && accounting_lines(style, conditional) == 0) || conditional.underline,
         style.strike || conditional.strike,
     );
     if !underline && !strike {
@@ -546,7 +572,7 @@ pub fn measure(rows: bool, cells: &[wire::Cell]) -> Result<Vec<(u32, u64)>, Stri
                 cell.style.family.as_deref().unwrap_or("unknown")
             ));
         }
-        if !rows && cell.style.wrap {
+        if !rows && cell.style.wrap && cell.style.rotation != 255 {
             return Err("AutoFit columns with wrapped text is unavailable; set column width, then fit row height".into());
         }
     }
@@ -582,7 +608,7 @@ pub fn measure(rows: bool, cells: &[wire::Cell]) -> Result<Vec<(u32, u64)>, Stri
         };
         let (left, right) = super::render_plan::text_insets(1.);
         let padding = left + right;
-        let width = if rows && cell.style.wrap {
+        let width = if rows && cell.style.wrap && cell.style.rotation != 255 {
             format!(
                 ";width:{}px;white-space:pre-wrap;overflow-wrap:anywhere",
                 (cell.style.width - padding - indent - icon).max(1.)
@@ -624,7 +650,7 @@ pub fn measure(rows: bool, cells: &[wire::Cell]) -> Result<Vec<(u32, u64)>, Stri
         // Text the Grid places with whole-pixel advances is fitted with the same advances: a
         // browser that reports fractional outline advances (Linux) would otherwise fit a column
         // a few pixels narrower than the text the Grid paints.
-        let w = if rows {
+        let w = if rows || cell.style.rotation == 255 {
             w
         } else {
             cell.shown()

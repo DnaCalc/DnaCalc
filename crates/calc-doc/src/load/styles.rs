@@ -50,6 +50,8 @@ fn font_child(font: &mut Font, element: &XmlElement) {
         "b" => font.bold = on(),
         "i" => font.italic = on(),
         "strike" => font.strike = on(),
+        "outline" => font.outline = on(),
+        "shadow" => font.shadow = on(),
         "u" => font.underline = Some(text(element, "val").unwrap_or_else(|| "single".to_owned())),
         "sz" => font.size = text(element, "val"),
         "name" => font.name = text(element, "val"),

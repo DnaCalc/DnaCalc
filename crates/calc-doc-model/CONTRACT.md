@@ -10,6 +10,7 @@ CalcDoc model owns the authored workbook representation independently of the fil
 - `OpBatch` names its base authored revision. `encode_batch` and `decode_batch` use the workbook
   root to translate sheet identities through a versioned operation format
   (`src/wire/mod.rs:360`, `src/wire/mod.rs:469`).
+- Font records carry outline and shadow flags independently of the underline variant.
 - The model's unit tests cover edits and wire operations. CalcDoc and CalcEngine both consume this model.
 
-Surface: 47ffa8893da9fa79 at 4fb74eaf
+Surface: e23ff60b469d5b5f (dc-971p.63)

@@ -1891,14 +1891,25 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                         style.push_str(";font-style:italic");
                     }
                     let double = autofit::double_underline(&cell.shown.style, Some(&conditional));
+                    let accounting = autofit::accounting_lines(&cell.shown.style, &conditional);
+                    let accounting_rule = (accounting > 0 && !conditional.hide_value && !cell.shown.text.is_empty()).then(|| {
+                        let left = cell.anchor.x - cell.rect.x;
+                        let width = cell.anchor.w;
+                        let bottom = cell.rect.y + cell.rect.h - cell.anchor.y - cell.anchor.h + plan.scale;
+                        let stroke = plan.scale;
+                        let rule = if accounting == 2 { "double" } else { "solid" };
+                        let thickness = if accounting == 2 { 3. * stroke } else { stroke };
+                        format!("position:absolute;pointer-events:none;left:{left}px;width:{width}px;bottom:{bottom}px;border-bottom:{thickness}px {rule} currentColor")
+                    });
                     style.push_str(autofit::decoration_css(
-                        conditional.underline || (cell.shown.style.underline && !double),
+                        conditional.underline || (cell.shown.style.underline && !double && accounting == 0),
                         conditional.strike || cell.shown.style.strike,
                     ));
                     let italic=matches!(cell.shown.provenance,cells::Provenance::FileCache|cells::Provenance::Refused);
                     let mut display_style=cell.shown.style.clone();display_style.pixels=cell.paint_pixels;
                     style.push(';');style.push_str(&autofit::font_css(&display_style,Some(&conditional),italic,plan.scale));
                     let mut layout = alignment::layout(cell, &conditional, italic, plan.scale);
+                    layout.span.push_str(&autofit::font_effect_css(&display_style, plan.scale));
                     if double { layout.span.push_str(&autofit::double_underline_css(cell.paint_pixels,plan.scale)); }
                     let lift = autofit::script_shift(&display_style, plan.scale);
                     if lift != 0. { layout.span.push_str(&format!(";position:relative;top:{lift}px")); }
@@ -1937,6 +1948,9 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                                         ></span>
                                     }
                                 })}
+                            {accounting_rule.map(|style| view! {
+                                <span class="dc-accounting-underline" use:css=style></span>
+                            })}
                             <span class="dc-cell-text" use:css=layout.span>
                                 {layout
                                     .lines

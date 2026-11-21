@@ -111,9 +111,11 @@ pub fn text_style_for(
         }
         out.bold = font.bold;
         out.italic = font.italic;
-        out.underline = matches!(font.underline.as_deref(), Some("single" | "double"));
+        out.underline = matches!(font.underline.as_deref(), Some("single" | "double" | "singleAccounting" | "doubleAccounting"));
         out.underline_style = font.underline.clone();
         out.strike = font.strike;
+        out.outline = font.outline;
+        out.shadow = font.shadow;
         out.script = font
             .vert_align
             .clone()
@@ -125,7 +127,7 @@ pub fn text_style_for(
             || font
                 .underline
                 .as_deref()
-                .is_some_and(|v| !matches!(v, "none" | "single" | "double"))
+                .is_some_and(|v| !matches!(v, "none" | "single" | "double" | "singleAccounting" | "doubleAccounting"))
         {
             out.unsupported = Some(
                 "Additional font effects or underline variants are preserved but not painted"
@@ -315,7 +317,7 @@ pub fn text_style_for(
         {
             out.unsupported=Some("AutoFit with shrink-to-fit, fill, justification or distributed alignment is unavailable".into());
         }
-        if out.wrap && out.rotation != 0 {
+        if out.wrap && !matches!(out.rotation, 0 | 255) {
             out.unsupported = Some("AutoFit combining wrapping and rotation is unavailable".into());
         }
     }
@@ -407,6 +409,42 @@ fn table_style(
 mod tests {
     use super::*;
     /// The grid carries Excel's reported number code without changing the code that renders text.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_971p_63__stacked_wrap_and_accounting_styles_reach_grid_without_refusal() {
+        let host = calc_host::HostState::open(
+            std::sync::Arc::new(calc_host::MemorySource::new(calc_host::blank_package())),
+            &Default::default(),
+            Default::default(),
+        )
+        .unwrap();
+        let at = calc_host::value::CellKey::new(host.sheets()[0].id(), 1, 1).unwrap();
+        let mut styles = (**host.styles()).clone();
+        let index = calc_host::patched_style(
+            &mut styles,
+            0,
+            &calc_host::FormatPatch {
+                rotation: Some(255),
+                wrap: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let font = styles.cell_formats[index as usize].font_id.unwrap_or(0) as usize;
+        styles.fonts[font].outline = true;
+        for variant in ["singleAccounting", "doubleAccounting"] {
+            styles.fonts[font].shadow = variant == "doubleAccounting";
+            styles.fonts[font].underline = Some(variant.into());
+            let shown = text_style_for(&host, at, 64., &styles, index);
+            assert_eq!((shown.rotation, shown.wrap), (255, true));
+            assert_eq!(shown.unsupported, None);
+            assert!(shown.underline);
+            assert!(shown.outline);
+            assert_eq!(shown.shadow, variant == "doubleAccounting");
+            assert_eq!(shown.underline_style.as_deref(), Some(variant));
+        }
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dc_8wp_12__pivot_display_number_code_reaches_the_grid() {
@@ -685,7 +723,7 @@ mod tests {
         styles.fonts[font].other_children = vec!["charset".into()];
         assert_eq!(project(&styles).unsupported, None);
         // Effects still not painted are still said so; so is a vertAlign value this does not know.
-        styles.fonts[font].other_children = vec!["charset".into(), "shadow".into()];
+        styles.fonts[font].other_children = vec!["charset".into(), "condense".into()];
         assert!(project(&styles).unsupported.is_some());
         styles.fonts[font].other_children.clear();
         styles.fonts[font].vert_align = Some("sideways".into());

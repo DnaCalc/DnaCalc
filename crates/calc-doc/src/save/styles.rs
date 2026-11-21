@@ -265,6 +265,8 @@ fn font(mut node: Node, before: &Font, after: &Font) -> Node {
         ("b", before.bold, after.bold),
         ("i", before.italic, after.italic),
         ("strike", before.strike, after.strike),
+        ("outline", before.outline, after.outline),
+        ("shadow", before.shadow, after.shadow),
     ] {
         boolean_child(&mut node, k, a, b);
     }

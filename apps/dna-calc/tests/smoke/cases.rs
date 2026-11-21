@@ -10315,6 +10315,10 @@ pub(crate) const CALC_CASES: &[Case] = &[
                 "text-decoration-style:double",
             ),
             Check::PlanCell("D20", "style.rotation", "255"),
+            Check::PlanCell("F20", "style.outline", "true"),
+            Check::PlanCell("F20", "style.shadow", "true"),
+            Check::Computed("[data-cell=F20] .dc-cell-text", "-webkit-text-stroke-width:1px"),
+            Check::Computed("[data-cell=F20] .dc-accounting-underline", "border-bottom-style:solid"),
             Check::Count("[data-cell=D20] .dc-cell-text > span", 3),
             Check::Count("[data-cell=D21] .dc-cell-text > span", 3),
         ],
@@ -10332,6 +10336,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Check::CanvasInk("B20"),
             Check::CanvasInk("D20"),
             Check::CanvasInk("D21"),
+            Check::CanvasInk("F20"),
         ],
     },
     Case {
@@ -10412,10 +10417,10 @@ pub(crate) const CALC_CASES: &[Case] = &[
         ],
     },
     Case {
-        name: "font variants: unsupported accounting effects stay labelled and controls fit three widths",
+        name: "font variants: imported accounting underline paints and controls fit three widths",
         actions: &[
             Action::Into("name-box", "F20\u{E007}"),
-            Action::Wait(Check::TextContains("style-note", "underline variants")),
+            Action::Wait(Check::PlanCell("F20", "style.underline", "true")),
             Action::Window(390, 844),
             Action::Click("format-cells"),
             Action::Wait(Check::Focused("format-number")),
@@ -10430,8 +10435,8 @@ pub(crate) const CALC_CASES: &[Case] = &[
         checks: &[
             Check::Fits,
             Check::PlanCell("F20", "style.underline_style", "singleAccounting"),
-            Check::PlanCell("F20", "style.underline", "false"),
-            Check::TextContains("style-note", "preserved but not painted"),
+            Check::PlanCell("F20", "style.underline", "true"),
+            Check::Count("[data-cell=F20] .dc-accounting-underline", 1),
         ],
     },
     Case {
@@ -10489,24 +10494,20 @@ pub(crate) const CALC_CASES: &[Case] = &[
         ],
     },
     Case {
-        name: "stacked fitting: wrapped stacked combinations refuse without an authored command",
+        name: "stacked fitting: wrapped stacked text fits each grapheme as a line",
         actions: &[
             Action::Into("name-box", "G20\u{E007}"),
             Action::OpenDetails("axis-tools"),
             Action::Wait(Check::ActiveSemantic("G20")),
             Action::Wait(Check::TextBounds(cell!("G20"))),
-            Action::Wait(Check::TextContains(
-                "style-note",
-                "wrapping and rotation is unavailable",
-            )),
-            Action::RememberPresentation,
             Action::Click("autofit-rows"),
+            Action::Wait(Check::Style(cell!("G20"), "height:42px")),
         ],
         checks: &[
-            Check::TextContains("status", "wrapping and rotation is unavailable"),
-            Check::PainterStable,
-            Check::Style(cell!("G20"), "height:120px"),
+            Check::Style(cell!("G20"), "height:42px"),
             Check::PlanCell("G20", "style.rotation", "255"),
+            Check::PlanCell("G20", "style.wrap", "true"),
+            Check::Count("[data-cell=G20] .dc-cell-text > span", 2),
         ],
     },
     Case {
