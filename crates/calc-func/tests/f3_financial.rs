@@ -2133,6 +2133,56 @@ fn yield_at_par_on_a_coupon_date_returns_the_recorded_coupon_rate() {
     }
 }
 
+/// Excel 20527 iterates through negative discount bases on integer coupon dates.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn yield_with_large_zero_coupon_prices_can_find_the_negative_base_root() {
+    let call_yield = |maturity, price, redemption| {
+        dated(
+            "YIELD",
+            vec![n(44927.0), n(maturity), n(0.0), n(price), n(redemption), n(1.0), n(0.0)],
+        )
+    };
+    for price in [2.0_f64.powi(40), 2.0_f64.powi(100)] {
+        exact(
+            call_yield(47119.0, price, price / 64.0),
+            f64::from_bits(0xbff7_ffff_ffff_fffc),
+        );
+    }
+    error(call_yield(47119.0, 1.0, 1.0 / 64.0), Num);
+    error(call_yield(47484.0, 2.0_f64.powi(40), 2.0_f64.powi(33)), Num);
+}
+
+/// Excel 20527 can retain a huge negative iterate when the cash values are tiny.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn yield_with_tiny_zero_coupon_prices_retains_the_last_finite_iterate() {
+    let call_yield = |price: f64| {
+        dated(
+            "YIELD",
+            vec![n(44927.0), n(48214.0), n(0.0), n(price), n(price / 512.0), n(1.0), n(0.0)],
+        )
+    };
+    exact(call_yield(2.0_f64.powi(-100)), f64::from_bits(0xc5d7_d221_f179_7e10));
+    error(call_yield(2.0_f64.powi(-40)), Num);
+}
+
+/// Excel 20527 preserves the seed quotient's rounding through a near-zero root.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn yield_with_near_zero_root_preserves_the_stored_seed_quotient() {
+    exact(
+        dated(
+            "YIELD",
+            vec![
+                n(44958.0), n(47028.0), n(0.08), n(f64::from_bits(0x4062_5b60_b60b_60b6)),
+                n(101.5), n(4.0), n(0.0),
+            ],
+        ),
+        f64::from_bits(0x3ca5_81ef_23a0_0000),
+    );
+}
+
 /// R33 original Excel20527 scalar readings, including normalized-price and
 /// PC64 division ties. Public coupon/date controls are retained in Research.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

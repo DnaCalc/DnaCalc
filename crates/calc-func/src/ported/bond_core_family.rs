@@ -590,7 +590,8 @@ pub fn yield_kernel(
     let d = price - 100.0;
     let tc = (tau * rate_ * 100.0) / f;
     let den = (tau * 100.0 + (d * tau) / 2.0) + (d * f) / 4.0;
-    let mut y = f * ((tc - d) / den);
+    // The stored seed quotient can survive cancellation as Newton approaches zero.
+    let mut y = f * excel_x87_div(tc - d, den);
     if !y.is_finite() {
         return Err(derr(WorksheetErrorCode::Num));
     }
@@ -603,7 +604,9 @@ pub fn yield_kernel(
 
     for _ in 0..100 {
         let base = 1.0 + y / f;
-        if !(base > 0.0) {
+        // On a whole coupon interval the discount exponents are integers. Newton
+        // can cross -frequency and continue on the negative-base price curve.
+        if base == 0.0 || (base < 0.0 && off.fract() != 0.0) {
             return Err(derr(WorksheetErrorCode::Num));
         }
         let (mut pv, mut slope) = (0.0_f64, 0.0_f64);
@@ -616,6 +619,11 @@ pub fn yield_kernel(
         pv += excel_x87_div(red, excel_bond_pow(base, rex));
         slope += (rex * red) / excel_bond_pow(base, rex + 1.0);
         slope = -slope / f;
+        // Excel keeps the finite iterate on the negative-base zero-coupon curve
+        // when the price slope reaches the subnormal range (sx1 bond-term row 110).
+        if base < 0.0 && rate_ == 0.0 && slope.is_subnormal() {
+            return Ok(y);
+        }
         let step = ((pv - accr) - price) / slope;
         if !step.is_finite() {
             return Err(derr(WorksheetErrorCode::Num));
