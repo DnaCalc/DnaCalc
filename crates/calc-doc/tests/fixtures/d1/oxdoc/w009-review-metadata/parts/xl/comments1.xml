@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<comments xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <authors>
+    <author>Ada</author>
+    <author>tc={thread-root}</author>
+  </authors>
+  <commentList>
+    <comment ref="A1" authorId="0" shapeId="1025" guid="{legacy-note-1}" futureAttr="kept">
+      <text><r><rPr><b/></rPr><t>Rich legacy note</t></r></text>
+      <extLst/>
+    </comment>
+    <comment ref="B2" authorId="1" shapeId="2048"><text><t></t></text></comment>
+  </commentList>
+</comments>

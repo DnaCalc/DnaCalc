@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<personList xmlns="http://schemas.microsoft.com/office/spreadsheetml/2018/person">
+  <person displayName="Ada" id="{person-1}" userId="ada@example.test" providerId="AD"/>
+  <person displayName="Grace" id="{person-2}" userId="grace@example.test" providerId="AD"/>
+</personList>

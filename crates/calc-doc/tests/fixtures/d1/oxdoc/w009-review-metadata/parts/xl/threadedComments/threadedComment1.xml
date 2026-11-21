@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ThreadedComments xmlns="http://schemas.microsoft.com/office/spreadsheetml/2018/threadedcomments">
+  <threadedComment ref="B2" id="{thread-root}" personId="{person-1}" dT="2026-06-29T09:00:00Z" done="0"><text>Root threaded comment</text></threadedComment>
+  <threadedComment ref="C3" id="{thread-reply}" personId="{person-2}" parentId="{thread-root}" dT="2026-06-29T09:05:00Z" done="1">
+    <text>Reply with mention</text>
+    <mentions><mention id="{mention-1}" personId="{person-1}"><text>@Ada</text><ext/></mention></mentions>
+    <extLst/>
+  </threadedComment>
+</ThreadedComments>

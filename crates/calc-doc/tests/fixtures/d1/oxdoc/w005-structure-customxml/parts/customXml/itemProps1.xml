@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ds:datastoreItem ds:itemID="{55555555-5555-5555-5555-555555555555}" xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml">
+  <ds:schemaRefs>
+    <ds:schemaRef ds:uri="urn:oxdoc:w005"/>
+  </ds:schemaRefs>
+</ds:datastoreItem>
