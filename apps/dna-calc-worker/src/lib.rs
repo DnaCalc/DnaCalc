@@ -10,6 +10,7 @@ mod picture;
 mod format;
 mod hierarchy;
 pub mod ledger;
+pub mod message;
 mod names;
 mod parts;
 mod printing;

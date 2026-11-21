@@ -16,8 +16,9 @@ use calc_platform_desktop::{
     run_message_loop, split_message,
 };
 use dna_calc_worker::{
+    message::{self, AddinCommand, DesktopCommand, PageMessage},
     server::{self, Server},
-    wire::{self, Event, FromServer},
+    wire::{self, Event},
 };
 use std::{
     cell::{Cell, RefCell},
@@ -226,14 +227,6 @@ fn persist_macro_policy(
     calc_platform_desktop::macro_security::save(settings, now.level()).map(|()| true)
 }
 
-/// The page starts by asking for an empty workbook (`New`, or `OpenTemplate` with a stored
-/// default). When a file was named on the command line, that first request becomes the Open of the
-/// file, in the page's own command envelope, so the page installs it as it installs any opened
-/// workbook. Returns the request to answer instead, or `None` when `text` is anything else.
-fn startup_open(text: &str, opening: &calc_platform_desktop::origin::OpenedFile) -> Option<String> {
-    crate::origin::open_request(text, opening, true)
-}
-
 /// The file `--open` names: its file name and bytes, read before any window shows.
 fn read_open_file(
     path: &std::path::Path,
@@ -263,16 +256,9 @@ impl App {
     }
 
     fn post_event_to(&self, channel: u32, event: Event) {
-        match event {
-            Event::Tiles(batch) => match wire::encode_tiles(&batch) {
-                Ok(bytes) => self.post_to(channel, wire::TILE_TAG, Some(&bytes)),
-                Err(message) => self.post_to(
-                    channel,
-                    &wire::encode(&FromServer::Failed { id: None, message }),
-                    None,
-                ),
-            },
-            control => self.post_to(channel, &wire::encode(&FromServer::Event(control)), None),
+        match message::event(event) {
+            Ok((text, bytes)) => self.post_to(channel, &text, bytes.as_deref()),
+            Err(reason) => self.post_to(channel, &message::failure(None, reason), None),
         }
     }
 
@@ -283,7 +269,7 @@ impl App {
             server.set_macro_policy(self.macro_policy.get());
             server.set_calculation_budget(calc_host::WorkBudget::evaluations(64));
             self.extras.borrow_mut().insert(channel, server);
-            self.post_to(channel, &wire::encode(&FromServer::Started), None);
+            self.post_to(channel, &message::started(), None);
             return;
         }
         let (text, bytes) = split_message(message);
@@ -352,7 +338,7 @@ impl App {
             self.book.set(server.workbook_id());
             *self.server.borrow_mut() = server;
             self.bind_sheets();
-            self.post(&wire::encode(&FromServer::Started), None);
+            self.post(&message::started(), None);
             return;
         }
         if let Some(json) = message.strip_prefix("probe:") {
@@ -365,86 +351,56 @@ impl App {
             return;
         }
         let (text, bytes) = split_message(message);
-        if bytes.is_none()
-            && let Some(reply) = self.addin_request(text)
-        {
-            self.post(&reply, None);
-            self.flush_events();
-            return;
-        }
-        let mut text = text.to_owned();
-        let mut bytes = bytes;
+        let mut request = PageMessage::decode(text, bytes);
+        let has_startup_file = self.opening.borrow().is_some();
         let mut open_origin = None;
         let mut open_location = None;
-        let substitute = self.opening.borrow().as_ref().and_then(|opening| {
-            startup_open(&text, opening).map(|open| {
-                (
-                    open,
-                    opening.bytes.clone(),
-                    opening.origin,
-                    opening.path.to_string_lossy().into_owned(),
-                )
-            })
-        });
-        if let Some((open, package, origin, location)) = substitute {
-            self.opening.borrow_mut().take();
-            open_origin = Some(origin);
-            open_location = Some(location);
-            text = open;
-            bytes = Some(package);
-        }
-        if let Ok(message) = wire::decode::<wire::ToServer>(&text) {
-            if matches!(&message.request, wire::Request::Command(envelope)
-                if matches!(*envelope.request, wire::Request::OpenNative))
-            {
-                let selected = calc_platform_desktop::dialogs::open_file(
-                    self.frame,
-                    "Open a workbook",
-                    &[calc_platform_desktop::dialogs::FileFilter {
-                        name: "Excel workbooks",
-                        patterns: "*.xlsx;*.xlsm;*.xlsb;*.xltx;*.xltm;*.xls;*.xla;*.xlt",
-                    }],
-                )
-                .and_then(|path| path.map(|path| read_open_file(&path)).transpose());
-                match selected {
-                    Ok(Some(opened)) => {
-                        text = crate::origin::open_request(&text, &opened, false)
-                            .expect("checked native open");
-                        open_origin = Some(opened.origin);
-                        open_location = Some(opened.path.to_string_lossy().into_owned());
-                        bytes = Some(opened.bytes);
-                    }
-                    Ok(None) => {
-                        self.post(
-                            &wire::encode(&FromServer::Reply {
-                                id: message.id,
-                                reply: wire::Reply::OpenCancelled,
-                            }),
-                            None,
-                        );
-                        return;
-                    }
-                    Err(message_text) => {
-                        self.post(
-                            &wire::encode(&FromServer::Failed {
-                                id: Some(message.id),
-                                message: message_text,
-                            }),
-                            None,
-                        );
-                        return;
+        if let Ok(page) = &mut request {
+            let opened = match page.desktop_command(has_startup_file) {
+                Some(DesktopCommand::Addin(command)) => {
+                    let result = self.run_addin_command(command);
+                    self.post(&page.addins(result), None);
+                    self.flush_events();
+                    return;
+                }
+                Some(DesktopCommand::OpenStartupFile) => self.opening.borrow_mut().take(),
+                Some(DesktopCommand::ChooseWorkbook) => {
+                    match calc_platform_desktop::dialogs::open_file(
+                        self.frame,
+                        "Open a workbook",
+                        &[calc_platform_desktop::dialogs::FileFilter {
+                            name: "Excel workbooks",
+                            patterns: "*.xlsx;*.xlsm;*.xlsb;*.xltx;*.xltm;*.xls;*.xla;*.xlt",
+                        }],
+                    )
+                    .and_then(|path| path.map(|path| read_open_file(&path)).transpose())
+                    {
+                        Ok(Some(opened)) => Some(opened),
+                        Ok(None) => {
+                            self.post(&page.cancelled_open(), None);
+                            return;
+                        }
+                        Err(reason) => {
+                            self.post(&page.failed_open(reason), None);
+                            return;
+                        }
                     }
                 }
+                None => None,
+            };
+            if let Some(opened) = opened {
+                open_origin = Some(opened.origin);
+                open_location = Some(opened.path.to_string_lossy().into_owned());
+                page.open_selected(opened.name, opened.bytes);
             }
         }
-        let text = text.as_str();
         let (reply, out, events) = {
             let mut server = self.server.borrow_mut();
             server.set_open_file_location(open_location);
             let (reply, out) = match open_origin {
                 Some(origin) => server
-                    .with_open_origin(origin, |server| server::answer_text(server, text, bytes)),
-                None => server::answer_text(&mut server, text, bytes),
+                    .with_open_origin(origin, |server| message::answer(server, request)),
+                None => message::answer(&mut server, request),
             };
             self.store_macro_policy(server.macro_policy());
             (reply, out, server.take_events())
@@ -456,20 +412,12 @@ impl App {
         self.rebind_after_open();
     }
 
-    /// The page's add-in requests (dc-0f1k.23), answered here over the add-in set: list, load
-    /// (the native dialog or a typed path) and unload. `None` for any other request, which the
-    /// server answers.
-    fn addin_request(&self, text: &str) -> Option<String> {
-        use dna_calc_worker::wire::{Reply, Request, ToServer};
-        let message = wire::decode::<ToServer>(text).ok()?;
-        let answer = match message.request {
-            Request::Addins => Ok(self.addin_list(false)),
-            Request::LoadAddinNative | Request::LoadAddin { .. } | Request::UnloadAddin { .. }
-                if self.loading.get() =>
-            {
-                Err("An add-in is loading; try again when it has".to_owned())
-            }
-            Request::LoadAddinNative => {
+    /// Runs the platform action on the shared native add-in set.
+    fn run_addin_command(&self, command: AddinCommand<'_>) -> Result<wire::AddinList, String> {
+        match command {
+            AddinCommand::List => Ok(self.addin_list(false)),
+            _ if self.loading.get() => Err("An add-in is loading; try again when it has".to_owned()),
+            AddinCommand::Choose => {
                 match calc_platform_desktop::dialogs::open_file(
                     self.frame.cast(),
                     "Load an add-in",
@@ -480,21 +428,9 @@ impl App {
                     Err(why) => Err(why),
                 }
             }
-            Request::LoadAddin { path } => self.load_addin(std::path::Path::new(&path)),
-            Request::UnloadAddin { path } => self.unload_addin(std::path::Path::new(&path)),
-            _ => return None,
-        };
-        let id = message.id;
-        Some(wire::encode(&match answer {
-            Ok(list) => FromServer::Reply {
-                id,
-                reply: Reply::Addins(list),
-            },
-            Err(message) => FromServer::Failed {
-                id: Some(id),
-                message,
-            },
-        }))
+            AddinCommand::Load(path) => self.load_addin(std::path::Path::new(path)),
+            AddinCommand::Unload(path) => self.unload_addin(std::path::Path::new(path)),
+        }
     }
 
     /// What the add-in set holds, as the panel lists it.
@@ -1126,7 +1062,7 @@ mod tests {
     /// envelope; the server answers it as an open, and no other request is touched.
     #[test]
     fn the_pages_startup_request_opens_the_named_file() {
-        use dna_calc_worker::wire::{Request, ToServer};
+        use dna_calc_worker::wire::{FromServer, Request, ToServer};
         let bytes = include_bytes!("../../../crates/calc-host/tests/fixtures/dc_gf0/cut-base.xlsx");
         let folder = std::env::temp_dir().join(format!("dnacalc-open-{}", std::process::id()));
         std::fs::create_dir_all(&folder).unwrap();
@@ -1169,53 +1105,13 @@ mod tests {
                 request: server.envelope(request),
             })
         };
-        // A request that is not the startup one is left alone.
-        assert!(
-            startup_open(
-                &wire::encode(&ToServer {
-                    id: 2,
-                    request: Request::Summary
-                }),
-                &opening
-            )
-            .is_none()
-        );
-        assert!(
-            startup_open(
-                &page(
-                    &server,
-                    Request::OpenForEditing {
-                        name: "t.xltx".into()
-                    }
-                ),
-                &opening
-            )
-            .is_none()
-        );
-        assert!(startup_open("not json", &opening).is_none());
-        for startup in [
-            Request::New,
-            Request::OpenTemplate {
-                name: "Book.xltx".into(),
-            },
-        ] {
-            let text = startup_open(&page(&server, startup), &opening).expect("substituted");
-            let decoded: ToServer = wire::decode(&text).unwrap();
-            match decoded.request {
-                Request::Command(envelope) => {
-                    assert_eq!(
-                        *envelope.request,
-                        Request::Open {
-                            name: "named.xlsx".into()
-                        }
-                    );
-                    assert_eq!(envelope.id, 1, "the page's own command identity is kept");
-                }
-                other => panic!("not a command: {other:?}"),
-            }
-        }
-        let text = startup_open(&page(&server, Request::New), &opening).unwrap();
-        let (reply, _) = server::answer_text(&mut server, &text, Some(opening.bytes.clone()));
+        let mut request = PageMessage::decode(&page(&server, Request::New), None).unwrap();
+        assert!(matches!(
+            request.desktop_command(true),
+            Some(DesktopCommand::OpenStartupFile)
+        ));
+        request.open_selected(opening.name.clone(), opening.bytes.clone());
+        let (reply, _) = message::answer(&mut server, Ok(request));
         let reply: FromServer = wire::decode(&reply).unwrap();
         match reply {
             FromServer::Reply {

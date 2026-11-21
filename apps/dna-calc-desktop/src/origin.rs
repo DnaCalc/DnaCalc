@@ -9,33 +9,6 @@ pub fn file_origin(path: &Path) -> FileOrigin {
     calc_platform_desktop::origin::file_origin(path)
 }
 
-/// Substitute a selected native file in the page's existing command envelope.
-#[cfg_attr(not(windows), allow(dead_code))]
-pub fn open_request(
-    text: &str,
-    opened: &calc_platform_desktop::origin::OpenedFile,
-    allow_startup: bool,
-) -> Option<String> {
-    use dna_calc_worker::wire::{self, Request, ToServer};
-    let mut message = wire::decode::<ToServer>(text).ok()?;
-    let Request::Command(envelope) = &mut message.request else {
-        return None;
-    };
-    if !(matches!(*envelope.request, Request::OpenNative)
-        || allow_startup
-            && matches!(
-                *envelope.request,
-                Request::New | Request::OpenTemplate { .. }
-            ))
-    {
-        return None;
-    }
-    *envelope.request = Request::Open {
-        name: opened.name.clone(),
-    };
-    Some(wire::encode(&message))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -44,7 +17,8 @@ mod tests {
     #[test]
     fn a_native_picker_open_carries_the_selected_origin_to_the_worker() {
         use dna_calc_worker::{
-            server::{self, Server},
+            message::{self, DesktopCommand, PageMessage},
+            server::Server,
             wire::{self, Request, ToServer},
         };
         let dir = std::env::temp_dir().join(format!("dna-calc-native-open-{}", std::process::id()));
@@ -66,11 +40,14 @@ mod tests {
             id: 7,
             request: server.envelope(Request::OpenNative),
         });
-        let request = open_request(&text, &opened, false)
-            .expect("native selection substitutes the Open request");
-        let (reply, _) = server.with_open_origin(opened.origin, |server| {
-            server::answer_text(server, &request, Some(opened.bytes))
-        });
+        let mut request = PageMessage::decode(&text, None).unwrap();
+        assert!(matches!(
+            request.desktop_command(false),
+            Some(DesktopCommand::ChooseWorkbook)
+        ));
+        request.open_selected(opened.name, opened.bytes);
+        let (reply, _) =
+            server.with_open_origin(opened.origin, |server| message::answer(server, Ok(request)));
         assert!(reply.contains("Blocked"), "{reply}");
         std::fs::remove_dir_all(dir).unwrap();
     }
