@@ -111,10 +111,7 @@ pub fn text_style_for(
         }
         out.bold = font.bold;
         out.italic = font.italic;
-        out.underline = matches!(
-            font.underline.as_deref(),
-            Some("single" | "double" | "singleAccounting" | "doubleAccounting")
-        );
+        out.underline = matches!(font.underline.as_deref(), Some("single" | "double" | "singleAccounting" | "doubleAccounting"));
         out.underline_style = font.underline.clone();
         out.strike = font.strike;
         out.outline = font.outline;
@@ -126,16 +123,11 @@ pub fn text_style_for(
         // `charset` names the font's code page, not an effect: nothing to paint. An unrecognised
         // `vertAlign` value is preserved but not painted.
         if font.other_children.iter().any(|name| name != "charset")
+            || font.vert_align.as_deref().is_some_and(|v| !matches!(v, "superscript" | "subscript"))
             || font
-                .vert_align
+                .underline
                 .as_deref()
-                .is_some_and(|v| !matches!(v, "superscript" | "subscript"))
-            || font.underline.as_deref().is_some_and(|v| {
-                !matches!(
-                    v,
-                    "none" | "single" | "double" | "singleAccounting" | "doubleAccounting"
-                )
-            })
+                .is_some_and(|v| !matches!(v, "none" | "single" | "double" | "singleAccounting" | "doubleAccounting"))
         {
             out.unsupported = Some(
                 "Additional font effects or underline variants are preserved but not painted"
@@ -720,26 +712,14 @@ mod tests {
         let sheet = book.host().sheets()[0].id();
         let cell = calc_host::value::CellKey::new(sheet, 1, 1).unwrap();
         let mut styles = (**book.host().styles()).clone();
-        let index = calc_host::patched_style(
-            &mut styles,
-            0,
-            &calc_host::FormatPatch {
-                bold: Some(true),
-                ..Default::default()
-            },
-        )
-        .unwrap();
+        let index = calc_host::patched_style(&mut styles, 0, &calc_host::FormatPatch { bold: Some(true), ..Default::default() }).unwrap();
         let font = styles.cell_formats[index as usize].font_id.unwrap() as usize;
-        let project =
-            |styles: &calc_host::StyleTable| text_style_for(book.host(), cell, 64., styles, index);
+        let project = |styles: &calc_host::StyleTable| text_style_for(book.host(), cell, 64., styles, index);
         assert_eq!(project(&styles).script, None);
         assert_eq!(project(&styles).unsupported, None);
         styles.fonts[font].vert_align = Some("superscript".into());
         let up = project(&styles);
-        assert_eq!(
-            (up.script.as_deref(), up.unsupported),
-            (Some("superscript"), None)
-        );
+        assert_eq!((up.script.as_deref(), up.unsupported), (Some("superscript"), None));
         styles.fonts[font].vert_align = Some("subscript".into());
         assert_eq!(project(&styles).script.as_deref(), Some("subscript"));
         // A charset is a code page, not an effect: it paints as it is and raises no diagnostic.
