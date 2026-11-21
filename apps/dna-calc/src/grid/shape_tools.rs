@@ -4,6 +4,8 @@
 //! is inserted as Excel inserts one by a click: one inch square at the cell's top left (a text box two inches by half
 //! an inch, a line one inch across).
 
+use dna_calc_model::Target;
+use crate::workbook_command::{WorkbookCommand, cell_target};
 use crate::{controller::Controller, wire};
 use leptos::prelude::*;
 
@@ -64,43 +66,43 @@ pub fn controls(controller: Controller, shapes: RwSignal<Vec<wire::DrawnShape>>,
             degrees.set(format!("{}", shape.rotation.round()));
         }
     });
-    let sheet = move || controller.sheet.get_untracked().map(wire::Sheet::of);
+    let sheet = move || controller.sheet.get_untracked();
     let revision = move || controller.summary.get_untracked().revision;
-    let send = move |intent: wire::Intent| controller.dispatch(intent, |_| {});
+    let send = move |intent: WorkbookCommand| controller.dispatch(intent, |_| {});
     let insert = move |_| {
         let Some(sheet_id) = controller.sheet.get_untracked() else { return };
         let (_, kind, geometry) = GALLERY[choice.get_untracked().min(GALLERY.len() - 1)];
         let (row, column) = controller.active.get_untracked();
         let Ok(cell) = calc_value::CellKey::new(sheet_id, row, column) else { return };
         let (width, height) = insert_size(kind);
-        send(wire::Intent::ShapeAdd {
-            sheet: wire::Sheet::of(sheet_id),
+        send(WorkbookCommand::ShapeAdd {
+            sheet: Target::Sheet(sheet_id),
             revision: revision(),
-            at: wire::Key::of(cell),
+            at: cell_target(cell),
             kind: kind.to_owned(),
             geometry: geometry.to_owned(),
             width,
             height,
         });
     };
-    let with = move |make: &dyn Fn(wire::Sheet, u64, u32) -> wire::Intent| {
+    let with = move |make: &dyn Fn(calc_value::SheetId, u64, u32) -> WorkbookCommand| {
         if let (Some(sheet), Some(id)) = (sheet(), selected.get_untracked()) {
             send(make(sheet, revision(), id));
         }
     };
-    let set_fill = move |value: String| with(&move |sheet, revision, id| wire::Intent::ShapeFill { sheet, revision, id, fill: value.clone() });
+    let set_fill = move |value: String| with(&move |sheet, revision, id| WorkbookCommand::ShapeFill { sheet: Target::Sheet(sheet), revision, id, fill: value.clone() });
     let set_line = move |value: String| {
         let points: Option<f64> = weight.get_untracked().trim().parse().ok();
-        with(&move |sheet, revision, id| wire::Intent::ShapeLine {
-            sheet,
+        with(&move |sheet, revision, id| WorkbookCommand::ShapeLine {
+            sheet: Target::Sheet(sheet),
             revision,
             id,
             colour: value.clone(),
             weight: points.map(|p| (p * 100.0).round() as i64),
         })
     };
-    let turn = move |to: i64| with(&move |sheet, revision, id| wire::Intent::ShapeRotate { sheet, revision, id, degrees: to });
-    let order = move |step: &'static str| with(&move |sheet, revision, id| wire::Intent::ShapeOrder { sheet, revision, id, order: step.to_owned() });
+    let turn = move |to: i64| with(&move |sheet, revision, id| WorkbookCommand::ShapeRotate { sheet: Target::Sheet(sheet), revision, id, degrees: to });
+    let order = move |step: &'static str| with(&move |sheet, revision, id| WorkbookCommand::ShapeOrder { sheet: Target::Sheet(sheet), revision, id, order: step.to_owned() });
     let selected_view = move || {
         let shape = current()?;
         let group = shape.kind == "group";
@@ -116,7 +118,7 @@ pub fn controls(controller: Controller, shapes: RwSignal<Vec<wire::DrawnShape>>,
                     </label>
                     <button type="button" data-dnacalc="shape-text-apply" on:click=move |_| {
                         let value = text.get_untracked();
-                        with(&move |sheet, revision, id| wire::Intent::ShapeText { sheet, revision, id, text: value.clone() });
+                        with(&move |sheet, revision, id| WorkbookCommand::ShapeText { sheet: Target::Sheet(sheet), revision, id, text: value.clone() });
                     }>"Set text"</button>
                 })}
                 {(!line && !group).then(|| view! {
@@ -153,12 +155,12 @@ pub fn controls(controller: Controller, shapes: RwSignal<Vec<wire::DrawnShape>>,
                     <button type="button" data-dnacalc="shape-rotate-left" on:click=move |_| turn(((shape.rotation.round() as i64) - 90).rem_euclid(360))>"Left 90°"</button>
                     <button type="button" data-dnacalc="shape-rotate-right" on:click=move |_| turn(((shape.rotation.round() as i64) + 90).rem_euclid(360))>"Right 90°"</button>
                     {(!line).then(|| view! {
-                        <button type="button" data-dnacalc="shape-flip-horizontal" on:click=move |_| with(&|sheet, revision, id| wire::Intent::ShapeFlip { sheet, revision, id, horizontal: true })>"Flip horizontal"</button>
-                        <button type="button" data-dnacalc="shape-flip-vertical" on:click=move |_| with(&|sheet, revision, id| wire::Intent::ShapeFlip { sheet, revision, id, horizontal: false })>"Flip vertical"</button>
+                        <button type="button" data-dnacalc="shape-flip-horizontal" on:click=move |_| with(&|sheet, revision, id| WorkbookCommand::ShapeFlip { sheet: Target::Sheet(sheet), revision, id, horizontal: true })>"Flip horizontal"</button>
+                        <button type="button" data-dnacalc="shape-flip-vertical" on:click=move |_| with(&|sheet, revision, id| WorkbookCommand::ShapeFlip { sheet: Target::Sheet(sheet), revision, id, horizontal: false })>"Flip vertical"</button>
                     })}
                 </div>
                 <div class="dc-command-row">
-                    <button type="button" data-dnacalc="shape-duplicate" on:click=move |_| with(&|sheet, revision, id| wire::Intent::ShapeDuplicate { sheet, revision, id, dx: 1200, dy: 1200 })>"Duplicate"</button>
+                    <button type="button" data-dnacalc="shape-duplicate" on:click=move |_| with(&|sheet, revision, id| WorkbookCommand::ShapeDuplicate { sheet: Target::Sheet(sheet), revision, id, dx: 1200, dy: 1200 })>"Duplicate"</button>
                     <button type="button" data-dnacalc="shape-front" on:click=move |_| order("front")>"Bring to front"</button>
                     <button type="button" data-dnacalc="shape-forward" on:click=move |_| order("forward")>"Bring forward"</button>
                     <button type="button" data-dnacalc="shape-backward" on:click=move |_| order("backward")>"Send backward"</button>
@@ -170,11 +172,11 @@ pub fn controls(controller: Controller, shapes: RwSignal<Vec<wire::DrawnShape>>,
                         let mut ids = vec![id];
                         ids.extend(also.get_untracked().into_iter().filter(|o| *o != id));
                         also.set(Vec::new());
-                        send(wire::Intent::ShapeGroup { sheet, revision: revision(), ids });
+                        send(WorkbookCommand::ShapeGroup { sheet: Target::Sheet(sheet), revision: revision(), ids });
                     }>{if others == 0 { "Group (Shift+click more shapes)".to_owned() } else { format!("Group {} shapes", others + 1) }}</button>
                     {group.then(|| view! {
                         <button type="button" data-dnacalc="shape-ungroup" on:click=move |_| {
-                            with(&move |sheet, revision, id| wire::Intent::ShapeUngroup { sheet, revision, id });
+                            with(&move |sheet, revision, id| WorkbookCommand::ShapeUngroup { sheet: Target::Sheet(sheet), revision, id });
                             selected.set(None);
                         }>"Ungroup"</button>
                     })}
@@ -221,10 +223,10 @@ fn insert_picture(controller: Controller, input: web_sys::HtmlInputElement) {
             let (row, column) = controller.active.get_untracked();
             let Ok(cell) = calc_value::CellKey::new(sheet, row, column) else { return };
             controller.dispatch_bytes(
-                wire::Intent::ShapePicture {
-                    sheet: wire::Sheet::of(sheet),
+                WorkbookCommand::ShapePicture {
+                    sheet: Target::Sheet(sheet),
                     revision: controller.summary.get_untracked().revision,
-                    at: wire::Key::of(cell),
+                    at: cell_target(cell),
                     name,
                 },
                 bytes,

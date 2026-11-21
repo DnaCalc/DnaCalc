@@ -3,6 +3,7 @@
 //!
 //! Extends DnaTreeCalc bf6dfd7 `src/dnacalc-stage-notebook/src/lib.rs` and `src/model.rs`.
 
+use crate::workbook_command::{WorkbookCommand, area_target, cell_target};
 use crate::cells::{self, Provenance};
 use crate::controller::Controller;
 use crate::skin::{Skin, SkinContext, SkinId};
@@ -312,7 +313,7 @@ fn notebook_view(controller: Controller) -> impl IntoView {
             }
         });
     };
-    let show_source = move |at, skin| controller.reveal(at, skin);
+    let show_source = move |at, skin| controller.reveal(cell_target(at), skin);
     let linked = move |done: &wire::Outcome, at: calc_value::CellKey, submitted: Option<String>| {
         let same_draft = submitted
             .as_ref()
@@ -354,8 +355,8 @@ fn notebook_view(controller: Controller) -> impl IntoView {
                 };
                 let submitted = insert.then_some(text);
                 controller.dispatch(
-                    wire::Intent::NotebookLink {
-                        anchor: wire::Area::of(area),
+                    WorkbookCommand::NotebookLink {
+                        anchor: area_target(area),
                         prose,
                         text: submitted.clone(),
                     },
@@ -376,8 +377,8 @@ fn notebook_view(controller: Controller) -> impl IntoView {
                     if let Some(id) = block.placement.clone() {
                         controller
                             .dispatch(
-                                wire::Intent::NotebookOrder {
-                                    placement: id,
+                                WorkbookCommand::NotebookOrder {
+                                    placement: dna_calc_model::Target::LayoutItem(id),
                                     direction: 0,
                                 },
                                 |_| {},
@@ -438,7 +439,7 @@ fn notebook_view(controller: Controller) -> impl IntoView {
         let placement = block.placement.clone();
         let order = Callback::new(move |direction: i8| {
             if let Some(placement) = placement.clone() {
-                let apply = move || controller.dispatch(wire::Intent::NotebookOrder { placement, direction }, |_| {});
+                let apply = move || controller.dispatch(WorkbookCommand::NotebookOrder { placement: dna_calc_model::Target::LayoutItem(placement), direction }, |_| {});
                 if controller.editing.get_untracked().is_some() {
                     controller.commit_edit(move |ok| {
                         if ok {
@@ -464,8 +465,8 @@ fn notebook_view(controller: Controller) -> impl IntoView {
             controller.navigate_to(at, move |ok| {
                 if ok {
                     controller.dispatch(
-                        wire::Intent::NotebookLink {
-                            anchor: wire::Area::of(anchor),
+                        WorkbookCommand::NotebookLink {
+                            anchor: area_target(anchor),
                             prose: false,
                             text: None,
                         },

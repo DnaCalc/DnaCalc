@@ -2,6 +2,8 @@
 //! sparkline in the active cell, its group's type and the points it shows apart, or delete it. Each is one undoable
 //! edit through the host's sparkline command; the save writes the worksheet's sparkline extension.
 
+use dna_calc_model::Target;
+use crate::workbook_command::{WorkbookCommand, cell_target, projected_cell};
 use crate::{controller::Controller, wire};
 use leptos::prelude::*;
 
@@ -18,21 +20,17 @@ const POINTS: &[(&str, &str)] = &[
 pub fn controls(controller: Controller, sparklines: RwSignal<Vec<wire::sparklines::DrawnSparkline>>) -> AnyView {
     let data = RwSignal::new(String::new());
     let kind = RwSignal::new("line".to_owned());
-    let key = move || {
-        let sheet = controller.sheet.get()?;
-        let (row, column) = controller.active.get();
-        calc_value::CellKey::new(sheet, row, column).ok().map(wire::Key::of)
-    };
+    let key = move || controller.active_key();
     let here = move || {
-        let at = key()?;
+        let at = wire::Key::of(key()?);
         sparklines.get().into_iter().find(|s| s.cell == at)
     };
     let revision = move || controller.summary.get_untracked().revision;
-    let sheet = move || controller.sheet.get_untracked().map(wire::Sheet::of);
-    let send = move |intent: wire::Intent| controller.dispatch(intent, |_| {});
+    let sheet = move || controller.sheet.get_untracked();
+    let send = move |intent: WorkbookCommand| controller.dispatch(intent, |_| {});
     let insert = move |_| {
         let (Some(sheet), Some(at)) = (sheet(), key()) else { return };
-        send(wire::Intent::SparklineAdd { sheet, revision: revision(), at, data: data.get_untracked(), kind: kind.get_untracked() });
+        send(WorkbookCommand::SparklineAdd { sheet: Target::Sheet(sheet), revision: revision(), at: cell_target(at), data: data.get_untracked(), kind: kind.get_untracked() });
     };
     let selected = move || {
         let s = here()?;
@@ -44,7 +42,7 @@ pub fn controls(controller: Controller, sparklines: RwSignal<Vec<wire::sparkline
                 <label>"Type "
                     <select data-dnacalc="sparkline-kind" on:change=move |ev| {
                         let Some(sheet) = sheet() else { return };
-                        send(wire::Intent::SparklineKind { sheet, revision: revision(), at, kind: event_target_value(&ev) });
+                        send(WorkbookCommand::SparklineKind { sheet: Target::Sheet(sheet), revision: revision(), at: projected_cell(at), kind: event_target_value(&ev) });
                     }>
                         {KINDS.iter().map(|(label, value)| view! { <option value=*value selected=s.kind == *value>{*label}</option> }).collect_view()}
                     </select>
@@ -57,7 +55,7 @@ pub fn controls(controller: Controller, sparklines: RwSignal<Vec<wire::sparkline
                             <label>
                                 <input type="checkbox" data-dnacalc="sparkline-show" data-point=*point prop:checked=on on:change=move |ev| {
                                     let Some(sheet) = sheet() else { return };
-                                    send(wire::Intent::SparklineShow { sheet, revision: revision(), at, point: (*point).to_owned(), on: event_target_checked(&ev) });
+                                    send(WorkbookCommand::SparklineShow { sheet: Target::Sheet(sheet), revision: revision(), at: projected_cell(at), point: (*point).to_owned(), on: event_target_checked(&ev) });
                                 }/>
                                 {*label}
                             </label>
@@ -66,7 +64,7 @@ pub fn controls(controller: Controller, sparklines: RwSignal<Vec<wire::sparkline
                 </div>
                 <button type="button" data-dnacalc="sparkline-delete" on:click=move |_| {
                     let Some(sheet) = sheet() else { return };
-                    send(wire::Intent::SparklineDelete { sheet, revision: revision(), at });
+                    send(WorkbookCommand::SparklineDelete { sheet: Target::Sheet(sheet), revision: revision(), at: projected_cell(at) });
                 }>"Delete sparkline"</button>
             </fieldset>
         })

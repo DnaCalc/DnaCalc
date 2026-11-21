@@ -28,6 +28,7 @@ use crate::cells::Provenance;
 use crate::controller::Controller;
 use crate::skin::{Skin, SkinContext, SkinId};
 use crate::wire;
+use crate::workbook_command::cell_target;
 #[cfg(test)]
 use calc_value::CellKey;
 use leptos::prelude::*;
@@ -230,7 +231,7 @@ fn ledger_view(controller: Controller) -> impl IntoView {
         });
     });
     let pages = move || ledger.with(|l| (l.rows as usize).div_ceil(PAGE).max(1));
-    let open_source = move |at, skin| controller.reveal(at, skin);
+    let open_source = move |at, skin| controller.reveal(cell_target(at), skin);
     let row_view = move |row: wire::LedgerRow| {
         let Some(at) = row.at.cell() else {
             return ().into_any();

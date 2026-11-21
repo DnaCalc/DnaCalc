@@ -1,8 +1,10 @@
 //! Format Cells is an adapter over the shared command, draft and worker projection.
+use crate::workbook_command::WorkbookCommand;
+use dna_calc_model::Target;
 use crate::{
     controller::Controller,
     style::css,
-    wire::{Intent, Reply, Request},
+    wire::{Reply, Request},
 };
 use dna_calc_model::format::{BorderPatch, FormatPatch};
 use leptos::prelude::*;
@@ -255,9 +257,13 @@ pub fn controls(controller: Controller) -> impl IntoView {
             return;
         };
         let generation = controller.generation.get_untracked();
+        let Some(areas) = selected.areas.into_iter().map(|area| area.area()).collect::<Option<_>>() else {
+            controller.say("The format selection contains an invalid range", true);
+            return;
+        };
         controller.dispatch(
-            Intent::FormatCells {
-                areas: selected.areas,
+            WorkbookCommand::FormatCells {
+                areas: Target::Cells(areas),
                 revision: selected.revision,
                 patch: patch.get_untracked(),
             },

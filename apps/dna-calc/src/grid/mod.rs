@@ -40,6 +40,8 @@ mod sparkline_tools;
 mod structure;
 pub mod viewport;
 
+use dna_calc_model::Target;
+use crate::workbook_command::WorkbookCommand;
 use crate::cells;
 use crate::controller::{Controller, EditOrigin};
 use crate::skin::{Skin, SkinContext, SkinId};
@@ -2705,7 +2707,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
         editing_shape.set(None);
         let Some(sheet) = controller.sheet.get_untracked() else { return };
         controller.dispatch(
-            wire::Intent::ShapeText { sheet: wire::Sheet::of(sheet), revision: controller.summary.get_untracked().revision, id, text },
+            WorkbookCommand::ShapeText { sheet: Target::Sheet(sheet), revision: controller.summary.get_untracked().revision, id, text },
             |_| {},
         );
     };
@@ -2729,8 +2731,8 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
         let hundredths = |v: f64| (v / drag.zoom * 75.0).round() as i64;
         let Some(sheet) = controller.sheet.get_untracked() else { return };
         controller.dispatch(
-            wire::Intent::ShapePlace {
-                sheet: wire::Sheet::of(sheet),
+            WorkbookCommand::ShapePlace {
+                sheet: Target::Sheet(sheet),
                 revision: controller.summary.get_untracked().revision,
                 id: drag.id,
                 left: hundredths(x).max(0),
@@ -2757,7 +2759,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 let Some(sheet) = controller.sheet.get_untracked() else { return };
                 ev.prevent_default();
                 controller.dispatch(
-                    wire::Intent::ShapeDuplicate { sheet: wire::Sheet::of(sheet), revision: controller.summary.get_untracked().revision, id, dx: 1200, dy: 1200 },
+                    WorkbookCommand::ShapeDuplicate { sheet: Target::Sheet(sheet), revision: controller.summary.get_untracked().revision, id, dx: 1200, dy: 1200 },
                     |_| {},
                 );
             }
@@ -2773,7 +2775,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                     _ => (0, step),
                 };
                 controller.dispatch(
-                    wire::Intent::ShapeNudge { sheet: wire::Sheet::of(sheet), revision: controller.summary.get_untracked().revision, id, dx, dy },
+                    WorkbookCommand::ShapeNudge { sheet: Target::Sheet(sheet), revision: controller.summary.get_untracked().revision, id, dx, dy },
                     |_| {},
                 );
             }
@@ -2782,7 +2784,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 ev.prevent_default();
                 selected_shape.set(None);
                 controller.dispatch(
-                    wire::Intent::ShapeDelete { sheet: wire::Sheet::of(sheet), revision: controller.summary.get_untracked().revision, id },
+                    WorkbookCommand::ShapeDelete { sheet: Target::Sheet(sheet), revision: controller.summary.get_untracked().revision, id },
                     |_| {},
                 );
             }

@@ -1,4 +1,6 @@
 //! Revision-bound chart properties, submitted through the workbook command route.
+use dna_calc_model::Target;
+use crate::workbook_command::{WorkbookCommand, area_target};
 use crate::{controller::Controller, wire};
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
@@ -119,9 +121,9 @@ pub fn controls(controller: Controller) -> AnyView {
                 return;
             }
             controller.dispatch(
-                wire::Intent::ChartCreate {
+                WorkbookCommand::ChartCreate {
                     revision,
-                    area: wire::Area::of(area),
+                    area: area_target(area),
                     kind,
                     rows,
                     headers,
@@ -289,15 +291,15 @@ pub fn controls(controller: Controller) -> AnyView {
             }
             controller.dispatch(
                 if target == "default" {
-                    wire::Intent::ChartTextStyle {
-                        sheet: wire::Sheet::of(sheet),
+                    WorkbookCommand::ChartTextStyle {
+                        sheet: Target::Sheet(sheet),
                         revision,
                         part: chart.part,
                         style,
                     }
                 } else {
-                    wire::Intent::ChartElementTextStyle {
-                        sheet: wire::Sheet::of(sheet),
+                    WorkbookCommand::ChartElementTextStyle {
+                        sheet: Target::Sheet(sheet),
                         revision,
                         part: chart.part,
                         target,
@@ -365,8 +367,8 @@ pub fn controls(controller: Controller) -> AnyView {
                 return;
             }
             controller.dispatch(
-                wire::Intent::ChartType {
-                    sheet: wire::Sheet::of(sheet),
+                WorkbookCommand::ChartType {
+                    sheet: Target::Sheet(sheet),
                     revision,
                     part: chart.part,
                     plot,
@@ -446,8 +448,8 @@ pub fn controls(controller: Controller) -> AnyView {
                 return;
             }
             controller.dispatch(
-                wire::Intent::ChartSeriesStyle {
-                    sheet: wire::Sheet::of(sheet),
+                WorkbookCommand::ChartSeriesStyle {
+                    sheet: Target::Sheet(sheet),
                     revision,
                     part: chart.part,
                     plot,
@@ -496,8 +498,8 @@ pub fn controls(controller: Controller) -> AnyView {
                 return;
             }
             controller.dispatch(
-                wire::Intent::ChartSeries {
-                    sheet: wire::Sheet::of(sheet),
+                WorkbookCommand::ChartSeries {
+                    sheet: Target::Sheet(sheet),
                     revision,
                     part: chart.part,
                     plot,
@@ -586,8 +588,8 @@ pub fn controls(controller: Controller) -> AnyView {
                 return;
             }
             controller.dispatch(
-                wire::Intent::ChartLogAxis {
-                    sheet: wire::Sheet::of(sheet),
+                WorkbookCommand::ChartLogAxis {
+                    sheet: Target::Sheet(sheet),
                     revision,
                     part: chart.part,
                     axis: axis.id,
@@ -631,8 +633,8 @@ pub fn controls(controller: Controller) -> AnyView {
                 return;
             }
             controller.dispatch(
-                wire::Intent::ChartAxis {
-                    sheet: wire::Sheet::of(sheet),
+                WorkbookCommand::ChartAxis {
+                    sheet: Target::Sheet(sheet),
                     revision,
                     part: chart.part,
                     axis: axis.id,
@@ -670,8 +672,8 @@ pub fn controls(controller: Controller) -> AnyView {
                 return;
             }
             controller.dispatch(
-                wire::Intent::ChartLegend {
-                    sheet: wire::Sheet::of(sheet),
+                WorkbookCommand::ChartLegend {
+                    sheet: Target::Sheet(sheet),
                     revision,
                     part: chart.part,
                     position,
@@ -708,8 +710,8 @@ pub fn controls(controller: Controller) -> AnyView {
                 return;
             }
             controller.dispatch(
-                wire::Intent::ChartProperties {
-                    sheet: wire::Sheet::of(sheet),
+                WorkbookCommand::ChartProperties {
+                    sheet: Target::Sheet(sheet),
                     revision,
                     part: chart.part,
                     title: (!draft.is_empty()).then_some(draft),
