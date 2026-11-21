@@ -62,7 +62,7 @@ builds of one commit differ (section 7).
 - **Uninstall:** Settings > Apps, or `msiexec /x <msi>`. It removes the program folder, shortcut and
   registry values. It leaves `%LOCALAPPDATA%\DNA Calc` and `...\DNA OneCalc` (settings, recent files,
   WebView2 profile), as the READMEs say; the user deletes those to forget them. Proposal: keep that.
-- **Both installed:** they share nothing on disk. OneCalc's companion `dna-calc-desktop.exe` registers
+- **Both installed:** they share nothing on disk. Formula Explorer's companion `dna-calc-desktop.exe` registers
   nothing, so it never fights the DNA Calc MSI over `Applications\dna-calc-desktop.exe`.
 
 ## 4. WebView2 runtime
@@ -85,11 +85,11 @@ The MSI writes, under `HKCU\Software\Classes`:
 | Extension | Opened by | Command |
 |---|---|---|
 | .xlsx .xlsm .xlsb | DNA Calc | `dna-calc-desktop.exe --open "%1"` (main.rs:71: `--open FILE` is app mode) |
-| .xll .xlam | DNA OneCalc | `dna-onecalc-desktop.exe --app --xll "%1"` (app.rs options: `--app`, `--xll`) |
+| .xll .xlam | DNA Calc - Formula Explorer | `dna-onecalc-desktop.exe --app --xll "%1"` (app.rs options: `--app`, `--xll`) |
 
 Not measured yet (dc-fk66.3): that `--app --xll` loads an `.xlam` from a double-click as the Add-ins
-panel does; that Windows shows both entries; that Excel stays the default. DNA OneCalc does not take
-a plain file argument today; `.xlsx` "Open with" for OneCalc needs that first.
+panel does; that Windows shows both entries; that Excel stays the default. DNA Calc - Formula Explorer does not take
+a plain file argument today; `.xlsx` "Open with" for Formula Explorer needs that first.
 
 ## 6. Signing: the owner's steps
 

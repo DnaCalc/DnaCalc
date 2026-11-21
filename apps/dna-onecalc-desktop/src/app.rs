@@ -234,7 +234,7 @@ fn say(owner: *mut std::ffi::c_void, message_file: Option<&Path>, scripted: bool
         // A scripted run never waits for a click.
         None if scripted => eprintln!("dna-onecalc-desktop: {text}"),
         None => {
-            dialogs::message(owner.cast(), "DNA OneCalc", text, Buttons::Ok, true);
+            dialogs::message(owner.cast(), "DNA Calc - Formula Explorer", text, Buttons::Ok, true);
         }
     }
 }
@@ -248,9 +248,9 @@ fn dna_calc_beside_us() -> Option<PathBuf> {
 
 fn session_files(open: bool) -> [FileFilter<'static>; 2] {
     let (name, patterns) = if open {
-        ("OneCalc sessions (*.xlsx; *.xlsm; *.xls; *.xla; *.xlt)", "*.xlsx;*.xlsm;*.xls;*.xla;*.xlt")
+        ("Formula Explorer sessions (*.xlsx; *.xlsm; *.xls; *.xla; *.xlt)", "*.xlsx;*.xlsm;*.xls;*.xla;*.xlt")
     } else {
-        ("OneCalc sessions (*.xlsx; *.xlsm)", "*.xlsx;*.xlsm")
+        ("Formula Explorer sessions (*.xlsx; *.xlsm)", "*.xlsx;*.xlsm")
     };
     [FileFilter { name, patterns }, FileFilter { name: "All files", patterns: "*.*" }]
 }
@@ -318,7 +318,7 @@ impl Files for Dialogs {
         }
         match dialogs::message(
             self.owner.cast(),
-            "DNA OneCalc",
+            "DNA Calc - Formula Explorer",
             &format!("Save changes to {name}?"),
             Buttons::YesNoCancel,
             false,
@@ -336,7 +336,7 @@ impl Files for Dialogs {
         bytes: &[u8],
     ) -> Result<(), String> {
         let Some(exe) = &self.dna_calc else {
-            let text = "OneCalc cannot open this file, and DNA Calc (dna-calc-desktop.exe) is not in the folder with OneCalc. Put it there to open such files in DNA Calc from here, or open the file in DNA Calc yourself.".to_owned();
+            let text = "Formula Explorer cannot open this file, and DNA Calc (dna-calc-desktop.exe) is not in the Formula Explorer folder. Put it there to open such files in DNA Calc from here, or open the file in DNA Calc yourself.".to_owned();
             say(
                 self.owner,
                 self.message_file.as_deref(),
@@ -966,7 +966,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
         if !o.scripted()
             && dialogs::message(
                 std::ptr::null_mut(),
-                "DNA OneCalc",
+                "DNA Calc - Formula Explorer",
                 "Open the download page now?",
                 Buttons::YesNo,
                 false,
@@ -986,7 +986,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
         .data_dir
         .clone()
         .unwrap_or_else(calc_platform_desktop::macro_security::default_folder);
-    let shell = Shell::new("DNA OneCalc")?;
+    let shell = Shell::new("DNA Calc - Formula Explorer")?;
     let frame = shell.workbook_hwnd();
     let size = o.size.unwrap_or((1280, 900));
     match (o.size, settings.borrow().window) {
@@ -1167,7 +1167,7 @@ pub fn run_surrogate_role(args: &[String]) -> Result<(), String> {
     // Frames go out on the standard output this process was started with; anything an add-in
     // prints goes to standard error from here on.
     let wire = calc_platform_desktop::surrogate::surrogate_wire()?;
-    let shell = Shell::new("DNA OneCalc")?;
+    let shell = Shell::new("DNA Calc - Formula Explorer")?;
     let (session, set) = session_and_addins(&shell, &sheet)?;
     let end = SurrogateEnd::new(incarnation, Box::new(wire));
     let mut host = Host::new(session, RemoteFiles(end.clone()), Addins::new(set.clone()));

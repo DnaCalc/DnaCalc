@@ -11,7 +11,7 @@ use dna_formula_ui::web::{Page, start_page};
 
 /// DNA OneCalc's page.
 pub const ONECALC: Page = Page {
-    name: "DNA OneCalc",
+    name: "DNA Calc - Formula Explorer",
     panic_attribute: "data-onecalc-panic",
     ready_attribute: "data-onecalc-ready",
     host_id: "onecalc",

@@ -1012,7 +1012,7 @@ pub struct ProjectReport {
 struct NoWorkbookReads;
 impl calc_vba::events::EventReadContext for NoWorkbookReads {
     fn read_reference(&self, _: &calc_func::value::ReferenceLike) -> Result<CalcValue, String> {
-        Err("cell reads from a workbook event are not modelled in OneCalc (dc-0f1k.4)".into())
+        Err("cell reads from a workbook event are not modelled in Formula Explorer (dc-0f1k.4)".into())
     }
 }
 

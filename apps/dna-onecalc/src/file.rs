@@ -63,7 +63,7 @@ impl std::fmt::Display for OpenRefusal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "This file is outside what a OneCalc session holds: {}. {OFFER}.",
+            "This file is outside what a Formula Explorer session holds: {}. {OFFER}.",
             self.reason
         )
     }
@@ -392,7 +392,7 @@ pub fn read_item(content: &[u8]) -> Result<(SessionOptions, Vec<AddinRef>), Stri
             "options" => {
                 if let Some(locale) = element.attribute("locale") {
                     if !SessionOptions::LOCALES.contains(&locale) {
-                        return Err(format!("the locale {locale:?} is not one OneCalc offers"));
+                        return Err(format!("the locale {locale:?} is not one Formula Explorer offers"));
                     }
                     options.locale = locale.to_owned();
                 }

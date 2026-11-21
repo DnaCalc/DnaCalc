@@ -228,12 +228,12 @@ const MAX_VALUE_CELLS: u64 = 1_048_576;
 const RANGE_VALUE: i32 = 100;
 
 /// The reason an explicit `CreateObject` or `GetObject` is refused.
-const CREATE_OBJECT_REFUSAL: &str = "CreateObject or GetObject (late-bound COM activation; DNA OneCalc binds COM early, through imported type libraries)";
+const CREATE_OBJECT_REFUSAL: &str = "CreateObject or GetObject (late-bound COM activation; DNA Calc - Formula Explorer binds COM early, through imported type libraries)";
 
 /// The reason a late-bound call on a COM object is refused (owner rule: early-bound COM through
 /// imported type libraries first, never late binding as a start).
 const LATE_BOUND_REFUSAL: &str =
-    "a late-bound COM call (DNA OneCalc binds COM early, through imported type libraries)";
+    "a late-bound COM call (DNA Calc - Formula Explorer binds COM early, through imported type libraries)";
 const RANGE_FORMULA: i32 = 101;
 
 /// What Excel answers when a worksheet function writes a cell: VBA error 1004, which `On Error`

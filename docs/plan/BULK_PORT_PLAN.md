@@ -20,9 +20,9 @@ names its tracker epic.
    as the PMT family may stay outstanding (dc-j9k).
 3. **Text, collation and character support** (dc-zsn), soon and without blockers.
 4. **Circular references with full Excel parity, iteration optional** (dc-y2o).
-5. **Publish DNA OneCalc and DNA Calc on dnacalc.com** with an owner-approved update pipeline
+5. **Publish DNA Calc and its Formula Explorer build on dnacalc.com** with an owner-approved update pipeline
    (dc-ysl). The current state of the site does not matter.
-6. **Add-ins** (dc-snz): user-defined functions hosted by DNA OneCalc first (.xll and VBA;
+6. **Add-ins** (dc-snz): user-defined functions hosted by the Formula Explorer first (.xll and VBA;
    JavaScript later), then VBA in workbook files in DNA Calc, then Windows parity with full COM
    client support. The VBA engine (OxVba, to be renamed) and OxForms continue as their own
    project, with a debugger and compiled targets beyond Excel's VBA; DNA Calc pins them.

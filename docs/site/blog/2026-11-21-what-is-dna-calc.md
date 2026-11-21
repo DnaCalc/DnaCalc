@@ -3,7 +3,7 @@ Tags: DNA Calc, Windows, VBA
 Status: draft
 
 DNA Calc is an open-source spreadsheet for Excel workbooks. It recalculates formulas in the
-browser and has a Windows desktop version. DNA OneCalc uses the same formula engine and gives
+browser and has a Windows desktop version. DNA Calc - Formula Explorer uses the same formula engine and gives
 you space to inspect one formula and its inputs.
 
 ## Open a workbook that uses VBA
@@ -14,6 +14,6 @@ the sample returns `-2.5`. Change the input and see the formula recalculate. Kee
 when opening files whose source you don't trust.
 
 Native XLL add-ins use the Windows desktop add-in host. The browser demo uses workbook formulas,
-and the next post follows an Excel-DNA add-in through OneCalc on Windows.
+and the next post follows an Excel-DNA add-in through Formula Explorer on Windows.
 
-[Open DNA OneCalc in the browser](https://onecalc.dnacalc.com/)
+[Open DNA Calc - Formula Explorer in the browser](https://onecalc.dnacalc.com/)

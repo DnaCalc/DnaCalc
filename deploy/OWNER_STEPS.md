@@ -1,4 +1,4 @@
-# Publishing DNA OneCalc and DNA Calc: the owner's steps (dc-ysl.5)
+# Publishing DNA Calc - Formula Explorer and DNA Calc: the owner's steps (dc-ysl.5)
 
 The plan is `docs/plan/PUBLISHING_PLAN.md`; the tools are `cargo xtask site`
 (`tools/xtask-harness/src/site.rs`), `deploy/host/dnacalc-site-receive` and `deploy/caddy/`. Every
@@ -7,7 +7,7 @@ publish is run or approved by the owner.
 | Site | Host | Root on the host |
 |---|---|---|
 | `calc` (DNA Calc) | dnacalc.com (www.dnacalc.com redirects) | `/srv/dnacalc-site/calc/current` |
-| `onecalc` (DNA OneCalc) | onecalc.dnacalc.com | `/srv/dnacalc-site/onecalc/current` |
+| `onecalc` (DNA Calc - Formula Explorer) | onecalc.dnacalc.com | `/srv/dnacalc-site/onecalc/current` |
 
 **Route** (owner, 2026-11-08): everything runs on the site host dna-koderbot, as `koderbot`, in a
 run folder under `~/codex-runs/` holding a fresh clone of the pushed master. The release is
@@ -54,13 +54,13 @@ then point Caddy at them (done on 2026-10-30; the site files were last updated 2
   sudo cp -p /etc/caddy/Caddyfile /etc/caddy/Caddyfile.bak.$stamp
   sudo install -d -m 755 /etc/caddy/dnacalc
   sudo install -m 644 deploy/caddy/headers.caddy deploy/caddy/sites.caddy /etc/caddy/dnacalc/
-  # In /etc/caddy/Caddyfile, use one import for the DNA Calc and OneCalc site blocks:
+  # In /etc/caddy/Caddyfile, use one import for the DNA Calc and Formula Explorer site blocks:
   # import /etc/caddy/dnacalc/*.caddy
   sudo caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile   # must say Valid
   sudo systemctl reload caddy
 ```
 
-Confirm that `onecalc.dnacalc.com` resolves to the host (`92.222.230.210`) and serves OneCalc over HTTPS.
+Confirm that `onecalc.dnacalc.com` resolves to the host (`92.222.230.210`) and serves Formula Explorer over HTTPS.
 
 ## 2. Each publish (one site at a time)
 
@@ -85,7 +85,7 @@ ssh -t dna-koderbot
   git pull --no-rebase && git push
 ```
 
-For DNA OneCalc, use `onecalc` and `https://onecalc.dnacalc.com/`.
+For DNA Calc - Formula Explorer, use `onecalc` and `https://onecalc.dnacalc.com/`.
 
 `site publish --local` refuses a release packed from a tree with changes, one whose smoke has not
 passed, an installed receiver that is not the clone's `deploy/host/dnacalc-site-receive`, and runs

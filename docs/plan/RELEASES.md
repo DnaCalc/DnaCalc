@@ -14,8 +14,8 @@ follow-up. The owner signs and publishes releases.
 | Product | What a user gets | Built by today |
 |---|---|---|
 | DNA Calc web | dnacalc.com | `cargo xtask site pack calc` (tools/xtask-harness/src/site.rs) |
-| DNA OneCalc web | onecalc.dnacalc.com | `cargo xtask site pack onecalc` |
-| DNA OneCalc desktop | Windows zip and per-user MSI candidate | `cargo xtask package onecalc` and `cargo xtask package installer` |
+| DNA Calc - Formula Explorer web | onecalc.dnacalc.com | `cargo xtask site pack onecalc` |
+| DNA Calc - Formula Explorer desktop | Windows zip and per-user MSI candidate | `cargo xtask package onecalc` and `cargo xtask package installer` |
 | DNA Calc desktop | Windows zip and per-user MSI candidate | The same commands, `DNA-Calc/` folder |
 | Linux runner `dnacalc` | tarball and .deb | `deploy/linux/package.sh` (dc-icq4.2, commit f7d95fa3) |
 | Engine crates | not published (`publish = false`, Cargo.toml:46) | dc-qm0h |
@@ -28,7 +28,7 @@ Checked in the code on 2026-11-13:
 | Place | What it holds |
 |---|---|
 | `Cargo.toml` `[workspace.package] version` | `0.1.0`. Every member uses `version.workspace = true`. |
-| `--version` | `DNA OneCalc 0.1.0` (apps/dna-onecalc-desktop/src/main.rs:46), `DNA Calc 0.1.0` (apps/dna-calc-desktop/src/main.rs:67), `dnacalc 0.1.0` (apps/dnacalc/src/lib.rs:122). All three come from `CARGO_PKG_VERSION`. None prints the commit. |
+| `--version` | `DNA Calc - Formula Explorer 0.1.0` (apps/dna-onecalc-desktop/src/main.rs:46), `DNA Calc 0.1.0` (apps/dna-calc-desktop/src/main.rs:67), `dnacalc 0.1.0` (apps/dnacalc/src/lib.rs:122). All three come from `CARGO_PKG_VERSION`. None prints the commit. |
 | Worker `Ping` | `Pong { version }` from `CARGO_PKG_VERSION` (apps/dna-calc-worker/src/server.rs:811). |
 | Windows version resource | `FILEVERSION 16,0,0,1` and `ProductVersion "16.0.0.1"` in both `apps/*-desktop/version.rc`. The value came in with the first XLL host (d433cacb). That commit does not say why. |
 | Site `build.json` | `version` (the workspace version, site.rs:567), `release` = `<UTC>-<commit12>`, `commit`, tool versions, file hashes. Public at `/build.json`. |
@@ -102,7 +102,7 @@ one beside the previous release's.
 4. **VBA:** `crates/calc-vba/tests/corpus/baseline.json` rows not lower. Today dna-simple 109 of 109 on
    module, JIT and .xlsm routes; dna-examples project 24 of 26, .xlsm 22 of 26. Its `windows` section
    is empty; the first preview needs the Windows rows (dc-tey4.1 ran them on 2026-11-13).
-5. **Add-ins (Windows):** the OneCalc page acceptance m4 and m5 sets with the cross-built release
+5. **Add-ins (Windows):** the Formula Explorer page acceptance m4 and m5 sets with the cross-built release
    binaries. Last recorded: m4 350 of 350, xloil-utils-sql 12 of 12, simple-xlam and simple-xlsm 109
    of 109 each (WINDOWS_CROSS_BUILD.md, second run).
 6. **Web:** `cargo xtask site smoke` for both sites before publish, `site verify` and `app smoke --url`

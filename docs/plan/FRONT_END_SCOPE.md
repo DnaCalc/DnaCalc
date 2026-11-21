@@ -74,7 +74,7 @@
   - multi-view;
   - UI automation;
   - a declarative skin manifest or SDK;
-  - OneCalc on the shared contract (it shares only the formula UI).
+  - Formula Explorer on the shared contract (see item 6 for the host levels).
 
 ## 6. Proposed order
 

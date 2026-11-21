@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 license.workspace = true
-description = "DNA OneCalc on the Windows desktop: the formula session over the loaded add-ins, no calculation engine; OneCalc's page in WebView2 over the native session (--app), and a command-line harness for the add-in comparisons."
+description = "DNA Calc - Formula Explorer on the Windows desktop: the formula session over the loaded add-ins, no calculation engine; its page in WebView2 over the native session (--app), and a command-line harness for the add-in comparisons."
 
 [package.metadata.dnacalc]
 portability = "native-only"

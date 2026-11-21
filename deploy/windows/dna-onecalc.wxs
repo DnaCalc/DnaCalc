@@ -5,11 +5,11 @@
      The companion dna-calc-desktop.exe is installed but registers nothing: 'Open with' for
      workbooks belongs to the DNA Calc MSI (Applications\<exe name> is one key per name). -->
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-  <Product Id="$(var.ProductCode)" Name="DNA OneCalc" Language="1033" Version="$(var.Version)"
+  <Product Id="$(var.ProductCode)" Name="DNA Calc - Formula Explorer" Language="1033" Version="$(var.Version)"
            Manufacturer="DNA Calc" UpgradeCode="C521FADC-8410-4B83-9D8C-BC8E72BBF868">
     <Package InstallerVersion="500" Compressed="yes" InstallScope="perUser"
-             Description="DNA OneCalc $(var.Version)" Comments="$(var.Version)+$(var.Commit)" />
-    <MajorUpgrade DowngradeErrorMessage="A newer DNA OneCalc is installed. Uninstall it first." />
+             Description="DNA Calc - Formula Explorer $(var.Version)" Comments="$(var.Version)+$(var.Commit)" />
+    <MajorUpgrade DowngradeErrorMessage="A newer DNA Calc - Formula Explorer is installed. Uninstall it first." />
     <Media Id="1" Cabinet="onecalc.cab" EmbedCab="yes" />
     <Icon Id="AppIcon" SourceFile="$(var.Icon)" />
     <Property Id="ARPPRODUCTICON" Value="AppIcon" />
@@ -44,13 +44,13 @@
                  the add-in loaded (apps/dna-onecalc-desktop/src/app.rs, its options app and xll). -->
             <Component Id="OpenWith" Guid="C7D44EAF-767E-49AA-97BE-F434C67FEC14">
               <RegistryValue Root="HKCU" Key="Software\Classes\DnaOneCalc.AddIn" Type="string"
-                             Value="Excel add-in (DNA OneCalc)" KeyPath="yes" />
+                             Value="Excel add-in (DNA Calc - Formula Explorer)" KeyPath="yes" />
               <RegistryValue Root="HKCU" Key="Software\Classes\DnaOneCalc.AddIn\DefaultIcon" Type="string"
                              Value="&quot;[INSTALLDIR]dna-onecalc-desktop.exe&quot;,0" />
               <RegistryValue Root="HKCU" Key="Software\Classes\DnaOneCalc.AddIn\shell\open\command" Type="string"
                              Value="&quot;[INSTALLDIR]dna-onecalc-desktop.exe&quot; --app --xll &quot;%1&quot;" />
               <RegistryValue Root="HKCU" Key="Software\Classes\Applications\dna-onecalc-desktop.exe"
-                             Name="FriendlyAppName" Type="string" Value="DNA OneCalc" />
+                             Name="FriendlyAppName" Type="string" Value="DNA Calc - Formula Explorer" />
               <RegistryValue Root="HKCU" Key="Software\Classes\Applications\dna-onecalc-desktop.exe\shell\open\command"
                              Type="string" Value="&quot;[INSTALLDIR]dna-onecalc-desktop.exe&quot; --app --xll &quot;%1&quot;" />
               <RegistryValue Root="HKCU" Key="Software\Classes\Applications\dna-onecalc-desktop.exe\SupportedTypes"
@@ -67,7 +67,7 @@
       </Directory>
       <Directory Id="ProgramMenuFolder">
         <Component Id="Shortcut" Guid="9CBCFD5B-9423-42FD-AA03-1B9EB9515CA3">
-          <Shortcut Id="StartMenuShortcut" Name="DNA OneCalc" Target="[INSTALLDIR]dna-onecalc-desktop.exe"
+          <Shortcut Id="StartMenuShortcut" Name="DNA Calc - Formula Explorer" Target="[INSTALLDIR]dna-onecalc-desktop.exe"
                     WorkingDirectory="INSTALLDIR" />
           <RegistryValue Root="HKCU" Key="Software\DNA Calc\DNA OneCalc" Name="StartMenuShortcut"
                          Type="integer" Value="1" KeyPath="yes" />

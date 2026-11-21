@@ -1,4 +1,4 @@
-# Add-ins in DNA OneCalc (milestones 4 and 5, dc-0f1k, dc-snz.2 and dc-0f1k.4)
+# Add-ins in DNA Calc - Formula Explorer (milestones 4 and 5, dc-0f1k, dc-snz.2 and dc-0f1k.4)
 
 How the desktop OneCalc loads, shows, runs and unloads `.xll` add-ins, what a saved session says about
 them, and what the acceptance run showed. The XLL host itself (ABI, callbacks, pool, async, RTD) is

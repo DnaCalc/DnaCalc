@@ -357,7 +357,7 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
         checks: &[
             Check::Starts(
                 "file-status",
-                "This file is outside what a OneCalc session holds:",
+                "This file is outside what a Formula Explorer session holds:",
             ),
             Check::TextContains("file-status", "Open in DNA Calc."),
             Check::Value("formula", "=LEN(\"abc\")"),

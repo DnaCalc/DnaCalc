@@ -8,7 +8,7 @@ Figures were read from the repository and tracker on 2026-11-13; each names its 
 1. **Excel users on Windows** who want a second spreadsheet that opens their workbooks, runs their VBA
    and loads their XLL add-ins. The top audience (week plan goal 1).
 2. **Add-in and VBA developers** (Excel-DNA, xlOil and C API authors; people with .xlam libraries)
-   who want a place to test functions outside Excel. OneCalc is their bench.
+   who want a place to test functions outside Excel. Formula Explorer is their bench.
 3. **People who check workbooks**: auditors, model reviewers, CI pipelines. They need the Linux runner
    and a "same answer as Excel" record.
 4. **Developers who embed a calculation engine**: the crates (not yet published).
@@ -22,7 +22,7 @@ Figures were read from the repository and tracker on 2026-11-13; each names its 
 | Function bank | 4,607,949 of 4,729,476 Excel answers matched; 501 functions in the full bank | commit 5ed48847; docs/plan/bank-coverage-2026-11-12.md |
 | VBA in a workbook | dna-simple 109 of 109 on module, JIT and .xlsm routes; dna-examples .xlsm 22 of 26 (4 refused), project route 24 of 26 | crates/calc-vba/tests/corpus/baseline.json (`windows` section empty) |
 | Many third-party VBA projects | cases recorded, Excel answers missing (vba-regex 69, arraytools 51, stringbuilder 35 cases) | same file |
-| XLL add-ins (Windows) | OneCalc page acceptance m4: 350 of 350 matched; xloil-utils-sql 12 of 12 | docs/plan/WINDOWS_CROSS_BUILD.md, second run |
+| XLL add-ins (Windows) | Formula Explorer page acceptance m4: 350 of 350 matched; xloil-utils-sql 12 of 12 | docs/plan/WINDOWS_CROSS_BUILD.md, second run |
 | .xlam add-ins and .xlsm macros on the desktop | simple-xlam and simple-xlsm 109 of 109, dnaexamples-xlam 22 of 22, dnaexamples-xlsm 23 of 23 | same |
 | DNA Calc page cases (opened .xlsm, add-ins from the page) | 729 of 732 match Excel | commit 887ebb5e (dc-hsa5.12, dc-0f1k.23) |
 | Add-ins see the real workbook and its events | not yet: the desktop passes "Book1", no SheetChange or AfterCalculate | dc-1nbp.3, open |
@@ -50,7 +50,7 @@ figure was measured on.
 | `docs/fun/` (10 pages) | playground: games, Names in Motion, Watershed, Corpus Atlas, Function Bank, quiz, brochure | the playground section. Each page needs work first: inline script and style, Google Fonts and d3 from cdnjs all break the CSP; six pages have no charset (dc-jfcy) |
 | `docs/fun/dna-calc-brochure.html` | one-page brochure with 2026-11-12 figures | the home page's first draft of copy |
 | Handbook (handbook.dnacalc.com, own repository) | one page per function, catalogue search | linked, not rebuilt; stays on its host name |
-| Web apps | DNA Calc at the apex, OneCalc on its subdomain | embedded or linked from the product pages |
+| Web apps | DNA Calc at the apex, Formula Explorer on its subdomain | embedded or linked from the product pages |
 | `deploy/linux/package.sh`, `cargo xtask package onecalc` | the downloads | the downloads page lists their outputs and hashes |
 
 **One change the owner must decide:** the DNA Calc web app is served at the apex `dnacalc.com`
@@ -60,13 +60,13 @@ fourth Caddy block, same headers) and the apex serves the content site. Old link
 
 ## 4. Pages
 
-Navigation: Home · DNA Calc · OneCalc · In the browser · Developers · Handbook · Playground ·
+Navigation: Home · DNA Calc · Formula Explorer · In the browser · Developers · Handbook · Playground ·
 Blog · Download. Footer: About, Licence, Status, `/build.json`.
 
 ### 4.1 Home (`/`)
 - **Message:** "DNA Calc opens your Excel workbooks and calculates them the way Excel does. On Windows
   it runs your VBA and your XLL add-ins. It is open source (MIT)."
-- **Shows:** one live OneCalc box (type a formula, see Excel's answer); three cards (Windows desktop,
+- **Shows:** one live Formula Explorer box (type a formula, see Excel's answer); three cards (Windows desktop,
   browser, Linux runner); the corpus and bank figures with their date; a link to Download.
 - **Before it says "runs your VBA and XLL add-ins":** a signed installer is on the downloads page
   (dc-fk66.2, .3) and the add-in and VBA figures of section 2 are re-run on that installer's binaries.
@@ -81,10 +81,10 @@ Blog · Download. Footer: About, Licence, Status, `/build.json`.
   works (WINDOWS_INSTALLERS.md section 5). The "not yet" list names drawing, printing, AutoFilter,
   sort and add-in events (dc-1nbp.3) until they close.
 
-### 4.3 DNA OneCalc (`/onecalc`)
+### 4.3 DNA Calc - Formula Explorer (`/onecalc`)
 - **Message:** "One Excel formula at a time, with its inputs, its parts and a step-by-step trace.
   Load an add-in and test its functions without Excel."
-- **Shows:** the web OneCalc embedded; screenshots of the desktop add-in panel; the m4 and m5 figures.
+- **Shows:** the web Formula Explorer embedded; screenshots of the desktop add-in panel; the m4 and m5 figures.
 - **Must be true first:** the desktop installer exists for "test your add-in" claims; the web page
   only claims what the web build does (no XLL in the browser).
 
@@ -99,7 +99,7 @@ Blog · Download. Footer: About, Licence, Status, `/build.json`.
 ### 4.5 Developers (`/developers`, three sub-pages)
 - **Add-ins (`/developers/addins`).** "Your XLL behaves as it does in Excel, or you get a typed
   refusal naming what is missing." Shows the XLL C API callbacks covered, the m4 sets, how to load one
-  in OneCalc. Before claiming Excel-DNA or xlOil support by name: their sets in m4 pass on the release.
+  in Formula Explorer. Before claiming Excel-DNA or xlOil support by name: their sets in m4 pass on the release.
 - **VBA (`/developers/vba`).** "CalcVBA runs VBA outside Excel: on Windows, on Linux and in the
   browser." Shows the baseline.json table per project with matched, mismatched, refused and missing.
   Before claiming "your macros": the third-party projects have Excel answers (today they are missing)
@@ -123,7 +123,7 @@ Blog · Download. Footer: About, Licence, Status, `/build.json`.
 ### 4.8 Blog (`/blog`)
 - **Message:** what changed, how a hard function was matched, the videos' write-ups.
 - **Shows:** dated Markdown posts with tags and an Atom feed (dc-6q2k.3). The first three drafts
-  introduce DNA Calc, demonstrate an add-in in OneCalc and explain the formula comparisons.
+  introduce DNA Calc, demonstrate an add-in in Formula Explorer and explain the formula comparisons.
   The video scripts are tracked in dc-6q2k.4.
 - **Preview:** run `cargo xtask site blog calc --out target/blog-preview --include-drafts` and open
   `target/blog-preview/blog/index.html`. Use a fresh output directory for a new preview.
@@ -157,7 +157,7 @@ Blog · Download. Footer: About, Licence, Status, `/build.json`.
 
 - One static folder built with the existing site tool; plain HTML and CSS from the dna-strand design
   tokens (apps/dna-strand); no inline script or style; no third-party fonts or CDNs.
-- Live boxes (OneCalc on the home page) load the OneCalc wasm bundle from the same origin.
+- Live boxes (Formula Explorer on the home page) load the Formula Explorer wasm bundle from the same origin.
 - Screenshots and clips: made from release builds on the private desktop; each file named with the
   version it shows. Clips are short (under 30 s) and silent; the videos live on the blog.
 

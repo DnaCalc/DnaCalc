@@ -1,11 +1,11 @@
-# VBA functions in DNA OneCalc
+# VBA functions in DNA Calc - Formula Explorer
 
 `dc-snz.3` value calls are closed; `dc-snz.5` remains in progress (2026-10-31).
 Only `calc-vba` depends on the OxVba embedding API, pinned to
 `18d061393d2376eb3e5c1b89c7012d8188318203`. Native builds prefer JIT;
 browser builds omit JIT and use the interpreter. A native admission decline can select
 the interpreter before any code runs. Runtime errors and exhausted budgets never retry.
-The OxVba/CalcVba rename is deferred; OneCalc stays free of calc-engine and calc-host (it reads files through calc-doc).
+The OxVba/CalcVba rename is deferred; The standalone Formula Explorer stays free of calc-engine and calc-host (it reads files through calc-doc). See [Front-end scope](FRONT_END_SCOPE.md) for the formula-only host level.
 
 Load a standard module in **VBA functions**, enter 40 in A1 and `=Module1.Add2(A1,2)` in the
 formula field to obtain 42. Load again to replace registrations and start fresh module

@@ -58,7 +58,7 @@ fn run() -> Result<(), String> {
         return measure::run(&raw[1..]);
     }
     if raw.first().map(String::as_str) == Some("--version") {
-        println!("DNA OneCalc {}", env!("CARGO_PKG_VERSION"));
+        println!("DNA Calc - Formula Explorer {}", env!("CARGO_PKG_VERSION"));
         return Ok(());
     }
     // Started with no arguments (a person opening it) it is the app, as it is with `--app`.
@@ -130,7 +130,7 @@ fn run() -> Result<(), String> {
     if xlls.is_empty() {
         return Err("provide --xll PATH".into());
     }
-    let shell = Shell::new("DNA OneCalc")?;
+    let shell = Shell::new("DNA Calc - Formula Explorer")?;
     if let Some(path) = ready {
         std::fs::write(path, "ready").map_err(|e| e.to_string())?;
     }
@@ -376,11 +376,11 @@ fn main() -> std::process::ExitCode {
                 });
                 if embedded::has_page()
                     && !scripted
-                    && !why.starts_with("DNA OneCalc shows its window")
+                    && !why.starts_with("DNA Calc - Formula Explorer shows its window")
                 {
                     calc_platform_desktop::dialogs::message(
                         std::ptr::null_mut(),
-                        "DNA OneCalc",
+                        "DNA Calc - Formula Explorer",
                         &why,
                         calc_platform_desktop::dialogs::Buttons::Ok,
                         true,

@@ -1,6 +1,6 @@
 # DNA Calc
 
-The re-implementation of DNA Calc, an Excel-compatible calculation stack written in Rust: the libraries **CalcFunc** (worksheet functions), **CalcFml** (formula language and number formats), **CalcEngine** (dependency-based calculation), **CalcDoc** (`.xlsx`/`.xlsm` representation with round-trip fidelity) and **CalcHost** (the authoritative workbook model and skin contract), and the applications **DNA OneCalc** (formulas without an engine) and **DNA Calc** (Excel, notebook, tree and canvas skins). Excel only. Windows, Linux and the browser (wasm) from the first version.
+The re-implementation of DNA Calc, an Excel-compatible calculation stack written in Rust: the libraries **CalcFunc** (worksheet functions), **CalcFml** (formula language and number formats), **CalcEngine** (dependency-based calculation), **CalcDoc** (`.xlsx`/`.xlsm` representation with round-trip fidelity) and **CalcHost** (the authoritative workbook model and skin contract), and **DNA Calc** (Excel, notebook, tree and canvas skins). **DNA Calc - Formula Explorer** is its standalone formula-only build. Excel only. Windows, Linux and the browser (wasm) from the first version.
 
 ## Where to start
 

@@ -45,5 +45,5 @@ import("./dna-onecalc-web.js")
   .catch(function (error) {
     faults.push("load: " + (error && error.stack ? error.stack : String(error)));
     var element = loading();
-    if (element) { element.textContent = "DNA OneCalc did not load: " + error; }
+    if (element) { element.textContent = "DNA Calc - Formula Explorer did not load: " + error; }
   });

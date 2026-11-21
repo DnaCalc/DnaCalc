@@ -1,5 +1,9 @@
 # DNA Calc re-implementation planning bundle
 
+OneCalc is the internal name of the Formula Explorer. The standalone build is called
+**DNA Calc - Formula Explorer**. It is a stripped build of DNA Calc using only the formula-only
+host level (skin 0). The Formula Explorer is also a tool inside DNA Calc. See [Front-end scope](FRONT_END_SCOPE.md).
+
 ## Start here
 
 1. **`ROLLOUT_BRIEF.md`** (ten minutes): what the plan decides, how the graph is shaped, what the 2026-10-12 review verified and changed, the roll-out sequence and the open owner questions.

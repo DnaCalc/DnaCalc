@@ -45,7 +45,8 @@ identity, the session's reference binder (`HostState::resolve_reference_text`), 
 6. **Excel's behaviour, measured.** Semantics follow Excel; where unmeasured (Value date/currency
    conversion is measured but not yet implemented; multi-area and mismatched-shape writes) the member
    refuses until dc-1nbp.6 (14.e) measures it. Range identity is measured (section 9).
-7. **The engine does no more than Excel**, and OneCalc stays values-only (dc-svqh).
+7. **The engine does no more than Excel**, and the Formula Explorer uses only application members that need no workbook (dc-svqh).
+   See [Front-end scope](../plan/FRONT_END_SCOPE.md) for the formula-only host level.
 
 ## 3. The descriptor
 
@@ -80,7 +81,7 @@ text panics on a name the descriptor lacks.
 
 | Profile | Crate | Members (first set) |
 |---|---|---|
-| **values-only**: application members that need no workbook. DNA OneCalc uses it alone; DNA Calc's workbook profile falls back to it | `calc-object-model` (`profile::values_only`), portable, host services through a small `ApplicationHost` trait (Hwnd, Run, version) | Application and Book1 shell, including AutomationSecurity get; WorksheetFunction scalar/array calls through the function catalogue. Caller, ThisCell, Range, Union refuse with Excel 1004 "needs a workbook: open in DNA Calc" (dc-svqh). Inline harness event targets answer geometry only. |
+| **values-only**: application members that need no workbook. the Formula Explorer uses it; DNA Calc's workbook profile falls back to it | `calc-object-model` (`profile::values_only`), portable, host services through a small `ApplicationHost` trait (Hwnd, Run, version) | Application and Book1 shell, including AutomationSecurity get; WorksheetFunction scalar/array calls through the function catalogue. Caller, ThisCell, Range, Union refuse with Excel 1004 "needs a workbook: open in DNA Calc" (dc-svqh). Inline harness event targets answer geometry only. |
 | **workbook**: DNA Calc's workbook members | `calc_host::automation` (calc-host), over the session | Application/Workbooks/Workbook/Worksheet/Range metadata and reads; Worksheet.Range/Cells/Index, Workbook.Sheets/Worksheets/Names, Range.Cells/Item/Offset/Resize/Areas/EntireRow/EntireColumn, Areas and workbook Names/Name queries. WorksheetFunction uses the invocation's callback or the session's catalogue services. Range.Value/Value2 writes and ClearContents, Application/Worksheet/Range calculation use Automation ingress outside worksheet invocations. |
 | **COM by nature** | `calc-com-host` | COMAddIns, COMAddIn (connect through IDTExtensibility2), CommandBars and controls (the bounded model), ribbon GetCustomUI |
 

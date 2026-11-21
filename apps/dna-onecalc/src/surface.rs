@@ -383,7 +383,7 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
             name.clone()
         };
         let title = format!(
-            "{shown_name}{} - DNA OneCalc",
+            "{shown_name}{} - DNA Calc - Formula Explorer",
             if changed { "*" } else { "" }
         );
         if let Some(document) = web_sys::window().and_then(|window| window.document()) {
@@ -596,7 +596,7 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
         Reply::NotASession { reason, offer } => {
             refused_file.set(true);
             file_status.set(format!(
-                "This file is outside what a OneCalc session holds: {reason}. {offer}."
+                "This file is outside what a Formula Explorer session holds: {reason}. {offer}."
             ))
         }
         Reply::Cancelled => {}
@@ -1093,7 +1093,7 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
             }
         >
             <header class="oc-head">
-                <h1>"DNA OneCalc"</h1>
+                <h1>"DNA Calc - Formula Explorer"</h1>
                 <select
                     class="oc-theme"
                     data-onecalc="theme"

@@ -28,7 +28,7 @@ pub fn page() -> Result<Assets, String> {
 /// to get it.
 pub fn missing_runtime_message() -> String {
     format!(
-        "DNA OneCalc shows its window with Microsoft Edge WebView2, and the WebView2 Runtime is not installed on this computer.\n\nInstall the Evergreen runtime from\n{}\nand start DNA OneCalc again.",
+        "DNA Calc - Formula Explorer shows its window with Microsoft Edge WebView2, and the WebView2 Runtime is not installed on this computer.\n\nInstall the Evergreen runtime from\n{}\nand start DNA Calc - Formula Explorer again.",
         calc_platform_desktop::RUNTIME_DOWNLOAD
     )
 }

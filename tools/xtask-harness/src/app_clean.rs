@@ -618,7 +618,7 @@ fn clean_run(inputs: &Inputs) -> Result<Report, String> {
     report.check(
         "a",
         "a new session is titled Untitled",
-        wait_title(&mut a, "Untitled - DNA OneCalc"),
+        wait_title(&mut a, "Untitled - DNA Calc - Formula Explorer"),
         json!(window_title(a.window)),
     );
 
@@ -707,7 +707,7 @@ fn clean_run(inputs: &Inputs) -> Result<Report, String> {
         report.check(
             "a",
             "an edited session shows the dirty mark in the window title",
-            wait_title(&mut a, "Untitled* - DNA OneCalc"),
+            wait_title(&mut a, "Untitled* - DNA Calc - Formula Explorer"),
             json!({"window": window_title(a.window), "page": page_title(a.session())}),
         );
     }
@@ -736,7 +736,7 @@ fn clean_run(inputs: &Inputs) -> Result<Report, String> {
         report.check(
             "a",
             "a saved session loses the mark and takes the file's name",
-            wait_title(&mut a, &format!("{name} - DNA OneCalc")),
+            wait_title(&mut a, &format!("{name} - DNA Calc - Formula Explorer")),
             json!(window_title(a.window)),
         );
         let s = a.session();
@@ -907,7 +907,7 @@ fn clean_run(inputs: &Inputs) -> Result<Report, String> {
             click(s, "file-replace")?;
         }
         let refused = wait_until(CASE_WAIT, || {
-            text_of(s, "file-status").contains("outside what a OneCalc session holds")
+            text_of(s, "file-status").contains("outside what a Formula Explorer session holds")
         });
         let hidden = script_text(
             s,
@@ -1004,7 +1004,7 @@ fn clean_run(inputs: &Inputs) -> Result<Report, String> {
         enter_formula(s, "=7*6")?;
         let window = a.window;
         let dirty = wait_until(Duration::from_secs(15), || {
-            window_title(window).contains("* - DNA OneCalc")
+            window_title(window).contains("* - DNA Calc - Formula Explorer")
         });
         unsafe { PostMessageW(a.window, WM_CLOSE, 0, 0) };
         thread::sleep(Duration::from_secs(3));
@@ -1117,7 +1117,7 @@ fn clean_run(inputs: &Inputs) -> Result<Report, String> {
         report.check(
             "b",
             "the opened session shows its name and the mark",
-            wait_title(&mut b, &format!("{name}* - DNA OneCalc")),
+            wait_title(&mut b, &format!("{name}* - DNA Calc - Formula Explorer")),
             json!(window_title(b.window)),
         );
         let s = b.session();
@@ -1141,7 +1141,7 @@ fn clean_run(inputs: &Inputs) -> Result<Report, String> {
             json!({"text": work.join("files/two-sheets.xlsx").display().to_string()}),
         )?;
         wait_until(CASE_WAIT, || {
-            text_of(s, "file-status").contains("outside what a OneCalc session holds")
+            text_of(s, "file-status").contains("outside what a Formula Explorer session holds")
         });
         click(s, "open-in-dna-calc")?;
         let launched = wait_until(CASE_WAIT, || {
@@ -1197,7 +1197,7 @@ fn clean_run(inputs: &Inputs) -> Result<Report, String> {
         let s = b.session();
         // Close with unsaved changes, answered Save: the file is written first.
         enter_formula(s, "=SUM(4,5)")?;
-        wait_title(&mut b, &format!("{name}* - DNA OneCalc"));
+        wait_title(&mut b, &format!("{name}* - DNA Calc - Formula Explorer"));
         let code = b.close();
         let formula = saved_formula(Path::new(&first)).unwrap_or_default();
         report.check(

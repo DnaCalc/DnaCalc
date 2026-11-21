@@ -208,7 +208,7 @@ pub enum Request {
 /// What a host whose add-ins run in its own process answers [`Request::StopAddinProcess`] and
 /// [`Request::RestartAddinProcess`] with.
 pub const NO_ADDIN_PROCESS: &str =
-    "The add-ins run in OneCalc's own process here: there is no add-in process to stop or restart.";
+    "The add-ins run in the Formula Explorer process here: there is no add-in process to stop or restart.";
 
 /// An add-in the host has loaded, as the surface lists it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

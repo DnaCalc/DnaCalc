@@ -19,7 +19,8 @@
 - **The worker** builds each skin's projection and produces finished chart SVG and canvas wire drawings.
 - **One view at a time**, with no ViewId.
 - **The desktop shell** decodes some protocol messages itself (Open, add-ins).
-- **OneCalc** has its own port and Link message set, and shares only `dna-formula-ui`.
+- The current standalone Formula Explorer has its own port and Link message set and shares
+  `dna-formula-ui`. Item 9 describes how it moves to the shared host contract.
 - **View manifest** (CustomXML `urn:dnacalc:view-manifest`): written only by the notebook. Its round trip through Excel is unproven (dc-1nbp.22).
 
 ## The work the plan must cover
@@ -69,7 +70,7 @@
      - as a tool inside the DNA Calc app. Opened on a cell, it receives the precedents' current values as a snapshot (level 1 passes values down; level 0 never reads the workbook). Writing a changed formula back to the cell is a level-1 command issued by DNA Calc.
      - standalone as **DNA Calc - Formula Explorer** (formerly DNA OneCalc): a stripped build of DNA Calc with access to skin 0 only. That build contains only level 0.
    - **The honest-layering rule moves to the right place.** Today the sweep's ceiling step checks the OneCalc app. Instead it checks level 0's closure, and the Formula Explorer build (desktop and wasm) carries no engine code.
-   - **What goes:** OneCalc's own port and Link message set, the desktop shell's dependency on `dna-onecalc`, and OneCalc's separate shell. The code, site and docs rename from OneCalc to Formula Explorer is its own bead.
+   - **What goes:** OneCalc's own port and Link message set, the desktop shell's dependency on `dna-onecalc`, and OneCalc's separate shell. Public naming is tracked by dc-sdzi1. Internal OneCalc identifiers are retained.
 10. **Cleanup.** Delete what v2 replaces: dead intents, per-skin worker projections, duplicated message handling, and the second VBA project reader (calc-doc's against CalcVBA's).
 
 ## What the plan must deliver

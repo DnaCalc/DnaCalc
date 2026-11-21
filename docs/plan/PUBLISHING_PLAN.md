@@ -1,4 +1,4 @@
-# Publishing DNA OneCalc and DNA Calc on dnacalc.com (dc-ysl)
+# Publishing DNA Calc - Formula Explorer and DNA Calc on dnacalc.com (dc-ysl)
 
 The plan for epic dc-ysl. It was prepared on 2026-10-27 as read-only research
 (`parked/assess/publishing.md`, outside the repository, read at `7aa7e11`) and copied here under
@@ -19,8 +19,8 @@ owner: every publish is run or approved by him.
 
 | Decision | Working default |
 |---|---|
-| 1. First publish | DNA OneCalc first, at onecalc.dnacalc.com, labelled a development build |
-| 2. Apex | DNA Calc at the apex next, with a link to OneCalc; no separate home release |
+| 1. First publish | DNA Calc - Formula Explorer first, at onecalc.dnacalc.com, labelled a development build |
+| 2. Apex | DNA Calc at the apex next, with a link to Formula Explorer; no separate home release |
 | 5. CSP for styles | Strict since dc-xib (2026-10-29): `style-src 'self'`, no `'unsafe-inline'`; the apps load one stylesheet and set computed styles through the CSS object model. Scripts strict |
 | 6. `/build.json` | Public, with the commit SHA |
 | 7. Pipeline form | A: owner-run `cargo xtask site` commands; no GitHub Actions route, `ci` stays disabled |
@@ -48,7 +48,7 @@ a note says so.
 
 Owner update, 2026-10-29: the work prepares **and** publishes to the host reached by `ssh
 dna-koderbot`; the existing DNA Calc endpoint may be overwritten; the owner approved publishing DNA
-OneCalc and DNA Calc once the checks pass. Only the dnacalc.com, www.dnacalc.com and
+Formula Explorer and DNA Calc once the checks pass. Only the dnacalc.com, www.dnacalc.com and
 onecalc/dnaonecalc site blocks change; no other site, user, sudoers entry, ssh setting, key or
 firewall rule.
 
@@ -84,7 +84,7 @@ switch all run on dna-koderbot, in a run folder holding a fresh clone of the pus
 there directly, and refuse one that is not the clone's copy. Nothing is built on Windows or in WSL
 for a publish. The steps are `deploy/OWNER_STEPS.md`, sections 1 to 3.
 
-**Host names.** DNA Calc at dnacalc.com (www redirects to it). DNA OneCalc at
+**Host names.** DNA Calc at dnacalc.com (www redirects to it). DNA Calc - Formula Explorer at
 dnaonecalc.dnacalc.com until onecalc.dnacalc.com has a DNS record (an owner step; it cannot be set
 from the host), then at onecalc.dnacalc.com too.
 
@@ -138,7 +138,7 @@ There are no receipts, no record of which commit is live on any host, and no rol
 ### 1.3 What the repository has now
 
 - **Both apps exist and pass their browser smoke tests locally.**
-  - D3 (dc-q4y, closed): DNA OneCalc. The wasm is 1.78 MB, about 624 KB gzipped. The smoke passes
+  - D3 (dc-q4y, closed): DNA Calc - Formula Explorer. The wasm is 1.78 MB, about 624 KB gzipped. The smoke passes
     23/23 in headless Chrome and Firefox.
   - D4 (dc-rif, closed): DNA Calc with the grid, notebook, tree, canvas, ledger and atlas skins.
     The smoke passes 37/37.
@@ -162,7 +162,7 @@ There are no receipts, no record of which commit is live on any host, and no rol
     The DNA Calc worker that old C1 planned was never built; HostState runs on the main thread.
   - Both `index.html` files carry an inline `<script>` (the fault recorder), an inline module
     `<script>` (the bootstrap) and an inline `<style>`.
-  - At run time, Leptos renders `<style>{CSS}</style>` elements (once in OneCalc, seven times in
+  - At run time, Leptos renders `<style>{CSS}</style>` elements (once in Formula Explorer, seven times in
     DNA Calc). DNA Calc also sets about 25 `style=` attributes and two `inner_html` (SVG, icons).
   - So the strict CSP drafted in dc-gh6q (`script-src 'self' 'wasm-unsafe-eval'; style-src
     'self'`) **would break both apps as they are**.
@@ -190,7 +190,7 @@ anything.
 
 | Ruling in dc-oy6l | Status | What it blocks now |
 |---|---|---|
-| Hostnames: DNA Calc at the apex, OneCalc at onecalc.dnacalc.com, home page at the apex until C2 | **Decided 2026-10-18** | Nothing. Whether the interim home page is still wanted is open (decision 2 below) |
+| Hostnames: DNA Calc at the apex, Formula Explorer at onecalc.dnacalc.com, home page at the apex until C2 | **Decided 2026-10-18** | Nothing. Whether the interim home page is still wanted is open (decision 2 below) |
 | Retirement of apex+www, dnatreecalc, dnaonecalc, each approved separately; backup and DNS retention | Open | The apex cutover and the legacy redirects. **Not** a OneCalc-only first publish on a new subdomain |
 | Host access (K1a): remove or touch-protect the agents' koderbot key; drop koderbot's NOPASSWD sudo and lxd; ubuntu as touch-required admin | Open | Any publish route where "the owner's yes" must mean more than a promise: today any agent session can rewrite /srv as root |
 | Agent credential: fine-grained token without Workflows, org 2FA | Open | Only a route that adds workflows. Not needed for the recommended route |
@@ -209,7 +209,7 @@ anything.
 ## 2. Smallest safe route to a first public publish
 
 **Order:**
-1. DNA OneCalc at **onecalc.dnacalc.com**. This is a new host: it replaces nothing and needs none
+1. DNA Calc - Formula Explorer at **onecalc.dnacalc.com**. This is a new host: it replaces nothing and needs none
    of the retirement rulings.
 2. DNA Calc at the **apex**, together with the legacy cutover, each host approved separately.
 
@@ -398,13 +398,13 @@ check is wanted, a systemd timer on dna-koderbot (as an unprivileged user, readi
 
 ## 4. Owner decisions (with recommended answers)
 
-1. **First publish.** Publish DNA OneCalc alone at onecalc.dnacalc.com as a development build,
+1. **First publish.** Publish DNA Calc - Formula Explorer alone at onecalc.dnacalc.com as a development build,
    before touching the apex?
    *Recommended: yes.* It needs only a DNS record and a new Caddy file. No legacy host changes.
 2. **Apex.** dc-oy6l says the apex serves a home page until DNA Calc's first publish. DNA Calc now
    exists (D4).
    *Recommended: skip the separate home release.* At the cutover, publish DNA Calc at the apex,
-   labelled a development build, with a link to OneCalc.
+   labelled a development build, with a link to Formula Explorer.
 3. **Host access before the first publish.**
    *Recommended: yes, the minimum:*
    - remove or touch-protect the agents' `koderbot` key;
@@ -419,7 +419,7 @@ check is wanted, a systemd timer on dna-koderbot (as an unprivileged user, readi
    *Recommended:*
    - www → apex (308);
    - dnatreecalc → apex (301);
-   - dnaonecalc → onecalc.dnacalc.com (301) at the OneCalc publish, retiring the old preview;
+   - dnaonecalc → onecalc.dnacalc.com (301) at the Formula Explorer publish, retiring the old preview;
    - keep the backups and the legacy `/srv/dnacalc` for 90 days;
    - keep the DNS records for as long as the redirects should work (at least 12 months).
 5. **CSP for styles.**
@@ -453,7 +453,7 @@ check is wanted, a systemd timer on dna-koderbot (as an unprivileged user, readi
 | P2 | **deploy/ files**: `headers.caddy`, `onecalc.caddy`, `apex.caddy`, `www.caddy` and the redirect files; the receiver (Python, `tarfile` data filter, flock, atomic switch, rollback, status, list); the sshd drop-in; `OWNER_STEPS.md` and `CUTOVER.md`. The receiver is tested in the WSL clone against a temp root | Decisions 3, 8 |
 | P3 | **site publish / rollback / status / verify --drift** client commands, which refuse to run without a terminal; `deploy/site/published.json` format | P1, P2 |
 | P4 | **Third-party notices and licence review** of ported numeric code (replaces the deleted dc-4546) | Decision 9 |
-| P5 | **Owner-held: first OneCalc publish**: host access, deploy user and key, DNS, Caddy file, publish, verify, published.json | P1–P4, decisions 1, 3, 8 |
+| P5 | **Owner-held: first Formula Explorer publish**: host access, deploy user and key, DNS, Caddy file, publish, verify, published.json | P1–P4, decisions 1, 3, 8 |
 | P6 | **Owner-held: apex cutover**: backups, DNA Calc at the apex, www/dnatreecalc/dnaonecalc redirects, one approval each; legacy removed after the retention period | P5, decisions 2, 4 |
 | P7 | Optional: **DNA Calc styles to stylesheet/CSSOM**, then drop `'unsafe-inline'` | P6 |
 | P8 | Later: **form C** (signed-tag pull build on dna-koderbot) | Only if publishes become frequent |

@@ -90,7 +90,7 @@ Each proposal says what it is (`ProposalKind`); a call inserts its name and pare
 a local only itself. The function help panel shows a function's implementation (held, formula
 binding, not held with its owning work package, deferred with its class) and its availability. A
 part of a formula can be evaluated on its own through the owner's evaluator (F9, and the trace panel):
-the walk is `dna_formula_ui::parts`, and the owner supplies the evaluator. DNA OneCalc evaluates in its
+the walk is `dna_formula_ui::parts`, and the owner supplies the evaluator. DNA Calc - Formula Explorer evaluates in its
 session; DNA Calc asks its worker (`EvaluatePart`, `TraceFormula` and `UserFunctions`, dc-0f1k.7), which
 evaluates each part as the edited cell would read it over the published values and writes nothing. A
 part that calls a registered function is a typed refusal (dc-hsa5: the detached evaluation has no

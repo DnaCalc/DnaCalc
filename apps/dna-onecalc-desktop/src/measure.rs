@@ -82,7 +82,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
 
     // In-process.
     let started = Instant::now();
-    let shell = Shell::new("DNA OneCalc")?;
+    let shell = Shell::new("DNA Calc - Formula Explorer")?;
     let (session, set) = session_and_addins(&shell, "Sheet1")?;
     let mut host = Host::new(session, NoDialogs, Addins::new(set.clone()));
     let local_startup = started.elapsed();

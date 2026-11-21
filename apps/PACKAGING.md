@@ -32,7 +32,7 @@ This follows [Microsoft's runtime deployment guidance](https://learn.microsoft.c
 The MSIs themselves check the documented HKCU/HKLM runtime keys and explain how to run the bootstrap
 when missing. Uninstall and maintenance do not require the runtime. No MSI custom action downloads code.
 
-The MSIs install in `%LOCALAPPDATA%\Programs\DNA Calc` and `...\DNA OneCalc`, register Start menu
+DNA Calc - Formula Explorer is distributed in the OneCalc package. The MSIs install in `%LOCALAPPDATA%\Programs\DNA Calc` and `...\DNA OneCalc`, register Start menu
 shortcuts and Open-with entries, and appear in Apps and Features. Newer versions replace the installed
 program files; settings in `%LOCALAPPDATA%\DNA Calc` and `...\DNA OneCalc` remain through upgrade
 and uninstall. Excel's default associations are not changed. ProductCodes are stable per product and

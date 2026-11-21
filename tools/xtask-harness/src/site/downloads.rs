@@ -53,7 +53,7 @@ impl Manifest {
         if self.products.len() != 2 {
             return Err("the manifest must list the two Windows products".into());
         }
-        [(CALC_FOLDER, "DNA Calc"), (FOLDER, "DNA OneCalc")]
+        [(CALC_FOLDER, "DNA Calc"), (FOLDER, "DNA Calc - Formula Explorer")]
             .into_iter()
             .map(|(folder, title)| {
                 let mut products = self.products.iter().filter(|p| p.folder == folder);

@@ -1,9 +1,13 @@
 # AGENTS.md: how work is done in this repository
 
 This is the DNA Calc re-implementation: one Cargo workspace for CalcFunc, CalcFml, CalcEngine,
-CalcDoc and CalcHost, and the DNA OneCalc and DNA Calc applications. It is Excel only. The legacy
+CalcDoc and CalcHost, and the DNA Calc application. It is Excel only. The legacy
 repositories beside this checkout under `C:\Work\DnaCalc` (OxFunc, OxFml, OxCalc, OxDoc,
 DnaTreeCalc, DnaOneCalc and the others) are read-only inputs: port from them, never edit them.
+
+OneCalc is the internal name of the Formula Explorer. The standalone build is called
+**DNA Calc - Formula Explorer**. It is a stripped build of DNA Calc using only the formula-only
+host level (skin 0). The Formula Explorer is also a tool inside DNA Calc.
 
 ## Read first
 

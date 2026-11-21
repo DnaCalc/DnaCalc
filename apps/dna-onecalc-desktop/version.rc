@@ -9,12 +9,12 @@ BEGIN
  BEGIN
   BLOCK "040904b0"
   BEGIN
-   VALUE "FileDescription", "DNA OneCalc desktop\0"
+   VALUE "FileDescription", "DNA Calc - Formula Explorer desktop\0"
    VALUE "FileVersion", "16.0.0.1\0"
    VALUE "InternalName", "dna-onecalc-desktop\0"
    VALUE "LegalCopyright", "MIT licence. DNA Calc project.\0"
    VALUE "OriginalFilename", "dna-onecalc-desktop.exe\0"
-   VALUE "ProductName", "DNA OneCalc\0"
+   VALUE "ProductName", "DNA Calc - Formula Explorer\0"
    VALUE "ProductVersion", "16.0.0.1\0"
   END
  END

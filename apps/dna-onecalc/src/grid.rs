@@ -41,7 +41,7 @@ pub fn entry(text: &str) -> Entry {
     }
     if trimmed.starts_with('=') {
         return Entry::Refused(
-            "a formula in a grid cell needs a calculation engine (DNA Calc); OneCalc calculates one formula"
+            "a formula in a grid cell needs a calculation engine (DNA Calc); Formula Explorer calculates one formula"
                 .to_owned(),
         );
     }
