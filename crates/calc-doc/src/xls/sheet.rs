@@ -491,7 +491,8 @@ pub(crate) fn read(
             LABEL | RSTRING if context.v5.is_some() => {
                 // BIFF5: a 16-bit length and the bytes in the workbook's code page; an RSTRING's
                 // formatting runs after them are not read.
-                let mut c = Cursor::new(record.body);
+                let body = record.joined();
+                let mut c = Cursor::new(&body);
                 let (row, column, ixfe) = cell_head(&mut c)?;
                 let count = usize::from(c.u16("Label").map_err(e)?);
                 let bytes = c.bytes(count, "Label").map_err(e)?;
@@ -558,7 +559,8 @@ pub(crate) fn read(
                                     .find(|r| !matches!(r.id, SHRFMLA | ARRAY | TABLE));
                                 match next {
                                     Some(r) if r.id == STRING && context.v5.is_some() => {
-                                        let mut c = Cursor::new(r.body);
+                                        let body = r.joined();
+                                        let mut c = Cursor::new(&body);
                                         let count = usize::from(c.u16("String").map_err(e)?);
                                         let bytes = c.bytes(count, "String").map_err(e)?;
                                         units = super::codepage::decode(context.v5.unwrap_or(1252), bytes)?

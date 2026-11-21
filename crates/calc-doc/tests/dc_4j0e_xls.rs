@@ -3027,6 +3027,36 @@ fn a_biff5_workbook_reads_code_page_932_and_refuses_invalid_text() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn biff5_label_and_formula_string_decode_across_continue() {
+    fn continued(id: u16, body: &[u8]) -> Vec<u8> {
+        let (first, rest) = body.split_at(2080);
+        [record(id, first), record(0x003C, rest)].concat()
+    }
+
+    // Place the lead byte of a CP932 character at the BIFF5 record size limit.
+    let mut label = vec![b'a'; 2071];
+    label.extend([0x82, 0xA0]);
+    let label_record = v5::label(0, 0, &label);
+    let mut records = continued(0x0204, &label_record[4..]);
+    records.extend(formula(0, 1, STR_VALUE, &ptg::int(1), &[]));
+    let mut cached = 2079u16.to_le_bytes().to_vec();
+    cached.extend(vec![b'b'; 2077]);
+    cached.extend([0x82, 0xA0]);
+    records.extend(continued(0x0207, &cached));
+    let bytes = v5::xls(932, &[], &[v5::Sheet { name: b"S".to_vec(), records }]);
+
+    let loaded = load(&bytes);
+    assert_eq!(cells(loaded.model(), 0), vec![format!("A1 s:{}あ", "a".repeat(2071)), "B1 f:1".to_owned()]);
+    let text = calc_doc::model::value::ExcelText::from_utf16_code_units(
+        format!("{}あ", "b".repeat(2077)).encode_utf16().collect(),
+    );
+    let expected = calc_doc::model::CachedValue::Text(calc_doc::model::CellText::new(text).unwrap());
+    let cached = loaded.sheets()[0].formula(1, 2).and_then(|formula| formula.cache());
+    assert_eq!(cached.map(|cache| cache.value()), Some(&expected));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn a_biff5_workbook_styles_notes_and_external_references() {
     use xls_kit::{v5, v5_styles};
     let formatting = [
