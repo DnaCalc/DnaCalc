@@ -405,7 +405,7 @@ INTRATE	full	20430	2400	2400	-	exact	6e3d35aa62+changes	0	-	-	-	-	-	-
 INTRATE	pinned	20430	120	120	-	exact	ffb14981f5	0	120	0	0	0	0	0
 IPMT	full	20131,20527,?	4408	4408	-	exact	6e3d35aa62+changes	0	-	-	-	-	-	-
 IPMT	pinned	20131,20527	191	191	-	exact	ffb14981f5	0	191	0	0	0	0	0
-IRR	full	20131,20228,20527,?	3211	3028	1024	numeric	6e3d35aa62+changes	0	-	-	-	-	-	-
+IRR	full	20131,20228,20527,?	3211	3211	-	exact	b4fd5e2443+changes	0	3211	0	0	0	0	0
 IRR	pinned	20131,20228,?	120	120	-	exact	712fee0020+changes	0	120	0	0	0	0	0
 ISBLANK	full	20430	1227	1227	-	exact	6e3d35aa62+changes	0	-	-	-	-	-	-
 ISBLANK	pinned	20430	120	120	-	exact	ffb14981f5	0	120	0	0	0	0	0
@@ -611,9 +611,9 @@ RIGHTB	full	20527	2481	2481	-	exact	6e3d35aa62+changes	0	-	-	-	-	-	-
 ROMAN	full	20527	2041	2041	-	exact	6e3d35aa62+changes	0	-	-	-	-	-	-
 ROUND	full	20430	36945	36921	14	numeric	6e3d35aa62+changes	0	-	-	-	-	-	-
 ROUND	pinned	20430,20527	536	536	-	exact	ffb14981f5	0	536	0	0	0	0	0
-ROUNDDOWN	full	20430	59995	59893	10	numeric	6e3d35aa62+changes	0	-	-	-	-	-	-
+ROUNDDOWN	full	20430	59995	59995	-	exact	b4fd5e2443+changes	0	59995	0	0	0	0	0
 ROUNDDOWN	pinned	20430,20527	782	782	-	exact	ffb14981f5	0	782	0	0	0	0	0
-ROUNDUP	full	20430	52841	52739	10	numeric	6e3d35aa62+changes	0	-	-	-	-	-	-
+ROUNDUP	full	20430	52841	52841	-	exact	b4fd5e2443	0	52841	0	0	0	0	0
 ROUNDUP	pinned	20430,20527	782	782	-	exact	ffb14981f5	0	782	0	0	0	0	0
 ROW	full	20527	3058	3058	-	exact	6e3d35aa62+changes	0	-	-	-	-	-	-
 ROWS	full	20527	3360	3360	-	exact	6e3d35aa62+changes	0	-	-	-	-	-	-
@@ -727,7 +727,7 @@ TRIMMEAN	full	20527	2855	2855	-	exact	6e3d35aa62+changes	0	-	-	-	-	-	-
 TRIMRANGE	full	20527	3000	3000	-	exact	6e3d35aa62+changes	0	-	-	-	-	-	-
 TRUE	full	20430,20527	2	2	-	exact	6e3d35aa62+changes	0	-	-	-	-	-	-
 TRUE	pinned	20430	1	1	-	exact	ffb14981f5	0	1	0	0	0	0	0
-TRUNC	full	20430	51317	51217	10	numeric	6e3d35aa62+changes	0	-	-	-	-	-	-
+TRUNC	full	20430	51317	51317	-	exact	b4fd5e2443+changes	0	51317	0	0	0	0	0
 TRUNC	pinned	20430,20527	783	783	-	exact	ffb14981f5	0	783	0	0	0	0	0
 TTEST	full	20527	2951	2951	-	exact	997470e0de+changes	0	-	-	-	-	-	-
 TYPE	full	20430	1227	1227	-	exact	6e3d35aa62+changes	0	-	-	-	-	-	-
