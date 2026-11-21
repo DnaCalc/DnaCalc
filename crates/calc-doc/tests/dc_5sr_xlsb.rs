@@ -237,3 +237,118 @@ fn binary_function_table_matches_the_existing_measurement() {
     expected.sort_by_key(|row| row.0);
     assert_eq!(calc_catalogue::EXCEL_FUNCTION_IDS, expected.as_slice());
 }
+
+/// Native-only: opens external library fixtures designated by DNACALC_XLSB_LIBRARY.
+#[test]
+fn dc_cazfj_1__library_chart_sheets_open_and_keep_their_drawing_relationships() {
+    let Some(library) = std::env::var_os("DNACALC_XLSB_LIBRARY") else {
+        return;
+    };
+    let library = std::path::PathBuf::from(library);
+    for path in [
+        "calamine/tests/any_sheets.xlsb",
+        "libreoffice/sc/qa/unit/data/xlsb/tdf108017_calcProtection.xlsb",
+    ] {
+        let bytes = std::fs::read(library.join(path)).unwrap();
+        let document = open(&bytes);
+        let loaded = load(&bytes);
+        let chart = loaded
+            .sheets()
+            .iter()
+            .find(|sheet| sheet.preserved_kind() == Some("chart sheet"))
+            .unwrap_or_else(|| panic!("{path} has no chart sheet"));
+        let part = chart.part().name();
+        let xml = String::from_utf8(document.package().read_part(part).unwrap()).unwrap();
+        assert!(xml.contains("<drawing r:id="), "{path}: {xml}");
+        let saved = save_untouched(&bytes);
+        let reopened = open(&saved);
+        let relationships = document.package().relationships_of(Some(part)).unwrap();
+        let drawing = relationships
+            .items()
+            .iter()
+            .find(|r| r.kind.ends_with("/drawing"))
+            .and_then(|r| r.resolved.as_deref())
+            .unwrap();
+        assert_eq!(
+            document.package().read_part(drawing).unwrap(),
+            reopened.package().read_part(drawing).unwrap()
+        );
+        assert_eq!(
+            document.package().read_part(part).unwrap(),
+            reopened.package().read_part(part).unwrap()
+        );
+    }
+}
+
+/// Native-only: opens external library fixtures designated by DNACALC_XLSB_LIBRARY.
+#[test]
+fn dc_cazfj_1__library_open_inventory() {
+    let Some(library) = std::env::var_os("DNACALC_XLSB_LIBRARY") else {
+        return;
+    };
+    let mut paths = vec![std::path::PathBuf::from(library)];
+    let mut seen = 0;
+    let mut opened = 0;
+    let mut loaded = 0;
+    while let Some(path) = paths.pop() {
+        if path.is_dir() {
+            paths.extend(
+                std::fs::read_dir(path)
+                    .unwrap()
+                    .map(|entry| entry.unwrap().path()),
+            );
+        } else if path
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("xlsb"))
+        {
+            let bytes = std::fs::read(&path).unwrap();
+            let source = Arc::new(MemorySource::new(bytes));
+            seen += 1;
+            match calc_doc::open(source, &OpenPolicy::default()) {
+                Ok(document) => {
+                    opened += 1;
+                    let mut ids = calc_doc::model::value::IdAllocator::default();
+                    match calc_doc::load(&document, &mut ids) {
+                        Ok(_) => loaded += 1,
+                        Err(error) => println!("load {}: {error:?}", path.display()),
+                    }
+                }
+                Err(error) => println!("open {}: {error}", path.display()),
+            }
+        }
+    }
+    println!("XLSB files {seen}, opened {opened}, loaded {loaded}");
+}
+
+/// Native-only: opens an external library fixture designated by DNACALC_XLSB_LIBRARY.
+#[test]
+fn dc_cazfj_1__mixed_case_binary_part_targets_load() {
+    let Some(library) = std::env::var_os("DNACALC_XLSB_LIBRARY") else {
+        return;
+    };
+    let path =
+        std::path::PathBuf::from(library).join("calamine/tests/case_insensitive_part_name.xlsb");
+    let bytes = std::fs::read(path).unwrap();
+    let document = open(&bytes);
+    let strings = document
+        .package()
+        .relationships_of(Some("xl/workbook.xml"))
+        .unwrap()
+        .items()
+        .iter()
+        .find(|r| r.kind.ends_with("/sharedStrings"))
+        .unwrap();
+    assert!(
+        document
+            .package()
+            .part(strings.resolved.as_deref().unwrap())
+            .is_some()
+    );
+    let loaded = load(&bytes);
+    let model = loaded.model();
+    assert!(model.sheets().iter().any(|sheet| {
+        model
+            .sheet_cells(sheet.id())
+            .is_some_and(|mut cells| cells.any(|(_, input)| matches!(input, CellInput::Text(_))))
+    }));
+}

@@ -1,5 +1,5 @@
 //! Excel binary workbooks (.xlsb, MS-XLSB; dc-5sr): a package whose workbook, worksheets, macro
-//! sheets (dc-xuw), styles, shared strings, tables, external links, comments and metadata are
+//! sheets (dc-xuw), chart sheets, styles, shared strings, tables, external links, comments and metadata are
 //! parts of binary records
 //! instead of SpreadsheetML. [`crate::open`] reads such a package by converting it, before
 //! anything else reads it, into the SpreadsheetML package it stands for: each binary part becomes
@@ -50,13 +50,9 @@ pub(crate) fn binary_workbook(package: &Package) -> Option<String> {
         .items()
         .iter()
         .filter(|item| item.kind == OFFICE_DOCUMENT && item.mode == TargetMode::Internal)
-        .filter_map(|item| item.resolved.clone())
-        .find(|part| {
-            package
-                .part(part)
-                .and_then(|p| p.content_type())
-                .is_some_and(|ct| ct == BINARY_MAIN)
-        })
+        .filter_map(|item| package.part(item.resolved.as_deref()?))
+        .find(|part| part.content_type() == Some(BINARY_MAIN))
+        .map(|part| part.name().to_owned())
 }
 
 /// Why a binary workbook was not converted: the part and what in it.
@@ -72,6 +68,7 @@ pub(crate) fn refusal(part: &str, detail: impl Into<String>) -> OpenError {
 enum Kind {
     Workbook,
     Worksheet,
+    ChartSheet,
     /// An Excel 4.0 macro sheet (dc-xuw), or an international one.
     MacroSheet {
         international: bool,
@@ -92,6 +89,7 @@ fn kind_of(content_type: &str) -> Result<Kind, &str> {
     Ok(match content_type {
         BINARY_MAIN => Kind::Workbook,
         "application/vnd.ms-excel.worksheet" => Kind::Worksheet,
+        "application/vnd.ms-excel.chartsheet" => Kind::ChartSheet,
         "application/vnd.ms-excel.macrosheet" => Kind::MacroSheet {
             international: false,
         },
@@ -125,6 +123,9 @@ fn xml_content_type(kind: Kind, macros: bool) -> &'static str {
         Kind::Worksheet => {
             "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"
         }
+        Kind::ChartSheet => {
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.chartsheet+xml"
+        }
         Kind::MacroSheet {
             international: false,
         } => "application/vnd.ms-excel.macrosheet+xml",
@@ -151,10 +152,11 @@ fn xml_content_type(kind: Kind, macros: bool) -> &'static str {
 
 /// A part's name with `.bin` turned into `.xml`.
 fn xml_name(name: &str) -> String {
-    match name.strip_suffix(".bin") {
-        Some(stem) => format!("{stem}.xml"),
-        None => format!("{name}.xml"),
-    }
+    let stem = match name.rsplit_once('.') {
+        Some((stem, extension)) if extension.eq_ignore_ascii_case("bin") => stem,
+        _ => name,
+    };
+    format!("{stem}.xml")
 }
 
 /// A small XML writer.
@@ -300,16 +302,17 @@ pub(crate) fn convert(package: &Package, workbook: &str) -> Result<Vec<u8>, Open
                 let tab = book
                     .sheets
                     .iter()
-                    .position(|sheet| sheet.part.as_deref() == Some(name.as_str()));
+                    .position(|sheet| sheet.part.as_deref().is_some_and(|part| part.eq_ignore_ascii_case(name)));
                 sheet::convert(name, &read(name)?, tab, &shared, false)?
             }
             Kind::MacroSheet { .. } => {
                 let tab = book
                     .sheets
                     .iter()
-                    .position(|sheet| sheet.part.as_deref() == Some(name.as_str()));
+                    .position(|sheet| sheet.part.as_deref().is_some_and(|part| part.eq_ignore_ascii_case(name)));
                 sheet::convert(name, &read(name)?, tab, &shared, true)?
             }
+            Kind::ChartSheet => sheet::convert_chart(name, &read(name)?)?,
             Kind::Styles => styles::convert(name, &read(name)?)?,
             Kind::SharedStrings => parts::shared_strings(name, &read(name)?, &shared)?,
             Kind::Table => parts::table(name, &read(name)?, &shared)?,
@@ -323,10 +326,14 @@ pub(crate) fn convert(package: &Package, workbook: &str) -> Result<Vec<u8>, Open
     // The parts carried over, the relationships rewritten.
     let renamed = |target: &str| -> Option<String> {
         // The new name of the part `target` resolves to, `None` for one left out.
-        match kinds.get(target) {
-            Some(Kind::Dropped) => None,
-            Some(Kind::Kept) | None => Some(target.to_owned()),
-            Some(_) => Some(xml_name(target)),
+        let entry = kinds.get_key_value(target).or_else(|| {
+            let part = package.part(target)?;
+            kinds.get_key_value(part.name())
+        });
+        match entry {
+            Some((_, Kind::Dropped)) => None,
+            Some((_, Kind::Kept)) | None => Some(target.to_owned()),
+            Some((name, _)) => Some(xml_name(name)),
         }
     };
     let mut entries: Vec<(String, Vec<u8>)> = Vec::new();
@@ -373,9 +380,8 @@ pub(crate) fn convert(package: &Package, workbook: &str) -> Result<Vec<u8>, Open
                 match renamed(resolved) {
                     None => continue,
                     Some(new) if &new != resolved => {
-                        if let Some(stem) = target.strip_suffix(".bin") {
-                            target = format!("{stem}.xml");
-                        }
+                        let path_end = target.find(['#', '?']).unwrap_or(target.len());
+                        target = format!("{}{}", xml_name(&target[..path_end]), &target[path_end..]);
                     }
                     Some(_) => {}
                 }

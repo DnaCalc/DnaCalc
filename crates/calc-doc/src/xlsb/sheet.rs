@@ -39,6 +39,9 @@ const BRT_COL_INFO: u16 = 60;
 const BRT_DVAL: u16 = 64;
 const BRT_BEGIN_WS_VIEWS: u16 = 133;
 const BRT_END_WS_VIEWS: u16 = 134;
+const BRT_BEGIN_CS_VIEWS: u16 = 139;
+const BRT_END_CS_VIEWS: u16 = 140;
+const BRT_BEGIN_CS_VIEW: u16 = 141;
 const BRT_BEGIN_WS_VIEW: u16 = 137;
 const BRT_END_WS_VIEW: u16 = 138;
 const BRT_WS_PROP: u16 = 147;
@@ -76,9 +79,16 @@ const BRT_SHEET_PROTECTION: u16 = 535;
 const BRT_PHONETIC_INFO: u16 = 537;
 const BRT_DRAWING: u16 = 550;
 const BRT_LEGACY_DRAWING: u16 = 551;
+const BRT_LEGACY_DRAWING_HF: u16 = 552;
 const BRT_COLOR: u16 = 564;
 const BRT_BEGIN_DVALS: u16 = 573;
+const BRT_CS_PROP: u16 = 651;
+const BRT_CS_PAGE_SETUP: u16 = 652;
+const BRT_BEGIN_USER_CS_VIEWS: u16 = 653;
+const BRT_END_USER_CS_VIEWS: u16 = 654;
 const BRT_LIST_PART: u16 = 661;
+const BRT_CS_PROTECTION: u16 = 669;
+const BRT_CS_PROTECTION_ISO: u16 = 679;
 const BRT_DVAL14: u16 = 1053;
 const BRT_FRT_GUID: u16 = 3072;
 
@@ -96,6 +106,132 @@ pub(crate) fn convert(
     macro_sheet: bool,
 ) -> Result<Vec<u8>, OpenError> {
     write(data, tab.map(|t| t as u32), shared, macro_sheet).map_err(|error| refusal(part, error.0))
+}
+
+/// Chart-sheet records (MS-XLSB 2.1.7.7). Drawings and their related parts are already XML.
+pub(crate) fn convert_chart(part: &str, data: &[u8]) -> Result<Vec<u8>, OpenError> {
+    write_chart(data).map_err(|error| refusal(part, error.0))
+}
+
+fn write_chart(data: &[u8]) -> Read<Vec<u8>> {
+    let mut x = Xml::new();
+    x.open(
+        "chartsheet",
+        &[
+            ("xmlns", MAIN_NAMESPACE.to_owned()),
+            ("xmlns:r", RELATIONSHIPS_NAMESPACE.to_owned()),
+        ],
+    );
+    let mut custom_views = false;
+    for record in records(data)? {
+        if record.kind == BRT_END_USER_CS_VIEWS {
+            custom_views = false;
+        }
+        if custom_views {
+            continue;
+        }
+        let mut c = Cursor::new(record.body);
+        match record.kind {
+            BRT_CS_PROP => {
+                let publish = c.u16("BrtCsProp")? & 1 != 0;
+                let tab_color = color(&mut c)?;
+                let mut attributes = vec![("published", flag(publish))];
+                if let Some(code_name) = c
+                    .nullable_wide("BrtCsProp")?
+                    .filter(|name| !name.is_empty())
+                {
+                    attributes.push(("codeName", text(&code_name)));
+                }
+                x.open("sheetPr", &attributes);
+                x.empty("tabColor", &tab_color);
+                x.close("sheetPr");
+            }
+            BRT_BEGIN_CS_VIEWS => x.open("sheetViews", &[]),
+            BRT_END_CS_VIEWS => x.close("sheetViews"),
+            BRT_BEGIN_CS_VIEW => {
+                let selected = c.u16("BrtBeginCsView")? & 1 != 0;
+                let zoom = c.u32("BrtBeginCsView")?;
+                let view = c.u32("BrtBeginCsView")?;
+                let mut attributes = vec![
+                    ("workbookViewId", view.to_string()),
+                    ("tabSelected", flag(selected)),
+                ];
+                if zoom != 0 {
+                    attributes.push(("zoomScale", zoom.to_string()));
+                }
+                x.empty("sheetView", &attributes);
+            }
+            BRT_CS_PROTECTION => {
+                let verifier = c.u16("BrtCsProtection")?;
+                let content = c.u32("BrtCsProtection")? != 0;
+                let objects = c.u32("BrtCsProtection")? != 0;
+                let mut attributes = vec![("content", flag(content)), ("objects", flag(objects))];
+                if verifier != 0 {
+                    attributes.push(("password", format!("{verifier:04X}")));
+                }
+                x.empty("sheetProtection", &attributes);
+            }
+            BRT_CS_PROTECTION_ISO => {
+                return Err(Malformed("ISO chart sheet protection".to_owned()));
+            }
+            BRT_BEGIN_USER_CS_VIEWS => custom_views = true,
+            BRT_MARGINS => x.out.extend(margins(&mut c)?),
+            BRT_CS_PAGE_SETUP => chart_page_setup(&mut c, &mut x)?,
+            BRT_BEGIN_HEADER_FOOTER => x.out.extend(header_footer(&mut c)?),
+            BRT_DRAWING | BRT_LEGACY_DRAWING | BRT_LEGACY_DRAWING_HF => {
+                let name = match record.kind {
+                    BRT_DRAWING => "drawing",
+                    BRT_LEGACY_DRAWING => "legacyDrawing",
+                    _ => "legacyDrawingHF",
+                };
+                x.empty(
+                    name,
+                    &[("r:id", text(&c.wide("chart drawing relationship")?))],
+                );
+            }
+            _ => {}
+        }
+    }
+    x.close("chartsheet");
+    Ok(x.out)
+}
+
+fn chart_page_setup(c: &mut Cursor<'_>, x: &mut Xml) -> Read<()> {
+    let mut attributes = Vec::new();
+    for name in ["paperSize", "horizontalDpi", "verticalDpi", "copies"] {
+        attributes.push((name, c.u32("BrtCsPageSetup")?.to_string()));
+    }
+    let first_page = c.u16("BrtCsPageSetup")? as i16;
+    let flags = c.u16("BrtCsPageSetup")?;
+    if flags & 8 == 0 {
+        let orientation = if flags & 1 == 0 {
+            "portrait"
+        } else {
+            "landscape"
+        };
+        attributes.push(("orientation", orientation.to_owned()));
+    }
+    if flags & 16 != 0 {
+        attributes.push(("useFirstPageNumber", "1".to_owned()));
+        attributes.push(("firstPageNumber", first_page.to_string()));
+    }
+    attributes.push(("blackAndWhite", flag(flags & 4 != 0)));
+    attributes.push(("draft", flag(flags & 32 != 0)));
+    if let Some(id) = c.nullable_wide("BrtCsPageSetup")? {
+        attributes.push(("r:id", text(&id)));
+    }
+    x.empty("pageSetup", &attributes);
+    Ok(())
+}
+
+fn margins(c: &mut Cursor<'_>) -> Read<Vec<u8>> {
+    let mut attributes = Vec::new();
+    for name in ["left", "right", "top", "bottom", "header", "footer"] {
+        attributes.push((name, number(c.f64("BrtMargins")?)));
+    }
+    let mut x = fragment();
+    x.empty("pageMargins", &attributes);
+    Ok(x.out)
 }
 
 /// The sections of the worksheet, each written as its records come and put together in the
@@ -392,15 +528,7 @@ fn write(data: &[u8], sheet: Option<u32>, shared: &Shared, macro_sheet: bool) ->
                 s.hyperlinks.extend_from_slice(&x.out);
             }
             BRT_PRINT_OPTIONS => s.print_options = print_options(&mut c)?,
-            BRT_MARGINS => {
-                let mut x = fragment();
-                let mut attributes = Vec::new();
-                for name in ["left", "right", "top", "bottom", "header", "footer"] {
-                    attributes.push((name, number(c.f64("BrtMargins")?)));
-                }
-                x.empty("pageMargins", &attributes);
-                s.margins = x.out;
-            }
+            BRT_MARGINS => s.margins = margins(&mut c)?,
             BRT_PAGE_SETUP => s.page_setup = page_setup(&mut c)?,
             BRT_BEGIN_HEADER_FOOTER => s.header_footer = header_footer(&mut c)?,
             BRT_BEGIN_RW_BRK | BRT_BEGIN_COL_BRK => {
