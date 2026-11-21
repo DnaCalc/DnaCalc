@@ -1992,9 +1992,6 @@ fn bratio_bfrac(a: f64, b: f64, x: f64, y: f64) -> f64 {
     }
     .filter(|value| value.is_finite())
     .unwrap_or_else(|| bratio_brcomp(a, b, x, y));
-    if bf == 0.0 {
-        return bf;
-    }
     crate::ported::excel_numeric::excel_beta_fraction(a, b, x, y, bf)
 }
 

@@ -103,7 +103,12 @@ pub(crate) fn beta_dist_kernel(
         // fractional (344/768 vs the binomial-sum shortcut's 254/768, and
         // the shortcut loses the disagreement rows 177:87). Route all
         // shapes through the identified BRATIO.
-        return Ok(regularized_beta(z, alpha, beta));
+        let cdf = regularized_beta(z, alpha, beta);
+        return if cdf.is_finite() {
+            Ok(cdf)
+        } else {
+            Err(WorksheetErrorCode::Num)
+        };
     }
     if z > 0.0 && z < 1.0 {
         if let Some(pdf) = crate::ported::discrete_dist::beta_density(z, alpha, beta) {
@@ -151,7 +156,7 @@ fn beta_inverse_start(p: f64, a: f64, b: f64) -> Option<BetaStart> {
         let rb = 1.0 / (2.0 * b - 1.0);
         let h = 2.0 / (ra + rb);
         let w = z * excel_sqrt_staged(al + h) / h - (rb - ra) * (al + 5.0 / 6.0 - 2.0 / (3.0 * h));
-        let x = a / (a + b * excel_exp(2.0 * w));
+        let x = excel_x87_div(a, excel_x87_add(a, excel_x87_mul(b, excel_exp(2.0 * w))));
         return if x == 1.0 && a + b == a {
             Some(BetaStart::Failed)
         } else if x <= 0.0 {
@@ -208,7 +213,7 @@ fn beta_inverse_start(p: f64, a: f64, b: f64) -> Option<BetaStart> {
                 a,
             ))
         };
-        return Some(if x < f64::MIN_POSITIVE {
+        return Some(if x <= 0.0 {
             BetaStart::LowerEndpoint
         } else if x >= 1.0 {
             BetaStart::UpperEndpoint
@@ -240,21 +245,18 @@ fn beta_newton_lower(p: f64, a: f64, b: f64) -> Result<Option<f64>, WorksheetErr
     let Some(start) = beta_inverse_start(p, a, b) else {
         return Ok(None);
     };
-    let (mut x, upper_endpoint) = match start {
+    let mut x = match start {
         BetaStart::Failed => return Err(WorksheetErrorCode::Num),
-        BetaStart::Interior(x) => (x, false),
-        BetaStart::LowerEndpoint => (1e-6, false),
-        BetaStart::LowerPower(x) if x > 0.0 && x < 1.0 => (x, false),
+        BetaStart::Interior(x) => x,
+        BetaStart::LowerEndpoint => 1e-6,
+        BetaStart::LowerPower(x) if x > 0.0 && x < 1.0 => x,
         BetaStart::LowerPower(_) => return Ok(None),
-        BetaStart::UpperEndpoint => (1.0 - 1e-6, true),
+        BetaStart::UpperEndpoint => 1.0 - 1e-6,
     };
     // The 1,040 frozen boundary controls separate the unrounded exponent
     // from its floor and truncation. Both tails use an absolute correction.
     let exponent = (-13.0 - 5.0 / (a * a) - libm::pow(p, -0.2)).max(-150.0);
     let tolerance = libm::pow(10.0, exponent).min(f64::EPSILON);
-    let outside_upper = upper_endpoint
-        && beta_dist_kernel(f64::from_bits(1.0_f64.to_bits() - 1), a, b, true, 0.0, 1.0)
-            .is_ok_and(|f| f < p);
     // If the shape sum absorbs a, b*x retains the gamma limit of I_x(a,b).
     // Its Newton correction is in units of b*x and must be divided by b.
     let gamma_limit = matches!(start, BetaStart::LowerPower(_)) && b + a == b;
@@ -267,10 +269,14 @@ fn beta_newton_lower(p: f64, a: f64, b: f64) -> Result<Option<f64>, WorksheetErr
     loop {
         let (cdf, density) = if gamma_limit {
             let u = excel_x87_mul(b, x);
-            (
-                gamma_dist_kernel(u, a, 1.0, true),
-                gamma_dist_kernel(u, a, 1.0, false),
-            )
+            let dens = gamma_dist_kernel(u, a, 1.0, false).and_then(|d| {
+                if excel_x87_mul(b, d).is_finite() {
+                    Ok(d)
+                } else {
+                    Err(WorksheetErrorCode::Num)
+                }
+            });
+            (gamma_dist_kernel(u, a, 1.0, true), dens)
         } else {
             (
                 beta_dist_kernel(x, a, b, true, 0.0, 1.0),
@@ -278,11 +284,7 @@ fn beta_newton_lower(p: f64, a: f64, b: f64) -> Result<Option<f64>, WorksheetErr
             )
         };
         let (Ok(cdf), Ok(density)) = (cdf, density) else {
-            return if matches!(start, BetaStart::LowerEndpoint) {
-                Err(WorksheetErrorCode::Num)
-            } else {
-                Ok(Some(best_x))
-            };
+            return Err(WorksheetErrorCode::Num);
         };
         let df = excel_x87_sub(cdf, p);
         let err_df = df.abs();
@@ -316,11 +318,7 @@ fn beta_newton_lower(p: f64, a: f64, b: f64) -> Result<Option<f64>, WorksheetErr
             }
             trials += 1;
             if trials >= MAX_TRIALS {
-                return if outside_upper || matches!(start, BetaStart::LowerEndpoint) {
-                    Err(WorksheetErrorCode::Num)
-                } else {
-                    Ok(Some(best_x))
-                };
+                return Err(WorksheetErrorCode::Num);
             }
             let next = excel_x87_sub(x, last_adjustment);
             if next > 0.0 && next < 1.0 {
@@ -358,18 +356,18 @@ pub(crate) fn beta_inv_kernel(
         (probability, alpha, beta, false)
     };
     use crate::ported::excel_numeric::{excel_x87_add, excel_x87_mul, excel_x87_sub};
-    let z = beta_newton_lower(probability, alpha, beta)?.unwrap_or_else(|| {
+    let z = flush_subnormal(beta_newton_lower(probability, alpha, beta)?.unwrap_or_else(|| {
         bisect_inverse_closest(probability, 0.0, 1.0, |v| regularized_beta(v, alpha, beta))
-    });
+    }));
     let z = if reflected {
         excel_x87_add(0.5, excel_x87_sub(0.5, z))
     } else {
         z
     };
-    Ok(excel_x87_add(
+    Ok(flush_subnormal(excel_x87_add(
         lower,
         excel_x87_mul(z, excel_x87_sub(upper, lower)),
-    ))
+    )))
 }
 
 pub(super) fn flush_subnormal(value: f64) -> f64 {
@@ -1227,5 +1225,156 @@ mod tests {
             .unwrap();
             assert_eq!(got.to_bits(), expected, "CHISQ.INV({p:#x}, {df:#x})");
         }
+    }
+
+    /// Excel 16.0.20527 (dc-iuwct.50): BETA.INV structural and billion-ULP gross rows
+    /// surfaced by the discrepancies bank (`ax2`), plus live Touchstone boundary edges.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_iuwct_50_beta_inv_structural_and_gross_boundaries() {
+        // 1. bfrac overflow at b >= 2^512 * (a + 2n - 1) / sqrt(n * (a + n - 1))
+        //    (ax2/beta-seed-exponents, 800 structural rows + live Touchstone bisected edges).
+        assert_eq!(
+            beta_inv_kernel(
+                f64::from_bits(0x3f789374bc6a7efa),
+                f64::from_bits(0x3ff0000000000001),
+                f64::from_bits(0x5fffffffffffffff),
+                0.0,
+                1.0,
+            )
+            .unwrap()
+            .to_bits(),
+            0x1f52121a985ffcca,
+        );
+        assert_eq!(
+            beta_inv_kernel(
+                f64::from_bits(0x3f789374bc6a7efa),
+                f64::from_bits(0x3ff0000000000001),
+                f64::from_bits(0x6000000000000000),
+                0.0,
+                1.0,
+            ),
+            Err(WorksheetErrorCode::Num),
+        );
+        // ax2/beta-seed-exponents $[1684]
+        assert_eq!(
+            beta_inv_kernel(0.006, 1.0000000000000002, 3.432398830065305e156, 0.0, 1.0),
+            Err(WorksheetErrorCode::Num),
+        );
+        // ax2/beta-seed-exponents $[65] and live Touchstone PDF-overflow edge (0x7d72f8939aa27197/8)
+        assert_eq!(
+            beta_inv_kernel(0.006, 0.15, f64::from_bits(0x7d72f8939aa27197), 0.0, 1.0),
+            Ok(0.0),
+        );
+        assert_eq!(
+            beta_inv_kernel(0.006, 0.15, f64::from_bits(0x7d72f8939aa27198), 0.0, 1.0),
+            Err(WorksheetErrorCode::Num),
+        );
+        assert_eq!(
+            beta_inv_kernel(
+                f64::from_bits(0x3f789374bc6a7efa),
+                f64::from_bits(0x3fc3333333333333),
+                f64::from_bits(0x7d80000000000000),
+                0.0,
+                1.0,
+            ),
+            Err(WorksheetErrorCode::Num),
+        );
+
+        // 2. beta_density n - k <= 0 error propagation (ax2/beta-absorbed-inverse 58 rows,
+        //    ax2/beta-prior-controls 23 rows).
+        for (p, a, b) in [
+            (0x3f76b2492e99b060_u64, 0x42f7b6254d824baa_u64, 0x3ff0000000000001_u64), // absorbed $[327]
+            (0x3f9dda0d451cf9d9_u64, 0x434ddb2cb42a218e_u64, 0x4000000000000000_u64), // absorbed $[785]
+            (0x3fe15e8d0e79251f_u64, 0x3ff0000000000003_u64, 0x434f1b7924d5db6a_u64), // prior $[561]
+        ] {
+            assert_eq!(
+                beta_inv_kernel(f64::from_bits(p), f64::from_bits(a), f64::from_bits(b), 0.0, 1.0),
+                Err(WorksheetErrorCode::Num),
+                "expected #NUM! for ({p:#x}, {a:#x}, {b:#x})",
+            );
+        }
+
+        // 3. ax2/beta-prior-controls $[3] (Ext80 a/(a+b*exp(2w))) and $[4] (Ext80 n = st(a+b-2)).
+        assert_eq!(
+            beta_inv_kernel(
+                f64::from_bits(0x3fe0000000000001),
+                f64::from_bits(0x3ff000001dc7b303),
+                f64::from_bits(0x434805f26460ed59),
+                1.0,
+                100.0,
+            )
+            .unwrap()
+            .to_bits(),
+            0x3ff0000000000032,
+        );
+        assert_eq!(
+            beta_inv_kernel(
+                f64::from_bits(0x3fe00a4b00f095ec),
+                f64::from_bits(0x3ff0000001ffffbd),
+                f64::from_bits(0x419799a9a3392c51),
+                1.0,
+                100.0,
+            )
+            .unwrap()
+            .to_bits(),
+            0x3ff00000bac41696,
+        );
+        // Live Touchstone exact x87 double-rounding edges for beta_density n = st(a + b - 2):
+        assert_eq!(
+            beta_dist_kernel(
+                f64::from_bits(0x3feffffffa8e2da7),
+                f64::from_bits(0x419799a9a3392c51),
+                f64::from_bits(0x3ff0000001ffbfff),
+                false,
+                0.0,
+                1.0,
+            ),
+            Err(WorksheetErrorCode::Num),
+        );
+        assert!(
+            beta_dist_kernel(
+                f64::from_bits(0x3feffffffa8e2da7),
+                f64::from_bits(0x419799a9a3392c51),
+                f64::from_bits(0x3ff0000001ffc000),
+                false,
+                0.0,
+                1.0,
+            )
+            .is_ok(),
+        );
+
+        // 4. ax2/beta-lower-probability $[231] (700-trial exhaustion -> #NUM!).
+        assert_eq!(
+            beta_inv_kernel(1.1078772577623568e-31, 292.24366148288243, 1.428573466563099, 0.0, 1.0),
+            Err(WorksheetErrorCode::Num),
+        );
+
+        // 5. ax2/beta-power-starts $[381] (subnormal LowerPower kept, flushed at publication;
+        //    PDF overflow edge at 0x3fc4b54e1a4059d6/7).
+        assert_eq!(
+            beta_inv_kernel(0.1653057172940107, 0.002537240689259808, 0.8278454102205709, 0.0, 1.0),
+            Ok(0.0),
+        );
+        assert_eq!(
+            beta_inv_kernel(
+                f64::from_bits(0x3fc4b54e1a4059d6),
+                0.002537240689259808,
+                0.8278454102205709,
+                0.0,
+                1.0,
+            ),
+            Err(WorksheetErrorCode::Num),
+        );
+        assert_eq!(
+            beta_inv_kernel(
+                f64::from_bits(0x3fc4b54e1a4059d7),
+                0.002537240689259808,
+                0.8278454102205709,
+                0.0,
+                1.0,
+            ),
+            Ok(0.0),
+        );
     }
 }
