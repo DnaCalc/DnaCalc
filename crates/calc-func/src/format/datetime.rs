@@ -308,9 +308,8 @@ pub(crate) fn render_with_datetime_tokens(
                                 _ => return None,
                             }
                         }
-                        // Fn3 measures g/gg/ggg and e/ee on both sides of the
-                        // Heisei/Reiwa transition. Calendar start dates are public facts:
-                        // https://www.npb.go.jp/en/products/gazette/books/kanpo_history.html
+                        // Excel 20527 readings cover g/gg/ggg and e/ee on both
+                        // sides of the era transitions in Excel's date range.
                         if name_locale != Some(LocaleId::JaJp) {
                             return None;
                         }
@@ -319,8 +318,13 @@ pub(crate) fn render_with_datetime_tokens(
                             (2018, "R", "令", "令和")
                         } else if (year, month, day) >= (1989, 1, 8) {
                             (1988, "H", "平", "平成")
+                        } else if (year, month, day) >= (1926, 12, 25) {
+                            (1925, "S", "昭", "昭和")
+                        } else if (year, month, day) >= (1912, 7, 30) {
+                            (1911, "T", "大", "大正")
                         } else {
-                            return None;
+                            // The earliest displayable date, serial zero, is in Meiji.
+                            (1867, "M", "明", "明治")
                         };
                         match (kind, width) {
                             (DateTimeTokenKind::Era, 1) => latin.to_owned(),

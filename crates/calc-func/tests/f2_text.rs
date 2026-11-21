@@ -1284,3 +1284,33 @@ fn fn1_excel_text_locale_names() {
         );
     }
 }
+
+/// Excel 20527 reports the older Japanese era names under LCID and language tags.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn tagged_japanese_eras_before_heisei() {
+    use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
+    let env = CalcEnvironment {
+        profile: Some(format_profile(LocaleId::EnZa)),
+        ..CalcEnvironment::dates(DateSystem::System1900)
+    };
+    for (serial, code, expected) in [
+        (0.0, "ggge/mm/dd", "明治33/01/00"),
+        (60.0, "ggge/mm/dd", "明治33/02/29"),
+        (4594.0, "g e", "M 45"),
+        (4594.0, "ggge", "明治45"),
+        (4595.0, "gg ee", "大 01"),
+        (9855.0, "ggge", "大正15"),
+        (9856.0, "gg ee", "昭 01"),
+        (32515.0, "ggge", "昭和64"),
+        (32516.0, "ggge", "平成1"),
+    ] {
+        for tag in ["411", "ja-JP"] {
+            let format = format!("[$-{tag}]{code}");
+            text(
+                call_in(&env, None, None, "TEXT", vec![n(serial), t(&format)]),
+                expected,
+            );
+        }
+    }
+}
