@@ -1845,6 +1845,21 @@ impl Server {
         Summary {
             workbook: self.workbook,
             session: self.clipboard_session.clone(),
+            sheet_view_modes: self
+                .book
+                .host()
+                .sheets()
+                .iter()
+                .filter_map(|s| {
+                    use calc_host::SheetViewMode::{Normal, PageBreakPreview, PageLayout};
+                    let mode = match self.book.host().sheet_view(s.id())?.mode? {
+                        Normal => return None,
+                        PageBreakPreview => wire::SheetViewMode::PageBreakPreview,
+                        PageLayout => wire::SheetViewMode::PageLayout,
+                    };
+                    Some((Sheet::of(s.id()), mode))
+                })
+                .collect(),
             sheet_views: self
                 .book
                 .host()
@@ -3773,6 +3788,24 @@ impl Server {
                         << 1)
             };
             sheets.insert(saved.sheet.id(), v);
+        }
+        let mut seen = std::collections::BTreeSet::new();
+        for &(sheet, mode) in &input.sheet_view_modes {
+            let mut view = host.sheet_view(sheet.id()).ok_or("Invalid saved worksheet")?;
+            if !seen.insert(sheet.id()) {
+                return Err("Duplicate saved worksheet mode".into());
+            }
+            let mode = Some(match mode {
+                wire::SheetViewMode::Normal => calc_host::SheetViewMode::Normal,
+                wire::SheetViewMode::PageBreakPreview => calc_host::SheetViewMode::PageBreakPreview,
+                wire::SheetViewMode::PageLayout => calc_host::SheetViewMode::PageLayout,
+            });
+            if let Some(saved) = sheets.get_mut(&sheet.id()) {
+                saved.mode = mode;
+            } else if view.mode != mode {
+                view.mode = mode;
+                sheets.insert(sheet.id(), view);
+            }
         }
         Ok(calc_host::SaveViews {
             revision: input.revision,
@@ -8512,6 +8545,7 @@ mod window_tests {
                 views: Some(wire::SaveWindow {
                     revision: server.book.host().revision().get(),
                     active_sheet: sheet,
+                    sheet_view_modes: Vec::new(),
                     sheets: vec![wire::SheetWindow {
                         geometry: geometry.clone(),
                         sheet,
@@ -8566,6 +8600,43 @@ mod window_tests {
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn worksheet_view_mode_saves_without_a_mounted_grid_and_reopens() {
+        let mut server = Server::new();
+        let sheet = Sheet::of(server.book.host().sheets()[0].id());
+        for mode in [
+            wire::SheetViewMode::PageBreakPreview,
+            wire::SheetViewMode::PageLayout,
+            wire::SheetViewMode::Normal,
+        ] {
+            let saved = server.execute_current(
+                Request::SaveWithContext {
+                    calculate_before_save: Some(false),
+                    views: Some(wire::SaveWindow {
+                        revision: server.book.host().revision().get(),
+                        active_sheet: sheet,
+                        sheets: Vec::new(),
+                        sheet_view_modes: vec![(sheet, mode)],
+                    }),
+                },
+                None,
+            );
+            assert!(saved.reply.is_ok(), "{:?}", saved.reply);
+            let reopened = server.execute_current(
+                Request::Open { name: "view.xlsx".into() },
+                saved.bytes,
+            );
+            assert!(reopened.reply.is_ok(), "{:?}", reopened.reply);
+            let expected = if mode == wire::SheetViewMode::Normal {
+                Vec::new()
+            } else {
+                vec![(sheet, mode)]
+            };
+            assert_eq!(server.summary().sheet_view_modes, expected);
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn window_save_refuses_stale_geometry_and_converts_frozen_offsets() {
         let mut server = Server::new();
         let s = server.book.host().sheets()[0].id();
@@ -8586,6 +8657,7 @@ mod window_tests {
         let input = wire::SaveWindow {
             revision: server.book.host().revision().get(),
             active_sheet: sheet,
+            sheet_view_modes: Vec::new(),
             sheets: vec![wire::SheetWindow {
                 geometry: old,
                 sheet,

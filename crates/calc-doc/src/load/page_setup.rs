@@ -16,6 +16,17 @@ pub(crate) fn attributes(setup: &mut PageSetup, element: &XmlElement) {
         }
     }
 }
+pub(crate) fn page_break(element: &XmlElement) -> Option<PageBreak> {
+    let number = |name| element.attribute(name).and_then(|n| n.parse().ok());
+    Some(PageBreak {
+        id: number("id")?,
+        min: number("min").unwrap_or(0),
+        max: number("max").unwrap_or(0),
+        manual: super::manifest::is_true(element.attribute("man")),
+        pivot: super::manifest::is_true(element.attribute("pt")),
+    })
+}
+
 pub(crate) fn read(xml: &XmlPart) -> Result<PageSetup, LoadError> {
     let mut events = Events::new(xml);
     let mut setup = PageSetup::default();
@@ -47,14 +58,7 @@ pub(crate) fn read(xml: &XmlPart) -> Result<PageSetup, LoadError> {
                     && ["rowBreaks", "colBreaks"].contains(&path[1].as_str())
                     && local == "brk"
                 {
-                    if let Some(id) = e.attribute("id").and_then(|n| n.parse().ok()) {
-                        let b = PageBreak {
-                            id,
-                            min: e.attribute("min").and_then(|n| n.parse().ok()).unwrap_or(0),
-                            max: e.attribute("max").and_then(|n| n.parse().ok()).unwrap_or(0),
-                            manual: super::manifest::is_true(e.attribute("man")),
-                            pivot: super::manifest::is_true(e.attribute("pt")),
-                        };
+                    if let Some(b) = page_break(&e) {
                         if path[1] == "rowBreaks" {
                             setup.row_breaks.push(b);
                         } else {

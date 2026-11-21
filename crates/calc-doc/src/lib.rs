@@ -105,7 +105,7 @@ pub use load::{
     ColumnSpan, ConditionalFormat, ConditionalRule, DataBar, DateSystem, DrawingPoint,
     FORMULA_MAX_UTF16_CODE_UNITS, FormulaRecord, IconSet, LayoutWarning, LoadError, LoadRepair,
     LoadedSheet, LoadedWorkbook, ReviewLink, ReviewNote, RowFormat, SharedFormula, SheetCharts, SheetGeometry,
-    SheetReview, SheetView, Threshold, Validation, load, load_preserving_sheet_ids,
+    SheetReview, SheetView, SheetViewMode, Threshold, Validation, load, load_preserving_sheet_ids,
 };
 pub use opc::{
     CONTENT_TYPES_ENTRY, CONTENT_TYPES_NAMESPACE, ContentTypes, Package, Part,

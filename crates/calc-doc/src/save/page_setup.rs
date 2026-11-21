@@ -306,16 +306,23 @@ pub(crate) fn rewrite(
             })
             .unwrap_or_else(|| prefix.to_string());
         let mut bytes = Vec::new();
+        let mut retained = std::collections::BTreeSet::new();
         for brk in b {
             let original = source.and_then(|s| {
-                s.children.iter().find(|n| {
-                    n.element.name.is(MAIN_NAMESPACE, "brk")
-                        && n.element
-                            .attribute("id")
-                            .and_then(|v| v.parse::<u32>().ok())
-                            == Some(brk.id)
-                })
+                s.children
+                    .iter()
+                    .enumerate()
+                    .find(|(i, n)| {
+                        n.element.name.is(MAIN_NAMESPACE, "brk")
+                            && crate::load::page_setup::page_break(&n.element) == Some(*brk)
+                            && retained.insert(*i)
+                    })
+                    .map(|(_, node)| node)
             });
+            if let Some(original) = original {
+                bytes.extend_from_slice(&xml.bytes()[original.start.0..original.end]);
+                continue;
+            }
             let attrs = [
                 ("id", Some(brk.id.to_string())),
                 ("min", Some(brk.min.to_string())),
@@ -325,7 +332,7 @@ pub(crate) fn rewrite(
             ];
             bytes.extend(render(
                 xml,
-                original,
+                None,
                 &break_prefix,
                 "brk",
                 &attrs,

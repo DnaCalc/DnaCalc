@@ -166,6 +166,9 @@ fn view(
     if zoom.is_some() {
         attrs.push(("zoomScale", zoom.as_deref()));
     }
+    if let Some(mode) = state.and_then(|v| v.mode) {
+        attrs.push(("view", Some(mode.as_xml())));
+    }
     let mut out = tag.rebuilt(
         &attrs,
         state.is_none() && xml.bytes()[span.0..span.1].ends_with(b"/>"),
