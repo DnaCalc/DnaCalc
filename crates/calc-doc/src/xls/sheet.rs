@@ -78,6 +78,12 @@ struct Group {
     needs_calc: bool,
 }
 
+struct Table {
+    rows: std::ops::RangeInclusive<u16>,
+    columns: std::ops::RangeInclusive<u16>,
+    attributes: Vec<(&'static str, String)>,
+}
+
 fn group(body: &[u8], array: bool) -> Result<Group, String> {
     let mut c = Cursor::new(body);
     let rows = (c.u16("a formula group").map_err(e)?, c.u16("a formula group").map_err(e)?);
@@ -190,7 +196,7 @@ pub(crate) fn read(
     // (where a PtgExp finds them) and, for shared formulas, by the first cell of their range.
     let mut shared: BTreeMap<(u32, u32), Group> = BTreeMap::new();
     let mut arrays: BTreeMap<(u32, u32), Group> = BTreeMap::new();
-    let mut tables: BTreeMap<(u32, u32), Vec<(&'static str, String)>> = BTreeMap::new();
+    let mut tables: BTreeMap<(u16, u16), Table> = BTreeMap::new();
     for (i, record) in records.iter().enumerate() {
         if !matches!(record.id, SHRFMLA | ARRAY | TABLE) {
             continue;
@@ -257,7 +263,11 @@ pub(crate) fn read(
                 if two {
                     attributes.push(("r2", cell(column_input)));
                 }
-                tables.insert(at, attributes);
+                tables.insert((first_row, u16::from(first_column)), Table {
+                    rows: first_row..=last_row,
+                    columns: u16::from(first_column)..=u16::from(last_column),
+                    attributes,
+                });
             }
         }
     }
@@ -588,14 +598,28 @@ pub(crate) fn read(
                 };
                 let fail = |what: String| format!("{what} in the formula of {here} on sheet {sheet_name:?}");
                 let formula = if rgce.first() == Some(&0x02) {
-                    // PtgTbl: a cell inside a data table; the first one holds the table.
-                    match tables.get(&at) {
-                        Some(attributes) => {
-                            let mut attributes = attributes.clone();
-                            if needs_calc { attributes.push(("ca", "1".to_owned())); }
-                            Formula::Table(attributes)
-                        }
-                        None => Formula::Member,
+                    // MS-XLS 2.5.198.92: PtgTbl names the top-left cell of its Table record.
+                    let [_, row_lo, row_hi, column_lo, column_hi] = rgce else {
+                        return Err(fail("a malformed PtgTbl".into()));
+                    };
+                    let anchor = (
+                        u16::from_le_bytes([*row_lo, *row_hi]),
+                        u16::from_le_bytes([*column_lo, *column_hi]),
+                    );
+                    let table = tables.get(&anchor).ok_or_else(|| fail(format!(
+                        "a PtgTbl naming row {} column {}, where no data table is",
+                        u32::from(anchor.0) + 1,
+                        u32::from(anchor.1) + 1,
+                    )))?;
+                    if !table.rows.contains(&row) || !table.columns.contains(&column) {
+                        return Err(fail("a PtgTbl outside the data table it names".into()));
+                    }
+                    if (row, column) == anchor {
+                        let mut attributes = table.attributes.clone();
+                        if needs_calc { attributes.push(("ca", "1".to_owned())); }
+                        Formula::Table(attributes)
+                    } else {
+                        Formula::Member
                     }
                 } else {
                     match print(rgce, rgcb, &links, origin).map_err(|m| fail(m.0))? {

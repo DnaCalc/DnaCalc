@@ -1812,6 +1812,28 @@ fn shared_array_and_table_formulas() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn data_table_formula_must_name_a_table_covering_its_cell() {
+    let mut records = formula(10, 2, num_value(1.0), &ptg::table(10, 2), &[]);
+    records.extend(table_record((10, 10), (2, 2), 0, (0, 0), (0, 0)));
+    for (tokens, expected) in [
+        (ptg::table(10, 3), "where no data table is"),
+        (ptg::table(10, 2), "outside the data table"),
+        (vec![0x02], "malformed PtgTbl"),
+    ] {
+        let mut cells = records.clone();
+        cells.extend(formula(11, 2, num_value(2.0), &tokens, &[]));
+        let bytes = xls(false, &[], &[Sheet::worksheet("S", cells)]);
+        match calc_doc::open(source(&bytes), &OpenPolicy::default()) {
+            Err(OpenError::LegacyWorkbook { detail, .. }) => {
+                assert!(detail.contains(expected) && detail.contains("formula of C12"), "{detail}");
+            }
+            _ => panic!("expected a data-table formula refusal for {expected}"),
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn array_recalculation_flag_survives_conversion() {
     for needs_calc in [false, true] {
         let mut records = formula(0, 0, num_value(1.0), &ptg::exp(0, 0), &[]);
