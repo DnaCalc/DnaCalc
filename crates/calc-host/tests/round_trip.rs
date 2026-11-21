@@ -13240,6 +13240,66 @@ fn dc_971p__numeric_row_sort_is_stable_moves_formats_and_round_trips_one_history
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_64__sorts_a_range_tiled_by_uniform_horizontal_merges() {
+    use calc_host::{SortKey, WorkbookCommand};
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        xml.replace(
+            "</worksheet>",
+            concat!(
+                r#"<mergeCells count="4"><mergeCell ref="A1:B1"/><mergeCell ref="C1:D1"/>"#,
+                r#"<mergeCell ref="A2:B2"/><mergeCell ref="C2:D2"/></mergeCells></worksheet>"#,
+            ),
+        )
+    });
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    for (address, input) in [("A1", "=C1+10"), ("C1", "2"), ("A2", "=C2+20"), ("C2", "1")] {
+        assert!(enter(&mut book, at(s, address), input).accepted());
+    }
+    let merges = book.host().merged_areas(s);
+    assert_eq!(merges.len(), 4);
+    let sort = |book: &mut HostSession, first, last, column| {
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows {
+            area: GridArea::new(at(s, first), at(s, last)).unwrap(),
+            keys: vec![SortKey {
+                column,
+                descending: false,
+            }],
+            header: false,
+            revision,
+        }))
+    };
+    let revision = book.host().revision();
+    for (first, last, column, reason) in [
+        ("B1", "D2", 3, "identically sized"),
+        ("A1", "C2", 3, "identically sized"),
+        ("A1", "E2", 3, "identically sized"),
+        ("A1", "D2", 4, "covered column"),
+    ] {
+        let refused = sort(&mut book, first, last, column);
+        assert!(refused.error.unwrap().to_string().contains(reason));
+        assert_eq!(book.host().revision(), revision);
+    }
+    let sorted = sort(&mut book, "A1", "D2", 3);
+    assert!(sorted.accepted(), "{sorted:?}");
+    let moved = calc_host::interpret_entry("=C1+20").unwrap();
+    assert_eq!(book.host().model().cell(at(s, "A1")), moved.as_ref());
+    assert_eq!(book.host().merged_areas(s), merges);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    let original = calc_host::interpret_entry("=C1+10").unwrap();
+    assert_eq!(book.host().model().cell(at(s, "A1")), original.as_ref());
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = open(&saved);
+    let s = reopened.sheets()[0].id();
+    assert_eq!(reopened.model().cell(at(s, "A1")), moved.as_ref());
+    assert_eq!(reopened.merged_areas(s).len(), 4);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p__numeric_sort_refusals_preserve_inputs_styles_and_revision() {
     use calc_host::{SheetChange, WorkbookCommand};
     let mut book = session(&calc_host::blank_package());

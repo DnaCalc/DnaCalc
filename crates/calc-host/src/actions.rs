@@ -1190,13 +1190,7 @@ fn sort_rows(
         area.last(),
     )
     .unwrap();
-    if host
-        .merged_areas(area.sheet())
-        .iter()
-        .any(|a| a.intersection(data).is_some())
-    {
-        return Err(unavailable("merged cells"));
-    }
+    check_sorted_merges(host, data, keys)?;
     for table in host
         .model()
         .definitions()
@@ -1517,6 +1511,39 @@ fn sort_rows(
     }
     crate::copy_metadata::permute_rows(host, data, &rows, &mut edits).map_err(|e| e.to_string())?;
     Ok(edits)
+}
+
+fn check_sorted_merges(host: &HostState, data: GridArea, keys: &[SortKey]) -> Result<(), String> {
+    let merges = host.merged_areas(data.sheet());
+    let mut merges = merges.iter().filter(|area| area.intersection(data).is_some());
+    let Some(first) = merges.next() else {
+        return Ok(());
+    };
+    let width = first.column_count();
+    let start = data.first().column();
+    let mut anchors = BTreeSet::new();
+    // Excel admits a range tiled by identical merges. For horizontal tiles the
+    // row permutation leaves every merge rectangle in place.
+    for area in std::iter::once(first).chain(merges) {
+        if area.row_count() != 1 {
+            return Err("Sorting merged cells that span rows is not modelled (dc-971p.64)".into());
+        }
+        if area.column_count() != width
+            || !data.contains(area.first())
+            || !data.contains(area.last())
+            || (area.first().column() - start) % width != 0
+            || !anchors.insert(area.first())
+        {
+            return Err("Sorting requires identically sized merged cells that fill the range".into());
+        }
+    }
+    if anchors.len() as u64 * u64::from(width) != data.cell_count() {
+        return Err("Sorting requires identically sized merged cells that fill the range".into());
+    }
+    if keys.iter().any(|key| (key.column - start) % width != 0) {
+        return Err("Sorting by a covered column of a merged cell is not modelled (dc-971p.64)".into());
+    }
+    Ok(())
 }
 
 // Qualified relative references have distinct Excel sort behaviour. The only newly
