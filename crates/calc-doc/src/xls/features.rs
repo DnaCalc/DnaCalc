@@ -580,10 +580,20 @@ impl Features {
                     0x03, 0x03, 0, 0, 0, 0, 0, 0, 0xC0, 0, 0, 0, 0, 0, 0, 0x46,
                 ];
                 if clsid == URL {
-                    // A length in bytes, then the URL as UTF-16 with its NUL, then optional extras.
+                    // MS-OSHARED 2.3.7.6: the byte count can include 24 bytes of serialization
+                    // fields after the terminated UTF-16 URL. The hyperlink's location follows
+                    // the whole moniker.
                     let length = c.u32(what).map_err(e)? as usize;
-                    let units = length.min(c.remaining()) / 2;
-                    link.target = Some(read_string(c, units, what)?);
+                    if length % 2 != 0 {
+                        return Err("an odd-length URL moniker".into());
+                    }
+                    let units = c.units(length / 2, what).map_err(e)?;
+                    let end = units.iter().position(|&unit| unit == 0)
+                        .ok_or("an unterminated URL moniker")?;
+                    if !matches!(units.len() - end - 1, 0 | 12) {
+                        return Err("an invalid URL moniker serialization length".into());
+                    }
+                    link.target = Some(String::from_utf16_lossy(&units[..end]));
                 } else if clsid == FILE {
                     let up = usize::from(c.u16(what).map_err(e)?);
                     let length = c.u32(what).map_err(e)? as usize;

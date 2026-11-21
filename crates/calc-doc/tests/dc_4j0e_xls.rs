@@ -2590,6 +2590,37 @@ fn file_moniker_keeps_parent_directory_indicators() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn url_moniker_serialization_fields_stay_out_of_the_target() {
+    let target = "https://example.test/report.xlsx";
+    let mut link = hlink_url((0, 0), target, None, Some("Data!B4"));
+    let length_at = 52; // BIFF header, HLINK range, GUIDs, version and flags
+    let length = u32::from_le_bytes(link[length_at..length_at + 4].try_into().unwrap());
+    let trailer = [
+        0x79, 0x58, 0x81, 0xF4, 0x3B, 0x1D, 0x7F, 0x48, 0xAF, 0x2C, 0x82, 0x5D, 0xC4, 0x85, 0x27, 0x63,
+        0, 0, 0, 0, // serialization version
+        0, 0, 0, 0, // URI creation flags
+    ];
+    let end = length_at + 4 + length as usize;
+    link.splice(end..end, trailer);
+    link[length_at..length_at + 4].copy_from_slice(&(length + 24).to_le_bytes());
+    let bytes = xls(false, &[], &[Sheet::worksheet("S", record(0x01B8, &link[4..]))]);
+
+    let check = |document: &calc_doc::OpenedDocument| {
+        let rels = document.package().read_part("xl/worksheets/_rels/sheet1.xml.rels").unwrap();
+        let sheet = document.package().read_part("xl/worksheets/sheet1.xml").unwrap();
+        assert!(String::from_utf8(rels).unwrap().contains(&format!("Target=\"{target}\"")));
+        assert!(String::from_utf8(sheet).unwrap().contains("location=\"Data!B4\""));
+    };
+    let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
+    check(&document);
+    let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
+    let mut saved = Vec::new();
+    calc_doc::write(plan, &mut saved).unwrap();
+    check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn comments_are_read_from_note_obj_and_txo_records() {
     let mut r = Vec::new();
     r.extend(number(0, 0, 1.0));
