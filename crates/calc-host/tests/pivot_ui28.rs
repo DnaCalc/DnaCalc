@@ -48,6 +48,12 @@ enum Cell {
     Boolean(bool),
     Error(String),
 }
+fn same_cell_bits(expected: &Cell, actual: Option<&Cell>) -> bool {
+    match (expected, actual) {
+        (Cell::Number(want), Some(Cell::Number(got))) => want.to_bits() == got.to_bits(),
+        _ => actual == Some(expected),
+    }
+}
 fn expected() -> BTreeMap<String, BTreeMap<String, Cell>> {
     let mut out: BTreeMap<String, BTreeMap<String, Cell>> = BTreeMap::new();
     for line in EXCEL.lines().filter(|l| !l.is_empty()) {
@@ -974,6 +980,7 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
                     | "group-number-clean"
                     | "group-number-units"
                     | "group-text-items"
+                    | "nodata-nullstring"
                     | "nodata-rows"
                     | "nodata-two-row-fields"
                     | "prec-grand-only"
@@ -991,6 +998,7 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
                     | "sort-by-value-desc"
                     | "sort-by-value-inner"
                     | "sort-by-value-ties"
+                    | "subtotals-all-eleven"
                     | "subtotals-multiple-compact"
                     | "subtotals-multiple-outline-bottom"
                     | "subtotals-multiple-outline-top"
@@ -1034,6 +1042,7 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
                     | "group-number-clean"
                     | "group-number-units"
                     | "group-text-items"
+                    | "nodata-nullstring"
                     | "nodata-rows"
                     | "nodata-two-row-fields"
                     | "prec-grand-only"
@@ -1051,6 +1060,7 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
                     | "sort-by-value-desc"
                     | "sort-by-value-inner"
                     | "sort-by-value-ties"
+                    | "subtotals-all-eleven"
                     | "subtotals-multiple-compact"
                     | "subtotals-multiple-outline-bottom"
                     | "subtotals-multiple-outline-top"
@@ -1104,7 +1114,7 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
             ));
             if matches!(
                 stage.as_str(),
-                "subtotals-all-eleven" | "agg-two-level-columns" | "prec-all-functions"
+                "agg-two-level-columns" | "prec-all-functions"
             ) {
                 assert!(
                     !receipt.accepted(),
@@ -1162,13 +1172,21 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
                     .unwrap_or(0)
                     .max(60);
                 let got = held(&book, sheet, width, 120);
-                if got == *want {
+                let exact = matches!(stage.as_str(), "nodata-nullstring" | "subtotals-all-eleven");
+                let agrees = |expected, actual| {
+                    if exact {
+                        same_cell_bits(expected, actual)
+                    } else {
+                        actual == Some(expected)
+                    }
+                };
+                if got.len() == want.len() && want.iter().all(|(k, v)| agrees(v, got.get(k))) {
                     matched.push(stage.clone());
                     "matched".into()
                 } else {
                     let diff = want
                         .iter()
-                        .filter(|(k, v)| got.get(*k) != Some(*v))
+                        .filter(|(k, v)| !agrees(v, got.get(*k)))
                         .map(|(k, v)| format!("{k}: want {v:?} got {:?}", got.get(k)))
                         .chain(
                             got.keys()
@@ -1229,6 +1247,7 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
             "missing-items-refresh-added",
             "missing-items-refresh-default",
             "missing-items-refresh-none",
+            "nodata-nullstring",
             "nodata-rows",
             "nodata-rows-hidden",
             "nodata-two-row-fields",
@@ -1262,6 +1281,7 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
             "sort-by-value-desc",
             "sort-by-value-inner",
             "sort-by-value-ties",
+            "subtotals-all-eleven",
             "subtotals-multiple-compact",
             "subtotals-multiple-outline-bottom",
             "subtotals-multiple-outline-top",
@@ -1296,6 +1316,7 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
         "pvt_group_number_clean",
         "pvt_group_number_units",
         "pvt_group_text_items",
+        "pvt_nodata_nullstring",
         "pvt_nodata_rows",
         "pvt_nodata_two_row_fields",
         "pvt_prec_grand_only",
@@ -1313,6 +1334,7 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
         "pvt_sort_by_value_desc",
         "pvt_sort_by_value_inner",
         "pvt_sort_by_value_ties",
+        "pvt_subtotals_all_eleven",
         "pvt_subtotals_multiple_compact",
         "pvt_subtotals_multiple_outline_bottom",
         "pvt_subtotals_multiple_outline_top",
@@ -1386,6 +1408,7 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
                 | "pvt_group_number_clean"
                 | "pvt_group_number_units"
                 | "pvt_group_text_items"
+                | "pvt_nodata_nullstring"
                 | "pvt_nodata_rows"
                 | "pvt_nodata_two_row_fields"
                 | "pvt_prec_grand_only"
@@ -1403,6 +1426,7 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
                 | "pvt_sort_by_value_desc"
                 | "pvt_sort_by_value_inner"
                 | "pvt_sort_by_value_ties"
+                | "pvt_subtotals_all_eleven"
                 | "pvt_subtotals_multiple_compact"
                 | "pvt_subtotals_multiple_outline_bottom"
                 | "pvt_subtotals_multiple_outline_top"
@@ -1456,6 +1480,7 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
         ("pvt_group_text_items", "group-text-items"),
         ("pvt_group_number_clean", "group-number-clean"),
         ("pvt_group_number_units", "group-number-units"),
+        ("pvt_nodata_nullstring", "nodata-nullstring"),
         ("pvt_nodata_rows", "nodata-rows"),
         ("pvt_nodata_two_row_fields", "nodata-two-row-fields"),
         ("pvt_prec_grand_only", "prec-grand-only"),
@@ -1485,6 +1510,7 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
         ("pvt_sort_by_value_desc", "sort-by-value-desc"),
         ("pvt_sort_by_value_inner", "sort-by-value-inner"),
         ("pvt_sort_by_value_ties", "sort-by-value-ties"),
+        ("pvt_subtotals_all_eleven", "subtotals-all-eleven"),
         (
             "pvt_subtotals_multiple_compact",
             "subtotals-multiple-compact",
@@ -1532,11 +1558,16 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
                 ))
                 .accepted()
         );
-        assert_eq!(
-            held(&reopened, sheet, 60, 120),
-            expected[stage],
-            "{name} after save and refresh"
-        );
+        let got = held(&reopened, sheet, 60, 120);
+        assert_eq!(got, expected[stage], "{name} after save and refresh");
+        if matches!(stage, "nodata-nullstring" | "subtotals-all-eleven") {
+            for (address, want) in &expected[stage] {
+                assert!(
+                    same_cell_bits(want, got.get(address)),
+                    "{name} {address} differs from Excel after save and refresh"
+                );
+            }
+        }
     }
 }
 
@@ -2674,15 +2705,9 @@ fn dc_8wp_6__compact_rows_with_values_on_columns_refresh() {
             .tables[0];
         let last = refreshed.area.last();
         let got = held(&book, sheet, last.column(), last.row());
-        let first_difference =
-            expected
-                .iter()
-                .find(|(address, value)| match (value, got.get(*address)) {
-                    (Cell::Number(want), Some(Cell::Number(got))) => {
-                        want.to_bits() != got.to_bits()
-                    }
-                    _ => got.get(*address) != Some(*value),
-                });
+        let first_difference = expected
+            .iter()
+            .find(|(address, value)| !same_cell_bits(value, got.get(*address)));
         if got.len() != expected.len() || first_difference.is_some() {
             failures.push(format!(
                 "{stage}: want {} cells, got {}; first difference {first_difference:?}",

@@ -153,4 +153,26 @@ boundary splits a UTF-8 character or line, align the read to a complete characte
 or line and keep the adjacent context. Model execution and reconciliation with
 the earlier spot-check corrections belong to dc-zuwqx.2. That spot-check reported
 641 classified rows in dc-zuwqx.3 and named the corrected TSV in the fd2 run
-directory. The files themselves were unavailable in fd1.
+directory.
+
+## Reviewed classification
+
+The reviewed whole-tree classification is in [classified.tsv](classified.tsv) (3,031 rows
+in exact [inventory](inventory.tsv) order), with per-batch provenance in
+[batch-log.tsv](batch-log.tsv) across all 223 batches (`b001`–`b223`). It merges:
+- 604 queued paths and 24 `reference/`/`research/` paths from the recovered dc-zuwqx.3
+  spot-check (`fd1` Gemini 4 Neon + `fd2` Opus 5.5 corrections, with `superseded`
+  mapped to `duplicate-of-DnaCalc` per the vocabulary above);
+- 398 remaining queued paths (`b001`–`b223`) reviewed on lane `fc1` (Gemini 4 Hydrogen)
+  against `Foundation@4736b348` and DnaCalc `docs/plan/`;
+- 2,005 resolved sample, exact-blob, and data-pointer rows from [triage.tsv](triage.tsv).
+
+| Class | Paths |
+| --- | ---: |
+| `data-keep` | 2,137 |
+| `obsolete` | 580 |
+| `data-drop` | 219 |
+| `history` | 54 |
+| `duplicate-of-DnaCalc` | 27 |
+| `migrate` | 14 |
+| Total | 3,031 |

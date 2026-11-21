@@ -1,5 +1,21 @@
 use super::*;
 
+// Field flag, saved item type, Excel caption, aggregation.
+type CustomSubtotal = (&'static str, &'static str, &'static str, &'static str);
+const CUSTOM_SUBTOTALS: [CustomSubtotal; 11] = [
+    ("sumSubtotal", "sum", "Sum", "sum"),
+    ("countASubtotal", "countA", "Count", "count"),
+    ("avgSubtotal", "avg", "Average", "average"),
+    ("maxSubtotal", "max", "Max", "max"),
+    ("minSubtotal", "min", "Min", "min"),
+    ("productSubtotal", "product", "Product", "product"),
+    ("countSubtotal", "count", "Count", "countNums"),
+    ("stdDevSubtotal", "stdDev", "StdDev", "stdDev"),
+    ("stdDevPSubtotal", "stdDevP", "StdDevp", "stdDevp"),
+    ("varSubtotal", "var", "Var", "var"),
+    ("varPSubtotal", "varP", "Varp", "varp"),
+];
+
 fn plain_text(s: &str) -> CalcValue {
     CalcValue::text(ExcelText::from_utf16_code_units(s.encode_utf16().collect()))
 }
@@ -59,7 +75,7 @@ pub(super) struct Walk<'a> {
     pub(super) axis: Vec<PivotAxisItem>,
     /// Output rows that carry a value and the field-item path defining their total.
     pub(super) row_paths: Vec<(u32, Vec<usize>, Option<usize>, Option<&'static str>)>,
-    pub(super) custom_subtotals: bool,
+    custom_subtotals: &'a [CustomSubtotal],
     pub(super) sort_inner_ascending: Option<bool>,
     pub(super) collect_paths: bool,
     pub(super) values_level: Option<usize>,
@@ -161,7 +177,8 @@ impl AxisVisitor for Walk<'_> {
             Form::Compact | Form::Outline => {
                 self.cells
                     .insert((self.r, label_column), group_label(group)?);
-                if self.subtotal_top && self.subtotal_on[level] && !self.custom_subtotals {
+                if self.subtotal_top && self.subtotal_on[level] && self.custom_subtotals.is_empty()
+                {
                     self.cells.insert((self.r, self.value_column), total);
                     if self.collect_paths {
                         self.row_paths.push((self.r, path.to_vec(), None, None));
@@ -183,20 +200,14 @@ impl AxisVisitor for Walk<'_> {
         }
         let g = path[level];
         let x = self.position[level][g].expect("visible group");
-        if self.custom_subtotals && level == 0 {
+        if !self.custom_subtotals.is_empty() && level == 0 {
             let group = &self.levels[level][g];
             let label_column = if self.form == Form::Compact {
                 0
             } else {
                 level as u32
             };
-            for (item_kind, caption, calculation) in [
-                ("sum", "Sum", "sum"),
-                ("countA", "Count", "count"),
-                ("avg", "Average", "average"),
-                ("max", "Max", "max"),
-                ("min", "Min", "min"),
-            ] {
+            for &(_, item_kind, caption, calculation) in self.custom_subtotals {
                 self.cells.insert(
                     (self.r, label_column),
                     plain_text(&format!("{} {caption}", label_text(group)?)),
@@ -540,6 +551,22 @@ pub(super) fn render_axes(
             .map(|item| item.kind.as_str())
             .collect::<Vec<_>>()
     };
+    let subtotal_count = table.fields.get(row).map_or(0, |field| {
+        field
+            .attributes
+            .iter()
+            .filter(|(name, value)| {
+                name.ends_with("Subtotal")
+                    && name.as_str() != "defaultSubtotal"
+                    && truthy(Some(value), false)
+            })
+            .count()
+    });
+    let subtotal_list = match subtotal_count {
+        5 => &CUSTOM_SUBTOTALS[..5],
+        11 if rows_only => &CUSTOM_SUBTOTALS[..],
+        _ => &[],
+    };
     let custom = row_fields.len() == 2
         && row_values.is_none()
         && table.fields.len() == cache.fields.len()
@@ -554,28 +581,16 @@ pub(super) fn render_axes(
                 && table.fields[field].items.iter().all(|item| !item.hidden)
                 && !truthy(table.fields[field].attributes.get("insertBlankRow"), false)
         })
-        && custom_subtotal(row_fields[0])
         && !custom_subtotal(row_fields[1])
-        && [
-            "sumSubtotal",
-            "countASubtotal",
-            "avgSubtotal",
-            "maxSubtotal",
-            "minSubtotal",
-        ]
-        .iter()
-        .all(|name| truthy(table.fields[row_fields[0]].attributes.get(*name), false))
-        && table.fields[row_fields[0]]
-            .attributes
+        && !subtotal_list.is_empty()
+        && subtotal_list
             .iter()
-            .filter(|(name, value)| {
-                name.ends_with("Subtotal")
-                    && name.as_str() != "defaultSubtotal"
-                    && truthy(Some(value), false)
-            })
-            .count()
-            == 5
-        && selected_subtotals(row_fields[0]) == ["sum", "countA", "avg", "max", "min"];
+            .all(|(flag, _, _, _)| truthy(table.fields[row].attributes.get(*flag), false))
+        && selected_subtotals(row)
+            .into_iter()
+            .eq(subtotal_list.iter().map(|&(_, item, _, _)| item));
+    let custom_subtotals = if custom { subtotal_list } else { &[] };
+    let product_subtotals = custom_subtotals.iter().any(|entry| entry.3 == "product");
     if (multiple_rows && show != "normal" && !parent_percent)
         || (multiple_rows
             && row_values.is_none()
@@ -1059,6 +1074,7 @@ pub(super) fn render_axes(
     let mut row_ids = BTreeMap::<Vec<usize>, usize>::new();
     let mut row_totals: Vec<BTreeMap<Vec<usize>, Total>> =
         (0..row_fields.len()).map(|_| BTreeMap::new()).collect();
+    let mut subtotal_records = BTreeMap::<Vec<usize>, Vec<&PivotItem>>::new();
     for record in &snapshot.records {
         if !page_allows(table, cache, record)? {
             continue;
@@ -1112,6 +1128,12 @@ pub(super) fn render_axes(
                 return Err(bad("The pivot has too many column combinations"));
             }
             let value = resolve(cache, record, data.field as usize)?;
+            if product_subtotals {
+                subtotal_records
+                    .entry(row_path.clone())
+                    .or_default()
+                    .push(value);
+            }
             let mut row_keys = Vec::with_capacity(row_path.len());
             if multiple_rows {
                 for (depth, totals) in row_totals.iter_mut().enumerate() {
@@ -1158,6 +1180,34 @@ pub(super) fn render_axes(
     if custom && totals.values().any(|total| total.source_error().is_some()) {
         return Err(bad("Source errors with custom subtotals are not modelled"));
     }
+    if custom
+        && row_totals[0].values().any(|total| {
+            custom_subtotals
+                .iter()
+                .any(|&(_, _, _, kind)| kind != "product" && !total.supports(kind))
+        })
+    {
+        return Err(bad(
+            "This numeric input for custom subtotals is not modelled",
+        ));
+    }
+    // The captured Product subtotal visits the children in displayed order,
+    // multiplying the individual records within each child in source order.
+    let mut subtotal_products = BTreeMap::<usize, Total>::new();
+    for (path, records) in subtotal_records {
+        let total = subtotal_products.entry(path[0]).or_default();
+        for value in records {
+            total.push(value)?;
+        }
+    }
+    if subtotal_products
+        .values()
+        .any(|total| !total.supports("product"))
+    {
+        return Err(bad(
+            "This numeric input for Product subtotals is not modelled",
+        ));
+    }
     if inner_sort {
         let mut siblings = BTreeMap::<usize, Vec<f64>>::new();
         for (path, total) in &row_totals[1] {
@@ -1201,7 +1251,8 @@ pub(super) fn render_axes(
             }
         }
     }
-    if super::records::show_all_mode(table) {
+    let show_all = super::records::show_all_mode(table);
+    if show_all {
         if totals.is_empty() {
             return Err(bad("No selected source records are not modelled"));
         }
@@ -2055,7 +2106,7 @@ pub(super) fn render_axes(
             axis: Vec::new(),
             row_paths: Vec::new(),
             collect_paths: true,
-            custom_subtotals: custom,
+            custom_subtotals,
             sort_inner_ascending: inner_sort.then(|| {
                 table.fields[row_fields[1]]
                     .attributes
@@ -2102,6 +2153,13 @@ pub(super) fn render_axes(
                                 _ => CalcValue::empty(),
                             }
                         }
+                    } else if subtotal_kind == Some("product") {
+                        let product = subtotal_products[&path[0]].result("product");
+                        if matches!(product.core_ref(), calc_value::CoreRef::Number(0.0)) {
+                            CalcValue::number(0.0)
+                        } else {
+                            product
+                        }
                     } else {
                         total.result(subtotal_kind.unwrap_or(&table.data_fields[measure].subtotal))
                     };
@@ -2114,7 +2172,7 @@ pub(super) fn render_axes(
     } else {
         for (i, group) in rows.iter().enumerate().filter(|(_, g)| !g.hidden) {
             if !totals.contains_key(&(i, Vec::new(), 0))
-                && !super::records::show_all_mode(table)
+                && !show_all
                 && calculated_item.is_none_or(|item| group.shared != item.item)
             {
                 continue;
@@ -2323,9 +2381,21 @@ pub(super) fn render_axes(
     if !rows_only {
         next.col_items = col_items;
     }
+    // The measured Sum layout exposes zero in Value2 for empty intersections when
+    // a custom missing-value caption is enabled. The caption is display metadata.
+    let missing_as_zero = show_all
+        && table.attributes.contains_key("missingCaption")
+        && truthy(table.attributes.get("showMissing"), true);
     for row in 0..r {
         for col in 0..(label_width + columns.len() as u32) {
-            cells.entry((row, col)).or_insert_with(CalcValue::empty);
+            let value = cells.entry((row, col)).or_insert_with(CalcValue::empty);
+            if missing_as_zero
+                && row >= header
+                && col >= label_width
+                && matches!(value.core_ref(), calc_value::CoreRef::Empty)
+            {
+                *value = CalcValue::number(0.0);
+            }
         }
     }
     let cells = cells
