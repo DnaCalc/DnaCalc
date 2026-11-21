@@ -14345,14 +14345,11 @@ pub(crate) const CALC_CASES: &[Case] = &[
                 "A1:D20",
             ),
             Check::Count("[data-dnacalc=print-page][data-range='A21:D60']", 1),
-            // Excel prints a default 64 px column as 430 device pixels (UI27). The row-heading
-            // strip is 47 device pixels a digit (at least three digits) plus 32, measured in
-            // Excel (dc-ui30 P3/P4, commit 32c75a01; column strip cf6847cc). With that strip,
-            // the repeated column A and nine columns of 430 fit across the 7.5 inch page:
-            // E1:M20 then N1:T20. dcb24f61 asserted eight columns before those strip sizes
-            // were measured.
-            Check::Count("[data-dnacalc=print-page][data-range='E1:M20']", 1),
-            Check::Count("[data-dnacalc=print-page][data-range='N1:T20']", 1),
+            // The blank workbook uses Calibri 11. PB1 bounds each default 64 px column
+            // to 459–460 printer pixels. At 600 dpi the 7.5 inch page fits the 173 px
+            // row-heading strip (UI30 P3), the repeated column A and eight body columns.
+            Check::Count("[data-dnacalc=print-page][data-range='E1:L20']", 1),
+            Check::Count("[data-dnacalc=print-page][data-range='M1:T20']", 1),
             Check::Text("[data-page='1'] [data-dnacalc=print-header]", "First 1 / 6"),
             Check::Text("[data-page='2'] [data-dnacalc=print-header]", "Even 2"),
             Check::Text("[data-page='3'] [data-dnacalc=print-header]", "Page 3 of 6"),
