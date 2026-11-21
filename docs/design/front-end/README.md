@@ -9,6 +9,8 @@ Owner, 2026-11-20 evening: "gather everything (the designs work, brief, skin dis
 3. **A review of every feature** against the design. What the apps do today, what the design adds, and what changes.
 4. **Planning the skin architecture.** This is the second document: the internal implementation, cleanup and refactor plan. It is [docs/plan/FRONT_END_IMPLEMENTATION_BRIEF.md](../../plan/FRONT_END_IMPLEMENTATION_BRIEF.md), which takes the design as its requirements.
 
+5. **FerroUI as the native (and browser) front end.** A performance and fit evaluation against today's Leptos/WebView2 app: beads dc-etcxb.1-.3, report `ferroui-eval.md` in this folder once the lane fu1 and the Windows run finish.
+
 ## The sources
 
 **Our own framing**
