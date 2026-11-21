@@ -412,8 +412,13 @@ fn type_code(site: &Site<'_>, value: &CalcValue) -> Step<f64> {
 /// `@`, and reads its first cell in a legacy formula placed within the range's rows and in a
 /// dynamic-array formula alike. Computed subnormals retain their bits (dc-1943 Q1).
 fn n(arguments: &[CalcValue], services: &mut EvalServices<'_>) -> Result<CalcValue, FunctionFault> {
+    // Excel 16.0.20527 gives #VALUE! for a group array taken out of its cell boxed (dc-h9u).
+    let argument = &arguments[0];
+    if argument.callable_value().is_none() && argument.as_array().is_some_and(CalcArray::is_boxed) {
+        return Ok(CalcValue::error(WorksheetErrorCode::Value));
+    }
     let site = Site::new(N, services);
-    Site::finish(each(&site, &arguments[0], services, n_of))
+    Site::finish(each(&site, argument, services, n_of))
 }
 
 /// N of one argument or array element.

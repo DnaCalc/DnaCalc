@@ -444,7 +444,7 @@ fn aggregate(
         return Ok(CalcValue::error(W::Calc));
     }
     Ok(match result.core_ref() {
-        CoreRef::Array(array) => CalcValue::array(array.clone()),
+        CoreRef::Array(array) => CalcValue::array(array.clone().held_in_group_cell()),
         CoreRef::Reference(_) => CalcValue::error(W::Value),
         CoreRef::Missing => CalcValue::empty(),
         _ => result,

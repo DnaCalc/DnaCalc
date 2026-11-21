@@ -1981,9 +1981,14 @@ impl Run<'_, '_> {
                 cells.push(lifted_element(value));
             }
         }
-        Ok(CalcValue::array(
-            CalcArray::new(shape, cells).expect("one result per cell of the shape"),
-        ))
+        let array = CalcArray::new(shape, cells).expect("one result per cell of the shape");
+        Ok(CalcValue::array(if target.0.notation() == calc_func::Notation::Call {
+            array
+        } else {
+            // A lifted operator builds an array that INDEX can spill if a group LAMBDA
+            // returns it. The group argument itself stays boxed (dc-h9u).
+            array.computed_for_group_index()
+        }))
     }
 
     /// Runs the lazy entry `target` once on values already evaluated.

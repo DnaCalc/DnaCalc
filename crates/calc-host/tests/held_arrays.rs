@@ -8,10 +8,11 @@
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
 
-use calc_host::value::{CellKey, CoreRef, WorksheetErrorCode};
+use calc_doc_model::{CellInput, FormulaForm, FormulaText};
+use calc_host::value::{CellKey, CoreRef, ExcelText, WorksheetErrorCode};
 use calc_host::{
-    CalcMode, HostOptions, HostSession, MemorySource, OpenPolicy, PackageRead, ProjectedValue,
-    ProjectionRequest, SkinIntent, project,
+    CalcMode, CellEdit, HostOptions, HostSession, MemorySource, OpenPolicy, PackageRead,
+    ProjectedValue, ProjectionRequest, SkinIntent, project,
 };
 use std::sync::Arc;
 
@@ -252,4 +253,78 @@ fn dc_h9u__a_groupby_cell_holds_its_lambdas_array() {
             "row {row}, column {column}"
         );
     }
+}
+
+// Excel 16.0.20527 through COM, recorded in dc-h9u on 2026-10-30.
+fn check_groupby_cell(formula: String, expected: &[(u32, u32, &str)]) {
+    let source = Arc::new(MemorySource::new(calc_host::blank_package()));
+    let mut session = HostSession::open(
+        source,
+        &OpenPolicy::default(),
+        HostOptions {
+            calc_mode: Some(CalcMode::Automatic),
+            ..Default::default()
+        },
+    )
+    .expect("a new workbook opens");
+    let sheet = session.host().sheets()[0].id();
+    let at = |row, column| CellKey::new(sheet, row, column).expect("a cell");
+    let input = FormulaText::with_form(
+        ExcelText::from_interop_assignment(&formula),
+        FormulaForm::Dynamic,
+    )
+    .expect("a Formula2 entry");
+    assert!(
+        session
+            .dispatch(SkinIntent::Edit {
+                edits: vec![CellEdit::Set {
+                    at: at(1, 1),
+                    input: CellInput::Formula(input),
+                }],
+            })
+            .accepted(),
+        "={formula}"
+    );
+    for &(row, column, value) in expected {
+        assert_eq!(
+            shown(&session, at(row, column)),
+            value,
+            "={formula} at ({row}, {column})"
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_h9u__n_of_a_boxed_group_is_value_error() {
+    check_groupby_cell(format!("N(INDEX({G},1,2))"), &[(1, 1, "Value")]);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_h9u__index_of_a_group_column_keeps_the_array_in_its_cell() {
+    check_groupby_cell(format!("INDEX(INDEX({G},0,2),1)"), &[(1, 1, "Value")]);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_h9u__index_of_a_computed_group_spills() {
+    check_groupby_cell(
+        format!("INDEX({},1,2)", G.replace("LAMBDA(x,x)", "LAMBDA(x,x+0)")),
+        &[(1, 1, "1"), (2, 1, "3")],
+    );
+    check_groupby_cell(
+        format!(
+            "INDEX({},1,2)",
+            G.replace("LAMBDA(x,x)", "LAMBDA(x,TRANSPOSE(x))")
+        ),
+        &[(1, 1, "1"), (1, 2, "3")],
+    );
+    check_groupby_cell(
+        format!(
+            "INDEX({},1,2)",
+            G.replace("LAMBDA(x,x)", "LAMBDA(x,FILTER(x,x>0))")
+        ),
+        &[(1, 1, "1"), (2, 1, "3")],
+    );
 }

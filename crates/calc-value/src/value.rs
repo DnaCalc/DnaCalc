@@ -144,12 +144,33 @@ impl ArrayShape {
 /// A boxed array ([`CalcArray::boxed`]) is an array taken out of such a cell (INDEX of the cell):
 /// Excel 16.0.20527 (2026-10-30) shows its first element and spills nothing, takes its first
 /// element where one value is taken (`=INDEX(g,1,2)*10` is 10, TYPE gives the first element's
-/// type) and the whole array where an array is taken (ROWS, SUM, VSTACK).
-#[derive(Clone, Debug, PartialEq)]
+/// type) and the whole array where an array is taken (ROWS, SUM, VSTACK). A group LAMBDA can
+/// also produce an array that INDEX returns unboxed, so it can spill.
+#[derive(Clone, Debug)]
 pub struct CalcArray {
     shape: ArrayShape,
     cells: Arc<[CalcValue]>,
-    boxed: bool,
+    exposure: ArrayExposure,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ArrayExposure {
+    Ordinary,
+    Boxed,
+    Computed,
+    SpillWhenIndexed,
+}
+
+impl PartialEq for CalcArray {
+    fn eq(&self, other: &Self) -> bool {
+        // The origin of an ordinary array changes its exposure only once GROUPBY or
+        // PIVOTBY holds it in a cell.
+        let exposure = |array: &Self| match array.exposure {
+            ArrayExposure::Computed => ArrayExposure::Ordinary,
+            exposure => exposure,
+        };
+        self.shape == other.shape && exposure(self) == exposure(other) && self.cells == other.cells
+    }
 }
 
 impl CalcArray {
@@ -162,7 +183,7 @@ impl CalcArray {
         Some(CalcArray {
             shape,
             cells: cells.into(),
-            boxed: false,
+            exposure: ArrayExposure::Ordinary,
         })
     }
 
@@ -171,7 +192,7 @@ impl CalcArray {
         CalcArray {
             shape: ArrayShape { rows: 1, cols: 1 },
             cells: Arc::from([value]),
-            boxed: false,
+            exposure: ArrayExposure::Ordinary,
         }
     }
 
@@ -199,13 +220,36 @@ impl CalcArray {
 
     /// This array as taken out of an array's cell (see the type's documentation).
     pub fn boxed(mut self) -> Self {
-        self.boxed = true;
+        self.exposure = ArrayExposure::Boxed;
         self
     }
 
     /// Whether this array was taken out of an array's cell (see the type's documentation).
     pub const fn is_boxed(&self) -> bool {
-        self.boxed
+        matches!(self.exposure, ArrayExposure::Boxed)
+    }
+
+    /// Record the origin of an array computed by a lifted operator, TRANSPOSE or FILTER.
+    pub fn computed_for_group_index(mut self) -> Self {
+        self.exposure = ArrayExposure::Computed;
+        self
+    }
+
+    /// Store a GROUPBY or PIVOTBY aggregation result as one cell (dc-h9u).
+    pub fn held_in_group_cell(mut self) -> Self {
+        if self.exposure == ArrayExposure::Computed {
+            self.exposure = ArrayExposure::SpillWhenIndexed;
+        }
+        self
+    }
+
+    /// Extract the array when INDEX selects its enclosing cell.
+    pub fn indexed_from_cell(mut self) -> Self {
+        self.exposure = match self.exposure {
+            ArrayExposure::SpillWhenIndexed => ArrayExposure::Computed,
+            _ => ArrayExposure::Boxed,
+        };
+        self
     }
 
     /// Whether a cell of this array holds an array (dc-h9u).
@@ -242,11 +286,11 @@ impl CalcArray {
         self.cells.iter()
     }
 
-    /// Whether both arrays have one shape and exposure ([`Self::is_boxed`]) and
+    /// Whether both arrays have the same shape, exposure, computation origin and
     /// representation-equal cells ([`CalcValue::representation_eq`]).
     pub fn representation_eq(&self, other: &Self) -> bool {
         self.shape == other.shape
-            && self.boxed == other.boxed
+            && self.exposure == other.exposure
             && self
                 .cells
                 .iter()

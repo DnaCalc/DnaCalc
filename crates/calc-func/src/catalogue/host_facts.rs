@@ -516,6 +516,7 @@ fn transpose(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Ste
         return Ok(rows.remove(0).remove(0));
     }
     CalcArray::from_rows(rows)
+        .map(CalcArray::computed_for_group_index)
         .map(CalcValue::array)
         .ok_or_else(|| site.not_modelled(None))
 }

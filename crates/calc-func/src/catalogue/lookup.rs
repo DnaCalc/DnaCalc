@@ -1457,18 +1457,21 @@ fn indexed(site: &Site<'_>, arguments: &[CalcValue]) -> Step<CalcValue> {
     // the element (dc-b1l, Excel 16.0.20527 through Touchstone, 2026-11-16:
     // `=INDEX(OFFSET(A1,{0;1;2},0),2)` is #VALUE!, `=INDEX(OFFSET(A1,{0;1;2},0),2,1)` 2 and
     // `=INDEX(OFFSET(A1,0,{0,2}),2)` 10).
-    let holds_references = matches!(grid, Grid::Array(array) if array
+    // A column of held arrays also keeps the selected row as a one-cell array when the
+    // column selector is omitted: INDEX(INDEX(GROUPBY(...),0,2),1) gives #VALUE! (dc-h9u).
+    let holds_references_or_arrays = matches!(grid, Grid::Array(array) if array
         .iter_row_major()
-        .any(|element| matches!(element.core_ref(), CoreRef::Reference(_))));
+        .any(|element| matches!(element.core_ref(), CoreRef::Reference(_))
+            || (element.as_array().is_some() && element.callable_value().is_none())));
     let (row, column) = if column_omitted {
         if rows == 1.0 {
             (1.0, row)
-        } else if columns == 1.0 && holds_references {
+        } else if columns == 1.0 && holds_references_or_arrays {
             if row > rows {
                 return Err(ref_error());
             }
             let Grid::Array(array) = grid else {
-                unreachable!("an array holds the references")
+                unreachable!("an array holds the elements")
             };
             return Ok(select(array, row as u64, 0));
         } else if columns == 1.0 {
@@ -1519,11 +1522,10 @@ fn select(array: &CalcArray, row: u64, column: u64) -> CalcValue {
             .expect("an element of the array");
         return match value.core_ref() {
             CoreRef::Missing => CalcValue::empty(),
-            // An array a cell of the array holds (a GROUPBY result's, dc-h9u) is given boxed:
-            // Excel 16.0.20527 shows `=INDEX(GROUPBY(k,v,LAMBDA(x,x)),1,2)` as the group's first
-            // value and counts the whole group in ROWS and SUM of it.
+            // Excel shows the first element of an identity or literal group array. An array a
+            // group LAMBDA computes with an operator, TRANSPOSE or FILTER can spill (dc-h9u).
             CoreRef::Array(held) if value.callable_value().is_none() => {
-                CalcValue::array(held.clone().boxed())
+                CalcValue::array(held.clone().indexed_from_cell())
             }
             _ => value.clone(),
         };

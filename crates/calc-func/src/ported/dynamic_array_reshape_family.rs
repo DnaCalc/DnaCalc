@@ -200,18 +200,15 @@ fn build_array(
     cols: usize,
     cells: Vec<CalcValue>,
 ) -> Result<CalcValue, DynamicArrayReshapeEvalError> {
-    CalcArray::new(ArrayShape { rows, cols }, cells)
-        .map(CalcValue::array)
-        .ok_or(DynamicArrayReshapeEvalError::EmptyArrayResult)
+    build_calc_array(rows, cols, cells).map(CalcValue::array)
 }
 
 fn build_calc_array(
     rows: usize,
     cols: usize,
     cells: Vec<CalcValue>,
-) -> Result<CalcValue, DynamicArrayReshapeEvalError> {
+) -> Result<CalcArray, DynamicArrayReshapeEvalError> {
     CalcArray::new(ArrayShape { rows, cols }, cells)
-        .map(CalcValue::array)
         .ok_or(DynamicArrayReshapeEvalError::EmptyArrayResult)
 }
 
@@ -694,7 +691,7 @@ pub fn eval_filter_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicArra
         for row in selected_rows {
             cells.extend(array.row_slice(row).expect("validated row").iter().cloned());
         }
-        return build_array(cells.len() / array.shape().cols, array.shape().cols, cells);
+        return filtered_array(cells.len() / array.shape().cols, array.shape().cols, cells);
     }
 
     let selected_cols: Vec<usize> = mask
@@ -718,7 +715,17 @@ pub fn eval_filter_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicArra
             cells.push(array.get(row, *col).expect("validated col").clone());
         }
     }
-    build_array(array.shape().rows, selected_cols.len(), cells)
+    filtered_array(array.shape().rows, selected_cols.len(), cells)
+}
+
+fn filtered_array(
+    rows: usize,
+    cols: usize,
+    cells: Vec<CalcValue>,
+) -> Result<CalcValue, DynamicArrayReshapeEvalError> {
+    build_calc_array(rows, cols, cells)
+        .map(CalcArray::computed_for_group_index)
+        .map(CalcValue::array)
 }
 
 fn parse_sort_order(arg: Option<&CalcValue>) -> Result<bool, DynamicArrayReshapeEvalError> {
