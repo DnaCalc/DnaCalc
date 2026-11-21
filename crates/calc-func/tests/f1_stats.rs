@@ -5971,11 +5971,8 @@ fn chi_inverse_preserves_the_small_lower_tail() {
         for (degree, bits) in [
             (30.0, 0x3ff2_66f6_c3f3_89e2),
             (355.71571246910116, 0x4066_47bd_0aae_91c6),
-            // Excel 20527 is 0x4081_9975_788e_ddeb. Under dc-j9k.60 (cb6), replacing
-            // double-double root polishing with Excel's iterative Halley solver stops
-            // +1 ULP at 0x4081_9975_788e_ddec due to a +1 ULP forward gratio_after40
-            // residual at (a=430.5, x=281.59) (owned by dc-j9k.59; no tolerance added).
-            (861.8900555521836, 0x4081_9975_788e_ddec),
+            // Excel 20527 is 0x4081_9975_788e_ddeb (restored to bit-exact by Goldstein 451 start, dc-j9k.63).
+            (861.8900555521836, 0x4081_9975_788e_ddeb),
         ] {
             exact(
                 call(

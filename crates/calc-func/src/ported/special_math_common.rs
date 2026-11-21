@@ -77,9 +77,8 @@ pub fn gamma(z: f64) -> f64 {
 //      final correction retains PC64 arithmetic through the final product.
 // ---------------------------------------------------------------------------
 
-const GRATIO_ALOG10: f64 = 2.30258509299405;
-// sqrt(pi) to binary64 for the half-integer finite sum (dc-ymjf.6).
-const GRATIO_RTPI_FULL: f64 = 1.772_453_850_905_516;
+// 1 / sqrt(pi) to binary64 for the half-integer finite sum (cb7 / dc-j9k.63).
+const GRATIO_INV_RTPI: f64 = f64::from_bits(0x3fe2_0dd7_5042_9b6d);
 // 1 / sqrt(2*pi) to binary64 for the Temme correction term.
 const TEMME_RT2PIN: f64 = f64::from_bits(0x3fd9_8845_33d4_3651);
 const GRATIO_E: f64 = 2.220446049250313e-16; // spmpar(1) = 2^-52
@@ -211,11 +210,8 @@ const TEMME_TABLES: [&[f64]; 11] = [
     &TEMME_C8, &TEMME_C9, &TEMME_C10,
 ];
 
-// gratio.f iop-selected constant vectors, indexed [iop-1]. Excel uses ind = 0
-// (unscaled) exclusively, hence iop = 1 throughout; the higher-iop entries are
-// retained so the branch routing matches the reference exactly.
+// gratio.f iop-selected accuracy vector (used by the a < 1 leaf); ind = 0 -> iop = 1 (acc = 5e-15).
 const GRATIO_ACC0: [f64; 3] = [5e-15, 5e-7, 5e-4];
-const GRATIO_X00: [f64; 3] = [31.0, 17.0, 9.7];
 
 // RN53(1/k!), k = 0..19. R35: each adjacent coefficient load is separated
 // by an original Excel question, conditional on the other loads and EXP.
@@ -229,6 +225,18 @@ const GRATIO_RECIP_FACTORIAL: [u64; 20] = [
     0x3ca6827863b97d97, 0x3c62f49b46814157,
 ];
 
+// RN53(2^(k+1) / (2k+1)!!), k = 0..19, for half-integer shapes a = ii + 0.5 (1 <= ii <= 19)
+// in the unified finite-sum domain a < x <= 30.0 (dc-j9k.63).
+const GRATIO_HALF_RECIP: [u64; 20] = [
+    0x4000_0000_0000_0000, 0x3ff5_5555_5555_5555, 0x3fe1_1111_1111_1111,
+    0x3fc3_8138_1381_3814, 0x3fa1_566a_bc01_1567, 0x3f79_37e1_1175_f095,
+    0x3f4f_09b2_8ba4_d955, 0x3f20_8db4_8ebe_51c7, 0x3eef_28db_670b_e53b,
+    0x3eba_3d5a_71b9_2cd3, 0x3e83_fdfb_c45c_52ea, 0x3e4b_d0ac_3296_b624,
+    0x3e11_cd3b_01a8_22a6, 0x3dd5_1929_7d39_0c9f, 0x3d97_47e7_2912_d023,
+    0x3d58_0828_6c76_8445, 0x3d17_4dba_97b8_be52, 0x3cd5_4e61_74c6_2a5a,
+    0x3c92_6d4d_5e13_2b8c, 0x3c4e_3d36_c1c3_8faa,
+];
+
 fn gratio_integer_sum(a: usize, x: f64) -> f64 {
     use crate::ported::excel_numeric::{excel_exp, excel_x87_add, excel_x87_mul};
     let mut polynomial = f64::from_bits(GRATIO_RECIP_FACTORIAL[a - 1]);
@@ -236,6 +244,24 @@ fn gratio_integer_sum(a: usize, x: f64) -> f64 {
         polynomial = excel_x87_add(excel_x87_mul(polynomial, x), f64::from_bits(coefficient));
     }
     excel_x87_mul(excel_exp(-x), polynomial)
+}
+
+/// Half-integer finite sum for `a = ii + 0.5` (`1 <= ii <= 19`, `a < x <= 30.0`, Excel 16.0.20527).
+/// Stored x87 Horner over `GRATIO_HALF_RECIP[0..ii]` scaled by `exp(-x - 0.5*ln(x)) * (1/sqrt(pi)) * x`,
+/// added to `ERFC.PRECISE(sqrt(x))` (65/65 0-ULP on cb7 frozen holdout, 60/60 0-ULP on nx6 holdout).
+fn gratio_half_integer_sum(ii: usize, x: f64) -> f64 {
+    use crate::ported::excel_numeric::{
+        excel_exp, excel_log, excel_x87_add, excel_x87_mul, excel_x87_sub,
+    };
+    let e0 = crate::ported::special_dist_family::erfc_precise_kernel(x.sqrt())
+        .unwrap_or_else(|_| gratio(0.5, x).1);
+    let ex = excel_exp(excel_x87_sub(-x, excel_x87_mul(0.5, excel_log(x))));
+    let t = excel_x87_mul(ex, GRATIO_INV_RTPI);
+    let mut polynomial = f64::from_bits(GRATIO_HALF_RECIP[ii - 1]);
+    for &coefficient in GRATIO_HALF_RECIP[..ii - 1].iter().rev() {
+        polynomial = excel_x87_add(excel_x87_mul(polynomial, x), f64::from_bits(coefficient));
+    }
+    excel_x87_add(e0, excel_x87_mul(t, excel_x87_mul(x, polynomial)))
 }
 
 /// CR-quality normalizer Gamma(a) for the gratio prefactor. Identification
@@ -508,14 +534,9 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
             crate::ported::excel_numeric::excel_exp(-x),
         );
     }
-    // Excel uses ind = 0 (unscaled). gratio.f: iop = ind + 1 = 1 (only ind of
-    // 1 or 2 would remap to iop = 3), selecting the tight acc = 5e-15, big = 20,
-    // x0 = 31, e0 = 0.25e-3 constant set.
+    // Excel uses ind = 0 (unscaled). gratio.f: iop = ind + 1 = 1 selects acc = 5e-15 for the a < 1 leaf.
     let iop = 1usize;
     let acc = GRATIO_ACC0[iop - 1].max(e);
-    let x0 = GRATIO_X00[iop - 1];
-
-    let mut wk = [0.0f64; 21]; // 1-based, indices 1..=20
 
     if a < 1.0 {
         // DEVIATION 1: no a == 0.5 special dispatch; 0.5 flows into these
@@ -565,171 +586,90 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
         return gratio_cf(a, x, r, e, acc);
     }
 
-    // Stored Horner with reciprocal-factorial loads, then EXP. Mapping and
-    // adjacent-double questions identify 2 <= integer a <= 20, a < x <= 30.
-    // Divided Horner, forward term sums and extension to a >= 21 refute.
-    if a <= 20.0 && a == a.floor() && a < x && x <= 30.0 {
-        let qans = gratio_integer_sum(a as usize, x);
-        return (0.5 + (0.5 - qans), qans);
-    }
-
-    // a >= 1
-    // Bisected at x == a on live Excel 16.0.20527: a = 20.0 uses after40, next_up(20.0) enters Temme.
-    if a <= 20.0 {
-        let integer_a = a == a.floor();
-        // Integer shapes use their finite polynomial only for a < x <= 30.
-        // Adjacent-double probes distinguish both boundaries; the half-integer
-        // finite sum retains its separate x < 31 region.
-        if a > x || x >= x0 || (integer_a && (a == x || x > 30.0)) {
-            // statement 20.
-            let m = poisson_mass(a, x);
-            return gratio_after40(
-                a,
-                x,
-                m,
-                crate::ported::excel_numeric::excel_x87_mul(m, a),
-                e,
-                acc,
-                x0,
-                &mut wk,
-            );
+    // Unified finite-sum domain for integer and half-integer shapes: 1 < a <= 20, a < x <= 30.0
+    // (cb7 / dc-j9k.63). Both integer (GRATIO_RECIP_FACTORIAL) and half-integer (GRATIO_HALF_RECIP)
+    // branches use stored x87 Horner and share the exact a < x <= 30.0 boundaries.
+    if a <= 20.0 && a < x && x <= 30.0 {
+        if a == a.floor() {
+            let qans = gratio_integer_sum(a as usize, x);
+            return (0.5 + (0.5 - qans), qans);
         }
         let twoa = a + a;
         let m = twoa as i64;
         if twoa == m as f64 {
-            let i = m / 2;
-            let mut summ;
-            let mut t;
-            let mut n;
-            let mut c;
-            // statement 220: half-integer a, finite sum.
-            // DEVIATION 2: erfc1(0, sqrt(x)) == Q(0.5, x) == gratio(0.5, x).1
-            let rtx = x.sqrt();
-            // The start is the public ERFC.PRECISE value, Q(0.5, x) = erfc(sqrt(x)) (harvest 9, R4).
-            summ = crate::ported::special_dist_family::erfc_precise_kernel(rtx)
-                .unwrap_or_else(|_| gratio(0.5, x).1);
-            t = crate::ported::excel_numeric::excel_exp(-x) / (GRATIO_RTPI_FULL * rtx);
-            n = 0i64;
-            c = -0.5;
-            while n != i {
-                n += 1;
-                c += 1.0;
-                t = (x * t) / c;
-                summ += t;
-            }
-            let qans = summ;
+            let qans = gratio_half_integer_sum((m / 2) as usize, x);
             return (0.5 + (0.5 - qans), qans);
         }
-        let m = poisson_mass(a, x);
-        return gratio_after40(
-            a,
-            x,
-            m,
-            crate::ported::excel_numeric::excel_x87_mul(m, a),
-            e,
-            acc,
-            x0,
-            &mut wk,
-        );
     }
 
-    // statement 30: a > 20.0
-    // Bisected on live Excel 16.0.20527: Temme runs strictly for 0.7 < l < 1.3 with l = x / a.
-    let l = crate::ported::excel_numeric::excel_x87_div(x, a);
+    // Remaining 1 < a <= 20.0: forward Taylor series for x <= a, continued fraction for x > a
+    // (no GRATIO_ALOG10 floor and no x0 = 31.0 switch to asymptotic expansion; cb7 §1.3-1.4).
+    if a <= 20.0 {
+        let pm = poisson_mass(a, x);
+        let r = crate::ported::excel_numeric::excel_x87_mul(pm, a);
+        if r == 0.0 {
+            return if x <= a { (0.0, 1.0) } else { (1.0, 0.0) };
+        }
+        if x <= a {
+            return gratio_series(a, x, pm);
+        }
+        return gratio_cf(a, x, r, e, acc);
+    }
+
+    // a > 20.0 (bisected on live Excel 16.0.20527: Temme runs strictly for 0.7 < l < 1.3).
+    use crate::ported::excel_numeric::{excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_sub};
+    let l = excel_x87_div(x, a);
     if l == 0.0 {
         return (0.0, 1.0);
     }
     if l > 0.7 && l < 1.3 {
         return gratio_temme(a, x);
     }
-    let m = poisson_mass(a, x);
-    gratio_after40(
-        a,
-        x,
-        m,
-        crate::ported::excel_numeric::excel_x87_mul(m, a),
-        e,
-        acc,
-        x0,
-        &mut wk,
-    )
-}
-
-fn gratio_after40(
-    a: f64,
-    x: f64,
-    r_series: f64,
-    r: f64,
-    _e: f64,
-    acc: f64,
-    x0: f64,
-    wk: &mut [f64; 21],
-) -> (f64, f64) {
+    let pm = poisson_mass(a, x);
+    let r = excel_x87_mul(pm, a);
     if r == 0.0 {
         return if x <= a { (0.0, 1.0) } else { (1.0, 0.0) };
     }
-    if x <= a.max(GRATIO_ALOG10) {
-        // Taylor series. Identification (W109 agent-B, a=2 slice): Excel sums
-        // FORWARD (1 + c1 + c2 + ...) with 1/a as an OUTER factor — not the
-        // NSWC wk[] backward-tail staging (28/45 vs 16/45 bit-exact).
-        // Refined (session 4): the exact form is Cephes-igam style — ans
-        // accumulates FROM 1.0, stop at c/ans <= MACHEP (2^-53), publication
-        // (r/a)*ans. 25/45 at a=2 with CR exp (vs 16/45 for 1+summ staging);
-        // the residual is Excel's statically-linked legacy-CRT exp (one-sided
-        // low, fdlibm-proxy 28/45).
-        let _ = acc;
-        use crate::ported::excel_numeric::{excel_x87_add, excel_x87_div, excel_x87_mul};
-        let mut rr = a;
-        let mut c = 1.0f64;
-        let mut ans = 1.0f64;
-        loop {
-            rr += 1.0;
-            c = excel_x87_mul(c, excel_x87_div(x, rr));
-            ans = excel_x87_add(ans, c);
-            if excel_x87_div(c, ans) <= 1.110_223_024_625_156_5e-16 {
-                break;
-            }
-        }
-        // The series product is stored from x87 PC64 before binary64 publication.
-        let p = crate::ported::excel_numeric::excel_x87_mul(r_series, ans);
-        return (p, 0.5 + (0.5 - p));
+    if x <= a {
+        return gratio_series(a, x, pm);
     }
-    if x < x0 {
-        return gratio_cf(a, x, r, _e, acc);
-    }
-    // statement 100: asymptotic expansion with wk backward-tail summation.
-    let mut amn = a - 1.0;
-    let mut t = amn / x;
-    wk[1] = t;
-    let mut n = 20usize;
-    let mut broke = false;
-    for n_ in 2..=20 {
-        amn -= 1.0;
-        t *= amn / x;
-        if t.abs() <= 1e-3 {
-            n = n_;
-            broke = true;
+    // l >= 1.3: x87-stored forward asymptotic expansion (cb7 §1.1, dc-j9k.63).
+    let mut amn = a;
+    let mut t = 1.0_f64;
+    let mut s = 1.0_f64;
+    loop {
+        amn = excel_x87_sub(amn, 1.0);
+        let nt = excel_x87_mul(t, excel_x87_div(amn, x));
+        if nt.abs() > t.abs() {
             break;
         }
-        wk[n_] = t;
+        t = nt;
+        s = excel_x87_add(s, t);
+        if excel_x87_div(t.abs(), s) <= f64::EPSILON {
+            break;
+        }
     }
-    if !broke {
-        n = 20;
-    }
-    let mut summ = t;
-    while t.abs() > acc {
-        amn -= 1.0;
-        t *= amn / x;
-        summ += t;
-    }
-    let mx = n - 1;
-    for _ in 0..mx {
-        n -= 1;
-        summ += wk[n];
-    }
-    use crate::ported::excel_numeric::{excel_x87_div, excel_x87_mul};
-    let qans = excel_x87_mul(excel_x87_mul(r_series, excel_x87_div(a, x)), 1.0 + summ);
+    let qans = excel_x87_mul(pm, excel_x87_mul(excel_x87_div(a, x), s));
     (0.5 + (0.5 - qans), qans)
+}
+
+fn gratio_series(a: f64, x: f64, r_series: f64) -> (f64, f64) {
+    // Forward Taylor series (Cephes-igam style): ans accumulates from 1.0, stop at
+    // c / ans <= 2^-53, stored x87 product r_series * ans before binary64 publication.
+    use crate::ported::excel_numeric::{excel_x87_add, excel_x87_div, excel_x87_mul};
+    let mut rr = a;
+    let mut c = 1.0_f64;
+    let mut ans = 1.0_f64;
+    loop {
+        rr += 1.0;
+        c = excel_x87_mul(c, excel_x87_div(x, rr));
+        ans = excel_x87_add(ans, c);
+        if excel_x87_div(c, ans) <= 1.110_223_024_625_156_5e-16 {
+            break;
+        }
+    }
+    let p = excel_x87_mul(r_series, ans);
+    (p, 0.5 + (0.5 - p))
 }
 
 /// The upper tail's continued fraction, in place of Morris's statement 250. In the registers and
@@ -2756,5 +2696,35 @@ mod tests {
         let (p_lo, q_lo) = gratio(100_000.0, 88_000.0);
         assert_eq!(p_lo, 0.0);
         assert_eq!(q_lo, 1.0);
+    }
+
+    /// Excel 16.0.20527 (cb7 / dc-j9k.63): half-integer stored Horner (`GRATIO_HALF_RECIP`,
+    /// `1 < a <= 20, a < x <= 30.0`) including pinned `CHIDIST(8, 5)` (`oc65`), x87-stored
+    /// forward asymptotic expansion (`a > 20, x/a >= 1.3`), and frozen unseen holdouts.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn cb7_gratio_half_integer_horner_and_forward_asymptotic_match_excel_bits() {
+        let q_cases: &[(u64, u64, u64)] = &[
+            // CHIDIST(8, 5) (oc65): Q(2.5, 4.0)
+            (0x4004_0000_0000_0000, 0x4010_0000_0000_0000, 0x3fc3_ff87_6f75_4b0e),
+            // nx6 unseen frozen half-integer CHIDIST holdouts (df = 25, 5, 19 -> a = 12.5, 2.5, 9.5; x = arg0 / 2)
+            (0x4029_0000_0000_0000, 0x403d_90d4_8d5d_5ed6, 0x3f22_0869_b3ad_909a),
+            (0x4004_0000_0000_0000, 0x4030_945a_95e9_7e53, 0x3ecd_5b10_a9b1_9b14),
+            (0x4023_0000_0000_0000, 0x4037_eedb_7978_efd0, 0x3f31_93ad_bba5_c2d5),
+            // nx6 unseen frozen forward asymptotic POISSON.DIST holdouts (a = k + 1 > 20, x/a >= 1.3)
+            (0x405e_c000_0000_0000, 0x4066_598f_6245_c872, 0x3ed1_b9f2_916b_7c02),
+            (0x4054_8000_0000_0000, 0x4064_0339_820c_e1f0, 0x3d90_10ff_3428_3db1),
+            (0x4057_c000_0000_0000, 0x4060_ce4c_7038_ffd4, 0x3f22_de20_5e50_6850),
+        ];
+        for &(a_bits, x_bits, expected) in q_cases {
+            let actual = gratio(f64::from_bits(a_bits), f64::from_bits(x_bits))
+                .1
+                .to_bits();
+            assert_eq!(
+                actual,
+                expected,
+                "Q({a_bits:#018x}, {x_bits:#018x}): got {actual:#018x}, expected {expected:#018x}"
+            );
+        }
     }
 }
