@@ -87,6 +87,47 @@ fn beta_inverse_absorbed_large_second_shape_reports_num() {
     }
 }
 
+/// Excel 20527 reports NUM in the lower tail for very large second shapes.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beta_inverse_lower_tail_rejects_extreme_second_shape() {
+    for name in ["BETA.INV", "BETAINV"] {
+        error(call(name, vec![n(0.125), n(365.0), n(2.0_f64.powi(520))]), Num);
+        exact(
+            call(name, vec![n(0.125), n(365.0), n(2.0_f64.powi(513))]),
+            f64::from_bits(0x2065_7233_8c22_f2b9),
+        );
+        exact(
+            call(name, vec![n(0.125), n(1.0), n(2.0_f64.powi(520))]),
+            f64::from_bits(0x1f3f_ffff_ffff_ffb2),
+        );
+    }
+    error(
+        call("BETAINV", vec![n(0.39), n(3.0), n(2.0_f64.powi(520)), n(-4.0), n(7.0)]),
+        Num,
+    );
+}
+
+/// Excel 20527 preserves the right-tail probability in the large-degree start.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chi_square_right_inverse_keeps_large_degree_tail_probability() {
+    for name in ["CHIINV", "CHISQ.INV.RT"] {
+        for (p, degree, expected) in [
+            (1e-10, 2.0_f64.powi(40), 0x4270_011f_bbe1_8ca4),
+            (2.0_f64.powi(-55), 2.0_f64.powi(50), 0x4310_0117_1b39_e2af),
+            (1.0_f64.next_down(), 2.0_f64.powi(40), 0x4270_010b_1fd8_a609),
+            (
+                f64::from_bits(0x3fef_fffd_eb25_854b),
+                f64::from_bits(0x4273_9e7b_6c90_a96a),
+                0x4273_9fc9_c2bf_46d9,
+            ),
+        ] {
+            exact(call(name, vec![n(p), n(degree)]), f64::from_bits(expected));
+        }
+    }
+}
+
 /// Excel 20527: a tiny confidence uses the normal inverse near one half.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

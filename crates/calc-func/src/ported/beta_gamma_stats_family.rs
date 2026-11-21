@@ -377,7 +377,7 @@ pub(crate) fn flush_subnormal(value: f64) -> f64 {
 /// Full 7-term Goldstein (1973, ACM Algorithm 451) unit-scale starting approximation
 /// `a * ((c * c) * c)` for `a > 1.0`, with `f = 1 / (2*a)`, `u = z * sqrt(f)`, and
 /// stored Horner `c = sum_{k=0..6} (A[k] + f * (B[k] + f * C[k])) * u^k`.
-fn goldstein_initial_unit(z: f64, a: f64) -> Option<f64> {
+pub(super) fn goldstein_initial_unit(z: f64, a: f64) -> Option<f64> {
     use crate::ported::excel_numeric::{
         excel_sqrt_staged, excel_x87_add, excel_x87_div, excel_x87_mul,
     };
@@ -799,8 +799,7 @@ pub fn gamma_inv_kernel(
             Err(WorksheetErrorCode::Num)
         };
     }
-    // Shared with the right-tail chi-square inverse. Scale only after the
-    // independently measured unit result has been stored.
+    // Scale only after the independently measured unit result has been stored.
     if (2.0_f64.powi(-40)..2.0_f64.powi(40)).contains(&beta)
         && let Some(factor) = large_shape_inverse_factor(probability, alpha)
     {

@@ -28,9 +28,10 @@
 //! and marks past one byte ([`super::sort_key::diacritic_order`]).
 //!
 //! The weights cover every UTF-16 code unit but a few (dc-zsn.2). A text holding one of those is
-//! not decided ([`Beyond`]) when the second pass needs its weights: U+0000, U+30A0, the isolated
-//! and medial forms of Arabic marks, and an iteration mark after a special outside fn7's three
-//! adjacent iteration forms and four punctuation units (see [`super::sort_key`]). The unassigned
+//! not decided ([`Beyond`]) when the second pass needs its weights: U+0000, U+30A0 outside a leading
+//! run of iteration marks, the isolated and medial forms of Arabic marks, and an iteration mark
+//! after a special outside fn7's three adjacent iteration forms and four punctuation units
+//! (see [`super::sort_key`]). The unassigned
 //! units of the Hangul jamo blocks (U+A97D to U+A97F, U+D7C7 to U+D7CA, U+D7FC to U+D7FF) are
 //! ignorable, as Excel compares them (3132 measured relations).
 //! The Hangul conjoining jamo are weighed as Windows' keys write them (dc-8wp): one primary and three
