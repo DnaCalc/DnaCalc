@@ -1,9 +1,7 @@
-use crate::ported::double_double::Dd;
 use crate::ported::excel_numeric::crt_pow;
 use crate::ported::special_dist_family::erfc_of_sqrt_half_x;
 use crate::ported::special_math_common::{
-    bisect_inverse, bisect_inverse_closest, bratio_from_wrapper, gamma, regularized_beta,
-    regularized_gamma_p, regularized_gamma_q,
+    bisect_inverse, bratio_from_wrapper, gamma, regularized_beta, regularized_gamma_q,
 };
 use crate::value::WorksheetErrorCode;
 
@@ -144,15 +142,27 @@ pub fn chisq_inv_rt_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Wo
         };
     }
     let n = deg_freedom.trunc();
+    use crate::ported::beta_gamma_stats_family::flush_subnormal;
     if let Some(factor) =
         crate::ported::beta_gamma_stats_family::goldstein_large_degree_factor(1.0 - p, n)
     {
-        return Ok(crate::ported::excel_numeric::excel_x87_mul(n, factor));
+        let res = crate::ported::excel_numeric::excel_x87_mul(n, factor);
+        return if res.is_finite() {
+            Ok(flush_subnormal(res))
+        } else {
+            Err(WorksheetErrorCode::Num)
+        };
     }
     if let Some(factor) = crate::ported::beta_gamma_stats_family::large_shape_inverse_factor(
-        1.0 - p, deg_freedom / 2.0,
+        1.0 - p,
+        deg_freedom / 2.0,
     ) {
-        return Ok(crate::ported::excel_numeric::excel_x87_mul(deg_freedom, factor));
+        let res = crate::ported::excel_numeric::excel_x87_mul(deg_freedom, factor);
+        return if res.is_finite() {
+            Ok(flush_subnormal(res))
+        } else {
+            Err(WorksheetErrorCode::Num)
+        };
     }
     // Excel 20527's right-tail inverse admits these large degrees even though
     // the other chi-square routes enforce the 1e10 limit. Its asymptotic
@@ -172,59 +182,45 @@ pub fn chisq_inv_rt_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Wo
             || lower_degree_plateau)
         && deg_freedom < f64::from_bits(0x7e70_0000_0000_0000) // 2^1000
     {
-        return Ok(crate::ported::beta_gamma_stats_family::large_shape_inverse_unit(deg_freedom));
+        return Ok(flush_subnormal(
+            crate::ported::beta_gamma_stats_family::large_shape_inverse_unit(deg_freedom),
+        ));
     }
     let k = truncate_positive_integer(deg_freedom)?;
+    if k == 1.0 {
+        // Excel 20527 (cb6, dc-j9k.60): df == 1 folds q via comp(q) = 0.5 + (0.5 - q),
+        // rejects comp(q) >= 1.0 with #NUM!, and evaluates 2 * erfinv(comp(q))^2.
+        use crate::ported::excel_numeric::{excel_x87_add, excel_x87_mul, excel_x87_sub};
+        let p_lower = excel_x87_add(0.5, excel_x87_sub(0.5, p));
+        if p_lower >= 1.0 {
+            return Err(WorksheetErrorCode::Num);
+        }
+        let unit = crate::ported::normal_log_family::gamma_inv_half_unit(p_lower);
+        return Ok(flush_subnormal(excel_x87_mul(2.0, unit)));
+    }
     if k == 2.0 {
         use crate::ported::excel_numeric::{excel_log, excel_log1p_times};
         // Exponential right inverse, preserving p rather than first taking
         // 1-p. The near-one arm shares the measured distribution logarithm.
-        return Ok(if p > 0.625 {
+        return Ok(flush_subnormal(if p > 0.625 {
             excel_log1p_times(-2.0, p - 1.0)
         } else {
             -2.0 * excel_log(p)
-        });
+        }));
     }
-    if k > 2.0 && p > 0.5 {
-        // Q near one loses the small lower tail. Keep that lower tail and
-        // publish its closest forward lattice point. Fresh164 controls gain
-        //55 words, lose nine one-ULP words; worst error falls to121 ULP.
-        let target = 1.0 - p;
-        let forward = |x| regularized_gamma_p(k / 2.0, x / 2.0);
-        let hi = search_upper_bound(target, k, forward);
-        let x = bisect_inverse_closest(target, 0.0, hi, forward);
-        return Ok(polished_chi_root(k, Dd::from(target), x));
-    }
-    // Excel 20527: the df=1 arm first forms P = .5 + (.5-p).
-    // All 320 independently chosen probabilities retain the same CHIINV word
-    // after this fold; the df=2 control retains only 37/320. Preserve both
-    // binary64 stores, including the tiny-tail #NUM! when P rounds to one.
-    let p = if k == 1.0 {
-        let complement = 0.5 + (0.5 - p);
-        let folded = 1.0 - complement;
-        if folded == 0.0 {
-            return Err(WorksheetErrorCode::Num);
-        }
-        folded
+    // df >= 3: invert Q(k/2, x/2) = p directly via Excel's damped Halley solver,
+    // switching to P(k/2, x/2) = comp(p) strictly above 0.9999.
+    let unit = flush_subnormal(crate::ported::beta_gamma_stats_family::gamma_halley_unit(
+        p,
+        k / 2.0,
+        true,
+    )?);
+    let res = crate::ported::excel_numeric::excel_x87_mul(2.0, unit);
+    if res.is_finite() {
+        Ok(flush_subnormal(res))
     } else {
-        p
-    };
-    // Keep the measured df=1 fold and invert the smaller right tail directly.
-    // Q decreases in x, so negate it for the increasing-forward convention.
-    let hi = search_upper_bound(-p, k, |x| -regularized_gamma_q(k / 2.0, x / 2.0));
-    let x = bisect_inverse(-p, 0.0, hi, |x| -regularized_gamma_q(k / 2.0, x / 2.0));
-    if p < 1e-12 {
-        // The double-double lower tail cannot resolve so small an upper tail.
-        return Ok(x);
+        Err(WorksheetErrorCode::Num)
     }
-    Ok(polished_chi_root(k, Dd::from(1.0).sub(Dd::from(p)), x))
-}
-
-/// The chi-square root `x` of `P(k/2, x/2) = lower`, re-rounded from the double-double gamma
-/// root where it applies (shape k/2 >= 10); otherwise the lattice search's `x`.
-fn polished_chi_root(k: f64, lower: Dd, x: f64) -> f64 {
-    crate::ported::beta_gamma_stats_family::gamma_unit_root_polished(k / 2.0, lower, x / 2.0)
-        .map_or(x, |unit| 2.0 * unit)
 }
 
 pub fn f_pdf_kernel(x: f64, deg1: f64, deg2: f64) -> Result<f64, WorksheetErrorCode> {
@@ -1037,5 +1033,47 @@ mod tests {
             f_dist_kernel(1.0, above, 1e10, false),
             Err(WorksheetErrorCode::Num)
         );
+    }
+
+    /// Excel 16.0.20527 (cb6, dc-j9k.60): df == 1 `erfinv(comp(q))^2` closed form,
+    /// strict `q > 0.9999` complement switch, tiny upper `q` (`z = -NORM.S.INV(q)`),
+    /// and `CHISQ.INV` holdout witnesses.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn cb6_chisq_inv_rt_df1_complement_switch_and_tiny_upper_q() {
+        let rt_rows: [(u64, u64, u64); 12] = [
+            // df == 1 near-1 fold + fractional-df truncation holdouts.
+            (0x3feffffffffffffe, 0x3ff0000000000000, 0x397921fb54442d19),
+            (0x3fefffffffffffff, 0x3ff0000000000000, 0x395921fb54442d19),
+            (0x3fefffffffffd7c9, 0x3ff3a152dd339d50, 0x3b03d8b07b1da78c),
+            (0x3fefffffffffff70, 0x3ffbc7cce19b1d35, 0x3a3fcf0216a64913),
+            // Strict q > 0.9999 complement switch: df = 4 across 0.9999 / 0.9999+1u and df = 2000 (Temme).
+            (0x3fefff2e48e8a71e, 0x4010000000000000, 0x3f9d19bb9717c1b8),
+            (0x3fefff2e48e8a71f, 0x4010000000000000, 0x3f9d19bb9717bc64),
+            (0x3fefff2e48e8a71f, 0x409f400000000000, 0x409bb52fa3ae47dd),
+            // Tiny upper q (where 1 - q == 1.0) and df >= 3 frozen holdouts.
+            (0x38bb38f0ef960dc8, 0x4034000000000000, 0x406b5a6d411f57e1),
+            (0x3d35d7924095522a, 0x4030000000000000, 0x4058883618de595b),
+            (0x3fef13614fc4170d, 0x40435dce4a74a3be, 0x4037445ebe498e44),
+            (0x3fef595e5de11e6c, 0x4046800000000000, 0x403bc4a1ff79a362),
+            (0x3fefffffe9457792, 0x4061600000000000, 0x4050d163896118e4),
+        ];
+        for (q, df, expected) in rt_rows {
+            let got = chisq_inv_rt_kernel(f64::from_bits(q), f64::from_bits(df)).unwrap();
+            assert_eq!(got.to_bits(), expected, "CHISQ.INV.RT({q:#x}, {df:#x})");
+        }
+        // df == 1 where comp(q) rounds to 1.0 -> #NUM!.
+        assert_eq!(chisq_inv_rt_kernel(1e-20, 1.0), Err(WorksheetErrorCode::Num));
+
+        let inv_rows: [(u64, u64, u64); 4] = [
+            (0x3472bafced8d0a8e, 0x3ff174d95c369aae, 0x290138a4bd28394a),
+            (0x3fe25565b97f7e19, 0x403e4b07dbe00c39, 0x403ec3943d55c9ed),
+            (0x3feef9d11402353a, 0x404d800000000000, 0x40542ac639a8a117),
+            (0x3fefffffff18b680, 0x406d000000000000, 0x4077ec71d6fe5247),
+        ];
+        for (p, df, expected) in inv_rows {
+            let got = chisq_inv_kernel(f64::from_bits(p), f64::from_bits(df)).unwrap();
+            assert_eq!(got.to_bits(), expected, "CHISQ.INV({p:#x}, {df:#x})");
+        }
     }
 }
