@@ -6225,3 +6225,43 @@ fn forecast_ets_sliding_ma_j0_and_variance_interpolation() {
         );
     }
 }
+
+/// Excel 16.0.20527 (dc-iuwct.59): GAMMAINV shares GAMMA.INV's 105-trial tolerance cap
+/// and AS 91 power_seed sum order, eliminating all 16 structural and 148 of 150 gross rows.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_iuwct_59_gammainv_structural_and_gross_alias_parity() {
+    for name in ["GAMMAINV", "GAMMA.INV"] {
+        // ax2/gamma-halley-answers.jsonl $[10075] (structural -> #NUM!)
+        assert_eq!(
+            call(
+                name,
+                vec![
+                    n(f64::from_bits(0x3fefa4e36c3bdd1e)),
+                    n(f64::from_bits(0x3f99ce075f6fd220)),
+                    n(1.0),
+                ],
+            ),
+            Ok(CalcValue::error(calc_value::WorksheetErrorCode::Num)),
+        );
+        // ax2/gamma-halley-answers.jsonl $[9894] (structural -> finite, bit-exact),
+        // $[9967] (58,578 ULP -> 0 ULP), ax2/gamma-round2 $[794] (3,975 ULP -> 0 ULP).
+        for (p_bits, a_bits, expected) in [
+            (0x3fefef942c5c3563_u64, 0x3f91b71758e21965_u64, 0x3ff6aa4ac43db371_u64),
+            (0x3fefe649f7ff93f5_u64, 0x3f9374bc6a7ef9db_u64, 0x3ff2fedf3efed5cf_u64),
+            (0x3feffec79e1d4427_u64, 0x3f18361fa517d270_u64, 0x3fc031781eeafa73_u64),
+        ] {
+            exact(
+                call(
+                    name,
+                    vec![
+                        n(f64::from_bits(p_bits)),
+                        n(f64::from_bits(a_bits)),
+                        n(1.0),
+                    ],
+                ),
+                f64::from_bits(expected),
+            );
+        }
+    }
+}
