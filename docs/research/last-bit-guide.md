@@ -3,7 +3,9 @@
 A working guide for agents doing bit-exact research against recorded Excel answers. It collects the
 methods that have worked, the tools behind them and the traps. Started 2026-11-17 from the NORMSINV
 work (docs/articles/last-bit-normsinv.md, dc-j9k.47) and the fresh-ideas review fable-1
-(DnaCalc-Research/design/fresh-ideas-fable-1.md, 2026-11-09). Add to it when a method wins or a
+(DnaCalc-Research/design/fresh-ideas-fable-1.md, 2026-11-09); extended 2026-11-21 from the gamma
+family (docs/articles/last-bit-gamma.md, dc-j9k.60/.63/.64) and number-to-text
+(docs/articles/last-bit-number-text.md, dc-b1l.25). Add to it when a method wins or a
 trap costs a round; keep each entry short and point at the evidence.
 
 ## Premise
@@ -54,6 +56,20 @@ finished hypothesis, never a training signal.
    questions (piece A's `s <= 0.5` on the stored s).
 9. **Freeze, then ask.** Write predictions to a file, hash it, then ask fresh questions designed to
    split the surviving candidates (164 inputs decided p7's last bit, 164 to 0).
+13. **Cancel noisy prefactors with an adjacent Excel oracle.** When a shared prefactor (like
+    `poisson_mass`'s 500-ULP saddle-point grid) hides inner-loop rounding, divide two related
+    Excel functions at identical arguments (`POISSON.DIST(k-1, m, TRUE) / POISSON.DIST(k, m, FALSE)`)
+    to expose sub-ULP store groupings, log-prefactor slopes (`-17/16`), and `TINY = 1e-30`
+    continued-fraction artifacts in one pass (`cb7`–`cb8`, `last-bit-gamma.md`).
+14. **Read rounding thresholds against low significand bits and rare binades.** Period-8 threshold
+    oscillation in `[+3.372, +12.122]` `ulp64(10v)` is the direct signature of a `>> 3` truncating
+    shift dropping `mv & 7` before adding a truncated `Q0.64` half-ulp constant; when two
+    exponent estimates agree on `99.8%` of binades, ask the 4 disagreeing binades directly with
+    a frozen discriminator set (`cb9`/`nx8`, `32/32`, `last-bit-number-text.md`).
+15. **Even-LSB (`LSB == 0`) signatures and single-bit bisections.** All `64/64` consecutive outputs
+    having `LSB == 0` (`p = 2^-64`) pinpoints a `0.5 + (0.5 + l)` complement domain (`st200`);
+    single-bit bisection at exact literals (`0.9999`, `1.1`, `1.0`) settles regime boundaries
+    (`cb6`, `cb8`, `nx6`, `nx7`).
 
 ## Traps we fell into
 
@@ -67,6 +83,13 @@ finished hypothesis, never a training signal.
   the constants (fn7 scanned piece B's constants for hours with the wrong target).
 - Reachability counts without a null: "12.8 % unreachable" meant little until shifted answers
   showed what a wrong hypothesis scores (10-20 %); some "all reachable" results are vacuous.
+- Blaming the solver step before ablating the starting proposal (`nx6` tested alternative root
+  steps and thresholds before bisecting `a = 1` and finding Goldstein Algorithm 451).
+- Power-of-two test blind spots and accidental error cancellation: factoring `a_0 = 1` out of
+  `gratio_cf` passed `2,000/2,000` at `a = 2` while failing 60% of general shapes (`cb8`); fixing
+  a `-1` ULP forward `wk[]` error exposed a previously cancelled `1`-ULP inverse difference (`nx6`).
+- Hand-typing hex literals or copying prototype tables without checking (`GRATIO_RECIP_FACTORIAL[18]`
+  in `cb7_candidate.c` / `nx7`; hex bits in `nx8`). Always verify table bits against the definition.
 
 ## Toolbox
 
