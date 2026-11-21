@@ -13343,6 +13343,77 @@ fn dc_971p_64__sorts_a_range_tiled_by_uniform_horizontal_merges() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_64__sort_keeps_manually_hidden_rows_in_place() {
+    use calc_host::{SortKey, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let sheet = book.host().sheets()[0].id();
+    for (cell, input) in [
+        ("A1", "Key"),
+        ("B1", "Label"),
+        ("A2", "5"),
+        ("B2", "five"),
+        ("A3", "99"),
+        ("B3", "hidden"),
+        ("A4", "1"),
+        ("B4", "one"),
+        ("A5", "3"),
+        ("B5", "three"),
+    ] {
+        assert!(enter(&mut book, at(sheet, cell), input).accepted());
+    }
+    let hidden = book.dispatch(SkinIntent::Command(W::AxisFormat {
+        sheet,
+        rows: true,
+        first: 3,
+        count: 1,
+        size_bits: None,
+        hidden: Some(true),
+    }));
+    assert!(hidden.accepted(), "{hidden:?}");
+    let check = |host: &calc_host::HostState, sheet, expected| {
+        assert_eq!(
+            host.model().cell(at(sheet, "A1")),
+            calc_host::interpret_entry("Key").unwrap().as_ref(),
+        );
+        for (row, (key, label)) in (2..=5).zip(expected) {
+            let key_cell = at(sheet, &format!("A{row}"));
+            let label_cell = at(sheet, &format!("B{row}"));
+            assert_eq!(
+                host.model().cell(key_cell),
+                calc_host::interpret_entry(key).unwrap().as_ref(),
+            );
+            assert_eq!(
+                host.model().cell(label_cell),
+                calc_host::interpret_entry(label).unwrap().as_ref(),
+            );
+        }
+        assert!(host.sheet_geometry(sheet).unwrap().rows[&3].hidden);
+    };
+    let original = [("5", "five"), ("99", "hidden"), ("1", "one"), ("3", "three")];
+    let sorted = [("1", "one"), ("99", "hidden"), ("3", "three"), ("5", "five")];
+    let revision = book.host().revision().get();
+    let receipt = book.dispatch(SkinIntent::Command(W::SortRows {
+        area: GridArea::new(at(sheet, "A1"), at(sheet, "B5")).unwrap(),
+        keys: vec![SortKey {
+            column: 1,
+            descending: false,
+        }],
+        header: true,
+        revision,
+    }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    check(book.host(), sheet, sorted);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    check(book.host(), sheet, original);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = open(&saved);
+    check(&reopened, reopened.sheets()[0].id(), sorted);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p__numeric_sort_refusals_preserve_inputs_styles_and_revision() {
     use calc_host::{SheetChange, WorkbookCommand};
     let mut book = session(&calc_host::blank_package());
@@ -13393,26 +13464,6 @@ fn dc_971p__numeric_sort_refusals_preserve_inputs_styles_and_revision() {
     assert!(r.error.unwrap().to_string().contains("row order"));
     assert!(enter(&mut book, at(s, "A1"), "3").accepted());
     assert!(enter(&mut book, at(s, "A2"), "1").accepted());
-    assert!(
-        book.dispatch(SkinIntent::Command(WorkbookCommand::AxisFormat {
-            sheet: s,
-            rows: true,
-            first: 2,
-            count: 1,
-            size_bits: None,
-            hidden: Some(true)
-        }))
-        .accepted()
-    );
-    let rev = book.host().revision().get();
-    let r = refuse(&mut book, 1, rev);
-    assert!(
-        r.error
-            .unwrap()
-            .to_string()
-            .contains("hidden rows that no AutoFilter explains")
-    );
-    assert!(book.dispatch(SkinIntent::Undo).accepted());
     assert!(enter(&mut book, at(s, "A1"), "=SEQUENCE(2,2)").accepted());
     let rev = book.host().revision().get();
     let r = refuse(&mut book, 1, rev);
@@ -15246,13 +15297,12 @@ fn dc_971p_38__shifted_source_formula_attributes_and_filter_ranges_refuse_atomic
     assert!(book.dispatch(SkinIntent::Undo).accepted());
     assert_eq!(column(&mut book), expected([5., 1., 3., 9., 7.]));
     assert_eq!(hidden_rows(&book), vec![2, 6]);
-    // A row hidden by hand under no filter is still refused atomically.
+    // With only one visible row, sorting succeeds without changing the revision.
     let mut book = session(&calc_host::blank_package());
     let s = book.host().sheets()[0].id();
     for (row, input) in [(1, "Header"), (2, "2"), (3, "1")] {
         assert!(enter(&mut book, at(s, &format!("A{row}")), input).accepted());
     }
-    let revision = book.host().revision().get();
     assert!(
         book.dispatch(SkinIntent::Command(W::AxisFormat {
             sheet: s,
@@ -15264,7 +15314,6 @@ fn dc_971p_38__shifted_source_formula_attributes_and_filter_ranges_refuse_atomic
         }))
         .accepted()
     );
-    let _ = revision;
     let before = book.host().revision();
     let result = book.dispatch(SkinIntent::Command(W::SortRows {
         area: GridArea::new(at(s, "A1"), at(s, "A3")).unwrap(),
@@ -15275,8 +15324,11 @@ fn dc_971p_38__shifted_source_formula_attributes_and_filter_ranges_refuse_atomic
         header: true,
         revision: before.get(),
     }));
-    assert!(!result.accepted(), "{result:?}");
+    assert!(result.accepted(), "{result:?}");
     assert_eq!(book.host().revision(), before);
+    assert_eq!(book.host().model().cell(at(s, "A2")), Some(&number(2.)));
+    assert_eq!(book.host().model().cell(at(s, "A3")), Some(&number(1.)));
+    assert!(book.host().sheet_geometry(s).unwrap().rows[&2].hidden);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -1261,9 +1261,8 @@ fn sort_rows(
     {
         return Err(unavailable("outline groups or their summary rows"));
     }
-    // Rows an AutoFilter hides stay where they are while the visible rows sort among
-    // themselves, as in Excel. Rows hidden by hand, or by anything else, still refuse.
-    let filtered: BTreeSet<u32> = host
+    // Excel Data Sort leaves hidden rows in place. Outline groups have separate rules.
+    let mut fixed_rows: BTreeSet<u32> = host
         .model()
         .definitions()
         .auto_filter(area.sheet())
@@ -1276,12 +1275,13 @@ fn sort_rows(
                 .collect()
         })
         .unwrap_or_default();
-    if host.sheet_geometry(area.sheet()).is_some_and(|g| {
-        g.rows
-            .range(first..=area.last().row())
-            .any(|(row, r)| r.hidden && !filtered.contains(row))
-    }) {
-        return Err(unavailable("hidden rows that no AutoFilter explains"));
+    if let Some(geometry) = host.sheet_geometry(area.sheet()) {
+        fixed_rows.extend(
+            geometry
+                .rows
+                .range(first..=area.last().row())
+                .filter_map(|(&row, format)| format.hidden.then_some(row)),
+        );
     }
     if host
         .model()
@@ -1463,7 +1463,7 @@ fn sort_rows(
     let mut edits = Vec::new();
     let mut rows = BTreeMap::new();
     // The order of the whole range, then only its visible rows: a stable sort of the whole
-    // restricted to a subset is the sort of that subset. Filtered rows map to themselves.
+    // restricted to a subset is the sort of that subset. Hidden rows map to themselves.
     let mut order_rows = Vec::with_capacity(count as usize);
     for index in 0..count {
         let Some(calc_value::CoreRef::Number(number)) =
@@ -1481,13 +1481,13 @@ fn sort_rows(
         order_rows.push(first + number as u32 - 1);
     }
     let targets: Vec<u32> = (first..=data.last().row())
-        .filter(|row| !filtered.contains(row))
+        .filter(|row| !fixed_rows.contains(row))
         .collect();
     let sources: Vec<u32> = order_rows
         .into_iter()
-        .filter(|row| !filtered.contains(row))
+        .filter(|row| !fixed_rows.contains(row))
         .collect();
-    for row in &filtered {
+    for row in &fixed_rows {
         rows.insert(*row, *row);
     }
     for (source_row, target_row) in sources.into_iter().zip(targets) {
