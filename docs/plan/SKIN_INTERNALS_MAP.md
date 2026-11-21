@@ -7,7 +7,7 @@ formula-only session and wire types, and shares the formula field and value disp
 
 | Route | Entry and handler |
 |---|---|
-| Browser | `page/port.rs:173` sends `ToServer` (`model/projection.rs:823`); `worker/worker.rs:85` unpacks it and calls `worker/server.rs:5119`. The worker sends events and replies; `page/port.rs:358` routes them to the controller and pending callbacks. |
+| Browser | `page/port.rs:173` sends `ToServer` (`model/projection.rs:823`). `worker/worker.rs:85` unpacks it and calls `worker/server.rs:5119`. `page/port.rs:358` routes the worker’s events and replies to the controller and pending callbacks. |
 | Desktop | `apps/dna-calc/web/desktop-bridge.js:63` adapts WebView2 to the worker interface and wraps binary payloads in base64. `desktop/app.rs:377,462` serves native commands and forwards workbook traffic to the same server. |
 | Headless tests | `worker/transport.rs:73` delivers typed requests, replies and events through the same server. |
 | Formula Explorer browser | `one/surface.rs:306` submits authored state over `one/port.rs:533`'s local link. Formula editing and display use `apps/dna-formula-ui/src/lib.rs`. |
@@ -20,8 +20,8 @@ The registry is at `page/app.rs:34`. Every skin gets a `Controller` from `page/s
 It keeps workbook and selection state through skin switches. The controller receives
 events at `page/controller.rs:733`, retires state on workbook install at
 `page/controller.rs:981`, and separately subscribes to the session selection at
-`page/controller.rs:4207`. Shell commands enter at `page/controller.rs:4652`;
-skin edits enter at `page/controller.rs:1308`.
+`page/controller.rs:4207`. Shell commands enter at `page/controller.rs:4652`.
+Skin edits enter at `page/controller.rs:1308`.
 
 | Skin | Projection request and sender |
 |---|---|
@@ -39,7 +39,7 @@ skin edits enter at `page/controller.rs:1308`.
 | Native Open | The desktop checks the same envelope for a startup file, for the native picker, and for request substitution, then the server decodes it to dispatch. See `desktop/app.rs:233,377,396`, `desktop/origin.rs:14`, and `worker/server.rs:5119`. dc-xfrhg.4 owns this route. |
 | Native add-ins | `desktop/app.rs:461` decodes page traffic to intercept list/load/unload and builds the reply. The server has browser refusals for the same requests. dc-xfrhg.4 owns the shared command path. |
 | Tile messages | `worker/worker.rs:36` and `desktop/app.rs:265` both select the binary tile codec and wrap control events. `page/port.rs` receives both implementations through one handler. The headless adapter delivers typed events. dc-xfrhg.4 owns the desktop transport boundary. |
-| Formula Explorer | `one-desktop/app.rs:819,852,862` inspects stop and add-in list calls and decodes remote calls; `one-desktop/host.rs:276` decodes local calls. The browser local link takes typed requests. Host and surface both handle file and add-in outcomes in their respective sessions. The Formula Explorer port is outside this epic and belongs to brief item 9. |
+| Formula Explorer | `one-desktop/app.rs:819,852,862` inspects stop and add-in list calls and decodes remote calls. `one-desktop/host.rs:276` decodes local calls. The browser local link takes typed requests. Host and surface both handle file and add-in outcomes in their respective sessions. The Formula Explorer port belongs to brief item 9. |
 | Other projection work | The current worker builds per-skin projections. dc-xfrhg.5 owns shared worker code. Reply visibility and publication resource costs are tracked by dc-1nbp.21 and dc-1nbp.20. See the [review harvest](../architecture/review-2026-11/pro/harvest/17-harvest.md) for the existing subscription and tile-mirror guarantees. |
 
 ## Deletions
