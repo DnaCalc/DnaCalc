@@ -78,95 +78,143 @@ pub fn gamma(z: f64) -> f64 {
 // ---------------------------------------------------------------------------
 
 const GRATIO_ALOG10: f64 = 2.30258509299405;
-const GRATIO_RT2PIN: f64 = 0.398942280401433;
-const GRATIO_RTPI: f64 = 1.77245385090552;
 // sqrt(pi) to binary64 for the half-integer finite sum (dc-ymjf.6).
 const GRATIO_RTPI_FULL: f64 = 1.772_453_850_905_516;
-const GRATIO_THIRD: f64 = 0.333333333333333;
+// 1 / sqrt(2*pi) to binary64 for the Temme correction term.
+const TEMME_RT2PIN: f64 = f64::from_bits(0x3fd9_8845_33d4_3651);
 const GRATIO_E: f64 = 2.220446049250313e-16; // spmpar(1) = 2^-52
 const GRATIO_SPMPAR3: f64 = 1.7976931348623157e308;
 
-// Temme expansion coefficient tables (d0..d7 of gratio.f).
-const D0: [f64; 13] = [
-    0.833333333333333e-01,
-    -0.148148148148148e-01,
-    0.115740740740741e-02,
-    0.352733686067019e-03,
-    -0.178755144032922e-03,
-    0.391926317852244e-04,
-    -0.218544851067999e-05,
-    -0.185406221071516e-05,
-    0.829671134095309e-06,
-    -0.176659527368261e-06,
-    0.670785354340150e-08,
-    0.102618097842403e-07,
-    -0.438203601845335e-08,
+// Full binary64 exact rational Temme expansion coefficients c_k(eta) (DLMF 8.12 / Temme 1979):
+// c_0(eta) = 1/(l - 1) - 1/eta, eta * c_k(eta) = c_{k-1}'(eta) + gamma_k * (1 + eta * c_0(eta)).
+// Order k = 0..10 and degrees 16 down to 1 cover |1 - x/a| < 0.3, a > 20 to full binary64 precision.
+const TEMME_C0: [f64; 17] = [
+    -3.333_333_333_333_333_15e-01,
+    8.333_333_333_333_332_87e-02,
+    -1.481_481_481_481_481_54e-02,
+    1.157_407_407_407_407_34e-03,
+    3.527_336_860_670_194_24e-04,
+    -1.787_551_440_329_217_98e-04,
+    3.919_263_178_522_437_67e-05,
+    -2.185_448_510_679_991_98e-06,
+    -1.854_062_210_715_159_97e-06,
+    8.296_711_340_953_086_52e-07,
+    -1.766_595_273_682_607_82e-07,
+    6.707_853_543_401_498_41e-09,
+    1.026_180_978_424_030_86e-08,
+    -4.382_036_018_453_352_94e-09,
+    9.147_699_582_236_790_21e-10,
+    -2.551_419_399_494_624_82e-11,
+    -5.830_772_132_550_425_61e-11,
 ];
-const D10: f64 = -0.185185185185185e-02;
-const D1: [f64; 12] = [
-    -0.347222222222222e-02,
-    0.264550264550265e-02,
-    -0.990226337448560e-03,
-    0.205761316872428e-03,
-    -0.401877572016461e-06,
-    -0.180985503344900e-04,
-    0.764916091608111e-05,
-    -0.161209008945634e-05,
-    0.464712780280743e-08,
-    0.137863344691572e-06,
-    -0.575254560351770e-07,
-    0.119516285997781e-07,
+const TEMME_C1: [f64; 16] = [
+    -1.851_851_851_851_851_92e-03,
+    -3.472_222_222_222_222_03e-03,
+    2.645_502_645_502_645_36e-03,
+    -9.902_263_374_485_596_30e-04,
+    2.057_613_168_724_279_79e-04,
+    -4.018_775_720_164_608_97e-07,
+    -1.809_855_033_448_997_67e-05,
+    7.649_160_916_081_109_82e-06,
+    -1.612_090_089_456_344_65e-06,
+    4.647_127_802_807_434_02e-09,
+    1.378_633_446_915_720_92e-07,
+    -5.752_545_603_517_704_71e-08,
+    1.195_162_859_977_814_77e-08,
+    -1.754_324_171_974_764_67e-11,
+    -1.009_154_371_060_041_26e-09,
+    4.162_792_991_842_582_80e-10,
 ];
-const D20: f64 = 0.413359788359788e-02;
-const D2: [f64; 10] = [
-    -0.268132716049383e-02,
-    0.771604938271605e-03,
-    0.200938786008230e-05,
-    -0.107366532263652e-03,
-    0.529234488291201e-04,
-    -0.127606351886187e-04,
-    0.342357873409614e-07,
-    0.137219573090629e-05,
-    -0.629899213838006e-06,
-    0.142806142060642e-06,
+const TEMME_C2: [f64; 14] = [
+    4.133_597_883_597_883_37e-03,
+    -2.681_327_160_493_827_27e-03,
+    7.716_049_382_716_048_95e-04,
+    2.009_387_860_082_304_70e-06,
+    -1.073_665_322_636_515_99e-04,
+    5.292_344_882_912_012_50e-05,
+    -1.276_063_518_861_872_84e-05,
+    3.423_578_734_096_137_81e-08,
+    1.372_195_730_906_293_42e-06,
+    -6.298_992_138_380_054_82e-07,
+    1.428_061_420_606_424_25e-07,
+    -2.047_709_842_199_086_61e-10,
+    -1.409_252_991_086_752_03e-08,
+    6.228_974_084_922_021_84e-09,
 ];
-const D30: f64 = 0.649434156378601e-03;
-const D3: [f64; 8] = [
-    0.229472093621399e-03,
-    -0.469189494395256e-03,
-    0.267720632062839e-03,
-    -0.756180167188398e-04,
-    -0.239650511386730e-06,
-    0.110826541153473e-04,
-    -0.567495282699160e-05,
-    0.142309007324359e-05,
+const TEMME_C3: [f64; 12] = [
+    6.494_341_563_786_007_73e-04,
+    2.294_720_936_213_991_68e-04,
+    -4.691_894_943_952_557_02e-04,
+    2.677_206_320_628_388_54e-04,
+    -7.561_801_671_883_976_62e-05,
+    -2.396_505_113_867_296_80e-07,
+    1.108_265_411_534_730_25e-05,
+    -5.674_952_826_991_596_55e-06,
+    1.423_090_073_243_588_33e-06,
+    -2.786_108_029_152_814_34e-11,
+    -1.695_840_409_193_027_82e-07,
+    8.099_464_905_388_082_68e-08,
 ];
-const D40: f64 = -0.861888290916712e-03;
-const D4: [f64; 6] = [
-    0.784039221720067e-03,
-    -0.299072480303190e-03,
-    -0.146384525788434e-05,
-    0.664149821546512e-04,
-    -0.396836504717943e-04,
-    0.113757269706784e-04,
+const TEMME_C4: [f64; 10] = [
+    -8.618_882_909_167_117_26e-04,
+    7.840_392_217_200_666_15e-04,
+    -2.990_724_803_031_901_77e-04,
+    -1.463_845_257_884_341_81e-06,
+    6.641_498_215_465_121_89e-05,
+    -3.968_365_047_179_434_71e-05,
+    1.137_572_697_067_841_87e-05,
+    2.507_497_226_237_532_94e-10,
+    -1.695_414_953_655_830_54e-06,
+    8.907_507_532_205_309_41e-07,
 ];
-const D50: f64 = -0.336798553366358e-03;
-const D5: [f64; 4] = [
-    -0.697281375836586e-04,
-    0.277275324495939e-03,
-    -0.199325705161888e-03,
-    0.679778047793721e-04,
+const TEMME_C5: [f64; 8] = [
+    -3.367_985_533_663_581_31e-04,
+    -6.972_813_758_365_857_11e-05,
+    2.772_753_244_959_391_83e-04,
+    -1.993_257_051_618_884_69e-04,
+    6.797_780_477_937_208_00e-05,
+    1.419_062_920_643_967_13e-07,
+    -1.359_404_818_976_869_26e-05,
+    8.018_470_256_334_202_00e-06,
 ];
-const D60: f64 = 0.531307936463992e-03;
-const D6: [f64; 2] = [-0.592166437353694e-03, 0.270878209671804e-03];
-const D70: f64 = 0.344367606892378e-03;
+const TEMME_C6: [f64; 7] = [
+    5.313_079_364_639_922_49e-04,
+    -5.921_664_373_536_939_32e-04,
+    2.708_782_096_718_045_00e-04,
+    7.902_353_232_660_328_15e-07,
+    -8.153_969_367_561_969_15e-05,
+    5.611_682_753_106_249_70e-05,
+    -1.832_911_658_284_337_52e-05,
+];
+const TEMME_C7: [f64; 5] = [
+    3.443_676_068_923_776_52e-04,
+    5.171_790_908_260_591_87e-05,
+    -3.349_316_108_114_223_38e-04,
+    2.812_695_154_763_236_88e-04,
+    -1.097_658_224_468_473_11e-04,
+];
+const TEMME_C8: [f64; 4] = [
+    -6.526_239_185_953_093_72e-04,
+    8.394_987_206_720_872_65e-04,
+    -4.382_970_985_417_209_88e-04,
+    -6.969_091_458_420_552_33e-07,
+];
+const TEMME_C9: [f64; 3] = [
+    -5.967_612_901_927_462_58e-04,
+    -7.204_895_416_020_010_87e-05,
+    6.782_308_837_667_327_99e-04,
+];
+const TEMME_C10: [f64; 2] = [1.332_445_449_480_065_61e-03, -1.914_438_498_565_477_61e-03];
+
+const TEMME_TABLES: [&[f64]; 11] = [
+    &TEMME_C0, &TEMME_C1, &TEMME_C2, &TEMME_C3, &TEMME_C4, &TEMME_C5, &TEMME_C6, &TEMME_C7,
+    &TEMME_C8, &TEMME_C9, &TEMME_C10,
+];
 
 // gratio.f iop-selected constant vectors, indexed [iop-1]. Excel uses ind = 0
 // (unscaled) exclusively, hence iop = 1 throughout; the higher-iop entries are
 // retained so the branch routing matches the reference exactly.
 const GRATIO_ACC0: [f64; 3] = [5e-15, 5e-7, 5e-4];
-const GRATIO_BIG: [f64; 3] = [20.0, 14.0, 10.0];
-const GRATIO_E00: [f64; 3] = [0.25e-3, 0.25e-1, 0.14];
 const GRATIO_X00: [f64; 3] = [31.0, 17.0, 9.7];
 
 // RN53(1/k!), k = 0..19. R35: each adjacent coefficient load is separated
@@ -250,39 +298,6 @@ fn gratio_rexp(x: f64) -> f64 {
     } else {
         w * (0.5 + (0.5 - 1.0 / w))
     }
-}
-
-/// rlog.f: computation of x - 1 - ln(x).
-fn gratio_rlog(x: f64) -> f64 {
-    const A: f64 = 0.566749439387324e-01;
-    const B: f64 = 0.456512608815524e-01;
-    const P0: f64 = 0.333333333333333e+00;
-    const P1: f64 = -0.224696413112536e+00;
-    const P2: f64 = 0.620886815375787e-02;
-    const Q1: f64 = -0.127408923933623e+01;
-    const Q2: f64 = 0.354508718369557e+00;
-    if x < 0.61 || x > 1.57 {
-        let r = (x - 0.5) - 0.5;
-        return r - crt_log(x);
-    }
-    let u;
-    let w1;
-    if x < 0.82 {
-        let uu = (x - 0.7) / 0.7;
-        u = uu;
-        w1 = A - uu * 0.3;
-    } else if x > 1.18 {
-        let uu = 0.75 * x - 1.0;
-        u = uu;
-        w1 = B + uu / 3.0;
-    } else {
-        u = (x - 0.5) - 0.5;
-        w1 = 0.0;
-    }
-    let r = u / (u + 2.0);
-    let t = r * r;
-    let w = ((P2 * t + P1) * t + P0) / ((Q2 * t + Q1) * t + 1.0);
-    2.0 * t * (1.0 / (1.0 - r) - r * w) + w1
 }
 
 /// gam1.f: computation of 1/gamma(a+1) - 1 for -0.5 <= a <= 1.5.
@@ -498,7 +513,6 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
     // x0 = 31, e0 = 0.25e-3 constant set.
     let iop = 1usize;
     let acc = GRATIO_ACC0[iop - 1].max(e);
-    let e0 = GRATIO_E00[iop - 1];
     let x0 = GRATIO_X00[iop - 1];
 
     let mut wk = [0.0f64; 21]; // 1-based, indices 1..=20
@@ -560,7 +574,8 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
     }
 
     // a >= 1
-    if a < GRATIO_BIG[iop - 1] {
+    // Bisected at x == a on live Excel 16.0.20527: a = 20.0 uses after40, next_up(20.0) enters Temme.
+    if a <= 20.0 {
         let integer_a = a == a.floor();
         // Integer shapes use their finite polynomial only for a < x <= 30.
         // Adjacent-double probes distinguish both boundaries; the half-integer
@@ -618,20 +633,14 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
         );
     }
 
-    // statement 30: a >= big
-    let l = x / a;
+    // statement 30: a > 20.0
+    // Bisected on live Excel 16.0.20527: Temme runs strictly for 0.7 < l < 1.3 with l = x / a.
+    let l = crate::ported::excel_numeric::excel_x87_div(x, a);
     if l == 0.0 {
         return (0.0, 1.0);
     }
-    let s = 0.5 + (0.5 - l);
-    let z = gratio_rlog(l);
-    let y = a * z;
-    let rta = a.sqrt();
-    if s.abs() <= e0 / rta {
-        return gratio_temme_330(a, l, y, z, e, s, iop);
-    }
-    if s.abs() <= 0.4 {
-        return gratio_temme_270(a, l, y, z, e, s, iop);
+    if l > 0.7 && l < 1.3 {
+        return gratio_temme(a, x);
     }
     let m = poisson_mass(a, x);
     gratio_after40(
@@ -732,181 +741,75 @@ fn gratio_cf(a: f64, x: f64, r: f64, _e: f64, _acc: f64) -> (f64, f64) {
     (0.5 + (0.5 - qans), qans)
 }
 
-/// `Q(1/2, y)` as the Temme arm reads it. From `y = 1.1` it is Morris's statement 250, the two-term
-/// recurrence stopped at `acc = 5e-15`, not the fraction of [`gratio_cf`]: its truncation leaves
-/// 2.5e-15 in `w`, and that is the 16 units by which POISSON.DIST(100, 122.2..., TRUE), dc-j9k's
-/// D180, sits off the fully converged tail on Excel's side. With the converged `erfc` scaled, from
-/// either table, it stays 16 units away.
-fn gratio_half_for_temme(y: f64) -> f64 {
-    if y < 1.1 {
-        return gratio(0.5, y).1;
-    }
-    let a = 0.5;
-    let t1 = a * crt_log(y) - y;
-    let r = a * crate::ported::excel_numeric::excel_exp(t1) * (1.0 + gratio_gam1(a));
-    let (mut a2nm1, mut a2n, mut b2nm1, mut b2n, mut c) = (1.0, 1.0, y, y + (1.0 - a), 1.0);
-    loop {
-        a2nm1 = y * a2n + c * a2nm1;
-        b2nm1 = y * b2n + c * b2nm1;
-        let am0 = a2nm1 / b2nm1;
-        c += 1.0;
-        let cma = c - a;
-        a2n = a2nm1 + cma * a2n;
-        b2n = b2nm1 + cma * b2n;
-        let an0 = a2n / b2n;
-        if !((an0 - am0).abs() >= GRATIO_ACC0[0].max(GRATIO_E) * an0) {
-            return r * an0;
-        }
-    }
-}
-
-/// statement 270: Temme expansion for a >= big, |1 - x/a| <= 0.4.
-fn gratio_temme_270(a: f64, l: f64, y: f64, z: f64, e: f64, s: f64, iop: usize) -> (f64, f64) {
-    if s.abs() <= 2.0 * e && a * e * e > 3.28e-3 {
-        return (2.0, 2.0);
-    }
-    let c = crate::ported::excel_numeric::excel_exp(-y);
-    // DEVIATION 3: w = 0.5*erfc1(1, sqrt(y)) = 0.5*exp(y)*Q(0.5, y).
-    let scale = crate::ported::excel_numeric::excel_exp(y);
-    let w = if scale.is_finite() {
-        0.5 * (scale * gratio_half_for_temme(y))
-    } else {
-        // Keep the scaled upper tail finite when exp(y) would overflow
-        // and the unscaled half tail would underflow. The product 0*inf
-        // otherwise breaks monotonicity for inverse searches across this arm.
-        0.5 * bratio_erfc1(1, y.sqrt())
+/// Temme expansion for `a > 20` and `0.7 < x/a < 1.3` (dc-ymjf.2.27).
+///
+/// Measured on Excel 16.0.20527 across five 256-double windows (1,280/1,280 exact `s = sqrt(y)`)
+/// and verified on a 300-point frozen-prediction holdout (291/300 0-ULP, 300/300 <= 1 ULP):
+/// - `u = (x - a) / a`, `d2 = u + 2`, `r = u / d2`, `sum = r^2/3 + r^4/5 + ...` (each step stored),
+///   `z = r * (u - 2 * sum)`, `y = a * z`, `s = sqrt(y)`, `eta = sgn(x - a) * sqrt(2 * z)`;
+/// - `h = 0.5 * ERFC.PRECISE(s)` (0.5 at `x == a`), `c = EXP(-y)`,
+/// - `t = sum_{k=0}^{10} c_k(eta) * a^{-k}` with full binary64 exact rational Temme coefficients,
+/// - `term = ((c * TEMME_RT2PIN) / sqrt(a)) * t`;
+/// - `x > a`: `Q = h + term`, `P = 1 - Q`; `x <= a`: `P = h - term`, `Q = 1 - P`.
+fn gratio_temme(a: f64, x: f64) -> (f64, f64) {
+    use crate::ported::excel_numeric::{
+        excel_exp, excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_sub,
     };
-    let u = 1.0 / a;
-    let mut zz = (z + z).sqrt();
-    if l < 1.0 {
-        zz = -zz;
-    }
-    let z = zz;
-    let t;
-    if iop == 1 {
-        if s.abs() <= 1e-3 {
-            return gratio_temme_340(a, l, z, u, c, w);
+
+    let u = excel_x87_div(excel_x87_sub(x, a), a);
+    let d2 = excel_x87_add(u, 2.0);
+    let r = excel_x87_div(u, d2);
+    let r2 = excel_x87_mul(r, r);
+    let mut p = r2;
+    let mut sum = 0.0;
+    let mut k = 3.0;
+    loop {
+        let next = excel_x87_add(sum, excel_x87_div(p, k));
+        if next == sum {
+            break;
         }
-        let c0 = ((((((((((((D0[12] * z + D0[11]) * z + D0[10]) * z + D0[9]) * z + D0[8])
-            * z
-            + D0[7])
-            * z
-            + D0[6])
-            * z
-            + D0[5])
-            * z
-            + D0[4])
-            * z
-            + D0[3])
-            * z
-            + D0[2])
-            * z
-            + D0[1])
-            * z
-            + D0[0])
-            * z
-            - GRATIO_THIRD;
-        let c1 = (((((((((((D1[11] * z + D1[10]) * z + D1[9]) * z + D1[8]) * z + D1[7]) * z
-            + D1[6])
-            * z
-            + D1[5])
-            * z
-            + D1[4])
-            * z
-            + D1[3])
-            * z
-            + D1[2])
-            * z
-            + D1[1])
-            * z
-            + D1[0])
-            * z
-            + D10;
-        let c2 =
-            (((((((((D2[9] * z + D2[8]) * z + D2[7]) * z + D2[6]) * z + D2[5]) * z + D2[4]) * z
-                + D2[3])
-                * z
-                + D2[2])
-                * z
-                + D2[1])
-                * z
-                + D2[0])
-                * z
-                + D20;
-        let c3 = (((((((D3[7] * z + D3[6]) * z + D3[5]) * z + D3[4]) * z + D3[3]) * z + D3[2])
-            * z
-            + D3[1])
-            * z
-            + D3[0])
-            * z
-            + D30;
-        let c4 =
-            (((((D4[5] * z + D4[4]) * z + D4[3]) * z + D4[2]) * z + D4[1]) * z + D4[0]) * z + D40;
-        let c5 = (((D5[3] * z + D5[2]) * z + D5[1]) * z + D5[0]) * z + D50;
-        let c6 = (D6[1] * z + D6[0]) * z + D60;
-        t = ((((((D70 * u + c6) * u + c5) * u + c4) * u + c3) * u + c2) * u + c1) * u + c0;
-    } else if iop == 2 {
-        let c0 = (((((D0[5] * z + D0[4]) * z + D0[3]) * z + D0[2]) * z + D0[1]) * z + D0[0]) * z
-            - GRATIO_THIRD;
-        let c1 = (((D1[3] * z + D1[2]) * z + D1[1]) * z + D1[0]) * z + D10;
-        let c2 = D2[0] * z + D20;
-        t = (c2 * u + c1) * u + c0;
-    } else {
-        t = ((D0[2] * z + D0[1]) * z + D0[0]) * z - GRATIO_THIRD;
+        sum = next;
+        p = excel_x87_mul(p, r2);
+        k += 2.0;
     }
-    gratio_temme_finish(l, c, w, t, a)
-}
+    let inner = excel_x87_sub(u, excel_x87_mul(2.0, sum));
+    let z = excel_x87_mul(r, inner);
+    let y = excel_x87_mul(a, z);
+    let s = y.sqrt();
+    let mut eta = (z + z).sqrt();
+    if x < a {
+        eta = -eta;
+    }
 
-fn gratio_temme_340(a: f64, l: f64, z: f64, u: f64, c: f64, w: f64) -> (f64, f64) {
-    let c0 = ((((((D0[6] * z + D0[5]) * z + D0[4]) * z + D0[3]) * z + D0[2]) * z + D0[1]) * z
-        + D0[0])
-        * z
-        - GRATIO_THIRD;
-    let c1 = (((((D1[5] * z + D1[4]) * z + D1[3]) * z + D1[2]) * z + D1[1]) * z + D1[0]) * z + D10;
-    let c2 = ((((D2[4] * z + D2[3]) * z + D2[2]) * z + D2[1]) * z + D2[0]) * z + D20;
-    let c3 = (((D3[3] * z + D3[2]) * z + D3[1]) * z + D3[0]) * z + D30;
-    let c4 = (D4[1] * z + D4[0]) * z + D40;
-    let c5 = (D5[1] * z + D5[0]) * z + D50;
-    let c6 = D6[0] * z + D60;
-    let t = ((((((D70 * u + c6) * u + c5) * u + c4) * u + c3) * u + c2) * u + c1) * u + c0;
-    gratio_temme_finish(l, c, w, t, a)
-}
+    let inv_a = excel_x87_div(1.0, a);
+    let horner = |coeffs: &[f64]| -> f64 {
+        let mut acc = coeffs[coeffs.len() - 1];
+        for &coeff in coeffs[..coeffs.len() - 1].iter().rev() {
+            acc = excel_x87_add(excel_x87_mul(acc, eta), coeff);
+        }
+        acc
+    };
+    let mut t = horner(TEMME_TABLES[TEMME_TABLES.len() - 1]);
+    for &table in TEMME_TABLES[..TEMME_TABLES.len() - 1].iter().rev() {
+        t = excel_x87_add(excel_x87_mul(t, inv_a), horner(table));
+    }
 
-/// statement 330: Temme expansion for a >= big, |1 - x/a| <= e0/sqrt(a).
-fn gratio_temme_330(a: f64, l: f64, y: f64, z: f64, e: f64, _s: f64, iop: usize) -> (f64, f64) {
-    if a * e * e > 3.28e-3 {
-        return (2.0, 2.0);
-    }
-    let c = 0.5 + (0.5 - y);
-    let w = (0.5 - y.sqrt() * (0.5 + (0.5 - y / 3.0)) / GRATIO_RTPI) / c;
-    let u = 1.0 / a;
-    let mut zz = (z + z).sqrt();
-    if l < 1.0 {
-        zz = -zz;
-    }
-    let z = zz;
-    if iop == 1 {
-        return gratio_temme_340(a, l, z, u, c, w);
-    }
-    let t;
-    if iop == 2 {
-        let c0 = (D0[1] * z + D0[0]) * z - GRATIO_THIRD;
-        let c1 = D1[0] * z + D10;
-        t = (D20 * u + c1) * u + c0;
-    } else {
-        t = D0[0] * z - GRATIO_THIRD;
-    }
-    gratio_temme_finish(l, c, w, t, a)
-}
-
-fn gratio_temme_finish(l: f64, c: f64, w: f64, t: f64, a: f64) -> (f64, f64) {
     let rta = a.sqrt();
-    let (answer, complement) =
-        crate::ported::excel_numeric::excel_x87_temme_finish(c, w, GRATIO_RT2PIN, t, rta, l < 1.0);
-    if l >= 1.0 {
-        (complement, answer)
+    let c = excel_exp(-y);
+    let h = if x == a {
+        0.5
     } else {
-        (answer, complement)
+        0.5 * crate::ported::special_dist_family::erfc_precise_kernel(s).unwrap_or(0.0)
+    };
+    let term = excel_x87_mul(excel_x87_div(excel_x87_mul(c, TEMME_RT2PIN), rta), t);
+    if x > a {
+        let q = excel_x87_add(h, term);
+        let p = excel_x87_add(0.5, excel_x87_sub(0.5, q));
+        (p, q)
+    } else {
+        let p = excel_x87_sub(h, term);
+        let q = excel_x87_add(0.5, excel_x87_sub(0.5, p));
+        (p, q)
     }
 }
 
@@ -2804,5 +2707,65 @@ mod tests {
         assert!(regularized_gamma_q(1.0, f64::INFINITY).is_nan());
         assert_eq!(regularized_gamma_p(2.5, 0.0), 0.0);
         assert_eq!(regularized_gamma_q(2.5, 0.0), 1.0);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn gratio_temme_corpus_and_boundary_excel_bits() {
+        // Corpus cumulative POISSON.DIST(k, x, TRUE) = Q(k+1, x) cases (dc96l3_discrete!D186
+        // and dcj9k_r25_discrete!D147..D198), exact Excel 16.0.20527 bit patterns.
+        let q_cases: &[(f64, u64, u64)] = &[
+            // dc96l3_discrete!D186: POISSON.DIST(1000, 1000, TRUE)
+            (1001.0, 1000.0_f64.to_bits(), 0x3fe0_44e3_b89f_0052),
+            // dcj9k_r25_discrete!D147, D150, D153: k=33, x around 27
+            (34.0, 0x403a_ffff_ffff_ffff, 0x3fec_89b0_efdf_3c2d),
+            (34.0, 0x403b_0000_0000_0000, 0x3fec_89b0_efdf_3c2c),
+            (34.0, 0x403b_0000_0000_0001, 0x3fec_89b0_efdf_3c2b),
+            // dcj9k_r25_discrete!D156, D159, D162: k=33, x around 121/3
+            (34.0, 0x4044_2aaa_aaaa_aaaa, 0x3fc1_e252_7475_4da2),
+            (34.0, 0x4044_2aaa_aaaa_aaab, 0x3fc1_e252_7475_4d9a),
+            (34.0, 0x4044_2aaa_aaaa_aaac, 0x3fc1_e252_7475_4d90),
+            // dcj9k_r25_discrete!D168: k=100, x = 900/11
+            (101.0, 0x4054_745d_1745_d174, 0x3fef_4a89_0c3f_40ee),
+            // dcj9k_r25_discrete!D174, D177: k=100, x around 1100/9
+            (101.0, 0x405e_8e38_e38e_38e3, 0x3f96_a06a_3c48_31bc),
+            (101.0, 0x405e_8e38_e38e_38e4, 0x3f96_a06a_3c48_31ad),
+            // dcj9k_r25_discrete!D183, D186, D189: k=1000, x around 9000/11
+            (1001.0, 0x4089_9174_5d17_45d0, 0x3fef_ffff_ffce_c3ec),
+            (1001.0, 0x4089_9174_5d17_45d1, 0x3fef_ffff_ffce_c3ec),
+            (1001.0, 0x4089_9174_5d17_45d2, 0x3fef_ffff_ffce_c3ec),
+            // dcj9k_r25_discrete!D192, D195, D198: k=1000, x around 11000/9
+            (1001.0, 0x4093_18e3_8e38_e38d, 0x3dc0_583a_7310_66a0),
+            (1001.0, 0x4093_18e3_8e38_e38e, 0x3dc0_583a_7310_65e7),
+            (1001.0, 0x4093_18e3_8e38_e38f, 0x3dc0_583a_7310_651f),
+            // x == a complement direction (Q = 1 - P, even LSB)
+            (21.0, 21.0_f64.to_bits(), 0x3fde_2471_a884_3ce8),
+            (101.0, 101.0_f64.to_bits(), 0x3fdf_2731_a5de_67a4),
+            (1001.0, 1001.0_f64.to_bits(), 0x3fdf_bb22_bd73_2f30),
+        ];
+        for &(a, x_bits, expected) in q_cases {
+            let x = f64::from_bits(x_bits);
+            let actual = gratio(a, x).1.to_bits();
+            assert_eq!(
+                actual,
+                expected,
+                "Q({a}, {x_bits:#018x}): got {actual:#018x}, expected {expected:#018x} ({} ULP)",
+                ulp_gap(f64::from_bits(actual), f64::from_bits(expected))
+            );
+        }
+
+        // Exact a > 20.0 boundary at x == a (P side, GAMMA.DIST(a, a, 1, TRUE)):
+        // a = 20.0 uses after40, next_up(20.0) enters Temme.
+        assert_eq!(gratio(20.0, 20.0).0.to_bits(), 0x3fe0_f3a7_0847_030b);
+        let a_next = f64::from_bits(0x4034_0000_0000_0001);
+        assert_eq!(gratio(a_next, a_next).0.to_bits(), 0x3fe0_f3a7_0847_0306);
+
+        // Large y > 709 inside Temme must stay finite and monotone (no exp(y)*0 NaN).
+        let (p_hi, q_hi) = gratio(100_000.0, 113_000.0);
+        assert_eq!(q_hi, 0.0);
+        assert_eq!(p_hi, 1.0);
+        let (p_lo, q_lo) = gratio(100_000.0, 88_000.0);
+        assert_eq!(p_lo, 0.0);
+        assert_eq!(q_lo, 1.0);
     }
 }
