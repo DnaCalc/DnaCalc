@@ -571,6 +571,8 @@ async function main() {
     report.upload_to_grid_ms = args.workbook && !host ? ready - load : null;
     report.launch_to_observed_grid_ms = host ? ready - started : null;
     report.actual_viewport = await page.evaluate("[innerWidth,innerHeight,devicePixelRatio]");
+    report.locale = await page.evaluate("navigator.language");
+    if (args.ferro) report.ferroui_renderer = await ferroSnapshot(page);
 
     if (scenario.action === "startup") {
       report.wall_ms = host ? ready - started : ready - navigation;
