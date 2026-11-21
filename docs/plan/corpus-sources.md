@@ -223,3 +223,50 @@ code licence is MIT. The documentation text and extracted result excerpts carry 
 The new files were hashed against `all-files.kode-fi.v5.jsonl` and one another. The v6 index
 preserves the v5 records and appends the new files. Two matches appeared in older standalone
 manifests outside v5, one Stack Exchange snippet and one Excel Easy workbook.
+
+## Corpus V2 capture selection on kode-fi (2026-11-21, dc-ebb)
+
+The baseline uses the held IronCalc, xlcalc, BigSpill and GitHub feature example sets. The
+expanded run adds Harv7's licensed GitHub tips. Both runs used the supplied Linux
+`xtask-harness` for static classification and selection. The 93 authored Harv7 formula
+workbooks supply 154 reference shape keys. Their Excel captures are tracked under dc-ebb.4.
+
+| Measure | Baseline | With GitHub tips |
+|---|---:|---:|
+| Workbook profiles | 7,452 | 7,595 |
+| CalcHost opens | 7,452 | 7,588 |
+| Formula-bearing workbooks | 5,513 | 5,588 |
+| Formula cells in profiles | 249,613 | 379,551 |
+| Eligible capture candidates | 5,251 | 5,302 |
+| Selected workbooks | 300 | 300 |
+| New function and argument-shape pairs selected | 10,769 | 11,249 |
+| New formula features or kinds selected | 12 | 12 |
+| Formula cells selected for capture | 152,907 | 150,519 |
+
+Selection required an XLSX package, a source URL and licence evidence. The selector used a
+2 MiB and 30,000-formula-cell limit per file and excluded the 486 hashes in
+[capture batch 1](capture-batch-1.md). The result contains 137 xlcalc, 128 IronCalc, 25 GitHub
+tips, nine BigSpill and one GitHub feature example. All 300 have distinct SHA-256 digests,
+passed static VBA/XLM absence checks and matched the corresponding existing R2 objects
+in a bytewise one-way check. Their combined size is 11,937,418 bytes. Static triage of the
+wider GitHub tips set found 13 embedded VBA projects (11 clean, two suspect) and
+168 standalone modules (133 clean, 35 suspect), with no XLM found.
+
+The private evidence prefix `dnacalc-corpus/runs/kode-fi/20261121-cp1-v2/` holds the two
+selection results, per-set profiles, provenance and hash manifest, source-check logs and
+Windows instructions. Its copy passed a one-way check with 31 matching objects,
+1,239,289 bytes and zero differences. The 300-file comparison awaits approved capture in
+the isolated Windows Excel environment under dc-ebb. No Excel match rate was measured.
+
+The same prefix holds `govuk-source-proposal.tsv`, a metadata-only proposal for 21 new
+attachments totaling 15,088,609 published bytes. It records each attachment's filename,
+publisher URL, download URL, published size and licence basis. GOV.UK states OGL v3.0 as
+the default, subject to exceptions. Workbook-specific terms and third-party rights still
+need checking after approval, before any corpus admission. The source decision remains
+under dc-ebb. [GOV.UK terms](https://www.gov.uk/help/terms-conditions#using-govuk-content)
+
+The proposed sources are the DfT [TAG data book](https://www.gov.uk/government/publications/tag-data-book),
+[appraisal worksheets](https://www.gov.uk/government/publications/tag-social-and-distributional-impacts-worksheets)
+and [vehicle emissions tool](https://www.gov.uk/government/publications/vehicle-emissions-carbon-tool-vecat),
+the Treasury [Green Book templates](https://www.gov.uk/government/publications/the-green-book-templates-and-support-material)
+and the DESNZ [modelling QA templates](https://www.gov.uk/government/publications/energy-security-and-net-zero-modelling-quality-assurance-qa-tools-and-guidance).
