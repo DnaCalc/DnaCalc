@@ -397,7 +397,10 @@ impl CallableTable {
         let provider = crate::rtd::RTD_PROVIDER;
         self.entries
             .retain(|(held, _), _| held.as_deref() != Some(provider));
-        self.register_for(Some(provider), "RTD", Rc::new(crate::rtd::RtdFunction))
+        let spelling = calc_catalogue::declaration(calc_catalogue::unheld::RTD_ID)
+            .expect("RTD declaration")
+            .spelling();
+        self.register_for(Some(provider), spelling, Rc::new(crate::rtd::RtdFunction))
             .expect("a provider cleared above");
     }
 

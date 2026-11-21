@@ -19,7 +19,7 @@ pub fn help(target: FunctionCallTarget<'_>) -> Option<&'static FunctionHelp> {
     {
         return None;
     }
-    calc_catalogue::help_of_id(target.id())
+    calc_catalogue::declaration(target.id()).and_then(calc_catalogue::DeclarationRef::help)
 }
 
 #[cfg(test)]

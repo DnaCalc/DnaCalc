@@ -77,6 +77,7 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
             Parameter::value("match_type"),
         ],
     )
+    .with_context(&[super::ContextFacility::NumericMode, super::ContextFacility::Cells])
     .with_three_d(super::ThreeD::new(None, Some(&[1, 2]), Some(&[0])))
     .with_traits(super::EntryTraits::NONE.value_error_references()),
     eager(
@@ -90,6 +91,7 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
             Parameter::value("search_mode"),
         ],
     )
+    .with_context(&[super::ContextFacility::NumericMode, super::ContextFacility::Cells])
     // dc-b1l (Touchstone 2026-11-16, three-d): a 3-D search_mode is #REF!.
     .with_three_d(super::ThreeD::new(None, Some(&[1]), Some(&[0, 2, 3])))
     .with_traits(super::EntryTraits::NONE.value_error_references()),
@@ -107,6 +109,7 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
             Parameter::value("search_mode"),
         ],
     )
+    .with_context(&[super::ContextFacility::NumericMode, super::ContextFacility::Cells])
     // dc-b1l (Touchstone 2026-11-16, three-d): a 3-D if_not_found is #VALUE! where it is given
     // (`=XLOOKUP(2,A1:A3,B1:B3,Ja:Ma!A1)` 20, `=XLOOKUP(9,...)` #VALUE!), the modes #REF!.
     .with_three_d(super::ThreeD::new(None, Some(&[1, 2]), Some(&[0, 4, 5])).value_arguments(&[3]))
@@ -126,6 +129,7 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
             Parameter::value("range_lookup"),
         ],
     )
+    .with_context(&[super::ContextFacility::NumericMode, super::ContextFacility::Cells])
     .with_three_d(super::ThreeD::new(None, Some(&[1]), Some(&[0, 2, 3])))
     .with_traits(super::EntryTraits::NONE.value_error_references()),
     eager(
@@ -140,6 +144,7 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
             Parameter::value("range_lookup"),
         ],
     )
+    .with_context(&[super::ContextFacility::NumericMode, super::ContextFacility::Cells])
     .with_three_d(super::ThreeD::new(None, Some(&[1]), Some(&[0, 2, 3])))
     .with_traits(super::EntryTraits::NONE.value_error_references()),
     eager(
@@ -152,6 +157,7 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
             Parameter::value_or_reference("result_vector").legacy(super::LegacyPlace::ArrayAtRoot),
         ],
     )
+    .with_context(&[super::ContextFacility::NumericMode, super::ContextFacility::Cells])
     .with_three_d(super::ThreeD::new(None, Some(&[1, 2]), Some(&[0])))
     .with_traits(super::EntryTraits::NONE.value_error_references()),
     // A call gives one of its values, which may be a reference or a LAMBDA (dc-mx3x):
@@ -191,6 +197,7 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
             .entry(super::EntryClass::Reference)
             .legacy(super::LegacyPlace::ArrayAlways)],
     )
+    .with_context(&[super::ContextFacility::NumericMode, super::ContextFacility::Host])
     .with_three_d(super::ThreeD::new(None, Some(&[]), None))
     .with_traits(
         super::EntryTraits::NONE
@@ -203,6 +210,7 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
         CallableArityShape::range(0, 1),
         &[Parameter::value_or_reference("reference").entry(super::EntryClass::Reference)],
     )
+    .with_context(&[super::ContextFacility::NumericMode, super::ContextFacility::Host])
     .with_three_d(super::ThreeD::new(None, Some(&[]), None))
     .with_traits(
         super::EntryTraits::NONE

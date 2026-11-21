@@ -15,6 +15,7 @@ portability = "portable"
 # duplicate keys, so a duplicate is refused rather than dropped. No derive. The two pins are the
 # versions the workspace already locks.
 [dependencies]
+calc-catalogue = { path = "../../crates/calc-catalogue" }
 calc-value = { path = "../../crates/calc-value" }
 serde = "=1.0.229"
 serde_json = "=1.0.154"

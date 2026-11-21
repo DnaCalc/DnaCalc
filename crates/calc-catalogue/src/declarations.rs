@@ -746,6 +746,11 @@ pub struct WorksheetDeclaration {
 }
 
 impl WorksheetDeclaration {
+    pub const fn with_context(mut self, facilities: &'static [ContextFacility]) -> Self {
+        self.context_facilities = Some(facilities);
+        self
+    }
+
     pub const fn with_result(mut self, result: ResultForm) -> Self {
         self.result = result;
         self

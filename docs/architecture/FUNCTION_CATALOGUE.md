@@ -192,3 +192,12 @@ Files store formulas in English, so localised names belong to editing and displa
 table is keyed by `FunctionId` and locale, seeded from the handbook's 40-locale harvest and checked
 against Excel's `Range.FormulaLocal` with each language installed. CalcFml's localised parse and
 print and the grid's localised entry and display still need that table.
+
+
+## Handbook metadata
+
+Run `cargo xtask handbook-coverage --catalogue-only --out target/handbook-coverage`
+to export `function-catalogue.json`. It contains stable function IDs, the signatures the apps
+display, parameter details, and the attributed Microsoft and DNA Calc help lines.
+Using `--handbook <build>/api/functions` also compares the catalogue oracle and writes the
+coverage snapshot beside the metadata.

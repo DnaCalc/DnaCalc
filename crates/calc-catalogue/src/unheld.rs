@@ -72,6 +72,9 @@ pub const IMPLICIT_INTERSECTION_ID: FunctionId = FunctionId::new(CODE, 15);
 pub const SPILL_ID: FunctionId = FunctionId::new(CODE, 16);
 /// Stable ID of RTD.
 pub const RTD_ID: FunctionId = FunctionId::new(CODE, 3);
+pub const DETECTLANGUAGE_ID: FunctionId = FunctionId::new(CODE, 5);
+pub const STOCKHISTORY_ID: FunctionId = FunctionId::new(CODE, 6);
+pub const TRANSLATE_ID: FunctionId = FunctionId::new(CODE, 7);
 
 /// The file spelling of a declared reference operator.
 pub fn operator_file_spelling(id: FunctionId) -> Option<&'static str> {

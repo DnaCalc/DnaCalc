@@ -585,24 +585,7 @@ impl PartialEq for FunctionCallTarget<'_> {
 
 impl Eq for FunctionCallTarget<'_> {}
 
-/// The signature help of an entry, rendered from its declared parameters and arity.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SignatureHelp {
-    /// The signature as a tooltip shows it, such as `SUM(number1, [number2], ...)`.
-    pub display: String,
-    pub parameters: Vec<HelpParameter>,
-}
-
-/// One parameter of a [`SignatureHelp`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct HelpParameter {
-    pub name: &'static str,
-    /// Whether a call may leave it out: its position is at or after the arity's minimum.
-    pub optional: bool,
-    /// Whether it repeats: it is the last named parameter and the arity admits more arguments
-    /// than there are names.
-    pub repeats: bool,
-}
+pub use calc_catalogue::{HelpParameter, SignatureHelp};
 
 impl<'c> FunctionCallTarget<'c> {
     pub fn is_resumable(self) -> bool {
@@ -738,45 +721,9 @@ impl<'c> FunctionCallTarget<'c> {
     }
 
     pub fn signature_help(self) -> SignatureHelp {
-        let entry = self.entry;
-        let open_tail = entry.arity.max > entry.parameters.len();
-        let last = entry.parameters.len().saturating_sub(1);
-        let parameters: Vec<HelpParameter> = entry
-            .parameters
-            .iter()
-            .enumerate()
-            .map(|(index, parameter)| HelpParameter {
-                name: parameter.name,
-                optional: index >= entry.arity.min,
-                repeats: open_tail && index == last,
-            })
-            .collect();
-        let shown: Vec<String> = parameters
-            .iter()
-            .map(|parameter| {
-                if parameter.optional {
-                    format!("[{}]", parameter.name)
-                } else {
-                    parameter.name.to_owned()
-                }
-            })
-            .collect();
-        let display = match entry.notation {
-            Notation::Call => {
-                let mut list = shown.join(", ");
-                if open_tail {
-                    list.push_str(", ...");
-                }
-                format!("{}({list})", entry.spelling)
-            }
-            Notation::Prefix => format!("{}{}", entry.spelling, shown[0]),
-            Notation::Infix => format!("{} {} {}", shown[0], entry.spelling, shown[1]),
-            Notation::Postfix => format!("{}{}", shown[0], entry.spelling),
-        };
-        SignatureHelp {
-            display,
-            parameters,
-        }
+        calc_catalogue::declaration(self.id())
+            .expect("attached function has a declaration")
+            .signature_help()
     }
 
     /// The oracle selection for this entry: the Excel formula that asks Excel for this entry

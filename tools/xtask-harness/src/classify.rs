@@ -45,11 +45,6 @@ fn bump(map: &mut Counts, key: impl Into<String>, by: u64) {
     *map.entry(key.into()).or_default() += by;
 }
 
-/// Functions whose result can change without any precedent changing.
-const VOLATILE: &[&str] = &[
-    "NOW", "TODAY", "RAND", "RANDBETWEEN", "RANDARRAY", "OFFSET", "INDIRECT", "INFO", "CELL",
-];
-
 /// What one formula text uses: function call counts and feature flags (each flag counts once).
 #[derive(Default, Clone, Debug, PartialEq)]
 pub(crate) struct FormulaStats {
@@ -245,35 +240,34 @@ pub(crate) fn analyze_formula(text: &str) -> Result<FormulaStats, ScanRefusal> {
                     Some('(') => {
                         let upper = word.to_ascii_uppercase();
                         let mut name = upper.as_str();
-                        loop {
-                            if let Some(rest) = name
-                                .strip_prefix("_XLFN.")
-                                .or_else(|| name.strip_prefix("_XLWS."))
-                            {
-                                name = rest;
-                            } else {
-                                break;
-                            }
+                        while let Some(rest) =
+                            calc_catalogue::strip_ascii_prefix(name, calc_catalogue::FUTURE_FUNCTION_PREFIX)
+                                .or_else(|| calc_catalogue::strip_ascii_prefix(name, calc_catalogue::WORKSHEET_FUNCTION_PREFIX))
+                        {
+                            name = rest;
                         }
-                        let name = name.to_owned();
-                        if matches!(name.as_str(), "LET") {
-                            note(&mut out, "let");
+                        match calc_catalogue::binding_form(name) {
+                            Some(calc_catalogue::BindingForm::Let) => note(&mut out, "let"),
+                            Some(calc_catalogue::BindingForm::Lambda) => note(&mut out, "lambda"),
+                            None => {}
                         }
-                        if matches!(name.as_str(), "LAMBDA") {
-                            note(&mut out, "lambda");
-                        }
-                        if name == "ANCHORARRAY" {
+                        if calc_catalogue::unheld::operator_file_spelling(calc_catalogue::unheld::SPILL_ID)
+                            .is_some_and(|spelling| name == calc_catalogue::file_unprefixed(spelling))
+                        {
                             note(&mut out, "spill_reference");
                         }
                         if name.starts_with("_XLL.") {
                             note(&mut out, "add_in_call");
                         }
-                        if name.starts_with("_XLUDF.") {
+                        if calc_catalogue::strip_ascii_prefix(name, calc_catalogue::USER_DEFINED_FUNCTION_PREFIX).is_some() {
                             note(&mut out, "future_or_user_defined_function");
                         }
-                        if VOLATILE.contains(&name.as_str()) {
+                        if calc_func::catalogue().resolve_surface(calc_func::Notation::Call, name)
+                            .is_ok_and(|entry| entry.traits().volatile)
+                        {
                             note(&mut out, "volatile");
                         }
+                        let name = name.to_owned();
                         calls.push((i, name.clone()));
                         bump(&mut out.functions, name, 1);
                     }

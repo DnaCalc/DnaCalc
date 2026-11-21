@@ -82,7 +82,7 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
         .with_traits(super::EntryTraits::NONE.take_reference_array()),
     // dc-b1l (Touchstone 2026-11-16, reference-arrays): ISFORMULA runs once per reference of an
     // array of references; TYPE reads each held reference as #VALUE! (the array is of type 64).
-    unary(ISFORMULA, "ISFORMULA", REFERENCE)
+    unary(ISFORMULA, "ISFORMULA", REFERENCE).with_context(&[super::ContextFacility::Host])
         .with_three_d(super::ThreeD::new(None, Some(&[]), None))
         .with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
     unary(TYPE, "TYPE", TYPE_VALUE)

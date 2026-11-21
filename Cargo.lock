@@ -430,6 +430,7 @@ dependencies = [
 name = "calc-verdict"
 version = "0.1.0"
 dependencies = [
+ "calc-catalogue",
  "calc-value",
  "serde",
  "serde_json",
@@ -455,6 +456,7 @@ dependencies = [
 name = "calc-xll-host"
 version = "0.1.0"
 dependencies = [
+ "calc-catalogue",
  "calc-fml",
  "calc-func",
  "calc-value",

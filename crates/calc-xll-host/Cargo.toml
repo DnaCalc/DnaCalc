@@ -10,6 +10,7 @@ description = "Windows XLL loading and C API callbacks through the shared user-f
 portability = "native-only"
 
 [target.'cfg(windows)'.dependencies]
+calc-catalogue = { path = "../calc-catalogue" }
 calc-value = { path = "../calc-value" }
 calc-func = { path = "../calc-func" }
 calc-fml = { path = "../calc-fml" }

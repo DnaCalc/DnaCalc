@@ -526,7 +526,7 @@ pub(crate) fn apply(
                 };
                 let cutoff = format!(
                     "IF(COUNT({range})=0,0,{}({},6,{range},MIN(COUNT({range}),MAX(1,{k}))))",
-                    file_call_name("AGGREGATE"),
+                    file_call_name(calc_catalogue::ported::subtotal::AGGREGATE),
                     if *top { 14 } else { 15 }
                 );
                 let cutoff_value = context
@@ -564,7 +564,7 @@ pub(crate) fn apply(
                 format!(
                     "AND(ISNUMBER({cell}),IFERROR({cell}{}{}(1,6,{range}),FALSE))",
                     if *above { ">" } else { "<" },
-                    file_call_name("AGGREGATE")
+                    file_call_name(calc_catalogue::ported::subtotal::AGGREGATE)
                 )
             }
             FilterCriteria::Color { .. } => unreachable!(),
@@ -817,8 +817,8 @@ fn fill_color(
 }
 
 /// A measured function's name as a file writes its call (`_xlfn.XMATCH`), from the catalogue.
-fn file_call_name(name: &str) -> String {
-    calc_func::file_call_name(name).expect("a function with a measured file form")
+fn file_call_name(id: calc_catalogue::FunctionId) -> String {
+    calc_catalogue::file_call_name_by_id(id).expect("a function with a measured file form")
 }
 
 /// Whether a period filter compares only the date's own month or quarter (no clock).

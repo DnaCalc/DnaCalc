@@ -57,6 +57,18 @@ impl Tables<'_> {
             found: BTreeSet::new(),
         };
         arrays.visit_expr(expr);
+        // Also recognize names stored together in a whitespace-delimited string.
+        if let syn::Expr::Lit(syn::ExprLit {
+            lit: syn::Lit::Str(value),
+            ..
+        }) = expr
+        {
+            let value = value.value();
+            let words: Vec<_> = value.split_whitespace().collect();
+            if words.len() >= 2 && words.iter().all(|word| self.names.contains(*word)) {
+                arrays.found.extend(words.into_iter().map(str::to_owned));
+            }
+        }
         let looks_like_table = arrays.found.iter().any(|name| name.len() > 1)
             || name.to_string().to_ascii_uppercase().contains("FUNC");
         if looks_like_table && !arrays.found.is_empty() {
@@ -77,6 +89,12 @@ impl<'ast> Visit<'ast> for Tables<'_> {
         if !test_only(&item.attrs) && !item.attrs.iter().any(|attr| attr.path().is_ident("test")) {
             visit::visit_item_fn(self, item);
         }
+    }
+    fn visit_local(&mut self, local: &'ast syn::Local) {
+        if let (syn::Pat::Ident(binding), Some(init)) = (&local.pat, &local.init) {
+            self.check(&binding.ident, &init.expr);
+        }
+        visit::visit_local(self, local);
     }
     fn visit_item_const(&mut self, item: &'ast syn::ItemConst) {
         if !test_only(&item.attrs) {
@@ -100,7 +118,39 @@ fn source_findings(source: &str, names: &BTreeSet<String>) -> Result<Vec<String>
     Ok(tables.findings)
 }
 
-fn rust_sources(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
+fn powershell_findings(source: &str, names: &BTreeSet<String>) -> Vec<String> {
+    source
+        .lines()
+        .enumerate()
+        .filter_map(|(line, text)| {
+            let (variable, _) = text.trim().strip_prefix('$')?.split_once(" = @(")?;
+            if !variable
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+            {
+                return None;
+            }
+            let body = source.lines().skip(line).collect::<Vec<_>>().join("\n");
+            let (_, body) = body.split_once(" = @(")?;
+            let (array, _) = body.split_once(')')?;
+            let found: BTreeSet<String> = array
+                .split('\'')
+                .skip(1)
+                .step_by(2)
+                .map(str::to_ascii_uppercase)
+                .filter(|name| names.contains(name))
+                .collect();
+            (found.len() >= 2).then(|| {
+                format!(
+                    "${variable}: {}",
+                    found.into_iter().collect::<Vec<_>>().join(", ")
+                )
+            })
+        })
+        .collect()
+}
+
+fn sources(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
     for item in fs::read_dir(dir).map_err(|error| format!("{}: {error}", dir.display()))? {
         let item = item.map_err(|error| error.to_string())?;
         let path = item.path();
@@ -111,8 +161,12 @@ fn rust_sources(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
             ) {
                 continue;
             }
-            rust_sources(&path, files)?;
-        } else if path.extension().is_some_and(|ext| ext == "rs") {
+            sources(&path, files)?;
+        } else if path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .is_some_and(|ext| matches!(ext, "rs" | "ps1"))
+        {
             files.push(path);
         }
     }
@@ -126,40 +180,60 @@ pub fn check(root: &Path) -> (bool, String) {
         .collect();
     let mut files = Vec::new();
     for dir in ["crates", "apps", "platform", "tools"] {
-        if let Err(error) = rust_sources(&root.join(dir), &mut files) {
+        if let Err(error) = sources(&root.join(dir), &mut files) {
             return (false, error);
         }
     }
     files.sort();
     let mut findings = Vec::new();
+    let mut retained = Vec::new();
     for file in &files {
         let source = match fs::read_to_string(file) {
             Ok(source) => source,
             Err(error) => return (false, format!("{}: {error}", file.display())),
         };
-        match source_findings(&source, &names) {
-            Ok(rows) => {
-                let relative = file.strip_prefix(root).unwrap_or(file);
-                // Cetab is Excel's macro-command namespace, not worksheet function metadata.
-                let macro_commands = relative == Path::new("crates/calc-doc/src/xlsb/commands.rs");
-                findings.extend(
-                    rows.into_iter()
-                        .filter(|row| !(macro_commands && row.starts_with("COMMANDS:")))
-                        .map(|row| format!("{}: {row}", relative.display())),
-                );
+        let relative = file.strip_prefix(root).unwrap_or(file);
+        let rows = if file.extension().is_some_and(|ext| ext == "ps1") {
+            powershell_findings(&source, &names)
+        } else {
+            match source_findings(&source, &names) {
+                Ok(rows) => rows,
+                Err(error) => return (false, format!("{}: {error}", file.display())),
             }
-            Err(error) => return (false, format!("{}: {error}", file.display())),
+        };
+        for row in rows {
+            let (symbol, _) = row.split_once(':').expect("finding has a symbol");
+            // Cetab macro commands and COM primitive types are distinct Excel namespaces.
+            if (relative == Path::new("crates/calc-doc/src/xlsb/commands.rs")
+                && symbol == "COMMANDS")
+                || (relative == Path::new("crates/calc-object-model/src/descriptor.rs")
+                    && symbol == "BASE_TYPES")
+            {
+                continue;
+            }
+            if relative == Path::new("platform/calc-oracle-excel/worker/capture-worker.ps1")
+                && symbol == "$ExternalDataFunctions"
+            {
+                retained.push(format!(
+                    "{}: {row} (capture isolation policy, dc-wi2wu)",
+                    relative.display()
+                ));
+            } else {
+                findings.push(format!("{}: {row}", relative.display()));
+            }
         }
     }
-    for finding in &findings {
+    for finding in findings.iter().chain(&retained) {
         println!("  {finding}");
     }
     (
         findings.is_empty(),
         format!(
-            "{} Rust files; {} separate constant or static name tables",
+            "{} Rust and PowerShell files; {} function-name tables ({} new, {} retained)",
             files.len(),
-            findings.len()
+            findings.len() + retained.len(),
+            findings.len(),
+            retained.len(),
         ),
     )
 }
@@ -203,11 +277,17 @@ mod tests {
         let source = r#"
             const DUPLICATE: &[&str] = &["SUM", "COUNT"];
             const SINGLE: &str = "MAX";
+            const PACKED: &str = "MAX SUM";
+            fn authored() { let inline = ["COUNT", "MAX"]; }
             #[cfg(test)] mod tests { const EXAMPLE: &[&str] = &["SUM", "MAX"]; }
         "#;
         assert_eq!(
             source_findings(source, &names).unwrap(),
-            vec!["DUPLICATE: COUNT, SUM"]
+            vec![
+                "DUPLICATE: COUNT, SUM",
+                "PACKED: MAX, SUM",
+                "inline: COUNT, MAX"
+            ]
         );
     }
 

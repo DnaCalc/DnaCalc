@@ -685,13 +685,10 @@ pub(crate) fn worksheet_name(number: i32) -> Option<&'static str> {
     // New C API numbers are not serialized Ftab IDs. The original xlOil 0.22.1
     // dynamic-array probe uses 614 (observed in the paired Excel trace).
     if number == 614 {
-        return Some("FILTER");
+        return calc_catalogue::declaration(calc_catalogue::ported::arrays::FILTER)
+            .map(calc_catalogue::DeclarationRef::spelling);
     }
-    let number = u16::try_from(number).ok()?;
-    calc_fml::EXCEL_FUNCTION_IDS
-        .iter()
-        .find(|(id, _, _)| *id == number)
-        .map(|(_, name, _)| *name)
+    calc_catalogue::binary_function(u16::try_from(number).ok()?).map(|(spelling, _)| spelling)
 }
 
 pub(crate) fn normalize_return(value: CalcValue) -> CalcValue {

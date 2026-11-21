@@ -32,85 +32,51 @@ const F3: &str = "exactness dc-j9k";
 const L1: &str = "language dc-10y";
 const L2: &str = "language dc-10y";
 
-const MATH: &str = "ABS ACOS ACOSH ACOT ACOTH AGGREGATE ARABIC ASIN ASINH ATAN ATAN2 ATANH BASE \
-    CEILING CEILING.MATH CEILING.PRECISE ECMA.CEILING COMBIN COMBINA COS COSH COT COTH CSC CSCH DECIMAL DEGREES \
-    EVEN EXP FACT FACTDOUBLE FLOOR FLOOR.MATH FLOOR.PRECISE GCD INT ISO.CEILING LCM LN LOG LOG10 \
-    MDETERM MINVERSE MMULT MOD MROUND MULTINOMIAL MUNIT ODD PI POWER PRODUCT QUOTIENT RADIANS RAND \
-    RANDARRAY RANDBETWEEN ROMAN ROUND ROUNDDOWN ROUNDUP SEC SECH SERIESSUM SIGN SIN SINH SQRT \
-    SQRTPI SUBTOTAL SUM SUMIF SUMIFS SUMPRODUCT SUMSQ SUMX2MY2 SUMX2PY2 SUMXMY2 TAN TANH TRUNC \
-    + - * / ^ %";
+use calc_catalogue::{FunctionId, operators, ported, unheld};
 
-const STATISTICS: &str = "AVEDEV AVERAGE AVERAGEA AVERAGEIF AVERAGEIFS BETA.DIST BETA.INV \
-    BINOM.DIST BINOM.DIST.RANGE BINOM.INV CHISQ.DIST CHISQ.DIST.RT CHISQ.INV CHISQ.INV.RT \
-    CHISQ.TEST CONFIDENCE.NORM CONFIDENCE.T CORREL COUNT COUNTA COUNTBLANK COUNTIF COUNTIFS \
-    COVARIANCE.P COVARIANCE.S DEVSQ EXPON.DIST F.DIST F.DIST.RT F.INV F.INV.RT F.TEST FISHER \
-    FISHERINV FORECAST FORECAST.ETS FORECAST.ETS.CONFINT FORECAST.ETS.SEASONALITY \
-    FORECAST.ETS.STAT FORECAST.LINEAR FREQUENCY GAMMA GAMMA.DIST GAMMA.INV GAMMALN \
-    GAMMALN.PRECISE GAUSS GEOMEAN GROWTH HARMEAN HYPGEOM.DIST INTERCEPT KURT LARGE LINEST LOGEST \
-    LOGNORM.DIST LOGNORM.INV MAX MAXA MAXIFS MEDIAN MIN MINA MINIFS MODE.MULT MODE.SNGL \
-    NEGBINOM.DIST NORM.DIST NORM.INV NORM.S.DIST NORM.S.INV PEARSON PERCENTILE.EXC PERCENTILE.INC \
-    PERCENTRANK.EXC PERCENTRANK.INC PERMUT PERMUTATIONA PHI POISSON.DIST PROB QUARTILE.EXC \
-    QUARTILE.INC RANK.AVG RANK.EQ RSQ SKEW SKEW.P SLOPE SMALL STANDARDIZE STDEV.P STDEV.S STDEVA \
-    STDEVPA STEYX T.DIST T.DIST.2T T.DIST.RT T.INV T.INV.2T T.TEST TREND TRIMMEAN VAR.P VAR.S \
-    VARA VARPA WEIBULL.DIST Z.TEST BETADIST BETAINV BINOMDIST CHIDIST CHIINV CHITEST CONFIDENCE \
-    COVAR CRITBINOM EXPONDIST FDIST FINV FTEST GAMMADIST GAMMAINV HYPGEOMDIST LOGINV LOGNORMDIST \
-    MODE NEGBINOMDIST NORMDIST NORMINV NORMSDIST NORMSINV PERCENTILE PERCENTRANK POISSON QUARTILE \
-    RANK STDEV STDEVP TDIST TINV TTEST VAR VARP WEIBULL ZTEST";
-
-const ENGINEERING: &str = "BESSELI BESSELJ BESSELK BESSELY BIN2DEC BIN2HEX BIN2OCT BITAND \
-    BITLSHIFT BITOR BITRSHIFT BITXOR COMPLEX CONVERT DEC2BIN DEC2HEX DEC2OCT DELTA ERF ERF.PRECISE \
-    ERFC ERFC.PRECISE GESTEP HEX2BIN HEX2DEC HEX2OCT IMABS IMAGINARY IMARGUMENT IMCONJUGATE IMCOS \
-    IMCOSH IMCOT IMCSC IMCSCH IMDIV IMEXP IMLN IMLOG10 IMLOG2 IMPOWER IMPRODUCT IMREAL IMSEC \
-    IMSECH IMSIN IMSINH IMSQRT IMSUB IMSUM IMTAN OCT2BIN OCT2DEC OCT2HEX";
-
-const TEXT: &str = "ARRAYTOTEXT ASC BAHTTEXT CHAR CLEAN CODE CONCAT CONCATENATE DBCS DOLLAR EXACT \
-    FIND FINDB FIXED JIS LEFT LEFTB LEN LENB LOWER MID MIDB NUMBERVALUE PHONETIC PROPER \
-    REGEXEXTRACT REGEXREPLACE REGEXTEST REPLACE REPLACEB REPT RIGHT RIGHTB SEARCH SEARCHB \
-    SUBSTITUTE T TEXT TEXTAFTER TEXTBEFORE TEXTJOIN TEXTSPLIT TRIM UNICHAR UNICODE UPPER VALUE \
-    VALUETOTEXT TRANSLATE DETECTLANGUAGE & = <> < > <= >=";
-
-const DATE_TIME: &str = "DATE DATEDIF DATEVALUE DAY DAYS DAYS360 EDATE EOMONTH HOUR ISOWEEKNUM \
-    MINUTE MONTH NETWORKDAYS NETWORKDAYS.INTL NOW SECOND TIME TIMEVALUE TODAY WEEKDAY WEEKNUM \
-    WORKDAY WORKDAY.INTL YEAR YEARFRAC";
-
-const INFORMATION_LOGICAL: &str = "CELL ERROR.TYPE INFO ISBLANK ISERR ISERROR ISEVEN ISFORMULA \
-    ISLOGICAL ISNA ISNONTEXT ISNUMBER ISODD ISREF ISTEXT N NA SHEET SHEETS TYPE AND FALSE IF \
-    IFERROR IFNA IFS NOT OR SWITCH TRUE XOR";
-
-const LOOKUP_DATABASE_WEB: &str = "ADDRESS AREAS CHOOSE COLUMN COLUMNS FORMULATEXT GETPIVOTDATA \
-    HLOOKUP HYPERLINK IMAGE IMPORTCSV IMPORTTEXT INDEX LOOKUP MATCH ROW ROWS RTD TRANSPOSE VLOOKUP XLOOKUP XMATCH \
-    DAVERAGE DCOUNT DCOUNTA DGET DMAX DMIN DPRODUCT DSTDEV DSTDEVP DSUM DVAR DVARP ENCODEURL \
-    FIELDVALUE FILTERXML WEBSERVICE CUBEKPIMEMBER CUBEMEMBER CUBEMEMBERPROPERTY CUBERANKEDMEMBER \
-    CUBESET CUBESETCOUNT CUBEVALUE";
-
-const FINANCIAL: &str = "ACCRINT ACCRINTM AMORDEGRC AMORLINC COUPDAYBS COUPDAYS COUPDAYSNC \
-    COUPNCD COUPNUM COUPPCD CUMIPMT CUMPRINC DB DDB DISC DOLLARDE DOLLARFR DURATION EFFECT FV \
-    FVSCHEDULE INTRATE IPMT IRR ISPMT MDURATION MIRR NOMINAL NPER NPV ODDFPRICE ODDFYIELD \
-    ODDLPRICE ODDLYIELD PDURATION PMT PPMT PRICE PRICEDISC PRICEMAT PV RATE RECEIVED RRI SLN SYD \
-    TBILLEQ TBILLPRICE TBILLYIELD VDB XIRR XNPV YIELD YIELDDISC YIELDMAT";
-
-const ARRAYS_HELPERS: &str = "SEQUENCE FILTER SORT SORTBY UNIQUE VSTACK HSTACK TOCOL TOROW \
-    WRAPROWS WRAPCOLS TAKE DROP CHOOSEROWS CHOOSECOLS EXPAND GROUPBY PIVOTBY PERCENTOF TRIMRANGE MAP REDUCE \
-    SCAN BYROW BYCOL MAKEARRAY ISOMITTED";
-
-const LANGUAGE: &str = "LET LAMBDA";
-
-const ENGINE: &str = "INDIRECT OFFSET";
-
-/// The lists in the order they are searched, with their owner.
-const TABLE: [(&str, &str); 11] = [
-    (ENGINE, L2),
-    (LANGUAGE, L1),
-    (MATH, F1),
-    (STATISTICS, F1),
-    (ENGINEERING, F1),
-    (TEXT, F2),
-    (DATE_TIME, F2),
-    (INFORMATION_LOGICAL, F2),
-    (LOOKUP_DATABASE_WEB, F2),
-    (FINANCIAL, F3),
-    (ARRAYS_HELPERS, F3),
-];
+fn owner_of(id: FunctionId) -> &'static str {
+    match id {
+        calc_catalogue::offset::OFFSET | calc_catalogue::reference_text::INDIRECT => return L2,
+        unheld::RTD_ID | unheld::DETECTLANGUAGE_ID | unheld::TRANSLATE_ID => return F2,
+        _ => {}
+    }
+    match id.family() {
+        operators::arithmetic::CODE
+        | calc_catalogue::aggregate::CODE
+        | calc_catalogue::rounding::CODE
+        | calc_catalogue::conditional::CODE
+        | ported::math::CODE
+        | ported::rounding_more::CODE
+        | ported::subtotal::CODE
+        | ported::statistics::CODE
+        | ported::distributions::CODE
+        | ported::engineering::CODE
+        | ported::random::CODE => F1,
+        operators::comparison::CODE
+        | operators::text::CODE
+        | calc_catalogue::logical::CODE
+        | calc_catalogue::logical_more::CODE
+        | calc_catalogue::error_fallback::CODE
+        | calc_catalogue::lookup::CODE
+        | calc_catalogue::information::CODE
+        | ported::text_functions::CODE
+        | ported::text_format::CODE
+        | ported::dates::CODE
+        | ported::host_facts::CODE
+        | ported::database::CODE
+        | ported::cube_functions::CODE
+        | ported::fetching::CODE
+        | ported::importing::CODE => F2,
+        calc_catalogue::offset::CODE
+        | calc_catalogue::group_pivot::CODE
+        | ported::financial::CODE
+        | ported::bonds::CODE
+        | ported::arrays::CODE
+        | ported::lambda_helpers::CODE
+        | ported::grouping::CODE => F3,
+        _ => UNASSIGNED,
+    }
+}
 
 /// The prefixes a file stores before a function's name (`_xlfn._xlws.SORT`); a user-defined
 /// function's `_xludf.` is not one of them, so such a name stays unassigned.
@@ -129,16 +95,24 @@ pub(crate) fn function_owner(spelling: &str) -> &'static str {
     {
         name = rest.to_owned();
     }
-    TABLE
-        .iter()
-        .find(|(list, _)| list.split_whitespace().any(|entry| entry == name))
-        .map_or(UNASSIGNED, |(_, owner)| owner)
+    if calc_catalogue::binding_form(&name).is_some() {
+        return L1;
+    }
+    let catalogue = calc_func::catalogue();
+    [
+        calc_func::Notation::Call,
+        calc_func::Notation::Infix,
+        calc_func::Notation::Prefix,
+        calc_func::Notation::Postfix,
+    ]
+    .into_iter()
+    .find_map(|notation| catalogue.resolve_surface(notation, &name).ok())
+    .map_or(UNASSIGNED, |entry| owner_of(entry.id()))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::BTreeMap;
 
     #[test]
     fn functions_map_to_the_package_of_their_category() {
@@ -161,20 +135,6 @@ mod tests {
         ] {
             assert_eq!(function_owner(spelling), owner, "{spelling}");
         }
-    }
-
-    /// No name is listed twice, so the search order never decides an owner.
-    #[test]
-    fn no_function_has_two_owners() {
-        let mut seen: BTreeMap<&str, &str> = BTreeMap::new();
-        for (list, owner) in TABLE {
-            for name in list.split_whitespace() {
-                if let Some(first) = seen.insert(name, owner) {
-                    panic!("{name} is listed under {first} and {owner}");
-                }
-            }
-        }
-        assert!(seen.len() > 450, "{} names", seen.len());
     }
 
     /// Every function the catalogue holds has an owner.

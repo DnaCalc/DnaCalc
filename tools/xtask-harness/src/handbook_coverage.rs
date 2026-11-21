@@ -2,14 +2,13 @@
 use super::{compare_program, oracle_workbooks, parse_args, repository_root, sectioned_workbook};
 use crate::classify::analyze_formula;
 use crate::corpus_summary::{Bucket, Compared, Times, Workbook, bucket};
-use calc_func::{EntryKind, Implementation, Notation, catalogue};
+use calc_catalogue::{EntryKind, Implementation, Notation, declarations};
 use calc_verdict::sha256_hex;
 use serde::Serialize;
 use serde_json::json;
 use std::{collections::BTreeMap, fs, path::Path, process::ExitCode};
 
-pub(crate) const USAGE: &str =
-    "usage: cargo xtask handbook-coverage --handbook <api/functions directory> --out <directory>";
+pub(crate) const USAGE: &str = "usage: cargo xtask handbook-coverage (--handbook <api/functions directory> | --catalogue-only) --out <directory>";
 
 #[derive(Default, Serialize)]
 struct FunctionCoverage {
@@ -25,6 +24,67 @@ struct FunctionCoverage {
 
 fn read(path: &Path) -> Result<Vec<u8>, String> {
     fs::read(path).map_err(|error| format!("{}: {error}", path.display()))
+}
+
+/// The handbook's signatures and help come from the same declarations the apps render.
+fn export_catalogue(out: &Path) -> Result<(), String> {
+    fs::create_dir_all(out).map_err(|error| format!("{}: {error}", out.display()))?;
+    let mut entries: Vec<_> = declarations().collect();
+    entries.sort_by_key(|entry| entry.id().raw());
+    let functions: Vec<_> = entries
+        .into_iter()
+        .map(|entry| {
+            let signature = entry.signature_help();
+            let help = entry.help().map(|help| {
+                json!({
+                    "microsoft": help.microsoft,
+                    "source": help.source,
+                    "own": help.own,
+                })
+            });
+            let parameters: Vec<_> = signature.parameters.iter().map(|parameter| {
+                json!({
+                    "name": parameter.name,
+                    "optional": parameter.optional,
+                    "repeats": parameter.repeats,
+                })
+            }).collect();
+            let localized_names = entry.localized_names().map(|names| {
+                names.iter().map(|name| json!({
+                    "locale": name.locale,
+                    "spelling": name.spelling,
+                })).collect::<Vec<_>>()
+            });
+            json!({
+                "id": entry.id().raw(),
+                "spelling": entry.spelling(),
+                "export_name": match entry.kind() { EntryKind::AddIn { export, .. } => Some(export), _ => None },
+                "notation": match entry.notation() {
+                    Notation::Call => "call",
+                    Notation::Prefix => "prefix",
+                    Notation::Infix => "infix",
+                    Notation::Postfix => "postfix",
+                },
+                "signature": signature.display,
+                "parameters": parameters,
+                "help": help,
+                "localized_names": localized_names,
+            })
+        })
+        .collect();
+    let output = json!({
+        "format": "dnacalc-handbook-catalogue/1",
+        "functions": functions
+    });
+    let path = out.join("function-catalogue.json");
+    let bytes = serde_json::to_vec_pretty(&output).map_err(|error| error.to_string())?;
+    fs::write(&path, bytes).map_err(|error| format!("{}: {error}", path.display()))?;
+    println!(
+        "xtask handbook-coverage: {} catalogue entries; wrote {}",
+        functions.len(),
+        path.display()
+    );
+    Ok(())
 }
 
 fn export(handbook: &Path, out: &Path) -> Result<(), String> {
@@ -47,7 +107,7 @@ fn export(handbook: &Path, out: &Path) -> Result<(), String> {
                 .handbook_page = true;
         }
     }
-    for entry in catalogue().entries() {
+    for entry in declarations() {
         if entry.notation() == Notation::Call && !matches!(entry.kind(), EntryKind::Operator { .. })
         {
             let spelling = match entry.kind() {
@@ -174,19 +234,24 @@ fn export(handbook: &Path, out: &Path) -> Result<(), String> {
 }
 
 pub(crate) fn run(args: &[String]) -> ExitCode {
-    match args {
+    let result = match args {
         [flag, handbook, output_flag, out] if flag == "--handbook" && output_flag == "--out" => {
-            match export(Path::new(handbook), Path::new(out)) {
-                Ok(()) => ExitCode::SUCCESS,
-                Err(error) => {
-                    eprintln!("xtask handbook-coverage: {error}");
-                    ExitCode::FAILURE
-                }
-            }
+            let out = Path::new(out);
+            export_catalogue(out).and_then(|()| export(Path::new(handbook), out))
+        }
+        [flag, output_flag, out] if flag == "--catalogue-only" && output_flag == "--out" => {
+            export_catalogue(Path::new(out))
         }
         _ => {
             eprintln!("{USAGE}");
-            ExitCode::from(2)
+            return ExitCode::from(2);
+        }
+    };
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("xtask handbook-coverage: {error}");
+            ExitCode::FAILURE
         }
     }
 }

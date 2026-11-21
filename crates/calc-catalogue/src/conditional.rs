@@ -86,7 +86,12 @@ const fn conditional(
 ) -> WorksheetDeclaration {
     WorksheetDeclaration {
         localized_names: None,
-        context_facilities: None,
+        context_facilities: Some(&[
+            super::ContextFacility::NumericMode,
+            super::ContextFacility::Cells,
+            super::ContextFacility::Host,
+            super::ContextFacility::NumberSeparators,
+        ]),
         id,
         spelling,
         notation: Notation::Call,

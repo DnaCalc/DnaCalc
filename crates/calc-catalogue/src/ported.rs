@@ -238,12 +238,18 @@ pub mod lambda_helpers {
     pub const CODE: u16 = 311;
     data_family! {
         code: CODE;
-    1 "MAP" (2, 254) [R "array1" ~ ArrayAtRoot, R "lambda_or_array2" ~ AggregateAtRootTwice] traits take_reference_array; three_d (None, Some(&[0]), Some(&[1, usize::MAX]));  ;
-    2 "REDUCE" (3, 3) [R "initial_value" ~ AggregateAtRoot, R "array" ~ ArrayAtRoot, R "lambda" ~ AggregateAtRoot] result MayBeEither; traits take_reference_array; three_d (None, Some(&[1]), Some(&[0, 2]));  ;
-    3 "SCAN" (3, 3) [R "initial_value" ~ AggregateAtRoot, R "array" ~ ArrayAtRoot, R "lambda" ~ AggregateAtRoot] traits take_reference_array; three_d (None, Some(&[1]), Some(&[0, 2]));  ;
-    4 "BYROW" (1, 2) [R "array" ~ ArrayAtRoot, R "lambda" ~ AggregateAtRoot] traits take_reference_array; three_d (None, Some(&[0]), Some(&[1]));  ;
-    5 "BYCOL" (1, 2) [R "array" ~ ArrayAtRoot, R "lambda" ~ AggregateAtRoot] traits take_reference_array; three_d (None, Some(&[0]), Some(&[1]));  ;
-    6 "MAKEARRAY" (3, 3) [V "rows", V "cols", R "lambda" ~ AggregateAtRoot] three_d (None, None, Some(&[]));  ;
+    1 "MAP" (2, 254) [R "array1" ~ ArrayAtRoot, R "lambda_or_array2" ~ AggregateAtRootTwice] traits take_reference_array; three_d (None, Some(&[0]), Some(&[1, usize::MAX]));
+        context [Cells, Callables]; ;
+    2 "REDUCE" (3, 3) [R "initial_value" ~ AggregateAtRoot, R "array" ~ ArrayAtRoot, R "lambda" ~ AggregateAtRoot] result MayBeEither; traits take_reference_array; three_d (None, Some(&[1]), Some(&[0, 2]));
+        context [Cells, Callables]; ;
+    3 "SCAN" (3, 3) [R "initial_value" ~ AggregateAtRoot, R "array" ~ ArrayAtRoot, R "lambda" ~ AggregateAtRoot] traits take_reference_array; three_d (None, Some(&[1]), Some(&[0, 2]));
+        context [Cells, Callables]; ;
+    4 "BYROW" (1, 2) [R "array" ~ ArrayAtRoot, R "lambda" ~ AggregateAtRoot] traits take_reference_array; three_d (None, Some(&[0]), Some(&[1]));
+        context [Cells, Callables]; ;
+    5 "BYCOL" (1, 2) [R "array" ~ ArrayAtRoot, R "lambda" ~ AggregateAtRoot] traits take_reference_array; three_d (None, Some(&[0]), Some(&[1]));
+        context [Cells, Callables]; ;
+    6 "MAKEARRAY" (3, 3) [V "rows", V "cols", R "lambda" ~ AggregateAtRoot] three_d (None, None, Some(&[]));
+        context [NumericMode, Callables]; ;
     }
 }
 
@@ -324,14 +330,23 @@ pub mod grouping {
     pub const PIVOTBY: FunctionId = FunctionId::new(CODE, 2);
     data_family! {
         code: CODE;
-    1 "GROUPBY" (3, 8) [R "row_fields" ~ ArrayAlways, R "values" ~ ArrayAlways, R "function", V "field_headers", V "total_depth", R "sort_order", R "filter_array" ~ ArrayAlways, V "field_relationship"] three_d (None, Some(&[0, 1]), Some(&[3])); ;
-    2 "PIVOTBY" (4, 11) [R "row_fields" ~ ArrayAlways, R "col_fields" ~ ArrayAlways, R "values" ~ ArrayAlways, R "function", V "field_headers", V "row_total_depth", R "row_sort_order", V "col_total_depth", R "col_sort_order", R "filter_array" ~ ArrayAlways, V "relative_to"] ;
+    1 "GROUPBY" (3, 8) [R "row_fields" ~ ArrayAlways, R "values" ~ ArrayAlways, R "function", V "field_headers", V "total_depth", R "sort_order", R "filter_array" ~ ArrayAlways, V "field_relationship"] three_d (None, Some(&[0, 1]), Some(&[3]));
+        context [NumericMode, Cells, Callables]; ;
+    2 "PIVOTBY" (4, 11) [R "row_fields" ~ ArrayAlways, R "col_fields" ~ ArrayAlways, R "values" ~ ArrayAlways, R "function", V "field_headers", V "row_total_depth", R "row_sort_order", V "col_total_depth", R "col_sort_order", R "filter_array" ~ ArrayAlways, V "relative_to"]
+        context [NumericMode, Cells, Callables]; ;
     }
 }
 
 pub mod host_facts {
     use super::*;
     pub const CODE: u16 = 204;
+    pub const CELL: FunctionId = FunctionId::new(CODE, 1);
+    pub const INFO: FunctionId = FunctionId::new(CODE, 2);
+    pub const SHEET: FunctionId = FunctionId::new(CODE, 3);
+    pub const SHEETS: FunctionId = FunctionId::new(CODE, 4);
+    pub const FORMULATEXT: FunctionId = FunctionId::new(CODE, 5);
+    pub const ADDRESS: FunctionId = FunctionId::new(CODE, 6);
+    pub const GETPIVOTDATA: FunctionId = FunctionId::new(CODE, 7);
     data_family! {
         code: CODE;
     1 "CELL" (1, 2) [V "info_type", F "reference" @Reference] traits lift_dynamic_references; volatile true; three_d (None, Some(&[1]), Some(&[0])); context [NumericMode, Host, Environment]; ;
@@ -518,13 +533,17 @@ pub mod database {
 pub mod arrays {
     use super::*;
     pub const CODE: u16 = 310;
+    pub const SEQUENCE: FunctionId = FunctionId::new(CODE, 1);
+    pub const FILTER: FunctionId = FunctionId::new(CODE, 2);
+    pub const SORTBY: FunctionId = FunctionId::new(CODE, 4);
     data_family! {
         code: CODE;
     1 "SEQUENCE" (1, 4) [V "rows", V "columns", V "start", V "step"] three_d (None, None, Some(&[]));  ;
     2 "FILTER" (2, 3) [R "array" ~ ArrayAtRoot, R "include" ~ ArrayAtRoot, R "if_empty" ~ AggregateAtRoot] traits value_error_references; three_d (None, Some(&[0, 1]), Some(&[2])); ;
     3 "SORT" (1, 4) [R "array" ~ ArrayAtRoot, R "sort_index" ~ ArrayAtRoot, R "sort_order", V "by_col"] traits value_error_references; three_d (None, None, Some(&[])); ;
     4 "SORTBY" (2, 255) [R "array" ~ ArrayAtRoot, R "by_array1" ~ ArrayAtRoot, R "sort_order1" ~ AggregateAtRoot] groups (1, 2, 0); traits value_error_references; three_d (None, None, Some(&[])); ;
-    5 "UNIQUE" (1, 3) [R "array" ~ ArrayAtRoot, V "by_col", V "exactly_once"] traits take_reference_array; three_d (None, None, Some(&[])); ;
+    5 "UNIQUE" (1, 3) [R "array" ~ ArrayAtRoot, V "by_col", V "exactly_once"] traits take_reference_array; three_d (None, None, Some(&[]));
+        context [NumericMode, Cells, Host]; ;
     6 "TAKE" (2, 3) [R "array" ~ ArrayAtRoot, V "rows", V "columns"] result MayBeReference; traits value_error_references; three_d (None, Some(&[0]), Some(&[1, 2])); ;
     7 "DROP" (2, 3) [R "array" ~ ArrayAtRoot, V "rows", V "columns"] result MayBeReference; traits value_error_references; three_d (None, Some(&[0]), Some(&[1, 2])); ;
     8 "CHOOSEROWS" (2, 255) [R "array" ~ ArrayAtRoot, R "row_num1" ~ AggregateAtRoot, R "row_num2" ~ AggregateAtRoot] traits value_error_references; three_d (None, Some(&[0]), Some(&[1, usize::MAX])); ;
@@ -542,6 +561,8 @@ pub mod arrays {
 pub mod subtotal {
     use super::*;
     pub const CODE: u16 = 102;
+    pub const SUBTOTAL: FunctionId = FunctionId::new(CODE, 1);
+    pub const AGGREGATE: FunctionId = FunctionId::new(CODE, 2);
     data_family! {
         code: CODE;
     1 "SUBTOTAL" (2, 255) [V "function_num", F "ref1" @Reference ~ ArrayAlwaysLiftReferences, F "ref2" @Reference ~ ArrayAlwaysLiftReferencesRepeated] traits skip_nested_subtotals, lift_dynamic_references; three_d (None, Some(&[1, usize::MAX]), Some(&[0])); context [NumericMode, Cells]; ;
@@ -552,6 +573,7 @@ pub mod subtotal {
 pub mod text_format {
     use super::*;
     pub const CODE: u16 = 202;
+    pub const HYPERLINK: FunctionId = FunctionId::new(CODE, 21);
     data_family! {
         code: CODE;
     1 "VALUE" (1, 1) [V "text"] three_d (None, None, Some(&[])); context [NumericMode, Environment, NumberSeparators]; ;
@@ -581,20 +603,27 @@ pub mod text_format {
 pub mod text_functions {
     use super::*;
     pub const CODE: u16 = 200;
+    pub const CONCATENATE: FunctionId = FunctionId::new(CODE, 28);
     data_family! {
         code: CODE;
     1 "CHAR" (1, 1) [V "number"] three_d (None, None, Some(&[])); ;
     2 "CODE" (1, 1) [V "text"] three_d (None, None, Some(&[])); ;
     3 "UNICHAR" (1, 1) [V "number"] three_d (None, None, Some(&[])); ;
     4 "UNICODE" (1, 1) [V "text"] three_d (None, None, Some(&[])); ;
-    5 "LEN" (1, 1) [V "text"] three_d (None, None, Some(&[])); ;
+    5 "LEN" (1, 1) [V "text"] three_d (None, None, Some(&[]));
+        context [NumericMode, Environment]; ;
     6 "LEFT" (1, 2) [V "text", V "num_chars"] three_d (None, None, Some(&[])); ;
     7 "RIGHT" (1, 2) [V "text", V "num_chars"] three_d (None, None, Some(&[])); ;
-    8 "MID" (3, 3) [V "text", V "start_num", V "num_chars"] three_d (None, None, Some(&[])); ;
-    9 "LENB" (1, 1) [V "text"] three_d (None, None, Some(&[])); ;
-    10 "LEFTB" (1, 2) [V "text", V "num_bytes"] three_d (None, None, Some(&[])); ;
-    11 "RIGHTB" (1, 2) [V "text", V "num_bytes"] three_d (None, None, Some(&[])); ;
-    12 "MIDB" (3, 3) [V "text", V "start_num", V "num_bytes"] three_d (None, None, Some(&[])); ;
+    8 "MID" (3, 3) [V "text", V "start_num", V "num_chars"] three_d (None, None, Some(&[]));
+        context [NumericMode, Environment]; ;
+    9 "LENB" (1, 1) [V "text"] three_d (None, None, Some(&[]));
+        context [NumericMode, Environment]; ;
+    10 "LEFTB" (1, 2) [V "text", V "num_bytes"] three_d (None, None, Some(&[]));
+        context [NumericMode, Environment]; ;
+    11 "RIGHTB" (1, 2) [V "text", V "num_bytes"] three_d (None, None, Some(&[]));
+        context [NumericMode, Environment]; ;
+    12 "MIDB" (3, 3) [V "text", V "start_num", V "num_bytes"] three_d (None, None, Some(&[]));
+        context [NumericMode, Environment]; ;
     13 "UPPER" (1, 1) [V "text"] three_d (None, None, Some(&[])); ;
     14 "LOWER" (1, 1) [V "text"] three_d (None, None, Some(&[])); ;
     15 "PROPER" (1, 1) [V "text"] three_d (None, None, Some(&[])); ;
@@ -602,12 +631,18 @@ pub mod text_functions {
     17 "CLEAN" (1, 1) [V "text"] three_d (None, None, Some(&[])); ;
     18 "REPT" (2, 2) [V "text", V "number_times"] three_d (None, None, Some(&[])); ;
     19 "EXACT" (2, 2) [V "text1", V "text2"] three_d (None, None, Some(&[])); ;
-    20 "FIND" (2, 3) [V "find_text", V "within_text", V "start_num"] three_d (None, None, Some(&[])); ;
-    21 "FINDB" (2, 3) [V "find_text", V "within_text", V "start_num"] three_d (None, None, Some(&[])); ;
-    22 "SEARCH" (2, 3) [V "find_text", V "within_text", V "start_num"] three_d (None, None, Some(&[])); ;
-    23 "SEARCHB" (2, 3) [V "find_text", V "within_text", V "start_num"] three_d (None, None, Some(&[])); ;
-    24 "REPLACE" (4, 4) [V "old_text", V "start_num", V "num_chars", V "new_text"] three_d (None, None, Some(&[])); ;
-    25 "REPLACEB" (4, 4) [V "old_text", V "start_num", V "num_bytes", V "new_text"] three_d (None, None, Some(&[])); ;
+    20 "FIND" (2, 3) [V "find_text", V "within_text", V "start_num"] three_d (None, None, Some(&[]));
+        context [NumericMode, Environment]; ;
+    21 "FINDB" (2, 3) [V "find_text", V "within_text", V "start_num"] three_d (None, None, Some(&[]));
+        context [NumericMode, Environment]; ;
+    22 "SEARCH" (2, 3) [V "find_text", V "within_text", V "start_num"] three_d (None, None, Some(&[]));
+        context [NumericMode, Environment]; ;
+    23 "SEARCHB" (2, 3) [V "find_text", V "within_text", V "start_num"] three_d (None, None, Some(&[]));
+        context [NumericMode, Environment]; ;
+    24 "REPLACE" (4, 4) [V "old_text", V "start_num", V "num_chars", V "new_text"] three_d (None, None, Some(&[]));
+        context [NumericMode, Environment]; ;
+    25 "REPLACEB" (4, 4) [V "old_text", V "start_num", V "num_bytes", V "new_text"] three_d (None, None, Some(&[]));
+        context [NumericMode, Environment]; ;
     26 "SUBSTITUTE" (3, 4) [V "text", V "old_text", V "new_text", V "instance_num"] three_d (None, None, Some(&[])); ;
     27 "T" (1, 1) [V "value" ~ LiftReferences] traits lift_dynamic_references; three_d (None, Some(&[]), None); ;
     28 "CONCATENATE" (1, 255) [V "text1", V "text2"] three_d (None, None, Some(&[])); ;
@@ -638,7 +673,8 @@ pub mod cube_functions {
     ;
     3 "CUBESET" (2, 5) [R "connection", R "set_expression", R "caption", R "sort_order", R "sort_by"]
     ;
-    4 "CUBESETCOUNT" (1, 1) [R "set"] ;
+    4 "CUBESETCOUNT" (1, 1) [R "set"]
+        context [Cells]; ;
     5 "CUBERANKEDMEMBER" (3, 4) [R "connection", R "set_expression", R "rank", R "caption"]
     ;
     6 "CUBEMEMBERPROPERTY" (3, 3) [R "connection", R "member_expression", R "property"]

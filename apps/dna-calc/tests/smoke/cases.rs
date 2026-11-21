@@ -39,8 +39,12 @@ pub(crate) const CALC_CASES: &[Case] = &[
         name: "typed numbers replace the cell, Enter enters them and moves down",
         actions: &[
             Action::Keys("grid", "2"),
+            Action::Wait(Check::Value("cell-editor", "2")),
             Action::Keys("cell-editor", ENTER),
+            Action::Wait(Check::Value("name-box", "A2")),
+            Action::Wait(Check::Rendered("cell-editor", false)),
             Action::Keys("grid", "3"),
+            Action::Wait(Check::Value("cell-editor", "3")),
             Action::Keys("cell-editor", ENTER),
         ],
         checks: &[
@@ -53,8 +57,11 @@ pub(crate) const CALC_CASES: &[Case] = &[
     Case {
         name: "a formula entered in the cell is calculated: =A1*A2+1 is 7",
         actions: &[
+            Action::Wait(Check::Rendered("cell-editor", false)),
             Action::Keys("grid", "="),
+            Action::Wait(Check::Value("cell-editor", "=")),
             Action::Keys("cell-editor", "A1*A2+1"),
+            Action::Wait(Check::Value("cell-editor", "=A1*A2+1")),
             Action::Keys("cell-editor", ENTER),
         ],
         checks: &[

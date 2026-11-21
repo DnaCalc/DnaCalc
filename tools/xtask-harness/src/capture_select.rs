@@ -46,11 +46,6 @@ const FEW_SHAPE: f64 = 0.25;
 const COVERED_ENOUGH: u32 = 5;
 const NEW_FEATURE: f64 = 3.0;
 
-/// Functions that read live data at recalculation.
-const LIVE: &[&str] = &["WEBSERVICE", "RTD", "STOCKHISTORY", "FILTERXML_NETWORK"];
-/// Functions whose answers differ between two calculations.
-const RANDOM: &[&str] = &["RAND", "RANDBETWEEN", "RANDARRAY"];
-
 struct Args {
     sets: Vec<(String, String)>,
     covered: Vec<String>,
@@ -157,11 +152,15 @@ fn judge(set: &str, p: &Value, max_bytes: u64, max_formulas: u64) -> Result<Cand
     let functions: Vec<&String> = map_keys(p.get("functions"))
         .chain(map_keys(p["names"].get("functions")))
         .collect();
-    if functions
-        .iter()
-        .any(|f| LIVE.contains(&f.as_str()) || f.starts_with("CUBE")
-            || calc_catalogue::named(f).is_some_and(|entry| matches!(entry.kind(), calc_catalogue::EntryKind::HostRoute { .. })))
-    {
+    if functions.iter().any(|f| {
+        // FILTERXML_NETWORK is the legacy classifier's label for FILTERXML over a network read.
+        f.as_str() == "FILTERXML_NETWORK"
+            || f.starts_with("CUBE")
+            || calc_catalogue::named(f).is_some_and(|entry| {
+                entry.id() == calc_catalogue::unheld::STOCKHISTORY_ID
+                    || matches!(entry.kind(), calc_catalogue::EntryKind::HostRoute { .. })
+            })
+    }) {
         return Err("live-data or host functions (fetch, import, RTD, CUBE*, STOCKHISTORY)".into());
     }
     if categories
@@ -179,7 +178,11 @@ fn judge(set: &str, p: &Value, max_bytes: u64, max_formulas: u64) -> Result<Cand
         return Err("over the size limits".into());
     }
     let shapes: BTreeSet<String> = map_keys(p.get("function_shapes"))
-        .filter(|s| s.as_str() != "(other)" && !RANDOM.contains(&function_of(s)))
+        .filter(|shape| {
+            shape.as_str() != "(other)"
+                && !calc_catalogue::named(function_of(shape))
+                    .is_some_and(|entry| entry.uses_context(calc_catalogue::ContextFacility::Random))
+        })
         .cloned()
         .collect();
     if shapes.is_empty() && p.get("function_shapes").is_none() {

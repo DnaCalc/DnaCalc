@@ -1396,9 +1396,9 @@ fn sort_rows(
     // Empty keys stay last in both directions. Original row index is an explicit tie key.
     // Grid sorting treats all errors as equal. Normalise their codes through the evaluator,
     // whose SORTBY otherwise orders different error codes. No host comparator is introduced.
-    let sequence = file_call_name("SEQUENCE");
-    let xmatch = file_call_name("XMATCH");
-    let mut formula = format!("{}({sequence}({count})", file_call_name("SORTBY"));
+    let sequence = file_call_name(calc_catalogue::ported::arrays::SEQUENCE);
+    let xmatch = file_call_name(calc_catalogue::lookup::XMATCH);
+    let mut formula = format!("{}({sequence}({count})", file_call_name(calc_catalogue::ported::arrays::SORTBY));
     let mut sort_arguments = 3usize; // row indexes plus the final tie key/direction
     for (index, key) in keys.iter().enumerate() {
         let range = format!(
@@ -1718,7 +1718,7 @@ fn sort_option_keys(
             .and_then(|f| f.evaluate(&host.engine, host.model(), data.first()))
             .map_err(|e| format!("Custom order could not be calculated (dc-971p.38): {e}"))
     };
-    let xmatch = file_call_name("XMATCH");
+    let xmatch = file_call_name(calc_catalogue::lookup::XMATCH);
     let unique = evaluate(&format!("{xmatch}({list},{list},0)"))?;
     let distinct =
         match unique.core_ref() {
@@ -1774,6 +1774,6 @@ fn sort_option_keys(
 }
 
 /// A measured function's name as a file writes its call (`_xlfn.XMATCH`), from the catalogue.
-fn file_call_name(name: &str) -> String {
-    calc_func::file_call_name(name).expect("a function with a measured file form")
+fn file_call_name(id: calc_catalogue::FunctionId) -> String {
+    calc_catalogue::file_call_name_by_id(id).expect("a function with a measured file form")
 }

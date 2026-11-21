@@ -101,6 +101,9 @@ fn column_name(mut number: usize) -> String {
 
 fn supported_syntax(tree: &calc_fml::syntax::SyntaxTree) -> bool {
     use calc_fml::syntax::{SyntaxKind, TokenKind};
+    let if_name = calc_catalogue::declaration(calc_catalogue::logical::IF)
+        .expect("IF declaration")
+        .spelling();
     let mut nodes = vec![tree.root()];
     while let Some(node) = nodes.pop() {
         if !matches!(
@@ -120,7 +123,7 @@ fn supported_syntax(tree: &calc_fml::syntax::SyntaxTree) -> bool {
             && node
                 .tokens()
                 .first()
-                .is_none_or(|token| !token.text().eq_ignore_ascii_case("IF"))
+                .is_none_or(|token| !token.text().eq_ignore_ascii_case(if_name))
         {
             return false;
         }

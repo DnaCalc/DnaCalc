@@ -270,9 +270,12 @@ fn names_sheet(xml: &str, name: &str) -> bool {
     })
 }
 
-/// Whether `xml` calls the function `name` (case-insensitively, after a character that cannot be
+/// Whether `xml` calls the function `id` (case-insensitively, after a character that cannot be
 /// part of a function name), with `argument` as the text right after its `(` when given.
-fn calls(xml: &str, name: &str, argument: Option<&str>) -> bool {
+fn calls(xml: &str, id: calc_catalogue::FunctionId, argument: Option<&str>) -> bool {
+    let name = calc_catalogue::declaration(id)
+        .expect("capture function declaration")
+        .spelling();
     let lower = xml.to_ascii_lowercase();
     let call = format!("{}(", name.to_ascii_lowercase());
     lower.match_indices(&call).any(|(at, _)| {
@@ -509,10 +512,11 @@ pub fn workbook_sections(
         if let Some(metadata) = metadata {
             text.push_str(&format!("metadata\n{metadata}\n"));
         }
-        if calls(xml, "SHEET", None) || calls(xml, "SHEETS", None) {
+        use calc_catalogue::ported::host_facts::{INFO, SHEET, SHEETS};
+        if calls(xml, SHEET, None) || calls(xml, SHEETS, None) {
             text.push_str(&format!("position {}\n", index + 1));
         }
-        if calls(xml, "SHEETS", Some(")")) || calls(xml, "INFO", Some("\"numfile")) {
+        if calls(xml, SHEETS, Some(")")) || calls(xml, INFO, Some("\"numfile")) {
             text.push_str(&format!("sheets {}\n", names.join("\n")));
         }
         sections.push(WorkbookSection {

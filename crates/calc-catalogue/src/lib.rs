@@ -56,7 +56,10 @@ impl FilePrefix {
 }
 
 mod help;
-pub use help::{FunctionHelp, HELP, description_of, description_of_id, help_of, help_of_id};
+pub use help::{
+    FunctionHelp, HELP, HelpParameter, SignatureHelp, description_of, description_of_id, help_of,
+    help_of_id,
+};
 
 mod file_function_ids;
 pub use file_function_ids::{EXCEL_FUNCTION_IDS, binary_function};
@@ -155,15 +158,17 @@ pub fn file_form(name: &str) -> Option<&'static FunctionFileForm> {
 /// `_xlfn._xlws.FILTER`, `ISO.CEILING`), or `None` for a name that is not one of the functions
 /// measured ([`file_form`]).
 pub fn file_call_name(name: &str) -> Option<String> {
-    file_form(name).map(|entry| {
-        format!(
-            "{}{}",
-            file_prefix(entry.name)
-                .expect("measured function prefix")
-                .text(),
-            entry.name
-        )
-    })
+    file_form(name).map(render_file_call_name)
+}
+
+/// The measured SpreadsheetML call spelling of a declared function.
+pub fn file_call_name_by_id(id: FunctionId) -> Option<String> {
+    declaration(id)?.file_form().map(render_file_call_name)
+}
+
+fn render_file_call_name(entry: &FunctionFileForm) -> String {
+    let prefix = file_prefix(entry.name).expect("measured function prefix");
+    format!("{}{}", prefix.text(), entry.name)
 }
 
 /// Prefix measured for an invariant, upper-case function name.

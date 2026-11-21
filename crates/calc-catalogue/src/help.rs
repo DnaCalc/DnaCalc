@@ -17,6 +17,76 @@
 //! Help is keyed by stable function ID. Its spelling view remains in byte order for callers that
 //! receive a name from formula text. A description does not imply that a kernel is held.
 
+use crate::{DeclarationRef, Notation};
+
+/// The signature help of an entry, rendered from its declared parameters and arity.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SignatureHelp {
+    /// The signature as a tooltip shows it, such as `SUM(number1, [number2], ...)`.
+    pub display: String,
+    pub parameters: Vec<HelpParameter>,
+}
+
+/// One parameter of a [`SignatureHelp`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HelpParameter {
+    pub name: &'static str,
+    /// Whether a call may leave it out: its position is at or after the arity's minimum.
+    pub optional: bool,
+    /// Whether it repeats: it is the last named parameter and the arity admits more arguments
+    /// than there are names.
+    pub repeats: bool,
+}
+
+impl DeclarationRef {
+    /// The signature shown in the function picker and inline help.
+    pub fn signature_help(self) -> SignatureHelp {
+        let open_tail = self.arity().max > self.parameters().len();
+        let last = self.parameters().len().saturating_sub(1);
+        let parameters: Vec<HelpParameter> = self
+            .parameters()
+            .iter()
+            .enumerate()
+            .map(|(index, parameter)| HelpParameter {
+                name: parameter.name,
+                optional: index >= self.arity().min,
+                repeats: open_tail && index == last,
+            })
+            .collect();
+        let shown: Vec<String> = parameters
+            .iter()
+            .map(|parameter| {
+                if parameter.optional {
+                    format!("[{}]", parameter.name)
+                } else {
+                    parameter.name.to_owned()
+                }
+            })
+            .collect();
+        let display = match self.notation() {
+            Notation::Call => {
+                let mut list = shown.join(", ");
+                if open_tail {
+                    list.push_str(", ...");
+                }
+                format!("{}({list})", self.spelling())
+            }
+            Notation::Prefix => format!("{}{}", self.spelling(), shown[0]),
+            Notation::Infix => format!("{} {} {}", shown[0], self.spelling(), shown[1]),
+            Notation::Postfix => format!("{}{}", shown[0], self.spelling()),
+        };
+        SignatureHelp {
+            display,
+            parameters,
+        }
+    }
+
+    /// The attributed help record for this declaration, when available.
+    pub fn help(self) -> Option<&'static FunctionHelp> {
+        help_of_id(self.id())
+    }
+}
+
 /// The help of one named function.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FunctionHelp {

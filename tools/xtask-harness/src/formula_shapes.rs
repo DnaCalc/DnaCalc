@@ -28,11 +28,31 @@
 //! hidden rows, formula text), so a capture of it has to run on the file route, never the call
 //! route.
 
+use calc_catalogue::{FunctionId, information, lookup, offset, ported, reference_text, unheld};
+
 /// Functions whose answer depends on the formula's position or on the reference itself.
-pub(crate) const POSITION_SENSITIVE: &[&str] = &[
-    "ROW", "COLUMN", "ROWS", "COLUMNS", "CELL", "OFFSET", "INDIRECT", "ADDRESS", "AREAS",
-    "FORMULATEXT", "ISFORMULA", "ISREF", "SHEET", "SHEETS", "SUBTOTAL", "AGGREGATE", "INFO",
-    "GETPIVOTDATA", "HYPERLINK", "INDEX", "RTD",
+const POSITION_SENSITIVE: &[FunctionId] = &[
+    lookup::ROW,
+    lookup::COLUMN,
+    lookup::ROWS,
+    lookup::COLUMNS,
+    ported::host_facts::CELL,
+    offset::OFFSET,
+    reference_text::INDIRECT,
+    ported::host_facts::ADDRESS,
+    lookup::AREAS,
+    ported::host_facts::FORMULATEXT,
+    information::ISFORMULA,
+    information::ISREF,
+    ported::host_facts::SHEET,
+    ported::host_facts::SHEETS,
+    ported::subtotal::SUBTOTAL,
+    ported::subtotal::AGGREGATE,
+    ported::host_facts::INFO,
+    ported::host_facts::GETPIVOTDATA,
+    ported::text_format::HYPERLINK,
+    lookup::INDEX,
+    unheld::RTD_ID,
 ];
 
 /// At most this many argument tokens are written; more end in `+`.
@@ -350,7 +370,10 @@ pub(crate) fn call_shapes(
                     if frame.count > MAX_TOKENS {
                         tokens.push("+".into());
                     }
-                    let mark = if POSITION_SENSITIVE.contains(&name) {
+                    let mark = if calc_func::catalogue()
+                        .resolve_surface(calc_func::Notation::Call, name)
+                        .is_ok_and(|entry| POSITION_SENSITIVE.contains(&entry.id()))
+                    {
                         "!"
                     } else {
                         ""
