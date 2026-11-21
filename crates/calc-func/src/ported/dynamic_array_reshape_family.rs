@@ -1034,11 +1034,9 @@ pub fn map_dynamic_array_reshape_error_to_ws(
 pub(crate) struct SequenceWork {
     rows: usize,
     cols: usize,
-    start: f64,
     step: f64,
     count: usize,
     cells: Vec<CalcValue>,
-    fractional_dimensions: bool,
     next: f64,
 }
 
@@ -1072,11 +1070,9 @@ impl SequenceWork {
         Ok(Self {
             rows,
             cols,
-            start,
             step,
             count,
             cells: Vec::new(),
-            fractional_dimensions: raw_rows.fract() != 0.0 || raw_cols.fract() != 0.0,
             next: start,
         })
     }
@@ -1090,21 +1086,16 @@ impl SequenceWork {
         elements: usize,
     ) -> Option<Result<CalcValue, DynamicArrayReshapeEvalError>> {
         let end = self.cells.len().saturating_add(elements).min(self.count);
-        for idx in self.cells.len()..end {
-            if self.fractional_dimensions {
-                // Excel advances each cell by one stored binary64 addition. Defer overflow and
-                // subnormal output until their complete array behavior has been measured.
-                if !self.next.is_finite() || self.next.is_subnormal() {
-                    return Some(Err(DynamicArrayReshapeEvalError::Preparation(
-                        CoercionError::NotModelled,
-                    )));
-                }
-                self.cells.push(CalcValue::number(self.next));
-                self.next += self.step;
+        for _ in self.cells.len()..end {
+            // Excel stores each binary64 addition, including subnormals. A cell whose
+            // result overflows is #NUM!, and the array keeps the earlier finite results.
+            let value = if self.next.is_finite() {
+                CalcValue::number(self.next)
             } else {
-                self.cells
-                    .push(CalcValue::number(self.start + (idx as f64) * self.step));
-            }
+                CalcValue::error(WorksheetErrorCode::Num)
+            };
+            self.cells.push(value);
+            self.next += self.step;
         }
         (end == self.count)
             .then(|| build_array(self.rows, self.cols, std::mem::take(&mut self.cells)))
