@@ -404,3 +404,102 @@ fn dc_bctq__macro_free_save_refuses_before_writing() {
     }
     assert_eq!(save_untouched(&bytes), bytes);
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn oxdoc_package_relationships_and_feature_parts_survive_a_cell_edit() {
+    for fixture in [
+        "w005-structure-customxml",
+        "w008-drawing-form-controls",
+        "w009-review-metadata",
+    ] {
+        let bytes = oxdoc_package(fixture);
+        let loaded = load(&bytes);
+        let source = open(&bytes);
+        let sheet = &loaded.sheets()[0];
+        let key = at(sheet.id(), "A1");
+        let model = edited(
+            &loaded,
+            vec![WorkbookOp::SetCell {
+                at: key,
+                input: number(17.0),
+            }],
+        );
+        let (saved, _) = save_model(&loaded, &model);
+        assert_eq!(
+            load(&saved).model().cell(key),
+            Some(&number(17.0)),
+            "{fixture}"
+        );
+        let reopened = open(&saved);
+        for original in source.package().parts() {
+            let name = original.name();
+            if name == sheet.part().name() {
+                continue;
+            }
+            assert_eq!(
+                reopened.package().read_part(name).unwrap(),
+                source.package().read_part(name).unwrap(),
+                "{fixture} part {name}"
+            );
+        }
+        if fixture == "w005-structure-customxml" {
+            let sheet_xml = part_text(&saved, sheet.part().name());
+            for fragment in [
+                "<pane ",
+                "<selection ",
+                "<mergeCell ",
+                "<hyperlink ",
+                "<dataValidation ",
+                "<autoFilter ",
+                "<sortState ",
+            ] {
+                assert!(sheet_xml.contains(fragment), "{fixture} lost {fragment}");
+            }
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn oxdoc_shared_string_edit_preserves_rich_and_phonetic_entries() {
+    let bytes = oxdoc_package("w010-shared-strings-edit");
+    let loaded = load(&bytes);
+    let id = loaded.sheets()[0].id();
+    let cell = at(id, "A1");
+    let replacement = calc_doc::model::CellInput::Text(
+        calc_doc::model::CellText::new(calc_doc::model::value::ExcelText::from_interop_assignment(
+            "edited",
+        ))
+        .unwrap(),
+    );
+    let model = edited(
+        &loaded,
+        vec![WorkbookOp::SetCell {
+            at: cell,
+            input: replacement.clone(),
+        }],
+    );
+    let (saved, _) = save_model(&loaded, &model);
+    let reloaded = load(&saved);
+    assert_eq!(reloaded.model().cell(cell), Some(&replacement));
+    for address in ["B1", "C1", "D1"] {
+        let key = at(id, address);
+        assert!(matches!(loaded.model().cell(key), Some(CellInput::Text(_))));
+        assert_eq!(
+            reloaded.model().cell(key),
+            loaded.model().cell(key),
+            "{address}"
+        );
+    }
+    let original = part_text(&bytes, "xl/sharedStrings.xml");
+    let saved = part_text(&saved, "xl/sharedStrings.xml");
+    assert_eq!(original.matches("</si>").count(), 4);
+    assert_eq!(saved.matches("</si>").count(), 5);
+    for entry in original.match_indices("<si>").map(|(start, _)| {
+        let end = original[start..].find("</si>").unwrap();
+        &original[start..start + end + "</si>".len()]
+    }) {
+        assert!(saved.contains(entry), "shared string changed: {entry}");
+    }
+}

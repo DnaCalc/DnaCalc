@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <workbookPr date1904="0"/>
+  <calcPr calcMode="auto"/>
+  <sheets>
+    <sheet name="ComplexReview" sheetId="1" r:id="rIdSheet1"/>
+    <sheet name="EditableReview" sheetId="2" r:id="rIdSheet2"/>
+  </sheets>
+  <definedNames>
+    <definedName name="ReviewGlobal" comment="Global comment" description="Global description" help="Global help" statusBar="Global status" customMenu="Review menu" hidden="1" function="0" vbProcedure="1" xlm="0" functionGroupId="7" shortcutKey="R" publishToServer="1" workbookParameter="0" futureAttr="kept">ComplexReview!$A$1</definedName>
+    <definedName name="ReviewScoped" localSheetId="1" comment="Scoped comment" hidden="0">EditableReview!$D$4</definedName>
+  </definedNames>
+</workbook>

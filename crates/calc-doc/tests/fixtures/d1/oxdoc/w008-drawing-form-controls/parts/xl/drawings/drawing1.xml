@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
+          xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+          xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"
+          xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <xdr:twoCellAnchor><xdr:from><xdr:col>1</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>1</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>3</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>2</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to><xdr:sp><xdr:nvSpPr><xdr:cNvPr id="3001" name="Run Button Shape" descr="runs a macro"/></xdr:nvSpPr><xdr:txBody><a:bodyPr/><a:p><a:r><a:t>Run</a:t></a:r></a:p></xdr:txBody></xdr:sp></xdr:twoCellAnchor>
+  <xdr:twoCellAnchor><xdr:from><xdr:col>1</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>3</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>3</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>4</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to><xdr:sp><xdr:nvSpPr><xdr:cNvPr id="3002" name="Linked Check Shape"/></xdr:nvSpPr><xdr:txBody><a:bodyPr/><a:p><a:r><a:t>Check</a:t></a:r></a:p></xdr:txBody></xdr:sp></xdr:twoCellAnchor>
+  <xdr:twoCellAnchor><xdr:from><xdr:col>1</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>5</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>3</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>6</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to><xdr:sp><xdr:nvSpPr><xdr:cNvPr id="3003" name="Choice Option Shape"/></xdr:nvSpPr><xdr:txBody><a:bodyPr/><a:p><a:r><a:t>Option</a:t></a:r></a:p></xdr:txBody></xdr:sp></xdr:twoCellAnchor>
+  <xdr:twoCellAnchor><xdr:from><xdr:col>1</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>7</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>3</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>8</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to><xdr:sp><xdr:nvSpPr><xdr:cNvPr id="3004" name="Choice Group Shape"/></xdr:nvSpPr><xdr:txBody><a:bodyPr/><a:p><a:r><a:t>Group</a:t></a:r></a:p></xdr:txBody></xdr:sp></xdr:twoCellAnchor>
+  <xdr:twoCellAnchor><xdr:from><xdr:col>1</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>9</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>3</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>10</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to><xdr:sp><xdr:nvSpPr><xdr:cNvPr id="3005" name="Items List Shape"/></xdr:nvSpPr><xdr:txBody><a:bodyPr/><a:p><a:r><a:t>List</a:t></a:r></a:p></xdr:txBody></xdr:sp></xdr:twoCellAnchor>
+  <xdr:twoCellAnchor><xdr:from><xdr:col>1</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>11</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>3</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>12</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to><xdr:sp><xdr:nvSpPr><xdr:cNvPr id="3006" name="Items Dropdown Shape"/></xdr:nvSpPr><xdr:txBody><a:bodyPr/><a:p><a:r><a:t>Drop</a:t></a:r></a:p></xdr:txBody></xdr:sp></xdr:twoCellAnchor>
+  <xdr:twoCellAnchor><xdr:from><xdr:col>1</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>13</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>3</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>14</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to><xdr:sp><xdr:nvSpPr><xdr:cNvPr id="3007" name="Step Spinner Shape"/></xdr:nvSpPr><xdr:txBody><a:bodyPr/><a:p><a:r><a:t>Spin</a:t></a:r></a:p></xdr:txBody></xdr:sp></xdr:twoCellAnchor>
+  <xdr:twoCellAnchor><xdr:from><xdr:col>1</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>15</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>3</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>16</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to><xdr:sp><xdr:nvSpPr><xdr:cNvPr id="3008" name="Scale Scroll Shape"/></xdr:nvSpPr><xdr:txBody><a:bodyPr/><a:p><a:r><a:t>Scroll</a:t></a:r></a:p></xdr:txBody></xdr:sp></xdr:twoCellAnchor>
+  <xdr:twoCellAnchor><xdr:from><xdr:col>1</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>17</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>3</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>18</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to><xdr:sp><xdr:nvSpPr><xdr:cNvPr id="3009" name="Display Label Shape"/></xdr:nvSpPr><xdr:txBody><a:bodyPr/><a:p><a:r><a:t>Status</a:t></a:r></a:p></xdr:txBody></xdr:sp></xdr:twoCellAnchor>
+  <xdr:twoCellAnchor><xdr:from><xdr:col>1</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>19</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>3</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>20</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to><xdr:sp><xdr:nvSpPr><xdr:cNvPr id="3010" name="Future Dial Shape"/></xdr:nvSpPr><xdr:txBody><a:bodyPr/><a:p><a:r><a:t>Dial</a:t></a:r></a:p></xdr:txBody></xdr:sp></xdr:twoCellAnchor>
+  <xdr:twoCellAnchor><xdr:from><xdr:col>4</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>1</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>6</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>2</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to><xdr:sp><xdr:nvSpPr><xdr:cNvPr id="3012" name="Duplicate Shape A"/></xdr:nvSpPr><xdr:txBody><a:bodyPr/><a:p><a:r><a:t>Dup A</a:t></a:r></a:p></xdr:txBody></xdr:sp></xdr:twoCellAnchor>
+  <xdr:twoCellAnchor><xdr:from><xdr:col>4</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>3</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>6</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>4</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to><xdr:sp><xdr:nvSpPr><xdr:cNvPr id="3012" name="Duplicate Shape B"/></xdr:nvSpPr><xdr:txBody><a:bodyPr/><a:p><a:r><a:t>Dup B</a:t></a:r></a:p></xdr:txBody></xdr:sp></xdr:twoCellAnchor>
+  <xdr:oneCellAnchor>
+    <xdr:from><xdr:col>4</xdr:col><xdr:colOff>10</xdr:colOff><xdr:row>5</xdr:row><xdr:rowOff>20</xdr:rowOff></xdr:from>
+    <xdr:ext cx="1000" cy="2000"/>
+    <xdr:pic><xdr:nvPicPr><xdr:cNvPr id="4001" name="Picture Blocker"/></xdr:nvPicPr><xdr:blipFill><a:blip r:embed="rIdImage1"/></xdr:blipFill></xdr:pic>
+  </xdr:oneCellAnchor>
+  <xdr:absoluteAnchor>
+    <xdr:pos x="100" y="200"/>
+    <xdr:ext cx="3000" cy="4000"/>
+    <xdr:graphicFrame><a:graphic><a:graphicData uri="chart"><c:chart r:id="rIdChart1"/></a:graphicData></a:graphic></xdr:graphicFrame>
+  </xdr:absoluteAnchor>
+  <xdr:absoluteAnchor>
+    <xdr:pos x="500" y="600"/>
+    <xdr:ext cx="7000" cy="8000"/>
+    <xdr:graphicFrame><a:graphic><a:graphicData uri="ole"><oleObj r:id="rIdOle1"/></a:graphicData></a:graphic></xdr:graphicFrame>
+  </xdr:absoluteAnchor>
+</xdr:wsDr>
