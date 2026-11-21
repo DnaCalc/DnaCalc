@@ -53,6 +53,62 @@
 //! calc-doc, calc-doc-model and calc-engine themselves are not, so calc-host offers its callers
 //! no way around these calls to change the authored revision or the engine state.
 //!
+//! ## Recalculate and save a workbook in memory
+//!
+//! Give the session the bytes of an Excel workbook. This example starts with a blank package,
+//! enters an input and a formula, explicitly calculates, and recalculates the saved package
+//! after reopening to verify the result.
+//!
+//! ```
+//! use std::sync::Arc;
+//! use calc_host::value::{CalcValue, CellKey};
+//! use calc_host::{
+//!     CalcMode, CalcScope, EvalSelection, HostOptions, HostProgress, HostSession, MemorySource,
+//!     OpenPolicy, ProjectedValue, ProjectionRequest, SavePolicy, SkinIntent, blank_package, project,
+//! };
+//!
+//! fn open(bytes: Vec<u8>) -> HostSession {
+//!     HostSession::open(
+//!         Arc::new(MemorySource::new(bytes)),
+//!         &OpenPolicy::default(),
+//!         HostOptions { calc_mode: Some(CalcMode::Manual), ..HostOptions::default() },
+//!     ).unwrap()
+//! }
+//!
+//! fn check_result(book: &mut HostSession, result: CellKey) {
+//!     assert!(book.dispatch(SkinIntent::Calculate {
+//!         scope: CalcScope::Workbook,
+//!         selection: EvalSelection::ForceAll,
+//!     }).accepted());
+//!     while book.has_pending_calculation() {
+//!         match book.advance_calculation() {
+//!             HostProgress::Calculating { .. } | HostProgress::Published(_) => {}
+//!             other => panic!("unexpected calculation progress: {other:?}"),
+//!         }
+//!     }
+//!     let page = project(book.host(), &ProjectionRequest { cells: vec![result] }).unwrap();
+//!     match page.cells()[0].value() {
+//!         ProjectedValue::Calculated { value, .. } => assert_eq!(value, &CalcValue::number(42.0)),
+//!         other => panic!("expected a calculated value, got {other:?}"),
+//!     }
+//! }
+//!
+//! let mut book = open(blank_package());
+//! let sheet = book.host().sheets()[0].id();
+//! let input = CellKey::new(sheet, 1, 1).unwrap();
+//! let result = CellKey::new(sheet, 2, 1).unwrap();
+//! for (at, text) in [(input, "21"), (result, "=A1*2")] {
+//!     assert!(book.dispatch(SkinIntent::EnterCell { at, text: text.into() }).accepted());
+//! }
+//! check_result(&mut book, result);
+//! let mut saved = Vec::new();
+//! book.save(&SavePolicy::default(), &mut saved).unwrap();
+//!
+//! let mut reopened = open(saved);
+//! let sheet = reopened.host().sheets()[0].id();
+//! check_result(&mut reopened, CellKey::new(sheet, 2, 1).unwrap());
+//! ```
+//!
 //! Crate contract: [CONTRACT.md](../CONTRACT.md).
 
 mod actions;

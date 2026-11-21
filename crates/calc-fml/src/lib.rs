@@ -31,6 +31,16 @@
 //! levels of functions. The derived `Debug` of a syntax tree recurses once per level of the tree,
 //! and nothing on the route from formula text to value calls it.
 //!
+//! Parse formula text with diagnostics and preserve the original text for an editor.
+//!
+//! ```
+//! let formula = "=SUM(A1:A3)";
+//! let tree = calc_fml::parse_formula(formula);
+//! assert!(tree.diagnostics().is_empty());
+//! assert!(tree.expression().is_some());
+//! assert_eq!(tree.source_text(), formula);
+//! ```
+//!
 //! Crate contract: [CONTRACT.md](../CONTRACT.md).
 
 pub mod assist;
