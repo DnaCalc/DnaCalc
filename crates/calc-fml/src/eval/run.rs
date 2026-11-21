@@ -1870,6 +1870,15 @@ impl Run<'_, '_> {
                 .iter()
                 .filter_map(|index| arguments[*index].as_array()),
         );
+        // Whole-column MATCH commonly scans the same search line once for every trailing
+        // blank. Reuse consecutive equal probes when only the key varies. The first probe
+        // still uses the scalar kernel and its normal first-hit read and fault order.
+        let reuse_match = target.0.id() == calc_catalogue::lookup::MATCH
+            && lifted == [0]
+            && matches!(arguments, [_, line, mode]
+                if line.as_reference().is_some() && mode.as_number() == Some(0.0))
+            && self.reader.can_reuse_reads();
+        let mut previous_match: Option<(CalcValue, CalcValue)> = None;
         let mut cells = Vec::with_capacity(shape.rows * shape.cols);
         let mut element: Vec<CalcValue> = arguments.to_vec();
         for row in 0..shape.rows {
@@ -1946,6 +1955,19 @@ impl Run<'_, '_> {
                 }
                 if let Some(error) = held {
                     cells.push(error);
+                    continue;
+                }
+                if reuse_match && element[0].callable_value().is_none() {
+                    if let Some((key, result)) = &previous_match
+                        && *key == element[0]
+                    {
+                        self.show_call(target, synthetic);
+                        cells.push(result.clone());
+                    } else {
+                        let result = self.eager(target, &element, synthetic)?;
+                        previous_match = Some((element[0].clone(), result.clone()));
+                        cells.push(result);
+                    }
                     continue;
                 }
                 let value = self.eager(target, &element, synthetic)?;
@@ -2937,6 +2959,10 @@ mod tests {
     struct Everywhere(CalcValue, usize);
 
     impl ReferenceReader for Everywhere {
+        fn can_reuse_reads(&self) -> bool {
+            true
+        }
+
         fn read_denial(&self) -> Option<crate::ReadDenial> {
             None
         }
@@ -3440,6 +3466,45 @@ mod tests {
         );
         assert_eq!(calculated, Ok(CalcValue::number(42.0)));
         assert_eq!(function.0.get(), 1);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn lifted_exact_match_reuses_the_previous_probe() {
+        let anchor = observed_anchor();
+        let plan = crate::compile_with(
+            &parse_formula("=MATCH({7;7;0;0;7},A1:A8,0)"),
+            ReferenceNotation::A1,
+            anchor,
+            &NoSheets,
+            &mut PlanCache::new(),
+            FormulaForm::Dynamic,
+        )
+        .unwrap();
+        let instance = instantiate(&plan, anchor);
+        let mut reader = Everywhere(CalcValue::number(7.0), 0);
+        let mut scratch = EvalScratch::new();
+        let mut shown = Shown::default();
+        let value = evaluate(
+            EvalFrame::new(&instance, &mut scratch),
+            &mut FormulaEvaluationContext::new(
+                &NumericMode::Fast,
+                &mut reader,
+                None,
+                None,
+                crate::ReadRequest::DEPENDENCY,
+            )
+            .observed_by(&mut shown),
+        )
+        .unwrap();
+        let one = CalcValue::number(1.0);
+        let missing = CalcValue::error(WorksheetErrorCode::NA);
+        assert_eq!(
+            value.as_array().unwrap().iter_row_major().collect::<Vec<_>>(),
+            vec![&one, &one, &missing, &missing, &one]
+        );
+        assert_eq!(shown.calls.len(), 5);
+        assert_eq!(reader.1, 3);
     }
 
     /// Evaluates `formula` under Fast, every cell holding `cells`, with an observer attached.

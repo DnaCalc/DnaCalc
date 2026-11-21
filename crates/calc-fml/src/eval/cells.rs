@@ -71,6 +71,10 @@ impl<'r> SharedReader<'r> {
         }
     }
 
+    pub(super) fn can_reuse_reads(&self) -> bool {
+        self.reader.borrow().can_reuse_reads()
+    }
+
     pub(super) fn pending_producer(&self, at: CellKey) -> bool {
         // A diagnostic snapshot admits no producer work or continuation. An
         // unavailable value is a terminal refusal even if the workbook is dirty.

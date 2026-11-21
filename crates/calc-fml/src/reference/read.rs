@@ -9,6 +9,13 @@ use std::ops::ControlFlow;
 
 /// Supplies the cells of grid areas.
 pub trait ReferenceReader {
+    /// Allows an evaluator to reuse a successful read within one synchronous function call.
+    /// Readers opting in supply stable values within that call and need only the first
+    /// occurrence of a repeated read for dependency tracking and observation.
+    fn can_reuse_reads(&self) -> bool {
+        false
+    }
+
     /// True only when this missing read is waiting for an admitted, unfinished producer.
     /// Terminal unavailable inputs and unloaded cells never authorize provisional values.
     fn pending_producer(&self, _at: CellKey) -> bool {

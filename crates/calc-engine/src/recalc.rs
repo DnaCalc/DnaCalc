@@ -5131,6 +5131,11 @@ pub(crate) struct Observed<'l, 'o> {
 }
 
 impl ReferenceReader for Observed<'_, '_> {
+    fn can_reuse_reads(&self) -> bool {
+        self.cells.can_reuse_reads()
+            && (self.silent || self.observer.borrow().can_reuse_reads())
+    }
+
     fn pending_producer(&self, at: CellKey) -> bool {
         self.cells.pending_producer(at)
     }

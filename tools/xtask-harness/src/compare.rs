@@ -291,6 +291,10 @@ impl<'c> Instrument<'c> {
 }
 
 impl ReadObserver for Instrument<'_> {
+    fn can_reuse_reads(&self) -> bool {
+        true
+    }
+
     fn observe(
         &mut self,
         formula: CellKey,
