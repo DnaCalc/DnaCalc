@@ -2532,6 +2532,32 @@ fn prob_and_frequency() {
     assert_eq!(cells, vec![2.0, 2.0, 1.0]);
 }
 
+/// Excel 20527 validates the stored sum of PROB's probabilities in input order.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn prob_multi_item_sum_and_bounds() {
+    let prob = |probabilities: Vec<f64>, lower, upper| {
+        let values = (0..probabilities.len()).map(|index| index as f64).collect();
+        call("PROB", vec![arr(vec![values]), arr(vec![probabilities]), n(lower), n(upper)])
+    };
+    for (lower, upper, expected) in [(0.0, 0.0, -0.25), (1.0, 1.0, 1.25), (0.0, 1.0, 1.0), (1.0, 0.0, 0.0)] {
+        exact(prob(vec![-0.25, 1.25], lower, upper), expected);
+    }
+
+    exact(prob(vec![1e16, -1e16, 1.0], 0.0, 2.0), 1.0);
+    exact(prob(vec![1e16, -1e16, 1.0], 1.0, 2.0), -1e16);
+    error(prob(vec![1e16, 1.0, -1e16], 0.0, 2.0), Num);
+
+    let one = 1.0_f64.to_bits();
+    for bits in [one - 4, one + 22] {
+        let accepted = f64::from_bits(bits);
+        exact(prob(vec![0.375, 0.125, accepted - 0.5], 0.0, 2.0), accepted);
+    }
+    for bits in [one - 5, one + 23] {
+        error(prob(vec![0.375, 0.125, f64::from_bits(bits) - 0.5], 0.0, 2.0), Num);
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn regressions() {
