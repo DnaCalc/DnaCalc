@@ -59,6 +59,14 @@ condition, a comparison, a scale factor and meaningful small results. Its
 examples preserve the distinction between cancellation behavior and magnitude
 underflow. [April observations][cutoff]
 
+## Preserved ERFC regime clue
+
+Foundation's [exactness bit-reproduction policy][policy] (superseded by
+[BRIEFING.md](../../architecture/BRIEFING.md) §4.4) preserved one positive-tail clue
+for `ERFC` / `ERFC.PRECISE`: routing through `libm::erfc` matched Excel at `x = 1`
+(`FTC-0573`) and `x = 1.25`, while diverging at `x = 1.5, 1.75, 2, 2.25, 2.5, 3` for both
+`ERFC` and `ERFC.PRECISE`.
+
 [index]: https://github.com/DnaCalc/Foundation/blob/4736b348a2f88864e17364de44a430095cce9f5e/reference/empirical/findings_index.md
 [probe]: https://github.com/DnaCalc/Foundation/blob/4736b348a2f88864e17364de44a430095cce9f5e/tools/excel-probe/README.md
 [emp01]: https://github.com/DnaCalc/Foundation/blob/4736b348a2f88864e17364de44a430095cce9f5e/reference/empirical/findings/EMP-0001-formula-double-comma-accepted.md
@@ -74,4 +82,5 @@ underflow. [April observations][cutoff]
 [emp11]: https://github.com/DnaCalc/Foundation/blob/4736b348a2f88864e17364de44a430095cce9f5e/reference/empirical/findings/EMP-0011-external-reference-open-state-policy.md
 [emp12]: https://github.com/DnaCalc/Foundation/blob/4736b348a2f88864e17364de44a430095cce9f5e/reference/empirical/findings/EMP-0012-direct-merge-unmerge-capture.md
 [cutoff]: https://github.com/DnaCalc/Foundation/blob/4736b348a2f88864e17364de44a430095cce9f5e/reference/test-corpus/workspace/monitoring/EXCEL_NUMERIC_CUTOFF_AND_EXACTNESS_THEORY_NOTE.md
+[policy]: https://github.com/DnaCalc/Foundation/blob/4736b348a2f88864e17364de44a430095cce9f5e/reference/test-corpus/workspace/monitoring/EXACTNESS_EXCEL_BIT_REPRODUCTION_POLICY.md
 [computed]: https://github.com/DnaCalc/DnaCalc/commit/e042619e35426ffac3d8cfaaa2dd2961abe3d02c
