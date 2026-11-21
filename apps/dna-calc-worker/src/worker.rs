@@ -153,10 +153,10 @@ fn schedule_calculation() {
         .is_err()
     {
         DRIVE_PENDING.with(|scheduled| scheduled.set(false));
-        post(&FromServer::Failed {
-            id: None,
-            message: "could not schedule the calculation continuation".into(),
-        });
+        post(&message::failure(
+            None,
+            "could not schedule the calculation continuation".into(),
+        ));
     }
 }
 
