@@ -170,8 +170,8 @@ pub(super) fn show_all_mode(table: &PivotTable) -> bool {
             .attributes
             .get("showDataAs")
             .is_some_and(|v| v != "normal")
-        || table.attributes.contains_key("missingCaption")
-        || truthy(table.attributes.get("showMissing"), false)
+        || (truthy(table.attributes.get("showMissing"), false)
+            && !table.attributes.contains_key("missingCaption"))
     {
         return false;
     }
