@@ -35,21 +35,17 @@ impl Controller {
             return;
         }
         let target = self.active_key_untracked().expect("checked active cell");
-        if let Some(reason) = self.selection.with_untracked(|mirror| {
-            mirror
-                .geometry(target.sheet())
-                .and_then(|g| g.edit_refusal.clone())
-        }) {
+        let (refusal, original) = untrack(|| {
+            self.with_active_cell_mirror(target, |mirror| {
+                let refusal = mirror.geometry(target.sheet()).and_then(|g| g.edit_refusal.clone());
+                let original = mirror.cell(target).map(|cell| cell.input.clone()).unwrap_or_default();
+                (refusal, original)
+            })
+        });
+        if let Some(reason) = refusal {
             self.say(reason, true);
             return;
         }
-        let original = self
-            .active_key_untracked()
-            .and_then(|at| {
-                self.selection
-                    .with_untracked(|mirror| mirror.cell(at).map(|cell| cell.input.clone()))
-            })
-            .unwrap_or_default();
         let areas = self.areas.get_untracked();
         self.model
             .update(|m| m.edit.begin(origin, target, original.clone(), seed, areas));

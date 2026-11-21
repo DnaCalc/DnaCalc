@@ -2606,6 +2606,106 @@ fn captured_properties(host: &calc_host::HostState, at: CellKey) -> Vec<Option<S
     properties
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_6__compact_rows_with_values_on_columns_refresh() {
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(
+        include_bytes!("fixtures/pivot/m2-formatting/built.xlsx").to_vec(),
+    ));
+    let mut book =
+        HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    let mut stages = BTreeMap::<&str, BTreeMap<String, Cell>>::new();
+    for line in include_str!("fixtures/pivot/m2-formatting/formats.tsv").lines() {
+        let mut fields = line.split('\t');
+        let stage = fields.next().unwrap();
+        if !stage.starts_with("style-rows-") && stage != "style-none-rows" {
+            continue;
+        }
+        let address = fields.next().unwrap();
+        let kind = fields.next().unwrap();
+        let value = fields.next().unwrap();
+        let cell = match kind {
+            "n" => Cell::Number(value.parse().unwrap()),
+            "s" => Cell::Text(value.to_owned()),
+            _ => panic!("unexpected capture type {kind} at {stage} {address}"),
+        };
+        stages
+            .entry(stage)
+            .or_default()
+            .insert(address.into(), cell);
+    }
+    assert_eq!(stages.len(), 14);
+    let mut failures = Vec::new();
+    for (stage, expected) in &stages {
+        let name = format!("pvt_{}", stage.replace('-', "_"));
+        let (sheet, original) = book
+            .host()
+            .model()
+            .definitions()
+            .pivots()
+            .sheets
+            .iter()
+            .find_map(|(sheet, pivots)| {
+                pivots
+                    .tables
+                    .iter()
+                    .find(|table| table.name == name)
+                    .map(|table| (*sheet, table.clone()))
+            })
+            .unwrap();
+        let receipt = book.dispatch(SkinIntent::Command(
+            calc_host::WorkbookCommand::PivotRefresh {
+                sheet,
+                revision: book.host().revision().get(),
+                part: original.part.clone(),
+            },
+        ));
+        if !receipt.accepted() {
+            failures.push(format!("{stage}: {:?}", receipt.error));
+            continue;
+        }
+        let refreshed = &book
+            .host()
+            .model()
+            .definitions()
+            .pivots()
+            .sheet(sheet)
+            .unwrap()
+            .tables[0];
+        let last = refreshed.area.last();
+        let got = held(&book, sheet, last.column(), last.row());
+        let first_difference =
+            expected
+                .iter()
+                .find(|(address, value)| match (value, got.get(*address)) {
+                    (Cell::Number(want), Some(Cell::Number(got))) => {
+                        want.to_bits() != got.to_bits()
+                    }
+                    _ => got.get(*address) != Some(*value),
+                });
+        if got.len() != expected.len() || first_difference.is_some() {
+            failures.push(format!(
+                "{stage}: want {} cells, got {}; first difference {first_difference:?}",
+                expected.len(),
+                got.len()
+            ));
+        } else if refreshed.area != original.area
+            || refreshed.location != original.location
+            || refreshed.row_items != original.row_items
+            || refreshed.col_items != original.col_items
+        {
+            failures.push(format!("{stage}: refreshed pivot structure differs"));
+        }
+    }
+    println!(
+        "M2 compact rows and column Values: {}/{} layouts matched, {} failed",
+        stages.len() - failures.len(),
+        stages.len(),
+        failures.len()
+    );
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
 fn property_equal(property: usize, actual: &str, expected: &str) -> bool {
     if actual == expected || (matches!(property, 3 | 4) && actual.eq_ignore_ascii_case(expected)) {
         return true;

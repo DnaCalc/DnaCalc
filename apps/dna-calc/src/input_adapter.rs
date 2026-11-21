@@ -759,10 +759,10 @@ impl Controller {
                     let len = if surface.is_some() {
                         self.edit_text.get_untracked().encode_utf16().count()
                     } else {
-                        self.selection.with_untracked(|mirror| {
-                            mirror
-                                .cell(at)
-                                .map_or(0, |cell| cell.input.encode_utf16().count())
+                        untrack(|| {
+                            self.with_active_cell_mirror(at, |mirror| {
+                                mirror.cell(at).map_or(0, |cell| cell.input.encode_utf16().count())
+                            })
                         })
                     };
                     *caret = dna_calc_model::TextSelection {

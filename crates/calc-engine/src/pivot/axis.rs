@@ -414,6 +414,15 @@ pub(super) fn render_axes(
     let value_level = table.column_fields.iter().filter(|&&f| f == -2).count();
     let values_only = table.column_fields == [-2];
     let rows_only = table.column_fields.is_empty();
+    let compact_rows = table
+        .fields
+        .get(row)
+        .is_some_and(|field| truthy(field.attributes.get("compact"), true));
+    let compact_column_values = values_only
+        && row_fields.len() == 2
+        && compact_rows
+        && table.data_fields.len() == 2
+        && table.data_fields.iter().all(|data| data.subtotal == "sum");
     if table.data_fields.iter().any(|data| {
         data.extended_show.is_some()
             && data
@@ -568,7 +577,11 @@ pub(super) fn render_axes(
             == 5
         && selected_subtotals(row_fields[0]) == ["sum", "countA", "avg", "max", "min"];
     if (multiple_rows && show != "normal" && !parent_percent)
-        || (multiple_rows && row_values.is_none() && table.data_fields.len() != 1 && !custom)
+        || (multiple_rows
+            && row_values.is_none()
+            && table.data_fields.len() != 1
+            && !custom
+            && !compact_column_values)
         || (row_values.is_some()
             && (row_fields.len() > 3
                 || table.column_fields.len() > 1
@@ -798,7 +811,6 @@ pub(super) fn render_axes(
     {
         return Err(bad("This retained-item layout is not modelled"));
     }
-    let compact_rows = truthy(table.fields[row].attributes.get("compact"), true);
     let outline_rows = truthy(table.fields[row].attributes.get("outline"), true);
     let tabular_values = row_values.is_some()
         && row_fields.len() == 3
