@@ -1,0 +1,212 @@
+use super::content::{create_directory, escape, markdown, write_page};
+use std::fmt::Write;
+use std::fs;
+use std::path::Path;
+
+const FEED: &str =
+    r#"<link rel="alternate" type="application/atom+xml" href="feed.atom" title="DNA Calc Blog">"#;
+
+struct Post<'a> {
+    date: &'a str,
+    slug: &'a str,
+    title: &'a str,
+    tags: Vec<&'a str>,
+    draft: bool,
+    body: String,
+}
+
+impl<'a> Post<'a> {
+    fn parse(stem: &'a str, source: &'a str) -> Result<Self, String> {
+        let invalid = || format!("{stem}.md needs a date, slug, title, tags and status");
+        let date = stem
+            .get(..10)
+            .filter(|s| valid_date(s))
+            .ok_or_else(invalid)?;
+        let slug = stem
+            .get(10..)
+            .and_then(|s| s.strip_prefix('-'))
+            .filter(|s| {
+                !s.is_empty()
+                    && s.bytes()
+                        .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+            })
+            .ok_or_else(invalid)?;
+        let mut lines = source.lines();
+        let title = lines
+            .next()
+            .and_then(|s| s.strip_prefix("# "))
+            .filter(|s| !s.is_empty())
+            .ok_or_else(invalid)?;
+        let tags: Vec<_> = lines
+            .next()
+            .and_then(|s| s.strip_prefix("Tags: "))
+            .ok_or_else(invalid)?
+            .split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .collect();
+        let draft = match lines.next() {
+            Some("Status: draft") => true,
+            Some("Status: published") => false,
+            _ => return Err(invalid()),
+        };
+        if tags.is_empty() || lines.next() != Some("") {
+            return Err(invalid());
+        }
+        let body = markdown(&lines.collect::<Vec<_>>().join("\n"));
+        Ok(Self {
+            date,
+            slug,
+            title,
+            tags,
+            draft,
+            body,
+        })
+    }
+
+    fn filename(&self) -> String {
+        format!("{}-{}.html", self.date, self.slug)
+    }
+
+    fn description(&self) -> String {
+        let tags = self
+            .tags
+            .iter()
+            .map(|tag| escape(tag))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let draft = if self.draft { " · Draft" } else { "" };
+        format!(
+            "<time datetime=\"{date}\">{date}</time> · {tags}{draft}",
+            date = self.date
+        )
+    }
+}
+
+fn valid_date(date: &str) -> bool {
+    let parts: Vec<_> = date.split('-').collect();
+    let [year, month, day] = parts.as_slice() else {
+        return false;
+    };
+    if (year.len(), month.len(), day.len()) != (4, 2, 2)
+        || !parts
+            .iter()
+            .all(|part| part.bytes().all(|b| b.is_ascii_digit()))
+    {
+        return false;
+    }
+    let (Ok(year), Ok(month), Ok(day)) =
+        (year.parse::<u16>(), month.parse::<u8>(), day.parse::<u8>())
+    else {
+        return false;
+    };
+    let days = match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) => 29,
+        2 => 28,
+        _ => return false,
+    };
+    year > 0 && (1..=days).contains(&day)
+}
+
+fn feed(posts: &[Post<'_>], host: &str) -> String {
+    let base = format!("https://{host}/blog");
+    let updated = posts[0].date;
+    let mut out = format!(
+        "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<feed xmlns=\"http://www.w3.org/2005/Atom\">\n\
+         <title>DNA Calc Blog</title><id>{base}/</id><author><name>DNA Calc</name></author>\n\
+         <link rel=\"self\" href=\"{base}/feed.atom\"/><link href=\"{base}/index.html\"/>\n\
+         <updated>{updated}T00:00:00Z</updated>\n"
+    );
+    for post in posts {
+        let url = format!("{base}/{}", post.filename());
+        let title = escape(post.title);
+        let date = post.date;
+        let content = escape(&post.body);
+        let _ = writeln!(
+            out,
+            "<entry><title>{title}</title><id>{url}</id><link href=\"{url}\"/>\n\
+             <published>{date}T00:00:00Z</published><updated>{date}T00:00:00Z</updated>"
+        );
+        for tag in &post.tags {
+            let _ = writeln!(out, "<category term=\"{}\"/>", escape(tag));
+        }
+        let _ = writeln!(out, "<content type=\"html\">{content}</content></entry>");
+    }
+    out.push_str("</feed>\n");
+    out
+}
+
+pub(super) fn build(
+    root: &Path,
+    output: &Path,
+    host: &str,
+    include_drafts: bool,
+) -> Result<usize, String> {
+    let sources = root.join("docs/site/blog");
+    let mut files = Vec::new();
+    for entry in fs::read_dir(&sources).map_err(|e| format!("{}: {e}", sources.display()))? {
+        let path = entry.map_err(|e| e.to_string())?.path();
+        if path.extension().is_some_and(|extension| extension == "md") {
+            let stem = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .ok_or("blog filename is not UTF-8")?;
+            let source =
+                fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+            files.push((stem.to_owned(), source));
+        }
+    }
+    let mut posts = Vec::new();
+    for (stem, source) in &files {
+        let post = Post::parse(stem, source)?;
+        if include_drafts || !post.draft {
+            posts.push(post);
+        }
+    }
+    if posts.is_empty() {
+        return Ok(0);
+    }
+    posts.sort_unstable_by_key(|post| std::cmp::Reverse((post.date, post.slug)));
+    let directory = output.join("blog");
+    create_directory(&directory)?;
+    let mut index =
+        String::from("<h1>DNA Calc Blog</h1><p><a href=\"feed.atom\">Atom feed</a></p><ul>");
+    for post in &posts {
+        let title = escape(post.title);
+        let description = post.description();
+        let filename = post.filename();
+        let _ = writeln!(
+            index,
+            "<li><a href=\"{filename}\">{title}</a><br><small>{description}</small></li>"
+        );
+        let body = &post.body;
+        let contents = format!(
+            "<nav><a href=\"index.html\">Blog</a></nav><article><h1>{title}</h1><p>{description}</p>{body}</article>"
+        );
+        write_page(&directory, &filename, post.title, FEED, &contents)?;
+    }
+    index.push_str("</ul>");
+    write_page(&directory, "index.html", "Blog", FEED, &index)?;
+    super::write(&directory.join("feed.atom"), feed(&posts, host).as_bytes())?;
+    Ok(posts.len())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn post_metadata_and_atom_preserve_special_characters() {
+        let source = "# A & B\nTags: <test>, grid\nStatus: draft\n\nWork with **cells**.";
+        let post = Post::parse("2028-02-29-test", source).unwrap();
+        assert!(Post::parse("2026-02-29-test", source).is_err());
+        assert!(post.draft);
+        assert_eq!(post.filename(), "2028-02-29-test.html");
+        let atom = feed(&[post], "dnacalc.com");
+        assert!(atom.contains("<title>A &amp; B</title>"));
+        assert!(atom.contains("<category term=\"&lt;test&gt;\"/>"));
+        assert!(atom.contains("&lt;strong&gt;cells&lt;/strong&gt;"));
+    }
+}

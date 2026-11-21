@@ -43,6 +43,9 @@
 //!
 //! Exit code: 0 on success, 1 on a failure or refusal, 2 for a usage error.
 
+mod blog;
+mod content;
+
 use crate::accept::utc_now;
 use crate::app::{self, APPS, App, SmokeTarget};
 use crate::cargo::{self, Workspace};
@@ -55,7 +58,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 use std::sync::Arc;
 
-pub const USAGE: &str = "usage: cargo xtask site pack onecalc|calc [--allow-dirty]\n       cargo xtask site serve onecalc|calc [--release <dir>] [--port <n>]\n       cargo xtask site smoke onecalc|calc [--release <dir>] [--browser chromium|firefox]\n       cargo xtask site verify onecalc|calc --url <base> [--release <dir>]\n       cargo xtask site publish onecalc|calc --release <dir> (--dry-run [--live <url|build.json>] | --local)\n       cargo xtask site status onecalc|calc\n       cargo xtask site rollback onecalc|calc --local --release <release>\n       (publish without --dry-run, status and rollback run on the site host, dna-koderbot)";
+pub const USAGE: &str = "usage: cargo xtask site blog calc --out <dir> [--include-drafts]\n       cargo xtask site pack onecalc|calc [--allow-dirty]\n       cargo xtask site serve onecalc|calc [--release <dir>] [--port <n>]\n       cargo xtask site smoke onecalc|calc [--release <dir>] [--browser chromium|firefox]\n       cargo xtask site verify onecalc|calc --url <base> [--release <dir>]\n       cargo xtask site publish onecalc|calc --release <dir> (--dry-run [--live <url|build.json>] | --local)\n       cargo xtask site status onecalc|calc\n       cargo xtask site rollback onecalc|calc --local --release <release>\n       (publish without --dry-run, status and rollback run on the site host, dna-koderbot)";
 
 /// The site snippet every host imports and the local serve reads.
 pub const HEADERS_FILE: &str = "deploy/caddy/headers.caddy";
@@ -251,10 +254,10 @@ pub fn run(raw: &[String]) -> ExitCode {
     let mut args = rest.iter();
     while let Some(arg) = args.next() {
         match arg.as_str() {
-            "--allow-dirty" | "--dry-run" | "--local" => {
+            "--allow-dirty" | "--dry-run" | "--local" | "--include-drafts" => {
                 flags.insert(arg.clone());
             }
-            "--release" | "--port" | "--browser" | "--url" | "--live" => match args.next() {
+            "--release" | "--port" | "--browser" | "--url" | "--live" | "--out" => match args.next() {
                 Some(value) => {
                     options.insert(arg.clone(), value.clone());
                 }
@@ -269,6 +272,11 @@ pub fn run(raw: &[String]) -> ExitCode {
         None => latest_release(ws, &key),
     };
     let result = match command {
+        "blog" if key.key == "calc" => match option("--out") {
+            Some(dir) => blog::build(&ws.root, Path::new(&dir), key.host, flags.contains("--include-drafts"))
+                .map(|count| println!("SITE BLOG {count} posts in {dir}")),
+            None => return usage(raw),
+        },
         "pack" => pack(&ws, &key, flags.contains("--allow-dirty")).map(|_| ()),
         "serve" => {
             let port = match option("--port").map(|p| p.parse::<u16>()) {
@@ -473,6 +481,10 @@ fn pack(ws: &Workspace, site: &Site, allow_dirty: bool) -> Result<PathBuf, Strin
     let notices = notices(ws, site.app)?;
     write(&dir.join("THIRD-PARTY-NOTICES.txt"), notices.as_bytes())?;
     let _ = fs::remove_dir_all(&staging);
+
+    if site.key == "calc" {
+        blog::build(&ws.root, &dir, site.host, false)?;
+    }
 
     // build.json: every other file's size and hash.
     let mut files = Map::new();

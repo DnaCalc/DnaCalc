@@ -665,6 +665,7 @@ fn serve_mode(
 pub(crate) fn content_type(name: &str) -> &'static str {
     match Path::new(name).extension().and_then(|e| e.to_str()) {
         Some("html") => "text/html; charset=utf-8",
+        Some("atom") => "application/atom+xml",
         Some("js") => "text/javascript; charset=utf-8",
         Some("wasm") => "application/wasm",
         Some("json") => "application/json",

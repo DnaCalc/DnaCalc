@@ -122,8 +122,15 @@ Blog · Download. Footer: About, Licence, Status, `/build.json`.
 
 ### 4.8 Blog (`/blog`)
 - **Message:** what changed, how a hard function was matched, the videos' write-ups.
-- **Shows:** posts from Markdown with a feed (dc-6q2k.3); each video post pairs with its script
-  (dc-6q2k.4). First posts: "Why bit-match Excel", "Running VBA outside Excel", the 0.2.0 notes.
+- **Shows:** dated Markdown posts with tags and an Atom feed (dc-6q2k.3). The first three drafts
+  introduce DNA Calc, demonstrate an add-in in OneCalc and explain the formula comparisons.
+  The video scripts are tracked in dc-6q2k.4.
+- **Preview:** run `cargo xtask site blog calc --out target/blog-preview --include-drafts` and open
+  `target/blog-preview/blog/index.html`. Use a fresh output directory for a new preview.
+- **Source:** `docs/site/blog/YYYY-MM-DD-slug.md` begins with the post title as an H1, a
+  comma-separated `Tags:` line, a `Status: draft` or `Status: published` line and a blank line
+  before the Markdown body. Owner-approved posts marked published are included in the Calc site
+  pack with `blog/feed.atom`.
 
 ### 4.9 Download (`/download`)
 - **Message:** "Preview 0.2.0. Windows installer, zip, Linux tarball and deb."
