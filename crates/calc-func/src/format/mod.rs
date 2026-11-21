@@ -445,9 +445,12 @@ pub fn general(profile: &FormatProfile, value: f64) -> String {
     let magnitude = value.abs();
     let first = fifteen(magnitude);
     let length = first.coefficient.digits().len() as i64;
-    // The value is 0.d1d2... * 10^point.
+    // The value is 0.d1d2... * 10^point. Below 1e-4 (point <= -4), Excel keeps fixed notation
+    // only when all trimmed significant digits fit within the 11-character unsigned width
+    // (dc-iuwct.48: 56/56 frozen Touchstone predictions on Excel 16.0.20527.20196).
     let point = length + first.exponent as i64;
-    let fixed_fits = point <= WIDTH && point > -9;
+    let trimmed = first.coefficient.digits().trim_end_matches('0').len() as i64;
+    let fixed_fits = point <= WIDTH && (point >= -3 || 2 - point + trimmed <= WIDTH);
     if fixed_fits {
         let places = if point >= WIDTH {
             0
@@ -2461,5 +2464,53 @@ mod tests {
         assert_eq!(FormatColor::Palette(45).rgb(), "#ff9900");
         assert_eq!(FormatColor::Palette(53).rgb(), "#993300");
         assert_eq!(cell_color("[Color57]0", &CalcValue::number(1.0)), None);
+    }
+
+    /// Excel 16.0.20527.20196 (en-ZA, dc-iuwct.48: 56/56 frozen Touchstone predictions plus the
+    /// six sx1/run2-number-text-context.json General rows): below 1e-4, General keeps fixed
+    /// notation only when all trimmed significant digits fit within the 11-character unsigned
+    /// width; otherwise it switches to scientific notation.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn general_small_number_switches_to_scientific_as_excel_does() {
+        let p = host();
+        let rows: &[(f64, &str)] = &[
+            // sx1/run2-number-text-context.json replies[3].rows[24..29]
+            (f64::from_bits(0x3ed6038e11b5d39e), "5.24852E-06"),
+            (f64::from_bits(0x3ed6038e11b5d39f), "5.24852E-06"),
+            (f64::from_bits(0x3ed6038e11b5d3a0), "5.24852E-06"),
+            (f64::from_bits(0xbed6038e11b5d39e), "-5.24852E-06"),
+            (f64::from_bits(0xbed6038e11b5d39f), "-5.24852E-06"),
+            (f64::from_bits(0xbed6038e11b5d3a0), "-5.24852E-06"),
+            // Boundary at 1e-4 and exact 11-char vs 12-char fixed thresholds
+            (1e-4, "0.0001"),
+            (0.000123456789012345, "0.000123457"),
+            (9.9999e-5, "0.000099999"),
+            (9.99995e-5, "9.99995E-05"),
+            (9.99999e-5, "9.99999E-05"),
+            (9.999995e-5, "1E-04"),
+            (f64::from_bits(0x3f1a36e2eb1c4328), "1E-04"), // 9.999999999999994e-5 -> 15-digit 9.99999999999999e-5
+            (f64::from_bits(0x3f1a36e2eb1c4329), "0.0001"), // 9.999999999999995e-5 -> 15-digit 1e-4
+            (f64::from_bits(0x3f1a36e2eb1c432c), "0.0001"), // nextafter(1e-4, 0) -> 15-digit 1e-4
+            (1.2345e-5, "0.000012345"),
+            (1.23451e-5, "1.23451E-05"),
+            (-1.2345e-5, "-0.000012345"),
+            (-1.23451e-5, "-1.23451E-05"),
+            (1.234e-6, "0.000001234"),
+            (1.2341e-6, "1.2341E-06"),
+            (1.23e-7, "0.000000123"),
+            (1.231e-7, "1.231E-07"),
+            (1.2e-8, "0.000000012"),
+            (1.21e-8, "1.21E-08"),
+            (1e-9, "0.000000001"),
+            (1.1e-9, "1.1E-09"),
+            (-1e-9, "-0.000000001"),
+            (-1.1e-9, "-1.1E-09"),
+            (1e-10, "1E-10"),
+            (5e-10, "5E-10"),
+        ];
+        for &(value, expected) in rows {
+            assert_eq!(general(&p, value), expected, "General({value:?})");
+        }
     }
 }
