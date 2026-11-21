@@ -138,6 +138,14 @@ Blog · Download. Footer: About, Licence, Status, `/build.json`.
   how to uninstall.
 - **Must be true first:** files signed by the owner (WINDOWS_INSTALLERS.md section 6), notes made
   (RELEASES.md section 6), install test passed (dc-fk66.3).
+- **Draft build:** `cargo xtask release notes --manifest <installer-manifest.json> --draft
+  docs/releases/first-preview.md --out <dir>` renders `download/index.html` and
+  `download/release-notes.md`. Serve the output locally with `cargo xtask site serve calc
+  --release <dir>` and open `/download/index.html`.
+- The owner supplies a post-signing copy of the installer manifest with `signed: true`, a
+  verified signer name in `signer`, and the final sizes and SHA-256 values. The build compares
+  the adjacent installer files with those records before copying them into the download folder.
+  An unsigned manifest generates a preview without installer links.
 
 ### 4.10 About, Licence, Status
 - **About:** who builds it, the MIT licence, the third-party notices, how to report a problem.

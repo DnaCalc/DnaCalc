@@ -204,6 +204,7 @@ fn main() -> ExitCode {
         Some((command, rest)) if command == "onecalc" => app::run_onecalc(rest),
         Some((command, rest)) if command == "site" => site::run(rest),
         Some((command, rest)) if command == "package" => package::run(rest),
+        Some((command, rest)) if command == "release" => site::downloads::run(rest),
         #[cfg(not(target_arch = "wasm32"))]
         Some((command, rest)) if command == "witness" => witness::run(rest),
         #[cfg(not(target_arch = "wasm32"))]
@@ -240,6 +241,7 @@ fn main() -> ExitCode {
                 app::USAGE,
                 site::USAGE,
                 package::USAGE,
+                site::downloads::USAGE,
             ];
             #[cfg(not(target_arch = "wasm32"))]
             usages.push(capture::USAGE);

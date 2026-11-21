@@ -45,6 +45,7 @@
 
 mod blog;
 mod content;
+pub(crate) mod downloads;
 
 use crate::accept::utc_now;
 use crate::app::{self, APPS, App, SmokeTarget};
