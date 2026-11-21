@@ -71,6 +71,8 @@
 //! [`blank_package`] makes the package of a new workbook, one empty worksheet, to open as any other.
 //!
 //! The codec opens no file: the source and the sink are supplied by the caller.
+//!
+//! Crate contract: [CONTRACT.md](../CONTRACT.md).
 
 mod blank;
 mod custom_xml;

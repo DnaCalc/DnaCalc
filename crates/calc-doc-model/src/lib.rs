@@ -50,6 +50,8 @@
 //!
 //! [`value`] re-exports calc-value, whose grid coordinates, sheet IDs, text and worksheet error
 //! codes these types hold.
+//!
+//! Crate contract: [CONTRACT.md](../CONTRACT.md).
 
 mod axis_layout;
 mod cache;

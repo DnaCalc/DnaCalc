@@ -1,5 +1,8 @@
-//! Repository code-health report: formatting drift, line length, and clone habits.
+//! Repository code-health report: formatting, line length, clone habits, and crate contracts.
 use crate::cargo::{self, Member, Workspace};
+use crate::rust_source::{crate_sources, each_level, line_of};
+use proc_macro2::TokenTree;
+use quote::ToTokens;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -21,6 +24,8 @@ pub struct PackageHealth {
     pub needless_pass_by_value: usize,
     pub clone_on_copy: usize,
     pub unnecessary_to_owned: usize,
+    pub contract_surface: Option<String>,
+    pub contract_surface_drift: bool,
 }
 
 impl PackageHealth {
@@ -37,6 +42,8 @@ impl PackageHealth {
             "needless_pass_by_value": self.needless_pass_by_value,
             "clone_on_copy": self.clone_on_copy,
             "unnecessary_to_owned": self.unnecessary_to_owned,
+            "contract_surface": self.contract_surface,
+            "contract_surface_drift": self.contract_surface_drift,
         })
     }
 }
@@ -144,6 +151,55 @@ fn count_lines_over_160(path: &Path) -> usize {
     content.lines().filter(|l| l.chars().count() > 160).count()
 }
 
+fn contract_surface(ws: &Workspace, member: &Member) -> Result<Option<(String, bool)>, String> {
+    let contract = member.dir.join("CONTRACT.md");
+    if !contract.is_file() {
+        return Ok(None);
+    }
+    let read = |path: &Path| {
+        fs::read_to_string(path).map_err(|err| format!("cannot read {}: {err}", ws.rel(path)))
+    };
+    let recorded = read(&contract)?;
+    let recorded = recorded
+        .lines()
+        .last()
+        .and_then(|line| line.strip_prefix("Surface: "))
+        .and_then(|line| line.split_whitespace().next());
+
+    let mut declarations = Vec::new();
+    for file in crate_sources(&ws.root, &member.shipped_roots())? {
+        let source = read(&ws.root.join(file.rel))?;
+        let lines: Vec<_> = source.lines().map(str::trim).collect();
+        let mut found = BTreeSet::new();
+        each_level(file.syntax.into_token_stream(), &mut |tokens| {
+            for token in tokens {
+                if matches!(token, TokenTree::Ident(ident) if *ident == "pub") {
+                    let line = line_of(token);
+                    if lines
+                        .get(line.saturating_sub(1))
+                        .is_some_and(|l| l.starts_with("pub "))
+                    {
+                        found.insert(line - 1);
+                    }
+                }
+            }
+        });
+        declarations.extend(found.into_iter().map(|index| lines[index].to_owned()));
+    }
+    declarations.sort_unstable();
+    // FNV-1a over UTF-8 declaration lines, with line endings independent of the checkout.
+    let mut hash = 0xcbf29ce484222325_u64;
+    for line in declarations {
+        for byte in line.bytes().chain([b'\n']) {
+            hash ^= u64::from(byte);
+            hash = hash.wrapping_mul(0x100000001b3);
+        }
+    }
+    let actual = format!("{hash:016x}");
+    let drifted = recorded != Some(&actual);
+    Ok(Some((actual, drifted)))
+}
+
 fn normalize_rel_path(ws: &Workspace, path_str: &str) -> String {
     let clean = path_str.strip_prefix(r"\\?\").unwrap_or(path_str);
     let path = Path::new(clean);
@@ -174,6 +230,7 @@ pub fn collect_health(ws: &Workspace) -> Result<HealthReport, String> {
     // 1. Initialise map per package
     let mut stats: BTreeMap<String, PackageHealth> = BTreeMap::new();
     for member in &ws.members {
+        let surface = contract_surface(ws, member)?;
         stats.insert(
             member.name.clone(),
             PackageHealth {
@@ -192,6 +249,8 @@ pub fn collect_health(ws: &Workspace) -> Result<HealthReport, String> {
                 needless_pass_by_value: 0,
                 clone_on_copy: 0,
                 unnecessary_to_owned: 0,
+                contract_surface_drift: surface.as_ref().is_some_and(|(_, drifted)| *drifted),
+                contract_surface: surface.map(|(hash, _)| hash),
             },
         );
     }
@@ -424,6 +483,14 @@ fn format_table(packages: &[PackageHealth], totals: &HealthTotals) -> String {
         totals.clone_on_copy,
         totals.unnecessary_to_owned,
     ));
+
+    for package in packages.iter().filter(|p| p.contract_surface_drift) {
+        out.push_str(&format!(
+            "{}: contract surface changed (current {})\n",
+            package.package,
+            package.contract_surface.as_deref().unwrap_or_default(),
+        ));
+    }
 
     out
 }

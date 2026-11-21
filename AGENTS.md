@@ -12,6 +12,7 @@ DnaTreeCalc, DnaOneCalc and the others) are read-only inputs: port from them, ne
 - `docs/plan/DNA_CALC_REIMPLEMENTATION_PLAN.md`: the architecture (libraries, layering, contracts).
   Its roll-out sections are superseded by the bulk-port plan.
 - The tracker: `br ready`, then `br show <id>`.
+- Before changing or calling a crate, read its `CONTRACT.md` when present.
 
 ## Workspace
 

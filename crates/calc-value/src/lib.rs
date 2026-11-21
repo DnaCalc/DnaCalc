@@ -20,6 +20,8 @@
 //!
 //! The package declares no cargo features, so there is no thread-bound variant of any type:
 //! every public value type is `Send + Sync`.
+//!
+//! Crate contract: [CONTRACT.md](../CONTRACT.md).
 
 mod case_folding;
 mod combining_marks;

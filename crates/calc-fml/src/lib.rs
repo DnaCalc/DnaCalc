@@ -30,6 +30,8 @@
 //! most 64 deep: the parser gives a diagnostic to a call nested deeper, Excel's limit of nested
 //! levels of functions. The derived `Debug` of a syntax tree recurses once per level of the tree,
 //! and nothing on the route from formula text to value calls it.
+//!
+//! Crate contract: [CONTRACT.md](../CONTRACT.md).
 
 pub mod assist;
 pub mod eval;

@@ -12,6 +12,8 @@
 //! runs it with [`invoke`], supplying the arguments through
 //! [`PreparedArguments`] and owning the [`EvalServices`] (the numeric mode and a [`CellReader`]
 //! for reference arguments) and the [`FunctionCallScratch`].
+//!
+//! Crate contract: [CONTRACT.md](../CONTRACT.md).
 
 pub use calc_value as value;
 

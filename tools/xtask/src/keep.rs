@@ -178,7 +178,16 @@ fn has_health_drift(new_report: &Value, previous: &Value) -> bool {
     };
     for new_pkg in new_packages {
         let name = new_pkg["package"].as_str().unwrap_or_default();
-        if let Some(old_pkg) = old_packages.iter().find(|p| p["package"] == name) {
+        let old_pkg = old_packages.iter().find(|p| p["package"] == name);
+        if new_pkg["contract_surface_drift"].as_bool() == Some(true)
+            && old_pkg.is_none_or(|old| {
+                old["contract_surface_drift"].as_bool() != Some(true)
+                    || old["contract_surface"] != new_pkg["contract_surface"]
+            })
+        {
+            return true;
+        }
+        if let Some(old_pkg) = old_pkg {
             for metric in [
                 "rustfmt",
                 "leptosfmt",

@@ -49,6 +49,8 @@
 //!   nested subtotals and the snapshot's hidden rows. A formula's template
 //!   ([`calc_fml::reference::template_key`]) lets the copies of a filled formula share one plan
 //!   without each being parsed.
+//!
+//! Crate contract: [CONTRACT.md](../CONTRACT.md).
 
 pub mod contract;
 mod data_table;

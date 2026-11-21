@@ -2,6 +2,8 @@
 //!
 //! The two former tables overlap but are not identical: the codec also has entries for names
 //! outside the executable catalogue, and the executable catalogue has later measured entries.
+//!
+//! Crate contract: [CONTRACT.md](../CONTRACT.md).
 
 // File tables refer to a declaration by ID; an add-in uses its exported name.
 const fn file_spelling(id: FunctionId) -> &'static str {
