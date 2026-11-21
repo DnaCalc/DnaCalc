@@ -12841,7 +12841,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
         ],
         checks: &[
             Check::Value("chart-series-name", "Updated & Ω"),
-            Check::Value("chart-series-values", "'Data'!$C$2:$C$7"),
+            Check::Value("chart-series-values", "Data!$C$2:$C$7"),
             Check::Text(
                 "[data-chart=\"Chart 1\"] [data-dnacalc=chart-legend]:first-of-type text",
                 "Updated & Ω",
@@ -13002,7 +13002,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::OpenDetails("chart-tools"),
         ],
         checks: &[
-            Check::Value("chart-series-values", "'Data'!$B$2:$B$7"),
+            Check::Value("chart-series-values", "Data!$B$2:$B$7"),
             Check::Fits,
         ],
     },
@@ -13461,7 +13461,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::OpenDetails("chart-tools"),
         ],
         checks: &[
-            Check::Value("chart-series-values", "'Data'!$C$2:$C$7"),
+            Check::Value("chart-series-values", "Data!$C$2:$C$7"),
             Check::Value("chart-type", "line"),
             Check::Attr(
                 "[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]",
@@ -13818,7 +13818,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
         checks: &[
             Check::Count("[data-chart=\"Chart 7\"] [data-dnacalc=chart-mark]", 12),
             Check::TextContains("chart-series", "North"),
-            Check::Value("chart-series-values", "'Data'!$B$2:$B$7"),
+            Check::Value("chart-series-values", "Data!$B$2:$B$7"),
             Check::Attr(
                 "[data-chart=\"Chart 7\"] [data-series=\"1\"][data-point=\"0\"]",
                 "data-value",
@@ -13854,7 +13854,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
         ],
         checks: &[
             Check::Count("[data-dnacalc=chart]", 7),
-            Check::Value("chart-series-values", "'Data'!$B$2:$B$7"),
+            Check::Value("chart-series-values", "Data!$B$2:$B$7"),
             Check::Attr(
                 "[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]",
                 "data-value",
@@ -14138,7 +14138,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Choose("chart-axis", "4"),
         ],
         checks: &[
-            Check::Value("chart-series-values", "'Data'!$C$2:$C$7"),
+            Check::Value("chart-series-values", "Data!$C$2:$C$7"),
             Check::Value("chart-axis-base", "10"),
             Check::Attr(
                 "[data-chart=\"Chart 7\"] [data-plot=\"0\"] [data-dnacalc=chart-plot]",
@@ -15232,7 +15232,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Wait(Check::Value("chart-type", "area")),
         ],
         checks: &[
-            Check::Value("chart-series-values", "'Sheet1'!$E$2:$E$4"),
+            Check::Value("chart-series-values", "Sheet1!$E$2:$E$4"),
             Check::Count("[data-dnacalc=chart] svg[data-dnacalc=chart-plot]", 3),
             Check::Count("[data-dnacalc=chart-mark]", 12),
             Check::Attr(
