@@ -33,7 +33,7 @@
 
 use crate::command::CellEdit;
 use crate::state::HostState;
-use calc_doc_model::value::{CalcValue, CellKey, CoreRef, GridArea, fold_workbook_name};
+use calc_doc_model::value::{CalcValue, CellKey, CoreRef, GridArea, fold_defined_name};
 use calc_doc_model::{ArrayFormula, ArrayKind, CellInput, CellText, FiniteNumber};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -1056,7 +1056,7 @@ fn copy_edits_from(
                 .flatten()
                 .filter_map(|(_, input)| match input {
                     CellInput::Formula(formula) => {
-                        Some(fold_workbook_name(&formula.text().to_string_lossy()))
+                        Some(fold_defined_name(&formula.text().to_string_lossy()))
                     }
                     _ => None,
                 })
@@ -1066,7 +1066,7 @@ fn copy_edits_from(
                 .definitions()
                 .filter(|name| name.scope == source)
             {
-                let lower = fold_workbook_name(&name.name);
+                let lower = fold_defined_name(&name.name);
                 let taken = definitions
                     .name_table()
                     .lookup(target, &name.name)
@@ -1101,8 +1101,8 @@ fn copy_edits_from(
     Ok(edits)
 }
 
-/// Whether the formula `text` holds `name` as a whole word, both folded as workbook names are
-/// compared (calc-value's `fold_workbook_name`, dc-cpr): a name a formula may use. A text or
+/// Whether the formula `text` holds `name` as a whole word, both folded as defined names are
+/// compared: a name a formula may use. A text or
 /// another name that holds it as a word counts too, which only sets a formula again that did not
 /// need it.
 fn uses_name(text: &str, name: &str) -> bool {

@@ -297,7 +297,7 @@ pub fn merge(
                     v.scope == calc_doc_model::NameScope::Workbook
                         && n.element.attribute("name").is_some_and(|s| {
                             decoded(s).is_ok_and(|s| {
-                                calc_doc_model::value::workbook_names_equal(&s, &v.name)
+                                calc_doc_model::value::defined_names_equal(&s, &v.name)
                             })
                         })
                 })

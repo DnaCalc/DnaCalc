@@ -50,7 +50,7 @@ pub(super) struct NameTarget {
 impl NameTarget {
     fn key(&self) -> (String, Option<u32>, usize) {
         (
-            calc_doc_model::value::fold_workbook_name(&self.name),
+            calc_doc_model::value::fold_defined_name(&self.name),
             self.sheet,
             self.occurrence,
         )
@@ -285,7 +285,7 @@ pub(super) fn workbook(
             .map(|(_, scope)| {
                 scope.as_ref().map(|scope| {
                     let key = (
-                        calc_doc_model::value::fold_workbook_name(&scope.name),
+                        calc_doc_model::value::fold_defined_name(&scope.name),
                         scope.local_sheet,
                     );
                     let occurrence = occurrences.entry(key.clone()).or_insert(0usize);

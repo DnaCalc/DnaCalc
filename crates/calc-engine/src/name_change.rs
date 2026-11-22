@@ -87,7 +87,7 @@ impl std::error::Error for NameChangeFailure {}
 pub fn mentions_name(text: &str, spelling: &str) -> bool {
     calc_fml::syntax::lex(text).iter().any(|token| {
         token.kind() == calc_fml::syntax::TokenKind::Identifier
-            && calc_value::workbook_names_equal(token.text(), spelling)
+            && calc_value::defined_names_equal(token.text(), spelling)
     })
 }
 

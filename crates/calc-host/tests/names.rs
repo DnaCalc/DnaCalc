@@ -570,6 +570,34 @@ fn dc_cpr__workbook_names_resolve_under_the_full_fold_across_scripts() {
     }
 }
 
+/// Excel 16.0.20527, hjd_oxfml D24:D32. Defined name ligatures expand in both
+/// cases, while LET parameters, the stroked O and fullwidth W keep their identity.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_vdzoh__defined_name_ligatures_resolve_with_excel_spelling() {
+    let names = [
+        ("Aether", "=99"),
+        ("Oeuvre", "=21"),
+        ("Ijssel", "=21"),
+        ("File", "=21"),
+        ("Oeresund", "=21"),
+        ("Wide", "=21"),
+    ];
+    for (formula, expected) in [
+        ("=Æther*2", "198"),
+        ("=ÆTHER*2", "198"),
+        ("=Œuvre*2", "42"),
+        ("=LET(Æther,21,AETHER*2)", "198"),
+        ("=LET(Æther,21,ÆTHER*2)", "42"),
+        ("=ĳssel*2", "42"),
+        ("=ﬁle*2", "42"),
+        ("=Øresund*2", "Name"),
+        ("=Ｗide*2", "Name"),
+    ] {
+        assert_eq!(shown(&names, formula), expected, "{formula}");
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_cpr__accents_width_and_turkic_i_stay_significant() {

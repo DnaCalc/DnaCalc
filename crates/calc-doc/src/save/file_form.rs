@@ -665,7 +665,7 @@ pub fn file_form_with_links(
         &|_, text| {
             names
                 .iter()
-                .find(|name| calc_doc_model::value::workbook_names_equal(&name.name, text))
+                .find(|name| calc_doc_model::value::defined_names_equal(&name.name, text))
                 .map(|name| name.formula.as_str())
         },
         links,

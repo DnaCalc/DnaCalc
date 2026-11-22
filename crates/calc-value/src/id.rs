@@ -232,7 +232,7 @@ impl NameKey {
     pub fn new(scope: NameScope, spelling: &str) -> Self {
         Self {
             scope,
-            folded: crate::fold_workbook_name(spelling),
+            folded: crate::fold_defined_name(spelling),
         }
     }
 }

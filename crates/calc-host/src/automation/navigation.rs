@@ -344,7 +344,7 @@ impl WorkbookAutomation {
             }
             let node = match call.arg(0) {
                 AutoValue::Text(text) => names.iter().copied().find(|n| {
-                    calc_value::workbook_names_equal(&n.definition().name, &text.to_string_lossy())
+                    calc_value::defined_names_equal(&n.definition().name, &text.to_string_lossy())
                 }),
                 other => usize::try_from(geometry::integer(other)? - 1)
                     .ok()

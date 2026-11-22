@@ -14,9 +14,8 @@
 //!   [`NumericTargetId`] (plan section 5). No process-global mode exists; a mode is a value the
 //!   caller passes.
 //!
-//! - Names: [`workbook_names_equal`] and [`parameter_names_equal`] compare defined, table and
-//!   column names and LET / LAMBDA parameter names as Excel does, with Unicode case folding
-//!   (dc-cpr); [`fold_workbook_name`] and [`fold_parameter_name`] give the keys they compare.
+//! - Names: [`defined_names_equal`], [`workbook_names_equal`] and [`parameter_names_equal`]
+//!   compare defined names, table and column names, and LET / LAMBDA parameters respectively.
 //!
 //! The package declares no cargo features, so there is no thread-bound variant of any type:
 //! every public value type is `Send + Sync`.
@@ -51,8 +50,8 @@ mod name_case;
 mod numeric;
 mod value;
 
-/// Whether `left` and `right` are the same workbook-scoped name (a defined name, a table name, a
-/// table's column name) as Excel compares them: equal under the full Unicode case fold (`ß` =
+/// Whether `left` and `right` are the same table, column or other workbook identifier:
+/// equal under the full Unicode case fold (`ß` =
 /// `SS`, final `ς` = `σ`; accents, width and the Turkic `İ` / `ı` stay significant). See
 /// `name_case` for the Excel measurement.
 pub fn workbook_names_equal(left: &str, right: &str) -> bool {
@@ -68,6 +67,16 @@ pub fn parameter_names_equal(left: &str, right: &str) -> bool {
 /// The key [`workbook_names_equal`] compares: the full Unicode case fold of `text`.
 pub fn fold_workbook_name(text: &str) -> String {
     name_case::fold_workbook_name(text)
+}
+
+/// The comparison key of a defined name, including Excel's measured ligature expansions.
+pub fn fold_defined_name(text: &str) -> String {
+    name_case::fold_defined_name(text)
+}
+
+/// Whether two spellings resolve to the same defined name in one scope.
+pub fn defined_names_equal(left: &str, right: &str) -> bool {
+    name_case::defined_names_equal(left, right)
 }
 
 /// The key [`parameter_names_equal`] compares: the simple Unicode case fold of `text`.

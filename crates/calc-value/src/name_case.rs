@@ -47,16 +47,13 @@
 //!
 //! # Decision
 //!
-//! Two rules, both Unicode case folding from `CaseFolding.txt` (Unicode
-//! 15.0.0, [`crate::case_folding`]), never locale-dependent (no Turkic `T`
-//! rows):
+//! The name keys start from Unicode case folding in `CaseFolding.txt`
+//! (Unicode 15.0.0, [`crate::case_folding`]), omitting the Turkic `T` rows:
 //!
 //! - **Workbook-scoped names** — defined names, table names, column names —
 //!   compare under the *full* fold (`C` + `F`). It reproduces every measured
-//!   row above except the collation expansions `Æ` = `AE`, `Œ` = `OE`, which
-//!   are not case mappings at all: Excel's workbook-name comparison is a
-//!   linguistic ignore-case compare, and the full fold is the case-only part
-//!   of it. Those expansions are a known, documented gap.
+//!   case mappings above. Defined names also use the measured collation
+//!   expansions `Æ` = `AE`, `Œ` = `OE`, and `Ĳ` = `IJ` (dc-hjd).
 //! - **LET / LAMBDA parameters** compare under the *simple* fold (`C` + `S`):
 //!   one code point to one, so `ß` ≠ `SS` while `ẞ` = `ß` and `ς` = `Σ`,
 //!   exactly the parameter rows above.
@@ -70,16 +67,41 @@
 
 use crate::case_folding::{push_full_fold, simple_fold};
 
-/// The comparison key of a workbook-scoped name (defined name, table name,
-/// column name): the full Unicode case fold of `text`.
+/// The full Unicode case fold used by table and column names and other
+/// workbook identifiers. Defined names use [`fold_defined_name`].
 #[must_use]
 pub fn fold_workbook_name(text: &str) -> String {
+    fold_with(text, push_full_fold)
+}
+
+/// The lookup key of a defined name. The hjd_oxfml Excel capture records
+/// these expansions separately from the ordinary Unicode case mappings.
+#[must_use]
+pub fn fold_defined_name(text: &str) -> String {
+    fold_with(text, |ch, folded| match ch {
+        'Æ' | 'æ' => folded.push_str("ae"),
+        'Œ' | 'œ' => folded.push_str("oe"),
+        'Ĳ' | 'ĳ' => folded.push_str("ij"),
+        _ => push_full_fold(ch, folded),
+    })
+}
+
+/// Whether two spellings resolve to the same defined name in one scope.
+#[must_use]
+pub fn defined_names_equal(left: &str, right: &str) -> bool {
+    if left.is_ascii() && right.is_ascii() {
+        return left.eq_ignore_ascii_case(right);
+    }
+    fold_defined_name(left) == fold_defined_name(right)
+}
+
+fn fold_with(text: &str, push: impl Fn(char, &mut String)) -> String {
     if text.is_ascii() {
         return text.to_ascii_lowercase();
     }
     let mut folded = String::with_capacity(text.len());
     for ch in text.chars() {
-        push_full_fold(ch, &mut folded);
+        push(ch, &mut folded);
     }
     folded
 }
@@ -220,9 +242,10 @@ mod tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn collation_expansions_are_the_documented_gap() {
-        // Excel resolves `=ÆTHER*2` to the workbook name `Aether`; no case
-        // fold does, and this helper does not claim to.
+    fn collation_expansions_are_used_in_defined_names() {
+        assert!(defined_names_equal("Aether", "Æther"));
+        assert!(defined_names_equal("Oeuvre", "Œuvre"));
+        assert!(defined_names_equal("Ijssel", "Ĳssel"));
         assert!(!workbook_names_equal("Aether", "Æther"));
         assert!(!workbook_names_equal("Oeuvre", "Œuvre"));
     }
