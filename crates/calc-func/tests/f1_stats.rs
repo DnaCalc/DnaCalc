@@ -4249,9 +4249,140 @@ fn gamma_cumulative_flushes_measured_subnormal_results() {
         exact(
             call(
                 function,
+                vec![n(f64::from_bits(0x3fe7_17d6_0e9e_206b)), n(100.0), n(f64::from_bits(0x403b_ffff_ffff_ffff)), b(false)],
+            ),
+            0.0,
+        );
+        exact(
+            call(
+                function,
                 vec![n(f64::from_bits(0x3f84_4772_37e4_22f4)), n(110.0), n(f64::from_bits(0x3fc2_0000_0000_0000)), b(true)],
             ),
             f64::from_bits(0x009c_cdfd_302e_1efb),
+        );
+    }
+}
+
+/// Excel 16.0.20527.20196 Touchstone boundary controls (`dc-ymjf.2.141`, frozen SHA-256
+/// `05399aac` and `50fe12bf`):
+/// - subnormal `y = x / beta` flushes to `0.0` (yielding CDF `0.0` and PDF `#NUM!`);
+/// - subnormal `poisson_mass(alpha, y)` flushes to `0.0` before scaling by `alpha / x`
+///   or multiplying the `gratio_series` sum (so `a = 10700` jumps from `0` straight to
+///   `3.13 * DBL_MIN` for CDF and `1.47 * DBL_MIN` for PDF);
+/// - final CDF (including Temme `a = 14500`, independent of `poisson_mass`) and final
+///   PDF (with normal `poisson_mass` and large `beta`) flush subnormals to `0.0` across
+///   all shapes on both `GAMMA.DIST` and `GAMMADIST`.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_ymjf_2_141_gamma_subnormal_publication_and_boundaries() {
+    for function in ["GAMMA.DIST", "GAMMADIST"] {
+        // 1. Subnormal y = x/beta flush at exact DBL_MIN (x = 2^-511, beta = 2^511 vs next_up).
+        let x_half = n(f64::from_bits(0x2000_0000_0000_0000));
+        let b_exact = n(f64::from_bits(0x5fe0_0000_0000_0000));
+        let b_sub1 = n(f64::from_bits(0x5fe0_0000_0000_0001));
+        for (a_val, cdf_exact, pdf_exact) in [
+            (0.25, 0x2ff8_f6c7_a8f5_5265_u64, 0x4fc8_f6c7_a8f5_5265_u64),
+            (0.5, 0x2002_0dd7_5042_9b6e_u64, 0x3fe2_0dd7_5042_9bb3_u64),
+            (1.0, 0x0010_0000_0000_0000_u64, 0x2000_0000_0000_007c_u64),
+            (2.0, 0x0000_0000_0000_0000_u64, 0x0000_0000_0000_0000_u64),
+            (100.0, 0x0000_0000_0000_0000_u64, 0x0000_0000_0000_0000_u64),
+        ] {
+            exact(
+                call(function, vec![x_half.clone(), n(a_val), b_exact.clone(), b(true)]),
+                f64::from_bits(cdf_exact),
+            );
+            exact(
+                call(function, vec![x_half.clone(), n(a_val), b_exact.clone(), b(false)]),
+                f64::from_bits(pdf_exact),
+            );
+            exact(
+                call(function, vec![x_half.clone(), n(a_val), b_sub1.clone(), b(true)]),
+                0.0,
+            );
+            error(
+                call(function, vec![x_half.clone(), n(a_val), b_sub1.clone(), b(false)]),
+                Num,
+            );
+        }
+
+        // 2. poisson_mass subnormal flush across wide shapes (a = 10, 100, 10700).
+        for (x_lo, x_hi, a_val, cdf_hi, pdf_hi) in [
+            (0x39af_8a36_c97a_67aa_u64, 0x39af_8bd4_3a66_57ac_u64, 10.0, 0x0010_0833_4024_17dd_u64, 0x0684_540c_8c20_fbba_u64),
+            (0x3fa0_5096_eacc_caa9_u64, 0x3fa0_50ac_4ef0_6a84_u64, 100.0, 0x0010_097e_d790_4bc2_u64, 0x00c8_90f2_c6f0_17ed_u64),
+            (0x40bc_6b78_0dfe_8658_u64, 0x40bc_6b79_2475_7f51_u64, 10700.0, 0x0029_07db_69d8_d2b3_u64, 0x0017_9406_89a7_c4be_u64),
+        ] {
+            exact(call(function, vec![n(f64::from_bits(x_lo)), n(a_val), n(1.0), b(true)]), 0.0);
+            exact(call(function, vec![n(f64::from_bits(x_lo)), n(a_val), n(1.0), b(false)]), 0.0);
+            // Normal side (1-2 ULP tolerance for series/Loader arithmetic, non-zero normal verified).
+            let got_cdf = call(function, vec![n(f64::from_bits(x_hi)), n(a_val), n(1.0), b(true)]);
+            let got_pdf = call(function, vec![n(f64::from_bits(x_hi)), n(a_val), n(1.0), b(false)]);
+            if let Ok(v) = got_cdf {
+                let bits = match v.core_ref() {
+                    calc_func::value::CoreRef::Number(x) => x.to_bits(),
+                    other => panic!("{function} a={a_val} CDF expected number, got {other:?}"),
+                };
+                assert!(bits.abs_diff(cdf_hi) <= 2, "{function} a={a_val} CDF {bits:#018x} vs {cdf_hi:#018x}");
+            } else {
+                panic!("{function} a={a_val} CDF failed: {got_cdf:?}");
+            }
+            if let Ok(v) = got_pdf {
+                let bits = match v.core_ref() {
+                    calc_func::value::CoreRef::Number(x) => x.to_bits(),
+                    other => panic!("{function} a={a_val} PDF expected number, got {other:?}"),
+                };
+                assert!(bits.abs_diff(pdf_hi) <= 2, "{function} a={a_val} PDF {bits:#018x} vs {pdf_hi:#018x}");
+            } else {
+                panic!("{function} a={a_val} PDF failed: {got_pdf:?}");
+            }
+        }
+
+        // 3. Temme CDF subnormal flush (a = 14500, independent of poisson_mass):
+        //    both `h = 0.5 * erfc(s)` and `term` flush subnormals to 0.0 before `h - term`.
+        //    At x=10438.5 both flush -> 0.0; at x=10438.75 and x=10444.0 `h` is normal while
+        //    `term` is subnormal -> `h` alone; at x=10445.0 `term` becomes normal -> `h - term`.
+        exact(call(function, vec![n(f64::from_bits(0x40c4_6340_0000_0000)), n(14500.0), n(1.0), b(true)]), 0.0);
+        exact(call(function, vec![n(f64::from_bits(0x40c4_6340_0000_0000)), n(14500.0), n(1.0), b(false)]), 0.0);
+        exact(call(function, vec![n(f64::from_bits(0x40c4_6360_0000_0000)), n(14500.0), n(1.0), b(false)]), 0.0);
+        for (x_val, expected_bits) in [
+            (10438.75, 0x0010_ef3e_e426_ab94_u64),
+            (10444.0, 0x0040_5094_f37c_a826_u64),
+            (10445.0, 0x004a_c37e_02be_35ba_u64),
+        ] {
+            let got_temme = call(function, vec![n(x_val), n(14500.0), n(1.0), b(true)]).unwrap();
+            let bits = match got_temme.core_ref() {
+                calc_func::value::CoreRef::Number(x) => x.to_bits(),
+                other => panic!("{function} Temme x={x_val} expected number, got {other:?}"),
+            };
+            assert!(
+                bits.abs_diff(expected_bits) <= 2,
+                "{function} Temme x={x_val}: {bits:#018x} vs {expected_bits:#018x}"
+            );
+        }
+
+        // 4. Final PDF subnormal flush when poisson_mass is normal and large beta scales PDF below DBL_MIN.
+        exact(
+            call(
+                function,
+                vec![
+                    n(f64::from_bits(0x4086_f9b0_4bad_7908)),
+                    n(100.0),
+                    n(f64::from_bits(0x40d6_15f1_a6ca_ecdb)),
+                    b(false),
+                ],
+            ),
+            f64::from_bits(0x0010_1495_39e3_b210),
+        );
+        exact(
+            call(
+                function,
+                vec![
+                    n(f64::from_bits(0x4087_173e_b066_4de6)),
+                    n(100.0),
+                    n(f64::from_bits(0x40d6_325b_111e_46cf)),
+                    b(false),
+                ],
+            ),
+            0.0,
         );
     }
 }

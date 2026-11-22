@@ -784,14 +784,18 @@ fn gratio_temme(a: f64, x: f64) -> (f64, f64) {
         t = excel_x87_add(excel_x87_mul(t, inv_a), horner(table));
     }
 
+    let flush = |v: f64| if v.is_subnormal() { 0.0 } else { v };
     let rta = a.sqrt();
     let c = excel_exp(-y);
     let h = if x == a {
         0.5
     } else {
-        0.5 * crate::ported::special_dist_family::erfc_precise_kernel(s).unwrap_or(0.0)
+        flush(0.5 * crate::ported::special_dist_family::erfc_precise_kernel(s).unwrap_or(0.0))
     };
-    let term = excel_x87_mul(excel_x87_div(excel_x87_mul(c, TEMME_RT2PIN), rta), t);
+    let term = flush(excel_x87_mul(
+        excel_x87_div(excel_x87_mul(c, TEMME_RT2PIN), rta),
+        t,
+    ));
     if x > a {
         let q = excel_x87_add(h, term);
         let p = excel_x87_add(0.5, excel_x87_sub(0.5, q));
