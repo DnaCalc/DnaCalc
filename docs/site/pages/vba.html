@@ -2,6 +2,7 @@
   <p class="site-kicker"><a href="/developers/">Developers</a> / VBA</p>
   <h1>VBA outside Excel</h1>
   <p class="site-lede">CalcVBA runs the tested VBA worksheet functions outside Excel. The execution route and the workbook project both affect coverage.</p>
+  <p>Read how CalcVBA stores Automation values and preserves COM identity. <a href="/articles/calcvba-variant/">One VARIANT, one COM object</a></p>
   <h2>Choose a host</h2>
   <p>To embed the standalone CalcVBA runtime, see its <a href="https://github.com/DnaCalc/CalcVBA/blob/0ffe88fcc159621cf75f21e116a1f408937568ab/docs/spec/HOSTING_AND_EARLY_BINDING.md">pinned hosting reference</a> for project lifetime, capabilities and backend choice. In DNA Calc, the Rust <code>calc-vba</code> adapter is internal. Its workbook profile can supply workbook objects. The values-only Formula Explorer profile can run value-based calls and refuses host services that require workbook object context.</p>
   <p>The file routes are experimental. With macros enabled on a trusted <code>.xlsm</code>, the workbook host uses that file's embedded project. On Windows x64, load a trusted <code>.xlam</code> through the desktop Add-ins panel to register its exported UDFs. VBA availability and services vary by host and policy.</p>

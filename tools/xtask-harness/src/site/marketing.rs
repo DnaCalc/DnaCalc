@@ -14,21 +14,36 @@ use std::path::Path;
 
 const FUN: &str = "docs/fun";
 const NUMBER_TEXT_ROUTE: &str = "/articles/last-bit-number-text/";
-const ARTICLES: &[(&str, &str, &str)] = &[
+const ARTICLES: &[(&str, &str, Section, &str)] = &[
     (
         "last-bit-normsinv.md",
         "/articles/last-bit-normsinv/",
+        Section::Evidence,
         "How measured tail values reproduce Excel's inverse normal distribution.",
     ),
     (
         "last-bit-gamma.md",
         "/articles/last-bit-gamma/",
+        Section::Evidence,
         "Excel measurements and arithmetic behind the gamma family.",
     ),
     (
         "last-bit-number-text.md",
         NUMBER_TEXT_ROUTE,
+        Section::Evidence,
         "Excel's 15-digit text conversion and the evidence behind it.",
+    ),
+    (
+        "last-bit-status.md",
+        "/articles/last-bit-status/",
+        Section::Evidence,
+        "November 22 witness results for beta, Bessel, circular trigonometry and gamma.",
+    ),
+    (
+        "calcvba-variant.md",
+        "/articles/calcvba-variant/",
+        Section::Developers,
+        "How CalcVBA represents Automation values and preserves COM identity.",
     ),
 ];
 const VIDEO: &[(&str, &str)] = &[
@@ -375,6 +390,18 @@ pub(super) fn build(
         ),
         (
             Section::Handbook,
+            "Handbook function notes",
+            "https://handbook.dnacalc.com/notes/index.html",
+            "Read recorded Excel quirks, their scope and reproductions.",
+        ),
+        (
+            Section::Handbook,
+            "Handbook notes JSON",
+            "https://handbook.dnacalc.com/api/notes.json",
+            "Get the related machine-readable note records.",
+        ),
+        (
+            Section::Handbook,
             "Handbook ID index",
             "https://handbook.dnacalc.com/api/index.json",
             "Resolve function, operator and alias IDs to canonical records.",
@@ -438,19 +465,19 @@ fn build_guides(
     };
     index.add(
         Section::Evidence,
-        "Last-bit articles",
+        "Technical articles",
         "/articles/",
-        "Find the published investigations into Excel's numerical behaviour.",
+        "Read investigations into Excel’s numerical behaviour and CalcVBA’s Automation layout.",
     );
-    let mut articles = String::from("<h1>Last-bit articles</h1><ul>");
-    for &(filename, route, description) in ARTICLES {
+    let mut articles = String::from("<h1>Technical articles</h1><ul>");
+    for &(filename, route, section, description) in ARTICLES {
         let path = format!("docs/articles/{filename}");
         let (title, content) = markdown_doc(root, &path)?;
         let mut content = resolve_markdown(&content, |link| {
             ARTICLES
                 .iter()
-                .find(|&&(name, _, _)| name == link)
-                .map(|&(_, route, _)| route.to_owned())
+                .find(|&&(name, _, _, _)| name == link)
+                .map(|&(_, route, _, _)| route.to_owned())
         })
         .map_err(|e| format!("{path}: {e}"))?;
         if route == NUMBER_TEXT_ROUTE {
@@ -462,13 +489,13 @@ fn build_guides(
             r#"<li><a href="{route}">{}</a></li>"#,
             escape(&title)
         );
-        let body = format!(r#"<p><a href="/articles/">All last-bit articles</a></p>{html}"#);
+        let body = format!(r#"<p><a href="/articles/">All technical articles</a></p>{html}"#);
         let edition = format!("{route}index.md");
         write_doc(route, &title, &body, Some((&edition, &content)))?;
-        index.add(Section::Evidence, &title, &edition, description);
+        index.add(section, &title, &edition, description);
     }
     articles.push_str("</ul>");
-    write_doc("/articles/", "Last-bit articles", &articles, None)?;
+    write_doc("/articles/", "Technical articles", &articles, None)?;
 
     let (title, guide) = markdown_doc(root, "docs/user/classic-grid.md")?;
     let edition = "/help/classic-grid/index.md";
@@ -820,9 +847,15 @@ mod tests {
                     "articles/last-bit-gamma/index.html",
                     "articles/last-bit-number-text/index.html",
                     "help/classic-grid/index.html",
+                    "articles/last-bit-status/index.html",
+                    "articles/calcvba-variant/index.html",
                 ] {
                     source(&dir, route)?;
                 }
+                let status = source(&dir, "articles/last-bit-status/index.html")?;
+                assert!(status.contains(r#"href="/articles/last-bit-gamma/""#));
+                let vba = source(&dir, "developers/vba/index.html")?;
+                assert!(vba.contains(r#"href="/articles/calcvba-variant/""#));
                 let gamma = source(&dir, "articles/last-bit-gamma/index.html")?;
                 assert!(gamma.contains(r#"href="/articles/last-bit-normsinv/""#));
                 assert!(gamma.contains(r#"<td class="markdown-align-right">"#));
@@ -832,12 +865,16 @@ mod tests {
                 let index = source(&dir, "llms.txt")?;
                 assert!(index.starts_with("# DNA Calc\n\n> "));
                 assert!(index.contains("https://dnacalc.com/onecalc/#embedding"));
+                assert!(index.contains("https://dnacalc.com/articles/calcvba-variant/index.md"));
+                assert!(index.contains("https://dnacalc.com/articles/last-bit-status/index.md"));
                 for handbook in [
                     "llms.txt",
                     "catalogue/index.html",
                     "functions/ROUND.html",
                     "api/functions/FUNC.ROUND.json",
                     "api/index.json",
+                    "notes/index.html",
+                    "api/notes.json",
                 ] {
                     assert!(index.contains(&format!("https://handbook.dnacalc.com/{handbook})")));
                 }

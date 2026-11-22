@@ -199,7 +199,7 @@ pub(super) fn build(
     let mut index =
         String::from("<article><h1>DNA Calc Blog</h1><p><a href=\"feed.atom\">Atom feed</a></p>");
     if layout.is_some() {
-        index.push_str(r#"<p><a href="/articles/">Last-bit articles</a></p>"#);
+        index.push_str(r#"<p><a href="/articles/">Technical articles</a></p>"#);
         if include_drafts {
             index.push_str(r#"<p><a href="/blog/video/">Video drafts</a></p>"#);
         }
