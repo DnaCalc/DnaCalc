@@ -1919,13 +1919,13 @@ fn sheet_phonetic_format_and_unhandled_visibility_ranges() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn shared_string_phonetic_extension_is_reported_unread() {
+fn invalid_shared_string_phonetic_extension_is_reported_unread() {
     let mut sst_body = Vec::new();
     sst_body.extend(1u32.to_le_bytes()); // total string count
     sst_body.extend(1u32.to_le_bytes()); // unique string count
     sst_body.extend(1u16.to_le_bytes()); // one compressed character
     sst_body.push(0x04); // phonetic extension present
-    let extension = u16s(&[1, 10, 0, 7, 0, 0, 0]);
+    let extension = u16s(&[1, 10, 0, 7, 0, 0, 1]); // Inconsistent phonetic text lengths.
     sst_body.extend((extension.len() as u32).to_le_bytes());
     sst_body.push(b'A'); sst_body.extend(extension);
     let bytes = xls(false, &record(0x00FC, &sst_body), &[Sheet::worksheet("S", label_sst(0, 0, 0))]);
@@ -1939,26 +1939,51 @@ fn shared_string_phonetic_extension_is_reported_unread() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn explicit_phonetic_string_runs_survive_conversion() {
-    let mut extension = u16s(&[1, 0, 0, 7, 2, 3, 3]);
-    extension.extend(u16s(&['x' as u16, 'y' as u16, 'z' as u16]));
-    extension.extend(u16s(&[0, 0, 1, 2, 1, 1]));
-    let cb = (extension.len() - 4) as u16;
-    extension[2..4].copy_from_slice(&cb.to_le_bytes());
-    let mut body = Vec::new();
-    body.extend(1u32.to_le_bytes()); body.extend(1u32.to_le_bytes());
-    body.extend(2u16.to_le_bytes()); body.push(0x04);
-    body.extend((extension.len() as u32).to_le_bytes()); body.extend(b"AB");
-    let boundary = body.len() + 10;
-    body.extend(extension);
-    for split in [false, true] {
+fn phonetic_string_runs_survive_conversion() {
+    let first = "<rPh sb=\"0\" eb=\"1\"><t>xy</t></rPh>";
+    let second = "<rPh sb=\"1\" eb=\"2\"><t>z</t></rPh>";
+    let full = "<rPh sb=\"0\" eb=\"2\"><t>xyz</t></rPh>";
+    // Excel 16.0.20527 CX3 conversions preserve the runs with a trailing word
+    // and retain the formatting even when the phonetic text is empty.
+    for (run_count, text, tail, split, expected) in [
+        (2, "xyz", None, false, &[first, second][..]),
+        (2, "xyz", None, true, &[first, second][..]),
+        (2, "xyz", Some(0), false, &[first, second][..]),
+        (2, "xyz", Some(12), false, &[first, second][..]),
+        (2, "xyz", Some(0), true, &[first, second][..]),
+        (0, "xyz", Some(0), false, &[full][..]),
+        (0, "xyz", Some(12), false, &[full][..]),
+        (0, "", None, false, &[][..]),
+        (0, "", Some(0), false, &[][..]),
+        (0, "", Some(12), false, &[][..]),
+        (0, "", Some(0), true, &[][..]),
+    ] {
+        let units: Vec<u16> = text.encode_utf16().collect();
+        let count = units.len() as u16;
+        let mut extension = u16s(&[1, 0, 0, 7, run_count, count, count]);
+        extension.extend(u16s(&units));
+        if run_count != 0 {
+            extension.extend(u16s(&[0, 0, 1, 2, 1, 1]));
+        }
+        if let Some(tail) = tail {
+            extension.extend(u16s(&[tail]));
+        }
+        let cb = (extension.len() - 4) as u16;
+        extension[2..4].copy_from_slice(&cb.to_le_bytes());
+        let mut body = Vec::new();
+        body.extend(1u32.to_le_bytes());
+        body.extend(1u32.to_le_bytes());
+        body.extend(2u16.to_le_bytes());
+        body.push(0x04);
+        body.extend((extension.len() as u32).to_le_bytes());
+        body.extend(b"AB");
+        let boundary = body.len() + 10;
+        body.extend(extension);
         let globals = if split { [record(0x00FC, &body[..boundary]), record(0x003C, &body[boundary..])].concat() }
             else { record(0x00FC, &body) };
         let bytes = xls(false, &globals, &[Sheet::worksheet("S", label_sst(0, 0, 0))]);
         let doc = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
         let xml = String::from_utf8(doc.package().read_part("xl/sharedStrings.xml").unwrap()).unwrap();
-        assert!(xml.contains("<rPh sb=\"0\" eb=\"1\"><t>xy</t></rPh>"), "{xml}");
-        assert!(xml.contains("<rPh sb=\"1\" eb=\"2\"><t>z</t></rPh>"), "{xml}");
         assert!(xml.contains("<phoneticPr fontId=\"0\" type=\"noConversion\" alignment=\"left\"/>"), "{xml}");
         assert_eq!(sheet_cells(&bytes), vec!["A1 s:AB"]);
         let plan = calc_doc::prepare_save(&doc.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
@@ -1966,7 +1991,12 @@ fn explicit_phonetic_string_runs_survive_conversion() {
         calc_doc::write(plan, &mut saved).unwrap();
         let reopened = calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap();
         let saved_xml = String::from_utf8(reopened.package().read_part("xl/sharedStrings.xml").unwrap()).unwrap();
-        assert!(saved_xml.contains("<rPh sb=\"0\" eb=\"1\"><t>xy</t></rPh>"), "{saved_xml}");
+        for xml in [&xml, &saved_xml] {
+            assert_eq!(xml.matches("<rPh ").count(), expected.len(), "{xml}");
+            for run in expected {
+                assert!(xml.contains(run), "{xml}");
+            }
+        }
         let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
         assert!(!report.unknown_records.contains_key(&0x00FC));
     }
