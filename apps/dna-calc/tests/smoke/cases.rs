@@ -15864,6 +15864,44 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Check::Reachable("active-cell"),
         ],
     },
+    Case {
+        name: "wheel zoom: Control and the wheel scale worksheet text and geometry",
+        actions: &[
+            Action::Into(BAR, "Zoom sample\u{E007}"),
+            Action::Wait(Check::Text(cell!("A1"), "Zoom sample")),
+            Action::Wait(Check::Computed(
+                cell!("A1"),
+                "font-size:14.666666666666666px",
+            )),
+            Action::ZoomGrid(-120),
+        ],
+        checks: &[
+            Check::Text("zoom", "125%"),
+            Check::Computed(cell!("A1"), "font-size:18.333333333333332px"),
+            Check::Style("[data-dnacalc=column-header][data-column=A]", "width:80px"),
+            Check::Style(cell!("A1"), "height:25px"),
+            Check::Value("name-box", "A2"),
+        ],
+    },
+    Case {
+        name: "wheel zoom: reversing the gesture and reopening retains the worksheet zoom",
+        actions: &[
+            Action::ZoomGrid(120),
+            Action::Wait(Check::Text("zoom", "100%")),
+            Action::ZoomGrid(120),
+            Action::Wait(Check::Text("zoom", "80%")),
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::UploadDownload("Book1.xlsx"),
+            Action::DiscardReplacement,
+        ],
+        checks: &[
+            Check::Text("zoom", "80%"),
+            Check::Text(cell!("A1"), "Zoom sample"),
+            Check::Computed(cell!("A1"), "font-size:11.733333333333334px"),
+            Check::Value("name-box", "A2"),
+        ],
+    },
 ];
 
 /// The script that reads what one check looks at.
@@ -17383,6 +17421,13 @@ pub(crate) const CALC_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "classic-horizontal-navigation",
         start: 866,
+        end: 868,
+        core: 2,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "wheel-zoom",
+        start: 868,
         end: CALC_CASES.len(),
         core: 2,
         setup: &[],

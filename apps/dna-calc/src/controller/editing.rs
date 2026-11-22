@@ -221,7 +221,8 @@ impl Controller {
             return;
         }
         let ctrl = ev.ctrl_key() || ev.meta_key();
-        if ctrl && !ev.shift_key() && !ev.alt_key() && ev.key() == "Enter" {
+        let key = ev.key();
+        if ctrl && !ev.shift_key() && !ev.alt_key() && key == "Enter" {
             ev.prevent_default();
             ev.stop_propagation();
             let controller = *self;
@@ -234,7 +235,7 @@ impl Controller {
             });
             return;
         }
-        let movement = match ev.key().as_str() {
+        let movement = match key.as_str() {
             "Enter" if !ctrl && !ev.alt_key() => Some(if ev.shift_key() {
                 NavAction::Up
             } else {
@@ -253,7 +254,7 @@ impl Controller {
             self.finish_edit(movement);
             return;
         }
-        match ev.key().as_str() {
+        match key.as_str() {
             "Escape" => {
                 ev.prevent_default();
                 ev.stop_propagation();
@@ -306,30 +307,39 @@ impl Controller {
                     }
                 }
             }
-            "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight"
-                if self.point_mode.get_untracked() && !ctrl && !ev.alt_key() =>
+            "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "Home" | "End"
+                if self.point_mode.get_untracked() && !ev.alt_key() =>
             {
-                let action = match ev.key().as_str() {
-                    "ArrowUp" => NavAction::Up,
-                    "ArrowDown" => NavAction::Down,
-                    "ArrowLeft" => NavAction::Left,
-                    _ => NavAction::Right,
+                let direction = match key.as_str() {
+                    "ArrowUp" => Some(NavAction::Up),
+                    "ArrowDown" => Some(NavAction::Down),
+                    "ArrowLeft" => Some(NavAction::Left),
+                    "ArrowRight" => Some(NavAction::Right),
+                    _ => None,
                 };
-                let from = self
-                    .pointed
-                    .get_untracked()
-                    .map(|p| p.corner)
-                    .or_else(|| {
-                        self.edit_target
-                            .get_untracked()
-                            .map(|at| (at.row(), at.column()))
-                    })
-                    .unwrap_or((1, 1));
-                let next = next_active(from, action, GridExtent::new(1_048_576, 16_384));
-                if self.point_at(next.0, next.1, ev.shift_key()) {
-                    ev.prevent_default();
-                    ev.stop_propagation();
+                if !ctrl && let Some(action) = direction {
+                    let from = self
+                        .pointed
+                        .get_untracked()
+                        .map(|p| p.corner)
+                        .or_else(|| {
+                            self.edit_target
+                                .get_untracked()
+                                .map(|at| (at.row(), at.column()))
+                        })
+                        .unwrap_or((1, 1));
+                    let next = next_active(from, action, GridExtent::new(1_048_576, 16_384));
+                    if self.point_at(next.0, next.1, ev.shift_key()) {
+                        ev.prevent_default();
+                        ev.stop_propagation();
+                        return;
+                    }
                 }
+                // Native caret navigation leaves the editor in text editing mode.
+                self.model.update(|model| {
+                    model.edit.point_mode = false;
+                    model.edit.pointed = None;
+                });
             }
             _ => {}
         }

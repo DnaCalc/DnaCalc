@@ -1263,6 +1263,8 @@ pub enum Action {
     WorkerCalculation,
     /// A native wheel gesture, with observation of its completed scroll.
     ScrollGrid(i32, i32),
+    /// A native wheel gesture over the grid while Control is held.
+    ZoomGrid(i32),
     /// Remember actual view/geometry for a later scroll or skin/sheet round trip.
     RememberView(&'static str),
     /// Put a table on the real system clipboard by copying from a temporary external editor.
@@ -2000,6 +2002,18 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 thread::sleep(Duration::from_millis(20));
             }
             Err("The wheel gesture did not settle after scrolling the worksheet".to_owned())
+        }
+        Action::ZoomGrid(dy) => {
+            let center = session.script(
+                "const grid = document.querySelector('[data-dnacalc=grid][data-grid-active=true]');
+                 const r = grid.getBoundingClientRect();
+                 return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)];",
+            )?;
+            session.post("/actions", json!({"actions":[
+                {"type":"key","id":"modifiers","actions":[{"type":"keyDown","value":"\u{E009}"},{"type":"pause"},{"type":"keyUp","value":"\u{E009}"}]},
+                {"type":"wheel","id":"wheel","actions":[{"type":"pause"},{"type":"scroll","x":center[0],"y":center[1],"deltaX":0,"deltaY":dy}]}
+            ]}))?;
+            Ok(())
         }
         Action::Grid(cell, text) => {
             let css = format!("{}[data-cell=\"{cell}\"]", select(app, "grid-cell"));
@@ -4179,6 +4193,7 @@ mod tests {
                         | "chart-multi-plot"
                         | "chart-element-text"
                         | "saved-pivots"
+                        | "wheel-zoom"
                 )
             })
             .map(|group| group.core)
@@ -4196,6 +4211,7 @@ mod tests {
                         | "chart-multi-plot"
                         | "chart-element-text"
                         | "saved-pivots"
+                        | "wheel-zoom"
                 )
             })
             .map(|group| group.core)
@@ -4209,8 +4225,8 @@ mod tests {
             "the twelve page-layout cases extend all 409 inherited core cases"
         );
         assert_eq!(
-            current_total, 459,
-            "the other chart and pivot cases extend all 421 inherited core cases"
+            current_total, 461,
+            "chart, pivot and wheel zoom cases extend all 421 inherited core cases"
         );
     }
 

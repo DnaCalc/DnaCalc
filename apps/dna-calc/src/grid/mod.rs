@@ -309,6 +309,17 @@ fn grid_pane(controller: GridController, ctx: PaneContext) -> impl IntoView {
             zoom_text.set(format!("{:.0}", zoom.get_untracked() * 100.0));
         }
     };
+    let step_zoom = move |inward: bool| {
+        let current = zoom.get_untracked();
+        let next = viewport::clamp_zoom(if inward {
+            current * viewport::ZOOM_STEP
+        } else {
+            current / viewport::ZOOM_STEP
+        });
+        if next != current {
+            zoom.set(next);
+        }
+    };
     let viewed_sheet = StoredValue::new(None::<(u64, calc_value::SheetId)>);
     let restoring = StoredValue::new(false);
     let skip_reveal = StoredValue::new(false);
@@ -3536,6 +3547,11 @@ fn grid_pane(controller: GridController, ctx: PaneContext) -> impl IntoView {
                 }
                 on:scroll=move |_| measure()
                 on:wheel=move |ev: leptos::ev::WheelEvent| {
+                    if ev.ctrl_key() && !ev.shift_key() && ev.delta_y() != 0.0 {
+                        ev.prevent_default();
+                        step_zoom(ev.delta_y() < 0.0);
+                        return;
+                    }
                     let (sx, sy) = scales();
                     if sx.logical(1.0) > 1.0 || sy.logical(1.0) > 1.0 {
                         ev.prevent_default();
@@ -3883,11 +3899,7 @@ fn grid_pane(controller: GridController, ctx: PaneContext) -> impl IntoView {
                                         type="button"
                                         data-dnacalc="zoom-out"
                                         title="Zoom out"
-                                        on:click=move |_| {
-                                            zoom.update(|z| {
-                                                *z = viewport::clamp_zoom(*z / viewport::ZOOM_STEP);
-                                            })
-                                        }
+                                        on:click=move |_| step_zoom(false)
                                     >
                                         "-"
                                     </button>
@@ -3922,11 +3934,7 @@ fn grid_pane(controller: GridController, ctx: PaneContext) -> impl IntoView {
                                         type="button"
                                         data-dnacalc="zoom-in"
                                         title="Zoom in"
-                                        on:click=move |_| {
-                                            zoom.update(|z| {
-                                                *z = viewport::clamp_zoom(*z * viewport::ZOOM_STEP);
-                                            })
-                                        }
+                                        on:click=move |_| step_zoom(true)
                                     >
                                         "+"
                                     </button>
