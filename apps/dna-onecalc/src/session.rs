@@ -797,11 +797,10 @@ impl Session {
         }
     }
 
-    /// Raises `Workbook_BeforeSave` of the project (macros enabled), before anything is written, as
-    /// Excel does: `Ok(true)` when the handler set `Cancel`. A session saves by naming a file, so
-    /// `SaveAsUI` is true. A handler that fails is an error (what Excel does with the save after
-    /// an unhandled error in the handler is not measured, so nothing is written).
-    pub fn raise_before_save(&mut self) -> Result<bool, String> {
+    /// Raises `Workbook_BeforeSave` for the enabled project before writing and returns its
+    /// `Cancel` flag. The caller supplies Excel's `SaveAsUI` for the chosen save route.
+    /// Handler errors refuse the save. Excel's continuation after End is tracked by dc-0f1k.4.
+    pub fn raise_before_save(&mut self, save_as_ui: bool) -> Result<bool, String> {
         let Some(workbook) = self
             .project
             .as_ref()
@@ -812,7 +811,7 @@ impl Session {
             return Ok(false);
         };
         workbook
-            .before_save(true, &NoWorkbookReads, calc_vba::DEFAULT_STEP_BUDGET)
+            .before_save(save_as_ui, &NoWorkbookReads, calc_vba::DEFAULT_STEP_BUDGET)
             .map_err(|why| format!("Workbook_BeforeSave: {why}"))
     }
 
