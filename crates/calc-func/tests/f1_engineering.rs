@@ -1766,3 +1766,176 @@ fn bessel_high_correction_multiplies_ratio_before_polynomial() {
         );
     }
 }
+
+/// Carbon cb15 (dc-j9k.85, Excel 16.0.20527.20196): unified stored-PC64 high
+/// asymptotic seeds (`z = 8/|x|`, `y = z*z`, Horner, `J0` `(z*sin)*corr` vs
+/// `J1/Y0/Y1` `(trig*corr)*z`, `excel_sqrt_staged(W/|x|)`) and the three
+/// remaining stored-PC64 operations in `jn` backward recurrence (`B0/B1/B2`).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_j9k_85_cb15_bessel_high_asymptotic_and_backward_recurrence() {
+    for (label, function, x, order, expected) in [
+        // H1: J1 and Y1 trailing-product association `(trig * corr) * z`
+        (
+            "H1_J1_pos",
+            "BESSELJ",
+            0x403c_a0fd_c1e0_28b0,
+            0x3ff0_0000_0000_0000,
+            0x3fae_fbdd_8c2f_6896,
+        ),
+        (
+            "H1_J1_neg",
+            "BESSELJ",
+            0xc033_b62a_5c36_6357,
+            0x3ff0_0000_0000_0000,
+            0xbf91_94a0_53a0_56c5,
+        ),
+        (
+            "H1_Y1",
+            "BESSELY",
+            0x4021_92de_24d4_3c2c,
+            0x3ff0_0000_0000_0000,
+            0x3faa_13fb_d72d_fee7,
+        ),
+        // H2: J0 `(z * sin) * corr` vs Y0 `(cos * corr) * z`
+        (
+            "H2_J0",
+            "BESSELJ",
+            0x4046_6492_ad08_4087,
+            0x0000_0000_0000_0000,
+            0x3fbe_846e_744f_f5b9,
+        ),
+        (
+            "H2_Y0",
+            "BESSELY",
+            0x4024_3ff9_ef09_930e,
+            0x0000_0000_0000_0000,
+            0x3f98_fb73_96fb_374b,
+        ),
+        // H3: high seed stored-PC64 sites (J0, Y0)
+        (
+            "H3_J0",
+            "BESSELJ",
+            0x4048_e11c_8f63_cfe1,
+            0x0000_0000_0000_0000,
+            0x3f9f_9299_388a_a30b,
+        ),
+        (
+            "H3_Y0",
+            "BESSELY",
+            0x4096_4f25_d7ad_b2c2,
+            0x0000_0000_0000_0000,
+            0x3f8c_769e_a5e4_9948,
+        ),
+        // S2 (`y = z * z` vs `64 / (x * x)`) and S10 (`excel_sqrt_staged(W / x)`)
+        (
+            "S2_J0_y_zz",
+            "BESSELJ",
+            0x4025_6457_16f2_1e1c,
+            0x0000_0000_0000_0000,
+            0xbfcb_c47a_1708_e8d1,
+        ),
+        (
+            "S2_Y1_y_zz",
+            "BESSELY",
+            0x402d_f84c_5be3_6af5,
+            0x3ff0_0000_0000_0000,
+            0x3f92_6eaa_598e_9a52,
+        ),
+        (
+            "S10_J0_sqrt",
+            "BESSELJ",
+            0x4098_b07e_159c_0161,
+            0x0000_0000_0000_0000,
+            0xbf8a_1514_e864_1283,
+        ),
+        (
+            "S10_Y0_sqrt",
+            "BESSELY",
+            0x4078_3ea0_b459_8d57,
+            0x0000_0000_0000_0000,
+            0xbf9b_1f55_1716_1096,
+        ),
+        // H4: high forward recurrence (J and Y)
+        (
+            "H4_J_fwd",
+            "BESSELJ",
+            0x4052_4fc3_75af_bd28,
+            0x4041_8000_0000_0000,
+            0x3fb0_34e0_d28e_0bf7,
+        ),
+        (
+            "H4_Y_fwd",
+            "BESSELY",
+            0x4031_8c29_c46d_2e40,
+            0x402c_0000_0000_0000,
+            0x3fc3_dbc6_3235_189e,
+        ),
+        // H5: near-8 boundary and high-x cancellation zeros
+        (
+            "H5_near8_J1",
+            "BESSELJ",
+            0x4020_0000_0000_003b,
+            0x3ff0_0000_0000_0000,
+            0x3fce_084d_8f61_6ee3,
+        ),
+        (
+            "H5_zero_J0",
+            "BESSELJ",
+            0x4035_362d_d176_951f,
+            0x0000_0000_0000_0000,
+            0x3d21_2906_6f0f_17b2,
+        ),
+        (
+            "H5_zero_Y0",
+            "BESSELY",
+            0x4030_803c_7402_b8c6,
+            0x0000_0000_0000_0000,
+            0x3d3c_9a2c_64b8_3a22,
+        ),
+        // H6 / probe2: jn backward recurrence B0 (`index * twice_over_x`),
+        // B1 (`total + current`), B2 (`2 * total - current`)
+        (
+            "H6_B0_idx_mul",
+            "BESSELJ",
+            0x40a0_0261_51c1_a8fb,
+            0x40a0_ac00_0000_0000,
+            0x3e18_ebd7_2671_b791,
+        ),
+        (
+            "H6_B1_total_add",
+            "BESSELJ",
+            0x3f72_0a0b_f7fd_3105,
+            0x4022_0000_0000_0000,
+            0x39d1_0309_ee03_52d3,
+        ),
+        (
+            "P2_B1_2ulp",
+            "BESSELJ",
+            0x3f7c_f02a_5d07_ea60,
+            0x4000_0000_0000_0000,
+            0x3eda_2b4d_7c43_66e6,
+        ),
+        (
+            "H6_B2_two_tot_sub",
+            "BESSELJ",
+            0x4083_b565_d6b2_323c,
+            0x4083_f000_0000_0000,
+            0x3f92_9189_d2b9_73e5,
+        ),
+    ] {
+        let actual = call(
+            function,
+            vec![n(f64::from_bits(x)), n(f64::from_bits(order))],
+        )
+        .unwrap();
+        let calc_func::value::CoreValue::Number(actual) = actual.core() else {
+            panic!("{label} {function} returned {actual:?}");
+        };
+        assert_eq!(
+            actual.to_bits(),
+            expected,
+            "{label} {function} x={x:016x}, order={order:016x}"
+        );
+    }
+}

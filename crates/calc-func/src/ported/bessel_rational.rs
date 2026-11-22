@@ -6,8 +6,9 @@
 //! amplitudes adapt one decimal digit transposition and one repeated term
 //! from the published tables, inferred from recorded phase-window outputs.
 //! The fixed backward program and Y high-region tables retain the published
-//! constants. High J/Y correction multiplies the stored8/x ratio, trig leaf,
-//! then polynomial, following paired R25 phase readings. See deploy/notices/ported.txt.
+//! constants. High J/Y asymptotic seeds store each operation from PC64, with
+//! high J0 multiplying `(z * sin) * corr` and high J1, Y0, and Y1 multiplying
+//! `(trig * corr) * z`. See deploy/notices/ported.txt.
 //! The I0 and higher-I helpers also adapt ITK's Apache-2.0 GaussianOperator,
 //! Copyright NumFOCUS, at 311b7060ef39e371f3cd209ec135284ff5fde735.
 //! Their scalar operations use the existing RN53(RN64(operation)) helpers.
@@ -84,10 +85,6 @@ const Y1_DEN: &[f64] = &[
 
 const W: f64 = 0.636619772;
 
-fn polynomial(x: f64, coefficients: &[f64]) -> f64 {
-    polynomial_with(x, coefficients, |a, b| a * b, |a, b| a + b)
-}
-
 fn polynomial_with(
     x: f64,
     coefficients: &[f64],
@@ -154,8 +151,9 @@ pub(super) fn jn(order: i32, x: f64) -> f64 {
     let magnitude = x.abs();
     let n = f64::from(order);
     let start = 2.0 * ((n + (40.0 * n).sqrt().floor()) / 2.0).floor();
-    // Excel 20527 distinguishes stores in the initial ratio, backward
-    // recurrence, rescaling products and final division.
+    // Excel 20527 distinguishes PC64 stores in the initial ratio, index
+    // product, backward recurrence, rescaling products, total accumulation,
+    // final normalization subtraction, and final division.
     let twice_over_x = excel_x87_div(2.0, magnitude);
     let mut result = 0.0;
     let mut current = 1.0;
@@ -163,7 +161,7 @@ pub(super) fn jn(order: i32, x: f64) -> f64 {
     let mut total = 0.0;
     let mut add_to_total = false;
     for index in (1..=start as i32).rev() {
-        let scaled = excel_x87_mul(f64::from(index) * twice_over_x, current);
+        let scaled = excel_x87_mul(excel_x87_mul(f64::from(index), twice_over_x), current);
         let previous = excel_x87_sub(scaled, next);
         next = current;
         current = previous;
@@ -174,33 +172,20 @@ pub(super) fn jn(order: i32, x: f64) -> f64 {
             total = excel_x87_mul(total, 1E-10);
         }
         if add_to_total {
-            total += current;
+            total = excel_x87_add(total, current);
         }
         add_to_total = !add_to_total;
         if index == order {
             result = next;
         }
     }
-    total = 2.0 * total - current;
+    total = excel_x87_sub(2.0 * total, current);
     result = excel_x87_div(result, total);
     if x < 0.0 && order % 2 != 0 {
         -result
     } else {
         result
     }
-}
-
-pub(super) fn y1_large(x: f64) -> f64 {
-    let square = x * x;
-    let phase = x - 2.356194491;
-    let reduction = 64.0 / square;
-    let amplitude = polynomial(reduction, AMP1);
-    let correction = polynomial(reduction, PHASE1);
-    let leading = excel_sin(phase) * amplitude;
-    let trailing = ((8.0 / x) * excel_cos(phase)) * correction;
-    let combined = leading + trailing;
-    let scale = (W / x).sqrt();
-    scale * combined
 }
 
 const AMP0: &[f64] = &[
@@ -240,44 +225,55 @@ const PHASE_J0: &[f64] = &[
     -0.934935152e-7,
 ];
 
-fn j_large(
+fn high_asymptotic(
     x: f64,
     offset: f64,
     amplitude: &[f64],
     correction: &[f64],
-    multiply_leading: impl FnOnce(f64, f64) -> f64,
+    second_kind: bool,
+    ratio_first: bool,
 ) -> f64 {
-    let square = x * x;
-    let phase = x - offset;
-    let reduction = 64.0 / square;
-    let amplitude = polynomial(reduction, amplitude);
-    let correction = polynomial(reduction, correction);
-    let leading = multiply_leading(excel_cos(phase), amplitude);
-    let trailing = ((8.0 / x) * excel_sin(phase)) * correction;
-    let scale = (W / x).sqrt();
-    scale * (leading - trailing)
+    let phase = excel_x87_sub(x, offset);
+    let z = excel_x87_div(8.0, x);
+    let y = excel_x87_mul(z, z);
+    let horner = |c| polynomial_with(y, c, excel_x87_mul, excel_x87_add);
+    let amp = horner(amplitude);
+    let corr = horner(correction);
+    let (trig1, trig2) = if second_kind {
+        (excel_sin(phase), excel_cos(phase))
+    } else {
+        (excel_cos(phase), excel_sin(phase))
+    };
+    let leading = excel_x87_mul(trig1, amp);
+    let trailing = if ratio_first {
+        excel_x87_mul(excel_x87_mul(z, trig2), corr)
+    } else {
+        excel_x87_mul(excel_x87_mul(trig2, corr), z)
+    };
+    let combined = if second_kind {
+        excel_x87_add(leading, trailing)
+    } else {
+        excel_x87_sub(leading, trailing)
+    };
+    let scale = excel_sqrt_staged(excel_x87_div(W, x));
+    excel_x87_mul(scale, combined)
 }
 
 pub(super) fn j0_large(x: f64) -> f64 {
-    // High order-zero probes distinguish the store from PC64 on this product.
-    j_large(x.abs(), 0.785398164, AMP_J0, PHASE_J0, excel_x87_mul)
+    high_asymptotic(x.abs(), 0.785398164, AMP_J0, PHASE_J0, false, true)
 }
 
 pub(super) fn j1_large(x: f64) -> f64 {
-    let value = j_large(x.abs(), 2.356194491, AMP_J1, PHASE1, |a, b| a * b);
+    let value = high_asymptotic(x.abs(), 2.356194491, AMP_J1, PHASE1, false, false);
     if x < 0.0 { -value } else { value }
 }
 
 pub(super) fn y0_large(x: f64) -> f64 {
-    let square = x * x;
-    let phase = x - 0.785398164;
-    let reduction = 64.0 / square;
-    let amplitude = polynomial(reduction, AMP0);
-    let correction = polynomial(reduction, PHASE_Y0);
-    let leading = excel_sin(phase) * amplitude;
-    let trailing = ((8.0 / x) * excel_cos(phase)) * correction;
-    let scale = (W / x).sqrt();
-    scale * (leading + trailing)
+    high_asymptotic(x, 0.785398164, AMP0, PHASE_Y0, true, false)
+}
+
+pub(super) fn y1_large(x: f64) -> f64 {
+    high_asymptotic(x, 2.356194491, AMP1, PHASE1, true, false)
 }
 
 // ITK v5.4.0, itkGaussianOperator.hxx:ModifiedBesselI0 and ModifiedBesselI.
