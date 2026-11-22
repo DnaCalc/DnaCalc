@@ -1140,4 +1140,48 @@ mod tests {
             0x3fdff98ab397d517
         );
     }
+
+    /// Excel 16.0.20527 (dc-iuwct.53 / ww2): F.DIST(..., FALSE) admits degrees through 1e10
+    /// (returning #NUM! at 1e10 + 1) and matches Excel's saddle-point density across the
+    /// formerly structural degree controls and gross mass rows without gross/structural errors.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_iuwct_53_f_dist_pdf_matches_excel_across_degrees_and_masses() {
+        let rows: [(u64, u64, u64, u64); 11] = [
+            // Large d2 > 1_048_576 (formerly #NUM!) through d2 = 1e10 and swapped d1 > 1_048_576.
+            (0x3fe749edb3026b93, 0x4014000000000000, 0x41a8f3fad2000000, 0x3fe7f18a473e4dd9),
+            (0x3fe749edb3026b93, 0x4014000000000000, 0x4130000100000000, 0x3fe7f1873eda1937),
+            (0x3fe749edb3026b93, 0x4014000000000000, 0x4202a05f20000000, 0x3fe7f18a4b12067c),
+            (0x3fe749edb3026b93, 0x41a8f3fad2000000, 0x4014000000000000, 0x3fe74f02dab6e564),
+            // Small-gamma gross row ($[2812], d1=2, d2=329) and large-degree mass rows.
+            (0x3fb1c35a0f314f38, 0x4000000000000000, 0x4074900000000000, 0x3fedd7be14e7951e),
+            (0x3feae517bf442825, 0x40d8f84000000000, 0x40c1428000000000, 0x3ba2cb2c8ee6d2a7),
+            (0x3fdb9af843d2bf10, 0x40c0948000000000, 0x40b8f00000000000, 0x059300786b2a69e0),
+            (0x3fdfecdefeed1315, 0x40bbec0000000000, 0x40b9250000000000, 0x1b9b459c13b59e94),
+            (0x3fe66c65ade4194a, 0x40d8f84000000000, 0x40b4610000000000, 0x32e44803a69ef6c6),
+            // Adjacent-x discriminant controls (r < 0.375 vs r >= 0.375).
+            (0x3fefffffffffffff, 0x4076d00000000000, 0x40e5f90000000000, 0x40157600e86856ab),
+            (0x3fdb9af843d2bf10, 0x40c0950000000000, 0x40b8f00000000000, 0x0592315d8d4f2157),
+        ];
+        for (x_bits, d1_bits, d2_bits, excel) in rows {
+            let got = f_dist_kernel(
+                f64::from_bits(x_bits),
+                f64::from_bits(d1_bits),
+                f64::from_bits(d2_bits),
+                false,
+            )
+            .expect("finite F.DIST PDF");
+            let diff = got.to_bits().abs_diff(excel);
+            assert!(
+                diff <= 7,
+                "F.DIST({x_bits:#018x}, {d1_bits:#018x}, {d2_bits:#018x}, FALSE) got {:#018x}, Excel {excel:#018x} ({diff} ULP)",
+                got.to_bits()
+            );
+        }
+        // d2 = 1e10 + 1 -> #NUM! (ww2 confirmed all 26 degree controls return #NUM! above 1e10).
+        assert_eq!(
+            f_dist_kernel(f64::from_bits(0x3fe749edb3026b93), 5.0, 1e10 + 1.0, false),
+            Err(WorksheetErrorCode::Num)
+        );
+    }
 }
