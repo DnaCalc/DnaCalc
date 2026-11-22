@@ -485,13 +485,17 @@ pub fn gamma_dist_kernel(
         return Err(WorksheetErrorCode::Num);
     }
     if cumulative {
+        // Excel 16.0.20527.20196 (dc-ymjf.2.141, frozen Touchstone controls SHA-256 50fe12bf):
+        // subnormal `y = x / beta` flushes to `0.0` across all shapes.
+        let y = flush_subnormal(x / beta);
         // Inverse-problem identity, live Excel 16.0 b20228:
         // GAMMA.DIST(x,0.5,beta,TRUE) == ERF.PRECISE(SQRT(x/beta))
         // for beta in {1,2,4} on 68/68 (and beta=2 on the earlier 154/154
         // bank). Staging is divide-then-sqrt, matching the df=1 chi route
         // when beta=2. Other shapes are not claimed.
         if alpha == 0.5 && beta > 0.0 && beta.is_finite() {
-            return crate::ported::special_dist_family::erf_precise_kernel((x / beta).sqrt());
+            return crate::ported::special_dist_family::erf_precise_kernel(y.sqrt())
+                .map(flush_subnormal);
         }
         // Inverse-problem identity, live Excel 16.0 b20228:
         // GAMMA.DIST(x,1,beta,TRUE) == EXPON.DIST(x/beta,1,TRUE)
@@ -499,35 +503,35 @@ pub fn gamma_dist_kernel(
         // EXPON.DIST(x,1/beta,TRUE) misses by 1 ULP when 1/beta is inexact.
         // PDF identity is false (33/85).
         if alpha == 1.0 {
-            return crate::ported::discrete_dist::expon_dist_kernel(x / beta, 1.0, true);
+            return crate::ported::discrete_dist::expon_dist_kernel(y, 1.0, true);
         }
         // W109 lane-3 (2026-07-18): the pre-W109 integer-shape fast path
         // (1 − e^{-x}·Σ x^k/k!) is an OxFunc-side shortcut Excel does NOT
         // take — on the b26 integer-a corpora it scored 8.1% with ±4,400-ULP
         // catastrophics vs 39.4% (worst −10) through the identified GRATIO
         // path. All other shapes route through regularized_gamma_p.
-        let cdf = regularized_gamma_p(alpha, x / beta);
+        let cdf = regularized_gamma_p(alpha, y);
         if !cdf.is_finite() {
             return Err(WorksheetErrorCode::Num);
         }
-        // Two independent Excel 20527 boundary sets (1,257 controls) publish
-        // zero for tiny CDFs and keep normal results in this measured shape range.
-        if (50.0..=150.0).contains(&alpha) && cdf.is_subnormal() {
-            return Ok(0.0);
-        }
-        return Ok(cdf);
+        // Excel 16.0.20527.20196 (dc-ymjf.2.141): wide-shape cumulative controls
+        // (0.25..15000, including Temme) flush subnormal CDFs to 0.0 across all shapes.
+        return Ok(flush_subnormal(cdf));
     }
     // Gamma(1) = 1 exactly; Lanczos leaves a small nonzero log at this point.
     if x > 0.0 {
         // The density is the Poisson mass at `alpha` of mean `x/beta`, stored, times the stored
         // `alpha/x`: R30's scaled public calls read the ratio, and with this mass every one of
         // the 750 unit-shape rows of the bank agrees, where `exp(-x/beta)/beta` does not.
+        // Excel 16.0.20527.20196 (dc-ymjf.2.141): subnormal `y = x/beta` flushes to 0.0 (causing
+        // `poisson_mass(alpha, 0.0)` -> #NUM!), subnormal `poisson_mass` flushes to 0.0 before
+        // scaling, and subnormal final `pdf` flushes to 0.0.
         use crate::ported::excel_numeric::{excel_x87_div, excel_x87_mul};
-        let y = excel_x87_div(x, beta);
+        let y = flush_subnormal(excel_x87_div(x, beta));
         let r = crate::ported::discrete_dist::poisson_mass(alpha, y);
         let pdf = excel_x87_mul(r, excel_x87_div(alpha, x));
         return if pdf.is_finite() {
-            Ok(pdf)
+            Ok(flush_subnormal(pdf))
         } else {
             Err(WorksheetErrorCode::Num)
         };
@@ -536,7 +540,7 @@ pub fn gamma_dist_kernel(
     let log_pdf = (alpha - 1.0) * crt_log(x) - x / beta - log_normalizer - alpha * crt_log(beta);
     let pdf = crt_exp(log_pdf);
     if pdf.is_finite() {
-        Ok(pdf)
+        Ok(flush_subnormal(pdf))
     } else {
         Err(WorksheetErrorCode::Num)
     }

@@ -227,15 +227,20 @@ pub(crate) fn poisson_mass(x: f64, lambda: f64) -> f64 {
     if x == 0.0 {
         return excel_exp(-lambda);
     }
-    if x <= 1.1 || lambda <= 1.1 {
+    let raw = if x <= 1.1 || lambda <= 1.1 {
         let t = excel_x87_mul(x, excel_log(lambda));
-        return excel_exp_compensated(t, &[lambda, gammaln_excel(x + 1.0)]);
-    }
-    let exponent = excel_x87_sub(-stirling_error(x), deviance(x, lambda));
-    excel_x87_div(
-        excel_exp(exponent),
-        (2.0 * core::f64::consts::PI * x).sqrt(),
-    )
+        excel_exp_compensated(t, &[lambda, gammaln_excel(x + 1.0)])
+    } else {
+        let exponent = excel_x87_sub(-stirling_error(x), deviance(x, lambda));
+        excel_x87_div(
+            excel_exp(exponent),
+            (2.0 * core::f64::consts::PI * x).sqrt(),
+        )
+    };
+    // Excel 16.0.20527.20196 (dc-ymjf.2.141, frozen Touchstone controls SHA-256 05399aac /
+    // 50fe12bf): nonzero-count Poisson mass flushes subnormal results to 0.0 before callers
+    // scale by `alpha / x` (GAMMA.DIST PDF) or multiply the `gratio_series` sum (GAMMA.DIST CDF).
+    if raw.is_subnormal() { 0.0 } else { raw }
 }
 
 /// A finite result, with a subnormal one flushed to zero as Excel computes (EXPON.DIST(745,1,FALSE)
