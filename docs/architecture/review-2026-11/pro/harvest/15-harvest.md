@@ -250,6 +250,22 @@ argument a value read; keep the `Cnt(x&"")` form where a value read is wanted. A
 
 Total: 120 workbook runs. Results go to EXCEL_CALC_PROBES.md (P12, P14, P16 sections) and VOLATILITY.md §8.
 
+Windows lane ww4 recorded 120 authored workbook trials on Excel 16.0.20527. The source formulas,
+ordered UDF traces, Value2 words and saved workbooks are in R2 at
+`excel/ww4-answer15-20261122T140704Z` (one archive, 3,221,409 bytes). X4 uses `NamedA1`
+because Excel rejected `NmA1` as a cell address. The private desktop guard recorded zero windows
+on the user's desktop. The X4 worker refused the post-run baseline reset after registering the
+XLL, so its 15 complete workbooks and traces remain observations from that owned process.
+
+In X2, adding and removing the local `Pick` changed D1 from 11 to 22 and back to 11. After local
+recreation D1 was 22, then editing the shadowed workbook definition made D1 31. The two relative
+callers initially read 31 and 32. Editing the second source changed only its caller to 45.
+`CalculateFull` called `NextName` three times for three occurrences in two formulas. In X5, the
+two seeded controls returned 0.75 from zero and 1,000,010 from 1,000,000 in all three repeats.
+The eight X6 arms used independent workbooks. The 3-D edit, move and insert therefore produced
+8, 5 and 15 from the same initial 7. Format, sheet order and filename changes were visible after
+`CalculateFull` in their observed cells.
+
 Experiments not proposed because they are measured: E3 (§1 row 1), E5 (P02), E6 (suspension study, X4), E7's
 F1/F2/F3 table and context rows (P2-P6, X2, X3), E9's seed and order tables (dc-86f, dc-10y), E10 spill rows (P05),
 E11 (x17), E13 COM/UI (P07), E15 VBA (P01). E12 (RTD batch, equal payload, lease reuse; about 30 runs with a
