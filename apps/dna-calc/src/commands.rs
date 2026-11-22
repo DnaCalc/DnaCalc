@@ -491,29 +491,8 @@ pub fn controls(controller: Controller) -> AnyView {
             close_menu();
             return;
         }
-        if let Some(menu) = menu.get_untracked()
-            && let Ok(items) = menu.query_selector_all("[role=menuitem]:not(:disabled)")
-        {
-            let count = items.length() as usize;
-            let active = document().active_element();
-            let current = (0..count)
-                .find(|&i| {
-                    items
-                        .item(i as u32)
-                        .and_then(|n| n.dyn_into::<web_sys::Element>().ok())
-                        .as_ref()
-                        == active.as_ref()
-                })
-                .unwrap_or(0);
-            if let Some(next) = crate::grid::validation_list_index(current, &ev.key(), count) {
-                ev.prevent_default();
-                if let Some(item) = items
-                    .item(next as u32)
-                    .and_then(|n| n.dyn_into::<web_sys::HtmlElement>().ok())
-                {
-                    let _ = item.focus();
-                }
-            }
+        if let Some(menu) = menu.get_untracked() {
+            move_menu_focus(&menu, &ev);
         }
     };
     view! {
@@ -807,8 +786,43 @@ pub fn controls(controller: Controller) -> AnyView {
     }.into_any()
 }
 
+pub(crate) fn move_menu_focus(menu: &web_sys::HtmlDialogElement, ev: &leptos::ev::KeyboardEvent) {
+    let Ok(items) = menu.query_selector_all("[role=menuitem]:not(:disabled)") else {
+        return;
+    };
+    let count = items.length() as usize;
+    let active = document().active_element();
+    let current = (0..count)
+        .find(|&i| {
+            items
+                .item(i as u32)
+                .and_then(|n| n.dyn_into::<web_sys::Element>().ok())
+                .as_ref()
+                == active.as_ref()
+        })
+        .unwrap_or(0);
+    if let Some(next) = crate::grid::validation_list_index(current, &ev.key(), count) {
+        ev.prevent_default();
+        if let Some(item) = items
+            .item(next as u32)
+            .and_then(|n| n.dyn_into::<web_sys::HtmlElement>().ok())
+        {
+            let _ = item.focus();
+        }
+    }
+}
+
 pub fn summary(controller: Controller) -> impl IntoView {
     let data = controller.tool_field(|s| &s.selection_stats, |s| &mut s.selection_stats);
+    let show = RwSignal::new([true, true, false, false, false, true]);
+    let aggregates = [
+        ("average", "Average"),
+        ("count", "Count"),
+        ("numeric", "Numerical count"),
+        ("min", "Minimum"),
+        ("max", "Maximum"),
+        ("sum", "Sum"),
+    ];
     Effect::new(move |_| {
         let areas = controller.areas.get();
         let revision = controller.revision.get();
@@ -827,13 +841,32 @@ pub fn summary(controller: Controller) -> impl IntoView {
             }
         });
     });
-    let heading = move || match data.get() {
-        Some(Ok(d)) => format!(
-            "Selection · Current count {} · Numbers {} · Sum {}",
-            d.count, d.numeric, d.sum
-        ),
-        Some(Err(message)) => format!("Selection · {message}"),
-        None => "Selection · Waiting for workbook".into(),
+    let status_values = move || {
+        let Some(Ok(d)) = data.get() else {
+            return Vec::new();
+        };
+        let show = show.get();
+        let values = [
+            (d.numeric > 0).then_some(d.average),
+            (d.count > 0).then(|| d.count.to_string()),
+            (d.numeric > 0).then(|| d.numeric.to_string()),
+            (d.numeric > 0).then_some(d.min),
+            (d.numeric > 0).then_some(d.max),
+            (d.numeric > 0).then_some(d.sum),
+        ];
+        aggregates
+            .into_iter()
+            .zip(values)
+            .zip(show)
+            .filter_map(|(((key, label), value), enabled)| {
+                let value = value.filter(|_| enabled && d.selected > 1)?;
+                Some(view! {
+                    <span class="dc-selection-stat" data-dnacalc=format!("status-{key}")>
+                        {format!("{label}: {value}")}
+                    </span>
+                })
+            })
+            .collect_view()
     };
     let details = move || {
         data.get().and_then(Result::ok).map(|d|view! {
@@ -875,8 +908,34 @@ pub fn summary(controller: Controller) -> impl IntoView {
     };
     view! {
         <details class="dc-selection-summary" data-dnacalc="selection-summary">
-            <summary data-dnacalc="selection-summary-toggle">{heading}</summary>
-            <div class="dc-selection-summary-body">{details}</div>
+            <summary data-dnacalc="selection-summary-toggle">
+                "Selection"
+                {move || match data.get() {
+                    Some(Err(message)) => Some(format!(" · {message}")),
+                    None => Some(" · Waiting for workbook".into()),
+                    _ => None,
+                }}
+                {status_values}
+            </summary>
+            <div class="dc-selection-summary-body">
+                <fieldset class="dc-selection-options">
+                    <legend>"Show in status bar"</legend>
+                    {aggregates.into_iter().enumerate().map(|(index, (key, label))| view! {
+                        <label>
+                            <input
+                                type="checkbox"
+                                data-dnacalc=format!("show-status-{key}")
+                                prop:checked=move || show.get()[index]
+                                on:change=move |ev| {
+                                    show.update(|flags| flags[index] = event_target_checked(&ev));
+                                }
+                            />
+                            {label}
+                        </label>
+                    }).collect_view()}
+                </fieldset>
+                {details}
+            </div>
         </details>
     }
 }

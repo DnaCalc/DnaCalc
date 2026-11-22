@@ -183,6 +183,10 @@ Firefox core passed 457/457 before and after the Flash Fill smoke fix. The brows
 under `~/codex-runs/ux5/` on dna-koderbot. Windows Excel measurements stay with the
 beads in the follow-up column.
 
+ux6 added the worksheet tab menu, mouse reorder and status aggregate toggles in dc-971p.74.
+The six focused cases went from 1/6 to 6/6 in both Chromium and Firefox. The caret case
+passed in both builds. Browser logs and the Windows handoff are in `~/codex-runs/ux6/`.
+
 | Excel grid surface | State | Current evidence | Follow-up |
 |---|---|---|---|
 | Single-cell selection | Done | `basics` checks click and name-box selection, authored text in the formula bar and the active cell announcement. | — |
@@ -191,9 +195,9 @@ beads in the follow-up column.
 | Navigation edges | Partial | `edges` checks hidden-row and hidden-column skipping, clamping and editing at XFD1048576, including at maximum zoom. `selection` checks blank gaps and a formula displaying empty text. | Table selection stages and Excel's retained used-range edges remain open (dc-971p). |
 | Enter/Tab within selected ranges | Done | `selection` checks vertical and horizontal walks, wrap and reverse. Ctrl+Enter relocates formulas and groups the rectangle into one Undo/Redo step. | — |
 | Type-to-replace cell entry | Done | `basics` and `edit-state` type values and formulas through grid focus, verify recalculation and check the next selection after commit. | — |
-| F2, double-click and Esc | Partial | `edit-state` opens authored source with both gestures, preserves exact source on Escape, and exercises completion and synthetic composition. | Native IME and double-click caret placement within proportional text still need comparison (dc-971p). |
+| F2, double-click and Esc | Partial | `edit-state` opens authored source with both gestures, preserves exact source on Escape, and exercises completion and synthetic composition. | Native IME and double-click caret placement within proportional text still need comparison (dc-971p.62). |
 | Formula bar editing | Partial | `edit-state` and `classic-formula-entry` cover Enter/Tab and reverse movement, completion, shared history, rejected drafts and focus. `formula-bar-parts` covers F9, trace and completion after workbook VBA is enabled. | Inline syntax diagnostics remain with dc-971p. |
-| Pointing to references | Partial | `edit-state` and `classic-formula-entry` cover clicking, dragging and arrow pointing, F4 on both range ends, cross-sheet references and preserving the original edit target. | Ctrl+arrows and Home/End return to caret movement in Point mode (dc-971p). |
+| Pointing to references | Done | `edit-state` and `classic-formula-entry` cover clicking, dragging and arrow pointing, F4 on both range ends, cross-sheet references and preserving the original edit target. `classic-formula-caret` checks that Home, End and Ctrl+Left return to caret movement in the draft. | — |
 | Fill | Partial | `clipboard` and `fill-handle-copy` cover Ctrl+D/R, drag-copy, numeric/date series, relative references, preview cancellation and one-step Undo. `fill-text` covers numbered text and the supported Flash Fill patterns. | Double-click autofill, custom lists and broader Flash Fill patterns remain with dc-971p. |
 | Internal copy/cut/paste | Done | `ranges`, `clipboard` and `clipboard-history` exercise immutable snapshots, reference relocation, source moves, copy outline, cancellation and Paste Special values/formulas/formats. | — |
 | System copy/paste | Partial | `clipboard` ingests real external TSV and HTML, exports a table to a separate text field, supports text fallback and verifies atomic malformed-input refusal. | External HTML styles and merged table cells have limits (dc-971p). Windows Excel clipboard verification stays with dc-971p.62. |
@@ -202,7 +206,7 @@ beads in the follow-up column.
 | Resize / auto-fit | Partial | `axes` and `styled-fit` exercise typed dimensions, grouped header drags, Escape, double-click AutoFit and fitting from displayed font and text metrics. | Merged content and additional fitting combinations remain with dc-971p.16. |
 | Hide / unhide | Partial | `axes` checks Hide, Show, retained dimensions and history for both axes, plus XLSX reopening. `edges` checks navigation past hidden axes. | The Show commands restore hidden bands (dragging to unhide stays with dc-971p). |
 | Freeze / split panes | Partial | `panes`, `split-panes` and `session-view` exercise imported and authored panes, independent scrolling, freeze/unfreeze, history and XLSX reopening. | Freezing from scrolled origins and editing through offset frozen bands need Excel measurements (dc-971p.62). |
-| Sheet tabs | Partial | `shift-sheets`, `sheet-tab-rename` and `panes` exercise creation, rename, reorder, deletion, hide/unhide, Ctrl+Page navigation and retained selections. | Drag reorder, multi-sheet grouping and a tab context menu remain with dc-971p. |
+| Sheet tabs | Partial | `shift-sheets`, `sheet-tab-rename` and `panes` exercise creation, rename, reorder, deletion, hide/unhide, Ctrl+Page navigation and retained selections. `classic-tab-commands` checks the tab context menu and `classic-tab-reorder` checks pointer reorder with Undo, Redo and XLSX reopening. | Multi-sheet grouping remains with dc-971p.74. |
 | Number formats as displayed | Partial | `formats` checks percentages, dates, custom sections and imported formats. `format-cells` checks preview, authoring, history and XLSX round trips. General narrows to fit the available width. | Pixel-level number display and indicators remain with dc-971p.43. |
 | Alignment as displayed | Partial | `alignment` checks stored horizontal and vertical alignment, indentation, wrap, justify and overflow. `format-cells` checks applied alignment and persistence. | Wrapped row metrics and baseline comparison remain with dc-971p.43. |
 | Fonts / fill / borders as displayed | Partial | `format-cells`, `layout` and `physical-styles` exercise ordinary font, fill and border rendering, including merged perimeters, patterns and gradients. | Excel pixel comparisons at extreme zoom remain with dc-971p.43. |
@@ -214,7 +218,7 @@ beads in the follow-up column.
 | `#SPILL!` | Done | `classic-spill` and `array-recovery` outline the attempted range, name and select its blocker, then show recovery after it is cleared. | — |
 | Find / Replace / Go To | Partial | `review-find` and `find-name` cover formulas and displayed values, scope, match options, literal Replace and names/ranges. `go-to-special` covers formulas, constants and blanks. | Search bounds, replacement limits and additional Go To Special predicates remain with dc-971p. |
 | Zoom | Partial | `panes`, `ten-percent-zoom` and `wheel-zoom` cover direct entry, reset and Ctrl+wheel, scaled text and geometry, per-sheet retention and XLSX reopening. | Windows wheel notch increments and scroll anchoring remain with dc-971p.62. |
-| Status aggregates | Partial | `review-find` checks Count, numeric Count, Sum, Average, Min and Max from current values, with separate stale, cached and refused counts and an explicit 10,000-cell limit. | Results appear in the selection-summary disclosure. Excel-style status toggles remain with dc-971p. |
+| Status aggregates | Partial | `review-find` checks six aggregates from current values, with separate stale, cached and refused counts and an explicit 10,000-cell limit. `classic-selection-summary` checks the default Average, Count and Sum and user toggles on the Selection bar. | Compare when Excel shows each aggregate for mixed, empty and single-cell selections (dc-971p.62). |
 | Context menus | Partial | `review-find` uses right-click and Shift+F10 on the grid, checks keyboard selection and Escape focus return, and preserves Shift+right-click for the browser. | The menu offers nine commands. More actions remain with dc-971p and Merge commands with dc-971p.73. |
 
 ## Critical findings and cuts

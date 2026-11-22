@@ -99,6 +99,8 @@ html,body{height:100%}
 .dc-mast>button:focus-visible,.dc-mast>select:focus-visible,.dc-skins button:focus-visible,.dc-settings>summary:focus-visible{outline-color:var(--dna-chrome-ink)}
 .dc-sheet-strip{display:flex;align-items:center;flex:0 0 auto;min-width:0;border-top:1px solid var(--dna-line);position:relative;background:var(--dna-paper-2)}
 .dc-sheet-strip .dc-tabs{flex:1;min-width:0;border:0;overflow-x:auto}
+.dc-tabs button{user-select:none}
+.dc-tabs button.dc-tab-drop{outline:2px solid var(--dna-accent-ink);outline-offset:-2px}
 .dc-sheet-tools{flex-shrink:0;padding:4px 8px}
 .dc-sheet-tools>summary{cursor:pointer;padding:6px 10px;border:1px solid var(--dna-line);border-radius:4px}
 .dc-sheet-body{position:absolute;right:8px;bottom:100%;z-index:25;background:var(--dna-paper);color:var(--dna-ink);border:1px solid var(--dna-line);border-radius:8px;box-shadow:0 6px 24px #0003;padding:16px;width:min(350px,calc(100vw - 48px));max-height:60dvh;overflow:auto}
@@ -146,7 +148,10 @@ html,body{height:100%}
 .dc-context-menu small{padding:5px 6px;color:var(--dna-ink-2);overflow-wrap:anywhere}
 .dc-selection-summary{flex:0 0 auto;font-size:12px;border-top:1px solid var(--dna-line);background:var(--dna-paper-2)}
 .dc-selection-summary>summary{padding:5px 10px;cursor:pointer;color:var(--dna-ink-2);overflow-wrap:anywhere;min-height:20px}
+.dc-selection-stat{display:inline-block;margin-inline-start:12px;color:var(--dna-ink);font-variant-numeric:tabular-nums}
 .dc-selection-summary-body{max-height:180px;overflow:auto;padding:0 12px 8px;line-height:1.4}
+.dc-selection-options{display:flex;flex-wrap:wrap;gap:4px 14px;margin:0 0 8px;border:1px solid var(--dna-line);padding:4px 8px 6px}
+.dc-selection-options label{display:inline-flex;align-items:center;gap:4px;cursor:pointer}
 .dc-selection-summary-body dl{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px 12px;margin:6px 0}
 .dc-selection-summary-body dt{color:var(--dna-ink-2)}
 .dc-selection-summary-body dd{margin:0;font-variant-numeric:tabular-nums;font-weight:600;overflow-wrap:anywhere}

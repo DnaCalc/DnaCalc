@@ -1,7 +1,7 @@
 # Windows and Excel queue
 
 Tracker sweep dc-r8l0g on 2026-11-22 reviewed 162 open beads with a `visited:` note at master
-`52b93962` and checked 107 copied handoffs. The 132 rows below are pending or have a named prerequisite.
+`52b93962` and checked 107 copied handoffs. The rows below are pending or have a named prerequisite.
 Run shared probes once and record the results against each bead that uses them.
 
 `F/<lane>` is the `~/codex-runs/<lane>/RUN-ON-WINDOWS.txt` on dna-firehorse. `K/<lane>` is
@@ -68,8 +68,10 @@ Keep row-level Excel discrepancies as WitnessSet JSON and keep frozen prediction
 | dc-971p.43.3 | K/eb11 | At 96 DPI measure header extents at 50/75/100/125/150/175/200%. Scroll across 10, 100 and 1000 digit thresholds with frozen and non-Calibri controls. Keep viewport, digit widths and partial rows. |
 | dc-971p.43.4 | K/eb11 | Capture same-font text at 50/75/100/175/190/200% and compare ink, baseline and width. At 50% bracket the numeric overflow hash by 1 px. Measure number-as-text markers for apostrophe, Text, General, formula and ignored-error controls. |
 | dc-971p.57 | K/gl1 item 4 | In newly authored books compare Excel preview and printer output for an iteration-off circular hold and a closed linked source with updates declined. Pair printer-dependent measurements with dc-971p.62. |
+| dc-971p.62 | K/ux6 | In fresh workbooks compare native IME and proportional-text double-click caret positions, selection aggregate visibility, scrolled freeze and wheel zoom, spill outlines across panes, and formatted or merged clipboard transfer. |
 | dc-971p.64 | K/eb11 and K/eb6 | Run the exact authored sort matrix for unequal collapsed groups, merges/covered keys, full/partial CSE/spill, range/table filters and another-sheet relative keys. Save rows, hidden criteria, metadata, Formula2 and exact refusals. |
 | dc-971p.65 | K/gl1 | Inject partial manual breaks into authored A1:P40 at row 20 and column 8, with and without pt=1. Compare full-span and disjoint-area controls, PDF page rectangles/order, page-break COM fields and XML after Save As. |
+| dc-971p.73 | K/ux5 | Compare consent and retained contents for Merge Cells and Merge & Center over populated and overlapping ranges, and confirm how Excel handles partial Unmerge selections. |
 | dc-cazfj.1 | K/eb9 | Create controlled XLSB/XLSX twins for chart sheets, print settings, pivot caches/tables, query tables, slicers and extensions. Measure repair using synthetic malformed layouts. Keep library files closed in Office. |
 | dc-hjd | K/eb1 | Read Formula and Formula2 after native assignment of the five spaced-colon expressions in the authored A1:A3 control. Compare stored text and native grid admission to the recorded socket answers. Entry work is owned by dc-mx3x. |
 | dc-mlhgn | K/eb6 | Recover original WRAPCOLS placements, capture the addressed reference-info and large spill cells with the existing owned route, and record placements, blockers and exact array shapes. Pivot-bank work belongs to dc-8wp. |

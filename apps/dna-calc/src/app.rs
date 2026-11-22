@@ -533,7 +533,8 @@ pub fn app_with_transport(
         }
     };
 
-    let (sheet_controls, request_sheet_rename) = crate::sheets::controls(controller);
+    let (sheet_controls, request_sheet_rename, request_tab_menu) =
+        crate::sheets::controls(controller);
     // Changing sheets can move the tab strip between the two clicks. Keep the browser's
     // native multi-click gesture attached to that tab before a press reaches a new control.
     let tab_click = StoredValue::new(None);
@@ -566,6 +567,19 @@ pub fn app_with_transport(
             tab_click.set_value(None);
         }
     };
+    let tab_press = StoredValue::new(None::<(u64, calc_value::SheetId, i32, i32)>);
+    let drop_tab = RwSignal::new(None);
+    let end_tab_drag = move || {
+        tab_press.set_value(None);
+        drop_tab.set(None);
+    };
+    let dragged_sheet = move |ev: &leptos::ev::PointerEvent| {
+        let (generation, source, pointer, start_x) = tab_press.get_value()?;
+        (generation == controller.generation.get_untracked()
+            && pointer == ev.pointer_id()
+            && ev.client_x().abs_diff(start_x) >= 5)
+            .then_some((generation, source))
+    };
     let tabs = move || {
         let current = controller.sheet.get();
         controller
@@ -582,9 +596,77 @@ pub fn app_with_transport(
                         aria-controls="dc-workspace"
                         tabindex=if selected { "0" } else { "-1" }
                         data-dnacalc="sheet-tab"
+                        data-sheet-tab-id=format!("{}:{}", id.slot(), id.generation())
                         title=name.clone()
                         data-sheet=name
                         aria-selected=if selected { "true" } else { "false" }
+                        aria-haspopup="menu"
+                        class:dc-tab-drop=move || drop_tab.get() == Some(id)
+                        on:pointerdown=move |ev: leptos::ev::PointerEvent| {
+                            if ev.is_primary() && ev.pointer_type() == "mouse" && ev.button() == 0 {
+                                end_tab_drag();
+                                if controller.editing.get_untracked().is_none()
+                                    && !ev.ctrl_key() && !ev.shift_key() && !ev.meta_key() && !ev.alt_key()
+                                {
+                                    tab_press.set_value(Some((
+                                        controller.generation.get_untracked(),
+                                        id,
+                                        ev.pointer_id(),
+                                        ev.client_x(),
+                                    )));
+                                }
+                            }
+                        }
+                        on:pointermove=move |ev: leptos::ev::PointerEvent| {
+                            if ev.buttons() & 1 != 0
+                                && dragged_sheet(&ev).is_some_and(|(_, source)| source != id)
+                            {
+                                drop_tab.set(Some(id));
+                            }
+                        }
+                        on:pointerleave=move |_| {
+                            if drop_tab.get_untracked() == Some(id) {
+                                drop_tab.set(None);
+                            }
+                        }
+                        on:pointerup=move |ev: leptos::ev::PointerEvent| {
+                            if ev.button() != 0 {
+                                return;
+                            }
+                            let drag = dragged_sheet(&ev);
+                            end_tab_drag();
+                            let Some((generation, source)) = drag else {
+                                return;
+                            };
+                            if source != id {
+                                tab_click.set_value(None);
+                                controller.after_input(move || {
+                                    if generation != controller.generation.get_untracked() {
+                                        return;
+                                    }
+                                    let position = controller.summary.with_untracked(|summary| {
+                                        let visible = |sheet| summary.sheets.iter().any(|(key, _)| key.id() == sheet);
+                                        if !visible(source) || !visible(id) {
+                                            return None;
+                                        }
+                                        summary.sheet_order.iter().position(|key| key.id() == id)
+                                    });
+                                    if let Some(position) = position {
+                                        controller.sheet_command(
+                                            Some(source),
+                                            wire::SheetChange::Move { position: position as u32 + 1 },
+                                            |_| {},
+                                        );
+                                    }
+                                });
+                            }
+                        }
+                        on:contextmenu=move |ev: leptos::ev::MouseEvent| {
+                            if !ev.shift_key() {
+                                ev.prevent_default();
+                                request_tab_menu(id, ev.client_x(), ev.client_y());
+                            }
+                        }
                         on:click=move |ev| {
                             if ev.detail() == 1 && ev.button() == 0 && !ev.ctrl_key()
                                 && !ev.meta_key() && !ev.shift_key() && !ev.alt_key()
@@ -595,6 +677,15 @@ pub fn app_with_transport(
                             controller.show_sheet(id);
                         }
                         on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                            if ev.key() == "ContextMenu" || (ev.key() == "F10" && ev.shift_key()) {
+                                use wasm_bindgen::JsCast;
+                                ev.prevent_default();
+                                if let Some(tab) = ev.target().and_then(|t| t.dyn_into::<web_sys::Element>().ok()) {
+                                    let bounds = tab.get_bounding_client_rect();
+                                    request_tab_menu(id, bounds.left() as i32, bounds.top() as i32);
+                                }
+                                return;
+                            }
                             let tabs = controller.sheets();
                             let index = tabs.iter().position(|tab| tab.id == id).unwrap_or(0);
                             let next = match ev.key().as_str() {
@@ -1358,6 +1449,8 @@ pub fn app_with_transport(
                     role="tablist"
                     aria-label="Worksheets"
                     data-dnacalc="sheet-tabs"
+                    on:pointerleave=move |_| end_tab_drag()
+                    on:pointercancel=move |_| end_tab_drag()
                 >
                     {tabs}
                 </nav>

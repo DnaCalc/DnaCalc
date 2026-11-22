@@ -14,11 +14,19 @@ pub fn next_name(names: &[String]) -> String {
         .expect("an unused sheet name")
 }
 
-pub fn controls(controller: Controller) -> (impl IntoView, impl Fn(calc_value::SheetId) + Copy) {
+pub fn controls(
+    controller: Controller,
+) -> (
+    impl IntoView,
+    impl Fn(calc_value::SheetId) + Copy,
+    impl Fn(calc_value::SheetId, i32, i32) + Copy,
+) {
     let rename = RwSignal::new(String::new());
     let add = RwSignal::new(String::new());
     let position = RwSignal::new(String::new());
-    let delete = RwSignal::new(false);
+    let delete = RwSignal::new(None);
+    let context = RwSignal::new(None::<(calc_value::SheetId, i32, i32)>);
+    let menu = NodeRef::<leptos::html::Dialog>::new();
     let dialog = NodeRef::<leptos::html::Dialog>::new();
     let tools = NodeRef::<leptos::html::Details>::new();
     let rename_input = NodeRef::<leptos::html::Input>::new();
@@ -27,7 +35,8 @@ pub fn controls(controller: Controller) -> (impl IntoView, impl Fn(calc_value::S
         if let Some(tools) = tools.get() {
             tools.set_open(false);
         }
-        delete.set(false);
+        delete.set(None);
+        context.set(None);
     });
     Effect::new(move |_| {
         let active = controller.sheet.get();
@@ -51,20 +60,45 @@ pub fn controls(controller: Controller) -> (impl IntoView, impl Fn(calc_value::S
     });
     Effect::new(move |_| {
         if let Some(dialog) = dialog.get() {
-            if delete.get() && !dialog.open() {
+            if delete.get().is_some() && !dialog.open() {
                 let _ = dialog.show_modal();
             }
-            if !delete.get() && dialog.open() {
+            if delete.get().is_none() && dialog.open() {
                 dialog.close();
             }
         }
     });
+    Effect::new(move |_| {
+        let open = context.get().is_some();
+        if let Some(menu) = menu.get() {
+            if open && !menu.open() {
+                let _ = menu.show_modal();
+            } else if !open && menu.open() {
+                menu.close();
+            }
+        }
+    });
     let current = move || controller.sheet.get_untracked();
+    let close_menu = move || {
+        let sheet = context.get_untracked().map(|(sheet, _, _)| sheet);
+        context.set(None);
+        if let Some(menu) = menu.get_untracked() {
+            menu.close();
+        }
+        if let Some(sheet) = sheet {
+            crate::app::focus(&format!(
+                "[data-sheet-tab-id='{}:{}']",
+                sheet.slot(),
+                sheet.generation(),
+            ));
+        }
+        sheet
+    };
     let cancel = move || {
         if let Some(dialog) = dialog.get_untracked() {
             dialog.close();
         }
-        delete.set(false);
+        delete.set(None);
         crate::grid::focus_grid();
     };
     let rename_sheet = move || {
@@ -148,6 +182,26 @@ pub fn controls(controller: Controller) -> (impl IntoView, impl Fn(calc_value::S
             );
         });
     };
+    let request_context = move |sheet, x, y| {
+        let generation = controller.generation.get_untracked();
+        controller.after_input(move || {
+            if controller.generation.get_untracked() != generation
+                || !controller.sheets().iter().any(|tab| tab.id == sheet)
+            {
+                return;
+            }
+            if controller.editing.get_untracked().is_some() {
+                controller.say(
+                    "Enter or cancel the current edit before changing worksheets",
+                    true,
+                );
+                controller.focus_editor();
+                return;
+            }
+            context.set(Some((sheet, x, y)));
+        });
+    };
+    let only_sheet = move || controller.sheets().len() <= 1;
     let rendered = view! {
         <details
             class="dc-sheet-tools"
@@ -277,7 +331,7 @@ pub fn controls(controller: Controller) -> (impl IntoView, impl Fn(calc_value::S
                     >
                         "Hide worksheet"
                     </button>
-                    <button data-dnacalc="sheet-delete" on:click=move |_| delete.set(true)>
+                    <button data-dnacalc="sheet-delete" on:click=move |_| delete.set(current())>
                         "Delete worksheet…"
                     </button>
                 </div>
@@ -328,6 +382,88 @@ pub fn controls(controller: Controller) -> (impl IntoView, impl Fn(calc_value::S
             </div>
         </details>
         <dialog
+            class="dc-replace dc-context-menu"
+            role="menu"
+            aria-label="Worksheet tab commands"
+            node_ref=menu
+            data-dnacalc="tab-menu"
+            style:left=move || format!(
+                "clamp(8px,{}px,max(8px,calc(100vw - 260px)))",
+                context.get().map_or(0, |(_, x, _)| x),
+            )
+            style:top=move || format!(
+                "clamp(8px,{}px,max(8px,calc(100dvh - 177px)))",
+                context.get().map_or(0, |(_, _, y)| y),
+            )
+            on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                ev.stop_propagation();
+                if matches!(ev.key().as_str(), "Escape" | "Tab") {
+                    ev.prevent_default();
+                    close_menu();
+                } else if let Some(menu) = menu.get_untracked() {
+                    crate::commands::move_menu_focus(&menu, &ev);
+                }
+            }
+            on:cancel=move |ev: leptos::ev::Event| {
+                ev.prevent_default();
+                close_menu();
+            }
+            on:click=move |ev: leptos::ev::MouseEvent| {
+                if let Some(menu) = menu.get_untracked() {
+                    let bounds = menu.get_bounding_client_rect();
+                    let x = f64::from(ev.client_x());
+                    let y = f64::from(ev.client_y());
+                    if x < bounds.left() || x > bounds.right() || y < bounds.top() || y > bounds.bottom() {
+                        close_menu();
+                    }
+                }
+            }
+        >
+            <button
+                type="button"
+                role="menuitem"
+                autofocus
+                data-dnacalc="tab-menu-rename"
+                on:click=move |_| {
+                    if let Some(sheet) = close_menu() {
+                        controller.show_sheet(sheet);
+                        request_rename(sheet);
+                    }
+                }
+            >"Rename"</button>
+            <button
+                type="button"
+                role="menuitem"
+                data-dnacalc="tab-menu-hide"
+                disabled=only_sheet
+                on:click=move |_| {
+                    if let Some(sheet) = close_menu() {
+                        controller.sheet_command(Some(sheet), SheetChange::Hide, |_| {});
+                    }
+                }
+            >"Hide"</button>
+            <button
+                type="button"
+                role="menuitem"
+                data-dnacalc="tab-menu-unhide"
+                disabled=move || !controller.summary.with(|s| s.hidden_sheets.iter().any(|(_, _, very)| !very))
+                on:click=move |_| {
+                    close_menu();
+                    if let Some(tools) = tools.get_untracked() {
+                        tools.set_open(true);
+                        crate::app::focus("[data-dnacalc=sheet-unhide]:not(:disabled)");
+                    }
+                }
+            >"Unhide…"</button>
+            <button
+                type="button"
+                role="menuitem"
+                data-dnacalc="tab-menu-delete"
+                disabled=only_sheet
+                on:click=move |_| delete.set(close_menu())
+            >"Delete…"</button>
+        </dialog>
+        <dialog
             class="dc-replace"
             node_ref=dialog
             data-dnacalc="sheet-delete-dialog"
@@ -347,7 +483,7 @@ pub fn controls(controller: Controller) -> (impl IntoView, impl Fn(calc_value::S
                             .get()
                             .sheets
                             .iter()
-                            .find(|(s, _)| Some(s.id()) == controller.sheet.get())
+                            .find(|(s, _)| Some(s.id()) == delete.get())
                             .map(|(_, n)| n.as_str())
                             .unwrap_or("this worksheet"),
                     )
@@ -362,7 +498,7 @@ pub fn controls(controller: Controller) -> (impl IntoView, impl Fn(calc_value::S
                     on:click=move |_| {
                         controller
                             .sheet_command(
-                                current(),
+                                delete.get_untracked(),
                                 SheetChange::Remove,
                                 move |ok| {
                                     if ok {
@@ -377,7 +513,7 @@ pub fn controls(controller: Controller) -> (impl IntoView, impl Fn(calc_value::S
             </div>
         </dialog>
     };
-    (rendered, request_rename)
+    (rendered, request_rename, request_context)
 }
 
 #[cfg(test)]
