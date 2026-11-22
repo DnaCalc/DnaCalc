@@ -79,7 +79,7 @@ pub(crate) fn file_name(sheet: &str) -> String {
         .collect()
 }
 
-/// Every `crates/*/tests/fixtures/*/oracle.xlsx` under `root`, in path order.
+/// The crate oracles and the authored formula corpus under `root`.
 pub(crate) fn oracle_cases(root: &Path) -> Result<Vec<OracleCase>, String> {
     let list = |dir: &Path| -> Result<Vec<PathBuf>, String> {
         let mut dirs: Vec<PathBuf> = match fs::read_dir(dir) {
@@ -114,6 +114,23 @@ pub(crate) fn oracle_cases(root: &Path) -> Result<Vec<OracleCase>, String> {
                 fixture,
             });
         }
+    }
+    for directory in list(&root.join("tests/corpus-examples/formulas"))? {
+        let fixture = directory.join("example.xlsx");
+        if !fixture.is_file() {
+            continue;
+        }
+        let case = directory
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned();
+        cases.push(OracleCase {
+            name: format!("corpus-examples/{case}/example.xlsx"),
+            case,
+            fixture,
+            captures: directory,
+        });
     }
     Ok(cases)
 }

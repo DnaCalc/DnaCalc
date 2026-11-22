@@ -31,6 +31,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use calc_func::value::{CalcValue, CoreRef};
 use calc_vba::policy::{self, Capability, CapabilitySet, PolicyMode, Prediction};
 use dna_onecalc::{Session, display};
 use serde_json::{Value, json};
@@ -79,6 +80,79 @@ fn excel_text(case: &Value, route: Route) -> Option<String> {
         Value::Null => "blank".to_owned(),
         other => panic!("{other}"),
     })
+}
+
+/// VBA's direct return keeps subtypes and array bounds. At the worksheet boundary
+/// the numeric subtypes share one number type and a one-dimensional array spills across a row.
+fn authored_answer_matches(answer: &Value, actual: &CalcValue) -> bool {
+    let Some(tag) = answer["vartype"].as_u64() else {
+        return false;
+    };
+    if tag & 8192 != 0 {
+        let (Some(expected), Some(array)) = (answer["values"].as_array(), actual.as_array()) else {
+            return false;
+        };
+        return array.shape().rows == 1
+            && array.shape().cols == expected.len()
+            && expected.iter().enumerate().all(|(column, cell)| {
+                array
+                    .get(0, column)
+                    .is_some_and(|actual| authored_answer_matches(cell, &actual))
+            });
+    }
+    let value = &answer["value"];
+    match tag {
+        0 => matches!(actual.core_ref(), CoreRef::Empty),
+        2 | 3 | 17 | 20 => value.as_i64().is_some_and(|n| {
+            actual.as_number().is_some_and(|actual| actual.to_bits() == (n as f64).to_bits())
+        }),
+        4 | 5 | 7 => {
+            let bits = answer["bits"].as_str().and_then(|word| u64::from_str_radix(word, 16).ok());
+            let expected = bits.map(|bits| {
+                if tag == 4 {
+                    (f32::from_bits(bits as u32) as f64).to_bits()
+                } else {
+                    bits
+                }
+            });
+            expected.is_some() && expected == actual.as_number().map(f64::to_bits)
+        }
+        6 | 14 => {
+            let expected = value.as_str().and_then(|text| text.parse::<f64>().ok());
+            expected.is_some() && expected.map(f64::to_bits) == actual.as_number().map(f64::to_bits)
+        }
+        8 => value.as_str().zip(actual.as_text()).is_some_and(|(expected, actual)| {
+            actual.utf16_code_units().iter().copied().eq(expected.encode_utf16())
+        }),
+        11 => value.as_bool().is_some() && value.as_bool() == actual.as_logical(),
+        _ => false,
+    }
+}
+
+fn project_manifest(dir: &Path) -> (Vec<u8>, Value) {
+    if dir.join("project.json").is_file() {
+        let bytes = std::fs::read(dir.join("project.json")).unwrap();
+        let manifest = serde_json::from_slice(&bytes).unwrap();
+        return (bytes, manifest);
+    }
+    let bytes = std::fs::read(dir.join("manifest.json")).unwrap();
+    let authored: Value = serde_json::from_slice(&bytes).unwrap();
+    let entry = authored["entry_point"].as_str().unwrap();
+    let module = std::fs::read_to_string(dir.join("module.bas")).unwrap();
+    let module_name = module
+        .lines()
+        .find_map(|line| line.strip_prefix("Attribute VB_Name = \"").and_then(|name| name.strip_suffix('\"')))
+        .expect("authored VBA module name");
+    let answer = &authored["expected_answer"];
+    let mut case = json!({"formula": format!("={entry}()"), "excel_vba": answer["value"]});
+    if answer.is_null() {
+        case["excel_error"] = json!("awaiting Excel capture");
+    }
+    let manifest = json!({
+        "modules": [{"name": module_name, "path": "module.bas", "kind": "standard"}],
+        "cases": [case],
+    });
+    (bytes, manifest)
 }
 
 /// One project: its counts and one line per case that did not match.
@@ -371,8 +445,7 @@ fn recording_windows_counts_preserves_the_other_platform_baseline() {
 
 fn run_project(dir: &Path, route: Route) -> Option<Outcome> {
     // Read once, approve those bytes, then compile/open those same snapshots.
-    let project = std::fs::read(dir.join("project.json")).unwrap();
-    let manifest: Value = serde_json::from_slice(&project).unwrap();
+    let (project, manifest) = project_manifest(dir);
     let modules = manifest["modules"]
         .as_array()
         .unwrap()
@@ -531,11 +604,13 @@ fn run_project(dir: &Path, route: Route) -> Option<Outcome> {
     let load_audit = policy::drain_audit();
     out.observed = out.observed.union(load_audit.requested());
     let initialization_denied = load_audit.denied_set();
-    let Some(cases) = manifest["cases"].as_str() else {
-        return Some(out);
+    let cases: Vec<Value> = match &manifest["cases"] {
+        Value::String(path) => {
+            serde_json::from_str(&std::fs::read_to_string(dir.join(path)).unwrap()).unwrap()
+        }
+        Value::Array(cases) => cases.clone(),
+        _ => return Some(out),
     };
-    let cases: Vec<Value> =
-        serde_json::from_str(&std::fs::read_to_string(dir.join(cases)).unwrap()).unwrap();
     for case in &cases {
         let formula = case["formula"].as_str().unwrap();
         let Some(excel) = excel_text(case, route) else {
@@ -579,7 +654,17 @@ fn run_project(dir: &Path, route: Route) -> Option<Outcome> {
                 .push(json!({"formula": formula, "class": "refused", "why": why.join(" | ")}));
             continue;
         };
-        // A dynamic-array result: Excel's answer is the value of the formula cell, the first element.
+        if let Some(expected) = case.get("excel_vba") {
+            if authored_answer_matches(expected, &result) {
+                out.matched += 1;
+            } else {
+                out.mismatched += 1;
+                out.details.push(json!({"formula": formula, "class": "mismatched", "excel": expected,
+                    "dna": display::value(&result), "diagnostics": why}));
+            }
+            continue;
+        }
+        // A legacy worksheet capture contains the first value of a dynamic array.
         let shown = match result.as_array() {
             Some(array) => array
                 .get(0, 0)
@@ -598,18 +683,26 @@ fn run_project(dir: &Path, route: Route) -> Option<Outcome> {
 }
 
 fn run_all() -> BTreeMap<String, Outcome> {
-    let mut dirs: Vec<PathBuf> = std::fs::read_dir(corpus_dir())
+    let corpus = corpus_dir();
+    let mut dirs: Vec<PathBuf> = std::fs::read_dir(&corpus)
         .unwrap()
         .map(|e| e.unwrap().path())
         .filter(|p| p.join("project.json").exists())
         .collect();
+    if let Some(root) = corpus.ancestors().nth(4) {
+        if let Ok(examples) = std::fs::read_dir(root.join("tests/corpus-examples/vba")) {
+            dirs.extend(
+                examples
+                    .map(|e| e.unwrap().path())
+                    .filter(|p| p.join("manifest.json").is_file()),
+            );
+        }
+    }
     dirs.sort();
     let mut all = BTreeMap::new();
     for dir in dirs {
         let id = dir.file_name().unwrap().to_string_lossy().into_owned();
-        let manifest: Value =
-            serde_json::from_str(&std::fs::read_to_string(dir.join("project.json")).unwrap())
-                .unwrap();
+        let (_, manifest) = project_manifest(&dir);
         let mut routes = vec![
             Route::Module(Some(calc_vba::Backend::Interpreter)),
             Route::Module(Some(calc_vba::Backend::Jit)),

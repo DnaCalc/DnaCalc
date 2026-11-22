@@ -40,3 +40,8 @@ bounds. Both identify the source bytes and Excel build.
 The Windows run captured 81 of 93 formula workbooks and all 89 VBA drivers.
 Excel rejected the other 12 authored workbook packages at open. The comparison
 keeps their formula cells in the denominator. See [the capture summary](excel-capture-summary.json).
+
+`cargo xtask corpus --oracle --no-capture` includes the formula examples. The
+Formula Explorer VBA corpus reads the captured drivers through its module route.
+The interpreter matched 64/89 and the JIT matched 62/89 on both Windows and Linux.
+The VBA manifests preserve Excel's original types and array bounds.

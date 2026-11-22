@@ -1,5 +1,325 @@
 {
   "common": {
+    "abs-null/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "abs-null/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "array-option-base/module/interpreter": {
+      "loaded": true,
+      "matched": 0,
+      "mismatched": 1,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "array-option-base/module/jit": {
+      "loaded": true,
+      "matched": 0,
+      "mismatched": 1,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "bitwise-eqv/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "bitwise-eqv/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "bitwise-imp/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "bitwise-imp/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "bounds-rank/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "bounds-rank/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "cbyte-overflow/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "cbyte-overflow/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "ccur-scale/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "ccur-scale/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "choose-eager/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "choose-eager/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "choose-round/module/interpreter": {
+      "loaded": true,
+      "matched": 0,
+      "mismatched": 1,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "choose-round/module/jit": {
+      "loaded": true,
+      "matched": 0,
+      "mismatched": 1,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "chrw-unit/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "chrw-unit/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "cint-ties/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "cint-ties/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "collection-before/module/interpreter": {
+      "loaded": true,
+      "matched": 0,
+      "mismatched": 1,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "collection-before/module/jit": {
+      "loaded": true,
+      "matched": 0,
+      "mismatched": 1,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "collection-duplicate/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "collection-duplicate/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "collection-remove/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "collection-remove/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "compare-null/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "compare-null/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "date-add-month/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "date-add-month/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "date-diff-week/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "date-diff-week/module/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/jit"
+    },
+    "date-normalize/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "date-normalize/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "date-part-week/module/interpreter": {
+      "loaded": true,
+      "matched": 0,
+      "mismatched": 1,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "date-part-week/module/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/jit"
+    },
+    "decimal-variant/module/interpreter": {
+      "loaded": true,
+      "matched": 0,
+      "mismatched": 1,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "decimal-variant/module/jit": {
+      "loaded": true,
+      "matched": 0,
+      "mismatched": 1,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
     "dna-examples/module/interpreter": {
       "loaded": false,
       "matched": 0,
@@ -64,6 +384,726 @@
       "refused": 0,
       "route": "xlsm"
     },
+    "do-posttest/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "do-posttest/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "empty-context/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "empty-context/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "erase-dynamic/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "erase-dynamic/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "erase-fixed/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "erase-fixed/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "err-clear/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "err-clear/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "error-variant/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "error-variant/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "exchange-bitwise/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "exchange-bitwise/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "filter-empty/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "filter-empty/module/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/jit"
+    },
+    "for-each-empty/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "for-each-empty/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "for-evaluated-once/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "for-evaluated-once/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "for-negative-step/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "for-negative-step/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "format-sections/module/interpreter": {
+      "loaded": true,
+      "matched": 0,
+      "mismatched": 1,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "format-sections/module/jit": {
+      "loaded": true,
+      "matched": 0,
+      "mismatched": 1,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "iif-eager/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "iif-eager/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "instr-compare/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "instr-compare/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "instr-empty/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "instr-empty/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "instrrev-start/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "instrrev-start/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "int-negative/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "int-negative/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "integer-division/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "integer-division/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "join-delimiter/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "join-delimiter/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "left-zero/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "left-zero/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "len-lenb/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "len-lenb/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "like-class/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "like-class/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "like-literal/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "like-literal/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "mid-length/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "mid-length/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "mid-write/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "mid-write/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "mod-round/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "mod-round/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "null-comparison/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "null-comparison/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "null-concatenation/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "null-concatenation/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "null-logic/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "null-logic/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "null-or/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "null-or/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "object-address-r1c1/module/interpreter": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/interpreter"
+    },
+    "object-address-r1c1/module/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/jit"
+    },
+    "object-cells-relative/module/interpreter": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/interpreter"
+    },
+    "object-cells-relative/module/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/jit"
+    },
+    "object-columns-first-area/module/interpreter": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/interpreter"
+    },
+    "object-columns-first-area/module/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/jit"
+    },
+    "object-current-region/module/interpreter": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/interpreter"
+    },
+    "object-current-region/module/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/jit"
+    },
+    "object-end-blank/module/interpreter": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/interpreter"
+    },
+    "object-end-blank/module/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/jit"
+    },
+    "object-find-after/module/interpreter": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/interpreter"
+    },
+    "object-find-after/module/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/jit"
+    },
+    "object-formula-array/module/interpreter": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/interpreter"
+    },
+    "object-formula-array/module/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/jit"
+    },
+    "object-intersect-empty/module/interpreter": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/interpreter"
+    },
+    "object-intersect-empty/module/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/jit"
+    },
+    "object-offset/module/interpreter": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/interpreter"
+    },
+    "object-offset/module/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/jit"
+    },
+    "object-range-relative/module/interpreter": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/interpreter"
+    },
+    "object-range-relative/module/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/jit"
+    },
+    "object-resize-omit/module/interpreter": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/interpreter"
+    },
+    "object-resize-omit/module/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/jit"
+    },
+    "object-rows-outside/module/interpreter": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/interpreter"
+    },
+    "object-rows-outside/module/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/jit"
+    },
+    "object-special-constants/module/interpreter": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/interpreter"
+    },
+    "object-special-constants/module/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/jit"
+    },
+    "object-value-array/module/interpreter": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/interpreter"
+    },
+    "object-value-array/module/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/jit"
+    },
+    "object-value-date/module/interpreter": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/interpreter"
+    },
+    "object-value-date/module/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/jit"
+    },
     "oxvba-controlflow/module/interpreter": {
       "loaded": true,
       "matched": 23,
@@ -92,6 +1132,86 @@
       "loaded": true,
       "matched": 32,
       "mismatched": 1,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "power-negation/module/interpreter": {
+      "loaded": true,
+      "matched": 0,
+      "mismatched": 1,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "power-negation/module/jit": {
+      "loaded": true,
+      "matched": 0,
+      "mismatched": 1,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "redim-preserve/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "redim-preserve/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "redim-reset/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "redim-reset/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "replace-count/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "replace-count/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "replace-start/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "replace-start/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
       "missing": 0,
       "refused": 0,
       "route": "module/jit"
@@ -127,6 +1247,278 @@
       "missing": 5,
       "refused": 19,
       "route": "project/jit"
+    },
+    "right-null/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "right-null/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "round-even/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "round-even/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "round-worksheet/module/interpreter": {
+      "loaded": true,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/interpreter"
+    },
+    "round-worksheet/module/jit": {
+      "loaded": true,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/jit"
+    },
+    "select-order/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "select-order/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "sgn-signed/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "sgn-signed/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "split-compare/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "split-compare/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "split-empty/module/interpreter": {
+      "loaded": true,
+      "matched": 0,
+      "mismatched": 1,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "split-empty/module/jit": {
+      "loaded": false,
+      "matched": 0,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 1,
+      "route": "module/jit"
+    },
+    "split-limit/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "split-limit/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "str-sign/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "str-sign/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "string-char/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "string-char/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "switch-eager/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "switch-eager/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "time-normalize/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "time-normalize/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "trim-ascii/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "trim-ascii/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "typename-nothing/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "typename-nothing/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "val-radix/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "val-radix/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "val-type-suffix/module/interpreter": {
+      "loaded": true,
+      "matched": 0,
+      "mismatched": 1,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "val-type-suffix/module/jit": {
+      "loaded": true,
+      "matched": 0,
+      "mismatched": 1,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "vartype-array/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "vartype-array/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
     },
     "vba-arraytools/module/interpreter": {
       "loaded": false,
@@ -431,6 +1823,38 @@
       "missing": 0,
       "refused": 53,
       "route": "project/jit"
+    },
+    "weekday-origin/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "weekday-origin/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
+    },
+    "with-object/module/interpreter": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/interpreter"
+    },
+    "with-object/module/jit": {
+      "loaded": true,
+      "matched": 1,
+      "mismatched": 0,
+      "missing": 0,
+      "refused": 0,
+      "route": "module/jit"
     }
   },
   "windows": {
