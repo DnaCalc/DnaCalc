@@ -1,4 +1,3 @@
-use crate::ported::excel_numeric::crt_cos;
 use crate::ported::excel_numeric::crt_log;
 use crate::ported::excel_numeric::crt_pow;
 use crate::ported::excel_numeric::crt_sin;
@@ -1430,166 +1429,6 @@ fn bratio_rexp(x: f64) -> f64 {
     }
 }
 
-/// psi: evaluation of the digamma function.
-fn bratio_psi(xx: f64) -> f64 {
-    const PIOV4: f64 = 0.785398163397448e0;
-    const DX0: f64 = 1.461632144968362341262659542325721325;
-    const P1: [f64; 7] = [
-        0.895385022981970e-02,
-        0.477762828042627e+01,
-        0.142441585084029e+03,
-        0.118645200713425e+04,
-        0.363351846806499e+04,
-        0.413810161269013e+04,
-        0.130560269827897e+04,
-    ];
-    const Q1: [f64; 6] = [
-        0.448452573429826e+02,
-        0.520752771467162e+03,
-        0.221000799247830e+04,
-        0.364127349079381e+04,
-        0.190831076596300e+04,
-        0.691091682714533e-05,
-    ];
-    const P2: [f64; 4] = [
-        -0.212940445131011e+01,
-        -0.701677227766759e+01,
-        -0.448616543918019e+01,
-        -0.648157123766197e+00,
-    ];
-    const Q2: [f64; 4] = [
-        0.322703493791143e+02,
-        0.892920700481861e+02,
-        0.546117738103215e+02,
-        0.777788548522962e+01,
-    ];
-    let mut xmax1 = 2147483647.0f64;
-    xmax1 = xmax1.min(1.0 / bratio_spmpar1());
-    let xsmall = 1.0e-9;
-    let mut x = xx;
-    let mut aug = 0.0;
-    if x < 0.5 {
-        if x.abs() <= xsmall {
-            if x == 0.0 {
-                return 0.0;
-            }
-            aug = -1.0 / x;
-        } else {
-            let mut w = -x;
-            let mut sgn = PIOV4;
-            if w <= 0.0 {
-                w = -w;
-                sgn = -sgn;
-            }
-            if w >= xmax1 {
-                return 0.0;
-            }
-            let mut nq = w as i64;
-            w -= nq as f64;
-            nq = (w * 4.0) as i64;
-            w = 4.0 * (w - nq as f64 * 0.25);
-            let n = nq / 2;
-            if (n + n) != nq {
-                w = 1.0 - w;
-            }
-            let z = PIOV4 * w;
-            let m = n / 2;
-            if (m + m) != n {
-                sgn = -sgn;
-            }
-            let n = (nq + 1) / 2;
-            let mut m = n / 2;
-            m += m;
-            if m != n {
-                aug = sgn * ((crt_sin(z) / crt_cos(z)) * 4.0);
-            } else {
-                if z == 0.0 {
-                    return 0.0;
-                }
-                aug = sgn * ((crt_cos(z) / crt_sin(z)) * 4.0);
-            }
-        }
-        x = 1.0 - x;
-    }
-    if x <= 3.0 {
-        let mut den = x;
-        let mut upper = P1[0] * x;
-        for i in 0..5 {
-            den = (den + Q1[i]) * x;
-            upper = (upper + P1[i + 1]) * x;
-        }
-        den = (upper + P1[6]) / (den + Q1[5]);
-        let xmx0 = x - DX0;
-        return den * xmx0 + aug;
-    }
-    if x >= xmax1 {
-        return aug + crt_log(x);
-    }
-    let w = 1.0 / (x * x);
-    let mut den = w;
-    let mut upper = P2[0] * w;
-    for i in 0..3 {
-        den = (den + Q2[i]) * w;
-        upper = (upper + P2[i + 1]) * w;
-    }
-    aug = upper / (den + Q2[3]) - 0.5 / x + aug;
-    aug + crt_log(x)
-}
-
-/// fpser: power series for Ix(a, b) when b < eps, x <= 0.5.
-fn bratio_fpser(a: f64, b: f64, x: f64, eps: f64) -> f64 {
-    let mut fp = 1.0;
-    if a > 1.0e-3 * eps {
-        fp = 0.0;
-        let t = a * crt_log(x);
-        if t < bratio_exparg(1) {
-            return fp;
-        }
-        fp = crate::ported::excel_numeric::excel_exp(t);
-    }
-    fp = (b / a) * fp;
-    let tol = eps / a;
-    let mut an = a + 1.0;
-    let mut t = x;
-    let mut s = t / an;
-    loop {
-        an += 1.0;
-        t = x * t;
-        let c = t / an;
-        s += c;
-        if c.abs() <= tol {
-            break;
-        }
-    }
-    fp * (1.0 + a * s)
-}
-
-/// apser: Ix(a, b) - a series expansion for a very small (used with x <= 0.5).
-fn bratio_apser(a: f64, b: f64, x: f64, eps: f64) -> f64 {
-    const G: f64 = 0.577215664901533e0;
-    let bx = b * x;
-    let mut t = x - bx;
-    let c;
-    if b * eps <= 2.0e-2 {
-        c = crt_log(x) + bratio_psi(b) + G + t;
-    } else {
-        c = crt_log(bx) + G + t;
-    }
-    let tol = 5.0 * eps * c.abs();
-    let mut j = 1.0;
-    let mut s = 0.0;
-    loop {
-        j += 1.0;
-        t *= x - bx / j;
-        let aj = t / j;
-        s += aj;
-        if aj.abs() <= tol {
-            break;
-        }
-    }
-    -a * (c + s)
-}
-
 /// `ln B(a, b)` as Excel 16.0.20527 forms it across all shape pairs (dc-6332.8, dc-j9k.54):
 ///
 /// - `small == 1`: `-LN(large)`.
@@ -2388,17 +2227,24 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
             y0 = x;
         }
         let branch: &str;
-        if b0 < eps.min(eps * a0) {
-            branch = "fpser";
-        } else if a0 < eps.min(eps * b0) && b0 * x0 <= 1.0 {
-            branch = "apser";
-        } else if a0.max(b0) > 1.0 {
+        if a0.max(b0) > 1.0 {
             if b0 <= 1.0 {
                 branch = "bpser";
             } else if x0 >= 0.3 {
                 branch = "bpser_sym";
-            } else if x0 < 0.1 && crt_pow(x0 * b0, a0) <= 0.7 {
-                branch = "bpser";
+            } else if x0 < 0.1 {
+                let raw_xb = mul(x0, b0);
+                let xb = if raw_xb.is_subnormal() { 0.0 } else { raw_xb };
+                if xb == 0.0 {
+                    return (f64::NAN, f64::NAN);
+                }
+                if excel_exp(mul(a0, excel_log(xb))) <= 0.7 {
+                    branch = "bpser";
+                } else if b0 > 15.0 {
+                    branch = "bgrat_150";
+                } else {
+                    branch = "bup_140";
+                }
             } else if b0 > 15.0 {
                 branch = "bgrat_150";
             } else {
@@ -2415,14 +2261,6 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
         }
 
         match branch {
-            "fpser" => {
-                w = bratio_fpser(a0, b0, x0, eps);
-                w1 = 0.5 + (0.5 - w);
-            }
-            "apser" => {
-                w1 = bratio_apser(a0, b0, x0, eps);
-                w = 0.5 + (0.5 - w1);
-            }
             "bpser" => {
                 w = bratio_bpser(a0, b0, x0);
                 w1 = 0.5 + (0.5 - w);
