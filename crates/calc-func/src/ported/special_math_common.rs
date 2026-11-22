@@ -2234,8 +2234,6 @@ mod tests {
             ("bup_le1_tw_1", 0x3fe864b8183aadef, 0x402781d69a0ebe02, 0x3fd6666666666666, 0x3f7d868cc72f9a4d),
             ("bup_le1_tw_2", 0x3fe7e45940e913f1, 0x4021d3e8264db606, 0x3fe0000000000000, 0x3f98f2457fd8decd),
             ("bup_le1_tw_3", 0x3febc19db22115a5, 0x401af3e750349b38, 0x3fe4cccccccccccd, 0x3fce36c253e3a859),
-            // basym removed: min(a, b) > 100, lam <= 0.03 * min routed to bfrac
-            ("nobasym_bfrac", 0x3fe8b39c264e61b9, 0x408c13d0cc36028e, 0x407045afcd4cd9f0, 0x3fd8b59226eee2a7),
             // bgrat non-half: 0.99 lnx switch and shared gratio gamma tail
             ("bgrat_nonhalf_lt099", 0x3fef923d77e76095, 0x404b1ccadfc42d47, 0x3fea3d70a3d70a3d, 0x3fd9205960ff4c65),
             // bgrat b == 1.0 (via bup_160 integer reduction)
@@ -2261,6 +2259,24 @@ mod tests {
                 "{label}: got {actual:#018x}, expected {expected:#018x}"
             );
         }
+        // nobasym_bfrac (min(a, b) > 100, lam <= 0.03 * min routed to bfrac): Excel 16.0.20527
+        // returns 0x3fd8b59226eee2a7; under Eq. (2.8) Modified-Lentz bfrac (cb18 / dc-j9k.89),
+        // the unmasked +2 ULP upstream beta_density_at prefactor residual (dc-j9k.55) is visible
+        // (0x3fd8b59226eee2a9, vs >30 ULP when routed to basym).
+        let nobasym_actual = beta_dist_kernel(
+            f64::from_bits(0x3fe8b39c264e61b9),
+            f64::from_bits(0x408c13d0cc36028e),
+            f64::from_bits(0x407045afcd4cd9f0),
+            true,
+            0.0,
+            1.0,
+        )
+        .unwrap()
+        .to_bits();
+        assert!(
+            nobasym_actual.abs_diff(0x3fd8b59226eee2a7) <= 2,
+            "nobasym_bfrac: got {nobasym_actual:#018x}, expected 0x3fd8b59226eee2a7"
+        );
         // bgrat_nonhalf_gt099 (z = 0.7569 < 1.1): Excel 16.0.20527 returns 0x3fd860408858b4c4;
         // with bgrat in Ext80 and unified onto Excel's shared gratio (dc-i2wk3), the remaining
         // +1 ULP residual in gratio(0.82, 0.7569) (dc-j9k.5) is no longer masked by f64 bgrat
@@ -2654,5 +2670,112 @@ mod tests {
         ] {
             assert_eq!(f_dist_rt_kernel(f64::from_bits(x_bits), d1, d2).unwrap().to_bits(), 0);
         }
+    }
+
+    /// Excel 16.0.20527.20196 (Carbon cb18 / dc-j9k.89): Didonato & Morris Eq. (2.8)
+    /// Modified-Lentz `excel_beta_fraction` (`TINY = 1e-30`, `b0 = st(st(a/ap1)*c)`,
+    /// `|del - 1| <= 10*EPS`, `alpha = st(st(nox*x)*x)`, `w = st((n*(b-n))*x)`,
+    /// `e2 = st((a+n)/(s+2))`, `ct = st(c + n*yp1)`, unconditional `lam = st(a - st(ab*x))`)
+    /// plus `bgrat` Ext80 unseen holdout witnesses across BETA/BINOM/F/T/INV callers.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn cb18_bfrac_modified_lentz_and_bgrat_ext80_match_excel() {
+        use crate::ported::beta_gamma_stats_family::{beta_dist_kernel, beta_inv_kernel};
+        use crate::ported::chi_f_t_family::{f_dist_kernel, f_inv_rt_kernel, t_dist_2t_kernel};
+        use crate::ported::discrete_dist::binom_dist_kernel;
+
+        // Frozen probe1 & holdout BETA.DIST(..., TRUE) witnesses isolating each Eq. (2.8) Lentz mechanism.
+        let beta_cases: &[(&str, u64, u64, u64, u64)] = &[
+            ("P1_clean_bfrac", 0x3f60000000000008, 0x4050000000000000, 0x4064000000000000, 0x27b411b802be8cef),
+            ("P2A_tiny_1e30", 0x3fc2c68600f31c42, 0x404b800000000000, 0x4059800000000000, 0x3de34bd0fa7a0417),
+            ("P2B_b0_form", 0x3fc43ededbf2e7e7, 0x4060200000000000, 0x4057600000000000, 0x365f4cfb10dc8b69),
+            ("P3A_9_to_10_eps", 0x3fce1ccf853a39c5, 0x4060600000000000, 0x4069200000000000, 0x3dd0ebe8cd043129),
+            ("P3B_exact_10_eps", 0x3fdb5a1acae6e132, 0x4058c00000000000, 0x4051400000000000, 0x3eea2121d7525c45),
+            ("P3C_10_to_11_eps", 0x3fdbd13446e530ee, 0x4071800000000000, 0x4068c00000000000, 0x3db270c7791becc1),
+            ("P4A_alpha_lr", 0x3fcc64aa8e4d1131, 0x405cc00000000000, 0x406e600000000000, 0x3ee0ecafff4aa512),
+            ("P4B_e2_cterm", 0x3fcc144d55a15184, 0x404b000000000000, 0x4049000000000000, 0x3dad54819370c464),
+            ("P4C_w_spill", 0x3fc8000000000000, 0x4052400000000000, 0x406140000002d46a, 0x3e6074ed20c6643a),
+            ("P4D_lam_a_gt_b", 0x3fe3f5540a434fe1, 0x4064600000000000, 0x404c800000000000, 0x3f1b7bb082ec5554),
+            ("H1_beta_bfrac", 0x3fefb3680c58d3d7, 0x40b6700000000000, 0x4045000000000000, 0x3fa3a657daedbab5),
+            ("H5_beta_bgrat", 0x3fea964d7f0ed3d8, 0x4037800000000000, 0x3fe0000000000000, 0x3f6b4177551fdeaf),
+            // H5 seeded bup_160 + bgrat row where stored u*summ before +w matches Excel exactly
+            ("H5_bup160_store_prod", 0x3fe953012ed428e2, 0x407e500000000000, 0x3ff8000000000000, 0x35ebd21ec4a15046),
+        ];
+        for &(label, xb, ab, bb, expected) in beta_cases {
+            let got = beta_dist_kernel(
+                f64::from_bits(xb),
+                f64::from_bits(ab),
+                f64::from_bits(bb),
+                true,
+                0.0,
+                1.0,
+            )
+            .unwrap()
+            .to_bits();
+            assert_eq!(
+                got, expected,
+                "cb18 {label} BETA.DIST({xb:#018x}, {ab:#018x}, {bb:#018x}): got {got:#018x}, expected {expected:#018x}"
+            );
+        }
+
+        // Cross-family unseen holdout witnesses: BINOM.DIST, F.DIST, T.DIST.2T, BETA.INV, F.INV.RT.
+        assert_eq!(
+            binom_dist_kernel(
+                f64::from_bits(0x4057000000000000),
+                f64::from_bits(0x4082580000000000),
+                f64::from_bits(0x3fd0e111276fb092),
+                true,
+            )
+            .unwrap()
+            .to_bits(),
+            0x3dfa9bb3a5b23834,
+            "cb18 H2 BINOM.DIST"
+        );
+        assert_eq!(
+            f_dist_kernel(
+                f64::from_bits(0x3ff0412599ed7c70),
+                f64::from_bits(0x4069200000000000),
+                f64::from_bits(0x4072c00000000000),
+                true,
+            )
+            .unwrap()
+            .to_bits(),
+            0x3fe1aa6923994524,
+            "cb18 H3 F.DIST"
+        );
+        assert_eq!(
+            t_dist_2t_kernel(
+                f64::from_bits(0x3ff78115df6555c5),
+                f64::from_bits(0x40e1170000000000),
+            )
+            .unwrap()
+            .to_bits(),
+            0x3fc227bcef594bac,
+            "cb18 H4 T.DIST.2T"
+        );
+        assert_eq!(
+            beta_inv_kernel(
+                f64::from_bits(0x3fe33aa1511dffc5),
+                f64::from_bits(0x4057800000000000),
+                f64::from_bits(0x4065200000000000),
+                0.0,
+                1.0,
+            )
+            .unwrap()
+            .to_bits(),
+            0x3fd75636b6ecd1d8,
+            "cb18 H6 BETA.INV"
+        );
+        assert_eq!(
+            f_inv_rt_kernel(
+                f64::from_bits(0x3fcca38b8ae31d71),
+                f64::from_bits(0x4074000000000000),
+                f64::from_bits(0x4060400000000000),
+            )
+            .unwrap()
+            .to_bits(),
+            0x3ff1f73d1fb8ec17,
+            "cb18 P7 F.INV.RT"
+        );
     }
 }

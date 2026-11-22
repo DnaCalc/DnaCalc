@@ -507,6 +507,25 @@ mod tests {
             excel_beta_fraction(333.0, 668.0, 0.02, 0.98, 1.0).to_bits()
         );
         assert_eq!(
+            beta_fraction::<Soft>(
+                f64::from_bits(0x4058c00000000000),
+                f64::from_bits(0x4051400000000000),
+                f64::from_bits(0x3fdb5a1acae6e132),
+                1.0 - f64::from_bits(0x3fdb5a1acae6e132),
+                1.0,
+            )
+            .to_bits(),
+            excel_beta_fraction(
+                f64::from_bits(0x4058c00000000000),
+                f64::from_bits(0x4051400000000000),
+                f64::from_bits(0x3fdb5a1acae6e132),
+                1.0 - f64::from_bits(0x3fdb5a1acae6e132),
+                1.0,
+            )
+            .to_bits()
+        );
+        assert!(beta_fraction::<Soft>(2.0, 1.0e200, 0.5, 0.5, 1.0).is_nan());
+        assert_eq!(
             beta_up_sum_small_b::<Soft>(3.5, 0.5, 0.875, 20).to_bits(),
             excel_beta_up_sum_small_b(3.5, 0.5, 0.875, 20).to_bits()
         );
@@ -647,120 +666,75 @@ fn beta_power_series<F: Fpu>(
     st(&F::mul(&load(scaled), &load(factor), CW))
 }
 
-/// Excel's continued fraction for the incomplete beta ratio `I_x(a, b)` when `a, b > 1` (TOMS 708
-/// `bfrac`, dc-j9k.54). Each statement evaluates in x87 PC64 and stores to binary64 per named
-/// local, using the signed `lam = a - (a + b) x` (dc-j9k.83) and convergence threshold `2^-52 r`.
+/// Excel's continued fraction for the incomplete beta ratio `I_x(a, b)` when `a, b > 1`
+/// (DiDonato & Morris 1992 Eq. (2.8) in Thompson-Barnett Modified Lentz, Carbon cb18 / dc-j9k.89).
+/// Each named step evaluates in x87 PC64 and stores to binary64: `TINY = 1e-30`,
+/// `lam = st(a - st((a + b) * x))`, `b0 = st(st(a / (a + 1)) * c)`, `nox` overflow -> `NaN`
+/// (`dc-iuwct.50`), `alpha = st(st(nox * x) * x)`, `w = st((n * (b - n)) * x)` (x87 `FST` idiom),
+/// `e2 = st((a + n) / (s + 2))`, `ct = st(c + n * (y + 1))`, stopping at `|del - 1| <= 10 * EPS`.
 pub(crate) fn excel_beta_fraction(a: f64, b: f64, x: f64, y: f64, bf: f64) -> f64 {
     beta_fraction::<Native>(a, b, x, y, bf)
 }
 
 fn beta_fraction<F: Fpu>(a: f64, b: f64, x: f64, y: f64, bf: f64) -> f64 {
+    const TINY: f64 = 1.0e-30;
+    const STOP_TOL: f64 = 10.0 * f64::EPSILON;
     let st = |e: &Ext80| F::store(e, CW);
-    let one = ext_one();
-    let la = load(a);
-    let lb = load(b);
-    let lx = load(x);
-    let ly = load(y);
+    let (one, two, la, lb, lx, ly) = (ext_one(), load(2.0), load(a), load(b), load(x), load(y));
     let ab = st(&F::add(&la, &lb, CW));
     let lam = st(&F::sub(&la, &load(st(&F::mul(&load(ab), &lx, CW))), CW));
     let c = st(&F::add(&one, &load(lam), CW));
-    let c0 = st(&F::div(&lb, &la, CW));
-    let c1 = st(&F::add(&one, &F::div(&one, &la, CW), CW));
     let yp1 = st(&F::add(&ly, &one, CW));
-    let lc = load(c);
-    let lc0 = load(c0);
-    let lc1 = load(c1);
-    let lyp1 = load(yp1);
-    let tol = load(f64::EPSILON);
-
-    let mut n = 0.0_f64;
-    let mut p = 1.0_f64;
-    let mut s = st(&F::add(&la, &one, CW));
-    let mut an = 0.0_f64;
-    let mut bn = 1.0_f64;
-    let mut anp1 = 1.0_f64;
-    let mut bnp1 = st(&F::div(&lc, &lc1, CW));
-    let mut r = st(&F::div(&lc1, &lc, CW));
-    let two = load(2.0);
-    let mut s_ext = F::add(&la, &one, CW);
-
-    for _ in 0..10_000 {
-        n += 1.0;
-        let ln = load(n);
-        let ls = load(s);
-        // Excel's bfrac evaluates the non-x factor of alpha in binary64 before multiplying by
-        // x^2, overflowing to #NUM! when b >= 2^512 * (a + 2n - 1) / sqrt(n * (a + n - 1))
-        // (verified on 24/25 live Touchstone edges across a in [1+2^-52, 1000], n in {1,2,3}).
-        let a_plus_nm1 = F::add(&la, &F::sub(&ln, &one, CW), CW);
-        let ab_plus_nm1 = F::add(&F::add(&la, &lb, CW), &F::sub(&ln, &one, CW), CW);
-        let f1 = st(&F::div(&a_plus_nm1, &s_ext, CW));
-        let f2 = st(&F::div(&ab_plus_nm1, &s_ext, CW));
-        let f12 = st(&F::mul(&load(f1), &load(f2), CW));
-        let f3 = st(&F::mul(&ln, &F::sub(&lb, &ln, CW), CW));
-        let alpha_no_x = st(&F::mul(&load(f12), &load(f3), CW));
-        if !alpha_no_x.is_finite() {
+    let ap1 = st(&F::add(&la, &one, CW));
+    let b0 = st(&F::mul(&load(st(&F::div(&la, &load(ap1), CW))), &load(c), CW));
+    let mut f = TINY;
+    let mut cl = TINY;
+    let mut dl = if b0.abs() < TINY { TINY } else { b0 };
+    cl = st(&F::add(&load(b0), &load(st(&F::div(&one, &load(cl), CW))), CW));
+    if cl.abs() < TINY {
+        cl = TINY;
+    }
+    dl = st(&F::div(&one, &load(dl), CW));
+    f = st(&F::mul(&load(f), &load(st(&F::mul(&load(cl), &load(dl), CW))), CW));
+    let mut s = ap1;
+    for iter in 1..=10_000 {
+        let n = iter as f64;
+        let nm1 = (iter - 1) as f64;
+        let (ln, lnm1, ls) = (load(n), load(nm1), load(s));
+        let sp2 = st(&F::add(&ls, &two, CW));
+        let f1 = st(&F::div(&load(st(&F::add(&la, &lnm1, CW))), &ls, CW));
+        let f2 = st(&F::div(&load(st(&F::add(&load(ab), &lnm1, CW))), &ls, CW));
+        let f3 = st(&F::mul(&ln, &load(st(&F::sub(&lb, &ln, CW))), CW));
+        let nox = st(&F::mul(&load(st(&F::mul(&load(f1), &load(f2), CW))), &load(f3), CW));
+        if !nox.is_finite() {
             return f64::NAN;
         }
-        let t0 = st(&F::div(&ln, &la, CW));
+        let alpha = st(&F::mul(&load(st(&F::mul(&load(nox), &lx, CW))), &lx, CW));
         let w = st(&F::mul(&F::mul(&ln, &F::sub(&lb, &ln, CW), CW), &lx, CW));
-        let e = st(&F::div(&la, &ls, CW));
-        let lp = load(p);
-        let le = load(e);
-        let lw = load(w);
-        let p_term = F::mul(&lp, &F::add(&lp, &lc0, CW), CW);
-        let alpha = st(&F::mul(
-            &F::mul(&F::mul(&p_term, &le, CW), &le, CW),
-            &F::mul(&lw, &lx, CW),
-            CW,
-        ));
-        let lt0 = load(t0);
-        let one_p_t0 = F::add(&one, &lt0, CW);
-        let e = st(&F::div(
-            &one_p_t0,
-            &F::add(&F::add(&lc1, &lt0, CW), &lt0, CW),
-            CW,
-        ));
+        let e2 = st(&F::div(&load(st(&F::add(&la, &ln, CW))), &load(sp2), CW));
+        let ct = st(&F::add(&load(c), &load(st(&F::mul(&ln, &load(yp1), CW))), CW));
         let beta = st(&F::add(
-            &F::add(&ln, &F::div(&lw, &ls, CW), CW),
-            &F::mul(&load(e), &F::add(&lc, &F::mul(&ln, &lyp1, CW), CW), CW),
+            &load(st(&F::add(&ln, &load(st(&F::div(&load(w), &ls, CW))), CW))),
+            &load(st(&F::mul(&load(e2), &load(ct), CW))),
             CW,
         ));
-        p = st(&one_p_t0);
-        s = st(&F::add(&ls, &two, CW));
-        s_ext = F::add(&s_ext, &two, CW);
-        let lalpha = load(alpha);
-        let lbeta = load(beta);
-        let t_a = st(&F::add(
-            &F::mul(&lalpha, &load(an), CW),
-            &F::mul(&lbeta, &load(anp1), CW),
-            CW,
-        ));
-        an = anp1;
-        anp1 = t_a;
-        let t_b = st(&F::add(
-            &F::mul(&lalpha, &load(bn), CW),
-            &F::mul(&lbeta, &load(bnp1), CW),
-            CW,
-        ));
-        bn = bnp1;
-        bnp1 = t_b;
-        let r0 = r;
-        let lbnp1 = load(bnp1);
-        r = st(&F::div(&load(anp1), &lbnp1, CW));
-        let lr = load(r);
-        let diff = ext_abs(&F::sub(&lr, &load(r0), CW), CW);
-        let bound = F::mul(&tol, &lr, CW);
-        let gap = F::sub(&bound, &diff, CW);
-        let is_zero = gap.0[..8].iter().all(|&byte| byte == 0);
-        if is_zero || gap.0[9] & 0x80 == 0 {
+        s = sp2;
+        dl = st(&F::add(&load(beta), &load(st(&F::mul(&load(alpha), &load(dl), CW))), CW));
+        if dl.abs() < TINY {
+            dl = TINY;
+        }
+        cl = st(&F::add(&load(beta), &load(st(&F::div(&load(alpha), &load(cl), CW))), CW));
+        if cl.abs() < TINY {
+            cl = TINY;
+        }
+        dl = st(&F::div(&one, &load(dl), CW));
+        let del = st(&F::mul(&load(cl), &load(dl), CW));
+        f = st(&F::mul(&load(f), &load(del), CW));
+        if (del - 1.0).abs() <= STOP_TOL {
             break;
         }
-        an = st(&F::div(&load(an), &lbnp1, CW));
-        bn = st(&F::div(&load(bn), &lbnp1, CW));
-        anp1 = r;
-        bnp1 = 1.0;
     }
-    st(&F::mul(&load(bf), &load(r), CW))
+    st(&F::mul(&load(bf), &load(f), CW))
 }
 
 /// The finite `a`-shift sum `1 + sum_{m=1}^{n-1} c_m x^m` for `bratio_bup` when `b <= 1.0`
