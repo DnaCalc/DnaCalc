@@ -4,6 +4,8 @@ pub(super) mod fixtures;
 
 /// The formula field DNA Calc shares with DNA OneCalc, which carries OneCalc's role attribute.
 const BAR: &str = "[data-onecalc=\"formula\"]";
+const ENABLE_WORKBOOK_MACROS: &str =
+    "[data-dnacalc=enable-macros]:not([hidden]), [data-dnacalc=unblock-macros]:not([hidden])";
 
 /// DNA Calc's original case order; CALC_GROUPS marks fresh-page boundaries and setup.
 /// Cases open the existing calc-doc and calc-host fixtures through the application page.
@@ -15447,9 +15449,16 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Wait(Check::Text("document", "local.xlsm")),
             Action::Into("name-box", "H1\u{E007}"),
             Action::Keys(BAR, "=MyF"),
-            Action::Wait(Check::Contains("[data-onecalc=\"completions\"]", "MYFUNC")),
+            Action::Wait(Check::Value(BAR, "=MyF")),
+            Action::Wait(Check::Rendered("[data-onecalc=completions]", false)),
+            // Browser uploads have unverified origin. Native Open can identify a local file.
+            Action::Click(ENABLE_WORKBOOK_MACROS),
+            Action::Wait(Check::Rendered(ENABLE_WORKBOOK_MACROS, false)),
         ],
-        checks: &[Check::Contains("[data-onecalc=\"completions\"]", "MYFUNC")],
+        checks: &[
+            Check::Value(BAR, "=MyF"),
+            Check::Text("[data-onecalc=completion-label]", "MyFunc"),
+        ],
     },
     Case {
         name: "Excel cached IMAGE pictures decode in the grid",

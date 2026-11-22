@@ -163,7 +163,7 @@ impl Controller {
     /// the next key (dc-0f1k.11.3: a formula typed just after Open missed the file's function).
     pub(super) fn refresh_completions(&self) {
         if self.editing.get_untracked().is_some() {
-            self.assist.sync_from_field(false);
+            self.edit_field.get_value().sync_from_field(false);
         }
     }
 

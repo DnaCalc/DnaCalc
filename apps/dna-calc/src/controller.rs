@@ -1901,6 +1901,9 @@ impl Controller {
             match reply {
                 Ok(Reply::Done { outcome, .. }) => {
                     controller.applied(&outcome, false);
+                    if controller.editing.get_untracked().is_some() {
+                        controller.offer_defined_names();
+                    }
                     controller.say("Macros are enabled for this workbook", false);
                 }
                 Err(error) => controller.say(format!("Macros were not enabled: {error}"), true),
