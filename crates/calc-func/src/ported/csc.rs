@@ -24,7 +24,11 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn csc_matches_live_excel_recip_sin_pins() {
-        // Live Excel 16.0 b20326: CSC(x)=1/SIN(x) 8/8.
+        // Excel 16.0 build 20326, Windows x64, AMD Ryzen 7 4800H.
+        use crate::ported::excel_numeric::x87_cpu::AMD_RYZEN_7_4800H;
+        if !AMD_RYZEN_7_4800H.compares_on_active_backend() {
+            return;
+        }
         assert_eq!(csc_kernel(0.5).unwrap().to_bits(), 0x4000afc773ab69dc);
         assert_eq!(csc_kernel(1.0).unwrap().to_bits(), 0x3ff303aa9620b224);
         assert_eq!(csc_kernel(-0.5).unwrap().to_bits(), 0xc000afc773ab69dc);

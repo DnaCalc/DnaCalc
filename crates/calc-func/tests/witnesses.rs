@@ -9,12 +9,10 @@
 #[path = "witnesses/index.rs"]
 mod index;
 
-#[path = "f1_support/x87_cpu.rs"]
-mod x87_cpu;
-
 #[path = "witnesses/call.rs"]
 mod witness_call;
 
+use crate::x87_cpu;
 use calc_verdict::WitnessSet;
 
 /// Excel 16.0.20527, ax2/f-density-masses-answers.jsonl row 63.
@@ -96,7 +94,10 @@ fn every_pinned_witness_row_calculates_as_pinned() {
             let want = if let Some(cpu_row) = cpu_row {
                 assert_eq!(
                     pinned,
-                    format!("0x{:016x}", cpu_row.for_vendor("AuthenticAMD").bits),
+                    format!(
+                        "0x{:016x}",
+                        cpu_row.for_vendor(x87_cpu::AMD_RYZEN_7_4800H.vendor).bits
+                    ),
                     "original pin"
                 );
                 format!("0x{:016x}", cpu_row.expected_bits())

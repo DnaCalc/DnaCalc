@@ -1,10 +1,52 @@
-//! Exact test expectations for measured vendor-dependent hardware-x87 rows.
+//! CPU provenance and exact expectations for measured vendor-dependent x87 rows.
 //! Excel itself on Intel has not been measured for these inputs. These expectations describe
 //! calc-func's hardware instructions. Excel build 20527 on the AMD machine independently
 //! agrees with all 15 AMD results (2026-10-31, CalcFunc-Evidence b047ad6a).
 //! That observation does not measure Excel on Intel or replace other Excel answers.
 
-#![allow(dead_code)] // Shared by a unit test and an integration test, with different callers.
+#![allow(dead_code)] // Shared by unit and integration suites with different callers.
+
+pub struct CaptureCpu {
+    pub vendor: &'static str,
+    pub model: &'static str,
+}
+
+pub const AMD_RYZEN_7_4800H: CaptureCpu = CaptureCpu {
+    vendor: "AuthenticAMD",
+    model: "AMD Ryzen 7 4800H",
+};
+
+impl CaptureCpu {
+    /// Software builds replay the capture on every host. A hardware build only
+    /// compares with Excel captures from the same vendor.
+    pub fn compares_on_active_backend(&self) -> bool {
+        #[cfg(all(target_arch = "x86_64", not(feature = "soft-x87")))]
+        {
+            let vendor = cpuid_vendor();
+            if vendor.as_slice() != self.vendor.as_bytes() {
+                eprintln!(
+                    "Skipping native x87 comparison with {} ({}): host CPUID vendor is {}",
+                    self.model,
+                    self.vendor,
+                    String::from_utf8_lossy(&vendor)
+                );
+                return false;
+            }
+        }
+        true
+    }
+}
+
+#[cfg(target_arch = "x86_64")]
+fn cpuid_vendor() -> [u8; 12] {
+    // Leaf 0 reports the CPU vendor in EBX, EDX, ECX.
+    let id = core::arch::x86_64::__cpuid(0);
+    let mut vendor = [0; 12];
+    vendor[..4].copy_from_slice(&id.ebx.to_le_bytes());
+    vendor[4..8].copy_from_slice(&id.edx.to_le_bytes());
+    vendor[8..].copy_from_slice(&id.ecx.to_le_bytes());
+    vendor
+}
 
 pub struct Measurement {
     pub vendor: &'static str,
@@ -171,7 +213,7 @@ impl Row {
             software_bits,
             hardware: [
                 Measurement {
-                    vendor: "AuthenticAMD",
+                    vendor: AMD_RYZEN_7_4800H.vendor,
                     bits: amd,
                     measured_on: amd_source,
                 },
@@ -198,13 +240,7 @@ impl Row {
 
     #[cfg(target_arch = "x86_64")]
     pub fn hardware_bits(&self) -> u64 {
-        // CPUID leaf 0 is available on every x86_64 CPU. The vendor string is EBX,
-        // EDX, ECX (not the hypervisor vendor from leaf 0x40000000).
-        let id = core::arch::x86_64::__cpuid(0);
-        let mut vendor = [0; 12];
-        vendor[..4].copy_from_slice(&id.ebx.to_le_bytes());
-        vendor[4..8].copy_from_slice(&id.edx.to_le_bytes());
-        vendor[8..].copy_from_slice(&id.ecx.to_le_bytes());
+        let vendor = cpuid_vendor();
         self.for_vendor(core::str::from_utf8(&vendor).expect("CPUID vendor is not ASCII"))
             .bits
     }

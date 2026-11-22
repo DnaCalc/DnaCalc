@@ -33,3 +33,6 @@ mod jnt_inputs;
 
 #[path = "witnesses.rs"]
 mod witnesses;
+
+#[path = "f1_support/x87_cpu.rs"]
+mod x87_cpu;

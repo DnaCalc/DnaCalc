@@ -962,7 +962,7 @@ const LN_WITNESSES_THE_SOFTWARE_X87_ROUNDS_THE_OTHER_WAY: [u64; 18] = [
 
 #[cfg(test)]
 #[path = "../../../tests/f1_support/x87_cpu.rs"]
-mod x87_cpu;
+pub(crate) mod x87_cpu;
 
 #[cfg(test)]
 mod tests {
@@ -1135,7 +1135,7 @@ mod tests {
                     let want = if let Some(row) = x87_cpu::find("EXP", x.to_bits()) {
                         assert_eq!(
                             want,
-                            row.for_vendor("AuthenticAMD").bits,
+                            row.for_vendor(x87_cpu::AMD_RYZEN_7_4800H.vendor).bits,
                             "original Excel reading"
                         );
                         let expected = row.expected_bits();
@@ -1155,7 +1155,7 @@ mod tests {
                     let want = if let Some(row) = x87_cpu::find("LN", x.to_bits()) {
                         assert_eq!(
                             want,
-                            row.for_vendor("AuthenticAMD").bits,
+                            row.for_vendor(x87_cpu::AMD_RYZEN_7_4800H.vendor).bits,
                             "original Excel reading"
                         );
                         if software {
@@ -1393,19 +1393,18 @@ mod tests {
         bad
     }
 
-    /// W109 G4-01 trig identification pins — live Excel 16.0 build 20131.
-    /// One row per identified chain plus the bit-resolution COS threshold.
-    /// The 5,425-row live sweep is replayed by `verify_trig_promotion`. dc-8dg: on the backend
-    /// the entry points run and on the software x87 (on x86_64 both).
+    /// W109 G4-01/G4-07 trig identification pins from Excel 16.0 build 20131 on an AMD
+    /// Ryzen 7 4800H, Windows x64. The same fixture includes the bit-resolution COS controls.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn trig_matches_live_excel_pinned_witnesses() {
-        let native = trig_pin_mismatches::<Native>();
         let software = trig_pin_mismatches::<Soft>();
-        assert!(
-            native.is_empty() && software.is_empty(),
-            "native {native:?} software {software:?}"
-        );
+        assert!(software.is_empty(), "software x87: {software:?}");
+        if !x87_cpu::AMD_RYZEN_7_4800H.compares_on_active_backend() {
+            return;
+        }
+        let active = trig_pin_mismatches::<Native>();
+        assert!(active.is_empty(), "active x87 backend: {active:?}");
         // The entry points add the non-finite and small-COS guards to the same chains.
         assert_eq!(
             excel_sin(f64::from_bits(0x40f86a0000000000)).to_bits(),

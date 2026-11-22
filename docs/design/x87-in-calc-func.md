@@ -94,6 +94,36 @@ has the software result on the Intel side. These are specific test inputs. The J
 capture is still valuable (dc-ymjf.7). Sources:
 `crates/calc-func/tests/f1_support/x87_cpu.rs` and `docs/plan/WORK_SETS.md` item 4.
 
+### Excel pins for the circular x87 chains
+
+These tests replay exact Excel answers from Windows x64 on an AMD Ryzen 7 4800H
+(`AuthenticAMD`). The source applies to each row in the named fixture.
+
+| Test | Excel build | Rows |
+|---|---|---|
+| `f1_math::dc_j9k_87_cb16_unified_fptan_circular_substrate` | 16.0.20527.20196 | SIN, COS and their real, complex and Bessel callers |
+| `f1_engineering::dc_j9k_85_cb15_bessel_high_asymptotic_and_backward_recurrence` | 16.0.20527.20196 | BESSELJ/BESSELY, including high seeds that use the circular chains |
+| `trig_matches_live_excel_pinned_witnesses` | 16.0.20131 | W109 SIN/COS/TAN and the reciprocal functions, including COS threshold controls |
+| `cot_matches_live_excel_recip_tan_pins` | 16.0.20326 | COT through TAN |
+| `csc_matches_live_excel_recip_sin_pins` | 16.0.20326 | CSC through SIN |
+| `sec_matches_live_excel_recip_cos_pins` | 16.0.20326 | SEC through COS |
+| `t_inv_2t_df1_matches_live_excel_tan_pins` | 16.0.20326, CV2 | T.INV.2T with one degree of freedom through TAN |
+
+Replay these rows on software x87 on any host, and on native x87 when CPUID leaf 0
+reports the capture vendor. Vendor matching is the current test rule. Microcode can
+also differ between processor models within a vendor. The W109 unit test directly
+exercises the software chain in every build. The integration tests run through
+`calc_func::invoke` with the backend selected for that build. Run
+`cargo test -p calc-func --features soft-x87` to compare all seven fixtures on x86-64
+with the software backend. On wasm32 that backend is active by default.
+
+`exp_and_ln_against_live_excel` and `every_pinned_witness_row_calculates_as_pinned`
+already use the 15-row vendor fixture where measured hardware results differ.
+They retain the AMD Excel pins and the separate measured Intel hardware and
+software expectations for those inputs. Thirteen of the known LN rows differ
+from AMD Excel on the software backend. The same-build Intel Excel comparisons
+and CPU provenance for older captures are tracked in dc-ymjf.7.
+
 ## Policy choices
 
 The current `NumericMode` is caller-owned. Its `Fast` path does not select the x87 backend

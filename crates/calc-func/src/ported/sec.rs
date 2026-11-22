@@ -24,7 +24,11 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn sec_matches_live_excel_recip_cos_pins() {
-        // Live Excel 16.0 b20326: SEC(x)=1/COS(x) 8/8.
+        // Excel 16.0 build 20326, Windows x64, AMD Ryzen 7 4800H.
+        use crate::ported::excel_numeric::x87_cpu::AMD_RYZEN_7_4800H;
+        if !AMD_RYZEN_7_4800H.compares_on_active_backend() {
+            return;
+        }
         assert_eq!(sec_kernel(0.5).unwrap().to_bits(), 0x3ff23b5dfbfd97b6);
         assert_eq!(sec_kernel(1.0).unwrap().to_bits(), 0x3ffd9cf0f125cc29);
     }

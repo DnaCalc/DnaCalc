@@ -2033,14 +2033,17 @@ fn bessel_high_correction_multiplies_ratio_before_polynomial() {
     }
 }
 
-/// Carbon cb15 (dc-j9k.85, Excel 16.0.20527.20196): unified stored-PC64 high
+/// Carbon cb15 (dc-j9k.85, Excel 16.0.20527.20196, Windows x64, AMD Ryzen 7 4800H): stored-PC64 high
 /// asymptotic seeds (`z = 8/|x|`, `y = z*z`, Horner, `J0` `(z*sin)*corr` vs
 /// `J1/Y0/Y1` `(trig*corr)*z`, `excel_sqrt_staged(W/|x|)`) and the three
 /// remaining stored-PC64 operations in `jn` backward recurrence (`B0/B1/B2`).
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_j9k_85_cb15_bessel_high_asymptotic_and_backward_recurrence() {
-    for (label, function, x, order, expected) in [
+    if !crate::x87_cpu::AMD_RYZEN_7_4800H.compares_on_active_backend() {
+        return;
+    }
+    let rows = [
         // H1: J1 and Y1 trailing-product association `(trig * corr) * z`
         (
             "H1_J1_pos",
@@ -2189,7 +2192,8 @@ fn dc_j9k_85_cb15_bessel_high_asymptotic_and_backward_recurrence() {
             0x4083_f000_0000_0000,
             0x3f92_9189_d2b9_73e5,
         ),
-    ] {
+    ];
+    for (label, function, x, order, expected) in rows {
         let actual = call(
             function,
             vec![n(f64::from_bits(x)), n(f64::from_bits(order))],
@@ -2204,4 +2208,5 @@ fn dc_j9k_85_cb15_bessel_high_asymptotic_and_backward_recurrence() {
             "{label} {function} x={x:016x}, order={order:016x}"
         );
     }
+    println!("Matched {} cb15 Excel rows", rows.len());
 }

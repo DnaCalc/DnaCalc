@@ -800,8 +800,12 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn t_inv_2t_df1_matches_live_excel_tan_pins() {
-        // Live Excel 16.0 build 20326 / CV2, Value2 cell-ref injection.
+        // Excel 16.0 build 20326 / CV2, Value2 cell-ref injection, Windows x64, AMD Ryzen 7 4800H.
         // T.INV.2T(p,1)=1/TAN(PI()*p/2), with p=0.5 published as exact 1.
+        use crate::ported::excel_numeric::x87_cpu::AMD_RYZEN_7_4800H;
+        if !AMD_RYZEN_7_4800H.compares_on_active_backend() {
+            return;
+        }
         let rows: [(f64, u64); 9] = [
             (0.001_f64, 0x4083e4f438b2cde9),
             (0.01_f64, 0x404fd410182c3c38),

@@ -619,10 +619,14 @@ fn rounding_family_matches_recorded_bank_rows() {
 }
 
 /// dc-j9k.87 / dc-j9k.53 (Carbon cb16): unified 8087 FPTAN circular substrate for SIN and COS,
-/// verified against live Excel 16.0.20527.20196 (all rows match on both x87 hardware and soft87).
+/// replaying Excel 16.0.20527.20196 rows captured on Windows x64, AMD Ryzen 7 4800H.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_j9k_87_cb16_unified_fptan_circular_substrate() {
+    if !crate::x87_cpu::AMD_RYZEN_7_4800H.compares_on_active_backend() {
+        return;
+    }
+
     let unary_rows: &[(&str, u64, u64)] = &[
         // dc-j9k.53 five folded angles from ax1 run2-final-shared-leaf-backends.json
         // plus the two remaining full-bank SIN misses (ax1 + sx1).
@@ -676,20 +680,24 @@ fn dc_j9k_87_cb16_unified_fptan_circular_substrate() {
     }
 
     // Downstream complex circular callers.
-    for (func, arg, expected) in [
+    #[rustfmt::skip]
+    let complex_rows = [
         ("IMCOT", "120031-0.1i", "4.32013081085074+2.61581898713197i"),
         ("IMCOT", "17445.25-0.1i", "-1.36893603420608+9.84093514703274i"),
         ("IMSIN", "115110.25-0.1i", "0.75266066425061+0.0663773356796942i"),
         ("IMCOS", "37723.25-0.1i", "0.547578037830135-0.0839930800440596i"),
-    ] {
+    ];
+    for (func, arg, expected) in complex_rows {
         text(call(func, vec![t(arg)]), expected);
     }
 
     // Downstream BESSELJ / BESSELY pure trig-substrate flips.
-    for (func, x_bits, order, expected) in [
+    #[rustfmt::skip]
+    let bessel_rows = [
         ("BESSELJ", 0x40a6_b6c5_914b_2a58u64, 0.0, 0xbf88_8973_07bb_fbc4u64),
         ("BESSELY", 0x40f4_e59f_3784_cab8u64, 0.0, 0xbf54_633f_05f3_7d2bu64),
-    ] {
+    ];
+    for (func, x_bits, order, expected) in bessel_rows {
         let got = number(call(func, vec![n(f64::from_bits(x_bits)), n(order)]));
         assert_eq!(
             got.to_bits(),
@@ -698,4 +706,8 @@ fn dc_j9k_87_cb16_unified_fptan_circular_substrate() {
             got.to_bits()
         );
     }
+    println!(
+        "Matched {} cb16 Excel rows",
+        unary_rows.len() + complex_rows.len() + bessel_rows.len()
+    );
 }
